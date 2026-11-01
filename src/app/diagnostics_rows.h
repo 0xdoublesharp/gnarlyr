@@ -1,6 +1,7 @@
 #pragma once
 
 const char *diagnostics_row_firmware(const void *context);
+const char *diagnostics_row_music(const void *context);
 const char *diagnostics_row_battery(const void *context);
 const char *diagnostics_row_jack_single_ended(const void *context);
 const char *diagnostics_row_jack_balanced(const void *context);

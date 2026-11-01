@@ -56,7 +56,7 @@ endforeach()
 
 echo_add_unit_test(NAME test_settings SOURCES settings/test_settings.c LIBRARIES echo_settings)
 
-foreach(library_test block_cache library library_browse favorites covers sort_key track_fields playlist_reader music_fingerprint)
+foreach(library_test block_cache library library_browse favorites covers sort_key track_fields playlist_reader cue_sheet music_fingerprint)
     echo_add_unit_test(NAME test_${library_test}
         SOURCES library/test_${library_test}.c
         LIBRARIES echo_library_fixtures
@@ -137,6 +137,11 @@ echo_add_unit_test(NAME test_player
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+echo_add_unit_test(NAME test_player_cue
+    SOURCES app/test_player_cue.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
 echo_add_unit_test(NAME test_spoken_word
     SOURCES app/test_spoken_word.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures
@@ -214,6 +219,11 @@ echo_add_unit_test(NAME test_emmc_layout
     SOURCES device/test_emmc_layout.c device/fake_disk.c
     LIBRARIES echo_device_logic
 )
+echo_add_unit_test(NAME test_storage_mount
+    SOURCES device/test_storage_mount.c device/sparse_card.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_storage_mount PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 echo_add_unit_test(NAME test_flac
     SOURCES codec/test_flac.c
     LIBRARIES echo_codec
@@ -256,6 +266,12 @@ echo_add_unit_test(NAME test_fat
 )
 target_compile_definitions(test_fat PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 set_tests_properties(test_fat PROPERTIES TIMEOUT 20)
+echo_add_unit_test(NAME test_fat_extents
+    SOURCES device/test_fat_extents.c device/sparse_card.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_fat_extents PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+set_tests_properties(test_fat_extents PROPERTIES TIMEOUT 20)
 set(ECHO_CREATED_CARDS ${CMAKE_CURRENT_BINARY_DIR}/created_cards)
 file(MAKE_DIRECTORY ${ECHO_CREATED_CARDS})
 echo_add_unit_test(NAME test_fat_create
@@ -267,6 +283,16 @@ target_compile_definitions(test_fat_create PRIVATE
     ECHO_CREATED_DIR="${ECHO_CREATED_CARDS}"
 )
 set_tests_properties(test_fat_create PROPERTIES TIMEOUT 30 FIXTURES_SETUP created_cards)
+echo_add_unit_test(NAME test_block_read SOURCES device/test_block_read.c LIBRARIES echo_device_logic)
+echo_add_unit_test(NAME test_fat_delete
+    SOURCES device/test_fat_delete.c device/sparse_card.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_fat_delete PRIVATE
+    ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+    ECHO_CREATED_DIR="${ECHO_CREATED_CARDS}"
+)
+set_tests_properties(test_fat_delete PROPERTIES TIMEOUT 30 FIXTURES_SETUP created_cards)
 
 if(ECHO_BUILD_SIM)
     echo_add_unit_test(NAME test_sim_options
@@ -319,6 +345,15 @@ if(ECHO_BUILD_SIM)
     add_test(NAME sim_headless_smoke
         COMMAND echo_sim --headless --frames 30 --screenshot ${CMAKE_BINARY_DIR}/sim_smoke.bmp
     )
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/fixtures/cue_music.db
+        ${CMAKE_BINARY_DIR}/sim_cue_system/library.db COPYONLY)
+    add_test(NAME sim_shows_a_cue_album_with_its_tracks
+        COMMAND echo_sim --headless --frames 400
+            --card ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/cue_music
+            --system-dir ${CMAKE_BINARY_DIR}/sim_cue_system
+            --keys play,down,down,down,play,down,play,play,down,play
+            --screenshot ${CMAKE_BINARY_DIR}/sim_cue_album.bmp
+    )
 endif()
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
@@ -328,7 +363,7 @@ find_program(FSCK_EXFAT fsck_exfat)
 if(FSCK_MSDOS AND FSCK_EXFAT)
     add_test(NAME created_cards_pass_fsck
         COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_card_images.py
-            ${ECHO_CREATED_CARDS} --expect 4
+            ${ECHO_CREATED_CARDS} --expect 7
     )
     set_tests_properties(created_cards_pass_fsck PROPERTIES
         FIXTURES_REQUIRED created_cards
@@ -413,7 +448,7 @@ if(ARM_GCC)
         set_tests_properties(echo_image_boots_in_emulator PROPERTIES
             FIXTURES_REQUIRED device_echo_image
             SKIP_RETURN_CODE 77
-            TIMEOUT 300
+            TIMEOUT 900
         )
     endif()
 else()
@@ -469,6 +504,15 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
             -DMUSIC=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/scan_music
             -DEXPECTED=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/scan_music.db
             -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/scan_music.db
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/check_library_index.cmake
+    )
+    add_test(NAME cue_music_up_to_date
+        COMMAND ${CMAKE_COMMAND}
+            -DPYTHON=${ECHO_TOOLS_PYTHON}
+            -DINDEXER=${PROJECT_SOURCE_DIR}/tools/library_index.py
+            -DMUSIC=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/cue_music
+            -DEXPECTED=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/cue_music.db
+            -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/cue_music.db
             -P ${CMAKE_CURRENT_SOURCE_DIR}/check_library_index.cmake
     )
     add_test(NAME builder_fixture_up_to_date

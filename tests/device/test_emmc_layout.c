@@ -172,6 +172,16 @@ static void writes_inside_the_user_volume_are_allowed(void)
     CHECK(!emmc_layout_allows_write(&layout, TOTAL_SECTORS - 1, 2));
 }
 
+static void the_volume_window_is_relative_to_the_volume_and_bounded(void)
+{
+    EmmcLayout layout = rechord_layout();
+    CHECK(emmc_layout_in_volume(&layout, 0, 8));
+    CHECK(emmc_layout_in_volume(&layout, layout.volume_sectors - 1, 1));
+    CHECK(!emmc_layout_in_volume(&layout, layout.volume_sectors - 1, 2));
+    CHECK(!emmc_layout_in_volume(&layout, layout.volume_sectors, 1));
+    CHECK(!emmc_layout_in_volume(&layout, 0xFFFFFFFFu, 2));
+}
+
 static void writes_inside_one_firmware_slot_are_allowed(void)
 {
     EmmcLayout layout = rechord_layout();
@@ -357,6 +367,7 @@ int main(void)
         TEST_CASE(no_volume_within_the_scan_limit_fails),
         TEST_CASE(a_volume_is_never_accepted_inside_the_firmware_area),
         TEST_CASE(writes_inside_the_user_volume_are_allowed),
+        TEST_CASE(the_volume_window_is_relative_to_the_volume_and_bounded),
         TEST_CASE(writes_inside_one_firmware_slot_are_allowed),
         TEST_CASE(writes_to_the_idb_the_save_block_or_the_gap_are_refused),
     };

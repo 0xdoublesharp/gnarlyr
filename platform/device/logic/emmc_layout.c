@@ -139,6 +139,11 @@ static bool inside(uint32_t start, uint32_t length, uint32_t lba, uint32_t count
     return lba >= start && lba - start < length && count <= length - (lba - start);
 }
 
+bool emmc_layout_in_volume(const EmmcLayout *layout, uint32_t lba, uint32_t count)
+{
+    return lba < layout->volume_sectors && count <= layout->volume_sectors - lba;
+}
+
 bool emmc_layout_allows_write(const EmmcLayout *layout, uint32_t lba, uint32_t count)
 {
     return count > 0 && (inside(layout->volume_start, layout->volume_sectors, lba, count) ||

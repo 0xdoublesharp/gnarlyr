@@ -3,6 +3,7 @@
 #include "app/app.h"
 #include "app_internal.h"
 #include "board_layout.h"
+#include "card_files.h"
 #include "check.h"
 #include "default_theme.h"
 #include "fake_hal.h"
@@ -75,9 +76,39 @@ static const char SHOOTS_PATH[] = "/acloudyskye/This Won't Be The Last Time/01 -
 
 static uint32_t now_ms;
 
+static void prefill_player_files(void)
+{
+    for (size_t index = 0; index < card_files_count(); index++) {
+        HalFile file;
+        if (!card_files_slow(index)) {
+            continue;
+        }
+        if (hal_file_open(&file, card_files_path(index))) {
+            hal_file_close(&file);
+        } else {
+            fake_hal_add_file(card_files_path(index), NULL, 4096);
+        }
+    }
+}
+
 static void start_app(void)
 {
     fake_hal_reset();
+    prefill_player_files();
+    now_ms = START_MS;
+    fake_hal_set_milliseconds(now_ms);
+    app_start();
+}
+
+static void start_app_with_database(const uint8_t *bytes, uint32_t size)
+{
+    uint32_t covers_size = 0;
+    const uint8_t *covers = fixture_covers_bytes(&covers_size);
+    fake_hal_reset();
+    fake_hal_add_file("/.echo/library.db", bytes, size);
+    fake_hal_add_file("/.echo/covers.bin", covers, covers_size);
+    fake_hal_add_file("/.echo/build.tmp", NULL, 16 * 1024 * 1024);
+    prefill_player_files();
     now_ms = START_MS;
     fake_hal_set_milliseconds(now_ms);
     app_start();
@@ -86,16 +117,15 @@ static void start_app(void)
 static void start_app_with_library(void)
 {
     uint32_t size = 0;
-    uint32_t covers_size = 0;
     const uint8_t *bytes = fixture_bytes(&size);
-    const uint8_t *covers = fixture_covers_bytes(&covers_size);
-    fake_hal_reset();
-    fake_hal_add_file("/.echo/library.db", bytes, size);
-    fake_hal_add_file("/.echo/covers.bin", covers, covers_size);
-    fake_hal_add_file("/.echo/build.tmp", NULL, 16 * 1024 * 1024);
-    now_ms = START_MS;
-    fake_hal_set_milliseconds(now_ms);
-    app_start();
+    start_app_with_database(bytes, size);
+}
+
+static void start_app_with_cue_library(void)
+{
+    static FixtureLibrary cue;
+    fixture_cue_library_open(&cue);
+    start_app_with_database(cue.bytes, cue.size);
 }
 
 static void step(void)
@@ -348,6 +378,28 @@ static void albums_open_from_the_library(void)
     tap(KEY_PLAY);
     CHECK(title_is("Back In Black"));
     CHECK_EQUAL(4, app_screen_depth());
+}
+
+static void a_cue_album_lists_its_cue_tracks_and_each_plays_its_own_part(void)
+{
+    start_app_with_cue_library();
+    open_music_entry(MUSIC_ALBUMS_INDEX);
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Cue Album"));
+    tap(KEY_PLAY);
+    CHECK_EQUAL(0, fake_hal_audio_play_start());
+    CHECK_EQUAL(1000, fake_hal_audio_play_end());
+    tap(KEY_BACK);
+    move_down(2);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(2493, fake_hal_audio_play_start());
+    CHECK_EQUAL(0, fake_hal_audio_play_end());
+    tap(KEY_BACK);
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(0, fake_hal_audio_play_start());
+    CHECK_EQUAL(1000, fake_hal_audio_play_end());
 }
 
 static void an_artist_leads_to_their_albums(void)
@@ -826,7 +878,7 @@ static void rescanning_without_a_card_says_so(void)
     open_setting(SETTINGS_RESCAN_INDEX);
     step();
     CHECK_EQUAL(0, fake_hal_scratch_borrow_count());
-    CHECK(toast_is("No music found on the card"));
+    CHECK(toast_is("No music found"));
 }
 
 static void a_rescan_of_an_empty_card_writes_an_empty_library(void)
@@ -850,6 +902,9 @@ static void start_on_a_fresh_card(HalReserveResult result)
     now_ms = START_MS;
     fake_hal_set_milliseconds(now_ms);
     app_start();
+    while (app_preparing()) {
+        step();
+    }
 }
 
 static void a_fresh_card_gets_the_player_files_and_a_first_scan(void)
@@ -869,6 +924,50 @@ static void a_fresh_card_gets_the_player_files_and_a_first_scan(void)
     step();
     CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
     CHECK(toast_is("Library: 0 tracks"));
+}
+
+static void start_on_a_fresh_card_without_stepping(void)
+{
+    fake_hal_reset();
+    fake_hal_set_empty_card(true);
+    fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
+    now_ms = START_MS;
+    fake_hal_set_milliseconds(now_ms);
+    app_start();
+}
+
+static void starting_makes_no_files_before_the_first_step(void)
+{
+    start_on_a_fresh_card_without_stepping();
+    CHECK_EQUAL(0, fake_hal_reserve_count());
+    CHECK(app_preparing());
+    CHECK(!fake_hal_display_on());
+}
+
+static void each_big_file_is_made_in_its_own_step_after_the_screen_is_lit(void)
+{
+    start_on_a_fresh_card_without_stepping();
+    step();
+    CHECK(fake_hal_display_on());
+    CHECK(app_preparing());
+    CHECK_EQUAL(1, fake_hal_reserve_count());
+    step();
+    CHECK_EQUAL(2, fake_hal_reserve_count());
+    step();
+    CHECK_EQUAL(3, fake_hal_reserve_count());
+    CHECK(app_preparing());
+    step();
+    CHECK_EQUAL(11, fake_hal_reserve_count());
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+}
+
+static void a_card_with_the_files_is_prepared_within_the_first_step(void)
+{
+    start_app();
+    CHECK(app_preparing());
+    step();
+    CHECK(!app_preparing());
+    CHECK(fake_hal_display_on());
 }
 
 static void a_card_that_has_the_files_is_not_rescanned(void)
@@ -958,7 +1057,7 @@ static void a_card_that_cannot_be_walked_is_rescanned_after_usb(void)
     fake_hal_set_empty_card(false);
     app_request_rescan_if_music_changed();
     step();
-    CHECK(toast_is("No music found on the card"));
+    CHECK(toast_is("No music found"));
 }
 
 static void a_full_card_says_it_is_full(void)
@@ -966,7 +1065,7 @@ static void a_full_card_says_it_is_full(void)
     start_on_a_fresh_card(HAL_RESERVE_NO_SPACE);
     step();
     CHECK_EQUAL(0, fake_hal_scratch_borrow_count());
-    CHECK(toast_is("The card is full"));
+    CHECK(toast_is("Storage is full"));
 }
 
 static void a_rescan_after_an_installed_update_asks_for_a_restart(void)
@@ -1828,6 +1927,7 @@ int main(void)
         TEST_CASE(the_frame_overlay_shows_zero_before_any_block),
         TEST_CASE(diagnostics_shows_the_firmware_version_from_the_hal),
         TEST_CASE(albums_open_from_the_library),
+        TEST_CASE(a_cue_album_lists_its_cue_tracks_and_each_plays_its_own_part),
         TEST_CASE(album_rows_show_a_chevron_and_track_rows_do_not),
         TEST_CASE(an_artist_leads_to_their_albums),
         TEST_CASE(back_returns_to_the_previous_list),
@@ -1899,6 +1999,9 @@ int main(void)
         TEST_CASE(each_way_a_scan_runs_out_has_its_own_message),
         TEST_CASE(the_music_check_after_an_installed_update_skips_the_walk),
         TEST_CASE(a_fresh_card_gets_the_player_files_and_a_first_scan),
+        TEST_CASE(starting_makes_no_files_before_the_first_step),
+        TEST_CASE(each_big_file_is_made_in_its_own_step_after_the_screen_is_lit),
+        TEST_CASE(a_card_with_the_files_is_prepared_within_the_first_step),
         TEST_CASE(a_card_that_has_the_files_is_not_rescanned),
         TEST_CASE(unchanged_music_is_not_rescanned_after_usb),
         TEST_CASE(a_different_stored_fingerprint_is_rescanned_after_usb),

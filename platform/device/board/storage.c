@@ -2,6 +2,8 @@
 
 #include "board.h"
 #include "device/fat.h"
+#include "device/storage_mount.h"
+#include "emmc.h"
 #include "hal/storage.h"
 #include "sd.h"
 #include "storage_reset.h"
@@ -11,17 +13,13 @@ enum {
     OPEN_DIR_CAPACITY = 16
 };
 
-typedef enum MountState {
-    MOUNT_NOT_TRIED,
-    MOUNT_READY,
-    MOUNT_FAILED
-} MountState;
-
 _Static_assert((int)HAL_NAME_CAPACITY == (int)FAT_NAME_CAPACITY, "listed names fit the HAL entry");
 
-static MountState mount_state;
+static bool mount_tried;
+static StorageKind mounted_kind;
 static FatVolume volume;
 static FatFile files[OPEN_FILE_CAPACITY];
+static FatExtents extents[OPEN_FILE_CAPACITY];
 static bool in_use[OPEN_FILE_CAPACITY];
 static FatDirCursor dirs[OPEN_DIR_CAPACITY];
 static bool dir_in_use[OPEN_DIR_CAPACITY];
@@ -29,12 +27,19 @@ static FatDirEntry listed;
 
 static bool mounted(void)
 {
-    if (mount_state == MOUNT_NOT_TRIED) {
-        BlockDevice device;
-        bool ready = sd_start(&device) && fat_mount(&volume, device);
-        mount_state = ready ? MOUNT_READY : MOUNT_FAILED;
+    if (!mount_tried) {
+        mount_tried = true;
+        mounted_kind = storage_mount(&volume, sd_start, emmc_volume_start);
     }
-    return mount_state == MOUNT_READY;
+    return mounted_kind != STORAGE_NONE;
+}
+
+HalVolume hal_file_volume(void)
+{
+    if (!mounted()) {
+        return HAL_VOLUME_NONE;
+    }
+    return mounted_kind == STORAGE_CARD ? HAL_VOLUME_CARD : HAL_VOLUME_INTERNAL;
 }
 
 static int free_slot(void)
@@ -62,6 +67,7 @@ bool hal_file_open(HalFile *file, const char *path)
     if (slot < 0 || !mounted() || !fat_open(&volume, path, &files[slot])) {
         return false;
     }
+    fat_attach_extents(&files[slot], &extents[slot]);
     in_use[slot] = true;
     *file = (HalFile){.handle = slot, .size = files[slot].size};
     return true;
@@ -144,7 +150,7 @@ HalReserveResult hal_file_reserve(const char *path, uint32_t size)
 
 void storage_reset(void)
 {
-    mount_state = MOUNT_NOT_TRIED;
+    mount_tried = false;
     for (int slot = 0; slot < OPEN_FILE_CAPACITY; slot++) {
         in_use[slot] = false;
     }

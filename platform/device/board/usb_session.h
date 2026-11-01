@@ -23,4 +23,4 @@ bool usb_session_host_seen(void);
 void usb_session_stop_listening(void);
 UsbSessionEnd usb_session_run(void);
 const UsbReport *usb_session_report(void);
-bool usb_session_card_changed(void);
+bool usb_session_storage_changed(void);

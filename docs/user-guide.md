@@ -36,17 +36,34 @@ If "Updating" flashes for under a second and FiiO's firmware comes back, the ins
 
 ## Your music
 
-- Put music on a microSD card formatted FAT32 or exFAT, in any folder layout.
+- Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Diagnostics → Music shows which one is in use.
 - EchoPod plays FLAC, MP3 and WAV, up to 192 kHz. It lists the other formats FiiO lists, and says when it can't play one.
-- Album covers come from art inside each album's first track, or from a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks.
+- A `.cue` file next to a single FLAC, WAV or MP3 album image splits it into one track per CUE track (see "CUE sheets" below). Album covers come from art inside each album's first track, or from a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks.
 - `.m3u` and `.m3u8` playlists anywhere on the card appear under Music → Playlists.
 - Libraries of many thousands of tracks work; `docs/known-issues.md` lists the sizes tested so far.
 - EchoPod keeps its own files in a hidden `/.echo` folder on the card, about 110 MB of them. Don't delete it unless you want the library rebuilt.
 
+## CUE sheets
+
+An album ripped as one big FLAC, WAV or MP3 with a `.cue` file shows up as a normal album with one track per CUE track:
+
+```
+Depeche Mode/Violator/
+  Violator.flac           the whole album in one file
+  Violator.cue            hidden as a track, its tracks take its place
+```
+
+- The sheet must name one file. EchoPod looks for that name in the sheet's folder (capitals don't matter), and when there is none, for an audio file with the same name as the sheet (`Violator.cue` and `Violator.flac`), which is what many rips need. Sheets that name an APE, M4A or another format the player can't play, sheets that list several files (one per track) and sheets whose file is missing are ignored; their audio files list as before.
+- Track titles come from `TITLE`, artists from `PERFORMER` (the track's, otherwise the one at the top of the sheet, which is also the album artist), the album from the top `TITLE`, the genre from `REM GENRE` and the year from `REM DATE`. What the sheet doesn't say comes from the audio file's tags, then from its folder name. A track without a title is called "Track 3".
+- A track starts at its `INDEX 01` and ends where the next one starts, so silence marked `INDEX 00` before a track belongs to the track before it. Tracks play without a gap.
+- The sheet is read as UTF-8 (a byte order mark is fine) or, when it isn't valid UTF-8, as Windows-1252.
+- Time, progress, seeking, resume, Up Next, shuffle, favorites and bookmarks all work on the CUE track, not on the whole file. Covers come from the audio file's art or a `cover.jpg` next to it, as for other albums.
+- Rescan the library (Settings → Rescan library) or run echo-sync again after adding or changing a sheet.
+
 ## Copying music over USB
 
 1. Connect the player. Two drives appear: internal storage and the SD card.
-2. Copy music to the SD card.
+2. Copy music to the SD card, or to internal storage when no card is in the player.
 3. **Eject both drives before you unplug.** If you unplug first, recent changes may be lost, and the player warns you.
 4. When music changed, the player rebuilds its library by itself. Copying other files doesn't trigger a rebuild. Settings → Rescan library rebuilds it on demand.
 

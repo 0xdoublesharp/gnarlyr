@@ -1,5 +1,35 @@
 # EchoPod release notes
 
+## Podium 4.5.3
+
+### Fixed
+
+- **CUE tracks start quickly.** Starting any track but the first of a large album image (hundreds of megabytes, one FLAC with a CUE sheet) took seconds, and the player stayed sluggish afterwards. Reading deep into a big file on internal storage walked the file's whole cluster chain again and again; each open file now keeps a map of where its data lies, so jumping anywhere in it costs one lookup.
+- **Smoother UI while switching tracks.** Skipping between the tracks of an album image no longer freezes the screen, no longer makes music stutter when going back to a list, and no longer ends in the "STALL" screen.
+- **The start of a CUE track is not faded in slowly.** The fade-in at the start of a track no longer stretches to a second or more while the player is busy reading.
+
+## Podium 4.5.2
+
+### New
+
+- **CUE sheets.** A `.cue` file next to an album's single FLAC, WAV or MP3 image now makes one track per CUE track, with its title, artist, album, number, genre and year from the sheet. The image itself no longer shows up as one long track. Tracks play through without a gap, and the progress bar, seeking, resume after power-off, Up Next, shuffle and bookmarks all work per track. Rescan the library (Settings → Rescan library) or run echo-sync again to see it. The library format changed (version 4), so the first start after updating rebuilds the library.
+
+### Fixed
+
+- **The player starts on large internal storage.** 4.5.1 created its files before lighting the screen, scanning the whole FAT one sector at a time, so a large internal volume left the screen black and USB silent for a minute or more. The files are now made after the screen shows "Preparing storage", the scan starts where the last file ended and internal storage is read several sectors per command.
+- **An update file is removed after it is used.** `ECHOVnnn.IMG` is deleted after a successful install, when it is not a valid image, and when it is already installed, so a restored older build is not overwritten again on the next USB eject. A failed install leaves the file for another try.
+
+## Podium 4.5.1
+
+### New
+
+- **Music on internal storage.** With no card in the player, or one it can't read, the player uses its internal storage for music. Diagnostics → Music shows which one is in use.
+- **Echo brightness** goes from 20 % to 100 %.
+
+### Fixed
+
+- **Echo screen timing** follows the clock speed, so the display stays steady when the player changes speed.
+
 ## 0.6.0
 
 ### New

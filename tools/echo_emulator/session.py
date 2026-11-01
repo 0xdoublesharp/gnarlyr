@@ -2,8 +2,8 @@ import struct
 
 import make_image
 
-from .emmc import synthetic_emmc
-from .fat_volume import Fat32Volume
+from .emmc import EmmcCard, synthetic_emmc
+from .fat_volume import Fat32Volume, short_name
 from .machine import Machine
 
 LOADER_REQUEST_NAME = "MASKROM.REQ"
@@ -49,12 +49,19 @@ def with_brand(image, brand):
 
 
 class Session:
-    def __init__(self, image, elf_path, files=(), vbus_after_first_frame=False):
+    def __init__(self, image, elf_path, files=(), vbus_after_first_frame=False, volume=None,
+                 vbus_at_start=False, reuse=None):
         self.image = image
-        volume = Fat32Volume()
-        for name, data, size in files:
-            volume.add_file(name, data, size)
-        card, self.layout = synthetic_emmc(Clock(), self.image, volume)
+        self.elf_path = elf_path
+        if reuse is not None:
+            volume = reuse.volume
+            card, self.layout = EmmcCard(reuse.disk, Clock()), reuse.layout
+        else:
+            if volume is None:
+                volume = Fat32Volume()
+                for name, data, size in files:
+                    volume.add_file(name, data, size)
+            card, self.layout = synthetic_emmc(Clock(), self.image, volume)
         self.card = card
         self.disk = card.disk
         self.machine = Machine(self.image, elf_path, card)
@@ -62,6 +69,31 @@ class Session:
         self.volume = volume
         self.before = self.disk.snapshot()
         self.vbus_after_first_frame = vbus_after_first_frame
+        self.machine.vbus = vbus_at_start
+
+    def reboot(self, image=None, vbus_after_first_frame=False):
+        return Session(image or self.image, self.elf_path, reuse=self,
+                       vbus_after_first_frame=vbus_after_first_frame)
+
+    def write_slots(self, image):
+        self.disk.write(self.layout["slot_1"], image)
+        self.disk.write(self.layout["slot_2"], image)
+
+    def root_entry_start(self, name):
+        raw = short_name(name)
+        cluster = self.layout["volume_start"] + self.volume.cluster_lba(2)
+        data = self.disk.read(cluster, self.volume.sectors_per_cluster)
+        for offset in range(0, len(data), 32):
+            if data[offset:offset + 11] == raw:
+                return data[offset:offset + 32]
+        return None
+
+    def file_exists(self, name):
+        return self.root_entry_start(name) is not None
+
+    def fat_entry(self, cluster):
+        lba = self.layout["volume_start"] + 32 + cluster // 128
+        return struct.unpack_from("<I", self.disk.read(lba, 1), cluster % 128 * 4)[0] & 0x0FFFFFFF
 
     @property
     def panel(self):
@@ -88,7 +120,7 @@ class Session:
 
     def run_through_update_check(self, limit_ms=FRAME_LIMIT_MS):
         self.machine.answer_waits_for_key(1)
-        self.machine.stop_at("usb_session_card_changed")
+        self.machine.stop_at("usb_session_storage_changed")
         return self.machine.run(until_ms=limit_ms)
 
     def written_ranges(self):

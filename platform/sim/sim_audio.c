@@ -23,6 +23,7 @@ static const float DECIBELS_PER_FACTOR_OF_TEN = 20.0f;
 typedef struct SimTrack {
     SimDecoder decoder;
     uint32_t token;
+    uint64_t end_frame;
     bool open;
 } SimTrack;
 
@@ -75,13 +76,23 @@ static void close_track(SimTrack *track)
     }
 }
 
-static bool open_track(SimTrack *track, const char *path, uint32_t token)
+static uint64_t frames_for(uint32_t milliseconds, uint32_t rate)
+{
+    return (uint64_t)milliseconds * rate / MILLISECONDS_PER_SECOND;
+}
+
+static bool open_track(SimTrack *track, const HalAudioTrack *request, uint32_t offset_ms)
 {
     char host_path[HOST_PATH_CAPACITY];
     close_track(track);
-    track->token = token;
-    track->open = sim_storage_host_path(path, host_path, sizeof host_path) &&
+    track->token = request->token;
+    track->open = sim_storage_host_path(request->path, host_path, sizeof host_path) &&
                   sim_decoder_open(&track->decoder, host_path);
+    if (track->open) {
+        uint32_t rate = track->decoder.sample_rate;
+        sim_decoder_seek(&track->decoder, frames_for(request->start_ms + offset_ms, rate));
+        track->end_frame = frames_for(request->end_ms, rate);
+    }
     return track->open;
 }
 
@@ -122,7 +133,13 @@ static bool decode_chunk(void)
     if (!track->open) {
         return false;
     }
-    uint64_t frames = sim_decoder_read_stereo(&track->decoder, chunk, CHUNK_FRAMES);
+    uint64_t wanted = CHUNK_FRAMES;
+    if (track->end_frame != 0) {
+        uint64_t left =
+            track->end_frame > track->decoder.frame ? track->end_frame - track->decoder.frame : 0;
+        wanted = left < wanted ? left : wanted;
+    }
+    uint64_t frames = wanted == 0 ? 0 : sim_decoder_read_stereo(&track->decoder, chunk, wanted);
     if (frames == 0) {
         return switch_to_next();
     }
@@ -153,11 +170,6 @@ static void fill_audio(void *userdata, Uint8 *output, int length)
         filled += got;
     }
     SDL_memset(output + filled, 0, (size_t)(length - filled));
-}
-
-static uint64_t frames_for(uint32_t milliseconds, uint32_t rate)
-{
-    return (uint64_t)milliseconds * rate / MILLISECONDS_PER_SECOND;
 }
 
 static bool open_device(void)
@@ -203,7 +215,8 @@ void sim_audio_tick(uint32_t elapsed_ms)
         return;
     }
     track->decoder.frame += frames_for(elapsed_ms, track->decoder.sample_rate);
-    if (track->decoder.frame >= track->decoder.total_frames) {
+    bool past_end = track->end_frame != 0 && track->decoder.frame >= track->end_frame;
+    if (past_end || track->decoder.frame >= track->decoder.total_frames) {
         switch_to_next();
     }
 }
@@ -222,15 +235,13 @@ void sim_audio_stop(void)
     close_track(&audio.slots[1]);
 }
 
-bool hal_audio_play(const char *path, uint32_t start_ms, uint32_t token)
+bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
 {
     lock();
     close_track(next_track());
-    bool opened = open_track(current_track(), path, token);
+    bool opened = open_track(current_track(), track, offset_ms);
     if (opened) {
-        SimDecoder *decoder = &current_track()->decoder;
-        sim_decoder_seek(decoder, frames_for(start_ms, decoder->sample_rate));
-        use_stream_rate(decoder->sample_rate);
+        use_stream_rate(current_track()->decoder.sample_rate);
         clear_stream();
     }
     audio.state = opened ? HAL_AUDIO_PLAYING : HAL_AUDIO_STOPPED;
@@ -239,12 +250,12 @@ bool hal_audio_play(const char *path, uint32_t start_ms, uint32_t token)
     return opened;
 }
 
-void hal_audio_queue_next(const char *path, uint32_t token)
+void hal_audio_queue_next(const HalAudioTrack *track)
 {
     lock();
     close_track(next_track());
-    if (path != NULL) {
-        open_track(next_track(), path, token);
+    if (track != NULL) {
+        open_track(next_track(), track, 0);
     }
     unlock();
 }

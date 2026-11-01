@@ -69,10 +69,18 @@ typedef struct AudioRefusal {
     uint32_t sample_rate;
 } AudioRefusal;
 
+typedef struct AudioEngineTrack {
+    const char *path;
+    uint32_t start_ms;
+    uint32_t end_ms;
+    uint32_t token;
+} AudioEngineTrack;
+
 typedef struct AudioSegment {
     uint32_t token;
     uint32_t start;
     uint32_t base_ms;
+    uint32_t end_ms;
     uint32_t rate;
     AudioTrackInfo track;
     char path[AUDIO_ENGINE_PATH_CAPACITY];
@@ -107,12 +115,16 @@ typedef struct AudioEngine {
     uint32_t pending_frames;
     uint32_t pending_offset;
     uint32_t skip_frames;
+    uint32_t decode_end_ms;
+    uint32_t decode_limit;
     bool ended;
     uint32_t end_at;
     bool rate_pending;
     uint32_t output_rate;
     bool has_next;
     uint32_t next_token;
+    uint32_t next_start_ms;
+    uint32_t next_end_ms;
     char next_path[AUDIO_ENGINE_PATH_CAPACITY];
     uint32_t gain;
     AudioEngineStats stats;
@@ -121,9 +133,9 @@ typedef struct AudioEngine {
 
 void audio_engine_init(AudioEngine *engine, AudioEngineConfig config);
 void audio_engine_set_volume(AudioEngine *engine, uint8_t level);
-bool audio_engine_play(AudioEngine *engine, const char *path, uint32_t start_ms, uint32_t token);
+bool audio_engine_play(AudioEngine *engine, const AudioEngineTrack *track, uint32_t offset_ms);
 const char *audio_engine_current_path(const AudioEngine *engine);
-void audio_engine_queue_next(AudioEngine *engine, const char *path, uint32_t token);
+void audio_engine_queue_next(AudioEngine *engine, const AudioEngineTrack *track);
 bool audio_engine_seek(AudioEngine *engine, uint32_t position_ms);
 void audio_engine_pause(AudioEngine *engine);
 void audio_engine_resume(AudioEngine *engine);

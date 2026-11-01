@@ -275,7 +275,7 @@ static const char *error_text(ScanResult result)
     case SCAN_OK:
         return "";
     case SCAN_NO_MUSIC_ROOT:
-        return "No music found on the card";
+        return "No music found";
     case SCAN_OUT_OF_MEMORY:
         return "Library too big for the player's memory";
     case SCAN_TOO_MANY:
@@ -289,7 +289,7 @@ static const char *error_text(ScanResult result)
     case SCAN_WRITE_FAILED:
         return "Could not write the library";
     case SCAN_NO_ROOM:
-        return "No room for the library on the card";
+        return "No room for the library";
     case SCAN_NO_CODE:
         return "Rescan code missing: reinstall the update";
     case SCAN_RESTART_NEEDED:

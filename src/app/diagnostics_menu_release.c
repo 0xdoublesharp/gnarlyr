@@ -5,7 +5,7 @@
 #include "diagnostics_rows.h"
 
 enum {
-    RELEASE_DIAGNOSTICS_COUNT = 9
+    RELEASE_DIAGNOSTICS_COUNT = 10
 };
 
 static MenuItem value_item(const char *label, const char *(*value)(const void *context))
@@ -26,6 +26,7 @@ void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Them
     items[6] = value_item("Last USB", diagnostics_row_usb_last);
     items[7] = value_item("Jack 3.5", diagnostics_row_jack_single_ended);
     items[8] = value_item("Jack 4.4", diagnostics_row_jack_balanced);
+    items[9] = value_item("Music", diagnostics_row_music);
     app_screens_build_menu(&screens->diagnostics, "Diagnostics", items, RELEASE_DIAGNOSTICS_COUNT,
                            theme);
 }

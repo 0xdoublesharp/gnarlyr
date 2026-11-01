@@ -228,7 +228,8 @@ const UsbReport *usb_session_report(void)
     return &report;
 }
 
-bool usb_session_card_changed(void)
+bool usb_session_storage_changed(void)
 {
-    return msc_stats(&msc).lun_sectors_written[CARD_LUN] > 0;
+    MscStats stats = msc_stats(&msc);
+    return stats.lun_sectors_written[INTERNAL_LUN] > 0 || stats.lun_sectors_written[CARD_LUN] > 0;
 }

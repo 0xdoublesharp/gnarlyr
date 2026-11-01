@@ -406,6 +406,8 @@ void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Them
         (MenuItem){.label = "USB RX TX", .select = NULL, .context = NULL, .value = usb_fifo_value};
     screens->diagnostics_items[31] = (MenuItem){
         .label = "Last USB", .select = NULL, .context = NULL, .value = diagnostics_row_usb_last};
+    screens->diagnostics_items[32] = (MenuItem){
+        .label = "Music", .select = NULL, .context = NULL, .value = diagnostics_row_music};
     app_screens_build_menu(&screens->diagnostics, "Diagnostics", screens->diagnostics_items,
                            DIAGNOSTICS_ITEM_COUNT, theme);
 }

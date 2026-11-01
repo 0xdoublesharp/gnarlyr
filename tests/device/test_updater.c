@@ -510,6 +510,16 @@ static void a_half_installed_image_is_installed_again(void)
     CHECK_EQUAL(UPDATE_VALID, updater_check(&update, &storage_target));
 }
 
+static void an_update_file_is_removed_unless_its_install_failed(void)
+{
+    CHECK(updater_should_remove_file(UPDATE_VALID, true));
+    CHECK(updater_should_remove_file(UPDATE_STOCK, true));
+    CHECK(!updater_should_remove_file(UPDATE_VALID, false));
+    CHECK(!updater_should_remove_file(UPDATE_STOCK, false));
+    CHECK(updater_should_remove_file(UPDATE_ALREADY_INSTALLED, false));
+    CHECK(updater_should_remove_file(UPDATE_INVALID, false));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -533,6 +543,7 @@ int main(void)
         TEST_CASE(damaged_or_other_model_stock_images_are_invalid),
         TEST_CASE(a_stock_image_needs_a_slot_it_fits),
         TEST_CASE(installing_a_stock_image_fills_both_slots_slot_2_first),
+        TEST_CASE(an_update_file_is_removed_unless_its_install_failed),
     };
     int result = test_run_all(cases, TEST_CASE_COUNT(cases));
     free(storage.sectors);

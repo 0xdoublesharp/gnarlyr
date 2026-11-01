@@ -61,7 +61,7 @@ static void a_wrong_magic_is_rejected(void)
 
 static void a_newer_version_is_rejected(void)
 {
-    CHECK_EQUAL(LIBRARY_BAD_VERSION, open_modified(VERSION_OFFSET, 4, fixture_size()));
+    CHECK_EQUAL(LIBRARY_BAD_VERSION, open_modified(VERSION_OFFSET, 5, fixture_size()));
     CHECK_EQUAL(LIBRARY_BAD_VERSION, open_modified(VERSION_OFFSET, 2, fixture_size()));
 }
 
@@ -98,6 +98,8 @@ static void tracks_decode_every_field(void)
     CHECK_EQUAL(60000, track.duration_ms);
     CHECK_EQUAL(1, track.disc);
     CHECK_EQUAL(1, track.number);
+    CHECK_EQUAL(0, track.start_ms);
+    CHECK_EQUAL(0, track.end_ms);
 }
 
 static void albums_decode_every_field(void)

@@ -63,6 +63,11 @@ static void report(void *context, uint32_t done, uint32_t total)
     }
 }
 
+static void remove_update_file(void)
+{
+    fat_delete(&volume, update_path);
+}
+
 static bool open_highest_numbered(void)
 {
     for (uint32_t index = 0; index < update_name_count(UPDATE_BOARD); index++) {
@@ -118,18 +123,33 @@ void update_check_loader_request(void)
 }
 #endif
 
-static void install(const UpdateFile *update, const UpdateStorage *storage, bool stock)
+static void install(const UpdateFile *update, const UpdateStorage *storage, UpdateCheck check)
 {
+    bool stock = check == UPDATE_STOCK;
     install_title = stock ? "Installing FiiO firmware" : "Installing update";
     last_percent = 0;
     show_percent(0);
     flash_rewritten = true;
-    if (updater_install(update, storage, (UpdateProgress){report, NULL})) {
+    bool installed = updater_install(update, storage, (UpdateProgress){report, NULL});
+    if (updater_should_remove_file(check, installed)) {
+        remove_update_file();
+    }
+    if (installed) {
         app_show_notice(stock ? "FiiO firmware installed" : "Update installed",
                         "Unplug USB, then hold Power to turn off and on again.");
     } else {
         app_show_notice("Update failed", "Copy the file again and retry before turning off.");
     }
+    board_wait_for_key();
+}
+
+static void show_refused(const char *name)
+{
+    char text[MESSAGE_CAPACITY];
+    StringBuilder builder = string_builder_make(text, sizeof text);
+    string_builder_append(&builder, name);
+    string_builder_append(&builder, " isn't a valid image for this player.");
+    app_show_notice("Update not installed", text);
     board_wait_for_key();
 }
 
@@ -148,12 +168,13 @@ void update_after_usb(void)
     app_show_notice("Update", text);
     UpdateCheck check = updater_check(&update, &storage);
     if (check == UPDATE_VALID || check == UPDATE_STOCK) {
-        install(&update, &storage, check == UPDATE_STOCK);
-    } else if (check == UPDATE_INVALID) {
-        builder = string_builder_make(text, sizeof text);
-        string_builder_append(&builder, name);
-        string_builder_append(&builder, " isn't a valid image for this player.");
-        app_show_notice("Update not installed", text);
-        board_wait_for_key();
+        install(&update, &storage, check);
+        return;
+    }
+    if (updater_should_remove_file(check, false)) {
+        remove_update_file();
+    }
+    if (check == UPDATE_INVALID) {
+        show_refused(name);
     }
 }

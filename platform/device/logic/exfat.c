@@ -134,8 +134,20 @@ static bool read_set(FatVolume *volume, FatFile *directory, uint32_t index, Entr
            read_stream(volume, directory, index + 1, set);
 }
 
+static void note_location(FatEntryLocation *where, uint32_t index, const EntrySet *set)
+{
+    if (where != NULL) {
+        *where = (FatEntryLocation){.index = index,
+                                    .count = 1u + set->secondaries,
+                                    .first_cluster = set->first_cluster,
+                                    .length = set->data_low,
+                                    .directory = set->directory,
+                                    .contiguous = set->contiguous};
+    }
+}
+
 bool exfat_find_entry(FatVolume *volume, FatFile *directory, const char *name, size_t length,
-                      FatFile *found)
+                      FatFile *found, FatEntryLocation *where)
 {
     uint32_t index = 0;
     while (index < MAXIMUM_DIRECTORY_ENTRIES) {
@@ -150,6 +162,7 @@ bool exfat_find_entry(FatVolume *volume, FatFile *directory, const char *name, s
         }
         read_names(volume, directory, index + 1, &set);
         if (fat_name_matches(volume->long_name, set.name_length, name, length)) {
+            note_location(where, index, &set);
             return file_from_set(&set, found);
         }
         index += 1u + set.secondaries;

@@ -26,3 +26,6 @@ FatReserveResult fat_create_entry(FatVolume *volume, FatFile *parent, const FatN
                                   FatFile *created);
 FatReserveResult exfat_create_entry(FatVolume *volume, FatFile *parent, const FatNewEntry *entry,
                                     FatFile *created);
+bool exfat_find_bitmap(FatVolume *volume, FatFile *bitmap);
+bool exfat_mark_clusters(FatVolume *volume, FatFile *bitmap, uint32_t first, uint32_t count,
+                         bool allocated);

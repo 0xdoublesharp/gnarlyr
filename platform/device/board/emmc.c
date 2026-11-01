@@ -4,6 +4,7 @@
 
 #include "board.h"
 #include "cru.h"
+#include "device/block_read.h"
 #include "device/card_write.h"
 #include "mmc.h"
 #include "registers.h"
@@ -152,18 +153,22 @@ static bool select_and_widen(void)
     return true;
 }
 
-bool emmc_read(void *context, uint32_t lba, uint32_t count, void *buffer)
+static bool read_single_block(void *context, uint32_t lba, uint32_t *words)
 {
     (void)context;
-    uint32_t *words = buffer;
-    for (uint32_t index = 0; index < count; index++) {
-        if (!started || lba >= emmc.sector_count || index >= emmc.sector_count - lba ||
-            !mmc_read_block(&EMMC_HOST, CMD_READ_SINGLE_BLOCK, lba + index,
-                            words + index * (BLOCK_LENGTH / 4))) {
-            return false;
-        }
-    }
-    return true;
+    return mmc_read_block(&EMMC_HOST, CMD_READ_SINGLE_BLOCK, lba, words);
+}
+
+static bool read_multiple_blocks(void *context, uint32_t lba, uint32_t count, uint32_t *words)
+{
+    (void)context;
+    return mmc_read_blocks(&EMMC_HOST, lba, count, RCA_ARGUMENT, words);
+}
+
+bool emmc_read(void *context, uint32_t lba, uint32_t count, void *buffer)
+{
+    BlockReader reader = {read_single_block, read_multiple_blocks, context, emmc.sector_count};
+    return started && block_read(&reader, lba, count, buffer);
 }
 
 static bool write_data(void *context, uint8_t command, uint32_t address, uint32_t count,
@@ -210,20 +215,15 @@ BlockDevice emmc_device(void)
     return (BlockDevice){emmc_read, NULL, NULL};
 }
 
-static bool inside_volume(uint32_t lba, uint32_t count)
-{
-    return lba < emmc.layout.volume_sectors && count <= emmc.layout.volume_sectors - lba;
-}
-
 bool emmc_volume_read(void *context, uint32_t lba, uint32_t count, void *buffer)
 {
-    return inside_volume(lba, count) &&
+    return emmc_layout_in_volume(&emmc.layout, lba, count) &&
            emmc_read(context, emmc.layout.volume_start + lba, count, buffer);
 }
 
 bool emmc_volume_write(void *context, uint32_t lba, uint32_t count, const void *buffer)
 {
-    return inside_volume(lba, count) &&
+    return emmc_layout_in_volume(&emmc.layout, lba, count) &&
            emmc_write(context, emmc.layout.volume_start + lba, count, buffer);
 }
 
@@ -238,4 +238,11 @@ bool emmc_start(EmmcInfo *info)
     }
     *info = emmc;
     return started;
+}
+
+bool emmc_volume_start(BlockDevice *device)
+{
+    EmmcInfo info;
+    *device = (BlockDevice){emmc_volume_read, NULL, emmc_volume_write};
+    return emmc_start(&info);
 }

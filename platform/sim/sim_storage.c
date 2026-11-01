@@ -165,6 +165,11 @@ bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes, uin
     return fclose(handle) == 0 && written;
 }
 
+HalVolume hal_file_volume(void)
+{
+    return HAL_VOLUME_CARD;
+}
+
 HalReserveResult hal_file_reserve(const char *path, uint32_t size)
 {
     char resolved[PATH_CAPACITY];

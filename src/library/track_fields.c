@@ -196,4 +196,6 @@ void track_fields_from_tags(const char *path, const TrackTags *tags, TrackFields
     track->disc = capped(disc != 0 ? disc : prefix.disc != 0 ? prefix.disc : 1);
     track->number = capped(number != 0 ? number : prefix.number);
     track->duration_ms = tags->duration_ms;
+    track->start_ms = 0;
+    track->end_ms = 0;
 }

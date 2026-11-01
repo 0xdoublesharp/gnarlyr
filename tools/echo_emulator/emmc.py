@@ -21,6 +21,14 @@ EXT_CSD_SECTOR_COUNT = 212
 READY_TRANSFER_STATUS = 0x900
 OCR_READY_SECTOR_MODE = 0xC0FF8080
 
+READ_COMMAND_US = 250
+READ_EXTRA_BLOCK_US = 25
+WRITE_COMMAND_US = 900
+WRITE_BLOCK_US = 70
+STATUS_COMMAND_US = 15
+POLL_JUMP_CYCLES = 240
+STATUS_CARD_BUSY = 1 << 9
+
 CTRL_RESET_BITS = 0x7
 CTRL_FIFO_RESET = 0x2
 FIFOTH_RESET_VALUE = 0x000F0000
@@ -30,9 +38,29 @@ class SparseDisk:
     def __init__(self, sector_count):
         self.sector_count = sector_count
         self.sectors = {}
+        self.sources = []
+
+    def add_source(self, first_lba, size, source):
+        self.sources.append((first_lba, (size + SECTOR - 1) // SECTOR, source))
+
+    def generated(self, lba):
+        for first, count, source in self.sources:
+            if first <= lba < first + count:
+                return first, source
+        return None
+
+    def read_sector(self, lba):
+        stored = self.sectors.get(lba)
+        if stored is not None:
+            return stored
+        found = self.generated(lba)
+        if found is None:
+            return bytes(SECTOR)
+        first, source = found
+        return source.read((lba - first) * SECTOR, SECTOR)
 
     def read(self, lba, count):
-        return b"".join(self.sectors.get(lba + index, bytes(SECTOR)) for index in range(count))
+        return b"".join(self.read_sector(lba + index) for index in range(count))
 
     def write(self, lba, data):
         for index in range(len(data) // SECTOR):
@@ -52,6 +80,7 @@ class EmmcCard:
         self.machine = machine
         self.writes = []
         self.reads = []
+        self.read_log = []
         self.accesses = []
         self.commands = []
         self.pending_write = None
@@ -78,6 +107,7 @@ class EmmcCard:
         if index == 8:
             return self.ext_csd()
         self.reads.append((self.machine.cycles(), argument, count))
+        self.read_log.append((self.machine.milliseconds(), argument, count))
         self.accesses.append(("R", argument, count))
         return self.disk.read(argument, count)
 
@@ -96,20 +126,31 @@ class DwMmc(RegisterFile):
         self.read_queue = deque()
         self.write_words = []
         self.write_target = None
+        self.busy_until = 0
         self.regs[MMC_FIFOTH] = FIFOTH_RESET_VALUE
+
+    def busy(self):
+        remaining = self.busy_until - self.machine.cycles()
+        if remaining > 0:
+            self.machine.poll_jump(min(remaining, POLL_JUMP_CYCLES))
+        return self.busy_until > self.machine.cycles()
 
     def read(self, offset, size):
         if offset == MMC_FIFO:
-            return self.read_queue.popleft() if self.read_queue else 0
+            return self.read_queue.popleft() if self.read_queue and not self.busy() else 0
         return super().read(offset, size)
 
     def read_word(self, offset):
         if offset == MMC_FIFO:
-            return self.read_queue.popleft() if self.read_queue else 0
+            return self.read_queue.popleft() if self.read_queue and not self.busy() else 0
         if offset == MMC_STATUS:
-            count = len(self.read_queue)
+            waiting = self.busy()
+            count = 0 if waiting else len(self.read_queue)
             empty = STATUS_FIFO_EMPTY if count == 0 else 0
-            return empty | (count << STATUS_FIFO_COUNT_SHIFT)
+            return empty | (count << STATUS_FIFO_COUNT_SHIFT) | (STATUS_CARD_BUSY if waiting and not self.read_queue else 0)
+        if offset == MMC_RINTSTS:
+            value = super().read_word(offset)
+            return value & ~INT_DATA_OVER if self.busy() else value
         return super().read_word(offset)
 
     def write_word(self, offset, value):
@@ -141,11 +182,22 @@ class DwMmc(RegisterFile):
             self.raise_status(INT_COMMAND_DONE | INT_RESPONSE_TIMEOUT)
             return
         response = self.card.command(index, argument)
+        self.busy_until = self.machine.cycles() + self.latency_cycles(index, value)
         for position in range(4):
             self.regs[MMC_RESP0 + 4 * position] = response[position] if position < len(response) else 0
         self.raise_status(INT_COMMAND_DONE)
         if value & CMD_DATA:
             self.start_data(index, argument, value)
+
+    def latency_cycles(self, index, value):
+        count = max(1, self.regs.get(MMC_BYTCNT, SECTOR) // SECTOR)
+        if value & CMD_DATA and value & CMD_WRITE:
+            microseconds = WRITE_COMMAND_US + WRITE_BLOCK_US * count
+        elif value & CMD_DATA:
+            microseconds = READ_COMMAND_US + READ_EXTRA_BLOCK_US * (count - 1)
+        else:
+            microseconds = STATUS_COMMAND_US
+        return microseconds * self.machine.core_hz // 1000000
 
     def start_data(self, index, argument, value):
         count = max(1, self.regs.get(MMC_BYTCNT, SECTOR) // SECTOR)

@@ -4,9 +4,6 @@
 
 #define FAT32_ENTRY_MASK 0x0FFFFFFFu
 #define FAT32_END_OF_CHAIN 0x0FFFFFFFu
-#define INFO_LEAD_SIGNATURE 0x41615252u
-#define INFO_STRUCT_SIGNATURE 0x61417272u
-#define INFO_UNKNOWN 0xFFFFFFFFu
 
 enum {
     FIRST_CLUSTER = 2,
@@ -33,9 +30,6 @@ enum {
     MAXIMUM_LONG_ENTRIES = (FAT_RESERVE_NAME_LIMIT + CHARACTERS_PER_LONG_ENTRY - 1) /
         CHARACTERS_PER_LONG_ENTRY,
     MAXIMUM_DIRECTORY_ENTRIES = 65536,
-    INFO_STRUCT_OFFSET = 484,
-    INFO_FREE_OFFSET = 488,
-    INFO_NEXT_OFFSET = 492,
     READ_AHEAD_SECTORS = 8
 };
 
@@ -80,13 +74,13 @@ static bool read_fat_sectors(FatVolume *volume, uint32_t sector_index)
     return fat_read_run(volume, volume->fat_start + sector_index, count);
 }
 
-static FatReserveResult find_free_run(FatVolume *volume, uint32_t needed, uint32_t *first)
+static FatReserveResult scan_free_run(FatVolume *volume, uint32_t needed, uint32_t from,
+                                      uint32_t to, uint32_t *first)
 {
     uint32_t per_sector = entries_per_fat_sector(volume);
-    uint32_t end = volume->cluster_count + FIRST_CLUSTER;
     uint32_t run = 0;
-    for (uint32_t cluster = FIRST_CLUSTER; cluster < end; cluster++) {
-        if ((cluster == FIRST_CLUSTER || cluster % per_sector == 0) &&
+    for (uint32_t cluster = from; cluster < to; cluster++) {
+        if ((cluster == from || cluster % per_sector == 0) &&
             !read_fat_sectors(volume, cluster / per_sector)) {
             return FAT_RESERVE_FAILED;
         }
@@ -97,6 +91,21 @@ static FatReserveResult find_free_run(FatVolume *volume, uint32_t needed, uint32
         }
     }
     return FAT_RESERVE_NO_SPACE;
+}
+
+static FatReserveResult find_free_run(FatVolume *volume, uint32_t needed, uint32_t *first)
+{
+    uint32_t end = volume->cluster_count + FIRST_CLUSTER;
+    if (volume->allocation_hint == 0) {
+        volume->allocation_hint = fat_info_next_free(volume);
+    }
+    uint32_t start = volume->allocation_hint;
+    FatReserveResult result = scan_free_run(volume, needed, start, end, first);
+    if (result != FAT_RESERVE_NO_SPACE || start == FIRST_CLUSTER) {
+        return result;
+    }
+    uint32_t overlap = start + needed - 1;
+    return scan_free_run(volume, needed, FIRST_CLUSTER, overlap < end ? overlap : end, first);
 }
 
 static uint32_t chain_value(const FatVolume *volume, uint32_t cluster, uint32_t last)
@@ -149,27 +158,6 @@ static bool write_chain(FatVolume *volume, uint32_t first, uint32_t count)
     }
     volume->fat_sector_valid = false;
     return true;
-}
-
-static bool update_info(FatVolume *volume, uint32_t first, uint32_t count)
-{
-    if (volume->info_sector == 0) {
-        return true;
-    }
-    uint8_t *sector = fat_sector_for_update(volume, volume->info_sector);
-    if (sector == NULL) {
-        return false;
-    }
-    if (fat_le32(sector) != INFO_LEAD_SIGNATURE ||
-        fat_le32(sector + INFO_STRUCT_OFFSET) != INFO_STRUCT_SIGNATURE) {
-        return true;
-    }
-    uint32_t free_count = fat_le32(sector + INFO_FREE_OFFSET);
-    if (free_count != INFO_UNKNOWN) {
-        put32(sector + INFO_FREE_OFFSET, free_count >= count ? free_count - count : 0);
-    }
-    put32(sector + INFO_NEXT_OFFSET, first + count);
-    return fat_commit_sector(volume, volume->info_sector);
 }
 
 static bool short_name_character(char character)
@@ -475,6 +463,12 @@ static bool write_contents(FatVolume *volume, const FatNewEntry *entry, const Fa
     return !entry->directory || write_dot_entries(volume, created, parent_cluster(volume, parent));
 }
 
+static void remember_allocation(FatVolume *volume, uint32_t first, uint32_t clusters)
+{
+    uint32_t next = first + clusters;
+    volume->allocation_hint = next < volume->cluster_count + FIRST_CLUSTER ? next : FIRST_CLUSTER;
+}
+
 FatReserveResult fat_create_entry(FatVolume *volume, FatFile *parent, const FatNewEntry *entry,
                                   FatFile *created)
 {
@@ -492,10 +486,12 @@ FatReserveResult fat_create_entry(FatVolume *volume, FatFile *parent, const FatN
     if (result != FAT_RESERVE_CREATED) {
         return result;
     }
+    remember_allocation(volume, first, clusters);
     *created = (FatFile){.first_cluster = first,
                          .size = entry->directory ? UINT32_MAX : entry->size,
                          .directory = entry->directory};
-    bool written = write_chain(volume, first, clusters) && update_info(volume, first, clusters) &&
+    bool written = write_chain(volume, first, clusters) &&
+                   fat_info_record(volume, first + clusters, clusters, false) &&
                    write_contents(volume, entry, created, parent) &&
                    write_entries(volume, parent, slot, entry, &name, created);
     return written ? FAT_RESERVE_CREATED : FAT_RESERVE_FAILED;

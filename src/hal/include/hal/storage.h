@@ -8,6 +8,14 @@ typedef struct HalFile {
     uint32_t size;
 } HalFile;
 
+typedef enum HalVolume {
+    HAL_VOLUME_NONE,
+    HAL_VOLUME_CARD,
+    HAL_VOLUME_INTERNAL
+} HalVolume;
+
+HalVolume hal_file_volume(void);
+
 bool hal_file_open(HalFile *file, const char *path);
 bool hal_file_read(HalFile file, uint32_t offset, void *buffer, uint32_t length);
 void hal_file_close(HalFile *file);

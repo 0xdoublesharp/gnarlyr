@@ -4,7 +4,8 @@
 #include <stddef.h>
 
 #include "device/fat.h"
+#include "fat_layout.h"
 
 bool exfat_next_entry(FatVolume *volume, FatDirCursor *cursor, FatDirEntry *entry);
 bool exfat_find_entry(FatVolume *volume, FatFile *directory, const char *name, size_t length,
-                      FatFile *found);
+                      FatFile *found, FatEntryLocation *where);

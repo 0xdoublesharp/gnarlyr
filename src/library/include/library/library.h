@@ -21,7 +21,7 @@ typedef enum LibrarySection {
 
 enum {
     LIBRARY_SECTION_COUNT = LIBRARY_STRINGS + 1,
-    LIBRARY_VERSION = 3,
+    LIBRARY_VERSION = 4,
     LIBRARY_HEADER_SIZE = 128,
     LIBRARY_NONE = 0xFFFF
 };
@@ -56,6 +56,8 @@ typedef struct LibraryTrack {
     uint32_t duration_ms;
     uint8_t disc;
     uint8_t number;
+    uint32_t start_ms;
+    uint32_t end_ms;
 } LibraryTrack;
 
 typedef struct LibraryAlbum {

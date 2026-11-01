@@ -276,6 +276,77 @@ static void lower_case_short_names_keep_their_case(void)
     sparse_card_free(&card->sparse);
 }
 
+static void set_info_next_free(Card *card, uint32_t value)
+{
+    uint8_t *info = card->sparse.bytes + (size_t)card->volume.info_sector * SECTOR_SIZE;
+    for (int index = 0; index < 4; index++) {
+        info[492 + index] = (uint8_t)(value >> (8 * index));
+    }
+}
+
+static uint32_t reserved_first_cluster(Card *card, const char *path, uint32_t size)
+{
+    FatFile file;
+    CHECK_EQUAL(FAT_RESERVE_CREATED, fat_reserve(&card->volume, path, size));
+    CHECK(fat_open(&card->volume, path, &file));
+    return file.first_cluster;
+}
+
+static void a_reservation_starts_after_the_previous_one(void)
+{
+    Card *card = mounted("fat32_mbr");
+    uint32_t first = reserved_first_cluster(card, "/.echo/one.bin", SMALL_SIZE);
+    uint32_t second = reserved_first_cluster(card, "/.echo/two.bin", SMALL_SIZE);
+    CHECK_EQUAL(first + SMALL_SIZE / SECTOR_SIZE, second);
+    sparse_card_free(&card->sparse);
+}
+
+static void a_reservation_starts_at_the_hint_kept_on_the_volume(void)
+{
+    Card *card = mounted("fat32_mbr");
+    uint32_t hint = card->volume.cluster_count / 2;
+    set_info_next_free(card, hint);
+    remount(card);
+    CHECK_EQUAL(hint, reserved_first_cluster(card, "/.echo/hinted.bin", SMALL_SIZE));
+    sparse_card_free(&card->sparse);
+}
+
+static void a_hint_too_near_the_end_wraps_around_to_find_room(void)
+{
+    Card *card = mounted("fat32_mbr");
+    set_info_next_free(card, card->volume.cluster_count + 1);
+    remount(card);
+    uint32_t first = reserved_first_cluster(card, "/.echo/wrapped.bin", SMALL_SIZE);
+    CHECK(first < card->volume.cluster_count / 2);
+    sparse_card_free(&card->sparse);
+}
+
+static void a_hint_that_is_not_a_cluster_is_ignored(void)
+{
+    uint32_t bad[] = {0, 1, 0xFFFFFFFFu, 0x0FFFFFFFu};
+    for (size_t index = 0; index < sizeof bad / sizeof bad[0]; index++) {
+        Card *card = mounted("fat32_mbr");
+        set_info_next_free(card, bad[index]);
+        remount(card);
+        CHECK(reserved_first_cluster(card, "/.echo/ignored.bin", SMALL_SIZE) >= 2);
+        sparse_card_free(&card->sparse);
+    }
+}
+
+static void a_hint_in_the_middle_of_used_space_still_finds_the_free_run(void)
+{
+    Card *card = mounted("fat32_mbr");
+    FatFile file;
+    CHECK(fat_open(&card->volume, "/Many/file number 000.txt", &file));
+    set_info_next_free(card, file.first_cluster);
+    remount(card);
+    uint32_t first = reserved_first_cluster(card, "/.echo/inside.bin", LARGE_SIZE);
+    CHECK(first != file.first_cluster);
+    check_cleared_file(card, "/.echo/inside.bin", LARGE_SIZE);
+    check_fixture_files(card);
+    sparse_card_free(&card->sparse);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -288,6 +359,11 @@ int main(void)
         TEST_CASE(long_names_with_the_same_start_get_distinct_short_names),
         TEST_CASE(lower_case_short_names_keep_their_case),
         TEST_CASE(reserving_32_megabytes_takes_few_writes),
+        TEST_CASE(a_reservation_starts_after_the_previous_one),
+        TEST_CASE(a_reservation_starts_at_the_hint_kept_on_the_volume),
+        TEST_CASE(a_hint_too_near_the_end_wraps_around_to_find_room),
+        TEST_CASE(a_hint_that_is_not_a_cluster_is_ignored),
+        TEST_CASE(a_hint_in_the_middle_of_used_space_still_finds_the_free_run),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

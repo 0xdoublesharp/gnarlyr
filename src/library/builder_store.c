@@ -289,6 +289,8 @@ void builder_row_encode(const TrackRow *row, uint8_t *bytes)
     bytes[42] = row->spoken;
     bytes[43] = row->guessed;
     builder_put32(bytes + 44, row->duration_ms);
+    builder_put32(bytes + 48, row->start_ms);
+    builder_put32(bytes + 52, row->end_ms);
 }
 
 void builder_row_decode(const uint8_t *bytes, TrackRow *row)
@@ -304,6 +306,8 @@ void builder_row_decode(const uint8_t *bytes, TrackRow *row)
     row->spoken = bytes[42];
     row->guessed = bytes[43];
     row->duration_ms = builder_get32(bytes + 44);
+    row->start_ms = builder_get32(bytes + 48);
+    row->end_ms = builder_get32(bytes + 52);
 }
 
 void builder_folder_encode(const FolderRow *row, uint8_t *bytes)

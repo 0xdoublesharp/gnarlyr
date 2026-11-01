@@ -216,6 +216,8 @@ static BuilderTrack parse_track(char **cursor)
     parsed.disc = (uint8_t)atoi(next_field(cursor));
     parsed.number = (uint8_t)atoi(next_field(cursor));
     parsed.duration_ms = (uint32_t)strtoul(next_field(cursor), NULL, 10);
+    parsed.start_ms = 0;
+    parsed.end_ms = 0;
     parsed.album_artist_guessed = false;
     return parsed;
 }

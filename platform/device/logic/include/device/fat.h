@@ -12,7 +12,8 @@ enum {
     FAT_NAME_CAPACITY = 768,
     FAT_RESERVE_CLEARED_BYTES = 4096,
     FAT_RESERVE_NAME_LIMIT = 64,
-    FAT_PARENT_CAPACITY = 256
+    FAT_PARENT_CAPACITY = 256,
+    FAT_EXTENT_CAPACITY = 32
 };
 
 typedef enum FatReserveResult {
@@ -28,7 +29,27 @@ typedef enum FatType {
     FAT_TYPE_EXFAT = 64
 } FatType;
 
+typedef enum FatExtentsState {
+    FAT_EXTENTS_IDLE,
+    FAT_EXTENTS_READY,
+    FAT_EXTENTS_FAILED
+} FatExtentsState;
+
+typedef struct FatExtent {
+    uint32_t index;
+    uint32_t cluster;
+} FatExtent;
+
+typedef struct FatExtents {
+    FatExtent entry[FAT_EXTENT_CAPACITY];
+    uint32_t count;
+    uint32_t clusters;
+    uint32_t stride;
+    FatExtentsState state;
+} FatExtents;
+
 typedef struct FatFile {
+    FatExtents *extents;
     uint32_t first_cluster;
     uint32_t size;
     uint32_t cursor_index;
@@ -63,6 +84,7 @@ typedef struct FatVolume {
     uint32_t parent_length;
     bool parent_valid;
     bool parent_named;
+    uint32_t allocation_hint;
     char parent_path[FAT_PARENT_CAPACITY];
 } FatVolume;
 
@@ -84,8 +106,10 @@ uint32_t fat_exfat_utc_stamp(uint32_t timestamp, uint8_t utc_offset);
 bool fat_open_directory(FatVolume *volume, const char *path, FatDirCursor *cursor);
 bool fat_next_entry(FatVolume *volume, FatDirCursor *cursor, FatDirEntry *entry);
 bool fat_open(FatVolume *volume, const char *path, FatFile *file);
+void fat_attach_extents(FatFile *file, FatExtents *extents);
 bool fat_read(FatVolume *volume, FatFile *file, uint32_t offset, void *buffer, uint32_t length);
 bool fat_write(FatVolume *volume, FatFile *file, uint32_t offset, const void *bytes,
                uint32_t length);
 FatReserveResult fat_reserve(FatVolume *volume, const char *path, uint32_t size);
+bool fat_delete(FatVolume *volume, const char *path);
 bool fat_file_sector(FatVolume *volume, FatFile *file, uint32_t sector_index, uint32_t *lba);

@@ -24,3 +24,4 @@ typedef struct FixtureLibrary {
 const uint8_t *fixture_bytes(uint32_t *size);
 const uint8_t *fixture_covers_bytes(uint32_t *size);
 Library *fixture_library_open(FixtureLibrary *fixture);
+Library *fixture_cue_library_open(FixtureLibrary *fixture);

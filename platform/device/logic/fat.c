@@ -39,14 +39,16 @@ typedef struct LongName {
     uint8_t checksum;
     uint8_t expected;
     uint8_t entries;
+    uint32_t start;
 } LongName;
 
-static void collect_long_name(FatVolume *volume, LongName *name, const uint8_t *entry)
+static void collect_long_name(FatVolume *volume, LongName *name, const uint8_t *entry,
+                              uint32_t position)
 {
     uint8_t ordinal = entry[0] & LONG_NAME_ORDINAL_MASK;
     if ((entry[0] & LONG_NAME_LAST) != 0) {
         *name = (LongName){ordinal >= 1 && ordinal <= LONG_NAME_MAX_ENTRIES,
-                           entry[LONG_NAME_CHECKSUM], ordinal, ordinal};
+                           entry[LONG_NAME_CHECKSUM], ordinal, ordinal, position};
     }
     if (!name->valid || ordinal != name->expected || entry[LONG_NAME_CHECKSUM] != name->checksum) {
         name->valid = false;
@@ -141,8 +143,24 @@ static bool entry_matches(FatVolume *volume, const LongName *long_name, const ui
     return matches_short_name(entry, name, length);
 }
 
+static void note_location(const FatVolume *volume, FatEntryLocation *where,
+                          const LongName *long_name, const uint8_t *entry, uint32_t index)
+{
+    if (where == NULL) {
+        return;
+    }
+    FatFile file = entry_file(volume, entry);
+    uint32_t first = long_name_applies(long_name, entry) ? long_name->start : index;
+    *where = (FatEntryLocation){.index = first,
+                                .count = index - first + 1,
+                                .first_cluster = file.first_cluster,
+                                .length = file.size,
+                                .directory = file.directory,
+                                .contiguous = false};
+}
+
 static bool find_fat_entry(FatVolume *volume, FatFile *directory, const char *name, size_t length,
-                           FatFile *found)
+                           FatFile *found, FatEntryLocation *where)
 {
     LongName long_name = {.valid = false};
     for (uint32_t index = 0; index < MAXIMUM_DIRECTORY_ENTRIES; index++) {
@@ -153,10 +171,11 @@ static bool find_fat_entry(FatVolume *volume, FatFile *directory, const char *na
         if (entry[0] == ENTRY_DELETED) {
             long_name.valid = false;
         } else if (entry[ATTRIBUTES] == ATTRIBUTE_LONG_NAME) {
-            collect_long_name(volume, &long_name, entry);
+            collect_long_name(volume, &long_name, entry, index);
         } else if ((entry[ATTRIBUTES] & ATTRIBUTE_VOLUME_ID) == 0 &&
                    entry_matches(volume, &long_name, entry, name, length)) {
             *found = entry_file(volume, entry);
+            note_location(volume, where, &long_name, entry, index);
             return true;
         } else {
             long_name.valid = false;
@@ -165,13 +184,23 @@ static bool find_fat_entry(FatVolume *volume, FatFile *directory, const char *na
     return false;
 }
 
+bool fat_locate_entry(FatVolume *volume, FatFile *directory, const char *name, size_t length,
+                      FatEntryLocation *where)
+{
+    FatFile found;
+    if (volume->type == FAT_TYPE_EXFAT) {
+        return exfat_find_entry(volume, directory, name, length, &found, where);
+    }
+    return find_fat_entry(volume, directory, name, length, &found, where);
+}
+
 bool fat_find_entry(FatVolume *volume, FatFile *directory, const char *name, size_t length,
                     FatFile *found)
 {
     if (volume->type == FAT_TYPE_EXFAT) {
-        return exfat_find_entry(volume, directory, name, length, found);
+        return exfat_find_entry(volume, directory, name, length, found, NULL);
     }
-    return find_fat_entry(volume, directory, name, length, found);
+    return find_fat_entry(volume, directory, name, length, found, NULL);
 }
 
 static size_t component_length(const char *path)
@@ -338,7 +367,7 @@ static bool next_fat_entry(FatVolume *volume, FatDirCursor *cursor, FatDirEntry 
         if (entry[0] == ENTRY_DELETED) {
             long_name.valid = false;
         } else if (entry[ATTRIBUTES] == ATTRIBUTE_LONG_NAME) {
-            collect_long_name(volume, &long_name, entry);
+            collect_long_name(volume, &long_name, entry, cursor->index - 1);
         } else if ((entry[ATTRIBUTES] & ATTRIBUTE_VOLUME_ID) != 0 || is_dot_entry(entry)) {
             long_name.valid = false;
         } else {

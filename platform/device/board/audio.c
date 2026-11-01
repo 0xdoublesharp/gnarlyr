@@ -371,13 +371,25 @@ static void ensure_audio_clock(void)
     }
 }
 
-bool hal_audio_play(const char *path, uint32_t start_ms, uint32_t token)
+static AudioEngineTrack engine_track(const HalAudioTrack *track)
+{
+    if (track == NULL) {
+        return (AudioEngineTrack){.path = NULL};
+    }
+    return (AudioEngineTrack){.path = track->path,
+                              .start_ms = track->start_ms,
+                              .end_ms = track->end_ms,
+                              .token = track->token};
+}
+
+bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
 {
     ensure_engine();
     ensure_audio_clock();
     stop_tone();
     stop_transfer();
-    if (!audio_engine_play(&engine, path, start_ms, token)) {
+    AudioEngineTrack request = engine_track(track);
+    if (!audio_engine_play(&engine, &request, offset_ms)) {
         return false;
     }
     if (!start_output(true)) {
@@ -387,10 +399,11 @@ bool hal_audio_play(const char *path, uint32_t start_ms, uint32_t token)
     return true;
 }
 
-void hal_audio_queue_next(const char *path, uint32_t token)
+void hal_audio_queue_next(const HalAudioTrack *track)
 {
     ensure_engine();
-    audio_engine_queue_next(&engine, path, token);
+    AudioEngineTrack request = engine_track(track);
+    audio_engine_queue_next(&engine, track != NULL ? &request : NULL);
 }
 
 void hal_audio_pause(void)

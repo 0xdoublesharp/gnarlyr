@@ -76,10 +76,12 @@ typedef struct Player {
     bool loaded;
     uint16_t track;
     uint32_t paused_position_ms;
+    uint32_t start_ms;
     uint32_t token_counter;
     uint32_t current_token;
     bool has_next;
     uint32_t next_token;
+    uint32_t next_start_ms;
     PlayQueueCursor next_cursor;
     PlayerNextSource next_source;
     uint32_t last_save_ms;

@@ -13,7 +13,7 @@ from library_fixture import FIXTURE_TRACKS as SAMPLE_TRACKS
 
 HEADER_SIZE = 128
 SECTION_ENTRY = struct.Struct("<IIHH")
-TRACK_RECORD = struct.Struct("<IIHHHHIBBH")
+TRACK_RECORD = struct.Struct("<IIHHHHIBBHII")
 ALBUM_RECORD = struct.Struct("<IHHHHHH")
 GROUP_RECORD = struct.Struct("<IIHH")
 FOLDER_RECORD = struct.Struct("<IHHIHH")
@@ -238,11 +238,11 @@ class EncodeLibraryTest(unittest.TestCase):
 
     def test_the_header_identifies_the_format(self):
         magic, version, sections = struct.unpack_from("<4sHH", self.data, 0)
-        self.assertEqual((b"EMDB", 3, 10), (magic, version, sections))
+        self.assertEqual((b"EMDB", 4, 10), (magic, version, sections))
         self.assertEqual(HEADER_SIZE, self.section(0)[0])
 
     def test_sections_declare_their_counts_and_record_sizes(self):
-        expected = [(8, 24), (5, 16), (4, 12), (4, 12), (4, 12)]
+        expected = [(8, 32), (5, 16), (4, 12), (4, 12), (4, 12)]
         for number, (count, size) in enumerate(expected):
             _, actual_count, actual_size, _ = self.section(number)
             self.assertEqual((count, size), (actual_count, actual_size))
@@ -254,6 +254,7 @@ class EncodeLibraryTest(unittest.TestCase):
         self.assertEqual("AC DC/Back In Black/1-01 - Hells Bells.flac", self.string_at(fields[1]))
         self.assertEqual((0, 0, 1), (fields[2], fields[3], fields[4]))
         self.assertEqual((60000, 1, 1), (fields[6], fields[7], fields[8]))
+        self.assertEqual((0, 0), (fields[10], fields[11]))
 
     def test_album_records_round_trip(self):
         fields = ALBUM_RECORD.unpack_from(self.data, self.section(1)[0] + ALBUM_RECORD.size)

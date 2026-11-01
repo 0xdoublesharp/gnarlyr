@@ -34,7 +34,7 @@ static void put32(uint8_t *bytes, uint32_t value)
     put16(bytes + 2, value >> 16);
 }
 
-static bool find_bitmap(FatVolume *volume, FatFile *bitmap)
+bool exfat_find_bitmap(FatVolume *volume, FatFile *bitmap)
 {
     FatFile root = fat_root_directory(volume);
     for (uint32_t index = 0; index < MAXIMUM_DIRECTORY_ENTRIES; index++) {
@@ -82,7 +82,18 @@ static FatReserveResult find_free_run(FatVolume *volume, FatFile *bitmap, uint32
     return FAT_RESERVE_NO_SPACE;
 }
 
-static bool mark_allocated(FatVolume *volume, FatFile *bitmap, uint32_t first, uint32_t count)
+static void set_bits(uint8_t *sector, uint32_t within, bool allocated)
+{
+    uint8_t mask = (uint8_t)(1u << (within % BITS_PER_BYTE));
+    if (allocated) {
+        sector[within / BITS_PER_BYTE] |= mask;
+    } else {
+        sector[within / BITS_PER_BYTE] &= (uint8_t)~mask;
+    }
+}
+
+bool exfat_mark_clusters(FatVolume *volume, FatFile *bitmap, uint32_t first, uint32_t count,
+                         bool allocated)
 {
     uint32_t bit = first - FIRST_CLUSTER;
     uint32_t end = bit + count;
@@ -96,8 +107,7 @@ static bool mark_allocated(FatVolume *volume, FatFile *bitmap, uint32_t first, u
             return false;
         }
         do {
-            uint32_t within = bit % BITS_PER_SECTOR;
-            sector[within / BITS_PER_BYTE] |= (uint8_t)(1u << (within % BITS_PER_BYTE));
+            set_bits(sector, bit % BITS_PER_SECTOR, allocated);
             bit++;
         } while (bit < end && bit % BITS_PER_SECTOR != 0);
         if (!fat_commit_sector(volume, lba)) {
@@ -242,7 +252,7 @@ FatReserveResult exfat_create_entry(FatVolume *volume, FatFile *parent, const Fa
     uint32_t first = 0;
     uint32_t clusters = fat_new_cluster_count(volume, entry);
     uint32_t count = set_entry_count(entry);
-    if (!find_bitmap(volume, &bitmap)) {
+    if (!exfat_find_bitmap(volume, &bitmap)) {
         return FAT_RESERVE_FAILED;
     }
     FatReserveResult result = find_free_entries(volume, parent, count, &slot);
@@ -258,7 +268,7 @@ FatReserveResult exfat_create_entry(FatVolume *volume, FatFile *parent, const Fa
     uint8_t entries[MAXIMUM_SET_ENTRIES * ENTRY_SIZE];
     build_set(entries, entry, created, length);
     uint32_t lba = fat_cluster_lba(volume, first);
-    bool written = mark_allocated(volume, &bitmap, first, clusters) &&
+    bool written = exfat_mark_clusters(volume, &bitmap, first, clusters, true) &&
                    fat_clear_sectors(volume, lba, fat_new_cleared_sectors(volume, entry)) &&
                    write_set(volume, parent, slot, entries, count);
     return written ? FAT_RESERVE_CREATED : FAT_RESERVE_FAILED;

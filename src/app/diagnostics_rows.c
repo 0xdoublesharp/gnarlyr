@@ -3,12 +3,27 @@
 #include "diagnostics_values.h"
 #include "hal/audio.h"
 #include "hal/power.h"
+#include "hal/storage.h"
 #include "hal/system.h"
 
 const char *diagnostics_row_firmware(const void *context)
 {
     (void)context;
     return hal_system_version();
+}
+
+const char *diagnostics_row_music(const void *context)
+{
+    (void)context;
+    switch (hal_file_volume()) {
+    case HAL_VOLUME_CARD:
+        return "Card";
+    case HAL_VOLUME_INTERNAL:
+        return "Internal";
+    case HAL_VOLUME_NONE:
+        break;
+    }
+    return "None";
 }
 
 static char battery_text[DIAGNOSTICS_VALUE_CAPACITY];

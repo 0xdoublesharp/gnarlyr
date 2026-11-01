@@ -216,11 +216,25 @@ class Watchdog(RegisterFile):
     def __init__(self, machine):
         super().__init__()
         self.machine = machine
+        self.top = 0
+        self.last_kick = 0
+
+    def timeout_cycles(self):
+        clocks = 1 << (16 + self.top)
+        return clocks * self.machine.core_hz // self.machine.pclk_hz()
+
+    def expired(self):
+        if not self.machine.watchdog_running:
+            return False
+        return self.machine.cycles() - self.last_kick > self.timeout_cycles()
 
     def write_word(self, offset, value):
         super().write_word(offset, value)
-        if offset == 0x0C:
+        if offset == 0x0C and value == 0x76:
             self.machine.watchdog_kicks += 1
+            self.last_kick = self.machine.cycles()
+        elif offset == 0x04:
+            self.top = value & 0xF
         elif offset == 0x00:
             self.machine.watchdog_running = bool(value & 1)
 

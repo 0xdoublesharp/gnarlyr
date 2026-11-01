@@ -18,6 +18,7 @@ add_library(echo_library_scan STATIC
     builder_sort.c
     builder_store.c
     cover_build.c
+    cue_sheet.c
     library_builder.c
     library_builder_albums.c
     library_builder_encode.c
@@ -25,6 +26,7 @@ add_library(echo_library_scan STATIC
     library_builder_paths.c
     library_builder_rank.c
     library_scan.c
+    library_scan_cue.c
     library_scan_entry.c
     playlist_reader.c
     sort_fold_table.c

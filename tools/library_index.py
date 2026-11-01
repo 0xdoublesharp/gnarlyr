@@ -8,8 +8,10 @@ from collections import Counter
 from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 
+from cue_sheet import ascii_fold, parse_cue
+
 MAGIC = b"EMDB"
-VERSION = 3
+VERSION = 4
 HEADER_SIZE = 128
 SECTION_ALIGNMENT = 4
 NONE = 0xFFFF
@@ -21,12 +23,15 @@ UNKNOWN_ALBUM = "Unknown Album"
 UNKNOWN_GENRE = "Unknown Genre"
 AUDIO_SUFFIXES = {".flac", ".ogg", ".mp3", ".m4a", ".wav", ".wma", ".ape", ".dsf", ".dff"}
 PLAYLIST_SUFFIXES = {".m3u", ".m3u8"}
+CUE_SUFFIX = ".cue"
+CUE_AUDIO_SUFFIXES = {".flac", ".wav", ".mp3"}
+PATH_SEPARATOR = re.compile(r"[\\/]")
 URL_MARKER = "://"
 SPOKEN_FOLDERS = {b"audiobooks", b"audiobook", b"podcasts", b"podcast"}
 
 HEADER_PREFIX = struct.Struct("<4sHH")
 SECTION_ENTRY = struct.Struct("<IIHH")
-TRACK_RECORD = struct.Struct("<IIHHHHIBBH")
+TRACK_RECORD = struct.Struct("<IIHHHHIBBHII")
 ALBUM_RECORD = struct.Struct("<IHHHHHH")
 GROUP_RECORD = struct.Struct("<IIHH")
 FOLDER_RECORD = struct.Struct("<IHHIHH")
@@ -52,6 +57,8 @@ class TrackInfo:
     number: int
     duration_ms: int
     album_artist_guessed: bool = False
+    start_ms: int = 0
+    end_ms: int = 0
 
 
 @dataclass
@@ -517,7 +524,8 @@ def encode_tracks(model, strings):
         data += TRACK_RECORD.pack(strings.add(track.title), strings.add(track.path),
                                   model.track_albums[position], model.track_artists[position],
                                   model.track_genres[position], model.track_folders[position],
-                                  track.duration_ms, track.disc, track.number, 0)
+                                  track.duration_ms, track.disc, track.number, 0,
+                                  track.start_ms, track.end_ms)
     return data
 
 
@@ -611,11 +619,77 @@ def read_playlist(root, path):
     return RawPlaylist(nfc(path.stem), "" if folder == "." else folder, entries)
 
 
+def read_cue(path):
+    try:
+        return parse_cue(decode_playlist(path.read_bytes()))
+    except OSError:
+        return None
+
+
+def cue_audio(sheet, cue_path, candidates):
+    wanted = ascii_fold(nfc(PATH_SEPARATOR.split(sheet.file)[-1]))
+    stem = ascii_fold(nfc(cue_path.stem))
+    for path in candidates:
+        if ascii_fold(nfc(path.name)) == wanted:
+            return path
+    for path in candidates:
+        if ascii_fold(nfc(path.stem)) == stem:
+            return path
+    return None
+
+
+def cue_sheets(files):
+    siblings = {}
+    for path in files:
+        if path.suffix.lower() in CUE_AUDIO_SUFFIXES:
+            siblings.setdefault(path.parent, []).append(path)
+    sheets = {}
+    for path in files:
+        sheet = read_cue(path) if path.suffix.lower() == CUE_SUFFIX else None
+        audio = cue_audio(sheet, path, siblings.get(path.parent, [])) if sheet else None
+        if audio is not None:
+            sheets[path] = (sheet, audio)
+    return sheets
+
+
+def cue_track(base, sheet, track, end_ms):
+    limit = end_ms or base.duration_ms
+    return replace(
+        base,
+        title=track.title or f"Track {track.number}",
+        artist=track.performer or sheet.performer or base.artist,
+        album_artist=sheet.performer or base.album_artist,
+        album=sheet.title or base.album,
+        genre=sheet.genre or base.genre,
+        year=parse_year(sheet.date) or base.year,
+        number=min(track.number, MAX_U8),
+        duration_ms=max(limit - track.start_ms, 0),
+        start_ms=track.start_ms,
+        end_ms=end_ms,
+        album_artist_guessed=base.album_artist_guessed and not sheet.performer,
+    )
+
+
+def cue_tracks(root, sheet, audio_path):
+    base = read_track(root, audio_path)
+    starts = sheet.tracks
+    ends = [track.start_ms for track in starts[1:]] + [0]
+    return [cue_track(base, sheet, track, end) for track, end in zip(starts, ends)]
+
+
 def scan(root):
     tracks, failures = [], []
-    for path in visible_files(root, AUDIO_SUFFIXES):
+    files = list(visible_files(root, AUDIO_SUFFIXES | {CUE_SUFFIX}))
+    sheets = cue_sheets(files)
+    claimed = {audio for _, audio in sheets.values()}
+    for path in files:
+        if path in claimed or (path.suffix.lower() == CUE_SUFFIX and path not in sheets):
+            continue
         try:
-            tracks.append(read_track(root, path))
+            if path in sheets:
+                tracks.extend(cue_tracks(root, sheets[path][0], sheets[path][1]))
+            else:
+                tracks.append(read_track(root, path))
         except Exception as error:
             failures.append(f"{path.relative_to(root)}: {error}")
     playlists = [read_playlist(root, path) for path in visible_files(root, PLAYLIST_SUFFIXES)]

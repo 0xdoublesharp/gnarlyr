@@ -392,3 +392,8 @@ bool updater_install(const UpdateFile *file, const UpdateStorage *storage, Updat
     SlotCopy first = {NULL, storage, storage->slot_2, storage->slot_1, progress, 1, chunks};
     return copy_slot(&second) && copy_slot(&first);
 }
+
+bool updater_should_remove_file(UpdateCheck check, bool installed)
+{
+    return check == UPDATE_VALID || check == UPDATE_STOCK ? installed : true;
+}

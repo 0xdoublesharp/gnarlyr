@@ -28,6 +28,7 @@ add_library(echo_device_logic STATIC
     audio_engine.c
     audio_math.c
     backlight.c
+    block_read.c
     board_pins.c
     battery_gauge.c
     watchdog.c
@@ -44,6 +45,8 @@ add_library(echo_device_logic STATIC
     exfat_create.c
     fat.c
     fat_create.c
+    fat_delete.c
+    fat_extents.c
     fat_layout.c
     fat_names.c
     fat_reserve.c
@@ -62,6 +65,7 @@ add_library(echo_device_logic STATIC
     start_record.c
     sd_card.c
     stall_watch.c
+    storage_mount.c
     stream_drift.c
     tick_clock.c
     update_names.c
@@ -81,6 +85,7 @@ if(CMAKE_CROSSCOMPILING)
         emmc_layout.c
         exfat_create.c
         fat_create.c
+        fat_delete.c
         fat_reserve.c
         image_crc.c
         panic_text.c

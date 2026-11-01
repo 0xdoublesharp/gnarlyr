@@ -27,22 +27,49 @@ typedef struct CardFile {
 } CardFile;
 
 static const CardFile CARD_FILES[] = {
-    {SETTINGS_STORE_PATH, SMALL_FILE_BYTES},    {PLAYER_RESUME_PATH, SMALL_FILE_BYTES},
-    {FAVORITES_STORE_PATH, SMALL_FILE_BYTES},   {LIBRARY_STORE_PATH, LIBRARY_FILE_BYTES},
-    {COVER_CACHE_PATH, COVERS_FILE_BYTES},      {MUSIC_CHECK_PATH, SMALL_FILE_BYTES},
-    {PLAYER_UP_NEXT_PATH, SMALL_FILE_BYTES},    {SPOKEN_STORE_PATH, SMALL_FILE_BYTES},
-    {LIBRARY_SCRATCH_PATH, SCRATCH_FILE_BYTES}, {RESCAN_TIMES_PATH, SMALL_FILE_BYTES},
+    {LIBRARY_STORE_PATH, LIBRARY_FILE_BYTES},   {COVER_CACHE_PATH, COVERS_FILE_BYTES},
+    {LIBRARY_SCRATCH_PATH, SCRATCH_FILE_BYTES}, {SETTINGS_STORE_PATH, SMALL_FILE_BYTES},
+    {PLAYER_RESUME_PATH, SMALL_FILE_BYTES},     {FAVORITES_STORE_PATH, SMALL_FILE_BYTES},
+    {MUSIC_CHECK_PATH, SMALL_FILE_BYTES},       {PLAYER_UP_NEXT_PATH, SMALL_FILE_BYTES},
+    {SPOKEN_STORE_PATH, SMALL_FILE_BYTES},      {RESCAN_TIMES_PATH, SMALL_FILE_BYTES},
     {BLUETOOTH_STORE_PATH, SMALL_FILE_BYTES},
 };
 
-CardFilesReport card_files_prepare(void)
+size_t card_files_count(void)
 {
-    CardFilesReport report = {.library_created = false, .card_full = false};
-    for (size_t index = 0; index < sizeof CARD_FILES / sizeof CARD_FILES[0]; index++) {
-        HalReserveResult result = hal_file_reserve(CARD_FILES[index].path, CARD_FILES[index].size);
-        report.card_full |= result == HAL_RESERVE_NO_SPACE;
-        report.library_created |=
-            result == HAL_RESERVE_CREATED && CARD_FILES[index].path == LIBRARY_STORE_PATH;
+    return sizeof CARD_FILES / sizeof CARD_FILES[0];
+}
+
+bool card_files_slow(size_t index)
+{
+    return CARD_FILES[index].size >= LIBRARY_FILE_BYTES;
+}
+
+const char *card_files_path(size_t index)
+{
+    return CARD_FILES[index].path;
+}
+
+bool card_files_missing(size_t index)
+{
+    HalFile file;
+    if (index >= card_files_count()) {
+        return false;
     }
-    return report;
+    if (!hal_file_open(&file, CARD_FILES[index].path)) {
+        return true;
+    }
+    hal_file_close(&file);
+    return false;
+}
+
+void card_files_reserve(CardFilesReport *report, size_t index)
+{
+    if (index >= card_files_count()) {
+        return;
+    }
+    HalReserveResult result = hal_file_reserve(CARD_FILES[index].path, CARD_FILES[index].size);
+    report->card_full |= result == HAL_RESERVE_NO_SPACE;
+    report->library_created |=
+        result == HAL_RESERVE_CREATED && CARD_FILES[index].path == LIBRARY_STORE_PATH;
 }

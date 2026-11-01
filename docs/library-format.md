@@ -1,4 +1,4 @@
-# Library database format (version 3)
+# Library database format (version 4)
 
 The PC indexer (`tools/library_index.py`) writes the library database. The device reads it (`src/library`). Everything is sorted on the PC, so the device never sorts. It reads fixed-size records by index and strings by offset, a few hundred bytes at a time.
 
@@ -12,7 +12,7 @@ The PC indexer (`tools/library_index.py`) writes the library database. The devic
 | Offset | Type | Field |
 |---|---|---|
 | 0 | `char[4]` | magic `EMDB` |
-| 4 | `u16` | version = 3 (the player rebuilds a library of any other version) |
+| 4 | `u16` | version = 4 (the player rebuilds a library of any other version; version 3 had 24-byte track records without `start_ms` and `end_ms`) |
 | 6 | `u16` | section count = 10 |
 | 8 | 10 × 12 B | section directory, in the order below |
 
@@ -20,7 +20,7 @@ Each section directory entry is `u32 offset`, `u32 count`, `u16 record size`, `u
 
 | # | Section | Record size | Content |
 |---|---|---|---|
-| 0 | tracks | 24 | grouped by album in album order, then disc, track number and title |
+| 0 | tracks | 32 | grouped by album in album order, then disc, track number and title |
 | 1 | albums | 16 | sorted by title, then album artist |
 | 2 | artists | 12 | track artists, sorted by name |
 | 3 | album artists | 12 | sorted by name |
@@ -35,7 +35,7 @@ Each section directory entry is `u32 offset`, `u32 count`, `u16 record size`, `u
 
 | Record | Layout |
 |---|---|
-| **Track** | `u32 title`, `u32 path`, `u16 album`, `u16 artist`, `u16 genre`, `u16 folder`, `u32 duration_ms`, `u8 disc`, `u8 number`, `u16 reserved` |
+| **Track** | `u32 title`, `u32 path`, `u16 album`, `u16 artist`, `u16 genre`, `u16 folder`, `u32 duration_ms`, `u8 disc`, `u8 number`, `u16 reserved`, `u32 start_ms`, `u32 end_ms` |
 | **Album** | `u32 title`, `u16 album_artist`, `u16 genre`, `u16 year`, `u16 first_track`, `u16 track_count`, `u16 cover` |
 | **Group** (artist, album artist, genre, playlist) | `u32 name`, `u32 first_link`, `u16 link_count`, `u16 reserved` |
 | **Folder** | `u32 name`, `u16 parent`, `u16 subfolder_count`, `u32 first_link`, `u16 track_count`, `u16 reserved` |
@@ -47,6 +47,19 @@ Field notes:
 - A group's albums are `links[first_link .. first_link + link_count)`. Artists list every album containing at least one of their tracks. Artist and album-artist albums are ordered by year, then title; genre albums are ordered by title. Within each section the groups' links are consecutive and in group order (group `n + 1` starts where group `n` ends). Cover Flow relies on this for album artists to read its order straight from `links`; a file that breaks it gets Cover Flow in album order instead.
 - A playlist's links are track indices in playlist order. Its name is the file name without `.m3u` or `.m3u8`.
 - A folder's items are `links[first_link ..]`: first `subfolder_count` folder indices (sorted by name), then `track_count` track indices (sorted by disc, number, file name).
+
+## CUE tracks
+
+A track with `end_ms` or `start_ms` other than 0 is one part of an audio file: it plays the file from `start_ms` to `end_ms`, and to the end of the file when `end_ms` is 0. Every other track has both at 0 and plays the whole file. `duration_ms` is the length of the part (`end_ms - start_ms`, or the file's length minus `start_ms` for the last part), so everything that shows or compares a track's length reads `duration_ms` alone. `path` is the audio file's path, the same for every track of the file; the file itself has no track of its own.
+
+A `.cue` file makes tracks in the folder scan when it is usable (`library/cue_sheet`, `tools/cue_sheet.py`):
+
+- The sheet has exactly one `FILE` line and at least one `TRACK` with an `INDEX 01 mm:ss:ff`. A sheet with several files (one per track), without a track or without an index is ignored, and the audio files list as usual. `INDEX 00` and other indexes are ignored; a `TRACK` without `INDEX 01` is left out.
+- The audio file is the one in the sheet's folder named by the `FILE` line (the part after the last `/` or `\`, compared ignoring ASCII case), otherwise the audio file with the sheet's own name without its extension (ASCII case ignored; the first by file name when several). Only `.flac`, `.wav` and `.mp3` count. A sheet with no such file is ignored. A usable sheet's audio file is not a track; two sheets that name one file both make tracks.
+- The sheet is read like a playlist: UTF-8 (with or without a BOM) when the whole file is valid UTF-8, otherwise Windows-1252; lines split like `str.splitlines`, trimmed, keywords case-insensitive (ASCII). A value is the text between the first pair of quotes (to the end of the line when the closing quote is missing; there are no escapes); unquoted, `FILE` takes the first word and `TITLE`, `PERFORMER` and `REM` values take the rest of the line.
+- `INDEX 01 mm:ss:ff` is `(mm * 60 + ss) * 75 + ff` frames, `floor(frames * 1000 / 75)` milliseconds. A track starts at its `INDEX 01` and ends at the next kept track's; the last one has `end_ms` 0.
+- Fields: title is the track's `TITLE`, else "Track N"; artist is the track's `PERFORMER`, else the sheet's `PERFORMER`, else the file's artist; album artist is the sheet's `PERFORMER`, else the file's (guessed per album as for any track without an album-artist tag); album is the sheet's `TITLE`, else the file's tags and fallbacks; genre is `REM GENRE`, else the file's; year is the first four digits of `REM DATE`, else the file's; number is the `TRACK` number (at most 255); disc and the other fallbacks come from the file as for a track. `REM` values count only before the first `TRACK`.
+- Tracks come at the position of the `.cue` file in the sorted walk, in sheet order. The player cuts texts at 255 bytes; the PC indexer doesn't.
 
 ## Spoken word
 
@@ -80,7 +93,7 @@ On the device, `track_tags_read` reads through a `ByteSource` with small bounded
 ## Building on the device
 
 `library/library_builder` builds a database that means the same as the PC indexer's, from tracks given in scan order (the PC indexer's sorted path order), with a block of RAM and a scratch file on the card (`/.echo/build.tmp`, 24 MB, reserved with the other player files). It handles up to 65,535 tracks; 20,000 are tested inside 360 KB of RAM. RAM only ever holds what one step needs: buffers, small caches and a few 16-bit columns.
-- During the scan each track becomes a 48-byte row on the card (text offsets and lengths, folder, year, disc, number, duration) and its texts go to a heap on the card (a text equal to the previous track's same field is stored once). Folders become 8-byte rows; a hash of (parent, name) in RAM finds a folder seen before.
+- During the scan each track becomes a 56-byte row on the card (text offsets and lengths, folder, year, disc, number, duration, start, end) and its texts go to a heap on the card (a text equal to the previous track's same field is stored once). Folders become 8-byte rows; a hash of (parent, name) in RAM finds a folder seen before.
 - Before ranking, tracks marked as having no album-artist tag (a spare row byte) get their shared album artist: one record per such track (folder, track, artist text, album and artist sort keys) is sorted by folder, album key, artist key and track; one pass picks each group's winner, a second writes (track, artist text) pairs, which are sorted by track and merged back into the rows in one sequential rewrite. Nothing runs when no track is marked.
 - Each field is then ranked: one record per run of equal text (its sort key, its bytes and its first track) goes through a stable external merge sort on the card (sorted chunks in RAM, then up to 32-way merges), giving a dense key rank per track, a spelling rank for genres, and each group's first spelling. Folder names are ranked by key, then bytes.
 - Every view is built from integer tuples with the same sort, in the PC's order: albums (grouped by album artist and album; first sight, earliest non-zero year, most common genre spelling with ties to the first seen; members by disc, number and title), album order (title, then album artist, then first sight), the final track order, artist and album-artist links by year and title, genre links by title, preorder folders (sorted rank paths) with their links, and All Songs by title then artist. Playlists resolve through RAM tables of 16-bit positions keyed by path hashes, confirmed against the paths rebuilt from the card.

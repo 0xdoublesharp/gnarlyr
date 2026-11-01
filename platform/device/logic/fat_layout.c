@@ -1,5 +1,7 @@
 #include "fat_layout.h"
 
+#include "fat_extents.h"
+
 #include <stddef.h>
 
 #define FAT32_CLUSTER_MASK 0x0FFFFFFFu
@@ -13,8 +15,15 @@ enum {
     FAT32_MINIMUM_CLUSTERS = 65525,
     DIRECTORY_ENTRY_SIZE = 32,
     EXFAT_SECTOR_SHIFT = 9,
-    EXFAT_MAXIMUM_CLUSTER_SHIFT = 16
+    EXFAT_MAXIMUM_CLUSTER_SHIFT = 16,
+    INFO_STRUCT_OFFSET = 484,
+    INFO_FREE_OFFSET = 488,
+    INFO_NEXT_OFFSET = 492
 };
+
+#define INFO_UNKNOWN 0xFFFFFFFFu
+#define INFO_LEAD_SIGNATURE 0x41615252u
+#define INFO_STRUCT_SIGNATURE 0x61417272u
 
 uint16_t fat_le16(const uint8_t *bytes)
 {
@@ -253,28 +262,66 @@ static bool read_fat_sector(FatVolume *volume, uint32_t lba)
     return volume->fat_sector_valid;
 }
 
-static bool next_cluster(FatVolume *volume, uint32_t cluster, uint32_t *next)
+static uint32_t chain_entry(const FatVolume *volume, const uint8_t *bytes)
 {
-    uint32_t entry_size = volume->type == FAT_TYPE_16 ? 2u : 4u;
-    uint32_t offset = cluster * entry_size;
+    if (volume->type == FAT_TYPE_16) {
+        return fat_le16(bytes);
+    }
+    return fat_le32(bytes) & (volume->type == FAT_TYPE_32 ? FAT32_CLUSTER_MASK : UINT32_MAX);
+}
+
+static bool chain_valid(const FatVolume *volume, uint32_t next)
+{
+    return next >= FIRST_CLUSTER && next < volume->cluster_count + FIRST_CLUSTER;
+}
+
+static uint32_t chain_offset(const FatVolume *volume, uint32_t cluster)
+{
+    return cluster * (volume->type == FAT_TYPE_16 ? 2u : 4u);
+}
+
+bool fat_next_cluster(FatVolume *volume, uint32_t cluster, uint32_t *next)
+{
+    uint32_t offset = chain_offset(volume, cluster);
     if (!read_fat_sector(volume, volume->fat_start + offset / FAT_SECTOR_SIZE)) {
         return false;
     }
-    const uint8_t *bytes = (const uint8_t *)volume->fat_sector + offset % FAT_SECTOR_SIZE;
-    if (volume->type == FAT_TYPE_16) {
-        *next = fat_le16(bytes);
-    } else {
-        *next = fat_le32(bytes) & (volume->type == FAT_TYPE_32 ? FAT32_CLUSTER_MASK : UINT32_MAX);
-    }
-    return *next >= FIRST_CLUSTER && *next < volume->cluster_count + FIRST_CLUSTER;
+    *next = chain_entry(volume, (const uint8_t *)volume->fat_sector + offset % FAT_SECTOR_SIZE);
+    return chain_valid(volume, *next);
 }
 
-static bool cluster_at(FatVolume *volume, FatFile *file, uint32_t index, uint32_t *cluster)
+bool fat_chain_next(FatVolume *volume, uint32_t cluster, uint32_t *next)
+{
+    uint32_t offset = chain_offset(volume, cluster);
+    uint32_t lba = volume->fat_start + offset / FAT_SECTOR_SIZE;
+    uint32_t left = volume->fat_start + volume->fat_sectors - lba;
+    if (left == 0 ||
+        !fat_read_run(volume, lba, left < FAT_CACHE_SECTORS ? left : FAT_CACHE_SECTORS)) {
+        return false;
+    }
+    *next = chain_entry(volume, fat_cached_sector(volume) + offset % FAT_SECTOR_SIZE);
+    return chain_valid(volume, *next);
+}
+
+static bool walk_to(FatVolume *volume, FatFile *file, uint32_t index, uint32_t *cluster)
 {
     if (file->cursor_cluster == 0 || index < file->cursor_index) {
         file->cursor_index = 0;
         file->cursor_cluster = file->first_cluster;
     }
+    while (file->cursor_index < index) {
+        if (!fat_next_cluster(volume, file->cursor_cluster, &file->cursor_cluster)) {
+            file->cursor_cluster = 0;
+            return false;
+        }
+        file->cursor_index++;
+    }
+    *cluster = file->cursor_cluster;
+    return *cluster >= FIRST_CLUSTER;
+}
+
+static bool cluster_at(FatVolume *volume, FatFile *file, uint32_t index, uint32_t *cluster)
+{
     if (index >= volume->cluster_count) {
         return false;
     }
@@ -283,15 +330,11 @@ static bool cluster_at(FatVolume *volume, FatFile *file, uint32_t index, uint32_
         return file->first_cluster >= FIRST_CLUSTER &&
                *cluster < volume->cluster_count + FIRST_CLUSTER;
     }
-    while (file->cursor_index < index) {
-        if (!next_cluster(volume, file->cursor_cluster, &file->cursor_cluster)) {
-            file->cursor_cluster = 0;
-            return false;
-        }
-        file->cursor_index++;
+    FatLookup lookup = fat_extents_lookup(volume, file, index, cluster);
+    if (lookup != FAT_LOOKUP_UNMAPPED) {
+        return lookup == FAT_LOOKUP_FOUND;
     }
-    *cluster = file->cursor_cluster;
-    return *cluster >= FIRST_CLUSTER;
+    return walk_to(volume, file, index, cluster);
 }
 
 static bool is_fixed_root(const FatFile *file)
@@ -322,13 +365,14 @@ FatFile fat_root_directory(const FatVolume *volume)
 
 uint32_t fat_run_length(FatVolume *volume, FatFile *file, uint32_t sector_index, uint32_t limit)
 {
+    FatFile ahead = *file;
     uint32_t first = 0;
-    if (!fat_file_sector(volume, file, sector_index, &first)) {
+    if (!fat_file_sector(volume, &ahead, sector_index, &first)) {
         return 0;
     }
     uint32_t length = 1;
     uint32_t lba = first;
-    while (length < limit && fat_file_sector(volume, file, sector_index + length, &lba) &&
+    while (length < limit && fat_file_sector(volume, &ahead, sector_index + length, &lba) &&
            lba == first + length) {
         length++;
     }
@@ -352,4 +396,57 @@ const uint8_t *fat_read_entry(FatVolume *volume, FatFile *directory, uint32_t in
         }
     }
     return fat_cached_sector(volume) + offset % FAT_SECTOR_SIZE;
+}
+
+static bool info_valid(const uint8_t *sector)
+{
+    return fat_le32(sector) == INFO_LEAD_SIGNATURE &&
+           fat_le32(sector + INFO_STRUCT_OFFSET) == INFO_STRUCT_SIGNATURE;
+}
+
+static void put32(uint8_t *bytes, uint32_t value)
+{
+    for (int index = 0; index < 4; index++) {
+        bytes[index] = (uint8_t)(value >> (8 * index));
+    }
+}
+
+uint32_t fat_info_next_free(FatVolume *volume)
+{
+    if (volume->info_sector == 0 || !fat_read_sector(volume, volume->info_sector) ||
+        !info_valid(fat_cached_sector(volume))) {
+        return FIRST_CLUSTER;
+    }
+    uint32_t next = fat_le32(fat_cached_sector(volume) + INFO_NEXT_OFFSET);
+    return next >= FIRST_CLUSTER && next < volume->cluster_count + FIRST_CLUSTER ? next
+                                                                                 : FIRST_CLUSTER;
+}
+
+static uint32_t adjusted_free_count(uint32_t free_count, uint32_t count, bool released)
+{
+    if (free_count == INFO_UNKNOWN) {
+        return free_count;
+    }
+    if (released) {
+        return free_count + count;
+    }
+    return free_count >= count ? free_count - count : 0;
+}
+
+bool fat_info_record(FatVolume *volume, uint32_t next_free, uint32_t count, bool released)
+{
+    if (volume->info_sector == 0) {
+        return true;
+    }
+    uint8_t *sector = fat_sector_for_update(volume, volume->info_sector);
+    if (sector == NULL) {
+        return false;
+    }
+    if (!info_valid(sector)) {
+        return true;
+    }
+    uint32_t free_count = fat_le32(sector + INFO_FREE_OFFSET);
+    put32(sector + INFO_FREE_OFFSET, adjusted_free_count(free_count, count, released));
+    put32(sector + INFO_NEXT_OFFSET, next_free);
+    return fat_commit_sector(volume, volume->info_sector);
 }

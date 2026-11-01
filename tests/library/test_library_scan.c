@@ -466,11 +466,91 @@ static void batches_build_the_same_library_as_one_whole_read(void)
     CHECK(library_compare(whole.bytes, whole.length, batched.bytes, batched.length));
 }
 
+typedef struct CueCheck {
+    uint32_t count;
+    uint32_t starts[4];
+    uint32_t ends[4];
+    uint32_t durations[4];
+    char titles[4][32];
+} CueCheck;
+
+static void collect_cue_tracks(Output *output, const char *wanted_path, CueCheck *check)
+{
+    Library library;
+    CHECK_EQUAL(LIBRARY_OK,
+                library_open(&library, (ByteSource){output_read, output}, output->length));
+    *check = (CueCheck){.count = 0};
+    for (uint32_t index = 0; index < library_count(&library, LIBRARY_TRACKS); index++) {
+        LibraryTrack track;
+        char path[TREE_PATH];
+        CHECK(library_read_track(&library, index, &track));
+        CHECK(library_read_string(&library, track.path, path, sizeof path));
+        if (strcmp(path, wanted_path) != 0 || check->count == 4) {
+            continue;
+        }
+        check->starts[check->count] = track.start_ms;
+        check->ends[check->count] = track.end_ms;
+        check->durations[check->count] = track.duration_ms;
+        CHECK(library_read_string(&library, track.title, check->titles[check->count], 32));
+        check->count++;
+    }
+}
+
+static void scanning_cue_sheets_matches_the_pc_indexer(void)
+{
+    static Output output;
+    Progress progress = {.calls = 0};
+    ScanStats stats;
+    CHECK_EQUAL(SCAN_OK, scan_folder(ECHO_FIXTURE_DIR "/cue_music", &output, &progress, &stats));
+    CHECK_EQUAL(9u, stats.tracks);
+    CHECK_EQUAL(9u, progress.last_tracks);
+    uint32_t expected_size = 0;
+    uint8_t *expected = read_fixture("cue_music.db", &expected_size);
+    CHECK(library_compare(expected, expected_size, output.bytes, stats.length));
+    free(expected);
+}
+
+static void a_cue_sheet_makes_a_track_per_cue_track_and_hides_its_audio(void)
+{
+    static Output output;
+    Progress progress = {.calls = 0};
+    ScanStats stats;
+    CueCheck check;
+    CHECK_EQUAL(SCAN_OK, scan_folder(ECHO_FIXTURE_DIR "/cue_music", &output, &progress, &stats));
+    collect_cue_tracks(&output, "Cue Artist/Cue Album/Cue Album.flac", &check);
+    CHECK_EQUAL(3u, check.count);
+    CHECK_EQUAL(0u, check.starts[0]);
+    CHECK_EQUAL(1000u, check.starts[1]);
+    CHECK_EQUAL(2493u, check.starts[2]);
+    CHECK_EQUAL(1000u, check.ends[0]);
+    CHECK_EQUAL(2493u, check.ends[1]);
+    CHECK_EQUAL(0u, check.ends[2]);
+    CHECK_EQUAL(1507u, check.durations[2]);
+    CHECK(strcmp(check.titles[0], "Opening") == 0);
+    CHECK(strcmp(check.titles[2], "Closing") == 0);
+}
+
+static void a_cue_sheet_that_cannot_be_used_leaves_the_audio_alone(void)
+{
+    static Output output;
+    Progress progress = {.calls = 0};
+    ScanStats stats;
+    CueCheck check;
+    CHECK_EQUAL(SCAN_OK, scan_folder(ECHO_FIXTURE_DIR "/cue_music", &output, &progress, &stats));
+    collect_cue_tracks(&output, "Plain/Unsupported/a.wav", &check);
+    CHECK_EQUAL(1u, check.count);
+    CHECK_EQUAL(0u, check.ends[0]);
+    CHECK_EQUAL(1000u, check.durations[0]);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(scanning_the_tag_fixtures_matches_the_pc_indexer),
         TEST_CASE(scanning_folders_and_playlists_matches_the_pc_indexer),
+        TEST_CASE(scanning_cue_sheets_matches_the_pc_indexer),
+        TEST_CASE(a_cue_sheet_makes_a_track_per_cue_track_and_hides_its_audio),
+        TEST_CASE(a_cue_sheet_that_cannot_be_used_leaves_the_audio_alone),
         TEST_CASE(a_missing_music_root_says_so),
         TEST_CASE(a_separate_listing_leaves_the_memory_to_the_builder),
         TEST_CASE(a_folder_bigger_than_the_listing_is_read_in_batches),

@@ -41,13 +41,25 @@ const uint8_t *fixture_covers_bytes(uint32_t *size)
     return covers_data;
 }
 
-Library *fixture_library_open(FixtureLibrary *fixture)
+static Library *open_bytes(FixtureLibrary *fixture, const uint8_t *bytes, uint32_t size)
 {
-    uint32_t size = 0;
-    const uint8_t *bytes = fixture_bytes(&size);
     memcpy(fixture->bytes, bytes, size);
     fixture->size = size;
     fixture->memory = (MemorySource){.bytes = fixture->bytes, .size = size};
     library_open(&fixture->library, memory_source(&fixture->memory), size);
     return &fixture->library;
+}
+
+Library *fixture_library_open(FixtureLibrary *fixture)
+{
+    uint32_t size = 0;
+    const uint8_t *bytes = fixture_bytes(&size);
+    return open_bytes(fixture, bytes, size);
+}
+
+Library *fixture_cue_library_open(FixtureLibrary *fixture)
+{
+    static uint8_t cue_data[FIXTURE_CAPACITY];
+    uint32_t size = load_fixture(ECHO_FIXTURE_DIR "/cue_music.db", cue_data, sizeof cue_data);
+    return open_bytes(fixture, cue_data, size);
 }

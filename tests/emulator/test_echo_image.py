@@ -9,10 +9,17 @@ PROJECT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT / "tools"))
 
 SKIP_EXIT_CODE = 77
-DEFAULT_IMAGE = next((PROJECT / "build" / "device-echo").glob("ECHOV*.IMG"), PROJECT / "build" / "device-echo" / "ECHOV450.IMG")
+DEFAULT_IMAGE = max((PROJECT / "build" / "device-echo").glob("ECHOV*.IMG"), default=PROJECT / "build" / "device-echo" / "ECHOV453.IMG")
 DEFAULT_ELF = PROJECT / "build" / "device-echo" / "platform" / "device" / "echo_device.elf"
 CONFIG = {"image": DEFAULT_IMAGE, "elf": DEFAULT_ELF}
 
+FIRST_FRAME_LIMIT_MS = 1000
+DEEP_TRACK = 12
+FIRST_AUDIO_LIMIT_MS = 1500
+TRACK_GAP_LIMIT_MS = 1000
+FADE_LIMIT_MS = 1500
+FAT_READS_PER_SECOND_LIMIT = 40
+DATA_READS_PER_SECOND_MINIMUM = 250
 WIDTH = 480
 HEIGHT = 222
 FIRST_ROW = 49
@@ -88,9 +95,14 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(machine.faults, [])
         self.assertEqual(machine.panics, [])
 
-    def assert_no_internal_storage_change(self, session):
-        self.assertEqual(session.card.writes, [])
-        self.assertEqual(session.changed_sectors(), [])
+    def assert_only_the_user_volume_changed(self, session):
+        layout = session.layout
+        first = layout["volume_start"]
+        last = first + layout["volume_sectors"]
+        for _, lba, count in session.card.writes:
+            self.assertTrue(first <= lba and lba + count <= last, (lba, count))
+        for lba in session.changed_sectors():
+            self.assertTrue(first <= lba < last, lba)
 
     def assert_windows_inside_panel(self, panel):
         drawn = [window for window in panel.windows if window.pixels > 0]
@@ -120,7 +132,7 @@ class EchoImageTest(unittest.TestCase):
         self.assert_healthy(session)
         summary("first frame", session)
 
-    def test_normal_boot_reaches_the_home_screen_without_touching_storage(self):
+    def test_normal_boot_reaches_the_home_screen_using_only_the_user_volume(self):
         session = self.session()
         self.assertEqual(session.run_to_home_screen(), "condition met")
         machine = session.machine
@@ -128,7 +140,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(len(panel.lit_sweeps()), 2)
         self.assertGreater(panel.colors(), 8)
         self.assert_windows_inside_panel(panel)
-        self.assert_no_internal_storage_change(session)
+        self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
         self.assertFalse(machine.vbus)
         self.assertTrue(machine.watchdog_running)
@@ -199,17 +211,37 @@ class EchoImageTest(unittest.TestCase):
         self.assertIsNone(session.machine.reset_requested)
         self.assertEqual(session.machine.pmu_flag_writes, [])
         self.assertEqual(session.read_file("MASKROM.REQ", 12), b"MASKROM RES\n")
-        self.assert_no_internal_storage_change(session)
+        self.assert_only_the_user_volume_changed(session)
+
+    def built_library_tracks(self, session):
+        for data in session.disk.sectors.values():
+            if data[:4] == b"EMDB":
+                return struct.unpack_from("<I", data, 12)[0]
+        return 0
+
+    def test_without_an_sd_card_music_on_the_internal_volume_is_scanned(self):
+        track = (PROJECT / "tests" / "fixtures" / "mp3" /
+                 "cbr_128_44k_stereo_tagged.mp3").read_bytes()
+        session = self.session(files=[("TRACK01.MP3", track, None)])
+        session.machine.stop_at("hal_system_return_scratch")
+        reason = session.machine.run(until_ms=self.session_module.FRAME_LIMIT_MS)
+        self.assertEqual(reason, "reached hal_system_return_scratch")
+        self.assertEqual(self.built_library_tracks(session), 1)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+        self.assertEqual(session.read_file("TRACK01.MP3", len(track)), track)
 
     def assert_every_write_read_back(self, accesses):
         for index, access in enumerate(accesses):
             if access[0] != "W":
                 continue
             lba, count = access[1], access[2]
-            following = accesses[index + 1:index + 1 + count]
-            self.assertEqual([item[:2] for item in following], [("R", lba + step)
-                                                                 for step in range(count)])
-            self.assertTrue(all(item[2] == 1 for item in following))
+            covered = []
+            for later in accesses[index + 1:]:
+                if later[0] != "R" or len(covered) >= count:
+                    break
+                covered.extend(range(later[1], later[1] + later[2]))
+            self.assertEqual(covered[:count], list(range(lba, lba + count)))
 
     def newer_image(self):
         return self.session_module.with_date(self.image, (2099, 1, 1))
@@ -227,13 +259,15 @@ class EchoImageTest(unittest.TestCase):
         self.assertGreaterEqual(machine.usb_connect_count, 1)
         slots = {name: session.layout[name] for name in ("slot_1", "slot_2")}
         inside = {name: range(start, start + SLOT_SECTORS) for name, start in slots.items()}
-        writes = session.card.writes
+        volume_start = session.layout["volume_start"]
+        writes = [item for item in session.card.writes if item[1] < volume_start]
         for _, lba, count in writes:
             self.assertEqual(count, CHUNK_SECTORS)
             self.assertTrue(any(lba in span and lba + count <= span.stop
                                 for span in inside.values()), hex(lba))
         for lba in session.changed_sectors():
-            self.assertTrue(any(lba in span for span in inside.values()), hex(lba))
+            self.assertTrue(lba >= volume_start or any(lba in span for span in inside.values()),
+                            hex(lba))
         by_slot = {name: [item for item in writes if item[1] in span]
                    for name, span in inside.items()}
         self.assertEqual(len(writes), len(by_slot["slot_1"]) + len(by_slot["slot_2"]))
@@ -241,13 +275,14 @@ class EchoImageTest(unittest.TestCase):
                         min(stamp for stamp, _, _ in by_slot["slot_1"]))
         header_word = struct.unpack_from("<I", newer)[0]
         writes_in_order = [(lba, count, word) for kind, lba, count, *rest in session.card.accesses
-                           if kind == "W" for word in rest]
+                           if kind == "W" and lba < volume_start for word in rest]
         for name, start in slots.items():
             sequence = [item for item in writes_in_order if item[0] in inside[name]]
             self.assertEqual(sequence[0], (start, CHUNK_SECTORS, 0xFFFFFFFF))
             self.assertEqual(sequence[-1], (start, CHUNK_SECTORS, header_word))
             self.assertNotIn(start, [lba for lba, _, _ in sequence[1:-1]])
-        self.assert_every_write_read_back(session.card.accesses)
+        self.assert_every_write_read_back(
+            [item for item in session.card.accesses if item[0] != "W" or item[1] < volume_start])
         self.assertEqual(session.slot_image("slot_1"), newer[:self.session_module.SLOT_BYTES])
         self.assertEqual(session.slot_image("slot_2"), newer[:self.session_module.SLOT_BYTES])
         summary("update", session)
@@ -262,10 +297,10 @@ class EchoImageTest(unittest.TestCase):
         session.machine.note("updater_check")
         session.run_to_first_frame()
         self.assertEqual(session.run_through_update_check(),
-                         "reached usb_session_card_changed")
+                         "reached usb_session_storage_changed")
         self.assertEqual(session.machine.reached["updater_check"], 1)
         self.assertNotIn("updater_install", session.machine.reached)
-        self.assert_no_internal_storage_change(session)
+        self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 
     def test_an_echo_pod_image_is_refused_and_nothing_is_written(self):
@@ -284,9 +319,128 @@ class EchoImageTest(unittest.TestCase):
                          "reached board_wait_for_key")
         self.assertEqual(session.machine.reached["updater_check"], 1)
         self.assertNotIn("updater_install", session.machine.reached)
-        self.assert_no_internal_storage_change(session)
+        self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
         summary("refused " + update[0], session)
+
+
+    def boot_until_waiting_for_key(self, session):
+        session.machine.note("updater_install")
+        session.machine.note("updater_check")
+        session.run_to_first_frame()
+        session.machine.answer_waits_for_key(2)
+        session.machine.stop_at("usb_session_storage_changed")
+        return session.machine.run(until_ms=self.session_module.FRAME_LIMIT_MS)
+
+    def test_an_update_file_is_installed_once_and_is_gone_afterwards(self):
+        newer = self.newer_image()
+        first = self.session(files=[("ECHOV498.IMG", newer, None)], vbus=True)
+        cluster = first.volume.first_cluster("ECHOV498.IMG")
+        self.assertEqual(self.boot_until_waiting_for_key(first),
+                         "reached usb_session_storage_changed")
+        self.assertEqual(first.machine.reached["updater_install"], 1)
+        self.assertFalse(first.file_exists("ECHOV498.IMG"))
+        self.assertEqual(first.fat_entry(cluster), 0)
+        self.assertEqual(first.slot_image("slot_1"), newer[:self.session_module.SLOT_BYTES])
+        second = first.reboot(image=first.slot_image("slot_1") + newer[-4:],
+                              vbus_after_first_frame=True)
+        self.assertEqual(self.boot_until_waiting_for_key(second),
+                         "reached usb_session_storage_changed")
+        self.assertNotIn("updater_install", second.machine.reached)
+        self.assertNotIn("updater_check", second.machine.reached)
+        self.assertEqual([w for w in second.card.writes if w[1] < second.layout["volume_start"]], [])
+        self.assert_healthy(second)
+
+    def test_restoring_an_older_build_does_not_reinstall_the_removed_update(self):
+        newer = self.newer_image()
+        first = self.session(files=[("ECHOV498.IMG", newer, None)], vbus=True)
+        self.boot_until_waiting_for_key(first)
+        self.assertEqual(first.machine.reached["updater_install"], 1)
+        first.write_slots(self.image)
+        again = first.reboot(image=self.image, vbus_after_first_frame=True)
+        self.boot_until_waiting_for_key(again)
+        self.assertNotIn("updater_install", again.machine.reached)
+        self.assertEqual(again.slot_image("slot_1"), self.image[:self.session_module.SLOT_BYTES])
+        self.assert_healthy(again)
+
+    def test_an_update_file_that_is_refused_or_already_installed_is_removed(self):
+        mini = self.session_module.with_brand(self.image, "EchoPod")
+        for name, data in (("ECHOV497.IMG", mini), ("ECHOV498.IMG", self.image)):
+            session = self.session(files=[(name, data, None)], vbus=True)
+            self.boot_until_waiting_for_key(session)
+            self.assertNotIn("updater_install", session.machine.reached)
+            self.assertFalse(session.file_exists(name), name)
+            self.assert_only_the_user_volume_changed(session)
+
+    def test_internal_storage_is_read_with_multiple_block_commands_that_are_stopped(self):
+        session = self.session()
+        session.run_to_home_screen()
+        indexes = [index for _, index, _ in session.card.commands]
+        self.assertIn(18, indexes)
+        for position, index in enumerate(indexes):
+            if index == 18:
+                self.assertEqual(indexes[position + 1], 12)
+
+    def realistic_boot(self, sectors_per_cluster, next_free, usb_ms, gap_ms):
+        from echo_emulator.real_volume import real_volume
+        volume = real_volume(sectors_per_cluster=sectors_per_cluster, next_free=next_free)
+        session = self.session_module.Session(self.image, self.elf, volume=volume,
+                                              vbus_after_first_frame=True)
+        machine = session.machine
+        listens = machine.trace("usb_session_listen")
+        steps = machine.trace("app_step")
+        machine.answer_waits_for_key(5)
+        self.assertEqual(session.run_to_first_frame(), "condition met")
+        self.assertLess(machine.milliseconds(), FIRST_FRAME_LIMIT_MS)
+        self.assertEqual(session.run_to_home_screen(), "condition met")
+        self.assertTrue(listens)
+        self.assertLess(listens[0], usb_ms)
+        self.assertLess(machine.milliseconds(), 20000)
+        gaps = [later - earlier for earlier, later in zip(steps, steps[1:])]
+        self.assertLess(max(gaps), gap_ms)
+        self.assertEqual(machine.watchdog_resets, 0)
+        self.assertGreater(machine.watchdog_kicks, 0)
+        self.assert_healthy(session)
+        summary("realistic %d sectors per cluster" % sectors_per_cluster, session)
+
+    def test_a_cold_boot_on_a_3_4_gib_volume_lights_the_screen_and_serves_usb_quickly(self):
+        self.realistic_boot(8, None, 1500, 3000)
+
+    def test_a_cold_boot_with_512_byte_clusters_and_a_stale_hint_stays_responsive(self):
+        self.realistic_boot(1, 2, 5000, 6000)
+
+    def playback_rig(self):
+        from echo_emulator.playback import Rig
+        return Rig(self.session_module, self.image, self.elf)
+
+    def test_a_deep_cue_track_starts_quickly_and_switching_tracks_keeps_the_ui_smooth(self):
+        rig = self.playback_rig()
+        machine = rig.machine
+        rig.open_songs()
+        mark = rig.play_song(DEEP_TRACK)
+        started = machine.milliseconds()
+        rig.run_for(2300)
+        audible = rig.first_audio_after(mark)
+        self.assertIsNotNone(audible)
+        self.assertLess(audible - mark, FIRST_AUDIO_LIMIT_MS)
+        self.assertLess(rig.longest_gap(mark), TRACK_GAP_LIMIT_MS)
+        fade_end = max(stamp for stamp, _ in rig.audio.volumes if stamp >= mark)
+        self.assertLess(fade_end - mark, FADE_LIMIT_MS)
+        window = (started + 1000, started + 2000)
+        self.assertLessEqual(rig.fat_sector_reads(*window), FAT_READS_PER_SECOND_LIMIT)
+        self.assertGreaterEqual(rig.data_sector_reads(*window), DATA_READS_PER_SECOND_MINIMUM)
+        plays = len(rig.audio.plays)
+        switched = machine.milliseconds()
+        rig.skip("next")
+        self.assertGreater(len(rig.audio.plays), plays)
+        rig.press("back")
+        rig.scroll("next", 8)
+        rig.run_for(300)
+        self.assertLess(rig.longest_gap(switched), TRACK_GAP_LIMIT_MS)
+        self.assertEqual(rig.audio.underruns(audible), [])
+        self.assertEqual(machine.panics, [])
+        self.assert_healthy(rig.session)
+        summary("deep cue track", rig.session)
 
 
 def prerequisites_missing():

@@ -90,6 +90,9 @@ typedef struct AppState {
     bool usb_power;
     bool rescan_requested;
     bool music_check_requested;
+    bool prepare_pending;
+    size_t prepare_index;
+    CardFilesReport prepare_report;
     bool light_after_frame;
     const char *goodbye_text;
     Toast toast;
@@ -645,7 +648,7 @@ static void start_screens(uint32_t now_ms)
 static void report_card_files(CardFilesReport files, uint32_t now_ms)
 {
     if (files.card_full) {
-        toast_show(&app.toast, "The card is full", now_ms);
+        toast_show(&app.toast, "Storage is full", now_ms);
     }
     if (files.library_created) {
         app.rescan_requested = true;
@@ -673,13 +676,14 @@ void app_start(void)
     app.battery_check_ms = now_ms;
     app.splash = (Fade){.active = false};
     app.now_ms = now_ms;
-    CardFilesReport files = card_files_prepare();
+    app.prepare_pending = true;
+    app.prepare_index = 0;
+    app.prepare_report = (CardFilesReport){.library_created = false, .card_full = false};
     settings_store_load(&app.settings);
     start_playback();
     start_hardware(now_ms);
     bluetooth_link_start(&app.bluetooth, &app.toast, now_ms);
     start_screens(now_ms);
-    report_card_files(files, now_ms);
     if (hal_power_take_usb_start()) {
         start_charging(now_ms);
     }
@@ -810,9 +814,49 @@ static void charge_step(uint32_t now_ms)
     }
 }
 
+static void show_prepare_progress(size_t index)
+{
+    static char text[48];
+    StringBuilder builder = string_builder_make(text, sizeof text);
+    string_builder_append(&builder, "File ");
+    string_builder_append_unsigned(&builder, (uint32_t)index + 1);
+    string_builder_append(&builder, " of ");
+    string_builder_append_unsigned(&builder, (uint32_t)card_files_count());
+    app_show_notice("Preparing storage", text);
+}
+
+static bool prepare_step(void)
+{
+    while (app.prepare_index < card_files_count()) {
+        size_t index = app.prepare_index++;
+        if (!card_files_missing(index)) {
+            continue;
+        }
+        bool slow = card_files_slow(index);
+        if (slow && !app.charging) {
+            show_prepare_progress(index);
+        }
+        card_files_reserve(&app.prepare_report, index);
+        if (slow) {
+            return !app.charging;
+        }
+    }
+    app.prepare_pending = false;
+    report_card_files(app.prepare_report, hal_clock_milliseconds());
+    return false;
+}
+
+bool app_preparing(void)
+{
+    return app.prepare_pending;
+}
+
 void app_step(void)
 {
     if (app.powered_off) {
+        return;
+    }
+    if (app.prepare_pending && prepare_step()) {
         return;
     }
     if (app.music_check_requested) {

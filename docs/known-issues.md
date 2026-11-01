@@ -16,15 +16,24 @@ EchoPod is early firmware made by one person and tested on one player. It comes 
 - **Going back to FiiO's firmware** is checked with FiiO's 8 GB 3.7.0, 3.8.0, 3.9.0 and 4.0.0 images, and 0.3.0 installed FiiO 4.0.0 on the player and was installed back from it (EchoPod 0.2.0 refuses 4.0.0, see `docs/user-guide.md`). Another custom firmware can't be installed from EchoPod: go back to FiiO's first.
 - **If the player doesn't start at all,** the only recovery known is the chip's maskrom mode (`docs/device-recovery.md`). It works, but it needs a patched tool and care.
 
-## Full-size Echo (Podium 4.5.0)
+## Full-size Echo (Podium)
 
 - **Never run on a player yet.** The Echo build comes from decompiled stock code and is checked on the Mac only. Values taken from the decompile and not seen working: the panel's memory access byte (`0x28`; `-DECHO_PANEL_MADCTL=0x68` mirrors the columns), one 16-bit write per pixel in the LCD controller, the 49-row window offset, the 25 kHz backlight with the Mini's level table, the power pair, the jack polarity, and the stock Echo image's CRC range (the first 38 MiB).
 - **Going back to FiiO's Echo firmware** goes through Podium's own updater, which writes both slots, so keep the `MASKROM.REQ` escape hatch and a maskrom path ready (`docs/device-recovery.md`).
 - **Text on the Echo comes from glyph faces** in the image (22 px, 128 cached glyphs). After an install, notices use the built-in 16 px font because glyph reads stop until the restart.
 
+## CUE sheets
+
+- **Not tested on a player.** Gapless continuation between CUE tracks of one file is checked in tests (one decoder stream, no reopen), not by ear.
+- **Quotes inside a title** can't be escaped in a sheet, so a `\"` ends the title there. The player cuts texts from a sheet at 255 bytes; echo-sync doesn't.
+- **Two sheets for the same audio file** both make tracks, so the album appears twice. Sheets in a folder too big for the library scan's listing memory (thousands of entries in one folder) are matched with the audio files of the same batch only.
+- **A playlist entry that names a CUE image** (the FLAC) resolves to one of its tracks, not necessarily the first.
+- **Text from sheets isn't recomposed to NFC on the player**, as with tags; echo-sync does recompose it. Sheets in decomposed form make the player's and the computer's libraries differ in those strings only.
+
 ## USB
 
 - **The first connection to a new computer can fail.** Windows may report "Device Descriptor Request Failed", or the drives may drop off. Unplug and plug in again; the second try has always worked.
+- **Internal storage as the music drive (no card):** the player reads and writes the internal volume one 512-byte block at a time, which is slower than the SD card path, and a first library scan of a big collection takes correspondingly longer. Not yet measured on a player.
 - **Eject both drives before you unplug.** Unplugging first can lose the last changes, and the player warns you ("Unplugged before ejecting"). Once, a file deleted from Windows and ejected properly was still on internal storage afterwards; it hasn't happened again.
 - **The SD card can be marked as needing repair.** Twice a computer reported the card's exFAT volume as not cleanly closed. Nothing was lost. If Windows offers to scan and fix the card, let it (or run `chkdsk /f` on its drive letter; on a Mac, Disk Utility's First Aid).
 - **Speed on a Mac hasn't been measured.** On Windows 11, copying runs at about 3.7 MB/s to the SD card and 5 MB/s to internal storage, and reading from the SD card at about 3.9 MB/s.

@@ -7,9 +7,9 @@
 enum {
     HEADER_SIZE = 128,
     SECTION_COUNT = 10,
-    VERSION = 3,
+    VERSION = 4,
     ALIGNMENT = 4,
-    TRACK_RECORD = 24,
+    TRACK_RECORD = 32,
     ALBUM_RECORD = 16,
     GROUP_RECORD = 12,
     FOLDER_RECORD = 16,
@@ -302,6 +302,8 @@ static void write_tracks(Writer *writer, const ReferenceBuilder *builder, const 
         put_byte(writer, track->disc);
         put_byte(writer, track->number);
         put_u16(writer, 0);
+        put_u32(writer, 0);
+        put_u32(writer, 0);
     }
 }
 

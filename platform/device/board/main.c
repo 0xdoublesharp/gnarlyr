@@ -57,10 +57,12 @@ static void run_usb_session(void)
                         "Recent changes may be lost. Eject the drives before unplugging.");
         board_wait_for_key();
     }
+#ifndef ECHO_BOOT_TRACE
     if (end == USB_SESSION_EJECTED || end == USB_SESSION_UNPLUGGED) {
         update_after_usb();
     }
-    if (usb_session_card_changed()) {
+#endif
+    if (usb_session_storage_changed()) {
         storage_reset();
         app_start();
         app_request_rescan_if_music_changed();
@@ -155,6 +157,24 @@ static void switch_off_when_empty(uint32_t boot_millivolts)
     hal_power_off();
 }
 
+#ifdef ECHO_BOOT_TRACE
+enum {
+    BOOT_TRACE_MS = 1500
+};
+
+static void boot_step(const char *step)
+{
+    board_backlight_full();
+    app_show_notice("Boot", step);
+    board_delay_ms(BOOT_TRACE_MS);
+}
+#else
+static void boot_step(const char *step)
+{
+    (void)step;
+}
+#endif
+
 static void sleep_while_dark(void)
 {
     if (!board_display_lit()) {
@@ -179,17 +199,24 @@ void board_main(void)
     uint32_t boot_millivolts = battery_millivolts(board_battery_boot_reading());
     board_input_start();
     board_display_start();
+    boot_step("display");
 #ifdef ECHO_BOARD_ECHO
     board_glyphs_start();
+    boot_step("glyphs");
     update_check_loader_request();
+    boot_step("loader request");
     board_jack_poll();
+    boot_step("jack");
 #endif
     switch_off_when_empty(boot_millivolts);
 #ifndef ECHO_BOARD_ECHO
     board_glyphs_start();
 #endif
+    boot_step("app start");
     app_start();
+    boot_step("splash");
     app_show_splash();
+    boot_step("main loop");
     board_stall_pause(false);
     for (;;) {
         board_stall_beat();

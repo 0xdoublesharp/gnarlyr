@@ -22,4 +22,5 @@ typedef enum EmmcSlot2 {
 bool emmc_layout_read(EmmcLayout *layout, const BlockDevice *device, uint32_t total_sectors);
 bool emmc_layout_read_with(EmmcLayout *layout, const BlockDevice *device, uint32_t total_sectors,
                            EmmcSlot2 placement);
+bool emmc_layout_in_volume(const EmmcLayout *layout, uint32_t lba, uint32_t count);
 bool emmc_layout_allows_write(const EmmcLayout *layout, uint32_t lba, uint32_t count);

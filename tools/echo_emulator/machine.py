@@ -21,6 +21,8 @@ import make_image
 RAM_BASE = 0x03000000
 RAM_SIZE = 0x100000
 TRAMPOLINE = 0x03FF0000
+CORE1_RAM_BASE = 0x01000000
+CORE1_RAM_SIZE = 0x60000
 PAGE = 0x1000
 SLICE_INSTRUCTIONS = 4000
 MASKED_SLICE_INSTRUCTIONS = 5
@@ -80,6 +82,9 @@ class Machine:
         self.base_cycles = 0
         self.jump_cycles = 0
         self.core_hz = CRYSTAL_HZ
+        self.rate_mark_cycles = 0
+        self.rate_mark_us = 0
+        self.clock_log = []
         self.vbus = False
         self.adc_key_value = ADC_NO_KEY
         self.adc_battery_value = ADC_BATTERY_4000_MV
@@ -93,6 +98,8 @@ class Machine:
         self.faults = []
         self.watchdog_kicks = 0
         self.watchdog_running = False
+        self.watchdog_resets = 0
+        self.traces = {}
         self.reset_requested = None
         self.stop_reason = None
         self.exception_depth = 0
@@ -120,8 +127,18 @@ class Machine:
     def poll_jump(self, cycles):
         self.jump_cycles += cycles
 
+    def microseconds(self):
+        since = self.cycles() - self.rate_mark_cycles
+        return self.rate_mark_us + since * 1000000 // self.core_hz
+
     def milliseconds(self):
-        return self.cycles() * 1000 // self.core_hz
+        return self.microseconds() // 1000
+
+    def set_core_hz(self, hz):
+        self.rate_mark_us = self.microseconds()
+        self.rate_mark_cycles = self.cycles()
+        self.core_hz = hz
+        self.clock_log.append((self.rate_mark_us // 1000, hz))
 
     def external_pin_levels(self, port):
         levels = 0
@@ -145,7 +162,7 @@ class Machine:
             if 0 in (fbdiv, postdiv1, refdiv, postdiv2):
                 return
             hz = CRYSTAL_HZ // refdiv * fbdiv // postdiv1 // postdiv2
-        self.core_hz = hz
+        self.set_core_hz(hz)
         self.systick.restart()
 
     def pclk_hz(self):
@@ -164,6 +181,7 @@ class Machine:
     def build_memory(self):
         self.uc.mem_map(RAM_BASE, RAM_SIZE)
         self.uc.mem_map(TRAMPOLINE, PAGE)
+        self.uc.mem_map(CORE1_RAM_BASE, CORE1_RAM_SIZE)
         self.uc.mem_write(TRAMPOLINE, b"\x00\xbf" * (PAGE // 2))
         self.gpio = [devices.Gpio(self, port) for port in range(3)]
         self.cru = devices.Cru(self)
@@ -172,6 +190,7 @@ class Machine:
         self.pmu = devices.Pmu(self)
         self.vop = devices.Vop(self)
         from .emmc import DwMmc
+        self.watchdog = devices.Watchdog(self)
         self.emmc_controller = DwMmc(self, self.card)
         self.sd_controller = DwMmc(self, None)
         mapping = [
@@ -179,7 +198,7 @@ class Machine:
             (self.gpio[2], 0x50030000, PAGE), (devices.Grf(self), 0x50010000, PAGE),
             (self.pmu, 0x50020000, PAGE), (self.cru, 0x40180000, PAGE),
             (devices.Pwm(self), 0x400F0000, PAGE), (devices.SarAdc(self), 0x400D0000, PAGE),
-            (devices.Watchdog(self), 0x40120000, PAGE), (self.systick, 0xE000E000, PAGE),
+            (self.watchdog, 0x40120000, PAGE), (self.systick, 0xE000E000, PAGE),
             (self.vop, 0x60070000, PAGE), (devices.Dmac(), 0x60000000, PAGE),
             (self.usb, 0x60080000, 0x10000), (self.emmc_controller, 0x60030000, PAGE),
             (self.sd_controller, 0x60020000, PAGE),
@@ -250,6 +269,15 @@ class Machine:
     def hook_symbol(self, name, callback):
         self.add_address_hook(self.symbols[name], callback)
 
+    def stub_symbol(self, name, handler):
+        def replaced():
+            result = handler(self)
+            if result is not None:
+                self.uc.reg_write(UC_ARM_REG_R0, result & 0xFFFFFFFF)
+            self.uc.reg_write(UC_ARM_REG_PC, self.uc.reg_read(UC_ARM_REG_LR) | 1)
+
+        self.hook_symbol(name, replaced)
+
     def current_pc(self):
         return self.uc.reg_read(UC_ARM_REG_PC)
 
@@ -315,6 +343,11 @@ class Machine:
                 self.press_key(PLAY_KEY_ADC)
 
         self.hook_symbol("board_wait_for_key", waiting)
+
+    def trace(self, name):
+        stamps = self.traces.setdefault(name, [])
+        self.hook_symbol(name, lambda: stamps.append(self.milliseconds()))
+        return stamps
 
     def note(self, name):
         def reached():
@@ -392,6 +425,9 @@ class Machine:
                 break
             self.step_slice()
             executed += SLICE_INSTRUCTIONS
+            if self.watchdog.expired():
+                self.watchdog_resets += 1
+                self.stop("watchdog reset")
         return self.stop_reason
 
     started = False
