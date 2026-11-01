@@ -16,7 +16,7 @@
 #define PWM_CONTROL_RUN 0x00010003u
 
 enum {
-    CLEAR_ROWS = 10,
+    CLEAR_ROWS = 2,
     PWM_GATE = 0x90,
     PWM_RESET = 0x17,
     PWM_RESET_MS = 1

@@ -24,6 +24,7 @@ enum {
 };
 
 static const GpioPin PANEL_RESET = {2, 15};
+static bool controller_running;
 
 static volatile uint32_t *vop(void)
 {
@@ -64,6 +65,7 @@ static void power_controller(void)
     cru_reset(VOP_RESET, false);
     board_delay_ms(VOP_RESET_SETTLE_MS);
     vop_start(vop(), hal_system_clock_mhz());
+    controller_running = true;
 }
 
 static void mux_panel_pins(void)
@@ -100,5 +102,7 @@ void board_panel_write(PanelWindow window, const uint16_t *pixels)
 
 void board_panel_after_clock_change(void)
 {
-    vop_set_clock(vop(), hal_system_clock_mhz());
+    if (controller_running) {
+        vop_set_clock(vop(), hal_system_clock_mhz());
+    }
 }

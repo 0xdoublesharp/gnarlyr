@@ -65,4 +65,4 @@ SECTIONS
 ASSERT(ADDR(.code) == 0x03050000, "the code vector table must be at 0x03050000")
 ASSERT(ADDR(.data) == 0x03004000, "the entry vector must be at 0x03004000")
 ASSERT(SIZEOF(.data) == 8, "only the entry vector may be in .data: make initialised globals const")
-ASSERT(device_noinit_end <= 0x0304C000, ".data, .bss and .noinit must end below 0x0304C000")
+ASSERT(device_noinit_end <= 0x0304A240, ".data, .bss and .noinit must end below 0x0304A240: the boot ROM clears this range while it still runs from RAM above it")

@@ -270,7 +270,7 @@ Emulated hardware is minimal: GPIO ports, GRF and CRU (write-masked registers, P
 - **Image rules,** enforced by the linker script and the builder:
   - `.data` holds only the 8-byte entry vector; no initialised mutable globals.
   - Code stays below the row-0 end (`0x030771D4`).
-  - `.bss` ends below `0x0304C000`.
+  - `.data`, `.bss` and `.noinit` end below `0x0304A240`. The boot ROM zeroes the load table's data range while it still uses RAM above it: Echo images ending at `0x0304AB90` and above never started (black screen, nothing on USB), images ending at `0x0304A224` and below did. The exact ROM boundary is unknown; `0x0304A240` is the highest proven value.
   - Nothing loaded is left out of the image.
 - **Run model:** the main loop polls the drivers; the 1 ms SysTick interrupt keeps time and runs the stall watch (see below). The display driver samples the keys before and after every strip it pushes, so key presses aren't missed during slow frames.
 - **Storage:** `board/mmc` drives the DW-MMC controller (commands, polled single- and multi-block reads and writes, CMD12, the card clock); `board/sd` and `board/emmc` write through `device/card_write` and `board/sd` powers the SD slot and checks card detect. `board/emmc` starts internal storage (8-bit bus at 24 MHz) on first use and refuses any write outside what `emmc_layout` allows. The file HAL mounts the card (FAT16, FAT32 or exFAT) on the first open and can hold 8 files open at once. Writes go in place or through `fat_reserve` (see Settings and favorites).
