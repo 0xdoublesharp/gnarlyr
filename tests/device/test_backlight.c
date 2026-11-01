@@ -12,6 +12,15 @@ static void levels_get_brighter_up_to_full_at_the_top(void)
     CHECK_EQUAL(100u, backlight_percent(HAL_DISPLAY_BRIGHTNESS_MAX));
 }
 
+static void the_dimmest_level_keeps_the_panel_lit(void)
+{
+#ifdef ECHO_BOARD_ECHO
+    CHECK_EQUAL(20u, backlight_percent(HAL_DISPLAY_BRIGHTNESS_MIN));
+#else
+    CHECK_EQUAL(8u, backlight_percent(HAL_DISPLAY_BRIGHTNESS_MIN));
+#endif
+}
+
 static void levels_outside_the_range_are_clamped(void)
 {
     CHECK_EQUAL(backlight_percent(HAL_DISPLAY_BRIGHTNESS_MIN), backlight_percent(0));
@@ -85,6 +94,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(levels_get_brighter_up_to_full_at_the_top),
+        TEST_CASE(the_dimmest_level_keeps_the_panel_lit),
         TEST_CASE(levels_outside_the_range_are_clamped),
         TEST_CASE(the_pwm_runs_at_ten_kilohertz_from_pclk),
         TEST_CASE(the_echo_pwm_runs_at_twenty_five_kilohertz_from_pclk),

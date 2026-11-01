@@ -4,8 +4,13 @@ enum {
     FULL_PERCENT = 100
 };
 
+#ifdef ECHO_BOARD_ECHO
+static const uint8_t PERCENT_FOR_LEVEL[HAL_DISPLAY_BRIGHTNESS_MAX] = {20, 25, 31, 38, 46,
+                                                                      55, 65, 76, 88, 100};
+#else
 static const uint8_t PERCENT_FOR_LEVEL[HAL_DISPLAY_BRIGHTNESS_MAX] = {8,  12, 17, 23, 30,
                                                                       39, 50, 63, 80, 100};
+#endif
 
 uint32_t backlight_percent(uint8_t level)
 {
