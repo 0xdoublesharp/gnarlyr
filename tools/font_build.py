@@ -13,6 +13,7 @@ ALPHA_LEVELS = 15
 FULL_ALPHA = 255
 BYTES_PER_LINE = 16
 MAX_BITMAP_BYTES = 0xFFFF
+PACKED_BUILT_IN = (ord(" "), ord("?"))
 
 
 @dataclass
@@ -32,7 +33,9 @@ class FontData:
     ascent: int
     descent: int
     glyphs: list
-    pack_faces: tuple = (0, 0)
+    pack_face: int = 0
+    board: str = ""
+    packed: bool = False
 
 
 def quantize_alpha(value):
@@ -87,10 +90,12 @@ def build_font(spec, ranges, assets_directory):
     path = assets_directory / spec["file"]
     font = load_font(path, spec["size"])
     ascent, descent = font.getmetrics()
-    glyphs = [render_glyph(font, codepoint) for codepoint in covered_codepoints(path, ranges)]
+    wanted = list(ranges) + spec.get("extra_ranges", [])
+    glyphs = [render_glyph(font, codepoint) for codepoint in covered_codepoints(path, wanted)]
     numbers = pack_face_numbers(assets_directory)
-    faces = tuple(numbers[name] if name else 0 for name in spec.get("pack_faces", [None, None]))
-    return FontData(spec["name"], ascent, descent, glyphs, faces)
+    face = numbers[spec["pack_face"]] if "pack_face" in spec else 0
+    return FontData(spec["name"], ascent, descent, glyphs, face, spec.get("board", ""),
+                    spec.get("packed", False))
 
 
 def constant_name(name):
@@ -115,9 +120,15 @@ def glyph_table(glyphs):
     return lines, bytes(bitmap)
 
 
-def font_source(font):
+def board_guard(font):
+    if not font.board:
+        return "", ""
+    return f"#ifdef ECHO_BOARD_{font.board}\n\n", "#endif\n\n"
+
+
+def font_definition(font, glyphs):
     prefix = font.name.upper()
-    glyph_lines, bitmap = glyph_table(font.glyphs)
+    glyph_lines, bitmap = glyph_table(glyphs)
     bitmap_lines = list(byte_lines(bitmap)) or ["    0x00,"]
     return "\n".join([
         f"static const uint8_t {prefix}_BITMAP[] = {{",
@@ -131,15 +142,23 @@ def font_source(font):
         f"const Font {constant_name(font.name)} = {{",
         f"    .glyphs = {prefix}_GLYPHS,",
         f"    .bitmap = {prefix}_BITMAP,",
-        f"    .glyph_count = {len(font.glyphs)},",
+        f"    .glyph_count = {len(glyphs)},",
         f"    .bitmap_size = {len(bitmap)},",
         f"    .ascent = {font.ascent},",
         f"    .descent = {font.descent},",
-        *([f"    .pack_faces = {{{font.pack_faces[0]}, {font.pack_faces[1]}}},"]
-          if any(font.pack_faces) else []),
+        *([f"    .pack_face = {font.pack_face},"] if font.pack_face else []),
         "};",
         "",
     ])
+
+
+def font_source(font):
+    opening, closing = board_guard(font)
+    if not font.packed:
+        return opening + font_definition(font, font.glyphs) + closing
+    built_in = [glyph for glyph in font.glyphs if glyph.codepoint in PACKED_BUILT_IN]
+    return (opening + "#ifdef ECHO_FONTS_PACKED\n\n" + font_definition(font, built_in) +
+            "#else\n\n" + font_definition(font, font.glyphs) + "#endif\n\n" + closing)
 
 
 def header_source(names):

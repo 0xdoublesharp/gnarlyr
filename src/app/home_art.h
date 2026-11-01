@@ -10,7 +10,6 @@
 #include "ui/theme.h"
 
 enum {
-    HOME_ART_WIDTH = 144,
     HOME_ART_CYCLE_MS = 5000
 };
 

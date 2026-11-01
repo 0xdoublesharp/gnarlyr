@@ -2,6 +2,7 @@
 
 #include "app/app.h"
 #include "app_internal.h"
+#include "board_layout.h"
 #include "check.h"
 #include "default_theme.h"
 #include "fake_hal.h"
@@ -41,8 +42,6 @@ enum {
     SETTINGS_RESCAN_INDEX = 10,
     MUSIC_COVER_FLOW_INDEX = 0,
     MUSIC_PLAYLISTS_INDEX = 7,
-    COVER_CENTER_X = 160,
-    COVER_CENTER_Y = 60,
     SETTLE_STEPS = 30,
     RED_COVER = 0xF800,
     BLUE_COVER = 0x001F,
@@ -181,7 +180,7 @@ static void audio_gets_a_turn_after_every_strip(void)
     start_app();
     int before = fake_hal_audio_service_count();
     step();
-    CHECK(fake_hal_audio_service_count() - before >= HAL_DISPLAY_HEIGHT / 34 + 1);
+    CHECK(fake_hal_audio_service_count() - before >= HAL_DISPLAY_HEIGHT / BOARD_STRIP_HEIGHT + 1);
 }
 
 static void bluetooth_gets_a_turn_after_every_strip(void)
@@ -189,7 +188,8 @@ static void bluetooth_gets_a_turn_after_every_strip(void)
     start_app();
     int before = fake_hal_bluetooth_service_count();
     step();
-    CHECK(fake_hal_bluetooth_service_count() - before >= HAL_DISPLAY_HEIGHT / 34 + 1);
+    CHECK(fake_hal_bluetooth_service_count() - before >=
+          HAL_DISPLAY_HEIGHT / BOARD_STRIP_HEIGHT + 1);
 }
 
 static void a_step_writes_one_full_frame_and_presents_it(void)
@@ -309,10 +309,10 @@ static void open_music_entry(int index)
 
 static bool columns_have_ink(int row, int first, int last)
 {
-    int top = DEFAULT_THEME.metrics.header_height + row * DEFAULT_THEME.metrics.row_height;
-    for (int y = top; y < top + DEFAULT_THEME.metrics.row_height; y++) {
+    int top = BOARD_THEME.metrics.header_height + row * BOARD_THEME.metrics.row_height;
+    for (int y = top; y < top + BOARD_THEME.metrics.row_height; y++) {
         for (int x = first; x < last; x++) {
-            if (fake_hal_pixel(x, y) != DEFAULT_THEME.colors.background) {
+            if (fake_hal_pixel(x, y) != BOARD_THEME.colors.background) {
                 return true;
             }
         }
@@ -322,9 +322,9 @@ static bool columns_have_ink(int row, int first, int last)
 
 static bool row_shows_a_chevron(int row)
 {
-    int right = HAL_DISPLAY_WIDTH - DEFAULT_THEME.metrics.padding;
-    int chevron = text_width(DEFAULT_THEME.fonts.title, "\xE2\x80\xBA");
-    int gap = DEFAULT_THEME.metrics.detail_gap;
+    int right = HAL_DISPLAY_WIDTH - BOARD_THEME.metrics.padding;
+    int chevron = text_width(BOARD_THEME.fonts.title, "\xE2\x80\xBA");
+    int gap = BOARD_THEME.metrics.detail_gap;
     return columns_have_ink(row, right - chevron, right) &&
            !columns_have_ink(row, right - chevron - gap, right - chevron);
 }
@@ -565,7 +565,7 @@ static void saved_settings_are_restored_at_start(void)
 
 static uint16_t scrollbar_probe(void)
 {
-    return fake_hal_pixel(HAL_DISPLAY_WIDTH - DEFAULT_THEME.metrics.scrollbar_inset - 1, 40);
+    return fake_hal_pixel(HAL_DISPLAY_WIDTH - BOARD_THEME.metrics.scrollbar_inset - 1, 40);
 }
 
 static void a_new_screen_slides_in_from_the_right(void)
@@ -574,11 +574,11 @@ static void a_new_screen_slides_in_from_the_right(void)
     step();
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
-    CHECK(scrollbar_probe() != DEFAULT_THEME.colors.scrollbar_thumb);
+    CHECK(scrollbar_probe() != BOARD_THEME.colors.scrollbar_thumb);
     wait_ms(SLIDE_DURATION_MS / 2);
-    CHECK(scrollbar_probe() != DEFAULT_THEME.colors.scrollbar_thumb);
+    CHECK(scrollbar_probe() != BOARD_THEME.colors.scrollbar_thumb);
     wait_ms(SLIDE_DURATION_MS / 2);
-    CHECK_EQUAL(DEFAULT_THEME.colors.scrollbar_thumb, scrollbar_probe());
+    CHECK_EQUAL(BOARD_THEME.colors.scrollbar_thumb, scrollbar_probe());
 }
 
 static void going_back_slides_the_screen_out_to_the_right(void)
@@ -589,9 +589,9 @@ static void going_back_slides_the_screen_out_to_the_right(void)
     wait_ms(SLIDE_DURATION_MS);
     tap(KEY_BACK);
     CHECK(title_is("EchoPod"));
-    CHECK_EQUAL(DEFAULT_THEME.colors.scrollbar_thumb, scrollbar_probe());
+    CHECK_EQUAL(BOARD_THEME.colors.scrollbar_thumb, scrollbar_probe());
     wait_ms(SLIDE_DURATION_MS);
-    CHECK(scrollbar_probe() != DEFAULT_THEME.colors.scrollbar_thumb);
+    CHECK(scrollbar_probe() != BOARD_THEME.colors.scrollbar_thumb);
 }
 
 static void waking_draws_a_frame_before_the_backlight_comes_on(void)
@@ -800,8 +800,8 @@ static void the_splash_draws_over_the_home_screen(void)
     start_app();
     app_show_splash();
     wait_ms(SPLASH_FADE_MS);
-    Rect content = theme_content_area(&DEFAULT_THEME);
-    CHECK_EQUAL(DEFAULT_THEME.colors.background, fake_hal_pixel(content.x + 2, content.y + 4));
+    Rect content = theme_content_area(&BOARD_THEME);
+    CHECK_EQUAL(BOARD_THEME.colors.background, fake_hal_pixel(content.x + 2, content.y + 4));
 }
 
 static bool toast_is(const char *expected)
@@ -1356,15 +1356,21 @@ static void cover_flow_runs_by_album_artist_and_opens_the_centre_album(void)
     CHECK(title_is("Back In Black"));
 }
 
+static uint16_t cover_flow_probe(void)
+{
+    const CoverFlowLayout *layout = &BOARD_LAYOUT.cover_flow;
+    return fake_hal_pixel(layout->center_x, layout->center_top + layout->center_size / 2);
+}
+
 static void cover_flow_shows_the_centre_cover(void)
 {
     start_app_with_library();
     open_music_entry(MUSIC_COVER_FLOW_INDEX);
     settle();
-    CHECK_EQUAL(BLUE_COVER, fake_hal_pixel(COVER_CENTER_X, COVER_CENTER_Y));
+    CHECK_EQUAL(BLUE_COVER, cover_flow_probe());
     move_down(1);
     settle();
-    CHECK_EQUAL(RED_COVER, fake_hal_pixel(COVER_CENTER_X, COVER_CENTER_Y));
+    CHECK_EQUAL(RED_COVER, cover_flow_probe());
 }
 
 static void cover_flow_starts_at_the_playing_album(void)
@@ -1416,12 +1422,12 @@ static void the_header_shows_the_play_state_and_battery(void)
 {
     start_app_with_library();
     fake_hal_set_battery((HalBattery){.known = true, .percent = HALF_BATTERY, .charging = false});
-    Color icon = DEFAULT_THEME.colors.header_text;
+    Color icon = BOARD_THEME.colors.header_text;
     step();
-    CHECK(!area_has_color(status_bar_playback_area(&DEFAULT_THEME), icon));
-    CHECK(area_has_color(status_bar_battery_area(&DEFAULT_THEME), icon));
+    CHECK(!area_has_color(status_bar_playback_area(&BOARD_THEME), icon));
+    CHECK(area_has_color(status_bar_battery_area(&BOARD_THEME), icon));
     play_first_album_track();
-    CHECK(area_has_color(status_bar_playback_area(&DEFAULT_THEME), icon));
+    CHECK(area_has_color(status_bar_playback_area(&BOARD_THEME), icon));
 }
 
 static void stopping_the_app_saves_the_session(void)
@@ -1491,7 +1497,8 @@ static void diagnostics_shows_the_firmware_version_from_the_hal(void)
 
 static uint16_t cover_probe(void)
 {
-    return fake_hal_pixel(DEFAULT_THEME.metrics.padding + 56, 108);
+    return fake_hal_pixel(BOARD_THEME.metrics.padding + 56,
+                          BOARD_LAYOUT.now_playing.cover_top + 78);
 }
 
 static void now_playing_shows_the_album_cover(void)
@@ -1513,7 +1520,7 @@ static void now_playing_without_a_cover_keeps_the_text_layout(void)
     wait_ms(SLIDE_DURATION_MS);
     step();
     CHECK(title_is("Now Playing"));
-    CHECK_EQUAL(DEFAULT_THEME.colors.background, cover_probe());
+    CHECK_EQUAL(BOARD_THEME.colors.background, cover_probe());
 }
 
 static void an_unchanged_frame_sends_no_pixels(void)

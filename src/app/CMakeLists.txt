@@ -4,6 +4,7 @@ add_library(echo_app STATIC
     app_screens.c
     bluetooth_link.c
     bluetooth_store.c
+    board_layout.c
     browse_screen.c
     cover_cache.c
     default_theme.c

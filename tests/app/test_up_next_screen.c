@@ -41,7 +41,7 @@ static void open_up_next(void)
 {
     screen = up_next_screen_init(
         &up_next,
-        (UpNextConfig){.library = &fixture.library, .theme = &DEFAULT_THEME, .player = &player});
+        (UpNextConfig){.library = &fixture.library, .theme = &BOARD_THEME, .player = &player});
     screen->enter(screen->context, 100);
 }
 

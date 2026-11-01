@@ -169,7 +169,7 @@ static void a_played_episode_starts_from_the_top(void)
 static BrowseScreen *shelf(SpokenKind kind)
 {
     browse_pool_init(&pool, (BrowsePoolConfig){.library = library,
-                                               .theme = &DEFAULT_THEME,
+                                               .theme = &BOARD_THEME,
                                                .player = &player,
                                                .now_playing = &now_playing,
                                                .spoken = &store});

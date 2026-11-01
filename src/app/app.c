@@ -5,6 +5,7 @@
 #include "app_internal.h"
 #include "app_screens.h"
 #include "bluetooth_link.h"
+#include "board_layout.h"
 #include "card_files.h"
 #include "core/deadline.h"
 #include "core/key_tracker.h"
@@ -40,7 +41,6 @@
 #include "ui/toast.h"
 
 enum {
-    STRIP_HEIGHT = 34,
     RESCAN_PROGRESS_MS = 250,
     BATTERY_CHECK_MS = 250,
     CHARGE_LIT_MS = 5000
@@ -122,7 +122,7 @@ static const FadeTiming GOODBYE_TIMING = {.fade_ms = 600, .hold_ms = 400, .risin
 static const char SPLASH_TEXT[] = "EchoPod";
 static const char GOODBYE_TEXT[] = "Goodbye";
 static const char BATTERY_LOW_TEXT[] = "Battery low";
-static Color strip_pixels[HAL_DISPLAY_WIDTH * STRIP_HEIGHT];
+static Color strip_pixels[HAL_DISPLAY_WIDTH * BOARD_STRIP_HEIGHT];
 static uint32_t row_hashes[HAL_DISPLAY_HEIGHT];
 
 static Screen *top_screen(void)
@@ -431,7 +431,7 @@ static void update_screen(uint32_t now_ms)
 
 static void draw_fade(Canvas *canvas, const Fade *fade, const char *text)
 {
-    const Theme *theme = &DEFAULT_THEME;
+    const Theme *theme = &BOARD_THEME;
     Rect screen = {0, 0, HAL_DISPLAY_WIDTH, HAL_DISPLAY_HEIGHT};
     Color color =
         color_blend(theme->colors.background, theme->colors.text, fade_alpha(fade, app.now_ms));
@@ -463,7 +463,7 @@ static void draw_shifted(Screen *screen, Canvas *canvas, int x, Rect area)
 
 static void draw_slide(Canvas *canvas, Screen *arriving)
 {
-    const Theme *theme = &DEFAULT_THEME;
+    const Theme *theme = &BOARD_THEME;
     Screen *leaving = app.leaving;
     bool whole = arriving->full_screen || leaving->full_screen;
     Rect area =
@@ -490,9 +490,9 @@ static void draw_frame(void *context, Canvas *canvas)
         screen->draw(screen->context, canvas);
     }
     if (!screen->full_screen) {
-        status_bar_draw(canvas, &DEFAULT_THEME, state->status_bar);
+        status_bar_draw(canvas, &BOARD_THEME, state->status_bar);
     }
-    toast_draw(&state->toast, canvas, &DEFAULT_THEME);
+    toast_draw(&state->toast, canvas, &BOARD_THEME);
     if (state->options.show_frame_time) {
         FrameBreakdown breakdown = {
             .total_us = frame_stats_average_us(&state->frame_stats),
@@ -500,7 +500,7 @@ static void draw_frame(void *context, Canvas *canvas)
             .draw_us = frame_stats_average_us(&state->draw_stats),
             .send_us = frame_stats_average_us(&state->send_stats),
         };
-        frame_overlay_draw(canvas, &DEFAULT_THEME, breakdown, hal_audio_stats());
+        frame_overlay_draw(canvas, &BOARD_THEME, breakdown, hal_audio_stats());
     }
 }
 
@@ -563,8 +563,8 @@ static void render(FrameDrawer drawer, bool drawer_paints_everything)
         .strip_pixels = strip_pixels,
         .screen_width = HAL_DISPLAY_WIDTH,
         .screen_height = HAL_DISPLAY_HEIGHT,
-        .strip_height = STRIP_HEIGHT,
-        .background = DEFAULT_THEME.colors.background,
+        .strip_height = BOARD_STRIP_HEIGHT,
+        .background = BOARD_THEME.colors.background,
         .drawer_paints_everything = drawer_paints_everything,
     };
     FrameSink sink = {.write = write_to_display, .context = NULL};
@@ -624,7 +624,7 @@ static void start_screens(uint32_t now_ms)
 {
     AppScreensContext context = {
         .options = &app.options,
-        .theme = &DEFAULT_THEME,
+        .theme = &BOARD_THEME,
         .store = &app.library,
         .player = &app.player,
         .spoken = &app.spoken,
@@ -769,7 +769,7 @@ void app_request_rescan_if_music_changed(void)
 static void draw_charge(void *context, Canvas *canvas)
 {
     (void)context;
-    charge_screen_draw(canvas, &DEFAULT_THEME, app.charge_battery);
+    charge_screen_draw(canvas, &BOARD_THEME, app.charge_battery);
 }
 
 static void follow_charge_keys(uint32_t now_ms)
@@ -881,7 +881,7 @@ bool app_charging(void)
 
 void app_show_notice(const char *title, const char *message)
 {
-    MessageConfig config = {.title = title, .message = message, .theme = &DEFAULT_THEME};
+    MessageConfig config = {.title = title, .message = message, .theme = &NOTICE_THEME};
     Screen *screen = message_screen_init(&app.notice, config);
     if (!app.display_on) {
         set_display(true);

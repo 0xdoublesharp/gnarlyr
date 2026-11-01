@@ -1,4 +1,4 @@
-"""Renders CJK characters into glyph packs the player reads on demand (src/gfx/font_pack.c).
+"""Renders Latin characters into glyph packs the player reads on demand (src/gfx/font_pack.c).
 
 A pack face is one blob:
   0x000  header (32 bytes, little-endian):
@@ -28,8 +28,8 @@ SECTOR_BYTES = 512
 ENTRY = struct.Struct("<HBBbbBBI")
 ENTRIES_PER_SECTOR = SECTOR_BYTES // ENTRY.size
 HEADER = struct.Struct("<4sBBHIIIIII")
-MAX_DIRECTORY = 320
-MAX_BITMAP_BYTES = 144
+MAX_DIRECTORY = 8
+MAX_BITMAP_BYTES = 96
 MAX_CODEPOINT = 0xFFFF
 
 
@@ -45,42 +45,12 @@ class Face:
     dropped: list
 
 
-def codec_characters(codec, leads, trails=(0xA1, 0xFE)):
-    """Every character a double-byte codec encodes with lead bytes in [first, last]."""
-    found = set()
-    for lead in range(leads[0], leads[1] + 1):
-        for trail in range(trails[0], trails[1] + 1):
-            try:
-                text = bytes([lead, trail]).decode(codec)
-            except UnicodeDecodeError:
-                continue
-            if len(text) == 1:
-                found.add(ord(text))
-    return found
-
-
-def in_ranges(codepoint, ranges):
-    return any(first <= codepoint <= last for first, last in ranges)
-
-
-def set_characters(spec):
-    ranges = spec["ranges"]
-    if "codec" in spec:
-        return {codepoint for codepoint in codec_characters(spec["codec"], spec["leads"])
-                if in_ranges(codepoint, ranges)}
-    return {codepoint for first, last in ranges for codepoint in range(first, last + 1)}
-
-
-def face_characters(config, face):
-    """The codepoints a face spec asks for: named character sets or plain ranges."""
-    wanted = set_characters({"ranges": face.get("ranges", [])})
-    for name in face.get("character_sets", []):
-        wanted |= set_characters(config["character_sets"][name])
-    return wanted
+def face_characters(face):
+    return {codepoint for first, last in face["ranges"] for codepoint in range(first, last + 1)}
 
 
 def face_numbers(config):
-    """Face names to the 1-based numbers fonts use in pack_faces (0 means none)."""
+    """Face names to the 1-based numbers fonts use in pack_face (0 means none)."""
     return {face["name"]: number for number, face in enumerate(config["faces"], start=1)}
 
 
@@ -139,15 +109,13 @@ def pack_glyphs(glyphs):
 
 
 def build_face(spec, codepoints, font_directory):
-    """Renders a face, or returns None when its font file isn't there."""
+    """Renders a face."""
     path = font_directory / spec["file"]
-    if not path.exists():
-        return None
     font = font_build.load_font(path, spec["size"])
     glyphs, dropped = [], []
     for codepoint in covered(path, codepoints):
         glyph = font_build.render_glyph(font, codepoint)
-        if (glyph.width * glyph.height + 1) // 2 > MAX_BITMAP_BYTES:
+        if (glyph.width * glyph.height + 1) // 2 > spec.get("max_bitmap", MAX_BITMAP_BYTES):
             dropped.append(codepoint)
         else:
             glyphs.append(glyph)
@@ -189,22 +157,15 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def built_faces(config, font_directory):
-    """(spec, Face or None) for every face; None when its font file is missing."""
-    for spec in config["faces"]:
-        yield spec, build_face(spec, face_characters(config, spec), font_directory)
-
-
 def main():
     arguments = parse_arguments()
     config = json.loads(arguments.config.read_text(encoding="utf-8-sig"))
     font_directory = arguments.fonts or arguments.config.parent
     stale = []
-    for spec, face in built_faces(config, font_directory):
+    for spec in config["faces"]:
+        face = build_face(spec, face_characters(spec), font_directory)
         path = arguments.output / f"{spec['name']}.bin"
-        if face is None:
-            print(f"{spec['name']}: skipped, {font_directory / spec['file']} is missing")
-        elif arguments.check:
+        if arguments.check:
             if not path.exists() or path.read_bytes() != face.blob:
                 print(f"out of date: {path}")
                 stale.append(path)

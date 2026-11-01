@@ -9,7 +9,7 @@ static BrowsePool pool;
 static BrowseScreen *opened(BrowseQuery query)
 {
     browse_pool_init(&pool, (BrowsePoolConfig){.library = fixture_library_open(&fixture),
-                                               .theme = &DEFAULT_THEME});
+                                               .theme = &BOARD_THEME});
     Screen *screen = browse_pool_open(&pool, 0, query);
     screen->enter(screen->context, 0);
     return screen->context;

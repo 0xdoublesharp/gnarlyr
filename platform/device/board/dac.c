@@ -124,10 +124,8 @@ static const AudioRate RATES[] = {
 };
 static const GpioPin I2C_PINS[] = {{2, 10}, {2, 11}};
 static const GpioPin I2S_PINS[] = {{1, 0}, {1, 1}, {1, 2}, {1, 3}};
-static const GpioPin DAC_PINS[] = {
-    [DAC_PIN_MUTE] = {2, 0},  [DAC_PIN_ENABLE_A] = {2, 14}, [DAC_PIN_ENABLE_B] = {2, 2},
-    [DAC_PIN_RESET] = {2, 1}, [DAC_PIN_AMP] = {1, 4},
-};
+static const DacPin DAC_PIN_LIST[] = {DAC_PIN_MUTE, DAC_PIN_ENABLE_A, DAC_PIN_ENABLE_B,
+                                      DAC_PIN_RESET, DAC_PIN_AMP};
 
 static HalToneDetail detail;
 static uint8_t volume_value;
@@ -256,7 +254,10 @@ static void dac_set_pin(void *context, DacPin pin, bool level)
     if (pin == DAC_PIN_MUTE || pin == DAC_PIN_ENABLE_A) {
         level = board_bluetooth_pin(pin == DAC_PIN_MUTE, level);
     }
-    gpio_output(DAC_PINS[pin], level);
+    PinRef ref = board_dac_pin(BOARD_KIND, pin);
+    if (ref.present) {
+        gpio_output((GpioPin){ref.port, ref.pin}, level);
+    }
 }
 
 static void dac_delay(void *context, uint32_t microseconds)
@@ -415,8 +416,11 @@ static bool play_tone_segments(void)
 
 static void use_dac_pins_as_gpio(void)
 {
-    for (uint32_t index = 0; index < sizeof DAC_PINS / sizeof DAC_PINS[0]; index++) {
-        gpio_mux(DAC_PINS[index], GPIO_FUNCTION_GPIO);
+    for (uint32_t index = 0; index < sizeof DAC_PIN_LIST / sizeof DAC_PIN_LIST[0]; index++) {
+        PinRef ref = board_dac_pin(BOARD_KIND, DAC_PIN_LIST[index]);
+        if (ref.present) {
+            gpio_mux((GpioPin){ref.port, ref.pin}, GPIO_FUNCTION_GPIO);
+        }
     }
 }
 

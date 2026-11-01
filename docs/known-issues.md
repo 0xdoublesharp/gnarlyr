@@ -16,6 +16,12 @@ EchoPod is early firmware made by one person and tested on one player. It comes 
 - **Going back to FiiO's firmware** is checked with FiiO's 8 GB 3.7.0, 3.8.0, 3.9.0 and 4.0.0 images, and 0.3.0 installed FiiO 4.0.0 on the player and was installed back from it (EchoPod 0.2.0 refuses 4.0.0, see `docs/user-guide.md`). Another custom firmware can't be installed from EchoPod: go back to FiiO's first.
 - **If the player doesn't start at all,** the only recovery known is the chip's maskrom mode (`docs/device-recovery.md`). It works, but it needs a patched tool and care.
 
+## Full-size Echo (Podium 0.0.1)
+
+- **Never run on a player yet.** The Echo build comes from decompiled stock code and is checked on the Mac only. Values taken from the decompile and not seen working: the panel's memory access byte (`0x28`; `-DECHO_PANEL_MADCTL=0x68` mirrors the columns), one 16-bit write per pixel in the LCD controller, the 49-row window offset, the 25 kHz backlight with the Mini's level table, the power pair, the jack polarity, and the stock Echo image's CRC range (the first 38 MiB).
+- **Going back to FiiO's Echo firmware** goes through Podium's own updater, which writes both slots, so keep the `MASKROM.REQ` escape hatch and a maskrom path ready (`docs/device-recovery.md`).
+- **Text on the Echo comes from glyph faces** in the image (22 px, 128 cached glyphs). After an install, notices use the built-in 16 px font because glyph reads stop until the restart.
+
 ## USB
 
 - **The first connection to a new computer can fail.** Windows may report "Device Descriptor Request Failed", or the drives may drop off. Unplug and plug in again; the second try has always worked.
@@ -28,7 +34,7 @@ EchoPod is early firmware made by one person and tested on one player. It comes 
 ## Music and library
 
 - **Gapless MP3** needs the LAME tag that LAME and ffmpeg write. MP3s without one (some iTunes and older encoders) keep a short gap between tracks. After a seek, or when playback resumes part-way through a track, that track's silent end isn't trimmed, so the next track starts a few tens of milliseconds late.
-- **Characters:** song, artist and album names show Latin letters with accents, Korean (the 2,350 common Hangul syllables), Simplified Chinese (GB 2312), Japanese kana and kanji (JIS X 0208), and CJK punctuation. Rarer Hangul syllables, Traditional-only Chinese characters, emoji and other scripts (Arabic, Hebrew, Thai, Cyrillic, Greek…) show as `?`. Chinese characters shared with Japanese are drawn in their Simplified Chinese style. Tested on the player with Korean, Chinese, Japanese and accented titles; the first time a screen shows a character, it's read from internal storage.
+- **Characters:** song, artist and album names show Latin letters with accents. Chinese, Japanese and Korean text, emoji and other scripts (Arabic, Hebrew, Thai, Cyrillic, Greek…) show as `?`: Podium has no CJK glyphs. The first time a screen shows an accented character, it's read from internal storage.
 - **Formats:** FLAC, MP3 and WAV play, at 44.1, 48, 88.2, 96, 176.4 and 192 kHz. ALAC, APE and the other formats FiiO lists appear in the library but don't play; EchoPod says so.
 - **Building the library takes time.** On the first start, after music changes over USB, and once after updating to 0.2.0 (the library format changed). A 1,563-track, 144-album card takes about 1 minute 45 seconds: 20 s for the tracks and 1.4 minutes for the covers, where decoding each album's picture takes about half a second. Later rescans keep the covers whose art didn't change and decode only new or changed albums; the first rescan after updating still decodes them all, and so does one after an echo-sync from before this change. Covers from a cover file on a card that isn't FAT32 or exFAT are always decoded again. The player is busy until it finishes: let it finish before you plug it in. echo-sync can build the library on a computer instead.
 - **Library size:** tested on the player with 6,558 tracks, and with over 1,600 albums; on a computer with 20,000 tracks. Larger libraries may stop with an error when the library file (4 MB) is full.

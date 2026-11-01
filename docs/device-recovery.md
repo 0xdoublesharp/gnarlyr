@@ -15,6 +15,10 @@ The procedure follows ReChord's Linux debrick guide and the livetrack.club debri
 
 Internal storage may be wiped. If the player still shows its drive over USB, copy off anything you want to keep first.
 
+## Escape hatch on the full-size Echo: `MASKROM.REQ`
+
+Podium for the full-size Echo checks internal storage at every start for a file named `MASKROM.REQ` in the top folder. If it starts with the text `MASKROM REQ`, Podium overwrites that text with zeros (so the request fires once) and reboots into the boot ROM's USB loader, the same state as step 2 below, with no paperclip and no key combination. To use it, put the file there while the player is still running (`echo "MASKROM REQ" > MASKROM.REQ` on the internal drive), eject, and restart the player. A file without that text, or an empty one, does nothing. The Echo Mini build doesn't have this.
+
 ## 1. Build the patched `rkdeveloptool` (once)
 
 The upstream tool needs three changes for the Echo Mini: a 5000 ms command timeout, 32 sectors per transfer, and maskrom detection for USB ID `2207:262d`. `tools/patch_rkdeveloptool.py` makes them. It prints `ok: Echo Mini changes applied`, and refuses a source it doesn't recognise or one that is already patched.

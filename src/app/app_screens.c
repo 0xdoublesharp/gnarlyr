@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "board_layout.h"
 #include "diagnostics_values.h"
 #include "hal/power.h"
 #include "hal/system.h"
@@ -187,7 +188,7 @@ static void build_home(AppScreens *screens, AppScreensContext context)
                        .items = screens->home_items,
                        .item_count = HOME_ITEM_COUNT,
                        .theme = theme,
-                       .panel = {.width = HOME_ART_WIDTH,
+                       .panel = {.width = BOARD_LAYOUT.home_art_width,
                                  .update = home_art_update,
                                  .draw = home_art_draw,
                                  .context = &screens->home_art}};

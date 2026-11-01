@@ -1,4 +1,4 @@
-foreach(step "--preset;device" "--build;--preset;device")
+foreach(step "--preset;${PRESET}" "--build;--preset;${PRESET}")
     execute_process(COMMAND ${CMAKE_COMMAND} ${step}
         WORKING_DIRECTORY ${SOURCE_DIR}
         RESULT_VARIABLE result

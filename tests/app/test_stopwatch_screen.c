@@ -12,7 +12,7 @@ static StopwatchScreen stopwatch;
 
 static Screen *open_stopwatch(void)
 {
-    Screen *screen = stopwatch_screen_init(&stopwatch, &DEFAULT_THEME);
+    Screen *screen = stopwatch_screen_init(&stopwatch, &BOARD_THEME);
     screen->enter(screen->context, START_MS);
     return screen;
 }

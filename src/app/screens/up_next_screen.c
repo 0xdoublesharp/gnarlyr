@@ -2,14 +2,11 @@
 
 #include <stdbool.h>
 
+#include "board_layout.h"
 #include "core/string_builder.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/list_navigation.h"
-
-enum {
-    DETAIL_MAX_WIDTH = 110
-};
 
 static const char TITLE[] = "Up Next";
 static const char EMPTY_MESSAGE[] = "Nothing is playing";
@@ -246,7 +243,7 @@ Screen *up_next_screen_init(UpNextScreen *up_next, UpNextConfig config)
                                  .count = row_count,
                                  .label = row_label,
                                  .detail = row_detail,
-                                 .detail_max_width = DETAIL_MAX_WIDTH};
+                                 .detail_max_width = BOARD_LAYOUT.up_next_detail_max_width};
     list_view_init(&up_next->list, &up_next->model, config.theme, 0);
     up_next->screen = (Screen){
         .title = TITLE,

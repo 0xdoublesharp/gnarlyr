@@ -29,6 +29,8 @@ def parse_arguments():
     parser.add_argument("--source-root", type=Path, required=True)
     parser.add_argument("--budget-bytes", type=int, required=True)
     parser.add_argument("--toolchain-prefix", default="arm-none-eabi-")
+    parser.add_argument("--define", action="append", default=[], metavar="NAME",
+                        help="preprocessor definition for every source, e.g. ECHO_BOARD_ECHO")
     return parser.parse_args()
 
 
@@ -79,6 +81,7 @@ def module_of(source, source_root):
 def audit(arguments, output_directory):
     compiler = arguments.toolchain_prefix + "gcc"
     flags = include_flags(compiler, arguments.source_root)
+    flags += [f"-D{name}" for name in arguments.define]
     flash_by_module = defaultdict(int)
     ram_by_module = defaultdict(int)
     heap_users = []

@@ -165,7 +165,11 @@ static void sleep_while_dark(void)
 void board_main(void)
 {
     board_start_record_boot();
+#ifdef ECHO_BOARD_ECHO
+    board_loader_flag_clear();
+#endif
     board_power_hold();
+    board_power_pair_set(true);
     board_bluetooth_off();
     board_clock_record_boot();
     board_clock_start();
@@ -175,8 +179,15 @@ void board_main(void)
     uint32_t boot_millivolts = battery_millivolts(board_battery_boot_reading());
     board_input_start();
     board_display_start();
-    switch_off_when_empty(boot_millivolts);
+#ifdef ECHO_BOARD_ECHO
     board_glyphs_start();
+    update_check_loader_request();
+    board_jack_poll();
+#endif
+    switch_off_when_empty(boot_millivolts);
+#ifndef ECHO_BOARD_ECHO
+    board_glyphs_start();
+#endif
     app_start();
     app_show_splash();
     board_stall_pause(false);

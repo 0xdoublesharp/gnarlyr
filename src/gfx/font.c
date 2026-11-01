@@ -33,9 +33,8 @@ static const Glyph *search(const Font *font, uint32_t codepoint)
 const Glyph *font_find_glyph(const Font *font, uint32_t codepoint)
 {
     const Glyph *glyph = search(font, codepoint);
-    uint8_t face = font->pack_faces[codepoint >= FONT_PACK_CJK_START];
-    if (glyph == NULL && face != 0) {
-        glyph = font_pack_find(face - 1u, codepoint);
+    if (glyph == NULL && font->pack_face != 0) {
+        glyph = font_pack_find(font->pack_face - 1u, codepoint);
     }
     return glyph != NULL ? glyph : search(font, FONT_FALLBACK_CODEPOINT);
 }

@@ -36,6 +36,13 @@ static void a_visible_toast_paints_its_box(void)
     CHECK(ui_test_area_has_color(&canvas, area, TEST_THEME.colors.header_text));
 }
 
+static void a_toast_is_one_row_tall(void)
+{
+    Toast toast = {0};
+    toast_show(&toast, "AB", NOW_MS);
+    CHECK_EQUAL(TEST_ROW_HEIGHT, toast_area(&toast, &TEST_THEME).height);
+}
+
 static void a_hidden_toast_paints_nothing(void)
 {
     Toast toast = {0};
@@ -50,9 +57,8 @@ static void a_hidden_toast_paints_nothing(void)
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(a_new_toast_is_hidden),
-        TEST_CASE(a_shown_toast_lasts_its_duration),
-        TEST_CASE(a_visible_toast_paints_its_box),
+        TEST_CASE(a_new_toast_is_hidden),          TEST_CASE(a_shown_toast_lasts_its_duration),
+        TEST_CASE(a_visible_toast_paints_its_box), TEST_CASE(a_toast_is_one_row_tall),
         TEST_CASE(a_hidden_toast_paints_nothing),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

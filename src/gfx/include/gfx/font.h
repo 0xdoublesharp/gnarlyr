@@ -19,12 +19,11 @@ typedef struct Font {
     uint16_t bitmap_size;
     uint8_t ascent;
     uint8_t descent;
-    uint8_t pack_faces[2];
+    uint8_t pack_face;
 } Font;
 
 enum {
-    FONT_FALLBACK_CODEPOINT = '?',
-    FONT_PACK_CJK_START = 0x2E80
+    FONT_FALLBACK_CODEPOINT = '?'
 };
 
 const Glyph *font_find_glyph(const Font *font, uint32_t codepoint);

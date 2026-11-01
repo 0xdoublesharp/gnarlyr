@@ -6,4 +6,3 @@ __pycache__/
 .DS_Store
 .venv/
 log/
-assets/fonts/noto-cjk/*.otf

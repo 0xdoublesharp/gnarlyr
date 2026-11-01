@@ -2,6 +2,7 @@
 
 #include "check.h"
 #include "fonts/fonts.h"
+#include "gfx/font_pack.h"
 
 static const Font *const ALL_FONTS[] = {
     &FONT_INTER_REGULAR_12,
@@ -37,9 +38,8 @@ static void every_font_builds_in_its_punctuation(void)
 static void every_font_sends_accents_to_a_pack(void)
 {
     for (size_t font = 0; font < FONT_COUNT; font++) {
-        CHECK(ALL_FONTS[font]->pack_faces[0] != 0);
-        CHECK(ALL_FONTS[font]->pack_faces[1] != 0);
-        CHECK(ALL_FONTS[font]->pack_faces[0] != ALL_FONTS[font]->pack_faces[1]);
+        CHECK(ALL_FONTS[font]->pack_face != 0);
+        CHECK(ALL_FONTS[font]->pack_face <= FONT_PACK_FACES);
     }
 }
 

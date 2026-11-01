@@ -6,20 +6,24 @@
 #include "board.h"
 #include "core/string_builder.h"
 #include "device/fat.h"
+#include "device/loader_request.h"
+#include "device/update_names.h"
 #include "device/updater.h"
 #include "emmc.h"
+
+#ifdef ECHO_BOARD_ECHO
+#define UPDATE_BOARD UPDATE_BOARD_ECHO
+#else
+#define UPDATE_BOARD UPDATE_BOARD_MINI
+#endif
 
 enum {
     MESSAGE_CAPACITY = 64,
     PERCENT_STEP = 5,
-    PERCENT = 100,
-    HIGHEST_NUMBER = 97,
-    TENS_AT = 7,
-    UNITS_AT = 8
+    PERCENT = 100
 };
 
-static const char UPDATE_TEMPLATE[] = "/HIFIEC00.IMG";
-static char update_path[sizeof UPDATE_TEMPLATE];
+static char update_path[UPDATE_NAME_CAPACITY];
 static const char *install_title;
 
 static FatVolume volume;
@@ -61,30 +65,58 @@ static void report(void *context, uint32_t done, uint32_t total)
 
 static bool open_highest_numbered(void)
 {
-    for (size_t index = 0; index < sizeof UPDATE_TEMPLATE; index++) {
-        update_path[index] = UPDATE_TEMPLATE[index];
-    }
-    for (int number = HIGHEST_NUMBER; number >= 0; number--) {
-        update_path[TENS_AT] = (char)('0' + number / 10);
-        update_path[UNITS_AT] = (char)('0' + number % 10);
-        if (fat_open(&volume, update_path, &file)) {
+    for (uint32_t index = 0; index < update_name_count(UPDATE_BOARD); index++) {
+        if (update_name_at(UPDATE_BOARD, index, update_path) &&
+            fat_open(&volume, update_path, &file)) {
             return true;
         }
     }
     return false;
 }
 
+static bool mount_volume(EmmcInfo *info)
+{
+    BlockDevice device = {emmc_volume_read, NULL, emmc_volume_write};
+    return emmc_start(info) && fat_mount(&volume, device);
+}
+
 static bool open_update(UpdateStorage *storage)
 {
     EmmcInfo info;
-    BlockDevice device = {emmc_volume_read, NULL, NULL};
-    if (!emmc_start(&info) || !fat_mount(&volume, device) || !open_highest_numbered()) {
+    if (!mount_volume(&info) || !open_highest_numbered()) {
         return false;
     }
     *storage = (UpdateStorage){emmc_read,          emmc_write,         NULL,
-                               info.layout.slot_1, info.layout.slot_2, info.layout.slot_sectors};
+                               info.layout.slot_1, info.layout.slot_2, info.layout.slot_sectors,
+                               UPDATE_BOARD};
     return true;
 }
+
+#ifdef ECHO_BOARD_ECHO
+static bool request_read(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    (void)context;
+    return fat_read(&volume, &file, offset, buffer, length);
+}
+
+static bool request_write(void *context, uint32_t offset, const void *bytes, uint32_t length)
+{
+    (void)context;
+    return fat_write(&volume, &file, offset, bytes, length);
+}
+
+void update_check_loader_request(void)
+{
+    EmmcInfo info;
+    if (!mount_volume(&info) || !fat_open(&volume, LOADER_REQUEST_PATH, &file)) {
+        return;
+    }
+    LoaderRequestFile request = {request_read, request_write, file.size, NULL};
+    if (loader_request_consume(&request)) {
+        board_loader_reboot();
+    }
+}
+#endif
 
 static void install(const UpdateFile *update, const UpdateStorage *storage, bool stock)
 {

@@ -190,6 +190,140 @@ static void writes_to_the_idb_the_save_block_or_the_gap_are_refused(void)
     CHECK(!emmc_layout_allows_write(&layout, 0x88000, 0));
 }
 
+static void write_firmware_header(FakeDisk *disk, uint32_t lba, uint32_t fw_size, bool with_copy)
+{
+    uint8_t *header = fake_disk_sector(disk, lba);
+    memcpy(header + 0x1F8, "RKnanoFW", 8);
+    header[0x1F4] = (uint8_t)fw_size;
+    header[0x1F5] = (uint8_t)(fw_size >> 8);
+    header[0x1F6] = (uint8_t)(fw_size >> 16);
+    header[0x1F7] = (uint8_t)(fw_size >> 24);
+    header[0] = (uint8_t)(lba >> 3) | 1;
+    if (with_copy) {
+        memcpy(fake_disk_sector(disk, lba + fw_size / 512), header, 512);
+    }
+}
+
+static bool read_searching(FakeDisk *disk, EmmcLayout *layout)
+{
+    BlockDevice device = fake_disk_device(disk);
+    return emmc_layout_read_with(layout, &device, TOTAL_SECTORS, EMMC_SLOT_2_SEARCH);
+}
+
+static void prepare_echo(FakeDisk *disk, uint32_t slot_1_fw_size)
+{
+    fake_disk_init(disk, TOTAL_SECTORS);
+    write_idb(disk, 0, 0x4C);
+    write_firmware_header(disk, 0x2000, slot_1_fw_size, true);
+    write_fat_boot_sector(disk, 0x28000);
+}
+
+static void the_search_finds_slot_2_where_stock_puts_it_on_the_echo_layout(void)
+{
+    static FakeDisk disk;
+    prepare_echo(&disk, 0x025CC000);
+    write_firmware_header(&disk, 0x2000 + 0x13000, 0x025CC000, true);
+    EmmcLayout layout;
+    CHECK(read_searching(&disk, &layout));
+    CHECK_EQUAL(0x2000 + 0x13000, layout.slot_2);
+    CHECK_EQUAL(0x13000, layout.slot_sectors);
+    CHECK_EQUAL(0x28000, layout.firmware_end);
+}
+
+static void the_search_starts_at_the_next_mib_after_the_firmware_plus_16_kib(void)
+{
+    static FakeDisk disk;
+    prepare_echo(&disk, 0x01FCC000);
+    write_firmware_header(&disk, 0x2000 + 0x10800, 0x01FCC000, true);
+    EmmcLayout layout;
+    CHECK(read_searching(&disk, &layout));
+    CHECK_EQUAL(0x2000 + 0x10800, layout.slot_2);
+}
+
+static void the_search_takes_the_first_header_it_meets(void)
+{
+    static FakeDisk disk;
+    prepare_echo(&disk, 0x01FCC000);
+    write_firmware_header(&disk, 0x2000 + 0x10000, 0x01FCC000, true);
+    write_firmware_header(&disk, 0x2000 + 0x11000, 0x01FCC000, true);
+    EmmcLayout layout;
+    CHECK(read_searching(&disk, &layout));
+    CHECK_EQUAL(0x2000 + 0x10000, layout.slot_2);
+}
+
+static void without_a_header_the_search_falls_back_to_half_the_firmware_area(void)
+{
+    static FakeDisk disk;
+    prepare_echo(&disk, 0x025CC000);
+    EmmcLayout layout;
+    CHECK(read_searching(&disk, &layout));
+    CHECK_EQUAL(0x2000 + 0x13000, layout.slot_2);
+}
+
+static void a_podium_sized_slot_1_searches_below_slot_2_and_falls_back_to_half(void)
+{
+    static FakeDisk disk;
+    prepare_echo(&disk, 0x44C000);
+    write_firmware_header(&disk, 0x2000 + 0x13000, 0x44C000, true);
+    EmmcLayout layout;
+    CHECK(read_searching(&disk, &layout));
+    CHECK_EQUAL(0x2000 + 0x13000, layout.slot_2);
+}
+
+static void a_header_whose_copy_is_missing_is_not_used(void)
+{
+    static FakeDisk disk;
+    prepare_echo(&disk, 0x01FCC000);
+    write_firmware_header(&disk, 0x2000 + 0x10800, 0x01FCC000, false);
+    EmmcLayout layout;
+    CHECK(read_searching(&disk, &layout));
+    CHECK_EQUAL(0x2000 + 0x13000, layout.slot_2);
+}
+
+static void a_header_past_half_the_firmware_area_is_not_used(void)
+{
+    static FakeDisk disk;
+    prepare_echo(&disk, 0x025CC000);
+    write_firmware_header(&disk, 0x2000 + 0x13800, 0x025CC000, true);
+    EmmcLayout layout;
+    CHECK(read_searching(&disk, &layout));
+    CHECK_EQUAL(0x2000 + 0x13000, layout.slot_2);
+}
+
+static void an_invalid_slot_1_falls_back_to_half_the_firmware_area(void)
+{
+    static FakeDisk disk;
+    prepare_echo(&disk, 0x025CC000);
+    memset(fake_disk_sector(&disk, 0x2000), 0, 512);
+    write_firmware_header(&disk, 0x2000 + 0x13000, 0x025CC000, true);
+    EmmcLayout layout;
+    CHECK(read_searching(&disk, &layout));
+    CHECK_EQUAL(0x2000 + 0x13000, layout.slot_2);
+}
+
+static void the_search_keeps_the_slot_length_and_the_write_fence(void)
+{
+    static FakeDisk disk;
+    prepare_echo(&disk, 0x01FCC000);
+    write_firmware_header(&disk, 0x2000 + 0x10800, 0x01FCC000, true);
+    EmmcLayout layout;
+    CHECK(read_searching(&disk, &layout));
+    CHECK_EQUAL(0x13000, layout.slot_sectors);
+    CHECK(emmc_layout_allows_write(&layout, layout.slot_2, 16));
+    CHECK(!emmc_layout_allows_write(&layout, layout.firmware_end - 1, 2));
+    CHECK(layout.slot_2 + layout.slot_sectors <= layout.firmware_end);
+}
+
+static void the_default_read_never_searches(void)
+{
+    static FakeDisk disk;
+    prepare_echo(&disk, 0x01FCC000);
+    write_firmware_header(&disk, 0x2000 + 0x10800, 0x01FCC000, true);
+    EmmcLayout layout;
+    CHECK(read_layout(&disk, &layout));
+    CHECK_EQUAL(0x2000 + 0x13000, layout.slot_2);
+}
+
 static void a_corrupt_system_size_is_rejected(void)
 {
     static FakeDisk disk;
@@ -210,6 +344,16 @@ int main(void)
         TEST_CASE(the_first_valid_idb_copy_is_used),
         TEST_CASE(an_idb_without_the_nano_tag_is_ignored),
         TEST_CASE(a_corrupt_system_size_is_rejected),
+        TEST_CASE(the_search_finds_slot_2_where_stock_puts_it_on_the_echo_layout),
+        TEST_CASE(the_search_starts_at_the_next_mib_after_the_firmware_plus_16_kib),
+        TEST_CASE(the_search_takes_the_first_header_it_meets),
+        TEST_CASE(without_a_header_the_search_falls_back_to_half_the_firmware_area),
+        TEST_CASE(a_podium_sized_slot_1_searches_below_slot_2_and_falls_back_to_half),
+        TEST_CASE(a_header_whose_copy_is_missing_is_not_used),
+        TEST_CASE(a_header_past_half_the_firmware_area_is_not_used),
+        TEST_CASE(an_invalid_slot_1_falls_back_to_half_the_firmware_area),
+        TEST_CASE(the_search_keeps_the_slot_length_and_the_write_fence),
+        TEST_CASE(the_default_read_never_searches),
         TEST_CASE(no_volume_within_the_scan_limit_fails),
         TEST_CASE(a_volume_is_never_accepted_inside_the_firmware_area),
         TEST_CASE(writes_inside_the_user_volume_are_allowed),

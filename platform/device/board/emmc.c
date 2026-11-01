@@ -50,6 +50,12 @@ enum {
     BLOCK_LENGTH = 512
 };
 
+#ifdef ECHO_BOARD_ECHO
+#define SLOT_2_PLACEMENT EMMC_SLOT_2_SEARCH
+#else
+#define SLOT_2_PLACEMENT EMMC_SLOT_2_HALF
+#endif
+
 static uint32_t emmc_fifo_depth;
 static const MmcHost EMMC_HOST = {EMMC_BASE, CRU_EMMC_IDENTIFY, CRU_EMMC_TRANSFER,
                                   &emmc_fifo_depth};
@@ -227,7 +233,8 @@ bool emmc_start(EmmcInfo *info)
         power_controller();
         started = identify() && select_and_widen();
         BlockDevice device = emmc_device();
-        started = started && emmc_layout_read(&emmc.layout, &device, emmc.sector_count);
+        started = started &&
+                  emmc_layout_read_with(&emmc.layout, &device, emmc.sector_count, SLOT_2_PLACEMENT);
     }
     *info = emmc;
     return started;

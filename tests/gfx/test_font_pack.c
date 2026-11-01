@@ -97,7 +97,7 @@ static void attach(void)
     build_pack();
     font_pack_attach(READER, memory, sizeof memory);
     PACKED_FONT = TINY_FONT;
-    PACKED_FONT.pack_faces[1] = 1;
+    PACKED_FONT.pack_face = 1;
 }
 
 static void a_packed_glyph_has_its_metrics(void)
@@ -248,16 +248,12 @@ static void without_packs_a_font_uses_the_question_mark(void)
     CHECK(glyph != NULL && glyph->codepoint == FONT_FALLBACK_CODEPOINT);
 }
 
-static void characters_below_cjk_use_the_other_face(void)
+static void a_font_reads_the_face_it_names(void)
 {
     attach();
-    PACKED_FONT.pack_faces[0] = 2;
-    PACKED_FONT.pack_faces[1] = 0;
+    PACKED_FONT.pack_face = 2;
     const Glyph *glyph = font_find_glyph(&PACKED_FONT, codepoint_of(2));
     CHECK(glyph != NULL && glyph->codepoint == FONT_FALLBACK_CODEPOINT);
-    uint32_t reads = pack.reads;
-    CHECK(font_find_glyph(&PACKED_FONT, 0xE9) != NULL);
-    CHECK(pack.reads > reads);
 }
 
 static void a_font_without_a_pack_face_ignores_packs(void)
@@ -285,7 +281,7 @@ int main(void)
         TEST_CASE(a_font_falls_back_to_its_pack),
         TEST_CASE(a_character_in_neither_falls_back_to_the_question_mark),
         TEST_CASE(without_packs_a_font_uses_the_question_mark),
-        TEST_CASE(characters_below_cjk_use_the_other_face),
+        TEST_CASE(a_font_reads_the_face_it_names),
         TEST_CASE(a_font_without_a_pack_face_ignores_packs),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

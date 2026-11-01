@@ -42,3 +42,13 @@ A short map of the hardware EchoPod drives, for reading the code in `platform/de
 
 - `HIFIEC90.IMG` is a 5 MiB `RKnanoFW` container: an outer header, a table of load rows, the code and data, a copy of the first 512 bytes at `0x44C000` and a CRC-32 trailer at `0x500000`. `tools/make_image.py` builds it, and `docs/architecture.md` describes the layout.
 - FiiO's firmware installs the highest-numbered `HIFIECnn.IMG` it finds at the top level of internal storage. FiiO's own images are 32 MiB.
+
+## Full-size Echo
+
+Same SoC, boot ROM, container, load map and memory map as the Echo Mini. Differences, from the decompiled stock Echo 2.0.0:
+
+- 480 × 222 landscape ST7796S-class panel (native 222 × 480 portrait) behind the SoC LCD controller at `0x60070000`, so there is no bit-banging. The window's row axis carries a 49-row offset. No panel ID read, a single variant.
+- Backlight: PWM channel 0 on GPIO2.4 at 25 kHz.
+- GPIO0.14 and GPIO2.0 form a power pair: high from start-up, low before power-off. DAC mute is GPIO2.1 and the DAC has no reset pin. The 4.4 mm jack reads high when plugged (GPIO2.8); the 3.5 mm jack as on the Mini. Both jack pins have pull-ups set at start-up.
+- An ADC channel 2 headset remote exists and isn't used.
+- Update files: FiiO's updater scans `\ECHOECHO.IMG`, then `\ECHOV100.IMG` to `\ECHOV498.IMG`, highest wins.

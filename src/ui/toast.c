@@ -4,7 +4,6 @@
 #include "ui/label.h"
 
 enum {
-    TOAST_HEIGHT = 24,
     TOAST_BOTTOM_MARGIN = 10,
     BORDER = 1
 };
@@ -25,7 +24,8 @@ Rect toast_area(const Toast *toast, const Theme *theme)
 {
     const ThemeMetrics *metrics = &theme->metrics;
     int width = text_width(theme->fonts.body, toast->text) + 2 * metrics->padding;
-    int height = TOAST_HEIGHT < metrics->screen_height ? TOAST_HEIGHT : metrics->screen_height;
+    int height =
+        metrics->row_height < metrics->screen_height ? metrics->row_height : metrics->screen_height;
     int bottom_margin =
         metrics->screen_height > height + TOAST_BOTTOM_MARGIN ? TOAST_BOTTOM_MARGIN : 0;
     return (Rect){(metrics->screen_width - width) / 2,

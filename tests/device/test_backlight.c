@@ -27,6 +27,21 @@ static void the_pwm_runs_at_ten_kilohertz_from_pclk(void)
     CHECK_EQUAL(2400u, pwm.period);
 }
 
+static void the_echo_pwm_runs_at_twenty_five_kilohertz_from_pclk(void)
+{
+    CHECK_EQUAL(25000u, BACKLIGHT_ECHO_HZ);
+    BacklightPwm pwm = backlight_pwm_at(50000000u, 47, BACKLIGHT_ECHO_HZ);
+    CHECK(!pwm.full);
+    CHECK_EQUAL(2000u, pwm.period);
+    CHECK_EQUAL(1060u, pwm.duty);
+}
+
+static void the_mini_frequency_is_unchanged(void)
+{
+    CHECK_EQUAL(backlight_pwm(48000000u, 47).period,
+                backlight_pwm_at(48000000u, 47, BACKLIGHT_MINI_HZ).period);
+}
+
 static void the_duty_register_counts_the_time_the_backlight_is_off(void)
 {
     CHECK_EQUAL(2544u, backlight_pwm(48000000u, 47).duty);
@@ -72,6 +87,8 @@ int main(void)
         TEST_CASE(levels_get_brighter_up_to_full_at_the_top),
         TEST_CASE(levels_outside_the_range_are_clamped),
         TEST_CASE(the_pwm_runs_at_ten_kilohertz_from_pclk),
+        TEST_CASE(the_echo_pwm_runs_at_twenty_five_kilohertz_from_pclk),
+        TEST_CASE(the_mini_frequency_is_unchanged),
         TEST_CASE(the_duty_register_counts_the_time_the_backlight_is_off),
         TEST_CASE(brighter_levels_hold_the_pin_low_for_less_of_the_period),
         TEST_CASE(full_brightness_skips_the_pwm),

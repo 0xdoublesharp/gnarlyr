@@ -30,6 +30,33 @@ static const uint8_t VARIANT_A_STEPS[] = {
     0x43, 0x38, 0x15, 0x16, 0x2F, 0x37, 0x21, 0,    0x29, 0,    0x2C, 0,    STEP_END,
 };
 
+static const uint8_t ST7796S_STEPS[] = {
+    0x11, 0,        0xF0, 1,    0xC3, 0xF0, 1,    0x96, 0x36, 1,    PANEL_ECHO_MADCTL,
+    0x3A, 1,        0x55, 0xB4, 1,    0x01, 0xB6, 3,    0x20, 0x02, 0x3B,
+    0xB7, 1,        0xC6, 0xB9, 2,    0x02, 0xE0, 0xC0, 2,    0xC0, 0x64,
+    0xC1, 1,        0x1D, 0xC2, 1,    0xA7, 0xC5, 1,    0x28, 0xE8, 8,
+    0x40, 0x8A,     0x00, 0x00, 0x29, 0x19, 0xA5, 0x33, 0xE0, 14,   0xF0,
+    0x0B, 0x12,     0x09, 0x0A, 0x26, 0x39, 0x54, 0x4E, 0x38, 0x13, 0x13,
+    0x2E, 0x34,     0xE1, 14,   0xF0, 0x10, 0x15, 0x0D, 0x0C, 0x07, 0x38,
+    0x43, 0x4D,     0x3A, 0x16, 0x15, 0x30, 0x35, 0xF0, 1,    0x3C, 0xF0,
+    1,    0x69,     0x35, 1,    0x00, 0x29, 0,    0x21, 0,    0x2A, 4,
+    0x00, 0x31,     0x01, 0x0E, 0x2B, 4,    0x00, 0x00, 0x01, 0xDF, 0x2C,
+    0,    STEP_END,
+};
+
+static const uint8_t *steps_of(PanelVariant variant)
+{
+    switch (variant) {
+    case PANEL_VARIANT_A:
+        return VARIANT_A_STEPS;
+    case PANEL_VARIANT_ST7796S:
+        return ST7796S_STEPS;
+    case PANEL_VARIANT_B:
+        break;
+    }
+    return VARIANT_B_STEPS;
+}
+
 static size_t send_step(const PanelBus *bus, const uint8_t *step)
 {
     uint8_t count = step[1];
@@ -45,7 +72,7 @@ static size_t send_step(const PanelBus *bus, const uint8_t *step)
 
 void panel_send_init(const PanelBus *bus, PanelVariant variant)
 {
-    const uint8_t *step = variant == PANEL_VARIANT_A ? VARIANT_A_STEPS : VARIANT_B_STEPS;
+    const uint8_t *step = steps_of(variant);
     while (*step != STEP_END) {
         step += send_step(bus, step);
     }
@@ -60,12 +87,17 @@ static void send_range(const PanelBus *bus, uint8_t command, int first, int last
     bus->data(bus->context, (uint8_t)last);
 }
 
+void panel_begin_write_at(const PanelBus *bus, PanelWindow window, int first_row)
+{
+    int row = window.y + first_row;
+    send_range(bus, COMMAND_COLUMNS, window.x, window.x + window.width - 1);
+    send_range(bus, COMMAND_ROWS, row, row + window.height - 1);
+    bus->command(bus->context, COMMAND_WRITE);
+}
+
 void panel_begin_write(const PanelBus *bus, PanelWindow window)
 {
-    int first_row = window.y + PANEL_FIRST_VISIBLE_ROW;
-    send_range(bus, COMMAND_COLUMNS, window.x, window.x + window.width - 1);
-    send_range(bus, COMMAND_ROWS, first_row, first_row + window.height - 1);
-    bus->command(bus->context, COMMAND_WRITE);
+    panel_begin_write_at(bus, window, PANEL_FIRST_VISIBLE_ROW);
 }
 
 uint32_t panel_bus_word(uint32_t shadow, uint8_t value, bool data)

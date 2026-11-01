@@ -56,13 +56,19 @@ static bool load(const char *path)
 
 int main(int argument_count, char **arguments)
 {
-    if (argument_count != 2 || !load(arguments[1])) {
-        printf("no device image at %s: skipped\n", argument_count == 2 ? arguments[1] : "?");
+    if (argument_count < 2 || argument_count > 3 || !load(arguments[1])) {
+        printf("no device image at %s: skipped\n", argument_count >= 2 ? arguments[1] : "?");
         return SKIPPED;
     }
+    bool echo = argument_count == 3 && strcmp(arguments[2], "echo") == 0;
     UpdateFile file = {read_image, (uint32_t)image_size, NULL};
-    UpdateStorage storage = {read_blank, refuse_write,          NULL,
-                             0x2000,     0x2000 + SLOT_SECTORS, SLOT_SECTORS};
+    UpdateStorage storage = {read_blank,
+                             refuse_write,
+                             NULL,
+                             0x2000,
+                             0x2000 + SLOT_SECTORS,
+                             SLOT_SECTORS,
+                             echo ? UPDATE_BOARD_ECHO : UPDATE_BOARD_MINI};
     UpdateCheck check = updater_check(&file, &storage);
     free(image);
     printf("updater check: %s\n", check == UPDATE_VALID ? "valid" : "INVALID");

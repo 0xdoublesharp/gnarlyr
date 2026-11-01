@@ -157,7 +157,8 @@ static void report(void *context, uint32_t done, uint32_t total)
 
 static UpdateStorage target(void)
 {
-    return (UpdateStorage){storage_read, storage_write, NULL, SLOT_1, SLOT_2, SLOT_SECTORS};
+    return (UpdateStorage){storage_read, storage_write,    NULL, SLOT_1, SLOT_2,
+                           SLOT_SECTORS, UPDATE_BOARD_MINI};
 }
 
 static UpdateFile source(void)
@@ -404,8 +405,8 @@ static uint8_t *stock_image(uint8_t seed)
 
 static UpdateStorage stock_target(void)
 {
-    return (UpdateStorage){storage_read, storage_write, NULL,
-                           SLOT_1,       STOCK_SLOT_2,  STOCK_SLOT_SECTORS};
+    return (UpdateStorage){storage_read,       storage_write,    NULL, SLOT_1, STOCK_SLOT_2,
+                           STOCK_SLOT_SECTORS, UPDATE_BOARD_MINI};
 }
 
 static UpdateCheck check_stock(uint8_t *image, uint32_t size, uint32_t slot_sectors)

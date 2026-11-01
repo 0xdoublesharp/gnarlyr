@@ -167,6 +167,11 @@ echo_add_unit_test(NAME test_cover_flow_order
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+echo_add_unit_test(NAME test_board_layout
+    SOURCES app/test_board_layout.c
+    LIBRARIES echo_app
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
 echo_add_unit_test(NAME test_now_playing_screen
     SOURCES app/test_now_playing_screen.c app/fake_hal.c
     LIBRARIES echo_app echo_library_scan
@@ -198,7 +203,7 @@ echo_add_unit_test(NAME test_test_pattern_screen
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 
-foreach(device_test audio_math backlight battery_gauge watchdog panic_text stall_watch bt_module card_write core1_control start_record dac_sequence dma_loop flac_accel jack_sense key_ladder key_scanner msc panel pll sd_card stream_drift tick_clock updater usb_audio usb_audio_sink usb_device usb_fallback wav_source)
+foreach(device_test audio_math backlight board_pins loader_request update_names updater_echo vop battery_gauge watchdog panic_text stall_watch bt_module card_write core1_control start_record dac_sequence dma_loop flac_accel jack_sense key_ladder key_scanner msc panel pll sd_card stream_drift tick_clock updater usb_audio usb_audio_sink usb_device usb_fallback wav_source)
     echo_add_unit_test(NAME test_${device_test}
         SOURCES device/test_${device_test}.c
         LIBRARIES echo_device_logic
@@ -352,16 +357,36 @@ endif()
 
 find_program(ARM_GCC arm-none-eabi-gcc)
 if(ARM_GCC)
+    set(ECHO_AUDIT_DEFINES --define ECHO_BOARD_ECHO --define ECHO_FONTS_PACKED)
+    if(ECHO_BOARD STREQUAL "ECHO")
+        set(ECHO_AUDIT_BOARD_ARGUMENTS ${ECHO_AUDIT_DEFINES})
+    else()
+        set(ECHO_AUDIT_BOARD_ARGUMENTS "")
+    endif()
     add_test(NAME target_audit
         COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/target_audit.py
             --source-root ${PROJECT_SOURCE_DIR}/src
             --budget-bytes ${ECHO_APP_RAM_BUDGET_BYTES}
+            ${ECHO_AUDIT_BOARD_ARGUMENTS}
     )
+    if(NOT ECHO_BOARD STREQUAL "ECHO")
+        add_test(NAME target_audit_echo
+            COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/target_audit.py
+                --source-root ${PROJECT_SOURCE_DIR}/src
+                --budget-bytes ${ECHO_APP_RAM_BUDGET_BYTES}
+                ${ECHO_AUDIT_DEFINES}
+        )
+    endif()
     add_test(NAME device_build
-        COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -DPRESET=device
             -P ${PROJECT_SOURCE_DIR}/cmake/check_device_build.cmake
     )
     set_tests_properties(device_build PROPERTIES FIXTURES_SETUP device_image)
+    add_test(NAME device_build_echo
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -DPRESET=device-echo
+            -P ${PROJECT_SOURCE_DIR}/cmake/check_device_build.cmake
+    )
+    set_tests_properties(device_build_echo PROPERTIES FIXTURES_SETUP device_echo_image)
     add_executable(check_device_image device/check_device_image.c)
     target_link_libraries(check_device_image PRIVATE echo_device_logic echo_options)
     add_test(NAME device_image_passes_the_updater_check
@@ -371,6 +396,26 @@ if(ARM_GCC)
         FIXTURES_REQUIRED device_image
         SKIP_RETURN_CODE 77
     )
+    add_test(NAME device_echo_image_passes_the_updater_check
+        COMMAND check_device_image ${PROJECT_SOURCE_DIR}/build/device-echo/ECHOV498.IMG echo
+    )
+    set_tests_properties(device_echo_image_passes_the_updater_check PROPERTIES
+        FIXTURES_REQUIRED device_echo_image
+        SKIP_RETURN_CODE 77
+    )
+    if(EXISTS ${PROJECT_SOURCE_DIR}/.venv/bin/python)
+        add_test(NAME echo_image_boots_in_emulator
+            COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
+                ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_echo_image.py
+                --image ${PROJECT_SOURCE_DIR}/build/device-echo/ECHOV498.IMG
+                --elf ${PROJECT_SOURCE_DIR}/build/device-echo/platform/device/echo_device.elf
+        )
+        set_tests_properties(echo_image_boots_in_emulator PROPERTIES
+            FIXTURES_REQUIRED device_echo_image
+            SKIP_RETURN_CODE 77
+            TIMEOUT 300
+        )
+    endif()
 else()
     message(STATUS "arm-none-eabi-gcc not found: the target_audit test is skipped")
 endif()
@@ -399,6 +444,10 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
             --output ${PROJECT_SOURCE_DIR}/src/fonts/packs
             --check
     )
+    if(APPLE AND EXISTS /opt/local/lib/libfribidi.0.dylib)
+        set_tests_properties(fonts_up_to_date glyph_packs_up_to_date PROPERTIES
+            ENVIRONMENT DYLD_FALLBACK_LIBRARY_PATH=/opt/local/lib)
+    endif()
     add_test(NAME cover_fixture_up_to_date
         COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/cover_fixture.py
             --output ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/small_covers.bin

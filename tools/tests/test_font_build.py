@@ -73,8 +73,18 @@ class RenderGlyphTest(unittest.TestCase):
 class CoverageTest(unittest.TestCase):
     def test_only_codepoints_in_the_font_are_kept(self):
         path = ASSETS_DIRECTORY / "inter" / "Inter-Regular.ttf"
-        covered = font_build.covered_codepoints(path, [[65, 66], [0x4E00, 0x4E01]])
+        covered = font_build.covered_codepoints(path, [[65, 66], [0x0E01, 0x0E02]])
         self.assertEqual([65, 66], covered)
+
+
+class ExtraRangesTest(unittest.TestCase):
+    def test_extra_ranges_add_code_points_to_the_font(self):
+        spec = {"name": "t", "file": "inter/Inter-Regular.ttf", "size": 12,
+                "extra_ranges": [[0xE9, 0xE9]]}
+        plain = font_build.build_font({**spec, "extra_ranges": []}, [[65, 65]], ASSETS_DIRECTORY)
+        extra = font_build.build_font(spec, [[65, 65]], ASSETS_DIRECTORY)
+        self.assertEqual([65], [glyph.codepoint for glyph in plain.glyphs])
+        self.assertEqual([65, 0xE9], [glyph.codepoint for glyph in extra.glyphs])
 
 
 class SourceTest(unittest.TestCase):
@@ -89,6 +99,26 @@ class SourceTest(unittest.TestCase):
         self.assertIn("const Font FONT_TINY = {", source)
         self.assertIn(".glyph_count = 2,", source)
         self.assertIn(".bitmap_size = 2,", source)
+
+    def test_a_board_font_is_guarded_by_its_board_macro(self):
+        font = font_build.FontData("tiny", 3, 1, [], board="ECHO")
+        source = font_build.font_source(font)
+        self.assertTrue(source.startswith("#ifdef ECHO_BOARD_ECHO"))
+        self.assertTrue(source.rstrip().endswith("#endif"))
+
+    def test_a_packed_font_keeps_only_a_few_glyphs_when_its_pack_is_in_use(self):
+        glyphs = [font_build.GlyphImage(codepoint, 1, 2, 0, 2, 3, [1, 2])
+                  for codepoint in (32, 63, 65, 66)]
+        font = font_build.FontData("tiny", 3, 1, glyphs, board="ECHO", packed=True)
+        source = font_build.font_source(font)
+        packed, full = source.split("#else")
+        self.assertIn("#ifdef ECHO_FONTS_PACKED", packed)
+        self.assertIn(".glyph_count = 2,", packed)
+        self.assertIn(".glyph_count = 4,", full)
+
+    def test_a_font_without_a_board_is_not_guarded(self):
+        source = font_build.font_source(font_build.FontData("tiny", 3, 1, []))
+        self.assertNotIn("#ifdef", source)
 
     def test_header_declares_every_font(self):
         header = font_build.header_source(["inter_regular_12", "inter_semibold_16"])

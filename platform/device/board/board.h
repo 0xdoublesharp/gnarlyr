@@ -4,7 +4,14 @@
 #include <stdint.h>
 
 #include "device/battery_gauge.h"
+#include "device/board_pins.h"
 #include "hal/system.h"
+
+#ifdef ECHO_BOARD_ECHO
+#define BOARD_KIND BOARD_KIND_ECHO
+#else
+#define BOARD_KIND BOARD_KIND_MINI
+#endif
 
 void board_clock_start(void);
 void board_clock_record_boot(void);
@@ -61,6 +68,9 @@ void board_wait_for_key(void);
 void board_main(void);
 bool board_usb_listening(void);
 void board_power_hold(void);
+void board_power_pair_set(bool on);
+void board_loader_reboot(void);
+void board_loader_flag_clear(void);
 void board_power_cut(void);
 bool board_power_key_down(void);
 void board_panic_poll_power(uint32_t now_ms);

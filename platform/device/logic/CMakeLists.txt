@@ -28,6 +28,7 @@ add_library(echo_device_logic STATIC
     audio_engine.c
     audio_math.c
     backlight.c
+    board_pins.c
     battery_gauge.c
     watchdog.c
     bt_module.c
@@ -49,6 +50,7 @@ add_library(echo_device_logic STATIC
     flac_accel.c
     image_crc.c
     jack_sense.c
+    loader_request.c
     key_ladder.c
     key_scanner.c
     mp3_decoder.c
@@ -62,11 +64,13 @@ add_library(echo_device_logic STATIC
     stall_watch.c
     stream_drift.c
     tick_clock.c
+    update_names.c
     updater.c
     usb_audio.c
     usb_audio_sink.c
     usb_device.c
     usb_fallback.c
+    vop.c
     wav_source.c
 )
 if(CMAKE_CROSSCOMPILING)

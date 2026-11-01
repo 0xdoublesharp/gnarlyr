@@ -31,6 +31,17 @@ void board_power_hold(void)
     usb_start = boot_hold.usb_power && !boot_hold.key_down && !held_by_key;
 }
 
+void board_power_pair_set(bool on)
+{
+    PinRef pins[BOARD_POWER_PAIR_PINS];
+    uint32_t count = board_power_pair(BOARD_KIND, pins);
+    for (uint32_t index = 0; index < count; index++) {
+        GpioPin pin = {pins[index].port, pins[index].pin};
+        gpio_mux(pin, GPIO_FUNCTION_GPIO);
+        gpio_output(pin, on);
+    }
+}
+
 HalPowerHold hal_power_boot_hold(void)
 {
     return boot_hold;
@@ -83,6 +94,7 @@ void board_power_cut(void)
     board_bluetooth_off();
     __asm__ volatile("cpsid i" ::: "memory");
     board_start_record_power_off();
+    board_power_pair_set(false);
     gpio_mux(POWER_HOLD, GPIO_FUNCTION_GPIO);
     gpio_output(POWER_HOLD, false);
     for (;;) {
@@ -104,6 +116,7 @@ void hal_power_off(void)
     board_bluetooth_off();
     __asm__ volatile("cpsid i" ::: "memory");
     board_start_record_power_off();
+    board_power_pair_set(false);
     gpio_mux(POWER_HOLD, GPIO_FUNCTION_GPIO);
     gpio_output(POWER_HOLD, false);
     for (;;) {

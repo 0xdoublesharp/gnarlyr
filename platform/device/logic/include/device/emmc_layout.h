@@ -14,5 +14,12 @@ typedef struct EmmcLayout {
     uint32_t volume_sectors;
 } EmmcLayout;
 
+typedef enum EmmcSlot2 {
+    EMMC_SLOT_2_HALF,
+    EMMC_SLOT_2_SEARCH
+} EmmcSlot2;
+
 bool emmc_layout_read(EmmcLayout *layout, const BlockDevice *device, uint32_t total_sectors);
+bool emmc_layout_read_with(EmmcLayout *layout, const BlockDevice *device, uint32_t total_sectors,
+                           EmmcSlot2 placement);
 bool emmc_layout_allows_write(const EmmcLayout *layout, uint32_t lba, uint32_t count);

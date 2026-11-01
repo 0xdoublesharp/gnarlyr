@@ -12,6 +12,7 @@ add_executable(echo_device
     board/glyphs.c
     board/gpio.c
     board/jack.c
+    board/loader_reboot.c
     board/high_ram.c
     board/input.c
     board/libc.c
@@ -33,6 +34,11 @@ add_executable(echo_device
     board/usb_report.c
     board/usb_session.c
 )
+if(ECHO_BOARD STREQUAL "ECHO")
+    target_sources(echo_device PRIVATE board/panel_vop.c)
+else()
+    target_sources(echo_device PRIVATE board/panel_gpio.c)
+endif()
 set(ECHO_CORE1_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1.ld)
 add_executable(echo_core1
     core1/main.c
@@ -131,7 +137,13 @@ target_link_options(echo_rescan_overlay PRIVATE
 
 set(ECHO_FIRMWARE_VERSION "0.6.0" CACHE STRING "major.minor.patch written to the image header")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-set(ECHO_DEVICE_IMAGE ${CMAKE_BINARY_DIR}/HIFIEC90.IMG)
+if(ECHO_BOARD STREQUAL "ECHO")
+    set(ECHO_DEVICE_IMAGE ${CMAKE_BINARY_DIR}/ECHOV498.IMG)
+    set(ECHO_IMAGE_BRAND PODIUM)
+else()
+    set(ECHO_DEVICE_IMAGE ${CMAKE_BINARY_DIR}/HIFIEC90.IMG)
+    set(ECHO_IMAGE_BRAND EchoPod)
+endif()
 set(ECHO_GLYPH_FACE_ARGUMENTS "")
 foreach(face_file ${ECHO_GLYPH_FACE_FILES})
     list(APPEND ECHO_GLYPH_FACE_ARGUMENTS --glyph-face ${face_file})
@@ -140,6 +152,7 @@ endforeach()
 add_custom_target(echo_device_image ALL
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/make_image.py
         --version ${ECHO_FIRMWARE_VERSION}
+        --brand ${ECHO_IMAGE_BRAND}
         --elf $<TARGET_FILE:echo_device>
         --overlay $<TARGET_FILE:echo_rescan_overlay>
         --core1-mp3 ${ECHO_CORE1_MP3_BINARY}

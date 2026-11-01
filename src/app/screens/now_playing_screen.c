@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "board_layout.h"
 #include "core/format.h"
 #include "core/string_builder.h"
 #include "gfx/image.h"
@@ -12,22 +13,9 @@
 #include "ui/marquee.h"
 
 enum {
-    COVER_TOP = 30,
-    COVER_GAP = 12,
-    TITLE_TOP = 28,
-    ARTIST_TOP = 50,
-    ALBUM_TOP = 70,
-    TEXT_LINE_HEIGHT = 22,
-    FORMAT_TOP = 97,
-    DETAIL_TOP = 116,
-    MODES_TOP = 131,
-    SMALL_LINE_HEIGHT = 16,
     CODEC_PADDING = 4,
     CODEC_GAP = 7,
     OUTLINE = 1,
-    PROGRESS_TOP = 148,
-    PROGRESS_HEIGHT = 3,
-    TIMES_TOP = 153,
     TIME_CAPACITY = 16,
     BADGE_SIZE = 40,
     BADGE_ICON_SIZE = 18,
@@ -35,6 +23,11 @@ enum {
     BITRATE_CAPACITY = 24,
     RATE_CAPACITY = 16
 };
+
+static const NowPlayingLayout *layout(void)
+{
+    return &BOARD_LAYOUT.now_playing;
+}
 
 static const char SEPARATOR[] = " \xC2\xB7 ";
 
@@ -374,7 +367,8 @@ static int text_left(const NowPlayingScreen *now_playing)
 {
     Image ignored;
     int padding = now_playing->config.theme->metrics.padding;
-    return current_cover(now_playing, &ignored) ? padding + COVER_FULL_SIZE + COVER_GAP : padding;
+    return current_cover(now_playing, &ignored) ? padding + COVER_FULL_SIZE + layout()->cover_gap
+                                                : padding;
 }
 
 static Rect column_area(const NowPlayingScreen *now_playing, int top, int height)
@@ -391,9 +385,9 @@ static void draw_cover(const NowPlayingScreen *now_playing, Canvas *canvas)
         return;
     }
     int left = now_playing->config.theme->metrics.padding;
-    image_draw_quad(
-        canvas, cover,
-        (Quad){left, COVER_FULL_SIZE, COVER_TOP, COVER_FULL_SIZE, COVER_TOP, COVER_FULL_SIZE});
+    image_draw_quad(canvas, cover,
+                    (Quad){left, COVER_FULL_SIZE, layout()->cover_top, COVER_FULL_SIZE,
+                           layout()->cover_top, COVER_FULL_SIZE});
 }
 
 static Rect line_area(const Theme *theme, int top, int height)
@@ -424,14 +418,19 @@ static void draw_track_text(const NowPlayingScreen *now_playing, Canvas *canvas)
     TextStyle album = {.font = theme->fonts.body, .color = theme->colors.text_tertiary};
     draw_text_line(
         now_playing, canvas,
-        (Label){column_area(now_playing, TITLE_TOP, TEXT_LINE_HEIGHT), now_playing->title}, title);
+        (Label){column_area(now_playing, layout()->title_top, layout()->text_line_height),
+                now_playing->title},
+        title);
     draw_text_line(
         now_playing, canvas,
-        (Label){column_area(now_playing, ARTIST_TOP, TEXT_LINE_HEIGHT), now_playing->artist},
+        (Label){column_area(now_playing, layout()->artist_top, layout()->text_line_height),
+                now_playing->artist},
         artist);
     draw_text_line(
         now_playing, canvas,
-        (Label){column_area(now_playing, ALBUM_TOP, TEXT_LINE_HEIGHT), now_playing->album}, album);
+        (Label){column_area(now_playing, layout()->album_top, layout()->text_line_height),
+                now_playing->album},
+        album);
 }
 
 static uint32_t shown_position(const NowPlayingScreen *now_playing)
@@ -443,7 +442,7 @@ static uint32_t shown_position(const NowPlayingScreen *now_playing)
 static void draw_progress(const NowPlayingScreen *now_playing, Canvas *canvas)
 {
     const Theme *theme = now_playing->config.theme;
-    Rect bar = line_area(theme, PROGRESS_TOP, PROGRESS_HEIGHT);
+    Rect bar = line_area(theme, layout()->progress_top, layout()->progress_height);
     bool volume = showing(now_playing, NOW_PLAYING_FEEDBACK_VOLUME);
     int filled = volume ? now_playing_volume_width(now_playing->status.volume, bar.width)
                         : now_playing_progress_width(shown_position(now_playing),
@@ -477,7 +476,7 @@ static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas)
         StringBuilder level = string_builder_make(remaining, sizeof remaining);
         string_builder_append_unsigned(&level, now_playing->status.volume);
     }
-    Rect area = line_area(theme, TIMES_TOP, SMALL_LINE_HEIGHT);
+    Rect area = line_area(theme, layout()->times_top, layout()->small_line_height);
     TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
     label_draw(canvas, style, (Label){.area = area, .text = elapsed});
     draw_right_aligned(canvas, style, area, remaining);
@@ -512,7 +511,7 @@ static void draw_format(const NowPlayingScreen *now_playing, Canvas *canvas)
         return;
     }
     TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
-    Rect row = column_area(now_playing, FORMAT_TOP, SMALL_LINE_HEIGHT);
+    Rect row = column_area(now_playing, layout()->format_top, layout()->small_line_height);
     int codec_width = text_width(style.font, codec) + 2 * CODEC_PADDING;
     Rect badge = {row.x, row.y, codec_width, row.height};
     draw_outline(canvas, badge, theme->colors.text_secondary);
@@ -532,15 +531,17 @@ static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
     char detail[STATUS_CAPACITY];
     now_playing_detail_text(&now_playing->status, detail, sizeof detail);
     label_draw(canvas, style,
-               (Label){column_area(now_playing, DETAIL_TOP, SMALL_LINE_HEIGHT), detail});
+               (Label){column_area(now_playing, layout()->detail_top, layout()->small_line_height),
+                       detail});
     char modes[STATUS_CAPACITY];
     modes_text(&now_playing->status, modes, sizeof modes);
     if (now_playing->scrubbing) {
         StringBuilder seeking = string_builder_make(modes, sizeof modes);
         string_builder_append(&seeking, "Seeking \xC2\xB7 Play to jump");
     }
-    label_draw(canvas, style,
-               (Label){column_area(now_playing, MODES_TOP, SMALL_LINE_HEIGHT), modes});
+    label_draw(
+        canvas, style,
+        (Label){column_area(now_playing, layout()->modes_top, layout()->small_line_height), modes});
 }
 
 static void draw_badge_icon(Canvas *canvas, NowPlayingFeedback feedback, Rect area, Color color)
@@ -573,7 +574,7 @@ static void draw_badge(const NowPlayingScreen *now_playing, Canvas *canvas)
     }
     const Theme *theme = now_playing->config.theme;
     int center_x = theme->metrics.padding + COVER_FULL_SIZE / 2;
-    int center_y = COVER_TOP + COVER_FULL_SIZE / 2;
+    int center_y = layout()->cover_top + COVER_FULL_SIZE / 2;
     Rect badge = {center_x - BADGE_SIZE / 2, center_y - BADGE_SIZE / 2, BADGE_SIZE, BADGE_SIZE};
     Rect icon = {center_x - BADGE_ICON_SIZE / 2, center_y - BADGE_ICON_SIZE / 2, BADGE_ICON_SIZE,
                  BADGE_ICON_SIZE};

@@ -11,6 +11,15 @@
       }
     },
     {
+      "name": "dev-echo",
+      "displayName": "Development for the full-size Echo board (480x222, simulator only)",
+      "inherits": "dev",
+      "binaryDir": "${sourceDir}/build/dev-echo",
+      "cacheVariables": {
+        "ECHO_BOARD": "ECHO"
+      }
+    },
+    {
       "name": "device",
       "displayName": "Device firmware (Cortex-M3, Release -O2)",
       "binaryDir": "${sourceDir}/build/device",
@@ -31,6 +40,25 @@
       "cacheVariables": {
         "ECHO_RELEASE": "ON"
       }
+    },
+    {
+      "name": "device-echo",
+      "displayName": "Device firmware for the full-size Echo (Cortex-M3, Release -O2)",
+      "inherits": "device",
+      "binaryDir": "${sourceDir}/build/device-echo",
+      "cacheVariables": {
+        "ECHO_BOARD": "ECHO",
+        "ECHO_FIRMWARE_VERSION": "0.0.1"
+      }
+    },
+    {
+      "name": "release-echo",
+      "displayName": "Release firmware for the full-size Echo (device build without developer Diagnostics)",
+      "inherits": "device-echo",
+      "binaryDir": "${sourceDir}/build/release-echo",
+      "cacheVariables": {
+        "ECHO_RELEASE": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -39,18 +67,37 @@
       "configurePreset": "dev"
     },
     {
+      "name": "dev-echo",
+      "configurePreset": "dev-echo"
+    },
+    {
       "name": "device",
       "configurePreset": "device"
     },
     {
       "name": "release",
       "configurePreset": "release"
+    },
+    {
+      "name": "device-echo",
+      "configurePreset": "device-echo"
+    },
+    {
+      "name": "release-echo",
+      "configurePreset": "release-echo"
     }
   ],
   "testPresets": [
     {
       "name": "dev",
       "configurePreset": "dev",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "dev-echo",
+      "configurePreset": "dev-echo",
       "output": {
         "outputOnFailure": true
       }
