@@ -6,6 +6,7 @@
 #include "codec/flac.h"
 #include "device/audio_engine.h"
 #include "device/flac_source.h"
+#include "device/m4a_stream.h"
 
 enum {
     STREAM_SLOTS = 2,
@@ -100,6 +101,8 @@ typedef struct Core1Source {
     uint32_t lead_trim;
     uint32_t play_end;
     uint32_t fill_budget;
+    uint32_t ring_capacity;
+    M4aStream *m4a;
     uint8_t bits_per_sample;
     uint8_t channels;
     bool streaming;
@@ -112,3 +115,4 @@ void core1_source_init(Core1Source *source, StreamRegion region, FlacFileOpener 
 void core1_source_fill(Core1Source *source);
 AudioSource core1_source_interface(Core1Source *source);
 AudioSource core1_source_mp3_interface(Core1Source *source);
+AudioSource core1_source_m4a_interface(Core1Source *source, M4aStream *stream);

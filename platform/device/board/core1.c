@@ -19,6 +19,7 @@ enum {
     SECTOR_BYTES = 512,
     MP3_PROGRAM_OFFSET = 0x240000,
     FLAC_PROGRAM_OFFSET = 0x280000,
+    M4A_PROGRAM_OFFSET = 0x2A0200,
     PROGRAM_MAGIC = 0x4D314345,
     STAGING_SECTORS = STAGING_WORDS * WORD_BYTES / SECTOR_BYTES
 };
@@ -99,13 +100,21 @@ static bool copy_program_sectors(uint32_t first_sector, uint32_t size, uint32_t 
     return crc == expected_crc;
 }
 
+static uint32_t program_offset(Core1Program program)
+{
+    if (program == CORE1_PROGRAM_MP3) {
+        return MP3_PROGRAM_OFFSET;
+    }
+    return program == CORE1_PROGRAM_M4A ? M4A_PROGRAM_OFFSET : FLAC_PROGRAM_OFFSET;
+}
+
 static Core1Result place_program(Core1Program program)
 {
     EmmcInfo info;
     if (hal_system_restart_pending() || !emmc_start(&info)) {
         return CORE1_NO_REPLY;
     }
-    uint32_t offset = program == CORE1_PROGRAM_MP3 ? MP3_PROGRAM_OFFSET : FLAC_PROGRAM_OFFSET;
+    uint32_t offset = program_offset(program);
     uint32_t header_sector = info.layout.slot_1 + offset / SECTOR_BYTES;
     if (!emmc_read(NULL, header_sector, 1, staging)) {
         return CORE1_NO_REPLY;

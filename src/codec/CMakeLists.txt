@@ -1,4 +1,5 @@
 add_library(echo_codec STATIC
+    alac.c
     flac.c
     flac_bits.c
 )

@@ -489,6 +489,28 @@ class Core1ModuleTest(unittest.TestCase):
         self.assertEqual(program, image[start:start + len(program)])
         self.assertEqual([], make_image.validate_image(image))
 
+    def test_the_m4a_program_has_its_own_slot_between_the_flac_program_and_the_glyph_table(self):
+        program = bytes(range(250)) * 7
+        image = build(core1_m4a=program, core1_flac=b"\x22" * 300)
+        offset = make_image.CORE1_M4A_OFFSET
+        self.assertGreaterEqual(offset, make_image.CORE1_FLAC_OFFSET +
+                                make_image.CORE1_MODULE_HEADER_SIZE +
+                                make_image.CORE1_MODULE_CAPACITY)
+        self.assertEqual(0, offset % 512)
+        self.assertEqual(b"EC1M", image[offset:offset + 4])
+        self.assertEqual(len(program), word(image, offset + 4))
+        start = offset + make_image.CORE1_MODULE_HEADER_SIZE
+        self.assertEqual(program, image[start:start + len(program)])
+        self.assertEqual([], make_image.validate_image(image))
+
+    def test_the_largest_m4a_program_ends_where_the_glyph_table_starts(self):
+        build(core1_m4a=bytes(make_image.CORE1_M4A_CAPACITY))
+        self.assertEqual(make_image.GLYPH_TABLE_OFFSET,
+                         make_image.CORE1_M4A_OFFSET + make_image.CORE1_MODULE_HEADER_SIZE +
+                         make_image.CORE1_M4A_CAPACITY)
+        with self.assertRaises(make_image.ImageError):
+            build(core1_m4a=bytes(make_image.CORE1_M4A_CAPACITY + 1))
+
     def test_no_program_leaves_the_space_empty(self):
         offset = make_image.CORE1_MP3_OFFSET
         self.assertEqual(bytes(16), build()[offset:offset + 16])
@@ -523,6 +545,8 @@ class GlyphFaceTest(unittest.TestCase):
                   make_image.CORE1_MODULE_CAPACITY),
                  (make_image.CORE1_FLAC_OFFSET, make_image.CORE1_FLAC_OFFSET + 512 +
                   make_image.CORE1_MODULE_CAPACITY),
+                 (make_image.CORE1_M4A_OFFSET, make_image.CORE1_M4A_OFFSET + 512 +
+                  make_image.CORE1_M4A_CAPACITY),
                  (make_image.GLYPH_TABLE_OFFSET, make_image.GLYPH_TABLE_OFFSET + 512),
                  (make_image.FW_SIZE, make_image.IMAGE_SIZE),
                  (0, make_image.GLYPH_PAYLOAD_LIMIT)]

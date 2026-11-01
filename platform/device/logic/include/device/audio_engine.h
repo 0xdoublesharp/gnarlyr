@@ -35,7 +35,9 @@ typedef struct AudioFrame {
 typedef enum AudioCodec {
     AUDIO_CODEC_FLAC,
     AUDIO_CODEC_WAV,
-    AUDIO_CODEC_MP3
+    AUDIO_CODEC_MP3,
+    AUDIO_CODEC_AAC,
+    AUDIO_CODEC_ALAC
 } AudioCodec;
 
 typedef struct AudioTrackInfo {

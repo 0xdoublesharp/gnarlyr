@@ -11,7 +11,9 @@
 #include "device/dac_sequence.h"
 #include "device/dma_loop.h"
 #include "device/flac_source.h"
+#include "device/m4a_stream.h"
 #include "device/mp3_probe.h"
+#include "device/mp4_demux.h"
 #include "device/wav_source.h"
 #include "dmac.h"
 #include "hal/audio.h"
@@ -41,12 +43,14 @@ typedef enum SourceKind {
     SOURCE_FLAC,
     SOURCE_WAV,
     SOURCE_MP3,
+    SOURCE_M4A,
     SOURCE_UNKNOWN
 } SourceKind;
 
 static union {
     FlacDecoder flac;
     WavBuffers wav;
+    M4aStream m4a;
 } decoding __attribute__((section(".high_ram")));
 static uint32_t music_ring[RING_WORDS];
 static WavSource wav_source;
@@ -157,6 +161,9 @@ static SourceKind kind_of(const char *path)
     if (tag_is(magic, "RIFF") && tag_is(magic + 8, "WAVE")) {
         return SOURCE_WAV;
     }
+    if (mp4_signature(magic)) {
+        return SOURCE_M4A;
+    }
     return mp3_signature(magic) ? SOURCE_MP3 : SOURCE_UNKNOWN;
 }
 
@@ -167,6 +174,9 @@ static AudioSource chosen_source(void)
     }
     if (source_kind == SOURCE_MP3) {
         return core1_source_mp3_interface(&core1_source);
+    }
+    if (source_kind == SOURCE_M4A) {
+        return core1_source_m4a_interface(&core1_source, &decoding.m4a);
     }
     return using_core1 ? core1_source_interface(&core1_source)
                        : flac_source_interface(&software_source);
@@ -199,8 +209,9 @@ static bool open_chosen(void *context, const char *path, uint32_t start_ms, Audi
     if (source_kind == SOURCE_FLAC) {
         using_core1 = board_core1_start_stream(CORE1_PROGRAM_FLAC);
     }
-    if (source_kind == SOURCE_MP3) {
-        using_core1 = board_core1_start_stream(CORE1_PROGRAM_MP3);
+    if (source_kind == SOURCE_MP3 || source_kind == SOURCE_M4A) {
+        using_core1 = board_core1_start_stream(source_kind == SOURCE_MP3 ? CORE1_PROGRAM_MP3
+                                                                         : CORE1_PROGRAM_M4A);
         if (!using_core1) {
             return false;
         }
@@ -508,6 +519,10 @@ static HalAudioCodec codec_of(AudioCodec codec)
         return HAL_AUDIO_CODEC_WAV;
     case AUDIO_CODEC_MP3:
         return HAL_AUDIO_CODEC_MP3;
+    case AUDIO_CODEC_AAC:
+        return HAL_AUDIO_CODEC_AAC;
+    case AUDIO_CODEC_ALAC:
+        return HAL_AUDIO_CODEC_ALAC;
     case AUDIO_CODEC_FLAC:
         break;
     }

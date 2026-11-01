@@ -23,10 +23,12 @@ OVERLAY_HEADER_SIZE = 16
 OVERLAY_MAGIC = b"EOVL"
 CORE1_MP3_OFFSET = 0x240000
 CORE1_FLAC_OFFSET = 0x280000
+CORE1_M4A_OFFSET = 0x2A0200
 CORE1_MODULE_CAPACITY = 0x20000
 CORE1_MODULE_HEADER_SIZE = 512
 CORE1_MODULE_MAGIC = b"EC1M"
 GLYPH_TABLE_OFFSET = 0x2C0000
+CORE1_M4A_CAPACITY = GLYPH_TABLE_OFFSET - CORE1_M4A_OFFSET - CORE1_MODULE_HEADER_SIZE
 GLYPH_TABLE_MAGIC = b"EGPT"
 GLYPH_TABLE_SIZE = 512
 GLYPH_FACE_LIMIT = (GLYPH_TABLE_SIZE - 8) // 8
@@ -93,6 +95,7 @@ class ImageParts:
     core1_mp3: bytes = b""
     core1_flac: bytes = b""
     glyph_faces: tuple = ()
+    core1_m4a: bytes = b""
 
 
 def crc_table():
@@ -184,6 +187,7 @@ def assemble(parts):
     place_overlay(image, parts)
     place_core1_module(image, parts.core1_mp3, CORE1_MP3_OFFSET)
     place_core1_module(image, parts.core1_flac, CORE1_FLAC_OFFSET)
+    place_core1_module(image, parts.core1_m4a, CORE1_M4A_OFFSET, CORE1_M4A_CAPACITY)
     place_glyph_faces(image, parts)
     end = fw_end(FW_SIZE)
     struct.pack_into("<I", image, end, crc32(image[:end]))
@@ -202,11 +206,11 @@ def place_overlay(image, parts):
     image[OVERLAY_OFFSET:OVERLAY_OFFSET + len(overlay)] = header + overlay[OVERLAY_HEADER_SIZE:]
 
 
-def place_core1_module(image, program, offset):
+def place_core1_module(image, program, offset, capacity=CORE1_MODULE_CAPACITY):
     if not program:
         return
-    if len(program) > CORE1_MODULE_CAPACITY:
-        raise ImageError(f"the core 1 program must fit {CORE1_MODULE_CAPACITY:#x} bytes")
+    if len(program) > capacity:
+        raise ImageError(f"the core 1 program must fit {capacity:#x} bytes")
     header = CORE1_MODULE_MAGIC + struct.pack("<III", len(program), crc32(program), 0)
     start = offset + CORE1_MODULE_HEADER_SIZE
     image[offset:offset + len(header)] = header
@@ -327,7 +331,7 @@ def generated_header(version):
 
 
 def build_image(firmware, brand, build_tag, date, overlay=b"", core1_mp3=b"", core1_flac=b"",
-                version=DEFAULT_VERSION, glyph_faces=()):
+                version=DEFAULT_VERSION, glyph_faces=(), core1_m4a=b""):
     check_firmware(firmware)
     code_size, data_size = len(firmware.code), len(firmware.data)
     header = generated_header(version)
@@ -344,7 +348,7 @@ def build_image(firmware, brand, build_tag, date, overlay=b"", core1_mp3=b"", co
     rows += [(0, 0, 0, 0)] * (TABLE_CAPACITY - len(rows))
     return assemble(ImageParts(bytes(header), tuple(rows), payload, bytes(MARKER_SIZE), overlay,
                                core1_mp3,
-                               core1_flac, tuple(glyph_faces)))
+                               core1_flac, tuple(glyph_faces), core1_m4a))
 
 
 def validate_image(image):
@@ -474,6 +478,7 @@ def parse_arguments(argv):
     parser.add_argument("--overlay", type=Path, help="rescan overlay ELF linked at 0x0307A000")
     parser.add_argument("--core1-mp3", type=Path, help="core 1 MP3 program, a raw binary")
     parser.add_argument("--core1-flac", type=Path, help="core 1 FLAC program, a raw binary")
+    parser.add_argument("--core1-m4a", type=Path, help="core 1 AAC and ALAC program, a raw binary")
     parser.add_argument("--glyph-face", type=Path, action="append", default=[],
                         help="glyph pack face, in face order; a missing file is an empty face")
     parser.add_argument("--output", type=Path, required=True)
@@ -489,10 +494,11 @@ def main(argv=None):
         overlay = overlay_from_elf(arguments.overlay.read_bytes()) if arguments.overlay else b""
         core1_mp3 = arguments.core1_mp3.read_bytes() if arguments.core1_mp3 else b""
         core1_flac = arguments.core1_flac.read_bytes() if arguments.core1_flac else b""
+        core1_m4a = arguments.core1_m4a.read_bytes() if arguments.core1_m4a else b""
         glyph_faces = [path.read_bytes() if path.exists() else b""
                        for path in arguments.glyph_face]
         image = build_image(firmware, arguments.brand, build_tag, date, overlay, core1_mp3,
-                            core1_flac, arguments.version, glyph_faces)
+                            core1_flac, arguments.version, glyph_faces, core1_m4a)
     except ImageError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
@@ -505,7 +511,7 @@ def main(argv=None):
     print(f"wrote {arguments.output} ({build_tag}): "
           f"code {len(firmware.code):,} bytes, "
           f"overlay {len(overlay):,} bytes, core 1 MP3 {len(core1_mp3):,} bytes, "
-          f"core 1 FLAC {len(core1_flac):,} bytes, "
+          f"core 1 FLAC {len(core1_flac):,} bytes, core 1 M4A {len(core1_m4a):,} bytes, "
           f"glyph faces {sum(len(face) for face in glyph_faces):,} bytes, "
           f".data {len(firmware.data)} bytes, .bss {firmware.bss_size:,} bytes, "
           f"crc {word(image, fw_end(FW_SIZE)):#010x}")

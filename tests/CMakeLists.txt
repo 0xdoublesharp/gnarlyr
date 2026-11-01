@@ -224,6 +224,11 @@ echo_add_unit_test(NAME test_storage_mount
     LIBRARIES echo_device_logic
 )
 target_compile_definitions(test_storage_mount PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+echo_add_unit_test(NAME test_alac
+    SOURCES codec/test_alac.c
+    LIBRARIES echo_codec
+)
+target_compile_definitions(test_alac PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 echo_add_unit_test(NAME test_flac
     SOURCES codec/test_flac.c
     LIBRARIES echo_codec
@@ -249,6 +254,22 @@ echo_add_unit_test(NAME test_mp3_decoder
     LIBRARIES echo_device_logic echo_libmad
 )
 target_compile_definitions(test_mp3_decoder PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+echo_add_unit_test(NAME test_mp4_demux
+    SOURCES device/test_mp4_demux.c device/m4a_fixture_files.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_mp4_demux PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+target_include_directories(test_mp4_demux PRIVATE device)
+add_executable(m4a_stream_tool device/m4a_stream_tool.c device/m4a_fixture_files.c)
+target_link_libraries(m4a_stream_tool PRIVATE echo_device_logic echo_options)
+target_include_directories(m4a_stream_tool PRIVATE device)
+target_compile_definitions(m4a_stream_tool PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+echo_add_unit_test(NAME test_m4a_source
+    SOURCES device/test_m4a_source.c device/m4a_fixture_files.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_m4a_source PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+target_include_directories(test_m4a_source PRIVATE device)
 echo_add_unit_test(NAME test_core1_stream
     SOURCES device/test_core1_stream.c
     LIBRARIES echo_device_logic
@@ -450,6 +471,17 @@ if(ARM_GCC)
             SKIP_RETURN_CODE 77
             TIMEOUT 900
         )
+        add_test(NAME core1_m4a_decodes_in_emulator
+            COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
+                ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_core1_m4a.py
+                --program ${PROJECT_SOURCE_DIR}/build/device-echo/platform/device/core1_m4a.bin
+                --tool $<TARGET_FILE:m4a_stream_tool>
+        )
+        set_tests_properties(core1_m4a_decodes_in_emulator PROPERTIES
+            FIXTURES_REQUIRED device_echo_image
+            SKIP_RETURN_CODE 77
+            TIMEOUT 300
+        )
     endif()
 else()
     message(STATUS "arm-none-eabi-gcc not found: the target_audit test is skipped")
@@ -515,6 +547,15 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
             -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/cue_music.db
             -P ${CMAKE_CURRENT_SOURCE_DIR}/check_library_index.cmake
     )
+    add_test(NAME m4a_music_up_to_date
+        COMMAND ${CMAKE_COMMAND}
+            -DPYTHON=${ECHO_TOOLS_PYTHON}
+            -DINDEXER=${PROJECT_SOURCE_DIR}/tools/library_index.py
+            -DMUSIC=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/m4a_music
+            -DEXPECTED=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/m4a_music.db
+            -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/m4a_music.db
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/check_library_index.cmake
+    )
     add_test(NAME builder_fixture_up_to_date
         COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/builder_fixture.py
             --output ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/builder_random
@@ -524,6 +565,11 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
         COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/fold_table.py
             --output ${PROJECT_SOURCE_DIR}/src/library
             --style ${PROJECT_SOURCE_DIR}/.clang-format
+            --check
+    )
+    add_test(NAME alac_fixture_up_to_date
+        COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/alac_fixture.py
+            --output ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/alac
             --check
     )
     add_test(NAME library_fixture_up_to_date

@@ -1,14 +1,24 @@
-# EchoPod release notes
+# Podium release notes
 
-## Podium 4.5.3
+Podium is a fork of EchoPod 0.6.0 for the full-size Snowsky Echo. Entries from 0.6.0 down are EchoPod's.
+
+## Podium 4.5.4 (2026-11-01)
+
+### New
+
+- **M4A playback.** `.m4a` files play: AAC-LC (what Apple Music and iTunes purchases use, mono or stereo, 44.1 and 48 kHz) and Apple Lossless (ALAC, 16 and 24 bit, mono or stereo). Seeking, resume after power-off, Up Next, shuffle and bookmarks work as for the other formats, and consecutive tracks play without a gap, trimmed by the encoder delay and padding in the file's `iTunSMPB` tag. Now Playing shows `AAC` or `ALAC`. The library already listed `.m4a` files with their tags, length and cover art; nothing needs rescanning. HE-AAC (SBR and PS), AAC at rates the player's output doesn't offer (such as 22.05 and 32 kHz), `.m4b` audiobooks and AAC in other containers don't play (see `known-issues.md`). Not yet heard on the player.
+
+## Podium 4.5.3 (2026-11-01)
 
 ### Fixed
 
+- **The player starts again.** 4.5.1 and 4.5.2 never started on the Echo: black screen, nothing on USB. The boot ROM clears the firmware's memory while it still runs from the top of that memory, and those builds had grown into it. The start-up screen-clear buffer is smaller now, and a build that would reach that area is refused.
+- **Long albums no longer stutter.** Plain playback of a large album image started to stutter about 13 minutes (90 MB) in: every read walked the file from its start again. Reading now costs the same anywhere in a file.
 - **CUE tracks start quickly.** Starting any track but the first of a large album image (hundreds of megabytes, one FLAC with a CUE sheet) took seconds, and the player stayed sluggish afterwards. Reading deep into a big file on internal storage walked the file's whole cluster chain again and again; each open file now keeps a map of where its data lies, so jumping anywhere in it costs one lookup.
 - **Smoother UI while switching tracks.** Skipping between the tracks of an album image no longer freezes the screen, no longer makes music stutter when going back to a list, and no longer ends in the "STALL" screen.
 - **The start of a CUE track is not faded in slowly.** The fade-in at the start of a track no longer stretches to a second or more while the player is busy reading.
 
-## Podium 4.5.2
+## Podium 4.5.2 (not released)
 
 ### New
 
@@ -19,16 +29,23 @@
 - **The player starts on large internal storage.** 4.5.1 created its files before lighting the screen, scanning the whole FAT one sector at a time, so a large internal volume left the screen black and USB silent for a minute or more. The files are now made after the screen shows "Preparing storage", the scan starts where the last file ended and internal storage is read several sectors per command.
 - **An update file is removed after it is used.** `ECHOVnnn.IMG` is deleted after a successful install, when it is not a valid image, and when it is already installed, so a restored older build is not overwritten again on the next USB eject. A failed install leaves the file for another try.
 
-## Podium 4.5.1
+## Podium 4.5.1 (not released)
 
 ### New
 
 - **Music on internal storage.** With no card in the player, or one it can't read, the player uses its internal storage for music. Diagnostics → Music shows which one is in use.
-- **Echo brightness** goes from 20 % to 100 %.
+
+## Podium 4.5.0 (2026-11-01)
+
+### New
+
+- **Snowsky Echo board.** The first build for the full-size Echo (480×222): the iPod-style interface with iPod-sized text (22 px, six rows), the Echo's display through its LCD controller, its pins for power, sound and jacks, and the update file `ECHOVnnn.IMG` named after the version, so 4.5.0 is `ECHOV450.IMG`. Podium's updater also installs FiiO's own Echo firmware for the way back.
+- **MASKROM.REQ.** A file named `MASKROM.REQ` holding the text `MASKROM REQ` at the top of internal storage reboots the player into the chip's USB recovery mode.
 
 ### Fixed
 
-- **Echo screen timing** follows the clock speed, so the display stays steady when the player changes speed.
+- **Echo screen timing** follows the clock speed; with the fixed stock timing the first picture was noise.
+- **Echo brightness** stays visible at the lowest level (20 % to 100 %).
 
 ## 0.6.0
 

@@ -81,6 +81,31 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     VERBATIM
 )
+add_executable(echo_core1_m4a
+    core1/m4a_main.c
+    core1/startup.c
+    core1/heap.c
+    board/libc.c
+)
+set(ECHO_CORE1_M4A_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1_m4a.ld)
+set_target_properties(echo_core1_m4a PROPERTIES
+    SUFFIX .elf
+    LINK_DEPENDS ${ECHO_CORE1_M4A_LINKER_SCRIPT}
+)
+target_include_directories(echo_core1_m4a PRIVATE board)
+target_link_libraries(echo_core1_m4a PRIVATE echo_device_logic echo_faad echo_codec echo_options gcc)
+target_link_options(echo_core1_m4a PRIVATE
+    -T${ECHO_CORE1_M4A_LINKER_SCRIPT}
+    -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_core1_m4a.map
+)
+set(ECHO_CORE1_M4A_BINARY ${CMAKE_CURRENT_BINARY_DIR}/core1_m4a.bin)
+add_custom_command(
+    OUTPUT ${ECHO_CORE1_M4A_BINARY}
+    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:echo_core1_m4a> core1_m4a.bin
+    DEPENDS echo_core1_m4a
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    VERBATIM
+)
 set(ECHO_CORE1_BINARY ${CMAKE_CURRENT_BINARY_DIR}/core1.bin)
 add_custom_command(
     OUTPUT ${ECHO_CORE1_BINARY}
@@ -101,6 +126,8 @@ set_source_files_properties(board/libc.c board/startup.c PROPERTIES
 if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(
         board/bluetooth.c
+        board/core1.c
+        board/dac.c
         board/glyphs.c
         board/high_ram.c
         board/overlay.c
@@ -158,10 +185,12 @@ add_custom_target(echo_device_image ALL
         --overlay $<TARGET_FILE:echo_rescan_overlay>
         --core1-mp3 ${ECHO_CORE1_MP3_BINARY}
         --core1-flac ${ECHO_CORE1_BINARY}
+        --core1-m4a ${ECHO_CORE1_M4A_BINARY}
         ${ECHO_GLYPH_FACE_ARGUMENTS}
         --output ${ECHO_DEVICE_IMAGE}
     BYPRODUCTS ${ECHO_DEVICE_IMAGE}
     DEPENDS echo_device echo_rescan_overlay ${ECHO_CORE1_MP3_BINARY} ${ECHO_CORE1_BINARY}
+        ${ECHO_CORE1_M4A_BINARY}
         ${PROJECT_SOURCE_DIR}/tools/make_image.py
     VERBATIM
 )

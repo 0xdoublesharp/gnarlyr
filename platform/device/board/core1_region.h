@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "device/core1_control.h"
+#include "device/core1_m4a.h"
 #include "device/core1_stream.h"
 
 _Static_assert(CORE1_STREAM_SAMPLES +
@@ -21,4 +22,19 @@ static inline StreamRegion core1_region(void)
         .ring = (volatile uint8_t *)(uintptr_t)CORE1_STREAM_RING,
         .ring_bytes = CORE1_STREAM_RING_BYTES,
     };
+}
+
+_Static_assert(M4A_RING_BYTES + M4A_HEAP_BYTES <= CORE1_STREAM_RING_BYTES,
+               "the M4A ring and heap must fit the core 1 ring area");
+
+static inline StreamRegion core1_region_m4a(void)
+{
+    StreamRegion region = core1_region();
+    region.ring_bytes = M4A_RING_BYTES;
+    return region;
+}
+
+static inline void *core1_m4a_heap(void)
+{
+    return (void *)(uintptr_t)(CORE1_STREAM_RING + M4A_RING_BYTES);
 }

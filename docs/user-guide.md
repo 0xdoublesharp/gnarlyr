@@ -37,7 +37,7 @@ If "Updating" flashes for under a second and FiiO's firmware comes back, the ins
 ## Your music
 
 - Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Diagnostics → Music shows which one is in use.
-- EchoPod plays FLAC, MP3 and WAV, up to 192 kHz. It lists the other formats FiiO lists, and says when it can't play one.
+- EchoPod plays FLAC, MP3 and WAV, up to 192 kHz, and `.m4a` files with AAC-LC or Apple Lossless audio. It lists the other formats FiiO lists, and says when it can't play one.
 - A `.cue` file next to a single FLAC, WAV or MP3 album image splits it into one track per CUE track (see "CUE sheets" below). Album covers come from art inside each album's first track, or from a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks.
 - `.m3u` and `.m3u8` playlists anywhere on the card appear under Music → Playlists.
 - Libraries of many thousands of tracks work; `docs/known-issues.md` lists the sizes tested so far.

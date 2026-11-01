@@ -124,7 +124,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(init, expected_init(madctl))
         self.assertEqual(len(panel.sweeps), 2)
         clear, first = panel.sweeps
-        self.assertEqual((clear.windows, clear.nonzero), (23, 0))
+        self.assertEqual((clear.windows, clear.nonzero), (111, 0))
         self.assertEqual(first.windows, 10)
         self.assertEqual(first.nonzero, WIDTH * HEIGHT)
         self.assertEqual(panel.painted_pixels(), WIDTH * HEIGHT)

@@ -44,7 +44,7 @@ The updater takes the highest-numbered `HIFIECnn.IMG`. It checks the image's sha
 
 ## Full-size Echo (Podium)
 
-`cmake --preset device-echo && cmake --build --preset device-echo` makes `build/device-echo/ECHOV453.IMG` for version 4.5.3 (`release-echo` makes the same name in `build/release-echo/`). Copy it to the top level of internal storage while FiiO's firmware runs: its updater takes the highest `ECHOVnnn.IMG` (or `ECHOECHO.IMG`), and 453 is above every stock release so far (V2.0.0 is `ECHOV200.IMG`). Podium's own updater, from the second install on, reads the same names, accepts only `PODIUM`-brand images and refuses Echo Mini images.
+`cmake --preset device-echo && cmake --build --preset device-echo` makes `build/device-echo/ECHOV454.IMG` for version 4.5.4 (`release-echo` makes the same name in `build/release-echo/`). Copy it to the top level of internal storage while FiiO's firmware runs: its updater takes the highest `ECHOVnnn.IMG` (or `ECHOECHO.IMG`), and 454 is above every stock release so far (V2.0.0 is `ECHOV200.IMG`). Podium's own updater, from the second install on, reads the same names, accepts only `PODIUM`-brand images and refuses Echo Mini images.
 
 Once Podium is installed, both slots hold Podium. The way back to FiiO's firmware is Podium's own updater: copy FiiO's Echo image (39,845,892 bytes; it contains `ECHOV100IMG`) to the top level of internal storage under one of the names above, eject and wait for "Installing FiiO firmware". If the player doesn't start at all, create the file `MASKROM.REQ` on internal storage beforehand (`docs/device-recovery.md`) or recover through maskrom.
 

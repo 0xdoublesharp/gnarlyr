@@ -510,6 +510,19 @@ static void scanning_cue_sheets_matches_the_pc_indexer(void)
     free(expected);
 }
 
+static void scanning_m4a_files_matches_the_pc_indexer(void)
+{
+    static Output output;
+    Progress progress = {.calls = 0};
+    ScanStats stats;
+    CHECK_EQUAL(SCAN_OK, scan_folder(ECHO_FIXTURE_DIR "/m4a_music", &output, &progress, &stats));
+    CHECK_EQUAL(6u, stats.tracks);
+    uint32_t expected_size = 0;
+    uint8_t *expected = read_fixture("m4a_music.db", &expected_size);
+    CHECK(library_compare(expected, expected_size, output.bytes, stats.length));
+    free(expected);
+}
+
 static void a_cue_sheet_makes_a_track_per_cue_track_and_hides_its_audio(void)
 {
     static Output output;
@@ -549,6 +562,7 @@ int main(void)
         TEST_CASE(scanning_the_tag_fixtures_matches_the_pc_indexer),
         TEST_CASE(scanning_folders_and_playlists_matches_the_pc_indexer),
         TEST_CASE(scanning_cue_sheets_matches_the_pc_indexer),
+        TEST_CASE(scanning_m4a_files_matches_the_pc_indexer),
         TEST_CASE(a_cue_sheet_makes_a_track_per_cue_track_and_hides_its_audio),
         TEST_CASE(a_cue_sheet_that_cannot_be_used_leaves_the_audio_alone),
         TEST_CASE(a_missing_music_root_says_so),
