@@ -139,6 +139,7 @@ void board_backlight_off(void)
 
 void board_display_after_clock_change(void)
 {
+    board_panel_after_clock_change();
     if (pwm_running) {
         apply_backlight();
     }

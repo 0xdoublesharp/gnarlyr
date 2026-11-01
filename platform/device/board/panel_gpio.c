@@ -120,3 +120,7 @@ void board_panel_write(PanelWindow window, const uint16_t *pixels)
     panel_begin_write(&BUS, window);
     bus_pixels(NULL, pixels, (uint32_t)(window.width * window.height));
 }
+
+void board_panel_after_clock_change(void)
+{
+}

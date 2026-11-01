@@ -5,6 +5,7 @@
 #include "device/panel.h"
 #include "device/vop.h"
 #include "gpio.h"
+#include "hal/system.h"
 #include "panel_port.h"
 #include "registers.h"
 
@@ -62,7 +63,7 @@ static void power_controller(void)
     board_delay_us(VOP_RESET_HOLD_US);
     cru_reset(VOP_RESET, false);
     board_delay_ms(VOP_RESET_SETTLE_MS);
-    vop_start(vop());
+    vop_start(vop(), hal_system_clock_mhz());
 }
 
 static void mux_panel_pins(void)
@@ -95,4 +96,9 @@ void board_panel_write(PanelWindow window, const uint16_t *pixels)
 {
     panel_begin_write(&BUS, window);
     vop_pixels(vop(), pixels, (uint32_t)(window.width * window.height));
+}
+
+void board_panel_after_clock_change(void)
+{
+    vop_set_clock(vop(), hal_system_clock_mhz());
 }

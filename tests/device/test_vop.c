@@ -5,12 +5,32 @@ enum {
     REGISTER_COUNT = 16
 };
 
-static void a_start_selects_command_mode_and_the_fixed_timing(void)
+static void a_start_selects_command_mode_and_the_timing_for_the_clock(void)
 {
     uint32_t registers[REGISTER_COUNT] = {0};
-    vop_start(registers);
+    vop_start(registers, 96);
     CHECK_EQUAL(0x800, registers[VOP_CONTROL]);
-    CHECK_EQUAL(0x1021, registers[VOP_TIMING]);
+    CHECK_EQUAL(0x1044, registers[VOP_TIMING]);
+}
+
+static void the_crystal_clock_gives_the_stock_echo_timing(void)
+{
+    CHECK_EQUAL(0x1021, vop_timing_for_mhz(24));
+}
+
+static void a_faster_clock_stretches_the_write_strobe_and_cycle(void)
+{
+    CHECK_EQUAL(0x1044, vop_timing_for_mhz(96));
+    CHECK_EQUAL(0x1089, vop_timing_for_mhz(200));
+}
+
+static void a_clock_change_rewrites_only_the_timing(void)
+{
+    uint32_t registers[REGISTER_COUNT] = {0};
+    vop_start(registers, 24);
+    vop_set_clock(registers, 200);
+    CHECK_EQUAL(0x800, registers[VOP_CONTROL]);
+    CHECK_EQUAL(0x1089, registers[VOP_TIMING]);
 }
 
 static void a_command_goes_to_the_command_register_in_command_mode(void)
@@ -69,7 +89,10 @@ static void an_unchanged_mode_is_not_rewritten(void)
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(a_start_selects_command_mode_and_the_fixed_timing),
+        TEST_CASE(a_start_selects_command_mode_and_the_timing_for_the_clock),
+        TEST_CASE(the_crystal_clock_gives_the_stock_echo_timing),
+        TEST_CASE(a_faster_clock_stretches_the_write_strobe_and_cycle),
+        TEST_CASE(a_clock_change_rewrites_only_the_timing),
         TEST_CASE(a_command_goes_to_the_command_register_in_command_mode),
         TEST_CASE(a_parameter_goes_to_the_data_register_in_command_mode),
         TEST_CASE(pixels_switch_to_pixel_mode_and_the_next_command_switches_back),
