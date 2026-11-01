@@ -138,7 +138,7 @@ The panel keeps its own image memory, so we never hold a full framebuffer. The s
 
 ## Boards
 
-`ECHO_BOARD` (CMake cache variable, `MINI` by default) picks the board and defines `ECHO_BOARD_ECHO` for `ECHO`. `MINI` is the Echo Mini (320×170, 182 ppi). `ECHO` is the full-size Snowsky Echo (480×222, 221 ppi, same six keys). Presets: `dev-echo` (simulator and tests, `build/dev-echo`), `device-echo` and `release-echo` (device images, `build/device-echo/ECHOV498.IMG` and `build/release-echo/ECHOV498.IMG`, version 0.0.1, brand `PODIUM`). The device code follows the board at compile time (see Echo board on the device).
+`ECHO_BOARD` (CMake cache variable, `MINI` by default) picks the board and defines `ECHO_BOARD_ECHO` for `ECHO`. `MINI` is the Echo Mini (320×170, 182 ppi). `ECHO` is the full-size Snowsky Echo (480×222, 221 ppi, same six keys). Presets: `dev-echo` (simulator and tests, `build/dev-echo`), `device-echo` and `release-echo` (device images, brand `PODIUM`). `PODIUM_VERSION` (4.5.0) sets the Echo image version and its name, `ECHOV<major><minor><patch>.IMG` as FiiO names its own, so 4.5.0 builds `ECHOV450.IMG`; the configure step refuses versions above 4.9.8, the highest name stock scans. The device code follows the board at compile time (see Echo board on the device).
 
 - `hal/display.h` takes `HAL_DISPLAY_WIDTH` and `HAL_DISPLAY_HEIGHT` from the board.
 - `app/default_theme.h` offers `BOARD_THEME`: `DEFAULT_THEME` on `MINI`, `ECHO_THEME` on `ECHO` (same colours; 22 px Inter SemiBold titles, 22 px Inter Regular body, 16 px small text; 30 px header, 32 px rows, six rows visible). The app and its tests use `BOARD_THEME`.
@@ -225,13 +225,13 @@ The panel keeps its own image memory, so we never hold a full framebuffer. The s
 | `target_audit` | the Cortex-M3 cross-compile: heap symbols, flash and static RAM |
 | device unit tests | `test_key_ladder`, `test_key_scanner`, `test_panel`, `test_sd_card`, `test_tick_clock` and `test_fat`: the device driver logic, run on the Mac. `test_fat` reads `tests/fixtures/cards/*.sparse`: FAT32 (MBR), FAT16 (unpartitioned) and exFAT (MBR) card images that macOS formatted and filled (`tools/fat_fixture.py`, run by hand; the images aren't reproducible) |
 | `device_build` | that `cmake --preset device` configures and builds the device ELF and the image |
-| `echo_image_boots_in_emulator` | that `build/device-echo/ECHOV498.IMG` boots in an emulated Echo (see Echo image emulator test); skipped when the image, the ELF or `unicorn` is missing |
+| `echo_image_boots_in_emulator` | that the `device-echo` image boots in an emulated Echo (see Echo image emulator test); skipped when the image, the ELF or `unicorn` is missing |
 
 Host builds run under UndefinedBehaviorSanitizer. AddressSanitizer is opt-in (`ECHO_ADDRESS_SANITIZER`) because it hangs at startup on macOS 27 with Apple clang 17.
 
 ## Echo image emulator test
 
-`tests/emulator/test_echo_image.py` runs the finished `ECHOV498.IMG` (with `echo_device.elf` for symbol addresses) in a Unicorn Cortex-M3 emulator (`tools/echo_emulator`, `unicorn` in `tools/requirements.txt`) before anything is flashed to a player. The ctest `echo_image_boots_in_emulator` needs the `device-echo` build and `.venv`; it skips (exit code 77) when the image, the ELF or `unicorn` is missing, and takes about 40 s. Run it by hand with `.venv/bin/python tests/emulator/test_echo_image.py [--image IMG] [--elf ELF] [Class.test_name]`.
+`tests/emulator/test_echo_image.py` runs the finished `device-echo` image (with `echo_device.elf` for symbol addresses) in a Unicorn Cortex-M3 emulator (`tools/echo_emulator`, `unicorn` in `tools/requirements.txt`) before anything is flashed to a player. The ctest `echo_image_boots_in_emulator` needs the `device-echo` build and `.venv`; it skips (exit code 77) when the image, the ELF or `unicorn` is missing, and takes about 40 s. Run it by hand with `.venv/bin/python tests/emulator/test_echo_image.py [--image IMG] [--elf ELF] [Class.test_name]`.
 
 The emulator loads the image as the boot ROM does: each pair of load-table rows copies code and data to their exec addresses and zeroes bss, then the stack and reset vector come from `0x03004000`. The player then runs its own start-up code unchanged. A fake eMMC (`SparseDisk`) holds the IDB blocks (system size 96 MiB), the image in slot 1 and in slot 2 (`0x2800` sectors after slot 1) and a 300 MiB FAT32 user volume that the test fills with files. Scenarios:
 

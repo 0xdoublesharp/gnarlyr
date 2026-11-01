@@ -9,7 +9,7 @@ PROJECT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT / "tools"))
 
 SKIP_EXIT_CODE = 77
-DEFAULT_IMAGE = PROJECT / "build" / "device-echo" / "ECHOV498.IMG"
+DEFAULT_IMAGE = next((PROJECT / "build" / "device-echo").glob("ECHOV*.IMG"), PROJECT / "build" / "device-echo" / "ECHOV450.IMG")
 DEFAULT_ELF = PROJECT / "build" / "device-echo" / "platform" / "device" / "echo_device.elf"
 CONFIG = {"image": DEFAULT_IMAGE, "elf": DEFAULT_ELF}
 

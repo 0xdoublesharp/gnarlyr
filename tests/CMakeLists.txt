@@ -397,7 +397,7 @@ if(ARM_GCC)
         SKIP_RETURN_CODE 77
     )
     add_test(NAME device_echo_image_passes_the_updater_check
-        COMMAND check_device_image ${PROJECT_SOURCE_DIR}/build/device-echo/ECHOV498.IMG echo
+        COMMAND check_device_image ${PROJECT_SOURCE_DIR}/build/device-echo/${PODIUM_IMAGE_NAME} echo
     )
     set_tests_properties(device_echo_image_passes_the_updater_check PROPERTIES
         FIXTURES_REQUIRED device_echo_image
@@ -407,7 +407,7 @@ if(ARM_GCC)
         add_test(NAME echo_image_boots_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
                 ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_echo_image.py
-                --image ${PROJECT_SOURCE_DIR}/build/device-echo/ECHOV498.IMG
+                --image ${PROJECT_SOURCE_DIR}/build/device-echo/${PODIUM_IMAGE_NAME}
                 --elf ${PROJECT_SOURCE_DIR}/build/device-echo/platform/device/echo_device.elf
         )
         set_tests_properties(echo_image_boots_in_emulator PROPERTIES

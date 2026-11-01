@@ -47,8 +47,7 @@
       "inherits": "device",
       "binaryDir": "${sourceDir}/build/device-echo",
       "cacheVariables": {
-        "ECHO_BOARD": "ECHO",
-        "ECHO_FIRMWARE_VERSION": "0.0.1"
+        "ECHO_BOARD": "ECHO"
       }
     },
     {

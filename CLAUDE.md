@@ -2,7 +2,7 @@
 
 Custom firmware for the full-size Snowsky (FiiO) Echo player (480×222), forked from [EchoPod](https://github.com/BasilSkyWalk/echopod) 0.6.0 (remote `echopod`), the Echo Mini 8 GB firmware: an iPod-style UI with iPod-sized text, Cover Flow, an on-player music library, favorites, M3U playlists, an Up Next queue, Bluetooth and USB DAC mode. The same portable C app runs in a desktop simulator and on the player. Changes are not sent back to EchoPod.
 
-The Echo is a board of the same code (`ECHO_BOARD=ECHO`): preset `dev-echo` for the simulator and tests, `device-echo` and `release-echo` for the player (`ECHOV498.IMG`, version 0.0.1, not yet run on hardware). The `device` and `release` presets still build the Echo Mini image. Many names in the code and docs still say EchoPod.
+The Echo is a board of the same code (`ECHO_BOARD=ECHO`): preset `dev-echo` for the simulator and tests, `device-echo` and `release-echo` for the player (`ECHOV450.IMG` for version 4.5.0, named after the version as FiiO does, not yet run on hardware). The `device` and `release` presets still build the Echo Mini image. Many names in the code and docs still say EchoPod.
 
 Hardware notes for the Echo port (stock Echo and Mini firmware and RECHO, decompiled) live outside the repo, in `~/Sync/Monkey/assets/20261031T113308.323001/ghidra/`.
 
@@ -39,8 +39,8 @@ Toolchain: cmake, SDL2, clang-format, arm-none-eabi-gcc and binutils.
 | `device` | Cross-compiled `build/device/HIFIEC90.IMG` with the full Diagnostics menu |
 | `release` | `build/release/HIFIEC90.IMG` with the short Diagnostics menu |
 | `dev-echo` | `dev` for the full-size Echo board (480×222); `ctest --preset dev-echo` |
-| `device-echo` | Cross-compiled `build/device-echo/ECHOV498.IMG` for the full-size Echo (brand `PODIUM`, version 0.0.1) |
-| `release-echo` | `build/release-echo/ECHOV498.IMG` with the short Diagnostics menu |
+| `device-echo` | Cross-compiled `build/device-echo/ECHOV450.IMG` for the full-size Echo (brand `PODIUM`, version from `PODIUM_VERSION`, 4.5.0) |
+| `release-echo` | `build/release-echo/ECHOV450.IMG` with the short Diagnostics menu |
 
 `ctest` also checks formatting, the absence of comments, generated files being current and the Cortex-M3 flash/RAM budget (`target_audit`).
 

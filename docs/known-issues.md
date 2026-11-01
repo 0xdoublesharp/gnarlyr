@@ -16,7 +16,7 @@ EchoPod is early firmware made by one person and tested on one player. It comes 
 - **Going back to FiiO's firmware** is checked with FiiO's 8 GB 3.7.0, 3.8.0, 3.9.0 and 4.0.0 images, and 0.3.0 installed FiiO 4.0.0 on the player and was installed back from it (EchoPod 0.2.0 refuses 4.0.0, see `docs/user-guide.md`). Another custom firmware can't be installed from EchoPod: go back to FiiO's first.
 - **If the player doesn't start at all,** the only recovery known is the chip's maskrom mode (`docs/device-recovery.md`). It works, but it needs a patched tool and care.
 
-## Full-size Echo (Podium 0.0.1)
+## Full-size Echo (Podium 4.5.0)
 
 - **Never run on a player yet.** The Echo build comes from decompiled stock code and is checked on the Mac only. Values taken from the decompile and not seen working: the panel's memory access byte (`0x28`; `-DECHO_PANEL_MADCTL=0x68` mirrors the columns), one 16-bit write per pixel in the LCD controller, the 49-row window offset, the 25 kHz backlight with the Mini's level table, the power pair, the jack polarity, and the stock Echo image's CRC range (the first 38 MiB).
 - **Going back to FiiO's Echo firmware** goes through Podium's own updater, which writes both slots, so keep the `MASKROM.REQ` escape hatch and a maskrom path ready (`docs/device-recovery.md`).
