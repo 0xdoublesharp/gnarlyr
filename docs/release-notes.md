@@ -68,7 +68,7 @@ Podium is a fork of EchoPod 0.6.0 for the full-size Snowsky Echo. Entries from 0
 
 - **Bluetooth connects within seconds.** "Connecting…" could last 20–30 seconds after the headphones had already announced the connection. The player now asks the Bluetooth module for its status every second while connecting, as stock does, so "Connected" shows within about a second of the link coming up, whether the player or the headphones started it.
 - **Headphones put in pairing mode are found.** Headphones the player already knew didn't show up when put in pairing mode while it was searching, until Bluetooth was turned off and on. Like stock, a search that follows a connection attempt now restarts the module first (half a second, still shown as Searching…). Remembered headphones a search finds connect straight away; after Pair new device or a disconnect, their row shows "Nearby" instead. Devices found stay listed between searches.
-- **Play no longer pauses again on Bluetooth.** A late "paused" report from the headphones could pause playback right after Play was pressed. Reports are now ignored for 3 seconds after Play or Pause on the player, and a pause the headphones cause shows "Paused by <name>".
+- **Play no longer pauses again on Bluetooth.** A late "paused" report from the headphones could pause playback right after Play was pressed. Reports are now ignored for 3 seconds after Play or Pause on the player, and a pause the headphones cause shows "Paused by \<name>".
 - **Diagnostics → Bluetooth** keeps the last 12 module messages over two lines, with the commands the player sent and the seconds between them, and keeps them when Bluetooth is turned off and on.
 
 ## 0.5.0
