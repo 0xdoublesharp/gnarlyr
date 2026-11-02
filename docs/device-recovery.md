@@ -21,7 +21,7 @@ Podium checks internal storage at every start for a file named `MASKROM.REQ` in 
 
 ## 1. Build the patched `rkdeveloptool` (once)
 
-The upstream tool needs three changes for this device: a 5000 ms command timeout, 32 sectors per transfer, and maskrom detection for USB ID `2207:262d`. `tools/patch_rkdeveloptool.py` makes them. It prints `ok: Echo Mini changes applied`, and refuses a source it doesn't recognise or one that is already patched.
+The upstream tool needs four changes for this device: a 5000 ms command timeout, 32 sectors per transfer, maskrom detection for USB ID `2207:262d`, and the chip version read from that device's `bcdDevice`. `tools/patch_rkdeveloptool.py` makes them. It prints `ok: Echo changes applied`, and refuses a source it doesn't recognise or one that is already patched.
 
 ### Windows
 
@@ -45,7 +45,7 @@ The `make` line drops upstream's `-Werror`, as MSYS2's own package does. The too
 ### macOS
 
 ```sh
-brew install libusb automake autoconf pkgconf
+brew install libusb automake autoconf pkgconf   # or: sudo port install libusb automake autoconf pkgconfig
 mkdir -p external && cd external
 git clone https://github.com/rockchip-linux/rkdeveloptool.git
 cd rkdeveloptool
@@ -55,7 +55,7 @@ python3 ../../tools/patch_rkdeveloptool.py .
 ./rkdeveloptool -v
 ```
 
-Apple clang treats two run-time-sized arrays in upstream `main.cpp` as errors, which is why the `CXXFLAGS` are needed. On macOS the procedure was proven with ReChord's patch script, which makes the same three changes.
+Apple clang treats two run-time-sized arrays in upstream `main.cpp` as errors, which is why the `CXXFLAGS` are needed. With MacPorts, run `export PATH=/opt/local/bin:$PATH PKG_CONFIG_PATH=/opt/local/lib/pkgconfig ACLOCAL_PATH=/opt/local/share/aclocal` first. Built this way on macOS, the tool installed and recovered the full-size Echo.
 
 ## 2. Enter maskrom
 

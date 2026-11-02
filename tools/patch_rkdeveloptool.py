@@ -2,7 +2,7 @@ import argparse
 import sys
 from pathlib import Path
 
-ECHO_MINI_CONFIG = (
+MASKROM_CONFIG = (
     "\tconfig.emDeviceType = RKNANO_DEVICE;\n"
     "\tconfig.usPid = 0x262D;\n"
     "\tconfig.usVid = 0x2207;\n"
@@ -22,7 +22,7 @@ EDITS = {
     "RKComm.h": [("#define CMD_TIMEOUT 0\n", "#define CMD_TIMEOUT 5000\n")],
     "main.cpp": [("#define DEFAULT_RW_LBA 128\n", "#define DEFAULT_RW_LBA 32\n")],
     "RKScan.cpp": [
-        (RKNANO_CONFIG, RKNANO_CONFIG + ECHO_MINI_CONFIG),
+        (RKNANO_CONFIG, RKNANO_CONFIG + MASKROM_CONFIG),
         ("\t\t\tdesc.usbcdUsb = descriptor.bcdUSB;\n",
          "\t\t\tdesc.usbcdUsb = descriptor.idVendor == 0x2207 && descriptor.idProduct == 0x262D\n"
          "\t\t\t\t? descriptor.bcdDevice : descriptor.bcdUSB;\n"),
@@ -57,7 +57,7 @@ def patch(root):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Apply the Echo Mini changes to rkdeveloptool")
+    parser = argparse.ArgumentParser(description="Apply the Echo changes to rkdeveloptool")
     parser.add_argument("source", type=Path, help="rkdeveloptool source directory")
     arguments = parser.parse_args(argv)
     try:
@@ -65,7 +65,7 @@ def main(argv=None):
     except PatchError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
-    print("ok: Echo Mini changes applied")
+    print("ok: Echo changes applied")
     return 0
 
 
