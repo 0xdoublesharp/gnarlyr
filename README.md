@@ -2,8 +2,15 @@
 
 Replacement firmware for the full-size Snowsky (FiiO) Echo music player, forked from [EchoPod](https://github.com/BasilSkyWalk/echopod). It has an iPod-style UI with iPod-sized text, a Cover Flow browser, a music library built on the player, album favorites, M3U playlists and an Up Next queue. It isn't made or supported by FiiO.
 
+<p>
+  <img src="docs/photos/home.webp" alt="Home screen" width="32%">
+  <img src="docs/photos/now-playing.webp" alt="Now Playing" width="32%">
+  <img src="docs/photos/cover-flow.webp" alt="Cover Flow" width="32%">
+</p>
+
 - **Installing and using it:** `docs/user-guide.md`.
-- **Read first:** `docs/known-issues.md`. Podium has not been run on a player yet.
+- **Download:** the firmware image is on the [Releases](https://github.com/velppa/podium/releases) page.
+- **Read first:** `docs/known-issues.md`.
 - **What's new:** `docs/release-notes.md`.
 
 The hardware knowledge it relies on comes largely from the [ReChord](https://github.com/brnomt/ReChord) project's research (`docs/hardware.md`, `CREDITS.md`).
