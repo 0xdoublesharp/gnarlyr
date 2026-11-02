@@ -66,3 +66,22 @@ Exact commands are in `docs/architecture.md`, Generated code.
 - Writes to internal storage are restricted to the user volume and the two firmware slots (`platform/device/logic/emmc_layout`); never widen that.
 - A broken image can leave the player unable to start; recovery goes through maskrom (`docs/device-recovery.md`).
 - Installing builds on a player: `docs/device-install.md`.
+
+## Talking to the player
+
+- The user enters maskrom (every key except Power held, then the USB cable plugged in); ask, then wait for it with a background command that reports maskrom, the `ECHO` drive or the player on USB, whichever appears:
+
+  ```sh
+  for i in $(seq 1 200); do m=$(rkdeveloptool-echo ld 2>&1 | grep -i maskrom); e=$(ls /Volumes 2>/dev/null | grep -x ECHO); u=$(ioreg -p IOUSB -w0 2>/dev/null | grep -i -E 'ECHO|Podium|2207' | head -1); if [ -n "$m$e$u" ]; then echo "t=$((i*3))s maskrom=[$m] volume=[$e] usb=[$u]"; exit 0; fi; sleep 3; done; echo TIMEOUT-10min
+  ```
+
+- `rkdeveloptool-echo` talks to maskrom (USB `2207:262d`): upstream rkdeveloptool patched by `tools/patch_rkdeveloptool.py`, built in `~/.local/opt/rkdeveloptool-echo` and linked from `~/.local/bin`. To rebuild it, follow `docs/device-recovery.md`, step 1. Two seconds after `ld` lists it, `td` must print `Test Device OK.` before any `rl` or `wl`; `rd` restarts the player.
+- Firmware slots on the full-size Echo: sector 0 and 81920, 10240 sectors (the image's first 5 MiB) each. Write slot 2 first, read every write back and compare:
+
+  ```sh
+  head -c 5242880 ECHOV454.IMG > slot.bin
+  rkdeveloptool-echo wl 81920 slot.bin && rkdeveloptool-echo rl 81920 10240 rb.bin && cmp slot.bin rb.bin
+  ```
+
+- Backups and slot files go in the session's working directory, never in the repo.
+- Running Podium shows up as the `/Volumes/ECHO` drive. Copy an update with `cp -X` (no `._` files) to the drive's root, then `diskutil eject /Volumes/ECHO`; the updater runs once the USB session ends.
