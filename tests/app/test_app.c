@@ -1734,6 +1734,19 @@ static void the_key_test_stays_open_after_waking(void)
     CHECK(title_is("Key test"));
 }
 
+static void menu_stays_in_the_key_test_while_playing(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    hold_back();
+    move_down(HOME_DIAGNOSTICS_INDEX);
+    tap(KEY_PLAY);
+    move_down(DIAGNOSTICS_KEY_TEST_INDEX);
+    tap(KEY_PLAY);
+    tap(KEY_MENU);
+    CHECK(title_is("Key test"));
+}
+
 static void waking_the_screen_shows_now_playing_while_playing(void)
 {
     start_app_with_library();
@@ -1969,6 +1982,7 @@ int main(void)
         TEST_CASE(menu_opens_now_playing_from_anywhere_while_playing),
         TEST_CASE(idling_in_the_menus_stays_put_while_playing),
         TEST_CASE(the_key_test_stays_open_after_waking),
+        TEST_CASE(menu_stays_in_the_key_test_while_playing),
         TEST_CASE(waking_the_screen_shows_now_playing_while_playing),
         TEST_CASE(waking_while_paused_keeps_the_screen),
         TEST_CASE(the_cpu_clock_cycles_through_24_96_and_200_mhz),

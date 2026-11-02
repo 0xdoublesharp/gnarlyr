@@ -26,6 +26,7 @@ struct Screen {
     bool full_screen;
     bool paints_every_pixel;
     bool hold_volume_keys;
+    bool takes_every_key;
     bool stays_on_wake;
     void (*enter)(void *context, uint32_t now_ms);
     ScreenAction (*handle_key)(void *context, KeyEvent event, uint32_t now_ms);

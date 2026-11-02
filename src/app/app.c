@@ -280,7 +280,8 @@ static void use_screen_key_behaviors(void)
 static bool opens_now_playing(KeyEvent event)
 {
     return event.key == KEY_MENU && event.gesture == KEY_GESTURE_PRESS &&
-           player_status(&app.player).has_track && top_screen() != &app.screens.now_playing.screen;
+           player_status(&app.player).has_track &&
+           top_screen() != &app.screens.now_playing.screen && !top_screen()->takes_every_key;
 }
 
 static ScreenAction now_playing_action(void)

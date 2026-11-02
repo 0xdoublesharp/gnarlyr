@@ -153,6 +153,7 @@ Screen *test_pattern_screen_init(TestPatternScreen *pattern)
         .context = pattern,
         .full_screen = true,
         .stays_on_wake = true,
+        .takes_every_key = true,
         .enter = enter,
         .handle_key = handle_key,
         .update = update,
