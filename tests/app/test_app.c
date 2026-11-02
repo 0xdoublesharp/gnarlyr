@@ -580,7 +580,7 @@ static void settings_choose_shuffle_and_repeat(void)
 static bool saved_settings(Settings *settings)
 {
     uint32_t size = 0;
-    const uint8_t *bytes = fake_hal_file_bytes(SETTINGS_STORE_PATH, &size);
+    const uint8_t *bytes = fake_hal_internal_file_bytes(SETTINGS_STORE_PATH, &size);
     return bytes != NULL && settings_decode(bytes, size, settings);
 }
 

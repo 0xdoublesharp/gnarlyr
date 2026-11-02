@@ -14,7 +14,7 @@ Maskrom writes the image straight into both firmware slots. Each slot holds the 
 
    ```sh
    cmake --preset device && cmake --build --preset device
-   head -c 5242880 build/device/ECHOV454.IMG > build/device/slot.bin
+   head -c 5242880 build/device/ECHOV455.IMG > build/device/slot.bin
    ```
 
 2. Enter maskrom (`docs/device-recovery.md`, step 2).
@@ -41,9 +41,9 @@ Maskrom writes the image straight into both firmware slots. Each slot holds the 
 
 1. Connect the player. It shows "Computer found", and two drives appear: internal storage and the SD card.
 2. Copy the new image to the top level of internal storage and check it:
-   - Windows (PowerShell): `Copy-Item build\device\ECHOV454.IMG E:\` then `Get-FileHash E:\ECHOV454.IMG`, with E: the internal drive.
-   - macOS: `cp -X build/device/ECHOV454.IMG /Volumes/<internal drive>/`, then `rm -f /Volumes/<internal drive>/._ECHOV454.IMG` and `shasum -a 256` on both copies.
-3. Eject both drives. The player shows "Checking ECHOV454.IMG", then "Installing update" with a percentage, then "Update installed".
+   - Windows (PowerShell): `Copy-Item build\device\ECHOV455.IMG E:\` then `Get-FileHash E:\ECHOV455.IMG`, with E: the internal drive.
+   - macOS: `cp -X build/device/ECHOV455.IMG /Volumes/<internal drive>/`, then `rm -f /Volumes/<internal drive>/._ECHOV455.IMG` and `shasum -a 256` on both copies.
+3. Eject both drives. The player shows "Checking ECHOV455.IMG", then "Installing update" with a percentage, then "Update installed".
 4. Unplug, hold Power to switch off, then switch on. The new build starts.
 
 The updater takes the highest-numbered `ECHOVnnn.IMG` (`ECHOECHO.IMG` first). It accepts only images with the `PODIUM` brand and refuses EchoPod, Echo Mini and RECHO images. It checks the image's shape, rows, entry vector, header copy and CRC before writing, skips an image that is already installed, and writes slot 2 first, then slot 1, reading back every chunk. It deletes the file after a successful install, when the file is not a valid image and when it is already installed. It also accepts FiiO's own Echo image (39,845,892 bytes; it contains `ECHOV100IMG`) under one of those names, which is the way back to FiiO's firmware ("Going back to FiiO's firmware" in the user guide); both slots then hold FiiO's firmware.
@@ -55,7 +55,7 @@ The updater takes the highest-numbered `ECHOVnnn.IMG` (`ECHOECHO.IMG` first). It
 - **Keys:** Diagnostics → Key test.
 - **Power:** a tap turns the screen off and on. Holding it for 2 s switches the player off; with a cable in, it shows the charge screen instead, and holding Power again turns the player back on.
 - **USB:** "Computer found" appears and the drives mount within about 10 s.
-- **Card:** on the first start with a card, the player creates `/.echo` with `settings.bin`, `resume.bin`, `favorites.bin`, `scan.bin`, `upnext.bin`, `bluetooth.bin`, `library.db` (4 MB), `covers.bin` (80 MB) and `build.tmp` (24 MB), then scans the card and builds the covers. If the card has no room it says "The card is full", and nothing is saved.
+- **Card:** settings live on internal storage (`/.echo/settings.bin`, created on the first start). On the first start with a card, the player creates `/.echo` with `resume.bin`, `favorites.bin`, `scan.bin`, `upnext.bin`, `bluetooth.bin`, `library.db` (4 MB), `covers.bin` (80 MB) and `build.tmp` (24 MB), then scans the card and builds the covers. If the card has no room it says "The card is full", and nothing is saved.
 
 ## If something goes wrong
 

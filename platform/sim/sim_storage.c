@@ -190,6 +190,27 @@ HalReserveResult hal_file_reserve(const char *path, uint32_t size)
     return sized ? HAL_RESERVE_CREATED : HAL_RESERVE_FAILED;
 }
 
+bool hal_internal_file_read(const char *path, void *buffer, uint32_t length)
+{
+    HalFile file;
+    if (!hal_file_open(&file, path)) {
+        return false;
+    }
+    bool read = file.size >= length && hal_file_read(file, 0, buffer, length);
+    hal_file_close(&file);
+    return read;
+}
+
+bool hal_internal_file_write(const char *path, const void *bytes, uint32_t length)
+{
+    return hal_file_write(path, bytes, length);
+}
+
+HalReserveResult hal_internal_file_reserve(const char *path, uint32_t size)
+{
+    return hal_file_reserve(path, size);
+}
+
 void sim_storage_close_all(void)
 {
     for (int slot = 0; slot < OPEN_FILE_CAPACITY; slot++) {

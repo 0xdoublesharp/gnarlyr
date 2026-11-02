@@ -48,6 +48,54 @@ static void unchanged_settings_are_not_written_again(void)
     CHECK_EQUAL(writes, fake_hal_write_count());
 }
 
+static void settings_survive_a_change_of_music_volume(void)
+{
+    fake_hal_reset();
+    settings_store_load(&settings);
+    settings.settings.brightness = BRIGHT;
+    CHECK(settings_store_save(&settings));
+    fake_hal_replace_music_volume();
+    settings_store_load(&settings);
+    CHECK_EQUAL(BRIGHT, settings.settings.brightness);
+    settings.settings.gain = GAIN_HIGH;
+    CHECK(settings_store_save(&settings));
+    fake_hal_replace_music_volume();
+    settings_store_load(&settings);
+    CHECK_EQUAL(BRIGHT, settings.settings.brightness);
+    CHECK_EQUAL(GAIN_HIGH, settings.settings.gain);
+}
+
+static void settings_from_the_music_volume_move_to_internal_storage(void)
+{
+    uint8_t old[SETTINGS_FILE_SIZE];
+    Settings written = settings_defaults();
+    written.brightness = BRIGHT;
+    settings_encode(&written, old);
+    fake_hal_reset();
+    fake_hal_add_file(SETTINGS_STORE_PATH, old, sizeof old);
+    settings_store_load(&settings);
+    CHECK_EQUAL(BRIGHT, settings.settings.brightness);
+    CHECK(settings_store_save(&settings));
+    fake_hal_replace_music_volume();
+    settings_store_load(&settings);
+    CHECK_EQUAL(BRIGHT, settings.settings.brightness);
+}
+
+static void internal_settings_win_over_the_music_volume_copy(void)
+{
+    uint8_t old[SETTINGS_FILE_SIZE];
+    Settings written = settings_defaults();
+    written.brightness = BRIGHT;
+    settings_encode(&written, old);
+    fake_hal_reset();
+    settings_store_load(&settings);
+    settings.settings.brightness = BRIGHT - 1;
+    CHECK(settings_store_save(&settings));
+    fake_hal_add_file(SETTINGS_STORE_PATH, old, sizeof old);
+    settings_store_load(&settings);
+    CHECK_EQUAL(BRIGHT - 1, settings.settings.brightness);
+}
+
 static void a_corrupted_settings_file_falls_back_to_the_defaults(void)
 {
     static const uint8_t garbage[SETTINGS_FILE_SIZE] = {'E', 'M', 'S', 'T', 9};
@@ -103,6 +151,9 @@ int main(void)
         TEST_CASE(without_a_file_the_defaults_are_used),
         TEST_CASE(saved_settings_are_loaded_again),
         TEST_CASE(unchanged_settings_are_not_written_again),
+        TEST_CASE(settings_survive_a_change_of_music_volume),
+        TEST_CASE(settings_from_the_music_volume_move_to_internal_storage),
+        TEST_CASE(internal_settings_win_over_the_music_volume_copy),
         TEST_CASE(a_corrupted_settings_file_falls_back_to_the_defaults),
         TEST_CASE(hardware_settings_reach_the_hal),
         TEST_CASE(toggling_an_album_adds_it_and_saves),

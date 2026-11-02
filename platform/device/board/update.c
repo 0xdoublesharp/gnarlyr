@@ -10,6 +10,7 @@
 #include "device/update_names.h"
 #include "device/updater.h"
 #include "emmc.h"
+#include "internal_volume.h"
 
 enum {
     MESSAGE_CAPACITY = 64,
@@ -20,7 +21,7 @@ enum {
 static char update_path[UPDATE_NAME_CAPACITY];
 static const char *install_title;
 
-static FatVolume volume;
+static FatVolume *volume;
 static FatFile file;
 static uint32_t last_percent;
 static bool flash_rewritten;
@@ -33,7 +34,7 @@ bool hal_system_restart_pending(void)
 static bool read_update(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
     (void)context;
-    return fat_read(&volume, &file, offset, buffer, length);
+    return fat_read(volume, &file, offset, buffer, length);
 }
 
 static void show_percent(uint32_t percent)
@@ -59,13 +60,13 @@ static void report(void *context, uint32_t done, uint32_t total)
 
 static void remove_update_file(void)
 {
-    fat_delete(&volume, update_path);
+    fat_delete(volume, update_path);
 }
 
 static bool open_highest_numbered(void)
 {
     for (uint32_t index = 0; index < update_name_count(); index++) {
-        if (update_name_at(index, update_path) && fat_open(&volume, update_path, &file)) {
+        if (update_name_at(index, update_path) && fat_open(volume, update_path, &file)) {
             return true;
         }
     }
@@ -74,8 +75,11 @@ static bool open_highest_numbered(void)
 
 static bool mount_volume(EmmcInfo *info)
 {
-    BlockDevice device = {emmc_volume_read, NULL, emmc_volume_write};
-    return emmc_start(info) && fat_mount(&volume, device);
+    if (!emmc_start(info)) {
+        return false;
+    }
+    volume = internal_volume_remount();
+    return volume != NULL;
 }
 
 static bool open_update(UpdateStorage *storage)
@@ -92,19 +96,19 @@ static bool open_update(UpdateStorage *storage)
 static bool request_read(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
     (void)context;
-    return fat_read(&volume, &file, offset, buffer, length);
+    return fat_read(volume, &file, offset, buffer, length);
 }
 
 static bool request_write(void *context, uint32_t offset, const void *bytes, uint32_t length)
 {
     (void)context;
-    return fat_write(&volume, &file, offset, bytes, length);
+    return fat_write(volume, &file, offset, bytes, length);
 }
 
 void update_check_loader_request(void)
 {
     EmmcInfo info;
-    if (!mount_volume(&info) || !fat_open(&volume, LOADER_REQUEST_PATH, &file)) {
+    if (!mount_volume(&info) || !fat_open(volume, LOADER_REQUEST_PATH, &file)) {
         return;
     }
     LoaderRequestFile request = {request_read, request_write, file.size, NULL};

@@ -15,16 +15,16 @@ Read `docs/known-issues.md` before you install. Podium has not been run on a pla
 
 1. Copy anything you want to keep off the player's internal storage.
 2. Charge the battery.
-3. Download the image (`ECHOV454.IMG` for version 4.5.4) and check its SHA-256:
-   - Windows (PowerShell): `Get-FileHash ECHOV454.IMG`
-   - macOS or Linux: `shasum -a 256 ECHOV454.IMG`
+3. Download the image (`ECHOV455.IMG` for version 4.5.5) and check its SHA-256:
+   - Windows (PowerShell): `Get-FileHash ECHOV455.IMG`
+   - macOS or Linux: `shasum -a 256 ECHOV455.IMG`
 
    The result must match the hash published next to the download. If it doesn't, download it again.
 
 ## Install
 
 1. Connect the player to your computer. The internal storage appears as a drive.
-2. Copy `ECHOV454.IMG` to the top level of that drive, not into a folder. FiiO's updater takes the highest `ECHOVnnn.IMG` (or `ECHOECHO.IMG`), and 454 is above every stock release so far.
+2. Copy `ECHOV455.IMG` to the top level of that drive, not into a folder. FiiO's updater takes the highest `ECHOVnnn.IMG` (or `ECHOECHO.IMG`), and 454 is above every stock release so far.
 3. Eject the drive (Windows: Safely Remove; macOS: Eject), then unplug.
 4. The player installs the file after the USB session ends and deletes it. It shows "Updating" for about a minute or two. Leave it alone until Podium starts.
 5. On the first start with a microSD card in the player, Podium builds its library and album covers, which takes a minute or two.
@@ -33,7 +33,7 @@ If the player comes back to FiiO's firmware after a short "Updating", the instal
 
 ## Your music
 
-- Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Diagnostics → Music shows which one is in use.
+- Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Diagnostics → Music shows which one is in use. Settings are kept on internal storage either way, so they stay the same when you insert or remove the card.
 - Podium plays FLAC, MP3 and WAV, up to 192 kHz, and `.m4a` files with AAC-LC or Apple Lossless audio. It lists the other formats FiiO lists, and says when it can't play one.
 - A `.cue` file next to a single FLAC, WAV or MP3 album image splits it into one track per CUE track (see "CUE sheets" below). Album covers come from art inside each album's first track, or from a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks.
 - `.m3u` and `.m3u8` playlists anywhere on the card appear under Music → Playlists.

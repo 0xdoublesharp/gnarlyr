@@ -12,6 +12,8 @@
 void fake_hal_reset(void);
 void fake_hal_set_version(const char *version);
 void fake_hal_add_file(const char *path, const uint8_t *bytes, uint32_t size);
+void fake_hal_replace_music_volume(void);
+const uint8_t *fake_hal_internal_file_bytes(const char *path, uint32_t *size);
 void fake_hal_set_milliseconds(uint32_t now_ms);
 void fake_hal_set_microseconds_per_read(uint32_t step_us);
 uint32_t fake_hal_microseconds(void);

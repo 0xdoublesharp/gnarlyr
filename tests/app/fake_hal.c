@@ -17,7 +17,8 @@ enum {
     TRANSITION_CAPACITY = 16,
     FILE_CAPACITY = 12,
     WRITTEN_CAPACITY = 1100,
-    PATH_CAPACITY = 260
+    PATH_CAPACITY = 260,
+    INTERNAL_CAPACITY = 4
 };
 
 typedef struct FakeAudio {
@@ -45,6 +46,12 @@ typedef struct WrittenFile {
     char path[PATH_CAPACITY];
     uint8_t bytes[WRITTEN_CAPACITY];
 } WrittenFile;
+
+typedef struct InternalFile {
+    char path[PATH_CAPACITY];
+    uint8_t bytes[WRITTEN_CAPACITY];
+    uint32_t size;
+} InternalFile;
 
 typedef struct FakeFile {
     const char *path;
@@ -79,6 +86,7 @@ typedef struct FakeHal {
     int next_transition;
     FakeFile files[FILE_CAPACITY];
     int file_count;
+    InternalFile internal[INTERNAL_CAPACITY];
     FakeAudio audio;
     WrittenFile written[FILE_CAPACITY];
     int write_count;
@@ -123,6 +131,12 @@ typedef struct FakeHal {
 } FakeHal;
 
 static FakeHal fake;
+
+void fake_hal_replace_music_volume(void)
+{
+    fake.file_count = 0;
+    memset(fake.written, 0, sizeof fake.written);
+}
 
 void fake_hal_reset(void)
 {
@@ -1083,4 +1097,75 @@ bool hal_system_restart_pending(void)
 const void *hal_system_load_rescan_code(void)
 {
     return &LIBRARY_SCAN_ENTRY;
+}
+
+static InternalFile *internal_file(const char *path)
+{
+    for (int index = 0; index < INTERNAL_CAPACITY; index++) {
+        if (fake.internal[index].path[0] != '\0' && strcmp(fake.internal[index].path, path) == 0) {
+            return &fake.internal[index];
+        }
+    }
+    return NULL;
+}
+
+static InternalFile *internal_slot(const char *path)
+{
+    InternalFile *existing = internal_file(path);
+    for (int index = 0; existing == NULL && index < INTERNAL_CAPACITY; index++) {
+        if (fake.internal[index].path[0] == '\0') {
+            existing = &fake.internal[index];
+            copy_path(existing->path, path);
+        }
+    }
+    return existing;
+}
+
+bool hal_internal_file_read(const char *path, void *buffer, uint32_t length)
+{
+    InternalFile *file = internal_file(path);
+    if (file == NULL || file->size < length || length > WRITTEN_CAPACITY) {
+        return false;
+    }
+    memcpy(buffer, file->bytes, length);
+    return true;
+}
+
+bool hal_internal_file_write(const char *path, const void *bytes, uint32_t length)
+{
+    InternalFile *file = internal_slot(path);
+    if (file == NULL || length > WRITTEN_CAPACITY) {
+        return false;
+    }
+    memcpy(file->bytes, bytes, length);
+    file->size = length;
+    fake.write_count++;
+    return true;
+}
+
+HalReserveResult hal_internal_file_reserve(const char *path, uint32_t size)
+{
+    if (fake.reserve_count < FILE_CAPACITY) {
+        fake.reserved_paths[fake.reserve_count] = path;
+        fake.reserved_sizes[fake.reserve_count] = size;
+    }
+    fake.reserve_count++;
+    if (internal_file(path) != NULL) {
+        return HAL_RESERVE_EXISTS;
+    }
+    InternalFile *file = internal_slot(path);
+    if (fake.reserve_result == HAL_RESERVE_CREATED && file != NULL) {
+        memset(file->bytes, 0, sizeof file->bytes);
+        file->size = size;
+    } else if (file != NULL) {
+        file->path[0] = '\0';
+    }
+    return fake.reserve_result;
+}
+
+const uint8_t *fake_hal_internal_file_bytes(const char *path, uint32_t *size)
+{
+    InternalFile *file = internal_file(path);
+    *size = file == NULL ? 0 : file->size;
+    return file == NULL ? NULL : file->bytes;
 }

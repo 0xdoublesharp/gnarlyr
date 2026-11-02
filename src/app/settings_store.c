@@ -12,7 +12,7 @@ static const HalAudioOutput HAL_OUTPUTS[OUTPUT_JACK_COUNT] = {
     HAL_AUDIO_OUTPUT_AUTO, HAL_AUDIO_OUTPUT_SINGLE_ENDED, HAL_AUDIO_OUTPUT_BALANCED};
 static const HalUsbMode HAL_USB_MODES[USB_MODE_COUNT] = {HAL_USB_MODE_STORAGE, HAL_USB_MODE_DAC};
 
-static bool read_settings(uint8_t *bytes)
+static bool read_music_volume(uint8_t *bytes)
 {
     HalFile file;
     if (!hal_file_open(&file, SETTINGS_STORE_PATH)) {
@@ -22,6 +22,13 @@ static bool read_settings(uint8_t *bytes)
         file.size >= SETTINGS_FILE_SIZE && hal_file_read(file, 0, bytes, SETTINGS_FILE_SIZE);
     hal_file_close(&file);
     return read;
+}
+
+static bool read_valid(uint8_t *bytes, Settings *settings, bool internal)
+{
+    bool read = internal ? hal_internal_file_read(SETTINGS_STORE_PATH, bytes, SETTINGS_FILE_SIZE)
+                         : read_music_volume(bytes);
+    return read && settings_decode(bytes, SETTINGS_FILE_SIZE, settings);
 }
 
 static bool same_bytes(const uint8_t *first, const uint8_t *second)
@@ -46,8 +53,11 @@ void settings_store_load(SettingsStore *store)
 {
     uint8_t bytes[SETTINGS_FILE_SIZE];
     store->has_saved = false;
-    if (read_settings(bytes) && settings_decode(bytes, sizeof bytes, &store->settings)) {
+    if (read_valid(bytes, &store->settings, true)) {
         remember(store, bytes);
+        return;
+    }
+    if (read_valid(bytes, &store->settings, false)) {
         return;
     }
     store->settings = settings_defaults();
@@ -60,7 +70,7 @@ bool settings_store_save(SettingsStore *store)
     if (store->has_saved && same_bytes(bytes, store->saved)) {
         return true;
     }
-    if (!hal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes)) {
+    if (!hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes)) {
         return false;
     }
     remember(store, bytes);

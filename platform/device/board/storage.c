@@ -5,6 +5,7 @@
 #include "device/storage_mount.h"
 #include "emmc.h"
 #include "hal/storage.h"
+#include "internal_volume.h"
 #include "sd.h"
 #include "storage_reset.h"
 
@@ -87,28 +88,27 @@ void hal_file_close(HalFile *file)
     file->handle = -1;
 }
 
-bool hal_file_write(const char *path, const void *bytes, uint32_t length)
+static bool write_in(FatVolume *target, const char *path, uint32_t offset, const void *bytes,
+                     uint32_t length)
 {
     FatFile file;
-    if (!mounted() || !fat_open(&volume, path, &file)) {
+    if (target == NULL || !fat_open(target, path, &file)) {
         return false;
     }
     board_start_record_step(HAL_START_STEP_CARD_WRITE);
-    bool written = fat_write(&volume, &file, 0, bytes, length);
+    bool written = fat_write(target, &file, offset, bytes, length);
     board_start_record_step_done();
     return written;
 }
 
+bool hal_file_write(const char *path, const void *bytes, uint32_t length)
+{
+    return write_in(mounted() ? &volume : NULL, path, 0, bytes, length);
+}
+
 bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes, uint32_t length)
 {
-    FatFile file;
-    if (!mounted() || !fat_open(&volume, path, &file)) {
-        return false;
-    }
-    board_start_record_step(HAL_START_STEP_CARD_WRITE);
-    bool written = fat_write(&volume, &file, offset, bytes, length);
-    board_start_record_step_done();
-    return written;
+    return write_in(mounted() ? &volume : NULL, path, offset, bytes, length);
 }
 
 static BlockDevice card_device;
@@ -134,23 +134,55 @@ static HalReserveResult reserve_result(FatReserveResult result)
     return HAL_RESERVE_FAILED;
 }
 
-HalReserveResult hal_file_reserve(const char *path, uint32_t size)
+static HalReserveResult reserve_in(FatVolume *target, const char *path, uint32_t size)
 {
-    if (!mounted()) {
+    if (target == NULL) {
         return HAL_RESERVE_FAILED;
     }
-    card_device = volume.device;
-    volume.device.read = read_and_beat;
+    card_device = target->device;
+    target->device.read = read_and_beat;
     board_start_record_step(HAL_START_STEP_CARD_WRITE);
-    FatReserveResult result = fat_reserve(&volume, path, size);
+    FatReserveResult result = fat_reserve(target, path, size);
     board_start_record_step_done();
-    volume.device = card_device;
+    target->device = card_device;
     return reserve_result(result);
+}
+
+HalReserveResult hal_file_reserve(const char *path, uint32_t size)
+{
+    return reserve_in(mounted() ? &volume : NULL, path, size);
+}
+
+static FatVolume *player_volume(void)
+{
+    if (mounted() && mounted_kind == STORAGE_INTERNAL) {
+        return &volume;
+    }
+    return internal_volume_mount();
+}
+
+bool hal_internal_file_read(const char *path, void *buffer, uint32_t length)
+{
+    FatVolume *target = player_volume();
+    FatFile file;
+    return target != NULL && fat_open(target, path, &file) && file.size >= length &&
+           fat_read(target, &file, 0, buffer, length);
+}
+
+bool hal_internal_file_write(const char *path, const void *bytes, uint32_t length)
+{
+    return write_in(player_volume(), path, 0, bytes, length);
+}
+
+HalReserveResult hal_internal_file_reserve(const char *path, uint32_t size)
+{
+    return reserve_in(player_volume(), path, size);
 }
 
 void storage_reset(void)
 {
     mount_tried = false;
+    internal_volume_reset();
     for (int slot = 0; slot < OPEN_FILE_CAPACITY; slot++) {
         in_use[slot] = false;
     }

@@ -17,6 +17,7 @@ add_executable(echo_device
     board/input.c
     board/libc.c
     board/loop_bench.c
+    board/internal_volume.c
     board/main.c
     board/mmc.c
     board/overlay.c

@@ -12,7 +12,7 @@ Replacement firmware for the full-size Snowsky (FiiO) Echo music player (4 GB an
 
 Read [`docs/known-issues.md`](docs/known-issues.md) first. Replacing a player's firmware can leave it unable to start; recovery is in [`docs/device-recovery.md`](docs/device-recovery.md).
 
-1. Download `ECHOV454.IMG` from [Releases](https://github.com/velppa/podium/releases) and check its SHA-256 against the one in the release notes.
+1. Download `ECHOV455.IMG` from [Releases](https://github.com/velppa/podium/releases) and check its SHA-256 against the one in the release notes.
 2. Connect the Echo and copy the file to the root of its internal storage, not into a folder. Leave no other `ECHOVnnn.IMG` there.
 3. Eject and unplug. The player shows "Updating firmware", installs Podium, deletes the file and restarts into Podium.
 
@@ -81,7 +81,7 @@ cmake --preset release
 cmake --build --preset release
 ```
 
-This writes `build/release/ECHOV454.IMG` (named after `PODIUM_VERSION`, 4.5.4). The `device` preset builds the same image with the developer Diagnostics rows. [`docs/device-install.md`](docs/device-install.md) covers installing builds during development.
+This writes `build/release/ECHOV455.IMG` (named after `PODIUM_VERSION`, 4.5.5). The `device` preset builds the same image with the developer Diagnostics rows. [`docs/device-install.md`](docs/device-install.md) covers installing builds during development.
 
 ## Use your music library in the simulator
 
@@ -144,7 +144,7 @@ The screen turns off after the screen timeout or a tap of Power. With the screen
 
 Home also lists Audiobooks and Podcasts when the card has an `Audiobooks` or `Podcasts` folder: every book and episode remembers where you stopped, plays in order, and hold vol± jumps 30 s forward or 15 s back. Books and episodes stay out of the Music lists ([`docs/user-guide.md`](docs/user-guide.md)).
 
-Settings: Shuffle (Off / Songs / Albums), Repeat (Off / One / All), Sleep timer, Screen timeout, Brightness, Gain, Output and Start screen. They're saved in `/.echo/settings.bin`, and favorites in `/.echo/favorites.bin`. Without `--system-dir` the simulator can't save, and says so. Playback resumes, paused, where it left off.
+Settings: Shuffle (Off / Songs / Albums), Repeat (Off / One / All), Sleep timer, Screen timeout, Brightness, Gain, Output and Start screen. They're saved in `/.echo/settings.bin` on internal storage (the same with or without a card), and favorites in `/.echo/favorites.bin`. Without `--system-dir` the simulator can't save, and says so. Playback resumes, paused, where it left off.
 
 Music → Cover Flow shows your albums as covers, by album artist. Vol± move, Play opens the album, holding Play adds or removes it from Favorites, and Back leaves. Music → Playlists lists the M3U playlists the indexer found. Music → Favorites lists your favorite albums.
 
