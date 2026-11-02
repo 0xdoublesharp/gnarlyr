@@ -2,7 +2,7 @@
 
 Podium is a fork of EchoPod 0.6.0 for the full-size Snowsky Echo. Entries from 0.6.0 down are EchoPod's.
 
-## Podium 4.5.4 (2026-11-01)
+## Podium 4.5.4 (2026-11-02)
 
 ### New
 
