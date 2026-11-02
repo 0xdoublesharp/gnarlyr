@@ -15,7 +15,7 @@ Hardware notes for the Echo port (stock Echo and Mini firmware and RECHO, decomp
 | `platform/device/board` | Device-only drivers (RKnano Cortex-M3, DW-MMC eMMC/SD, DWC2 USB, CS43131 DAC, Bluetooth UART), startup, linker script |
 | `platform/device/logic` | Driver logic without hardware access, unit-tested on the host |
 | `platform/device/core1` | Decoder program for the second core, linked into the core 0 image |
-| `site/` | Static website; `tools/build_site.py` builds it into `build/site/` for Cloudflare |
+| `site/` | Website: pages, photos and the `podium` Cloudflare Worker (`worker.js`, feedback form into D1 `podium-feedback`); `tools/build_site.py` builds it into `build/site/`, `cd site && npx wrangler@4 deploy` publishes it. Read feedback: `npx wrangler@4 d1 execute podium-feedback --remote --command "select * from feedback order by id desc"` |
 | `tools/` | Python: image builder (`make_image.py`), PC library indexer, `echo_sync.py`, font and fixture generators |
 | `tests/` | One test executable per module, plus fixtures |
 | `docs/` | The design record: `architecture.md` (layers, rules, device platform), `hardware.md`, `library-format.md`, `device-install.md`, `device-recovery.md`, `known-issues.md` |

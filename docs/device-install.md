@@ -18,18 +18,24 @@ Maskrom writes the image straight into both firmware slots. Each slot holds the 
    ```
 
 2. Enter maskrom (`docs/device-recovery.md`, step 2).
-3. Write slot 2, then slot 1, and read both back:
+3. Back up both firmware slots (the first 80 MiB, about 20 s) and keep the file until Podium runs:
 
    ```sh
    cd external/rkdeveloptool
    ./rkdeveloptool ld && ./rkdeveloptool td
+   ./rkdeveloptool rl 0 163840 echo-flash-80MiB.bin
+   ```
+
+4. Write slot 2, then slot 1, and read both back:
+
+   ```sh
    ./rkdeveloptool wl 81920 ../../build/device/slot.bin
    ./rkdeveloptool wl 0 ../../build/device/slot.bin
    ./rkdeveloptool rl 0 1 s1.bin && ./rkdeveloptool rl 81920 1 s2.bin
    ```
 
    Both read-backs must equal the first 512 bytes of `slot.bin`.
-4. `./rkdeveloptool rd`. The player starts Podium.
+5. `./rkdeveloptool rd`. The player starts Podium.
 
 ## Later updates: Podium's own updater
 
