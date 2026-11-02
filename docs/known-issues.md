@@ -1,6 +1,6 @@
 # Podium known issues
 
-Podium is early firmware made by one person and tested on three players. It comes with no warranty: use it at your own risk. Read this before you install, and keep a way back (see "If something goes wrong" in `docs/user-guide.md`).
+Podium is early firmware made by one person and tested on five players. It comes with no warranty: use it at your own risk. Read this before you install, and keep a way back (see "If something goes wrong" in `docs/user-guide.md`).
 
 ## Safety
 
@@ -10,7 +10,7 @@ Podium is early firmware made by one person and tested on three players. It come
 
 ## Installing
 
-- **Tested on three players:** an Echo 4 GB (hardware 1.1.7, installed from macOS) and two users' Echos, including the 8 GB model. FiiO's updater installs Podium from a file copy (confirmed by a user). On this Echo it refused once (it shows "Updating" and starts FiiO's firmware again, nothing written), probably because the file was stored in pieces right after many deletions; that install went through maskrom (`docs/device-install.md`).
+- **Tested on five players:** an Echo 4 GB (hardware 1.1.7, installed from macOS) and four users' Echos, including the 8 GB model. FiiO's updater installs Podium from a file copy (confirmed by a user). On this Echo it refused once (it shows "Updating" and starts FiiO's firmware again, nothing written), probably because the file was stored in pieces right after many deletions; that install went through maskrom (`docs/device-install.md`).
 - **The Echo Mini isn't supported.** Podium refuses its firmware, and its firmware ignores Podium's file.
 - **Going back to FiiO's firmware** goes through Podium's own updater, which writes both slots, so keep the `MASKROM.REQ` escape hatch and a maskrom path ready (`docs/device-recovery.md`). Another custom firmware can't be installed from Podium: go back to FiiO's first.
 - **If the player doesn't start at all,** the only recovery known is the chip's maskrom mode (`docs/device-recovery.md`). It works on the full-size Echo, but it needs a patched tool and care.
@@ -41,7 +41,7 @@ Podium is early firmware made by one person and tested on three players. It come
 ## Music and library
 
 - **Gapless MP3** needs the LAME tag that LAME and ffmpeg write. MP3s without one (some iTunes and older encoders) keep a short gap between tracks. After a seek, or when playback resumes part-way through a track, that track's silent end isn't trimmed, so the next track starts a few tens of milliseconds late.
-- **Characters:** song, artist and album names show Latin letters with accents. Chinese, Japanese and Korean text, emoji and other scripts (Arabic, Hebrew, Thai, Cyrillic, Greek…) show as `?`: Podium has no CJK glyphs. The first time a screen shows an accented character, it's read from internal storage.
+- **Characters:** song, artist and album names show Latin letters with accents and Cyrillic (Russian, Ukrainian, Belarusian, Serbian, Bulgarian, Macedonian). Chinese, Japanese and Korean text, emoji and other scripts (Arabic, Hebrew, Thai, Greek…) show as `?`: Podium has no glyphs for them. The first time a screen shows an accented or Cyrillic letter, it's read from internal storage. The small font used right after an update is ASCII only.
 - **Formats:** FLAC, MP3, WAV, AAC-LC and ALAC (`.m4a`) play, at 44.1, 48, 88.2, 96, 176.4 and 192 kHz. APE and the other formats FiiO lists appear in the library but don't play; Podium says so.
 - **M4A:** HE-AAC (AAC with SBR or PS, as some streaming rips use) is refused, because the decoder has no SBR; AAC at 32 kHz and below is refused with the sample-rate message, as MP3 is. Only mono and stereo play. `.m4b` audiobooks aren't indexed. The start trim of a file without an `iTunSMPB` tag is zero, so an encoder's priming silence (about 23 ms) is audible at the start; an edit list (`elst`) is not read. Files over 4 GB and 64-bit box sizes are refused. The player's AAC and ALAC decoding has been run on the second core in an emulator and on a computer, not on a player: whether it keeps up at 44.1 kHz and how long a seek takes are still to be checked.
 - **Building the library takes time.** On the first start, after music changes over USB, and once after updating to 0.2.0 (the library format changed). A 1,563-track, 144-album card takes about 1 minute 45 seconds: 20 s for the tracks and 1.4 minutes for the covers, where decoding each album's picture takes about half a second. Later rescans keep the covers whose art didn't change and decode only new or changed albums; the first rescan after updating still decodes them all, and so does one after an echo-sync from before this change. Covers from a cover file on a card that isn't FAT32 or exFAT are always decoded again. The player is busy until it finishes: let it finish before you plug it in. echo-sync can build the library on a computer instead.
