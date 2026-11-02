@@ -138,6 +138,7 @@ if(CMAKE_CROSSCOMPILING)
     )
 endif()
 target_link_libraries(echo_device PRIVATE echo_app echo_device_logic echo_options)
+target_compile_definitions(echo_device PRIVATE PODIUM_VERSION_TEXT="${PODIUM_VERSION}")
 target_link_options(echo_device PRIVATE
     -T${ECHO_DEVICE_LINKER_SCRIPT}
     -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_device.map

@@ -98,7 +98,7 @@ static void show_state(void)
     char text[NOTICE_CAPACITY];
     StringBuilder line = string_builder_make(text, sizeof text);
     if (usb_audio_sample_bytes(&audio) == 0) {
-        string_builder_append(&line, "Choose EchoPod as the sound output");
+        string_builder_append(&line, "Choose Podium as the sound output");
         append_volume(&line);
     } else if (open_rate == 0) {
         string_builder_append(&line, "The audio output didn't start.");

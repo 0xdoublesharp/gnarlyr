@@ -11,7 +11,8 @@ enum {
     TAG_LENGTH = 8
 };
 
-static char tag[TAG_LENGTH + 1];
+static const char VERSION_TEXT[] = PODIUM_VERSION_TEXT;
+static char version[sizeof VERSION_TEXT + 1 + TAG_LENGTH];
 static bool tried;
 
 static bool is_printable(uint8_t value)
@@ -27,8 +28,13 @@ static void read_tag(void)
         return;
     }
     const uint8_t *bytes = (const uint8_t *)header + TAG_OFFSET;
+    size_t length = sizeof VERSION_TEXT - 1;
+    if (!is_printable(bytes[0])) {
+        return;
+    }
+    version[length++] = '-';
     for (int index = 0; index < TAG_LENGTH && is_printable(bytes[index]); index++) {
-        tag[index] = (char)bytes[index];
+        version[length++] = (char)bytes[index];
     }
 }
 
@@ -36,7 +42,10 @@ const char *hal_system_version(void)
 {
     if (!tried) {
         tried = true;
+        for (size_t index = 0; index < sizeof VERSION_TEXT; index++) {
+            version[index] = VERSION_TEXT[index];
+        }
         read_tag();
     }
-    return tag[0] != '\0' ? tag : "unknown";
+    return version;
 }

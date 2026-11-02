@@ -234,7 +234,7 @@ static void the_home_menu_is_the_root(void)
 {
     start_app();
     step();
-    CHECK(title_is("EchoPod"));
+    CHECK(title_is("Podium"));
     CHECK_EQUAL(1, app_screen_depth());
 }
 
@@ -251,7 +251,7 @@ static void back_returns_to_the_previous_screen(void)
     start_app();
     tap(KEY_PLAY);
     tap(KEY_BACK);
-    CHECK(title_is("EchoPod"));
+    CHECK(title_is("Podium"));
 }
 
 static void a_long_back_returns_home_from_deep_screens(void)
@@ -527,7 +527,7 @@ static void home_art_keeps_the_playing_album(void)
         wait_ms(HOME_ART_CYCLE_MS);
     }
     step();
-    CHECK(title_is("EchoPod"));
+    CHECK(title_is("Podium"));
     CHECK_EQUAL(RED_COVER, home_art_probe());
 }
 
@@ -536,7 +536,7 @@ static void the_home_menu_shows_now_playing_last_once_a_track_is_loaded(void)
     start_app_with_library();
     play_first_album_track();
     hold_back();
-    CHECK(title_is("EchoPod"));
+    CHECK(title_is("Podium"));
     move_down(HOME_NOW_PLAYING_INDEX);
     tap(KEY_PLAY);
     CHECK(title_is("Now Playing"));
@@ -640,7 +640,7 @@ static void going_back_slides_the_screen_out_to_the_right(void)
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
     tap(KEY_BACK);
-    CHECK(title_is("EchoPod"));
+    CHECK(title_is("Podium"));
     CHECK_EQUAL(BOARD_THEME.colors.scrollbar_thumb, scrollbar_probe());
     wait_ms(SLIDE_DURATION_MS);
     CHECK(scrollbar_probe() != BOARD_THEME.colors.scrollbar_thumb);
@@ -841,7 +841,7 @@ static void the_splash_ignores_keys_until_it_ends(void)
     app_show_splash();
     step();
     tap(KEY_PLAY);
-    CHECK(title_is("EchoPod"));
+    CHECK(title_is("Podium"));
     wait_ms(SPLASH_MS);
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
@@ -1410,7 +1410,7 @@ static void the_start_screen_setting_opens_albums(void)
     tap(KEY_BACK);
     CHECK(title_is("Music"));
     tap(KEY_BACK);
-    CHECK(title_is("EchoPod"));
+    CHECK(title_is("Podium"));
 }
 
 static void the_start_screen_setting_opens_now_playing(void)
@@ -1560,7 +1560,7 @@ static void a_notice_is_drawn_at_once_over_the_current_screen(void)
     app_show_notice("USB", "Connected to a computer");
     CHECK_EQUAL(presents + 1, fake_hal_present_count());
     CHECK(fake_hal_pixels_written() > pixels);
-    CHECK(title_is("EchoPod"));
+    CHECK(title_is("Podium"));
 }
 
 static void a_notice_turns_the_display_on(void)
@@ -1887,7 +1887,7 @@ static void menu_opens_now_playing_from_anywhere_while_playing(void)
     start_app_with_library();
     play_first_album_track();
     hold_back();
-    CHECK(title_is("EchoPod"));
+    CHECK(title_is("Podium"));
     tap(KEY_MENU);
     CHECK(title_is("Now Playing"));
     int depth = app_screen_depth();
@@ -1900,7 +1900,7 @@ static void menu_does_nothing_while_nothing_plays(void)
 {
     start_app_with_library();
     tap(KEY_MENU);
-    CHECK(title_is("EchoPod"));
+    CHECK(title_is("Podium"));
 }
 
 int main(void)
