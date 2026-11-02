@@ -84,7 +84,7 @@ Continue only if `ld` shows `Maskrom` and `td` says `Test Device OK.`
 
 ## 4. Write FiiO's firmware
 
-1. Check the image against the hash FiiO publishes (or, for the Echo Mini's 3.7.0 `HIFIEC37.IMG`, `eba715acbc55875fd3be4b9b1f5f58c777bca130049320043ffc09bc2866b228`). The full-size Echo's image is 39,845,892 bytes.
+1. Check the image against the hash FiiO publishes (for V2.0.0 `ECHOV200.IMG`, `c6a3b6c86b141c0a428771f8a611fbd44cc12d561acb033a98640b0bf24f8d57`). The full-size Echo's image is 39,845,892 bytes.
 2. Write it, then restart the player:
 
    ```sh
