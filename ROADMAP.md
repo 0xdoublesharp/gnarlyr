@@ -29,7 +29,7 @@ Version 0.6.0 makes Bluetooth connect within seconds and adds Random album and a
 | Bluetooth headphones | device | Pair, remember up to six, auto-reconnect, switch and disconnect; headphone controls; tested with OnePlus Buds 3 |
 | USB mass storage | device | Internal storage and the SD card, read/write, at high speed; SD card reads at about 3.9 MB/s |
 | USB DAC mode | device | Settings → USB mode → DAC: a USB Audio Class 1.0 sound card, 16 or 24-bit at 44.1 or 48 kHz, with its own remembered volume; played on the player from Windows 11 (all four formats) and an Android phone |
-| Updates and the way back to FiiO | device | EchoPod installs its own updates and FiiO's 8 GB firmware from a file copy |
+| Updates and the way back to FiiO | device | Podium installs its own updates and FiiO's Echo firmware from a file copy |
 | Configurable start screen | sim | Works in the simulator; not yet checked on the player |
 
 ## Next

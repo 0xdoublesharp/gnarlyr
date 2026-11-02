@@ -10,26 +10,6 @@ enum {
     COMMAND_WRITE = 0x2C
 };
 
-static const uint8_t VARIANT_B_STEPS[] = {
-    0x11, 0,    0x36, 1,    0x60, 0x3A, 1,    0x05, 0xA4, 2,    0x44, 0x44, 0xB2, 5,
-    0x0C, 0x0C, 0x00, 0x33, 0x33, 0xB7, 1,    0x35, 0xBB, 1,    0x1A, 0xC0, 1,    0x2C,
-    0xC2, 1,    0x01, 0xC3, 1,    0x0B, 0xC4, 1,    0x20, 0xC6, 1,    0x0F, 0xD0, 2,
-    0xA4, 0xA1, 0xD6, 1,    0xA1, 0xE0, 14,   0xF0, 0x06, 0x0B, 0x07, 0x07, 0x24, 0x2E,
-    0x32, 0x46, 0x37, 0x13, 0x13, 0x2D, 0x33, 0xE1, 14,   0xF0, 0x02, 0x06, 0x09, 0x08,
-    0x05, 0x29, 0x44, 0x42, 0x38, 0x14, 0x14, 0x2A, 0x30, 0x2A, 4,    0x00, 0x00, 0x00,
-    0xEF, 0x2B, 4,    0x00, 0x23, 0x00, 0xCC, 0x21, 0,    0x29, 0,    0x2C, 0,    STEP_END,
-};
-
-static const uint8_t VARIANT_A_STEPS[] = {
-    0x11, 0,    0xDF, 4,    0x5A, 0x69, 0x02, 0x01, 0x36, 1,    0x60, 0x3A, 1,
-    0x05, 0xB2, 5,    0x0B, 0x0B, 0x00, 0x33, 0x33, 0xB7, 1,    0x75, 0xBB, 1,
-    0x28, 0xC0, 1,    0x2C, 0xC2, 1,    0x01, 0xC3, 1,    0x1F, 0xC5, 1,    0x2A,
-    0xC6, 1,    0x13, 0xD0, 1,    0xA7, 0xD0, 2,    0xA4, 0xA1, 0xD6, 1,    0xA1,
-    0xE0, 14,   0xF0, 0x05, 0x0A, 0x06, 0x06, 0x03, 0x2B, 0x32, 0x43, 0x36, 0x11,
-    0x10, 0x2B, 0x32, 0xE1, 14,   0xF0, 0x08, 0x0C, 0x0B, 0x09, 0x24, 0x2B, 0x22,
-    0x43, 0x38, 0x15, 0x16, 0x2F, 0x37, 0x21, 0,    0x29, 0,    0x2C, 0,    STEP_END,
-};
-
 static const uint8_t ST7796S_STEPS[] = {
     0x11, 0,        0xF0, 1,    0xC3, 0xF0, 1,    0x96, 0x36, 1,    PANEL_ECHO_MADCTL,
     0x3A, 1,        0x55, 0xB4, 1,    0x01, 0xB6, 3,    0x20, 0x02, 0x3B,
@@ -44,19 +24,6 @@ static const uint8_t ST7796S_STEPS[] = {
     0,    STEP_END,
 };
 
-static const uint8_t *steps_of(PanelVariant variant)
-{
-    switch (variant) {
-    case PANEL_VARIANT_A:
-        return VARIANT_A_STEPS;
-    case PANEL_VARIANT_ST7796S:
-        return ST7796S_STEPS;
-    case PANEL_VARIANT_B:
-        break;
-    }
-    return VARIANT_B_STEPS;
-}
-
 static size_t send_step(const PanelBus *bus, const uint8_t *step)
 {
     uint8_t count = step[1];
@@ -70,9 +37,9 @@ static size_t send_step(const PanelBus *bus, const uint8_t *step)
     return 2u + count;
 }
 
-void panel_send_init(const PanelBus *bus, PanelVariant variant)
+void panel_send_init(const PanelBus *bus)
 {
-    const uint8_t *step = steps_of(variant);
+    const uint8_t *step = ST7796S_STEPS;
     while (*step != STEP_END) {
         step += send_step(bus, step);
     }
@@ -87,22 +54,10 @@ static void send_range(const PanelBus *bus, uint8_t command, int first, int last
     bus->data(bus->context, (uint8_t)last);
 }
 
-void panel_begin_write_at(const PanelBus *bus, PanelWindow window, int first_row)
+void panel_begin_write(const PanelBus *bus, PanelWindow window)
 {
-    int row = window.y + first_row;
+    int row = window.y + PANEL_FIRST_VISIBLE_ROW;
     send_range(bus, COMMAND_COLUMNS, window.x, window.x + window.width - 1);
     send_range(bus, COMMAND_ROWS, row, row + window.height - 1);
     bus->command(bus->context, COMMAND_WRITE);
-}
-
-void panel_begin_write(const PanelBus *bus, PanelWindow window)
-{
-    panel_begin_write_at(bus, window, PANEL_FIRST_VISIBLE_ROW);
-}
-
-uint32_t panel_bus_word(uint32_t shadow, uint8_t value, bool data)
-{
-    uint32_t bus_bits = (0xFFu << PANEL_BUS_DATA_SHIFT) | PANEL_BUS_WR | PANEL_BUS_DC;
-    uint32_t word = (shadow & ~bus_bits) | ((uint32_t)value << PANEL_BUS_DATA_SHIFT);
-    return data ? word | PANEL_BUS_DC : word;
 }

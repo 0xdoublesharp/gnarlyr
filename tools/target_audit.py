@@ -30,7 +30,7 @@ def parse_arguments():
     parser.add_argument("--budget-bytes", type=int, required=True)
     parser.add_argument("--toolchain-prefix", default="arm-none-eabi-")
     parser.add_argument("--define", action="append", default=[], metavar="NAME",
-                        help="preprocessor definition for every source, e.g. ECHO_BOARD_ECHO")
+                        help="preprocessor definition for every source, e.g. ECHO_FONTS_PACKED")
     return parser.parse_args()
 
 

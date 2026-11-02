@@ -9,5 +9,5 @@ enum {
     UPDATE_NAME_CAPACITY = 16
 };
 
-uint32_t update_name_count(UpdateBoard board);
-bool update_name_at(UpdateBoard board, uint32_t index, char name[UPDATE_NAME_CAPACITY]);
+uint32_t update_name_count(void);
+bool update_name_at(uint32_t index, char name[UPDATE_NAME_CAPACITY]);

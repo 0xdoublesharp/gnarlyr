@@ -23,31 +23,6 @@
         .chevron = COLOR_RGB(110, 110, 118),                                                       \
     }
 
-const Theme DEFAULT_THEME = {
-    .colors = THEME_COLORS,
-    .fonts =
-        {
-            .title = &FONT_INTER_SEMIBOLD_16,
-            .body = &FONT_INTER_REGULAR_16,
-            .small = &FONT_INTER_REGULAR_12,
-        },
-    .metrics =
-        {
-            .screen_width = 320,
-            .screen_height = 170,
-            .header_height = 24,
-            .header_inset = 68,
-            .row_height = 24,
-            .padding = 10,
-            .scrollbar_width = 3,
-            .scrollbar_inset = 2,
-            .detail_gap = 8,
-            .status_icon_size = 10,
-        },
-    .marquee = {.pause_ms = 1200, .speed_px_per_s = 40, .gap_px = 32},
-};
-
-#ifdef ECHO_BOARD_ECHO
 const Theme ECHO_THEME = {
     .colors = THEME_COLORS,
     .fonts =
@@ -95,4 +70,3 @@ const Theme ECHO_NOTICE_THEME = {
         },
     .marquee = {.pause_ms = 1200, .speed_px_per_s = 56, .gap_px = 40},
 };
-#endif

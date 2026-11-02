@@ -34,11 +34,7 @@ add_executable(echo_device
     board/usb_report.c
     board/usb_session.c
 )
-if(ECHO_BOARD STREQUAL "ECHO")
-    target_sources(echo_device PRIVATE board/panel_vop.c)
-else()
-    target_sources(echo_device PRIVATE board/panel_gpio.c)
-endif()
+target_sources(echo_device PRIVATE board/panel_vop.c)
 set(ECHO_CORE1_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1.ld)
 add_executable(echo_core1
     core1/main.c
@@ -162,16 +158,10 @@ target_link_options(echo_rescan_overlay PRIVATE
     -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_rescan_overlay.map
 )
 
-set(ECHO_FIRMWARE_VERSION "0.6.0" CACHE STRING "major.minor.patch written to the image header")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-if(ECHO_BOARD STREQUAL "ECHO")
-    set(ECHO_FIRMWARE_VERSION ${PODIUM_VERSION})
-    set(ECHO_DEVICE_IMAGE ${CMAKE_BINARY_DIR}/${PODIUM_IMAGE_NAME})
-    set(ECHO_IMAGE_BRAND PODIUM)
-else()
-    set(ECHO_DEVICE_IMAGE ${CMAKE_BINARY_DIR}/HIFIEC90.IMG)
-    set(ECHO_IMAGE_BRAND EchoPod)
-endif()
+set(ECHO_FIRMWARE_VERSION ${PODIUM_VERSION})
+set(ECHO_DEVICE_IMAGE ${CMAKE_BINARY_DIR}/${PODIUM_IMAGE_NAME})
+set(ECHO_IMAGE_BRAND PODIUM)
 set(ECHO_GLYPH_FACE_ARGUMENTS "")
 foreach(face_file ${ECHO_GLYPH_FACE_FILES})
     list(APPEND ECHO_GLYPH_FACE_ARGUMENTS --glyph-face ${face_file})

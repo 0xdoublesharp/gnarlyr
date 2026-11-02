@@ -5,9 +5,9 @@
 #include "gfx/font_pack.h"
 
 static const Font *const ALL_FONTS[] = {
-    &FONT_INTER_REGULAR_12,
     &FONT_INTER_REGULAR_16,
-    &FONT_INTER_SEMIBOLD_16,
+    &FONT_INTER_REGULAR_22,
+    &FONT_INTER_SEMIBOLD_22,
 };
 
 enum {

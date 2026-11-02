@@ -254,7 +254,7 @@ static void dac_set_pin(void *context, DacPin pin, bool level)
     if (pin == DAC_PIN_MUTE || pin == DAC_PIN_ENABLE_A) {
         level = board_bluetooth_pin(pin == DAC_PIN_MUTE, level);
     }
-    PinRef ref = board_dac_pin(BOARD_KIND, pin);
+    PinRef ref = board_dac_pin(pin);
     if (ref.present) {
         gpio_output((GpioPin){ref.port, ref.pin}, level);
     }
@@ -417,7 +417,7 @@ static bool play_tone_segments(void)
 static void use_dac_pins_as_gpio(void)
 {
     for (uint32_t index = 0; index < sizeof DAC_PIN_LIST / sizeof DAC_PIN_LIST[0]; index++) {
-        PinRef ref = board_dac_pin(BOARD_KIND, DAC_PIN_LIST[index]);
+        PinRef ref = board_dac_pin(DAC_PIN_LIST[index]);
         if (ref.present) {
             gpio_mux((GpioPin){ref.port, ref.pin}, GPIO_FUNCTION_GPIO);
         }

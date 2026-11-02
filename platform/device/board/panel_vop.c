@@ -91,7 +91,7 @@ void board_panel_start(void)
     power_controller();
     mux_panel_pins();
     pulse_reset();
-    panel_send_init(&BUS, PANEL_VARIANT_ST7796S);
+    panel_send_init(&BUS);
 }
 
 void board_panel_write(PanelWindow window, const uint16_t *pixels)

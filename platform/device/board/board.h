@@ -7,12 +7,6 @@
 #include "device/board_pins.h"
 #include "hal/system.h"
 
-#ifdef ECHO_BOARD_ECHO
-#define BOARD_KIND BOARD_KIND_ECHO
-#else
-#define BOARD_KIND BOARD_KIND_MINI
-#endif
-
 void board_clock_start(void);
 void board_clock_record_boot(void);
 uint32_t board_boot_ticks_per_microsecond(void);

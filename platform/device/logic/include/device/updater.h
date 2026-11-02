@@ -5,15 +5,9 @@
 
 enum {
     UPDATER_IMAGE_SIZE = 0x500004,
-    UPDATER_STOCK_IMAGE_SIZE = 0x2000004,
     UPDATER_ECHO_STOCK_IMAGE_SIZE = 39845892,
     UPDATER_CHUNK_BYTES = 8192
 };
-
-typedef enum UpdateBoard {
-    UPDATE_BOARD_MINI,
-    UPDATE_BOARD_ECHO
-} UpdateBoard;
 
 typedef enum UpdateCheck {
     UPDATE_VALID,
@@ -35,7 +29,6 @@ typedef struct UpdateStorage {
     uint32_t slot_1;
     uint32_t slot_2;
     uint32_t slot_sectors;
-    UpdateBoard board;
 } UpdateStorage;
 
 typedef struct UpdateProgress {

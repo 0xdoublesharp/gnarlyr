@@ -413,72 +413,46 @@ endif()
 
 find_program(ARM_GCC arm-none-eabi-gcc)
 if(ARM_GCC)
-    set(ECHO_AUDIT_DEFINES --define ECHO_BOARD_ECHO --define ECHO_FONTS_PACKED)
-    if(ECHO_BOARD STREQUAL "ECHO")
-        set(ECHO_AUDIT_BOARD_ARGUMENTS ${ECHO_AUDIT_DEFINES})
-    else()
-        set(ECHO_AUDIT_BOARD_ARGUMENTS "")
-    endif()
     add_test(NAME target_audit
         COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/target_audit.py
             --source-root ${PROJECT_SOURCE_DIR}/src
             --budget-bytes ${ECHO_APP_RAM_BUDGET_BYTES}
-            ${ECHO_AUDIT_BOARD_ARGUMENTS}
+            --define ECHO_FONTS_PACKED
     )
-    if(NOT ECHO_BOARD STREQUAL "ECHO")
-        add_test(NAME target_audit_echo
-            COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/target_audit.py
-                --source-root ${PROJECT_SOURCE_DIR}/src
-                --budget-bytes ${ECHO_APP_RAM_BUDGET_BYTES}
-                ${ECHO_AUDIT_DEFINES}
-        )
-    endif()
     add_test(NAME device_build
         COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -DPRESET=device
             -P ${PROJECT_SOURCE_DIR}/cmake/check_device_build.cmake
     )
     set_tests_properties(device_build PROPERTIES FIXTURES_SETUP device_image)
-    add_test(NAME device_build_echo
-        COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -DPRESET=device-echo
-            -P ${PROJECT_SOURCE_DIR}/cmake/check_device_build.cmake
-    )
-    set_tests_properties(device_build_echo PROPERTIES FIXTURES_SETUP device_echo_image)
     add_executable(check_device_image device/check_device_image.c)
     target_link_libraries(check_device_image PRIVATE echo_device_logic echo_options)
     add_test(NAME device_image_passes_the_updater_check
-        COMMAND check_device_image ${PROJECT_SOURCE_DIR}/build/device/HIFIEC90.IMG
+        COMMAND check_device_image ${PROJECT_SOURCE_DIR}/build/device/${PODIUM_IMAGE_NAME}
     )
     set_tests_properties(device_image_passes_the_updater_check PROPERTIES
         FIXTURES_REQUIRED device_image
         SKIP_RETURN_CODE 77
     )
-    add_test(NAME device_echo_image_passes_the_updater_check
-        COMMAND check_device_image ${PROJECT_SOURCE_DIR}/build/device-echo/${PODIUM_IMAGE_NAME} echo
-    )
-    set_tests_properties(device_echo_image_passes_the_updater_check PROPERTIES
-        FIXTURES_REQUIRED device_echo_image
-        SKIP_RETURN_CODE 77
-    )
     if(EXISTS ${PROJECT_SOURCE_DIR}/.venv/bin/python)
-        add_test(NAME echo_image_boots_in_emulator
+        add_test(NAME device_image_boots_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
                 ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_echo_image.py
-                --image ${PROJECT_SOURCE_DIR}/build/device-echo/${PODIUM_IMAGE_NAME}
-                --elf ${PROJECT_SOURCE_DIR}/build/device-echo/platform/device/echo_device.elf
+                --image ${PROJECT_SOURCE_DIR}/build/device/${PODIUM_IMAGE_NAME}
+                --elf ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_device.elf
         )
-        set_tests_properties(echo_image_boots_in_emulator PROPERTIES
-            FIXTURES_REQUIRED device_echo_image
+        set_tests_properties(device_image_boots_in_emulator PROPERTIES
+            FIXTURES_REQUIRED device_image
             SKIP_RETURN_CODE 77
             TIMEOUT 900
         )
         add_test(NAME core1_m4a_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
                 ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_core1_m4a.py
-                --program ${PROJECT_SOURCE_DIR}/build/device-echo/platform/device/core1_m4a.bin
+                --program ${PROJECT_SOURCE_DIR}/build/device/platform/device/core1_m4a.bin
                 --tool $<TARGET_FILE:m4a_stream_tool>
         )
         set_tests_properties(core1_m4a_decodes_in_emulator PROPERTIES
-            FIXTURES_REQUIRED device_echo_image
+            FIXTURES_REQUIRED device_image
             SKIP_RETURN_CODE 77
             TIMEOUT 300
         )

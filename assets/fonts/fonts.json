@@ -47,39 +47,35 @@
   ],
   "fonts": [
     {
-      "name": "inter_regular_12",
-      "file": "inter/Inter-Regular.ttf",
-      "size": 12,
-      "pack_face": "inter_regular_12_latin1"
-    },
-    {
       "name": "inter_regular_16",
       "file": "inter/Inter-Regular.ttf",
       "size": 16,
       "pack_face": "inter_regular_16_latin1"
     },
     {
-      "name": "inter_semibold_16",
-      "file": "inter/Inter-SemiBold.ttf",
-      "size": 16,
-      "pack_face": "inter_semibold_16_latin1"
-    },
-    {
       "name": "inter_regular_22",
       "file": "inter/Inter-Regular.ttf",
       "size": 22,
-      "board": "ECHO",
       "packed": true,
-      "extra_ranges": [[160, 255]],
+      "extra_ranges": [
+        [
+          160,
+          255
+        ]
+      ],
       "pack_face": "inter_regular_22"
     },
     {
       "name": "inter_semibold_22",
       "file": "inter/Inter-SemiBold.ttf",
       "size": 22,
-      "board": "ECHO",
       "packed": true,
-      "extra_ranges": [[160, 255]],
+      "extra_ranges": [
+        [
+          160,
+          255
+        ]
+      ],
       "pack_face": "inter_semibold_22"
     }
   ]

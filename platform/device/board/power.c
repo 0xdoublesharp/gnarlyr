@@ -34,7 +34,7 @@ void board_power_hold(void)
 void board_power_pair_set(bool on)
 {
     PinRef pins[BOARD_POWER_PAIR_PINS];
-    uint32_t count = board_power_pair(BOARD_KIND, pins);
+    uint32_t count = board_power_pair(pins);
     for (uint32_t index = 0; index < count; index++) {
         GpioPin pin = {pins[index].port, pins[index].pin};
         gpio_mux(pin, GPIO_FUNCTION_GPIO);

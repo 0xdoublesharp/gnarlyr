@@ -4,11 +4,11 @@ If the player doesn't start at all, its chip's maskrom mode can still write FiiO
 
 Maskrom writes go straight to internal storage, below the file system. A wrong command can leave the player unable to start until a later write succeeds. Follow the steps exactly, and don't run any command not listed here.
 
-The procedure follows ReChord's Linux debrick guide and the livetrack.club debrick guide. It has been used on an Echo Mini 8 GB from macOS and from Windows 11.
+The procedure follows ReChord's Linux debrick guide and the livetrack.club debrick guide. It was proven on a full-size Echo 4 GB (hardware 1.1.7) from macOS: the key combination, the USB ID `2207:262d` and `wl 0 ECHOV200.IMG` below brought back FiiO's V2.0.0.
 
 ## What you need
 
-- FiiO's firmware for your model, from FiiO's official Echo Mini firmware page. Only the **8 GB** model is covered here.
+- FiiO's firmware for the full-size Echo (`ECHOV200.IMG` for V2.0.0), from FiiO's official firmware page.
 - A data USB cable (not charge-only), plugged into a port on the computer itself, not a hub.
 - A paperclip for the RST hole.
 - The patched `rkdeveloptool` (below). Never use any other `rkdeveloptool` binary: the upstream tool doesn't know this device.
@@ -17,11 +17,11 @@ Internal storage may be wiped. If the player still shows its drive over USB, cop
 
 ## Escape hatch on the full-size Echo: `MASKROM.REQ`
 
-Podium for the full-size Echo checks internal storage at every start for a file named `MASKROM.REQ` in the top folder. If it starts with the text `MASKROM REQ`, Podium overwrites that text with zeros (so the request fires once) and reboots into the boot ROM's USB loader, the same state as step 2 below, with no paperclip and no key combination. To use it, put the file there while the player is still running (`echo "MASKROM REQ" > MASKROM.REQ` on the internal drive), eject, and restart the player. A file without that text, or an empty one, does nothing. The Echo Mini build doesn't have this.
+Podium checks internal storage at every start for a file named `MASKROM.REQ` in the top folder. If it starts with the text `MASKROM REQ`, Podium overwrites that text with zeros (so the request fires once) and reboots into the boot ROM's USB loader, the same state as step 2 below, with no paperclip and no key combination. To use it, put the file there while the player is still running (`echo "MASKROM REQ" > MASKROM.REQ` on the internal drive), eject, and restart the player. A file without that text, or an empty one, does nothing.
 
 ## 1. Build the patched `rkdeveloptool` (once)
 
-The upstream tool needs three changes for the Echo Mini: a 5000 ms command timeout, 32 sectors per transfer, and maskrom detection for USB ID `2207:262d`. `tools/patch_rkdeveloptool.py` makes them. It prints `ok: Echo Mini changes applied`, and refuses a source it doesn't recognise or one that is already patched.
+The upstream tool needs three changes for this device: a 5000 ms command timeout, 32 sectors per transfer, and maskrom detection for USB ID `2207:262d`. `tools/patch_rkdeveloptool.py` makes them. It prints `ok: Echo Mini changes applied`, and refuses a source it doesn't recognise or one that is already patched.
 
 ### Windows
 
@@ -84,19 +84,19 @@ Continue only if `ld` shows `Maskrom` and `td` says `Test Device OK.`
 
 ## 4. Write FiiO's firmware
 
-1. Check the image. For FiiO 3.7.0 (`HIFIEC37.IMG`), `sha256` must be `eba715acbc55875fd3be4b9b1f5f58c777bca130049320043ffc09bc2866b228`.
+1. Check the image against the hash FiiO publishes (or, for the Echo Mini's 3.7.0 `HIFIEC37.IMG`, `eba715acbc55875fd3be4b9b1f5f58c777bca130049320043ffc09bc2866b228`). The full-size Echo's image is 39,845,892 bytes.
 2. Write it, then restart the player:
 
    ```sh
-   ./rkdeveloptool wl 0 HIFIEC37.IMG
+   ./rkdeveloptool wl 0 ECHOV200.IMG
    ./rkdeveloptool rd
    ```
 
-   `wl` writes 32 MiB in small transfers and prints about 2,000 progress lines up to 100%. Don't unplug, and don't let the computer sleep, until it finishes. `rd` prints `Reset Device OK.`
+   `wl` writes the image in small transfers and prints about 2,000 progress lines up to 100%. Don't unplug, and don't let the computer sleep, until it finishes. `rd` prints `Reset Device OK.`
 
 3. The player starts FiiO's firmware. If it stays black, unplug USB, press RST, then press Power. Settings → About should show the version you wrote.
 
-Before you write, make sure no `HIFIECnn.IMG` or `ECHOMINI.IMG` file is left at the top level of internal storage if you can still see the drive. FiiO's firmware installs such a file at its first start, and that would put the old image straight back.
+Before you write, make sure no `ECHOVnnn.IMG` or `ECHOECHO.IMG` file is left at the top level of internal storage if you can still see the drive. FiiO's firmware installs such a file at its first start, and that would put the old image straight back.
 
 ## Rules
 

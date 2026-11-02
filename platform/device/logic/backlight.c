@@ -4,13 +4,8 @@ enum {
     FULL_PERCENT = 100
 };
 
-#ifdef ECHO_BOARD_ECHO
 static const uint8_t PERCENT_FOR_LEVEL[HAL_DISPLAY_BRIGHTNESS_MAX] = {20, 25, 31, 38, 46,
                                                                       55, 65, 76, 88, 100};
-#else
-static const uint8_t PERCENT_FOR_LEVEL[HAL_DISPLAY_BRIGHTNESS_MAX] = {8,  12, 17, 23, 30,
-                                                                      39, 50, 63, 80, 100};
-#endif
 
 uint32_t backlight_percent(uint8_t level)
 {
@@ -31,18 +26,13 @@ uint32_t backlight_duty(uint32_t period, uint32_t percent)
     return period - period * percent / FULL_PERCENT;
 }
 
-BacklightPwm backlight_pwm_at(uint32_t pclk_hz, uint32_t percent, uint32_t hz)
+BacklightPwm backlight_pwm(uint32_t pclk_hz, uint32_t percent)
 {
     if (percent >= FULL_PERCENT) {
         return (BacklightPwm){.full = true};
     }
-    uint32_t period = pclk_hz / hz;
+    uint32_t period = pclk_hz / BACKLIGHT_HZ;
     return (BacklightPwm){.full = false, .period = period, .duty = backlight_duty(period, percent)};
-}
-
-BacklightPwm backlight_pwm(uint32_t pclk_hz, uint32_t percent)
-{
-    return backlight_pwm_at(pclk_hz, percent, BACKLIGHT_MINI_HZ);
 }
 
 uint32_t backlight_ramp_percent(uint32_t target_percent, uint32_t elapsed_ms)

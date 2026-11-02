@@ -31,10 +31,8 @@ static void prepare_pins(void)
     }
     boot_state = (HalJackPins){.single_ended = boot_pin(SINGLE_ENDED_SENSE),
                                .balanced = boot_pin(BALANCED_SENSE)};
-#ifdef ECHO_BOARD_ECHO
     register_write(GRF_PORT0_PULL, PORT0_JACK_PULL);
     register_write(GRF_PORT2_PULL, PORT2_JACK_PULL);
-#endif
     gpio_mux(SINGLE_ENDED_SENSE, GPIO_FUNCTION_GPIO);
     gpio_input(SINGLE_ENDED_SENSE);
     gpio_mux(BALANCED_SENSE, GPIO_FUNCTION_GPIO);
@@ -57,8 +55,8 @@ bool board_jack_poll(void)
     if (board_bluetooth_routed() || board_bluetooth_settling()) {
         return false;
     }
-    return jack_sense_sample(&sense, board_jack_kind(BOARD_KIND, gpio_read(SINGLE_ENDED_SENSE),
-                                                     gpio_read(BALANCED_SENSE)));
+    return jack_sense_sample(
+        &sense, board_jack_kind(gpio_read(SINGLE_ENDED_SENSE), gpio_read(BALANCED_SENSE)));
 }
 
 HalAudioJack hal_audio_jack(void)

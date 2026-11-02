@@ -100,25 +100,15 @@ class SourceTest(unittest.TestCase):
         self.assertIn(".glyph_count = 2,", source)
         self.assertIn(".bitmap_size = 2,", source)
 
-    def test_a_board_font_is_guarded_by_its_board_macro(self):
-        font = font_build.FontData("tiny", 3, 1, [], board="ECHO")
-        source = font_build.font_source(font)
-        self.assertTrue(source.startswith("#ifdef ECHO_BOARD_ECHO"))
-        self.assertTrue(source.rstrip().endswith("#endif"))
-
     def test_a_packed_font_keeps_only_a_few_glyphs_when_its_pack_is_in_use(self):
         glyphs = [font_build.GlyphImage(codepoint, 1, 2, 0, 2, 3, [1, 2])
                   for codepoint in (32, 63, 65, 66)]
-        font = font_build.FontData("tiny", 3, 1, glyphs, board="ECHO", packed=True)
+        font = font_build.FontData("tiny", 3, 1, glyphs, packed=True)
         source = font_build.font_source(font)
         packed, full = source.split("#else")
         self.assertIn("#ifdef ECHO_FONTS_PACKED", packed)
         self.assertIn(".glyph_count = 2,", packed)
         self.assertIn(".glyph_count = 4,", full)
-
-    def test_a_font_without_a_board_is_not_guarded(self):
-        source = font_build.font_source(font_build.FontData("tiny", 3, 1, []))
-        self.assertNotIn("#ifdef", source)
 
     def test_header_declares_every_font(self):
         header = font_build.header_source(["inter_regular_12", "inter_semibold_16"])

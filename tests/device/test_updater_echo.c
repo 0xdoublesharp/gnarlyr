@@ -148,49 +148,38 @@ static void load(uint8_t *image, uint32_t image_size)
     last_total = 0;
 }
 
-static UpdateCheck check_on(UpdateBoard board, uint8_t *image, uint32_t image_size)
+static UpdateCheck check_on(uint8_t *image, uint32_t image_size)
 {
     load(image, image_size);
-    UpdateStorage storage = {storage_read, storage_write, NULL, SLOT_1,
-                             SLOT_2,       SLOT_SECTORS,  board};
+    UpdateStorage storage = {storage_read, storage_write, NULL, SLOT_1, SLOT_2, SLOT_SECTORS};
     UpdateFile file = {file_read, size, NULL};
     return updater_check(&file, &storage);
 }
 
 static UpdateCheck check_echo_stock(uint8_t *image)
 {
-    return check_on(UPDATE_BOARD_ECHO, image, STOCK_SIZE);
+    return check_on(image, STOCK_SIZE);
 }
 
-static void a_podium_image_is_valid_on_the_echo(void)
+static void a_podium_image_is_valid(void)
 {
-    CHECK_EQUAL(UPDATE_VALID, check_on(UPDATE_BOARD_ECHO, own_image("PODIUM"), IMAGE_SIZE));
+    CHECK_EQUAL(UPDATE_VALID, check_on(own_image("PODIUM"), IMAGE_SIZE));
 }
 
-static void a_mini_image_is_refused_on_the_echo(void)
+static void an_echopod_or_recho_image_is_refused(void)
 {
-    CHECK_EQUAL(UPDATE_INVALID, check_on(UPDATE_BOARD_ECHO, own_image("EchoPod"), IMAGE_SIZE));
-    CHECK_EQUAL(UPDATE_INVALID, check_on(UPDATE_BOARD_ECHO, own_image("RECHO"), IMAGE_SIZE));
+    CHECK_EQUAL(UPDATE_INVALID, check_on(own_image("EchoPod"), IMAGE_SIZE));
+    CHECK_EQUAL(UPDATE_INVALID, check_on(own_image("RECHO"), IMAGE_SIZE));
 }
 
-static void an_echo_image_is_refused_on_the_mini(void)
-{
-    CHECK_EQUAL(UPDATE_INVALID, check_on(UPDATE_BOARD_MINI, own_image("PODIUM"), IMAGE_SIZE));
-}
-
-static void a_mini_image_is_still_valid_on_the_mini(void)
-{
-    CHECK_EQUAL(UPDATE_VALID, check_on(UPDATE_BOARD_MINI, own_image("EchoPod"), IMAGE_SIZE));
-}
-
-static void a_damaged_podium_image_is_invalid_on_the_echo(void)
+static void a_damaged_podium_image_is_invalid(void)
 {
     uint8_t *image = own_image("PODIUM");
     image[0x2000] ^= 1;
-    CHECK_EQUAL(UPDATE_INVALID, check_on(UPDATE_BOARD_ECHO, image, IMAGE_SIZE));
+    CHECK_EQUAL(UPDATE_INVALID, check_on(image, IMAGE_SIZE));
 }
 
-static void a_stock_echo_image_is_recognised_as_stock_on_the_echo(void)
+static void a_stock_echo_image_is_recognised_as_stock(void)
 {
     CHECK_EQUAL(UPDATE_STOCK, check_echo_stock(echo_stock_image("ECHOV100IMG", 0x54000)));
 }
@@ -203,13 +192,7 @@ static void a_stock_echo_marker_across_two_reads_is_found(void)
                 check_echo_stock(echo_stock_image("ECHOV100IMG", 7 * CHUNK_BYTES - 1)));
 }
 
-static void a_stock_echo_image_is_refused_on_the_mini(void)
-{
-    CHECK_EQUAL(UPDATE_INVALID,
-                check_on(UPDATE_BOARD_MINI, echo_stock_image("ECHOV100IMG", 0x54000), STOCK_SIZE));
-}
-
-static void a_stock_mini_image_is_refused_on_the_echo(void)
+static void a_stock_mini_image_is_refused(void)
 {
     uint8_t *image = calloc(0x2000004, 1);
     memcpy(image + 0x10, "Rockchip", 8);
@@ -218,7 +201,7 @@ static void a_stock_mini_image_is_refused_on_the_echo(void)
     memcpy(image + 0x54000, "HIFIEC00IMG", MARKER_LENGTH);
     memcpy(image + 0x01FCC000, image, 512);
     put_le32(image + 0x2000000, image_crc_update(0, image, 0x2000000));
-    CHECK_EQUAL(UPDATE_INVALID, check_on(UPDATE_BOARD_ECHO, image, 0x2000004));
+    CHECK_EQUAL(UPDATE_INVALID, check_on(image, 0x2000004));
 }
 
 static void stock_echo_images_without_the_marker_or_with_a_mini_marker_are_invalid(void)
@@ -254,15 +237,14 @@ static void stock_echo_images_with_the_wrong_shape_are_invalid(void)
     image[0x1F8] = 'X';
     seal_stock(image);
     CHECK_EQUAL(UPDATE_INVALID, check_echo_stock(image));
-    CHECK_EQUAL(UPDATE_INVALID, check_on(UPDATE_BOARD_ECHO,
-                                         echo_stock_image("ECHOV100IMG", 0x54000), STOCK_SIZE - 4));
+    CHECK_EQUAL(UPDATE_INVALID, check_on(echo_stock_image("ECHOV100IMG", 0x54000), STOCK_SIZE - 4));
 }
 
 static void a_stock_echo_image_needs_a_slot_it_fits(void)
 {
     load(echo_stock_image("ECHOV100IMG", 0x54000), STOCK_SIZE);
-    UpdateStorage storage = {storage_read,           storage_write,    NULL, SLOT_1, SLOT_2,
-                             STOCK_LENGTH / 512 - 1, UPDATE_BOARD_ECHO};
+    UpdateStorage storage = {storage_read, storage_write, NULL,
+                             SLOT_1,       SLOT_2,        STOCK_LENGTH / 512 - 1};
     UpdateFile file = {file_read, size, NULL};
     CHECK_EQUAL(UPDATE_INVALID, updater_check(&file, &storage));
     storage.slot_sectors = STOCK_LENGTH / 512;
@@ -273,8 +255,7 @@ static void installing_a_stock_echo_image_fills_both_slots_with_every_byte_slot_
 {
     uint8_t *image = echo_stock_image("ECHOV100IMG", 0x54000);
     load(image, STOCK_SIZE);
-    UpdateStorage storage = {storage_read, storage_write,    NULL, SLOT_1, SLOT_2,
-                             SLOT_SECTORS, UPDATE_BOARD_ECHO};
+    UpdateStorage storage = {storage_read, storage_write, NULL, SLOT_1, SLOT_2, SLOT_SECTORS};
     UpdateFile file = {file_read, size, NULL};
     CHECK(updater_install(&file, &storage, (UpdateProgress){report, NULL}));
     CHECK(memcmp(sectors + (size_t)SLOT_2 * 512, image, STOCK_LENGTH) == 0);
@@ -284,12 +265,11 @@ static void installing_a_stock_echo_image_fills_both_slots_with_every_byte_slot_
     CHECK_EQUAL(2 * (STOCK_LENGTH / CHUNK_BYTES), last_total);
 }
 
-static void installing_a_podium_image_on_the_echo_fills_both_slots(void)
+static void installing_a_podium_image_fills_both_slots(void)
 {
     uint8_t *image = own_image("PODIUM");
     load(image, IMAGE_SIZE);
-    UpdateStorage storage = {storage_read, storage_write,    NULL, SLOT_1, SLOT_2,
-                             SLOT_SECTORS, UPDATE_BOARD_ECHO};
+    UpdateStorage storage = {storage_read, storage_write, NULL, SLOT_1, SLOT_2, SLOT_SECTORS};
     UpdateFile file = {file_read, size, NULL};
     CHECK(updater_install(&file, &storage, (UpdateProgress){report, NULL}));
     CHECK(memcmp(sectors + (size_t)SLOT_2 * 512, image, FW_END) == 0);
@@ -300,20 +280,17 @@ static void installing_a_podium_image_on_the_echo_fills_both_slots(void)
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(a_podium_image_is_valid_on_the_echo),
-        TEST_CASE(a_mini_image_is_refused_on_the_echo),
-        TEST_CASE(an_echo_image_is_refused_on_the_mini),
-        TEST_CASE(a_mini_image_is_still_valid_on_the_mini),
-        TEST_CASE(a_damaged_podium_image_is_invalid_on_the_echo),
-        TEST_CASE(a_stock_echo_image_is_recognised_as_stock_on_the_echo),
+        TEST_CASE(a_podium_image_is_valid),
+        TEST_CASE(an_echopod_or_recho_image_is_refused),
+        TEST_CASE(a_damaged_podium_image_is_invalid),
+        TEST_CASE(a_stock_echo_image_is_recognised_as_stock),
         TEST_CASE(a_stock_echo_marker_across_two_reads_is_found),
-        TEST_CASE(a_stock_echo_image_is_refused_on_the_mini),
-        TEST_CASE(a_stock_mini_image_is_refused_on_the_echo),
+        TEST_CASE(a_stock_mini_image_is_refused),
         TEST_CASE(stock_echo_images_without_the_marker_or_with_a_mini_marker_are_invalid),
         TEST_CASE(stock_echo_images_with_the_wrong_shape_are_invalid),
         TEST_CASE(a_stock_echo_image_needs_a_slot_it_fits),
         TEST_CASE(installing_a_stock_echo_image_fills_both_slots_with_every_byte_slot_2_first),
-        TEST_CASE(installing_a_podium_image_on_the_echo_fills_both_slots),
+        TEST_CASE(installing_a_podium_image_fills_both_slots),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

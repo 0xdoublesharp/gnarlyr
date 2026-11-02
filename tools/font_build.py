@@ -34,7 +34,6 @@ class FontData:
     descent: int
     glyphs: list
     pack_face: int = 0
-    board: str = ""
     packed: bool = False
 
 
@@ -94,8 +93,7 @@ def build_font(spec, ranges, assets_directory):
     glyphs = [render_glyph(font, codepoint) for codepoint in covered_codepoints(path, wanted)]
     numbers = pack_face_numbers(assets_directory)
     face = numbers[spec["pack_face"]] if "pack_face" in spec else 0
-    return FontData(spec["name"], ascent, descent, glyphs, face, spec.get("board", ""),
-                    spec.get("packed", False))
+    return FontData(spec["name"], ascent, descent, glyphs, face, spec.get("packed", False))
 
 
 def constant_name(name):
@@ -118,12 +116,6 @@ def glyph_table(glyphs):
     if len(bitmap) > MAX_BITMAP_BYTES:
         raise ValueError(f"bitmap of {len(bitmap)} bytes does not fit 16-bit offsets")
     return lines, bytes(bitmap)
-
-
-def board_guard(font):
-    if not font.board:
-        return "", ""
-    return f"#ifdef ECHO_BOARD_{font.board}\n\n", "#endif\n\n"
 
 
 def font_definition(font, glyphs):
@@ -153,12 +145,11 @@ def font_definition(font, glyphs):
 
 
 def font_source(font):
-    opening, closing = board_guard(font)
     if not font.packed:
-        return opening + font_definition(font, font.glyphs) + closing
+        return font_definition(font, font.glyphs)
     built_in = [glyph for glyph in font.glyphs if glyph.codepoint in PACKED_BUILT_IN]
-    return (opening + "#ifdef ECHO_FONTS_PACKED\n\n" + font_definition(font, built_in) +
-            "#else\n\n" + font_definition(font, font.glyphs) + "#endif\n\n" + closing)
+    return ("#ifdef ECHO_FONTS_PACKED\n\n" + font_definition(font, built_in) + "#else\n\n" +
+            font_definition(font, font.glyphs) + "#endif\n\n")
 
 
 def header_source(names):

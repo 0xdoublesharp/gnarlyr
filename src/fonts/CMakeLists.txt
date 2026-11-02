@@ -5,7 +5,7 @@ target_link_libraries(echo_fonts
     PRIVATE echo_options
 )
 
-if(CMAKE_CROSSCOMPILING AND ECHO_BOARD STREQUAL "ECHO")
+if(CMAKE_CROSSCOMPILING)
     target_compile_definitions(echo_fonts PRIVATE ECHO_FONTS_PACKED)
 endif()
 
@@ -15,10 +15,7 @@ math(EXPR ECHO_GLYPH_LAST_FACE "${ECHO_GLYPH_FACE_COUNT} - 1")
 set(ECHO_GLYPH_FACE_FILES "")
 foreach(face RANGE ${ECHO_GLYPH_LAST_FACE})
     string(JSON face_name GET "${ECHO_GLYPH_PACK_CONFIG}" faces ${face} name)
-    string(JSON face_board ERROR_VARIABLE face_board_error GET "${ECHO_GLYPH_PACK_CONFIG}" faces ${face} board)
-    if(face_board_error OR face_board STREQUAL ECHO_BOARD)
-        list(APPEND ECHO_GLYPH_FACE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/packs/${face_name}.bin)
-    endif()
+    list(APPEND ECHO_GLYPH_FACE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/packs/${face_name}.bin)
 endforeach()
 set(ECHO_GLYPH_FACE_FILES "${ECHO_GLYPH_FACE_FILES}" CACHE INTERNAL "glyph pack faces in face order")
 set_property(DIRECTORY ${PROJECT_SOURCE_DIR} APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS

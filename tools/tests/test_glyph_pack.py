@@ -23,12 +23,12 @@ class CharacterSetTest(unittest.TestCase):
 
     def test_the_latin1_faces_hold_the_accented_letters(self):
         config = json.loads((ASSETS_DIRECTORY / "glyph_pack.json").read_text())
-        for face in config["faces"][:3]:
+        for face in config["faces"][:1]:
             self.assertEqual(set(range(160, 256)), glyph_pack.face_characters(face))
 
     def test_the_echo_faces_hold_ascii_latin1_and_punctuation(self):
         config = json.loads((ASSETS_DIRECTORY / "glyph_pack.json").read_text())
-        echo_faces = [face for face in config["faces"] if face.get("board") == "ECHO"]
+        echo_faces = config["faces"][1:]
         self.assertEqual(["inter_regular_22", "inter_semibold_22"], [face["name"] for face in echo_faces])
         for face in echo_faces:
             wanted = glyph_pack.face_characters(face)

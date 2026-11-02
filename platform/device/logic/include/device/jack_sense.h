@@ -20,5 +20,4 @@ typedef struct JackSense {
     uint8_t matches;
 } JackSense;
 
-JackKind jack_kind_of(bool single_ended_high, bool balanced_high);
 bool jack_sense_sample(JackSense *sense, JackKind reading);

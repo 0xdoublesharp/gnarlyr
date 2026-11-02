@@ -4,13 +4,8 @@
 #include <stdint.h>
 
 enum {
-#ifdef ECHO_BOARD_ECHO
     HAL_DISPLAY_WIDTH = 480,
     HAL_DISPLAY_HEIGHT = 222,
-#else
-    HAL_DISPLAY_WIDTH = 320,
-    HAL_DISPLAY_HEIGHT = 170,
-#endif
     HAL_DISPLAY_BRIGHTNESS_MIN = 1,
     HAL_DISPLAY_BRIGHTNESS_MAX = 10
 };

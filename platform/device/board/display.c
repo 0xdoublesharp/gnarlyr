@@ -87,8 +87,7 @@ static void apply_backlight(void)
         drive_backlight(false);
         return;
     }
-    BacklightPwm pwm =
-        backlight_pwm_at(board_pclk_hz(), backlight_percent(brightness), BACKLIGHT_BOARD_HZ);
+    BacklightPwm pwm = backlight_pwm(board_pclk_hz(), backlight_percent(brightness));
     if (pwm.full) {
         drive_backlight(true);
     } else {
@@ -112,7 +111,7 @@ static void start_fade_in(void)
 {
     ramping = true;
     ramp_started_ms = hal_clock_milliseconds();
-    run_pwm(backlight_pwm_at(board_pclk_hz(), backlight_ramp_percent(0, 0), BACKLIGHT_BOARD_HZ));
+    run_pwm(backlight_pwm(board_pclk_hz(), backlight_ramp_percent(0, 0)));
 }
 
 void board_display_service(void)

@@ -9,8 +9,8 @@ PROJECT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT / "tools"))
 
 SKIP_EXIT_CODE = 77
-DEFAULT_IMAGE = max((PROJECT / "build" / "device-echo").glob("ECHOV*.IMG"), default=PROJECT / "build" / "device-echo" / "ECHOV453.IMG")
-DEFAULT_ELF = PROJECT / "build" / "device-echo" / "platform" / "device" / "echo_device.elf"
+DEFAULT_IMAGE = max((PROJECT / "build" / "device").glob("ECHOV*.IMG"), default=PROJECT / "build" / "device" / "ECHOV454.IMG")
+DEFAULT_ELF = PROJECT / "build" / "device" / "platform" / "device" / "echo_device.elf"
 CONFIG = {"image": DEFAULT_IMAGE, "elf": DEFAULT_ELF}
 
 FIRST_FRAME_LIMIT_MS = 1000

@@ -61,28 +61,6 @@ static PanelBus recording_bus(Recorder *recorder)
 #define D(value) {ENTRY_DATA, value}
 #define W(value) {ENTRY_DELAY, value}
 
-static const Entry VARIANT_B_INIT[] = {
-    C(0x11), W(120),  C(0x36), D(0x60), C(0x3A), D(0x05), C(0xA4), D(0x44), D(0x44), C(0xB2),
-    D(0x0C), D(0x0C), D(0x00), D(0x33), D(0x33), C(0xB7), D(0x35), C(0xBB), D(0x1A), C(0xC0),
-    D(0x2C), C(0xC2), D(0x01), C(0xC3), D(0x0B), C(0xC4), D(0x20), C(0xC6), D(0x0F), C(0xD0),
-    D(0xA4), D(0xA1), C(0xD6), D(0xA1), C(0xE0), D(0xF0), D(0x06), D(0x0B), D(0x07), D(0x07),
-    D(0x24), D(0x2E), D(0x32), D(0x46), D(0x37), D(0x13), D(0x13), D(0x2D), D(0x33), C(0xE1),
-    D(0xF0), D(0x02), D(0x06), D(0x09), D(0x08), D(0x05), D(0x29), D(0x44), D(0x42), D(0x38),
-    D(0x14), D(0x14), D(0x2A), D(0x30), C(0x2A), D(0x00), D(0x00), D(0x00), D(0xEF), C(0x2B),
-    D(0x00), D(0x23), D(0x00), D(0xCC), C(0x21), C(0x29), C(0x2C),
-};
-
-static const Entry VARIANT_A_INIT[] = {
-    C(0x11), W(120),  C(0xDF), D(0x5A), D(0x69), D(0x02), D(0x01), C(0x36), D(0x60),
-    C(0x3A), D(0x05), C(0xB2), D(0x0B), D(0x0B), D(0x00), D(0x33), D(0x33), C(0xB7),
-    D(0x75), C(0xBB), D(0x28), C(0xC0), D(0x2C), C(0xC2), D(0x01), C(0xC3), D(0x1F),
-    C(0xC5), D(0x2A), C(0xC6), D(0x13), C(0xD0), D(0xA7), C(0xD0), D(0xA4), D(0xA1),
-    C(0xD6), D(0xA1), C(0xE0), D(0xF0), D(0x05), D(0x0A), D(0x06), D(0x06), D(0x03),
-    D(0x2B), D(0x32), D(0x43), D(0x36), D(0x11), D(0x10), D(0x2B), D(0x32), C(0xE1),
-    D(0xF0), D(0x08), D(0x0C), D(0x0B), D(0x09), D(0x24), D(0x2B), D(0x22), D(0x43),
-    D(0x38), D(0x15), D(0x16), D(0x2F), D(0x37), C(0x21), C(0x29), C(0x2C),
-};
-
 static void check_log(const Recorder *recorder, const Entry *expected, int count)
 {
     CHECK_EQUAL(count, recorder->count);
@@ -106,27 +84,11 @@ static const Entry ST7796S_INIT[] = {
     D(0x01), D(0x0E), C(0x2B), D(0x00), D(0x00), D(0x01), D(0xDF), C(0x2C),
 };
 
-static void variant_b_sends_its_init_stream(void)
-{
-    Recorder recorder;
-    PanelBus bus = recording_bus(&recorder);
-    panel_send_init(&bus, PANEL_VARIANT_B);
-    check_log(&recorder, VARIANT_B_INIT, (int)(sizeof VARIANT_B_INIT / sizeof VARIANT_B_INIT[0]));
-}
-
-static void variant_a_sends_its_init_stream(void)
-{
-    Recorder recorder;
-    PanelBus bus = recording_bus(&recorder);
-    panel_send_init(&bus, PANEL_VARIANT_A);
-    check_log(&recorder, VARIANT_A_INIT, (int)(sizeof VARIANT_A_INIT / sizeof VARIANT_A_INIT[0]));
-}
-
 static void the_st7796s_sends_its_init_stream(void)
 {
     Recorder recorder;
     PanelBus bus = recording_bus(&recorder);
-    panel_send_init(&bus, PANEL_VARIANT_ST7796S);
+    panel_send_init(&bus);
     check_log(&recorder, ST7796S_INIT, (int)(sizeof ST7796S_INIT / sizeof ST7796S_INIT[0]));
 }
 
@@ -139,7 +101,7 @@ static void the_st7796s_init_sleeps_out_before_anything_else_and_waits_120_ms(vo
 {
     Recorder recorder;
     PanelBus bus = recording_bus(&recorder);
-    panel_send_init(&bus, PANEL_VARIANT_ST7796S);
+    panel_send_init(&bus);
     CHECK_EQUAL(ENTRY_COMMAND, recorder.entries[0].kind);
     CHECK_EQUAL(0x11, recorder.entries[0].value);
     CHECK_EQUAL(ENTRY_DELAY, recorder.entries[1].kind);
@@ -154,7 +116,7 @@ static void an_echo_window_maps_visible_rows_to_panel_rows_from_49(void)
     };
     Recorder recorder;
     PanelBus bus = recording_bus(&recorder);
-    panel_begin_write_at(&bus, (PanelWindow){0, 0, 480, 222}, PANEL_ECHO_FIRST_VISIBLE_ROW);
+    panel_begin_write(&bus, (PanelWindow){0, 0, 480, 222});
     check_log(&recorder, expected, (int)(sizeof expected / sizeof expected[0]));
 }
 
@@ -166,41 +128,13 @@ static void a_partial_echo_window_keeps_columns_plain_and_offsets_rows(void)
     };
     Recorder recorder;
     PanelBus bus = recording_bus(&recorder);
-    panel_begin_write_at(&bus, (PanelWindow){10, 42, 256, 34}, PANEL_ECHO_FIRST_VISIBLE_ROW);
+    panel_begin_write(&bus, (PanelWindow){10, 42, 256, 34});
     check_log(&recorder, expected, (int)(sizeof expected / sizeof expected[0]));
 }
 
 static void the_board_default_window_offset_follows_the_board(void)
 {
-#ifdef ECHO_BOARD_ECHO
     CHECK_EQUAL(49, PANEL_FIRST_VISIBLE_ROW);
-#else
-    CHECK_EQUAL(35, PANEL_FIRST_VISIBLE_ROW);
-#endif
-}
-
-static void a_window_maps_visible_rows_to_panel_rows_from_35(void)
-{
-    static const Entry expected[] = {
-        C(0x2A), D(0x00), D(0x00), D(0x01), D(0x3F), C(0x2B),
-        D(0x00), D(0x23), D(0x00), D(0xCC), C(0x2C),
-    };
-    Recorder recorder;
-    PanelBus bus = recording_bus(&recorder);
-    panel_begin_write_at(&bus, (PanelWindow){0, 0, 320, 170}, PANEL_MINI_FIRST_VISIBLE_ROW);
-    check_log(&recorder, expected, (int)(sizeof expected / sizeof expected[0]));
-}
-
-static void a_partial_window_sets_its_columns_and_rows(void)
-{
-    static const Entry expected[] = {
-        C(0x2A), D(0x00), D(0x0A), D(0x01), D(0x09), C(0x2B),
-        D(0x00), D(0x45), D(0x00), D(0x66), C(0x2C),
-    };
-    Recorder recorder;
-    PanelBus bus = recording_bus(&recorder);
-    panel_begin_write_at(&bus, (PanelWindow){10, 34, 256, 34}, PANEL_MINI_FIRST_VISIBLE_ROW);
-    check_log(&recorder, expected, (int)(sizeof expected / sizeof expected[0]));
 }
 
 static void pixels_are_sent_high_byte_first(void)
@@ -213,45 +147,16 @@ static void pixels_are_sent_high_byte_first(void)
     check_log(&recorder, expected, 4);
 }
 
-static void a_bus_word_puts_the_byte_on_bits_16_to_23(void)
-{
-    CHECK_EQUAL(0x00AB0000u, panel_bus_word(0, 0xAB, false));
-}
-
-static void a_data_byte_sets_dc_on_bit_25(void)
-{
-    CHECK_EQUAL(0x02AB0000u, panel_bus_word(0, 0xAB, true));
-}
-
-static void a_bus_word_keeps_other_port_bits_and_clears_bus_bits(void)
-{
-    uint32_t shadow = 0x00001000u | 0x80000001u | 0x03FF0000u;
-    CHECK_EQUAL(0x80001001u | 0x00120000u, panel_bus_word(shadow, 0x12, false));
-}
-
-static void the_write_strobe_is_bit_24(void)
-{
-    CHECK_EQUAL(0x01000000u, PANEL_BUS_WR);
-}
-
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(variant_b_sends_its_init_stream),
-        TEST_CASE(variant_a_sends_its_init_stream),
         TEST_CASE(the_st7796s_sends_its_init_stream),
         TEST_CASE(the_echo_memory_access_byte_is_0x28_or_the_mirrored_0x68),
         TEST_CASE(the_st7796s_init_sleeps_out_before_anything_else_and_waits_120_ms),
         TEST_CASE(an_echo_window_maps_visible_rows_to_panel_rows_from_49),
         TEST_CASE(a_partial_echo_window_keeps_columns_plain_and_offsets_rows),
         TEST_CASE(the_board_default_window_offset_follows_the_board),
-        TEST_CASE(a_window_maps_visible_rows_to_panel_rows_from_35),
-        TEST_CASE(a_partial_window_sets_its_columns_and_rows),
         TEST_CASE(pixels_are_sent_high_byte_first),
-        TEST_CASE(a_bus_word_puts_the_byte_on_bits_16_to_23),
-        TEST_CASE(a_data_byte_sets_dc_on_bit_25),
-        TEST_CASE(a_bus_word_keeps_other_port_bits_and_clears_bus_bits),
-        TEST_CASE(the_write_strobe_is_bit_24),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

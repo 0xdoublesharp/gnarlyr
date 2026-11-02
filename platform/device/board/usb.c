@@ -193,7 +193,7 @@ bool usb_vbus_present(void)
 
 void usb_silence_audio(void)
 {
-    PinRef mute_pin = board_dac_pin(BOARD_KIND, DAC_PIN_MUTE);
+    PinRef mute_pin = board_dac_pin(DAC_PIN_MUTE);
     GpioPin audio_mute = {mute_pin.port, mute_pin.pin};
     cru_gate(GATE_GPIO1, true);
     gpio_mux(AMP_ENABLE, GPIO_FUNCTION_GPIO);

@@ -24,9 +24,6 @@ target_compile_definitions(echo_board INTERFACE PANEL_ECHO_MADCTL=${ECHO_PANEL_M
 if(ECHO_BOOT_TRACE)
     target_compile_definitions(echo_board INTERFACE ECHO_BOOT_TRACE)
 endif()
-if(ECHO_BOARD STREQUAL "ECHO")
-    target_compile_definitions(echo_board INTERFACE ECHO_BOARD_ECHO)
-endif()
 target_link_libraries(echo_options INTERFACE echo_board)
 
 add_library(echo_compact INTERFACE)

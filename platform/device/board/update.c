@@ -11,12 +11,6 @@
 #include "device/updater.h"
 #include "emmc.h"
 
-#ifdef ECHO_BOARD_ECHO
-#define UPDATE_BOARD UPDATE_BOARD_ECHO
-#else
-#define UPDATE_BOARD UPDATE_BOARD_MINI
-#endif
-
 enum {
     MESSAGE_CAPACITY = 64,
     PERCENT_STEP = 5,
@@ -70,9 +64,8 @@ static void remove_update_file(void)
 
 static bool open_highest_numbered(void)
 {
-    for (uint32_t index = 0; index < update_name_count(UPDATE_BOARD); index++) {
-        if (update_name_at(UPDATE_BOARD, index, update_path) &&
-            fat_open(&volume, update_path, &file)) {
+    for (uint32_t index = 0; index < update_name_count(); index++) {
+        if (update_name_at(index, update_path) && fat_open(&volume, update_path, &file)) {
             return true;
         }
     }
@@ -92,12 +85,10 @@ static bool open_update(UpdateStorage *storage)
         return false;
     }
     *storage = (UpdateStorage){emmc_read,          emmc_write,         NULL,
-                               info.layout.slot_1, info.layout.slot_2, info.layout.slot_sectors,
-                               UPDATE_BOARD};
+                               info.layout.slot_1, info.layout.slot_2, info.layout.slot_sectors};
     return true;
 }
 
-#ifdef ECHO_BOARD_ECHO
 static bool request_read(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
     (void)context;
@@ -121,7 +112,6 @@ void update_check_loader_request(void)
         board_loader_reboot();
     }
 }
-#endif
 
 static void install(const UpdateFile *update, const UpdateStorage *storage, UpdateCheck check)
 {

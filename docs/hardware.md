@@ -1,6 +1,6 @@
-# Echo Mini hardware
+# Echo hardware
 
-A short map of the hardware EchoPod drives, for reading the code in `platform/device`. Most of this was first worked out by the [ReChord](https://github.com/brnomt/ReChord) project and then checked on a player.
+A short map of the hardware Podium drives on the full-size Snowsky Echo, for reading the code in `platform/device`. Most of it was first worked out for the Echo Mini by the [ReChord](https://github.com/brnomt/ReChord) project, and the Echo reuses it (same SoC, boot ROM, container, load map and memory map); the Echo values come from the decompiled stock Echo 2.0.0 and have not been checked on a player yet.
 
 ## Chip and memory
 
@@ -12,20 +12,20 @@ A short map of the hardware EchoPod drives, for reading the code in `platform/de
 
 ## Display and keys
 
-- 320 × 170 RGB565 panel with its own image memory, so there is no framebuffer. Two panel variants exist, each with its own init sequence.
-- The backlight runs from a 10 kHz PWM on GPIO2.4.
+- 480 × 222 landscape ST7796S-class RGB565 panel (native 222 × 480 portrait) with its own image memory, so there is no framebuffer. It sits behind the SoC LCD controller at `0x60070000`, so there is no bit-banging. The window's row axis carries a 49-row offset. No panel ID read, a single variant.
+- The backlight runs from a 25 kHz PWM, channel 0 on GPIO2.4.
 - ▶‖, ≡, ↩ and the volume rocker sit on a resistor ladder read through the ADC. Power is a separate input.
 
 ## Storage
 
-- 8 GB eMMC on the DW-MMC controller. From the start: the ID block, firmware slot 1, firmware slot 2, a SAVE block, then the FAT32 user volume that appears as "ECHO MINI" over USB. EchoPod never writes the ID block, the SAVE block or the gap between them.
-- Each firmware slot holds the first 5 MiB of a firmware image. On the unit tested, slot 1 is at rockusb sector 0 and slot 2 at rockusb sector 69632.
+- 8 GB eMMC on the DW-MMC controller. From the start: the ID block, firmware slot 1, firmware slot 2, a SAVE block, then the FAT32 user volume that appears as the internal drive over USB. EchoPod never writes the ID block, the SAVE block or the gap between them.
+- Each firmware slot holds the first 5 MiB of a firmware image. Slot 1 follows the ID block; slot 2 is found as stock does, searching from the next MiB after slot 1's firmware size plus 16 KiB in 1 MiB steps (`docs/architecture.md`).
 - A microSD slot on the same kind of controller, with card detect. EchoPod reads and writes FAT16, FAT32 and exFAT.
 
 ## Audio
 
 - Cirrus Logic CS43131 DAC, set up over I2C0, fed by I2S1 through DMA from a ring in data RAM.
-- 3.5 mm and 4.4 mm outputs. GPIO0.13 high means a 3.5 mm plug, GPIO2.8 low means 4.4 mm.
+- 3.5 mm and 4.4 mm outputs. GPIO0.13 high means a 3.5 mm plug, GPIO2.8 high means 4.4 mm. Both jack pins have pull-ups set at start-up.
 - An LPC accelerator next to core 1 speeds up FLAC decoding.
 
 ## USB
@@ -40,15 +40,12 @@ A short map of the hardware EchoPod drives, for reading the code in `platform/de
 
 ## Firmware image
 
-- `HIFIEC90.IMG` is a 5 MiB `RKnanoFW` container: an outer header, a table of load rows, the code and data, a copy of the first 512 bytes at `0x44C000` and a CRC-32 trailer at `0x500000`. `tools/make_image.py` builds it, and `docs/architecture.md` describes the layout.
-- FiiO's firmware installs the highest-numbered `HIFIECnn.IMG` it finds at the top level of internal storage. FiiO's own images are 32 MiB.
+- `ECHOV454.IMG` (named after `PODIUM_VERSION`) is a 5 MiB `RKnanoFW` container: an outer header, a table of load rows, the code and data, a copy of the first 512 bytes at `0x44C000` and a CRC-32 trailer at `0x500000`. `tools/make_image.py` builds it, and `docs/architecture.md` describes the layout.
+- FiiO's updater scans `\ECHOECHO.IMG`, then `\ECHOV100.IMG` to `\ECHOV498.IMG` at the top level of internal storage, and the highest wins. FiiO's own Echo image is 39,845,892 bytes.
 
-## Full-size Echo
+## Board details
 
-Same SoC, boot ROM, container, load map and memory map as the Echo Mini. Differences, from the decompiled stock Echo 2.0.0:
-
-- 480 × 222 landscape ST7796S-class panel (native 222 × 480 portrait) behind the SoC LCD controller at `0x60070000`, so there is no bit-banging. The window's row axis carries a 49-row offset. No panel ID read, a single variant.
-- Backlight: PWM channel 0 on GPIO2.4 at 25 kHz.
-- GPIO0.14 and GPIO2.0 form a power pair: high from start-up, low before power-off. DAC mute is GPIO2.1 and the DAC has no reset pin. The 4.4 mm jack reads high when plugged (GPIO2.8); the 3.5 mm jack as on the Mini. Both jack pins have pull-ups set at start-up.
+- GPIO0.14 and GPIO2.0 form a power pair: high from start-up, low before power-off.
+- DAC mute is GPIO2.1 and the DAC has no reset pin.
+- The 4.4 mm jack reads high when plugged (GPIO2.8); the 3.5 mm jack reads as above.
 - An ADC channel 2 headset remote exists and isn't used.
-- Update files: FiiO's updater scans `\ECHOECHO.IMG`, then `\ECHOV100.IMG` to `\ECHOV498.IMG`, highest wins.

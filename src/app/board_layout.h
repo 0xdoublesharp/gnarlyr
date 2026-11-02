@@ -3,11 +3,7 @@
 #include "ui/cover_flow.h"
 
 enum {
-#ifdef ECHO_BOARD_ECHO
     BOARD_STRIP_HEIGHT = 23
-#else
-    BOARD_STRIP_HEIGHT = 34
-#endif
 };
 
 typedef struct NowPlayingLayout {
