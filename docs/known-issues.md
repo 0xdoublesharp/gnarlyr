@@ -18,7 +18,7 @@ EchoPod is early firmware made by one person and tested on one player. It comes 
 ## Echo values from the decompile
 
 - The Echo build comes from decompiled stock code and is checked on the Mac only. Values taken from the decompile and not seen working: the panel's memory access byte (`0x28`; `-DECHO_PANEL_MADCTL=0x68` mirrors the columns), one 16-bit write per pixel in the LCD controller, the 49-row window offset, the 25 kHz backlight level table, the power pair, the jack polarity, and the stock Echo image's CRC range (the first 38 MiB).
-- **Text on the Echo comes from glyph faces** in the image (22 px, 128 cached glyphs). After an install, notices use the built-in 16 px font because glyph reads stop until the restart.
+- **Text on the Echo comes from glyph faces** in the image (22 px, 128 cached glyphs). After an install, every screen uses the built-in 16 px font (ASCII only, accented letters show as `?`) because glyph reads stop until the restart.
 
 ## CUE sheets
 

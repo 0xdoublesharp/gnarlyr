@@ -62,7 +62,7 @@ static void run_usb_session(void)
         update_after_usb();
     }
 #endif
-    if (usb_session_storage_changed()) {
+    if (usb_session_storage_changed() || hal_system_restart_pending()) {
         storage_reset();
         app_start();
         app_request_rescan_if_music_changed();

@@ -432,9 +432,14 @@ static void update_screen(uint32_t now_ms)
     }
 }
 
+static const Theme *board_theme(void)
+{
+    return hal_system_restart_pending() ? &NOTICE_THEME : &BOARD_THEME;
+}
+
 static void draw_fade(Canvas *canvas, const Fade *fade, const char *text)
 {
-    const Theme *theme = &BOARD_THEME;
+    const Theme *theme = board_theme();
     Rect screen = {0, 0, HAL_DISPLAY_WIDTH, HAL_DISPLAY_HEIGHT};
     Color color =
         color_blend(theme->colors.background, theme->colors.text, fade_alpha(fade, app.now_ms));
@@ -466,7 +471,7 @@ static void draw_shifted(Screen *screen, Canvas *canvas, int x, Rect area)
 
 static void draw_slide(Canvas *canvas, Screen *arriving)
 {
-    const Theme *theme = &BOARD_THEME;
+    const Theme *theme = board_theme();
     Screen *leaving = app.leaving;
     bool whole = arriving->full_screen || leaving->full_screen;
     Rect area =
@@ -493,9 +498,9 @@ static void draw_frame(void *context, Canvas *canvas)
         screen->draw(screen->context, canvas);
     }
     if (!screen->full_screen) {
-        status_bar_draw(canvas, &BOARD_THEME, state->status_bar);
+        status_bar_draw(canvas, board_theme(), state->status_bar);
     }
-    toast_draw(&state->toast, canvas, &BOARD_THEME);
+    toast_draw(&state->toast, canvas, board_theme());
     if (state->options.show_frame_time) {
         FrameBreakdown breakdown = {
             .total_us = frame_stats_average_us(&state->frame_stats),
@@ -503,7 +508,7 @@ static void draw_frame(void *context, Canvas *canvas)
             .draw_us = frame_stats_average_us(&state->draw_stats),
             .send_us = frame_stats_average_us(&state->send_stats),
         };
-        frame_overlay_draw(canvas, &BOARD_THEME, breakdown, hal_audio_stats());
+        frame_overlay_draw(canvas, board_theme(), breakdown, hal_audio_stats());
     }
 }
 
@@ -627,7 +632,7 @@ static void start_screens(uint32_t now_ms)
 {
     AppScreensContext context = {
         .options = &app.options,
-        .theme = &BOARD_THEME,
+        .theme = board_theme(),
         .store = &app.library,
         .player = &app.player,
         .spoken = &app.spoken,
@@ -773,7 +778,7 @@ void app_request_rescan_if_music_changed(void)
 static void draw_charge(void *context, Canvas *canvas)
 {
     (void)context;
-    charge_screen_draw(canvas, &BOARD_THEME, app.charge_battery);
+    charge_screen_draw(canvas, board_theme(), app.charge_battery);
 }
 
 static void follow_charge_keys(uint32_t now_ms)

@@ -9,6 +9,7 @@
 #include "fake_hal.h"
 #include "fixture_library.h"
 #include "frame_overlay.h"
+#include "gfx/canvas.h"
 #include "gfx/text.h"
 #include "hal/display.h"
 #include "hal/system.h"
@@ -17,6 +18,7 @@
 #include "library_rescan.h"
 #include "settings/settings.h"
 #include "settings_store.h"
+#include "ui/header.h"
 #include "ui/slide.h"
 #include "ui/status_bar.h"
 #include "ui/toast.h"
@@ -1427,6 +1429,34 @@ static void settle(void)
     }
 }
 
+static bool header_title_matches_the_notice_theme(void)
+{
+    static Color expected[HAL_DISPLAY_WIDTH * 32];
+    int height = NOTICE_THEME.metrics.header_height;
+    Canvas canvas = canvas_make(expected, (Rect){0, 0, HAL_DISPLAY_WIDTH, height});
+    header_draw(&canvas, &NOTICE_THEME, app_screen_title());
+    int inset = NOTICE_THEME.metrics.header_inset;
+    for (int y = 0; y < height; y++) {
+        for (int x = inset; x < HAL_DISPLAY_WIDTH - inset; x++) {
+            if (fake_hal_pixel(x, y) != canvas_pixel_at(&canvas, x, y)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static void after_an_installed_update_screens_use_the_resident_font(void)
+{
+    start_app_with_library();
+    settle();
+    CHECK(!header_title_matches_the_notice_theme());
+    fake_hal_set_restart_pending(true);
+    app_start();
+    settle();
+    CHECK(header_title_matches_the_notice_theme());
+}
+
 static void cover_flow_opens_from_the_music_menu(void)
 {
     start_app_with_library();
@@ -1994,6 +2024,7 @@ int main(void)
         TEST_CASE(a_rescan_keeps_the_stall_watch_fed),
         TEST_CASE(a_rescan_rebuilds_the_covers_file),
         TEST_CASE(a_rescan_after_an_installed_update_asks_for_a_restart),
+        TEST_CASE(after_an_installed_update_screens_use_the_resident_font),
         TEST_CASE(a_rescan_without_scratch_memory_says_so),
         TEST_CASE(a_rescan_borrows_the_idle_audio_buffer_for_its_listing),
         TEST_CASE(each_way_a_scan_runs_out_has_its_own_message),

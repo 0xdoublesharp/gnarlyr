@@ -8,6 +8,10 @@ Podium is a fork of EchoPod 0.6.0 for the full-size Snowsky Echo. Entries from 0
 
 - **M4A playback.** `.m4a` files play: AAC-LC (what Apple Music and iTunes purchases use, mono or stereo, 44.1 and 48 kHz) and Apple Lossless (ALAC, 16 and 24 bit, mono or stereo). Seeking, resume after power-off, Up Next, shuffle and bookmarks work as for the other formats, and consecutive tracks play without a gap, trimmed by the encoder delay and padding in the file's `iTunSMPB` tag. Now Playing shows `AAC` or `ALAC`. The library already listed `.m4a` files with their tags, length and cover art; nothing needs rescanning. HE-AAC (SBR and PS), AAC at rates the player's output doesn't offer (such as 22.05 and 32 kHz), `.m4b` audiobooks and AAC in other containers don't play (see `known-issues.md`). Not yet heard on the player.
 
+### Fixed
+
+- **Text is readable after an update.** After installing an update, every screen showed `?` instead of letters until the player was turned off and on again. Screens now use the small built-in font until the restart, so the Update installed message, the Goodbye screen and the menus stay legible.
+
 ### Changed
 
 - **Named Podium.** The splash screen, the Home title, the USB drive and the USB DAC device say Podium instead of EchoPod.
