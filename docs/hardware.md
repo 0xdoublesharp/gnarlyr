@@ -40,7 +40,7 @@ A short map of the hardware Podium drives on the full-size Snowsky Echo, for rea
 
 ## Firmware image
 
-- `ECHOV454.IMG` (named after `PODIUM_VERSION`) is a 5 MiB `RKnanoFW` container: an outer header, a table of load rows, the code and data, a copy of the first 512 bytes at `0x44C000` and a CRC-32 trailer at `0x500000`. `tools/make_image.py` builds it, and `docs/architecture.md` describes the layout.
+- `ECHOV455.IMG` (named after `PODIUM_VERSION`) is a 5 MiB `RKnanoFW` container: an outer header, a table of load rows, the code and data, a copy of the first 512 bytes at `0x44C000` and a CRC-32 trailer at `0x500000`. `tools/make_image.py` builds it, and `docs/architecture.md` describes the layout.
 - FiiO's updater scans `\ECHOECHO.IMG`, then `\ECHOV100.IMG` to `\ECHOV498.IMG` at the top level of internal storage, and the highest wins. FiiO's own Echo image is 39,845,892 bytes.
 
 ## Board details

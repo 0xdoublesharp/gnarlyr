@@ -2,6 +2,16 @@
 
 Podium is a fork of EchoPod 0.6.0 for the full-size Snowsky Echo. Entries from 0.6.0 down are EchoPod's.
 
+## Podium 4.5.5 (2026-11-02)
+
+### New
+
+- **Cyrillic.** Song, artist and album names in Russian, Ukrainian, Belarusian, Serbian, Bulgarian and Macedonian show their letters instead of `?` (U+0400–U+045F, Ґ and ґ, regular and bold). The small font shown right after an update is still ASCII only.
+
+### Fixed
+
+- **Settings survive a change of storage.** Settings are the player's, not the music's: they now live on internal storage even when the music comes from a microSD card, so taking the card out or putting one in keeps them. Settings saved by an earlier Podium on the card or internal storage are picked up once. Favorites and resume positions stay with each library.
+
 ## Podium 4.5.4 (2026-11-02)
 
 ### New

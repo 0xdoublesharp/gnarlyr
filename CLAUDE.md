@@ -2,7 +2,7 @@
 
 Custom firmware for the full-size Snowsky (FiiO) Echo player (480×222), forked from [EchoPod](https://github.com/BasilSkyWalk/echopod) 0.6.0 (remote `echopod`), the Echo Mini 8 GB firmware: an iPod-style UI with iPod-sized text, Cover Flow, an on-player music library, favorites, M3U playlists, an Up Next queue, Bluetooth and USB DAC mode. The same portable C app runs in a desktop simulator and on the player. Changes are not sent back to EchoPod.
 
-The Echo is the only board: preset `dev` for the simulator and tests, `device` and `release` for the player (`ECHOV454.IMG` for version 4.5.4, named after the version as FiiO does; 4.5.3 runs on the player). The Echo Mini board of EchoPod is gone. Many names in the code and docs still say EchoPod.
+The Echo is the only board: preset `dev` for the simulator and tests, `device` and `release` for the player (`ECHOV455.IMG` for version 4.5.5, named after the version as FiiO does; 4.5.3 runs on the player). The Echo Mini board of EchoPod is gone. Many names in the code and docs still say EchoPod.
 
 Hardware notes for the Echo port (stock Echo and Mini firmware and RECHO, decompiled) live outside the repo, in `~/Sync/Monkey/assets/20261031T113308.323001/ghidra/`.
 
@@ -37,8 +37,8 @@ Toolchain: cmake, SDL2, clang-format, arm-none-eabi-gcc and binutils.
 | Preset | Output |
 |---|---|
 | `dev` | Host build of the simulator and tests, under UndefinedBehaviorSanitizer |
-| `device` | Cross-compiled `build/device/ECHOV454.IMG` for the full-size Echo (brand `PODIUM`, version from `PODIUM_VERSION`, 4.5.4) with the full Diagnostics menu |
-| `release` | `build/release/ECHOV454.IMG` with the short Diagnostics menu |
+| `device` | Cross-compiled `build/device/ECHOV455.IMG` for the full-size Echo (brand `PODIUM`, version from `PODIUM_VERSION`, 4.5.5) with the full Diagnostics menu |
+| `release` | `build/release/ECHOV455.IMG` with the short Diagnostics menu |
 
 `ctest` also builds the `device` preset, runs the emulator tests on its image and checks formatting, the absence of comments, generated files being current and the Cortex-M3 flash/RAM budget (`target_audit`).
 
@@ -79,7 +79,7 @@ Exact commands are in `docs/architecture.md`, Generated code.
 - Firmware slots on the full-size Echo: sector 0 and 81920, 10240 sectors (the image's first 5 MiB) each. Write slot 2 first, read every write back and compare:
 
   ```sh
-  head -c 5242880 ECHOV454.IMG > slot.bin
+  head -c 5242880 ECHOV455.IMG > slot.bin
   rkdeveloptool-echo wl 81920 slot.bin && rkdeveloptool-echo rl 81920 10240 rb.bin && cmp slot.bin rb.bin
   ```
 

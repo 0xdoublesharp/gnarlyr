@@ -4,7 +4,7 @@ Status: `device` (works on the player) · `sim` (works in the simulator only) ·
 
 ## Where it stands
 
-Podium 4.5.4 adds M4A; 4.5.3 plays from internal storage, splits CUE albums and reads large files without stutter; 4.5.0 brought EchoPod 0.6.0 to the full-size Echo (`docs/release-notes.md`). Everything marked `device` below works on the one Echo 4 GB (hardware 1.1.7) it has been tested on. `docs/known-issues.md` lists what's missing or unproven.
+Podium 4.5.5 shows Cyrillic and keeps settings on internal storage; 4.5.4 adds M4A; 4.5.3 plays from internal storage, splits CUE albums and reads large files without stutter; 4.5.0 brought EchoPod 0.6.0 to the full-size Echo (`docs/release-notes.md`). Everything marked `device` below works on the five Echos (4 GB and 8 GB) it has been tested on. `docs/known-issues.md` lists what's missing or unproven.
 
 ## Features
 
