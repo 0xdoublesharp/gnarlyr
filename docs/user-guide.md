@@ -8,7 +8,7 @@ Read `docs/known-issues.md` before you install. Podium has not been run on a pla
 
 ## Which players
 
-- **Snowsky Echo (full size, 480 × 222 screen): supported.** Its FiiO update file is called `ECHOVnnn.IMG` (V2.0.0 is `ECHOV200.IMG`).
+- **Snowsky Echo (full size, 480 × 222 screen), 4 GB and 8 GB: supported.** Its FiiO update file is called `ECHOVnnn.IMG` (V2.0.0 is `ECHOV200.IMG`).
 - **Echo Mini: not supported.** Podium refuses the Echo Mini's firmware, and the Echo Mini's firmware ignores Podium's file. EchoPod is the firmware for the Echo Mini.
 
 ## Before you install
@@ -34,11 +34,11 @@ If the player comes back to FiiO's firmware after a short "Updating", the instal
 ## Your music
 
 - Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Diagnostics → Music shows which one is in use.
-- EchoPod plays FLAC, MP3 and WAV, up to 192 kHz, and `.m4a` files with AAC-LC or Apple Lossless audio. It lists the other formats FiiO lists, and says when it can't play one.
+- Podium plays FLAC, MP3 and WAV, up to 192 kHz, and `.m4a` files with AAC-LC or Apple Lossless audio. It lists the other formats FiiO lists, and says when it can't play one.
 - A `.cue` file next to a single FLAC, WAV or MP3 album image splits it into one track per CUE track (see "CUE sheets" below). Album covers come from art inside each album's first track, or from a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks.
 - `.m3u` and `.m3u8` playlists anywhere on the card appear under Music → Playlists.
 - Libraries of many thousands of tracks work; `docs/known-issues.md` lists the sizes tested so far.
-- EchoPod keeps its own files in a hidden `/.echo` folder on the card, about 110 MB of them. Don't delete it unless you want the library rebuilt.
+- Podium keeps its own files in a hidden `/.echo` folder on the card, about 110 MB of them. Don't delete it unless you want the library rebuilt.
 
 ## CUE sheets
 
@@ -50,7 +50,7 @@ Depeche Mode/Violator/
   Violator.cue            hidden as a track, its tracks take its place
 ```
 
-- The sheet must name one file. EchoPod looks for that name in the sheet's folder (capitals don't matter), and when there is none, for an audio file with the same name as the sheet (`Violator.cue` and `Violator.flac`), which is what many rips need. Sheets that name an APE, M4A or another format the player can't play, sheets that list several files (one per track) and sheets whose file is missing are ignored; their audio files list as before.
+- The sheet must name one file. Podium looks for that name in the sheet's folder (capitals don't matter), and when there is none, for an audio file with the same name as the sheet (`Violator.cue` and `Violator.flac`), which is what many rips need. Sheets that name an APE, M4A or another format the player can't play, sheets that list several files (one per track) and sheets whose file is missing are ignored; their audio files list as before.
 - Track titles come from `TITLE`, artists from `PERFORMER` (the track's, otherwise the one at the top of the sheet, which is also the album artist), the album from the top `TITLE`, the genre from `REM GENRE` and the year from `REM DATE`. What the sheet doesn't say comes from the audio file's tags, then from its folder name. A track without a title is called "Track 3".
 - A track starts at its `INDEX 01` and ends where the next one starts, so silence marked `INDEX 00` before a track belongs to the track before it. Tracks play without a gap.
 - The sheet is read as UTF-8 (a byte order mark is fine) or, when it isn't valid UTF-8, as Windows-1252.
@@ -70,11 +70,11 @@ Depeche Mode/Violator/
 
 1. On the player, Settings → USB mode → DAC.
 2. Plug in the USB cable. The player shows "USB DAC". No driver is needed on Windows 10 and later, macOS, Linux, Android or iOS (phones need a USB-C or Lightning adapter that passes data).
-3. On the computer, choose EchoPod as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output). The player shows the format, for example "Playing from computer · 48 kHz 24-bit".
+3. On the computer, choose Podium as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output). The player shows the format, for example "Playing from computer · 48 kHz 24-bit".
 4. Use the computer's volume, the player's volume keys, or both. DAC mode has its own volume, separate from music: it starts at 30 of 50, the screen shows it ("48 kHz 24-bit · Volume 30"), holding Vol± changes it quickly, and the player remembers it for next time. Start low.
 5. Unplug when you're done, or hold Back for a second and let go to go back to the player's own music (it keeps charging).
 
-The player accepts 16 or 24-bit at 44.1 and 48 kHz; the computer picks one (on Windows: Sound settings → EchoPod → Properties → Advanced). Music on the player stops while it's a DAC, and your drives don't appear: set USB mode back to Storage to copy music. The setting takes effect the next time you plug in. A charger works the same in both modes.
+The player accepts 16 or 24-bit at 44.1 and 48 kHz; the computer picks one (on Windows: Sound settings → Podium → Properties → Advanced). Music on the player stops while it's a DAC, and your drives don't appear: set USB mode back to Storage to copy music. The setting takes effect the next time you plug in. A charger works the same in both modes.
 
 ## Build the library on a computer
 
@@ -196,7 +196,7 @@ Podcasts/
 - These folders still appear under Music (Albums, Artists, Folders and so on), as all tracks on the card do. Give them a genre such as "Audiobook" if you want to find them there.
 - Playback speed can't be changed yet.
 
-## Updating EchoPod
+## Updating Podium
 
 1. Copy the new `ECHOVnnn.IMG` to the top level of internal storage.
 2. Eject both drives. The player checks the file and shows "Installing update", then "Update installed".
@@ -213,6 +213,6 @@ Podcasts/
 ## If something goes wrong
 
 - **"isn't a valid image for this player" when going back to FiiO:** check that the file is FiiO's Echo image (`ECHOV200.IMG`), unchanged (its hash matches the one in FiiO's zip). To switch to another custom firmware, go back to FiiO's first: Podium only installs its own images and FiiO's.
-- **The install doesn't take** (FiiO's firmware comes back after a short "Updating"): copy the file again, check its hash on the player's drive, and make sure it's the only `ECHOVnnn.IMG` there. If it keeps failing, the only other way in is maskrom (below).
+- **The install doesn't take** (FiiO's firmware comes back after a short "Updating"): copy the file again with plenty of free space on the drive (a file stored in pieces is the suspected cause), check its hash on the player's drive, and make sure it's the only `ECHOVnnn.IMG` there. If it keeps failing, the only other way in is maskrom (below).
 - **The player doesn't start at all:** create the file `MASKROM.REQ` on internal storage beforehand if you can (`docs/device-recovery.md`). Otherwise the chip's maskrom mode writes FiiO's firmware back from a computer over USB. It needs a patched `rkdeveloptool` and some care; the steps are in `docs/device-recovery.md`.
 - **Reporting a problem:** include what you did, your FiiO version before installing, and the Firmware, Last start, Last step and Last USB lines from Home → Diagnostics.

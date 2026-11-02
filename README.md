@@ -1,6 +1,6 @@
 # Podium
 
-Replacement firmware for the full-size Snowsky (FiiO) Echo music player, forked from [EchoPod](https://github.com/BasilSkyWalk/echopod). It has an iPod-style UI with iPod-sized text, a Cover Flow browser, a music library built on the player, album favorites, M3U playlists and an Up Next queue. It isn't made or supported by FiiO.
+Replacement firmware for the full-size Snowsky (FiiO) Echo music player (4 GB and 8 GB), forked from [EchoPod](https://github.com/BasilSkyWalk/echopod). It has an iPod-style UI with iPod-sized text, a Cover Flow browser, a music library built on the player, album favorites, M3U playlists and an Up Next queue. It isn't made or supported by FiiO.
 
 <p>
   <img src="docs/photos/home.webp" alt="Home screen" width="32%">
@@ -8,9 +8,44 @@ Replacement firmware for the full-size Snowsky (FiiO) Echo music player, forked 
   <img src="docs/photos/cover-flow.webp" alt="Cover Flow" width="32%">
 </p>
 
-- **Installing and using it:** `docs/user-guide.md`.
-- **Download:** the firmware image is on the [Releases](https://github.com/velppa/podium/releases) page.
-- **Read first:** `docs/known-issues.md`.
+## Install
+
+Read `docs/known-issues.md` first. Replacing a player's firmware can leave it unable to start; recovery is in `docs/device-recovery.md`.
+
+1. Download `ECHOV454.IMG` from [Releases](https://github.com/velppa/podium/releases) and check its SHA-256 against the one in the release notes.
+2. Connect the Echo and copy the file to the root of its internal storage, not into a folder. Leave no other `ECHOVnnn.IMG` there.
+3. Eject and unplug. The player shows "Updating firmware", installs Podium, deletes the file and restarts into Podium.
+
+The first install goes through FiiO's own updater, later updates through Podium's; both take the same file copy. If FiiO's firmware comes back after a short "Updating" and the file is gone, nothing was written: copy it again with plenty of free space, or install through maskrom (`docs/device-install.md`). Going back to FiiO's firmware is the same copy with FiiO's `ECHOV200.IMG`.
+
+## Music formats and layout
+
+Copy music over USB to a microSD card (FAT32 or exFAT) or, with no card in the player, to internal storage. Any folder layout works; the library is built from the tags, and rebuilt by itself after each USB session.
+
+```
+Music/
+  Depeche Mode/
+    Violator/
+      01 World in My Eyes.flac     one file per track
+      02 Sweetest Perfection.flac
+      folder.jpg                   the album cover
+    Songs of Faith and Devotion/
+      Songs of Faith and Devotion.flac   the whole album in one file
+      Songs of Faith and Devotion.cue    splits it into tracks
+      cover.png
+```
+
+- **Formats:** FLAC, MP3 and WAV up to 192 kHz, and `.m4a` with AAC-LC or Apple Lossless. APE, DSD, WMA and the other formats FiiO lists appear in the library but don't play; Podium says so. HE-AAC and `.m4b` don't play (`docs/known-issues.md`).
+- **FLAC:** up to 24 bit, mono or stereo, 44.1 to 192 kHz. Tracks of one album play without a gap.
+- **CUE sheets:** a `.cue` next to an album stored as one FLAC, WAV or MP3 file turns it into a normal album with one track per CUE track. The sheet names the file (capitals don't matter), or has the same name as it (`Violator.cue` and `Violator.flac`). Titles and artists come from the sheet, the rest from the file's tags. Sheets that name several files, a missing file or a format the player can't play are ignored. Details: `docs/user-guide.md`, CUE sheets.
+- **Covers:** the picture inside the album's first track, otherwise a JPEG or PNG named `cover`, `folder`, `front` or `albumart` in the album's folder (`folder.jpg`, `cover.png`, …).
+- **Playlists:** `.m3u` and `.m3u8` anywhere on the card, under Music → Playlists.
+- **Audiobooks and podcasts:** folders named `Audiobooks` and `Podcasts` at the top of the card get their own Home entries, with a bookmark per book and episode.
+- Podium keeps its library in a hidden `/.echo` folder (about 110 MB). Deleting it rebuilds the library.
+
+## More
+
+- **Using it:** `docs/user-guide.md`.
 - **What's new:** `docs/release-notes.md`.
 
 The hardware knowledge it relies on comes largely from the [ReChord](https://github.com/brnomt/ReChord) project's research (`docs/hardware.md`, `CREDITS.md`).

@@ -1,16 +1,16 @@
-# EchoPod known issues
+# Podium known issues
 
-EchoPod is early firmware made by one person and tested on one player. It comes with no warranty: use it at your own risk. Read this before you install, and keep a way back (see "If something goes wrong" in `docs/user-guide.md`).
+Podium is early firmware made by one person and tested on three players. It comes with no warranty: use it at your own risk. Read this before you install, and keep a way back (see "If something goes wrong" in `docs/user-guide.md`).
 
 ## Safety
 
-- **Volume:** EchoPod's top volume is close to FiiO's maximum, and sensitive earphones can be very loud. Turn the volume down before you put them in.
-- **Battery:** EchoPod switches off when the battery runs low, but doesn't yet refuse to start on an almost empty battery. If it switches off by itself, charge it before using it again.
+- **Volume:** Podium's top volume is close to FiiO's maximum, and sensitive earphones can be very loud. Turn the volume down before you put them in.
+- **Battery:** Podium switches off when the battery runs low, but doesn't yet refuse to start on an almost empty battery. If it switches off by itself, charge it before using it again.
 - **Bricking:** development builds have left the Echo unable to start (all were recovered through maskrom). Podium's updater writes one firmware slot at a time and reads every chunk back, but a power cut during an install is still a risk: install with the battery charged.
 
 ## Installing
 
-- **Tested on one player:** an Echo 4 GB, hardware 1.1.7, from macOS. FiiO's V2.0.0 updater doesn't take Podium's file (it shows "Updating" and starts FiiO's firmware again), so the first install goes through maskrom (`docs/device-install.md`).
+- **Tested on three players:** an Echo 4 GB (hardware 1.1.7, installed from macOS) and two users' Echos, including the 8 GB model. FiiO's updater installs Podium from a file copy (confirmed by a user). On this Echo it refused once (it shows "Updating" and starts FiiO's firmware again, nothing written), probably because the file was stored in pieces right after many deletions; that install went through maskrom (`docs/device-install.md`).
 - **The Echo Mini isn't supported.** Podium refuses its firmware, and its firmware ignores Podium's file.
 - **Going back to FiiO's firmware** goes through Podium's own updater, which writes both slots, so keep the `MASKROM.REQ` escape hatch and a maskrom path ready (`docs/device-recovery.md`). Another custom firmware can't be installed from Podium: go back to FiiO's first.
 - **If the player doesn't start at all,** the only recovery known is the chip's maskrom mode (`docs/device-recovery.md`). It works on the full-size Echo, but it needs a patched tool and care.
@@ -36,13 +36,13 @@ EchoPod is early firmware made by one person and tested on one player. It comes 
 - **The SD card can be marked as needing repair.** Twice a computer reported the card's exFAT volume as not cleanly closed. Nothing was lost. If Windows offers to scan and fix the card, let it (or run `chkdsk /f` on its drive letter; on a Mac, Disk Utility's First Aid).
 - **Speed on a Mac hasn't been measured.** On Windows 11, copying runs at about 3.7 MB/s to the SD card and 5 MB/s to internal storage, and reading from the SD card at about 3.9 MB/s.
 - **USB DAC mode is tested on one player with Windows 11** (44.1 and 48 kHz, 16 and 24-bit) **and an Android phone.** Linux and a Mac haven't been tried. If it doesn't appear as a sound card, crackles, or plays at the wrong speed, set Settings → USB mode back to Storage and report what you saw. Known limits: full speed only (44.1 or 48 kHz, 16 or 24-bit; 88.2 and 96 kHz don't fit this chip's USB buffer); about 20 ms of delay; the player stays in DAC mode until you unplug it or hold Back; Power doesn't turn the screen off during DAC mode. If the computer stops sending audio and starts again, the first 20 ms are silent.
-- **macOS leaves `._` files** beside everything it copies. EchoPod ignores them, but they take space. `dot_clean` on the drive removes them.
+- **macOS leaves `._` files** beside everything it copies. Podium ignores them, but they take space. `dot_clean` on the drive removes them.
 
 ## Music and library
 
 - **Gapless MP3** needs the LAME tag that LAME and ffmpeg write. MP3s without one (some iTunes and older encoders) keep a short gap between tracks. After a seek, or when playback resumes part-way through a track, that track's silent end isn't trimmed, so the next track starts a few tens of milliseconds late.
 - **Characters:** song, artist and album names show Latin letters with accents. Chinese, Japanese and Korean text, emoji and other scripts (Arabic, Hebrew, Thai, Cyrillic, Greek…) show as `?`: Podium has no CJK glyphs. The first time a screen shows an accented character, it's read from internal storage.
-- **Formats:** FLAC, MP3, WAV, AAC-LC and ALAC (`.m4a`) play, at 44.1, 48, 88.2, 96, 176.4 and 192 kHz. APE and the other formats FiiO lists appear in the library but don't play; EchoPod says so.
+- **Formats:** FLAC, MP3, WAV, AAC-LC and ALAC (`.m4a`) play, at 44.1, 48, 88.2, 96, 176.4 and 192 kHz. APE and the other formats FiiO lists appear in the library but don't play; Podium says so.
 - **M4A:** HE-AAC (AAC with SBR or PS, as some streaming rips use) is refused, because the decoder has no SBR; AAC at 32 kHz and below is refused with the sample-rate message, as MP3 is. Only mono and stereo play. `.m4b` audiobooks aren't indexed. The start trim of a file without an `iTunSMPB` tag is zero, so an encoder's priming silence (about 23 ms) is audible at the start; an edit list (`elst`) is not read. Files over 4 GB and 64-bit box sizes are refused. The player's AAC and ALAC decoding has been run on the second core in an emulator and on a computer, not on a player: whether it keeps up at 44.1 kHz and how long a seek takes are still to be checked.
 - **Building the library takes time.** On the first start, after music changes over USB, and once after updating to 0.2.0 (the library format changed). A 1,563-track, 144-album card takes about 1 minute 45 seconds: 20 s for the tracks and 1.4 minutes for the covers, where decoding each album's picture takes about half a second. Later rescans keep the covers whose art didn't change and decode only new or changed albums; the first rescan after updating still decodes them all, and so does one after an echo-sync from before this change. Covers from a cover file on a card that isn't FAT32 or exFAT are always decoded again. The player is busy until it finishes: let it finish before you plug it in. echo-sync can build the library on a computer instead.
 - **Library size:** tested on the player with 6,558 tracks, and with over 1,600 albums; on a computer with 20,000 tracks. Larger libraries may stop with an error when the library file (4 MB) is full.

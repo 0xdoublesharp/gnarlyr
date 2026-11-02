@@ -4,7 +4,7 @@ This covers installing builds you made yourself. Release users should follow `do
 
 ## First install
 
-FiiO's V2.0.0 updater doesn't take Podium's image: it shows "Updating" briefly and starts FiiO's firmware again. The first install is a direct maskrom write, below.
+Copy the image to the drive root under FiiO's firmware, eject and unplug: FiiO's updater installs it (`docs/user-guide.md`, Install). If it shows "Updating" briefly and starts FiiO's firmware again, nothing was written; copy it again with plenty of free space, or use a direct maskrom write, below.
 
 ### A direct maskrom write
 
