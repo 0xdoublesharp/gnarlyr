@@ -34,5 +34,5 @@ add_library(echo_app STATIC
 target_include_directories(echo_app PUBLIC include PRIVATE .)
 target_link_libraries(echo_app
     PUBLIC echo_core echo_gfx echo_ui echo_fonts echo_library echo_playback echo_settings echo_hal
-    PRIVATE echo_options echo_compact
+    PRIVATE echo_options echo_compact echo_lto
 )

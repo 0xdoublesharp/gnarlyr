@@ -2,5 +2,5 @@ add_library(echo_settings STATIC settings.c equalizer_peak.c equalizer_fit.c equ
 target_include_directories(echo_settings PUBLIC include)
 target_link_libraries(echo_settings
     PUBLIC echo_core echo_playback
-    PRIVATE echo_options echo_compact
+    PRIVATE echo_options echo_compact echo_lto
 )
