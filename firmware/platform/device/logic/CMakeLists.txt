@@ -142,7 +142,10 @@ if(CMAKE_CROSSCOMPILING)
         m4a_stream.c
         mp3_probe.c
         mp4_demux.c
+        msc.c
+        panel.c
         panic_text.c
+        pll.c
         sd_card.c
         start_record.c
         storage_mount.c
