@@ -16,6 +16,7 @@ SECTIONS
         *(.text .text.*)
         *(.rodata .rodata.*)
         . = ALIGN(4);
+        device_code_end = .;
     } > CODE_RAM
 
     .data :
