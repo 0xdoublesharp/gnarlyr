@@ -6,6 +6,7 @@
 #include "core/permutation.h"
 #include "library/library.h"
 #include "library/library_browse.h"
+#include "playback/track_order.h"
 
 typedef enum ShuffleMode {
     SHUFFLE_OFF,
@@ -51,9 +52,13 @@ typedef struct PlayQueue {
     Permutation order;
     uint16_t count;
     PlayQueueCursor cursor;
+    const TrackOrder *stored_order;
+    uint32_t stored_generation;
 } PlayQueue;
 
 bool play_queue_build(PlayQueue *queue, const Library *library, PlayQueuePlan plan);
+bool play_queue_use_order(PlayQueue *queue, const Library *library, const TrackOrder *order,
+                          PlayQueuePlan plan);
 bool play_queue_track_at(const PlayQueue *queue, PlayQueueCursor cursor, uint16_t *track);
 bool play_queue_current(const PlayQueue *queue, uint16_t *track);
 bool play_queue_step(const PlayQueue *queue, PlayQueueCursor from, int direction, bool wrap,

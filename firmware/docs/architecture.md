@@ -129,6 +129,10 @@ The CMake targets enforce these rules. Each module exposes only its own `include
 - Replacing the next track after it has already been decoded requires rebuilding its buffered tail. `audio_engine_queue_needs_restart` identifies buffered next segments, a pending rate change or buffered end-of-stream silence. The board stops DMA before `audio_engine_queue_next` seeks the current segment to its reported file position and queues its replacement, then refills/restarts the output while preserving pause state. Decoder fixtures verify replacement/removal, current position, PCM identity and rate-change handling. Ordinary queueing before the next segment is decoded retains gapless behavior.
 - Up Next caches refresh on queue revision, current token, playback state, repeat or shuffle changes. Its action menu retains the captured row/count so actions do not move under a selection while playback advances; the revision and HAL-token checks reject stale edits. Generated queue and saved-playlist editing remain separate work.
 
+## Stored sequence foundation
+
+`playback/track_order` stores a library-sized sequence outside RAM using two fixed banks, incremental edits, payload verification and header-last publication. `play_queue_use_order` can traverse that exact sequence and rejects a binding after its generation changes. See [stored orders](stored-orders.md) for the format, ownership, error outcomes and memory bounds. Player menus, generated-order snapshots, resume association and saved-playlist identity mapping are not integrated yet.
+
 ## Cover Flow
 
 - Now Playing shows the playing album's full cover (112 px) on the left, below the header, with the text, progress and times in a column to its right. It loads the cover through the same `CoverCache` full slot in `update`. Without a cover it keeps the full-width text layout.

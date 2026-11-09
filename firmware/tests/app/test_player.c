@@ -696,10 +696,26 @@ static void editing_a_released_queue_does_not_reclaim_audio_output(void)
     CHECK_EQUAL(PLAYER_PAUSED, started->state);
 }
 
+static void initialization_clears_a_previous_queue_binding(void)
+{
+    fake_hal_reset();
+    Player dirty;
+    memset(&dirty, 0xA5, sizeof dirty);
+    player_init(&dirty, fixture_library_open(&fixture));
+    CHECK(dirty.queue.stored_order == NULL);
+    if (dirty.queue.stored_order != NULL) {
+        return;
+    }
+    CHECK_EQUAL(PLAYER_IDLE, player_status(&dirty).state);
+    CHECK_EQUAL(0, player_status(&dirty).place.total);
+    CHECK_EQUAL(0, dirty.queue.stored_generation);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(playing_a_list_starts_the_selected_track),
+        TEST_CASE(initialization_clears_a_previous_queue_binding),
         TEST_CASE(moving_a_song_preserves_playback_and_survives_a_restart),
         TEST_CASE(moving_earlier_and_later_updates_the_prepared_song),
         TEST_CASE(clearing_added_songs_returns_to_the_album_and_persists),

@@ -47,7 +47,7 @@ target_compile_definitions(echo_library_fixtures PRIVATE
 )
 target_link_libraries(echo_library_fixtures PUBLIC echo_library echo_library_scan PRIVATE echo_options)
 
-foreach(playback_test play_queue resume_state up_next bookmarks spoken)
+foreach(playback_test play_queue resume_state up_next bookmarks spoken track_order)
     echo_add_unit_test(NAME test_${playback_test}
         SOURCES playback/test_${playback_test}.c
         LIBRARIES echo_playback echo_library_fixtures
@@ -293,6 +293,12 @@ echo_add_unit_test(NAME test_fat_extents
 )
 target_compile_definitions(test_fat_extents PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 set_tests_properties(test_fat_extents PROPERTIES TIMEOUT 20)
+echo_add_unit_test(NAME test_stored_queue
+    SOURCES device/test_stored_queue.c device/sparse_card.c
+    LIBRARIES echo_device_logic echo_playback echo_library_fixtures
+)
+target_compile_definitions(test_stored_queue PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+set_tests_properties(test_stored_queue PROPERTIES TIMEOUT 30)
 set(ECHO_CREATED_CARDS ${CMAKE_CURRENT_BINARY_DIR}/created_cards)
 file(MAKE_DIRECTORY ${ECHO_CREATED_CARDS})
 echo_add_unit_test(NAME test_fat_create

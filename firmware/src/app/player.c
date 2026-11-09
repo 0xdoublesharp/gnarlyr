@@ -226,8 +226,7 @@ void player_init(Player *player, const Library *library)
 {
     player->library = library;
     player->fingerprint = library_fingerprint(library);
-    player->queue.library = library;
-    player->queue.count = 0;
+    player->queue = (PlayQueue){.library = library};
     player->up_next_revision = 0;
     up_next_clear(&player->up_next);
     player->from_up_next = false;
