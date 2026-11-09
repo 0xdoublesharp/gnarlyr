@@ -524,6 +524,20 @@ static void follow_jack(Player *player)
     }
 }
 
+static void release_long_pause(Player *player, uint32_t now_ms)
+{
+    if (player->state != PLAYER_PAUSED) {
+        player->pause_timing = false;
+    } else if (!player->pause_timing) {
+        player->pause_timing = true;
+        player->paused_since_ms = now_ms;
+    } else if (now_ms - player->paused_since_ms >= PLAYER_PAUSE_RELEASE_MS) {
+        player_release_output(player);
+        hal_audio_release();
+        player->pause_timing = false;
+    }
+}
+
 void player_update(Player *player, uint32_t now_ms)
 {
     follow_jack(player);
@@ -537,6 +551,7 @@ void player_update(Player *player, uint32_t now_ms)
         finish_track(player, status.failed);
     }
     save_periodically(player, now_ms);
+    release_long_pause(player, now_ms);
 }
 
 bool player_save(Player *player)
@@ -658,6 +673,9 @@ void player_refusal_text(HalAudioRefusal refusal, char *text, size_t capacity)
     }
     case HAL_AUDIO_PROBLEM_FORMAT:
         string_builder_append(&builder, "This file type isn't supported yet");
+        return;
+    case HAL_AUDIO_PROBLEM_AAC_ONLY:
+        string_builder_append(&builder, "Only AAC-LC and ALAC M4A play");
         return;
     case HAL_AUDIO_PROBLEM_UNREADABLE:
     case HAL_AUDIO_PROBLEM_NONE:

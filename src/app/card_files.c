@@ -5,6 +5,8 @@
 
 #include "bluetooth_store.h"
 #include "cover_cache.h"
+#include "equalizer_presets.h"
+#include "favorite_playlist.h"
 #include "favorites_store.h"
 #include "hal/storage.h"
 #include "library_rescan.h"
@@ -32,6 +34,7 @@ static const CardFile CARD_FILES[] = {
     {COVER_CACHE_PATH, COVERS_FILE_BYTES, false},
     {LIBRARY_SCRATCH_PATH, SCRATCH_FILE_BYTES, false},
     {SETTINGS_STORE_PATH, SMALL_FILE_BYTES, true},
+    {EQUALIZER_SLOTS_PATH, SMALL_FILE_BYTES, true},
     {PLAYER_RESUME_PATH, SMALL_FILE_BYTES, false},
     {FAVORITES_STORE_PATH, SMALL_FILE_BYTES, false},
     {MUSIC_CHECK_PATH, SMALL_FILE_BYTES, false},
@@ -39,6 +42,7 @@ static const CardFile CARD_FILES[] = {
     {SPOKEN_STORE_PATH, SMALL_FILE_BYTES, false},
     {RESCAN_TIMES_PATH, SMALL_FILE_BYTES, false},
     {BLUETOOTH_STORE_PATH, SMALL_FILE_BYTES, false},
+    {FAVORITE_ADDED_PATH, SMALL_FILE_BYTES, false},
 };
 
 size_t card_files_count(void)

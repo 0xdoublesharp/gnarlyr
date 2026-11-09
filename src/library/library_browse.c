@@ -6,7 +6,8 @@
 
 enum {
     PATH_CAPACITY = 256,
-    ROOT_FOLDER = 0
+    ROOT_FOLDER = 0,
+    TREE_DEPTH = 64
 };
 
 static BrowseItem make_item(BrowseItemKind kind, LibrarySection group, uint32_t index)
@@ -30,6 +31,7 @@ static LibrarySection group_section_of(BrowseKind kind)
     case BROWSE_GROUP_ALBUMS:
     case BROWSE_ALBUM_TRACKS:
     case BROWSE_FOLDER:
+    case BROWSE_FOLDER_TREE:
         return LIBRARY_ARTISTS;
     }
     return LIBRARY_ARTISTS;
@@ -70,6 +72,110 @@ static uint32_t album_track_count(const Library *library, BrowseQuery query)
     return count;
 }
 
+static bool is_sheet(const Library *library, uint32_t index)
+{
+    LibraryFolder folder;
+    return library_read_folder(library, index, &folder) &&
+           (folder.flags & LIBRARY_FOLDER_SHEET) != 0;
+}
+
+static bool track_of_folder(const Library *library, uint16_t folder, bool last, uint16_t *track)
+{
+    LibraryFolder record;
+    if (!library_read_folder(library, folder, &record) || record.track_count == 0) {
+        return false;
+    }
+    uint32_t position = last ? (uint32_t)record.track_count - 1u : 0;
+    return library_read_index(library, LIBRARY_LINKS,
+                              record.first_link + record.subfolder_count + position, track);
+}
+
+static bool sheet_of(const Library *library, uint16_t folder, uint16_t track, uint16_t *sheet)
+{
+    LibraryFolder record;
+    if (!library_read_folder(library, folder, &record)) {
+        return false;
+    }
+    for (uint32_t index = 0; index < record.subfolder_count; index++) {
+        uint16_t child = 0;
+        uint16_t first = 0;
+        if (library_read_index(library, LIBRARY_LINKS, record.first_link + index, &child) &&
+            is_sheet(library, child) && track_of_folder(library, child, false, &first) &&
+            first == track) {
+            *sheet = child;
+            return true;
+        }
+    }
+    return false;
+}
+
+static uint32_t tree_count(const Library *library, uint16_t root)
+{
+    LibraryFolder folder;
+    uint32_t total = 0;
+    for (uint32_t index = root;
+         library_read_folder(library, index, &folder) && (index == root || folder.parent >= root);
+         index++) {
+        total += folder.track_count;
+        total -= index != root && (folder.flags & 3) == LIBRARY_FOLDER_SHEET ? 1 : 0;
+    }
+    return total;
+}
+
+static bool tree_descend(const Library *library, uint16_t *current, uint32_t *position)
+{
+    LibraryFolder folder;
+    if (!library_read_folder(library, *current, &folder)) {
+        return false;
+    }
+    for (uint32_t index = 0; index < folder.subfolder_count; index++) {
+        uint16_t child = 0;
+        if (!library_read_index(library, LIBRARY_LINKS, folder.first_link + index, &child)) {
+            return false;
+        }
+        uint32_t count = tree_count(library, child);
+        if (*position < count) {
+            *current = child;
+            return true;
+        }
+        *position -= count;
+    }
+    return false;
+}
+
+static bool tree_own_track(const Library *library, uint16_t index, uint32_t position,
+                           uint16_t *track)
+{
+    LibraryFolder folder;
+    uint16_t sheet = 0;
+    if (!library_read_folder(library, index, &folder)) {
+        return false;
+    }
+    for (uint32_t link = 0; link < folder.track_count; link++) {
+        if (!library_read_index(library, LIBRARY_LINKS,
+                                folder.first_link + folder.subfolder_count + link, track)) {
+            return false;
+        }
+        if (!sheet_of(library, index, *track, &sheet) && position-- == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool tree_item(const Library *library, uint16_t subject, uint32_t position, BrowseItem *item)
+{
+    uint16_t current = subject;
+    uint16_t track = 0;
+    for (int depth = 0; depth < TREE_DEPTH && tree_descend(library, &current, &position); depth++) {
+    }
+    if (!tree_own_track(library, current, position, &track)) {
+        return false;
+    }
+    *item = make_item(BROWSE_ITEM_TRACK, LIBRARY_ARTISTS, track);
+    return true;
+}
+
 static uint32_t folder_item_count(const Library *library, uint32_t subject)
 {
     LibraryFolder folder;
@@ -99,6 +205,8 @@ uint32_t browse_count(const Library *library, BrowseQuery query)
         return album_track_count(library, query);
     case BROWSE_FOLDER:
         return folder_item_count(library, query.subject);
+    case BROWSE_FOLDER_TREE:
+        return tree_count(library, query.subject);
     case BROWSE_PLAYLISTS:
         return library_count(library, LIBRARY_PLAYLISTS);
     }
@@ -200,6 +308,8 @@ bool browse_item(const Library *library, BrowseQuery query, uint32_t position, B
         return album_track_item(library, query, position, item);
     case BROWSE_FOLDER:
         return folder_item(library, query.subject, position, item);
+    case BROWSE_FOLDER_TREE:
+        return tree_item(library, query.subject, position, item);
     }
     return false;
 }
@@ -246,21 +356,14 @@ static void copy_span(char *target, size_t capacity, const char *source, size_t 
     target[kept] = '\0';
 }
 
-static void copy_file_stem(char *target, size_t capacity, const char *path)
+static void copy_file_name(char *target, size_t capacity, const char *path)
 {
     size_t start = 0;
     size_t length = 0;
     for (; path[length] != '\0'; length++) {
         start = path[length] == '/' ? length + 1 : start;
     }
-    size_t end = length;
-    for (size_t index = length; index > start + 1; index--) {
-        if (path[index - 1] == '.') {
-            end = index - 1;
-            break;
-        }
-    }
-    copy_span(target, capacity, path + start, end - start);
+    copy_span(target, capacity, path + start, length - start);
 }
 
 static bool group_text(const Library *library, BrowseItem item, BrowseText text)
@@ -286,15 +389,30 @@ static bool album_text(const Library *library, BrowseItem item, BrowseText text)
 static bool track_label(const Library *library, BrowseQuery query, LibraryTrack track,
                         BrowseText text)
 {
-    if (query.kind != BROWSE_FOLDER) {
+    if (query.kind != BROWSE_FOLDER || is_sheet(library, query.subject)) {
         return library_read_string(library, track.title, text.label, text.label_capacity);
     }
     char path[PATH_CAPACITY];
     if (!library_read_string(library, track.path, path, sizeof path)) {
         return false;
     }
-    copy_file_stem(text.label, text.label_capacity, path);
+    copy_file_name(text.label, text.label_capacity, path);
     return true;
+}
+
+static uint32_t listed_length(const Library *library, BrowseQuery query, uint16_t index,
+                              LibraryTrack track)
+{
+    uint16_t sheet = 0;
+    uint16_t last = 0;
+    LibraryTrack final;
+    if (query.kind != BROWSE_FOLDER || (track.start_ms == 0 && track.end_ms == 0) ||
+        !sheet_of(library, query.subject, index, &sheet) ||
+        !track_of_folder(library, sheet, true, &last) ||
+        !library_read_track(library, last, &final)) {
+        return track.duration_ms;
+    }
+    return final.start_ms + final.duration_ms;
 }
 
 static bool track_text(const Library *library, BrowseQuery query, BrowseItem item, BrowseText text)
@@ -303,7 +421,8 @@ static bool track_text(const Library *library, BrowseQuery query, BrowseItem ite
     if (!library_read_track(library, item.index, &track)) {
         return false;
     }
-    format_duration(track.duration_ms, text.detail, text.detail_capacity);
+    format_duration(listed_length(library, query, item.index, track), text.detail,
+                    text.detail_capacity);
     return track_label(library, query, track, text);
 }
 
@@ -360,6 +479,7 @@ static bool subject_title(const Library *library, BrowseQuery query, char *buffe
     case BROWSE_ALBUMS:
     case BROWSE_ALL_SONGS:
     case BROWSE_PLAYLISTS:
+    case BROWSE_FOLDER_TREE:
         return false;
     }
     return false;
@@ -388,7 +508,23 @@ bool browse_title(const Library *library, BrowseQuery query, char *buffer, size_
     case BROWSE_GROUP_ALBUMS:
     case BROWSE_ALBUM_TRACKS:
     case BROWSE_PLAYLIST_TRACKS:
+    case BROWSE_FOLDER_TREE:
         return subject_title(library, query, buffer, capacity);
     }
     return false;
+}
+
+BrowseQuery browse_play_source(const Library *library, BrowseQuery query, uint32_t *position)
+{
+    BrowseItem item;
+    LibraryTrack track;
+    uint16_t sheet = 0;
+    if (query.kind != BROWSE_FOLDER || !browse_item(library, query, *position, &item) ||
+        item.kind != BROWSE_ITEM_TRACK || !library_read_track(library, item.index, &track) ||
+        (track.start_ms == 0 && track.end_ms == 0) ||
+        !sheet_of(library, query.subject, item.index, &sheet)) {
+        return query;
+    }
+    *position = 0;
+    return query_of(BROWSE_FOLDER, LIBRARY_ARTISTS, sheet, LIBRARY_NONE);
 }

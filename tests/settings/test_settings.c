@@ -8,7 +8,27 @@ enum {
     AUTO_OFF_FIELD = 14,
     USB_MODE_FIELD = 15,
     DAC_VOLUME_FIELD = 16,
-    CHECKSUM_FIELD = 20,
+    ACCENT_FIELD = 17,
+    EQUALIZER_FIELD = 18,
+    EQUALIZER_GAINS_FIELD = 19,
+    OLD_CHECKSUM_FIELD = 20,
+    TEXT_SIZE_FIELD = 24,
+    SKIP_GESTURE_FIELD = 25,
+    ORIENTATION_FIELD = 26,
+    PREVIOUS_CHECKSUM_FIELD = 28,
+    HALF_DB_GAINS_FIELD = 28,
+    HALF_DB_CHECKSUM_FIELD = 38,
+    HALF_DB_VERSION = 11,
+    CURRENT_VERSION = 11,
+    ACCENT_VERSION = 5,
+    EQUALIZER_VERSION = 6,
+    TEXT_SIZE_VERSION = 7,
+    SKIP_GESTURE_VERSION = 8,
+    VOLUME_SCALE_VERSION = 9,
+    ORIENTATION_VERSION = 10,
+    VOLUME_FIELD = 13,
+    OLD_FILE_SIZE = 24,
+    PREVIOUS_FILE_SIZE = 32,
     NEVER_OPTION = 6
 };
 
@@ -26,15 +46,44 @@ static Settings custom_settings(void)
     settings.auto_off = 3;
     settings.usb_mode = USB_MODE_DAC;
     settings.dac_volume = 37;
+    settings.accent = ACCENT_TEAL;
+    settings.equalizer = EQUALIZER_JAZZ;
+    settings.equalizer_gains[0] = -20;
+    settings.equalizer_gains[2] = 8;
+    settings.equalizer_gains[4] = 20;
+    settings.equalizer_gains[9] = -3;
+    settings.text_size = TEXT_SIZE_LARGE;
+    settings.skip_gesture = SKIP_GESTURE_PLAY_CLICKS;
+    settings.orientation = ORIENTATION_PORTRAIT_FLIPPED;
     return settings;
 }
 
 static void rewrite_checksum(uint8_t *bytes)
 {
-    uint32_t checksum = hash_update(HASH_START, bytes, CHECKSUM_FIELD);
+    int field = bytes[VERSION_FIELD] < EQUALIZER_VERSION ? OLD_CHECKSUM_FIELD
+                : bytes[VERSION_FIELD] < HALF_DB_VERSION ? PREVIOUS_CHECKSUM_FIELD
+                                                         : HALF_DB_CHECKSUM_FIELD;
+    uint32_t checksum = hash_update(HASH_START, bytes, (uint32_t)field);
     for (int index = 0; index < 4; index++) {
-        bytes[CHECKSUM_FIELD + index] = (uint8_t)(checksum >> (8 * index));
+        bytes[field + index] = (uint8_t)(checksum >> (8 * index));
     }
+}
+
+static void old_layout(uint8_t *bytes, uint8_t version)
+{
+    bytes[VERSION_FIELD] = version;
+    int first_new = version < ACCENT_VERSION      ? ACCENT_FIELD
+                    : version < EQUALIZER_VERSION ? EQUALIZER_FIELD
+                    : version < TEXT_SIZE_VERSION ? TEXT_SIZE_FIELD
+                                                  : SKIP_GESTURE_FIELD;
+    for (int index = first_new; index < SETTINGS_FILE_SIZE; index++) {
+        bytes[index] = 0;
+    }
+    static const uint8_t OLD_JAZZ_GAINS[] = {0, 10, 14, 10, 20};
+    for (int band = 0; version >= EQUALIZER_VERSION && band < 5; band++) {
+        bytes[EQUALIZER_GAINS_FIELD + band] = OLD_JAZZ_GAINS[band];
+    }
+    rewrite_checksum(bytes);
 }
 
 static void defaults_are_comfortable(void)
@@ -47,10 +96,18 @@ static void defaults_are_comfortable(void)
     CHECK_EQUAL(START_MAIN_MENU, settings.start_screen);
     CHECK_EQUAL(SHUFFLE_OFF, settings.shuffle);
     CHECK_EQUAL(REPEAT_OFF, settings.repeat);
-    CHECK_EQUAL(12, settings.volume);
+    CHECK_EQUAL(13, settings.volume);
     CHECK_EQUAL(5u * 60000u, settings_auto_off_ms(&settings));
     CHECK_EQUAL(USB_MODE_STORAGE, settings.usb_mode);
-    CHECK_EQUAL(30, settings.dac_volume);
+    CHECK_EQUAL(35, settings.dac_volume);
+    CHECK_EQUAL(ACCENT_BLUE, settings.accent);
+    CHECK_EQUAL(EQUALIZER_OFF, settings.equalizer);
+    for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
+        CHECK_EQUAL(0, settings.equalizer_gains[band]);
+    }
+    CHECK_EQUAL(TEXT_SIZE_MEDIUM, settings.text_size);
+    CHECK_EQUAL(SKIP_GESTURE_HOLD, settings.skip_gesture);
+    CHECK_EQUAL(ORIENTATION_LANDSCAPE, settings.orientation);
 }
 
 static void auto_off_options_are_stocks(void)
@@ -71,9 +128,10 @@ static void a_version_one_file_keeps_its_values_and_gets_the_default_auto_off(vo
     rewrite_checksum(bytes);
     Settings decoded;
     CHECK(settings_decode(bytes, sizeof bytes, &decoded));
-    CHECK_EQUAL(42, decoded.volume);
+    CHECK_EQUAL(49, decoded.volume);
     CHECK_EQUAL(settings_defaults().auto_off, decoded.auto_off);
     CHECK_EQUAL(USB_MODE_STORAGE, decoded.usb_mode);
+    CHECK_EQUAL(TEXT_SIZE_MEDIUM, decoded.text_size);
 }
 
 static void a_version_two_file_keeps_its_auto_off_and_uses_usb_storage(void)
@@ -95,7 +153,7 @@ static void the_usb_mode_and_dac_volume_are_saved_at_bytes_fifteen_and_sixteen(v
     Settings settings = custom_settings();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
-    CHECK_EQUAL(4, bytes[VERSION_FIELD]);
+    CHECK_EQUAL(CURRENT_VERSION, bytes[VERSION_FIELD]);
     CHECK_EQUAL(USB_MODE_DAC, bytes[USB_MODE_FIELD]);
     CHECK_EQUAL(37, bytes[DAC_VOLUME_FIELD]);
 }
@@ -112,6 +170,38 @@ static void a_version_three_file_keeps_its_usb_mode_and_gets_the_default_dac_vol
     CHECK(settings_decode(bytes, sizeof bytes, &decoded));
     CHECK_EQUAL(USB_MODE_DAC, decoded.usb_mode);
     CHECK_EQUAL(SETTINGS_DEFAULT_DAC_VOLUME, decoded.dac_volume);
+}
+
+static void the_accent_color_is_saved_at_byte_seventeen(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(ACCENT_TEAL, bytes[ACCENT_FIELD]);
+}
+
+static void a_version_four_file_keeps_its_dac_volume_and_gets_the_blue_accent(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[VERSION_FIELD] = 4;
+    bytes[ACCENT_FIELD] = 0;
+    rewrite_checksum(bytes);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(43, decoded.dac_volume);
+    CHECK_EQUAL(ACCENT_BLUE, decoded.accent);
+}
+
+static void an_unknown_accent_color_is_rejected(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[ACCENT_FIELD] = ACCENT_COLOR_COUNT;
+    rewrite_checksum(bytes);
+    CHECK(!settings_decode(bytes, sizeof bytes, &settings));
 }
 
 static void a_dac_volume_above_the_top_is_rejected(void)
@@ -139,9 +229,421 @@ static void a_newer_version_is_rejected(void)
     Settings settings = custom_settings();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
-    bytes[VERSION_FIELD] = 5;
+    bytes[VERSION_FIELD] = CURRENT_VERSION + 1;
     rewrite_checksum(bytes);
     CHECK(!settings_decode(bytes, sizeof bytes, &settings));
+}
+
+static void the_equalizer_is_saved_after_the_dac_volume(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(EQUALIZER_JAZZ, bytes[EQUALIZER_FIELD]);
+    CHECK_EQUAL(0, bytes[HALF_DB_GAINS_FIELD]);
+    CHECK_EQUAL(20, bytes[HALF_DB_GAINS_FIELD + 1]);
+    CHECK_EQUAL(28, bytes[HALF_DB_GAINS_FIELD + 2]);
+    CHECK_EQUAL(40, bytes[HALF_DB_GAINS_FIELD + 4]);
+    CHECK_EQUAL(17, bytes[HALF_DB_GAINS_FIELD + 9]);
+    CHECK_EQUAL(0, bytes[EQUALIZER_GAINS_FIELD]);
+}
+
+static void a_version_four_file_of_the_old_size_loads_with_the_equalizer_off(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    old_layout(bytes, 4);
+    Settings decoded;
+    CHECK(settings_decode(bytes, OLD_FILE_SIZE, &decoded));
+    CHECK_EQUAL(43, decoded.dac_volume);
+    CHECK_EQUAL(EQUALIZER_OFF, decoded.equalizer);
+    CHECK_EQUAL(0, decoded.equalizer_gains[4]);
+    CHECK_EQUAL(ACCENT_BLUE, decoded.accent);
+}
+
+static void a_version_five_file_keeps_its_accent_and_gets_the_equalizer_off(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    old_layout(bytes, ACCENT_VERSION);
+    Settings decoded;
+    CHECK(settings_decode(bytes, OLD_FILE_SIZE, &decoded));
+    CHECK_EQUAL(43, decoded.dac_volume);
+    CHECK_EQUAL(ACCENT_TEAL, decoded.accent);
+    CHECK_EQUAL(EQUALIZER_OFF, decoded.equalizer);
+    CHECK_EQUAL(0, decoded.equalizer_gains[0]);
+    CHECK_EQUAL(TEXT_SIZE_MEDIUM, decoded.text_size);
+}
+
+static void the_text_size_is_saved_at_byte_twenty_four(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(TEXT_SIZE_LARGE, bytes[TEXT_SIZE_FIELD]);
+    settings.text_size = TEXT_SIZE_SMALL;
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(TEXT_SIZE_SMALL, bytes[TEXT_SIZE_FIELD]);
+}
+
+static void a_version_six_file_keeps_its_equalizer_and_gets_medium_text(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    old_layout(bytes, EQUALIZER_VERSION);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(ACCENT_TEAL, decoded.accent);
+    CHECK_EQUAL(EQUALIZER_JAZZ, decoded.equalizer);
+    CHECK_EQUAL(-20, decoded.equalizer_gains[0]);
+    CHECK_EQUAL(20, decoded.equalizer_gains[9]);
+    CHECK_EQUAL(TEXT_SIZE_MEDIUM, decoded.text_size);
+}
+
+static void a_version_ten_equalizer_is_spread_over_ten_bands_in_half_decibels(void)
+{
+    static const int8_t expected[SETTINGS_EQUALIZER_BANDS] = {-20, -20, -16, -4, 3,
+                                                              8,   3,   4,   16, 20};
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    old_layout(bytes, ORIENTATION_VERSION);
+    Settings decoded;
+    CHECK(settings_decode(bytes, PREVIOUS_FILE_SIZE, &decoded));
+    CHECK_EQUAL(EQUALIZER_JAZZ, decoded.equalizer);
+    for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
+        CHECK_EQUAL(expected[band], decoded.equalizer_gains[band]);
+    }
+}
+
+static void a_flat_version_ten_equalizer_stays_flat(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    old_layout(bytes, ORIENTATION_VERSION);
+    for (int band = 0; band < 5; band++) {
+        bytes[EQUALIZER_GAINS_FIELD + band] = 10;
+    }
+    rewrite_checksum(bytes);
+    Settings decoded;
+    CHECK(settings_decode(bytes, PREVIOUS_FILE_SIZE, &decoded));
+    for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
+        CHECK_EQUAL(0, decoded.equalizer_gains[band]);
+    }
+}
+
+static void a_version_ten_gain_beyond_ten_decibels_is_rejected(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    old_layout(bytes, ORIENTATION_VERSION);
+    bytes[EQUALIZER_GAINS_FIELD + 3] = 21;
+    rewrite_checksum(bytes);
+    CHECK(!settings_decode(bytes, PREVIOUS_FILE_SIZE, &settings));
+}
+
+static void the_new_version_needs_the_longer_file(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK(!settings_decode(bytes, PREVIOUS_FILE_SIZE, &settings));
+}
+
+static void a_version_six_file_ignores_what_lies_at_the_text_size_byte(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    old_layout(bytes, EQUALIZER_VERSION);
+    bytes[TEXT_SIZE_FIELD] = TEXT_SIZE_COUNT;
+    rewrite_checksum(bytes);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(TEXT_SIZE_MEDIUM, decoded.text_size);
+}
+
+static void an_unknown_text_size_is_rejected(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[TEXT_SIZE_FIELD] = TEXT_SIZE_COUNT;
+    rewrite_checksum(bytes);
+    CHECK(!settings_decode(bytes, sizeof bytes, &settings));
+}
+
+static void the_skip_gesture_is_saved_at_byte_twenty_five(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(SKIP_GESTURE_PLAY_CLICKS, bytes[SKIP_GESTURE_FIELD]);
+    settings.skip_gesture = SKIP_GESTURE_DOUBLE_VOLUME;
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(SKIP_GESTURE_DOUBLE_VOLUME, bytes[SKIP_GESTURE_FIELD]);
+}
+
+static void a_version_seven_file_keeps_its_text_size_and_gets_the_hold_gesture(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    old_layout(bytes, TEXT_SIZE_VERSION);
+    bytes[SKIP_GESTURE_FIELD] = SKIP_GESTURE_COUNT;
+    rewrite_checksum(bytes);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(TEXT_SIZE_LARGE, decoded.text_size);
+    CHECK_EQUAL(SKIP_GESTURE_HOLD, decoded.skip_gesture);
+}
+
+static Settings decoded_version_eight(uint8_t volume, uint8_t dac_volume)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[VERSION_FIELD] = SKIP_GESTURE_VERSION;
+    bytes[VOLUME_FIELD] = volume;
+    bytes[DAC_VOLUME_FIELD] = dac_volume;
+    rewrite_checksum(bytes);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    return decoded;
+}
+
+static void a_version_eight_volume_converts_to_the_sixty_step_scale(void)
+{
+    Settings decoded = decoded_version_eight(50, 30);
+    CHECK_EQUAL(59, decoded.volume);
+    CHECK_EQUAL(SETTINGS_DEFAULT_DAC_VOLUME, decoded.dac_volume);
+    decoded = decoded_version_eight(0, 25);
+    CHECK_EQUAL(0, decoded.volume);
+    CHECK_EQUAL(29, decoded.dac_volume);
+    decoded = decoded_version_eight(12, 1);
+    CHECK_EQUAL(13, decoded.volume);
+    CHECK_EQUAL(1, decoded.dac_volume);
+    CHECK_EQUAL(TEXT_SIZE_LARGE, decoded.text_size);
+    CHECK_EQUAL(SKIP_GESTURE_PLAY_CLICKS, decoded.skip_gesture);
+}
+
+static void a_version_eight_volume_above_fifty_is_rejected(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[VERSION_FIELD] = SKIP_GESTURE_VERSION;
+    bytes[VOLUME_FIELD] = 51;
+    rewrite_checksum(bytes);
+    CHECK(!settings_decode(bytes, sizeof bytes, &settings));
+}
+
+static void a_current_volume_up_to_sixty_is_kept(void)
+{
+    Settings settings = custom_settings();
+    settings.volume = SETTINGS_VOLUME_MAX;
+    settings.dac_volume = 1;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(SETTINGS_VOLUME_MAX, decoded.volume);
+    CHECK_EQUAL(1, decoded.dac_volume);
+}
+
+static void an_unknown_skip_gesture_is_rejected(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[SKIP_GESTURE_FIELD] = SKIP_GESTURE_COUNT;
+    rewrite_checksum(bytes);
+    CHECK(!settings_decode(bytes, sizeof bytes, &settings));
+}
+
+static void the_orientation_is_saved_at_byte_twenty_six(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(ORIENTATION_PORTRAIT_FLIPPED, bytes[ORIENTATION_FIELD]);
+    settings.orientation = ORIENTATION_PORTRAIT;
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(ORIENTATION_PORTRAIT, bytes[ORIENTATION_FIELD]);
+}
+
+static void a_version_nine_file_keeps_its_values_and_starts_in_landscape(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[VERSION_FIELD] = VOLUME_SCALE_VERSION;
+    rewrite_checksum(bytes);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(SKIP_GESTURE_PLAY_CLICKS, decoded.skip_gesture);
+    CHECK_EQUAL(42, decoded.volume);
+    CHECK_EQUAL(ORIENTATION_LANDSCAPE, decoded.orientation);
+}
+
+static void an_unknown_orientation_is_rejected(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[ORIENTATION_FIELD] = ORIENTATION_COUNT;
+    rewrite_checksum(bytes);
+    CHECK(!settings_decode(bytes, sizeof bytes, &settings));
+}
+
+static void a_short_file_of_the_new_version_is_rejected(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK(!settings_decode(bytes, OLD_FILE_SIZE, &settings));
+}
+
+static void an_unknown_equalizer_preset_is_rejected(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[EQUALIZER_FIELD] = EQUALIZER_PRESET_COUNT;
+    rewrite_checksum(bytes);
+    CHECK(!settings_decode(bytes, sizeof bytes, &settings));
+}
+
+static void a_custom_gain_beyond_ten_decibels_is_rejected(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[HALF_DB_GAINS_FIELD + 3] = 41;
+    rewrite_checksum(bytes);
+    CHECK(!settings_decode(bytes, sizeof bytes, &settings));
+}
+
+static void equalizer_off_is_a_flat_curve(void)
+{
+    Settings settings = settings_defaults();
+    SettingsEqualizerCurve curve = settings_equalizer_curve(&settings);
+    CHECK_EQUAL(0, curve.band_count);
+    CHECK_EQUAL(SETTINGS_UNITY_PRE_GAIN, curve.pre_gain);
+}
+
+static void check_band(SettingsEqualizerCurve curve, int band, int hz, int gain_half_db)
+{
+    CHECK_EQUAL(hz, curve.band_hz[band]);
+    CHECK_EQUAL(gain_half_db, curve.gain_half_db[band]);
+}
+
+static void bass_boosts_63_and_125_hz_with_stocks_pre_attenuation(void)
+{
+    Settings settings = settings_defaults();
+    settings.equalizer = EQUALIZER_BASS;
+    SettingsEqualizerCurve curve = settings_equalizer_curve(&settings);
+    CHECK_EQUAL(2, curve.band_count);
+    check_band(curve, 0, 63, 10);
+    check_band(curve, 1, 125, 6);
+    CHECK_EQUAL(SETTINGS_UNITY_PRE_GAIN * 7 / 16, curve.pre_gain);
+}
+
+static void jazz_uses_all_five_stock_bands(void)
+{
+    Settings settings = settings_defaults();
+    settings.equalizer = EQUALIZER_JAZZ;
+    SettingsEqualizerCurve curve = settings_equalizer_curve(&settings);
+    CHECK_EQUAL(5, curve.band_count);
+    check_band(curve, 0, 100, 8);
+    check_band(curve, 1, 315, -12);
+    check_band(curve, 2, 1000, 8);
+    check_band(curve, 3, 3150, 2);
+    check_band(curve, 4, 10000, 12);
+    CHECK_EQUAL(SETTINGS_UNITY_PRE_GAIN * 7 / 16, curve.pre_gain);
+}
+
+static void presets_keep_stocks_pre_attenuation(void)
+{
+    static const int thirty_seconds[EQUALIZER_CUSTOM] = {32, 21, 14, 20, 20, 14, 14};
+    Settings settings = settings_defaults();
+    for (int preset = EQUALIZER_OFF; preset < EQUALIZER_CUSTOM; preset++) {
+        settings.equalizer = (EqualizerPreset)preset;
+        CHECK_EQUAL(thirty_seconds[preset] * 1024, settings_equalizer_curve(&settings).pre_gain);
+    }
+}
+
+static void custom_skips_flat_bands(void)
+{
+    Settings settings = custom_settings();
+    settings.equalizer = EQUALIZER_CUSTOM;
+    SettingsEqualizerCurve curve = settings_equalizer_curve(&settings);
+    CHECK_EQUAL(4, curve.band_count);
+    check_band(curve, 0, 31, -20);
+    check_band(curve, 1, 125, 8);
+    check_band(curve, 2, 500, 20);
+    check_band(curve, 3, 16000, -3);
+}
+
+static uint16_t custom_pre_gain(const int8_t *gains)
+{
+    Settings settings = settings_defaults();
+    settings.equalizer = EQUALIZER_CUSTOM;
+    for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
+        settings.equalizer_gains[band] = gains[band];
+    }
+    return settings_equalizer_curve(&settings).pre_gain;
+}
+
+static bool within_percent(int expected, int actual, int percent)
+{
+    int difference = expected > actual ? expected - actual : actual - expected;
+    return difference * 100 <= expected * percent;
+}
+
+static void custom_with_one_boost_attenuates_by_that_boost_and_the_margin(void)
+{
+    static const int8_t three[SETTINGS_EQUALIZER_BANDS] = {6};
+    static const int8_t far_apart[SETTINGS_EQUALIZER_BANDS] = {0, 0, 0, 0, 0, 0, 0, 6};
+    CHECK(within_percent(18427, custom_pre_gain(three), 1));
+    CHECK(within_percent(18427, custom_pre_gain(far_apart), 1));
+}
+
+static void custom_attenuates_more_for_a_bigger_peak(void)
+{
+    static const int8_t one[SETTINGS_EQUALIZER_BANDS] = {0, 0, 0, 0, 0, 1};
+    static const int8_t ten[SETTINGS_EQUALIZER_BANDS] = {0, 0, 0, 0, 0, 20};
+    static const int8_t every_band[SETTINGS_EQUALIZER_BANDS] = {20, 20, 20, 20, 20,
+                                                                20, 20, 20, 20, 20};
+    CHECK(custom_pre_gain(one) < SETTINGS_UNITY_PRE_GAIN);
+    CHECK(custom_pre_gain(ten) < custom_pre_gain(one));
+    CHECK(custom_pre_gain(every_band) < custom_pre_gain(ten));
+    CHECK(within_percent(1803, custom_pre_gain(every_band), 2));
+}
+
+static void custom_with_only_cuts_keeps_headroom_that_grows_with_the_cut(void)
+{
+    static const int8_t shallow[SETTINGS_EQUALIZER_BANDS] = {0, 0, 0, 0, 0, -2};
+    static const int8_t deep[SETTINGS_EQUALIZER_BANDS] = {0, 0, 0, 0, 0, -20};
+    static const int8_t adjacent[SETTINGS_EQUALIZER_BANDS] = {-20, -20, 0, 0, 0};
+    CHECK(within_percent(25001, custom_pre_gain(shallow), 1));
+    CHECK(custom_pre_gain(deep) < custom_pre_gain(shallow));
+    CHECK(within_percent(17396, custom_pre_gain(deep), 1));
+    CHECK(custom_pre_gain(adjacent) < custom_pre_gain(deep));
+}
+
+static void flat_custom_is_a_flat_curve(void)
+{
+    Settings settings = settings_defaults();
+    settings.equalizer = EQUALIZER_CUSTOM;
+    SettingsEqualizerCurve curve = settings_equalizer_curve(&settings);
+    CHECK_EQUAL(0, curve.band_count);
+    CHECK_EQUAL(SETTINGS_UNITY_PRE_GAIN, curve.pre_gain);
 }
 
 static void timeout_options_end_with_never(void)
@@ -179,6 +681,14 @@ static void settings_survive_a_round_trip(void)
     CHECK_EQUAL(original.auto_off, decoded.auto_off);
     CHECK_EQUAL(original.usb_mode, decoded.usb_mode);
     CHECK_EQUAL(original.dac_volume, decoded.dac_volume);
+    CHECK_EQUAL(original.accent, decoded.accent);
+    CHECK_EQUAL(original.equalizer, decoded.equalizer);
+    for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
+        CHECK_EQUAL(original.equalizer_gains[band], decoded.equalizer_gains[band]);
+    }
+    CHECK_EQUAL(original.text_size, decoded.text_size);
+    CHECK_EQUAL(original.skip_gesture, decoded.skip_gesture);
+    CHECK_EQUAL(original.orientation, decoded.orientation);
 }
 
 static void a_corrupted_file_is_rejected(void)
@@ -218,6 +728,41 @@ int main(void)
         TEST_CASE(a_dac_volume_above_the_top_is_rejected),
         TEST_CASE(an_unknown_usb_mode_is_rejected),
         TEST_CASE(a_newer_version_is_rejected),
+        TEST_CASE(a_version_eight_volume_converts_to_the_sixty_step_scale),
+        TEST_CASE(a_version_eight_volume_above_fifty_is_rejected),
+        TEST_CASE(a_current_volume_up_to_sixty_is_kept),
+        TEST_CASE(the_accent_color_is_saved_at_byte_seventeen),
+        TEST_CASE(a_version_four_file_keeps_its_dac_volume_and_gets_the_blue_accent),
+        TEST_CASE(an_unknown_accent_color_is_rejected),
+        TEST_CASE(a_version_five_file_keeps_its_accent_and_gets_the_equalizer_off),
+        TEST_CASE(the_equalizer_is_saved_after_the_dac_volume),
+        TEST_CASE(a_version_four_file_of_the_old_size_loads_with_the_equalizer_off),
+        TEST_CASE(a_short_file_of_the_new_version_is_rejected),
+        TEST_CASE(the_text_size_is_saved_at_byte_twenty_four),
+        TEST_CASE(a_version_six_file_keeps_its_equalizer_and_gets_medium_text),
+        TEST_CASE(a_version_six_file_ignores_what_lies_at_the_text_size_byte),
+        TEST_CASE(an_unknown_text_size_is_rejected),
+        TEST_CASE(the_skip_gesture_is_saved_at_byte_twenty_five),
+        TEST_CASE(a_version_seven_file_keeps_its_text_size_and_gets_the_hold_gesture),
+        TEST_CASE(an_unknown_skip_gesture_is_rejected),
+        TEST_CASE(the_orientation_is_saved_at_byte_twenty_six),
+        TEST_CASE(a_version_nine_file_keeps_its_values_and_starts_in_landscape),
+        TEST_CASE(an_unknown_orientation_is_rejected),
+        TEST_CASE(a_version_ten_equalizer_is_spread_over_ten_bands_in_half_decibels),
+        TEST_CASE(a_flat_version_ten_equalizer_stays_flat),
+        TEST_CASE(a_version_ten_gain_beyond_ten_decibels_is_rejected),
+        TEST_CASE(the_new_version_needs_the_longer_file),
+        TEST_CASE(an_unknown_equalizer_preset_is_rejected),
+        TEST_CASE(a_custom_gain_beyond_ten_decibels_is_rejected),
+        TEST_CASE(equalizer_off_is_a_flat_curve),
+        TEST_CASE(bass_boosts_63_and_125_hz_with_stocks_pre_attenuation),
+        TEST_CASE(jazz_uses_all_five_stock_bands),
+        TEST_CASE(presets_keep_stocks_pre_attenuation),
+        TEST_CASE(custom_skips_flat_bands),
+        TEST_CASE(custom_with_one_boost_attenuates_by_that_boost_and_the_margin),
+        TEST_CASE(custom_attenuates_more_for_a_bigger_peak),
+        TEST_CASE(custom_with_only_cuts_keeps_headroom_that_grows_with_the_cut),
+        TEST_CASE(flat_custom_is_a_flat_curve),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

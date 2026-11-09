@@ -17,7 +17,9 @@ enum {
 
 static int icon_top(const Theme *theme)
 {
-    return (theme->metrics.header_height - theme->metrics.status_icon_size) / 2;
+    int band = theme->metrics.status_height > 0 ? theme->metrics.status_height
+                                                : theme->metrics.header_height;
+    return (band - theme->metrics.status_icon_size) / 2;
 }
 
 static int nub_width(int size)
@@ -45,6 +47,20 @@ Rect status_bar_battery_area(const Theme *theme)
     int width = 2 * size + nub_width(size);
     return (Rect){theme->metrics.screen_width - theme->metrics.padding - width, icon_top(theme),
                   width, size};
+}
+
+Rect status_bar_lock_area(const Theme *theme)
+{
+    Rect bluetooth = status_bar_bluetooth_area(theme);
+    return (Rect){bluetooth.x + bluetooth.width + theme->metrics.padding / 2, bluetooth.y,
+                  bluetooth.width, bluetooth.height};
+}
+
+Rect status_bar_shuffle_area(const Theme *theme, StatusShuffle shuffle)
+{
+    Rect lock = status_bar_lock_area(theme);
+    return (Rect){lock.x + lock.width + theme->metrics.padding / 2, lock.y,
+                  icon_shuffle_width(shuffle == STATUS_SHUFFLE_ALBUMS), lock.height};
 }
 
 int status_bar_battery_fill_width(uint8_t percent, int inner_width)
@@ -140,6 +156,13 @@ void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state)
         Color tint =
             state.bluetooth == STATUS_BLUETOOTH_CONNECTED ? color : theme->colors.text_tertiary;
         icon_draw_bluetooth(canvas, status_bar_bluetooth_area(theme), tint);
+    }
+    if (state.locked) {
+        icon_draw_lock(canvas, status_bar_lock_area(theme), color);
+    }
+    if (state.shuffle != STATUS_SHUFFLE_OFF) {
+        icon_draw_shuffle(canvas, status_bar_shuffle_area(theme, state.shuffle), color,
+                          state.shuffle == STATUS_SHUFFLE_ALBUMS);
     }
     if (state.battery_known) {
         draw_battery(canvas, theme, state);

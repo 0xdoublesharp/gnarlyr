@@ -153,7 +153,7 @@ bool hal_file_write(const char *path, const void *bytes, uint32_t length)
 bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes, uint32_t length)
 {
     char resolved[PATH_CAPACITY];
-    if (!is_system_path(path) || !sim_storage_host_path(path, resolved, sizeof resolved)) {
+    if (!sim_storage_host_path(path, resolved, sizeof resolved)) {
         return false;
     }
     FILE *handle = fopen(resolved, "r+b");
@@ -174,8 +174,7 @@ HalReserveResult hal_file_reserve(const char *path, uint32_t size)
 {
     char resolved[PATH_CAPACITY];
     struct stat existing;
-    if (size == 0 || !is_system_path(path) ||
-        !sim_storage_host_path(path, resolved, sizeof resolved)) {
+    if (size == 0 || !sim_storage_host_path(path, resolved, sizeof resolved)) {
         return HAL_RESERVE_FAILED;
     }
     if (stat(resolved, &existing) == 0) {

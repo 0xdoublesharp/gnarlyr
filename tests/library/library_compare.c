@@ -151,6 +151,7 @@ static void compare_folders(Pair *pair)
         same_number(pair, "folder", index, "subfolders", left.subfolder_count,
                     right.subfolder_count);
         same_number(pair, "folder", index, "tracks", left.track_count, right.track_count);
+        same_number(pair, "folder", index, "flags", left.flags, right.flags);
         same_links(pair, "folder", index, left.first_link, right.first_link,
                    (uint32_t)left.subfolder_count + left.track_count);
     }

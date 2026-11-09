@@ -8,11 +8,13 @@ add_library(echo_app STATIC
     browse_screen.c
     cover_cache.c
     default_theme.c
+    favorite_playlist.c
     favorites_store.c
     diagnostics_values.c
     diagnostics_rows.c
     $<IF:$<BOOL:${ECHO_RELEASE}>,diagnostics_menu_release.c,diagnostics_menu.c>
     draw_profile.c
+    equalizer_presets.c
     frame_overlay.c
     home_art.c
     library_rescan.c
@@ -25,11 +27,9 @@ add_library(echo_app STATIC
     screens/bluetooth_screen.c
     screens/charge_screen.c
     screens/cover_flow_screen.c
-    screens/font_sample_screen.c
+    screens/equalizer_screen.c
     screens/now_playing_screen.c
     screens/up_next_screen.c
-    screens/stopwatch_screen.c
-    screens/test_pattern_screen.c
 )
 target_include_directories(echo_app PUBLIC include PRIVATE .)
 target_link_libraries(echo_app

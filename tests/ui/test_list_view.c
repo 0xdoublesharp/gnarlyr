@@ -70,6 +70,33 @@ static void a_new_list_selects_the_first_item(void)
     CHECK_EQUAL(TEST_VISIBLE_ROWS, view.visible_rows);
 }
 
+static void fitting_taller_rows_keeps_the_selection_on_screen(void)
+{
+    ListView view = list_of(10);
+    move_times(&view, 1, 2);
+    Theme taller = TEST_THEME;
+    taller.metrics.row_height = 8;
+    view.theme = &taller;
+    list_view_fit(&view);
+    CHECK_EQUAL(1, view.visible_rows);
+    CHECK_EQUAL(2, view.selected);
+    CHECK_EQUAL(2, view.top);
+}
+
+static void fitting_shorter_rows_fills_the_screen_to_the_last_item(void)
+{
+    ListView view = list_of(6);
+    move_times(&view, 1, 5);
+    CHECK_EQUAL(3, view.top);
+    Theme shorter = TEST_THEME;
+    shorter.metrics.row_height = 3;
+    view.theme = &shorter;
+    list_view_fit(&view);
+    CHECK_EQUAL(5, view.visible_rows);
+    CHECK_EQUAL(5, view.selected);
+    CHECK_EQUAL(1, view.top);
+}
+
 static void moving_within_the_page_keeps_the_top(void)
 {
     ListView view = list_of(10);
@@ -261,10 +288,35 @@ static void a_long_detail_stops_at_its_maximum_width(void)
     CHECK(ui_test_area_has_color(&canvas, right_of_row_one, TEST_THEME.colors.text_secondary));
 }
 
+static void a_portrait_detail_leaves_the_label_its_room(void)
+{
+    static Theme theme;
+    theme = TEST_THEME;
+    theme.metrics.screen_width = TEST_SCREEN_HEIGHT;
+    theme.metrics.screen_height = TEST_SCREEN_WIDTH;
+    items = (FakeItems){.count = 2, .detail_at_one = "BBBBBBBBBB"};
+    model = (ListModel){.context = &items,
+                        .count = fake_count,
+                        .label = fake_label,
+                        .detail = fake_detail,
+                        .opens = fake_opens};
+    ListView view;
+    list_view_init(&view, &model, &theme, 0);
+    Canvas canvas = ui_test_canvas();
+    list_view_draw(&view, &canvas, theme_content_area(&theme), 100);
+    Rect label = {theme.metrics.padding, row_rect(1).y, 3, TEST_ROW_HEIGHT};
+    CHECK(ui_test_area_has_color(&canvas, label, theme.colors.text));
+    Rect detail = {theme.metrics.screen_width / 2, row_rect(1).y, theme.metrics.screen_width / 2,
+                   TEST_ROW_HEIGHT};
+    CHECK(ui_test_area_has_color(&canvas, detail, theme.colors.text_secondary));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_new_list_selects_the_first_item),
+        TEST_CASE(fitting_taller_rows_keeps_the_selection_on_screen),
+        TEST_CASE(fitting_shorter_rows_fills_the_screen_to_the_last_item),
         TEST_CASE(moving_within_the_page_keeps_the_top),
         TEST_CASE(moving_past_the_last_visible_row_scrolls_down),
         TEST_CASE(moving_above_the_first_visible_row_scrolls_up),
@@ -283,6 +335,7 @@ int main(void)
         TEST_CASE(a_row_that_opens_something_shows_a_chevron),
         TEST_CASE(a_detail_is_drawn_in_the_secondary_color_at_the_right),
         TEST_CASE(a_long_detail_stops_at_its_maximum_width),
+        TEST_CASE(a_portrait_detail_leaves_the_label_its_room),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

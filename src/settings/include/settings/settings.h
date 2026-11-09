@@ -31,19 +31,68 @@ typedef enum UsbMode {
     USB_MODE_DAC
 } UsbMode;
 
+typedef enum AccentColor {
+    ACCENT_BLUE,
+    ACCENT_RED,
+    ACCENT_ORANGE,
+    ACCENT_GREEN,
+    ACCENT_TEAL,
+    ACCENT_PURPLE,
+    ACCENT_PINK,
+    ACCENT_GRAPHITE
+} AccentColor;
+
+typedef enum EqualizerPreset {
+    EQUALIZER_OFF,
+    EQUALIZER_RETRO,
+    EQUALIZER_BASS,
+    EQUALIZER_HEAVY,
+    EQUALIZER_POP,
+    EQUALIZER_JAZZ,
+    EQUALIZER_UNIQUE,
+    EQUALIZER_CUSTOM
+} EqualizerPreset;
+
+typedef enum TextSize {
+    TEXT_SIZE_SMALL,
+    TEXT_SIZE_MEDIUM,
+    TEXT_SIZE_LARGE
+} TextSize;
+
+typedef enum SkipGesture {
+    SKIP_GESTURE_HOLD,
+    SKIP_GESTURE_DOUBLE_VOLUME,
+    SKIP_GESTURE_PLAY_CLICKS
+} SkipGesture;
+
+typedef enum Orientation {
+    ORIENTATION_LANDSCAPE,
+    ORIENTATION_PORTRAIT,
+    ORIENTATION_PORTRAIT_FLIPPED
+} Orientation;
+
 enum {
     GAIN_LEVEL_COUNT = GAIN_HIGH + 1,
     OUTPUT_JACK_COUNT = OUTPUT_BALANCED + 1,
     START_SCREEN_COUNT = START_COVER_FLOW + 1,
     USB_MODE_COUNT = USB_MODE_DAC + 1,
+    ACCENT_COLOR_COUNT = ACCENT_GRAPHITE + 1,
+    EQUALIZER_PRESET_COUNT = EQUALIZER_CUSTOM + 1,
+    TEXT_SIZE_COUNT = TEXT_SIZE_LARGE + 1,
+    SKIP_GESTURE_COUNT = SKIP_GESTURE_PLAY_CLICKS + 1,
+    ORIENTATION_COUNT = ORIENTATION_PORTRAIT_FLIPPED + 1,
+    SETTINGS_EQUALIZER_BANDS = 10,
+    SETTINGS_EQUALIZER_GAIN_MAX = 20,
+    SETTINGS_UNITY_PRE_GAIN = 32768,
     SETTINGS_BRIGHTNESS_MIN = 1,
     SETTINGS_BRIGHTNESS_MAX = 10,
-    SETTINGS_VOLUME_MAX = 50,
-    SETTINGS_DEFAULT_DAC_VOLUME = 30,
+    SETTINGS_VOLUME_MAX = 60,
+    SETTINGS_DEFAULT_DAC_VOLUME = 35,
     SCREEN_TIMEOUT_OPTION_COUNT = 7,
     SLEEP_TIMER_OPTION_COUNT = 7,
     AUTO_OFF_OPTION_COUNT = 4,
-    SETTINGS_FILE_SIZE = 24
+    SETTINGS_FILE_SIZE = 42,
+    SETTINGS_PREVIOUS_FILE_SIZE = 32
 };
 
 typedef struct Settings {
@@ -58,7 +107,22 @@ typedef struct Settings {
     uint8_t auto_off;
     UsbMode usb_mode;
     uint8_t dac_volume;
+    AccentColor accent;
+    EqualizerPreset equalizer;
+    int8_t equalizer_gains[SETTINGS_EQUALIZER_BANDS];
+    TextSize text_size;
+    SkipGesture skip_gesture;
+    Orientation orientation;
 } Settings;
+
+typedef struct SettingsEqualizerCurve {
+    uint16_t band_hz[SETTINGS_EQUALIZER_BANDS];
+    int8_t gain_half_db[SETTINGS_EQUALIZER_BANDS];
+    uint8_t band_count;
+    uint16_t pre_gain;
+} SettingsEqualizerCurve;
+
+extern const uint16_t SETTINGS_EQUALIZER_BAND_HZ[SETTINGS_EQUALIZER_BANDS];
 
 Settings settings_defaults(void);
 uint32_t settings_timeout_option_seconds(int option);
@@ -66,5 +130,6 @@ uint32_t settings_sleep_option_minutes(int option);
 uint32_t settings_screen_timeout_ms(const Settings *settings);
 uint32_t settings_auto_off_option_minutes(int option);
 uint32_t settings_auto_off_ms(const Settings *settings);
+SettingsEqualizerCurve settings_equalizer_curve(const Settings *settings);
 void settings_encode(const Settings *settings, uint8_t *bytes);
 bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings);

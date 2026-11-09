@@ -30,3 +30,10 @@ uint8_t key_ladder_mask(uint16_t reading)
     Key key = KEY_POWER;
     return key_ladder_decode(reading, &key) ? (uint8_t)(1u << key) : 0;
 }
+
+uint8_t key_ladder_held_mask(uint16_t reading, uint8_t previous)
+{
+    uint8_t mask = key_ladder_mask(reading);
+    uint16_t top = LADDER_BANDS[sizeof LADDER_BANDS / sizeof LADDER_BANDS[0] - 1].high;
+    return mask == 0 && reading <= top ? previous : mask;
+}

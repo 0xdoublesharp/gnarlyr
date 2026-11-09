@@ -345,23 +345,34 @@ void scan_report(const ScanJob *job, const ScanStats *stats)
     }
 }
 
+static ScanResult add_read_file(ScanState *state, const ScanJob *job, ScanStats *stats,
+                                ByteSource source, uint32_t size)
+{
+    TagFormat format = track_tags_format_for_name(state->path);
+    if (!track_tags_read(source, size, format, &state->tags)) {
+        stats->skipped++;
+        return SCAN_OK;
+    }
+    track_fields_from_tags(state->path + 1, &state->tags, &state->fields);
+    if (scan_is_chaptered_name(state->path) &&
+        mp4_chapters_open(&state->chapters, source, size, state->tags.duration_ms)) {
+        return scan_add_chapters(state, job, stats);
+    }
+    ScanResult result =
+        scan_builder_result(library_builder_add_track(&state->builder, &state->fields.track));
+    stats->tracks += result == SCAN_OK;
+    return result;
+}
+
 static ScanResult add_file(ScanState *state, const ScanJob *job, ScanStats *stats)
 {
     ByteSource source;
     uint32_t size = 0;
-    stats->files++;
-    bool read = job->files.open_file(job->files.context, state->path, &source, &size);
-    if (read) {
-        TagFormat format = track_tags_format_for_name(state->path);
-        read = track_tags_read(source, size, format, &state->tags);
-        job->files.close_file(job->files.context);
-    }
     ScanResult result = SCAN_OK;
-    if (read) {
-        track_fields_from_tags(state->path + 1, &state->tags, &state->fields);
-        result =
-            scan_builder_result(library_builder_add_track(&state->builder, &state->fields.track));
-        stats->tracks += result == SCAN_OK;
+    stats->files++;
+    if (job->files.open_file(job->files.context, state->path, &source, &size)) {
+        result = add_read_file(state, job, stats, source, size);
+        job->files.close_file(job->files.context);
     } else {
         stats->skipped++;
     }
@@ -533,8 +544,8 @@ static ScanResult read_playlist(ScanState *state, const ScanJob *job, const uint
     playlist_reader_open(&state->playlist, source, size);
     while (result == SCAN_OK &&
            playlist_reader_next(&state->playlist, state->entry_text, sizeof state->entry_text)) {
-        result =
-            scan_builder_result(library_builder_playlist_entry(&state->builder, state->entry_text));
+        result = scan_builder_result(library_builder_playlist_entry(
+            &state->builder, state->entry_text, state->playlist.start_ms));
     }
     job->files.close_file(job->files.context);
     return result;

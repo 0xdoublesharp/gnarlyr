@@ -7,11 +7,12 @@ import unicodedata
 from collections import Counter
 from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
+from typing import NamedTuple, Optional
 
 from cue_sheet import ascii_fold, parse_cue
 
 MAGIC = b"EMDB"
-VERSION = 4
+VERSION = 6
 HEADER_SIZE = 128
 SECTION_ALIGNMENT = 4
 NONE = 0xFFFF
@@ -21,7 +22,7 @@ MAX_U32 = 0xFFFFFFFF
 UNKNOWN_ARTIST = "Unknown Artist"
 UNKNOWN_ALBUM = "Unknown Album"
 UNKNOWN_GENRE = "Unknown Genre"
-AUDIO_SUFFIXES = {".flac", ".ogg", ".mp3", ".m4a", ".wav", ".wma", ".ape", ".dsf", ".dff"}
+AUDIO_SUFFIXES = {".flac", ".ogg", ".mp3", ".m4a", ".m4b", ".wav", ".wma", ".ape", ".dsf", ".dff"}
 PLAYLIST_SUFFIXES = {".m3u", ".m3u8"}
 CUE_SUFFIX = ".cue"
 CUE_AUDIO_SUFFIXES = {".flac", ".wav", ".mp3"}
@@ -35,8 +36,11 @@ TRACK_RECORD = struct.Struct("<IIHHHHIBBHII")
 ALBUM_RECORD = struct.Struct("<IHHHHHH")
 GROUP_RECORD = struct.Struct("<IIHH")
 FOLDER_RECORD = struct.Struct("<IHHIHH")
+FOLDER_SHEET = 1
 INDEX_RECORD = struct.Struct("<H")
 
+START_DIRECTIVE = re.compile(r"#PODIUM-START:([0-9]{1,10})")
+NO_START = 0xFFFFFFFF
 LEADING_ARTICLE = re.compile(r"^the\s+(?=\S)")
 DISC_TRACK_PREFIX = re.compile(r"^(\d+)-(\d+)\s*-\s*")
 TRACK_PREFIX = re.compile(r"^(\d+)\s*[-.]\s*")
@@ -59,6 +63,8 @@ class TrackInfo:
     album_artist_guessed: bool = False
     start_ms: int = 0
     end_ms: int = 0
+    sheet: str = ""
+    part: int = 0
 
 
 @dataclass
@@ -84,6 +90,12 @@ class Folder:
     parent: int
     subfolders: list = field(default_factory=list)
     tracks: list = field(default_factory=list)
+    flags: int = 0
+
+
+class PlaylistEntry(NamedTuple):
+    path: str
+    start: Optional[int] = None
 
 
 @dataclass
@@ -270,8 +282,16 @@ def read_track(root, path):
 
 
 def parse_m3u(text):
-    lines = (line.strip() for line in text.splitlines())
-    return [line for line in lines if line and not line.startswith("#")]
+    entries = []
+    start = None
+    for line in (line.strip() for line in text.splitlines()):
+        directive = START_DIRECTIVE.fullmatch(line)
+        if directive and int(directive.group(1)) < NO_START:
+            start = int(directive.group(1))
+        if line and not line.startswith("#"):
+            entries.append(PlaylistEntry(line, start))
+            start = None
+    return entries
 
 
 def decode_playlist(data):
@@ -293,14 +313,26 @@ def common_suffix_length(first, second):
 
 
 class PathIndex:
-    def __init__(self, paths):
+    def __init__(self, tracks):
+        paths = [track.path for track in tracks]
         self.exact = {path.casefold(): index for index, path in enumerate(paths)}
+        self.folded = [path.casefold() for path in paths]
+        self.starts = {}
+        for index, track in enumerate(tracks):
+            self.starts[(self.folded[index], track.start_ms)] = index
         self.by_name = {}
         for index, path in enumerate(paths):
             parts = path_parts(path)
             self.by_name.setdefault(parts[-1], []).append((parts, index))
 
     def resolve(self, entry, playlist_folder):
+        index = self.resolve_path(entry.path, playlist_folder)
+        if index is None or entry.start is None:
+            return index
+        key = (self.folded[index], entry.start)
+        return self.starts.get(key, index)
+
+    def resolve_path(self, entry, playlist_folder):
         if URL_MARKER in entry:
             return None
         normalized = entry.replace("\\", "/")
@@ -321,7 +353,7 @@ class PathIndex:
 
 
 def resolve_playlists(raw_playlists, tracks):
-    paths = PathIndex([track.path for track in tracks])
+    paths = PathIndex(tracks)
     playlists = []
     for raw in raw_playlists:
         playlist = Playlist(raw.name)
@@ -396,27 +428,42 @@ def build_groups(index, albums, album_tracks, membership, order):
     return groups
 
 
+def folder_node():
+    return {"children": {}, "tracks": [], "flags": 0}
+
+
 def build_folders(tracks):
-    tree = {"children": {}, "tracks": []}
+    tree = folder_node()
     for position, track in enumerate(tracks):
         node = tree
         for part in PurePosixPath(track.path).parts[:-1]:
-            node = node["children"].setdefault(part, {"children": {}, "tracks": []})
-        node["tracks"].append(position)
+            node = node["children"].setdefault(part, folder_node())
+        if track.part == 0:
+            node["tracks"].append(position)
+        if track.sheet:
+            sheet = node["children"].setdefault(track.sheet, folder_node())
+            sheet["flags"] |= FOLDER_SHEET
+            sheet["tracks"].append(position)
     folders = []
     add_folder(folders, tree, "", NONE, tracks)
     return folders
 
 
+def folder_tracks(node, tracks):
+    if node["flags"] & FOLDER_SHEET:
+        return sorted(node["tracks"], key=lambda index: tracks[index].part)
+    return sorted(node["tracks"], key=lambda index: (
+        tracks[index].disc, tracks[index].number, sort_key(PurePosixPath(tracks[index].path).name)))
+
+
 def add_folder(folders, node, name, parent, tracks):
     position = len(folders)
-    folder = Folder(name, parent)
+    folder = Folder(name, parent, flags=node["flags"])
     folders.append(folder)
     for child_name in sorted(node["children"], key=lambda child: (sort_key(child), child)):
         folder.subfolders.append(add_folder(folders, node["children"][child_name], child_name,
                                             position, tracks))
-    folder.tracks = sorted(node["tracks"], key=lambda index: (
-        tracks[index].disc, tracks[index].number, sort_key(PurePosixPath(tracks[index].path).name)))
+    folder.tracks = folder_tracks(node, tracks)
     return position
 
 
@@ -424,7 +471,7 @@ def folder_of_tracks(folders, track_count):
     owners = [0] * track_count
     for position, folder in enumerate(folders):
         for track in folder.tracks:
-            owners[track] = position
+            owners[track] = folder.parent if folder.flags & FOLDER_SHEET else position
     return owners
 
 
@@ -550,7 +597,8 @@ def encode_folders(folders, strings, links):
     data = bytearray()
     for folder in folders:
         data += FOLDER_RECORD.pack(strings.add(folder.name), folder.parent,
-                                   len(folder.subfolders), len(links), len(folder.tracks), 0)
+                                   len(folder.subfolders), len(links), len(folder.tracks),
+                                   folder.flags)
         links.extend(folder.subfolders + folder.tracks)
     return data
 
@@ -615,7 +663,8 @@ def visible_files(root, suffixes):
 
 def read_playlist(root, path):
     folder = nfc(path.parent.relative_to(root).as_posix())
-    entries = [nfc(entry) for entry in parse_m3u(decode_playlist(path.read_bytes()))]
+    entries = [PlaylistEntry(nfc(entry.path), entry.start)
+               for entry in parse_m3u(decode_playlist(path.read_bytes()))]
     return RawPlaylist(nfc(path.stem), "" if folder == "." else folder, entries)
 
 
@@ -670,11 +719,12 @@ def cue_track(base, sheet, track, end_ms):
     )
 
 
-def cue_tracks(root, sheet, audio_path):
-    base = read_track(root, audio_path)
+def cue_tracks(root, sheet, audio_path, cue_path):
+    base = replace(read_track(root, audio_path), sheet=nfc(cue_path.name))
     starts = sheet.tracks
     ends = [track.start_ms for track in starts[1:]] + [0]
-    return [cue_track(base, sheet, track, end) for track, end in zip(starts, ends)]
+    return [replace(cue_track(base, sheet, track, end), part=part)
+            for part, (track, end) in enumerate(zip(starts, ends))]
 
 
 def scan(root):
@@ -687,7 +737,7 @@ def scan(root):
             continue
         try:
             if path in sheets:
-                tracks.extend(cue_tracks(root, sheets[path][0], sheets[path][1]))
+                tracks.extend(cue_tracks(root, sheets[path][0], sheets[path][1], path))
             else:
                 tracks.append(read_track(root, path))
         except Exception as error:

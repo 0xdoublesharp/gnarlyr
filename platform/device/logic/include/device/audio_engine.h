@@ -4,11 +4,13 @@
 #include <stdint.h>
 
 #include "codec/flac.h"
+#include "device/equalizer.h"
+#include "hal/audio.h"
 
 enum {
     AUDIO_ENGINE_PATH_CAPACITY = 256,
     AUDIO_ENGINE_SEGMENTS = 4,
-    AUDIO_ENGINE_VOLUME_MAX = 50
+    AUDIO_ENGINE_VOLUME_MAX = 60
 };
 
 typedef enum AudioEngineState {
@@ -58,6 +60,7 @@ typedef struct AudioEngineConfig {
     AudioSource source;
     uint32_t *ring;
     uint32_t ring_words;
+    Equalizer *equalizer;
 } AudioEngineConfig;
 
 typedef enum AudioRefusalProblem {
@@ -129,12 +132,15 @@ typedef struct AudioEngine {
     uint32_t next_end_ms;
     char next_path[AUDIO_ENGINE_PATH_CAPACITY];
     uint32_t gain;
+    HalAudioEqualizer equalizer_curve;
+    bool equalizing;
     AudioEngineStats stats;
     AudioRefusal refusal;
 } AudioEngine;
 
 void audio_engine_init(AudioEngine *engine, AudioEngineConfig config);
 void audio_engine_set_volume(AudioEngine *engine, uint8_t level);
+void audio_engine_set_equalizer(AudioEngine *engine, const HalAudioEqualizer *curve);
 bool audio_engine_play(AudioEngine *engine, const AudioEngineTrack *track, uint32_t offset_ms);
 const char *audio_engine_current_path(const AudioEngine *engine);
 void audio_engine_queue_next(AudioEngine *engine, const AudioEngineTrack *track);

@@ -5,10 +5,21 @@
 enum {
     STEP_END = 0xFF,
     SLEEP_OUT_DELAY_MS = 120,
+    SLEEP_IN_DELAY_MS = 5,
+    COMMAND_SLEEP_IN = 0x10,
+    COMMAND_SLEEP_OUT = 0x11,
+    COMMAND_DISPLAY_OFF = 0x28,
+    COMMAND_DISPLAY_ON = 0x29,
     COMMAND_COLUMNS = 0x2A,
     COMMAND_ROWS = 0x2B,
-    COMMAND_WRITE = 0x2C
+    COMMAND_WRITE = 0x2C,
+    COMMAND_MEMORY_ACCESS = 0x36,
+    PORTRAIT_BASE = PANEL_ECHO_MADCTL & ~PANEL_MADCTL_SWAP
 };
+
+static const uint8_t MEMORY_ACCESS_FOR[PANEL_ROTATION_COUNT] = {
+    PANEL_ECHO_MADCTL, PORTRAIT_BASE ^ PANEL_MADCTL_MIRROR_Y,
+    PORTRAIT_BASE ^ PANEL_MADCTL_MIRROR_X};
 
 static const uint8_t ST7796S_STEPS[] = {
     0x11, 0,        0xF0, 1,    0xC3, 0xF0, 1,    0x96, 0x36, 1,    PANEL_ECHO_MADCTL,
@@ -31,7 +42,7 @@ static size_t send_step(const PanelBus *bus, const uint8_t *step)
     for (uint8_t index = 0; index < count; index++) {
         bus->data(bus->context, step[2 + index]);
     }
-    if (step[0] == 0x11) {
+    if (step[0] == COMMAND_SLEEP_OUT) {
         bus->delay_ms(bus->context, SLEEP_OUT_DELAY_MS);
     }
     return 2u + count;
@@ -45,6 +56,20 @@ void panel_send_init(const PanelBus *bus)
     }
 }
 
+void panel_sleep(const PanelBus *bus)
+{
+    bus->command(bus->context, COMMAND_DISPLAY_OFF);
+    bus->command(bus->context, COMMAND_SLEEP_IN);
+    bus->delay_ms(bus->context, SLEEP_IN_DELAY_MS);
+}
+
+void panel_wake(const PanelBus *bus)
+{
+    bus->command(bus->context, COMMAND_SLEEP_OUT);
+    bus->delay_ms(bus->context, SLEEP_OUT_DELAY_MS);
+    bus->command(bus->context, COMMAND_DISPLAY_ON);
+}
+
 static void send_range(const PanelBus *bus, uint8_t command, int first, int last)
 {
     bus->command(bus->context, command);
@@ -54,10 +79,18 @@ static void send_range(const PanelBus *bus, uint8_t command, int first, int last
     bus->data(bus->context, (uint8_t)last);
 }
 
+void panel_set_rotation(const PanelBus *bus, PanelRotation rotation)
+{
+    bus->command(bus->context, COMMAND_MEMORY_ACCESS);
+    bus->data(bus->context, MEMORY_ACCESS_FOR[rotation < PANEL_ROTATION_COUNT ? rotation : 0]);
+}
+
 void panel_begin_write(const PanelBus *bus, PanelWindow window)
 {
-    int row = window.y + PANEL_FIRST_VISIBLE_ROW;
-    send_range(bus, COMMAND_COLUMNS, window.x, window.x + window.width - 1);
+    bool landscape = window.rotation == PANEL_LANDSCAPE;
+    int column = window.x + (landscape ? 0 : PANEL_FIRST_VISIBLE_ROW);
+    int row = window.y + (landscape ? PANEL_FIRST_VISIBLE_ROW : 0);
+    send_range(bus, COMMAND_COLUMNS, column, column + window.width - 1);
     send_range(bus, COMMAND_ROWS, row, row + window.height - 1);
     bus->command(bus->context, COMMAND_WRITE);
 }

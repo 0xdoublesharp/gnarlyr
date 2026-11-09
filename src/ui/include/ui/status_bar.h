@@ -24,17 +24,27 @@ enum {
     STATUS_BAR_PERCENT_CAPACITY = 8
 };
 
+typedef enum StatusShuffle {
+    STATUS_SHUFFLE_OFF,
+    STATUS_SHUFFLE_SONGS,
+    STATUS_SHUFFLE_ALBUMS
+} StatusShuffle;
+
 typedef struct StatusBarState {
     StatusPlayback playback;
     StatusBluetooth bluetooth;
     bool battery_known;
     uint8_t battery_percent;
     bool charging;
+    bool locked;
+    StatusShuffle shuffle;
 } StatusBarState;
 
 Rect status_bar_playback_area(const Theme *theme);
 Rect status_bar_bluetooth_area(const Theme *theme);
 Rect status_bar_battery_area(const Theme *theme);
+Rect status_bar_lock_area(const Theme *theme);
+Rect status_bar_shuffle_area(const Theme *theme, StatusShuffle shuffle);
 int status_bar_battery_fill_width(uint8_t percent, int inner_width);
 void status_bar_percent_text(uint8_t percent, char *text, size_t capacity);
 Rect status_bar_bolt_area(const Theme *theme);

@@ -2,6 +2,8 @@
 
 #include <stddef.h>
 
+#include "favorite_playlist.h"
+
 const char LIBRARY_STORE_PATH[] = "/.echo/library.db";
 
 static bool read_file(void *context, uint32_t offset, void *buffer, uint32_t length)
@@ -24,6 +26,8 @@ bool library_store_open(LibraryStore *store)
     store->available = status == LIBRARY_OK;
     if (!store->available) {
         hal_file_close(&store->file);
+        return false;
     }
+    favorite_playlist_attach(&store->library);
     return store->available;
 }

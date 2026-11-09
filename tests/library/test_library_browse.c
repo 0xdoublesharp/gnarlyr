@@ -19,10 +19,17 @@ enum {
     HUNTER = 5,
     JOGA = 6,
     BJORK_FOLDER = 6,
-    HOMOGENIC_FOLDER = 7
+    HOMOGENIC_FOLDER = 7,
+    CUE_ALBUM = 1,
+    CUE_ALBUM_FOLDER = 2,
+    CUE_SHEET_FOLDER = 3,
+    CUE_OPENING = 2,
+    CUE_MIDDLE = 3,
+    CUE_CLOSING = 4
 };
 
 static FixtureLibrary fixture;
+static FixtureLibrary cue_fixture;
 
 static Library *open_fixture(void)
 {
@@ -182,7 +189,7 @@ static void items_show_names_years_and_durations(void)
     CHECK(detail_is(library, songs, item_at(library, songs, 1), "1:00"));
 }
 
-static void folder_views_show_folder_names_and_file_names(void)
+static void folder_views_show_folder_names_and_full_file_names(void)
 {
     Library *library = open_fixture();
     BrowseQuery root = browse_root_query(BROWSE_FOLDER);
@@ -191,7 +198,9 @@ static void folder_views_show_folder_names_and_file_names(void)
         .kind = BROWSE_FOLDER, .group = LIBRARY_ARTISTS, .subject = 2, .artist = LIBRARY_NONE};
     BrowseItem hells_bells = item_at(library, folder, 0);
     CHECK_EQUAL(HELLS_BELLS, hells_bells.index);
-    CHECK(label_is(library, folder, hells_bells, "1-01 - Hells Bells"));
+    CHECK(label_is(library, folder, hells_bells, "1-01 - Hells Bells.flac"));
+    CHECK(label_is(library, browse_root_query(BROWSE_ALL_SONGS),
+                   item_at(library, browse_root_query(BROWSE_ALL_SONGS), 1), "Hells Bells"));
 }
 
 static void views_have_titles(void)
@@ -227,6 +236,133 @@ static void playlists_list_their_tracks_in_order(void)
     CHECK(label_is(library, tracks, item_at(library, tracks, 2), "Jóga"));
 }
 
+static BrowseQuery folder_query(uint16_t folder)
+{
+    return (BrowseQuery){
+        .kind = BROWSE_FOLDER, .group = LIBRARY_ARTISTS, .subject = folder, .artist = LIBRARY_NONE};
+}
+
+static void a_cue_backed_file_is_one_entry_of_its_folder(void)
+{
+    Library *library = fixture_cue_library_open(&cue_fixture);
+    BrowseQuery album = folder_query(CUE_ALBUM_FOLDER);
+    CHECK_EQUAL(2, browse_count(library, album));
+    CHECK_EQUAL(BROWSE_ITEM_FOLDER, item_at(library, album, 0).kind);
+    CHECK_EQUAL(CUE_SHEET_FOLDER, item_at(library, album, 0).index);
+    CHECK_EQUAL(BROWSE_ITEM_TRACK, item_at(library, album, 1).kind);
+    CHECK_EQUAL(CUE_OPENING, item_at(library, album, 1).index);
+}
+
+static void folders_show_the_cue_sheet_and_its_file_by_name(void)
+{
+    Library *library = fixture_cue_library_open(&cue_fixture);
+    BrowseQuery album = folder_query(CUE_ALBUM_FOLDER);
+    CHECK(label_is(library, album, item_at(library, album, 0), "Cue Album.cue"));
+    CHECK(label_is(library, album, item_at(library, album, 1), "Cue Album.flac"));
+}
+
+static void a_cue_sheet_lists_its_tracks_by_title(void)
+{
+    Library *library = fixture_cue_library_open(&cue_fixture);
+    BrowseQuery album = folder_query(CUE_ALBUM_FOLDER);
+    BrowseQuery sheet = child_of(album, item_at(library, album, 0));
+    CHECK(title_is(library, sheet, "Cue Album.cue"));
+    CHECK_EQUAL(3, browse_count(library, sheet));
+    CHECK_EQUAL(CUE_OPENING, item_at(library, sheet, 0).index);
+    CHECK_EQUAL(CUE_CLOSING, item_at(library, sheet, 2).index);
+    CHECK(label_is(library, sheet, item_at(library, sheet, 0), "Opening"));
+    CHECK(label_is(library, sheet, item_at(library, sheet, 1), "Middle Part"));
+}
+
+static void a_cue_backed_file_shows_the_length_of_the_whole_file(void)
+{
+    Library *library = fixture_cue_library_open(&cue_fixture);
+    BrowseQuery album = folder_query(CUE_ALBUM_FOLDER);
+    CHECK(detail_is(library, album, item_at(library, album, 1), "0:04"));
+    BrowseQuery sheet = child_of(album, item_at(library, album, 0));
+    CHECK(detail_is(library, sheet, item_at(library, sheet, 0), "0:01"));
+    BrowseQuery albums = browse_root_query(BROWSE_ALBUMS);
+    BrowseQuery cue_album = child_of(albums, item_at(library, albums, CUE_ALBUM));
+    CHECK(detail_is(library, cue_album, item_at(library, cue_album, 0), "0:01"));
+}
+
+static void a_cue_backed_file_plays_from_the_start_of_its_sheet(void)
+{
+    Library *library = fixture_cue_library_open(&cue_fixture);
+    uint32_t position = 1;
+    BrowseQuery source = browse_play_source(library, folder_query(CUE_ALBUM_FOLDER), &position);
+    CHECK_EQUAL(BROWSE_FOLDER, source.kind);
+    CHECK_EQUAL(CUE_SHEET_FOLDER, source.subject);
+    CHECK_EQUAL(0, position);
+    position = 1;
+    source = browse_play_source(library, folder_query(CUE_SHEET_FOLDER), &position);
+    CHECK_EQUAL(CUE_SHEET_FOLDER, source.subject);
+    CHECK_EQUAL(1, position);
+}
+
+static void other_tracks_play_from_where_they_are_listed(void)
+{
+    Library *library = open_fixture();
+    uint32_t position = 1;
+    BrowseQuery folder = folder_query(HOMOGENIC_FOLDER);
+    BrowseQuery source = browse_play_source(library, folder, &position);
+    CHECK_EQUAL(HOMOGENIC_FOLDER, source.subject);
+    CHECK_EQUAL(1, position);
+}
+
+static void albums_and_songs_keep_every_cue_track(void)
+{
+    Library *library = fixture_cue_library_open(&cue_fixture);
+    BrowseQuery albums = browse_root_query(BROWSE_ALBUMS);
+    BrowseQuery cue_album = child_of(albums, item_at(library, albums, CUE_ALBUM));
+    CHECK_EQUAL(3, browse_count(library, cue_album));
+    CHECK_EQUAL(CUE_MIDDLE, item_at(library, cue_album, 1).index);
+    CHECK(label_is(library, cue_album, item_at(library, cue_album, 1), "Middle Part"));
+    CHECK_EQUAL(9, browse_count(library, browse_root_query(BROWSE_ALL_SONGS)));
+}
+
+static BrowseQuery tree_query(uint16_t folder)
+{
+    BrowseQuery query = folder_query(folder);
+    query.kind = BROWSE_FOLDER_TREE;
+    return query;
+}
+
+static void expect_tree(Library *library, uint16_t folder, const uint16_t *tracks, uint32_t count)
+{
+    BrowseQuery tree = tree_query(folder);
+    BrowseItem item;
+    CHECK_EQUAL(count, browse_count(library, tree));
+    for (uint32_t position = 0; position < count; position++) {
+        CHECK(browse_item(library, tree, position, &item));
+        CHECK_EQUAL(BROWSE_ITEM_TRACK, item.kind);
+        CHECK_EQUAL(tracks[position], item.index);
+    }
+    CHECK(!browse_item(library, tree, count, &item));
+}
+
+static void a_folder_tree_lists_every_track_under_it_in_folder_order(void)
+{
+    static const uint16_t ROOT[] = {0, 1, 4, 7, 5, 6, 2, 3};
+    static const uint16_t BJORK_TREE[] = {5, 6};
+    Library *library = open_fixture();
+    expect_tree(library, 0, ROOT, 8);
+    expect_tree(library, BJORK_FOLDER, BJORK_TREE, 2);
+    expect_tree(library, HOMOGENIC_FOLDER, BJORK_TREE, 2);
+}
+
+static void a_folder_tree_plays_a_cue_album_once_as_its_sheet_songs(void)
+{
+    static const uint16_t ROOT[] = {2, 3, 4, 0, 1, 5, 6, 7, 8};
+    static const uint16_t ARTIST[] = {2, 3, 4, 0, 1};
+    static const uint16_t SHEET[] = {2, 3, 4};
+    Library *library = fixture_cue_library_open(&cue_fixture);
+    expect_tree(library, 0, ROOT, 9);
+    expect_tree(library, 1, ARTIST, 5);
+    expect_tree(library, CUE_ALBUM_FOLDER, SHEET, 3);
+    expect_tree(library, CUE_SHEET_FOLDER, SHEET, 3);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -238,11 +374,20 @@ int main(void)
         TEST_CASE(album_artists_and_genres_open_their_albums),
         TEST_CASE(folders_list_subfolders_before_tracks),
         TEST_CASE(tracks_open_nothing),
+        TEST_CASE(a_cue_backed_file_is_one_entry_of_its_folder),
+        TEST_CASE(folders_show_the_cue_sheet_and_its_file_by_name),
+        TEST_CASE(a_cue_sheet_lists_its_tracks_by_title),
+        TEST_CASE(a_cue_backed_file_shows_the_length_of_the_whole_file),
+        TEST_CASE(a_cue_backed_file_plays_from_the_start_of_its_sheet),
+        TEST_CASE(other_tracks_play_from_where_they_are_listed),
+        TEST_CASE(albums_and_songs_keep_every_cue_track),
         TEST_CASE(positions_past_the_end_are_refused),
         TEST_CASE(items_show_names_years_and_durations),
-        TEST_CASE(folder_views_show_folder_names_and_file_names),
+        TEST_CASE(folder_views_show_folder_names_and_full_file_names),
         TEST_CASE(views_have_titles),
         TEST_CASE(playlists_list_their_tracks_in_order),
+        TEST_CASE(a_folder_tree_lists_every_track_under_it_in_folder_order),
+        TEST_CASE(a_folder_tree_plays_a_cue_album_once_as_its_sheet_songs),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

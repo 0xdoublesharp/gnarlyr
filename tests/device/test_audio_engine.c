@@ -9,7 +9,7 @@
 enum {
     RING_FRAMES = 8192,
     RING_WORDS = 2 * RING_FRAMES,
-    FULL_VOLUME = 50
+    FULL_VOLUME = 60
 };
 
 typedef struct Fixture {
@@ -594,9 +594,97 @@ static void a_frame_is_released_once_its_samples_are_in_the_ring(void)
     CHECK_EQUAL(1, scripted.closes);
 }
 
+static Equalizer equalizer;
+
+static const HalAudioEqualizer POP = {
+    .band_hz = {100, 3150, 10000}, .gain_half_db = {8, -6, 6}, .band_count = 3, .pre_gain = 20480};
+static const HalAudioEqualizer FLAT = {.pre_gain = HAL_AUDIO_UNITY_PRE_GAIN};
+
+static void start_equalized_engine(const HalAudioEqualizer *curve)
+{
+    start_engine();
+    engine.config.equalizer = &equalizer;
+    audio_engine_set_equalizer(&engine, curve);
+}
+
+static bool equalized_ring_holds(const char *name, const HalAudioEqualizer *curve, int bits)
+{
+    start_equalized_engine(&POP);
+    audio_engine_set_equalizer(&engine, curve);
+    CHECK(play_file(name, 0, 1));
+    pump_until_full(0);
+    return ring_holds(name, 0, 0, 5000, bits);
+}
+
+static void equalizer_off_leaves_sixteen_bit_samples_bit_identical(void)
+{
+    CHECK(equalized_ring_holds("lpc_16_44k_stereo", &FLAT, 16));
+}
+
+static void equalizer_off_leaves_twenty_four_bit_samples_bit_identical(void)
+{
+    CHECK(equalized_ring_holds("lpc_24_96k_stereo", &FLAT, 24));
+}
+
+static void an_equalizer_shapes_sixteen_and_twenty_four_bit_audio(void)
+{
+    CHECK(!equalized_ring_holds("lpc_16_44k_stereo", &POP, 16));
+    CHECK(engine.equalizing);
+    CHECK(!equalized_ring_holds("lpc_24_96k_stereo", &POP, 24));
+    CHECK(engine.equalizing);
+}
+
+static void the_equalizer_stands_aside_above_96_khz(void)
+{
+    start_scripted_engine(0, 1);
+    scripted.rate = 192000;
+    engine.config.equalizer = &equalizer;
+    audio_engine_set_equalizer(&engine, &POP);
+    CHECK(play_file("scripted", 0, 1));
+    pump_until_full(0);
+    CHECK(!engine.equalizing);
+    CHECK(frame_is(0, 1, -1, 16));
+    CHECK(frame_is(15, 16, -16, 16));
+}
+
+static void changing_only_the_gains_keeps_the_filter_history(void)
+{
+    static const HalAudioEqualizer LOUDER = {.band_hz = {100, 3150, 10000},
+                                             .gain_half_db = {10, -6, 6},
+                                             .band_count = 3,
+                                             .pre_gain = 18000};
+    start_equalized_engine(&POP);
+    CHECK(play_file("lpc_16_44k_stereo", 0, 1));
+    pump_until_full(0);
+    EqualizerHistory before = equalizer.history[0][1];
+    CHECK(before.x1 != 0 || before.y1 != 0);
+    audio_engine_set_equalizer(&engine, &LOUDER);
+    CHECK(engine.equalizing);
+    CHECK_EQUAL(before.x1, equalizer.history[0][1].x1);
+    CHECK_EQUAL(before.y2, equalizer.history[0][1].y2);
+}
+
+static void changing_the_bands_starts_the_filter_from_silence(void)
+{
+    static const HalAudioEqualizer BASS = {
+        .band_hz = {63}, .gain_half_db = {8}, .band_count = 1, .pre_gain = 20480};
+    start_equalized_engine(&POP);
+    CHECK(play_file("lpc_16_44k_stereo", 0, 1));
+    pump_until_full(0);
+    audio_engine_set_equalizer(&engine, &BASS);
+    CHECK_EQUAL(0, equalizer.history[0][0].x1);
+    CHECK_EQUAL(0, equalizer.history[0][0].y1);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(changing_only_the_gains_keeps_the_filter_history),
+        TEST_CASE(changing_the_bands_starts_the_filter_from_silence),
+        TEST_CASE(equalizer_off_leaves_sixteen_bit_samples_bit_identical),
+        TEST_CASE(equalizer_off_leaves_twenty_four_bit_samples_bit_identical),
+        TEST_CASE(an_equalizer_shapes_sixteen_and_twenty_four_bit_audio),
+        TEST_CASE(the_equalizer_stands_aside_above_96_khz),
         TEST_CASE(the_current_path_is_the_track_being_played),
         TEST_CASE(a_source_that_is_not_ready_leaves_the_ring_alone),
         TEST_CASE(a_frame_is_released_once_its_samples_are_in_the_ring),

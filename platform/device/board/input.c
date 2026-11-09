@@ -1,9 +1,11 @@
 #include "hal/input.h"
 #include "board.h"
 #include "device/battery_gauge.h"
+#include "device/headset_monitor.h"
 #include "device/key_ladder.h"
 #include "device/key_scanner.h"
 #include "gpio.h"
+#include "hal/clock.h"
 #include "irq.h"
 #include "registers.h"
 
@@ -13,6 +15,7 @@
 #define ADC_CHANNEL_MASK 0x7u
 #define ADC_KEY_CHANNEL 0x1u
 #define ADC_BATTERY_CHANNEL 0x0u
+#define ADC_HEADSET_CHANNEL 0x2u
 #define ADC_POWER_ON (1u << 3)
 #define ADC_START (1u << 4)
 #define ADC_INTERRUPT_STATUS (1u << 6)
@@ -21,13 +24,18 @@ static const GpioPin POWER_KEY = {2, 5};
 
 enum {
     SCANS_PER_BATTERY_READING = 200,
+    SCANS_PER_HEADSET_READING = 4,
+    SCANS_PER_WATCHED_KEY_READING = 4,
+    WATCHED_SCANS = 400,
     BOOT_READING_WAIT_MS = 2
 };
 
 static KeyScanner scanner;
 static BatteryGauge gauge;
+static HeadsetMonitor headset;
+static uint32_t watched_scans;
 static bool conversion_started;
-static bool battery_pending;
+static uint32_t pending_channel;
 static uint32_t scans;
 
 static void start_conversion(uint32_t channel)
@@ -40,7 +48,8 @@ static void start_conversion(uint32_t channel)
 
 static uint8_t pressed_keys(uint16_t reading)
 {
-    uint8_t mask = key_ladder_mask(reading);
+    uint8_t held = (uint8_t)(scanner.stable & ~(1u << KEY_POWER));
+    uint8_t mask = key_ladder_held_mask(reading, held);
     return gpio_read(POWER_KEY) ? (uint8_t)(mask | (1u << KEY_POWER)) : mask;
 }
 
@@ -64,8 +73,44 @@ void board_input_start(void)
     gpio_input(POWER_KEY);
     key_scanner_init(&scanner);
     battery_gauge_init(&gauge);
+    headset_monitor_init(&headset);
+    pending_channel = ADC_KEY_CHANNEL;
     start_conversion(ADC_KEY_CHANNEL);
     conversion_started = true;
+}
+
+static void take_headset_reading(uint16_t reading, uint32_t now_ms)
+{
+    headset_monitor_sample(&headset, reading, board_jack_headset_ready(), now_ms);
+}
+
+static void take_reading(uint16_t reading, uint32_t now_ms)
+{
+    switch (pending_channel) {
+    case ADC_BATTERY_CHANNEL:
+        battery_gauge_add(&gauge, reading);
+        record_battery();
+        break;
+    case ADC_HEADSET_CHANNEL:
+        take_headset_reading(reading, now_ms);
+        break;
+    default:
+        key_scanner_sample(&scanner, pressed_keys(reading), now_ms);
+        break;
+    }
+}
+
+static uint32_t next_channel(void)
+{
+    scans++;
+    if (scans % SCANS_PER_BATTERY_READING == 0) {
+        return ADC_BATTERY_CHANNEL;
+    }
+    if (watched_scans > 0) {
+        watched_scans--;
+        return scans % SCANS_PER_WATCHED_KEY_READING == 0 ? ADC_KEY_CHANNEL : ADC_HEADSET_CHANNEL;
+    }
+    return scans % SCANS_PER_HEADSET_READING == 0 ? ADC_HEADSET_CHANNEL : ADC_KEY_CHANNEL;
 }
 
 void board_input_sample(uint32_t now_ms)
@@ -73,17 +118,9 @@ void board_input_sample(uint32_t now_ms)
     if (!conversion_started) {
         return;
     }
-    uint16_t reading = (uint16_t)(register_read(ADC_RESULT) & ADC_RESULT_MASK);
-    if (battery_pending) {
-        battery_gauge_add(&gauge, reading);
-        battery_pending = false;
-        record_battery();
-    } else {
-        key_scanner_sample(&scanner, pressed_keys(reading), now_ms);
-    }
-    scans++;
-    battery_pending = scans % SCANS_PER_BATTERY_READING == 0;
-    start_conversion(battery_pending ? ADC_BATTERY_CHANNEL : ADC_KEY_CHANNEL);
+    take_reading((uint16_t)(register_read(ADC_RESULT) & ADC_RESULT_MASK), now_ms);
+    pending_channel = next_channel();
+    start_conversion(pending_channel);
 }
 
 void board_battery_restart(void)
@@ -107,6 +144,42 @@ bool hal_input_next_transition(HalKeyTransition *transition)
     bool found = key_scanner_next(&scanner, transition);
     irq_restore(primask);
     return found;
+}
+
+bool hal_input_next_headset_command(HalHeadsetCommand *command)
+{
+    uint32_t primask = irq_save();
+    bool found = headset_remote_next(&headset.remote, command);
+    irq_restore(primask);
+    return found;
+}
+
+HalHeadsetReading hal_input_headset_reading(void)
+{
+    uint32_t now_ms = hal_clock_milliseconds();
+    uint32_t primask = irq_save();
+    watched_scans = WATCHED_SCANS;
+    HalHeadsetReading reading = headset_monitor_reading(&headset, now_ms);
+    irq_restore(primask);
+    return reading;
+}
+
+void board_wait_for_power_hold(uint32_t hold_ms)
+{
+    uint32_t pressed_at_ms = hal_clock_milliseconds();
+    bool held = false;
+    for (;;) {
+        board_display_service();
+        uint32_t now_ms = hal_clock_milliseconds();
+        bool down = board_power_key_down();
+        if (down && !held) {
+            pressed_at_ms = now_ms;
+        }
+        held = down;
+        if (held && now_ms - pressed_at_ms >= hold_ms) {
+            return;
+        }
+    }
 }
 
 void board_wait_for_key(void)

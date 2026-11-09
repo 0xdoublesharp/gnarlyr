@@ -1,4 +1,5 @@
 import json
+import re
 import struct
 import sys
 import unittest
@@ -29,11 +30,13 @@ class CharacterSetTest(unittest.TestCase):
     def test_the_echo_faces_hold_ascii_latin1_and_punctuation(self):
         config = json.loads((ASSETS_DIRECTORY / "glyph_pack.json").read_text())
         echo_faces = config["faces"][1:]
-        self.assertEqual(["inter_regular_22", "inter_semibold_22"], [face["name"] for face in echo_faces])
+        self.assertEqual(["inter_regular_22", "inter_semibold_22", "inter_regular_18", "inter_semibold_18",
+                          "inter_regular_26", "inter_semibold_26"], [face["name"] for face in echo_faces])
         for face in echo_faces:
             wanted = glyph_pack.face_characters(face)
             self.assertTrue(set(range(32, 127)) <= wanted)
             self.assertTrue(set(range(160, 256)) <= wanted)
+            self.assertTrue(set(range(0x400, 0x460)) <= wanted)
             self.assertTrue({0x2013, 0x2019, 0x2026, 0x20AC, 0x2713} <= wanted)
 
     def test_the_echo_faces_may_hold_larger_glyphs(self):
@@ -42,6 +45,16 @@ class CharacterSetTest(unittest.TestCase):
                   for face in config["faces"]}
         self.assertEqual(256, limits["inter_regular_22"])
         self.assertEqual(glyph_pack.MAX_BITMAP_BYTES, limits["inter_regular_16_latin1"])
+        self.assertEqual(320, limits["inter_semibold_26"])
+
+    def test_the_player_reads_every_face_and_its_largest_glyph(self):
+        config = json.loads((ASSETS_DIRECTORY / "glyph_pack.json").read_text())
+        header = (TOOLS_DIRECTORY.parent / "src" / "gfx" / "include" / "gfx" / "font_pack.h").read_text()
+        constants = dict(re.findall(r"(FONT_PACK_\w+) = (\d+)", header))
+        self.assertLessEqual(len(config["faces"]), int(constants["FONT_PACK_FACES"]))
+        for face in config["faces"]:
+            limit = face.get("max_bitmap", glyph_pack.MAX_BITMAP_BYTES)
+            self.assertLessEqual(limit, int(constants["FONT_PACK_MAX_BITMAP"]))
 
     def test_faces_are_numbered_from_one_in_config_order(self):
         config = {"faces": [{"name": "a"}, {"name": "b"}]}

@@ -7,3 +7,5 @@
 #define HASH_PRIME UINT32_C(16777619)
 
 uint32_t hash_update(uint32_t hash, const void *bytes, size_t length);
+void hash_store(uint8_t *bytes, uint32_t hash);
+uint32_t hash_load(const uint8_t *bytes);

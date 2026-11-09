@@ -4,6 +4,7 @@
 #include <stddef.h>
 
 #include "core/string_builder.h"
+#include "favorite_playlist.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
 #include "library/sort_key.h"
@@ -16,6 +17,7 @@ enum {
 };
 
 static const char EMPTY_MESSAGE[] = "Nothing here";
+static const char NO_SONGS_MESSAGE[] = "No songs in this folder";
 static const char NO_FAVORITES_MESSAGE[] = "Hold Play on an album to add it";
 static const char NO_BOOKS_MESSAGE[] = "Put books in an Audiobooks folder";
 static const char NO_SHOWS_MESSAGE[] = "Put shows in a Podcasts folder";
@@ -206,6 +208,7 @@ static bool is_lettered(BrowseKind kind)
     case BROWSE_GROUP_ALBUMS:
     case BROWSE_ALBUM_TRACKS:
     case BROWSE_FOLDER:
+    case BROWSE_FOLDER_TREE:
     case BROWSE_PLAYLIST_TRACKS:
         break;
     }
@@ -238,7 +241,8 @@ static bool is_loaded_track(const BrowseScreen *browse, int index)
 static ScreenAction start_list(BrowseScreen *browse, BrowseQuery source, uint32_t position)
 {
     BrowsePoolConfig *config = &browse->pool->config;
-    PlayerListStart start = {.source = source,
+    BrowseQuery played = browse_play_source(config->library, source, &position);
+    PlayerListStart start = {.source = played,
                              .position = position,
                              .seed = hal_clock_microseconds(),
                              .in_order = browse->shelf != SPOKEN_NONE};
@@ -272,11 +276,9 @@ static ScreenAction open_child(BrowseScreen *browse, BrowseItem item)
 
 static bool playing_folder(const BrowseScreen *browse, uint16_t folder)
 {
-    LibraryTrack record;
     PlayerStatus status = player_status(browse->pool->config.player);
     return status.has_track && status.state != PLAYER_IDLE &&
-           library_read_track(browse->pool->config.library, status.track, &record) &&
-           record.folder == folder;
+           spoken_folder_holds(browse->pool->config.library, folder, status.track);
 }
 
 static ScreenAction resume_book(BrowseScreen *browse, BrowseItem item)
@@ -404,6 +406,17 @@ static ScreenAction add_song_to_up_next(void *context)
     return queue_song(context, false);
 }
 
+static ScreenAction add_song_to_favorites(void *context)
+{
+    BrowsePool *pool = context;
+    SongActions *actions = &pool->song_actions;
+    FavoritePlaylistResult result = favorite_playlist_add(pool->config.library, actions->track);
+    if (pool->config.toast != NULL) {
+        toast_show(pool->config.toast, favorite_playlist_message(result), actions->now_ms);
+    }
+    return screen_action_pop();
+}
+
 static ScreenAction open_song_actions(BrowseScreen *browse, int index, uint16_t track)
 {
     BrowsePool *pool = browse->pool;
@@ -415,11 +428,32 @@ static ScreenAction open_song_actions(BrowseScreen *browse, int index, uint16_t 
     actions->items[0] = (MenuItem){.label = "Play Next", .select = play_song_next, .context = pool};
     actions->items[1] =
         (MenuItem){.label = "Add to Up Next", .select = add_song_to_up_next, .context = pool};
+    actions->items[2] = (MenuItem){
+        .label = "Add to Favorite Playlist", .select = add_song_to_favorites, .context = pool};
     MenuConfig config = {.title = actions->title,
                          .items = actions->items,
                          .item_count = SONG_ACTION_COUNT,
                          .theme = pool->config.theme};
     return screen_action_push(menu_screen_init(&actions->menu, config));
+}
+
+static ScreenAction play_folder(BrowseScreen *browse, BrowseItem item)
+{
+    BrowsePoolConfig *config = &browse->pool->config;
+    BrowseQuery tree;
+    if (!browse_child(browse->query, item, &tree)) {
+        return screen_action_none();
+    }
+    tree.kind = BROWSE_FOLDER_TREE;
+    uint32_t count = browse_count(config->library, tree);
+    if (count == 0) {
+        if (config->toast != NULL) {
+            toast_show(config->toast, NO_SONGS_MESSAGE, browse->now_ms);
+        }
+        return screen_action_none();
+    }
+    bool shuffled = player_status(config->player).shuffle == SHUFFLE_SONGS;
+    return start_list(browse, tree, shuffled ? hal_clock_microseconds() % count : 0);
 }
 
 static ScreenAction hold_row(void *context, int index)
@@ -434,6 +468,9 @@ static ScreenAction hold_row(void *context, int index)
     }
     if (browse->shelf != SPOKEN_NONE && item.kind == BROWSE_ITEM_FOLDER) {
         return open_child(browse, item);
+    }
+    if (browse->pool->config.player != NULL && item.kind == BROWSE_ITEM_FOLDER) {
+        return play_folder(browse, item);
     }
     return toggle_favorite(context, index);
 }
@@ -454,6 +491,7 @@ static void enter(void *context, uint32_t now_ms)
     if (browse->favorites_only) {
         collect_favorites(browse);
     }
+    list_view_fit(&browse->list);
     list_view_restart_marquee(&browse->list, now_ms);
     refresh_rows(browse);
 }

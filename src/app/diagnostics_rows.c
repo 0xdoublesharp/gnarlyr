@@ -2,6 +2,8 @@
 
 #include "diagnostics_values.h"
 #include "hal/audio.h"
+#include "hal/clock.h"
+#include "hal/input.h"
 #include "hal/power.h"
 #include "hal/storage.h"
 #include "hal/system.h"
@@ -54,39 +56,36 @@ const char *diagnostics_row_jack_balanced(const void *context)
     return jack_balanced_text;
 }
 
-static char start_text[DIAGNOSTICS_VALUE_CAPACITY];
+static char headset_text[DIAGNOSTICS_VALUE_CAPACITY];
 
-const char *diagnostics_row_start(const void *context)
+const char *diagnostics_row_headset(const void *context)
 {
     (void)context;
-    diagnostics_start_text(hal_system_start_info(), start_text, sizeof start_text);
-    return start_text;
+    diagnostics_headset_text(hal_input_headset_reading(), headset_text, sizeof headset_text);
+    return headset_text;
 }
 
-static char last_step_text[DIAGNOSTICS_VALUE_CAPACITY];
+static char cpu_text[DIAGNOSTICS_VALUE_CAPACITY];
+static LoadWindow load_window;
 
-const char *diagnostics_row_last_step(const void *context)
+const char *diagnostics_row_cpu_clock(const void *context)
 {
     (void)context;
-    diagnostics_last_step_text(hal_system_start_info(), last_step_text, sizeof last_step_text);
-    return last_step_text;
+    diagnostics_load_update(&load_window, hal_audio_stats());
+    diagnostics_cpu_text(hal_system_clock_mhz(), &load_window, cpu_text, sizeof cpu_text);
+    return cpu_text;
 }
 
-static char last_battery_text[DIAGNOSTICS_VALUE_CAPACITY];
+static char busy_text[DIAGNOSTICS_VALUE_CAPACITY];
+static LoadWindow busy_window;
 
-const char *diagnostics_row_last_battery(const void *context)
+const char *diagnostics_row_core0_busy(const void *context)
 {
     (void)context;
-    diagnostics_last_battery_text(hal_system_start_info(), last_battery_text,
-                                  sizeof last_battery_text);
-    return last_battery_text;
-}
-
-static char usb_last_text[DIAGNOSTICS_VALUE_CAPACITY];
-
-const char *diagnostics_row_usb_last(const void *context)
-{
-    (void)context;
-    diagnostics_usb_last_text(hal_system_usb_last(), usb_last_text, sizeof usb_last_text);
-    return usb_last_text;
+    uint32_t elapsed_us = hal_clock_microseconds();
+    HalAudioStats stats = {.busy_us = elapsed_us - hal_system_idle_microseconds(),
+                           .elapsed_us = elapsed_us};
+    diagnostics_load_update(&busy_window, stats);
+    diagnostics_busy_text(&busy_window, busy_text, sizeof busy_text);
+    return busy_text;
 }

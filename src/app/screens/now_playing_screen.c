@@ -24,15 +24,14 @@ enum {
     RATE_CAPACITY = 16
 };
 
-static const NowPlayingLayout *layout(void)
+static const NowPlayingLayout *layout(const NowPlayingScreen *now_playing)
 {
-    return &BOARD_LAYOUT.now_playing;
+    return board_now_playing_layout(now_playing->config.theme);
 }
 
 static const char SEPARATOR[] = " \xC2\xB7 ";
 
 static const char NOTHING_PLAYING[] = "Nothing playing";
-static const char *const SHUFFLE_TEXT[SHUFFLE_MODE_COUNT] = {"", "Shuffle Songs", "Shuffle Albums"};
 static const char *const REPEAT_TEXT[REPEAT_MODE_COUNT] = {"", "Repeat One", "Repeat All"};
 
 const char *now_playing_codec_name(HalAudioCodec codec)
@@ -100,9 +99,40 @@ static NowPlayingCommand by_gesture(KeyGesture gesture, NowPlayingCommand press,
     case KEY_GESTURE_LONG_PRESS:
         return hold;
     case KEY_GESTURE_REPEAT:
+    case KEY_GESTURE_DOUBLE_PRESS:
+    case KEY_GESTURE_TRIPLE_PRESS:
         return NOW_PLAYING_NONE;
     }
     return NOW_PLAYING_NONE;
+}
+
+static NowPlayingCommand volume_command_for(KeyEvent event, NowPlayingCommand volume,
+                                            NowPlayingCommand skip)
+{
+    switch (event.gesture) {
+    case KEY_GESTURE_PRESS:
+        return volume;
+    case KEY_GESTURE_LONG_PRESS:
+    case KEY_GESTURE_DOUBLE_PRESS:
+        return skip;
+    case KEY_GESTURE_REPEAT:
+    case KEY_GESTURE_TRIPLE_PRESS:
+        return NOW_PLAYING_NONE;
+    }
+    return NOW_PLAYING_NONE;
+}
+
+static NowPlayingCommand play_command_for(KeyEvent event, SkipGesture skip)
+{
+    if (skip == SKIP_GESTURE_PLAY_CLICKS) {
+        if (event.gesture == KEY_GESTURE_DOUBLE_PRESS) {
+            return NOW_PLAYING_NEXT;
+        }
+        if (event.gesture == KEY_GESTURE_TRIPLE_PRESS) {
+            return NOW_PLAYING_PREVIOUS;
+        }
+    }
+    return by_gesture(event.gesture, NOW_PLAYING_TOGGLE_PAUSE, NOW_PLAYING_SCRUB_START);
 }
 
 uint32_t now_playing_scrub_target(uint32_t position_ms, uint32_t duration_ms, int32_t delta_ms)
@@ -114,9 +144,25 @@ uint32_t now_playing_scrub_target(uint32_t position_ms, uint32_t duration_ms, in
     return target > duration_ms ? duration_ms : (uint32_t)target;
 }
 
+static NowPlayingCommand seek_command_for(KeyEvent event)
+{
+    bool fast = event.repeats >= NOW_PLAYING_SEEK_FAST_AFTER_REPEATS;
+    if (event.key == KEY_VOLUME_UP) {
+        return fast ? NOW_PLAYING_SEEK_FORWARD_FAST : NOW_PLAYING_SEEK_FORWARD;
+    }
+    return fast ? NOW_PLAYING_SEEK_BACK_FAST : NOW_PLAYING_SEEK_BACK;
+}
+
+static bool holds_volume(KeyEvent event)
+{
+    bool volume = event.key == KEY_VOLUME_UP || event.key == KEY_VOLUME_DOWN;
+    return volume &&
+           (event.gesture == KEY_GESTURE_LONG_PRESS || event.gesture == KEY_GESTURE_REPEAT);
+}
+
 static NowPlayingCommand scrub_command_for(KeyEvent event)
 {
-    bool held = event.gesture != KEY_GESTURE_PRESS;
+    bool held = event.gesture == KEY_GESTURE_LONG_PRESS || event.gesture == KEY_GESTURE_REPEAT;
     switch (event.key) {
     case KEY_VOLUME_UP:
         return held ? NOW_PLAYING_SCRUB_FORWARD_FAST : NOW_PLAYING_SCRUB_FORWARD;
@@ -133,18 +179,28 @@ static NowPlayingCommand scrub_command_for(KeyEvent event)
     return NOW_PLAYING_NONE;
 }
 
-NowPlayingCommand now_playing_command_for(KeyEvent event, bool scrubbing)
+NowPlayingCommand now_playing_command_for(KeyEvent event, NowPlayingKeys keys)
 {
-    if (scrubbing) {
+    if (keys.scrubbing) {
         return scrub_command_for(event);
+    }
+    if (keys.adjusting_volume && holds_volume(event)) {
+        return event.key == KEY_VOLUME_UP ? NOW_PLAYING_VOLUME_UP : NOW_PLAYING_VOLUME_DOWN;
+    }
+    if (keys.skip == SKIP_GESTURE_DOUBLE_VOLUME && holds_volume(event)) {
+        return seek_command_for(event);
+    }
+    if (event.gesture == KEY_GESTURE_REPEAT && keys.skip != SKIP_GESTURE_HOLD &&
+        (event.key == KEY_VOLUME_UP || event.key == KEY_VOLUME_DOWN)) {
+        return event.key == KEY_VOLUME_UP ? NOW_PLAYING_VOLUME_UP : NOW_PLAYING_VOLUME_DOWN;
     }
     switch (event.key) {
     case KEY_VOLUME_UP:
-        return by_gesture(event.gesture, NOW_PLAYING_VOLUME_UP, NOW_PLAYING_NEXT);
+        return volume_command_for(event, NOW_PLAYING_VOLUME_UP, NOW_PLAYING_NEXT);
     case KEY_VOLUME_DOWN:
-        return by_gesture(event.gesture, NOW_PLAYING_VOLUME_DOWN, NOW_PLAYING_PREVIOUS);
+        return volume_command_for(event, NOW_PLAYING_VOLUME_DOWN, NOW_PLAYING_PREVIOUS);
     case KEY_PLAY:
-        return by_gesture(event.gesture, NOW_PLAYING_TOGGLE_PAUSE, NOW_PLAYING_SCRUB_START);
+        return play_command_for(event, keys.skip);
     case KEY_BACK:
         return by_gesture(event.gesture, NOW_PLAYING_LEAVE, NOW_PLAYING_HOME);
     case KEY_MENU:
@@ -153,6 +209,11 @@ NowPlayingCommand now_playing_command_for(KeyEvent event, bool scrubbing)
         return NOW_PLAYING_NONE;
     }
     return NOW_PLAYING_NONE;
+}
+
+bool now_playing_adjusting_volume(uint32_t volume_changed_ms, uint32_t now_ms)
+{
+    return now_ms - volume_changed_ms < NOW_PLAYING_VOLUME_HOLD_MS;
 }
 
 int now_playing_progress_width(uint32_t position_ms, uint32_t duration_ms, int width)
@@ -197,6 +258,15 @@ int now_playing_volume_width(uint8_t volume, int width)
 {
     uint8_t level = volume < SETTINGS_VOLUME_MAX ? volume : SETTINGS_VOLUME_MAX;
     return level * width / SETTINGS_VOLUME_MAX;
+}
+
+void now_playing_seek_by(Player *player, int32_t delta_ms)
+{
+    PlayerStatus status = player_status(player);
+    if (!status.has_track) {
+        return;
+    }
+    player_seek(player, now_playing_scrub_target(status.position_ms, status.duration_ms, delta_ms));
 }
 
 static void move_scrub(NowPlayingScreen *now_playing, int32_t delta_ms)
@@ -264,6 +334,18 @@ static ScreenAction run_command(NowPlayingScreen *now_playing, NowPlayingCommand
     case NOW_PLAYING_VOLUME_DOWN:
         player_change_volume(player, -1);
         break;
+    case NOW_PLAYING_SEEK_FORWARD:
+        now_playing_seek_by(player, NOW_PLAYING_SCRUB_STEP_MS);
+        break;
+    case NOW_PLAYING_SEEK_FORWARD_FAST:
+        now_playing_seek_by(player, NOW_PLAYING_SCRUB_FAST_STEP_MS);
+        break;
+    case NOW_PLAYING_SEEK_BACK:
+        now_playing_seek_by(player, -NOW_PLAYING_SCRUB_STEP_MS);
+        break;
+    case NOW_PLAYING_SEEK_BACK_FAST:
+        now_playing_seek_by(player, -NOW_PLAYING_SCRUB_FAST_STEP_MS);
+        break;
     case NOW_PLAYING_LEAVE:
         return screen_action_pop();
     case NOW_PLAYING_UP_NEXT:
@@ -321,10 +403,21 @@ static void refresh(NowPlayingScreen *now_playing, uint32_t now_ms)
     }
 }
 
+static NowPlayingKeys keys_of(const NowPlayingScreen *now_playing)
+{
+    bool volume_shown =
+        now_playing->feedback == NOW_PLAYING_FEEDBACK_VOLUME &&
+        now_playing_adjusting_volume(now_playing->feedback_started_ms, now_playing->now_ms);
+    return (NowPlayingKeys){.scrubbing = now_playing->scrubbing,
+                            .adjusting_volume = volume_shown,
+                            .skip = now_playing->config.settings->skip_gesture};
+}
+
 static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     NowPlayingScreen *now_playing = context;
-    NowPlayingCommand command = now_playing_command_for(event, now_playing->scrubbing);
+    now_playing->now_ms = now_ms;
+    NowPlayingCommand command = now_playing_command_for(event, keys_of(now_playing));
     ScreenAction action = run_command(now_playing, command);
     refresh(now_playing, now_ms);
     NowPlayingFeedback feedback = now_playing_feedback_for(command, now_playing->status.state);
@@ -367,12 +460,20 @@ static bool current_cover(const NowPlayingScreen *now_playing, Image *image)
            cover_cache_full(covers, now_playing->album_index, image) == COVER_LOADED;
 }
 
+static int cover_left(const NowPlayingScreen *now_playing)
+{
+    const Theme *theme = now_playing->config.theme;
+    return theme_is_portrait(theme) ? (theme->metrics.screen_width - COVER_FULL_SIZE) / 2
+                                    : theme->metrics.padding;
+}
+
 static int text_left(const NowPlayingScreen *now_playing)
 {
     Image ignored;
     int padding = now_playing->config.theme->metrics.padding;
-    return current_cover(now_playing, &ignored) ? padding + COVER_FULL_SIZE + layout()->cover_gap
-                                                : padding;
+    return current_cover(now_playing, &ignored) && !theme_is_portrait(now_playing->config.theme)
+               ? padding + COVER_FULL_SIZE + layout(now_playing)->cover_gap
+               : padding;
 }
 
 static Rect column_area(const NowPlayingScreen *now_playing, int top, int height)
@@ -388,10 +489,10 @@ static void draw_cover(const NowPlayingScreen *now_playing, Canvas *canvas)
     if (!current_cover(now_playing, &cover)) {
         return;
     }
-    int left = now_playing->config.theme->metrics.padding;
+    int left = cover_left(now_playing);
     image_draw_quad(canvas, cover,
-                    (Quad){left, COVER_FULL_SIZE, layout()->cover_top, COVER_FULL_SIZE,
-                           layout()->cover_top, COVER_FULL_SIZE});
+                    (Quad){left, COVER_FULL_SIZE, layout(now_playing)->cover_top, COVER_FULL_SIZE,
+                           layout(now_playing)->cover_top, COVER_FULL_SIZE});
 }
 
 static Rect line_area(const Theme *theme, int top, int height)
@@ -420,21 +521,21 @@ static void draw_track_text(const NowPlayingScreen *now_playing, Canvas *canvas)
     TextStyle title = {.font = theme->fonts.title, .color = theme->colors.text};
     TextStyle artist = {.font = theme->fonts.body, .color = theme->colors.text_secondary};
     TextStyle album = {.font = theme->fonts.body, .color = theme->colors.text_tertiary};
-    draw_text_line(
-        now_playing, canvas,
-        (Label){column_area(now_playing, layout()->title_top, layout()->text_line_height),
-                now_playing->title},
-        title);
-    draw_text_line(
-        now_playing, canvas,
-        (Label){column_area(now_playing, layout()->artist_top, layout()->text_line_height),
-                now_playing->artist},
-        artist);
-    draw_text_line(
-        now_playing, canvas,
-        (Label){column_area(now_playing, layout()->album_top, layout()->text_line_height),
-                now_playing->album},
-        album);
+    draw_text_line(now_playing, canvas,
+                   (Label){column_area(now_playing, layout(now_playing)->title_top,
+                                       layout(now_playing)->text_line_height),
+                           now_playing->title},
+                   title);
+    draw_text_line(now_playing, canvas,
+                   (Label){column_area(now_playing, layout(now_playing)->artist_top,
+                                       layout(now_playing)->text_line_height),
+                           now_playing->artist},
+                   artist);
+    draw_text_line(now_playing, canvas,
+                   (Label){column_area(now_playing, layout(now_playing)->album_top,
+                                       layout(now_playing)->text_line_height),
+                           now_playing->album},
+                   album);
 }
 
 static uint32_t shown_position(const NowPlayingScreen *now_playing)
@@ -446,7 +547,8 @@ static uint32_t shown_position(const NowPlayingScreen *now_playing)
 static void draw_progress(const NowPlayingScreen *now_playing, Canvas *canvas)
 {
     const Theme *theme = now_playing->config.theme;
-    Rect bar = line_area(theme, layout()->progress_top, layout()->progress_height);
+    Rect bar =
+        line_area(theme, layout(now_playing)->progress_top, layout(now_playing)->progress_height);
     bool volume = showing(now_playing, NOW_PLAYING_FEEDBACK_VOLUME);
     int filled = volume ? now_playing_volume_width(now_playing->status.volume, bar.width)
                         : now_playing_progress_width(shown_position(now_playing),
@@ -480,7 +582,8 @@ static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas)
         StringBuilder level = string_builder_make(remaining, sizeof remaining);
         string_builder_append_unsigned(&level, now_playing->status.volume);
     }
-    Rect area = line_area(theme, layout()->times_top, layout()->small_line_height);
+    Rect area =
+        line_area(theme, layout(now_playing)->times_top, layout(now_playing)->small_line_height);
     TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
     label_draw(canvas, style, (Label){.area = area, .text = elapsed});
     draw_right_aligned(canvas, style, area, remaining);
@@ -489,10 +592,6 @@ static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas)
 static void modes_text(const PlayerStatus *status, char *buffer, size_t capacity)
 {
     StringBuilder builder = string_builder_make(buffer, capacity);
-    string_builder_append(&builder, SHUFFLE_TEXT[status->shuffle]);
-    if (status->shuffle != SHUFFLE_OFF && status->repeat != REPEAT_OFF) {
-        string_builder_append(&builder, SEPARATOR);
-    }
     string_builder_append(&builder, REPEAT_TEXT[status->repeat]);
 }
 
@@ -515,7 +614,8 @@ static void draw_format(const NowPlayingScreen *now_playing, Canvas *canvas)
         return;
     }
     TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
-    Rect row = column_area(now_playing, layout()->format_top, layout()->small_line_height);
+    Rect row = column_area(now_playing, layout(now_playing)->format_top,
+                           layout(now_playing)->small_line_height);
     int codec_width = text_width(style.font, codec) + 2 * CODEC_PADDING;
     Rect badge = {row.x, row.y, codec_width, row.height};
     draw_outline(canvas, badge, theme->colors.text_secondary);
@@ -535,7 +635,8 @@ static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
     char detail[STATUS_CAPACITY];
     now_playing_detail_text(&now_playing->status, detail, sizeof detail);
     label_draw(canvas, style,
-               (Label){column_area(now_playing, layout()->detail_top, layout()->small_line_height),
+               (Label){column_area(now_playing, layout(now_playing)->detail_top,
+                                   layout(now_playing)->small_line_height),
                        detail});
     char modes[STATUS_CAPACITY];
     modes_text(&now_playing->status, modes, sizeof modes);
@@ -543,9 +644,10 @@ static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
         StringBuilder seeking = string_builder_make(modes, sizeof modes);
         string_builder_append(&seeking, "Seeking \xC2\xB7 Play to jump");
     }
-    label_draw(
-        canvas, style,
-        (Label){column_area(now_playing, layout()->modes_top, layout()->small_line_height), modes});
+    label_draw(canvas, style,
+               (Label){column_area(now_playing, layout(now_playing)->modes_top,
+                                   layout(now_playing)->small_line_height),
+                       modes});
 }
 
 static void draw_badge_icon(Canvas *canvas, NowPlayingFeedback feedback, Rect area, Color color)
@@ -577,8 +679,8 @@ static void draw_badge(const NowPlayingScreen *now_playing, Canvas *canvas)
         return;
     }
     const Theme *theme = now_playing->config.theme;
-    int center_x = theme->metrics.padding + COVER_FULL_SIZE / 2;
-    int center_y = layout()->cover_top + COVER_FULL_SIZE / 2;
+    int center_x = cover_left(now_playing) + COVER_FULL_SIZE / 2;
+    int center_y = layout(now_playing)->cover_top + COVER_FULL_SIZE / 2;
     Rect badge = {center_x - BADGE_SIZE / 2, center_y - BADGE_SIZE / 2, BADGE_SIZE, BADGE_SIZE};
     Rect icon = {center_x - BADGE_ICON_SIZE / 2, center_y - BADGE_ICON_SIZE / 2, BADGE_ICON_SIZE,
                  BADGE_ICON_SIZE};

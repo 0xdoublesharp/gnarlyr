@@ -126,3 +126,56 @@ void icon_draw_bluetooth(Canvas *canvas, Rect area, Color color)
         }
     }
 }
+
+void icon_draw_lock(Canvas *canvas, Rect area, Color color)
+{
+    int body_top = area.y + area.height * 2 / 5;
+    int stroke = area.width / 5 > 0 ? area.width / 5 : 1;
+    int inset = area.width / 5;
+    canvas_fill_rect(canvas, (Rect){area.x, body_top, area.width, area.y + area.height - body_top},
+                     color);
+    canvas_fill_rect(canvas, (Rect){area.x + inset, area.y, area.width - 2 * inset, stroke}, color);
+    canvas_fill_rect(canvas, (Rect){area.x + inset, area.y, stroke, body_top - area.y}, color);
+    canvas_fill_rect(
+        canvas, (Rect){area.x + area.width - inset - stroke, area.y, stroke, body_top - area.y},
+        color);
+}
+
+enum {
+    BITMAP_ROWS = 14,
+    NOTE_WIDTH = 8,
+    DISC_WIDTH = 14,
+    SHUFFLE_WIDTH = 14,
+    BADGE_GAP = 1
+};
+
+static const uint16_t NOTE_BITS[BITMAP_ROWS] = {48, 48, 112, 240, 176, 176, 176,
+                                                48, 60, 62,  63,  63,  30,  12};
+static const uint16_t DISC_BITS[BITMAP_ROWS] = {480,   2040,  4092, 8190, 8190, 16191, 15903,
+                                                15903, 16191, 8190, 8190, 4092, 2040,  480};
+static const uint16_t SHUFFLE_BITS[BITMAP_ROWS] = {0,  1024, 3072, 16143, 3480, 1264, 96,
+                                                   96, 1264, 3480, 16143, 3072, 1024, 0};
+
+static void draw_bits(Canvas *canvas, int x, int y, const uint16_t *rows, Color color)
+{
+    for (int row = 0; row < BITMAP_ROWS; row++) {
+        for (int column = 0; rows[row] >> column != 0; column++) {
+            if ((rows[row] >> column & 1u) != 0) {
+                canvas_fill_rect(canvas, (Rect){x + column, y + row, 1, 1}, color);
+            }
+        }
+    }
+}
+
+int icon_shuffle_width(bool albums)
+{
+    return (albums ? DISC_WIDTH : NOTE_WIDTH) + BADGE_GAP + SHUFFLE_WIDTH;
+}
+
+void icon_draw_shuffle(Canvas *canvas, Rect area, Color color, bool albums)
+{
+    int top = area.y + (area.height - BITMAP_ROWS) / 2;
+    draw_bits(canvas, area.x, top, albums ? DISC_BITS : NOTE_BITS, color);
+    int badge = albums ? DISC_WIDTH : NOTE_WIDTH;
+    draw_bits(canvas, area.x + badge + BADGE_GAP, top, SHUFFLE_BITS, color);
+}

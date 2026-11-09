@@ -10,12 +10,14 @@
 #include "device/update_names.h"
 #include "device/updater.h"
 #include "emmc.h"
+#include "hal/power.h"
 #include "internal_volume.h"
 
 enum {
     MESSAGE_CAPACITY = 64,
     PERCENT_STEP = 5,
-    PERCENT = 100
+    PERCENT = 100,
+    RESTART_HOLD_MS = 2000
 };
 
 static char update_path[UPDATE_NAME_CAPACITY];
@@ -128,13 +130,20 @@ static void install(const UpdateFile *update, const UpdateStorage *storage, Upda
     if (updater_should_remove_file(check, installed)) {
         remove_update_file();
     }
-    if (installed) {
-        app_show_notice(stock ? "FiiO firmware installed" : "Update installed",
-                        "Unplug USB, then hold Power to turn off and on again.");
-    } else {
+    if (!installed) {
         app_show_notice("Update failed", "Copy the file again and retry before turning off.");
+        board_wait_for_key();
+        return;
     }
-    board_wait_for_key();
+    const char *title = stock ? "FiiO firmware installed" : "Update installed";
+    app_show_notice(title, "Unplug USB, then hold Power.");
+    do {
+        board_wait_for_power_hold(RESTART_HOLD_MS);
+        app_show_notice(title, "Unplug USB first.");
+    } while (hal_power_battery().usb_power);
+    app_show_notice(title, "Turning off...");
+    board_display_service();
+    hal_power_off();
 }
 
 static void show_refused(const char *name)

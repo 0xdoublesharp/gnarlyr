@@ -16,6 +16,7 @@ enum {
     NO_POSITION = -1,
     REFLECTION_LIGHT = 80,
     FLOOR_LEVEL = 16,
+    FLOOR_GAP = 6,
     RANDOM_POSITION = 0,
     SHUFFLE_SIZE = 48,
     SHUFFLE_STROKE = 4
@@ -361,10 +362,15 @@ static bool cover_image(const CoverFlowScreen *flow, int position, Image *image)
 static void draw_cover(const CoverFlowScreen *flow, Canvas *canvas, int position)
 {
     int32_t relative = (int32_t)position * COVER_FLOW_ONE - flow->position;
-    Quad quad = cover_flow_quad(&BOARD_LAYOUT.cover_flow, relative);
+    bool stacked = theme_is_portrait(flow->config.theme);
+    Quad quad = stacked ? cover_flow_stacked_quad(&BOARD_LAYOUT.cover_stack, relative)
+                        : cover_flow_quad(&BOARD_LAYOUT.cover_flow, relative);
     QuadLight light = cover_flow_light(&BOARD_LAYOUT.cover_flow, relative);
     if (light.left == 0 && light.right == 0) {
         return;
+    }
+    if (stacked) {
+        light.left = light.right = (uint16_t)max_of(light.left, light.right);
     }
     Image image;
     if (cover_image(flow, position, &image)) {
@@ -372,10 +378,13 @@ static void draw_cover(const CoverFlowScreen *flow, Canvas *canvas, int position
         image_draw_quad_lit(canvas, image, quad, light);
         uint32_t reflection_us = hal_clock_microseconds();
         draw_profile_add(DRAW_PART_COVERS, reflection_us - started_us);
+        if (stacked) {
+            return;
+        }
         QuadLight reflected = {(uint16_t)(light.left * REFLECTION_LIGHT / COLOR_LIGHT_FULL),
                                (uint16_t)(light.right * REFLECTION_LIGHT / COLOR_LIGHT_FULL)};
         image_draw_reflection(canvas, image, quad, reflected,
-                              BOARD_LAYOUT.cover_flow_text.reflection_rows);
+                              board_cover_flow_text_layout(flow->config.theme)->reflection_rows);
         draw_profile_add(DRAW_PART_REFLECTIONS, hal_clock_microseconds() - reflection_us);
     } else {
         image_fill_quad(canvas, quad, flow->config.theme->colors.divider);
@@ -399,7 +408,7 @@ static void draw_line(const CoverFlowScreen *flow, Canvas *canvas, Label label, 
 static void draw_text(const CoverFlowScreen *flow, Canvas *canvas)
 {
     const Theme *theme = flow->config.theme;
-    const CoverFlowTextLayout *layout = &BOARD_LAYOUT.cover_flow_text;
+    const CoverFlowTextLayout *layout = board_cover_flow_text_layout(theme);
     int padding = theme->metrics.padding;
     int width = theme->metrics.screen_width - 2 * padding;
     TextStyle title = {.font = theme->fonts.title, .color = theme->colors.text};
@@ -420,7 +429,9 @@ static void draw_empty(const Theme *theme, Canvas *canvas)
 
 static void draw_backdrop(const Theme *theme, Canvas *canvas)
 {
-    int floor = BOARD_LAYOUT.cover_flow.center_top + BOARD_LAYOUT.cover_flow.center_size;
+    int floor = theme_is_portrait(theme)
+                    ? board_cover_flow_text_layout(theme)->title_top - FLOOR_GAP
+                    : BOARD_LAYOUT.cover_flow.center_top + BOARD_LAYOUT.cover_flow.center_size;
     int height = theme->metrics.screen_height;
     canvas_fill_rect(canvas, (Rect){0, 0, theme->metrics.screen_width, floor}, BACKDROP);
     for (int y = floor; y < height; y++) {

@@ -13,10 +13,7 @@
 #include "player.h"
 #include "screens/bluetooth_screen.h"
 #include "screens/cover_flow_screen.h"
-#include "screens/font_sample_screen.h"
 #include "screens/now_playing_screen.h"
-#include "screens/stopwatch_screen.h"
-#include "screens/test_pattern_screen.h"
 #include "screens/up_next_screen.h"
 #include "settings/settings.h"
 #include "settings_screens.h"
@@ -29,7 +26,7 @@ enum {
     HOME_ITEM_COUNT = 6,
     SHELF_COUNT = 2,
     MUSIC_ITEM_COUNT = 9,
-    DIAGNOSTICS_ITEM_COUNT = 33,
+    DIAGNOSTICS_ITEM_COUNT = 13,
     START_PATH_CAPACITY = 2
 };
 
@@ -67,13 +64,6 @@ typedef struct Core1AccelOption {
     HalCore1Accel result;
 } Core1AccelOption;
 
-typedef struct DmaToneOption {
-    uint32_t sample_rate;
-    bool tried;
-    bool stopped;
-    HalToneResult result;
-} DmaToneOption;
-
 typedef struct BrowseEntry {
     BrowsePool *pool;
     const LibraryStore *store;
@@ -90,7 +80,6 @@ typedef struct AppScreens {
     MenuScreen music;
     SettingsScreens settings;
     MenuScreen diagnostics;
-    MenuScreen long_names;
     MessageScreen no_library;
     BrowsePool browse;
     NowPlayingScreen now_playing;
@@ -98,15 +87,9 @@ typedef struct AppScreens {
     CoverFlowScreen cover_flow;
     BrowseEntry browse_entries[MUSIC_ITEM_COUNT];
     BrowseEntry shelf_entries[SHELF_COUNT];
-    TestPatternScreen test_pattern;
-    FontSampleScreen font_sample;
-    StopwatchScreen stopwatch;
     BluetoothScreen bluetooth;
     ClockOption clock;
     ToneOption tone;
-    DmaToneOption dma_tone;
-    DmaToneOption high_rate_tone;
-    DmaToneOption tone_176;
     LoopOption loop;
     Core1Option core1;
     Core1AccelOption core1_accel;
@@ -120,6 +103,8 @@ typedef struct AppScreens {
 typedef struct AppScreensContext {
     AppOptions *options;
     const Theme *theme;
+    Theme *styled_theme;
+    const Theme *compact_theme;
     const LibraryStore *store;
     Player *player;
     SettingsStore *settings;

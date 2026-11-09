@@ -90,7 +90,7 @@ class PlayerFingerprintTest(unittest.TestCase):
         self.assertEqual(before, card.fingerprint())
 
     def test_the_counted_names_are_the_players(self):
-        counted = ["a.flac", "a.ogg", "a.mp3", "a.m4a", "a.wav", "a.wma", "a.ape", "a.dsf",
+        counted = ["a.flac", "a.ogg", "a.mp3", "a.m4a", "a.m4b", "a.wav", "a.wma", "a.ape", "a.dsf",
                    "a.dff", "A.FLAC", "b.m3u", "b.M3U8", "c.cue", "C.CUE", "Folder.JPG", "front.png",
                    "albumart.jpeg", "cover.png"]
         ignored = ["x.aac", "x.txt", "x.opus", "x.aiff", "x.mp4", "x.flac.txt", "scan 01.jpg",

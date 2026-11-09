@@ -7,6 +7,10 @@
 #define GRF_PORT2_LOW_PULL (GRF_BASE + 0x50u)
 #define POWER_KEY_PULL_OFF 0x00200000u
 
+enum {
+    DAC_DISCHARGE_MS = 1000
+};
+
 static const GpioPin POWER_KEY = {2, 5};
 static const GpioPin POWER_HOLD = {2, 6};
 static const GpioPin CHARGE_STATUS = {2, 3};
@@ -110,16 +114,9 @@ bool board_power_key_down(void)
 void hal_power_off(void)
 {
     board_stall_pause(true);
+    board_audio_shut_down();
+    board_delay_ms(DAC_DISCHARGE_MS);
     while (gpio_read(POWER_KEY)) {
     }
-    board_backlight_off();
-    board_bluetooth_off();
-    __asm__ volatile("cpsid i" ::: "memory");
-    board_start_record_power_off();
-    board_power_pair_set(false);
-    gpio_mux(POWER_HOLD, GPIO_FUNCTION_GPIO);
-    gpio_output(POWER_HOLD, false);
-    for (;;) {
-        board_watchdog_kick();
-    }
+    board_power_cut();
 }

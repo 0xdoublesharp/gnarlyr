@@ -8,6 +8,7 @@
 #include "cover_cache.h"
 #include "library/library.h"
 #include "player.h"
+#include "settings/settings.h"
 #include "ui/screen.h"
 #include "ui/theme.h"
 
@@ -31,13 +32,19 @@ typedef enum NowPlayingCommand {
     NOW_PLAYING_SCRUB_BACK_FAST,
     NOW_PLAYING_SCRUB_COMMIT,
     NOW_PLAYING_SCRUB_CANCEL,
-    NOW_PLAYING_UP_NEXT
+    NOW_PLAYING_UP_NEXT,
+    NOW_PLAYING_SEEK_FORWARD,
+    NOW_PLAYING_SEEK_FORWARD_FAST,
+    NOW_PLAYING_SEEK_BACK,
+    NOW_PLAYING_SEEK_BACK_FAST
 } NowPlayingCommand;
 
 enum {
     NOW_PLAYING_SCRUB_STEP_MS = 5000,
     NOW_PLAYING_SCRUB_FAST_STEP_MS = 15000,
-    NOW_PLAYING_VOLUME_FEEDBACK_MS = 1500,
+    NOW_PLAYING_SEEK_FAST_AFTER_REPEATS = 8,
+    NOW_PLAYING_VOLUME_FEEDBACK_MS = 2500,
+    NOW_PLAYING_VOLUME_HOLD_MS = NOW_PLAYING_VOLUME_FEEDBACK_MS,
     NOW_PLAYING_BADGE_MS = 700
 };
 
@@ -50,8 +57,15 @@ typedef enum NowPlayingFeedback {
     NOW_PLAYING_FEEDBACK_PLAY
 } NowPlayingFeedback;
 
+typedef struct NowPlayingKeys {
+    bool scrubbing;
+    bool adjusting_volume;
+    SkipGesture skip;
+} NowPlayingKeys;
+
 typedef struct NowPlayingConfig {
     Player *player;
+    const Settings *settings;
     const Library *library;
     const Theme *theme;
     CoverCache *covers;
@@ -76,7 +90,9 @@ typedef struct NowPlayingScreen {
     char album[NOW_PLAYING_TEXT_CAPACITY];
 } NowPlayingScreen;
 
-NowPlayingCommand now_playing_command_for(KeyEvent event, bool scrubbing);
+NowPlayingCommand now_playing_command_for(KeyEvent event, NowPlayingKeys keys);
+bool now_playing_adjusting_volume(uint32_t volume_changed_ms, uint32_t now_ms);
+void now_playing_seek_by(Player *player, int32_t delta_ms);
 uint32_t now_playing_scrub_target(uint32_t position_ms, uint32_t duration_ms, int32_t delta_ms);
 const char *now_playing_codec_name(HalAudioCodec codec);
 void now_playing_stream_text(HalAudioFormat format, char *buffer, size_t capacity);

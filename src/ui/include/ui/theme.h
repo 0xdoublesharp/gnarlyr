@@ -1,9 +1,15 @@
 #pragma once
 
+#include <stdbool.h>
+
 #include "gfx/color.h"
 #include "gfx/font.h"
 #include "gfx/rect.h"
 #include "ui/marquee.h"
+
+enum {
+    THEME_MAX_ROWS = 13
+};
 
 typedef struct ThemeColors {
     Color background;
@@ -28,6 +34,7 @@ typedef struct ThemeFonts {
     const Font *title;
     const Font *body;
     const Font *small;
+    const Font *header;
 } ThemeFonts;
 
 typedef struct ThemeMetrics {
@@ -41,6 +48,8 @@ typedef struct ThemeMetrics {
     int scrollbar_inset;
     int detail_gap;
     int status_icon_size;
+    int status_height;
+    int text_size;
 } ThemeMetrics;
 
 typedef struct Theme {
@@ -53,3 +62,5 @@ typedef struct Theme {
 Rect theme_header_area(const Theme *theme);
 Rect theme_content_area(const Theme *theme);
 int theme_visible_rows(const Theme *theme);
+bool theme_is_portrait(const Theme *theme);
+Rect theme_title_area(const Theme *theme);

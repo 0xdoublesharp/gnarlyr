@@ -141,9 +141,12 @@ static void build_settings(AppScreens *screens, AppScreensContext context)
         .toast = context.toast,
         .rescan_requested = context.rescan_requested,
         .bluetooth = &screens->bluetooth,
+        .theme = context.styled_theme,
         .sleep_option = 0,
     };
     settings_screens_init(&screens->settings, settings, context.theme);
+    screens->settings.items[SETTINGS_ABOUT_ITEM] =
+        app_screens_open_item("About", &screens->diagnostics.screen);
 }
 
 static bool shelf_present(const void *context)
@@ -179,16 +182,19 @@ static void build_home(AppScreens *screens, AppScreensContext context)
     screens->home_items[1] = shelf_item(screens, context, SPOKEN_AUDIOBOOK);
     screens->home_items[2] = shelf_item(screens, context, SPOKEN_PODCAST);
     screens->home_items[3] = app_screens_open_item("Settings", &screens->settings.menu.screen);
-    screens->home_items[4] = app_screens_open_item("Diagnostics", &screens->diagnostics.screen);
-    screens->home_items[5] = app_screens_open_item("Now Playing", &screens->now_playing.screen);
+    screens->home_items[4] = app_screens_open_item("Now Playing", &screens->now_playing.screen);
+    screens->home_items[4].shown = player_has_track;
+    screens->home_items[4].shown_context = context.player;
+    screens->home_items[5] = app_screens_open_item("Up Next", &screens->up_next.screen);
     screens->home_items[5].shown = player_has_track;
     screens->home_items[5].shown_context = context.player;
     home_art_init(&screens->home_art, context.covers, context.store, context.player, theme);
     MenuConfig home = {.title = "Podium",
                        .items = screens->home_items,
                        .item_count = HOME_ITEM_COUNT,
-                       .theme = theme,
+                       .theme = context.compact_theme,
                        .panel = {.width = BOARD_LAYOUT.home_art_width,
+                                 .min_height = BOARD_LAYOUT.home_art_min_height,
                                  .update = home_art_update,
                                  .draw = home_art_draw,
                                  .context = &screens->home_art}};
@@ -203,8 +209,9 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
     UpNextConfig up_next = {
         .library = &context.store->library, .theme = theme, .player = context.player};
     NowPlayingConfig now_playing = {.player = context.player,
+                                    .settings = &context.settings->settings,
                                     .library = &context.store->library,
-                                    .theme = theme,
+                                    .theme = context.compact_theme,
                                     .covers = context.covers,
                                     .up_next = up_next_screen_init(&screens->up_next, up_next)};
     message_screen_init(&screens->no_library, no_library);

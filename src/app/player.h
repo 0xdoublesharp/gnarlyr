@@ -11,9 +11,10 @@
 #include "playback/up_next.h"
 
 enum {
-    PLAYER_DEFAULT_VOLUME = 12,
+    PLAYER_DEFAULT_VOLUME = 13,
     PLAYER_RESTART_THRESHOLD_MS = 3000,
     PLAYER_SAVE_INTERVAL_MS = 15000,
+    PLAYER_PAUSE_RELEASE_MS = 30000,
     PLAYER_PATH_CAPACITY = 260
 };
 
@@ -85,6 +86,8 @@ typedef struct Player {
     PlayQueueCursor next_cursor;
     PlayerNextSource next_source;
     uint32_t last_save_ms;
+    bool pause_timing;
+    uint32_t paused_since_ms;
     HalAudioJack jack;
     uint32_t refusal_count;
     HalAudioRefusal refusal;

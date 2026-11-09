@@ -43,6 +43,15 @@ static void a_toast_is_one_row_tall(void)
     CHECK_EQUAL(TEST_ROW_HEIGHT, toast_area(&toast, &TEST_THEME).height);
 }
 
+static void a_toast_wider_than_the_screen_stays_on_screen(void)
+{
+    Toast toast = {0};
+    toast_show(&toast, "ABABABABABABABABABABABABABABAB", NOW_MS);
+    Rect area = toast_area(&toast, &TEST_THEME);
+    CHECK(area.x >= 0);
+    CHECK(area.x + area.width <= TEST_SCREEN_WIDTH);
+}
+
 static void a_hidden_toast_paints_nothing(void)
 {
     Toast toast = {0};
@@ -57,9 +66,12 @@ static void a_hidden_toast_paints_nothing(void)
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(a_new_toast_is_hidden),          TEST_CASE(a_shown_toast_lasts_its_duration),
-        TEST_CASE(a_visible_toast_paints_its_box), TEST_CASE(a_toast_is_one_row_tall),
+        TEST_CASE(a_new_toast_is_hidden),
+        TEST_CASE(a_shown_toast_lasts_its_duration),
+        TEST_CASE(a_visible_toast_paints_its_box),
+        TEST_CASE(a_toast_is_one_row_tall),
         TEST_CASE(a_hidden_toast_paints_nothing),
+        TEST_CASE(a_toast_wider_than_the_screen_stays_on_screen),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

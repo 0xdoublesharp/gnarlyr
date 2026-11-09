@@ -9,7 +9,7 @@
 #include "library/library_scan.h"
 
 enum {
-    MAX_FILES = 16,
+    MAX_FILES = 64,
     PATH_CAPACITY = 64,
     COVER_SIDE = 112,
     PNG_ROW = 1 + COVER_SIDE * 3,
@@ -19,7 +19,8 @@ enum {
     LIBRARY_CAPACITY = 4 * 1024 * 1024,
     COVERS_CAPACITY = 1024 * 1024,
     SCRATCH_SIZE = 16 * 1024 * 1024,
-    RECORD_SLOT = 8 + 4 + COVER_BUILD_RECORD_BYTES
+    RECORD_SLOT = 8 + 4 + COVER_BUILD_RECORD_BYTES,
+    COVER_FULL_BYTES = 112 * 112 * 2
 };
 
 typedef struct Color {
@@ -63,6 +64,10 @@ static Buffer library_file;
 static Buffer covers_file;
 static Buffer scratch_file;
 static uint32_t covers_capacity = COVERS_CAPACITY;
+static uint32_t dir_opens;
+static uint32_t record_writes;
+static uint32_t failing_record;
+static void (*on_progress)(uint32_t done);
 
 static bool child_of(const char *dir, const char *path, char *name, bool *directory)
 {
@@ -99,6 +104,7 @@ static void list_child(const char *name, bool directory, uint32_t modified)
 static bool card_open_dir(void *context, const char *path)
 {
     (void)context;
+    dir_opens++;
     card.listed = 0;
     card.cursor = 0;
     for (uint32_t index = 0; index < card.count; index++) {
@@ -172,6 +178,23 @@ static bool buffer_write(void *context, uint32_t offset, const void *bytes, uint
     }
     memcpy(buffer->bytes + offset, bytes, length);
     return true;
+}
+
+static bool covers_write(void *context, uint32_t offset, const void *bytes, uint32_t length)
+{
+    if (length == COVER_FULL_BYTES && ++record_writes == failing_record) {
+        return false;
+    }
+    return buffer_write(context, offset, bytes, length);
+}
+
+static void progress_report(void *context, uint32_t done, uint32_t total)
+{
+    (void)context;
+    (void)total;
+    if (on_progress != NULL) {
+        on_progress(done);
+    }
 }
 
 static uint8_t *put_be32(uint8_t *at, uint32_t value)
@@ -321,6 +344,9 @@ static void reset(void)
     card.count = 0;
     card.png_count = 0;
     covers_capacity = COVERS_CAPACITY;
+    record_writes = 0;
+    failing_record = 0;
+    on_progress = NULL;
     memset(covers_file.bytes, 0, COVERS_CAPACITY);
 }
 
@@ -339,14 +365,16 @@ static ScanResult rescan(bool keep, CoverStats *stats)
                     .capacity = LIBRARY_CAPACITY};
     CHECK_EQUAL(SCAN_OK, library_scan(&scan, &scan_stats));
     covers_file.capacity = covers_capacity;
+    dir_opens = 0;
     CoverJob job = {.files = files,
                     .library = {buffer_read, &library_file},
                     .library_size = LIBRARY_CAPACITY,
-                    .sink = {buffer_write, &covers_file},
+                    .sink = {covers_write, &covers_file},
                     .previous = {keep ? buffer_read : NULL, &covers_file},
                     .capacity = covers_capacity,
                     .memory = memory,
-                    .size = sizeof memory};
+                    .size = sizeof memory,
+                    .progress = {progress_report, NULL}};
     return cover_build(&job, stats);
 }
 
@@ -511,6 +539,190 @@ static void without_a_previous_file_everything_is_decoded(void)
     CHECK_EQUAL(0u, stats.reused);
 }
 
+static void add_blob_album(const char *album, const uint8_t *bytes, uint32_t size)
+{
+    char path[PATH_CAPACITY];
+    uint8_t *copy = card.pngs[card.png_count++];
+    CHECK(size <= PNG_CAPACITY);
+    memcpy(copy, bytes, size);
+    snprintf(path, sizeof path, "/%s/01.flac", album);
+    add_file(path, card.flac, card.flac_size);
+    snprintf(path, sizeof path, "/%s/cover.png", album);
+    add_file(path, copy, size);
+}
+
+static void add_damaged_png(const char *album, uint32_t variant)
+{
+    static uint8_t png[PNG_CAPACITY];
+    uint32_t size = make_png(png, RED);
+    switch (variant) {
+    case 0:
+        size = size / 2;
+        break;
+    case 1:
+        memset(png + 41, 0xFF, 16);
+        break;
+    case 2:
+        put_be32(png + 16, 100000);
+        put_be32(png + 20, 100000);
+        break;
+    case 3:
+        png[24] = 16;
+        png[28] = 1;
+        size = 60;
+        break;
+    case 4:
+        size = 8;
+        break;
+    default:
+        png[25] = 7;
+        break;
+    }
+    add_blob_album(album, png, size);
+}
+
+static void a_broken_cover_costs_only_its_own_album(void)
+{
+    static const uint8_t ARITHMETIC[] = {0xFF, 0xD8, 0xFF, 0xC9, 0,    11, 8,    0,   16,
+                                         0,    16,   1,    1,    0x11, 0,  0xFF, 0xD9};
+    static const uint8_t TWELVE_BIT[] = {0xFF, 0xD8, 0xFF, 0xC0, 0,    11, 12,   0,   16,
+                                         0,    16,   1,    1,    0x11, 0,  0xFF, 0xD9};
+    static const uint8_t CMYK[] = {0xFF, 0xD8, 0xFF, 0xC2, 0,    20, 8,    0,    16,
+                                   0,    16,   4,    1,    0x11, 0,  2,    0x11, 0,
+                                   3,    0x11, 0,    4,    0x11, 0,  0xFF, 0xD9};
+    static const uint8_t HUGE[] = {0xFF, 0xD8, 0xFF, 0xC0, 0,    11, 8,    0xFF, 0xFF,
+                                   0xFF, 0xFF, 1,    1,    0x11, 0,  0xFF, 0xD9};
+    static const uint8_t NO_SCAN[] = {0xFF, 0xD8, 0xFF, 0xC0, 0,    11, 8,    0x40, 0,
+                                      0x40, 0,    1,    1,    0x11, 0,  0xFF, 0xD9};
+    static const uint8_t GARBAGE[] = {'G', 'I', 'F', '8', '9', 'a', 1, 2, 3, 4};
+    CoverStats stats;
+    char name[16];
+    uint32_t broken = 0;
+    reset();
+    add_album("Alpha", RED);
+    for (uint32_t variant = 0; variant < 6; variant++) {
+        snprintf(name, sizeof name, "Bad%u", variant);
+        add_damaged_png(name, variant);
+        broken++;
+    }
+    add_blob_album("Bad6", ARITHMETIC, sizeof ARITHMETIC);
+    add_blob_album("Bad7", TWELVE_BIT, sizeof TWELVE_BIT);
+    add_blob_album("Bad8", CMYK, sizeof CMYK);
+    add_blob_album("Bad9", HUGE, sizeof HUGE);
+    add_blob_album("BadA", NO_SCAN, sizeof NO_SCAN);
+    add_blob_album("BadB", GARBAGE, sizeof GARBAGE);
+    add_blob_album("BadC", GARBAGE, 0);
+    add_album("Zeta", BLUE);
+    broken += 7;
+    CHECK_EQUAL(SCAN_OK, rescan(true, &stats));
+    CHECK_EQUAL(2u, stats.covers);
+    CHECK_EQUAL(broken, stats.missing);
+    CHECK_EQUAL(RED.pixel, cover_pixel("Alpha"));
+    CHECK_EQUAL(BLUE.pixel, cover_pixel("Zeta"));
+    CHECK_EQUAL(0u, cover_pixel("Bad0"));
+}
+
+static void a_failed_record_write_costs_only_its_own_album(void)
+{
+    CoverStats stats;
+    three_albums();
+    failing_record = 2;
+    CHECK_EQUAL(SCAN_OK, rescan(true, &stats));
+    CHECK_EQUAL(2u, stats.covers);
+    CHECK_EQUAL(1u, stats.missing);
+    CHECK_EQUAL(RED.pixel, cover_pixel("Alpha"));
+    CHECK_EQUAL(0u, cover_pixel("Beta"));
+    CHECK_EQUAL(BLUE.pixel, cover_pixel("Gamma"));
+    failing_record = 0;
+    CHECK_EQUAL(SCAN_OK, rescan(true, &stats));
+    CHECK_EQUAL(3u, stats.covers);
+    CHECK_EQUAL(2u, stats.reused);
+    CHECK_EQUAL(GREEN.pixel, cover_pixel("Beta"));
+}
+
+static void a_failed_rewrite_drops_only_the_damaged_record(void)
+{
+    CoverStats stats;
+    three_albums();
+    CHECK_EQUAL(SCAN_OK, rescan(true, &stats));
+    replace_cover("Beta", WHITE);
+    record_writes = 0;
+    failing_record = 1;
+    CHECK_EQUAL(SCAN_OK, rescan(true, &stats));
+    CHECK_EQUAL(2u, stats.covers);
+    CHECK_EQUAL(0u, cover_pixel("Beta"));
+    CHECK_EQUAL(RED.pixel, cover_pixel("Alpha"));
+    CHECK_EQUAL(BLUE.pixel, cover_pixel("Gamma"));
+}
+
+static uint32_t previous_covers_seen;
+
+static void count_previous_covers(uint32_t done)
+{
+    Covers covers;
+    if (done == 1 || done == 3) {
+        CHECK(covers_open(&covers, (ByteSource){buffer_read, &covers_file}, covers_capacity));
+        previous_covers_seen += covers.count;
+    }
+}
+
+static void the_previous_covers_stay_readable_until_the_pass_ends(void)
+{
+    CoverStats stats;
+    three_albums();
+    CHECK_EQUAL(SCAN_OK, rescan(true, &stats));
+    replace_cover("Gamma", WHITE);
+    previous_covers_seen = 0;
+    on_progress = count_previous_covers;
+    CHECK_EQUAL(SCAN_OK, rescan(true, &stats));
+    CHECK_EQUAL(6u, previous_covers_seen);
+    CHECK_EQUAL(WHITE.pixel, cover_pixel("Gamma"));
+}
+
+static void an_album_spread_over_many_folders_lists_a_bounded_number_of_them(void)
+{
+    static uint8_t *tagged;
+    static uint32_t tagged_size;
+    CoverStats stats;
+    char path[PATH_CAPACITY];
+    reset();
+    if (tagged == NULL) {
+        tagged = read_fixture("tags/tagged.ogg", &tagged_size);
+    }
+    for (uint32_t folder = 0; folder < 40; folder++) {
+        snprintf(path, sizeof path, "/Mix/d%02u/01.ogg", folder);
+        add_file(path, tagged, tagged_size);
+    }
+    CHECK_EQUAL(SCAN_OK, rescan(true, &stats));
+    CHECK_EQUAL(1u, stats.albums);
+    CHECK_EQUAL(1u, stats.missing);
+    CHECK(dir_opens <= 16);
+}
+
+static void albums_sharing_a_folder_list_it_once(void)
+{
+    static const char *const NAMES[] = {"tags/id3v1_no_xing.mp3", "tags/tagged.ogg",
+                                        "tags/untagged.flac"};
+    static uint8_t *files[3];
+    static uint32_t sizes[3];
+    CoverStats stats;
+    char path[PATH_CAPACITY];
+    reset();
+    for (uint32_t index = 0; index < 3; index++) {
+        if (files[index] == NULL) {
+            files[index] = read_fixture(NAMES[index], &sizes[index]);
+        }
+        snprintf(path, sizeof path, "/Flat/%s", strrchr(NAMES[index], '/') + 1);
+        add_file(path, files[index], sizes[index]);
+    }
+    uint8_t *png = card.pngs[card.png_count++];
+    add_file("/Flat/cover.png", png, make_png(png, GREEN));
+    CHECK_EQUAL(SCAN_OK, rescan(true, &stats));
+    CHECK_EQUAL(3u, stats.albums);
+    CHECK_EQUAL(3u, stats.covers);
+    CHECK_EQUAL(1u, dir_opens);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -523,6 +735,12 @@ int main(void)
         TEST_CASE(a_file_without_stamps_is_built_again),
         TEST_CASE(a_damaged_index_is_ignored),
         TEST_CASE(without_a_previous_file_everything_is_decoded),
+        TEST_CASE(a_broken_cover_costs_only_its_own_album),
+        TEST_CASE(a_failed_record_write_costs_only_its_own_album),
+        TEST_CASE(a_failed_rewrite_drops_only_the_damaged_record),
+        TEST_CASE(the_previous_covers_stay_readable_until_the_pass_ends),
+        TEST_CASE(an_album_spread_over_many_folders_lists_a_bounded_number_of_them),
+        TEST_CASE(albums_sharing_a_folder_list_it_once),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

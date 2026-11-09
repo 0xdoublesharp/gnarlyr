@@ -1,4 +1,4 @@
-# Library database format (version 4)
+# Library database format (version 5)
 
 The PC indexer (`tools/library_index.py`) writes the library database. The device reads it (`src/library`). Everything is sorted on the PC, so the device never sorts. It reads fixed-size records by index and strings by offset, a few hundred bytes at a time.
 
@@ -12,7 +12,7 @@ The PC indexer (`tools/library_index.py`) writes the library database. The devic
 | Offset | Type | Field |
 |---|---|---|
 | 0 | `char[4]` | magic `EMDB` |
-| 4 | `u16` | version = 4 (the player rebuilds a library of any other version; version 3 had 24-byte track records without `start_ms` and `end_ms`) |
+| 4 | `u16` | version = 6 (the player rebuilds a library of any other version, which also lists the `.m4b` files of a card after an update; version 5 had no chapter folders (flag bit 1) and no `.m4b` files, version 4 had no CUE sheet folders and listed every CUE track in its file's folder, version 3 had 24-byte track records without `start_ms` and `end_ms`) |
 | 6 | `u16` | section count = 10 |
 | 8 | 10 × 12 B | section directory, in the order below |
 
@@ -25,7 +25,7 @@ Each section directory entry is `u32 offset`, `u32 count`, `u16 record size`, `u
 | 2 | artists | 12 | track artists, sorted by name |
 | 3 | album artists | 12 | sorted by name |
 | 4 | genres | 12 | sorted by name |
-| 5 | folders | 16 | depth-first; folder 0 is the music root (empty name) |
+| 5 | folders | 16 | depth-first; folder 0 is the music root (empty name); CUE sheets are folders too |
 | 6 | title order | 2 | track indices sorted by title, then artist (All Songs) |
 | 7 | playlists | 12 | M3U playlists, sorted by name |
 | 8 | links | 2 | shared `u16` lists that groups, playlists and folders point into |
@@ -38,7 +38,7 @@ Each section directory entry is `u32 offset`, `u32 count`, `u16 record size`, `u
 | **Track** | `u32 title`, `u32 path`, `u16 album`, `u16 artist`, `u16 genre`, `u16 folder`, `u32 duration_ms`, `u8 disc`, `u8 number`, `u16 reserved`, `u32 start_ms`, `u32 end_ms` |
 | **Album** | `u32 title`, `u16 album_artist`, `u16 genre`, `u16 year`, `u16 first_track`, `u16 track_count`, `u16 cover` |
 | **Group** (artist, album artist, genre, playlist) | `u32 name`, `u32 first_link`, `u16 link_count`, `u16 reserved` |
-| **Folder** | `u32 name`, `u16 parent`, `u16 subfolder_count`, `u32 first_link`, `u16 track_count`, `u16 reserved` |
+| **Folder** | `u32 name`, `u16 parent`, `u16 subfolder_count`, `u32 first_link`, `u16 track_count`, `u16 flags` (bit 0: a sheet, a CUE sheet or the chapters of a file; bit 1: the sheet is a chaptered `.m4b`, so the folder holding the file doesn't list it) |
 
 Field notes:
 - `u32` string fields hold an offset into the strings section.
@@ -46,7 +46,16 @@ Field notes:
 - An album's tracks are `tracks[first_track .. first_track + track_count)`. Album `cover` is reserved and always `0xFFFF`. Covers live in their own file, keyed by album key (see Covers file).
 - A group's albums are `links[first_link .. first_link + link_count)`. Artists list every album containing at least one of their tracks. Artist and album-artist albums are ordered by year, then title; genre albums are ordered by title. Within each section the groups' links are consecutive and in group order (group `n + 1` starts where group `n` ends). Cover Flow relies on this for album artists to read its order straight from `links`; a file that breaks it gets Cover Flow in album order instead.
 - A playlist's links are track indices in playlist order. Its name is the file name without `.m3u` or `.m3u8`.
-- A folder's items are `links[first_link ..]`: first `subfolder_count` folder indices (sorted by name), then `track_count` track indices (sorted by disc, number, file name).
+- A folder's items are `links[first_link ..]`: first `subfolder_count` folder indices (sorted by name), then `track_count` track indices (sorted by disc, number, file name). The tracks are one per audio file: a file split by a CUE sheet is there once, as the sheet's first track (see CUE tracks).
+
+## Chapters of an .m4b
+
+A `.m4b` file is scanned like `.m4a` (`library/tags_mp4`) and, when it has at least two usable chapters, becomes one track per chapter, the same way a CUE sheet does (`library/mp4_chapters`):
+
+- Chapters come from the Nero `chpl` atom in `moov/udta` first, then from the QuickTime chapter text track (`trak/tref/chap` names a text track; each sample is a 16-bit length and UTF-8 text, its start time from `stts` and its place from `stsc`, `stsz` and `stco` or `co64`). Entries that start no later than the previous one or at or past the file's duration are dropped, the first chapter starts at 0, at most 255 chapters are read (the last one runs to the end of the file) and a chapter title is cut at 63 bytes. A chapter without a title is "Chapter n". Chapter data that is missing, has fewer than two chapters or doesn't fit the file leaves one ordinary track.
+- Each chapter track has the file's tags with `title` the chapter's, `number` the chapter's place (1 to 255), `start_ms` its start, `end_ms` the next chapter's start (0 for the last) and `duration_ms` its own length.
+- The chapters are the tracks of a folder with flags 3 (a sheet whose chapters bit is set), named as the file without its extension, a child of the folder holding the file. Unlike a CUE sheet the folder holding the file doesn't list the file as a track: its `track_count` and links leave it out. Every chapter track still has the folder holding the file as its `folder`.
+- The PC indexer (`tools/library_index.py`) lists an `.m4b` as one track and reads no chapters; the player's own rescan reads them.
 
 ## CUE tracks
 
@@ -60,6 +69,7 @@ A `.cue` file makes tracks in the folder scan when it is usable (`library/cue_sh
 - `INDEX 01 mm:ss:ff` is `(mm * 60 + ss) * 75 + ff` frames, `floor(frames * 1000 / 75)` milliseconds. A track starts at its `INDEX 01` and ends at the next kept track's; the last one has `end_ms` 0.
 - Fields: title is the track's `TITLE`, else "Track N"; artist is the track's `PERFORMER`, else the sheet's `PERFORMER`, else the file's artist; album artist is the sheet's `PERFORMER`, else the file's (guessed per album as for any track without an album-artist tag); album is the sheet's `TITLE`, else the file's tags and fallbacks; genre is `REM GENRE`, else the file's; year is the first four digits of `REM DATE`, else the file's; number is the `TRACK` number (at most 255); disc and the other fallbacks come from the file as for a track. `REM` values count only before the first `TRACK`.
 - Tracks come at the position of the `.cue` file in the sorted walk, in sheet order. The player cuts texts at 255 bytes; the PC indexer doesn't.
+- A usable sheet is also a folder with flag bit 0 set: named as the `.cue` file, a child of the folder holding it (sorted by name among its subfolders), with no subfolders and with the sheet's tracks in sheet order. The folder holding the audio file lists the file once, as the sheet's first track; the sheet's other tracks are only in the sheet folder. Every track of the sheet still has the folder holding the file as its `folder`. A file named by two sheets is listed once per sheet. Folders shows every audio file by its full file name with extension and the sheet by its name, and opens the sheet's tracks by title; the file's row shows the whole file's length (the sheet's last track's `start_ms` plus its `duration_ms`), and selecting it plays the sheet folder from its first track.
 
 ## Spoken word
 
@@ -93,7 +103,7 @@ On the device, `track_tags_read` reads through a `ByteSource` with small bounded
 ## Building on the device
 
 `library/library_builder` builds a database that means the same as the PC indexer's, from tracks given in scan order (the PC indexer's sorted path order), with a block of RAM and a scratch file on the card (`/.echo/build.tmp`, 24 MB, reserved with the other player files). It handles up to 65,535 tracks; 20,000 are tested inside 360 KB of RAM. RAM only ever holds what one step needs: buffers, small caches and a few 16-bit columns.
-- During the scan each track becomes a 56-byte row on the card (text offsets and lengths, folder, year, disc, number, duration, start, end) and its texts go to a heap on the card (a text equal to the previous track's same field is stored once). Folders become 8-byte rows; a hash of (parent, name) in RAM finds a folder seen before.
+- During the scan each track becomes a 60-byte row on the card (text offsets and lengths, folder, year, disc, number, duration, start, end, CUE sheet folder and whether it follows the sheet's first track) and its texts go to a heap on the card (a text equal to the previous track's same field is stored once). Folders become 8-byte rows (the top bit of the name length marks a CUE sheet); a hash of (parent, name) in RAM finds a folder seen before. The scanner hands each CUE track its sheet's file name, and the builder adds the sheet folder under the track's folder.
 - Before ranking, tracks marked as having no album-artist tag (a spare row byte) get their shared album artist: one record per such track (folder, track, artist text, album and artist sort keys) is sorted by folder, album key, artist key and track; one pass picks each group's winner, a second writes (track, artist text) pairs, which are sorted by track and merged back into the rows in one sequential rewrite. Nothing runs when no track is marked.
 - Each field is then ranked: one record per run of equal text (its sort key, its bytes and its first track) goes through a stable external merge sort on the card (sorted chunks in RAM, then up to 32-way merges), giving a dense key rank per track, a spelling rank for genres, and each group's first spelling. Folder names are ranked by key, then bytes.
 - Every view is built from integer tuples with the same sort, in the PC's order: albums (grouped by album artist and album; first sight, earliest non-zero year, most common genre spelling with ties to the first seen; members by disc, number and title), album order (title, then album artist, then first sight), the final track order, artist and album-artist links by year and title, genre links by title, preorder folders (sorted rank paths) with their links, and All Songs by title then artist. Playlists resolve through RAM tables of 16-bit positions keyed by path hashes, confirmed against the paths rebuilt from the card.
@@ -118,7 +128,7 @@ On the device, `track_tags_read` reads through a `ByteSource` with small bounded
 
 ## Playlists
 
-The indexer reads every `.m3u` and `.m3u8` file under the music root, skipping hidden folders. A file is decoded as UTF-8 (with or without a BOM), or as Windows-1252 if that fails. Blank lines and `#` lines are ignored, and so are URLs.
+The indexer reads every `.m3u` and `.m3u8` file under the music root, skipping hidden folders. A file is decoded as UTF-8 (with or without a BOM), or as Windows-1252 if that fails. Blank lines and `#` lines are ignored, and so are URLs, except for the Podium directive: a line that is exactly `#PODIUM-START:` and one to ten digits below 4294967295 (case-sensitive, after trimming) gives the start in milliseconds of the next entry only, the last directive before an entry winning. The player writes it for a track of a CUE album (a track whose start or end is not zero), whose path is the album's audio file.
 
 Each entry is matched to a track, ignoring case and treating `\` as `/`:
 
@@ -126,9 +136,11 @@ Each entry is matched to a track, ignoring case and treating `\` as `/`:
 2. relative to the music root
 3. otherwise by the longest matching run of trailing path parts, so absolute Windows paths such as MusicBee's `D:\Music\Artist\Album\01 - Song.flac` still match. A tie counts as not found.
 
+An entry with a start then picks, among the tracks sharing the matched track's path (casefolded), the one with that start; the highest track index wins a repeat. No such track leaves the matched one, which for a path shared by the parts of a CUE album is the last one: a plain path to a CUE-split file means its last track. The suffix match (step 3) finds nothing for such a file, because its parts tie, directive or not.
+
 Entries that match nothing are left out, and the indexer reports how many each playlist lost.
 
-On the device, the scanner notes each `.m3u`/`.m3u8` path during the walk (the PC's order) and reads them after the tracks, once `library_builder_prepare` has fixed the track order and built the path indexes: an exact table keyed by the casefolded path (Python's `str.casefold`, from a second generated table; the last of equal keys wins, as in a Python dict) and chains by casefolded file name for the suffix match. `library/playlist_reader` checks the whole file for strict UTF-8 (a BOM is skipped) or decodes Windows-1252 with U+FFFD for its five undefined bytes, splits lines like `str.splitlines` (U+0085, U+2028 and U+2029 only in UTF-8) and trims them; each entry is resolved at once, so entries are never stored. Candidates go through `posixpath.normpath` rules, including its two leading slashes. Playlists are sorted by sort key and then name, and their names share the string table with everything else. `scan_music/` (nested folders, a hidden folder, an AppleDouble file and three playlists in UTF-8 with a BOM, Windows-1252 and plain UTF-8) and `builder_random/with_playlists` (30 random playlists, 379 entries) check it byte for byte.
+On the device, the scanner notes each `.m3u`/`.m3u8` path during the walk (the PC's order) and reads them after the tracks, once `library_builder_prepare` has fixed the track order and built the path indexes: an exact table keyed by the casefolded path (Python's `str.casefold`, from a second generated table; the last of equal keys wins, as in a Python dict) and chains by casefolded file name for the suffix match. `library/playlist_reader` checks the whole file for strict UTF-8 (a BOM is skipped) or decodes Windows-1252 with U+FFFD for its five undefined bytes, splits lines like `str.splitlines` (U+0085, U+2028 and U+2029 only in UTF-8) and trims them; each entry is resolved at once, so entries are never stored (an entry's `#PODIUM-START` is read with it, and the part is picked by walking the chain of its file name for the track with that start and the same casefolded path). Candidates go through `posixpath.normpath` rules, including its two leading slashes. Playlists are sorted by sort key and then name, and their names share the string table with everything else. `scan_music/` (nested folders, a hidden folder, an AppleDouble file and three playlists in UTF-8 with a BOM, Windows-1252 and plain UTF-8) and `builder_random/with_playlists` (30 random playlists, 379 entries) check it byte for byte.
 
 ## Album keys and favorites
 
@@ -147,7 +159,7 @@ Favorites outlive a re-index, so they don't store album indices. An album's key 
 | 12 | count × 16 B | bookmarks, most recent first |
 | 12 + 16 × count | `u32` | FNV-1a checksum of everything before it |
 
-Each bookmark is `u32 key`, `u32 track key`, `u32 position_ms`, `u16 chapter`, `u8 flags` (bit 0: finished), `u8 reserved`. The key is the FNV-1a hash of the book's folder path relative to the music root (`Audiobooks/The Long Road`), or of the track's own path for a single-file book or a podcast episode; the track key hashes the track's path. `chapter` is the track's place among its folder's tracks, checked against the track key before it's used. A zero-filled or damaged file reads as no bookmarks.
+Each bookmark is `u32 key`, `u32 track key`, `u32 position_ms`, `u16 chapter`, `u8 flags` (bit 0: finished), `u8 reserved`. The key is the FNV-1a hash of the book's folder path relative to the music root (`Audiobooks/The Long Road`), or of the track's own path for a single-file book, a podcast episode or a chapter of a chaptered `.m4b` (the chapters folder's key is the file's path hash); the track key hashes the track's path, with the track's `start_ms` added when it isn't 0, so every chapter of one file has its own. `chapter` is the track's place among its folder's tracks, checked against the track key before it's used. A zero-filled or damaged file reads as no bookmarks.
 
 ## Covers file
 

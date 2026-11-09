@@ -7,6 +7,7 @@
 #include "device/flac_accel.h"
 #include "device/tick_clock.h"
 #include "hal/system.h"
+#include "idle.h"
 #include "loop_bench.h"
 #include "registers.h"
 
@@ -171,7 +172,10 @@ void core1_main(void)
     }
     use_accelerator(register_read(CORE1_SHARED_ACCEL_CLASSES));
     core1_stream_init(&stream, core1_region(), core1_flac_decoder(&flac, &decoder));
+    core1_idle_start();
     for (;;) {
-        core1_stream_step(&stream);
+        if (!core1_stream_step(&stream)) {
+            core1_idle();
+        }
     }
 }

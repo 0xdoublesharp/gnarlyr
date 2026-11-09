@@ -7,7 +7,9 @@
 
 enum {
     MIN_THUMB_HEIGHT = 6,
-    SHINE_HEIGHT = 1
+    SHINE_HEIGHT = 1,
+    NARROW_DETAIL_SHARE = 40,
+    PERCENT = 100
 };
 
 static const char CHEVRON[] = "\xE2\x80\xBA";
@@ -25,6 +27,11 @@ typedef struct Row {
 static int item_count(const ListView *view)
 {
     return view->model->count(view->model->context);
+}
+
+static int min_of(int first, int second)
+{
+    return first < second ? first : second;
 }
 
 static int max_of(int first, int second)
@@ -168,6 +175,21 @@ void list_view_select(ListView *view, int index, uint32_t now_ms)
     keep_selection_visible(view);
 }
 
+void list_view_fit(ListView *view)
+{
+    list_view_fit_rows(view, theme_visible_rows(view->theme));
+}
+
+void list_view_fit_rows(ListView *view, int rows)
+{
+    int count = item_count(view);
+    view->visible_rows = rows;
+    if (view->top > count - view->visible_rows) {
+        view->top = max_of(0, count - view->visible_rows);
+    }
+    keep_selection_visible(view);
+}
+
 void list_view_restart_marquee(ListView *view, uint32_t now_ms)
 {
     view->selection_changed_ms = now_ms;
@@ -202,9 +224,20 @@ static Row draw_detail(const ListView *view, Canvas *canvas, Row row)
         return row;
     }
     TextStyle style = row_style(view, row.selected, view->theme->colors.text_secondary);
+    bool narrow = theme_is_portrait(view->theme);
+    if (narrow) {
+        style.font = view->theme->fonts.small;
+    }
     int width = text_width(style.font, detail);
     if (model->detail_max_width > 0 && width > model->detail_max_width) {
         width = model->detail_max_width;
+    }
+    if (narrow) {
+        int label_width =
+            text_width(view->theme->fonts.body, model->label(model->context, row.index));
+        int room = row.text.width - label_width - view->theme->metrics.detail_gap;
+        int smallest = row.text.width * NARROW_DETAIL_SHARE / PERCENT;
+        width = min_of(width, max_of(room, smallest));
     }
     Rect area = {row.text.x + row.text.width - width, row.text.y, width, row.text.height};
     label_draw(canvas, style, (Label){.area = area, .text = detail});

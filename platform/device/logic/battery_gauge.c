@@ -115,7 +115,10 @@ void battery_display_init(BatteryDisplay *display)
 
 static uint8_t step_needed(bool rising, bool usb_power)
 {
-    return rising == usb_power ? BATTERY_DISPLAY_STEP : BATTERY_DISPLAY_REVERSE_STEP;
+    if (!usb_power) {
+        return BATTERY_DISPLAY_LOAD_STEP;
+    }
+    return rising ? BATTERY_DISPLAY_STEP : BATTERY_DISPLAY_REVERSE_STEP;
 }
 
 uint8_t battery_display_update(BatteryDisplay *display, uint8_t percent, bool usb_power)

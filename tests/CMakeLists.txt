@@ -14,8 +14,10 @@ function(echo_add_unit_test)
 endfunction()
 
 echo_add_unit_test(NAME test_deadline SOURCES core/test_deadline.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_frame_pacer SOURCES core/test_frame_pacer.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_frame_stats SOURCES core/test_frame_stats.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_key_tracker SOURCES core/test_key_tracker.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_key_lock SOURCES core/test_key_lock.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_utf8 SOURCES core/test_utf8.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_string_builder SOURCES core/test_string_builder.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_format SOURCES core/test_format.c LIBRARIES echo_core)
@@ -55,6 +57,9 @@ foreach(playback_test play_queue resume_state up_next bookmarks spoken)
 endforeach()
 
 echo_add_unit_test(NAME test_settings SOURCES settings/test_settings.c LIBRARIES echo_settings)
+echo_add_unit_test(NAME test_rocker SOURCES settings/test_rocker.c LIBRARIES echo_settings)
+echo_add_unit_test(NAME test_equalizer_fit SOURCES settings/test_equalizer_fit.c LIBRARIES echo_settings)
+echo_add_unit_test(NAME test_equalizer_slots SOURCES settings/test_equalizer_slots.c LIBRARIES echo_settings)
 
 foreach(library_test block_cache library library_browse favorites covers sort_key track_fields playlist_reader cue_sheet music_fingerprint)
     echo_add_unit_test(NAME test_${library_test}
@@ -197,18 +202,7 @@ echo_add_unit_test(NAME test_bluetooth_screen
     LIBRARIES echo_app echo_library_scan
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
-echo_add_unit_test(NAME test_stopwatch_screen
-    SOURCES app/test_stopwatch_screen.c app/fake_hal.c
-    LIBRARIES echo_app echo_library_scan
-    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
-)
-echo_add_unit_test(NAME test_test_pattern_screen
-    SOURCES app/test_test_pattern_screen.c app/fake_hal.c
-    LIBRARIES echo_app echo_library_scan
-    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
-)
-
-foreach(device_test audio_math backlight board_pins loader_request update_names updater_echo vop battery_gauge watchdog panic_text stall_watch bt_module card_write core1_control start_record dac_sequence dma_loop flac_accel jack_sense key_ladder key_scanner msc panel pll sd_card stream_drift tick_clock updater usb_audio usb_audio_sink usb_device usb_fallback wav_source)
+foreach(device_test audio_math backlight board_pins loader_request update_names updater_echo vop battery_gauge watchdog panic_text stall_watch bt_module card_write core1_control start_record dac_sequence dma_loop flac_accel headset_dips headset_monitor headset_remote jack_sense key_ladder key_scanner msc panel pll sd_card stream_drift tick_clock updater usb_audio usb_audio_sink usb_device usb_fallback wav_source)
     echo_add_unit_test(NAME test_${device_test}
         SOURCES device/test_${device_test}.c
         LIBRARIES echo_device_logic
@@ -239,6 +233,10 @@ echo_add_unit_test(NAME test_flac_bits
     LIBRARIES echo_codec
 )
 target_include_directories(test_flac_bits PRIVATE ${PROJECT_SOURCE_DIR}/src/codec)
+echo_add_unit_test(NAME test_equalizer
+    SOURCES device/test_equalizer.c
+    LIBRARIES echo_device_logic echo_settings
+)
 echo_add_unit_test(NAME test_audio_engine
     SOURCES device/test_audio_engine.c
     LIBRARIES echo_device_logic
@@ -529,6 +527,11 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
             -DEXPECTED=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/m4a_music.db
             -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/m4a_music.db
             -P ${CMAKE_CURRENT_SOURCE_DIR}/check_library_index.cmake
+    )
+    add_test(NAME m4b_fixture_up_to_date
+        COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/m4b_fixture.py
+            --output ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/m4b_music
+            --check
     )
     add_test(NAME builder_fixture_up_to_date
         COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/builder_fixture.py

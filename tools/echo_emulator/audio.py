@@ -3,7 +3,7 @@ import struct
 from unicorn import UC_HOOK_MEM_WRITE
 from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1
 
-PRODUCED_OFFSET = 32
+PRODUCED_OFFSET = 36
 ITEM_BYTES = 24
 ITEM_NEXT = 8
 ITEM_WORDS = 16
@@ -37,7 +37,8 @@ class AudioPath:
         machine.stub_symbol("dac_set_volume", self.set_volume)
         machine.stub_symbol("dmac_start_loop", self.start_loop)
         machine.stub_symbol("dmac_source", self.source)
-        machine.stub_symbol("dmac_running", lambda machine: int(self.running))
+        if "dmac_running" in machine.symbols:
+            machine.stub_symbol("dmac_running", lambda machine: int(self.running))
         for name in SILENT_RETURNS:
             machine.stub_symbol(name, lambda machine: None)
         for name in FALSE_RETURNS:

@@ -63,9 +63,27 @@ static void the_mask_of_each_ladder_reading_has_one_key_bit(void)
     CHECK_EQUAL(0, key_ladder_mask(1023));
 }
 
+static void a_reading_between_bands_keeps_the_held_key(void)
+{
+    uint8_t play = 1u << KEY_PLAY;
+    CHECK_EQUAL(play, key_ladder_held_mask(250, 0));
+    CHECK_EQUAL(play, key_ladder_held_mask(190, play));
+    CHECK_EQUAL(play, key_ladder_held_mask(430, play));
+    CHECK_EQUAL(0, key_ladder_held_mask(190, 0));
+    CHECK_EQUAL(1u << KEY_MENU, key_ladder_held_mask(350, play));
+}
+
+static void a_reading_above_every_band_releases(void)
+{
+    CHECK_EQUAL(0, key_ladder_held_mask(550, 1u << KEY_BACK));
+    CHECK_EQUAL(0, key_ladder_held_mask(1023, 1u << KEY_PLAY));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_reading_between_bands_keeps_the_held_key),
+        TEST_CASE(a_reading_above_every_band_releases),
         TEST_CASE(readings_up_to_69_are_volume_down),
         TEST_CASE(readings_from_70_to_183_are_volume_up),
         TEST_CASE(readings_from_200_to_319_are_play),

@@ -48,7 +48,10 @@ static BuilderState *state_of(const LibraryBuilder *builder)
 static bool write_folder_row(BuilderState *state, uint32_t name, uint32_t length, uint32_t parent)
 {
     uint8_t bytes[BUILDER_FOLDER_SIZE];
-    FolderRow row = {.name = name, .length = (uint16_t)length, .parent = (uint16_t)parent};
+    FolderRow row = {.name = name,
+                     .length = (uint16_t)(length & ~(uint32_t)BUILDER_FLAG_BITS),
+                     .parent = (uint16_t)parent,
+                     .sheet = (uint8_t)(length >> BUILDER_FLAG_SHIFT)};
     builder_folder_encode(&row, bytes);
     return out_put(&state->scan->folders, bytes, sizeof bytes);
 }
@@ -158,6 +161,7 @@ void library_builder_init(LibraryBuilder *builder, void *memory, uint32_t size,
     }
     scan->chain_depth = 0;
     scan->chain_path_length = 0;
+    scan->last_sheet = BUILDER_NONE;
     for (int field = 0; field < BUILDER_FIELDS; field++) {
         scan->previous_text[field] = BUILDER_UNSET;
         scan->previous_length[field] = 0;
@@ -219,6 +223,30 @@ static bool chain_matches(const ScanTime *scan, uint32_t level, const char *name
     return chain->length == length && same_text(scan->chain_text + chain->start, name, length);
 }
 
+static uint32_t folder_node(BuilderState *state, uint32_t parent, const char *name, uint32_t length)
+{
+    ScanTime *scan = state->scan;
+    uint32_t size = length & ~(uint32_t)BUILDER_FLAG_BITS;
+    uint32_t salted = parent + ((length & BUILDER_FLAG_BITS) << 2);
+    uint32_t first = folder_hash(HASH_START, salted, name, size);
+    uint32_t second = folder_hash(SECOND_SEED, salted, name, size);
+    uint32_t node = find_folder(scan, parent, first, second);
+    if (node != BUILDER_UNSET) {
+        return node;
+    }
+    if (state->folder_count >= scan->folder_capacity) {
+        state->arena.failed = true;
+        return BUILDER_UNSET;
+    }
+    uint32_t offset = size > 0 ? heap_put(state, name, size) : 0;
+    if (offset == BUILDER_UNSET || !write_folder_row(state, offset, length, parent)) {
+        return BUILDER_UNSET;
+    }
+    node = state->folder_count++;
+    remember_folder(scan, node, parent, first, second);
+    return node;
+}
+
 static bool push_folder(BuilderState *state, const char *name, uint32_t length)
 {
     ScanTime *scan = state->scan;
@@ -230,20 +258,9 @@ static bool push_folder(BuilderState *state, const char *name, uint32_t length)
         return false;
     }
     uint32_t parent = scan->chain_depth == 0 ? 0 : scan->chain[scan->chain_depth - 1].node;
-    uint32_t first = folder_hash(HASH_START, parent, name, length);
-    uint32_t second = folder_hash(SECOND_SEED, parent, name, length);
-    uint32_t node = find_folder(scan, parent, first, second);
+    uint32_t node = folder_node(state, parent, name, length);
     if (node == BUILDER_UNSET) {
-        if (state->folder_count >= scan->folder_capacity) {
-            state->arena.failed = true;
-            return false;
-        }
-        uint32_t offset = length > 0 ? heap_put(state, name, length) : 0;
-        if (offset == BUILDER_UNSET || !write_folder_row(state, offset, length, parent)) {
-            return false;
-        }
-        node = state->folder_count++;
-        remember_folder(scan, node, parent, first, second);
+        return false;
     }
     for (uint32_t index = 0; index < length; index++) {
         scan->chain_text[start + index] = name[index];
@@ -288,6 +305,27 @@ static bool place_path(BuilderState *state, const char *path, TrackRow *row)
     }
 }
 
+static bool place_sheet(BuilderState *state, const BuilderTrack *track, TrackRow *row)
+{
+    ScanTime *scan = state->scan;
+    const char *sheet = track->sheet;
+    uint32_t length = sheet != NULL ? builder_text_length(sheet) : 0;
+    if (length >= BUILDER_TEXT_CAPACITY) {
+        state->arena.failed = true;
+        return false;
+    }
+    uint32_t flags = BUILDER_SHEET_BIT | (track->chapters ? BUILDER_CHAPTERS_BIT : 0);
+    uint32_t node =
+        length > 0 ? folder_node(state, row->folder, sheet, length | flags) : BUILDER_NONE;
+    if (node == BUILDER_UNSET) {
+        return false;
+    }
+    row->sheet = (uint16_t)node;
+    row->continued = node != BUILDER_NONE && (track->chapters || node == scan->last_sheet);
+    scan->last_sheet = (uint16_t)node;
+    return true;
+}
+
 BuilderResult library_builder_add_track(LibraryBuilder *builder, const BuilderTrack *track)
 {
     BuilderState *state = state_of(builder);
@@ -313,7 +351,7 @@ BuilderResult library_builder_add_track(LibraryBuilder *builder, const BuilderTr
                     .end_ms = track->end_ms};
     const char *texts[BUILDER_FIELDS - 1] = {track->title, track->artist, track->album_artist,
                                              track->album, track->genre};
-    bool stored = place_path(state, track->path, &row);
+    bool stored = place_path(state, track->path, &row) && place_sheet(state, track, &row);
     for (int field = 0; stored && field < BUILDER_FIELDS - 1; field++) {
         stored = store_field(state, field, texts[field], builder_text_length(texts[field]), &row);
     }
@@ -431,7 +469,8 @@ BuilderResult library_builder_begin_playlist(LibraryBuilder *builder, const char
     return BUILDER_OK;
 }
 
-BuilderResult library_builder_playlist_entry(LibraryBuilder *builder, const char *entry)
+BuilderResult library_builder_playlist_entry(LibraryBuilder *builder, const char *entry,
+                                             uint32_t start_ms)
 {
     BuilderState *state = state_of(builder);
     if (state == NULL || !state->prepare_done || state->prepare_result != BUILDER_OK ||
@@ -439,7 +478,8 @@ BuilderResult library_builder_playlist_entry(LibraryBuilder *builder, const char
         return BUILDER_OUT_OF_MEMORY;
     }
     Prepared *prepared = state->prepared;
-    uint32_t position = builder_resolve_entry(state, prepared, prepared->playlist_folder, entry);
+    uint32_t position =
+        builder_resolve_entry(state, prepared, prepared->playlist_folder, entry, start_ms);
     if (outcome(state) != BUILDER_OK) {
         return outcome(state);
     }

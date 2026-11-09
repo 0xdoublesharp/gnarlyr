@@ -125,14 +125,36 @@ static void a_one_point_wobble_keeps_the_shown_percent(void)
     CHECK_EQUAL(34, battery_display_update(&display, 34, false));
 }
 
-static void on_battery_the_shown_percent_falls_freely_and_rises_reluctantly(void)
+static void on_battery_the_shown_percent_moves_after_a_three_point_change(void)
 {
     BatteryDisplay display;
     battery_display_init(&display);
     battery_display_update(&display, 34, false);
-    CHECK_EQUAL(32, battery_display_update(&display, 32, false));
-    CHECK_EQUAL(32, battery_display_update(&display, 36, false));
-    CHECK_EQUAL(42, battery_display_update(&display, 42, false));
+    CHECK_EQUAL(34, battery_display_update(&display, 32, false));
+    CHECK_EQUAL(31, battery_display_update(&display, 31, false));
+    CHECK_EQUAL(31, battery_display_update(&display, 33, false));
+    CHECK_EQUAL(34, battery_display_update(&display, 34, false));
+}
+
+static void on_battery_the_shown_percent_recovers_after_a_load_ends(void)
+{
+    BatteryDisplay display;
+    battery_display_init(&display);
+    battery_display_update(&display, 60, false);
+    CHECK_EQUAL(52, battery_display_update(&display, 52, false));
+    CHECK_EQUAL(52, battery_display_update(&display, 54, false));
+    CHECK_EQUAL(59, battery_display_update(&display, 59, false));
+}
+
+static void on_battery_jitter_does_not_flap_the_shown_percent(void)
+{
+    BatteryDisplay display;
+    battery_display_init(&display);
+    battery_display_update(&display, 50, false);
+    for (int round = 0; round < 4; round++) {
+        CHECK_EQUAL(50, battery_display_update(&display, 48, false));
+        CHECK_EQUAL(50, battery_display_update(&display, 52, false));
+    }
 }
 
 static void on_usb_power_the_shown_percent_rises_freely_and_falls_reluctantly(void)
@@ -160,8 +182,8 @@ static void unplugging_does_not_raise_the_shown_percent(void)
     BatteryDisplay display;
     battery_display_init(&display);
     battery_display_update(&display, 70, true);
-    CHECK_EQUAL(70, battery_display_update(&display, 75, false));
-    CHECK_EQUAL(68, battery_display_update(&display, 68, false));
+    CHECK_EQUAL(70, battery_display_update(&display, 72, false));
+    CHECK_EQUAL(67, battery_display_update(&display, 67, false));
 }
 
 static void a_boot_below_3400_mv_on_battery_switches_off(void)
@@ -187,7 +209,9 @@ int main(void)
         TEST_CASE(the_average_spans_several_seconds_of_readings),
         TEST_CASE(the_shown_percent_starts_at_the_first_level),
         TEST_CASE(a_one_point_wobble_keeps_the_shown_percent),
-        TEST_CASE(on_battery_the_shown_percent_falls_freely_and_rises_reluctantly),
+        TEST_CASE(on_battery_the_shown_percent_moves_after_a_three_point_change),
+        TEST_CASE(on_battery_the_shown_percent_recovers_after_a_load_ends),
+        TEST_CASE(on_battery_jitter_does_not_flap_the_shown_percent),
         TEST_CASE(on_usb_power_the_shown_percent_rises_freely_and_falls_reluctantly),
         TEST_CASE(plugging_in_does_not_drop_the_shown_percent),
         TEST_CASE(unplugging_does_not_raise_the_shown_percent),

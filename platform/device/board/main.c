@@ -175,11 +175,18 @@ static void boot_step(const char *step)
 }
 #endif
 
-static void sleep_while_dark(void)
+static uint32_t idle_us;
+
+uint32_t hal_system_idle_microseconds(void)
 {
-    if (!board_display_lit()) {
-        __asm__ volatile("wfi" ::: "memory");
-    }
+    return idle_us;
+}
+
+static void sleep_until_interrupt(void)
+{
+    uint32_t started_us = hal_clock_microseconds();
+    __asm__ volatile("wfi" ::: "memory");
+    idle_us += hal_clock_microseconds() - started_us;
 }
 
 void board_main(void)
@@ -216,6 +223,6 @@ void board_main(void)
         app_step();
         board_display_service();
         check_usb();
-        sleep_while_dark();
+        sleep_until_interrupt();
     }
 }

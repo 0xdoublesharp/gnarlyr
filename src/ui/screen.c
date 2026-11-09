@@ -21,3 +21,8 @@ ScreenAction screen_action_pop_to_root(void)
 {
     return (ScreenAction){.type = SCREEN_ACTION_POP_TO_ROOT, .target = NULL};
 }
+
+ScreenAction screen_action_replace(Screen *target)
+{
+    return (ScreenAction){.type = SCREEN_ACTION_REPLACE, .target = target};
+}

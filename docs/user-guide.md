@@ -2,7 +2,7 @@
 
 Podium is a replacement firmware for the full-size Snowsky (FiiO) Echo music player. It has an iPod-style UI with iPod-sized text, a Cover Flow album browser, a music library built on the player, favorites, playlists and an Up Next queue. It is not made or supported by Snowsky or FiiO.
 
-Read `docs/known-issues.md` before you install. Podium has not been run on a player yet.
+Read `docs/known-issues.md` before you install.
 
 **Use it at your own risk.** Podium comes with no warranty (see `LICENSE`). Replacing a player's firmware can leave it unable to start; the way back is described below, with maskrom recovery (`docs/device-recovery.md`) as the last resort. Only install it if you're prepared to use it.
 
@@ -15,16 +15,16 @@ Read `docs/known-issues.md` before you install. Podium has not been run on a pla
 
 1. Copy anything you want to keep off the player's internal storage.
 2. Charge the battery.
-3. Download the image (`ECHOV455.IMG` for version 4.5.5) and check its SHA-256:
-   - Windows (PowerShell): `Get-FileHash ECHOV455.IMG`
-   - macOS or Linux: `shasum -a 256 ECHOV455.IMG`
+3. Download the image (`ECHOV458.IMG` for version 4.5.8) and check its SHA-256:
+   - Windows (PowerShell): `Get-FileHash ECHOV458.IMG`
+   - macOS or Linux: `shasum -a 256 ECHOV458.IMG`
 
    The result must match the hash published next to the download. If it doesn't, download it again.
 
 ## Install
 
 1. Connect the player to your computer. The internal storage appears as a drive.
-2. Copy `ECHOV455.IMG` to the top level of that drive, not into a folder. FiiO's updater takes the highest `ECHOVnnn.IMG` (or `ECHOECHO.IMG`), and 454 is above every stock release so far.
+2. Copy `ECHOV458.IMG` to the top level of that drive, not into a folder. FiiO's updater takes the highest `ECHOVnnn.IMG` (or `ECHOECHO.IMG`), and Podium's numbers are above every stock release so far.
 3. Eject the drive (Windows: Safely Remove; macOS: Eject), then unplug.
 4. The player installs the file after the USB session ends and deletes it. It shows "Updating" for about a minute or two. Leave it alone until Podium starts.
 5. On the first start with a microSD card in the player, Podium builds its library and album covers, which takes a minute or two.
@@ -33,10 +33,12 @@ If the player comes back to FiiO's firmware after a short "Updating", the instal
 
 ## Your music
 
-- Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Diagnostics → Music shows which one is in use. Settings are kept on internal storage either way, so they stay the same when you insert or remove the card.
-- Podium plays FLAC, MP3 and WAV, up to 192 kHz, and `.m4a` files with AAC-LC or Apple Lossless audio. It lists the other formats FiiO lists, and says when it can't play one.
+- Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Settings → About → Music shows which one is in use. Settings are kept on internal storage either way, so they stay the same when you insert or remove the card.
+- Podium plays FLAC, MP3 and WAV, up to 192 kHz, and `.m4a` and `.m4b` files with AAC-LC or Apple Lossless audio. It lists the other formats FiiO lists, and says when it can't play one.
+- Music → Folders shows the card as it is: folders, then each audio file by its full name with its extension (`01 Intro.mp3`). The other lists show titles from the tags. Hold ▶ on a folder there to play everything under it, subfolders included, in the order Folders shows it (a CUE album plays once, as its songs); the queue follows the shuffle setting and has no length limit beyond the library's 65,535 tracks.
 - A `.cue` file next to a single FLAC, WAV or MP3 album image splits it into one track per CUE track (see "CUE sheets" below). Album covers come from art inside each album's first track, or from a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks.
 - `.m3u` and `.m3u8` playlists anywhere on the card appear under Music → Playlists.
+- **Favorite Playlist.** Hold Play on a song in any list and choose Add to Favorite Playlist. The song goes into `Favorite Tracks.m3u` in the top folder of the music storage (the card, or the player's own storage without a card). The file is made on the first use, holds one path per line relative to that folder, and can be read and edited on a computer. A song that is one track of a CUE album gets the line `#PODIUM-START:` and the track's start in milliseconds above its path (the path is the album's audio file, so computer players open the whole album); the player and echo-sync use the start to pick that exact track, and a line without it stands for the album's last track. Each track of a CUE album is added and checked on its own. A song already in it shows "Already in Favorites". The file has room for a few hundred songs; when it is full, or a computer edit left it without spare room, the player shows "Couldn't add to Favorites". Music → Playlists shows Favorite Tracks with the new song straight away, with no rescan, also after a restart. Lines added to the file on a computer show after the next library scan.
 - Libraries of many thousands of tracks work; `docs/known-issues.md` lists the sizes tested so far.
 - Podium keeps its own files in a hidden `/.echo` folder on the card, about 110 MB of them. Don't delete it unless you want the library rebuilt.
 
@@ -54,6 +56,7 @@ Depeche Mode/Violator/
 - Track titles come from `TITLE`, artists from `PERFORMER` (the track's, otherwise the one at the top of the sheet, which is also the album artist), the album from the top `TITLE`, the genre from `REM GENRE` and the year from `REM DATE`. What the sheet doesn't say comes from the audio file's tags, then from its folder name. A track without a title is called "Track 3".
 - A track starts at its `INDEX 01` and ends where the next one starts, so silence marked `INDEX 00` before a track belongs to the track before it. Tracks play without a gap.
 - The sheet is read as UTF-8 (a byte order mark is fine) or, when it isn't valid UTF-8, as Windows-1252.
+- In Folders the album folder shows the sheet (`Violator.cue`) and the audio file (`Violator.flac`), as they are on the card. The audio file shows the length of the whole album. The sheet opens its songs by title with their own lengths, and choosing one plays from there; choosing the audio file plays the album from its first song.
 - Time, progress, seeking, resume, Up Next, shuffle, favorites and bookmarks all work on the CUE track, not on the whole file. Covers come from the audio file's art or a `cover.jpg` next to it, as for other albums.
 - Rescan the library (Settings → Rescan library) or run echo-sync again after adding or changing a sheet.
 
@@ -71,7 +74,7 @@ Depeche Mode/Violator/
 1. On the player, Settings → USB mode → DAC.
 2. Plug in the USB cable. The player shows "USB DAC". No driver is needed on Windows 10 and later, macOS, Linux, Android or iOS (phones need a USB-C or Lightning adapter that passes data).
 3. On the computer, choose Podium as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output). The player shows the format, for example "Playing from computer · 48 kHz 24-bit".
-4. Use the computer's volume, the player's volume keys, or both. DAC mode has its own volume, separate from music: it starts at 30 of 50, the screen shows it ("48 kHz 24-bit · Volume 30"), holding Vol± changes it quickly, and the player remembers it for next time. Start low.
+4. Use the computer's volume, the player's volume keys, or both. DAC mode has its own volume, separate from music: it starts at 35 of 60, the screen shows it ("48 kHz 24-bit · Volume 35"), holding Vol± changes it quickly, and the player remembers it for next time. Start low.
 5. Unplug when you're done, or hold Back for a second and let go to go back to the player's own music (it keeps charging).
 
 The player accepts 16 or 24-bit at 44.1 and 48 kHz; the computer picks one (on Windows: Sound settings → Podium → Properties → Advanced). Music on the player stops while it's a DAC, and your drives don't appear: set USB mode back to Storage to copy music. The setting takes effect the next time you plug in. A charger works the same in both modes.
@@ -80,7 +83,7 @@ The player accepts 16 or 24-bit at 44.1 and 48 kHz; the computer picks one (on W
 
 Rebuilding on the player takes a minute or two (1,563 tracks and 144 albums take about 1 minute 45 seconds). A computer can build the same library and album covers instead, straight onto the card, and tell the player that the card has already been scanned.
 
-The tool is called **echo-sync**. Download it from the release page, under Assets; it's one file, with nothing to install:
+The tool is called **echo-sync**. Download it from the Podium website (https://podium-echo.online, How to install → Build the library on a computer); it's one file, with nothing to install:
 
 | Computer | File |
 |---|---|
@@ -143,10 +146,14 @@ The computer picks each album's cover the way the player does: the picture insid
 | Button | In lists | On Now Playing |
 |---|---|---|
 | Volume up / down | Next / previous item; hold to scroll faster | Volume; hold Vol+ for the next track, Vol− for the previous one (in audiobooks and podcasts: 30 s forward, 15 s back) |
-| Play | Select; a song plays the list from that song. Hold on an album for Favorites, hold on a song for Play Next / Add to Up Next | Play / pause; hold to seek |
-| Menu | | Opens Up Next |
+| Play | Select; a song plays the list from that song. Hold on an album for Favorites, hold on a song for Play Next / Add to Up Next / Add to Favorite Playlist, hold on a folder in Folders to play everything under it, subfolders included | Play / pause; hold to seek |
+| Menu | | Opens Up Next (also on Home, below Now Playing) |
 | Back | Back; hold to go home | Back; hold to go home |
 | Power | Screen off or on; hold 2 s to turn off | Same |
+
+The Now Playing column above is for Settings → Skip songs = Hold vol±; the other two choices move skipping to a double-click of Vol± or a double/triple click of ▶ (see Skip songs).
+
+**Wired headphones with buttons** (3.5 mm jack, from any screen, screen on or off): the middle button pauses and resumes, press it twice for the next track and three times for the previous one; + and − change the volume, hold + for the next track and − for the previous one. Not yet tried on a player: see `docs/known-issues.md`.
 
 With the screen off, ▶‖ still pauses and resumes, a tap of vol± changes the volume and holding vol± skips tracks (or jumps 30 s / 15 s in audiobooks and podcasts).
 
@@ -155,6 +162,51 @@ In Cover Flow (Music → Cover Flow), the tile before the first album, with a sh
 ## Charging
 
 The player charges whenever it's plugged in, on or off. Turning it off while it's plugged in (or plugging a charger into a switched-off player) shows the charge screen: the battery level, or "Charged" when it's full. The screen goes dark after 5 seconds; press any button to see it again. Hold Power for 2 seconds to turn the player on, or unplug it to switch it off completely. Plugging into a computer still opens USB mode.
+
+## Button lock
+
+Hold ▶, then press Power while still holding it, and keep both down for about a second to lock the buttons, for example before the player goes into a pocket; do the same to unlock. While locked, a padlock shows in the top bar and every button except Power is ignored; Power still turns the screen on and off. Pressing another button shows "Hold Play+Power" if the screen is on. Locking or unlocking lights the screen to confirm. Wired headset buttons keep working. Restarting the player unlocks it.
+
+The top bar shows, from the left: play or pause, Bluetooth, the padlock, and the shuffle mode (a note with crossed arrows for Shuffle Songs, a disc with crossed arrows for Shuffle Albums); the battery sits on the right.
+
+## Skip songs
+
+Settings → Skip songs picks how the buttons change the song on Now Playing and with the screen off. Hold vol± (the default): hold Vol+ for the next song and Vol− for the previous one. Double vol±: double-click Vol+ for the next song and Vol− for the previous one; a single click changes the volume after a short pause, and holding Vol+ fast-forwards and holding Vol− rewinds inside the song (5 s per step, 15 s per step after about a second), also with the screen off. Double/triple Play: double-click ▶ for the next song and triple-click for the previous one; a single click pauses or resumes after a short pause, and Vol± keep changing the volume at once. In lists and menus the buttons always react at once. With Hold vol± or Double vol±, holding Vol+ or Vol− right after a volume step, while the volume bar is still showing (about 2.5 seconds after the step, with the screen on or off), keeps changing the volume instead of skipping or seeking; pressing any other button ends that.
+
+## Portrait mode
+
+Settings → Orientation has Landscape (the default), Portrait and Portrait, flipped. The screen turns as soon as you pick, and the player starts the same way next time. Pick whichever portrait way round puts the buttons where you like them.
+
+In portrait, Home and Now Playing show only the status row at the top (no title line); Home shows the album art under the menu, Now Playing puts the cover above the track, Cover Flow stacks the albums from top to bottom, and the status icons sit in a strip above the title. Lists show up to 13 rows. The volume rocker turns with the screen: in Portrait the buttons swap roles, so the one that is Vol− in landscape moves down through lists and the one that is Vol+ moves up; in Portrait, flipped they keep their usual roles. On Now Playing the button nearer the top of the screen turns the volume up, so in Portrait, flipped it's the one labelled Vol−. With the screen off, Vol+ is louder in every orientation.
+
+## Text size
+
+Settings → Text size picks Small, Medium (the default) or Large for list rows, Now Playing, Cover Flow, toasts and messages. Small shows eight rows per screen, Medium six and Large five (in portrait: 13, 13 and 11). The title bar, the battery and the small details on Now Playing keep their size. The change shows at once; no restart is needed.
+
+## Equalizer
+
+Settings → Equalizer picks a sound: Off, Retro, Bass, Heavy, Pop, Jazz, Unique (the same curves as FiiO's firmware), Custom, then your saved slots (Slot 1 to Slot 8) and the files from the `EQ` folder. Choosing a slot or a file copies its curve into Custom. Choosing a slot or Custom also opens Custom EQ, so the curve can be changed right away; for a slot, "Save to slot" starts on that slot. While the curve still matches a slot, Settings → Equalizer shows the slot's name in place of Custom.
+
+Settings → Custom EQ sets the Custom curve with ten bands: 31, 62, 125, 250 and 500 Hz, and 1, 2, 4, 8 and 16 kHz. Select a band with ▶, change it with vol+ and vol− in steps of 0.5 dB (-10.0 to +10.0 dB, shown as +1.5 dB), and press ▶ or ↩ when done. Changing a band switches the equalizer to Custom. The list scrolls in landscape and in portrait.
+
+**Saving a curve.** The last row of Custom EQ is "Save to slot". Select it with ▶, pick slot 1 to 8 with vol+ and vol− (a slot that already holds a curve shows "used"), and press ▶ to save or ↩ to cancel. The saved curve shows up in Settings → Equalizer as Slot 1 to Slot 8.
+
+**Curves from files.** Make a folder named `EQ` at the root of the memory card (or of the player's storage when no card is inserted) and copy text files into it. Each file shows in Settings → Equalizer by its file name (up to 16 files, names up to 27 characters; names starting with a dot are ignored). Two formats work:
+
+- Equalizer APO / AutoEQ: a line `GraphicEQ: 20 -1.5; 21 -1.2; 22 0; ...`. Other lines, such as `Preamp: -6 dB`, are ignored.
+- One band per line: a frequency in Hz and a gain in dB, separated by a space, tab, comma or semicolon:
+
+  ```
+  31 1.5
+  62 -2
+  125 0
+  1000 3
+  16000 -4.5
+  ```
+
+Lines starting with `#` are comments. The points can be in any order and at any frequencies: each of the ten bands gets the gain interpolated between its two nearest points (by octave distance), or the nearest point's gain beyond the ends. Gains are rounded to 0.5 dB and limited to ±10 dB. A file without a usable frequency and gain says "Could not read the EQ file" and changes nothing.
+
+Every curve turns the music down a little first, so boosts don't distort; Custom turns it down by its largest boost, or by its deepest dip when it only cuts. A change is heard after about a third of a second. The equalizer works on music up to 96 kHz (higher rates play unchanged) and not in USB DAC mode. Bands at or above a quarter of the music's sample rate do nothing (the 16 kHz band is idle at 44.1 and 48 kHz).
 
 ## Bluetooth headphones
 
@@ -182,25 +234,29 @@ Audiobooks/
     01 - Departure.mp3    chapters play in file-name order
     02 - The River.mp3
   Short Story.mp3         a book in one file works too
+  Dune.m4b                a book in one chaptered .m4b works too
 Podcasts/
   Tech Talk/              one folder per show
     2026-10-01 - Episode 41.mp3
 ```
 
 - **Audiobooks** lists your books, each with "3 chapters", "Chapter 2 of 12" or "Finished". ▶ on a book carries on where you stopped (or starts a finished book again). Hold ▶ on a book to see its chapters.
+- **`.m4b` audiobooks** are indexed like `.m4a` files (AAC-LC or Apple Lossless). When the file carries chapters, it shows up as a book of its own named after the file (`Dune`), with one chapter per marker and the chapter's title as the song title; "Chapter 3 of 41", the chapter list, ▶ to resume, bookmarks and the 30 s / 15 s jumps all work on the chapter, and playing on from one chapter into the next is gapless. Both chapter kinds are read: the Nero `chpl` list and the QuickTime chapter track (what Libation, Audible conversions and ffmpeg write). A file with no chapters, one chapter, or chapter data that can't be read is one track. A book has at most 255 chapters; the rest are part of the last one. Put the `.m4b` straight into `Audiobooks/` (not inside a folder of its own), because a folder is a book by itself. Outside `Audiobooks/` a chaptered `.m4b` is an album of its chapters, like a CUE album, and its row in Folders is a folder named after the file.
 - **Podcasts** lists your shows; open one to see its episodes, each with "23:10 left" or "Played".
+- A chaptered `.m4b` remembers one place for the whole file, keyed by the file's path: the chapter and the position inside it. ▶ on the book resumes that chapter; choosing another chapter from the list starts it at its top, and the place moves with whatever is played. Renaming or moving the file forgets the place.
 - Every book and every episode remembers its own place, even when you play music in between or turn the player off. The places are saved in `/.echo/bookmarks.bin` (the last 128 books and episodes).
 - Books and shows always play in order: shuffle doesn't apply to them, and your shuffle setting for music stays as it was.
 - On Now Playing, holding Vol+ jumps 30 s forward and holding Vol− jumps 15 s back. Jumping past the end of a chapter goes to the next one. To pick another chapter, use the book's chapter list.
 - An episode or book counts as finished once it played to its last tenth (at most its last 30 s).
 - These folders still appear under Music (Albums, Artists, Folders and so on), as all tracks on the card do. Give them a genre such as "Audiobook" if you want to find them there.
 - Playback speed can't be changed yet.
+- **HE-AAC doesn't play.** An `.m4b` or `.m4a` that isn't AAC-LC or Apple Lossless (HE-AAC with SBR or PS, xHE-AAC) is refused with "Only AAC-LC and ALAC M4A play". Libation can download AAC-LC: in Libation's settings, leave "Request xHE-AAC Codec" off (Libation's FAQ says that makes it download AAC-LC); it keeps whatever codec Audible delivers and doesn't re-encode, so the files may still be HE-AAC for some titles. Libation names every non-MP3 file `.m4b`, whatever its codec.
 
 ## Updating Podium
 
 1. Copy the new `ECHOVnnn.IMG` to the top level of internal storage.
 2. Eject both drives. The player checks the file and shows "Installing update", then "Update installed".
-3. Unplug, then hold Power to turn the player off, and switch it on again.
+3. Unplug, then hold Power once to turn the player off, and hold it again to start the new version.
 
 ## Going back to FiiO's firmware
 
@@ -215,4 +271,4 @@ Podcasts/
 - **"isn't a valid image for this player" when going back to FiiO:** check that the file is FiiO's Echo image (`ECHOV200.IMG`), unchanged (its hash matches the one in FiiO's zip). To switch to another custom firmware, go back to FiiO's first: Podium only installs its own images and FiiO's.
 - **The install doesn't take** (FiiO's firmware comes back after a short "Updating"): copy the file again with plenty of free space on the drive (a file stored in pieces is the suspected cause), check its hash on the player's drive, and make sure it's the only `ECHOVnnn.IMG` there. If it keeps failing, the only other way in is maskrom (below).
 - **The player doesn't start at all:** create the file `MASKROM.REQ` on internal storage beforehand if you can (`docs/device-recovery.md`). Otherwise the chip's maskrom mode writes FiiO's firmware back from a computer over USB. It needs a patched `rkdeveloptool` and some care; the steps are in `docs/device-recovery.md`.
-- **Reporting a problem:** include what you did, your FiiO version before installing, and the Firmware, Last start, Last step and Last USB lines from Home → Diagnostics.
+- **Reporting a problem:** include what you did, your FiiO version before installing, and the Firmware line from Settings → About.

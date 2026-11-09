@@ -798,6 +798,24 @@ static bool put_link_tuple(Tail *tail, uint32_t folder, uint32_t kind, uint32_t 
     return out_put(&tail->out, tuple, sizeof tuple);
 }
 
+typedef struct FolderLink {
+    uint32_t file;
+    uint32_t track;
+    uint32_t position;
+} FolderLink;
+
+static bool put_track_links(Tail *tail, const FolderPhase *phase, const TrackRow *row,
+                            FolderLink link)
+{
+    if (!row->continued && !put_link_tuple(tail, phase->new_index[row->folder], KIND_TRACK,
+                                           row->disc, row->number, link.file, link.position)) {
+        return false;
+    }
+    return row->sheet == BUILDER_NONE ||
+           put_link_tuple(tail, phase->new_index[row->sheet], KIND_TRACK, 0, 0, link.track,
+                          link.position);
+}
+
 static bool emit_folder_links(BuilderState *state, Prepared *prepared, const uint16_t *final_tracks,
                               const FolderPhase *phase, Region *input)
 {
@@ -820,8 +838,7 @@ static bool emit_folder_links(BuilderState *state, Prepared *prepared, const uin
         uint32_t track = final_tracks[position];
         TrackRow row;
         if (!builder_read_row(&prepared->rows, state, track, &row) ||
-            !put_link_tuple(&tail, phase->new_index[row.folder], KIND_TRACK, row.disc, row.number,
-                            files[track], position)) {
+            !put_track_links(&tail, phase, &row, (FolderLink){files[track], track, position})) {
             return false;
         }
     }
@@ -862,7 +879,7 @@ static bool write_folder_rows(BuilderState *state, Prepared *prepared, const Fol
         }
         uint8_t record[FOLDER_FINAL];
         builder_put32(record, row.name);
-        builder_put16(record + 4, row.length);
+        builder_put16(record + 4, row.length | ((uint32_t)row.sheet << BUILDER_FLAG_SHIFT));
         builder_put16(record + 6, node == 0 ? BUILDER_NONE : phase->new_index[row.parent]);
         builder_put16(record + 8, phase->subfolders[position]);
         builder_put16(record + 10, tracks);
@@ -881,7 +898,7 @@ static bool build_folders(BuilderState *state, Prepared *prepared, const uint16_
     prepared->folder_new_index = store_take(&state->store, count * 2 + 2);
     prepared->folder_path_length = store_take(&state->store, count * 2 + 2);
     prepared->folders_final = store_take(&state->store, count * FOLDER_FINAL + FOLDER_FINAL);
-    prepared->folder_links = store_take(&state->store, (count + state->track_count) * 2 + 2);
+    prepared->folder_links = store_take(&state->store, (count + 2 * state->track_count) * 2 + 2);
     if (state->store.failed) {
         return false;
     }

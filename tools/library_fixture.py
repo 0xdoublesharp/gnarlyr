@@ -2,7 +2,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from library_index import RawPlaylist, TrackInfo, build_library, encode_library
+from library_index import PlaylistEntry, RawPlaylist, TrackInfo, build_library, encode_library
 
 FIXTURE_DURATION_MS = 60000
 
@@ -36,10 +36,10 @@ FIXTURE_TRACKS = [
 
 FIXTURE_PLAYLISTS = [
     RawPlaylist("Road Trip", "Playlists", [
-        "../acloudyskye/This Won't Be The Last Time/01 - Shoots.flac",
-        "../AC DC/Back In Black/1-01 - Hells Bells.flac",
-        "../Missing/Gone.flac",
-        "../Björk/Homogenic/02 - Jóga.flac",
+        PlaylistEntry("../acloudyskye/This Won't Be The Last Time/01 - Shoots.flac"),
+        PlaylistEntry("../AC DC/Back In Black/1-01 - Hells Bells.flac"),
+        PlaylistEntry("../Missing/Gone.flac"),
+        PlaylistEntry("../Björk/Homogenic/02 - Jóga.flac"),
     ]),
 ]
 

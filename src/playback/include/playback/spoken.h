@@ -14,10 +14,13 @@ enum {
 };
 
 uint32_t spoken_track_key(const char *path);
+uint32_t spoken_part_key(const char *path, uint32_t start_ms);
 uint32_t spoken_bookmark_key(const char *path);
+uint32_t spoken_record_key(const char *path, const LibraryTrack *track);
 bool spoken_near_end(uint32_t position_ms, uint32_t duration_ms);
 bool spoken_shelf_folder(const Library *library, SpokenKind kind, uint16_t *folder);
 bool spoken_folder_key(const Library *library, uint16_t folder, uint32_t *key);
+bool spoken_folder_holds(const Library *library, uint16_t folder, uint16_t track);
 bool spoken_chapter_of(const Library *library, uint16_t track, uint16_t *chapter);
 bool spoken_chapter_track(const Library *library, uint16_t folder, uint16_t chapter,
                           uint16_t *track);

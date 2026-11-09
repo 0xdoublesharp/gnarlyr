@@ -82,8 +82,9 @@ static void begin(SpokenStore *store, uint16_t track)
     spoken_chapter_of(store->library, track, &chapter);
     store->follow.active = true;
     store->follow.duration_ms = record.duration_ms;
-    store->follow.bookmark = (Bookmark){
-        .key = spoken_bookmark_key(path), .track_key = spoken_track_key(path), .chapter = chapter};
+    store->follow.bookmark = (Bookmark){.key = spoken_record_key(path, &record),
+                                        .track_key = spoken_part_key(path, record.start_ms),
+                                        .chapter = chapter};
 }
 
 static void record(SpokenStore *store, PlayerStatus status, uint32_t now_ms)
@@ -145,8 +146,8 @@ bool spoken_store_track(const SpokenStore *store, uint16_t track, Bookmark *book
     LibraryTrack record;
     char path[PLAYER_PATH_CAPACITY];
     return track_path(store->library, track, &record, path) &&
-           bookmarks_find(&store->bookmarks, spoken_bookmark_key(path), bookmark) &&
-           bookmark->track_key == spoken_track_key(path);
+           bookmarks_find(&store->bookmarks, spoken_record_key(path, &record), bookmark) &&
+           bookmark->track_key == spoken_part_key(path, record.start_ms);
 }
 
 static uint32_t resume_position(void *context, uint16_t track)
@@ -177,7 +178,8 @@ static bool chapter_matches(const SpokenStore *store, uint16_t folder, uint16_t 
     LibraryTrack record;
     char path[PLAYER_PATH_CAPACITY];
     return spoken_chapter_track(store->library, folder, chapter, &track) &&
-           track_path(store->library, track, &record, path) && spoken_track_key(path) == track_key;
+           track_path(store->library, track, &record, path) &&
+           spoken_part_key(path, record.start_ms) == track_key;
 }
 
 uint16_t spoken_store_resume_chapter(const SpokenStore *store, uint16_t folder)

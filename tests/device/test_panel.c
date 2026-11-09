@@ -116,7 +116,7 @@ static void an_echo_window_maps_visible_rows_to_panel_rows_from_49(void)
     };
     Recorder recorder;
     PanelBus bus = recording_bus(&recorder);
-    panel_begin_write(&bus, (PanelWindow){0, 0, 480, 222});
+    panel_begin_write(&bus, (PanelWindow){0, 0, 480, 222, PANEL_LANDSCAPE});
     check_log(&recorder, expected, (int)(sizeof expected / sizeof expected[0]));
 }
 
@@ -128,13 +128,60 @@ static void a_partial_echo_window_keeps_columns_plain_and_offsets_rows(void)
     };
     Recorder recorder;
     PanelBus bus = recording_bus(&recorder);
-    panel_begin_write(&bus, (PanelWindow){10, 42, 256, 34});
+    panel_begin_write(&bus, (PanelWindow){10, 42, 256, 34, PANEL_LANDSCAPE});
     check_log(&recorder, expected, (int)(sizeof expected / sizeof expected[0]));
 }
 
 static void the_board_default_window_offset_follows_the_board(void)
 {
     CHECK_EQUAL(49, PANEL_FIRST_VISIBLE_ROW);
+}
+
+static void a_portrait_window_maps_visible_columns_from_49(void)
+{
+    static const Entry expected[] = {
+        C(0x2A), D(0x00), D(0x31), D(0x01), D(0x0E), C(0x2B),
+        D(0x00), D(0x00), D(0x01), D(0xDF), C(0x2C),
+    };
+    Recorder recorder;
+    PanelBus bus = recording_bus(&recorder);
+    panel_begin_write(&bus, (PanelWindow){0, 0, 222, 480, PANEL_PORTRAIT});
+    check_log(&recorder, expected, (int)(sizeof expected / sizeof expected[0]));
+}
+
+static void a_flipped_portrait_window_maps_like_a_portrait_one(void)
+{
+    static const Entry expected[] = {
+        C(0x2A), D(0x00), D(0x3B), D(0x00), D(0x68), C(0x2B),
+        D(0x00), D(0x64), D(0x00), D(0x85), C(0x2C),
+    };
+    Recorder recorder;
+    PanelBus bus = recording_bus(&recorder);
+    panel_begin_write(&bus, (PanelWindow){10, 100, 46, 34, PANEL_PORTRAIT_FLIPPED});
+    check_log(&recorder, expected, (int)(sizeof expected / sizeof expected[0]));
+}
+
+static void each_rotation_sends_its_own_memory_access_byte(void)
+{
+    static const uint8_t upright = PANEL_ECHO_MADCTL & ~PANEL_MADCTL_SWAP;
+    static const uint8_t expected[PANEL_ROTATION_COUNT] = {
+        PANEL_ECHO_MADCTL, upright ^ PANEL_MADCTL_MIRROR_Y, upright ^ PANEL_MADCTL_MIRROR_X};
+    for (int rotation = 0; rotation < PANEL_ROTATION_COUNT; rotation++) {
+        Recorder recorder;
+        PanelBus bus = recording_bus(&recorder);
+        panel_set_rotation(&bus, (PanelRotation)rotation);
+        CHECK_EQUAL(2, recorder.count);
+        CHECK_EQUAL(0x36, recorder.entries[0].value);
+        CHECK_EQUAL(expected[rotation], recorder.entries[1].value);
+    }
+}
+
+static void an_unknown_rotation_falls_back_to_landscape(void)
+{
+    Recorder recorder;
+    PanelBus bus = recording_bus(&recorder);
+    panel_set_rotation(&bus, PANEL_ROTATION_COUNT);
+    CHECK_EQUAL(PANEL_ECHO_MADCTL, recorder.entries[1].value);
 }
 
 static void pixels_are_sent_high_byte_first(void)
@@ -147,15 +194,39 @@ static void pixels_are_sent_high_byte_first(void)
     check_log(&recorder, expected, 4);
 }
 
+static void sleeping_turns_the_display_off_before_sleeping_in_and_waits_5_ms(void)
+{
+    static const Entry expected[] = {C(0x28), C(0x10), W(5)};
+    Recorder recorder;
+    PanelBus bus = recording_bus(&recorder);
+    panel_sleep(&bus);
+    check_log(&recorder, expected, 3);
+}
+
+static void waking_sleeps_out_waits_120_ms_then_turns_the_display_on(void)
+{
+    static const Entry expected[] = {C(0x11), W(120), C(0x29)};
+    Recorder recorder;
+    PanelBus bus = recording_bus(&recorder);
+    panel_wake(&bus);
+    check_log(&recorder, expected, 3);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(sleeping_turns_the_display_off_before_sleeping_in_and_waits_5_ms),
+        TEST_CASE(waking_sleeps_out_waits_120_ms_then_turns_the_display_on),
         TEST_CASE(the_st7796s_sends_its_init_stream),
         TEST_CASE(the_echo_memory_access_byte_is_0x28_or_the_mirrored_0x68),
         TEST_CASE(the_st7796s_init_sleeps_out_before_anything_else_and_waits_120_ms),
         TEST_CASE(an_echo_window_maps_visible_rows_to_panel_rows_from_49),
         TEST_CASE(a_partial_echo_window_keeps_columns_plain_and_offsets_rows),
         TEST_CASE(the_board_default_window_offset_follows_the_board),
+        TEST_CASE(a_portrait_window_maps_visible_columns_from_49),
+        TEST_CASE(a_flipped_portrait_window_maps_like_a_portrait_one),
+        TEST_CASE(each_rotation_sends_its_own_memory_access_byte),
+        TEST_CASE(an_unknown_rotation_falls_back_to_landscape),
         TEST_CASE(pixels_are_sent_high_byte_first),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

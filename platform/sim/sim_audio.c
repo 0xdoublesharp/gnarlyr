@@ -39,6 +39,7 @@ typedef struct SimAudio {
     float gain;
     HalAudioGain analog_gain;
     HalAudioOutput output;
+    HalAudioEqualizer equalizer;
 } SimAudio;
 
 static SimAudio audio;
@@ -269,6 +270,15 @@ void hal_audio_pause(void)
     unlock();
 }
 
+void hal_audio_release(void)
+{
+    lock();
+    close_track(current_track());
+    close_track(next_track());
+    audio.state = HAL_AUDIO_STOPPED;
+    unlock();
+}
+
 void hal_audio_resume(void)
 {
     lock();
@@ -308,6 +318,13 @@ void hal_audio_set_output(HalAudioOutput output)
 {
     lock();
     audio.output = output;
+    unlock();
+}
+
+void hal_audio_set_equalizer(const HalAudioEqualizer *equalizer)
+{
+    lock();
+    audio.equalizer = *equalizer;
     unlock();
 }
 

@@ -20,10 +20,18 @@ void toast_update(Toast *toast, uint32_t now_ms)
     }
 }
 
+static const Font *toast_font(const Toast *toast, const Theme *theme)
+{
+    int room = theme->metrics.screen_width - 2 * theme->metrics.padding;
+    return text_width(theme->fonts.body, toast->text) <= room ? theme->fonts.body
+                                                              : theme->fonts.small;
+}
+
 Rect toast_area(const Toast *toast, const Theme *theme)
 {
     const ThemeMetrics *metrics = &theme->metrics;
-    int width = text_width(theme->fonts.body, toast->text) + 2 * metrics->padding;
+    int width = text_width(toast_font(toast, theme), toast->text) + 2 * metrics->padding;
+    width = width < metrics->screen_width ? width : metrics->screen_width;
     int height =
         metrics->row_height < metrics->screen_height ? metrics->row_height : metrics->screen_height;
     int bottom_margin =
@@ -40,7 +48,7 @@ void toast_draw(const Toast *toast, Canvas *canvas, const Theme *theme)
     Rect area = toast_area(toast, theme);
     Rect inner = {area.x + BORDER, area.y + BORDER, area.width - 2 * BORDER,
                   area.height - 2 * BORDER};
-    TextStyle style = {.font = theme->fonts.body, .color = theme->colors.header_text};
+    TextStyle style = {.font = toast_font(toast, theme), .color = theme->colors.header_text};
     canvas_fill_rect(canvas, area, theme->colors.divider);
     canvas_fill_rect(canvas, inner, theme->colors.header_background);
     Rect text_area = label_centered_area(style.font, inner, toast->text);

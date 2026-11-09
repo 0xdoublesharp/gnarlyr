@@ -82,6 +82,71 @@ static void chapters_are_counted_in_folder_order(void)
     CHECK(!spoken_chapter_track(library, record.folder, 3, &found));
 }
 
+static void chapters_of_one_file_have_their_own_part_key(void)
+{
+    CHECK_EQUAL(spoken_track_key("/Audiobooks/Book.m4b"),
+                spoken_part_key("Audiobooks/Book.m4b", 0));
+    CHECK(spoken_part_key("Audiobooks/Book.m4b", 0) !=
+          spoken_part_key("Audiobooks/Book.m4b", 60000));
+    CHECK(spoken_part_key("Audiobooks/Book.m4b", 60000) !=
+          spoken_part_key("Audiobooks/Book.m4b", 120000));
+    CHECK_EQUAL(spoken_part_key("Audiobooks/Book.m4b", 60000),
+                spoken_part_key("/Audiobooks/Book.m4b", 60000));
+}
+
+static void a_part_of_a_file_is_bookmarked_under_the_file_path(void)
+{
+    LibraryTrack part = {.start_ms = 60000, .end_ms = 120000};
+    LibraryTrack whole = {.start_ms = 0, .end_ms = 0};
+    CHECK_EQUAL(spoken_track_key("Audiobooks/Author/Book.m4b"),
+                spoken_record_key("Audiobooks/Author/Book.m4b", &part));
+    CHECK_EQUAL(spoken_bookmark_key("Audiobooks/Author/Book.m4b"),
+                spoken_record_key("Audiobooks/Author/Book.m4b", &whole));
+    CHECK(spoken_record_key("Audiobooks/Author/Book.m4b", &part) !=
+          spoken_record_key("Audiobooks/Author/Book.m4b", &whole));
+}
+
+static bool chapters_folder(const Library *library, uint16_t *folder)
+{
+    for (uint32_t index = 0; index < library_count(library, LIBRARY_FOLDERS); index++) {
+        LibraryFolder record;
+        if (library_read_folder(library, index, &record) &&
+            (record.flags & LIBRARY_FOLDER_CHAPTERS) != 0) {
+            *folder = (uint16_t)index;
+            return true;
+        }
+    }
+    return false;
+}
+
+static void a_chaptered_book_folder_key_is_its_file_path(void)
+{
+    Library *library = &spoken.library;
+    uint16_t track = spoken_library_chapter(library, 2);
+    uint16_t chapter = 0;
+    uint16_t sheet = 0;
+    uint32_t key = 0;
+    CHECK(chapters_folder(library, &sheet));
+    CHECK(spoken_chapter_of(library, track, &chapter));
+    CHECK_EQUAL(1, chapter);
+    CHECK(spoken_folder_holds(library, sheet, track));
+    CHECK(spoken_folder_key(library, sheet, &key));
+    CHECK_EQUAL(spoken_track_key(SPOKEN_PARTS_PATH), key);
+    CHECK_EQUAL(spoken_track_key(SPOKEN_PARTS_PATH),
+                spoken_record_key(SPOKEN_PARTS_PATH, &(LibraryTrack){.end_ms = 1}));
+}
+
+static void a_folder_holds_exactly_its_own_tracks(void)
+{
+    Library *library = &spoken.library;
+    LibraryTrack record;
+    uint16_t chapter_two = spoken_library_chapter(library, 2);
+    uint16_t song = spoken_library_track(library, SPOKEN_CHAPTER_TWO_PATH);
+    CHECK(library_read_track(library, song, &record));
+    CHECK(spoken_folder_holds(library, record.folder, song));
+    CHECK(!spoken_folder_holds(library, record.folder, chapter_two));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -93,6 +158,10 @@ int main(void)
         TEST_CASE(the_shelves_are_found_under_the_music_root),
         TEST_CASE(a_book_folder_key_matches_its_chapters),
         TEST_CASE(chapters_are_counted_in_folder_order),
+        TEST_CASE(chapters_of_one_file_have_their_own_part_key),
+        TEST_CASE(a_part_of_a_file_is_bookmarked_under_the_file_path),
+        TEST_CASE(a_chaptered_book_folder_key_is_its_file_path),
+        TEST_CASE(a_folder_holds_exactly_its_own_tracks),
     };
     int result = test_run_all(cases, TEST_CASE_COUNT(cases));
     spoken_library_close(&spoken);

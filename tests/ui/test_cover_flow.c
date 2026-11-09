@@ -21,6 +21,16 @@ static const CoverFlowLayout LAYOUT = {
     .fade_end = 2 * ONE + ONE / 2,
 };
 
+static const CoverStackLayout STACK = {
+    .center_x = 100,
+    .center_top = 10,
+    .center_size = 100,
+    .side_offset = 80,
+    .side_spacing = 30,
+    .side_width = 60,
+    .side_height = 30,
+};
+
 static int abs_of(int value)
 {
     return value < 0 ? -value : value;
@@ -152,9 +162,59 @@ static void only_existing_albums_are_drawn(void)
     CHECK_EQUAL(0, cover_flow_draw_order(0, 0, order));
 }
 
+static void the_stacked_centre_cover_is_flat_and_full_size(void)
+{
+    Quad quad = cover_flow_stacked_quad(&STACK, 0);
+    CHECK_EQUAL(50, quad.left);
+    CHECK_EQUAL(100, quad.width);
+    CHECK_EQUAL(10, quad.left_top);
+    CHECK_EQUAL(10, quad.right_top);
+    CHECK_EQUAL(100, quad.left_height);
+    CHECK_EQUAL(100, quad.right_height);
+}
+
+static void a_stacked_cover_below_the_centre_is_a_flat_strip(void)
+{
+    Quad quad = cover_flow_stacked_quad(&STACK, ONE);
+    CHECK_EQUAL(70, quad.left);
+    CHECK_EQUAL(60, quad.width);
+    CHECK_EQUAL(125, quad.left_top);
+    CHECK_EQUAL(125, quad.right_top);
+    CHECK_EQUAL(30, quad.left_height);
+    CHECK_EQUAL(30, quad.right_height);
+}
+
+static void a_stacked_cover_above_the_centre_mirrors_the_one_below(void)
+{
+    Quad below = cover_flow_stacked_quad(&STACK, ONE);
+    Quad above = cover_flow_stacked_quad(&STACK, -ONE);
+    CHECK_EQUAL(below.width, above.width);
+    CHECK_EQUAL(below.left_height, above.left_height);
+    CHECK_EQUAL(2 * (10 + 50) - below.left_top - below.left_height, above.left_top);
+}
+
+static void further_stacked_covers_are_spaced_evenly(void)
+{
+    CHECK_EQUAL(155, cover_flow_stacked_quad(&STACK, 2 * ONE).left_top);
+    CHECK_EQUAL(185, cover_flow_stacked_quad(&STACK, 3 * ONE).left_top);
+    CHECK_EQUAL(-65, cover_flow_stacked_quad(&STACK, -2 * ONE).left_top);
+}
+
+static void a_stacked_cover_on_its_way_shrinks_smoothly(void)
+{
+    Quad half = cover_flow_stacked_quad(&STACK, ONE / 2);
+    CHECK(half.width < 100 && half.width > 60);
+    CHECK(half.left_height < 100 && half.left_height > 30);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(the_stacked_centre_cover_is_flat_and_full_size),
+        TEST_CASE(a_stacked_cover_below_the_centre_is_a_flat_strip),
+        TEST_CASE(a_stacked_cover_above_the_centre_mirrors_the_one_below),
+        TEST_CASE(further_stacked_covers_are_spaced_evenly),
+        TEST_CASE(a_stacked_cover_on_its_way_shrinks_smoothly),
         TEST_CASE(the_centre_cover_is_fully_lit),
         TEST_CASE(side_covers_darken_away_from_the_centre),
         TEST_CASE(light_fades_smoothly_as_a_cover_leaves_the_centre),

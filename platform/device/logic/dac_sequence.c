@@ -25,11 +25,9 @@ typedef struct Write {
 #define HEADPHONE_GAIN 0x080000u
 
 enum {
-    TOP_VOLUME_VALUE = 0x7A,
-    BALANCED_TOP_VOLUME_VALUE = 0x7D,
+    BALANCED_ATTENUATION_VALUE = 10,
+    VOLUME_UNITS_PER_STEP = 2,
     RAMP_STEP = 6,
-    VOLUME_STEP_NUMERATOR = 12,
-    VOLUME_STEP_DENOMINATOR = 5,
     GAIN_HIGH_VALUE = 0x31,
     GAIN_LOW_VALUE = 0x10
 };
@@ -230,8 +228,8 @@ uint8_t dac_volume_value(uint8_t level, DacCurve curve)
         return DAC_VOLUME_MUTED;
     }
     uint32_t capped = level < DAC_VOLUME_LEVELS ? level : DAC_VOLUME_LEVELS;
-    uint32_t top = curve == DAC_CURVE_BALANCED ? BALANCED_TOP_VOLUME_VALUE : TOP_VOLUME_VALUE;
-    return (uint8_t)(top - VOLUME_STEP_NUMERATOR * capped / VOLUME_STEP_DENOMINATOR);
+    uint32_t offset = curve == DAC_CURVE_BALANCED ? BALANCED_ATTENUATION_VALUE : 0;
+    return (uint8_t)(offset + VOLUME_UNITS_PER_STEP * (DAC_VOLUME_LEVELS - capped));
 }
 
 void dac_output_on(const DacBus *bus, uint8_t volume)

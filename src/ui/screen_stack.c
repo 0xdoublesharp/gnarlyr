@@ -37,6 +37,15 @@ static bool pop_to_root(ScreenStack *stack)
     return true;
 }
 
+static bool replace(ScreenStack *stack, Screen *target)
+{
+    if (target == NULL || stack->depth <= 1) {
+        return false;
+    }
+    stack->screens[stack->depth - 1] = target;
+    return true;
+}
+
 static bool change(ScreenStack *stack, ScreenAction action)
 {
     switch (action.type) {
@@ -46,6 +55,8 @@ static bool change(ScreenStack *stack, ScreenAction action)
         return pop(stack);
     case SCREEN_ACTION_POP_TO_ROOT:
         return pop_to_root(stack);
+    case SCREEN_ACTION_REPLACE:
+        return replace(stack, action.target);
     case SCREEN_ACTION_NONE:
         return false;
     }

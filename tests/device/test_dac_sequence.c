@@ -334,19 +334,21 @@ static void the_gain_setting_writes_the_headphone_gain_register(void)
 static void volume_levels_map_onto_the_pcm_volume_scale(void)
 {
     CHECK_EQUAL(0xFF, dac_volume_value(0, DAC_CURVE_SINGLE_ENDED));
-    CHECK_EQUAL(0x78, dac_volume_value(1, DAC_CURVE_SINGLE_ENDED));
-    CHECK_EQUAL(0x5E, dac_volume_value(12, DAC_CURVE_SINGLE_ENDED));
-    CHECK_EQUAL(0x3E, dac_volume_value(25, DAC_CURVE_SINGLE_ENDED));
-    CHECK_EQUAL(0x02, dac_volume_value(50, DAC_CURVE_SINGLE_ENDED));
-    CHECK_EQUAL(0x02, dac_volume_value(80, DAC_CURVE_SINGLE_ENDED));
+    CHECK_EQUAL(0x76, dac_volume_value(1, DAC_CURVE_SINGLE_ENDED));
+    CHECK_EQUAL(0x60, dac_volume_value(12, DAC_CURVE_SINGLE_ENDED));
+    CHECK_EQUAL(0x3C, dac_volume_value(30, DAC_CURVE_SINGLE_ENDED));
+    CHECK_EQUAL(0x02, dac_volume_value(59, DAC_CURVE_SINGLE_ENDED));
+    CHECK_EQUAL(0x00, dac_volume_value(60, DAC_CURVE_SINGLE_ENDED));
+    CHECK_EQUAL(0x00, dac_volume_value(80, DAC_CURVE_SINGLE_ENDED));
 }
 
-static void the_balanced_curve_sits_three_units_lower(void)
+static void the_balanced_curve_sits_ten_units_lower(void)
 {
     CHECK_EQUAL(0xFF, dac_volume_value(0, DAC_CURVE_BALANCED));
-    CHECK_EQUAL(0x7B, dac_volume_value(1, DAC_CURVE_BALANCED));
-    CHECK_EQUAL(0x61, dac_volume_value(12, DAC_CURVE_BALANCED));
-    CHECK_EQUAL(0x05, dac_volume_value(50, DAC_CURVE_BALANCED));
+    CHECK_EQUAL(0x80, dac_volume_value(1, DAC_CURVE_BALANCED));
+    CHECK_EQUAL(0x6A, dac_volume_value(12, DAC_CURVE_BALANCED));
+    CHECK_EQUAL(0x0C, dac_volume_value(59, DAC_CURVE_BALANCED));
+    CHECK_EQUAL(0x0A, dac_volume_value(60, DAC_CURVE_BALANCED));
 }
 
 static void a_volume_ramp_moves_six_units_a_step_and_lands_on_the_target(void)
@@ -374,7 +376,7 @@ int main(void)
         TEST_CASE(setting_the_volume_writes_both_pcm_volume_registers),
         TEST_CASE(the_gain_setting_writes_the_headphone_gain_register),
         TEST_CASE(volume_levels_map_onto_the_pcm_volume_scale),
-        TEST_CASE(the_balanced_curve_sits_three_units_lower),
+        TEST_CASE(the_balanced_curve_sits_ten_units_lower),
         TEST_CASE(a_volume_ramp_moves_six_units_a_step_and_lands_on_the_target),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

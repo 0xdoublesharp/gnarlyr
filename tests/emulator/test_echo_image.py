@@ -37,6 +37,17 @@ PWM_CONTROL = 0x0C
 PWM_RUN = 0x10003
 GPIO_DATA = 0x00
 MADCTL_CHOICES = (0x28, 0x68)
+MADCTL_COMMAND = 0x36
+MADCTL_SWAP = 0x20
+MADCTL_MIRROR_ROWS = 0x80
+MADCTL_MIRROR_COLUMNS = 0x40
+PORTRAIT_COLUMNS = (FIRST_ROW, FIRST_ROW + HEIGHT - 1)
+PORTRAIT_LAST_ROW = WIDTH - 1
+SETTINGS_VERSION = 10
+SETTINGS_ORIENTATION_FIELD = 26
+SETTINGS_CHECKSUM_FIELD = 28
+FNV_START = 2166136261
+FNV_PRIME = 16777619
 
 GAMMA_POSITIVE = (0xF0, 0x0B, 0x12, 0x09, 0x0A, 0x26, 0x39, 0x54, 0x4E, 0x38, 0x13, 0x13, 0x2E,
                   0x34)
@@ -54,6 +65,24 @@ def expected_init(madctl):
         (0x21, ()), (0x2A, (0x00, 0x31, 0x01, 0x0E)), (0x2B, (0x00, 0x00, 0x01, 0xDF)),
         (0x2C, ()),
     ]
+
+
+def settings_file(orientation):
+    data = bytearray(SETTINGS_CHECKSUM_FIELD + 4)
+    data[0:4] = b"EMST"
+    data[4] = SETTINGS_VERSION
+    data[6:9] = bytes((7, 2, 0))
+    data[13] = 13
+    data[14] = 2
+    data[16] = 35
+    data[19:24] = bytes((10,) * 5)
+    data[24] = 1
+    data[SETTINGS_ORIENTATION_FIELD] = orientation
+    checksum = FNV_START
+    for byte in data[:SETTINGS_CHECKSUM_FIELD]:
+        checksum = (checksum ^ byte) * FNV_PRIME & 0xFFFFFFFF
+    data[SETTINGS_CHECKSUM_FIELD:] = checksum.to_bytes(4, "little")
+    return bytes(data)
 
 
 def pin_high_index(machine, port, pin):
@@ -124,13 +153,55 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(init, expected_init(madctl))
         self.assertEqual(len(panel.sweeps), 2)
         clear, first = panel.sweeps
-        self.assertEqual((clear.windows, clear.nonzero), (111, 0))
+        self.assertEqual((clear.windows, clear.nonzero), (HEIGHT, 0))
         self.assertEqual(first.windows, 10)
         self.assertEqual(first.nonzero, WIDTH * HEIGHT)
         self.assertEqual(panel.painted_pixels(), WIDTH * HEIGHT)
         self.assert_windows_inside_panel(panel)
         self.assert_healthy(session)
         summary("first frame", session)
+
+    def portrait_windows(self, panel):
+        return [window for window in panel.windows if window.columns == PORTRAIT_COLUMNS and window.pixels > 0]
+
+    def boot_saved_orientation(self, orientation):
+        from echo_emulator.fat_volume import Fat32Volume
+        volume = Fat32Volume()
+        volume.add_directory(".echo")
+        volume.add_file("settings.bin", settings_file(orientation), directory=".echo")
+        session = self.session_module.Session(self.image, self.elf, volume=volume)
+        panel = session.panel
+        reason = session.machine.run(
+            until=lambda: sum(w.pixels for w in self.portrait_windows(panel)) >= WIDTH * HEIGHT,
+            until_ms=self.session_module.FRAME_LIMIT_MS)
+        self.assertEqual(reason, "condition met")
+        return session
+
+    def assert_turned_before_the_first_portrait_frame(self, session, madctl_change):
+        panel = session.panel
+        init = panel.init_commands()
+        landscape = dict(init)[MADCTL_COMMAND][0]
+        self.assertEqual(init, expected_init(landscape))
+        turns = [params for command, params in panel.groups if command == MADCTL_COMMAND][1:]
+        self.assertEqual(turns, [[madctl_change(landscape & ~MADCTL_SWAP)]])
+        first = panel.windows.index(self.portrait_windows(panel)[0])
+        for window in panel.windows[first:]:
+            self.assertEqual(window.columns, PORTRAIT_COLUMNS)
+            self.assertTrue(0 <= window.rows[0] <= window.rows[1] <= PORTRAIT_LAST_ROW)
+        self.assertEqual(max(window.rows[1] for window in panel.windows[first:]),
+                         PORTRAIT_LAST_ROW)
+        self.assert_healthy(session)
+
+    def test_a_saved_portrait_turns_the_panel_before_the_first_frame(self):
+        session = self.boot_saved_orientation(1)
+        self.assert_turned_before_the_first_portrait_frame(
+            session, lambda upright: upright ^ MADCTL_MIRROR_ROWS)
+        summary("portrait", session)
+
+    def test_a_saved_flipped_portrait_mirrors_the_other_axis(self):
+        session = self.boot_saved_orientation(2)
+        self.assert_turned_before_the_first_portrait_frame(
+            session, lambda upright: upright ^ MADCTL_MIRROR_COLUMNS)
 
     def test_normal_boot_reaches_the_home_screen_using_only_the_user_volume(self):
         session = self.session()
@@ -251,8 +322,9 @@ class EchoImageTest(unittest.TestCase):
         session = self.session(files=[("ECHOV498.IMG", newer, None)], vbus=True)
         session.machine.note("updater_install")
         self.assertEqual(session.run_to_first_frame(), "condition met")
+        session.machine.stop_at("board_wait_for_power_hold")
         self.assertEqual(session.run_until_waiting_for_key(presses=1),
-                         "reached board_wait_for_key")
+                         "reached board_wait_for_power_hold")
         machine = session.machine
         self.assert_healthy(session)
         self.assertEqual(machine.reached["updater_install"], 1)
@@ -330,6 +402,7 @@ class EchoImageTest(unittest.TestCase):
         session.run_to_first_frame()
         session.machine.answer_waits_for_key(2)
         session.machine.stop_at("usb_session_storage_changed")
+        session.machine.stop_at("board_wait_for_power_hold")
         return session.machine.run(until_ms=self.session_module.FRAME_LIMIT_MS)
 
     def test_an_update_file_is_installed_once_and_is_gone_afterwards(self):
@@ -337,7 +410,7 @@ class EchoImageTest(unittest.TestCase):
         first = self.session(files=[("ECHOV498.IMG", newer, None)], vbus=True)
         cluster = first.volume.first_cluster("ECHOV498.IMG")
         self.assertEqual(self.boot_until_waiting_for_key(first),
-                         "reached usb_session_storage_changed")
+                         "reached board_wait_for_power_hold")
         self.assertEqual(first.machine.reached["updater_install"], 1)
         self.assertFalse(first.file_exists("ECHOV498.IMG"))
         self.assertEqual(first.fat_entry(cluster), 0)

@@ -266,6 +266,9 @@ static void refusals_explain_themselves(void)
     CHECK(path_is(text, "384 kHz isn't supported yet"));
     player_refusal_text((HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_FORMAT}, text, sizeof text);
     CHECK(path_is(text, "This file type isn't supported yet"));
+    player_refusal_text((HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_AAC_ONLY}, text,
+                        sizeof text);
+    CHECK(path_is(text, "Only AAC-LC and ALAC M4A play"));
     player_refusal_text((HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_UNREADABLE}, text,
                         sizeof text);
     CHECK(path_is(text, "Couldn't read the track"));
@@ -327,6 +330,49 @@ static void changing_shuffle_keeps_the_current_track_playing(void)
     CHECK_EQUAL(HELLS_BELLS, player_status(started).track);
     CHECK_EQUAL(SHUFFLE_SONGS, player_status(started).shuffle);
     CHECK(fake_hal_audio_queued_path() != NULL);
+}
+
+static void a_pause_longer_than_thirty_seconds_releases_the_audio(void)
+{
+    Player *started = playing(1);
+    fake_hal_audio_set_position(42000);
+    player_toggle_pause(started);
+    player_update(started, 1000);
+    player_update(started, 1000 + PLAYER_PAUSE_RELEASE_MS - 1);
+    CHECK_EQUAL(0, fake_hal_audio_release_count());
+    player_update(started, 1000 + PLAYER_PAUSE_RELEASE_MS);
+    CHECK_EQUAL(1, fake_hal_audio_release_count());
+    CHECK(hal_audio_status().idle);
+    CHECK_EQUAL(PLAYER_PAUSED, player_status(started).state);
+}
+
+static void playing_again_after_a_released_pause_resumes_in_place(void)
+{
+    Player *started = playing(1);
+    fake_hal_audio_set_position(42000);
+    player_toggle_pause(started);
+    player_update(started, 1000);
+    player_update(started, 1000 + PLAYER_PAUSE_RELEASE_MS);
+    int plays_before = fake_hal_audio_play_count();
+    player_toggle_pause(started);
+    CHECK_EQUAL(plays_before + 1, fake_hal_audio_play_count());
+    CHECK(path_is(fake_hal_audio_playing_path(), SHOOT_TO_THRILL_PATH));
+    CHECK_EQUAL(42000, fake_hal_audio_play_start());
+    CHECK_EQUAL(PLAYER_PLAYING, player_status(started).state);
+}
+
+static void resuming_before_the_release_restarts_the_pause_timer(void)
+{
+    Player *started = playing(1);
+    player_toggle_pause(started);
+    player_update(started, 1000);
+    player_update(started, 20000);
+    player_toggle_pause(started);
+    player_update(started, 21000);
+    player_toggle_pause(started);
+    player_update(started, 22000);
+    player_update(started, 22000 + PLAYER_PAUSE_RELEASE_MS - 1);
+    CHECK_EQUAL(0, fake_hal_audio_release_count());
 }
 
 static void a_saved_session_resumes_paused_at_its_position(void)
@@ -564,6 +610,9 @@ int main(void)
         TEST_CASE(starting_with_nothing_plugged_in_still_plays),
         TEST_CASE(volume_changes_are_clamped_and_sent),
         TEST_CASE(changing_shuffle_keeps_the_current_track_playing),
+        TEST_CASE(a_pause_longer_than_thirty_seconds_releases_the_audio),
+        TEST_CASE(playing_again_after_a_released_pause_resumes_in_place),
+        TEST_CASE(resuming_before_the_release_restarts_the_pause_timer),
         TEST_CASE(a_saved_session_resumes_paused_at_its_position),
         TEST_CASE(a_session_from_another_library_is_ignored),
         TEST_CASE(the_session_is_saved_regularly_while_playing),

@@ -89,6 +89,11 @@ void hal_system_keep_alive(void)
 {
 }
 
+uint32_t hal_system_idle_microseconds(void)
+{
+    return 0;
+}
+
 HalLoopCycles hal_system_loop_cycles(void)
 {
     return (HalLoopCycles){0};

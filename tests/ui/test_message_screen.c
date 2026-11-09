@@ -13,7 +13,7 @@ static Screen *open_message(void)
 
 static ScreenAction press(Screen *screen, Key key, KeyGesture gesture)
 {
-    return screen->handle_key(screen->context, (KeyEvent){key, gesture}, 100);
+    return screen->handle_key(screen->context, (KeyEvent){.key = key, .gesture = gesture}, 100);
 }
 
 static void the_message_title_is_the_screen_title(void)

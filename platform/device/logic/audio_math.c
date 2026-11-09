@@ -8,7 +8,7 @@ enum {
     BIT_CLOCKS_PER_FRAME = 64,
     I2S_DIVIDER_SHIFT = 16,
     I2S_FRAME_BITS = 0x3F3F,
-    SINE_FRACTION_BITS = 30
+    SINE_FRACTION_BITS = AUDIO_MATH_FRACTION_BITS
 };
 
 uint32_t i2c_clock_divider(uint32_t pclk_hz, uint32_t bus_khz)
@@ -69,11 +69,21 @@ static int16_t to_sample(int64_t value, int16_t amplitude)
     return (int16_t)((scaled + (scaled >= 0 ? half : -half)) / fixed_one());
 }
 
+int64_t fixed_cosine(int64_t angle)
+{
+    return series(angle, 0);
+}
+
+int64_t fixed_sine(int64_t angle)
+{
+    return series(angle, 1);
+}
+
 void tone_fill(int16_t *samples, int count, int16_t amplitude)
 {
     int64_t angle = step_angle(count);
-    int64_t cosine = series(angle, 0);
-    int64_t sine = series(angle, 1);
+    int64_t cosine = fixed_cosine(angle);
+    int64_t sine = fixed_sine(angle);
     int64_t x = fixed_one();
     int64_t y = 0;
     for (int index = 0; index < count; index++) {

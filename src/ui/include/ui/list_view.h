@@ -44,6 +44,8 @@ void list_view_start_scroll(ListView *view, int direction, uint32_t now_ms);
 void list_view_keep_scrolling(ListView *view, int direction, uint32_t now_ms);
 int list_section_of_key(const char *key);
 const char *list_section_label(int section);
+void list_view_fit(ListView *view);
+void list_view_fit_rows(ListView *view, int rows);
 void list_view_restart_marquee(ListView *view, uint32_t now_ms);
 void list_view_select(ListView *view, int index, uint32_t now_ms);
 void list_view_draw(const ListView *view, Canvas *canvas, Rect area, uint32_t now_ms);

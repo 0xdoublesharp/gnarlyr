@@ -104,8 +104,12 @@ static bool has_bom(PlaylistReader *reader)
 
 bool playlist_reader_open(PlaylistReader *reader, ByteSource source, uint32_t size)
 {
-    *reader = (PlaylistReader){
-        .source = source, .size = size, .offset = 0, .chunk_start = 0, .chunk_length = 0};
+    *reader = (PlaylistReader){.source = source,
+                               .size = size,
+                               .offset = 0,
+                               .start_ms = PLAYLIST_NO_START,
+                               .chunk_start = 0,
+                               .chunk_length = 0};
     reader->utf8 = is_utf8(reader);
     if (reader->utf8 && has_bom(reader)) {
         reader->offset = 3;
@@ -200,13 +204,35 @@ static bool read_line(PlaylistReader *reader, Line *line)
     return true;
 }
 
+static const char START_DIRECTIVE[] = "#PODIUM-START:";
+
+static void note_directive(PlaylistReader *reader, const char *line)
+{
+    uint32_t prefix = (uint32_t)sizeof START_DIRECTIVE - 1;
+    for (uint32_t index = 0; index < prefix; index++) {
+        if (line[index] != START_DIRECTIVE[index]) {
+            return;
+        }
+    }
+    uint64_t value = 0;
+    uint32_t digits = 0;
+    for (; line[prefix + digits] >= '0' && line[prefix + digits] <= '9' && digits < 10; digits++) {
+        value = value * 10 + (uint64_t)(line[prefix + digits] - '0');
+    }
+    if (digits > 0 && line[prefix + digits] == '\0' && value < PLAYLIST_NO_START) {
+        reader->start_ms = (uint32_t)value;
+    }
+}
+
 bool playlist_reader_next(PlaylistReader *reader, char *entry, uint32_t capacity)
 {
     Line line = {.text = entry, .capacity = capacity, .length = 0, .content_end = 0};
+    reader->start_ms = PLAYLIST_NO_START;
     while (read_line(reader, &line)) {
         if (line.content_end > 0 && entry[0] != '#') {
             return true;
         }
+        note_directive(reader, entry);
     }
     return false;
 }
