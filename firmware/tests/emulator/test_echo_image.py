@@ -295,7 +295,7 @@ class EchoImageTest(unittest.TestCase):
         self.assert_only_the_user_volume_changed(session)
 
     def built_library_tracks(self, session):
-        for data in session.disk.sectors.values():
+        for data in self.volume_sectors(session):
             if data[:4] == b"DSDB":
                 return struct.unpack_from("<I", data, 12)[0]
         return 0
@@ -312,8 +312,12 @@ class EchoImageTest(unittest.TestCase):
         self.assert_healthy(session)
         self.assertEqual(session.read_file("TRACK01.MP3", len(track)), track)
 
+    def volume_sectors(self, session):
+        start = session.layout["volume_start"]
+        return [data for lba, data in session.disk.sectors.items() if lba >= start]
+
     def recorded_version(self, session):
-        for data in session.disk.sectors.values():
+        for data in self.volume_sectors(session):
             if data[:4] == b"DSSC":
                 return bytes(data[16:32]).rstrip(b"\0").decode("ascii")
         return None
