@@ -4,7 +4,7 @@ Doublesharp Echo 1.0.0 is not released and has not run on any player yet. It com
 
 ## What has been checked
 
-- **Doublesharp itself:** host tests, the simulator and the ARM emulator only (186 checks). The emulator has no USB traffic, no DAC, no SD card and no Bluetooth module, so those paths are covered by host tests of their logic and nothing more.
+- **Doublesharp itself:** host tests, the simulator and the ARM emulator only (189 checks). The emulator has no USB traffic, no DAC, no SD card and no Bluetooth module, so those paths are covered by host tests of their logic and nothing more.
 - **On the owner's Echo (full size, 4 GB):** an earlier build of this project, based on Podium 4.5.5, was installed through maskrom. The owner confirmed display, menus, buttons, music playback, volume, USB storage with internal storage and a microSD card, and quiet audio with the 12 ms DAC wait. The unit was also returned to FiiO's 2.0.0 through maskrom and back. The maskrom steps in [`device-install.md`](device-install.md) and [`device-recovery.md`](device-recovery.md) are the ones used.
 - **Everything else** that Podium's and EchoPod's authors tested on their own players has not been repeated by this project. Where this document mentions such a result, it says whose it is.
 
@@ -24,6 +24,7 @@ These are new or changed in Doublesharp, or were never checked on the owner's un
 - **Playback after a USB session.** The overlay shares its memory with the decoder workspace.
 - **Portrait mode.** The two portrait panel settings come from the landscape one by rule. Which way round each sits, and which one swaps the volume rocker, are untested.
 - **The ten-band equalizer's CPU load at 96 kHz.** By instruction count it takes about 55 % of the main core. It has not been heard or measured on a player.
+- **Which DAC part is fitted.** Settings → About → DAC A and DAC B report each chip's identification registers after the first track. The read has only run in host tests against a recording bus (the emulator replaces the DAC start-up), so no player's answer is known: FiiO lists the CS43198, and inherited code names say CS43131.
 - **Bluetooth.**
 - **The 4.4 mm output.**
 

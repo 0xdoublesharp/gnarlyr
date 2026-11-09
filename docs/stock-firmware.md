@@ -61,7 +61,7 @@ The display code is in module 4: file offset `0x59b18`, loads at `0x0307e48c`, 1
 - Stock waits 12 ms after releasing the output power bit. The firmware does the same.
 - The register writer (`0x03060f00`) sends three address bytes, an auto-increment byte and the value to bus addresses `0x60` and `0x66` (7-bit `0x30` and `0x33`). It sets the channel map registers `0x05000a` and `0x05000b` to 7 and 15, and applies balance to the volume registers `0x090001` and `0x090002`.
 - The reader is `0x0306101c`, using the same addressing for both chips.
-- This establishes the register protocol, not which Cirrus part is fitted. FiiO lists dual CS43198; some inherited code names say CS43131. Reading the part-number registers on the player would settle it.
+- This establishes the register protocol, not which Cirrus part is fitted. FiiO lists dual CS43198; some inherited code names say CS43131. Reading the part-number registers on the player would settle it: Doublesharp reads them when the DAC starts and shows them in Settings → About (`firmware/docs/architecture.md`, DAC identification). No reading from a player is recorded yet.
 - Not compared with stock yet: the default digital filter, the volume curve, the gain values and the power-down order.
 
 ## Limits of this record

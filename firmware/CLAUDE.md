@@ -16,7 +16,7 @@ Names that follow from it: the update file `DBLSHARP.IMG`, the data folder `/.do
 |---|---|
 | `src/` | Portable app, freestanding C11, layered: `core` → `gfx`/`image`/`codec` → `fonts`/`ui`/`library`/`playback`/`settings` → `app`. `hal/` holds hardware interfaces only |
 | `platform/sim` | SDL2 simulator: implements `hal`, owns `main()` |
-| `platform/device/board` | Device-only drivers (RKnano Cortex-M3, DW-MMC eMMC/SD, DWC2 USB, CS43131 DAC, Bluetooth UART), startup, linker scripts, the overlay loader |
+| `platform/device/board` | Device-only drivers (RKnano Cortex-M3, DW-MMC eMMC/SD, DWC2 USB, the Cirrus DACs, Bluetooth UART), startup, linker scripts, the overlay loader |
 | `platform/device/logic` | Driver logic without hardware access, unit-tested on the host |
 | `platform/device/core1` | Decoder programs for the second core, stored in the core 0 image |
 | `tools/` | Python: image builder (`make_image.py`), size report (`size_report.py`), emulator (`echo_emulator`), PC library indexer, `echo_sync.py`, font and fixture generators |
@@ -57,14 +57,14 @@ python3 tools/firmware.py sim --card /path/to/music
 
 ## Code space
 
-`tools/size_report.py` prints used and free bytes against each limit after every image build, reading the limits from the linker maps; the linker scripts enforce them. It fails the image build when a library object keeps variables in both the main program and the USB overlay. The `echo_size_report` build target prints the full report (bytes per object, per library, biggest functions and tables). Release build when the USB overlay landed:
+`tools/size_report.py` prints used and free bytes against each limit after every image build, reading the limits from the linker maps; the linker scripts enforce them. It fails the image build when a library object keeps variables in both the main program and the USB overlay. The `echo_size_report` build target prints the full report (bytes per object, per library, biggest functions and tables). Release build with the DAC rows:
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 137,896 | 157,292 | 19,396 |
-| Static RAM | 264,048 | 287,296 | 23,248 |
+| Code window | 138,776 | 157,292 | 18,516 |
+| Static RAM | 264,152 | 287,296 | 23,144 |
 | Rescan overlay | 88,404 | 98,304 | 9,900 |
-| USB overlay code | 13,364 | 65,536 | 52,172 |
+| USB overlay code | 13,424 | 65,536 | 52,112 |
 
 - Keep at least 8 KB free in the release code window after each stage of the plan. Read the report after any change to device code and update these numbers and the ones in `docs/architecture.md` when they move.
 - The core 0 link uses link-time optimisation. Libraries shared with core 1 or the rescan overlay stay out of it.
