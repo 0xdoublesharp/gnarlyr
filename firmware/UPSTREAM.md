@@ -13,7 +13,7 @@ Doublesharp Echo is built on two open-source firmwares, both GPL-3.0-or-later. [
 
 - Archive: <https://podium-echo.online/download/4.5.9/podium-4.5.9-src.zip>
 - SHA-256: `c5af7301057072327ee468962cd161e0fd0d01a2b3df7dbcc40d6fb48713b0cd`
-- In git: the archive's contents are recorded unchanged as `refs/donors/podium-4.5.9` (commit `1dee2bd`). Commit `abdca73` made `firmware/` equal to that tree, and has it as a parent.
+- In git: the archive's contents are recorded unchanged as `refs/donors/podium-4.5.9` (commit `1dee2bd`). Commit `2e1788b` made `firmware/` equal to that tree, and has it as a parent.
 
 Git keeps the ancestry: `refs/donors/podium-4.5.9` sits on Podium's history, which descends from EchoPod 0.6.0 (tag `echopod/v0.6.0`). Two remotes are configured in the repository:
 
@@ -28,25 +28,25 @@ Each was written for the Echo Mini after EchoPod 0.6.0 and brought across by che
 
 | Doublesharp commit | EchoPod commit | What |
 |---|---|---|
-| `5a0b32a` | `153de67` | Size report from the linker map |
-| `2f2940f` | `9995f0e` | Size report: libgcc member names from Windows paths on any host |
-| `4518f51` | `48ee7fd` | Link-time optimisation for the core 0 firmware |
-| `9d3041b` | `302e177` | `-Os` on more cold files |
-| `0f6e394` | `a8b1c93` | The rescan overlay is refused when it was linked against other code |
-| `c7c88e5` | `788fd0b` | USB sessions and the updater run from a second on-demand overlay, with one shared loader. Ported by hand, with the loader in its EchoPod 0.11.1 shape |
+| `915126f` | `153de67` | Size report from the linker map |
+| `d766e31` | `9995f0e` | Size report: libgcc member names from Windows paths on any host |
+| `e6274b9` | `48ee7fd` | Link-time optimisation for the core 0 firmware |
+| `b2c2c94` | `302e177` | `-Os` on more cold files |
+| `f52fe9d` | `a8b1c93` | The rescan overlay is refused when it was linked against other code |
+| `53873ba` | `788fd0b` | USB sessions and the updater run from a second on-demand overlay, with one shared loader. Ported by hand, with the loader in its EchoPod 0.11.1 shape |
 
-`c7c88e5` differs from EchoPod's version: the overlay window is `0x18000` bytes with two linker regions over it, a size above the window is refused before any arithmetic on it, a failed load zeroes the whole window, the start-up `MASKROM.REQ` check moved to `board/update_request.c`, there are no language packs or resident tables, and the emulator reads the USB overlay's ELF too.
+`53873ba` differs from EchoPod's version: the overlay window is `0x18000` bytes with two linker regions over it, a size above the window is refused before any arithmetic on it, a failed load zeroes the whole window, the start-up `MASKROM.REQ` check moved to `board/update_request.c`, there are no language packs or resident tables, and the emulator reads the USB overlay's ELF too.
 
 ## Our own changes since the starting point
 
 | Commit | What |
 |---|---|
-| `45e9f92` | Fixture tools take FFmpeg from `PATH`; the emulator scenarios are separate checks |
-| `8714a1d` | The size report reads its limits from the linker maps (EchoPod's carried the Echo Mini's limits as constants) |
-| `addb620` | `CORE_SEAM` keeps the functions the emulator replaces or watches out of link-time optimisation; the emulator fails when a named function is missing |
-| `f0c4d35` | The DAC output power-up wait is 12 ms, as in FiiO's firmware (Podium 4.5.9 waits 10 ms) |
-| `5dffe03` | The size report covers the USB overlay and fails when a library keeps variables in both programs |
-| `7450fb4` | Emulator scenarios for the USB overlay loader |
+| `af9d9c1` | Fixture tools take FFmpeg from `PATH`; the emulator scenarios are separate checks |
+| `d511d21` | The size report reads its limits from the linker maps (EchoPod's carried the Echo Mini's limits as constants) |
+| `6b7e607` | `CORE_SEAM` keeps the functions the emulator replaces or watches out of link-time optimisation; the emulator fails when a named function is missing |
+| `3ce0504` | The DAC output power-up wait is 12 ms, as in FiiO's firmware (Podium 4.5.9 waits 10 ms) |
+| `ceb0f47` | The size report covers the USB overlay and fails when a library keeps variables in both programs |
+| `cfb2037` | Emulator scenarios for the USB overlay loader |
 
 The identity change (name, identifier, version, update file, data folder, file magics) follows these. [`docs/release-notes.md`](docs/release-notes.md) describes the result for users.
 
@@ -74,7 +74,7 @@ What we changed against the starting point:
 
 ```sh
 git diff refs/donors/podium-4.5.9 HEAD:firmware
-git log --oneline 45e9f92..HEAD -- firmware
+git log --oneline af9d9c1..HEAD -- firmware
 ```
 
 A ported piece follows the porting rules in [`CLAUDE.md`](CLAUDE.md): one implementation per problem, with its tests, inside the size budget.

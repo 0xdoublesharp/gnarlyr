@@ -57,7 +57,7 @@ python3 tools/firmware.py sim --card /path/to/music
 
 ## Code space
 
-`tools/size_report.py` prints used and free bytes against each limit after every image build, reading the limits from the linker maps; the linker scripts enforce them. It fails the image build when a library object keeps variables in both the main program and the USB overlay. The `echo_size_report` build target prints the full report (bytes per object, per library, biggest functions and tables). Release build at commit `357e9ea`:
+`tools/size_report.py` prints used and free bytes against each limit after every image build, reading the limits from the linker maps; the linker scripts enforce them. It fails the image build when a library object keeps variables in both the main program and the USB overlay. The `echo_size_report` build target prints the full report (bytes per object, per library, biggest functions and tables). Release build when the USB overlay landed:
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
