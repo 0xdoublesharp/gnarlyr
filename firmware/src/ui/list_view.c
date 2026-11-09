@@ -3,12 +3,13 @@
 #include <stddef.h>
 
 #include "gfx/text.h"
-#include "ui/icons.h"
 #include "ui/label.h"
 
 enum {
     MIN_THUMB_HEIGHT = 6,
-    SHINE_HEIGHT = 1
+    SHINE_HEIGHT = 1,
+    NARROW_DETAIL_SHARE = 40,
+    PERCENT = 100
 };
 
 static const char CHEVRON[] = "\xE2\x80\xBA";
@@ -26,6 +27,11 @@ typedef struct Row {
 static int item_count(const ListView *view)
 {
     return view->model->count(view->model->context);
+}
+
+static int min_of(int first, int second)
+{
+    return first < second ? first : second;
 }
 
 static int max_of(int first, int second)
@@ -169,6 +175,21 @@ void list_view_select(ListView *view, int index, uint32_t now_ms)
     keep_selection_visible(view);
 }
 
+void list_view_fit(ListView *view)
+{
+    list_view_fit_rows(view, theme_visible_rows(view->theme));
+}
+
+void list_view_fit_rows(ListView *view, int rows)
+{
+    int count = item_count(view);
+    view->visible_rows = rows;
+    if (view->top > count - view->visible_rows) {
+        view->top = max_of(0, count - view->visible_rows);
+    }
+    keep_selection_visible(view);
+}
+
 void list_view_restart_marquee(ListView *view, uint32_t now_ms)
 {
     view->selection_changed_ms = now_ms;
@@ -178,25 +199,6 @@ static TextStyle row_style(const ListView *view, bool selected, Color normal)
 {
     Color color = selected ? view->theme->colors.selection_text : normal;
     return (TextStyle){.font = view->theme->fonts.body, .color = color};
-}
-
-static Row draw_icon(const ListView *view, Canvas *canvas, Row row)
-{
-    const ListModel *model = view->model;
-    IconId icon = model->icon != NULL ? (IconId)model->icon(model->context, row.index) : ICON_NONE;
-    if (icon == ICON_NONE) {
-        return row;
-    }
-    const ThemeColors *colors = &view->theme->colors;
-    int size = icon_grid(icon);
-    Rect area = {row.text.x, row.text.y + (row.text.height - size) / 2, size, size};
-    IconInk ink = row.selected ? (IconInk){colors->selection_text, colors->selection_text}
-                               : (IconInk){colors->text_secondary, colors->accent};
-    icon_draw(canvas, icon, area, ink);
-    int shift = size + view->theme->metrics.detail_gap;
-    row.text.x += shift;
-    row.text.width -= shift;
-    return row;
 }
 
 static Row draw_chevron(const ListView *view, Canvas *canvas, Row row)
@@ -222,9 +224,20 @@ static Row draw_detail(const ListView *view, Canvas *canvas, Row row)
         return row;
     }
     TextStyle style = row_style(view, row.selected, view->theme->colors.text_secondary);
+    bool narrow = theme_is_portrait(view->theme);
+    if (narrow) {
+        style.font = view->theme->fonts.small;
+    }
     int width = text_width(style.font, detail);
     if (model->detail_max_width > 0 && width > model->detail_max_width) {
         width = model->detail_max_width;
+    }
+    if (narrow) {
+        int label_width =
+            text_width(view->theme->fonts.body, model->label(model->context, row.index));
+        int room = row.text.width - label_width - view->theme->metrics.detail_gap;
+        int smallest = row.text.width * NARROW_DETAIL_SHARE / PERCENT;
+        width = min_of(width, max_of(room, smallest));
     }
     Rect area = {row.text.x + row.text.width - width, row.text.y, width, row.text.height};
     label_draw(canvas, style, (Label){.area = area, .text = detail});
@@ -257,8 +270,7 @@ static void draw_row(const ListView *view, Canvas *canvas, Row row, uint32_t now
         canvas_fill_rect(canvas, shine, colors->selection_shine);
         canvas_fill_gradient(canvas, bar, colors->selection_top, colors->selection_background);
     }
-    Row text = draw_chevron(view, canvas, draw_icon(view, canvas, row));
-    draw_label(view, canvas, draw_detail(view, canvas, text), now_ms);
+    draw_label(view, canvas, draw_detail(view, canvas, draw_chevron(view, canvas, row)), now_ms);
 }
 
 static void draw_scrollbar(const ListView *view, Canvas *canvas, Rect area)

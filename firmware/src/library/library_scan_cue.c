@@ -28,7 +28,7 @@ static bool same_folded(const char *left, const char *right, uint32_t length)
     return true;
 }
 
-static bool has_suffix(const char *name, const char *suffix)
+bool scan_has_suffix(const char *name, const char *suffix)
 {
     uint32_t length = scan_text_length(name);
     uint32_t suffix_length = scan_text_length(suffix);
@@ -38,13 +38,13 @@ static bool has_suffix(const char *name, const char *suffix)
 
 bool scan_is_cue_name(const char *name)
 {
-    return has_suffix(name, ".cue");
+    return scan_has_suffix(name, ".cue");
 }
 
 static bool is_audio_name(const char *name)
 {
     for (size_t index = 0; index < sizeof AUDIO_SUFFIXES / sizeof AUDIO_SUFFIXES[0]; index++) {
-        if (has_suffix(name, AUDIO_SUFFIXES[index])) {
+        if (scan_has_suffix(name, AUDIO_SUFFIXES[index])) {
             return true;
         }
     }
@@ -221,20 +221,22 @@ static void apply_entry(const ScanState *state, const CueEntry *entry, char *tit
     track->duration_ms = duration_between(entry->start_ms, entry->end_ms, track->duration_ms);
 }
 
-static ScanResult add_entry(ScanState *state, const CueEntry *entry)
+static ScanResult add_entry(ScanState *state, const CueEntry *entry, const char *cue_name)
 {
     char title[CUE_TRACK_TITLE];
     BuilderTrack track = state->fields.track;
     apply_entry(state, entry, title, &track);
+    track.sheet = cue_name;
     return scan_builder_result(library_builder_add_track(&state->builder, &track));
 }
 
-static ScanResult add_entries(ScanState *state, const ScanJob *job, ScanStats *stats)
+static ScanResult add_entries(ScanState *state, const ScanJob *job, ScanStats *stats,
+                              const char *cue_name)
 {
     ScanResult result = SCAN_OK;
     const CueEntry *entry = cue_sheet_next(&state->cue);
     while (result == SCAN_OK && entry != NULL) {
-        result = add_entry(state, entry);
+        result = add_entry(state, entry, cue_name);
         stats->tracks += result == SCAN_OK;
         scan_report(job, stats);
         entry = cue_sheet_next(&state->cue);
@@ -248,7 +250,7 @@ static ScanResult add_from_cue(ScanState *state, const ScanJob *job, ScanStats *
     uint32_t folder = state->path_length;
     ScanResult result = SCAN_OK;
     if (open_cue(state, &job->files, cue_name)) {
-        result = add_entries(state, job, stats);
+        result = add_entries(state, job, stats, cue_name);
         job->files.close_file(job->files.context);
     }
     scan_truncate_path(state, folder);

@@ -4,7 +4,9 @@
 #include <stdint.h>
 
 enum {
-    HAL_AUDIO_VOLUME_MAX = 50
+    HAL_AUDIO_VOLUME_MAX = 60,
+    HAL_AUDIO_EQUALIZER_BANDS = 10,
+    HAL_AUDIO_UNITY_PRE_GAIN = 32768
 };
 
 typedef enum HalAudioState {
@@ -34,7 +36,8 @@ typedef enum HalAudioProblem {
     HAL_AUDIO_PROBLEM_NONE,
     HAL_AUDIO_PROBLEM_UNREADABLE,
     HAL_AUDIO_PROBLEM_FORMAT,
-    HAL_AUDIO_PROBLEM_RATE
+    HAL_AUDIO_PROBLEM_RATE,
+    HAL_AUDIO_PROBLEM_AAC_ONLY
 } HalAudioProblem;
 
 typedef struct HalAudioRefusal {
@@ -121,14 +124,23 @@ typedef struct HalAudioTrack {
     uint32_t token;
 } HalAudioTrack;
 
+typedef struct HalAudioEqualizer {
+    uint16_t band_hz[HAL_AUDIO_EQUALIZER_BANDS];
+    int8_t gain_half_db[HAL_AUDIO_EQUALIZER_BANDS];
+    uint8_t band_count;
+    uint16_t pre_gain;
+} HalAudioEqualizer;
+
 bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms);
 void hal_audio_queue_next(const HalAudioTrack *track);
 void hal_audio_pause(void);
 void hal_audio_resume(void);
+void hal_audio_release(void);
 void hal_audio_seek(uint32_t position_ms);
 void hal_audio_set_volume(uint8_t level);
 void hal_audio_set_gain(HalAudioGain gain);
 void hal_audio_set_output(HalAudioOutput output);
+void hal_audio_set_equalizer(const HalAudioEqualizer *equalizer);
 HalAudioStatus hal_audio_status(void);
 HalAudioStats hal_audio_stats(void);
 void hal_audio_service(void);

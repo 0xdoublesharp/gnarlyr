@@ -72,6 +72,8 @@ add_library(echo_device_logic STATIC
     flac_source.c
     dma_loop.c
     emmc_layout.c
+    equalizer.c
+    equalizer_design.c
     exfat.c
     exfat_create.c
     fat.c
@@ -86,6 +88,9 @@ add_library(echo_device_logic STATIC
     jack_sense.c
     loader_request.c
     key_ladder.c
+    headset_dips.c
+    headset_monitor.c
+    headset_remote.c
     key_scanner.c
     m4a_stream.c
     mp3_decoder.c
@@ -99,7 +104,6 @@ add_library(echo_device_logic STATIC
     sd_card.c
     stall_watch.c
     storage_mount.c
-    storage_code.c
     stream_drift.c
     tick_clock.c
     update_names.c
@@ -117,25 +121,36 @@ if(CMAKE_CROSSCOMPILING)
         battery_gauge.c
         bt_module.c
         core1_control.c
+        core1_open.c
         dac_sequence.c
         emmc_layout.c
+        equalizer_design.c
         exfat_create.c
         fat_create.c
         fat_delete.c
+        fat_layout.c
         fat_names.c
         fat_reserve.c
-        core1_open.c
         flac_source.c
+        headset_dips.c
+        headset_monitor.c
+        headset_remote.c
         image_crc.c
+        jack_sense.c
+        key_ladder.c
+        loader_request.c
         m4a_stream.c
         mp3_probe.c
         mp4_demux.c
         panic_text.c
         sd_card.c
         start_record.c
+        storage_mount.c
+        update_names.c
         updater.c
         usb_audio.c
         usb_device.c
+        usb_fallback.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
 endif()

@@ -9,7 +9,7 @@
 enum {
     RING_FRAMES = 8192,
     RING_WORDS = 2 * RING_FRAMES,
-    FULL_VOLUME = 50
+    FULL_VOLUME = 60
 };
 
 typedef struct Fixture {
@@ -594,77 +594,97 @@ static void a_frame_is_released_once_its_samples_are_in_the_ring(void)
     CHECK_EQUAL(1, scripted.closes);
 }
 
-static void replacing_a_buffered_next_song_keeps_the_current_position(void)
+static Equalizer equalizer;
+
+static const HalAudioEqualizer POP = {
+    .band_hz = {100, 3150, 10000}, .gain_half_db = {8, -6, 6}, .band_count = 3, .pre_gain = 20480};
+static const HalAudioEqualizer FLAT = {.pre_gain = HAL_AUDIO_UNITY_PRE_GAIN};
+
+static void start_equalized_engine(const HalAudioEqualizer *curve)
 {
     start_engine();
-    CHECK(play_range("lpc_16_44k_stereo", 0, 50, 3));
-    queue_file("odd_blocks_16", 4);
-    pump_until_full(0);
-    audio_engine_observe(&engine, 441);
-    audio_engine_pause(&engine);
-    AudioEngineTrack replacement = {.path = "lpc_16_44k_stereo", .token = 5};
-    audio_engine_queue_next(&engine, &replacement);
-    pump_until_full(0);
-    CHECK_EQUAL(3u, audio_engine_status(&engine).token);
-    CHECK_EQUAL(10u, audio_engine_status(&engine).position_ms);
-    CHECK_EQUAL(AUDIO_ENGINE_PAUSED, audio_engine_status(&engine).state);
-    CHECK(ring_holds("lpc_16_44k_stereo", 441, 0, 1764, 16));
-    CHECK(ring_holds("lpc_16_44k_stereo", 0, 1764, 3000, 16));
-    audio_engine_observe(&engine, 1764);
-    CHECK_EQUAL(5u, audio_engine_status(&engine).token);
+    engine.config.equalizer = &equalizer;
+    audio_engine_set_equalizer(&engine, curve);
 }
 
-static void clearing_a_buffered_next_song_leaves_only_the_current_tail(void)
+static bool equalized_ring_holds(const char *name, const HalAudioEqualizer *curve, int bits)
 {
-    start_engine();
-    CHECK(play_range("lpc_16_44k_stereo", 0, 50, 3));
-    queue_file("odd_blocks_16", 4);
+    start_equalized_engine(&POP);
+    audio_engine_set_equalizer(&engine, curve);
+    CHECK(play_file(name, 0, 1));
     pump_until_full(0);
-    audio_engine_observe(&engine, 441);
-    audio_engine_pause(&engine);
-    audio_engine_queue_next(&engine, NULL);
-    pump_until_full(0);
-    CHECK(ring_holds("lpc_16_44k_stereo", 441, 0, 1764, 16));
-    CHECK(frame_is(1764, 0, 0, 16));
-    audio_engine_observe(&engine, 1764);
-    CHECK_EQUAL(3u, audio_engine_status(&engine).token);
-    CHECK_EQUAL(AUDIO_ENGINE_STOPPED, audio_engine_status(&engine).state);
+    return ring_holds(name, 0, 0, 5000, bits);
 }
 
-static void replacing_a_pending_rate_change_restarts_at_the_current_rate(void)
+static void equalizer_off_leaves_sixteen_bit_samples_bit_identical(void)
 {
-    start_engine();
-    CHECK(play_range("lpc_16_44k_stereo", 0, 50, 3));
-    queue_file("lpc_24_96k_stereo", 4);
-    pump_until_full(0);
-    CHECK(engine.rate_pending);
-    audio_engine_observe(&engine, 441);
-    queue_file("odd_blocks_16", 5);
-    pump_until_full(0);
-    CHECK(!engine.rate_pending);
-    CHECK_EQUAL(44100u, audio_engine_rate(&engine));
-    CHECK(ring_holds("odd_blocks_16", 0, 1764, 3001, 16));
-    audio_engine_observe(&engine, 1764);
-    CHECK_EQUAL(5u, audio_engine_status(&engine).token);
+    CHECK(equalized_ring_holds("lpc_16_44k_stereo", &FLAT, 16));
 }
 
-static void adding_after_the_decoder_ended_replaces_buffered_silence(void)
+static void equalizer_off_leaves_twenty_four_bit_samples_bit_identical(void)
 {
-    start_engine();
-    CHECK(play_range("lpc_16_44k_stereo", 0, 50, 3));
+    CHECK(equalized_ring_holds("lpc_24_96k_stereo", &FLAT, 24));
+}
+
+static void an_equalizer_shapes_sixteen_and_twenty_four_bit_audio(void)
+{
+    CHECK(!equalized_ring_holds("lpc_16_44k_stereo", &POP, 16));
+    CHECK(engine.equalizing);
+    CHECK(!equalized_ring_holds("lpc_24_96k_stereo", &POP, 24));
+    CHECK(engine.equalizing);
+}
+
+static void the_equalizer_stands_aside_above_96_khz(void)
+{
+    start_scripted_engine(0, 1);
+    scripted.rate = 192000;
+    engine.config.equalizer = &equalizer;
+    audio_engine_set_equalizer(&engine, &POP);
+    CHECK(play_file("scripted", 0, 1));
     pump_until_full(0);
-    CHECK(engine.ended);
-    audio_engine_observe(&engine, 441);
-    queue_file("odd_blocks_16", 5);
+    CHECK(!engine.equalizing);
+    CHECK(frame_is(0, 1, -1, 16));
+    CHECK(frame_is(15, 16, -16, 16));
+}
+
+static void changing_only_the_gains_keeps_the_filter_history(void)
+{
+    static const HalAudioEqualizer LOUDER = {.band_hz = {100, 3150, 10000},
+                                             .gain_half_db = {10, -6, 6},
+                                             .band_count = 3,
+                                             .pre_gain = 18000};
+    start_equalized_engine(&POP);
+    CHECK(play_file("lpc_16_44k_stereo", 0, 1));
     pump_until_full(0);
-    CHECK(ring_holds("odd_blocks_16", 0, 1764, 3001, 16));
-    audio_engine_observe(&engine, 1764);
-    CHECK_EQUAL(5u, audio_engine_status(&engine).token);
+    EqualizerHistory before = equalizer.history[0][1];
+    CHECK(before.x1 != 0 || before.y1 != 0);
+    audio_engine_set_equalizer(&engine, &LOUDER);
+    CHECK(engine.equalizing);
+    CHECK_EQUAL(before.x1, equalizer.history[0][1].x1);
+    CHECK_EQUAL(before.y2, equalizer.history[0][1].y2);
+}
+
+static void changing_the_bands_starts_the_filter_from_silence(void)
+{
+    static const HalAudioEqualizer BASS = {
+        .band_hz = {63}, .gain_half_db = {8}, .band_count = 1, .pre_gain = 20480};
+    start_equalized_engine(&POP);
+    CHECK(play_file("lpc_16_44k_stereo", 0, 1));
+    pump_until_full(0);
+    audio_engine_set_equalizer(&engine, &BASS);
+    CHECK_EQUAL(0, equalizer.history[0][0].x1);
+    CHECK_EQUAL(0, equalizer.history[0][0].y1);
 }
 
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(changing_only_the_gains_keeps_the_filter_history),
+        TEST_CASE(changing_the_bands_starts_the_filter_from_silence),
+        TEST_CASE(equalizer_off_leaves_sixteen_bit_samples_bit_identical),
+        TEST_CASE(equalizer_off_leaves_twenty_four_bit_samples_bit_identical),
+        TEST_CASE(an_equalizer_shapes_sixteen_and_twenty_four_bit_audio),
+        TEST_CASE(the_equalizer_stands_aside_above_96_khz),
         TEST_CASE(the_current_path_is_the_track_being_played),
         TEST_CASE(a_source_that_is_not_ready_leaves_the_ring_alone),
         TEST_CASE(a_frame_is_released_once_its_samples_are_in_the_ring),
@@ -676,10 +696,6 @@ int main(void)
         TEST_CASE(twenty_four_bit_audio_reaches_the_ring_exactly),
         TEST_CASE(the_end_of_a_track_without_a_next_one_stops_and_goes_silent),
         TEST_CASE(a_queued_track_follows_without_a_gap),
-        TEST_CASE(replacing_a_buffered_next_song_keeps_the_current_position),
-        TEST_CASE(clearing_a_buffered_next_song_leaves_only_the_current_tail),
-        TEST_CASE(replacing_a_pending_rate_change_restarts_at_the_current_rate),
-        TEST_CASE(adding_after_the_decoder_ended_replaces_buffered_silence),
         TEST_CASE(a_range_ends_at_its_end_and_goes_silent),
         TEST_CASE(a_range_starts_at_its_start_and_reports_file_positions),
         TEST_CASE(a_range_starting_in_a_later_frame_starts_at_its_exact_sample),

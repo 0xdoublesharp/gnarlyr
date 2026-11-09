@@ -59,6 +59,12 @@ bool board_jack_poll(void)
         &sense, board_jack_kind(gpio_read(SINGLE_ENDED_SENSE), gpio_read(BALANCED_SENSE)));
 }
 
+bool board_jack_headset_ready(void)
+{
+    return sense.started && sense.stable == JACK_SINGLE_ENDED && !board_bluetooth_routed() &&
+           !board_bluetooth_settling();
+}
+
 HalAudioJack hal_audio_jack(void)
 {
     if (!sense.started) {

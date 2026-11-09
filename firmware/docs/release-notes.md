@@ -2,7 +2,142 @@
 
 Podium is a fork of EchoPod 0.6.0 for the full-size Snowsky Echo. Entries from 0.6.0 down are EchoPod's.
 
-## Podium 4.5.5 (2026-11-02)
+Each Podium version starts with `### Highlights`: at most five one-line bullets for users, in plain words. The website's What's new page shows only those; the sections below are the detailed record.
+
+## Podium 4.5.9 (2026-11-08)
+
+### Highlights
+
+- Ten-band equalizer in 0.5 dB steps, with saved curves 1 to 8 and AutoEQ files from an `EQ` folder.
+- Button lock: hold Play and press Power for a second to lock or unlock the buttons.
+- Hold Play on a song → Add to Favorite Playlist collects songs in `Favorite Tracks.m3u`.
+- Hold a volume button right after a volume step to keep changing the volume.
+- Shuffle shows in the top bar: a note or a disc with crossed arrows.
+- Longer battery life: the player sleeps between frames, the decoding core rests when ahead, and the panel sleeps with the screen off.
+- Favorite Tracks shows up at once, no rescan; a rescan no longer drops Bluetooth headphones.
+- Diagnostics moved to Settings → About.
+
+### New
+
+- **Ten-band Custom EQ.** Settings → Custom EQ now has ten bands: 31, 62, 125, 250 and 500 Hz, and 1, 2, 4, 8 and 16 kHz. Each band moves in steps of 0.5 dB between -10 and +10 dB and shows its gain with one decimal (+1.5 dB). The list scrolls; it works in landscape and in portrait. Bands at or above a quarter of the music's sample rate are skipped (the 16 kHz band is idle at 44.1 and 48 kHz). The equalizer still leaves music above 96 kHz unchanged.
+
+- **Saved curves.** The last row of Custom EQ, "Save to slot", saves the current curve into slot 1 to 8 (▶ to pick, vol+ and vol- for the slot, ▶ to save, ↩ to cancel; a slot already in use reads "used" and is overwritten). Saved slots appear in Settings → Equalizer after Custom, named Slot 1 to Slot 8. Choosing one with ▶ copies its curve into Custom and opens Custom EQ on it, with "Save to slot" set to that slot. While the curve still matches the slot, Settings shows the slot's name in place of Custom. The slots live in `/.echo/eq_slots.bin` on the player's internal storage.
+
+- **Curves from files.** Put text files in a folder named `EQ` at the root of the card (or of the internal storage when no card is inserted). Each file shows in Settings → Equalizer under its file name, after the saved slots (up to 16 files, names up to 27 characters, names starting with a dot are ignored). Choosing a file copies its curve into Custom. Two formats are read: Equalizer APO / AutoEQ `GraphicEQ: 20 -1.5; 21 -1.2; ...` lines, and one `frequency gain` pair per line (`31 1.5`). Frequencies between the bands are interpolated by octave distance, gains are rounded to 0.5 dB and limited to ±10 dB.
+
+- **Add to Favorite Playlist.** The song menu (hold Play on a song in any list) has a third item after Add to Up Next. It appends the song to `Favorite Tracks.m3u` in the top folder of the music storage, the card when one is in use. The file is created on first use with an `#EXTM3U` header and one relative path per line, and a song already listed is not added twice ("Added to Favorites", "Already in Favorites", "Couldn't add to Favorites"). A track of a CUE album is written as a `#PODIUM-START:<ms>` line above the album's audio file path, so computer players still open the file while the player and echo-sync resolve the line to that exact track (a plain path to a CUE-split file still means its last track); each track is added once. It holds about 300 songs. Favorite Tracks shows under Music → Playlists with the new song straight away, also after a restart; no rescan is needed.
+
+- **Button lock.** Hold ▶, then press Power while still holding it, and keep both down for about a second to lock the player's buttons; do the same to unlock them, so nothing is pressed by accident in a pocket. While locked, every button except Power is ignored (Power still turns the screen on and off, and holding it still turns the player off); a padlock shows in the top bar; a press shows "Hold Play+Power", and locking or unlocking lights the screen and shows "Buttons locked" or "Buttons unlocked", also when the screen was off. Wired headset buttons keep working. The lock ends when the player restarts.
+
+- **Hold to keep changing the volume.** With Settings → Skip songs set to Hold vol± or Double vol±, holding Vol+ or Vol− right after a volume step, while the volume bar is still showing on Now Playing (it now stays 2.5 s after a step) or within 2.5 s with the screen off, keeps raising or lowering the volume instead of skipping the song or seeking. Holding without a volume step first skips or seeks as before, and pressing any other button ends it. Double/triple Play is unchanged: there Vol± always change the volume.
+
+### Fixed
+
+- **Holding a button could count as a tap.** The ▶‖, ≡, ↩ and volume buttons share one resistor ladder; a reading that wandered between two buttons' ranges during a hold looked like letting go, so holding Play on a song sometimes played it instead of opening its menu. A held button now stays held until the reading leaves every button's range.
+
+- **A CUE track started a moment late.** Changing songs muted the DAC with its hardware mute pin and faded the volume up from silence over about 60 ms, so the first moment of a song that starts right at its CUE mark was lost. Changing songs and seeking now keep the output open and fade up from 40 dB below the set volume (about 30 ms). The decoded audio was already sample-exact: checked on Playing The Angel, every track starts within 30 samples (0.7 ms) of its CUE mark.
+- **A library rescan dropped the Bluetooth headphones.** Finishing a scan restarted the Bluetooth module, which cut the connection and often made reconnecting fail. A connected device now stays connected through a rescan (and through a USB session that changed the storage).
+- **In portrait, volume went the wrong way.** On Now Playing the button nearer the top of the screen now turns the volume up and holding it skips forward, in both portraits; in Portrait, flipped that's the one labelled Vol−. Lists keep their direction. With the screen off, Vol+ is louder, as labelled.
+- **Long messages ran off a portrait screen.** A message too wide for the screen, such as the lock hint in Large text, now uses the smaller font.
+
+### Changed
+
+- **Portrait Home and Now Playing drop the title line.** Only the status row stays at the top, so Home's menu and Now Playing's cover move up; other screens keep their titles.
+
+- **Shuffle shows in the top bar.** A note with crossed arrows means Shuffle Songs, a disc with crossed arrows means Shuffle Albums, on every screen. Now Playing no longer spells it out in its details line; Repeat still shows there.
+
+- **Longer battery life.** With the screen on, the player now draws a new frame only when something changes (about 60 times a second while something moves, 10 times a second when nothing does) and sleeps between steps instead of spinning. The decoding core sleeps whenever it is ahead of playback. With the screen off, the display panel is put to sleep, not just its backlight; waking it takes about 0.1 s longer. How much longer the battery lasts hasn't been measured yet.
+
+- **Settings from 4.5.8 are converted.** The five old Custom bands are spread over the new ten by octave distance and kept at their gains in 0.5 dB steps; the 1 kHz band is unchanged, the others differ slightly. Settings written by 4.5.9 are not read by older versions, which start from the defaults.
+
+- **Headroom follows the deepest cut as well as the highest boost.** Custom turns the music down by its largest boost, or, with only cuts, by the deepest dip of the combined curve, so neighbouring cuts at the low bands don't clip.
+
+- **Diagnostics is now Settings → About.** Home no longer has a Diagnostics row; the same rows (Firmware, Battery and the rest) open from About, the first row in Settings.
+
+- **About lost Last start, Last step, Last battery and Last USB.** They rarely showed anything useful. About now has Firmware, Battery, Jack 3.5, Jack 4.4, Music, Headset and CPU clock.
+
+- **Diagnostics → Key test is gone.** The button lock needed the room, and the screen was a landscape-only picture. In the developer build, the USB register, Test tone, Tone 192k, Tone 176k, Loop cycles, Core 1, LPC accel, High RAM, Boot clocks, Boot PLL and Boot hold rows went too, to make room for the equalizer, DMA tone went to make room for the Favorite Tracks list, and Stopwatch went to make room as well. A Core 0 busy row shows how much of the last second the main core spent awake.
+
+### When you update
+
+- Custom EQ keeps its curve (converted to ten bands). Saved slots start empty. Settings → About replaces Home → Diagnostics.
+
+## Podium 4.5.8 (2026-11-07)
+
+### Highlights
+
+- Portrait mode: Settings → Orientation turns the screen upright.
+- `.m4b` audiobooks with chapters, as Libation and Audible conversions make them.
+- One album with a bad cover no longer blanks every cover in Cover Flow.
+- The library rebuilds once after the update.
+
+### New
+
+- **Portrait mode.** Settings → Orientation → Portrait or Portrait, flipped turns the screen upright (222 × 480) straight away, and the player starts that way next time. Home shows the album art under the menu, Now Playing puts the cover above the track, Cover Flow stacks the albums from top to bottom, and lists show up to 13 rows with the status icons in a strip above the title. The volume rocker turns with the screen: in Portrait (not flipped) the button that was Vol− now moves down through lists. List values use the small font and never take the room of a name. It is saved with the other settings; settings from earlier versions load with Landscape.
+
+- **`.m4b` audiobooks with chapters.** `.m4b` files are indexed like `.m4a` (AAC-LC and Apple Lossless). Chapters are read from the Nero `chpl` atom and from the QuickTime chapter track (what Libation, Audible conversions and ffmpeg write); a chaptered book in `Audiobooks/` is a book of its own with "Chapter n of N", the chapter titles, bookmarks that resume the right chapter and position, and the 30 s / 15 s jumps within a chapter. Files without chapters, or with chapter data that can't be read, are one track. A file that isn't AAC-LC or ALAC (HE-AAC, xHE-AAC) now says "Only AAC-LC and ALAC M4A play". In Libation, leave "Request xHE-AAC Codec" off to get AAC-LC.
+
+### Fixed
+
+- **One album could leave Cover Flow without any covers.** If building one album's cover failed or the rescan stopped partway, every album lost its cover, and rescanning didn't help. Now a bad cover only costs its own album, and the covers you had stay until a rescan finishes. An album spread over many folders, or many albums in one folder, no longer slow the cover step down.
+
+### Changed
+
+- **The developer Diagnostics menu lost its Fonts and Long names rows.** The code window is full, and portrait mode needed the room. The shipped (`release`) Diagnostics menu is unchanged.
+
+### When you update
+
+- Your library is rebuilt once, automatically, because its format changed (it adds chapter folders); your `.m4b` files then show up. Settings, equalizer and Bluetooth headphones stay as they are. Orientation starts on Landscape. Bookmarks stay valid.
+
+## Podium 4.5.7 (2026-11-05)
+
+### Highlights
+
+- Up Next shows on Home while music plays.
+- Hold Play on a folder to play everything in it.
+- Volume has 60 steps of 1 dB, up to the DAC's full level.
+- New Settings → Skip songs: hold or double-click volume, or double-click Play.
+- Fixes: no crackle at power-off, steadier battery percent, Custom EQ no longer clips.
+
+### New
+
+- **Up Next on Home.** Home shows Up Next below Now Playing once something is playing, so the queue no longer needs a trip through Now Playing and Menu.
+- **Play a whole folder.** Hold ▶ on a folder in Music → Folders to play every song under it, subfolders included, in the order Folders shows them; a CUE album plays once, as its songs. With Shuffle set to Songs it starts from a random song; otherwise from the first. The queue holds up to 65,535 tracks. A folder without songs shows "No songs in this folder". Audiobooks and Podcasts keep opening the folder on a hold.
+- **Volume in 60 steps of 1 dB, up to the DAC's full level.** The volume has 60 levels of exactly 1 dB (it had 50 of 1.2 dB), and the top level is the DAC's full level (0 dB) on the 3.5 mm jack: 1 dB louder at the top than before. The 4.4 mm jack keeps stock's 5 dB lower scale. A saved volume (music and USB DAC mode) converts to the nearest new level, so on 3.5 mm the loudness doesn't change; on 4.4 mm it is about 3.5 dB quieter, so turn it up a few steps once; the default is level 13 for music and 35 for DAC mode. The Now Playing bar fills over the 60 levels.
+- **Skip songs.** Settings → Skip songs picks how the buttons change the song on Now Playing and with the screen off: Hold vol± (as before: hold Vol+ for the next song, Vol− for the previous one), Double vol± (double-click Vol+ for the next song, Vol− for the previous one; a single click changes the volume after a short pause, and holding Vol+ fast-forwards and holding Vol− rewinds inside the song, faster the longer it is held, on Now Playing and with the screen off) or Double/triple Play (double-click ▶ for the next song, triple-click for the previous one, like the wired headset remote; a single click pauses after a short pause, Vol± stay instant). Lists and menus are not affected. It is saved with the other settings; settings from earlier versions load with Hold vol±.
+
+### Fixed
+
+- **Custom equalizer headroom.** The Custom EQ's attenuation now follows the real peak of the curve instead of a fixed table sized for five equal boosts. A boost still lowers the whole curve by about the boost, so a raised band never clips; the bands left at 0 sound quieter by that amount, not inverted. Every non-flat curve, cuts included, keeps 2 to 5.5 dB of headroom (more for deeper cuts), so cutting 100 Hz and 315 Hz no longer clips drums and loud masters ("crunchy"). Changing a band's gain with vol± while playing no longer clicks. Off stays untouched.
+- **No crackle at power-off.** Turning off while music plays, after a pause, by the sleep timer, auto-off or a low battery now stops the music and switches the DAC and amplifier off before the power goes, with no crackle or pop. Turning off takes about a second longer after the screen goes dark.
+- **One hold to finish an update.** The "Update installed" screen no longer closes on any key. Unplug USB, hold Power once to turn the player off, then hold it again to start the new firmware. Short presses there are ignored.
+- **Battery percent no longer sticks low after load.** The shown percent used to fall after a load (backlight, playing) but needed a 10-point rise to climb back, so it looked like a high drain. On battery it now moves both ways after a 3-point change.
+- **A paused player saves battery.** After 30 seconds of pause the player powers down its audio (DAC, amplifier, second core) and drops to the idle clock. Play continues from the same position, with a short delay while the output starts again.
+
+## Podium 4.5.6 (2026-11-04)
+
+### Highlights
+
+- Pick the highlight color (eight choices).
+- Pick the text size: Small, Medium or Large.
+- Equalizer with six presets and a five-band Custom EQ.
+- Folders show files as they are on the card, CUE albums included.
+- Wired headset buttons pause, skip and go back.
+
+### New
+
+- **Selection color.** Settings → Color picks the highlight of the selected row: Blue (as before), Red, Orange, Green, Teal, Purple, Pink or Graphite. The choice is saved with the other settings.
+- **Text size.** Settings → Text size picks Small (eight rows per screen), Medium (as before, six rows) or Large (five rows) for lists, Now Playing, Cover Flow, toasts and messages, with every accented and Cyrillic letter at each size. It applies at once and is saved with the other settings; settings from earlier versions load with Medium.
+- **Equalizer.** Settings → Equalizer picks Off, Retro, Bass, Heavy, Pop, Jazz, Unique or Custom; Custom EQ sets five bands (100 Hz, 315 Hz, 1 kHz, 3.15 kHz, 10 kHz) by ±10 dB with vol±. It works for 16- and 24-bit files at 44.1, 48 and 96 kHz; off, the sound is unchanged. Not applied in USB DAC mode or above 96 kHz.
+- **Folders show files as on disk.** A FLAC with a CUE sheet is listed once, under its file name, and plays the album from the first track; the `.cue` file is listed next to it and opens the album's songs by title. The library rebuilds on the first start.
+- **Wired headset buttons.** One, two or three clicks of the middle button on a 3.5 mm headset remote pause, skip or go back. On Android-style remotes + and − change the volume and holding them skips to the next or previous track. Apple EarPods: only the middle button works (see `known-issues.md`). Headphones without a mic are ignored. Diagnostics → Headset shows what the player reads.
+
+## Podium 4.5.5 (2026-11-03)
+
+### Highlights
+
+- Russian, Ukrainian and other Cyrillic names show their letters.
+- Settings stay when you swap or remove the microSD card.
 
 ### New
 
@@ -13,6 +148,12 @@ Podium is a fork of EchoPod 0.6.0 for the full-size Snowsky Echo. Entries from 0
 - **Settings survive a change of storage.** Settings are the player's, not the music's: they now live on internal storage even when the music comes from a microSD card, so taking the card out or putting one in keeps them. Settings saved by an earlier Podium on the card or internal storage are picked up once. Favorites and resume positions stay with each library.
 
 ## Podium 4.5.4 (2026-11-02)
+
+### Highlights
+
+- M4A files play: AAC-LC and Apple Lossless.
+- Text is readable right after an update.
+- The splash screen, USB drive and USB DAC say Podium.
 
 ### New
 
@@ -29,6 +170,14 @@ Podium is a fork of EchoPod 0.6.0 for the full-size Snowsky Echo. Entries from 0
 - **Echo only.** The Echo Mini board is gone from the source.
 
 ## Podium 4.5.3 (2026-11-01)
+
+### Highlights
+
+- CUE sheets: one track per CUE track, gapless.
+- Music plays from internal storage when there is no card.
+- Long albums play without stutter and CUE tracks start fast.
+- The player starts on large internal storage.
+- An update file is deleted after it is used.
 
 ### Fixed
 
@@ -56,6 +205,11 @@ Podium is a fork of EchoPod 0.6.0 for the full-size Snowsky Echo. Entries from 0
 - **Music on internal storage.** With no card in the player, or one it can't read, the player uses its internal storage for music. Diagnostics → Music shows which one is in use.
 
 ## Podium 4.5.0 (2026-11-01)
+
+### Highlights
+
+- First Podium for the full-size Echo: iPod-style menus and 22 px text.
+- Installs from a file copy; the same updater brings FiiO's firmware back.
 
 ### New
 

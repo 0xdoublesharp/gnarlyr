@@ -10,11 +10,14 @@ enum {
     PLAYLIST_ENTRY_CAPACITY = 1024
 };
 
+#define PLAYLIST_NO_START UINT32_MAX
+
 typedef struct PlaylistReader {
     ByteSource source;
     uint32_t size;
     uint32_t offset;
     bool utf8;
+    uint32_t start_ms;
     uint8_t chunk[PLAYLIST_CHUNK];
     uint32_t chunk_start;
     uint32_t chunk_length;

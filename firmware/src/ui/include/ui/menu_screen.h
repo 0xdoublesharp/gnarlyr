@@ -13,13 +13,13 @@ typedef struct MenuItem {
     void *context;
     const char *(*value)(const void *context);
     bool opens;
-    uint8_t icon;
     bool (*shown)(const void *context);
     const void *shown_context;
 } MenuItem;
 
 typedef struct MenuPanel {
     int width;
+    int min_height;
     void (*update)(void *context, uint32_t now_ms);
     void (*draw)(void *context, Canvas *canvas, Rect area);
     void *context;

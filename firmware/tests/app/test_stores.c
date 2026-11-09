@@ -1,12 +1,16 @@
+#include <stdio.h>
+#include <string.h>
+
 #include "check.h"
-#include "core/hash.h"
 #include "fake_hal.h"
+#include "favorite_playlist.h"
 #include "favorites_store.h"
 #include "fixture_library.h"
 #include "hal/audio.h"
 #include "hal/storage.h"
 #include "hal/system.h"
 #include "settings_store.h"
+#include "spoken_library.h"
 
 enum {
     BRIGHT = 9,
@@ -122,6 +126,35 @@ static void hardware_settings_reach_the_hal(void)
     CHECK_EQUAL(SETTINGS_DEFAULT_DAC_VOLUME, fake_hal_dac_volume());
 }
 
+static void the_equalizer_curve_reaches_the_hal(void)
+{
+    fake_hal_reset();
+    Settings chosen = settings_defaults();
+    chosen.equalizer = EQUALIZER_CUSTOM;
+    chosen.equalizer_gains[1] = -4;
+    chosen.equalizer_gains[4] = 7;
+    settings_store_apply_hardware(&chosen);
+    HalAudioEqualizer curve = fake_hal_audio_equalizer();
+    CHECK_EQUAL(2, curve.band_count);
+    CHECK_EQUAL(62, curve.band_hz[0]);
+    CHECK_EQUAL(-4, curve.gain_half_db[0]);
+    CHECK_EQUAL(500, curve.band_hz[1]);
+    CHECK_EQUAL(7, curve.gain_half_db[1]);
+    CHECK_EQUAL(settings_equalizer_curve(&chosen).pre_gain, curve.pre_gain);
+}
+
+static void the_equalizer_is_saved_and_loaded_again(void)
+{
+    fake_hal_reset();
+    settings_store_load(&settings);
+    settings.settings.equalizer = EQUALIZER_CUSTOM;
+    settings.settings.equalizer_gains[3] = -9;
+    CHECK(settings_store_save(&settings));
+    settings_store_load(&settings);
+    CHECK_EQUAL(EQUALIZER_CUSTOM, settings.settings.equalizer);
+    CHECK_EQUAL(-9, settings.settings.equalizer_gains[3]);
+}
+
 static void toggling_an_album_adds_it_and_saves(void)
 {
     fake_hal_reset();
@@ -146,70 +179,183 @@ static void favorites_are_loaded_again(void)
     CHECK(!favorites_store_contains_album(&favorites, CHOSEN_ALBUM));
 }
 
-static void a_short_legacy_settings_file_is_migrated_without_overwriting_it(void)
+static void track_path_of(const Library *library, uint16_t track, char *path)
 {
-    uint8_t old[24] = {'E', 'M', 'S', 'T', 4, 0, BRIGHT, 2, 0, 0, 0, 0, 0, 21, 2, 0, 37};
-    uint32_t checksum = hash_update(HASH_START, old, 20);
-    for (int index = 0; index < 4; index++) {
-        old[20 + index] = (uint8_t)(checksum >> (8 * index));
-    }
-    fake_hal_reset();
-    CHECK(hal_internal_file_write("/.echo/settings.bin", old, sizeof old));
-    settings_store_load(&settings);
-    CHECK_EQUAL(BRIGHT, settings.settings.brightness);
-    CHECK_EQUAL(21, settings.settings.volume);
-    CHECK_EQUAL(37, settings.settings.dac_volume);
-    CHECK(settings_store_save(&settings));
-    uint32_t size = 0;
-    const uint8_t *legacy = fake_hal_internal_file_bytes("/.echo/settings.bin", &size);
-    CHECK_EQUAL(sizeof old, size);
-    for (unsigned index = 0; index < sizeof old; index++) {
-        CHECK_EQUAL(old[index], legacy[index]);
-    }
-    settings_store_load(&settings);
-    CHECK_EQUAL(BRIGHT, settings.settings.brightness);
-    CHECK_EQUAL(37, settings.settings.dac_volume);
+    LibraryTrack record;
+    CHECK(library_read_track(library, track, &record));
+    CHECK(library_read_string(library, record.path, path, 260));
 }
 
-static void version_five_settings_migrate_without_overwriting_the_rollback_copy(void)
+static const char *playlist_text(void)
+{
+    uint32_t size = 0;
+    const char *bytes = (const char *)fake_hal_file_bytes(FAVORITE_PLAYLIST_PATH, &size);
+    return bytes == NULL ? "" : bytes;
+}
+
+static void expect_playlist(const char *expected)
+{
+    CHECK(strncmp(playlist_text(), expected, strlen(expected)) == 0);
+    CHECK(playlist_text()[strlen(expected)] == ' ');
+}
+
+static void adding_a_song_creates_the_playlist_with_a_header(void)
 {
     fake_hal_reset();
-    Settings original = settings_defaults();
-    original.volume = 23;
-    original.gain = GAIN_LOW;
-    original.button_actions[PLAYBACK_MENU_TAP] = BUTTON_ACTION_NEXT;
-    uint8_t bytes[SETTINGS_FILE_SIZE];
-    settings_encode(&original, bytes);
-    bytes[4] = 5;
-    bytes[25] = 255;
-    uint32_t checksum = hash_update(HASH_START, bytes, 28);
-    for (int index = 0; index < 4; index++) {
-        bytes[28 + index] = (uint8_t)(checksum >> (8 * index));
-    }
-    CHECK(hal_internal_file_write("/.echo/prefs5.bin", bytes, sizeof bytes));
-    settings_store_load(&settings);
-    CHECK_EQUAL(23, settings.settings.volume);
-    CHECK_EQUAL(BUTTON_ACTION_NEXT, settings.settings.button_actions[PLAYBACK_MENU_TAP]);
-    CHECK_EQUAL(APPEARANCE_NEON_NOIR, settings.settings.appearance);
-    settings.settings.appearance = APPEARANCE_SUNSET;
-    CHECK(settings_store_save(&settings));
-    uint8_t preserved[SETTINGS_FILE_SIZE];
-    CHECK(hal_internal_file_read("/.echo/prefs5.bin", preserved, sizeof preserved));
-    for (unsigned index = 0; index < sizeof bytes; index++) {
-        CHECK_EQUAL(bytes[index], preserved[index]);
-    }
-    settings_store_load(&settings);
-    CHECK_EQUAL(23, settings.settings.volume);
-    CHECK_EQUAL(APPEARANCE_SUNSET, settings.settings.appearance);
+    fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
+    Library *library = fixture_library_open(&fixture);
+    char first[260];
+    char expected[300];
+    track_path_of(library, 0, first);
+    CHECK_EQUAL(FAVORITE_PLAYLIST_ADDED, favorite_playlist_add(library, 0));
+    snprintf(expected, sizeof expected, "#EXTM3U\n%s\n", first);
+    expect_playlist(expected);
+    CHECK_EQUAL(32 * 1024, fake_hal_reserved_size(FAVORITE_PLAYLIST_PATH));
+}
+
+static void adding_more_songs_appends_one_line_each(void)
+{
+    fake_hal_reset();
+    fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
+    Library *library = fixture_library_open(&fixture);
+    char first[260];
+    char second[260];
+    char expected[600];
+    track_path_of(library, 0, first);
+    track_path_of(library, 1, second);
+    CHECK_EQUAL(FAVORITE_PLAYLIST_ADDED, favorite_playlist_add(library, 0));
+    CHECK_EQUAL(FAVORITE_PLAYLIST_ADDED, favorite_playlist_add(library, 1));
+    snprintf(expected, sizeof expected, "#EXTM3U\n%s\n%s\n", first, second);
+    expect_playlist(expected);
+}
+
+static void a_song_already_in_the_playlist_is_not_added_again(void)
+{
+    fake_hal_reset();
+    fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
+    Library *library = fixture_library_open(&fixture);
+    char first[260];
+    char expected[300];
+    track_path_of(library, 0, first);
+    CHECK_EQUAL(FAVORITE_PLAYLIST_ADDED, favorite_playlist_add(library, 0));
+    CHECK_EQUAL(FAVORITE_PLAYLIST_PRESENT, favorite_playlist_add(library, 0));
+    snprintf(expected, sizeof expected, "#EXTM3U\n%s\n", first);
+    expect_playlist(expected);
+}
+
+static void a_hand_edited_playlist_is_read_and_extended(void)
+{
+    fake_hal_reset();
+    Library *library = fixture_library_open(&fixture);
+    char first[260];
+    char second[260];
+    char text[1100] = "#EXTM3U\r\n#EXTINF:1,x\r\n";
+    char expected[1100];
+    track_path_of(library, 0, first);
+    track_path_of(library, 1, second);
+    strcat(text, first);
+    strcat(text, "\r\n");
+    size_t length = strlen(text);
+    memset(text + length, ' ', 200);
+    fake_hal_add_file(FAVORITE_PLAYLIST_PATH, (const uint8_t *)text, (uint32_t)length + 200);
+    CHECK_EQUAL(FAVORITE_PLAYLIST_PRESENT, favorite_playlist_add(library, 0));
+    CHECK_EQUAL(FAVORITE_PLAYLIST_ADDED, favorite_playlist_add(library, 1));
+    memcpy(expected, text, length - 2);
+    snprintf(expected + length - 2, sizeof expected - length, "\n%s\n", second);
+    CHECK(strncmp(playlist_text(), expected, strlen(expected)) == 0);
+}
+
+static void a_full_playlist_file_reports_failure(void)
+{
+    fake_hal_reset();
+    Library *library = fixture_library_open(&fixture);
+    fake_hal_add_file(FAVORITE_PLAYLIST_PATH, (const uint8_t *)"#EXTM3U\n", 8);
+    CHECK_EQUAL(FAVORITE_PLAYLIST_FAILED, favorite_playlist_add(library, 0));
+}
+
+static void a_card_without_room_reports_failure(void)
+{
+    fake_hal_reset();
+    fake_hal_set_reserve_result(HAL_RESERVE_NO_SPACE);
+    Library *library = fixture_library_open(&fixture);
+    CHECK_EQUAL(FAVORITE_PLAYLIST_FAILED, favorite_playlist_add(library, 0));
+}
+
+static void adding_a_cue_part_writes_its_start(void)
+{
+    fake_hal_reset();
+    fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
+    SpokenLibrary spoken;
+    Library *library = spoken_library_open(&spoken);
+    CHECK_EQUAL(FAVORITE_PLAYLIST_ADDED,
+                favorite_playlist_add(library, spoken_library_chapter(library, 2)));
+    CHECK_EQUAL(FAVORITE_PLAYLIST_ADDED,
+                favorite_playlist_add(library, spoken_library_chapter(library, 1)));
+    expect_playlist("#EXTM3U\n#PODIUM-START:300000\nAudiobooks/Zebra Tale.m4b\n"
+                    "#PODIUM-START:0\nAudiobooks/Zebra Tale.m4b\n");
+    spoken_library_close(&spoken);
+}
+
+static void each_cue_part_is_present_only_once(void)
+{
+    fake_hal_reset();
+    fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
+    SpokenLibrary spoken;
+    Library *library = spoken_library_open(&spoken);
+    uint16_t first = spoken_library_chapter(library, 1);
+    uint16_t last = spoken_library_chapter(library, 3);
+    CHECK_EQUAL(FAVORITE_PLAYLIST_ADDED, favorite_playlist_add(library, first));
+    CHECK_EQUAL(FAVORITE_PLAYLIST_PRESENT, favorite_playlist_add(library, first));
+    CHECK_EQUAL(FAVORITE_PLAYLIST_ADDED, favorite_playlist_add(library, last));
+    CHECK_EQUAL(FAVORITE_PLAYLIST_PRESENT, favorite_playlist_add(library, last));
+    CHECK_EQUAL(FAVORITE_PLAYLIST_PRESENT, favorite_playlist_add(library, first));
+    expect_playlist("#EXTM3U\n#PODIUM-START:0\nAudiobooks/Zebra Tale.m4b\n"
+                    "#PODIUM-START:900000\nAudiobooks/Zebra Tale.m4b\n");
+    spoken_library_close(&spoken);
+}
+
+static void a_plain_line_for_the_file_does_not_stand_for_a_cue_part(void)
+{
+    fake_hal_reset();
+    SpokenLibrary spoken;
+    Library *library = spoken_library_open(&spoken);
+    static const char TEXT[] = "#EXTM3U\r\nAudiobooks/Zebra Tale.m4b\r\n";
+    char padded[400];
+    memset(padded, ' ', sizeof padded);
+    memcpy(padded, TEXT, sizeof TEXT - 1);
+    fake_hal_add_file(FAVORITE_PLAYLIST_PATH, (const uint8_t *)padded, sizeof padded);
+    CHECK_EQUAL(FAVORITE_PLAYLIST_ADDED,
+                favorite_playlist_add(library, spoken_library_chapter(library, 2)));
+    CHECK_EQUAL(FAVORITE_PLAYLIST_PRESENT,
+                favorite_playlist_add(library, spoken_library_chapter(library, 2)));
+    expect_playlist("#EXTM3U\r\nAudiobooks/Zebra Tale.m4b\n"
+                    "#PODIUM-START:300000\nAudiobooks/Zebra Tale.m4b\n");
+    spoken_library_close(&spoken);
+}
+
+static void a_hand_edited_cue_part_with_windows_line_ends_is_found(void)
+{
+    fake_hal_reset();
+    SpokenLibrary spoken;
+    Library *library = spoken_library_open(&spoken);
+    static const char TEXT[] =
+        "#EXTM3U\r\n#EXTINF:600,Noon\r\n#PODIUM-START:300000\r\nAudiobooks/Zebra Tale.m4b\r\n";
+    char padded[400];
+    memset(padded, ' ', sizeof padded);
+    memcpy(padded, TEXT, sizeof TEXT - 1);
+    fake_hal_add_file(FAVORITE_PLAYLIST_PATH, (const uint8_t *)padded, sizeof padded);
+    CHECK_EQUAL(FAVORITE_PLAYLIST_PRESENT,
+                favorite_playlist_add(library, spoken_library_chapter(library, 2)));
+    spoken_library_close(&spoken);
 }
 
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(without_a_file_the_defaults_are_used),
-        TEST_CASE(version_five_settings_migrate_without_overwriting_the_rollback_copy),
-        TEST_CASE(a_short_legacy_settings_file_is_migrated_without_overwriting_it),
         TEST_CASE(saved_settings_are_loaded_again),
+        TEST_CASE(the_equalizer_curve_reaches_the_hal),
+        TEST_CASE(the_equalizer_is_saved_and_loaded_again),
         TEST_CASE(unchanged_settings_are_not_written_again),
         TEST_CASE(settings_survive_a_change_of_music_volume),
         TEST_CASE(settings_from_the_music_volume_move_to_internal_storage),
@@ -218,6 +364,16 @@ int main(void)
         TEST_CASE(hardware_settings_reach_the_hal),
         TEST_CASE(toggling_an_album_adds_it_and_saves),
         TEST_CASE(favorites_are_loaded_again),
+        TEST_CASE(adding_a_song_creates_the_playlist_with_a_header),
+        TEST_CASE(adding_more_songs_appends_one_line_each),
+        TEST_CASE(a_song_already_in_the_playlist_is_not_added_again),
+        TEST_CASE(a_hand_edited_playlist_is_read_and_extended),
+        TEST_CASE(a_full_playlist_file_reports_failure),
+        TEST_CASE(a_card_without_room_reports_failure),
+        TEST_CASE(adding_a_cue_part_writes_its_start),
+        TEST_CASE(each_cue_part_is_present_only_once),
+        TEST_CASE(a_plain_line_for_the_file_does_not_stand_for_a_cue_part),
+        TEST_CASE(a_hand_edited_cue_part_with_windows_line_ends_is_found),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

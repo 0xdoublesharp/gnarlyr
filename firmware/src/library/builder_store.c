@@ -291,6 +291,9 @@ void builder_row_encode(const TrackRow *row, uint8_t *bytes)
     builder_put32(bytes + 44, row->duration_ms);
     builder_put32(bytes + 48, row->start_ms);
     builder_put32(bytes + 52, row->end_ms);
+    builder_put16(bytes + 56, row->sheet);
+    bytes[58] = row->continued;
+    bytes[59] = 0;
 }
 
 void builder_row_decode(const uint8_t *bytes, TrackRow *row)
@@ -308,19 +311,23 @@ void builder_row_decode(const uint8_t *bytes, TrackRow *row)
     row->duration_ms = builder_get32(bytes + 44);
     row->start_ms = builder_get32(bytes + 48);
     row->end_ms = builder_get32(bytes + 52);
+    row->sheet = builder_get16(bytes + 56);
+    row->continued = bytes[58];
 }
 
 void builder_folder_encode(const FolderRow *row, uint8_t *bytes)
 {
     builder_put32(bytes, row->name);
-    builder_put16(bytes + 4, row->length);
+    builder_put16(bytes + 4, row->length | ((uint32_t)row->sheet << BUILDER_FLAG_SHIFT));
     builder_put16(bytes + 6, row->parent);
 }
 
 void builder_folder_decode(const uint8_t *bytes, FolderRow *row)
 {
     row->name = builder_get32(bytes);
-    row->length = builder_get16(bytes + 4);
+    uint32_t length = builder_get16(bytes + 4);
+    row->length = (uint16_t)(length & ~(uint32_t)BUILDER_FLAG_BITS);
+    row->sheet = (uint8_t)(length >> BUILDER_FLAG_SHIFT);
     row->parent = builder_get16(bytes + 6);
 }
 

@@ -10,6 +10,7 @@
 #include "device/audio_math.h"
 #include "device/dac_sequence.h"
 #include "device/dma_loop.h"
+#include "device/equalizer.h"
 #include "device/flac_source.h"
 #include "device/m4a_stream.h"
 #include "device/mp3_probe.h"
@@ -52,6 +53,7 @@ static union {
     WavBuffers wav;
     M4aStream m4a;
 } decoding __attribute__((section(".high_ram")));
+static Equalizer equalizer __attribute__((section(".high_ram")));
 static uint32_t music_ring[RING_WORDS];
 static WavSource wav_source;
 static SourceKind source_kind;
@@ -256,8 +258,10 @@ static void ensure_engine(void)
     core1_source_init(&core1_source, core1_region(), files, &decoding.flac, FILL_BUDGET_BYTES);
     wav_source_init(&wav_source, files, &decoding.wav);
     AudioSource source = {open_chosen, next_chosen, release_chosen, close_chosen, NULL};
-    audio_engine_init(
-        &engine, (AudioEngineConfig){.source = source, .ring = ring(), .ring_words = RING_WORDS});
+    audio_engine_init(&engine, (AudioEngineConfig){.source = source,
+                                                   .ring = ring(),
+                                                   .ring_words = RING_WORDS,
+                                                   .equalizer = &equalizer});
     engine_ready = true;
 }
 
@@ -295,15 +299,29 @@ static void serve_fade(void)
     }
 }
 
-static void stop_transfer(void)
+static void end_transfer(bool restarting)
 {
     if (!transferring) {
         return;
     }
-    dac_path_set_muted(true);
+    if (restarting) {
+        dac_path_fade_out();
+    } else {
+        dac_path_set_muted(true);
+    }
     dac_path_stop_transfer();
     dmac_stop();
     transferring = false;
+}
+
+static void stop_transfer(void)
+{
+    end_transfer(false);
+}
+
+static void restart_transfer(void)
+{
+    end_transfer(true);
 }
 
 static void stop_path(void)
@@ -398,7 +416,7 @@ bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
     ensure_engine();
     ensure_audio_clock();
     stop_tone();
-    stop_transfer();
+    restart_transfer();
     AudioEngineTrack request = engine_track(track);
     if (!audio_engine_play(&engine, &request, offset_ms)) {
         return false;
@@ -413,26 +431,8 @@ bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
 void hal_audio_queue_next(const HalAudioTrack *track)
 {
     ensure_engine();
-    HalAudioStatus status = hal_audio_status();
-    bool restart = audio_engine_queue_needs_restart(&engine);
-    bool paused = status.state == HAL_AUDIO_PAUSED;
-    if (restart) {
-        stop_transfer();
-    }
     AudioEngineTrack request = engine_track(track);
     audio_engine_queue_next(&engine, track != NULL ? &request : NULL);
-    if (!restart) {
-        return;
-    }
-    if (audio_engine_status(&engine).state == AUDIO_ENGINE_STOPPED || !start_output(!paused)) {
-        audio_engine_stop(&engine);
-        return;
-    }
-    if (paused) {
-        audio_engine_pause(&engine);
-        dac_path_set_muted(true);
-        dmac_suspend();
-    }
 }
 
 void hal_audio_pause(void)
@@ -443,6 +443,11 @@ void hal_audio_pause(void)
         dmac_suspend();
     }
     audio_engine_pause(&engine);
+}
+
+void hal_audio_release(void)
+{
+    board_audio_shut_down();
 }
 
 void hal_audio_resume(void)
@@ -459,7 +464,7 @@ static void seek_to(uint32_t position_ms, bool paused)
 {
     ensure_engine();
     ensure_audio_clock();
-    stop_transfer();
+    restart_transfer();
     if (!audio_engine_seek(&engine, position_ms) || !start_output(!paused)) {
         audio_engine_stop(&engine);
         return;
@@ -517,6 +522,12 @@ void hal_audio_set_output(HalAudioOutput output)
     apply_volume();
 }
 
+void hal_audio_set_equalizer(const HalAudioEqualizer *curve)
+{
+    ensure_engine();
+    audio_engine_set_equalizer(&engine, curve);
+}
+
 static HalAudioState state_of(AudioEngineState state)
 {
     switch (state) {
@@ -547,6 +558,14 @@ static HalAudioCodec codec_of(AudioCodec codec)
     return HAL_AUDIO_CODEC_FLAC;
 }
 
+static HalAudioProblem unreadable_problem(void)
+{
+    if (unknown_format) {
+        return HAL_AUDIO_PROBLEM_FORMAT;
+    }
+    return source_kind == SOURCE_M4A ? HAL_AUDIO_PROBLEM_AAC_ONLY : HAL_AUDIO_PROBLEM_UNREADABLE;
+}
+
 HalAudioRefusal hal_audio_refusal(void)
 {
     ensure_engine();
@@ -556,8 +575,7 @@ HalAudioRefusal hal_audio_refusal(void)
         return (HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_RATE,
                                  .sample_rate = refusal.sample_rate};
     case AUDIO_REFUSAL_UNREADABLE:
-        return (HalAudioRefusal){.problem = unknown_format ? HAL_AUDIO_PROBLEM_FORMAT
-                                                           : HAL_AUDIO_PROBLEM_UNREADABLE};
+        return (HalAudioRefusal){.problem = unreadable_problem()};
     case AUDIO_REFUSAL_NONE:
         break;
     }
@@ -604,7 +622,7 @@ static void change_rate(void)
     if (!audio_engine_wants_rate(&engine, &rate)) {
         return;
     }
-    stop_transfer();
+    restart_transfer();
     audio_engine_restart(&engine);
     if (!start_output(true)) {
         audio_engine_stop(&engine);

@@ -5,6 +5,7 @@ enum {
     LONG_PRESS_MS = 600,
     REPEAT_DELAY_MS = 400,
     REPEAT_INTERVAL_MS = 100,
+    CLICK_WINDOW_MS = 300,
     NO_EVENT = -1
 };
 
@@ -12,7 +13,7 @@ static KeyTracker make_tracker(void)
 {
     KeyConfig config = {
         .long_press_ms = {[KEY_POWER] = 2000},
-        .timing = {LONG_PRESS_MS, REPEAT_DELAY_MS, REPEAT_INTERVAL_MS},
+        .timing = {LONG_PRESS_MS, REPEAT_DELAY_MS, REPEAT_INTERVAL_MS, CLICK_WINDOW_MS},
         .behaviors =
             {
                 [KEY_VOLUME_UP] = KEY_BEHAVIOR_REPEAT,
@@ -257,6 +258,110 @@ static void keys_without_their_own_time_use_the_shared_one(void)
     CHECK_EQUAL(KEY_GESTURE_LONG_PRESS, next_gesture(&tracker, KEY_PLAY));
 }
 
+static KeyTracker click_tracker(void)
+{
+    KeyTracker tracker = make_tracker();
+    key_tracker_set_behavior(&tracker, KEY_VOLUME_UP, KEY_BEHAVIOR_DOUBLE_CLICK_REPEAT);
+    key_tracker_set_behavior(&tracker, KEY_PLAY, KEY_BEHAVIOR_TRIPLE_CLICK_OR_HOLD);
+    return tracker;
+}
+
+static void click(KeyTracker *tracker, Key key, uint32_t at_ms)
+{
+    key_tracker_key_down(tracker, key, at_ms);
+    key_tracker_key_up(tracker, key, at_ms + 30);
+}
+
+static void a_single_click_is_delivered_after_the_click_window(void)
+{
+    KeyTracker tracker = click_tracker();
+    click(&tracker, KEY_VOLUME_UP, 1000);
+    key_tracker_update(&tracker, 1030 + CLICK_WINDOW_MS - 1);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
+    key_tracker_update(&tracker, 1030 + CLICK_WINDOW_MS);
+    CHECK_EQUAL(KEY_GESTURE_PRESS, next_gesture(&tracker, KEY_VOLUME_UP));
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
+}
+
+static void two_clicks_inside_the_window_make_a_double_press_at_once(void)
+{
+    KeyTracker tracker = click_tracker();
+    click(&tracker, KEY_VOLUME_UP, 1000);
+    click(&tracker, KEY_VOLUME_UP, 1150);
+    CHECK_EQUAL(KEY_GESTURE_DOUBLE_PRESS, next_gesture(&tracker, KEY_VOLUME_UP));
+    key_tracker_update(&tracker, 3000);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
+}
+
+static void clicks_further_apart_than_the_window_are_two_single_presses(void)
+{
+    KeyTracker tracker = click_tracker();
+    click(&tracker, KEY_VOLUME_UP, 1000);
+    key_tracker_update(&tracker, 1500);
+    click(&tracker, KEY_VOLUME_UP, 1600);
+    key_tracker_update(&tracker, 2000);
+    CHECK_EQUAL(KEY_GESTURE_PRESS, next_gesture(&tracker, KEY_VOLUME_UP));
+    CHECK_EQUAL(KEY_GESTURE_PRESS, next_gesture(&tracker, KEY_VOLUME_UP));
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
+}
+
+static void holding_a_click_repeat_key_long_presses_then_repeats_counting_them(void)
+{
+    KeyTracker tracker = click_tracker();
+    key_tracker_key_down(&tracker, KEY_VOLUME_UP, 1000);
+    key_tracker_update(&tracker, 1000 + REPEAT_DELAY_MS - 1);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
+    key_tracker_update(&tracker, 1000 + REPEAT_DELAY_MS);
+    CHECK_EQUAL(KEY_GESTURE_LONG_PRESS, next_gesture(&tracker, KEY_VOLUME_UP));
+    key_tracker_update(&tracker, 1000 + REPEAT_DELAY_MS + REPEAT_INTERVAL_MS);
+    KeyEvent repeat;
+    CHECK(key_tracker_next_event(&tracker, &repeat));
+    CHECK_EQUAL(KEY_GESTURE_REPEAT, repeat.gesture);
+    CHECK_EQUAL(1, repeat.repeats);
+    key_tracker_update(&tracker, 1000 + LONG_PRESS_MS + 1000);
+    CHECK_EQUAL(KEY_GESTURE_REPEAT, next_gesture(&tracker, KEY_VOLUME_UP));
+    key_tracker_key_up(&tracker, KEY_VOLUME_UP, 4000);
+    key_tracker_update(&tracker, 5000);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
+}
+
+static void a_triple_click_key_counts_up_to_three(void)
+{
+    KeyTracker tracker = click_tracker();
+    click(&tracker, KEY_PLAY, 1000);
+    click(&tracker, KEY_PLAY, 1100);
+    click(&tracker, KEY_PLAY, 1200);
+    CHECK_EQUAL(KEY_GESTURE_TRIPLE_PRESS, next_gesture(&tracker, KEY_PLAY));
+    click(&tracker, KEY_PLAY, 2000);
+    click(&tracker, KEY_PLAY, 2100);
+    key_tracker_update(&tracker, 2130 + CLICK_WINDOW_MS);
+    CHECK_EQUAL(KEY_GESTURE_DOUBLE_PRESS, next_gesture(&tracker, KEY_PLAY));
+    click(&tracker, KEY_PLAY, 3000);
+    key_tracker_update(&tracker, 3030 + CLICK_WINDOW_MS);
+    CHECK_EQUAL(KEY_GESTURE_PRESS, next_gesture(&tracker, KEY_PLAY));
+}
+
+static void a_triple_click_key_still_long_presses(void)
+{
+    KeyTracker tracker = click_tracker();
+    click(&tracker, KEY_PLAY, 1000);
+    key_tracker_key_down(&tracker, KEY_PLAY, 1100);
+    key_tracker_update(&tracker, 1100 + LONG_PRESS_MS);
+    CHECK_EQUAL(KEY_GESTURE_LONG_PRESS, next_gesture(&tracker, KEY_PLAY));
+    key_tracker_key_up(&tracker, KEY_PLAY, 2500);
+    key_tracker_update(&tracker, 4000);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_PLAY));
+}
+
+static void click_counting_survives_clock_wraparound(void)
+{
+    KeyTracker tracker = click_tracker();
+    uint32_t start = UINT32_MAX - 100;
+    click(&tracker, KEY_VOLUME_UP, start);
+    key_tracker_update(&tracker, start + 30 + CLICK_WINDOW_MS);
+    CHECK_EQUAL(KEY_GESTURE_PRESS, next_gesture(&tracker, KEY_VOLUME_UP));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -280,6 +385,13 @@ int main(void)
         TEST_CASE(a_hold_repeat_key_taps_on_release),
         TEST_CASE(a_held_hold_repeat_key_long_presses_then_repeats),
         TEST_CASE(changing_a_behavior_leaves_other_keys_alone),
+        TEST_CASE(a_single_click_is_delivered_after_the_click_window),
+        TEST_CASE(two_clicks_inside_the_window_make_a_double_press_at_once),
+        TEST_CASE(clicks_further_apart_than_the_window_are_two_single_presses),
+        TEST_CASE(holding_a_click_repeat_key_long_presses_then_repeats_counting_them),
+        TEST_CASE(a_triple_click_key_counts_up_to_three),
+        TEST_CASE(a_triple_click_key_still_long_presses),
+        TEST_CASE(click_counting_survives_clock_wraparound),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

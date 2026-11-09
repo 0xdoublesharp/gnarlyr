@@ -7,8 +7,3 @@ __pycache__/
 .venv/
 log/
 .wrangler/
-
-/build
-/.venv
-!tests/fixtures/**/*.bin
-!src/fonts/packs/*.bin

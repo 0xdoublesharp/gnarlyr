@@ -19,6 +19,13 @@ typedef struct TagReader {
     bool present[TAG_FIELD_COUNT];
 } TagReader;
 
+typedef struct Mp4Atom {
+    uint32_t offset;
+    uint32_t body;
+    uint32_t end;
+    char type[4];
+} Mp4Atom;
+
 bool tag_read(const TagReader *reader, uint32_t offset, void *buffer, uint32_t length);
 uint16_t tag_le16(const uint8_t *bytes);
 uint32_t tag_le32(const uint8_t *bytes);
@@ -45,6 +52,9 @@ void tags_read_id3v1(TagReader *reader);
 const char *tags_id3_genre(uint32_t index);
 bool tags_read_mp3(TagReader *reader);
 bool tags_read_mp4(TagReader *reader);
+bool tags_mp4_read_atom(const TagReader *reader, uint32_t offset, uint32_t limit, Mp4Atom *atom);
+bool tags_mp4_find_child(const TagReader *reader, const Mp4Atom *parent, uint32_t skip,
+                         const char *type, Mp4Atom *found);
 bool tags_read_wav(TagReader *reader);
 bool tags_read_dsf(TagReader *reader);
 bool tags_read_dff(TagReader *reader);

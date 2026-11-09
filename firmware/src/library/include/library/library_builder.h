@@ -17,6 +17,8 @@ typedef struct BuilderTrack {
     bool album_artist_guessed;
     uint32_t start_ms;
     uint32_t end_ms;
+    const char *sheet;
+    bool chapters;
 } BuilderTrack;
 
 typedef struct ByteSink {
@@ -39,6 +41,8 @@ typedef enum BuilderResult {
     BUILDER_NO_ROOM
 } BuilderResult;
 
+#define BUILDER_ANY_START UINT32_MAX
+
 typedef struct LibraryBuilder {
     void *state;
 } LibraryBuilder;
@@ -49,6 +53,7 @@ BuilderResult library_builder_add_track(LibraryBuilder *builder, const BuilderTr
 BuilderResult library_builder_prepare(LibraryBuilder *builder);
 BuilderResult library_builder_begin_playlist(LibraryBuilder *builder, const char *name,
                                              const char *folder);
-BuilderResult library_builder_playlist_entry(LibraryBuilder *builder, const char *entry);
+BuilderResult library_builder_playlist_entry(LibraryBuilder *builder, const char *entry,
+                                             uint32_t start_ms);
 BuilderResult library_builder_finish(LibraryBuilder *builder, ByteSink sink, uint32_t capacity,
                                      uint32_t *length);

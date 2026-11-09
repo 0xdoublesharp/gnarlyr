@@ -18,6 +18,9 @@ enum {
     BITS_PER_BYTE = 8
 };
 
+static const uint32_t EXTRA_NAME = 0xFFFFFFFFu;
+static const uint32_t EXTRA_LINKS = 0x80000000u;
+
 static const uint8_t MAGIC[MAGIC_SIZE] = {'E', 'M', 'D', 'B'};
 
 static const uint16_t RECORD_SIZES[LIBRARY_SECTION_COUNT] = {
@@ -113,54 +116,38 @@ static bool is_index_section(LibrarySection section)
     return section == LIBRARY_TITLE_ORDER || section == LIBRARY_LINKS;
 }
 
-static bool fingerprint_contents(Library *library, const uint8_t *header)
-{
-    uint8_t bytes[512];
-    uint32_t hash = hash_update(HASH_START, header, LIBRARY_HEADER_SIZE);
-    for (int section = 0; section < LIBRARY_SECTION_COUNT; section++) {
-        LibrarySectionInfo info = library->sections[section];
-        uint32_t length = info.count * info.record_size;
-        for (uint32_t position = 0; position < length;) {
-            uint32_t count = length - position < sizeof bytes ? length - position : sizeof bytes;
-            if (!read_source(library, info.offset + position, bytes, count)) {
-                return false;
-            }
-            hash = hash_update(hash, bytes, count);
-            position += count;
-        }
-    }
-    library->fingerprint = hash;
-    return true;
-}
-
 LibraryStatus library_open(Library *library, ByteSource source, uint32_t size)
 {
     *library = (Library){.source = source};
     uint8_t header[LIBRARY_HEADER_SIZE];
-    if (source.read == NULL || size < LIBRARY_HEADER_SIZE ||
-        !read_source(library, 0, header, sizeof header)) {
+    if (size < LIBRARY_HEADER_SIZE || !read_source(library, 0, header, sizeof header)) {
         return LIBRARY_UNREADABLE;
     }
     LibraryStatus status = decode_header(library, header, size);
-    if (status == LIBRARY_OK && !fingerprint_contents(library, header)) {
-        status = LIBRARY_UNREADABLE;
-    }
     if (status != LIBRARY_OK) {
         *library = (Library){.source = source};
     }
     return status;
 }
 
+static bool has_extra(const Library *library)
+{
+    return library->extra != NULL && library->extra->count > 0;
+}
+
 uint32_t library_count(const Library *library, LibrarySection section)
 {
-    return library->sections[section].count;
+    uint32_t count = library->sections[section].count;
+    bool added =
+        section == LIBRARY_PLAYLISTS && has_extra(library) && library->extra->playlist == count;
+    return count + (added ? 1u : 0u);
 }
 
 uint32_t library_music_count(const Library *library, LibrarySection section)
 {
     LibrarySectionInfo info = library->sections[section];
     bool counted = section <= LIBRARY_GENRES || section == LIBRARY_TITLE_ORDER;
-    return counted && info.music < info.count ? info.music : info.count;
+    return counted && info.music < info.count ? info.music : library_count(library, section);
 }
 
 bool library_read_track(const Library *library, uint32_t index, LibraryTrack *track)
@@ -207,6 +194,11 @@ bool library_read_group(const Library *library, LibrarySection section, uint32_t
                         LibraryGroup *group)
 {
     uint8_t record[GROUP_SIZE];
+    if (section == LIBRARY_PLAYLISTS && has_extra(library) && index == library->extra->playlist) {
+        *group = (LibraryGroup){
+            .name = EXTRA_NAME, .first_link = EXTRA_LINKS, .link_count = library->extra->count};
+        return true;
+    }
     if (!is_group_section(section) || !read_record(library, section, index, record)) {
         return false;
     }
@@ -230,6 +222,7 @@ bool library_read_folder(const Library *library, uint32_t index, LibraryFolder *
         .subfolder_count = u16_at(record, 6),
         .first_link = u32_at(record, 8),
         .track_count = u16_at(record, 12),
+        .flags = u16_at(record, 14),
     };
     return true;
 }
@@ -238,6 +231,11 @@ bool library_read_index(const Library *library, LibrarySection section, uint32_t
                         uint16_t *value)
 {
     uint8_t record[INDEX_SIZE];
+    if (section == LIBRARY_LINKS && position >= EXTRA_LINKS && library->extra != NULL) {
+        uint32_t extra = position - EXTRA_LINKS;
+        *value = extra < library->extra->count ? library->extra->tracks[extra] : 0;
+        return extra < library->extra->count;
+    }
     if (!is_index_section(section) || !read_record(library, section, position, record)) {
         return false;
     }
@@ -262,6 +260,16 @@ bool library_read_string(const Library *library, uint32_t offset, char *buffer, 
         return false;
     }
     buffer[0] = '\0';
+    if (offset == EXTRA_NAME && library->extra != NULL) {
+        const char *name = library->extra->name;
+        size_t length = 0;
+        while (name[length] != '\0' && length + 1 < capacity) {
+            buffer[length] = name[length];
+            length++;
+        }
+        buffer[length] = '\0';
+        return true;
+    }
     if (offset >= strings.count) {
         return false;
     }
@@ -275,9 +283,21 @@ bool library_read_string(const Library *library, uint32_t offset, char *buffer, 
     return true;
 }
 
+static uint32_t hash_word(uint32_t hash, uint32_t value)
+{
+    uint8_t bytes[4] = {(uint8_t)value, (uint8_t)(value >> 8), (uint8_t)(value >> 16),
+                        (uint8_t)(value >> 24)};
+    return hash_update(hash, bytes, sizeof bytes);
+}
+
 uint32_t library_fingerprint(const Library *library)
 {
-    return library->fingerprint;
+    uint32_t hash = HASH_START;
+    for (int section = 0; section < LIBRARY_SECTION_COUNT; section++) {
+        hash = hash_word(hash, library->sections[section].offset);
+        hash = hash_word(hash, library->sections[section].count);
+    }
+    return hash;
 }
 
 enum {

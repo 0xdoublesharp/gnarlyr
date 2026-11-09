@@ -2,7 +2,6 @@
 
 #include "check.h"
 #include "screens/now_playing_screen.h"
-#include "ui/icons.h"
 
 enum {
     TEXT_CAPACITY = 48
@@ -32,12 +31,81 @@ static bool detail_text_is(PlayerStatus status, const char *expected)
 
 static NowPlayingCommand command(Key key, KeyGesture gesture)
 {
-    return now_playing_command_for((KeyEvent){.key = key, .gesture = gesture}, false);
+    return now_playing_command_for((KeyEvent){.key = key, .gesture = gesture}, (NowPlayingKeys){0});
+}
+
+static NowPlayingCommand command_with(Key key, KeyGesture gesture, SkipGesture skip)
+{
+    return now_playing_command_for((KeyEvent){.key = key, .gesture = gesture},
+                                   (NowPlayingKeys){.skip = skip});
 }
 
 static NowPlayingCommand scrub_command(Key key, KeyGesture gesture)
 {
-    return now_playing_command_for((KeyEvent){.key = key, .gesture = gesture}, true);
+    return now_playing_command_for((KeyEvent){.key = key, .gesture = gesture},
+                                   (NowPlayingKeys){.scrubbing = true});
+}
+
+static void a_double_volume_click_skips_with_the_double_volume_setting(void)
+{
+    SkipGesture skip = SKIP_GESTURE_DOUBLE_VOLUME;
+    CHECK_EQUAL(NOW_PLAYING_NEXT, command_with(KEY_VOLUME_UP, KEY_GESTURE_DOUBLE_PRESS, skip));
+    CHECK_EQUAL(NOW_PLAYING_PREVIOUS,
+                command_with(KEY_VOLUME_DOWN, KEY_GESTURE_DOUBLE_PRESS, skip));
+}
+
+static NowPlayingCommand hold_with_repeats(Key key, KeyGesture gesture, uint8_t repeats)
+{
+    return now_playing_command_for((KeyEvent){.key = key, .gesture = gesture, .repeats = repeats},
+                                   (NowPlayingKeys){.skip = SKIP_GESTURE_DOUBLE_VOLUME});
+}
+
+static NowPlayingCommand adjusting_command(Key key, KeyGesture gesture, SkipGesture skip)
+{
+    return now_playing_command_for((KeyEvent){.key = key, .gesture = gesture},
+                                   (NowPlayingKeys){.adjusting_volume = true, .skip = skip});
+}
+
+static void holding_volume_while_it_is_shown_changes_it(void)
+{
+    for (int skip = 0; skip < SKIP_GESTURE_COUNT; skip++) {
+        CHECK_EQUAL(NOW_PLAYING_VOLUME_UP,
+                    adjusting_command(KEY_VOLUME_UP, KEY_GESTURE_LONG_PRESS, (SkipGesture)skip));
+        CHECK_EQUAL(NOW_PLAYING_VOLUME_DOWN,
+                    adjusting_command(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, (SkipGesture)skip));
+    }
+    CHECK_EQUAL(NOW_PLAYING_NEXT, adjusting_command(KEY_VOLUME_UP, KEY_GESTURE_DOUBLE_PRESS,
+                                                    SKIP_GESTURE_DOUBLE_VOLUME));
+    CHECK(now_playing_adjusting_volume(1000, 1000 + NOW_PLAYING_VOLUME_HOLD_MS - 1));
+    CHECK(!now_playing_adjusting_volume(1000, 1000 + NOW_PLAYING_VOLUME_HOLD_MS));
+}
+
+static void holding_volume_seeks_with_the_double_volume_setting(void)
+{
+    CHECK_EQUAL(NOW_PLAYING_SEEK_FORWARD,
+                hold_with_repeats(KEY_VOLUME_UP, KEY_GESTURE_LONG_PRESS, 1));
+    CHECK_EQUAL(NOW_PLAYING_SEEK_BACK, hold_with_repeats(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 2));
+    CHECK_EQUAL(
+        NOW_PLAYING_SEEK_FORWARD_FAST,
+        hold_with_repeats(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, NOW_PLAYING_SEEK_FAST_AFTER_REPEATS));
+    CHECK_EQUAL(NOW_PLAYING_SEEK_BACK_FAST,
+                hold_with_repeats(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 200));
+}
+
+static void play_clicks_skip_only_with_the_play_clicks_setting(void)
+{
+    SkipGesture skip = SKIP_GESTURE_PLAY_CLICKS;
+    CHECK_EQUAL(NOW_PLAYING_NEXT, command_with(KEY_PLAY, KEY_GESTURE_DOUBLE_PRESS, skip));
+    CHECK_EQUAL(NOW_PLAYING_PREVIOUS, command_with(KEY_PLAY, KEY_GESTURE_TRIPLE_PRESS, skip));
+    CHECK_EQUAL(NOW_PLAYING_VOLUME_UP, command_with(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, skip));
+    CHECK_EQUAL(NOW_PLAYING_NONE,
+                command_with(KEY_PLAY, KEY_GESTURE_DOUBLE_PRESS, SKIP_GESTURE_HOLD));
+}
+
+static void holding_volume_skips_only_with_the_hold_setting(void)
+{
+    CHECK_EQUAL(NOW_PLAYING_NEXT, command(KEY_VOLUME_UP, KEY_GESTURE_LONG_PRESS));
+    CHECK_EQUAL(NOW_PLAYING_NONE, command(KEY_VOLUME_UP, KEY_GESTURE_REPEAT));
 }
 
 static void a_volume_tap_changes_the_volume(void)
@@ -131,8 +199,10 @@ static void skips_and_pauses_show_a_badge_for_the_new_state(void)
 
 static void the_volume_bar_stays_longer_than_a_badge(void)
 {
-    CHECK(now_playing_feedback_visible(NOW_PLAYING_FEEDBACK_VOLUME, 1000, 2499));
-    CHECK(!now_playing_feedback_visible(NOW_PLAYING_FEEDBACK_VOLUME, 1000, 2500));
+    uint32_t end = 1000 + NOW_PLAYING_VOLUME_FEEDBACK_MS;
+    CHECK(now_playing_feedback_visible(NOW_PLAYING_FEEDBACK_VOLUME, 1000, end - 1));
+    CHECK(!now_playing_feedback_visible(NOW_PLAYING_FEEDBACK_VOLUME, 1000, end));
+    CHECK(NOW_PLAYING_VOLUME_FEEDBACK_MS >= NOW_PLAYING_VOLUME_HOLD_MS);
     CHECK(now_playing_feedback_visible(NOW_PLAYING_FEEDBACK_NEXT, 1000, 1699));
     CHECK(!now_playing_feedback_visible(NOW_PLAYING_FEEDBACK_NEXT, 1000, 1700));
     CHECK(!now_playing_feedback_visible(NOW_PLAYING_FEEDBACK_NONE, 1000, 1000));
@@ -141,8 +211,8 @@ static void the_volume_bar_stays_longer_than_a_badge(void)
 static void the_volume_bar_fills_in_proportion_to_the_level(void)
 {
     CHECK_EQUAL(0, now_playing_volume_width(0, 100));
-    CHECK_EQUAL(50, now_playing_volume_width(25, 100));
-    CHECK_EQUAL(100, now_playing_volume_width(50, 100));
+    CHECK_EQUAL(50, now_playing_volume_width(30, 100));
+    CHECK_EQUAL(100, now_playing_volume_width(60, 100));
     CHECK_EQUAL(100, now_playing_volume_width(80, 100));
 }
 
@@ -197,97 +267,20 @@ static void the_detail_line_leaves_out_what_is_unknown(void)
     CHECK(detail_text_is((PlayerStatus){0}, ""));
 }
 
-static void default_shortcuts_match_the_existing_controls(void)
-{
-    Settings settings = settings_defaults();
-    for (int key = 0; key < KEY_COUNT; key++) {
-        for (int gesture = 0; gesture <= KEY_GESTURE_REPEAT; gesture++) {
-            KeyEvent event = {.key = (Key)key, .gesture = (KeyGesture)gesture};
-            CHECK_EQUAL(now_playing_command_for(event, false),
-                        now_playing_configured_command_for(event, false, &settings));
-        }
-    }
-}
-
-static void each_media_gesture_can_be_assigned_an_action(void)
-{
-    Settings settings = settings_defaults();
-    for (int key = KEY_VOLUME_UP; key <= KEY_MENU; key++) {
-        for (int gesture = KEY_GESTURE_PRESS; gesture <= KEY_GESTURE_LONG_PRESS; gesture++) {
-            KeyEvent event = {.key = (Key)key, .gesture = (KeyGesture)gesture};
-            settings.button_actions[key * 2 + gesture] = BUTTON_ACTION_UP_NEXT;
-            CHECK_EQUAL(NOW_PLAYING_UP_NEXT,
-                        now_playing_configured_command_for(event, false, &settings));
-        }
-    }
-}
-
-static void shortcuts_cannot_replace_seek_exit_or_system_keys(void)
-{
-    Settings settings = settings_defaults();
-    settings.button_actions[PLAYBACK_PLAY_TAP] = BUTTON_ACTION_NONE;
-    CHECK_EQUAL(NOW_PLAYING_NONE, now_playing_configured_command_for(
-                                      (KeyEvent){KEY_PLAY, KEY_GESTURE_PRESS}, false, &settings));
-    CHECK_EQUAL(NOW_PLAYING_SCRUB_COMMIT,
-                now_playing_configured_command_for((KeyEvent){KEY_PLAY, KEY_GESTURE_PRESS}, true,
-                                                   &settings));
-    CHECK_EQUAL(NOW_PLAYING_LEAVE, now_playing_configured_command_for(
-                                       (KeyEvent){KEY_BACK, KEY_GESTURE_PRESS}, false, &settings));
-    CHECK_EQUAL(NOW_PLAYING_NONE,
-                now_playing_configured_command_for((KeyEvent){KEY_POWER, KEY_GESTURE_LONG_PRESS},
-                                                   false, &settings));
-}
-
-static void only_volume_actions_repeat_after_a_hold(void)
-{
-    Settings settings = settings_defaults();
-    KeyEvent event = {KEY_VOLUME_UP, KEY_GESTURE_REPEAT};
-    settings.button_actions[PLAYBACK_VOLUME_UP_HOLD] = BUTTON_ACTION_NEXT;
-    CHECK_EQUAL(NOW_PLAYING_NONE, now_playing_configured_command_for(event, false, &settings));
-    settings.button_actions[PLAYBACK_VOLUME_UP_HOLD] = BUTTON_ACTION_VOLUME_UP;
-    CHECK_EQUAL(NOW_PLAYING_VOLUME_UP, now_playing_configured_command_for(event, false, &settings));
-}
-
-static void the_button_legend_follows_the_assigned_actions(void)
-{
-    Settings settings = settings_defaults();
-    NowPlayingHint hints[NOW_PLAYING_HINT_CAPACITY];
-    CHECK_EQUAL(4, now_playing_hints(&settings, false, hints));
-    CHECK_EQUAL(ICON_PREVIOUS, hints[0].icon);
-    CHECK_EQUAL(ICON_NEXT, hints[1].icon);
-    CHECK_EQUAL(ICON_SEEK, hints[2].icon);
-    CHECK_EQUAL(ICON_QUEUE, hints[3].icon);
-    settings.button_actions[PLAYBACK_VOLUME_UP_HOLD] = BUTTON_ACTION_NONE;
-    settings.button_actions[PLAYBACK_PLAY_TAP] = BUTTON_ACTION_NEXT;
-    CHECK_EQUAL(4, now_playing_hints(&settings, false, hints));
-    CHECK_EQUAL(ICON_SEEK, hints[1].icon);
-    CHECK_EQUAL(ICON_NEXT, hints[3].icon);
-    CHECK(strcmp("Play", hints[3].label) == 0);
-}
-
-static void seeking_shows_how_to_move_jump_and_cancel(void)
-{
-    NowPlayingHint hints[NOW_PLAYING_HINT_CAPACITY];
-    CHECK_EQUAL(3, now_playing_hints(NULL, true, hints));
-    CHECK_EQUAL(ICON_SEEK, hints[0].icon);
-    CHECK_EQUAL(ICON_PLAY, hints[1].icon);
-}
-
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(the_button_legend_follows_the_assigned_actions),
-        TEST_CASE(seeking_shows_how_to_move_jump_and_cancel),
         TEST_CASE(the_codec_has_a_short_name),
-        TEST_CASE(default_shortcuts_match_the_existing_controls),
-        TEST_CASE(each_media_gesture_can_be_assigned_an_action),
-        TEST_CASE(shortcuts_cannot_replace_seek_exit_or_system_keys),
-        TEST_CASE(only_volume_actions_repeat_after_a_hold),
         TEST_CASE(lossless_streams_show_bit_depth_and_rate),
         TEST_CASE(lossy_streams_show_only_the_rate),
         TEST_CASE(an_unknown_stream_shows_nothing),
         TEST_CASE(the_detail_line_shows_bitrate_and_place),
         TEST_CASE(the_detail_line_leaves_out_what_is_unknown),
+        TEST_CASE(a_double_volume_click_skips_with_the_double_volume_setting),
+        TEST_CASE(holding_volume_seeks_with_the_double_volume_setting),
+        TEST_CASE(holding_volume_while_it_is_shown_changes_it),
+        TEST_CASE(play_clicks_skip_only_with_the_play_clicks_setting),
+        TEST_CASE(holding_volume_skips_only_with_the_hold_setting),
         TEST_CASE(a_volume_tap_changes_the_volume),
         TEST_CASE(holding_volume_up_skips_forward_and_volume_down_skips_back),
         TEST_CASE(play_toggles_pause_and_a_long_play_starts_seeking),

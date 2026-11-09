@@ -54,6 +54,41 @@ void audio_engine_set_volume(AudioEngine *engine, uint8_t level)
     engine->gain = gain;
 }
 
+static void design_equalizer(AudioEngine *engine)
+{
+    engine->equalizing =
+        engine->config.equalizer != NULL &&
+        equalizer_design(engine->config.equalizer, &engine->equalizer_curve, engine->output_rate);
+}
+
+static bool same_curve(const HalAudioEqualizer *first, const HalAudioEqualizer *second)
+{
+    bool same = first->band_count == second->band_count && first->pre_gain == second->pre_gain;
+    for (int band = 0; same && band < first->band_count && band < HAL_AUDIO_EQUALIZER_BANDS;
+         band++) {
+        same = first->band_hz[band] == second->band_hz[band] &&
+               first->gain_half_db[band] == second->gain_half_db[band];
+    }
+    return same;
+}
+
+void audio_engine_set_equalizer(AudioEngine *engine, const HalAudioEqualizer *curve)
+{
+    if (same_curve(&engine->equalizer_curve, curve)) {
+        return;
+    }
+    HalAudioEqualizer before = engine->equalizer_curve;
+    engine->equalizer_curve = *curve;
+    if (engine->equalizing && engine->config.equalizer != NULL) {
+        engine->equalizing = equalizer_retune(
+            engine->config.equalizer,
+            (EqualizerChange){.before = &before, .after = &engine->equalizer_curve},
+            engine->output_rate);
+    } else {
+        design_equalizer(engine);
+    }
+}
+
 static void release_frame(AudioEngine *engine)
 {
     if (engine->holding_frame) {
@@ -147,6 +182,7 @@ static bool start_track(AudioEngine *engine, const AudioEngineTrack *track, uint
         return false;
     }
     engine->output_rate = engine->decode_rate;
+    design_equalizer(engine);
     push_segment(engine, track->path, track->token, 0, start_ms);
     engine->state = AUDIO_ENGINE_PLAYING;
     return true;
@@ -157,18 +193,8 @@ bool audio_engine_play(AudioEngine *engine, const AudioEngineTrack *track, uint3
     return start_track(engine, track, track->start_ms + offset_ms);
 }
 
-bool audio_engine_queue_needs_restart(const AudioEngine *engine)
-{
-    return engine->state != AUDIO_ENGINE_STOPPED &&
-           (engine->segment_count > 1 || engine->rate_pending || engine->ended);
-}
-
 void audio_engine_queue_next(AudioEngine *engine, const AudioEngineTrack *track)
 {
-    if (audio_engine_queue_needs_restart(engine) &&
-        !audio_engine_seek(engine, audio_engine_status(engine).position_ms)) {
-        return;
-    }
     engine->has_next = track != NULL;
     if (track != NULL) {
         engine->next_token = track->token;
@@ -264,8 +290,24 @@ static bool at_limit(const AudioEngine *engine)
            engine->frame.first_sample + engine->pending_offset >= engine->decode_limit;
 }
 
+static void equalize(AudioEngine *engine, uint32_t first)
+{
+    uint32_t frames = engine->produced - first;
+    if (!engine->equalizing || frames == 0) {
+        return;
+    }
+    uint32_t start = first % ring_frames(engine);
+    uint32_t piece = ring_frames(engine) - start;
+    piece = piece < frames ? piece : frames;
+    equalizer_run(engine->config.equalizer, &engine->config.ring[WORDS_PER_FRAME * start], piece);
+    if (piece < frames) {
+        equalizer_run(engine->config.equalizer, engine->config.ring, frames - piece);
+    }
+}
+
 static void copy_until_limit(AudioEngine *engine)
 {
+    uint32_t first = engine->produced;
     const int32_t *left = engine->frame.left;
     const int32_t *right = engine->frame.right;
     int bits = engine->frame.bits;
@@ -276,6 +318,7 @@ static void copy_until_limit(AudioEngine *engine)
         engine->pending_offset++;
         engine->pending_frames--;
     }
+    equalize(engine, first);
 }
 
 static void finish_decoding(AudioEngine *engine);
@@ -438,6 +481,7 @@ void audio_engine_restart(AudioEngine *engine)
     }
     reset_positions(engine);
     engine->output_rate = engine->decode_rate;
+    design_equalizer(engine);
     push_segment(engine, engine->next_path, engine->next_token, 0, engine->next_start_ms);
 }
 

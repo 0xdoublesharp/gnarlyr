@@ -8,6 +8,8 @@
 #include "board_layout.h"
 #include "card_files.h"
 #include "core/deadline.h"
+#include "core/frame_pacer.h"
+#include "core/key_lock.h"
 #include "core/key_tracker.h"
 #include "core/low_battery.h"
 #include "core/power_policy.h"
@@ -27,10 +29,10 @@
 #include "hal/power.h"
 #include "library_rescan.h"
 #include "library_store.h"
-#include "mixtape_ui.h"
 #include "music_check.h"
 #include "player.h"
 #include "screens/charge_screen.h"
+#include "settings/rocker.h"
 #include "settings_store.h"
 #include "ui/fade.h"
 #include "ui/header.h"
@@ -53,6 +55,7 @@ static const KeyConfig KEY_CONFIG = {
             .long_press_ms = 600,
             .repeat_delay_ms = 400,
             .repeat_interval_ms = 120,
+            .click_window_ms = 300,
         },
     .behaviors =
         {
@@ -81,10 +84,10 @@ typedef struct AppState {
     ScreenStack stack;
     LibraryStore library;
     Player player;
-    MixtapeUi mixtapes;
-    const MixtapeUiApi *mixtape_api;
     SettingsStore settings;
     Theme theme;
+    Orientation shown_orientation;
+    bool rocker_swapped[KEY_COUNT];
     FavoritesStore favorites;
     SpokenStore spoken;
     CoverCache covers;
@@ -102,11 +105,13 @@ typedef struct AppState {
     Toast toast;
     BluetoothLink bluetooth;
     uint32_t shown_refusals;
-    uint32_t shown_queue_edit;
     StatusBarState status_bar;
     AppScreens screens;
     MessageScreen notice;
     FrameDiff frame_diff;
+    FramePacer pacer;
+    bool render_urgent;
+    bool frame_sent;
     Fade splash;
     Fade goodbye;
     Slide slide;
@@ -118,6 +123,9 @@ typedef struct AppState {
     bool powered_off;
     bool charging;
     uint32_t charge_lit_until_ms;
+    bool volume_changed;
+    KeyLock lock;
+    uint32_t volume_changed_ms;
     HalBattery charge_battery;
 } AppState;
 
@@ -131,21 +139,70 @@ static const char SPLASH_TEXT[] = "Podium";
 static const char GOODBYE_TEXT[] = "Goodbye";
 static const char BATTERY_LOW_TEXT[] = "Battery low";
 static Color strip_pixels[HAL_DISPLAY_WIDTH * BOARD_STRIP_HEIGHT];
-static uint32_t row_hashes[HAL_DISPLAY_HEIGHT];
+static uint32_t row_hashes[HAL_DISPLAY_LONG_SIDE];
+static Theme notice_theme;
+static Theme compact_theme;
+
+static void follow_compact_theme(void);
 
 static Screen *top_screen(void)
 {
     return screen_stack_top(&app.stack);
 }
 
+static Rect whole_screen(void)
+{
+    const ThemeMetrics *metrics = &app.theme.metrics;
+    return (Rect){0, 0, metrics->screen_width, metrics->screen_height};
+}
+
+static void apply_orientation(void)
+{
+    Orientation orientation = app.settings.settings.orientation;
+    app.shown_orientation = orientation;
+    default_theme_set_orientation(&app.theme, orientation);
+    notice_theme = NOTICE_THEME;
+    default_theme_set_orientation(&notice_theme, orientation);
+    hal_display_set_rotation((HalDisplayRotation)orientation);
+    frame_diff_init(&app.frame_diff, row_hashes, app.theme.metrics.screen_height);
+    follow_compact_theme();
+}
+
+static Key oriented_key(HalKeyTransition transition)
+{
+    if (transition.pressed) {
+        Orientation orientation = app.settings.settings.orientation;
+        bool changes_volume = top_screen()->hold_volume_keys;
+        app.rocker_swapped[transition.key] =
+            app.display_on && (changes_volume ? rocker_volume_swapped_in(orientation)
+                                              : rocker_swapped_in(orientation));
+    }
+    return rocker_key(transition.key, app.rocker_swapped[transition.key]);
+}
+
 static void read_input(void)
 {
     HalKeyTransition transition;
     while (hal_input_next_transition(&transition)) {
-        if (transition.pressed) {
-            key_tracker_key_down(&app.keys, transition.key, transition.time_ms);
-        } else {
-            key_tracker_key_up(&app.keys, transition.key, transition.time_ms);
+        app.render_urgent = true;
+        Key key = oriented_key(transition);
+        switch (key_lock_transition(&app.lock, key, transition.pressed, transition.time_ms)) {
+        case KEY_LOCK_PASS:
+            if (transition.pressed) {
+                key_tracker_key_down(&app.keys, key, transition.time_ms);
+            } else {
+                key_tracker_key_up(&app.keys, key, transition.time_ms);
+            }
+            break;
+        case KEY_LOCK_COMBO_STARTED:
+            key_tracker_cancel(&app.keys, KEY_PLAY);
+            key_tracker_cancel(&app.keys, KEY_POWER);
+            break;
+        case KEY_LOCK_REFUSED:
+            toast_show(&app.toast, LOCKED_HINT, transition.time_ms);
+            break;
+        case KEY_LOCK_SWALLOW:
+            break;
         }
     }
 }
@@ -189,18 +246,6 @@ static void set_display(bool on)
     }
 }
 
-static bool mixtape_busy(void)
-{
-    return app.mixtape_api != NULL && app.mixtape_api->busy(&app.mixtapes);
-}
-
-static void cancel_mixtape(void)
-{
-    if (mixtape_busy()) {
-        app.mixtape_api->cancel(&app.mixtapes);
-    }
-}
-
 static void save_settings(void)
 {
     settings_store_capture(&app.settings, player_status(&app.player));
@@ -209,7 +254,6 @@ static void save_settings(void)
 
 static void save_session(void)
 {
-    cancel_mixtape();
     spoken_store_flush(&app.spoken, player_status(&app.player), hal_clock_milliseconds());
     player_save(&app.player);
     save_settings();
@@ -217,6 +261,7 @@ static void save_session(void)
 
 static void power_off_now(void)
 {
+    hal_audio_pause();
     set_display(false);
     app.powered_off = true;
     hal_power_off();
@@ -232,7 +277,6 @@ static void light_charge_screen(uint32_t now_ms)
 
 static void start_charging(uint32_t now_ms)
 {
-    cancel_mixtape();
     if (player_status(&app.player).state == PLAYER_PLAYING) {
         player_toggle_pause(&app.player);
     }
@@ -288,12 +332,31 @@ static void drain_key_events(void)
     }
 }
 
-static void use_screen_key_behaviors(void)
+static void set_key_behaviors(KeyBehavior volume, KeyBehavior play)
 {
-    bool hold = !app.display_on || top_screen()->hold_volume_keys;
-    KeyBehavior volume = hold ? KEY_BEHAVIOR_TAP_HOLD_REPEAT : KEY_BEHAVIOR_REPEAT;
     key_tracker_set_behavior(&app.keys, KEY_VOLUME_UP, volume);
     key_tracker_set_behavior(&app.keys, KEY_VOLUME_DOWN, volume);
+    key_tracker_set_behavior(&app.keys, KEY_PLAY, play);
+}
+
+static void use_screen_key_behaviors(void)
+{
+    bool skipping = !app.display_on || top_screen()->hold_volume_keys;
+    if (!skipping) {
+        set_key_behaviors(KEY_BEHAVIOR_REPEAT, KEY_BEHAVIOR_TAP_OR_HOLD);
+        return;
+    }
+    switch (app.settings.settings.skip_gesture) {
+    case SKIP_GESTURE_HOLD:
+        set_key_behaviors(KEY_BEHAVIOR_TAP_HOLD_REPEAT, KEY_BEHAVIOR_TAP_OR_HOLD);
+        break;
+    case SKIP_GESTURE_DOUBLE_VOLUME:
+        set_key_behaviors(KEY_BEHAVIOR_DOUBLE_CLICK_REPEAT, KEY_BEHAVIOR_TAP_OR_HOLD);
+        break;
+    case SKIP_GESTURE_PLAY_CLICKS:
+        set_key_behaviors(KEY_BEHAVIOR_REPEAT, KEY_BEHAVIOR_TRIPLE_CLICK_OR_HOLD);
+        break;
+    }
 }
 
 static bool opens_now_playing(KeyEvent event)
@@ -355,9 +418,12 @@ static void show_now_playing(uint32_t now_ms)
     }
 }
 
-static void run_background(KeyEvent event)
+static void run_player_command(NowPlayingCommand command)
 {
-    switch (now_playing_configured_command_for(event, false, &app.settings.settings)) {
+    if (command != NOW_PLAYING_NONE) {
+        app.volume_changed = false;
+    }
+    switch (command) {
     case NOW_PLAYING_TOGGLE_PAUSE:
         player_toggle_pause(&app.player);
         break;
@@ -368,13 +434,52 @@ static void run_background(KeyEvent event)
         player_skip(&app.player, -1);
         break;
     case NOW_PLAYING_VOLUME_UP:
-        player_change_volume(&app.player, 1);
-        break;
     case NOW_PLAYING_VOLUME_DOWN:
-        player_change_volume(&app.player, -1);
+        player_change_volume(&app.player, command == NOW_PLAYING_VOLUME_UP ? 1 : -1);
+        app.volume_changed = true;
+        app.volume_changed_ms = app.now_ms;
+        break;
+    case NOW_PLAYING_SEEK_FORWARD:
+        now_playing_seek_by(&app.player, NOW_PLAYING_SCRUB_STEP_MS);
+        break;
+    case NOW_PLAYING_SEEK_FORWARD_FAST:
+        now_playing_seek_by(&app.player, NOW_PLAYING_SCRUB_FAST_STEP_MS);
+        break;
+    case NOW_PLAYING_SEEK_BACK:
+        now_playing_seek_by(&app.player, -NOW_PLAYING_SCRUB_STEP_MS);
+        break;
+    case NOW_PLAYING_SEEK_BACK_FAST:
+        now_playing_seek_by(&app.player, -NOW_PLAYING_SCRUB_FAST_STEP_MS);
         break;
     default:
         break;
+    }
+}
+
+static void run_background(KeyEvent event)
+{
+    bool adjusting =
+        app.volume_changed && now_playing_adjusting_volume(app.volume_changed_ms, app.now_ms);
+    run_player_command(now_playing_command_for(
+        event, (NowPlayingKeys){.adjusting_volume = adjusting,
+                                .skip = app.settings.settings.skip_gesture}));
+}
+
+static const NowPlayingCommand HEADSET_COMMANDS[] = {
+    [HAL_HEADSET_TOGGLE_PAUSE] = NOW_PLAYING_TOGGLE_PAUSE,
+    [HAL_HEADSET_NEXT] = NOW_PLAYING_NEXT,
+    [HAL_HEADSET_PREVIOUS] = NOW_PLAYING_PREVIOUS,
+    [HAL_HEADSET_VOLUME_UP] = NOW_PLAYING_VOLUME_UP,
+    [HAL_HEADSET_VOLUME_DOWN] = NOW_PLAYING_VOLUME_DOWN,
+};
+
+static void read_headset(void)
+{
+    HalHeadsetCommand command;
+    while (hal_input_next_headset_command(&command)) {
+        if (!app.powered_off && !app.charging && !fade_running()) {
+            run_player_command(HEADSET_COMMANDS[command]);
+        }
     }
 }
 
@@ -388,20 +493,13 @@ static void dispatch_key_events(uint32_t now_ms)
 {
     KeyEvent event;
     while (!app.powered_off && key_tracker_next_event(&app.keys, &event)) {
+        app.render_urgent = true;
         if (ignored_power_tap(event)) {
             continue;
         }
         PowerKeyOutcome outcome = power_policy_key(&app.power, event, now_ms);
         if (outcome.shutdown) {
             shut_down(GOODBYE_TEXT);
-        } else if (mixtape_busy()) {
-            if (event.key == KEY_BACK && event.gesture == KEY_GESTURE_PRESS) {
-                cancel_mixtape();
-            }
-        } else if (player_queue_busy(&app.player)) {
-            if (event.key == KEY_BACK && event.gesture == KEY_GESTURE_PRESS) {
-                player_queue_cancel(&app.player);
-            }
         } else if (outcome.background) {
             run_background(event);
         } else if (!outcome.consumed) {
@@ -425,8 +523,7 @@ static bool battery_empty(uint32_t now_ms)
 
 static void keep_awake_while_busy(uint32_t now_ms)
 {
-    if (app.usb_power || player_status(&app.player).state == PLAYER_PLAYING ||
-        player_queue_busy(&app.player) || mixtape_busy()) {
+    if (app.usb_power || player_status(&app.player).state == PLAYER_PLAYING) {
         power_policy_stay_awake(&app.power, now_ms);
     }
 }
@@ -463,13 +560,13 @@ static void update_screen(uint32_t now_ms)
 
 static const Theme *board_theme(void)
 {
-    return hal_system_restart_pending() ? &NOTICE_THEME : &app.theme;
+    return hal_system_restart_pending() ? &notice_theme : &app.theme;
 }
 
 static void draw_fade(Canvas *canvas, const Fade *fade, const char *text)
 {
     const Theme *theme = board_theme();
-    Rect screen = {0, 0, HAL_DISPLAY_WIDTH, HAL_DISPLAY_HEIGHT};
+    Rect screen = whole_screen();
     Color color =
         color_blend(theme->colors.background, theme->colors.text, fade_alpha(fade, app.now_ms));
     TextStyle style = {.font = theme->fonts.title, .color = color};
@@ -498,34 +595,33 @@ static void draw_shifted(Screen *screen, Canvas *canvas, int x, Rect area)
     }
 }
 
+static void follow_compact_theme(void)
+{
+    compact_theme = *board_theme();
+    if (theme_is_portrait(&compact_theme)) {
+        compact_theme.metrics.header_height = compact_theme.metrics.status_height;
+    }
+}
+
+static bool is_compact(const Screen *screen)
+{
+    return screen == &app.screens.home.screen || screen == &app.screens.now_playing.screen;
+}
+
 static void draw_slide(Canvas *canvas, Screen *arriving)
 {
-    const Theme *theme = board_theme();
     Screen *leaving = app.leaving;
+    const Theme *theme =
+        is_compact(arriving) || is_compact(leaving) ? &compact_theme : board_theme();
     bool whole = arriving->full_screen || leaving->full_screen;
-    Rect area =
-        whole ? (Rect){0, 0, HAL_DISPLAY_WIDTH, HAL_DISPLAY_HEIGHT} : theme_content_area(theme);
-    int width = HAL_DISPLAY_WIDTH;
+    Rect area = whole ? whole_screen() : theme_content_area(theme);
+    int width = app.theme.metrics.screen_width;
     draw_shifted(leaving, canvas, slide_leaving_x(&app.slide, app.now_ms, width), area);
     draw_shifted(arriving, canvas, slide_arriving_x(&app.slide, app.now_ms, width), area);
     if (!whole) {
         bool arrived = slide_shows_arriving_title(&app.slide, app.now_ms);
         header_draw(canvas, theme, arrived ? arriving->title : leaving->title);
     }
-}
-
-static void draw_queue_progress(Canvas *canvas)
-{
-    const PlayerQueueJob *job = &app.player.editing;
-    char text[48];
-    StringBuilder builder = string_builder_make(text, sizeof text);
-    uint32_t percent = track_order_job_progress(&job->writer);
-    string_builder_append_unsigned(&builder, percent);
-    string_builder_append(&builder, "% - Back cancels");
-    MessageScreen message;
-    MessageConfig config = {.title = "Saving queue", .message = text, .theme = board_theme()};
-    Screen *screen = message_screen_init(&message, config);
-    screen->draw(screen->context, canvas);
 }
 
 static void draw_frame(void *context, Canvas *canvas)
@@ -535,11 +631,7 @@ static void draw_frame(void *context, Canvas *canvas)
         return;
     }
     Screen *screen = screen_stack_top(&state->stack);
-    if (mixtape_busy()) {
-        app.mixtapes.screen.draw(&app.mixtapes, canvas);
-    } else if (player_queue_busy(&state->player)) {
-        draw_queue_progress(canvas);
-    } else if (slide_running()) {
+    if (slide_running()) {
         draw_slide(canvas, screen);
     } else {
         screen->draw(screen->context, canvas);
@@ -573,6 +665,7 @@ static void write_to_display(void *context, Rect area, const Color *pixels)
     if (!any_changed) {
         return;
     }
+    app.frame_sent = true;
     const Color *first_row = pixels + (size_t)(changed.y - area.y) * (size_t)area.width;
     uint32_t started_us = hal_clock_microseconds();
     hal_display_write(changed.x, changed.y, changed.width, changed.height, first_row);
@@ -609,6 +702,8 @@ static StatusBarState current_status_bar(void)
         .battery_known = battery.known,
         .battery_percent = battery.percent,
         .charging = battery.charging,
+        .locked = app.lock.locked,
+        .shuffle = (StatusShuffle)player_status(&app.player).shuffle,
     };
 }
 
@@ -616,10 +711,11 @@ static void render(FrameDrawer drawer, bool drawer_paints_everything)
 {
     StripRenderer renderer = {
         .strip_pixels = strip_pixels,
-        .screen_width = HAL_DISPLAY_WIDTH,
-        .screen_height = HAL_DISPLAY_HEIGHT,
-        .strip_height = BOARD_STRIP_HEIGHT,
-        .background = board_theme()->colors.background,
+        .screen_width = app.theme.metrics.screen_width,
+        .screen_height = app.theme.metrics.screen_height,
+        .strip_height =
+            (int)(sizeof strip_pixels / sizeof strip_pixels[0]) / app.theme.metrics.screen_width,
+        .background = BOARD_THEME.colors.background,
         .drawer_paints_everything = drawer_paints_everything,
     };
     FrameSink sink = {.write = write_to_display, .context = NULL};
@@ -629,7 +725,6 @@ static void render(FrameDrawer drawer, bool drawer_paints_everything)
 
 static void render_frame(void)
 {
-    echo_theme_apply(&app.theme, app.settings.settings.appearance);
     uint32_t started_us = hal_clock_microseconds();
     app.send_us = 0;
     app.status_bar = current_status_bar();
@@ -651,13 +746,21 @@ static void start_playback(void)
 {
     library_store_open(&app.library);
     player_init(&app.player, &app.library.library);
-    app.shown_queue_edit = 0;
     settings_store_restore_playback(&app.settings, &app.player, hal_clock_microseconds());
     player_restore(&app.player);
     favorites_store_load(&app.favorites, &app.library.library);
     spoken_store_load(&app.spoken, &app.library.library);
     player_set_resume(&app.player, spoken_store_resume(&app.spoken));
     cover_cache_open(&app.covers, &app.library.library);
+}
+
+static void follow_appearance(void)
+{
+    default_theme_set_accent(&app.theme, app.settings.settings.accent);
+    default_theme_set_text_size(&app.theme, app.settings.settings.text_size);
+    if (app.settings.settings.orientation != app.shown_orientation) {
+        apply_orientation();
+    }
 }
 
 static void start_hardware(uint32_t now_ms)
@@ -679,19 +782,11 @@ static void open_start_screen(uint32_t now_ms)
 
 static void start_screens(uint32_t now_ms)
 {
-    app.mixtape_api = hal_system_mixtape_ui();
-    Screen *mixtapes =
-        app.mixtape_api == NULL
-            ? NULL
-            : app.mixtape_api->init(
-                  &app.mixtapes, (MixtapeUiConfig){.player = &app.player,
-                                                   .theme = board_theme(),
-                                                   .toast = &app.toast,
-                                                   .now_playing = &app.screens.now_playing.screen,
-                                                   .up_next = &app.screens.up_next.screen});
     AppScreensContext context = {
         .options = &app.options,
         .theme = board_theme(),
+        .styled_theme = &app.theme,
+        .compact_theme = &compact_theme,
         .store = &app.library,
         .player = &app.player,
         .spoken = &app.spoken,
@@ -702,7 +797,6 @@ static void start_screens(uint32_t now_ms)
         .covers = &app.covers,
         .rescan_requested = &app.rescan_requested,
         .bluetooth = &app.bluetooth,
-        .mixtapes = mixtapes,
     };
     Screen *root = app_screens_init(&app.screens, context);
     screen_stack_init(&app.stack, root, now_ms);
@@ -725,12 +819,12 @@ static void report_card_files(CardFilesReport files, uint32_t now_ms)
 void app_start(void)
 {
     uint32_t now_ms = hal_clock_milliseconds();
-    frame_diff_init(&app.frame_diff, row_hashes, HAL_DISPLAY_HEIGHT);
     key_tracker_init(&app.keys, &KEY_CONFIG);
     frame_stats_reset(&app.frame_stats);
     frame_stats_reset(&app.update_stats);
     frame_stats_reset(&app.draw_stats);
     frame_stats_reset(&app.send_stats);
+    app.pacer = (FramePacer){0};
     app.options = (AppOptions){.show_frame_time = false, .ignore_power_taps = false};
     app.toast = (Toast){.visible = false};
     app.powered_off = false;
@@ -746,10 +840,11 @@ void app_start(void)
     app.prepare_report = (CardFilesReport){.library_created = false, .card_full = false};
     settings_store_load(&app.settings);
     app.theme = BOARD_THEME;
-    echo_theme_apply(&app.theme, app.settings.settings.appearance);
+    apply_orientation();
+    follow_appearance();
     start_playback();
     start_hardware(now_ms);
-    bluetooth_link_start(&app.bluetooth, &app.toast, now_ms);
+    bluetooth_link_resume(&app.bluetooth, &app.toast, now_ms);
     start_screens(now_ms);
     if (hal_power_take_usb_start()) {
         start_charging(now_ms);
@@ -760,6 +855,7 @@ static void show_rescan_progress(uint32_t files, uint32_t tracks)
 {
     static uint32_t shown_ms;
     uint32_t now_ms = hal_clock_milliseconds();
+    hal_bluetooth_service();
     if (files > 1 && now_ms - shown_ms < RESCAN_PROGRESS_MS) {
         return;
     }
@@ -775,6 +871,7 @@ static void show_cover_progress(uint32_t done, uint32_t total)
 {
     static uint32_t shown_ms;
     uint32_t now_ms = hal_clock_milliseconds();
+    hal_bluetooth_service();
     if (done > 0 && done < total && now_ms - shown_ms < RESCAN_PROGRESS_MS) {
         return;
     }
@@ -786,20 +883,6 @@ static void show_cover_progress(uint32_t done, uint32_t total)
     string_builder_append_unsigned(&builder, total);
     string_builder_append(&builder, " albums");
     app_show_notice("Finding covers", text);
-}
-
-static void explain_queue_edit(uint32_t now_ms)
-{
-    const PlayerQueueJob *job = &app.player.editing;
-    if (job->serial == app.shown_queue_edit) {
-        return;
-    }
-    app.shown_queue_edit = job->serial;
-    const char *text = job->result == PLAYER_QUEUE_EDITED           ? "Queue saved"
-                       : job->result == PLAYER_QUEUE_EDIT_CANCELLED ? "Cancelled"
-                       : job->result == PLAYER_QUEUE_EDIT_STALE     ? "Queue changed; try again"
-                                                                    : "Could not save queue";
-    toast_show(&app.toast, text, now_ms);
 }
 
 static void explain_refusals(uint32_t now_ms)
@@ -816,7 +899,6 @@ static void explain_refusals(uint32_t now_ms)
 
 static void run_rescan(void)
 {
-    cancel_mixtape();
     app_show_notice("Scanning library", "Starting...");
     RescanProgress progress = {show_rescan_progress, show_cover_progress};
     RescanOutcome outcome = library_rescan_run(progress);
@@ -832,7 +914,6 @@ static void run_rescan(void)
 
 void app_release_audio(void)
 {
-    cancel_mixtape();
     spoken_store_flush(&app.spoken, player_status(&app.player), hal_clock_milliseconds());
     player_release_output(&app.player);
 }
@@ -939,11 +1020,11 @@ void app_step(void)
     if (app.powered_off) {
         return;
     }
+    follow_compact_theme();
     if (app.prepare_pending && prepare_step()) {
         return;
     }
     if (app.music_check_requested) {
-        cancel_mixtape();
         app.music_check_requested = false;
         bool changed = hal_system_restart_pending();
         if (!changed) {
@@ -952,11 +1033,6 @@ void app_step(void)
         }
         if (!changed) {
             music_check_note_firmware();
-            if (library_fingerprint(&app.library.library) != app.player.fingerprint) {
-                hal_audio_pause();
-                app_start();
-                return;
-            }
         }
         app.rescan_requested |= changed;
     }
@@ -971,7 +1047,15 @@ void app_step(void)
     hal_audio_service();
     hal_bluetooth_service();
     read_input();
+    read_headset();
     key_tracker_update(&app.keys, now_ms);
+    if (key_lock_update(&app.lock, now_ms)) {
+        toast_show(&app.toast, app.lock.locked ? "Buttons locked" : "Buttons unlocked", now_ms);
+        if (!app.display_on) {
+            power_policy_wake(&app.power, now_ms);
+            set_display(true);
+        }
+    }
     if (app.charging) {
         charge_step(now_ms);
         return;
@@ -985,15 +1069,8 @@ void app_step(void)
         finish_shut_down();
     }
     if (!app.powered_off) {
-        if (mixtape_busy()) {
-            app.mixtape_api->step(&app.mixtapes, now_ms);
-        } else {
-            player_update(&app.player, now_ms);
-        }
-        explain_queue_edit(now_ms);
-        if (!mixtape_busy()) {
-            bluetooth_link_step(&app.bluetooth, &app.player, now_ms);
-        }
+        player_update(&app.player, now_ms);
+        bluetooth_link_step(&app.bluetooth, &app.player, now_ms);
         spoken_store_follow(&app.spoken, player_status(&app.player), now_ms);
         explain_refusals(now_ms);
         update_power(now_ms);
@@ -1005,12 +1082,18 @@ void app_step(void)
         use_wanted_clock();
     }
     toast_update(&app.toast, now_ms);
+    follow_appearance();
     update_screen(now_ms);
-    frame_stats_record(&app.update_stats, hal_clock_microseconds() - started_us);
-    if (app.display_on) {
-        render_frame();
-        light_after_first_frame();
+    bool urgent = app.render_urgent || app.light_after_frame || fade_running() || slide_running();
+    app.render_urgent = false;
+    if (!app.display_on || !frame_pacer_due(&app.pacer, now_ms, urgent)) {
+        return;
     }
+    frame_stats_record(&app.update_stats, hal_clock_microseconds() - started_us);
+    app.frame_sent = false;
+    render_frame();
+    frame_pacer_done(&app.pacer, now_ms, app.frame_sent);
+    light_after_first_frame();
     frame_stats_record(&app.frame_stats, hal_clock_microseconds() - started_us);
 }
 
@@ -1021,9 +1104,7 @@ bool app_charging(void)
 
 void app_show_notice(const char *title, const char *message)
 {
-    Theme theme = NOTICE_THEME;
-    echo_theme_apply(&theme, app.settings.settings.appearance);
-    MessageConfig config = {.title = title, .message = message, .theme = &theme};
+    MessageConfig config = {.title = title, .message = message, .theme = &notice_theme};
     Screen *screen = message_screen_init(&app.notice, config);
     if (!app.display_on) {
         set_display(true);

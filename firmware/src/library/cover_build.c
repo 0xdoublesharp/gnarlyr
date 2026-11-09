@@ -23,7 +23,8 @@ enum {
     STAMP_NUMBERS = 3,
     ART_EMBEDDED = 1,
     ART_FILE = 2,
-    BITS_PER_BYTE = 8
+    BITS_PER_BYTE = 8,
+    NO_FOLDER = 0x10000
 };
 
 static const char *const STEMS[STEM_COUNT] = {"cover", "folder", "front", "albumart"};
@@ -64,6 +65,8 @@ typedef struct CoverState {
     uint16_t half[COVER_HALF_PIXELS];
     uint16_t folders[MAX_FOLDERS];
     uint32_t folder_count;
+    uint32_t listed_folder;
+    CoverMatch listed;
     CoverLayout layout;
     CoverEntry *index;
     uint16_t *slots;
@@ -149,6 +152,7 @@ static CoverState *prepare(const CoverJob *job, uint32_t albums, CoverLayout lay
     state->count = 0;
     state->kept = 0;
     state->next_slot = 0;
+    state->listed_folder = NO_FOLDER;
     state->decode_memory = cursor;
     state->decode_size = (uint32_t)(end - cursor);
     return state;
@@ -421,15 +425,13 @@ static uint32_t folder_length(const char *path)
     return slash;
 }
 
-static const CoverMatch *best_match(CoverState *state, const CoverJob *job)
+static void list_folder(CoverState *state, const CoverJob *job)
 {
-    uint32_t length = folder_length(state->path);
-    state->path[length > 0 ? length : 1] = '\0';
     for (uint32_t stem = 0; stem < STEM_COUNT; stem++) {
         state->matches[stem].name[0] = '\0';
     }
     if (!job->files.open_dir(job->files.context, state->path)) {
-        return NULL;
+        return;
     }
     while (job->files.next_entry(job->files.context, &state->entry)) {
         if (!state->entry.directory) {
@@ -437,12 +439,26 @@ static const CoverMatch *best_match(CoverState *state, const CoverJob *job)
         }
     }
     job->files.close_dir(job->files.context);
-    for (uint32_t stem = 0; stem < STEM_COUNT; stem++) {
-        if (state->matches[stem].name[0] != '\0') {
-            return &state->matches[stem];
-        }
+}
+
+static void pick_match(CoverState *state)
+{
+    state->listed.name[0] = '\0';
+    for (uint32_t stem = 0; stem < STEM_COUNT && state->listed.name[0] == '\0'; stem++) {
+        state->listed = state->matches[stem];
     }
-    return NULL;
+}
+
+static const CoverMatch *best_match(CoverState *state, const CoverJob *job, uint32_t folder)
+{
+    uint32_t length = folder_length(state->path);
+    state->path[length > 0 ? length : 1] = '\0';
+    if (state->listed_folder != folder) {
+        list_folder(state, job);
+        pick_match(state);
+        state->listed_folder = folder;
+    }
+    return state->listed.name[0] != '\0' ? &state->listed : NULL;
 }
 
 static bool append_name(CoverState *state, const char *name)
@@ -491,13 +507,14 @@ static bool open_folder_art(CoverState *state, const CoverJob *job, ArtFile *art
 {
     const LibraryAlbum *album = &state->album;
     state->folder_count = 0;
-    for (uint32_t track = 0; track < album->track_count; track++) {
+    for (uint32_t track = 0; track < album->track_count && state->folder_count < MAX_FOLDERS;
+         track++) {
         LibraryTrack info;
         if (!read_track_path(state, album->first_track + track, &info) ||
             folder_tried(state, info.folder)) {
             continue;
         }
-        const CoverMatch *match = best_match(state, job);
+        const CoverMatch *match = best_match(state, job, info.folder);
         if (match != NULL) {
             return open_art_file(state, job, *match, art);
         }
@@ -571,7 +588,8 @@ static ScanResult place_cover(CoverState *state, const CoverJob *job, const ArtF
         return SCAN_OK;
     }
     if (!write_record(state, job, state->layout.records_start + slot * COVER_BUILD_RECORD_BYTES)) {
-        return SCAN_WRITE_FAILED;
+        stats->missing++;
+        return SCAN_OK;
     }
     position = known ? position : append_entry(state, slot);
     state->index[position] = (CoverEntry){state->key, art->stamp};
@@ -695,8 +713,8 @@ static ScanResult finish(CoverState *state, const CoverJob *job, CoverStats *sta
     drop_unclaimed(state);
     sort_index(state);
     stats->covers = state->count;
-    if (result == SCAN_OK && (!write_table(state, job, false) || !write_table(state, job, true) ||
-                              !write_header(state, job))) {
+    if (result == SCAN_OK && (!clear_header(job) || !write_table(state, job, false) ||
+                              !write_table(state, job, true) || !write_header(state, job))) {
         result = SCAN_WRITE_FAILED;
     }
     return result;
@@ -734,8 +752,5 @@ ScanResult cover_build(const CoverJob *job, CoverStats *stats)
     }
     state->library = probe;
     keep_present(state, stats->albums);
-    if (!clear_header(job)) {
-        return SCAN_WRITE_FAILED;
-    }
     return finish(state, job, stats, build_albums(state, job, stats));
 }

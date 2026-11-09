@@ -3,6 +3,7 @@
 #include "core1_region.h"
 #include "device/core1_control.h"
 #include "device/core1_mp3.h"
+#include "idle.h"
 #include "registers.h"
 
 void core1_main(void);
@@ -21,7 +22,10 @@ void core1_main(void)
         return;
     }
     core1_stream_init(&stream, core1_region(), core1_mp3_decoder(&mp3, &decoder));
+    core1_idle_start();
     for (;;) {
-        core1_stream_step(&stream);
+        if (!core1_stream_step(&stream)) {
+            core1_idle();
+        }
     }
 }

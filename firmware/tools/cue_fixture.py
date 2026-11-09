@@ -29,6 +29,17 @@ MULTI_CUE = (
     'TITLE "Separate Files"\nFILE "a.wav" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n'
     'FILE "b.wav" WAVE\n  TRACK 02 AUDIO\n    INDEX 01 00:00:00\n'
 )
+FAVORITES_BYTES = 32 * 1024
+FAVORITES = (
+    "#EXTM3U\n"
+    "#EXTINF:2,Middle Part\n#PODIUM-START:1000\nCue Artist/Cue Album/Cue Album.flac\n"
+    "#EXTINF:1,Opening\n#PODIUM-START:0\nCue Artist/Cue Album/Cue Album.flac\n"
+    "Cue Artist/Cue Album/Cue Album.flac\n"
+    "#EXTINF:2,Closing\n#PODIUM-START:2493\nCue Artist/Cue Album/Cue Album.flac\n"
+    "#PODIUM-START:7\nCue Artist/Cue Album/Cue Album.flac\n"
+    "#PODIUM-START:1000\nPlain/Unsupported/a.wav\n"
+)
+LEGACY_FAVORITES = "#EXTM3U\nCue Artist/Cue Album/Cue Album.flac\n"
 ORPHAN_CUE = 'FILE "missing.flac" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n'
 
 
@@ -73,6 +84,11 @@ def write_unsupported(folder):
     (folder / "nothing.cue").write_bytes(ORPHAN_CUE.encode("utf-8"))
 
 
+def write_favorites(output):
+    for name, text in (("Favorite Tracks.m3u", FAVORITES), ("Legacy Favorites.m3u", LEGACY_FAVORITES)):
+        (output / name).write_bytes(text.encode("utf-8").ljust(FAVORITES_BYTES, b" "))
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Write the CUE sheet fixture music folder")
     parser.add_argument("--output", type=Path, required=True)
@@ -85,6 +101,7 @@ def main():
     write_wav(output / "Cue Artist" / "Second")
     write_mp3(output / "Mp3 Artist" / "Mp3 Album")
     write_unsupported(output / "Plain" / "Unsupported")
+    write_favorites(output)
     return 0
 
 

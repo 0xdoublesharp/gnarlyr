@@ -63,6 +63,24 @@ static void popping_reenters_the_revealed_screen(void)
     CHECK_EQUAL(300, fakes[0].entered_at_ms);
 }
 
+static void replacing_swaps_the_top_screen(void)
+{
+    ScreenStack stack = stack_with_root();
+    screen_stack_apply(&stack, screen_action_push(&fakes[1].screen), 200);
+    CHECK(screen_stack_apply(&stack, screen_action_replace(&fakes[2].screen), 300));
+    CHECK(screen_stack_top(&stack) == &fakes[2].screen);
+    CHECK_EQUAL(2, screen_stack_depth(&stack));
+    CHECK_EQUAL(1, fakes[2].entered);
+    CHECK(!screen_stack_apply(&stack, screen_action_replace(NULL), 400));
+}
+
+static void the_root_cannot_be_replaced(void)
+{
+    ScreenStack stack = stack_with_root();
+    CHECK(!screen_stack_apply(&stack, screen_action_replace(&fakes[1].screen), 200));
+    CHECK(screen_stack_top(&stack) == &fakes[0].screen);
+}
+
 static void the_root_cannot_be_popped(void)
 {
     ScreenStack stack = stack_with_root();
@@ -128,6 +146,8 @@ int main(void)
         TEST_CASE(the_root_is_entered_and_on_top),
         TEST_CASE(pushing_enters_the_new_screen),
         TEST_CASE(popping_reenters_the_revealed_screen),
+        TEST_CASE(replacing_swaps_the_top_screen),
+        TEST_CASE(the_root_cannot_be_replaced),
         TEST_CASE(the_root_cannot_be_popped),
         TEST_CASE(pop_to_root_leaves_only_the_root),
         TEST_CASE(pop_to_root_at_the_root_changes_nothing),

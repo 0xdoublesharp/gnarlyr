@@ -198,7 +198,7 @@ static uint32_t music_count(BrowseKind kind)
 static void the_music_lists_leave_out_spoken_word(void)
 {
     start();
-    CHECK_EQUAL(7, library_count(library, LIBRARY_TRACKS));
+    CHECK_EQUAL(10, library_count(library, LIBRARY_TRACKS));
     CHECK_EQUAL(1, library_music_count(library, LIBRARY_TRACKS));
     CHECK_EQUAL(1, music_count(BROWSE_ALBUMS));
     CHECK_EQUAL(1, music_count(BROWSE_ALL_SONGS));
@@ -212,7 +212,7 @@ static void the_audiobook_shelf_lists_books(void)
 {
     start();
     BrowseScreen *books = shelf(SPOKEN_AUDIOBOOK);
-    CHECK_EQUAL(2, books->count);
+    CHECK_EQUAL(3, books->count);
     CHECK(strcmp("Audiobooks", books->title) == 0);
     CHECK(strcmp("3 chapters", detail_of(books, 0)) == 0);
 }
@@ -285,6 +285,134 @@ static void a_played_episode_says_so_in_its_show(void)
     CHECK(strcmp("Played", detail_of(episodes, 0)) == 0);
 }
 
+static BrowseQuery parts_query(void)
+{
+    BrowseQuery query = browse_root_query(BROWSE_FOLDER);
+    uint16_t books = 0;
+    BrowseItem item;
+    CHECK(spoken_shelf_folder(library, SPOKEN_AUDIOBOOK, &books));
+    browse_child(query, (BrowseItem){.kind = BROWSE_ITEM_FOLDER, .index = books}, &query);
+    CHECK(browse_item(library, query, 1, &item));
+    CHECK_EQUAL(BROWSE_ITEM_FOLDER, item.kind);
+    browse_child(query, item, &query);
+    return query;
+}
+
+static void play_part(uint32_t chapter)
+{
+    PlayerListStart list = {
+        .source = parts_query(), .position = chapter, .seed = SEED, .in_order = true};
+    CHECK(player_play_from(&player, list));
+}
+
+static uint32_t at_part(uint32_t chapter_start, uint32_t position_ms)
+{
+    return chapter_start + position_ms;
+}
+
+static void a_chaptered_file_is_a_book_of_its_own_on_the_shelf(void)
+{
+    start();
+    BrowseScreen *books = shelf(SPOKEN_AUDIOBOOK);
+    CHECK(strcmp("3 chapters", detail_of(books, 1)) == 0);
+    ScreenAction action =
+        (list_view_select(&books->list, 1, 0), press(books, KEY_GESTURE_LONG_PRESS));
+    BrowseScreen *chapters = action.target->context;
+    chapters->screen.enter(chapters, 0);
+    CHECK_EQUAL(3, chapters->count);
+    CHECK(strcmp("Noon", chapters->model.label(chapters->model.context, 1)) == 0);
+}
+
+static void a_chaptered_file_plays_its_chapters_in_order(void)
+{
+    start();
+    play_part(0);
+    CHECK(path_is(fake_hal_audio_playing_path(), SPOKEN_PARTS_PATH));
+    CHECK_EQUAL(spoken_library_chapter(library, 1), player_status(&player).track);
+    fake_hal_audio_set_position(SPOKEN_PART_ONE_MS - 10000);
+    player_skip(&player, 1);
+    CHECK_EQUAL(spoken_library_chapter(library, 2), player_status(&player).track);
+    CHECK_EQUAL(SPOKEN_PART_ONE_MS, fake_hal_audio_play_start());
+}
+
+static void holding_volume_jumps_within_a_chapter_of_a_file(void)
+{
+    start();
+    play_part(1);
+    fake_hal_audio_set_position(at_part(SPOKEN_PART_ONE_MS, 100000));
+    player_skip(&player, 1);
+    CHECK_EQUAL(at_part(SPOKEN_PART_ONE_MS, 100000 + SPOKEN_JUMP_FORWARD_MS),
+                fake_hal_audio_last_seek());
+    fake_hal_audio_set_position(at_part(SPOKEN_PART_ONE_MS, 5000));
+    player_skip(&player, -1);
+    CHECK_EQUAL(SPOKEN_PART_ONE_MS, fake_hal_audio_last_seek());
+}
+
+static void a_chaptered_book_resumes_in_its_chapter_and_position(void)
+{
+    start();
+    play_part(1);
+    follow(0);
+    fake_hal_audio_set_position(at_part(SPOKEN_PART_ONE_MS, MIDWAY_MS));
+    follow(1000);
+    play(SPOKEN_SONG_PATH, false);
+    follow(2000);
+    BrowseScreen *books = shelf(SPOKEN_AUDIOBOOK);
+    CHECK(strcmp("Chapter 2 of 3", detail_of(books, 1)) == 0);
+    list_view_select(&books->list, 1, 0);
+    ScreenAction action = press(books, KEY_GESTURE_PRESS);
+    CHECK(action.target == &now_playing);
+    CHECK_EQUAL(spoken_library_chapter(library, 2), player_status(&player).track);
+    CHECK_EQUAL(at_part(SPOKEN_PART_ONE_MS, MIDWAY_MS), fake_hal_audio_play_start());
+}
+
+static void a_loaded_chaptered_book_is_not_restarted(void)
+{
+    start();
+    play_part(2);
+    player_toggle_pause(&player);
+    BrowseScreen *books = shelf(SPOKEN_AUDIOBOOK);
+    list_view_select(&books->list, 1, 0);
+    ScreenAction action = press(books, KEY_GESTURE_PRESS);
+    CHECK(action.target == &now_playing);
+    CHECK_EQUAL(PLAYER_PLAYING, player_status(&player).state);
+    CHECK_EQUAL(1, fake_hal_audio_play_count());
+}
+
+static void a_chaptered_book_is_bookmarked_under_its_file_path(void)
+{
+    start();
+    play_part(1);
+    follow(0);
+    fake_hal_audio_set_position(at_part(SPOKEN_PART_ONE_MS, MIDWAY_MS));
+    player_toggle_pause(&player);
+    follow(1000);
+    uint32_t size = 0;
+    const uint8_t *bytes = fake_hal_file_bytes(SPOKEN_STORE_PATH, &size);
+    Bookmarks saved;
+    Bookmark found;
+    CHECK(bytes != NULL && bookmarks_decode(bytes, size, &saved));
+    CHECK(bookmarks_find(&saved, spoken_track_key(SPOKEN_PARTS_PATH), &found));
+    CHECK_EQUAL(MIDWAY_MS, found.position_ms);
+    CHECK_EQUAL(1, found.chapter);
+    CHECK_EQUAL(spoken_part_key(SPOKEN_PARTS_PATH, SPOKEN_PART_ONE_MS), found.track_key);
+}
+
+static void another_chapter_of_the_file_starts_from_its_top(void)
+{
+    start();
+    play_part(1);
+    follow(0);
+    fake_hal_audio_set_position(at_part(SPOKEN_PART_ONE_MS, MIDWAY_MS));
+    follow(1000);
+    Bookmark found;
+    CHECK(spoken_store_track(&store, spoken_library_chapter(library, 2), &found));
+    CHECK(!spoken_store_track(&store, spoken_library_chapter(library, 1), &found));
+    CHECK(!spoken_store_track(&store, spoken_library_chapter(library, 3), &found));
+    play_part(2);
+    CHECK_EQUAL(SPOKEN_PART_ONE_MS + SPOKEN_PART_TWO_MS, fake_hal_audio_play_start());
+}
+
 int main(void)
 {
     library = spoken_library_open(&spoken);
@@ -304,6 +432,13 @@ int main(void)
         TEST_CASE(selecting_a_paused_book_carries_on_playing_it),
         TEST_CASE(holding_play_on_a_book_opens_its_chapters),
         TEST_CASE(a_played_episode_says_so_in_its_show),
+        TEST_CASE(a_chaptered_file_is_a_book_of_its_own_on_the_shelf),
+        TEST_CASE(a_chaptered_file_plays_its_chapters_in_order),
+        TEST_CASE(holding_volume_jumps_within_a_chapter_of_a_file),
+        TEST_CASE(a_chaptered_book_resumes_in_its_chapter_and_position),
+        TEST_CASE(a_loaded_chaptered_book_is_not_restarted),
+        TEST_CASE(a_chaptered_book_is_bookmarked_under_its_file_path),
+        TEST_CASE(another_chapter_of_the_file_starts_from_its_top),
     };
     int result = test_run_all(cases, TEST_CASE_COUNT(cases));
     spoken_library_close(&spoken);

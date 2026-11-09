@@ -16,7 +16,7 @@
 #define PWM_CONTROL_RUN 0x00010003u
 
 enum {
-    CLEAR_ROWS = 2,
+    CLEAR_ROWS = 1,
     PWM_GATE = 0x90,
     PWM_RESET = 0x17,
     PWM_RESET_MS = 1
@@ -24,12 +24,22 @@ enum {
 
 static const GpioPin BACKLIGHT = {2, 4};
 
+static PanelRotation rotation;
 static uint8_t brightness;
 static bool backlight_on;
+static bool panel_asleep;
 static bool pwm_running;
 static uint32_t pwm_period;
 static bool ramping;
 static uint32_t ramp_started_ms;
+
+static void wake_panel(void)
+{
+    if (panel_asleep) {
+        panel_asleep = false;
+        board_panel_wake();
+    }
+}
 
 void board_display_clear(void)
 {
@@ -153,9 +163,20 @@ void board_display_start(void)
     board_display_clear();
 }
 
+void hal_display_set_rotation(HalDisplayRotation turned)
+{
+    if ((PanelRotation)turned == rotation) {
+        return;
+    }
+    rotation = (PanelRotation)turned;
+    wake_panel();
+    board_panel_set_rotation(rotation);
+}
+
 void hal_display_write(int x, int y, int width, int height, const uint16_t *pixels)
 {
-    board_panel_write((PanelWindow){x, y, width, height}, pixels);
+    wake_panel();
+    board_panel_write((PanelWindow){x, y, width, height, rotation}, pixels);
 }
 
 void hal_display_present(void)
@@ -171,10 +192,17 @@ void hal_display_set_power(bool on)
     }
     backlight_on = on;
     ramping = false;
+    if (on) {
+        wake_panel();
+    }
     if (on && !was_on) {
         start_fade_in();
     } else {
         apply_backlight();
+    }
+    if (!on && !panel_asleep) {
+        panel_asleep = true;
+        board_panel_sleep();
     }
     board_start_record_step_done();
 }

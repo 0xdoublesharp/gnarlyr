@@ -9,6 +9,7 @@
 #include "library/playlist_reader.h"
 #include "library/track_fields.h"
 #include "library/track_tags.h"
+#include "mp4_chapters.h"
 
 enum {
     ENTRY_PLAIN = 0,
@@ -41,6 +42,8 @@ typedef struct ScanState {
     uint32_t playlist_count;
     PlaylistReader playlist;
     CueSheet cue;
+    Mp4Chapters chapters;
+    char sheet_name[SCAN_NAME_CAPACITY];
     char audio_path[SCAN_PATH_CAPACITY + 2];
     char entry_text[PLAYLIST_ENTRY_CAPACITY];
     char playlist_name[SCAN_NAME_CAPACITY];
@@ -53,6 +56,9 @@ bool scan_append_path(ScanState *state, const char *name, bool directory);
 void scan_truncate_path(ScanState *state, uint32_t length);
 ScanResult scan_builder_result(BuilderResult result);
 void scan_report(const ScanJob *job, const ScanStats *stats);
+bool scan_has_suffix(const char *name, const char *suffix);
 bool scan_is_cue_name(const char *name);
+bool scan_is_chaptered_name(const char *name);
 ScanResult scan_mark_cue_targets(ScanState *state, const ScanFileSystem *files, const Level *level);
+ScanResult scan_add_chapters(ScanState *state, const ScanJob *job, ScanStats *stats);
 ScanResult scan_add_cue(ScanState *state, const ScanJob *job, ScanStats *stats, uint32_t offset);

@@ -87,77 +87,6 @@ def firmware_elf(parts, extra=()):
     return elf_file(sections)
 
 
-class StorageCodeTest(unittest.TestCase):
-    def module(self, size=128):
-        data = bytearray(size)
-        struct.pack_into("<III", data, 16, 0x49504153, make_image.STORAGE_CODE_API_VERSION, make_image.STORAGE_CODE_API_SIZE)
-        for index in range(make_image.STORAGE_CODE_FUNCTIONS):
-            struct.pack_into("<I", data, 28 + 4 * index, make_image.STORAGE_CODE_BASE + 16 + make_image.STORAGE_CODE_API_SIZE + 1)
-        return bytes(data)
-
-    def test_a_storage_module_is_crc_checked_and_bound_to_the_main_program(self):
-        source = self.module()
-        image = build(storage_code=source)
-        offset = 0x218000
-        self.assertEqual(image[offset:offset + 4], b"ESTO")
-        self.assertEqual(word(image, offset + 4), len(source))
-        self.assertEqual(word(image, offset + 8), make_image.crc32(source[16:]))
-        self.assertEqual(word(image, offset + 12), make_image.crc32(firmware().code))
-        self.assertEqual(image[offset + 16:offset + len(source)], source[16:])
-        self.assertEqual(make_image.validate_image(image), [])
-
-    def test_invalid_size_abi_and_function_targets_are_refused(self):
-        for size in (68, make_image.STORAGE_CODE_CAPACITY + 4):
-            with self.assertRaises(make_image.ImageError):
-                build(storage_code=bytes(size))
-        for offset, value in ((20, 99), (24, 52), (28, 0), (28, 0x03050101),
-                              (28, 0x0308F048), (28, 0x0308F081)):
-            module = bytearray(self.module())
-            struct.pack_into("<I", module, offset, value)
-            with self.assertRaises(make_image.ImageError):
-                build(storage_code=bytes(module))
-
-    def test_storage_code_does_not_change_the_boot_rom_scatter_table_or_fw1_end(self):
-        original = build()
-        with_module = build(storage_code=self.module())
-        self.assertEqual(original[0x208:make_image.PAYLOAD_OFFSET],
-                         with_module[0x208:make_image.PAYLOAD_OFFSET])
-        self.assertEqual(word(original, make_image.FW1_END_OFFSET),
-                         word(with_module, make_image.FW1_END_OFFSET))
-
-    def test_an_elf_with_private_writable_storage_is_refused(self):
-        module = self.module()
-        elf = elf_file([(".storage_code", SHT_PROGBITS, SHF_ALLOC, 0x0308F000,
-                         module, len(module))])
-        self.assertEqual(module, make_image.storage_code_from_elf(elf, firmware_elf(firmware())))
-        writable = elf_file([(".storage_code", SHT_PROGBITS, SHF_ALLOC, 0x0308F000,
-                              module, len(module)),
-                             (".bss", SHT_NOBITS, SHF_ALLOC | 1, 0x0308F100, b"", 4)])
-        with self.assertRaises(make_image.ImageError):
-            make_image.storage_code_from_elf(writable, firmware_elf(firmware()))
-
-    def test_a_module_linked_against_different_main_addresses_is_refused(self):
-        def with_symbol(sections, value, shndx):
-            symbols = bytes(16) + struct.pack("<IIIBBH", 1, value, 0, 0x12, 0, shndx)
-            index = len(sections) + 1
-            elf = bytearray(elf_file([*sections,
-                                     (".symtab", 2, 0, 0, symbols, len(symbols)),
-                                     (".strtab", SHT_STRTAB, 0, 0, b"\x00hash_update\x00", 13)]))
-            headers = make_image.ELF_HEADER.unpack_from(elf)[6]
-            struct.pack_into("<I", elf, headers + index * 40 + 24, index + 1)
-            return bytes(elf)
-
-        source = self.module()
-        sections = [(".storage_code", SHT_PROGBITS, SHF_ALLOC, 0x0308F000, source, len(source))]
-        main = with_symbol([(".code", SHT_PROGBITS, SHF_ALLOC, 0x03050000, bytes(256), 256)],
-                           0x03050101, 1)
-        linked = with_symbol(sections, 0x03050101, 0xFFF1)
-        self.assertEqual(source, make_image.storage_code_from_elf(linked, main))
-        mismatched = with_symbol(sections, 0x03050121, 0xFFF1)
-        with self.assertRaises(make_image.ImageError):
-            make_image.storage_code_from_elf(mismatched, main)
-
-
 class CrcTest(unittest.TestCase):
     def test_the_empty_crc_is_zero(self):
         self.assertEqual(0, make_image.crc32(b""))
@@ -611,9 +540,7 @@ class GlyphFaceTest(unittest.TestCase):
     def test_faces_stay_clear_of_everything_else(self):
         sizes = [1_700_000, 1_100_000, 8_000, 8_000, 8_000]
         offsets = make_image.glyph_face_offsets(sizes)
-        taken = [(make_image.STORAGE_CODE_OFFSET, make_image.STORAGE_CODE_OFFSET +
-                  make_image.STORAGE_CODE_CAPACITY),
-                 (make_image.OVERLAY_OFFSET, make_image.OVERLAY_OFFSET + make_image.OVERLAY_CAPACITY),
+        taken = [(make_image.OVERLAY_OFFSET, make_image.OVERLAY_OFFSET + make_image.OVERLAY_CAPACITY),
                  (make_image.CORE1_MP3_OFFSET, make_image.CORE1_MP3_OFFSET + 512 +
                   make_image.CORE1_MODULE_CAPACITY),
                  (make_image.CORE1_FLAC_OFFSET, make_image.CORE1_FLAC_OFFSET + 512 +

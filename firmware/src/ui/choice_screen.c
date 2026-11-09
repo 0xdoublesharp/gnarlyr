@@ -29,7 +29,9 @@ static ScreenAction choose_option(void *context, int index)
 {
     ChoiceScreen *choice = context;
     choice->config.choose(choice->config.context, index);
-    return screen_action_pop();
+    Screen *next =
+        choice->config.open != NULL ? choice->config.open(choice->config.context, index) : NULL;
+    return next != NULL ? screen_action_replace(next) : screen_action_pop();
 }
 
 static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)

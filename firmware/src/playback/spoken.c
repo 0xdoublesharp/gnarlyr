@@ -53,6 +53,21 @@ uint32_t spoken_track_key(const char *path)
     return hash_update(HASH_START, start, text_length(start));
 }
 
+uint32_t spoken_part_key(const char *path, uint32_t start_ms)
+{
+    uint32_t key = spoken_track_key(path);
+    for (int shift = 0; start_ms != 0 && shift < 32; shift += 8) {
+        uint8_t byte = (uint8_t)(start_ms >> shift);
+        key = hash_update(key, &byte, 1);
+    }
+    return key;
+}
+
+static bool is_part(const LibraryTrack *track)
+{
+    return track->start_ms != 0 || track->end_ms != 0;
+}
+
 uint32_t spoken_bookmark_key(const char *path)
 {
     const char *start = relative(path);
@@ -70,6 +85,11 @@ bool spoken_near_end(uint32_t position_ms, uint32_t duration_ms)
     uint32_t margin = duration_ms / SPOKEN_FINISH_DIVISOR;
     margin = margin < SPOKEN_FINISH_MARGIN_MS ? margin : SPOKEN_FINISH_MARGIN_MS;
     return position_ms + margin >= duration_ms;
+}
+
+uint32_t spoken_record_key(const char *path, const LibraryTrack *track)
+{
+    return is_part(track) ? spoken_track_key(path) : spoken_bookmark_key(path);
 }
 
 static SpokenKind folder_kind(const Library *library, uint16_t folder)
@@ -115,22 +135,47 @@ bool spoken_folder_key(const Library *library, uint16_t folder, uint32_t *key)
 {
     uint16_t track = 0;
     LibraryTrack record;
+    LibraryFolder sheet;
     char path[PATH_CAPACITY];
     if (!spoken_chapter_track(library, folder, 0, &track) ||
         !library_read_track(library, track, &record) ||
+        !library_read_folder(library, folder, &sheet) ||
         !library_read_string(library, record.path, path, sizeof path)) {
         return false;
     }
-    *key = hash_update(HASH_START, relative(path), last_slash(relative(path)));
+    bool whole = (sheet.flags & LIBRARY_FOLDER_SHEET) != 0;
+    *key = hash_update(HASH_START, relative(path),
+                       whole ? text_length(relative(path)) : last_slash(relative(path)));
     return true;
+}
+
+bool spoken_folder_holds(const Library *library, uint16_t folder, uint16_t track)
+{
+    LibraryFolder record;
+    if (!library_read_folder(library, folder, &record)) {
+        return false;
+    }
+    for (uint16_t index = 0; index < record.track_count; index++) {
+        uint16_t candidate = 0;
+        if (spoken_chapter_track(library, folder, index, &candidate) && candidate == track) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool spoken_chapter_of(const Library *library, uint16_t track, uint16_t *chapter)
 {
     LibraryTrack record;
     LibraryFolder folder;
-    if (!library_read_track(library, track, &record) ||
-        !library_read_folder(library, record.folder, &folder)) {
+    if (!library_read_track(library, track, &record)) {
+        return false;
+    }
+    if (is_part(&record)) {
+        *chapter = (uint16_t)(record.number > 0 ? record.number - 1 : 0);
+        return true;
+    }
+    if (!library_read_folder(library, record.folder, &folder)) {
         return false;
     }
     for (uint16_t index = 0; index < folder.track_count; index++) {

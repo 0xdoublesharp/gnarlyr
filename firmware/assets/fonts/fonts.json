@@ -93,6 +93,90 @@
         ]
       ],
       "pack_face": "inter_semibold_22"
+    },
+    {
+      "name": "inter_regular_18",
+      "file": "inter/Inter-Regular.ttf",
+      "size": 18,
+      "packed": true,
+      "extra_ranges": [
+        [
+          160,
+          255
+        ],
+        [
+          1024,
+          1119
+        ],
+        [
+          1168,
+          1169
+        ]
+      ],
+      "pack_face": "inter_regular_18"
+    },
+    {
+      "name": "inter_semibold_18",
+      "file": "inter/Inter-SemiBold.ttf",
+      "size": 18,
+      "packed": true,
+      "extra_ranges": [
+        [
+          160,
+          255
+        ],
+        [
+          1024,
+          1119
+        ],
+        [
+          1168,
+          1169
+        ]
+      ],
+      "pack_face": "inter_semibold_18"
+    },
+    {
+      "name": "inter_regular_26",
+      "file": "inter/Inter-Regular.ttf",
+      "size": 26,
+      "packed": true,
+      "extra_ranges": [
+        [
+          160,
+          255
+        ],
+        [
+          1024,
+          1119
+        ],
+        [
+          1168,
+          1169
+        ]
+      ],
+      "pack_face": "inter_regular_26"
+    },
+    {
+      "name": "inter_semibold_26",
+      "file": "inter/Inter-SemiBold.ttf",
+      "size": 26,
+      "packed": true,
+      "extra_ranges": [
+        [
+          160,
+          255
+        ],
+        [
+          1024,
+          1119
+        ],
+        [
+          1168,
+          1169
+        ]
+      ],
+      "pack_face": "inter_semibold_26"
     }
   ]
 }

@@ -1,7 +1,5 @@
 #include "hal/system.h"
 #include "library/library_scan.h"
-#include "mixtape_ui.h"
-#include "playback/mix_api.h"
 
 enum {
     BOOT_CLOCK_MHZ = 24
@@ -67,7 +65,7 @@ HalHighRamTest hal_system_high_ram_test(void)
 
 void *hal_system_borrow_scratch(uint32_t *size)
 {
-    _Alignas(uint32_t) static uint8_t scratch[384 * 1024];
+    static uint8_t scratch[384 * 1024];
     *size = sizeof scratch;
     return scratch;
 }
@@ -89,6 +87,11 @@ void hal_system_stall_test(void)
 
 void hal_system_keep_alive(void)
 {
+}
+
+uint32_t hal_system_idle_microseconds(void)
+{
+    return 0;
 }
 
 HalLoopCycles hal_system_loop_cycles(void)
@@ -113,14 +116,4 @@ HalStartInfo hal_system_start_info(void)
 
 void hal_system_watchdog_test(void)
 {
-}
-
-const void *hal_system_mixtape_api(void)
-{
-    return mix_code_api();
-}
-
-const void *hal_system_mixtape_ui(void)
-{
-    return mixtape_ui_api();
 }

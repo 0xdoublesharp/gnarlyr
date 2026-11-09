@@ -6,6 +6,8 @@
 #include "core/key.h"
 #include "hal/audio.h"
 #include "hal/bluetooth.h"
+#include "hal/display.h"
+#include "hal/input.h"
 #include "hal/power.h"
 #include "hal/storage.h"
 
@@ -13,6 +15,8 @@ void fake_hal_reset(void);
 void fake_hal_set_version(const char *version);
 void fake_hal_add_file(const char *path, const uint8_t *bytes, uint32_t size);
 void fake_hal_replace_music_volume(void);
+void fake_hal_add_eq_file(const char *name, const char *text);
+void fake_hal_clear_eq_files(void);
 const uint8_t *fake_hal_internal_file_bytes(const char *path, uint32_t *size);
 void fake_hal_set_milliseconds(uint32_t now_ms);
 void fake_hal_set_microseconds_per_read(uint32_t step_us);
@@ -49,6 +53,7 @@ int fake_hal_bluetooth_connect_count(void);
 const HalBluetoothDevice *fake_hal_bluetooth_connect_target(void);
 int fake_hal_bluetooth_disconnect_count(void);
 void fake_hal_queue_transition(Key key, bool pressed, uint32_t time_ms);
+void fake_hal_queue_headset_command(HalHeadsetCommand command);
 uint16_t fake_hal_pixel(int x, int y);
 const char *fake_hal_audio_playing_path(void);
 uint32_t fake_hal_audio_play_start(void);
@@ -56,6 +61,7 @@ uint32_t fake_hal_audio_play_end(void);
 uint32_t fake_hal_audio_queued_start(void);
 uint32_t fake_hal_audio_queued_end(void);
 int fake_hal_audio_play_count(void);
+int fake_hal_audio_release_count(void);
 const char *fake_hal_audio_queued_path(void);
 void fake_hal_audio_finish_track(void);
 void fake_hal_audio_fail_track(void);
@@ -71,18 +77,19 @@ uint32_t fake_hal_audio_last_seek(void);
 uint8_t fake_hal_audio_volume(void);
 int fake_hal_audio_state(void);
 int fake_hal_write_count(void);
-void fake_hal_fail_music_writes(bool failed);
-void fake_hal_fail_file_writes(const char *path);
 long fake_hal_pixels_written(void);
 int fake_hal_present_count(void);
 bool fake_hal_display_on(void);
+HalDisplayRotation fake_hal_display_rotation(void);
 int fake_hal_presents_at_power_on(void);
 uint8_t fake_hal_display_brightness(void);
 void fake_hal_set_battery(HalBattery battery);
 int fake_hal_power_off_count(void);
+int fake_hal_audio_state_at_power_off(void);
 void fake_hal_set_usb_start(bool started);
 int fake_hal_audio_gain(void);
 int fake_hal_audio_output(void);
+HalAudioEqualizer fake_hal_audio_equalizer(void);
 int fake_hal_usb_mode(void);
 int fake_hal_dac_volume(void);
 const uint8_t *fake_hal_file_bytes(const char *path, uint32_t *size);

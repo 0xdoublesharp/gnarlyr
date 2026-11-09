@@ -383,8 +383,33 @@ static uint32_t find_by_suffix(BuilderState *state, Prepared *prepared)
     return best.at_score == 1 ? best.position : BUILDER_UNSET;
 }
 
-uint32_t builder_resolve_entry(BuilderState *state, Prepared *prepared, const char *folder,
-                               const char *entry)
+static uint32_t row_start(BuilderState *state, Prepared *prepared, uint32_t position)
+{
+    TrackRow row;
+    if (!builder_read_row(&prepared->rows, state, prepared->positions[position], &row)) {
+        return BUILDER_ANY_START;
+    }
+    return row.start_ms;
+}
+
+static uint32_t pick_part(BuilderState *state, Prepared *prepared, uint32_t position,
+                          uint32_t start_ms)
+{
+    ResolveScratch *scratch = scratch_of(prepared);
+    uint32_t length = builder_folded_path(state, prepared, position, scratch->normal);
+    uint32_t hash = folded_name_hash(state, prepared, position, scratch->folded);
+    for (uint16_t link = prepared->by_name[hash & prepared->by_name_mask]; link != EMPTY_SLOT;
+         link = prepared->next_same_name[link - 1]) {
+        if (row_start(state, prepared, link - 1u) == start_ms &&
+            same_folded_path(state, prepared, link - 1u, scratch->normal, length)) {
+            return link - 1u;
+        }
+    }
+    return position;
+}
+
+static uint32_t resolve_path(BuilderState *state, Prepared *prepared, const char *folder,
+                             const char *entry)
 {
     ResolveScratch *scratch = scratch_of(prepared);
     if (contains_url(entry)) {
@@ -405,4 +430,14 @@ uint32_t builder_resolve_entry(BuilderState *state, Prepared *prepared, const ch
     }
     uint32_t parts = fold_parts(&scratch->raw, scratch->entry, length, &scratch->wanted);
     return parts > 0 ? find_by_suffix(state, prepared) : BUILDER_UNSET;
+}
+
+uint32_t builder_resolve_entry(BuilderState *state, Prepared *prepared, const char *folder,
+                               const char *entry, uint32_t start_ms)
+{
+    uint32_t found = resolve_path(state, prepared, folder, entry);
+    if (found == BUILDER_UNSET || start_ms == BUILDER_ANY_START) {
+        return found;
+    }
+    return pick_part(state, prepared, found, start_ms);
 }

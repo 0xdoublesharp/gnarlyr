@@ -52,15 +52,29 @@ static bool item_opens(const void *context, int index)
     return shown_item(context, index)->opens;
 }
 
-static uint8_t item_icon(const void *context, int index)
-{
-    return shown_item(context, index)->icon;
-}
-
 static ScreenAction select_item(void *context, int index)
 {
     const MenuItem *item = shown_item(context, index);
     return item->select != NULL ? item->select(item->context) : screen_action_none();
+}
+
+static bool panel_below(const MenuScreen *menu)
+{
+    const MenuPanel *panel = &menu->config.panel;
+    return panel->width > 0 && panel->draw != NULL && theme_is_portrait(menu->config.theme);
+}
+
+static void fit_list(MenuScreen *menu)
+{
+    const Theme *theme = menu->config.theme;
+    int rows = theme_visible_rows(theme);
+    if (panel_below(menu)) {
+        int room = (theme_content_area(theme).height - menu->config.panel.min_height) /
+                   theme->metrics.row_height;
+        int count = item_count(menu);
+        rows = count < room ? count : room;
+    }
+    list_view_fit_rows(&menu->list, rows > 0 ? rows : 1);
 }
 
 static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
@@ -74,6 +88,7 @@ static void enter(void *context, uint32_t now_ms)
 {
     MenuScreen *menu = context;
     menu->now_ms = now_ms;
+    fit_list(menu);
     list_view_restart_marquee(&menu->list, now_ms);
 }
 
@@ -81,6 +96,7 @@ static void update(void *context, uint32_t now_ms)
 {
     MenuScreen *menu = context;
     menu->now_ms = now_ms;
+    fit_list(menu);
     const MenuPanel *panel = &menu->config.panel;
     if (panel->width > 0 && panel->update != NULL) {
         panel->update(panel->context, now_ms);
@@ -100,6 +116,11 @@ static void draw(void *context, Canvas *canvas)
     }
     Rect list = {content.x, content.y, content.width - panel->width, content.height};
     Rect side = {list.x + list.width, content.y, panel->width, content.height};
+    if (panel_below(menu)) {
+        list = (Rect){content.x, content.y, content.width,
+                      menu->list.visible_rows * theme->metrics.row_height};
+        side = (Rect){content.x, list.y + list.height, content.width, content.height - list.height};
+    }
     list_view_draw(&menu->list, canvas, list, menu->now_ms);
     panel->draw(panel->context, canvas, side);
 }
@@ -111,8 +132,7 @@ Screen *menu_screen_init(MenuScreen *menu, MenuConfig config)
                               .count = item_count,
                               .label = item_label,
                               .detail = item_value,
-                              .opens = item_opens,
-                              .icon = item_icon};
+                              .opens = item_opens};
     list_view_init(&menu->list, &menu->model, config.theme, 0);
     menu->screen = (Screen){
         .title = config.title,

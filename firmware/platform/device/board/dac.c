@@ -94,7 +94,8 @@ enum {
     I2S_RESET_MS = 1,
     I2S_CLEAR_MS = 2,
     ACODEC_SETTLE_MS = 5,
-    FADE_STEP_US = 2000
+    FADE_STEP_US = 2000,
+    FADE_IN_FLOOR = 80
 };
 
 typedef enum I2cStage {
@@ -540,8 +541,18 @@ void dac_path_set_muted(bool mute)
         dac_set_muted(&BUS, true, DAC_VOLUME_MUTED);
         return;
     }
+    uint8_t target = current_volume();
+    if (applied_volume == DAC_VOLUME_MUTED && target < DAC_VOLUME_MUTED - FADE_IN_FLOOR) {
+        applied_volume = (uint8_t)(target + FADE_IN_FLOOR);
+    }
     dac_set_muted(&BUS, false, applied_volume);
-    fade_to(current_volume());
+    fade_to(target);
+}
+
+void dac_path_fade_out(void)
+{
+    muted = true;
+    fade_to(DAC_VOLUME_MUTED);
 }
 
 void dac_path_set_volume(uint8_t value)

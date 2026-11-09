@@ -1,12 +1,13 @@
 #include "home_art.h"
 
-#include "cassette_art.h"
 #include "gfx/image.h"
-#include "ui/label.h"
 
 enum {
-    COVER_MARGIN_TOP = 8
+    COVER_MARGIN_TOP = 8,
+    REFLECTION_LIGHT = 80
 };
+
+static const Color PANEL_BACKGROUND = COLOR_RGB(8, 8, 10);
 
 void home_art_init(HomeArt *art, CoverCache *covers, const LibraryStore *store, Player *player,
                    const Theme *theme)
@@ -80,60 +81,23 @@ void home_art_update(void *context, uint32_t now_ms)
     cover_cache_load_full(art->covers, art->album);
 }
 
-static void draw_caption(const HomeArt *art, Canvas *canvas, Rect area)
-{
-    PlayerStatus status = player_status(art->player);
-    const char *caption = status.state == PLAYER_PLAYING ? "NOW PLAYING" : "PAUSED";
-    if (!status.has_track) {
-        caption = art->has_album ? "ALBUM COLLECTION" : "READY FOR MUSIC";
-    }
-    TextStyle style = {.font = art->theme->fonts.small, .color = art->theme->colors.header_text};
-    Rect row = {area.x + 4, area.y + area.height - 22, area.width - 8, 18};
-    label_draw(canvas, style, (Label){label_centered_area(style.font, row, caption), caption});
-}
-
-static void draw_horizon(Canvas *canvas, Rect area, const Theme *theme)
-{
-    int top = area.y + COVER_MARGIN_TOP + COVER_FULL_SIZE + 12;
-    int bottom = area.y + area.height - 26;
-    Color grid = color_blend(theme->colors.divider, theme->colors.selection_shine, 5);
-    for (int step = 1; step <= 4; step++) {
-        int y = top + step * step * 2;
-        if (y < bottom) {
-            canvas_fill_rect(canvas, (Rect){area.x + 8, y, area.width - 16, 1}, grid);
-        }
-    }
-    int start = canvas->clip.y > top ? canvas->clip.y : top;
-    int end = canvas->clip.y + canvas->clip.height;
-    for (int y = start; y < bottom && y < end; y++) {
-        for (int ray = -2; ray <= 2; ray++) {
-            int x = area.x + area.width / 2 + ray * (y - top + 3);
-            canvas_fill_rect(canvas, (Rect){x, y, 1, 1}, grid);
-        }
-    }
-}
-
 void home_art_draw(void *context, Canvas *canvas, Rect area)
 {
     const HomeArt *art = context;
-    canvas_fill_rect(canvas, area, art->theme->colors.header_background);
-    canvas_fill_rect(canvas, (Rect){area.x, area.y, 1, area.height}, art->theme->colors.divider);
-    draw_horizon(canvas, area, art->theme);
-    int left = area.x + (area.width - COVER_FULL_SIZE) / 2;
-    int top = area.y + COVER_MARGIN_TOP;
+    bool below = theme_is_portrait(art->theme);
+    Rect divider =
+        below ? (Rect){area.x, area.y, area.width, 1} : (Rect){area.x, area.y, 1, area.height};
+    canvas_fill_rect(canvas, area, PANEL_BACKGROUND);
+    canvas_fill_rect(canvas, divider, art->theme->colors.divider);
     Image cover;
-    if (art->has_album && cover_cache_full(art->covers, art->album, &cover) == COVER_LOADED) {
-        canvas_fill_rect(canvas,
-                         (Rect){left - 2, top - 2, COVER_FULL_SIZE + 4, COVER_FULL_SIZE + 4},
-                         art->theme->colors.selection_background);
-        image_draw_quad(canvas, cover,
-                        (Quad){left, COVER_FULL_SIZE, top, COVER_FULL_SIZE, top, COVER_FULL_SIZE});
-    } else {
-        PlayerStatus status = player_status(art->player);
-        CassetteTape tape = {status.position_ms, status.duration_ms, "PODIUM"};
-        Rect cassette = {left, top + (COVER_FULL_SIZE - CASSETTE_HEIGHT) / 2, CASSETTE_WIDTH,
-                         CASSETTE_HEIGHT};
-        cassette_art_draw(canvas, cassette, art->theme, tape);
+    if (!art->has_album || cover_cache_full(art->covers, art->album, &cover) != COVER_LOADED) {
+        return;
     }
-    draw_caption(art, canvas, area);
+    int left = area.x + (area.width - COVER_FULL_SIZE) / 2;
+    int top = area.y + (below ? (area.height - COVER_FULL_SIZE) / 2 : COVER_MARGIN_TOP);
+    Quad quad = {left, COVER_FULL_SIZE, top, COVER_FULL_SIZE, top, COVER_FULL_SIZE};
+    image_draw_quad(canvas, cover, quad);
+    int rows = area.y + area.height - (top + COVER_FULL_SIZE);
+    image_draw_reflection(canvas, cover, quad, (QuadLight){REFLECTION_LIGHT, REFLECTION_LIGHT},
+                          rows);
 }

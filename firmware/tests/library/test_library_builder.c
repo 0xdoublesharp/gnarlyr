@@ -205,7 +205,7 @@ static char *next_field(char **cursor)
 
 static BuilderTrack parse_track(char **cursor)
 {
-    BuilderTrack parsed;
+    BuilderTrack parsed = {.sheet = NULL};
     parsed.path = next_field(cursor);
     parsed.title = next_field(cursor);
     parsed.artist = next_field(cursor);
@@ -231,7 +231,8 @@ static void add_tsv_line(LibraryBuilder *builder, char **cursor)
         CHECK_EQUAL(BUILDER_OK, library_builder_begin_playlist(builder, name, folder));
     } else if (**cursor == '\t') {
         (*cursor)++;
-        CHECK_EQUAL(BUILDER_OK, library_builder_playlist_entry(builder, next_field(cursor)));
+        CHECK_EQUAL(BUILDER_OK,
+                    library_builder_playlist_entry(builder, next_field(cursor), BUILDER_ANY_START));
     } else {
         BuilderTrack parsed = parse_track(cursor);
         CHECK_EQUAL(BUILDER_OK, library_builder_add_track(builder, &parsed));
@@ -272,11 +273,67 @@ static void the_fixture_playlist_resolves_like_the_pc_indexer(void)
         "../Bj\xc3\xb6rk/Homogenic/02 - J\xc3\xb3ga.flac",
     };
     for (size_t index = 0; index < sizeof entries / sizeof entries[0]; index++) {
-        CHECK_EQUAL(BUILDER_OK, library_builder_playlist_entry(&builder, entries[index]));
+        CHECK_EQUAL(BUILDER_OK,
+                    library_builder_playlist_entry(&builder, entries[index], BUILDER_ANY_START));
     }
     Built built;
     finish(&builder, &built);
     check_means_fixture(&built, "small_library.db");
+}
+
+static BuilderTrack part_of(const char *title, uint8_t number, uint32_t start, uint32_t end)
+{
+    BuilderTrack part =
+        track("Cue/Album/Album.flac", title, "Band", "Band", "Album", "Rock", 1990, number);
+    part.start_ms = start;
+    part.end_ms = end;
+    return part;
+}
+
+static uint16_t playlist_link(const Library *library, uint32_t index)
+{
+    LibraryGroup group;
+    uint16_t link = 0;
+    CHECK(library_read_group(library, LIBRARY_PLAYLISTS, 0, &group));
+    CHECK(index < group.link_count);
+    CHECK(library_read_index(library, LIBRARY_LINKS, group.first_link + index, &link));
+    return link;
+}
+
+static void a_start_in_a_playlist_entry_picks_the_cue_part(void)
+{
+    LibraryBuilder builder;
+    start(&builder);
+    BuilderTrack tracks[] = {part_of("One", 1, 0, 1000), part_of("Two", 2, 1000, 2493),
+                             part_of("Three", 3, 2493, 0)};
+    for (size_t index = 0; index < 3; index++) {
+        CHECK_EQUAL(BUILDER_OK, library_builder_add_track(&builder, &tracks[index]));
+    }
+    CHECK_EQUAL(BUILDER_OK, library_builder_begin_playlist(&builder, "Mix", ""));
+    static const char PATH[] = "cue/album/ALBUM.flac";
+    static const uint32_t STARTS[] = {1000, 0, 2493, BUILDER_ANY_START, 777};
+    for (size_t index = 0; index < sizeof STARTS / sizeof STARTS[0]; index++) {
+        CHECK_EQUAL(BUILDER_OK, library_builder_playlist_entry(&builder, PATH, STARTS[index]));
+    }
+    CHECK_EQUAL(BUILDER_OK, library_builder_playlist_entry(&builder, "Cue/Missing.flac", 1000));
+    Built built;
+    finish(&builder, &built);
+    CHECK_EQUAL(BUILDER_OK, built.result);
+    MemorySource memory = {.bytes = built.output.bytes, .size = built.length};
+    Library library;
+    CHECK_EQUAL(LIBRARY_OK, library_open(&library, memory_source(&memory), built.length));
+    LibraryGroup group;
+    CHECK(library_read_group(&library, LIBRARY_PLAYLISTS, 0, &group));
+    CHECK_EQUAL(5u, group.link_count);
+    char title[16];
+    static const char *const WANTED[] = {"Two", "One", "Three", "Three", "Three"};
+    for (uint32_t index = 0; index < 5; index++) {
+        LibraryTrack found;
+        CHECK(library_read_track(&library, playlist_link(&library, index), &found));
+        CHECK(library_read_string(&library, found.title, title, sizeof title));
+        CHECK_EQUAL(0, strcmp(WANTED[index], title));
+    }
+    free(built.output.bytes);
 }
 
 static void random_playlists_resolve_like_the_pc_indexer(void)
@@ -338,7 +395,8 @@ static BuilderResult add_library(LibraryBuilder *builder, const RandomLibrary *l
         BuilderResult result =
             library_builder_begin_playlist(builder, playlist->name, playlist->folder);
         for (uint32_t entry = 0; result == BUILDER_OK && entry < playlist->count; entry++) {
-            result = library_builder_playlist_entry(builder, playlist->entries[entry]);
+            result = library_builder_playlist_entry(builder, playlist->entries[entry],
+                                                    BUILDER_ANY_START);
         }
         if (result != BUILDER_OK) {
             return result;
@@ -572,6 +630,7 @@ int main(void)
         TEST_CASE(random_tracks_mean_the_same_as_the_pc_indexer),
         TEST_CASE(the_fixture_playlist_resolves_like_the_pc_indexer),
         TEST_CASE(random_playlists_resolve_like_the_pc_indexer),
+        TEST_CASE(a_start_in_a_playlist_entry_picks_the_cue_part),
         TEST_CASE(random_libraries_match_the_reference_builder),
         TEST_CASE(a_20000_track_library_builds_in_the_players_memory),
         TEST_CASE(the_builder_stays_inside_its_memory),

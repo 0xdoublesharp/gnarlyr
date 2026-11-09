@@ -61,11 +61,11 @@ static void a_paused_player_shows_two_bars(void)
     Canvas canvas = draw_status(&theme, (StatusBarState){.playback = STATUS_PLAYBACK_PAUSED});
     Rect icon = status_bar_playback_area(&theme);
     Rect first = {icon.x, icon.y, 1, icon.height};
-    Rect gap = {icon.x + icon.width / 2 - 1, icon.y, 1, icon.height};
-    Rect second = {icon.x + icon.width / 2, icon.y, 1, icon.height};
+    Rect gap = {icon.x + 2, icon.y, 3, icon.height};
+    Rect last = {icon.x + icon.width - 1, icon.y, 1, icon.height};
     CHECK(ui_test_area_has_only(&canvas, first, theme.colors.header_text));
     CHECK(!ui_test_area_has_color(&canvas, gap, theme.colors.header_text));
-    CHECK(ui_test_area_has_only(&canvas, second, theme.colors.header_text));
+    CHECK(ui_test_area_has_only(&canvas, last, theme.colors.header_text));
 }
 
 static void the_battery_sits_inside_the_right_inset(void)
@@ -164,9 +164,23 @@ static void the_percentage_moves_left_of_the_bolt_while_charging(void)
     CHECK(!ui_test_area_has_only(&canvas, percent, theme.colors.header_background));
 }
 
+static void a_locked_player_shows_a_padlock(void)
+{
+    Theme theme = status_theme();
+    Rect lock = status_bar_lock_area(&theme);
+    Canvas unlocked = draw_status(&theme, (StatusBarState){.playback = STATUS_PLAYBACK_NONE});
+    CHECK(!ui_test_area_has_color(&unlocked, lock, theme.colors.header_text));
+    Canvas locked =
+        draw_status(&theme, (StatusBarState){.playback = STATUS_PLAYBACK_NONE, .locked = true});
+    Rect body = {lock.x, lock.y + lock.height - 1, lock.width, 1};
+    CHECK(ui_test_area_has_only(&locked, body, theme.colors.header_text));
+    CHECK(lock.x > status_bar_bluetooth_area(&theme).x);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_locked_player_shows_a_padlock),
         TEST_CASE(the_percentage_reads_as_a_number_and_a_percent_sign),
         TEST_CASE(the_percentage_sits_just_left_of_the_battery),
         TEST_CASE(a_known_battery_shows_its_percentage),

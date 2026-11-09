@@ -18,16 +18,7 @@ FW_SIZE_OFFSET = 0x1F4
 CODE_BASE = 0x03050000
 OVERLAY_OFFSET = 0x200000
 OVERLAY_BASE = 0x0307A000
-OVERLAY_CAPACITY = 0x15000
-STORAGE_CODE_OFFSET = 0x218000
-STORAGE_CODE_BASE = 0x0308F000
-STORAGE_CODE_CAPACITY = 0x4000
-STORAGE_CODE_HEADER_SIZE = 16
-STORAGE_CODE_MAGIC = b"ESTO"
-STORAGE_CODE_API_MAGIC = b"SAPI"
-STORAGE_CODE_API_VERSION = 3
-STORAGE_CODE_FUNCTIONS = 13
-STORAGE_CODE_API_SIZE = 12 + 4 * STORAGE_CODE_FUNCTIONS
+OVERLAY_CAPACITY = 0x18000
 OVERLAY_HEADER_SIZE = 16
 OVERLAY_MAGIC = b"EOVL"
 CORE1_MP3_OFFSET = 0x240000
@@ -45,8 +36,7 @@ GLYPH_PAYLOAD_LIMIT = 0x30000
 GLYPH_REGIONS = (
     (GLYPH_PAYLOAD_LIMIT, OVERLAY_OFFSET),
     (GLYPH_TABLE_OFFSET + GLYPH_TABLE_SIZE, FW_SIZE),
-    (OVERLAY_OFFSET + OVERLAY_CAPACITY, STORAGE_CODE_OFFSET),
-    (STORAGE_CODE_OFFSET + STORAGE_CODE_CAPACITY, CORE1_MP3_OFFSET),
+    (OVERLAY_OFFSET + OVERLAY_CAPACITY, CORE1_MP3_OFFSET),
     (CORE1_MP3_OFFSET + CORE1_MODULE_HEADER_SIZE + CORE1_MODULE_CAPACITY, CORE1_FLAC_OFFSET),
 )
 TABLE_CAPACITY = 91
@@ -106,7 +96,6 @@ class ImageParts:
     core1_flac: bytes = b""
     glyph_faces: tuple = ()
     core1_m4a: bytes = b""
-    storage_code: bytes = b""
 
 
 def crc_table():
@@ -196,7 +185,6 @@ def assemble(parts):
     image[FW_SIZE:FW_SIZE + HEADER_SIZE] = image[:HEADER_SIZE]
     image[MARKER_OFFSET:MARKER_OFFSET + MARKER_SIZE] = parts.marker
     place_overlay(image, parts)
-    place_storage_code(image, parts)
     place_core1_module(image, parts.core1_mp3, CORE1_MP3_OFFSET)
     place_core1_module(image, parts.core1_flac, CORE1_FLAC_OFFSET)
     place_core1_module(image, parts.core1_m4a, CORE1_M4A_OFFSET, CORE1_M4A_CAPACITY)
@@ -216,33 +204,6 @@ def place_overlay(image, parts):
         raise ImageError("the payload reaches the overlay")
     header = OVERLAY_MAGIC + struct.pack("<III", len(overlay), crc32(overlay[OVERLAY_HEADER_SIZE:]), 0)
     image[OVERLAY_OFFSET:OVERLAY_OFFSET + len(overlay)] = header + overlay[OVERLAY_HEADER_SIZE:]
-
-
-def check_storage_code(program):
-    minimum = STORAGE_CODE_HEADER_SIZE + STORAGE_CODE_API_SIZE
-    if len(program) < minimum or len(program) > STORAGE_CODE_CAPACITY or len(program) % 4:
-        raise ImageError("storage code is outside its reserved RAM capacity")
-    magic, version, size = struct.unpack_from("<4sII", program, STORAGE_CODE_HEADER_SIZE)
-    if (magic, version, size) != (STORAGE_CODE_API_MAGIC, STORAGE_CODE_API_VERSION,
-                                  STORAGE_CODE_API_SIZE):
-        raise ImageError("storage code has an incompatible entry table")
-    for index in range(STORAGE_CODE_FUNCTIONS):
-        function = word(program, STORAGE_CODE_HEADER_SIZE + 12 + 4 * index)
-        if not function & 1 or not STORAGE_CODE_BASE + minimum <= function & ~1 < STORAGE_CODE_BASE + len(program):
-            raise ImageError("storage code entry points outside its executable payload")
-
-
-def place_storage_code(image, parts):
-    program = parts.storage_code
-    if not program:
-        return
-    check_storage_code(program)
-    code_size = parts.rows[0][2]
-    code = parts.payload[CODE_OFFSET - PAYLOAD_OFFSET:CODE_OFFSET - PAYLOAD_OFFSET + code_size]
-    header = STORAGE_CODE_MAGIC + struct.pack("<III", len(program),
-                                              crc32(program[STORAGE_CODE_HEADER_SIZE:]),
-                                              crc32(code))
-    image[STORAGE_CODE_OFFSET:STORAGE_CODE_OFFSET + len(program)] = header + program[STORAGE_CODE_HEADER_SIZE:]
 
 
 def place_core1_module(image, program, offset, capacity=CORE1_MODULE_CAPACITY):
@@ -370,7 +331,7 @@ def generated_header(version):
 
 
 def build_image(firmware, brand, build_tag, date, overlay=b"", core1_mp3=b"", core1_flac=b"",
-                version=DEFAULT_VERSION, glyph_faces=(), core1_m4a=b"", storage_code=b""):
+                version=DEFAULT_VERSION, glyph_faces=(), core1_m4a=b""):
     check_firmware(firmware)
     code_size, data_size = len(firmware.code), len(firmware.data)
     header = generated_header(version)
@@ -387,7 +348,7 @@ def build_image(firmware, brand, build_tag, date, overlay=b"", core1_mp3=b"", co
     rows += [(0, 0, 0, 0)] * (TABLE_CAPACITY - len(rows))
     return assemble(ImageParts(bytes(header), tuple(rows), payload, bytes(MARKER_SIZE), overlay,
                                core1_mp3,
-                               core1_flac, tuple(glyph_faces), core1_m4a, storage_code))
+                               core1_flac, tuple(glyph_faces), core1_m4a))
 
 
 def validate_image(image):
@@ -470,44 +431,6 @@ def overlay_from_elf(elf):
     return overlay.content
 
 
-def global_symbols(elf):
-    header = ELF_HEADER.unpack_from(elf)
-    table, count = header[6], header[12]
-    sections = [ELF_SECTION.unpack_from(elf, table + index * ELF_SECTION.size)
-                for index in range(count)]
-    symbols = {}
-    for section in sections:
-        if section[1] != 2:
-            continue
-        names = sections[section[6]]
-        for position in range(section[5] // 16):
-            name, value, _, info, _, shndx = struct.unpack_from("<IIIBBH", elf, section[4] + position * 16)
-            if info >> 4 not in (1, 2) or shndx == 0 or not name:
-                continue
-            start = names[4] + name
-            label = elf[start:elf.index(b"\x00", start)].decode("ascii")
-            symbols[label] = (value, shndx)
-    return symbols
-
-
-def storage_code_from_elf(elf, main_elf):
-    sections = elf_sections(elf)
-    section = sections.get(".storage_code")
-    if section is None or section.address != STORAGE_CODE_BASE:
-        raise ImageError("storage code must start at its reserved RAM address")
-    stray = [name for name, item in sections.items()
-             if item.flags & SHF_ALLOC and item.size and name != ".storage_code"]
-    if stray:
-        raise ImageError("storage code may not own other allocated sections: " + ", ".join(stray))
-    main = global_symbols(main_elf)
-    for name, (value, shndx) in global_symbols(elf).items():
-        if shndx == 0xFFF1 and 0x03000000 <= value < 0x04000000:
-            if name not in main or value != main[name][0]:
-                raise ImageError("storage code was linked against another main image: " + name)
-    check_storage_code(section.content)
-    return section.content
-
-
 def git_output(directory, *arguments):
     result = subprocess.run(["git", "-C", str(directory), *arguments],
                             capture_output=True, text=True, check=False)
@@ -552,7 +475,6 @@ def parse_arguments(argv):
     parser.add_argument("--brand", default="PODIUM")
     parser.add_argument("--build-tag", help="defaults to the short git commit, + when dirty")
     parser.add_argument("--date", type=parse_date, help="YYYY-MM-DD; defaults to today")
-    parser.add_argument("--storage-code", type=Path, help="resident storage code ELF")
     parser.add_argument("--overlay", type=Path, help="rescan overlay ELF linked at 0x0307A000")
     parser.add_argument("--core1-mp3", type=Path, help="core 1 MP3 program, a raw binary")
     parser.add_argument("--core1-flac", type=Path, help="core 1 FLAC program, a raw binary")
@@ -568,11 +490,7 @@ def main(argv=None):
     build_tag = arguments.build_tag or default_build_tag(Path(__file__).resolve().parents[1])
     date = arguments.date or default_date()
     try:
-        main_elf = arguments.elf.read_bytes()
-        firmware = firmware_from_elf(main_elf)
-        if "board_storage_code_start" in global_symbols(main_elf) and arguments.storage_code is None:
-            raise ImageError("this main program requires --storage-code")
-        storage_code = storage_code_from_elf(arguments.storage_code.read_bytes(), main_elf) if arguments.storage_code else b""
+        firmware = firmware_from_elf(arguments.elf.read_bytes())
         overlay = overlay_from_elf(arguments.overlay.read_bytes()) if arguments.overlay else b""
         core1_mp3 = arguments.core1_mp3.read_bytes() if arguments.core1_mp3 else b""
         core1_flac = arguments.core1_flac.read_bytes() if arguments.core1_flac else b""
@@ -580,7 +498,7 @@ def main(argv=None):
         glyph_faces = [path.read_bytes() if path.exists() else b""
                        for path in arguments.glyph_face]
         image = build_image(firmware, arguments.brand, build_tag, date, overlay, core1_mp3,
-                            core1_flac, arguments.version, glyph_faces, core1_m4a, storage_code)
+                            core1_flac, arguments.version, glyph_faces, core1_m4a)
     except ImageError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
@@ -592,7 +510,7 @@ def main(argv=None):
     arguments.output.write_bytes(image)
     print(f"wrote {arguments.output} ({build_tag}): "
           f"code {len(firmware.code):,} bytes, "
-          f"overlay {len(overlay):,} bytes, storage code {len(storage_code):,} bytes, core 1 MP3 {len(core1_mp3):,} bytes, "
+          f"overlay {len(overlay):,} bytes, core 1 MP3 {len(core1_mp3):,} bytes, "
           f"core 1 FLAC {len(core1_flac):,} bytes, core 1 M4A {len(core1_m4a):,} bytes, "
           f"glyph faces {sum(len(face) for face in glyph_faces):,} bytes, "
           f".data {len(firmware.data)} bytes, .bss {firmware.bss_size:,} bytes, "

@@ -5,19 +5,19 @@
 #include "hal/storage.h"
 #include "hal/system.h"
 
-const char SETTINGS_STORE_PATH[] = "/.echo/prefs6.bin";
-static const char BUTTON_SETTINGS_PATH[] = "/.echo/prefs5.bin";
-static const char LEGACY_SETTINGS_PATH[] = "/.echo/settings.bin";
+const char SETTINGS_STORE_PATH[] = "/.echo/settings.bin";
 
 static const HalAudioGain HAL_GAINS[GAIN_LEVEL_COUNT] = {HAL_AUDIO_GAIN_LOW, HAL_AUDIO_GAIN_HIGH};
 static const HalAudioOutput HAL_OUTPUTS[OUTPUT_JACK_COUNT] = {
     HAL_AUDIO_OUTPUT_AUTO, HAL_AUDIO_OUTPUT_SINGLE_ENDED, HAL_AUDIO_OUTPUT_BALANCED};
 static const HalUsbMode HAL_USB_MODES[USB_MODE_COUNT] = {HAL_USB_MODE_STORAGE, HAL_USB_MODE_DAC};
 
-static bool read_music_volume(uint8_t *bytes, uint32_t length, const char *path)
+static const uint32_t FILE_SIZES[] = {SETTINGS_FILE_SIZE, SETTINGS_PREVIOUS_FILE_SIZE};
+
+static bool read_music_volume(uint8_t *bytes, uint32_t length)
 {
     HalFile file;
-    if (!hal_file_open(&file, path)) {
+    if (!hal_file_open(&file, SETTINGS_STORE_PATH)) {
         return false;
     }
     bool read = file.size >= length && hal_file_read(file, 0, bytes, length);
@@ -25,17 +25,17 @@ static bool read_music_volume(uint8_t *bytes, uint32_t length, const char *path)
     return read;
 }
 
-static bool read_valid(uint8_t *bytes, Settings *settings, bool internal, const char *path)
+static bool read_valid(uint8_t *bytes, Settings *settings, bool internal)
 {
-    uint32_t length = SETTINGS_FILE_SIZE;
-    bool read = internal ? hal_internal_file_read(path, bytes, length)
-                         : read_music_volume(bytes, length, path);
-    if (!read) {
-        length = SETTINGS_LEGACY_FILE_SIZE;
-        read = internal ? hal_internal_file_read(path, bytes, length)
-                        : read_music_volume(bytes, length, path);
+    for (size_t index = 0; index < sizeof FILE_SIZES / sizeof FILE_SIZES[0]; index++) {
+        uint32_t length = FILE_SIZES[index];
+        bool read = internal ? hal_internal_file_read(SETTINGS_STORE_PATH, bytes, length)
+                             : read_music_volume(bytes, length);
+        if (read && settings_decode(bytes, length, settings)) {
+            return true;
+        }
     }
-    return read && settings_decode(bytes, length, settings);
+    return false;
 }
 
 static bool same_bytes(const uint8_t *first, const uint8_t *second)
@@ -60,15 +60,11 @@ void settings_store_load(SettingsStore *store)
 {
     uint8_t bytes[SETTINGS_FILE_SIZE] = {0};
     store->has_saved = false;
-    if (read_valid(bytes, &store->settings, true, SETTINGS_STORE_PATH)) {
+    if (read_valid(bytes, &store->settings, true)) {
         remember(store, bytes);
         return;
     }
-    if (read_valid(bytes, &store->settings, true, BUTTON_SETTINGS_PATH) ||
-        read_valid(bytes, &store->settings, true, LEGACY_SETTINGS_PATH) ||
-        read_valid(bytes, &store->settings, false, SETTINGS_STORE_PATH) ||
-        read_valid(bytes, &store->settings, false, BUTTON_SETTINGS_PATH) ||
-        read_valid(bytes, &store->settings, false, LEGACY_SETTINGS_PATH)) {
+    if (read_valid(bytes, &store->settings, false)) {
         return;
     }
     store->settings = settings_defaults();
@@ -103,6 +99,17 @@ void settings_store_restore_playback(const SettingsStore *store, Player *player,
     player_set_repeat(player, settings->repeat);
 }
 
+static void apply_equalizer(const Settings *settings)
+{
+    SettingsEqualizerCurve curve = settings_equalizer_curve(settings);
+    HalAudioEqualizer equalizer = {.band_count = curve.band_count, .pre_gain = curve.pre_gain};
+    for (int band = 0; band < curve.band_count; band++) {
+        equalizer.band_hz[band] = curve.band_hz[band];
+        equalizer.gain_half_db[band] = curve.gain_half_db[band];
+    }
+    hal_audio_set_equalizer(&equalizer);
+}
+
 void settings_store_apply_hardware(const Settings *settings)
 {
     hal_display_set_brightness(settings->brightness);
@@ -110,4 +117,5 @@ void settings_store_apply_hardware(const Settings *settings)
     hal_audio_set_output(HAL_OUTPUTS[settings->output]);
     hal_system_set_usb_mode(HAL_USB_MODES[settings->usb_mode]);
     hal_system_set_dac_volume(settings->dac_volume);
+    apply_equalizer(settings);
 }

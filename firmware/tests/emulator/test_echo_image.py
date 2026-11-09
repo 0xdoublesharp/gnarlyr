@@ -37,6 +37,17 @@ PWM_CONTROL = 0x0C
 PWM_RUN = 0x10003
 GPIO_DATA = 0x00
 MADCTL_CHOICES = (0x28, 0x68)
+MADCTL_COMMAND = 0x36
+MADCTL_SWAP = 0x20
+MADCTL_MIRROR_ROWS = 0x80
+MADCTL_MIRROR_COLUMNS = 0x40
+PORTRAIT_COLUMNS = (FIRST_ROW, FIRST_ROW + HEIGHT - 1)
+PORTRAIT_LAST_ROW = WIDTH - 1
+SETTINGS_VERSION = 10
+SETTINGS_ORIENTATION_FIELD = 26
+SETTINGS_CHECKSUM_FIELD = 28
+FNV_START = 2166136261
+FNV_PRIME = 16777619
 
 GAMMA_POSITIVE = (0xF0, 0x0B, 0x12, 0x09, 0x0A, 0x26, 0x39, 0x54, 0x4E, 0x38, 0x13, 0x13, 0x2E,
                   0x34)
@@ -54,6 +65,24 @@ def expected_init(madctl):
         (0x21, ()), (0x2A, (0x00, 0x31, 0x01, 0x0E)), (0x2B, (0x00, 0x00, 0x01, 0xDF)),
         (0x2C, ()),
     ]
+
+
+def settings_file(orientation):
+    data = bytearray(SETTINGS_CHECKSUM_FIELD + 4)
+    data[0:4] = b"EMST"
+    data[4] = SETTINGS_VERSION
+    data[6:9] = bytes((7, 2, 0))
+    data[13] = 13
+    data[14] = 2
+    data[16] = 35
+    data[19:24] = bytes((10,) * 5)
+    data[24] = 1
+    data[SETTINGS_ORIENTATION_FIELD] = orientation
+    checksum = FNV_START
+    for byte in data[:SETTINGS_CHECKSUM_FIELD]:
+        checksum = (checksum ^ byte) * FNV_PRIME & 0xFFFFFFFF
+    data[SETTINGS_CHECKSUM_FIELD:] = checksum.to_bytes(4, "little")
+    return bytes(data)
 
 
 def pin_high_index(machine, port, pin):
@@ -124,7 +153,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(init, expected_init(madctl))
         self.assertEqual(len(panel.sweeps), 2)
         clear, first = panel.sweeps
-        self.assertEqual((clear.windows, clear.nonzero), (111, 0))
+        self.assertEqual((clear.windows, clear.nonzero), (HEIGHT, 0))
         self.assertEqual(first.windows, 10)
         self.assertEqual(first.nonzero, WIDTH * HEIGHT)
         self.assertEqual(panel.painted_pixels(), WIDTH * HEIGHT)
@@ -132,14 +161,52 @@ class EchoImageTest(unittest.TestCase):
         self.assert_healthy(session)
         summary("first frame", session)
 
+    def portrait_windows(self, panel):
+        return [window for window in panel.windows if window.columns == PORTRAIT_COLUMNS and window.pixels > 0]
+
+    def boot_saved_orientation(self, orientation):
+        from echo_emulator.fat_volume import Fat32Volume
+        volume = Fat32Volume()
+        volume.add_directory(".echo")
+        volume.add_file("settings.bin", settings_file(orientation), directory=".echo")
+        session = self.session_module.Session(self.image, self.elf, volume=volume)
+        panel = session.panel
+        reason = session.machine.run(
+            until=lambda: sum(w.pixels for w in self.portrait_windows(panel)) >= WIDTH * HEIGHT,
+            until_ms=self.session_module.FRAME_LIMIT_MS)
+        self.assertEqual(reason, "condition met")
+        return session
+
+    def assert_turned_before_the_first_portrait_frame(self, session, madctl_change):
+        panel = session.panel
+        init = panel.init_commands()
+        landscape = dict(init)[MADCTL_COMMAND][0]
+        self.assertEqual(init, expected_init(landscape))
+        turns = [params for command, params in panel.groups if command == MADCTL_COMMAND][1:]
+        self.assertEqual(turns, [[madctl_change(landscape & ~MADCTL_SWAP)]])
+        first = panel.windows.index(self.portrait_windows(panel)[0])
+        for window in panel.windows[first:]:
+            self.assertEqual(window.columns, PORTRAIT_COLUMNS)
+            self.assertTrue(0 <= window.rows[0] <= window.rows[1] <= PORTRAIT_LAST_ROW)
+        self.assertEqual(max(window.rows[1] for window in panel.windows[first:]),
+                         PORTRAIT_LAST_ROW)
+        self.assert_healthy(session)
+
+    def test_a_saved_portrait_turns_the_panel_before_the_first_frame(self):
+        session = self.boot_saved_orientation(1)
+        self.assert_turned_before_the_first_portrait_frame(
+            session, lambda upright: upright ^ MADCTL_MIRROR_ROWS)
+        summary("portrait", session)
+
+    def test_a_saved_flipped_portrait_mirrors_the_other_axis(self):
+        session = self.boot_saved_orientation(2)
+        self.assert_turned_before_the_first_portrait_frame(
+            session, lambda upright: upright ^ MADCTL_MIRROR_COLUMNS)
+
     def test_normal_boot_reaches_the_home_screen_using_only_the_user_volume(self):
         session = self.session()
         self.assertEqual(session.run_to_home_screen(), "condition met")
         machine = session.machine
-        self.assertEqual(machine.read_memory(machine.symbols["storage_code_ready"], 1), b"\x01")
-        size = struct.unpack_from("<I", self.image, 0x218004)[0]
-        self.assertEqual(machine.read_memory(0x0308F000, size),
-                         self.image[0x218000:0x218000 + size])
         panel = session.panel
         self.assertEqual(len(panel.lit_sweeps()), 2)
         self.assertGreater(panel.colors(), 8)
@@ -151,117 +218,6 @@ class EchoImageTest(unittest.TestCase):
         self.assertGreater(machine.watchdog_kicks, 0)
         self.assertGreater(len(session.card.reads), 0)
         summary("home screen", session)
-
-    def test_corrupt_or_mismatched_storage_code_is_not_executed(self):
-        for offset in (0x21800C, 0x218000 + struct.unpack_from("<I", self.image, 0x218004)[0] - 1):
-            image = bytearray(self.image)
-            image[offset] ^= 1
-            session = self.session(image=bytes(image))
-            self.assertEqual(session.run_to_home_screen(), "condition met")
-            machine = session.machine
-            self.assertEqual(machine.read_memory(machine.symbols["storage_code_ready"], 1), b"\x00")
-            self.assert_only_the_user_volume_changed(session)
-            self.assert_healthy(session)
-
-    def test_storage_code_falls_back_to_a_matching_secondary_slot(self):
-        session = self.session()
-        sector = bytearray(self.image[0x218000:0x218200])
-        sector[12] ^= 1
-        session.disk.write(session.layout["slot_1"] + 0x218000 // 512, bytes(sector))
-        session.before = session.disk.snapshot()
-        self.assertEqual(session.run_to_home_screen(), "condition met")
-        machine = session.machine
-        self.assertEqual(machine.read_memory(machine.symbols["storage_code_ready"], 1), b"\x01")
-        size = struct.unpack_from("<I", self.image, 0x218004)[0]
-        self.assertEqual(machine.read_memory(0x0308F000, size),
-                         self.image[0x218000:0x218000 + size])
-        self.assert_only_the_user_volume_changed(session)
-        self.assert_healthy(session)
-
-    def test_the_high_ram_diagnostic_preserves_resident_storage_code(self):
-        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_R0
-        session = self.session()
-        self.assertEqual(session.run_to_home_screen(), "condition met")
-        machine = session.machine
-        self.assertEqual(machine.run(until=lambda: machine.exception_depth == 0 and
-                                     not machine.pending_return), "condition met")
-        size = struct.unpack_from("<I", self.image, 0x218004)[0]
-        before = machine.read_memory(0x0308F000, size)
-        result = 0x03001000
-        returned = 0x03FF0100
-        machine.add_address_hook(returned, lambda: machine.stop("diagnostic returned"))
-        machine.uc.reg_write(UC_ARM_REG_R0, result)
-        machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
-        machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols["hal_system_high_ram_test"] | 1)
-        self.assertEqual(machine.run(until_ms=machine.milliseconds() + 3000),
-                         "diagnostic returned")
-        diagnostic = machine.read_memory(result, 16)
-        self.assertEqual(diagnostic[0], 0)
-        self.assertEqual(struct.unpack_from("<3I", diagnostic, 4),
-                         (0x25000 - 0x4000, 0, 22))
-        self.assertEqual(machine.read_memory(0x0308F000, size), before)
-        self.assertEqual(machine.read_memory(machine.symbols["storage_code_ready"], 1), b"\x01")
-        self.assert_healthy(session)
-
-    def test_legacy_settings_are_saved_to_a_new_file_without_overwriting_the_original(self):
-        legacy = bytearray(b"EMST" + bytes((4, 0, 9, 2, 0, 0, 0, 0, 0, 21, 2, 0, 37)) + bytes(7))
-        checksum = 2166136261
-        for value in legacy[:20]:
-            checksum = ((checksum ^ value) * 16777619) & 0xFFFFFFFF
-        struct.pack_into("<I", legacy, 20, checksum)
-        self._assert_settings_migrate("settings.bin", legacy)
-
-    def test_version_five_theme_migration_preserves_audio_buttons_and_rollback_file(self):
-        legacy = bytearray(b"EMST" + bytes((5, 0, 9, 2, 0, 0, 0, 0, 0, 21, 2, 0, 37)))
-        legacy.extend(bytes((6, 4, 7, 5, 1, 3, 2, 0, 255, 0, 0)))
-        checksum = 2166136261
-        for value in legacy:
-            checksum = ((checksum ^ value) * 16777619) & 0xFFFFFFFF
-        legacy.extend(struct.pack("<I", checksum))
-        self._assert_settings_migrate("prefs5.bin", legacy)
-
-    def _assert_settings_migrate(self, legacy_name, legacy):
-        volume = self.session_module.Fat32Volume()
-        volume.add_directory(".echo")
-        volume.add_file(legacy_name, bytes(legacy), directory=".echo")
-        session = self.session_module.Session(self.image, self.elf, volume=volume)
-        session.run_to_home_screen()
-        machine = session.machine
-        machine.note("settings_store_save")
-        started = machine.milliseconds()
-        machine.power_key_released_at_ms = started + 2500
-        self.assertEqual(machine.run(until=lambda: machine.reached.get("settings_store_save", 0) > 0,
-                                     until_ms=started + 3000), "condition met")
-        directory = volume.directory(".echo")
-        directory_lba = session.layout["volume_start"] + volume.cluster_lba(directory.first)
-
-        def preferences():
-            data = session.disk.read(directory_lba, volume.sectors_per_cluster)
-            for offset in range(0, len(data), 32):
-                entry = data[offset:offset + 32]
-                if entry[:11] == b"PREFS6  BIN":
-                    cluster = struct.unpack_from("<H", entry, 20)[0] << 16
-                    cluster |= struct.unpack_from("<H", entry, 26)[0]
-                    lba = session.layout["volume_start"] + volume.cluster_lba(cluster)
-                    return session.disk.read(lba, 1)[:32]
-            return bytes(32)
-
-        self.assertEqual(machine.run(until=lambda: preferences()[:5] == b"EMST\x06",
-                                     until_ms=started + 3000), "condition met")
-        saved = preferences()
-        self.assertEqual((saved[6], saved[13], saved[16]), (9, 21, 37))
-        self.assertEqual(saved[25], 0)
-        if legacy[4] == 5:
-            self.assertEqual(saved[17:25], legacy[17:25])
-        checksum = 2166136261
-        for value in saved[:28]:
-            checksum = ((checksum ^ value) * 16777619) & 0xFFFFFFFF
-        self.assertEqual(struct.unpack_from("<I", saved, 28)[0], checksum)
-        old = next(node for node in directory.children if node.name == legacy_name)
-        old_lba = session.layout["volume_start"] + volume.cluster_lba(old.first)
-        self.assertEqual(session.disk.read(old_lba, 1)[:len(legacy)], bytes(legacy))
-        self.assert_only_the_user_volume_changed(session)
-        self.assert_healthy(session)
 
     def test_power_hold_comes_first_and_the_power_pair_follows(self):
         session = self.session()
@@ -366,8 +322,9 @@ class EchoImageTest(unittest.TestCase):
         session = self.session(files=[("ECHOV498.IMG", newer, None)], vbus=True)
         session.machine.note("updater_install")
         self.assertEqual(session.run_to_first_frame(), "condition met")
+        session.machine.stop_at("board_wait_for_power_hold")
         self.assertEqual(session.run_until_waiting_for_key(presses=1),
-                         "reached board_wait_for_key")
+                         "reached board_wait_for_power_hold")
         machine = session.machine
         self.assert_healthy(session)
         self.assertEqual(machine.reached["updater_install"], 1)
@@ -445,6 +402,7 @@ class EchoImageTest(unittest.TestCase):
         session.run_to_first_frame()
         session.machine.answer_waits_for_key(2)
         session.machine.stop_at("usb_session_storage_changed")
+        session.machine.stop_at("board_wait_for_power_hold")
         return session.machine.run(until_ms=self.session_module.FRAME_LIMIT_MS)
 
     def test_an_update_file_is_installed_once_and_is_gone_afterwards(self):
@@ -452,7 +410,7 @@ class EchoImageTest(unittest.TestCase):
         first = self.session(files=[("ECHOV498.IMG", newer, None)], vbus=True)
         cluster = first.volume.first_cluster("ECHOV498.IMG")
         self.assertEqual(self.boot_until_waiting_for_key(first),
-                         "reached usb_session_storage_changed")
+                         "reached board_wait_for_power_hold")
         self.assertEqual(first.machine.reached["updater_install"], 1)
         self.assertFalse(first.file_exists("ECHOV498.IMG"))
         self.assertEqual(first.fat_entry(cluster), 0)
@@ -524,280 +482,9 @@ class EchoImageTest(unittest.TestCase):
     def test_a_cold_boot_with_512_byte_clusters_and_a_stale_hint_stays_responsive(self):
         self.realistic_boot(1, 2, 5000, 6000)
 
-    def playback_rig(self, volume=None):
+    def playback_rig(self):
         from echo_emulator.playback import Rig
-        return Rig(self.session_module, self.image, self.elf, volume=volume)
-
-    def test_queue_editing_from_the_buttons_updates_the_real_fat_file(self):
-        from echo_emulator.real_volume import real_volume
-        volume = real_volume(playable=True, album_count=2)
-        volume.add_directory(".echo")
-        rig = self.playback_rig(volume)
-        rig.open_songs()
-        rig.play_song(1)
-        rig.press("back")
-        rig.press("next")
-        rig.press("play", hold=1300)
-        rig.press("play")
-        directory = volume.directory(".echo")
-        directory_lba = rig.session.layout["volume_start"] + volume.cluster_lba(directory.first)
-
-        def saved_queue():
-            data = rig.session.disk.read(directory_lba, rig.session.volume.sectors_per_cluster)
-            for offset in range(0, len(data), 32):
-                entry = data[offset:offset + 32]
-                if entry[:11] == b"SESSION2BIN":
-                    cluster = struct.unpack_from("<H", entry, 20)[0] << 16
-                    cluster |= struct.unpack_from("<H", entry, 26)[0]
-                    lba = rig.session.layout["volume_start"] + rig.session.volume.cluster_lba(cluster)
-                    records = rig.session.disk.read(lba, 2)
-                    sessions = []
-                    for start in (0, 512):
-                        record = records[start:start + 512]
-                        if record[:4] != b"ESJN":
-                            continue
-                        self.assertEqual(struct.unpack_from("<HH", record, 4), (1, 268))
-                        checksum = 2166136261
-                        for value in record[:12] + record[16:284]:
-                            checksum = ((checksum ^ value) * 16777619) & 0xFFFFFFFF
-                        self.assertEqual(struct.unpack_from("<I", record, 12)[0], checksum)
-                        generation = struct.unpack_from("<I", record, 8)[0]
-                        sessions.append((generation, record[60:276]))
-                    self.assertTrue(sessions)
-                    return max(sessions)[1]
-            self.fail("The session journal was not created")
-
-        added = saved_queue()
-        self.assertEqual(added[:4], b"EMUN")
-        self.assertEqual(struct.unpack_from("<H", added, 6)[0], 1)
-        rig.machine.note("player_edit_up_next")
-        rig.machine.note("player_jump_to_up_next")
-        rig.press("back", hold=1300)
-        rig.press_many("next", 3)
-        rig.press("play")
-        rig.press("menu")
-        rig.press("next")
-        rig.press("play", hold=1300)
-        rig.press("play")
-        saved = saved_queue()
-        self.assertEqual(rig.machine.reached.get("player_edit_up_next", 0), 1)
-        self.assertEqual(rig.machine.reached.get("player_jump_to_up_next", 0), 0)
-        self.assertEqual(saved[:4], b"EMUN")
-        self.assertEqual(struct.unpack_from("<H", saved, 6)[0], 0)
-        checksum = 2166136261
-        for value in saved[:212]:
-            checksum = ((checksum ^ value) * 16777619) & 0xFFFFFFFF
-        self.assertEqual(struct.unpack_from("<I", saved, 212)[0], checksum)
-        self.assert_only_the_user_volume_changed(rig.session)
-        self.assert_healthy(rig.session)
-        summary("queue editing", rig.session)
-
-    def test_a_generated_queue_edit_publishes_the_order_and_session_from_the_buttons(self):
-        from echo_emulator.real_volume import real_volume
-        volume = real_volume(playable=True, album_count=1)
-        volume.add_directory(".echo")
-        rig = self.playback_rig(volume)
-        rig.open_songs()
-        rig.play_song(1)
-        rig.press("menu")
-        rig.press("next")
-        rig.press("play", hold=1300)
-        rig.machine.note("player_edit_queue")
-        rig.machine.note("player_jump_to_queue")
-        rig.press("next")
-        rig.press("play")
-        rig.run_for(500)
-        directory = volume.directory(".echo")
-        directory_lba = rig.session.layout["volume_start"] + volume.cluster_lba(directory.first)
-        entries = rig.session.disk.read(directory_lba, volume.sectors_per_cluster)
-
-        def file_start(name, sectors):
-            for offset in range(0, len(entries), 32):
-                entry = entries[offset:offset + 32]
-                if entry[:11] == name:
-                    cluster = struct.unpack_from("<H", entry, 20)[0] << 16
-                    cluster |= struct.unpack_from("<H", entry, 26)[0]
-                    lba = rig.session.layout["volume_start"] + volume.cluster_lba(cluster)
-                    return rig.session.disk.read(lba, sectors)
-            self.fail("Missing file: %r" % name)
-
-        records = file_start(b"SESSION2BIN", 2)
-        record = max((records[start:start + 512] for start in (0, 512)),
-                     key=lambda value: struct.unpack_from("<I", value, 8)[0])
-        self.assertEqual(record[:4], b"ESJN")
-        self.assertEqual(record[280], 1)
-        checksum = 2166136261
-        for value in record[:12] + record[16:284]:
-            checksum = ((checksum ^ value) * 16777619) & 0xFFFFFFFF
-        self.assertEqual(struct.unpack_from("<I", record, 12)[0], checksum)
-        order = file_start(b"ORDER2  BIN", 2)
-        self.assertEqual(order[:4], b"ETOR")
-        self.assertEqual(struct.unpack_from("<H", order, 6)[0], 11)
-        self.assertEqual(struct.unpack_from("<I", order, 12)[0],
-                         struct.unpack_from("<I", record, 276)[0])
-        tracks = struct.unpack_from("<11H", order, 512)
-        self.assertEqual(tracks, (0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11))
-        self.assertEqual(struct.unpack_from("<H", record, 44)[0], tracks[0])
-        self.assertEqual(rig.machine.reached.get("player_edit_queue", 0), 1)
-        self.assertEqual(rig.machine.reached.get("player_jump_to_queue", 0), 0)
-        self.assert_only_the_user_volume_changed(rig.session)
-        self.assert_healthy(rig.session)
-        rebooted = rig.session.reboot()
-        machine = rebooted.machine
-        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_R0, UC_ARM_REG_R1
-        player = []
-        machine.hook_symbol("player_restore", lambda: player.append(machine.reg(UC_ARM_REG_R0)))
-        machine.note("track_order_open_at")
-        self.assertEqual(rebooted.run_to_home_screen(), "condition met")
-        self.assertGreaterEqual(machine.reached.get("track_order_open_at", 0), 1)
-        self.assertTrue(player)
-        self.assertEqual(machine.run(until=lambda: machine.exception_depth == 0 and
-                                     not machine.pending_return), "condition met")
-        result, returned = 0x03001000, 0x03FF0100
-        machine.add_address_hook(returned, lambda: machine.stop("status returned"))
-        machine.uc.reg_write(UC_ARM_REG_R0, result)
-        machine.uc.reg_write(UC_ARM_REG_R1, player[-1])
-        machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
-        machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols["player_status"] | 1)
-        self.assertEqual(machine.run(until_ms=machine.milliseconds() + 1000), "status returned")
-        status = machine.read_memory(result, 32)
-        self.assertEqual(status[0], 2)
-        self.assertEqual(status[1], 1)
-        self.assertEqual(struct.unpack_from("<H", status, 2)[0], 0)
-        self.assertEqual(struct.unpack_from("<I", status, 4)[0],
-                         struct.unpack_from("<I", record, 48)[0])
-        self.assertEqual(struct.unpack_from("<HH", status, 16), (1, 11))
-        self.assert_only_the_user_volume_changed(rebooted)
-        self.assert_healthy(rebooted)
-        summary("generated queue editing", rig.session)
-
-    def test_changed_library_contents_cannot_restore_a_different_cue_at_the_same_id(self):
-        from echo_emulator.real_volume import real_volume
-        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_R0, UC_ARM_REG_R1
-        volume = real_volume(playable=True, album_count=1)
-        volume.add_directory(".echo")
-        rig = self.playback_rig(volume)
-        rig.open_songs()
-        rig.play_song(1)
-        rig.run_for(100)
-        directory = volume.directory(".echo")
-        directory_lba = rig.session.layout["volume_start"] + volume.cluster_lba(directory.first)
-        entries = rig.session.disk.read(directory_lba, volume.sectors_per_cluster)
-        library_lba = None
-        for offset in range(0, len(entries), 32):
-            entry = entries[offset:offset + 32]
-            if entry[:11] == b"LIBRARY DB ":
-                cluster = struct.unpack_from("<H", entry, 20)[0] << 16
-                cluster |= struct.unpack_from("<H", entry, 26)[0]
-                library_lba = rig.session.layout["volume_start"] + volume.cluster_lba(cluster)
-                break
-        self.assertIsNotNone(library_lba)
-        sector = bytearray(rig.session.disk.read(library_lba, 1))
-        self.assertEqual(sector[:4], b"EMDB")
-        tracks = struct.unpack_from("<I", sector, 8)[0]
-        self.assertLessEqual(tracks + 64, len(sector))
-        first, second = sector[tracks:tracks + 32], sector[tracks + 32:tracks + 64]
-        self.assertNotEqual(first, second)
-        sector[tracks:tracks + 32], sector[tracks + 32:tracks + 64] = second, first
-        rig.session.disk.write(library_lba, sector)
-        rebooted = rig.session.reboot()
-        machine = rebooted.machine
-        players = []
-        machine.hook_symbol("player_restore", lambda: players.append(machine.reg(UC_ARM_REG_R0)))
-        self.assertEqual(rebooted.run_to_home_screen(), "condition met")
-        self.assertTrue(players)
-        self.assertEqual(machine.run(until=lambda: machine.exception_depth == 0 and
-                                     not machine.pending_return), "condition met")
-        result, returned = 0x03001000, 0x03FF0100
-        machine.add_address_hook(returned, lambda: machine.stop("status returned"))
-        machine.uc.reg_write(UC_ARM_REG_R0, result)
-        machine.uc.reg_write(UC_ARM_REG_R1, players[-1])
-        machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
-        machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols["player_status"] | 1)
-        self.assertEqual(machine.run(until_ms=machine.milliseconds() + 1000), "status returned")
-        status = machine.read_memory(result, 32)
-        self.assertEqual(status[1], 0)
-        self.assertEqual(status[0], 0)
-        self.assert_only_the_user_volume_changed(rig.session)
-        self.assert_only_the_user_volume_changed(rebooted)
-        self.assert_healthy(rig.session)
-        self.assert_healthy(rebooted)
-        summary("changed library", rebooted)
-
-    def test_a_saved_mixtape_round_trips_through_the_resident_ui_and_real_fat(self):
-        from echo_emulator.real_volume import real_volume
-        volume = real_volume(playable=True, album_count=1)
-        volume.add_directory(".echo")
-        rig = self.playback_rig(volume)
-        rig.open_songs()
-        rig.play_song(1)
-        rig.press("back")
-        rig.press("back")
-        rig.press_many("next", 3)
-        rig.press("play")
-        rig.press("play")
-        rig.press("play", hold=1300)
-        rig.run_for(500)
-        directory = volume.directory(".echo")
-        directory_lba = rig.session.layout["volume_start"] + volume.cluster_lba(directory.first)
-
-        def file_start(name, sectors):
-            entries = rig.session.disk.read(directory_lba, volume.sectors_per_cluster)
-            for offset in range(0, len(entries), 32):
-                entry = entries[offset:offset + 32]
-                if entry[:11] == name:
-                    cluster = struct.unpack_from("<H", entry, 20)[0] << 16
-                    cluster |= struct.unpack_from("<H", entry, 26)[0]
-                    lba = rig.session.layout["volume_start"] + volume.cluster_lba(cluster)
-                    return rig.session.disk.read(lba, sectors)
-            self.fail("Missing file: %r" % name)
-
-        catalog = file_start(b"MIXES2  BIN", 12)
-        roots = [(struct.unpack_from("<I", catalog, offset + 8)[0], offset)
-                 for offset in (0, 3072) if catalog[offset:offset + 4] == b"MXCA"]
-        self.assertTrue(roots)
-        _, root = max(roots)
-        entry = catalog[root + 512:root + 592]
-        self.assertEqual(entry[:10], b"Mixtape 1\0")
-        self.assertEqual(struct.unpack_from("<H", entry, 68)[0], 12)
-        self.assertEqual(entry[70:72], b"\0\1")
-        tape = file_start(b"MX00A   BIN", 4)
-        self.assertEqual(tape[:4], b"MXTP")
-        self.assertEqual(struct.unpack_from("<H", tape, 6)[0], 12)
-        self.assertEqual(struct.unpack_from("<I", tape, 8)[0],
-                         struct.unpack_from("<I", entry, 64)[0])
-        paths, starts = [], []
-        offset = 512
-        for _ in range(12):
-            length, start, end = struct.unpack_from("<HII", tape, offset)
-            paths.append(tape[offset + 10:offset + 10 + length])
-            starts.append(start)
-            self.assertTrue(end == 0 or end > start)
-            offset += 10 + length
-        self.assertEqual(len(set(paths)), 1)
-        self.assertEqual(len(set(starts)), 12)
-        self.assertTrue(paths[0].endswith(b".flac"))
-        rig.press_many("next", 2)
-        rig.press("play")
-        rig.press("next")
-        rig.press("play")
-        rig.run_for(500)
-        records = file_start(b"SESSION2BIN", 2)
-        record = max((records[start:start + 512] for start in (0, 512)),
-                     key=lambda value: struct.unpack_from("<I", value, 8)[0])
-        self.assertEqual(record[:4], b"ESJN")
-        self.assertEqual(record[280], 1)
-        self.assertEqual(struct.unpack_from("<H", record, 44)[0], 0)
-        self.assert_only_the_user_volume_changed(rig.session)
-        self.assert_healthy(rig.session)
-        rebooted = rig.session.reboot()
-        machine = rebooted.machine
-        machine.note("track_order_open_at")
-        self.assertEqual(rebooted.run_to_home_screen(), "condition met")
-        self.assertGreaterEqual(machine.reached.get("track_order_open_at", 0), 1)
-        self.assert_only_the_user_volume_changed(rebooted)
-        self.assert_healthy(rebooted)
-        summary("saved mixtape", rig.session)
+        return Rig(self.session_module, self.image, self.elf)
 
     def test_a_deep_cue_track_starts_quickly_and_switching_tracks_keeps_the_ui_smooth(self):
         rig = self.playback_rig()

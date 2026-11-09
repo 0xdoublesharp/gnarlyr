@@ -26,6 +26,14 @@ static void choose_option(void *context, int index)
     chosen_value = index;
 }
 
+static Screen follow_up;
+
+static Screen *open_third(void *context, int index)
+{
+    (void)context;
+    return index == 2 ? &follow_up : NULL;
+}
+
 static Screen *open_choice(int current)
 {
     current_value = current;
@@ -46,7 +54,7 @@ static Screen *open_choice(int current)
 
 static ScreenAction press(Screen *screen, Key key, KeyGesture gesture)
 {
-    return screen->handle_key(screen->context, (KeyEvent){key, gesture}, 100);
+    return screen->handle_key(screen->context, (KeyEvent){.key = key, .gesture = gesture}, 100);
 }
 
 static void the_choice_title_is_the_screen_title(void)
@@ -79,6 +87,20 @@ static void selecting_chooses_the_option_and_leaves(void)
     CHECK_EQUAL(SCREEN_ACTION_POP, action.type);
 }
 
+static void choosing_can_continue_into_another_screen(void)
+{
+    Screen *screen = open_choice(0);
+    choice.config.open = open_third;
+    press(screen, KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    ScreenAction stay = press(screen, KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(SCREEN_ACTION_POP, stay.type);
+    press(screen, KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    ScreenAction next = press(screen, KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(2, chosen_value);
+    CHECK_EQUAL(SCREEN_ACTION_REPLACE, next.type);
+    CHECK(next.target == &follow_up);
+}
+
 static void back_leaves_without_choosing(void)
 {
     Screen *screen = open_choice(2);
@@ -103,6 +125,7 @@ int main(void)
         TEST_CASE(the_current_option_starts_selected),
         TEST_CASE(the_current_option_is_marked),
         TEST_CASE(selecting_chooses_the_option_and_leaves),
+        TEST_CASE(choosing_can_continue_into_another_screen),
         TEST_CASE(back_leaves_without_choosing),
         TEST_CASE(the_list_is_drawn_under_the_header),
     };

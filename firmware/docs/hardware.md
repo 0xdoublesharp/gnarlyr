@@ -6,13 +6,13 @@ A short map of the hardware Podium drives on the full-size Snowsky Echo, for rea
 
 - Rockchip RKnano with two Cortex-M3 cores. Core 0 runs EchoPod; core 1 runs a decoder program (FLAC or MP3) loaded on demand.
 - Core 0 data RAM: `0x03004000`–`0x0304C000`; the boot ROM still uses its top while loading the image, so the firmware's data must end below `0x0304A240`. Code runs from `0x03050000` (about 157 KB).
-- High RAM: `0x0307A000`–`0x0309EFFF` (148 KB). Decoder workspace and the temporary rescan code use the first 84 KB. Resident storage and mixtape code has 16 KB at `0x0308F000`–`0x03092FFF`; the 48 KB glyph arena follows at `0x03093000`. These regions are linker-bounded; physical validation is pending.
+- High RAM: `0x0307A000`–`0x0309EFFF` (148 KB). The library rescan code is loaded here when it runs.
 - Core 1 RAM: `0x01000000`–`0x0105FFFF` (384 KB). It also serves as scratch memory for the rescan while playback is stopped.
 - The boot ROM starts the cores at 24 MHz. EchoPod switches the PLL to 96 or 200 MHz.
 
 ## Display and keys
 
-- 480 × 222 landscape ST7796S-class RGB565 panel (native 222 × 480 portrait) with its own image memory, so there is no framebuffer. It sits behind the SoC LCD controller at `0x60070000`, so there is no bit-banging. The window's row axis carries a 49-row offset. No panel ID read, a single variant.
+- 480 × 222 landscape ST7796S-class RGB565 panel (native 222 × 480 portrait) with its own image memory, so there is no framebuffer. It sits behind the SoC LCD controller at `0x60070000`, so there is no bit-banging. The window's row axis carries a 49-row offset in landscape (`MADCTL` `0x28`: swap rows and columns, BGR); in portrait the swap bit is cleared, `0x88` (mirrored rows) or `0x48` (mirrored columns) turn the picture the two ways, and the 49-line offset moves to the columns (the visible 222 lines sit 49 from each edge of the 320, so it is the same for both). No panel ID read, a single variant.
 - The backlight runs from a 25 kHz PWM, channel 0 on GPIO2.4.
 - ▶‖, ≡, ↩ and the volume rocker sit on a resistor ladder read through the ADC. Power is a separate input.
 
@@ -27,6 +27,7 @@ A short map of the hardware Podium drives on the full-size Snowsky Echo, for rea
 - Cirrus Logic CS43131 DAC, set up over I2C0, fed by I2S1 through DMA from a ring in data RAM.
 - 3.5 mm and 4.4 mm outputs. GPIO0.13 high means a 3.5 mm plug, GPIO2.8 high means 4.4 mm. Both jack pins have pull-ups set at start-up.
 - An LPC accelerator next to core 1 speeds up FLAC decoding.
+- No hardware equalizer: the CS43131 has none (only its digital filters and gain), and the SoC's audio path has none in use. FiiO's firmware runs its equalizer in software on core 0, and so does Podium (`docs/architecture.md`, Equalizer).
 
 ## USB
 
@@ -40,7 +41,7 @@ A short map of the hardware Podium drives on the full-size Snowsky Echo, for rea
 
 ## Firmware image
 
-- `ECHOV455.IMG` (named after `PODIUM_VERSION`) is a 5 MiB `RKnanoFW` container: an outer header, a table of load rows, the code and data, a copy of the first 512 bytes at `0x44C000` and a CRC-32 trailer at `0x500000`. `tools/make_image.py` builds it, and `docs/architecture.md` describes the layout.
+- `ECHOV458.IMG` (named after `PODIUM_VERSION`) is a 5 MiB `RKnanoFW` container: an outer header, a table of load rows, the code and data, a copy of the first 512 bytes at `0x44C000` and a CRC-32 trailer at `0x500000`. `tools/make_image.py` builds it, and `docs/architecture.md` describes the layout.
 - FiiO's updater scans `\ECHOECHO.IMG`, then `\ECHOV100.IMG` to `\ECHOV498.IMG` at the top level of internal storage, and the highest wins. FiiO's own Echo image is 39,845,892 bytes.
 
 ## Board details
@@ -48,4 +49,5 @@ A short map of the hardware Podium drives on the full-size Snowsky Echo, for rea
 - GPIO0.14 and GPIO2.0 form a power pair: high from start-up, low before power-off.
 - DAC mute is GPIO2.1 and the DAC has no reset pin.
 - The 4.4 mm jack reads high when plugged (GPIO2.8); the 3.5 mm jack reads as above.
-- An ADC channel 2 headset remote exists and isn't used.
+- **Headset remote:** the 3.5 mm plug's mic contact is read on ADC channel 2, as on stock 2.0.0 (the Echo Mini has none). Stock scans the ADC in the order key, key, headset, battery (one conversion every 5 ms, so the headset every 20 ms) and reads it only with a 3.5 mm plug in. Bands of the 10-bit reading: below 16 play (a button shorting the mic to ground), 16-45 volume up, 46-100 volume down, above 100 nothing pressed. Stock counts a press after two equal readings and a long press after 20 (about 400 ms); a tap of volume up or down changes the volume, a long press skips (stock skips back on volume up and forward on volume down), and play counts taps: 1 pauses or resumes, 2 next track, 3 previous track, closed after 30 SysTicks without a tap; a long play does nothing. In the decompile: `0x03060068` sets the scan order {1,1,2,0}, `0x03061ab6` decodes the bands and gestures, `0x03061e00` maps them to the volume (`0x1d5`/`0x1d6`), next (`0x1b4`), previous (`0x1b5`) and play/pause (`0x1b6`) messages, handled at `0x03081910`. Podium follows it (`device/headset_remote`) with its own key semantics: a long volume up skips forward, a long volume down back, and taps of play close after 300 ms. Diagnostics → Headset shows the live reading and the button it reads as, for example `1023 none`; for 3 s after the reading drops more than 24 below its idle value (with a remote plugged in) it shows the dip instead: `1023 min 512 40ms 3 dips` is the live reading, the lowest reading, the longest dip and the number of dips, each dip starting a new 3 s window. While the row is on screen the headset is read on three of every four scans (every 5 ms, 10 ms around a key scan) instead of every 20 ms. On a player (2026-11-04) the middle button reads 1 and works; idle reads 1023. A plug without a mic contact (3-pole TRS, for example Meze Alba) reads 0-1, the play band; after a plug goes in, whichever of "play band" and "anything else" the line holds first for 500 ms decides whether it has a remote; a remote whose line then sits in the play band for over 1 s is taken for a swapped plug (a jack change can be quicker than the jack debounce) and counts as no mic until the line leaves the play band for 500 ms. With no mic nothing is decoded and the row shows `0 no mic`, whatever the dips. Dips are only tracked while a remote is listened to, start from a fresh idle level at each plug change, and a drop lasting over 1 s becomes the new idle level.
+- **Apple remotes** (EarPods with Remote and Mic): the middle button shorts the mic line like any headset and works. Volume up and down are switched by a chip in the remote. David Carne's 2010 measurements on the iPod shuffle 3G remote: idle 2.08 V, volume up a static load to about 1.68 V, volume down to about 1.52 V, and an ultrasonic ID chirp after power-up (1.5 ms at 280 kHz, then 4.6 ms at 244 kHz) that the iPod answers with a 4.8 ms pulse; the iPod's Mikey chip demodulates the chirp, and a shuffle cuts the remote's power without an answer. The Echo can't send that answer, and its ADC reads the idle line at full scale (1023), so a drop to 81 % or 73 % of the bias may not show at all; on a player the EarPods' volume buttons only flicker the reading. Stock 2.0.0 has no Apple path either: channel 2 is read only by `0x03061a5c` and `0x03061ab6`, with the bands above, so EarPods volume buttons do nothing on stock too unless their level lands in 16-100.

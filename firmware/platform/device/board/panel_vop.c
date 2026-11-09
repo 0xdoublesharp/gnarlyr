@@ -5,6 +5,8 @@
 #include "device/panel.h"
 #include "device/vop.h"
 #include "gpio.h"
+#include "hal/audio.h"
+#include "hal/clock.h"
 #include "hal/system.h"
 #include "panel_port.h"
 #include "registers.h"
@@ -55,7 +57,18 @@ static void bus_delay(void *context, uint32_t milliseconds)
     board_delay_ms(milliseconds);
 }
 
+static void bus_serviced_delay(void *context, uint32_t milliseconds)
+{
+    (void)context;
+    uint32_t start = hal_clock_milliseconds();
+    while (hal_clock_milliseconds() - start < milliseconds) {
+        hal_audio_service();
+        hal_system_keep_alive();
+    }
+}
+
 static const PanelBus BUS = {bus_command, bus_data, bus_pixels, bus_delay, NULL};
+static const PanelBus SERVICED_BUS = {bus_command, bus_data, bus_pixels, bus_serviced_delay, NULL};
 
 static void power_controller(void)
 {
@@ -92,6 +105,21 @@ void board_panel_start(void)
     mux_panel_pins();
     pulse_reset();
     panel_send_init(&BUS);
+}
+
+void board_panel_sleep(void)
+{
+    panel_sleep(&SERVICED_BUS);
+}
+
+void board_panel_wake(void)
+{
+    panel_wake(&SERVICED_BUS);
+}
+
+void board_panel_set_rotation(PanelRotation rotation)
+{
+    panel_set_rotation(&BUS, rotation);
 }
 
 void board_panel_write(PanelWindow window, const uint16_t *pixels)

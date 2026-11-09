@@ -1,6 +1,4 @@
 #include "fake_hal.h"
-#include "mixtape_ui.h"
-#include "playback/mix_api.h"
 
 #include "hal/system.h"
 
@@ -12,6 +10,7 @@
 #include "hal/power.h"
 #include "hal/storage.h"
 #include "library/library_scan.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -31,6 +30,7 @@ typedef struct FakeAudio {
     uint32_t queued_start_ms;
     uint32_t queued_end_ms;
     int play_count;
+    int release_count;
     char queued_path[PATH_CAPACITY];
     bool has_queued;
     uint32_t queued_token;
@@ -39,6 +39,7 @@ typedef struct FakeAudio {
     uint8_t volume;
     HalAudioGain gain;
     HalAudioOutput output;
+    HalAudioEqualizer equalizer;
     int refused_plays;
     HalAudioJack jack;
     HalAudioRefusal refusal;
@@ -56,14 +57,14 @@ typedef struct InternalFile {
 } InternalFile;
 
 typedef struct FakeFile {
-    char path[PATH_CAPACITY];
+    const char *path;
     const uint8_t *bytes;
     uint32_t size;
     uint32_t stored;
 } FakeFile;
 
 enum {
-    STORE_SLOTS = 6,
+    STORE_SLOTS = 4,
     STORE_CAPACITY = 512 * 1024
 };
 
@@ -73,36 +74,40 @@ static uint32_t large_size;
 
 typedef struct FakeHal {
     const char *version;
-    uint16_t panel[HAL_DISPLAY_HEIGHT][HAL_DISPLAY_WIDTH];
+    uint16_t panel[HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE];
+    HalDisplayRotation rotation;
     long pixels_written;
     int present_count;
     bool display_on;
     uint8_t brightness;
     HalBattery battery;
     int power_off_count;
+    HalAudioState audio_state_at_power_off;
     uint32_t now_ms;
     uint32_t now_us;
     uint32_t microseconds_per_read;
     HalKeyTransition transitions[TRANSITION_CAPACITY];
     int transition_count;
     int next_transition;
+    HalHeadsetCommand headset_commands[TRANSITION_CAPACITY];
+    int headset_count;
+    int next_headset;
     FakeFile files[FILE_CAPACITY];
     int file_count;
     InternalFile internal[INTERNAL_CAPACITY];
     FakeAudio audio;
     WrittenFile written[FILE_CAPACITY];
     int write_count;
-    bool fail_music_writes;
-    const char *fail_file_writes;
     uint32_t clock_mhz;
     int stall_test_count;
     int watchdog_test_count;
     bool scratch_refused;
     int listing_borrows;
     int keep_alive_count;
+    uint32_t idle_us;
     bool restart_pending;
     HalReserveResult reserve_result;
-    char reserved_paths[FILE_CAPACITY][PATH_CAPACITY];
+    const char *reserved_paths[FILE_CAPACITY];
     uint32_t reserved_sizes[FILE_CAPACITY];
     int reserve_count;
     int scratch_borrows;
@@ -142,9 +147,21 @@ void fake_hal_replace_music_volume(void)
     memset(fake.written, 0, sizeof fake.written);
 }
 
+enum {
+    EQ_FILE_CAPACITY = 4,
+    EQ_NAME_CAPACITY = 32,
+    EQ_LISTING_HANDLE = 77
+};
+
+static char eq_names[EQ_FILE_CAPACITY][EQ_NAME_CAPACITY];
+static char eq_paths[EQ_FILE_CAPACITY][EQ_NAME_CAPACITY + 8];
+static int eq_count;
+static int eq_next;
+
 void fake_hal_reset(void)
 {
-    fake = (FakeHal){.reserve_result = HAL_RESERVE_CREATED};
+    fake = (FakeHal){0};
+    eq_count = 0;
     fake.audio.jack = HAL_AUDIO_JACK_SINGLE_ENDED;
     fake.audio.status.idle = true;
 }
@@ -180,9 +197,8 @@ bool hal_system_set_clock_mhz(uint32_t mhz)
 
 void fake_hal_add_file(const char *path, const uint8_t *bytes, uint32_t size)
 {
-    FakeFile *file = &fake.files[fake.file_count++];
-    *file = (FakeFile){.bytes = bytes, .size = size, .stored = size};
-    strncpy(file->path, path, PATH_CAPACITY - 1);
+    fake.files[fake.file_count++] =
+        (FakeFile){.path = path, .bytes = bytes, .size = size, .stored = size};
 }
 
 void fake_hal_set_milliseconds(uint32_t now_ms)
@@ -204,9 +220,25 @@ void fake_hal_queue_transition(Key key, bool pressed, uint32_t time_ms)
         (HalKeyTransition){.key = key, .pressed = pressed, .time_ms = time_ms};
 }
 
+static int panel_width(void)
+{
+    return fake.rotation == HAL_DISPLAY_LANDSCAPE ? HAL_DISPLAY_LONG_SIDE : HAL_DISPLAY_SHORT_SIDE;
+}
+
 uint16_t fake_hal_pixel(int x, int y)
 {
-    return fake.panel[y][x];
+    return fake.panel[y * panel_width() + x];
+}
+
+HalDisplayRotation fake_hal_display_rotation(void)
+{
+    return fake.rotation;
+}
+
+void hal_display_set_rotation(HalDisplayRotation rotation)
+{
+    fake.rotation = rotation;
+    memset(fake.panel, 0, sizeof fake.panel);
 }
 
 long fake_hal_pixels_written(void)
@@ -223,7 +255,7 @@ void hal_display_write(int x, int y, int width, int height, const uint16_t *pixe
 {
     for (int row = 0; row < height; row++) {
         for (int column = 0; column < width; column++) {
-            fake.panel[y + row][x + column] = pixels[row * width + column];
+            fake.panel[(y + row) * panel_width() + x + column] = pixels[row * width + column];
         }
     }
     fake.pixels_written += (long)width * height;
@@ -275,11 +307,41 @@ HalBattery hal_power_battery(void)
 void hal_power_off(void)
 {
     fake.power_off_count++;
+    fake.audio_state_at_power_off = fake.audio.status.state;
+}
+
+int fake_hal_audio_state_at_power_off(void)
+{
+    return (int)fake.audio_state_at_power_off;
 }
 
 int fake_hal_power_off_count(void)
 {
     return fake.power_off_count;
+}
+
+void fake_hal_queue_headset_command(HalHeadsetCommand command)
+{
+    if (fake.headset_count == TRANSITION_CAPACITY) {
+        return;
+    }
+    fake.headset_commands[fake.headset_count++] = command;
+}
+
+bool hal_input_next_headset_command(HalHeadsetCommand *command)
+{
+    if (fake.next_headset == fake.headset_count) {
+        fake.next_headset = 0;
+        fake.headset_count = 0;
+        return false;
+    }
+    *command = fake.headset_commands[fake.next_headset++];
+    return true;
+}
+
+HalHeadsetReading hal_input_headset_reading(void)
+{
+    return (HalHeadsetReading){.known = true, .level = 812, .button = HAL_HEADSET_BUTTON_NONE};
 }
 
 bool hal_input_next_transition(HalKeyTransition *transition)
@@ -372,6 +434,11 @@ uint32_t fake_hal_audio_queued_start(void)
 uint32_t fake_hal_audio_queued_end(void)
 {
     return fake.audio.queued_end_ms;
+}
+
+int fake_hal_audio_release_count(void)
+{
+    return fake.audio.release_count;
 }
 
 int fake_hal_audio_play_count(void)
@@ -491,6 +558,13 @@ void hal_audio_pause(void)
     fake.audio.status.state = HAL_AUDIO_PAUSED;
 }
 
+void hal_audio_release(void)
+{
+    fake.audio.release_count++;
+    fake.audio.status.state = HAL_AUDIO_STOPPED;
+    fake.audio.status.idle = true;
+}
+
 void hal_audio_resume(void)
 {
     fake.audio.status.state = HAL_AUDIO_PLAYING;
@@ -516,6 +590,16 @@ void hal_audio_set_gain(HalAudioGain gain)
 void hal_audio_set_output(HalAudioOutput output)
 {
     fake.audio.output = output;
+}
+
+void hal_audio_set_equalizer(const HalAudioEqualizer *equalizer)
+{
+    fake.audio.equalizer = *equalizer;
+}
+
+HalAudioEqualizer fake_hal_audio_equalizer(void)
+{
+    return fake.audio.equalizer;
 }
 
 int fake_hal_audio_gain(void)
@@ -672,21 +756,8 @@ static void register_written(const char *path, uint32_t length)
     fake_hal_add_file(slot->path, slot->bytes, length);
 }
 
-void fake_hal_fail_file_writes(const char *path)
-{
-    fake.fail_file_writes = path;
-}
-
-void fake_hal_fail_music_writes(bool failed)
-{
-    fake.fail_music_writes = failed;
-}
-
 bool hal_file_write(const char *path, const void *bytes, uint32_t length)
 {
-    if (fake.fail_music_writes) {
-        return false;
-    }
     WrittenFile *slot = written_slot(path);
     if (slot == NULL || length > WRITTEN_CAPACITY) {
         return false;
@@ -738,6 +809,11 @@ int fake_hal_watchdog_test_count(void)
 void hal_system_keep_alive(void)
 {
     fake.keep_alive_count++;
+}
+
+uint32_t hal_system_idle_microseconds(void)
+{
+    return fake.idle_us;
 }
 
 int fake_hal_keep_alive_count(void)
@@ -889,9 +965,26 @@ const HalBluetoothStatus *hal_bluetooth_status(void)
     return &fake.bluetooth;
 }
 
+void fake_hal_add_eq_file(const char *name, const char *text)
+{
+    snprintf(eq_names[eq_count], EQ_NAME_CAPACITY, "%s", name);
+    snprintf(eq_paths[eq_count], sizeof eq_paths[0], "/EQ/%s", name);
+    fake_hal_add_file(eq_paths[eq_count], (const uint8_t *)text, (uint32_t)strlen(text));
+    eq_count++;
+}
+
+void fake_hal_clear_eq_files(void)
+{
+    eq_count = 0;
+}
+
 bool hal_dir_open(HalDir *dir, const char *path)
 {
-    (void)path;
+    if (strcmp(path, "/EQ") == 0) {
+        dir->handle = EQ_LISTING_HANDLE;
+        eq_next = 0;
+        return eq_count > 0;
+    }
     fake.dir_opens++;
     fake.presents_at_dir_open = fake.present_count;
     dir->handle = fake.empty_card ? 0 : -1;
@@ -925,9 +1018,12 @@ int fake_hal_library_writes(void)
 
 bool hal_dir_next(HalDir *dir, HalDirEntry *entry)
 {
-    (void)dir;
-    (void)entry;
-    return false;
+    if (dir->handle != EQ_LISTING_HANDLE || eq_next >= eq_count) {
+        return false;
+    }
+    *entry = (HalDirEntry){.directory = false, .hidden = false};
+    snprintf(entry->name, sizeof entry->name, "%s", eq_names[eq_next++]);
+    return true;
 }
 
 void hal_dir_close(HalDir *dir)
@@ -937,7 +1033,7 @@ void hal_dir_close(HalDir *dir)
 
 void *hal_system_borrow_scratch(uint32_t *size)
 {
-    _Alignas(uint32_t) static uint8_t scratch[384 * 1024];
+    static uint8_t scratch[384 * 1024];
     fake.scratch_borrows++;
     if (fake.scratch_refused) {
         *size = 0;
@@ -1043,17 +1139,13 @@ static uint8_t *store_for(FakeFile *file)
 bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes, uint32_t length)
 {
     FakeFile *file = fake_file(path);
-    if (fake.fail_music_writes ||
-        (fake.fail_file_writes != NULL && strcmp(path, fake.fail_file_writes) == 0) ||
-        file == NULL || offset > file->size || length > file->size - offset) {
+    if (file == NULL || offset > file->size || length > file->size - offset) {
         return false;
     }
     uint8_t *store = store_for(file);
-    if (store == NULL || offset + length > file->stored) {
-        return false;
+    if (store != NULL && offset + length <= file->stored) {
+        memcpy(store + offset, bytes, length);
     }
-    memcpy(store + offset, bytes, length);
-    fake.write_count++;
     fake.library_writes += strcmp(path, "/.echo/library.db") == 0;
     fake.covers_writes += strcmp(path, "/.echo/covers.bin") == 0;
     return true;
@@ -1077,7 +1169,7 @@ HalVolume hal_file_volume(void)
 HalReserveResult hal_file_reserve(const char *path, uint32_t size)
 {
     if (fake.reserve_count < FILE_CAPACITY) {
-        strncpy(fake.reserved_paths[fake.reserve_count], path, PATH_CAPACITY - 1);
+        fake.reserved_paths[fake.reserve_count] = path;
         fake.reserved_sizes[fake.reserve_count] = size;
     }
     fake.reserve_count++;
@@ -1168,7 +1260,7 @@ bool hal_internal_file_write(const char *path, const void *bytes, uint32_t lengt
 HalReserveResult hal_internal_file_reserve(const char *path, uint32_t size)
 {
     if (fake.reserve_count < FILE_CAPACITY) {
-        strncpy(fake.reserved_paths[fake.reserve_count], path, PATH_CAPACITY - 1);
+        fake.reserved_paths[fake.reserve_count] = path;
         fake.reserved_sizes[fake.reserve_count] = size;
     }
     fake.reserve_count++;
@@ -1190,29 +1282,4 @@ const uint8_t *fake_hal_internal_file_bytes(const char *path, uint32_t *size)
     InternalFile *file = internal_file(path);
     *size = file == NULL ? 0 : file->size;
     return file == NULL ? NULL : file->bytes;
-}
-
-const void *hal_system_mixtape_api(void)
-{
-    return mix_code_api();
-}
-
-bool hal_file_remove(const char *path)
-{
-    FakeFile *file = fake_file(path);
-    if (file == NULL || fake.fail_music_writes) {
-        return false;
-    }
-    for (int slot = 0; slot < STORE_SLOTS; slot++) {
-        if (file->bytes == stores[slot]) {
-            fake.store_used[slot] = NULL;
-        }
-    }
-    *file = fake.files[--fake.file_count];
-    return true;
-}
-
-const void *hal_system_mixtape_ui(void)
-{
-    return mixtape_ui_api();
 }

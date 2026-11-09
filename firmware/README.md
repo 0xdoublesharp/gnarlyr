@@ -1,18 +1,20 @@
 # Podium
 
+> Website, downloads and feedback: [podium-echo.online](https://podium-echo.online/). Send feedback through the [form on the website](https://podium-echo.online/#feedback); issues and pull requests are disabled on this repository.
+
 Replacement firmware for the full-size Snowsky (FiiO) Echo music player (4 GB and 8 GB), forked from [EchoPod](https://github.com/BasilSkyWalk/echopod). It has an iPod-style UI with iPod-sized text, a Cover Flow browser, a music library built on the player, album favorites, M3U playlists and an Up Next queue. It isn't made or supported by FiiO.
 
 <p>
-  <img src="https://raw.githubusercontent.com/swap/podium/bfe1716e9ac36cb471a1e1a558719b6b2b4b3f6b/docs/photos/home.webp" alt="Home screen" width="32%">
-  <img src="https://raw.githubusercontent.com/swap/podium/bfe1716e9ac36cb471a1e1a558719b6b2b4b3f6b/docs/photos/now-playing.webp" alt="Now Playing" width="32%">
-  <img src="https://raw.githubusercontent.com/swap/podium/bfe1716e9ac36cb471a1e1a558719b6b2b4b3f6b/docs/photos/cover-flow.webp" alt="Cover Flow" width="32%">
+  <img src="docs/photos/home.webp" alt="Home screen" width="32%">
+  <img src="docs/photos/now-playing.webp" alt="Now Playing" width="32%">
+  <img src="docs/photos/cover-flow.webp" alt="Cover Flow" width="32%">
 </p>
 
 ## Install
 
 Read [`docs/known-issues.md`](docs/known-issues.md) first. Replacing a player's firmware can leave it unable to start; recovery is in [`docs/device-recovery.md`](docs/device-recovery.md).
 
-1. Download `ECHOV455.IMG` from [Releases](https://github.com/velppa/podium/releases) and check its SHA-256 against the one in the release notes.
+1. Download the latest `ECHOVnnn.IMG` from [podium-echo.online](https://podium-echo.online) and check its SHA-256 against the one on the site.
 2. Connect the Echo and copy the file to the root of its internal storage, not into a folder. Leave no other `ECHOVnnn.IMG` there.
 3. Eject and unplug. The player shows "Updating firmware", installs Podium, deletes the file and restarts into Podium.
 
@@ -50,6 +52,7 @@ Music/
 
 - **Using it:** [`docs/user-guide.md`](docs/user-guide.md).
 - **What's new:** [`docs/release-notes.md`](docs/release-notes.md).
+- **Chinese, Japanese and Korean names:** not in releases; [`docs/cjk.md`](docs/cjk.md) builds an image with them.
 
 The hardware knowledge it relies on comes largely from the [ReChord](https://github.com/brnomt/ReChord) project's research ([`docs/hardware.md`](docs/hardware.md), [`CREDITS.md`](CREDITS.md)).
 
@@ -92,7 +95,7 @@ mkdir -p build/system
 
 The simulator behaves like the player: on the first start it creates `library.db`, `covers.bin` and the save files in the system folder, scans the music folder (every format stock lists, plus `.m3u`/`.m3u8` playlists) and finds the album covers. Settings → Rescan library scans again. The music folder is only ever read.
 
-The PC tools still work and write the same formats ([`tools/library_index.py`](tools/library_index.py), [`tools/cover_export.py`](tools/cover_export.py)), but the player doesn't need them. To skip the scan on the player, **echo-sync** builds the library, the covers and the music fingerprint (`scan.bin`) on a computer, straight into the card's `/.echo` folder, so the player's check after USB finds nothing to rescan ([`docs/user-guide.md`, Build the library on a computer](docs/user-guide.md#build-the-library-on-a-computer)). Each release carries it as one file for Windows, macOS (Apple silicon) and Linux, with nothing to install, built by [`.github/workflows/echo-sync.yml`](.github/workflows/echo-sync.yml) with PyInstaller; from the source it's `tools/echo_sync.py E:`. To build the file yourself: `python -m pip install -r tools/requirements.txt -r tools/requirements-build.txt`, then `python -m PyInstaller --onefile --name echo-sync --paths tools tools/echo_sync.py`.
+The PC tools still work and write the same formats ([`tools/library_index.py`](tools/library_index.py), [`tools/cover_export.py`](tools/cover_export.py)), but the player doesn't need them. To skip the scan on the player, **echo-sync** builds the library, the covers and the music fingerprint (`scan.bin`) on a computer, straight into the card's `/.echo` folder, so the player's check after USB finds nothing to rescan ([`docs/user-guide.md`, Build the library on a computer](docs/user-guide.md#build-the-library-on-a-computer)). The website carries it as one file for Windows, macOS (Apple silicon) and Linux, with nothing to install, built by [`.github/workflows/echo-sync.yml`](.github/workflows/echo-sync.yml) with PyInstaller; from the source it's `tools/echo_sync.py E:`. To build the file yourself: `python -m pip install -r tools/requirements.txt -r tools/requirements-build.txt`, then `python -m PyInstaller --onefile --name echo-sync --paths tools tools/echo_sync.py`.
 
 ## Testing on a player
 
@@ -144,7 +147,7 @@ The screen turns off after the screen timeout or a tap of Power. With the screen
 
 Home also lists Audiobooks and Podcasts when the card has an `Audiobooks` or `Podcasts` folder: every book and episode remembers where you stopped, plays in order, and hold vol± jumps 30 s forward or 15 s back. Books and episodes stay out of the Music lists ([`docs/user-guide.md`](docs/user-guide.md)).
 
-Settings: Shuffle (Off / Songs / Albums), Repeat (Off / One / All), Sleep timer, Screen timeout, Brightness, Gain, Output and Start screen. Playback buttons can assign the volume, Play and Menu tap/hold actions. Settings are saved in `/.echo/prefs5.bin` on internal storage (the same with or without a card), and favorites in `/.echo/favorites.bin`. Without `--system-dir` the simulator can't save, and says so. Playback resumes, paused, where it left off.
+Settings: Shuffle (Off / Songs / Albums), Repeat (Off / One / All), Sleep timer, Screen timeout, Brightness, Gain, Output, Equalizer, Custom EQ and Start screen. They're saved in `/.echo/settings.bin` on internal storage (the same with or without a card), and favorites in `/.echo/favorites.bin`. Without `--system-dir` the simulator can't save, and says so. Playback resumes, paused, where it left off.
 
 Music → Cover Flow shows your albums as covers, by album artist. Vol± move, Play opens the album, holding Play adds or removes it from Favorites, and Back leaves. Music → Playlists lists the M3U playlists the indexer found. Music → Favorites lists your favorite albums.
 

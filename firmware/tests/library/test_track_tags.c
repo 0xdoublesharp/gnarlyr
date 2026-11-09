@@ -137,6 +137,7 @@ static void formats_come_from_the_extension_in_any_case(void)
 {
     CHECK_EQUAL(TAG_FORMAT_FLAC, track_tags_format_for_name("a.FLAC"));
     CHECK_EQUAL(TAG_FORMAT_MP4, track_tags_format_for_name("song.M4a"));
+    CHECK_EQUAL(TAG_FORMAT_MP4, track_tags_format_for_name("Book.m4b"));
     CHECK_EQUAL(TAG_FORMAT_UNKNOWN, track_tags_format_for_name("cover.jpg"));
     CHECK_EQUAL(TAG_FORMAT_UNKNOWN, track_tags_format_for_name("flac"));
 }

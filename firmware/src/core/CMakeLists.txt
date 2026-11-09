@@ -1,8 +1,10 @@
 add_library(echo_core STATIC
     deadline.c
     format.c
+    frame_pacer.c
     frame_stats.c
     hash.c
+    key_lock.c
     key_tracker.c
     low_battery.c
     permutation.c

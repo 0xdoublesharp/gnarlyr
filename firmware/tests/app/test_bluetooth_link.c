@@ -334,6 +334,28 @@ static void connecting_saves_the_device_and_says_so(void)
     CHECK(summary_is("Speaker"));
 }
 
+static void resuming_keeps_a_live_connection(void)
+{
+    fresh();
+    save(true, NULL);
+    start();
+    connect_to(&SPEAKER);
+    step(START_MS + 100);
+    bluetooth_link_resume(&link, &toast, START_MS + 60000);
+    CHECK_EQUAL(HAL_BLUETOOTH_CONNECTED, fake_hal_bluetooth()->state);
+    CHECK(summary_is("Speaker"));
+}
+
+static void resuming_wakes_a_module_that_is_off(void)
+{
+    fresh();
+    save(true, NULL);
+    start();
+    hal_bluetooth_set_power(false);
+    bluetooth_link_resume(&link, &toast, START_MS + 100);
+    CHECK(fake_hal_bluetooth_powered());
+}
+
 static void playing_with_nothing_plugged_in_streams(void)
 {
     fresh();
@@ -723,6 +745,8 @@ int main(void)
         TEST_CASE(a_paired_reply_is_waited_for_without_searching),
         TEST_CASE(a_stalled_pairing_is_reset_and_tried_again),
         TEST_CASE(nothing_is_retried_while_connecting),
+        TEST_CASE(resuming_keeps_a_live_connection),
+        TEST_CASE(resuming_wakes_a_module_that_is_off),
         TEST_CASE(a_search_and_a_reconnect_take_turns),
         TEST_CASE(the_first_search_after_power_on_needs_no_restart),
         TEST_CASE(pair_new_device_after_a_connect_attempt_restarts_the_module),

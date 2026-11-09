@@ -14,8 +14,10 @@ function(echo_add_unit_test)
 endfunction()
 
 echo_add_unit_test(NAME test_deadline SOURCES core/test_deadline.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_frame_pacer SOURCES core/test_frame_pacer.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_frame_stats SOURCES core/test_frame_stats.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_key_tracker SOURCES core/test_key_tracker.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_key_lock SOURCES core/test_key_lock.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_utf8 SOURCES core/test_utf8.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_string_builder SOURCES core/test_string_builder.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_format SOURCES core/test_format.c LIBRARIES echo_core)
@@ -47,7 +49,7 @@ target_compile_definitions(echo_library_fixtures PRIVATE
 )
 target_link_libraries(echo_library_fixtures PUBLIC echo_library echo_library_scan PRIVATE echo_options)
 
-foreach(playback_test mix_catalog mix_tape mix_resolve play_queue resume_state up_next bookmarks spoken track_order session_journal)
+foreach(playback_test play_queue resume_state up_next bookmarks spoken)
     echo_add_unit_test(NAME test_${playback_test}
         SOURCES playback/test_${playback_test}.c
         LIBRARIES echo_playback echo_library_fixtures
@@ -55,6 +57,9 @@ foreach(playback_test mix_catalog mix_tape mix_resolve play_queue resume_state u
 endforeach()
 
 echo_add_unit_test(NAME test_settings SOURCES settings/test_settings.c LIBRARIES echo_settings)
+echo_add_unit_test(NAME test_rocker SOURCES settings/test_rocker.c LIBRARIES echo_settings)
+echo_add_unit_test(NAME test_equalizer_fit SOURCES settings/test_equalizer_fit.c LIBRARIES echo_settings)
+echo_add_unit_test(NAME test_equalizer_slots SOURCES settings/test_equalizer_slots.c LIBRARIES echo_settings)
 
 foreach(library_test block_cache library library_browse favorites covers sort_key track_fields playlist_reader cue_sheet music_fingerprint)
     echo_add_unit_test(NAME test_${library_test}
@@ -109,7 +114,7 @@ target_include_directories(echo_ui_fixtures PUBLIC gfx ui)
 target_link_libraries(echo_ui_fixtures PUBLIC echo_ui PRIVATE echo_options)
 
 foreach(ui_test theme_layout list_view list_navigation fast_scroll header menu_screen message_screen
-        choice_screen toast status_bar icons)
+        choice_screen toast status_bar)
     echo_add_unit_test(NAME test_${ui_test}
         SOURCES ui/test_${ui_test}.c
         LIBRARIES echo_ui_fixtures
@@ -123,12 +128,6 @@ echo_add_unit_test(NAME test_app
 )
 echo_add_unit_test(NAME test_release_diagnostics
     SOURCES app/test_release_diagnostics.c ${PROJECT_SOURCE_DIR}/src/app/diagnostics_menu_release.c
-        app/fake_hal.c
-    LIBRARIES echo_app echo_library_fixtures
-    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
-)
-echo_add_unit_test(NAME test_device_diagnostics
-    SOURCES app/test_device_diagnostics.c ${PROJECT_SOURCE_DIR}/src/app/diagnostics_menu.c
         app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
@@ -203,18 +202,7 @@ echo_add_unit_test(NAME test_bluetooth_screen
     LIBRARIES echo_app echo_library_scan
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
-echo_add_unit_test(NAME test_stopwatch_screen
-    SOURCES app/test_stopwatch_screen.c app/fake_hal.c
-    LIBRARIES echo_app echo_library_scan
-    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
-)
-echo_add_unit_test(NAME test_test_pattern_screen
-    SOURCES app/test_test_pattern_screen.c app/fake_hal.c
-    LIBRARIES echo_app echo_library_scan
-    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
-)
-
-foreach(device_test storage_code audio_math backlight board_pins loader_request update_names updater_echo vop battery_gauge watchdog panic_text stall_watch bt_module card_write core1_control start_record dac_sequence dma_loop flac_accel jack_sense key_ladder key_scanner msc panel pll sd_card stream_drift tick_clock updater usb_audio usb_audio_sink usb_device usb_fallback wav_source)
+foreach(device_test audio_math backlight board_pins loader_request update_names updater_echo vop battery_gauge watchdog panic_text stall_watch bt_module card_write core1_control start_record dac_sequence dma_loop flac_accel headset_dips headset_monitor headset_remote jack_sense key_ladder key_scanner msc panel pll sd_card stream_drift tick_clock updater usb_audio usb_audio_sink usb_device usb_fallback wav_source)
     echo_add_unit_test(NAME test_${device_test}
         SOURCES device/test_${device_test}.c
         LIBRARIES echo_device_logic
@@ -245,6 +233,10 @@ echo_add_unit_test(NAME test_flac_bits
     LIBRARIES echo_codec
 )
 target_include_directories(test_flac_bits PRIVATE ${PROJECT_SOURCE_DIR}/src/codec)
+echo_add_unit_test(NAME test_equalizer
+    SOURCES device/test_equalizer.c
+    LIBRARIES echo_device_logic echo_settings
+)
 echo_add_unit_test(NAME test_audio_engine
     SOURCES device/test_audio_engine.c
     LIBRARIES echo_device_logic
@@ -299,12 +291,6 @@ echo_add_unit_test(NAME test_fat_extents
 )
 target_compile_definitions(test_fat_extents PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 set_tests_properties(test_fat_extents PROPERTIES TIMEOUT 20)
-echo_add_unit_test(NAME test_stored_queue
-    SOURCES device/test_stored_queue.c device/sparse_card.c
-    LIBRARIES echo_device_logic echo_playback echo_library_fixtures
-)
-target_compile_definitions(test_stored_queue PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
-set_tests_properties(test_stored_queue PROPERTIES TIMEOUT 30)
 set(ECHO_CREATED_CARDS ${CMAKE_CURRENT_BINARY_DIR}/created_cards)
 file(MAKE_DIRECTORY ${ECHO_CREATED_CARDS})
 echo_add_unit_test(NAME test_fat_create
@@ -446,26 +432,17 @@ if(ARM_GCC)
         SKIP_RETURN_CODE 77
     )
     if(EXISTS ${PROJECT_SOURCE_DIR}/.venv/bin/python)
-        set(echo_image_tests ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_echo_image.py)
-        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${echo_image_tests})
-        file(STRINGS ${echo_image_tests} echo_image_cases REGEX "^    def test_")
-        foreach(case_line IN LISTS echo_image_cases)
-            string(REGEX REPLACE "^    def (test_[A-Za-z0-9_]+).*" "\\1" case_name "${case_line}")
-            set(test_name device_image_boot_${case_name})
-            add_test(NAME ${test_name}
-                COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python ${echo_image_tests}
-                    --image ${PROJECT_SOURCE_DIR}/build/device/${PODIUM_IMAGE_NAME}
-                    --elf ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_device.elf
-                    EchoImageTest.${case_name}
-            )
-            set_tests_properties(${test_name} PROPERTIES
-                FIXTURES_REQUIRED device_image
-                SKIP_RETURN_CODE 77
-                LABELS echo_image
-                PROCESSORS 2
-                TIMEOUT 900
-            )
-        endforeach()
+        add_test(NAME device_image_boots_in_emulator
+            COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
+                ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_echo_image.py
+                --image ${PROJECT_SOURCE_DIR}/build/device/${PODIUM_IMAGE_NAME}
+                --elf ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_device.elf
+        )
+        set_tests_properties(device_image_boots_in_emulator PROPERTIES
+            FIXTURES_REQUIRED device_image
+            SKIP_RETURN_CODE 77
+            TIMEOUT 900
+        )
         add_test(NAME core1_m4a_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
                 ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_core1_m4a.py
@@ -551,6 +528,11 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
             -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/m4a_music.db
             -P ${CMAKE_CURRENT_SOURCE_DIR}/check_library_index.cmake
     )
+    add_test(NAME m4b_fixture_up_to_date
+        COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/m4b_fixture.py
+            --output ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/m4b_music
+            --check
+    )
     add_test(NAME builder_fixture_up_to_date
         COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/builder_fixture.py
             --output ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/builder_random
@@ -575,28 +557,4 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
     )
 else()
     message(STATUS "tools venv not found: run python3 -m venv .venv && .venv/bin/pip install -r tools/requirements.txt")
-endif()
-
-echo_add_unit_test(NAME test_mixtape_store
-    SOURCES app/test_mixtape_store.c app/fake_hal.c
-    LIBRARIES echo_app echo_library_fixtures
-    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
-)
-
-echo_add_unit_test(NAME test_mixtape_ui
-    SOURCES app/test_mixtape_ui.c app/fake_hal.c
-    LIBRARIES echo_app echo_library_fixtures
-    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
-)
-
-if(TARGET echo_sim_storage)
-    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/identity-store)
-    echo_add_unit_test(NAME test_library_store
-        SOURCES app/test_library_store.c
-        LIBRARIES echo_app echo_library_fixtures echo_sim_storage
-        PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
-    )
-    target_compile_definitions(test_library_store PRIVATE
-        ECHO_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/identity-store"
-    )
 endif()

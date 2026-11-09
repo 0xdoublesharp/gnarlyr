@@ -31,6 +31,16 @@ static void a_divider_separates_the_header_from_the_content(void)
     CHECK(ui_test_area_has_only(&canvas, divider, TEST_THEME.colors.divider));
 }
 
+static void the_title_keeps_the_header_font_whatever_the_text_size(void)
+{
+    Theme theme = TEST_THEME;
+    theme.fonts.title = NULL;
+    Canvas canvas = ui_test_canvas();
+    header_draw(&canvas, &theme, "A");
+    Rect header = theme_header_area(&theme);
+    CHECK(ui_test_area_has_color(&canvas, header, theme.colors.header_text));
+}
+
 static void the_title_is_centred(void)
 {
     Canvas canvas = ui_test_canvas();
@@ -51,6 +61,30 @@ static void a_long_title_stays_clear_of_the_header_insets(void)
     CHECK(!ui_test_area_has_color(&canvas, right, TEST_THEME.colors.header_text));
 }
 
+static void the_title_sits_in_the_row_below_the_status_row(void)
+{
+    Theme theme = TEST_THEME;
+    theme.metrics.header_height = 2 * TEST_HEADER_HEIGHT;
+    theme.metrics.status_height = TEST_HEADER_HEIGHT;
+    theme.metrics.header_inset = theme.metrics.padding;
+    Canvas canvas = ui_test_canvas();
+    header_draw(&canvas, &theme, "A");
+    Rect status_row = {0, 0, TEST_SCREEN_WIDTH, TEST_HEADER_HEIGHT};
+    Rect title_row = {0, TEST_HEADER_HEIGHT, TEST_SCREEN_WIDTH, TEST_HEADER_HEIGHT};
+    CHECK(ui_test_area_has_color(&canvas, title_row, theme.colors.header_text));
+    CHECK(!ui_test_area_has_color(&canvas, status_row, theme.colors.header_text));
+}
+
+static void a_long_title_may_use_the_width_a_portrait_header_gives_it(void)
+{
+    Theme theme = TEST_THEME;
+    theme.metrics.header_inset = theme.metrics.padding;
+    Canvas canvas = ui_test_canvas();
+    header_draw(&canvas, &theme, "ABABABABABABAB");
+    Rect left = {0, 0, TEST_HEADER_INSET, TEST_HEADER_HEIGHT};
+    CHECK(ui_test_area_has_color(&canvas, left, theme.colors.header_text));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -58,7 +92,10 @@ int main(void)
         TEST_CASE(the_header_shades_from_its_top_color_down),
         TEST_CASE(a_divider_separates_the_header_from_the_content),
         TEST_CASE(the_title_is_centred),
+        TEST_CASE(the_title_keeps_the_header_font_whatever_the_text_size),
         TEST_CASE(a_long_title_stays_clear_of_the_header_insets),
+        TEST_CASE(the_title_sits_in_the_row_below_the_status_row),
+        TEST_CASE(a_long_title_may_use_the_width_a_portrait_header_gives_it),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

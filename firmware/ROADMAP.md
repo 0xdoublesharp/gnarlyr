@@ -4,7 +4,7 @@ Status: `device` (works on the player) · `sim` (works in the simulator only) ·
 
 ## Where it stands
 
-Podium 4.5.5 shows Cyrillic and keeps settings on internal storage; 4.5.4 adds M4A; 4.5.3 plays from internal storage, splits CUE albums and reads large files without stutter; 4.5.0 brought EchoPod 0.6.0 to the full-size Echo (`docs/release-notes.md`). Everything marked `device` below works on the five Echos (4 GB and 8 GB) it has been tested on. `docs/known-issues.md` lists what's missing or unproven.
+Podium 4.5.8 adds portrait mode (Settings → Orientation); 4.5.7 turns off without a crackle; 4.5.6 adds an equalizer, wired headset buttons and a selection color; 4.5.5 shows Cyrillic and keeps settings on internal storage; 4.5.4 adds M4A; 4.5.3 plays from internal storage, splits CUE albums and reads large files without stutter; 4.5.0 brought EchoPod 0.6.0 to the full-size Echo (`docs/release-notes.md`). Everything marked `device` below works on the dozen Echos (4 GB and 8 GB) it has been tested on. `docs/known-issues.md` lists what's missing or unproven.
 
 ## Features
 
@@ -24,7 +24,9 @@ Podium 4.5.5 shows Cyrillic and keeps settings on internal storage; 4.5.4 adds M
 | Audiobooks and podcasts | device | `Audiobooks` and `Podcasts` folders on Home, kept out of Music; a bookmark per book and episode, in-order play, hold vol± jumps 30 s / 15 s (shelves checked on the player, bookmarks and jumps in the simulator) |
 | Library and covers built on a computer | device | echo-sync, one file for Windows, macOS and Linux, writes `library.db`, `covers.bin` and the scan fingerprint so the player doesn't rescan; 1,563 tracks in 2 min on Windows (macOS and Linux untested on a card) |
 | Screen-off controls | device | Pause, volume and track skip with the screen off |
-| Settings | device | Shuffle, repeat, sleep timer, screen timeout, auto off, brightness, gain, output, start screen, USB mode |
+| Settings | device | Shuffle, repeat, sleep timer, screen timeout, auto off, brightness, gain, output, equalizer, skip-songs gesture (hold or double-click vol±, or double/triple Play), orientation, start screen, USB mode |
+| Portrait mode | in progress | Settings → Orientation: Portrait or Portrait, flipped, with portrait layouts for Home, Now Playing, Cover Flow and lists; the volume rocker turns with the screen; modelled on EchoPod 0.8.0, not yet tried on a player |
+| Equalizer | in progress | Settings → Equalizer: FiiO's presets (Retro, Bass, Heavy, Pop, Jazz, Unique) with their pre-attenuation, and a 5-band Custom EQ (±10 dB); filters designed for each sample rate, 16- and 24-bit, up to 96 kHz; tested on a computer, not yet heard on the player |
 | Battery and power | device | Battery level, charging, charge screen, low-battery shutdown, auto off |
 | Bluetooth headphones | device | Pair, remember up to six, auto-reconnect, switch and disconnect; headphone controls; tested with OnePlus Buds 3 |
 | USB mass storage | device | Internal storage and the SD card, read/write, at high speed; SD card reads at about 3.9 MB/s |
@@ -52,7 +54,7 @@ Podium 4.5.5 shows Cyrillic and keeps settings on internal storage; 4.5.4 adds M
 
 | Item | Status |
 |---|---|
-| Parametric EQ | todo |
+| Parametric EQ (free bands and Q) | todo |
 | ReplayGain | todo |
 | Lyrics (`.lrc`) | todo |
 | ALAC and APE playback | todo |

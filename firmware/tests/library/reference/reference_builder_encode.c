@@ -7,7 +7,7 @@
 enum {
     HEADER_SIZE = 128,
     SECTION_COUNT = 10,
-    VERSION = 4,
+    VERSION = 6,
     ALIGNMENT = 4,
     TRACK_RECORD = 32,
     ALBUM_RECORD = 16,

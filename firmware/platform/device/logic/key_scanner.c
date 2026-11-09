@@ -43,10 +43,13 @@ static void emit_changes(KeyScanner *scanner, uint8_t mask, uint32_t time_ms)
 void key_scanner_sample(KeyScanner *scanner, uint8_t pressed_mask, uint32_t time_ms)
 {
     uint8_t mask = gate_power(scanner, pressed_mask);
-    if (mask == scanner->last_sample && mask != scanner->stable) {
+    scanner->run = mask == scanner->last_sample && scanner->run < UINT8_MAX ? scanner->run + 1 : 1;
+    scanner->last_sample = mask;
+    bool pressing = (mask & ~scanner->stable) != 0;
+    uint8_t needed = pressing ? KEY_SCANNER_PRESS_SAMPLES : KEY_SCANNER_RELEASE_SAMPLES;
+    if (mask != scanner->stable && scanner->run >= needed) {
         emit_changes(scanner, mask, time_ms);
     }
-    scanner->last_sample = mask;
 }
 
 bool key_scanner_next(KeyScanner *scanner, HalKeyTransition *transition)

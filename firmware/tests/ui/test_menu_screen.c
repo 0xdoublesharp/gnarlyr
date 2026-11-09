@@ -45,7 +45,7 @@ static Screen *open_menu(void)
 
 static ScreenAction press(Screen *screen, Key key, KeyGesture gesture)
 {
-    return screen->handle_key(screen->context, (KeyEvent){key, gesture}, 100);
+    return screen->handle_key(screen->context, (KeyEvent){.key = key, .gesture = gesture}, 100);
 }
 
 static void next(Screen *screen, int times)
@@ -224,9 +224,100 @@ static void a_side_panel_takes_the_right_of_the_content(void)
     CHECK(!ui_test_area_has_color(&canvas, first_row_left, TEST_THEME.colors.danger));
 }
 
+enum {
+    PANEL_MIN_HEIGHT = 20
+};
+
+static Rect panel_area;
+static int panel_draws;
+
+static void record_panel(void *context, Canvas *canvas, Rect area)
+{
+    (void)context;
+    (void)canvas;
+    panel_area = area;
+    panel_draws++;
+}
+
+static Screen *open_menu_with_panel(const Theme *theme, int item_count, int width)
+{
+    MenuConfig config = {
+        .title = "Menu",
+        .items = ITEMS,
+        .item_count = item_count,
+        .theme = theme,
+        .panel = {.width = width, .min_height = PANEL_MIN_HEIGHT, .draw = record_panel}};
+    Screen *screen = menu_screen_init(&menu, config);
+    screen->enter(screen->context, 0);
+    panel_draws = 0;
+    Canvas canvas = ui_test_canvas();
+    screen->update(screen->context, 100);
+    screen->draw(screen->context, &canvas);
+    return screen;
+}
+
+static Theme portrait_menu_theme(void)
+{
+    Theme theme = TEST_THEME;
+    theme.metrics.screen_width = TEST_SCREEN_HEIGHT;
+    theme.metrics.screen_height = TEST_SCREEN_WIDTH;
+    return theme;
+}
+
+static void a_landscape_panel_sits_beside_the_list(void)
+{
+    open_menu_with_panel(&TEST_THEME, 5, 10);
+    CHECK_EQUAL(1, panel_draws);
+    CHECK_EQUAL(TEST_SCREEN_WIDTH - 10, panel_area.x);
+    CHECK_EQUAL(TEST_HEADER_HEIGHT, panel_area.y);
+    CHECK_EQUAL(10, panel_area.width);
+    CHECK_EQUAL(TEST_SCREEN_HEIGHT - TEST_HEADER_HEIGHT, panel_area.height);
+}
+
+static void a_portrait_panel_sits_below_the_list_across_the_screen(void)
+{
+    static Theme theme;
+    theme = portrait_menu_theme();
+    open_menu_with_panel(&theme, 5, 10);
+    CHECK_EQUAL(1, panel_draws);
+    CHECK_EQUAL(0, panel_area.x);
+    CHECK_EQUAL(theme.metrics.screen_width, panel_area.width);
+    CHECK_EQUAL(theme.metrics.screen_height - panel_area.y, panel_area.height);
+    CHECK(panel_area.height >= PANEL_MIN_HEIGHT);
+}
+
+static void a_short_portrait_list_leaves_the_panel_the_rest(void)
+{
+    static Theme theme;
+    theme = portrait_menu_theme();
+    open_menu_with_panel(&theme, 5, 10);
+    int crowded = panel_area.height;
+    open_menu_with_panel(&theme, 2, 10);
+    CHECK(panel_area.height > crowded);
+    CHECK_EQUAL(theme.metrics.header_height + 2 * theme.metrics.row_height, panel_area.y);
+}
+
+static void a_portrait_list_keeps_the_selection_visible_above_the_panel(void)
+{
+    static Theme theme;
+    theme = portrait_menu_theme();
+    Screen *screen = open_menu_with_panel(&theme, 5, 10);
+    next(screen, 4);
+    Canvas canvas = ui_test_canvas();
+    screen->update(screen->context, 200);
+    screen->draw(screen->context, &canvas);
+    Rect above_panel = {0, theme.metrics.header_height, 1,
+                        panel_area.y - theme.metrics.header_height};
+    CHECK(ui_test_area_has_color(&canvas, above_panel, theme.colors.selection_background));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_landscape_panel_sits_beside_the_list),
+        TEST_CASE(a_portrait_panel_sits_below_the_list_across_the_screen),
+        TEST_CASE(a_short_portrait_list_leaves_the_panel_the_rest),
+        TEST_CASE(a_portrait_list_keeps_the_selection_visible_above_the_panel),
         TEST_CASE(the_menu_title_is_the_screen_title),
         TEST_CASE(items_that_open_a_screen_show_a_chevron),
         TEST_CASE(a_hidden_item_is_skipped),

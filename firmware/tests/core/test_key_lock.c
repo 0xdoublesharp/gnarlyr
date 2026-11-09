@@ -1,0 +1,85 @@
+#include "check.h"
+#include "core/key_lock.h"
+
+static KeyLock hold_combo(KeyLock lock, uint32_t start_ms)
+{
+    key_lock_transition(&lock, KEY_PLAY, true, start_ms);
+    key_lock_transition(&lock, KEY_POWER, true, start_ms + 50);
+    key_lock_update(&lock, start_ms + 50 + KEY_LOCK_HOLD_MS);
+    key_lock_transition(&lock, KEY_PLAY, false, start_ms + 1200);
+    key_lock_transition(&lock, KEY_POWER, false, start_ms + 1210);
+    return lock;
+}
+
+static void holding_play_and_power_locks_and_unlocks(void)
+{
+    KeyLock lock = hold_combo((KeyLock){0}, 0);
+    CHECK(lock.locked);
+    lock = hold_combo(lock, 5000);
+    CHECK(!lock.locked);
+}
+
+static void the_combination_starts_on_the_second_key_and_swallows_both(void)
+{
+    KeyLock lock = {0};
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_POWER, true, 0));
+    CHECK_EQUAL(KEY_LOCK_COMBO_STARTED, key_lock_transition(&lock, KEY_PLAY, true, 30));
+    CHECK_EQUAL(KEY_LOCK_SWALLOW, key_lock_transition(&lock, KEY_PLAY, false, 200));
+    CHECK_EQUAL(KEY_LOCK_SWALLOW, key_lock_transition(&lock, KEY_POWER, false, 220));
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_POWER, true, 400));
+}
+
+static void a_short_combination_changes_nothing(void)
+{
+    KeyLock lock = {0};
+    key_lock_transition(&lock, KEY_PLAY, true, 0);
+    key_lock_transition(&lock, KEY_POWER, true, 10);
+    CHECK(!key_lock_update(&lock, 10 + KEY_LOCK_HOLD_MS - 1));
+    key_lock_transition(&lock, KEY_POWER, false, 500);
+    CHECK(!key_lock_update(&lock, 2000));
+    CHECK(!lock.locked);
+}
+
+static void a_long_combination_toggles_only_once(void)
+{
+    KeyLock lock = {0};
+    key_lock_transition(&lock, KEY_PLAY, true, 0);
+    key_lock_transition(&lock, KEY_POWER, true, 10);
+    CHECK(key_lock_update(&lock, 1100));
+    CHECK(!key_lock_update(&lock, 3000));
+    CHECK(lock.locked);
+}
+
+static void locked_keys_are_refused_on_press_and_swallowed_on_release(void)
+{
+    KeyLock lock = hold_combo((KeyLock){0}, 0);
+    CHECK_EQUAL(KEY_LOCK_REFUSED, key_lock_transition(&lock, KEY_MENU, true, 3000));
+    CHECK_EQUAL(KEY_LOCK_SWALLOW, key_lock_transition(&lock, KEY_MENU, false, 3100));
+    CHECK_EQUAL(KEY_LOCK_REFUSED, key_lock_transition(&lock, KEY_VOLUME_UP, true, 3200));
+    CHECK_EQUAL(KEY_LOCK_REFUSED, key_lock_transition(&lock, KEY_PLAY, true, 3300));
+    CHECK_EQUAL(KEY_LOCK_SWALLOW, key_lock_transition(&lock, KEY_PLAY, false, 3400));
+}
+
+static void power_keeps_working_while_locked(void)
+{
+    KeyLock lock = hold_combo((KeyLock){0}, 0);
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_POWER, true, 3000));
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_POWER, false, 3100));
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_POWER, true, 4000));
+    CHECK_EQUAL(KEY_LOCK_COMBO_STARTED, key_lock_transition(&lock, KEY_PLAY, true, 4050));
+    CHECK(key_lock_update(&lock, 4050 + KEY_LOCK_HOLD_MS));
+    CHECK(!lock.locked);
+}
+
+int main(void)
+{
+    static const TestCase cases[] = {
+        TEST_CASE(holding_play_and_power_locks_and_unlocks),
+        TEST_CASE(the_combination_starts_on_the_second_key_and_swallows_both),
+        TEST_CASE(a_short_combination_changes_nothing),
+        TEST_CASE(a_long_combination_toggles_only_once),
+        TEST_CASE(locked_keys_are_refused_on_press_and_swallowed_on_release),
+        TEST_CASE(power_keeps_working_while_locked),
+    };
+    return test_run_all(cases, TEST_CASE_COUNT(cases));
+}

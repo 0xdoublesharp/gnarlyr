@@ -80,3 +80,14 @@ bool hal_input_next_transition(HalKeyTransition *transition)
     queue.length--;
     return true;
 }
+
+bool hal_input_next_headset_command(HalHeadsetCommand *command)
+{
+    (void)command;
+    return false;
+}
+
+HalHeadsetReading hal_input_headset_reading(void)
+{
+    return (HalHeadsetReading){.known = false};
+}

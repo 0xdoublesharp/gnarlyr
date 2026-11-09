@@ -64,6 +64,7 @@ HalLoopCycles hal_system_loop_cycles(void);
 void hal_system_stall_test(void);
 void hal_system_watchdog_test(void);
 void hal_system_keep_alive(void);
+uint32_t hal_system_idle_microseconds(void);
 typedef enum HalHighRamStatus {
     HAL_HIGH_RAM_OK,
     HAL_HIGH_RAM_UNAVAILABLE,
@@ -81,8 +82,6 @@ typedef struct HalHighRamTest {
 HalHighRamTest hal_system_high_ram_test(void);
 bool hal_system_restart_pending(void);
 const void *hal_system_load_rescan_code(void);
-const void *hal_system_mixtape_api(void);
-const void *hal_system_mixtape_ui(void);
 void *hal_system_borrow_scratch(uint32_t *size);
 void *hal_system_borrow_listing(uint32_t *size);
 void hal_system_return_scratch(void);

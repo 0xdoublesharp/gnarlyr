@@ -12,6 +12,7 @@ typedef struct ChoiceConfig {
     int option_count;
     int (*current)(const void *context);
     void (*choose)(void *context, int index);
+    Screen *(*open)(void *context, int index);
     void *context;
     const Theme *theme;
 } ChoiceConfig;

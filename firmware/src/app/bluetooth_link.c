@@ -83,6 +83,14 @@ void bluetooth_link_start(BluetoothLink *link, Toast *toast, uint32_t now_ms)
     }
 }
 
+void bluetooth_link_resume(BluetoothLink *link, Toast *toast, uint32_t now_ms)
+{
+    bool talking = hal_bluetooth_status()->state >= HAL_BLUETOOTH_READY;
+    if (link->toast != toast || !link->saved.enabled || link->dozing || !talking) {
+        bluetooth_link_start(link, toast, now_ms);
+    }
+}
+
 void bluetooth_link_set_enabled(BluetoothLink *link, bool enabled, uint32_t now_ms)
 {
     if (link->saved.enabled != enabled) {

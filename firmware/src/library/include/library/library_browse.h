@@ -16,7 +16,8 @@ typedef enum BrowseKind {
     BROWSE_ALBUM_TRACKS,
     BROWSE_FOLDER,
     BROWSE_PLAYLISTS,
-    BROWSE_PLAYLIST_TRACKS
+    BROWSE_PLAYLIST_TRACKS,
+    BROWSE_FOLDER_TREE
 } BrowseKind;
 
 typedef struct BrowseQuery {
@@ -51,4 +52,5 @@ uint32_t browse_count(const Library *library, BrowseQuery query);
 bool browse_item(const Library *library, BrowseQuery query, uint32_t position, BrowseItem *item);
 bool browse_child(BrowseQuery parent, BrowseItem item, BrowseQuery *child);
 bool browse_item_text(const Library *library, BrowseQuery query, BrowseItem item, BrowseText text);
+BrowseQuery browse_play_source(const Library *library, BrowseQuery query, uint32_t *position);
 bool browse_title(const Library *library, BrowseQuery query, char *buffer, size_t capacity);

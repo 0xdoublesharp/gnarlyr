@@ -1,7 +1,6 @@
 #include <stdint.h>
 
 #include "board.h"
-#include "device/storage_code.h"
 #include "hal/system.h"
 
 #define HIGH_RAM_BASE 0x0307A000u
@@ -29,17 +28,10 @@ static uint32_t check_memory(uint32_t flip)
     volatile uint32_t *words = (volatile uint32_t *)HIGH_RAM_BASE;
     uint32_t count = (HIGH_RAM_END - HIGH_RAM_BASE) / 4;
     for (uint32_t index = 0; index < count; index++) {
-        uint32_t address = HIGH_RAM_BASE + index * 4;
-        if (address < STORAGE_CODE_BASE || address >= STORAGE_CODE_BASE + STORAGE_CODE_CAPACITY) {
-            words[index] = pattern(address, flip);
-        }
+        words[index] = pattern(HIGH_RAM_BASE + index * 4, flip);
     }
     for (uint32_t index = 0; index < count; index++) {
-        uint32_t address = HIGH_RAM_BASE + index * 4;
-        if (address >= STORAGE_CODE_BASE && address < STORAGE_CODE_BASE + STORAGE_CODE_CAPACITY) {
-            continue;
-        }
-        if (words[index] != pattern(address, flip)) {
+        if (words[index] != pattern(HIGH_RAM_BASE + index * 4, flip)) {
             return HIGH_RAM_BASE + index * 4;
         }
     }
@@ -69,7 +61,6 @@ HalHighRamTest hal_system_high_ram_test(void)
     uint32_t result = call_from_high_ram();
     board_glyphs_start();
     HalHighRamStatus status = result == PROBE_EXPECTED ? HAL_HIGH_RAM_OK : HAL_HIGH_RAM_BAD_CALL;
-    return (HalHighRamTest){.status = status,
-                            .size = HIGH_RAM_END - HIGH_RAM_BASE - STORAGE_CODE_CAPACITY,
-                            .call_result = result};
+    return (HalHighRamTest){
+        .status = status, .size = HIGH_RAM_END - HIGH_RAM_BASE, .call_result = result};
 }

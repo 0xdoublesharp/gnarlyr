@@ -4,6 +4,7 @@
 #include "device/core1_control.h"
 #include "device/core1_heap.h"
 #include "device/core1_m4a.h"
+#include "idle.h"
 #include "registers.h"
 
 void core1_main(void);
@@ -22,7 +23,10 @@ void core1_main(void)
         return;
     }
     core1_stream_init(&stream, core1_region_m4a(), core1_m4a_decoder(&m4a));
+    core1_idle_start();
     for (;;) {
-        core1_stream_step(&stream);
+        if (!core1_stream_step(&stream)) {
+            core1_idle();
+        }
     }
 }

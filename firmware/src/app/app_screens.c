@@ -7,7 +7,6 @@
 #include "diagnostics_values.h"
 #include "hal/power.h"
 #include "hal/system.h"
-#include "ui/icons.h"
 
 typedef enum MusicSource {
     MUSIC_COVER_FLOW,
@@ -39,16 +38,6 @@ static const MusicEntry MUSIC_ENTRIES[MUSIC_ITEM_COUNT] = {
     {"All Songs", MUSIC_LIBRARY, BROWSE_ALL_SONGS},
     {"Playlists", MUSIC_LIBRARY, BROWSE_PLAYLISTS},
     {"Favorites", MUSIC_FAVORITES, BROWSE_ALBUMS},
-};
-
-static const uint8_t MUSIC_ICONS[MUSIC_ITEM_COUNT] = {
-    ICON_COVER_FLOW, ICON_ARTIST, ICON_ALBUM_ARTIST, ICON_ALBUM,    ICON_GENRE,
-    ICON_FOLDER,     ICON_SONG,   ICON_PLAYLIST,     ICON_FAVORITE, ICON_MIXTAPE,
-};
-
-static const uint8_t HOME_ICONS[HOME_ITEM_COUNT] = {
-    ICON_MUSIC,   ICON_AUDIOBOOK, ICON_PODCAST,  ICON_NOW_PLAYING,
-    ICON_MIXTAPE, ICON_AUDIO,     ICON_SETTINGS,
 };
 
 static bool player_has_track(const void *context)
@@ -136,13 +125,8 @@ static void build_music(AppScreens *screens, AppScreensContext context)
         .player = context.player,
     };
     cover_flow_screen_init(&screens->cover_flow, cover_flow);
-    for (int index = 0; index < MUSIC_ITEM_COUNT - 1; index++) {
-        screens->music_items[index] = music_item(screens, context.store, index);
-    }
-    screens->music_items[MUSIC_ITEM_COUNT - 1] = app_screens_open_item(
-        "Mixtapes", context.mixtapes != NULL ? context.mixtapes : &screens->no_library.screen);
     for (int index = 0; index < MUSIC_ITEM_COUNT; index++) {
-        screens->music_items[index].icon = MUSIC_ICONS[index];
+        screens->music_items[index] = music_item(screens, context.store, index);
     }
     app_screens_build_menu(&screens->music, "Music", screens->music_items, MUSIC_ITEM_COUNT,
                            context.theme);
@@ -157,10 +141,12 @@ static void build_settings(AppScreens *screens, AppScreensContext context)
         .toast = context.toast,
         .rescan_requested = context.rescan_requested,
         .bluetooth = &screens->bluetooth,
-        .diagnostics = &screens->diagnostics.screen,
+        .theme = context.styled_theme,
         .sleep_option = 0,
     };
     settings_screens_init(&screens->settings, settings, context.theme);
+    screens->settings.items[SETTINGS_ABOUT_ITEM] =
+        app_screens_open_item("About", &screens->diagnostics.screen);
 }
 
 static bool shelf_present(const void *context)
@@ -195,25 +181,20 @@ static void build_home(AppScreens *screens, AppScreensContext context)
     screens->home_items[0] = app_screens_open_item("Music", &screens->music.screen);
     screens->home_items[1] = shelf_item(screens, context, SPOKEN_AUDIOBOOK);
     screens->home_items[2] = shelf_item(screens, context, SPOKEN_PODCAST);
-    screens->home_items[3] = app_screens_open_item("Now Playing", &screens->now_playing.screen);
-    screens->home_items[3].shown = player_has_track;
-    screens->home_items[3].shown_context = context.player;
-    screens->home_items[4] = app_screens_open_item(
-        "Mixtapes", context.mixtapes != NULL ? context.mixtapes : &screens->no_library.screen);
-    screens->home_items[5] = (MenuItem){.label = "Audio & connections",
-                                        .select = settings_screens_open_audio,
-                                        .context = &screens->settings,
-                                        .opens = true};
-    screens->home_items[6] = app_screens_open_item("Settings", &screens->settings.menu.screen);
-    for (int index = 0; index < HOME_ITEM_COUNT; index++) {
-        screens->home_items[index].icon = HOME_ICONS[index];
-    }
+    screens->home_items[3] = app_screens_open_item("Settings", &screens->settings.menu.screen);
+    screens->home_items[4] = app_screens_open_item("Now Playing", &screens->now_playing.screen);
+    screens->home_items[4].shown = player_has_track;
+    screens->home_items[4].shown_context = context.player;
+    screens->home_items[5] = app_screens_open_item("Up Next", &screens->up_next.screen);
+    screens->home_items[5].shown = player_has_track;
+    screens->home_items[5].shown_context = context.player;
     home_art_init(&screens->home_art, context.covers, context.store, context.player, theme);
     MenuConfig home = {.title = "Podium",
                        .items = screens->home_items,
                        .item_count = HOME_ITEM_COUNT,
-                       .theme = theme,
+                       .theme = context.compact_theme,
                        .panel = {.width = BOARD_LAYOUT.home_art_width,
+                                 .min_height = BOARD_LAYOUT.home_art_min_height,
                                  .update = home_art_update,
                                  .draw = home_art_draw,
                                  .context = &screens->home_art}};
@@ -223,18 +204,14 @@ static void build_home(AppScreens *screens, AppScreensContext context)
 Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
 {
     const Theme *theme = context.theme;
-    MessageConfig no_library = {.title = "No library",
-                                .message = "Copy music to the player over USB",
-                                .theme = theme,
-                                .icon = ICON_MUSIC};
-    UpNextConfig up_next = {.library = &context.store->library,
-                            .theme = theme,
-                            .player = context.player,
-                            .toast = context.toast};
+    MessageConfig no_library = {
+        .title = "No library", .message = "Copy music to the player over USB", .theme = theme};
+    UpNextConfig up_next = {
+        .library = &context.store->library, .theme = theme, .player = context.player};
     NowPlayingConfig now_playing = {.player = context.player,
                                     .settings = &context.settings->settings,
                                     .library = &context.store->library,
-                                    .theme = theme,
+                                    .theme = context.compact_theme,
                                     .covers = context.covers,
                                     .up_next = up_next_screen_init(&screens->up_next, up_next)};
     message_screen_init(&screens->no_library, no_library);

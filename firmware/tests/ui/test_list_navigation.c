@@ -57,7 +57,7 @@ static ScreenAction send_with(ListView *view, KeyEvent event, ListSelection sele
 static ScreenAction send(ListView *view, Key key, KeyGesture gesture)
 {
     ListSelection selection = {.select = record_selection, .hold = record_hold, .context = NULL};
-    return send_with(view, (KeyEvent){key, gesture}, selection);
+    return send_with(view, (KeyEvent){.key = key, .gesture = gesture}, selection);
 }
 
 static void next_and_previous_move_the_selection(void)
@@ -102,7 +102,7 @@ static void holding_play_without_a_hold_action_does_nothing(void)
 {
     ListView view = fresh_list();
     ListSelection selection = {.select = record_selection, .hold = NULL, .context = NULL};
-    KeyEvent hold = {KEY_PLAY, KEY_GESTURE_LONG_PRESS};
+    KeyEvent hold = {.key = KEY_PLAY, .gesture = KEY_GESTURE_LONG_PRESS};
     CHECK_EQUAL(SCREEN_ACTION_NONE, send_with(&view, hold, selection).type);
     CHECK_EQUAL(-1, selected_index);
 }

@@ -3,7 +3,7 @@ import random
 import sys
 from pathlib import Path
 
-from library_index import RawPlaylist, TrackInfo, build_library, encode_library
+from library_index import PlaylistEntry, RawPlaylist, TrackInfo, build_library, encode_library
 
 SEED = 20261018
 TRACK_COUNT = 400
@@ -77,7 +77,7 @@ def playlists(track_list):
     result = []
     for _ in range(PLAYLIST_COUNT):
         folder = rng.choice(["", "Playlists", "Music/Lists", "a"])
-        entries = [entry_for(rng, rng.choice(track_list).path, folder)
+        entries = [PlaylistEntry(entry_for(rng, rng.choice(track_list).path, folder))
                    for _ in range(rng.randint(0, 25))]
         result.append(RawPlaylist(rng.choice(PLAYLIST_NAMES), folder, entries))
     return result
@@ -87,7 +87,7 @@ def playlist_rows(raw_playlists):
     rows = []
     for playlist in raw_playlists:
         rows.append("\t".join(["#PLAYLIST", playlist.name, playlist.folder]))
-        rows.extend("\t" + entry for entry in playlist.entries)
+        rows.extend("\t" + entry.path for entry in playlist.entries)
     return rows
 
 

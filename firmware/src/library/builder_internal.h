@@ -17,8 +17,12 @@ enum {
     BUILDER_ALBUM = 3,
     BUILDER_GENRE = 4,
     BUILDER_FILE = 5,
-    BUILDER_ROW_SIZE = 56,
+    BUILDER_ROW_SIZE = 60,
     BUILDER_FOLDER_SIZE = 8,
+    BUILDER_SHEET_BIT = 0x8000,
+    BUILDER_CHAPTERS_BIT = 0x4000,
+    BUILDER_FLAG_BITS = 0xC000,
+    BUILDER_FLAG_SHIFT = 14,
     BUILDER_MAX_DEPTH = 64,
     BUILDER_TEXT_CAPACITY = 1024,
     BUILDER_MAX_RECORD = 2 * BUILDER_TEXT_CAPACITY + 64,
@@ -87,12 +91,15 @@ typedef struct TrackRow {
     uint32_t duration_ms;
     uint32_t start_ms;
     uint32_t end_ms;
+    uint16_t sheet;
+    uint8_t continued;
 } TrackRow;
 
 typedef struct FolderRow {
     uint32_t name;
     uint16_t length;
     uint16_t parent;
+    uint8_t sheet;
 } FolderRow;
 
 typedef struct ChainLevel {
@@ -118,6 +125,7 @@ typedef struct ScanTime {
     uint16_t *folder_slots;
     uint32_t folder_capacity;
     uint32_t folder_mask;
+    uint16_t last_sheet;
 } ScanTime;
 
 typedef struct GroupTable {
@@ -246,7 +254,7 @@ bool builder_rank(BuilderState *state, Prepared *prepared);
 bool builder_model(BuilderState *state, Prepared *prepared);
 bool builder_index_paths(BuilderState *state, Prepared *prepared);
 uint32_t builder_resolve_entry(BuilderState *state, Prepared *prepared, const char *folder,
-                               const char *entry);
+                               const char *entry, uint32_t start_ms);
 uint32_t builder_folded_path(BuilderState *state, Prepared *prepared, uint32_t position, char *out);
 BuilderResult builder_encode(BuilderState *state, Prepared *prepared, ByteSink sink,
                              uint32_t capacity, uint32_t *length);

@@ -10,13 +10,6 @@ enum {
     MAX_DEPTH = 8
 };
 
-typedef struct Atom {
-    uint32_t offset;
-    uint32_t body;
-    uint32_t end;
-    char type[4];
-} Atom;
-
 typedef struct Mp4Item {
     const char *type;
     TagField field;
@@ -40,7 +33,7 @@ static const Mp4Item ITEMS[] = {
     {"trkn", TAG_TRACK, true},
 };
 
-static bool read_atom(const TagReader *reader, uint32_t offset, uint32_t limit, Atom *atom)
+bool tags_mp4_read_atom(const TagReader *reader, uint32_t offset, uint32_t limit, Mp4Atom *atom)
 {
     uint8_t header[16];
     if (offset > limit || limit - offset < ATOM_HEADER ||
@@ -61,19 +54,19 @@ static bool read_atom(const TagReader *reader, uint32_t offset, uint32_t limit, 
     if (size < body - offset || size > limit - offset) {
         return false;
     }
-    *atom = (Atom){.offset = offset, .body = body, .end = offset + (uint32_t)size};
+    *atom = (Mp4Atom){.offset = offset, .body = body, .end = offset + (uint32_t)size};
     for (int index = 0; index < 4; index++) {
         atom->type[index] = (char)header[4 + index];
     }
     return true;
 }
 
-static bool find_child(const TagReader *reader, const Atom *parent, uint32_t skip, const char *type,
-                       Atom *found)
+bool tags_mp4_find_child(const TagReader *reader, const Mp4Atom *parent, uint32_t skip,
+                         const char *type, Mp4Atom *found)
 {
     uint32_t cursor = parent->body + skip;
-    Atom atom;
-    while (read_atom(reader, cursor, parent->end, &atom)) {
+    Mp4Atom atom;
+    while (tags_mp4_read_atom(reader, cursor, parent->end, &atom)) {
         if (tag_same_text(atom.type, 4, type)) {
             *found = atom;
             return true;
@@ -83,24 +76,24 @@ static bool find_child(const TagReader *reader, const Atom *parent, uint32_t ski
     return false;
 }
 
-static bool is_sound_track(const TagReader *reader, const Atom *trak)
+static bool is_sound_track(const TagReader *reader, const Mp4Atom *trak)
 {
-    Atom mdia;
-    Atom hdlr;
+    Mp4Atom mdia;
+    Mp4Atom hdlr;
     uint8_t handler[12];
-    return find_child(reader, trak, 0, "mdia", &mdia) &&
-           find_child(reader, &mdia, 0, "hdlr", &hdlr) &&
+    return tags_mp4_find_child(reader, trak, 0, "mdia", &mdia) &&
+           tags_mp4_find_child(reader, &mdia, 0, "hdlr", &hdlr) &&
            tag_read(reader, hdlr.body, handler, sizeof handler) &&
            tag_same_text((const char *)handler + 8, 4, "soun");
 }
 
-static void read_duration(TagReader *reader, const Atom *trak)
+static void read_duration(TagReader *reader, const Mp4Atom *trak)
 {
-    Atom mdia;
-    Atom mdhd;
+    Mp4Atom mdia;
+    Mp4Atom mdhd;
     uint8_t data[32];
-    if (!find_child(reader, trak, 0, "mdia", &mdia) ||
-        !find_child(reader, &mdia, 0, "mdhd", &mdhd) ||
+    if (!tags_mp4_find_child(reader, trak, 0, "mdia", &mdia) ||
+        !tags_mp4_find_child(reader, &mdia, 0, "mdhd", &mdhd) ||
         !tag_read(reader, mdhd.body, data, mdhd.end - mdhd.body < 32 ? mdhd.end - mdhd.body : 32)) {
         return;
     }
@@ -118,11 +111,11 @@ static void read_duration(TagReader *reader, const Atom *trak)
     }
 }
 
-static bool sound_track(TagReader *reader, const Atom *moov, Atom *trak)
+static bool sound_track(TagReader *reader, const Mp4Atom *moov, Mp4Atom *trak)
 {
     uint32_t cursor = moov->body;
-    Atom atom;
-    while (read_atom(reader, cursor, moov->end, &atom)) {
+    Mp4Atom atom;
+    while (tags_mp4_read_atom(reader, cursor, moov->end, &atom)) {
         if (tag_same_text(atom.type, 4, "trak") && is_sound_track(reader, &atom)) {
             *trak = atom;
             return true;
@@ -159,7 +152,7 @@ static void offer_number(TagReader *reader, TagField field, uint32_t value)
     tag_offer_decoded(reader, field, text);
 }
 
-static void read_value(TagReader *reader, const Mp4Item *item, const Atom *data)
+static void read_value(TagReader *reader, const Mp4Item *item, const Mp4Atom *data)
 {
     uint8_t value[VALUE_CAPACITY];
     uint32_t length = data->end - data->body;
@@ -181,7 +174,7 @@ static void read_value(TagReader *reader, const Mp4Item *item, const Atom *data)
     }
 }
 
-static void read_old_genre(TagReader *reader, const Atom *data)
+static void read_old_genre(TagReader *reader, const Mp4Atom *data)
 {
     uint8_t value[2];
     if (data->end - data->body >= 10 && tag_read(reader, data->body + 8, value, 2)) {
@@ -192,7 +185,7 @@ static void read_old_genre(TagReader *reader, const Atom *data)
     }
 }
 
-static void read_cover(TagReader *reader, const Atom *data)
+static void read_cover(TagReader *reader, const Mp4Atom *data)
 {
     if (data->end - data->body > 8) {
         tag_offer_picture(reader, (TagPicture){.kind = TAG_PICTURE_RAW,
@@ -202,7 +195,7 @@ static void read_cover(TagReader *reader, const Atom *data)
     }
 }
 
-static void read_item(TagReader *reader, const Atom *item_atom, const Atom *genre_fallback)
+static void read_item(TagReader *reader, const Mp4Atom *item_atom, const Mp4Atom *genre_fallback)
 {
     const Mp4Item *item = item_for(item_atom->type);
     bool cover = tag_same_text(item_atom->type, 4, "covr");
@@ -210,8 +203,8 @@ static void read_item(TagReader *reader, const Atom *item_atom, const Atom *genr
         return;
     }
     uint32_t cursor = item_atom->body;
-    Atom data;
-    while (read_atom(reader, cursor, item_atom->end, &data)) {
+    Mp4Atom data;
+    while (tags_mp4_read_atom(reader, cursor, item_atom->end, &data)) {
         if (tag_same_text(data.type, 4, "data")) {
             if (cover) {
                 read_cover(reader, &data);
@@ -225,13 +218,13 @@ static void read_item(TagReader *reader, const Atom *item_atom, const Atom *genr
     }
 }
 
-static void read_items(TagReader *reader, const Atom *ilst)
+static void read_items(TagReader *reader, const Mp4Atom *ilst)
 {
     uint32_t cursor = ilst->body;
-    Atom atom;
-    Atom old_genre;
+    Mp4Atom atom;
+    Mp4Atom old_genre;
     bool has_old_genre = false;
-    while (read_atom(reader, cursor, ilst->end, &atom)) {
+    while (tags_mp4_read_atom(reader, cursor, ilst->end, &atom)) {
         if (tag_same_text(atom.type, 4, "gnre")) {
             old_genre = atom;
             has_old_genre = true;
@@ -245,23 +238,24 @@ static void read_items(TagReader *reader, const Atom *ilst)
     }
 }
 
-static void read_tags(TagReader *reader, const Atom *moov)
+static void read_tags(TagReader *reader, const Mp4Atom *moov)
 {
-    Atom udta;
-    Atom meta;
-    Atom ilst;
-    if (find_child(reader, moov, 0, "udta", &udta) && find_child(reader, &udta, 0, "meta", &meta) &&
-        find_child(reader, &meta, 4, "ilst", &ilst)) {
+    Mp4Atom udta;
+    Mp4Atom meta;
+    Mp4Atom ilst;
+    if (tags_mp4_find_child(reader, moov, 0, "udta", &udta) &&
+        tags_mp4_find_child(reader, &udta, 0, "meta", &meta) &&
+        tags_mp4_find_child(reader, &meta, 4, "ilst", &ilst)) {
         read_items(reader, &ilst);
     }
 }
 
 bool tags_read_mp4(TagReader *reader)
 {
-    Atom root = {.offset = 0, .body = 0, .end = reader->size};
-    Atom moov;
-    Atom trak;
-    if (!find_child(reader, &root, 0, "moov", &moov)) {
+    Mp4Atom root = {.offset = 0, .body = 0, .end = reader->size};
+    Mp4Atom moov;
+    Mp4Atom trak;
+    if (!tags_mp4_find_child(reader, &root, 0, "moov", &moov)) {
         return false;
     }
     if (sound_track(reader, &moov, &trak)) {

@@ -7,3 +7,4 @@
 
 bool key_ladder_decode(uint16_t reading, Key *key);
 uint8_t key_ladder_mask(uint16_t reading);
+uint8_t key_ladder_held_mask(uint16_t reading, uint8_t previous);

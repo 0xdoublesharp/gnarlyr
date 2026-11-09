@@ -50,12 +50,12 @@ The updater takes the highest-numbered `ECHOVnnn.IMG` (`ECHOECHO.IMG` first). It
 
 ## What to check after an install
 
-- **Home screen:** "EchoPod" with Music, Now Playing, Settings and Diagnostics. Without a card, Music says "No library".
-- **Diagnostics → Firmware:** the commit you built.
-- **Keys:** Diagnostics → Key test.
+- **Home screen:** "EchoPod" with Music, Now Playing and Settings. Without a card, Music says "No library".
+- **Settings → About → Firmware:** the commit you built.
+- **Keys:** each button does what the Buttons table in `docs/user-guide.md` says.
 - **Power:** a tap turns the screen off and on. Holding it for 2 s switches the player off; with a cable in, it shows the charge screen instead, and holding Power again turns the player back on.
 - **USB:** "Computer found" appears and the drives mount within about 10 s.
-- **Card:** settings live on internal storage (`/.echo/prefs6.bin`, created on the first start; older `prefs5.bin` and `settings.bin` are retained). On the first start with a card, the player creates `/.echo` with `resume.bin`, `favorites.bin`, `scan.bin`, `upnext.bin`, `bluetooth.bin`, `library.db` (4 MB), `covers.bin` (80 MB) and `build.tmp` (24 MB), then scans the card and builds the covers. If the card has no room it says "The card is full", and nothing is saved.
+- **Card:** settings live on internal storage (`/.echo/settings.bin`, created on the first start). On the first start with a card, the player creates `/.echo` with `resume.bin`, `favorites.bin`, `scan.bin`, `upnext.bin`, `bluetooth.bin`, `library.db` (4 MB), `covers.bin` (80 MB) and `build.tmp` (24 MB), then scans the card and builds the covers. If the card has no room it says "The card is full", and nothing is saved.
 
 ## If something goes wrong
 

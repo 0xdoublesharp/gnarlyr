@@ -3,6 +3,7 @@ import sys
 import unicodedata
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -222,6 +223,50 @@ class SpokenWordTest(unittest.TestCase):
         self.assertEqual([1, 1, 1, 1, 1, 0, 1, 0, 0, 0], music)
 
 
+class CueFolderTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        music = TOOLS_DIRECTORY.parent / "tests" / "fixtures" / "cue_music"
+        tracks, _, _ = library_index.scan(music)
+        cls.library = library_index.build_library(tracks)
+
+    def folder(self, name):
+        return next(folder for folder in self.library.folders if folder.name == name)
+
+    def test_a_cue_backed_file_is_one_entry_of_its_folder(self):
+        album = self.folder("Cue Album")
+        self.assertEqual(["Opening"], [self.library.tracks[index].title for index in album.tracks])
+        self.assertEqual(["Cue Album.cue"],
+                         [self.library.folders[index].name for index in album.subfolders])
+
+    def test_the_sheet_is_a_folder_of_its_tracks(self):
+        sheet = self.folder("Cue Album.cue")
+        self.assertEqual(library_index.FOLDER_SHEET, sheet.flags)
+        self.assertEqual(["Opening", "Middle Part", "Closing"],
+                         [self.library.tracks[index].title for index in sheet.tracks])
+        self.assertEqual([], sheet.subfolders)
+
+    def test_sheet_tracks_belong_to_the_folder_of_their_file(self):
+        album = self.library.folders.index(self.folder("Cue Album"))
+        sheet = self.folder("Cue Album.cue")
+        self.assertEqual({album},
+                         {self.library.track_folders[index] for index in sheet.tracks})
+
+    def test_albums_keep_every_cue_track(self):
+        album = next(album for album in self.library.albums if album.title == "Cue Album")
+        self.assertEqual(3, album.track_count)
+
+
+class M4bTest(unittest.TestCase):
+    def test_every_m4b_is_one_track_without_chapters(self):
+        music = TOOLS_DIRECTORY.parent / "tests" / "fixtures" / "m4b_music"
+        tracks, _, _ = library_index.scan(music)
+        self.assertEqual(8, len(tracks))
+        self.assertEqual({0}, {track.start_ms for track in tracks})
+        self.assertEqual({""}, {track.sheet for track in tracks})
+        self.assertEqual(".m4b", Path(tracks[0].path).suffix)
+
+
 class EncodeLibraryTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -238,7 +283,7 @@ class EncodeLibraryTest(unittest.TestCase):
 
     def test_the_header_identifies_the_format(self):
         magic, version, sections = struct.unpack_from("<4sHH", self.data, 0)
-        self.assertEqual((b"EMDB", 4, 10), (magic, version, sections))
+        self.assertEqual((b"EMDB", 6, 10), (magic, version, sections))
         self.assertEqual(HEADER_SIZE, self.section(0)[0])
 
     def test_sections_declare_their_counts_and_record_sizes(self):
@@ -280,7 +325,23 @@ class EncodeLibraryTest(unittest.TestCase):
 class PlaylistParsingTest(unittest.TestCase):
     def test_entries_skip_comments_and_blank_lines(self):
         text = "#EXTM3U\n#EXTINF:312,AC/DC - Hells Bells\nA/B/one.flac\n\n  A/B/two.flac  \n"
-        self.assertEqual(["A/B/one.flac", "A/B/two.flac"], library_index.parse_m3u(text))
+        entries = library_index.parse_m3u(text)
+        self.assertEqual(["A/B/one.flac", "A/B/two.flac"], [entry.path for entry in entries])
+        self.assertEqual([None, None], [entry.start for entry in entries])
+
+    def test_a_start_directive_belongs_to_the_next_entry_only(self):
+        text = "#EXTM3U\n#PODIUM-START:1500\nA/one.flac\nA/two.flac\n  #PODIUM-START:0  \nA/three.flac\n"
+        self.assertEqual([1500, None, 0], [entry.start for entry in library_index.parse_m3u(text)])
+
+    def test_a_malformed_start_directive_is_ignored(self):
+        for line in ("#PODIUM-START:", "#PODIUM-START:12x", "#PODIUM-START:-5",
+                     "#PODIUM-START:12345678901", "#PODIUM-START:4294967295", "#podium-start:5"):
+            entries = library_index.parse_m3u(f"{line}\nA/one.flac\n")
+            self.assertIsNone(entries[0].start, line)
+
+    def test_the_last_start_directive_before_an_entry_wins(self):
+        text = "#PODIUM-START:10\n#PODIUM-START:20\nA/one.flac\n"
+        self.assertEqual(20, library_index.parse_m3u(text)[0].start)
 
     def test_utf8_with_a_byte_order_mark_is_decoded(self):
         data = "\ufeffBjörk/Homogenic/01 - Hunter.flac\n".encode("utf-8")
@@ -294,10 +355,10 @@ class PlaylistParsingTest(unittest.TestCase):
 class PlaylistResolutionTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.paths = library_index.PathIndex([track.path for track in SAMPLE_TRACKS])
+        cls.paths = library_index.PathIndex(SAMPLE_TRACKS)
 
     def resolve(self, entry, playlist_folder="Playlists"):
-        index = self.paths.resolve(entry, playlist_folder)
+        index = self.paths.resolve(library_index.PlaylistEntry(entry), playlist_folder)
         return SAMPLE_TRACKS[index].title if index is not None else None
 
     def test_paths_relative_to_the_playlist_resolve(self):
@@ -319,15 +380,44 @@ class PlaylistResolutionTest(unittest.TestCase):
         self.assertIsNone(self.resolve("http://radio.example/stream"))
 
 
+class PlaylistPartResolutionTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        def part(number, start):
+            return replace(SAMPLE_TRACKS[0], path="Cue/Album.flac", title=f"Part {number}",
+                           start_ms=start, number=number)
+        cls.tracks = [part(1, 0), part(2, 1000), part(3, 2493)]
+        cls.paths = library_index.PathIndex(cls.tracks)
+
+    def resolve(self, entry, start):
+        index = self.paths.resolve(library_index.PlaylistEntry(entry, start), "")
+        return self.tracks[index].title if index is not None else None
+
+    def test_a_start_picks_the_part_that_begins_there(self):
+        self.assertEqual("Part 1", self.resolve("Cue/Album.flac", 0))
+        self.assertEqual("Part 2", self.resolve("Cue/Album.flac", 1000))
+
+    def test_a_plain_path_keeps_the_last_part(self):
+        self.assertEqual("Part 3", self.resolve("Cue/Album.flac", None))
+
+    def test_an_unknown_start_keeps_the_last_part(self):
+        self.assertEqual("Part 3", self.resolve("Cue/Album.flac", 7))
+
+    def test_a_start_on_an_unknown_file_resolves_nothing(self):
+        self.assertIsNone(self.resolve("Cue/Other.flac", 1000))
+
+
 class PlaylistLibraryTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         playlists = [
-            library_index.RawPlaylist("Road Trip", "Playlists",
-                                      ["../acloudyskye/This Won't Be The Last Time/01 - Shoots.flac",
-                                       "../AC DC/Back In Black/1-01 - Hells Bells.flac",
-                                       "../Missing/Gone.flac"]),
-            library_index.RawPlaylist("Calm", "", ["Björk/Homogenic/02 - Jóga.flac"]),
+            library_index.RawPlaylist("Road Trip", "Playlists", [
+                library_index.PlaylistEntry(entry) for entry in (
+                    "../acloudyskye/This Won't Be The Last Time/01 - Shoots.flac",
+                    "../AC DC/Back In Black/1-01 - Hells Bells.flac",
+                    "../Missing/Gone.flac")]),
+            library_index.RawPlaylist(
+                "Calm", "", [library_index.PlaylistEntry("Björk/Homogenic/02 - Jóga.flac")]),
         ]
         cls.library = library_index.build_library(SAMPLE_TRACKS, playlists)
         cls.data = library_index.encode_library(cls.library)
@@ -399,7 +489,7 @@ class UnicodeFormTest(unittest.TestCase):
             path.write_text("Bjo\u0308rk/Homogenic/01 - Hunter.flac\n", encoding="utf-8")
             playlist = library_index.read_playlist(root, path)
         self.assertEqual("Lists R\u00f3s", playlist.folder)
-        self.assertEqual(["Bj\u00f6rk/Homogenic/01 - Hunter.flac"], playlist.entries)
+        self.assertEqual([("Bj\u00f6rk/Homogenic/01 - Hunter.flac", None)], playlist.entries)
 
 
 if __name__ == "__main__":

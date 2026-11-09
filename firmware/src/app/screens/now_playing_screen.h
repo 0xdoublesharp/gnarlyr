@@ -13,14 +13,8 @@
 #include "ui/theme.h"
 
 enum {
-    NOW_PLAYING_TEXT_CAPACITY = 128,
-    NOW_PLAYING_HINT_CAPACITY = 4
+    NOW_PLAYING_TEXT_CAPACITY = 128
 };
-
-typedef struct NowPlayingHint {
-    uint8_t icon;
-    const char *label;
-} NowPlayingHint;
 
 typedef enum NowPlayingCommand {
     NOW_PLAYING_NONE,
@@ -38,13 +32,19 @@ typedef enum NowPlayingCommand {
     NOW_PLAYING_SCRUB_BACK_FAST,
     NOW_PLAYING_SCRUB_COMMIT,
     NOW_PLAYING_SCRUB_CANCEL,
-    NOW_PLAYING_UP_NEXT
+    NOW_PLAYING_UP_NEXT,
+    NOW_PLAYING_SEEK_FORWARD,
+    NOW_PLAYING_SEEK_FORWARD_FAST,
+    NOW_PLAYING_SEEK_BACK,
+    NOW_PLAYING_SEEK_BACK_FAST
 } NowPlayingCommand;
 
 enum {
     NOW_PLAYING_SCRUB_STEP_MS = 5000,
     NOW_PLAYING_SCRUB_FAST_STEP_MS = 15000,
-    NOW_PLAYING_VOLUME_FEEDBACK_MS = 1500,
+    NOW_PLAYING_SEEK_FAST_AFTER_REPEATS = 8,
+    NOW_PLAYING_VOLUME_FEEDBACK_MS = 2500,
+    NOW_PLAYING_VOLUME_HOLD_MS = NOW_PLAYING_VOLUME_FEEDBACK_MS,
     NOW_PLAYING_BADGE_MS = 700
 };
 
@@ -57,13 +57,19 @@ typedef enum NowPlayingFeedback {
     NOW_PLAYING_FEEDBACK_PLAY
 } NowPlayingFeedback;
 
+typedef struct NowPlayingKeys {
+    bool scrubbing;
+    bool adjusting_volume;
+    SkipGesture skip;
+} NowPlayingKeys;
+
 typedef struct NowPlayingConfig {
     Player *player;
+    const Settings *settings;
     const Library *library;
     const Theme *theme;
     CoverCache *covers;
     Screen *up_next;
-    const Settings *settings;
 } NowPlayingConfig;
 
 typedef struct NowPlayingScreen {
@@ -84,9 +90,9 @@ typedef struct NowPlayingScreen {
     char album[NOW_PLAYING_TEXT_CAPACITY];
 } NowPlayingScreen;
 
-NowPlayingCommand now_playing_command_for(KeyEvent event, bool scrubbing);
-NowPlayingCommand now_playing_configured_command_for(KeyEvent event, bool scrubbing,
-                                                     const Settings *settings);
+NowPlayingCommand now_playing_command_for(KeyEvent event, NowPlayingKeys keys);
+bool now_playing_adjusting_volume(uint32_t volume_changed_ms, uint32_t now_ms);
+void now_playing_seek_by(Player *player, int32_t delta_ms);
 uint32_t now_playing_scrub_target(uint32_t position_ms, uint32_t duration_ms, int32_t delta_ms);
 const char *now_playing_codec_name(HalAudioCodec codec);
 void now_playing_stream_text(HalAudioFormat format, char *buffer, size_t capacity);
@@ -96,5 +102,4 @@ NowPlayingFeedback now_playing_feedback_for(NowPlayingCommand command, PlayerSta
 bool now_playing_feedback_visible(NowPlayingFeedback feedback, uint32_t started_ms,
                                   uint32_t now_ms);
 int now_playing_volume_width(uint8_t volume, int width);
-int now_playing_hints(const Settings *settings, bool scrubbing, NowPlayingHint *hints);
 Screen *now_playing_screen_init(NowPlayingScreen *now_playing, NowPlayingConfig config);

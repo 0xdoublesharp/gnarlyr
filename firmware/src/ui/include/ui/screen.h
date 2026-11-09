@@ -12,7 +12,8 @@ typedef enum ScreenActionType {
     SCREEN_ACTION_NONE,
     SCREEN_ACTION_PUSH,
     SCREEN_ACTION_POP,
-    SCREEN_ACTION_POP_TO_ROOT
+    SCREEN_ACTION_POP_TO_ROOT,
+    SCREEN_ACTION_REPLACE
 } ScreenActionType;
 
 typedef struct ScreenAction {
@@ -38,3 +39,4 @@ ScreenAction screen_action_none(void);
 ScreenAction screen_action_push(Screen *target);
 ScreenAction screen_action_pop(void);
 ScreenAction screen_action_pop_to_root(void);
+ScreenAction screen_action_replace(Screen *target);

@@ -6,7 +6,7 @@
 enum {
     HEADER_SIZE = 128,
     SECTION_COUNT = 10,
-    VERSION = 4,
+    VERSION = 6,
     ALIGNMENT = 4,
     TRACK_RECORD = 32,
     ALBUM_RECORD = 16,
@@ -128,6 +128,11 @@ static bool read_region(Encode *encode, Region region, uint32_t offset, void *by
                         uint32_t length)
 {
     return store_read(&encode->state->store, region.offset + offset, bytes, length);
+}
+
+static uint32_t folder_name_length(const uint8_t *record)
+{
+    return builder_get16(record + 4) & ~(uint32_t)BUILDER_FLAG_BITS;
 }
 
 static int compare_names(const uint8_t *left, const uint8_t *right, const void *context)
@@ -262,7 +267,7 @@ static uint32_t string_total(Encode *encode)
                          sizeof record)) {
             return 0;
         }
-        uint32_t length = builder_get16(record + 4);
+        uint32_t length = folder_name_length(record);
         total += length > 0 ? length + 1 : 0;
     }
     for (uint32_t playlist = 0; playlist < prepared->playlist_count; playlist++) {
@@ -405,12 +410,13 @@ static bool write_folders(Encode *encode, uint32_t first_link)
             return false;
         }
         Writer *writer = encode->writer;
-        put_u32(writer, take_string(encode, builder_get16(record + 4)));
+        put_u32(writer, take_string(encode, folder_name_length(record)));
         put_u16(writer, builder_get16(record + 6));
         put_u16(writer, builder_get16(record + 8));
         put_u32(writer, first_link + builder_get32(record + 12));
         put_u16(writer, builder_get16(record + 10));
-        put_u16(writer, 0);
+        uint32_t marks = builder_get16(record + 4);
+        put_u16(writer, (marks >> 15) | ((marks >> 13) & 2));
     }
     return true;
 }
@@ -580,7 +586,8 @@ static bool emit_names(Encode *encode)
     for (uint32_t album = 0; album < prepared->album_count; album++) {
         uint8_t record[ALBUM_FINAL];
         if (!read_region(encode, prepared->albums, album * ALBUM_FINAL, record, sizeof record) ||
-            !emit_text(encode, &prepared->heap, builder_get32(record), builder_get16(record + 4))) {
+            !emit_text(encode, &prepared->heap, builder_get32(record),
+                       folder_name_length(record))) {
             return false;
         }
     }
@@ -600,7 +607,8 @@ static bool emit_names(Encode *encode)
         uint8_t record[FOLDER_FINAL];
         if (!read_region(encode, prepared->folders_final, folder * FOLDER_FINAL, record,
                          sizeof record) ||
-            !emit_text(encode, &prepared->heap, builder_get32(record), builder_get16(record + 4))) {
+            !emit_text(encode, &prepared->heap, builder_get32(record),
+                       folder_name_length(record))) {
             return false;
         }
     }

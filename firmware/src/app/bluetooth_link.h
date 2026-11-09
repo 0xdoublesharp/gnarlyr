@@ -57,6 +57,7 @@ typedef struct BluetoothLink {
 } BluetoothLink;
 
 void bluetooth_link_start(BluetoothLink *link, Toast *toast, uint32_t now_ms);
+void bluetooth_link_resume(BluetoothLink *link, Toast *toast, uint32_t now_ms);
 void bluetooth_link_set_enabled(BluetoothLink *link, bool enabled, uint32_t now_ms);
 void bluetooth_link_browse(BluetoothLink *link, bool browsing, uint32_t now_ms);
 void bluetooth_link_choose(BluetoothLink *link, int index, uint32_t now_ms);

@@ -45,7 +45,7 @@ static void start(const ListModel *model, int selected)
 static void send(Key key, KeyGesture gesture)
 {
     ListSelection selection = {.select = NULL, .hold = NULL, .context = NULL};
-    list_navigation_handle(&view, (KeyEvent){key, gesture}, now_ms, selection);
+    list_navigation_handle(&view, (KeyEvent){.key = key, .gesture = gesture}, now_ms, selection);
 }
 
 static void press_down(void)
