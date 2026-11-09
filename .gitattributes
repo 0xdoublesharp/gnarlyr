@@ -1,0 +1,2 @@
+firmware/tests/fixtures/** -text -whitespace
+firmware/third_party/** -whitespace

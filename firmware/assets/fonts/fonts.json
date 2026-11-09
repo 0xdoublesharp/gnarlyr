@@ -1,0 +1,98 @@
+{
+  "character_ranges": [
+    [
+      32,
+      126
+    ],
+    [
+      8211,
+      8212
+    ],
+    [
+      8216,
+      8217
+    ],
+    [
+      8220,
+      8221
+    ],
+    [
+      8226,
+      8226
+    ],
+    [
+      8230,
+      8230
+    ],
+    [
+      8364,
+      8364
+    ],
+    [
+      8482,
+      8482
+    ],
+    [
+      8250,
+      8250
+    ],
+    [
+      9733,
+      9733
+    ],
+    [
+      10003,
+      10003
+    ]
+  ],
+  "fonts": [
+    {
+      "name": "inter_regular_16",
+      "file": "inter/Inter-Regular.ttf",
+      "size": 16,
+      "pack_face": "inter_regular_16_latin1"
+    },
+    {
+      "name": "inter_regular_22",
+      "file": "inter/Inter-Regular.ttf",
+      "size": 22,
+      "packed": true,
+      "extra_ranges": [
+        [
+          160,
+          255
+        ],
+        [
+          1024,
+          1119
+        ],
+        [
+          1168,
+          1169
+        ]
+      ],
+      "pack_face": "inter_regular_22"
+    },
+    {
+      "name": "inter_semibold_22",
+      "file": "inter/Inter-SemiBold.ttf",
+      "size": 22,
+      "packed": true,
+      "extra_ranges": [
+        [
+          160,
+          255
+        ],
+        [
+          1024,
+          1119
+        ],
+        [
+          1168,
+          1169
+        ]
+      ],
+      "pack_face": "inter_semibold_22"
+    }
+  ]
+}

@@ -2,13 +2,17 @@
 
 Offline investigation of the **standard, full-size ECHO**, using the official 2.0.0 image. The device owner reported hardware 1.1.7 and successfully installed stock 2.0.0 before this investigation.
 
-**Result:** the container can be mapped and its Thumb code decompiled. Ghidra and REA both produced usable pseudocode. This is a foundation for writing firmware; it is not recovered original source or a replacement firmware release.
+**Result:** REA maps stock Thumb code and several hardware interfaces. The tracked `firmware/` tree provides an open-source full-size ECHO foundation with an SDL simulator and a source-built Cortex-M3 image. This is not recovered original vendor source, and the custom image has not been tested on the owner's device.
 
 Latest [REA hardware tracing and source-foundation evaluation](docs/hardware-interfaces.md).
 
 The active delivery target and milestones are in [the working firmware goal](docs/goal.md).
 
 Read [the investigation findings](docs/initial-investigation.md) for verified addresses, limits, recovery status, and the next milestone.
+
+## Build the source foundation
+
+See [build prerequisites and commands](docs/building-firmware.md). From the project root, run `python3 tools/firmware.py setup`, then `python3 tools/firmware.py build --preset device` or `python3 tools/firmware.py test`. The wrapper keeps generated output on Scratch and does not access the player.
 
 ## Files
 

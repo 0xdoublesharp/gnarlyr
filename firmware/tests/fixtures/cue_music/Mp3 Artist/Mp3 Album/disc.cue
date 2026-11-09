@@ -1,0 +1,9 @@
+PERFORMER "Mp3 Artist"
+TITLE "Mp3 Album"
+FILE "tracks.mp3" MP3
+  TRACK 01 AUDIO
+    TITLE "One"
+    INDEX 01 00:00:00
+  TRACK 02 AUDIO
+    TITLE "Two"
+    INDEX 01 00:00:40

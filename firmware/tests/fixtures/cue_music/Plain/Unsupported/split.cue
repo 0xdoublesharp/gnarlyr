@@ -1,0 +1,7 @@
+TITLE "Separate Files"
+FILE "a.wav" WAVE
+  TRACK 01 AUDIO
+    INDEX 01 00:00:00
+FILE "b.wav" WAVE
+  TRACK 02 AUDIO
+    INDEX 01 00:00:00
