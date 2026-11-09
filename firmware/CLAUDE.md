@@ -2,7 +2,7 @@
 
 Doublesharp Echo (short name Doublesharp) is firmware for the full-size Snowsky (FiiO) Echo player (480×222). It started from the Podium 4.5.9 source archive, which is a fork of EchoPod, the Echo Mini firmware (`UPSTREAM.md`, `CREDITS.md`). The same portable C app runs in a desktop simulator and on the player. The Echo is the only board.
 
-Doublesharp 1.0.0 is not released and has not run on a player. The plan, its stages and its rules are in `../docs/own-firmware-plan.md`; the repository rules are in `../AGENTS.md`.
+Doublesharp 1.0.0 is not released and has not run on a player. The repository and device rules are in `../AGENTS.md`.
 
 ## Identity
 
@@ -27,7 +27,7 @@ The layer table in `docs/architecture.md` defines which layer may depend on whic
 
 ## Build and test
 
-Run the wrapper from the repository root. It routes `firmware/build` and `firmware/.venv` to the Scratch volume and stops if Scratch is not mounted. Prerequisites: `../docs/building-firmware.md`.
+Run the wrapper from the repository root. It routes `firmware/build` and `firmware/.venv` to the Scratch volume and stops if Scratch is not mounted. Prerequisites: `../README.md`.
 
 ```sh
 python3 tools/firmware.py setup
@@ -71,6 +71,14 @@ python3 tools/firmware.py sim --card /path/to/music
 - `CORE_SEAM` (`src/core/include/core/seam.h`) marks the functions the emulator replaces or watches, so link-time optimisation cannot inline or remove them. It must stay on every function the emulator names (`tools/echo_emulator`, `tests/emulator`); the emulator fails when a named function is missing from the image.
 - USB session code (mass storage, USB DAC, the DWC2 transfer code) and the updater live in the USB overlay, which is loaded into high RAM once a host is found. New code for those paths goes into the overlay, not the main program. Functions the overlay calls in the main program must be listed in `ECHO_OVERLAY_IMPORTS` (`platform/device/CMakeLists.txt`). Only listening for a host, the state kept across sessions and the start-up loader request stay resident. `docs/architecture.md` (Overlay loader, USB overlay) has the details.
 
+## Porting from Podium and EchoPod
+
+- Where the sources solve the same problem, keep one implementation and drop the others. One mechanism per problem.
+- A ported piece should end up better than its source: smaller, faster, safer or more capable. Record the measured gain when there is one.
+- A feature lands with its tests and inside the size budget: at least 8 KB free in the release code window, checked with the size report.
+- No compatibility code for file names or formats that only earlier experiments wrote.
+- Keep the original author's commit message on a cherry-picked commit, and credit the source in the message of a hand port.
+
 ## Generated files
 
 Never edit by hand; regenerate and commit the output:
@@ -82,7 +90,7 @@ Exact commands are in `docs/architecture.md`, Generated code. Python 3.14 reprod
 
 ## Player safety
 
-- **Never access the player without the owner's approval for that action.** Each install, each maskrom session and each raw read or write needs its own approval; an earlier approval does not carry over. See `../AGENTS.md` and the device rules in `../docs/own-firmware-plan.md`. Building, the simulator and the emulator need no approval and never touch USB.
+- **Never access the player without the owner's approval for that action.** Each install, each maskrom session and each raw read or write needs its own approval; an earlier approval does not carry over. See `../AGENTS.md`. Building, the simulator and the emulator need no approval and never touch USB.
 - Writes to internal storage are restricted to the user volume and the two firmware slots (`platform/device/logic/emmc_layout`); never widen that.
 - A broken image can leave the player unable to start; recovery goes through maskrom (`docs/device-recovery.md`). Have the exact-model recovery ready before any install.
 - Installing builds on a player: `docs/device-install.md`.
@@ -92,7 +100,7 @@ Exact commands are in `docs/architecture.md`, Generated code. Python 3.14 reprod
 Only after the owner approved it for this session.
 
 - The owner enters maskrom (every key except Power held, then the USB cable plugged in). Ask, then wait.
-- `rkdeveloptool-echo` talks to maskrom (USB `2207:262d`): upstream rkdeveloptool patched by `tools/patch_rkdeveloptool.py`. `../docs/recovery-preparation.md` records how it is built on this machine (the CMake project in `../tools/recovery`, output on Scratch). Two seconds after `ld` lists the device, `td` must print `Test Device OK.` before any `rl` or `wl`; `rd` restarts the player.
+- `rkdeveloptool-echo` talks to maskrom (USB `2207:262d`): upstream rkdeveloptool patched by `tools/patch_rkdeveloptool.py`. `docs/device-recovery.md` gives the build (the CMake project in `../tools/recovery`, output on Scratch). Two seconds after `ld` lists the device, `td` must print `Test Device OK.` before any `rl` or `wl`; `rd` restarts the player.
 - Firmware slots on the full-size Echo: sector 0 and 81920, 10240 sectors (the image's first 5 MiB) each. Write slot 2 first, read every write back and compare before the next write:
 
   ```sh
@@ -105,5 +113,5 @@ Only after the owner approved it for this session.
 
 ## Releasing
 
-- The version is in `identity.json`. Nothing is released until the completion checks in `../docs/own-firmware-plan.md` pass on the player and the owner approves.
+- The version is in `identity.json`. Nothing is released until the release checks in `../AGENTS.md` pass on the player and the owner approves.
 - Add the version's entry to `docs/release-notes.md`: what changed, in plain words, and what was checked on the player.

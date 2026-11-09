@@ -1,69 +1,42 @@
-# Snowsky ECHO firmware research
+# Doublesharp Echo
 
-Offline investigation of the **standard, full-size ECHO**, using the official 2.0.0 image. The device owner reported hardware 1.1.7 and successfully installed stock 2.0.0 before this investigation.
+Firmware for the full-size SNOWSKY (FiiO) ECHO music player, and the tools used to study FiiO's stock firmware for it.
 
-**Result:** REA maps stock Thumb code and several hardware interfaces. The tracked `firmware/` tree provides an open-source full-size ECHO foundation with an SDL simulator and a source-built Cortex-M3 image. This is not recovered original vendor source, and the custom image has not been tested on the owner's device.
+Doublesharp Echo builds on [Podium](https://podium-echo.online) and, through it, on [EchoPod](https://github.com/BasilSkyWalk/echopod). Both are GPL-3.0-or-later; credits and provenance are in [`firmware/CREDITS.md`](firmware/CREDITS.md) and [`firmware/UPSTREAM.md`](firmware/UPSTREAM.md). Snowsky, FiiO and Echo are names of their owners; this project is not made, endorsed or supported by FiiO.
 
-Latest [REA hardware tracing and source-foundation evaluation](docs/hardware-interfaces.md). The custom source includes cassette menus, configurable playback buttons, full queue editing and [named saved mixtapes](firmware/docs/mixtapes.md).
+## Layout
 
-The plan, stages and device rules are in [the own firmware plan](docs/own-firmware-plan.md). Current [recovery preparation](docs/recovery-preparation.md) records the built tool, connected-device observations and the pending physical connection check.
+| Path | Contents |
+|---|---|
+| [`firmware/`](firmware/README.md) | The firmware source, simulator, emulator, tests and documentation |
+| `tools/firmware.py` | Build and test wrapper for the firmware |
+| `tools/echo_image.py`, `run_analysis.py`, `check_analysis.py`, `rea_session.mjs`, `ghidra/` | Analysis of FiiO's stock image; see [the stock firmware reference](docs/stock-firmware.md) |
+| `tools/recovery/` | CMake project for the patched maskrom tool; see [`firmware/docs/device-recovery.md`](firmware/docs/device-recovery.md) |
+| `tests/` | Tests for the stock-image parser and exporter |
 
-Read [the investigation findings](docs/initial-investigation.md) for verified addresses, limits, recovery status, and the next milestone.
+## Building the firmware
 
-## Build the source foundation
+```sh
+python3 tools/firmware.py setup
+python3 tools/firmware.py build --preset device
+python3 tools/firmware.py build --preset release
+python3 tools/firmware.py test
+python3 tools/firmware.py sim --card /path/to/music
+```
 
-See [build prerequisites and commands](docs/building-firmware.md). From the project root, run `python3 tools/firmware.py setup`, then `python3 tools/firmware.py build --preset device` or `python3 tools/firmware.py test`. The wrapper keeps generated output on Scratch and does not access the player.
+The wrapper checks its prerequisites, keeps all build output on the Scratch volume (`/Volumes/Scratch/SnowskyEcho/build/`, one directory per git worktree) and never touches a player. `test --regex EXPRESSION` runs selected checks; `--jobs N` sets the parallelism.
 
-## Files
+Prerequisites:
 
-- `tools/echo_image.py`: validates the Rockchip CRC and module bounds; exports selected non-overlapping modules as a byte-preserving analysis ELF.
-- `tools/run_analysis.py`: creates a fresh Scratch run, imports the ELF with the Cortex processor, and exports selected pseudocode/instructions.
-- `tools/check_analysis.py`: compares Ghidra's imported identity, memory addresses, loaded-byte hashes, BSS state, and selected Thumb functions against the export map.
-- `ghidra/PrepareEcho.java`: defines the architectural vector table and selected overlay entry before analysis.
-- `ghidra/ExportEcho.java`: exports function observations and loaded-memory hashes.
+- CMake, SDL2, FFmpeg and clang-format on `PATH`.
+- Python 3.14. Its Unicode tables reproduce the checked-in sort tables; 3.13 and 3.15 do not. The wrapper expects a virtual environment at `/Volumes/Scratch/SnowskyEcho/tools/podium-python314` with `firmware/tools/requirements.txt` installed; set `ECHO_VENV` to use another.
+- Arm GNU Toolchain 15.3.rel2 (GCC 15.3.1) for `arm-none-eabi`, expected under `/Volumes/Scratch/SnowskyEcho/tools/arm-15.3-expanded/Payload/bin`; set `ECHO_ARM_BIN` to use another. The macOS arm64 package is at [Arm's package service](https://gitlab.arm.com/api/v4/projects/tooling%2Fgnu-toolchains-for-arm/packages/generic/gnu-toolchain/15.3.rel2/arm-gnu-toolchain-15.3.rel2-darwin-arm64-arm-none-eabi.pkg), SHA-256 `779972fa545f738bfbba2ff0ae44d5ad7510b00cfb414702974844ba625412f3`. Check the digest, then unpack it with `pkgutil --expand-full`; no installer needs to run.
 
-All firmware, ELF files, Ghidra databases, raw reports, and generated pseudocode remain under `/Volumes/Scratch/SnowskyEcho`. They are not Git source. REA source is at `~/Workspaces/rea`; its isolated CLI runtime is on Scratch. Agent/MCP configuration was not changed.
-
-## Repeat the checks
-
-From this directory:
+## Stock firmware analysis
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
 PYTHONDONTWRITEBYTECODE=1 python3 tools/run_analysis.py
 ```
 
-The runner uses a new timestamped run name; select a new explicit `--run-name NAME` to label a run. It refuses existing run directories. Defaults reference the installed Ghidra 12.1.4, existing Homebrew Java 21, and verified stock image on this Mac; `--help` lists overrides. No command accesses the player.
-
-Latest verified run:
-
-- Ghidra project: `/Volumes/Scratch/SnowskyEcho/build/verified-12-1-4/projects/echo-v200.gpr`
-- Pseudocode and instructions: `/Volumes/Scratch/SnowskyEcho/reports/verified-12-1-4/ghidra/`
-- Original image copy: `/Volumes/Scratch/SnowskyEcho/data/stock/ECHOV200.IMG`
-
-The `.elf` files are analysis representations. **Never copy them to the player as firmware.**
-
-## Repeat the REA decompilation
-
-The actual tested CLI invocation uses only this process's configuration:
-
-```sh
-env GHIDRA_INSTALL_DIR=/Volumes/Scratch/SnowskyEcho/tools/ghidra_12.1.4_PUBLIC \
-  JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home \
-  REA_GHIDRA_LANGUAGE_ID=ARM:LE:32:Cortex \
-  REA_GHIDRA_SEED_FILE=/Volumes/Scratch/SnowskyEcho/build/initial-investigation/rea-seeds.tsv \
-  TMPDIR=/Volumes/Scratch/rea/t \
-  JAVA_TOOL_OPTIONS='-Duser.home=/Volumes/Scratch/SnowskyEcho/tmp/initial-investigation/java-home -Djava.io.tmpdir=/Volumes/Scratch/rea/t -XX:ActiveProcessorCount=4' \
-  node /Volumes/Scratch/rea/build/snowsky-echo/runtime/node_modules/rea-agents/scripts/rea.mjs \
-  decompile /Volumes/Scratch/SnowskyEcho/build/initial-investigation/echo-main-overlay001.elf \
-  --procedure 0x0307e8c0 --provider ghidra --json \
-  > /Volumes/Scratch/rea/reports/snowsky-echo/overlay001-decompile.json
-```
-
-The seed names an entry inferred from the selected module's start. It does not assert that this was the original developer's function name. REA's Cortex setting is scoped to these ARM ELF inputs and must not be applied to unrelated targets.
-
-## Persistent REA session
-
-Run `node tools/rea_session.mjs /Volumes/Scratch/SnowskyEcho/reports/NEW-RUN` and send newline-delimited JSON requests such as `{"name":"open_binary","arguments":{"path":"/Volumes/Scratch/SnowskyEcho/build/initial-investigation/echo-main-overlay001.elf","provider_id":"ghidra"}}`, then `{"name":"procedure_pseudo_code","arguments":{"procedure":"0x03061bee"}}`. Send `{"name":"close_binary","arguments":{}}` followed by `{"close":true}` to release the provider and exit. `{"schema":"TOOL_NAME"}` prints the actual server-advertised input schema.
-
-For a different selected overlay, set `REA_GHIDRA_SEED_FILE` to its Scratch seed file before launching the persistent client. The display investigation uses `/Volumes/Scratch/SnowskyEcho/build/panel-map/rea-seeds.tsv` with the main+4 ELF; seed names describe inferred roles, not recovered vendor symbols.
+`run_analysis.py --help` lists its inputs; it refuses to reuse an existing run directory. Stock images, derived ELF files, Ghidra projects and reports stay on the Scratch volume and are never committed. A derived ELF is for analysis and must never be flashed.

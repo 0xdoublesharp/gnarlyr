@@ -32,7 +32,7 @@ def environment(jobs):
     python = venv / "bin/python"
     for path in (arm / "arm-none-eabi-gcc", arm / "arm-none-eabi-objcopy", python):
         if not path.is_file():
-            raise SystemExit(f"Missing prerequisite: {path}; see docs/building-firmware.md")
+            raise SystemExit(f"Missing prerequisite: {path}; see README.md")
     version = subprocess.check_output([str(python), "-c", "import sys; print('%d.%d' % sys.version_info[:2])"], text=True).strip()
     if version != "3.14":
         raise SystemExit(f"Python 3.14 is required for generated Unicode tables, got {version}")
@@ -44,7 +44,7 @@ def environment(jobs):
     env["SCCACHE_DIR"] = "/Volumes/Scratch/sccache"
     for name in ("cmake", "ctest", "clang-format", "ffmpeg"):
         if not shutil.which(name, path=env["PATH"]):
-            raise SystemExit(f"Missing prerequisite: {name}; see docs/building-firmware.md")
+            raise SystemExit(f"Missing prerequisite: {name}; see README.md")
     subprocess.run([str(python), "-c", "import PIL, fontTools, mutagen, unicorn"], check=True, env=env)
     build = SCRATCH / "build" / BUILD_NAME
     build.mkdir(parents=True, exist_ok=True)

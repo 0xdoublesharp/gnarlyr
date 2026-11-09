@@ -27,7 +27,20 @@ The upstream tool needs four changes for this device: a 5000 ms command timeout,
 
 ### This repository, macOS
 
-[`../../docs/recovery-preparation.md`](../../docs/recovery-preparation.md) has the commands: clone, check out that revision, patch, and build with the CMake project in `../../tools/recovery`, which first verifies the revision and the patched contents. The result is `rkdeveloptool-echo`, version 1.32, in the build folder on the Scratch volume. This is the tool that was used on the owner's player.
+From the repository root, with the Scratch volume mounted:
+
+```sh
+export TMPDIR=/Volumes/Scratch/SnowskyEcho/tmp/recovery-tool
+mkdir -p "$TMPDIR"
+git clone https://github.com/rockchip-linux/rkdeveloptool.git .local/references/rkdeveloptool
+git -C .local/references/rkdeveloptool checkout --detach 304f073752fd25c854e1bcf05d8e7f925b1f4e14
+python3 firmware/tools/patch_rkdeveloptool.py .local/references/rkdeveloptool
+cmake -S tools/recovery -B /Volumes/Scratch/SnowskyEcho/build/recovery-tool \
+  -DRKDEVELOPTOOL_SOURCE="$PWD/.local/references/rkdeveloptool" -DCMAKE_BUILD_TYPE=Release
+cmake --build /Volumes/Scratch/SnowskyEcho/build/recovery-tool -j4
+```
+
+The CMake project in `../../tools/recovery` verifies the revision and the patched contents before it builds, uses the installed libusb, and installs nothing. The result is `rkdeveloptool-echo`, version 1.32, in that build folder. This is the tool that was used on the owner's player. Clone and patch once; do not patch a checkout a second time.
 
 ### Other computers
 

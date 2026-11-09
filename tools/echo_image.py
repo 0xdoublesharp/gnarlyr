@@ -2,7 +2,7 @@
 """Read-only RKnano module inspection and byte-preserving ELF analysis export.
 
 The ELF is an analysis representation, not runnable or flashable firmware.
-Module/CRC layout references are recorded in docs/initial-investigation.md.
+Module/CRC layout references are recorded in docs/stock-firmware.md.
 """
 from __future__ import annotations
 import argparse

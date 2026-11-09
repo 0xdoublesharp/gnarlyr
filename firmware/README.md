@@ -44,11 +44,11 @@ The full name (Doublesharp Echo: the USB product name and the start-up splash), 
 | [`docs/hardware.md`](docs/hardware.md) | The hardware the drivers talk to |
 | [`docs/library-format.md`](docs/library-format.md) | Library, covers, favorites and bookmark file formats |
 | [`ROADMAP.md`](ROADMAP.md) | Feature status |
-| [`../docs/own-firmware-plan.md`](../docs/own-firmware-plan.md) | The plan and its rules |
+| [`../AGENTS.md`](../AGENTS.md) | The repository and device rules |
 
 ## Build and test
 
-Use the wrapper in the repository root. It checks the toolchain, keeps all build output on the Scratch volume and never touches a player. Prerequisites are in [`../docs/building-firmware.md`](../docs/building-firmware.md).
+Use the wrapper in the repository root. It checks the toolchain, keeps all build output on the Scratch volume and never touches a player. Prerequisites are in [`../README.md`](../README.md).
 
 ```sh
 python3 tools/firmware.py setup

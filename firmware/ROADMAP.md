@@ -1,6 +1,6 @@
 # Doublesharp Echo feature status
 
-Doublesharp Echo 1.0.0 is not released and has not run on a player. The plan, its stages and its rules are in [`../docs/own-firmware-plan.md`](../docs/own-firmware-plan.md).
+Doublesharp Echo 1.0.0 is not released and has not run on a player.
 
 Status values:
 

@@ -77,4 +77,4 @@ git diff refs/donors/podium-4.5.9 HEAD:firmware
 git log --oneline 45e9f92..HEAD -- firmware
 ```
 
-A ported piece follows the rules in [`../docs/own-firmware-plan.md`](../docs/own-firmware-plan.md): one implementation per problem, with its tests, inside the size budget.
+A ported piece follows the porting rules in [`CLAUDE.md`](CLAUDE.md): one implementation per problem, with its tests, inside the size budget.

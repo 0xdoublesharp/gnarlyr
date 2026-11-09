@@ -14,3 +14,4 @@ container-map.json
 .venv/
 .DS_Store
 .local/
+notes/
