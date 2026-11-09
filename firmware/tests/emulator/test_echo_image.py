@@ -297,17 +297,13 @@ class EchoImageTest(unittest.TestCase):
                 return struct.unpack_from("<I", data, 12)[0]
         return 0
 
-    def scan_one_track(self):
+    def test_without_an_sd_card_music_on_the_internal_volume_is_scanned(self):
         track = (PROJECT / "tests" / "fixtures" / "mp3" /
                  "cbr_128_44k_stereo_tagged.mp3").read_bytes()
         session = self.session(files=[("TRACK01.MP3", track, None)])
         session.machine.stop_at("hal_system_return_scratch")
         reason = session.machine.run(until_ms=self.session_module.FRAME_LIMIT_MS)
         self.assertEqual(reason, "reached hal_system_return_scratch")
-        return session, track
-
-    def test_without_an_sd_card_music_on_the_internal_volume_is_scanned(self):
-        session, track = self.scan_one_track()
         self.assertEqual(self.built_library_tracks(session), 1)
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
@@ -320,9 +316,11 @@ class EchoImageTest(unittest.TestCase):
         return None
 
     def test_the_scan_record_names_the_version_and_the_build_tag(self):
-        session, _ = self.scan_one_track()
+        track = (PROJECT / "tests" / "fixtures" / "mp3" /
+                 "cbr_128_44k_stereo_tagged.mp3").read_bytes()
+        session = self.session(files=[("TRACK01.MP3", track, None)])
         machine = session.machine
-        deadline = machine.milliseconds() + self.session_module.FRAME_LIMIT_MS
+        deadline = self.session_module.FRAME_LIMIT_MS
         while self.recorded_version(session) is None and machine.milliseconds() < deadline:
             machine.run(until_ms=machine.milliseconds() + SCAN_RECORD_POLL_MS)
         build_tag = self.image[0x30:0x38].rstrip(b"\0").decode("ascii")
