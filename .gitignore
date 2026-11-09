@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.IMG
+*.img
+*.elf
+*.bin
+*.zip
+*.map.json
+analysis.json
+container-map.json
+*.log
+*.gpr
+*.rep/
+.venv/
+.DS_Store
