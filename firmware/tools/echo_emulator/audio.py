@@ -37,8 +37,7 @@ class AudioPath:
         machine.stub_symbol("dac_set_volume", self.set_volume)
         machine.stub_symbol("dmac_start_loop", self.start_loop)
         machine.stub_symbol("dmac_source", self.source)
-        if "dmac_running" in machine.symbols:
-            machine.stub_symbol("dmac_running", lambda machine: int(self.running))
+        machine.stub_symbol("dmac_running", lambda machine: int(self.running))
         for name in SILENT_RETURNS:
             machine.stub_symbol(name, lambda machine: None)
         for name in FALSE_RETURNS:

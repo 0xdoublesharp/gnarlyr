@@ -250,8 +250,7 @@ class Machine:
 
     def watch_failures(self):
         for name in FAILURE_SYMBOLS:
-            if name in self.symbols:
-                self.hook_symbol(name, self.failure_hook(name))
+            self.hook_symbol(name, self.failure_hook(name))
 
     def failure_hook(self, name):
         def failed():
@@ -267,6 +266,8 @@ class Machine:
         self.uc.hook_add(UC_HOOK_CODE, hook, None, address, address)
 
     def hook_symbol(self, name, callback):
+        if name not in self.symbols:
+            raise KeyError(f"{name} is not in the image: mark it CORE_SEAM so the emulator can reach it")
         self.add_address_hook(self.symbols[name], callback)
 
     def stub_symbol(self, name, handler):

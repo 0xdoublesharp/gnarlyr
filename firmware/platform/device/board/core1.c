@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "board.h"
+#include "core/seam.h"
 #include "device/core1_control.h"
 #include "device/image_crc.h"
 #include "emmc.h"
@@ -133,7 +134,7 @@ static Core1Result place_program(Core1Program program)
     return CORE1_OK;
 }
 
-bool board_core1_start_stream(Core1Program program)
+CORE_SEAM bool board_core1_start_stream(Core1Program program)
 {
     if (streaming && streaming_program == program) {
         return true;
@@ -167,7 +168,7 @@ bool board_core1_start_stream(Core1Program program)
     return true;
 }
 
-void board_core1_stop(void)
+CORE_SEAM void board_core1_stop(void)
 {
     if (streaming) {
         board_start_record_step(HAL_START_STEP_CORE1_STOP);
@@ -177,7 +178,7 @@ void board_core1_stop(void)
     }
 }
 
-bool board_core1_streaming(void)
+CORE_SEAM bool board_core1_streaming(void)
 {
     return streaming;
 }
@@ -285,7 +286,7 @@ void *hal_system_borrow_scratch(uint32_t *size)
     return (void *)(uintptr_t)CORE1_CODE_BASE;
 }
 
-void hal_system_return_scratch(void)
+CORE_SEAM void hal_system_return_scratch(void)
 {
     if (lent) {
         core1_stop(&BUS);

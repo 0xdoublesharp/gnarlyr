@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "board.h"
+#include "core/seam.h"
 #include "cru.h"
 #include "dac.h"
 #include "device/audio_math.h"
@@ -487,7 +488,7 @@ HalToneResult hal_audio_test_tone(void)
     return played ? HAL_TONE_PLAYED : HAL_TONE_STALLED;
 }
 
-HalToneResult dac_path_start(uint32_t sample_rate)
+CORE_SEAM HalToneResult dac_path_start(uint32_t sample_rate)
 {
     const AudioRate *rate = rate_of(sample_rate);
     if (rate == NULL) {
@@ -497,7 +498,7 @@ HalToneResult dac_path_start(uint32_t sample_rate)
                             I2S_FORMAT_32_BIT_WORDS, I2S_INTERRUPTS_FOR_DMA, false);
 }
 
-void dac_path_stop(void)
+CORE_SEAM void dac_path_stop(void)
 {
     stop_audio_path();
 }
@@ -572,7 +573,7 @@ void dac_path_set_gain(bool high)
     }
 }
 
-bool dac_path_take_underrun(void)
+CORE_SEAM bool dac_path_take_underrun(void)
 {
     if (!dac_up || (register_read(I2S_INTSR) & I2S_UNDERRUN) == 0) {
         return false;
@@ -581,13 +582,13 @@ bool dac_path_take_underrun(void)
     return true;
 }
 
-void dac_path_start_transfer(void)
+CORE_SEAM void dac_path_start_transfer(void)
 {
     register_write(I2S_DMACR, I2S_DMA_TX);
     register_write(I2S_XFER, 1);
 }
 
-void dac_path_stop_transfer(void)
+CORE_SEAM void dac_path_stop_transfer(void)
 {
     register_write(I2S_XFER, 0);
     register_write(I2S_DMACR, 0);

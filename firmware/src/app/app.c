@@ -1,4 +1,5 @@
 #include "app/app.h"
+#include "core/seam.h"
 
 #include <stddef.h>
 
@@ -1015,7 +1016,7 @@ bool app_preparing(void)
     return app.prepare_pending;
 }
 
-void app_step(void)
+CORE_SEAM void app_step(void)
 {
     if (app.powered_off) {
         return;

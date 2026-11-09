@@ -4,6 +4,7 @@
 
 #include "board.h"
 #include "core/format.h"
+#include "core/seam.h"
 #include "core1_region.h"
 #include "dac.h"
 #include "device/audio_engine.h"
@@ -411,7 +412,7 @@ static AudioEngineTrack engine_track(const HalAudioTrack *track)
                               .token = track->token};
 }
 
-bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
+CORE_SEAM bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
 {
     ensure_engine();
     ensure_audio_clock();

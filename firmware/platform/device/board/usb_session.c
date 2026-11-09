@@ -1,4 +1,5 @@
 #include "usb_session.h"
+#include "core/seam.h"
 
 #include <stddef.h>
 
@@ -174,7 +175,7 @@ static void remember_session(UsbSessionEnd end)
                                 .writes_after_eject = stats.writes_after_eject};
 }
 
-bool usb_session_listen(void)
+CORE_SEAM bool usb_session_listen(void)
 {
     report = (UsbReport){.internal_ready = false};
     prepare_port();
@@ -228,7 +229,7 @@ const UsbReport *usb_session_report(void)
     return &report;
 }
 
-bool usb_session_storage_changed(void)
+CORE_SEAM bool usb_session_storage_changed(void)
 {
     MscStats stats = msc_stats(&msc);
     return stats.lun_sectors_written[INTERNAL_LUN] > 0 || stats.lun_sectors_written[CARD_LUN] > 0;

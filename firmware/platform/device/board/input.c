@@ -1,5 +1,6 @@
 #include "hal/input.h"
 #include "board.h"
+#include "core/seam.h"
 #include "device/battery_gauge.h"
 #include "device/headset_monitor.h"
 #include "device/key_ladder.h"
@@ -164,7 +165,7 @@ HalHeadsetReading hal_input_headset_reading(void)
     return reading;
 }
 
-void board_wait_for_power_hold(uint32_t hold_ms)
+CORE_SEAM void board_wait_for_power_hold(uint32_t hold_ms)
 {
     uint32_t pressed_at_ms = hal_clock_milliseconds();
     bool held = false;
@@ -182,7 +183,7 @@ void board_wait_for_power_hold(uint32_t hold_ms)
     }
 }
 
-void board_wait_for_key(void)
+CORE_SEAM void board_wait_for_key(void)
 {
     HalKeyTransition transition;
     while (hal_input_next_transition(&transition)) {

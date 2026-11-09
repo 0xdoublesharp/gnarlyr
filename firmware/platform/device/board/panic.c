@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "board.h"
+#include "core/seam.h"
 #include "core/string_builder.h"
 #include "device/panic_text.h"
 #include "hal/display.h"
@@ -84,7 +85,7 @@ static void start_screen(const char *title)
     draw_line(title);
 }
 
-void board_panic_stall(uint32_t pc, uint32_t lr)
+CORE_SEAM void board_panic_stall(uint32_t pc, uint32_t lr)
 {
     start_screen("STALL");
     draw_hex_line("PC ", pc);
@@ -118,7 +119,7 @@ static void draw_words_line(const uint32_t *words)
     draw_line(text);
 }
 
-void board_panic_fault(const uint32_t *frame, uint32_t status)
+CORE_SEAM void board_panic_fault(const uint32_t *frame, uint32_t status)
 {
     start_screen("FAULT");
     draw_pair_line("PC ", frame[STACKED_PC_WORD], "LR ", frame[STACKED_LR_WORD]);

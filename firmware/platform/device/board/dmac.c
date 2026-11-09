@@ -1,4 +1,5 @@
 #include "dmac.h"
+#include "core/seam.h"
 
 #include "hal/clock.h"
 #include "registers.h"
@@ -43,12 +44,12 @@ bool dmac_present(void)
     return register_read(DMAC_COMP_TYPE) == DW_AHB_DMAC_TYPE;
 }
 
-bool dmac_running(void)
+CORE_SEAM bool dmac_running(void)
 {
     return active && (register_read(DMAC_CHANNEL_ENABLE) & CHANNEL_BIT) != 0;
 }
 
-bool dmac_start_loop(const DmaItem *item)
+CORE_SEAM bool dmac_start_loop(const DmaItem *item)
 {
     if ((register_read(DMAC_CHANNEL_ENABLE) & CHANNEL_BIT) != 0) {
         return false;
@@ -83,7 +84,7 @@ static void suspend_channel(void)
     }
 }
 
-void dmac_stop(void)
+CORE_SEAM void dmac_stop(void)
 {
     if (!active) {
         return;
@@ -101,12 +102,12 @@ void dmac_stop(void)
     suspend_depth = 0;
 }
 
-uint32_t dmac_source(void)
+CORE_SEAM uint32_t dmac_source(void)
 {
     return active ? register_read(CHANNEL_SAR) : 0;
 }
 
-void dmac_suspend(void)
+CORE_SEAM void dmac_suspend(void)
 {
     if (!dmac_running()) {
         return;
@@ -117,7 +118,7 @@ void dmac_suspend(void)
     suspend_depth++;
 }
 
-void dmac_resume(void)
+CORE_SEAM void dmac_resume(void)
 {
     if (suspend_depth == 0) {
         return;

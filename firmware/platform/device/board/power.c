@@ -1,5 +1,6 @@
 #include "hal/power.h"
 #include "board.h"
+#include "core/seam.h"
 #include "gpio.h"
 #include "registers.h"
 #include "usb.h"
@@ -92,7 +93,7 @@ HalBattery hal_power_battery(void)
                         .millivolts = (uint16_t)battery_gauge_recent_millivolts(&gauge)};
 }
 
-void board_power_cut(void)
+CORE_SEAM void board_power_cut(void)
 {
     board_backlight_off();
     board_bluetooth_off();
@@ -111,7 +112,7 @@ bool board_power_key_down(void)
     return gpio_read(POWER_KEY);
 }
 
-void hal_power_off(void)
+CORE_SEAM void hal_power_off(void)
 {
     board_stall_pause(true);
     board_audio_shut_down();
