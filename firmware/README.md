@@ -1,112 +1,77 @@
-# Podium
+# Doublesharp Echo
 
-> Website, downloads and feedback: [podium-echo.online](https://podium-echo.online/). Send feedback through the [form on the website](https://podium-echo.online/#feedback); issues and pull requests are disabled on this repository.
+Doublesharp Echo is firmware for the full-size Snowsky (FiiO) Echo music player (480 × 222 screen). It replaces FiiO's firmware on the player. This document calls it Doublesharp from here on. Snowsky and FiiO are trademarks of their owners, and Echo is their product name. Doublesharp Echo is not made, endorsed or supported by FiiO.
 
-Replacement firmware for the full-size Snowsky (FiiO) Echo music player (4 GB and 8 GB), forked from [EchoPod](https://github.com/BasilSkyWalk/echopod). It has an iPod-style UI with iPod-sized text, a Cover Flow browser, a music library built on the player, album favorites, M3U playlists and an Up Next queue. It isn't made or supported by FiiO.
+## Status
 
-<p>
-  <img src="docs/photos/home.webp" alt="Home screen" width="32%">
-  <img src="docs/photos/now-playing.webp" alt="Now Playing" width="32%">
-  <img src="docs/photos/cover-flow.webp" alt="Cover Flow" width="32%">
-</p>
+- **Version 1.0.0, not released.** There is no image to download.
+- **Doublesharp has not run on a player yet.** Everything about it is established by host tests, the simulator and the ARM emulator (186 checks).
+- An earlier build of this project, based on Podium 4.5.5, was installed on the owner's Echo (4 GB) through maskrom. The owner confirmed display, menus, buttons, music playback, volume, USB storage with internal storage and a microSD card, and quiet audio with the 12 ms DAC wait. That unit was also returned to FiiO's 2.0.0 through maskrom and back.
+- [`docs/known-issues.md`](docs/known-issues.md) lists what is not proven on a player.
 
-## Install
+## Where it comes from
 
-Read [`docs/known-issues.md`](docs/known-issues.md) first. Replacing a player's firmware can leave it unable to start; recovery is in [`docs/device-recovery.md`](docs/device-recovery.md).
+Doublesharp builds on [Podium](https://podium-echo.online) 4.5.9, open-source firmware for this player by another author. Podium is a fork of [EchoPod](https://github.com/BasilSkyWalk/echopod), the firmware for the Echo Mini. The interface, the library, playback, the updater, the Echo port and the equalizer are their authors' work. [`UPSTREAM.md`](UPSTREAM.md) records the exact starting point and what has been ported since; [`CREDITS.md`](CREDITS.md) lists everyone whose work is used.
 
-1. Download the latest `ECHOVnnn.IMG` from [podium-echo.online](https://podium-echo.online) and check its SHA-256 against the one on the site.
-2. Connect the Echo and copy the file to the root of its internal storage, not into a folder. Leave no other `ECHOVnnn.IMG` there.
-3. Eject and unplug. The player shows "Updating firmware", installs Podium, deletes the file and restarts into Podium.
+## What the code does
 
-The first install goes through FiiO's own updater, later updates through Podium's; both take the same file copy. If FiiO's firmware comes back after a short "Updating" and the file is gone, nothing was written: copy it again with plenty of free space, or install through maskrom ([`docs/device-install.md`](docs/device-install.md)). Going back to FiiO's firmware is the same copy with FiiO's `ECHOV200.IMG`.
+Each item is in the source and covered by host tests, the simulator or the emulator. None has run on a player as Doublesharp.
 
-## Music formats and layout
+- **Interface:** Home, Music (Cover Flow, Playlists, Artists, Album Artists, Albums, Genres, Folders, All Songs, Favorites), Now Playing, Up Next and Settings. Three text sizes, eight highlight colours, landscape and two portrait orientations.
+- **Playback:** FLAC, MP3 and WAV from 44.1 to 192 kHz, and `.m4a`/`.m4b` with AAC-LC or Apple Lossless. Gapless between tracks at the same sample rate. Shuffle by song or album, repeat, resume after power-off.
+- **Library:** built on the player from the tags, with album covers from embedded art or a `cover`, `folder`, `front` or `albumart` JPEG or PNG. CUE sheets split a one-file album into tracks. `tools/echo_sync.py` builds the same library on a computer.
+- **Lists:** `.m3u` and `.m3u8` playlists, a `Favorite Tracks.m3u` the player appends to, album favorites, and an Up Next queue.
+- **Audiobooks and podcasts:** their own Home entries, a bookmark per book and episode, and chapters from `.m4b` files.
+- **Equalizer:** FiiO's presets and a ten-band Custom curve in 0.5 dB steps, eight saved slots, and curves read from files in an `EQ` folder.
+- **Controls:** a button lock, three ways to skip songs, and buttons on wired 3.5 mm headsets.
+- **Bluetooth headphones:** pair, remember six, reconnect.
+- **USB:** mass storage for internal storage and the microSD card, or a USB Audio Class 1.0 sound card (Settings → USB mode).
+- **Updates:** the player installs `DBLSHARP.IMG` from the top level of internal storage. It also installs FiiO's own image under FiiO's `ECHOVnnn.IMG` names, which is the way back to FiiO's firmware. It refuses the images of Podium, EchoPod and any other brand.
+- **Data:** the player keeps its files in a hidden `/.doublesharp` folder (about 110 MB on the music storage). Deleting it rebuilds the library.
 
-Copy music over USB to a microSD card (FAT32 or exFAT) or, with no card in the player, to internal storage. Any folder layout works; the library is built from the tags, and rebuilt by itself after each USB session.
+The full name (Doublesharp Echo: the USB product name and the start-up splash), the short name (Doublesharp: the Home title), the 8-character identifier (`DBLSHARP`: the image brand and the USB storage vendor) and the version live in one file, [`identity.json`](identity.json), which the build, the C code and the tools read.
 
-```
-Music/
-  Depeche Mode/
-    Violator/
-      01 World in My Eyes.flac     one file per track
-      02 Sweetest Perfection.flac
-      folder.jpg                   the album cover
-    Songs of Faith and Devotion/
-      Songs of Faith and Devotion.flac   the whole album in one file
-      Songs of Faith and Devotion.cue    splits it into tracks
-      cover.png
-```
+## Documents
 
-- **Formats:** FLAC, MP3 and WAV up to 192 kHz, and `.m4a` with AAC-LC or Apple Lossless. APE, DSD, WMA and the other formats FiiO lists appear in the library but don't play; Podium says so. HE-AAC and `.m4b` don't play ([`docs/known-issues.md`](docs/known-issues.md)).
-- **FLAC:** up to 24 bit, mono or stereo, 44.1 to 192 kHz. Tracks of one album play without a gap.
-- **CUE sheets:** a `.cue` next to an album stored as one FLAC, WAV or MP3 file turns it into a normal album with one track per CUE track. The sheet names the file (capitals don't matter), or has the same name as it (`Violator.cue` and `Violator.flac`). Titles and artists come from the sheet, the rest from the file's tags. Sheets that name several files, a missing file or a format the player can't play are ignored. Details: [`docs/user-guide.md`, CUE sheets](docs/user-guide.md#cue-sheets).
-- **Covers:** the picture inside the album's first track, otherwise a JPEG or PNG named `cover`, `folder`, `front` or `albumart` in the album's folder (`folder.jpg`, `cover.png`, …). A picture inside the track wins, so a `folder.jpg` is only used when the tracks have none.
-  - **Size:** the player shows covers at 112 px (128 px in the middle of Cover Flow), so anything from about 300 to 1,000 px square looks the same. Smaller than 112 px works but looks soft. A non-square picture is cropped to its centred square.
-  - **Too big:** a JPEG or PNG may be up to 16,384 px on each side, with no limit in bytes; the player decodes a big JPEG at 1/2, 1/4 or 1/8 scale, and a big file only makes "Finding covers" take longer. A 16-bit PNG is held to 64 KB per row: about 10,900 px wide, or 8,190 px with transparency.
-  - **Refused:** pictures over those limits, CMYK, 12-bit, lossless and arithmetic-coded JPEGs, WebP, GIF and BMP, and broken files. The album then has no cover (a plain placeholder), even when a `folder.jpg` sits next to a refused picture inside the track. Re-save such a cover as an ordinary JPEG and rescan (Settings → Rescan library).
-- **Playlists:** `.m3u` and `.m3u8` anywhere on the card, under Music → Playlists.
-- **Audiobooks and podcasts:** folders named `Audiobooks` and `Podcasts` at the top of the card get their own Home entries, with a bookmark per book and episode.
-- Podium keeps its library in a hidden `/.echo` folder (about 110 MB). Deleting it rebuilds the library.
+| Document | Contents |
+|---|---|
+| [`docs/user-guide.md`](docs/user-guide.md) | Using the player: music layout, buttons, settings, updating, going back to FiiO's firmware |
+| [`docs/known-issues.md`](docs/known-issues.md) | Safety, what is unproven on a player, limits |
+| [`docs/release-notes.md`](docs/release-notes.md) | What differs from Podium 4.5.9 |
+| [`docs/device-install.md`](docs/device-install.md) | Installing a build through maskrom, and through the updater |
+| [`docs/device-recovery.md`](docs/device-recovery.md) | Writing FiiO's firmware back through maskrom |
+| [`docs/architecture.md`](docs/architecture.md) | Layers, rules, device platform, tests |
+| [`docs/hardware.md`](docs/hardware.md) | The hardware the drivers talk to |
+| [`docs/library-format.md`](docs/library-format.md) | Library, covers, favorites and bookmark file formats |
+| [`ROADMAP.md`](ROADMAP.md) | Feature status |
+| [`../docs/own-firmware-plan.md`](../docs/own-firmware-plan.md) | The plan and its rules |
 
-## More
+## Build and test
 
-- **Using it:** [`docs/user-guide.md`](docs/user-guide.md).
-- **What's new:** [`docs/release-notes.md`](docs/release-notes.md).
-- **Chinese, Japanese and Korean names:** not in releases; [`docs/cjk.md`](docs/cjk.md) builds an image with them.
-
-The hardware knowledge it relies on comes largely from the [ReChord](https://github.com/brnomt/ReChord) project's research ([`docs/hardware.md`](docs/hardware.md), [`CREDITS.md`](CREDITS.md)).
-
-## Build and run the simulator (macOS)
+Use the wrapper in the repository root. It checks the toolchain, keeps all build output on the Scratch volume and never touches a player. Prerequisites are in [`../docs/building-firmware.md`](../docs/building-firmware.md).
 
 ```sh
-brew install cmake sdl2 clang-format arm-none-eabi-gcc arm-none-eabi-binutils
-python3 -m venv .venv && .venv/bin/pip install -r tools/requirements.txt
-cmake --preset dev
-cmake --build --preset dev
-ctest --preset dev
-./build/dev/platform/sim/echo_sim
+python3 tools/firmware.py setup
+python3 tools/firmware.py build --preset device
+python3 tools/firmware.py build --preset release
+python3 tools/firmware.py test
+python3 tools/firmware.py test --regex <test name>
+python3 tools/firmware.py sim --card /path/to/music
 ```
 
-## Build on Windows
+| Preset | Output |
+|---|---|
+| `dev` | Host build of the simulator and the tests, under UndefinedBehaviorSanitizer |
+| `device` | Cross-compiled `build/device/DBLSHARP.IMG` with the developer rows in Settings → About |
+| `release` | `build/release/DBLSHARP.IMG` with the short About menu |
 
-Install [MSYS2](https://www.msys2.org) and, in its CLANG64 shell, the packages `mingw-w64-clang-x86_64-{clang,compiler-rt,cmake,ninja,SDL2}` and `mingw-w64-clang-x86_64-arm-none-eabi-{gcc,binutils,newlib}`, plus Python 3 with `pip install -r tools/requirements.txt`. With `C:\msys64\clang64\bin` first on the PATH (and not `C:\msys64\usr\bin`, whose git ignores this repo's line endings):
+`firmware/build` is a link the wrapper makes to `/Volumes/Scratch/SnowskyEcho/build/<checkout name>`. Every image build prints the size report: used and free bytes against the code window, static RAM, the rescan overlay and the USB overlay.
 
-```sh
-CMAKE_GENERATOR=Ninja CC=clang cmake --preset dev
-cmake --build --preset dev
-ctest --preset dev
-```
+`test` builds the `dev` preset and runs `ctest`: the unit tests, the simulator smoke tests, the Python tool tests, the `device` build, the emulator scenarios on its image, formatting, the no-comments check, generated files being current and the Cortex-M3 RAM audit.
 
-## Build the firmware
+## Simulator
 
-```sh
-cmake --preset release
-cmake --build --preset release
-```
-
-This writes `build/release/ECHOV455.IMG` (named after `PODIUM_VERSION`, 4.5.5). The `device` preset builds the same image with the developer Diagnostics rows. [`docs/device-install.md`](docs/device-install.md) covers installing builds during development.
-
-## Use your music library in the simulator
-
-```sh
-mkdir -p build/system
-./build/dev/platform/sim/echo_sim --card /path/to/music --system-dir build/system
-```
-
-The simulator behaves like the player: on the first start it creates `library.db`, `covers.bin` and the save files in the system folder, scans the music folder (every format stock lists, plus `.m3u`/`.m3u8` playlists) and finds the album covers. Settings → Rescan library scans again. The music folder is only ever read.
-
-The PC tools still work and write the same formats ([`tools/library_index.py`](tools/library_index.py), [`tools/cover_export.py`](tools/cover_export.py)), but the player doesn't need them. To skip the scan on the player, **echo-sync** builds the library, the covers and the music fingerprint (`scan.bin`) on a computer, straight into the card's `/.echo` folder, so the player's check after USB finds nothing to rescan ([`docs/user-guide.md`, Build the library on a computer](docs/user-guide.md#build-the-library-on-a-computer)). The website carries it as one file for Windows, macOS (Apple silicon) and Linux, with nothing to install, built by [`.github/workflows/echo-sync.yml`](.github/workflows/echo-sync.yml) with PyInstaller; from the source it's `tools/echo_sync.py E:`. To build the file yourself: `python -m pip install -r tools/requirements.txt -r tools/requirements-build.txt`, then `python -m PyInstaller --onefile --name echo-sync --paths tools tools/echo_sync.py`.
-
-## Testing on a player
-
-1. Install the firmware ([`docs/user-guide.md`](docs/user-guide.md), or [`docs/device-install.md`](docs/device-install.md) for development builds).
-2. Put music on a microSD card (FAT32 or exFAT), in any folder layout, and insert it.
-3. Switch on. The player creates `/.echo` on the card, scans it ("Scanning library", then "Finding covers") and shows "Library: N tracks, M covers".
-4. After copying music over USB, eject both drives: the player rescans by itself. Settings → Rescan library does it on demand.
-
-Nothing else on the card needs a computer. Covers come from art embedded in each album's first track (FLAC, MP3/WAV/DSF/DFF ID3, MP4, APE, WMA) or a `cover`/`folder`/`front`/`albumart` JPEG or PNG next to the tracks.
-
-### Simulator keys
+The simulator runs the same app as the player. On the first start it creates the library, the covers and the save files in its system folder, scans the music folder and finds the covers. The music folder is only read.
 
 | Device button | Keyboard |
 |---|---|
@@ -117,8 +82,6 @@ Nothing else on the card needs a computer. Covers come from art embedded in each
 | Back | Backspace or Escape |
 | Power | P |
 
-### Simulator options
-
 | Option | Effect |
 |---|---|
 | `--scale N` | Window scale (default 3) |
@@ -126,35 +89,27 @@ Nothing else on the card needs a computer. Covers come from art embedded in each
 | `--headless` | No window |
 | `--screenshot FILE.bmp` | Save the last frame on exit |
 | `--card DIR` | Use DIR as the card root (read only) |
-| `--system-dir DIR` | Read and write `/.echo/` (library database, resume, settings, favorites) in DIR |
-| `--battery N` | Report N % battery in the header (default 80) |
+| `--system-dir DIR` | Read and write `/.doublesharp/` (library, covers, resume, settings, favorites) in DIR |
+| `--battery N` | Report N % battery (default 80) |
 | `--charging` | Report the battery as charging |
-| `--keys LIST` | Play a key script, e.g. `down,down,play,back:long` (`up`, `down`, `play`, `menu`, `back`, `power`, each optionally `:long`) |
+| `--keys LIST` | Play a key script, for example `down,down,play,back:long` (`up`, `down`, `play`, `menu`, `back`, `power`, each optionally `:long`) |
 
-Headless runs use a virtual clock, so scripted screenshots are deterministic.
-
-### Navigation
-
-| Button | In lists | On Now Playing | While seeking |
-|---|---|---|---|
-| Volume up / down | Next / previous item (wraps on a single press, not while held) | Tap for volume; hold Vol+ for the next track, Vol− for the previous one | Forward / back 5 s per tap, 15 s steps while held |
-| Play | Select (a song plays the list from that song); hold on an album to add or remove it from Favorites | Play / pause; hold to seek | Jump to the chosen time |
-| Menu | | | |
-| Back | Back; hold to go home | Back; hold to go home | Cancel |
-| Power | Screen off or on; hold 2 s to turn off | Same | Same |
-
-The screen turns off after the screen timeout or a tap of Power. With the screen off, Play pauses and resumes, a tap of vol± changes the volume and holding vol± skips tracks, all without waking the screen; Power turns it back on.
-
-Home also lists Audiobooks and Podcasts when the card has an `Audiobooks` or `Podcasts` folder: every book and episode remembers where you stopped, plays in order, and hold vol± jumps 30 s forward or 15 s back. Books and episodes stay out of the Music lists ([`docs/user-guide.md`](docs/user-guide.md)).
-
-Settings: Shuffle (Off / Songs / Albums), Repeat (Off / One / All), Sleep timer, Screen timeout, Brightness, Gain, Output, Equalizer, Custom EQ and Start screen. They're saved in `/.echo/settings.bin` on internal storage (the same with or without a card), and favorites in `/.echo/favorites.bin`. Without `--system-dir` the simulator can't save, and says so. Playback resumes, paused, where it left off.
-
-Music → Cover Flow shows your albums as covers, by album artist. Vol± move, Play opens the album, holding Play adds or removes it from Favorites, and Back leaves. Music → Playlists lists the M3U playlists the indexer found. Music → Favorites lists your favorite albums.
+Headless runs use a virtual clock, so scripted screenshots are deterministic. Without `--system-dir` the simulator can't save, and says so.
 
 ## Layout
 
-See [`docs/architecture.md`](docs/architecture.md).
+| Path | Contents |
+|---|---|
+| `identity.json` | Name, short name, identifier and version |
+| `src/` | Portable app, freestanding C11, layered: `core` → `gfx`/`image`/`codec` → `fonts`/`ui`/`library`/`playback`/`settings` → `app`. `hal/` holds hardware interfaces only |
+| `platform/sim` | SDL2 simulator: implements `hal`, owns `main()` |
+| `platform/device/board` | Device-only drivers, start-up, linker scripts |
+| `platform/device/logic` | Driver logic without hardware access, unit-tested on the host |
+| `platform/device/core1` | Decoder programs for the second core |
+| `tools/` | Python: image builder, size report, emulator, library indexer, `echo_sync.py`, font and fixture generators |
+| `tests/` | One test executable per module, emulator scenarios, fixtures |
+| `docs/` | The documents listed above |
 
 ## License
 
-GPL-3.0-or-later. See [`LICENSE`](LICENSE). The bundled Inter font is under the SIL Open Font License 1.1 ([`assets/fonts/inter/OFL.txt`](assets/fonts/inter/OFL.txt)), and so are the glyph packs rendered from it. The simulator's decoders (dr_flac, dr_mp3, dr_wav) are public domain or MIT-0 ([`third_party/dr_libs/LICENSE`](third_party/dr_libs/LICENSE)). The player's MP3 decoder is libmad, GPL-2.0-or-later ([`third_party/libmad/COPYING`](third_party/libmad/COPYING)).
+GPL-3.0-or-later. See [`LICENSE`](LICENSE). The bundled Inter font is under the SIL Open Font License 1.1 ([`assets/fonts/inter/OFL.txt`](assets/fonts/inter/OFL.txt)), and so are the glyph packs rendered from it. The simulator's decoders (dr_flac, dr_mp3, dr_wav) are public domain or MIT-0 ([`third_party/dr_libs/LICENSE`](third_party/dr_libs/LICENSE)). The player's MP3 decoder is libmad, GPL-2.0-or-later ([`third_party/libmad/COPYING`](third_party/libmad/COPYING)). The player's AAC decoder is FAAD2, GPL-2.0-or-later ([`third_party/faad2/COPYING`](third_party/faad2/COPYING)).

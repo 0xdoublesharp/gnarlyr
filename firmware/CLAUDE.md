@@ -1,10 +1,14 @@
-# Podium
+# Doublesharp Echo
 
-Custom firmware for the full-size Snowsky (FiiO) Echo player (480×222), forked from [EchoPod](https://github.com/BasilSkyWalk/echopod) 0.6.0 (remote `echopod`), the Echo Mini 8 GB firmware: an iPod-style UI with iPod-sized text, Cover Flow, an on-player music library, favorites, M3U playlists, an Up Next queue, Bluetooth and USB DAC mode. The same portable C app runs in a desktop simulator and on the player. Changes are not sent back to EchoPod.
+Doublesharp Echo (short name Doublesharp) is firmware for the full-size Snowsky (FiiO) Echo player (480×222). It started from the Podium 4.5.9 source archive, which is a fork of EchoPod, the Echo Mini firmware (`UPSTREAM.md`, `CREDITS.md`). The same portable C app runs in a desktop simulator and on the player. The Echo is the only board.
 
-The Echo is the only board: preset `dev` for the simulator and tests, `device` and `release` for the player (`ECHOV459.IMG` for version 4.5.9, named after the version as FiiO does; 4.5.3 runs on the player). The Echo Mini board of EchoPod is gone. Many names in the code and docs still say EchoPod.
+Doublesharp 1.0.0 is not released and has not run on a player. The plan, its stages and its rules are in `../docs/own-firmware-plan.md`; the repository rules are in `../AGENTS.md`.
 
-Hardware notes for the Echo port (stock Echo and Mini firmware and RECHO, decompiled) live outside the repo, in `~/Sync/Monkey/assets/20261031T113308.323001/ghidra/`.
+## Identity
+
+`identity.json` is the single source for `name` ("Doublesharp Echo": the USB product name and the start-up splash), `short_name` ("Doublesharp": the Home title), `id` ("DBLSHARP": the 8-character image brand and USB storage vendor) and the version. The build, the C code and the tools read it. Never write a name, the identifier or the version anywhere else in code; change the file. In documents, use "Doublesharp Echo" in titles and where the firmware is introduced, and "Doublesharp" after that.
+
+Names that follow from it: the update file `DBLSHARP.IMG`, the data folder `/.doublesharp/`, file magics that start with `DS`, and the playlist directive `#DOUBLESHARP-START:`.
 
 ## Layout
 
@@ -12,35 +16,34 @@ Hardware notes for the Echo port (stock Echo and Mini firmware and RECHO, decomp
 |---|---|
 | `src/` | Portable app, freestanding C11, layered: `core` → `gfx`/`image`/`codec` → `fonts`/`ui`/`library`/`playback`/`settings` → `app`. `hal/` holds hardware interfaces only |
 | `platform/sim` | SDL2 simulator: implements `hal`, owns `main()` |
-| `platform/device/board` | Device-only drivers (RKnano Cortex-M3, DW-MMC eMMC/SD, DWC2 USB, CS43131 DAC, Bluetooth UART), startup, linker script |
+| `platform/device/board` | Device-only drivers (RKnano Cortex-M3, DW-MMC eMMC/SD, DWC2 USB, CS43131 DAC, Bluetooth UART), startup, linker scripts, the overlay loader |
 | `platform/device/logic` | Driver logic without hardware access, unit-tested on the host |
-| `platform/device/core1` | Decoder program for the second core, linked into the core 0 image |
-| `site/` | Website: pages, photos and the `podium` Cloudflare Worker (`worker.js`, feedback form into D1 `podium-feedback`); `tools/build_site.py` builds it into `build/site/`, `cd site && npx wrangler@4 deploy` publishes it. Read feedback: `npx wrangler@4 d1 execute podium-feedback --remote --command "select * from feedback order by id desc"` |
-| `tools/` | Python: image builder (`make_image.py`), PC library indexer, `echo_sync.py`, font and fixture generators |
-| `tests/` | One test executable per module, plus fixtures |
-| `docs/` | The design record: `architecture.md` (layers, rules, device platform), `hardware.md`, `library-format.md`, `device-install.md`, `device-recovery.md`, `known-issues.md` |
+| `platform/device/core1` | Decoder programs for the second core, stored in the core 0 image |
+| `tools/` | Python: image builder (`make_image.py`), size report (`size_report.py`), emulator (`echo_emulator`), PC library indexer, `echo_sync.py`, font and fixture generators |
+| `tests/` | One test executable per module, emulator scenarios, fixtures |
+| `docs/` | The design record: `architecture.md` (layers, rules, device platform), `hardware.md`, `library-format.md`, `device-install.md`, `device-recovery.md`, `known-issues.md`, `user-guide.md`, `release-notes.md` |
 
 The layer table in `docs/architecture.md` defines which layer may depend on which; keep to it.
 
 ## Build and test
 
-```sh
-python3 -m venv .venv && .venv/bin/pip install -r tools/requirements.txt
-cmake --preset dev && cmake --build --preset dev
-ctest --preset dev                      # everything
-ctest --preset dev -R <test_name>       # one test
-./build/dev/platform/sim/echo_sim --card /path/to/music --system-dir build/system
-```
+Run the wrapper from the repository root. It routes `firmware/build` and `firmware/.venv` to the Scratch volume and stops if Scratch is not mounted. Prerequisites: `../docs/building-firmware.md`.
 
-Toolchain: cmake, SDL2, clang-format, arm-none-eabi-gcc and binutils.
+```sh
+python3 tools/firmware.py setup
+python3 tools/firmware.py build --preset device     # or release
+python3 tools/firmware.py test                      # everything
+python3 tools/firmware.py test --regex <test_name>  # one test
+python3 tools/firmware.py sim --card /path/to/music
+```
 
 | Preset | Output |
 |---|---|
 | `dev` | Host build of the simulator and tests, under UndefinedBehaviorSanitizer |
-| `device` | Cross-compiled `build/device/ECHOV459.IMG` for the full-size Echo (brand `PODIUM`, version from `PODIUM_VERSION`, 4.5.9) with the full Diagnostics menu |
-| `release` | `build/release/ECHOV459.IMG` with the short Diagnostics menu |
+| `device` | Cross-compiled `build/device/DBLSHARP.IMG` with the developer rows in Settings → About |
+| `release` | `build/release/DBLSHARP.IMG` with the short About menu |
 
-`ctest` also builds the `device` preset, runs the emulator tests on its image and checks formatting, the absence of comments, generated files being current and the Cortex-M3 flash/RAM budget (`target_audit`).
+`test` also builds the `device` preset, runs the emulator scenarios on its image and checks formatting, the absence of comments, generated files being current and the Cortex-M3 RAM budget (`target_audit`).
 
 ## Rules
 
@@ -50,7 +53,23 @@ Toolchain: cmake, SDL2, clang-format, arm-none-eabi-gcc and binutils.
 - Functions do one thing, aim for under 20 lines, take at most 4 parameters (group the rest into a struct).
 - Formatting is `.clang-format`; warnings are errors.
 - Every rule in `core`, `gfx` and `ui` has a unit test named after the behaviour.
-- The device code window is nearly full; watch `target_audit` when adding device code.
+- Documentation states only what this project checked. A result reported by Podium's or EchoPod's authors is either attributed to them or left out.
+
+## Code space
+
+`tools/size_report.py` prints used and free bytes against each limit after every image build, reading the limits from the linker maps; the linker scripts enforce them. It fails the image build when a library object keeps variables in both the main program and the USB overlay. The `echo_size_report` build target prints the full report (bytes per object, per library, biggest functions and tables). Release build at commit `357e9ea`:
+
+| Limit | Used | Of | Free |
+|---|---|---|---|
+| Code window | 137,896 | 157,292 | 19,396 |
+| Static RAM | 264,048 | 287,296 | 23,248 |
+| Rescan overlay | 88,404 | 98,304 | 9,900 |
+| USB overlay code | 13,364 | 65,536 | 52,172 |
+
+- Keep at least 8 KB free in the release code window after each stage of the plan. Read the report after any change to device code and update these numbers and the ones in `docs/architecture.md` when they move.
+- The core 0 link uses link-time optimisation. Libraries shared with core 1 or the rescan overlay stay out of it.
+- `CORE_SEAM` (`src/core/include/core/seam.h`) marks the functions the emulator replaces or watches, so link-time optimisation cannot inline or remove them. It must stay on every function the emulator names (`tools/echo_emulator`, `tests/emulator`); the emulator fails when a named function is missing from the image.
+- USB session code (mass storage, USB DAC, the DWC2 transfer code) and the updater live in the USB overlay, which is loaded into high RAM once a host is found. New code for those paths goes into the overlay, not the main program. Functions the overlay calls in the main program must be listed in `ECHO_OVERLAY_IMPORTS` (`platform/device/CMakeLists.txt`). Only listening for a host, the state kept across sessions and the start-up loader request stay resident. `docs/architecture.md` (Overlay loader, USB overlay) has the details.
 
 ## Generated files
 
@@ -59,35 +78,32 @@ Never edit by hand; regenerate and commit the output:
 - `src/library/sort_fold_table.{c,h}` - `tools/fold_table.py`
 - `tests/fixtures/small_library.db`, `small_covers.bin` - the PC indexer and cover exporter
 
-Exact commands are in `docs/architecture.md`, Generated code.
+Exact commands are in `docs/architecture.md`, Generated code. Python 3.14 reproduces the Unicode tables.
 
 ## Player safety
 
+- **Never access the player without the owner's approval for that action.** Each install, each maskrom session and each raw read or write needs its own approval; an earlier approval does not carry over. See `../AGENTS.md` and `../docs/goal.md`. Building, the simulator and the emulator need no approval and never touch USB.
 - Writes to internal storage are restricted to the user volume and the two firmware slots (`platform/device/logic/emmc_layout`); never widen that.
-- A broken image can leave the player unable to start; recovery goes through maskrom (`docs/device-recovery.md`).
+- A broken image can leave the player unable to start; recovery goes through maskrom (`docs/device-recovery.md`). Have the exact-model recovery ready before any install.
 - Installing builds on a player: `docs/device-install.md`.
 
 ## Talking to the player
 
-- The user enters maskrom (every key except Power held, then the USB cable plugged in); ask, then wait for it with a background command that reports maskrom, the `ECHO` drive or the player on USB, whichever appears:
+Only after the owner approved it for this session.
+
+- The owner enters maskrom (every key except Power held, then the USB cable plugged in). Ask, then wait.
+- `rkdeveloptool-echo` talks to maskrom (USB `2207:262d`): upstream rkdeveloptool patched by `tools/patch_rkdeveloptool.py`. `../docs/recovery-preparation.md` records how it is built on this machine (the CMake project in `../tools/recovery`, output on Scratch). Two seconds after `ld` lists the device, `td` must print `Test Device OK.` before any `rl` or `wl`; `rd` restarts the player.
+- Firmware slots on the full-size Echo: sector 0 and 81920, 10240 sectors (the image's first 5 MiB) each. Write slot 2 first, read every write back and compare before the next write:
 
   ```sh
-  for i in $(seq 1 200); do m=$(rkdeveloptool-echo ld 2>&1 | grep -i maskrom); e=$(ls /Volumes 2>/dev/null | grep -x ECHO); u=$(ioreg -p IOUSB -w0 2>/dev/null | grep -i -E 'ECHO|Podium|2207' | head -1); if [ -n "$m$e$u" ]; then echo "t=$((i*3))s maskrom=[$m] volume=[$e] usb=[$u]"; exit 0; fi; sleep 3; done; echo TIMEOUT-10min
-  ```
-
-- `rkdeveloptool-echo` talks to maskrom (USB `2207:262d`): upstream rkdeveloptool patched by `tools/patch_rkdeveloptool.py`, built in `~/.local/opt/rkdeveloptool-echo` and linked from `~/.local/bin`. To rebuild it, follow `docs/device-recovery.md`, step 1. Two seconds after `ld` lists it, `td` must print `Test Device OK.` before any `rl` or `wl`; `rd` restarts the player.
-- Firmware slots on the full-size Echo: sector 0 and 81920, 10240 sectors (the image's first 5 MiB) each. Write slot 2 first, read every write back and compare:
-
-  ```sh
-  head -c 5242880 ECHOV459.IMG > slot.bin
+  head -c 5242880 DBLSHARP.IMG > slot.bin
   rkdeveloptool-echo wl 81920 slot.bin && rkdeveloptool-echo rl 81920 10240 rb.bin && cmp slot.bin rb.bin
   ```
 
-- Backups and slot files go in the session's working directory, never in the repo.
-- Running Podium shows up as the `/Volumes/ECHO` drive. Copy an update with `cp -X` (no `._` files) to the drive's root, then `diskutil eject /Volumes/ECHO`; the updater runs once the USB session ends.
+- Slot files, read-backs and logs go under `/Volumes/Scratch/SnowskyEcho`, never in the repo. The original device backup stays under `.local/device-backups` in the main checkout.
+- Internal storage mounts as `/Volumes/ECHO`. An update is copied with `cp -X` (no `._` files) to the drive's top level as `DBLSHARP.IMG`, then `diskutil eject /Volumes/ECHO`; the updater runs once the USB session ends. This route is not yet proven on a player for Doublesharp (`docs/known-issues.md`).
 
 ## Releasing
 
-- Add the version's entry to `docs/release-notes.md` with a `### Highlights` section first: at most five one-line user-facing bullets. The website's What's new page renders only those; a version without Highlights is left out.
-- Bump `PODIUM_VERSION`, build the `release` preset and hand the image to the user to test on a player.
-- Tag the version, push and create the GitHub release only after the user approves the tested build.
+- The version is in `identity.json`. Nothing is released until the completion checks in `../docs/goal.md` pass on the player and the owner approves.
+- Add the version's entry to `docs/release-notes.md`: what changed, in plain words, and what was checked on the player.
