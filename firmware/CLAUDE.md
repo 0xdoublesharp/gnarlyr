@@ -82,7 +82,7 @@ Exact commands are in `docs/architecture.md`, Generated code. Python 3.14 reprod
 
 ## Player safety
 
-- **Never access the player without the owner's approval for that action.** Each install, each maskrom session and each raw read or write needs its own approval; an earlier approval does not carry over. See `../AGENTS.md` and `../docs/goal.md`. Building, the simulator and the emulator need no approval and never touch USB.
+- **Never access the player without the owner's approval for that action.** Each install, each maskrom session and each raw read or write needs its own approval; an earlier approval does not carry over. See `../AGENTS.md` and the device rules in `../docs/own-firmware-plan.md`. Building, the simulator and the emulator need no approval and never touch USB.
 - Writes to internal storage are restricted to the user volume and the two firmware slots (`platform/device/logic/emmc_layout`); never widen that.
 - A broken image can leave the player unable to start; recovery goes through maskrom (`docs/device-recovery.md`). Have the exact-model recovery ready before any install.
 - Installing builds on a player: `docs/device-install.md`.
@@ -105,5 +105,5 @@ Only after the owner approved it for this session.
 
 ## Releasing
 
-- The version is in `identity.json`. Nothing is released until the completion checks in `../docs/goal.md` pass on the player and the owner approves.
+- The version is in `identity.json`. Nothing is released until the completion checks in `../docs/own-firmware-plan.md` pass on the player and the owner approves.
 - Add the version's entry to `docs/release-notes.md`: what changed, in plain words, and what was checked on the player.

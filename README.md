@@ -6,7 +6,7 @@ Offline investigation of the **standard, full-size ECHO**, using the official 2.
 
 Latest [REA hardware tracing and source-foundation evaluation](docs/hardware-interfaces.md). The custom source includes cassette menus, configurable playback buttons, full queue editing and [named saved mixtapes](firmware/docs/mixtapes.md).
 
-The active delivery target and milestones are in [the working firmware goal](docs/goal.md). Current [recovery preparation](docs/recovery-preparation.md) records the built tool, connected-device observations and the pending physical connection check.
+The plan, stages and device rules are in [the own firmware plan](docs/own-firmware-plan.md). Current [recovery preparation](docs/recovery-preparation.md) records the built tool, connected-device observations and the pending physical connection check.
 
 Read [the investigation findings](docs/initial-investigation.md) for verified addresses, limits, recovery status, and the next milestone.
 
