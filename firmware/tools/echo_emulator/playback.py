@@ -10,8 +10,9 @@ ALBUM_COUNT = 2
 
 
 class Rig:
-    def __init__(self, session_module, image, elf):
-        self.session = session_module.Session(image, elf, volume=real_volume(playable=True, album_count=ALBUM_COUNT))
+    def __init__(self, session_module, image, elf, usb_overlay_elf=None):
+        self.session = session_module.Session(image, elf, usb_overlay_elf=usb_overlay_elf,
+                                              volume=real_volume(playable=True, album_count=ALBUM_COUNT))
         self.machine = self.session.machine
         self.audio = AudioPath(self.machine)
         self.steps = self.machine.trace("app_step")

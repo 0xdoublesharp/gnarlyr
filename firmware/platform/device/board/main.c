@@ -6,10 +6,10 @@
 #include "hal/clock.h"
 #include "hal/power.h"
 #include "hal/system.h"
+#include "overlay.h"
 #include "storage_reset.h"
 #include "update.h"
 #include "usb.h"
-#include "usb_dac_session.h"
 #include "usb_report.h"
 #include "usb_session.h"
 
@@ -47,22 +47,27 @@ static void raise_clock_for_usb(void)
     }
 }
 
+static const UsbOverlayEntry *load_usb_code(void)
+{
+    app_release_audio();
+    const UsbOverlayEntry *entry = board_usb_overlay_load();
+    if (entry != NULL && entry->magic == USB_OVERLAY_MAGIC) {
+        return entry;
+    }
+    usb_power_down();
+    app_show_notice("USB", hal_system_restart_pending() ? "Restart the player to finish the update"
+                                                        : "USB code missing: reinstall the update");
+    board_wait_for_key();
+    return NULL;
+}
+
 static void run_usb_session(void)
 {
     board_stall_pause(true);
     raise_clock_for_usb();
-    UsbSessionEnd end = usb_session_run();
-    if (end == USB_SESSION_UNPLUGGED && hal_system_usb_last().left_mounted != 0) {
-        app_show_notice("Unplugged before ejecting",
-                        "Recent changes may be lost. Eject the drives before unplugging.");
-        board_wait_for_key();
-    }
-#ifndef ECHO_BOOT_TRACE
-    if (end == USB_SESSION_EJECTED || end == USB_SESSION_UNPLUGGED) {
-        update_after_usb();
-    }
-#endif
-    if (usb_session_storage_changed() || hal_system_restart_pending()) {
+    const UsbOverlayEntry *usb = load_usb_code();
+    bool storage_changed = usb != NULL && usb->storage(usb_session_shared());
+    if (storage_changed || hal_system_restart_pending()) {
         storage_reset();
         app_start();
         app_request_rescan_if_music_changed();
@@ -75,7 +80,10 @@ static void run_dac_session(void)
 {
     board_stall_pause(true);
     raise_clock_for_usb();
-    usb_dac_session_run();
+    const UsbOverlayEntry *usb = load_usb_code();
+    if (usb != NULL) {
+        usb->dac(usb_session_shared());
+    }
     app_wake();
     board_stall_pause(false);
 }

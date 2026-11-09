@@ -11,7 +11,8 @@ sys.path.insert(0, str(PROJECT / "tools"))
 SKIP_EXIT_CODE = 77
 DEFAULT_IMAGE = max((PROJECT / "build" / "device").glob("ECHOV*.IMG"), default=PROJECT / "build" / "device" / "ECHOV454.IMG")
 DEFAULT_ELF = PROJECT / "build" / "device" / "platform" / "device" / "echo_device.elf"
-CONFIG = {"image": DEFAULT_IMAGE, "elf": DEFAULT_ELF}
+DEFAULT_USB_OVERLAY_ELF = DEFAULT_ELF.with_name("echo_usb_overlay.elf")
+CONFIG = {"image": DEFAULT_IMAGE, "elf": DEFAULT_ELF, "usb_overlay_elf": DEFAULT_USB_OVERLAY_ELF}
 
 FIRST_FRAME_LIMIT_MS = 1000
 DEEP_TRACK = 12
@@ -114,10 +115,12 @@ class EchoImageTest(unittest.TestCase):
         cls.session_module = session
         cls.image = Path(CONFIG["image"]).read_bytes()
         cls.elf = CONFIG["elf"]
+        cls.usb_overlay_elf = CONFIG["usb_overlay_elf"]
 
-    def session(self, files=(), image=None, vbus=False):
+    def session(self, files=(), image=None, vbus=False, volume=None):
         return self.session_module.Session(image or self.image, self.elf, files=files,
-                                           vbus_after_first_frame=vbus)
+                                           vbus_after_first_frame=vbus, volume=volume,
+                                           usb_overlay_elf=self.usb_overlay_elf)
 
     def assert_healthy(self, session):
         machine = session.machine
@@ -169,7 +172,7 @@ class EchoImageTest(unittest.TestCase):
         volume = Fat32Volume()
         volume.add_directory(".echo")
         volume.add_file("settings.bin", settings_file(orientation), directory=".echo")
-        session = self.session_module.Session(self.image, self.elf, volume=volume)
+        session = self.session(volume=volume)
         panel = session.panel
         reason = session.machine.run(
             until=lambda: sum(w.pixels for w in self.portrait_windows(panel)) >= WIDTH * HEIGHT,
@@ -457,8 +460,7 @@ class EchoImageTest(unittest.TestCase):
     def realistic_boot(self, sectors_per_cluster, next_free, usb_ms, gap_ms):
         from echo_emulator.real_volume import real_volume
         volume = real_volume(sectors_per_cluster=sectors_per_cluster, next_free=next_free)
-        session = self.session_module.Session(self.image, self.elf, volume=volume,
-                                              vbus_after_first_frame=True)
+        session = self.session(volume=volume, vbus=True)
         machine = session.machine
         listens = machine.trace("usb_session_listen")
         steps = machine.trace("app_step")
@@ -484,7 +486,7 @@ class EchoImageTest(unittest.TestCase):
 
     def playback_rig(self):
         from echo_emulator.playback import Rig
-        return Rig(self.session_module, self.image, self.elf)
+        return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf)
 
     def test_a_deep_cue_track_starts_quickly_and_switching_tracks_keeps_the_ui_smooth(self):
         rig = self.playback_rig()
@@ -529,6 +531,7 @@ def parse_arguments(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", type=Path, default=DEFAULT_IMAGE)
     parser.add_argument("--elf", type=Path, default=DEFAULT_ELF)
+    parser.add_argument("--usb-overlay-elf", type=Path, default=DEFAULT_USB_OVERLAY_ELF)
     parser.add_argument("tests", nargs="*")
     return parser.parse_args(argv)
 
@@ -537,6 +540,7 @@ def main(argv=None):
     arguments = parse_arguments(argv)
     CONFIG["image"] = arguments.image
     CONFIG["elf"] = arguments.elf
+    CONFIG["usb_overlay_elf"] = arguments.usb_overlay_elf
     reason = prerequisites_missing()
     if reason:
         print("SKIP: " + reason)

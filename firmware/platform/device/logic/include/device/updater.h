@@ -6,7 +6,8 @@
 enum {
     UPDATER_IMAGE_SIZE = 0x500004,
     UPDATER_ECHO_STOCK_IMAGE_SIZE = 39845892,
-    UPDATER_CHUNK_BYTES = 8192
+    UPDATER_CHUNK_BYTES = 8192,
+    UPDATER_SCRATCH_WORDS = (2 * UPDATER_CHUNK_BYTES + 0x800) / 4
 };
 
 typedef enum UpdateCheck {
@@ -36,6 +37,7 @@ typedef struct UpdateProgress {
     void *context;
 } UpdateProgress;
 
+void updater_use_scratch(uint32_t *words);
 UpdateCheck updater_check(const UpdateFile *file, const UpdateStorage *storage);
 bool updater_should_remove_file(UpdateCheck check, bool installed);
 bool updater_install(const UpdateFile *file, const UpdateStorage *storage, UpdateProgress progress);

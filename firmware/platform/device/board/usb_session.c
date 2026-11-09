@@ -28,16 +28,17 @@ enum {
     WORKING_COMMANDS = 2
 };
 
-static EmmcInfo internal;
+static UsbShared *shared;
 static bool card_present;
-static UsbReport report;
 static UsbPort port;
 static Msc msc;
 static UsbFallback fallback;
-static bool high_speed_failed;
-static HalUsbLast last_session;
-static uint32_t write_buffer[WRITE_BUFFER_SECTORS * MSC_SECTOR_SIZE / 4]
-    __attribute__((section(".high_ram")));
+static uint32_t write_buffer[WRITE_BUFFER_SECTORS * MSC_SECTOR_SIZE / 4];
+
+uint32_t *usb_session_buffer(void)
+{
+    return write_buffer;
+}
 
 static void serial_text(uint32_t serial, char *text)
 {
@@ -50,12 +51,11 @@ static void serial_text(uint32_t serial, char *text)
 
 static void prepare_port(void)
 {
-    report.internal_ready = emmc_start(&internal);
     char serial[SERIAL_DIGITS + 1];
-    serial_text(internal.serial, serial);
-    port = (UsbPort){.msc = &msc, .high_speed_allowed = !high_speed_failed};
+    serial_text(shared->internal.serial, serial);
+    port = (UsbPort){.link = shared->link, .msc = &msc, .bulk_packet = USB_PACKET_SIZE};
     usb_device_init(&port.device, serial, LUN_COUNT);
-    usb_device_allow_high_speed(&port.device, port.high_speed_allowed);
+    usb_device_allow_high_speed(&port.device, port.link.high_speed_allowed);
 }
 
 static void prepare_luns(void)
@@ -63,8 +63,8 @@ static void prepare_luns(void)
     BlockDevice card;
     bool card_ready = sd_start(&card);
     MscLun luns[LUN_COUNT] = {
-        {emmc_volume_read, emmc_volume_write, NULL, internal.layout.volume_sectors, true,
-         report.internal_ready, "Internal storage"},
+        {emmc_volume_read, emmc_volume_write, NULL, shared->internal.layout.volume_sectors, true,
+         shared->report.internal_ready, "Internal storage"},
         {sd_read, sd_write, NULL, sd_sector_count(), true, card_ready, "SD card"},
     };
     card_present = card_ready;
@@ -124,13 +124,13 @@ static bool session_works(void)
 
 static void fall_back_to_full_speed(void)
 {
-    high_speed_failed = true;
-    port.high_speed_allowed = false;
+    shared->high_speed_failed = true;
+    port.link.high_speed_allowed = false;
     port.configured = false;
     port.in_busy = false;
     usb_device_allow_high_speed(&port.device, false);
     msc_reset(&msc);
-    usb_connect(&port);
+    usb_port_connect(&port);
 }
 
 static UsbSessionEnd serve(void)
@@ -168,48 +168,23 @@ static HalUsbEnd hal_end(UsbSessionEnd end)
 static void remember_session(UsbSessionEnd end)
 {
     MscStats stats = msc_stats(&msc);
-    last_session = (HalUsbLast){.end = hal_end(end),
-                                .left_mounted = msc_left_mounted(&msc),
-                                .internal_written = stats.lun_sectors_written[INTERNAL_LUN],
-                                .card_written = stats.lun_sectors_written[CARD_LUN],
-                                .writes_after_eject = stats.writes_after_eject};
+    shared->last_session = (HalUsbLast){.end = hal_end(end),
+                                        .left_mounted = msc_left_mounted(&msc),
+                                        .internal_written = stats.lun_sectors_written[INTERNAL_LUN],
+                                        .card_written = stats.lun_sectors_written[CARD_LUN],
+                                        .writes_after_eject = stats.writes_after_eject};
 }
 
-CORE_SEAM bool usb_session_listen(void)
-{
-    report = (UsbReport){.internal_ready = false};
-    prepare_port();
-    usb_power_up();
-    report.after_power_up = usb_probe();
-    bool connected = usb_connect(&port);
-    report.connect_step = port.connect_step;
-    if (!connected) {
-        usb_power_down();
-    }
-    return connected;
-}
-
-bool usb_session_host_seen(void)
-{
-    return usb_host_reset_pending();
-}
-
-void usb_session_stop_listening(void)
-{
-    report.after_wait = usb_probe();
-    usb_power_down();
-}
-
-UsbSessionEnd usb_session_run(void)
+static UsbSessionEnd run(void)
 {
     app_show_notice("USB", "Computer found. Starting...");
+    fallback = (UsbFallback){.watching = false};
+    prepare_port();
     prepare_luns();
-    app_release_audio();
-    board_audio_shut_down();
     usb_silence_audio();
     UsbSessionEnd end = USB_SESSION_NO_HOST;
     if (usb_wait_for_host(&port, HOST_TIMEOUT_MS)) {
-        usb_fallback_start(&fallback, port.high_speed_allowed, hal_clock_milliseconds());
+        usb_fallback_start(&fallback, port.link.high_speed_allowed, hal_clock_milliseconds());
         app_show_notice("USB", card_present ? "Connected. Eject both drives to finish."
                                             : "Connected. Eject the drive to finish.");
         end = serve();
@@ -219,18 +194,25 @@ UsbSessionEnd usb_session_run(void)
     return end;
 }
 
-HalUsbLast hal_system_usb_last(void)
-{
-    return last_session;
-}
-
-const UsbReport *usb_session_report(void)
-{
-    return &report;
-}
-
 CORE_SEAM bool usb_session_storage_changed(void)
 {
     MscStats stats = msc_stats(&msc);
     return stats.lun_sectors_written[INTERNAL_LUN] > 0 || stats.lun_sectors_written[CARD_LUN] > 0;
+}
+
+CORE_SEAM bool usb_storage_session(UsbShared *state)
+{
+    shared = state;
+    UsbSessionEnd end = run();
+    if (end == USB_SESSION_UNPLUGGED && shared->last_session.left_mounted != 0) {
+        app_show_notice("Unplugged before ejecting",
+                        "Recent changes may be lost. Eject the drives before unplugging.");
+        board_wait_for_key();
+    }
+#ifndef ECHO_BOOT_TRACE
+    if (end == USB_SESSION_EJECTED || end == USB_SESSION_UNPLUGGED) {
+        update_after_usb(shared);
+    }
+#endif
+    return usb_session_storage_changed();
 }

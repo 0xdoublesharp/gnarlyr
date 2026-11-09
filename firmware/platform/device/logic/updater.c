@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/seam.h"
 #include "device/image_crc.h"
 
 enum {
@@ -57,8 +58,19 @@ typedef struct ModelScan {
     bool echo;
 } ModelScan;
 
-static uint32_t source_chunk[CHUNK_WORDS];
-static uint32_t target_chunk[CHUNK_WORDS];
+static uint32_t *source_chunk;
+static uint32_t *target_chunk;
+static uint32_t *prefix;
+
+_Static_assert(2 * CHUNK_WORDS + PREFIX_BYTES / 4 <= UPDATER_SCRATCH_WORDS,
+               "scratch holds both chunks and the header");
+
+void updater_use_scratch(uint32_t *words)
+{
+    source_chunk = words;
+    target_chunk = words != NULL ? words + CHUNK_WORDS : NULL;
+    prefix = words != NULL ? words + 2 * CHUNK_WORDS : NULL;
+}
 
 typedef struct SlotCopy {
     const UpdateFile *file;
@@ -287,20 +299,19 @@ static bool brand_matches(const uint8_t *header)
     return has_text(header + BRAND_OFFSET, PODIUM_BRAND, sizeof PODIUM_BRAND);
 }
 
-UpdateCheck updater_check(const UpdateFile *file, const UpdateStorage *storage)
+CORE_SEAM UpdateCheck updater_check(const UpdateFile *file, const UpdateStorage *storage)
 {
-    static uint32_t header[PREFIX_BYTES / 4];
     bool stock = file->size == UPDATER_ECHO_STOCK_IMAGE_SIZE;
-    if ((file->size != UPDATER_IMAGE_SIZE && !stock) ||
-        !file->read(file->context, 0, header, PREFIX_BYTES)) {
+    if (source_chunk == NULL || (file->size != UPDATER_IMAGE_SIZE && !stock) ||
+        !file->read(file->context, 0, prefix, PREFIX_BYTES)) {
         return UPDATE_INVALID;
     }
     if (stock) {
-        return stock_check(file, storage, header);
+        return stock_check(file, storage, prefix);
     }
-    const uint8_t *bytes = (const uint8_t *)header;
+    const uint8_t *bytes = (const uint8_t *)prefix;
     if (!brand_matches(bytes) || !header_is_valid(bytes, storage) ||
-        !header_copy_matches(file, header, FW_SIZE) || !layout_is_bootable(file, bytes)) {
+        !header_copy_matches(file, prefix, FW_SIZE) || !layout_is_bootable(file, bytes)) {
         return UPDATE_INVALID;
     }
     if (matches_installed(file, storage, le32(bytes + FW1_END_OFFSET))) {
@@ -371,8 +382,12 @@ static bool copy_slot(const SlotCopy *copy)
     return true;
 }
 
-bool updater_install(const UpdateFile *file, const UpdateStorage *storage, UpdateProgress progress)
+CORE_SEAM bool updater_install(const UpdateFile *file, const UpdateStorage *storage,
+                               UpdateProgress progress)
 {
+    if (source_chunk == NULL) {
+        return false;
+    }
     uint32_t chunks = (file->size - CRC_BYTES) / UPDATER_CHUNK_BYTES;
     SlotCopy second = {file, storage, 0, storage->slot_2, progress, 0, chunks};
     SlotCopy first = {NULL, storage, storage->slot_2, storage->slot_1, progress, 1, chunks};

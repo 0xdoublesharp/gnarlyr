@@ -279,6 +279,8 @@ static void installing_a_podium_image_fills_both_slots(void)
 
 int main(void)
 {
+    static uint32_t scratch[UPDATER_SCRATCH_WORDS];
+    updater_use_scratch(scratch);
     static const TestCase cases[] = {
         TEST_CASE(a_podium_image_is_valid),
         TEST_CASE(an_echopod_or_recho_image_is_refused),

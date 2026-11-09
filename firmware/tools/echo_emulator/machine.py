@@ -47,7 +47,7 @@ ADC_BATTERY_4000_MV = 819
 HOST_GONE_MS = 40
 
 
-def load_symbols(elf_path):
+def load_symbols(elf_path, first=0, last=0xFFFFFFFF):
     elf = Path(elf_path).read_bytes()
     header = make_image.ELF_HEADER.unpack_from(elf)
     table, count = header[6], header[12]
@@ -63,16 +63,45 @@ def load_symbols(elf_path):
                 "<IIIBBH", elf, section[4] + position * 16)
             start = names[4] + name
             label = elf[start:elf.index(b"\x00", start)].decode("ascii")
-            if label and (info & 0xF) in (0, 1, 2):
+            if label and (info & 0xF) in (0, 1, 2) and first <= value < last:
                 symbols[label] = value & ~1
     return symbols
 
 
+class Overlay:
+    """A separately linked program the firmware loads into the high-RAM window on demand.
+
+    Its addresses are shared with the other overlay and with decoder data, so a name in it
+    only counts while the window holds exactly the copy stored in the image.
+    """
+
+    def __init__(self, image, elf_path, image_offset):
+        base = make_image.OVERLAY_BASE
+        content = make_image.elf_sections(Path(elf_path).read_bytes())[".overlay"].content
+        header = make_image.OVERLAY_HEADER_SIZE
+        self.base = base
+        self.stored = image[image_offset:image_offset + len(content)]
+        if len(content) <= header or self.stored[header:] != content[header:]:
+            raise ValueError("the overlay ELF does not belong to the image")
+        self.symbols = load_symbols(elf_path, base, base + make_image.OVERLAY_CAPACITY)
+        self.names = {}
+        for name, address in self.symbols.items():
+            self.names.setdefault(address, name)
+        self.header = self.stored[:header]
+
+    def loaded(self, machine):
+        return (machine.read_memory(self.base, len(self.header)) == self.header
+                and machine.read_memory(self.base, len(self.stored)) == self.stored)
+
+
 class Machine:
-    def __init__(self, image, elf_path, card=None):
+    def __init__(self, image, elf_path, card=None, usb_overlay_elf=None):
         self.image = image
         self.elf_path = elf_path
         self.symbols = load_symbols(elf_path)
+        self.overlays = []
+        if usb_overlay_elf is not None:
+            self.overlays.append(Overlay(image, usb_overlay_elf, make_image.USB_OVERLAY_OFFSET))
         self.names = {}
         for name, address in self.symbols.items():
             self.names.setdefault(address, name)
@@ -266,9 +295,14 @@ class Machine:
         self.uc.hook_add(UC_HOOK_CODE, hook, None, address, address)
 
     def hook_symbol(self, name, callback):
-        if name not in self.symbols:
+        if name in self.symbols:
+            self.add_address_hook(self.symbols[name], callback)
+            return
+        overlay = next((item for item in self.overlays if name in item.symbols), None)
+        if overlay is None:
             raise KeyError(f"{name} is not in the image: mark it CORE_SEAM so the emulator can reach it")
-        self.add_address_hook(self.symbols[name], callback)
+        self.add_address_hook(overlay.symbols[name],
+                              lambda: callback() if overlay.loaded(self) else None)
 
     def stub_symbol(self, name, handler):
         def replaced():
@@ -356,9 +390,15 @@ class Machine:
 
         self.hook_symbol(name, reached)
 
+    def names_at(self, address):
+        for overlay in self.overlays:
+            if overlay.base <= address < overlay.base + len(overlay.stored) and overlay.loaded(self):
+                return overlay.names
+        return self.names
+
     def symbol_at(self, address):
         best = None
-        for candidate, name in self.names.items():
+        for candidate, name in self.names_at(address).items():
             if candidate <= address and (best is None or candidate > best[0]):
                 best = (candidate, name)
         return "%s+%#x" % (best[1], address - best[0]) if best else "?"

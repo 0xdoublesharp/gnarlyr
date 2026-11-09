@@ -29,11 +29,10 @@ add_executable(echo_device
     board/startup.c
     board/storage.c
     board/system.c
-    board/update.c
+    board/update_request.c
     board/usb.c
-    board/usb_dac_session.c
+    board/usb_listen.c
     board/usb_report.c
-    board/usb_session.c
 )
 target_sources(echo_device PRIVATE board/panel_vop.c)
 set(ECHO_CORE1_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1.ld)
@@ -115,6 +114,45 @@ add_custom_command(
     VERBATIM
 )
 
+set(ECHO_OVERLAY_IMPORTS
+    app_remember_dac_volume
+    app_show_notice
+    board_audio_set_attenuation
+    board_audio_stream_close
+    board_audio_stream_consumed
+    board_audio_stream_open
+    board_audio_stream_pause
+    board_audio_stream_play
+    board_audio_stream_ring
+    board_audio_volume_level
+    board_display_service
+    board_wait_for_key
+    board_wait_for_power_hold
+    emmc_read
+    emmc_start
+    emmc_volume_read
+    emmc_volume_write
+    emmc_write
+    hal_audio_service
+    hal_audio_set_volume
+    hal_clock_milliseconds
+    hal_input_next_transition
+    hal_power_battery
+    hal_power_off
+    image_crc_update
+    internal_volume_remount
+    sd_read
+    sd_sector_count
+    sd_start
+    sd_write
+    usb_connect
+    usb_flush_fifos
+    usb_power_down
+    usb_report_append_hex
+    usb_session_stop_listening
+    usb_silence_audio
+    usb_vbus_present
+)
 set(ECHO_DEVICE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/board/echo_device.ld)
 set_target_properties(echo_device PROPERTIES
     SUFFIX .elf
@@ -135,7 +173,9 @@ if(CMAKE_CROSSCOMPILING)
         board/start_info.c
         board/system.c
         board/update.c
+        board/update_request.c
         board/usb_dac_session.c
+        board/usb_listen.c
         board/usb_report.c
         board/usb_session.c
         PROPERTIES COMPILE_OPTIONS -Os
@@ -143,8 +183,11 @@ if(CMAKE_CROSSCOMPILING)
 endif()
 target_link_libraries(echo_device PRIVATE echo_app echo_device_logic echo_options echo_lto)
 target_compile_definitions(echo_device PRIVATE PODIUM_VERSION_TEXT="${PODIUM_VERSION}")
+list(TRANSFORM ECHO_OVERLAY_IMPORTS PREPEND "-Wl,--require-defined=" OUTPUT_VARIABLE
+    ECHO_OVERLAY_IMPORT_OPTIONS)
 target_link_options(echo_device PRIVATE
     -flto -flto-partition=one
+    ${ECHO_OVERLAY_IMPORT_OPTIONS}
     -T${ECHO_DEVICE_LINKER_SCRIPT}
     -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_device.map
 )
@@ -165,6 +208,33 @@ target_link_options(echo_rescan_overlay PRIVATE
     -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_rescan_overlay.map
 )
 
+set(ECHO_USB_OVERLAY_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/usb_overlay.ld)
+add_executable(echo_usb_overlay
+    overlay/usb_overlay.c
+    board/update.c
+    board/usb_dac_session.c
+    board/usb_port.c
+    board/usb_session.c
+)
+set_target_properties(echo_usb_overlay PROPERTIES
+    SUFFIX .elf
+    LINK_DEPENDS "${ECHO_USB_OVERLAY_LINKER_SCRIPT};$<TARGET_FILE:echo_device>"
+)
+add_dependencies(echo_usb_overlay echo_device)
+target_include_directories(echo_usb_overlay PRIVATE
+    board
+    $<TARGET_PROPERTY:echo_app,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:echo_settings,INTERFACE_INCLUDE_DIRECTORIES>
+)
+target_link_libraries(echo_usb_overlay PRIVATE echo_device_logic echo_options gcc)
+target_link_options(echo_usb_overlay PRIVATE
+    -fno-lto
+    -T${ECHO_USB_OVERLAY_LINKER_SCRIPT}
+    -Wl,--just-symbols=$<TARGET_FILE:echo_device>
+    -Wl,--allow-multiple-definition
+    -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_usb_overlay.map
+)
+
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(ECHO_FIRMWARE_VERSION ${PODIUM_VERSION})
 set(ECHO_DEVICE_IMAGE ${CMAKE_BINARY_DIR}/${PODIUM_IMAGE_NAME})
@@ -180,6 +250,7 @@ add_custom_target(echo_device_image ALL
         --brand ${ECHO_IMAGE_BRAND}
         --elf $<TARGET_FILE:echo_device>
         --overlay $<TARGET_FILE:echo_rescan_overlay>
+        --usb-overlay $<TARGET_FILE:echo_usb_overlay>
         --core1-mp3 ${ECHO_CORE1_MP3_BINARY}
         --core1-flac ${ECHO_CORE1_BINARY}
         --core1-m4a ${ECHO_CORE1_M4A_BINARY}
@@ -188,7 +259,8 @@ add_custom_target(echo_device_image ALL
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/size_report.py
         --build ${CMAKE_BINARY_DIR} --summary
     BYPRODUCTS ${ECHO_DEVICE_IMAGE}
-    DEPENDS echo_device echo_rescan_overlay ${ECHO_CORE1_MP3_BINARY} ${ECHO_CORE1_BINARY}
+    DEPENDS echo_device echo_rescan_overlay echo_usb_overlay ${ECHO_CORE1_MP3_BINARY}
+        ${ECHO_CORE1_BINARY}
         ${ECHO_CORE1_M4A_BINARY}
         ${PROJECT_SOURCE_DIR}/tools/make_image.py
     VERBATIM
@@ -197,7 +269,7 @@ add_custom_target(echo_device_image ALL
 add_custom_target(echo_size_report
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/size_report.py
         --build ${CMAKE_BINARY_DIR}
-    DEPENDS echo_device echo_rescan_overlay
+    DEPENDS echo_device echo_rescan_overlay echo_usb_overlay
     VERBATIM
     USES_TERMINAL
 )

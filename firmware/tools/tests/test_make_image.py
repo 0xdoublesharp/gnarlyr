@@ -463,6 +463,125 @@ class OverlayTest(unittest.TestCase):
             make_image.overlay_from_elf(elf)
 
 
+    def test_the_usb_overlay_lands_at_its_own_offset_with_its_own_magic(self):
+        parts = firmware(code_tail=b"Uf" * 32)
+        overlay = self.overlay(b"w" * 300)
+        image = build(parts, overlay=self.overlay(), usb_overlay=overlay)
+        offset = make_image.USB_OVERLAY_OFFSET
+        self.assertEqual(b"EUSB", image[offset:offset + 4])
+        self.assertEqual(len(overlay), word(image, offset + 4))
+        self.assertEqual(make_image.crc32(overlay[16:]), word(image, offset + 8))
+        self.assertEqual(make_image.crc32(parts.code), word(image, offset + 12))
+        self.assertEqual(overlay[16:], image[offset + 16:offset + len(overlay)])
+        self.assertEqual(b"EOVL", image[make_image.OVERLAY_OFFSET:make_image.OVERLAY_OFFSET + 4])
+        self.assertEqual([], make_image.validate_image(image))
+
+    def test_the_usb_overlay_sits_after_the_glyph_space_and_ends_at_the_header_copy(self):
+        end = make_image.USB_OVERLAY_OFFSET + make_image.USB_OVERLAY_CAPACITY
+        self.assertEqual(make_image.FW_SIZE, end)
+        self.assertEqual(0, make_image.USB_OVERLAY_OFFSET % 512)
+        self.assertIn((make_image.GLYPH_TABLE_OFFSET + make_image.GLYPH_TABLE_SIZE,
+                       make_image.USB_OVERLAY_OFFSET), make_image.GLYPH_REGIONS)
+
+    def test_the_trailer_crc_covers_the_usb_overlay(self):
+        image = bytearray(build(usb_overlay=self.overlay()))
+        image[make_image.USB_OVERLAY_OFFSET + 20] ^= 1
+        self.assertIn("crc", " ".join(make_image.validate_image(bytes(image))))
+
+    def test_a_usb_overlay_bigger_than_its_space_is_refused(self):
+        with self.assertRaises(make_image.ImageError):
+            build(usb_overlay=self.overlay(bytes(make_image.USB_OVERLAY_CAPACITY)))
+
+    def test_a_usb_overlay_elf_may_have_zeroed_memory_after_its_code(self):
+        content = self.overlay(b"")
+        bss = (".bss", SHT_NOBITS, SHF_ALLOC | 1, 0x0307A000 + len(content), b"", 0x8000)
+        elf = elf_file([(".overlay", SHT_PROGBITS, SHF_ALLOC, 0x0307A000, content, len(content)),
+                        bss])
+        self.assertEqual(content, make_image.overlay_from_elf(elf, zeroed=True))
+        with self.assertRaises(make_image.ImageError):
+            make_image.overlay_from_elf(elf)
+
+    def test_zeroed_memory_past_the_window_is_refused(self):
+        content = self.overlay()
+        size = make_image.OVERLAY_CAPACITY - len(content) + 4
+        elf = elf_file([(".overlay", SHT_PROGBITS, SHF_ALLOC, 0x0307A000, content, len(content)),
+                        (".bss", SHT_NOBITS, SHF_ALLOC | 1, 0x0307A000 + len(content), b"",
+                         size)])
+        with self.assertRaises(make_image.ImageError):
+            make_image.overlay_from_elf(elf, zeroed=True)
+
+    def test_zeroed_memory_over_the_code_is_refused(self):
+        content = self.overlay()
+        elf = elf_file([(".overlay", SHT_PROGBITS, SHF_ALLOC, 0x0307A000, content, len(content)),
+                        (".bss", SHT_NOBITS, SHF_ALLOC | 1, 0x0307A000, b"", 64)])
+        with self.assertRaises(make_image.ImageError):
+            make_image.overlay_from_elf(elf, zeroed=True)
+
+
+class OverlayLayoutTest(unittest.TestCase):
+    DEVICE = TOOLS_DIRECTORY.parent / "platform" / "device"
+
+    def defined(self, name):
+        text = (self.DEVICE / "board" / "overlay.h").read_text(encoding="utf-8")
+        return int(re.search(rf"#define {name} (0x[0-9A-Fa-f]+)u", text).group(1), 16)
+
+    def region(self, script, name):
+        text = (self.DEVICE / script).read_text(encoding="utf-8")
+        match = re.search(rf"{name} \(\w+\) : ORIGIN = (0x[0-9A-Fa-f]+), LENGTH = (0x[0-9A-Fa-f]+)",
+                          text)
+        return int(match.group(1), 16), int(match.group(2), 16)
+
+    def test_the_loader_reads_the_overlays_where_the_builder_puts_them(self):
+        self.assertEqual(make_image.OVERLAY_OFFSET, self.defined("RESCAN_OVERLAY_IMAGE_OFFSET"))
+        self.assertEqual(make_image.USB_OVERLAY_OFFSET, self.defined("USB_OVERLAY_IMAGE_OFFSET"))
+        self.assertEqual(make_image.OVERLAY_MAGIC,
+                         self.defined("RESCAN_OVERLAY_MAGIC").to_bytes(4, "little"))
+        self.assertEqual(make_image.USB_OVERLAY_MAGIC,
+                         self.defined("USB_OVERLAY_MAGIC").to_bytes(4, "little"))
+
+    def test_the_window_is_the_same_for_the_loader_the_builder_and_every_linker_script(self):
+        window = (make_image.OVERLAY_BASE, make_image.OVERLAY_CAPACITY)
+        self.assertEqual(window, (self.defined("OVERLAY_WINDOW_BASE"),
+                                  self.defined("OVERLAY_WINDOW_BYTES")))
+        self.assertEqual(window, self.region("board/echo_device.ld", "HIGH_RAM"))
+        self.assertEqual(window, self.region("overlay/rescan_overlay.ld", "HIGH_RAM"))
+        self.assertEqual(window, self.region("overlay/usb_overlay.ld", "HIGH_RAM"))
+
+    def test_the_usb_overlay_is_linked_to_fit_its_space_in_the_image(self):
+        self.assertEqual((make_image.OVERLAY_BASE, make_image.USB_OVERLAY_CAPACITY),
+                         self.region("overlay/usb_overlay.ld", "USB_IMAGE"))
+
+
+def symbol_elf(symbols):
+    names = bytearray(1)
+    table = bytes(16)
+    for name, binding, kind, index in symbols:
+        table += struct.pack("<IIIBBH", len(names), 0x0307A000, 4, binding << 4 | kind, 0, index)
+        names += name.encode() + bytes(1)
+    return elf_file([(".symtab", 2, 0, 0, table, len(table)),
+                     (".strtab", SHT_STRTAB, 0, 0, bytes(names), len(names))])
+
+
+class OverlayCopiesTest(unittest.TestCase):
+    MAIN = [("image_crc_update", 0, 2, 1), ("app_show_notice.isra.0", 0, 2, 1),
+            ("app_step", 1, 2, 1)]
+
+    def test_an_overlay_copy_of_a_main_function_is_found_even_when_lto_renamed_it(self):
+        overlay = [("image_crc_update", 1, 2, 1), ("app_show_notice", 1, 2, 1),
+                   ("msc_init", 1, 2, 1)]
+        copies = make_image.overlay_copies(symbol_elf(self.MAIN), symbol_elf(overlay))
+        self.assertEqual(["app_show_notice", "image_crc_update"], copies)
+
+    def test_symbols_taken_from_the_main_program_and_local_names_are_not_copies(self):
+        overlay = [("app_step", 1, 2, 0xFFF1), ("image_crc_update", 0, 2, 1), ("app_step", 1, 2, 0)]
+        self.assertEqual([], make_image.overlay_copies(symbol_elf(self.MAIN), symbol_elf(overlay)))
+
+    def test_a_copy_stops_the_image(self):
+        overlay = symbol_elf([("image_crc_update", 1, 2, 1)])
+        with self.assertRaises(make_image.ImageError):
+            make_image.check_overlay_copies(symbol_elf(self.MAIN), overlay, "USB overlay")
+
+
 class Core1ModuleTest(unittest.TestCase):
     def test_the_mp3_program_follows_its_header_sector(self):
         program = bytes(range(256)) * 3
@@ -556,6 +675,7 @@ class GlyphFaceTest(unittest.TestCase):
                  (make_image.CORE1_M4A_OFFSET, make_image.CORE1_M4A_OFFSET + 512 +
                   make_image.CORE1_M4A_CAPACITY),
                  (make_image.GLYPH_TABLE_OFFSET, make_image.GLYPH_TABLE_OFFSET + 512),
+                 (make_image.USB_OVERLAY_OFFSET, make_image.FW_SIZE),
                  (make_image.FW_SIZE, make_image.IMAGE_SIZE),
                  (0, make_image.GLYPH_PAYLOAD_LIMIT)]
         placed = sorted(zip(offsets, sizes))

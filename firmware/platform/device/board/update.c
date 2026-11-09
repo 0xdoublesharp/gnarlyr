@@ -1,4 +1,4 @@
-#include "update.h"
+#include "usb_session.h"
 
 #include <stddef.h>
 
@@ -6,7 +6,6 @@
 #include "board.h"
 #include "core/string_builder.h"
 #include "device/fat.h"
-#include "device/loader_request.h"
 #include "device/update_names.h"
 #include "device/updater.h"
 #include "emmc.h"
@@ -26,12 +25,7 @@ static const char *install_title;
 static FatVolume *volume;
 static FatFile file;
 static uint32_t last_percent;
-static bool flash_rewritten;
-
-bool hal_system_restart_pending(void)
-{
-    return flash_rewritten;
-}
+static UsbShared *shared;
 
 static bool read_update(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
@@ -95,37 +89,13 @@ static bool open_update(UpdateStorage *storage)
     return true;
 }
 
-static bool request_read(void *context, uint32_t offset, void *buffer, uint32_t length)
-{
-    (void)context;
-    return fat_read(volume, &file, offset, buffer, length);
-}
-
-static bool request_write(void *context, uint32_t offset, const void *bytes, uint32_t length)
-{
-    (void)context;
-    return fat_write(volume, &file, offset, bytes, length);
-}
-
-void update_check_loader_request(void)
-{
-    EmmcInfo info;
-    if (!mount_volume(&info) || !fat_open(volume, LOADER_REQUEST_PATH, &file)) {
-        return;
-    }
-    LoaderRequestFile request = {request_read, request_write, file.size, NULL};
-    if (loader_request_consume(&request)) {
-        board_loader_reboot();
-    }
-}
-
 static void install(const UpdateFile *update, const UpdateStorage *storage, UpdateCheck check)
 {
     bool stock = check == UPDATE_STOCK;
     install_title = stock ? "Installing FiiO firmware" : "Installing update";
     last_percent = 0;
     show_percent(0);
-    flash_rewritten = true;
+    shared->flash_rewritten = true;
     bool installed = updater_install(update, storage, (UpdateProgress){report, NULL});
     if (updater_should_remove_file(check, installed)) {
         remove_update_file();
@@ -156,12 +126,15 @@ static void show_refused(const char *name)
     board_wait_for_key();
 }
 
-void update_after_usb(void)
+void update_after_usb(UsbShared *state)
 {
     UpdateStorage storage;
+    shared = state;
     if (!open_update(&storage)) {
         return;
     }
+    _Static_assert(UPDATER_SCRATCH_WORDS * 4 <= 64 * 512, "the USB write buffer holds the scratch");
+    updater_use_scratch(usb_session_buffer());
     UpdateFile update = {read_update, file.size, NULL};
     const char *name = update_path + 1;
     char text[MESSAGE_CAPACITY];

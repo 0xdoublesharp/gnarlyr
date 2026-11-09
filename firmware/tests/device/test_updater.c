@@ -164,6 +164,8 @@ static UpdateProgress progress(void)
 
 static void reset(uint8_t *image, uint32_t size)
 {
+    static uint32_t scratch[UPDATER_SCRATCH_WORDS];
+    updater_use_scratch(scratch);
     free(storage.sectors);
     free(file.bytes);
     memset(&storage, 0, sizeof storage);
@@ -376,6 +378,17 @@ static void an_update_file_is_removed_unless_its_install_failed(void)
     CHECK(updater_should_remove_file(UPDATE_INVALID, false));
 }
 
+static void without_scratch_memory_nothing_is_checked_or_written(void)
+{
+    reset(valid_image(1), IMAGE_SIZE);
+    updater_use_scratch(NULL);
+    UpdateStorage storage_target = target();
+    UpdateFile update = source();
+    CHECK_EQUAL(UPDATE_INVALID, updater_check(&update, &storage_target));
+    CHECK(!updater_install(&update, &storage_target, progress()));
+    CHECK_EQUAL(0, storage.writes);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -392,6 +405,7 @@ int main(void)
         TEST_CASE(a_write_failure_in_slot_2_leaves_slot_1_untouched),
         TEST_CASE(a_block_that_reads_back_wrong_fails_the_install),
         TEST_CASE(an_update_file_is_removed_unless_its_install_failed),
+        TEST_CASE(without_scratch_memory_nothing_is_checked_or_written),
     };
     int result = test_run_all(cases, TEST_CASE_COUNT(cases));
     free(storage.sectors);

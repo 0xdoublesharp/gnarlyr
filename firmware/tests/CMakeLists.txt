@@ -442,6 +442,8 @@ if(ARM_GCC)
                 COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python ${echo_image_tests}
                     --image ${PROJECT_SOURCE_DIR}/build/device/${PODIUM_IMAGE_NAME}
                     --elf ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_device.elf
+                    --usb-overlay-elf
+                    ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_usb_overlay.elf
                     EchoImageTest.${case_name}
             )
             set_tests_properties(${test_name} PROPERTIES

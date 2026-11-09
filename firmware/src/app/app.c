@@ -1103,7 +1103,7 @@ bool app_charging(void)
     return app.charging;
 }
 
-void app_show_notice(const char *title, const char *message)
+CORE_SEAM void app_show_notice(const char *title, const char *message)
 {
     MessageConfig config = {.title = title, .message = message, .theme = &notice_theme};
     Screen *screen = message_screen_init(&app.notice, config);
