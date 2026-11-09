@@ -71,6 +71,19 @@ python3 tools/firmware.py sim --card /path/to/music
 - `CORE_SEAM` (`src/core/include/core/seam.h`) marks the functions the emulator replaces or watches, so link-time optimisation cannot inline or remove them. It must stay on every function the emulator names (`tools/echo_emulator`, `tests/emulator`); the emulator fails when a named function is missing from the image.
 - USB session code (mass storage, USB DAC, the DWC2 transfer code) and the updater live in the USB overlay, which is loaded into high RAM once a host is found. New code for those paths goes into the overlay, not the main program. Functions the overlay calls in the main program must be listed in `ECHO_OVERLAY_IMPORTS` (`platform/device/CMakeLists.txt`). Only listening for a host, the state kept across sessions and the start-up loader request stay resident. `docs/architecture.md` (Overlay loader, USB overlay) has the details.
 
+## Screen design
+
+Every screen should be thoughtful, elegant and pleasant to use. In practice:
+
+- A screen is designed for all three text sizes and both orientations before it lands, and checked at the panel's real size in the simulator. Nothing is cut off, overlaps or sits unaligned at any of the six.
+- One visual language: the theme's colours, the shared spacing and row heights, the shared icon set. No one-off sizes or colours in a screen.
+- The primary thing is obvious and reachable with the fewest presses; secondary actions are discoverable on the screen itself, not hidden behind an undocumented hold.
+- Every action gives feedback, every list has a considered empty state, and every wait says what is happening.
+- Text is short, plain and consistent in wording across screens.
+- Motion is brief and never delays input.
+
+A screen change comes with simulator captures at the affected sizes and orientations for review.
+
 ## Porting from Podium and EchoPod
 
 - Where the sources solve the same problem, keep one implementation and drop the others. One mechanism per problem.
