@@ -8,6 +8,8 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT / "tools"))
 
+import make_image
+
 SKIP_EXIT_CODE = 77
 DEFAULT_IMAGE = max((PROJECT / "build" / "device").glob("ECHOV*.IMG"), default=PROJECT / "build" / "device" / "ECHOV454.IMG")
 DEFAULT_ELF = PROJECT / "build" / "device" / "platform" / "device" / "echo_device.elf"
@@ -447,6 +449,91 @@ class EchoImageTest(unittest.TestCase):
             self.assertNotIn("updater_install", session.machine.reached)
             self.assertFalse(session.file_exists(name), name)
             self.assert_only_the_user_volume_changed(session)
+
+    def test_the_usb_session_and_the_update_check_run_from_the_usb_overlay(self):
+        session = self.session(files=[("ECHOV498.IMG", self.image, None)], vbus=True)
+        machine = session.machine
+        machine.note("updater_check")
+        machine.note("usb_storage_session")
+        session.run_to_first_frame()
+        self.assertFalse(machine.overlays[0].loaded(machine))
+        self.assertEqual(session.run_through_update_check(),
+                         "reached usb_session_storage_changed")
+        self.assertTrue(machine.overlays[0].loaded(machine))
+        window = range(make_image.OVERLAY_BASE, make_image.OVERLAY_BASE + make_image.OVERLAY_CAPACITY)
+        self.assertIn(machine.current_pc(), window)
+        self.assertEqual(machine.reached["usb_storage_session"], 1)
+        self.assertEqual(machine.reached["updater_check"], 1)
+        self.assertTrue(session.usb_overlay_reads("slot_1"))
+        self.assertEqual(session.usb_overlay_reads("slot_2"), [])
+        self.assert_healthy(session)
+
+    def run_usb_sessions(self, session, count):
+        reached = session.machine.reached
+        return session.machine.run(
+            until=lambda: reached.get("usb_session_storage_changed", 0) >= count,
+            until_ms=session.machine.milliseconds() + self.session_module.FRAME_LIMIT_MS)
+
+    def test_a_second_usb_session_reuses_the_usb_overlay_still_in_memory(self):
+        session = self.session()
+        machine = session.machine
+        for name in ("usb_storage_session", "usb_session_storage_changed",
+                     "hal_system_return_scratch"):
+            machine.note(name)
+        machine.answer_waits_for_key(4)
+        executed = machine.count_window_code()
+        machine.run(until=lambda: "hal_system_return_scratch" in machine.reached,
+                    until_ms=self.session_module.FRAME_LIMIT_MS)
+        self.assertGreater(executed[0], 0)
+        self.assertEqual(session.usb_overlay_reads("slot_1"), [])
+        machine.vbus = True
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        loads = session.usb_overlay_reads("slot_1")
+        self.assertTrue(loads)
+        machine.run(until_ms=machine.milliseconds() + 200)
+        machine.vbus = True
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        self.assertEqual(machine.reached["usb_storage_session"], 2)
+        self.assertEqual(session.usb_overlay_reads("slot_1"), loads)
+        self.assertEqual(session.usb_overlay_reads("slot_2"), [])
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def test_a_damaged_usb_overlay_in_slot_1_is_replaced_by_the_copy_in_slot_2(self):
+        session = self.session(files=[("ECHOV498.IMG", self.image, None)], vbus=True)
+        session.damage_usb_overlay("slot_1")
+        machine = session.machine
+        machine.note("updater_check")
+        session.run_to_first_frame()
+        self.assertEqual(session.run_through_update_check(),
+                         "reached usb_session_storage_changed")
+        self.assertEqual(machine.reached["updater_check"], 1)
+        self.assertTrue(session.usb_overlay_reads("slot_1"))
+        self.assertTrue(session.usb_overlay_reads("slot_2"))
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def test_without_intact_usb_code_the_session_says_so_and_nothing_from_it_runs(self):
+        session = self.session(files=[("ECHOV498.IMG", self.newer_image(), None)], vbus=True)
+        session.damage_usb_overlay("slot_1")
+        session.damage_usb_overlay("slot_2")
+        machine = session.machine
+        for name in ("updater_check", "updater_install", "usb_storage_session", "usb_power_down"):
+            machine.note(name)
+        notices = machine.collect_notices()
+        session.run_to_first_frame()
+        executed = machine.count_window_code()
+        self.assertEqual(session.run_until_waiting_for_key(), "reached board_wait_for_key")
+        self.assertEqual(notices[-1], ("USB", "USB code missing: reinstall the update"))
+        self.assertGreaterEqual(machine.reached["usb_power_down"], 1)
+        for name in ("updater_check", "updater_install", "usb_storage_session"):
+            self.assertNotIn(name, machine.reached)
+        self.assertEqual(executed[0], 0)
+        self.assertFalse(any(machine.read_memory(make_image.OVERLAY_BASE,
+                                                 make_image.OVERLAY_CAPACITY)))
+        self.assertTrue(session.file_exists("ECHOV498.IMG"))
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
 
     def test_internal_storage_is_read_with_multiple_block_commands_that_are_stopped(self):
         session = self.session()

@@ -81,6 +81,18 @@ class Session:
         self.disk.write(self.layout["slot_1"], image)
         self.disk.write(self.layout["slot_2"], image)
 
+    def damage_usb_overlay(self, slot):
+        lba = self.layout[slot] + make_image.USB_OVERLAY_OFFSET // 512 + 1
+        sector = bytearray(self.disk.read(lba, 1))
+        sector[0] ^= 0xFF
+        self.disk.write(lba, bytes(sector))
+        self.before = self.disk.snapshot()
+
+    def usb_overlay_reads(self, slot):
+        first = self.layout[slot] + make_image.USB_OVERLAY_OFFSET // 512
+        last = first + make_image.USB_OVERLAY_CAPACITY // 512
+        return [(lba, count) for _, lba, count in self.card.reads if first <= lba < last]
+
     def root_entry_start(self, name):
         raw = short_name(name)
         cluster = self.layout["volume_start"] + self.volume.cluster_lba(2)

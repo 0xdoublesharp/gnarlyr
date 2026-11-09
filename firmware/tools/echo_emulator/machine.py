@@ -396,6 +396,27 @@ class Machine:
                 return overlay.names
         return self.names
 
+    def count_window_code(self):
+        counter = [0]
+
+        def hook(uc, where, size, user):
+            counter[0] += 1
+
+        first = make_image.OVERLAY_BASE
+        self.uc.hook_add(UC_HOOK_CODE, hook, None, first, first + make_image.OVERLAY_CAPACITY - 1)
+        return counter
+
+    def collect_notices(self):
+        notices = []
+
+        def shown():
+            title = self.read_cstring(self.reg(UC_ARM_REG_R0)).decode("utf-8", "replace")
+            message = self.read_cstring(self.reg(UC_ARM_REG_R1)).decode("utf-8", "replace")
+            notices.append((title, message))
+
+        self.hook_symbol("app_show_notice", shown)
+        return notices
+
     def symbol_at(self, address):
         best = None
         for candidate, name in self.names_at(address).items():
