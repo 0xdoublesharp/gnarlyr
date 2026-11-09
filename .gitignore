@@ -13,3 +13,4 @@ container-map.json
 *.rep/
 .venv/
 .DS_Store
+.local/

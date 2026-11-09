@@ -4,6 +4,8 @@ Offline investigation of the **standard, full-size ECHO**, using the official 2.
 
 **Result:** the container can be mapped and its Thumb code decompiled. Ghidra and REA both produced usable pseudocode. This is a foundation for writing firmware; it is not recovered original source or a replacement firmware release.
 
+Latest [REA hardware tracing and source-foundation evaluation](docs/hardware-interfaces.md).
+
 The active delivery target and milestones are in [the working firmware goal](docs/goal.md).
 
 Read [the investigation findings](docs/initial-investigation.md) for verified addresses, limits, recovery status, and the next milestone.
@@ -55,3 +57,7 @@ env GHIDRA_INSTALL_DIR=/Volumes/Scratch/SnowskyEcho/tools/ghidra_12.1.4_PUBLIC \
 ```
 
 The seed names an entry inferred from the selected module's start. It does not assert that this was the original developer's function name. REA's Cortex setting is scoped to these ARM ELF inputs and must not be applied to unrelated targets.
+
+## Persistent REA session
+
+Run `node tools/rea_session.mjs /Volumes/Scratch/SnowskyEcho/reports/NEW-RUN` and send newline-delimited JSON requests such as `{"name":"open_binary","arguments":{"path":"/Volumes/Scratch/SnowskyEcho/build/initial-investigation/echo-main-overlay001.elf","provider_id":"ghidra"}}`, then `{"name":"procedure_pseudo_code","arguments":{"procedure":"0x03061bee"}}`. Send `{"name":"close_binary","arguments":{}}` followed by `{"close":true}` to release the provider and exit. `{"schema":"TOOL_NAME"}` prints the actual server-advertised input schema.
