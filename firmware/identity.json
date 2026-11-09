@@ -1,0 +1,9 @@
+{
+    "name": "Doublesharp Echo",
+    "short_name": "Doublesharp",
+    "id": "DBLSHARP",
+    "version": "1.0.0",
+    "data_directory": ".doublesharp",
+    "update_file": "DBLSHARP.IMG",
+    "playlist_start_directive": "#DOUBLESHARP-START:"
+}

@@ -161,20 +161,29 @@ static UpdateCheck check_echo_stock(uint8_t *image)
     return check_on(image, STOCK_SIZE);
 }
 
-static void a_podium_image_is_valid(void)
+static void an_image_with_our_brand_is_valid(void)
 {
-    CHECK_EQUAL(UPDATE_VALID, check_on(own_image("PODIUM"), IMAGE_SIZE));
+    CHECK_EQUAL(UPDATE_VALID, check_on(own_image("DBLSHARP"), IMAGE_SIZE));
 }
 
-static void an_echopod_or_recho_image_is_refused(void)
+static void a_podium_echopod_or_recho_image_is_refused(void)
 {
+    CHECK_EQUAL(UPDATE_INVALID, check_on(own_image("PODIUM"), IMAGE_SIZE));
     CHECK_EQUAL(UPDATE_INVALID, check_on(own_image("EchoPod"), IMAGE_SIZE));
     CHECK_EQUAL(UPDATE_INVALID, check_on(own_image("RECHO"), IMAGE_SIZE));
 }
 
-static void a_damaged_podium_image_is_invalid(void)
+static void a_brand_that_only_resembles_ours_is_refused(void)
 {
-    uint8_t *image = own_image("PODIUM");
+    CHECK_EQUAL(UPDATE_INVALID, check_on(own_image("DBLSHAR"), IMAGE_SIZE));
+    CHECK_EQUAL(UPDATE_INVALID, check_on(own_image("dblsharp"), IMAGE_SIZE));
+    CHECK_EQUAL(UPDATE_INVALID, check_on(own_image("DBLSHARQ"), IMAGE_SIZE));
+    CHECK_EQUAL(UPDATE_INVALID, check_on(own_image(""), IMAGE_SIZE));
+}
+
+static void a_damaged_image_with_our_brand_is_invalid(void)
+{
+    uint8_t *image = own_image("DBLSHARP");
     image[0x2000] ^= 1;
     CHECK_EQUAL(UPDATE_INVALID, check_on(image, IMAGE_SIZE));
 }
@@ -224,7 +233,7 @@ static void stock_echo_images_with_the_wrong_shape_are_invalid(void)
     seal_stock(image);
     CHECK_EQUAL(UPDATE_INVALID, check_echo_stock(image));
     image = echo_stock_image("ECHOV100IMG", 0x54000);
-    memcpy(image + 0x10, "PODIUM\0\0", 8);
+    memcpy(image + 0x10, "DBLSHARP", 8);
     seal_stock(image);
     CHECK_EQUAL(UPDATE_INVALID, check_echo_stock(image));
     image = echo_stock_image("ECHOV100IMG", 0x54000);
@@ -265,9 +274,9 @@ static void installing_a_stock_echo_image_fills_both_slots_with_every_byte_slot_
     CHECK_EQUAL(2 * (STOCK_LENGTH / CHUNK_BYTES), last_total);
 }
 
-static void installing_a_podium_image_fills_both_slots(void)
+static void installing_an_image_with_our_brand_fills_both_slots(void)
 {
-    uint8_t *image = own_image("PODIUM");
+    uint8_t *image = own_image("DBLSHARP");
     load(image, IMAGE_SIZE);
     UpdateStorage storage = {storage_read, storage_write, NULL, SLOT_1, SLOT_2, SLOT_SECTORS};
     UpdateFile file = {file_read, size, NULL};
@@ -282,9 +291,10 @@ int main(void)
     static uint32_t scratch[UPDATER_SCRATCH_WORDS];
     updater_use_scratch(scratch);
     static const TestCase cases[] = {
-        TEST_CASE(a_podium_image_is_valid),
-        TEST_CASE(an_echopod_or_recho_image_is_refused),
-        TEST_CASE(a_damaged_podium_image_is_invalid),
+        TEST_CASE(an_image_with_our_brand_is_valid),
+        TEST_CASE(a_podium_echopod_or_recho_image_is_refused),
+        TEST_CASE(a_brand_that_only_resembles_ours_is_refused),
+        TEST_CASE(a_damaged_image_with_our_brand_is_invalid),
         TEST_CASE(a_stock_echo_image_is_recognised_as_stock),
         TEST_CASE(a_stock_echo_marker_across_two_reads_is_found),
         TEST_CASE(a_stock_mini_image_is_refused),
@@ -292,7 +302,7 @@ int main(void)
         TEST_CASE(stock_echo_images_with_the_wrong_shape_are_invalid),
         TEST_CASE(a_stock_echo_image_needs_a_slot_it_fits),
         TEST_CASE(installing_a_stock_echo_image_fills_both_slots_with_every_byte_slot_2_first),
-        TEST_CASE(installing_a_podium_image_fills_both_slots),
+        TEST_CASE(installing_an_image_with_our_brand_fills_both_slots),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

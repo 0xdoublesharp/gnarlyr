@@ -11,7 +11,7 @@ enum {
     TAG_LENGTH = 8
 };
 
-static const char VERSION_TEXT[] = PODIUM_VERSION_TEXT;
+static const char VERSION_TEXT[] = FIRMWARE_VERSION;
 static char version[sizeof VERSION_TEXT + 1 + TAG_LENGTH];
 static bool tried;
 

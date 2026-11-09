@@ -9,9 +9,10 @@ PROJECT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT / "tools"))
 
 import make_image
+from identity import IDENTITY
 
 SKIP_EXIT_CODE = 77
-DEFAULT_IMAGE = max((PROJECT / "build" / "device").glob("ECHOV*.IMG"), default=PROJECT / "build" / "device" / "ECHOV454.IMG")
+DEFAULT_IMAGE = PROJECT / "build" / "device" / IDENTITY.update_file
 DEFAULT_ELF = PROJECT / "build" / "device" / "platform" / "device" / "echo_device.elf"
 DEFAULT_USB_OVERLAY_ELF = DEFAULT_ELF.with_name("echo_usb_overlay.elf")
 CONFIG = {"image": DEFAULT_IMAGE, "elf": DEFAULT_ELF, "usb_overlay_elf": DEFAULT_USB_OVERLAY_ELF}
@@ -322,9 +323,9 @@ class EchoImageTest(unittest.TestCase):
     def newer_image(self):
         return self.session_module.with_date(self.image, (2099, 1, 1))
 
-    def test_a_newer_podium_image_is_installed_slot_2_first_and_header_last(self):
+    def test_a_newer_image_is_installed_slot_2_first_and_header_last(self):
         newer = self.newer_image()
-        session = self.session(files=[("ECHOV498.IMG", newer, None)], vbus=True)
+        session = self.session(files=[("DBLSHARP.IMG", newer, None)], vbus=True)
         session.machine.note("updater_install")
         self.assertEqual(session.run_to_first_frame(), "condition met")
         session.machine.stop_at("board_wait_for_power_hold")
@@ -369,7 +370,7 @@ class EchoImageTest(unittest.TestCase):
         self.assert_healthy(installed)
 
     def test_the_running_image_offered_again_is_not_written(self):
-        session = self.session(files=[("ECHOV498.IMG", self.image, None)], vbus=True)
+        session = self.session(files=[("DBLSHARP.IMG", self.image, None)], vbus=True)
         session.machine.note("updater_install")
         session.machine.note("updater_check")
         session.run_to_first_frame()
@@ -383,6 +384,10 @@ class EchoImageTest(unittest.TestCase):
     def test_an_echo_pod_image_is_refused_and_nothing_is_written(self):
         mini = self.session_module.with_brand(self.image, "EchoPod")
         self.assert_update_refused(("ECHOV497.IMG", mini, None))
+
+    def test_a_podium_image_under_our_file_name_is_refused_and_nothing_is_written(self):
+        podium = self.session_module.with_brand(self.image, "PODIUM")
+        self.assert_update_refused(("DBLSHARP.IMG", podium, None))
 
     def test_a_mini_stock_size_image_is_refused_and_nothing_is_written(self):
         self.assert_update_refused(("ECHOV496.IMG", None, self.session_module.STOCK_SIZE))
@@ -412,12 +417,12 @@ class EchoImageTest(unittest.TestCase):
 
     def test_an_update_file_is_installed_once_and_is_gone_afterwards(self):
         newer = self.newer_image()
-        first = self.session(files=[("ECHOV498.IMG", newer, None)], vbus=True)
-        cluster = first.volume.first_cluster("ECHOV498.IMG")
+        first = self.session(files=[("DBLSHARP.IMG", newer, None)], vbus=True)
+        cluster = first.volume.first_cluster("DBLSHARP.IMG")
         self.assertEqual(self.boot_until_waiting_for_key(first),
                          "reached board_wait_for_power_hold")
         self.assertEqual(first.machine.reached["updater_install"], 1)
-        self.assertFalse(first.file_exists("ECHOV498.IMG"))
+        self.assertFalse(first.file_exists("DBLSHARP.IMG"))
         self.assertEqual(first.fat_entry(cluster), 0)
         self.assertEqual(first.slot_image("slot_1"), newer[:self.session_module.SLOT_BYTES])
         second = first.reboot(image=first.slot_image("slot_1") + newer[-4:],
@@ -431,7 +436,7 @@ class EchoImageTest(unittest.TestCase):
 
     def test_restoring_an_older_build_does_not_reinstall_the_removed_update(self):
         newer = self.newer_image()
-        first = self.session(files=[("ECHOV498.IMG", newer, None)], vbus=True)
+        first = self.session(files=[("DBLSHARP.IMG", newer, None)], vbus=True)
         self.boot_until_waiting_for_key(first)
         self.assertEqual(first.machine.reached["updater_install"], 1)
         first.write_slots(self.image)
@@ -443,7 +448,7 @@ class EchoImageTest(unittest.TestCase):
 
     def test_an_update_file_that_is_refused_or_already_installed_is_removed(self):
         mini = self.session_module.with_brand(self.image, "EchoPod")
-        for name, data in (("ECHOV497.IMG", mini), ("ECHOV498.IMG", self.image)):
+        for name, data in (("ECHOV497.IMG", mini), ("DBLSHARP.IMG", self.image)):
             session = self.session(files=[(name, data, None)], vbus=True)
             self.boot_until_waiting_for_key(session)
             self.assertNotIn("updater_install", session.machine.reached)
@@ -451,7 +456,7 @@ class EchoImageTest(unittest.TestCase):
             self.assert_only_the_user_volume_changed(session)
 
     def test_the_usb_session_and_the_update_check_run_from_the_usb_overlay(self):
-        session = self.session(files=[("ECHOV498.IMG", self.image, None)], vbus=True)
+        session = self.session(files=[("DBLSHARP.IMG", self.image, None)], vbus=True)
         machine = session.machine
         machine.note("updater_check")
         machine.note("usb_storage_session")
@@ -500,7 +505,7 @@ class EchoImageTest(unittest.TestCase):
         self.assert_healthy(session)
 
     def test_a_damaged_usb_overlay_in_slot_1_is_replaced_by_the_copy_in_slot_2(self):
-        session = self.session(files=[("ECHOV498.IMG", self.image, None)], vbus=True)
+        session = self.session(files=[("DBLSHARP.IMG", self.image, None)], vbus=True)
         session.damage_usb_overlay("slot_1")
         machine = session.machine
         machine.note("updater_check")
@@ -514,7 +519,7 @@ class EchoImageTest(unittest.TestCase):
         self.assert_healthy(session)
 
     def test_without_intact_usb_code_the_session_says_so_and_nothing_from_it_runs(self):
-        session = self.session(files=[("ECHOV498.IMG", self.newer_image(), None)], vbus=True)
+        session = self.session(files=[("DBLSHARP.IMG", self.newer_image(), None)], vbus=True)
         session.damage_usb_overlay("slot_1")
         session.damage_usb_overlay("slot_2")
         machine = session.machine
@@ -531,7 +536,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(executed[0], 0)
         self.assertFalse(any(machine.read_memory(make_image.OVERLAY_BASE,
                                                  make_image.OVERLAY_CAPACITY)))
-        self.assertTrue(session.file_exists("ECHOV498.IMG"))
+        self.assertTrue(session.file_exists("DBLSHARP.IMG"))
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 

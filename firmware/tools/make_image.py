@@ -7,6 +7,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from identity import IDENTITY
+
 POLYNOMIAL = 0x04C10DB7
 IMAGE_SIZE = 0x500004
 FW_SIZE = 0x44C000
@@ -68,7 +70,7 @@ SECTOR_FIELDS_OFFSET = 0x050
 SECTOR_FIELDS = (4, 0x200, 0, 0x200, 0, 0x200, 0, 0x200)
 FIELD_19C_OFFSET = 0x19C
 FIELD_19C = 1
-DEFAULT_VERSION = (0, 6, 0)
+DEFAULT_VERSION = tuple(int(part) for part in IDENTITY.version.split("."))
 ELF_IDENT = b"\x7fELF\x01\x01"
 ELF_HEADER = struct.Struct("<16sHHIIIIIHHHHHH")
 ELF_SECTION = struct.Struct("<10I")
@@ -531,7 +533,7 @@ def parse_arguments(argv):
                         help="major.minor.patch written to the header")
     parser.add_argument("--elf", type=Path, required=True,
                         help="device ELF with .code at 0x03050000 and .data at 0x03004000")
-    parser.add_argument("--brand", default="PODIUM")
+    parser.add_argument("--brand", default=IDENTITY.id)
     parser.add_argument("--build-tag", help="defaults to the short git commit, + when dirty")
     parser.add_argument("--date", type=parse_date, help="YYYY-MM-DD; defaults to today")
     parser.add_argument("--overlay", type=Path, help="rescan overlay ELF linked at 0x0307A000")

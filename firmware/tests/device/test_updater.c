@@ -69,7 +69,7 @@ static uint8_t *valid_image(uint8_t seed)
         image[index] = (uint8_t)(index + seed);
     }
     put_le32(image + 0x1F4, FW_SIZE);
-    memcpy(image + 0x10, "PODIUM", 6);
+    memcpy(image + 0x10, "DBLSHARP", 8);
     memcpy(image + 0x1F8, "RKnanoFW", 8);
     put_le32(image + 0x80, PAYLOAD_END);
     for (uint32_t index = CODE_OFFSET; index < PAYLOAD_END; index++) {

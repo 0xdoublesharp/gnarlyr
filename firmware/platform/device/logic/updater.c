@@ -27,6 +27,7 @@ enum {
     FW_END = 0x500000,
     CHUNK_COUNT = FW_END / UPDATER_CHUNK_BYTES,
     BRAND_OFFSET = 0x10,
+    BRAND_BYTES = 8,
     ECHO_STOCK_FW_SIZE = 0x025CC000,
     CRC_BYTES = 4,
     MARKER_LENGTH = 11,
@@ -40,12 +41,12 @@ enum {
 #define DATA_BASE 0x03004000u
 
 static const uint8_t MAGIC[8] = {'R', 'K', 'n', 'a', 'n', 'o', 'F', 'W'};
-static const uint8_t STOCK_BRAND[8] = {'R', 'o', 'c', 'k', 'c', 'h', 'i', 'p'};
+static const uint8_t STOCK_BRAND[BRAND_BYTES] = {'R', 'o', 'c', 'k', 'c', 'h', 'i', 'p'};
 static const uint8_t EIGHT_GB_MARKER[MARKER_LENGTH] = {'H', 'I', 'F', 'I', 'E', 'C',
                                                        '0', '0', 'I', 'M', 'G'};
 static const uint8_t ECHO_MARKER[MARKER_LENGTH] = {'E', 'C', 'H', 'O', 'V', '1',
                                                    '0', '0', 'I', 'M', 'G'};
-static const uint8_t PODIUM_BRAND[6] = {'P', 'O', 'D', 'I', 'U', 'M'};
+static const char OWN_BRAND[BRAND_BYTES + 1] = FIRMWARE_ID;
 static const uint8_t SMALL_MODEL_MARKER[MARKER_LENGTH] = {'M', 'I', 'N', 'I', 'V', '1',
                                                           '0', '0', 'I', 'M', 'G'};
 static const uint32_t ROW_2[4] = {0x03078CD0u, 0x03079DCCu, 4, 0};
@@ -296,7 +297,7 @@ static UpdateCheck stock_check(const UpdateFile *file, const UpdateStorage *stor
 
 static bool brand_matches(const uint8_t *header)
 {
-    return has_text(header + BRAND_OFFSET, PODIUM_BRAND, sizeof PODIUM_BRAND);
+    return has_text(header + BRAND_OFFSET, (const uint8_t *)OWN_BRAND, BRAND_BYTES);
 }
 
 CORE_SEAM UpdateCheck updater_check(const UpdateFile *file, const UpdateStorage *storage)

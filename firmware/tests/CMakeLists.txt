@@ -411,11 +411,15 @@ endif()
 
 find_program(ARM_GCC arm-none-eabi-gcc)
 if(ARM_GCC)
+    set(target_audit_definitions --define ECHO_FONTS_PACKED)
+    foreach(definition IN LISTS FIRMWARE_DEFINITIONS)
+        list(APPEND target_audit_definitions --define ${definition})
+    endforeach()
     add_test(NAME target_audit
         COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/target_audit.py
             --source-root ${PROJECT_SOURCE_DIR}/src
             --budget-bytes ${ECHO_APP_RAM_BUDGET_BYTES}
-            --define ECHO_FONTS_PACKED
+            ${target_audit_definitions}
     )
     add_test(NAME device_build
         COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -DPRESET=device
@@ -425,7 +429,7 @@ if(ARM_GCC)
     add_executable(check_device_image device/check_device_image.c)
     target_link_libraries(check_device_image PRIVATE echo_device_logic echo_options)
     add_test(NAME device_image_passes_the_updater_check
-        COMMAND check_device_image ${PROJECT_SOURCE_DIR}/build/device/${PODIUM_IMAGE_NAME}
+        COMMAND check_device_image ${PROJECT_SOURCE_DIR}/build/device/${FIRMWARE_UPDATE_FILE}
     )
     set_tests_properties(device_image_passes_the_updater_check PROPERTIES
         FIXTURES_REQUIRED device_image
@@ -440,7 +444,7 @@ if(ARM_GCC)
             set(test_name device_image_boot_${case_name})
             add_test(NAME ${test_name}
                 COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python ${echo_image_tests}
-                    --image ${PROJECT_SOURCE_DIR}/build/device/${PODIUM_IMAGE_NAME}
+                    --image ${PROJECT_SOURCE_DIR}/build/device/${FIRMWARE_UPDATE_FILE}
                     --elf ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_device.elf
                     --usb-overlay-elf
                     ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_usb_overlay.elf

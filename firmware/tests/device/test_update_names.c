@@ -10,13 +10,14 @@ static void check_name(uint32_t index, const char *expected)
     CHECK(strcmp(expected, name) == 0);
 }
 
-static void the_player_scans_echoecho_first_then_echov498_down_to_echov100(void)
+static void the_player_scans_its_own_name_then_echoecho_then_echov498_down_to_echov100(void)
 {
-    CHECK_EQUAL(400, update_name_count());
-    check_name(0, "/ECHOECHO.IMG");
-    check_name(1, "/ECHOV498.IMG");
-    check_name(2, "/ECHOV497.IMG");
-    check_name(399, "/ECHOV100.IMG");
+    CHECK_EQUAL(401, update_name_count());
+    check_name(0, "/DBLSHARP.IMG");
+    check_name(1, "/ECHOECHO.IMG");
+    check_name(2, "/ECHOV498.IMG");
+    check_name(3, "/ECHOV497.IMG");
+    check_name(400, "/ECHOV100.IMG");
 }
 
 static void the_highest_numbered_name_wins_over_a_lower_one(void)
@@ -35,7 +36,7 @@ static void the_highest_numbered_name_wins_over_a_lower_one(void)
 static void an_index_past_the_end_gives_no_name(void)
 {
     char name[UPDATE_NAME_CAPACITY];
-    CHECK(!update_name_at(400, name));
+    CHECK(!update_name_at(401, name));
 }
 
 static void every_name_is_an_eight_dot_three_path_at_the_root(void)
@@ -52,7 +53,7 @@ static void every_name_is_an_eight_dot_three_path_at_the_root(void)
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(the_player_scans_echoecho_first_then_echov498_down_to_echov100),
+        TEST_CASE(the_player_scans_its_own_name_then_echoecho_then_echov498_down_to_echov100),
         TEST_CASE(the_highest_numbered_name_wins_over_a_lower_one),
         TEST_CASE(an_index_past_the_end_gives_no_name),
         TEST_CASE(every_name_is_an_eight_dot_three_path_at_the_root),

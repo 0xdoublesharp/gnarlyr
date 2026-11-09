@@ -182,7 +182,6 @@ if(CMAKE_CROSSCOMPILING)
     )
 endif()
 target_link_libraries(echo_device PRIVATE echo_app echo_device_logic echo_options echo_lto)
-target_compile_definitions(echo_device PRIVATE PODIUM_VERSION_TEXT="${PODIUM_VERSION}")
 list(TRANSFORM ECHO_OVERLAY_IMPORTS PREPEND "-Wl,--require-defined=" OUTPUT_VARIABLE
     ECHO_OVERLAY_IMPORT_OPTIONS)
 target_link_options(echo_device PRIVATE
@@ -236,9 +235,7 @@ target_link_options(echo_usb_overlay PRIVATE
 )
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-set(ECHO_FIRMWARE_VERSION ${PODIUM_VERSION})
-set(ECHO_DEVICE_IMAGE ${CMAKE_BINARY_DIR}/${PODIUM_IMAGE_NAME})
-set(ECHO_IMAGE_BRAND PODIUM)
+set(ECHO_DEVICE_IMAGE ${CMAKE_BINARY_DIR}/${FIRMWARE_UPDATE_FILE})
 set(ECHO_GLYPH_FACE_ARGUMENTS "")
 foreach(face_file ${ECHO_GLYPH_FACE_FILES})
     list(APPEND ECHO_GLYPH_FACE_ARGUMENTS --glyph-face ${face_file})
@@ -246,8 +243,6 @@ endforeach()
 
 add_custom_target(echo_device_image ALL
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/make_image.py
-        --version ${ECHO_FIRMWARE_VERSION}
-        --brand ${ECHO_IMAGE_BRAND}
         --elf $<TARGET_FILE:echo_device>
         --overlay $<TARGET_FILE:echo_rescan_overlay>
         --usb-overlay $<TARGET_FILE:echo_usb_overlay>
@@ -263,6 +258,8 @@ add_custom_target(echo_device_image ALL
         ${ECHO_CORE1_BINARY}
         ${ECHO_CORE1_M4A_BINARY}
         ${PROJECT_SOURCE_DIR}/tools/make_image.py
+        ${PROJECT_SOURCE_DIR}/tools/identity.py
+        ${FIRMWARE_IDENTITY_FILE}
     VERBATIM
 )
 

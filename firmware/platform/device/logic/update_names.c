@@ -3,11 +3,15 @@
 enum {
     ECHO_LOWEST = 100,
     ECHO_HIGHEST = 498,
-    ECHO_COUNT = 1 + ECHO_HIGHEST - ECHO_LOWEST + 1
+    ECHO_FIRST_INDEX = 1,
+    NAME_COUNT = ECHO_FIRST_INDEX + 1 + ECHO_HIGHEST - ECHO_LOWEST + 1
 };
 
+static const char OWN_NAME[] = "/" FIRMWARE_UPDATE_FILE;
 static const char ECHO_TEMPLATE[] = "/ECHOV000.IMG";
 static const char ECHO_FIRST[] = "/ECHOECHO.IMG";
+
+_Static_assert(sizeof OWN_NAME <= UPDATE_NAME_CAPACITY, "the update file name fits its buffer");
 
 static void copy_text(char *name, const char *text, uint32_t size)
 {
@@ -18,7 +22,7 @@ static void copy_text(char *name, const char *text, uint32_t size)
 
 uint32_t update_name_count(void)
 {
-    return ECHO_COUNT;
+    return NAME_COUNT;
 }
 
 static void put_digits(char *name, uint32_t at, uint32_t digits, uint32_t number)
@@ -34,11 +38,13 @@ bool update_name_at(uint32_t index, char name[UPDATE_NAME_CAPACITY])
     if (index >= update_name_count()) {
         return false;
     }
-    if (index == 0) {
+    if (index < ECHO_FIRST_INDEX) {
+        copy_text(name, OWN_NAME, sizeof OWN_NAME);
+    } else if (index == ECHO_FIRST_INDEX) {
         copy_text(name, ECHO_FIRST, sizeof ECHO_FIRST);
     } else {
         copy_text(name, ECHO_TEMPLATE, sizeof ECHO_TEMPLATE);
-        put_digits(name, 6, 3, ECHO_HIGHEST + 1 - index);
+        put_digits(name, 6, 3, ECHO_HIGHEST + 1 + ECHO_FIRST_INDEX - index);
     }
     return true;
 }

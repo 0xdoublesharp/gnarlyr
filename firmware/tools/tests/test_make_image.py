@@ -92,7 +92,7 @@ class CrcTest(unittest.TestCase):
         self.assertEqual(0, make_image.crc32(b""))
 
     def test_appending_the_crc_big_endian_leaves_a_zero_residue(self):
-        data = b"Podium"
+        data = b"123456789"
         self.assertEqual(0, make_image.crc32(data + make_image.crc32(data).to_bytes(4, "big")))
 
     def test_skipping_zero_runs_matches_the_byte_by_byte_crc(self):
@@ -105,9 +105,10 @@ class CrcTest(unittest.TestCase):
 
 
 class BrandTest(unittest.TestCase):
-    def test_the_default_brand_is_podium(self):
+    def test_the_default_brand_and_version_come_from_the_identity_file(self):
         arguments = make_image.parse_arguments(["--elf", "a.elf", "--output", "b.img"])
-        self.assertEqual("PODIUM", arguments.brand)
+        self.assertEqual("DBLSHARP", arguments.brand)
+        self.assertEqual((1, 0, 0), arguments.version)
 
 
 class FwEndTest(unittest.TestCase):
@@ -389,7 +390,7 @@ class GeneratedHeaderTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             elf = Path(directory) / "firmware.elf"
             elf.write_bytes(firmware_elf(firmware()))
-            output = Path(directory) / "ECHOV454.IMG"
+            output = Path(directory) / "firmware.img"
             status = make_image.main(["--elf", str(elf), "--output", str(output),
                                       "--build-tag", "abc1234", "--date", "2026-10-22",
                                       "--version", "0.1.2"])

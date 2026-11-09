@@ -41,12 +41,16 @@ enum {
     WRITE_PROTECT_BIT = 0x80,
     START_STOP_LOAD_EJECT = 0x02,
     START_STOP_START = 0x01,
-    INQUIRY_EVPD = 0x01
+    INQUIRY_EVPD = 0x01,
+    INQUIRY_VENDOR_BYTES = 8
 };
 
 static const uint8_t INQUIRY_HEADER[8] = {0x00, 0x80, 0x02, 0x02, 31, 0, 0, 0};
-static const char INQUIRY_VENDOR[] = "PODIUM  ";
+static const char INQUIRY_VENDOR[] = FIRMWARE_ID;
 static const char INQUIRY_REVISION[] = "0.1 ";
+
+_Static_assert(sizeof INQUIRY_VENDOR - 1 <= INQUIRY_VENDOR_BYTES,
+               "the firmware id fits the INQUIRY vendor field");
 
 static uint32_t le32(const uint8_t *bytes)
 {
@@ -191,7 +195,7 @@ static void inquiry(Msc *msc, const MscLun *lun, const uint8_t *block)
     for (uint32_t index = 0; index < sizeof INQUIRY_HEADER; index++) {
         msc->response[index] = INQUIRY_HEADER[index];
     }
-    fill_text(msc->response + 8, INQUIRY_VENDOR, 8);
+    fill_text(msc->response + 8, INQUIRY_VENDOR, INQUIRY_VENDOR_BYTES);
     fill_text(msc->response + 16, lun->product, MSC_PRODUCT_LENGTH);
     fill_text(msc->response + 32, INQUIRY_REVISION, 4);
     respond(msc, MSC_RESPONSE_CAPACITY);

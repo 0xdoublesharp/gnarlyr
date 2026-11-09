@@ -19,6 +19,8 @@ target_compile_options(echo_options INTERFACE
     -Wformat=2
 )
 
+target_compile_definitions(echo_options INTERFACE ${FIRMWARE_DEFINITIONS})
+
 add_library(echo_board INTERFACE)
 target_compile_definitions(echo_board INTERFACE PANEL_ECHO_MADCTL=${ECHO_PANEL_MADCTL})
 if(ECHO_BOOT_TRACE)
