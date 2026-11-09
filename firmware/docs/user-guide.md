@@ -1,46 +1,41 @@
-# Podium user guide
+# Doublesharp Echo user guide
 
-Podium is a replacement firmware for the full-size Snowsky (FiiO) Echo music player. It has an iPod-style UI with iPod-sized text, a Cover Flow album browser, a music library built on the player, favorites, playlists and an Up Next queue. It is not made or supported by Snowsky or FiiO.
+Doublesharp Echo is firmware for the full-size Snowsky (FiiO) Echo music player. It replaces FiiO's firmware and has large text, a Cover Flow album browser, a music library built on the player, favorites, playlists and an Up Next queue. Snowsky and FiiO are trademarks of their owners, and Echo is their product name. Doublesharp Echo is not made, endorsed or supported by FiiO.
 
-Read `docs/known-issues.md` before you install.
+Doublesharp 1.0.0 is not released and has not run on a player yet. This guide describes what the code does, as checked in tests, the simulator and the emulator. Read [`known-issues.md`](known-issues.md) before you install.
 
-**Use it at your own risk.** Podium comes with no warranty (see `LICENSE`). Replacing a player's firmware can leave it unable to start; the way back is described below, with maskrom recovery (`docs/device-recovery.md`) as the last resort. Only install it if you're prepared to use it.
+**Use it at your own risk.** Doublesharp comes with no warranty (see `LICENSE`). Replacing a player's firmware can leave it unable to start; the way back is maskrom recovery ([`device-recovery.md`](device-recovery.md)). Only install it if you're prepared to use that.
 
 ## Which players
 
-- **Snowsky Echo (full size, 480 × 222 screen), 4 GB and 8 GB: supported.** Its FiiO update file is called `ECHOVnnn.IMG` (V2.0.0 is `ECHOV200.IMG`).
-- **Echo Mini: not supported.** Podium refuses the Echo Mini's firmware, and the Echo Mini's firmware ignores Podium's file. EchoPod is the firmware for the Echo Mini.
+- **Snowsky Echo (full size, 480 × 222 screen): the only player it is built for.** This project has the 4 GB model. Podium's author reports that Podium, which Doublesharp is built on, also runs on the 8 GB model; this project has not tried one. FiiO's update file for this player is called `ECHOVnnn.IMG` (V2.0.0 is `ECHOV200.IMG`).
+- **Echo Mini: not supported.** Doublesharp refuses the Echo Mini's firmware. EchoPod is the firmware for the Echo Mini.
 
 ## Before you install
 
 1. Copy anything you want to keep off the player's internal storage.
 2. Charge the battery.
-3. Download the image (`ECHOV458.IMG` for version 4.5.8) and check its SHA-256:
-   - Windows (PowerShell): `Get-FileHash ECHOV458.IMG`
-   - macOS or Linux: `shasum -a 256 ECHOV458.IMG`
-
-   The result must match the hash published next to the download. If it doesn't, download it again.
+3. Prepare maskrom recovery and check that it reaches your player ([`device-recovery.md`](device-recovery.md)). It is the only way back if the player doesn't start.
+4. Build the image (`README.md`, Build and test). There is no download yet.
 
 ## Install
 
-1. Connect the player to your computer. The internal storage appears as a drive.
-2. Copy `ECHOV458.IMG` to the top level of that drive, not into a folder. FiiO's updater takes the highest `ECHOVnnn.IMG` (or `ECHOECHO.IMG`), and Podium's numbers are above every stock release so far.
-3. Eject the drive (Windows: Safely Remove; macOS: Eject), then unplug.
-4. The player installs the file after the USB session ends and deletes it. It shows "Updating" for about a minute or two. Leave it alone until Podium starts.
-5. On the first start with a microSD card in the player, Podium builds its library and album covers, which takes a minute or two.
+The route that has worked on this project's player is a direct write through maskrom: [`device-install.md`](device-install.md).
 
-If the player comes back to FiiO's firmware after a short "Updating", the install didn't happen. See "If something goes wrong" below.
+Installing by copying a file under FiiO's firmware is not verified. FiiO's updater only reads files named `ECHOVnnn.IMG`, so `DBLSHARP.IMG` would have to be renamed, and whether FiiO's 2.0.0 accepts it is not known.
+
+On the first start with a microSD card in the player, Doublesharp builds its library and album covers. Wait for it to finish before you plug the player into a computer.
 
 ## Your music
 
 - Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Settings → About → Music shows which one is in use. Settings are kept on internal storage either way, so they stay the same when you insert or remove the card.
-- Podium plays FLAC, MP3 and WAV, up to 192 kHz, and `.m4a` and `.m4b` files with AAC-LC or Apple Lossless audio. It lists the other formats FiiO lists, and says when it can't play one.
+- Doublesharp plays FLAC, MP3 and WAV, up to 192 kHz, and `.m4a` and `.m4b` files with AAC-LC or Apple Lossless audio. It lists the other formats FiiO lists, and says when it can't play one.
 - Music → Folders shows the card as it is: folders, then each audio file by its full name with its extension (`01 Intro.mp3`). The other lists show titles from the tags. Hold ▶ on a folder there to play everything under it, subfolders included, in the order Folders shows it (a CUE album plays once, as its songs); the queue follows the shuffle setting and has no length limit beyond the library's 65,535 tracks.
 - A `.cue` file next to a single FLAC, WAV or MP3 album image splits it into one track per CUE track (see "CUE sheets" below). Album covers come from art inside each album's first track, or from a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks.
 - `.m3u` and `.m3u8` playlists anywhere on the card appear under Music → Playlists.
-- **Favorite Playlist.** Hold Play on a song in any list and choose Add to Favorite Playlist. The song goes into `Favorite Tracks.m3u` in the top folder of the music storage (the card, or the player's own storage without a card). The file is made on the first use, holds one path per line relative to that folder, and can be read and edited on a computer. A song that is one track of a CUE album gets the line `#PODIUM-START:` and the track's start in milliseconds above its path (the path is the album's audio file, so computer players open the whole album); the player and echo-sync use the start to pick that exact track, and a line without it stands for the album's last track. Each track of a CUE album is added and checked on its own. A song already in it shows "Already in Favorites". The file has room for a few hundred songs; when it is full, or a computer edit left it without spare room, the player shows "Couldn't add to Favorites". Music → Playlists shows Favorite Tracks with the new song straight away, with no rescan, also after a restart. Lines added to the file on a computer show after the next library scan.
-- Libraries of many thousands of tracks work; `docs/known-issues.md` lists the sizes tested so far.
-- Podium keeps its own files in a hidden `/.echo` folder on the card, about 110 MB of them. Don't delete it unless you want the library rebuilt.
+- **Favorite Playlist.** Hold Play on a song in any list and choose Add to Favorite Playlist. The song goes into `Favorite Tracks.m3u` in the top folder of the music storage (the card, or the player's own storage without a card). The file is made on the first use, holds one path per line relative to that folder, and can be read and edited on a computer. A song that is one track of a CUE album gets the line `#DOUBLESHARP-START:` and the track's start in milliseconds above its path (the path is the album's audio file, so computer players open the whole album); the player and echo-sync use the start to pick that exact track, and a line without it stands for the album's last track. Each track of a CUE album is added and checked on its own. A song already in it shows "Already in Favorites". The file has room for a few hundred songs; when it is full, or a computer edit left it without spare room, the player shows "Couldn't add to Favorites". Music → Playlists shows Favorite Tracks with the new song straight away, with no rescan, also after a restart. Lines added to the file on a computer show after the next library scan.
+- The library holds up to 65,535 tracks; [`known-issues.md`](known-issues.md) says what has been tested.
+- Doublesharp keeps its own files in a hidden `/.doublesharp` folder on the card, about 110 MB of them. Don't delete it unless you want the library rebuilt.
 
 ## CUE sheets
 
@@ -52,7 +47,7 @@ Depeche Mode/Violator/
   Violator.cue            hidden as a track, its tracks take its place
 ```
 
-- The sheet must name one file. Podium looks for that name in the sheet's folder (capitals don't matter), and when there is none, for an audio file with the same name as the sheet (`Violator.cue` and `Violator.flac`), which is what many rips need. Sheets that name an APE, M4A or another format the player can't play, sheets that list several files (one per track) and sheets whose file is missing are ignored; their audio files list as before.
+- The sheet must name one file. The player looks for that name in the sheet's folder (capitals don't matter), and when there is none, for an audio file with the same name as the sheet (`Violator.cue` and `Violator.flac`), which is what many rips need. Sheets that name an APE, M4A or another format the player can't play, sheets that list several files (one per track) and sheets whose file is missing are ignored; their audio files list as before.
 - Track titles come from `TITLE`, artists from `PERFORMER` (the track's, otherwise the one at the top of the sheet, which is also the album artist), the album from the top `TITLE`, the genre from `REM GENRE` and the year from `REM DATE`. What the sheet doesn't say comes from the audio file's tags, then from its folder name. A track without a title is called "Track 3".
 - A track starts at its `INDEX 01` and ends where the next one starts, so silence marked `INDEX 00` before a track belongs to the track before it. Tracks play without a gap.
 - The sheet is read as UTF-8 (a byte order mark is fine) or, when it isn't valid UTF-8, as Windows-1252.
@@ -69,51 +64,29 @@ Depeche Mode/Violator/
 
 ## Using the player as a USB DAC
 
-**Untested on a player so far** (see `docs/known-issues.md`). In this mode the player is a sound card for your computer or phone: their audio plays through the player's headphone outputs.
+**Not run on a player by this project** (see [`known-issues.md`](known-issues.md)). In this mode the player is a sound card for your computer or phone: their audio plays through the player's headphone outputs.
 
 1. On the player, Settings → USB mode → DAC.
-2. Plug in the USB cable. The player shows "USB DAC". No driver is needed on Windows 10 and later, macOS, Linux, Android or iOS (phones need a USB-C or Lightning adapter that passes data).
-3. On the computer, choose Podium as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output). The player shows the format, for example "Playing from computer · 48 kHz 24-bit".
+2. Plug in the USB cable. The player shows "USB DAC". It is a standard USB Audio Class 1.0 device, which Windows 10 and later, macOS, Linux, Android and iOS support without a driver (phones need a USB-C or Lightning adapter that passes data).
+3. On the computer, choose Doublesharp Echo as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output). The player shows the format and its volume, for example "48 kHz 24-bit · Volume 35".
 4. Use the computer's volume, the player's volume keys, or both. DAC mode has its own volume, separate from music: it starts at 35 of 60, the screen shows it ("48 kHz 24-bit · Volume 35"), holding Vol± changes it quickly, and the player remembers it for next time. Start low.
 5. Unplug when you're done, or hold Back for a second and let go to go back to the player's own music (it keeps charging).
 
-The player accepts 16 or 24-bit at 44.1 and 48 kHz; the computer picks one (on Windows: Sound settings → Podium → Properties → Advanced). Music on the player stops while it's a DAC, and your drives don't appear: set USB mode back to Storage to copy music. The setting takes effect the next time you plug in. A charger works the same in both modes.
+The player accepts 16 or 24-bit at 44.1 and 48 kHz; the computer picks one (on Windows: Sound settings → Doublesharp Echo → Properties → Advanced). Music on the player stops while it's a DAC, and your drives don't appear: set USB mode back to Storage to copy music. The setting takes effect the next time you plug in. A charger works the same in both modes.
 
 ## Build the library on a computer
 
-Rebuilding on the player takes a minute or two (1,563 tracks and 144 albums take about 1 minute 45 seconds). A computer can build the same library and album covers instead, straight onto the card, and tell the player that the card has already been scanned.
+Rebuilding on the player takes a while, most of it decoding album covers. A computer can build the same library and album covers instead, straight onto the card, and tell the player that the card has already been scanned.
 
-The tool is called **echo-sync**. Download it from the Podium website (https://podium-echo.online, How to install → Build the library on a computer); it's one file, with nothing to install:
-
-| Computer | File |
-|---|---|
-| Windows | `echo-sync-windows-x64.exe` |
-| Mac with Apple silicon (M1 and later) | `echo-sync-macos-arm64` |
-| Linux (x86-64) | `echo-sync-linux-x64` |
-
-**Windows**
+The tool is **echo-sync**, `tools/echo_sync.py`. It runs from the source; there are no packaged downloads. Install Python 3, then the tools' packages once with `python3 -m pip install -r tools/requirements.txt`.
 
 1. Copy your music to the card, in the player over USB or in a card reader.
-2. Double-click `echo-sync-windows-x64.exe`. Windows may say it "protected your PC" because the file isn't signed: click **More info**, then **Run anyway**.
-3. It finds a card the player has used and asks "Card to sync [E:\]": press Enter. For another card, type its drive letter (or drag the drive onto the window) and press Enter.
-4. When it says "Done", press Enter to close it, eject the card (in the player: both drives), and put it back in the player or unplug.
+2. Run `python3 tools/echo_sync.py /Volumes/CARD` with the card's mount point (on Windows, `tools\echo_sync.bat E:` finds Python for you). Without an argument it looks for a card the player has used and asks.
+3. When it says "Done", eject the card (in the player: both drives).
 
-From a command prompt, `echo-sync-windows-x64.exe E:` does the same without asking.
+This project has run the tool's tests, not the tool on a real card.
 
-**Mac**
-
-1. Copy your music to the card.
-2. In Terminal, allow the downloaded file to run once: `chmod +x ~/Downloads/echo-sync-macos-arm64 && xattr -d com.apple.quarantine ~/Downloads/echo-sync-macos-arm64`.
-3. Run `~/Downloads/echo-sync-macos-arm64` and press Enter to use the card it finds, or drag the card from the desktop into the window first. You can also give it straight away: `~/Downloads/echo-sync-macos-arm64 /Volumes/CARD`.
-4. Eject the card.
-
-**Linux**
-
-`chmod +x echo-sync-linux-x64`, then `./echo-sync-linux-x64 /media/you/CARD` (the card's mount point), then eject the card.
-
-**Intel Macs, other computers, or from the source.** Install Python 3, then the tools' packages once with `python3 -m pip install -r tools/requirements.txt`, and run `python3 tools/echo_sync.py /Volumes/CARD`. On Windows, `tools\echo_sync.bat E:` finds Python for you.
-
-It reads the whole card, as the player does, and writes `library.db`, `covers.bin` and `scan.bin` into the card's `/.echo` folder. If the player has never used the card, it asks before creating `/.echo` (`--yes` creates it without asking). Files the player made are overwritten in place and keep their size; missing ones are made at the player's sizes (4 MB, 80 MB and 4 KB). It then prints what it found, for example "1,402 tracks, 120 albums, 3 playlists" and "115 covers, 5 without art".
+It reads the whole card, as the player does, and writes `library.db`, `covers.bin` and `scan.bin` into the card's `/.doublesharp` folder. If the player has never used the card, it asks before creating `/.doublesharp` (`--yes` creates it without asking). Files the player made are overwritten in place and keep their size; missing ones are made at the player's sizes (4 MB, 80 MB and 4 KB). It then prints what it found, for example "1,402 tracks, 120 albums, 3 playlists" and "115 covers, 5 without art".
 
 **Why the player doesn't rescan.** After a USB session the player checks for changes: it compares the names, sizes and modification times of the music, playlists and cover images on the card with a fingerprint it keeps in `scan.bin`. The computer writes the same fingerprint, so the check finds nothing new and the player keeps the computer's library. With a card reader there's no USB session, so the player uses the new library straight away.
 
@@ -121,13 +94,13 @@ It reads the whole card, as the player does, and writes `library.db`, `covers.bi
 
 - the music changed after the computer ran;
 - the card is exFAT and a file's time was saved without a time-zone tag (modern Windows, macOS and Linux always add one; some cameras and old devices don't);
-- the card is FAT32 and the computer is a Mac or runs Linux: how these read FAT32 file times hasn't been checked against the player yet;
+- the card is FAT32 and the computer reads its file times differently from the player (not checked on any system by this project);
 - the card has folders more than 31 levels deep or paths longer than 1,023 bytes (the player can't fingerprint those);
 - a name was saved decomposed (for example by Linux) and read on a Mac, or only as an old DOS short name with accented letters.
 
-To see whether it works on your card, let the player scan it once, then run echo-sync with `--check` without changing anything (for example `echo-sync-windows-x64.exe E: --check`). "They match" means the player won't rescan after the next sync.
+To see whether it works on your card, let the player scan it once, then run echo-sync with `--check` without changing anything (`python3 tools/echo_sync.py /Volumes/CARD --check`). "They match" means the player won't rescan after the next sync.
 
-**After a firmware update** the player checks the music once when it first starts ("Checking for changes"), and rescans only if the music changed, or if it can't read the library on the card (as after updating to 0.2.0, which changed the library format). `scan.bin` remembers the firmware version; the computer keeps it. A `scan.bin` the computer had to create has no version yet, so the player checks once on its next start too.
+**After a firmware update** the player checks the music once when it first starts ("Checking for changes"), and rescans only if the music changed, or if it can't read the library on the card (as after an update that changes the library format). `scan.bin` remembers the firmware version; the computer keeps it. A `scan.bin` the computer had to create has no version yet, so the player checks once on its next start too.
 
 | Option | Effect |
 |---|---|
@@ -136,7 +109,7 @@ To see whether it works on your card, let the player scan it once, then run echo
 | `--covers-only` | Rebuild `covers.bin` from the card's `library.db` |
 | `--no-fingerprint` | Leave `scan.bin` alone, so the player compares the music with its own last scan |
 | `--check` | Only compare the computer's fingerprint with the player's |
-| `--yes` | Create `/.echo` without asking |
+| `--yes` | Create `/.doublesharp` without asking |
 | `--verbose` | List the albums without art |
 
 The computer picks each album's cover the way the player does: the picture inside the album's first track (FLAC, MP3, WAV, DSF/DFF, `.m4a`, `.ape` and `.wma`; a front cover wins), otherwise a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks. Ogg pictures are skipped, as on the player. The covers can look a little different from the player's own, because the computer resizes them with a different filter. When the player rescans later (for example after you copy a new album to it), it keeps the computer's covers and only decodes art that's new or changed; on a card that isn't FAT32 or exFAT, albums whose cover is an image file are decoded again.
@@ -153,7 +126,7 @@ The computer picks each album's cover the way the player does: the picture insid
 
 The Now Playing column above is for Settings → Skip songs = Hold vol±; the other two choices move skipping to a double-click of Vol± or a double/triple click of ▶ (see Skip songs).
 
-**Wired headphones with buttons** (3.5 mm jack, from any screen, screen on or off): the middle button pauses and resumes, press it twice for the next track and three times for the previous one; + and − change the volume, hold + for the next track and − for the previous one. Not yet tried on a player: see `docs/known-issues.md`.
+**Wired headphones with buttons** (3.5 mm jack, from any screen, screen on or off): the middle button pauses and resumes, press it twice for the next track and three times for the previous one; + and − change the volume, hold + for the next track and − for the previous one. Not tried on a player by this project: see [`known-issues.md`](known-issues.md).
 
 With the screen off, ▶‖ still pauses and resumes, a tap of vol± changes the volume and holding vol± skips tracks (or jumps 30 s / 15 s in audiobooks and podcasts).
 
@@ -175,7 +148,7 @@ Settings → Skip songs picks how the buttons change the song on Now Playing and
 
 ## Portrait mode
 
-Settings → Orientation has Landscape (the default), Portrait and Portrait, flipped. The screen turns as soon as you pick, and the player starts the same way next time. Pick whichever portrait way round puts the buttons where you like them.
+Not tried on a player yet ([`known-issues.md`](known-issues.md)). Settings → Orientation has Landscape (the default), Portrait and Portrait, flipped. The screen turns as soon as you pick, and the player starts the same way next time. Pick whichever portrait way round puts the buttons where you like them.
 
 In portrait, Home and Now Playing show only the status row at the top (no title line); Home shows the album art under the menu, Now Playing puts the cover above the track, Cover Flow stacks the albums from top to bottom, and the status icons sit in a strip above the title. Lists show up to 13 rows. The volume rocker turns with the screen: in Portrait the buttons swap roles, so the one that is Vol− in landscape moves down through lists and the one that is Vol+ moves up; in Portrait, flipped they keep their usual roles. On Now Playing the button nearer the top of the screen turns the volume up, so in Portrait, flipped it's the one labelled Vol−. With the screen off, Vol+ is louder in every orientation.
 
@@ -244,7 +217,7 @@ Podcasts/
 - **`.m4b` audiobooks** are indexed like `.m4a` files (AAC-LC or Apple Lossless). When the file carries chapters, it shows up as a book of its own named after the file (`Dune`), with one chapter per marker and the chapter's title as the song title; "Chapter 3 of 41", the chapter list, ▶ to resume, bookmarks and the 30 s / 15 s jumps all work on the chapter, and playing on from one chapter into the next is gapless. Both chapter kinds are read: the Nero `chpl` list and the QuickTime chapter track (what Libation, Audible conversions and ffmpeg write). A file with no chapters, one chapter, or chapter data that can't be read is one track. A book has at most 255 chapters; the rest are part of the last one. Put the `.m4b` straight into `Audiobooks/` (not inside a folder of its own), because a folder is a book by itself. Outside `Audiobooks/` a chaptered `.m4b` is an album of its chapters, like a CUE album, and its row in Folders is a folder named after the file.
 - **Podcasts** lists your shows; open one to see its episodes, each with "23:10 left" or "Played".
 - A chaptered `.m4b` remembers one place for the whole file, keyed by the file's path: the chapter and the position inside it. ▶ on the book resumes that chapter; choosing another chapter from the list starts it at its top, and the place moves with whatever is played. Renaming or moving the file forgets the place.
-- Every book and every episode remembers its own place, even when you play music in between or turn the player off. The places are saved in `/.echo/bookmarks.bin` (the last 128 books and episodes).
+- Every book and every episode remembers its own place, even when you play music in between or turn the player off. The places are saved in `/.doublesharp/bookmarks.bin` (the last 128 books and episodes).
 - Books and shows always play in order: shuffle doesn't apply to them, and your shuffle setting for music stays as it was.
 - On Now Playing, holding Vol+ jumps 30 s forward and holding Vol− jumps 15 s back. Jumping past the end of a chapter goes to the next one. To pick another chapter, use the book's chapter list.
 - An episode or book counts as finished once it played to its last tenth (at most its last 30 s).
@@ -252,23 +225,37 @@ Podcasts/
 - Playback speed can't be changed yet.
 - **HE-AAC doesn't play.** An `.m4b` or `.m4a` that isn't AAC-LC or Apple Lossless (HE-AAC with SBR or PS, xHE-AAC) is refused with "Only AAC-LC and ALAC M4A play". Libation can download AAC-LC: in Libation's settings, leave "Request xHE-AAC Codec" off (Libation's FAQ says that makes it download AAC-LC); it keeps whatever codec Audible delivers and doesn't re-encode, so the files may still be HE-AAC for some titles. Libation names every non-MP3 file `.m4b`, whatever its codec.
 
-## Updating Podium
+## Updating Doublesharp
 
-1. Copy the new `ECHOVnnn.IMG` to the top level of internal storage.
-2. Eject both drives. The player checks the file and shows "Installing update", then "Update installed".
-3. Unplug, then hold Power once to turn the player off, and hold it again to start the new version.
+An install through the updater has only run in the emulator so far ([`known-issues.md`](known-issues.md)). Charge the battery first.
+
+1. Connect the player and copy the new `DBLSHARP.IMG` to the top level of internal storage, not into a folder.
+2. Eject both drives. The player shows "Checking DBLSHARP.IMG", then "Installing update" with a percentage. Don't unplug or turn it off.
+3. At "Update installed", unplug USB and hold Power. The player turns off.
+4. Hold Power to start the new version.
+
+The updater deletes the file after a successful install, when it is not a valid image, and when that version is already installed.
 
 ## Going back to FiiO's firmware
 
+There are two ways. This project has done the second on its player; the first has not run on a player with Doublesharp.
+
+**Through the updater**
+
 1. Download FiiO's firmware for the Echo from FiiO's website and unzip it. The image is `ECHOV200.IMG` for V2.0.0.
-2. Delete any Podium `ECHOVnnn.IMG` from internal storage if it's still there.
+2. Delete any `DBLSHARP.IMG` from internal storage if it's still there.
 3. Copy FiiO's `ECHOV200.IMG` to the top level of internal storage, unchanged. It is a 39,845,892-byte file.
 4. Eject both drives. The player checks the file (this takes a while) and shows "Installing FiiO firmware", then "FiiO firmware installed".
-5. Unplug, take the microSD card out, hold Power to turn the player off, and switch it on. FiiO's firmware starts and installs the same file once more.
+5. Unplug, take the microSD card out, hold Power to turn the player off, and switch it on. Podium's documentation says FiiO's firmware then installs the same file once more at its first start.
+
+**Through maskrom**
+
+Follow [`device-recovery.md`](device-recovery.md). It writes FiiO's image into both firmware slots from a computer.
 
 ## If something goes wrong
 
-- **"isn't a valid image for this player" when going back to FiiO:** check that the file is FiiO's Echo image (`ECHOV200.IMG`), unchanged (its hash matches the one in FiiO's zip). To switch to another custom firmware, go back to FiiO's first: Podium only installs its own images and FiiO's.
-- **The install doesn't take** (FiiO's firmware comes back after a short "Updating"): copy the file again with plenty of free space on the drive (a file stored in pieces is the suspected cause), check its hash on the player's drive, and make sure it's the only `ECHOVnnn.IMG` there. If it keeps failing, the only other way in is maskrom (below).
-- **The player doesn't start at all:** create the file `MASKROM.REQ` on internal storage beforehand if you can (`docs/device-recovery.md`). Otherwise the chip's maskrom mode writes FiiO's firmware back from a computer over USB. It needs a patched `rkdeveloptool` and some care; the steps are in `docs/device-recovery.md`.
-- **Reporting a problem:** include what you did, your FiiO version before installing, and the Firmware line from Settings → About.
+- **"isn't a valid image for this player":** for an update, rebuild the image and copy it again. For going back to FiiO, check that the file is FiiO's Echo image (`ECHOV200.IMG`), unchanged (its hash matches the one in FiiO's zip). Doublesharp only installs its own images and FiiO's; to switch to another custom firmware, go back to FiiO's first.
+- **"Update failed":** copy the file again and retry before turning the player off.
+- **"USB code missing: reinstall the update" or "Restart the player to finish the update":** see Known trade-offs in [`known-issues.md`](known-issues.md).
+- **The player doesn't start at all:** the chip's maskrom mode writes FiiO's firmware back from a computer over USB. It needs a patched `rkdeveloptool` and some care; the steps are in [`device-recovery.md`](device-recovery.md). If the player still runs and you expect trouble, create the file `MASKROM.REQ` on internal storage beforehand (same document).
+- **Noting a problem:** write down what you did, the FiiO version the player had before, and the Firmware line from Settings → About.
