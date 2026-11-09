@@ -227,7 +227,7 @@ static void the_register_sequence_follows_the_facts(void)
     CHECK(next_both(0x080032, 0x20));
     CHECK(next_release(LEFT, 0xB6, 0x10));
     CHECK(next_release(RIGHT, 0xB6, 0x10));
-    CHECK(next_delay_ms(10));
+    CHECK(next_delay_ms(12));
     CHECK(next_both(0x080032, 0x00));
     CHECK(next_both(0x010010, 0x00));
     CHECK(next_both(0x01000B, 0x01));

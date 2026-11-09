@@ -10,6 +10,7 @@ enum {
     POWER_CONTROL_MAP = 0x020000,
     SERIAL_PORT_BIT = 0x40,
     HEADPHONE_BIT = 0x10,
+    OUTPUT_POWER_UP_MS = 12,
     RELEASE_WAIT_US = 100,
     MONO_GROUPS = 4,
     MONO_ITEMS = 6
@@ -192,7 +193,7 @@ static bool release_outputs(const DacBus *bus, uint8_t rate_byte)
         !write_both(bus, 0x080032, 0x20) || !release_power_bit(bus, HEADPHONE_BIT)) {
         return false;
     }
-    wait_ms(bus, 10);
+    wait_ms(bus, OUTPUT_POWER_UP_MS);
     if (!write_both(bus, 0x080032, 0x00) || !write_both(bus, 0x010010, 0x00) ||
         !write_both(bus, 0x01000B, rate_byte)) {
         return false;
