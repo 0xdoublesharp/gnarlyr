@@ -3,8 +3,9 @@ import sys
 from pathlib import Path
 
 from unicorn import (
-    UC_ARCH_ARM, UC_HOOK_CODE, UC_HOOK_MEM_FETCH_UNMAPPED, UC_HOOK_MEM_READ_UNMAPPED,
-    UC_HOOK_MEM_WRITE_UNMAPPED, UC_MODE_MCLASS, UC_MODE_THUMB, Uc, UcError)
+    UC_ARCH_ARM, UC_HOOK_BLOCK, UC_HOOK_CODE, UC_HOOK_MEM_FETCH_UNMAPPED,
+    UC_HOOK_MEM_READ_UNMAPPED, UC_HOOK_MEM_WRITE_UNMAPPED, UC_MODE_MCLASS, UC_MODE_THUMB, Uc,
+    UcError)
 from unicorn.arm_const import (
     UC_ARM_REG_LR, UC_ARM_REG_MSP, UC_ARM_REG_PC, UC_ARM_REG_PRIMASK, UC_ARM_REG_R0,
     UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3, UC_ARM_REG_R12, UC_ARM_REG_SP, UC_ARM_REG_XPSR,
@@ -21,6 +22,8 @@ import make_image
 RAM_BASE = 0x03000000
 RAM_SIZE = 0x100000
 TRAMPOLINE = 0x03FF0000
+STUB_RETURN = TRAMPOLINE + 0x800
+RETURN_INSTRUCTION = b"\x70\x47"
 CORE1_RAM_BASE = 0x01000000
 CORE1_RAM_SIZE = 0x60000
 PAGE = 0x1000
@@ -141,6 +144,12 @@ class Machine:
         self.panics = []
         self.reached = {}
         self.usb_connect_count = 0
+        self.entries = {}
+        self.entered = None
+        self.parked = None
+        self.interrupted_parked = None
+        self.resumed = None
+        self.halting = False
         self.build_memory()
         self.load_firmware()
         self.install_hooks()
@@ -212,6 +221,7 @@ class Machine:
         self.uc.mem_map(TRAMPOLINE, PAGE)
         self.uc.mem_map(CORE1_RAM_BASE, CORE1_RAM_SIZE)
         self.uc.mem_write(TRAMPOLINE, b"\x00\xbf" * (PAGE // 2))
+        self.uc.mem_write(STUB_RETURN, RETURN_INSTRUCTION)
         self.gpio = [devices.Gpio(self, port) for port in range(3)]
         self.cru = devices.Cru(self)
         self.systick = devices.Systick(self)
@@ -289,10 +299,24 @@ class Machine:
         return failed
 
     def add_address_hook(self, address, callback):
-        def hook(uc, where, size, user):
-            callback()
+        callbacks = self.entries.get(address)
+        if callbacks is not None:
+            callbacks.append(callback)
+            return
+        callbacks = self.entries[address] = [callback]
 
-        self.uc.hook_add(UC_HOOK_CODE, hook, None, address, address)
+        def hook(uc, where, size, user):
+            if self.resumed == where:
+                self.resumed = None
+                return
+            self.entered = where
+            for entry in callbacks:
+                entry()
+                if self.halting:
+                    break
+
+        self.uc.hook_add(UC_HOOK_BLOCK, hook, None, address, address)
+        self.uc.ctl_remove_cache(address, address + 2)
 
     def hook_symbol(self, name, callback):
         if name in self.symbols:
@@ -309,7 +333,7 @@ class Machine:
             result = handler(self)
             if result is not None:
                 self.uc.reg_write(UC_ARM_REG_R0, result & 0xFFFFFFFF)
-            self.uc.reg_write(UC_ARM_REG_PC, self.uc.reg_read(UC_ARM_REG_LR) | 1)
+            self.uc.reg_write(UC_ARM_REG_PC, STUB_RETURN | 1)
 
         self.hook_symbol(name, replaced)
 
@@ -332,6 +356,7 @@ class Machine:
 
     def stop(self, reason):
         self.stop_reason = reason
+        self.halting = True
         self.uc.emu_stop()
 
     def system_reset_requested(self):
@@ -404,6 +429,7 @@ class Machine:
 
         first = make_image.OVERLAY_BASE
         self.uc.hook_add(UC_HOOK_CODE, hook, None, first, first + make_image.OVERLAY_CAPACITY - 1)
+        self.uc.ctl_remove_cache(first, first + make_image.OVERLAY_CAPACITY)
         return counter
 
     def collect_notices(self):
@@ -442,9 +468,12 @@ class Machine:
         self.uc.reg_write(UC_ARM_REG_PC, handler & ~1)
         self.systick.acknowledge()
         self.exception_depth = 1
+        self.interrupted_parked = self.parked
+        self.parked = None
 
     def exception_return(self):
         self.pending_return = True
+        self.halting = True
         self.uc.emu_stop()
 
     def finish_exception(self):
@@ -457,6 +486,8 @@ class Machine:
         self.uc.reg_write(UC_ARM_REG_PC, frame[6] & ~1)
         self.exception_depth = 0
         self.pending_return = False
+        self.parked = self.interrupted_parked
+        self.interrupted_parked = None
 
     def idle_until_interrupt(self):
         systick = self.systick
@@ -507,6 +538,10 @@ class Machine:
             self.started = True
         start = self.uc.reg_read(UC_ARM_REG_PC)
         count = self.next_slice_length()
+        self.resumed = self.parked if self.parked == start else None
+        self.parked = None
+        self.entered = None
+        self.halting = False
         try:
             self.uc.emu_start(start | 1, 0xFFFFFFFE, count=count)
         except UcError as error:
@@ -514,5 +549,8 @@ class Machine:
             self.stop_reason = "fault: %s at %s" % (error, self.symbol_at(self.current_pc()))
             return
         self.base_cycles += count
+        if self.entered is not None and not self.halting:
+            if self.uc.reg_read(UC_ARM_REG_PC) == self.entered:
+                self.parked = self.entered
         if self.faults and self.stop_reason is None:
             self.stop_reason = "fault: %s" % (self.faults[-1],)
