@@ -1,6 +1,7 @@
 add_library(echo_app STATIC
     app.c
     card_files.c
+    cassette_art.c
     app_screens.c
     bluetooth_link.c
     bluetooth_store.c

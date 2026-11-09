@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "board_layout.h"
+#include "cassette_art.h"
 #include "core/format.h"
 #include "core/string_builder.h"
 #include "gfx/image.h"
@@ -369,10 +370,8 @@ static bool current_cover(const NowPlayingScreen *now_playing, Image *image)
 
 static int text_left(const NowPlayingScreen *now_playing)
 {
-    Image ignored;
     int padding = now_playing->config.theme->metrics.padding;
-    return current_cover(now_playing, &ignored) ? padding + COVER_FULL_SIZE + layout()->cover_gap
-                                                : padding;
+    return padding + COVER_FULL_SIZE + layout()->cover_gap;
 }
 
 static Rect column_area(const NowPlayingScreen *now_playing, int top, int height)
@@ -384,11 +383,17 @@ static Rect column_area(const NowPlayingScreen *now_playing, int top, int height
 
 static void draw_cover(const NowPlayingScreen *now_playing, Canvas *canvas)
 {
+    const Theme *theme = now_playing->config.theme;
+    int left = theme->metrics.padding;
     Image cover;
     if (!current_cover(now_playing, &cover)) {
+        cassette_art_draw(canvas, (Rect){left, layout()->cover_top + 4, COVER_FULL_SIZE, 104},
+                          theme, now_playing->status.position_ms);
         return;
     }
-    int left = now_playing->config.theme->metrics.padding;
+    canvas_fill_rect(
+        canvas, (Rect){left - 2, layout()->cover_top - 2, COVER_FULL_SIZE + 4, COVER_FULL_SIZE + 4},
+        theme->colors.divider);
     image_draw_quad(canvas, cover,
                     (Quad){left, COVER_FULL_SIZE, layout()->cover_top, COVER_FULL_SIZE,
                            layout()->cover_top, COVER_FULL_SIZE});
@@ -451,8 +456,7 @@ static void draw_progress(const NowPlayingScreen *now_playing, Canvas *canvas)
     int filled = volume ? now_playing_volume_width(now_playing->status.volume, bar.width)
                         : now_playing_progress_width(shown_position(now_playing),
                                                      now_playing->status.duration_ms, bar.width);
-    Color fill =
-        now_playing->scrubbing || volume ? theme->colors.selection_background : theme->colors.text;
+    Color fill = theme->colors.selection_background;
     canvas_fill_rect(canvas, bar, theme->colors.divider);
     canvas_fill_rect(canvas, (Rect){bar.x, bar.y, filled, bar.height}, fill);
 }
@@ -481,7 +485,16 @@ static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas)
         string_builder_append_unsigned(&level, now_playing->status.volume);
     }
     Rect area = line_area(theme, layout()->times_top, layout()->small_line_height);
-    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
+    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.header_text};
+    canvas_fill_rect(canvas,
+                     (Rect){0, area.y - 1, theme->metrics.screen_width,
+                            theme->metrics.screen_height - area.y + 1},
+                     theme->colors.header_background);
+    const char *transport = now_playing->status.state == PLAYER_PLAYING ? "PLAY" : "PAUSE";
+    if (showing(now_playing, NOW_PLAYING_FEEDBACK_VOLUME)) {
+        transport = "OUTPUT";
+    }
+    label_draw(canvas, style, (Label){label_centered_area(style.font, area, transport), transport});
     label_draw(canvas, style, (Label){.area = area, .text = elapsed});
     draw_right_aligned(canvas, style, area, remaining);
 }
@@ -570,10 +583,8 @@ static void draw_badge_icon(Canvas *canvas, NowPlayingFeedback feedback, Rect ar
 
 static void draw_badge(const NowPlayingScreen *now_playing, Canvas *canvas)
 {
-    Image cover;
     NowPlayingFeedback feedback = now_playing->feedback;
-    if (feedback == NOW_PLAYING_FEEDBACK_VOLUME || !showing(now_playing, feedback) ||
-        !current_cover(now_playing, &cover)) {
+    if (feedback == NOW_PLAYING_FEEDBACK_VOLUME || !showing(now_playing, feedback)) {
         return;
     }
     const Theme *theme = now_playing->config.theme;

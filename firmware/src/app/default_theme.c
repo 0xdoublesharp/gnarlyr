@@ -5,22 +5,22 @@
 
 #define THEME_COLORS                                                                               \
     {                                                                                              \
-        .background = COLOR_RGB(16, 17, 20),                                                       \
-        .text = COLOR_RGB(242, 242, 245),                                                          \
-        .text_secondary = COLOR_RGB(142, 142, 150),                                                \
-        .text_tertiary = COLOR_RGB(98, 98, 106),                                                   \
-        .selection_background = COLOR_RGB(34, 96, 208),                                            \
-        .selection_top = COLOR_RGB(82, 145, 240),                                                  \
-        .selection_shine = COLOR_RGB(120, 170, 248),                                               \
-        .selection_text = COLOR_RGB(255, 255, 255),                                                \
-        .header_background = COLOR_RGB(22, 23, 27),                                                \
-        .header_top = COLOR_RGB(46, 47, 54),                                                       \
-        .header_text = COLOR_RGB(242, 242, 245),                                                   \
-        .divider = COLOR_RGB(48, 49, 56),                                                          \
-        .scrollbar_thumb = COLOR_RGB(96, 97, 106),                                                 \
-        .danger = COLOR_RGB(235, 77, 61),                                                          \
-        .success = COLOR_RGB(52, 199, 89),                                                         \
-        .chevron = COLOR_RGB(110, 110, 118),                                                       \
+        .background = COLOR_RGB(236, 225, 199),                                                    \
+        .text = COLOR_RGB(33, 31, 27),                                                             \
+        .text_secondary = COLOR_RGB(90, 77, 57),                                                   \
+        .text_tertiary = COLOR_RGB(103, 88, 65),                                                   \
+        .selection_background = COLOR_RGB(211, 139, 47),                                           \
+        .selection_top = COLOR_RGB(238, 182, 85),                                                  \
+        .selection_shine = COLOR_RGB(248, 210, 139),                                               \
+        .selection_text = COLOR_RGB(33, 31, 27),                                                   \
+        .header_background = COLOR_RGB(36, 37, 34),                                                \
+        .header_top = COLOR_RGB(67, 66, 57),                                                       \
+        .header_text = COLOR_RGB(246, 235, 208),                                                   \
+        .divider = COLOR_RGB(181, 165, 131),                                                       \
+        .scrollbar_thumb = COLOR_RGB(115, 95, 61),                                                 \
+        .danger = COLOR_RGB(149, 41, 35),                                                          \
+        .success = COLOR_RGB(46, 98, 59),                                                          \
+        .chevron = COLOR_RGB(94, 80, 58),                                                          \
     }
 
 const Theme ECHO_THEME = {

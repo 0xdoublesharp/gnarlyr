@@ -1,13 +1,12 @@
 #include "home_art.h"
 
+#include "cassette_art.h"
 #include "gfx/image.h"
+#include "ui/label.h"
 
 enum {
-    COVER_MARGIN_TOP = 8,
-    REFLECTION_LIGHT = 80
+    COVER_MARGIN_TOP = 8
 };
-
-static const Color PANEL_BACKGROUND = COLOR_RGB(8, 8, 10);
 
 void home_art_init(HomeArt *art, CoverCache *covers, const LibraryStore *store, Player *player,
                    const Theme *theme)
@@ -81,20 +80,36 @@ void home_art_update(void *context, uint32_t now_ms)
     cover_cache_load_full(art->covers, art->album);
 }
 
+static void draw_caption(const HomeArt *art, Canvas *canvas, Rect area)
+{
+    PlayerStatus status = player_status(art->player);
+    const char *caption = status.state == PLAYER_PLAYING ? "SIDE A / PLAY" : "SIDE A / PAUSE";
+    if (!status.has_track) {
+        caption = art->has_album ? "ALBUM COLLECTION" : "READY FOR MUSIC";
+    }
+    TextStyle style = {.font = art->theme->fonts.small, .color = art->theme->colors.header_text};
+    Rect row = {area.x + 4, area.y + area.height - 22, area.width - 8, 18};
+    label_draw(canvas, style, (Label){label_centered_area(style.font, row, caption), caption});
+}
+
 void home_art_draw(void *context, Canvas *canvas, Rect area)
 {
     const HomeArt *art = context;
-    canvas_fill_rect(canvas, area, PANEL_BACKGROUND);
+    canvas_fill_rect(canvas, area, art->theme->colors.header_background);
     canvas_fill_rect(canvas, (Rect){area.x, area.y, 1, area.height}, art->theme->colors.divider);
-    Image cover;
-    if (!art->has_album || cover_cache_full(art->covers, art->album, &cover) != COVER_LOADED) {
-        return;
-    }
     int left = area.x + (area.width - COVER_FULL_SIZE) / 2;
     int top = area.y + COVER_MARGIN_TOP;
-    Quad quad = {left, COVER_FULL_SIZE, top, COVER_FULL_SIZE, top, COVER_FULL_SIZE};
-    image_draw_quad(canvas, cover, quad);
-    int rows = area.y + area.height - (top + COVER_FULL_SIZE);
-    image_draw_reflection(canvas, cover, quad, (QuadLight){REFLECTION_LIGHT, REFLECTION_LIGHT},
-                          rows);
+    Image cover;
+    if (art->has_album && cover_cache_full(art->covers, art->album, &cover) == COVER_LOADED) {
+        canvas_fill_rect(canvas,
+                         (Rect){left - 2, top - 2, COVER_FULL_SIZE + 4, COVER_FULL_SIZE + 4},
+                         art->theme->colors.selection_background);
+        image_draw_quad(canvas, cover,
+                        (Quad){left, COVER_FULL_SIZE, top, COVER_FULL_SIZE, top, COVER_FULL_SIZE});
+    } else {
+        PlayerStatus status = player_status(art->player);
+        cassette_art_draw(canvas, (Rect){left, top + 4, COVER_FULL_SIZE, 104}, art->theme,
+                          status.position_ms);
+    }
+    draw_caption(art, canvas, area);
 }

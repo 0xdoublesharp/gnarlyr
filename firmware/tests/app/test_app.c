@@ -1639,7 +1639,7 @@ static void now_playing_shows_the_album_cover(void)
     CHECK_EQUAL(0xF800, cover_probe());
 }
 
-static void now_playing_without_a_cover_keeps_the_text_layout(void)
+static void now_playing_without_a_cover_shows_a_cassette(void)
 {
     start_app_with_library();
     open_music_entry(MUSIC_ALBUMS_INDEX);
@@ -1649,7 +1649,9 @@ static void now_playing_without_a_cover_keeps_the_text_layout(void)
     wait_ms(SLIDE_DURATION_MS);
     step();
     CHECK(title_is("Now Playing"));
-    CHECK_EQUAL(BOARD_THEME.colors.background, cover_probe());
+    CHECK_EQUAL(
+        BOARD_THEME.colors.header_background,
+        fake_hal_pixel(BOARD_THEME.metrics.padding + 10, BOARD_LAYOUT.now_playing.cover_top + 40));
 }
 
 static void an_unchanged_frame_sends_no_pixels(void)
@@ -2001,7 +2003,7 @@ int main(void)
         TEST_CASE(the_stopwatch_stays_open_after_waking),
         TEST_CASE(menu_does_nothing_while_nothing_plays),
         TEST_CASE(now_playing_shows_the_album_cover),
-        TEST_CASE(now_playing_without_a_cover_keeps_the_text_layout),
+        TEST_CASE(now_playing_without_a_cover_shows_a_cassette),
         TEST_CASE(now_playing_keys_control_the_player),
         TEST_CASE(lists_still_move_as_soon_as_a_volume_key_goes_down),
         TEST_CASE(the_home_menu_shows_now_playing_last_once_a_track_is_loaded),
