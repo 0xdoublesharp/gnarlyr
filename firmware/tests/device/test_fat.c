@@ -73,7 +73,7 @@ static void the_fat32_card_mounts_from_its_mbr_partition(void)
 static void fat32_files_read_back_their_bytes(void)
 {
     Card *card = mounted("fat32_mbr");
-    check_file(card, "/.echo/library.db", 1, 3000);
+    check_file(card, "/.existing/library.db", 1, 3000);
     check_file(card, "/README.TXT", 2, 100);
     check_file(card, "/notes.txt", 3, 700);
     check_file(card, INTRO_PATH, 4, 9000);
@@ -168,7 +168,7 @@ static void fat16_files_read_back_from_the_root_and_subfolders(void)
 {
     Card *card = mounted("fat16_superfloppy");
     check_file(card, "/README.TXT", 2, 100);
-    check_file(card, "/.echo/library.db", 1, 3000);
+    check_file(card, "/.existing/library.db", 1, 3000);
     check_file(card, LONG_NAME_PATH, 5, 20000);
     check_file(card, EMOJI_PATH, 6, 1500);
     check_file(card, "/Many/file number 042.txt", 142, 64);
@@ -244,7 +244,7 @@ static void the_exfat_card_mounts_from_its_mbr_partition(void)
 static void exfat_files_read_back_their_bytes(void)
 {
     Card *card = mounted("exfat_mbr");
-    check_file(card, "/.echo/library.db", 1, 3000);
+    check_file(card, "/.existing/library.db", 1, 3000);
     check_file(card, "/README.TXT", 2, 100);
     check_file(card, "/notes.txt", 3, 700);
     check_file(card, INTRO_PATH, 4, 9000);
@@ -431,9 +431,9 @@ static void files_reserved_in_a_remembered_folder_open(void)
     FatFile file;
     char path[32];
     for (uint32_t index = 0; index < 40; index++) {
-        snprintf(path, sizeof path, "/.made/file %u.bin", index);
+        snprintf(path, sizeof path, "/.doublesharp/file %u.bin", index);
         CHECK_EQUAL(FAT_RESERVE_CREATED, fat_reserve(&card->volume, path, 4096));
-        CHECK(fat_open(&card->volume, "/.made/file 0.bin", &file));
+        CHECK(fat_open(&card->volume, "/.doublesharp/file 0.bin", &file));
         CHECK(fat_open(&card->volume, path, &file));
     }
     sparse_card_free(&card->sparse);
@@ -500,7 +500,7 @@ static void check_written_in_2026(const char *name, uint32_t modified)
         return;
     }
     CHECK_EQUAL(2026u, (modified >> 25) + 1980u);
-    CHECK_EQUAL(10u, modified >> 21 & 15u);
+    CHECK_EQUAL(11u, modified >> 21 & 15u);
 }
 
 static void check_root_listing(const char *name)
@@ -516,7 +516,7 @@ static void check_root_listing(const char *name)
     CHECK_EQUAL(700, notes.match.listed_size);
     check_written_in_2026(name, notes.match.modified);
     CHECK(list(card, "/", "README.TXT").found);
-    CHECK(list(card, "/", ".echo").found);
+    CHECK(list(card, "/", ".existing").found);
     CHECK(!list(card, "/", ".").found);
     CHECK(!list(card, "/", "..").found);
     sparse_card_free(&card->sparse);

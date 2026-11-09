@@ -57,7 +57,7 @@ static void check_pattern_file(Card *card, const char *path, uint32_t seed, uint
 
 static void check_fixture_files(Card *card)
 {
-    check_pattern_file(card, "/.echo/library.db", 1, 3000);
+    check_pattern_file(card, "/.existing/library.db", 1, 3000);
     check_pattern_file(card, "/README.TXT", 2, 100);
     check_pattern_file(card, "/notes.txt", 3, 700);
     check_pattern_file(card, INTRO_PATH, 4, 9000);
@@ -133,11 +133,14 @@ static void save_card(Card *card, const char *name)
 
 static void reserve_the_player_files(Card *card)
 {
-    CHECK_EQUAL(FAT_RESERVE_CREATED, fat_reserve(&card->volume, "/.made/settings.bin", SMALL_SIZE));
     CHECK_EQUAL(FAT_RESERVE_CREATED,
-                fat_reserve(&card->volume, "/.made/favorites.bin", SMALL_SIZE));
-    CHECK_EQUAL(FAT_RESERVE_CREATED, fat_reserve(&card->volume, "/.made/library.db", LARGE_SIZE));
-    CHECK_EQUAL(FAT_RESERVE_CREATED, fat_reserve(&card->volume, "/.echo/covers.bin", LARGE_SIZE));
+                fat_reserve(&card->volume, "/.doublesharp/settings.bin", SMALL_SIZE));
+    CHECK_EQUAL(FAT_RESERVE_CREATED,
+                fat_reserve(&card->volume, "/.doublesharp/favorites.bin", SMALL_SIZE));
+    CHECK_EQUAL(FAT_RESERVE_CREATED,
+                fat_reserve(&card->volume, "/.doublesharp/library.db", LARGE_SIZE));
+    CHECK_EQUAL(FAT_RESERVE_CREATED,
+                fat_reserve(&card->volume, "/.existing/covers.bin", LARGE_SIZE));
 }
 
 static void check_reserve(const char *name)
@@ -145,19 +148,19 @@ static void check_reserve(const char *name)
     Card *card = mounted(name);
     reserve_the_player_files(card);
     remount(card);
-    check_cleared_file(card, "/.made/settings.bin", SMALL_SIZE);
-    check_cleared_file(card, "/.made/favorites.bin", SMALL_SIZE);
-    check_cleared_file(card, "/.made/library.db", LARGE_SIZE);
-    check_cleared_file(card, "/.echo/covers.bin", LARGE_SIZE);
-    check_contiguous(card, "/.made/library.db");
-    check_contiguous(card, "/.echo/covers.bin");
-    CHECK(listed(card, "/", ".made"));
-    CHECK(listed(card, "/.made", "favorites.bin"));
-    CHECK(listed(card, "/.made", "library.db"));
-    CHECK(listed(card, "/.echo", "covers.bin"));
+    check_cleared_file(card, "/.doublesharp/settings.bin", SMALL_SIZE);
+    check_cleared_file(card, "/.doublesharp/favorites.bin", SMALL_SIZE);
+    check_cleared_file(card, "/.doublesharp/library.db", LARGE_SIZE);
+    check_cleared_file(card, "/.existing/covers.bin", LARGE_SIZE);
+    check_contiguous(card, "/.doublesharp/library.db");
+    check_contiguous(card, "/.existing/covers.bin");
+    CHECK(listed(card, "/", ".doublesharp"));
+    CHECK(listed(card, "/.doublesharp", "favorites.bin"));
+    CHECK(listed(card, "/.doublesharp", "library.db"));
+    CHECK(listed(card, "/.existing", "covers.bin"));
     check_fixture_files(card);
-    check_write_at_end(card, "/.made/library.db");
-    check_write_at_end(card, "/.echo/covers.bin");
+    check_write_at_end(card, "/.doublesharp/library.db");
+    check_write_at_end(card, "/.existing/covers.bin");
     check_fixture_files(card);
     save_card(card, name);
     sparse_card_free(&card->sparse);
@@ -181,10 +184,11 @@ static void exfat_reserves_a_new_folder_and_files_that_read_back_cleared(void)
 static void reserving_an_existing_file_changes_nothing(void)
 {
     Card *card = mounted("exfat_mbr");
-    CHECK_EQUAL(FAT_RESERVE_EXISTS, fat_reserve(&card->volume, "/.echo/library.db", LARGE_SIZE));
+    CHECK_EQUAL(FAT_RESERVE_EXISTS,
+                fat_reserve(&card->volume, "/.existing/library.db", LARGE_SIZE));
     CHECK_EQUAL(FAT_RESERVE_EXISTS, fat_reserve(&card->volume, "/Music", SMALL_SIZE));
     CHECK_EQUAL(0, card->sparse.writes);
-    check_pattern_file(card, "/.echo/library.db", 1, 3000);
+    check_pattern_file(card, "/.existing/library.db", 1, 3000);
     sparse_card_free(&card->sparse);
 }
 
@@ -192,10 +196,10 @@ static void check_no_space(const char *name)
 {
     Card *card = mounted(name);
     uint32_t too_big = 120u * 1024 * 1024;
-    CHECK_EQUAL(FAT_RESERVE_NO_SPACE, fat_reserve(&card->volume, "/.echo/huge.bin", too_big));
+    CHECK_EQUAL(FAT_RESERVE_NO_SPACE, fat_reserve(&card->volume, "/.existing/huge.bin", too_big));
     CHECK_EQUAL(0, card->sparse.writes);
     FatFile file;
-    CHECK(!fat_open(&card->volume, "/.echo/huge.bin", &file));
+    CHECK(!fat_open(&card->volume, "/.existing/huge.bin", &file));
     sparse_card_free(&card->sparse);
 }
 
@@ -213,7 +217,7 @@ static void check_bad_paths(const char *name)
     CHECK_EQUAL(FAT_RESERVE_FAILED, fat_reserve(&card->volume, "/README.TXT/inside", SMALL_SIZE));
     CHECK_EQUAL(FAT_RESERVE_FAILED, fat_reserve(&card->volume, "/\xc3\xa9t\xc3\xa9.bin", 1));
     CHECK_EQUAL(FAT_RESERVE_FAILED, fat_reserve(&card->volume, "/", SMALL_SIZE));
-    CHECK_EQUAL(FAT_RESERVE_FAILED, fat_reserve(&card->volume, "/.echo/empty.bin", 0));
+    CHECK_EQUAL(FAT_RESERVE_FAILED, fat_reserve(&card->volume, "/.existing/empty.bin", 0));
     CHECK_EQUAL(0, card->sparse.writes);
     sparse_card_free(&card->sparse);
 }
@@ -228,21 +232,22 @@ static void long_names_with_the_same_start_get_distinct_short_names(void)
 {
     Card *card = mounted("fat16_superfloppy");
     CHECK_EQUAL(FAT_RESERVE_CREATED,
-                fat_reserve(&card->volume, "/.made/favorites one.bin", SMALL_SIZE));
-    CHECK_EQUAL(FAT_RESERVE_CREATED, fat_reserve(&card->volume, "/.made/favorites two.bin", 600));
+                fat_reserve(&card->volume, "/.doublesharp/favorites one.bin", SMALL_SIZE));
+    CHECK_EQUAL(FAT_RESERVE_CREATED,
+                fat_reserve(&card->volume, "/.doublesharp/favorites two.bin", 600));
     uint32_t writes = card->sparse.writes;
-    CHECK_EQUAL(FAT_RESERVE_FAILED, fat_reserve(&card->volume, "/.made/FAVORI~1.BIN", 600));
+    CHECK_EQUAL(FAT_RESERVE_FAILED, fat_reserve(&card->volume, "/.doublesharp/FAVORI~1.BIN", 600));
     CHECK_EQUAL(writes, card->sparse.writes);
     remount(card);
     FatFile one;
     FatFile two;
-    CHECK(fat_open(&card->volume, "/.made/favorites one.bin", &one));
-    CHECK(fat_open(&card->volume, "/.made/favorites two.bin", &two));
+    CHECK(fat_open(&card->volume, "/.doublesharp/favorites one.bin", &one));
+    CHECK(fat_open(&card->volume, "/.doublesharp/favorites two.bin", &two));
     CHECK(one.first_cluster != two.first_cluster);
     CHECK_EQUAL(SMALL_SIZE, one.size);
     CHECK_EQUAL(600, two.size);
-    CHECK(listed(card, "/.made", "favorites one.bin"));
-    CHECK(listed(card, "/.made", "favorites two.bin"));
+    CHECK(listed(card, "/.doublesharp", "favorites one.bin"));
+    CHECK(listed(card, "/.doublesharp", "favorites two.bin"));
     save_card(card, "fat16_short_names");
     sparse_card_free(&card->sparse);
 }
@@ -255,9 +260,9 @@ static void check_few_writes(const char *name)
     uint32_t map_sectors = card->volume.type == FAT_TYPE_EXFAT
                                ? clusters / (SECTOR_SIZE * 8) + 2
                                : card->volume.fat_count * (clusters * 4 / SECTOR_SIZE + 2);
-    CHECK_EQUAL(FAT_RESERVE_CREATED, fat_reserve(&card->volume, "/.echo/covers.bin", size));
+    CHECK_EQUAL(FAT_RESERVE_CREATED, fat_reserve(&card->volume, "/.existing/covers.bin", size));
     CHECK(card->sparse.writes <= map_sectors + 16);
-    check_cleared_file(card, "/.echo/covers.bin", size);
+    check_cleared_file(card, "/.existing/covers.bin", size);
     sparse_card_free(&card->sparse);
 }
 
@@ -295,8 +300,8 @@ static uint32_t reserved_first_cluster(Card *card, const char *path, uint32_t si
 static void a_reservation_starts_after_the_previous_one(void)
 {
     Card *card = mounted("fat32_mbr");
-    uint32_t first = reserved_first_cluster(card, "/.echo/one.bin", SMALL_SIZE);
-    uint32_t second = reserved_first_cluster(card, "/.echo/two.bin", SMALL_SIZE);
+    uint32_t first = reserved_first_cluster(card, "/.existing/one.bin", SMALL_SIZE);
+    uint32_t second = reserved_first_cluster(card, "/.existing/two.bin", SMALL_SIZE);
     CHECK_EQUAL(first + SMALL_SIZE / SECTOR_SIZE, second);
     sparse_card_free(&card->sparse);
 }
@@ -307,7 +312,7 @@ static void a_reservation_starts_at_the_hint_kept_on_the_volume(void)
     uint32_t hint = card->volume.cluster_count / 2;
     set_info_next_free(card, hint);
     remount(card);
-    CHECK_EQUAL(hint, reserved_first_cluster(card, "/.echo/hinted.bin", SMALL_SIZE));
+    CHECK_EQUAL(hint, reserved_first_cluster(card, "/.existing/hinted.bin", SMALL_SIZE));
     sparse_card_free(&card->sparse);
 }
 
@@ -316,7 +321,7 @@ static void a_hint_too_near_the_end_wraps_around_to_find_room(void)
     Card *card = mounted("fat32_mbr");
     set_info_next_free(card, card->volume.cluster_count + 1);
     remount(card);
-    uint32_t first = reserved_first_cluster(card, "/.echo/wrapped.bin", SMALL_SIZE);
+    uint32_t first = reserved_first_cluster(card, "/.existing/wrapped.bin", SMALL_SIZE);
     CHECK(first < card->volume.cluster_count / 2);
     sparse_card_free(&card->sparse);
 }
@@ -328,7 +333,7 @@ static void a_hint_that_is_not_a_cluster_is_ignored(void)
         Card *card = mounted("fat32_mbr");
         set_info_next_free(card, bad[index]);
         remount(card);
-        CHECK(reserved_first_cluster(card, "/.echo/ignored.bin", SMALL_SIZE) >= 2);
+        CHECK(reserved_first_cluster(card, "/.existing/ignored.bin", SMALL_SIZE) >= 2);
         sparse_card_free(&card->sparse);
     }
 }
@@ -340,9 +345,9 @@ static void a_hint_in_the_middle_of_used_space_still_finds_the_free_run(void)
     CHECK(fat_open(&card->volume, "/Many/file number 000.txt", &file));
     set_info_next_free(card, file.first_cluster);
     remount(card);
-    uint32_t first = reserved_first_cluster(card, "/.echo/inside.bin", LARGE_SIZE);
+    uint32_t first = reserved_first_cluster(card, "/.existing/inside.bin", LARGE_SIZE);
     CHECK(first != file.first_cluster);
-    check_cleared_file(card, "/.echo/inside.bin", LARGE_SIZE);
+    check_cleared_file(card, "/.existing/inside.bin", LARGE_SIZE);
     check_fixture_files(card);
     sparse_card_free(&card->sparse);
 }

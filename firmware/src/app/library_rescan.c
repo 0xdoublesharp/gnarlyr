@@ -10,8 +10,8 @@
 #include "library_store.h"
 
 static const char MUSIC_ROOT[] = "/";
-const char LIBRARY_SCRATCH_PATH[] = "/.echo/build.tmp";
-const char RESCAN_TIMES_PATH[] = "/.echo/rescan_times.bin";
+const char LIBRARY_SCRATCH_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/build.tmp";
+const char RESCAN_TIMES_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/rescan_times.bin";
 
 enum {
     TIME_LIST,

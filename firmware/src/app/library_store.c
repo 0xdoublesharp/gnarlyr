@@ -4,7 +4,7 @@
 
 #include "favorite_playlist.h"
 
-const char LIBRARY_STORE_PATH[] = "/.echo/library.db";
+const char LIBRARY_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/library.db";
 
 static bool read_file(void *context, uint32_t offset, void *buffer, uint32_t length)
 {

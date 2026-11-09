@@ -110,9 +110,9 @@ static void start_app_with_database(const uint8_t *bytes, uint32_t size)
     uint32_t covers_size = 0;
     const uint8_t *covers = fixture_covers_bytes(&covers_size);
     fake_hal_reset();
-    fake_hal_add_file("/.echo/library.db", bytes, size);
-    fake_hal_add_file("/.echo/covers.bin", covers, covers_size);
-    fake_hal_add_file("/.echo/build.tmp", NULL, 16 * 1024 * 1024);
+    fake_hal_add_file("/.doublesharp/library.db", bytes, size);
+    fake_hal_add_file("/.doublesharp/covers.bin", covers, covers_size);
+    fake_hal_add_file("/.doublesharp/build.tmp", NULL, 16 * 1024 * 1024);
     prefill_player_files();
     now_ms = START_MS;
     fake_hal_set_milliseconds(now_ms);
@@ -1863,18 +1863,18 @@ static void start_on_a_fresh_card(HalReserveResult result)
 static void a_fresh_card_gets_the_player_files_and_a_first_scan(void)
 {
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/.echo/settings.bin"));
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/.echo/resume.bin"));
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/.echo/favorites.bin"));
-    CHECK_EQUAL(4 * 1024 * 1024, fake_hal_reserved_size("/.echo/library.db"));
-    uint32_t covers_size = fake_hal_reserved_size("/.echo/covers.bin");
+    CHECK_EQUAL(4096, fake_hal_reserved_size("/.doublesharp/settings.bin"));
+    CHECK_EQUAL(4096, fake_hal_reserved_size("/.doublesharp/resume.bin"));
+    CHECK_EQUAL(4096, fake_hal_reserved_size("/.doublesharp/favorites.bin"));
+    CHECK_EQUAL(4 * 1024 * 1024, fake_hal_reserved_size("/.doublesharp/library.db"));
+    uint32_t covers_size = fake_hal_reserved_size("/.doublesharp/covers.bin");
     CHECK_EQUAL(80 * 1024 * 1024, covers_size);
     CHECK((covers_size - COVERS_HEADER_SIZE) / (COVERS_ENTRY_SIZE + COVER_BUILD_RECORD_BYTES) >=
           2500);
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/.echo/scan.bin"));
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/.echo/upnext.bin"));
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/.echo/bluetooth.bin"));
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/.echo/favorite_added.bin"));
+    CHECK_EQUAL(4096, fake_hal_reserved_size("/.doublesharp/scan.bin"));
+    CHECK_EQUAL(4096, fake_hal_reserved_size("/.doublesharp/upnext.bin"));
+    CHECK_EQUAL(4096, fake_hal_reserved_size("/.doublesharp/bluetooth.bin"));
+    CHECK_EQUAL(4096, fake_hal_reserved_size("/.doublesharp/favorite_added.bin"));
     step();
     CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
     CHECK(toast_is("Library: 0 tracks"));
@@ -1974,7 +1974,7 @@ static void a_new_firmware_rescans_music_that_changed(void)
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
     step();
     static const uint8_t BLANK[16] = {0};
-    CHECK(hal_file_write_at("/.echo/scan.bin", 0, BLANK, sizeof BLANK));
+    CHECK(hal_file_write_at("/.doublesharp/scan.bin", 0, BLANK, sizeof BLANK));
     fake_hal_set_version("newer");
     restart_app();
     step();
@@ -1986,7 +1986,7 @@ static void a_new_firmware_rebuilds_a_library_it_cannot_read(void)
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
     step();
     static const uint8_t OLD_VERSION[2] = {2, 0};
-    CHECK(hal_file_write_at("/.echo/library.db", 4, OLD_VERSION, sizeof OLD_VERSION));
+    CHECK(hal_file_write_at("/.doublesharp/library.db", 4, OLD_VERSION, sizeof OLD_VERSION));
     fake_hal_set_version("newer");
     restart_app();
     step();
@@ -1998,7 +1998,7 @@ static void a_different_stored_fingerprint_is_rescanned_after_usb(void)
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
     step();
     static const uint8_t BLANK[16] = {0};
-    CHECK(hal_file_write_at("/.echo/scan.bin", 0, BLANK, sizeof BLANK));
+    CHECK(hal_file_write_at("/.doublesharp/scan.bin", 0, BLANK, sizeof BLANK));
     app_request_rescan_if_music_changed();
     step();
     CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
@@ -2346,8 +2346,8 @@ static void add_to_favorite_playlist_keeps_the_cue_part_apart(void)
     uint32_t size = 0;
     const char *text = (const char *)fake_hal_file_bytes("/Favorite Tracks.m3u", &size);
     CHECK(text != NULL);
-    static const char EXPECTED[] = "#EXTM3U\n#PODIUM-START:1000\n"
-                                   "Cue Artist/Cue Album/Cue Album.flac\n#PODIUM-START:2493\n"
+    static const char EXPECTED[] = "#EXTM3U\n#DOUBLESHARP-START:1000\n"
+                                   "Cue Artist/Cue Album/Cue Album.flac\n#DOUBLESHARP-START:2493\n"
                                    "Cue Artist/Cue Album/Cue Album.flac\n";
     CHECK(strncmp(text, EXPECTED, sizeof EXPECTED - 1) == 0);
     CHECK(text[sizeof EXPECTED - 1] == ' ');

@@ -11,6 +11,7 @@ enum {
 };
 
 #define PLAYLIST_NO_START UINT32_MAX
+#define PLAYLIST_START_DIRECTIVE "#" FIRMWARE_PLAYLIST_START_DIRECTIVE ":"
 
 typedef struct PlaylistReader {
     ByteSource source;

@@ -103,7 +103,7 @@ def build_music(root, source):
 
 def read_covers(data):
     magic, version, count, full, half, _ = HEADER.unpack_from(data, 0)
-    if magic != b"EMCV" or version != 1 or (full, half) != (112, 56):
+    if magic != b"DSCV" or version != 1 or (full, half) != (112, 56):
         raise ValueError("bad covers header")
     entries = [ENTRY.unpack_from(data, HEADER.size + index * ENTRY.size) for index in range(count)]
     if [key for key, _ in entries] != sorted(key for key, _ in entries):

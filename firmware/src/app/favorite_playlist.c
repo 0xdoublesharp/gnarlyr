@@ -2,10 +2,11 @@
 
 #include "core/string_builder.h"
 #include "hal/storage.h"
+#include "library/playlist_reader.h"
 #include "player.h"
 
 const char FAVORITE_PLAYLIST_PATH[] = "/Favorite Tracks.m3u";
-const char FAVORITE_ADDED_PATH[] = "/.echo/favorite_added.bin";
+const char FAVORITE_ADDED_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/favorite_added.bin";
 
 static const char NAME[] = "Favorite Tracks";
 
@@ -203,7 +204,7 @@ static bool compose(Block *block, const Library *library, const LibraryTrack *re
         return false;
     }
     if (is_part(record)) {
-        string_builder_append(builder, "#PODIUM-START:");
+        string_builder_append(builder, PLAYLIST_START_DIRECTIVE);
         string_builder_append_unsigned(builder, record->start_ms);
         string_builder_append_char(builder, '\n');
     }

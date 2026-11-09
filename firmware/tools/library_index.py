@@ -10,8 +10,9 @@ from pathlib import Path, PurePosixPath
 from typing import NamedTuple, Optional
 
 from cue_sheet import ascii_fold, parse_cue
+from identity import IDENTITY
 
-MAGIC = b"EMDB"
+MAGIC = b"DSDB"
 VERSION = 6
 HEADER_SIZE = 128
 SECTION_ALIGNMENT = 4
@@ -39,7 +40,8 @@ FOLDER_RECORD = struct.Struct("<IHHIHH")
 FOLDER_SHEET = 1
 INDEX_RECORD = struct.Struct("<H")
 
-START_DIRECTIVE = re.compile(r"#PODIUM-START:([0-9]{1,10})")
+START_DIRECTIVE_TEXT = f"#{IDENTITY.playlist_start_directive}:"
+START_DIRECTIVE = re.compile(re.escape(START_DIRECTIVE_TEXT) + r"([0-9]{1,10})")
 NO_START = 0xFFFFFFFF
 LEADING_ARTICLE = re.compile(r"^the\s+(?=\S)")
 DISC_TRACK_PREFIX = re.compile(r"^(\d+)-(\d+)\s*-\s*")

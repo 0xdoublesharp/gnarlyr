@@ -16,10 +16,10 @@ import cover_export
 import library_index
 from identity import IDENTITY
 
-ECHO_FOLDER = ".echo"
+DATA_FOLDER = IDENTITY.data_directory
 MEBIBYTE = 1024 * 1024
 WRITE_CHUNK_BYTES = MEBIBYTE
-SCAN_MAGIC = b"MESC"
+SCAN_MAGIC = b"DSSC"
 SCAN_RECORD = struct.Struct("<4sIII16s")
 SCAN_PRINT_BYTES = 16
 WORD_MASK = 0xFFFFFFFF
@@ -395,7 +395,7 @@ def player_cards(roots):
     cards = []
     for root in roots:
         try:
-            if (root / ECHO_FOLDER).is_dir():
+            if (root / DATA_FOLDER).is_dir():
                 cards.append(root)
         except OSError:
             continue
@@ -438,20 +438,20 @@ def check_target(card, volume, echo_exists):
         raise SyncError(f"{card} is {volume.file_system}, not a FAT32 or exFAT memory card.")
 
 
-def ensure_echo_folder(echo, options, assume_yes):
-    if echo.is_dir():
+def ensure_data_folder(folder, options, assume_yes):
+    if folder.is_dir():
         return
     if options.dry_run:
-        print(f"Would create {echo}")
+        print(f"Would create {folder}")
         return
     if not assume_yes:
         if not sys.stdin.isatty():
-            raise SyncError(f"{echo} doesn't exist yet. Run again with --yes to create it.")
-        answer = input(f"{echo} doesn't exist yet (the player hasn't used this card). "
+            raise SyncError(f"{folder} doesn't exist yet. Run again with --yes to create it.")
+        answer = input(f"{folder} doesn't exist yet (the player hasn't used this card). "
                        "Create it? [y/N] ")
         if answer.strip().lower() not in ("y", "yes"):
             raise SyncError("Nothing was written.")
-    echo.mkdir()
+    folder.mkdir()
 
 
 def require_dependencies():
@@ -524,7 +524,7 @@ def build_covers(card, sources, volume, options):
     step("Finding album covers...")
     covers = cover_export.collect_covers(card, sources, cover_export.cover_record,
                                          art_describer(volume))
-    capacity = covers_capacity(card / ECHO_FOLDER / COVERS_FILE.name, len(covers.records))
+    capacity = covers_capacity(card / DATA_FOLDER / COVERS_FILE.name, len(covers.records))
     data = cover_export.encode_stamped(covers.records, covers.stamps, capacity)
     print(f"{plural(len(covers.records), 'cover')}, {len(covers.missing):,} without art")
     for album in covers.missing if options.verbose else ():
@@ -555,7 +555,7 @@ def write_or_report(path, data, card_file, options):
     print(f"  {card_file.name:<11} {human_size(len(data))} in a {human_size(size)} file")
 
 
-def record_fingerprint(echo, card, volume, before, options):
+def record_fingerprint(folder, card, volume, before, options):
     step("Checking the music again...")
     after = take_fingerprint(card, volume)
     if not (before.complete and after.complete):
@@ -568,15 +568,15 @@ def record_fingerprint(echo, card, volume, before, options):
         print("  The music changed while this ran. The player will rescan it.")
         return False
     print(f"{after.entries:,} files and folders, unchanged")
-    path = echo / SCAN_FILE.name
+    path = folder / SCAN_FILE.name
     record = scan_record(after, stored_version(read_prefix(path, SCAN_RECORD.size)))
     write_or_report(path, record, SCAN_FILE, options)
     return True
 
 
 def sync(card, volume, options):
-    echo = card / ECHO_FOLDER
-    library_path = echo / LIBRARY_FILE.name
+    folder = card / DATA_FOLDER
+    library_path = folder / LIBRARY_FILE.name
     before = None
     if options.library and options.fingerprint:
         step("Fingerprinting the music...")
@@ -588,15 +588,15 @@ def sync(card, volume, options):
     if options.covers:
         covers_data = build_covers(card, album_sources(card, model, library_path), volume, options)
     if before is not None and not options.dry_run:
-        forget_fingerprint(echo / SCAN_FILE.name)
-    print(f"{'Planned for' if options.dry_run else 'Writing'} {echo}")
+        forget_fingerprint(folder / SCAN_FILE.name)
+    print(f"{'Planned for' if options.dry_run else 'Writing'} {folder}")
     if library_data is not None:
         write_or_report(library_path, library_data, LIBRARY_FILE, options)
     if covers_data is not None:
-        write_or_report(echo / COVERS_FILE.name, covers_data, COVERS_FILE, options)
+        write_or_report(folder / COVERS_FILE.name, covers_data, COVERS_FILE, options)
     if before is None:
         return False
-    return record_fingerprint(echo, card, volume, before, options)
+    return record_fingerprint(folder, card, volume, before, options)
 
 
 def print_next_steps(options, recorded, volume, seconds):
@@ -621,7 +621,7 @@ def print_next_steps(options, recorded, volume, seconds):
 def run_check(card, volume):
     print(f"Checking {card} ({volume.file_system})")
     computed = take_fingerprint(card, volume)
-    stored = stored_fingerprint(read_prefix(card / ECHO_FOLDER / SCAN_FILE.name,
+    stored = stored_fingerprint(read_prefix(card / DATA_FOLDER / SCAN_FILE.name,
                                             SCAN_RECORD.size))
     print(f"  this computer: {describe(computed)}")
     print(f"  the player's record: {describe(stored)}")
@@ -671,7 +671,7 @@ def parse_arguments(argv):
     parser.add_argument("--dry-run", action="store_true",
                         help="do everything except writing to the card")
     parser.add_argument("--yes", action="store_true",
-                        help="create the card's .echo folder without asking")
+                        help=f"create the card's {DATA_FOLDER} folder without asking")
     parser.add_argument("--verbose", action="store_true", help="list the albums without art")
     return parser.parse_args(argv)
 
@@ -711,14 +711,14 @@ def run(arguments):
     try:
         card = card_root(card_argument(arguments))
         volume = detect_volume(card)
-        echo = card / ECHO_FOLDER
-        check_target(card, volume, echo.is_dir())
+        folder = card / DATA_FOLDER
+        check_target(card, volume, folder.is_dir())
         if arguments.check:
             return run_check(card, volume)
         require_dependencies()
         options = options_from(arguments)
         print(f"{IDENTITY.name} sync: {card} ({volume.file_system})")
-        ensure_echo_folder(echo, options, arguments.yes)
+        ensure_data_folder(folder, options, arguments.yes)
         recorded = sync(card, volume, options)
     except SyncError as error:
         print(f"echo_sync: {error}", file=sys.stderr)

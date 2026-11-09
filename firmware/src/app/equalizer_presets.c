@@ -4,7 +4,7 @@
 #include "hal/storage.h"
 #include "settings/equalizer_fit.h"
 
-const char EQUALIZER_SLOTS_PATH[] = "/.echo/eq_slots.bin";
+const char EQUALIZER_SLOTS_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/eq_slots.bin";
 
 enum {
     PATH_CAPACITY = EQUALIZER_PRESET_NAME_CAPACITY + 8,

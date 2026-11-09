@@ -469,7 +469,7 @@ ReferenceResult reference_encode(ReferenceBuilder *builder, const LibraryModel *
     emit.writer = &writer;
     run_string_pass(&emit);
     flush(&writer);
-    static const uint8_t MAGIC[4] = {'E', 'M', 'D', 'B'};
+    static const uint8_t MAGIC[4] = {'D', 'S', 'D', 'B'};
     if (writer.failed || !sink.write(sink.context, 0, MAGIC, sizeof MAGIC)) {
         return REFERENCE_WRITE_FAILED;
     }

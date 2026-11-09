@@ -2,7 +2,7 @@
 
 #include "hal/storage.h"
 
-const char FAVORITES_STORE_PATH[] = "/.echo/favorites.bin";
+const char FAVORITES_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/favorites.bin";
 
 static bool read_favorites(uint8_t *bytes, uint32_t *length)
 {

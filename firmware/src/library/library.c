@@ -21,7 +21,7 @@ enum {
 static const uint32_t EXTRA_NAME = 0xFFFFFFFFu;
 static const uint32_t EXTRA_LINKS = 0x80000000u;
 
-static const uint8_t MAGIC[MAGIC_SIZE] = {'E', 'M', 'D', 'B'};
+static const uint8_t MAGIC[MAGIC_SIZE] = {'D', 'S', 'D', 'B'};
 
 static const uint16_t RECORD_SIZES[LIBRARY_SECTION_COUNT] = {
     [LIBRARY_TRACKS] = TRACK_SIZE,      [LIBRARY_ALBUMS] = ALBUM_SIZE,

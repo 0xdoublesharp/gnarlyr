@@ -283,7 +283,7 @@ static void an_exfat_file_seeks_far_and_back_without_a_map(void)
     FatExtents extents;
     uint8_t bytes[16];
     CHECK(fat_mount(&volume, sparse_card_device(&sparse)));
-    CHECK(fat_open(&volume, "/.echo/library.db", &file));
+    CHECK(fat_open(&volume, "/.existing/library.db", &file));
     fat_attach_extents(&file, &extents);
     CHECK(fat_read(&volume, &file, 2900, bytes, 16));
     CHECK(fat_read(&volume, &file, 0, bytes, 16));

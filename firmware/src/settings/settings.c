@@ -58,7 +58,7 @@ enum {
     MILLISECONDS_PER_SECOND = 1000
 };
 
-static const uint8_t MAGIC[MAGIC_SIZE] = {'E', 'M', 'S', 'T'};
+static const uint8_t MAGIC[MAGIC_SIZE] = {'D', 'S', 'S', 'T'};
 static const uint16_t TIMEOUT_SECONDS[SCREEN_TIMEOUT_OPTION_COUNT] = {10, 20, 30, 60, 120, 300, 0};
 static const uint8_t SLEEP_MINUTES[SLEEP_TIMER_OPTION_COUNT] = {0, 15, 30, 45, 60, 90, 120};
 static const uint8_t AUTO_OFF_MINUTES[AUTO_OFF_OPTION_COUNT] = {0, 1, 5, 10};

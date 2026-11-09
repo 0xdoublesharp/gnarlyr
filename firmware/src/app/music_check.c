@@ -6,13 +6,13 @@
 #include "hal/storage.h"
 #include "hal/system.h"
 
-const char MUSIC_CHECK_PATH[] = "/.echo/scan.bin";
+const char MUSIC_CHECK_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/scan.bin";
 
 enum {
     PRINT_BYTES = 16,
     VERSION_BYTES = 16,
     RECORD_BYTES = PRINT_BYTES + VERSION_BYTES,
-    RECORD_MAGIC = 0x4353454D
+    RECORD_MAGIC = 0x43535344
 };
 
 typedef struct MusicWalk {

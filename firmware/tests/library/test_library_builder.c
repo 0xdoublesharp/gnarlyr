@@ -533,7 +533,7 @@ static void an_empty_library_still_writes_a_valid_header(void)
     finish(&builder, &built);
     CHECK_EQUAL(BUILDER_OK, built.result);
     CHECK(built.length >= 128);
-    CHECK_EQUAL(0, memcmp("EMDB", built.output.bytes, 4));
+    CHECK_EQUAL(0, memcmp("DSDB", built.output.bytes, 4));
     free(built.output.bytes);
 }
 

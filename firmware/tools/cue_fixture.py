@@ -3,6 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from library_index import START_DIRECTIVE_TEXT as START
+
 FLAC_TRACKS = (
     '  TRACK 01 AUDIO\r\n    TITLE "Opening"\r\n    PERFORMER "Cue Artist"\r\n'
     "    INDEX 01 00:00:00\r\n"
@@ -32,12 +34,12 @@ MULTI_CUE = (
 FAVORITES_BYTES = 32 * 1024
 FAVORITES = (
     "#EXTM3U\n"
-    "#EXTINF:2,Middle Part\n#PODIUM-START:1000\nCue Artist/Cue Album/Cue Album.flac\n"
-    "#EXTINF:1,Opening\n#PODIUM-START:0\nCue Artist/Cue Album/Cue Album.flac\n"
+    f"#EXTINF:2,Middle Part\n{START}1000\nCue Artist/Cue Album/Cue Album.flac\n"
+    f"#EXTINF:1,Opening\n{START}0\nCue Artist/Cue Album/Cue Album.flac\n"
     "Cue Artist/Cue Album/Cue Album.flac\n"
-    "#EXTINF:2,Closing\n#PODIUM-START:2493\nCue Artist/Cue Album/Cue Album.flac\n"
-    "#PODIUM-START:7\nCue Artist/Cue Album/Cue Album.flac\n"
-    "#PODIUM-START:1000\nPlain/Unsupported/a.wav\n"
+    f"#EXTINF:2,Closing\n{START}2493\nCue Artist/Cue Album/Cue Album.flac\n"
+    f"{START}7\nCue Artist/Cue Album/Cue Album.flac\n"
+    f"{START}1000\nPlain/Unsupported/a.wav\n"
 )
 LEGACY_FAVORITES = "#EXTM3U\nCue Artist/Cue Album/Cue Album.flac\n"
 ORPHAN_CUE = 'FILE "missing.flac" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n'

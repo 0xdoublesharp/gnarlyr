@@ -1,6 +1,8 @@
 import argparse
 from pathlib import Path
 
+from identity import IDENTITY
+
 SAVE_FILES = ("settings.bin", "resume.bin", "favorites.bin")
 SAVE_FILE_SIZE = 4096
 LIBRARY_FILE = "library.db"
@@ -13,20 +15,21 @@ def prepare_file(path, size):
         path.write_bytes(data + bytes(size - len(data)))
 
 
-def prepare(echo_directory):
-    echo_directory.mkdir(parents=True, exist_ok=True)
+def prepare(folder):
+    folder.mkdir(parents=True, exist_ok=True)
     for name in SAVE_FILES:
-        prepare_file(echo_directory / name, SAVE_FILE_SIZE)
-    prepare_file(echo_directory / LIBRARY_FILE, LIBRARY_FILE_SIZE)
+        prepare_file(folder / name, SAVE_FILE_SIZE)
+    prepare_file(folder / LIBRARY_FILE, LIBRARY_FILE_SIZE)
 
 
 def main():
     parser = argparse.ArgumentParser(
         description="Create the fixed-size files the player overwrites to save its state"
     )
-    parser.add_argument("--echo", type=Path, required=True, help="the card's /.echo folder")
+    parser.add_argument("--folder", type=Path, required=True,
+                        help=f"the card's /{IDENTITY.data_directory} folder")
     arguments = parser.parse_args()
-    prepare(arguments.echo)
+    prepare(arguments.folder)
 
 
 if __name__ == "__main__":

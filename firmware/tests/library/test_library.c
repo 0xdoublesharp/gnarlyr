@@ -67,7 +67,7 @@ static void a_newer_version_is_rejected(void)
 
 static void a_truncated_file_is_rejected(void)
 {
-    CHECK_EQUAL(LIBRARY_BAD_LAYOUT, open_modified(0, 'E', fixture_size() - 10));
+    CHECK_EQUAL(LIBRARY_BAD_LAYOUT, open_modified(0, 'D', fixture_size() - 10));
 }
 
 static void a_section_inside_the_header_is_rejected(void)

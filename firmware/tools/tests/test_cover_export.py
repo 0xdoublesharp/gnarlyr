@@ -151,7 +151,7 @@ class EncodeCoversTest(unittest.TestCase):
         blue = Image.new("RGB", (8, 8), (0, 0, 255))
         data = cover_export.encode_covers({900: red, 100: blue})
         magic, version, count, full, half, reserved = HEADER.unpack_from(data, 0)
-        self.assertEqual((b"EMCV", 1, 2, 112, 56, 0), (magic, version, count, full, half, reserved))
+        self.assertEqual((b"DSCV", 1, 2, 112, 56, 0), (magic, version, count, full, half, reserved))
         first_key, first_offset = ENTRY.unpack_from(data, HEADER.size)
         second_key, second_offset = ENTRY.unpack_from(data, HEADER.size + ENTRY.size)
         self.assertEqual((100, 900), (first_key, second_key))
@@ -217,7 +217,7 @@ class EncodeStampedTest(unittest.TestCase):
         data = cover_export.encode_stamped({900: record, 100: record}, {900: 9, 100: 1}, capacity)
         slots, stamps_start, records_start = cover_export.stamped_layout(capacity)
         self.assertEqual(5, slots)
-        self.assertEqual((b"EMCV", 1, 2, 112, 56, stamps_start), HEADER.unpack_from(data, 0))
+        self.assertEqual((b"DSCV", 1, 2, 112, 56, stamps_start), HEADER.unpack_from(data, 0))
         self.assertEqual((100, records_start), ENTRY.unpack_from(data, HEADER.size))
         self.assertEqual((900, records_start + cover_export.RECORD_BYTES),
                          ENTRY.unpack_from(data, HEADER.size + ENTRY.size))
@@ -275,7 +275,7 @@ class LibraryFileSourcesTest(unittest.TestCase):
             finally:
                 library_index.scan = original
             self.assertEqual(0, status)
-            self.assertEqual(b"EMCV", output.read_bytes()[:4])
+            self.assertEqual(b"DSCV", output.read_bytes()[:4])
 
 
 if __name__ == "__main__":

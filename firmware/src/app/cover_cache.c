@@ -1,6 +1,6 @@
 #include "cover_cache.h"
 
-const char COVER_CACHE_PATH[] = "/.echo/covers.bin";
+const char COVER_CACHE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/covers.bin";
 
 static bool read_file(void *context, uint32_t offset, void *buffer, uint32_t length)
 {

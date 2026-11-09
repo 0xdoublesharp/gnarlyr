@@ -204,7 +204,7 @@ static bool read_line(PlaylistReader *reader, Line *line)
     return true;
 }
 
-static const char START_DIRECTIVE[] = "#PODIUM-START:";
+static const char START_DIRECTIVE[] = PLAYLIST_START_DIRECTIVE;
 
 static void note_directive(PlaylistReader *reader, const char *line)
 {

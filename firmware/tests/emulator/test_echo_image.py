@@ -22,6 +22,7 @@ DEEP_TRACK = 12
 FIRST_AUDIO_LIMIT_MS = 1500
 TRACK_GAP_LIMIT_MS = 1000
 FADE_LIMIT_MS = 1500
+SCAN_RECORD_POLL_MS = 100
 FAT_READS_PER_SECOND_LIMIT = 40
 DATA_READS_PER_SECOND_MINIMUM = 250
 WIDTH = 480
@@ -73,7 +74,7 @@ def expected_init(madctl):
 
 def settings_file(orientation):
     data = bytearray(SETTINGS_CHECKSUM_FIELD + 4)
-    data[0:4] = b"EMST"
+    data[0:4] = b"DSST"
     data[4] = SETTINGS_VERSION
     data[6:9] = bytes((7, 2, 0))
     data[13] = 13
@@ -173,8 +174,8 @@ class EchoImageTest(unittest.TestCase):
     def boot_saved_orientation(self, orientation):
         from echo_emulator.fat_volume import Fat32Volume
         volume = Fat32Volume()
-        volume.add_directory(".echo")
-        volume.add_file("settings.bin", settings_file(orientation), directory=".echo")
+        volume.add_directory(".doublesharp")
+        volume.add_file("settings.bin", settings_file(orientation), directory=".doublesharp")
         session = self.session(volume=volume)
         panel = session.panel
         reason = session.machine.run(
@@ -292,21 +293,41 @@ class EchoImageTest(unittest.TestCase):
 
     def built_library_tracks(self, session):
         for data in session.disk.sectors.values():
-            if data[:4] == b"EMDB":
+            if data[:4] == b"DSDB":
                 return struct.unpack_from("<I", data, 12)[0]
         return 0
 
-    def test_without_an_sd_card_music_on_the_internal_volume_is_scanned(self):
+    def scan_one_track(self):
         track = (PROJECT / "tests" / "fixtures" / "mp3" /
                  "cbr_128_44k_stereo_tagged.mp3").read_bytes()
         session = self.session(files=[("TRACK01.MP3", track, None)])
         session.machine.stop_at("hal_system_return_scratch")
         reason = session.machine.run(until_ms=self.session_module.FRAME_LIMIT_MS)
         self.assertEqual(reason, "reached hal_system_return_scratch")
+        return session, track
+
+    def test_without_an_sd_card_music_on_the_internal_volume_is_scanned(self):
+        session, track = self.scan_one_track()
         self.assertEqual(self.built_library_tracks(session), 1)
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
         self.assertEqual(session.read_file("TRACK01.MP3", len(track)), track)
+
+    def recorded_version(self, session):
+        for data in session.disk.sectors.values():
+            if data[:4] == b"DSSC":
+                return bytes(data[16:32]).rstrip(b"\0").decode("ascii")
+        return None
+
+    def test_the_scan_record_names_the_version_and_the_build_tag(self):
+        session, _ = self.scan_one_track()
+        machine = session.machine
+        deadline = machine.milliseconds() + self.session_module.FRAME_LIMIT_MS
+        while self.recorded_version(session) is None and machine.milliseconds() < deadline:
+            machine.run(until_ms=machine.milliseconds() + SCAN_RECORD_POLL_MS)
+        build_tag = self.image[0x30:0x38].rstrip(b"\0").decode("ascii")
+        self.assertEqual(self.recorded_version(session), "1.0.0-" + build_tag)
+        self.assert_healthy(session)
 
     def assert_every_write_read_back(self, accesses):
         for index, access in enumerate(accesses):

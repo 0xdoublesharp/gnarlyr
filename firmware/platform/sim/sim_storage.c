@@ -16,7 +16,7 @@ enum {
     PATH_CAPACITY = 1024
 };
 
-static const char SYSTEM_PREFIX[] = "/.echo/";
+static const char SYSTEM_PREFIX[] = "/" FIRMWARE_DATA_DIRECTORY "/";
 
 typedef struct SimStorage {
     const char *card_directory;

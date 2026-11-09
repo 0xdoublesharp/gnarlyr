@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 SECTOR = 512
-SPARSE_MAGIC = b"EMSP"
+SPARSE_MAGIC = b"DSSP"
 SPARSE_HEADER = struct.Struct("<4sII")
 VOLUME_NAME = "ECHOCARD"
 MANY_FILES = 120
@@ -23,7 +23,7 @@ def pattern(seed, length):
 
 
 FIXTURE_FILES = [
-    (".echo/library.db", 1, 3000),
+    (".existing/library.db", 1, 3000),
     ("README.TXT", 2, 100),
     ("notes.txt", 3, 700),
     ("Music/Sigur Rós/Ágætis byrjun/01 Intro.flac", 4, 9000),

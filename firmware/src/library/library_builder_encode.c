@@ -678,7 +678,7 @@ BuilderResult builder_encode(BuilderState *state, Prepared *prepared, ByteSink s
         return BUILDER_WRITE_FAILED;
     }
     flush(writer);
-    static const uint8_t MAGIC[4] = {'E', 'M', 'D', 'B'};
+    static const uint8_t MAGIC[4] = {'D', 'S', 'D', 'B'};
     if (writer->failed || !sink.write(sink.context, 0, MAGIC, sizeof MAGIC)) {
         return BUILDER_WRITE_FAILED;
     }

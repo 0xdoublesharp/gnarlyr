@@ -673,7 +673,7 @@ static bool clear_header(const CoverJob *job)
 
 static bool write_header(const CoverState *state, const CoverJob *job)
 {
-    uint8_t header[COVERS_HEADER_SIZE] = {'E', 'M', 'C', 'V'};
+    uint8_t header[COVERS_HEADER_SIZE] = {'D', 'S', 'C', 'V'};
     put16(header + 4, COVERS_VERSION);
     put16(header + 6, state->count);
     put16(header + 8, COVER_FULL_SIZE);

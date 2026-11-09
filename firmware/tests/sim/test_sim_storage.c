@@ -54,7 +54,7 @@ static void a_missing_folder_does_not_open(void)
 
 static void a_read_after_an_overwrite_sees_the_new_bytes(void)
 {
-    static const char PATH[] = "/.echo/overwritten.bin";
+    static const char PATH[] = "/.doublesharp/overwritten.bin";
     static const uint8_t FRESH[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
     static uint8_t zeros[8192];
     uint8_t seen[sizeof FRESH];

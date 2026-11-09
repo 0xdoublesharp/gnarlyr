@@ -84,7 +84,7 @@ static void check_pattern(Card *card, const char *path, uint32_t seed, uint32_t 
 
 static void check_survivors(Card *card)
 {
-    check_pattern(card, "/.echo/library.db", 1, 3000);
+    check_pattern(card, "/.existing/library.db", 1, 3000);
     check_pattern(card, "/notes.txt", 3, 700);
     check_pattern(card, INTRO_PATH, 4, 9000);
 }
@@ -218,8 +218,8 @@ static void a_deleted_files_space_is_reused_by_the_next_reservation(void)
     CHECK(fat_open(&card->volume, LONG_PATH, &file));
     uint32_t first = file.first_cluster;
     CHECK(fat_delete(&card->volume, LONG_PATH));
-    CHECK_EQUAL(FAT_RESERVE_CREATED, fat_reserve(&card->volume, "/.echo/again.bin", 20000));
-    CHECK(fat_open(&card->volume, "/.echo/again.bin", &file));
+    CHECK_EQUAL(FAT_RESERVE_CREATED, fat_reserve(&card->volume, "/.existing/again.bin", 20000));
+    CHECK(fat_open(&card->volume, "/.existing/again.bin", &file));
     CHECK_EQUAL(first, file.first_cluster);
     check_survivors(card);
     sparse_card_free(&card->sparse);
@@ -249,9 +249,9 @@ static void a_fragmented_chain_is_freed_across_table_sectors(void)
 {
     Card *card = mounted("fat32_mbr");
     uint32_t size = 130 * SECTOR_SIZE;
-    CHECK_EQUAL(FAT_RESERVE_CREATED, fat_reserve(&card->volume, "/.echo/chain.bin", size));
+    CHECK_EQUAL(FAT_RESERVE_CREATED, fat_reserve(&card->volume, "/.existing/chain.bin", size));
     FatFile file;
-    CHECK(fat_open(&card->volume, "/.echo/chain.bin", &file));
+    CHECK(fat_open(&card->volume, "/.existing/chain.bin", &file));
     uint32_t first = file.first_cluster;
     uint32_t last = first + 129;
     set_fat32_entry(card, first, last);
@@ -261,7 +261,7 @@ static void a_fragmented_chain_is_freed_across_table_sectors(void)
     set_fat32_entry(card, first + 2, first + 128);
     uint32_t before = info_free_count(card);
     remount(card);
-    CHECK(fat_delete(&card->volume, "/.echo/chain.bin"));
+    CHECK(fat_delete(&card->volume, "/.existing/chain.bin"));
     CHECK_EQUAL(before + 5, info_free_count(card));
     uint32_t members[] = {first, last, first + 1, first + 2, first + 128};
     for (size_t index = 0; index < sizeof members / sizeof members[0]; index++) {

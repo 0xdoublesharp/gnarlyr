@@ -8,7 +8,7 @@ from pathlib import Path
 
 import library_index
 
-MAGIC = b"EMCV"
+MAGIC = b"DSCV"
 VERSION = 1
 FULL_SIZE = 112
 HALF_SIZE = 56
@@ -269,7 +269,7 @@ def section(data, index):
 
 
 def album_sources_from_library(data):
-    if data[:4] != b"EMDB":
+    if data[:4] != library_index.MAGIC:
         raise ValueError("not an Echo Mini library")
     tracks_offset, track_count = section(data, 0)
     albums_offset, album_count = section(data, 1)

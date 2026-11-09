@@ -33,7 +33,7 @@ static bool read_file(const char *path, uint8_t **data, long *size)
 
 static bool expand(SparseCard *card, const uint8_t *data, long size)
 {
-    if (size < HEADER_SIZE || memcmp(data, "EMSP", 4) != 0) {
+    if (size < HEADER_SIZE || memcmp(data, "DSSP", 4) != 0) {
         return false;
     }
     card->sector_count = read_le32(data + 4);

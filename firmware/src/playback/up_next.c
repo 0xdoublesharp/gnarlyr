@@ -14,7 +14,7 @@ enum {
     BITS_PER_BYTE = 8
 };
 
-static const uint8_t MAGIC[MAGIC_SIZE] = {'E', 'M', 'U', 'N'};
+static const uint8_t MAGIC[MAGIC_SIZE] = {'D', 'S', 'U', 'N'};
 
 static void put_u16(uint8_t *bytes, int offset, uint32_t value)
 {

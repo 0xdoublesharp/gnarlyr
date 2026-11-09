@@ -53,8 +53,8 @@ def players_test_card():
     card.add("/AC DC/Back In Black", "02 - Shoot to Thrill.flac", False, 29000000, 101)
     card.add("/AC DC/Back In Black", "cover.jpg", False, 80000, 102)
     card.add("/", "Mix.m3u8", False, 400, 3)
-    card.add("/", ".echo", True, 0, 4)
-    card.add("/.echo", "library.db", False, 4194304, 5)
+    card.add("/", ".doublesharp", True, 0, 4)
+    card.add("/.doublesharp", "library.db", False, 4194304, 5)
     return card
 
 
@@ -256,7 +256,7 @@ class HostCardTest(unittest.TestCase):
         self.make("Artist/Album/01 - Song.flac", b"12345")
         self.make("Artist/Album/cover.jpg", b"123")
         self.make("Artist/Album/notes.txt")
-        self.make(".echo/library.db")
+        self.make(".doublesharp/library.db")
         self.make("Mix.m3u8", b"#EXTM3U")
         computed = echo_sync.card_fingerprint(self.root, FIXED_UTC)
         self.assertEqual(self.listed_card().fingerprint(), computed)
@@ -305,7 +305,7 @@ class CardFileTest(unittest.TestCase):
         self.assertEqual(data, self.path.read_bytes())
 
     def test_forgetting_the_fingerprint_clears_only_its_magic(self):
-        record = SCAN_RECORD.pack(b"MESC", 1, 2, 3, b"v1.2.3".ljust(16, b"\0"))
+        record = SCAN_RECORD.pack(b"DSSC", 1, 2, 3, b"v1.2.3".ljust(16, b"\0"))
         self.path.write_bytes(record + bytes(4096 - len(record)))
         echo_sync.forget_fingerprint(self.path)
         written = self.path.read_bytes()
@@ -317,7 +317,7 @@ class ScanRecordTest(unittest.TestCase):
     def test_the_record_holds_the_magic_both_hashes_the_count_and_the_firmware_tag(self):
         tag = b"0.1.0".ljust(16, b"\0")
         record = echo_sync.scan_record(echo_sync.Fingerprint(True, 0x11223344, 5, 6), tag)
-        self.assertEqual(b"MESC" + bytes([0x44, 0x33, 0x22, 0x11]) + struct.pack("<II", 5, 6) + tag,
+        self.assertEqual(b"DSSC" + bytes([0x44, 0x33, 0x22, 0x11]) + struct.pack("<II", 5, 6) + tag,
                          record)
 
     def test_a_stored_record_reads_back(self):
@@ -327,7 +327,7 @@ class ScanRecordTest(unittest.TestCase):
         self.assertIsNone(echo_sync.stored_fingerprint(bytes(32)))
 
     def test_the_firmware_tag_is_kept_or_empty(self):
-        record = SCAN_RECORD.pack(b"MESC", 1, 2, 3, b"tag".ljust(16, b"\0"))
+        record = SCAN_RECORD.pack(b"DSSC", 1, 2, 3, b"tag".ljust(16, b"\0"))
         self.assertEqual(b"tag".ljust(16, b"\0"), echo_sync.stored_version(record))
         self.assertEqual(bytes(16), echo_sync.stored_version(b""))
 
@@ -336,7 +336,7 @@ class SyncTest(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.card = Path(self.directory.name)
-        self.echo = self.card / ".echo"
+        self.folder = self.card / ".doublesharp"
         album = self.card / "Artist" / "Album"
         album.mkdir(parents=True)
         write_silent_flac(album / "01 - Song.flac", 1)
@@ -352,22 +352,22 @@ class SyncTest(unittest.TestCase):
         return status, output.getvalue()
 
     def prepare_echo(self, covers_size=MEBIBYTE):
-        self.echo.mkdir()
-        (self.echo / "covers.bin").write_bytes(bytes(covers_size))
+        self.folder.mkdir()
+        (self.folder / "covers.bin").write_bytes(bytes(covers_size))
 
     def test_a_sync_writes_the_library_the_covers_and_the_fingerprint(self):
         self.prepare_echo()
         status, output = self.run_sync()
         self.assertEqual(0, status, output)
-        library = (self.echo / "library.db").read_bytes()
+        library = (self.folder / "library.db").read_bytes()
         expected = library_index.encode_library(library_index.build_library(
             *library_index.scan(self.card)[:2]))
         self.assertEqual(4 * MEBIBYTE, len(library))
         self.assertEqual(expected, library[:len(expected)])
-        covers = (self.echo / "covers.bin").read_bytes()
+        covers = (self.folder / "covers.bin").read_bytes()
         self.assertEqual(MEBIBYTE, len(covers))
-        self.assertEqual((b"EMCV", 1, 1), struct.unpack_from("<4sHH", covers))
-        scan = (self.echo / "scan.bin").read_bytes()
+        self.assertEqual((b"DSCV", 1, 1), struct.unpack_from("<4sHH", covers))
+        scan = (self.folder / "scan.bin").read_bytes()
         self.assertEqual(4096, len(scan))
         volume = echo_sync.detect_volume(self.card)
         self.assertEqual(echo_sync.card_fingerprint(self.card, volume),
@@ -379,7 +379,7 @@ class SyncTest(unittest.TestCase):
         self.prepare_echo()
         status, output = self.run_sync()
         self.assertEqual(0, status, output)
-        covers = (self.echo / "covers.bin").read_bytes()
+        covers = (self.folder / "covers.bin").read_bytes()
         slots, stamps_start, records_start = cover_export.stamped_layout(MEBIBYTE)
         self.assertEqual(stamps_start, struct.unpack_from("<I", covers, 12)[0])
         self.assertEqual(records_start, struct.unpack_from("<I", covers, 20)[0])
@@ -399,9 +399,9 @@ class SyncTest(unittest.TestCase):
     def test_the_firmware_tag_in_scan_bin_is_kept(self):
         self.prepare_echo()
         tag = b"0.1.0-abc".ljust(16, b"\0")
-        (self.echo / "scan.bin").write_bytes(SCAN_RECORD.pack(b"MESC", 1, 2, 3, tag) + bytes(4064))
+        (self.folder / "scan.bin").write_bytes(SCAN_RECORD.pack(b"DSSC", 1, 2, 3, tag) + bytes(4064))
         self.run_sync()
-        scan = (self.echo / "scan.bin").read_bytes()
+        scan = (self.folder / "scan.bin").read_bytes()
         self.assertEqual(tag, scan[16:32])
         self.assertEqual(4096, len(scan))
 
@@ -409,21 +409,21 @@ class SyncTest(unittest.TestCase):
         self.prepare_echo()
         status, output = self.run_sync("--dry-run")
         self.assertEqual(0, status, output)
-        self.assertEqual(["covers.bin"], sorted(path.name for path in self.echo.iterdir()))
-        self.assertEqual(bytes(MEBIBYTE), (self.echo / "covers.bin").read_bytes())
+        self.assertEqual(["covers.bin"], sorted(path.name for path in self.folder.iterdir()))
+        self.assertEqual(bytes(MEBIBYTE), (self.folder / "covers.bin").read_bytes())
 
     def test_without_a_fingerprint_scan_bin_is_left_alone(self):
         self.prepare_echo()
-        record = SCAN_RECORD.pack(b"MESC", 1, 2, 3, bytes(16))
-        (self.echo / "scan.bin").write_bytes(record)
+        record = SCAN_RECORD.pack(b"DSSC", 1, 2, 3, bytes(16))
+        (self.folder / "scan.bin").write_bytes(record)
         self.run_sync("--no-fingerprint")
-        self.assertEqual(record, (self.echo / "scan.bin").read_bytes())
-        self.assertTrue((self.echo / "library.db").exists())
+        self.assertEqual(record, (self.folder / "scan.bin").read_bytes())
+        self.assertTrue((self.folder / "library.db").exists())
 
     def test_covers_only_uses_the_cards_library(self):
         self.prepare_echo()
         self.run_sync("--no-covers")
-        self.assertEqual(bytes(MEBIBYTE), (self.echo / "covers.bin").read_bytes())
+        self.assertEqual(bytes(MEBIBYTE), (self.folder / "covers.bin").read_bytes())
         original = library_index.scan
         library_index.scan = lambda *_: self.fail("scanned the music again")
         try:
@@ -431,13 +431,13 @@ class SyncTest(unittest.TestCase):
         finally:
             library_index.scan = original
         self.assertEqual(0, status, output)
-        self.assertEqual(b"EMCV", (self.echo / "covers.bin").read_bytes()[:4])
+        self.assertEqual(b"DSCV", (self.folder / "covers.bin").read_bytes()[:4])
 
     def test_a_folder_that_is_not_a_card_is_refused(self):
         status, output = self.run_sync()
         self.assertEqual(2, status)
         self.assertIn("isn't the top of a memory card", output)
-        self.assertFalse(self.echo.exists())
+        self.assertFalse(self.folder.exists())
 
 
 class AskForCardTest(unittest.TestCase):
@@ -449,7 +449,7 @@ class AskForCardTest(unittest.TestCase):
     def test_only_folders_with_an_echo_folder_are_offered(self):
         with tempfile.TemporaryDirectory() as directory:
             player, other = Path(directory, "player"), Path(directory, "other")
-            (player / ".echo").mkdir(parents=True)
+            (player / ".doublesharp").mkdir(parents=True)
             other.mkdir()
             self.assertEqual([player], echo_sync.player_cards([other, player,
                                                                Path(directory, "missing")]))

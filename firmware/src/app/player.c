@@ -8,8 +8,8 @@
 #include "playback/resume_state.h"
 #include "playback/spoken.h"
 
-const char PLAYER_RESUME_PATH[] = "/.echo/resume.bin";
-const char PLAYER_UP_NEXT_PATH[] = "/.echo/upnext.bin";
+const char PLAYER_RESUME_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/resume.bin";
+const char PLAYER_UP_NEXT_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/upnext.bin";
 
 typedef struct TrackAudio {
     char path[PLAYER_PATH_CAPACITY];

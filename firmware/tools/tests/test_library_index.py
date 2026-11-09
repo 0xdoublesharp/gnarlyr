@@ -283,7 +283,7 @@ class EncodeLibraryTest(unittest.TestCase):
 
     def test_the_header_identifies_the_format(self):
         magic, version, sections = struct.unpack_from("<4sHH", self.data, 0)
-        self.assertEqual((b"EMDB", 6, 10), (magic, version, sections))
+        self.assertEqual((b"DSDB", 6, 10), (magic, version, sections))
         self.assertEqual(HEADER_SIZE, self.section(0)[0])
 
     def test_sections_declare_their_counts_and_record_sizes(self):
@@ -330,17 +330,17 @@ class PlaylistParsingTest(unittest.TestCase):
         self.assertEqual([None, None], [entry.start for entry in entries])
 
     def test_a_start_directive_belongs_to_the_next_entry_only(self):
-        text = "#EXTM3U\n#PODIUM-START:1500\nA/one.flac\nA/two.flac\n  #PODIUM-START:0  \nA/three.flac\n"
+        text = "#EXTM3U\n#DOUBLESHARP-START:1500\nA/one.flac\nA/two.flac\n  #DOUBLESHARP-START:0  \nA/three.flac\n"
         self.assertEqual([1500, None, 0], [entry.start for entry in library_index.parse_m3u(text)])
 
     def test_a_malformed_start_directive_is_ignored(self):
-        for line in ("#PODIUM-START:", "#PODIUM-START:12x", "#PODIUM-START:-5",
-                     "#PODIUM-START:12345678901", "#PODIUM-START:4294967295", "#podium-start:5"):
+        for line in ("#DOUBLESHARP-START:", "#DOUBLESHARP-START:12x", "#DOUBLESHARP-START:-5",
+                     "#DOUBLESHARP-START:12345678901", "#DOUBLESHARP-START:4294967295", "#doublesharp-start:5"):
             entries = library_index.parse_m3u(f"{line}\nA/one.flac\n")
             self.assertIsNone(entries[0].start, line)
 
     def test_the_last_start_directive_before_an_entry_wins(self):
-        text = "#PODIUM-START:10\n#PODIUM-START:20\nA/one.flac\n"
+        text = "#DOUBLESHARP-START:10\n#DOUBLESHARP-START:20\nA/one.flac\n"
         self.assertEqual(20, library_index.parse_m3u(text)[0].start)
 
     def test_utf8_with_a_byte_order_mark_is_decoded(self):
