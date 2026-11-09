@@ -125,9 +125,11 @@ static void build_music(AppScreens *screens, AppScreensContext context)
         .player = context.player,
     };
     cover_flow_screen_init(&screens->cover_flow, cover_flow);
-    for (int index = 0; index < MUSIC_ITEM_COUNT; index++) {
+    for (int index = 0; index < MUSIC_ITEM_COUNT - 1; index++) {
         screens->music_items[index] = music_item(screens, context.store, index);
     }
+    screens->music_items[MUSIC_ITEM_COUNT - 1] = app_screens_open_item(
+        "Mixtapes", context.mixtapes != NULL ? context.mixtapes : &screens->no_library.screen);
     app_screens_build_menu(&screens->music, "Music", screens->music_items, MUSIC_ITEM_COUNT,
                            context.theme);
 }

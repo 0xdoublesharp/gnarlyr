@@ -47,7 +47,7 @@ target_compile_definitions(echo_library_fixtures PRIVATE
 )
 target_link_libraries(echo_library_fixtures PUBLIC echo_library echo_library_scan PRIVATE echo_options)
 
-foreach(playback_test play_queue resume_state up_next bookmarks spoken track_order session_journal)
+foreach(playback_test mix_catalog mix_tape mix_resolve play_queue resume_state up_next bookmarks spoken track_order session_journal)
     echo_add_unit_test(NAME test_${playback_test}
         SOURCES playback/test_${playback_test}.c
         LIBRARIES echo_playback echo_library_fixtures
@@ -576,3 +576,15 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
 else()
     message(STATUS "tools venv not found: run python3 -m venv .venv && .venv/bin/pip install -r tools/requirements.txt")
 endif()
+
+echo_add_unit_test(NAME test_mixtape_store
+    SOURCES app/test_mixtape_store.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
+echo_add_unit_test(NAME test_mixtape_ui
+    SOURCES app/test_mixtape_ui.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)

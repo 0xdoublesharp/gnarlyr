@@ -90,9 +90,9 @@ def firmware_elf(parts, extra=()):
 class StorageCodeTest(unittest.TestCase):
     def module(self, size=128):
         data = bytearray(size)
-        struct.pack_into("<III", data, 16, 0x49504153, 1, 56)
-        for index in range(11):
-            struct.pack_into("<I", data, 28 + 4 * index, 0x0308F049)
+        struct.pack_into("<III", data, 16, 0x49504153, make_image.STORAGE_CODE_API_VERSION, make_image.STORAGE_CODE_API_SIZE)
+        for index in range(make_image.STORAGE_CODE_FUNCTIONS):
+            struct.pack_into("<I", data, 28 + 4 * index, make_image.STORAGE_CODE_BASE + 16 + make_image.STORAGE_CODE_API_SIZE + 1)
         return bytes(data)
 
     def test_a_storage_module_is_crc_checked_and_bound_to_the_main_program(self):
@@ -107,10 +107,10 @@ class StorageCodeTest(unittest.TestCase):
         self.assertEqual(make_image.validate_image(image), [])
 
     def test_invalid_size_abi_and_function_targets_are_refused(self):
-        for size in (68, 0x3004):
+        for size in (68, make_image.STORAGE_CODE_CAPACITY + 4):
             with self.assertRaises(make_image.ImageError):
                 build(storage_code=bytes(size))
-        for offset, value in ((20, 2), (24, 52), (28, 0), (28, 0x03050101),
+        for offset, value in ((20, 99), (24, 52), (28, 0), (28, 0x03050101),
                               (28, 0x0308F048), (28, 0x0308F081)):
             module = bytearray(self.module())
             struct.pack_into("<I", module, offset, value)

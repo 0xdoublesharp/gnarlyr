@@ -1,6 +1,8 @@
 #pragma once
 
 #include "device/storage_code.h"
+struct MixtapeUiApi;
+#include "playback/mix_api.h"
 #include "playback/session_journal.h"
 #include "playback/track_order.h"
 
@@ -22,6 +24,8 @@ typedef struct StorageCodeApi {
                                 SessionState *state);
     SessionLoad (*session_previous)(SessionJournal *journal, SessionState *state);
     SessionSave (*session_save)(SessionJournal *journal, const SessionState *state);
+    const MixApi *(*mixtapes)(void);
+    const struct MixtapeUiApi *(*mixtape_ui)(void);
 } StorageCodeApi;
 
 extern const StorageCodeApi STORAGE_CODE_ENTRY;

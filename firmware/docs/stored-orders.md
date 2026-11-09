@@ -1,6 +1,6 @@
 # Persistent track orders
 
-`playback/track_order` provides the shared sequence store for edited queues and playlists. It supports up to 65,535 entries, including duplicate IDs, without retaining the sequence in RAM. The player now uses it for full queue editing, including generated album and shuffled queues. Saved-playlist catalogue and editing remain separate work.
+`playback/track_order` provides the shared sequence store for edited queues and playlists. It supports up to 65,535 entries, including duplicate IDs, without retaining the sequence in RAM. The player now uses it for full queue editing, including generated album and shuffled queues. Named saved mixtapes now use a separate path/cue catalog; see [saved mixtapes](mixtapes.md).
 
 ## Ownership and API
 
@@ -34,7 +34,7 @@ The active bank is never modified by a job. Its successor uses the other bank an
 
 The player merges the base history, actual current song, pending manual songs and remaining base sequence into one stored queue. A song started from manual Up Next receives its own cursor; duplicate IDs remain distinct entries. Move and remove operations target future rows, including wrapped rows with Repeat All, and rebase the current cursor without restarting the song. The current track is verified against the pending data before publication.
 
-Saved playlists still need a catalogue and stable path/track identity mapping across library rescans. Queue IDs are valid only for the associated library fingerprint; an edited queue is not a portable saved playlist.
+Named mixtapes persist full path/cue identities and resolve them after rescans. Working queue IDs remain tied to their library association; use [saved mixtapes](mixtapes.md) for durable named lists.
 
 ## Verified bounds
 

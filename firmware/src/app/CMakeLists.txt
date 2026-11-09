@@ -19,6 +19,9 @@ add_library(echo_app STATIC
     home_art.c
     library_rescan.c
     music_check.c
+    mixtape_store.c
+    mixtape_ui.c
+    mixtape_screen.c
     library_store.c
     player.c
     player_queue.c

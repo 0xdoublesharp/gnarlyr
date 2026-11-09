@@ -1,4 +1,6 @@
 #include "fake_hal.h"
+#include "mixtape_ui.h"
+#include "playback/mix_api.h"
 
 #include "hal/system.h"
 
@@ -54,7 +56,7 @@ typedef struct InternalFile {
 } InternalFile;
 
 typedef struct FakeFile {
-    const char *path;
+    char path[PATH_CAPACITY];
     const uint8_t *bytes;
     uint32_t size;
     uint32_t stored;
@@ -100,7 +102,7 @@ typedef struct FakeHal {
     int keep_alive_count;
     bool restart_pending;
     HalReserveResult reserve_result;
-    const char *reserved_paths[FILE_CAPACITY];
+    char reserved_paths[FILE_CAPACITY][PATH_CAPACITY];
     uint32_t reserved_sizes[FILE_CAPACITY];
     int reserve_count;
     int scratch_borrows;
@@ -178,8 +180,9 @@ bool hal_system_set_clock_mhz(uint32_t mhz)
 
 void fake_hal_add_file(const char *path, const uint8_t *bytes, uint32_t size)
 {
-    fake.files[fake.file_count++] =
-        (FakeFile){.path = path, .bytes = bytes, .size = size, .stored = size};
+    FakeFile *file = &fake.files[fake.file_count++];
+    *file = (FakeFile){.bytes = bytes, .size = size, .stored = size};
+    strncpy(file->path, path, PATH_CAPACITY - 1);
 }
 
 void fake_hal_set_milliseconds(uint32_t now_ms)
@@ -934,7 +937,7 @@ void hal_dir_close(HalDir *dir)
 
 void *hal_system_borrow_scratch(uint32_t *size)
 {
-    static uint8_t scratch[384 * 1024];
+    _Alignas(uint32_t) static uint8_t scratch[384 * 1024];
     fake.scratch_borrows++;
     if (fake.scratch_refused) {
         *size = 0;
@@ -1074,7 +1077,7 @@ HalVolume hal_file_volume(void)
 HalReserveResult hal_file_reserve(const char *path, uint32_t size)
 {
     if (fake.reserve_count < FILE_CAPACITY) {
-        fake.reserved_paths[fake.reserve_count] = path;
+        strncpy(fake.reserved_paths[fake.reserve_count], path, PATH_CAPACITY - 1);
         fake.reserved_sizes[fake.reserve_count] = size;
     }
     fake.reserve_count++;
@@ -1165,7 +1168,7 @@ bool hal_internal_file_write(const char *path, const void *bytes, uint32_t lengt
 HalReserveResult hal_internal_file_reserve(const char *path, uint32_t size)
 {
     if (fake.reserve_count < FILE_CAPACITY) {
-        fake.reserved_paths[fake.reserve_count] = path;
+        strncpy(fake.reserved_paths[fake.reserve_count], path, PATH_CAPACITY - 1);
         fake.reserved_sizes[fake.reserve_count] = size;
     }
     fake.reserve_count++;
@@ -1187,4 +1190,29 @@ const uint8_t *fake_hal_internal_file_bytes(const char *path, uint32_t *size)
     InternalFile *file = internal_file(path);
     *size = file == NULL ? 0 : file->size;
     return file == NULL ? NULL : file->bytes;
+}
+
+const void *hal_system_mixtape_api(void)
+{
+    return mix_code_api();
+}
+
+bool hal_file_remove(const char *path)
+{
+    FakeFile *file = fake_file(path);
+    if (file == NULL || fake.fail_music_writes) {
+        return false;
+    }
+    for (int slot = 0; slot < STORE_SLOTS; slot++) {
+        if (file->bytes == stores[slot]) {
+            fake.store_used[slot] = NULL;
+        }
+    }
+    *file = fake.files[--fake.file_count];
+    return true;
+}
+
+const void *hal_system_mixtape_ui(void)
+{
+    return mixtape_ui_api();
 }

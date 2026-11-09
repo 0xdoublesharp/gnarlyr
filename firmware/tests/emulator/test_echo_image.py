@@ -198,7 +198,7 @@ class EchoImageTest(unittest.TestCase):
         diagnostic = machine.read_memory(result, 16)
         self.assertEqual(diagnostic[0], 0)
         self.assertEqual(struct.unpack_from("<3I", diagnostic, 4),
-                         (0x25000 - 0x3000, 0, 22))
+                         (0x25000 - 0x4000, 0, 22))
         self.assertEqual(machine.read_memory(0x0308F000, size), before)
         self.assertEqual(machine.read_memory(machine.symbols["storage_code_ready"], 1), b"\x01")
         self.assert_healthy(session)
@@ -655,6 +655,81 @@ class EchoImageTest(unittest.TestCase):
         self.assert_only_the_user_volume_changed(rebooted)
         self.assert_healthy(rebooted)
         summary("generated queue editing", rig.session)
+
+    def test_a_saved_mixtape_round_trips_through_the_resident_ui_and_real_fat(self):
+        from echo_emulator.real_volume import real_volume
+        volume = real_volume(playable=True, album_count=1)
+        volume.add_directory(".echo")
+        rig = self.playback_rig(volume)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.press("back")
+        rig.press("back")
+        rig.press_many("next", 3)
+        rig.press("play")
+        rig.press("play")
+        rig.press("play", hold=1300)
+        rig.run_for(500)
+        directory = volume.directory(".echo")
+        directory_lba = rig.session.layout["volume_start"] + volume.cluster_lba(directory.first)
+
+        def file_start(name, sectors):
+            entries = rig.session.disk.read(directory_lba, volume.sectors_per_cluster)
+            for offset in range(0, len(entries), 32):
+                entry = entries[offset:offset + 32]
+                if entry[:11] == name:
+                    cluster = struct.unpack_from("<H", entry, 20)[0] << 16
+                    cluster |= struct.unpack_from("<H", entry, 26)[0]
+                    lba = rig.session.layout["volume_start"] + volume.cluster_lba(cluster)
+                    return rig.session.disk.read(lba, sectors)
+            self.fail("Missing file: %r" % name)
+
+        catalog = file_start(b"MIXES2  BIN", 12)
+        roots = [(struct.unpack_from("<I", catalog, offset + 8)[0], offset)
+                 for offset in (0, 3072) if catalog[offset:offset + 4] == b"MXCA"]
+        self.assertTrue(roots)
+        _, root = max(roots)
+        entry = catalog[root + 512:root + 592]
+        self.assertEqual(entry[:10], b"Mixtape 1\0")
+        self.assertEqual(struct.unpack_from("<H", entry, 68)[0], 12)
+        self.assertEqual(entry[70:72], b"\0\1")
+        tape = file_start(b"MX00A   BIN", 4)
+        self.assertEqual(tape[:4], b"MXTP")
+        self.assertEqual(struct.unpack_from("<H", tape, 6)[0], 12)
+        self.assertEqual(struct.unpack_from("<I", tape, 8)[0],
+                         struct.unpack_from("<I", entry, 64)[0])
+        paths, starts = [], []
+        offset = 512
+        for _ in range(12):
+            length, start, end = struct.unpack_from("<HII", tape, offset)
+            paths.append(tape[offset + 10:offset + 10 + length])
+            starts.append(start)
+            self.assertTrue(end == 0 or end > start)
+            offset += 10 + length
+        self.assertEqual(len(set(paths)), 1)
+        self.assertEqual(len(set(starts)), 12)
+        self.assertTrue(paths[0].endswith(b".flac"))
+        rig.press_many("next", 2)
+        rig.press("play")
+        rig.press("next")
+        rig.press("play")
+        rig.run_for(500)
+        records = file_start(b"SESSION2BIN", 2)
+        record = max((records[start:start + 512] for start in (0, 512)),
+                     key=lambda value: struct.unpack_from("<I", value, 8)[0])
+        self.assertEqual(record[:4], b"ESJN")
+        self.assertEqual(record[280], 1)
+        self.assertEqual(struct.unpack_from("<H", record, 44)[0], 0)
+        self.assert_only_the_user_volume_changed(rig.session)
+        self.assert_healthy(rig.session)
+        rebooted = rig.session.reboot()
+        machine = rebooted.machine
+        machine.note("track_order_open_at")
+        self.assertEqual(rebooted.run_to_home_screen(), "condition met")
+        self.assertGreaterEqual(machine.reached.get("track_order_open_at", 0), 1)
+        self.assert_only_the_user_volume_changed(rebooted)
+        self.assert_healthy(rebooted)
+        summary("saved mixtape", rig.session)
 
     def test_a_deep_cue_track_starts_quickly_and_switching_tracks_keeps_the_ui_smooth(self):
         rig = self.playback_rig()

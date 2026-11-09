@@ -1,5 +1,10 @@
 add_library(echo_playback STATIC
     bookmarks.c
+    mix_api.c
+    mix_catalog.c
+    mix_identity.c
+    mix_tape.c
+    mix_resolve.c
     play_queue.c
     resume_state.c
     session_journal.c

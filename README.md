@@ -4,7 +4,7 @@ Offline investigation of the **standard, full-size ECHO**, using the official 2.
 
 **Result:** REA maps stock Thumb code and several hardware interfaces. The tracked `firmware/` tree provides an open-source full-size ECHO foundation with an SDL simulator and a source-built Cortex-M3 image. This is not recovered original vendor source, and the custom image has not been tested on the owner's device.
 
-Latest [REA hardware tracing and source-foundation evaluation](docs/hardware-interfaces.md).
+Latest [REA hardware tracing and source-foundation evaluation](docs/hardware-interfaces.md). The custom source includes cassette menus, configurable playback buttons, full queue editing and [named saved mixtapes](firmware/docs/mixtapes.md).
 
 The active delivery target and milestones are in [the working firmware goal](docs/goal.md). Current [recovery preparation](docs/recovery-preparation.md) records the built tool, connected-device observations and the pending physical connection check.
 

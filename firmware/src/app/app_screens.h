@@ -28,7 +28,7 @@
 enum {
     HOME_ITEM_COUNT = 6,
     SHELF_COUNT = 2,
-    MUSIC_ITEM_COUNT = 9,
+    MUSIC_ITEM_COUNT = 10,
     DIAGNOSTICS_ITEM_COUNT = 33,
     START_PATH_CAPACITY = 2
 };
@@ -130,6 +130,7 @@ typedef struct AppScreensContext {
     bool *rescan_requested;
     SpokenStore *spoken;
     BluetoothLink *bluetooth;
+    Screen *mixtapes;
 } AppScreensContext;
 
 Screen *app_screens_init(AppScreens *screens, AppScreensContext context);

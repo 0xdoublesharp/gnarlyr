@@ -27,6 +27,7 @@
 #include "hal/power.h"
 #include "library_rescan.h"
 #include "library_store.h"
+#include "mixtape_ui.h"
 #include "music_check.h"
 #include "player.h"
 #include "screens/charge_screen.h"
@@ -80,6 +81,8 @@ typedef struct AppState {
     ScreenStack stack;
     LibraryStore library;
     Player player;
+    MixtapeUi mixtapes;
+    const MixtapeUiApi *mixtape_api;
     SettingsStore settings;
     FavoritesStore favorites;
     SpokenStore spoken;
@@ -185,6 +188,18 @@ static void set_display(bool on)
     }
 }
 
+static bool mixtape_busy(void)
+{
+    return app.mixtape_api != NULL && app.mixtape_api->busy(&app.mixtapes);
+}
+
+static void cancel_mixtape(void)
+{
+    if (mixtape_busy()) {
+        app.mixtape_api->cancel(&app.mixtapes);
+    }
+}
+
 static void save_settings(void)
 {
     settings_store_capture(&app.settings, player_status(&app.player));
@@ -193,6 +208,7 @@ static void save_settings(void)
 
 static void save_session(void)
 {
+    cancel_mixtape();
     spoken_store_flush(&app.spoken, player_status(&app.player), hal_clock_milliseconds());
     player_save(&app.player);
     save_settings();
@@ -215,6 +231,7 @@ static void light_charge_screen(uint32_t now_ms)
 
 static void start_charging(uint32_t now_ms)
 {
+    cancel_mixtape();
     if (player_status(&app.player).state == PLAYER_PLAYING) {
         player_toggle_pause(&app.player);
     }
@@ -376,6 +393,10 @@ static void dispatch_key_events(uint32_t now_ms)
         PowerKeyOutcome outcome = power_policy_key(&app.power, event, now_ms);
         if (outcome.shutdown) {
             shut_down(GOODBYE_TEXT);
+        } else if (mixtape_busy()) {
+            if (event.key == KEY_BACK && event.gesture == KEY_GESTURE_PRESS) {
+                cancel_mixtape();
+            }
         } else if (player_queue_busy(&app.player)) {
             if (event.key == KEY_BACK && event.gesture == KEY_GESTURE_PRESS) {
                 player_queue_cancel(&app.player);
@@ -404,7 +425,7 @@ static bool battery_empty(uint32_t now_ms)
 static void keep_awake_while_busy(uint32_t now_ms)
 {
     if (app.usb_power || player_status(&app.player).state == PLAYER_PLAYING ||
-        player_queue_busy(&app.player)) {
+        player_queue_busy(&app.player) || mixtape_busy()) {
         power_policy_stay_awake(&app.power, now_ms);
     }
 }
@@ -513,7 +534,9 @@ static void draw_frame(void *context, Canvas *canvas)
         return;
     }
     Screen *screen = screen_stack_top(&state->stack);
-    if (player_queue_busy(&state->player)) {
+    if (mixtape_busy()) {
+        app.mixtapes.screen.draw(&app.mixtapes, canvas);
+    } else if (player_queue_busy(&state->player)) {
         draw_queue_progress(canvas);
     } else if (slide_running()) {
         draw_slide(canvas, screen);
@@ -654,6 +677,16 @@ static void open_start_screen(uint32_t now_ms)
 
 static void start_screens(uint32_t now_ms)
 {
+    app.mixtape_api = hal_system_mixtape_ui();
+    Screen *mixtapes =
+        app.mixtape_api == NULL
+            ? NULL
+            : app.mixtape_api->init(
+                  &app.mixtapes, (MixtapeUiConfig){.player = &app.player,
+                                                   .theme = board_theme(),
+                                                   .toast = &app.toast,
+                                                   .now_playing = &app.screens.now_playing.screen,
+                                                   .up_next = &app.screens.up_next.screen});
     AppScreensContext context = {
         .options = &app.options,
         .theme = board_theme(),
@@ -667,6 +700,7 @@ static void start_screens(uint32_t now_ms)
         .covers = &app.covers,
         .rescan_requested = &app.rescan_requested,
         .bluetooth = &app.bluetooth,
+        .mixtapes = mixtapes,
     };
     Screen *root = app_screens_init(&app.screens, context);
     screen_stack_init(&app.stack, root, now_ms);
@@ -778,6 +812,7 @@ static void explain_refusals(uint32_t now_ms)
 
 static void run_rescan(void)
 {
+    cancel_mixtape();
     app_show_notice("Scanning library", "Starting...");
     RescanProgress progress = {show_rescan_progress, show_cover_progress};
     RescanOutcome outcome = library_rescan_run(progress);
@@ -793,6 +828,7 @@ static void run_rescan(void)
 
 void app_release_audio(void)
 {
+    cancel_mixtape();
     spoken_store_flush(&app.spoken, player_status(&app.player), hal_clock_milliseconds());
     player_release_output(&app.player);
 }
@@ -903,6 +939,7 @@ void app_step(void)
         return;
     }
     if (app.music_check_requested) {
+        cancel_mixtape();
         app.music_check_requested = false;
         bool changed = hal_system_restart_pending();
         if (!changed) {
@@ -939,9 +976,15 @@ void app_step(void)
         finish_shut_down();
     }
     if (!app.powered_off) {
-        player_update(&app.player, now_ms);
+        if (mixtape_busy()) {
+            app.mixtape_api->step(&app.mixtapes, now_ms);
+        } else {
+            player_update(&app.player, now_ms);
+        }
         explain_queue_edit(now_ms);
-        bluetooth_link_step(&app.bluetooth, &app.player, now_ms);
+        if (!mixtape_busy()) {
+            bluetooth_link_step(&app.bluetooth, &app.player, now_ms);
+        }
         spoken_store_follow(&app.spoken, player_status(&app.player), now_ms);
         explain_refusals(now_ms);
         update_power(now_ms);

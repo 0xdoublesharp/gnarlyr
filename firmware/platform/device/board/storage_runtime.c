@@ -6,6 +6,7 @@
 #include "../resident/storage_entry.h"
 #include "device/image_crc.h"
 #include "emmc.h"
+#include "hal/system.h"
 
 #define MAIN_CODE_BASE 0x03050000u
 
@@ -123,4 +124,14 @@ SessionLoad session_journal_previous(SessionJournal *journal, SessionState *stat
 SessionSave session_journal_save(SessionJournal *journal, const SessionState *state)
 {
     return storage_code_ready ? api()->session_save(journal, state) : SESSION_SAVE_FAILED;
+}
+
+const void *hal_system_mixtape_api(void)
+{
+    return storage_code_ready ? api()->mixtapes() : NULL;
+}
+
+const void *hal_system_mixtape_ui(void)
+{
+    return storage_code_ready ? api()->mixtape_ui() : NULL;
 }

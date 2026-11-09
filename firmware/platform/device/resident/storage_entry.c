@@ -1,4 +1,5 @@
 #include "storage_entry.h"
+#include "mixtape_ui.h"
 
 #include <stddef.h>
 
@@ -20,4 +21,6 @@ const StorageCodeApi STORAGE_CODE_ENTRY = {
     .session_open = session_journal_open,
     .session_previous = session_journal_previous,
     .session_save = session_journal_save,
+    .mixtapes = mix_code_api,
+    .mixtape_ui = mixtape_ui_api,
 };
