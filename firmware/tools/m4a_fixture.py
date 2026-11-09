@@ -7,7 +7,7 @@ import tempfile
 import wave
 from pathlib import Path
 
-FFMPEG = Path.home() / ".local" / "bin" / "ffmpeg"
+FFMPEG = "ffmpeg"
 FRAMES = 1.0
 GAPLESS_DELAY = 2112
 GAPLESS_PADDING = 700

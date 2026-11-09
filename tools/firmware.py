@@ -11,6 +11,7 @@ SOURCE = ROOT / "firmware"
 SCRATCH = Path("/Volumes/Scratch/SnowskyEcho")
 ARM_DEFAULT = SCRATCH / "tools/arm-15.3-expanded/Payload/bin"
 VENV_DEFAULT = SCRATCH / "tools/podium-python314"
+BUILD_NAME = ROOT.name if (ROOT / ".git").is_file() else "custom-firmware"
 
 
 def link_directory(path, target):
@@ -45,7 +46,7 @@ def environment(jobs):
         if not shutil.which(name, path=env["PATH"]):
             raise SystemExit(f"Missing prerequisite: {name}; see docs/building-firmware.md")
     subprocess.run([str(python), "-c", "import PIL, fontTools, mutagen, unicorn"], check=True, env=env)
-    build = SCRATCH / "build/custom-firmware"
+    build = SCRATCH / "build" / BUILD_NAME
     build.mkdir(parents=True, exist_ok=True)
     Path(env["TMPDIR"]).mkdir(parents=True, exist_ok=True)
     link_directory(SOURCE / "build", build)

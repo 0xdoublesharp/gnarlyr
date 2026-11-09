@@ -6,7 +6,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-FFMPEG = Path.home() / ".local" / "bin" / "ffmpeg"
+FFMPEG = "ffmpeg"
 COOKIE_BYTES = 24
 FIXTURES = [
     {"name": "music_16_44k_stereo", "rate": 44100, "bits": 16, "channels": 2, "frames": 9000,
