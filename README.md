@@ -4,6 +4,8 @@ Offline investigation of the **standard, full-size ECHO**, using the official 2.
 
 **Result:** the container can be mapped and its Thumb code decompiled. Ghidra and REA both produced usable pseudocode. This is a foundation for writing firmware; it is not recovered original source or a replacement firmware release.
 
+The active delivery target and milestones are in [the working firmware goal](docs/goal.md).
+
 Read [the investigation findings](docs/initial-investigation.md) for verified addresses, limits, recovery status, and the next milestone.
 
 ## Files
