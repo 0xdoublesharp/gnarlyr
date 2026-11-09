@@ -2,6 +2,7 @@
 
 #include "hal/audio.h"
 #include "hal/clock.h"
+#include "ui/icons.h"
 
 enum {
     BRIGHTNESS_LEVEL_COUNT = SETTINGS_BRIGHTNESS_MAX - SETTINGS_BRIGHTNESS_MIN + 1,
@@ -233,6 +234,11 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {"Theme", THEME_OPTIONS, APPEARANCE_THEME_COUNT, current_theme, choose_theme, NULL},
 };
 
+static const uint8_t CHOICE_ICONS[SETTINGS_CHOICE_COUNT] = {
+    ICON_SHUFFLE, ICON_REPEAT, ICON_SLEEP, ICON_POWER, ICON_TIMEOUT, ICON_DISPLAY,
+    ICON_GAIN,    ICON_JACK,   ICON_START, ICON_USB,   ICON_THEME,
+};
+
 static ScreenAction open_choice(void *context)
 {
     SettingsEntry *entry = context;
@@ -285,10 +291,13 @@ typedef struct SettingsGroupSpec {
 
 static const SettingsGroupSpec GROUPS[SETTINGS_GROUP_COUNT] = {
     {"Audio & connections", {6, 7, 9}, 3},
-    {"Playback", {0, 1}, 2},
-    {"Appearance", {10, 5, 4}, 3},
-    {"Power & sleep", {3, 2}, 2},
+    {"Shuffle & repeat", {0, 1}, 2},
+    {"Display", {10, 5}, 2},
+    {"Power & sleep", {3, 2, 4}, 3},
 };
+
+static const uint8_t GROUP_ICONS[SETTINGS_GROUP_COUNT] = {ICON_AUDIO, ICON_SHUFFLE, ICON_DISPLAY,
+                                                          ICON_POWER};
 
 static MenuItem choice_item(SettingsEntry *entry)
 {
@@ -296,7 +305,8 @@ static MenuItem choice_item(SettingsEntry *entry)
                       .select = open_choice,
                       .context = entry,
                       .value = choice_value,
-                      .opens = true};
+                      .opens = true,
+                      .icon = CHOICE_ICONS[entry->choice - CHOICES]};
 }
 
 static ScreenAction open_group(void *context)
@@ -313,7 +323,8 @@ static ScreenAction open_group(void *context)
                                                    .select = bluetooth_screen_open,
                                                    .context = screens->context.bluetooth,
                                                    .value = bluetooth_screen_summary,
-                                                   .opens = true};
+                                                   .opens = true,
+                                                   .icon = ICON_BLUETOOTH};
     }
     MenuConfig menu = {.title = spec->title,
                        .items = screens->group_items,
@@ -335,17 +346,24 @@ static void build_items(SettingsScreens *screens, Screen *buttons)
         screens->items[index] = (MenuItem){.label = GROUPS[index].title,
                                            .select = open_group,
                                            .context = &screens->groups[index],
-                                           .opens = true};
+                                           .opens = true,
+                                           .icon = GROUP_ICONS[index]};
     }
-    screens->items[4] = (MenuItem){
-        .label = "Playback buttons", .select = open_buttons, .context = buttons, .opens = true};
+    screens->items[4] = (MenuItem){.label = "Controls",
+                                   .select = open_buttons,
+                                   .context = buttons,
+                                   .opens = true,
+                                   .icon = ICON_CONTROLS};
     screens->items[5] = choice_item(&screens->entries[8]);
-    screens->items[6] = (MenuItem){
-        .label = "Rescan library", .select = request_rescan, .context = &screens->context};
+    screens->items[6] = (MenuItem){.label = "Rescan library",
+                                   .select = request_rescan,
+                                   .context = &screens->context,
+                                   .icon = ICON_RESCAN};
     screens->items[7] = (MenuItem){.label = "Diagnostics",
                                    .select = menu_open_screen,
                                    .context = screens->context.diagnostics,
-                                   .opens = true};
+                                   .opens = true,
+                                   .icon = ICON_DIAGNOSTICS};
 }
 
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context, const Theme *theme)

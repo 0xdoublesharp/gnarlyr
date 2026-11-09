@@ -7,6 +7,7 @@
 #include "diagnostics_values.h"
 #include "hal/power.h"
 #include "hal/system.h"
+#include "ui/icons.h"
 
 typedef enum MusicSource {
     MUSIC_COVER_FLOW,
@@ -38,6 +39,16 @@ static const MusicEntry MUSIC_ENTRIES[MUSIC_ITEM_COUNT] = {
     {"All Songs", MUSIC_LIBRARY, BROWSE_ALL_SONGS},
     {"Playlists", MUSIC_LIBRARY, BROWSE_PLAYLISTS},
     {"Favorites", MUSIC_FAVORITES, BROWSE_ALBUMS},
+};
+
+static const uint8_t MUSIC_ICONS[MUSIC_ITEM_COUNT] = {
+    ICON_COVER_FLOW, ICON_ARTIST, ICON_ALBUM_ARTIST, ICON_ALBUM,    ICON_GENRE,
+    ICON_FOLDER,     ICON_SONG,   ICON_PLAYLIST,     ICON_FAVORITE, ICON_MIXTAPE,
+};
+
+static const uint8_t HOME_ICONS[HOME_ITEM_COUNT] = {
+    ICON_MUSIC,   ICON_AUDIOBOOK, ICON_PODCAST,  ICON_NOW_PLAYING,
+    ICON_MIXTAPE, ICON_AUDIO,     ICON_SETTINGS,
 };
 
 static bool player_has_track(const void *context)
@@ -130,6 +141,9 @@ static void build_music(AppScreens *screens, AppScreensContext context)
     }
     screens->music_items[MUSIC_ITEM_COUNT - 1] = app_screens_open_item(
         "Mixtapes", context.mixtapes != NULL ? context.mixtapes : &screens->no_library.screen);
+    for (int index = 0; index < MUSIC_ITEM_COUNT; index++) {
+        screens->music_items[index].icon = MUSIC_ICONS[index];
+    }
     app_screens_build_menu(&screens->music, "Music", screens->music_items, MUSIC_ITEM_COUNT,
                            context.theme);
 }
@@ -191,6 +205,9 @@ static void build_home(AppScreens *screens, AppScreensContext context)
                                         .context = &screens->settings,
                                         .opens = true};
     screens->home_items[6] = app_screens_open_item("Settings", &screens->settings.menu.screen);
+    for (int index = 0; index < HOME_ITEM_COUNT; index++) {
+        screens->home_items[index].icon = HOME_ICONS[index];
+    }
     home_art_init(&screens->home_art, context.covers, context.store, context.player, theme);
     MenuConfig home = {.title = "Podium",
                        .items = screens->home_items,
@@ -206,8 +223,10 @@ static void build_home(AppScreens *screens, AppScreensContext context)
 Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
 {
     const Theme *theme = context.theme;
-    MessageConfig no_library = {
-        .title = "No library", .message = "Copy music to the player over USB", .theme = theme};
+    MessageConfig no_library = {.title = "No library",
+                                .message = "Copy music to the player over USB",
+                                .theme = theme,
+                                .icon = ICON_MUSIC};
     UpNextConfig up_next = {.library = &context.store->library,
                             .theme = theme,
                             .player = context.player,

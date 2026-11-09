@@ -17,9 +17,12 @@ typedef struct NowPlayingLayout {
     int detail_top;
     int modes_top;
     int small_line_height;
+    int volume_top;
+    int deck_top;
+    int times_top;
     int progress_top;
     int progress_height;
-    int times_top;
+    int legend_top;
 } NowPlayingLayout;
 
 typedef struct CoverFlowTextLayout {

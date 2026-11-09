@@ -13,8 +13,14 @@
 #include "ui/theme.h"
 
 enum {
-    NOW_PLAYING_TEXT_CAPACITY = 128
+    NOW_PLAYING_TEXT_CAPACITY = 128,
+    NOW_PLAYING_HINT_CAPACITY = 4
 };
+
+typedef struct NowPlayingHint {
+    uint8_t icon;
+    const char *label;
+} NowPlayingHint;
 
 typedef enum NowPlayingCommand {
     NOW_PLAYING_NONE,
@@ -90,4 +96,5 @@ NowPlayingFeedback now_playing_feedback_for(NowPlayingCommand command, PlayerSta
 bool now_playing_feedback_visible(NowPlayingFeedback feedback, uint32_t started_ms,
                                   uint32_t now_ms);
 int now_playing_volume_width(uint8_t volume, int width);
+int now_playing_hints(const Settings *settings, bool scrubbing, NowPlayingHint *hints);
 Screen *now_playing_screen_init(NowPlayingScreen *now_playing, NowPlayingConfig config);

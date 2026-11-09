@@ -83,7 +83,7 @@ void home_art_update(void *context, uint32_t now_ms)
 static void draw_caption(const HomeArt *art, Canvas *canvas, Rect area)
 {
     PlayerStatus status = player_status(art->player);
-    const char *caption = status.state == PLAYER_PLAYING ? "SIDE A / PLAY" : "SIDE A / PAUSE";
+    const char *caption = status.state == PLAYER_PLAYING ? "NOW PLAYING" : "PAUSED";
     if (!status.has_track) {
         caption = art->has_album ? "ALBUM COLLECTION" : "READY FOR MUSIC";
     }
@@ -130,8 +130,10 @@ void home_art_draw(void *context, Canvas *canvas, Rect area)
                         (Quad){left, COVER_FULL_SIZE, top, COVER_FULL_SIZE, top, COVER_FULL_SIZE});
     } else {
         PlayerStatus status = player_status(art->player);
-        cassette_art_draw(canvas, (Rect){left, top + 4, COVER_FULL_SIZE, 104}, art->theme,
-                          status.position_ms);
+        CassetteTape tape = {status.position_ms, status.duration_ms, "PODIUM"};
+        Rect cassette = {left, top + (COVER_FULL_SIZE - CASSETTE_HEIGHT) / 2, CASSETTE_WIDTH,
+                         CASSETTE_HEIGHT};
+        cassette_art_draw(canvas, cassette, art->theme, tape);
     }
     draw_caption(art, canvas, area);
 }

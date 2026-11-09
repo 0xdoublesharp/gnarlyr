@@ -61,11 +61,11 @@ static void a_paused_player_shows_two_bars(void)
     Canvas canvas = draw_status(&theme, (StatusBarState){.playback = STATUS_PLAYBACK_PAUSED});
     Rect icon = status_bar_playback_area(&theme);
     Rect first = {icon.x, icon.y, 1, icon.height};
-    Rect gap = {icon.x + 2, icon.y, 3, icon.height};
-    Rect last = {icon.x + icon.width - 1, icon.y, 1, icon.height};
+    Rect gap = {icon.x + icon.width / 2 - 1, icon.y, 1, icon.height};
+    Rect second = {icon.x + icon.width / 2, icon.y, 1, icon.height};
     CHECK(ui_test_area_has_only(&canvas, first, theme.colors.header_text));
     CHECK(!ui_test_area_has_color(&canvas, gap, theme.colors.header_text));
-    CHECK(ui_test_area_has_only(&canvas, last, theme.colors.header_text));
+    CHECK(ui_test_area_has_only(&canvas, second, theme.colors.header_text));
 }
 
 static void the_battery_sits_inside_the_right_inset(void)

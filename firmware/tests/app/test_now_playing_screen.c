@@ -2,6 +2,7 @@
 
 #include "check.h"
 #include "screens/now_playing_screen.h"
+#include "ui/icons.h"
 
 enum {
     TEXT_CAPACITY = 48
@@ -247,9 +248,36 @@ static void only_volume_actions_repeat_after_a_hold(void)
     CHECK_EQUAL(NOW_PLAYING_VOLUME_UP, now_playing_configured_command_for(event, false, &settings));
 }
 
+static void the_button_legend_follows_the_assigned_actions(void)
+{
+    Settings settings = settings_defaults();
+    NowPlayingHint hints[NOW_PLAYING_HINT_CAPACITY];
+    CHECK_EQUAL(4, now_playing_hints(&settings, false, hints));
+    CHECK_EQUAL(ICON_PREVIOUS, hints[0].icon);
+    CHECK_EQUAL(ICON_NEXT, hints[1].icon);
+    CHECK_EQUAL(ICON_SEEK, hints[2].icon);
+    CHECK_EQUAL(ICON_QUEUE, hints[3].icon);
+    settings.button_actions[PLAYBACK_VOLUME_UP_HOLD] = BUTTON_ACTION_NONE;
+    settings.button_actions[PLAYBACK_PLAY_TAP] = BUTTON_ACTION_NEXT;
+    CHECK_EQUAL(4, now_playing_hints(&settings, false, hints));
+    CHECK_EQUAL(ICON_SEEK, hints[1].icon);
+    CHECK_EQUAL(ICON_NEXT, hints[3].icon);
+    CHECK(strcmp("Play", hints[3].label) == 0);
+}
+
+static void seeking_shows_how_to_move_jump_and_cancel(void)
+{
+    NowPlayingHint hints[NOW_PLAYING_HINT_CAPACITY];
+    CHECK_EQUAL(3, now_playing_hints(NULL, true, hints));
+    CHECK_EQUAL(ICON_SEEK, hints[0].icon);
+    CHECK_EQUAL(ICON_PLAY, hints[1].icon);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(the_button_legend_follows_the_assigned_actions),
+        TEST_CASE(seeking_shows_how_to_move_jump_and_cancel),
         TEST_CASE(the_codec_has_a_short_name),
         TEST_CASE(default_shortcuts_match_the_existing_controls),
         TEST_CASE(each_media_gesture_can_be_assigned_an_action),

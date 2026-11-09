@@ -9,9 +9,7 @@ enum {
     BORDER = 1,
     FILL_INSET = 2,
     NUB_DIVISOR = 5,
-    BOLT_WIDTH_TENTHS = 6,
-    BLUETOOTH_WIDTH_TENTHS = 7,
-    TENTHS = 10,
+
     FULL_PERCENT = 100
 };
 
@@ -34,9 +32,8 @@ Rect status_bar_playback_area(const Theme *theme)
 Rect status_bar_bluetooth_area(const Theme *theme)
 {
     Rect playback = status_bar_playback_area(theme);
-    int width = playback.width * BLUETOOTH_WIDTH_TENTHS / TENTHS;
     return (Rect){playback.x + playback.width + theme->metrics.padding / 2, playback.y,
-                  width > 0 ? width : 1, playback.height};
+                  playback.width, playback.height};
 }
 
 Rect status_bar_battery_area(const Theme *theme)
@@ -69,10 +66,8 @@ static int percent_gap(const Theme *theme)
 Rect status_bar_bolt_area(const Theme *theme)
 {
     Rect battery = status_bar_battery_area(theme);
-    int width = theme->metrics.status_icon_size * BOLT_WIDTH_TENTHS / TENTHS;
-    int bolt_width = width > 0 ? width : 1;
-    return (Rect){battery.x - percent_gap(theme) - bolt_width, battery.y, bolt_width,
-                  battery.height};
+    int size = theme->metrics.status_icon_size;
+    return (Rect){battery.x - percent_gap(theme) - size, battery.y, size, size};
 }
 
 Rect status_bar_percent_area(const Theme *theme, const char *text, bool charging)
@@ -127,24 +122,28 @@ static void draw_battery(Canvas *canvas, const Theme *theme, StatusBarState stat
     canvas_fill_rect(canvas, inner, fill_color(theme, state));
 }
 
+static void draw_glyph(Canvas *canvas, IconId icon, Rect area, Color color)
+{
+    icon_draw(canvas, icon, area, (IconInk){color, color});
+}
+
 void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state)
 {
-    Rect icon = status_bar_playback_area(theme);
     Color color = theme->colors.header_text;
-    if (state.playback == STATUS_PLAYBACK_PLAYING) {
-        icon_draw_play(canvas, icon, color);
-    } else if (state.playback == STATUS_PLAYBACK_PAUSED) {
-        icon_draw_pause(canvas, icon, color);
+    if (state.playback != STATUS_PLAYBACK_NONE) {
+        IconId icon = state.playback == STATUS_PLAYBACK_PLAYING ? ICON_PLAY : ICON_PAUSE;
+        draw_glyph(canvas, icon, status_bar_playback_area(theme), color);
     }
     if (state.bluetooth != STATUS_BLUETOOTH_OFF) {
         Color tint =
             state.bluetooth == STATUS_BLUETOOTH_CONNECTED ? color : theme->colors.status_pending;
-        icon_draw_bluetooth(canvas, status_bar_bluetooth_area(theme), tint);
+        draw_glyph(canvas, ICON_BLUETOOTH_SMALL, status_bar_bluetooth_area(theme), tint);
     }
     if (state.battery_known) {
         draw_battery(canvas, theme, state);
         if (state.charging) {
-            icon_draw_bolt(canvas, status_bar_bolt_area(theme), theme->colors.status_success);
+            draw_glyph(canvas, ICON_BOLT, status_bar_bolt_area(theme),
+                       theme->colors.status_success);
         }
         draw_percent(canvas, theme, state.battery_percent, state.charging);
     }

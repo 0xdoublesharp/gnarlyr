@@ -265,9 +265,10 @@ static void draw(void *context, Canvas *canvas)
     if (mixtape_ui_busy(ui)) {
         MessageScreen message;
         Screen *screen = message_screen_init(
-            &message,
-            (MessageConfig){ui->stage >= MIXTAPE_OPEN ? "Opening mixtape" : "Saving mixtape",
-                            "Back cancels", ui->config.theme});
+            &message, (MessageConfig){.title = ui->stage >= MIXTAPE_OPEN ? "Opening mixtape"
+                                                                         : "Saving mixtape",
+                                      .message = "Back cancels",
+                                      .theme = ui->config.theme});
         screen->draw(screen->context, canvas);
         return;
     }

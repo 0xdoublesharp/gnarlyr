@@ -8,14 +8,16 @@
 #include "hal/clock.h"
 #include "library/sort_key.h"
 #include "ui/header.h"
+#include "ui/icons.h"
 #include "ui/label.h"
 #include "ui/list_navigation.h"
+#include "ui/message_screen.h"
 
 enum {
     NO_LEVEL = -1
 };
 
-static const char EMPTY_MESSAGE[] = "Nothing here";
+static const char EMPTY_MESSAGE[] = "Nothing here yet \xE2\x80\x93 add music over USB";
 static const char NO_FAVORITES_MESSAGE[] = "Hold Play on an album to add it";
 static const char NO_BOOKS_MESSAGE[] = "Put books in an Audiobooks folder";
 static const char NO_SHOWS_MESSAGE[] = "Put shows in a Podcasts folder";
@@ -471,23 +473,18 @@ static void update(void *context, uint32_t now_ms)
     refresh_rows(browse);
 }
 
-static void draw_empty(Canvas *canvas, const Theme *theme, Rect content, const char *message)
-{
-    TextStyle style = {.font = theme->fonts.body, .color = theme->colors.text_secondary};
-    canvas_fill_rect(canvas, content, theme->colors.background);
-    Rect area = label_centered_area(style.font, content, message);
-    label_draw(canvas, style, (Label){.area = area, .text = message});
-}
-
-static const char *empty_message(const BrowseScreen *browse)
+static MessageCard empty_card(const BrowseScreen *browse)
 {
     if (browse->favorites_only) {
-        return NO_FAVORITES_MESSAGE;
+        return (MessageCard){ICON_FAVORITE, NO_FAVORITES_MESSAGE};
+    }
+    if (browse->shelf_root && browse->shelf == SPOKEN_PODCAST) {
+        return (MessageCard){ICON_PODCAST, NO_SHOWS_MESSAGE};
     }
     if (browse->shelf_root) {
-        return browse->shelf == SPOKEN_PODCAST ? NO_SHOWS_MESSAGE : NO_BOOKS_MESSAGE;
+        return (MessageCard){ICON_AUDIOBOOK, NO_BOOKS_MESSAGE};
     }
-    return EMPTY_MESSAGE;
+    return (MessageCard){ICON_FOLDER, EMPTY_MESSAGE};
 }
 
 static void draw(void *context, Canvas *canvas)
@@ -497,7 +494,8 @@ static void draw(void *context, Canvas *canvas)
     Rect content = theme_content_area(theme);
     header_draw(canvas, theme, browse->title);
     if (browse->count == 0) {
-        draw_empty(canvas, theme, content, empty_message(browse));
+        canvas_fill_rect(canvas, content, theme->colors.background);
+        message_draw_card(canvas, theme, content, empty_card(browse));
         return;
     }
     list_view_draw(&browse->list, canvas, content, browse->now_ms);

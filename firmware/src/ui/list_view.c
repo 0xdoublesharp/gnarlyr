@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "gfx/text.h"
+#include "ui/icons.h"
 #include "ui/label.h"
 
 enum {
@@ -179,6 +180,25 @@ static TextStyle row_style(const ListView *view, bool selected, Color normal)
     return (TextStyle){.font = view->theme->fonts.body, .color = color};
 }
 
+static Row draw_icon(const ListView *view, Canvas *canvas, Row row)
+{
+    const ListModel *model = view->model;
+    IconId icon = model->icon != NULL ? (IconId)model->icon(model->context, row.index) : ICON_NONE;
+    if (icon == ICON_NONE) {
+        return row;
+    }
+    const ThemeColors *colors = &view->theme->colors;
+    int size = icon_grid(icon);
+    Rect area = {row.text.x, row.text.y + (row.text.height - size) / 2, size, size};
+    IconInk ink = row.selected ? (IconInk){colors->selection_text, colors->selection_text}
+                               : (IconInk){colors->text_secondary, colors->accent};
+    icon_draw(canvas, icon, area, ink);
+    int shift = size + view->theme->metrics.detail_gap;
+    row.text.x += shift;
+    row.text.width -= shift;
+    return row;
+}
+
 static Row draw_chevron(const ListView *view, Canvas *canvas, Row row)
 {
     const ListModel *model = view->model;
@@ -237,7 +257,8 @@ static void draw_row(const ListView *view, Canvas *canvas, Row row, uint32_t now
         canvas_fill_rect(canvas, shine, colors->selection_shine);
         canvas_fill_gradient(canvas, bar, colors->selection_top, colors->selection_background);
     }
-    draw_label(view, canvas, draw_detail(view, canvas, draw_chevron(view, canvas, row)), now_ms);
+    Row text = draw_chevron(view, canvas, draw_icon(view, canvas, row));
+    draw_label(view, canvas, draw_detail(view, canvas, text), now_ms);
 }
 
 static void draw_scrollbar(const ListView *view, Canvas *canvas, Rect area)

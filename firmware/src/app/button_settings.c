@@ -2,6 +2,8 @@
 
 #include <stddef.h>
 
+#include "ui/icons.h"
+
 static const char *const ACTIONS[BUTTON_ACTION_COUNT] = {
     "Off",      "Play / Pause", "Up Next", "Seek", "Next track", "Previous track",
     "Volume +", "Volume -",     "Home",
@@ -10,6 +12,8 @@ static const char *const BUTTONS[PLAYBACK_BUTTON_COUNT] = {
     "Volume+ tap", "Volume+ hold", "Volume- tap", "Volume- hold",
     "Play tap",    "Play hold",    "Menu tap",    "Menu hold",
 };
+static const uint8_t KEY_ICONS[PLAYBACK_BUTTON_COUNT / 2] = {ICON_KEY_PLUS, ICON_KEY_MINUS,
+                                                             ICON_KEY_PLAY, ICON_KEY_MENU};
 
 static int current(const void *context)
 {
@@ -72,11 +76,12 @@ Screen *button_settings_init(ButtonSettings *buttons, ButtonSettingsConfig confi
                                            .select = open,
                                            .context = &buttons->entries[index],
                                            .value = value,
-                                           .opens = true};
+                                           .opens = true,
+                                           .icon = KEY_ICONS[index / 2]};
     }
-    buttons->items[PLAYBACK_BUTTON_COUNT] =
-        (MenuItem){.label = "Reset buttons", .select = reset, .context = buttons};
-    MenuConfig menu = {.title = "Playback buttons",
+    buttons->items[PLAYBACK_BUTTON_COUNT] = (MenuItem){
+        .label = "Reset buttons", .select = reset, .context = buttons, .icon = ICON_RESCAN};
+    MenuConfig menu = {.title = "Controls",
                        .items = buttons->items,
                        .item_count = PLAYBACK_BUTTON_COUNT + 1,
                        .theme = config.theme};

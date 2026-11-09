@@ -12,4 +12,4 @@ add_library(echo_core STATIC
     utf8.c
 )
 target_include_directories(echo_core PUBLIC include)
-target_link_libraries(echo_core PRIVATE echo_options)
+target_link_libraries(echo_core PRIVATE echo_options echo_compact)

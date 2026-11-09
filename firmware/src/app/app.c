@@ -523,7 +523,7 @@ static void draw_queue_progress(Canvas *canvas)
     string_builder_append_unsigned(&builder, percent);
     string_builder_append(&builder, "% - Back cancels");
     MessageScreen message;
-    MessageConfig config = {"Saving queue", text, board_theme()};
+    MessageConfig config = {.title = "Saving queue", .message = text, .theme = board_theme()};
     Screen *screen = message_screen_init(&message, config);
     screen->draw(screen->context, canvas);
 }
@@ -1021,7 +1021,9 @@ bool app_charging(void)
 
 void app_show_notice(const char *title, const char *message)
 {
-    MessageConfig config = {.title = title, .message = message, .theme = &NOTICE_THEME};
+    Theme theme = NOTICE_THEME;
+    echo_theme_apply(&theme, app.settings.settings.appearance);
+    MessageConfig config = {.title = title, .message = message, .theme = &theme};
     Screen *screen = message_screen_init(&app.notice, config);
     if (!app.display_on) {
         set_display(true);

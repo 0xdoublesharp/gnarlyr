@@ -24,6 +24,7 @@ const Theme TEST_THEME = {
             .status_danger = 0xF800,
             .status_success = 0x07E0,
             .status_pending = 0x4208,
+            .accent = 0xFD20,
         },
     .fonts = {.title = &TINY_FONT, .body = &TINY_FONT, .small = &TINY_FONT},
     .metrics =

@@ -8,8 +8,10 @@
 #include "draw_profile.h"
 #include "hal/clock.h"
 #include "ui/cover_flow.h"
+#include "ui/icons.h"
 #include "ui/label.h"
 #include "ui/marquee.h"
+#include "ui/message_screen.h"
 #include "ui/navigation.h"
 
 enum {
@@ -17,18 +19,16 @@ enum {
     REFLECTION_LIGHT = 80,
     RANDOM_POSITION = 0,
     SHUFFLE_SIZE = 48,
-    SHUFFLE_STROKE = 4
+    SHUFFLE_ICON = 2 * ICON_LARGE_GRID,
+    SIXTEENTHS = 16
 };
 
 static const char STAR_PREFIX[] = "\xE2\x98\x85 ";
-static const char EMPTY_MESSAGE[] = "Nothing here";
+static const char EMPTY_MESSAGE[] = "No albums yet \xE2\x80\x93 copy music over USB";
 static const char RANDOM_TITLE[] = "Random album";
 static const char RANDOM_HINT[] = "Play any album";
-static const Color SHUFFLE_BACKGROUND = COLOR_RGB(44, 46, 58);
-static const Color SHUFFLE_MARK = COLOR_RGB(255, 255, 255);
 
 static Color shuffle_pixels[SHUFFLE_SIZE * SHUFFLE_SIZE];
-static bool shuffle_drawn;
 
 static int min_of(int first, int second)
 {
@@ -109,48 +109,18 @@ static uint16_t album_of(const CoverFlowScreen *flow, int position)
     return album;
 }
 
-static void plot(int x, int y)
+static void paint_shuffle_card(const Theme *theme)
 {
-    for (int row = y - SHUFFLE_STROKE / 2; row < y + SHUFFLE_STROKE / 2; row++) {
-        for (int column = x - SHUFFLE_STROKE / 2; column < x + SHUFFLE_STROKE / 2; column++) {
-            if (row >= 0 && row < SHUFFLE_SIZE && column >= 0 && column < SHUFFLE_SIZE) {
-                shuffle_pixels[row * SHUFFLE_SIZE + column] = SHUFFLE_MARK;
-            }
-        }
-    }
-}
-
-static void stroke(int from_x, int from_y, int to_x, int to_y)
-{
-    int steps = max_of(max_of(to_x - from_x, from_x - to_x), max_of(to_y - from_y, from_y - to_y));
-    for (int step = 0; step <= steps; step++) {
-        int x = from_x + (to_x - from_x) * step / max_of(steps, 1);
-        int y = from_y + (to_y - from_y) * step / max_of(steps, 1);
-        plot(x, y);
-    }
-}
-
-static void draw_shuffle_mark(void)
-{
-    for (int index = 0; index < SHUFFLE_SIZE * SHUFFLE_SIZE; index++) {
-        shuffle_pixels[index] = SHUFFLE_BACKGROUND;
-    }
-    static const int16_t LINES[][4] = {
-        {9, 34, 16, 34},  {16, 34, 30, 14}, {30, 14, 39, 14}, {39, 14, 34, 9},
-        {39, 14, 34, 19}, {9, 14, 16, 14},  {16, 14, 22, 23}, {25, 27, 30, 34},
-        {30, 34, 39, 34}, {39, 34, 34, 29}, {39, 34, 34, 39},
-    };
-    for (size_t index = 0; index < sizeof LINES / sizeof LINES[0]; index++) {
-        stroke(LINES[index][0], LINES[index][1], LINES[index][2], LINES[index][3]);
-    }
-    shuffle_drawn = true;
+    Canvas card = canvas_make(shuffle_pixels, (Rect){0, 0, SHUFFLE_SIZE, SHUFFLE_SIZE});
+    canvas_clear(&card, theme->colors.selection_background);
+    int inset = (SHUFFLE_SIZE - SHUFFLE_ICON) / 2;
+    Color ink = theme->colors.selection_text;
+    icon_draw(&card, ICON_SHUFFLE, (Rect){inset, inset, SHUFFLE_ICON, SHUFFLE_ICON},
+              (IconInk){ink, ink});
 }
 
 static Image shuffle_image(void)
 {
-    if (!shuffle_drawn) {
-        draw_shuffle_mark();
-    }
     return (Image){.pixels = shuffle_pixels, .width = SHUFFLE_SIZE, .height = SHUFFLE_SIZE};
 }
 
@@ -330,6 +300,7 @@ static void enter(void *context, uint32_t now_ms)
     flow->position = (int32_t)flow->target * COVER_FLOW_ONE;
     flow->last_ms = now_ms;
     flow->now_ms = now_ms;
+    paint_shuffle_card(flow->config.theme);
     refresh_text(flow, true);
 }
 
@@ -355,6 +326,36 @@ static bool cover_image(const CoverFlowScreen *flow, int position, Image *image)
            cover_cache_half(flow->config.covers, position, album, image) == COVER_LOADED;
 }
 
+static int quad_edge(int from, int to, int sixteenths)
+{
+    return from + (to - from) * sixteenths / SIXTEENTHS;
+}
+
+static Quad quad_part(Quad quad, int top, int bottom, int inset)
+{
+    int far = SIXTEENTHS - inset;
+    int left_top = quad_edge(quad.left_top, quad.right_top, inset);
+    int left_height = quad_edge(quad.left_height, quad.right_height, inset);
+    int right_top = quad_edge(quad.left_top, quad.right_top, far);
+    int right_height = quad_edge(quad.left_height, quad.right_height, far);
+    return (Quad){quad_edge(quad.left, quad.left + quad.width, inset),
+                  quad.width * (far - inset) / SIXTEENTHS,
+                  left_top + left_height * top / SIXTEENTHS,
+                  left_height * (bottom - top) / SIXTEENTHS,
+                  right_top + right_height * top / SIXTEENTHS,
+                  right_height * (bottom - top) / SIXTEENTHS};
+}
+
+static void draw_placeholder(const CoverFlowScreen *flow, Canvas *canvas, Quad quad,
+                             QuadLight light)
+{
+    const ThemeColors *colors = &flow->config.theme->colors;
+    unsigned shade = (light.left + light.right) / 2u;
+    image_fill_quad(canvas, quad, color_scale(colors->divider, shade));
+    image_fill_quad(canvas, quad_part(quad, 3, 11, 3),
+                    color_scale(colors->selection_background, shade));
+}
+
 static void draw_cover(const CoverFlowScreen *flow, Canvas *canvas, int position)
 {
     int32_t relative = (int32_t)position * COVER_FLOW_ONE - flow->position;
@@ -375,7 +376,7 @@ static void draw_cover(const CoverFlowScreen *flow, Canvas *canvas, int position
                               BOARD_LAYOUT.cover_flow_text.reflection_rows);
         draw_profile_add(DRAW_PART_REFLECTIONS, hal_clock_microseconds() - reflection_us);
     } else {
-        image_fill_quad(canvas, quad, flow->config.theme->colors.divider);
+        draw_placeholder(flow, canvas, quad, light);
     }
 }
 
@@ -409,10 +410,9 @@ static void draw_text(const CoverFlowScreen *flow, Canvas *canvas)
 
 static void draw_empty(const Theme *theme, Canvas *canvas)
 {
-    TextStyle style = {.font = theme->fonts.body, .color = theme->colors.header_text};
     Rect screen = {0, 0, theme->metrics.screen_width, theme->metrics.screen_height};
-    label_draw(canvas, style,
-               (Label){label_centered_area(style.font, screen, EMPTY_MESSAGE), EMPTY_MESSAGE});
+    canvas_fill_rect(canvas, screen, theme->colors.background);
+    message_draw_card(canvas, theme, screen, (MessageCard){ICON_COVER_FLOW, EMPTY_MESSAGE});
 }
 
 static void draw_backdrop(const Theme *theme, Canvas *canvas)

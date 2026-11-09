@@ -25,6 +25,7 @@ typedef struct ListModel {
     bool (*opens)(const void *context, int index);
     int detail_max_width;
     int (*section)(const void *context, int index);
+    uint8_t (*icon)(const void *context, int index);
 } ListModel;
 
 typedef struct ListView {

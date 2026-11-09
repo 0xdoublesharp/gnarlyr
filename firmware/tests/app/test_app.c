@@ -4,6 +4,7 @@
 #include "app_internal.h"
 #include "board_layout.h"
 #include "card_files.h"
+#include "cassette_art.h"
 #include "check.h"
 #include "default_theme.h"
 #include "fake_hal.h"
@@ -570,7 +571,7 @@ static void the_home_menu_hides_now_playing_with_nothing_loaded(void)
 
 static void open_setting(int index)
 {
-    static const int groups[] = {1, 1, 0, 3, 3, 2, 2, 0, 0, 5, 6};
+    static const int groups[] = {1, 1, 0, 3, 3, 3, 2, 0, 0, 5, 6};
     static const int choices[] = {0, 1, 3, 1, 0, 2, 1, 0, 1, -1, -1};
     open_settings_menu();
     move_down(groups[index]);
@@ -588,7 +589,7 @@ static void settings_choose_shuffle_and_repeat(void)
     CHECK(title_is("Shuffle"));
     move_down(1);
     tap(KEY_PLAY);
-    CHECK(title_is("Playback"));
+    CHECK(title_is("Shuffle & repeat"));
     CHECK_EQUAL(SHUFFLE_SONGS, app_player_status().shuffle);
     move_down(SETTINGS_REPEAT_INDEX);
     tap(KEY_PLAY);
@@ -604,7 +605,7 @@ static void playback_buttons_can_be_opened_from_settings(void)
     open_settings_menu();
     move_down(4);
     tap(KEY_PLAY);
-    CHECK(title_is("Playback buttons"));
+    CHECK(title_is("Controls"));
 }
 
 static bool saved_settings(Settings *settings)
@@ -1820,9 +1821,9 @@ static void now_playing_without_a_cover_shows_a_cassette(void)
     wait_ms(SLIDE_DURATION_MS);
     step();
     CHECK(title_is("Now Playing"));
-    CHECK_EQUAL(
-        BOARD_THEME.colors.header_background,
-        fake_hal_pixel(BOARD_THEME.metrics.padding + 10, BOARD_LAYOUT.now_playing.cover_top + 40));
+    int top = BOARD_LAYOUT.now_playing.cover_top + (COVER_FULL_SIZE - CASSETTE_HEIGHT) / 2;
+    CHECK_EQUAL(BOARD_THEME.colors.selection_background,
+                fake_hal_pixel(BOARD_THEME.metrics.padding + 10, top + CASSETTE_HEIGHT / 2));
 }
 
 static void an_unchanged_frame_sends_no_pixels(void)
@@ -2198,12 +2199,12 @@ static void choosing_a_theme_changes_the_display_and_survives_restart(void)
     open_settings_menu();
     move_down(2);
     tap(KEY_PLAY);
-    CHECK(title_is("Appearance"));
+    CHECK(title_is("Display"));
     tap(KEY_PLAY);
     CHECK(title_is("Theme"));
     move_down(2);
     tap(KEY_PLAY);
-    CHECK(title_is("Appearance"));
+    CHECK(title_is("Display"));
     wait_ms(SLIDE_DURATION_MS);
     step();
     Settings chosen;

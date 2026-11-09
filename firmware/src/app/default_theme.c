@@ -25,6 +25,7 @@
         .status_danger = COLOR_RGB(255, 158, 165),                                                 \
         .status_success = COLOR_RGB(142, 233, 182),                                                \
         .status_pending = COLOR_RGB(183, 170, 207),                                                \
+        .accent = COLOR_RGB(124, 237, 228),                                                        \
     }
 
 #define CLASSIC_COLORS                                                                             \
@@ -48,6 +49,7 @@
         .status_danger = COLOR_RGB(255, 133, 112),                                                 \
         .status_success = COLOR_RGB(129, 221, 156),                                                \
         .status_pending = COLOR_RGB(189, 178, 152),                                                \
+        .accent = COLOR_RGB(166, 88, 20),                                                          \
     }
 
 const Theme ECHO_THEME = {
@@ -120,6 +122,7 @@ static const ThemeColors PALETTES[APPEARANCE_THEME_COUNT] = {
         .status_danger = COLOR_RGB(255, 163, 164),
         .status_success = COLOR_RGB(168, 232, 177),
         .status_pending = COLOR_RGB(208, 172, 185),
+        .accent = COLOR_RGB(255, 170, 110),
     },
     {
         .background = COLOR_RGB(10, 30, 34),
@@ -141,6 +144,7 @@ static const ThemeColors PALETTES[APPEARANCE_THEME_COUNT] = {
         .status_danger = COLOR_RGB(255, 167, 166),
         .status_success = COLOR_RGB(156, 238, 180),
         .status_pending = COLOR_RGB(156, 197, 194),
+        .accent = COLOR_RGB(120, 228, 196),
     },
     CLASSIC_COLORS,
 };

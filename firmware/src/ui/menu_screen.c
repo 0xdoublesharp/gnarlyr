@@ -52,6 +52,11 @@ static bool item_opens(const void *context, int index)
     return shown_item(context, index)->opens;
 }
 
+static uint8_t item_icon(const void *context, int index)
+{
+    return shown_item(context, index)->icon;
+}
+
 static ScreenAction select_item(void *context, int index)
 {
     const MenuItem *item = shown_item(context, index);
@@ -106,7 +111,8 @@ Screen *menu_screen_init(MenuScreen *menu, MenuConfig config)
                               .count = item_count,
                               .label = item_label,
                               .detail = item_value,
-                              .opens = item_opens};
+                              .opens = item_opens,
+                              .icon = item_icon};
     list_view_init(&menu->list, &menu->model, config.theme, 0);
     menu->screen = (Screen){
         .title = config.title,

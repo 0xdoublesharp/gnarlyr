@@ -45,21 +45,26 @@ static void now_playing_text_lines_follow_each_other_without_overlap(void)
     CHECK(layout->album_top + line_height(BOARD_THEME.fonts.body) <= layout->format_top);
     CHECK(layout->format_top < layout->detail_top);
     CHECK(layout->detail_top < layout->modes_top);
-    CHECK(layout->modes_top + layout->small_line_height <= layout->progress_top);
+    CHECK(layout->modes_top + layout->small_line_height <= layout->deck_top);
 }
 
-static void now_playing_keeps_the_progress_bar_and_times_on_screen(void)
+static void now_playing_keeps_the_deck_rows_on_screen(void)
 {
     const NowPlayingLayout *layout = &BOARD_LAYOUT.now_playing;
-    CHECK(layout->progress_top + layout->progress_height <= layout->times_top);
-    CHECK(layout->times_top + layout->small_line_height <= HAL_DISPLAY_HEIGHT);
+    CHECK(layout->deck_top < layout->times_top);
+    CHECK(layout->progress_top >= layout->times_top);
+    CHECK(layout->progress_top + layout->progress_height <=
+          layout->times_top + layout->small_line_height);
+    CHECK(layout->times_top + layout->small_line_height <= layout->legend_top);
+    CHECK(layout->legend_top + layout->small_line_height <= HAL_DISPLAY_HEIGHT);
 }
 
-static void now_playing_cover_sits_above_the_progress_bar(void)
+static void now_playing_cover_and_volume_sit_above_the_deck(void)
 {
     const NowPlayingLayout *layout = &BOARD_LAYOUT.now_playing;
     CHECK(layout->cover_top >= BOARD_THEME.metrics.header_height);
-    CHECK(layout->cover_top + COVER_FULL_SIZE <= layout->progress_top);
+    CHECK(layout->cover_top + COVER_FULL_SIZE <= layout->volume_top);
+    CHECK(layout->volume_top + layout->small_line_height <= layout->deck_top);
 }
 
 static void now_playing_leaves_a_text_column_beside_the_cover(void)
@@ -126,8 +131,8 @@ int main(void)
         TEST_CASE(list_text_fits_its_row),
         TEST_CASE(the_title_fits_the_header),
         TEST_CASE(now_playing_text_lines_follow_each_other_without_overlap),
-        TEST_CASE(now_playing_keeps_the_progress_bar_and_times_on_screen),
-        TEST_CASE(now_playing_cover_sits_above_the_progress_bar),
+        TEST_CASE(now_playing_keeps_the_deck_rows_on_screen),
+        TEST_CASE(now_playing_cover_and_volume_sit_above_the_deck),
         TEST_CASE(now_playing_leaves_a_text_column_beside_the_cover),
         TEST_CASE(the_centre_cover_is_centred_on_screen),
         TEST_CASE(visible_side_covers_stay_on_screen),
