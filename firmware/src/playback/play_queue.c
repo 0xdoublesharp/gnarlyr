@@ -275,3 +275,134 @@ PlayQueuePlace play_queue_place(const PlayQueue *queue)
     }
     return (PlayQueuePlace){(uint16_t)(queue->cursor.album_track + 1), album.track_count};
 }
+
+void play_queue_stream_init(PlayQueueStream *stream, const PlayQueue *queue)
+{
+    *stream = (PlayQueueStream){.queue = *queue,
+                                .walk = &stream->cache,
+                                .count = queue->count,
+                                .current = queue->cursor.position,
+                                .result = shuffles_albums(queue) ? PLAY_QUEUE_STREAM_WORKING
+                                                                 : PLAY_QUEUE_STREAM_READY};
+    if (!stored_current(queue) || (queue->count > 0 && queue->cursor.position >= queue->count)) {
+        stream->result = PLAY_QUEUE_STREAM_FAILED;
+    }
+}
+
+PlayQueueStreamResult play_queue_stream_prepare(PlayQueueStream *stream)
+{
+    if (stream->result != PLAY_QUEUE_STREAM_WORKING) {
+        return stream->result;
+    }
+    for (int step = 0; step < 16 && stream->scan < stream->queue.count; step++, stream->scan++) {
+        LibraryAlbum album;
+        if (!album_at(&stream->queue, stream->scan, &album) || album.track_count == 0 ||
+            stream->total + album.track_count > UINT16_MAX) {
+            stream->result = PLAY_QUEUE_STREAM_FAILED;
+            return stream->result;
+        }
+        if (stream->scan == stream->queue.cursor.position) {
+            if (stream->queue.cursor.album_track >= album.track_count) {
+                stream->result = PLAY_QUEUE_STREAM_FAILED;
+                return stream->result;
+            }
+            stream->current = (uint16_t)(stream->total + stream->queue.cursor.album_track);
+        }
+        stream->total += album.track_count;
+    }
+    if (stream->scan == stream->queue.count) {
+        stream->count = (uint16_t)stream->total;
+        stream->result = PLAY_QUEUE_STREAM_READY;
+    }
+    return stream->result;
+}
+
+static bool stream_album(const PlayQueueStream *stream)
+{
+    PlayQueueStreamCache *walk = stream->walk;
+    if (!walk->has_album) {
+        walk->has_album = album_at(&stream->queue, walk->cursor.position, &walk->album) &&
+                          walk->album.track_count > 0;
+    }
+    return walk->has_album;
+}
+
+static void stream_advance(PlayQueueStreamCache *walk, uint16_t count)
+{
+    walk->position += count;
+    walk->cursor.album_track = (uint16_t)(walk->cursor.album_track + count);
+    if (walk->cursor.album_track == walk->album.track_count) {
+        walk->cursor.position++;
+        walk->cursor.album_track = 0;
+        walk->has_album = false;
+    }
+}
+
+static bool stream_skip(const PlayQueueStream *stream, uint16_t first)
+{
+    PlayQueueStreamCache *walk = stream->walk;
+    if (first < walk->position) {
+        *walk = (PlayQueueStreamCache){0};
+    }
+    while (walk->position < first) {
+        if (!stream_album(stream)) {
+            return false;
+        }
+        uint32_t left = walk->album.track_count - walk->cursor.album_track;
+        uint32_t skip = first - walk->position;
+        stream_advance(walk, (uint16_t)(skip < left ? skip : left));
+    }
+    return true;
+}
+
+static bool stream_albums(const PlayQueueStream *stream, uint16_t first, uint16_t count,
+                          uint16_t *tracks)
+{
+    if (!stream_skip(stream, first)) {
+        return false;
+    }
+    PlayQueueStreamCache *walk = stream->walk;
+    uint32_t limit = library_count(stream->queue.library, LIBRARY_TRACKS);
+    for (uint16_t index = 0; index < count; index++) {
+        if (!stream_album(stream)) {
+            return false;
+        }
+        uint32_t track = (uint32_t)walk->album.first_track + walk->cursor.album_track;
+        if (track >= limit || track >= UINT16_MAX) {
+            return false;
+        }
+        tracks[index] = (uint16_t)track;
+        stream_advance(walk, 1);
+    }
+    return true;
+}
+
+static bool stream_read(const void *context, uint16_t first, uint16_t count, uint16_t *tracks)
+{
+    const PlayQueueStream *stream = context;
+    if (stream->result != PLAY_QUEUE_STREAM_READY || first > stream->count ||
+        count > stream->count - first || (count > 0 && tracks == NULL)) {
+        return false;
+    }
+    if (count == 0) {
+        return true;
+    }
+    if (shuffles_albums(&stream->queue)) {
+        return stream_albums(stream, first, count, tracks);
+    }
+    if (stream->queue.stored_order != NULL) {
+        return stored_current(&stream->queue) &&
+               track_order_read(stream->queue.stored_order, first, count, tracks);
+    }
+    for (uint16_t index = 0; index < count; index++) {
+        if (!entry_at(&stream->queue, (uint16_t)(first + index), &tracks[index])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+TrackOrderSource play_queue_stream_source(const PlayQueueStream *stream)
+{
+    return (TrackOrderSource){.read = stream_read, .context = stream, .count = stream->count};
+}

@@ -21,6 +21,8 @@ add_library(echo_app STATIC
     music_check.c
     library_store.c
     player.c
+    player_queue.c
+    player_storage.c
     settings_screens.c
     settings_store.c
     spoken_store.c
@@ -38,3 +40,6 @@ target_link_libraries(echo_app
     PUBLIC echo_core echo_gfx echo_ui echo_fonts echo_library echo_playback echo_settings echo_hal
     PRIVATE echo_options echo_compact
 )
+if(NOT CMAKE_CROSSCOMPILING)
+    target_compile_definitions(echo_app PRIVATE ECHO_DIAGNOSTIC_SAMPLES)
+endif()

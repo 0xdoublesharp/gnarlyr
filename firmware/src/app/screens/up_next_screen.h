@@ -14,7 +14,8 @@ enum {
     UP_NEXT_ROWS = 8,
     UP_NEXT_LABEL_CAPACITY = 128,
     UP_NEXT_DETAIL_CAPACITY = 64,
-    UP_NEXT_QUEUE_ROWS = 500
+    UP_NEXT_QUEUE_ROWS = 500,
+    UP_NEXT_ACTION_COUNT = UP_NEXT_EDIT_COUNT + 1
 };
 
 typedef struct UpNextConfig {
@@ -29,6 +30,7 @@ typedef struct UpNextScreen UpNextScreen;
 typedef struct UpNextEntry {
     UpNextScreen *owner;
     UpNextEdit edit;
+    bool snapshot;
 } UpNextEntry;
 
 struct UpNextScreen {
@@ -44,12 +46,13 @@ struct UpNextScreen {
     char details[UP_NEXT_ROWS][UP_NEXT_DETAIL_CAPACITY];
     uint32_t now_ms;
     MenuScreen actions;
-    MenuItem items[UP_NEXT_EDIT_COUNT];
-    UpNextEntry entries[UP_NEXT_EDIT_COUNT];
+    MenuItem items[UP_NEXT_ACTION_COUNT];
+    UpNextEntry entries[UP_NEXT_ACTION_COUNT];
     uint32_t edit_revision;
     int edit_index;
     int edit_count;
     bool returning;
+    bool edit_full;
     uint32_t seen_revision;
     uint32_t seen_token;
     PlayerState seen_state;

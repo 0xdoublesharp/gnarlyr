@@ -711,10 +711,379 @@ static void initialization_clears_a_previous_queue_binding(void)
     CHECK_EQUAL(0, dirty.queue.stored_generation);
 }
 
+static void finish_queue_edit(Player *started)
+{
+    for (uint32_t step = 0; step < 100 && player_queue_busy(started); step++) {
+        player_update(started, step);
+    }
+    CHECK(!player_queue_busy(started));
+}
+
+static void removing_a_generated_song_preserves_current_audio_and_survives_restart(void)
+{
+    Player *started = playing(0);
+    fake_hal_audio_set_position(1234);
+    uint32_t token = started->current_token;
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING,
+                player_edit_queue(started, started->up_next_revision, 1, UP_NEXT_REMOVE));
+    finish_queue_edit(started);
+    CHECK_EQUAL(1, started->queue.count);
+    CHECK(started->queue.stored_order != NULL);
+    CHECK_EQUAL(HELLS_BELLS, started->track);
+    CHECK_EQUAL(token, started->current_token);
+    CHECK_EQUAL(1234, player_status(started).position_ms);
+    CHECK_EQUAL(PLAYER_PLAYING, started->state);
+    CHECK(fake_hal_audio_queued_path() == NULL);
+    Player resumed;
+    player_init(&resumed, &fixture.library);
+    CHECK(player_restore(&resumed));
+    CHECK_EQUAL(1, resumed.queue.count);
+    CHECK_EQUAL(HELLS_BELLS, resumed.track);
+    CHECK_EQUAL(1234, player_status(&resumed).position_ms);
+}
+
+static void expect_stored(Player *started, const uint16_t *tracks, uint16_t count, uint16_t current)
+{
+    uint16_t actual[16] = {0};
+    CHECK(count <= 16);
+    CHECK_EQUAL(count, started->queue.count);
+    CHECK(started->queue.stored_order != NULL);
+    if (started->queue.stored_order == NULL) {
+        return;
+    }
+    CHECK(track_order_read(started->queue.stored_order, 0, count, actual));
+    CHECK(memcmp(tracks, actual, (size_t)count * sizeof *tracks) == 0);
+    CHECK_EQUAL(current, started->queue.cursor.position);
+    CHECK_EQUAL(tracks[current], started->track);
+}
+
+static void snapshot_merges_added_songs_and_supports_more_inserts_and_edits(void)
+{
+    Player *started = playing(0);
+    player_add_to_up_next(started, HELP);
+    player_add_to_up_next(started, ARMY_OF_ME);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING, player_snapshot_queue(started));
+    finish_queue_edit(started);
+    CHECK_EQUAL(PLAYER_QUEUE_EDITED, started->editing.result);
+    expect_stored(started, (uint16_t[]){0, 2, 3, 1}, 4, 0);
+    CHECK_EQUAL(0, started->up_next.count);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING,
+                player_edit_queue(started, started->up_next_revision, 3, UP_NEXT_MOVE_FIRST));
+    finish_queue_edit(started);
+    expect_stored(started, (uint16_t[]){0, 1, 2, 3}, 4, 0);
+    CHECK_EQUAL(PLAYER_UP_NEXT_WORKING, player_play_next(started, HELP));
+    finish_queue_edit(started);
+    expect_stored(started, (uint16_t[]){0, 2, 1, 2, 3}, 5, 0);
+    CHECK_EQUAL(PLAYER_UP_NEXT_WORKING, player_add_to_up_next(started, ARMY_OF_ME));
+    finish_queue_edit(started);
+    expect_stored(started, (uint16_t[]){0, 2, 1, 2, 3, 3}, 6, 0);
+    Player resumed;
+    player_init(&resumed, &fixture.library);
+    CHECK(player_restore(&resumed));
+    expect_stored(&resumed, (uint16_t[]){0, 2, 1, 2, 3, 3}, 6, 0);
+}
+
+static void a_manually_started_song_and_history_are_merged_at_the_right_cursor(void)
+{
+    Player *started = playing(0);
+    player_add_to_up_next(started, HELP);
+    player_add_to_up_next(started, ARMY_OF_ME);
+    player_skip(started, 1);
+    CHECK_EQUAL(HELP, started->track);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING, player_snapshot_queue(started));
+    finish_queue_edit(started);
+    expect_stored(started, (uint16_t[]){0, 2, 3, 1}, 4, 1);
+    player_skip(started, 1);
+    CHECK_EQUAL(ARMY_OF_ME, started->track);
+    player_skip(started, 1);
+    CHECK_EQUAL(SHOOT_TO_THRILL, started->track);
+}
+
+static void wrapped_edits_rebase_the_cursor_without_changing_the_current_song(void)
+{
+    Player *started = playing(1);
+    player_set_repeat(started, REPEAT_ALL);
+    player_add_to_up_next(started, HELP);
+    player_add_to_up_next(started, ARMY_OF_ME);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING, player_snapshot_queue(started));
+    finish_queue_edit(started);
+    expect_stored(started, (uint16_t[]){0, 1, 2, 3}, 4, 1);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING,
+                player_edit_queue(started, started->up_next_revision, 3, UP_NEXT_MOVE_FIRST));
+    finish_queue_edit(started);
+    expect_stored(started, (uint16_t[]){1, 0, 2, 3}, 4, 0);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING,
+                player_edit_queue(started, started->up_next_revision, 1, UP_NEXT_MOVE_LATER));
+    finish_queue_edit(started);
+    expect_stored(started, (uint16_t[]){1, 2, 0, 3}, 4, 0);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING,
+                player_edit_queue(started, started->up_next_revision, 3, UP_NEXT_MOVE_EARLIER));
+    finish_queue_edit(started);
+    expect_stored(started, (uint16_t[]){1, 2, 3, 0}, 4, 0);
+}
+
+static void cancelling_an_edit_keeps_the_old_order_and_resumes_audio(void)
+{
+    Player *started = playing(0);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING, player_snapshot_queue(started));
+    player_update(started, 1);
+    player_update(started, 2);
+    player_queue_cancel(started);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_CANCELLED, started->editing.result);
+    CHECK_EQUAL(PLAYER_PLAYING, started->state);
+    CHECK(started->queue.stored_order == NULL);
+    Player resumed;
+    player_init(&resumed, &fixture.library);
+    CHECK(player_restore(&resumed));
+    CHECK(resumed.queue.stored_order == NULL);
+    CHECK_EQUAL(2, resumed.queue.count);
+}
+
+static void a_failed_root_save_leaves_an_orphan_that_restore_and_retry_ignore(void)
+{
+    Player *started = playing(0);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING, player_snapshot_queue(started));
+    finish_queue_edit(started);
+    uint32_t generation = started->queue.stored_generation;
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING,
+                player_edit_queue(started, started->up_next_revision, 1, UP_NEXT_REMOVE));
+    fake_hal_fail_file_writes(PLAYER_SESSION_PATH);
+    finish_queue_edit(started);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_SAVE_FAILED, started->editing.result);
+    expect_stored(started, (uint16_t[]){0, 1}, 2, 0);
+    CHECK_EQUAL(generation, started->queue.stored_generation);
+    Player resumed;
+    player_init(&resumed, &fixture.library);
+    CHECK(player_restore(&resumed));
+    expect_stored(&resumed, (uint16_t[]){0, 1}, 2, 0);
+    fake_hal_fail_file_writes(NULL);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING,
+                player_edit_queue(started, started->up_next_revision, 1, UP_NEXT_REMOVE));
+    finish_queue_edit(started);
+    expect_stored(started, (uint16_t[]){0}, 1, 0);
+}
+
+static void a_damaged_new_data_bank_falls_back_to_the_previous_session(void)
+{
+    Player *started = playing(0);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING, player_snapshot_queue(started));
+    finish_queue_edit(started);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING,
+                player_edit_queue(started, started->up_next_revision, 1, UP_NEXT_REMOVE));
+    finish_queue_edit(started);
+    uint8_t bad = 0xFF;
+    uint32_t offset =
+        (uint32_t)started->storage.order.bank * TRACK_ORDER_BANK_BYTES + TRACK_ORDER_HEADER_BYTES;
+    CHECK(hal_file_write_at(PLAYER_ORDER_PATH, offset, &bad, 1));
+    Player resumed;
+    player_init(&resumed, &fixture.library);
+    CHECK(player_restore(&resumed));
+    expect_stored(&resumed, (uint16_t[]){0, 1}, 2, 0);
+}
+
+static void an_empty_base_queue_can_resume_and_become_an_editable_queue(void)
+{
+    Player *started = fresh_player();
+    CHECK_EQUAL(PLAYER_UP_NEXT_STARTED, player_add_to_up_next(started, HELP));
+    CHECK_EQUAL(PLAYER_UP_NEXT_ADDED, player_add_to_up_next(started, ARMY_OF_ME));
+    CHECK(player_save(started));
+    Player resumed;
+    player_init(&resumed, &fixture.library);
+    CHECK(player_restore(&resumed));
+    CHECK_EQUAL(HELP, resumed.track);
+    CHECK_EQUAL(1, resumed.up_next.count);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING, player_snapshot_queue(started));
+    finish_queue_edit(started);
+    expect_stored(started, (uint16_t[]){2, 3}, 2, 0);
+}
+
+static void keeping_only_current_and_changing_shuffle_preserve_the_edit(void)
+{
+    Player *started = playing(1);
+    player_add_to_up_next(started, HELP);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING,
+                player_edit_queue(started, started->up_next_revision, 0, UP_NEXT_CLEAR));
+    finish_queue_edit(started);
+    expect_stored(started, (uint16_t[]){1}, 1, 0);
+    player_set_shuffle(started, SHUFFLE_SONGS, 555);
+    expect_stored(started, (uint16_t[]){1}, 1, 0);
+}
+
+static void generated_playback_advancement_rejects_an_old_edit_selection(void)
+{
+    Player *started = playing(0);
+    uint32_t revision = started->up_next_revision;
+    fake_hal_audio_finish_track();
+    player_update(started, 100);
+    int writes = fake_hal_write_count();
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_STALE, player_edit_queue(started, revision, 1, UP_NEXT_REMOVE));
+    CHECK_EQUAL(writes, fake_hal_write_count());
+}
+
+static void saving_during_an_edit_cancels_it_and_retains_the_old_queue(void)
+{
+    Player *started = playing(0);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING, player_snapshot_queue(started));
+    player_update(started, 1);
+    CHECK(player_save(started));
+    CHECK(!player_queue_busy(started));
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_CANCELLED, started->editing.result);
+    CHECK(started->queue.stored_order == NULL);
+    CHECK_EQUAL(PLAYER_PLAYING, fake_hal_audio_state());
+}
+
+static void edited_queue_shuffle_preferences_survive_restart_without_reordering(void)
+{
+    Player *started = playing(0);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING, player_snapshot_queue(started));
+    finish_queue_edit(started);
+    player_set_shuffle(started, SHUFFLE_SONGS, 55);
+    Player resumed;
+    player_init(&resumed, &fixture.library);
+    CHECK(player_restore(&resumed));
+    CHECK_EQUAL(SHUFFLE_SONGS, resumed.shuffle);
+    expect_stored(&resumed, (uint16_t[]){0, 1}, 2, 0);
+}
+
+static void all_wrapped_moves_and_removals_preserve_the_future_sequence(void)
+{
+    for (uint16_t current = 0; current < 4; current++) {
+        for (uint16_t row = 1; row < 4; row++) {
+            for (int action = UP_NEXT_MOVE_FIRST; action <= UP_NEXT_REMOVE; action++) {
+                Player *started = playing(0);
+                player_add_to_up_next(started, HELP);
+                player_add_to_up_next(started, ARMY_OF_ME);
+                CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING, player_snapshot_queue(started));
+                finish_queue_edit(started);
+                CHECK(player_jump_to_queue(started, (PlayQueueCursor){.position = current}));
+                player_set_repeat(started, REPEAT_ALL);
+                UpNext expected = {0};
+                uint16_t current_track = started->track;
+                PlayQueueCursor cursor = started->queue.cursor;
+                for (uint16_t index = 1; index < 4; index++) {
+                    PlayQueueCursor next;
+                    uint16_t track;
+                    CHECK(play_queue_step(&started->queue, cursor, 1, true, &next));
+                    cursor = next;
+                    CHECK(play_queue_track_at(&started->queue, cursor, &track));
+                    CHECK(up_next_add(&expected, track));
+                }
+                bool valid = up_next_edit(&expected, (uint16_t)(row - 1), (UpNextEdit)action) &&
+                             !(row == 1 && action == UP_NEXT_MOVE_FIRST);
+                CHECK_EQUAL(
+                    PLAYER_QUEUE_EDIT_WORKING,
+                    player_edit_queue(started, started->up_next_revision, row, (UpNextEdit)action));
+                finish_queue_edit(started);
+                CHECK_EQUAL(valid ? PLAYER_QUEUE_EDITED : PLAYER_QUEUE_EDIT_INVALID,
+                            started->editing.result);
+                CHECK_EQUAL(current_track, started->track);
+                CHECK(play_queue_current(&started->queue, &current_track));
+                CHECK_EQUAL(started->track, current_track);
+                cursor = started->queue.cursor;
+                for (uint16_t index = 0; index < expected.count; index++) {
+                    PlayQueueCursor next;
+                    uint16_t track;
+                    CHECK(play_queue_step(&started->queue, cursor, 1, true, &next));
+                    cursor = next;
+                    CHECK(play_queue_track_at(&started->queue, cursor, &track));
+                    CHECK_EQUAL(expected.tracks[index], track);
+                }
+            }
+        }
+    }
+}
+
+static void a_semantically_invalid_session_does_not_prevent_starting_a_new_song(void)
+{
+    Player *started = playing(0);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING, player_snapshot_queue(started));
+    finish_queue_edit(started);
+    SessionState state;
+    SessionJournal *journal = &started->storage.journal;
+    CHECK_EQUAL(SESSION_READY, session_journal_open(journal, journal->config, &state));
+    state.resume.cursor.position = 999;
+    CHECK_EQUAL(SESSION_SAVED, session_journal_save(journal, &state));
+    CHECK_EQUAL(SESSION_SAVED, session_journal_save(journal, &state));
+    Player resumed;
+    player_init(&resumed, &fixture.library);
+    CHECK(!player_restore(&resumed));
+    CHECK_EQUAL(PLAYER_UP_NEXT_STARTED, player_add_to_up_next(&resumed, HELP));
+    CHECK_EQUAL(HELP, resumed.track);
+    CHECK(resumed.queue.stored_order == NULL);
+    CHECK_EQUAL(PLAYER_UP_NEXT_ADDED, player_add_to_up_next(&resumed, ARMY_OF_ME));
+    CHECK(player_save(&resumed));
+    Player again;
+    player_init(&again, &fixture.library);
+    CHECK(player_restore(&again));
+    CHECK_EQUAL(HELP, again.track);
+    CHECK_EQUAL(1, again.up_next.count);
+}
+
+static void legacy_resume_and_manual_queue_migrate_without_modifying_original_files(void)
+{
+    Player *started = playing(0);
+    uint8_t resume_bytes[4096] = {0};
+    uint8_t queue_bytes[4096] = {0};
+    ResumeState state = {.library_fingerprint = started->fingerprint,
+                         .plan = started->queue.plan,
+                         .track = started->track,
+                         .cursor = started->queue.cursor,
+                         .volume = 12,
+                         .position_ms = 5432};
+    resume_state_encode(&state, resume_bytes);
+    UpNext pending = {0};
+    up_next_add(&pending, HELP);
+    up_next_encode(&pending, started->fingerprint, queue_bytes);
+    fake_hal_reset();
+    fake_hal_add_file(PLAYER_RESUME_PATH, resume_bytes, sizeof resume_bytes);
+    fake_hal_add_file(PLAYER_UP_NEXT_PATH, queue_bytes, sizeof queue_bytes);
+    Player migrated;
+    player_init(&migrated, &fixture.library);
+    CHECK(player_restore(&migrated));
+    CHECK_EQUAL(5432, player_status(&migrated).position_ms);
+    CHECK_EQUAL(HELP, migrated.up_next.tracks[0]);
+    CHECK_EQUAL(PLAYER_UP_NEXT_ADDED, player_add_to_up_next(&migrated, ARMY_OF_ME));
+    uint32_t length = 0;
+    const uint8_t *original = fake_hal_file_bytes(PLAYER_RESUME_PATH, &length);
+    CHECK(original != NULL);
+    if (original != NULL) {
+        CHECK_EQUAL(sizeof resume_bytes, length);
+        CHECK(memcmp(resume_bytes, original, sizeof resume_bytes) == 0);
+    }
+    original = fake_hal_file_bytes(PLAYER_UP_NEXT_PATH, &length);
+    CHECK(original != NULL);
+    if (original != NULL) {
+        CHECK_EQUAL(sizeof queue_bytes, length);
+        CHECK(memcmp(queue_bytes, original, sizeof queue_bytes) == 0);
+    }
+    Player restored;
+    player_init(&restored, &fixture.library);
+    CHECK(player_restore(&restored));
+    CHECK_EQUAL(2, restored.up_next.count);
+    CHECK_EQUAL(HELP, restored.up_next.tracks[0]);
+    CHECK_EQUAL(ARMY_OF_ME, restored.up_next.tracks[1]);
+    CHECK_EQUAL(5432, player_status(&restored).position_ms);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(playing_a_list_starts_the_selected_track),
+        TEST_CASE(legacy_resume_and_manual_queue_migrate_without_modifying_original_files),
+        TEST_CASE(a_semantically_invalid_session_does_not_prevent_starting_a_new_song),
+        TEST_CASE(all_wrapped_moves_and_removals_preserve_the_future_sequence),
+        TEST_CASE(generated_playback_advancement_rejects_an_old_edit_selection),
+        TEST_CASE(saving_during_an_edit_cancels_it_and_retains_the_old_queue),
+        TEST_CASE(edited_queue_shuffle_preferences_survive_restart_without_reordering),
+        TEST_CASE(snapshot_merges_added_songs_and_supports_more_inserts_and_edits),
+        TEST_CASE(a_manually_started_song_and_history_are_merged_at_the_right_cursor),
+        TEST_CASE(wrapped_edits_rebase_the_cursor_without_changing_the_current_song),
+        TEST_CASE(cancelling_an_edit_keeps_the_old_order_and_resumes_audio),
+        TEST_CASE(a_failed_root_save_leaves_an_orphan_that_restore_and_retry_ignore),
+        TEST_CASE(a_damaged_new_data_bank_falls_back_to_the_previous_session),
+        TEST_CASE(an_empty_base_queue_can_resume_and_become_an_editable_queue),
+        TEST_CASE(keeping_only_current_and_changing_shuffle_preserve_the_edit),
+        TEST_CASE(removing_a_generated_song_preserves_current_audio_and_survives_restart),
         TEST_CASE(initialization_clears_a_previous_queue_binding),
         TEST_CASE(moving_a_song_preserves_playback_and_survives_a_restart),
         TEST_CASE(moving_earlier_and_later_updates_the_prepared_song),

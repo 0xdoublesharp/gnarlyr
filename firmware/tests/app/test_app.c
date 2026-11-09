@@ -80,6 +80,7 @@ static uint32_t now_ms;
 
 static void prefill_player_files(void)
 {
+    fake_hal_add_file(PLAYER_SESSION_PATH, NULL, 4096);
     for (size_t index = 0; index < card_files_count(); index++) {
         HalFile file;
         if (!card_files_slow(index)) {
@@ -96,6 +97,7 @@ static void prefill_player_files(void)
 static void start_app(void)
 {
     fake_hal_reset();
+    fake_hal_set_reserve_result(HAL_RESERVE_EXISTS);
     prefill_player_files();
     now_ms = START_MS;
     fake_hal_set_milliseconds(now_ms);
@@ -107,6 +109,7 @@ static void start_app_with_database(const uint8_t *bytes, uint32_t size)
     uint32_t covers_size = 0;
     const uint8_t *covers = fixture_covers_bytes(&covers_size);
     fake_hal_reset();
+    fake_hal_set_reserve_result(HAL_RESERVE_EXISTS);
     fake_hal_add_file("/.echo/library.db", bytes, size);
     fake_hal_add_file("/.echo/covers.bin", covers, covers_size);
     fake_hal_add_file("/.echo/build.tmp", NULL, 16 * 1024 * 1024);
@@ -967,6 +970,7 @@ static void a_fresh_card_gets_the_player_files_and_a_first_scan(void)
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
     CHECK_EQUAL(4096, fake_hal_reserved_size(SETTINGS_STORE_PATH));
     CHECK_EQUAL(4096, fake_hal_reserved_size("/.echo/resume.bin"));
+    CHECK_EQUAL(4096, fake_hal_reserved_size(PLAYER_SESSION_PATH));
     CHECK_EQUAL(4096, fake_hal_reserved_size("/.echo/favorites.bin"));
     CHECK_EQUAL(4 * 1024 * 1024, fake_hal_reserved_size("/.echo/library.db"));
     uint32_t covers_size = fake_hal_reserved_size("/.echo/covers.bin");
@@ -1012,7 +1016,7 @@ static void each_big_file_is_made_in_its_own_step_after_the_screen_is_lit(void)
     CHECK_EQUAL(3, fake_hal_reserve_count());
     CHECK(app_preparing());
     step();
-    CHECK_EQUAL(11, fake_hal_reserve_count());
+    CHECK_EQUAL(card_files_count(), fake_hal_reserve_count());
     CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
 }
 
@@ -1028,7 +1032,7 @@ static void a_card_with_the_files_is_prepared_within_the_first_step(void)
 static void a_card_that_has_the_files_is_not_rescanned(void)
 {
     start_on_a_fresh_card(HAL_RESERVE_EXISTS);
-    CHECK_EQUAL(11, fake_hal_reserve_count());
+    CHECK_EQUAL(card_files_count(), fake_hal_reserve_count());
     step();
     CHECK_EQUAL(0, fake_hal_scratch_borrow_count());
 }
@@ -1420,11 +1424,11 @@ static void removing_a_queued_song_returns_to_up_next_and_persists(void)
     CHECK_EQUAL(plays, fake_hal_audio_play_count());
     CHECK_EQUAL(12345u, app_player_status().position_ms);
     CHECK(playing_path_is(HELLS_BELLS_PATH));
-    uint32_t size = 0;
-    const uint8_t *bytes = fake_hal_file_bytes(PLAYER_UP_NEXT_PATH, &size);
-    CHECK(bytes != NULL);
-    CHECK_EQUAL(0, bytes[6]);
-    CHECK_EQUAL(0, bytes[7]);
+    FixtureLibrary library;
+    Player resumed;
+    player_init(&resumed, fixture_library_open(&library));
+    CHECK(player_restore(&resumed));
+    CHECK_EQUAL(0, resumed.up_next.count);
     tap(KEY_BACK);
     CHECK(title_is("Now Playing"));
 }
@@ -1439,6 +1443,58 @@ static void a_queue_edit_save_error_reaches_the_app_toast(void)
     fake_hal_fail_music_writes(false);
     tap(KEY_PLAY);
     CHECK(title_is("Up Next"));
+}
+
+static void a_generated_queue_edit_runs_through_the_app_and_reports_completion(void)
+{
+    start_app_with_library();
+    fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
+    play_first_album_track();
+    fake_hal_audio_set_position(1234);
+    tap(KEY_MENU);
+    move_down(1);
+    hold(KEY_PLAY);
+    CHECK(title_is("Edit Up Next"));
+    tap(KEY_PLAY);
+    for (int step_index = 0; step_index < 20; step_index++) {
+        wait_ms(20);
+    }
+    CHECK(toast_is("Queue saved"));
+    CHECK(title_is("Up Next"));
+    CHECK_EQUAL(1234, app_player_status().position_ms);
+    CHECK_EQUAL(1, app_player_status().place.total);
+    FixtureLibrary library;
+    Player resumed;
+    player_init(&resumed, fixture_library_open(&library));
+    CHECK(player_restore(&resumed));
+    CHECK_EQUAL(1, resumed.queue.count);
+    CHECK_EQUAL(0, resumed.track);
+    tap(KEY_BACK);
+    hold_back();
+    move_down(HOME_SETTINGS_INDEX);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(toast_is("Shuffle applies to next list"));
+    CHECK_EQUAL(SHUFFLE_SONGS, app_player_status().shuffle);
+    CHECK_EQUAL(1, app_player_status().place.total);
+}
+
+static void back_cancels_a_generated_queue_save_and_keeps_the_old_queue(void)
+{
+    start_app_with_library();
+    fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
+    play_first_album_track();
+    tap(KEY_MENU);
+    move_down(1);
+    hold(KEY_PLAY);
+    tap(KEY_PLAY);
+    tap(KEY_BACK);
+    CHECK(toast_is("Cancelled"));
+    CHECK(title_is("Up Next"));
+    CHECK_EQUAL(2, app_player_status().place.total);
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
 }
 
 static void holding_play_on_an_album_adds_it_to_favorites(void)
@@ -2174,6 +2230,8 @@ int main(void)
         TEST_CASE(menu_on_now_playing_opens_up_next),
         TEST_CASE(choosing_a_song_in_up_next_plays_it),
         TEST_CASE(removing_a_queued_song_returns_to_up_next_and_persists),
+        TEST_CASE(a_generated_queue_edit_runs_through_the_app_and_reports_completion),
+        TEST_CASE(back_cancels_a_generated_queue_save_and_keeps_the_old_queue),
         TEST_CASE(a_queue_edit_save_error_reaches_the_app_toast),
         TEST_CASE(holding_play_on_a_song_offers_up_next),
         TEST_CASE(play_next_from_a_list_queues_the_song),

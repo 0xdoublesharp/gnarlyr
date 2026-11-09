@@ -476,12 +476,26 @@ class EchoImageTest(unittest.TestCase):
             data = rig.session.disk.read(directory_lba, rig.session.volume.sectors_per_cluster)
             for offset in range(0, len(data), 32):
                 entry = data[offset:offset + 32]
-                if entry[:11] == b"UPNEXT  BIN":
+                if entry[:11] == b"SESSION2BIN":
                     cluster = struct.unpack_from("<H", entry, 20)[0] << 16
                     cluster |= struct.unpack_from("<H", entry, 26)[0]
                     lba = rig.session.layout["volume_start"] + rig.session.volume.cluster_lba(cluster)
-                    return rig.session.disk.read(lba, 1)[:216]
-            return bytes(216)
+                    records = rig.session.disk.read(lba, 2)
+                    sessions = []
+                    for start in (0, 512):
+                        record = records[start:start + 512]
+                        if record[:4] != b"ESJN":
+                            continue
+                        self.assertEqual(struct.unpack_from("<HH", record, 4), (1, 268))
+                        checksum = 2166136261
+                        for value in record[:12] + record[16:284]:
+                            checksum = ((checksum ^ value) * 16777619) & 0xFFFFFFFF
+                        self.assertEqual(struct.unpack_from("<I", record, 12)[0], checksum)
+                        generation = struct.unpack_from("<I", record, 8)[0]
+                        sessions.append((generation, record[60:276]))
+                    self.assertTrue(sessions)
+                    return max(sessions)[1]
+            self.fail("The session journal was not created")
 
         added = saved_queue()
         self.assertEqual(added[:4], b"EMUN")
@@ -507,6 +521,58 @@ class EchoImageTest(unittest.TestCase):
         self.assert_only_the_user_volume_changed(rig.session)
         self.assert_healthy(rig.session)
         summary("queue editing", rig.session)
+
+    def test_a_generated_queue_edit_publishes_the_order_and_session_from_the_buttons(self):
+        from echo_emulator.real_volume import real_volume
+        volume = real_volume(playable=True, album_count=1)
+        volume.add_directory(".echo")
+        rig = self.playback_rig(volume)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.press("menu")
+        rig.press("next")
+        rig.press("play", hold=1300)
+        rig.machine.note("player_edit_queue")
+        rig.machine.note("player_jump_to_queue")
+        rig.press("next")
+        rig.press("play")
+        rig.run_for(500)
+        directory = volume.directory(".echo")
+        directory_lba = rig.session.layout["volume_start"] + volume.cluster_lba(directory.first)
+        entries = rig.session.disk.read(directory_lba, volume.sectors_per_cluster)
+
+        def file_start(name, sectors):
+            for offset in range(0, len(entries), 32):
+                entry = entries[offset:offset + 32]
+                if entry[:11] == name:
+                    cluster = struct.unpack_from("<H", entry, 20)[0] << 16
+                    cluster |= struct.unpack_from("<H", entry, 26)[0]
+                    lba = rig.session.layout["volume_start"] + volume.cluster_lba(cluster)
+                    return rig.session.disk.read(lba, sectors)
+            self.fail("Missing file: %r" % name)
+
+        records = file_start(b"SESSION2BIN", 2)
+        record = max((records[start:start + 512] for start in (0, 512)),
+                     key=lambda value: struct.unpack_from("<I", value, 8)[0])
+        self.assertEqual(record[:4], b"ESJN")
+        self.assertEqual(record[280], 1)
+        checksum = 2166136261
+        for value in record[:12] + record[16:284]:
+            checksum = ((checksum ^ value) * 16777619) & 0xFFFFFFFF
+        self.assertEqual(struct.unpack_from("<I", record, 12)[0], checksum)
+        order = file_start(b"ORDER2  BIN", 2)
+        self.assertEqual(order[:4], b"ETOR")
+        self.assertEqual(struct.unpack_from("<H", order, 6)[0], 11)
+        self.assertEqual(struct.unpack_from("<I", order, 12)[0],
+                         struct.unpack_from("<I", record, 276)[0])
+        tracks = struct.unpack_from("<11H", order, 512)
+        self.assertEqual(tracks, (0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11))
+        self.assertEqual(struct.unpack_from("<H", record, 44)[0], tracks[0])
+        self.assertEqual(rig.machine.reached.get("player_edit_queue", 0), 1)
+        self.assertEqual(rig.machine.reached.get("player_jump_to_queue", 0), 0)
+        self.assert_only_the_user_volume_changed(rig.session)
+        self.assert_healthy(rig.session)
+        summary("generated queue editing", rig.session)
 
     def test_a_deep_cue_track_starts_quickly_and_switching_tracks_keeps_the_ui_smooth(self):
         rig = self.playback_rig()

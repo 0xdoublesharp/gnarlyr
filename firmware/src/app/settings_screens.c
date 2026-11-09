@@ -70,6 +70,9 @@ static void choose_shuffle(void *context, int index)
     SettingsContext *settings = context;
     player_set_shuffle(settings->player, (ShuffleMode)index, hal_clock_microseconds());
     save(settings);
+    if (settings->player->queue.stored_order != NULL && settings->toast != NULL) {
+        toast_show(settings->toast, "Shuffle applies to next list", hal_clock_milliseconds());
+    }
 }
 
 static int current_repeat(const void *context)

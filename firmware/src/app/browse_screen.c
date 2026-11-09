@@ -372,6 +372,8 @@ static const char *up_next_message(PlayerUpNextResult result, bool next)
     switch (result) {
     case PLAYER_UP_NEXT_ADDED:
         return next ? "Playing next" : "Added to Up Next";
+    case PLAYER_UP_NEXT_WORKING:
+        return "Saving queue";
     case PLAYER_UP_NEXT_STARTED:
         return "Playing";
     case PLAYER_UP_NEXT_FULL:

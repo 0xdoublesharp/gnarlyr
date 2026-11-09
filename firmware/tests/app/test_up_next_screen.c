@@ -262,7 +262,7 @@ static void holding_the_playing_song_can_clear_only_added_songs(void)
     player_add_to_up_next(&player, HELP);
     open_up_next();
     Screen *actions = open_actions_on(0);
-    CHECK_EQUAL(1, action_count());
+    CHECK_EQUAL(2, action_count());
     CHECK(strcmp("Clear added songs", action_label(0)) == 0);
     CHECK_EQUAL(SCREEN_ACTION_POP, choose_action(actions, "Clear added songs").type);
     screen->enter(screen->context, 350);
@@ -271,7 +271,7 @@ static void holding_the_playing_song_can_clear_only_added_songs(void)
     CHECK(row_is(1, "Shoot to Thrill", "AC/DC"));
 }
 
-static void unavailable_moves_are_hidden_and_generated_rows_are_not_editable_yet(void)
+static void generated_rows_offer_editing_with_unavailable_moves_hidden(void)
 {
     play_album_from(0);
     player_add_to_up_next(&player, HELP);
@@ -284,7 +284,7 @@ static void unavailable_moves_are_hidden_and_generated_rows_are_not_editable_yet
     list_view_select(&up_next.list, 3, 300);
     ScreenAction action =
         screen->handle_key(screen->context, (KeyEvent){KEY_PLAY, KEY_GESTURE_LONG_PRESS}, 350);
-    CHECK_EQUAL(SCREEN_ACTION_NONE, action.type);
+    CHECK_EQUAL(SCREEN_ACTION_PUSH, action.type);
 }
 
 static void a_failed_save_keeps_the_actions_open_for_retry(void)
@@ -359,16 +359,65 @@ static void backing_out_of_actions_preserves_the_selected_row(void)
     CHECK_EQUAL(2, player.up_next.count);
 }
 
+static void finish_edit(void)
+{
+    for (uint32_t step = 0; step < 100 && player_queue_busy(&player); step++) {
+        player_update(&player, step);
+    }
+    CHECK(!player_queue_busy(&player));
+    screen->update(screen->context, 500);
+}
+
+static void generated_row_removal_is_reachable_without_starting_a_song(void)
+{
+    play_album_from(0);
+    open_up_next();
+    int plays = fake_hal_audio_play_count();
+    Screen *actions = open_actions_on(1);
+    CHECK_EQUAL(SCREEN_ACTION_POP, choose_action(actions, "Remove").type);
+    screen->enter(screen->context, 350);
+    CHECK(player_queue_busy(&player));
+    finish_edit();
+    CHECK_EQUAL(PLAYER_QUEUE_EDITED, player.editing.result);
+    CHECK_EQUAL(1, row_count());
+    CHECK_EQUAL(0, up_next.list.selected);
+    CHECK_EQUAL(plays, fake_hal_audio_play_count());
+    CHECK(row_is(0, "Hells Bells", "Playing"));
+}
+
+static void the_current_song_menu_can_snapshot_then_keep_only_the_current_song(void)
+{
+    play_album_from(0);
+    open_up_next();
+    Screen *actions = open_actions_on(0);
+    CHECK_EQUAL(SCREEN_ACTION_POP, choose_action(actions, "Edit full queue").type);
+    screen->enter(screen->context, 350);
+    finish_edit();
+    CHECK_EQUAL(2, row_count());
+    CHECK(player.queue.stored_order != NULL);
+    actions = open_actions_on(0);
+    CHECK_EQUAL(SCREEN_ACTION_POP, choose_action(actions, "Keep only current song").type);
+    screen->enter(screen->context, 400);
+    finish_edit();
+    CHECK_EQUAL(1, row_count());
+    CHECK_EQUAL(0, player.track);
+    open_actions_on(0);
+    CHECK_EQUAL(1, action_count());
+    CHECK(strcmp("Keep only current song", action_label(0)) == 0);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_playing_song_comes_first_then_the_list),
+        TEST_CASE(generated_row_removal_is_reachable_without_starting_a_song),
+        TEST_CASE(the_current_song_menu_can_snapshot_then_keep_only_the_current_song),
         TEST_CASE(holding_an_added_song_opens_edit_actions),
         TEST_CASE(moving_a_song_returns_to_its_new_row),
         TEST_CASE(moving_a_song_later_then_earlier_keeps_it_selected),
         TEST_CASE(removing_the_last_added_song_clamps_selection),
         TEST_CASE(holding_the_playing_song_can_clear_only_added_songs),
-        TEST_CASE(unavailable_moves_are_hidden_and_generated_rows_are_not_editable_yet),
+        TEST_CASE(generated_rows_offer_editing_with_unavailable_moves_hidden),
         TEST_CASE(a_failed_save_keeps_the_actions_open_for_retry),
         TEST_CASE(playback_during_an_action_menu_rejects_the_stale_selection),
         TEST_CASE(playback_refreshes_rows_without_scrolling),

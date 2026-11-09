@@ -9,6 +9,7 @@
 #include "hal/power.h"
 #include "hal/system.h"
 
+#ifdef ECHO_DIAGNOSTIC_SAMPLES
 static const char *year_value(const void *context)
 {
     return context;
@@ -42,6 +43,8 @@ static const MenuItem LONG_NAME_ITEMS[] = {
 enum {
     LONG_NAME_COUNT = sizeof LONG_NAME_ITEMS / sizeof LONG_NAME_ITEMS[0]
 };
+
+#endif
 
 static ScreenAction toggle_frame_time(void *context)
 {
@@ -102,6 +105,7 @@ static const char *high_ram_value(const void *context)
     return high_ram_text;
 }
 
+#ifdef ECHO_DIAGNOSTIC_SAMPLES
 static char loop_text[DIAGNOSTICS_VALUE_CAPACITY];
 
 static ScreenAction run_loop_benchmark(void *context)
@@ -118,6 +122,8 @@ static const char *loop_value(const void *context)
     diagnostics_loop_text(loop->run, loop->cycles, loop_text, sizeof loop_text);
     return loop_text;
 }
+
+#endif
 
 static char core1_text[DIAGNOSTICS_VALUE_CAPACITY];
 
@@ -296,13 +302,17 @@ static const char *dma_tone_value(const void *context)
 
 void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Theme *theme)
 {
+#ifdef ECHO_DIAGNOSTIC_SAMPLES
     Screen *long_names = app_screens_build_menu(&screens->long_names, "Long names", LONG_NAME_ITEMS,
                                                 LONG_NAME_COUNT, theme);
+#endif
     screens->diagnostics_items[0] =
         app_screens_open_item("Key test", test_pattern_screen_init(&screens->test_pattern));
+#ifdef ECHO_DIAGNOSTIC_SAMPLES
     screens->diagnostics_items[1] =
         app_screens_open_item("Fonts", font_sample_screen_init(&screens->font_sample, theme));
     screens->diagnostics_items[2] = app_screens_open_item("Long names", long_names);
+#endif
     screens->diagnostics_items[3] = (MenuItem){
         .label = "Frame time",
         .select = toggle_frame_time,
@@ -337,11 +347,13 @@ void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Them
         .label = "Boot clocks", .select = NULL, .context = NULL, .value = boot_clocks_value};
     screens->diagnostics_items[10] =
         (MenuItem){.label = "Boot PLL", .select = NULL, .context = NULL, .value = boot_pll_value};
+#ifdef ECHO_DIAGNOSTIC_SAMPLES
     screens->loop = (LoopOption){.run = false};
     screens->diagnostics_items[11] = (MenuItem){.label = "Loop cycles",
                                                 .select = run_loop_benchmark,
                                                 .context = &screens->loop,
                                                 .value = loop_value};
+#endif
     screens->core1 = (Core1Option){.run = false};
     screens->diagnostics_items[12] = (MenuItem){.label = "Core 1",
                                                 .select = run_core1_test,
@@ -408,6 +420,15 @@ void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Them
         .label = "Last USB", .select = NULL, .context = NULL, .value = diagnostics_row_usb_last};
     screens->diagnostics_items[32] = (MenuItem){
         .label = "Music", .select = NULL, .context = NULL, .value = diagnostics_row_music};
-    app_screens_build_menu(&screens->diagnostics, "Diagnostics", screens->diagnostics_items,
-                           DIAGNOSTICS_ITEM_COUNT, theme);
+    int count = DIAGNOSTICS_ITEM_COUNT;
+#ifndef ECHO_DIAGNOSTIC_SAMPLES
+    count = 0;
+    for (int index = 0; index < DIAGNOSTICS_ITEM_COUNT; index++) {
+        if (index != 1 && index != 2 && index != 11) {
+            screens->diagnostics_items[count++] = screens->diagnostics_items[index];
+        }
+    }
+#endif
+    app_screens_build_menu(&screens->diagnostics, "Diagnostics", screens->diagnostics_items, count,
+                           theme);
 }

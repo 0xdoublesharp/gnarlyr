@@ -82,9 +82,11 @@ typedef struct TrackOrderJob {
 } TrackOrderJob;
 
 TrackOrderLoad track_order_open(TrackOrder *order, TrackOrderConfig config);
+TrackOrderLoad track_order_open_at(TrackOrder *order, TrackOrderConfig config, uint32_t generation);
 bool track_order_read(const TrackOrder *order, uint16_t first, uint16_t count, uint16_t *tracks);
 TrackOrderSource track_order_source(const TrackOrder *order);
 bool track_order_job_begin(TrackOrderJob *job, TrackOrder *order, TrackOrderSource source,
                            TrackOrderEdit edit);
 TrackOrderResult track_order_job_step(TrackOrderJob *job);
 void track_order_job_abort(TrackOrderJob *job);
+uint8_t track_order_job_progress(const TrackOrderJob *job);

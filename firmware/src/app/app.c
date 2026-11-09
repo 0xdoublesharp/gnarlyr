@@ -98,6 +98,7 @@ typedef struct AppState {
     Toast toast;
     BluetoothLink bluetooth;
     uint32_t shown_refusals;
+    uint32_t shown_queue_edit;
     StatusBarState status_bar;
     AppScreens screens;
     MessageScreen notice;
@@ -375,6 +376,10 @@ static void dispatch_key_events(uint32_t now_ms)
         PowerKeyOutcome outcome = power_policy_key(&app.power, event, now_ms);
         if (outcome.shutdown) {
             shut_down(GOODBYE_TEXT);
+        } else if (player_queue_busy(&app.player)) {
+            if (event.key == KEY_BACK && event.gesture == KEY_GESTURE_PRESS) {
+                player_queue_cancel(&app.player);
+            }
         } else if (outcome.background) {
             run_background(event);
         } else if (!outcome.consumed) {
@@ -398,7 +403,8 @@ static bool battery_empty(uint32_t now_ms)
 
 static void keep_awake_while_busy(uint32_t now_ms)
 {
-    if (app.usb_power || player_status(&app.player).state == PLAYER_PLAYING) {
+    if (app.usb_power || player_status(&app.player).state == PLAYER_PLAYING ||
+        player_queue_busy(&app.player)) {
         power_policy_stay_awake(&app.power, now_ms);
     }
 }
@@ -486,6 +492,20 @@ static void draw_slide(Canvas *canvas, Screen *arriving)
     }
 }
 
+static void draw_queue_progress(Canvas *canvas)
+{
+    const PlayerQueueJob *job = &app.player.editing;
+    char text[48];
+    StringBuilder builder = string_builder_make(text, sizeof text);
+    uint32_t percent = track_order_job_progress(&job->writer);
+    string_builder_append_unsigned(&builder, percent);
+    string_builder_append(&builder, "% - Back cancels");
+    MessageScreen message;
+    MessageConfig config = {"Saving queue", text, board_theme()};
+    Screen *screen = message_screen_init(&message, config);
+    screen->draw(screen->context, canvas);
+}
+
 static void draw_frame(void *context, Canvas *canvas)
 {
     const AppState *state = context;
@@ -493,7 +513,9 @@ static void draw_frame(void *context, Canvas *canvas)
         return;
     }
     Screen *screen = screen_stack_top(&state->stack);
-    if (slide_running()) {
+    if (player_queue_busy(&state->player)) {
+        draw_queue_progress(canvas);
+    } else if (slide_running()) {
         draw_slide(canvas, screen);
     } else {
         screen->draw(screen->context, canvas);
@@ -604,6 +626,7 @@ static void start_playback(void)
 {
     library_store_open(&app.library);
     player_init(&app.player, &app.library.library);
+    app.shown_queue_edit = 0;
     settings_store_restore_playback(&app.settings, &app.player, hal_clock_microseconds());
     player_restore(&app.player);
     favorites_store_load(&app.favorites, &app.library.library);
@@ -725,6 +748,20 @@ static void show_cover_progress(uint32_t done, uint32_t total)
     string_builder_append_unsigned(&builder, total);
     string_builder_append(&builder, " albums");
     app_show_notice("Finding covers", text);
+}
+
+static void explain_queue_edit(uint32_t now_ms)
+{
+    const PlayerQueueJob *job = &app.player.editing;
+    if (job->serial == app.shown_queue_edit) {
+        return;
+    }
+    app.shown_queue_edit = job->serial;
+    const char *text = job->result == PLAYER_QUEUE_EDITED           ? "Queue saved"
+                       : job->result == PLAYER_QUEUE_EDIT_CANCELLED ? "Cancelled"
+                       : job->result == PLAYER_QUEUE_EDIT_STALE     ? "Queue changed; try again"
+                                                                    : "Could not save queue";
+    toast_show(&app.toast, text, now_ms);
 }
 
 static void explain_refusals(uint32_t now_ms)
@@ -903,6 +940,7 @@ void app_step(void)
     }
     if (!app.powered_off) {
         player_update(&app.player, now_ms);
+        explain_queue_edit(now_ms);
         bluetooth_link_step(&app.bluetooth, &app.player, now_ms);
         spoken_store_follow(&app.spoken, player_status(&app.player), now_ms);
         explain_refusals(now_ms);

@@ -137,7 +137,8 @@ static bool newer(uint32_t candidate, uint32_t previous)
     return distance != 0 && distance < UINT32_C(0x80000000);
 }
 
-TrackOrderLoad track_order_open(TrackOrder *order, TrackOrderConfig config)
+static TrackOrderLoad open_matching(TrackOrder *order, TrackOrderConfig config,
+                                    const uint32_t *generation)
 {
     *order = (TrackOrder){.config = config};
     if (!config_valid(&config)) {
@@ -153,6 +154,13 @@ TrackOrderLoad track_order_open(TrackOrder *order, TrackOrderConfig config)
         order->needs_reload = true;
         return TRACK_ORDER_UNSUPPORTED;
     }
+    if (generation != NULL) {
+        for (int index = 0; index < 2; index++) {
+            if (banks[index].state == BANK_READY && banks[index].generation != *generation) {
+                banks[index].state = BANK_INVALID;
+            }
+        }
+    }
     if (banks[0].state != BANK_READY && banks[1].state != BANK_READY) {
         return TRACK_ORDER_EMPTY;
     }
@@ -165,6 +173,16 @@ TrackOrderLoad track_order_open(TrackOrder *order, TrackOrderConfig config)
     order->bank = bank;
     order->valid = true;
     return TRACK_ORDER_READY;
+}
+
+TrackOrderLoad track_order_open(TrackOrder *order, TrackOrderConfig config)
+{
+    return open_matching(order, config, NULL);
+}
+
+TrackOrderLoad track_order_open_at(TrackOrder *order, TrackOrderConfig config, uint32_t generation)
+{
+    return open_matching(order, config, &generation);
 }
 
 bool track_order_read(const TrackOrder *order, uint16_t first, uint16_t count, uint16_t *tracks)
@@ -435,4 +453,13 @@ void track_order_job_abort(TrackOrderJob *job)
     if (job->result == TRACK_ORDER_WORKING) {
         (void)finish_job(job, TRACK_ORDER_FAILED);
     }
+}
+
+uint8_t track_order_job_progress(const TrackOrderJob *job)
+{
+    if (job->result == TRACK_ORDER_DONE) {
+        return 100;
+    }
+    uint32_t progress = job->count == 0 ? 0 : job->position * 50u / job->count;
+    return (uint8_t)(progress + (job->stage >= STAGE_VERIFY ? 50u : 0u));
 }

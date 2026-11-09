@@ -496,9 +496,21 @@ static void a_valid_future_format_is_not_overwritten_as_an_empty_file(void)
     CHECK_EQUAL(before, writes);
 }
 
+static void an_exact_generation_ignores_a_newer_unpublished_bank(void)
+{
+    make_order();
+    uint32_t generation = order.generation;
+    CHECK_EQUAL(TRACK_ORDER_DONE, apply((TrackOrderEdit){TRACK_ORDER_REMOVE, 1, 0, 0}));
+    TrackOrder reopened;
+    CHECK_EQUAL(TRACK_ORDER_READY, track_order_open_at(&reopened, configuration(), generation));
+    check_tracks(&reopened, (uint16_t[]){7, 3, 7, 9}, 4);
+    CHECK_EQUAL(TRACK_ORDER_EMPTY, track_order_open_at(&reopened, configuration(), generation + 2));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(an_exact_generation_ignores_a_newer_unpublished_bank),
         TEST_CASE(a_committed_order_survives_reopening),
         TEST_CASE(a_zero_initialized_job_is_idle_and_can_be_cancelled_safely),
         TEST_CASE(a_valid_future_format_is_not_overwritten_as_an_empty_file),

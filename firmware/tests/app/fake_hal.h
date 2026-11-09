@@ -72,6 +72,7 @@ uint8_t fake_hal_audio_volume(void);
 int fake_hal_audio_state(void);
 int fake_hal_write_count(void);
 void fake_hal_fail_music_writes(bool failed);
+void fake_hal_fail_file_writes(const char *path);
 long fake_hal_pixels_written(void);
 int fake_hal_present_count(void);
 bool fake_hal_display_on(void);

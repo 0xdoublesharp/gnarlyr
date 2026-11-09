@@ -56,6 +56,30 @@ typedef struct PlayQueue {
     uint32_t stored_generation;
 } PlayQueue;
 
+typedef enum PlayQueueStreamResult {
+    PLAY_QUEUE_STREAM_WORKING,
+    PLAY_QUEUE_STREAM_READY,
+    PLAY_QUEUE_STREAM_FAILED
+} PlayQueueStreamResult;
+
+typedef struct PlayQueueStreamCache {
+    PlayQueueCursor cursor;
+    LibraryAlbum album;
+    uint32_t position;
+    bool has_album;
+} PlayQueueStreamCache;
+
+typedef struct PlayQueueStream {
+    PlayQueue queue;
+    PlayQueueStreamCache cache;
+    PlayQueueStreamCache *walk;
+    uint32_t total;
+    uint16_t count;
+    uint16_t current;
+    uint16_t scan;
+    PlayQueueStreamResult result;
+} PlayQueueStream;
+
 bool play_queue_build(PlayQueue *queue, const Library *library, PlayQueuePlan plan);
 bool play_queue_use_order(PlayQueue *queue, const Library *library, const TrackOrder *order,
                           PlayQueuePlan plan);
@@ -67,3 +91,7 @@ bool play_queue_neighbor(const PlayQueue *queue, int direction, bool wrap, PlayQ
 bool play_queue_upcoming(const PlayQueue *queue, RepeatMode repeat, PlayQueueCursor *result);
 void play_queue_move_to(PlayQueue *queue, PlayQueueCursor cursor);
 PlayQueuePlace play_queue_place(const PlayQueue *queue);
+
+void play_queue_stream_init(PlayQueueStream *stream, const PlayQueue *queue);
+PlayQueueStreamResult play_queue_stream_prepare(PlayQueueStream *stream);
+TrackOrderSource play_queue_stream_source(const PlayQueueStream *stream);

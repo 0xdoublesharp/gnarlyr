@@ -45,6 +45,15 @@ static bool wraps(const Player *player)
 
 static bool walk_to(const Player *player, QueueWalk *walk, int steps)
 {
+    if (player->queue.stored_order != NULL) {
+        uint32_t position = (uint32_t)player->queue.cursor.position + (uint32_t)steps;
+        if (player->queue.count == 0 || (!wraps(player) && position >= player->queue.count)) {
+            return false;
+        }
+        walk->cursor = (PlayQueueCursor){.position = (uint16_t)(position % player->queue.count)};
+        walk->steps = steps;
+        return true;
+    }
     while (walk->steps < steps) {
         PlayQueueCursor next;
         if (!play_queue_step(&player->queue, walk->cursor, 1, wraps(player), &next)) {
@@ -63,6 +72,10 @@ static QueueWalk start_walk(const Player *player)
 
 static int count_queue_rows(const Player *player)
 {
+    if (player->queue.stored_order != NULL) {
+        return wraps(player) ? player->queue.count - 1
+                             : player->queue.count - player->queue.cursor.position - 1;
+    }
     QueueWalk walk = start_walk(player);
     PlayQueueCursor start = walk.cursor;
     int rows = 0;
@@ -197,6 +210,9 @@ static bool action_shown(const void *context)
     const UpNextEntry *entry = context;
     const UpNextScreen *up_next = entry->owner;
     int index = up_next->edit_index;
+    if (entry->snapshot) {
+        return index == -1 && up_next->config.player->queue.stored_order == NULL;
+    }
     switch (entry->edit) {
     case UP_NEXT_MOVE_FIRST:
     case UP_NEXT_MOVE_EARLIER:
@@ -206,7 +222,7 @@ static bool action_shown(const void *context)
     case UP_NEXT_REMOVE:
         return index >= 0;
     case UP_NEXT_CLEAR:
-        return up_next->edit_count > 0;
+        return up_next->edit_full || up_next->edit_count > 0;
     case UP_NEXT_EDIT_COUNT:
         return false;
     }
@@ -247,13 +263,23 @@ static ScreenAction edit_queue(void *context)
 {
     UpNextEntry *entry = context;
     UpNextScreen *up_next = entry->owner;
-    PlayerQueueEditResult result = player_edit_up_next(
-        up_next->config.player, up_next->edit_revision, (uint16_t)up_next->edit_index, entry->edit);
+    Player *player = up_next->config.player;
+    PlayerQueueEditResult result;
+    if (entry->snapshot) {
+        result = player->up_next_revision == up_next->edit_revision ? player_snapshot_queue(player)
+                                                                    : PLAYER_QUEUE_EDIT_STALE;
+    } else if (up_next->edit_full) {
+        result = player_edit_queue(player, up_next->edit_revision,
+                                   (uint16_t)(up_next->edit_index + 1), entry->edit);
+    } else {
+        result = player_edit_up_next(player, up_next->edit_revision, (uint16_t)up_next->edit_index,
+                                     entry->edit);
+    }
     if (result == PLAYER_QUEUE_EDIT_SAVE_FAILED) {
         show_message(up_next, "Could not save queue");
         return screen_action_none();
     }
-    if (result != PLAYER_QUEUE_EDITED) {
+    if (result != PLAYER_QUEUE_EDITED && result != PLAYER_QUEUE_EDIT_WORKING) {
         show_message(up_next, "Queue changed; try again");
     } else {
         select_after_edit(up_next, entry->edit);
@@ -264,16 +290,20 @@ static ScreenAction edit_queue(void *context)
 static ScreenAction open_actions(void *context, int index)
 {
     UpNextScreen *up_next = context;
-    if (index > up_next->added || up_next->added == 0) {
+    if (index < 0 || index >= up_next->count || player_queue_busy(up_next->config.player)) {
         return screen_action_none();
     }
     up_next->edit_index = index - 1;
-    up_next->edit_count = up_next->added;
+    up_next->edit_full = up_next->config.player->queue.stored_order != NULL ||
+                         index > up_next->added || up_next->added == 0;
+    up_next->edit_count = up_next->edit_full ? up_next->count - 1 : up_next->added;
+    up_next->items[UP_NEXT_CLEAR].label =
+        up_next->edit_full ? "Keep only current song" : "Clear added songs";
     up_next->edit_revision = up_next->config.player->up_next_revision;
     up_next->returning = true;
     MenuConfig config = {.title = "Edit Up Next",
                          .items = up_next->items,
-                         .item_count = UP_NEXT_EDIT_COUNT,
+                         .item_count = UP_NEXT_ACTION_COUNT,
                          .theme = up_next->config.theme};
     return screen_action_push(menu_screen_init(&up_next->actions, config));
 }
@@ -361,13 +391,15 @@ Screen *up_next_screen_init(UpNextScreen *up_next, UpNextConfig config)
     up_next->now_ms = 0;
     up_next->returning = false;
     observe_player(up_next);
-    for (int index = 0; index < UP_NEXT_EDIT_COUNT; index++) {
-        up_next->entries[index] = (UpNextEntry){.owner = up_next, .edit = (UpNextEdit)index};
-        up_next->items[index] = (MenuItem){.label = EDIT_LABELS[index],
-                                           .select = edit_queue,
-                                           .context = &up_next->entries[index],
-                                           .shown = action_shown,
-                                           .shown_context = &up_next->entries[index]};
+    for (int index = 0; index < UP_NEXT_ACTION_COUNT; index++) {
+        up_next->entries[index] = (UpNextEntry){
+            .owner = up_next, .edit = (UpNextEdit)index, .snapshot = index == UP_NEXT_EDIT_COUNT};
+        up_next->items[index] = (MenuItem){
+            .label = index == UP_NEXT_EDIT_COUNT ? "Edit full queue" : EDIT_LABELS[index],
+            .select = edit_queue,
+            .context = &up_next->entries[index],
+            .shown = action_shown,
+            .shown_context = &up_next->entries[index]};
     }
     up_next->model = (ListModel){.context = up_next,
                                  .count = row_count,

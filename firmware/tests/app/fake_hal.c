@@ -15,7 +15,7 @@
 
 enum {
     TRANSITION_CAPACITY = 16,
-    FILE_CAPACITY = 12,
+    FILE_CAPACITY = 16,
     WRITTEN_CAPACITY = 1100,
     PATH_CAPACITY = 260,
     INTERNAL_CAPACITY = 4
@@ -61,7 +61,7 @@ typedef struct FakeFile {
 } FakeFile;
 
 enum {
-    STORE_SLOTS = 4,
+    STORE_SLOTS = 6,
     STORE_CAPACITY = 512 * 1024
 };
 
@@ -91,6 +91,7 @@ typedef struct FakeHal {
     WrittenFile written[FILE_CAPACITY];
     int write_count;
     bool fail_music_writes;
+    const char *fail_file_writes;
     uint32_t clock_mhz;
     int stall_test_count;
     int watchdog_test_count;
@@ -141,7 +142,7 @@ void fake_hal_replace_music_volume(void)
 
 void fake_hal_reset(void)
 {
-    fake = (FakeHal){0};
+    fake = (FakeHal){.reserve_result = HAL_RESERVE_CREATED};
     fake.audio.jack = HAL_AUDIO_JACK_SINGLE_ENDED;
     fake.audio.status.idle = true;
 }
@@ -668,6 +669,11 @@ static void register_written(const char *path, uint32_t length)
     fake_hal_add_file(slot->path, slot->bytes, length);
 }
 
+void fake_hal_fail_file_writes(const char *path)
+{
+    fake.fail_file_writes = path;
+}
+
 void fake_hal_fail_music_writes(bool failed)
 {
     fake.fail_music_writes = failed;
@@ -1034,14 +1040,17 @@ static uint8_t *store_for(FakeFile *file)
 bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes, uint32_t length)
 {
     FakeFile *file = fake_file(path);
-    if (fake.fail_music_writes || file == NULL || offset > file->size ||
-        length > file->size - offset) {
+    if (fake.fail_music_writes ||
+        (fake.fail_file_writes != NULL && strcmp(path, fake.fail_file_writes) == 0) ||
+        file == NULL || offset > file->size || length > file->size - offset) {
         return false;
     }
     uint8_t *store = store_for(file);
-    if (store != NULL && offset + length <= file->stored) {
-        memcpy(store + offset, bytes, length);
+    if (store == NULL || offset + length > file->stored) {
+        return false;
     }
+    memcpy(store + offset, bytes, length);
+    fake.write_count++;
     fake.library_writes += strcmp(path, "/.echo/library.db") == 0;
     fake.covers_writes += strcmp(path, "/.echo/covers.bin") == 0;
     return true;

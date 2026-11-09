@@ -37,7 +37,7 @@ Toolchain: cmake, SDL2, clang-format, arm-none-eabi-gcc and binutils.
 | Preset | Output |
 |---|---|
 | `dev` | Host build of the simulator and tests, under UndefinedBehaviorSanitizer |
-| `device` | Cross-compiled `build/device/ECHOV455.IMG` for the full-size Echo (brand `PODIUM`, version from `PODIUM_VERSION`, 4.5.5) with the full Diagnostics menu |
+| `device` | Cross-compiled `build/device/ECHOV455.IMG` for the full-size Echo (brand `PODIUM`, version from `PODIUM_VERSION`, 4.5.5) with hardware Diagnostics (font/name samples and the loop benchmark remain simulator-only) |
 | `release` | `build/release/ECHOV455.IMG` with the short Diagnostics menu |
 
 `ctest` also builds the `device` preset, runs the emulator tests on its image and checks formatting, the absence of comments, generated files being current and the Cortex-M3 flash/RAM budget (`target_audit`).
