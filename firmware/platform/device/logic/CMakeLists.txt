@@ -99,6 +99,7 @@ add_library(echo_device_logic STATIC
     sd_card.c
     stall_watch.c
     storage_mount.c
+    storage_code.c
     stream_drift.c
     tick_clock.c
     update_names.c

@@ -4,7 +4,7 @@ MEMORY
 {
     DATA_RAM (rw) : ORIGIN = 0x03004000, LENGTH = 0x48000
     CODE_RAM (rx) : ORIGIN = 0x03050000, LENGTH = 0x2666C
-    HIGH_RAM (rw) : ORIGIN = 0x0307A000, LENGTH = 0x18000
+    HIGH_RAM (rw) : ORIGIN = 0x0307A000, LENGTH = 0x15000
     GLYPH_RAM (rw) : ORIGIN = 0x03092000, LENGTH = 0xD000
 }
 
@@ -16,6 +16,7 @@ SECTIONS
         *(.text .text.*)
         *(.rodata .rodata.*)
         . = ALIGN(4);
+        device_code_end = .;
     } > CODE_RAM
 
     .data :

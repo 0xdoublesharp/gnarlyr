@@ -3,11 +3,12 @@
 
 #include "board.h"
 #include "device/image_crc.h"
+#include "device/storage_code.h"
 #include "emmc.h"
 #include "hal/system.h"
 
 #define OVERLAY_BASE 0x0307A000u
-#define OVERLAY_CAPACITY 0x18000u
+#define OVERLAY_CAPACITY RESCAN_CODE_CAPACITY
 #define OVERLAY_IMAGE_OFFSET 0x200000u
 #define OVERLAY_MAGIC 0x4C564F45u
 

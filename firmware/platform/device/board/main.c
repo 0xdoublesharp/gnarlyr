@@ -7,6 +7,7 @@
 #include "hal/power.h"
 #include "hal/system.h"
 #include "storage_reset.h"
+#include "storage_runtime.h"
 #include "update.h"
 #include "usb.h"
 #include "usb_dac_session.h"
@@ -205,6 +206,8 @@ void board_main(void)
     board_jack_poll();
     boot_step("jack");
     switch_off_when_empty(boot_millivolts);
+    board_storage_code_start();
+    boot_step("storage code");
     boot_step("app start");
     app_start();
     boot_step("splash");

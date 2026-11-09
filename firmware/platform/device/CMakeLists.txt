@@ -28,6 +28,7 @@ add_executable(echo_device
     board/watchdog.c
     board/startup.c
     board/storage.c
+    board/storage_runtime.c
     board/system.c
     board/update.c
     board/usb.c
@@ -131,6 +132,7 @@ if(CMAKE_CROSSCOMPILING)
         board/panic.c
         board/start_info.c
         board/system.c
+        board/storage_runtime.c
         board/update.c
         board/usb_dac_session.c
         board/usb_report.c
@@ -160,6 +162,38 @@ target_link_options(echo_rescan_overlay PRIVATE
     -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_rescan_overlay.map
 )
 
+set(ECHO_STORAGE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/resident/storage_code.ld)
+add_executable(echo_storage_code
+    resident/storage_entry.c
+    ${PROJECT_SOURCE_DIR}/src/playback/track_order.c
+    ${PROJECT_SOURCE_DIR}/src/playback/session_journal.c
+)
+set_target_properties(echo_storage_code PROPERTIES
+    SUFFIX .elf
+    LINK_DEPENDS "${ECHO_STORAGE_LINKER_SCRIPT};$<TARGET_FILE:echo_device>"
+)
+add_dependencies(echo_storage_code echo_device)
+target_link_libraries(echo_storage_code PRIVATE echo_playback echo_device_logic echo_options echo_compact gcc)
+target_compile_definitions(echo_storage_code PRIVATE
+    track_order_open=resident_track_order_open
+    track_order_open_at=resident_track_order_open_at
+    track_order_read=resident_track_order_read
+    track_order_source=resident_track_order_source
+    track_order_job_begin=resident_track_order_job_begin
+    track_order_job_step=resident_track_order_job_step
+    track_order_job_abort=resident_track_order_job_abort
+    track_order_job_progress=resident_track_order_job_progress
+    session_journal_open=resident_session_journal_open
+    session_journal_previous=resident_session_journal_previous
+    session_journal_save=resident_session_journal_save
+)
+target_link_options(echo_storage_code PRIVATE
+    -T${ECHO_STORAGE_LINKER_SCRIPT}
+    -Wl,--just-symbols=$<TARGET_FILE:echo_device>
+    -Wl,--allow-multiple-definition
+    -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_storage_code.map
+)
+
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(ECHO_FIRMWARE_VERSION ${PODIUM_VERSION})
 set(ECHO_DEVICE_IMAGE ${CMAKE_BINARY_DIR}/${PODIUM_IMAGE_NAME})
@@ -175,13 +209,14 @@ add_custom_target(echo_device_image ALL
         --brand ${ECHO_IMAGE_BRAND}
         --elf $<TARGET_FILE:echo_device>
         --overlay $<TARGET_FILE:echo_rescan_overlay>
+        --storage-code $<TARGET_FILE:echo_storage_code>
         --core1-mp3 ${ECHO_CORE1_MP3_BINARY}
         --core1-flac ${ECHO_CORE1_BINARY}
         --core1-m4a ${ECHO_CORE1_M4A_BINARY}
         ${ECHO_GLYPH_FACE_ARGUMENTS}
         --output ${ECHO_DEVICE_IMAGE}
     BYPRODUCTS ${ECHO_DEVICE_IMAGE}
-    DEPENDS echo_device echo_rescan_overlay ${ECHO_CORE1_MP3_BINARY} ${ECHO_CORE1_BINARY}
+    DEPENDS echo_device echo_rescan_overlay echo_storage_code ${ECHO_CORE1_MP3_BINARY} ${ECHO_CORE1_BINARY}
         ${ECHO_CORE1_M4A_BINARY}
         ${PROJECT_SOURCE_DIR}/tools/make_image.py
     VERBATIM

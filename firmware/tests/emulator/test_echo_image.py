@@ -136,6 +136,10 @@ class EchoImageTest(unittest.TestCase):
         session = self.session()
         self.assertEqual(session.run_to_home_screen(), "condition met")
         machine = session.machine
+        self.assertEqual(machine.read_memory(machine.symbols["storage_code_ready"], 1), b"\x01")
+        size = struct.unpack_from("<I", self.image, 0x218004)[0]
+        self.assertEqual(machine.read_memory(0x0308F000, size),
+                         self.image[0x218000:0x218000 + size])
         panel = session.panel
         self.assertEqual(len(panel.lit_sweeps()), 2)
         self.assertGreater(panel.colors(), 8)
@@ -147,6 +151,57 @@ class EchoImageTest(unittest.TestCase):
         self.assertGreater(machine.watchdog_kicks, 0)
         self.assertGreater(len(session.card.reads), 0)
         summary("home screen", session)
+
+    def test_corrupt_or_mismatched_storage_code_is_not_executed(self):
+        for offset in (0x21800C, 0x218000 + struct.unpack_from("<I", self.image, 0x218004)[0] - 1):
+            image = bytearray(self.image)
+            image[offset] ^= 1
+            session = self.session(image=bytes(image))
+            self.assertEqual(session.run_to_home_screen(), "condition met")
+            machine = session.machine
+            self.assertEqual(machine.read_memory(machine.symbols["storage_code_ready"], 1), b"\x00")
+            self.assert_only_the_user_volume_changed(session)
+            self.assert_healthy(session)
+
+    def test_storage_code_falls_back_to_a_matching_secondary_slot(self):
+        session = self.session()
+        sector = bytearray(self.image[0x218000:0x218200])
+        sector[12] ^= 1
+        session.disk.write(session.layout["slot_1"] + 0x218000 // 512, bytes(sector))
+        session.before = session.disk.snapshot()
+        self.assertEqual(session.run_to_home_screen(), "condition met")
+        machine = session.machine
+        self.assertEqual(machine.read_memory(machine.symbols["storage_code_ready"], 1), b"\x01")
+        size = struct.unpack_from("<I", self.image, 0x218004)[0]
+        self.assertEqual(machine.read_memory(0x0308F000, size),
+                         self.image[0x218000:0x218000 + size])
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def test_the_high_ram_diagnostic_preserves_resident_storage_code(self):
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_R0
+        session = self.session()
+        self.assertEqual(session.run_to_home_screen(), "condition met")
+        machine = session.machine
+        self.assertEqual(machine.run(until=lambda: machine.exception_depth == 0 and
+                                     not machine.pending_return), "condition met")
+        size = struct.unpack_from("<I", self.image, 0x218004)[0]
+        before = machine.read_memory(0x0308F000, size)
+        result = 0x03001000
+        returned = 0x03FF0100
+        machine.add_address_hook(returned, lambda: machine.stop("diagnostic returned"))
+        machine.uc.reg_write(UC_ARM_REG_R0, result)
+        machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
+        machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols["hal_system_high_ram_test"] | 1)
+        self.assertEqual(machine.run(until_ms=machine.milliseconds() + 3000),
+                         "diagnostic returned")
+        diagnostic = machine.read_memory(result, 16)
+        self.assertEqual(diagnostic[0], 0)
+        self.assertEqual(struct.unpack_from("<3I", diagnostic, 4),
+                         (0x25000 - 0x3000, 0, 22))
+        self.assertEqual(machine.read_memory(0x0308F000, size), before)
+        self.assertEqual(machine.read_memory(machine.symbols["storage_code_ready"], 1), b"\x01")
+        self.assert_healthy(session)
 
     def test_legacy_settings_are_saved_to_a_new_file_without_overwriting_the_original(self):
         legacy = bytearray(b"EMST" + bytes((4, 0, 9, 2, 0, 0, 0, 0, 0, 21, 2, 0, 37)) + bytes(7))
@@ -572,6 +627,33 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(rig.machine.reached.get("player_jump_to_queue", 0), 0)
         self.assert_only_the_user_volume_changed(rig.session)
         self.assert_healthy(rig.session)
+        rebooted = rig.session.reboot()
+        machine = rebooted.machine
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_R0, UC_ARM_REG_R1
+        player = []
+        machine.hook_symbol("player_restore", lambda: player.append(machine.reg(UC_ARM_REG_R0)))
+        machine.note("track_order_open_at")
+        self.assertEqual(rebooted.run_to_home_screen(), "condition met")
+        self.assertGreaterEqual(machine.reached.get("track_order_open_at", 0), 1)
+        self.assertTrue(player)
+        self.assertEqual(machine.run(until=lambda: machine.exception_depth == 0 and
+                                     not machine.pending_return), "condition met")
+        result, returned = 0x03001000, 0x03FF0100
+        machine.add_address_hook(returned, lambda: machine.stop("status returned"))
+        machine.uc.reg_write(UC_ARM_REG_R0, result)
+        machine.uc.reg_write(UC_ARM_REG_R1, player[-1])
+        machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
+        machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols["player_status"] | 1)
+        self.assertEqual(machine.run(until_ms=machine.milliseconds() + 1000), "status returned")
+        status = machine.read_memory(result, 32)
+        self.assertEqual(status[0], 2)
+        self.assertEqual(status[1], 1)
+        self.assertEqual(struct.unpack_from("<H", status, 2)[0], 0)
+        self.assertEqual(struct.unpack_from("<I", status, 4)[0],
+                         struct.unpack_from("<I", record, 48)[0])
+        self.assertEqual(struct.unpack_from("<HH", status, 16), (1, 11))
+        self.assert_only_the_user_volume_changed(rebooted)
+        self.assert_healthy(rebooted)
         summary("generated queue editing", rig.session)
 
     def test_a_deep_cue_track_starts_quickly_and_switching_tracks_keeps_the_ui_smooth(self):
