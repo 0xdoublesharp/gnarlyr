@@ -43,6 +43,7 @@ typedef struct FakeAudio {
     int refused_plays;
     HalAudioJack jack;
     HalAudioRefusal refusal;
+    DacIdentity dac_identity[DAC_IDENTITY_CHIPS];
 } FakeAudio;
 
 typedef struct WrittenFile {
@@ -718,6 +719,16 @@ HalAudioJack hal_audio_jack(void)
 void fake_hal_audio_set_jack(HalAudioJack jack)
 {
     fake.audio.jack = jack;
+}
+
+DacIdentity hal_audio_dac_identity(int chip)
+{
+    return fake.audio.dac_identity[chip != 0];
+}
+
+void fake_hal_audio_set_dac_identity(int chip, DacIdentity identity)
+{
+    fake.audio.dac_identity[chip != 0] = identity;
 }
 
 HalJackPins hal_audio_jack_pins(void)

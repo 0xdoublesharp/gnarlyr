@@ -4,7 +4,7 @@
 
 enum {
     MICROSECONDS_PER_MILLISECOND = 1000,
-    CHIP_COUNT = 2,
+    CHIP_COUNT = DAC_IDENTITY_CHIPS,
     STATUS_MAP = 0x0F0000,
     STATUS_NOT_READY = 0x03,
     POWER_CONTROL_MAP = 0x020000,
@@ -34,6 +34,8 @@ enum {
 };
 
 static const uint8_t CHIPS[CHIP_COUNT] = {DAC_LEFT_ADDRESS, DAC_RIGHT_ADDRESS};
+static const uint32_t IDENTITY_MAPS[DAC_IDENTITY_BYTES] = {0x010000, 0x010001, 0x010002, 0x010004,
+                                                           0x010005};
 static const uint8_t CHANNEL_VALUES[CHIP_COUNT] = {0x07, 0x0F};
 
 static const Write AFTER_STATUS[] = {
@@ -156,6 +158,25 @@ void dac_power_pins(const DacBus *bus)
     wait_ms(bus, 8);
     set_pin(bus, DAC_PIN_RESET, false);
     wait_ms(bus, 2);
+}
+
+static void read_chip_identity(const DacBus *bus, uint8_t address, DacIdentity *chip)
+{
+    *chip = (DacIdentity){.source = DAC_IDENTITY_READ};
+    for (int index = 0; index < DAC_IDENTITY_BYTES; index++) {
+        if (!bus->read(bus->context, address, IDENTITY_MAPS[index], &chip->bytes[index])) {
+            chip->bytes[index] = 0;
+            return;
+        }
+        chip->read_mask |= (uint8_t)(1u << index);
+    }
+}
+
+void dac_read_identity(const DacBus *bus, DacIdentity *chips)
+{
+    for (int chip = 0; chip < CHIP_COUNT; chip++) {
+        read_chip_identity(bus, CHIPS[chip], &chips[chip]);
+    }
 }
 
 bool dac_probe(const DacBus *bus)

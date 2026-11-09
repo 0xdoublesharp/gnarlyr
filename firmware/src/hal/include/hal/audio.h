@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/dac_identity.h"
+
 enum {
     HAL_AUDIO_VOLUME_MAX = 60,
     HAL_AUDIO_EQUALIZER_BANDS = 10,
@@ -146,6 +148,7 @@ HalAudioStats hal_audio_stats(void);
 void hal_audio_service(void);
 HalToneResult hal_audio_test_tone(void);
 HalToneDetail hal_audio_tone_detail(void);
+DacIdentity hal_audio_dac_identity(int chip);
 HalToneResult hal_audio_dma_tone_start(uint32_t sample_rate);
 void hal_audio_dma_tone_stop(void);
 HalDmaToneStatus hal_audio_dma_tone_status(void);

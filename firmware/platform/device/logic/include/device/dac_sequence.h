@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/dac_identity.h"
+
 typedef enum DacPin {
     DAC_PIN_MUTE,
     DAC_PIN_ENABLE_A,
@@ -38,6 +40,7 @@ enum {
 };
 
 void dac_power_pins(const DacBus *bus);
+void dac_read_identity(const DacBus *bus, DacIdentity *chips);
 bool dac_probe(const DacBus *bus);
 DacResult dac_configure(const DacBus *bus, uint8_t rate_byte);
 void dac_output_on(const DacBus *bus, uint8_t volume);

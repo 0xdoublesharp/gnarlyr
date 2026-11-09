@@ -344,6 +344,12 @@ HalToneDetail hal_audio_tone_detail(void)
     return (HalToneDetail){.stage = 0, .pending = 0};
 }
 
+DacIdentity hal_audio_dac_identity(int chip)
+{
+    (void)chip;
+    return (DacIdentity){.source = DAC_IDENTITY_SIMULATED};
+}
+
 HalToneResult hal_audio_dma_tone_start(uint32_t sample_rate)
 {
     (void)sample_rate;

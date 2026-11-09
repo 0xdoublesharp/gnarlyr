@@ -7,8 +7,16 @@
 enum {
     LEFT = 0x60,
     RIGHT = 0x66,
-    OP_CAPACITY = 256
+    OP_CAPACITY = 256,
+    IDENTITY_PAGE = 0x0100,
+    IDENTITY_REGISTERS = 5,
+    START_VOLUME = 0x5E
 };
+
+static const uint32_t IDENTITY_MAPS[IDENTITY_REGISTERS] = {0x010000, 0x010001, 0x010002, 0x010004,
+                                                           0x010005};
+static const uint8_t IDENTITY_VALUES[2][IDENTITY_REGISTERS] = {{0x43, 0x19, 0x80, 0xA0, 0x01},
+                                                               {0x43, 0x13, 0x10, 0xB2, 0x07}};
 
 typedef enum OpKind {
     OP_WRITE,
@@ -29,6 +37,7 @@ typedef struct FakeBus {
     int count;
     uint8_t status[2];
     uint8_t power_control[2];
+    uint8_t identity_failures[2];
     bool silent;
 } FakeBus;
 
@@ -60,6 +69,23 @@ static bool fake_write(void *context, uint8_t address, uint32_t map, uint8_t val
     return true;
 }
 
+static bool is_identity_map(uint32_t map)
+{
+    return map >> 8 == IDENTITY_PAGE;
+}
+
+static bool read_identity(uint8_t address, uint32_t map, uint8_t *value)
+{
+    *value = 0xEE;
+    for (int index = 0; index < IDENTITY_REGISTERS; index++) {
+        if (map == IDENTITY_MAPS[index]) {
+            *value = IDENTITY_VALUES[chip_of(address)][index];
+            return ((fake.identity_failures[chip_of(address)] >> index) & 1u) == 0;
+        }
+    }
+    return true;
+}
+
 static bool fake_read(void *context, uint8_t address, uint32_t map, uint8_t *value)
 {
     (void)context;
@@ -67,6 +93,9 @@ static bool fake_read(void *context, uint8_t address, uint32_t map, uint8_t *val
         return false;
     }
     record((Op){OP_READ, address, map, 0});
+    if (is_identity_map(map)) {
+        return read_identity(address, map, value);
+    }
     *value = map == 0x0F0000 ? fake.status[chip_of(address)] : fake.power_control[chip_of(address)];
     return true;
 }
@@ -159,6 +188,138 @@ static void a_silent_bus_fails_the_probe(void)
     DacBus bus = fresh_bus();
     fake.silent = true;
     CHECK(!dac_probe(&bus));
+}
+
+static bool next_identity_reads(uint8_t address, int count)
+{
+    for (int index = 0; index < count; index++) {
+        if (!next_is((Op){OP_READ, address, IDENTITY_MAPS[index], 0})) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool holds(const DacIdentity *chip, uint8_t mask, const uint8_t *values)
+{
+    for (int index = 0; index < IDENTITY_REGISTERS; index++) {
+        uint8_t expected = ((mask >> index) & 1u) != 0 ? values[index] : 0;
+        if (chip->bytes[index] != expected) {
+            return false;
+        }
+    }
+    return chip->source == DAC_IDENTITY_READ && chip->read_mask == mask;
+}
+
+static void identification_only_reads_the_five_identity_registers_of_each_chip(void)
+{
+    DacIdentity chips[DAC_IDENTITY_CHIPS];
+    DacBus bus = fresh_bus();
+    cursor = 0;
+    dac_read_identity(&bus, chips);
+    CHECK(next_identity_reads(LEFT, IDENTITY_REGISTERS));
+    CHECK(next_identity_reads(RIGHT, IDENTITY_REGISTERS));
+    CHECK_EQUAL(cursor, fake.count);
+    CHECK(holds(&chips[0], DAC_IDENTITY_ALL_READ, IDENTITY_VALUES[0]));
+    CHECK(holds(&chips[1], DAC_IDENTITY_ALL_READ, IDENTITY_VALUES[1]));
+}
+
+static void identification_leaves_a_chip_at_its_first_failed_register(void)
+{
+    DacIdentity chips[DAC_IDENTITY_CHIPS];
+    DacBus bus = fresh_bus();
+    fake.identity_failures[0] = 0x04;
+    cursor = 0;
+    dac_read_identity(&bus, chips);
+    CHECK(next_identity_reads(LEFT, 3));
+    CHECK(next_identity_reads(RIGHT, IDENTITY_REGISTERS));
+    CHECK_EQUAL(cursor, fake.count);
+    CHECK(holds(&chips[0], 0x03, IDENTITY_VALUES[0]));
+    CHECK(holds(&chips[1], DAC_IDENTITY_ALL_READ, IDENTITY_VALUES[1]));
+}
+
+static void a_chip_that_does_not_answer_is_asked_once_and_keeps_no_bytes(void)
+{
+    DacIdentity chips[DAC_IDENTITY_CHIPS];
+    DacBus bus = fresh_bus();
+    fake.identity_failures[0] = DAC_IDENTITY_ALL_READ;
+    fake.identity_failures[1] = DAC_IDENTITY_ALL_READ;
+    cursor = 0;
+    dac_read_identity(&bus, chips);
+    CHECK(next_identity_reads(LEFT, 1));
+    CHECK(next_identity_reads(RIGHT, 1));
+    CHECK_EQUAL(cursor, fake.count);
+    CHECK(holds(&chips[0], 0, IDENTITY_VALUES[0]));
+    CHECK(holds(&chips[1], 0, IDENTITY_VALUES[1]));
+}
+
+static Op reference[OP_CAPACITY];
+static int reference_count;
+
+static void start_up(const DacBus *bus, bool identify)
+{
+    DacIdentity chips[DAC_IDENTITY_CHIPS];
+    dac_power_pins(bus);
+    if (identify) {
+        dac_read_identity(bus, chips);
+    }
+    CHECK(dac_probe(bus));
+    CHECK_EQUAL(DAC_READY, dac_configure(bus, 1));
+    dac_output_on(bus, START_VOLUME);
+}
+
+static void keep_reference_start_up(void)
+{
+    DacBus bus = fresh_bus();
+    start_up(&bus, false);
+    CHECK(fake.count <= OP_CAPACITY);
+    reference_count = fake.count;
+    for (int index = 0; index < reference_count; index++) {
+        reference[index] = fake.ops[index];
+    }
+}
+
+static bool same_op(Op first, Op second)
+{
+    return first.kind == second.kind && first.address == second.address &&
+           first.map == second.map && first.value == second.value;
+}
+
+static bool start_up_matches_reference(uint8_t left_failures, uint8_t right_failures, int reads)
+{
+    DacBus bus = fresh_bus();
+    fake.identity_failures[0] = left_failures;
+    fake.identity_failures[1] = right_failures;
+    start_up(&bus, true);
+    int matched = 0;
+    int identity_reads = 0;
+    for (int index = 0; index < fake.count && index < OP_CAPACITY; index++) {
+        Op op = fake.ops[index];
+        if (op.kind == OP_READ && is_identity_map(op.map)) {
+            identity_reads++;
+        } else if (matched >= reference_count || !same_op(op, reference[matched++])) {
+            return false;
+        }
+    }
+    return matched == reference_count && identity_reads == reads &&
+           fake.count == reference_count + reads;
+}
+
+static void start_up_writes_pins_and_waits_are_unchanged_by_identification(void)
+{
+    keep_reference_start_up();
+    CHECK(reference_count > 0);
+    CHECK(start_up_matches_reference(0, 0, 10));
+    CHECK(start_up_matches_reference(0x04, 0x10, 8));
+    CHECK(start_up_matches_reference(DAC_IDENTITY_ALL_READ, DAC_IDENTITY_ALL_READ, 2));
+}
+
+static void the_reference_start_up_itself_reads_no_identity_register(void)
+{
+    keep_reference_start_up();
+    for (int index = 0; index < reference_count; index++) {
+        CHECK(reference[index].kind != OP_READ || !is_identity_map(reference[index].map));
+    }
 }
 
 static bool next_mono_table(void)
@@ -366,6 +527,11 @@ int main(void)
         TEST_CASE(the_power_pins_pulse_reset_as_in_the_facts),
         TEST_CASE(the_probe_writes_map_zero_to_both_chips),
         TEST_CASE(a_silent_bus_fails_the_probe),
+        TEST_CASE(identification_only_reads_the_five_identity_registers_of_each_chip),
+        TEST_CASE(identification_leaves_a_chip_at_its_first_failed_register),
+        TEST_CASE(a_chip_that_does_not_answer_is_asked_once_and_keeps_no_bytes),
+        TEST_CASE(start_up_writes_pins_and_waits_are_unchanged_by_identification),
+        TEST_CASE(the_reference_start_up_itself_reads_no_identity_register),
         TEST_CASE(the_register_sequence_follows_the_facts),
         TEST_CASE(both_chips_reporting_not_ready_stops_the_sequence),
         TEST_CASE(one_chip_reporting_not_ready_carries_on),

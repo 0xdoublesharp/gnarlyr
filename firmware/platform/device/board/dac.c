@@ -130,6 +130,7 @@ static const DacPin DAC_PIN_LIST[] = {DAC_PIN_MUTE, DAC_PIN_ENABLE_A, DAC_PIN_EN
                                       DAC_PIN_RESET, DAC_PIN_AMP};
 
 static HalToneDetail detail;
+static DacIdentity identity[DAC_IDENTITY_CHIPS];
 static uint8_t volume_value;
 static bool volume_known;
 static bool gain_high;
@@ -161,6 +162,11 @@ static bool wait_pending(uint32_t bits, I2cStage stage)
 HalToneDetail hal_audio_tone_detail(void)
 {
     return detail;
+}
+
+DacIdentity hal_audio_dac_identity(int chip)
+{
+    return identity[chip != 0];
 }
 
 static bool i2c_start(uint32_t mode)
@@ -436,6 +442,16 @@ static const AudioRate *rate_of(uint32_t rate)
     return NULL;
 }
 
+static void identify_once(void)
+{
+    if (identity[0].source != DAC_IDENTITY_NOT_READ) {
+        return;
+    }
+    HalToneDetail kept = detail;
+    dac_read_identity(&BUS, identity);
+    detail = kept;
+}
+
 static HalToneResult start_audio_path(const AudioRate *rate, uint32_t divider, uint32_t format,
                                       uint32_t interrupts, bool transfer)
 {
@@ -445,6 +461,7 @@ static HalToneResult start_audio_path(const AudioRate *rate, uint32_t divider, u
     dac_power_pins(&BUS);
     start_soc_clocks();
     start_i2c();
+    identify_once();
     if (!dac_probe(&BUS)) {
         dac_output_off(&BUS);
         return HAL_TONE_NO_DAC;
