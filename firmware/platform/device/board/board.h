@@ -60,6 +60,7 @@ bool board_audio_stream_play(void);
 void board_audio_stream_pause(void);
 uint32_t board_audio_stream_consumed(void);
 void board_audio_stream_close(void);
+bool board_input_take_key_press(void);
 void board_wait_for_key(void);
 void board_wait_for_power_hold(uint32_t hold_ms);
 void board_main(void);

@@ -183,6 +183,12 @@ CORE_SEAM void board_wait_for_power_hold(uint32_t hold_ms)
     }
 }
 
+CORE_SEAM bool board_input_take_key_press(void)
+{
+    HalKeyTransition transition;
+    return hal_input_next_transition(&transition) && transition.pressed;
+}
+
 CORE_SEAM void board_wait_for_key(void)
 {
     HalKeyTransition transition;
@@ -190,7 +196,7 @@ CORE_SEAM void board_wait_for_key(void)
     }
     for (;;) {
         board_display_service();
-        if (hal_input_next_transition(&transition) && transition.pressed) {
+        if (board_input_take_key_press()) {
             return;
         }
     }
