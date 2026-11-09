@@ -12,6 +12,14 @@ MAP = """Archive member included to satisfy reference by file (symbol)
 src/app/libecho_app.a(app.c.obj)
                               platform/device/CMakeFiles/echo_device.dir/board/main.c.obj (app_start)
 
+Memory Configuration
+
+Name             Origin             Length             Attributes
+DATA_RAM         0x03004000         0x00048000         rw
+CODE_RAM         0x03050000         0x0002666c         xr
+HIGH_RAM         0x0307a000         0x00018000         rw
+*default*        0x00000000         0xffffffff
+
 Linker script and memory map
 
 LOAD platform/device/CMakeFiles/echo_device.dir/board/audio.c.obj
@@ -46,13 +54,20 @@ LOAD platform/device/CMakeFiles/echo_device.dir/board/audio.c.obj
 
 .noinit         0x03024008       0x30
  .noinit.record 0x03024008       0x30 platform/device/CMakeFiles/echo_device.dir/board/start_info.c.obj
+                0x03024038                        device_noinit_end = .
 
 .high_ram       0x0307a000    0x12050
  .high_ram.decoding
                 0x0307a000     0xa050 platform/device/CMakeFiles/echo_device.dir/board/audio.c.obj
 """
 
-OVERLAY_MAP = """Linker script and memory map
+OVERLAY_MAP = """Memory Configuration
+
+Name             Origin             Length             Attributes
+HIGH_RAM         0x0307a000         0x00018000         xr
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
 
 .overlay        0x0307a000    0x14000
  .text.scan     0x0307a010     0x1000 src/library/libecho_library_scan.a(library_scan.c.obj)
@@ -126,9 +141,20 @@ class ReportTest(unittest.TestCase):
     def test_summary_measures_against_each_limit(self):
         lines = size_report.summary(MAP, OVERLAY_MAP)
         self.assertEqual(lines[0], "code window: 4,096 of 157,292 bytes, 153,196 free")
-        self.assertEqual(lines[1], "loaded total (code + .data + .bss): 135,176 of 437,600 bytes, "
-                                   "302,424 free")
-        self.assertEqual(lines[2], "rescan overlay: 81,920 of 86,016 bytes, 4,096 free")
+        self.assertEqual(lines[1], "static RAM (.data + .bss + .noinit): 131,128 of 294,912 bytes, "
+                                   "163,784 free")
+        self.assertEqual(lines[2], "rescan overlay: 81,920 of 98,304 bytes, 16,384 free")
+
+    def test_static_ram_is_measured_against_the_boot_rom_limit_when_the_script_names_it(self):
+        limited = MAP + "                0x0304a240                        device_data_limit = 0x304a240\n"
+        self.assertEqual(size_report.summary(limited)[1],
+                         "static RAM (.data + .bss + .noinit): 131,128 of 287,296 bytes, "
+                         "156,168 free")
+
+    def test_limits_come_from_the_memory_regions_of_each_map(self):
+        smaller = OVERLAY_MAP.replace("0x00018000", "0x00015000")
+        self.assertEqual(size_report.summary(MAP, smaller)[2],
+                         "rescan overlay: 81,920 of 86,016 bytes, 4,096 free")
 
     def test_summary_flags_a_limit_that_is_over(self):
         over = MAP.replace(".code           0x03050000     0x1000",

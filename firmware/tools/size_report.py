@@ -14,9 +14,11 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-CODE_WINDOW = 0x2666C
-LOADED_LIMIT = 437600
-OVERLAY_CAPACITY = 0x15000
+CODE_REGION = "CODE_RAM"
+DATA_REGION = "DATA_RAM"
+OVERLAY_REGION = "HIGH_RAM"
+DATA_END_SYMBOL = "device_noinit_end"
+DATA_LIMIT_SYMBOL = "device_data_limit"
 CODE_SECTIONS = (".code",)
 RAM_SECTIONS = (".data", ".bss", ".noinit")
 INPUT_LINE = re.compile(r"^ (\S+)\s+0x([0-9a-f]+)\s+0x([0-9a-f]+)\s+(\S.*)$")
@@ -26,6 +28,9 @@ FILL_LINE = re.compile(r"^ \*fill\*\s+0x([0-9a-f]+)\s+0x([0-9a-f]+)")
 OUTPUT_LINE = re.compile(r"^(\.[\w.]+)\s+0x([0-9a-f]+)\s+0x([0-9a-f]+)")
 MEMBER = re.compile(r"^(.*?)\(([^()]+)\)$")
 NM_LINE = re.compile(r"^([0-9a-f]+) ([0-9a-f]+) (\S) (\S+)(?:\t(.*):(\d+))?$")
+REGION_LINE = re.compile(r"^(\w+)\s+0x([0-9a-f]+)\s+0x([0-9a-f]+)\s+\w+$")
+SYMBOL_LINE = re.compile(r"^\s+0x([0-9a-f]+)\s+(\w+) = ")
+REGIONS_START = "Memory Configuration"
 MAP_START = "Linker script and memory map"
 FILL = "*fill*"
 LTO_OBJECT = "ltrans"
@@ -97,6 +102,38 @@ def output_sizes(text):
         if match:
             sizes[match.group(1)] = int(match.group(3), 16)
     return sizes
+
+
+def memory_regions(text):
+    """The linker script's MEMORY regions as the map states them: name -> (origin, length)."""
+    regions = {}
+    started = False
+    for line in text.splitlines():
+        if line.startswith(MAP_START):
+            break
+        if not started:
+            started = line.startswith(REGIONS_START)
+            continue
+        match = REGION_LINE.match(line)
+        if match:
+            regions[match.group(1)] = (int(match.group(2), 16), int(match.group(3), 16))
+    return regions
+
+
+def linker_symbols(text):
+    """The values the linker script assigned to its own symbols: name -> address."""
+    symbols = {}
+    for line in text.splitlines():
+        match = SYMBOL_LINE.match(line)
+        if match:
+            symbols[match.group(2)] = int(match.group(1), 16)
+    return symbols
+
+
+def region_length(regions, name):
+    if name not in regions:
+        raise ValueError(f"the map has no {name} memory region")
+    return regions[name][1]
 
 
 def source_name(path):
@@ -174,16 +211,25 @@ def limit_line(label, used, limit):
     return f"{label}: {used:,} of {limit:,} bytes, {free:,} free{state}"
 
 
-def summary(device_map, overlay_map=None):
+def data_line(device_map, regions):
+    """Static RAM against the highest end the boot ROM is known to accept."""
+    symbols = linker_symbols(device_map)
+    origin = regions[DATA_REGION][0]
     sizes = output_sizes(device_map)
-    code = sizes.get(".code", 0)
-    data = sizes.get(".data", 0)
-    bss = sizes.get(".bss", 0)
-    lines = [limit_line("code window", code, CODE_WINDOW),
-             limit_line("loaded total (code + .data + .bss)", code + data + bss, LOADED_LIMIT)]
+    used = symbols.get(DATA_END_SYMBOL, origin + sum(sizes.get(name, 0) for name in RAM_SECTIONS))
+    limit = symbols.get(DATA_LIMIT_SYMBOL, origin + regions[DATA_REGION][1])
+    return limit_line("static RAM (.data + .bss + .noinit)", used - origin, limit - origin)
+
+
+def summary(device_map, overlay_map=None):
+    regions = memory_regions(device_map)
+    code = output_sizes(device_map).get(".code", 0)
+    lines = [limit_line("code window", code, region_length(regions, CODE_REGION)),
+             data_line(device_map, regions)]
     if overlay_map is not None:
         overlay = output_sizes(overlay_map).get(".overlay", 0)
-        lines.append(limit_line("rescan overlay", overlay, OVERLAY_CAPACITY))
+        capacity = region_length(memory_regions(overlay_map), OVERLAY_REGION)
+        lines.append(limit_line("rescan overlay", overlay, capacity))
     return lines
 
 
