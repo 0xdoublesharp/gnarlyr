@@ -17,6 +17,8 @@ from pathlib import Path
 CODE_REGION = "CODE_RAM"
 DATA_REGION = "DATA_RAM"
 OVERLAY_REGION = "HIGH_RAM"
+USB_IMAGE_REGION = "USB_IMAGE"
+STATE_SECTIONS = (".data", ".bss", ".noinit")
 DATA_END_SYMBOL = "device_noinit_end"
 DATA_LIMIT_SYMBOL = "device_data_limit"
 CODE_SECTIONS = (".code",)
@@ -221,7 +223,32 @@ def data_line(device_map, regions):
     return limit_line("static RAM (.data + .bss + .noinit)", used - origin, limit - origin)
 
 
-def summary(device_map, overlay_map=None):
+def usb_overlay_lines(usb_overlay_map):
+    """The USB overlay against its space in the image and, with its zeroed memory, the window."""
+    sizes = output_sizes(usb_overlay_map)
+    regions = memory_regions(usb_overlay_map)
+    code = sizes.get(".overlay", 0)
+    return [limit_line("USB overlay code", code, region_length(regions, USB_IMAGE_REGION)),
+            limit_line("USB overlay code + .bss", code + sizes.get(".bss", 0),
+                       region_length(regions, OVERLAY_REGION))]
+
+
+def split_state(device_map, overlay_map):
+    """Library objects that keep variables in both the main program and an overlay.
+
+    An overlay linked against the main program's symbols still gets its own copy of a library
+    object's variables when it pulls that object in, so the two programs would each see a
+    different one.
+    """
+    def stateful(text):
+        return {piece.origin.replace("\\", "/").rsplit("/", 1)[-1]
+                for piece in in_sections(parse_map(text), STATE_SECTIONS)
+                if piece.size and MEMBER.match(piece.origin)}
+
+    return sorted(stateful(device_map) & stateful(overlay_map))
+
+
+def summary(device_map, overlay_map=None, usb_overlay_map=None):
     regions = memory_regions(device_map)
     code = output_sizes(device_map).get(".code", 0)
     lines = [limit_line("code window", code, region_length(regions, CODE_REGION)),
@@ -230,13 +257,15 @@ def summary(device_map, overlay_map=None):
         overlay = output_sizes(overlay_map).get(".overlay", 0)
         capacity = region_length(memory_regions(overlay_map), OVERLAY_REGION)
         lines.append(limit_line("rescan overlay", overlay, capacity))
+    if usb_overlay_map is not None:
+        lines += usb_overlay_lines(usb_overlay_map)
     return lines
 
 
-def report(device_map, overlay_map=None, nm_text="", top=25, objects=40):
+def report(device_map, overlay_map=None, nm_text="", top=25, objects=40, usb_overlay_map=None):
     pieces = parse_map(device_map)
     nm_files = parse_nm(nm_text)
-    lines = summary(device_map, overlay_map)
+    lines = summary(device_map, overlay_map, usb_overlay_map)
     lines.append("")
     code_pieces = in_sections(pieces, CODE_SECTIONS)
     ram_pieces = in_sections(pieces, RAM_SECTIONS)
@@ -299,10 +328,11 @@ def parse_arguments(argv):
         description="Report what fills the device code window from the linker maps")
     parser.add_argument("--build", type=Path,
                         help="a build directory such as build/release (reads its device ELF "
-                             "and map and the rescan overlay map)")
+                             "and map and the overlay maps)")
     parser.add_argument("--map", type=Path, help="the device map file (instead of --build)")
     parser.add_argument("--elf", type=Path, help="the device ELF, for attributing LTO code")
     parser.add_argument("--overlay-map", type=Path, help="the rescan overlay map file")
+    parser.add_argument("--usb-overlay-map", type=Path, help="the USB overlay map file")
     parser.add_argument("--nm", default="arm-none-eabi-nm", help="the nm to run on the ELF")
     parser.add_argument("--top", type=int, default=25, help="how many symbols to list")
     parser.add_argument("--objects", type=int, default=40, help="how many objects to list")
@@ -315,22 +345,34 @@ def parse_arguments(argv):
         overlay = directory / "echo_rescan_overlay.map"
         if arguments.overlay_map is None and overlay.exists():
             arguments.overlay_map = overlay
+        usb_overlay = directory / "echo_usb_overlay.map"
+        if arguments.usb_overlay_map is None and usb_overlay.exists():
+            arguments.usb_overlay_map = usb_overlay
     if arguments.map is None:
         parser.error("give --build or --map")
     return arguments
 
 
+def read_map(path):
+    return None if path is None else path.read_text(encoding="utf-8", errors="replace")
+
+
 def main(argv=None):
     arguments = parse_arguments(argv)
-    device_map = arguments.map.read_text(encoding="utf-8", errors="replace")
-    overlay_map = None
-    if arguments.overlay_map is not None:
-        overlay_map = arguments.overlay_map.read_text(encoding="utf-8", errors="replace")
+    device_map = read_map(arguments.map)
+    overlay_map = read_map(arguments.overlay_map)
+    usb_overlay_map = read_map(arguments.usb_overlay_map)
+    split = split_state(device_map, usb_overlay_map) if usb_overlay_map is not None else []
+    if split:
+        print("error: the main program and the USB overlay each have their own variables of "
+              + ", ".join(split), file=sys.stderr)
+        return 1
     if arguments.summary:
-        print("\n".join(summary(device_map, overlay_map)))
+        print("\n".join(summary(device_map, overlay_map, usb_overlay_map)))
         return 0
     nm_text = run_nm(arguments.elf, arguments.nm)
-    print(report(device_map, overlay_map, nm_text, arguments.top, arguments.objects))
+    print(report(device_map, overlay_map, nm_text, arguments.top, arguments.objects,
+                 usb_overlay_map))
     return 0
 
 

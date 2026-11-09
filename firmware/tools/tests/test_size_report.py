@@ -73,6 +73,25 @@ Linker script and memory map
  .text.scan     0x0307a010     0x1000 src/library/libecho_library_scan.a(library_scan.c.obj)
 """
 
+USB_OVERLAY_MAP = """Memory Configuration
+
+Name             Origin             Length             Attributes
+USB_IMAGE        0x0307a000         0x00010000         xr
+HIGH_RAM         0x0307a000         0x00018000         rw
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+.overlay        0x0307a000     0x3000
+ .text.usb_poll 0x0307a010      0x400 platform/device/CMakeFiles/echo_usb_overlay.dir/board/usb_port.c.obj
+
+.bss            0x0307d000     0x9000
+ .bss.write_buffer
+                0x0307d000     0x8000 platform/device/CMakeFiles/echo_usb_overlay.dir/board/usb_session.c.obj
+ .bss.source_chunk
+                0x03085000        0x4 logic/libecho_device_logic.a(updater.c.obj)
+"""
+
 NM = """03050110 00000200 T app_step\tD:/Projects/echopod/src/app/app.c:200
 0301f588 00004a78 b app\tD:/Projects/echopod/src/app/app.c:133
 030500cc 00000040 T hal_audio_play\tD:/Projects/echopod/platform/device/board/audio.c:50
@@ -155,6 +174,32 @@ class ReportTest(unittest.TestCase):
         smaller = OVERLAY_MAP.replace("0x00018000", "0x00015000")
         self.assertEqual(size_report.summary(MAP, smaller)[2],
                          "rescan overlay: 81,920 of 86,016 bytes, 4,096 free")
+
+    def test_summary_measures_the_usb_overlay_in_the_image_and_with_its_zeroed_memory(self):
+        lines = size_report.summary(MAP, OVERLAY_MAP, USB_OVERLAY_MAP)
+        self.assertEqual(lines[3], "USB overlay code: 12,288 of 65,536 bytes, 53,248 free")
+        self.assertEqual(lines[4], "USB overlay code + .bss: 49,152 of 98,304 bytes, 49,152 free")
+
+    def test_the_usb_overlay_limits_come_from_its_own_memory_regions(self):
+        smaller = USB_OVERLAY_MAP.replace("0x00010000", "0x00004000").replace("0x00018000",
+                                                                              "0x0000c000")
+        lines = size_report.summary(MAP, OVERLAY_MAP, smaller)
+        self.assertEqual(lines[3], "USB overlay code: 12,288 of 16,384 bytes, 4,096 free")
+        self.assertEqual(lines[4], "USB overlay code + .bss: 49,152 of 49,152 bytes, 0 free")
+
+    def test_a_usb_overlay_map_without_its_image_region_is_refused(self):
+        with self.assertRaises(ValueError):
+            size_report.summary(MAP, OVERLAY_MAP, USB_OVERLAY_MAP.replace("USB_IMAGE", "OTHER_RAM"))
+
+    def test_variables_only_the_overlay_has_are_not_split(self):
+        self.assertEqual([], size_report.split_state(MAP, USB_OVERLAY_MAP))
+
+    def test_a_library_object_with_variables_in_both_programs_is_named(self):
+        both = MAP.replace(" .bss.app       0x0301f588", """ .bss.target_chunk
+                0x0301f584        0x4 platform/device/logic/libecho_device_logic.a(updater.c.obj)
+ .bss.app       0x0301f588""")
+        self.assertEqual(["libecho_device_logic.a(updater.c.obj)"],
+                         size_report.split_state(both, USB_OVERLAY_MAP))
 
     def test_summary_flags_a_limit_that_is_over(self):
         over = MAP.replace(".code           0x03050000     0x1000",
