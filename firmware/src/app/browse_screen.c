@@ -376,6 +376,10 @@ static const char *up_next_message(PlayerUpNextResult result, bool next)
         return "Playing";
     case PLAYER_UP_NEXT_FULL:
         return "Up Next is full";
+    case PLAYER_UP_NEXT_SAVE_FAILED:
+        return "Could not save queue";
+    case PLAYER_UP_NEXT_CHANGED:
+        return "Queue changed; try again";
     case PLAYER_UP_NEXT_FAILED:
         break;
     }

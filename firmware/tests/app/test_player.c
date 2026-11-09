@@ -533,10 +533,183 @@ static void play_after_a_release_starts_the_output_again(void)
     CHECK_EQUAL(PLAYER_PLAYING, player_status(started).state);
 }
 
+static PlayerQueueEditResult edit_up_next(Player *started, uint16_t index, UpNextEdit edit)
+{
+    return player_edit_up_next(started, started->up_next_revision, index, edit);
+}
+
+static void moving_a_song_preserves_playback_and_survives_a_restart(void)
+{
+    Player *started = playing(0);
+    player_add_to_up_next(started, HELP);
+    player_add_to_up_next(started, ARMY_OF_ME);
+    fake_hal_audio_set_position(12345);
+    int plays = fake_hal_audio_play_count();
+    CHECK_EQUAL(PLAYER_QUEUE_EDITED, edit_up_next(started, 1, UP_NEXT_MOVE_FIRST));
+    CHECK_EQUAL(plays, fake_hal_audio_play_count());
+    CHECK_EQUAL(12345u, player_status(started).position_ms);
+    CHECK_EQUAL(HELLS_BELLS, player_status(started).track);
+    CHECK_EQUAL(HAL_AUDIO_PLAYING, fake_hal_audio_state());
+    CHECK(path_is(fake_hal_audio_queued_path(), ARMY_OF_ME_PATH));
+    Player resumed;
+    player_init(&resumed, &fixture.library);
+    CHECK(player_restore(&resumed));
+    CHECK_EQUAL(ARMY_OF_ME, resumed.up_next.tracks[0]);
+    CHECK_EQUAL(HELP, resumed.up_next.tracks[1]);
+}
+
+static void moving_earlier_and_later_updates_the_prepared_song(void)
+{
+    Player *started = playing(0);
+    player_add_to_up_next(started, HELP);
+    player_add_to_up_next(started, ARMY_OF_ME);
+    CHECK_EQUAL(PLAYER_QUEUE_EDITED, edit_up_next(started, 0, UP_NEXT_MOVE_LATER));
+    CHECK(path_is(fake_hal_audio_queued_path(), ARMY_OF_ME_PATH));
+    CHECK_EQUAL(PLAYER_QUEUE_EDITED, edit_up_next(started, 1, UP_NEXT_MOVE_EARLIER));
+    CHECK(path_is(fake_hal_audio_queued_path(), HELP_PATH));
+    player_skip(started, 1);
+    CHECK_EQUAL(HELP, player_status(started).track);
+    CHECK_EQUAL(ARMY_OF_ME, started->up_next.tracks[0]);
+}
+
+static void clearing_added_songs_returns_to_the_album_and_persists(void)
+{
+    Player *started = playing(0);
+    player_add_to_up_next(started, HELP);
+    CHECK_EQUAL(PLAYER_QUEUE_EDITED, edit_up_next(started, 0, UP_NEXT_CLEAR));
+    CHECK_EQUAL(0, started->up_next.count);
+    CHECK(path_is(fake_hal_audio_queued_path(), SHOOT_TO_THRILL_PATH));
+    Player resumed;
+    player_init(&resumed, &fixture.library);
+    CHECK(player_restore(&resumed));
+    CHECK_EQUAL(0, resumed.up_next.count);
+}
+
+static void removing_an_added_song_preserves_a_paused_track(void)
+{
+    Player *started = playing(0);
+    player_add_to_up_next(started, HELP);
+    player_add_to_up_next(started, ARMY_OF_ME);
+    fake_hal_audio_set_position(5000);
+    player_toggle_pause(started);
+    CHECK_EQUAL(PLAYER_QUEUE_EDITED, edit_up_next(started, 0, UP_NEXT_REMOVE));
+    CHECK_EQUAL(PLAYER_PAUSED, started->state);
+    CHECK_EQUAL(HAL_AUDIO_PAUSED, fake_hal_audio_state());
+    CHECK_EQUAL(5000u, player_status(started).position_ms);
+    CHECK(path_is(fake_hal_audio_queued_path(), ARMY_OF_ME_PATH));
+    Player resumed;
+    player_init(&resumed, &fixture.library);
+    CHECK(player_restore(&resumed));
+    CHECK_EQUAL(1, resumed.up_next.count);
+    CHECK_EQUAL(ARMY_OF_ME, resumed.up_next.tracks[0]);
+}
+
+static void a_failed_queue_save_leaves_ram_disk_and_playback_unchanged(void)
+{
+    Player *started = playing(0);
+    player_add_to_up_next(started, HELP);
+    player_add_to_up_next(started, ARMY_OF_ME);
+    uint32_t revision = started->up_next_revision;
+    uint32_t next_token = started->next_token;
+    int writes = fake_hal_write_count();
+    fake_hal_audio_set_position(5000);
+    fake_hal_fail_music_writes(true);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_SAVE_FAILED, edit_up_next(started, 0, UP_NEXT_REMOVE));
+    CHECK_EQUAL(revision, started->up_next_revision);
+    CHECK_EQUAL(next_token, started->next_token);
+    CHECK_EQUAL(2, started->up_next.count);
+    CHECK_EQUAL(HELP, started->up_next.tracks[0]);
+    CHECK_EQUAL(writes, fake_hal_write_count());
+    CHECK_EQUAL(5000u, player_status(started).position_ms);
+    CHECK_EQUAL(HAL_AUDIO_PLAYING, fake_hal_audio_state());
+    CHECK(path_is(fake_hal_audio_queued_path(), HELP_PATH));
+    Player resumed;
+    player_init(&resumed, &fixture.library);
+    CHECK(player_restore(&resumed));
+    CHECK_EQUAL(HELP, resumed.up_next.tracks[0]);
+    CHECK_EQUAL(2, resumed.up_next.count);
+}
+
+static void a_consumed_queue_entry_invalidates_old_edit_selections(void)
+{
+    Player *started = playing(0);
+    player_add_to_up_next(started, HELP);
+    player_add_to_up_next(started, ARMY_OF_ME);
+    uint32_t revision = started->up_next_revision;
+    finish_playing(started);
+    int writes = fake_hal_write_count();
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_STALE, player_edit_up_next(started, revision, 0, UP_NEXT_REMOVE));
+    CHECK_EQUAL(writes, fake_hal_write_count());
+    CHECK_EQUAL(1, started->up_next.count);
+    CHECK_EQUAL(ARMY_OF_ME, started->up_next.tracks[0]);
+}
+
+static void a_transition_pending_player_update_rejects_queue_edits(void)
+{
+    Player *started = playing(0);
+    player_add_to_up_next(started, HELP);
+    fake_hal_audio_finish_track();
+    int writes = fake_hal_write_count();
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_STALE, edit_up_next(started, 0, UP_NEXT_CLEAR));
+    CHECK_EQUAL(PLAYER_UP_NEXT_CHANGED, player_add_to_up_next(started, ARMY_OF_ME));
+    CHECK_EQUAL(writes, fake_hal_write_count());
+    CHECK_EQUAL(1, started->up_next.count);
+    player_update(started, 100);
+    CHECK_EQUAL(HELP, player_status(started).track);
+    CHECK_EQUAL(0, started->up_next.count);
+}
+
+static void invalid_queue_edits_do_not_write_or_change_revision(void)
+{
+    Player *started = playing(0);
+    player_add_to_up_next(started, HELP);
+    int writes = fake_hal_write_count();
+    uint32_t revision = started->up_next_revision;
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_INVALID, edit_up_next(started, 1, UP_NEXT_REMOVE));
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_INVALID, edit_up_next(started, 0, UP_NEXT_MOVE_EARLIER));
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_INVALID, edit_up_next(started, 0, UP_NEXT_MOVE_LATER));
+    CHECK_EQUAL(writes, fake_hal_write_count());
+    CHECK_EQUAL(revision, started->up_next_revision);
+}
+
+static void adding_and_play_next_report_failed_saves(void)
+{
+    Player *started = playing(0);
+    player_add_to_up_next(started, HELP);
+    fake_hal_fail_music_writes(true);
+    CHECK_EQUAL(PLAYER_UP_NEXT_SAVE_FAILED, player_add_to_up_next(started, ARMY_OF_ME));
+    CHECK_EQUAL(PLAYER_UP_NEXT_SAVE_FAILED, player_play_next(started, ARMY_OF_ME));
+    CHECK_EQUAL(1, started->up_next.count);
+    CHECK_EQUAL(HELP, started->up_next.tracks[0]);
+    CHECK(path_is(fake_hal_audio_queued_path(), HELP_PATH));
+}
+
+static void editing_a_released_queue_does_not_reclaim_audio_output(void)
+{
+    Player *started = playing(0);
+    player_add_to_up_next(started, HELP);
+    player_release_output(started);
+    int plays = fake_hal_audio_play_count();
+    CHECK_EQUAL(PLAYER_QUEUE_EDITED, edit_up_next(started, 0, UP_NEXT_CLEAR));
+    CHECK_EQUAL(plays, fake_hal_audio_play_count());
+    CHECK(!started->loaded);
+    CHECK_EQUAL(PLAYER_PAUSED, started->state);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(playing_a_list_starts_the_selected_track),
+        TEST_CASE(moving_a_song_preserves_playback_and_survives_a_restart),
+        TEST_CASE(moving_earlier_and_later_updates_the_prepared_song),
+        TEST_CASE(clearing_added_songs_returns_to_the_album_and_persists),
+        TEST_CASE(removing_an_added_song_preserves_a_paused_track),
+        TEST_CASE(a_failed_queue_save_leaves_ram_disk_and_playback_unchanged),
+        TEST_CASE(a_consumed_queue_entry_invalidates_old_edit_selections),
+        TEST_CASE(a_transition_pending_player_update_rejects_queue_edits),
+        TEST_CASE(invalid_queue_edits_do_not_write_or_change_revision),
+        TEST_CASE(adding_and_play_next_report_failed_saves),
+        TEST_CASE(editing_a_released_queue_does_not_reclaim_audio_output),
         TEST_CASE(the_status_carries_the_playing_tracks_format),
         TEST_CASE(the_format_waits_for_the_audio_to_reach_the_track),
         TEST_CASE(the_status_counts_the_place_in_the_queue),

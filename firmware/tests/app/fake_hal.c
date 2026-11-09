@@ -90,6 +90,7 @@ typedef struct FakeHal {
     FakeAudio audio;
     WrittenFile written[FILE_CAPACITY];
     int write_count;
+    bool fail_music_writes;
     uint32_t clock_mhz;
     int stall_test_count;
     int watchdog_test_count;
@@ -667,8 +668,16 @@ static void register_written(const char *path, uint32_t length)
     fake_hal_add_file(slot->path, slot->bytes, length);
 }
 
+void fake_hal_fail_music_writes(bool failed)
+{
+    fake.fail_music_writes = failed;
+}
+
 bool hal_file_write(const char *path, const void *bytes, uint32_t length)
 {
+    if (fake.fail_music_writes) {
+        return false;
+    }
     WrittenFile *slot = written_slot(path);
     if (slot == NULL || length > WRITTEN_CAPACITY) {
         return false;
@@ -1025,7 +1034,8 @@ static uint8_t *store_for(FakeFile *file)
 bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes, uint32_t length)
 {
     FakeFile *file = fake_file(path);
-    if (file == NULL || offset > file->size || length > file->size - offset) {
+    if (fake.fail_music_writes || file == NULL || offset > file->size ||
+        length > file->size - offset) {
         return false;
     }
     uint8_t *store = store_for(file);

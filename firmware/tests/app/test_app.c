@@ -1392,6 +1392,55 @@ static void choosing_a_song_in_up_next_plays_it(void)
     CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
 }
 
+static void queue_a_song_and_open_its_actions(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    tap(KEY_BACK);
+    move_down(1);
+    hold(KEY_PLAY);
+    tap(KEY_PLAY);
+    hold_back();
+    move_down(HOME_NOW_PLAYING_INDEX);
+    tap(KEY_PLAY);
+    CHECK(title_is("Now Playing"));
+    tap(KEY_MENU);
+    move_down(1);
+    hold(KEY_PLAY);
+    CHECK(title_is("Edit Up Next"));
+}
+
+static void removing_a_queued_song_returns_to_up_next_and_persists(void)
+{
+    queue_a_song_and_open_its_actions();
+    fake_hal_audio_set_position(12345);
+    int plays = fake_hal_audio_play_count();
+    tap(KEY_PLAY);
+    CHECK(title_is("Up Next"));
+    CHECK_EQUAL(plays, fake_hal_audio_play_count());
+    CHECK_EQUAL(12345u, app_player_status().position_ms);
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+    uint32_t size = 0;
+    const uint8_t *bytes = fake_hal_file_bytes(PLAYER_UP_NEXT_PATH, &size);
+    CHECK(bytes != NULL);
+    CHECK_EQUAL(0, bytes[6]);
+    CHECK_EQUAL(0, bytes[7]);
+    tap(KEY_BACK);
+    CHECK(title_is("Now Playing"));
+}
+
+static void a_queue_edit_save_error_reaches_the_app_toast(void)
+{
+    queue_a_song_and_open_its_actions();
+    fake_hal_fail_music_writes(true);
+    tap(KEY_PLAY);
+    CHECK(title_is("Edit Up Next"));
+    CHECK(toast_is("Could not save queue"));
+    fake_hal_fail_music_writes(false);
+    tap(KEY_PLAY);
+    CHECK(title_is("Up Next"));
+}
+
 static void holding_play_on_an_album_adds_it_to_favorites(void)
 {
     start_app_with_library();
@@ -2124,6 +2173,8 @@ int main(void)
         TEST_CASE(holding_play_on_an_album_adds_it_to_favorites),
         TEST_CASE(menu_on_now_playing_opens_up_next),
         TEST_CASE(choosing_a_song_in_up_next_plays_it),
+        TEST_CASE(removing_a_queued_song_returns_to_up_next_and_persists),
+        TEST_CASE(a_queue_edit_save_error_reaches_the_app_toast),
         TEST_CASE(holding_play_on_a_song_offers_up_next),
         TEST_CASE(play_next_from_a_list_queues_the_song),
         TEST_CASE(add_to_up_next_from_a_list_queues_the_song),

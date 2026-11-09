@@ -61,11 +61,17 @@ static void become_idle(Player *player)
     player->paused_position_ms = 0;
 }
 
-static void save_up_next(const Player *player)
+static bool store_up_next(const Player *player, const UpNext *up_next)
 {
     uint8_t bytes[UP_NEXT_STATE_SIZE];
-    up_next_encode(&player->up_next, player->fingerprint, bytes);
-    (void)hal_file_write(PLAYER_UP_NEXT_PATH, bytes, sizeof bytes);
+    up_next_encode(up_next, player->fingerprint, bytes);
+    return hal_file_write(PLAYER_UP_NEXT_PATH, bytes, sizeof bytes);
+}
+
+static void save_up_next(Player *player)
+{
+    player->up_next_revision++;
+    (void)store_up_next(player, &player->up_next);
 }
 
 static bool current_track(const Player *player, uint16_t *track)
@@ -222,6 +228,7 @@ void player_init(Player *player, const Library *library)
     player->fingerprint = library_fingerprint(library);
     player->queue.library = library;
     player->queue.count = 0;
+    player->up_next_revision = 0;
     up_next_clear(&player->up_next);
     player->from_up_next = false;
     player->next_source = PLAYER_NEXT_FROM_QUEUE;
@@ -440,6 +447,57 @@ static void finish_track(Player *player, bool failed)
     player_save(player);
 }
 
+static bool queue_is_current(const Player *player)
+{
+    if (!player->loaded) {
+        return true;
+    }
+    HalAudioStatus status = hal_audio_status();
+    return status.token == player->current_token && status.state != HAL_AUDIO_STOPPED;
+}
+
+static PlayerQueueEditResult store_candidate(Player *player, const UpNext *candidate)
+{
+    if (!queue_is_current(player)) {
+        return PLAYER_QUEUE_EDIT_STALE;
+    }
+    if (!store_up_next(player, candidate)) {
+        return PLAYER_QUEUE_EDIT_SAVE_FAILED;
+    }
+    player->up_next = *candidate;
+    player->up_next_revision++;
+    if (player->loaded) {
+        queue_upcoming(player);
+    }
+    return PLAYER_QUEUE_EDITED;
+}
+
+static PlayerQueueEditResult commit_up_next(Player *player, const UpNext *candidate)
+{
+    bool resume = player->loaded && player->state == PLAYER_PLAYING;
+    if (resume) {
+        hal_audio_pause();
+    }
+    PlayerQueueEditResult result = store_candidate(player, candidate);
+    if (resume) {
+        hal_audio_resume();
+    }
+    return result;
+}
+
+PlayerQueueEditResult player_edit_up_next(Player *player, uint32_t revision, uint16_t index,
+                                          UpNextEdit edit)
+{
+    if (revision != player->up_next_revision || !queue_is_current(player)) {
+        return PLAYER_QUEUE_EDIT_STALE;
+    }
+    UpNext candidate = player->up_next;
+    if (!up_next_edit(&candidate, index, edit)) {
+        return PLAYER_QUEUE_EDIT_INVALID;
+    }
+    return commit_up_next(player, &candidate);
+}
+
 static PlayerUpNextResult enqueue(Player *player, uint16_t track, bool next)
 {
     if (!player->has_track) {
@@ -447,16 +505,19 @@ static PlayerUpNextResult enqueue(Player *player, uint16_t track, bool next)
         player->track = track;
         return start_current(player, 0) ? PLAYER_UP_NEXT_STARTED : PLAYER_UP_NEXT_FAILED;
     }
-    bool added =
-        next ? up_next_play_next(&player->up_next, track) : up_next_add(&player->up_next, track);
+    if (!queue_is_current(player)) {
+        return PLAYER_UP_NEXT_CHANGED;
+    }
+    UpNext candidate = player->up_next;
+    bool added = next ? up_next_play_next(&candidate, track) : up_next_add(&candidate, track);
     if (!added) {
         return PLAYER_UP_NEXT_FULL;
     }
-    save_up_next(player);
-    if (player->loaded) {
-        queue_upcoming(player);
+    PlayerQueueEditResult result = commit_up_next(player, &candidate);
+    if (result == PLAYER_QUEUE_EDIT_STALE) {
+        return PLAYER_UP_NEXT_CHANGED;
     }
-    return PLAYER_UP_NEXT_ADDED;
+    return result == PLAYER_QUEUE_EDITED ? PLAYER_UP_NEXT_ADDED : PLAYER_UP_NEXT_SAVE_FAILED;
 }
 
 PlayerUpNextResult player_play_next(Player *player, uint16_t track)
@@ -589,6 +650,7 @@ static void load_up_next(Player *player)
     if (!hal_file_open(&file, PLAYER_UP_NEXT_PATH)) {
         return;
     }
+    player->up_next_revision++;
     bool read = file.size >= UP_NEXT_STATE_SIZE && hal_file_read(file, 0, bytes, sizeof bytes);
     hal_file_close(&file);
     if (!read || !up_next_decode(bytes, sizeof bytes, player->fingerprint, &player->up_next)) {

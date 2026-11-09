@@ -60,9 +60,8 @@ def run(command, env):
 
 def build(preset, env, python):
     command = ["cmake", "--preset", preset, f"-DPython3_EXECUTABLE={python}"]
-    launcher = shutil.which("sccache", path=env["PATH"])
-    if launcher:
-        command.append(f"-DCMAKE_C_COMPILER_LAUNCHER={launcher}")
+    launcher = shutil.which("sccache", path=env["PATH"]) if env.get("ECHO_COMPILER_CACHE", "0") == "1" else None
+    command.append(f"-DCMAKE_C_COMPILER_LAUNCHER={launcher or ''}")
     run(command, env)
     run(["cmake", "--build", "--preset", preset], env)
 

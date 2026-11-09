@@ -10,4 +10,4 @@ Documentation photos remain upstream; README image links point to that pinned re
 
 Test fixtures retain intentional trailing fields, spaces and CRLF/BOM text; third-party source is preserved verbatim. These paths are excluded from whitespace cleanup.
 
-Modified 2026-11-09 for this project: cassette-style palette/artwork, configurable playback controls, native-safe versioned preferences migration and isolated image-emulator registration. These changes are tracked in the parent project; inherited hardware claims still require verification on the owner's unit.
+Modified 2026-11-09 for this project: cassette-style palette/artwork, configurable playback controls, native-safe versioned preferences migration, isolated image-emulator registration, persistent manual Up Next editing and buffered-next-audio replacement. These changes are tracked in the parent project; inherited hardware claims still require verification on the owner's unit.

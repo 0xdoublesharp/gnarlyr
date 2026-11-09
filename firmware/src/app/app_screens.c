@@ -200,8 +200,10 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
     const Theme *theme = context.theme;
     MessageConfig no_library = {
         .title = "No library", .message = "Copy music to the player over USB", .theme = theme};
-    UpNextConfig up_next = {
-        .library = &context.store->library, .theme = theme, .player = context.player};
+    UpNextConfig up_next = {.library = &context.store->library,
+                            .theme = theme,
+                            .player = context.player,
+                            .toast = context.toast};
     NowPlayingConfig now_playing = {.player = context.player,
                                     .settings = &context.settings->settings,
                                     .library = &context.store->library,

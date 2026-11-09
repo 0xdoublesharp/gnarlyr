@@ -156,6 +156,12 @@ The volume and Play buttons also run their assigned audio actions with the scree
 
 In Cover Flow (Music → Cover Flow), the tile before the first album, with a shuffle mark for a cover, is **Random album**: press ▶ on it to play a random album from its first track.
 
+## Editing Up Next
+
+Open Up Next from Now Playing, select an added song and hold Play. Choose **Play next**, **Move earlier**, **Move later** or **Remove**. Unavailable moves are hidden. **Clear added songs** removes all manually added songs while retaining the underlying album or shuffled list; it is also available by holding Play on the playing row. Back returns to the selected song without changing it.
+
+Edits are saved between restarts. If a save fails, the action menu remains open so you can retry. If playback changes the added list while its menu is open, reopen the menu before editing. The current track and position are retained, with a brief pause while an edit is saved. Generated album/shuffle rows and saved playlists are not editable through this menu yet.
+
 ## Charging
 
 The player charges whenever it's plugged in, on or off. Turning it off while it's plugged in (or plugging a charger into a switched-off player) shows the charge screen: the battery level, or "Charged" when it's full. The screen goes dark after 5 seconds; press any button to see it again. Hold Power for 2 seconds to turn the player on, or unplug it to switch it off completely. Plugging into a computer still opens USB mode.

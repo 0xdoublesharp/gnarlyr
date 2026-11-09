@@ -27,8 +27,17 @@ typedef enum PlayerUpNextResult {
     PLAYER_UP_NEXT_ADDED,
     PLAYER_UP_NEXT_STARTED,
     PLAYER_UP_NEXT_FULL,
+    PLAYER_UP_NEXT_SAVE_FAILED,
+    PLAYER_UP_NEXT_CHANGED,
     PLAYER_UP_NEXT_FAILED
 } PlayerUpNextResult;
+
+typedef enum PlayerQueueEditResult {
+    PLAYER_QUEUE_EDITED,
+    PLAYER_QUEUE_EDIT_INVALID,
+    PLAYER_QUEUE_EDIT_STALE,
+    PLAYER_QUEUE_EDIT_SAVE_FAILED
+} PlayerQueueEditResult;
 
 typedef enum PlayerNextSource {
     PLAYER_NEXT_FROM_QUEUE,
@@ -67,6 +76,7 @@ typedef struct Player {
     uint32_t fingerprint;
     PlayQueue queue;
     UpNext up_next;
+    uint32_t up_next_revision;
     bool from_up_next;
     RepeatMode repeat;
     ShuffleMode shuffle;
@@ -108,6 +118,8 @@ void player_set_shuffle(Player *player, ShuffleMode shuffle, uint32_t seed);
 void player_set_repeat(Player *player, RepeatMode repeat);
 PlayerUpNextResult player_play_next(Player *player, uint16_t track);
 PlayerUpNextResult player_add_to_up_next(Player *player, uint16_t track);
+PlayerQueueEditResult player_edit_up_next(Player *player, uint32_t revision, uint16_t index,
+                                          UpNextEdit edit);
 bool player_jump_to_up_next(Player *player, uint16_t index);
 bool player_jump_to_queue(Player *player, PlayQueueCursor cursor);
 void player_update(Player *player, uint32_t now_ms);

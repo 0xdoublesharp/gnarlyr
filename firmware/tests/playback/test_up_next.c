@@ -108,10 +108,80 @@ static void a_corrupted_or_blank_file_is_rejected(void)
     CHECK(!up_next_decode(bytes, UP_NEXT_STATE_SIZE - 1, FINGERPRINT, &loaded));
 }
 
+static void moving_preserves_duplicate_songs_and_other_order(void)
+{
+    static const uint16_t TRACKS[] = {7, 3, 7, 9};
+    UpNext up_next = with_tracks(TRACKS, 4);
+    CHECK(up_next_edit(&up_next, 3, UP_NEXT_MOVE_FIRST));
+    CHECK_EQUAL(9, up_next.tracks[0]);
+    CHECK_EQUAL(7, up_next.tracks[1]);
+    CHECK_EQUAL(3, up_next.tracks[2]);
+    CHECK_EQUAL(7, up_next.tracks[3]);
+    CHECK(up_next_edit(&up_next, 1, UP_NEXT_MOVE_LATER));
+    CHECK_EQUAL(3, up_next.tracks[1]);
+    CHECK_EQUAL(7, up_next.tracks[2]);
+    CHECK(up_next_edit(&up_next, 2, UP_NEXT_MOVE_EARLIER));
+    CHECK_EQUAL(7, up_next.tracks[1]);
+    CHECK_EQUAL(3, up_next.tracks[2]);
+    CHECK_EQUAL(4, up_next.count);
+}
+
+static void removing_one_duplicate_keeps_the_other(void)
+{
+    static const uint16_t TRACKS[] = {7, 3, 7, 9};
+    UpNext up_next = with_tracks(TRACKS, 4);
+    CHECK(up_next_edit(&up_next, 2, UP_NEXT_REMOVE));
+    CHECK_EQUAL(3, up_next.count);
+    CHECK_EQUAL(7, up_next.tracks[0]);
+    CHECK_EQUAL(3, up_next.tracks[1]);
+    CHECK_EQUAL(9, up_next.tracks[2]);
+    CHECK(up_next_edit(&up_next, 0, UP_NEXT_REMOVE));
+    CHECK_EQUAL(3, up_next.tracks[0]);
+    CHECK(up_next_edit(&up_next, 1, UP_NEXT_REMOVE));
+    CHECK_EQUAL(1, up_next.count);
+    CHECK(up_next_edit(&up_next, 0, UP_NEXT_CLEAR));
+    CHECK_EQUAL(0, up_next.count);
+}
+
+static void invalid_edits_leave_the_list_unchanged(void)
+{
+    static const uint16_t TRACKS[] = {7, 3};
+    UpNext up_next = with_tracks(TRACKS, 2);
+    CHECK(!up_next_edit(&up_next, 0, UP_NEXT_MOVE_EARLIER));
+    CHECK(!up_next_edit(&up_next, 1, UP_NEXT_MOVE_LATER));
+    CHECK(!up_next_edit(&up_next, 2, UP_NEXT_REMOVE));
+    CHECK(!up_next_edit(&up_next, UINT16_MAX, UP_NEXT_MOVE_FIRST));
+    CHECK(!up_next_edit(&up_next, 0, (UpNextEdit)99));
+    CHECK_EQUAL(2, up_next.count);
+    CHECK_EQUAL(7, up_next.tracks[0]);
+    CHECK_EQUAL(3, up_next.tracks[1]);
+    CHECK(up_next_edit(&up_next, 0, UP_NEXT_MOVE_FIRST));
+    up_next_clear(&up_next);
+    CHECK(!up_next_edit(&up_next, 0, UP_NEXT_REMOVE));
+}
+
+static void a_full_list_can_be_reordered_without_overflow(void)
+{
+    UpNext up_next;
+    up_next_clear(&up_next);
+    for (int index = 0; index < UP_NEXT_CAPACITY; index++) {
+        CHECK(up_next_add(&up_next, (uint16_t)index));
+    }
+    CHECK(up_next_edit(&up_next, UP_NEXT_CAPACITY - 1, UP_NEXT_MOVE_FIRST));
+    CHECK_EQUAL(UP_NEXT_CAPACITY - 1, up_next.tracks[0]);
+    for (int index = 1; index < UP_NEXT_CAPACITY; index++) {
+        CHECK_EQUAL(index - 1, up_next.tracks[index]);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_new_list_is_empty),
+        TEST_CASE(moving_preserves_duplicate_songs_and_other_order),
+        TEST_CASE(removing_one_duplicate_keeps_the_other),
+        TEST_CASE(invalid_edits_leave_the_list_unchanged),
+        TEST_CASE(a_full_list_can_be_reordered_without_overflow),
         TEST_CASE(added_songs_keep_their_order),
         TEST_CASE(play_next_goes_to_the_front),
         TEST_CASE(a_full_list_refuses_more),

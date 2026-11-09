@@ -413,8 +413,26 @@ bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
 void hal_audio_queue_next(const HalAudioTrack *track)
 {
     ensure_engine();
+    HalAudioStatus status = hal_audio_status();
+    bool restart = audio_engine_queue_needs_restart(&engine);
+    bool paused = status.state == HAL_AUDIO_PAUSED;
+    if (restart) {
+        stop_transfer();
+    }
     AudioEngineTrack request = engine_track(track);
     audio_engine_queue_next(&engine, track != NULL ? &request : NULL);
+    if (!restart) {
+        return;
+    }
+    if (audio_engine_status(&engine).state == AUDIO_ENGINE_STOPPED || !start_output(!paused)) {
+        audio_engine_stop(&engine);
+        return;
+    }
+    if (paused) {
+        audio_engine_pause(&engine);
+        dac_path_set_muted(true);
+        dmac_suspend();
+    }
 }
 
 void hal_audio_pause(void)

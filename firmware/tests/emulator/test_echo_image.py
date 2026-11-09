@@ -454,9 +454,59 @@ class EchoImageTest(unittest.TestCase):
     def test_a_cold_boot_with_512_byte_clusters_and_a_stale_hint_stays_responsive(self):
         self.realistic_boot(1, 2, 5000, 6000)
 
-    def playback_rig(self):
+    def playback_rig(self, volume=None):
         from echo_emulator.playback import Rig
-        return Rig(self.session_module, self.image, self.elf)
+        return Rig(self.session_module, self.image, self.elf, volume=volume)
+
+    def test_queue_editing_from_the_buttons_updates_the_real_fat_file(self):
+        from echo_emulator.real_volume import real_volume
+        volume = real_volume(playable=True, album_count=2)
+        volume.add_directory(".echo")
+        rig = self.playback_rig(volume)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.press("back")
+        rig.press("next")
+        rig.press("play", hold=1300)
+        rig.press("play")
+        directory = volume.directory(".echo")
+        directory_lba = rig.session.layout["volume_start"] + volume.cluster_lba(directory.first)
+
+        def saved_queue():
+            data = rig.session.disk.read(directory_lba, rig.session.volume.sectors_per_cluster)
+            for offset in range(0, len(data), 32):
+                entry = data[offset:offset + 32]
+                if entry[:11] == b"UPNEXT  BIN":
+                    cluster = struct.unpack_from("<H", entry, 20)[0] << 16
+                    cluster |= struct.unpack_from("<H", entry, 26)[0]
+                    lba = rig.session.layout["volume_start"] + rig.session.volume.cluster_lba(cluster)
+                    return rig.session.disk.read(lba, 1)[:216]
+            return bytes(216)
+
+        added = saved_queue()
+        self.assertEqual(added[:4], b"EMUN")
+        self.assertEqual(struct.unpack_from("<H", added, 6)[0], 1)
+        rig.machine.note("player_edit_up_next")
+        rig.machine.note("player_jump_to_up_next")
+        rig.press("back", hold=1300)
+        rig.press_many("next", 3)
+        rig.press("play")
+        rig.press("menu")
+        rig.press("next")
+        rig.press("play", hold=1300)
+        rig.press("play")
+        saved = saved_queue()
+        self.assertEqual(rig.machine.reached.get("player_edit_up_next", 0), 1)
+        self.assertEqual(rig.machine.reached.get("player_jump_to_up_next", 0), 0)
+        self.assertEqual(saved[:4], b"EMUN")
+        self.assertEqual(struct.unpack_from("<H", saved, 6)[0], 0)
+        checksum = 2166136261
+        for value in saved[:212]:
+            checksum = ((checksum ^ value) * 16777619) & 0xFFFFFFFF
+        self.assertEqual(struct.unpack_from("<I", saved, 212)[0], checksum)
+        self.assert_only_the_user_volume_changed(rig.session)
+        self.assert_healthy(rig.session)
+        summary("queue editing", rig.session)
 
     def test_a_deep_cue_track_starts_quickly_and_switching_tracks_keeps_the_ui_smooth(self):
         rig = self.playback_rig()

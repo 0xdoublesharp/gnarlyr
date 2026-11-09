@@ -10,6 +10,15 @@ enum {
     UP_NEXT_STATE_SIZE = UP_NEXT_HEADER_SIZE + 2 * UP_NEXT_CAPACITY + UP_NEXT_CHECKSUM_SIZE
 };
 
+typedef enum UpNextEdit {
+    UP_NEXT_MOVE_FIRST,
+    UP_NEXT_MOVE_EARLIER,
+    UP_NEXT_MOVE_LATER,
+    UP_NEXT_REMOVE,
+    UP_NEXT_CLEAR,
+    UP_NEXT_EDIT_COUNT
+} UpNextEdit;
+
 typedef struct UpNext {
     uint16_t tracks[UP_NEXT_CAPACITY];
     uint16_t count;
@@ -18,6 +27,7 @@ typedef struct UpNext {
 void up_next_clear(UpNext *up_next);
 bool up_next_add(UpNext *up_next, uint16_t track);
 bool up_next_play_next(UpNext *up_next, uint16_t track);
+bool up_next_edit(UpNext *up_next, uint16_t index, UpNextEdit edit);
 bool up_next_first(const UpNext *up_next, uint16_t *track);
 void up_next_drop(UpNext *up_next, uint16_t count);
 void up_next_encode(const UpNext *up_next, uint32_t fingerprint, uint8_t *bytes);
