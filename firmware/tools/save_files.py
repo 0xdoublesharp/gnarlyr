@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-SAVE_FILES = ("settings.bin", "prefs5.bin", "resume.bin", "session2.bin", "favorites.bin")
+SAVE_FILES = ("settings.bin", "prefs5.bin", "prefs6.bin", "resume.bin", "session2.bin", "favorites.bin")
 SAVE_FILE_SIZE = 4096
 LIBRARY_FILE = "library.db"
 LIBRARY_FILE_SIZE = 4 * 1024 * 1024

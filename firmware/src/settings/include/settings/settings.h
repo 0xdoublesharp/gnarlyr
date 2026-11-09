@@ -31,6 +31,13 @@ typedef enum UsbMode {
     USB_MODE_DAC
 } UsbMode;
 
+typedef enum AppearanceTheme {
+    APPEARANCE_NEON_NOIR,
+    APPEARANCE_SUNSET,
+    APPEARANCE_SEA_GLASS,
+    APPEARANCE_CLASSIC
+} AppearanceTheme;
+
 typedef enum ButtonAction {
     BUTTON_ACTION_NONE,
     BUTTON_ACTION_PLAY_PAUSE,
@@ -59,6 +66,7 @@ enum {
     OUTPUT_JACK_COUNT = OUTPUT_BALANCED + 1,
     START_SCREEN_COUNT = START_COVER_FLOW + 1,
     USB_MODE_COUNT = USB_MODE_DAC + 1,
+    APPEARANCE_THEME_COUNT = APPEARANCE_CLASSIC + 1,
     SETTINGS_BRIGHTNESS_MIN = 1,
     SETTINGS_BRIGHTNESS_MAX = 10,
     SETTINGS_VOLUME_MAX = 50,
@@ -85,6 +93,7 @@ typedef struct Settings {
     UsbMode usb_mode;
     uint8_t dac_volume;
     uint8_t button_actions[PLAYBACK_BUTTON_COUNT];
+    uint8_t appearance;
 } Settings;
 
 Settings settings_defaults(void);

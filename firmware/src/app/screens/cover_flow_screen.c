@@ -15,13 +15,10 @@
 enum {
     NO_POSITION = -1,
     REFLECTION_LIGHT = 80,
-    FLOOR_LEVEL = 16,
     RANDOM_POSITION = 0,
     SHUFFLE_SIZE = 48,
     SHUFFLE_STROKE = 4
 };
-
-static const Color BACKDROP = COLOR_RGB(0, 0, 0);
 
 static const char STAR_PREFIX[] = "\xE2\x98\x85 ";
 static const char EMPTY_MESSAGE[] = "Nothing here";
@@ -402,8 +399,8 @@ static void draw_text(const CoverFlowScreen *flow, Canvas *canvas)
     const CoverFlowTextLayout *layout = &BOARD_LAYOUT.cover_flow_text;
     int padding = theme->metrics.padding;
     int width = theme->metrics.screen_width - 2 * padding;
-    TextStyle title = {.font = theme->fonts.title, .color = theme->colors.text};
-    TextStyle artist = {.font = theme->fonts.body, .color = theme->colors.text_secondary};
+    TextStyle title = {.font = theme->fonts.title, .color = theme->colors.header_text};
+    TextStyle artist = {.font = theme->fonts.body, .color = theme->colors.header_text};
     Rect title_area = {padding, layout->title_top, width, layout->line_height};
     Rect artist_area = {padding, layout->artist_top, width, layout->line_height};
     draw_line(flow, canvas, (Label){title_area, flow->title}, title);
@@ -412,7 +409,7 @@ static void draw_text(const CoverFlowScreen *flow, Canvas *canvas)
 
 static void draw_empty(const Theme *theme, Canvas *canvas)
 {
-    TextStyle style = {.font = theme->fonts.body, .color = theme->colors.text_secondary};
+    TextStyle style = {.font = theme->fonts.body, .color = theme->colors.header_text};
     Rect screen = {0, 0, theme->metrics.screen_width, theme->metrics.screen_height};
     label_draw(canvas, style,
                (Label){label_centered_area(style.font, screen, EMPTY_MESSAGE), EMPTY_MESSAGE});
@@ -422,12 +419,10 @@ static void draw_backdrop(const Theme *theme, Canvas *canvas)
 {
     int floor = BOARD_LAYOUT.cover_flow.center_top + BOARD_LAYOUT.cover_flow.center_size;
     int height = theme->metrics.screen_height;
-    canvas_fill_rect(canvas, (Rect){0, 0, theme->metrics.screen_width, floor}, BACKDROP);
-    for (int y = floor; y < height; y++) {
-        uint8_t level = (uint8_t)(FLOOR_LEVEL * (height - y) / (height - floor));
-        canvas_fill_rect(canvas, (Rect){0, y, theme->metrics.screen_width, 1},
-                         color_from_rgb(level, level, level));
-    }
+    canvas_fill_rect(canvas, (Rect){0, 0, theme->metrics.screen_width, floor},
+                     theme->colors.header_background);
+    canvas_fill_gradient(canvas, (Rect){0, floor, theme->metrics.screen_width, height - floor},
+                         theme->colors.header_top, theme->colors.header_background);
 }
 
 static void draw(void *context, Canvas *canvas)

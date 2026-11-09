@@ -36,8 +36,8 @@ static void tape_labels(Canvas *canvas, Rect area, const Theme *theme)
     TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text};
     Rect label = {area.x + 8, area.y + 5, area.width - 16, 22};
     canvas_fill_rect(canvas, label, theme->colors.selection_background);
-    label_draw(canvas, style,
-               (Label){label_centered_area(style.font, label, "MIXTAPE"), "MIXTAPE"});
+    TextStyle ink = {.font = style.font, .color = theme->colors.selection_text};
+    label_draw(canvas, ink, (Label){label_centered_area(ink.font, label, "MIXTAPE"), "MIXTAPE"});
     label_draw(canvas, style, (Label){{area.x + 8, area.y + 82, 52, 18}, "SIDE A"});
     label_draw(canvas, style, (Label){{area.x + area.width - 43, area.y + 82, 36, 18}, "HI-FI"});
 }
@@ -52,6 +52,8 @@ void cassette_art_draw(Canvas *canvas, Rect area, const Theme *theme, uint32_t p
     canvas_fill_rect(&clipped, area, theme->colors.divider);
     canvas_fill_rect(&clipped, (Rect){area.x + 2, area.y + 2, area.width - 4, area.height - 4},
                      theme->colors.background);
+    canvas_fill_rect(&clipped, (Rect){area.x + 8, area.y + 28, area.width - 16, 2},
+                     theme->colors.selection_shine);
     Rect window = {area.x + 8, area.y + 32, area.width - 16, 44};
     canvas_fill_rect(&clipped, window, theme->colors.header_background);
     canvas_fill_rect(&clipped, (Rect){area.x + 30, area.y + 52, area.width - 60, 4},

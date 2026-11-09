@@ -209,9 +209,21 @@ class EchoImageTest(unittest.TestCase):
         for value in legacy[:20]:
             checksum = ((checksum ^ value) * 16777619) & 0xFFFFFFFF
         struct.pack_into("<I", legacy, 20, checksum)
+        self._assert_settings_migrate("settings.bin", legacy)
+
+    def test_version_five_theme_migration_preserves_audio_buttons_and_rollback_file(self):
+        legacy = bytearray(b"EMST" + bytes((5, 0, 9, 2, 0, 0, 0, 0, 0, 21, 2, 0, 37)))
+        legacy.extend(bytes((6, 4, 7, 5, 1, 3, 2, 0, 255, 0, 0)))
+        checksum = 2166136261
+        for value in legacy:
+            checksum = ((checksum ^ value) * 16777619) & 0xFFFFFFFF
+        legacy.extend(struct.pack("<I", checksum))
+        self._assert_settings_migrate("prefs5.bin", legacy)
+
+    def _assert_settings_migrate(self, legacy_name, legacy):
         volume = self.session_module.Fat32Volume()
         volume.add_directory(".echo")
-        volume.add_file("settings.bin", bytes(legacy), directory=".echo")
+        volume.add_file(legacy_name, bytes(legacy), directory=".echo")
         session = self.session_module.Session(self.image, self.elf, volume=volume)
         session.run_to_home_screen()
         machine = session.machine
@@ -227,24 +239,27 @@ class EchoImageTest(unittest.TestCase):
             data = session.disk.read(directory_lba, volume.sectors_per_cluster)
             for offset in range(0, len(data), 32):
                 entry = data[offset:offset + 32]
-                if entry[:11] == b"PREFS5  BIN":
+                if entry[:11] == b"PREFS6  BIN":
                     cluster = struct.unpack_from("<H", entry, 20)[0] << 16
                     cluster |= struct.unpack_from("<H", entry, 26)[0]
                     lba = session.layout["volume_start"] + volume.cluster_lba(cluster)
                     return session.disk.read(lba, 1)[:32]
             return bytes(32)
 
-        self.assertEqual(machine.run(until=lambda: preferences()[:5] == b"EMST\x05",
+        self.assertEqual(machine.run(until=lambda: preferences()[:5] == b"EMST\x06",
                                      until_ms=started + 3000), "condition met")
         saved = preferences()
         self.assertEqual((saved[6], saved[13], saved[16]), (9, 21, 37))
+        self.assertEqual(saved[25], 0)
+        if legacy[4] == 5:
+            self.assertEqual(saved[17:25], legacy[17:25])
         checksum = 2166136261
         for value in saved[:28]:
             checksum = ((checksum ^ value) * 16777619) & 0xFFFFFFFF
         self.assertEqual(struct.unpack_from("<I", saved, 28)[0], checksum)
-        old = next(node for node in directory.children if node.name == "settings.bin")
+        old = next(node for node in directory.children if node.name == legacy_name)
         old_lba = session.layout["volume_start"] + volume.cluster_lba(old.first)
-        self.assertEqual(session.disk.read(old_lba, 1)[:24], bytes(legacy))
+        self.assertEqual(session.disk.read(old_lba, 1)[:len(legacy)], bytes(legacy))
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 

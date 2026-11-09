@@ -143,6 +143,7 @@ static void build_settings(AppScreens *screens, AppScreensContext context)
         .toast = context.toast,
         .rescan_requested = context.rescan_requested,
         .bluetooth = &screens->bluetooth,
+        .diagnostics = &screens->diagnostics.screen,
         .sleep_option = 0,
     };
     settings_screens_init(&screens->settings, settings, context.theme);
@@ -180,11 +181,16 @@ static void build_home(AppScreens *screens, AppScreensContext context)
     screens->home_items[0] = app_screens_open_item("Music", &screens->music.screen);
     screens->home_items[1] = shelf_item(screens, context, SPOKEN_AUDIOBOOK);
     screens->home_items[2] = shelf_item(screens, context, SPOKEN_PODCAST);
-    screens->home_items[3] = app_screens_open_item("Settings", &screens->settings.menu.screen);
-    screens->home_items[4] = app_screens_open_item("Diagnostics", &screens->diagnostics.screen);
-    screens->home_items[5] = app_screens_open_item("Now Playing", &screens->now_playing.screen);
-    screens->home_items[5].shown = player_has_track;
-    screens->home_items[5].shown_context = context.player;
+    screens->home_items[3] = app_screens_open_item("Now Playing", &screens->now_playing.screen);
+    screens->home_items[3].shown = player_has_track;
+    screens->home_items[3].shown_context = context.player;
+    screens->home_items[4] = app_screens_open_item(
+        "Mixtapes", context.mixtapes != NULL ? context.mixtapes : &screens->no_library.screen);
+    screens->home_items[5] = (MenuItem){.label = "Audio & connections",
+                                        .select = settings_screens_open_audio,
+                                        .context = &screens->settings,
+                                        .opens = true};
+    screens->home_items[6] = app_screens_open_item("Settings", &screens->settings.menu.screen);
     home_art_init(&screens->home_art, context.covers, context.store, context.player, theme);
     MenuConfig home = {.title = "Podium",
                        .items = screens->home_items,

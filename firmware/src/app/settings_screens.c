@@ -22,6 +22,8 @@ static const char *const TIMEOUT_OPTIONS[SCREEN_TIMEOUT_OPTION_COUNT] = {
     "10 s", "20 s", "30 s", "1 min", "2 min", "5 min", "Never"};
 static const char *const BRIGHTNESS_OPTIONS[BRIGHTNESS_LEVEL_COUNT] = {"1", "2", "3", "4", "5",
                                                                        "6", "7", "8", "9", "10"};
+static const char *const THEME_OPTIONS[APPEARANCE_THEME_COUNT] = {"Neon Noir", "Sunset",
+                                                                  "Sea Glass", "Classic"};
 static const char *const GAIN_OPTIONS[GAIN_LEVEL_COUNT] = {"Low", "High"};
 static const char *const OUTPUT_OPTIONS[OUTPUT_JACK_COUNT] = {"Auto", "3.5 mm", "4.4 mm"};
 static const char *const OUTPUT_MESSAGES[OUTPUT_JACK_COUNT] = {
@@ -203,6 +205,17 @@ static void choose_usb_mode(void *context, int index)
     toast_show(settings->toast, USB_MODE_MESSAGES[index], hal_clock_milliseconds());
 }
 
+static int current_theme(const void *context)
+{
+    return settings_of(context)->appearance;
+}
+
+static void choose_theme(void *context, int index)
+{
+    editable_settings(context)->appearance = (uint8_t)index;
+    save(context);
+}
+
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {"Shuffle", SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, current_shuffle, choose_shuffle, NULL},
     {"Repeat", REPEAT_OPTIONS, REPEAT_MODE_COUNT, current_repeat, choose_repeat, NULL},
@@ -213,9 +226,11 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {"Brightness", BRIGHTNESS_OPTIONS, BRIGHTNESS_LEVEL_COUNT, current_brightness,
      choose_brightness, NULL},
     {"Gain", GAIN_OPTIONS, GAIN_LEVEL_COUNT, current_gain, choose_gain, NULL},
-    {"Output", OUTPUT_OPTIONS, OUTPUT_JACK_COUNT, current_output, choose_output, describe_output},
+    {"Jack volume scale", OUTPUT_OPTIONS, OUTPUT_JACK_COUNT, current_output, choose_output,
+     describe_output},
     {"Start screen", START_OPTIONS, START_SCREEN_COUNT, current_start, choose_start, NULL},
     {"USB mode", USB_MODE_OPTIONS, USB_MODE_COUNT, current_usb_mode, choose_usb_mode, NULL},
+    {"Theme", THEME_OPTIONS, APPEARANCE_THEME_COUNT, current_theme, choose_theme, NULL},
 };
 
 static ScreenAction open_choice(void *context)
@@ -262,36 +277,89 @@ static ScreenAction open_buttons(void *context)
     return screen_action_push(context);
 }
 
+typedef struct SettingsGroupSpec {
+    const char *title;
+    uint8_t choices[3];
+    uint8_t count;
+} SettingsGroupSpec;
+
+static const SettingsGroupSpec GROUPS[SETTINGS_GROUP_COUNT] = {
+    {"Audio & connections", {6, 7, 9}, 3},
+    {"Playback", {0, 1}, 2},
+    {"Appearance", {10, 5, 4}, 3},
+    {"Power & sleep", {3, 2}, 2},
+};
+
+static MenuItem choice_item(SettingsEntry *entry)
+{
+    return (MenuItem){.label = entry->choice->title,
+                      .select = open_choice,
+                      .context = entry,
+                      .value = choice_value,
+                      .opens = true};
+}
+
+static ScreenAction open_group(void *context)
+{
+    const SettingsGroupEntry *entry = context;
+    SettingsScreens *screens = entry->owner;
+    const SettingsGroupSpec *spec = &GROUPS[entry->index];
+    int count = spec->count;
+    for (int index = 0; index < count; index++) {
+        screens->group_items[index] = choice_item(&screens->entries[spec->choices[index]]);
+    }
+    if (entry->index == 0) {
+        screens->group_items[count++] = (MenuItem){.label = "Bluetooth",
+                                                   .select = bluetooth_screen_open,
+                                                   .context = screens->context.bluetooth,
+                                                   .value = bluetooth_screen_summary,
+                                                   .opens = true};
+    }
+    MenuConfig menu = {.title = spec->title,
+                       .items = screens->group_items,
+                       .item_count = count,
+                       .theme = screens->theme};
+    return screen_action_push(menu_screen_init(&screens->group, menu));
+}
+
+ScreenAction settings_screens_open_audio(void *context)
+{
+    SettingsScreens *screens = context;
+    return open_group(&screens->groups[0]);
+}
+
+static void build_items(SettingsScreens *screens, Screen *buttons)
+{
+    for (unsigned index = 0; index < SETTINGS_GROUP_COUNT; index++) {
+        screens->groups[index] = (SettingsGroupEntry){.owner = screens, .index = index};
+        screens->items[index] = (MenuItem){.label = GROUPS[index].title,
+                                           .select = open_group,
+                                           .context = &screens->groups[index],
+                                           .opens = true};
+    }
+    screens->items[4] = (MenuItem){
+        .label = "Playback buttons", .select = open_buttons, .context = buttons, .opens = true};
+    screens->items[5] = choice_item(&screens->entries[8]);
+    screens->items[6] = (MenuItem){
+        .label = "Rescan library", .select = request_rescan, .context = &screens->context};
+    screens->items[7] = (MenuItem){.label = "Diagnostics",
+                                   .select = menu_open_screen,
+                                   .context = screens->context.diagnostics,
+                                   .opens = true};
+}
+
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context, const Theme *theme)
 {
     screens->context = context;
     screens->theme = theme;
+    for (int index = 0; index < SETTINGS_CHOICE_COUNT; index++) {
+        screens->entries[index] = (SettingsEntry){.choice = &CHOICES[index], .owner = screens};
+    }
     ButtonSettingsConfig buttons = {.settings = &screens->context.store->settings,
                                     .theme = theme,
                                     .changed = save,
                                     .context = &screens->context};
-    Screen *button_screen = button_settings_init(&screens->buttons, buttons);
-    screens->items[SETTINGS_BUTTONS_ITEM] = (MenuItem){.label = "Playback buttons",
-                                                       .select = open_buttons,
-                                                       .context = button_screen,
-                                                       .opens = true};
-    screens->items[SETTINGS_RESCAN_ITEM] = (MenuItem){
-        .label = "Rescan library", .select = request_rescan, .context = &screens->context};
-    screens->items[SETTINGS_BLUETOOTH_ITEM] = (MenuItem){.label = "Bluetooth",
-                                                         .select = bluetooth_screen_open,
-                                                         .context = context.bluetooth,
-                                                         .value = bluetooth_screen_summary,
-                                                         .opens = true};
-    for (int index = 0; index < SETTINGS_CHOICE_COUNT; index++) {
-        screens->entries[index] = (SettingsEntry){.choice = &CHOICES[index], .owner = screens};
-        int item = index < SETTINGS_BLUETOOTH_ITEM ? index : index + 1;
-        item = item < SETTINGS_RESCAN_ITEM ? item : item + 1;
-        screens->items[item] = (MenuItem){.label = CHOICES[index].title,
-                                          .select = open_choice,
-                                          .context = &screens->entries[index],
-                                          .value = choice_value,
-                                          .opens = true};
-    }
+    build_items(screens, button_settings_init(&screens->buttons, buttons));
     MenuConfig menu = {.title = "Settings",
                        .items = screens->items,
                        .item_count = SETTINGS_ITEM_COUNT,

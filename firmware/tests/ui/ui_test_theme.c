@@ -21,6 +21,9 @@ const Theme TEST_THEME = {
             .danger = 0xF800,
             .success = 0x07E0,
             .chevron = 0xC618,
+            .status_danger = 0xF800,
+            .status_success = 0x07E0,
+            .status_pending = 0x4208,
         },
     .fonts = {.title = &TINY_FONT, .body = &TINY_FONT, .small = &TINY_FONT},
     .metrics =

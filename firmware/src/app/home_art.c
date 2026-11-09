@@ -92,11 +92,33 @@ static void draw_caption(const HomeArt *art, Canvas *canvas, Rect area)
     label_draw(canvas, style, (Label){label_centered_area(style.font, row, caption), caption});
 }
 
+static void draw_horizon(Canvas *canvas, Rect area, const Theme *theme)
+{
+    int top = area.y + COVER_MARGIN_TOP + COVER_FULL_SIZE + 12;
+    int bottom = area.y + area.height - 26;
+    Color grid = color_blend(theme->colors.divider, theme->colors.selection_shine, 5);
+    for (int step = 1; step <= 4; step++) {
+        int y = top + step * step * 2;
+        if (y < bottom) {
+            canvas_fill_rect(canvas, (Rect){area.x + 8, y, area.width - 16, 1}, grid);
+        }
+    }
+    int start = canvas->clip.y > top ? canvas->clip.y : top;
+    int end = canvas->clip.y + canvas->clip.height;
+    for (int y = start; y < bottom && y < end; y++) {
+        for (int ray = -2; ray <= 2; ray++) {
+            int x = area.x + area.width / 2 + ray * (y - top + 3);
+            canvas_fill_rect(canvas, (Rect){x, y, 1, 1}, grid);
+        }
+    }
+}
+
 void home_art_draw(void *context, Canvas *canvas, Rect area)
 {
     const HomeArt *art = context;
     canvas_fill_rect(canvas, area, art->theme->colors.header_background);
     canvas_fill_rect(canvas, (Rect){area.x, area.y, 1, area.height}, art->theme->colors.divider);
+    draw_horizon(canvas, area, art->theme);
     int left = area.x + (area.width - COVER_FULL_SIZE) / 2;
     int top = area.y + COVER_MARGIN_TOP;
     Image cover;

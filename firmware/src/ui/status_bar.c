@@ -95,9 +95,9 @@ static void draw_percent(Canvas *canvas, const Theme *theme, uint8_t percent, bo
 static Color fill_color(const Theme *theme, StatusBarState state)
 {
     if (state.charging) {
-        return theme->colors.success;
+        return theme->colors.status_success;
     }
-    return state.battery_percent <= STATUS_BAR_LOW_BATTERY_PERCENT ? theme->colors.danger
+    return state.battery_percent <= STATUS_BAR_LOW_BATTERY_PERCENT ? theme->colors.status_danger
                                                                    : theme->colors.header_text;
 }
 
@@ -138,13 +138,13 @@ void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state)
     }
     if (state.bluetooth != STATUS_BLUETOOTH_OFF) {
         Color tint =
-            state.bluetooth == STATUS_BLUETOOTH_CONNECTED ? color : theme->colors.text_tertiary;
+            state.bluetooth == STATUS_BLUETOOTH_CONNECTED ? color : theme->colors.status_pending;
         icon_draw_bluetooth(canvas, status_bar_bluetooth_area(theme), tint);
     }
     if (state.battery_known) {
         draw_battery(canvas, theme, state);
         if (state.charging) {
-            icon_draw_bolt(canvas, status_bar_bolt_area(theme), theme->colors.success);
+            icon_draw_bolt(canvas, status_bar_bolt_area(theme), theme->colors.status_success);
         }
         draw_percent(canvas, theme, state.battery_percent, state.charging);
     }

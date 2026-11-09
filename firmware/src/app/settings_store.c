@@ -5,7 +5,8 @@
 #include "hal/storage.h"
 #include "hal/system.h"
 
-const char SETTINGS_STORE_PATH[] = "/.echo/prefs5.bin";
+const char SETTINGS_STORE_PATH[] = "/.echo/prefs6.bin";
+static const char BUTTON_SETTINGS_PATH[] = "/.echo/prefs5.bin";
 static const char LEGACY_SETTINGS_PATH[] = "/.echo/settings.bin";
 
 static const HalAudioGain HAL_GAINS[GAIN_LEVEL_COUNT] = {HAL_AUDIO_GAIN_LOW, HAL_AUDIO_GAIN_HIGH};
@@ -63,8 +64,10 @@ void settings_store_load(SettingsStore *store)
         remember(store, bytes);
         return;
     }
-    if (read_valid(bytes, &store->settings, true, LEGACY_SETTINGS_PATH) ||
+    if (read_valid(bytes, &store->settings, true, BUTTON_SETTINGS_PATH) ||
+        read_valid(bytes, &store->settings, true, LEGACY_SETTINGS_PATH) ||
         read_valid(bytes, &store->settings, false, SETTINGS_STORE_PATH) ||
+        read_valid(bytes, &store->settings, false, BUTTON_SETTINGS_PATH) ||
         read_valid(bytes, &store->settings, false, LEGACY_SETTINGS_PATH)) {
         return;
     }

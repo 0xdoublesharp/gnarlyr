@@ -171,10 +171,43 @@ static void a_short_legacy_settings_file_is_migrated_without_overwriting_it(void
     CHECK_EQUAL(37, settings.settings.dac_volume);
 }
 
+static void version_five_settings_migrate_without_overwriting_the_rollback_copy(void)
+{
+    fake_hal_reset();
+    Settings original = settings_defaults();
+    original.volume = 23;
+    original.gain = GAIN_LOW;
+    original.button_actions[PLAYBACK_MENU_TAP] = BUTTON_ACTION_NEXT;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&original, bytes);
+    bytes[4] = 5;
+    bytes[25] = 255;
+    uint32_t checksum = hash_update(HASH_START, bytes, 28);
+    for (int index = 0; index < 4; index++) {
+        bytes[28 + index] = (uint8_t)(checksum >> (8 * index));
+    }
+    CHECK(hal_internal_file_write("/.echo/prefs5.bin", bytes, sizeof bytes));
+    settings_store_load(&settings);
+    CHECK_EQUAL(23, settings.settings.volume);
+    CHECK_EQUAL(BUTTON_ACTION_NEXT, settings.settings.button_actions[PLAYBACK_MENU_TAP]);
+    CHECK_EQUAL(APPEARANCE_NEON_NOIR, settings.settings.appearance);
+    settings.settings.appearance = APPEARANCE_SUNSET;
+    CHECK(settings_store_save(&settings));
+    uint8_t preserved[SETTINGS_FILE_SIZE];
+    CHECK(hal_internal_file_read("/.echo/prefs5.bin", preserved, sizeof preserved));
+    for (unsigned index = 0; index < sizeof bytes; index++) {
+        CHECK_EQUAL(bytes[index], preserved[index]);
+    }
+    settings_store_load(&settings);
+    CHECK_EQUAL(23, settings.settings.volume);
+    CHECK_EQUAL(APPEARANCE_SUNSET, settings.settings.appearance);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(without_a_file_the_defaults_are_used),
+        TEST_CASE(version_five_settings_migrate_without_overwriting_the_rollback_copy),
         TEST_CASE(a_short_legacy_settings_file_is_migrated_without_overwriting_it),
         TEST_CASE(saved_settings_are_loaded_again),
         TEST_CASE(unchanged_settings_are_not_written_again),

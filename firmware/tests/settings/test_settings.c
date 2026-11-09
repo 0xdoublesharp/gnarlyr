@@ -27,6 +27,7 @@ static Settings custom_settings(void)
     settings.auto_off = 3;
     settings.usb_mode = USB_MODE_DAC;
     settings.dac_volume = 37;
+    settings.appearance = APPEARANCE_SEA_GLASS;
     return settings;
 }
 
@@ -97,7 +98,7 @@ static void the_usb_mode_and_dac_volume_are_saved_at_bytes_fifteen_and_sixteen(v
     Settings settings = custom_settings();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
-    CHECK_EQUAL(5, bytes[VERSION_FIELD]);
+    CHECK_EQUAL(6, bytes[VERSION_FIELD]);
     CHECK_EQUAL(USB_MODE_DAC, bytes[USB_MODE_FIELD]);
     CHECK_EQUAL(37, bytes[DAC_VOLUME_FIELD]);
 }
@@ -141,7 +142,7 @@ static void a_newer_version_is_rejected(void)
     Settings settings = custom_settings();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
-    bytes[VERSION_FIELD] = 6;
+    bytes[VERSION_FIELD] = 7;
     rewrite_checksum(bytes);
     CHECK(!settings_decode(bytes, sizeof bytes, &settings));
 }
@@ -181,6 +182,7 @@ static void settings_survive_a_round_trip(void)
     CHECK_EQUAL(original.auto_off, decoded.auto_off);
     CHECK_EQUAL(original.usb_mode, decoded.usb_mode);
     CHECK_EQUAL(original.dac_volume, decoded.dac_volume);
+    CHECK_EQUAL(original.appearance, decoded.appearance);
 }
 
 static void a_corrupted_file_is_rejected(void)
@@ -266,10 +268,60 @@ static void an_unknown_shortcut_action_is_rejected(void)
     CHECK(!settings_decode(bytes, sizeof bytes, &settings));
 }
 
+static void a_version_six_theme_round_trip_preserves_audio_and_buttons(void)
+{
+    Settings original = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&original, bytes);
+    bytes[VERSION_FIELD] = 6;
+    bytes[25] = 2;
+    rewrite_checksum(bytes);
+    Settings decoded = settings_defaults();
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(original.volume, decoded.volume);
+    CHECK_EQUAL(original.gain, decoded.gain);
+    CHECK_EQUAL(original.dac_volume, decoded.dac_volume);
+    CHECK_EQUAL(original.appearance, decoded.appearance);
+    settings_encode(&decoded, bytes);
+    CHECK_EQUAL(6, bytes[VERSION_FIELD]);
+    CHECK_EQUAL(2, bytes[25]);
+}
+
+static void legacy_theme_bytes_are_ignored_and_audio_settings_are_preserved(void)
+{
+    Settings original = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&original, bytes);
+    bytes[VERSION_FIELD] = 5;
+    bytes[25] = 255;
+    rewrite_checksum(bytes);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(APPEARANCE_NEON_NOIR, decoded.appearance);
+    CHECK_EQUAL(original.volume, decoded.volume);
+    CHECK_EQUAL(original.gain, decoded.gain);
+}
+
+static void an_unknown_theme_is_rejected_without_changing_settings(void)
+{
+    Settings original = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&original, bytes);
+    bytes[25] = APPEARANCE_THEME_COUNT;
+    rewrite_checksum(bytes);
+    Settings decoded = original;
+    CHECK(!settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(original.appearance, decoded.appearance);
+    CHECK_EQUAL(original.volume, decoded.volume);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(defaults_are_comfortable),
+        TEST_CASE(legacy_theme_bytes_are_ignored_and_audio_settings_are_preserved),
+        TEST_CASE(an_unknown_theme_is_rejected_without_changing_settings),
+        TEST_CASE(a_version_six_theme_round_trip_preserves_audio_and_buttons),
         TEST_CASE(every_playback_shortcut_survives_a_round_trip),
         TEST_CASE(a_real_version_four_file_keeps_dac_volume_and_gets_default_shortcuts),
         TEST_CASE(an_unknown_shortcut_action_is_rejected),

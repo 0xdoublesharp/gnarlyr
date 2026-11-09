@@ -18,7 +18,7 @@ const BoardLayout BOARD_LAYOUT = {
             .modes_top = 164,
             .small_line_height = 18,
             .progress_top = 190,
-            .progress_height = 4,
+            .progress_height = 6,
             .times_top = 197,
         },
     .cover_flow =

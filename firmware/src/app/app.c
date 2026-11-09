@@ -84,6 +84,7 @@ typedef struct AppState {
     MixtapeUi mixtapes;
     const MixtapeUiApi *mixtape_api;
     SettingsStore settings;
+    Theme theme;
     FavoritesStore favorites;
     SpokenStore spoken;
     CoverCache covers;
@@ -462,7 +463,7 @@ static void update_screen(uint32_t now_ms)
 
 static const Theme *board_theme(void)
 {
-    return hal_system_restart_pending() ? &NOTICE_THEME : &BOARD_THEME;
+    return hal_system_restart_pending() ? &NOTICE_THEME : &app.theme;
 }
 
 static void draw_fade(Canvas *canvas, const Fade *fade, const char *text)
@@ -618,7 +619,7 @@ static void render(FrameDrawer drawer, bool drawer_paints_everything)
         .screen_width = HAL_DISPLAY_WIDTH,
         .screen_height = HAL_DISPLAY_HEIGHT,
         .strip_height = BOARD_STRIP_HEIGHT,
-        .background = BOARD_THEME.colors.background,
+        .background = board_theme()->colors.background,
         .drawer_paints_everything = drawer_paints_everything,
     };
     FrameSink sink = {.write = write_to_display, .context = NULL};
@@ -628,6 +629,7 @@ static void render(FrameDrawer drawer, bool drawer_paints_everything)
 
 static void render_frame(void)
 {
+    echo_theme_apply(&app.theme, app.settings.settings.appearance);
     uint32_t started_us = hal_clock_microseconds();
     app.send_us = 0;
     app.status_bar = current_status_bar();
@@ -743,6 +745,8 @@ void app_start(void)
     app.prepare_index = 0;
     app.prepare_report = (CardFilesReport){.library_created = false, .card_full = false};
     settings_store_load(&app.settings);
+    app.theme = BOARD_THEME;
+    echo_theme_apply(&app.theme, app.settings.settings.appearance);
     start_playback();
     start_hardware(now_ms);
     bluetooth_link_start(&app.bluetooth, &app.toast, now_ms);

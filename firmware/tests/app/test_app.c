@@ -29,15 +29,14 @@ enum {
     START_MS = 1000,
     KEY_HOLD_MS = 30,
     FULL_FRAME_PIXELS = HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT,
-    HOME_DIAGNOSTICS_INDEX = 2,
     DIAGNOSTICS_FRAME_TIME_INDEX = 3,
     DIAGNOSTICS_FIRMWARE_INDEX = 4,
     MUSIC_ARTISTS_INDEX = 1,
     MUSIC_ALBUMS_INDEX = 3,
     MUSIC_FOLDERS_INDEX = 5,
     BJORK_POSITION = 3,
-    HOME_SETTINGS_INDEX = 1,
-    HOME_NOW_PLAYING_INDEX = 3,
+    HOME_SETTINGS_INDEX = 3,
+    HOME_NOW_PLAYING_INDEX = 1,
     SETTINGS_REPEAT_INDEX = 1,
     SETTINGS_SLEEP_INDEX = 3,
     SETTINGS_TIMEOUT_INDEX = 5,
@@ -271,13 +270,25 @@ static void a_long_back_returns_home_from_deep_screens(void)
     CHECK_EQUAL(1, app_screen_depth());
 }
 
+static void open_settings_menu(void)
+{
+    move_down(HOME_SETTINGS_INDEX + (app_player_status().has_track ? 1 : 0));
+    tap(KEY_PLAY);
+}
+
+static void open_diagnostics_menu(void)
+{
+    open_settings_menu();
+    move_down(7);
+    tap(KEY_PLAY);
+}
+
 static void the_frame_overlay_is_off_until_enabled_in_diagnostics(void)
 {
     start_app();
     step();
     CHECK(!overlay_visible());
-    move_down(HOME_DIAGNOSTICS_INDEX);
-    tap(KEY_PLAY);
+    open_diagnostics_menu();
     CHECK(title_is("Diagnostics"));
     move_down(DIAGNOSTICS_FRAME_TIME_INDEX);
     tap(KEY_PLAY);
@@ -538,7 +549,7 @@ static void home_art_keeps_the_playing_album(void)
     CHECK_EQUAL(RED_COVER, home_art_probe());
 }
 
-static void the_home_menu_shows_now_playing_last_once_a_track_is_loaded(void)
+static void the_home_menu_prioritizes_now_playing_once_a_track_is_loaded(void)
 {
     start_app_with_library();
     play_first_album_track();
@@ -554,15 +565,20 @@ static void the_home_menu_hides_now_playing_with_nothing_loaded(void)
     start_app_with_library();
     move_down(HOME_NOW_PLAYING_INDEX);
     tap(KEY_PLAY);
-    CHECK(title_is("Music"));
+    CHECK(title_is("Mixtapes"));
 }
 
 static void open_setting(int index)
 {
-    move_down(HOME_SETTINGS_INDEX);
+    static const int groups[] = {1, 1, 0, 3, 3, 2, 2, 0, 0, 5, 6};
+    static const int choices[] = {0, 1, 3, 1, 0, 2, 1, 0, 1, -1, -1};
+    open_settings_menu();
+    move_down(groups[index]);
     tap(KEY_PLAY);
-    move_down(index);
-    tap(KEY_PLAY);
+    if (choices[index] >= 0) {
+        move_down(choices[index]);
+        tap(KEY_PLAY);
+    }
 }
 
 static void settings_choose_shuffle_and_repeat(void)
@@ -572,7 +588,7 @@ static void settings_choose_shuffle_and_repeat(void)
     CHECK(title_is("Shuffle"));
     move_down(1);
     tap(KEY_PLAY);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Playback"));
     CHECK_EQUAL(SHUFFLE_SONGS, app_player_status().shuffle);
     move_down(SETTINGS_REPEAT_INDEX);
     tap(KEY_PLAY);
@@ -585,9 +601,8 @@ static void settings_choose_shuffle_and_repeat(void)
 static void playback_buttons_can_be_opened_from_settings(void)
 {
     start_app_with_library();
-    move_down(HOME_SETTINGS_INDEX);
-    tap(KEY_PLAY);
-    move_down(12);
+    open_settings_menu();
+    move_down(4);
     tap(KEY_PLAY);
     CHECK(title_is("Playback buttons"));
 }
@@ -602,9 +617,8 @@ static bool saved_settings(Settings *settings)
 static void a_playback_shortcut_is_saved_and_controls_playback_with_the_screen_off(void)
 {
     start_app_with_library();
-    move_down(HOME_SETTINGS_INDEX);
-    tap(KEY_PLAY);
-    move_down(12);
+    open_settings_menu();
+    move_down(4);
     tap(KEY_PLAY);
     tap(KEY_PLAY);
     CHECK(title_is("Volume+ tap"));
@@ -625,9 +639,8 @@ static void a_playback_shortcut_is_saved_and_controls_playback_with_the_screen_o
 static void reset_buttons_restores_and_saves_the_defaults(void)
 {
     start_app_with_library();
-    move_down(HOME_SETTINGS_INDEX);
-    tap(KEY_PLAY);
-    move_down(12);
+    open_settings_menu();
+    move_down(4);
     tap(KEY_PLAY);
     tap(KEY_PLAY);
     move_up(2);
@@ -1473,9 +1486,7 @@ static void a_generated_queue_edit_runs_through_the_app_and_reports_completion(v
     CHECK_EQUAL(0, resumed.track);
     tap(KEY_BACK);
     hold_back();
-    move_down(HOME_SETTINGS_INDEX);
-    tap(KEY_PLAY);
-    tap(KEY_PLAY);
+    open_setting(0);
     move_down(1);
     tap(KEY_PLAY);
     CHECK(toast_is("Shuffle applies to next list"));
@@ -1886,8 +1897,7 @@ static void the_key_test_stays_open_after_waking(void)
     start_app_with_library();
     play_first_album_track();
     hold_back();
-    move_down(HOME_DIAGNOSTICS_INDEX);
-    tap(KEY_PLAY);
+    open_diagnostics_menu();
     move_down(DIAGNOSTICS_KEY_TEST_INDEX);
     tap(KEY_PLAY);
     CHECK(title_is("Key test"));
@@ -1901,8 +1911,7 @@ static void menu_stays_in_the_key_test_while_playing(void)
     start_app_with_library();
     play_first_album_track();
     hold_back();
-    move_down(HOME_DIAGNOSTICS_INDEX);
-    tap(KEY_PLAY);
+    open_diagnostics_menu();
     move_down(DIAGNOSTICS_KEY_TEST_INDEX);
     tap(KEY_PLAY);
     tap(KEY_MENU);
@@ -1934,8 +1943,7 @@ static void waking_while_paused_keeps_the_screen(void)
 
 static void open_diagnostics_row(int index)
 {
-    move_down(HOME_DIAGNOSTICS_INDEX);
-    tap(KEY_PLAY);
+    open_diagnostics_menu();
     move_down(index);
 }
 
@@ -2159,6 +2167,58 @@ static void an_unchanged_database_after_usb_keeps_the_paused_session(void)
     CHECK_EQUAL(0, fake_hal_scratch_borrow_count());
 }
 
+static void mixtapes_are_available_directly_from_home(void)
+{
+    start_app_with_library();
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Mixtapes"));
+}
+
+static void audio_and_connections_are_available_directly_from_home(void)
+{
+    start_app_with_library();
+    move_down(2);
+    tap(KEY_PLAY);
+    CHECK(title_is("Audio & connections"));
+    tap(KEY_PLAY);
+    CHECK(title_is("Gain"));
+    tap(KEY_BACK);
+    move_down(3);
+    tap(KEY_PLAY);
+    CHECK(title_is("Bluetooth"));
+}
+
+static void choosing_a_theme_changes_the_display_and_survives_restart(void)
+{
+    start_app_with_library();
+    step();
+    Color original = fake_hal_pixel(2, 180);
+    uint8_t volume = app_player_status().volume;
+    open_settings_menu();
+    move_down(2);
+    tap(KEY_PLAY);
+    CHECK(title_is("Appearance"));
+    tap(KEY_PLAY);
+    CHECK(title_is("Theme"));
+    move_down(2);
+    tap(KEY_PLAY);
+    CHECK(title_is("Appearance"));
+    wait_ms(SLIDE_DURATION_MS);
+    step();
+    Settings chosen;
+    CHECK(saved_settings(&chosen));
+    CHECK_EQUAL(APPEARANCE_SEA_GLASS, chosen.appearance);
+    CHECK_EQUAL(volume, app_player_status().volume);
+    CHECK(fake_hal_pixel(2, 180) != original);
+    restart_app();
+    step();
+    CHECK(saved_settings(&chosen));
+    CHECK_EQUAL(APPEARANCE_SEA_GLASS, chosen.appearance);
+    CHECK_EQUAL(volume, app_player_status().volume);
+    CHECK(fake_hal_pixel(2, 180) != original);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -2174,6 +2234,9 @@ int main(void)
         TEST_CASE(moving_the_selection_sends_only_part_of_the_screen),
         TEST_CASE(restarting_the_app_sends_a_whole_frame_again),
         TEST_CASE(the_home_menu_is_the_root),
+        TEST_CASE(mixtapes_are_available_directly_from_home),
+        TEST_CASE(audio_and_connections_are_available_directly_from_home),
+        TEST_CASE(choosing_a_theme_changes_the_display_and_survives_restart),
         TEST_CASE(playback_buttons_can_be_opened_from_settings),
         TEST_CASE(a_playback_shortcut_is_saved_and_controls_playback_with_the_screen_off),
         TEST_CASE(reset_buttons_restores_and_saves_the_defaults),
@@ -2222,7 +2285,7 @@ int main(void)
         TEST_CASE(now_playing_without_a_cover_shows_a_cassette),
         TEST_CASE(now_playing_keys_control_the_player),
         TEST_CASE(lists_still_move_as_soon_as_a_volume_key_goes_down),
-        TEST_CASE(the_home_menu_shows_now_playing_last_once_a_track_is_loaded),
+        TEST_CASE(the_home_menu_prioritizes_now_playing_once_a_track_is_loaded),
         TEST_CASE(the_home_menu_hides_now_playing_with_nothing_loaded),
         TEST_CASE(home_art_shows_a_library_cover_when_idle),
         TEST_CASE(home_art_moves_on_and_skips_albums_without_a_cover),

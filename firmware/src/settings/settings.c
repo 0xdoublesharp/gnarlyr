@@ -3,7 +3,8 @@
 #include "core/hash.h"
 
 enum {
-    VERSION = 5,
+    VERSION = 6,
+    APPEARANCE_VERSION = 6,
     DAC_VOLUME_VERSION = 4,
     BUTTONS_VERSION = 5,
     FIRST_VERSION = 1,
@@ -23,6 +24,7 @@ enum {
     USB_MODE_FIELD = 15,
     DAC_VOLUME_FIELD = 16,
     BUTTONS_FIELD = 17,
+    APPEARANCE_FIELD = 25,
     LEGACY_CHECKSUM_FIELD = 20,
     CHECKSUM_FIELD = 28,
     DEFAULT_BRIGHTNESS = 7,
@@ -142,6 +144,7 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
     for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
         bytes[BUTTONS_FIELD + index] = settings->button_actions[index];
     }
+    bytes[APPEARANCE_FIELD] = settings->appearance;
     put_u32(bytes, CHECKSUM_FIELD, checksum_of(bytes));
 }
 
@@ -180,7 +183,9 @@ static bool values_valid(const uint8_t *bytes)
            bytes[REPEAT_FIELD] < REPEAT_MODE_COUNT && bytes[VOLUME_FIELD] <= SETTINGS_VOLUME_MAX &&
            bytes[AUTO_OFF_FIELD] < AUTO_OFF_OPTION_COUNT &&
            bytes[USB_MODE_FIELD] < USB_MODE_COUNT &&
-           bytes[DAC_VOLUME_FIELD] <= SETTINGS_VOLUME_MAX && buttons_valid(bytes);
+           bytes[DAC_VOLUME_FIELD] <= SETTINGS_VOLUME_MAX && buttons_valid(bytes) &&
+           (bytes[VERSION_FIELD] < APPEARANCE_VERSION ||
+            bytes[APPEARANCE_FIELD] < APPEARANCE_THEME_COUNT);
 }
 
 bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
@@ -207,6 +212,8 @@ bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
                           ? (uint8_t)SETTINGS_DEFAULT_DAC_VOLUME
                           : bytes[DAC_VOLUME_FIELD],
     };
+    settings->appearance =
+        bytes[VERSION_FIELD] < APPEARANCE_VERSION ? APPEARANCE_NEON_NOIR : bytes[APPEARANCE_FIELD];
     for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
         settings->button_actions[index] = bytes[VERSION_FIELD] < BUTTONS_VERSION
                                               ? DEFAULT_BUTTON_ACTIONS[index]

@@ -483,8 +483,8 @@ static void draw_progress(const NowPlayingScreen *now_playing, Canvas *canvas)
     int filled = volume ? now_playing_volume_width(now_playing->status.volume, bar.width)
                         : now_playing_progress_width(shown_position(now_playing),
                                                      now_playing->status.duration_ms, bar.width);
-    Color fill = theme->colors.selection_background;
-    canvas_fill_rect(canvas, bar, theme->colors.divider);
+    Color fill = theme->colors.selection_shine;
+    canvas_fill_rect(canvas, bar, theme->colors.header_background);
     canvas_fill_rect(canvas, (Rect){bar.x, bar.y, filled, bar.height}, fill);
 }
 
@@ -568,6 +568,18 @@ static void draw_format(const NowPlayingScreen *now_playing, Canvas *canvas)
     label_draw(canvas, style, (Label){.area = stream_area, .text = stream});
 }
 
+static const char *controls_hint(const Settings *settings)
+{
+    if (settings == NULL ||
+        (settings->button_actions[PLAYBACK_VOLUME_UP_TAP] == BUTTON_ACTION_VOLUME_UP &&
+         settings->button_actions[PLAYBACK_VOLUME_DOWN_TAP] == BUTTON_ACTION_VOLUME_DOWN &&
+         settings->button_actions[PLAYBACK_VOLUME_UP_HOLD] == BUTTON_ACTION_NEXT &&
+         settings->button_actions[PLAYBACK_VOLUME_DOWN_HOLD] == BUTTON_ACTION_PREVIOUS)) {
+        return "Tap +/- volume / hold skip";
+    }
+    return "Settings / Playback buttons";
+}
+
 static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
 {
     const Theme *theme = now_playing->config.theme;
@@ -579,6 +591,10 @@ static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
                        detail});
     char modes[STATUS_CAPACITY];
     modes_text(&now_playing->status, modes, sizeof modes);
+    if (modes[0] == '\0') {
+        StringBuilder hint = string_builder_make(modes, sizeof modes);
+        string_builder_append(&hint, controls_hint(now_playing->config.settings));
+    }
     if (now_playing->scrubbing) {
         StringBuilder seeking = string_builder_make(modes, sizeof modes);
         string_builder_append(&seeking, "Seeking \xC2\xB7 Play to jump");

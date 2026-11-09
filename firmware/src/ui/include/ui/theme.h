@@ -22,6 +22,9 @@ typedef struct ThemeColors {
     Color danger;
     Color success;
     Color chevron;
+    Color status_danger;
+    Color status_success;
+    Color status_pending;
 } ThemeColors;
 
 typedef struct ThemeFonts {
