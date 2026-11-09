@@ -97,6 +97,8 @@ static const DiagnosticsRow ROWS[DIAGNOSTICS_ITEM_COUNT] = {
     [10] = {"Music", NULL, diagnostics_row_music, CONTEXT_NONE, false},
     [11] = {"Headset", NULL, diagnostics_row_headset, CONTEXT_NONE, false},
     [12] = {"Core 0 busy", NULL, diagnostics_row_core0_busy, CONTEXT_NONE, false},
+    [13] = {"DAC A", NULL, diagnostics_row_dac_a, CONTEXT_NONE, false},
+    [14] = {"DAC B", NULL, diagnostics_row_dac_b, CONTEXT_NONE, false},
 };
 
 static void options_init(AppScreens *screens)

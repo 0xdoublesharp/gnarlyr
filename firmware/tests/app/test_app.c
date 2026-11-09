@@ -35,6 +35,8 @@ enum {
     SETTINGS_SHUFFLE_INDEX = 1,
     DIAGNOSTICS_FRAME_TIME_INDEX = 0,
     DIAGNOSTICS_FIRMWARE_INDEX = 1,
+    DIAGNOSTICS_DAC_A_INDEX = 13,
+    DIAGNOSTICS_DAC_B_INDEX = 14,
     MUSIC_ARTISTS_INDEX = 1,
     MUSIC_ALBUMS_INDEX = 3,
     MUSIC_FOLDERS_INDEX = 5,
@@ -2768,6 +2770,17 @@ static void diagnostics_shows_the_firmware_version_from_the_hal(void)
     CHECK(strcmp("1e8bebb", value) == 0);
 }
 
+static void diagnostics_shows_each_dac_chip_as_the_hal_read_it(void)
+{
+    static const DacIdentity CS43198 = {
+        DAC_IDENTITY_READ, DAC_IDENTITY_ALL_READ, {0x43, 0x19, 0x80, 0xA0, 0x00}};
+    start_app();
+    CHECK(strcmp("Play a track", app_diagnostics_value(DIAGNOSTICS_DAC_A_INDEX)) == 0);
+    fake_hal_audio_set_dac_identity(0, CS43198);
+    CHECK(strcmp("431980 A0.00", app_diagnostics_value(DIAGNOSTICS_DAC_A_INDEX)) == 0);
+    CHECK(strcmp("Play a track", app_diagnostics_value(DIAGNOSTICS_DAC_B_INDEX)) == 0);
+}
+
 static uint16_t cover_probe(void)
 {
     return fake_hal_pixel(BOARD_THEME.metrics.padding + 56,
@@ -2994,6 +3007,7 @@ int main(void)
         TEST_CASE(the_frame_overlay_shows_average_and_longest_block_times),
         TEST_CASE(the_frame_overlay_shows_zero_before_any_block),
         TEST_CASE(diagnostics_shows_the_firmware_version_from_the_hal),
+        TEST_CASE(diagnostics_shows_each_dac_chip_as_the_hal_read_it),
         TEST_CASE(albums_open_from_the_library),
         TEST_CASE(a_cue_album_lists_its_cue_tracks_and_each_plays_its_own_part),
         TEST_CASE(a_cue_backed_file_in_folders_plays_the_album_from_its_first_cue_track),

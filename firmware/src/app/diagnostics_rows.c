@@ -65,6 +65,27 @@ const char *diagnostics_row_headset(const void *context)
     return headset_text;
 }
 
+static char dac_text[DAC_IDENTITY_CHIPS][DAC_IDENTITY_TEXT_CAPACITY];
+
+static const char *dac_row(int chip)
+{
+    DacIdentity identity = hal_audio_dac_identity(chip);
+    dac_identity_text(&identity, dac_text[chip], sizeof dac_text[chip]);
+    return dac_text[chip];
+}
+
+const char *diagnostics_row_dac_a(const void *context)
+{
+    (void)context;
+    return dac_row(0);
+}
+
+const char *diagnostics_row_dac_b(const void *context)
+{
+    (void)context;
+    return dac_row(1);
+}
+
 static char cpu_text[DIAGNOSTICS_VALUE_CAPACITY];
 static LoadWindow load_window;
 
