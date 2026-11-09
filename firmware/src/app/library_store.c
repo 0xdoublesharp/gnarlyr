@@ -2,16 +2,22 @@
 
 #include <stddef.h>
 
+#include "hal/system.h"
+
 const char LIBRARY_STORE_PATH[] = "/.echo/library.db";
 
 static bool read_file(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
     const LibraryStore *store = context;
+    hal_system_keep_alive();
     return hal_file_read(store->file, offset, buffer, length);
 }
 
 bool library_store_open(LibraryStore *store)
 {
+    if (store->available) {
+        hal_file_close(&store->file);
+    }
     store->available = false;
     store->library = (Library){.source = {.read = NULL, .context = NULL}};
     if (!hal_file_open(&store->file, LIBRARY_STORE_PATH)) {

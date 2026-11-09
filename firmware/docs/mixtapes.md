@@ -42,6 +42,6 @@ Mixtape storage, resolution and screens run in the resident module, now bounded 
 
 Host tests cover full-capacity/path limits, torn writes, cancellation, readback uncertainty, replacement, rename/delete/reuse, missing and ambiguous identities, duplicate entries, rescans and player restart. A native-image test drives the buttons through save and Edit in Up Next on a real FAT implementation, verifies twelve cue identities and cold-boots the saved working queue. These checks establish software behavior; the owner's recovery and physical-device validation remain pending.
 
-## Follow-up
+## Current-session association
 
-The existing current-session library fingerprint covers section layout rather than track contents. Saved mixtapes resolve by path/cue and explicitly pass a same-layout reorder test. Audit current-session restoration separately across library rescans before treating the full firmware goal as complete.
+Current sessions now use a cached content fingerprint covering the library header and all section payloads. A same-layout rescan cannot restore stale IDs or cue positions. Saved mixtapes continue to resolve by full path/cue; the regression reopens the changed library, rejects the stale session, then restores the mix with its duplicate entries in the correct order. See [playback identity](library-format.md#playback-identity).

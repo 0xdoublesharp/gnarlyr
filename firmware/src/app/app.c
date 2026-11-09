@@ -948,6 +948,11 @@ void app_step(void)
         }
         if (!changed) {
             music_check_note_firmware();
+            if (library_fingerprint(&app.library.library) != app.player.fingerprint) {
+                hal_audio_pause();
+                app_start();
+                return;
+            }
         }
         app.rescan_requested |= changed;
     }

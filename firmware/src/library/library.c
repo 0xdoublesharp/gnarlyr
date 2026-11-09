@@ -113,14 +113,38 @@ static bool is_index_section(LibrarySection section)
     return section == LIBRARY_TITLE_ORDER || section == LIBRARY_LINKS;
 }
 
+static bool fingerprint_contents(Library *library, const uint8_t *header)
+{
+    uint8_t bytes[512];
+    uint32_t hash = hash_update(HASH_START, header, LIBRARY_HEADER_SIZE);
+    for (int section = 0; section < LIBRARY_SECTION_COUNT; section++) {
+        LibrarySectionInfo info = library->sections[section];
+        uint32_t length = info.count * info.record_size;
+        for (uint32_t position = 0; position < length;) {
+            uint32_t count = length - position < sizeof bytes ? length - position : sizeof bytes;
+            if (!read_source(library, info.offset + position, bytes, count)) {
+                return false;
+            }
+            hash = hash_update(hash, bytes, count);
+            position += count;
+        }
+    }
+    library->fingerprint = hash;
+    return true;
+}
+
 LibraryStatus library_open(Library *library, ByteSource source, uint32_t size)
 {
     *library = (Library){.source = source};
     uint8_t header[LIBRARY_HEADER_SIZE];
-    if (size < LIBRARY_HEADER_SIZE || !read_source(library, 0, header, sizeof header)) {
+    if (source.read == NULL || size < LIBRARY_HEADER_SIZE ||
+        !read_source(library, 0, header, sizeof header)) {
         return LIBRARY_UNREADABLE;
     }
     LibraryStatus status = decode_header(library, header, size);
+    if (status == LIBRARY_OK && !fingerprint_contents(library, header)) {
+        status = LIBRARY_UNREADABLE;
+    }
     if (status != LIBRARY_OK) {
         *library = (Library){.source = source};
     }
@@ -251,21 +275,9 @@ bool library_read_string(const Library *library, uint32_t offset, char *buffer, 
     return true;
 }
 
-static uint32_t hash_word(uint32_t hash, uint32_t value)
-{
-    uint8_t bytes[4] = {(uint8_t)value, (uint8_t)(value >> 8), (uint8_t)(value >> 16),
-                        (uint8_t)(value >> 24)};
-    return hash_update(hash, bytes, sizeof bytes);
-}
-
 uint32_t library_fingerprint(const Library *library)
 {
-    uint32_t hash = HASH_START;
-    for (int section = 0; section < LIBRARY_SECTION_COUNT; section++) {
-        hash = hash_word(hash, library->sections[section].offset);
-        hash = hash_word(hash, library->sections[section].count);
-    }
-    return hash;
+    return library->fingerprint;
 }
 
 enum {

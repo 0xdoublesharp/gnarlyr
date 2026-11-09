@@ -182,6 +182,10 @@ static void editing_and_replacing_a_mixtape_preserves_duplicates_across_a_rescan
     memcpy(fixture.bytes + tracks.offset, fixture.bytes + tracks.offset + tracks.record_size,
            sizeof temporary);
     memcpy(fixture.bytes + tracks.offset + tracks.record_size, temporary, sizeof temporary);
+    CHECK_EQUAL(LIBRARY_OK,
+                library_open(&fixture.library, memory_source(&fixture.memory), fixture.size));
+    player_init(&player, &fixture.library);
+    CHECK(!player_restore(&player));
     open_ui();
     choose(2);
     choose(1);

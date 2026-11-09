@@ -656,6 +656,59 @@ class EchoImageTest(unittest.TestCase):
         self.assert_healthy(rebooted)
         summary("generated queue editing", rig.session)
 
+    def test_changed_library_contents_cannot_restore_a_different_cue_at_the_same_id(self):
+        from echo_emulator.real_volume import real_volume
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_R0, UC_ARM_REG_R1
+        volume = real_volume(playable=True, album_count=1)
+        volume.add_directory(".echo")
+        rig = self.playback_rig(volume)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(100)
+        directory = volume.directory(".echo")
+        directory_lba = rig.session.layout["volume_start"] + volume.cluster_lba(directory.first)
+        entries = rig.session.disk.read(directory_lba, volume.sectors_per_cluster)
+        library_lba = None
+        for offset in range(0, len(entries), 32):
+            entry = entries[offset:offset + 32]
+            if entry[:11] == b"LIBRARY DB ":
+                cluster = struct.unpack_from("<H", entry, 20)[0] << 16
+                cluster |= struct.unpack_from("<H", entry, 26)[0]
+                library_lba = rig.session.layout["volume_start"] + volume.cluster_lba(cluster)
+                break
+        self.assertIsNotNone(library_lba)
+        sector = bytearray(rig.session.disk.read(library_lba, 1))
+        self.assertEqual(sector[:4], b"EMDB")
+        tracks = struct.unpack_from("<I", sector, 8)[0]
+        self.assertLessEqual(tracks + 64, len(sector))
+        first, second = sector[tracks:tracks + 32], sector[tracks + 32:tracks + 64]
+        self.assertNotEqual(first, second)
+        sector[tracks:tracks + 32], sector[tracks + 32:tracks + 64] = second, first
+        rig.session.disk.write(library_lba, sector)
+        rebooted = rig.session.reboot()
+        machine = rebooted.machine
+        players = []
+        machine.hook_symbol("player_restore", lambda: players.append(machine.reg(UC_ARM_REG_R0)))
+        self.assertEqual(rebooted.run_to_home_screen(), "condition met")
+        self.assertTrue(players)
+        self.assertEqual(machine.run(until=lambda: machine.exception_depth == 0 and
+                                     not machine.pending_return), "condition met")
+        result, returned = 0x03001000, 0x03FF0100
+        machine.add_address_hook(returned, lambda: machine.stop("status returned"))
+        machine.uc.reg_write(UC_ARM_REG_R0, result)
+        machine.uc.reg_write(UC_ARM_REG_R1, players[-1])
+        machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
+        machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols["player_status"] | 1)
+        self.assertEqual(machine.run(until_ms=machine.milliseconds() + 1000), "status returned")
+        status = machine.read_memory(result, 32)
+        self.assertEqual(status[1], 0)
+        self.assertEqual(status[0], 0)
+        self.assert_only_the_user_volume_changed(rig.session)
+        self.assert_only_the_user_volume_changed(rebooted)
+        self.assert_healthy(rig.session)
+        self.assert_healthy(rebooted)
+        summary("changed library", rebooted)
+
     def test_a_saved_mixtape_round_trips_through_the_resident_ui_and_real_fat(self):
         from echo_emulator.real_volume import real_volume
         volume = real_volume(playable=True, album_count=1)

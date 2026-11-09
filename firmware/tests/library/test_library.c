@@ -232,10 +232,82 @@ static void album_keys_are_stable_and_distinct(void)
     CHECK_EQUAL(0, library_album_key(library, FIXTURE_ALBUMS));
 }
 
+static void fingerprints_cover_section_contents_when_layout_and_counts_are_unchanged(void)
+{
+    for (int section = 0; section < LIBRARY_SECTION_COUNT; section++) {
+        Library *library = fixture_library_open(&fixture);
+        uint32_t before = library_fingerprint(library);
+        LibrarySectionInfo info = library->sections[section];
+        if (info.count == 0) {
+            continue;
+        }
+        fixture.bytes[info.offset] ^= 1;
+        CHECK_EQUAL(LIBRARY_OK,
+                    library_open(library, memory_source(&fixture.memory), fixture.size));
+        CHECK(before != library_fingerprint(library));
+    }
+}
+
+static void the_opened_fingerprint_is_cached_without_repeated_storage_reads(void)
+{
+    Library *library = fixture_library_open(&fixture);
+    int reads = fixture.memory.reads;
+    uint32_t first = library_fingerprint(library);
+    for (int repeat = 0; repeat < 100; repeat++) {
+        CHECK_EQUAL(first, library_fingerprint(library));
+    }
+    CHECK_EQUAL(reads, fixture.memory.reads);
+}
+
+static void reserved_file_capacity_does_not_change_the_library_identity(void)
+{
+    Library *library = fixture_library_open(&fixture);
+    uint32_t first = library_fingerprint(library);
+    memset(fixture.bytes + fixture.size, 0xa5, sizeof fixture.bytes - fixture.size);
+    fixture.memory.size = sizeof fixture.bytes;
+    CHECK_EQUAL(LIBRARY_OK,
+                library_open(library, memory_source(&fixture.memory), sizeof fixture.bytes));
+    CHECK_EQUAL(first, library_fingerprint(library));
+}
+
+typedef struct ContentProbe {
+    MemorySource memory;
+    uint32_t fail_offset;
+    uint32_t largest_read;
+} ContentProbe;
+
+static bool read_content(void *context, uint32_t offset, void *bytes, uint32_t length)
+{
+    ContentProbe *probe = context;
+    probe->largest_read = length > probe->largest_read ? length : probe->largest_read;
+    if (offset >= probe->fail_offset) {
+        return false;
+    }
+    ByteSource source = memory_source(&probe->memory);
+    return source.read(source.context, offset, bytes, length);
+}
+
+static void a_payload_read_failure_does_not_publish_a_partial_identity(void)
+{
+    fixture_library_open(&fixture);
+    ContentProbe probe = {.memory = fixture.memory,
+                          .fail_offset = fixture.library.sections[LIBRARY_STRINGS].offset};
+    Library library;
+    CHECK_EQUAL(LIBRARY_UNREADABLE,
+                library_open(&library, (ByteSource){read_content, &probe}, fixture.size));
+    CHECK_EQUAL(0, library_count(&library, LIBRARY_TRACKS));
+    CHECK_EQUAL(0, library_fingerprint(&library));
+    CHECK(probe.largest_read <= 512);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_fixture_opens_with_its_counts),
+        TEST_CASE(the_opened_fingerprint_is_cached_without_repeated_storage_reads),
+        TEST_CASE(reserved_file_capacity_does_not_change_the_library_identity),
+        TEST_CASE(a_payload_read_failure_does_not_publish_a_partial_identity),
+        TEST_CASE(fingerprints_cover_section_contents_when_layout_and_counts_are_unchanged),
         TEST_CASE(a_wrong_magic_is_rejected),
         TEST_CASE(a_newer_version_is_rejected),
         TEST_CASE(a_truncated_file_is_rejected),

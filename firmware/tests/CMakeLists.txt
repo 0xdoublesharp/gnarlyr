@@ -588,3 +588,15 @@ echo_add_unit_test(NAME test_mixtape_ui
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+
+if(TARGET echo_sim_storage)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/identity-store)
+    echo_add_unit_test(NAME test_library_store
+        SOURCES app/test_library_store.c
+        LIBRARIES echo_app echo_library_fixtures echo_sim_storage
+        PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+    )
+    target_compile_definitions(test_library_store PRIVATE
+        ECHO_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/identity-store"
+    )
+endif()

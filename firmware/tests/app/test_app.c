@@ -16,6 +16,8 @@
 #include "library/cover_build.h"
 #include "library/covers.h"
 #include "library_rescan.h"
+#include "library_store.h"
+#include "music_check.h"
 #include "settings/settings.h"
 #include "settings_store.h"
 #include "ui/header.h"
@@ -2106,9 +2108,62 @@ static void menu_does_nothing_while_nothing_plays(void)
     CHECK(title_is("Podium"));
 }
 
+static void remember_unchanged_music(void)
+{
+    fake_hal_set_empty_card(true);
+    fake_hal_add_file(MUSIC_CHECK_PATH, NULL, 4096);
+    music_check_remember(music_check_fingerprint());
+    CHECK(music_check_unchanged());
+}
+
+static void a_changed_database_after_usb_cannot_keep_the_old_players_track_ids(void)
+{
+    static FixtureLibrary changed;
+    start_app_with_library();
+    play_first_album_track();
+    app_release_audio();
+    remember_unchanged_music();
+    Library *library = fixture_library_open(&changed);
+    LibrarySectionInfo tracks = library->sections[LIBRARY_TRACKS];
+    uint8_t temporary[32];
+    memcpy(temporary, changed.bytes + tracks.offset, sizeof temporary);
+    memcpy(changed.bytes + tracks.offset, changed.bytes + tracks.offset + tracks.record_size,
+           sizeof temporary);
+    memcpy(changed.bytes + tracks.offset + tracks.record_size, temporary, sizeof temporary);
+    CHECK(hal_file_write_at(LIBRARY_STORE_PATH, 0, changed.bytes, changed.size));
+    int writes = fake_hal_library_writes();
+    app_request_rescan_if_music_changed();
+    step();
+    CHECK(!app_player_status().has_track);
+    CHECK_EQUAL(0, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(writes, fake_hal_library_writes());
+    CHECK_EQUAL(HAL_AUDIO_PAUSED, hal_audio_status().state);
+}
+
+static void an_unchanged_database_after_usb_keeps_the_paused_session(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    fake_hal_audio_set_position(12345);
+    app_release_audio();
+    remember_unchanged_music();
+    int starts = fake_hal_audio_play_count();
+    app_request_rescan_if_music_changed();
+    step();
+    PlayerStatus status = app_player_status();
+    CHECK(status.has_track);
+    CHECK_EQUAL(PLAYER_PAUSED, status.state);
+    CHECK_EQUAL(0, status.track);
+    CHECK_EQUAL(12345, status.position_ms);
+    CHECK_EQUAL(starts, fake_hal_audio_play_count());
+    CHECK_EQUAL(0, fake_hal_scratch_borrow_count());
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_changed_database_after_usb_cannot_keep_the_old_players_track_ids),
+        TEST_CASE(an_unchanged_database_after_usb_keeps_the_paused_session),
         TEST_CASE(a_notice_is_drawn_at_once_over_the_current_screen),
         TEST_CASE(a_notice_turns_the_display_on),
         TEST_CASE(waking_keeps_the_screen_on_for_a_full_timeout),

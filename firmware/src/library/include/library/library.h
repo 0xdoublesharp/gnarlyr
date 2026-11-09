@@ -44,6 +44,7 @@ typedef struct LibrarySectionInfo {
 typedef struct Library {
     ByteSource source;
     LibrarySectionInfo sections[LIBRARY_SECTION_COUNT];
+    uint32_t fingerprint;
 } Library;
 
 typedef struct LibraryTrack {

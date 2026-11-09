@@ -34,7 +34,7 @@ The active bank is never modified by a job. Its successor uses the other bank an
 
 The player merges the base history, actual current song, pending manual songs and remaining base sequence into one stored queue. A song started from manual Up Next receives its own cursor; duplicate IDs remain distinct entries. Move and remove operations target future rows, including wrapped rows with Repeat All, and rebase the current cursor without restarting the song. The current track is verified against the pending data before publication.
 
-Named mixtapes persist full path/cue identities and resolve them after rescans. Working queue IDs remain tied to their library association; use [saved mixtapes](mixtapes.md) for durable named lists.
+Named mixtapes persist full path/cue identities and resolve them after rescans. Working queue IDs remain tied to the cached content fingerprint of the library header and section payloads; use [saved mixtapes](mixtapes.md) for durable named lists.
 
 ## Verified bounds
 

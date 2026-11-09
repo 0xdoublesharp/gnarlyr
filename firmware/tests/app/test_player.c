@@ -1065,10 +1065,56 @@ static void legacy_resume_and_manual_queue_migrate_without_modifying_original_fi
     CHECK_EQUAL(5432, player_status(&restored).position_ms);
 }
 
+static void a_same_layout_rescan_cannot_restore_ids_for_different_songs(void)
+{
+    for (int stored = 0; stored < 2; stored++) {
+        Player *started = playing(0);
+        CHECK_EQUAL(PLAYER_UP_NEXT_ADDED, player_add_to_up_next(started, HELP));
+        if (stored != 0) {
+            CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING, player_snapshot_queue(started));
+            finish_queue_edit(started);
+        }
+        fake_hal_audio_set_position(12345);
+        CHECK(player_save(started));
+        LibrarySectionInfo tracks = fixture.library.sections[LIBRARY_TRACKS];
+        uint8_t temporary[32];
+        CHECK_EQUAL(sizeof temporary, tracks.record_size);
+        memcpy(temporary, fixture.bytes + tracks.offset, sizeof temporary);
+        memcpy(fixture.bytes + tracks.offset, fixture.bytes + tracks.offset + tracks.record_size,
+               sizeof temporary);
+        memcpy(fixture.bytes + tracks.offset + tracks.record_size, temporary, sizeof temporary);
+        CHECK_EQUAL(LIBRARY_OK,
+                    library_open(&fixture.library, memory_source(&fixture.memory), fixture.size));
+        Player resumed;
+        player_init(&resumed, &fixture.library);
+        CHECK(!player_restore(&resumed));
+        CHECK(!resumed.has_track);
+        CHECK_EQUAL(0, resumed.up_next.count);
+    }
+}
+
+static void changed_cue_boundaries_do_not_reuse_the_old_saved_position(void)
+{
+    Player *started = playing(0);
+    CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING, player_snapshot_queue(started));
+    finish_queue_edit(started);
+    CHECK(player_save(started));
+    LibrarySectionInfo tracks = fixture.library.sections[LIBRARY_TRACKS];
+    fixture.bytes[tracks.offset + 24] = 1;
+    CHECK_EQUAL(LIBRARY_OK,
+                library_open(&fixture.library, memory_source(&fixture.memory), fixture.size));
+    Player resumed;
+    player_init(&resumed, &fixture.library);
+    CHECK(!player_restore(&resumed));
+    CHECK(!resumed.has_track);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(playing_a_list_starts_the_selected_track),
+        TEST_CASE(a_same_layout_rescan_cannot_restore_ids_for_different_songs),
+        TEST_CASE(changed_cue_boundaries_do_not_reuse_the_old_saved_position),
         TEST_CASE(legacy_resume_and_manual_queue_migrate_without_modifying_original_files),
         TEST_CASE(a_semantically_invalid_session_does_not_prevent_starting_a_new_song),
         TEST_CASE(all_wrapped_moves_and_removals_preserve_the_future_sequence),

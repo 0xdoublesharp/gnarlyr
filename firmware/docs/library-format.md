@@ -31,6 +31,16 @@ Each section directory entry is `u32 offset`, `u32 count`, `u16 record size`, `u
 | 8 | links | 2 | shared `u16` lists that groups, playlists and folders point into |
 | 9 | strings | 1 | NUL-terminated UTF-8; offset 0 is the empty string; duplicates stored once |
 
+## Playback identity
+
+After validating the version 4 header, `library_open` computes a 32-bit FNV-1a fingerprint over the full 128-byte header and each section's exact payload, in section order. Reads use at most 512 bytes, and unused alignment gaps and reserved file capacity are excluded. A payload read failure rejects the open and clears the identity. The successful result is cached in the `Library` owner; `library_fingerprint` performs no I/O. Reopen after replacing the database rather than mutating an active library's backing bytes.
+
+Resume, manual Up Next and stored working orders use this association because their IDs belong to one library. Changed rows, cue boundaries, strings or browse lists invalidate those IDs even when all offsets and counts remain the same. An identical library retains its fingerprint across restart. Named [mixtapes](mixtapes.md) retain full path/cue identities and resolve them against the new library.
+
+The file format and indexer outputs remain version 4. Older layout-only fingerprints cannot establish the current song mapping and are not accepted as content fingerprints; their files are retained. On the first start of a new song, the normal session writer publishes the current association. Existing legacy record encodings remain supported when their association matches.
+
+The application keeps its stall monitor fed during file reads. A library or artwork owner must start zero-initialized; reopening closes its previous file, and failed opens release the new handle. If the app-level music check finds a changed valid database with unchanged music files, it pauses output and reinitializes playback and screens without rebuilding that database. The board's normal USB exit already restarts the app after storage changes.
+
 ## Records
 
 | Record | Layout |
