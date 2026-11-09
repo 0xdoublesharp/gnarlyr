@@ -17,7 +17,7 @@ const transport=new StdioClientTransport({command:process.execPath,args:[join(ru
   ...process.env,GHIDRA_INSTALL_DIR:'/Volumes/Scratch/SnowskyEcho/tools/ghidra_12.1.4_PUBLIC',
   JAVA_HOME:'/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home',
   REA_GHIDRA_LANGUAGE_ID:'ARM:LE:32:Cortex',
-  REA_GHIDRA_SEED_FILE:'/Volumes/Scratch/SnowskyEcho/build/initial-investigation/rea-seeds.tsv',
+  REA_GHIDRA_SEED_FILE:process.env.REA_GHIDRA_SEED_FILE??'/Volumes/Scratch/SnowskyEcho/build/initial-investigation/rea-seeds.tsv',
   REA_MCP_OUTPUT_SCHEMA_PROFILE:'off',TMPDIR:'/Volumes/Scratch/rea/t',
   JAVA_TOOL_OPTIONS:'-Duser.home=/Volumes/Scratch/SnowskyEcho/tmp/initial-investigation/java-home -Djava.io.tmpdir=/Volumes/Scratch/rea/t -XX:ActiveProcessorCount=4'
 },stderr:'pipe'});

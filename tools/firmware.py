@@ -38,6 +38,7 @@ def environment(jobs):
     env = dict(os.environ)
     env["PATH"] = os.pathsep.join([str(arm), "/opt/homebrew/opt/llvm/bin", str(venv / "bin"), env.get("PATH", "")])
     env["TMPDIR"] = str(SCRATCH / "tmp/custom-firmware")
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["CMAKE_BUILD_PARALLEL_LEVEL"] = str(jobs)
     env["SCCACHE_DIR"] = "/Volumes/Scratch/sccache"
     for name in ("cmake", "ctest", "clang-format", "ffmpeg"):

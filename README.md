@@ -6,7 +6,7 @@ Offline investigation of the **standard, full-size ECHO**, using the official 2.
 
 Latest [REA hardware tracing and source-foundation evaluation](docs/hardware-interfaces.md).
 
-The active delivery target and milestones are in [the working firmware goal](docs/goal.md).
+The active delivery target and milestones are in [the working firmware goal](docs/goal.md). Current [recovery preparation](docs/recovery-preparation.md) records the built tool, connected-device observations and the pending physical connection check.
 
 Read [the investigation findings](docs/initial-investigation.md) for verified addresses, limits, recovery status, and the next milestone.
 
@@ -65,3 +65,5 @@ The seed names an entry inferred from the selected module's start. It does not a
 ## Persistent REA session
 
 Run `node tools/rea_session.mjs /Volumes/Scratch/SnowskyEcho/reports/NEW-RUN` and send newline-delimited JSON requests such as `{"name":"open_binary","arguments":{"path":"/Volumes/Scratch/SnowskyEcho/build/initial-investigation/echo-main-overlay001.elf","provider_id":"ghidra"}}`, then `{"name":"procedure_pseudo_code","arguments":{"procedure":"0x03061bee"}}`. Send `{"name":"close_binary","arguments":{}}` followed by `{"close":true}` to release the provider and exit. `{"schema":"TOOL_NAME"}` prints the actual server-advertised input schema.
+
+For a different selected overlay, set `REA_GHIDRA_SEED_FILE` to its Scratch seed file before launching the persistent client. The display investigation uses `/Volumes/Scratch/SnowskyEcho/build/panel-map/rea-seeds.tsv` with the main+4 ELF; seed names describe inferred roles, not recovered vendor symbols.
