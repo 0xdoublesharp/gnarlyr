@@ -148,6 +148,51 @@ class EchoImageTest(unittest.TestCase):
         self.assertGreater(len(session.card.reads), 0)
         summary("home screen", session)
 
+    def test_legacy_settings_are_saved_to_a_new_file_without_overwriting_the_original(self):
+        legacy = bytearray(b"EMST" + bytes((4, 0, 9, 2, 0, 0, 0, 0, 0, 21, 2, 0, 37)) + bytes(7))
+        checksum = 2166136261
+        for value in legacy[:20]:
+            checksum = ((checksum ^ value) * 16777619) & 0xFFFFFFFF
+        struct.pack_into("<I", legacy, 20, checksum)
+        volume = self.session_module.Fat32Volume()
+        volume.add_directory(".echo")
+        volume.add_file("settings.bin", bytes(legacy), directory=".echo")
+        session = self.session_module.Session(self.image, self.elf, volume=volume)
+        session.run_to_home_screen()
+        machine = session.machine
+        machine.note("settings_store_save")
+        started = machine.milliseconds()
+        machine.power_key_released_at_ms = started + 2500
+        self.assertEqual(machine.run(until=lambda: machine.reached.get("settings_store_save", 0) > 0,
+                                     until_ms=started + 3000), "condition met")
+        directory = volume.directory(".echo")
+        directory_lba = session.layout["volume_start"] + volume.cluster_lba(directory.first)
+
+        def preferences():
+            data = session.disk.read(directory_lba, volume.sectors_per_cluster)
+            for offset in range(0, len(data), 32):
+                entry = data[offset:offset + 32]
+                if entry[:11] == b"PREFS5  BIN":
+                    cluster = struct.unpack_from("<H", entry, 20)[0] << 16
+                    cluster |= struct.unpack_from("<H", entry, 26)[0]
+                    lba = session.layout["volume_start"] + volume.cluster_lba(cluster)
+                    return session.disk.read(lba, 1)[:32]
+            return bytes(32)
+
+        self.assertEqual(machine.run(until=lambda: preferences()[:5] == b"EMST\x05",
+                                     until_ms=started + 3000), "condition met")
+        saved = preferences()
+        self.assertEqual((saved[6], saved[13], saved[16]), (9, 21, 37))
+        checksum = 2166136261
+        for value in saved[:28]:
+            checksum = ((checksum ^ value) * 16777619) & 0xFFFFFFFF
+        self.assertEqual(struct.unpack_from("<I", saved, 28)[0], checksum)
+        old = next(node for node in directory.children if node.name == "settings.bin")
+        old_lba = session.layout["volume_start"] + volume.cluster_lba(old.first)
+        self.assertEqual(session.disk.read(old_lba, 1)[:24], bytes(legacy))
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
     def test_power_hold_comes_first_and_the_power_pair_follows(self):
         session = self.session()
         session.run_to_home_screen()

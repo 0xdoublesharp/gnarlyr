@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include "button_settings.h"
 #include "core/power_policy.h"
 #include "player.h"
 #include "screens/bluetooth_screen.h"
@@ -15,7 +16,8 @@ enum {
     SETTINGS_CHOICE_COUNT = 10,
     SETTINGS_BLUETOOTH_ITEM = 2,
     SETTINGS_RESCAN_ITEM = 10,
-    SETTINGS_ITEM_COUNT = SETTINGS_CHOICE_COUNT + 2
+    SETTINGS_BUTTONS_ITEM = 12,
+    SETTINGS_ITEM_COUNT = SETTINGS_CHOICE_COUNT + 3
 };
 
 typedef struct SettingsContext {
@@ -49,6 +51,7 @@ struct SettingsScreens {
     const Theme *theme;
     MenuScreen menu;
     ChoiceScreen choice;
+    ButtonSettings buttons;
     SettingsEntry entries[SETTINGS_CHOICE_COUNT];
     MenuItem items[SETTINGS_ITEM_COUNT];
 };

@@ -5,30 +5,36 @@
 #include "hal/storage.h"
 #include "hal/system.h"
 
-const char SETTINGS_STORE_PATH[] = "/.echo/settings.bin";
+const char SETTINGS_STORE_PATH[] = "/.echo/prefs5.bin";
+static const char LEGACY_SETTINGS_PATH[] = "/.echo/settings.bin";
 
 static const HalAudioGain HAL_GAINS[GAIN_LEVEL_COUNT] = {HAL_AUDIO_GAIN_LOW, HAL_AUDIO_GAIN_HIGH};
 static const HalAudioOutput HAL_OUTPUTS[OUTPUT_JACK_COUNT] = {
     HAL_AUDIO_OUTPUT_AUTO, HAL_AUDIO_OUTPUT_SINGLE_ENDED, HAL_AUDIO_OUTPUT_BALANCED};
 static const HalUsbMode HAL_USB_MODES[USB_MODE_COUNT] = {HAL_USB_MODE_STORAGE, HAL_USB_MODE_DAC};
 
-static bool read_music_volume(uint8_t *bytes)
+static bool read_music_volume(uint8_t *bytes, uint32_t length, const char *path)
 {
     HalFile file;
-    if (!hal_file_open(&file, SETTINGS_STORE_PATH)) {
+    if (!hal_file_open(&file, path)) {
         return false;
     }
-    bool read =
-        file.size >= SETTINGS_FILE_SIZE && hal_file_read(file, 0, bytes, SETTINGS_FILE_SIZE);
+    bool read = file.size >= length && hal_file_read(file, 0, bytes, length);
     hal_file_close(&file);
     return read;
 }
 
-static bool read_valid(uint8_t *bytes, Settings *settings, bool internal)
+static bool read_valid(uint8_t *bytes, Settings *settings, bool internal, const char *path)
 {
-    bool read = internal ? hal_internal_file_read(SETTINGS_STORE_PATH, bytes, SETTINGS_FILE_SIZE)
-                         : read_music_volume(bytes);
-    return read && settings_decode(bytes, SETTINGS_FILE_SIZE, settings);
+    uint32_t length = SETTINGS_FILE_SIZE;
+    bool read = internal ? hal_internal_file_read(path, bytes, length)
+                         : read_music_volume(bytes, length, path);
+    if (!read) {
+        length = SETTINGS_LEGACY_FILE_SIZE;
+        read = internal ? hal_internal_file_read(path, bytes, length)
+                        : read_music_volume(bytes, length, path);
+    }
+    return read && settings_decode(bytes, length, settings);
 }
 
 static bool same_bytes(const uint8_t *first, const uint8_t *second)
@@ -51,13 +57,15 @@ static void remember(SettingsStore *store, const uint8_t *bytes)
 
 void settings_store_load(SettingsStore *store)
 {
-    uint8_t bytes[SETTINGS_FILE_SIZE];
+    uint8_t bytes[SETTINGS_FILE_SIZE] = {0};
     store->has_saved = false;
-    if (read_valid(bytes, &store->settings, true)) {
+    if (read_valid(bytes, &store->settings, true, SETTINGS_STORE_PATH)) {
         remember(store, bytes);
         return;
     }
-    if (read_valid(bytes, &store->settings, false)) {
+    if (read_valid(bytes, &store->settings, true, LEGACY_SETTINGS_PATH) ||
+        read_valid(bytes, &store->settings, false, SETTINGS_STORE_PATH) ||
+        read_valid(bytes, &store->settings, false, LEGACY_SETTINGS_PATH)) {
         return;
     }
     store->settings = settings_defaults();

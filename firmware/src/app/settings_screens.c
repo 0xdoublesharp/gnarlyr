@@ -44,8 +44,9 @@ static Settings *editable_settings(void *context)
     return &settings->store->settings;
 }
 
-static void save(SettingsContext *context)
+static void save(void *opaque)
 {
+    SettingsContext *context = opaque;
     settings_store_capture(context->store, player_status(context->player));
     if (!settings_store_save(context->store)) {
         toast_show(context->toast, "Could not save settings", hal_clock_milliseconds());
@@ -253,10 +254,24 @@ static ScreenAction request_rescan(void *context)
     return screen_action_none();
 }
 
+static ScreenAction open_buttons(void *context)
+{
+    return screen_action_push(context);
+}
+
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context, const Theme *theme)
 {
     screens->context = context;
     screens->theme = theme;
+    ButtonSettingsConfig buttons = {.settings = &screens->context.store->settings,
+                                    .theme = theme,
+                                    .changed = save,
+                                    .context = &screens->context};
+    Screen *button_screen = button_settings_init(&screens->buttons, buttons);
+    screens->items[SETTINGS_BUTTONS_ITEM] = (MenuItem){.label = "Playback buttons",
+                                                       .select = open_buttons,
+                                                       .context = button_screen,
+                                                       .opens = true};
     screens->items[SETTINGS_RESCAN_ITEM] = (MenuItem){
         .label = "Rescan library", .select = request_rescan, .context = &screens->context};
     screens->items[SETTINGS_BLUETOOTH_ITEM] = (MenuItem){.label = "Bluetooth",

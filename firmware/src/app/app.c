@@ -338,7 +338,7 @@ static void show_now_playing(uint32_t now_ms)
 
 static void run_background(KeyEvent event)
 {
-    switch (now_playing_command_for(event, false)) {
+    switch (now_playing_configured_command_for(event, false, &app.settings.settings)) {
     case NOW_PLAYING_TOGGLE_PAUSE:
         player_toggle_pause(&app.player);
         break;

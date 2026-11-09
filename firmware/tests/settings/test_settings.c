@@ -8,7 +8,8 @@ enum {
     AUTO_OFF_FIELD = 14,
     USB_MODE_FIELD = 15,
     DAC_VOLUME_FIELD = 16,
-    CHECKSUM_FIELD = 20,
+    CHECKSUM_FIELD = 28,
+    LEGACY_CHECKSUM_FIELD = 20,
     NEVER_OPTION = 6
 };
 
@@ -31,9 +32,10 @@ static Settings custom_settings(void)
 
 static void rewrite_checksum(uint8_t *bytes)
 {
-    uint32_t checksum = hash_update(HASH_START, bytes, CHECKSUM_FIELD);
+    int field = bytes[VERSION_FIELD] < 5 ? LEGACY_CHECKSUM_FIELD : CHECKSUM_FIELD;
+    uint32_t checksum = hash_update(HASH_START, bytes, (size_t)field);
     for (int index = 0; index < 4; index++) {
-        bytes[CHECKSUM_FIELD + index] = (uint8_t)(checksum >> (8 * index));
+        bytes[field + index] = (uint8_t)(checksum >> (8 * index));
     }
 }
 
@@ -95,7 +97,7 @@ static void the_usb_mode_and_dac_volume_are_saved_at_bytes_fifteen_and_sixteen(v
     Settings settings = custom_settings();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
-    CHECK_EQUAL(4, bytes[VERSION_FIELD]);
+    CHECK_EQUAL(5, bytes[VERSION_FIELD]);
     CHECK_EQUAL(USB_MODE_DAC, bytes[USB_MODE_FIELD]);
     CHECK_EQUAL(37, bytes[DAC_VOLUME_FIELD]);
 }
@@ -139,7 +141,7 @@ static void a_newer_version_is_rejected(void)
     Settings settings = custom_settings();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
-    bytes[VERSION_FIELD] = 5;
+    bytes[VERSION_FIELD] = 6;
     rewrite_checksum(bytes);
     CHECK(!settings_decode(bytes, sizeof bytes, &settings));
 }
@@ -201,10 +203,77 @@ static void out_of_range_values_are_rejected(void)
     CHECK(!settings_decode(bytes, sizeof bytes, &settings));
 }
 
+static void version_five_shortcuts_keep_the_existing_audio_settings(void)
+{
+    uint8_t bytes[32] = {0};
+    Settings settings = custom_settings();
+    settings_encode(&settings, bytes);
+    bytes[VERSION_FIELD] = 5;
+    const uint8_t actions[] = {6, 4, 7, 5, 1, 3, 2, 0};
+    for (int index = 0; index < 8; index++) {
+        bytes[17 + index] = actions[index];
+    }
+    uint32_t checksum = hash_update(HASH_START, bytes, 28);
+    for (int index = 0; index < 4; index++) {
+        bytes[28 + index] = (uint8_t)(checksum >> (8 * index));
+    }
+    Settings decoded = settings_defaults();
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(settings.volume, decoded.volume);
+    CHECK_EQUAL(settings.gain, decoded.gain);
+    CHECK_EQUAL(settings.dac_volume, decoded.dac_volume);
+}
+
+static void every_playback_shortcut_survives_a_round_trip(void)
+{
+    Settings original = custom_settings();
+    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
+        original.button_actions[index] = (uint8_t)((index + 1) % BUTTON_ACTION_COUNT);
+    }
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&original, bytes);
+    Settings decoded = settings_defaults();
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
+        CHECK_EQUAL(original.button_actions[index], decoded.button_actions[index]);
+    }
+}
+
+static void a_real_version_four_file_keeps_dac_volume_and_gets_default_shortcuts(void)
+{
+    uint8_t bytes[SETTINGS_LEGACY_FILE_SIZE] = {
+        'E', 'M', 'S', 'T', 4, 0, 3, 4, 1, 2, 4, 2, 1, 42, 3, 1, 37,
+    };
+    rewrite_checksum(bytes);
+    Settings decoded = settings_defaults();
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(37, decoded.dac_volume);
+    CHECK_EQUAL(42, decoded.volume);
+    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
+        CHECK_EQUAL(settings_default_button_action((PlaybackButton)index),
+                    decoded.button_actions[index]);
+    }
+    CHECK(!settings_decode(bytes, sizeof bytes - 1, &decoded));
+}
+
+static void an_unknown_shortcut_action_is_rejected(void)
+{
+    Settings settings = settings_defaults();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[17] = BUTTON_ACTION_COUNT;
+    rewrite_checksum(bytes);
+    CHECK(!settings_decode(bytes, sizeof bytes, &settings));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(defaults_are_comfortable),
+        TEST_CASE(every_playback_shortcut_survives_a_round_trip),
+        TEST_CASE(a_real_version_four_file_keeps_dac_volume_and_gets_default_shortcuts),
+        TEST_CASE(an_unknown_shortcut_action_is_rejected),
+        TEST_CASE(version_five_shortcuts_keep_the_existing_audio_settings),
         TEST_CASE(timeout_options_end_with_never),
         TEST_CASE(sleep_options_start_with_off),
         TEST_CASE(settings_survive_a_round_trip),

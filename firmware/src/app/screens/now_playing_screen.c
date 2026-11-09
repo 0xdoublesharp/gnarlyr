@@ -156,6 +156,32 @@ NowPlayingCommand now_playing_command_for(KeyEvent event, bool scrubbing)
     return NOW_PLAYING_NONE;
 }
 
+_Static_assert(PLAYBACK_BUTTON_COUNT == 2 * (KEY_MENU + 1), "playback slots follow media keys");
+
+NowPlayingCommand now_playing_configured_command_for(KeyEvent event, bool scrubbing,
+                                                     const Settings *settings)
+{
+    static const NowPlayingCommand commands[BUTTON_ACTION_COUNT] = {
+        NOW_PLAYING_NONE,        NOW_PLAYING_TOGGLE_PAUSE, NOW_PLAYING_UP_NEXT,
+        NOW_PLAYING_SCRUB_START, NOW_PLAYING_NEXT,         NOW_PLAYING_PREVIOUS,
+        NOW_PLAYING_VOLUME_UP,   NOW_PLAYING_VOLUME_DOWN,  NOW_PLAYING_HOME,
+    };
+    if (settings == NULL || scrubbing || (unsigned)event.key > KEY_MENU) {
+        return now_playing_command_for(event, scrubbing);
+    }
+    if ((unsigned)event.gesture > KEY_GESTURE_REPEAT) {
+        return NOW_PLAYING_NONE;
+    }
+    bool held = event.gesture != KEY_GESTURE_PRESS;
+    unsigned slot = (unsigned)event.key * 2 + (held ? 1u : 0u);
+    uint8_t action = settings->button_actions[slot];
+    if (event.gesture == KEY_GESTURE_REPEAT && action != BUTTON_ACTION_VOLUME_UP &&
+        action != BUTTON_ACTION_VOLUME_DOWN) {
+        return NOW_PLAYING_NONE;
+    }
+    return action < BUTTON_ACTION_COUNT ? commands[action] : NOW_PLAYING_NONE;
+}
+
 int now_playing_progress_width(uint32_t position_ms, uint32_t duration_ms, int width)
 {
     if (duration_ms == 0) {
@@ -325,7 +351,8 @@ static void refresh(NowPlayingScreen *now_playing, uint32_t now_ms)
 static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     NowPlayingScreen *now_playing = context;
-    NowPlayingCommand command = now_playing_command_for(event, now_playing->scrubbing);
+    NowPlayingCommand command = now_playing_configured_command_for(event, now_playing->scrubbing,
+                                                                   now_playing->config.settings);
     ScreenAction action = run_command(now_playing, command);
     refresh(now_playing, now_ms);
     NowPlayingFeedback feedback = now_playing_feedback_for(command, now_playing->status.state);

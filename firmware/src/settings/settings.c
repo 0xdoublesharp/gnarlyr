@@ -3,7 +3,9 @@
 #include "core/hash.h"
 
 enum {
-    VERSION = 4,
+    VERSION = 5,
+    DAC_VOLUME_VERSION = 4,
+    BUTTONS_VERSION = 5,
     FIRST_VERSION = 1,
     AUTO_OFF_VERSION = 2,
     USB_MODE_VERSION = 3,
@@ -20,7 +22,9 @@ enum {
     AUTO_OFF_FIELD = 14,
     USB_MODE_FIELD = 15,
     DAC_VOLUME_FIELD = 16,
-    CHECKSUM_FIELD = 20,
+    BUTTONS_FIELD = 17,
+    LEGACY_CHECKSUM_FIELD = 20,
+    CHECKSUM_FIELD = 28,
     DEFAULT_BRIGHTNESS = 7,
     DEFAULT_TIMEOUT_OPTION = 2,
     DEFAULT_VOLUME = 12,
@@ -35,9 +39,20 @@ static const uint16_t TIMEOUT_SECONDS[SCREEN_TIMEOUT_OPTION_COUNT] = {10, 20, 30
 static const uint8_t SLEEP_MINUTES[SLEEP_TIMER_OPTION_COUNT] = {0, 15, 30, 45, 60, 90, 120};
 static const uint8_t AUTO_OFF_MINUTES[AUTO_OFF_OPTION_COUNT] = {0, 1, 5, 10};
 
+static const uint8_t DEFAULT_BUTTON_ACTIONS[PLAYBACK_BUTTON_COUNT] = {
+    BUTTON_ACTION_VOLUME_UP,  BUTTON_ACTION_NEXT, BUTTON_ACTION_VOLUME_DOWN, BUTTON_ACTION_PREVIOUS,
+    BUTTON_ACTION_PLAY_PAUSE, BUTTON_ACTION_SEEK, BUTTON_ACTION_UP_NEXT,     BUTTON_ACTION_NONE,
+};
+
+ButtonAction settings_default_button_action(PlaybackButton button)
+{
+    return (unsigned)button < PLAYBACK_BUTTON_COUNT ? (ButtonAction)DEFAULT_BUTTON_ACTIONS[button]
+                                                    : BUTTON_ACTION_NONE;
+}
+
 Settings settings_defaults(void)
 {
-    return (Settings){
+    Settings settings = (Settings){
         .brightness = DEFAULT_BRIGHTNESS,
         .screen_timeout = DEFAULT_TIMEOUT_OPTION,
         .gain = GAIN_LOW,
@@ -50,6 +65,10 @@ Settings settings_defaults(void)
         .usb_mode = USB_MODE_STORAGE,
         .dac_volume = SETTINGS_DEFAULT_DAC_VOLUME,
     };
+    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
+        settings.button_actions[index] = DEFAULT_BUTTON_ACTIONS[index];
+    }
+    return settings;
 }
 
 uint32_t settings_timeout_option_seconds(int option)
@@ -77,9 +96,14 @@ uint32_t settings_auto_off_ms(const Settings *settings)
     return settings_auto_off_option_minutes(settings->auto_off) * MILLISECONDS_PER_MINUTE;
 }
 
+static int checksum_field(const uint8_t *bytes)
+{
+    return bytes[VERSION_FIELD] < BUTTONS_VERSION ? LEGACY_CHECKSUM_FIELD : CHECKSUM_FIELD;
+}
+
 static uint32_t checksum_of(const uint8_t *bytes)
 {
-    return hash_update(HASH_START, bytes, CHECKSUM_FIELD);
+    return hash_update(HASH_START, bytes, (size_t)checksum_field(bytes));
 }
 
 static void put_u32(uint8_t *bytes, int offset, uint32_t value)
@@ -115,6 +139,9 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
     bytes[AUTO_OFF_FIELD] = settings->auto_off;
     bytes[USB_MODE_FIELD] = (uint8_t)settings->usb_mode;
     bytes[DAC_VOLUME_FIELD] = settings->dac_volume;
+    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
+        bytes[BUTTONS_FIELD + index] = settings->button_actions[index];
+    }
     put_u32(bytes, CHECKSUM_FIELD, checksum_of(bytes));
 }
 
@@ -127,7 +154,20 @@ static bool header_valid(const uint8_t *bytes)
     }
     uint8_t version = bytes[VERSION_FIELD];
     return version >= FIRST_VERSION && version <= VERSION && bytes[VERSION_FIELD + 1] == 0 &&
-           get_u32(bytes, CHECKSUM_FIELD) == checksum_of(bytes);
+           get_u32(bytes, checksum_field(bytes)) == checksum_of(bytes);
+}
+
+static bool buttons_valid(const uint8_t *bytes)
+{
+    if (bytes[VERSION_FIELD] < BUTTONS_VERSION) {
+        return true;
+    }
+    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
+        if (bytes[BUTTONS_FIELD + index] >= BUTTON_ACTION_COUNT) {
+            return false;
+        }
+    }
+    return true;
 }
 
 static bool values_valid(const uint8_t *bytes)
@@ -139,12 +179,15 @@ static bool values_valid(const uint8_t *bytes)
            bytes[START_FIELD] < START_SCREEN_COUNT && bytes[SHUFFLE_FIELD] < SHUFFLE_MODE_COUNT &&
            bytes[REPEAT_FIELD] < REPEAT_MODE_COUNT && bytes[VOLUME_FIELD] <= SETTINGS_VOLUME_MAX &&
            bytes[AUTO_OFF_FIELD] < AUTO_OFF_OPTION_COUNT &&
-           bytes[USB_MODE_FIELD] < USB_MODE_COUNT && bytes[DAC_VOLUME_FIELD] <= SETTINGS_VOLUME_MAX;
+           bytes[USB_MODE_FIELD] < USB_MODE_COUNT &&
+           bytes[DAC_VOLUME_FIELD] <= SETTINGS_VOLUME_MAX && buttons_valid(bytes);
 }
 
 bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
 {
-    if (length < SETTINGS_FILE_SIZE || !header_valid(bytes) || !values_valid(bytes)) {
+    if (length < SETTINGS_LEGACY_FILE_SIZE ||
+        (bytes[VERSION_FIELD] >= BUTTONS_VERSION && length < SETTINGS_FILE_SIZE) ||
+        !header_valid(bytes) || !values_valid(bytes)) {
         return false;
     }
     *settings = (Settings){
@@ -160,8 +203,14 @@ bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
                                                             : bytes[AUTO_OFF_FIELD],
         .usb_mode = bytes[VERSION_FIELD] < USB_MODE_VERSION ? USB_MODE_STORAGE
                                                             : (UsbMode)bytes[USB_MODE_FIELD],
-        .dac_volume = bytes[VERSION_FIELD] < VERSION ? (uint8_t)SETTINGS_DEFAULT_DAC_VOLUME
-                                                     : bytes[DAC_VOLUME_FIELD],
+        .dac_volume = bytes[VERSION_FIELD] < DAC_VOLUME_VERSION
+                          ? (uint8_t)SETTINGS_DEFAULT_DAC_VOLUME
+                          : bytes[DAC_VOLUME_FIELD],
     };
+    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
+        settings->button_actions[index] = bytes[VERSION_FIELD] < BUTTONS_VERSION
+                                              ? DEFAULT_BUTTON_ACTIONS[index]
+                                              : bytes[BUTTONS_FIELD + index];
+    }
     return true;
 }

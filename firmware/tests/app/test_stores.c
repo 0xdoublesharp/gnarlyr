@@ -1,4 +1,5 @@
 #include "check.h"
+#include "core/hash.h"
 #include "fake_hal.h"
 #include "favorites_store.h"
 #include "fixture_library.h"
@@ -145,10 +146,36 @@ static void favorites_are_loaded_again(void)
     CHECK(!favorites_store_contains_album(&favorites, CHOSEN_ALBUM));
 }
 
+static void a_short_legacy_settings_file_is_migrated_without_overwriting_it(void)
+{
+    uint8_t old[24] = {'E', 'M', 'S', 'T', 4, 0, BRIGHT, 2, 0, 0, 0, 0, 0, 21, 2, 0, 37};
+    uint32_t checksum = hash_update(HASH_START, old, 20);
+    for (int index = 0; index < 4; index++) {
+        old[20 + index] = (uint8_t)(checksum >> (8 * index));
+    }
+    fake_hal_reset();
+    CHECK(hal_internal_file_write("/.echo/settings.bin", old, sizeof old));
+    settings_store_load(&settings);
+    CHECK_EQUAL(BRIGHT, settings.settings.brightness);
+    CHECK_EQUAL(21, settings.settings.volume);
+    CHECK_EQUAL(37, settings.settings.dac_volume);
+    CHECK(settings_store_save(&settings));
+    uint32_t size = 0;
+    const uint8_t *legacy = fake_hal_internal_file_bytes("/.echo/settings.bin", &size);
+    CHECK_EQUAL(sizeof old, size);
+    for (unsigned index = 0; index < sizeof old; index++) {
+        CHECK_EQUAL(old[index], legacy[index]);
+    }
+    settings_store_load(&settings);
+    CHECK_EQUAL(BRIGHT, settings.settings.brightness);
+    CHECK_EQUAL(37, settings.settings.dac_volume);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(without_a_file_the_defaults_are_used),
+        TEST_CASE(a_short_legacy_settings_file_is_migrated_without_overwriting_it),
         TEST_CASE(saved_settings_are_loaded_again),
         TEST_CASE(unchanged_settings_are_not_written_again),
         TEST_CASE(settings_survive_a_change_of_music_volume),

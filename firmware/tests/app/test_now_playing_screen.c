@@ -196,10 +196,65 @@ static void the_detail_line_leaves_out_what_is_unknown(void)
     CHECK(detail_text_is((PlayerStatus){0}, ""));
 }
 
+static void default_shortcuts_match_the_existing_controls(void)
+{
+    Settings settings = settings_defaults();
+    for (int key = 0; key < KEY_COUNT; key++) {
+        for (int gesture = 0; gesture <= KEY_GESTURE_REPEAT; gesture++) {
+            KeyEvent event = {.key = (Key)key, .gesture = (KeyGesture)gesture};
+            CHECK_EQUAL(now_playing_command_for(event, false),
+                        now_playing_configured_command_for(event, false, &settings));
+        }
+    }
+}
+
+static void each_media_gesture_can_be_assigned_an_action(void)
+{
+    Settings settings = settings_defaults();
+    for (int key = KEY_VOLUME_UP; key <= KEY_MENU; key++) {
+        for (int gesture = KEY_GESTURE_PRESS; gesture <= KEY_GESTURE_LONG_PRESS; gesture++) {
+            KeyEvent event = {.key = (Key)key, .gesture = (KeyGesture)gesture};
+            settings.button_actions[key * 2 + gesture] = BUTTON_ACTION_UP_NEXT;
+            CHECK_EQUAL(NOW_PLAYING_UP_NEXT,
+                        now_playing_configured_command_for(event, false, &settings));
+        }
+    }
+}
+
+static void shortcuts_cannot_replace_seek_exit_or_system_keys(void)
+{
+    Settings settings = settings_defaults();
+    settings.button_actions[PLAYBACK_PLAY_TAP] = BUTTON_ACTION_NONE;
+    CHECK_EQUAL(NOW_PLAYING_NONE, now_playing_configured_command_for(
+                                      (KeyEvent){KEY_PLAY, KEY_GESTURE_PRESS}, false, &settings));
+    CHECK_EQUAL(NOW_PLAYING_SCRUB_COMMIT,
+                now_playing_configured_command_for((KeyEvent){KEY_PLAY, KEY_GESTURE_PRESS}, true,
+                                                   &settings));
+    CHECK_EQUAL(NOW_PLAYING_LEAVE, now_playing_configured_command_for(
+                                       (KeyEvent){KEY_BACK, KEY_GESTURE_PRESS}, false, &settings));
+    CHECK_EQUAL(NOW_PLAYING_NONE,
+                now_playing_configured_command_for((KeyEvent){KEY_POWER, KEY_GESTURE_LONG_PRESS},
+                                                   false, &settings));
+}
+
+static void only_volume_actions_repeat_after_a_hold(void)
+{
+    Settings settings = settings_defaults();
+    KeyEvent event = {KEY_VOLUME_UP, KEY_GESTURE_REPEAT};
+    settings.button_actions[PLAYBACK_VOLUME_UP_HOLD] = BUTTON_ACTION_NEXT;
+    CHECK_EQUAL(NOW_PLAYING_NONE, now_playing_configured_command_for(event, false, &settings));
+    settings.button_actions[PLAYBACK_VOLUME_UP_HOLD] = BUTTON_ACTION_VOLUME_UP;
+    CHECK_EQUAL(NOW_PLAYING_VOLUME_UP, now_playing_configured_command_for(event, false, &settings));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_codec_has_a_short_name),
+        TEST_CASE(default_shortcuts_match_the_existing_controls),
+        TEST_CASE(each_media_gesture_can_be_assigned_an_action),
+        TEST_CASE(shortcuts_cannot_replace_seek_exit_or_system_keys),
+        TEST_CASE(only_volume_actions_repeat_after_a_hold),
         TEST_CASE(lossless_streams_show_bit_depth_and_rate),
         TEST_CASE(lossy_streams_show_only_the_rate),
         TEST_CASE(an_unknown_stream_shows_nothing),

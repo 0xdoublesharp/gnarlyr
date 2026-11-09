@@ -150,6 +150,10 @@ The computer picks each album's cover the way the player does: the picture insid
 
 With the screen off, ▶‖ still pauses and resumes, a tap of vol± changes the volume and holding vol± skips tracks (or jumps 30 s / 15 s in audiobooks and podcasts).
 
+These are the default playback controls. **Settings → Playback buttons** assigns separate tap and hold actions to Volume+, Volume−, Play and Menu. Choose Off, Play / Pause, Up Next, Seek, Next track, Previous track, Volume +, Volume − or Home. **Reset buttons** restores the defaults. Lists keep their navigation controls, and Back and Power keep their normal functions. While seeking, Play commits the position and Back cancels. Volume holds repeat only when assigned to a volume action.
+
+The volume and Play buttons also run their assigned audio actions with the screen off. Screen navigation and seeking shortcuts operate on Now Playing with the screen on. The choices are remembered between restarts.
+
 In Cover Flow (Music → Cover Flow), the tile before the first album, with a shuffle mark for a cover, is **Random album**: press ▶ on it to play a random album from its first track.
 
 ## Charging

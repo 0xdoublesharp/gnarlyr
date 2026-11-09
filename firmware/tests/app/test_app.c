@@ -577,11 +577,64 @@ static void settings_choose_shuffle_and_repeat(void)
     CHECK_EQUAL(REPEAT_ALL, app_player_status().repeat);
 }
 
+static void playback_buttons_can_be_opened_from_settings(void)
+{
+    start_app_with_library();
+    move_down(HOME_SETTINGS_INDEX);
+    tap(KEY_PLAY);
+    move_down(12);
+    tap(KEY_PLAY);
+    CHECK(title_is("Playback buttons"));
+}
+
 static bool saved_settings(Settings *settings)
 {
     uint32_t size = 0;
     const uint8_t *bytes = fake_hal_internal_file_bytes(SETTINGS_STORE_PATH, &size);
     return bytes != NULL && settings_decode(bytes, size, settings);
+}
+
+static void a_playback_shortcut_is_saved_and_controls_playback_with_the_screen_off(void)
+{
+    start_app_with_library();
+    move_down(HOME_SETTINGS_INDEX);
+    tap(KEY_PLAY);
+    move_down(12);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    CHECK(title_is("Volume+ tap"));
+    move_up(2);
+    tap(KEY_PLAY);
+    Settings chosen;
+    CHECK(saved_settings(&chosen));
+    CHECK_EQUAL(BUTTON_ACTION_NEXT, chosen.button_actions[PLAYBACK_VOLUME_UP_TAP]);
+    restart_app();
+    play_first_album_track();
+    uint8_t volume = app_player_status().volume;
+    tap(KEY_POWER);
+    tap(KEY_VOLUME_UP);
+    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
+    CHECK_EQUAL(volume, app_player_status().volume);
+}
+
+static void reset_buttons_restores_and_saves_the_defaults(void)
+{
+    start_app_with_library();
+    move_down(HOME_SETTINGS_INDEX);
+    tap(KEY_PLAY);
+    move_down(12);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    move_up(2);
+    tap(KEY_PLAY);
+    move_down(PLAYBACK_BUTTON_COUNT);
+    tap(KEY_PLAY);
+    Settings chosen;
+    CHECK(saved_settings(&chosen));
+    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
+        CHECK_EQUAL(settings_default_button_action((PlaybackButton)index),
+                    chosen.button_actions[index]);
+    }
 }
 
 static void brightness_is_applied_and_saved(void)
@@ -912,7 +965,7 @@ static void start_on_a_fresh_card(HalReserveResult result)
 static void a_fresh_card_gets_the_player_files_and_a_first_scan(void)
 {
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/.echo/settings.bin"));
+    CHECK_EQUAL(4096, fake_hal_reserved_size(SETTINGS_STORE_PATH));
     CHECK_EQUAL(4096, fake_hal_reserved_size("/.echo/resume.bin"));
     CHECK_EQUAL(4096, fake_hal_reserved_size("/.echo/favorites.bin"));
     CHECK_EQUAL(4 * 1024 * 1024, fake_hal_reserved_size("/.echo/library.db"));
@@ -1961,6 +2014,9 @@ int main(void)
         TEST_CASE(moving_the_selection_sends_only_part_of_the_screen),
         TEST_CASE(restarting_the_app_sends_a_whole_frame_again),
         TEST_CASE(the_home_menu_is_the_root),
+        TEST_CASE(playback_buttons_can_be_opened_from_settings),
+        TEST_CASE(a_playback_shortcut_is_saved_and_controls_playback_with_the_screen_off),
+        TEST_CASE(reset_buttons_restores_and_saves_the_defaults),
         TEST_CASE(selecting_music_opens_the_music_menu),
         TEST_CASE(back_returns_to_the_previous_screen),
         TEST_CASE(a_long_back_returns_home_from_deep_screens),
