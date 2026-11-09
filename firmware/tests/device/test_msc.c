@@ -197,6 +197,27 @@ static void inquiry_names_the_vendor_and_the_lun(void)
     check_csw(exchange, 0, 0);
 }
 
+static void inquiry_gives_the_major_and_minor_version_as_the_revision(void)
+{
+    static const char VERSION[] = FIRMWARE_VERSION;
+    static const uint8_t block[6] = {0x12, 0, 0, 0, 36, 0};
+    char expected[4] = {' ', ' ', ' ', ' '};
+    int dots = 0;
+    for (size_t index = 0; index < sizeof expected && VERSION[index] != '\0'; index++) {
+        dots += VERSION[index] == '.' ? 1 : 0;
+        if (dots == 2) {
+            break;
+        }
+        expected[index] = VERSION[index];
+    }
+    Msc *msc = started();
+    send_command(msc, 36, true, 0, block, 6);
+    Exchange *exchange = collect(msc);
+    CHECK(expected[0] != ' ' && expected[2] != ' ');
+    CHECK(memcmp(exchange->data + 32, expected, sizeof expected) == 0);
+    check_csw(exchange, 0, 0);
+}
+
 static void a_longer_request_is_padded_and_reports_the_residue(void)
 {
     static const uint8_t block[6] = {0x12, 0, 0, 0, 255, 0};
@@ -899,6 +920,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(inquiry_names_the_vendor_and_the_lun),
+        TEST_CASE(inquiry_gives_the_major_and_minor_version_as_the_revision),
         TEST_CASE(a_longer_request_is_padded_and_reports_the_residue),
         TEST_CASE(test_unit_ready_passes_for_a_present_lun),
         TEST_CASE(an_absent_lun_is_not_ready_with_medium_not_present),

@@ -9,6 +9,11 @@ foreach(field name short_name id version data_directory update_file playlist_sta
     string(JSON FIRMWARE_${variable} GET "${FIRMWARE_IDENTITY}" ${field})
     list(APPEND FIRMWARE_DEFINITIONS FIRMWARE_${variable}="${FIRMWARE_${variable}}")
 endforeach()
+string(REGEX MATCH "^[0-9]+\\.[0-9]+" FIRMWARE_REVISION "${FIRMWARE_VERSION}")
+if(NOT FIRMWARE_REVISION)
+    message(FATAL_ERROR "identity.json: version \"${FIRMWARE_VERSION}\" does not start with major.minor")
+endif()
+list(APPEND FIRMWARE_DEFINITIONS FIRMWARE_REVISION="${FIRMWARE_REVISION}")
 
 project(${FIRMWARE_SHORT_NAME} VERSION ${FIRMWARE_VERSION} LANGUAGES C)
 

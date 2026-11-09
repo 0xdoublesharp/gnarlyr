@@ -42,15 +42,18 @@ enum {
     START_STOP_LOAD_EJECT = 0x02,
     START_STOP_START = 0x01,
     INQUIRY_EVPD = 0x01,
-    INQUIRY_VENDOR_BYTES = 8
+    INQUIRY_VENDOR_BYTES = 8,
+    INQUIRY_REVISION_BYTES = 4
 };
 
 static const uint8_t INQUIRY_HEADER[8] = {0x00, 0x80, 0x02, 0x02, 31, 0, 0, 0};
 static const char INQUIRY_VENDOR[] = FIRMWARE_ID;
-static const char INQUIRY_REVISION[] = "0.1 ";
+static const char INQUIRY_REVISION[] = FIRMWARE_REVISION;
 
 _Static_assert(sizeof INQUIRY_VENDOR - 1 <= INQUIRY_VENDOR_BYTES,
                "the firmware id fits the INQUIRY vendor field");
+_Static_assert(sizeof INQUIRY_REVISION - 1 <= INQUIRY_REVISION_BYTES,
+               "the firmware's major.minor version fits the INQUIRY revision field");
 
 static uint32_t le32(const uint8_t *bytes)
 {
@@ -197,7 +200,7 @@ static void inquiry(Msc *msc, const MscLun *lun, const uint8_t *block)
     }
     fill_text(msc->response + 8, INQUIRY_VENDOR, INQUIRY_VENDOR_BYTES);
     fill_text(msc->response + 16, lun->product, MSC_PRODUCT_LENGTH);
-    fill_text(msc->response + 32, INQUIRY_REVISION, 4);
+    fill_text(msc->response + 32, INQUIRY_REVISION, INQUIRY_REVISION_BYTES);
     respond(msc, MSC_RESPONSE_CAPACITY);
 }
 
