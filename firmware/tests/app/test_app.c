@@ -270,7 +270,7 @@ static void the_home_menu_is_the_root(void)
 {
     start_app();
     step();
-    CHECK(title_is("Podium"));
+    CHECK(title_is("Doublesharp"));
     CHECK_EQUAL(1, app_screen_depth());
 }
 
@@ -287,7 +287,7 @@ static void back_returns_to_the_previous_screen(void)
     start_app();
     tap(KEY_PLAY);
     tap(KEY_BACK);
-    CHECK(title_is("Podium"));
+    CHECK(title_is("Doublesharp"));
 }
 
 static void a_long_back_returns_home_from_deep_screens(void)
@@ -597,7 +597,7 @@ static void home_art_keeps_the_playing_album(void)
         wait_ms(HOME_ART_CYCLE_MS);
     }
     step();
-    CHECK(title_is("Podium"));
+    CHECK(title_is("Doublesharp"));
     CHECK_EQUAL(RED_COVER, home_art_probe());
 }
 
@@ -606,7 +606,7 @@ static void the_home_menu_shows_now_playing_last_once_a_track_is_loaded(void)
     start_app_with_library();
     play_first_album_track();
     hold_back();
-    CHECK(title_is("Podium"));
+    CHECK(title_is("Doublesharp"));
     move_down(HOME_NOW_PLAYING_INDEX);
     tap(KEY_PLAY);
     CHECK(title_is("Now Playing"));
@@ -896,7 +896,7 @@ static void the_color_setting_recolors_the_selection_and_is_saved(void)
     CHECK_EQUAL(ACCENT_RED, settings.accent);
     restart_app();
     wait_ms(1000);
-    CHECK(title_is("Podium"));
+    CHECK(title_is("Doublesharp"));
     CHECK(selection_is_red());
 }
 
@@ -945,7 +945,7 @@ static void the_text_size_survives_a_restart(void)
     choose_text_size(TEXT_SIZE_LARGE);
     restart_app();
     wait_ms(1000);
-    CHECK(title_is("Podium"));
+    CHECK(title_is("Doublesharp"));
     int header = BOARD_THEME.metrics.header_height;
     CHECK(selected_at(header + 36));
     CHECK(!selected_at(header + 40));
@@ -958,7 +958,7 @@ static void the_home_menu_fits_its_rows_to_the_new_size_when_shown_again(void)
     tap(KEY_BACK);
     wait_ms(SLIDE_DURATION_MS);
     step();
-    CHECK(title_is("Podium"));
+    CHECK(title_is("Doublesharp"));
     int header = BOARD_THEME.metrics.header_height;
     CHECK(selected_at(header + 38 + 36));
     CHECK(!selected_at(header + 38 + 40));
@@ -1466,7 +1466,7 @@ static void lists_stay_instant_with_the_click_settings(void)
     play_with_skip_gesture(SKIP_GESTURE_PLAY_CLICKS);
     hold_back();
     wait_ms(SLIDE_DURATION_MS);
-    CHECK(title_is("Podium"));
+    CHECK(title_is("Doublesharp"));
     move_down(HOME_SETTINGS_INDEX);
     tap(KEY_PLAY);
     CHECK(title_is("Settings"));
@@ -1527,7 +1527,7 @@ static void going_back_slides_the_screen_out_to_the_right(void)
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
     tap(KEY_BACK);
-    CHECK(title_is("Podium"));
+    CHECK(title_is("Doublesharp"));
     CHECK_EQUAL(BOARD_THEME.colors.scrollbar_thumb, scrollbar_probe());
     wait_ms(SLIDE_DURATION_MS);
     CHECK(scrollbar_probe() != BOARD_THEME.colors.scrollbar_thumb);
@@ -1794,7 +1794,7 @@ static void the_splash_ignores_keys_until_it_ends(void)
     app_show_splash();
     step();
     tap(KEY_PLAY);
-    CHECK(title_is("Podium"));
+    CHECK(title_is("Doublesharp"));
     wait_ms(SPLASH_MS);
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
@@ -2537,7 +2537,7 @@ static void the_start_screen_setting_opens_albums(void)
     tap(KEY_BACK);
     CHECK(title_is("Music"));
     tap(KEY_BACK);
-    CHECK(title_is("Podium"));
+    CHECK(title_is("Doublesharp"));
 }
 
 static void the_start_screen_setting_opens_now_playing(void)
@@ -2734,7 +2734,7 @@ static void a_notice_is_drawn_at_once_over_the_current_screen(void)
     app_show_notice("USB", "Connected to a computer");
     CHECK_EQUAL(presents + 1, fake_hal_present_count());
     CHECK(fake_hal_pixels_written() > pixels);
-    CHECK(title_is("Podium"));
+    CHECK(title_is("Doublesharp"));
 }
 
 static void a_notice_turns_the_display_on(void)
@@ -2953,7 +2953,7 @@ static void menu_opens_now_playing_from_anywhere_while_playing(void)
     start_app_with_library();
     play_first_album_track();
     hold_back();
-    CHECK(title_is("Podium"));
+    CHECK(title_is("Doublesharp"));
     tap(KEY_MENU);
     CHECK(title_is("Now Playing"));
     int depth = app_screen_depth();
@@ -2966,7 +2966,7 @@ static void menu_does_nothing_while_nothing_plays(void)
 {
     start_app_with_library();
     tap(KEY_MENU);
-    CHECK(title_is("Podium"));
+    CHECK(title_is("Doublesharp"));
 }
 
 int main(void)

@@ -1,6 +1,7 @@
 #include "board_layout.h"
 
 #include "cover_cache.h"
+#include "gfx/text.h"
 
 const BoardLayout BOARD_LAYOUT = {
     .home_art_width = 180,
@@ -165,4 +166,12 @@ const CoverFlowTextLayout *board_cover_flow_text_layout(const Theme *theme)
     const CoverFlowTextLayout *table =
         theme_is_portrait(theme) ? BOARD_LAYOUT.cover_stack_text : BOARD_LAYOUT.cover_flow_text;
     return &table[text_size_of(theme)];
+}
+
+const char *board_splash_text(const Theme *theme)
+{
+    static const char FULL_NAME[] = FIRMWARE_NAME;
+    static const char SHORT_NAME[] = FIRMWARE_SHORT_NAME;
+    bool fits = text_width(theme->fonts.title, FULL_NAME) <= theme->metrics.screen_width;
+    return fits ? FULL_NAME : SHORT_NAME;
 }

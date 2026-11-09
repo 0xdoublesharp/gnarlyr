@@ -149,7 +149,7 @@ class Fat32Volume:
         boot[64] = 0x80
         boot[66] = 0x29
         struct.pack_into("<I", boot, 67, 0x12345678)
-        boot[71:82] = b"PODIUMTEST "
+        boot[71:82] = b"EMULATOR   "
         boot[82:90] = b"FAT32   "
         struct.pack_into("<H", boot, 510, 0xAA55)
         return bytes(boot)

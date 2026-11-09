@@ -92,9 +92,9 @@ Linker script and memory map
                 0x03085000        0x4 logic/libecho_device_logic.a(updater.c.obj)
 """
 
-NM = """03050110 00000200 T app_step\tD:/Projects/echopod/src/app/app.c:200
-0301f588 00004a78 b app\tD:/Projects/echopod/src/app/app.c:133
-030500cc 00000040 T hal_audio_play\tD:/Projects/echopod/platform/device/board/audio.c:50
+NM = """03050110 00000200 T app_step\tD:/Projects/firmware/src/app/app.c:200
+0301f588 00004a78 b app\tD:/Projects/firmware/src/app/app.c:133
+030500cc 00000040 T hal_audio_play\tD:/Projects/firmware/platform/device/board/audio.c:50
 03050710 000002ba t __udivmoddi4
 """
 

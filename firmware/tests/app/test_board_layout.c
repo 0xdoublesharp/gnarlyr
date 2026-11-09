@@ -1,8 +1,12 @@
+#include <string.h>
+
 #include "board_layout.h"
 #include "check.h"
 #include "default_theme.h"
+#include "gfx/text.h"
 #include "hal/display.h"
 #include "library/covers.h"
+#include "ui/header.h"
 
 enum {
     MIN_VISIBLE_ROWS = 6,
@@ -297,10 +301,61 @@ static void a_portrait_strip_buffer_holds_whole_rows(void)
     CHECK(pixels / HAL_DISPLAY_SHORT_SIDE <= HAL_DISPLAY_LONG_SIDE);
 }
 
+static Theme theme_turned(int size, Orientation orientation)
+{
+    Theme theme = theme_of_size(size);
+    default_theme_set_orientation(&theme, orientation);
+    return theme;
+}
+
+static void the_home_title_fits_the_header_at_every_size_and_orientation(void)
+{
+    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+        for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+            Theme theme = theme_turned(size, (Orientation)orientation);
+            CHECK(text_width(theme.fonts.header, "Doublesharp") <=
+                  header_title_bounds(&theme).width);
+        }
+    }
+}
+
+static void the_splash_shows_the_full_name_at_every_size_in_landscape(void)
+{
+    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+        Theme theme = theme_turned(size, ORIENTATION_LANDSCAPE);
+        CHECK(strcmp("Doublesharp Echo", board_splash_text(&theme)) == 0);
+    }
+}
+
+static void the_portrait_splash_shortens_the_name_only_at_the_large_size(void)
+{
+    Theme small = theme_turned(TEXT_SIZE_SMALL, ORIENTATION_PORTRAIT);
+    Theme medium = theme_turned(TEXT_SIZE_MEDIUM, ORIENTATION_PORTRAIT);
+    Theme large = theme_turned(TEXT_SIZE_LARGE, ORIENTATION_PORTRAIT_FLIPPED);
+    CHECK(strcmp("Doublesharp Echo", board_splash_text(&small)) == 0);
+    CHECK(strcmp("Doublesharp Echo", board_splash_text(&medium)) == 0);
+    CHECK(strcmp("Doublesharp", board_splash_text(&large)) == 0);
+}
+
+static void the_splash_text_fits_the_screen_at_every_size_and_orientation(void)
+{
+    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+        for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+            Theme theme = theme_turned(size, (Orientation)orientation);
+            CHECK(text_width(theme.fonts.title, board_splash_text(&theme)) <=
+                  theme.metrics.screen_width);
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_theme_matches_the_display),
+        TEST_CASE(the_home_title_fits_the_header_at_every_size_and_orientation),
+        TEST_CASE(the_splash_shows_the_full_name_at_every_size_in_landscape),
+        TEST_CASE(the_portrait_splash_shortens_the_name_only_at_the_large_size),
+        TEST_CASE(the_splash_text_fits_the_screen_at_every_size_and_orientation),
         TEST_CASE(the_portrait_theme_stands_the_display_up),
         TEST_CASE(turning_back_to_landscape_restores_the_board_theme),
         TEST_CASE(both_portraits_share_one_theme),

@@ -3,7 +3,7 @@ setlocal
 where py >nul 2>nul && set "PYTHON=py -3"
 if not defined PYTHON where python >nul 2>nul && set "PYTHON=python"
 if not defined PYTHON (
-    echo EchoPod sync needs Python 3: https://www.python.org/downloads/
+    echo echo_sync needs Python 3: https://www.python.org/downloads/
     exit /b 2
 )
 if "%~1"=="" goto ask

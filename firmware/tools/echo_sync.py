@@ -14,6 +14,7 @@ from pathlib import Path
 
 import cover_export
 import library_index
+from identity import IDENTITY
 
 ECHO_FOLDER = ".echo"
 MEBIBYTE = 1024 * 1024
@@ -415,7 +416,7 @@ def ask_for_card(cards, read=input):
         answer = typed_path(read(f"Card to sync [{cards[0]}]: "))
         return answer or str(cards[0])
     if cards:
-        print("Cards that have been in a Podium player: " +
+        print(f"Cards that have been in a {IDENTITY.name} player: " +
               ", ".join(str(card) for card in cards))
     answer = typed_path(read("Card drive or folder (for example E: or /Volumes/CARD; you can "
                              "drag it here): "))
@@ -652,8 +653,8 @@ def options_from(arguments):
 
 def parse_arguments(argv):
     parser = argparse.ArgumentParser(
-        description="Build the Podium library and album covers for a memory card on this "
-                    "computer, so the player doesn't have to scan it.")
+        description=f"Build the {IDENTITY.name} library and album covers for a memory card on "
+                    "this computer, so the player doesn't have to scan it.")
     parser.add_argument("card", nargs="?",
                         help="the card's drive or mount point, for example E:\\ or "
                              "/Volumes/CARD; without it, the tool asks")
@@ -716,7 +717,7 @@ def run(arguments):
             return run_check(card, volume)
         require_dependencies()
         options = options_from(arguments)
-        print(f"Podium sync: {card} ({volume.file_system})")
+        print(f"{IDENTITY.name} sync: {card} ({volume.file_system})")
         ensure_echo_folder(echo, options, arguments.yes)
         recorded = sync(card, volume, options)
     except SyncError as error:

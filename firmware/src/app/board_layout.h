@@ -46,4 +46,5 @@ typedef struct BoardLayout {
 extern const BoardLayout BOARD_LAYOUT;
 
 const NowPlayingLayout *board_now_playing_layout(const Theme *theme);
+const char *board_splash_text(const Theme *theme);
 const CoverFlowTextLayout *board_cover_flow_text_layout(const Theme *theme);

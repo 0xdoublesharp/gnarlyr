@@ -270,7 +270,7 @@ static void without_a_header_the_search_falls_back_to_half_the_firmware_area(voi
     CHECK_EQUAL(0x2000 + 0x13000, layout.slot_2);
 }
 
-static void a_podium_sized_slot_1_searches_below_slot_2_and_falls_back_to_half(void)
+static void a_slot_1_of_our_size_searches_below_slot_2_and_falls_back_to_half(void)
 {
     static FakeDisk disk;
     prepare_echo(&disk, 0x44C000);
@@ -358,7 +358,7 @@ int main(void)
         TEST_CASE(the_search_starts_at_the_next_mib_after_the_firmware_plus_16_kib),
         TEST_CASE(the_search_takes_the_first_header_it_meets),
         TEST_CASE(without_a_header_the_search_falls_back_to_half_the_firmware_area),
-        TEST_CASE(a_podium_sized_slot_1_searches_below_slot_2_and_falls_back_to_half),
+        TEST_CASE(a_slot_1_of_our_size_searches_below_slot_2_and_falls_back_to_half),
         TEST_CASE(a_header_whose_copy_is_missing_is_not_used),
         TEST_CASE(a_header_past_half_the_firmware_area_is_not_used),
         TEST_CASE(an_invalid_slot_1_falls_back_to_half_the_firmware_area),

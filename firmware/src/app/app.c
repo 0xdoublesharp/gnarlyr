@@ -136,7 +136,6 @@ static const FadeTiming SPLASH_TIMING = {.fade_ms = 600, .hold_ms = 500, .rising
 static const uint32_t SCREEN_ON_CLOCK_MHZ = 200;
 static const uint32_t IDLE_CLOCK_MHZ = 96;
 static const FadeTiming GOODBYE_TIMING = {.fade_ms = 600, .hold_ms = 400, .rising = false};
-static const char SPLASH_TEXT[] = "Podium";
 static const char GOODBYE_TEXT[] = "Goodbye";
 static const char BATTERY_LOW_TEXT[] = "Battery low";
 static Color strip_pixels[HAL_DISPLAY_WIDTH * BOARD_STRIP_HEIGHT];
@@ -582,7 +581,7 @@ static bool draw_running_fade(Canvas *canvas)
         return true;
     }
     if (!fade_finished(&app.splash, app.now_ms)) {
-        draw_fade(canvas, &app.splash, SPLASH_TEXT);
+        draw_fade(canvas, &app.splash, board_splash_text(board_theme()));
         return true;
     }
     return false;
