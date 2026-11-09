@@ -46,6 +46,7 @@ ADC_NO_KEY = 1023
 PLAY_KEY_ADC = 250
 FAILURE_SYMBOLS = ("board_panic_fault", "board_panic_stall", "device_default_handler",
                    "device_fault_entry", "hal_power_off", "board_power_cut")
+IDLE_POLL_SYMBOLS = ("board_input_take_key_press",)
 ADC_BATTERY_4000_MV = 819
 HOST_GONE_MS = 40
 
@@ -98,7 +99,7 @@ class Overlay:
 
 
 class Machine:
-    def __init__(self, image, elf_path, card=None, usb_overlay_elf=None):
+    def __init__(self, image, elf_path, card=None, usb_overlay_elf=None, rest_in_waits=True):
         self.image = image
         self.elf_path = elf_path
         self.symbols = load_symbols(elf_path)
@@ -154,6 +155,8 @@ class Machine:
         self.load_firmware()
         self.install_hooks()
         self.watch_failures()
+        if rest_in_waits:
+            self.rest_at_idle_polls()
 
     def cycles(self):
         return self.base_cycles + self.jump_cycles
@@ -290,6 +293,10 @@ class Machine:
     def watch_failures(self):
         for name in FAILURE_SYMBOLS:
             self.hook_symbol(name, self.failure_hook(name))
+
+    def rest_at_idle_polls(self):
+        for name in IDLE_POLL_SYMBOLS:
+            self.hook_symbol(name, self.uc.emu_stop)
 
     def failure_hook(self, name):
         def failed():

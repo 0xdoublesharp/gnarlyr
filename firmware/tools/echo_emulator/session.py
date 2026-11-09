@@ -50,7 +50,7 @@ def with_brand(image, brand):
 
 class Session:
     def __init__(self, image, elf_path, files=(), vbus_after_first_frame=False, volume=None,
-                 vbus_at_start=False, reuse=None, usb_overlay_elf=None):
+                 vbus_at_start=False, reuse=None, usb_overlay_elf=None, rest_in_waits=True):
         self.image = image
         self.elf_path = elf_path
         self.usb_overlay_elf = usb_overlay_elf
@@ -65,7 +65,7 @@ class Session:
             card, self.layout = synthetic_emmc(Clock(), self.image, volume)
         self.card = card
         self.disk = card.disk
-        self.machine = Machine(self.image, elf_path, card, usb_overlay_elf)
+        self.machine = Machine(self.image, elf_path, card, usb_overlay_elf, rest_in_waits)
         card.machine = self.machine
         self.volume = volume
         self.before = self.disk.snapshot()

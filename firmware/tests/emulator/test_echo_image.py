@@ -24,6 +24,8 @@ TRACK_GAP_LIMIT_MS = 1000
 FADE_LIMIT_MS = 1500
 SCAN_RECORD_POLL_MS = 100
 FAT_READS_PER_SECOND_LIMIT = 40
+SPIN_POLLS_PER_REST = 10
+WAIT_REST_TOLERANCE_MS = 1
 DATA_READS_PER_SECOND_MINIMUM = 250
 WIDTH = 480
 HEIGHT = 222
@@ -121,10 +123,11 @@ class EchoImageTest(unittest.TestCase):
         cls.elf = CONFIG["elf"]
         cls.usb_overlay_elf = CONFIG["usb_overlay_elf"]
 
-    def session(self, files=(), image=None, vbus=False, volume=None):
+    def session(self, files=(), image=None, vbus=False, volume=None, rest_in_waits=True):
         return self.session_module.Session(image or self.image, self.elf, files=files,
                                            vbus_after_first_frame=vbus, volume=volume,
-                                           usb_overlay_elf=self.usb_overlay_elf)
+                                           usb_overlay_elf=self.usb_overlay_elf,
+                                           rest_in_waits=rest_in_waits)
 
     def assert_healthy(self, session):
         machine = session.machine
@@ -424,6 +427,30 @@ class EchoImageTest(unittest.TestCase):
         self.assert_healthy(session)
         summary("refused " + update[0], session)
 
+    def refuse_an_update(self, rest_in_waits):
+        mini = self.session_module.with_brand(self.image, "EchoPod")
+        session = self.session(files=[("ECHOV497.IMG", mini, None)], vbus=True,
+                               rest_in_waits=rest_in_waits)
+        session.machine.note("updater_check")
+        polls = session.machine.trace("board_input_take_key_press")
+        session.run_to_first_frame()
+        self.assertEqual(session.run_until_waiting_for_key(presses=1),
+                         "reached board_wait_for_key")
+        self.assert_healthy(session)
+        return session, polls
+
+    def test_a_key_wait_that_spins_ends_like_one_that_rests(self):
+        rested, rested_polls = self.refuse_an_update(True)
+        spun, spun_polls = self.refuse_an_update(False)
+        self.assertGreater(len(rested_polls), 0)
+        self.assertGreater(len(spun_polls), SPIN_POLLS_PER_REST * len(rested_polls))
+        self.assertEqual(rested.card.accesses, spun.card.accesses)
+        self.assertEqual(rested.machine.reached, spun.machine.reached)
+        self.assertEqual(rested.changed_sectors(), spun.changed_sectors())
+        self.assertEqual(rested.machine.gpio_log[-1][1:6], spun.machine.gpio_log[-1][1:6])
+        self.assertLessEqual(abs(rested.machine.milliseconds() - spun.machine.milliseconds()),
+                             WAIT_REST_TOLERANCE_MS)
+        summary("spinning key wait", spun)
 
     def boot_until_waiting_for_key(self, session):
         session.machine.note("updater_install")
