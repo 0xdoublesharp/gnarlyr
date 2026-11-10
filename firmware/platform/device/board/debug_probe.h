@@ -36,6 +36,7 @@ void board_debug_after_start(void);
 uint32_t board_debug_interrupted_line(void);
 void board_debug_read_grf(uint32_t *words);
 const uint32_t *board_debug_grf_start(void);
+bool board_debug_usb_supply_held_off(void);
 bool board_debug_take_reconnect(void);
 bool board_debug_usb_forced(void);
 void board_debug_listen_stopped(void);
@@ -100,6 +101,11 @@ static inline void board_debug_boot(void)
 
 static inline void board_debug_after_start(void)
 {
+}
+
+static inline bool board_debug_usb_supply_held_off(void)
+{
+    return false;
 }
 
 static inline bool board_debug_take_reconnect(void)

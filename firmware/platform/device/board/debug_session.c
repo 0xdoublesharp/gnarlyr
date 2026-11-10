@@ -60,6 +60,7 @@ static PowerWatch watch;
 static BoardBatteryReading battery;
 static bool usb_powered;
 static bool usb_kept_on;
+static bool usb_supply_held_off;
 static uint32_t grf_start[DEBUG_REPORT_GRF_WORDS];
 
 void board_debug_usb_powered(bool powered)
@@ -118,6 +119,16 @@ const PowerHistory *board_debug_power_history(void)
 uint32_t hal_system_power_samples(void)
 {
     return history.recorded;
+}
+
+void hal_system_hold_usb_supply_off(bool held)
+{
+    usb_supply_held_off = held;
+}
+
+bool board_debug_usb_supply_held_off(void)
+{
+    return usb_supply_held_off;
 }
 
 static uint8_t power_levels(BoardChargePin pin)
@@ -315,7 +326,7 @@ void board_debug_listen_stopped(void)
 
 void board_debug_power_off(void)
 {
-    board_power_usb_supply_hold_off(false);
+    usb_supply_held_off = false;
     uint32_t reason = debug_loop_take_shutdown();
     if (reason != DEBUG_REPORT_NONE) {
         hal_system_save_report(reason);
@@ -325,7 +336,7 @@ void board_debug_power_off(void)
 void board_debug_usb_starting(bool dac)
 {
     debug_runner_abort();
-    board_power_usb_supply_hold_off(false);
+    usb_supply_held_off = false;
     board_power_usb_supply_follow(usb_vbus_present());
     reconnect.requested = false;
     reconnect.manual = false;

@@ -77,8 +77,6 @@ void board_main(void);
 bool board_usb_listening(void);
 void board_power_hold(void);
 void board_power_usb_supply_follow(bool cable);
-void board_power_usb_supply_hold_off(bool held);
-bool board_power_usb_supply_held_off(void);
 void board_loader_reboot(void);
 void board_restart(void);
 void board_loader_flag_clear(void);
