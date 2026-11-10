@@ -14,6 +14,8 @@ Read [the investigation findings](docs/initial-investigation.md) for verified ad
 
 ## Build the source foundation
 
+Focused checks build only selected dependencies. Use `python3 tools/firmware.py test --group host`, `test --group smoke`, or `test --regex EXPRESSION`; add `--list` to inspect the selection. Build one executable with `build --target echo_sim`. `--build-jobs` and `--test-jobs` set parallelism separately. See [development workflow](docs/development.md).
+
 See [build prerequisites and commands](docs/building-firmware.md). From the project root, run `python3 tools/firmware.py setup`, then `python3 tools/firmware.py build --preset device` or `python3 tools/firmware.py test`. The wrapper keeps generated output on Scratch and does not access the player.
 
 ## Files
