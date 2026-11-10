@@ -74,6 +74,7 @@ typedef struct HalUsbSense {
     bool kept_on;
     bool cable;
     bool powered;
+    bool session;
 } HalUsbSense;
 
 HalUsbSense hal_system_usb_sense(void);

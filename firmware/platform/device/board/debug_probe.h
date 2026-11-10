@@ -33,6 +33,8 @@ const PowerHistory *board_debug_power_history(void);
 void board_debug_boot(void);
 void board_debug_after_start(void);
 uint32_t board_debug_interrupted_line(void);
+void board_debug_read_grf(uint32_t *words);
+const uint32_t *board_debug_grf_start(void);
 bool board_debug_take_reconnect(void);
 bool board_debug_usb_forced(void);
 void board_debug_listen_stopped(void);

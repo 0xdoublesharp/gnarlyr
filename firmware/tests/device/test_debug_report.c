@@ -660,6 +660,46 @@ static void a_warm_start_reports_the_previous_run_and_its_fault(void)
     CHECK(has_line("fault.pc: 0x0305a1b2"));
 }
 
+static void the_usb_words_read_at_start_up_and_at_the_report_are_printed_whole(void)
+{
+    static const uint32_t AT_START[DEBUG_REPORT_GRF_WORDS] = {0x00000002, 0x0000001C, 0x00000001,
+                                                              0x00000001, 0x00000000};
+    DebugReportInput input = plain_input();
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("usb.grf_e8_start: unknown"));
+    CHECK(has_line("usb.grf_98_start: unknown"));
+    input.usb_words = (DebugReportUsbWords){
+        .grf_start = AT_START, .grf = {0x00000000, 0x00000003, 0x00000002, 0x00000000, 0x00000004}};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("usb.grf_e8_start: 0x00000002"));
+    CHECK(has_line("usb.grf_84_start: 0x0000001c"));
+    CHECK(has_line("usb.grf_b4_start: 0x00000001"));
+    CHECK(has_line("usb.grf_b8_start: 0x00000001"));
+    CHECK(has_line("usb.grf_98_start: 0x00000000"));
+    CHECK(has_line("usb.grf_e8: 0x00000000"));
+    CHECK(has_line("usb.grf_84: 0x00000003"));
+    CHECK(has_line("usb.grf_b4: 0x00000002"));
+    CHECK(has_line("usb.grf_b8: 0x00000000"));
+    CHECK(has_line("usb.grf_98: 0x00000004"));
+}
+
+static void the_cores_session_bit_is_reported_only_while_the_controller_can_be_read(void)
+{
+    DebugReportInput input = plain_input();
+    input.usb_words.gotgctl = 0x000D0000;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("usb.gotgctl: unknown"));
+    CHECK(has_line("usb.b_session: unknown"));
+    input.usb_words.core_known = true;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("usb.gotgctl: 0x000d0000"));
+    CHECK(has_line("usb.b_session: 1"));
+    input.usb_words.gotgctl = 0x00010000;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("usb.gotgctl: 0x00010000"));
+    CHECK(has_line("usb.b_session: 0"));
+}
+
 static void the_last_usb_session_is_reported_once_there_was_one(void)
 {
     DebugReportInput input = plain_input();
@@ -1004,6 +1044,8 @@ int main(void)
         TEST_CASE(connect_events_say_what_became_of_the_attempt),
         TEST_CASE(a_cold_start_has_no_previous_run_to_report),
         TEST_CASE(a_warm_start_reports_the_previous_run_and_its_fault),
+        TEST_CASE(the_usb_words_read_at_start_up_and_at_the_report_are_printed_whole),
+        TEST_CASE(the_cores_session_bit_is_reported_only_while_the_controller_can_be_read),
         TEST_CASE(the_last_usb_session_is_reported_once_there_was_one),
         TEST_CASE(stopped_audio_reports_its_running_figures_as_unknown),
         TEST_CASE(running_audio_reports_averages_worst_times_and_the_busy_share),

@@ -73,6 +73,8 @@ QUIET_AFTER_MS = 4000
 BOOT_FLAG_CLEAR = 0xFFFF0000
 REPORT_START_LIMIT_MS = 250
 CABLE_STEADY_MS = 1000
+GRF_WORDS = ("e8", "84", "b4", "b8", "98")
+GRF_WORDS_POWERED = [2, 3, 2, 0, 4]
 CABLE_NOTICED_LIMIT_MS = 100
 CLOCK_SLACK_MS = 5
 CODE_WINDOW_BYTES = 0x2666C
@@ -618,6 +620,9 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(values["battery.usb_power"], 1)
         self.assertEqual((values["power.vbus"], values["power.usb_powered"],
                           values["power.charge_pin"]), (1, 1, 1))
+        self.assertEqual([values["usb.grf_%s_start" % word] for word in GRF_WORDS], [0, 0, 0, 0, 0])
+        self.assertEqual([values["usb.grf_%s" % word] for word in GRF_WORDS], GRF_WORDS_POWERED)
+        self.assertEqual((values["usb.gotgctl"], values["usb.b_session"]), (0x00090000, 1))
         self.assertEqual((values["power.adc_raw"], values["power.adc_millivolts"]), (819, 3999))
         self.assertEqual(values["power.gauge_millivolts"], 3999)
         self.assertEqual(values["power.percent_shown"], values["battery.percent"])
@@ -1087,6 +1092,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(values["script.state"], "finished")
         self.assertEqual([line["status"] for line in report["script"]["lines"]], ["ok"] * 5)
         self.assertEqual((values["power.vbus"], values["power.usb_powered"]), (0, 1))
+        self.assertEqual((values["usb.grf_e8"], values["usb.b_session"]), (0, 1))
         self.assertEqual((values["loop.boot"], values["loop.connect_attempts"],
                           values["loop.connect_answered"], values["loop.connect_unanswered"],
                           values["loop.last_connect"], values["loop.cable_bit_at_connect"]),
@@ -1165,6 +1171,9 @@ class EchoImageTest(unittest.TestCase):
         self.assertGreater(values["uptime_ms"], COLD_REPORT_MS)
         self.assertEqual(values["battery.source"], "gauge")
         self.assertEqual((values["power.vbus"], values["power.usb_powered"]), (0, 0))
+        self.assertEqual(values["usb.grf_e8"], 0)
+        self.assertIsNone(values["usb.gotgctl"])
+        self.assertIsNone(values["usb.b_session"])
         details = [event["kind"] + " " + event["detail"] for event in self.read_report(session)["events"]]
         self.assertIn("key power long", details)
         self.assertEqual(machine.faults, [])
@@ -1222,6 +1231,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertGreaterEqual(values["uptime_ms"], CABLE_STEADY_MS)
         self.assertLess(values["uptime_ms"], 2000)
         self.assertEqual(values["start.warm"], 0)
+        self.assertEqual((values["usb.grf_e8_start"], values["usb.grf_e8"]), (2, 2))
         self.assertEqual(values["battery.source"], "gauge")
         self.assertEqual((values["battery.millivolts"], values["battery.usb_power"]), (3999, 1))
         self.assertEqual((values["power.adc_source"], values["power.adc_raw"]), ("gauge", 819))

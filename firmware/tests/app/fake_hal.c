@@ -689,6 +689,11 @@ void fake_hal_set_usb_cable(bool cable)
     fake.usb_sense.cable = cable;
 }
 
+void fake_hal_set_usb_session(bool session)
+{
+    fake.usb_sense.session = session;
+}
+
 void hal_system_usb_reconnect(void)
 {
     fake.usb_reconnects++;

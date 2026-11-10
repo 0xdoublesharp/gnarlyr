@@ -64,6 +64,19 @@ typedef enum DebugLoopConnect {
     DEBUG_LOOP_CONNECT_NO_HOST
 } DebugLoopConnect;
 
+enum {
+    DEBUG_REPORT_GRF_WORDS = 5
+};
+
+#define DEBUG_REPORT_B_SESSION_VALID (1u << 19)
+
+typedef struct DebugReportUsbWords {
+    const uint32_t *grf_start;
+    uint32_t grf[DEBUG_REPORT_GRF_WORDS];
+    bool core_known;
+    uint32_t gotgctl;
+} DebugReportUsbWords;
+
 typedef struct DebugReportLoop {
     bool restarted;
     bool cable_at_connect;
@@ -86,6 +99,7 @@ typedef struct DebugReportInput {
     DebugReportPower power;
     HalStartInfo start;
     HalUsbLast usb;
+    DebugReportUsbWords usb_words;
     DebugReportAudio audio;
     DebugFrames frames;
     DebugReportLoop loop;

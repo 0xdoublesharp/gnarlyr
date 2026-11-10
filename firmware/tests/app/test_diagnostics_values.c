@@ -562,14 +562,23 @@ static void the_watchdog_test_is_named_in_the_last_step_row(void)
 static void the_usb_sense_row_shows_the_mode_the_cable_bit_and_the_power(void)
 {
     char text[DIAGNOSTICS_VALUE_CAPACITY];
-    diagnostics_usb_sense_text((HalUsbSense){false, false, false}, text, sizeof text);
+    diagnostics_usb_sense_text((HalUsbSense){false, false, false, false}, text, sizeof text);
     CHECK(text_is("Auto 0 off", text));
-    diagnostics_usb_sense_text((HalUsbSense){false, true, true}, text, sizeof text);
-    CHECK(text_is("Auto 1 on", text));
-    diagnostics_usb_sense_text((HalUsbSense){true, false, true}, text, sizeof text);
-    CHECK(text_is("Kept 0 on", text));
-    diagnostics_usb_sense_text((HalUsbSense){true, true, true}, text, sizeof text);
-    CHECK(text_is("Kept 1 on", text));
+    diagnostics_usb_sense_text((HalUsbSense){false, true, false, false}, text, sizeof text);
+    CHECK(text_is("Auto 1 off", text));
+}
+
+static void with_usb_powered_the_row_adds_the_cores_own_session_bit_after_the_cable_bit(void)
+{
+    char text[DIAGNOSTICS_VALUE_CAPACITY];
+    diagnostics_usb_sense_text((HalUsbSense){false, true, true, true}, text, sizeof text);
+    CHECK(text_is("Auto 1/1", text));
+    diagnostics_usb_sense_text((HalUsbSense){true, false, true, true}, text, sizeof text);
+    CHECK(text_is("Kept 0/1", text));
+    diagnostics_usb_sense_text((HalUsbSense){true, false, true, false}, text, sizeof text);
+    CHECK(text_is("Kept 0/0", text));
+    diagnostics_usb_sense_text((HalUsbSense){true, true, true, false}, text, sizeof text);
+    CHECK(text_is("Kept 1/0", text));
 }
 
 static void the_usb_sense_row_fits_the_narrowest_value_room_of_a_portrait_row(void)
@@ -581,9 +590,10 @@ static void the_usb_sense_row_fits_the_narrowest_value_room_of_a_portrait_row(vo
     Theme theme = BOARD_THEME;
     default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
     int row = theme.metrics.screen_width - 2 * theme.metrics.padding - SCROLLBAR_ROOM;
-    for (int state = 0; state < 8; state++) {
+    for (int state = 0; state < 16; state++) {
         char text[DIAGNOSTICS_VALUE_CAPACITY];
-        HalUsbSense sense = {(state & 1) != 0, (state & 2) != 0, (state & 4) != 0};
+        HalUsbSense sense = {(state & 1) != 0, (state & 2) != 0, (state & 4) != 0,
+                             (state & 8) != 0};
         diagnostics_usb_sense_text(sense, text, sizeof text);
         CHECK(text_width(theme.fonts.small, text) <= row * NARROW_SHARE / 100);
     }
@@ -636,6 +646,7 @@ int main(void)
         TEST_CASE(the_clock_row_steps_up_from_the_current_speed_then_wraps),
         TEST_CASE(the_clock_row_shows_the_actual_speed),
         TEST_CASE(the_usb_sense_row_shows_the_mode_the_cable_bit_and_the_power),
+        TEST_CASE(with_usb_powered_the_row_adds_the_cores_own_session_bit_after_the_cable_bit),
         TEST_CASE(the_usb_sense_row_fits_the_narrowest_value_room_of_a_portrait_row),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

@@ -163,6 +163,8 @@ if(NOT ECHO_RELEASE)
         board_battery_gauge
         board_debug_audio
         board_debug_battery_raw
+        board_debug_grf_start
+        board_debug_read_grf
         board_debug_interrupted_line
         board_debug_loop
         board_debug_usb_forced

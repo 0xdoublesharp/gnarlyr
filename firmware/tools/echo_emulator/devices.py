@@ -352,6 +352,9 @@ class Systick(RegisterFile):
 
 
 class UsbCore(RegisterFile):
+    GOTGCTL = 0x000
+    GOTGCTL_B_DEVICE = 1 << 16
+    GOTGCTL_B_SESSION_VALID = 1 << 19
     GSNPSID = 0x040
     GHWCFG2 = 0x048
     GHWCFG3 = 0x04C
@@ -363,6 +366,9 @@ class UsbCore(RegisterFile):
         self.interrupts = 0
 
     def read_word(self, offset):
+        if offset == self.GOTGCTL:
+            valid = self.GOTGCTL_B_SESSION_VALID if self.machine.vbus else 0
+            return self.GOTGCTL_B_DEVICE | valid
         if offset == self.GSNPSID:
             return 0x4F54294A
         if offset == self.GHWCFG2:

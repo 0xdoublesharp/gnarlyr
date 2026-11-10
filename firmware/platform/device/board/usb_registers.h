@@ -9,6 +9,7 @@
 
 #define USB_BASE 0x60080000u
 #define GOTGCTL 0x000u
+#define GOTGCTL_B_SESSION_VALID (1u << 19)
 #define GOTGINT 0x004u
 #define GAHBCFG 0x008u
 #define GUSBCFG 0x00Cu

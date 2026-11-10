@@ -58,6 +58,7 @@ static PowerWatch watch;
 static BoardBatteryReading battery;
 static bool usb_powered;
 static bool usb_kept_on;
+static uint32_t grf_start[DEBUG_REPORT_GRF_WORDS];
 
 void board_debug_usb_powered(bool powered)
 {
@@ -76,8 +77,24 @@ bool board_debug_usb_kept_on(void)
 
 HalUsbSense hal_system_usb_sense(void)
 {
-    return (HalUsbSense){
-        .kept_on = usb_kept_on, .cable = usb_vbus_present(), .powered = usb_powered};
+    return (HalUsbSense){.kept_on = usb_kept_on,
+                         .cable = usb_vbus_present(),
+                         .powered = usb_powered,
+                         .session = usb_powered &&
+                                    (read_register(GOTGCTL) & GOTGCTL_B_SESSION_VALID) != 0};
+}
+
+void board_debug_read_grf(uint32_t *words)
+{
+    static const uint8_t OFFSETS[DEBUG_REPORT_GRF_WORDS] = {0xE8, 0x84, 0xB4, 0xB8, 0x98};
+    for (uint32_t index = 0; index < DEBUG_REPORT_GRF_WORDS; index++) {
+        words[index] = register_read(GRF_BASE + OFFSETS[index]);
+    }
+}
+
+const uint32_t *board_debug_grf_start(void)
+{
+    return grf_start;
 }
 
 void board_debug_battery_reading(uint16_t raw)
@@ -156,6 +173,7 @@ void board_debug_power_poll(void)
 
 void board_debug_boot(void)
 {
+    board_debug_read_grf(grf_start);
     if (script_mark.magic == SCRIPT_MARK_MAGIC) {
         reconnect.interrupted_line = script_mark.line;
     }

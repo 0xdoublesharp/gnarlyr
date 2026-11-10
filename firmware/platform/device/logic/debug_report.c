@@ -319,6 +319,25 @@ static void put_usb(Writer *writer, HalUsbLast usb, bool kept_on)
     put_known(writer, "usb.writes_after_eject", known, usb.writes_after_eject);
 }
 
+static void put_usb_words(Writer *writer, const DebugReportUsbWords *words)
+{
+    static const char *const START_KEYS[DEBUG_REPORT_GRF_WORDS] = {
+        "usb.grf_e8_start", "usb.grf_84_start", "usb.grf_b4_start", "usb.grf_b8_start",
+        "usb.grf_98_start"};
+    static const char *const KEYS[DEBUG_REPORT_GRF_WORDS] = {
+        "usb.grf_e8", "usb.grf_84", "usb.grf_b4", "usb.grf_b8", "usb.grf_98"};
+    for (uint32_t index = 0; index < DEBUG_REPORT_GRF_WORDS; index++) {
+        put_address(writer, START_KEYS[index], words->grf_start != NULL,
+                    words->grf_start != NULL ? words->grf_start[index] : 0);
+    }
+    for (uint32_t index = 0; index < DEBUG_REPORT_GRF_WORDS; index++) {
+        put_address(writer, KEYS[index], true, words->grf[index]);
+    }
+    put_address(writer, "usb.gotgctl", words->core_known, words->gotgctl);
+    put_known(writer, "usb.b_session", words->core_known,
+              (words->gotgctl & DEBUG_REPORT_B_SESSION_VALID) != 0);
+}
+
 static const char *boot_kind(const DebugReportInput *input)
 {
     const HalStartInfo *start = &input->start;
@@ -671,6 +690,7 @@ uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t
     put_power(&writer, input);
     put_start(&writer, &input->start);
     put_usb(&writer, input->usb, input->power.usb_kept_on);
+    put_usb_words(&writer, &input->usb_words);
     put_loop(&writer, input);
     put_audio(&writer, &input->audio);
     put_frames(&writer, &input->frames);

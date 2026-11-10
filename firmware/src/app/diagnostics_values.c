@@ -101,7 +101,12 @@ void diagnostics_usb_sense_text(HalUsbSense sense, char *text, size_t capacity)
     StringBuilder builder = string_builder_make(text, capacity);
     string_builder_append(&builder, sense.kept_on ? "Kept " : "Auto ");
     string_builder_append_char(&builder, sense.cable ? '1' : '0');
-    string_builder_append(&builder, sense.powered ? " on" : " off");
+    if (!sense.powered) {
+        string_builder_append(&builder, " off");
+        return;
+    }
+    string_builder_append_char(&builder, '/');
+    string_builder_append_char(&builder, sense.session ? '1' : '0');
 }
 
 void diagnostics_dma_tone_text(DmaToneView view, char *text, size_t capacity)

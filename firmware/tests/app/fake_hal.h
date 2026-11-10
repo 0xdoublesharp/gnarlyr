@@ -31,6 +31,7 @@ void fake_hal_set_audio_stats(HalAudioStats stats);
 int fake_hal_audio_stats_reset_count(void);
 int fake_hal_usb_reconnect_count(void);
 void fake_hal_set_usb_cable(bool cable);
+void fake_hal_set_usb_session(bool session);
 int fake_hal_saved_report_count(void);
 uint32_t fake_hal_saved_report(int index);
 uint32_t fake_hal_script_mark(void);

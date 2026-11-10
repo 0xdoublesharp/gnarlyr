@@ -9,6 +9,7 @@
 #include "hal/storage.h"
 #include "hal/system.h"
 #include "usb.h"
+#include "usb_registers.h"
 #include "usb_session.h"
 
 enum {
@@ -67,6 +68,17 @@ static DebugReportPower power_now(bool charging)
                               .history = board_debug_power_history()};
 }
 
+static DebugReportUsbWords usb_words_now(void)
+{
+    DebugReportUsbWords words = {.grf_start = board_debug_grf_start(),
+                                 .core_known = board_debug_usb_is_powered()};
+    board_debug_read_grf(words.grf);
+    if (words.core_known) {
+        words.gotgctl = read_register(GOTGCTL);
+    }
+    return words;
+}
+
 static DebugReportInput gather(const UsbShared *shared, uint32_t reason)
 {
     HalBattery battery = hal_power_battery();
@@ -81,6 +93,7 @@ static DebugReportInput gather(const UsbShared *shared, uint32_t reason)
                               .power = power_now(battery.charging),
                               .start = hal_system_start_info(),
                               .usb = shared->last_session,
+                              .usb_words = usb_words_now(),
                               .audio = *board_debug_audio(),
                               .frames = app_debug_frames(),
                               .loop = board_debug_loop(),

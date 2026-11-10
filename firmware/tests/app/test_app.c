@@ -2996,9 +2996,12 @@ static void the_usb_sense_row_shows_the_cable_live_and_play_keeps_usb_powered(vo
     CHECK(strcmp("Auto 1 off", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
     tap(KEY_PLAY);
     CHECK(hal_system_usb_sense().kept_on);
-    CHECK(strcmp("Kept 1 on", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
+    CHECK(strcmp("Kept 1/0", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
     fake_hal_set_usb_cable(false);
-    CHECK(strcmp("Kept 0 on", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
+    fake_hal_set_usb_session(true);
+    CHECK(strcmp("Kept 0/1", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
+    fake_hal_set_usb_session(false);
+    CHECK(strcmp("Kept 0/0", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
     tap(KEY_PLAY);
     CHECK(!hal_system_usb_sense().kept_on);
     CHECK(strcmp("Auto 0 off", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
