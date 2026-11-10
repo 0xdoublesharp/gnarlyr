@@ -99,6 +99,23 @@ scope (six-hour schedule); source also stays on backed-up Data locally.
 No application database backup is needed. Use the platform recovery procedure
 for a host restore; an isolated restore rehearsal is not part of this release.
 
+## Firmware feature refresh — 2026-11-10
+
+Published release:
+`32fd364a86a506703d2cba7d3cee0d6456fe38ecf4c860ede3c14811ae4064ae`.
+Rollback: `6279229fb53f4d5f58936fa73b6125b4fb54fad3f03b178b66c1a7790aa2759b`.
+Content follows the active firmware worktree's `gnarlyr` branch through
+`8545978`, covering commits after the previous `c45f854` source baseline.
+Home and Features cover M4B shelves, chapter indexing, nested resume and
+lower-rate speech. The fixes list adds wake timing and accurate pause
+diagnostics; Developers uses the current canonical identity-transition guide.
+Install retains its user setup flow and links audiobook guidance.
+
+All ten files match origin bytes over TLS for `gnarlyr.com`. Public content
+matches after removing only Cloudflare's injected beacon from HTML. Health is
+200 and private/unknown paths are 404. Static HTML/link/copy-command checks and
+mobile/desktop standalone renders pass. Firmware and device state were untouched.
+
 ## Install and developer guide split — 2026-11-10
 
 Published release:
