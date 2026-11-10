@@ -45,6 +45,15 @@ python3 tools/firmware.py sim --card /path/to/music
 
 `test` also builds the `device` preset, runs the emulator scenarios on its image and checks formatting, the absence of comments, generated files being current and the Cortex-M3 RAM budget (`target_audit`).
 
+### Emulator scenarios
+
+Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `device_image_boot_<test_name>`, so they run side by side. Use them this way:
+
+- While editing, run only the scenarios the change touches: `python3 tools/firmware.py test --jobs 6 --regex 'device_image_boot_test_usb'`.
+- Run the whole suite once, after the last edit, with `--jobs 6` (`--jobs 10` when nothing else is building). It takes about two minutes. Never run `test_echo_image.py` whole in one process: that is the slow, serial path.
+- A branch must contain `perf(emulator): enter hooked functions through block hooks` and `perf(emulator): rest one slice at each idle key poll`. Start new work from the current `fresh-base` tip; if a branch is older, bring those commits in before running scenarios.
+- A new scenario waits on events (a hooked function, a watched write, a drawn frame), not on a count of emulated instructions, and replaces any function it only needs to get past through a `CORE_SEAM`.
+
 ## Rules
 
 - No comments in any code (C, CMake, Python); the `no_comments` test enforces it. Prose goes into `docs/`.
