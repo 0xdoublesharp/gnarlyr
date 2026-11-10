@@ -64,16 +64,15 @@ static void one_changed_frame_without_input_does_not_start_the_active_pace(void)
     CHECK(frame_pacer_due(&pacer, 2000 + FRAME_PACER_IDLE_MS, false));
 }
 
-static void after_a_change_two_checks_come_at_the_idle_interval_and_then_the_screen_rests(void)
+static void after_a_change_one_check_comes_at_the_idle_interval_and_then_the_screen_rests(void)
 {
     FramePacer pacer = {0};
     quiet(&pacer, 1000, 20);
     frame_pacer_done(&pacer, 2000, true, false);
-    quiet(&pacer, 2100, 1);
-    CHECK(frame_pacer_due(&pacer, 2100 + FRAME_PACER_IDLE_MS, false));
-    quiet(&pacer, 2200, 1);
-    CHECK(!frame_pacer_due(&pacer, 2200 + FRAME_PACER_REST_MS - 1, false));
-    CHECK(frame_pacer_due(&pacer, 2200 + FRAME_PACER_REST_MS, false));
+    CHECK(frame_pacer_due(&pacer, 2000 + FRAME_PACER_IDLE_MS, false));
+    quiet(&pacer, 2100, FRAME_PACER_IDLE_FRAMES);
+    CHECK(!frame_pacer_due(&pacer, 2100 + FRAME_PACER_REST_MS - 1, false));
+    CHECK(frame_pacer_due(&pacer, 2100 + FRAME_PACER_REST_MS, false));
 }
 
 static void an_urgent_request_cuts_the_rest_short(void)
@@ -101,7 +100,7 @@ int main(void)
         TEST_CASE(three_changed_frames_in_a_row_are_an_animation_and_get_the_active_pace),
         TEST_CASE(changes_with_an_unchanged_frame_between_them_are_not_an_animation),
         TEST_CASE(one_changed_frame_without_input_does_not_start_the_active_pace),
-        TEST_CASE(after_a_change_two_checks_come_at_the_idle_interval_and_then_the_screen_rests),
+        TEST_CASE(after_a_change_one_check_comes_at_the_idle_interval_and_then_the_screen_rests),
         TEST_CASE(an_urgent_request_cuts_the_rest_short),
         TEST_CASE(clock_wrap_does_not_stall_frames),
     };
