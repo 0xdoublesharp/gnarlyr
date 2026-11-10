@@ -129,6 +129,9 @@ static void copy_channels(Core1Stream *stream, uint32_t slot, const Core1Block *
     for (uint32_t channel = 0; channel < stream->channels; channel++) {
         const int32_t *from = block->channels[channel];
         int32_t *to = stream->region.samples[slot][channel];
+        if (from == to) {
+            continue;
+        }
         for (uint32_t index = 0; index < block->samples; index++) {
             to[index] = from[index];
         }

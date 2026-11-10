@@ -388,6 +388,15 @@ echo_add_unit_test(NAME test_m4a_source
 )
 target_compile_definitions(test_m4a_source PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 target_include_directories(test_m4a_source PRIVATE device)
+echo_add_unit_test(NAME test_vorbis_memory
+    SOURCES device/test_vorbis_memory.c
+    LIBRARIES echo_device_logic
+)
+echo_add_unit_test(NAME test_vorbis_decoder
+    SOURCES device/test_vorbis_decoder.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_vorbis_decoder PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 echo_add_unit_test(NAME test_core1_stream
     SOURCES device/test_core1_stream.c
     LIBRARIES echo_device_logic
@@ -608,6 +617,17 @@ if(ARM_GCC)
                 --tool $<TARGET_FILE:mp3_decode_tool>
         )
         set_tests_properties(core1_mp3_decodes_in_emulator PROPERTIES
+            FIXTURES_REQUIRED device_image
+            SKIP_RETURN_CODE 77
+            TIMEOUT 180
+        )
+        add_test(NAME core1_vorbis_decodes_in_emulator
+            COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
+                ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_core1_vorbis.py
+                --program ${PROJECT_SOURCE_DIR}/build/device/platform/device/core1_vorbis.bin
+                --tool $<TARGET_FILE:ogg_packet_tool>
+        )
+        set_tests_properties(core1_vorbis_decodes_in_emulator PROPERTIES
             FIXTURES_REQUIRED device_image
             SKIP_RETURN_CODE 77
             TIMEOUT 180

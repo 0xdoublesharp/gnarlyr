@@ -1,3 +1,5 @@
+include(tremor.cmake)
+
 set(ECHO_LIBMAD_DIR ${PROJECT_SOURCE_DIR}/third_party/libmad)
 set(FPM_64BIT ON)
 set(SIZEOF_INT 4)
@@ -71,6 +73,7 @@ add_library(echo_device_logic STATIC
     core1_open.c
     core1_mp3.c
     core1_stream.c
+    core1_vorbis.c
     dac_sequence.c
     debug_report.c
     flac_source.c
@@ -121,6 +124,8 @@ add_library(echo_device_logic STATIC
     usb_fallback.c
     usb_forced.c
     usb_plug.c
+    vorbis_decoder.c
+    vorbis_memory.c
     vop.c
     wav_source.c
 )
@@ -170,6 +175,6 @@ if(CMAKE_CROSSCOMPILING)
 endif()
 target_include_directories(echo_device_logic PUBLIC include)
 target_link_libraries(echo_device_logic
-    PUBLIC echo_core echo_hal echo_codec echo_libmad echo_faad
+    PUBLIC echo_core echo_hal echo_codec echo_libmad echo_faad echo_tremor
     PRIVATE echo_options
 )

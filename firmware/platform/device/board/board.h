@@ -61,7 +61,8 @@ const char *board_audio_last_path(void);
 typedef enum Core1Program {
     CORE1_PROGRAM_FLAC,
     CORE1_PROGRAM_MP3,
-    CORE1_PROGRAM_M4A
+    CORE1_PROGRAM_M4A,
+    CORE1_PROGRAM_VORBIS
 } Core1Program;
 
 bool board_core1_start_stream(Core1Program program);

@@ -111,6 +111,31 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     VERBATIM
 )
+add_executable(echo_core1_vorbis
+    core1/vorbis_main.c
+    core1/startup.c
+    board/libc.c
+)
+set(ECHO_CORE1_VORBIS_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1_vorbis.ld)
+set_target_properties(echo_core1_vorbis PROPERTIES
+    SUFFIX .elf
+    LINK_DEPENDS ${ECHO_CORE1_VORBIS_LINKER_SCRIPT}
+)
+target_include_directories(echo_core1_vorbis PRIVATE board)
+target_link_libraries(echo_core1_vorbis PRIVATE echo_device_logic echo_tremor echo_options gcc)
+target_link_options(echo_core1_vorbis PRIVATE
+    -fno-lto
+    -T${ECHO_CORE1_VORBIS_LINKER_SCRIPT}
+    -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_core1_vorbis.map
+)
+set(ECHO_CORE1_VORBIS_BINARY ${CMAKE_CURRENT_BINARY_DIR}/core1_vorbis.bin)
+add_custom_command(
+    OUTPUT ${ECHO_CORE1_VORBIS_BINARY}
+    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:echo_core1_vorbis> core1_vorbis.bin
+    DEPENDS echo_core1_vorbis
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    VERBATIM
+)
 set(ECHO_CORE1_BINARY ${CMAKE_CURRENT_BINARY_DIR}/core1.bin)
 add_custom_command(
     OUTPUT ${ECHO_CORE1_BINARY}
@@ -383,6 +408,7 @@ add_custom_target(echo_device_image ALL
         --core1-mp3 ${ECHO_CORE1_MP3_BINARY}
         --core1-flac ${ECHO_CORE1_BINARY}
         --core1-m4a ${ECHO_CORE1_M4A_BINARY}
+        --core1-vorbis ${ECHO_CORE1_VORBIS_BINARY}
         ${ECHO_GLYPH_FACE_ARGUMENTS}
         ${ECHO_LANGUAGE_PACK_ARGUMENTS}
         ${ECHO_MODULE_IMAGE_ARGUMENTS}
@@ -395,6 +421,7 @@ add_custom_target(echo_device_image ALL
         ${ECHO_CORE1_MP3_BINARY}
         ${ECHO_CORE1_BINARY}
         ${ECHO_CORE1_M4A_BINARY}
+        ${ECHO_CORE1_VORBIS_BINARY}
         ${ECHO_LANGUAGE_PACK_FILES}
         ${PROJECT_SOURCE_DIR}/tools/make_image.py
         ${PROJECT_SOURCE_DIR}/tools/identity.py

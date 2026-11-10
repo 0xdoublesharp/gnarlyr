@@ -5,6 +5,7 @@
 #include "device/core1_control.h"
 #include "device/core1_m4a.h"
 #include "device/core1_stream.h"
+#include "device/core1_vorbis.h"
 #include "device/mp3_probe.h"
 
 _Static_assert(CORE1_STREAM_SAMPLES +
@@ -54,4 +55,14 @@ static inline StreamRegion core1_region_mp3(void)
 static inline void *core1_mp3_tail(void)
 {
     return (void *)(uintptr_t)(CORE1_STREAM_RING + MP3_RING_BYTES);
+}
+
+_Static_assert(VORBIS_RING_BYTES + VORBIS_WORKSPACE_BYTES <= CORE1_STREAM_RING_BYTES,
+               "the Vorbis stream and workspace must fit the core 1 ring area");
+
+static inline StreamRegion core1_region_vorbis(void)
+{
+    StreamRegion region = core1_region();
+    region.ring_bytes = VORBIS_RING_BYTES;
+    return region;
 }

@@ -12,4 +12,4 @@ A core-1 ring adapter must retain every byte the reader can revisit until a call
 
 The native packet tests cover a real Vorbis fixture, maximum-size pages, zero-length packets, continued packets, final granules, truncated/corrupt input and exact retry after a failed read at every byte of a multi-page packet. `ogg_packet_tool INPUT OUTPUT` exports checked packets for decoder comparisons as little-endian length (4 bytes), first/last flags (4 bytes), granule (8 bytes), then payload. It is a host test utility.
 
-This packet reader does not decode Vorbis audio. Player playback still needs the decoder, bounded setup/scratch storage, seeking, trimming and format selection.
+This packet reader does not decode audio. A separate [bounded Vorbis decoder program](ogg-vorbis.md) is built and tested; player playback still needs its file adapter, seek controller and format selection.

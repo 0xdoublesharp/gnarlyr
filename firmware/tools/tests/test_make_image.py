@@ -815,6 +815,32 @@ class Core1ModuleTest(unittest.TestCase):
         with self.assertRaises(make_image.ImageError):
             build(core1_m4a=bytes(make_image.CORE1_M4A_CAPACITY + 1))
 
+    def test_the_vorbis_program_fits_between_mp3_and_flac_without_moving_them(self):
+        program = bytes(range(250)) * 9
+        image = build(core1_vorbis=program, core1_mp3=b"\x11" * 300,
+                      core1_flac=b"\x22" * 300, core1_m4a=b"\x33" * 300)
+        offset = make_image.CORE1_VORBIS_OFFSET
+        self.assertEqual(make_image.CORE1_MP3_OFFSET + make_image.CORE1_MODULE_HEADER_SIZE +
+                         make_image.CORE1_MODULE_CAPACITY, offset)
+        self.assertEqual(0, offset % 512)
+        self.assertEqual(b"EC1M", image[offset:offset + 4])
+        self.assertEqual(len(program), word(image, offset + 4))
+        self.assertEqual(make_image.crc32(program), word(image, offset + 8))
+        start = offset + make_image.CORE1_MODULE_HEADER_SIZE
+        self.assertEqual(program, image[start:start + len(program)])
+        for old in (make_image.CORE1_MP3_OFFSET, make_image.CORE1_FLAC_OFFSET,
+                    make_image.CORE1_M4A_OFFSET):
+            self.assertEqual(b"EC1M", image[old:old + 4])
+        self.assertEqual([], make_image.validate_image(image))
+
+    def test_vorbis_program_size_is_bounded_by_the_next_program(self):
+        build(core1_vorbis=bytes(make_image.CORE1_VORBIS_CAPACITY))
+        self.assertEqual(make_image.CORE1_FLAC_OFFSET,
+                         make_image.CORE1_VORBIS_OFFSET + make_image.CORE1_MODULE_HEADER_SIZE +
+                         make_image.CORE1_VORBIS_CAPACITY)
+        with self.assertRaises(make_image.ImageError):
+            build(core1_vorbis=bytes(make_image.CORE1_VORBIS_CAPACITY + 1))
+
     def test_no_program_leaves_the_space_empty(self):
         offset = make_image.CORE1_MP3_OFFSET
         self.assertEqual(bytes(16), build()[offset:offset + 16])
@@ -849,6 +875,8 @@ class GlyphFaceTest(unittest.TestCase):
                   make_image.CORE1_MODULE_CAPACITY),
                  (make_image.CORE1_FLAC_OFFSET, make_image.CORE1_FLAC_OFFSET + 512 +
                   make_image.CORE1_MODULE_CAPACITY),
+                 (make_image.CORE1_VORBIS_OFFSET, make_image.CORE1_VORBIS_OFFSET + 512 +
+                  make_image.CORE1_VORBIS_CAPACITY),
                  (make_image.CORE1_M4A_OFFSET, make_image.CORE1_M4A_OFFSET + 512 +
                   make_image.CORE1_M4A_CAPACITY),
                  (make_image.GLYPH_TABLE_OFFSET, make_image.GLYPH_TABLE_OFFSET + 512),
@@ -862,6 +890,10 @@ class GlyphFaceTest(unittest.TestCase):
         for start, size in placed:
             for low, high in taken:
                 self.assertTrue(start + size <= low or start >= high, (start, size, low, high))
+
+    def test_font_overflow_cannot_use_the_vorbis_program_bank(self):
+        with self.assertRaises(make_image.ImageError):
+            make_image.glyph_face_offsets([1_900_000, 1_500_000, 140_000, 100_000])
 
     def test_faces_too_big_for_the_image_are_refused(self):
         with self.assertRaises(make_image.ImageError):
