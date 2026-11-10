@@ -48,6 +48,15 @@ Field notes:
 - A playlist's links are track indices in playlist order. Its name is the file name without `.m3u` or `.m3u8`.
 - A folder's items are `links[first_link ..]`: first `subfolder_count` folder indices (sorted by name), then `track_count` track indices (sorted by disc, number, file name). The tracks are one per audio file: a file split by a CUE sheet is there once, as the sheet's first track (see CUE tracks).
 
+## Fingerprints
+
+Track, album and folder indices mean something only for the database they were read from. Files that store indices carry a fingerprint of that database and are ignored when it differs.
+
+- The layout fingerprint (`library_fingerprint`) is the FNV-1a hash of every section's offset and count, from the header alone. Two databases with the same counts and section sizes share it, for example after retagging a song with a title of the same length. `resume.bin`, `upnext.bin` and `favorite_added.bin` use it.
+- The content fingerprint (`library/library_content`) is the FNV-1a hash of the 128-byte header followed by every section's records, in section order: every byte that decides what an index means, including a folder's flags and the music counts. Padding between sections and the unused rest of the reserved file are left out, so the same database has the same fingerprint wherever it is stored. The stored track order and the session journal use it (`docs/playback-store.md`).
+
+The content fingerprint costs one pass over the database, so it is not part of `library_open`. `library_content_begin` and `library_content_step` compute it, at most 512 bytes and one read per step, and the result is kept in the `Library`: `library_content_fingerprint` reports it without reading, and reports nothing until the pass has finished, after a failed read, for a library that did not open, and again after `library_open` or a new pass. The in-memory extra playlist (`Library.extra`) is not part of it. `test_library_content` checks each of these.
+
 ## Chapters of an .m4b
 
 A `.m4b` file is scanned like `.m4a` (`library/tags_mp4`) and, when it has at least two usable chapters, becomes one track per chapter, the same way a CUE sheet does (`library/mp4_chapters`):

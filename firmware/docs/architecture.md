@@ -31,9 +31,9 @@ platform/sim        platform/device
 | fonts | `src/fonts` | gfx | Generated glyph tables (see Generated code) |
 | ui | `src/ui` | core, gfx | Screen interface and stack, navigation intents, list view, menus, choice screens, messages, toasts, header and status icons, labels, marquee, fades, Cover Flow layout and motion, theme type |
 | image | `src/image` | core | Cover decoding for the rescan: a bump arena, a buffered reader, the 112 px area-average grid, inflate, PNG and JPEG (see Covers on the device) |
-| library | `src/library` | core, image | Byte sources, a 4×512 B block cache, the library database reader, browse queries, the favorites set and the covers file reader (see `docs/library-format.md`) |
+| library | `src/library` | core, image | Byte sources, a 4×512 B block cache, the library database reader and its content fingerprint, browse queries, the favorites set and the covers file reader (see `docs/library-format.md`) |
 | codec | `src/codec` | core | FLAC decoding (up to 2 channels, 24 bits, 4,608-sample blocks) from a read callback, with header and frame CRC checks, and seeking by bisection on frame headers; ALAC decoding of one MP4 packet at a time (16, 20 and 24 bit, mono and stereo) into a caller-owned 32 KB state |
-| playback | `src/playback` | core, library | Play queue (list order, songs shuffle, album shuffle, repeat, gapless look-ahead) and the resume file format |
+| playback | `src/playback` | core, library | Play queue (list order, songs shuffle, album shuffle, repeat, gapless look-ahead, playing a stored order), the resume file format, and the storage of edited queues, the session journal and mixtapes (`docs/playback-store.md`) |
 | settings | `src/settings` | core, playback | The settings values, their defaults and option tables, and the settings file format |
 | hal | `src/hal` | core (types only) | Hardware interfaces: display (with power and brightness), input, clock, files, audio (with gain and output), power (battery, power off), system (firmware tag, CPU clock), Bluetooth (module power, scan, pair, disconnect, status) |
 | app | `src/app` | core, gfx, fonts, ui, library, playback, settings, hal | Default and board themes, board layout (see Boards), screen tree, library, settings and favorites stores, cover cache, player controller, browse, Cover Flow, Settings and Now Playing screens, frame overlay, the main step |
@@ -146,6 +146,7 @@ The CMake targets enforce these rules. Each module exposes only its own `include
 - Known gap: the engine decodes up to a ring (8,192 frames) ahead, and queueing the track after the next one only happens once the next one has started. A seek inside a track during the last ring of audio before a hand-over drops the queued track, which stops playback at the end of the track (as it does for whole-file tracks).
 - Shuffle is seeded (`core/random`). The resume file (`/.doublesharp/resume.bin`, `playback/resume_state`) stores the queue plan (source list, anchor track, shuffle mode, seed), the cursor, the track and the position, so the exact same queue is rebuilt after power-off. A library fingerprint rejects resume files from an older index.
 - The player saves on start, on track change, on pause, every 15 s while playing, and in `app_stop()`.
+- `playback` also has the storage for a queue edited entry by entry (`docs/stored-order.md`), a session journal that publishes the resume state, the songs queued by hand and that queue together (`docs/session-journal.md`), and saved mixtapes (`docs/mixtapes.md`), all on the block format of `docs/playback-store.md` and bound to the library's content fingerprint. The player does not use them: it writes `resume.bin` and `upnext.bin`, and of this code only the part of `play_queue` that reads a stored order is linked into the image.
 
 ## Equalizer
 

@@ -21,7 +21,7 @@ Names that follow from it: the update file `DBLSHARP.IMG`, the data folder `/.do
 | `platform/device/core1` | Decoder programs for the second core, stored in the core 0 image |
 | `tools/` | Python: image builder (`make_image.py`), size report (`size_report.py`), emulator (`echo_emulator`), PC library indexer, `echo_sync.py`, font and fixture generators |
 | `tests/` | One test executable per module, emulator scenarios, fixtures |
-| `docs/` | The design record: `architecture.md` (layers, rules, device platform), `hardware.md`, `library-format.md`, `device-install.md`, `device-recovery.md`, `known-issues.md`, `user-guide.md`, `release-notes.md` |
+| `docs/` | The design record: `architecture.md` (layers, rules, device platform), `hardware.md`, `library-format.md`, `playback-store.md` with `stored-order.md`, `session-journal.md` and `mixtapes.md`, `device-install.md`, `device-recovery.md`, `known-issues.md`, `user-guide.md`, `release-notes.md` |
 
 The layer table in `docs/architecture.md` defines which layer may depend on which; keep to it.
 
@@ -57,12 +57,12 @@ python3 tools/firmware.py sim --card /path/to/music
 
 ## Code space
 
-`tools/size_report.py` prints used and free bytes against each limit after every image build, reading the limits from the linker maps; the linker scripts enforce them. It fails the image build when a library object keeps variables in both the main program and the USB overlay. The `echo_size_report` build target prints the full report (bytes per object, per library, biggest functions and tables). Release build with the DAC rows:
+`tools/size_report.py` prints used and free bytes against each limit after every image build, reading the limits from the linker maps; the linker scripts enforce them. It fails the image build when a library object keeps variables in both the main program and the USB overlay. The `echo_size_report` build target prints the full report (bytes per object, per library, biggest functions and tables). Release build with the DAC rows and the stored-order hooks in the play queue:
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 138,776 | 157,292 | 18,516 |
-| Static RAM | 264,152 | 287,296 | 23,144 |
+| Code window | 139,008 | 157,292 | 18,284 |
+| Static RAM | 264,168 | 287,296 | 23,128 |
 | Rescan overlay | 88,404 | 98,304 | 9,900 |
 | USB overlay code | 13,424 | 65,536 | 52,112 |
 
