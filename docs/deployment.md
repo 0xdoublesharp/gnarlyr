@@ -95,6 +95,20 @@ scope (six-hour schedule); source also stays on backed-up Data locally.
 No application database backup is needed. Use the platform recovery procedure
 for a host restore; an isolated restore rehearsal is not part of this release.
 
+## UX publication — 2026-11-10
+
+Site source: `291b2fd`. Published release:
+`f8fbae026150e4fac7d2fee9ece4ee0179b25f2930e3fccf55a718e246d9c9c3`.
+The previous release remains available for rollback:
+`517105ded8e9ae2845a039dfb281fb27c326f8511c679188effa1de412d295b8`.
+
+The validation URL serves all four public files byte-for-byte against local
+source. Health returns 200; README, deployment configuration and unknown paths
+return 404. Direct-origin TLS verification passes, the service is healthy, and
+live keyboard copying reports success. Publication changed only the content
+pointer; nginx was not restarted. The [UX pass](gnarlyr-ux.md) records the
+six-round design comparison.
+
 ## Initial release
 
 Content release: `1684a6fa06bf98f4efb1acd6a01e3f46bf2f5a2a6693f542551a907106d4aa67`.
