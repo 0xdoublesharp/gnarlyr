@@ -18,7 +18,7 @@ enum {
     SETTINGS_ORIENTATION_INDEX = 10,
     SETTINGS_LANGUAGE_INDEX = 11,
     SETTINGS_DEPTH = 2,
-    MUSIC_ALL_SONGS_INDEX = 6
+    MUSIC_ALL_SONGS_INDEX = 7
 };
 
 static uint8_t english[TEST_PACK_CAPACITY];
@@ -252,6 +252,7 @@ static void changing_the_language_keeps_the_music_playing(void)
     tap(KEY_PLAY);
     move_down(MUSIC_ALL_SONGS_INDEX);
     tap(KEY_PLAY);
+    CHECK(title_is("All Songs"));
     tap(KEY_PLAY);
     CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
     int plays = fake_hal_audio_play_count();

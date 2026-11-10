@@ -11,6 +11,10 @@
 #include "settings/settings.h"
 #include "settings_store.h"
 
+enum {
+    MUSIC_ALBUMS_INDEX = 4
+};
+
 static uint32_t now_ms;
 
 static void step(void)
@@ -77,10 +81,11 @@ static void start_with(Settings chosen)
     app_start();
     wait_ms(1200);
     tap(KEY_PLAY);
-    for (int row = 0; row < 3; row++) {
+    for (int row = 0; row < MUSIC_ALBUMS_INDEX; row++) {
         tap(KEY_VOLUME_UP);
     }
     tap(KEY_PLAY);
+    CHECK(strcmp(app_screen_title(), "Albums") == 0);
     tap(KEY_PLAY);
     tap(KEY_PLAY);
     wait_ms(400);

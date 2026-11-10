@@ -8,7 +8,7 @@ FreshBase starts from Podium 4.5.9 ([`../UPSTREAM.md`](../UPSTREAM.md)). For eve
 - Navigation returns to existing screen checkpoints. Mixtape actions settle at List, modal Back returns to its parent, and hold Back cancels work and reaches Home. Slides use gentle ease-in/ease-out.
 - Native Listen and USB/charging layouts have clearer hierarchy and real state. USB power is separate from charging or full; unreliable USB-powered voltage is omitted.
 - Browsing themes and EQ presets previews them without saving. Custom EQ has a response curve and staged audible editing; leaving a preview restores the saved sound, volume and routing remain unchanged.
-- See [library discovery](library-discovery.md) and the [user guide](user-guide.md). These source changes await the final combined checks and their own device installation.
+- See [library discovery](library-discovery.md) and the [user guide](user-guide.md). Device installation and hardware checks are tracked in [known issues](known-issues.md).
 
 ## FreshBase 1.0.0 (unreleased)
 
