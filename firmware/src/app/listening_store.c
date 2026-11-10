@@ -121,7 +121,7 @@ static void begin(ListeningStore *store, ListeningObservation observation, uint3
 {
     const PlayerStatus *status = &observation.status;
     ListeningTrack track;
-    if (!status->has_track || store->library == NULL ||
+    if (!status->has_track || status->state == PLAYER_IDLE || store->library == NULL ||
         listening_track_read(store->library, status->track, &track) != STORE_READY) {
         return;
     }
@@ -140,7 +140,8 @@ static void begin(ListeningStore *store, ListeningObservation observation, uint3
 
 static bool same_play(ListeningObservation first, ListeningObservation second)
 {
-    return first.status.has_track && second.status.has_track && first.token == second.token &&
+    return first.status.has_track && second.status.has_track &&
+           second.status.state != PLAYER_IDLE && first.token == second.token &&
            first.status.track == second.status.track;
 }
 
@@ -159,7 +160,7 @@ static uint32_t elapsed_audio(const ListeningStore *store, ListeningObservation 
     }
     uint32_t length = store->previous.status.duration_ms;
     uint32_t left = length > before ? length - before : 0;
-    return left != 0 && left < elapsed ? left : elapsed;
+    return length != 0 && left < elapsed ? left : elapsed;
 }
 
 static ListeningEnd changed_end(const ListeningStore *store)
@@ -193,8 +194,10 @@ void listening_store_follow(ListeningStore *store, ListeningObservation observat
         if (!same) {
             ListeningEnd end = changed_end(store);
             finish(store,
-                   !observation.status.has_track && end == LISTENING_SKIPPED ? LISTENING_STOPPED
-                                                                             : end,
+                   (!observation.status.has_track || observation.status.state == PLAYER_IDLE) &&
+                           end == LISTENING_SKIPPED
+                       ? LISTENING_STOPPED
+                       : end,
                    now_ms);
         }
     }
