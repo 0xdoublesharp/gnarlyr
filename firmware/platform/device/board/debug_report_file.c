@@ -61,7 +61,7 @@ static DebugReportPower power_now(bool charging)
                               .gauge_readings = gauge.count,
                               .gauge_millivolts = millivolts,
                               .percent_plain = battery_percent_for(millivolts),
-                              .percent_gauge = battery_gauge_percent(&gauge, charging),
+                              .percent_gauge = battery_gauge_percent(&gauge, charging && !pin.high),
                               .shown_known = shown.shown_known,
                               .percent_shown = shown.shown,
                               .history = board_debug_power_history()};
