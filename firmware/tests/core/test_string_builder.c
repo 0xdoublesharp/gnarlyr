@@ -39,6 +39,25 @@ static void overflow_keeps_the_longest_prefix_that_fits(void)
     CHECK(builder.overflowed);
 }
 
+static void overflow_never_leaves_part_of_a_character(void)
+{
+    char buffer[SMALL];
+    StringBuilder builder = string_builder_make(buffer, sizeof buffer);
+    string_builder_append(&builder, "abcd\xC3\xA9z");
+    CHECK(strcmp("abcd", buffer) == 0);
+    CHECK_EQUAL(4, builder.length);
+    CHECK(builder.overflowed);
+    builder = string_builder_make(buffer, sizeof buffer);
+    string_builder_append(&builder, "abc\xC3\xA9z");
+    CHECK(strcmp("abc\xC3\xA9", buffer) == 0);
+    builder = string_builder_make(buffer, sizeof buffer);
+    string_builder_append(&builder, "ab\xE2\x80\xA6z");
+    CHECK(strcmp("ab\xE2\x80\xA6", buffer) == 0);
+    builder = string_builder_make(buffer, sizeof buffer);
+    string_builder_append(&builder, "abc\xE2\x80\xA6");
+    CHECK(strcmp("abc", buffer) == 0);
+}
+
 static void a_number_that_does_not_fit_is_cut_like_text(void)
 {
     char buffer[SMALL];
@@ -63,6 +82,7 @@ int main(void)
         TEST_CASE(appended_text_is_terminated),
         TEST_CASE(unsigned_values_are_written_in_decimal),
         TEST_CASE(overflow_keeps_the_longest_prefix_that_fits),
+        TEST_CASE(overflow_never_leaves_part_of_a_character),
         TEST_CASE(a_number_that_does_not_fit_is_cut_like_text),
         TEST_CASE(a_fresh_builder_holds_an_empty_string),
     };

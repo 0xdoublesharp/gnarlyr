@@ -50,7 +50,7 @@ DacPart dac_identity_part(const DacIdentity *identity)
     return DAC_PART_UNKNOWN;
 }
 
-static const char *words_for(const DacIdentity *identity)
+const char *dac_identity_words(const DacIdentity *identity)
 {
     if (identity->source == DAC_IDENTITY_SIMULATED) {
         return i18n_text(STR_ABOUT_SIMULATED);
@@ -75,7 +75,7 @@ static void append_byte(StringBuilder *builder, const DacIdentity *identity, int
 void dac_identity_text(const DacIdentity *identity, char *text, size_t capacity)
 {
     StringBuilder builder = string_builder_make(text, capacity);
-    const char *words = words_for(identity);
+    const char *words = dac_identity_words(identity);
     if (words != NULL) {
         string_builder_append(&builder, words);
         return;

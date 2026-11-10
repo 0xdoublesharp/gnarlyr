@@ -71,6 +71,10 @@ static char dac_text[DAC_IDENTITY_CHIPS][DAC_IDENTITY_TEXT_CAPACITY];
 static const char *dac_row(int chip)
 {
     DacIdentity identity = hal_audio_dac_identity(chip);
+    const char *words = dac_identity_words(&identity);
+    if (words != NULL) {
+        return words;
+    }
     dac_identity_text(&identity, dac_text[chip], sizeof dac_text[chip]);
     return dac_text[chip];
 }

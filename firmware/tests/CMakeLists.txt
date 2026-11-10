@@ -159,6 +159,14 @@ echo_add_unit_test(NAME test_app_language
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 
+echo_add_unit_test(NAME test_pseudo_language
+    SOURCES app/test_pseudo_language.c app/fake_hal.c support/text_spy.c
+    LIBRARIES echo_app echo_library_fixtures echo_test_pack
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
+)
+target_compile_definitions(test_pseudo_language PRIVATE ECHO_PSEUDO_PACK="${ECHO_PSEUDO_PACK}")
+add_dependencies(test_pseudo_language echo_test_language_packs)
+
 echo_add_unit_test(NAME test_english_layout
     SOURCES app/test_english_layout.c
     LIBRARIES echo_app
@@ -445,6 +453,9 @@ endif()
 
 add_test(NAME no_comments
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_no_comments.py ${PROJECT_SOURCE_DIR}
+)
+add_test(NAME no_text_literals
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_literals.py ${PROJECT_SOURCE_DIR}
 )
 
 find_program(CLANG_FORMAT clang-format)

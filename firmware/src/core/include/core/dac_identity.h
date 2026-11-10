@@ -32,4 +32,5 @@ typedef struct DacIdentity {
 } DacIdentity;
 
 DacPart dac_identity_part(const DacIdentity *identity);
+const char *dac_identity_words(const DacIdentity *identity);
 void dac_identity_text(const DacIdentity *identity, char *text, size_t capacity);

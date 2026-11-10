@@ -8,7 +8,8 @@
 const char SPOKEN_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/bookmarks.bin";
 
 enum {
-    TIME_CAPACITY = 16
+    TIME_CAPACITY = 16,
+    DETAIL_CAPACITY = 48
 };
 
 static bool track_path(const Library *library, uint16_t track, LibraryTrack *record, char *path)
@@ -250,7 +251,7 @@ static bool describe_track(const SpokenStore *store, SpokenRow row, StringBuilde
 
 bool spoken_store_describe(const SpokenStore *store, SpokenRow row)
 {
-    char detail[TIME_CAPACITY * 2];
+    char detail[DETAIL_CAPACITY];
     StringBuilder builder = string_builder_make(detail, sizeof detail);
     bool described = row.item.kind == BROWSE_ITEM_FOLDER  ? describe_folder(store, row, &builder)
                      : row.item.kind == BROWSE_ITEM_TRACK ? describe_track(store, row, &builder)

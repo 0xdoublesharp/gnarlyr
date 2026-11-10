@@ -19,7 +19,7 @@ enum {
     HINT_BOTTOM = 10,
     HINT_HEIGHT = 16,
     FULL_PERCENT = 100,
-    TEXT_CAPACITY = 24
+    TEXT_CAPACITY = 48
 };
 
 static void draw_outline(Canvas *canvas, Rect body, Color color)
