@@ -208,6 +208,7 @@ void board_main(void)
 {
     board_start_record_boot();
     board_debug_boot();
+    usb_start_idle();
     board_loader_flag_clear();
     board_power_hold();
     board_power_pair_set(true);
