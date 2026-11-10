@@ -92,7 +92,13 @@
     .prep-list li + li { margin-top: 8px; }
     .prep-list li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 8px; height: 8px; border: 1.5px solid var(--mint); border-radius: 50%; }
     .prep details { margin-top: 18px; border-top: 1px solid var(--line); }
-    .prep .answer { padding-right: 0; padding-bottom: 18px; font-size: 14px; }
+    .prep .answer { padding-right: 0; padding-bottom: 18px; font-size: 14px; line-height: 1.7; }
+    .env-list { margin: 10px 0 0; }
+    .env-list div { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; }
+    .env-list div + div { margin-top: 6px; }
+    .env-list dt { color: var(--paper); }
+    .env-list dd { margin: 0; }
+    .env-list + p { margin-top: 12px; }
     .terminal { min-width: 0; border: 1px solid #a184ad; box-shadow: 7px 7px 0 #402b4d; background: #130f1e; }
     .terminal-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px 18px; border-bottom: 1px solid #5e476b; background: #34243e; color: #e6d5ed; font: 11px/1.5 var(--mono); letter-spacing: .8px; }
     .terminal-body { padding: 20px 23px 22px; }
@@ -123,7 +129,10 @@
     .install-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 38px; margin-top: 28px; }
     .install-modes > div { padding-top: 18px; border-top: 1px solid var(--line); }
     .install-modes h3 { color: var(--mint); font-size: 16px; }
-    .install-modes p { color: var(--muted); font-size: 15px; }
+    .sequence { margin: 10px 0 0; padding: 0; list-style: none; counter-reset: seq; color: var(--muted); font-size: 15px; line-height: 1.6; }
+    .sequence li { position: relative; padding-left: 30px; counter-increment: seq; }
+    .sequence li + li { margin-top: 7px; }
+    .sequence li::before { content: counter(seq); position: absolute; left: 0; top: .2em; width: 19px; height: 19px; border: 1px solid #8b6d91; border-radius: 50%; color: var(--pink); font: 11px/17px var(--mono); text-align: center; }
     .recovery { border-top: 1px solid var(--line); }
     .recovery-inner { display: grid; grid-template-columns: .9fr 1.1fr; gap: 68px; }
     .recovery-copy { max-width: 65ch; color: var(--muted); font-size: 15px; }
@@ -135,7 +144,7 @@
     .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 38px; list-style: none; padding: 0; margin: 0; counter-reset: steps; }
     .steps li { counter-increment: steps; border-top: 1px solid var(--line); padding-top: 20px; }
     .steps li::before { content: "0" counter(steps) " /"; display: block; margin-bottom: 12px; color: var(--pink); font: 12px/1.4 var(--mono); }
-    .steps p { font-size: 15px; color: var(--muted); line-height: 1.8; }
+    .steps p { font-size: 15px; color: var(--muted); line-height: 1.7; }
     .faq { margin-top: 38px; border-top: 1px solid var(--line); }
     details { border-bottom: 1px solid var(--line); }
     summary { position: relative; min-height: 48px; padding: 18px 35px 18px 0; list-style: none; cursor: pointer; font-size: 15px; font-weight: 600; }
@@ -153,9 +162,6 @@
     .footer-links { display: flex; flex-wrap: wrap; gap: 8px 17px; }
     .footer-links a { display: inline-block; padding-block: 12px; line-height: 20px; }
     footer p { margin-top: 12px; max-width: 760px; }
-    @media (min-width: 1001px) {
-      .prep code.path { white-space: nowrap; }
-    }
     @media (min-width: 1001px) and (min-height: 700px) {
       .build-col { position: sticky; top: 24px; }
     }
@@ -222,6 +228,11 @@
       .feature { padding-block: 22px; }
       .feature h3 { font-size: 18px; }
       .feature p { font-size: 16px; }
+      .terminal-body { padding-inline: 12px; }
+      .verify-copy { padding-inline: 12px; }
+      .terminal pre, .verify-copy pre { max-width: none; margin-inline: -12px; padding: 10px 6px 10px 12px; border-left: 0; }
+      .cmd { padding-left: 3ch; text-indent: -3ch; }
+      .env-list div { display: block; }
     }
     @media (max-width: 370px) {
       .wrap { width: calc(100% - 32px); }
@@ -351,19 +362,23 @@
         <div class="get-copy">
           <p class="eyebrow">Build from source</p>
           <h2 id="get-title">Make it Gnarlyr.</h2>
-          <p>Start in your SnowskyEcho source checkout. Prepare your tools, build the image, and record its checksum before installing over USB.</p>
+          <p>Build the image in your SnowskyEcho checkout, then record its <span class="nowrap">SHA-256</span> for the install check.</p>
           <div class="prep">
             <h3 class="task-heading"><svg class="task-icon" aria-hidden="true"><use href="#icon-checklist"/></svg>You’ll need</h3>
             <ul class="prep-list">
               <li>Python 3.14 and the packages in <code class="path">firmware/<wbr>tools/<wbr><span class="nb">requirements.txt</span></code></li>
               <li>CMake, Clang/clang-format, SDL2, FFmpeg, and an Arm GNU cross-compiler</li>
-              <li>A mounted Scratch volume at <code>/Volumes/Scratch</code> for build output</li>
+              <li>Scratch mounted at <code>/Volumes/Scratch</code> for build output</li>
             </ul>
             <details id="build-help">
               <summary>Set up your build environment</summary>
               <div class="answer">
-                <p>Create your Python virtual environment on Scratch, and set <code>ECHO_VENV</code> to its folder. Set <code>ECHO_ARM_BIN</code> to the toolchain folder containing <code class="nb">arm-none-eabi-gcc</code>.</p>
-                <p>Full setup instructions are in <code class="path">docs/<wbr><span class="nb">building-firmware.md</span></code> in your SnowskyEcho checkout.</p>
+                <p>Create your Python environment on Scratch, then set:</p>
+                <dl class="env-list">
+                  <div><dt><code>ECHO_VENV</code></dt><dd>Your Python virtual environment folder on Scratch</dd></div>
+                  <div><dt><code>ECHO_ARM_BIN</code></dt><dd>The toolchain folder containing <code class="nb">arm-none-eabi-gcc</code></dd></div>
+                </dl>
+                <p>Full setup: <code class="path">docs/<wbr><span class="nb">building-firmware.md</span></code> in your checkout.</p>
               </div>
             </details>
           </div>
@@ -395,19 +410,19 @@
       <div class="section-head"><div><p class="eyebrow">Installation</p><h2 id="install-title">Build. Copy. Eject. Enjoy.</h2></div></div>
       <p class="before"><strong>Before you start:</strong> back up your files, charge the ECHO, and turn the volume down. Keep the <a href="#recovery">stock recovery instructions</a> handy.</p>
       <ol class="steps">
-        <li><h3 class="task-heading"><svg class="task-icon" aria-hidden="true"><use href="#icon-build"/></svg>Build the image</h3><p>Create <code>ECHOV455.IMG</code> with the commands above. Record its <span class="nowrap">SHA-256</span> to check the copy on your player.</p></li>
-        <li><h3 class="task-heading"><svg class="task-icon" aria-hidden="true"><use href="#icon-usb"/></svg>Copy and verify</h3><p>USB shows internal storage and, with a card inserted, a microSD drive. Copy the image to the top level of internal storage as its only update file. <a href="#verify-copy">Check the copied image</a> before ejecting.</p></li>
-        <li><h3 class="task-heading"><svg class="task-icon" aria-hidden="true"><use href="#icon-eject"/></svg>Eject the drives</h3><p>After verifying the copy, use Eject or Safely Remove for every mounted ECHO drive. Finish with the instructions for your install type below.</p></li>
+        <li><h3 class="task-heading"><svg class="task-icon" aria-hidden="true"><use href="#icon-build"/></svg>Build the image</h3><p>Run the commands above to create <code>ECHOV455.IMG</code> and record its <span class="nowrap">SHA-256</span>.</p></li>
+        <li><h3 class="task-heading"><svg class="task-icon" aria-hidden="true"><use href="#icon-usb"/></svg>Copy and verify</h3><p>USB shows internal storage, plus a microSD drive when a card is inserted. Copy the image to the top level of internal storage as its only update file, then <a href="#verify-copy">check the copy</a>.</p></li>
+        <li><h3 class="task-heading"><svg class="task-icon" aria-hidden="true"><use href="#icon-eject"/></svg>Eject the drives</h3><p>Use Eject or Safely Remove on every mounted ECHO drive, then finish below for your install type.</p></li>
       </ol>
       <div class="verify-copy" id="verify-copy" role="group" aria-labelledby="verify-command-title">
         <div class="command-header"><h3 class="task-heading" id="verify-command-title"><svg class="task-icon" aria-hidden="true"><use href="#icon-check"/></svg>Check the copy · macOS</h3><button class="copy-button" type="button" data-copy="verify-command" aria-label="Copy verification command"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M13 5V3H3v10h2"/></svg><span>Copy</span></button></div>
-        <p>Replace <code>YOUR_ECHO</code> with the name of the internal drive. The result should match the <span class="nowrap">SHA-256</span> recorded after your build.</p>
+        <p>Use your internal drive’s name for <code>YOUR_ECHO</code>. The result should match your build’s <span class="nowrap">SHA-256</span>.</p>
         <pre><code id="verify-command"><span class="cmd">shasum <span class="nb">-a</span> 256 "/Volumes/<wbr>YOUR_ECHO/<wbr>ECHOV455.IMG"</span></code></pre>
         <p class="copy-status" id="verify-command-status" role="status" aria-live="polite"></p>
       </div>
       <div class="install-modes">
-        <div><h3>First install from stock</h3><p>After ejecting, unplug USB. The player installs the image and restarts. Let its first music and artwork scan finish before listening.</p></div>
-        <div><h3>Updating Gnarlyr</h3><p>After ejecting, wait for “Update installed.” Unplug USB, then hold Power to switch off and turn the player back on.</p></div>
+        <div><h3>First install from stock</h3><ol class="sequence"><li>Unplug USB after ejecting.</li><li>The player installs the image and restarts.</li><li>Let its first music and artwork scan finish before listening.</li></ol></div>
+        <div><h3>Updating Gnarlyr</h3><ol class="sequence"><li>After ejecting, wait for “Update installed.”</li><li>Unplug USB.</li><li>Hold Power to switch off, then turn the player back on.</li></ol></div>
       </div>
 
       <div class="faq">
@@ -419,9 +434,9 @@
         <div><p class="eyebrow">Recovery</p><h2 id="recovery-title">Back to stock.</h2><a class="text-link" href="#install">Back to installation <span aria-hidden="true">↑</span></a></div>
         <div class="recovery-copy">
           <h3>Restore the official firmware</h3>
-          <p>Use your saved official full-size ECHO <code>ECHOV200.IMG</code>. Copy it to internal storage as the only update file at the drive root. Eject every ECHO drive, wait for “Update installed,” then unplug and restart.</p>
+          <p>Copy your saved official full-size ECHO <code>ECHOV200.IMG</code> to the top level of internal storage as its only update file. Eject every ECHO drive, wait for “Update installed,” then unplug and restart.</p>
           <h3>Recover through maskrom</h3>
-          <p>The guide <code class="path">firmware/<wbr>docs/<wbr><span class="nb">device-recovery.md</span></code> in your SnowskyEcho checkout covers the full-size ECHO’s <code>2207:262d</code> USB identity, connection checks, and stock restore with the patched <code>rkdeveloptool</code>. Keep it with your stock image and a data USB cable.</p>
+          <p>Follow <code class="path">firmware/<wbr>docs/<wbr><span class="nb">device-recovery.md</span></code> in your SnowskyEcho checkout. It covers the full-size ECHO’s <code>2207:262d</code> USB identity, connection checks, and stock restore with the patched <code>rkdeveloptool</code>. Keep it with your stock image and a data USB cable.</p>
         </div>
       </div>
     </section>
