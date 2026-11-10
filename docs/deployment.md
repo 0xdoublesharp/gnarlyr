@@ -99,6 +99,25 @@ scope (six-hour schedule); source also stays on backed-up Data locally.
 No application database backup is needed. Use the platform recovery procedure
 for a host restore; an isolated restore rehearsal is not part of this release.
 
+## Feature refresh and editorial pass — 2026-11-10
+
+Published release:
+`bbb8c41c4c4df48779faf86722e66b4b8fde83406e18523ecff7302dda8eda30`.
+Rollback: `32fd364a86a506703d2cba7d3cee0d6456fe38ecf4c860ede3c14811ae4064ae`.
+Firmware content follows the active `gnarlyr` branch through `e8ce027a`.
+Features cover listening endpoint/idle transitions, failed history and lyrics
+reads, index-publication storage errors and deferred-search cancellation.
+Developers documents the Ogg packet reader and bounded Vorbis decoder as
+integration components, separate from the supported player formats.
+
+All five public pages received an editorial and meaning pass. The fixes list
+is grouped by task; hardware and installation explanations are shorter and
+terminology is consistent. Commands, checksums, quantities and update order
+are preserved. Static structure/link checks and five standalone desktop/mobile
+renders pass. All ten files match origin bytes over TLS for `gnarlyr.com`;
+public content matches after removing only Cloudflare's injected beacon.
+Health is 200, private/unknown paths are 404, and nginx was not restarted.
+
 ## Firmware feature refresh — 2026-11-10
 
 Published release:

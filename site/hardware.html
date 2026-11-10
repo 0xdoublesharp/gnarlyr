@@ -23,7 +23,7 @@
 </p>
 <h1 class="page-title">Meet the hardware.
 </h1>
-<p>The ECHO is a small computer with separate parts for music, sound, storage and wireless audio. Start with the everyday specifications, then look closer at the parts doing the work.
+<p>See the ECHO’s everyday specifications, then explore the chips and circuits behind its screen, sound, storage and connections.
 </p></div><div class="doc-layout wrap">
 <nav class="contents" aria-label="On this page">
 <p class="eyebrow">On this page
@@ -44,9 +44,9 @@
 </ol>
 </nav><div>
 <section class="doc-section" id="specs" aria-labelledby="specs-title">
-<h2 id="specs-title">The numbers you use day to day.
+<h2 id="specs-title">ECHO specifications.
 </h2>
-<p class="intro">The full-size ECHO combines internal storage, a microSD slot and two headphone outputs. These are FiiO’s published specifications.
+<p class="intro">The full-size ECHO has internal storage, a microSD slot and two headphone outputs. The ratings below are published by FiiO.
 </p>
 <table class="data-table">
 <caption>Manufacturer specifications: <a href="https://www.fiio.com/echo_parameters">FiiO ECHO parameters ↗</a>
@@ -58,7 +58,7 @@
 </tr>
 <tr><th scope="row">microSD</th><td>Up to 256 GB, per FiiO</td>
 </tr>
-<tr><th scope="row">Battery</th><td>1100 mAh · FiiO’s stock-firmware rating is up to 14 hours at a quiet listening level (FiiO’s 40 mV test level)</td>
+<tr><th scope="row">Battery</th><td>1100 mAh · up to 14 hours in FiiO’s stock-firmware test at 40 mV output</td>
 </tr>
 <tr><th scope="row">Size and weight</th><td>85 × 55.5 × 14.3 mm · 85 g</td>
 </tr>
@@ -78,13 +78,13 @@
 </p>
 </section>
 <section class="doc-section" id="chips" aria-labelledby="chips-title">
-<h2 id="chips-title">Two jobs: run the player, make the sound.
+<h2 id="chips-title">From music file to headphone signal.
 </h2>
-<p class="intro">The processor reads music files and runs the menus. A DAC, short for digital-to-analog converter, turns decoded audio samples into the electrical signal used by the headphone output.
+<p class="intro">The processor reads files and runs the menus. A digital-to-analog converter, or DAC, turns decoded samples into the electrical signal used by the headphone output.
 </p>
 <table class="data-table">
 <tbody>
-<tr><th scope="row">Processor platform</th><td>Rockchip RKnano, with two ARM Cortex-M3 cores. The firmware uses one for the player and one for a decoder loaded when needed.</td>
+<tr><th scope="row">Processor platform</th><td>Rockchip RKnano with two ARM Cortex-M3 cores: one runs the player; the other runs a decoder loaded when needed.</td>
 </tr>
 <tr><th scope="row">Audio chip A</th><td>CS43198 · bus address <code>0x30</code> (7-bit)</td>
 </tr>
@@ -92,63 +92,63 @@
 </tr>
 <tr><th scope="row">Chip identification · 4 GB unit</th><td>ID <code>43 19 80</code> · revision <code>A1</code> · subrevision <code>06</code></td>
 </tr>
-<tr><th scope="row">Audio transport</th><td>I2S carries samples to the DACs; DMA moves audio from memory without the main loop copying every sample.</td>
+<tr><th scope="row">Audio transport</th><td>I2S carries audio samples to the DACs. DMA transfers samples from memory without making the main loop copy each one.</td>
 </tr>
-<tr><th scope="row">EQ</th><td>Calculated in software on the main processor. The CS43198’s digital filters and gain controls are separate from the software EQ.</td>
+<tr><th scope="row">EQ</th><td>Software EQ runs on the main processor. The CS43198’s own digital filters and gain controls are separate.</td>
 </tr>
 </tbody>
 </table>
-<p>The ECHO uses two <a href="https://www.cirrus.com/products/cs43198">Cirrus Logic CS43198 DACs</a>, as listed in <a href="https://www.fiio.com/echo_parameters">FiiO’s specifications</a>. Together, they convert digital audio into the signal sent to the headphone outputs.
+<p>Read the <a href="https://www.cirrus.com/products/cs43198">Cirrus Logic CS43198 documentation</a> for chip details, or <a href="https://www.fiio.com/echo_parameters">FiiO’s specifications</a> for player ratings.
 </p>
 <details>
 <summary>How the chip identification was read
 </summary><div class="answer">
 <p>Read-only registers <code>0x010000</code>, <code>0x010001</code> and <code>0x010002</code> supplied the ID. Registers <code>0x010004</code> and <code>0x010005</code> supplied revision and subrevision. The driver’s wire-format addresses <code>0x60</code> and <code>0x66</code> correspond to 7-bit addresses <code>0x30</code> and <code>0x33</code>.
 </p>
-<p>A 4 GB ECHO returned <code>431980 A1.06</code> from both chips. A1.06 is the hardware revision; the installed Gnarlyr version is shown separately in About.
+<p>Both chips on a 4 GB ECHO returned <code>431980 A1.06</code>. A1.06 identifies their hardware revision.
 </p></div>
 </details>
 </section>
 <section class="doc-section" id="display" aria-labelledby="display-title">
-<h2 id="display-title">The screen keeps its own picture.
+<h2 id="display-title">Screen, backlight and buttons.
 </h2>
-<p class="intro">The display has its own image memory. The processor sends the parts that changed, which helps the interface work within the ECHO’s small memory budget.
+<p class="intro">The display stores its own picture. The processor sends changed areas, helping the interface fit within the ECHO’s memory budget.
 </p>
 <ul class="detail-list">
 <li><strong>Display protocol.</strong> The driver uses an ST7796S-style command set and 16-bit RGB565 pixel transfers. Its startup sequence matches the stock firmware’s 24 display-initialization commands and their data.
 </li>
 <li><strong>Landscape and portrait.</strong> Stock’s landscape window has a 49-row offset. Portrait changes the orientation bits and applies that offset to the other axis.
 </li>
-<li><strong>Backlight.</strong> Brightness is controlled by rapidly switching the backlight on and off: a 25 kHz PWM signal on GPIO2.4.
+<li><strong>Backlight.</strong> A 25 kHz PWM signal on GPIO2.4 controls brightness by rapidly switching the backlight on and off.
 </li>
-<li><strong>Buttons.</strong> Volume, Play, Menu and Back share a sensing line, called a resistor ladder, read by a voltage-measuring input (ADC). Power has its own input. The player recognizes those shared buttons by their different electrical readings.
+<li><strong>Buttons.</strong> Volume, Play, Menu and Back share a resistor ladder. An ADC, a voltage-measuring input, reads the different voltages so the player can identify each button. Power has its own input.
 </li>
 </ul>
 </section>
 <section class="doc-section" id="usb" aria-labelledby="usb-title">
-<h2 id="usb-title">One cable, two useful modes.
+<h2 id="usb-title">USB, power and Bluetooth.
 </h2>
-<p class="intro">In Storage mode your computer sees the music drives. In DAC mode it sends audio to the player instead. Charging is handled alongside the selected mode.
+<p class="intro">USB Storage mode exposes the music drives to your computer. USB DAC mode plays computer audio through the ECHO. Charging works alongside either mode; a separate module handles Bluetooth headphones.
 </p>
 <ul class="detail-list">
 <li><strong>USB controller.</strong> A DesignWare USB 2.0 OTG controller. Storage can negotiate high speed and retry at full speed if the first connection does not become usable.
 </li>
-<li><strong>Separate drives.</strong> Internal storage and an inserted microSD card are separate USB logical drives. The storage session ends after every drive present at connection has been ejected.
+<li><strong>Separate drives.</strong> Internal storage and an inserted microSD card appear as separate drives. Eject every drive present at connection to return storage to the player.
 </li>
 <li><strong>Audio mode.</strong> The firmware’s USB Audio Class 1.0 path offers 16- or 24-bit audio at 44.1 or 48 kHz, with a separately remembered DAC volume.
 </li>
 <li><strong>Cable detection.</strong> GPIO2.0 controls taking power from USB and GPIO0.14 controls charging. Gnarlyr keeps these power-control signals in sync with the cable state.
 </li>
-<li><strong>Bluetooth module.</strong> A separate module handles wireless audio. The main processor talks to it over UART1 at 115,200 baud using short commands. FiiO specifies SBC headphone transmission.
+<li><strong>Bluetooth module.</strong> A separate module handles wireless audio. The processor controls it with short commands over UART1 at 115,200 baud. FiiO specifies SBC transmission to headphones.
 </li>
 </ul>
 <p><a href="install.html#usb">How the USB changes affect updates →</a>
 </p>
 </section>
 <section class="doc-section" id="memory" aria-labelledby="memory-title">
-<h2 id="memory-title">Music files and firmware have different homes.
+<h2 id="memory-title">Storage and working memory.
 </h2>
-<p class="intro">Your music lives in a normal storage volume. Firmware lives in two separate slots on the internal chip. The updater writes and checks the second slot before writing the first. RAM is the working memory used while the player runs.
+<p class="intro">Storage keeps music and firmware when the player is off. RAM holds working data while it runs. Firmware has two separate storage slots; the updater writes and checks the second before writing the first.
 </p>
 <table class="data-table">
 <tbody>
@@ -166,15 +166,15 @@
 </tr>
 </tbody>
 </table>
-<p>That power-rail behavior is why Gnarlyr distinguishes Charging, Charged and USB power, and avoids displaying a USB-powered millivolt reading as the battery’s actual voltage.
+<p>Gnarlyr therefore distinguishes Charging, Charged and USB power. It avoids presenting a USB-powered rail reading as the battery’s voltage.
 </p>
-<p>The memory ranges come from the firmware map and stock-code analysis. They describe working regions, not a single advertised RAM-capacity figure.
+<p>These working regions come from the firmware map and stock-code analysis; they do not specify the ECHO’s total RAM capacity.
 </p>
 </section>
 <section class="doc-section" id="sources" aria-labelledby="sources-title">
-<h2 id="sources-title">Explore the hardware in more detail.
+<h2 id="sources-title">Hardware references.
 </h2>
-<p class="intro">FiiO documents the player’s specifications, and Cirrus explains the audio chips. The hardware guides in the Gnarlyr source checkout cover the board’s wiring, memory and controls.
+<p class="intro">FiiO documents the player ratings and Cirrus documents the DACs. The source checkout’s hardware guides explain the board wiring, memory and controls.
 </p>
 <ul class="source-list">
 <li><a href="https://www.fiio.com/echo_parameters">FiiO’s full-size ECHO specifications ↗</a> and <a href="https://www.fiio.com/echo">product overview ↗</a>

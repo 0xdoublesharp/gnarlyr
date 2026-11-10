@@ -19,7 +19,7 @@
 </nav>
 </header>
 <main id="main">
-<div class="page-intro wrap"><p class="eyebrow">Install · set up · update</p><h1 class="page-title">Install. Set up. Press play.</h1><p>Start with a ready-made GNARLYR.img file. This guide takes you through first installation, adding music and keeping your ECHO up to date.</p></div>
+<div class="page-intro wrap"><p class="eyebrow">Install · set up · update</p><h1 class="page-title">Install. Set up. Press play.</h1><p>Install Gnarlyr from a ready-made GNARLYR.img image, add your music and choose your settings. Later updates use the player’s USB updater.</p></div>
 <div class="doc-layout wrap"><nav class="contents" aria-label="On this page"><p class="eyebrow">On this page</p><ol><li><a href="#get">What you need</a></li>
 <li><a href="#first-install">First installation</a></li>
 <li><a href="#setup">Add music & set up</a></li>
@@ -28,21 +28,21 @@
 <li><a href="#recovery">Help & recovery</a></li></ol></nav><div>
 <section class="doc-section" id="get" aria-labelledby="get-title">
 <h2 id="get-title">Start with the firmware file.</h2>
-<p class="intro">A firmware image contains the software that runs your player. For installation, you need a ready-made image named GNARLYR.img.</p>
+<p class="intro">A firmware image is a file containing the player’s software. Gather the image, a data cable and your backup before starting.</p>
 <ul class="detail-list">
-<li><strong>The matching release files.</strong> Keep <code>GNARLYR.img</code>, its checksum and its installation guide together. The checksum is a fingerprint you can use to check the file.</li>
+<li><strong>The matching release files.</strong> Keep <code>GNARLYR.img</code> with its matching guide and checksum. A checksum is a fingerprint for checking that the file is intact.</li>
 <li><strong>A computer and a USB data cable.</strong> Use a cable that transfers files as well as charging.</li>
 <li><strong>A charged ECHO and a backup.</strong> Copy any music and personal files you want to keep to your computer before the first installation.</li>
 </ul>
-<p class="callout">Already have Gnarlyr 1.0 or later? Go straight to <a href="#update">updating Gnarlyr</a>. Switching from FiiO’s software? Start with <a href="#first-install">first installation</a>.</p>
+<p class="callout">For Gnarlyr 1.0 or later, follow <a href="#update">updating Gnarlyr</a>. To switch from FiiO’s software, follow <a href="#first-install">first installation</a>.</p>
 </section>
 <section class="doc-section" id="first-install" aria-labelledby="first-install-title">
 <h2 id="first-install-title">Install Gnarlyr for the first time.</h2>
-<p class="intro">The first installation uses the ECHO’s built-in recovery mode. This gives your computer access to install Gnarlyr before its own updater is running.</p>
+<p class="intro">Recovery mode lets your computer install Gnarlyr before the player’s own updater is running. Use it for the first switch from FiiO’s software.</p>
 <ol class="sequence">
 <li><strong>Prepare your files.</strong> Have <code>GNARLYR.img</code>, the full-size ECHO recovery tools and the matching installation guide ready. Keep a copy of FiiO’s original firmware for recovery.</li>
 <li><strong>Put the ECHO in recovery mode.</strong> Unplug USB and press the recessed RST button with a paperclip. Hold every button except Power, then connect USB while keeping those buttons held.</li>
-<li><strong>Follow the recovery installation guide.</strong> Use its full-size ECHO procedure to check the connection, back up the original firmware and install the image. Complete the verification steps before restarting.</li>
+<li><strong>Follow the recovery installation guide.</strong> Follow the full-size ECHO procedure to check the connection, back up the original firmware and install the image. Finish every verification step before restarting.</li>
 <li><strong>Start the player.</strong> Restart into Gnarlyr and check Settings → About. Let the first library and artwork scan finish before connecting USB again.</li>
 </ol>
 <details><summary>Recovery details</summary><div class="answer">
@@ -53,22 +53,22 @@
 </section>
 <section class="doc-section" id="setup" aria-labelledby="setup-title">
 <h2 id="setup-title">Add music. Make it yours.</h2>
-<p class="intro">Once Gnarlyr starts, choose where your music lives and a few settings that make the player comfortable to use.</p>
+<p class="intro">Choose your music storage, copy your collection and set up the screen and buttons.</p>
 <ol class="sequence">
-<li><strong>Choose your music storage.</strong> Gnarlyr uses a readable microSD card when one is inserted. Use FAT32 or exFAT. Without a card, it uses internal storage. Settings → About → Music shows which storage is active.</li>
+<li><strong>Choose your music storage.</strong> Use a FAT32 or exFAT microSD card. Gnarlyr uses a readable card when inserted and internal storage otherwise. Settings → About → Music identifies the active storage.</li>
 <li><strong>Copy your music.</strong> Choose Settings → USB mode → Storage, then connect to your computer. Copy music to the active music drive in any folder layout. Internal storage and an inserted microSD card appear as separate drives.</li>
-<li><strong>Eject and let the library refresh.</strong> Eject every mounted ECHO drive so the player can check for changed music. Let any library and artwork scan finish. For a manual refresh, choose Settings → Rescan library.</li>
+<li><strong>Eject and let the library refresh.</strong> Eject every ECHO drive and let any library and artwork scan finish. To start a scan yourself, choose Settings → Rescan library.</li>
 <li><strong>Choose your look and controls.</strong> In Settings, choose Theme, Text size and Orientation. Controls lets you assign playback tap and hold actions. Open Music to browse your collection and start listening.</li>
 </ol>
 <p>Your settings stay on internal storage, so inserting or removing a card keeps your preferences.</p>
-<p>Adding audiobooks? M4B files appear in Audiobooks after a rescan, even outside an Audiobooks folder. Select a book to resume it, or hold Play to choose a chapter. <a href="firmware.html#spoken">Audiobook formats and playback →</a></p>
+<p>M4B audiobooks appear on the Audiobooks shelf after a rescan, without needing a special folder. Select a book to resume it, or hold Play to choose a chapter. <a href="firmware.html#spoken">Audiobook formats and playback →</a></p>
 </section>
 <section class="doc-section" id="update" aria-labelledby="update-title">
 <h2 id="update-title">For the next update, copy one file.</h2>
-<p class="intro">Once Gnarlyr is installed, its updater handles later versions. Copy the new image, eject the drives and let the player finish before unplugging.</p>
+<p class="intro">Copy the new image to internal storage, check it and eject the drives. Leave USB connected until the player finishes installing.</p>
 <ol class="sequence">
 <li><strong>Connect in Storage mode.</strong> On the player, choose Settings → USB mode → Storage. Connect USB and open the internal-storage drive on your computer.</li>
-<li><strong>Copy and check the image.</strong> Put the complete <code>GNARLYR.img</code> at the top level of internal storage, outside any folders, as its only update file. Check it against the checksum supplied with the image before ejecting.
+<li><strong>Copy and check the image.</strong> Place the complete <code>GNARLYR.img</code> on internal storage, outside any folders, as its only update file. Check the copied file against the supplied checksum before ejecting.
 <details><summary>Check the copied file on macOS</summary><div class="answer">
 <div class="command" role="group" aria-labelledby="verify-command-title"><div class="command-header">
 <h3 id="verify-command-title">Check the copied image · macOS
@@ -77,7 +77,7 @@
 <p class="copy-status" id="verify-command-status" role="status" aria-live="polite">
 </p></div>
 <p>Replace <code>YOUR_ECHO</code> with the internal drive’s actual name. Compare the result with the checksum supplied with the image.</p>
-<p>For a copy without macOS metadata sidecars, use <code>cp -X</code>. Remove any <code>._GNARLYR.img</code> sidecar from the drive.</p>
+<p>On macOS, <code>cp -X</code> copies without extra metadata files. Remove any <code>._GNARLYR.img</code> metadata file from the drive.</p>
 </div></details></li>
 <li><strong>Eject every ECHO drive.</strong> Eject internal storage and the microSD drive, if present. Keep the cable connected while Gnarlyr checks and installs the image.</li>
 <li><strong>Wait for “Update installed.”</strong> When that message appears, unplug USB, hold Power for two seconds to switch off, then turn the player back on.</li>
@@ -87,17 +87,17 @@
 </section>
 <section class="doc-section" id="usb" aria-labelledby="usb-title">
 <h2 id="usb-title">Eject first. Unplug when it is ready.</h2>
-<p class="intro">Eject tells your computer to finish writing and gives the drives back to the player. Unplugging removes the cable. During an update, those are two separate steps.</p>
+<p class="intro">Eject finishes the computer’s writes and returns the drives to Gnarlyr. Keep the cable connected during installation, then unplug when the player is ready.</p>
 <ul class="detail-list">
-<li><strong>Eject all the drives.</strong> Gnarlyr needs both internal storage and any connected microSD drive returned before the update check starts.</li>
+<li><strong>Eject all the drives.</strong> Returning internal storage and any connected microSD drive lets Gnarlyr check for the update.</li>
 <li><strong>Leave USB connected during installation.</strong> Wait for “Update installed” before removing the cable.</li>
 <li><strong>Restart after the update.</strong> The restart loads the new firmware and its matching USB code together.</li>
 </ul>
 <p>For everyday music copying, eject every drive too. Gnarlyr checks for changes and refreshes the library when needed.</p>
 </section>
 <section class="doc-section" id="recovery" aria-labelledby="recovery-title">
-<h2 id="recovery-title">Need to try again?</h2>
-<p class="intro">Recovery mode provides a separate way to reinstall firmware if the normal player interface is unavailable.</p>
+<h2 id="recovery-title">Help and recovery.</h2>
+<p class="intro">Use recovery mode to reinstall firmware when the player cannot start normally.</p>
 <ul class="detail-list">
 <li><strong>The ECHO will not start.</strong> Use the full-size ECHO recovery guide and your saved original firmware. Follow its complete write-and-verify procedure.</li>
 <li><strong>An update was not recognized.</strong> Check that the file is named <code>GNARLYR.img</code>, sits at the top level of internal storage, and is the only update image there.</li>
@@ -106,7 +106,7 @@
 </ul>
 <p><a href="build.html#recovery">Recovery reference and image checksum →</a></p>
 </section>
-<p class="callout" id="build"><span id="developer"></span><span id="build-help"></span>Working from source? The <a href="build.html">developer guide</a> covers builds, tool setup and automated developer updates.</p></div></div>
+<p class="callout" id="build"><span id="developer"></span><span id="build-help"></span>For source builds, tool setup and automated developer updates, use the <a href="build.html">developer guide</a>.</p></div></div>
 </main><div class="outro wrap">
 <p class="outro-phrase">Stay offline. Get a little gnarly.
 </p>
