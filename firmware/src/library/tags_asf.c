@@ -172,15 +172,17 @@ static void offer_attribute(TagReader *reader, const Attribute *attribute)
 static void read_content(TagReader *reader, uint32_t body, uint32_t end)
 {
     uint8_t lengths[10];
-    if (!tag_read(reader, body, lengths, sizeof lengths)) {
+    if (end - body < sizeof lengths || !tag_read(reader, body, lengths, sizeof lengths)) {
         return;
     }
     uint32_t title = tag_le16(lengths);
     uint32_t author = tag_le16(lengths + 2);
     uint32_t cursor = body + sizeof lengths;
     uint8_t value[VALUE_CAPACITY];
-    if (title <= end - cursor &&
-        tag_read(reader, cursor, value, title < VALUE_CAPACITY ? title : VALUE_CAPACITY)) {
+    if (title > end - cursor) {
+        return;
+    }
+    if (tag_read(reader, cursor, value, title < VALUE_CAPACITY ? title : VALUE_CAPACITY)) {
         tag_offer(reader, TAG_TITLE, value, title < VALUE_CAPACITY ? title : VALUE_CAPACITY,
                   TAG_UTF16LE);
     }
