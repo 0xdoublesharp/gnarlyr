@@ -101,10 +101,12 @@ class Overlay:
 
 
 def module_overlay(image, offset, module_elfs):
+    audio = image[offset:offset + 4] == make_image.module_magic(make_image.AUDIO_MODULE_NUMBER)
+    base = make_image.AUDIO_MODULE_BASE if audio else make_image.MODULE_BASE
+    capacity = make_image.AUDIO_MODULE_CAPACITY if audio else make_image.MODULE_CAPACITY
     for elf_path in module_elfs:
         try:
-            return Overlay(image, elf_path, offset, make_image.MODULE_BASE,
-                           make_image.MODULE_CAPACITY)
+            return Overlay(image, elf_path, offset, base, capacity)
         except ValueError:
             continue
     raise ValueError("none of the module ELFs belongs to the module at %#x of the image" % offset)

@@ -109,21 +109,6 @@ typedef enum I2cStage {
 } I2cStage;
 
 static const uint32_t SOC_AUDIO_GATES[] = {0x0E, 0x10, 0x11, 0x12, 0x13, 0x82, 0x83, 0x96};
-typedef struct AudioRate {
-    uint32_t rate;
-    uint32_t mclk;
-    uint8_t acodec[4];
-    uint8_t dac_byte;
-} AudioRate;
-
-static const AudioRate RATES[] = {
-    {44100, 11288960, {0x06, 0x24, 0x19, 0x03}, 1},
-    {48000, 12288000, {0x00, 0x30, 0x19, 0x0A}, 2},
-    {88200, 11288960, {0x06, 0x24, 0x19, 0x03}, 3},
-    {96000, 24576000, {0x00, 0x30, 0x19, 0x09}, 4},
-    {176400, 22577664, {0x04, 0x49, 0x19, 0x03}, 5},
-    {192000, 24576000, {0x00, 0x30, 0x19, 0x09}, 6},
-};
 static const GpioPin I2C_PINS[] = {{2, 10}, {2, 11}};
 static const GpioPin I2S_PINS[] = {{1, 0}, {1, 1}, {1, 2}, {1, 3}};
 static const DacPin DAC_PIN_LIST[] = {DAC_PIN_MUTE, DAC_PIN_ENABLE_A, DAC_PIN_ENABLE_B,
@@ -432,16 +417,6 @@ static void use_dac_pins_as_gpio(void)
     }
 }
 
-static const AudioRate *rate_of(uint32_t rate)
-{
-    for (uint32_t index = 0; index < sizeof RATES / sizeof RATES[0]; index++) {
-        if (RATES[index].rate == rate) {
-            return &RATES[index];
-        }
-    }
-    return NULL;
-}
-
 static void identify_once(void)
 {
     if (identity[0].source != DAC_IDENTITY_NOT_READ) {
@@ -494,7 +469,7 @@ static void stop_audio_path(void)
 HalToneResult hal_audio_test_tone(void)
 {
     hal_audio_dma_tone_stop();
-    const AudioRate *rate = rate_of(TONE_RATE_HZ);
+    const AudioRate *rate = audio_clock_rate(TONE_RATE_HZ);
     HalToneResult result = start_audio_path(rate, i2s_divider_truncated(rate->mclk, rate->rate),
                                             I2S_FORMAT_16_BIT_STEREO, I2S_INTERRUPTS, true);
     if (result != HAL_TONE_PLAYED) {
@@ -507,7 +482,7 @@ HalToneResult hal_audio_test_tone(void)
 
 CORE_SEAM HalToneResult dac_path_start(uint32_t sample_rate)
 {
-    const AudioRate *rate = rate_of(sample_rate);
+    const AudioRate *rate = audio_clock_rate(sample_rate);
     if (rate == NULL) {
         return HAL_TONE_SETUP_FAILED;
     }

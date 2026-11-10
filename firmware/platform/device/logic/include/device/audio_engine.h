@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "codec/flac.h"
+#include "device/audio_resample.h"
 #include "device/equalizer.h"
 #include "hal/audio.h"
 
@@ -61,6 +62,8 @@ typedef struct AudioEngineConfig {
     uint32_t *ring;
     uint32_t ring_words;
     Equalizer *equalizer;
+    bool (*prepare_resample)(void);
+    bool (*resample_pull)(AudioResample *resample, int32_t *left, int32_t *right);
 } AudioEngineConfig;
 
 typedef enum AudioRefusalProblem {
@@ -126,6 +129,7 @@ typedef struct AudioEngine {
     uint32_t end_at;
     bool rate_pending;
     uint32_t output_rate;
+    AudioResample resample;
     bool has_next;
     uint32_t next_token;
     uint32_t next_start_ms;

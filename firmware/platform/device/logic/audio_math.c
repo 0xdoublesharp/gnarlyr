@@ -1,5 +1,7 @@
 #include "device/audio_math.h"
 
+#include <stddef.h>
+
 enum {
     HZ_PER_KHZ = 1000,
     I2C_CYCLES_PER_BIT = 8,
@@ -10,6 +12,26 @@ enum {
     I2S_FRAME_BITS = 0x3F3F,
     SINE_FRACTION_BITS = AUDIO_MATH_FRACTION_BITS
 };
+
+static const AudioRate RATES[] = {
+    {32000, 12288000, {0x00, 0x30, 0x19, 0x0A}, 0},
+    {44100, 11288960, {0x06, 0x24, 0x19, 0x03}, 1},
+    {48000, 12288000, {0x00, 0x30, 0x19, 0x0A}, 2},
+    {88200, 11288960, {0x06, 0x24, 0x19, 0x03}, 3},
+    {96000, 24576000, {0x00, 0x30, 0x19, 0x09}, 4},
+    {176400, 22577664, {0x04, 0x49, 0x19, 0x03}, 5},
+    {192000, 24576000, {0x00, 0x30, 0x19, 0x09}, 6},
+};
+
+const AudioRate *audio_clock_rate(uint32_t rate)
+{
+    for (uint32_t index = 0; index < sizeof RATES / sizeof RATES[0]; index++) {
+        if (RATES[index].rate == rate) {
+            return &RATES[index];
+        }
+    }
+    return NULL;
+}
 
 uint32_t i2c_clock_divider(uint32_t pclk_hz, uint32_t bus_khz)
 {

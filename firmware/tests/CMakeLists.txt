@@ -339,6 +339,13 @@ echo_add_unit_test(NAME test_equalizer
     SOURCES device/test_equalizer.c
     LIBRARIES echo_device_logic echo_settings
 )
+echo_add_unit_test(NAME test_audio_resample
+    SOURCES device/test_audio_resample.c
+    LIBRARIES echo_device_logic
+)
+if(UNIX)
+    target_link_libraries(test_audio_resample PRIVATE m)
+endif()
 echo_add_unit_test(NAME test_audio_engine
     SOURCES device/test_audio_engine.c
     LIBRARIES echo_device_logic
@@ -697,6 +704,12 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/check_library_index.cmake
         )
     endforeach()
+    add_test(NAME audio_resample_table_up_to_date
+        COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/audio_resample_table.py
+            --output ${PROJECT_SOURCE_DIR}/platform/device/logic/audio_resample_table.h
+            --style ${PROJECT_SOURCE_DIR}/.clang-format
+            --check
+    )
     add_test(NAME m4b_fixture_up_to_date
         COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/m4b_fixture.py
             --output ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/m4b_music

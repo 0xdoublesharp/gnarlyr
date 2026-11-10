@@ -1637,6 +1637,133 @@ class EchoImageTest(unittest.TestCase):
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                    module_elfs=self.module_elfs)
 
+    def speech_rig(self, rate=8000):
+        from echo_emulator.playback import Rig
+        from echo_emulator.fat_volume import Fat32Volume
+        pattern = struct.pack("<8h", 0, 2828, 4000, 2828, 0, -2828, -4000, -2828)
+        pcm = pattern * (rate * 30 // 8)
+        wav = struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ",
+                          16, 1, 1, rate, rate * 2, 2, 16, b"data", len(pcm)) + pcm
+        volume = Fat32Volume()
+        volume.add_file("Speech.wav", wav)
+        return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                   volume=volume, module_elfs=self.module_elfs)
+
+    def test_speech_plays_through_the_independent_audio_module_while_a_menu_module_changes(self):
+        rig = self.speech_rig()
+        number, dsp = self.module(rig.machine, "dsp")
+        self.assertEqual(number, make_image.AUDIO_MODULE_NUMBER)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertEqual(48000, rig.audio.rate)
+        self.assertTrue(dsp.loaded(rig.machine))
+        self.assertTrue(rig.session.module_reads("slot_1", number))
+        rig.press("back", hold=1300)
+        rig.press("next")
+        rig.press("play")
+        _, settings = self.module(rig.machine, "settings")
+        self.assertTrue(settings.loaded(rig.machine),
+                        {overlay.name: overlay.loaded(rig.machine)
+                         for overlay in rig.machine.modules})
+        self.assertTrue(dsp.loaded(rig.machine))
+        rig.run_for(200)
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assert_healthy(rig.session)
+
+    def test_the_independent_audio_module_parses_and_seeks_real_aac_packets(self):
+        from echo_emulator.machine import TRAMPOLINE, STUB_RETURN, PAGE
+        from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_SP
+        session = self.session()
+        session.run_to_first_frame()
+        session.run_to_home_screen()
+        machine = session.machine
+        raw = (PROJECT / "tests/fixtures/m4a_music/Aac Artist/Aac Album/02 Tail.m4a").read_bytes()
+        scratch = TRAMPOLINE + PAGE
+        machine.uc.mem_map(scratch, PAGE)
+        callback, returned = TRAMPOLINE + 0x900, TRAMPOLINE + 0x904
+        registers = (UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3)
+
+        def read_input():
+            offset, destination, size = (machine.reg(register) for register in registers[1:])
+            valid = offset <= len(raw) and size <= len(raw) - offset
+            if valid:
+                machine.uc.mem_write(destination, raw[offset:offset + size])
+            machine.uc.reg_write(UC_ARM_REG_R0, int(valid))
+            machine.uc.reg_write(UC_ARM_REG_PC, STUB_RETURN | 1)
+
+        machine.add_address_hook(callback, read_input)
+        machine.add_address_hook(returned, lambda: machine.stop("audio API returned"))
+
+        def call(name, arguments):
+            stack = machine.reg(UC_ARM_REG_SP)
+            extra = arguments[4:]
+            room = (len(extra) * 4 + 7) // 8 * 8
+            if extra:
+                machine.uc.mem_write(stack - room, struct.pack("<" + "I" * len(extra), *extra))
+            machine.uc.reg_write(UC_ARM_REG_SP, stack - room)
+            for register, value in zip(registers, arguments):
+                machine.uc.reg_write(register, value)
+            machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
+            machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols[name] | 1)
+            reason = machine.run(until_ms=machine.milliseconds() + 1000)
+            self.assertEqual("audio API returned", reason)
+            result = machine.reg(UC_ARM_REG_R0)
+            machine.uc.reg_write(UC_ARM_REG_SP, stack)
+            return result
+
+        track, cursor, offset_at, size_at = scratch, scratch + 256, scratch + 768, scratch + 772
+        self.assertEqual(1, call("mp4_probe", [callback | 1, 0, len(raw), track]))
+        self.assertEqual((44100, 1024, 45124, 1024, 44100),
+                         struct.unpack("<5I", machine.read_memory(track + 36, 20)))
+        self.assertEqual(1, call("mp4_cursor_seek", [cursor, callback | 1, 0, len(raw), track, 0]))
+        self.assertEqual(1, call("mp4_cursor_next", [cursor, callback | 1, 0, len(raw), track,
+                                                    offset_at, size_at]))
+        offset, size = struct.unpack("<2I", machine.read_memory(offset_at, 8))
+        self.assertGreater(size, 0)
+        self.assertLessEqual(offset + size, len(raw))
+        _, dsp = self.module(machine, "dsp")
+        self.assertTrue(dsp.loaded(machine))
+        self.assert_healthy(session)
+
+    def test_native_rate_wav_playback_does_not_load_the_optional_audio_module(self):
+        rig = self.speech_rig(44100)
+        number, dsp = self.module(rig.machine, "dsp")
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertEqual(44100, rig.audio.rate)
+        self.assertFalse(dsp.loaded(rig.machine))
+        self.assertEqual([], rig.session.module_reads("slot_1", number))
+        self.assertEqual([], rig.session.module_reads("slot_2", number))
+        self.assert_healthy(rig.session)
+
+    def test_a_damaged_audio_module_in_slot_1_falls_back_to_slot_2(self):
+        rig = self.speech_rig()
+        number, dsp = self.module(rig.machine, "dsp")
+        rig.session.change_module("slot_1", number, 32, lambda byte: byte ^ 1)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertTrue(dsp.loaded(rig.machine))
+        self.assertTrue(rig.session.module_reads("slot_1", number))
+        self.assertTrue(rig.session.module_reads("slot_2", number))
+        self.assert_healthy(rig.session)
+
+    def test_damaged_audio_modules_refuse_speech_without_running_their_code(self):
+        rig = self.speech_rig()
+        number, dsp = self.module(rig.machine, "dsp")
+        for slot in ("slot_1", "slot_2"):
+            rig.session.change_module(slot, number, 32, lambda byte: byte ^ 1)
+        rig.open_songs()
+        rig.play_song(1)
+        self.assertEqual([], rig.audio.audible)
+        self.assertFalse(dsp.loaded(rig.machine))
+        for slot in ("slot_1", "slot_2"):
+            self.assertTrue(rig.session.module_reads(slot, number))
+        self.assert_healthy(rig.session)
+
     def test_a_deep_cue_track_starts_quickly_and_switching_tracks_keeps_the_ui_smooth(self):
         rig = self.playback_rig()
         machine = rig.machine

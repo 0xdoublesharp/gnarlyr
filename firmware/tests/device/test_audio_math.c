@@ -26,6 +26,19 @@ static void the_i2s_clock_register_holds_the_divider(void)
     CHECK_EQUAL(0x00033F3Fu, i2s_clock_register(3));
 }
 
+static void the_32_khz_clock_uses_an_exact_divider_and_the_documented_dac_rate(void)
+{
+    const AudioRate *rate = audio_clock_rate(32000);
+    CHECK(rate != NULL);
+    CHECK_EQUAL(12288000, rate->mclk);
+    CHECK_EQUAL(0, rate->dac_byte);
+    uint32_t divider = i2s_divider_rounded(rate->mclk, rate->rate);
+    CHECK_EQUAL(5, divider);
+    CHECK_EQUAL(32000, rate->mclk / (64 * (divider + 1)));
+    CHECK_EQUAL(0x00053F3F, i2s_clock_register(divider));
+    CHECK(audio_clock_rate(22050) == NULL);
+}
+
 static void one_sine_period_starts_at_zero_and_peaks_at_a_quarter(void)
 {
     int16_t samples[100];
@@ -55,6 +68,7 @@ int main(void)
         TEST_CASE(the_i2c_divider_follows_pclk),
         TEST_CASE(the_i2s_divider_truncates_or_rounds),
         TEST_CASE(the_i2s_clock_register_holds_the_divider),
+        TEST_CASE(the_32_khz_clock_uses_an_exact_divider_and_the_documented_dac_rate),
         TEST_CASE(one_sine_period_starts_at_zero_and_peaks_at_a_quarter),
         TEST_CASE(the_sine_rises_then_falls),
     };

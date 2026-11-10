@@ -72,14 +72,15 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 148,956 | 157,292 | 8,336 |
-| Static RAM | 263,508 | 287,296 | 23,788 |
+| Code window | 146,452 | 157,292 | 10,840 |
+| Static RAM | 264,060 | 278,528 | 14,468 |
 | Rescan overlay | 88,404 | 98,304 | 9,900 |
 | USB overlay code | 11,484 | 65,536 | 54,052 |
 | Module views (code + BSS) | 17,952 | 56,320 | 38,368 |
 | Module settings (code + BSS) | 14,412 | 56,320 | 41,908 |
 | Module library (code + BSS) | 39,124 | 56,320 | 17,196 |
 | Module listening (code + BSS) | 17,792 | 56,320 | 38,528 |
+| Audio module (code, no BSS) | 5,832 | 8,192 | 2,360 |
 | Decoder workspace | 41,644 | 41,984 | 340 |
 | Language pack (English) | 7,089 | 16,384 | 9,295 |
 
@@ -113,6 +114,7 @@ A screen change comes with simulator captures at the affected sizes and orientat
 
 Never edit by hand; regenerate and commit the output:
 - `src/core/include/core/strings.h`, `src/core/strings_english.h` - `tools/lang_pack.py` from `assets/lang/en.txt`
+- `platform/device/logic/audio_resample_table.h` - `tools/audio_resample_table.py`
 - `src/fonts/` and `src/fonts/packs/` - `tools/font_build.py`, `tools/glyph_pack.py`
 - `src/library/sort_fold_table.{c,h}` - `tools/fold_table.py`
 - `tests/fixtures/small_library.db`, `small_covers.bin` - the PC indexer and cover exporter

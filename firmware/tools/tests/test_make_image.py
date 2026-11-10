@@ -527,6 +527,29 @@ class ModuleTest(unittest.TestCase):
         content = module_blob(1)
         self.assertEqual(content, make_image.module_from_elf(module_elf(content, bss_size=0x400)))
 
+    def test_the_audio_module_uses_its_own_bounded_stateless_memory_window(self):
+        content = module_blob(make_image.AUDIO_MODULE_NUMBER)
+        elf = module_elf(content, base=make_image.AUDIO_MODULE_BASE)
+        self.assertEqual(content, make_image.module_from_elf(elf, make_image.AUDIO_MODULE_NUMBER))
+        with self.assertRaises(make_image.ImageError):
+            make_image.module_from_elf(elf)
+        with self.assertRaises(make_image.ImageError):
+            make_image.module_from_elf(module_elf(content), make_image.AUDIO_MODULE_NUMBER)
+        with self.assertRaises(make_image.ImageError):
+            make_image.module_from_elf(module_elf(content, bss_size=4,
+                                      base=make_image.AUDIO_MODULE_BASE),
+                                      make_image.AUDIO_MODULE_NUMBER)
+
+    def test_the_audio_module_cannot_exceed_its_separate_window(self):
+        modules = [module_blob(number) for number in range(1, make_image.AUDIO_MODULE_NUMBER)]
+        modules.append(module_blob(make_image.AUDIO_MODULE_NUMBER,
+                                  bytes(make_image.AUDIO_MODULE_CAPACITY)))
+        with self.assertRaises(make_image.ImageError):
+            build(modules=modules)
+        with self.assertRaises(make_image.ImageError):
+            make_image.module_from_elf(module_elf(modules[-1], base=make_image.AUDIO_MODULE_BASE),
+                                      make_image.AUDIO_MODULE_NUMBER)
+
     def test_a_module_linked_for_another_address_is_refused(self):
         with self.assertRaises(make_image.ImageError):
             make_image.module_from_elf(module_elf(module_blob(1), base=make_image.OVERLAY_BASE))

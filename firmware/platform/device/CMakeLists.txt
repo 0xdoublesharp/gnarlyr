@@ -1,5 +1,6 @@
 add_executable(echo_device
     board/audio.c
+    board/audio_dsp.c
     board/bluetooth.c
     board/clock.c
     board/clock_switch.c
@@ -301,6 +302,11 @@ set(ECHO_MODULE_IMPORT_ARGUMENTS "")
 set(ECHO_MODULE_IMAGE_ARGUMENTS "")
 set(ECHO_MODULE_MAP_ARGUMENTS "")
 foreach(module IN LISTS ECHO_SCREEN_MODULES)
+    if(module STREQUAL "dsp")
+        set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_dsp.ld)
+    else()
+        set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/screen_module.ld)
+    endif()
     set(module_target echo_module_${module})
     set(module_sources "")
     set(module_includes "")
@@ -308,10 +314,18 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         echo_screen_module_owner(${source} owner name)
         get_target_property(owner_directory ${owner} SOURCE_DIR)
         list(APPEND module_sources ${PROJECT_SOURCE_DIR}/${source})
-        list(APPEND module_includes ${owner_directory})
+        list(APPEND module_includes ${owner_directory} ${owner_directory}/include)
     endforeach()
     list(REMOVE_DUPLICATES module_includes)
     add_library(${module_target}_objects OBJECT ${module_sources})
+    if(module STREQUAL "dsp")
+        target_link_libraries(${module_target}_objects PRIVATE echo_codec)
+        target_compile_definitions(${module_target}_objects PRIVATE
+            mp4_probe=audio_dsp_probe
+            mp4_cursor_seek=audio_dsp_seek
+            mp4_cursor_next=audio_dsp_next
+        )
+    endif()
     target_include_directories(${module_target}_objects PRIVATE ${module_includes})
     target_link_libraries(${module_target}_objects PRIVATE echo_app echo_options echo_compact)
     add_executable(${module_target} $<TARGET_OBJECTS:${module_target}_objects>)

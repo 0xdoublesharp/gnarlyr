@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "audio_dsp.h"
 #include "board.h"
 #include "core/format.h"
 #include "core/seam.h"
@@ -66,6 +67,7 @@ static bool resume_after_clock_change;
 static bool paused_before_clock_change;
 static uint32_t position_before_clock_change;
 static AudioEngine engine;
+_Static_assert(offsetof(AudioEngine, produced) == 44, "the emulator follows the audio ring cursor");
 static DmaItem items[RING_BLOCKS];
 static HalFile file;
 static bool engine_ready;
@@ -262,7 +264,9 @@ static void ensure_engine(void)
     audio_engine_init(&engine, (AudioEngineConfig){.source = source,
                                                    .ring = ring(),
                                                    .ring_words = RING_WORDS,
-                                                   .equalizer = &equalizer});
+                                                   .equalizer = &equalizer,
+                                                   .prepare_resample = board_audio_dsp_prepare,
+                                                   .resample_pull = board_audio_dsp_pull});
     engine_ready = true;
 }
 

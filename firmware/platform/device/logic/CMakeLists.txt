@@ -55,6 +55,9 @@ add_library(echo_device_logic STATIC
     aac_decoder.c
     audio_engine.c
     audio_math.c
+    audio_resample.c
+    audio_interpolate.c
+    audio_dsp_entry.c
     backlight.c
     block_read.c
     board_pins.c
@@ -97,6 +100,7 @@ add_library(echo_device_logic STATIC
     mp3_decoder.c
     mp3_probe.c
     mp4_demux.c
+    mp4_signature.c
     msc.c
     panel.c
     panic_text.c
@@ -148,6 +152,7 @@ if(CMAKE_CROSSCOMPILING)
         m4a_stream.c
         mp3_probe.c
         mp4_demux.c
+    mp4_signature.c
         msc.c
         panel.c
         panic_text.c

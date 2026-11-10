@@ -93,11 +93,6 @@ static bool read_word(FlacInput input, uint32_t offset, uint32_t *value)
     return true;
 }
 
-bool mp4_signature(const uint8_t bytes[8])
-{
-    return big_endian(bytes + 4) == FTYP;
-}
-
 static bool read_box(FlacInput input, uint32_t at, uint32_t limit, Mp4Box *box)
 {
     uint8_t header[BOX_HEADER];

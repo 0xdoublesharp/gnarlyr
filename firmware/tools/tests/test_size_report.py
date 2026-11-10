@@ -256,6 +256,33 @@ class ReportTest(unittest.TestCase):
     def test_a_module_that_fits_its_slot_has_no_problem(self):
         self.assertEqual([], size_report.module_problems(FENCED_MAP, [("settings", MODULE_MAP)]))
 
+    def test_the_audio_module_has_a_separate_bounded_stateless_slot(self):
+        device = FENCED_MAP.replace(SLOT_REGION, SLOT_REGION +
+                                   "DSP_RAM          0x03048000         0x00002000         rx\n")
+        audio = """Memory Configuration
+
+Name             Origin             Length             Attributes
+MODULE_RAM       0x03048000         0x00002000         rx
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+.overlay        0x03048000     0x1000
+.bss            0x03049000        0x0
+"""
+        self.assertEqual([], size_report.module_problems(device, [("dsp", audio)]))
+        self.assertTrue(any("4,096 of 8,192" in line for line in
+                            size_report.summary(device, modules=[("dsp", audio)])))
+        self.assertTrue(size_report.module_problems(FENCED_MAP, [("dsp", audio)]))
+        self.assertTrue(size_report.module_problems(device, [("settings", audio)]))
+        self.assertTrue(size_report.module_problems(device, [("dsp", MODULE_MAP)]))
+        stateful = audio.replace("0x03049000        0x0", "0x03049000        0x4")
+        self.assertIn("the audio module must keep all state in its caller",
+                      size_report.module_problems(device, [("dsp", stateful)]))
+        grown = audio.replace("0x03048000     0x1000", "0x03048000     0x2004")
+        self.assertIn("module dsp is 4 bytes too large for the module slot",
+                      size_report.module_problems(device, [("dsp", grown)]))
+
     def test_a_module_larger_than_the_slot_is_a_problem(self):
         grown = MODULE_MAP.replace(".bss            0x03086400      0x200",
                                    ".bss            0x03086400     0xbd00")

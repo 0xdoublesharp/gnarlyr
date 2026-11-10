@@ -3,7 +3,7 @@ import struct
 from unicorn import UC_HOOK_MEM_WRITE
 from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1
 
-PRODUCED_OFFSET = 36
+PRODUCED_OFFSET = 44
 ITEM_BYTES = 24
 ITEM_NEXT = 8
 ITEM_WORDS = 16

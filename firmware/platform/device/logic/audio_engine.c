@@ -14,8 +14,6 @@ enum {
     STEP_GAIN_Q16 = 58409
 };
 
-static const uint32_t SUPPORTED_RATES[] = {44100, 48000, 88200, 96000, 176400, 192000};
-
 static void copy_path(char *destination, const char *source)
 {
     size_t index = 0;
@@ -24,16 +22,6 @@ static void copy_path(char *destination, const char *source)
         index++;
     }
     destination[index] = '\0';
-}
-
-static bool rate_supported(uint32_t rate)
-{
-    for (size_t index = 0; index < sizeof SUPPORTED_RATES / sizeof SUPPORTED_RATES[0]; index++) {
-        if (SUPPORTED_RATES[index] == rate) {
-            return true;
-        }
-    }
-    return false;
 }
 
 void audio_engine_init(AudioEngine *engine, AudioEngineConfig config)
@@ -121,10 +109,18 @@ static bool open_track(AudioEngine *engine, const char *path, uint32_t start_ms,
     }
     FlacInfo info = track.stream;
     engine->decoding = true;
-    if (!rate_supported(info.sample_rate)) {
+    if (audio_resample_rate(info.sample_rate) == 0) {
         close_file(engine);
         engine->refusal =
             (AudioRefusal){.problem = AUDIO_REFUSAL_RATE, .sample_rate = info.sample_rate};
+        return false;
+    }
+    audio_resample_start(&engine->resample, info.sample_rate);
+    if (info.sample_rate != audio_resample_rate(info.sample_rate) &&
+        (engine->config.resample_pull == NULL ||
+         (engine->config.prepare_resample != NULL && !engine->config.prepare_resample()))) {
+        close_file(engine);
+        engine->refusal = (AudioRefusal){.problem = AUDIO_REFUSAL_UNREADABLE};
         return false;
     }
     engine->skip_frames =
@@ -153,7 +149,7 @@ static void push_segment(AudioEngine *engine, const char *path, uint32_t token, 
     segment->start = start;
     segment->base_ms = base_ms;
     segment->end_ms = engine->decode_end_ms;
-    segment->rate = engine->decode_rate;
+    segment->rate = audio_resample_rate(engine->decode_rate);
     segment->track = engine->decode_track;
     copy_path(segment->path, path);
 }
@@ -181,7 +177,7 @@ static bool start_track(AudioEngine *engine, const AudioEngineTrack *track, uint
         engine->segment_count = 1;
         return false;
     }
-    engine->output_rate = engine->decode_rate;
+    engine->output_rate = audio_resample_rate(engine->decode_rate);
     design_equalizer(engine);
     push_segment(engine, track->path, track->token, 0, start_ms);
     engine->state = AUDIO_ENGINE_PLAYING;
@@ -315,9 +311,41 @@ static void equalize(AudioEngine *engine, uint32_t first)
     }
 }
 
+static void copy_resampled(AudioEngine *engine)
+{
+    int32_t left = 0;
+    int32_t right = 0;
+    while (free_space(engine) > 0 && engine->config.resample_pull != NULL &&
+           engine->config.resample_pull(&engine->resample, &left, &right)) {
+        write_frame(engine, left, right);
+    }
+}
+
+static void interpolate_pending(AudioEngine *engine)
+{
+    copy_resampled(engine);
+    while (engine->pending_frames > 0 && free_space(engine) > 0 && !at_limit(engine)) {
+        uint32_t at = engine->pending_offset;
+        int bits = engine->frame.bits;
+        if (!audio_resample_push(&engine->resample,
+                                 to_output(engine->frame.left[at], bits, engine->gain),
+                                 to_output(engine->frame.right[at], bits, engine->gain))) {
+            break;
+        }
+        engine->pending_offset++;
+        engine->pending_frames--;
+        copy_resampled(engine);
+    }
+}
+
 static void copy_until_limit(AudioEngine *engine)
 {
     uint32_t first = engine->produced;
+    if (engine->resample.factor > 1) {
+        interpolate_pending(engine);
+        equalize(engine, first);
+        return;
+    }
     const int32_t *left = engine->frame.left;
     const int32_t *right = engine->frame.right;
     int bits = engine->frame.bits;
@@ -358,7 +386,8 @@ static bool end_segment(AudioEngine *engine)
     engine->has_next = false;
     engine->decode_end_ms = engine->next_end_ms;
     engine->decode_limit = frame_limit(engine->next_end_ms, engine->decode_rate);
-    push_segment(engine, engine->next_path, engine->next_token, engine->produced,
+    push_segment(engine, engine->next_path, engine->next_token,
+                 engine->produced + audio_resample_pending(&engine->resample),
                  engine->next_start_ms);
     return true;
 }
@@ -377,6 +406,15 @@ static void copy_pending(AudioEngine *engine)
 
 static void finish_decoding(AudioEngine *engine)
 {
+    if (engine->resample.factor > 1) {
+        uint32_t first = engine->produced;
+        audio_resample_finish(&engine->resample);
+        copy_resampled(engine);
+        equalize(engine, first);
+        if (audio_resample_pending(&engine->resample) != 0) {
+            return;
+        }
+    }
     close_file(engine);
     if (!engine->has_next) {
         engine->ended = true;
@@ -390,7 +428,7 @@ static void finish_decoding(AudioEngine *engine)
         engine->failed = true;
         return;
     }
-    if (engine->decode_rate != engine->output_rate) {
+    if (audio_resample_rate(engine->decode_rate) != engine->output_rate) {
         engine->rate_pending = true;
         return;
     }
@@ -400,6 +438,10 @@ static void finish_decoding(AudioEngine *engine)
 
 static void decode_one(AudioEngine *engine)
 {
+    if (engine->resample.ended) {
+        finish_decoding(engine);
+        return;
+    }
     AudioFrame frame;
     AudioFrameResult result = engine->config.source.next(engine->config.source.context, &frame);
     if (result == AUDIO_FRAME_WAIT) {
@@ -480,7 +522,7 @@ bool audio_engine_wants_rate(const AudioEngine *engine, uint32_t *rate)
     if (!engine->rate_pending || (int32_t)(engine->consumed - engine->produced) < 0) {
         return false;
     }
-    *rate = engine->decode_rate;
+    *rate = audio_resample_rate(engine->decode_rate);
     return true;
 }
 
@@ -490,7 +532,7 @@ void audio_engine_restart(AudioEngine *engine)
         return;
     }
     reset_positions(engine);
-    engine->output_rate = engine->decode_rate;
+    engine->output_rate = audio_resample_rate(engine->decode_rate);
     design_equalizer(engine);
     push_segment(engine, engine->next_path, engine->next_token, 0, engine->next_start_ms);
 }

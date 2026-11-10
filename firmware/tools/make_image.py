@@ -29,6 +29,9 @@ USB_OVERLAY_CAPACITY = 0x10000
 USB_OVERLAY_MAGIC = b"EUSB"
 MODULE_BASE = 0x03084400
 MODULE_CAPACITY = 0xDC00
+AUDIO_MODULE_NUMBER = 5
+AUDIO_MODULE_BASE = 0x03048000
+AUDIO_MODULE_CAPACITY = 0x2000
 MODULE_MAGIC = b"DSM"
 MODULE_TABLE_OFFSET = OVERLAY_OFFSET + OVERLAY_CAPACITY
 MODULE_TABLE_MAGIC = b"DSMT"
@@ -345,9 +348,10 @@ def check_modules(modules):
     if len(modules) > MODULE_LIMIT:
         raise ImageError(f"the module table holds at most {MODULE_LIMIT} modules")
     for number, module in enumerate(modules, 1):
-        if not OVERLAY_HEADER_SIZE < len(module) <= MODULE_CAPACITY:
+        capacity = AUDIO_MODULE_CAPACITY if number == AUDIO_MODULE_NUMBER else MODULE_CAPACITY
+        if not OVERLAY_HEADER_SIZE < len(module) <= capacity:
             raise ImageError(f"module {number} must be more than {OVERLAY_HEADER_SIZE} and at "
-                             f"most {MODULE_CAPACITY:#x} bytes")
+                             f"most {capacity:#x} bytes")
         named = module[OVERLAY_HEADER_SIZE:OVERLAY_HEADER_SIZE + len(MODULE_MAGIC) + 1]
         if named != module_magic(number):
             raise ImageError(f"module {number}'s entry table does not start with its number: "
@@ -564,6 +568,8 @@ def overlay_from_elf(elf, zeroed=False, base=OVERLAY_BASE, capacity=OVERLAY_CAPA
     overlay = sections.get(".overlay")
     if overlay is None or overlay.address != base:
         raise ImageError(f"the overlay ELF needs an .overlay section at {base:#010x}")
+    if overlay.size > capacity:
+        raise ImageError("the overlay code exceeds its memory window")
     allowed = {".overlay", ".bss"} if zeroed else {".overlay"}
     stray = [name for name, section in sections.items()
              if section.flags & SHF_ALLOC and section.size and name not in allowed]
@@ -578,8 +584,14 @@ def overlay_from_elf(elf, zeroed=False, base=OVERLAY_BASE, capacity=OVERLAY_CAPA
     return overlay.content
 
 
-def module_from_elf(elf):
-    return overlay_from_elf(elf, zeroed=True, base=MODULE_BASE, capacity=MODULE_CAPACITY)
+def module_from_elf(elf, number=0):
+    audio = number == AUDIO_MODULE_NUMBER
+    bss = elf_sections(elf).get(".bss") if audio else None
+    if bss is not None and bss.size:
+        raise ImageError("the audio module must keep all state in its caller")
+    return overlay_from_elf(elf, zeroed=True,
+                            base=AUDIO_MODULE_BASE if audio else MODULE_BASE,
+                            capacity=AUDIO_MODULE_CAPACITY if audio else MODULE_CAPACITY)
 
 
 def elf_symbols(elf):
@@ -623,7 +635,7 @@ def modules_from_elfs(main_elf, paths):
         elf = path.read_bytes()
         check_overlay_copies(main_elf, elf, f"module {number} ({path.stem})",
                              "a source file belongs to the main program or to modules, not both")
-        modules.append(module_from_elf(elf))
+        modules.append(module_from_elf(elf, number))
     return modules
 
 

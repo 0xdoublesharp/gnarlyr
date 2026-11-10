@@ -12,6 +12,7 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 - Search metadata and paths, combine sorting and filters, inspect track information and assign personal mood/activity labels.
 - Scoped Play All and selected-result playback preserve the displayed order.
+- Waking the player keeps the screen on even when a fresh wake timestamp is newer than the current app step. Screen timeout and auto off also remain correct across clock wraparound.
 - Navigation returns to existing checkpoints. Mixtape actions settle at List, modal Back returns to its parent, and hold Back cancels work and reaches Home.
 - Full queue editing, journaled resume, named mixtapes, listening history/export and timed sidecar lyrics.
 
@@ -25,6 +26,8 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Playback fixes
 
+- Standard speech rates from 8 to 24 kHz are converted to 44.1 or 48 kHz with a fixed-point interpolation filter; 32 kHz uses native output. Seeking and chapter positions stay on the recording clock, with no extra output frames.
+
 - Audiobook folder selection resumes the saved chapter and position at every folder depth, including author/title layouts and books made of separate files. Hold Play still opens chapters; selecting a paused loaded book continues its stream.
 
 - Desktop indexing and echo-sync preserve `.m4b` chapter tracks and book folders from Nero and QuickTime chapter metadata, matching the player scanner. Malformed chapter boxes retain valid text-track or whole-book fallbacks.
@@ -36,6 +39,6 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Architecture and validation
 
-Demand-loaded screen modules, a shared overlay loader, USB storage/DAC/update code in an on-demand overlay, and per-image size checks keep the device memory limits explicit. The developer loop provides reports, scripts, screenshots, profiling and file-copy updates.
+Demand-loaded screen modules, an independent audio module for interpolation and M4A demuxing, a shared overlay loader, USB storage/DAC/update code in an on-demand overlay, and per-image size checks keep the device memory limits explicit. The developer loop provides reports, scripts, screenshots, profiling and file-copy updates.
 
 Software checks include native playback comparisons, the simulator, exact ARM decoder comparisons, boot/update scenarios and persistence regressions. See [`known-issues.md`](known-issues.md) for the separate device-validation scope and remaining codec, audio and hardware limits.

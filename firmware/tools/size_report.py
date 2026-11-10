@@ -282,13 +282,16 @@ def module_lines(modules):
 def module_problems(device_map, modules):
     """What makes a module unusable: another slot than the main program's, or more than it holds."""
     problems = []
-    slot = memory_regions(device_map).get(MODULE_REGION)
+    regions = memory_regions(device_map)
     for name, module_map in modules:
+        slot = regions.get("DSP_RAM" if name == "dsp" else MODULE_REGION)
         linked = memory_regions(module_map).get(MODULE_REGION)
         if slot is None or linked != slot:
             problems.append(f"module {name} is not linked for the main program's module slot")
             continue
         code, zeroed = module_extent(module_map)
+        if name == "dsp" and zeroed:
+            problems.append("the audio module must keep all state in its caller")
         if code + zeroed > slot[1]:
             problems.append(f"module {name} is {code + zeroed - slot[1]:,} bytes too large for "
                             "the module slot")

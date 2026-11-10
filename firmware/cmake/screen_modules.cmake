@@ -1,4 +1,9 @@
-set(ECHO_SCREEN_MODULES views settings library listening)
+set(ECHO_SCREEN_MODULES views settings library listening dsp)
+set(ECHO_SCREEN_MODULE_SOURCES_dsp
+    platform/device/logic/audio_interpolate.c
+    platform/device/logic/audio_dsp_entry.c
+    platform/device/logic/mp4_demux.c
+)
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
     src/app/mixtape_store.c
@@ -55,8 +60,13 @@ else()
 endif()
 
 function(echo_screen_module_owner source target_variable name_variable)
+    if(source MATCHES "^platform/device/logic/(.+)$")
+        set(${target_variable} echo_device_logic PARENT_SCOPE)
+        set(${name_variable} ${CMAKE_MATCH_1} PARENT_SCOPE)
+        return()
+    endif()
     if(NOT source MATCHES "^src/([a-z0-9_]+)/(.+)$")
-        message(FATAL_ERROR "module source ${source} must be a file under src/<layer>/")
+        message(FATAL_ERROR "module source ${source} must belong to a known firmware target")
     endif()
     set(${target_variable} echo_${CMAKE_MATCH_1} PARENT_SCOPE)
     set(${name_variable} ${CMAKE_MATCH_2} PARENT_SCOPE)

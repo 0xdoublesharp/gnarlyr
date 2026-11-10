@@ -3,6 +3,7 @@ ENTRY(device_reset)
 MEMORY
 {
     DATA_RAM (rw) : ORIGIN = 0x03004000, LENGTH = 0x48000
+    DSP_RAM (rx) : ORIGIN = 0x03048000, LENGTH = 0x2000
     CODE_RAM (rx) : ORIGIN = 0x03050000, LENGTH = 0x2666C
     HIGH_RAM (rw) : ORIGIN = 0x0307A000, LENGTH = 0xA400
     MODULE_RAM (rw) : ORIGIN = 0x03084400, LENGTH = 0xDC00
@@ -85,8 +86,9 @@ ASSERT(ADDR(.data) == 0x03004000, "the entry vector must be at 0x03004000")
 ASSERT(ORIGIN(HIGH_RAM) + LENGTH(HIGH_RAM) == ORIGIN(MODULE_RAM), "the module slot must follow the decoder workspace")
 ASSERT(ORIGIN(MODULE_RAM) + LENGTH(MODULE_RAM) == ORIGIN(GLYPH_RAM), "the module slot must end where the glyph cache starts")
 ASSERT(SIZEOF(.data) == 8, "only the entry vector may be in .data: make initialised globals const")
-device_data_limit = 0x0304A240;
-ASSERT(device_noinit_end <= device_data_limit, ".data, .bss and .noinit must end below 0x0304A240: the boot ROM clears this range while it still runs from RAM above it")
+device_data_limit = ORIGIN(DSP_RAM);
+ASSERT(ORIGIN(DSP_RAM) + LENGTH(DSP_RAM) <= 0x0304A240, "the audio module must stay below the boot ROM boundary")
+ASSERT(device_noinit_end <= device_data_limit, ".data, .bss and .noinit must end before the independent audio module")
 
 ASSERT(ORIGIN(GLYPH_RAM) + LENGTH(GLYPH_RAM) == ORIGIN(LANGUAGE_RAM), "the language window must follow the glyph cache")
 ASSERT(ORIGIN(LANGUAGE_RAM) + LENGTH(LANGUAGE_RAM) == 0x0309F000, "the language window must end below the reserved top of high RAM")

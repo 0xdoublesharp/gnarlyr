@@ -18,7 +18,7 @@ Gnarlyr builds on [Podium](https://podium-echo.online) 4.5.9, open-source firmwa
 The source supports the capabilities below. The known-issues document distinguishes software coverage from checks completed on the player.
 
 - **Interface:** Home, Music (Cover Flow, Playlists, Artists, Album Artists, Albums, Genres, Folders, All Songs, Favorites), Now Playing, Up Next and Settings. Three text sizes, eight highlight colours, landscape and two portrait orientations.
-- **Playback:** FLAC, MP3 and WAV from 44.1 to 192 kHz, and `.m4a`/`.m4b` with AAC-LC or Apple Lossless. Gapless between tracks at the same sample rate. Shuffle by song or album, repeat, resume after power-off.
+- **Playback:** FLAC, MP3, WAV and `.m4a`/`.m4b` with AAC-LC or Apple Lossless. Standard rates from 8 to 192 kHz; rates below 32 kHz are converted to 44.1 or 48 kHz. Gapless between native-rate tracks at the same sample rate. Shuffle by song or album, repeat, resume after power-off.
 - **Library:** built on the player from the tags, with album covers from embedded art or a `cover`, `folder`, `front` or `albumart` JPEG or PNG. CUE sheets split a one-file album into tracks. `tools/echo_sync.py` builds the same library on a computer.
 - **Lists:** `.m3u` and `.m3u8` playlists, a `Favorite Tracks.m3u` the player appends to, album favorites, and an Up Next queue.
 - **Audiobooks and podcasts:** their own Home entries, a bookmark per book and episode, and chapters from `.m4b` files.
