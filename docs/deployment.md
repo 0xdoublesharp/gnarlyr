@@ -49,7 +49,8 @@ values are never stored here or printed. The connected `double-paas` MCP owns
 normal service configuration/start operations. There is no GitHub release
 workflow or automatic push deployment for this local-only source repository.
 
-The publisher includes only `index.html`, `favicon.svg`, `robots.txt`,
+The publisher includes only `index.html`, `firmware.html`, `hardware.html`,
+`install.html`, `styles.css`, `site.js`, `favicon.svg`, `robots.txt`,
 `sitemap.xml`, and regular public image files under `site/assets/`, up to
 64 MiB total. Firmware, README files, deployment files and hidden files are
 excluded. SHA-256 of the ordered paths and file hashes identifies a release.
@@ -76,8 +77,9 @@ Do not restart the shared proxy for an ordinary site release.
 
 ## Verify and recover
 
-Require HTTP 200 for `/`, `/favicon.svg`, `/robots.txt`, `/sitemap.xml` and
-`/healthz`; compare `/` byte-for-byte against `site/index.html`. Require 404 for
+Require HTTP 200 for `/`, `/firmware.html`, `/hardware.html`, `/install.html`,
+`/styles.css`, `/site.js`, `/favicon.svg`, `/robots.txt`, `/sitemap.xml` and
+`/healthz`; compare all nine public files byte-for-byte against local source. Require 404 for
 `/README.md`, `/deploy/compose.yaml` and an unknown path. Verify origin TLS
 separately with `curl --resolve HOST:443:159.89.222.183 https://HOST/`;
 Cloudflare edge HTTPS alone does not verify the origin certificate.
@@ -94,6 +96,26 @@ The site’s host files are under the platform’s `/srv/hosted-data` Restic bac
 scope (six-hour schedule); source also stays on backed-up Data locally.
 No application database backup is needed. Use the platform recovery procedure
 for a host restore; an isolated restore rehearsal is not part of this release.
+
+## Hardware and firmware guides — 2026-11-10
+
+Published release:
+`e50c9feb9d6a9ca5250173eda0c5ff921be9c90ad2f84ed4b5c916bd4de8b556`.
+Rollback release:
+`f8fbae026150e4fac7d2fee9ece4ee0179b25f2930e3fccf55a718e246d9c9c3`.
+
+The home page links dedicated firmware, hardware and installation guides.
+Content follows fresh-base through `c45f854`; the active firmware task owns
+the user-selected `GNARLYR.img` identity change. The independent writing and
+accuracy review led to corrections for listening statistics, mixtape editing,
+language support, inherited fixes, first-install order and legacy updaters.
+
+All nine public files match local source byte-for-byte over HTTPS. Health is
+200; README, deployment configuration and unknown paths are 404. Static checks
+pass for JavaScript syntax, headings, unique IDs, cross-page anchors, copy
+bindings and exact commands. Standalone desktop/mobile renders were inspected.
+The content pointer changed without restarting nginx. No firmware or device
+operation was part of this publication.
 
 ## UX publication — 2026-11-10
 

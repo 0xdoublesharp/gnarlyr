@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#150f25"><meta name="description" content="A complete guide to Gnarlyr additions, inherited playback features, and fixes made during development."><meta property="og:title" content="More music. More your way. — Gnarlyr"><meta property="og:description" content="A complete guide to Gnarlyr additions, inherited playback features, and fixes made during development."><meta property="og:type" content="website"><meta property="og:url" content="https://gnarlyr.com/firmware.html"><link rel="canonical" href="https://gnarlyr.com/firmware.html"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="stylesheet" href="styles.css"><script src="site.js" defer></script><title>More music. More your way. — Gnarlyr</title>
+</head>
+<body>
+  <svg class="icon-definitions" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><defs>
+    <symbol id="icon-checklist" viewBox="0 0 24 24"><path d="m3.5 6 1.75 1.75L8.5 4.5m-5 7.5 1.75 1.75 3.25-3.25m-5 7.5 1.75 1.75 3.25-3.25M12 6h8.5M12 12h8.5M12 18h8.5"/></symbol>
+    <symbol id="icon-build" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3m6 0h4"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path d="M8 3H5v18h14V3h-3M8 3h8v4H8zM8 14l3 3 5-6"/></symbol>
+    <symbol id="icon-usb" viewBox="0 0 24 24"><path d="M12 18V3m-3 3 3-3 3 3m-3 9-7-4V8m7 5 7-4V6"/><circle cx="12" cy="20" r="2"/><circle cx="5" cy="6" r="2"/><path d="M17 2h4v4h-4z"/></symbol>
+    <symbol id="icon-eject" viewBox="0 0 24 24"><path d="m12 4 8 10H4L12 4ZM4 18h16v3H4z"/></symbol>
+  </defs></svg>
+<a class="skip" href="#main">Skip to content</a>
+<header class="header wrap">    <a class="brand" href="index.html" aria-label="Gnarlyr home">
+      <svg viewBox="0 0 32 24" fill="none" aria-hidden="true"><rect x="1" y="2" width="30" height="20" rx="3" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="6" width="22" height="9" rx="2" stroke="currentColor"/><circle cx="10" cy="10.5" r="2.5" stroke="currentColor"/><circle cx="22" cy="10.5" r="2.5" stroke="currentColor"/><path d="m8 22 3-5h10l3 5" stroke="currentColor"/></svg>
+      <span class="wordmark">GNARLYR<span class="brand-dot">.</span></span>
+    </a>
+<nav aria-label="Main navigation"><a href="firmware.html" aria-current="page">Features</a><a href="hardware.html">Hardware</a><a href="install.html">Install</a><a href="install.html#build" class="nav-cta">Build</a>
+</nav>
+</header>
+<main id="main"><div class="page-intro wrap">
+<p class="eyebrow">Firmware features
+</p>
+<h1 class="page-title">More music. More your way.
+</h1>
+<p>Find the songs you want, keep the order you chose, and make the player comfortable to use. Here’s what Gnarlyr adds and the foundations it builds on.
+</p></div><div class="doc-layout wrap">
+<nav class="contents" aria-label="On this page">
+<p class="eyebrow">On this page
+</p>
+<ol>
+<li><a href="#additions">Gnarlyr additions</a>
+</li>
+<li><a href="#discovery">Find and organize</a>
+</li>
+<li><a href="#queues">Queues and mixtapes</a>
+</li>
+<li><a href="#listening">Listening and sound</a>
+</li>
+<li><a href="#foundation">Built-in playback</a>
+</li>
+<li><a href="#improvements">Fixes and improvements</a>
+</li>
+<li><a href="#tools">Updates and developer tools</a>
+</li>
+</ol>
+</nav><div>
+<section class="doc-section" id="additions" aria-labelledby="additions-title">
+<h2 id="additions-title">Make the player your own.
+</h2>
+<p class="intro">Gnarlyr changes how you find, arrange and enjoy music. It replaces the software on your ECHO and builds on the playback foundation from Podium and EchoPod.
+</p>
+<ul class="detail-list">
+<li><strong>Themes and readable layouts.</strong> Choose from five coordinated themes, three text sizes, landscape and two portrait orientations. Browse a theme with a live preview; Play keeps it and Back restores your saved look. Palette files can customize the built-in themes.
+</li>
+<li><strong>Controls that fit your hands.</strong> Assign eight independent tap and hold actions across Volume ±, Play and Menu. Choose playback, volume, seeking, Home or Up Next actions. List navigation keeps its familiar controls, and audio shortcuts work with the screen off.
+</li>
+<li><strong>A cassette-inspired interface.</strong> Shared deck icons, album artwork, cassette fallback art, flat headers, focus rails and clear transport feedback tie Home, Music and Now Playing together. Audio &amp; connections keeps sound and connection controls in one place.
+</li>
+<li><strong>Language packs.</strong> English is built in. The language system supports matching translation packs loaded from storage and remembers the selected language.
+</li>
+</ul>
+</section>
+<section class="doc-section" id="discovery" aria-labelledby="discovery-title">
+<h2 id="discovery-title">Find it, then play it your way.
+</h2>
+<p class="intro">Search narrows the music you see. Sorting changes its order. Filters and personal labels help you pick a set of songs without changing the music files.
+</p>
+<ul class="detail-list">
+<li><strong>Search the whole collection.</strong> Match title, artist, album, album artist, genre or path. Case and accent folding help match names while results keep their original spelling.
+</li>
+<li><strong>Sorting and combined filters.</strong> Sort across a library of up to 65,535 songs. Keep original order or sort by title, artist, album, year or duration in either direction. Combine artist, album, genre, year, length and personal-tag filters.
+</li>
+<li><strong>Personal tags.</strong> Create, rename and delete up to 32 mood or activity labels. Assign several to a song and filter by them. Labels are stored separately from audio-file metadata and use the song’s path and, for CUE albums, its start and end positions within a shared audio file. Those details keep labels attached through a rescan.
+</li>
+<li><strong>Track information.</strong> See title, artist, album artist, album, genre, year, disc and track number, duration and file path from a song’s action menu.
+</li>
+<li><strong>Play a group or your results.</strong> Start a whole artist, genre, album, folder or opened playlist. Playing a search result keeps the visible result order, selected song and duplicates in the queue.
+</li>
+<li><strong>Remembered views.</strong> Search text, sorting and filters are saved. Returning to a list keeps useful context; a changed library clears selections that depended on its old internal song IDs.
+</li>
+</ul>
+</section>
+<section class="doc-section" id="queues" aria-labelledby="queues-title">
+<h2 id="queues-title">Build a mix, keep the order.
+</h2>
+<p class="intro">Up Next is the list playing now. A mixtape is a named copy you can return to later. Editing the current queue and changing a saved mixtape are separate actions.
+</p>
+<ul class="detail-list">
+<li><strong>Edit the full queue.</strong> Move songs earlier or later, move a song to play next, remove entries, clear added songs or keep only the current track. Album and shuffled queues can become editable stored orders.
+</li>
+<li><strong>32 named mixtapes.</strong> Create an empty mix, save the current queue, play a saved mix, load it into Up Next to change it, then save the queue back over it. Rename or delete saved mixes. Each can hold up to 65,535 entries, including repeated songs.
+</li>
+<li><strong>Stable song identity.</strong> Saved mixes identify a song by its file path and, for CUE albums, its start and end positions within a shared audio file. A library rescan can reorder internal IDs without changing which song the mix means.
+</li>
+<li><strong>Queue and resume saved together.</strong> The saved song order and playback position stay together, so resume returns to the matching queue. Cancelling an edit keeps the previous session.
+</li>
+</ul>
+</section>
+<section class="doc-section" id="listening" aria-labelledby="listening-title">
+<h2 id="listening-title">Keep the moments you come back to.
+</h2>
+<p class="intro">Your listening history and lyrics stay with the player. Sound previews let you hear a choice before deciding to keep it.
+</p>
+<ul class="detail-list">
+<li><strong>Listening totals and exports.</strong> See listening time, play and skip totals, plus top artists, albums and songs. Export an Audioscrobbler-compatible <code>.scrobbler.log</code> for use with other listening tools.
+</li>
+<li><strong>Timed lyrics.</strong> Put a matching LRC lyrics file beside a song to follow its words as it plays. Hold Menu on Now Playing to open Lyrics.
+</li>
+<li><strong>Audible preset previews.</strong> Browse EQ preset curves while hearing the change. Play commits a preset; Back or leaving the preview restores the previous sound.
+</li>
+<li><strong>Custom EQ editing.</strong> Adjust bands with numeric feedback and visual hints. Draft changes can be heard before being kept, and Back cancels the edit.
+</li>
+</ul>
+</section>
+<section class="doc-section" id="foundation" aria-labelledby="foundation-title">
+<h2 id="foundation-title">A familiar music player underneath.
+</h2>
+<p class="intro">Podium and EchoPod supply much of the library, playback and hardware support that Gnarlyr builds on. These capabilities are part of that credited foundation.
+</p>
+<ul class="detail-list">
+<li><strong>Music and artwork.</strong> FLAC, MP3, WAV, AAC-LC and ALAC playback; album, artist, album artist, genre, folder and song browsing; embedded and folder artwork; Cover Flow and random-album playback.
+</li>
+<li><strong>Playlists and album images.</strong> M3U/M3U8 playlists, album favorites, a Favorite Tracks playlist, and CUE sheets that split a single FLAC, WAV or MP3 album into separate tracks.
+</li>
+<li><strong>Playback choices.</strong> Song or album shuffle, repeat, same-sample-rate gapless playback, seeking and resume. Audiobooks and podcasts keep their own bookmarks.
+</li>
+<li><strong>Sound controls.</strong> Gain and headphone volume-scale settings, software EQ presets, saved custom curves and EQ-file imports.
+</li>
+<li><strong>Connections and everyday controls.</strong> USB storage or USB Audio Class 1.0 DAC mode, Bluetooth headphone pairing and remembered devices, wired-headset controls, button lock, charging display and sleep/power settings.
+</li>
+<li><strong>Computer indexing.</strong> Build the library and artwork with the source-based <code>echo-sync</code> tool.
+</li>
+</ul>
+</section>
+<section class="doc-section" id="improvements" aria-labelledby="improvements-title">
+<h2 id="improvements-title">Small fixes that make a difference.
+</h2>
+<p class="intro">Some changes extend the inherited firmware; others correct bugs found while building Gnarlyr. FiiO’s stock software is replaced when you install Gnarlyr.
+</p>
+<ul class="detail-list">
+<li><strong>More dependable USB-C detection.</strong> The USB supply pins now follow cable power. This corrected missed connections observed with the player on a Mac.
+</li>
+<li><strong>DAC startup follows stock timing.</strong> The output power-up wait is 12 ms, matching the stock sequence instead of the inherited 10 ms.
+</li>
+<li><strong>The right song after a rescan.</strong> Playback sessions check the library’s contents before reusing saved song IDs, preventing a changed database from restoring the wrong song or stale CUE position.
+</li>
+<li><strong>Queue edits repair prepared audio.</strong> When an edit replaces the next song, the buffered next-audio state is rebuilt so playback follows the new order.
+</li>
+<li><strong>Safer navigation during background work.</strong> Mix loading finishes using its temporary memory before opening playback. An active seek keeps control of its cursor and confirmation keys. Holding Back returns Home from any screen and safely cancels work in progress.
+</li>
+<li><strong>More reliable search and labels.</strong> Long-path searches work across metadata chunks. Search results preserve selected-song identity, and tag saves protect a newer bank when a read temporarily fails.
+</li>
+<li><strong>Lyrics and navigation fixes.</strong> LRC lookup uses the correct storage-root path. Repeated Now Playing, Lyrics and Up Next navigation unwinds existing screens instead of stacking copies.
+</li>
+<li><strong>Less unnecessary redraw work.</strong> Passive progress updates are bounded on short tracks. Idle sleeping, frame pacing and clock coasting reduce unnecessary processor work.
+</li>
+<li><strong>Clearer power information.</strong> The USB and charging screen shows the active Storage or DAC mode, battery estimate, drive/eject details or audio format and volume. Charging, charged and USB-powered states stay distinct; a USB-powered rail reading is not shown as battery voltage.
+</li>
+<li><strong>MP3 gapless after seeking.</strong> Gapless MP3s still trim the encoder’s silent tail after you seek or resume part-way. Files without gapless information play every sample.
+</li>
+<li><strong>AAC starts and ends at the intended samples.</strong> When an M4A file describes the encoder’s extra startup samples and intended duration, the decoder applies that timing so those extra samples are trimmed. It also keeps seeking aligned when the file’s timing uses a coarse clock.
+</li>
+</ul>
+<p>The DAC timing, MP3 gapless and AAC timing fixes improve inherited code. These fixes concern the replacement firmware and its integration; they do not patch FiiO’s closed-source program.
+</p>
+</section>
+<section class="doc-section" id="tools" aria-labelledby="tools-title">
+<h2 id="tools-title">The same cable can help development, too.
+</h2>
+<p class="intro">Developer builds let a computer copy an update, verify it, eject the drives, request a restart and wait for the player to return. Everyday manual updates use the player’s own updater.
+</p>
+<ul class="detail-list">
+<li><strong>Checked updates.</strong> The updater validates the image and its CRC, writes the second firmware slot first, and reads back each chunk before continuing to the first slot.
+</li>
+<li><strong>A repeatable USB development loop.</strong> Developer reports, event logs, scripts, screenshots and profiling help trace a problem and check a change. These are available through the command-line and MCP tools.
+</li>
+<li><strong>Room for features.</strong> Demand-loaded screens, library work and USB code share bounded memory regions. Features can grow while the main playback code stays resident.
+</li>
+</ul><a class="text-link" href="install.html">Build, install and update →</a>
+</section></div></div>
+</main><div class="outro wrap">
+<p class="outro-phrase">Stay offline. Get a little gnarly.
+</p>
+<p class="eyebrow">Made for the music you already love.
+</p></div>
+<footer class="wrap">
+<nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html">Features &amp; improvements</a><a href="hardware.html">ECHO hardware</a><a href="install.html">Install &amp; update</a>
+</nav>
+<div class="footer-row"><span>GNARLYR.COM / Open-source ECHO firmware</span><div class="footer-links"><a href="https://podium-echo.online">Podium ↗</a><a href="https://github.com/BasilSkyWalk/echopod">EchoPod ↗</a><a href="https://github.com/brnomt/ReChord">ReChord ↗</a><a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0-or-later ↗</a></div></div>
+<p>Gnarlyr by doublesharp. Built on Podium and EchoPod, with hardware research from ReChord.
+</p>
+</footer>
+</body></html>

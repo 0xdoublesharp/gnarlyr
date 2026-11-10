@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#150f25"><meta name="description" content="Full-size Snowsky ECHO specifications, confirmed CS43198 readbacks, and approachable notes on the processor, display, USB and power."><meta property="og:title" content="Meet the hardware. — Gnarlyr"><meta property="og:description" content="Full-size Snowsky ECHO specifications, confirmed CS43198 readbacks, and approachable notes on the processor, display, USB and power."><meta property="og:type" content="website"><meta property="og:url" content="https://gnarlyr.com/hardware.html"><link rel="canonical" href="https://gnarlyr.com/hardware.html"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="stylesheet" href="styles.css"><script src="site.js" defer></script><title>Meet the hardware. — Gnarlyr</title>
+</head>
+<body>
+  <svg class="icon-definitions" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><defs>
+    <symbol id="icon-checklist" viewBox="0 0 24 24"><path d="m3.5 6 1.75 1.75L8.5 4.5m-5 7.5 1.75 1.75 3.25-3.25m-5 7.5 1.75 1.75 3.25-3.25M12 6h8.5M12 12h8.5M12 18h8.5"/></symbol>
+    <symbol id="icon-build" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3m6 0h4"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path d="M8 3H5v18h14V3h-3M8 3h8v4H8zM8 14l3 3 5-6"/></symbol>
+    <symbol id="icon-usb" viewBox="0 0 24 24"><path d="M12 18V3m-3 3 3-3 3 3m-3 9-7-4V8m7 5 7-4V6"/><circle cx="12" cy="20" r="2"/><circle cx="5" cy="6" r="2"/><path d="M17 2h4v4h-4z"/></symbol>
+    <symbol id="icon-eject" viewBox="0 0 24 24"><path d="m12 4 8 10H4L12 4ZM4 18h16v3H4z"/></symbol>
+  </defs></svg>
+<a class="skip" href="#main">Skip to content</a>
+<header class="header wrap">    <a class="brand" href="index.html" aria-label="Gnarlyr home">
+      <svg viewBox="0 0 32 24" fill="none" aria-hidden="true"><rect x="1" y="2" width="30" height="20" rx="3" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="6" width="22" height="9" rx="2" stroke="currentColor"/><circle cx="10" cy="10.5" r="2.5" stroke="currentColor"/><circle cx="22" cy="10.5" r="2.5" stroke="currentColor"/><path d="m8 22 3-5h10l3 5" stroke="currentColor"/></svg>
+      <span class="wordmark">GNARLYR<span class="brand-dot">.</span></span>
+    </a>
+<nav aria-label="Main navigation"><a href="firmware.html">Features</a><a href="hardware.html" aria-current="page">Hardware</a><a href="install.html">Install</a><a href="install.html#build" class="nav-cta">Build</a>
+</nav>
+</header>
+<main id="main"><div class="page-intro wrap">
+<p class="eyebrow">Inside the ECHO
+</p>
+<h1 class="page-title">Meet the hardware.
+</h1>
+<p>The ECHO is a small computer with separate parts for music, sound, storage and wireless audio. Start with the everyday specifications, then look closer at the parts doing the work.
+</p></div><div class="doc-layout wrap">
+<nav class="contents" aria-label="On this page">
+<p class="eyebrow">On this page
+</p>
+<ol>
+<li><a href="#specs">Everyday specifications</a>
+</li>
+<li><a href="#chips">Processor and audio chips</a>
+</li>
+<li><a href="#display">Screen and buttons</a>
+</li>
+<li><a href="#usb">USB and Bluetooth</a>
+</li>
+<li><a href="#memory">Storage, memory and power</a>
+</li>
+<li><a href="#sources">Where the findings come from</a>
+</li>
+</ol>
+</nav><div>
+<section class="doc-section" id="specs" aria-labelledby="specs-title">
+<h2 id="specs-title">The numbers you use day to day.
+</h2>
+<p class="intro">The full-size ECHO combines internal storage, a microSD slot and two headphone outputs. These are FiiO’s published specifications; our chip readback below came from a 4 GB unit.
+</p>
+<table class="data-table">
+<caption>Manufacturer specifications: <a href="https://www.fiio.com/echo_parameters">FiiO ECHO parameters ↗</a>
+</caption>
+<tbody>
+<tr><th scope="row">Screen</th><td>2.39-inch IPS · 222 × 480 pixels, used as 480 × 222 in landscape</td>
+</tr>
+<tr><th scope="row">Internal storage</th><td>4 GB or 8 GB</td>
+</tr>
+<tr><th scope="row">microSD</th><td>Up to 256 GB, per FiiO</td>
+</tr>
+<tr><th scope="row">Battery</th><td>1100 mAh · FiiO’s stock-firmware rating is up to 14 hours at a quiet listening level (FiiO’s 40 mV test level)</td>
+</tr>
+<tr><th scope="row">Size and weight</th><td>85 × 55.5 × 14.3 mm · 85 g</td>
+</tr>
+<tr><th scope="row">Audio chips</th><td>Two Cirrus Logic CS43198 DACs</td>
+</tr>
+<tr><th scope="row">Headphone outputs</th><td>3.5 mm single-ended · 4.4 mm balanced</td>
+</tr>
+<tr><th scope="row">Output power</th><td>At 32 Ω with USB power and THD+N below 1%: at least 120 mW/channel (3.5 mm), 260 mW/channel (4.4 mm)</td>
+</tr>
+<tr><th scope="row">Headphone impedance</th><td>16–150 Ω (3.5 mm) · 16–300 Ω (4.4 mm)</td>
+</tr>
+<tr><th scope="row">USB and wireless</th><td>USB-C charging/data · SBC Bluetooth transmission</td>
+</tr>
+</tbody>
+</table>
+<p>For the formats and controls provided by Gnarlyr, see <a href="firmware.html#foundation">built-in playback</a>.
+</p>
+</section>
+<section class="doc-section" id="chips" aria-labelledby="chips-title">
+<h2 id="chips-title">Two jobs: run the player, make the sound.
+</h2>
+<p class="intro">The processor reads music files and runs the menus. A DAC, short for digital-to-analog converter, turns decoded audio samples into the electrical signal used by the headphone output.
+</p>
+<table class="data-table">
+<tbody>
+<tr><th scope="row">Processor platform</th><td>Rockchip RKnano, with two ARM Cortex-M3 cores. The firmware uses one for the player and one for a decoder loaded when needed.</td>
+</tr>
+<tr><th scope="row">Audio chip A</th><td>CS43198 · bus address <code>0x30</code> (7-bit)</td>
+</tr>
+<tr><th scope="row">Audio chip B</th><td>CS43198 · bus address <code>0x33</code> (7-bit)</td>
+</tr>
+<tr><th scope="row">Read from both chips</th><td>ID <code>43 19 80</code> · revision <code>A1</code> · subrevision <code>06</code></td>
+</tr>
+<tr><th scope="row">Audio transport</th><td>I2S carries samples to the DACs; DMA moves audio from memory without the main loop copying every sample.</td>
+</tr>
+<tr><th scope="row">EQ</th><td>Calculated in software on the main processor. The CS43198’s digital filters and gain controls are separate from the software EQ.</td>
+</tr>
+</tbody>
+</table>
+<p>Both audio chips answered with CS43198 identity bytes on the owner’s ECHO. That matches <a href="https://www.fiio.com/echo_parameters">FiiO’s parts list</a> and <a href="https://www.cirrus.com/products/cs43198">Cirrus’s CS43198 documentation</a>. Some inherited source filenames still say CS43131; the readback identifies the fitted parts.
+</p>
+<details>
+<summary>How the chip identification was read
+</summary><div class="answer">
+<p>Read-only registers <code>0x010000</code>, <code>0x010001</code> and <code>0x010002</code> supplied the ID. Registers <code>0x010004</code> and <code>0x010005</code> supplied revision and subrevision. The driver’s wire-format addresses <code>0x60</code> and <code>0x66</code> correspond to 7-bit addresses <code>0x30</code> and <code>0x33</code>.
+</p>
+<p>The recorded result is <code>431980 A1.06</code> for both devices. A1.06 describes the chips’ revision, not the installed Gnarlyr version.
+</p></div>
+</details>
+</section>
+<section class="doc-section" id="display" aria-labelledby="display-title">
+<h2 id="display-title">The screen keeps its own picture.
+</h2>
+<p class="intro">The display has its own image memory. The processor sends the parts that changed, which helps the interface work within the ECHO’s small memory budget.
+</p>
+<ul class="detail-list">
+<li><strong>Display protocol.</strong> The driver uses an ST7796S-style command set and 16-bit RGB565 pixel transfers. Comparing the stock display-control code with the driver matched all 24 initialization commands and their data.
+</li>
+<li><strong>Landscape and portrait.</strong> Stock’s landscape window has a 49-row offset. Portrait changes the orientation bits and applies that offset to the other axis.
+</li>
+<li><strong>Backlight.</strong> Brightness is controlled by rapidly switching the backlight on and off: a 25 kHz PWM signal on GPIO2.4.
+</li>
+<li><strong>Buttons.</strong> Volume, Play, Menu and Back share a sensing line, called a resistor ladder, read by a voltage-measuring input (ADC). Power has its own input. The player recognizes those shared buttons by their different electrical readings.
+</li>
+</ul>
+</section>
+<section class="doc-section" id="usb" aria-labelledby="usb-title">
+<h2 id="usb-title">One cable, two useful modes.
+</h2>
+<p class="intro">In Storage mode your computer sees the music drives. In DAC mode it sends audio to the player instead. Charging is handled alongside the selected mode.
+</p>
+<ul class="detail-list">
+<li><strong>USB controller.</strong> A DesignWare USB 2.0 OTG controller. Storage can negotiate high speed and retry at full speed if the first connection does not become usable.
+</li>
+<li><strong>Separate drives.</strong> Internal storage and an inserted microSD card are separate USB logical drives. The storage session ends after every drive present at connection has been ejected.
+</li>
+<li><strong>Audio mode.</strong> The firmware’s USB Audio Class 1.0 path offers 16- or 24-bit audio at 44.1 or 48 kHz, with a separately remembered DAC volume.
+</li>
+<li><strong>Cable detection.</strong> GPIO2.0 controls taking power from USB and GPIO0.14 controls charging. Keeping them tied to the actual cable state corrected missed USB-C connections observed on the owner’s Mac.
+</li>
+<li><strong>Bluetooth module.</strong> A separate module handles wireless audio. The main processor talks to it over UART1 at 115,200 baud using short commands. FiiO specifies SBC headphone transmission.
+</li>
+</ul>
+<p><a href="install.html#usb">How the USB changes affect updates →</a>
+</p>
+</section>
+<section class="doc-section" id="memory" aria-labelledby="memory-title">
+<h2 id="memory-title">Music files and firmware have different homes.
+</h2>
+<p class="intro">Your music lives in a normal storage volume. Firmware lives in two separate slots on the internal chip. The updater writes and checks the second slot before writing the first. RAM is the working memory used while the player runs.
+</p>
+<table class="data-table">
+<tbody>
+<tr><th scope="row">Internal storage</th><td>eMMC with two firmware slots, a SAVE area and the user’s FAT32 volume. The microSD card is separate.</td>
+</tr>
+<tr><th scope="row">Main working RAM</th><td>Core 0 data window: <code>0x03004000–0x0304C000</code>.</td>
+</tr>
+<tr><th scope="row">Decoder RAM</th><td>Core 1 region: <code>0x01000000–0x0105FFFF</code> · 384 KiB.</td>
+</tr>
+<tr><th scope="row">Shared high RAM</th><td><code>0x0307A000–0x0309EFFF</code> · 148 KiB, used for overlays and temporary work.</td>
+</tr>
+<tr><th scope="row">Main code location</th><td><code>0x03050000</code>. Extra screens and USB work can load into a bounded module region.</td>
+</tr>
+<tr><th scope="row">Battery reading</th><td>ADC channel 0 measures the rail powering the player. On battery this reflects the cell; USB power can lift the rail above the cell voltage.</td>
+</tr>
+</tbody>
+</table>
+<p>That power-rail behavior is why Gnarlyr distinguishes Charging, Charged and USB power, and avoids displaying a USB-powered millivolt reading as the battery’s actual voltage.
+</p>
+<p>The memory ranges come from the firmware map and stock-code analysis. They describe working regions, not a single advertised RAM-capacity figure.
+</p>
+</section>
+<section class="doc-section" id="sources" aria-labelledby="sources-title">
+<h2 id="sources-title">Specs, readbacks and code tell different parts of the story.
+</h2>
+<p class="intro">FiiO supplies the product ratings. Device readbacks identify the audio chips. Comparing the stock firmware and driver source explains how the other parts are controlled.
+</p>
+<ul class="source-list">
+<li><a href="https://www.fiio.com/echo_parameters">FiiO’s full-size ECHO specifications ↗</a> and <a href="https://www.fiio.com/echo">product overview ↗</a>
+</li>
+<li><a href="https://www.cirrus.com/products/cs43198">Cirrus Logic CS43198 documentation ↗</a>
+</li>
+<li>In the Gnarlyr checkout: <code>docs/stock-firmware.md</code> records the stock-image analysis and the dual-DAC readback.
+</li>
+<li><code>firmware/docs/hardware.md</code> maps the display, buttons, memory, USB, power and Bluetooth interfaces.
+</li>
+<li><code>firmware/UPSTREAM.md</code> and <code>firmware/CREDITS.md</code> credit Podium, EchoPod, ReChord and the other foundations.
+</li>
+</ul>
+</section></div></div>
+</main><div class="outro wrap">
+<p class="outro-phrase">Stay offline. Get a little gnarly.
+</p>
+<p class="eyebrow">Made for the music you already love.
+</p></div>
+<footer class="wrap">
+<nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html">Features &amp; improvements</a><a href="hardware.html">ECHO hardware</a><a href="install.html">Install &amp; update</a>
+</nav>
+<div class="footer-row"><span>GNARLYR.COM / Open-source ECHO firmware</span><div class="footer-links"><a href="https://podium-echo.online">Podium ↗</a><a href="https://github.com/BasilSkyWalk/echopod">EchoPod ↗</a><a href="https://github.com/brnomt/ReChord">ReChord ↗</a><a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0-or-later ↗</a></div></div>
+<p>Gnarlyr by doublesharp. Built on Podium and EchoPod, with hardware research from ReChord.
+</p>
+</footer>
+</body></html>
