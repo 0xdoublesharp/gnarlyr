@@ -16,8 +16,8 @@ screenshots under `site/assets/` when they are ready, then publish the updated p
 | Compose Service | gnarlyr.com — `qmr9bkgudrovynocs2tlbdlt` |
 | Web child | `qwiocekeoqdh3pakchdihv9b` |
 | Container | `web-qmr9bkgudrovynocs2tlbdlt` |
-| Validation URL | https://gnarlyr.apps.doublesharp.com |
-| Final domain | https://gnarlyr.com; www redirects to the apex |
+| Primary URL | https://gnarlyr.com; www redirects to the apex |
+| Secondary validation URL | https://gnarlyr.apps.doublesharp.com |
 | Origin address | `159.89.222.183` |
 
 This is a user-defined Compose Service with normal Coolify parsing, not a
@@ -79,7 +79,9 @@ Do not restart the shared proxy for an ordinary site release.
 
 Require HTTP 200 for `/`, `/firmware.html`, `/hardware.html`, `/install.html`, `/build.html`,
 `/styles.css`, `/site.js`, `/favicon.svg`, `/robots.txt`, `/sitemap.xml` and
-`/healthz`; compare all ten public files byte-for-byte against local source. Require 404 for
+`/healthz`; compare all ten public files byte-for-byte against local source at
+the origin. At the Cloudflare edge, HTML includes an injected analytics beacon;
+remove only that known script when comparing HTML. Other files must match exactly. Require 404 for
 `/README.md`, `/deploy/compose.yaml` and an unknown path. Verify origin TLS
 separately with `curl --resolve HOST:443:159.89.222.183 https://HOST/`;
 Cloudflare edge HTTPS alone does not verify the origin certificate.
@@ -174,9 +176,16 @@ paths are 404. Actual container limits and read-only mounts match the definition
 The validation hostname also passes direct-origin TLS and HTTP 200 at the Reserved
 IP. The Service is healthy after all three domain routes were configured.
 
-Gnarlyr.com currently uses Cloudflare. The connected account has no DNS
-integration, and the documented local DNS credential and backup are absent.
-The custom-domain cutover still requires DNS access: point the apex A record to
-`159.89.222.183`, point www to the apex (or the same origin), reconcile conflicting
-AAAA records, then verify origin and public TLS, page bytes and the www redirect.
-Do not replace mail or unrelated records.
+DNS access was unavailable during the initial release. The primary domain is
+now verified below; the initial cutover blocker is historical.
+
+## Primary domain verification — 2026-11-10
+
+Use https://gnarlyr.com for public links. All ten current release files serve
+through that domain, and each origin response matches local source exactly.
+Public HTML differs only by Cloudflare's injected beacon. Verification used a
+browser User-Agent. Origin TLS validates for `gnarlyr.com` at `159.89.222.183`.
+`https://www.gnarlyr.com/install.html` redirects to the same path on the apex.
+Canonical metadata and sitemap URLs already use the primary domain. This check
+made no DNS or runtime changes and retained release
+`6279229fb53f4d5f58936fa73b6125b4fb54fad3f03b178b66c1a7790aa2759b`.
