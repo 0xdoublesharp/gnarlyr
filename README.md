@@ -10,9 +10,10 @@ Doublesharp Echo builds on [Podium](https://podium-echo.online) and, through it,
 |---|---|
 | [`firmware/`](firmware/README.md) | The firmware source, simulator, emulator, tests and documentation |
 | `tools/firmware.py` | Build and test wrapper for the firmware |
+| `tools/echo_debug.py` | Host side of the developer builds' debug loop: `status`, `report` and `profile --elf ELF` read the player's debug report from its internal drive over USB storage and print JSON; see [the architecture record](firmware/docs/architecture.md), Debug loop |
 | `tools/echo_image.py`, `run_analysis.py`, `check_analysis.py`, `rea_session.mjs`, `ghidra/` | Analysis of FiiO's stock image; see [the stock firmware reference](docs/stock-firmware.md) |
 | `tools/recovery/` | CMake project for the patched maskrom tool; see [`firmware/docs/device-recovery.md`](firmware/docs/device-recovery.md) |
-| `tests/` | Tests for the stock-image parser and exporter |
+| `tests/` | Tests for the stock-image parser and exporter and for `echo_debug.py` |
 
 ## Building the firmware
 
