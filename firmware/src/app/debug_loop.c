@@ -89,6 +89,7 @@ void debug_loop_follow(uint32_t now_ms, const Player *player)
 
 void debug_loop_shutdown(DebugReportReason reason)
 {
+    debug_runner_abort();
     loop.shutdown_reason = reason;
 }
 

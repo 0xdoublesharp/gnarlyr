@@ -71,6 +71,22 @@ static void a_power_tap_turns_the_screen_off_and_on(void)
     CHECK(policy.display_on);
 }
 
+static void resting_turns_the_screen_off_until_the_next_wake_and_keeps_the_timeout(void)
+{
+    PowerPolicy policy;
+    power_policy_init(&policy, 30000, 0);
+    power_policy_rest(&policy);
+    CHECK(!policy.display_on);
+    CHECK(!power_policy_update(&policy, 1000));
+    CHECK(!policy.display_on);
+    power_policy_wake(&policy, 2000);
+    CHECK(policy.display_on);
+    CHECK(!power_policy_update(&policy, 31999));
+    CHECK(policy.display_on);
+    CHECK(!power_policy_update(&policy, 32000));
+    CHECK(!policy.display_on);
+}
+
 static void power_wakes_a_screen_that_timed_out(void)
 {
     PowerPolicy policy = fresh_policy();
@@ -194,6 +210,7 @@ int main(void)
         TEST_CASE(a_zero_timeout_keeps_the_display_on),
         TEST_CASE(after_a_timeout_media_keys_work_without_waking),
         TEST_CASE(a_power_tap_turns_the_screen_off_and_on),
+        TEST_CASE(resting_turns_the_screen_off_until_the_next_wake_and_keeps_the_timeout),
         TEST_CASE(power_wakes_a_screen_that_timed_out),
         TEST_CASE(with_the_screen_off_play_and_volume_go_to_the_player),
         TEST_CASE(with_the_screen_off_menu_and_back_do_nothing),

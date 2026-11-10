@@ -5,7 +5,14 @@
 #include "core/key_script.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
+#include "hal/power.h"
 #include "hal/system.h"
+
+enum {
+    SOAK_CHECK_MS = 10000,
+    MILLISECONDS_PER_MINUTE = 60000,
+    MICROSECONDS_PER_MILLISECOND = 1000
+};
 
 typedef enum Phase {
     PHASE_NEXT,
@@ -13,7 +20,8 @@ typedef enum Phase {
     PHASE_KEY_GAP,
     PHASE_WAITING,
     PHASE_MEASURING,
-    PHASE_REQUESTED
+    PHASE_REQUESTED,
+    PHASE_SOAKING
 } Phase;
 
 typedef struct Runner {
@@ -29,6 +37,12 @@ typedef struct Runner {
     HalKeyTransition transition;
     uint32_t until_ms;
     uint32_t underruns_before;
+    bool screen_on;
+    bool key_pressed;
+    uint8_t low_checks;
+    uint32_t checked_ms;
+    uint32_t clock_us;
+    uint32_t idle_us;
 } Runner;
 
 static Runner runner;
@@ -76,8 +90,96 @@ bool debug_runner_next_key(HalKeyTransition *transition)
     return true;
 }
 
+static void set_status(DebugLineStatus status)
+{
+    runner.run.status[runner.line - 1] = (uint8_t)status;
+    runner.phase = PHASE_NEXT;
+}
+
+static DebugSoakEdge soak_edge(void)
+{
+    uint32_t levels = hal_system_power_levels() |
+                      (hal_audio_status().idle ? 0u : DEBUG_SOAK_AUDIO) |
+                      (runner.screen_on ? DEBUG_SOAK_SCREEN : 0u);
+    return (DebugSoakEdge){.sample = hal_system_power_samples(),
+                           .levels = (uint8_t)levels,
+                           .clock_mhz = (uint8_t)hal_system_clock_mhz()};
+}
+
+static void measure_soak(DebugSoak *soak)
+{
+    uint32_t clock_us = hal_clock_microseconds();
+    uint32_t idle_us = hal_system_idle_microseconds();
+    soak->measured_ms += (clock_us - runner.clock_us) / MICROSECONDS_PER_MILLISECOND;
+    soak->idle_ms += (idle_us - runner.idle_us) / MICROSECONDS_PER_MILLISECOND;
+    runner.clock_us = clock_us;
+    runner.idle_us = idle_us;
+}
+
+static void begin_soak(uint32_t now_ms, uint32_t minutes)
+{
+    if (runner.run.soak_count == DEBUG_SCRIPT_SOAKS) {
+        set_status(DEBUG_LINE_FAILED);
+        return;
+    }
+    runner.run.soaks[runner.run.soak_count] =
+        (DebugSoak){.line = runner.line, .started_ms = now_ms, .start = soak_edge()};
+    runner.until_ms = now_ms + minutes * MILLISECONDS_PER_MINUTE;
+    runner.checked_ms = now_ms;
+    runner.low_checks = 0;
+    runner.key_pressed = false;
+    runner.clock_us = hal_clock_microseconds();
+    runner.idle_us = hal_system_idle_microseconds();
+    runner.phase = PHASE_SOAKING;
+}
+
+static void end_soak(uint32_t now_ms, DebugSoakEnd end)
+{
+    DebugSoak *soak = &runner.run.soaks[runner.run.soak_count++];
+    measure_soak(soak);
+    soak->finish = soak_edge();
+    soak->ended_ms = now_ms;
+    soak->end = (uint8_t)end;
+    if (end != DEBUG_SOAK_DONE) {
+        hal_system_hold_usb_supply_off(false);
+    }
+    set_status(end == DEBUG_SOAK_DONE ? DEBUG_LINE_OK : DEBUG_LINE_CUT_SHORT);
+}
+
+static bool battery_low_for_a_minute(void)
+{
+    HalBattery battery = hal_power_battery();
+    bool low = battery.known && battery.millivolts < DEBUG_SOAK_LOW_MILLIVOLTS;
+    runner.low_checks = low ? (uint8_t)(runner.low_checks + 1) : 0;
+    return runner.low_checks > DEBUG_SOAK_LOW_MS / SOAK_CHECK_MS;
+}
+
+static void continue_soak(uint32_t now_ms)
+{
+    if (runner.key_pressed) {
+        end_soak(now_ms, DEBUG_SOAK_KEY);
+    } else if ((int32_t)(now_ms - runner.until_ms) >= 0) {
+        end_soak(now_ms, DEBUG_SOAK_DONE);
+    } else if (now_ms - runner.checked_ms >= SOAK_CHECK_MS) {
+        runner.checked_ms = now_ms;
+        measure_soak(&runner.run.soaks[runner.run.soak_count]);
+        if (battery_low_for_a_minute()) {
+            end_soak(now_ms, DEBUG_SOAK_LOW_BATTERY);
+        }
+    }
+}
+
+void debug_runner_key_pressed(void)
+{
+    runner.key_pressed = true;
+}
+
 static void stop(uint32_t now_ms, DebugScriptState state)
 {
+    if (runner.phase == PHASE_SOAKING) {
+        end_soak(now_ms, DEBUG_SOAK_STOPPED);
+    }
+    hal_system_hold_usb_supply_off(false);
     if (runner.key_down) {
         send_key(false, now_ms);
     }
@@ -88,15 +190,10 @@ static void stop(uint32_t now_ms, DebugScriptState state)
 
 void debug_runner_abort(void)
 {
+    runner.reconnect_due = false;
     if (debug_runner_active()) {
         stop(hal_clock_milliseconds(), DEBUG_SCRIPT_ABORTED);
     }
-}
-
-static void set_status(DebugLineStatus status)
-{
-    runner.run.status[runner.line - 1] = (uint8_t)status;
-    runner.phase = PHASE_NEXT;
 }
 
 static void begin_measure(uint32_t now_ms, uint32_t duration_ms)
@@ -254,6 +351,17 @@ static DebugRequest run_op(const DebugOp *op, uint32_t now_ms)
     case DEBUG_OP_RECONNECT:
         reconnect_now(now_ms);
         break;
+    case DEBUG_OP_SUPPLY:
+        hal_system_hold_usb_supply_off(op->first == 0);
+        set_status(DEBUG_LINE_OK);
+        break;
+    case DEBUG_OP_SCREEN:
+        runner.phase = PHASE_REQUESTED;
+        runner.requested = DEBUG_REQUEST_SCREEN;
+        return (DebugRequest){.kind = DEBUG_REQUEST_SCREEN, .slot = op->first};
+    case DEBUG_OP_SOAK:
+        begin_soak(now_ms, op->first);
+        break;
     default:
         probe(op, now_ms);
         break;
@@ -304,6 +412,10 @@ static DebugRequest advance(uint32_t now_ms)
     if (runner.phase == PHASE_NEXT) {
         return next_op(now_ms);
     }
+    if (runner.phase == PHASE_SOAKING) {
+        continue_soak(now_ms);
+        return (DebugRequest){.kind = DEBUG_REQUEST_NONE};
+    }
     if (!reached(now_ms)) {
         return (DebugRequest){.kind = DEBUG_REQUEST_NONE};
     }
@@ -334,9 +446,11 @@ static void reconnect_when_due(uint32_t now_ms)
     }
 }
 
-DebugRequest debug_runner_step(uint32_t now_ms, bool held)
+DebugRequest debug_runner_step(uint32_t now_ms, DebugRunnerView view)
 {
     DebugRequest none = {.kind = DEBUG_REQUEST_NONE};
+    bool held = view.held;
+    runner.screen_on = view.screen_on;
     if (runner.run.state == DEBUG_SCRIPT_PENDING) {
         return held ? none : start(now_ms);
     }
@@ -344,7 +458,7 @@ DebugRequest debug_runner_step(uint32_t now_ms, bool held)
         reconnect_when_due(now_ms);
         return none;
     }
-    if (now_ms - runner.run.started_ms >= DEBUG_SCRIPT_LIMIT_MS) {
+    if (now_ms - runner.run.started_ms >= DEBUG_SCRIPT_LIMIT_MS + runner.run.soak_ms) {
         stop(now_ms, DEBUG_SCRIPT_TIMED_OUT);
         hal_system_usb_reconnect();
         return none;

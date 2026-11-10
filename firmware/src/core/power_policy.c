@@ -68,6 +68,11 @@ void power_policy_wake(PowerPolicy *policy, uint32_t now_ms)
     policy->display_on = true;
 }
 
+void power_policy_rest(PowerPolicy *policy)
+{
+    policy->display_on = false;
+}
+
 void power_policy_set_auto_off(PowerPolicy *policy, uint32_t auto_off_ms, uint32_t now_ms)
 {
     policy->auto_off_ms = auto_off_ms;

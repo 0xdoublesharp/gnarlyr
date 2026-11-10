@@ -225,6 +225,9 @@ static void read_input(void)
 {
     HalKeyTransition transition;
     while (hal_input_next_transition(&transition)) {
+        if (transition.pressed) {
+            debug_runner_key_pressed();
+        }
         take_transition(transition);
     }
     while (debug_runner_next_key(&transition)) {
@@ -557,7 +560,8 @@ static bool battery_empty(uint32_t now_ms)
 
 static void keep_awake_while_busy(uint32_t now_ms)
 {
-    if (app.usb_power || player_status(&app.player).state == PLAYER_PLAYING) {
+    if (app.usb_power || player_status(&app.player).state == PLAYER_PLAYING ||
+        debug_runner_active()) {
         power_policy_stay_awake(&app.power, now_ms);
     }
 }
@@ -1089,6 +1093,16 @@ static void start_debug_script(uint32_t now_ms)
     power_policy_wake(&app.power, now_ms);
 }
 
+static void set_debug_screen(bool on, uint32_t now_ms)
+{
+    if (on) {
+        power_policy_wake(&app.power, now_ms);
+    } else {
+        power_policy_rest(&app.power);
+    }
+    debug_runner_done(true);
+}
+
 static bool save_debug_screenshot(const DebugRequest *request)
 {
     DebugScreenshot shot = {.renderer = frame_renderer(false),
@@ -1101,9 +1115,12 @@ static bool save_debug_screenshot(const DebugRequest *request)
 
 static void run_debug_script(uint32_t now_ms)
 {
-    DebugRequest request = debug_runner_step(now_ms, fade_running());
+    DebugRequest request =
+        debug_runner_step(now_ms, (DebugRunnerView){fade_running(), app.display_on});
     if (request.kind == DEBUG_REQUEST_START) {
         start_debug_script(now_ms);
+    } else if (request.kind == DEBUG_REQUEST_SCREEN) {
+        set_debug_screen(request.slot != 0, now_ms);
     } else if (request.kind == DEBUG_REQUEST_SET) {
         debug_runner_done(
             settings_screens_choose(&app.screens.settings, request.argument, request.value));

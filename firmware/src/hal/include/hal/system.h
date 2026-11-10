@@ -92,7 +92,8 @@ typedef enum HalProbeKind {
 enum {
     HAL_PROBE_CABLE = 1,
     HAL_PROBE_CHARGE_KNOWN = 2,
-    HAL_PROBE_CHARGE_PIN = 4
+    HAL_PROBE_CHARGE_PIN = 4,
+    HAL_PROBE_SUPPLY_OFF = 8
 };
 
 typedef struct HalProbe {
@@ -103,6 +104,9 @@ typedef struct HalProbe {
 } HalProbe;
 
 HalProbe hal_system_probe(HalProbeKind kind, uint32_t first, uint32_t second);
+uint8_t hal_system_power_levels(void);
+uint32_t hal_system_power_samples(void);
+void hal_system_hold_usb_supply_off(bool held);
 void hal_system_save_report(uint32_t reason);
 void hal_system_script_mark(uint32_t line);
 void hal_system_stall_test(void);

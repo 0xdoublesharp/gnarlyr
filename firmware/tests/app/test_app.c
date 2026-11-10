@@ -3510,6 +3510,249 @@ static void a_script_keeps_sixteen_probes_and_does_not_make_a_seventeenth(void)
     CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[DEBUG_SCRIPT_PROBES + 1]);
 }
 
+static void run_script_minutes(uint32_t minutes)
+{
+    for (uint32_t elapsed = 0; elapsed < minutes * 60000; elapsed += 500) {
+        wait_ms(500);
+    }
+}
+
+static void supply_off_holds_the_usb_supply_off_until_supply_on(void)
+{
+    start_app();
+    load_script("build any\nsupply off\nwait 200\nsupply on\nwait 200\n");
+    run_script_for(100);
+    CHECK(fake_hal_supply_held_off());
+    run_script_for(250);
+    CHECK(!fake_hal_supply_held_off());
+    CHECK_EQUAL(DEBUG_LINE_OK, debug_runner_script()->status[1]);
+    CHECK_EQUAL(DEBUG_LINE_OK, debug_runner_script()->status[3]);
+}
+
+static void the_supply_comes_back_when_a_script_ends_without_saying_so(void)
+{
+    start_app();
+    const DebugScriptRun *run = run_script("build any\nsupply off\nwait 100\n", 60);
+    CHECK(fake_hal_supply_held_off());
+    run_script_for(200);
+    CHECK_EQUAL(DEBUG_SCRIPT_FINISHED, run->state);
+    CHECK(!fake_hal_supply_held_off());
+}
+
+static void the_supply_comes_back_when_a_script_is_aborted_or_times_out(void)
+{
+    start_app();
+    load_script("build any\nsupply off\nwait 60000\n");
+    run_script_for(100);
+    debug_runner_abort();
+    CHECK(!fake_hal_supply_held_off());
+    load_script("build any\nsupply off\nwait 60000\nwait 60000\nwait 60000\nwait 60000\n"
+                "wait 60000\nwait 60000\n");
+    run_script_for(100);
+    CHECK(fake_hal_supply_held_off());
+    run_script_minutes(6);
+    CHECK_EQUAL(DEBUG_SCRIPT_TIMED_OUT, debug_runner_script()->state);
+    CHECK(!fake_hal_supply_held_off());
+}
+
+static void the_supply_comes_back_and_the_script_stops_when_the_player_shuts_down(void)
+{
+    start_app();
+    load_script("build any\nsupply off\nsoak 30\n");
+    run_script_for(100);
+    CHECK(fake_hal_supply_held_off());
+    hold_power();
+    CHECK(!fake_hal_supply_held_off());
+    CHECK_EQUAL(DEBUG_SCRIPT_ABORTED, debug_runner_script()->state);
+}
+
+static void a_shutdown_right_after_a_script_cancels_its_reconnect(void)
+{
+    start_app();
+    load_script("build any\nwait 1500\n");
+    fake_hal_queue_transition(KEY_POWER, true, now_ms);
+    run_script_for(1800);
+    CHECK_EQUAL(DEBUG_SCRIPT_FINISHED, debug_runner_script()->state);
+    CHECK_EQUAL(0, fake_hal_saved_report_count());
+    run_script_for(1200);
+    CHECK_EQUAL(1, fake_hal_saved_report_count());
+    fake_hal_queue_transition(KEY_POWER, false, now_ms);
+    run_script_for(DEBUG_SCRIPT_END_MS + 1000);
+    CHECK_EQUAL(0, fake_hal_usb_reconnect_count());
+}
+
+static void screen_off_darkens_the_screen_at_once_and_screen_on_lights_it(void)
+{
+    start_app();
+    load_script("build any\nscreen off\nwait 300\nscreen on\nwait 300\n");
+    run_script_for(40);
+    CHECK(!fake_hal_display_on());
+    run_script_for(200);
+    CHECK(!fake_hal_display_on());
+    run_script_for(200);
+    CHECK(fake_hal_display_on());
+    CHECK_EQUAL(DEBUG_LINE_OK, debug_runner_script()->status[1]);
+    CHECK_EQUAL(DEBUG_LINE_OK, debug_runner_script()->status[3]);
+    CHECK(title_is("Doublesharp"));
+}
+
+static void a_dark_screen_from_a_script_wakes_on_a_key_as_after_the_timeout(void)
+{
+    start_app();
+    run_script("build any\nscreen off\n", 100);
+    CHECK(!fake_hal_display_on());
+    tap(KEY_POWER);
+    wait_ms(50);
+    CHECK(fake_hal_display_on());
+}
+
+static void a_soak_waits_its_minutes_and_records_both_ends(void)
+{
+    start_app();
+    fake_hal_set_power_levels(HAL_PROBE_CABLE | HAL_PROBE_CHARGE_KNOWN | HAL_PROBE_CHARGE_PIN);
+    fake_hal_set_power_samples(40);
+    fake_hal_set_microseconds_per_read(2000);
+    load_script("build any\nsupply off\nscreen off\nsoak 2\nscreen on\nwait 1000\n");
+    run_script_for(100);
+    const DebugScriptRun *run = debug_runner_script();
+    CHECK_EQUAL(0, run->soak_count);
+    uint32_t started_ms = run->soaks[0].started_ms;
+    run_script_minutes(1);
+    CHECK_EQUAL(0, run->soak_count);
+    CHECK(!fake_hal_display_on());
+    fake_hal_set_power_samples(42);
+    fake_hal_set_power_levels(HAL_PROBE_CABLE | HAL_PROBE_CHARGE_KNOWN);
+    run_script_minutes(1);
+    wait_ms(500);
+    CHECK_EQUAL(1, run->soak_count);
+    const DebugSoak *soak = &run->soaks[0];
+    CHECK_EQUAL(4, soak->line);
+    CHECK_EQUAL(DEBUG_SOAK_DONE, soak->end);
+    CHECK(soak->ended_ms - started_ms >= 120000 && soak->ended_ms - started_ms < 121000);
+    CHECK_EQUAL(DEBUG_SOAK_CABLE | DEBUG_SOAK_CHARGE_KNOWN | DEBUG_SOAK_CHARGE_PIN |
+                    DEBUG_SOAK_SUPPLY_OFF,
+                soak->start.levels);
+    CHECK_EQUAL(DEBUG_SOAK_CABLE | DEBUG_SOAK_CHARGE_KNOWN | DEBUG_SOAK_SUPPLY_OFF,
+                soak->finish.levels);
+    CHECK_EQUAL(40, soak->start.sample);
+    CHECK_EQUAL(42, soak->finish.sample);
+    CHECK_EQUAL(96, soak->start.clock_mhz);
+    CHECK_EQUAL(96, soak->finish.clock_mhz);
+    CHECK(soak->measured_ms > 0 && soak->idle_ms <= soak->measured_ms);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[3]);
+    CHECK(fake_hal_supply_held_off());
+    wait_ms(100);
+    CHECK(fake_hal_display_on());
+}
+
+static void a_soak_with_the_screen_on_and_music_playing_says_so(void)
+{
+    start_app_with_library();
+    load_script("build any\nplay\ndown,down,down\nplay,play,play\nsoak 1\n");
+    run_script_for(8 * SCRIPT_KEY_MS);
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+    run_script_minutes(1);
+    wait_ms(500);
+    const DebugScriptRun *run = debug_runner_script();
+    CHECK_EQUAL(1, run->soak_count);
+    CHECK_EQUAL(DEBUG_SOAK_DONE, run->soaks[0].end);
+    CHECK_EQUAL(DEBUG_SOAK_AUDIO | DEBUG_SOAK_SCREEN, run->soaks[0].start.levels);
+    CHECK_EQUAL(200, run->soaks[0].start.clock_mhz);
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+    CHECK((run->soaks[0].finish.levels & DEBUG_SOAK_AUDIO) != 0);
+    CHECK_EQUAL(200, run->soaks[0].finish.clock_mhz);
+}
+
+static void a_soak_adds_its_minutes_to_the_scripts_time_limit_and_outlasts_auto_off(void)
+{
+    start_app();
+    load_script("build any\nsoak 6\nwait 100\n");
+    run_script_minutes(6);
+    run_script_for(3000);
+    const DebugScriptRun *run = debug_runner_script();
+    CHECK_EQUAL(DEBUG_SCRIPT_FINISHED, run->state);
+    CHECK_EQUAL(DEBUG_SOAK_DONE, run->soaks[0].end);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[2]);
+    CHECK_EQUAL(0, fake_hal_power_off_count());
+}
+
+static void a_key_press_ends_a_soak_early_and_gives_the_supply_back(void)
+{
+    start_app();
+    load_script("build any\nsupply off\nsoak 30\nwait 60000\n");
+    run_script_minutes(2);
+    const DebugScriptRun *run = debug_runner_script();
+    CHECK_EQUAL(0, run->soak_count);
+    CHECK(fake_hal_supply_held_off());
+    tap(KEY_VOLUME_UP);
+    wait_ms(50);
+    CHECK_EQUAL(1, run->soak_count);
+    CHECK_EQUAL(DEBUG_SOAK_KEY, run->soaks[0].end);
+    CHECK((run->soaks[0].start.levels & DEBUG_SOAK_SUPPLY_OFF) != 0);
+    CHECK((run->soaks[0].finish.levels & DEBUG_SOAK_SUPPLY_OFF) != 0);
+    CHECK_EQUAL(DEBUG_LINE_CUT_SHORT, run->status[2]);
+    CHECK(!fake_hal_supply_held_off());
+    CHECK_EQUAL(DEBUG_SCRIPT_RUNNING, run->state);
+}
+
+static void a_key_the_script_pressed_before_a_soak_does_not_end_it(void)
+{
+    start_app();
+    load_script("build any\nplay\nsoak 1\n");
+    run_script_for(30000);
+    const DebugScriptRun *run = debug_runner_script();
+    CHECK_EQUAL(0, run->soak_count);
+    CHECK_EQUAL(DEBUG_LINE_NOT_RUN, run->status[2]);
+    CHECK(title_is("Music"));
+}
+
+static void a_battery_under_3600_millivolts_for_a_minute_ends_a_soak(void)
+{
+    start_app();
+    load_script("build any\nsupply off\nsoak 30\n");
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 40, .millivolts = 3700});
+    run_script_minutes(2);
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 20, .millivolts = 3599});
+    run_script_for(40000);
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 21, .millivolts = 3600});
+    run_script_for(40000);
+    const DebugScriptRun *run = debug_runner_script();
+    CHECK_EQUAL(0, run->soak_count);
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 20, .millivolts = 3599});
+    run_script_for(55000);
+    CHECK_EQUAL(0, run->soak_count);
+    run_script_for(30000);
+    CHECK_EQUAL(1, run->soak_count);
+    CHECK_EQUAL(DEBUG_SOAK_LOW_BATTERY, run->soaks[0].end);
+    CHECK_EQUAL(DEBUG_LINE_CUT_SHORT, run->status[2]);
+    CHECK(!fake_hal_supply_held_off());
+}
+
+static void a_usb_session_stops_a_soak_and_the_record_says_stopped(void)
+{
+    start_app();
+    load_script("build any\nsupply off\nsoak 30\n");
+    run_script_minutes(1);
+    debug_runner_abort();
+    const DebugScriptRun *run = debug_runner_script();
+    CHECK_EQUAL(1, run->soak_count);
+    CHECK_EQUAL(DEBUG_SOAK_STOPPED, run->soaks[0].end);
+    CHECK_EQUAL(DEBUG_SCRIPT_ABORTED, run->state);
+    CHECK(!fake_hal_supply_held_off());
+}
+
+static void a_script_keeps_two_soaks_and_does_not_start_a_third(void)
+{
+    start_app();
+    load_script("build any\nsoak 1\nsoak 1\nsoak 1\nwait 100\n");
+    run_script_minutes(2);
+    run_script_for(2000);
+    const DebugScriptRun *run = debug_runner_script();
+    CHECK_EQUAL(2, run->soak_count);
+    CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[3]);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[4]);
+}
+
 static void set_chooses_a_settings_option_as_the_screen_does(void)
 {
     start_app();
@@ -3945,6 +4188,21 @@ int main(void)
         TEST_CASE(peek_poke_and_gpio_lines_ask_the_board_and_keep_what_it_answers),
         TEST_CASE(a_probe_the_board_refuses_is_reported_and_leaves_no_record),
         TEST_CASE(a_script_keeps_sixteen_probes_and_does_not_make_a_seventeenth),
+        TEST_CASE(supply_off_holds_the_usb_supply_off_until_supply_on),
+        TEST_CASE(the_supply_comes_back_when_a_script_ends_without_saying_so),
+        TEST_CASE(the_supply_comes_back_when_a_script_is_aborted_or_times_out),
+        TEST_CASE(the_supply_comes_back_and_the_script_stops_when_the_player_shuts_down),
+        TEST_CASE(a_shutdown_right_after_a_script_cancels_its_reconnect),
+        TEST_CASE(screen_off_darkens_the_screen_at_once_and_screen_on_lights_it),
+        TEST_CASE(a_dark_screen_from_a_script_wakes_on_a_key_as_after_the_timeout),
+        TEST_CASE(a_soak_waits_its_minutes_and_records_both_ends),
+        TEST_CASE(a_soak_with_the_screen_on_and_music_playing_says_so),
+        TEST_CASE(a_soak_adds_its_minutes_to_the_scripts_time_limit_and_outlasts_auto_off),
+        TEST_CASE(a_key_press_ends_a_soak_early_and_gives_the_supply_back),
+        TEST_CASE(a_key_the_script_pressed_before_a_soak_does_not_end_it),
+        TEST_CASE(a_battery_under_3600_millivolts_for_a_minute_ends_a_soak),
+        TEST_CASE(a_usb_session_stops_a_soak_and_the_record_says_stopped),
+        TEST_CASE(a_script_keeps_two_soaks_and_does_not_start_a_third),
         TEST_CASE(set_chooses_a_settings_option_as_the_screen_does),
         TEST_CASE(set_refuses_what_settings_does_not_offer),
         TEST_CASE(a_screenshot_holds_the_frame_the_strip_renderer_draws),

@@ -190,6 +190,55 @@ static void gpio_names_a_pin_and_what_to_do_with_it(void)
     CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("gpio 0.14 low 1").kind);
 }
 
+static void supply_and_screen_take_off_or_on(void)
+{
+    CHECK_EQUAL(DEBUG_COMMAND_SUPPLY, parse("supply off").kind);
+    CHECK_EQUAL(0, parse("supply off").number);
+    CHECK_EQUAL(1, parse("supply on").number);
+    CHECK_EQUAL(DEBUG_COMMAND_SCREEN, parse("screen off").kind);
+    CHECK_EQUAL(0, parse("screen off").number);
+    CHECK_EQUAL(1, parse("Screen ON").number);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("supply").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("supply low").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("screen dim").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("screen off now").kind);
+    const DebugScriptRun *loaded =
+        load("build any\nsupply off\nscreen off\nscreen on\nsupply on\n");
+    CHECK_EQUAL(4, loaded->op_count);
+    CHECK_EQUAL(DEBUG_OP_SUPPLY, loaded->ops[0].kind);
+    CHECK_EQUAL(0, loaded->ops[0].first);
+    CHECK_EQUAL(DEBUG_OP_SCREEN, loaded->ops[1].kind);
+    CHECK_EQUAL(0, loaded->ops[1].first);
+    CHECK_EQUAL(1, loaded->ops[2].first);
+    CHECK_EQUAL(1, loaded->ops[3].first);
+}
+
+static void soak_takes_one_to_180_minutes(void)
+{
+    CHECK_EQUAL(DEBUG_COMMAND_SOAK, parse("soak 30").kind);
+    CHECK_EQUAL(30, parse("soak 30").number);
+    CHECK_EQUAL(1, parse("soak 1").number);
+    CHECK_EQUAL(180, parse("soak 180").number);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("soak").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("soak 0").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("soak 181").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("soak 30 minutes").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("soak long").kind);
+}
+
+static void a_scripts_soaks_add_their_minutes_to_its_time_limit(void)
+{
+    CHECK_EQUAL(0, load("build any\nwait 60000\n")->soak_ms);
+    const DebugScriptRun *loaded = load("build any\nsoak 30\nplay\nsoak 180\n");
+    CHECK_EQUAL(3, loaded->op_count);
+    CHECK_EQUAL(DEBUG_OP_SOAK, loaded->ops[0].kind);
+    CHECK_EQUAL(30, loaded->ops[0].first);
+    CHECK_EQUAL(180, loaded->ops[2].first);
+    CHECK_EQUAL(210u * 60000u, loaded->soak_ms);
+    CHECK_EQUAL(0, loaded->soak_count);
+    CHECK_EQUAL(0, load("build 7777777\nsoak 30\n")->soak_ms);
+}
+
 static void probe_lines_keep_their_words_beside_the_steps(void)
 {
     const DebugScriptRun *loaded =
@@ -377,6 +426,9 @@ int main(void)
         TEST_CASE(peek_takes_one_word_in_hex_or_decimal),
         TEST_CASE(poke_takes_an_address_and_a_value),
         TEST_CASE(gpio_names_a_pin_and_what_to_do_with_it),
+        TEST_CASE(supply_and_screen_take_off_or_on),
+        TEST_CASE(soak_takes_one_to_180_minutes),
+        TEST_CASE(a_scripts_soaks_add_their_minutes_to_its_time_limit),
         TEST_CASE(probe_lines_keep_their_words_beside_the_steps),
         TEST_CASE(a_script_with_more_words_than_it_can_keep_is_refused),
         TEST_CASE(reconnect_takes_nothing),

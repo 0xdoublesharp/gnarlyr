@@ -86,6 +86,8 @@ KEY_PLAY = 250
 KEY_BACK = 500
 KEY_HOLD_MS = 150
 KEY_SETTLE_MS = 350
+BACKLIGHT_PIN = 4
+SOAK_MINUTE_MS = 60000
 ABOUT_PROFILER_ROW = 15
 ABOUT_USB_SENSE_ROW = 16
 ABOUT_CONNECT_USB_ROW = 17
@@ -1054,6 +1056,103 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
         self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
         return session, machine, self.read_report(session)
+
+    def soaking_session(self, lines):
+        """A player whose script has just taken the USB supply away for a soak."""
+        script = ("build %s\n%s\n" % (self.build_tag(), "\n".join(lines))).encode("ascii")
+        session, machine = self.ejecting_session(self.debug_volume(run_txt=script))
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(self.usb_supply_pins(machine), (1, 1))
+        self.assertEqual(self.run_until_supply(machine, (0, 0), SCRIPT_LIMIT_MS), "condition met")
+        return session, machine
+
+    def run_until_supply(self, machine, pins, limit_ms):
+        return machine.run(until=lambda: self.usb_supply_pins(machine) == pins,
+                           until_ms=machine.milliseconds() + limit_ms)
+
+    def soak_of(self, report):
+        self.assertEqual(len(report["script"]["soaks"]), 1)
+        return report["script"]["soaks"][0]
+
+    def test_a_soak_runs_on_the_battery_with_the_screen_dark_and_reports_its_minute(self):
+        session, machine = self.soaking_session(["supply off", "screen off", "soak 1", "reconnect"])
+        started_ms = machine.milliseconds()
+        machine.run(until_ms=started_ms + 2000)
+        self.assertEqual(self.usb_supply_pins(machine), (0, 0))
+        self.assertEqual(machine.gpio[2].regs[GPIO_DATA] >> BACKLIGHT_PIN & 1, 0)
+        self.assertTrue(machine.cable_bit())
+        reached = machine.reached
+        self.assertEqual(machine.run(until=lambda: "hal_system_usb_reconnect" in reached,
+                                     until_ms=started_ms + SOAK_MINUTE_MS + 5000), "condition met")
+        self.assertGreaterEqual(machine.milliseconds(), started_ms + SOAK_MINUTE_MS - 1000)
+        self.assertEqual(self.run_until_supply(machine, (1, 1), 1000), "condition met")
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        report = self.read_report(session)
+        self.assertEqual([line["status"] for line in report["script"]["lines"]], ["ok"] * 5)
+        soak = self.soak_of(report)
+        self.assertEqual((soak["line"], soak["minutes"], soak["end"]), (4, 1, "done"))
+        self.assertEqual((soak["supply_off_start"], soak["supply_off_end"]), (1, 1))
+        self.assertEqual((soak["screen_start"], soak["screen_end"]), (0, 0))
+        self.assertEqual((soak["cable_start"], soak["cable_end"]), (1, 1))
+        self.assertEqual((soak["audio_start"], soak["audio_end"]), (0, 0))
+        self.assertEqual((soak["clock_mhz_start"], soak["clock_mhz_end"]), (96, 96))
+        self.assertIn(soak["samples"], (0, 1))
+        self.assertIsNone(soak["mv_per_hour"])
+        self.assertTrue(0 <= soak["busy_percent"] <= 100)
+        self.assertEqual(machine.watchdog_resets, 0)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+        print("\n[soak] %s" % soak)
+
+    def test_a_key_ends_a_soak_and_gives_the_usb_supply_back_at_once(self):
+        session, machine = self.soaking_session(["supply off", "soak 5", "reconnect"])
+        machine.run(until_ms=machine.milliseconds() + 3000)
+        self.assertEqual(self.usb_supply_pins(machine), (0, 0))
+        self.assertNotIn("hal_system_usb_reconnect", machine.reached)
+        machine.press_key(KEY_PLAY, delay_ms=20, hold_ms=KEY_HOLD_MS)
+        self.assertEqual(self.run_until_supply(machine, (1, 1), 1000), "condition met")
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        report = self.read_report(session)
+        self.assertEqual([line["status"] for line in report["script"]["lines"]],
+                         ["ok", "ok", "cut_short", "ok"])
+        soak = self.soak_of(report)
+        self.assertEqual((soak["minutes"], soak["end"], soak["supply_off_end"]), (0, "key", 1))
+        self.assert_healthy(session)
+
+    def test_a_usb_session_stops_a_soak_and_the_supply_follows_the_cable_again(self):
+        session, machine = self.soaking_session(["supply off", "soak 5"])
+        machine.run(until_ms=machine.milliseconds() + 2000)
+        machine.vbus = False
+        machine.run(until_ms=machine.milliseconds() + 500)
+        machine.vbus = True
+        machine.run(until_ms=machine.milliseconds() + 500)
+        self.assertEqual(self.usb_supply_pins(machine), (0, 0))
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        self.assertEqual(self.usb_supply_pins(machine), (1, 1))
+        report = self.read_report(session)
+        self.assertEqual(report["values"]["script.state"], "aborted")
+        self.assertEqual(self.soak_of(report)["end"], "stopped")
+        machine.run(until_ms=machine.milliseconds() + QUIET_AFTER_MS)
+        self.assertEqual(self.usb_supply_pins(machine), (1, 1))
+        self.assertEqual(machine.usb_connect_count, 2)
+        self.assert_healthy(session)
+
+    def test_switching_off_during_a_soak_leaves_the_supply_with_the_cable_for_charging(self):
+        session, machine = self.soaking_session(["supply off", "soak 5"])
+        machine.note("debug_report_write")
+        machine.run(until_ms=COLD_REPORT_MS + 500)
+        self.assertEqual(self.usb_supply_pins(machine), (0, 0))
+        self.hold_power(machine)
+        machine.run(until=lambda: machine.reached.get("debug_report_write", 0) >= 1,
+                    until_ms=machine.milliseconds() + 8000)
+        machine.run(until_ms=machine.milliseconds() + QUIET_AFTER_MS)
+        self.assertEqual(self.usb_supply_pins(machine), (1, 1))
+        report = self.read_report(session)
+        self.assertEqual(report["values"]["report.reason"], "shutdown")
+        self.assertEqual(self.soak_of(report)["end"], "key")
+        self.assertEqual(machine.usb_connect_count, 1)
+        self.assertIsNone(machine.reset_requested)
+        self.assert_healthy(session)
 
     def test_peek_poke_and_gpio_lines_act_on_the_allowed_registers_and_report_what_they_saw(self):
         lines = ["peek 0x500100e8", "poke 0x5001009c 0x00ff00a5", "gpio 2.0 low", "gpio 2.0 read",

@@ -46,6 +46,9 @@ typedef struct FakeProbeCall {
 void fake_hal_set_probe_answer(HalProbe answer);
 int fake_hal_probe_count(void);
 FakeProbeCall fake_hal_probe_call(int index);
+void fake_hal_set_power_levels(uint8_t levels);
+void fake_hal_set_power_samples(uint32_t samples);
+bool fake_hal_supply_held_off(void);
 int fake_hal_saved_report_count(void);
 uint32_t fake_hal_saved_report(int index);
 uint32_t fake_hal_script_mark(void);

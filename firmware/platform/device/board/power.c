@@ -40,6 +40,7 @@ void board_power_hold(void)
 
 static bool usb_supply_known;
 static bool usb_supply_on;
+static bool usb_supply_held_off;
 
 static void usb_supply_pins_set(bool on)
 {
@@ -54,12 +55,23 @@ static void usb_supply_pins_set(bool on)
 
 void board_power_usb_supply_follow(bool cable)
 {
-    if (usb_supply_known && usb_supply_on == cable) {
+    bool on = cable && !usb_supply_held_off;
+    if (usb_supply_known && usb_supply_on == on) {
         return;
     }
     usb_supply_known = true;
-    usb_supply_on = cable;
-    usb_supply_pins_set(cable);
+    usb_supply_on = on;
+    usb_supply_pins_set(on);
+}
+
+void board_power_usb_supply_hold_off(bool held)
+{
+    usb_supply_held_off = held;
+}
+
+bool board_power_usb_supply_held_off(void)
+{
+    return usb_supply_held_off;
 }
 
 HalPowerHold hal_power_boot_hold(void)

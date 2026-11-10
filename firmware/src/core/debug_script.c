@@ -7,6 +7,7 @@ enum {
     HEX_BASE = 16,
     HEX_LETTER_VALUE = 10,
     WORD_HEX_DIGITS = 8,
+    MILLISECONDS_PER_MINUTE = 60000,
     CASE_BIT = 0x20
 };
 
@@ -27,11 +28,15 @@ static const Word WORDS[] = {
     {"peek", DEBUG_COMMAND_PEEK},
     {"poke", DEBUG_COMMAND_POKE},
     {"gpio", DEBUG_COMMAND_GPIO},
+    {"supply", DEBUG_COMMAND_SUPPLY},
+    {"screen", DEBUG_COMMAND_SCREEN},
+    {"soak", DEBUG_COMMAND_SOAK},
 };
 
 static const char *const PROFILE_ACTIONS[] = {
     [DEBUG_PROFILE_OFF] = "off", [DEBUG_PROFILE_ON] = "on", [DEBUG_PROFILE_RESET] = "reset"};
 static const char *const SENSE_MODES[] = {"normal", "kept_on"};
+static const char *const SWITCH_STATES[] = {"off", "on"};
 static const char *const PIN_ACTIONS[] = {[DEBUG_PIN_READ] = "read",
                                           [DEBUG_PIN_LOW] = "low",
                                           [DEBUG_PIN_HIGH] = "high",
@@ -279,6 +284,13 @@ static bool arguments_fit(DebugCommand *command)
         return parse_words(command, 2);
     case DEBUG_COMMAND_GPIO:
         return parse_gpio(command);
+    case DEBUG_COMMAND_SUPPLY:
+    case DEBUG_COMMAND_SCREEN:
+        return parse_choice(command->argument, SWITCH_STATES,
+                            sizeof SWITCH_STATES / sizeof SWITCH_STATES[0], &command->number);
+    case DEBUG_COMMAND_SOAK:
+        return parse_word(command->argument, &command->number) && command->number >= 1 &&
+               command->number <= DEBUG_SOAK_MAX_MINUTES;
     default:
         return command->argument.length == 0;
     }
@@ -407,35 +419,41 @@ static bool add_probe(DebugScriptRun *run, const DebugCommand *command, uint32_t
     }
 }
 
+static bool add_numbered(DebugScriptRun *run, const DebugCommand *command, uint32_t line)
+{
+    static const uint8_t OPS[DEBUG_COMMAND_UNKNOWN] = {
+        [DEBUG_COMMAND_WAIT] = 1 + DEBUG_OP_WAIT,
+        [DEBUG_COMMAND_MEASURE] = 1 + DEBUG_OP_MEASURE,
+        [DEBUG_COMMAND_PROFILE] = 1 + DEBUG_OP_PROFILE,
+        [DEBUG_COMMAND_USB_SENSE] = 1 + DEBUG_OP_USB_SENSE,
+        [DEBUG_COMMAND_RECONNECT] = 1 + DEBUG_OP_RECONNECT,
+        [DEBUG_COMMAND_SUPPLY] = 1 + DEBUG_OP_SUPPLY,
+        [DEBUG_COMMAND_SCREEN] = 1 + DEBUG_OP_SCREEN,
+        [DEBUG_COMMAND_SOAK] = 1 + DEBUG_OP_SOAK};
+    if (command->kind >= DEBUG_COMMAND_UNKNOWN || OPS[command->kind] == 0) {
+        return false;
+    }
+    add_number(run, (DebugOpKind)(OPS[command->kind] - 1), command->number, line);
+    if (command->kind == DEBUG_COMMAND_SOAK) {
+        run->soak_ms += command->number * MILLISECONDS_PER_MINUTE;
+    }
+    return true;
+}
+
 static void add_command(DebugScriptRun *run, const DebugCommand *command, uint32_t line)
 {
-    if (add_probe(run, command, line)) {
+    if (add_probe(run, command, line) || add_numbered(run, command, line)) {
         return;
     }
     switch (command->kind) {
     case DEBUG_COMMAND_KEYS:
         add_keys(run, command->argument, line);
         break;
-    case DEBUG_COMMAND_WAIT:
-        add_number(run, DEBUG_OP_WAIT, command->number, line);
-        break;
-    case DEBUG_COMMAND_MEASURE:
-        add_number(run, DEBUG_OP_MEASURE, command->number, line);
-        break;
-    case DEBUG_COMMAND_PROFILE:
-        add_number(run, DEBUG_OP_PROFILE, command->number, line);
-        break;
-    case DEBUG_COMMAND_USB_SENSE:
-        add_number(run, DEBUG_OP_USB_SENSE, command->number, line);
-        break;
     case DEBUG_COMMAND_SET:
         add_spans(run, DEBUG_OP_SET, command, line);
         break;
     case DEBUG_COMMAND_SCREENSHOT:
         add_spans(run, DEBUG_OP_SCREENSHOT, command, line);
-        break;
-    case DEBUG_COMMAND_RECONNECT:
-        add_number(run, DEBUG_OP_RECONNECT, 0, line);
         break;
     case DEBUG_COMMAND_BUILD:
         run->status[line - 1] = DEBUG_LINE_OK;
@@ -477,6 +495,8 @@ static void clear_results(DebugScriptRun *run)
     run->op_count = 0;
     run->word_count = 0;
     run->probe_count = 0;
+    run->soak_count = 0;
+    run->soak_ms = 0;
     run->measure_count = 0;
     run->screenshot_count = 0;
     run->started_ms = 0;

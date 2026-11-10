@@ -28,5 +28,6 @@ void power_policy_start_sleep_timer(PowerPolicy *policy, uint32_t duration_ms, u
 void power_policy_cancel_sleep_timer(PowerPolicy *policy);
 bool power_policy_update(PowerPolicy *policy, uint32_t now_ms);
 void power_policy_wake(PowerPolicy *policy, uint32_t now_ms);
+void power_policy_rest(PowerPolicy *policy);
 void power_policy_set_auto_off(PowerPolicy *policy, uint32_t auto_off_ms, uint32_t now_ms);
 void power_policy_stay_awake(PowerPolicy *policy, uint32_t now_ms);

@@ -114,6 +114,9 @@ typedef struct FakeHal {
     int audio_stats_resets;
     int usb_reconnects;
     HalProbe probe_answer;
+    uint8_t power_levels;
+    uint32_t power_samples;
+    bool supply_held_off;
     int probe_count;
     FakeProbeCall probe_calls[PROBE_CALL_CAPACITY];
     HalUsbSense usb_sense;
@@ -736,6 +739,36 @@ void hal_system_usb_reconnect(void)
 void hal_system_usb_connect(bool on)
 {
     fake.usb_sense.connecting = on;
+}
+
+uint8_t hal_system_power_levels(void)
+{
+    return (uint8_t)(fake.power_levels | (fake.supply_held_off ? HAL_PROBE_SUPPLY_OFF : 0));
+}
+
+uint32_t hal_system_power_samples(void)
+{
+    return fake.power_samples;
+}
+
+void hal_system_hold_usb_supply_off(bool held)
+{
+    fake.supply_held_off = held;
+}
+
+void fake_hal_set_power_levels(uint8_t levels)
+{
+    fake.power_levels = levels;
+}
+
+void fake_hal_set_power_samples(uint32_t samples)
+{
+    fake.power_samples = samples;
+}
+
+bool fake_hal_supply_held_off(void)
+{
+    return fake.supply_held_off;
 }
 
 HalProbe hal_system_probe(HalProbeKind kind, uint32_t first, uint32_t second)

@@ -14,8 +14,18 @@ enum {
     KEY_MASK = 0xFF,
     GESTURE_SHIFT = 8,
     TRACK_SHIFT = 8,
-    STATE_MASK = 0xFF
+    STATE_MASK = 0xFF,
+    SOAK_GROUP = 3,
+    SOAK_NAME_CAPACITY = 24,
+    MINUTES_PER_HOUR = 60,
+    MILLISECONDS_PER_MINUTE = 60000
 };
+
+_Static_assert((int)DEBUG_SOAK_CABLE == (int)HAL_PROBE_CABLE &&
+                   (int)DEBUG_SOAK_CHARGE_KNOWN == (int)HAL_PROBE_CHARGE_KNOWN &&
+                   (int)DEBUG_SOAK_CHARGE_PIN == (int)HAL_PROBE_CHARGE_PIN &&
+                   (int)DEBUG_SOAK_SUPPLY_OFF == (int)HAL_PROBE_SUPPLY_OFF,
+               "a soak keeps the board's levels as the board gives them");
 
 typedef struct Writer {
     StringBuilder text;
@@ -51,9 +61,16 @@ static const char *const SCRIPT_STATES[DEBUG_SCRIPT_STATE_COUNT] = {
     [DEBUG_SCRIPT_REFUSED_BUILD] = "refused_build",
 };
 static const char *const LINE_STATUSES[DEBUG_LINE_STATUS_COUNT] = {
-    [DEBUG_LINE_NOT_RUN] = "not_run", [DEBUG_LINE_OK] = "ok",
-    [DEBUG_LINE_UNKNOWN] = "unknown", [DEBUG_LINE_BAD_ARGUMENT] = "bad_argument",
-    [DEBUG_LINE_FAILED] = "failed",   [DEBUG_LINE_REFUSED] = "refused"};
+    [DEBUG_LINE_NOT_RUN] = "not_run",    [DEBUG_LINE_OK] = "ok",
+    [DEBUG_LINE_UNKNOWN] = "unknown",    [DEBUG_LINE_BAD_ARGUMENT] = "bad_argument",
+    [DEBUG_LINE_FAILED] = "failed",      [DEBUG_LINE_REFUSED] = "refused",
+    [DEBUG_LINE_CUT_SHORT] = "cut_short"};
+static const char *const SOAK_ENDS[DEBUG_SOAK_END_COUNT] = {[DEBUG_SOAK_RUNNING] = "running",
+                                                            [DEBUG_SOAK_DONE] = "done",
+                                                            [DEBUG_SOAK_KEY] = "key",
+                                                            [DEBUG_SOAK_LOW_BATTERY] =
+                                                                "low_battery",
+                                                            [DEBUG_SOAK_STOPPED] = "stopped"};
 static const char *const REASON_NAMES[DEBUG_REPORT_REASON_COUNT] = {
     [DEBUG_REPORT_NONE] = "none",
     [DEBUG_REPORT_USB_SESSION] = "usb_session",
@@ -517,6 +534,123 @@ static void put_probe(Writer *writer, const DebugProbe *probe)
     finish(writer);
 }
 
+typedef struct SoakVoltage {
+    uint32_t samples;
+    bool known;
+    bool rate_known;
+    uint32_t first_millivolts;
+    uint32_t last_millivolts;
+    int32_t per_hour;
+} SoakVoltage;
+
+typedef struct SampleSum {
+    uint32_t millivolts;
+    uint32_t minutes;
+} SampleSum;
+
+static SampleSum sum_samples(const PowerHistory *history, uint32_t first, uint32_t count)
+{
+    uint32_t oldest = history->recorded - power_history_count(history);
+    SampleSum sum = {0, 0};
+    for (uint32_t index = 0; index < count; index++) {
+        PowerSample sample = power_history_at(history, first - oldest + index);
+        sum.millivolts += sample.millivolts;
+        sum.minutes += sample.minute;
+    }
+    return sum;
+}
+
+static bool soak_samples_kept(const PowerHistory *history, const DebugSoak *soak)
+{
+    if (history == NULL || soak->finish.sample <= soak->start.sample) {
+        return false;
+    }
+    uint32_t oldest = history->recorded - power_history_count(history);
+    return soak->start.sample >= oldest && soak->finish.sample <= history->recorded;
+}
+
+static SoakVoltage soak_voltage(const PowerHistory *history, const DebugSoak *soak)
+{
+    SoakVoltage voltage = {.samples = soak->finish.sample - soak->start.sample};
+    if (!soak_samples_kept(history, soak)) {
+        return voltage;
+    }
+    uint32_t group = voltage.samples < SOAK_GROUP ? voltage.samples : SOAK_GROUP;
+    SampleSum first = sum_samples(history, soak->start.sample, group);
+    SampleSum last = sum_samples(history, soak->finish.sample - group, group);
+    voltage.known = true;
+    voltage.first_millivolts = first.millivolts / group;
+    voltage.last_millivolts = last.millivolts / group;
+    if (last.minutes > first.minutes) {
+        int32_t change = (int32_t)last.millivolts - (int32_t)first.millivolts;
+        voltage.rate_known = true;
+        voltage.per_hour = change * MINUTES_PER_HOUR / (int32_t)(last.minutes - first.minutes);
+    }
+    return voltage;
+}
+
+static void append_rate(StringBuilder *text, const SoakVoltage *voltage)
+{
+    string_builder_append(text, " mv_per_hour=");
+    if (!voltage->rate_known) {
+        string_builder_append(text, UNKNOWN);
+        return;
+    }
+    if (voltage->per_hour < 0) {
+        string_builder_append_char(text, '-');
+    }
+    string_builder_append_unsigned(
+        text, (uint32_t)(voltage->per_hour < 0 ? -voltage->per_hour : voltage->per_hour));
+}
+
+typedef struct SoakLevel {
+    const char *name;
+    uint8_t flag;
+    uint8_t known;
+} SoakLevel;
+
+static void append_soak_edge(StringBuilder *text, const DebugSoakEdge *edge, const char *when)
+{
+    static const SoakLevel LEVELS[] = {
+        {"cable", DEBUG_SOAK_CABLE, 0},
+        {"charge_pin", DEBUG_SOAK_CHARGE_PIN, DEBUG_SOAK_CHARGE_KNOWN},
+        {"supply_off", DEBUG_SOAK_SUPPLY_OFF, 0},
+        {"audio", DEBUG_SOAK_AUDIO, 0},
+        {"screen", DEBUG_SOAK_SCREEN, 0},
+        {"clock_mhz", 0, 0}};
+    char name[SOAK_NAME_CAPACITY];
+    for (size_t index = 0; index < sizeof LEVELS / sizeof LEVELS[0]; index++) {
+        const SoakLevel *level = &LEVELS[index];
+        StringBuilder builder = string_builder_make(name, sizeof name);
+        string_builder_append(&builder, level->name);
+        string_builder_append(&builder, when);
+        bool known = level->known == 0 || (edge->levels & level->known) != 0;
+        append_field(text, name, known,
+                     level->flag == 0 ? edge->clock_mhz : (edge->levels & level->flag) != 0);
+    }
+}
+
+static void put_soak(Writer *writer, const DebugSoak *soak, const PowerHistory *history)
+{
+    SoakVoltage voltage = soak_voltage(history, soak);
+    begin(writer, "script.soak");
+    string_builder_append(&writer->text, "line=");
+    string_builder_append_unsigned(&writer->text, soak->line);
+    append_field(&writer->text, "minutes", true,
+                 (soak->ended_ms - soak->started_ms) / MILLISECONDS_PER_MINUTE);
+    string_builder_append(&writer->text, " end=");
+    string_builder_append(&writer->text, NAME_IN(SOAK_ENDS, soak->end));
+    append_field(&writer->text, "samples", true, voltage.samples);
+    append_field(&writer->text, "first_mv", voltage.known, voltage.first_millivolts);
+    append_field(&writer->text, "last_mv", voltage.known, voltage.last_millivolts);
+    append_rate(&writer->text, &voltage);
+    append_share(&writer->text, "busy_percent", soak->measured_ms - soak->idle_ms,
+                 soak->measured_ms);
+    append_soak_edge(&writer->text, &soak->start, "_start");
+    append_soak_edge(&writer->text, &soak->finish, "_end");
+    finish(writer);
+}
+
 static DebugSpan line_span(const DebugScriptRun *script, uint32_t wanted)
 {
     size_t offset = 0;
@@ -537,8 +671,12 @@ static void put_screenshot(Writer *writer, const DebugScriptRun *script, uint32_
     finish(writer);
 }
 
-static void put_script_results(Writer *writer, const DebugScriptRun *script)
+static void put_script_results(Writer *writer, const DebugScriptRun *script,
+                               const PowerHistory *history)
 {
+    for (uint32_t index = 0; index < script->soak_count; index++) {
+        put_soak(writer, &script->soaks[index], history);
+    }
     for (uint32_t index = 0; index < script->measure_count; index++) {
         put_measure(writer, &script->measures[index]);
     }
@@ -567,7 +705,7 @@ static void put_script(Writer *writer, const DebugReportInput *input)
         return;
     }
     put_script_lines(writer, script);
-    put_script_results(writer, script);
+    put_script_results(writer, script, input->power.history);
 }
 
 static void append_event_text(StringBuilder *text, const DebugEvent *event)

@@ -115,6 +115,11 @@ const PowerHistory *board_debug_power_history(void)
     return &history;
 }
 
+uint32_t hal_system_power_samples(void)
+{
+    return history.recorded;
+}
+
 static uint8_t power_levels(BoardChargePin pin)
 {
     return (uint8_t)((usb_vbus_present() ? POWER_SAMPLE_VBUS : 0) |
@@ -310,6 +315,7 @@ void board_debug_listen_stopped(void)
 
 void board_debug_power_off(void)
 {
+    board_power_usb_supply_hold_off(false);
     uint32_t reason = debug_loop_take_shutdown();
     if (reason != DEBUG_REPORT_NONE) {
         hal_system_save_report(reason);
@@ -319,6 +325,8 @@ void board_debug_power_off(void)
 void board_debug_usb_starting(bool dac)
 {
     debug_runner_abort();
+    board_power_usb_supply_hold_off(false);
+    board_power_usb_supply_follow(usb_vbus_present());
     reconnect.requested = false;
     reconnect.manual = false;
     reconnect.in_session = true;

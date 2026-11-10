@@ -73,12 +73,18 @@ static void probe_pin(HalProbe *probe, uint32_t where, uint32_t action)
     probe->after = pin_state(pin);
 }
 
-static uint8_t levels_now(void)
+uint8_t hal_system_power_levels(void)
 {
     BoardChargePin charge = board_power_charge_pin();
     return (uint8_t)((usb_vbus_present() ? HAL_PROBE_CABLE : 0) |
                      (charge.ready ? HAL_PROBE_CHARGE_KNOWN : 0) |
-                     (charge.high ? HAL_PROBE_CHARGE_PIN : 0));
+                     (charge.high ? HAL_PROBE_CHARGE_PIN : 0) |
+                     (board_power_usb_supply_held_off() ? HAL_PROBE_SUPPLY_OFF : 0));
+}
+
+void hal_system_hold_usb_supply_off(bool held)
+{
+    board_power_usb_supply_hold_off(held);
 }
 
 HalProbe hal_system_probe(HalProbeKind kind, uint32_t first, uint32_t second)
@@ -89,6 +95,6 @@ HalProbe hal_system_probe(HalProbeKind kind, uint32_t first, uint32_t second)
     } else {
         probe_word(&probe, first, kind == HAL_PROBE_POKE ? &second : NULL);
     }
-    probe.levels = levels_now();
+    probe.levels = hal_system_power_levels();
     return probe;
 }

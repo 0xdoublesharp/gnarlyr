@@ -574,6 +574,113 @@ static void probes_are_listed_with_both_words_the_time_and_the_two_levels(void)
                    "charge_pin=1"));
 }
 
+static DebugSoak soak_over(uint32_t first_sample, uint32_t samples)
+{
+    for (uint32_t index = 0; index < first_sample + samples + 2; index++) {
+        uint32_t within = index - first_sample;
+        bool soaking = index >= first_sample && within < samples;
+        power_history_record(&history, (PowerSample){(uint16_t)(85 + index * 3 / 2),
+                                                     (uint16_t)(soaking ? 4000 - 4 * within : 4150),
+                                                     90, POWER_SAMPLE_VBUS});
+    }
+    load_script("build any\nsupply off\nscreen off\nsoak 45\n");
+    script.state = DEBUG_SCRIPT_FINISHED;
+    script.soak_count = 1;
+    return (DebugSoak){.line = 4,
+                       .end = DEBUG_SOAK_DONE,
+                       .started_ms = 6000000,
+                       .ended_ms = 6000000 + 45 * 60000,
+                       .measured_ms = 2700000,
+                       .idle_ms = 2376000,
+                       .start = {first_sample,
+                                 DEBUG_SOAK_CABLE | DEBUG_SOAK_CHARGE_KNOWN |
+                                     DEBUG_SOAK_CHARGE_PIN | DEBUG_SOAK_SUPPLY_OFF |
+                                     DEBUG_SOAK_AUDIO,
+                                 200},
+                       .finish = {first_sample + samples,
+                                  DEBUG_SOAK_CABLE | DEBUG_SOAK_CHARGE_KNOWN |
+                                      DEBUG_SOAK_SUPPLY_OFF | DEBUG_SOAK_AUDIO,
+                                  96}};
+}
+
+static void a_soak_is_reported_with_its_voltage_slope_its_load_and_both_ends(void)
+{
+    DebugReportInput input = plain_input();
+    script.soaks[0] = soak_over(10, 30);
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("script.soak: line=4 minutes=45 end=done samples=30 first_mv=3996 last_mv=3888 "
+                   "mv_per_hour=-160 busy_percent=12 cable_start=1 charge_pin_start=1 "
+                   "supply_off_start=1 audio_start=1 screen_start=0 clock_mhz_start=200 "
+                   "cable_end=1 charge_pin_end=0 supply_off_end=1 audio_end=1 screen_end=0 "
+                   "clock_mhz_end=96"));
+    CHECK(has_line("script.line: 4 not_run soak 45"));
+}
+
+static void a_rising_battery_gives_a_positive_slope(void)
+{
+    DebugReportInput input = plain_input();
+    script.soaks[0] = soak_over(0, 8);
+    for (uint32_t index = 0; index < 8; index++) {
+        history.samples[index].millivolts = (uint16_t)(3900 + 10 * index);
+    }
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, " samples=8 first_mv=3910 last_mv=3960 mv_per_hour=409 ") != NULL);
+}
+
+static void a_soak_with_fewer_than_four_samples_has_means_but_no_slope(void)
+{
+    DebugReportInput input = plain_input();
+    script.soaks[0] = soak_over(5, 2);
+    script.soaks[0].start.levels = DEBUG_SOAK_SCREEN;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, " samples=2 first_mv=3998 last_mv=3998 mv_per_hour=unknown ") != NULL);
+    CHECK(strstr(text, " cable_start=0 charge_pin_start=unknown supply_off_start=0 audio_start=0 "
+                       "screen_start=1 ") != NULL);
+    script.soaks[0] = soak_over(5, 0);
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, " samples=0 first_mv=unknown last_mv=unknown mv_per_hour=unknown ") != NULL);
+}
+
+static void a_soak_whose_first_samples_left_the_history_gives_no_voltages(void)
+{
+    DebugReportInput input = plain_input();
+    script.soaks[0] = soak_over(4, POWER_HISTORY_SAMPLES);
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, " samples=128 first_mv=unknown last_mv=unknown mv_per_hour=unknown ") !=
+          NULL);
+    input.power.history = NULL;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, " samples=128 first_mv=unknown ") != NULL);
+}
+
+static void a_soak_that_was_cut_short_says_why(void)
+{
+    static const char *const ENDS[] = {" end=key ", " end=low_battery ", " end=stopped "};
+    DebugReportInput input = plain_input();
+    script.soaks[0] = soak_over(0, 6);
+    script.status[3] = DEBUG_LINE_CUT_SHORT;
+    for (int end = DEBUG_SOAK_KEY; end <= DEBUG_SOAK_STOPPED; end++) {
+        script.soaks[0].end = (uint8_t)end;
+        script.soaks[0].ended_ms = script.soaks[0].started_ms + 119999;
+        format(&input, DEBUG_REPORT_BYTES);
+        CHECK(strstr(text, ENDS[end - DEBUG_SOAK_KEY]) != NULL);
+        CHECK(strstr(text, "script.soak: line=4 minutes=1 ") != NULL);
+    }
+    CHECK(has_line("script.line: 4 cut_short soak 45"));
+}
+
+static void two_soaks_are_two_lines(void)
+{
+    DebugReportInput input = plain_input();
+    script.soaks[0] = soak_over(0, 6);
+    script.soaks[1] = script.soaks[0];
+    script.soaks[1].line = 9;
+    script.soak_count = 2;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, "\nscript.soak: line=4 ") != NULL);
+    CHECK(strstr(text, "\nscript.soak: line=9 ") != NULL);
+}
+
 static void script_events_name_the_line_or_the_state(void)
 {
     DebugReportInput input = plain_input();
@@ -951,6 +1058,10 @@ static void fill_script(void)
         memset(&script.measures[script.measure_count], 0x7F, sizeof(DebugMeasure));
         script.measures[script.measure_count++].audio_running = 1;
     }
+    for (int index = 0; index < DEBUG_SCRIPT_SOAKS; index++) {
+        memset(&script.soaks[script.soak_count], 0xFF, sizeof(DebugSoak));
+        script.soaks[script.soak_count++].end = DEBUG_SOAK_LOW_BATTERY;
+    }
 }
 
 static const char *last_body_line(void)
@@ -978,6 +1089,7 @@ static void a_full_report_with_a_busy_histogram_fits_the_file(void)
     CHECK(length <= DEBUG_REPORT_BYTES);
     CHECK(has_line("truncated: 0"));
     CHECK(has_line("script.screenshot: 3 abcdefghijkl"));
+    CHECK(strstr(text, "\nscript.soak: line=255 minutes=0 end=low_battery ") != NULL);
     CHECK(strstr(text, "; 65535 4200 100 11111\n") != NULL);
     CHECK(has_line("profile.row: 4c0 fffe 0 0 0 0 0 0 0 fffe"));
 }
@@ -1060,6 +1172,12 @@ int main(void)
         TEST_CASE(a_measure_without_frames_or_audio_reports_them_as_unknown),
         TEST_CASE(screenshots_are_listed_by_slot_with_their_names),
         TEST_CASE(probes_are_listed_with_both_words_the_time_and_the_two_levels),
+        TEST_CASE(a_soak_is_reported_with_its_voltage_slope_its_load_and_both_ends),
+        TEST_CASE(a_rising_battery_gives_a_positive_slope),
+        TEST_CASE(a_soak_with_fewer_than_four_samples_has_means_but_no_slope),
+        TEST_CASE(a_soak_whose_first_samples_left_the_history_gives_no_voltages),
+        TEST_CASE(a_soak_that_was_cut_short_says_why),
+        TEST_CASE(two_soaks_are_two_lines),
         TEST_CASE(script_events_name_the_line_or_the_state),
         TEST_CASE(the_loop_section_says_how_this_run_started),
         TEST_CASE(the_loop_section_counts_sessions_tried_without_the_cable_bit),

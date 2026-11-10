@@ -157,6 +157,21 @@ void hal_system_usb_connect(bool on)
     (void)on;
 }
 
+uint8_t hal_system_power_levels(void)
+{
+    return 0;
+}
+
+uint32_t hal_system_power_samples(void)
+{
+    return 0;
+}
+
+void hal_system_hold_usb_supply_off(bool held)
+{
+    (void)held;
+}
+
 HalProbe hal_system_probe(HalProbeKind kind, uint32_t first, uint32_t second)
 {
     (void)kind;
