@@ -202,27 +202,30 @@ static void the_selected_row_is_highlighted(void)
     move_times(&view, 1, 1);
     Canvas canvas = ui_test_canvas();
     list_view_draw(&view, &canvas, theme_content_area(&TEST_THEME), 100);
-    CHECK(ui_test_area_has_only(&canvas, row_rect(1), TEST_THEME.colors.selection_background));
+    Rect selected = row_rect(1);
+    selected.x = TEST_SCREEN_WIDTH / 2;
+    CHECK(ui_test_area_has_only(&canvas, selected, TEST_THEME.colors.selection_background));
     CHECK(ui_test_area_has_only(&canvas, row_rect(0), TEST_THEME.colors.background));
     CHECK(ui_test_area_has_only(&canvas, row_rect(2), TEST_THEME.colors.background));
 }
 
-static void the_selected_row_has_a_shine_line_and_shades_down(void)
+static void a_flat_focus_surface_has_two_accent_bracket_ends(void)
 {
     Theme theme = TEST_THEME;
     theme.colors.selection_top = 0xFFFF;
     theme.colors.selection_shine = 0x07E0;
+    theme.colors.accent = 0x07FF;
+    theme.colors.accent_alt = 0xF81F;
     ListView view = list_of(10);
     view.theme = &theme;
     move_times(&view, 1, 1);
     Canvas canvas = ui_test_canvas();
     list_view_draw(&view, &canvas, theme_content_area(&theme), 100);
     Rect row = row_rect(1);
-    CHECK_EQUAL(0x07E0, canvas_pixel_at(&canvas, 0, row.y));
-    CHECK_EQUAL(theme.colors.selection_background,
-                canvas_pixel_at(&canvas, 0, row.y + row.height - 1));
-    Color below_shine = canvas_pixel_at(&canvas, 0, row.y + 1);
-    CHECK(below_shine != 0x07E0 && below_shine != theme.colors.selection_background);
+    CHECK_EQUAL(theme.colors.accent, canvas_pixel_at(&canvas, 0, row.y));
+    CHECK_EQUAL(theme.colors.accent_alt, canvas_pixel_at(&canvas, 0, row.y + row.height - 1));
+    Rect flat = {TEST_SCREEN_WIDTH / 2, row.y, 1, row.height};
+    CHECK(ui_test_area_has_only(&canvas, flat, theme.colors.selection_background));
 }
 
 static void the_scrollbar_thumb_sits_inset_without_a_track(void)
@@ -421,7 +424,7 @@ int main(void)
         TEST_CASE(selecting_past_the_end_picks_the_last_item),
         TEST_CASE(the_selected_row_is_highlighted),
         TEST_CASE(the_scrollbar_appears_only_when_items_overflow),
-        TEST_CASE(the_selected_row_has_a_shine_line_and_shades_down),
+        TEST_CASE(a_flat_focus_surface_has_two_accent_bracket_ends),
         TEST_CASE(the_scrollbar_thumb_sits_inset_without_a_track),
         TEST_CASE(a_row_that_opens_something_shows_a_chevron),
         TEST_CASE(a_detail_is_drawn_in_the_secondary_color_at_the_right),

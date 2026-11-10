@@ -110,7 +110,9 @@ void default_theme_set_accent(Theme *theme, AccentColor accent)
         return;
     }
     const ThemeAccent *colors = &ACCENTS[(int)accent < ACCENT_COLOR_COUNT ? accent : ACCENT_BLUE];
-    theme->colors.selection_background = colors->background;
+    theme->colors.selection_background =
+        color_between(theme->colors.background, colors->background, 1, 4);
+    theme->colors.selection_text = theme->colors.text;
     theme->colors.selection_top = colors->top;
     theme->colors.selection_shine = colors->shine;
     theme->colors.accent = colors->shine;

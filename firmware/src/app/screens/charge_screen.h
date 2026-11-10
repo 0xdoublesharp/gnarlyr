@@ -20,3 +20,4 @@ ChargeScreenLayout charge_screen_layout(const Theme *theme, const char *detail);
 void usb_screen_draw(Canvas *canvas, const Theme *theme, HalBattery battery, AppUsbStatus status);
 void charge_screen_draw(Canvas *canvas, const Theme *theme, HalBattery battery);
 void charge_screen_text(HalBattery battery, char *text, size_t capacity);
+void charge_screen_level_text(HalBattery battery, char *text, size_t capacity);

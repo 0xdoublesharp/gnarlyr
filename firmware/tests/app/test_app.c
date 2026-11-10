@@ -19,6 +19,7 @@
 #include "gfx/text.h"
 #include "hal/display.h"
 #include "hal/system.h"
+#include "home_art.h"
 #include "library/cover_build.h"
 #include "library/covers.h"
 #include "library/playlist_reader.h"
@@ -741,9 +742,25 @@ static void lists_still_move_as_soon_as_a_volume_key_goes_down(void)
     CHECK(!title_is("Back In Black"));
 }
 
-enum {
-    HOME_ART_CYCLE_MS = 5000
-};
+static void the_horizon_stays_inside_its_panel(void)
+{
+    static Color pixels[HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT];
+    for (int index = 0; index < HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT; index++) {
+        pixels[index] = 0xFFFF;
+    }
+    Theme theme = BOARD_THEME;
+    theme.horizon = true;
+    Rect panel = {300, 30, 180, 192};
+    Canvas canvas = canvas_make(pixels, (Rect){0, 0, HAL_DISPLAY_WIDTH, HAL_DISPLAY_HEIGHT});
+    home_art_draw_backdrop(&canvas, panel, &theme);
+    bool outside_unchanged = true;
+    for (int y = 0; y < HAL_DISPLAY_HEIGHT; y++) {
+        for (int x = 0; x < panel.x; x++) {
+            outside_unchanged &= pixels[y * HAL_DISPLAY_WIDTH + x] == 0xFFFF;
+        }
+    }
+    CHECK(outside_unchanged);
+}
 
 static uint16_t home_art_probe(void)
 {
@@ -4359,6 +4376,7 @@ int main(void)
         TEST_CASE(lists_still_move_as_soon_as_a_volume_key_goes_down),
         TEST_CASE(the_home_menu_shows_now_playing_last_once_a_track_is_loaded),
         TEST_CASE(the_home_menu_hides_now_playing_with_nothing_loaded),
+        TEST_CASE(the_horizon_stays_inside_its_panel),
         TEST_CASE(home_art_shows_a_library_cover_when_idle),
         TEST_CASE(home_art_moves_on_and_skips_albums_without_a_cover),
         TEST_CASE(home_art_keeps_the_playing_album),

@@ -111,6 +111,22 @@ static void charge_and_usb_details_fit_every_size_and_orientation(void)
     }
 }
 
+static void battery_percentage_dominates_a_full_width_slim_gauge(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = BOARD_THEME;
+            default_theme_set_text_size(&theme, (TextSize)size);
+            default_theme_set_orientation(&theme, (Orientation)orientation);
+            ChargeScreenLayout layout = charge_screen_layout(&theme, i18n_text(STR_HOLD_POWER));
+            CHECK(layout.percent.height >= 2 * font_line_height(theme.fonts.title));
+            CHECK_EQUAL(theme.metrics.screen_width - 2 * theme.metrics.padding,
+                        layout.battery.width);
+            CHECK(layout.battery.height <= 3 * theme.metrics.scrollbar_inset);
+        }
+    }
+}
+
 static void usb_voltage_is_hidden_and_the_real_mode_and_charge_are_visible(void)
 {
     Theme theme = BOARD_THEME;
@@ -126,7 +142,9 @@ static void usb_voltage_is_hidden_and_the_real_mode_and_charge_are_visible(void)
     CHECK(saw(i18n_text(STR_POWER_STORAGE)));
     CHECK(saw(i18n_text(STR_CHARGING)));
     CHECK(saw(i18n_text(STR_POWER_INTERNAL_CARD)));
-    CHECK(saw("64%"));
+    char level[32];
+    charge_screen_level_text((HalBattery){.known = true, .percent = 64}, level, sizeof level);
+    CHECK(strcmp(level, "64%") == 0);
     CHECK(!saw("4800 mV"));
 }
 
@@ -138,6 +156,15 @@ static void an_unknown_battery_has_no_invented_percent_or_voltage(void)
     charge_screen_draw(&canvas, &theme, (HalBattery){.usb_power = true});
     CHECK(saw(i18n_text(STR_POWER_UNKNOWN)));
     CHECK(saw(i18n_text(STR_POWER_USB)));
+    Rect information = charge_screen_layout(&theme, i18n_text(STR_HOLD_POWER)).voltage;
+    bool blank_information = true;
+    for (int y = information.y; y < information.y + information.height; y++) {
+        for (int x = information.x; x < information.x + information.width; x++) {
+            blank_information &=
+                pixels[y * theme.metrics.screen_width + x] == theme.colors.background;
+        }
+    }
+    CHECK(blank_information);
     CHECK(!saw("0%"));
     CHECK(!saw("0 mV"));
     CHECK(!saw(i18n_text(STR_CHARGED)));
@@ -148,6 +175,7 @@ int main(void)
     fake_hal_reset();
     i18n_detach();
     static const TestCase cases[] = {
+        TEST_CASE(battery_percentage_dominates_a_full_width_slim_gauge),
         TEST_CASE(only_visible_battery_changes_require_a_usb_redraw),
         TEST_CASE(charge_and_usb_details_fit_every_size_and_orientation),
         TEST_CASE(usb_voltage_is_hidden_and_the_real_mode_and_charge_are_visible),

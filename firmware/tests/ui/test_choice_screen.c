@@ -136,7 +136,7 @@ static void the_list_is_drawn_under_the_header(void)
     Canvas canvas = ui_test_canvas();
     screen->update(screen->context, 100);
     screen->draw(screen->context, &canvas);
-    Rect first_row = {0, TEST_HEADER_HEIGHT, 1, TEST_ROW_HEIGHT};
+    Rect first_row = {TEST_SCREEN_WIDTH / 2, TEST_HEADER_HEIGHT, 1, TEST_ROW_HEIGHT};
     CHECK(ui_test_area_has_only(&canvas, first_row, TEST_THEME.colors.selection_background));
 }
 

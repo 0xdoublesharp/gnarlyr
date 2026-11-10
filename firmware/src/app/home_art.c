@@ -133,17 +133,20 @@ static void draw_horizon(Canvas *canvas, Rect area, const Theme *theme)
 
 void home_art_draw_backdrop(Canvas *canvas, Rect area, const Theme *theme)
 {
-    canvas_fill_gradient(canvas, area, theme->colors.backdrop_top, theme->colors.backdrop_bottom);
-    draw_horizon(canvas, area, theme);
+    Canvas clipped = canvas_clipped(canvas, area);
+    canvas_fill_gradient(&clipped, area, theme->colors.backdrop_top, theme->colors.backdrop_bottom);
+    draw_horizon(&clipped, area, theme);
 }
 
 static void draw_caption(const HomeArt *art, Canvas *canvas, Rect area)
 {
     const Theme *theme = art->theme;
     TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text};
+    Rect caption = {area.x, area.y, area.width, 2 * font_line_height(style.font)};
+    canvas_fill_rect(canvas, caption, theme->colors.backdrop_bottom);
     label_draw(canvas, style,
                (Label){label_centered_area(style.font, area, art->title), art->title});
-    area.y += 18;
+    area.y += font_line_height(style.font);
     style.color = theme->colors.text_secondary;
     label_draw(canvas, style,
                (Label){label_centered_area(style.font, area, art->artist), art->artist});

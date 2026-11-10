@@ -119,7 +119,7 @@ static void the_header_and_the_list_are_drawn(void)
     screen->update(screen->context, 100);
     screen->draw(screen->context, &canvas);
     Rect header = {0, 0, 1, TEST_HEADER_HEIGHT - 1};
-    Rect first_row = {0, TEST_HEADER_HEIGHT, 1, TEST_ROW_HEIGHT};
+    Rect first_row = {TEST_SCREEN_WIDTH / 2, TEST_HEADER_HEIGHT, 1, TEST_ROW_HEIGHT};
     CHECK(ui_test_area_has_only(&canvas, header, TEST_THEME.colors.header_background));
     CHECK(ui_test_area_has_only(&canvas, first_row, TEST_THEME.colors.selection_background));
 }
@@ -306,7 +306,7 @@ static void a_portrait_list_keeps_the_selection_visible_above_the_panel(void)
     Canvas canvas = ui_test_canvas();
     screen->update(screen->context, 200);
     screen->draw(screen->context, &canvas);
-    Rect above_panel = {0, theme.metrics.header_height, 1,
+    Rect above_panel = {theme.metrics.screen_width / 2, theme.metrics.header_height, 1,
                         panel_area.y - theme.metrics.header_height};
     CHECK(ui_test_area_has_color(&canvas, above_panel, theme.colors.selection_background));
 }

@@ -7,7 +7,6 @@
 
 enum {
     MIN_THUMB_HEIGHT = 6,
-    SHINE_HEIGHT = 1,
     NARROW_DETAIL_SHARE = 40,
     PERCENT = 100,
     ICON_BOX = 20,
@@ -333,11 +332,14 @@ static void draw_row(const ListView *view, Canvas *canvas, Row row, uint32_t now
 {
     if (row.selected) {
         const ThemeColors *colors = &view->theme->colors;
-        Rect shine = {row.area.x, row.area.y, row.area.width, SHINE_HEIGHT};
-        Rect bar = {row.area.x, row.area.y + SHINE_HEIGHT, row.area.width,
-                    row.area.height - SHINE_HEIGHT};
-        canvas_fill_rect(canvas, shine, colors->selection_shine);
-        canvas_fill_gradient(canvas, bar, colors->selection_top, colors->selection_background);
+        int edge = max_of(1, view->theme->metrics.scrollbar_inset);
+        int cap = max_of(edge, view->theme->metrics.padding / 2);
+        canvas_fill_rect(canvas, row.area, colors->selection_background);
+        canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y, edge, row.area.height},
+                         colors->accent);
+        canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y, cap, 1}, colors->accent);
+        canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y + row.area.height - 1, cap, 1},
+                         colors->accent_alt);
     }
     row = draw_icon(view, canvas, row);
     if (details_below(view)) {

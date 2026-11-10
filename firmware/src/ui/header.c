@@ -21,7 +21,7 @@ void header_draw(Canvas *canvas, const Theme *theme, const char *title)
     Rect title_bounds = header_title_bounds(theme);
     TextStyle style = {.font = theme->fonts.header, .color = theme->colors.header_text};
     Rect body = {area.x, area.y, area.width, area.height - DIVIDER_HEIGHT};
-    canvas_fill_gradient(canvas, body, theme->colors.header_top, theme->colors.header_background);
+    canvas_fill_rect(canvas, body, theme->colors.header_background);
     canvas_fill_rect(canvas, divider,
                      theme->header_rule ? theme->colors.accent : theme->colors.divider);
     if (title_bounds.height > 0) {

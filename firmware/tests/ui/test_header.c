@@ -12,13 +12,13 @@ static void the_header_is_filled_with_its_background(void)
     CHECK(ui_test_area_has_only(&canvas, body, TEST_THEME.colors.header_background));
 }
 
-static void the_header_shades_from_its_top_color_down(void)
+static void the_header_keeps_a_flat_surface_under_its_title(void)
 {
     Theme theme = TEST_THEME;
     theme.colors.header_top = 0xFFFF;
     Canvas canvas = ui_test_canvas();
     header_draw(&canvas, &theme, "");
-    CHECK_EQUAL(0xFFFF, canvas_pixel_at(&canvas, 0, 0));
+    CHECK_EQUAL(theme.colors.header_background, canvas_pixel_at(&canvas, 0, 0));
     CHECK_EQUAL(theme.colors.header_background,
                 canvas_pixel_at(&canvas, 0, TEST_HEADER_HEIGHT - 2));
 }
@@ -101,7 +101,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(the_header_is_filled_with_its_background),
         TEST_CASE(a_theme_can_choose_an_accent_header_rule),
-        TEST_CASE(the_header_shades_from_its_top_color_down),
+        TEST_CASE(the_header_keeps_a_flat_surface_under_its_title),
         TEST_CASE(a_divider_separates_the_header_from_the_content),
         TEST_CASE(the_title_is_centred),
         TEST_CASE(the_title_keeps_the_header_font_whatever_the_text_size),

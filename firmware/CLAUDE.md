@@ -74,7 +74,7 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 147,880 | 157,292 | 9,412 |
+| Code window | 148,216 | 157,292 | 9,076 |
 | Static RAM | 263,508 | 287,296 | 23,788 |
 | Rescan overlay | 88,404 | 98,304 | 9,900 |
 | USB overlay code | 11,480 | 65,536 | 54,056 |
@@ -83,7 +83,7 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 | Module library (code + BSS) | 39,136 | 56,320 | 17,184 |
 | Module listening (code + BSS) | 17,792 | 56,320 | 38,528 |
 | Decoder workspace | 41,644 | 41,984 | 340 |
-| Language pack (English) | 7,081 | 16,384 | 9,303 |
+| Language pack (English) | 7,089 | 16,384 | 9,295 |
 
 - Keep at least 8 KB free in the release code window after each stage of the plan. Read the report after any change to device code and update these numbers and the ones in `docs/architecture.md` when they move.
 - The core 0 link uses link-time optimisation. Libraries shared with core 1 or the rescan overlay stay out of it.

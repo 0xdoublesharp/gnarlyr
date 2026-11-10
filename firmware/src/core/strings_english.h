@@ -427,4 +427,5 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_EQ_PREAMP] = "Preamp {0} dB",
     [STR_EQ_REFERENCE] = "44.1 kHz response",
     [STR_EQ_GAIN] = "{0} dB",
+    [STR_POWER_TITLE] = "Power",
 };
