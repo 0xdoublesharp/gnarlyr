@@ -4,7 +4,7 @@
 
 ## File
 
-`/.freshbase/order.bin` is 263,168 bytes: two banks of 131,584.
+`/.gnarlyr/order.bin` is 263,168 bytes: two banks of 131,584.
 
 | Offset in a bank | Content |
 |---|---|

@@ -1,6 +1,6 @@
-# Where FreshBase comes from
+# Where Gnarlyr comes from
 
-FreshBase is built on two open-source firmwares, both GPL-3.0-or-later. [`CREDITS.md`](CREDITS.md) says who wrote what.
+Gnarlyr is built on two open-source firmwares, both GPL-3.0-or-later. [`CREDITS.md`](CREDITS.md) says who wrote what.
 
 | Project | What it is | Source |
 |---|---|---|

@@ -1,13 +1,13 @@
 # Playback store
 
-The files FreshBase keeps for an edited queue, the playback session and saved mixtapes share one block format and one way of writing it (`playback/store`). The formats built on it are in `stored-order.md`, `session-journal.md` and `mixtapes.md`.
+The files Gnarlyr keeps for an edited queue, the playback session and saved mixtapes share one block format and one way of writing it (`playback/store`). The formats built on it are in `stored-order.md`, `session-journal.md` and `mixtapes.md`.
 
 | File | Kind | Magic | Version | Bound to the library | Payload |
 |---|---|---|---|---|---|
-| `/.freshbase/order.bin` | stored track order, two banks | `DSTO` | 1 | yes | after the header block |
-| `/.freshbase/session.bin` | session journal, two records | `DSSJ` | 1 | yes | inside the header block |
-| `/.freshbase/mixes.bin` | mixtape catalogue, two banks | `DSMC` | 1 | no | after the header block |
-| `/.freshbase/mix00a.bin` … `mix31b.bin` | mixtape tapes, one per file | `DSMT` | 1 | no | after the header block |
+| `/.gnarlyr/order.bin` | stored track order, two banks | `DSTO` | 1 | yes | after the header block |
+| `/.gnarlyr/session.bin` | session journal, two records | `DSSJ` | 1 | yes | inside the header block |
+| `/.gnarlyr/mixes.bin` | mixtape catalogue, two banks | `DSMC` | 1 | no | after the header block |
+| `/.gnarlyr/mix00a.bin` … `mix31b.bin` | mixtape tapes, one per file | `DSMT` | 1 | no | after the header block |
 
 The folder is the data folder of `identity.json`. The four-byte markers that start with `DS`, here and in the other files the player keeps, are format tags named for the maker, Doublesharp, and do not follow the firmware's name. Byte order is little-endian.
 

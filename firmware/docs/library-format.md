@@ -1,8 +1,8 @@
 # Library database format (version 6)
 
-The file formats FreshBase keeps in its data folder for the library, covers, favorites and bookmarks. The PC indexer (`tools/library_index.py`) writes the library database. The device reads it (`src/library`). Everything is sorted on the PC, so the device never sorts. It reads fixed-size records by index and strings by offset, a few hundred bytes at a time. The four-byte magics that start with `DS` are format tags named for the maker, Doublesharp, and did not change when the firmware was renamed FreshBase.
+The file formats Gnarlyr keeps in its data folder for the library, covers, favorites and bookmarks. The PC indexer (`tools/library_index.py`) writes the library database. The device reads it (`src/library`). Everything is sorted on the PC, so the device never sorts. It reads fixed-size records by index and strings by offset, a few hundred bytes at a time. The four-byte magics that start with `DS` are format tags named for the maker, Doublesharp, and remain stable across display-name and identifier changes.
 
-- Location on the card: `/.freshbase/library.db`
+- Location on the card: `/.gnarlyr/library.db`
 - Byte order: little-endian
 - Indices: `u16` (at most 65,535 tracks, albums, groups and folders)
 - `0xFFFF` means "none"
@@ -111,7 +111,7 @@ On the device, `track_tags_read` reads through a `ByteSource` with small bounded
 
 ## Building on the device
 
-`library/library_builder` builds a database that means the same as the PC indexer's, from tracks given in scan order (the PC indexer's sorted path order), with a block of RAM and a scratch file on the card (`/.freshbase/build.tmp`, 24 MB, reserved with the other player files). It handles up to 65,535 tracks; 20,000 are tested inside 360 KB of RAM. RAM only ever holds what one step needs: buffers, small caches and a few 16-bit columns.
+`library/library_builder` builds a database that means the same as the PC indexer's, from tracks given in scan order (the PC indexer's sorted path order), with a block of RAM and a scratch file on the card (`/.gnarlyr/build.tmp`, 24 MB, reserved with the other player files). It handles up to 65,535 tracks; 20,000 are tested inside 360 KB of RAM. RAM only ever holds what one step needs: buffers, small caches and a few 16-bit columns.
 - During the scan each track becomes a 60-byte row on the card (text offsets and lengths, folder, year, disc, number, duration, start, end, CUE sheet folder and whether it follows the sheet's first track) and its texts go to a heap on the card (a text equal to the previous track's same field is stored once). Folders become 8-byte rows (the top bit of the name length marks a CUE sheet); a hash of (parent, name) in RAM finds a folder seen before. The scanner hands each CUE track its sheet's file name, and the builder adds the sheet folder under the track's folder.
 - Before ranking, tracks marked as having no album-artist tag (a spare row byte) get their shared album artist: one record per such track (folder, track, artist text, album and artist sort keys) is sorted by folder, album key, artist key and track; one pass picks each group's winner, a second writes (track, artist text) pairs, which are sorted by track and merged back into the rows in one sequential rewrite. Nothing runs when no track is marked.
 - Each field is then ranked: one record per run of equal text (its sort key, its bytes and its first track) goes through a stable external merge sort on the card (sorted chunks in RAM, then up to 32-way merges), giving a dense key rank per track, a spelling rank for genres, and each group's first spelling. Folder names are ranked by key, then bytes.
@@ -137,7 +137,7 @@ On the device, `track_tags_read` reads through a `ByteSource` with small bounded
 
 ## Playlists
 
-The indexer reads every `.m3u` and `.m3u8` file under the music root, skipping hidden folders. A file is decoded as UTF-8 (with or without a BOM), or as Windows-1252 if that fails. Blank lines and `#` lines are ignored, and so are URLs, except for the start directive: a line that is exactly `#FRESHBASE-START:` and one to ten digits below 4294967295 (case-sensitive, after trimming) gives the start in milliseconds of the next entry only, the last directive before an entry winning. The player writes it for a track of a CUE album (a track whose start or end is not zero), whose path is the album's audio file.
+The indexer reads every `.m3u` and `.m3u8` file under the music root, skipping hidden folders. A file is decoded as UTF-8 (with or without a BOM), or as Windows-1252 if that fails. Blank lines and `#` lines are ignored, and so are URLs, except for the start directive: a line that is exactly `#GNARLYR-START:` and one to ten digits below 4294967295 (case-sensitive, after trimming) gives the start in milliseconds of the next entry only, the last directive before an entry winning. The player writes it for a track of a CUE album (a track whose start or end is not zero), whose path is the album's audio file.
 
 Each entry is matched to a track, ignoring case and treating `\` as `/`:
 
@@ -149,15 +149,15 @@ An entry with a start then picks, among the tracks sharing the matched track's p
 
 Entries that match nothing are left out, and the indexer reports how many each playlist lost.
 
-On the device, the scanner notes each `.m3u`/`.m3u8` path during the walk (the PC's order) and reads them after the tracks, once `library_builder_prepare` has fixed the track order and built the path indexes: an exact table keyed by the casefolded path (Python's `str.casefold`, from a second generated table; the last of equal keys wins, as in a Python dict) and chains by casefolded file name for the suffix match. `library/playlist_reader` checks the whole file for strict UTF-8 (a BOM is skipped) or decodes Windows-1252 with U+FFFD for its five undefined bytes, splits lines like `str.splitlines` (U+0085, U+2028 and U+2029 only in UTF-8) and trims them; each entry is resolved at once, so entries are never stored (an entry's `#FRESHBASE-START` is read with it, and the part is picked by walking the chain of its file name for the track with that start and the same casefolded path). Candidates go through `posixpath.normpath` rules, including its two leading slashes. Playlists are sorted by sort key and then name, and their names share the string table with everything else. `scan_music/` (nested folders, a hidden folder, an AppleDouble file and three playlists in UTF-8 with a BOM, Windows-1252 and plain UTF-8) and `builder_random/with_playlists` (30 random playlists, 379 entries) check it byte for byte.
+On the device, the scanner notes each `.m3u`/`.m3u8` path during the walk (the PC's order) and reads them after the tracks, once `library_builder_prepare` has fixed the track order and built the path indexes: an exact table keyed by the casefolded path (Python's `str.casefold`, from a second generated table; the last of equal keys wins, as in a Python dict) and chains by casefolded file name for the suffix match. `library/playlist_reader` checks the whole file for strict UTF-8 (a BOM is skipped) or decodes Windows-1252 with U+FFFD for its five undefined bytes, splits lines like `str.splitlines` (U+0085, U+2028 and U+2029 only in UTF-8) and trims them; each entry is resolved at once, so entries are never stored (an entry's `#GNARLYR-START` is read with it, and the part is picked by walking the chain of its file name for the track with that start and the same casefolded path). Candidates go through `posixpath.normpath` rules, including its two leading slashes. Playlists are sorted by sort key and then name, and their names share the string table with everything else. `scan_music/` (nested folders, a hidden folder, an AppleDouble file and three playlists in UTF-8 with a BOM, Windows-1252 and plain UTF-8) and `builder_random/with_playlists` (30 random playlists, 379 entries) check it byte for byte.
 
 ## Album keys and favorites
 
-Favorites outlive a re-index, so they don't store album indices. An album's key is the FNV-1a hash of its album artist, a `0x1F` separator and its title (`library_album_key`). `/.freshbase/favorites.bin` holds the magic `DSFV`, `u16` version 1, a `u16` count, the `u32` keys and an FNV-1a checksum. At most 256 albums can be favorites. An album that leaves the library just stops showing up.
+Favorites outlive a re-index, so they don't store album indices. An album's key is the FNV-1a hash of its album artist, a `0x1F` separator and its title (`library_album_key`). `/.gnarlyr/favorites.bin` holds the magic `DSFV`, `u16` version 1, a `u16` count, the `u32` keys and an FNV-1a checksum. At most 256 albums can be favorites. An album that leaves the library just stops showing up.
 
 ## Bookmarks file
 
-`/.freshbase/bookmarks.bin` (4 KB, reserved by the player) remembers where each audiobook and podcast episode stopped (`playback/bookmarks`). Like favorites, it is keyed by path hashes, so it outlives a re-index.
+`/.gnarlyr/bookmarks.bin` (4 KB, reserved by the player) remembers where each audiobook and podcast episode stopped (`playback/bookmarks`). Like favorites, it is keyed by path hashes, so it outlives a re-index.
 
 | Offset | Type | Field |
 |---|---|---|
@@ -172,7 +172,7 @@ Each bookmark is `u32 key`, `u32 track key`, `u32 position_ms`, `u16 chapter`, `
 
 ## Covers file
 
-The player builds `/.freshbase/covers.bin` after every rescan (see `docs/architecture.md`, Covers on the device); `tools/cover_export.py` writes the same format on a PC. It's separate from the database, keyed by album key, so either file can be rebuilt on its own.
+The player builds `/.gnarlyr/covers.bin` after every rescan (see `docs/architecture.md`, Covers on the device); `tools/cover_export.py` writes the same format on a PC. It's separate from the database, keyed by album key, so either file can be rebuilt on its own.
 
 | Offset | Type | Field |
 |---|---|---|

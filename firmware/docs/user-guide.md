@@ -22,7 +22,7 @@ Gnarlyr 1.0.0 is not released. Developer firmware runs on the owner's full-size 
 
 The route that has worked on this project's player is a direct write through maskrom: [`device-install.md`](device-install.md).
 
-Installing by copying a file under FiiO's firmware is not verified. FiiO's updater only reads files named `ECHOVnnn.IMG`, so `FRSHBS.IMG` would have to be renamed, and whether FiiO's 2.0.0 accepts it is not known.
+Installing by copying a file under FiiO's firmware is not verified. FiiO's updater only reads files named `ECHOVnnn.IMG`, so `GNARLYR.IMG` would have to be renamed, and whether FiiO's 2.0.0 accepts it is not known.
 
 On the first start with a microSD card in the player, Gnarlyr builds its library and album covers. Wait for it to finish before you plug the player into a computer.
 
@@ -33,9 +33,9 @@ On the first start with a microSD card in the player, Gnarlyr builds its library
 - Music → Folders shows the card as it is: folders, then each audio file by its full name with its extension (`01 Intro.mp3`). The other lists show titles from the tags. Hold ▶ on a folder there to play everything under it, subfolders included, in the order Folders shows it (a CUE album plays once, as its songs); the queue follows the shuffle setting and has no length limit beyond the library's 65,535 tracks.
 - A `.cue` file next to a single FLAC, WAV or MP3 album image splits it into one track per CUE track (see "CUE sheets" below). Album covers come from art inside each album's first track, or from a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks.
 - `.m3u` and `.m3u8` playlists anywhere on the card appear under Music → Playlists.
-- **Favorite Playlist.** Hold Play on a song in any list and choose Add to Favorite Playlist. The song goes into `Favorite Tracks.m3u` in the top folder of the music storage (the card, or the player's own storage without a card). The file is made on the first use, holds one path per line relative to that folder, and can be read and edited on a computer. A song that is one track of a CUE album gets the line `#FRESHBASE-START:` and the track's start in milliseconds above its path (the path is the album's audio file, so computer players open the whole album); the player and echo-sync use the start to pick that exact track, and a line without it stands for the album's last track. Each track of a CUE album is added and checked on its own. A song already in it shows "Already in Favorites". The file has room for a few hundred songs; when it is full, or a computer edit left it without spare room, the player shows "Couldn't add to Favorites". Music → Playlists shows Favorite Tracks with the new song straight away, with no rescan, also after a restart. Lines added to the file on a computer show after the next library scan.
+- **Favorite Playlist.** Hold Play on a song in any list and choose Add to Favorite Playlist. The song goes into `Favorite Tracks.m3u` in the top folder of the music storage (the card, or the player's own storage without a card). The file is made on the first use, holds one path per line relative to that folder, and can be read and edited on a computer. A song that is one track of a CUE album gets the line `#GNARLYR-START:` and the track's start in milliseconds above its path (the path is the album's audio file, so computer players open the whole album); the player and echo-sync use the start to pick that exact track, and a line without it stands for the album's last track. Each track of a CUE album is added and checked on its own. A song already in it shows "Already in Favorites". The file has room for a few hundred songs; when it is full, or a computer edit left it without spare room, the player shows "Couldn't add to Favorites". Music → Playlists shows Favorite Tracks with the new song straight away, with no rescan, also after a restart. Lines added to the file on a computer show after the next library scan.
 - The library holds up to 65,535 tracks; [`known-issues.md`](known-issues.md) says what has been tested.
-- Gnarlyr keeps its own files in a hidden `/.freshbase` folder on the card, about 110 MB of them. Don't delete it unless you want the library rebuilt.
+- Gnarlyr keeps its own files in a hidden `/.gnarlyr` folder on the card, about 110 MB of them. Don't delete it unless you want the library rebuilt.
 
 ## Search, sorting and personal tags
 
@@ -90,7 +90,7 @@ The tool is **echo-sync**, `tools/echo_sync.py`. It runs from the source; there 
 
 This project has run the tool's tests, not the tool on a real card.
 
-It reads the whole card, as the player does, and writes `library.db`, `covers.bin` and `scan.bin` into the card's `/.freshbase` folder. If the player has never used the card, it asks before creating `/.freshbase` (`--yes` creates it without asking). Files the player made are overwritten in place and keep their size; missing ones are made at the player's sizes (4 MB, 80 MB and 4 KB). It then prints what it found, for example "1,402 tracks, 120 albums, 3 playlists" and "115 covers, 5 without art".
+It reads the whole card, as the player does, and writes `library.db`, `covers.bin` and `scan.bin` into the card's `/.gnarlyr` folder. If the player has never used the card, it asks before creating `/.gnarlyr` (`--yes` creates it without asking). Files the player made are overwritten in place and keep their size; missing ones are made at the player's sizes (4 MB, 80 MB and 4 KB). It then prints what it found, for example "1,402 tracks, 120 albums, 3 playlists" and "115 covers, 5 without art".
 
 **Why the player doesn't rescan.** After a USB session the player checks for changes: it compares the names, sizes and modification times of the music, playlists and cover images on the card with a fingerprint it keeps in `scan.bin`. The computer writes the same fingerprint, so the check finds nothing new and the player keeps the computer's library. With a card reader there's no USB session, so the player uses the new library straight away.
 
@@ -113,7 +113,7 @@ To see whether it works on your card, let the player scan it once, then run echo
 | `--covers-only` | Rebuild `covers.bin` from the card's `library.db` |
 | `--no-fingerprint` | Leave `scan.bin` alone, so the player compares the music with its own last scan |
 | `--check` | Only compare the computer's fingerprint with the player's |
-| `--yes` | Create `/.freshbase` without asking |
+| `--yes` | Create `/.gnarlyr` without asking |
 | `--verbose` | List the albums without art |
 
 The computer picks each album's cover the way the player does: the picture inside the album's first track (FLAC, MP3, WAV, DSF/DFF, `.m4a`, `.ape` and `.wma`; a front cover wins), otherwise a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks. Ogg pictures are skipped, as on the player. The covers can look a little different from the player's own, because the computer resizes them with a different filter. When the player rescans later (for example after you copy a new album to it), it keeps the computer's covers and only decodes art that's new or changed; on a card that isn't FAT32 or exFAT, albums whose cover is an image file are decoded again.
@@ -161,7 +161,7 @@ In portrait, Home shows the Gnarlyr title below the status row and Now Playing k
 The player's text is English. Other languages can be added as language packs; none is shipped yet, and none has been tried on a player ([`known-issues.md`](known-issues.md)).
 
 - When the player has more than one language, Settings → Language appears after Orientation and lists them by their own names. Pick one and every screen changes at once; the player starts in it next time.
-- To add a language without reinstalling, copy its pack to the folder `.freshbase/lang` on the SD card (or on internal storage if you use no card). The file is named after the language's code, for example `de.pack`. The folder is hidden on most computers; create `lang` inside `.freshbase` if it isn't there. Eject, and the language is in Settings → Language.
+- To add a language without reinstalling, copy its pack to the folder `.gnarlyr/lang` on the SD card (or on internal storage if you use no card). The file is named after the language's code, for example `de.pack`. The folder is hidden on most computers; create `lang` inside `.gnarlyr` if it isn't there. Eject, and the language is in Settings → Language.
 - A pack is made for one firmware version. After an update, an older pack may be refused; the player then stays in its built-in language and Settings → Language says "Couldn't load that language" when you pick it. Get the pack made for the new version.
 - If you take out the card that holds the pack, the player uses its built-in language until the card is back.
 - Today's fonts draw English and the accented letters of western European languages. Cyrillic is drawn in lists and titles but not yet in the small text, so it can't be used for a pack; Chinese, Japanese and Korean are not drawn.
@@ -232,7 +232,7 @@ Podcasts/
 - **`.m4b` audiobooks** are indexed like `.m4a` files (AAC-LC or Apple Lossless). When the file carries chapters, it shows up as a book of its own named after the file (`Dune`), with one chapter per marker and the chapter's title as the song title; "Chapter 3 of 41", the chapter list, ▶ to resume, bookmarks and the 30 s / 15 s jumps all work on the chapter, and playing on from one chapter into the next is gapless. Both chapter kinds are read: the Nero `chpl` list and the QuickTime chapter track (what Libation, Audible conversions and ffmpeg write). A file with no chapters, one chapter, or chapter data that can't be read is one track. A book has at most 255 chapters; the rest are part of the last one. Put the `.m4b` straight into `Audiobooks/` (not inside a folder of its own), because a folder is a book by itself. Outside `Audiobooks/` a chaptered `.m4b` is an album of its chapters, like a CUE album, and its row in Folders is a folder named after the file.
 - **Podcasts** lists your shows; open one to see its episodes, each with "23:10 left" or "Played".
 - A chaptered `.m4b` remembers one place for the whole file, keyed by the file's path: the chapter and the position inside it. ▶ on the book resumes that chapter; choosing another chapter from the list starts it at its top, and the place moves with whatever is played. Renaming or moving the file forgets the place.
-- Every book and every episode remembers its own place, even when you play music in between or turn the player off. The places are saved in `/.freshbase/bookmarks.bin` (the last 128 books and episodes).
+- Every book and every episode remembers its own place, even when you play music in between or turn the player off. The places are saved in `/.gnarlyr/bookmarks.bin` (the last 128 books and episodes).
 - Books and shows always play in order: shuffle doesn't apply to them, and your shuffle setting for music stays as it was.
 - On Now Playing, holding Vol+ jumps 30 s forward and holding Vol− jumps 15 s back. Jumping past the end of a chapter goes to the next one. To pick another chapter, use the book's chapter list.
 - An episode or book counts as finished once it played to its last tenth (at most its last 30 s).
@@ -244,8 +244,8 @@ Podcasts/
 
 An install through the updater has only run in the emulator so far ([`known-issues.md`](known-issues.md)). Charge the battery first.
 
-1. Connect the player and copy the new `FRSHBS.IMG` to the top level of internal storage, not into a folder.
-2. Eject both drives. The player shows "Checking FRSHBS.IMG", then "Installing update" with a percentage. Don't unplug or turn it off.
+1. Connect the player and copy the new `GNARLYR.IMG` to the top level of internal storage, not into a folder.
+2. Eject both drives. The player shows "Checking GNARLYR.IMG", then "Installing update" with a percentage. Don't unplug or turn it off.
 3. At "Update installed", unplug USB and hold Power. The player turns off.
 4. Hold Power to start the new version.
 
@@ -258,7 +258,7 @@ There are two ways. This project has done the second on its player; the first ha
 **Through the updater**
 
 1. Download FiiO's firmware for the Echo from FiiO's website and unzip it. The image is `ECHOV200.IMG` for V2.0.0.
-2. Delete any `FRSHBS.IMG` from internal storage if it's still there.
+2. Delete any `GNARLYR.IMG` from internal storage if it's still there.
 3. Copy FiiO's `ECHOV200.IMG` to the top level of internal storage, unchanged. It is a 39,845,892-byte file.
 4. Eject both drives. The player checks the file (this takes a while) and shows "Installing FiiO firmware", then "FiiO firmware installed".
 5. Unplug, take the microSD card out, hold Power to turn the player off, and switch it on. Podium's documentation says FiiO's firmware then installs the same file once more at its first start.

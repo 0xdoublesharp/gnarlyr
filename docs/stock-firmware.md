@@ -1,6 +1,6 @@
 # FiiO stock firmware reference: ECHO 2.0.0
 
-What has been established about FiiO's stock firmware for the full-size SNOWSKY ECHO by static analysis. It is the reference for values the FreshBase board code copies from stock, and for the analysis tools in `tools/`.
+What has been established about FiiO's stock firmware for the full-size SNOWSKY ECHO by static analysis. It is the reference for values the Gnarlyr board code copies from stock, and for the analysis tools in `tools/`.
 
 Everything here comes from reading the image, not from running it. Names describe what the code does; they are not FiiO's symbols. An address is a Thumb instruction address in the loaded image.
 

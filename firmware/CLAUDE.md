@@ -6,11 +6,9 @@ Gnarlyr 1.0.0 is not released. The repository and device rules are in `../AGENTS
 
 ## Identity
 
-`identity.json` is the single source for `name` ("Gnarlyr": the USB product name and the start-up splash), `short_name` ("Gnarlyr" too: the Home title, and the splash where the name is too wide), `manufacturer` ("Doublesharp": the USB manufacturer name), `id` ("FRSHBS": the image brand, padded with zero bytes to its 8 bytes, and the USB storage vendor, padded with spaces to its 8 characters), the version, `data_directory` (`.freshbase`), `update_file` (`FRSHBS.IMG`) and `playlist_start_directive` (`FRESHBASE-START`). The build, the C code and the tools read it. Never write a name, the identifier or the version anywhere else in code or tests; change the file. C reads the `FIRMWARE_*` definitions, the firmware's Python tools read `tools/identity.py`, and the root tools read `echo_debug.IDENTITY`. The `no_identity_literals` test (`tools/check_identity_literals.py`) and the root test `tests/test_identity_literals.py` fail when a source file spells one of these names, or a former identifier listed in `former_ids`, outside `identity.json` and the generated fixtures. In documents, write Gnarlyr.
+`identity.json` is the single source for `name` ("Gnarlyr": the USB product name and the start-up splash), `short_name` ("Gnarlyr" too: the Home title, and the splash where the name is too wide), `manufacturer` ("Doublesharp": the USB manufacturer name), `id` ("GNARLYR": the image brand, padded with zero bytes to its 8 bytes, and the USB storage vendor, padded with spaces to its 8 characters), the version, `data_directory` (`.gnarlyr`), `update_file` (`GNARLYR.IMG`) and `playlist_start_directive` (`GNARLYR-START`). The build, the C code and the tools read it. Never write a name, the identifier or the version anywhere else in code or tests; change the file. C reads the `FIRMWARE_*` definitions, the firmware's Python tools read `tools/identity.py`, and the root tools read `echo_debug.IDENTITY`. The `no_identity_literals` test (`tools/check_identity_literals.py`) and the root test `tests/test_identity_literals.py` fail when a source file spells one of these names, or a former identifier listed in `former_ids`, outside `identity.json` and the generated fixtures. In documents, write Gnarlyr.
 
-The firmware was called Doublesharp Echo (`DBLSHARP`, `/.doublesharp/`, `DBLSHARP.IMG`, `#DOUBLESHARP-START:`) until it was renamed; nothing reads those names any more (`docs/release-notes.md`). Doublesharp is still the maker: the four-byte file markers that start with `DS` are format tags named for the maker and did not change. Leave the old name where a document records what happened under it.
-
-The internal brand `FRSHBS`, update filename and `.freshbase` data folder remain stable across the display-name change, so existing settings and library data stay usable. These are storage/protocol identifiers.
+The four-byte file markers beginning with `DS` remain maker format tags; the binary settings, library and mixtape layouts are unchanged. The canonical identifier, data folder, update filename and playlist directive now follow the Gnarlyr identity. Moving an installed developer build to these identifiers requires the prepared update/data transition; preserve its settings and saved music state before the first canonical boot.
 
 ## Layout
 
@@ -43,8 +41,8 @@ python3 tools/firmware.py sim --card /path/to/music
 | Preset | Output |
 |---|---|
 | `dev` | Host build of the simulator and tests, under UndefinedBehaviorSanitizer |
-| `device` | Cross-compiled `build/device/FRSHBS.IMG` with the developer rows in Settings → About |
-| `release` | `build/release/FRSHBS.IMG` with the short About menu |
+| `device` | Cross-compiled `build/device/GNARLYR.IMG` with the developer rows in Settings → About |
+| `release` | `build/release/GNARLYR.IMG` with the short About menu |
 
 `test` also builds the `device` preset, runs the emulator scenarios on its image and checks formatting, the absence of comments, generated files being current and the Cortex-M3 RAM budget (`target_audit`).
 
@@ -54,7 +52,7 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 - While editing, run only the scenarios the change touches: `python3 tools/firmware.py test --jobs 6 --regex 'device_image_boot_test_usb'`.
 - Run the whole suite once, after the last edit, with `--jobs 6` (`--jobs 10` when nothing else is building). It takes about two minutes. Never run `test_echo_image.py` whole in one process: that is the slow, serial path.
-- A branch must contain `perf(emulator): enter hooked functions through block hooks` and `perf(emulator): rest one slice at each idle key poll`. Start new work from the current `fresh-base` tip; if a branch is older, bring those commits in before running scenarios.
+- A branch must contain `perf(emulator): enter hooked functions through block hooks` and `perf(emulator): rest one slice at each idle key poll`. Start new work from the current `gnarlyr` tip; if a branch is older, bring those commits in before running scenarios.
 - A new scenario waits on events (a hooked function, a watched write, a drawn frame), not on a count of emulated instructions, and replaces any function it only needs to get past through a `CORE_SEAM`.
 
 ## Rules
@@ -74,13 +72,13 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 149,020 | 157,292 | 8,272 |
+| Code window | 148,964 | 157,292 | 8,328 |
 | Static RAM | 263,508 | 287,296 | 23,788 |
 | Rescan overlay | 88,404 | 98,304 | 9,900 |
-| USB overlay code | 11,480 | 65,536 | 54,056 |
-| Module views (code + BSS) | 17,964 | 56,320 | 38,356 |
+| USB overlay code | 11,484 | 65,536 | 54,052 |
+| Module views (code + BSS) | 17,952 | 56,320 | 38,368 |
 | Module settings (code + BSS) | 14,412 | 56,320 | 41,908 |
-| Module library (code + BSS) | 39,136 | 56,320 | 17,184 |
+| Module library (code + BSS) | 39,124 | 56,320 | 17,196 |
 | Module listening (code + BSS) | 17,792 | 56,320 | 38,528 |
 | Decoder workspace | 41,644 | 41,984 | 340 |
 | Language pack (English) | 7,089 | 16,384 | 9,295 |
@@ -137,12 +135,12 @@ Only after the owner approved it for this session.
 - Firmware slots on the full-size Echo: sector 0 and 81920, 10240 sectors (the image's first 5 MiB) each. Write slot 2 first, read every write back and compare before the next write:
 
   ```sh
-  head -c 5242880 FRSHBS.IMG > slot.bin
+  head -c 5242880 GNARLYR.IMG > slot.bin
   rkdeveloptool-echo wl 81920 slot.bin && rkdeveloptool-echo rl 81920 10240 rb.bin && cmp slot.bin rb.bin
   ```
 
 - Slot files, read-backs and logs go under `/Volumes/Scratch/SnowskyEcho`, never in the repo. The original device backup stays under `.local/device-backups` in the main checkout.
-- Internal storage mounts as `/Volumes/ECHO`. An update is copied with `cp -X` (no `._` files) to the drive's top level as `FRSHBS.IMG`, then `diskutil eject /Volumes/ECHO`; the updater runs once the USB session ends. File-copy installs with automatic restart/reconnect are recorded on the owner's player through Gnarlyr `57f05fd`; later candidates still need their own validation (`docs/known-issues.md`).
+- Internal storage mounts as `/Volumes/ECHO`. An update is copied with `cp -X` (no `._` files) to the drive's top level as `GNARLYR.IMG`, then `diskutil eject /Volumes/ECHO`; the updater runs once the USB session ends. File-copy installs with automatic restart/reconnect are recorded on the owner's player through earlier Gnarlyr developer builds. The canonical identifier transition still needs its own device validation (`docs/known-issues.md`).
 
 ## Releasing
 

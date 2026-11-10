@@ -1,12 +1,12 @@
 # Listening log
 
-FreshBase can keep a record of what was played: one entry per play in a ring, and totals that outlive the ring. `playback/listening_log` stores them, `playback/listening_stats` computes the statistics, `playback/listening_export` writes the plays as a scrobbler file and `playback/listening_track` derives a track's keys from the library. Block format, generations and publication are in `playback-store.md`.
+Gnarlyr can keep a record of what was played: one entry per play in a ring, and totals that outlive the ring. `playback/listening_log` stores them, `playback/listening_stats` computes the statistics, `playback/listening_export` writes the plays as a scrobbler file and `playback/listening_track` derives a track's keys from the library. Block format, generations and publication are in `playback-store.md`.
 
 Nothing in the app calls these modules yet, and none of this has run on a player.
 
 ## File
 
-`/.freshbase/listens.bin` is 263,168 bytes. Byte order is little-endian.
+`/.gnarlyr/listens.bin` is 263,168 bytes. Byte order is little-endian.
 
 | Offset | Bytes | Content |
 |---|---|---|
@@ -141,7 +141,7 @@ A full ring with 1,500 different tracks takes 47 passes with 32 entries (384 byt
 ```
 #AUDIOSCROBBLER/1.1
 #TZ/UNKNOWN
-#CLIENT/FreshBase 1.0.0
+#CLIENT/Gnarlyr 1.0.0
 Björk	Homogenic	Hunter	1	254	L	1794182400	
 ```
 

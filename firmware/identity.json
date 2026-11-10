@@ -2,12 +2,13 @@
     "name": "Gnarlyr",
     "short_name": "Gnarlyr",
     "manufacturer": "Doublesharp",
-    "id": "FRSHBS",
+    "id": "GNARLYR",
     "version": "1.0.0",
-    "data_directory": ".freshbase",
-    "update_file": "FRSHBS.IMG",
-    "playlist_start_directive": "FRESHBASE-START",
+    "data_directory": ".gnarlyr",
+    "update_file": "GNARLYR.IMG",
+    "playlist_start_directive": "GNARLYR-START",
     "former_ids": [
-        "DBLSHARP"
+        "DBLSHARP",
+        "FRSHBS"
     ]
 }
