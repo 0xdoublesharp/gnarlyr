@@ -36,7 +36,7 @@ add_executable(echo_device
 )
 target_sources(echo_device PRIVATE board/panel_vop.c)
 if(NOT ECHO_RELEASE)
-    target_sources(echo_device PRIVATE board/debug_session.c board/profiler.c)
+    target_sources(echo_device PRIVATE board/debug_poke.c board/debug_session.c board/profiler.c)
     set(ECHO_PROFILE_BUCKET_SHIFT 7)
 endif()
 set(ECHO_CORE1_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1.ld)
@@ -202,6 +202,7 @@ if(CMAKE_CROSSCOMPILING)
         board/bluetooth.c
         board/core1.c
         board/dac.c
+        board/debug_poke.c
         board/debug_report_file.c
         board/debug_script_file.c
         board/debug_session.c

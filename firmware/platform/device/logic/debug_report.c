@@ -50,12 +50,10 @@ static const char *const SCRIPT_STATES[DEBUG_SCRIPT_STATE_COUNT] = {
     [DEBUG_SCRIPT_REFUSED_NO_BUILD] = "refused_no_build",
     [DEBUG_SCRIPT_REFUSED_BUILD] = "refused_build",
 };
-static const char *const LINE_STATUSES[DEBUG_LINE_STATUS_COUNT] = {[DEBUG_LINE_NOT_RUN] = "not_run",
-                                                                   [DEBUG_LINE_OK] = "ok",
-                                                                   [DEBUG_LINE_UNKNOWN] = "unknown",
-                                                                   [DEBUG_LINE_BAD_ARGUMENT] =
-                                                                       "bad_argument",
-                                                                   [DEBUG_LINE_FAILED] = "failed"};
+static const char *const LINE_STATUSES[DEBUG_LINE_STATUS_COUNT] = {
+    [DEBUG_LINE_NOT_RUN] = "not_run", [DEBUG_LINE_OK] = "ok",
+    [DEBUG_LINE_UNKNOWN] = "unknown", [DEBUG_LINE_BAD_ARGUMENT] = "bad_argument",
+    [DEBUG_LINE_FAILED] = "failed",   [DEBUG_LINE_REFUSED] = "refused"};
 static const char *const REASON_NAMES[DEBUG_REPORT_REASON_COUNT] = {
     [DEBUG_REPORT_NONE] = "none",
     [DEBUG_REPORT_USB_SESSION] = "usb_session",
@@ -497,6 +495,28 @@ static void put_measure(Writer *writer, const DebugMeasure *measure)
     finish(writer);
 }
 
+static void append_word(StringBuilder *text, const char *name, uint32_t value)
+{
+    string_builder_append_char(text, ' ');
+    string_builder_append(text, name);
+    string_builder_append(text, "=0x");
+    append_hex(text, value, HEX_DIGITS);
+}
+
+static void put_probe(Writer *writer, const DebugProbe *probe)
+{
+    begin(writer, "script.probe");
+    string_builder_append(&writer->text, "line=");
+    string_builder_append_unsigned(&writer->text, probe->line);
+    append_field(&writer->text, "ms", true, probe->time_ms);
+    append_word(&writer->text, "before", probe->before);
+    append_word(&writer->text, "after", probe->after);
+    append_field(&writer->text, "cable", true, (probe->levels & HAL_PROBE_CABLE) != 0);
+    append_field(&writer->text, "charge_pin", (probe->levels & HAL_PROBE_CHARGE_KNOWN) != 0,
+                 (probe->levels & HAL_PROBE_CHARGE_PIN) != 0);
+    finish(writer);
+}
+
 static DebugSpan line_span(const DebugScriptRun *script, uint32_t wanted)
 {
     size_t offset = 0;
@@ -517,6 +537,19 @@ static void put_screenshot(Writer *writer, const DebugScriptRun *script, uint32_
     finish(writer);
 }
 
+static void put_script_results(Writer *writer, const DebugScriptRun *script)
+{
+    for (uint32_t index = 0; index < script->measure_count; index++) {
+        put_measure(writer, &script->measures[index]);
+    }
+    for (uint32_t slot = 0; slot < script->screenshot_count; slot++) {
+        put_screenshot(writer, script, slot);
+    }
+    for (uint32_t index = 0; index < script->probe_count; index++) {
+        put_probe(writer, &script->probes[index]);
+    }
+}
+
 static void put_script(Writer *writer, const DebugReportInput *input)
 {
     const DebugScriptRun *script = input->script;
@@ -534,12 +567,7 @@ static void put_script(Writer *writer, const DebugReportInput *input)
         return;
     }
     put_script_lines(writer, script);
-    for (uint32_t index = 0; index < script->measure_count; index++) {
-        put_measure(writer, &script->measures[index]);
-    }
-    for (uint32_t slot = 0; slot < script->screenshot_count; slot++) {
-        put_screenshot(writer, script, slot);
-    }
+    put_script_results(writer, script);
 }
 
 static void append_event_text(StringBuilder *text, const DebugEvent *event)

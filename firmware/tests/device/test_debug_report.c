@@ -426,7 +426,7 @@ static void a_finished_script_lists_each_line_with_its_outcome(void)
 {
     DebugReportInput input = plain_input();
     load_script(
-        "# open music\nbuild abc1234\n\nplay,down\npoke 1\nwait soon\nset Flash=on\nreconnect\n"
+        "# open music\nbuild abc1234\n\nplay,down\nerase 1\nwait soon\nset Flash=on\nreconnect\n"
         "play\n");
     script.state = DEBUG_SCRIPT_FINISHED;
     script.started_ms = 5000;
@@ -440,7 +440,7 @@ static void a_finished_script_lists_each_line_with_its_outcome(void)
     CHECK(has_line("script.finished_ms: 5900"));
     CHECK(has_line("script.line: 2 ok build abc1234"));
     CHECK(has_line("script.line: 4 ok play,down"));
-    CHECK(has_line("script.line: 5 unknown poke 1"));
+    CHECK(has_line("script.line: 5 unknown erase 1"));
     CHECK(has_line("script.line: 6 bad_argument wait soon"));
     CHECK(has_line("script.line: 7 failed set Flash=on"));
     CHECK(has_line("script.line: 8 ok reconnect"));
@@ -551,6 +551,27 @@ static void screenshots_are_listed_by_slot_with_their_names(void)
     format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("script.screenshot: 0 home"));
     CHECK(has_line("script.screenshot: 1 music"));
+}
+
+static void probes_are_listed_with_both_words_the_time_and_the_two_levels(void)
+{
+    DebugReportInput input = plain_input();
+    load_script("build any\npeek 0x500100E8\npoke 0x99999999 1\ngpio 2.0 low\n");
+    script.state = DEBUG_SCRIPT_FINISHED;
+    script.status[1] = DEBUG_LINE_OK;
+    script.status[2] = DEBUG_LINE_REFUSED;
+    script.status[3] = DEBUG_LINE_OK;
+    script.probes[0] = (DebugProbe){2, HAL_PROBE_CABLE, 5120, 0x00000002, 0x00000002};
+    script.probes[1] = (DebugProbe){4, HAL_PROBE_CHARGE_KNOWN | HAL_PROBE_CHARGE_PIN, 5184,
+                                    0x00000011, 0x00000010};
+    script.probe_count = 2;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("script.line: 2 ok peek 0x500100E8"));
+    CHECK(has_line("script.line: 3 refused poke 0x99999999 1"));
+    CHECK(has_line("script.probe: line=2 ms=5120 before=0x00000002 after=0x00000002 cable=1 "
+                   "charge_pin=unknown"));
+    CHECK(has_line("script.probe: line=4 ms=5184 before=0x00000011 after=0x00000010 cable=0 "
+                   "charge_pin=1"));
 }
 
 static void script_events_name_the_line_or_the_state(void)
@@ -1038,6 +1059,7 @@ int main(void)
         TEST_CASE(a_measure_is_one_line_of_named_figures),
         TEST_CASE(a_measure_without_frames_or_audio_reports_them_as_unknown),
         TEST_CASE(screenshots_are_listed_by_slot_with_their_names),
+        TEST_CASE(probes_are_listed_with_both_words_the_time_and_the_two_levels),
         TEST_CASE(script_events_name_the_line_or_the_state),
         TEST_CASE(the_loop_section_says_how_this_run_started),
         TEST_CASE(the_loop_section_counts_sessions_tried_without_the_cable_bit),

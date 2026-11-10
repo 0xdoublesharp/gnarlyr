@@ -10,6 +10,7 @@
 #include "hal/input.h"
 #include "hal/power.h"
 #include "hal/storage.h"
+#include "hal/system.h"
 
 void fake_hal_reset(void);
 void fake_hal_set_version(const char *version);
@@ -32,6 +33,16 @@ int fake_hal_audio_stats_reset_count(void);
 int fake_hal_usb_reconnect_count(void);
 void fake_hal_set_usb_cable(bool cable);
 void fake_hal_set_usb_session(bool session);
+
+typedef struct FakeProbeCall {
+    HalProbeKind kind;
+    uint32_t first;
+    uint32_t second;
+} FakeProbeCall;
+
+void fake_hal_set_probe_answer(HalProbe answer);
+int fake_hal_probe_count(void);
+FakeProbeCall fake_hal_probe_call(int index);
 int fake_hal_saved_report_count(void);
 uint32_t fake_hal_saved_report(int index);
 uint32_t fake_hal_script_mark(void);

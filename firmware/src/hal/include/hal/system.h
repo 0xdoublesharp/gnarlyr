@@ -82,6 +82,26 @@ HalUsbSense hal_system_usb_sense(void);
 void hal_system_keep_usb_on(bool kept_on);
 void hal_system_usb_reconnect(void);
 void hal_system_usb_connect(bool on);
+typedef enum HalProbeKind {
+    HAL_PROBE_PEEK,
+    HAL_PROBE_POKE,
+    HAL_PROBE_PIN
+} HalProbeKind;
+
+enum {
+    HAL_PROBE_CABLE = 1,
+    HAL_PROBE_CHARGE_KNOWN = 2,
+    HAL_PROBE_CHARGE_PIN = 4
+};
+
+typedef struct HalProbe {
+    bool allowed;
+    uint8_t levels;
+    uint32_t before;
+    uint32_t after;
+} HalProbe;
+
+HalProbe hal_system_probe(HalProbeKind kind, uint32_t first, uint32_t second);
 void hal_system_save_report(uint32_t reason);
 void hal_system_script_mark(uint32_t line);
 void hal_system_stall_test(void);

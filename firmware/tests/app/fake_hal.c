@@ -18,6 +18,7 @@
 enum {
     TRANSITION_CAPACITY = 16,
     FILE_CAPACITY = 16,
+    PROBE_CALL_CAPACITY = 32,
     WRITTEN_CAPACITY = 1100,
     PATH_CAPACITY = 260,
     INTERNAL_CAPACITY = 4,
@@ -110,6 +111,9 @@ typedef struct FakeHal {
     uint32_t idle_us;
     int audio_stats_resets;
     int usb_reconnects;
+    HalProbe probe_answer;
+    int probe_count;
+    FakeProbeCall probe_calls[PROBE_CALL_CAPACITY];
     HalUsbSense usb_sense;
     uint32_t saved_reports[FILE_CAPACITY];
     int saved_report_count;
@@ -702,6 +706,30 @@ void hal_system_usb_reconnect(void)
 void hal_system_usb_connect(bool on)
 {
     fake.usb_sense.connecting = on;
+}
+
+HalProbe hal_system_probe(HalProbeKind kind, uint32_t first, uint32_t second)
+{
+    if (fake.probe_count < PROBE_CALL_CAPACITY) {
+        fake.probe_calls[fake.probe_count] = (FakeProbeCall){kind, first, second};
+    }
+    fake.probe_count++;
+    return fake.probe_answer;
+}
+
+void fake_hal_set_probe_answer(HalProbe answer)
+{
+    fake.probe_answer = answer;
+}
+
+int fake_hal_probe_count(void)
+{
+    return fake.probe_count;
+}
+
+FakeProbeCall fake_hal_probe_call(int index)
+{
+    return fake.probe_calls[index];
 }
 
 void hal_system_save_report(uint32_t reason)

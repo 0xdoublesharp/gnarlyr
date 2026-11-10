@@ -139,6 +139,90 @@ static void a_screenshot_name_is_short_lower_case_and_plain(void)
     CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("screenshot thirteen-char").kind);
 }
 
+static void peek_takes_one_word_in_hex_or_decimal(void)
+{
+    CHECK_EQUAL(DEBUG_COMMAND_PEEK, parse("peek 0x500100E8").kind);
+    CHECK_EQUAL(0x500100E8u, parse("peek 0x500100E8").number);
+    CHECK_EQUAL(0x500100e8u, parse("PEEK 0X500100e8").number);
+    CHECK_EQUAL(1342242024u, parse("peek 1342242024").number);
+    CHECK_EQUAL(0xFFFFFFFFu, parse("peek 4294967295").number);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("peek").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("peek 4294967296").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("peek 0x").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("peek 0x1234567890").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("peek 0x5001zz00").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("peek 0x500100E8 1").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("peek grf").kind);
+}
+
+static void poke_takes_an_address_and_a_value(void)
+{
+    DebugCommand command = parse("poke 0x500100B4 0x000E0002");
+    CHECK_EQUAL(DEBUG_COMMAND_POKE, command.kind);
+    CHECK_EQUAL(0x500100B4u, command.number);
+    CHECK_EQUAL(0x000E0002u, command.second);
+    CHECK_EQUAL(7u, parse("poke 0x40180080   7").second);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("poke 0x500100B4").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("poke 0x500100B4 high").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("poke 0x500100B4 1 2").kind);
+}
+
+static void gpio_names_a_pin_and_what_to_do_with_it(void)
+{
+    DebugCommand command = parse("gpio 2.0 low");
+    CHECK_EQUAL(DEBUG_COMMAND_GPIO, command.kind);
+    CHECK_EQUAL(2u << DEBUG_PIN_PORT_SHIFT, command.number);
+    CHECK_EQUAL(DEBUG_PIN_LOW, command.second);
+    CHECK_EQUAL(14u, parse("gpio 0.14 high").number);
+    CHECK_EQUAL(DEBUG_PIN_HIGH, parse("gpio 0.14 high").second);
+    CHECK_EQUAL(DEBUG_PIN_INPUT, parse("gpio 0.14 input").second);
+    CHECK_EQUAL(DEBUG_PIN_READ, parse("gpio 2.3 read").second);
+    CHECK_EQUAL(DEBUG_PIN_FUNCTION | 1u << DEBUG_PIN_FUNCTION_SHIFT,
+                parse("gpio 0.14 function 1").second);
+    CHECK_EQUAL(DEBUG_PIN_FUNCTION, parse("gpio 0.14 function 0").second);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("gpio 0.14").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("gpio 0.32 low").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("gpio 14 low").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("gpio a.1 low").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("gpio 0.14 toggle").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("gpio 0.14 function").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("gpio 0.14 function 4").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("gpio 0.14 low 1").kind);
+}
+
+static void probe_lines_keep_their_words_beside_the_steps(void)
+{
+    const DebugScriptRun *loaded =
+        load("build any\npeek 0x500100E8\npoke 0x500100B4 0x000E0002\ngpio 0.14 function 1\n");
+    CHECK_EQUAL(DEBUG_SCRIPT_PENDING, loaded->state);
+    CHECK_EQUAL(3, loaded->op_count);
+    CHECK_EQUAL(3, loaded->word_count);
+    CHECK_EQUAL(0, loaded->probe_count);
+    CHECK_EQUAL(DEBUG_OP_PEEK, loaded->ops[0].kind);
+    CHECK_EQUAL(0x500100E8u, loaded->words[loaded->ops[0].first]);
+    CHECK_EQUAL(DEBUG_OP_POKE, loaded->ops[1].kind);
+    CHECK_EQUAL(0x500100B4u, loaded->words[loaded->ops[1].first]);
+    CHECK_EQUAL(0x000E0002u, loaded->words[loaded->ops[1].second]);
+    CHECK_EQUAL(DEBUG_OP_PIN, loaded->ops[2].kind);
+    CHECK_EQUAL(14, loaded->ops[2].first);
+    CHECK_EQUAL(DEBUG_PIN_FUNCTION | 1u << DEBUG_PIN_FUNCTION_SHIFT, loaded->ops[2].second);
+    CHECK_EQUAL(4, loaded->ops[2].line);
+}
+
+static void a_script_with_more_words_than_it_can_keep_is_refused(void)
+{
+    static char text[DEBUG_SCRIPT_BYTES];
+    strcpy(text, "build any\n");
+    for (int index = 0; index < DEBUG_SCRIPT_WORDS; index++) {
+        strcat(text, "peek 0x50010000\n");
+    }
+    CHECK_EQUAL(DEBUG_SCRIPT_PENDING, load(text)->state);
+    CHECK_EQUAL(DEBUG_SCRIPT_WORDS, load(text)->word_count);
+    strcat(text, "peek 0x50010000\n");
+    CHECK_EQUAL(DEBUG_SCRIPT_REFUSED_TOO_LONG, load(text)->state);
+    CHECK_EQUAL(0, load(text)->op_count);
+}
+
 static void reconnect_takes_nothing(void)
 {
     CHECK_EQUAL(DEBUG_COMMAND_RECONNECT, parse("reconnect").kind);
@@ -199,7 +283,7 @@ static void a_step_points_at_its_words_in_the_script(void)
 
 static void lines_that_cannot_run_get_their_status_when_the_script_is_loaded(void)
 {
-    const DebugScriptRun *loaded = load("build any\n\npoke 1\nwait soon\nplay\n# done\n");
+    const DebugScriptRun *loaded = load("build any\n\nerase 1\nwait soon\nplay\n# done\n");
     CHECK_EQUAL(DEBUG_SCRIPT_PENDING, loaded->state);
     CHECK_EQUAL(DEBUG_LINE_OK, loaded->status[0]);
     CHECK_EQUAL(DEBUG_LINE_NOT_RUN, loaded->status[1]);
@@ -290,6 +374,11 @@ int main(void)
         TEST_CASE(usb_sense_takes_normal_or_kept_on),
         TEST_CASE(set_splits_the_setting_from_its_option_at_the_equals_sign),
         TEST_CASE(a_screenshot_name_is_short_lower_case_and_plain),
+        TEST_CASE(peek_takes_one_word_in_hex_or_decimal),
+        TEST_CASE(poke_takes_an_address_and_a_value),
+        TEST_CASE(gpio_names_a_pin_and_what_to_do_with_it),
+        TEST_CASE(probe_lines_keep_their_words_beside_the_steps),
+        TEST_CASE(a_script_with_more_words_than_it_can_keep_is_refused),
         TEST_CASE(reconnect_takes_nothing),
         TEST_CASE(build_names_one_tag_or_any),
         TEST_CASE(command_words_ignore_ascii_case_and_spans_match_whole_texts),

@@ -978,6 +978,45 @@ class EchoImageTest(unittest.TestCase):
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 
+    def run_probe_script(self, lines):
+        script = ("build %s\n%s\nreconnect\n" % (self.build_tag(), "\n".join(lines))).encode("ascii")
+        session, machine = self.ejecting_session(self.debug_volume(run_txt=script))
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        return session, machine, self.read_report(session)
+
+    def test_peek_poke_and_gpio_lines_act_on_the_allowed_registers_and_report_what_they_saw(self):
+        lines = ["peek 0x500100e8", "poke 0x5001009c 0x00ff00a5", "gpio 2.0 low", "gpio 2.0 read",
+                 "gpio 2.0 high", "gpio 0.14 function 1", "gpio 0.14 input"]
+        refused = ["peek 0x60080000", "poke 0x03000000 1", "poke 0x500100e9 1", "gpio 3.1 low"]
+        session, machine, report = self.run_probe_script(lines + refused)
+        script = report["script"]
+        self.assertEqual(report["values"]["script.state"], "finished")
+        self.assertEqual([line["status"] for line in script["lines"]],
+                         ["ok"] * (1 + len(lines)) + ["refused"] * len(refused) + ["ok"])
+        probes = script["probes"]
+        self.assertEqual([probe["command"] for probe in probes], lines)
+        self.assertEqual([probe["line"] for probe in probes], list(range(2, 2 + len(lines))))
+        self.assertEqual([(probe["before"], probe["after"]) for probe in probes[:6]],
+                         [(2, 2), (0, 0xA5), (0x011, 0x010), (0x010, 0x010), (0x010, 0x011),
+                          (0x011, 0x111)])
+        self.assertEqual((probes[6]["before"], probes[6]["after"] & ~1), (0x111, 0))
+        self.assertEqual(probes[2]["pin_after"], {"function": 0, "output": True, "level": 0})
+        self.assertEqual({probe["cable"] for probe in probes}, {1})
+        self.assertEqual({probe["charge_pin"] for probe in probes}, {1})
+        times = [probe["ms"] for probe in probes]
+        self.assertEqual(times, sorted(times))
+        self.assertIn(("grf", 0x9C, 0x00FF00A5), machine.register_log)
+        port_2 = [entry[4] & 1 for entry in machine.gpio_log if entry[1] == 2 and entry[2] == GPIO_DATA]
+        self.assertEqual(port_2[-2:], [0, 1])
+        self.assertEqual(machine.gpio[0].regs[4] >> 14 & 1, 0)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+        print("\n[probe script]")
+        for probe in probes:
+            print("  %s" % probe)
+
     def test_without_a_script_an_ejected_session_changes_nothing_and_does_not_reconnect(self):
         session, machine = self.ejecting_session(self.debug_volume())
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")

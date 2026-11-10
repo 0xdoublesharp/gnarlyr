@@ -26,7 +26,7 @@ def image(brand=b"DBLSHARP", build=IMAGE_BUILD, size=0x2000):
     return bytes(data)
 
 
-def script_report(script, state="finished", build=IMAGE_BUILD, screenshots=("home",)):
+def script_report(script, state="finished", build=IMAGE_BUILD, screenshots=("home",), probes=()):
     lines = [line.replace("1051212", build) for line in SYSTEM_LINES]
     lines += ["script.state: " + state, "script.started_ms: 5000", "script.finished_ms: 9000",
               "script.interrupted_line: 0"]
@@ -35,6 +35,8 @@ def script_report(script, state="finished", build=IMAGE_BUILD, screenshots=("hom
     lines += ["script.measure: line=3 ms=2000 frames=90 frame_avg_us=21000 audio=1 underruns=0 "
               "handoff_avg_us=unknown core0_busy_percent=37"]
     lines += ["script.screenshot: %d %s" % (slot, name) for slot, name in enumerate(screenshots)]
+    lines += ["script.probe: line=%d ms=%d before=%s after=%s cable=%s charge_pin=%s" % probe
+              for probe in probes]
     return report_text(lines)
 
 
@@ -272,6 +274,20 @@ class Running(LoopCase):
         self.assertIsNone(script["measures"][0]["handoff_avg_us"])
         self.assertEqual(script["screenshots"], [{"slot": 0, "name": "home"}])
         self.assertEqual((script["started_ms"], script["finished_ms"]), (5000, 9000))
+
+    def test_probes_come_back_with_their_line_their_words_and_the_two_levels(self):
+        self.script.write_text("build any\npeek 0x500100E8\ngpio 0.14 function 1\npoke 0x60080000 1\n",
+                               encoding="utf-8")
+        probes = [(2, 5120, "0x00000002", "0x00000002", 1, "unknown"),
+                  (3, 5184, "0x00000011", "0x00000100", 0, 1)]
+        script = self.tool(self.player_runs(probes=probes)).run(self.script)["script"]
+        self.assertEqual(script["probes"][0],
+                         {"line": 2, "ms": 5120, "before": 2, "after": 2, "cable": 1, "charge_pin": None,
+                          "command": "peek 0x500100E8"})
+        self.assertEqual(script["probes"][1]["command"], "gpio 0.14 function 1")
+        self.assertEqual(script["probes"][1]["pin_before"], {"function": 0, "output": True, "level": 1})
+        self.assertEqual(script["probes"][1]["pin_after"], {"function": 1, "output": False, "level": 0})
+        self.assertEqual((script["probes"][1]["cable"], script["probes"][1]["charge_pin"]), (0, 1))
 
     def test_a_script_that_names_its_build_is_sent_as_it_is(self):
         self.script.write_text("# nightly\r\nbuild any\r\nplay", encoding="utf-8")

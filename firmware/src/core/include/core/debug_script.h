@@ -12,6 +12,8 @@ enum {
     DEBUG_SCRIPT_NAME_BYTES = 12,
     DEBUG_SCRIPT_MEASURES = 4,
     DEBUG_SCRIPT_SCREENSHOTS = 4,
+    DEBUG_SCRIPT_WORDS = 16,
+    DEBUG_SCRIPT_PROBES = 16,
     DEBUG_SCRIPT_LIMIT_MS = 300000,
     DEBUG_SCRIPT_END_MS = 2000,
     DEBUG_SCRIPT_EVENT_STATE = 0x100
@@ -37,6 +39,7 @@ typedef enum DebugLineStatus {
     DEBUG_LINE_UNKNOWN,
     DEBUG_LINE_BAD_ARGUMENT,
     DEBUG_LINE_FAILED,
+    DEBUG_LINE_REFUSED,
     DEBUG_LINE_STATUS_COUNT
 } DebugLineStatus;
 
@@ -48,8 +51,28 @@ typedef enum DebugOpKind {
     DEBUG_OP_SET,
     DEBUG_OP_SCREENSHOT,
     DEBUG_OP_USB_SENSE,
-    DEBUG_OP_RECONNECT
+    DEBUG_OP_RECONNECT,
+    DEBUG_OP_PEEK,
+    DEBUG_OP_POKE,
+    DEBUG_OP_PIN
 } DebugOpKind;
+
+typedef enum DebugPinAction {
+    DEBUG_PIN_READ,
+    DEBUG_PIN_LOW,
+    DEBUG_PIN_HIGH,
+    DEBUG_PIN_INPUT,
+    DEBUG_PIN_FUNCTION
+} DebugPinAction;
+
+enum {
+    DEBUG_PIN_PORT_SHIFT = 8,
+    DEBUG_PIN_FUNCTION_SHIFT = 8,
+    DEBUG_PIN_COUNT = 32,
+    DEBUG_PIN_FUNCTIONS = 4,
+    DEBUG_PIN_STATE_OUTPUT = 0x10,
+    DEBUG_PIN_STATE_FUNCTION_SHIFT = 8
+};
 
 typedef struct DebugOp {
     uint8_t kind;
@@ -84,6 +107,14 @@ typedef struct DebugMeasure {
     uint32_t idle_us;
 } DebugMeasure;
 
+typedef struct DebugProbe {
+    uint8_t line;
+    uint8_t levels;
+    uint32_t time_ms;
+    uint32_t before;
+    uint32_t after;
+} DebugProbe;
+
 typedef struct DebugScriptRun {
     char text[DEBUG_SCRIPT_BYTES];
     uint16_t length;
@@ -91,12 +122,16 @@ typedef struct DebugScriptRun {
     uint8_t measure_count;
     uint8_t screenshot_count;
     uint8_t op_count;
+    uint8_t word_count;
+    uint8_t probe_count;
     uint8_t status[DEBUG_SCRIPT_LINES];
     uint8_t screenshot_lines[DEBUG_SCRIPT_SCREENSHOTS];
     uint32_t started_ms;
     uint32_t finished_ms;
     DebugMeasure measures[DEBUG_SCRIPT_MEASURES];
     DebugOp ops[DEBUG_SCRIPT_OPS];
+    uint32_t words[DEBUG_SCRIPT_WORDS];
+    DebugProbe probes[DEBUG_SCRIPT_PROBES];
 } DebugScriptRun;
 
 typedef struct DebugScriptHost {
@@ -115,6 +150,9 @@ typedef enum DebugCommandKind {
     DEBUG_COMMAND_SCREENSHOT,
     DEBUG_COMMAND_USB_SENSE,
     DEBUG_COMMAND_RECONNECT,
+    DEBUG_COMMAND_PEEK,
+    DEBUG_COMMAND_POKE,
+    DEBUG_COMMAND_GPIO,
     DEBUG_COMMAND_UNKNOWN,
     DEBUG_COMMAND_BAD_ARGUMENT
 } DebugCommandKind;
@@ -133,6 +171,7 @@ typedef struct DebugSpan {
 typedef struct DebugCommand {
     DebugCommandKind kind;
     uint32_t number;
+    uint32_t second;
     DebugSpan argument;
     DebugSpan value;
 } DebugCommand;

@@ -220,6 +220,21 @@ def parse_measure(text):
     return measure
 
 
+def pin_state(word):
+    """A gpio probe's word taken apart: the pin's function, its direction and the level read from it."""
+    return {"function": word >> 8 & 3, "output": bool(word & 0x10), "level": word & 1}
+
+
+def describe_probes(script):
+    """Each probe with the script line it answers; a gpio probe also with its two words taken apart."""
+    texts = {line["line"]: line["text"] for line in script["lines"]}
+    for probe in script["probes"]:
+        probe["command"] = texts.get(probe.get("line"), "")
+        words = (probe.get("before"), probe.get("after"))
+        if probe["command"].lower().startswith("gpio") and all(isinstance(word, int) for word in words):
+            probe["pin_before"], probe["pin_after"] = pin_state(words[0]), pin_state(words[1])
+
+
 def parse_screenshot(text):
     fields = text.split()
     if len(fields) != 2 or not fields[0].isdigit():
@@ -249,10 +264,11 @@ def parse_report(text):
         raise DebugError("unsupported_schema", f"report schema {schema!r}; this tool reads schema {REPORT_SCHEMA}")
     body, truncated = report_body(text)
     values, events, buckets, unread, samples = {}, [], {}, [], []
-    script = {"lines": [], "measures": [], "screenshots": []}
+    script = {"lines": [], "measures": [], "screenshots": [], "probes": []}
     repeated = {"script.line": (script["lines"], parse_script_line),
                 "script.measure": (script["measures"], parse_measure),
-                "script.screenshot": (script["screenshots"], parse_screenshot)}
+                "script.screenshot": (script["screenshots"], parse_screenshot),
+                "script.probe": (script["probes"], parse_measure)}
     for line in body.splitlines():
         key, separator, value = line.partition(": ")
         if not separator:
@@ -267,6 +283,7 @@ def parse_report(text):
             repeated[key][0].append(repeated[key][1](value))
         else:
             values[key] = parse_text(value) if key.startswith(TEXT_KEY_PREFIXES) else parse_value(value)
+    describe_probes(script)
     return {"schema": schema, "truncated": truncated, "values": values, "events": events,
             "power_samples": samples, "script": script,
             "profile_buckets": {str(index): count for index, count in sorted(buckets.items())},

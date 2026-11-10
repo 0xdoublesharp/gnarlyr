@@ -152,6 +152,14 @@ void hal_system_usb_connect(bool on)
     (void)on;
 }
 
+HalProbe hal_system_probe(HalProbeKind kind, uint32_t first, uint32_t second)
+{
+    (void)kind;
+    (void)first;
+    (void)second;
+    return (HalProbe){.allowed = false};
+}
+
 void hal_system_save_report(uint32_t reason)
 {
     (void)reason;

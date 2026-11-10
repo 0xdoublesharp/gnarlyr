@@ -198,6 +198,31 @@ static void reconnect_now(uint32_t now_ms)
     hal_system_usb_reconnect();
 }
 
+_Static_assert(DEBUG_OP_POKE - DEBUG_OP_PEEK == HAL_PROBE_POKE &&
+                   DEBUG_OP_PIN - DEBUG_OP_PEEK == HAL_PROBE_PIN,
+               "probe ops are numbered like the probes they ask for");
+
+static void probe(const DebugOp *op, uint32_t now_ms)
+{
+    DebugScriptRun *run = &runner.run;
+    if (run->probe_count == DEBUG_SCRIPT_PROBES) {
+        set_status(DEBUG_LINE_FAILED);
+        return;
+    }
+    bool words = op->kind <= DEBUG_OP_POKE;
+    HalProbe result = hal_system_probe((HalProbeKind)(op->kind - DEBUG_OP_PEEK),
+                                       words ? run->words[op->first] : op->first,
+                                       words ? run->words[op->second] : op->second);
+    if (result.allowed) {
+        run->probes[run->probe_count++] = (DebugProbe){.line = op->line,
+                                                       .levels = result.levels,
+                                                       .time_ms = now_ms,
+                                                       .before = result.before,
+                                                       .after = result.after};
+    }
+    set_status(result.allowed ? DEBUG_LINE_OK : DEBUG_LINE_REFUSED);
+}
+
 static DebugRequest run_op(const DebugOp *op, uint32_t now_ms)
 {
     switch (op->kind) {
@@ -226,8 +251,11 @@ static DebugRequest run_op(const DebugOp *op, uint32_t now_ms)
         }
         set_status(DEBUG_LINE_FAILED);
         break;
-    default:
+    case DEBUG_OP_RECONNECT:
         reconnect_now(now_ms);
+        break;
+    default:
+        probe(op, now_ms);
         break;
     }
     return (DebugRequest){.kind = DEBUG_REQUEST_NONE};

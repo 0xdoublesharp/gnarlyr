@@ -4,6 +4,9 @@
 
 enum {
     DECIMAL_BASE = 10,
+    HEX_BASE = 16,
+    HEX_LETTER_VALUE = 10,
+    WORD_HEX_DIGITS = 8,
     CASE_BIT = 0x20
 };
 
@@ -21,11 +24,19 @@ static const Word WORDS[] = {
     {"screenshot", DEBUG_COMMAND_SCREENSHOT},
     {"reconnect", DEBUG_COMMAND_RECONNECT},
     {"usb_sense", DEBUG_COMMAND_USB_SENSE},
+    {"peek", DEBUG_COMMAND_PEEK},
+    {"poke", DEBUG_COMMAND_POKE},
+    {"gpio", DEBUG_COMMAND_GPIO},
 };
 
 static const char *const PROFILE_ACTIONS[] = {
     [DEBUG_PROFILE_OFF] = "off", [DEBUG_PROFILE_ON] = "on", [DEBUG_PROFILE_RESET] = "reset"};
 static const char *const SENSE_MODES[] = {"normal", "kept_on"};
+static const char *const PIN_ACTIONS[] = {[DEBUG_PIN_READ] = "read",
+                                          [DEBUG_PIN_LOW] = "low",
+                                          [DEBUG_PIN_HIGH] = "high",
+                                          [DEBUG_PIN_INPUT] = "input",
+                                          [DEBUG_PIN_FUNCTION] = "function"};
 
 static bool is_blank(char character)
 {
@@ -121,6 +132,95 @@ static bool parse_choice(DebugSpan span, const char *const *choices, uint32_t co
     return false;
 }
 
+static int hex_value(char character)
+{
+    char letter = lowered(character);
+    if (character >= '0' && character <= '9') {
+        return character - '0';
+    }
+    return letter >= 'a' && letter <= 'f' ? letter - 'a' + HEX_LETTER_VALUE : -1;
+}
+
+static bool parse_hex(DebugSpan digits, uint32_t *word)
+{
+    uint32_t value = 0;
+    for (size_t index = 0; index < digits.length; index++) {
+        int digit = hex_value(digits.text[index]);
+        if (digit < 0) {
+            return false;
+        }
+        value = value * HEX_BASE + (uint32_t)digit;
+    }
+    *word = value;
+    return digits.length >= 1 && digits.length <= WORD_HEX_DIGITS;
+}
+
+static bool parse_word(DebugSpan span, uint32_t *word)
+{
+    if (span.length > 2 && span.text[0] == '0' && lowered(span.text[1]) == 'x') {
+        return parse_hex((DebugSpan){span.text + 2, span.length - 2}, word);
+    }
+    uint32_t value = 0;
+    for (size_t index = 0; index < span.length; index++) {
+        char digit = span.text[index];
+        if (digit < '0' || digit > '9' ||
+            value > (UINT32_MAX - (uint32_t)(digit - '0')) / DECIMAL_BASE) {
+            return false;
+        }
+        value = value * DECIMAL_BASE + (uint32_t)(digit - '0');
+    }
+    *word = value;
+    return span.length > 0;
+}
+
+static bool parse_words(DebugCommand *command, uint32_t count)
+{
+    DebugSpan first = first_word(command->argument);
+    DebugSpan rest = after(command->argument, first.length);
+    if (!parse_word(first, &command->number)) {
+        return false;
+    }
+    return count == 1 ? rest.length == 0 : parse_word(rest, &command->second);
+}
+
+static bool parse_pin(DebugSpan span, uint32_t *pin)
+{
+    uint32_t number = 0;
+    bool port_given =
+        span.length > 2 && span.text[0] >= '0' && span.text[0] <= '9' && span.text[1] == '.';
+    if (!port_given || !parse_word((DebugSpan){span.text + 2, span.length - 2}, &number) ||
+        number >= DEBUG_PIN_COUNT) {
+        return false;
+    }
+    *pin = (uint32_t)(span.text[0] - '0') << DEBUG_PIN_PORT_SHIFT | number;
+    return true;
+}
+
+static bool parse_pin_action(DebugSpan span, uint32_t *action)
+{
+    DebugSpan word = first_word(span);
+    DebugSpan rest = after(span, word.length);
+    uint32_t function = 0;
+    if (!parse_choice(word, PIN_ACTIONS, sizeof PIN_ACTIONS / sizeof PIN_ACTIONS[0], action)) {
+        return false;
+    }
+    if (*action != DEBUG_PIN_FUNCTION) {
+        return rest.length == 0;
+    }
+    if (!parse_word(rest, &function) || function >= DEBUG_PIN_FUNCTIONS) {
+        return false;
+    }
+    *action |= function << DEBUG_PIN_FUNCTION_SHIFT;
+    return true;
+}
+
+static bool parse_gpio(DebugCommand *command)
+{
+    DebugSpan pin = first_word(command->argument);
+    return parse_pin(pin, &command->number) &&
+           parse_pin_action(after(command->argument, pin.length), &command->second);
+}
+
 static bool is_name(DebugSpan span)
 {
     for (size_t index = 0; index < span.length; index++) {
@@ -173,6 +273,12 @@ static bool arguments_fit(DebugCommand *command)
         return split_setting(command);
     case DEBUG_COMMAND_SCREENSHOT:
         return is_name(command->argument);
+    case DEBUG_COMMAND_PEEK:
+        return parse_words(command, 1);
+    case DEBUG_COMMAND_POKE:
+        return parse_words(command, 2);
+    case DEBUG_COMMAND_GPIO:
+        return parse_gpio(command);
     default:
         return command->argument.length == 0;
     }
@@ -269,8 +375,43 @@ static void add_number(DebugScriptRun *run, DebugOpKind kind, uint32_t number, u
     new_op(run, kind, line)->first = (uint16_t)number;
 }
 
+static uint16_t add_word(DebugScriptRun *run, uint32_t word)
+{
+    if (run->word_count == DEBUG_SCRIPT_WORDS) {
+        run->state = DEBUG_SCRIPT_REFUSED_TOO_LONG;
+        return 0;
+    }
+    run->words[run->word_count] = word;
+    return run->word_count++;
+}
+
+static bool add_probe(DebugScriptRun *run, const DebugCommand *command, uint32_t line)
+{
+    DebugOp *op;
+    switch (command->kind) {
+    case DEBUG_COMMAND_PEEK:
+        new_op(run, DEBUG_OP_PEEK, line)->first = add_word(run, command->number);
+        return true;
+    case DEBUG_COMMAND_POKE:
+        op = new_op(run, DEBUG_OP_POKE, line);
+        op->first = add_word(run, command->number);
+        op->second = add_word(run, command->second);
+        return true;
+    case DEBUG_COMMAND_GPIO:
+        op = new_op(run, DEBUG_OP_PIN, line);
+        op->first = (uint16_t)command->number;
+        op->second = (uint16_t)command->second;
+        return true;
+    default:
+        return false;
+    }
+}
+
 static void add_command(DebugScriptRun *run, const DebugCommand *command, uint32_t line)
 {
+    if (add_probe(run, command, line)) {
+        return;
+    }
     switch (command->kind) {
     case DEBUG_COMMAND_KEYS:
         add_keys(run, command->argument, line);
@@ -334,6 +475,8 @@ static void compile(DebugScriptRun *run, DebugScriptHost host)
 static void clear_results(DebugScriptRun *run)
 {
     run->op_count = 0;
+    run->word_count = 0;
+    run->probe_count = 0;
     run->measure_count = 0;
     run->screenshot_count = 0;
     run->started_ms = 0;

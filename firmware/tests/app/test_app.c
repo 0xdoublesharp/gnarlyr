@@ -3340,7 +3340,7 @@ static void an_unknown_line_is_reported_and_the_script_goes_on(void)
 {
     start_app();
     const DebugScriptRun *run =
-        run_script("build any\npoke 0x03004000 1\nwait soon\nplay\n", 3 * SCRIPT_KEY_MS);
+        run_script("build any\nerase 0x03004000 1\nwait soon\nplay\n", 3 * SCRIPT_KEY_MS);
     CHECK_EQUAL(DEBUG_LINE_UNKNOWN, run->status[1]);
     CHECK_EQUAL(DEBUG_LINE_BAD_ARGUMENT, run->status[2]);
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[3]);
@@ -3427,6 +3427,62 @@ static void usb_sense_commands_switch_the_experiment_without_hands(void)
     run_script_for(120);
     CHECK(!hal_system_usb_sense().kept_on);
     CHECK_EQUAL(DEBUG_LINE_OK, debug_runner_script()->status[3]);
+}
+
+static void peek_poke_and_gpio_lines_ask_the_board_and_keep_what_it_answers(void)
+{
+    start_app();
+    fake_hal_set_probe_answer((HalProbe){true, HAL_PROBE_CABLE, 0x00000002, 0x00000003});
+    const DebugScriptRun *run = run_script(
+        "build any\npeek 0x500100E8\npoke 0x500100B4 0x000E0002\ngpio 0.14 function 1\n", 200);
+    CHECK_EQUAL(3, fake_hal_probe_count());
+    FakeProbeCall peek = fake_hal_probe_call(0);
+    FakeProbeCall poke = fake_hal_probe_call(1);
+    FakeProbeCall pin = fake_hal_probe_call(2);
+    CHECK_EQUAL(HAL_PROBE_PEEK, peek.kind);
+    CHECK_EQUAL(0x500100E8u, peek.first);
+    CHECK_EQUAL(HAL_PROBE_POKE, poke.kind);
+    CHECK_EQUAL(0x500100B4u, poke.first);
+    CHECK_EQUAL(0x000E0002u, poke.second);
+    CHECK_EQUAL(HAL_PROBE_PIN, pin.kind);
+    CHECK_EQUAL(14u, pin.first);
+    CHECK_EQUAL(DEBUG_PIN_FUNCTION | 1u << DEBUG_PIN_FUNCTION_SHIFT, pin.second);
+    CHECK_EQUAL(3, run->probe_count);
+    CHECK_EQUAL(3, run->probes[1].line);
+    CHECK_EQUAL(HAL_PROBE_CABLE, run->probes[1].levels);
+    CHECK_EQUAL(0x00000002u, run->probes[1].before);
+    CHECK_EQUAL(0x00000003u, run->probes[1].after);
+    CHECK(run->probes[2].time_ms >= run->probes[0].time_ms);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[3]);
+}
+
+static void a_probe_the_board_refuses_is_reported_and_leaves_no_record(void)
+{
+    start_app();
+    fake_hal_set_probe_answer((HalProbe){.allowed = false});
+    const DebugScriptRun *run = run_script("build any\npoke 0x60080000 1\nwait 20\n", 200);
+    CHECK_EQUAL(1, fake_hal_probe_count());
+    CHECK_EQUAL(0, run->probe_count);
+    CHECK_EQUAL(DEBUG_LINE_REFUSED, run->status[1]);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[2]);
+    CHECK_EQUAL(DEBUG_SCRIPT_FINISHED, run->state);
+}
+
+static void a_script_keeps_sixteen_probes_and_does_not_make_a_seventeenth(void)
+{
+    static char text[DEBUG_SCRIPT_BYTES];
+    start_app();
+    fake_hal_set_probe_answer((HalProbe){.allowed = true});
+    strcpy(text, "build any\n");
+    for (int index = 0; index < DEBUG_SCRIPT_PROBES + 1; index++) {
+        strcat(text, "gpio 2.3 read\n");
+    }
+    const DebugScriptRun *run = run_script(text, 600);
+    CHECK_EQUAL(DEBUG_SCRIPT_PROBES, fake_hal_probe_count());
+    CHECK_EQUAL(DEBUG_SCRIPT_PROBES, run->probe_count);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[DEBUG_SCRIPT_PROBES]);
+    CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[DEBUG_SCRIPT_PROBES + 1]);
 }
 
 static void set_chooses_a_settings_option_as_the_screen_does(void)
@@ -3859,6 +3915,9 @@ int main(void)
         TEST_CASE(a_fifth_measure_is_reported_as_failed),
         TEST_CASE(profile_commands_switch_and_clear_the_profiler),
         TEST_CASE(usb_sense_commands_switch_the_experiment_without_hands),
+        TEST_CASE(peek_poke_and_gpio_lines_ask_the_board_and_keep_what_it_answers),
+        TEST_CASE(a_probe_the_board_refuses_is_reported_and_leaves_no_record),
+        TEST_CASE(a_script_keeps_sixteen_probes_and_does_not_make_a_seventeenth),
         TEST_CASE(set_chooses_a_settings_option_as_the_screen_does),
         TEST_CASE(set_refuses_what_settings_does_not_offer),
         TEST_CASE(a_screenshot_holds_the_frame_the_strip_renderer_draws),
