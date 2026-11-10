@@ -1,5 +1,7 @@
 # Snowsky ECHO firmware research
 
+The static Gnarlyr.com firmware site lives in [`site/`](site/README.md). Open `site/index.html` to preview it; it needs no build step or dependencies.
+
 Offline investigation of the **standard, full-size ECHO**, using the official 2.0.0 image. The device owner reported hardware 1.1.7 and successfully installed stock 2.0.0 before this investigation.
 
 **Result:** REA maps stock Thumb code and several hardware interfaces. The tracked `firmware/` tree provides an open-source full-size ECHO foundation with an SDL simulator and a source-built Cortex-M3 image. This is not recovered original vendor source, and the custom image has not been tested on the owner's device.

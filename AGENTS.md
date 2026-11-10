@@ -6,3 +6,10 @@
 - Validate container CRC, bounds, selected memory overlaps, and exported byte identity before analysis. Module execution addresses can overlap because code is overlaid at runtime.
 - A derived ELF is an analysis representation, never a flashable image. Recovered names and decompiled types are hypotheses unless independently established.
 - Run PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests after changing the parser/exporter.
+
+## Website deployment
+
+Gnarlyr.com is hosted on DoublePaaS. Use the `deploy-doublepaas` skill and read
+[the deployment contract](docs/deployment.md) before changing hosting or publishing
+the static site. Firmware builds and device installation remain separate from
+website publication.

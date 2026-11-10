@@ -1,0 +1,35 @@
+# Content publication changes /site/current; nginx remains running.
+services:
+  web:
+    image: nginxinc/nginx-unprivileged:1.28.2-alpine@sha256:7377697a821c131a924a7105fafbe7414db4e9fcc77a6f08f776f33f141ec3f8
+    user: '101:101'
+    entrypoint: [nginx]
+    command: [-c, /etc/gnarlyr/nginx.conf, -g, 'daemon off;']
+    restart: unless-stopped
+    init: true
+    expose: ['8080']
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - /srv/hosted-data/gnarlyr/frontend:/site:ro
+      - /srv/hosted-data/gnarlyr/runtime/nginx.conf:/etc/gnarlyr/nginx.conf:ro
+    tmpfs:
+      - /tmp:uid=101,gid=101,mode=0700,size=16777216
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:8080/healthz']
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    mem_limit: 64m
+    cpus: 0.25
+    networks: [coolify]
+    labels:
+      - traefik.docker.network=coolify
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+networks:
+  coolify:
+    external: true
