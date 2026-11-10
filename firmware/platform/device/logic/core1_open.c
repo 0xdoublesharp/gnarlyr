@@ -36,6 +36,7 @@ bool core1_open_flac(void *context, const char *path, uint32_t start_ms, AudioTr
     control->min_block = info->min_block;
     control->max_block = info->max_block;
     control->total_samples = info->total_samples;
+    control->tail_trim = 0;
     control->first_sample = 0;
     control->start_offset = source->start_offset;
     control->end_offset = source->end_offset;
@@ -50,7 +51,7 @@ bool core1_open_mp3(void *context, const char *path, uint32_t start_ms, AudioTra
 {
     Core1Source *source = context;
     core1_source_stop(source);
-    source->region.ring_bytes = source->ring_capacity;
+    source->region.ring_bytes = core1_smaller(source->ring_capacity, MP3_RING_BYTES);
     FlacFileOpener files = source->flac.files;
     if (!files.open(files.context, path, &source->input)) {
         return false;
@@ -71,7 +72,7 @@ bool core1_open_mp3(void *context, const char *path, uint32_t start_ms, AudioTra
     source->end_offset = mp3.audio_end;
     source->written = source->start_offset;
     source->lead_trim = mp3.lead_trim;
-    source->play_end = from_start ? mp3.total_samples - mp3.tail_trim : UINT32_MAX;
+    source->play_end = UINT32_MAX;
     source->slot = 0;
     source->read_failed = false;
     source->bits_per_sample = MP3_OUTPUT_BITS;
@@ -91,6 +92,7 @@ bool core1_open_mp3(void *context, const char *path, uint32_t start_ms, AudioTra
     control->min_block = mp3.samples_per_frame;
     control->max_block = mp3.samples_per_frame;
     control->total_samples = playable;
+    control->tail_trim = mp3.tail_trim;
     control->first_sample = from_start ? 0 : target;
     control->start_offset = source->start_offset;
     control->end_offset = source->end_offset;
@@ -140,6 +142,7 @@ static void publish_m4a(Core1Source *source, const Mp4Track *mp4, uint32_t first
     control->min_block = (uint32_t)mp4->frame_samples;
     control->max_block = (uint32_t)mp4->frame_samples;
     control->total_samples = mp4->valid_samples;
+    control->tail_trim = 0;
     control->first_sample = first_sample;
     control->start_offset = 0;
     control->end_offset = M4A_VIRTUAL_END;

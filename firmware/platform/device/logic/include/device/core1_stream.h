@@ -37,6 +37,7 @@ typedef struct StreamControl {
     uint32_t acked_generation;
     uint32_t released;
     StreamSlot slots[STREAM_SLOTS];
+    uint32_t tail_trim;
 } StreamControl;
 
 typedef struct StreamRegion {

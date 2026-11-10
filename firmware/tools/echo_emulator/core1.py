@@ -22,7 +22,8 @@ RESULT_END = 2
 SLOT_BYTES = 20
 CONTROL_SLOTS = 52
 OFFSETS = {"generation": 0, "channels": 8, "bits": 12, "first_sample": 28, "start": 32,
-           "end": 36, "written": 40, "acked": 44, "released": 48}
+           "end": 36, "written": 40, "acked": 44, "released": 48,
+           "tail_trim": CONTROL_SLOTS + 2 * SLOT_BYTES}
 VIRTUAL_END = 0x7FFFFFFF
 
 

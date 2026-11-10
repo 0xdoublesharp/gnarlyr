@@ -21,7 +21,9 @@ void core1_main(void)
     if (register_read(CORE1_SHARED_COMMAND) != CORE1_COMMAND_STREAM) {
         return;
     }
-    core1_stream_init(&stream, core1_region(), core1_mp3_decoder(&mp3, &decoder));
+    StreamRegion region = core1_region_mp3();
+    core1_stream_init(&stream, region,
+                      core1_mp3_decoder(&mp3, &decoder, region.control, core1_mp3_tail()));
     core1_idle_start();
     for (;;) {
         if (!core1_stream_step(&stream)) {

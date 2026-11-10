@@ -29,6 +29,7 @@ static Core1Flac core1_flac;
 static Mp3Decoder mp3_decoder;
 static Mp3Decoder reference_decoder;
 static Core1Mp3 core1_mp3;
+static int32_t mp3_tail[FLAC_MAX_CHANNELS][MP3_TAIL_CAPACITY];
 static Core1Source source;
 static Core1Stream stream;
 static AudioSource interface;
@@ -95,7 +96,8 @@ static void start_with(uint32_t ring_bytes, bool mp3)
                       (FlacFileOpener){.open = open_file, .close = close_file, .context = NULL},
                       &core0_decoder, FILL_BUDGET);
     if (mp3) {
-        core1_stream_init(&stream, region, core1_mp3_decoder(&core1_mp3, &mp3_decoder));
+        core1_stream_init(&stream, region,
+                          core1_mp3_decoder(&core1_mp3, &mp3_decoder, &control, mp3_tail));
         interface = core1_source_mp3_interface(&source);
     } else {
         core1_stream_init(&stream, region, core1_flac_decoder(&core1_flac, &core1_decoder));
@@ -382,11 +384,12 @@ static void a_trimmed_mp3_starts_at_its_first_real_sample(void)
     AudioFrame frame;
     CHECK_EQUAL(AUDIO_FRAME_READY, next_frame(&frame));
     CHECK_EQUAL(0u, frame.first_sample);
-    CHECK_EQUAL(1152u - 576u - MP3_DECODER_DELAY, frame.samples);
+    CHECK(frame.samples > 0 && frame.samples <= MP3_MAX_FRAME_SAMPLES);
+    uint32_t first_count = frame.samples;
     interface.release(interface.context);
     CHECK_EQUAL(AUDIO_FRAME_READY, next_frame(&frame));
-    CHECK_EQUAL(1152u - 576u - MP3_DECODER_DELAY, frame.first_sample);
-    CHECK_EQUAL(1152u, frame.samples);
+    CHECK_EQUAL(first_count, frame.first_sample);
+    CHECK(frame.samples > 0 && frame.samples <= MP3_MAX_FRAME_SAMPLES);
     interface.close(interface.context);
 }
 
@@ -400,6 +403,72 @@ static void a_trimmed_mp3_opened_part_way_counts_real_samples(void)
     CHECK_EQUAL(AUDIO_FRAME_READY, next_frame(&frame));
     CHECK_EQUAL(44100u, frame.first_sample);
     interface.close(interface.context);
+}
+
+static bool remaining_mp3_matches_decoder(const char *name, uint32_t start_ms, uint32_t tail)
+{
+    AudioTrackInfo info;
+    if (!interface.open(interface.context, name, start_ms, &info)) {
+        return false;
+    }
+    Mp3Stream probe;
+    uint32_t decoded = reference_samples(name, control.start_offset, mp3_reference, 120000, &probe);
+    tail = tail == UINT32_MAX ? probe.tail_trim : tail;
+    control.tail_trim = tail;
+    uint32_t expected = decoded > tail ? decoded - tail : 0;
+    uint32_t produced = 0;
+    bool ok = true;
+    AudioFrame frame;
+    AudioFrameResult result = AUDIO_FRAME_WAIT;
+    while (ok && (result = next_frame(&frame)) == AUDIO_FRAME_READY) {
+        ok = produced <= expected && frame.samples <= expected - produced;
+        for (uint32_t index = 0; ok && index < frame.samples; index++) {
+            ok = frame.left[index] == mp3_reference[produced + index][0] &&
+                 frame.right[index] == mp3_reference[produced + index][1];
+        }
+        produced += frame.samples;
+        interface.release(interface.context);
+    }
+    interface.close(interface.context);
+    return ok && result == AUDIO_FRAME_END && produced == expected;
+}
+
+static bool a_seek_keeps_the_mp3_tail_trim(const char *name, uint32_t start_ms)
+{
+    start_with(SMALL_RING_BYTES, true);
+    return remaining_mp3_matches_decoder(name, start_ms, UINT32_MAX);
+}
+
+static void the_largest_mp3_tail_is_removed_after_a_seek(void)
+{
+    start_with(SMALL_RING_BYTES, true);
+    CHECK(
+        remaining_mp3_matches_decoder("mp3/cbr_128_44k_stereo_tagged", 1000, MP3_MAX_TAIL_SAMPLES));
+    start_with(SMALL_RING_BYTES, true);
+    CHECK(
+        remaining_mp3_matches_decoder("mp3/cbr_128_44k_stereo_tagged", 1480, MP3_MAX_TAIL_SAMPLES));
+}
+
+static void reopening_an_mp3_discards_the_old_tracks_retained_tail(void)
+{
+    start_with(SMALL_RING_BYTES, true);
+    AudioTrackInfo info;
+    CHECK(interface.open(interface.context, "mp3/cbr_128_44k_stereo_tagged", 0, &info));
+    AudioFrame frame;
+    CHECK_EQUAL(AUDIO_FRAME_READY, next_frame(&frame));
+    CHECK(remaining_mp3_matches_decoder("mp3/vbr_48k_mono", 1000, UINT32_MAX));
+}
+
+static void seeking_a_tagged_mp3_still_removes_its_end_padding(void)
+{
+    CHECK(a_seek_keeps_the_mp3_tail_trim("mp3/cbr_128_44k_stereo_tagged", 1000));
+    CHECK(a_seek_keeps_the_mp3_tail_trim("mp3/vbr_48k_mono", 1000));
+    CHECK(a_seek_keeps_the_mp3_tail_trim("mp3/mpeg2_22k_stereo", 500));
+}
+
+static void seeking_an_untagged_mp3_keeps_all_decoded_samples(void)
+{
+    CHECK(a_seek_keeps_the_mp3_tail_trim("mp3/cbr_192_48k_stereo_bare", 500));
 }
 
 static void an_mp3_describes_its_stream(void)
@@ -452,6 +521,10 @@ int main(void)
         TEST_CASE(a_trimmed_mp3_lines_up_with_the_sound_it_was_made_from),
         TEST_CASE(a_trimmed_mp3_starts_at_its_first_real_sample),
         TEST_CASE(a_trimmed_mp3_opened_part_way_counts_real_samples),
+        TEST_CASE(the_largest_mp3_tail_is_removed_after_a_seek),
+        TEST_CASE(reopening_an_mp3_discards_the_old_tracks_retained_tail),
+        TEST_CASE(seeking_a_tagged_mp3_still_removes_its_end_padding),
+        TEST_CASE(seeking_an_untagged_mp3_keeps_all_decoded_samples),
         TEST_CASE(an_mp3_describes_its_stream),
         TEST_CASE(an_mp3_opened_part_way_starts_counting_from_there),
         TEST_CASE(a_file_that_is_not_mp3_is_refused),

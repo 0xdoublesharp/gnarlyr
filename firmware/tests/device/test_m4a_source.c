@@ -40,7 +40,7 @@ static const Expect SINGLE = {ALAC_ALBUM "03 Single.m4a", "m4a_pcm/single.pcm", 
 static StreamControl control;
 static int32_t samples[STREAM_SLOTS][FLAC_MAX_CHANNELS][FLAC_MAX_BLOCK];
 static uint8_t ring[FULL_RING_BYTES];
-static uint8_t heap[M4A_HEAP_BYTES];
+_Alignas(AacDecoder) static uint8_t heap[M4A_HEAP_BYTES];
 static FlacDecoder unused_decoder;
 static Core1M4a core1_m4a;
 static Core1Stream stream;

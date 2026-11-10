@@ -5,6 +5,7 @@
 #include "device/core1_control.h"
 #include "device/core1_m4a.h"
 #include "device/core1_stream.h"
+#include "device/mp3_probe.h"
 
 _Static_assert(CORE1_STREAM_SAMPLES +
                        sizeof(int32_t[STREAM_SLOTS][FLAC_MAX_CHANNELS][FLAC_MAX_BLOCK]) <=
@@ -37,4 +38,20 @@ static inline StreamRegion core1_region_m4a(void)
 static inline void *core1_m4a_heap(void)
 {
     return (void *)(uintptr_t)(CORE1_STREAM_RING + M4A_RING_BYTES);
+}
+
+_Static_assert(MP3_RING_BYTES + sizeof(int32_t[FLAC_MAX_CHANNELS][MP3_TAIL_CAPACITY]) <=
+                   CORE1_STREAM_RING_BYTES,
+               "the MP3 ring and tail buffer must fit the core 1 ring area");
+
+static inline StreamRegion core1_region_mp3(void)
+{
+    StreamRegion region = core1_region();
+    region.ring_bytes = MP3_RING_BYTES;
+    return region;
+}
+
+static inline void *core1_mp3_tail(void)
+{
+    return (void *)(uintptr_t)(CORE1_STREAM_RING + MP3_RING_BYTES);
 }

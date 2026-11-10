@@ -360,6 +360,10 @@ echo_add_unit_test(NAME test_mp4_demux
 )
 target_compile_definitions(test_mp4_demux PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 target_include_directories(test_mp4_demux PRIVATE device)
+add_executable(mp3_decode_tool device/mp3_decode_tool.c device/m4a_fixture_files.c)
+target_link_libraries(mp3_decode_tool PRIVATE echo_device_logic echo_options)
+target_include_directories(mp3_decode_tool PRIVATE device)
+target_compile_definitions(mp3_decode_tool PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 add_executable(m4a_stream_tool device/m4a_stream_tool.c device/m4a_fixture_files.c)
 target_link_libraries(m4a_stream_tool PRIVATE echo_device_logic echo_options)
 target_include_directories(m4a_stream_tool PRIVATE device)
@@ -579,6 +583,17 @@ if(ARM_GCC)
                 TIMEOUT 900
             )
         endforeach()
+        add_test(NAME core1_mp3_decodes_in_emulator
+            COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
+                ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_core1_mp3.py
+                --program ${PROJECT_SOURCE_DIR}/build/device/platform/device/core1_mp3.bin
+                --tool $<TARGET_FILE:mp3_decode_tool>
+        )
+        set_tests_properties(core1_mp3_decodes_in_emulator PROPERTIES
+            FIXTURES_REQUIRED device_image
+            SKIP_RETURN_CODE 77
+            TIMEOUT 180
+        )
         add_test(NAME core1_m4a_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
                 ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_core1_m4a.py
