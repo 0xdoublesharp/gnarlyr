@@ -20,7 +20,8 @@
 enum {
     POWER_POLL_MS = 250,
     MILLISECONDS_PER_MINUTE = 60000,
-    RECONNECT_OFF_MS = 1000
+    RECONNECT_OFF_MS = 1000,
+    RECONNECT_WAIT_MS = 6000
 };
 
 typedef struct ScriptMark {
@@ -33,6 +34,7 @@ typedef struct Reconnect {
     bool forced;
     bool in_session;
     uint32_t ended_ms;
+    uint32_t forced_ms;
     uint32_t interrupted_line;
     DebugReportLoop loop;
 } Reconnect;
@@ -189,6 +191,7 @@ bool board_debug_take_reconnect(void)
     }
     reconnect.requested = false;
     reconnect.forced = true;
+    reconnect.forced_ms = hal_clock_milliseconds();
     reconnect.loop.attempts++;
     reconnect.loop.cable_at_connect = usb_vbus_present();
     note_connect(DEBUG_LOOP_CONNECT_WAITING);
@@ -197,7 +200,7 @@ bool board_debug_take_reconnect(void)
 
 bool board_debug_usb_forced(void)
 {
-    return reconnect.forced;
+    return reconnect.forced && hal_clock_milliseconds() - reconnect.forced_ms < RECONNECT_WAIT_MS;
 }
 
 DebugReportLoop board_debug_loop(void)

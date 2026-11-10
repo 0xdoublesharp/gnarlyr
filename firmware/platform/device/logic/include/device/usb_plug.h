@@ -17,8 +17,7 @@ typedef enum UsbPlugAction {
 } UsbPlugAction;
 
 enum {
-    USB_PLUG_STEADY_MS = 1000,
-    USB_PLUG_HOST_WAIT_MS = 3000
+    USB_PLUG_STEADY_MS = 1000
 };
 
 typedef struct UsbPlug {
@@ -27,6 +26,6 @@ typedef struct UsbPlug {
 } UsbPlug;
 
 UsbPlugAction usb_plug_update(UsbPlug *plug, bool cable, uint32_t now_ms);
-void usb_plug_started(UsbPlug *plug, bool listening, uint32_t now_ms);
+void usb_plug_started(UsbPlug *plug, bool listening);
 void usb_plug_served(UsbPlug *plug);
 void usb_plug_retry(UsbPlug *plug);

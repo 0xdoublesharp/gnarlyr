@@ -149,6 +149,8 @@ class Machine:
         self.register_log = []
         self.first_cable_read = None
         self.host_stays = False
+        self.host_absent = False
+        self.usb_pulled_up = False
         self.host_ejected = False
         self.cable_bit_dies_with_usb = False
         self.cable_bit_dead = False
@@ -412,15 +414,27 @@ class Machine:
         self.usb_log.append((self.milliseconds(), "bus reset acknowledged"))
         self.at_ms(self.milliseconds() + HOST_GONE_MS, self.host_leaves)
 
+    def host_answers(self):
+        return self.vbus and not self.host_absent
+
     def usb_connected(self):
         self.usb_connect_count += 1
+        self.usb_pulled_up = True
         self.host_ejected = False
         self.usb_log.append((self.milliseconds(), "pull-up on" + (", host resets the bus"
-                                                                  if self.vbus else "")))
-        if self.vbus:
+                                                                  if self.host_answers() else "")))
+        if self.host_answers():
+            self.usb.raise_reset()
+
+    def host_arrives(self):
+        """A host takes the place of a charger on a cable that is already in."""
+        self.host_absent = False
+        if self.usb_pulled_up and self.vbus:
+            self.usb_log.append((self.milliseconds(), "host arrives and resets the bus"))
             self.usb.raise_reset()
 
     def usb_disconnected(self):
+        self.usb_pulled_up = False
         self.usb_log.append((self.milliseconds(), "soft disconnect"))
         self.register_log.append(("usb", "soft disconnect", 0))
 

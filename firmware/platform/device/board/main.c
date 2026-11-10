@@ -119,8 +119,9 @@ static void start_listening(void)
     bool listening = dac_session ? usb_dac_session_listen() : usb_session_listen();
     if (!listening) {
         report_failed_start();
+        board_debug_listen_stopped();
     }
-    usb_plug_started(&usb_plug, listening, hal_clock_milliseconds());
+    usb_plug_started(&usb_plug, listening);
 }
 
 static void serve_host(void)

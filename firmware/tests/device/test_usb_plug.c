@@ -13,7 +13,7 @@ static void listening_from(uint32_t plugged_ms)
     plug = (UsbPlug){.state = USB_PLUG_UNPLUGGED};
     at(plugged_ms, true);
     at(plugged_ms + USB_PLUG_STEADY_MS, true);
-    usb_plug_started(&plug, true, plugged_ms + USB_PLUG_STEADY_MS);
+    usb_plug_started(&plug, true);
 }
 
 static void nothing_happens_without_a_cable(void)
@@ -52,21 +52,21 @@ static void the_second_is_counted_across_a_wrap_of_the_clock(void)
     CHECK_EQUAL(USB_PLUG_START, at(0x1E8u, true));
 }
 
-static void listening_without_a_host_stops_after_three_seconds(void)
+static void usb_keeps_listening_for_as_long_as_the_cable_is_in(void)
 {
     listening_from(1000);
-    CHECK_EQUAL(USB_PLUG_NOTHING, at(2000 + USB_PLUG_HOST_WAIT_MS - 1, true));
-    CHECK_EQUAL(USB_PLUG_STOP, at(2000 + USB_PLUG_HOST_WAIT_MS, true));
-    CHECK_EQUAL(USB_PLUG_SERVED, plug.state);
-    CHECK_EQUAL(USB_PLUG_NOTHING, at(900000, true));
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(5000, true));
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(3600000, true));
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(0x80000000u, true));
+    CHECK_EQUAL(USB_PLUG_LISTENING, plug.state);
 }
 
 static void pulling_the_cable_while_listening_stops_usb(void)
 {
     listening_from(1000);
-    CHECK_EQUAL(USB_PLUG_STOP, at(3000, false));
+    CHECK_EQUAL(USB_PLUG_STOP, at(900000, false));
     CHECK_EQUAL(USB_PLUG_UNPLUGGED, plug.state);
-    CHECK_EQUAL(USB_PLUG_NOTHING, at(9001, false));
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(900001, false));
 }
 
 static void after_a_session_nothing_starts_until_the_cable_has_left(void)
@@ -85,7 +85,7 @@ static void a_start_that_fails_is_not_tried_again_until_the_cable_has_left(void)
     plug = (UsbPlug){.state = USB_PLUG_UNPLUGGED};
     at(0, true);
     CHECK_EQUAL(USB_PLUG_START, at(USB_PLUG_STEADY_MS, true));
-    usb_plug_started(&plug, false, USB_PLUG_STEADY_MS);
+    usb_plug_started(&plug, false);
     CHECK_EQUAL(USB_PLUG_NOTHING, at(5000, true));
     CHECK_EQUAL(USB_PLUG_SERVED, plug.state);
 }
@@ -113,7 +113,7 @@ static void a_retry_while_listening_changes_nothing(void)
     listening_from(1000);
     usb_plug_retry(&plug);
     CHECK_EQUAL(USB_PLUG_LISTENING, plug.state);
-    CHECK_EQUAL(USB_PLUG_NOTHING, at(2500, true));
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(20000, true));
 }
 
 int main(void)
@@ -123,7 +123,7 @@ int main(void)
         TEST_CASE(the_cable_must_hold_for_a_second_before_usb_is_started),
         TEST_CASE(a_cable_that_bounces_starts_its_second_over),
         TEST_CASE(the_second_is_counted_across_a_wrap_of_the_clock),
-        TEST_CASE(listening_without_a_host_stops_after_three_seconds),
+        TEST_CASE(usb_keeps_listening_for_as_long_as_the_cable_is_in),
         TEST_CASE(pulling_the_cable_while_listening_stops_usb),
         TEST_CASE(after_a_session_nothing_starts_until_the_cable_has_left),
         TEST_CASE(a_start_that_fails_is_not_tried_again_until_the_cable_has_left),

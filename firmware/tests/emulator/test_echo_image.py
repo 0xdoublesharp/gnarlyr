@@ -65,7 +65,8 @@ RUN_PATH = "/" + DEBUG_FOLDER + "/run.txt"
 RESTART_PATH = "/" + DEBUG_FOLDER + "/restart.req"
 RESTART_REQUEST = b"RESTART AFTER INSTALL\n"
 RESTART_ANSWER = b"CONNECT AFTER RESTART\n"
-HOST_WAIT_MS = 3000
+RECONNECT_WAIT_MS = 6000
+CHARGER_MS = 10000
 SCRIPT_LIMIT_MS = 40000
 RECONNECT_OFF_MS = 1000
 QUIET_AFTER_MS = 4000
@@ -734,6 +735,35 @@ class EchoImageTest(unittest.TestCase):
         self.assertLess(listens[0], plugged_ms + CABLE_STEADY_MS + CABLE_NOTICED_LIMIT_MS)
         self.assert_healthy(session)
 
+    def test_on_a_charger_usb_keeps_listening_until_a_host_appears_or_the_cable_leaves(self):
+        session = self.session()
+        machine = session.machine
+        for name in ("usb_session_storage_changed", "usb_power_down"):
+            machine.note(name)
+        machine.answer_waits_for_key(4)
+        machine.host_absent = True
+        session.run_to_home_screen()
+        machine.vbus = True
+        machine.run(until_ms=machine.milliseconds() + CHARGER_MS)
+        self.assertEqual([event for _, event in machine.usb_log], ["soft disconnect", "pull-up on"])
+        self.assertNotIn("usb_power_down", machine.reached)
+        machine.vbus = False
+        machine.run(until=lambda: "usb_power_down" in machine.reached,
+                    until_ms=machine.milliseconds() + 1000)
+        self.assertEqual(machine.reached["usb_power_down"], 1)
+        self.assertEqual(machine.usb_log[-1][1], "soft disconnect")
+        machine.vbus = True
+        machine.run(until_ms=machine.milliseconds() + CHARGER_MS)
+        self.assertEqual(machine.usb_connect_count, 2)
+        self.assertEqual(machine.reached["usb_power_down"], 1)
+        self.assertNotIn("usb_session_storage_changed", machine.reached)
+        machine.host_arrives()
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(machine.usb_connect_count, 2)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+        self.print_usb_log("charger, then a host", machine)
+
     def test_usb_power_up_writes_the_words_stock_writes(self):
         session = self.session(vbus=True)
         machine = session.machine
@@ -1088,7 +1118,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
         self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
         machine.vbus = False
-        machine.run(until_ms=machine.milliseconds() + HOST_WAIT_MS + RECONNECT_OFF_MS + 2000)
+        machine.run(until_ms=machine.milliseconds() + RECONNECT_WAIT_MS + RECONNECT_OFF_MS + 2000)
         self.assertEqual(machine.usb_connect_count, 2)
         self.assertEqual(machine.reached["usb_session_storage_changed"], 1)
         self.assertEqual(machine.usb_log[-1][1], "soft disconnect")
