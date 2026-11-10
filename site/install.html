@@ -62,7 +62,7 @@
 </tr>
 </tbody>
 </table>
-<p class="callout"><strong>Gnarlyr 1.0 will be the first public release.</strong> Its image will be <code>GNARLYR.img</code>. FiiO’s <code>ECHOV200.IMG</code> is the stock restore image.
+<p class="callout"><strong>Gnarlyr image: <code>GNARLYR.img</code>.</strong> Use this filename for Gnarlyr updates. FiiO’s <code>ECHOV200.IMG</code> is the stock restore image.
 </p>
 </section>
 <section class="doc-section" id="build" aria-labelledby="build-title">
@@ -100,7 +100,7 @@
 <section class="doc-section" id="first-install" aria-labelledby="first-install-title">
 <h2 id="first-install-title">First, give the player its new software.
 </h2>
-<p class="intro">Recovery mode lets a computer install Gnarlyr directly into the firmware area. This is the route used to move the project’s player onto the custom firmware.
+<p class="intro">Recovery mode lets a computer install Gnarlyr directly into the firmware area. Use it for the first switch from FiiO’s software.
 </p>
 <ol class="sequence">
 <li><strong>Build the image and record its fingerprint.</strong> Follow <a href="#build">the build steps above</a> to create <code>GNARLYR.img</code> and record its SHA-256 before starting recovery.
@@ -118,7 +118,7 @@
 </ol>
 <p>Use the exact-model commands in those guides. The initial recovery install uses the image’s first 5 MiB; ordinary later updates use the complete <code>GNARLYR.img</code> file.
 </p>
-<p>FiiO’s file-copy updater looks for <code>ECHOVnnn.IMG</code> names. The route described here uses the recovery procedure established on the project’s ECHO.
+<p>FiiO’s file-copy updater accepts official <code>ECHOVnnn.IMG</code> images. Use recovery to install <code>GNARLYR.img</code> for the first time.
 </p>
 </section>
 <section class="doc-section" id="update" aria-labelledby="update-title">
@@ -156,7 +156,7 @@
 </li>
 <li><strong>The new USB code starts with the new firmware.</strong> USB and updater code load from the image into a shared memory region. Restarting after installation ensures the running firmware and its USB module match.
 </li>
-<li><strong>Connection handling follows cable power.</strong> The supply-pin fix corrected missed USB-C connections on the owner’s Mac. The stack can retry at full speed if its first high-speed connection does not become usable.
+<li><strong>Connection handling follows cable power.</strong> Gnarlyr keeps USB power control in sync with the cable state. The stack can retry at full speed if its first high-speed connection does not become usable.
 </li>
 </ul>
 <p>For everyday music copying, eject every drive before unplugging too. Gnarlyr then checks whether the music changed and rescans when needed.
@@ -196,10 +196,10 @@
 </h2>
 <p class="intro">Recovery mode belongs to the chip, so it remains the separate route for reinstalling stock firmware when the normal player interface cannot be used.
 </p>
-<p>Keep the full-size ECHO’s official <code>ECHOV200.IMG</code> and the exact-model recovery instructions from your checkout. The image recorded by the project is 39,845,892 bytes, with SHA-256:
+<p>Keep the full-size ECHO’s official <code>ECHOV200.IMG</code> and the exact-model recovery instructions from your checkout. The official V2.0 image is 39,845,892 bytes, with SHA-256:
 </p>
 <pre><code>c6a3b6c86b141c0a428771f8a611fbd44cc12d561acb033a98640b0bf24f8d57</code></pre>
-<p>For a player that does not start, follow <code>firmware/docs/device-recovery.md</code> to restore the official image through maskrom, checking each complete slot readback. The project’s custom-install and stock-restore round trip used that procedure.
+<p>For a player that does not start, follow <code>firmware/docs/device-recovery.md</code> to restore the official image through maskrom, checking each complete slot readback.
 </p>
 <p>A running Gnarlyr also recognizes the official ECHO image through its updater. Follow the checkout’s return-to-stock instructions for that image; its on-screen messages and restart sequence differ from an ordinary Gnarlyr update.
 </p><a class="text-link" href="https://fiio.com/newsinfo/1151351.html">FiiO’s ECHO firmware page ↗</a>

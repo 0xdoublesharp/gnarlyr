@@ -97,6 +97,16 @@ scope (six-hour schedule); source also stays on backed-up Data locally.
 No application database backup is needed. Use the platform recovery procedure
 for a host restore; an isolated restore rehearsal is not part of this release.
 
+## Evergreen copy — 2026-11-10
+
+Published release:
+`57f83f3939eb1439914c69f691b277f5fbf3a27f803b17ea368e80a4ed66ece6`.
+Rollback: `0780845239168e3f334ee513025e9607a7762b422c09bb20504b61fccf83abbb`.
+Product copy describes the player and firmware without owner anecdotes or
+source-filename history. Measured chip identification stays in technical detail.
+All four updated pages match local source over HTTPS; health remains 200.
+IDs, link destinations and copy bindings are preserved.
+
 ## Public release wording — 2026-11-10
 
 Published release:

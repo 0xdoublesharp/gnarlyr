@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#150f25"><meta name="description" content="Full-size Snowsky ECHO specifications, confirmed CS43198 readbacks, and approachable notes on the processor, display, USB and power."><meta property="og:title" content="Meet the hardware. — Gnarlyr"><meta property="og:description" content="Full-size Snowsky ECHO specifications, confirmed CS43198 readbacks, and approachable notes on the processor, display, USB and power."><meta property="og:type" content="website"><meta property="og:url" content="https://gnarlyr.com/hardware.html"><link rel="canonical" href="https://gnarlyr.com/hardware.html"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="stylesheet" href="styles.css"><script src="site.js" defer></script><title>Meet the hardware. — Gnarlyr</title>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#150f25"><meta name="description" content="Full-size Snowsky ECHO specifications and a plain-language guide to its processor, CS43198 audio chips, display, USB and power."><meta property="og:title" content="Meet the hardware. — Gnarlyr"><meta property="og:description" content="Full-size Snowsky ECHO specifications and a plain-language guide to its processor, CS43198 audio chips, display, USB and power."><meta property="og:type" content="website"><meta property="og:url" content="https://gnarlyr.com/hardware.html"><link rel="canonical" href="https://gnarlyr.com/hardware.html"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="stylesheet" href="styles.css"><script src="site.js" defer></script><title>Meet the hardware. — Gnarlyr</title>
 </head>
 <body>
   <svg class="icon-definitions" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -46,7 +46,7 @@
 <section class="doc-section" id="specs" aria-labelledby="specs-title">
 <h2 id="specs-title">The numbers you use day to day.
 </h2>
-<p class="intro">The full-size ECHO combines internal storage, a microSD slot and two headphone outputs. These are FiiO’s published specifications; our chip readback below came from a 4 GB unit.
+<p class="intro">The full-size ECHO combines internal storage, a microSD slot and two headphone outputs. These are FiiO’s published specifications.
 </p>
 <table class="data-table">
 <caption>Manufacturer specifications: <a href="https://www.fiio.com/echo_parameters">FiiO ECHO parameters ↗</a>
@@ -90,7 +90,7 @@
 </tr>
 <tr><th scope="row">Audio chip B</th><td>CS43198 · bus address <code>0x33</code> (7-bit)</td>
 </tr>
-<tr><th scope="row">Read from both chips</th><td>ID <code>43 19 80</code> · revision <code>A1</code> · subrevision <code>06</code></td>
+<tr><th scope="row">Chip identification · 4 GB unit</th><td>ID <code>43 19 80</code> · revision <code>A1</code> · subrevision <code>06</code></td>
 </tr>
 <tr><th scope="row">Audio transport</th><td>I2S carries samples to the DACs; DMA moves audio from memory without the main loop copying every sample.</td>
 </tr>
@@ -98,14 +98,14 @@
 </tr>
 </tbody>
 </table>
-<p>Both audio chips answered with CS43198 identity bytes on the owner’s ECHO. That matches <a href="https://www.fiio.com/echo_parameters">FiiO’s parts list</a> and <a href="https://www.cirrus.com/products/cs43198">Cirrus’s CS43198 documentation</a>. Some inherited source filenames still say CS43131; the readback identifies the fitted parts.
+<p>The ECHO uses two <a href="https://www.cirrus.com/products/cs43198">Cirrus Logic CS43198 DACs</a>, as listed in <a href="https://www.fiio.com/echo_parameters">FiiO’s specifications</a>. Together, they convert digital audio into the signal sent to the headphone outputs.
 </p>
 <details>
 <summary>How the chip identification was read
 </summary><div class="answer">
 <p>Read-only registers <code>0x010000</code>, <code>0x010001</code> and <code>0x010002</code> supplied the ID. Registers <code>0x010004</code> and <code>0x010005</code> supplied revision and subrevision. The driver’s wire-format addresses <code>0x60</code> and <code>0x66</code> correspond to 7-bit addresses <code>0x30</code> and <code>0x33</code>.
 </p>
-<p>The recorded result is <code>431980 A1.06</code> for both devices. A1.06 describes the chips’ revision, not the installed Gnarlyr version.
+<p>A 4 GB ECHO returned <code>431980 A1.06</code> from both chips. A1.06 is the hardware revision; the installed Gnarlyr version is shown separately in About.
 </p></div>
 </details>
 </section>
@@ -115,7 +115,7 @@
 <p class="intro">The display has its own image memory. The processor sends the parts that changed, which helps the interface work within the ECHO’s small memory budget.
 </p>
 <ul class="detail-list">
-<li><strong>Display protocol.</strong> The driver uses an ST7796S-style command set and 16-bit RGB565 pixel transfers. Comparing the stock display-control code with the driver matched all 24 initialization commands and their data.
+<li><strong>Display protocol.</strong> The driver uses an ST7796S-style command set and 16-bit RGB565 pixel transfers. Its startup sequence matches the stock firmware’s 24 display-initialization commands and their data.
 </li>
 <li><strong>Landscape and portrait.</strong> Stock’s landscape window has a 49-row offset. Portrait changes the orientation bits and applies that offset to the other axis.
 </li>
@@ -137,7 +137,7 @@
 </li>
 <li><strong>Audio mode.</strong> The firmware’s USB Audio Class 1.0 path offers 16- or 24-bit audio at 44.1 or 48 kHz, with a separately remembered DAC volume.
 </li>
-<li><strong>Cable detection.</strong> GPIO2.0 controls taking power from USB and GPIO0.14 controls charging. Keeping them tied to the actual cable state corrected missed USB-C connections observed on the owner’s Mac.
+<li><strong>Cable detection.</strong> GPIO2.0 controls taking power from USB and GPIO0.14 controls charging. Gnarlyr keeps these power-control signals in sync with the cable state.
 </li>
 <li><strong>Bluetooth module.</strong> A separate module handles wireless audio. The main processor talks to it over UART1 at 115,200 baud using short commands. FiiO specifies SBC headphone transmission.
 </li>
@@ -172,9 +172,9 @@
 </p>
 </section>
 <section class="doc-section" id="sources" aria-labelledby="sources-title">
-<h2 id="sources-title">Specs, readbacks and code tell different parts of the story.
+<h2 id="sources-title">Explore the hardware in more detail.
 </h2>
-<p class="intro">FiiO supplies the product ratings. Device readbacks identify the audio chips. Comparing the stock firmware and driver source explains how the other parts are controlled.
+<p class="intro">FiiO documents the player’s specifications, and Cirrus explains the audio chips. The hardware guides in the Gnarlyr source checkout cover the board’s wiring, memory and controls.
 </p>
 <ul class="source-list">
 <li><a href="https://www.fiio.com/echo_parameters">FiiO’s full-size ECHO specifications ↗</a> and <a href="https://www.fiio.com/echo">product overview ↗</a>
