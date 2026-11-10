@@ -17,6 +17,8 @@ extern const char SPOKEN_CHAPTER_ONE_PATH[];
 extern const char SPOKEN_CHAPTER_TWO_PATH[];
 extern const char SPOKEN_CHAPTER_THREE_PATH[];
 extern const char SPOKEN_PARTS_PATH[];
+extern const char SPOKEN_NESTED_PARTS_PATH[];
+extern const char SPOKEN_NESTED_CHAPTER_TWO_PATH[];
 extern const char SPOKEN_SINGLE_BOOK_PATH[];
 extern const char SPOKEN_SONG_PATH[];
 extern const char SPOKEN_EPISODE_A_PATH[];
@@ -30,6 +32,7 @@ typedef struct SpokenLibrary {
 } SpokenLibrary;
 
 Library *spoken_library_open(SpokenLibrary *spoken);
+Library *spoken_library_open_nested(SpokenLibrary *spoken);
 void spoken_library_close(SpokenLibrary *spoken);
 uint16_t spoken_library_track(const Library *library, const char *path);
 uint16_t spoken_library_chapter(const Library *library, uint8_t number);

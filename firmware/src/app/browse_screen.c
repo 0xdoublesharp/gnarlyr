@@ -296,8 +296,7 @@ static ScreenAction resume_book(BrowseScreen *browse, BrowseItem item)
 
 static bool resumes_books(const BrowseScreen *browse, BrowseItem item)
 {
-    return browse->shelf == SPOKEN_AUDIOBOOK && browse->shelf_root &&
-           item.kind == BROWSE_ITEM_FOLDER;
+    return browse->shelf == SPOKEN_AUDIOBOOK && item.kind == BROWSE_ITEM_FOLDER;
 }
 
 static ScreenAction select_row(void *context, int index)

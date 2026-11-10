@@ -18,6 +18,8 @@ const char SPOKEN_CHAPTER_ONE_PATH[] = "Audiobooks/Book One/01 - Arrival.mp3";
 const char SPOKEN_CHAPTER_TWO_PATH[] = "Audiobooks/Book One/02 - The Road.mp3";
 const char SPOKEN_CHAPTER_THREE_PATH[] = "Audiobooks/Book One/03 - Home.mp3";
 const char SPOKEN_PARTS_PATH[] = "Audiobooks/Zebra Tale.m4b";
+const char SPOKEN_NESTED_PARTS_PATH[] = "Audiobooks/Writer/Title/Zebra Tale.m4b";
+const char SPOKEN_NESTED_CHAPTER_TWO_PATH[] = "Audiobooks/Author/Book One/02 - The Road.mp3";
 const char SPOKEN_SINGLE_BOOK_PATH[] = "Audiobooks/Single Book.mp3";
 const char SPOKEN_SONG_PATH[] = "Music/Band/Record/01 - Song.flac";
 const char SPOKEN_EPISODE_A_PATH[] = "Podcasts/Show/Episode A.mp3";
@@ -88,14 +90,31 @@ static void check_step(BuilderResult result, const char *step)
     }
 }
 
-static void add_tracks(LibraryBuilder *builder)
+static const char *nested_path(const char *path)
+{
+    static const char *const ORIGINAL[] = {SPOKEN_PARTS_PATH, SPOKEN_CHAPTER_ONE_PATH,
+                                           SPOKEN_CHAPTER_TWO_PATH, SPOKEN_CHAPTER_THREE_PATH};
+    static const char *const NESTED[] = {
+        SPOKEN_NESTED_PARTS_PATH, "Audiobooks/Author/Book One/01 - Arrival.mp3",
+        SPOKEN_NESTED_CHAPTER_TWO_PATH, "Audiobooks/Author/Book One/03 - Home.mp3"};
+    for (size_t index = 0; index < sizeof ORIGINAL / sizeof ORIGINAL[0]; index++) {
+        if (path == ORIGINAL[index]) {
+            return NESTED[index];
+        }
+    }
+    return path;
+}
+
+static void add_tracks(LibraryBuilder *builder, bool nested)
 {
     for (size_t index = 0; index < sizeof TRACKS / sizeof TRACKS[0]; index++) {
-        check_step(library_builder_add_track(builder, &TRACKS[index]), TRACKS[index].path);
+        BuilderTrack track = TRACKS[index];
+        track.path = nested ? nested_path(track.path) : track.path;
+        check_step(library_builder_add_track(builder, &track), track.path);
     }
 }
 
-Library *spoken_library_open(SpokenLibrary *spoken)
+static Library *open_library(SpokenLibrary *spoken, bool nested)
 {
     uint8_t *memory = malloc(BUILDER_MEMORY);
     Buffer scratch = {.bytes = malloc(SCRATCH_SIZE), .size = SCRATCH_SIZE, .length = 0};
@@ -106,7 +125,7 @@ Library *spoken_library_open(SpokenLibrary *spoken)
     LibraryBuilder builder;
     library_builder_init(&builder, memory, BUILDER_MEMORY,
                          (BuilderScratch){buffer_read, buffer_write, &scratch, SCRATCH_SIZE});
-    add_tracks(&builder);
+    add_tracks(&builder, nested);
     uint32_t length = 0;
     check_step(library_builder_prepare(&builder), "prepare");
     check_step(library_builder_finish(&builder, (ByteSink){buffer_write, &output}, 0, &length),
@@ -121,6 +140,16 @@ Library *spoken_library_open(SpokenLibrary *spoken)
         fail("open");
     }
     return &spoken->library;
+}
+
+Library *spoken_library_open(SpokenLibrary *spoken)
+{
+    return open_library(spoken, false);
+}
+
+Library *spoken_library_open_nested(SpokenLibrary *spoken)
+{
+    return open_library(spoken, true);
 }
 
 void spoken_library_close(SpokenLibrary *spoken)

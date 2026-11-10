@@ -323,6 +323,133 @@ static void a_chaptered_file_is_a_book_of_its_own_on_the_shelf(void)
     CHECK(strcmp("Noon", chapters->model.label(chapters->model.context, 1)) == 0);
 }
 
+static BrowseScreen *nested_book_folder(void)
+{
+    BrowseScreen *books = shelf(SPOKEN_AUDIOBOOK);
+    list_view_select(&books->list, 1, 0);
+    ScreenAction author = press(books, KEY_GESTURE_PRESS);
+    BrowseScreen *writer = author.target->context;
+    writer->screen.enter(writer, 0);
+    ScreenAction title = press(writer, KEY_GESTURE_PRESS);
+    BrowseScreen *folder = title.target->context;
+    folder->screen.enter(folder, 0);
+    return folder;
+}
+
+static void start_nested(void)
+{
+    spoken_library_close(&spoken);
+    library = spoken_library_open_nested(&spoken);
+    start();
+}
+
+static void restore_library(void)
+{
+    spoken_library_close(&spoken);
+    library = spoken_library_open(&spoken);
+}
+
+static void a_nested_chaptered_book_starts_when_selected(void)
+{
+    start_nested();
+    BrowseScreen *book = nested_book_folder();
+    CHECK_EQUAL(1, book->count);
+    ScreenAction action = press(book, KEY_GESTURE_PRESS);
+    CHECK(action.target == &now_playing);
+    CHECK(path_is(fake_hal_audio_playing_path(), SPOKEN_NESTED_PARTS_PATH));
+    restore_library();
+}
+
+static BrowseScreen *nested_chapters(void)
+{
+    BrowseScreen *book = nested_book_folder();
+    ScreenAction action = press(book, KEY_GESTURE_LONG_PRESS);
+    BrowseScreen *parts = action.target->context;
+    parts->screen.enter(parts, 0);
+    return parts;
+}
+
+static void play_nested_part(int part)
+{
+    BrowseScreen *parts = nested_chapters();
+    list_view_select(&parts->list, part, 0);
+    CHECK(press(parts, KEY_GESTURE_PRESS).target == &now_playing);
+}
+
+static void a_nested_book_resumes_in_its_saved_chapter_and_position(void)
+{
+    start_nested();
+    play_nested_part(1);
+    follow(0);
+    fake_hal_audio_set_position(at_part(SPOKEN_PART_ONE_MS, MIDWAY_MS));
+    follow(1000);
+    play(SPOKEN_SONG_PATH, false);
+    follow(2000);
+    BrowseScreen *book = nested_book_folder();
+    CHECK(strcmp("Chapter 2 of 3", detail_of(book, 0)) == 0);
+    CHECK(press(book, KEY_GESTURE_PRESS).target == &now_playing);
+    CHECK(path_is(fake_hal_audio_playing_path(), SPOKEN_NESTED_PARTS_PATH));
+    CHECK_EQUAL(at_part(SPOKEN_PART_ONE_MS, MIDWAY_MS), fake_hal_audio_play_start());
+    LibraryTrack record;
+    CHECK(library_read_track(library, player_status(&player).track, &record));
+    CHECK_EQUAL(2, record.number);
+    restore_library();
+}
+
+static void selecting_a_paused_nested_book_keeps_the_loaded_stream(void)
+{
+    start_nested();
+    play_nested_part(2);
+    player_toggle_pause(&player);
+    BrowseScreen *book = nested_book_folder();
+    CHECK(press(book, KEY_GESTURE_PRESS).target == &now_playing);
+    CHECK_EQUAL(PLAYER_PLAYING, player_status(&player).state);
+    CHECK_EQUAL(1, fake_hal_audio_play_count());
+    restore_library();
+}
+
+static void holding_play_on_a_nested_book_opens_chapters_without_starting_audio(void)
+{
+    start_nested();
+    BrowseScreen *parts = nested_chapters();
+    CHECK_EQUAL(3, parts->count);
+    CHECK_EQUAL(SPOKEN_AUDIOBOOK, parts->shelf);
+    CHECK(strcmp("Noon", parts->model.label(parts->model.context, 1)) == 0);
+    CHECK_EQUAL(0, fake_hal_audio_play_count());
+    restore_library();
+}
+
+static BrowseScreen *nested_multi_file_book(void)
+{
+    BrowseScreen *books = shelf(SPOKEN_AUDIOBOOK);
+    ScreenAction author = press(books, KEY_GESTURE_PRESS);
+    BrowseScreen *folder = author.target->context;
+    folder->screen.enter(folder, 0);
+    return folder;
+}
+
+static void a_nested_multi_file_book_resumes_its_saved_track(void)
+{
+    start_nested();
+    BrowseScreen *author = nested_multi_file_book();
+    ScreenAction chapters = press(author, KEY_GESTURE_LONG_PRESS);
+    BrowseScreen *parts = chapters.target->context;
+    parts->screen.enter(parts, 0);
+    list_view_select(&parts->list, 1, 0);
+    CHECK(press(parts, KEY_GESTURE_PRESS).target == &now_playing);
+    follow(0);
+    fake_hal_audio_set_position(MIDWAY_MS);
+    follow(1000);
+    play(SPOKEN_SONG_PATH, false);
+    follow(2000);
+    author = nested_multi_file_book();
+    CHECK(strcmp("Chapter 2 of 3", detail_of(author, 0)) == 0);
+    CHECK(press(author, KEY_GESTURE_PRESS).target == &now_playing);
+    CHECK(path_is(fake_hal_audio_playing_path(), SPOKEN_NESTED_CHAPTER_TWO_PATH));
+    CHECK_EQUAL(MIDWAY_MS, fake_hal_audio_play_start());
+    restore_library();
+}
+
 static void a_chaptered_file_plays_its_chapters_in_order(void)
 {
     start();
@@ -433,6 +560,11 @@ int main(void)
         TEST_CASE(holding_play_on_a_book_opens_its_chapters),
         TEST_CASE(a_played_episode_says_so_in_its_show),
         TEST_CASE(a_chaptered_file_is_a_book_of_its_own_on_the_shelf),
+        TEST_CASE(a_nested_chaptered_book_starts_when_selected),
+        TEST_CASE(a_nested_multi_file_book_resumes_its_saved_track),
+        TEST_CASE(a_nested_book_resumes_in_its_saved_chapter_and_position),
+        TEST_CASE(selecting_a_paused_nested_book_keeps_the_loaded_stream),
+        TEST_CASE(holding_play_on_a_nested_book_opens_chapters_without_starting_audio),
         TEST_CASE(a_chaptered_file_plays_its_chapters_in_order),
         TEST_CASE(holding_volume_jumps_within_a_chapter_of_a_file),
         TEST_CASE(a_chaptered_book_resumes_in_its_chapter_and_position),
