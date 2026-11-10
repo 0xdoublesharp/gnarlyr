@@ -206,10 +206,10 @@ static void without_usb_power_the_player_is_on_battery(void)
 {
     ChargeTracker tracker;
     charge_tracker_init(&tracker);
-    CHECK_EQUAL(CHARGE_ON_BATTERY,
-                charge_tracker_update(&tracker, (ChargeReading){.status_high = true,
-                                                                .millivolts = 4200,
-                                                                .now_ms = 60000}));
+    CHECK_EQUAL(
+        CHARGE_ON_BATTERY,
+        charge_tracker_update(
+            &tracker, (ChargeReading){.status_high = true, .millivolts = 4200, .now_ms = 60000}));
 }
 
 static void usb_power_alone_shows_charging_whatever_the_status_pin_says_at_first(void)

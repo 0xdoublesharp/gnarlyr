@@ -76,14 +76,6 @@ static bool charge_status_high(void)
     return gpio_read(CHARGE_STATUS);
 }
 
-static ChargeState charge_state(bool usb_power, uint32_t millivolts)
-{
-    return charge_tracker_update(&charge, (ChargeReading){.usb_power = usb_power,
-                                                          .status_high = charge_status_high(),
-                                                          .millivolts = millivolts,
-                                                          .now_ms = hal_clock_milliseconds()});
-}
-
 HalBattery hal_power_battery(void)
 {
     bool usb_power = usb_vbus_present();
@@ -93,18 +85,24 @@ HalBattery hal_power_battery(void)
     usb_seen = true;
     usb_before = usb_power;
     BatteryGauge gauge = board_battery_gauge();
-    ChargeState state = charge_state(usb_power, battery_gauge_recent_millivolts(&gauge));
+    bool status_high = charge_status_high();
+    ChargeState state = charge_tracker_update(
+        &charge, (ChargeReading){.usb_power = usb_power,
+                                 .status_high = status_high,
+                                 .millivolts = battery_gauge_recent_millivolts(&gauge),
+                                 .now_ms = hal_clock_milliseconds()});
     bool charging = state == CHARGE_CHARGING;
     if (!battery_gauge_known(&gauge)) {
         return (HalBattery){.known = false, .usb_power = usb_power, .charging = charging};
     }
+    uint8_t percent = BATTERY_FULL_PERCENT;
     if (state == CHARGE_FULL) {
         battery_display_show_full(&display);
+    } else {
+        bool current_flowing = charging && !status_high;
+        percent = battery_display_update(&display, battery_gauge_percent(&gauge, current_flowing),
+                                         usb_power);
     }
-    uint8_t percent = state == CHARGE_FULL
-                          ? BATTERY_FULL_PERCENT
-                          : battery_display_update(
-                                &display, battery_gauge_percent(&gauge, charging), usb_power);
     return (HalBattery){.known = true,
                         .percent = percent,
                         .charging = charging,
