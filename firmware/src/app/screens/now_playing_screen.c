@@ -484,6 +484,17 @@ static Rect column_area(const NowPlayingScreen *now_playing, int top, int height
     return (Rect){left, top, theme->metrics.screen_width - left - theme->metrics.padding, height};
 }
 
+static uint32_t shown_position(const NowPlayingScreen *now_playing)
+{
+    if (now_playing->scrubbing) {
+        return now_playing->scrub_position_ms;
+    }
+    const PlayerStatus *status = &now_playing->status;
+    return status->state == PLAYER_PLAYING && status->position_ms < status->duration_ms
+               ? status->position_ms / MS_PER_SECOND * MS_PER_SECOND
+               : status->position_ms;
+}
+
 static void draw_cover(const NowPlayingScreen *now_playing, Canvas *canvas)
 {
     Image cover;
@@ -500,7 +511,7 @@ static void draw_cover(const NowPlayingScreen *now_playing, Canvas *canvas)
                           (Rect){left, top + (COVER_FULL_SIZE - CASSETTE_HEIGHT) / 2,
                                  CASSETTE_WIDTH, CASSETTE_HEIGHT},
                           theme,
-                          (CassetteTape){now_playing->status.position_ms,
+                          (CassetteTape){shown_position(now_playing),
                                          now_playing->status.duration_ms, FIRMWARE_SHORT_NAME});
         return;
     }
@@ -550,12 +561,6 @@ static void draw_track_text(const NowPlayingScreen *now_playing, Canvas *canvas)
                                        layout(now_playing)->text_line_height),
                            now_playing->album},
                    album);
-}
-
-static uint32_t shown_position(const NowPlayingScreen *now_playing)
-{
-    return now_playing->scrubbing ? now_playing->scrub_position_ms
-                                  : now_playing->status.position_ms;
 }
 
 static void draw_progress(const NowPlayingScreen *now_playing, Canvas *canvas)

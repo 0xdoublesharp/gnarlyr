@@ -1,6 +1,10 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/frame_pacer.h"
+#include "default_theme.h"
+#include "fake_hal.h"
+#include "hal/display.h"
 #include "screens/now_playing_screen.h"
 
 enum {
@@ -274,9 +278,81 @@ static void holding_menu_opens_lyrics_but_does_not_leave_seek_mode(void)
     CHECK_EQUAL(NOW_PLAYING_UP_NEXT, command(KEY_MENU, KEY_GESTURE_PRESS));
 }
 
+static Color playback_pixels[HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT];
+static Color previous_pixels[HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT];
+static NowPlayingScreen playback_view;
+static Theme playback_theme;
+static Settings playback_settings;
+
+static void start_passive_view(void)
+{
+    fake_hal_reset();
+    playback_theme = BOARD_THEME;
+    playback_settings = settings_defaults();
+    now_playing_screen_init(&playback_view, (NowPlayingConfig){.settings = &playback_settings,
+                                                               .theme = &playback_theme});
+    playback_view.status =
+        (PlayerStatus){.has_track = true, .state = PLAYER_PLAYING, .duration_ms = 20000};
+}
+
+static void draw_passive_view(uint32_t position_ms, uint32_t now_ms)
+{
+    playback_view.status.position_ms = position_ms;
+    playback_view.now_ms = now_ms;
+    Canvas canvas =
+        canvas_make(playback_pixels, (Rect){0, 0, HAL_DISPLAY_WIDTH, HAL_DISPLAY_HEIGHT});
+    playback_view.screen.draw(&playback_view, &canvas);
+}
+
+static void passive_transport_pixels_stay_stable_within_one_displayed_second(void)
+{
+    start_passive_view();
+    draw_passive_view(1000, 1000);
+    memcpy(previous_pixels, playback_pixels, sizeof playback_pixels);
+    draw_passive_view(1499, 1499);
+    CHECK(memcmp(previous_pixels, playback_pixels, sizeof playback_pixels) == 0);
+    draw_passive_view(2000, 2000);
+    CHECK(memcmp(previous_pixels, playback_pixels, sizeof playback_pixels) != 0);
+}
+
+static void a_short_track_cannot_promote_passive_transport_to_continuous_fast_frames(void)
+{
+    start_passive_view();
+    FramePacer pacer = {0};
+    int frames = 0;
+    for (uint32_t now = 0; now < 10000; now += 4) {
+        if (!frame_pacer_due(&pacer, now, false)) {
+            continue;
+        }
+        draw_passive_view(1000 + now, now);
+        bool changed =
+            frames == 0 || memcmp(previous_pixels, playback_pixels, sizeof playback_pixels) != 0;
+        memcpy(previous_pixels, playback_pixels, sizeof playback_pixels);
+        frame_pacer_done(&pacer, now, changed, false);
+        frames++;
+    }
+    CHECK(frames >= 10);
+    CHECK(frames <= 35);
+}
+
+static void scrubbing_keeps_subsecond_cursor_changes_visible(void)
+{
+    start_passive_view();
+    playback_view.scrubbing = true;
+    playback_view.scrub_position_ms = 1000;
+    draw_passive_view(1000, 1000);
+    memcpy(previous_pixels, playback_pixels, sizeof playback_pixels);
+    playback_view.scrub_position_ms = 1499;
+    draw_passive_view(1000, 1000);
+    CHECK(memcmp(previous_pixels, playback_pixels, sizeof playback_pixels) != 0);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(passive_transport_pixels_stay_stable_within_one_displayed_second),
+        TEST_CASE(a_short_track_cannot_promote_passive_transport_to_continuous_fast_frames),
+        TEST_CASE(scrubbing_keeps_subsecond_cursor_changes_visible),
         TEST_CASE(holding_menu_opens_lyrics_but_does_not_leave_seek_mode),
         TEST_CASE(the_codec_has_a_short_name),
         TEST_CASE(lossless_streams_show_bit_depth_and_rate),

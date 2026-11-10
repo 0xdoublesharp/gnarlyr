@@ -153,6 +153,9 @@ static void draw_caption(const HomeArt *art, Canvas *canvas, Rect area)
         canvas_fill_rect(canvas, progress, theme->colors.divider);
         uint32_t position =
             status.position_ms < status.duration_ms ? status.position_ms : status.duration_ms;
+        if (status.state == PLAYER_PLAYING && position < status.duration_ms) {
+            position = position / 1000 * 1000;
+        }
         progress.width = (int)((uint64_t)progress.width * position / status.duration_ms);
         canvas_fill_rect(canvas, progress, theme->colors.accent);
     }
