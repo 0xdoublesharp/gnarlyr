@@ -189,9 +189,6 @@ void hal_display_set_power(bool on)
 {
     board_start_record_step(on ? HAL_START_STEP_BACKLIGHT_ON : HAL_START_STEP_BACKLIGHT_OFF);
     bool was_on = backlight_on;
-    if (on) {
-        board_power_pair_set(true);
-    }
     backlight_on = on;
     ramping = false;
     if (on) {

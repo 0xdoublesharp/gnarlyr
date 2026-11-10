@@ -137,7 +137,9 @@ static void check_usb(void)
     if (usb_plug.state != USB_PLUG_LISTENING && board_debug_take_reconnect()) {
         usb_plug_retry(&usb_plug);
     }
-    bool cable = usb_vbus_present() || board_debug_usb_forced();
+    bool cable_power = usb_vbus_present();
+    board_power_usb_supply_follow(cable_power);
+    bool cable = cable_power || board_debug_usb_forced();
     switch (usb_plug_update(&usb_plug, cable, hal_clock_milliseconds())) {
     case USB_PLUG_START:
         start_listening();
@@ -200,7 +202,7 @@ void board_main(void)
     board_debug_boot();
     board_loader_flag_clear();
     board_power_hold();
-    board_power_pair_set(true);
+    board_power_usb_supply_follow(usb_vbus_present());
     board_bluetooth_off();
     board_clock_record_boot();
     board_clock_start();

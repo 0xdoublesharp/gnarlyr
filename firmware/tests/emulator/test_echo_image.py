@@ -275,23 +275,52 @@ class EchoImageTest(unittest.TestCase):
         self.assertGreater(len(session.card.reads), 0)
         summary("home screen", session)
 
-    def test_power_hold_comes_first_and_the_power_pair_follows(self):
+    def test_power_hold_comes_first_and_on_battery_the_usb_supply_pins_stay_low(self):
         session = self.session()
         session.run_to_home_screen()
         machine = session.machine
-        hold = pin_high_index(machine, 2, 6)
-        pair_a = pin_high_index(machine, 0, 14)
-        pair_b = pin_high_index(machine, 2, 0)
-        self.assertIsNotNone(hold)
-        self.assertIsNotNone(pair_a)
-        self.assertIsNotNone(pair_b)
-        self.assertLess(hold, pair_a)
-        self.assertLess(hold, pair_b)
+        self.assertIsNotNone(pin_high_index(machine, 2, 6))
+        self.assertIsNone(pin_high_index(machine, 0, 14))
+        self.assertIsNone(pin_high_index(machine, 2, 0))
+        self.assertTrue(pin_ever_output(machine, 0, 14))
+        self.assertTrue(pin_ever_output(machine, 2, 0))
         self.assertEqual(machine.gpio[2].regs[GPIO_DATA] >> 6 & 1, 1)
         self.assertEqual(machine.gpio[2].regs[4] >> 6 & 1, 1)
-        self.assertEqual(machine.gpio[0].regs[GPIO_DATA] >> 14 & 1, 1)
-        self.assertEqual(machine.gpio[2].regs[GPIO_DATA] & 1, 1)
+        self.assertEqual(self.usb_supply_pins(machine), (0, 0))
         self.assertFalse(pin_ever_output(machine, 2, 1))
+
+    def test_started_by_the_cable_the_usb_supply_pins_go_high_after_the_power_hold(self):
+        session = self.session_module.Session(self.image, self.elf, vbus_at_start=True,
+                                              usb_overlay_elf=self.usb_overlay_elf)
+        machine = session.machine
+        self.assertEqual(session.run_to_first_frame(), "condition met")
+        hold = pin_high_index(machine, 2, 6)
+        charge = pin_high_index(machine, 0, 14)
+        supply = pin_high_index(machine, 2, 0)
+        self.assertIsNotNone(hold)
+        self.assertIsNotNone(charge)
+        self.assertIsNotNone(supply)
+        self.assertLess(hold, charge)
+        self.assertLess(hold, supply)
+        self.assertEqual(self.usb_supply_pins(machine), (1, 1))
+
+    def test_the_usb_supply_pins_follow_the_cable_and_a_waking_screen_leaves_them_alone(self):
+        session = self.session()
+        machine = session.machine
+        session.run_to_home_screen()
+        self.assertEqual(self.usb_supply_pins(machine), (0, 0))
+        machine.vbus = True
+        machine.run(until_ms=machine.milliseconds() + 200)
+        self.assertEqual(self.usb_supply_pins(machine), (1, 1))
+        machine.vbus = False
+        machine.run(until_ms=machine.milliseconds() + 200)
+        self.assertEqual(self.usb_supply_pins(machine), (0, 0))
+        self.assertEqual(machine.usb_log, [])
+        self.assert_healthy(session)
+
+    @staticmethod
+    def usb_supply_pins(machine):
+        return (machine.gpio[0].regs[GPIO_DATA] >> 14 & 1, machine.gpio[2].regs[GPIO_DATA] & 1)
 
     def test_backlight_runs_at_25_khz_and_only_after_the_first_frame(self):
         session = self.session()

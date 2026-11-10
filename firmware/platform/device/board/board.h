@@ -74,7 +74,7 @@ void board_wait_for_power_hold(uint32_t hold_ms);
 void board_main(void);
 bool board_usb_listening(void);
 void board_power_hold(void);
-void board_power_pair_set(bool on);
+void board_power_usb_supply_follow(bool cable);
 void board_loader_reboot(void);
 void board_restart(void);
 void board_loader_flag_clear(void);
