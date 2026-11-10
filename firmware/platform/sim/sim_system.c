@@ -1,3 +1,4 @@
+#include "app/linked_modules.h"
 #include "hal/system.h"
 #include "library/library_scan.h"
 
@@ -66,8 +67,7 @@ const void *hal_system_load_rescan_code(void)
 
 const void *hal_system_load_module(uint32_t module)
 {
-    (void)module;
-    return NULL;
+    return app_linked_module(module);
 }
 
 HalHighRamTest hal_system_high_ram_test(void)

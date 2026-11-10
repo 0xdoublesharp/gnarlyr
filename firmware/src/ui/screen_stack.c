@@ -74,6 +74,11 @@ Screen *screen_stack_top(const ScreenStack *stack)
     return stack->screens[stack->depth - 1];
 }
 
+Screen *screen_stack_below_top(const ScreenStack *stack)
+{
+    return stack->depth > 1 ? stack->screens[stack->depth - 2] : NULL;
+}
+
 int screen_stack_depth(const ScreenStack *stack)
 {
     return stack->depth;

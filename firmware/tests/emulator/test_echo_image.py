@@ -102,6 +102,11 @@ USB_POWER_UP = [("cru", 0x80, 0x00800000), ("cru", 0x98, 0x04000000), ("cru", 0x
 PROFILED_MS = 1500
 LANGUAGE_RAM = 0x0309D000
 MISSING_TEXT = "Text is missing: reinstall the update"
+MODULE_LOAD_LIMIT_MS = 60
+MODULE_REUSE_LIMIT_US = 100
+MODULE_PREFIX = "echo_module_"
+MUSIC_ENTRIES_BEFORE_SONGS = 6
+STEP_GAP_WITH_A_MODULE_MS = 250
 STEPS_AFTER_NOTICE = 20
 FNV_START = 2166136261
 FNV_PRIME = 16777619
@@ -176,12 +181,14 @@ class EchoImageTest(unittest.TestCase):
         cls.image = Path(CONFIG["image"]).read_bytes()
         cls.elf = CONFIG["elf"]
         cls.usb_overlay_elf = CONFIG["usb_overlay_elf"]
+        cls.module_elfs = sorted(Path(cls.elf).parent.glob("echo_module_*.elf"))
 
     def session(self, files=(), image=None, vbus=False, volume=None, rest_in_waits=True):
         return self.session_module.Session(image or self.image, self.elf, files=files,
                                            vbus_after_first_frame=vbus, volume=volume,
                                            usb_overlay_elf=self.usb_overlay_elf,
-                                           rest_in_waits=rest_in_waits)
+                                           rest_in_waits=rest_in_waits,
+                                           module_elfs=self.module_elfs)
 
     def assert_healthy(self, session):
         machine = session.machine
@@ -299,7 +306,8 @@ class EchoImageTest(unittest.TestCase):
 
     def test_started_by_the_cable_the_usb_supply_pins_go_high_after_the_power_hold(self):
         session = self.session_module.Session(self.image, self.elf, vbus_at_start=True,
-                                              usb_overlay_elf=self.usb_overlay_elf)
+                                              usb_overlay_elf=self.usb_overlay_elf,
+                                              module_elfs=self.module_elfs)
         machine = session.machine
         self.assertEqual(session.run_to_first_frame(), "condition met")
         hold = pin_high_index(machine, 2, 6)
@@ -973,7 +981,8 @@ class EchoImageTest(unittest.TestCase):
                             "screenshot home", "reconnect", "play", ""])
         volume = self.debug_volume(real_volume(playable=True, album_count=ALBUM_COUNT),
                                    run_txt=script.encode("ascii"))
-        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf, volume=volume)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf, volume=volume,
+                  module_elfs=self.module_elfs)
         session, machine = rig.session, rig.machine
         marks, frames = [], []
         for name in ("usb_session_storage_changed", "debug_script_take", "hal_system_usb_reconnect"):
@@ -1567,7 +1576,8 @@ class EchoImageTest(unittest.TestCase):
 
     def playback_rig(self):
         from echo_emulator.playback import Rig
-        return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf)
+        return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                   module_elfs=self.module_elfs)
 
     def test_a_deep_cue_track_starts_quickly_and_switching_tracks_keeps_the_ui_smooth(self):
         rig = self.playback_rig()
@@ -1597,6 +1607,65 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(machine.panics, [])
         self.assert_healthy(rig.session)
         summary("deep cue track", rig.session)
+
+    def module(self, machine, name):
+        for number, overlay in enumerate(machine.modules, 1):
+            if overlay.name == MODULE_PREFIX + name:
+                return number, overlay
+        self.fail("the image has no module named " + name)
+
+    def collect_toasts(self, machine):
+        from unicorn.arm_const import UC_ARM_REG_R1
+        toasts = []
+        machine.hook_symbol("toast_show", lambda: toasts.append(
+            machine.read_cstring(machine.reg(UC_ARM_REG_R1)).decode("utf-8", "replace")))
+        return toasts
+
+    def assert_slot_untouched_by_the_rest(self, watch):
+        self.assertEqual(watch.foreign_writes, [])
+
+    def test_cover_flow_runs_from_its_module_while_a_track_keeps_playing(self):
+        from echo_emulator.modules import ModuleWatch
+        rig = self.playback_rig()
+        machine, session = rig.machine, rig.session
+        watch = ModuleWatch(session)
+        number, views = self.module(machine, "views")
+        pack = make_image.language_packs_in(self.image)[0]
+        rig.open_songs()
+        mark = rig.play_song(1)
+        rig.run_for(1500)
+        audible = rig.first_audio_after(mark)
+        self.assertIsNotNone(audible)
+        self.assertEqual(watch.loads(), [])
+        rig.press("back")
+        rig.press("back")
+        rig.press_many("previous", MUSIC_ENTRIES_BEFORE_SONGS)
+        opened = rig.press("play")
+        rig.run_for(800)
+        first = watch.loads()
+        self.assertEqual([(call["module"], call["loaded"]) for call in first], [(number, True)])
+        self.assertLess(first[0]["us"], MODULE_LOAD_LIMIT_MS * 1000)
+        self.assertTrue(session.module_reads("slot_1", number))
+        self.assertEqual(session.module_reads("slot_2", number), [])
+        self.assertTrue(views.loaded(machine))
+        rig.press_many("next", 3)
+        rig.run_for(600)
+        rig.press("back")
+        rig.press("play")
+        rig.run_for(600)
+        self.assertEqual(watch.loads(), first)
+        reuses = [call["us"] for call in watch.calls if not call["sectors"]]
+        self.assertTrue(reuses)
+        self.assertLess(max(reuses), MODULE_REUSE_LIMIT_US)
+        self.assertTrue(views.loaded(machine))
+        self.assert_slot_untouched_by_the_rest(watch)
+        self.assertEqual(machine.read_memory(LANGUAGE_RAM, len(pack)), pack)
+        self.assertEqual(rig.audio.underruns(audible), [])
+        self.assertLess(rig.longest_gap(opened), STEP_GAP_WITH_A_MODULE_MS)
+        self.assertEqual(machine.watchdog_resets, 0)
+        self.assert_healthy(session)
+        print("\n[module load, track playing] " + watch.describe(first[0]))
+        print("[module reuse] %d calls, longest %d us" % (len(reuses), max(reuses)))
 
 
 def prerequisites_missing():

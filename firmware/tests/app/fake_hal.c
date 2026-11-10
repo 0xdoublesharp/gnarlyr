@@ -1,5 +1,6 @@
 #include "fake_hal.h"
 #include "app/debug_loop.h"
+#include "app/linked_modules.h"
 
 #include "hal/system.h"
 
@@ -127,6 +128,10 @@ typedef struct FakeHal {
     int profile_resets;
     HalAudioStats audio_stats;
     bool restart_pending;
+    uint32_t loaded_module;
+    uint32_t broken_modules;
+    int module_loads;
+    int module_refusals;
     HalReserveResult reserve_result;
     const char *reserved_paths[FILE_CAPACITY];
     uint32_t reserved_sizes[FILE_CAPACITY];
@@ -1468,8 +1473,42 @@ const void *hal_system_load_rescan_code(void)
 
 const void *hal_system_load_module(uint32_t module)
 {
-    (void)module;
-    return NULL;
+    if (module != fake.loaded_module) {
+        fake.loaded_module = 0;
+        if (fake.restart_pending || (fake.broken_modules & 1u << module) != 0) {
+            fake.module_refusals++;
+            return NULL;
+        }
+        fake.module_loads++;
+        fake.loaded_module = module;
+    }
+    return app_linked_module(module);
+}
+
+void fake_hal_break_module(uint32_t module, bool broken)
+{
+    uint32_t bit = 1u << module;
+    fake.broken_modules = broken ? fake.broken_modules | bit : fake.broken_modules & ~bit;
+}
+
+void fake_hal_evict_module(void)
+{
+    fake.loaded_module = 0;
+}
+
+uint32_t fake_hal_loaded_module(void)
+{
+    return fake.loaded_module;
+}
+
+int fake_hal_module_loads(void)
+{
+    return fake.module_loads;
+}
+
+int fake_hal_module_refusals(void)
+{
+    return fake.module_refusals;
 }
 
 static InternalFile *internal_file(const char *path)

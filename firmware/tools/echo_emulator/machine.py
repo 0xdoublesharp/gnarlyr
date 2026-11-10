@@ -73,21 +73,23 @@ def load_symbols(elf_path, first=0, last=0xFFFFFFFF):
 
 
 class Overlay:
-    """A separately linked program the firmware loads into the high-RAM window on demand.
+    """A separately linked program the firmware loads into high RAM on demand.
 
-    Its addresses are shared with the other overlay and with decoder data, so a name in it
-    only counts while the window holds exactly the copy stored in the image.
+    Its addresses are shared with the other overlays and modules and with decoder data, so a
+    name in it only counts while the memory holds exactly the copy stored in the image.
     """
 
-    def __init__(self, image, elf_path, image_offset):
-        base = make_image.OVERLAY_BASE
+    def __init__(self, image, elf_path, image_offset, base=make_image.OVERLAY_BASE,
+                 capacity=make_image.OVERLAY_CAPACITY):
         content = make_image.elf_sections(Path(elf_path).read_bytes())[".overlay"].content
         header = make_image.OVERLAY_HEADER_SIZE
         self.base = base
         self.stored = image[image_offset:image_offset + len(content)]
         if len(content) <= header or self.stored[header:] != content[header:]:
             raise ValueError("the overlay ELF does not belong to the image")
-        self.symbols = load_symbols(elf_path, base, base + make_image.OVERLAY_CAPACITY)
+        self.image_offset = image_offset
+        self.name = Path(elf_path).stem
+        self.symbols = load_symbols(elf_path, base, base + capacity)
         self.names = {}
         for name, address in self.symbols.items():
             self.names.setdefault(address, name)
@@ -98,14 +100,33 @@ class Overlay:
                 and machine.read_memory(self.base, len(self.stored)) == self.stored)
 
 
+def module_overlay(image, offset, module_elfs):
+    for elf_path in module_elfs:
+        try:
+            return Overlay(image, elf_path, offset, make_image.MODULE_BASE,
+                           make_image.MODULE_CAPACITY)
+        except ValueError:
+            continue
+    raise ValueError("none of the module ELFs belongs to the module at %#x of the image" % offset)
+
+
+def module_overlays(image, module_elfs):
+    """The image's modules in the order of their numbers, each with the ELF it was built from."""
+    return [module_overlay(image, offset, module_elfs)
+            for offset, _ in make_image.modules_in(image)]
+
+
 class Machine:
-    def __init__(self, image, elf_path, card=None, usb_overlay_elf=None, rest_in_waits=True):
+    def __init__(self, image, elf_path, card=None, usb_overlay_elf=None, rest_in_waits=True,
+                 module_elfs=()):
         self.image = image
         self.elf_path = elf_path
         self.symbols = load_symbols(elf_path)
         self.overlays = []
         if usb_overlay_elf is not None:
             self.overlays.append(Overlay(image, usb_overlay_elf, make_image.USB_OVERLAY_OFFSET))
+        self.modules = module_overlays(image, module_elfs)
+        self.overlays += self.modules
         self.names = {}
         for name, address in self.symbols.items():
             self.names.setdefault(address, name)

@@ -555,6 +555,16 @@ class ModuleTest(unittest.TestCase):
         region = (f"MODULE_RAM (rw) : ORIGIN = 0x{make_image.MODULE_BASE:08X}, "
                   f"LENGTH = 0x{make_image.MODULE_CAPACITY:X}")
         self.assertIn(region, (device / "board" / "echo_device.ld").read_text())
+        script = (device / "overlay" / "screen_module.ld").read_text()
+        for name, access in (("MODULE_RAM", "rx"), ("MODULE_ZEROED", "rw")):
+            self.assertIn(f"{name} ({access}) : ORIGIN = 0x{make_image.MODULE_BASE:08X}, "
+                          f"LENGTH = 0x{make_image.MODULE_CAPACITY:X}", script)
+
+    def test_the_app_and_the_builder_give_a_module_the_same_magic(self):
+        source = TOOLS_DIRECTORY.parent / "src" / "app" / "screen_modules.h"
+        magic = int.from_bytes(make_image.MODULE_MAGIC + b"\x00", "little")
+        self.assertIn(f"(0x{magic:08X}u | (uint32_t)(module) << 24)", source.read_text())
+        self.assertEqual(b"DSM\x02", make_image.module_magic(2))
 
 
 if __name__ == "__main__":

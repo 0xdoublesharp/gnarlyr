@@ -94,7 +94,8 @@ static MenuItem music_item(AppScreens *screens, const LibraryStore *store, int i
         .unavailable = &screens->no_library.screen,
         .query = browse_root_query(entry->kind),
         .favorites = entry->source == MUSIC_FAVORITES,
-        .fixed = entry->source == MUSIC_COVER_FLOW ? &screens->cover_flow.screen : NULL,
+        .fixed =
+            entry->source == MUSIC_COVER_FLOW ? &screens->modules.views.cover_flow.screen : NULL,
         .shelf = SPOKEN_NONE,
         .present = true,
     };
@@ -117,16 +118,6 @@ static void build_music(AppScreens *screens, AppScreensContext context)
         .spoken = context.spoken,
     };
     browse_pool_init(&screens->browse, browse);
-    CoverFlowConfig cover_flow = {
-        .library = &context.store->library,
-        .theme = context.theme,
-        .covers = context.covers,
-        .favorites = context.favorites,
-        .toast = context.toast,
-        .browse = &screens->browse,
-        .player = context.player,
-    };
-    cover_flow_screen_init(&screens->cover_flow, cover_flow);
     for (int index = 0; index < MUSIC_ITEM_COUNT; index++) {
         screens->music_items[index] = music_item(screens, context.store, index);
     }
@@ -188,7 +179,8 @@ static void build_home(AppScreens *screens, AppScreensContext context)
     screens->home_items[4] = app_screens_open_item(STR_NOW_PLAYING, &screens->now_playing.screen);
     screens->home_items[4].shown = player_has_track;
     screens->home_items[4].shown_context = context.player;
-    screens->home_items[5] = app_screens_open_item(STR_UP_NEXT, &screens->up_next.screen);
+    screens->home_items[5] =
+        app_screens_open_item(STR_UP_NEXT, &screens->modules.views.up_next.screen);
     screens->home_items[5].shown = player_has_track;
     screens->home_items[5].shown_context = context.player;
     home_art_init(&screens->home_art, context.covers, context.store, context.player, theme);
@@ -210,14 +202,14 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
     MessageConfig no_library = {.title = i18n_text(STR_NO_LIBRARY),
                                 .message = i18n_text(STR_NO_LIBRARY_HINT),
                                 .theme = theme};
-    UpNextConfig up_next = {
-        .library = &context.store->library, .theme = theme, .player = context.player};
     NowPlayingConfig now_playing = {.player = context.player,
                                     .settings = &context.settings->settings,
                                     .library = &context.store->library,
                                     .theme = context.compact_theme,
                                     .covers = context.covers,
-                                    .up_next = up_next_screen_init(&screens->up_next, up_next)};
+                                    .up_next = &screens->modules.views.up_next.screen};
+    screens->context = context;
+    screens->bound_modules = 0;
     message_screen_init(&screens->no_library, no_library);
     bluetooth_screen_init(&screens->bluetooth, context.bluetooth, theme);
     now_playing_screen_init(&screens->now_playing, now_playing);

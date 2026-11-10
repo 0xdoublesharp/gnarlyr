@@ -13,6 +13,7 @@
 #include "home_art.h"
 #include "library_store.h"
 #include "player.h"
+#include "screen_modules.h"
 #include "screens/bluetooth_screen.h"
 #include "screens/cover_flow_screen.h"
 #include "screens/now_playing_screen.h"
@@ -77,31 +78,6 @@ typedef struct BrowseEntry {
     bool present;
 } BrowseEntry;
 
-typedef struct AppScreens {
-    MenuScreen home;
-    MenuScreen music;
-    SettingsScreens settings;
-    MenuScreen diagnostics;
-    MessageScreen no_library;
-    BrowsePool browse;
-    NowPlayingScreen now_playing;
-    UpNextScreen up_next;
-    CoverFlowScreen cover_flow;
-    BrowseEntry browse_entries[MUSIC_ITEM_COUNT];
-    BrowseEntry shelf_entries[SHELF_COUNT];
-    BluetoothScreen bluetooth;
-    ClockOption clock;
-    ToneOption tone;
-    LoopOption loop;
-    Core1Option core1;
-    Core1AccelOption core1_accel;
-    MenuItem home_items[HOME_ITEM_COUNT];
-    HomeArt home_art;
-    MenuItem music_items[MUSIC_ITEM_COUNT];
-    MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
-    HighRamOption high_ram;
-} AppScreens;
-
 typedef struct AppScreensContext {
     AppOptions *options;
     const Theme *theme;
@@ -119,6 +95,41 @@ typedef struct AppScreensContext {
     SpokenStore *spoken;
     BluetoothLink *bluetooth;
 } AppScreensContext;
+
+typedef struct ViewsModuleScreens {
+    CoverFlowScreen cover_flow;
+    UpNextScreen up_next;
+} ViewsModuleScreens;
+
+typedef struct AppModuleScreens {
+    ViewsModuleScreens views;
+} AppModuleScreens;
+
+typedef struct AppScreens {
+    AppScreensContext context;
+    uint32_t bound_modules;
+    MenuScreen home;
+    MenuScreen music;
+    SettingsScreens settings;
+    MenuScreen diagnostics;
+    MessageScreen no_library;
+    BrowsePool browse;
+    NowPlayingScreen now_playing;
+    BrowseEntry browse_entries[MUSIC_ITEM_COUNT];
+    BrowseEntry shelf_entries[SHELF_COUNT];
+    BluetoothScreen bluetooth;
+    ClockOption clock;
+    ToneOption tone;
+    LoopOption loop;
+    Core1Option core1;
+    Core1AccelOption core1_accel;
+    MenuItem home_items[HOME_ITEM_COUNT];
+    HomeArt home_art;
+    MenuItem music_items[MUSIC_ITEM_COUNT];
+    MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
+    HighRamOption high_ram;
+    AppModuleScreens modules;
+} AppScreens;
 
 Screen *app_screens_init(AppScreens *screens, AppScreensContext context);
 MenuItem app_screens_open_item(StringId label, Screen *target);

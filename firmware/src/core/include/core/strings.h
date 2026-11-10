@@ -243,6 +243,7 @@ typedef enum StringId {
     STR_SCAN_NO_ROOM,
     STR_SCAN_NO_CODE,
     STR_RESTART_TO_FINISH,
+    STR_SCREEN_MISSING,
     STR_USB,
     STR_USB_STARTING,
     STR_USB_EJECT_DRIVE,
@@ -272,4 +273,4 @@ typedef enum StringId {
     STRING_COUNT
 } StringId;
 
-#define STRINGS_HASH UINT32_C(0x07AD16B6)
+#define STRINGS_HASH UINT32_C(0xAF39314D)

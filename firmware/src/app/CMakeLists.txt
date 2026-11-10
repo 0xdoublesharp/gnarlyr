@@ -21,7 +21,9 @@ add_library(echo_app STATIC
     library_rescan.c
     music_check.c
     library_store.c
+    modules/views_module.c
     player.c
+    screen_modules.c
     settings_screens.c
     settings_store.c
     spoken_store.c
@@ -34,6 +36,9 @@ add_library(echo_app STATIC
 )
 if(NOT ECHO_RELEASE)
     target_sources(echo_app PRIVATE debug_loop.c debug_runner.c debug_screenshot.c)
+endif()
+if(NOT ECHO_BUILD_DEVICE)
+    target_sources(echo_app PRIVATE modules/linked_modules.c)
 endif()
 target_include_directories(echo_app PUBLIC include PRIVATE .)
 target_link_libraries(echo_app

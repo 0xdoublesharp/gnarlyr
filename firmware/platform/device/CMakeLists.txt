@@ -290,6 +290,65 @@ target_link_options(echo_usb_overlay PRIVATE
 )
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/screen_module.ld)
+set(ECHO_MODULE_IMPORTS ${CMAKE_CURRENT_BINARY_DIR}/module_imports.rsp)
+set(ECHO_MODULE_TARGETS "")
+set(ECHO_MODULE_OBJECT_TARGETS "")
+set(ECHO_MODULE_IMPORT_ARGUMENTS "")
+set(ECHO_MODULE_IMAGE_ARGUMENTS "")
+set(ECHO_MODULE_MAP_ARGUMENTS "")
+foreach(module IN LISTS ECHO_SCREEN_MODULES)
+    set(module_target echo_module_${module})
+    set(module_sources "")
+    set(module_includes "")
+    foreach(source IN LISTS ECHO_SCREEN_MODULE_SOURCES_${module})
+        echo_screen_module_owner(${source} owner name)
+        get_target_property(owner_directory ${owner} SOURCE_DIR)
+        list(APPEND module_sources ${PROJECT_SOURCE_DIR}/${source})
+        list(APPEND module_includes ${owner_directory})
+    endforeach()
+    list(REMOVE_DUPLICATES module_includes)
+    add_library(${module_target}_objects OBJECT ${module_sources})
+    target_include_directories(${module_target}_objects PRIVATE ${module_includes})
+    target_link_libraries(${module_target}_objects PRIVATE echo_app echo_options echo_compact)
+    add_executable(${module_target} $<TARGET_OBJECTS:${module_target}_objects>)
+    set_target_properties(${module_target} PROPERTIES
+        SUFFIX .elf
+        LINKER_LANGUAGE C
+        LINK_DEPENDS "${ECHO_MODULE_LINKER_SCRIPT};$<TARGET_FILE:echo_device>"
+    )
+    add_dependencies(${module_target} echo_device)
+    target_link_libraries(${module_target} PRIVATE gcc)
+    target_link_options(${module_target} PRIVATE
+        -fno-lto
+        -T${ECHO_MODULE_LINKER_SCRIPT}
+        -Wl,--just-symbols=$<TARGET_FILE:echo_device>
+        -Wl,--allow-multiple-definition
+        -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/${module_target}.map
+    )
+    list(APPEND ECHO_MODULE_TARGETS ${module_target})
+    list(APPEND ECHO_MODULE_OBJECT_TARGETS ${module_target}_objects)
+    list(APPEND ECHO_MODULE_IMPORT_ARGUMENTS
+        --module ${module} $<TARGET_OBJECTS:${module_target}_objects>)
+    list(APPEND ECHO_MODULE_IMAGE_ARGUMENTS --module $<TARGET_FILE:${module_target}>)
+    list(APPEND ECHO_MODULE_MAP_ARGUMENTS
+        --module-map ${module}=${CMAKE_CURRENT_BINARY_DIR}/${module_target}.map)
+endforeach()
+add_custom_target(echo_module_imports
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/module_imports.py
+        --nm ${CMAKE_NM}
+        --output ${ECHO_MODULE_IMPORTS}
+        ${ECHO_MODULE_IMPORT_ARGUMENTS}
+    BYPRODUCTS ${ECHO_MODULE_IMPORTS}
+    COMMAND_EXPAND_LISTS
+    VERBATIM
+)
+add_dependencies(echo_module_imports ${ECHO_MODULE_OBJECT_TARGETS})
+add_dependencies(echo_device echo_module_imports)
+target_link_options(echo_device PRIVATE -Wl,@${ECHO_MODULE_IMPORTS})
+set_property(TARGET echo_device APPEND PROPERTY LINK_DEPENDS ${ECHO_MODULE_IMPORTS})
+
 set(ECHO_DEVICE_IMAGE ${CMAKE_BINARY_DIR}/${FIRMWARE_UPDATE_FILE})
 set(ECHO_GLYPH_FACE_ARGUMENTS "")
 foreach(face_file ${ECHO_GLYPH_FACE_FILES})
@@ -310,11 +369,14 @@ add_custom_target(echo_device_image ALL
         --core1-m4a ${ECHO_CORE1_M4A_BINARY}
         ${ECHO_GLYPH_FACE_ARGUMENTS}
         ${ECHO_LANGUAGE_PACK_ARGUMENTS}
+        ${ECHO_MODULE_IMAGE_ARGUMENTS}
         --output ${ECHO_DEVICE_IMAGE}
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/size_report.py
         --build ${CMAKE_BINARY_DIR} --summary ${ECHO_LANGUAGE_PACK_ARGUMENTS}
+        ${ECHO_MODULE_MAP_ARGUMENTS}
     BYPRODUCTS ${ECHO_DEVICE_IMAGE}
-    DEPENDS echo_device echo_rescan_overlay echo_usb_overlay ${ECHO_CORE1_MP3_BINARY}
+    DEPENDS echo_device echo_rescan_overlay echo_usb_overlay ${ECHO_MODULE_TARGETS}
+        ${ECHO_CORE1_MP3_BINARY}
         ${ECHO_CORE1_BINARY}
         ${ECHO_CORE1_M4A_BINARY}
         ${ECHO_LANGUAGE_PACK_FILES}
@@ -328,8 +390,9 @@ add_dependencies(echo_device_image echo_language_packs)
 
 add_custom_target(echo_size_report
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/size_report.py
-        --build ${CMAKE_BINARY_DIR} ${ECHO_LANGUAGE_PACK_ARGUMENTS}
-    DEPENDS echo_device echo_rescan_overlay echo_usb_overlay echo_language_packs
+        --build ${CMAKE_BINARY_DIR} ${ECHO_LANGUAGE_PACK_ARGUMENTS} ${ECHO_MODULE_MAP_ARGUMENTS}
+    DEPENDS echo_device echo_rescan_overlay echo_usb_overlay ${ECHO_MODULE_TARGETS}
+        echo_language_packs
     VERBATIM
     USES_TERMINAL
 )

@@ -400,14 +400,31 @@ static bool opens_now_playing(KeyEvent event)
 
 static ScreenAction now_playing_action(void)
 {
-    return top_screen() == &app.screens.up_next.screen
+    return top_screen() == &app.screens.modules.views.up_next.screen
                ? screen_action_pop()
                : screen_action_push(&app.screens.now_playing.screen);
+}
+
+static bool screen_ready(const Screen *screen)
+{
+    ScreenModule module = screen_modules_of(&app.screens, screen);
+    return module == SCREEN_MODULE_NONE || screen_modules_use(&app.screens, module) != NULL;
+}
+
+static bool modules_agree(const Screen *first, const Screen *second)
+{
+    ScreenModule one = screen_modules_of(&app.screens, first);
+    ScreenModule other = screen_modules_of(&app.screens, second);
+    return one == SCREEN_MODULE_NONE || other == SCREEN_MODULE_NONE || one == other;
 }
 
 static void start_slide(Screen *leaving, int depth_before, uint32_t now_ms)
 {
     if (top_screen() == leaving) {
+        return;
+    }
+    app.slide.active = false;
+    if (!modules_agree(leaving, top_screen())) {
         return;
     }
     bool deeper = screen_stack_depth(&app.stack) > depth_before;
@@ -420,6 +437,62 @@ static bool slide_running(void)
     return app.slide.active && !slide_finished(&app.slide, app.now_ms);
 }
 
+static void explain_missing_screen(uint32_t now_ms)
+{
+    StringId text = hal_system_restart_pending() ? STR_RESTART_TO_FINISH : STR_SCREEN_MISSING;
+    toast_show(&app.toast, i18n_text(text), now_ms);
+}
+
+static void go_home(uint32_t now_ms)
+{
+    app.slide.active = false;
+    if (screen_stack_apply(&app.stack, screen_action_pop_to_root(), now_ms)) {
+        screen_changed();
+    }
+}
+
+static void settle_screens(uint32_t now_ms)
+{
+    if (!screen_ready(top_screen())) {
+        explain_missing_screen(now_ms);
+        go_home(now_ms);
+    }
+    if (slide_running() &&
+        (!modules_agree(app.leaving, top_screen()) || !screen_ready(app.leaving))) {
+        app.slide.active = false;
+    }
+}
+
+static Screen *next_top(ScreenAction action)
+{
+    switch (action.type) {
+    case SCREEN_ACTION_PUSH:
+    case SCREEN_ACTION_REPLACE:
+        return action.target;
+    case SCREEN_ACTION_POP:
+        return screen_stack_below_top(&app.stack);
+    case SCREEN_ACTION_POP_TO_ROOT:
+    case SCREEN_ACTION_NONE:
+        break;
+    }
+    return NULL;
+}
+
+static bool apply_action(ScreenAction action, uint32_t now_ms)
+{
+    Screen *next = next_top(action);
+    if (next == NULL || screen_ready(next)) {
+        return screen_stack_apply(&app.stack, action, now_ms);
+    }
+    explain_missing_screen(now_ms);
+    if (action.type == SCREEN_ACTION_POP) {
+        go_home(now_ms);
+    } else {
+        settle_screens(now_ms);
+    }
+    return false;
+}
+
 static void dispatch_to_screen(KeyEvent event, uint32_t now_ms)
 {
     Screen *screen = top_screen();
@@ -427,7 +500,7 @@ static void dispatch_to_screen(KeyEvent event, uint32_t now_ms)
     ScreenAction action = opens_now_playing(event)
                               ? now_playing_action()
                               : screen->handle_key(screen->context, event, now_ms);
-    if (screen_stack_apply(&app.stack, action, now_ms)) {
+    if (apply_action(action, now_ms)) {
         screen_changed();
         start_slide(screen, depth_before, now_ms);
     }
@@ -444,8 +517,7 @@ static bool may_show_now_playing(void)
 static void show_now_playing(uint32_t now_ms)
 {
     if (may_show_now_playing() &&
-        screen_stack_apply(&app.stack, screen_action_push(&app.screens.now_playing.screen),
-                           now_ms)) {
+        apply_action(screen_action_push(&app.screens.now_playing.screen), now_ms)) {
         screen_changed();
     }
 }
@@ -819,7 +891,7 @@ static void open_start_screen(uint32_t now_ms)
     Screen *path[START_PATH_CAPACITY];
     int count = app_screens_start_path(&app.screens, app.settings.settings.start_screen, path);
     for (int index = 0; index < count; index++) {
-        screen_stack_apply(&app.stack, screen_action_push(path[index]), now_ms);
+        apply_action(screen_action_push(path[index]), now_ms);
     }
 }
 
@@ -1191,6 +1263,7 @@ CORE_SEAM void app_step(void)
     app.now_ms = now_ms;
     hal_audio_service();
     hal_bluetooth_service();
+    settle_screens(now_ms);
     run_debug_script(now_ms);
     read_input();
     read_headset();
