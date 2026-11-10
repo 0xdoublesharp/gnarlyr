@@ -12,10 +12,14 @@
 #include "hal/audio.h"
 #include "home_art.h"
 #include "library_store.h"
+#include "listening_store.h"
+#include "mixtape_ui.h"
 #include "player.h"
 #include "screen_modules.h"
 #include "screens/bluetooth_screen.h"
 #include "screens/cover_flow_screen.h"
+#include "screens/listening_screen.h"
+#include "screens/lyrics_screen.h"
 #include "screens/now_playing_screen.h"
 #include "screens/up_next_screen.h"
 #include "settings/settings.h"
@@ -26,7 +30,7 @@
 #include "ui/toast.h"
 
 enum {
-    HOME_ITEM_COUNT = 6,
+    HOME_ITEM_COUNT = 8,
     SHELF_COUNT = 2,
     MUSIC_ITEM_COUNT = 9,
     DIAGNOSTICS_ITEM_COUNT = 15 + DEBUG_LOOP_ABOUT_ROWS,
@@ -94,11 +98,13 @@ typedef struct AppScreensContext {
     bool *language_requested;
     SpokenStore *spoken;
     BluetoothLink *bluetooth;
+    ListeningStore *listening;
 } AppScreensContext;
 
 typedef struct ViewsModuleScreens {
     CoverFlowScreen cover_flow;
     UpNextScreen up_next;
+    MixtapeUi mixtapes;
 } ViewsModuleScreens;
 
 typedef struct SettingsModuleScreens {
@@ -109,9 +115,15 @@ typedef struct SettingsModuleScreens {
     MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
 } SettingsModuleScreens;
 
+typedef struct ProfileModuleScreens {
+    ListeningScreen listening;
+    LyricsScreen lyrics;
+} ProfileModuleScreens;
+
 typedef struct AppModuleScreens {
     ViewsModuleScreens views;
     SettingsModuleScreens settings;
+    ProfileModuleScreens listening;
 } AppModuleScreens;
 
 typedef struct AppScreens {

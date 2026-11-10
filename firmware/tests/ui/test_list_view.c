@@ -311,10 +311,101 @@ static void a_portrait_detail_leaves_the_label_its_room(void)
     CHECK(ui_test_area_has_color(&canvas, detail, theme.colors.text_secondary));
 }
 
+static IconId fake_icon(const void *context, int index)
+{
+    (void)context;
+    (void)index;
+    return ICON_MIXTAPE;
+}
+
+static void optional_row_icons_use_the_themes_accent_ink(void)
+{
+    ListView view = list_of(2);
+    Theme theme = TEST_THEME;
+    theme.colors.accent = 0xF800;
+    view.theme = &theme;
+    model.icon = fake_icon;
+    Canvas canvas = ui_test_canvas();
+    list_view_draw(&view, &canvas, theme_content_area(&theme), 0);
+    Rect icon = {theme.metrics.padding, row_rect(1).y, TEST_ROW_HEIGHT, TEST_ROW_HEIGHT};
+    CHECK(ui_test_area_has_color(&canvas, icon, theme.colors.accent));
+}
+
+static void selected_icons_use_only_the_selected_text_ink(void)
+{
+    ListView view = list_of(2);
+    Theme theme = TEST_THEME;
+    theme.colors.accent = 0xF800;
+    view.theme = &theme;
+    model.icon = fake_icon;
+    Canvas canvas = ui_test_canvas();
+    list_view_draw(&view, &canvas, theme_content_area(&theme), 0);
+    Rect icon = {theme.metrics.padding, row_rect(0).y, TEST_ROW_HEIGHT, TEST_ROW_HEIGHT};
+    CHECK(ui_test_area_has_color(&canvas, icon, theme.colors.selection_text));
+    CHECK(!ui_test_area_has_color(&canvas, icon, theme.colors.accent));
+}
+
+static void a_long_detail_cannot_paint_over_the_icon(void)
+{
+    ListView view = list_of(2);
+    model.icon = fake_icon;
+    Canvas canvas = ui_test_canvas();
+    list_view_draw(&view, &canvas, theme_content_area(&TEST_THEME), 0);
+    Color before[TEST_ROW_HEIGHT * TEST_ROW_HEIGHT];
+    Rect icon = {TEST_THEME.metrics.padding, row_rect(1).y, TEST_ROW_HEIGHT, TEST_ROW_HEIGHT};
+    for (int y = 0; y < icon.height; y++) {
+        for (int x = 0; x < icon.width; x++) {
+            before[y * icon.width + x] = canvas_pixel_at(&canvas, icon.x + x, icon.y + y);
+        }
+    }
+    items.detail_at_one = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+    list_view_draw(&view, &canvas, theme_content_area(&TEST_THEME), 0);
+    for (int y = 0; y < icon.height; y++) {
+        for (int x = 0; x < icon.width; x++) {
+            CHECK_EQUAL(before[y * icon.width + x],
+                        canvas_pixel_at(&canvas, icon.x + x, icon.y + y));
+        }
+    }
+}
+
+static const char *long_label(const void *context, int index)
+{
+    (void)context;
+    (void)index;
+    return "ABABABABABABABABABABABABABABABABABAB";
+}
+
+static void a_marquee_cannot_scroll_text_through_the_icon(void)
+{
+    ListView view = list_of(2);
+    model.icon = fake_icon;
+    model.label = long_label;
+    Canvas canvas = ui_test_canvas();
+    list_view_draw(&view, &canvas, theme_content_area(&TEST_THEME), 0);
+    Color before[TEST_ROW_HEIGHT * TEST_ROW_HEIGHT];
+    Rect icon = {TEST_THEME.metrics.padding, row_rect(0).y, TEST_ROW_HEIGHT, TEST_ROW_HEIGHT};
+    for (int y = 0; y < icon.height; y++) {
+        for (int x = 0; x < icon.width; x++) {
+            before[y * icon.width + x] = canvas_pixel_at(&canvas, icon.x + x, icon.y + y);
+        }
+    }
+    list_view_draw(&view, &canvas, theme_content_area(&TEST_THEME), 5000);
+    for (int y = 0; y < icon.height; y++) {
+        for (int x = 0; x < icon.width; x++) {
+            CHECK_EQUAL(before[y * icon.width + x],
+                        canvas_pixel_at(&canvas, icon.x + x, icon.y + y));
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_new_list_selects_the_first_item),
+        TEST_CASE(optional_row_icons_use_the_themes_accent_ink),
+        TEST_CASE(selected_icons_use_only_the_selected_text_ink),
+        TEST_CASE(a_long_detail_cannot_paint_over_the_icon),
+        TEST_CASE(a_marquee_cannot_scroll_text_through_the_icon),
         TEST_CASE(fitting_taller_rows_keeps_the_selection_on_screen),
         TEST_CASE(fitting_shorter_rows_fills_the_screen_to_the_last_item),
         TEST_CASE(moving_within_the_page_keeps_the_top),

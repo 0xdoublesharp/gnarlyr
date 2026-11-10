@@ -242,3 +242,8 @@ void hal_dir_close(HalDir *dir)
     }
     dir->handle = -1;
 }
+
+bool hal_file_remove(const char *path)
+{
+    return mounted() && fat_delete(&volume, path);
+}

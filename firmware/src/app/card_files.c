@@ -11,7 +11,9 @@
 #include "hal/storage.h"
 #include "library_rescan.h"
 #include "library_store.h"
+#include "listening_store.h"
 #include "music_check.h"
+#include "playback/mix_catalog.h"
 #include "player.h"
 #include "settings_store.h"
 #include "spoken_store.h"
@@ -36,6 +38,11 @@ static const CardFile CARD_FILES[] = {
     {COVER_CACHE_PATH, COVERS_FILE_BYTES, false},
     {LIBRARY_SCRATCH_PATH, SCRATCH_FILE_BYTES, false},
     {SETTINGS_STORE_PATH, SMALL_FILE_BYTES, true},
+    {SETTINGS_BUTTONS_PATH, SETTINGS_BUTTONS_FILE_SIZE, true},
+    {PLAYER_SESSION_PATH, SMALL_FILE_BYTES, false},
+    {PLAYER_ORDER_PATH, TRACK_ORDER_FILE_BYTES, false},
+    {MIX_CATALOG_PATH, MIX_CATALOG_BYTES, false},
+    {LISTENING_LOG_PATH, LISTENING_LOG_FILE_BYTES, false},
     {EQUALIZER_SLOTS_PATH, SMALL_FILE_BYTES, true},
     {PLAYER_RESUME_PATH, SMALL_FILE_BYTES, false},
     {FAVORITES_STORE_PATH, SMALL_FILE_BYTES, false},

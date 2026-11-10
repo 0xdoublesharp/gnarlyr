@@ -7,7 +7,14 @@
 #include "library/music_fingerprint.h"
 #include "screen_modules.h"
 
-extern const ScreenModuleEntry VIEWS_MODULE_ENTRY;
+typedef struct ViewsModuleEntry {
+    ScreenModuleEntry module;
+    void (*cancel)(MixtapeUi *ui);
+    void (*step)(MixtapeUi *ui, uint32_t now_ms);
+} ViewsModuleEntry;
+
+extern const ViewsModuleEntry VIEWS_MODULE_ENTRY;
+extern const ScreenModuleEntry LISTENING_MODULE_ENTRY;
 
 typedef struct SettingsModuleEntry {
     ScreenModuleEntry module;

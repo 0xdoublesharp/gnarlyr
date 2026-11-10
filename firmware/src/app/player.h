@@ -9,6 +9,8 @@
 #include "library/library_browse.h"
 #include "playback/play_queue.h"
 #include "playback/up_next.h"
+#include "player_storage.h"
+#include "queue_edits.h"
 
 enum {
     PLAYER_DEFAULT_VOLUME = 13,
@@ -28,8 +30,20 @@ typedef enum PlayerUpNextResult {
     PLAYER_UP_NEXT_ADDED,
     PLAYER_UP_NEXT_STARTED,
     PLAYER_UP_NEXT_FULL,
-    PLAYER_UP_NEXT_FAILED
+    PLAYER_UP_NEXT_SAVE_FAILED,
+    PLAYER_UP_NEXT_CHANGED,
+    PLAYER_UP_NEXT_FAILED,
+    PLAYER_UP_NEXT_WORKING
 } PlayerUpNextResult;
+
+typedef enum PlayerQueueEditResult {
+    PLAYER_QUEUE_EDITED,
+    PLAYER_QUEUE_EDIT_INVALID,
+    PLAYER_QUEUE_EDIT_STALE,
+    PLAYER_QUEUE_EDIT_SAVE_FAILED,
+    PLAYER_QUEUE_EDIT_WORKING,
+    PLAYER_QUEUE_EDIT_CANCELLED
+} PlayerQueueEditResult;
 
 typedef enum PlayerNextSource {
     PLAYER_NEXT_FROM_QUEUE,
@@ -63,11 +77,33 @@ typedef struct PlayerListStart {
     bool in_order;
 } PlayerListStart;
 
+typedef struct PlayerQueueJob {
+    PlayQueueStream stream;
+    TrackOrder pending;
+    TrackOrderJob writer;
+    SessionState session;
+    TrackOrderEdit edit;
+    PlayerQueueEditResult result;
+    uint32_t serial;
+    uint16_t row;
+    uint16_t current;
+    uint16_t count;
+    uint8_t stage;
+    UpNextEdit action;
+    bool snapshot;
+    bool insert;
+    bool next;
+    bool resume;
+} PlayerQueueJob;
+
 typedef struct Player {
     const Library *library;
     uint32_t fingerprint;
     PlayQueue queue;
+    PlayerStorage storage;
+    PlayerQueueJob editing;
     UpNext up_next;
+    uint32_t up_next_revision;
     bool from_up_next;
     RepeatMode repeat;
     ShuffleMode shuffle;
@@ -111,8 +147,15 @@ void player_set_shuffle(Player *player, ShuffleMode shuffle, uint32_t seed);
 void player_set_repeat(Player *player, RepeatMode repeat);
 PlayerUpNextResult player_play_next(Player *player, uint16_t track);
 PlayerUpNextResult player_add_to_up_next(Player *player, uint16_t track);
+PlayerQueueEditResult player_edit_up_next(Player *player, uint32_t revision, uint16_t index,
+                                          UpNextEdit edit);
 bool player_jump_to_up_next(Player *player, uint16_t index);
 bool player_jump_to_queue(Player *player, PlayQueueCursor cursor);
+PlayerQueueEditResult player_edit_queue(Player *player, uint32_t revision, uint16_t row,
+                                        UpNextEdit edit);
+PlayerQueueEditResult player_snapshot_queue(Player *player);
+bool player_queue_busy(const Player *player);
+void player_queue_cancel(Player *player);
 void player_update(Player *player, uint32_t now_ms);
 void player_refusal_text(HalAudioRefusal refusal, char *text, size_t capacity);
 bool player_save(Player *player);

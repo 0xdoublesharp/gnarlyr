@@ -42,6 +42,38 @@ typedef enum AccentColor {
     ACCENT_GRAPHITE
 } AccentColor;
 
+typedef enum AppearanceTheme {
+    APPEARANCE_GRAPHITE,
+    APPEARANCE_NEON_NOIR,
+    APPEARANCE_SUNSET,
+    APPEARANCE_SEA_GLASS,
+    APPEARANCE_CLASSIC
+} AppearanceTheme;
+
+typedef enum ButtonAction {
+    BUTTON_ACTION_DEFAULT,
+    BUTTON_ACTION_NONE,
+    BUTTON_ACTION_PLAY_PAUSE,
+    BUTTON_ACTION_UP_NEXT,
+    BUTTON_ACTION_SEEK,
+    BUTTON_ACTION_NEXT,
+    BUTTON_ACTION_PREVIOUS,
+    BUTTON_ACTION_VOLUME_UP,
+    BUTTON_ACTION_VOLUME_DOWN,
+    BUTTON_ACTION_HOME
+} ButtonAction;
+
+typedef enum PlaybackButton {
+    PLAYBACK_VOLUME_UP_TAP,
+    PLAYBACK_VOLUME_UP_HOLD,
+    PLAYBACK_VOLUME_DOWN_TAP,
+    PLAYBACK_VOLUME_DOWN_HOLD,
+    PLAYBACK_PLAY_TAP,
+    PLAYBACK_PLAY_HOLD,
+    PLAYBACK_MENU_TAP,
+    PLAYBACK_MENU_HOLD
+} PlaybackButton;
+
 typedef enum EqualizerPreset {
     EQUALIZER_OFF,
     EQUALIZER_RETRO,
@@ -73,6 +105,10 @@ typedef enum Orientation {
 
 enum {
     GAIN_LEVEL_COUNT = GAIN_HIGH + 1,
+    APPEARANCE_THEME_COUNT = APPEARANCE_CLASSIC + 1,
+    BUTTON_ACTION_COUNT = BUTTON_ACTION_HOME + 1,
+    PLAYBACK_BUTTON_COUNT = PLAYBACK_MENU_HOLD + 1,
+    SETTINGS_BUTTONS_FILE_SIZE = 32,
     OUTPUT_JACK_COUNT = OUTPUT_BALANCED + 1,
     START_SCREEN_COUNT = START_COVER_FLOW + 1,
     USB_MODE_COUNT = USB_MODE_DAC + 1,
@@ -110,6 +146,8 @@ typedef struct Settings {
     UsbMode usb_mode;
     uint8_t dac_volume;
     AccentColor accent;
+    AppearanceTheme appearance;
+    uint8_t button_actions[PLAYBACK_BUTTON_COUNT];
     EqualizerPreset equalizer;
     int8_t equalizer_gains[SETTINGS_EQUALIZER_BANDS];
     TextSize text_size;
@@ -136,3 +174,8 @@ uint32_t settings_auto_off_ms(const Settings *settings);
 SettingsEqualizerCurve settings_equalizer_curve(const Settings *settings);
 void settings_encode(const Settings *settings, uint8_t *bytes);
 bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings);
+
+ButtonAction settings_default_button_action(PlaybackButton button);
+ButtonAction settings_button_action(const Settings *settings, PlaybackButton button);
+void settings_buttons_encode(const Settings *settings, uint8_t *bytes);
+bool settings_buttons_decode(const uint8_t *bytes, uint32_t length, Settings *settings);

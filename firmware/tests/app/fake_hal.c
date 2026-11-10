@@ -20,7 +20,7 @@
 
 enum {
     TRANSITION_CAPACITY = 16,
-    FILE_CAPACITY = 16,
+    FILE_CAPACITY = 64,
     PROBE_CALL_CAPACITY = 32,
     WRITTEN_CAPACITY = 1100,
     PATH_CAPACITY = 260,
@@ -64,14 +64,14 @@ typedef struct InternalFile {
 } InternalFile;
 
 typedef struct FakeFile {
-    const char *path;
+    char path[PATH_CAPACITY];
     const uint8_t *bytes;
     uint32_t size;
     uint32_t stored;
 } FakeFile;
 
 enum {
-    STORE_SLOTS = 4,
+    STORE_SLOTS = 12,
     STORE_CAPACITY = 512 * 1024
 };
 
@@ -101,6 +101,8 @@ typedef struct FakeHal {
     int next_headset;
     FakeFile files[FILE_CAPACITY];
     int file_count;
+    bool fail_music_writes;
+    const char *fail_file_writes;
     InternalFile internal[INTERNAL_CAPACITY];
     FakeAudio audio;
     WrittenFile written[FILE_CAPACITY];
@@ -209,7 +211,7 @@ static int language_reads;
 
 void fake_hal_reset(void)
 {
-    fake = (FakeHal){0};
+    fake = (FakeHal){.reserve_result = HAL_RESERVE_CREATED};
     eq_count = 0;
     language_file_count = 0;
     language_reads = 0;
@@ -252,10 +254,13 @@ void hal_system_coast(bool coast)
     (void)coast;
 }
 
+static void copy_path(char *target, const char *source);
+
 void fake_hal_add_file(const char *path, const uint8_t *bytes, uint32_t size)
 {
-    fake.files[fake.file_count++] =
-        (FakeFile){.path = path, .bytes = bytes, .size = size, .stored = size};
+    FakeFile *file = &fake.files[fake.file_count++];
+    *file = (FakeFile){.bytes = bytes, .size = size, .stored = size};
+    copy_path(file->path, path);
 }
 
 void fake_hal_set_milliseconds(uint32_t now_ms)
@@ -965,7 +970,9 @@ static void register_written(const char *path, uint32_t length)
 bool hal_file_write(const char *path, const void *bytes, uint32_t length)
 {
     WrittenFile *slot = written_slot(path);
-    if (slot == NULL || length > WRITTEN_CAPACITY) {
+    if (fake.fail_music_writes ||
+        (fake.fail_file_writes != NULL && strcmp(path, fake.fail_file_writes) == 0) ||
+        slot == NULL || length > WRITTEN_CAPACITY) {
         return false;
     }
     copy_path(slot->path, path);
@@ -1436,7 +1443,9 @@ static uint8_t *store_for(FakeFile *file)
 bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes, uint32_t length)
 {
     FakeFile *file = fake_file(path);
-    if (file == NULL || offset > file->size || length > file->size - offset) {
+    if (fake.fail_music_writes ||
+        (fake.fail_file_writes != NULL && strcmp(path, fake.fail_file_writes) == 0) ||
+        file == NULL || offset > file->size || length > file->size - offset) {
         return false;
     }
     uint8_t *store = store_for(file);
@@ -1661,4 +1670,30 @@ const uint8_t *fake_hal_internal_file_bytes(const char *path, uint32_t *size)
     InternalFile *file = internal_file(path);
     *size = file == NULL ? 0 : file->size;
     return file == NULL ? NULL : file->bytes;
+}
+
+bool hal_file_remove(const char *path)
+{
+    FakeFile *file = fake_file(path);
+    if (file == NULL || fake.fail_music_writes ||
+        (fake.fail_file_writes != NULL && strcmp(path, fake.fail_file_writes) == 0)) {
+        return false;
+    }
+    for (int slot = 0; slot < STORE_SLOTS; slot++) {
+        if (file->bytes == stores[slot]) {
+            fake.store_used[slot] = NULL;
+        }
+    }
+    *file = fake.files[--fake.file_count];
+    return true;
+}
+
+void fake_hal_fail_music_writes(bool fail)
+{
+    fake.fail_music_writes = fail;
+}
+
+void fake_hal_fail_file_writes(const char *path)
+{
+    fake.fail_file_writes = path;
 }

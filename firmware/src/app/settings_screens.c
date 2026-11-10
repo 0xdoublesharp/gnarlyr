@@ -30,6 +30,10 @@ static const char *const BRIGHTNESS_OPTIONS[BRIGHTNESS_LEVEL_COUNT] = {"1", "2",
 static const StringId ACCENT_OPTIONS[ACCENT_COLOR_COUNT] = {
     STR_COLOR_BLUE, STR_COLOR_RED,    STR_COLOR_ORANGE, STR_COLOR_GREEN,
     STR_COLOR_TEAL, STR_COLOR_PURPLE, STR_COLOR_PINK,   STR_COLOR_GRAPHITE};
+static const StringId THEME_OPTIONS[APPEARANCE_THEME_COUNT] = {
+    STR_THEME_GRAPHITE,  STR_THEME_NEON_NOIR, STR_THEME_SUNSET,
+    STR_THEME_SEA_GLASS, STR_THEME_CLASSIC,
+};
 static const StringId TEXT_SIZE_OPTIONS[TEXT_SIZE_COUNT] = {STR_SIZE_SMALL, STR_SIZE_MEDIUM,
                                                             STR_SIZE_LARGE};
 static const StringId ORIENTATION_OPTIONS[ORIENTATION_COUNT] = {STR_LANDSCAPE, STR_PORTRAIT,
@@ -186,6 +190,20 @@ static void choose_accent(void *context, int index)
 {
     editable_settings(context)->accent = (AccentColor)index;
     save(context);
+}
+
+static int current_appearance(const void *context)
+{
+    return (int)settings_of(context)->appearance;
+}
+
+static void choose_appearance(void *context, int index)
+{
+    SettingsContext *settings = context;
+    editable_settings(context)->appearance = (AppearanceTheme)index;
+    default_theme_set_appearance(settings->theme, (AppearanceTheme)index);
+    default_theme_set_accent(settings->theme, settings_of(context)->accent);
+    save(settings);
 }
 
 static int current_text_size(const void *context)
@@ -459,6 +477,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      choose_equalizer, describe_equalizer, extend_equalizer},
     {STR_START_SCREEN, START_OPTIONS, START_SCREEN_COUNT, current_start, choose_start, NULL, NULL},
     {STR_USB_MODE, USB_MODE_OPTIONS, USB_MODE_COUNT, current_usb_mode, choose_usb_mode, NULL, NULL},
+    {STR_THEME, THEME_OPTIONS, APPEARANCE_THEME_COUNT, current_appearance, choose_appearance, NULL,
+     NULL},
 };
 
 static ScreenAction open_choice(void *context)
@@ -525,7 +545,7 @@ bool settings_screens_choose(SettingsScreens *screens, DebugSpan title, DebugSpa
             return true;
         }
     }
-    return false;
+    return button_settings_choose(&screens->buttons, title, option);
 }
 
 static ScreenAction request_rescan(void *context)
@@ -537,6 +557,11 @@ static ScreenAction request_rescan(void *context)
     return screen_action_none();
 }
 
+static void buttons_changed(void *context)
+{
+    save(context);
+}
+
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context, const Theme *theme)
 {
     screens->context = context;
@@ -545,6 +570,15 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
     screens->theme = theme;
     equalizer_presets_read_slots(&screens->presets);
     language_list(&screens->languages);
+    ButtonSettingsConfig buttons = {.settings = &screens->context.store->settings,
+                                    .theme = theme,
+                                    .changed = buttons_changed,
+                                    .context = &screens->context};
+    Screen *controls = button_settings_init(&screens->buttons, buttons);
+    screens->items[SETTINGS_CONTROLS_ITEM] = (MenuItem){.label = i18n_text(STR_CONTROLS),
+                                                        .select = menu_open_screen,
+                                                        .context = controls,
+                                                        .opens = true};
     screens->items[SETTINGS_RESCAN_ITEM] = (MenuItem){.label = i18n_text(STR_RESCAN_LIBRARY),
                                                       .select = request_rescan,
                                                       .context = &screens->context};
@@ -574,6 +608,7 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
     MenuConfig menu = {.title = i18n_text(STR_SETTINGS),
                        .items = screens->items,
                        .item_count = SETTINGS_ITEM_COUNT,
-                       .theme = theme};
+                       .theme = theme,
+                       .detail_below = true};
     return menu_screen_init(&screens->menu, menu);
 }

@@ -15,6 +15,7 @@ typedef struct MenuItem {
     bool opens;
     bool (*shown)(const void *context);
     const void *shown_context;
+    IconId icon;
 } MenuItem;
 
 typedef struct MenuPanel {
@@ -31,6 +32,7 @@ typedef struct MenuConfig {
     int item_count;
     const Theme *theme;
     MenuPanel panel;
+    bool detail_below;
 } MenuConfig;
 
 typedef struct MenuScreen {

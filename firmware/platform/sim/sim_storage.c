@@ -297,3 +297,10 @@ void hal_dir_close(HalDir *dir)
     }
     dir->handle = -1;
 }
+
+bool hal_file_remove(const char *path)
+{
+    char resolved[PATH_CAPACITY];
+    return is_system_path(path) && sim_storage_host_path(path, resolved, sizeof resolved) &&
+           remove(resolved) == 0;
+}

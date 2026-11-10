@@ -21,7 +21,7 @@ enum {
     HALF_DB_GAINS_FIELD = 28,
     HALF_DB_CHECKSUM_FIELD = 38,
     HALF_DB_VERSION = 11,
-    CURRENT_VERSION = 12,
+    CURRENT_VERSION = 13,
     LANGUAGE_VERSION = 12,
     LANGUAGE_FIELD = 19,
     ACCENT_VERSION = 5,
@@ -796,10 +796,70 @@ static void out_of_range_values_are_rejected(void)
     CHECK(!settings_decode(bytes, sizeof bytes, &settings));
 }
 
+static void the_theme_version_keeps_the_existing_file_size(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[VERSION_FIELD] = 13;
+    bytes[27] = 1;
+    rewrite_checksum(bytes);
+    CHECK(settings_decode(bytes, sizeof bytes, &settings));
+    CHECK_EQUAL(42, sizeof bytes);
+}
+
+static void a_theme_survives_saving_without_moving_existing_settings(void)
+{
+    Settings settings = custom_settings();
+    settings.appearance = APPEARANCE_SUNSET;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(APPEARANCE_SUNSET, bytes[27]);
+    CHECK(settings_decode(bytes, sizeof bytes, &settings));
+    CHECK_EQUAL(APPEARANCE_SUNSET, settings.appearance);
+    CHECK_EQUAL(42, settings.volume);
+    bytes[27] = APPEARANCE_THEME_COUNT;
+    rewrite_checksum(bytes);
+    CHECK(!settings_decode(bytes, sizeof bytes, &settings));
+}
+
+static void a_previous_version_uses_the_default_theme(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[VERSION_FIELD] = 12;
+    bytes[27] = 255;
+    rewrite_checksum(bytes);
+    CHECK(settings_decode(bytes, sizeof bytes, &settings));
+    CHECK_EQUAL(APPEARANCE_NEON_NOIR, settings.appearance);
+}
+
+static void button_maps_survive_a_separate_bounded_record(void)
+{
+    Settings settings = custom_settings();
+    settings.button_actions[PLAYBACK_PLAY_HOLD] = BUTTON_ACTION_UP_NEXT;
+    uint8_t bytes[SETTINGS_BUTTONS_FILE_SIZE];
+    settings_buttons_encode(&settings, bytes);
+    Settings loaded = settings_defaults();
+    CHECK(settings_buttons_decode(bytes, sizeof bytes, &loaded));
+    CHECK_EQUAL(BUTTON_ACTION_UP_NEXT, settings_button_action(&loaded, PLAYBACK_PLAY_HOLD));
+    CHECK_EQUAL(BUTTON_ACTION_DEFAULT, settings_button_action(&loaded, PLAYBACK_PLAY_TAP));
+    CHECK(!settings_buttons_decode(bytes, sizeof bytes - 1, &loaded));
+    bytes[8] = BUTTON_ACTION_COUNT;
+    hash_store(bytes + 28, hash_update(HASH_START, bytes, 28));
+    CHECK(!settings_buttons_decode(bytes, sizeof bytes, &loaded));
+    CHECK_EQUAL(BUTTON_ACTION_UP_NEXT, settings_button_action(&loaded, PLAYBACK_PLAY_HOLD));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(defaults_are_comfortable),
+        TEST_CASE(the_theme_version_keeps_the_existing_file_size),
+        TEST_CASE(a_theme_survives_saving_without_moving_existing_settings),
+        TEST_CASE(a_previous_version_uses_the_default_theme),
+        TEST_CASE(button_maps_survive_a_separate_bounded_record),
         TEST_CASE(timeout_options_end_with_never),
         TEST_CASE(sleep_options_start_with_off),
         TEST_CASE(settings_survive_a_round_trip),

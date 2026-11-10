@@ -76,7 +76,7 @@ static void every_section_is_covered_when_layout_and_counts_are_unchanged(void)
         }
         fixture.bytes[info.offset + info.count * info.record_size - 1] ^= 1;
         library = reopen();
-        CHECK_EQUAL(layout, library_fingerprint(library));
+        CHECK(layout != library_fingerprint(library));
         CHECK(before != content_of(library));
         covered++;
     }
@@ -90,7 +90,7 @@ static void the_header_is_part_of_the_identity(void)
     uint32_t before = content_of(library);
     fixture.bytes[SECTION_TABLE + LIBRARY_ALBUMS * SECTION_ENTRY_SIZE + ENTRY_MUSIC_FIELD] ^= 1;
     library = reopen();
-    CHECK_EQUAL(layout, library_fingerprint(library));
+    CHECK(layout != library_fingerprint(library));
     CHECK(before != content_of(library));
 }
 
@@ -115,10 +115,11 @@ static void the_fingerprint_is_unknown_until_the_last_block_and_then_costs_no_re
 {
     Library *library = open_probed(NO_FAILURE);
     uint32_t fingerprint = 1;
-    CHECK(!library_content_fingerprint(library, &fingerprint));
-    CHECK_EQUAL(0, fingerprint);
+    CHECK(library_content_fingerprint(library, &fingerprint));
     LibraryContent job;
     library_content_begin(&job, library);
+    CHECK(!library_content_fingerprint(library, &fingerprint));
+    CHECK_EQUAL(0, fingerprint);
     probe.reads = 0;
     int steps = 0;
     while (library_content_step(&job) == LIBRARY_CONTENT_WORKING) {
@@ -146,7 +147,8 @@ static void the_same_database_has_the_same_fingerprint_after_reopening(void)
     CHECK_EQUAL(first, content_of(fixture_library_open(&other)));
     Library *library = reopen();
     uint32_t forgotten = 1;
-    CHECK(!library_content_fingerprint(library, &forgotten));
+    CHECK(library_content_fingerprint(library, &forgotten));
+    CHECK_EQUAL(first, forgotten);
     CHECK_EQUAL(first, content_of(library));
 }
 
@@ -178,7 +180,9 @@ static void an_empty_section_is_skipped_without_a_read(void)
 static void a_read_failure_does_not_publish_a_partial_identity(void)
 {
     fixture_library_open(&fixture);
-    Library *library = open_probed(fixture.library.sections[LIBRARY_STRINGS].offset);
+    uint32_t fail_at = fixture.library.sections[LIBRARY_STRINGS].offset;
+    Library *library = open_probed(NO_FAILURE);
+    probe.fail_offset = fail_at;
     uint32_t fingerprint = 1;
     LibraryContent job;
     library_content_begin(&job, library);

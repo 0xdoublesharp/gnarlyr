@@ -1,14 +1,16 @@
-# FreshBase
+# Gnarlyr
 
-FreshBase is firmware for the full-size Snowsky (FiiO) Echo player (480×222). It started from the Podium 4.5.9 source archive, which is a fork of EchoPod, the Echo Mini firmware (`UPSTREAM.md`, `CREDITS.md`). The same portable C app runs in a desktop simulator and on the player. The Echo is the only board.
+Gnarlyr is firmware for the full-size Snowsky (FiiO) Echo player (480×222). It started from the Podium 4.5.9 source archive, which is a fork of EchoPod, the Echo Mini firmware (`UPSTREAM.md`, `CREDITS.md`). The same portable C app runs in a desktop simulator and on the player. The Echo is the only board.
 
-FreshBase 1.0.0 is not released and has not run on a player. The repository and device rules are in `../AGENTS.md`.
+Gnarlyr 1.0.0 is not released. The repository and device rules are in `../AGENTS.md`.
 
 ## Identity
 
-`identity.json` is the single source for `name` ("FreshBase": the USB product name and the start-up splash), `short_name` ("FreshBase" too: the Home title, and the splash where the name is too wide), `manufacturer` ("Doublesharp": the USB manufacturer name), `id` ("FRSHBS": the image brand, padded with zero bytes to its 8 bytes, and the USB storage vendor, padded with spaces to its 8 characters), the version, `data_directory` (`.freshbase`), `update_file` (`FRSHBS.IMG`) and `playlist_start_directive` (`FRESHBASE-START`). The build, the C code and the tools read it. Never write a name, the identifier or the version anywhere else in code or tests; change the file. C reads the `FIRMWARE_*` definitions, the firmware's Python tools read `tools/identity.py`, and the root tools read `echo_debug.IDENTITY`. The `no_identity_literals` test (`tools/check_identity_literals.py`) and the root test `tests/test_identity_literals.py` fail when a source file spells one of these names, or a former identifier listed in `former_ids`, outside `identity.json` and the generated fixtures. In documents, write FreshBase.
+`identity.json` is the single source for `name` ("Gnarlyr": the USB product name and the start-up splash), `short_name` ("Gnarlyr" too: the Home title, and the splash where the name is too wide), `manufacturer` ("Doublesharp": the USB manufacturer name), `id` ("FRSHBS": the image brand, padded with zero bytes to its 8 bytes, and the USB storage vendor, padded with spaces to its 8 characters), the version, `data_directory` (`.freshbase`), `update_file` (`FRSHBS.IMG`) and `playlist_start_directive` (`FRESHBASE-START`). The build, the C code and the tools read it. Never write a name, the identifier or the version anywhere else in code or tests; change the file. C reads the `FIRMWARE_*` definitions, the firmware's Python tools read `tools/identity.py`, and the root tools read `echo_debug.IDENTITY`. The `no_identity_literals` test (`tools/check_identity_literals.py`) and the root test `tests/test_identity_literals.py` fail when a source file spells one of these names, or a former identifier listed in `former_ids`, outside `identity.json` and the generated fixtures. In documents, write Gnarlyr.
 
 The firmware was called Doublesharp Echo (`DBLSHARP`, `/.doublesharp/`, `DBLSHARP.IMG`, `#DOUBLESHARP-START:`) until it was renamed; nothing reads those names any more (`docs/release-notes.md`). Doublesharp is still the maker: the four-byte file markers that start with `DS` are format tags named for the maker and did not change. Leave the old name where a document records what happened under it.
+
+The internal brand `FRSHBS`, update filename and `.freshbase` data folder remain stable across the display-name change, so existing settings and library data stay usable. These are storage/protocol identifiers.
 
 ## Layout
 
@@ -72,15 +74,16 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 127,040 | 157,292 | 30,252 |
-| Static RAM | 257,476 | 287,296 | 29,820 |
+| Code window | 147,620 | 157,292 | 9,672 |
+| Static RAM | 262,756 | 287,296 | 24,540 |
 | Rescan overlay | 88,404 | 98,304 | 9,900 |
-| USB overlay code | 12,852 | 65,536 | 52,684 |
-| Module views (code + BSS) | 8,956 | 56,320 | 47,364 |
-| Module settings (code + BSS) | 9,780 | 56,320 | 46,540 |
+| USB overlay code | 11,288 | 65,536 | 54,248 |
+| Module views (code + BSS) | 14,888 | 56,320 | 41,432 |
+| Module settings (code + BSS) | 10,476 | 56,320 | 45,844 |
 | Module library (code + BSS) | 4,076 | 56,320 | 52,244 |
+| Module listening (code + BSS) | 17,792 | 56,320 | 38,528 |
 | Decoder workspace | 41,644 | 41,984 | 340 |
-| Language pack (English) | 4,613 | 8,192 | 3,579 |
+| Language pack (English) | 6,057 | 16,384 | 10,327 |
 
 - Keep at least 8 KB free in the release code window after each stage of the plan. Read the report after any change to device code and update these numbers and the ones in `docs/architecture.md` when they move.
 - The core 0 link uses link-time optimisation. Libraries shared with core 1 or the rescan overlay stay out of it.
@@ -139,7 +142,7 @@ Only after the owner approved it for this session.
   ```
 
 - Slot files, read-backs and logs go under `/Volumes/Scratch/SnowskyEcho`, never in the repo. The original device backup stays under `.local/device-backups` in the main checkout.
-- Internal storage mounts as `/Volumes/ECHO`. An update is copied with `cp -X` (no `._` files) to the drive's top level as `FRSHBS.IMG`, then `diskutil eject /Volumes/ECHO`; the updater runs once the USB session ends. This route is not yet proven on a player for FreshBase (`docs/known-issues.md`).
+- Internal storage mounts as `/Volumes/ECHO`. An update is copied with `cp -X` (no `._` files) to the drive's top level as `FRSHBS.IMG`, then `diskutil eject /Volumes/ECHO`; the updater runs once the USB session ends. This route is not yet proven on a player for Gnarlyr (`docs/known-issues.md`).
 
 ## Releasing
 

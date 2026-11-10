@@ -10,6 +10,7 @@ const void *app_linked_module(uint32_t module)
         [SCREEN_MODULE_VIEWS] = &VIEWS_MODULE_ENTRY,
         [SCREEN_MODULE_SETTINGS] = &SETTINGS_MODULE_ENTRY,
         [SCREEN_MODULE_LIBRARY] = &LIBRARY_MODULE_ENTRY,
+        [SCREEN_MODULE_LISTENING] = &LISTENING_MODULE_ENTRY,
     };
     return module < SCREEN_MODULE_COUNT ? ENTRIES[module] : NULL;
 }

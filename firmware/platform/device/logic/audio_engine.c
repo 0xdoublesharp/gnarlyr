@@ -193,8 +193,18 @@ bool audio_engine_play(AudioEngine *engine, const AudioEngineTrack *track, uint3
     return start_track(engine, track, track->start_ms + offset_ms);
 }
 
+bool audio_engine_queue_needs_restart(const AudioEngine *engine)
+{
+    return engine->state != AUDIO_ENGINE_STOPPED &&
+           (engine->segment_count > 1 || engine->rate_pending || engine->ended);
+}
+
 void audio_engine_queue_next(AudioEngine *engine, const AudioEngineTrack *track)
 {
+    if (audio_engine_queue_needs_restart(engine) &&
+        !audio_engine_seek(engine, audio_engine_status(engine).position_ms)) {
+        return;
+    }
     engine->has_next = track != NULL;
     if (track != NULL) {
         engine->next_token = track->token;

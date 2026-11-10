@@ -1,5 +1,18 @@
 add_library(echo_app STATIC
     app.c
+    cassette_art.c
+    modules/listening_module.c
+    screens/listening_screen.c
+    screens/lyrics_screen.c
+    player_storage.c
+    player_queue.c
+    queue_edits.c
+    mixtape_store.c
+    mixtape_ui.c
+    mixtape_screen.c
+    button_settings.c
+    theme_palette.c
+    listening_store.c
     card_files.c
     app_screens.c
     bluetooth_link.c
@@ -8,6 +21,7 @@ add_library(echo_app STATIC
     browse_screen.c
     cover_cache.c
     default_theme.c
+    default_theme_metrics.c
     favorite_playlist.c
     favorites_store.c
     diagnostics_values.c

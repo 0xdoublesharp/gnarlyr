@@ -5,7 +5,8 @@
 #include "settings/equalizer_fit.h"
 
 enum {
-    VERSION = 12,
+    VERSION = 13,
+    APPEARANCE_VERSION = 13,
     LANGUAGE_VERSION = 12,
     HALF_DB_VERSION = 11,
     ORIENTATION_VERSION = 10,
@@ -49,6 +50,7 @@ enum {
     TEXT_SIZE_FIELD = 24,
     SKIP_GESTURE_FIELD = 25,
     ORIENTATION_FIELD = 26,
+    APPEARANCE_FIELD = 27,
     CHECKSUM_SIZE = 4,
     CURVE_FREQUENCIES = 7,
     HUNDRED = 100,
@@ -88,6 +90,7 @@ Settings settings_defaults(void)
         .usb_mode = USB_MODE_STORAGE,
         .dac_volume = SETTINGS_DEFAULT_DAC_VOLUME,
         .accent = ACCENT_BLUE,
+        .appearance = APPEARANCE_NEON_NOIR,
         .equalizer = EQUALIZER_OFF,
         .text_size = TEXT_SIZE_MEDIUM,
         .skip_gesture = SKIP_GESTURE_HOLD,
@@ -200,6 +203,7 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
     bytes[TEXT_SIZE_FIELD] = (uint8_t)settings->text_size;
     bytes[SKIP_GESTURE_FIELD] = (uint8_t)settings->skip_gesture;
     bytes[ORIENTATION_FIELD] = (uint8_t)settings->orientation;
+    bytes[APPEARANCE_FIELD] = (uint8_t)settings->appearance;
     for (int index = 0; index < SETTINGS_LANGUAGE_LENGTH && settings->language[index] != '\0';
          index++) {
         bytes[LANGUAGE_FIELD + index] = (uint8_t)settings->language[index];
@@ -349,6 +353,8 @@ bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
     if (length < HEADER_SIZE || !header_valid(bytes, length) || !values_valid(bytes) ||
         !equalizer_valid(bytes) || !text_size_valid(bytes) || !skip_gesture_valid(bytes) ||
         !orientation_valid(bytes) ||
+        (bytes[VERSION_FIELD] >= APPEARANCE_VERSION &&
+         bytes[APPEARANCE_FIELD] >= APPEARANCE_THEME_COUNT) ||
         (bytes[VERSION_FIELD] >= LANGUAGE_VERSION && !language_valid(bytes))) {
         return false;
     }
@@ -381,6 +387,56 @@ bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
     settings->orientation = bytes[VERSION_FIELD] < ORIENTATION_VERSION
                                 ? ORIENTATION_LANDSCAPE
                                 : (Orientation)bytes[ORIENTATION_FIELD];
+    settings->appearance = bytes[VERSION_FIELD] < APPEARANCE_VERSION
+                               ? APPEARANCE_NEON_NOIR
+                               : (AppearanceTheme)bytes[APPEARANCE_FIELD];
     decode_language(bytes, settings);
+    return true;
+}
+
+ButtonAction settings_default_button_action(PlaybackButton button)
+{
+    (void)button;
+    return BUTTON_ACTION_DEFAULT;
+}
+
+ButtonAction settings_button_action(const Settings *settings, PlaybackButton button)
+{
+    if ((unsigned)button >= PLAYBACK_BUTTON_COUNT ||
+        settings->button_actions[button] >= BUTTON_ACTION_COUNT) {
+        return BUTTON_ACTION_DEFAULT;
+    }
+    return (ButtonAction)settings->button_actions[button];
+}
+
+void settings_buttons_encode(const Settings *settings, uint8_t *bytes)
+{
+    static const uint8_t magic[] = {'D', 'S', 'B', 'T'};
+    for (int index = 0; index < SETTINGS_BUTTONS_FILE_SIZE; index++) {
+        bytes[index] = index < 4 ? magic[index] : 0;
+    }
+    bytes[4] = 1;
+    bytes[5] = PLAYBACK_BUTTON_COUNT;
+    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
+        bytes[8 + index] = (uint8_t)settings_button_action(settings, (PlaybackButton)index);
+    }
+    hash_store(bytes + 28, hash_update(HASH_START, bytes, 28));
+}
+
+bool settings_buttons_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
+{
+    if (length != SETTINGS_BUTTONS_FILE_SIZE || bytes[0] != 'D' || bytes[1] != 'S' ||
+        bytes[2] != 'B' || bytes[3] != 'T' || bytes[4] != 1 || bytes[5] != PLAYBACK_BUTTON_COUNT ||
+        hash_load(bytes + 28) != hash_update(HASH_START, bytes, 28)) {
+        return false;
+    }
+    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
+        if (bytes[8 + index] >= BUTTON_ACTION_COUNT) {
+            return false;
+        }
+    }
+    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
+        settings->button_actions[index] = bytes[8 + index];
+    }
     return true;
 }

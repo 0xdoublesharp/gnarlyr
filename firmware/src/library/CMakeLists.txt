@@ -1,6 +1,7 @@
 add_library(echo_library STATIC
     block_cache.c
     covers.c
+    lyrics.c
     favorites.c
     library.c
     library_browse.c

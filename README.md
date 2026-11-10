@@ -1,8 +1,8 @@
-# FreshBase
+# Gnarlyr
 
 Firmware for the full-size SNOWSKY (FiiO) ECHO music player, and the tools used to study FiiO's stock firmware for it.
 
-FreshBase builds on [Podium](https://podium-echo.online) and, through it, on [EchoPod](https://github.com/BasilSkyWalk/echopod). Both are GPL-3.0-or-later; credits and provenance are in [`firmware/CREDITS.md`](firmware/CREDITS.md) and [`firmware/UPSTREAM.md`](firmware/UPSTREAM.md). Snowsky, FiiO and Echo are names of their owners; this project is not made, endorsed or supported by FiiO.
+Gnarlyr builds on [Podium](https://podium-echo.online) and, through it, on [EchoPod](https://github.com/BasilSkyWalk/echopod). Both are GPL-3.0-or-later; credits and provenance are in [`firmware/CREDITS.md`](firmware/CREDITS.md) and [`firmware/UPSTREAM.md`](firmware/UPSTREAM.md). Snowsky, FiiO and Echo are names of their owners; this project is not made, endorsed or supported by FiiO.
 
 ## Layout
 

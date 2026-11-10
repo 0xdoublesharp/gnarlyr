@@ -128,3 +128,6 @@ HalAudioEqualizer fake_hal_audio_equalizer(void);
 int fake_hal_usb_mode(void);
 int fake_hal_dac_volume(void);
 const uint8_t *fake_hal_file_bytes(const char *path, uint32_t *size);
+
+void fake_hal_fail_music_writes(bool fail);
+void fake_hal_fail_file_writes(const char *path);

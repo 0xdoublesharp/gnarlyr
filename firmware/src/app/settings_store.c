@@ -6,6 +6,7 @@
 #include "hal/system.h"
 
 const char SETTINGS_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/settings.bin";
+const char SETTINGS_BUTTONS_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/buttons.bin";
 
 static const HalAudioGain HAL_GAINS[GAIN_LEVEL_COUNT] = {HAL_AUDIO_GAIN_LOW, HAL_AUDIO_GAIN_HIGH};
 static const HalAudioOutput HAL_OUTPUTS[OUTPUT_JACK_COUNT] = {
@@ -38,9 +39,9 @@ static bool read_valid(uint8_t *bytes, Settings *settings, bool internal)
     return false;
 }
 
-static bool same_bytes(const uint8_t *first, const uint8_t *second)
+static bool same_bytes(const uint8_t *first, const uint8_t *second, uint32_t length)
 {
-    for (int index = 0; index < SETTINGS_FILE_SIZE; index++) {
+    for (uint32_t index = 0; index < length; index++) {
         if (first[index] != second[index]) {
             return false;
         }
@@ -60,28 +61,50 @@ void settings_store_load(SettingsStore *store)
 {
     uint8_t bytes[SETTINGS_FILE_SIZE] = {0};
     store->has_saved = false;
+    store->has_saved_buttons = false;
     if (read_valid(bytes, &store->settings, true)) {
         remember(store, bytes);
-        return;
+    } else if (!read_valid(bytes, &store->settings, false)) {
+        store->settings = settings_defaults();
     }
-    if (read_valid(bytes, &store->settings, false)) {
-        return;
+    uint8_t buttons[SETTINGS_BUTTONS_FILE_SIZE];
+    if (hal_internal_file_read(SETTINGS_BUTTONS_PATH, buttons, sizeof buttons) &&
+        settings_buttons_decode(buttons, sizeof buttons, &store->settings)) {
+        for (int index = 0; index < SETTINGS_BUTTONS_FILE_SIZE; index++) {
+            store->saved_buttons[index] = buttons[index];
+        }
+        store->has_saved_buttons = true;
     }
-    store->settings = settings_defaults();
+}
+
+static bool save_buttons(SettingsStore *store)
+{
+    uint8_t bytes[SETTINGS_BUTTONS_FILE_SIZE];
+    settings_buttons_encode(&store->settings, bytes);
+    if (store->has_saved_buttons && same_bytes(bytes, store->saved_buttons, sizeof bytes)) {
+        return true;
+    }
+    if (!hal_internal_file_write(SETTINGS_BUTTONS_PATH, bytes, sizeof bytes)) {
+        return false;
+    }
+    for (int index = 0; index < SETTINGS_BUTTONS_FILE_SIZE; index++) {
+        store->saved_buttons[index] = bytes[index];
+    }
+    store->has_saved_buttons = true;
+    return true;
 }
 
 bool settings_store_save(SettingsStore *store)
 {
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&store->settings, bytes);
-    if (store->has_saved && same_bytes(bytes, store->saved)) {
-        return true;
+    if (!store->has_saved || !same_bytes(bytes, store->saved, sizeof bytes)) {
+        if (!hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes)) {
+            return false;
+        }
+        remember(store, bytes);
     }
-    if (!hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes)) {
-        return false;
-    }
-    remember(store, bytes);
-    return true;
+    return save_buttons(store);
 }
 
 void settings_store_capture(SettingsStore *store, PlayerStatus playback)

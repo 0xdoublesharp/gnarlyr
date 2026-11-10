@@ -99,6 +99,8 @@ typedef struct AppState {
     ScreenStack stack;
     LibraryStore library;
     Player player;
+    ListeningStore listening;
+    bool listening_loaded;
     SettingsStore settings;
     Theme theme;
     Orientation shown_orientation;
@@ -281,8 +283,55 @@ static void save_settings(void)
     settings_store_save(&app.settings);
 }
 
+static ListeningObservation listening_observation(void)
+{
+    ListeningOutput output =
+        app.bluetooth.connected && !app.bluetooth.wired ? LISTENING_OUTPUT_BLUETOOTH
+        : hal_audio_jack() == HAL_AUDIO_JACK_BALANCED   ? LISTENING_OUTPUT_BALANCED
+                                                        : LISTENING_OUTPUT_SINGLE_ENDED;
+    return (ListeningObservation){player_status(&app.player), app.player.current_token, output};
+}
+
+static void flush_listening(void)
+{
+    if (app.listening_loaded) {
+        listening_store_flush(&app.listening, listening_observation(), hal_clock_milliseconds());
+    }
+}
+
+static bool mixtape_busy(void)
+{
+    return (app.screens.bound_modules & (1u << SCREEN_MODULE_VIEWS)) != 0 &&
+           app.screens.modules.views.mixtapes.stage != 0;
+}
+
+static void cancel_edits(void)
+{
+    if (mixtape_busy()) {
+        const ViewsModuleEntry *module =
+            (const ViewsModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS);
+        if (module != NULL && module->cancel != NULL) {
+            module->cancel(&app.screens.modules.views.mixtapes);
+        }
+    }
+    player_queue_cancel(&app.player);
+}
+
+static void continue_mixtape(uint32_t now_ms)
+{
+    if (mixtape_busy() && top_screen() != &app.screens.modules.views.mixtapes.screen) {
+        const ViewsModuleEntry *module =
+            (const ViewsModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS);
+        if (module != NULL && module->step != NULL) {
+            module->step(&app.screens.modules.views.mixtapes, now_ms);
+        }
+    }
+}
+
 static void save_session(void)
 {
+    cancel_edits();
+    flush_listening();
     spoken_store_flush(&app.spoken, player_status(&app.player), hal_clock_milliseconds());
     player_save(&app.player);
     save_settings();
@@ -387,6 +436,19 @@ static void use_screen_key_behaviors(void)
         set_key_behaviors(KEY_BEHAVIOR_REPEAT, KEY_BEHAVIOR_TRIPLE_CLICK_OR_HOLD);
         break;
     }
+    const Settings *settings = &app.settings.settings;
+    for (int index = 0; index < 2; index++) {
+        int first = index == 0 ? PLAYBACK_VOLUME_UP_TAP : PLAYBACK_VOLUME_DOWN_TAP;
+        if (settings->button_actions[first] != BUTTON_ACTION_DEFAULT ||
+            settings->button_actions[first + 1] != BUTTON_ACTION_DEFAULT) {
+            key_tracker_set_behavior(&app.keys, index == 0 ? KEY_VOLUME_UP : KEY_VOLUME_DOWN,
+                                     KEY_BEHAVIOR_TAP_HOLD_REPEAT);
+        }
+    }
+    if (settings->button_actions[PLAYBACK_PLAY_TAP] != BUTTON_ACTION_DEFAULT ||
+        settings->button_actions[PLAYBACK_PLAY_HOLD] != BUTTON_ACTION_DEFAULT) {
+        key_tracker_set_behavior(&app.keys, KEY_PLAY, KEY_BEHAVIOR_TAP_OR_HOLD);
+    }
 }
 
 static void screen_changed(void)
@@ -454,6 +516,7 @@ static void explain_missing_screen(uint32_t now_ms)
 
 static void go_home(uint32_t now_ms)
 {
+    cancel_edits();
     app.slide.active = false;
     if (screen_stack_apply(&app.stack, screen_action_pop_to_root(), now_ms)) {
         screen_changed();
@@ -490,6 +553,11 @@ static Screen *next_top(ScreenAction action)
 static bool apply_action(ScreenAction action, uint32_t now_ms)
 {
     Screen *next = next_top(action);
+    ScreenModule next_module =
+        next != NULL ? screen_modules_of(&app.screens, next) : SCREEN_MODULE_NONE;
+    if (mixtape_busy() && next_module != SCREEN_MODULE_NONE && next_module != SCREEN_MODULE_VIEWS) {
+        cancel_edits();
+    }
     if (next == NULL || screen_ready(next)) {
         return screen_stack_apply(&app.stack, action, now_ms);
     }
@@ -533,6 +601,9 @@ static void show_now_playing(uint32_t now_ms)
 
 static void run_player_command(NowPlayingCommand command)
 {
+    if (mixtape_busy()) {
+        cancel_edits();
+    }
     if (command != NOW_PLAYING_NONE) {
         app.volume_changed = false;
     }
@@ -602,6 +673,101 @@ static bool ignored_power_tap(KeyEvent event)
            event.gesture == KEY_GESTURE_PRESS;
 }
 
+static bool playback_button(KeyEvent event, PlaybackButton *button)
+{
+    int first;
+    switch (event.key) {
+    case KEY_VOLUME_UP:
+        first = PLAYBACK_VOLUME_UP_TAP;
+        break;
+    case KEY_VOLUME_DOWN:
+        first = PLAYBACK_VOLUME_DOWN_TAP;
+        break;
+    case KEY_PLAY:
+        first = PLAYBACK_PLAY_TAP;
+        break;
+    case KEY_MENU:
+        first = PLAYBACK_MENU_TAP;
+        break;
+    default:
+        return false;
+    }
+    bool held = event.gesture == KEY_GESTURE_LONG_PRESS || event.gesture == KEY_GESTURE_REPEAT;
+    if (!held && event.gesture != KEY_GESTURE_PRESS) {
+        return false;
+    }
+    *button = (PlaybackButton)(first + (held ? 1 : 0));
+    return true;
+}
+
+static void mapped_navigation(ButtonAction action, uint32_t now_ms)
+{
+    cancel_edits();
+    app_wake();
+    if (!app.display_on) {
+        set_display(true);
+    }
+    if (action == BUTTON_ACTION_HOME) {
+        go_home(now_ms);
+    } else if (player_status(&app.player).has_track) {
+        app_wake();
+        Screen *screen = action == BUTTON_ACTION_UP_NEXT ? &app.screens.modules.views.up_next.screen
+                                                         : &app.screens.now_playing.screen;
+        if (top_screen() != screen && apply_action(screen_action_push(screen), now_ms)) {
+            screen_changed();
+        }
+        if (action == BUTTON_ACTION_SEEK && top_screen() == screen) {
+            dispatch_to_screen((KeyEvent){.key = KEY_PLAY, .gesture = KEY_GESTURE_LONG_PRESS},
+                               now_ms);
+        }
+    }
+}
+
+static bool mapped_playback(KeyEvent event, uint32_t now_ms)
+{
+    PlaybackButton button;
+    if (app.screens.now_playing.scrubbing) {
+        return false;
+    }
+    if ((app.display_on && top_screen() != &app.screens.now_playing.screen) ||
+        !playback_button(event, &button)) {
+        return false;
+    }
+    ButtonAction action = settings_button_action(&app.settings.settings, button);
+    if (action == BUTTON_ACTION_DEFAULT) {
+        return false;
+    }
+    if (event.gesture == KEY_GESTURE_REPEAT && action != BUTTON_ACTION_VOLUME_UP &&
+        action != BUTTON_ACTION_VOLUME_DOWN) {
+        return true;
+    }
+    switch (action) {
+    case BUTTON_ACTION_PLAY_PAUSE:
+        run_player_command(NOW_PLAYING_TOGGLE_PAUSE);
+        break;
+    case BUTTON_ACTION_NEXT:
+        run_player_command(NOW_PLAYING_NEXT);
+        break;
+    case BUTTON_ACTION_PREVIOUS:
+        run_player_command(NOW_PLAYING_PREVIOUS);
+        break;
+    case BUTTON_ACTION_VOLUME_UP:
+        run_player_command(NOW_PLAYING_VOLUME_UP);
+        break;
+    case BUTTON_ACTION_VOLUME_DOWN:
+        run_player_command(NOW_PLAYING_VOLUME_DOWN);
+        break;
+    case BUTTON_ACTION_UP_NEXT:
+    case BUTTON_ACTION_SEEK:
+    case BUTTON_ACTION_HOME:
+        mapped_navigation(action, now_ms);
+        break;
+    default:
+        break;
+    }
+    return true;
+}
+
 static void dispatch_key_events(uint32_t now_ms)
 {
     KeyEvent event;
@@ -615,6 +781,12 @@ static void dispatch_key_events(uint32_t now_ms)
         if (outcome.shutdown) {
             debug_loop_shutdown(DEBUG_REPORT_SHUTDOWN);
             shut_down(STR_GOODBYE);
+        } else if (mapped_playback(event, now_ms)) {
+            continue;
+        } else if (outcome.background && app.screens.now_playing.scrubbing) {
+            app_wake();
+            set_display(true);
+            dispatch_to_screen(event, now_ms);
         } else if (outcome.background) {
             run_background(event);
         } else if (!outcome.consumed) {
@@ -639,7 +811,7 @@ static bool battery_empty(uint32_t now_ms)
 static void keep_awake_while_busy(uint32_t now_ms)
 {
     if (app.usb_power || player_status(&app.player).state == PLAYER_PLAYING ||
-        debug_runner_active()) {
+        debug_runner_active() || player_queue_busy(&app.player) || mixtape_busy()) {
         power_policy_stay_awake(&app.power, now_ms);
     }
 }
@@ -725,7 +897,7 @@ static void follow_compact_theme(void)
 
 static bool is_compact(const Screen *screen)
 {
-    return screen == &app.screens.home.screen || screen == &app.screens.now_playing.screen;
+    return screen == &app.screens.now_playing.screen;
 }
 
 static void draw_slide(Canvas *canvas, Screen *arriving)
@@ -869,6 +1041,8 @@ static void draw_notice(void *context, Canvas *canvas)
 
 static void start_playback(void)
 {
+    flush_listening();
+    app.listening_loaded = false;
     library_store_open(&app.library);
     player_init(&app.player, &app.library.library);
     settings_store_restore_playback(&app.settings, &app.player, hal_clock_microseconds());
@@ -881,7 +1055,11 @@ static void start_playback(void)
 
 static void follow_appearance(void)
 {
+    default_theme_set_appearance(&app.theme, app.settings.settings.appearance);
     default_theme_set_accent(&app.theme, app.settings.settings.accent);
+    notice_theme.colors = app.theme.colors;
+    notice_theme.horizon = app.theme.horizon;
+    notice_theme.header_rule = app.theme.header_rule;
     default_theme_set_text_size(&app.theme, app.settings.settings.text_size);
     if (app.settings.settings.orientation != app.shown_orientation) {
         apply_orientation();
@@ -923,6 +1101,7 @@ static void build_screens(uint32_t now_ms)
         .rescan_requested = &app.rescan_requested,
         .language_requested = &app.language_requested,
         .bluetooth = &app.bluetooth,
+        .listening = &app.listening,
     };
     Screen *root = app_screens_init(&app.screens, context);
     screen_stack_init(&app.stack, root, now_ms);
@@ -1057,6 +1236,8 @@ static MusicFingerprint walk_music(void)
 
 static void run_rescan(void)
 {
+    cancel_edits();
+    flush_listening();
     app_show_notice(i18n_text(STR_SCANNING), i18n_text(STR_SCAN_STARTING));
     RescanProgress progress = {show_rescan_progress, show_cover_progress};
     RescanOutcome outcome = library_rescan_run(progress);
@@ -1074,6 +1255,8 @@ static void run_rescan(void)
 
 void app_release_audio(void)
 {
+    cancel_edits();
+    flush_listening();
     spoken_store_flush(&app.spoken, player_status(&app.player), hal_clock_milliseconds());
     player_release_output(&app.player);
 }
@@ -1091,6 +1274,7 @@ void app_request_rescan(void)
 
 void app_request_rescan_if_music_changed(void)
 {
+    default_theme_invalidate(&app.theme);
     app.music_check_requested = true;
 }
 
@@ -1279,6 +1463,10 @@ CORE_SEAM void app_step(void)
     if (app.prepare_pending && prepare_step()) {
         return;
     }
+    if (!app.listening_loaded && !app.prepare_pending) {
+        listening_store_load(&app.listening, &app.library.library);
+        app.listening_loaded = true;
+    }
     if (app.music_check_requested) {
         app.music_check_requested = false;
         bool changed = hal_system_restart_pending();
@@ -1305,6 +1493,7 @@ CORE_SEAM void app_step(void)
     app.now_ms = now_ms;
     hal_audio_service();
     hal_bluetooth_service();
+    continue_mixtape(now_ms);
     settle_screens(now_ms);
     run_debug_script(now_ms);
     read_input();
@@ -1332,6 +1521,9 @@ CORE_SEAM void app_step(void)
     }
     if (!app.powered_off) {
         player_update(&app.player, now_ms);
+        if (app.listening_loaded) {
+            listening_store_follow(&app.listening, listening_observation(), now_ms);
+        }
         bluetooth_link_step(&app.bluetooth, &app.player, now_ms);
         spoken_store_follow(&app.spoken, player_status(&app.player), now_ms);
         explain_refusals(now_ms);
@@ -1347,6 +1539,16 @@ CORE_SEAM void app_step(void)
     toast_update(&app.toast, now_ms);
     follow_appearance();
     update_screen(now_ms);
+    MixtapeUi *mixtapes = &app.screens.modules.views.mixtapes;
+    if ((app.screens.bound_modules & (1u << SCREEN_MODULE_VIEWS)) != 0 &&
+        mixtapes->destination != NULL) {
+        Screen *destination = mixtapes->destination;
+        mixtapes->destination = NULL;
+        if (apply_action(screen_action_push(destination), now_ms)) {
+            screen_changed();
+            app.render_urgent = true;
+        }
+    }
     app.render_wanted |= view_changed(now_ms);
     bool urgent = app.render_urgent || app.light_after_frame || fade_running() || slide_running();
     if (!app.display_on || !frame_pacer_due(&app.pacer, now_ms, urgent || app.render_wanted)) {

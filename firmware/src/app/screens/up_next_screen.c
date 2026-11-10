@@ -8,7 +8,10 @@
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/list_navigation.h"
-#include "ui/message_screen.h"
+
+static const StringId EDIT_LABELS[UP_NEXT_EDIT_COUNT] = {
+    STR_PLAY_NEXT, STR_MOVE_EARLIER, STR_MOVE_LATER, STR_REMOVE, STR_CLEAR_ADDED,
+};
 
 typedef enum RowKind {
     ROW_PLAYING,
@@ -41,6 +44,15 @@ static bool wraps(const Player *player)
 
 static bool walk_to(const Player *player, QueueWalk *walk, int steps)
 {
+    if (player->queue.stored_order != NULL) {
+        uint32_t position = (uint32_t)player->queue.cursor.position + (uint32_t)steps;
+        if (player->queue.count == 0 || (!wraps(player) && position >= player->queue.count)) {
+            return false;
+        }
+        walk->cursor = (PlayQueueCursor){.position = (uint16_t)(position % player->queue.count)};
+        walk->steps = steps;
+        return true;
+    }
     while (walk->steps < steps) {
         PlayQueueCursor next;
         if (!play_queue_step(&player->queue, walk->cursor, 1, wraps(player), &next)) {
@@ -59,6 +71,10 @@ static QueueWalk start_walk(const Player *player)
 
 static int count_queue_rows(const Player *player)
 {
+    if (player->queue.stored_order != NULL) {
+        return wraps(player) ? player->queue.count - 1
+                             : player->queue.count - player->queue.cursor.position - 1;
+    }
     QueueWalk walk = start_walk(player);
     PlayQueueCursor start = walk.cursor;
     int rows = 0;
@@ -99,7 +115,7 @@ static bool track_at(const UpNextScreen *up_next, int index, QueueWalk *walk, ui
 
 static const char *state_text(const Player *player)
 {
-    return i18n_text(player->state == PLAYER_PLAYING ? STR_PLAYING : STR_PAUSED);
+    return player->state == PLAYER_PLAYING ? i18n_text(STR_PLAYING) : i18n_text(STR_PAUSED);
 }
 
 static void load_row(UpNextScreen *up_next, int row, int index, QueueWalk *walk)
@@ -188,11 +204,140 @@ static ScreenAction select_row(void *context, int index)
     return screen_action_pop();
 }
 
+static bool action_shown(const void *context)
+{
+    const UpNextEntry *entry = context;
+    const UpNextScreen *up_next = entry->owner;
+    int index = up_next->edit_index;
+    if (entry->snapshot) {
+        return index == -1 && up_next->config.player->queue.stored_order == NULL;
+    }
+    switch (entry->edit) {
+    case UP_NEXT_MOVE_FIRST:
+    case UP_NEXT_MOVE_EARLIER:
+        return index > 0;
+    case UP_NEXT_MOVE_LATER:
+        return index >= 0 && index + 1 < up_next->edit_count;
+    case UP_NEXT_REMOVE:
+        return index >= 0;
+    case UP_NEXT_CLEAR:
+        return up_next->edit_full || up_next->edit_count > 0;
+    case UP_NEXT_EDIT_COUNT:
+        return false;
+    }
+    return false;
+}
+
+static void show_message(UpNextScreen *up_next, const char *message)
+{
+    if (up_next->config.toast != NULL) {
+        toast_show(up_next->config.toast, message, up_next->actions.now_ms);
+    }
+}
+
+static void select_after_edit(UpNextScreen *up_next, UpNextEdit edit)
+{
+    int selected = up_next->edit_index + 1;
+    switch (edit) {
+    case UP_NEXT_MOVE_FIRST:
+        selected = 1;
+        break;
+    case UP_NEXT_MOVE_EARLIER:
+        selected--;
+        break;
+    case UP_NEXT_MOVE_LATER:
+        selected++;
+        break;
+    case UP_NEXT_CLEAR:
+        selected = 0;
+        break;
+    case UP_NEXT_REMOVE:
+    case UP_NEXT_EDIT_COUNT:
+        break;
+    }
+    up_next->list.selected = selected;
+}
+
+static ScreenAction edit_queue(void *context)
+{
+    UpNextEntry *entry = context;
+    UpNextScreen *up_next = entry->owner;
+    Player *player = up_next->config.player;
+    PlayerQueueEditResult result;
+    if (entry->snapshot) {
+        result = player->up_next_revision == up_next->edit_revision ? player_snapshot_queue(player)
+                                                                    : PLAYER_QUEUE_EDIT_STALE;
+    } else if (up_next->edit_full) {
+        result = player_edit_queue(player, up_next->edit_revision,
+                                   (uint16_t)(up_next->edit_index + 1), entry->edit);
+    } else {
+        result = player_edit_up_next(player, up_next->edit_revision, (uint16_t)up_next->edit_index,
+                                     entry->edit);
+    }
+    if (result == PLAYER_QUEUE_EDIT_SAVE_FAILED) {
+        show_message(up_next, i18n_text(STR_QUEUE_SAVE_FAILED));
+        return screen_action_none();
+    }
+    if (result != PLAYER_QUEUE_EDITED && result != PLAYER_QUEUE_EDIT_WORKING) {
+        show_message(up_next, i18n_text(STR_QUEUE_CHANGED));
+    } else {
+        select_after_edit(up_next, entry->edit);
+    }
+    return screen_action_pop();
+}
+
+static ScreenAction open_actions(void *context, int index)
+{
+    UpNextScreen *up_next = context;
+    if (index < 0 || index >= up_next->count || player_queue_busy(up_next->config.player)) {
+        return screen_action_none();
+    }
+    up_next->edit_index = index - 1;
+    up_next->edit_full = up_next->config.player->queue.stored_order != NULL ||
+                         index > up_next->added || up_next->added == 0;
+    up_next->edit_count = up_next->edit_full ? up_next->count - 1 : up_next->added;
+    up_next->items[UP_NEXT_CLEAR].label =
+        up_next->edit_full ? i18n_text(STR_KEEP_CURRENT) : i18n_text(STR_CLEAR_ADDED);
+    up_next->edit_revision = up_next->config.player->up_next_revision;
+    up_next->returning = true;
+    MenuConfig config = {.title = i18n_text(STR_EDIT_UP_NEXT),
+                         .items = up_next->items,
+                         .item_count = UP_NEXT_ACTION_COUNT,
+                         .theme = up_next->config.theme};
+    return screen_action_push(menu_screen_init(&up_next->actions, config));
+}
+
+static void observe_player(UpNextScreen *up_next)
+{
+    const Player *player = up_next->config.player;
+    up_next->seen_revision = player->up_next_revision;
+    up_next->seen_token = player->current_token;
+    up_next->seen_state = player->state;
+    up_next->seen_repeat = player->repeat;
+    up_next->seen_shuffle = player->shuffle;
+    up_next->seen_has_track = player->has_track;
+}
+
+static void refresh_player(UpNextScreen *up_next)
+{
+    const Player *player = up_next->config.player;
+    if (up_next->seen_revision == player->up_next_revision &&
+        up_next->seen_token == player->current_token && up_next->seen_state == player->state &&
+        up_next->seen_repeat == player->repeat && up_next->seen_shuffle == player->shuffle &&
+        up_next->seen_has_track == player->has_track) {
+        return;
+    }
+    count_rows(up_next);
+    list_view_select(&up_next->list, up_next->list.selected, up_next->now_ms);
+    observe_player(up_next);
+}
+
 static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     UpNextScreen *up_next = context;
     up_next->now_ms = now_ms;
-    ListSelection selection = {.select = select_row, .hold = NULL, .context = up_next};
+    refresh_player(up_next);
+    ListSelection selection = {.select = select_row, .hold = open_actions, .context = up_next};
     ScreenAction action = list_navigation_handle(&up_next->list, event, now_ms, selection);
     refresh_rows(up_next);
     return action;
@@ -202,8 +347,12 @@ static void enter(void *context, uint32_t now_ms)
 {
     UpNextScreen *up_next = context;
     up_next->now_ms = now_ms;
+    int selected = up_next->returning ? up_next->list.selected : 0;
+    up_next->returning = false;
     count_rows(up_next);
+    observe_player(up_next);
     list_view_init(&up_next->list, &up_next->model, up_next->config.theme, now_ms);
+    list_view_select(&up_next->list, selected, now_ms);
     refresh_rows(up_next);
 }
 
@@ -211,6 +360,7 @@ static void update(void *context, uint32_t now_ms)
 {
     UpNextScreen *up_next = context;
     up_next->now_ms = now_ms;
+    refresh_player(up_next);
     refresh_rows(up_next);
 }
 
@@ -219,10 +369,12 @@ static void draw(void *context, Canvas *canvas)
     const UpNextScreen *up_next = context;
     const Theme *theme = up_next->config.theme;
     Rect content = theme_content_area(theme);
-    header_draw(canvas, theme, up_next->screen.title);
+    header_draw(canvas, theme, i18n_text(STR_UP_NEXT));
     if (up_next->count == 0) {
+        TextStyle style = {.font = theme->fonts.body, .color = theme->colors.text_secondary};
         canvas_fill_rect(canvas, content, theme->colors.background);
-        message_draw(canvas, theme, content, i18n_text(STR_NOTHING_IS_PLAYING));
+        Rect area = label_centered_area(style.font, content, i18n_text(STR_NOTHING_IS_PLAYING));
+        label_draw(canvas, style, (Label){.area = area, .text = i18n_text(STR_NOTHING_IS_PLAYING)});
         return;
     }
     list_view_draw(&up_next->list, canvas, content, up_next->now_ms);
@@ -236,6 +388,19 @@ Screen *up_next_screen_init(UpNextScreen *up_next, UpNextConfig config)
     up_next->rows_first = -1;
     up_next->rows_count = 0;
     up_next->now_ms = 0;
+    up_next->returning = false;
+    observe_player(up_next);
+    for (int index = 0; index < UP_NEXT_ACTION_COUNT; index++) {
+        up_next->entries[index] = (UpNextEntry){
+            .owner = up_next, .edit = (UpNextEdit)index, .snapshot = index == UP_NEXT_EDIT_COUNT};
+        up_next->items[index] =
+            (MenuItem){.label = index == UP_NEXT_EDIT_COUNT ? i18n_text(STR_EDIT_FULL_QUEUE)
+                                                            : i18n_text(EDIT_LABELS[index]),
+                       .select = edit_queue,
+                       .context = &up_next->entries[index],
+                       .shown = action_shown,
+                       .shown_context = &up_next->entries[index]};
+    }
     up_next->model = (ListModel){.context = up_next,
                                  .count = row_count,
                                  .label = row_label,

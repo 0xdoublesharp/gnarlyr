@@ -352,11 +352,47 @@ static void a_hand_edited_cue_part_with_windows_line_ends_is_found(void)
     spoken_library_close(&spoken);
 }
 
+static void theme_and_button_choices_survive_a_restart_and_card_change(void)
+{
+    fake_hal_reset();
+    settings_store_load(&settings);
+    settings.settings.appearance = APPEARANCE_SEA_GLASS;
+    settings.settings.button_actions[PLAYBACK_MENU_TAP] = BUTTON_ACTION_UP_NEXT;
+    CHECK(settings_store_save(&settings));
+    fake_hal_replace_music_volume();
+    settings_store_load(&settings);
+    CHECK_EQUAL(APPEARANCE_SEA_GLASS, settings.settings.appearance);
+    CHECK_EQUAL(BUTTON_ACTION_UP_NEXT,
+                settings_button_action(&settings.settings, PLAYBACK_MENU_TAP));
+    CHECK_EQUAL(BUTTON_ACTION_DEFAULT,
+                settings_button_action(&settings.settings, PLAYBACK_PLAY_HOLD));
+    int writes = fake_hal_write_count();
+    CHECK(settings_store_save(&settings));
+    CHECK_EQUAL(writes, fake_hal_write_count());
+}
+
+static void a_corrupt_button_map_keeps_other_settings_and_safe_controls(void)
+{
+    fake_hal_reset();
+    settings_store_load(&settings);
+    settings.settings.brightness = BRIGHT;
+    settings.settings.button_actions[PLAYBACK_PLAY_TAP] = BUTTON_ACTION_NONE;
+    CHECK(settings_store_save(&settings));
+    uint8_t damaged[SETTINGS_BUTTONS_FILE_SIZE] = {0};
+    CHECK(hal_internal_file_write(SETTINGS_BUTTONS_PATH, damaged, sizeof damaged));
+    settings_store_load(&settings);
+    CHECK_EQUAL(BRIGHT, settings.settings.brightness);
+    CHECK_EQUAL(BUTTON_ACTION_DEFAULT,
+                settings_button_action(&settings.settings, PLAYBACK_PLAY_TAP));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(without_a_file_the_defaults_are_used),
         TEST_CASE(saved_settings_are_loaded_again),
+        TEST_CASE(theme_and_button_choices_survive_a_restart_and_card_change),
+        TEST_CASE(a_corrupt_button_map_keeps_other_settings_and_safe_controls),
         TEST_CASE(the_equalizer_curve_reaches_the_hal),
         TEST_CASE(the_equalizer_is_saved_and_loaded_again),
         TEST_CASE(unchanged_settings_are_not_written_again),

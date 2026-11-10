@@ -1,21 +1,21 @@
-# FreshBase
+# Gnarlyr
 
-FreshBase is firmware for the full-size Snowsky (FiiO) Echo music player (480 × 222 screen). It replaces FiiO's firmware on the player. Snowsky and FiiO are trademarks of their owners, and Echo is their product name. FreshBase is not made, endorsed or supported by FiiO.
+Gnarlyr is firmware for the full-size Snowsky (FiiO) Echo music player (480 × 222 screen). It replaces FiiO's firmware on the player. Snowsky and FiiO are trademarks of their owners, and Echo is their product name. Gnarlyr is not made, endorsed or supported by FiiO.
 
 ## Status
 
 - **Version 1.0.0, not released.** There is no image to download.
-- **FreshBase has not run on a player yet.** Everything about it is established by host tests, the simulator and the ARM emulator (186 checks).
+- **Gnarlyr has not run on a player yet.** Everything about it is established by host tests, the simulator and the ARM emulator (186 checks).
 - An earlier build of this project, based on Podium 4.5.5, was installed on the owner's Echo (4 GB) through maskrom. The owner confirmed display, menus, buttons, music playback, volume, USB storage with internal storage and a microSD card, and quiet audio with the 12 ms DAC wait. That unit was also returned to FiiO's 2.0.0 through maskrom and back.
 - [`docs/known-issues.md`](docs/known-issues.md) lists what is not proven on a player.
 
 ## Where it comes from
 
-FreshBase builds on [Podium](https://podium-echo.online) 4.5.9, open-source firmware for this player by another author. Podium is a fork of [EchoPod](https://github.com/BasilSkyWalk/echopod), the firmware for the Echo Mini. The interface, the library, playback, the updater, the Echo port and the equalizer are their authors' work. [`UPSTREAM.md`](UPSTREAM.md) records the exact starting point and what has been ported since; [`CREDITS.md`](CREDITS.md) lists everyone whose work is used.
+Gnarlyr builds on [Podium](https://podium-echo.online) 4.5.9, open-source firmware for this player by another author. Podium is a fork of [EchoPod](https://github.com/BasilSkyWalk/echopod), the firmware for the Echo Mini. The interface, the library, playback, the updater, the Echo port and the equalizer are their authors' work. [`UPSTREAM.md`](UPSTREAM.md) records the exact starting point and what has been ported since; [`CREDITS.md`](CREDITS.md) lists everyone whose work is used.
 
 ## What the code does
 
-Each item is in the source and covered by host tests, the simulator or the emulator. None has run on a player as FreshBase.
+Each item is in the source and covered by host tests, the simulator or the emulator. None has run on a player as Gnarlyr.
 
 - **Interface:** Home, Music (Cover Flow, Playlists, Artists, Album Artists, Albums, Genres, Folders, All Songs, Favorites), Now Playing, Up Next and Settings. Three text sizes, eight highlight colours, landscape and two portrait orientations.
 - **Playback:** FLAC, MP3 and WAV from 44.1 to 192 kHz, and `.m4a`/`.m4b` with AAC-LC or Apple Lossless. Gapless between tracks at the same sample rate. Shuffle by song or album, repeat, resume after power-off.
@@ -29,7 +29,7 @@ Each item is in the source and covered by host tests, the simulator or the emula
 - **Updates:** the player installs `FRSHBS.IMG` from the top level of internal storage. It also installs FiiO's own image under FiiO's `ECHOVnnn.IMG` names, which is the way back to FiiO's firmware. It refuses the images of Podium, EchoPod and any other brand.
 - **Data:** the player keeps its files in a hidden `/.freshbase` folder (about 110 MB on the music storage). Deleting it rebuilds the library.
 
-The name (FreshBase: the USB product name, the start-up splash and the Home title), the maker's name (Doublesharp: the USB manufacturer name), the identifier (`FRSHBS`: the image brand and the USB storage vendor), the version and the names of the data folder, the update file and the playlist directive live in one file, [`identity.json`](identity.json), which the build, the C code and the tools read.
+The name (Gnarlyr: the USB product name, the start-up splash and the Home title), the maker's name (Doublesharp: the USB manufacturer name), the identifier (`FRSHBS`: the image brand and the USB storage vendor), the version and the names of the data folder, the update file and the playlist directive live in one file, [`identity.json`](identity.json), which the build, the C code and the tools read.
 
 ## Documents
 

@@ -1,13 +1,42 @@
 #include "home_art.h"
 
 #include "gfx/image.h"
+#include "ui/icons.h"
+#include "ui/label.h"
 
 enum {
-    COVER_MARGIN_TOP = 8,
-    REFLECTION_LIGHT = 80
+    COVER_MARGIN_TOP = 8
 };
 
-static const Color PANEL_BACKGROUND = COLOR_RGB(8, 8, 10);
+static void update_metadata(HomeArt *art)
+{
+    PlayerStatus status = player_status(art->player);
+    if (art->metadata_known && art->metadata_track == status.has_track &&
+        (status.has_track ? art->shown_track == status.track : art->shown_album == art->album)) {
+        return;
+    }
+    art->metadata_known = true;
+    art->metadata_track = status.has_track;
+    art->shown_track = status.track;
+    art->shown_album = art->album;
+    art->title[0] = '\0';
+    art->artist[0] = '\0';
+    LibraryTrack track;
+    LibraryAlbum album;
+    LibraryGroup artist;
+    const Library *library = &art->store->library;
+    bool has_track = status.has_track && library_read_track(library, status.track, &track);
+    bool has_album = library_read_album(library, art->album, &album);
+    if (has_track || has_album) {
+        library_read_string(library, has_track ? track.title : album.title, art->title,
+                            sizeof art->title);
+        uint16_t id = has_track ? track.artist : album.album_artist;
+        LibrarySection section = has_track ? LIBRARY_ARTISTS : LIBRARY_ALBUM_ARTISTS;
+        if (library_read_group(library, section, id, &artist)) {
+            library_read_string(library, artist.name, art->artist, sizeof art->artist);
+        }
+    }
+}
 
 void home_art_init(HomeArt *art, CoverCache *covers, const LibraryStore *store, Player *player,
                    const Theme *theme)
@@ -79,25 +108,79 @@ void home_art_update(void *context, uint32_t now_ms)
         cycle(art, count, now_ms);
     }
     cover_cache_load_full(art->covers, art->album);
+    update_metadata(art);
+}
+
+static void draw_horizon(Canvas *canvas, Rect area, const Theme *theme)
+{
+    if (!theme->horizon) {
+        return;
+    }
+    int top = area.y + area.height / 2;
+    int height = area.y + area.height - top;
+    Color ink = color_between(theme->colors.divider, theme->colors.accent, 1, 3);
+    for (int line = 0; line < 7; line++) {
+        int y = top + line * line * height / 36;
+        canvas_fill_rect(canvas, (Rect){area.x, y, area.width, 1}, ink);
+    }
+    for (int ray = -5; ray <= 5; ray++) {
+        for (int y = 0; y < height; y++) {
+            int x = area.x + area.width / 2 + ray * (6 + y * area.width / (height * 5));
+            canvas_fill_rect(canvas, (Rect){x, top + y, 1, 1}, ink);
+        }
+    }
+}
+
+void home_art_draw_backdrop(Canvas *canvas, Rect area, const Theme *theme)
+{
+    canvas_fill_gradient(canvas, area, theme->colors.backdrop_top, theme->colors.backdrop_bottom);
+    draw_horizon(canvas, area, theme);
+}
+
+static void draw_caption(const HomeArt *art, Canvas *canvas, Rect area)
+{
+    const Theme *theme = art->theme;
+    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text};
+    label_draw(canvas, style,
+               (Label){label_centered_area(style.font, area, art->title), art->title});
+    area.y += 18;
+    style.color = theme->colors.text_secondary;
+    label_draw(canvas, style,
+               (Label){label_centered_area(style.font, area, art->artist), art->artist});
+    PlayerStatus status = player_status(art->player);
+    if (status.has_track && status.duration_ms != 0) {
+        Rect progress = {area.x + 4, area.y + 24, area.width - 8, 2};
+        canvas_fill_rect(canvas, progress, theme->colors.divider);
+        uint32_t position =
+            status.position_ms < status.duration_ms ? status.position_ms : status.duration_ms;
+        progress.width = (int)((uint64_t)progress.width * position / status.duration_ms);
+        canvas_fill_rect(canvas, progress, theme->colors.accent);
+    }
 }
 
 void home_art_draw(void *context, Canvas *canvas, Rect area)
 {
     const HomeArt *art = context;
-    bool below = theme_is_portrait(art->theme);
+    const Theme *theme = art->theme;
+    bool below = theme_is_portrait(theme);
     Rect divider =
         below ? (Rect){area.x, area.y, area.width, 1} : (Rect){area.x, area.y, 1, area.height};
-    canvas_fill_rect(canvas, area, PANEL_BACKGROUND);
-    canvas_fill_rect(canvas, divider, art->theme->colors.divider);
-    Image cover;
-    if (!art->has_album || cover_cache_full(art->covers, art->album, &cover) != COVER_LOADED) {
-        return;
-    }
+    home_art_draw_backdrop(canvas, area, theme);
+    canvas_fill_rect(canvas, divider, theme->colors.divider);
+    bool captions = area.height >= COVER_FULL_SIZE + 70;
     int left = area.x + (area.width - COVER_FULL_SIZE) / 2;
-    int top = area.y + (below ? (area.height - COVER_FULL_SIZE) / 2 : COVER_MARGIN_TOP);
-    Quad quad = {left, COVER_FULL_SIZE, top, COVER_FULL_SIZE, top, COVER_FULL_SIZE};
-    image_draw_quad(canvas, cover, quad);
-    int rows = area.y + area.height - (top + COVER_FULL_SIZE);
-    image_draw_reflection(canvas, cover, quad, (QuadLight){REFLECTION_LIGHT, REFLECTION_LIGHT},
-                          rows);
+    int top =
+        area.y + (below && !captions ? (area.height - COVER_FULL_SIZE) / 2 : COVER_MARGIN_TOP);
+    Image cover;
+    if (art->has_album && cover_cache_full(art->covers, art->album, &cover) == COVER_LOADED) {
+        Quad quad = {left, COVER_FULL_SIZE, top, COVER_FULL_SIZE, top, COVER_FULL_SIZE};
+        image_draw_quad(canvas, cover, quad);
+    } else {
+        icon_draw(canvas, ICON_MIXTAPE, (Rect){left + 16, top + 16, 80, 80},
+                  (IconInk){theme->colors.text_secondary, theme->colors.accent});
+    }
+    if (captions) {
+        draw_caption(art, canvas,
+                     (Rect){area.x + 10, top + COVER_FULL_SIZE + 6, area.width - 20, 18});
+    }
 }

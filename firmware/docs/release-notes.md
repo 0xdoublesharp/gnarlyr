@@ -41,3 +41,14 @@ Podium 4.5.9 has 2,392 bytes free in the 157,292-byte code window and 1,376 byte
 ### Not proven on a player
 
 See [`known-issues.md`](known-issues.md).
+
+## Gnarlyr 1.0.0 development
+
+- Gnarlyr display and USB product name; stable internal updater and data identifiers preserve existing settings and library files.
+- Five themes, configurable playback tap/hold actions, Home/Music icons and cassette artwork when a song has no cover.
+- Full queue editing, journaled resume and named mixtapes, including safe cancellation and path/cue matching after rescans.
+- Listening totals, top lists and export; timed sidecar lyrics.
+- Demand-loaded feature screens and a bounded 16 KiB language window.
+- Queue edits rebuild already-buffered next audio before output resumes.
+
+This is a development candidate. The release checks in the repository instructions remain required before publishing a release.

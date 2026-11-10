@@ -676,9 +676,82 @@ static void changing_the_bands_starts_the_filter_from_silence(void)
     CHECK_EQUAL(0, equalizer.history[0][0].y1);
 }
 
+static void replacing_a_buffered_next_song_keeps_the_current_position(void)
+{
+    start_engine();
+    CHECK(play_range("lpc_16_44k_stereo", 0, 50, 3));
+    queue_file("odd_blocks_16", 4);
+    pump_until_full(0);
+    audio_engine_observe(&engine, 441);
+    audio_engine_pause(&engine);
+    AudioEngineTrack replacement = {.path = "lpc_16_44k_stereo", .token = 5};
+    audio_engine_queue_next(&engine, &replacement);
+    pump_until_full(0);
+    CHECK_EQUAL(3u, audio_engine_status(&engine).token);
+    CHECK_EQUAL(10u, audio_engine_status(&engine).position_ms);
+    CHECK_EQUAL(AUDIO_ENGINE_PAUSED, audio_engine_status(&engine).state);
+    CHECK(ring_holds("lpc_16_44k_stereo", 441, 0, 1764, 16));
+    CHECK(ring_holds("lpc_16_44k_stereo", 0, 1764, 3000, 16));
+    audio_engine_observe(&engine, 1764);
+    CHECK_EQUAL(5u, audio_engine_status(&engine).token);
+}
+
+static void clearing_a_buffered_next_song_leaves_only_the_current_tail(void)
+{
+    start_engine();
+    CHECK(play_range("lpc_16_44k_stereo", 0, 50, 3));
+    queue_file("odd_blocks_16", 4);
+    pump_until_full(0);
+    audio_engine_observe(&engine, 441);
+    audio_engine_pause(&engine);
+    audio_engine_queue_next(&engine, NULL);
+    pump_until_full(0);
+    CHECK(ring_holds("lpc_16_44k_stereo", 441, 0, 1764, 16));
+    CHECK(frame_is(1764, 0, 0, 16));
+    audio_engine_observe(&engine, 1764);
+    CHECK_EQUAL(3u, audio_engine_status(&engine).token);
+    CHECK_EQUAL(AUDIO_ENGINE_STOPPED, audio_engine_status(&engine).state);
+}
+
+static void replacing_a_pending_rate_change_restarts_at_the_current_rate(void)
+{
+    start_engine();
+    CHECK(play_range("lpc_16_44k_stereo", 0, 50, 3));
+    queue_file("lpc_24_96k_stereo", 4);
+    pump_until_full(0);
+    CHECK(engine.rate_pending);
+    audio_engine_observe(&engine, 441);
+    queue_file("odd_blocks_16", 5);
+    pump_until_full(0);
+    CHECK(!engine.rate_pending);
+    CHECK_EQUAL(44100u, audio_engine_rate(&engine));
+    CHECK(ring_holds("odd_blocks_16", 0, 1764, 3001, 16));
+    audio_engine_observe(&engine, 1764);
+    CHECK_EQUAL(5u, audio_engine_status(&engine).token);
+}
+
+static void adding_after_the_decoder_ended_replaces_buffered_silence(void)
+{
+    start_engine();
+    CHECK(play_range("lpc_16_44k_stereo", 0, 50, 3));
+    pump_until_full(0);
+    CHECK(engine.ended);
+    audio_engine_observe(&engine, 441);
+    queue_file("odd_blocks_16", 5);
+    pump_until_full(0);
+    CHECK(ring_holds("odd_blocks_16", 0, 1764, 3001, 16));
+    audio_engine_observe(&engine, 1764);
+    CHECK_EQUAL(5u, audio_engine_status(&engine).token);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(replacing_a_buffered_next_song_keeps_the_current_position),
+        TEST_CASE(clearing_a_buffered_next_song_leaves_only_the_current_tail),
+        TEST_CASE(replacing_a_pending_rate_change_restarts_at_the_current_rate),
+        TEST_CASE(adding_after_the_decoder_ended_replaces_buffered_silence),
+
         TEST_CASE(changing_only_the_gains_keeps_the_filter_history),
         TEST_CASE(changing_the_bands_starts_the_filter_from_silence),
         TEST_CASE(equalizer_off_leaves_sixteen_bit_samples_bit_identical),

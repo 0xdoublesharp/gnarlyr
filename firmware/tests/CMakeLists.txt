@@ -99,7 +99,7 @@ echo_add_unit_test(NAME test_rocker SOURCES settings/test_rocker.c LIBRARIES ech
 echo_add_unit_test(NAME test_equalizer_fit SOURCES settings/test_equalizer_fit.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_equalizer_slots SOURCES settings/test_equalizer_slots.c LIBRARIES echo_settings)
 
-foreach(library_test block_cache library library_content library_browse favorites covers sort_key track_fields playlist_reader cue_sheet music_fingerprint)
+foreach(library_test block_cache library library_content library_browse favorites covers sort_key track_fields playlist_reader cue_sheet music_fingerprint lyrics)
     echo_add_unit_test(NAME test_${library_test}
         SOURCES library/test_${library_test}.c
         LIBRARIES echo_library_fixtures
@@ -676,3 +676,35 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
 else()
     message(STATUS "tools venv not found: run python3 -m venv .venv && .venv/bin/pip install -r tools/requirements.txt")
 endif()
+
+echo_add_unit_test(NAME test_theme_palette
+    SOURCES app/test_theme_palette.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
+foreach(feature_test mixtape_store mixtape_ui)
+    echo_add_unit_test(NAME test_${feature_test}
+        SOURCES app/test_${feature_test}.c app/fake_hal.c
+        LIBRARIES echo_app echo_library_fixtures
+        PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+    )
+endforeach()
+
+echo_add_unit_test(NAME test_listening_store
+    SOURCES app/test_listening_store.c playback/listening_fixture.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${CMAKE_CURRENT_SOURCE_DIR}/playback
+)
+
+echo_add_unit_test(NAME test_configured_controls
+    SOURCES app/test_configured_controls.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
+echo_add_unit_test(NAME test_portrait_settings_layout
+    SOURCES app/test_portrait_settings_layout.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)

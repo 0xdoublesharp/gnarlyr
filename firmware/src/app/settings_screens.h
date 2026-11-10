@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include "button_settings.h"
 #include "core/debug_script.h"
 #include "core/power_policy.h"
 #include "equalizer_presets.h"
@@ -16,14 +17,15 @@
 #include "ui/toast.h"
 
 enum {
-    SETTINGS_CHOICE_COUNT = 16,
+    SETTINGS_CHOICE_COUNT = 17,
     SETTINGS_LANGUAGE_CHOICE = 9,
     SETTINGS_ABOUT_ITEM = 0,
     SETTINGS_BLUETOOTH_ITEM = 3,
     SETTINGS_LANGUAGE_ITEM = 11,
     SETTINGS_CUSTOM_EQ_ITEM = 16,
     SETTINGS_RESCAN_ITEM = 18,
-    SETTINGS_ITEM_COUNT = SETTINGS_CHOICE_COUNT + 4,
+    SETTINGS_CONTROLS_ITEM = 21,
+    SETTINGS_ITEM_COUNT = SETTINGS_CHOICE_COUNT + 5,
     SETTINGS_MESSAGE_CAPACITY = 64
 };
 
@@ -67,6 +69,7 @@ struct SettingsScreens {
         ChoiceScreen choice;
         EqualizerScreen equalizer;
     };
+    ButtonSettings buttons;
     EqualizerPresets presets;
     LanguageList languages;
     SettingsEntry entries[SETTINGS_CHOICE_COUNT];

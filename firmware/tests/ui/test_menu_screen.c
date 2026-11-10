@@ -311,6 +311,34 @@ static void a_portrait_list_keeps_the_selection_visible_above_the_panel(void)
     CHECK(ui_test_area_has_color(&canvas, above_panel, theme.colors.selection_background));
 }
 
+static bool hidden_icon(const void *context)
+{
+    (void)context;
+    return false;
+}
+
+static void an_unconfigured_menu_keeps_the_plain_list_layout(void)
+{
+    open_menu();
+    CHECK(menu.model.icon == NULL);
+}
+
+static void menu_icons_follow_the_visible_item_mapping(void)
+{
+    static const MenuItem icon_items[] = {
+        {.label = "A", .icon = ICON_MUSIC, .shown = hidden_icon},
+        {.label = "B", .icon = ICON_ALBUM},
+        {.label = "A"},
+    };
+    MenuConfig config = {
+        .title = "Menu", .items = icon_items, .item_count = 3, .theme = &TEST_THEME};
+    menu_screen_init(&menu, config);
+    CHECK(menu.model.icon != NULL);
+    CHECK_EQUAL(2, menu.model.count(menu.model.context));
+    CHECK_EQUAL(ICON_ALBUM, menu.model.icon(menu.model.context, 0));
+    CHECK_EQUAL(ICON_NONE, menu.model.icon(menu.model.context, 1));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -319,6 +347,8 @@ int main(void)
         TEST_CASE(a_short_portrait_list_leaves_the_panel_the_rest),
         TEST_CASE(a_portrait_list_keeps_the_selection_visible_above_the_panel),
         TEST_CASE(the_menu_title_is_the_screen_title),
+        TEST_CASE(an_unconfigured_menu_keeps_the_plain_list_layout),
+        TEST_CASE(menu_icons_follow_the_visible_item_mapping),
         TEST_CASE(items_that_open_a_screen_show_a_chevron),
         TEST_CASE(a_hidden_item_is_skipped),
         TEST_CASE(a_side_panel_takes_the_right_of_the_content),

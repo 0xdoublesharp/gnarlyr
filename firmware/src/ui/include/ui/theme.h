@@ -28,6 +28,10 @@ typedef struct ThemeColors {
     Color danger;
     Color success;
     Color chevron;
+    Color accent;
+    Color accent_alt;
+    Color backdrop_top;
+    Color backdrop_bottom;
 } ThemeColors;
 
 typedef struct ThemeFonts {
@@ -57,6 +61,9 @@ typedef struct Theme {
     ThemeFonts fonts;
     ThemeMetrics metrics;
     MarqueeTiming marquee;
+    uint8_t appearance;
+    bool horizon;
+    bool header_rule;
 } Theme;
 
 Rect theme_header_area(const Theme *theme);

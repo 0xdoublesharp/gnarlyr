@@ -22,7 +22,8 @@ void header_draw(Canvas *canvas, const Theme *theme, const char *title)
     TextStyle style = {.font = theme->fonts.header, .color = theme->colors.header_text};
     Rect body = {area.x, area.y, area.width, area.height - DIVIDER_HEIGHT};
     canvas_fill_gradient(canvas, body, theme->colors.header_top, theme->colors.header_background);
-    canvas_fill_rect(canvas, divider, theme->colors.divider);
+    canvas_fill_rect(canvas, divider,
+                     theme->header_rule ? theme->colors.accent : theme->colors.divider);
     if (title_bounds.height > 0) {
         Rect title_area = label_centered_area(style.font, title_bounds, title);
         label_draw(canvas, style, (Label){.area = title_area, .text = title});

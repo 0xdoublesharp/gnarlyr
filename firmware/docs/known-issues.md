@@ -1,22 +1,22 @@
-# FreshBase known issues
+# Gnarlyr known issues
 
-FreshBase 1.0.0 is not released and has not run on any player yet. It comes with no warranty: use it at your own risk. Read this before you install a build, and keep a way back ([`device-recovery.md`](device-recovery.md)).
+Gnarlyr 1.0.0 is not released and has not run on any player yet. It comes with no warranty: use it at your own risk. Read this before you install a build, and keep a way back ([`device-recovery.md`](device-recovery.md)).
 
 ## What has been checked
 
-- **FreshBase itself:** host tests, the simulator and the ARM emulator only (242 checks). The emulator has no USB traffic, no DAC, no SD card and no Bluetooth module, so those paths are covered by host tests of their logic and nothing more.
+- **Gnarlyr itself:** host tests, the simulator and the ARM emulator only (242 checks). The emulator has no USB traffic, no DAC, no SD card and no Bluetooth module, so those paths are covered by host tests of their logic and nothing more.
 - **On the owner's Echo (full size, 4 GB):** an earlier build of this project, based on Podium 4.5.5, was installed through maskrom. The owner confirmed display, menus, buttons, music playback, volume, USB storage with internal storage and a microSD card, and quiet audio with the 12 ms DAC wait. The unit was also returned to FiiO's 2.0.0 through maskrom and back. The maskrom steps in [`device-install.md`](device-install.md) and [`device-recovery.md`](device-recovery.md) are the ones used.
 - **Everything else** that Podium's and EchoPod's authors tested on their own players has not been repeated by this project. Where this document mentions such a result, it says whose it is.
 
 ## Safety
 
 - **Volume:** the top volume is the DAC's full level, and sensitive earphones can be very loud. Turn the volume down before you put them in.
-- **Battery:** install only with the battery charged. The code switches the player off when the battery runs low and refuses to start on an empty one ("Battery low: Charge the player to turn it on"); neither has been seen on a player with FreshBase.
+- **Battery:** install only with the battery charged. The code switches the player off when the battery runs low and refuses to start on an empty one ("Battery low: Charge the player to turn it on"); neither has been seen on a player with Gnarlyr.
 - **Bricking:** a broken image can leave the player unable to start. The updater writes one firmware slot at a time and reads every chunk back, but a power cut during an install is still a risk. The only recovery for a player that doesn't start is the chip's maskrom mode ([`device-recovery.md`](device-recovery.md)), which needs a patched tool and care. Prepare it before the first install.
 
 ## Not proven on a player
 
-These are new or changed in FreshBase, or were never checked on the owner's unit. Each needs a run on the player before it can be relied on.
+These are new or changed in Gnarlyr, or were never checked on the owner's unit. Each needs a run on the player before it can be relied on.
 
 - **USB enumeration timing.** The USB code is now loaded from storage into high RAM after the computer's bus reset. Whether a computer still enumerates the player reliably with that load in the path is not known.
 - **USB DAC mode,** which now also runs from the overlay.
@@ -36,7 +36,8 @@ Also unchecked on a player by this project: `.m4a` and `.m4b` playback and seeki
 
 - **A failed install followed by music.** If an install fails partway through slot 1 and music is then played, the next plug-in shows "Restart the player to finish the update" and does not serve USB. The restart boots the complete slot 2.
 - **USB code damaged in both slots.** The USB overlay is stored in both firmware slots. If it were damaged in both while the main code stayed intact, USB storage would be unavailable ("USB code missing: reinstall the update") and recovery would be through maskrom only.
-- **Language packs are limited to 8 KB, and Cyrillic is not usable yet (open).** English uses 4.6 KB of the 8 KB a pack may have. A Cyrillic translation needs about 1.6 times the English bytes, so it stops fitting once the English text passes about 5 KB, and the small 16 px font has no Cyrillic letters at all, so the pack builder refuses them today. Both are left as they are until a translation needs them (`architecture.md`, Languages).
+- **Language packs are bounded to 16 KB.** The glyph cache keeps 64 packed glyphs; built-in ASCII bypasses it. Additional script coverage still depends on the selected fonts.
+
 - **Text right after an install.** Until the restart, every screen uses the built-in 16 px font, which is ASCII only: accented and Cyrillic letters show as `?`.
 
 ## Installing
@@ -44,7 +45,7 @@ Also unchecked on a player by this project: `.m4a` and `.m4b` playback and seeki
 - **The proven route is maskrom** ([`device-install.md`](device-install.md)): it is how the earlier build was installed on the owner's unit.
 - **Installing by file copy from FiiO's firmware is not verified.** FiiO's updater only reads files named `ECHOVnnn.IMG`, so `FRSHBS.IMG` would have to be renamed. Whether FiiO's 2.0.0 accepts it is not known. Podium's documentation reports that FiiO's updater installs Podium from a file copy.
 - **The Echo Mini isn't supported.** The updater refuses its firmware.
-- **Other custom firmware can't be installed from FreshBase.** Its updater takes only its own images and FiiO's Echo image; it refuses Podium and EchoPod images. To switch, go back to FiiO's firmware first.
+- **Other custom firmware can't be installed from Gnarlyr.** Its updater takes only its own images and FiiO's Echo image; it refuses Podium and EchoPod images. To switch, go back to FiiO's firmware first.
 - **Going back to FiiO's firmware through the updater** writes both slots. Keep a maskrom path ready ([`device-recovery.md`](device-recovery.md)).
 
 ## Portrait mode

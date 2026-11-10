@@ -372,6 +372,12 @@ static StringId up_next_message(PlayerUpNextResult result, bool next)
         return STR_PLAYING;
     case PLAYER_UP_NEXT_FULL:
         return STR_UP_NEXT_FULL;
+    case PLAYER_UP_NEXT_SAVE_FAILED:
+        return STR_QUEUE_SAVE_FAILED;
+    case PLAYER_UP_NEXT_CHANGED:
+        return STR_QUEUE_CHANGED;
+    case PLAYER_UP_NEXT_WORKING:
+        return STR_PREPARING_STORAGE;
     case PLAYER_UP_NEXT_FAILED:
         break;
     }

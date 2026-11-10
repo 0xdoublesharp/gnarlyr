@@ -3,10 +3,12 @@
 #include <stddef.h>
 
 #include "board_layout.h"
+#include "cassette_art.h"
 #include "core/format.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "gfx/image.h"
+#include "home_art.h"
 #include "settings/settings.h"
 #include "ui/header.h"
 #include "ui/icons.h"
@@ -201,7 +203,7 @@ NowPlayingCommand now_playing_command_for(KeyEvent event, NowPlayingKeys keys)
     case KEY_BACK:
         return by_gesture(event.gesture, NOW_PLAYING_LEAVE, NOW_PLAYING_HOME);
     case KEY_MENU:
-        return by_gesture(event.gesture, NOW_PLAYING_UP_NEXT, NOW_PLAYING_NONE);
+        return by_gesture(event.gesture, NOW_PLAYING_UP_NEXT, NOW_PLAYING_LYRICS);
     case KEY_POWER:
         return NOW_PLAYING_NONE;
     }
@@ -348,6 +350,9 @@ static ScreenAction run_command(NowPlayingScreen *now_playing, NowPlayingCommand
     case NOW_PLAYING_UP_NEXT:
         return now_playing->config.up_next != NULL ? screen_action_push(now_playing->config.up_next)
                                                    : screen_action_none();
+    case NOW_PLAYING_LYRICS:
+        return now_playing->config.lyrics != NULL ? screen_action_push(now_playing->config.lyrics)
+                                                  : screen_action_none();
     case NOW_PLAYING_HOME:
         now_playing->scrubbing = false;
         return screen_action_pop_to_root();
@@ -466,9 +471,8 @@ static int cover_left(const NowPlayingScreen *now_playing)
 
 static int text_left(const NowPlayingScreen *now_playing)
 {
-    Image ignored;
     int padding = now_playing->config.theme->metrics.padding;
-    return current_cover(now_playing, &ignored) && !theme_is_portrait(now_playing->config.theme)
+    return !theme_is_portrait(now_playing->config.theme)
                ? padding + COVER_FULL_SIZE + layout(now_playing)->cover_gap
                : padding;
 }
@@ -483,10 +487,23 @@ static Rect column_area(const NowPlayingScreen *now_playing, int top, int height
 static void draw_cover(const NowPlayingScreen *now_playing, Canvas *canvas)
 {
     Image cover;
+    int left = cover_left(now_playing);
+    const Theme *theme = now_playing->config.theme;
+    int top = layout(now_playing)->cover_top;
+    Rect backdrop = theme_is_portrait(theme)
+                        ? (Rect){0, theme->metrics.header_height, theme->metrics.screen_width,
+                                 top + COVER_FULL_SIZE + 10 - theme->metrics.header_height}
+                        : (Rect){left - 4, top - 4, COVER_FULL_SIZE + 8, COVER_FULL_SIZE + 8};
+    home_art_draw_backdrop(canvas, backdrop, theme);
     if (!current_cover(now_playing, &cover)) {
+        cassette_art_draw(canvas,
+                          (Rect){left, top + (COVER_FULL_SIZE - CASSETTE_HEIGHT) / 2,
+                                 CASSETTE_WIDTH, CASSETTE_HEIGHT},
+                          theme,
+                          (CassetteTape){now_playing->status.position_ms,
+                                         now_playing->status.duration_ms, FIRMWARE_SHORT_NAME});
         return;
     }
-    int left = cover_left(now_playing);
     image_draw_quad(canvas, cover,
                     (Quad){left, COVER_FULL_SIZE, layout(now_playing)->cover_top, COVER_FULL_SIZE,
                            layout(now_playing)->cover_top, COVER_FULL_SIZE});
@@ -550,8 +567,8 @@ static void draw_progress(const NowPlayingScreen *now_playing, Canvas *canvas)
     int filled = volume ? now_playing_volume_width(now_playing->status.volume, bar.width)
                         : now_playing_progress_width(shown_position(now_playing),
                                                      now_playing->status.duration_ms, bar.width);
-    Color fill =
-        now_playing->scrubbing || volume ? theme->colors.selection_background : theme->colors.text;
+    Color fill = now_playing->scrubbing || volume ? theme->colors.selection_background
+                                                  : theme->colors.accent;
     canvas_fill_rect(canvas, bar, theme->colors.divider);
     canvas_fill_rect(canvas, (Rect){bar.x, bar.y, filled, bar.height}, fill);
 }
@@ -650,6 +667,12 @@ static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
     if (now_playing->scrubbing) {
         StringBuilder seeking = string_builder_make(modes, sizeof modes);
         string_builder_append(&seeking, i18n_text(STR_SEEKING));
+    } else if (modes[0] == 0 && now_playing->config.lyrics != NULL &&
+               (now_playing->config.settings == NULL ||
+                settings_button_action(now_playing->config.settings, PLAYBACK_MENU_HOLD) ==
+                    BUTTON_ACTION_DEFAULT)) {
+        StringBuilder hint = string_builder_make(modes, sizeof modes);
+        string_builder_append(&hint, i18n_text(STR_LYRICS_HOLD_HINT));
     }
     label_draw(canvas, style,
                (Label){column_area(now_playing, layout(now_playing)->modes_top,
@@ -679,10 +702,8 @@ static void draw_badge_icon(Canvas *canvas, NowPlayingFeedback feedback, Rect ar
 
 static void draw_badge(const NowPlayingScreen *now_playing, Canvas *canvas)
 {
-    Image cover;
     NowPlayingFeedback feedback = now_playing->feedback;
-    if (feedback == NOW_PLAYING_FEEDBACK_VOLUME || !showing(now_playing, feedback) ||
-        !current_cover(now_playing, &cover)) {
+    if (feedback == NOW_PLAYING_FEEDBACK_VOLUME || !showing(now_playing, feedback)) {
         return;
     }
     const Theme *theme = now_playing->config.theme;

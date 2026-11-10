@@ -1,6 +1,9 @@
-set(ECHO_SCREEN_MODULES views settings library)
+set(ECHO_SCREEN_MODULES views settings library listening)
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
+    src/app/mixtape_store.c
+    src/app/mixtape_ui.c
+    src/app/mixtape_screen.c
     src/app/screens/cover_flow_screen.c
     src/app/screens/up_next_screen.c
     src/ui/cover_flow.c
@@ -8,6 +11,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
 set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/modules/settings_module.c
     src/app/settings_screens.c
+    src/app/button_settings.c
     src/app/equalizer_presets.c
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
@@ -21,6 +25,14 @@ set(ECHO_SCREEN_MODULE_SOURCES_library
     src/app/modules/library_module.c
     src/app/music_walk.c
     src/library/music_fingerprint.c
+)
+set(ECHO_SCREEN_MODULE_SOURCES_listening
+    src/app/modules/listening_module.c
+    src/app/screens/listening_screen.c
+    src/app/screens/lyrics_screen.c
+    src/playback/listening_stats.c
+    src/playback/listening_export.c
+    src/library/lyrics.c
 )
 if(ECHO_RELEASE)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_settings src/app/diagnostics_menu_release.c)

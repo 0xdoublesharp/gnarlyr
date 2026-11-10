@@ -52,6 +52,21 @@ static bool item_opens(const void *context, int index)
     return shown_item(context, index)->opens;
 }
 
+static IconId item_icon(const void *context, int index)
+{
+    return shown_item(context, index)->icon;
+}
+
+static bool has_icons(const MenuScreen *menu)
+{
+    for (int index = 0; index < menu->config.item_count; index++) {
+        if (menu->config.items[index].icon != ICON_NONE) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static ScreenAction select_item(void *context, int index)
 {
     const MenuItem *item = shown_item(context, index);
@@ -67,10 +82,10 @@ static bool panel_below(const MenuScreen *menu)
 static void fit_list(MenuScreen *menu)
 {
     const Theme *theme = menu->config.theme;
-    int rows = theme_visible_rows(theme);
+    int rows = list_view_rows_in(&menu->list, theme_content_area(theme).height);
     if (panel_below(menu)) {
-        int room = (theme_content_area(theme).height - menu->config.panel.min_height) /
-                   theme->metrics.row_height;
+        int room = list_view_rows_in(&menu->list, theme_content_area(theme).height -
+                                                      menu->config.panel.min_height);
         int count = item_count(menu);
         rows = count < room ? count : room;
     }
@@ -118,7 +133,7 @@ static void draw(void *context, Canvas *canvas)
     Rect side = {list.x + list.width, content.y, panel->width, content.height};
     if (panel_below(menu)) {
         list = (Rect){content.x, content.y, content.width,
-                      menu->list.visible_rows * theme->metrics.row_height};
+                      menu->list.visible_rows * list_view_row_height(&menu->list)};
         side = (Rect){content.x, list.y + list.height, content.width, content.height - list.height};
     }
     list_view_draw(&menu->list, canvas, list, menu->now_ms);
@@ -132,7 +147,9 @@ Screen *menu_screen_init(MenuScreen *menu, MenuConfig config)
                               .count = item_count,
                               .label = item_label,
                               .detail = item_value,
-                              .opens = item_opens};
+                              .opens = item_opens,
+                              .icon = has_icons(menu) ? item_icon : NULL,
+                              .detail_below = config.detail_below};
     list_view_init(&menu->list, &menu->model, config.theme, 0);
     menu->screen = (Screen){
         .title = config.title,

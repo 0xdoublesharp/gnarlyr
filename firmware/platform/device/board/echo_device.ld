@@ -6,8 +6,8 @@ MEMORY
     CODE_RAM (rx) : ORIGIN = 0x03050000, LENGTH = 0x2666C
     HIGH_RAM (rw) : ORIGIN = 0x0307A000, LENGTH = 0xA400
     MODULE_RAM (rw) : ORIGIN = 0x03084400, LENGTH = 0xDC00
-    GLYPH_RAM (rw) : ORIGIN = 0x03092000, LENGTH = 0xB000
-    LANGUAGE_RAM (rw) : ORIGIN = 0x0309D000, LENGTH = 0x2000
+    GLYPH_RAM (rw) : ORIGIN = 0x03092000, LENGTH = 0x9000
+    LANGUAGE_RAM (rw) : ORIGIN = 0x0309B000, LENGTH = 0x4000
 }
 
 SECTIONS
@@ -87,3 +87,6 @@ ASSERT(ORIGIN(MODULE_RAM) + LENGTH(MODULE_RAM) == ORIGIN(GLYPH_RAM), "the module
 ASSERT(SIZEOF(.data) == 8, "only the entry vector may be in .data: make initialised globals const")
 device_data_limit = 0x0304A240;
 ASSERT(device_noinit_end <= device_data_limit, ".data, .bss and .noinit must end below 0x0304A240: the boot ROM clears this range while it still runs from RAM above it")
+
+ASSERT(ORIGIN(GLYPH_RAM) + LENGTH(GLYPH_RAM) == ORIGIN(LANGUAGE_RAM), "the language window must follow the glyph cache")
+ASSERT(ORIGIN(LANGUAGE_RAM) + LENGTH(LANGUAGE_RAM) == 0x0309F000, "the language window must end below the reserved top of high RAM")

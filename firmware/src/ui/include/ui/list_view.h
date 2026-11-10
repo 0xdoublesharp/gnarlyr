@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "gfx/canvas.h"
+#include "ui/icons.h"
 #include "ui/theme.h"
 
 enum {
@@ -25,6 +26,8 @@ typedef struct ListModel {
     bool (*opens)(const void *context, int index);
     int detail_max_width;
     int (*section)(const void *context, int index);
+    IconId (*icon)(const void *context, int index);
+    bool detail_below;
 } ListModel;
 
 typedef struct ListView {
@@ -49,3 +52,6 @@ void list_view_fit_rows(ListView *view, int rows);
 void list_view_restart_marquee(ListView *view, uint32_t now_ms);
 void list_view_select(ListView *view, int index, uint32_t now_ms);
 void list_view_draw(const ListView *view, Canvas *canvas, Rect area, uint32_t now_ms);
+
+int list_view_row_height(const ListView *view);
+int list_view_rows_in(const ListView *view, int height);

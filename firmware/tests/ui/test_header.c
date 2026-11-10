@@ -85,10 +85,22 @@ static void a_long_title_may_use_the_width_a_portrait_header_gives_it(void)
     CHECK(ui_test_area_has_color(&canvas, left, theme.colors.header_text));
 }
 
+static void a_theme_can_choose_an_accent_header_rule(void)
+{
+    Theme theme = TEST_THEME;
+    theme.header_rule = true;
+    theme.colors.accent = 0xF800;
+    Canvas canvas = ui_test_canvas();
+    header_draw(&canvas, &theme, "");
+    Rect rule = {0, TEST_HEADER_HEIGHT - 1, TEST_SCREEN_WIDTH, 1};
+    CHECK(ui_test_area_has_only(&canvas, rule, theme.colors.accent));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_header_is_filled_with_its_background),
+        TEST_CASE(a_theme_can_choose_an_accent_header_rule),
         TEST_CASE(the_header_shades_from_its_top_color_down),
         TEST_CASE(a_divider_separates_the_header_from_the_content),
         TEST_CASE(the_title_is_centred),

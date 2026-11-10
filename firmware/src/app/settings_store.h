@@ -7,11 +7,14 @@
 #include "settings/settings.h"
 
 extern const char SETTINGS_STORE_PATH[];
+extern const char SETTINGS_BUTTONS_PATH[];
 
 typedef struct SettingsStore {
     Settings settings;
     uint8_t saved[SETTINGS_FILE_SIZE];
     bool has_saved;
+    uint8_t saved_buttons[SETTINGS_BUTTONS_FILE_SIZE];
+    bool has_saved_buttons;
 } SettingsStore;
 
 void settings_store_load(SettingsStore *store);

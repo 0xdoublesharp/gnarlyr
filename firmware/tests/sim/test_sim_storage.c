@@ -69,6 +69,20 @@ static void a_read_after_an_overwrite_sees_the_new_bytes(void)
     CHECK(memcmp(seen, FRESH, sizeof FRESH) == 0);
 }
 
+static void deleting_a_system_file_keeps_the_music_files(void)
+{
+    static const char PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/removed.bin";
+    static const uint8_t BYTES[] = {1, 2, 3, 4};
+    HalFile file;
+    sim_storage_configure(ECHO_FIXTURE_DIR, ECHO_TEST_OUTPUT_DIR);
+    CHECK(hal_file_write(PATH, BYTES, sizeof BYTES));
+    CHECK(hal_file_remove(PATH));
+    CHECK(!hal_file_open(&file, PATH));
+    CHECK(!hal_file_remove("/small_library.db"));
+    CHECK(hal_file_open(&file, "/small_library.db"));
+    hal_file_close(&file);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -76,6 +90,7 @@ int main(void)
         TEST_CASE(a_folder_lists_its_files_with_sizes),
         TEST_CASE(a_missing_folder_does_not_open),
         TEST_CASE(a_read_after_an_overwrite_sees_the_new_bytes),
+        TEST_CASE(deleting_a_system_file_keeps_the_music_files),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

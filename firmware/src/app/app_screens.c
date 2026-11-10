@@ -118,8 +118,12 @@ static void build_music(AppScreens *screens, AppScreensContext context)
         .spoken = context.spoken,
     };
     browse_pool_init(&screens->browse, browse);
+    static const IconId icons[MUSIC_ITEM_COUNT] = {
+        ICON_COVER_FLOW, ICON_ARTIST, ICON_ALBUM_ARTIST, ICON_ALBUM,   ICON_GENRE,
+        ICON_FOLDER,     ICON_SONG,   ICON_PLAYLIST,     ICON_FAVORITE};
     for (int index = 0; index < MUSIC_ITEM_COUNT; index++) {
         screens->music_items[index] = music_item(screens, context.store, index);
+        screens->music_items[index].icon = icons[index];
     }
     app_screens_build_menu(&screens->music, STR_MUSIC, screens->music_items, MUSIC_ITEM_COUNT,
                            context.theme);
@@ -155,6 +159,10 @@ static void build_home(AppScreens *screens, AppScreensContext context)
 {
     const Theme *theme = context.theme;
     screens->home_items[0] = app_screens_open_item(STR_MUSIC, &screens->music.screen);
+    screens->home_items[6] =
+        app_screens_open_item(STR_MIXTAPES, &screens->modules.views.mixtapes.screen);
+    screens->home_items[7] =
+        app_screens_open_item(STR_LISTENING, &screens->modules.listening.listening.screen);
     screens->home_items[1] = shelf_item(screens, context, SPOKEN_AUDIOBOOK);
     screens->home_items[2] = shelf_item(screens, context, SPOKEN_PODCAST);
     screens->home_items[3] =
@@ -166,11 +174,17 @@ static void build_home(AppScreens *screens, AppScreensContext context)
         app_screens_open_item(STR_UP_NEXT, &screens->modules.views.up_next.screen);
     screens->home_items[5].shown = player_has_track;
     screens->home_items[5].shown_context = context.player;
+    static const IconId icons[HOME_ITEM_COUNT] = {ICON_MUSIC,    ICON_AUDIOBOOK,   ICON_PODCAST,
+                                                  ICON_SETTINGS, ICON_NOW_PLAYING, ICON_QUEUE,
+                                                  ICON_MIXTAPE,  ICON_DIAGNOSTICS};
+    for (int index = 0; index < HOME_ITEM_COUNT; index++) {
+        screens->home_items[index].icon = icons[index];
+    }
     home_art_init(&screens->home_art, context.covers, context.store, context.player, theme);
     MenuConfig home = {.title = FIRMWARE_SHORT_NAME,
                        .items = screens->home_items,
                        .item_count = HOME_ITEM_COUNT,
-                       .theme = context.compact_theme,
+                       .theme = context.theme,
                        .panel = {.width = BOARD_LAYOUT.home_art_width,
                                  .min_height = BOARD_LAYOUT.home_art_min_height,
                                  .update = home_art_update,
@@ -190,7 +204,8 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
                                     .library = &context.store->library,
                                     .theme = context.compact_theme,
                                     .covers = context.covers,
-                                    .up_next = &screens->modules.views.up_next.screen};
+                                    .up_next = &screens->modules.views.up_next.screen,
+                                    .lyrics = &screens->modules.listening.lyrics.screen};
     screens->context = context;
     screens->bound_modules = 0;
     message_screen_init(&screens->no_library, no_library);

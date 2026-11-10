@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 enum {
-    SIM_GLYPHS_CACHE_BYTES = 0xB000 - 1024
+    SIM_GLYPHS_CACHE_BYTES = 0x9000 - 1024
 };
 
 uint32_t sim_glyphs_attach(void);
