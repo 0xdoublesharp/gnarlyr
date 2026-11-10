@@ -201,6 +201,46 @@ static void auto_off_set_to_zero_never_shuts_down(void)
     CHECK(!power_policy_update(&policy, START_MS + 10 * AUTO_OFF_MS));
 }
 
+static void waking_with_a_newer_timestamp_does_not_immediately_blank_the_screen(void)
+{
+    PowerPolicy policy = fresh_policy();
+    power_policy_wake(&policy, START_MS + 1);
+    CHECK(!power_policy_update(&policy, START_MS));
+    CHECK(policy.display_on);
+    power_policy_update(&policy, START_MS + TIMEOUT_MS);
+    CHECK(policy.display_on);
+    power_policy_update(&policy, START_MS + TIMEOUT_MS + 1);
+    CHECK(!policy.display_on);
+}
+
+static void waking_with_a_newer_timestamp_does_not_immediately_auto_off(void)
+{
+    PowerPolicy policy = fresh_policy();
+    power_policy_set_timeout(&policy, 0);
+    power_policy_set_auto_off(&policy, AUTO_OFF_MS, START_MS);
+    power_policy_wake(&policy, START_MS + 1);
+    CHECK(!power_policy_update(&policy, START_MS));
+    CHECK(policy.display_on);
+    CHECK(!power_policy_update(&policy, START_MS + AUTO_OFF_MS));
+    CHECK(power_policy_update(&policy, START_MS + AUTO_OFF_MS + 1));
+}
+
+static void wake_and_timeout_checks_cross_the_millisecond_counter_wrap(void)
+{
+    PowerPolicy policy;
+    power_policy_init(&policy, 20, UINT32_MAX - 10);
+    power_policy_set_auto_off(&policy, 50, UINT32_MAX - 10);
+    power_policy_wake(&policy, 5);
+    CHECK(!power_policy_update(&policy, UINT32_MAX - 5));
+    CHECK(policy.display_on);
+    CHECK(!power_policy_update(&policy, 24));
+    CHECK(policy.display_on);
+    CHECK(!power_policy_update(&policy, 25));
+    CHECK(!policy.display_on);
+    CHECK(!power_policy_update(&policy, 54));
+    CHECK(power_policy_update(&policy, 55));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -223,6 +263,9 @@ int main(void)
         TEST_CASE(auto_off_shuts_down_after_its_time_without_activity),
         TEST_CASE(staying_awake_and_keys_restart_the_auto_off_count),
         TEST_CASE(auto_off_set_to_zero_never_shuts_down),
+        TEST_CASE(waking_with_a_newer_timestamp_does_not_immediately_blank_the_screen),
+        TEST_CASE(waking_with_a_newer_timestamp_does_not_immediately_auto_off),
+        TEST_CASE(wake_and_timeout_checks_cross_the_millisecond_counter_wrap),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

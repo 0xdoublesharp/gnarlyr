@@ -86,7 +86,8 @@ void power_policy_stay_awake(PowerPolicy *policy, uint32_t now_ms)
 
 static bool auto_off_due(PowerPolicy *policy, uint32_t now_ms)
 {
-    if (policy->auto_off_ms == 0 || now_ms - policy->awake_ms < policy->auto_off_ms) {
+    if (policy->auto_off_ms == 0 ||
+        !deadline_reached(now_ms, policy->awake_ms + policy->auto_off_ms)) {
         return false;
     }
     policy->awake_ms = now_ms;
@@ -96,7 +97,8 @@ static bool auto_off_due(PowerPolicy *policy, uint32_t now_ms)
 
 static bool timed_out(const PowerPolicy *policy, uint32_t now_ms)
 {
-    return policy->timeout_ms > 0 && now_ms - policy->last_activity_ms >= policy->timeout_ms;
+    return policy->timeout_ms > 0 &&
+           deadline_reached(now_ms, policy->last_activity_ms + policy->timeout_ms);
 }
 
 bool power_policy_update(PowerPolicy *policy, uint32_t now_ms)
