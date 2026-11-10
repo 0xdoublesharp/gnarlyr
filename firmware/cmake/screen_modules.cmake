@@ -1,10 +1,27 @@
-set(ECHO_SCREEN_MODULES views)
+set(ECHO_SCREEN_MODULES views settings)
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
     src/app/screens/cover_flow_screen.c
     src/app/screens/up_next_screen.c
     src/ui/cover_flow.c
 )
+set(ECHO_SCREEN_MODULE_SOURCES_settings
+    src/app/modules/settings_module.c
+    src/app/settings_screens.c
+    src/app/equalizer_presets.c
+    src/app/diagnostics_rows.c
+    src/app/diagnostics_values.c
+    src/app/screens/bluetooth_screen.c
+    src/app/screens/equalizer_screen.c
+    src/core/dac_identity.c
+    src/settings/equalizer_slots.c
+    src/ui/choice_screen.c
+)
+if(ECHO_RELEASE)
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_settings src/app/diagnostics_menu_release.c)
+else()
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_settings src/app/diagnostics_menu.c)
+endif()
 
 function(echo_screen_module_owner source target_variable name_variable)
     if(NOT source MATCHES "^src/([a-z0-9_]+)/(.+)$")

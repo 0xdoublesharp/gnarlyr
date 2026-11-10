@@ -125,24 +125,6 @@ static void build_music(AppScreens *screens, AppScreensContext context)
                            context.theme);
 }
 
-static void build_settings(AppScreens *screens, AppScreensContext context)
-{
-    SettingsContext settings = {
-        .store = context.settings,
-        .player = context.player,
-        .power = context.power,
-        .toast = context.toast,
-        .rescan_requested = context.rescan_requested,
-        .language_requested = context.language_requested,
-        .bluetooth = &screens->bluetooth,
-        .theme = context.styled_theme,
-        .sleep_option = 0,
-    };
-    settings_screens_init(&screens->settings, settings, context.theme);
-    screens->settings.items[SETTINGS_ABOUT_ITEM] =
-        app_screens_open_item(STR_ABOUT, &screens->diagnostics.screen);
-}
-
 static bool shelf_present(const void *context)
 {
     const BrowseEntry *entry = context;
@@ -175,7 +157,8 @@ static void build_home(AppScreens *screens, AppScreensContext context)
     screens->home_items[0] = app_screens_open_item(STR_MUSIC, &screens->music.screen);
     screens->home_items[1] = shelf_item(screens, context, SPOKEN_AUDIOBOOK);
     screens->home_items[2] = shelf_item(screens, context, SPOKEN_PODCAST);
-    screens->home_items[3] = app_screens_open_item(STR_SETTINGS, &screens->settings.menu.screen);
+    screens->home_items[3] =
+        app_screens_open_item(STR_SETTINGS, &screens->modules.settings.settings.menu.screen);
     screens->home_items[4] = app_screens_open_item(STR_NOW_PLAYING, &screens->now_playing.screen);
     screens->home_items[4].shown = player_has_track;
     screens->home_items[4].shown_context = context.player;
@@ -211,11 +194,8 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
     screens->context = context;
     screens->bound_modules = 0;
     message_screen_init(&screens->no_library, no_library);
-    bluetooth_screen_init(&screens->bluetooth, context.bluetooth, theme);
     now_playing_screen_init(&screens->now_playing, now_playing);
     build_music(screens, context);
-    build_settings(screens, context);
-    diagnostics_menu_build(screens, context.options, theme);
     build_home(screens, context);
     return &screens->home.screen;
 }
@@ -230,18 +210,6 @@ static int music_path(AppScreens *screens, int entry, Screen **path)
     path[0] = &screens->music.screen;
     path[1] = browse_screen_for(browse);
     return path[1] != NULL ? START_PATH_CAPACITY : 1;
-}
-
-Screen *app_screens_language_row(AppScreens *screens)
-{
-    MenuScreen *menu = &screens->settings.menu;
-    int row = 0;
-    for (int index = 0; index < SETTINGS_LANGUAGE_ITEM; index++) {
-        const MenuItem *item = &screens->settings.items[index];
-        row += item->shown == NULL || item->shown(item->shown_context) ? 1 : 0;
-    }
-    list_view_select(&menu->list, row, 0);
-    return &menu->screen;
 }
 
 int app_screens_start_path(AppScreens *screens, StartScreen start, Screen **path)

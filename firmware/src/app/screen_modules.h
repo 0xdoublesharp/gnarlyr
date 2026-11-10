@@ -9,6 +9,7 @@ struct AppScreens;
 typedef enum ScreenModule {
     SCREEN_MODULE_NONE,
     SCREEN_MODULE_VIEWS,
+    SCREEN_MODULE_SETTINGS,
     SCREEN_MODULE_COUNT
 } ScreenModule;
 

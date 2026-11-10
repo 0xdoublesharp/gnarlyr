@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "app/app.h"
+#include "app/debug_loop.h"
 #include "app_internal.h"
 #include "card_files.h"
 #include "check.h"
@@ -8,6 +9,7 @@
 #include "fake_hal.h"
 #include "fixture_library.h"
 #include "hal/storage.h"
+#include "hal/system.h"
 #include "library_store.h"
 #include "screen_modules.h"
 #include "settings/settings.h"
@@ -19,8 +21,14 @@ enum {
     KEY_HOLD_MS = 30,
     HOME_DEPTH = 1,
     MUSIC_DEPTH = 2,
+    SETTINGS_DEPTH = 2,
     COVER_FLOW_DEPTH = 3,
-    ALBUM_DEPTH = 4
+    ALBUM_DEPTH = 4,
+    HOME_SETTINGS_ROW = 1,
+    SETTINGS_SHUFFLE_ROW = 1,
+    SETTINGS_BLUETOOTH_ROW = 3,
+    SCRIPT_STEP_MS = 8,
+    SCRIPT_MS = 100
 };
 
 static const char HOME[] = FIRMWARE_SHORT_NAME;
@@ -94,6 +102,33 @@ static void open_cover_flow(void)
 {
     open_music();
     tap(KEY_PLAY);
+}
+
+static void move_down(int times)
+{
+    for (int count = 0; count < times; count++) {
+        tap(KEY_VOLUME_UP);
+    }
+}
+
+static void open_settings(void)
+{
+    move_down(HOME_SETTINGS_ROW);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+}
+
+static void run_script(const char *text)
+{
+    DebugScriptRun *run = debug_runner_script();
+    DebugScriptHost host = {hal_system_version(), hal_system_restart_pending()};
+    size_t length = strlen(text);
+    memcpy(run->text, text, length);
+    debug_script_load(run, (uint32_t)length, host);
+    debug_runner_begin();
+    for (uint32_t elapsed = 0; elapsed < SCRIPT_MS; elapsed += SCRIPT_STEP_MS) {
+        wait_ms(SCRIPT_STEP_MS);
+    }
 }
 
 static void a_module_screen_loads_its_module_when_it_opens(void)
@@ -273,6 +308,96 @@ static void a_start_screen_in_a_module_that_cannot_load_starts_on_the_screen_bef
     CHECK(title_is("Cover Flow"));
 }
 
+static void settings_and_the_screens_it_opens_share_one_module(void)
+{
+    start_app();
+    open_settings();
+    CHECK(title_is("Settings"));
+    CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
+    tap(KEY_PLAY);
+    CHECK(title_is("About"));
+    tap(KEY_BACK);
+    move_down(SETTINGS_SHUFFLE_ROW);
+    tap(KEY_PLAY);
+    CHECK(title_is("Shuffle"));
+    tap(KEY_BACK);
+    move_down(SETTINGS_BLUETOOTH_ROW - SETTINGS_SHUFFLE_ROW);
+    tap(KEY_PLAY);
+    CHECK(title_is("Bluetooth"));
+    CHECK_EQUAL(1, fake_hal_module_loads());
+}
+
+static void a_screen_of_another_module_takes_the_slot(void)
+{
+    start_app();
+    open_cover_flow();
+    tap(KEY_BACK);
+    tap(KEY_BACK);
+    open_settings();
+    CHECK(title_is("Settings"));
+    CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(2, fake_hal_module_loads());
+    tap(KEY_BACK);
+    tap(KEY_VOLUME_DOWN);
+    open_cover_flow();
+    CHECK(title_is("Cover Flow"));
+    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(3, fake_hal_module_loads());
+}
+
+static void a_module_that_cannot_load_does_not_cost_the_screen_under_it_its_own(void)
+{
+    start_app();
+    open_cover_flow();
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    CHECK(title_is("Now Playing"));
+    tap(KEY_BACK);
+    tap(KEY_BACK);
+    CHECK(title_is("Cover Flow"));
+    fake_hal_break_module(SCREEN_MODULE_SETTINGS, true);
+    run_script("build any\nset Repeat=All\n");
+    CHECK(title_is("Cover Flow"));
+    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(DEBUG_LINE_FAILED, debug_runner_script()->status[1]);
+}
+
+static void a_setting_changed_by_a_script_gives_the_slot_back_to_the_screen_on_top(void)
+{
+    start_app();
+    open_cover_flow();
+    wait_ms(SLIDE_DURATION_MS);
+    run_script("build any\nset Repeat=All\n");
+    CHECK_EQUAL(DEBUG_LINE_OK, debug_runner_script()->status[1]);
+    CHECK_EQUAL(REPEAT_ALL, app_player_status().repeat);
+    CHECK(title_is("Cover Flow"));
+    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(3, fake_hal_module_loads());
+}
+
+static void an_about_value_is_read_through_its_module(void)
+{
+    start_app();
+    CHECK_EQUAL(0, fake_hal_module_loads());
+    CHECK(app_diagnostics_value(1) != NULL);
+    CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
+    fake_hal_evict_module();
+    fake_hal_break_module(SCREEN_MODULE_SETTINGS, true);
+    CHECK(app_diagnostics_value(1) == NULL);
+}
+
+static void settings_that_cannot_load_leave_home_usable(void)
+{
+    start_app();
+    fake_hal_break_module(SCREEN_MODULE_SETTINGS, true);
+    open_settings();
+    CHECK(title_is(HOME));
+    CHECK(toast_is(MISSING));
+    tap(KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    CHECK(title_is("Music"));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -289,6 +414,12 @@ int main(void)
         TEST_CASE(a_slide_ends_at_once_when_the_leaving_screens_module_cannot_come_back),
         TEST_CASE(module_screens_are_built_again_after_the_app_restarts),
         TEST_CASE(a_start_screen_in_a_module_that_cannot_load_starts_on_the_screen_before_it),
+        TEST_CASE(settings_and_the_screens_it_opens_share_one_module),
+        TEST_CASE(a_screen_of_another_module_takes_the_slot),
+        TEST_CASE(a_module_that_cannot_load_does_not_cost_the_screen_under_it_its_own),
+        TEST_CASE(a_setting_changed_by_a_script_gives_the_slot_back_to_the_screen_on_top),
+        TEST_CASE(an_about_value_is_read_through_its_module),
+        TEST_CASE(settings_that_cannot_load_leave_home_usable),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -12,7 +12,6 @@ add_library(echo_app STATIC
     favorites_store.c
     diagnostics_values.c
     diagnostics_rows.c
-    $<IF:$<BOOL:${ECHO_RELEASE}>,diagnostics_menu_release.c,diagnostics_menu.c>
     draw_profile.c
     equalizer_presets.c
     frame_overlay.c
@@ -21,6 +20,7 @@ add_library(echo_app STATIC
     library_rescan.c
     music_check.c
     library_store.c
+    modules/settings_module.c
     modules/views_module.c
     player.c
     screen_modules.c
@@ -34,8 +34,11 @@ add_library(echo_app STATIC
     screens/now_playing_screen.c
     screens/up_next_screen.c
 )
-if(NOT ECHO_RELEASE)
-    target_sources(echo_app PRIVATE debug_loop.c debug_runner.c debug_screenshot.c)
+if(ECHO_RELEASE)
+    target_sources(echo_app PRIVATE diagnostics_menu_release.c)
+else()
+    target_sources(echo_app PRIVATE diagnostics_menu.c debug_loop.c debug_runner.c
+        debug_screenshot.c)
 endif()
 if(NOT ECHO_BUILD_DEVICE)
     target_sources(echo_app PRIVATE modules/linked_modules.c)

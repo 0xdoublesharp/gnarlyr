@@ -12,6 +12,8 @@ typedef struct ModuleSpan {
 
 static const ModuleSpan SPANS[SCREEN_MODULE_COUNT] = {
     [SCREEN_MODULE_VIEWS] = {offsetof(AppScreens, modules.views), sizeof(ViewsModuleScreens)},
+    [SCREEN_MODULE_SETTINGS] = {offsetof(AppScreens, modules.settings),
+                                sizeof(SettingsModuleScreens)},
 };
 
 ScreenModule screen_modules_of(const AppScreens *screens, const Screen *screen)

@@ -101,8 +101,17 @@ typedef struct ViewsModuleScreens {
     UpNextScreen up_next;
 } ViewsModuleScreens;
 
+typedef struct SettingsModuleScreens {
+    SettingsScreens settings;
+    BluetoothScreen bluetooth;
+    MenuScreen diagnostics;
+    ClockOption clock;
+    MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
+} SettingsModuleScreens;
+
 typedef struct AppModuleScreens {
     ViewsModuleScreens views;
+    SettingsModuleScreens settings;
 } AppModuleScreens;
 
 typedef struct AppScreens {
@@ -110,15 +119,11 @@ typedef struct AppScreens {
     uint32_t bound_modules;
     MenuScreen home;
     MenuScreen music;
-    SettingsScreens settings;
-    MenuScreen diagnostics;
     MessageScreen no_library;
     BrowsePool browse;
     NowPlayingScreen now_playing;
     BrowseEntry browse_entries[MUSIC_ITEM_COUNT];
     BrowseEntry shelf_entries[SHELF_COUNT];
-    BluetoothScreen bluetooth;
-    ClockOption clock;
     ToneOption tone;
     LoopOption loop;
     Core1Option core1;
@@ -126,7 +131,6 @@ typedef struct AppScreens {
     MenuItem home_items[HOME_ITEM_COUNT];
     HomeArt home_art;
     MenuItem music_items[MUSIC_ITEM_COUNT];
-    MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
     HighRamOption high_ram;
     AppModuleScreens modules;
 } AppScreens;
@@ -137,4 +141,3 @@ Screen *app_screens_build_menu(MenuScreen *menu, StringId title, const MenuItem 
                                const Theme *theme);
 void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Theme *theme);
 int app_screens_start_path(AppScreens *screens, StartScreen start, Screen **path);
-Screen *app_screens_language_row(AppScreens *screens);

@@ -36,6 +36,7 @@
 #include "language.h"
 #include "library_rescan.h"
 #include "library_store.h"
+#include "modules/modules.h"
 #include "music_check.h"
 #include "player.h"
 #include "screens/charge_screen.h"
@@ -435,6 +436,11 @@ static void start_slide(Screen *leaving, int depth_before, uint32_t now_ms)
 static bool slide_running(void)
 {
     return app.slide.active && !slide_finished(&app.slide, app.now_ms);
+}
+
+static const SettingsModuleEntry *settings_module(void)
+{
+    return (const SettingsModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_SETTINGS);
 }
 
 static void explain_missing_screen(uint32_t now_ms)
@@ -932,8 +938,12 @@ static void change_language(uint32_t now_ms)
     app.toast.visible = false;
     app.slide.active = false;
     build_screens(now_ms);
-    screen_stack_apply(&app.stack, screen_action_push(app_screens_language_row(&app.screens)),
-                       now_ms);
+    const SettingsModuleEntry *module = settings_module();
+    if (module == NULL) {
+        explain_missing_screen(now_ms);
+    } else {
+        apply_action(screen_action_push(module->language_row(&app.screens)), now_ms);
+    }
     use_screen_key_behaviors();
     if (!language_is(settings->language)) {
         StringBuilder code = string_builder_make(settings->language, sizeof settings->language);
@@ -1171,14 +1181,22 @@ static bool save_debug_screenshot(const DebugRequest *request)
     return debug_screenshot_save(&shot);
 }
 
+static bool choose_setting(const DebugRequest *request, uint32_t now_ms)
+{
+    const SettingsModuleEntry *module = settings_module();
+    bool chosen = module != NULL && module->choose != NULL &&
+                  module->choose(&app.screens, request->argument, request->value);
+    settle_screens(now_ms);
+    return chosen;
+}
+
 static void run_debug_script(uint32_t now_ms)
 {
     DebugRequest request = debug_runner_step(now_ms, fade_running());
     if (request.kind == DEBUG_REQUEST_START) {
         start_debug_script(now_ms);
     } else if (request.kind == DEBUG_REQUEST_SET) {
-        debug_runner_done(
-            settings_screens_choose(&app.screens.settings, request.argument, request.value));
+        debug_runner_done(choose_setting(&request, now_ms));
     } else if (request.kind == DEBUG_REQUEST_SCREENSHOT) {
         debug_runner_done(save_debug_screenshot(&request));
     }
@@ -1415,6 +1433,9 @@ const char *app_toast_text(void)
 
 const char *app_diagnostics_value(int index)
 {
-    const MenuItem *item = &app.screens.diagnostics_items[index];
+    if (settings_module() == NULL) {
+        return NULL;
+    }
+    const MenuItem *item = &app.screens.modules.settings.diagnostics_items[index];
     return item->value != NULL ? item->value(item->context) : NULL;
 }

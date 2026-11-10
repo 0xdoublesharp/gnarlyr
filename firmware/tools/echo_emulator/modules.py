@@ -11,7 +11,13 @@ SECTOR_BYTES = 512
 
 class ModuleWatch:
     """Follows the module loader and the slot: every call of the loader with what it read and
-    how long it took, who writes into the slot, and how many instructions run there."""
+    how long it took, how many instructions run in the slot, and what writes into it.
+
+    Outside a load nothing may write into the loaded module's code and constants
+    (`code_writes`). Its zeroed memory behind them is written by the module and by what it
+    calls, so those writes are only counted (`other_writes`): with no module screen open the
+    count must stand still.
+    """
 
     def __init__(self, session):
         self.session = session
@@ -19,7 +25,9 @@ class ModuleWatch:
         self.calls = []
         self.pending = None
         self.returns = set()
-        self.foreign_writes = []
+        self.code_end = SLOT_FIRST
+        self.code_writes = []
+        self.other_writes = 0
         self.executed = 0
         self.machine.hook_symbol(LOADER, self.entered)
         self.machine.uc.hook_add(UC_HOOK_MEM_WRITE, self.slot_written, None, SLOT_FIRST, SLOT_LAST)
@@ -49,12 +57,18 @@ class ModuleWatch:
         call["commands"] = len(reads)
         call["us"] = self.machine.microseconds() - call.pop("start_us")
         call["loaded"] = self.machine.reg(UC_ARM_REG_R0) != 0
+        if call["sectors"]:
+            size = int.from_bytes(self.machine.read_memory(SLOT_FIRST + 4, 4), "little")
+            self.code_end = SLOT_FIRST + size if call["loaded"] else SLOT_FIRST
         self.calls.append(call)
 
     def slot_written(self, uc, access, address, size, value, user):
-        where = self.machine.current_pc()
-        if self.pending is None and not SLOT_FIRST <= where <= SLOT_LAST:
-            self.foreign_writes.append((address, self.machine.symbol_at(where)))
+        if self.pending is not None:
+            return
+        if address < self.code_end:
+            self.code_writes.append((address, self.machine.symbol_at(self.machine.current_pc())))
+        else:
+            self.other_writes += 1
 
     def loads(self):
         """The calls that read storage: the ones that put a module into the slot or tried to."""

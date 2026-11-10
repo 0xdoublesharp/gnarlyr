@@ -16,6 +16,8 @@
 #include "settings_store.h"
 #include "spoken_store.h"
 
+const char EQUALIZER_SLOTS_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/eq_slots.bin";
+
 enum {
     SMALL_FILE_BYTES = 4096,
     LIBRARY_FILE_BYTES = 4 * 1024 * 1024,
