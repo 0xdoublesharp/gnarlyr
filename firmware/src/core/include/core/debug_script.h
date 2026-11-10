@@ -152,7 +152,6 @@ typedef struct DebugSoak {
     uint8_t end;
     uint32_t started_ms;
     uint32_t ended_ms;
-    uint32_t measured_ms;
     uint32_t idle_ms;
     DebugSoakEdge start;
     DebugSoakEdge finish;

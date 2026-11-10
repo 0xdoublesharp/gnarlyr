@@ -3611,7 +3611,6 @@ static void a_soak_waits_its_minutes_and_records_both_ends(void)
     start_app();
     fake_hal_set_power_levels(HAL_PROBE_CABLE | HAL_PROBE_CHARGE_KNOWN | HAL_PROBE_CHARGE_PIN);
     fake_hal_set_power_samples(40);
-    fake_hal_set_microseconds_per_read(2000);
     load_script("build any\nsupply off\nscreen off\nsoak 2\nscreen on\nwait 1000\n");
     run_script_for(100);
     const DebugScriptRun *run = debug_runner_script();
@@ -3621,6 +3620,7 @@ static void a_soak_waits_its_minutes_and_records_both_ends(void)
     CHECK_EQUAL(0, run->soak_count);
     CHECK(!fake_hal_display_on());
     fake_hal_set_power_samples(42);
+    fake_hal_set_idle_microseconds(40000000);
     fake_hal_set_power_levels(HAL_PROBE_CABLE | HAL_PROBE_CHARGE_KNOWN);
     run_script_minutes(1);
     wait_ms(500);
@@ -3638,7 +3638,7 @@ static void a_soak_waits_its_minutes_and_records_both_ends(void)
     CHECK_EQUAL(42, soak->finish.sample);
     CHECK_EQUAL(96, soak->start.clock_mhz);
     CHECK_EQUAL(96, soak->finish.clock_mhz);
-    CHECK(soak->measured_ms > 0 && soak->idle_ms <= soak->measured_ms);
+    CHECK_EQUAL(40000, soak->idle_ms);
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[3]);
     CHECK(fake_hal_supply_held_off());
     wait_ms(100);

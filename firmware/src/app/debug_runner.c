@@ -41,7 +41,6 @@ typedef struct Runner {
     bool key_pressed;
     uint8_t low_checks;
     uint32_t checked_ms;
-    uint32_t clock_us;
     uint32_t idle_us;
 } Runner;
 
@@ -108,11 +107,8 @@ static DebugSoakEdge soak_edge(void)
 
 static void measure_soak(DebugSoak *soak)
 {
-    uint32_t clock_us = hal_clock_microseconds();
     uint32_t idle_us = hal_system_idle_microseconds();
-    soak->measured_ms += (clock_us - runner.clock_us) / MICROSECONDS_PER_MILLISECOND;
     soak->idle_ms += (idle_us - runner.idle_us) / MICROSECONDS_PER_MILLISECOND;
-    runner.clock_us = clock_us;
     runner.idle_us = idle_us;
 }
 
@@ -128,7 +124,6 @@ static void begin_soak(uint32_t now_ms, uint32_t minutes)
     runner.checked_ms = now_ms;
     runner.low_checks = 0;
     runner.key_pressed = false;
-    runner.clock_us = hal_clock_microseconds();
     runner.idle_us = hal_system_idle_microseconds();
     runner.phase = PHASE_SOAKING;
 }

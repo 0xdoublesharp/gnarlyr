@@ -1017,6 +1017,11 @@ uint32_t hal_system_idle_microseconds(void)
     return fake.idle_us;
 }
 
+void fake_hal_set_idle_microseconds(uint32_t idle_us)
+{
+    fake.idle_us = idle_us;
+}
+
 HalProfileState hal_system_profile_state(void)
 {
     return fake.profile_state;

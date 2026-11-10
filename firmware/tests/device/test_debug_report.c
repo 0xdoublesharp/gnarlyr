@@ -590,7 +590,6 @@ static DebugSoak soak_over(uint32_t first_sample, uint32_t samples)
                        .end = DEBUG_SOAK_DONE,
                        .started_ms = 6000000,
                        .ended_ms = 6000000 + 45 * 60000,
-                       .measured_ms = 2700000,
                        .idle_ms = 2376000,
                        .start = {first_sample,
                                  DEBUG_SOAK_CABLE | DEBUG_SOAK_CHARGE_KNOWN |

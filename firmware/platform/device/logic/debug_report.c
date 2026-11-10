@@ -633,19 +633,18 @@ static void append_soak_edge(StringBuilder *text, const DebugSoakEdge *edge, con
 static void put_soak(Writer *writer, const DebugSoak *soak, const PowerHistory *history)
 {
     SoakVoltage voltage = soak_voltage(history, soak);
+    uint32_t lasted_ms = soak->ended_ms - soak->started_ms;
     begin(writer, "script.soak");
     string_builder_append(&writer->text, "line=");
     string_builder_append_unsigned(&writer->text, soak->line);
-    append_field(&writer->text, "minutes", true,
-                 (soak->ended_ms - soak->started_ms) / MILLISECONDS_PER_MINUTE);
+    append_field(&writer->text, "minutes", true, lasted_ms / MILLISECONDS_PER_MINUTE);
     string_builder_append(&writer->text, " end=");
     string_builder_append(&writer->text, NAME_IN(SOAK_ENDS, soak->end));
     append_field(&writer->text, "samples", true, voltage.samples);
     append_field(&writer->text, "first_mv", voltage.known, voltage.first_millivolts);
     append_field(&writer->text, "last_mv", voltage.known, voltage.last_millivolts);
     append_rate(&writer->text, &voltage);
-    append_share(&writer->text, "busy_percent", soak->measured_ms - soak->idle_ms,
-                 soak->measured_ms);
+    append_share(&writer->text, "busy_percent", lasted_ms - soak->idle_ms, lasted_ms);
     append_soak_edge(&writer->text, &soak->start, "_start");
     append_soak_edge(&writer->text, &soak->finish, "_end");
     finish(writer);
