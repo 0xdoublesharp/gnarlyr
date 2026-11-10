@@ -585,6 +585,25 @@ static void scanning_m4a_files_matches_the_pc_indexer(void)
     free(expected);
 }
 
+static void indexing_m4b_chapters_matches_the_device_scanner(void)
+{
+    static const char *const TREES[] = {"m4b_music", "m4b_real"};
+    static Output output;
+    for (size_t index = 0; index < sizeof TREES / sizeof TREES[0]; index++) {
+        char folder[512];
+        char database[64];
+        snprintf(folder, sizeof folder, "%s/%s", ECHO_FIXTURE_DIR, TREES[index]);
+        snprintf(database, sizeof database, "%s.db", TREES[index]);
+        Progress progress = {.calls = 0};
+        ScanStats stats;
+        CHECK_EQUAL(SCAN_OK, scan_folder(folder, &output, &progress, &stats));
+        uint32_t expected_size = 0;
+        uint8_t *expected = read_fixture(database, &expected_size);
+        CHECK(library_compare(expected, expected_size, output.bytes, stats.length));
+        free(expected);
+    }
+}
+
 static void a_cue_sheet_makes_a_track_per_cue_track_and_hides_its_audio(void)
 {
     static Output output;
@@ -782,6 +801,7 @@ int main(void)
         TEST_CASE(scanning_folders_and_playlists_matches_the_pc_indexer),
         TEST_CASE(scanning_cue_sheets_matches_the_pc_indexer),
         TEST_CASE(scanning_m4a_files_matches_the_pc_indexer),
+        TEST_CASE(indexing_m4b_chapters_matches_the_device_scanner),
         TEST_CASE(a_cue_sheet_makes_a_track_per_cue_track_and_hides_its_audio),
         TEST_CASE(a_favorites_file_in_the_music_root_resolves_each_cue_part),
         TEST_CASE(a_padded_favorites_file_without_directives_resolves_to_the_last_part),

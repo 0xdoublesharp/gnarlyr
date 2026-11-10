@@ -63,7 +63,7 @@ The canonical `GNARLYR` identity has not been installed on the owner's player. T
 - **Only `.m4b` files are split.** Chapters in `.m4a` and other files are ignored.
 - **A book is the folder at the top of `Audiobooks/`.** An `.m4b` inside a book folder, or deeper (Libation's `Author/Title/Title.m4b`), is listed under that folder's book, not as a book of its own, and its chapters sit one folder further down (hold ▶ on the folder, then open the file's folder). Put the files straight into `Audiobooks/`.
 - **A chaptered book remembers one place.** Choosing another chapter moves the bookmark to it.
-- **At most 255 chapters** are read; a longer chapter list ends with the 255th chapter running to the file's end. UTF-16 chapter titles of a text track show as "Chapter n". The PC indexer lists an `.m4b` as one track and doesn't read chapters.
+- **At most 255 chapters** are read; a longer chapter list ends with the 255th chapter running to the file's end. UTF-16 chapter titles of a text track show as "Chapter n". The desktop indexer now preserves the same chapter layout as the device scanner; the synthetic and ffmpeg-derived fixture libraries match in native comparisons.
 - **Titles are cut at 63 bytes.**
 
 ## CUE sheets

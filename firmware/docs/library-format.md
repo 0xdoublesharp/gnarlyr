@@ -59,7 +59,7 @@ The content fingerprint costs one pass over the database, so it is not part of `
 
 ## Chapters of an .m4b
 
-A `.m4b` file is scanned like `.m4a` (`library/tags_mp4`) and, when it has at least two usable chapters, becomes one track per chapter, the same way a CUE sheet does (`library/mp4_chapters`):
+Both the desktop indexer and device scanner read a `.m4b` file like `.m4a` (`library/tags_mp4`) and, when it has at least two usable chapters, becomes one track per chapter, the same way a CUE sheet does (`library/mp4_chapters` and `tools/mp4_chapters.py`):
 
 - Chapters come from the Nero `chpl` atom in `moov/udta` first, then from the QuickTime chapter text track (`trak/tref/chap` names a text track; each sample is a 16-bit length and UTF-8 text, its start time from `stts` and its place from `stsc`, `stsz` and `stco` or `co64`). Entries that start no later than the previous one or at or past the file's duration are dropped, the first chapter starts at 0, at most 255 chapters are read (the last one runs to the end of the file) and a chapter title is cut at 63 bytes. A chapter without a title is "Chapter n". Chapter data that is missing, has fewer than two chapters or doesn't fit the file leaves one ordinary track.
 - Each chapter track has the file's tags with `title` the chapter's, `number` the chapter's place (1 to 255), `start_ms` its start, `end_ms` the next chapter's start (0 for the last) and `duration_ms` its own length.
@@ -90,9 +90,11 @@ Every sort and grouping key of a spoken track starts with a spoken flag that sor
 
 Sort keys are case-insensitive and accent-insensitive (Unicode NFKD with combining marks removed), and a leading "The " is ignored. So "The Beatles" sorts as "beatles" and "Björk" as "bjork".
 
+The desktop chapter reader seeks past audio payloads and reads only bounded atom headers, table fields and chapter text. It supports standard and extended atom sizes, version 0/1 media clocks, fixed or variable sample sizes and 32/64-bit chunk tables within the player's 32-bit file-offset limit. Chapter parsing is separate from Mutagen metadata loading so a malformed chapter box can fall back to a valid referenced text track or a whole-book record without losing readable tags.
+
 ## Files and tags
 
-The indexer lists every format stock plays: `.flac`, `.ogg`, `.mp3`, `.m4a` (AAC or ALAC), `.wav`, `.wma`, `.ape`, `.dsf` and `.dff`, skipping hidden files and folders (a name starting with `.`). Each field takes the first non-empty value, trimmed:
+The indexer lists every format stock plays: `.flac`, `.ogg`, `.mp3`, `.m4a` and `.m4b` (AAC or ALAC), `.wav`, `.wma`, `.ape`, `.dsf` and `.dff`, skipping hidden files and folders (a name starting with `.`). Each field takes the first non-empty value, trimmed:
 
 | Field | Vorbis comment (FLAC, Ogg) | ID3 (MP3, WAV, DSF, DFF) | MP4 atom | APEv2 (any case) | ASF (WMA) |
 |---|---|---|---|---|---|

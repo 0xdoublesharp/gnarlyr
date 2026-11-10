@@ -686,6 +686,17 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
             -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/m4a_music.db
             -P ${CMAKE_CURRENT_SOURCE_DIR}/check_library_index.cmake
     )
+    foreach(book_fixture m4b_music m4b_real)
+        add_test(NAME ${book_fixture}_up_to_date
+            COMMAND ${CMAKE_COMMAND}
+                -DPYTHON=${ECHO_TOOLS_PYTHON}
+                -DINDEXER=${PROJECT_SOURCE_DIR}/tools/library_index.py
+                -DMUSIC=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/${book_fixture}
+                -DEXPECTED=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/${book_fixture}.db
+                -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/${book_fixture}.db
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/check_library_index.cmake
+        )
+    endforeach()
     add_test(NAME m4b_fixture_up_to_date
         COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/m4b_fixture.py
             --output ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/m4b_music

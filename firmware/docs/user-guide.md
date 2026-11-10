@@ -41,6 +41,10 @@ On the first start with a microSD card in the player, Gnarlyr builds its library
 
 Music → Search finds songs across their metadata and paths. View options combine sorting, filters and personal tags. See [Search, sorting and personal tags](library-discovery.md) for controls, scopes, limits and saved-view behavior.
 
+## Audiobook chapters
+
+A chaptered `.m4b` appears as a book folder containing its chapter titles and lengths. The player scan and desktop echo-sync both preserve these chapters. Selecting a chapter starts at its position in the book; the final chapter continues to the file's end. Books without usable chapter information remain playable as one track. Rescan or run echo-sync again after changing chapter information.
+
 ## CUE sheets
 
 An album ripped as one big FLAC, WAV or MP3 with a `.cue` file shows up as a normal album with one track per CUE track:

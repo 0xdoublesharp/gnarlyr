@@ -38,6 +38,7 @@ ALBUM_RECORD = struct.Struct("<IHHHHHH")
 GROUP_RECORD = struct.Struct("<IIHH")
 FOLDER_RECORD = struct.Struct("<IHHIHH")
 FOLDER_SHEET = 1
+FOLDER_CHAPTERS = 2
 INDEX_RECORD = struct.Struct("<H")
 
 START_DIRECTIVE_TEXT = f"#{IDENTITY.playlist_start_directive}:"
@@ -67,6 +68,7 @@ class TrackInfo:
     end_ms: int = 0
     sheet: str = ""
     part: int = 0
+    chapters: bool = False
 
 
 @dataclass
@@ -274,11 +276,20 @@ def normalized_tags(audio):
     return {key: [nfc(value) for value in values] for key, values in raw_tag_values(audio.tags).items()}
 
 
+def mp4_metadata(handle):
+    from mutagen.mp4 import MP4
+
+    class MetadataMP4(MP4):
+        MP4Chapters = staticmethod(lambda *_args: None)
+
+    return MetadataMP4(handle)
+
+
 def read_track(root, path):
     from mutagen import File
     from tag_skim import open_skimming
     with open_skimming(path) as handle:
-        audio = File(handle)
+        audio = mp4_metadata(handle) if path.suffix.lower() == ".m4b" else File(handle)
     duration = audio.info.length if audio is not None else 0.0
     return track_from_tags(nfc(path.relative_to(root).as_posix()), normalized_tags(audio), duration)
 
@@ -440,11 +451,11 @@ def build_folders(tracks):
         node = tree
         for part in PurePosixPath(track.path).parts[:-1]:
             node = node["children"].setdefault(part, folder_node())
-        if track.part == 0:
+        if track.part == 0 and not track.chapters:
             node["tracks"].append(position)
         if track.sheet:
             sheet = node["children"].setdefault(track.sheet, folder_node())
-            sheet["flags"] |= FOLDER_SHEET
+            sheet["flags"] |= FOLDER_SHEET | (FOLDER_CHAPTERS if track.chapters else 0)
             sheet["tracks"].append(position)
     folders = []
     add_folder(folders, tree, "", NONE, tracks)
@@ -729,6 +740,23 @@ def cue_tracks(root, sheet, audio_path, cue_path):
             for part, (track, end) in enumerate(zip(starts, ends))]
 
 
+def audio_tracks(root, path):
+    base = read_track(root, path)
+    if path.suffix.lower() != ".m4b":
+        return [base]
+    from mp4_chapters import read_chapters
+    with path.open("rb") as handle:
+        chapters = read_chapters(handle, path.stat().st_size, base.duration_ms)
+    if not chapters:
+        return [base]
+    ends = [chapter.start_ms for chapter in chapters[1:]] + [0]
+    return [replace(base, title=nfc(chapter.title), number=part + 1, part=part,
+                    start_ms=chapter.start_ms, end_ms=end,
+                    duration_ms=max((end or base.duration_ms) - chapter.start_ms, 0),
+                    sheet=nfc(path.stem), chapters=True)
+            for part, (chapter, end) in enumerate(zip(chapters, ends))]
+
+
 def scan(root):
     tracks, failures = [], []
     files = list(visible_files(root, AUDIO_SUFFIXES | {CUE_SUFFIX}))
@@ -741,7 +769,7 @@ def scan(root):
             if path in sheets:
                 tracks.extend(cue_tracks(root, sheets[path][0], sheets[path][1], path))
             else:
-                tracks.append(read_track(root, path))
+                tracks.extend(audio_tracks(root, path))
         except Exception as error:
             failures.append(f"{path.relative_to(root)}: {error}")
     playlists = [read_playlist(root, path) for path in visible_files(root, PLAYLIST_SUFFIXES)]
@@ -749,7 +777,7 @@ def scan(root):
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Index a music folder into an Echo Mini library")
+    parser = argparse.ArgumentParser(description=f"Index a music folder into a {IDENTITY.name} library")
     parser.add_argument("--music", type=Path, required=True, help="music root (read only)")
     parser.add_argument("--output", type=Path, required=True, help="library.db to write")
     return parser.parse_args()

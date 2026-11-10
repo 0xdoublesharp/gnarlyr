@@ -259,13 +259,95 @@ class CueFolderTest(unittest.TestCase):
 
 
 class M4bTest(unittest.TestCase):
-    def test_every_m4b_is_one_track_without_chapters(self):
-        music = TOOLS_DIRECTORY.parent / "tests" / "fixtures" / "m4b_music"
-        tracks, _, _ = library_index.scan(music)
-        self.assertEqual(8, len(tracks))
-        self.assertEqual({0}, {track.start_ms for track in tracks})
-        self.assertEqual({""}, {track.sheet for track in tracks})
-        self.assertEqual(".m4b", Path(tracks[0].path).suffix)
+    @classmethod
+    def setUpClass(cls):
+        cls.fixtures = TOOLS_DIRECTORY.parent / "tests" / "fixtures"
+        cls.tracks, _, cls.failures = library_index.scan(cls.fixtures / "m4b_music")
+
+    def book(self, name):
+        return sorted((track for track in self.tracks if Path(track.path).name == name),
+                      key=lambda track: track.start_ms)
+
+    def test_chpl_and_text_chapters_survive_desktop_indexing(self):
+        self.assertEqual([], self.failures)
+        self.assertEqual(16, len(self.tracks))
+        self.assertEqual(["Opening", "The Middle", "Finale"],
+                         [track.title for track in self.book("Chpl Book.m4b")])
+        self.assertEqual([0, 100000, 220000],
+                         [track.start_ms for track in self.book("Chpl Book.m4b")])
+        self.assertEqual([100000, 220000, 0],
+                         [track.end_ms for track in self.book("Chpl Book.m4b")])
+        self.assertEqual([100000, 120000, 80000],
+                         [track.duration_ms for track in self.book("Chpl Book.m4b")])
+        self.assertEqual([1, 2, 3], [track.number for track in self.book("Chpl Book.m4b")])
+
+    def test_chpl_without_a_reserved_word_and_text_samples_are_supported(self):
+        self.assertEqual(["Part One", "Part Two"],
+                         [track.title for track in self.book("Nero Book.m4b")])
+        self.assertEqual([0, 50000], [track.start_ms for track in self.book("Nero Book.m4b")])
+        self.assertEqual(["One", "Two", "Three", "Four"],
+                         [track.title for track in self.book("Track Book.m4b")])
+        self.assertEqual([0, 60000, 120000, 210000],
+                         [track.start_ms for track in self.book("Track Book.m4b")])
+
+    def test_unusable_chapter_metadata_preserves_the_whole_book(self):
+        for name in ["Plain Book.m4b", "Single Chapter.m4b", "Broken Chpl.m4b",
+                     "Broken Track.m4b"]:
+            with self.subTest(name=name):
+                tracks = self.book(name)
+                self.assertEqual(1, len(tracks))
+                self.assertEqual((0, 0, ""),
+                                 (tracks[0].start_ms, tracks[0].end_ms, tracks[0].sheet))
+
+    def test_repeated_backwards_and_late_chapters_match_player_cleanup(self):
+        tracks = self.book("Messy Chpl.m4b")
+        self.assertEqual([0, 100000, 150000], [track.start_ms for track in tracks])
+        self.assertEqual(["A", "é" * 31, "Chapter 3"], [track.title for track in tracks])
+        self.assertEqual([100000, 50000, 150000], [track.duration_ms for track in tracks])
+
+    def test_chapter_folders_hide_the_duplicate_whole_file_row(self):
+        model = library_index.build_library(self.tracks)
+        shelf = next(folder for folder in model.folders if folder.name == "Audiobooks")
+        self.assertEqual(4, len(shelf.tracks))
+        self.assertEqual(4, len(shelf.subfolders))
+        book = next(folder for folder in model.folders if folder.name == "Chpl Book")
+        self.assertEqual(3, book.flags)
+        self.assertEqual(["Opening", "The Middle", "Finale"],
+                         [model.tracks[index].title for index in book.tracks])
+        self.assertEqual([], book.subfolders)
+        self.assertEqual({model.folders.index(shelf)},
+                         {model.track_folders[index] for index in book.tracks})
+
+    def test_real_ffmpeg_chapters_match_the_player_for_both_styles(self):
+        tracks, _, failures = library_index.scan(self.fixtures / "m4b_real")
+        self.assertEqual([], failures)
+        self.assertEqual(6, len(tracks))
+        for name in ["Real Book.m4b", "Real Track.m4b"]:
+            book = sorted((track for track in tracks if Path(track.path).name == name),
+                          key=lambda track: track.start_ms)
+            self.assertEqual([0, 400, 700], [track.start_ms for track in book])
+            self.assertEqual(["Intro", "Middle", "End"], [track.title for track in book])
+
+    def test_bad_chpl_metadata_still_uses_a_valid_referenced_text_track(self):
+        raw = bytearray((self.fixtures / "m4b_real/Audiobooks/Real Book.m4b").read_bytes())
+        at = raw.index(b"chpl")
+        raw[at + 12] = 255
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "Book.m4b").write_bytes(raw)
+            tracks, _, failures = library_index.scan(root)
+        self.assertEqual([], failures)
+        self.assertEqual([0, 400, 700], [track.start_ms for track in tracks])
+
+    def test_music_m4a_chapters_are_not_split_into_audiobook_parts(self):
+        raw = (self.fixtures / "m4b_real/Audiobooks/Real Book.m4b").read_bytes()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "Music.m4a").write_bytes(raw)
+            tracks, _, failures = library_index.scan(root)
+        self.assertEqual([], failures)
+        self.assertEqual(1, len(tracks))
+        self.assertEqual((0, 0, ""), (tracks[0].start_ms, tracks[0].end_ms, tracks[0].sheet))
 
 
 class EncodeLibraryTest(unittest.TestCase):
