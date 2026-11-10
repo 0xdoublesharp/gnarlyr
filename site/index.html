@@ -153,6 +153,12 @@
     .footer-links { display: flex; flex-wrap: wrap; gap: 8px 17px; }
     .footer-links a { display: inline-block; padding-block: 12px; line-height: 20px; }
     footer p { margin-top: 12px; max-width: 760px; }
+    @media (min-width: 1001px) {
+      .prep code.path { white-space: nowrap; }
+    }
+    @media (min-width: 1001px) and (min-height: 700px) {
+      .build-col { position: sticky; top: 24px; }
+    }
     @media (max-width: 1000px) {
       .wrap { width: calc(100% - 64px); }
       .hero-inner { min-height: 460px; padding-block: 46px; }
@@ -202,7 +208,7 @@
       .prep details { margin-top: 14px; }
       .steps { grid-template-columns: 1fr; gap: 23px; }
       .steps li { display: block; position: relative; padding: 17px 0 0 48px; }
-      .steps li::before { position: absolute; top: 21px; left: 0; }
+      .steps li::before { position: absolute; top: 17px; left: 0; margin: 0; line-height: 23.2px; }
       .before { margin-bottom: 24px; }
       .install-modes { grid-template-columns: 1fr; gap: 22px; }
       .verify-copy { padding: 16px; }
@@ -230,10 +236,10 @@
 </head>
 <body>
   <svg class="icon-definitions" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><defs>
-    <symbol id="icon-tools" viewBox="0 0 24 24"><path d="m14 6 4 4M4 20l6-6m-3 7-4-4L15 5a5 5 0 0 1 6-2l-4 4 1 3 3 1a5 5 0 0 1-6 6L7 21Z"/></symbol>
+    <symbol id="icon-checklist" viewBox="0 0 24 24"><path d="m3.5 6 1.75 1.75L8.5 4.5m-5 7.5 1.75 1.75 3.25-3.25m-5 7.5 1.75 1.75 3.25-3.25M12 6h8.5M12 12h8.5M12 18h8.5"/></symbol>
     <symbol id="icon-build" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3m6 0h4"/></symbol>
     <symbol id="icon-check" viewBox="0 0 24 24"><path d="M8 3H5v18h14V3h-3M8 3h8v4H8zM8 14l3 3 5-6"/></symbol>
-    <symbol id="icon-usb" viewBox="0 0 24 24"><path d="M12 20V4m-3 3 3-3 3 3m-3 10-6-4V9m6 6 6-4V8"/><circle cx="12" cy="20" r="2"/><circle cx="6" cy="7" r="2"/><path d="M16 4h4v4h-4z"/></symbol>
+    <symbol id="icon-usb" viewBox="0 0 24 24"><path d="M12 18V3m-3 3 3-3 3 3m-3 9-7-4V8m7 5 7-4V6"/><circle cx="12" cy="20" r="2"/><circle cx="5" cy="6" r="2"/><path d="M17 2h4v4h-4z"/></symbol>
     <symbol id="icon-eject" viewBox="0 0 24 24"><path d="m12 4 8 10H4L12 4ZM4 18h16v3H4z"/></symbol>
   </defs></svg>
   <a class="skip" href="#main">Skip to content</a>
@@ -347,7 +353,7 @@
           <h2 id="get-title">Make it Gnarlyr.</h2>
           <p>Start in your SnowskyEcho source checkout. Prepare your tools, build the image, and record its checksum before installing over USB.</p>
           <div class="prep">
-            <h3 class="task-heading"><svg class="task-icon" aria-hidden="true"><use href="#icon-tools"/></svg>You’ll need</h3>
+            <h3 class="task-heading"><svg class="task-icon" aria-hidden="true"><use href="#icon-checklist"/></svg>You’ll need</h3>
             <ul class="prep-list">
               <li>Python 3.14 and the packages in <code class="path">firmware/<wbr>tools/<wbr><span class="nb">requirements.txt</span></code></li>
               <li>CMake, Clang/clang-format, SDL2, FFmpeg, and an Arm GNU cross-compiler</li>
@@ -362,7 +368,7 @@
             </details>
           </div>
         </div>
-        <div>
+        <div class="build-col">
           <div class="terminal">
             <div class="terminal-bar"><span>GNARLYR / BUILD</span><span>macOS</span></div>
             <div class="terminal-body">
@@ -448,7 +454,11 @@
       let pointerType = '';
       button.addEventListener('pointerdown', (event) => { pointerType = event.pointerType; });
       button.addEventListener('click', async (event) => {
-        const touchInput = event.detail > 0 && (pointerType === 'touch' || pointerType === 'pen' || matchMedia('(hover: none) and (pointer: coarse)').matches);
+        const pointer = event.detail > 0 ? event.pointerType || pointerType : '';
+        pointerType = '';
+        const touchInput = pointer
+          ? pointer === 'touch' || pointer === 'pen'
+          : event.detail > 0 && matchMedia('(hover: none) and (pointer: coarse)').matches;
         const code = document.getElementById(button.dataset.copy);
         const label = button.querySelector('span');
         const status = document.getElementById(button.dataset.copy + '-status');
