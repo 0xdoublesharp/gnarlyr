@@ -7,6 +7,10 @@ enum {
     FULL_BOX = 4,
     FTYP = 0x66747970,
     MOOV = 0x6D6F6F76,
+    MVHD = 0x6D766864,
+    MDHD = 0x6D646864,
+    EDTS = 0x65647473,
+    ELST = 0x656C7374,
     MDAT = 0x6D646174,
     TRAK = 0x7472616B,
     MDIA = 0x6D646961,
@@ -130,12 +134,13 @@ static bool is_sound(FlacInput input, const Mp4Box *mdia)
            kind == SOUN;
 }
 
-static bool find_sound(FlacInput input, const Mp4Box *moov, Mp4Box *mdia)
+static bool find_sound(FlacInput input, const Mp4Box *moov, Mp4Box *mdia, Mp4Box *selected)
 {
     uint32_t at = moov->body;
     Mp4Box trak;
     while (at <= moov->end && read_box(input, at, moov->end, &trak)) {
         if (trak.type == TRAK && find_box(input, &trak, 0, MDIA, mdia) && is_sound(input, mdia)) {
+            *selected = trak;
             return true;
         }
         at = trak.end;
@@ -232,6 +237,7 @@ static bool decode_aac_config(Mp4Track *track)
     }
     track->config_size = AAC_PLAIN_CONFIG;
     track->sample_rate = AAC_RATES[index];
+    track->frame_samples = (asc[1] & 4u) != 0 ? 960 : 1024;
     track->channels = (uint8_t)channels;
     track->bits = 0;
     return true;
@@ -258,6 +264,7 @@ static bool read_alac(FlacInput input, const Mp4Box *entry, Mp4Track *track)
     track->bits = track->config[5];
     track->channels = track->config[9];
     track->sample_rate = big_endian(track->config + ALAC_COOKIE_RATE_AT);
+    track->frame_samples = big_endian(track->config);
     return true;
 }
 
@@ -273,23 +280,54 @@ static bool read_codec(FlacInput input, const Mp4Box *stsd, Mp4Track *track)
     return entry.type == ALAC && read_alac(input, &entry, track);
 }
 
-static bool read_timing(FlacInput input, const Mp4Box *stts, Mp4Track *track)
+static bool sample_units(uint64_t time, uint32_t scale, uint32_t rate, uint32_t *samples)
+{
+    if (scale == 0 || rate == 0 || time / scale > UINT32_MAX / rate) {
+        return false;
+    }
+    uint64_t value = time / scale * rate + time % scale * rate / scale;
+    if (value > UINT32_MAX) {
+        return false;
+    }
+    *samples = (uint32_t)value;
+    return true;
+}
+
+static uint32_t time_scale(FlacInput input, const Mp4Box *parent, uint32_t type)
+{
+    Mp4Box box;
+    uint32_t version;
+    uint32_t scale;
+    if (!find_box(input, parent, 0, type, &box) || box.end - box.body < 4 ||
+        !read_word(input, box.body, &version) || (version >> 24) > 1) {
+        return 0;
+    }
+    uint32_t offset = (version >> 24) == 0 ? 12 : 20;
+    return box.end - box.body >= offset + 4 && read_word(input, box.body + offset, &scale) ? scale
+                                                                                           : 0;
+}
+
+static bool read_timing(FlacInput input, const Mp4Box *stts, Mp4Track *track, uint32_t scale)
 {
     uint32_t entries;
     uint32_t count;
     uint32_t delta;
-    if (!read_word(input, stts->body + 4, &entries) || entries == 0) {
+    uint64_t duration = 0;
+    if (stts->end - stts->body < 8 || !read_word(input, stts->body + 4, &entries) || entries == 0 ||
+        entries > STTS_SCAN_LIMIT || entries > (stts->end - stts->body - 8) / 8) {
         return false;
     }
-    for (uint32_t index = 0; index < entries && index < STTS_SCAN_LIMIT; index++) {
+    scale = scale == 0 ? track->sample_rate : scale;
+    for (uint32_t index = 0; index < entries; index++) {
         if (!read_word(input, stts->body + 8 + 8 * index, &count) ||
-            !read_word(input, stts->body + 12 + 8 * index, &delta) || delta == 0) {
+            !read_word(input, stts->body + 12 + 8 * index, &delta) || delta == 0 ||
+            duration > UINT64_MAX - (uint64_t)count * delta) {
             return false;
         }
-        track->frame_samples = index == 0 ? delta : track->frame_samples;
-        track->total_samples += count * delta;
+        duration += (uint64_t)count * delta;
     }
-    return true;
+    return track->frame_samples != 0 &&
+           sample_units(duration, scale, track->sample_rate, &track->total_samples);
 }
 
 typedef struct Mp4Tables {
@@ -363,27 +401,32 @@ static bool find_gapless_text(FlacInput input, const Mp4Box *moov, Mp4Box *text)
     return false;
 }
 
-static uint32_t hex_value(const uint8_t *text, uint32_t length, uint32_t *at)
+static bool hex_value(const uint8_t *text, uint32_t length, uint32_t *at, uint32_t *value)
 {
     while (*at < length && text[*at] == ' ') {
         (*at)++;
     }
-    uint32_t value = 0;
-    while (*at < length && text[*at] != ' ') {
-        uint32_t digit =
-            text[*at] <= '9' ? (uint32_t)text[*at] - '0' : ((uint32_t)text[*at] | 32u) - 'a' + 10;
-        value = value << 4 | (digit & 15u);
+    uint32_t first = *at;
+    *value = 0;
+    while (*at < length && text[*at] != ' ' && text[*at] != 0) {
+        uint32_t byte = text[*at];
+        uint32_t lower = byte | 32u;
+        uint32_t digit = byte >= '0' && byte <= '9'     ? byte - '0'
+                         : lower >= 'a' && lower <= 'f' ? lower - 'a' + 10
+                                                        : 16;
+        if (digit > 15 || *value > (UINT32_MAX - digit) / 16) {
+            return false;
+        }
+        *value = *value << 4 | digit;
         (*at)++;
     }
-    return value;
+    return *at > first;
 }
 
 static void read_gapless(FlacInput input, const Mp4Box *moov, Mp4Track *track)
 {
     Mp4Box text;
     uint8_t bytes[GAPLESS_TEXT_BYTES];
-    track->delay = 0;
-    track->valid_samples = track->total_samples;
     if (!find_gapless_text(input, moov, &text) || text.end - text.body <= 8) {
         return;
     }
@@ -393,14 +436,67 @@ static void read_gapless(FlacInput input, const Mp4Box *moov, Mp4Track *track)
         return;
     }
     uint32_t at = 0;
-    (void)hex_value(bytes, length, &at);
-    uint32_t delay = hex_value(bytes, length, &at);
-    (void)hex_value(bytes, length, &at);
-    uint32_t valid = hex_value(bytes, length, &at);
-    if (delay <= track->total_samples && valid <= track->total_samples - delay) {
-        track->delay = delay;
-        track->valid_samples = valid;
+    uint32_t fields[4];
+    for (uint32_t index = 0; index < 4; index++) {
+        if (!hex_value(bytes, length, &at, &fields[index])) {
+            return;
+        }
     }
+    if (fields[3] != 0 && fields[1] <= track->total_samples &&
+        fields[3] <= track->total_samples - fields[1]) {
+        track->delay = fields[1];
+        track->valid_samples = fields[3];
+    }
+}
+
+typedef struct EditRange {
+    uint64_t duration;
+    uint64_t media_time;
+} EditRange;
+
+static uint64_t big_wide(const uint8_t *bytes)
+{
+    return (uint64_t)big_endian(bytes) << 32 | big_endian(bytes + 4);
+}
+
+static bool read_edit(FlacInput input, const Mp4Box *trak, EditRange *edit)
+{
+    Mp4Box box;
+    Mp4Box container;
+    uint8_t bytes[28];
+    if (!find_box(input, trak, 0, EDTS, &container) ||
+        !find_box(input, &container, 0, ELST, &box) || box.end - box.body < 8 ||
+        !read_bytes(input, box.body, bytes, 8) || bytes[0] > 1 || bytes[1] != 0 || bytes[2] != 0 ||
+        bytes[3] != 0 || big_endian(bytes + 4) != 1) {
+        return false;
+    }
+    uint32_t size = bytes[0] == 0 ? 20 : 28;
+    if (box.end - box.body < size || !read_bytes(input, box.body, bytes, size) ||
+        big_endian(bytes + size - 4) != 0x00010000) {
+        return false;
+    }
+    edit->duration = bytes[0] == 0 ? big_endian(bytes + 8) : big_wide(bytes + 8);
+    edit->media_time = bytes[0] == 0 ? big_endian(bytes + 12) : big_wide(bytes + 16);
+    uint64_t limit = bytes[0] == 0 ? INT32_MAX : INT64_MAX;
+    return edit->duration != 0 && edit->media_time <= limit;
+}
+
+static void read_edits(FlacInput input, const Mp4Box *moov, const Mp4Box *trak, Mp4Track *track)
+{
+    Mp4Box mdia;
+    EditRange edit;
+    uint32_t delay;
+    uint32_t valid;
+    if (!read_edit(input, trak, &edit) || !find_box(input, trak, 0, MDIA, &mdia) ||
+        !sample_units(edit.media_time, time_scale(input, &mdia, MDHD), track->sample_rate,
+                      &delay) ||
+        !sample_units(edit.duration, time_scale(input, moov, MVHD), track->sample_rate, &valid) ||
+        delay > track->total_samples) {
+        return;
+    }
+    track->delay = delay;
+    uint32_t available = track->total_samples - delay;
+    track->valid_samples = valid < available ? valid : available;
 }
 
 bool mp4_probe(FlacInput input, Mp4Track *track)
@@ -408,18 +504,22 @@ bool mp4_probe(FlacInput input, Mp4Track *track)
     static const uint32_t TABLE_PATH[2] = {MINF, STBL};
     Mp4Box moov = {.body = 0, .end = input.size};
     Mp4Box mdia;
+    Mp4Box trak;
     Mp4Box stbl;
     Mp4Tables tables;
     *track = (Mp4Track){0};
-    if (!find_path(input, &moov, &MOOV_PATH, 1) || !find_sound(input, &moov, &mdia)) {
+    if (!find_path(input, &moov, &MOOV_PATH, 1) || !find_sound(input, &moov, &mdia, &trak)) {
         return false;
     }
     stbl = mdia;
     if (!find_path(input, &stbl, TABLE_PATH, 2) || !collect_tables(input, &stbl, &tables) ||
-        !read_codec(input, &tables.box[0], track) || !read_timing(input, &tables.box[1], track) ||
+        !read_codec(input, &tables.box[0], track) ||
+        !read_timing(input, &tables.box[1], track, time_scale(input, &mdia, MDHD)) ||
         !read_tables(input, &tables, track)) {
         return false;
     }
+    track->valid_samples = track->total_samples;
+    read_edits(input, &moov, &trak, track);
     read_gapless(input, &moov, track);
     Mp4Box root = {.body = 0, .end = input.size};
     Mp4Box mdat;

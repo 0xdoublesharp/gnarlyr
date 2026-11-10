@@ -40,16 +40,40 @@ static void an_aac_file_with_moov_first_reports_its_format_and_gapless_info(void
     m4a_file_free(&file);
 }
 
-static void an_aac_file_with_moov_last_and_no_gapless_info_plays_whole(void)
+static void an_aac_file_with_moov_last_uses_its_edit_list(void)
 {
     M4aFile file;
     Mp4Track track;
     CHECK(probe_file(AAC_ALBUM "02 Tail.m4a", &file, &track));
     CHECK_EQUAL(MP4_CODEC_AAC, track.codec);
-    CHECK_EQUAL(0u, track.delay);
-    CHECK_EQUAL(track.total_samples, track.valid_samples);
+    CHECK_EQUAL(1024u, track.delay);
+    CHECK_EQUAL(44100u, track.valid_samples);
     CHECK(track.sample_count > 40);
     m4a_file_free(&file);
+}
+
+static void a_malformed_gapless_tag_falls_back_to_the_edit_list(void)
+{
+    for (int variant = 0; variant < 5; variant++) {
+        M4aFile file = m4a_file_load(AAC_ALBUM "01 Lead.m4a");
+        static const char PREFIX[] = " 00000000 00000840";
+        uint32_t at = 0;
+        while (at + sizeof PREFIX <= file.size &&
+               memcmp(file.bytes + at, PREFIX, sizeof PREFIX - 1) != 0) {
+            at++;
+        }
+        CHECK(at + 44 <= file.size);
+        if (variant < 3) {
+            file.bytes[at + 1] = (uint8_t)"Z@`"[variant];
+        } else {
+            memset(file.bytes + at + 28, variant == 3 ? '0' : 'F', 16);
+        }
+        Mp4Track track;
+        CHECK(mp4_probe(m4a_file_input(&file), &track));
+        CHECK_EQUAL(1024u, track.delay);
+        CHECK_EQUAL(44100u, track.valid_samples);
+        m4a_file_free(&file);
+    }
 }
 
 static void a_mono_aac_file_at_48k_is_recognised(void)
@@ -197,35 +221,37 @@ static void put_sample_description(Builder *builder)
     end_box(builder, stsd);
 }
 
-static void put_timing_and_sizes(Builder *builder)
+static void put_timing_and_sizes(Builder *builder, uint32_t ticks, uint32_t frames)
 {
     uint32_t stts = begin_box(builder, "stts");
     put_word(builder, 0);
     put_word(builder, 1);
-    put_word(builder, SYNTHETIC_SAMPLES);
-    put_word(builder, 1024);
+    put_word(builder, frames);
+    put_word(builder, ticks);
     end_box(builder, stts);
     uint32_t stsz = begin_box(builder, "stsz");
     put_word(builder, 0);
     put_word(builder, 0);
-    put_word(builder, SYNTHETIC_SAMPLES);
-    for (uint32_t index = 0; index < SYNTHETIC_SAMPLES; index++) {
+    put_word(builder, frames);
+    for (uint32_t index = 0; index < frames; index++) {
         put_word(builder, 100 + index);
     }
     end_box(builder, stsz);
 }
 
-static void put_chunks(Builder *builder, bool wide)
+static void put_chunks(Builder *builder, bool wide, uint32_t frames)
 {
     uint32_t stsc = begin_box(builder, "stsc");
     put_word(builder, 0);
-    put_word(builder, 2);
+    put_word(builder, frames == SYNTHETIC_SAMPLES ? 2 : 1);
     put_word(builder, 1);
-    put_word(builder, 3);
+    put_word(builder, frames == SYNTHETIC_SAMPLES ? 3 : frames / SYNTHETIC_CHUNKS);
     put_word(builder, 1);
-    put_word(builder, 3);
-    put_word(builder, 2);
-    put_word(builder, 1);
+    if (frames == SYNTHETIC_SAMPLES) {
+        put_word(builder, 3);
+        put_word(builder, 2);
+        put_word(builder, 1);
+    }
     end_box(builder, stsc);
     uint32_t stco = begin_box(builder, wide ? "co64" : "stco");
     put_word(builder, 0);
@@ -240,15 +266,102 @@ static void put_chunks(Builder *builder, bool wide)
     end_box(builder, stco);
 }
 
-static void build_synthetic(Builder *builder, bool wide)
+typedef struct EditSpec {
+    uint32_t movie_scale;
+    uint32_t media_scale;
+    uint64_t duration;
+    uint64_t media_time;
+    uint32_t version;
+    uint32_t rate;
+    uint32_t entries;
+    uint32_t frames;
+    bool wide_headers;
+    bool truncated;
+    bool video_first;
+} EditSpec;
+
+static void put_wide(Builder *builder, uint64_t value)
+{
+    put_word(builder, (uint32_t)(value >> 32));
+    put_word(builder, (uint32_t)value);
+}
+
+static void put_time_header(Builder *builder, const char *type, uint32_t scale, bool wide)
+{
+    uint32_t box = begin_box(builder, type);
+    put_word(builder, wide ? 0x01000000 : 0);
+    if (wide) {
+        put_wide(builder, 0);
+        put_wide(builder, 0);
+    } else {
+        put_word(builder, 0);
+        put_word(builder, 0);
+    }
+    put_word(builder, scale);
+    end_box(builder, box);
+}
+
+static void put_edit(Builder *builder, const EditSpec *edit)
+{
+    uint32_t edts = begin_box(builder, "edts");
+    uint32_t free = begin_box(builder, "free");
+    end_box(builder, free);
+    uint32_t elst = begin_box(builder, "elst");
+    put_word(builder, edit->version << 24);
+    put_word(builder, edit->entries);
+    for (uint32_t index = 0; index < (edit->entries == 2 ? 2u : 1u); index++) {
+        if (edit->version == 1) {
+            put_wide(builder, edit->duration);
+            put_wide(builder, edit->media_time);
+        } else {
+            put_word(builder, (uint32_t)edit->duration);
+            put_word(builder, (uint32_t)edit->media_time);
+        }
+        if (!edit->truncated) {
+            put_word(builder, edit->rate);
+        }
+    }
+    end_box(builder, elst);
+    end_box(builder, edts);
+}
+
+static void put_video_track(Builder *builder, const EditSpec *edit)
+{
+    uint32_t trak = begin_box(builder, "trak");
+    put_edit(builder, edit);
+    uint32_t mdia = begin_box(builder, "mdia");
+    uint32_t hdlr = begin_box(builder, "hdlr");
+    put_word(builder, 0);
+    put_word(builder, 0);
+    put_type(builder, "vide");
+    end_box(builder, hdlr);
+    end_box(builder, mdia);
+    end_box(builder, trak);
+}
+
+static void build_with_edit(Builder *builder, bool wide, const EditSpec *edit)
 {
     *builder = (Builder){.length = 0};
     uint32_t ftyp = begin_box(builder, "ftyp");
     put_type(builder, "M4A ");
     end_box(builder, ftyp);
     uint32_t moov = begin_box(builder, "moov");
+    if (edit != NULL) {
+        put_time_header(builder, "mvhd", edit->movie_scale, edit->wide_headers);
+        if (edit->video_first) {
+            EditSpec video = *edit;
+            video.media_time = 9000;
+            put_video_track(builder, &video);
+        }
+    }
     uint32_t trak = begin_box(builder, "trak");
+    if (edit != NULL) {
+        put_edit(builder, edit);
+    }
     uint32_t mdia = begin_box(builder, "mdia");
+    if (edit != NULL) {
+        put_time_header(builder, "mdhd", edit->media_scale, edit->wide_headers);
+    }
     uint32_t hdlr = begin_box(builder, "hdlr");
     put_word(builder, 0);
     put_word(builder, 0);
@@ -257,13 +370,20 @@ static void build_synthetic(Builder *builder, bool wide)
     uint32_t minf = begin_box(builder, "minf");
     uint32_t stbl = begin_box(builder, "stbl");
     put_sample_description(builder);
-    put_timing_and_sizes(builder);
-    put_chunks(builder, wide);
+    uint32_t scale = edit != NULL && edit->media_scale != 0 ? edit->media_scale : 44100;
+    uint32_t frames = edit != NULL && edit->frames != 0 ? edit->frames : SYNTHETIC_SAMPLES;
+    put_timing_and_sizes(builder, (uint32_t)((uint64_t)1024 * scale / 44100), frames);
+    put_chunks(builder, wide, frames);
     end_box(builder, stbl);
     end_box(builder, minf);
     end_box(builder, mdia);
     end_box(builder, trak);
     end_box(builder, moov);
+}
+
+static void build_synthetic(Builder *builder, bool wide)
+{
+    build_with_edit(builder, wide, NULL);
 }
 
 static bool read_builder(void *context, uint32_t offset, void *destination, uint32_t length)
@@ -274,6 +394,148 @@ static bool read_builder(void *context, uint32_t offset, void *destination, uint
     }
     memcpy(destination, builder->bytes + offset, length);
     return true;
+}
+
+static Mp4Track probe_edit(const EditSpec *edit)
+{
+    static Builder builder;
+    build_with_edit(&builder, false, edit);
+    Mp4Track track;
+    CHECK(mp4_probe((FlacInput){read_builder, &builder, builder.length}, &track));
+    return track;
+}
+
+static EditSpec simple_edit(void)
+{
+    return (EditSpec){.movie_scale = 1000,
+                      .media_scale = 88200,
+                      .duration = 100,
+                      .media_time = 2048,
+                      .rate = 0x00010000,
+                      .entries = 1};
+}
+
+static void edit_duration_and_start_use_their_own_time_scales(void)
+{
+    EditSpec edit = simple_edit();
+    Mp4Track track = probe_edit(&edit);
+    CHECK_EQUAL(1024u, track.delay);
+    CHECK_EQUAL(4410u, track.valid_samples);
+    CHECK_EQUAL(10240u, track.total_samples);
+    CHECK_EQUAL(1024u, track.frame_samples);
+}
+
+static void coarse_media_clocks_keep_the_decoder_frame_boundaries(void)
+{
+    EditSpec edit = simple_edit();
+    edit.media_scale = 1000;
+    edit.media_time = 23;
+    Mp4Track track = probe_edit(&edit);
+    CHECK_EQUAL(1024u, track.frame_samples);
+    CHECK_EQUAL(1014u, track.delay);
+    CHECK_EQUAL(4410u, track.valid_samples);
+}
+
+static void a_rounded_edit_duration_is_clamped_to_available_audio(void)
+{
+    EditSpec edit = simple_edit();
+    edit.duration = 210;
+    Mp4Track track = probe_edit(&edit);
+    CHECK_EQUAL(1024u, track.delay);
+    CHECK_EQUAL(9216u, track.valid_samples);
+}
+
+static void version_one_edits_and_headers_keep_wide_durations(void)
+{
+    EditSpec edit = simple_edit();
+    edit.version = 1;
+    edit.wide_headers = true;
+    edit.movie_scale = 4000000000u;
+    edit.duration = 5000000000ull;
+    edit.frames = 100;
+    Mp4Track track = probe_edit(&edit);
+    CHECK_EQUAL(1024u, track.delay);
+    CHECK_EQUAL(55125u, track.valid_samples);
+    CHECK_EQUAL(102400u, track.total_samples);
+}
+
+static void an_unrelated_tracks_edit_never_trims_the_audio(void)
+{
+    EditSpec edit = simple_edit();
+    edit.video_first = true;
+    Mp4Track track = probe_edit(&edit);
+    CHECK_EQUAL(1024u, track.delay);
+    CHECK_EQUAL(4410u, track.valid_samples);
+}
+
+static void malformed_and_non_linear_edits_do_not_guess_a_trim(void)
+{
+    for (int index = 0; index < 12; index++) {
+        EditSpec edit = simple_edit();
+        switch (index) {
+        case 0:
+            edit.version = 2;
+            break;
+        case 1:
+            edit.media_time = UINT32_MAX;
+            break;
+        case 2:
+            edit.rate = 0;
+            break;
+        case 3:
+            edit.rate = 0x00020000;
+            break;
+        case 4:
+            edit.entries = 2;
+            break;
+        case 5:
+            edit.movie_scale = 0;
+            break;
+        case 6:
+            edit.media_scale = 0;
+            break;
+        case 7:
+            edit.media_time = 999999;
+            break;
+        case 8:
+            edit.version = 1;
+            edit.duration = UINT64_MAX;
+            break;
+        case 9:
+            edit.version = 1;
+            edit.media_time = UINT64_MAX;
+            break;
+        case 10:
+            edit.truncated = true;
+            break;
+        case 11:
+            edit.duration = 0;
+            break;
+        }
+        Mp4Track track = probe_edit(&edit);
+        CHECK_EQUAL(0u, track.delay);
+        CHECK_EQUAL(track.total_samples, track.valid_samples);
+    }
+}
+
+static void overflowing_or_truncated_timing_is_refused(void)
+{
+    for (int variant = 0; variant < 2; variant++) {
+        static Builder builder;
+        build_synthetic(&builder, false);
+        uint32_t at = 0;
+        while (at + 20 <= builder.length && memcmp(builder.bytes + at, "stts", 4) != 0) {
+            at++;
+        }
+        CHECK(at + 20 <= builder.length);
+        if (variant == 0) {
+            memset(builder.bytes + at + 12, 255, 4);
+        } else {
+            builder.bytes[at + 11] = 65;
+        }
+        Mp4Track track;
+        CHECK(!mp4_probe((FlacInput){read_builder, &builder, builder.length}, &track));
+    }
 }
 
 static void check_synthetic_layout(bool wide)
@@ -376,11 +638,19 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(an_aac_file_with_moov_first_reports_its_format_and_gapless_info),
-        TEST_CASE(an_aac_file_with_moov_last_and_no_gapless_info_plays_whole),
+        TEST_CASE(an_aac_file_with_moov_last_uses_its_edit_list),
+        TEST_CASE(a_malformed_gapless_tag_falls_back_to_the_edit_list),
         TEST_CASE(a_mono_aac_file_at_48k_is_recognised),
         TEST_CASE(alac_files_report_their_cookie_depth_and_channels),
         TEST_CASE(the_cursor_visits_every_sample_inside_the_media_data),
         TEST_CASE(seeking_lands_on_the_same_sample_as_walking),
+        TEST_CASE(overflowing_or_truncated_timing_is_refused),
+        TEST_CASE(edit_duration_and_start_use_their_own_time_scales),
+        TEST_CASE(coarse_media_clocks_keep_the_decoder_frame_boundaries),
+        TEST_CASE(a_rounded_edit_duration_is_clamped_to_available_audio),
+        TEST_CASE(version_one_edits_and_headers_keep_wide_durations),
+        TEST_CASE(an_unrelated_tracks_edit_never_trims_the_audio),
+        TEST_CASE(malformed_and_non_linear_edits_do_not_guess_a_trim),
         TEST_CASE(chunk_runs_with_different_sample_counts_are_walked_and_seeked_exactly),
         TEST_CASE(sixty_four_bit_chunk_offsets_work_like_narrow_ones),
         TEST_CASE(a_high_efficiency_configuration_is_refused),

@@ -28,14 +28,17 @@ typedef struct Expect {
     uint8_t channels;
     uint8_t pcm_bits;
     bool lossy;
+    uint32_t skip;
+    uint32_t frames;
 } Expect;
 
-static const Expect LEAD = {AAC_ALBUM "01 Lead.m4a", "m4a_pcm/lead.pcm", 2, 16, true};
-static const Expect TAIL = {AAC_ALBUM "02 Tail.m4a", "m4a_pcm/tail.pcm", 2, 16, true};
-static const Expect MONO = {AAC_ALBUM "03 Mono.m4a", "m4a_pcm/mono.pcm", 1, 16, true};
-static const Expect LOSSLESS = {ALAC_ALBUM "01 Lossless.m4a", "m4a_pcm/lossless.pcm", 2, 16, false};
-static const Expect DEEP = {ALAC_ALBUM "02 Deep.m4a", "m4a_pcm/deep.pcm", 2, 32, false};
-static const Expect SINGLE = {ALAC_ALBUM "03 Single.m4a", "m4a_pcm/single.pcm", 1, 16, false};
+static const Expect LEAD = {AAC_ALBUM "01 Lead.m4a", "m4a_pcm/lead.pcm", 2, 16, true, 0, 0};
+static const Expect TAIL = {AAC_ALBUM "02 Tail.m4a", "m4a_pcm/tail.pcm", 2, 16, true, 1024, 44100};
+static const Expect MONO = {AAC_ALBUM "03 Mono.m4a", "m4a_pcm/mono.pcm", 1, 16, true, 0, 0};
+static const Expect LOSSLESS = {
+    ALAC_ALBUM "01 Lossless.m4a", "m4a_pcm/lossless.pcm", 2, 16, false, 0, 0};
+static const Expect DEEP = {ALAC_ALBUM "02 Deep.m4a", "m4a_pcm/deep.pcm", 2, 32, false, 0, 0};
+static const Expect SINGLE = {ALAC_ALBUM "03 Single.m4a", "m4a_pcm/single.pcm", 1, 16, false, 0, 0};
 
 static StreamControl control;
 static int32_t samples[STREAM_SLOTS][FLAC_MAX_CHANNELS][FLAC_MAX_BLOCK];
@@ -89,11 +92,13 @@ static uint32_t load_reference(const Expect *expect, int32_t (*out)[2])
 {
     M4aFile pcm = m4a_file_load(expect->pcm);
     uint32_t width = expect->pcm_bits / 8;
-    uint32_t count = pcm.size / (width * expect->channels);
+    uint32_t count = pcm.size / (width * expect->channels) - expect->skip;
+    count = expect->frames != 0 && expect->frames < count ? expect->frames : count;
     for (uint32_t index = 0; index < count && index < MAX_PCM_FRAMES; index++) {
         for (uint32_t channel = 0; channel < 2; channel++) {
-            uint32_t at =
-                (index * expect->channels + (channel < expect->channels ? channel : 0)) * width;
+            uint32_t at = ((index + expect->skip) * expect->channels +
+                           (channel < expect->channels ? channel : 0)) *
+                          width;
             int32_t value = 0;
             if (width == 2) {
                 value = (int16_t)(pcm.bytes[at] | pcm.bytes[at + 1] << 8);

@@ -13,7 +13,7 @@ from echo_emulator import core1
 
 ARGUMENTS = {}
 FIXTURES = ROOT / "tests" / "fixtures"
-ALBUMS = {"lead": "Aac Artist/Aac Album/01 Lead.m4a", "mono": "Aac Artist/Aac Album/03 Mono.m4a",
+ALBUMS = {"tail": "Aac Artist/Aac Album/02 Tail.m4a", "lead": "Aac Artist/Aac Album/01 Lead.m4a", "mono": "Aac Artist/Aac Album/03 Mono.m4a",
           "lossless": "Alac Artist/Alac Album/01 Lossless.m4a",
           "deep": "Alac Artist/Alac Album/02 Deep.m4a"}
 AAC_TOLERANCE = 3 << 8
@@ -25,6 +25,8 @@ def reference(name, width, channels):
     values = struct.unpack(f"<{len(data) // width}{kind}", data)
     if width == 4:
         values = tuple(value >> 8 for value in values)
+    if name == "tail":
+        values = values[1024 * channels:(1024 + 44100) * channels]
     return [values[index::channels] for index in range(channels)]
 
 
@@ -65,6 +67,9 @@ class Core1M4aTest(unittest.TestCase):
 
     def test_the_aac_program_decodes_a_stereo_file_like_the_reference(self):
         self.check_blocks("lead", 2)
+
+    def test_the_aac_program_matches_the_edit_trimmed_reference(self):
+        self.check_blocks("tail", 2)
 
     def test_the_aac_program_decodes_a_mono_file_like_the_reference(self):
         self.check_blocks("mono", 2)
