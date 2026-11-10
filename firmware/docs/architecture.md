@@ -329,7 +329,7 @@ The board is the full-size Snowsky Echo (480×222, 221 ppi, six keys). Presets: 
 
 - No heap in `src/`. Every buffer is static and sized at compile time.
 - `src/` is freestanding C11 and includes only `<stdint.h>`, `<stdbool.h>` and `<stddef.h>`.
-- The `target_audit` test cross-compiles `src/` for Cortex-M3 and reports flash and static RAM per module. It fails on any heap symbol and when static RAM exceeds `ECHO_APP_RAM_BUDGET_BYTES`.
+- The `target_audit` test cross-compiles `src/` for Cortex-M3 and reports flash and static RAM per module. It fails on any heap symbol and when static RAM exceeds `ECHO_APP_RAM_BUDGET_BYTES` (144 KiB). The portable app uses 145,501 bytes with the bounded lyrics and mixtape screen state. This allocation takes 16 KiB of previously unused device RAM; it changes no address or physical boundary. The complete developer image uses 268,968 of 287,296 static RAM bytes, leaving 18,328 bytes. The device linker and size report independently enforce that complete-image limit, including platform buffers and profiler storage.
 - No recursion and no VLAs. The device stack is 16 KB.
 - Data RAM: `.data`, `.bss` and `.noinit` come to 262,756 bytes in the `release` build and 268,968 in `device`, 24,540 and 18,328 bytes below the `0x0304A240` limit (see Image rules); the size report prints this after every image build. The `device` build's extra 6,212 bytes include the debug loop (see Debug loop). The USB sessions and the updater keep their variables in the USB overlay's own zeroed memory, not here. The equalizer's filter state lives in `.high_ram`, since only the CPU touches it and a design rewrites it before use.
 

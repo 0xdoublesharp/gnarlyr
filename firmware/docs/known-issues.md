@@ -1,11 +1,11 @@
 # Gnarlyr known issues
 
-Gnarlyr 1.0.0 is not released and has not run on any player yet. It comes with no warranty: use it at your own risk. Read this before you install a build, and keep a way back ([`device-recovery.md`](device-recovery.md)).
+Gnarlyr 1.0.0 is not released. Recorded device checks below are from earlier builds of this project, including the FreshBase foundation. It comes with no warranty: use it at your own risk. Read this before you install a build, and keep a way back ([`device-recovery.md`](device-recovery.md)).
 
 ## What has been checked
 
-- **Gnarlyr itself:** host tests, the simulator and the ARM emulator only (242 checks). The emulator has no USB traffic, no DAC, no SD card and no Bluetooth module, so those paths are covered by host tests of their logic and nothing more.
-- **On the owner's Echo (full size, 4 GB):** an earlier build of this project, based on Podium 4.5.5, was installed through maskrom. The owner confirmed display, menus, buttons, music playback, volume, USB storage with internal storage and a microSD card, and quiet audio with the 12 ms DAC wait. The unit was also returned to FiiO's 2.0.0 through maskrom and back. The maskrom steps in [`device-install.md`](device-install.md) and [`device-recovery.md`](device-recovery.md) are the ones used.
+- **Software checks:** host tests, the simulator and the ARM emulator cover boot and updates, memory bounds, queue/session persistence, mixtapes, controls, Listening and lyrics. They do not reproduce analog output, Bluetooth radio operation or full USB host traffic.
+- **On the owner's Echo (full size, 4 GB):** the owner confirmed display, menus, buttons, music playback, volume, internal/microSD USB storage and quiet audio on the earlier Podium 4.5.5-based build. The rebuilt Podium 4.5.9 foundation was then confirmed for file-copy installation, USB storage, playback, quiet audio and portrait mode. Later developer builds exercised reports, scripts, automatic update/restart/reconnect and frame/load measurements. FreshBase `33757eb` and the demand-loaded-module build `6d027ed` were installed through the file-copy loop and returned on USB with their build reports confirmed. The unit was also restored to FiiO 2.0.0 and back through maskrom; the recovery steps in [`device-install.md`](device-install.md) and [`device-recovery.md`](device-recovery.md) are the ones used.
 - **Everything else** that Podium's and EchoPod's authors tested on their own players has not been repeated by this project. Where this document mentions such a result, it says whose it is.
 
 ## Safety
@@ -16,18 +16,17 @@ Gnarlyr 1.0.0 is not released and has not run on any player yet. It comes with n
 
 ## Not proven on a player
 
-These are new or changed in Gnarlyr, or were never checked on the owner's unit. Each needs a run on the player before it can be relied on.
+These checks remain incomplete on the owner's unit. Earlier hardware results do not establish the new Gnarlyr interface, queue, mixtape, Listening or lyrics behavior on the player.
 
-- **USB enumeration timing.** The USB code is now loaded from storage into high RAM after the computer's bus reset. Whether a computer still enumerates the player reliably with that load in the path is not known.
+- **USB compatibility beyond the owner's Mac.** Storage enumeration and automatic reconnect with the overlay have worked on that Mac; broader host compatibility and sustained transfer checks remain.
 - **USB DAC mode,** which now also runs from the overlay.
-- **A real update install.** The updater borrows the mass-storage write buffer for its work; an install through the updater has only run in the emulator.
-- **Playback after a USB session.** The overlay shares its memory with the decoder workspace.
-- **Language packs.** The pack is read from the firmware slot into high RAM at start-up; that read, the Language choice and a pack file in `/.freshbase/lang` have run in host tests, the simulator and the emulator only. No translation exists yet, so no language but English has been read by anyone.
-- **Portrait mode.** The two portrait panel settings come from the landscape one by rule. Which way round each sits, and which one swaps the volume rocker, are untested.
+- **Playback across the new feature-module paths.** Playback and USB storage worked on the rebuilt foundation. Switching demand-loaded screens while playing, then returning from USB and resuming with the new queue/session state, still needs a device check.
+- **Additional language packs.** Earlier installed builds booted with their English text read from the firmware language pack. Selecting an additional translation or a separate pack file in `/.freshbase/lang` has not been validated on the owner's player.
+- **Both portrait orientations and controls.** The owner confirmed portrait mode on the rebuilt foundation. Both portrait directions, rocker behavior and the new layouts/control mappings still need a complete device pass.
 - **The ten-band equalizer's CPU load at 96 kHz.** By instruction count it takes about 55 % of the main core. It has not been heard or measured on a player.
 - **DAC settings not yet checked against the fitted part.** The owner's player has two CS43198 (Settings → About shows `431980 A1.06` for both). Some inherited code and register names assume the CS43131, a related part with a built-in headphone amplifier. The start-up sequence is stock's and audio works, but the gain, volume and filter registers have not been checked against the CS43198's documentation.
 - **Bluetooth.**
-- **The debug loop of developer builds** (`architecture.md`, Debug loop). The report is written to internal storage between the computer's bus reset and the first answer to it; in the emulator that adds about 40 ms the first time. A shutdown now loads the USB overlay and writes a report before the power is cut, also at the low-battery cut-off; none of that has run on a player. A cable plugged in while the firmware ran used to go unnoticed on the owner's player; the cause was the USB supply pins held high without a cable (`hardware.md`), and the pins now follow the cable. The USB sense row was built to test another explanation (the cable bit needs the USB hardware powered) and stays as an experiment; leaving the PHY powered costs battery, and how much is not known. The battery soak (`supply off`, `screen off`, `soak`) has not run on a player. Whether GPIO2.0 held low stops USB from powering the player with the cable in is not known, nor what the cable bit and the charger pin read then: the soak's report line records both at its start and end so that the first run answers it. If the cable bit drops to 0 with the supply held off, the player takes the cable for unplugged, and its own low-battery cut-off at 3,450 mV applies again besides the soak's 3,600 mV. Whether a computer still enumerates the player with a real eMMC's write times in that path is not known. The profiler's share of sleeping time depends on the address a real Cortex-M3 stacks when an interrupt ends a WFI. The report's power lines show the charger's status pin as the firmware reads it (GPIO2.3, low taken as charging); whether that pin and polarity are right on the Echo is what those lines are for.
+- **Remaining developer-loop and power checks.** File-copy installs, saved reports, scripts, restart/reconnect and frame/load measurements have run on the player. Recorded 15-minute playback and idle battery soaks completed and returned reports; the cable bit remained 1 with the supply override active. These short voltage observations do not establish battery runtime or complete isolation from USB power. Low-battery abort/report behavior, charging from a low battery, charger-pin interpretation and profiler attribution to individual functions still need hardware validation. The experimental USB sense setting is not an established battery-saving mode.
 - **The 4.4 mm output.**
 
 Also unchecked on a player by this project: `.m4a` and `.m4b` playback and seeking speed, `.m4b` chapters, CUE sheets by ear, wired headset buttons, the `MASKROM.REQ` request, going back to FiiO's firmware through the updater, the charge screen, auto off, and audiobook bookmarks.
@@ -42,7 +41,7 @@ Also unchecked on a player by this project: `.m4a` and `.m4b` playback and seeki
 
 ## Installing
 
-- **The proven route is maskrom** ([`device-install.md`](device-install.md)): it is how the earlier build was installed on the owner's unit.
+- **File-copy updates between this project's developer builds are proven** ([`device-install.md`](device-install.md)). The debug loop has checked the copied image, ejected storage, installed the update and confirmed the build after automatic restart/reconnect. Maskrom recovery is also proven on the owner's unit.
 - **Installing by file copy from FiiO's firmware is not verified.** FiiO's updater only reads files named `ECHOVnnn.IMG`, so `FRSHBS.IMG` would have to be renamed. Whether FiiO's 2.0.0 accepts it is not known. Podium's documentation reports that FiiO's updater installs Podium from a file copy.
 - **The Echo Mini isn't supported.** The updater refuses its firmware.
 - **Other custom firmware can't be installed from Gnarlyr.** Its updater takes only its own images and FiiO's Echo image; it refuses Podium and EchoPod images. To switch, go back to FiiO's firmware first.
@@ -99,7 +98,8 @@ Also unchecked on a player by this project: `.m4a` and `.m4b` playback and seeki
 
 ## Not there yet
 
-- No ReplayGain, lyrics or playback speed control.
+- No ReplayGain or playback speed control.
+- **Timed sidecar lyrics are implemented.** Their timing and display with the new interface still need a device check.
 - **The equalizer** leaves music above 96 kHz (176.4 and 192 kHz) unchanged, isn't applied in USB DAC mode or in the simulator, and a change is heard after the audio already buffered (about 0.3 s at 44.1 kHz).
 - **Bluetooth and the jacks:** while music goes to Bluetooth the player can't read the headphone jack: pause, plug wired headphones in and press Play to switch.
 - **Buttons on wired headphones** (3.5 mm) follow the readings of FiiO's firmware. Podium's author reports that on Apple EarPods the middle button works but + and − don't: Apple's remote signals them through a chip the player can't talk to ([`hardware.md`](hardware.md)). If buttons do nothing, Settings → About → Headset shows what the player reads while each button is pressed. The 4.4 mm jack has no headset buttons.

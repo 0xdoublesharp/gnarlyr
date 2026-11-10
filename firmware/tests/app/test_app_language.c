@@ -6,6 +6,7 @@
 #include "check.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
+#include "music_check.h"
 #include "settings/settings.h"
 #include "settings_store.h"
 #include "test_pack.h"
@@ -47,6 +48,8 @@ static void add_player_files(void)
             fake_hal_add_file(card_files_path(index), NULL, 4096);
         }
     }
+    fake_hal_add_file(MUSIC_CHECK_PATH, NULL, 4096);
+    music_check_remember((MusicFingerprint){.complete = true});
 }
 
 static void start_with(int built_in, bool with_file)

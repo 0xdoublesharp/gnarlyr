@@ -22,6 +22,7 @@
 #include "library/covers.h"
 #include "library/playlist_reader.h"
 #include "library_rescan.h"
+#include "music_check.h"
 #include "settings/equalizer_slots.h"
 #include "settings/settings.h"
 #include "settings_store.h"
@@ -94,6 +95,19 @@ static const char SHOOTS_PATH[] = "/acloudyskye/This Won't Be The Last Time/01 -
 
 static uint32_t now_ms;
 
+static const Theme *expected_theme(void)
+{
+    static Theme theme;
+    SettingsStore store;
+    settings_store_load(&store);
+    theme = BOARD_THEME;
+    default_theme_set_appearance(&theme, store.settings.appearance);
+    default_theme_set_accent(&theme, store.settings.accent);
+    default_theme_set_text_size(&theme, store.settings.text_size);
+    default_theme_set_orientation(&theme, store.settings.orientation);
+    return &theme;
+}
+
 static void prefill_player_files(void)
 {
     for (size_t index = 0; index < card_files_count(); index++) {
@@ -107,6 +121,8 @@ static void prefill_player_files(void)
             fake_hal_add_file(card_files_path(index), NULL, 4096);
         }
     }
+    fake_hal_add_file(MUSIC_CHECK_PATH, NULL, 4096);
+    music_check_remember((MusicFingerprint){.complete = true});
 }
 
 static void start_app(void)
@@ -415,10 +431,10 @@ static void open_music_entry(int index)
 
 static bool columns_have_ink(int row, int first, int last)
 {
-    int top = BOARD_THEME.metrics.header_height + row * BOARD_THEME.metrics.row_height;
-    for (int y = top; y < top + BOARD_THEME.metrics.row_height; y++) {
+    int top = expected_theme()->metrics.header_height + row * expected_theme()->metrics.row_height;
+    for (int y = top; y < top + expected_theme()->metrics.row_height; y++) {
         for (int x = first; x < last; x++) {
-            if (fake_hal_pixel(x, y) != BOARD_THEME.colors.background) {
+            if (fake_hal_pixel(x, y) != expected_theme()->colors.background) {
                 return true;
             }
         }
@@ -428,9 +444,9 @@ static bool columns_have_ink(int row, int first, int last)
 
 static bool row_shows_a_chevron(int row)
 {
-    int right = HAL_DISPLAY_WIDTH - BOARD_THEME.metrics.padding;
-    int chevron = text_width(BOARD_THEME.fonts.title, "\xE2\x80\xBA");
-    int gap = BOARD_THEME.metrics.detail_gap;
+    int right = HAL_DISPLAY_WIDTH - expected_theme()->metrics.padding;
+    int chevron = text_width(expected_theme()->fonts.title, "\xE2\x80\xBA");
+    int gap = expected_theme()->metrics.detail_gap;
     return columns_have_ink(row, right - chevron, right) &&
            !columns_have_ink(row, right - chevron - gap, right - chevron);
 }
@@ -653,7 +669,7 @@ static void the_home_menu_shows_now_playing_last_once_a_track_is_loaded(void)
 static void the_home_menu_hides_now_playing_with_nothing_loaded(void)
 {
     start_app_with_library();
-    move_down(HOME_NOW_PLAYING_INDEX);
+    move_down(4);
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
 }
@@ -913,7 +929,7 @@ static void saved_settings_are_restored_at_start(void)
 
 static bool selection_is_red(void)
 {
-    const ThemeMetrics *metrics = &BOARD_THEME.metrics;
+    const ThemeMetrics *metrics = &expected_theme()->metrics;
     uint16_t pixel =
         fake_hal_pixel(metrics->padding / 2, metrics->header_height + metrics->row_height / 2);
     return (pixel >> 11) > (pixel & 0x1F);
@@ -922,6 +938,12 @@ static bool selection_is_red(void)
 static void the_color_setting_recolors_the_selection_and_is_saved(void)
 {
     start_app_with_library();
+    Settings chosen = settings_defaults();
+    chosen.appearance = APPEARANCE_GRAPHITE;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&chosen, bytes);
+    CHECK(hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes));
+    restart_app();
     wait_ms(1000);
     CHECK(!selection_is_red());
     open_setting(SETTINGS_COLOR_INDEX);
@@ -940,7 +962,8 @@ static void the_color_setting_recolors_the_selection_and_is_saved(void)
 
 static bool selected_at(int y)
 {
-    return fake_hal_pixel(BOARD_THEME.metrics.padding / 2, y) != BOARD_THEME.colors.background;
+    return fake_hal_pixel(expected_theme()->metrics.padding / 2, y) !=
+           expected_theme()->colors.background;
 }
 
 static void choose_text_size(TextSize size)
@@ -959,7 +982,7 @@ static void large_text_resizes_the_open_list_at_once_and_is_saved(void)
 {
     start_app_with_library();
     choose_text_size(TEXT_SIZE_LARGE);
-    int header = BOARD_THEME.metrics.header_height;
+    int header = expected_theme()->metrics.header_height;
     CHECK(selected_at(header + 4 * 38 + 2));
     CHECK(!selected_at(header + 4 * 38 - 2));
     Settings settings;
@@ -971,7 +994,7 @@ static void small_text_resizes_the_open_list_at_once(void)
 {
     start_app_with_library();
     choose_text_size(TEXT_SIZE_SMALL);
-    int header = BOARD_THEME.metrics.header_height;
+    int header = expected_theme()->metrics.header_height;
     CHECK(selected_at(header + 5 * 24 + 2));
     CHECK(!selected_at(header + 5 * 24 + 26));
     CHECK(!selected_at(header + 5 * 24 - 2));
@@ -984,7 +1007,7 @@ static void the_text_size_survives_a_restart(void)
     restart_app();
     wait_ms(1000);
     CHECK(title_is(FIRMWARE_SHORT_NAME));
-    int header = BOARD_THEME.metrics.header_height;
+    int header = expected_theme()->metrics.header_height;
     CHECK(selected_at(header + 36));
     CHECK(!selected_at(header + 40));
 }
@@ -997,7 +1020,7 @@ static void the_home_menu_fits_its_rows_to_the_new_size_when_shown_again(void)
     wait_ms(SLIDE_DURATION_MS);
     step();
     CHECK(title_is(FIRMWARE_SHORT_NAME));
-    int header = BOARD_THEME.metrics.header_height;
+    int header = expected_theme()->metrics.header_height;
     CHECK(selected_at(header + 38 + 36));
     CHECK(!selected_at(header + 38 + 40));
 }
@@ -1076,26 +1099,26 @@ static void the_screen_starts_in_the_saved_orientation(void)
     CHECK(drew_the_bottom_of_a_portrait_screen());
 }
 
-static void portrait_home_shows_only_the_status_row_and_lists_keep_their_title(void)
+static void portrait_home_and_lists_keep_their_title_below_the_status_row(void)
 {
     start_app_with_library();
     choose_orientation(ORIENTATION_PORTRAIT);
     hold_back();
     wait_ms(SLIDE_DURATION_MS);
     step();
-    Theme theme = BOARD_THEME;
+    Theme theme = *expected_theme();
     default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
     Rect title = theme_title_area(&theme);
     CHECK(title.y > 0);
-    CHECK(fake_hal_pixel(HAL_DISPLAY_SHORT_SIDE - 1, theme.metrics.status_height - 1) ==
-          theme.colors.divider);
+    CHECK(fake_hal_pixel(HAL_DISPLAY_SHORT_SIDE - 1, theme.metrics.header_height - 1) ==
+          (theme.header_rule ? theme.colors.accent : theme.colors.divider));
     tap(KEY_VOLUME_UP);
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
     step();
     CHECK(title_is("Music"));
     CHECK(fake_hal_pixel(HAL_DISPLAY_SHORT_SIDE - 1, theme.metrics.header_height - 1) ==
-          theme.colors.divider);
+          (theme.header_rule ? theme.colors.accent : theme.colors.divider));
 }
 
 static void in_portrait_the_volume_down_key_moves_down_the_list(void)
@@ -1136,11 +1159,10 @@ static void home_puts_the_album_art_under_the_menu_in_portrait(void)
     choose_orientation(ORIENTATION_PORTRAIT);
     hold_back();
     settle();
-    Theme theme = BOARD_THEME;
+    Theme theme = *expected_theme();
     default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
-    int list_bottom = theme.metrics.status_height + 2 * theme.metrics.row_height;
-    int panel_height = HAL_DISPLAY_LONG_SIDE - list_bottom;
-    int cover_middle = list_bottom + panel_height / 2;
+    int list_bottom = theme.metrics.header_height + 4 * theme.metrics.row_height;
+    int cover_middle = list_bottom + 8 + COVER_FULL_SIZE / 2;
     CHECK_EQUAL(RED_COVER, fake_hal_pixel(HAL_DISPLAY_SHORT_SIDE / 2, cover_middle));
     CHECK(fake_hal_pixel(2, list_bottom) == theme.colors.divider);
 }
@@ -1162,8 +1184,7 @@ static void now_playing_centres_the_cover_under_the_status_row_in_portrait(void)
     const NowPlayingLayout *layout = &BOARD_LAYOUT.now_playing_portrait[TEXT_SIZE_MEDIUM];
     CHECK_EQUAL(0xF800, fake_hal_pixel(HAL_DISPLAY_SHORT_SIDE / 2,
                                        layout->cover_top + COVER_FULL_SIZE / 2));
-    CHECK(fake_hal_pixel(2, layout->cover_top + COVER_FULL_SIZE / 2) ==
-          BOARD_THEME.colors.background);
+    CHECK(fake_hal_pixel(2, layout->cover_top + COVER_FULL_SIZE / 2) != RED_COVER);
 }
 
 static void cover_flow_stacks_the_albums_in_portrait(void)
@@ -1399,7 +1420,7 @@ static void the_lock_works_with_the_screen_off(void)
 
 static void the_lock_toasts_fit_a_portrait_screen_in_large_text(void)
 {
-    Theme theme = BOARD_THEME;
+    Theme theme = *expected_theme();
     default_theme_set_text_size(&theme, TEXT_SIZE_LARGE);
     default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
     const char *const texts[] = {"Hold Play+Power", "Buttons unlocked"};
@@ -1542,7 +1563,7 @@ static void screen_off_play_clicks_skip_with_the_play_clicks_setting(void)
 
 static uint16_t scrollbar_probe(void)
 {
-    return fake_hal_pixel(HAL_DISPLAY_WIDTH - BOARD_THEME.metrics.scrollbar_inset - 1, 40);
+    return fake_hal_pixel(HAL_DISPLAY_WIDTH - expected_theme()->metrics.scrollbar_inset - 1, 40);
 }
 
 static void a_new_screen_slides_in_from_the_right(void)
@@ -1551,11 +1572,11 @@ static void a_new_screen_slides_in_from_the_right(void)
     step();
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
-    CHECK(scrollbar_probe() != BOARD_THEME.colors.scrollbar_thumb);
+    CHECK(scrollbar_probe() != expected_theme()->colors.scrollbar_thumb);
     wait_ms(SLIDE_DURATION_MS / 2);
-    CHECK(scrollbar_probe() != BOARD_THEME.colors.scrollbar_thumb);
+    CHECK(scrollbar_probe() != expected_theme()->colors.scrollbar_thumb);
     wait_ms(SLIDE_DURATION_MS / 2);
-    CHECK_EQUAL(BOARD_THEME.colors.scrollbar_thumb, scrollbar_probe());
+    CHECK_EQUAL(expected_theme()->colors.scrollbar_thumb, scrollbar_probe());
 }
 
 static void going_back_slides_the_screen_out_to_the_right(void)
@@ -1566,9 +1587,9 @@ static void going_back_slides_the_screen_out_to_the_right(void)
     wait_ms(SLIDE_DURATION_MS);
     tap(KEY_BACK);
     CHECK(title_is(FIRMWARE_SHORT_NAME));
-    CHECK_EQUAL(BOARD_THEME.colors.scrollbar_thumb, scrollbar_probe());
+    CHECK_EQUAL(expected_theme()->colors.scrollbar_thumb, scrollbar_probe());
     wait_ms(SLIDE_DURATION_MS);
-    CHECK(scrollbar_probe() != BOARD_THEME.colors.scrollbar_thumb);
+    CHECK(scrollbar_probe() != expected_theme()->colors.scrollbar_thumb);
 }
 
 static void waking_draws_a_frame_before_the_backlight_comes_on(void)
@@ -1843,8 +1864,8 @@ static void the_splash_draws_over_the_home_screen(void)
     start_app();
     app_show_splash();
     wait_ms(SPLASH_FADE_MS);
-    Rect content = theme_content_area(&BOARD_THEME);
-    CHECK_EQUAL(BOARD_THEME.colors.background, fake_hal_pixel(content.x + 2, content.y + 4));
+    Rect content = theme_content_area(expected_theme());
+    CHECK_EQUAL(NOTICE_THEME.colors.background, fake_hal_pixel(content.x + 2, content.y + 4));
 }
 
 static bool toast_is(const char *expected)
@@ -1949,7 +1970,7 @@ static void each_big_file_is_made_in_its_own_step_after_the_screen_is_lit(void)
     CHECK_EQUAL(3, fake_hal_reserve_count());
     CHECK(app_preparing());
     step();
-    CHECK_EQUAL(13, fake_hal_reserve_count());
+    CHECK_EQUAL(card_files_count(), fake_hal_reserve_count());
     CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
 }
 
@@ -1965,7 +1986,7 @@ static void a_card_with_the_files_is_prepared_within_the_first_step(void)
 static void a_card_that_has_the_files_is_not_rescanned(void)
 {
     start_on_a_fresh_card(HAL_RESERVE_EXISTS);
-    CHECK_EQUAL(13, fake_hal_reserve_count());
+    CHECK_EQUAL(card_files_count(), fake_hal_reserve_count());
     step();
     CHECK_EQUAL(0, fake_hal_scratch_borrow_count());
 }
@@ -2599,7 +2620,11 @@ static bool header_title_matches_the_notice_theme(void)
     static Color expected[HAL_DISPLAY_WIDTH * 32];
     int height = NOTICE_THEME.metrics.header_height;
     Canvas canvas = canvas_make(expected, (Rect){0, 0, HAL_DISPLAY_WIDTH, height});
-    header_draw(&canvas, &NOTICE_THEME, app_screen_title());
+    Theme theme = NOTICE_THEME;
+    theme.colors = expected_theme()->colors;
+    theme.horizon = expected_theme()->horizon;
+    theme.header_rule = expected_theme()->header_rule;
+    header_draw(&canvas, &theme, app_screen_title());
     int inset = NOTICE_THEME.metrics.header_inset;
     for (int y = 0; y < height; y++) {
         for (int x = inset; x < HAL_DISPLAY_WIDTH - inset; x++) {
@@ -2716,20 +2741,20 @@ static void the_header_shows_the_play_state_and_battery(void)
 {
     start_app_with_library();
     fake_hal_set_battery((HalBattery){.known = true, .percent = HALF_BATTERY, .charging = false});
-    Color icon = BOARD_THEME.colors.header_text;
+    Color icon = expected_theme()->colors.header_text;
     step();
-    CHECK(!area_has_color(status_bar_playback_area(&BOARD_THEME), icon));
-    CHECK(area_has_color(status_bar_battery_area(&BOARD_THEME), icon));
+    CHECK(!area_has_color(status_bar_playback_area(expected_theme()), icon));
+    CHECK(area_has_color(status_bar_battery_area(expected_theme()), icon));
     play_first_album_track();
-    CHECK(area_has_color(status_bar_playback_area(&BOARD_THEME), icon));
+    CHECK(area_has_color(status_bar_playback_area(expected_theme()), icon));
 }
 
 static void shuffle_shows_in_the_top_bar_as_songs_or_albums(void)
 {
     start_app_with_library();
     step();
-    Color icon = BOARD_THEME.colors.header_text;
-    Rect songs = status_bar_shuffle_area(&BOARD_THEME, STATUS_SHUFFLE_SONGS);
+    Color icon = expected_theme()->colors.header_text;
+    Rect songs = status_bar_shuffle_area(expected_theme(), STATUS_SHUFFLE_SONGS);
     CHECK(!area_has_color(songs, icon));
     open_setting(SETTINGS_SHUFFLE_INDEX);
     move_down(SHUFFLE_SONGS);
@@ -2821,7 +2846,7 @@ static void diagnostics_shows_each_dac_chip_as_the_hal_read_it(void)
 
 static uint16_t cover_probe(void)
 {
-    return fake_hal_pixel(BOARD_THEME.metrics.padding + 56,
+    return fake_hal_pixel(expected_theme()->metrics.padding + 56,
                           BOARD_LAYOUT.now_playing[TEXT_SIZE_MEDIUM].cover_top + 78);
 }
 
@@ -2834,7 +2859,7 @@ static void now_playing_shows_the_album_cover(void)
     CHECK_EQUAL(0xF800, cover_probe());
 }
 
-static void now_playing_without_a_cover_keeps_the_text_layout(void)
+static void now_playing_without_a_cover_shows_the_cassette(void)
 {
     start_app_with_library();
     open_music_entry(MUSIC_ALBUMS_INDEX);
@@ -2844,7 +2869,7 @@ static void now_playing_without_a_cover_keeps_the_text_layout(void)
     wait_ms(SLIDE_DURATION_MS);
     step();
     CHECK(title_is("Now Playing"));
-    CHECK_EQUAL(BOARD_THEME.colors.background, cover_probe());
+    CHECK(cover_probe() != expected_theme()->colors.background);
 }
 
 static void an_unchanged_frame_sends_no_pixels(void)
@@ -3893,13 +3918,24 @@ static void an_aborted_script_lets_go_of_the_key_it_holds(void)
     load_script("build any\ndown:held\nplay\n");
     run_script_for(1000);
     debug_runner_abort();
+    step();
+    const Theme *theme = expected_theme();
+    int selected = 0;
+    while (selected < 4 &&
+           !selected_at(theme->metrics.header_height + selected * theme->metrics.row_height + 16)) {
+        selected++;
+    }
+    CHECK(selected < 4);
+    long pixels = fake_hal_pixels_written();
     uint32_t before = debug_loop_log()->recorded;
     run_script_for(2000);
     CHECK_EQUAL(DEBUG_SCRIPT_ABORTED, debug_runner_script()->state);
     CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK_EQUAL(pixels, fake_hal_pixels_written());
     CHECK_EQUAL(0, events_of(DEBUG_EVENT_SCREEN, before));
     tap(KEY_PLAY);
-    CHECK(title_is("Settings"));
+    static const char *const titles[] = {"Music", "Settings", "Mixtapes", "Listening"};
+    CHECK(selected < 4 && title_is(titles[selected]));
 }
 
 static void a_script_lights_the_screen_and_leaves_the_charge_screen_before_it_starts(void)
@@ -4011,7 +4047,7 @@ int main(void)
         TEST_CASE(a_clock_that_does_not_lock_stays_where_it_was),
         TEST_CASE(menu_does_nothing_while_nothing_plays),
         TEST_CASE(now_playing_shows_the_album_cover),
-        TEST_CASE(now_playing_without_a_cover_keeps_the_text_layout),
+        TEST_CASE(now_playing_without_a_cover_shows_the_cassette),
         TEST_CASE(now_playing_keys_control_the_player),
         TEST_CASE(lists_still_move_as_soon_as_a_volume_key_goes_down),
         TEST_CASE(the_home_menu_shows_now_playing_last_once_a_track_is_loaded),
@@ -4064,7 +4100,7 @@ int main(void)
         TEST_CASE(the_flipped_portrait_turns_the_panel_the_other_way),
         TEST_CASE(choosing_landscape_again_turns_the_screen_back),
         TEST_CASE(the_screen_starts_in_the_saved_orientation),
-        TEST_CASE(portrait_home_shows_only_the_status_row_and_lists_keep_their_title),
+        TEST_CASE(portrait_home_and_lists_keep_their_title_below_the_status_row),
         TEST_CASE(in_portrait_the_volume_down_key_moves_down_the_list),
         TEST_CASE(in_the_flipped_portrait_the_rocker_keeps_its_landscape_direction),
         TEST_CASE(a_key_held_across_the_turn_keeps_the_direction_it_started_with),

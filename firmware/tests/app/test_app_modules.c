@@ -11,6 +11,7 @@
 #include "hal/storage.h"
 #include "hal/system.h"
 #include "library_store.h"
+#include "music_check.h"
 #include "screen_modules.h"
 #include "settings/settings.h"
 #include "settings_store.h"
@@ -51,6 +52,8 @@ static void add_player_files(void)
             fake_hal_add_file(card_files_path(index), NULL, 4096);
         }
     }
+    fake_hal_add_file(MUSIC_CHECK_PATH, NULL, 4096);
+    music_check_remember((MusicFingerprint){.complete = true});
 }
 
 static void start_app(void)

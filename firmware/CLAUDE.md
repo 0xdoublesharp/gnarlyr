@@ -142,7 +142,7 @@ Only after the owner approved it for this session.
   ```
 
 - Slot files, read-backs and logs go under `/Volumes/Scratch/SnowskyEcho`, never in the repo. The original device backup stays under `.local/device-backups` in the main checkout.
-- Internal storage mounts as `/Volumes/ECHO`. An update is copied with `cp -X` (no `._` files) to the drive's top level as `FRSHBS.IMG`, then `diskutil eject /Volumes/ECHO`; the updater runs once the USB session ends. This route is not yet proven on a player for Gnarlyr (`docs/known-issues.md`).
+- Internal storage mounts as `/Volumes/ECHO`. An update is copied with `cp -X` (no `._` files) to the drive's top level as `FRSHBS.IMG`, then `diskutil eject /Volumes/ECHO`; the updater runs once the USB session ends. File-copy installs with automatic restart/reconnect are recorded on the owner's player through FreshBase `6d027ed`; later candidates still need their own validation (`docs/known-issues.md`).
 
 ## Releasing
 

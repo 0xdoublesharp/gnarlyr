@@ -210,9 +210,14 @@ static void a_library_without_a_content_fingerprint_cannot_bind_a_stored_order(v
     start("fat32_mbr");
     copy_tracks();
     fixture_library_open(&fixture);
+    LibraryContent content;
+    library_content_begin(&content, &fixture.library);
     PlayQueue queue;
     CHECK(!play_queue_use_order(&queue, &fixture.library, &stored.order, plan()));
-    CHECK(fixture_library_identify(&fixture.library));
+    while (library_content_step(&content) == LIBRARY_CONTENT_WORKING) {
+        CHECK(!play_queue_use_order(&queue, &fixture.library, &stored.order, plan()));
+    }
+    CHECK_EQUAL(LIBRARY_CONTENT_READY, content.state);
     CHECK(play_queue_use_order(&queue, &fixture.library, &stored.order, plan()));
     fixture.bytes[fixture.library.sections[LIBRARY_STRINGS].offset + 1] ^= 1;
     CHECK(fixture_library_identify(&fixture.library));
