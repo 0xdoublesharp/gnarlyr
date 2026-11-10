@@ -17,6 +17,7 @@
 void board_profile_sample(uint32_t pc);
 void board_profile_wait(void);
 const PcProfile *board_profile(void);
+void board_profile_hold(bool hold);
 typedef struct BoardBatteryReading {
     bool known;
     uint16_t raw;

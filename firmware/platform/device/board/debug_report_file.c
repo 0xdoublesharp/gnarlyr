@@ -117,7 +117,9 @@ CORE_SEAM void debug_report_write(const UsbShared *shared, uint32_t reason)
     DebugReportPlace place = place_for(text, cold_start);
     ReportPath path = slot_path(place.slot);
     input.sequence = place.sequence;
+    board_profile_hold(true);
     debug_report_format(&input, text, DEBUG_REPORT_BYTES);
+    board_profile_hold(false);
     if (reserved(path.text)) {
         hal_internal_file_write(path.text, text, DEBUG_REPORT_BYTES);
     }

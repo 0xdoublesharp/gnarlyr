@@ -18,6 +18,7 @@ extern const uint8_t device_profile_overlay_base[];
 extern const uint8_t device_profile_overlay_bytes[];
 
 static PcProfile profile;
+static bool held;
 
 static uint32_t value_of(const uint8_t *linker_symbol)
 {
@@ -41,7 +42,14 @@ static PcProfile *prepared(void)
 
 void board_profile_sample(uint32_t pc)
 {
-    pc_profile_sample(&profile, pc);
+    if (!held) {
+        pc_profile_sample(&profile, pc);
+    }
+}
+
+void board_profile_hold(bool hold)
+{
+    held = hold;
 }
 
 CORE_SEAM void board_profile_wait(void)

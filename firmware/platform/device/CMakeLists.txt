@@ -174,6 +174,7 @@ if(NOT ECHO_RELEASE)
         board_power_charge_pin
         board_power_shown
         board_profile
+        board_profile_hold
         board_restart
         debug_loop_log
         debug_runner_begin
