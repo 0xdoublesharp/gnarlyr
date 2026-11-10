@@ -152,6 +152,16 @@ def source_name(path):
     return Path(name).name
 
 
+def inside_source_tree(path):
+    """`__/__/src/app/player.c.obj`, an object built from another directory -> `app/player.c.obj`."""
+    while path.startswith("__/"):
+        path = path[3:]
+    for prefix in SOURCE_PREFIXES:
+        if path.startswith(prefix):
+            return path[len(prefix):]
+    return path
+
+
 def object_name(origin):
     """`libecho_app.a(player.c.obj)` -> `app/player.c`; a plain object -> its source path."""
     if origin == FILL:
@@ -166,7 +176,7 @@ def object_name(origin):
                 break
         return f"{archive}/{Path(match.group(2)).stem}"
     if ".dir/" in name:
-        return Path(name.split(".dir/", 1)[1]).with_suffix("").as_posix()
+        return Path(inside_source_tree(name.split(".dir/", 1)[1])).with_suffix("").as_posix()
     return Path(name).stem
 
 
@@ -252,6 +262,43 @@ def split_state(device_map, overlay_map):
     return sorted(stateful(device_map) & stateful(overlay_map))
 
 
+def module_extent(module_map):
+    """(code, zeroed memory) of a module, from its own map."""
+    sizes = output_sizes(module_map)
+    return sizes.get(".overlay", 0), sizes.get(".bss", 0)
+
+
+def module_lines(modules):
+    """Each module with its zeroed memory against the slot it is linked for."""
+    lines = []
+    for name, module_map in modules:
+        code, zeroed = module_extent(module_map)
+        slot = region_length(memory_regions(module_map), MODULE_REGION)
+        lines.append(limit_line(f"module {name} (code {code:,} + .bss {zeroed:,})", code + zeroed,
+                                slot))
+    return lines
+
+
+def module_problems(device_map, modules):
+    """What makes a module unusable: another slot than the main program's, or more than it holds."""
+    problems = []
+    slot = memory_regions(device_map).get(MODULE_REGION)
+    for name, module_map in modules:
+        linked = memory_regions(module_map).get(MODULE_REGION)
+        if slot is None or linked != slot:
+            problems.append(f"module {name} is not linked for the main program's module slot")
+            continue
+        code, zeroed = module_extent(module_map)
+        if code + zeroed > slot[1]:
+            problems.append(f"module {name} is {code + zeroed - slot[1]:,} bytes too large for "
+                            "the module slot")
+        split = split_state(device_map, module_map)
+        if split:
+            problems.append(f"the main program and module {name} each have their own variables "
+                            "of " + ", ".join(split))
+    return problems
+
+
 def workspace_line(device_map, regions):
     """The decoder workspace against the part of high RAM below the module slot."""
     used = output_sizes(device_map).get(WORKSPACE_SECTION, 0)
@@ -264,7 +311,7 @@ def language_line(regions, packs):
     return limit_line(f"language pack ({name})", size, region_length(regions, LANGUAGE_REGION))
 
 
-def summary(device_map, overlay_map=None, usb_overlay_map=None, packs=()):
+def summary(device_map, overlay_map=None, usb_overlay_map=None, packs=(), modules=()):
     regions = memory_regions(device_map)
     code = output_sizes(device_map).get(".code", 0)
     lines = [limit_line("code window", code, region_length(regions, CODE_REGION)),
@@ -275,6 +322,7 @@ def summary(device_map, overlay_map=None, usb_overlay_map=None, packs=()):
         lines.append(limit_line("rescan overlay", overlay, capacity))
     if usb_overlay_map is not None:
         lines += usb_overlay_lines(usb_overlay_map)
+    lines += module_lines(modules)
     if MODULE_REGION in regions:
         lines.append(workspace_line(device_map, regions))
     if packs:
@@ -282,11 +330,22 @@ def summary(device_map, overlay_map=None, usb_overlay_map=None, packs=()):
     return lines
 
 
+def module_report(name, module_map):
+    """What fills one module, by object."""
+    by_object = defaultdict(lambda: [0, 0])
+    for piece in parse_map(module_map):
+        if piece.section != FILL and piece.output in (".overlay", ".bss"):
+            by_object[object_name(piece.origin)][piece.output == ".bss"] += piece.size
+    rows = [(origin, f"{code:,}", f"{zeroed:,}") for origin, (code, zeroed) in
+            sorted(by_object.items(), key=lambda item: (-item[1][0], item[0]))]
+    return [f"module {name} by object:", *format_table(rows, ("object", "code", ".bss")), ""]
+
+
 def report(device_map, overlay_map=None, nm_text="", top=25, objects=40, usb_overlay_map=None,
-           packs=()):
+           packs=(), modules=()):
     pieces = parse_map(device_map)
     nm_files = parse_nm(nm_text)
-    lines = summary(device_map, overlay_map, usb_overlay_map, packs)
+    lines = summary(device_map, overlay_map, usb_overlay_map, packs, modules)
     lines.append("")
     code_pieces = in_sections(pieces, CODE_SECTIONS)
     ram_pieces = in_sections(pieces, RAM_SECTIONS)
@@ -332,6 +391,9 @@ def report(device_map, overlay_map=None, nm_text="", top=25, objects=40, usb_ove
             for piece in biggest]
     lines.append(f"largest .bss and .noinit objects (top {top}):")
     lines += format_table(rows, ("symbol", "bytes", "object"))
+    for name, module_map in modules:
+        lines.append("")
+        lines += module_report(name, module_map)[:-1]
     return "\n".join(lines)
 
 
@@ -356,6 +418,8 @@ def parse_arguments(argv):
     parser.add_argument("--usb-overlay-map", type=Path, help="the USB overlay map file")
     parser.add_argument("--language-pack", type=Path, action="append", default=[],
                         help="a language pack built into the image")
+    parser.add_argument("--module-map", action="append", default=[], metavar="NAME=MAP",
+                        help="a module's name and map file, in the order of the module numbers")
     parser.add_argument("--nm", default="arm-none-eabi-nm", help="the nm to run on the ELF")
     parser.add_argument("--top", type=int, default=25, help="how many symbols to list")
     parser.add_argument("--objects", type=int, default=40, help="how many objects to list")
@@ -380,6 +444,14 @@ def read_map(path):
     return None if path is None else path.read_text(encoding="utf-8", errors="replace")
 
 
+def read_modules(arguments):
+    modules = []
+    for item in arguments:
+        name, _, path = item.partition("=")
+        modules.append((name, read_map(Path(path))))
+    return modules
+
+
 def main(argv=None):
     arguments = parse_arguments(argv)
     device_map = read_map(arguments.map)
@@ -391,13 +463,17 @@ def main(argv=None):
               + ", ".join(split), file=sys.stderr)
         return 1
     packs = [(path.stem, path.stat().st_size) for path in arguments.language_pack]
+    modules = read_modules(arguments.module_map)
+    problems = module_problems(device_map, modules)
     if arguments.summary:
-        print("\n".join(summary(device_map, overlay_map, usb_overlay_map, packs)))
-        return 0
-    nm_text = run_nm(arguments.elf, arguments.nm)
-    print(report(device_map, overlay_map, nm_text, arguments.top, arguments.objects,
-                 usb_overlay_map, packs))
-    return 0
+        print("\n".join(summary(device_map, overlay_map, usb_overlay_map, packs, modules)))
+    else:
+        nm_text = run_nm(arguments.elf, arguments.nm)
+        print(report(device_map, overlay_map, nm_text, arguments.top, arguments.objects,
+                     usb_overlay_map, packs, modules))
+    for problem in problems:
+        print("error: " + problem, file=sys.stderr)
+    return 1 if problems else 0
 
 
 if __name__ == "__main__":

@@ -92,6 +92,31 @@ Linker script and memory map
                 0x03085000        0x4 logic/libecho_device_logic.a(updater.c.obj)
 """
 
+SLOT_REGION = "MODULE_RAM       0x03084400         0x0000dc00         rw\n"
+FENCED_MAP = MAP.replace("HIGH_RAM         0x0307a000         0x00018000         rw\n",
+                         "HIGH_RAM         0x0307a000         0x0000a400         rw\n" + SLOT_REGION)
+
+MODULE_MAP = """Memory Configuration
+
+Name             Origin             Length             Attributes
+MODULE_RAM       0x03084400         0x0000dc00         xrw
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+.overlay        0x03084400     0x2000
+ .rodata.SETTINGS_MODULE_ENTRY
+                0x03084410        0xc platform/device/CMakeFiles/echo_module_settings_objects.dir/__/__/src/app/modules/settings_module.c.obj
+ .text.open_choice
+                0x0308441c      0x400 platform/device/CMakeFiles/echo_module_settings_objects.dir/__/__/src/app/settings_screens.c.obj
+ .text.choice_screen_init
+                0x0308481c      0x100 platform/device/CMakeFiles/echo_module_settings_objects.dir/__/__/src/ui/choice_screen.c.obj
+
+.bss            0x03086400      0x200
+ .bss.battery_text
+                0x03086400      0x200 platform/device/CMakeFiles/echo_module_settings_objects.dir/__/__/src/app/diagnostics_rows.c.obj
+"""
+
 NM = """03050110 00000200 T app_step\tD:/Projects/firmware/src/app/app.c:200
 0301f588 00004a78 b app\tD:/Projects/firmware/src/app/app.c:133
 030500cc 00000040 T hal_audio_play\tD:/Projects/firmware/platform/device/board/audio.c:50
@@ -133,6 +158,11 @@ class NamingTest(unittest.TestCase):
             size_report.object_name(
                 "platform/device/CMakeFiles/echo_device.dir/board/audio.c.obj"),
             "board/audio.c")
+
+    def test_objects_built_from_another_directory_are_named_like_their_source(self):
+        origin = ("platform/device/CMakeFiles/echo_module_views_objects.dir/__/__/src/ui/"
+                  "cover_flow.c.obj")
+        self.assertEqual(size_report.object_name(origin), "ui/cover_flow.c")
 
     def test_libgcc_members_are_grouped_under_gcc(self):
         origin = "C:/msys64/clang64/lib/gcc/arm-none-eabi/16.2.0/thumb/v7-m/nofp\\libgcc.a(_udivmoddi4.o)"
@@ -216,6 +246,58 @@ class ReportTest(unittest.TestCase):
                              "MODULE_RAM       0x0308c400         0x00005c00         rw\n")
         self.assertEqual(size_report.summary(fenced)[2],
                          "decoder workspace: 73,808 of 74,752 bytes, 944 free")
+
+    def test_summary_measures_each_module_with_its_zeroed_memory_against_the_slot(self):
+        lines = size_report.summary(FENCED_MAP, modules=[("settings", MODULE_MAP)])
+        self.assertEqual(lines[2], "module settings (code 8,192 + .bss 512): 8,704 of 56,320 "
+                                   "bytes, 47,616 free")
+        self.assertTrue(lines[3].startswith("decoder workspace"))
+
+    def test_a_module_that_fits_its_slot_has_no_problem(self):
+        self.assertEqual([], size_report.module_problems(FENCED_MAP, [("settings", MODULE_MAP)]))
+
+    def test_a_module_larger_than_the_slot_is_a_problem(self):
+        grown = MODULE_MAP.replace(".bss            0x03086400      0x200",
+                                   ".bss            0x03086400     0xbd00")
+        problems = size_report.module_problems(FENCED_MAP, [("settings", grown)])
+        self.assertEqual(["module settings is 256 bytes too large for the module slot"], problems)
+        self.assertIn("OVER BY 256", size_report.summary(FENCED_MAP,
+                                                         modules=[("settings", grown)])[2])
+
+    def test_a_module_linked_for_another_slot_is_a_problem(self):
+        moved = MODULE_MAP.replace("0x03084400         0x0000dc00", "0x03084000         0x0000e000")
+        for module_map, device_map in ((moved, FENCED_MAP), (MODULE_MAP, MAP)):
+            problems = size_report.module_problems(device_map, [("settings", module_map)])
+            self.assertEqual(["module settings is not linked for the main program's module slot"],
+                             problems)
+
+    def test_the_command_fails_when_a_module_is_too_large(self):
+        import contextlib
+        import io
+        import tempfile
+        grown = MODULE_MAP.replace(".bss            0x03086400      0x200",
+                                   ".bss            0x03086400     0xbd00")
+        with tempfile.TemporaryDirectory() as directory:
+            paths = {}
+            for name, text in (("device", FENCED_MAP), ("fits", MODULE_MAP), ("grown", grown)):
+                paths[name] = Path(directory) / (name + ".map")
+                paths[name].write_text(text)
+            results = []
+            for name in ("fits", "grown"):
+                with contextlib.redirect_stdout(io.StringIO()), \
+                        contextlib.redirect_stderr(io.StringIO()):
+                    results.append(size_report.main(["--map", str(paths["device"]), "--summary",
+                                                     "--module-map", f"settings={paths[name]}"]))
+        self.assertEqual([0, 1], results)
+
+    def test_the_report_lists_what_fills_each_module(self):
+        text = size_report.report(FENCED_MAP, modules=[("settings", MODULE_MAP)])
+        lines = text.splitlines()
+        table = lines[lines.index("module settings by object:") + 2:]
+        self.assertTrue(table[0].startswith("app/settings_screens.c"), table[0])
+        self.assertIn("1,024", table[0])
+        rows = next(line for line in table if "diagnostics_rows" in line)
+        self.assertTrue(rows.rstrip().endswith("512"), rows)
 
     def test_without_packs_the_summary_has_no_language_line(self):
         self.assertEqual(2, len(size_report.summary(MAP)))

@@ -27,6 +27,13 @@ OVERLAY_MAGIC = b"EOVL"
 USB_OVERLAY_OFFSET = 0x43C000
 USB_OVERLAY_CAPACITY = 0x10000
 USB_OVERLAY_MAGIC = b"EUSB"
+MODULE_BASE = 0x03084400
+MODULE_CAPACITY = 0xDC00
+MODULE_MAGIC = b"DSM"
+MODULE_TABLE_OFFSET = OVERLAY_OFFSET + OVERLAY_CAPACITY
+MODULE_TABLE_MAGIC = b"DSMT"
+MODULE_TABLE_SIZE = 512
+MODULE_LIMIT = 31
 CORE1_MP3_OFFSET = 0x240000
 CORE1_FLAC_OFFSET = 0x280000
 CORE1_M4A_OFFSET = 0x2A0200
@@ -46,7 +53,7 @@ GLYPH_PAYLOAD_LIMIT = 0x30000
 GLYPH_REGIONS = (
     (GLYPH_PAYLOAD_LIMIT, OVERLAY_OFFSET),
     (GLYPH_TABLE_OFFSET + GLYPH_TABLE_SIZE, USB_OVERLAY_OFFSET),
-    (OVERLAY_OFFSET + OVERLAY_CAPACITY, CORE1_MP3_OFFSET),
+    (MODULE_TABLE_OFFSET + MODULE_TABLE_SIZE, CORE1_MP3_OFFSET),
     (CORE1_MP3_OFFSET + CORE1_MODULE_HEADER_SIZE + CORE1_MODULE_CAPACITY, CORE1_FLAC_OFFSET),
 )
 TABLE_CAPACITY = 91
@@ -115,6 +122,7 @@ class ImageParts:
     core1_m4a: bytes = b""
     usb_overlay: bytes = b""
     language_packs: tuple = ()
+    modules: tuple = ()
 
 
 def crc_table():
@@ -211,6 +219,7 @@ def assemble(parts):
     place_core1_module(image, parts.core1_m4a, CORE1_M4A_OFFSET, CORE1_M4A_CAPACITY)
     place_glyph_faces(image, parts)
     place_language_packs(image, parts)
+    place_modules(image, parts)
     end = fw_end(FW_SIZE)
     struct.pack_into("<I", image, end, crc32(image[:end]))
     return bytes(image)
@@ -254,8 +263,9 @@ def first_fit(free, size):
     return None
 
 
-def blob_offsets(face_sizes, pack_sizes=()):
-    """Image offsets for the glyph faces (largest first), then for the language packs in order."""
+def blob_offsets(face_sizes, pack_sizes=(), module_sizes=()):
+    """Image offsets for the glyph faces (largest first), then for the language packs and the
+    modules in order."""
     free = [list(region) for region in GLYPH_REGIONS]
     faces = [0] * len(face_sizes)
     for index in sorted(range(len(face_sizes)), key=lambda item: -face_sizes[item]):
@@ -268,7 +278,10 @@ def blob_offsets(face_sizes, pack_sizes=()):
     packs = [first_fit(free, size) for size in pack_sizes]
     if None in packs:
         raise ImageError(f"language pack {packs.index(None) + 1} doesn't fit the image")
-    return faces, packs
+    modules = [first_fit(free, size) for size in module_sizes]
+    if None in modules:
+        raise ImageError(f"module {modules.index(None) + 1} doesn't fit the image")
+    return faces, packs, modules
 
 
 def glyph_face_offsets(sizes):
@@ -324,23 +337,66 @@ def place_language_packs(image, parts):
     image[LANGUAGE_TABLE_OFFSET:LANGUAGE_TABLE_OFFSET + len(table)] = table
 
 
+def module_magic(number):
+    return MODULE_MAGIC + bytes([number])
+
+
+def check_modules(modules):
+    if len(modules) > MODULE_LIMIT:
+        raise ImageError(f"the module table holds at most {MODULE_LIMIT} modules")
+    for number, module in enumerate(modules, 1):
+        if not OVERLAY_HEADER_SIZE < len(module) <= MODULE_CAPACITY:
+            raise ImageError(f"module {number} must be more than {OVERLAY_HEADER_SIZE} and at "
+                             f"most {MODULE_CAPACITY:#x} bytes")
+        named = module[OVERLAY_HEADER_SIZE:OVERLAY_HEADER_SIZE + len(MODULE_MAGIC) + 1]
+        if named != module_magic(number):
+            raise ImageError(f"module {number}'s entry table does not start with its number: "
+                             "the modules must be given in the order of their numbers")
+
+
+def place_modules(image, parts):
+    modules = parts.modules
+    if not modules:
+        return
+    check_modules(modules)
+    if PAYLOAD_OFFSET + len(parts.payload) > GLYPH_PAYLOAD_LIMIT:
+        raise ImageError("the payload reaches the modules")
+    offsets = blob_offsets([len(face) for face in parts.glyph_faces],
+                           [len(pack) for pack in parts.language_packs],
+                           [len(module) for module in modules])[2]
+    table = bytearray(MODULE_TABLE_SIZE)
+    struct.pack_into("<4sI", table, 0, MODULE_TABLE_MAGIC, len(modules))
+    for index, (module, offset) in enumerate(zip(modules, offsets)):
+        body = module[OVERLAY_HEADER_SIZE:]
+        header = module_magic(index + 1) + struct.pack("<III", len(module), crc32(body),
+                                                       code_crc(parts))
+        struct.pack_into("<II", table, 8 + 8 * index, offset, len(module))
+        image[offset:offset + len(module)] = header + body
+    image[MODULE_TABLE_OFFSET:MODULE_TABLE_OFFSET + MODULE_TABLE_SIZE] = table
+
+
+def table_rows(image, table_offset, magic):
+    found, count = struct.unpack_from("<4sI", image, table_offset)
+    if found != magic:
+        return []
+    return [struct.unpack_from("<II", image, table_offset + 8 + 8 * index)
+            for index in range(count)]
+
+
+def modules_in(image):
+    """(offset, size) of every module an image's table lists, in the order of their numbers."""
+    return table_rows(image, MODULE_TABLE_OFFSET, MODULE_TABLE_MAGIC)
+
+
 def language_packs_in(image):
     """The language packs an image's table lists, in order."""
-    magic, count = struct.unpack_from("<4sI", image, LANGUAGE_TABLE_OFFSET)
-    if magic != LANGUAGE_TABLE_MAGIC:
-        return []
-    entries = [struct.unpack_from("<II", image, LANGUAGE_TABLE_OFFSET + 8 + 8 * index)
-               for index in range(count)]
+    entries = table_rows(image, LANGUAGE_TABLE_OFFSET, LANGUAGE_TABLE_MAGIC)
     return [image[offset:offset + size] for offset, size in entries]
 
 
 def glyph_faces_in(image):
     """The faces an image's glyph table lists, as bytes (empty for an empty face)."""
-    magic, count = struct.unpack_from("<4sI", image, GLYPH_TABLE_OFFSET)
-    if magic != GLYPH_TABLE_MAGIC:
-        return []
-    entries = [struct.unpack_from("<II", image, GLYPH_TABLE_OFFSET + 8 + 8 * index)
-               for index in range(count)]
+    entries = table_rows(image, GLYPH_TABLE_OFFSET, GLYPH_TABLE_MAGIC)
     return [image[offset:offset + size] for offset, size in entries]
 
 
@@ -415,7 +471,7 @@ def generated_header(version):
 
 def build_image(firmware, brand, build_tag, date, overlay=b"", core1_mp3=b"", core1_flac=b"",
                 version=DEFAULT_VERSION, glyph_faces=(), core1_m4a=b"", usb_overlay=b"",
-                language_packs=()):
+                language_packs=(), modules=()):
     check_firmware(firmware)
     code_size, data_size = len(firmware.code), len(firmware.data)
     header = generated_header(version)
@@ -432,7 +488,7 @@ def build_image(firmware, brand, build_tag, date, overlay=b"", core1_mp3=b"", co
     rows += [(0, 0, 0, 0)] * (TABLE_CAPACITY - len(rows))
     return assemble(ImageParts(bytes(header), tuple(rows), payload, bytes(MARKER_SIZE), overlay,
                                core1_mp3, core1_flac, tuple(glyph_faces), core1_m4a, usb_overlay,
-                               tuple(language_packs)))
+                               tuple(language_packs), tuple(modules)))
 
 
 def validate_image(image):
@@ -503,11 +559,11 @@ def firmware_from_elf(elf):
     return Firmware(code=code, data=data, bss_size=bss.size if bss is not None else 0)
 
 
-def overlay_from_elf(elf, zeroed=False):
+def overlay_from_elf(elf, zeroed=False, base=OVERLAY_BASE, capacity=OVERLAY_CAPACITY):
     sections = elf_sections(elf)
     overlay = sections.get(".overlay")
-    if overlay is None or overlay.address != OVERLAY_BASE:
-        raise ImageError(f"the overlay ELF needs an .overlay section at {OVERLAY_BASE:#010x}")
+    if overlay is None or overlay.address != base:
+        raise ImageError(f"the overlay ELF needs an .overlay section at {base:#010x}")
     allowed = {".overlay", ".bss"} if zeroed else {".overlay"}
     stray = [name for name, section in sections.items()
              if section.flags & SHF_ALLOC and section.size and name not in allowed]
@@ -515,11 +571,15 @@ def overlay_from_elf(elf, zeroed=False):
         raise ImageError("the overlay may only hold code and constants: " + ", ".join(sorted(stray)))
     bss = sections.get(".bss")
     if zeroed and bss is not None and bss.size:
-        if bss.kind != SHT_NOBITS or bss.address < OVERLAY_BASE + overlay.size:
+        if bss.kind != SHT_NOBITS or bss.address < base + overlay.size:
             raise ImageError("the overlay's .bss must be zeroed memory after its code")
-        if bss.address + bss.size > OVERLAY_BASE + OVERLAY_CAPACITY:
-            raise ImageError(f"the overlay and its .bss must fit {OVERLAY_CAPACITY:#x} bytes")
+        if bss.address + bss.size > base + capacity:
+            raise ImageError(f"the overlay and its .bss must fit {capacity:#x} bytes")
     return overlay.content
+
+
+def module_from_elf(elf):
+    return overlay_from_elf(elf, zeroed=True, base=MODULE_BASE, capacity=MODULE_CAPACITY)
 
 
 def elf_symbols(elf):
@@ -550,11 +610,21 @@ def overlay_copies(main_elf, overlay_elf):
                   and index not in (SHN_UNDEF, SHN_ABS) and name in main_names)
 
 
-def check_overlay_copies(main_elf, overlay_elf, label):
+def check_overlay_copies(main_elf, overlay_elf, label, remedy="add them to ECHO_OVERLAY_IMPORTS"):
     copies = overlay_copies(main_elf, overlay_elf)
     if copies:
         raise ImageError(f"the {label} has its own copy of what the main program has: "
-                         + ", ".join(copies) + " (add them to ECHO_OVERLAY_IMPORTS)")
+                         + ", ".join(copies) + f" ({remedy})")
+
+
+def modules_from_elfs(main_elf, paths):
+    modules = []
+    for number, path in enumerate(paths, 1):
+        elf = path.read_bytes()
+        check_overlay_copies(main_elf, elf, f"module {number} ({path.stem})",
+                             "a source file belongs to the main program or to modules, not both")
+        modules.append(module_from_elf(elf))
+    return modules
 
 
 def git_output(directory, *arguments):
@@ -611,6 +681,8 @@ def parse_arguments(argv):
                         help="glyph pack face, in face order; a missing file is an empty face")
     parser.add_argument("--language-pack", type=Path, action="append", default=[],
                         help="language pack, the default language first; at least one")
+    parser.add_argument("--module", type=Path, action="append", default=[],
+                        help="module ELF linked at 0x03084400, in the order of the module numbers")
     parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args(argv)
 
@@ -639,9 +711,10 @@ def main(argv=None):
         language_packs = [path.read_bytes() for path in arguments.language_pack]
         if not language_packs:
             raise ImageError("an image needs at least one language pack (--language-pack)")
+        modules = modules_from_elfs(main_elf, arguments.module)
         image = build_image(firmware, arguments.brand, build_tag, date, overlay, core1_mp3,
                             core1_flac, arguments.version, glyph_faces, core1_m4a, usb_overlay,
-                            language_packs)
+                            language_packs, modules)
     except ImageError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
@@ -658,6 +731,7 @@ def main(argv=None):
           f"core 1 FLAC {len(core1_flac):,} bytes, core 1 M4A {len(core1_m4a):,} bytes, "
           f"glyph faces {sum(len(face) for face in glyph_faces):,} bytes, "
           f"language packs {sum(len(pack) for pack in language_packs):,} bytes, "
+          f"modules {sum(len(module) for module in modules):,} bytes, "
           f".data {len(firmware.data)} bytes, .bss {firmware.bss_size:,} bytes, "
           f"crc {word(image, fw_end(FW_SIZE)):#010x}")
     return 0
