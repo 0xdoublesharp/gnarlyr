@@ -242,12 +242,14 @@ The panel keeps its own image memory, so we never hold a full framebuffer. The s
 
 ### When a frame is drawn
 
-Drawing a frame costs about 15 ms on the player even when nothing is sent, so the app draws only when it has a reason:
+Drawing a frame costs time even when nothing is sent, so the app draws only when it has a reason:
 
 - **Passive transport:** Now Playing and Home show playing progress in whole-second snapshots. Cassette tape amounts use the same position on Now Playing. Short tracks therefore do not keep the active redraw pace merely because their progress advances a pixel every few milliseconds. Scrubbing, paused/end positions and volume feedback retain their exact position.
 - **Input and animation:** a key event, a fade or a slide asks for a frame at once, and `core/frame_pacer` then keeps the active pace (16 ms) for six frames. Three changed frames in a row count as an animation and keep that pace.
 - **Changes with no input behind them:** every 50 ms `app.c` hashes what any screen may show without a key press (play state, track, elapsed second, volume, shuffle and repeat, queue place, battery, Bluetooth, lock, toast). A changed stamp draws one frame at once and does not start the active pace. A screen that shows something else that changes by itself must add it to the stamp.
 - **Otherwise:** one check 100 ms after the last change, then one frame a second as a safety net.
+
+On the owner's player, bounding passive progress for a 20-second WAV in the medium landscape cassette view reduced drawing from 211 to 20 frames per 10 seconds and core 0 busy time from 98 % to 38 %, with zero ring or output underruns.
 
 The main loop follows the same idea. Keys are sampled in the 1 ms tick interrupt, so a pass of the app is not needed on every tick: `app_pass_interval_ms()` asks for 1 ms passes while the screen animates, Bluetooth is on, the charge screen shows or a rescan is pending, 4 ms on an idle screen or while music plays (the audio path keeps about 300 ms buffered), and 10 ms with the screen off and nothing playing. `board/main.c` sleeps in between.
 

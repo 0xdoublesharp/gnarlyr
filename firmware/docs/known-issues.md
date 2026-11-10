@@ -1,11 +1,12 @@
 # Gnarlyr known issues
 
-Gnarlyr 1.0.0 is not released. Recorded device checks below are from earlier builds of this project, including the FreshBase foundation. It comes with no warranty: use it at your own risk. Read this before you install a build, and keep a way back ([`device-recovery.md`](device-recovery.md)).
+Gnarlyr 1.0.0 is not released. The developer firmware runs on the owner's full-size Echo; the recorded checks below include Gnarlyr and its earlier foundation. It comes with no warranty: use it at your own risk. Read this before you install a build, and keep a way back ([`device-recovery.md`](device-recovery.md)).
 
 ## What has been checked
 
 - **Software checks:** host tests, the simulator and the ARM emulator cover boot and updates, memory bounds, queue/session persistence, mixtapes, controls, Listening and lyrics. They do not reproduce analog output, Bluetooth radio operation or full USB host traffic.
 - **On the owner's Echo (full size, 4 GB):** the owner confirmed display, menus, buttons, music playback, volume, internal/microSD USB storage and quiet audio on the earlier Podium 4.5.5-based build. The rebuilt Podium 4.5.9 foundation was then confirmed for file-copy installation, USB storage, playback, quiet audio and portrait mode. Later developer builds exercised reports, scripts, automatic update/restart/reconnect and frame/load measurements. FreshBase `33757eb` and the demand-loaded-module build `6d027ed` were installed through the file-copy loop and returned on USB with their build reports confirmed. The unit was also restored to FiiO 2.0.0 and back through maskrom; the recovery steps in [`device-install.md`](device-install.md) and [`device-recovery.md`](device-recovery.md) are the ones used.
+- **Gnarlyr on the owner's Echo:** file-copy installation and automatic restart/reconnect report the expected build. Home, Now Playing, Up Next, Mixtapes, Listening, Controls and the missing-lyrics view were checked on the display at medium text size in landscape. A named mixtape was saved before an update, survived the restart and loaded into playback and Up Next afterward. A 10-second WAV playback window had zero ring or output underruns.
 - **Everything else** that Podium's and EchoPod's authors tested on their own players has not been repeated by this project. Where this document mentions such a result, it says whose it is.
 
 ## Safety
@@ -16,11 +17,11 @@ Gnarlyr 1.0.0 is not released. Recorded device checks below are from earlier bui
 
 ## Not proven on a player
 
-These checks remain incomplete on the owner's unit. Earlier hardware results do not establish the new Gnarlyr interface, queue, mixtape, Listening or lyrics behavior on the player.
+These checks remain incomplete on the owner's unit; the observed developer flows above do not replace them.
 
 - **USB compatibility beyond the owner's Mac.** Storage enumeration and automatic reconnect with the overlay have worked on that Mac; broader host compatibility and sustained transfer checks remain.
 - **USB DAC mode,** which now also runs from the overlay.
-- **Playback across the new feature-module paths.** Playback and USB storage worked on the rebuilt foundation. Switching demand-loaded screens while playing, then returning from USB and resuming with the new queue/session state, still needs a device check.
+- **Cold power cycles and resume.** Automatic update restarts preserve settings and saved mixtapes. Resume position and queue behavior after a true cold power cycle still need a complete owner check on the new build.
 - **Additional language packs.** Earlier installed builds booted with their English text read from the firmware language pack. Selecting an additional translation or a separate pack file in `/.freshbase/lang` has not been validated on the owner's player.
 - **Both portrait orientations and controls.** The owner confirmed portrait mode on the rebuilt foundation. Both portrait directions, rocker behavior and the new layouts/control mappings still need a complete device pass.
 - **The ten-band equalizer's CPU load at 96 kHz.** By instruction count it takes about 55 % of the main core. It has not been heard or measured on a player.
@@ -99,7 +100,7 @@ Also unchecked on a player by this project: `.m4a` and `.m4b` playback and seeki
 ## Not there yet
 
 - No ReplayGain or playback speed control.
-- **Timed sidecar lyrics are implemented.** Their timing and display with the new interface still need a device check.
+- **Timed sidecar lyrics are implemented.** The missing-sidecar notice was checked on the player; timing and text from a real sidecar still need a device check.
 - **The equalizer** leaves music above 96 kHz (176.4 and 192 kHz) unchanged, isn't applied in USB DAC mode or in the simulator, and a change is heard after the audio already buffered (about 0.3 s at 44.1 kHz).
 - **Bluetooth and the jacks:** while music goes to Bluetooth the player can't read the headphone jack: pause, plug wired headphones in and press Play to switch.
 - **Buttons on wired headphones** (3.5 mm) follow the readings of FiiO's firmware. Podium's author reports that on Apple EarPods the middle button works but + and − don't: Apple's remote signals them through a chip the player can't talk to ([`hardware.md`](hardware.md)). If buttons do nothing, Settings → About → Headset shows what the player reads while each button is pressed. The 4.4 mm jack has no headset buttons.
