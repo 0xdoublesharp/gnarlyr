@@ -477,6 +477,10 @@ add_test(NAME no_comments
 add_test(NAME no_text_literals
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_literals.py ${PROJECT_SOURCE_DIR}
 )
+add_test(NAME no_identity_literals
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_identity_literals.py
+        ${PROJECT_SOURCE_DIR}
+)
 
 find_program(CLANG_FORMAT clang-format)
 if(CLANG_FORMAT)
