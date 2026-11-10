@@ -3,6 +3,7 @@ add_library(echo_playback STATIC
     play_queue.c
     resume_state.c
     spoken.c
+    store.c
     up_next.c
 )
 target_include_directories(echo_playback PUBLIC include)
