@@ -18,6 +18,7 @@ CODE_REGION = "CODE_RAM"
 DATA_REGION = "DATA_RAM"
 OVERLAY_REGION = "HIGH_RAM"
 USB_IMAGE_REGION = "USB_IMAGE"
+LANGUAGE_REGION = "LANGUAGE_RAM"
 STATE_SECTIONS = (".data", ".bss", ".noinit")
 DATA_END_SYMBOL = "device_noinit_end"
 DATA_LIMIT_SYMBOL = "device_data_limit"
@@ -248,7 +249,13 @@ def split_state(device_map, overlay_map):
     return sorted(stateful(device_map) & stateful(overlay_map))
 
 
-def summary(device_map, overlay_map=None, usb_overlay_map=None):
+def language_line(regions, packs):
+    """The largest language pack against the memory the player loads one pack into."""
+    name, size = max(packs, key=lambda pack: pack[1])
+    return limit_line(f"language pack ({name})", size, region_length(regions, LANGUAGE_REGION))
+
+
+def summary(device_map, overlay_map=None, usb_overlay_map=None, packs=()):
     regions = memory_regions(device_map)
     code = output_sizes(device_map).get(".code", 0)
     lines = [limit_line("code window", code, region_length(regions, CODE_REGION)),
@@ -259,13 +266,16 @@ def summary(device_map, overlay_map=None, usb_overlay_map=None):
         lines.append(limit_line("rescan overlay", overlay, capacity))
     if usb_overlay_map is not None:
         lines += usb_overlay_lines(usb_overlay_map)
+    if packs:
+        lines.append(language_line(regions, packs))
     return lines
 
 
-def report(device_map, overlay_map=None, nm_text="", top=25, objects=40, usb_overlay_map=None):
+def report(device_map, overlay_map=None, nm_text="", top=25, objects=40, usb_overlay_map=None,
+           packs=()):
     pieces = parse_map(device_map)
     nm_files = parse_nm(nm_text)
-    lines = summary(device_map, overlay_map, usb_overlay_map)
+    lines = summary(device_map, overlay_map, usb_overlay_map, packs)
     lines.append("")
     code_pieces = in_sections(pieces, CODE_SECTIONS)
     ram_pieces = in_sections(pieces, RAM_SECTIONS)
@@ -333,6 +343,8 @@ def parse_arguments(argv):
     parser.add_argument("--elf", type=Path, help="the device ELF, for attributing LTO code")
     parser.add_argument("--overlay-map", type=Path, help="the rescan overlay map file")
     parser.add_argument("--usb-overlay-map", type=Path, help="the USB overlay map file")
+    parser.add_argument("--language-pack", type=Path, action="append", default=[],
+                        help="a language pack built into the image")
     parser.add_argument("--nm", default="arm-none-eabi-nm", help="the nm to run on the ELF")
     parser.add_argument("--top", type=int, default=25, help="how many symbols to list")
     parser.add_argument("--objects", type=int, default=40, help="how many objects to list")
@@ -367,12 +379,13 @@ def main(argv=None):
         print("error: the main program and the USB overlay each have their own variables of "
               + ", ".join(split), file=sys.stderr)
         return 1
+    packs = [(path.stem, path.stat().st_size) for path in arguments.language_pack]
     if arguments.summary:
-        print("\n".join(summary(device_map, overlay_map, usb_overlay_map)))
+        print("\n".join(summary(device_map, overlay_map, usb_overlay_map, packs)))
         return 0
     nm_text = run_nm(arguments.elf, arguments.nm)
     print(report(device_map, overlay_map, nm_text, arguments.top, arguments.objects,
-                 usb_overlay_map))
+                 usb_overlay_map, packs))
     return 0
 
 

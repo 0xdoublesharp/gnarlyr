@@ -147,6 +147,12 @@ foreach(ui_test theme_layout list_view list_navigation fast_scroll header menu_s
     )
 endforeach()
 
+echo_add_unit_test(NAME test_language
+    SOURCES app/test_language.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures echo_test_pack
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
 echo_add_unit_test(NAME test_app
     SOURCES app/test_app.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures

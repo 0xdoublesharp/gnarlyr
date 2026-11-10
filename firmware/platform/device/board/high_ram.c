@@ -4,7 +4,7 @@
 #include "hal/system.h"
 
 #define HIGH_RAM_BASE 0x0307A000u
-#define HIGH_RAM_END 0x0309F000u
+#define HIGH_RAM_END 0x0309D000u
 #define PATTERN_SEED 0xA5C3F00Fu
 
 enum {

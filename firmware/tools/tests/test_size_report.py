@@ -201,6 +201,22 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(["libecho_device_logic.a(updater.c.obj)"],
                          size_report.split_state(both, USB_OVERLAY_MAP))
 
+    def test_summary_measures_the_largest_language_pack_against_its_memory(self):
+        with_region = MAP.replace("HIGH_RAM         0x0307a000         0x00018000         rw\n",
+                                  "HIGH_RAM         0x0307a000         0x00018000         rw\n"
+                                  "LANGUAGE_RAM     0x0309d000         0x00002000         rw\n")
+        lines = size_report.summary(with_region, packs=[("en", 4501), ("de", 5120)])
+        self.assertEqual(lines[-1], "language pack (de): 5,120 of 8,192 bytes, 3,072 free")
+        over = size_report.summary(with_region, packs=[("ru", 8200)])
+        self.assertIn("OVER BY 8", over[-1])
+
+    def test_without_packs_the_summary_has_no_language_line(self):
+        self.assertEqual(2, len(size_report.summary(MAP)))
+
+    def test_packs_need_the_language_memory_region(self):
+        with self.assertRaises(ValueError):
+            size_report.summary(MAP, packs=[("en", 4501)])
+
     def test_summary_flags_a_limit_that_is_over(self):
         over = MAP.replace(".code           0x03050000     0x1000",
                            ".code           0x03050000    0x26700")

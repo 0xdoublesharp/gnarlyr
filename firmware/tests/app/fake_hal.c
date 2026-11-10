@@ -3,11 +3,13 @@
 
 #include "hal/system.h"
 
+#include "core/i18n.h"
 #include "hal/audio.h"
 #include "hal/bluetooth.h"
 #include "hal/clock.h"
 #include "hal/display.h"
 #include "hal/input.h"
+#include "hal/language.h"
 #include "hal/power.h"
 #include "hal/storage.h"
 #include "library/library_scan.h"
@@ -177,10 +179,33 @@ static char eq_paths[EQ_FILE_CAPACITY][EQ_NAME_CAPACITY + 8];
 static int eq_count;
 static int eq_next;
 
+enum {
+    LANGUAGE_PACK_CAPACITY = 4,
+    LANGUAGE_FILE_CAPACITY = 12,
+    LANGUAGE_NAME_CAPACITY = 32,
+    LANGUAGE_LISTING_HANDLE = 78
+};
+
+typedef struct LanguagePack {
+    const uint8_t *bytes;
+    uint32_t size;
+} LanguagePack;
+
+static const char LANGUAGE_FOLDER_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/lang";
+static LanguagePack language_packs[HAL_LANGUAGE_COPIES][LANGUAGE_PACK_CAPACITY];
+static char language_names[LANGUAGE_FILE_CAPACITY][LANGUAGE_NAME_CAPACITY];
+static char language_paths[LANGUAGE_FILE_CAPACITY][LANGUAGE_NAME_CAPACITY + 24];
+static int language_file_count;
+static int language_next;
+static int language_reads;
+
 void fake_hal_reset(void)
 {
     fake = (FakeHal){0};
     eq_count = 0;
+    language_file_count = 0;
+    language_reads = 0;
+    memset(language_packs, 0, sizeof language_packs);
     fake.audio.jack = HAL_AUDIO_JACK_SINGLE_ENDED;
     fake.audio.status.idle = true;
 }
@@ -1146,12 +1171,62 @@ void fake_hal_clear_eq_files(void)
     eq_count = 0;
 }
 
+void fake_hal_add_language_pack(int copy, const uint8_t *bytes, uint32_t size)
+{
+    for (int index = 0; index < LANGUAGE_PACK_CAPACITY; index++) {
+        if (language_packs[copy][index].bytes == NULL) {
+            language_packs[copy][index] = (LanguagePack){bytes, size};
+            return;
+        }
+    }
+}
+
+void fake_hal_add_language_file(const char *name, const uint8_t *bytes, uint32_t size)
+{
+    int index = language_file_count++;
+    snprintf(language_names[index], LANGUAGE_NAME_CAPACITY, "%s", name);
+    snprintf(language_paths[index], sizeof language_paths[0], "%s/%s", LANGUAGE_FOLDER_PATH, name);
+    fake_hal_add_file(language_paths[index], bytes, size);
+}
+
+int fake_hal_language_read_count(void)
+{
+    return language_reads;
+}
+
+uint8_t *hal_language_memory(uint32_t *capacity)
+{
+    static uint8_t memory[I18N_PACK_CAPACITY];
+    *capacity = sizeof memory;
+    return memory;
+}
+
+bool hal_language_read(HalLanguagePack pack, uint32_t offset, void *buffer, uint32_t length)
+{
+    language_reads++;
+    if (fake.restart_pending || pack.copy >= HAL_LANGUAGE_COPIES ||
+        pack.index >= LANGUAGE_PACK_CAPACITY) {
+        return false;
+    }
+    const LanguagePack *source = &language_packs[pack.copy][pack.index];
+    if (source->bytes == NULL || offset > source->size || length > source->size - offset) {
+        return false;
+    }
+    memcpy(buffer, source->bytes + offset, length);
+    return true;
+}
+
 bool hal_dir_open(HalDir *dir, const char *path)
 {
     if (strcmp(path, "/EQ") == 0) {
         dir->handle = EQ_LISTING_HANDLE;
         eq_next = 0;
         return eq_count > 0;
+    }
+    if (strcmp(path, LANGUAGE_FOLDER_PATH) == 0) {
+        dir->handle = LANGUAGE_LISTING_HANDLE;
+        language_next = 0;
+        return language_file_count > 0;
     }
     fake.dir_opens++;
     fake.presents_at_dir_open = fake.present_count;
@@ -1186,6 +1261,11 @@ int fake_hal_library_writes(void)
 
 bool hal_dir_next(HalDir *dir, HalDirEntry *entry)
 {
+    if (dir->handle == LANGUAGE_LISTING_HANDLE && language_next < language_file_count) {
+        *entry = (HalDirEntry){.directory = false, .hidden = false};
+        snprintf(entry->name, sizeof entry->name, "%s", language_names[language_next++]);
+        return true;
+    }
     if (dir->handle != EQ_LISTING_HANDLE || eq_next >= eq_count) {
         return false;
     }

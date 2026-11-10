@@ -13,6 +13,11 @@ enum {
     FONT_COUNT = sizeof ALL_FONTS / sizeof ALL_FONTS[0]
 };
 
+static void the_memory_left_beside_the_language_pack_still_caches_128_glyphs(void)
+{
+    CHECK_EQUAL(128, sim_glyphs_attach());
+}
+
 static void the_committed_accent_packs_load(void)
 {
     CHECK(sim_glyphs_face_count() >= 1);
@@ -97,6 +102,7 @@ int main(void)
 {
     sim_glyphs_attach();
     static const TestCase cases[] = {
+        TEST_CASE(the_memory_left_beside_the_language_pack_still_caches_128_glyphs),
         TEST_CASE(the_committed_accent_packs_load),
         TEST_CASE(every_accented_letter_comes_from_a_pack),
         TEST_CASE(the_22_px_fonts_have_cyrillic),

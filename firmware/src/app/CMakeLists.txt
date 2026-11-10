@@ -17,6 +17,7 @@ add_library(echo_app STATIC
     equalizer_presets.c
     frame_overlay.c
     home_art.c
+    language.c
     library_rescan.c
     music_check.c
     library_store.c

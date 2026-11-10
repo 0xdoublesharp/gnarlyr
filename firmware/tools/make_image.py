@@ -7,6 +7,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import lang_pack
 from identity import IDENTITY
 
 POLYNOMIAL = 0x04C10DB7
@@ -36,7 +37,11 @@ GLYPH_TABLE_OFFSET = 0x2C0000
 CORE1_M4A_CAPACITY = GLYPH_TABLE_OFFSET - CORE1_M4A_OFFSET - CORE1_MODULE_HEADER_SIZE
 GLYPH_TABLE_MAGIC = b"EGPT"
 GLYPH_TABLE_SIZE = 512
-GLYPH_FACE_LIMIT = (GLYPH_TABLE_SIZE - 8) // 8
+GLYPH_FACE_TABLE_SIZE = 256
+GLYPH_FACE_LIMIT = (GLYPH_FACE_TABLE_SIZE - 8) // 8
+LANGUAGE_TABLE_OFFSET = GLYPH_TABLE_OFFSET + GLYPH_FACE_TABLE_SIZE
+LANGUAGE_TABLE_MAGIC = b"DSLT"
+LANGUAGE_LIMIT = (GLYPH_TABLE_SIZE - GLYPH_FACE_TABLE_SIZE - 8) // 8
 GLYPH_PAYLOAD_LIMIT = 0x30000
 GLYPH_REGIONS = (
     (GLYPH_PAYLOAD_LIMIT, OVERLAY_OFFSET),
@@ -109,6 +114,7 @@ class ImageParts:
     glyph_faces: tuple = ()
     core1_m4a: bytes = b""
     usb_overlay: bytes = b""
+    language_packs: tuple = ()
 
 
 def crc_table():
@@ -204,6 +210,7 @@ def assemble(parts):
     place_core1_module(image, parts.core1_flac, CORE1_FLAC_OFFSET)
     place_core1_module(image, parts.core1_m4a, CORE1_M4A_OFFSET, CORE1_M4A_CAPACITY)
     place_glyph_faces(image, parts)
+    place_language_packs(image, parts)
     end = fw_end(FW_SIZE)
     struct.pack_into("<I", image, end, crc32(image[:end]))
     return bytes(image)
@@ -237,21 +244,35 @@ def place_core1_module(image, program, offset, capacity=CORE1_MODULE_CAPACITY):
     image[start:start + len(program)] = program
 
 
-def glyph_face_offsets(sizes):
-    """Image offsets for faces of these sizes: largest first, first fit, 512-byte aligned."""
+def first_fit(free, size):
+    """Take size bytes from the first free region that holds them, 512-byte aligned."""
+    for region in free:
+        if region[1] - region[0] >= size:
+            offset = region[0]
+            region[0] += (size + 511) // 512 * 512
+            return offset
+    return None
+
+
+def blob_offsets(face_sizes, pack_sizes=()):
+    """Image offsets for the glyph faces (largest first), then for the language packs in order."""
     free = [list(region) for region in GLYPH_REGIONS]
-    offsets = [0] * len(sizes)
-    for index in sorted(range(len(sizes)), key=lambda item: -sizes[item]):
-        if sizes[index] == 0:
+    faces = [0] * len(face_sizes)
+    for index in sorted(range(len(face_sizes)), key=lambda item: -face_sizes[item]):
+        if face_sizes[index] == 0:
             continue
-        for region in free:
-            if region[1] - region[0] >= sizes[index]:
-                offsets[index] = region[0]
-                region[0] += (sizes[index] + 511) // 512 * 512
-                break
-        else:
-            raise ImageError(f"glyph face {index + 1} ({sizes[index]:,} bytes) doesn't fit the image")
-    return offsets
+        faces[index] = first_fit(free, face_sizes[index])
+        if faces[index] is None:
+            raise ImageError(
+                f"glyph face {index + 1} ({face_sizes[index]:,} bytes) doesn't fit the image")
+    packs = [first_fit(free, size) for size in pack_sizes]
+    if None in packs:
+        raise ImageError(f"language pack {packs.index(None) + 1} doesn't fit the image")
+    return faces, packs
+
+
+def glyph_face_offsets(sizes):
+    return blob_offsets(sizes)[0]
 
 
 def place_glyph_faces(image, parts):
@@ -263,12 +284,54 @@ def place_glyph_faces(image, parts):
     if PAYLOAD_OFFSET + len(parts.payload) > GLYPH_PAYLOAD_LIMIT:
         raise ImageError("the payload reaches the glyph packs")
     offsets = glyph_face_offsets([len(face) for face in faces])
-    table = bytearray(GLYPH_TABLE_SIZE)
+    table = bytearray(GLYPH_FACE_TABLE_SIZE)
     struct.pack_into("<4sI", table, 0, GLYPH_TABLE_MAGIC, len(faces))
     for index, (face, offset) in enumerate(zip(faces, offsets)):
         struct.pack_into("<II", table, 8 + 8 * index, offset, len(face))
         image[offset:offset + len(face)] = face
-    image[GLYPH_TABLE_OFFSET:GLYPH_TABLE_OFFSET + GLYPH_TABLE_SIZE] = table
+    image[GLYPH_TABLE_OFFSET:GLYPH_TABLE_OFFSET + GLYPH_FACE_TABLE_SIZE] = table
+
+
+def check_language_packs(packs):
+    if len(packs) > LANGUAGE_LIMIT:
+        raise ImageError(f"the language table holds at most {LANGUAGE_LIMIT} packs")
+    codes = []
+    for pack in packs:
+        try:
+            codes.append(lang_pack.pack_code(pack))
+        except lang_pack.PackError as error:
+            raise ImageError(f"language pack {len(codes) + 1}: {error}") from error
+    if lang_pack.PSEUDO in codes:
+        raise ImageError(f"{lang_pack.PSEUDO} is the test language and never goes into an image")
+    if len(set(codes)) != len(codes):
+        raise ImageError("a language is packed twice: " + " ".join(codes))
+
+
+def place_language_packs(image, parts):
+    packs = parts.language_packs
+    if not packs:
+        return
+    check_language_packs(packs)
+    if PAYLOAD_OFFSET + len(parts.payload) > GLYPH_PAYLOAD_LIMIT:
+        raise ImageError("the payload reaches the language packs")
+    offsets = blob_offsets([len(face) for face in parts.glyph_faces],
+                           [len(pack) for pack in packs])[1]
+    table = bytearray(GLYPH_TABLE_SIZE - GLYPH_FACE_TABLE_SIZE)
+    struct.pack_into("<4sI", table, 0, LANGUAGE_TABLE_MAGIC, len(packs))
+    for index, (pack, offset) in enumerate(zip(packs, offsets)):
+        struct.pack_into("<II", table, 8 + 8 * index, offset, len(pack))
+        image[offset:offset + len(pack)] = pack
+    image[LANGUAGE_TABLE_OFFSET:LANGUAGE_TABLE_OFFSET + len(table)] = table
+
+
+def language_packs_in(image):
+    """The language packs an image's table lists, in order."""
+    magic, count = struct.unpack_from("<4sI", image, LANGUAGE_TABLE_OFFSET)
+    if magic != LANGUAGE_TABLE_MAGIC:
+        return []
+    entries = [struct.unpack_from("<II", image, LANGUAGE_TABLE_OFFSET + 8 + 8 * index)
+               for index in range(count)]
+    return [image[offset:offset + size] for offset, size in entries]
 
 
 def glyph_faces_in(image):
@@ -351,7 +414,8 @@ def generated_header(version):
 
 
 def build_image(firmware, brand, build_tag, date, overlay=b"", core1_mp3=b"", core1_flac=b"",
-                version=DEFAULT_VERSION, glyph_faces=(), core1_m4a=b"", usb_overlay=b""):
+                version=DEFAULT_VERSION, glyph_faces=(), core1_m4a=b"", usb_overlay=b"",
+                language_packs=()):
     check_firmware(firmware)
     code_size, data_size = len(firmware.code), len(firmware.data)
     header = generated_header(version)
@@ -367,7 +431,8 @@ def build_image(firmware, brand, build_tag, date, overlay=b"", core1_mp3=b"", co
     ]
     rows += [(0, 0, 0, 0)] * (TABLE_CAPACITY - len(rows))
     return assemble(ImageParts(bytes(header), tuple(rows), payload, bytes(MARKER_SIZE), overlay,
-                               core1_mp3, core1_flac, tuple(glyph_faces), core1_m4a, usb_overlay))
+                               core1_mp3, core1_flac, tuple(glyph_faces), core1_m4a, usb_overlay,
+                               tuple(language_packs)))
 
 
 def validate_image(image):
@@ -544,6 +609,8 @@ def parse_arguments(argv):
     parser.add_argument("--core1-m4a", type=Path, help="core 1 AAC and ALAC program, a raw binary")
     parser.add_argument("--glyph-face", type=Path, action="append", default=[],
                         help="glyph pack face, in face order; a missing file is an empty face")
+    parser.add_argument("--language-pack", type=Path, action="append", default=[],
+                        help="language pack, the default language first; at least one")
     parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args(argv)
 
@@ -569,8 +636,12 @@ def main(argv=None):
         core1_m4a = arguments.core1_m4a.read_bytes() if arguments.core1_m4a else b""
         glyph_faces = [path.read_bytes() if path.exists() else b""
                        for path in arguments.glyph_face]
+        language_packs = [path.read_bytes() for path in arguments.language_pack]
+        if not language_packs:
+            raise ImageError("an image needs at least one language pack (--language-pack)")
         image = build_image(firmware, arguments.brand, build_tag, date, overlay, core1_mp3,
-                            core1_flac, arguments.version, glyph_faces, core1_m4a, usb_overlay)
+                            core1_flac, arguments.version, glyph_faces, core1_m4a, usb_overlay,
+                            language_packs)
     except ImageError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
@@ -586,6 +657,7 @@ def main(argv=None):
           f"core 1 MP3 {len(core1_mp3):,} bytes, "
           f"core 1 FLAC {len(core1_flac):,} bytes, core 1 M4A {len(core1_m4a):,} bytes, "
           f"glyph faces {sum(len(face) for face in glyph_faces):,} bytes, "
+          f"language packs {sum(len(pack) for pack in language_packs):,} bytes, "
           f".data {len(firmware.data)} bytes, .bss {firmware.bss_size:,} bytes, "
           f"crc {word(image, fw_end(FW_SIZE)):#010x}")
     return 0

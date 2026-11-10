@@ -10,6 +10,7 @@ from pathlib import Path
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS_DIRECTORY))
 
+import lang_pack
 import make_image
 
 RESET = 0x03050101
@@ -391,9 +392,11 @@ class GeneratedHeaderTest(unittest.TestCase):
             elf = Path(directory) / "firmware.elf"
             elf.write_bytes(firmware_elf(firmware()))
             output = Path(directory) / "firmware.img"
+            pack = Path(directory) / "en.pack"
+            pack.write_bytes(lang_pack.language_pack("en"))
             status = make_image.main(["--elf", str(elf), "--output", str(output),
                                       "--build-tag", "abc1234", "--date", "2026-10-22",
-                                      "--version", "0.1.2"])
+                                      "--version", "0.1.2", "--language-pack", str(pack)])
             self.assertEqual(0, status)
             image = output.read_bytes()
             self.assertEqual([], make_image.validate_image(image))
@@ -698,3 +701,156 @@ class GlyphFaceTest(unittest.TestCase):
     def test_the_fw1_end_ignores_the_faces(self):
         self.assertEqual(word(build(), make_image.FW1_END_OFFSET),
                          word(build(glyph_faces=[b"\x01" * 100]), make_image.FW1_END_OFFSET))
+
+
+TEST_CATALOGUE = [("STR_LANGUAGE_NAME", "English"), ("STR_HELLO", "Hello")]
+
+
+def language(code, hello="Hello"):
+    return lang_pack.build_pack(code, TEST_CATALOGUE, {"STR_HELLO": hello})
+
+
+def overlay_blob():
+    return bytes(16) + b"\x5A" * 100
+
+
+class LanguagePackTest(unittest.TestCase):
+    FACES = [b"\x01" * 700, b"\x02" * 40_000, b"\x03" * 7_000]
+
+    def test_packs_land_where_their_table_says_in_the_order_given(self):
+        packs = [language("en"), language("de", "Hallo")]
+        image = build(glyph_faces=self.FACES, language_packs=packs)
+        table = make_image.LANGUAGE_TABLE_OFFSET
+        self.assertEqual(make_image.GLYPH_TABLE_OFFSET + 256, table)
+        self.assertEqual(b"DSLT", image[table:table + 4])
+        self.assertEqual(2, word(image, table + 4))
+        self.assertEqual(packs, make_image.language_packs_in(image))
+        self.assertEqual([], make_image.validate_image(image))
+
+    def test_packs_start_on_sector_boundaries(self):
+        image = build(language_packs=[language("en"), language("de")])
+        table = make_image.LANGUAGE_TABLE_OFFSET
+        for index in range(2):
+            self.assertEqual(0, word(image, table + 8 + 8 * index) % 512)
+
+    def test_packs_do_not_move_the_glyph_faces_or_their_table(self):
+        plain = build(glyph_faces=self.FACES)
+        packed = build(glyph_faces=self.FACES, language_packs=[language("en"), language("de")])
+        table = make_image.GLYPH_TABLE_OFFSET
+        self.assertEqual(plain[table:table + 256], packed[table:table + 256])
+        self.assertEqual(self.FACES, make_image.glyph_faces_in(packed))
+
+    def test_a_pack_larger_than_a_face_still_follows_the_faces(self):
+        big = lang_pack.build_pack("en", TEST_CATALOGUE, {"STR_HELLO": "x" * 7_500})
+        self.assertGreater(len(big), 7_000)
+        image = build(glyph_faces=self.FACES, language_packs=[big])
+        faces = sorted(word(image, make_image.GLYPH_TABLE_OFFSET + 8 + 8 * index)
+                       for index in range(3))
+        self.assertGreater(word(image, make_image.LANGUAGE_TABLE_OFFSET + 8), faces[-1])
+        self.assertEqual(faces, sorted(make_image.glyph_face_offsets(
+            [len(face) for face in self.FACES])))
+
+    def test_packs_stay_clear_of_the_faces_the_overlays_and_the_core_1_programs(self):
+        faces, packs = make_image.blob_offsets([1_700_000, 1_100_000, 8_000], [8_192, 8_192])
+        placed = sorted(zip(faces + packs, [1_700_000, 1_100_000, 8_000, 8_192, 8_192]))
+        for (start, size), (next_start, _) in zip(placed, placed[1:]):
+            self.assertLessEqual(start + size, next_start)
+        fixed = [(make_image.OVERLAY_OFFSET, make_image.OVERLAY_OFFSET + make_image.OVERLAY_CAPACITY),
+                 (make_image.CORE1_MP3_OFFSET, make_image.CORE1_FLAC_OFFSET + 512 +
+                  make_image.CORE1_MODULE_CAPACITY),
+                 (make_image.CORE1_M4A_OFFSET, make_image.GLYPH_TABLE_OFFSET + 512),
+                 (make_image.USB_OVERLAY_OFFSET, make_image.IMAGE_SIZE),
+                 (0, make_image.GLYPH_PAYLOAD_LIMIT)]
+        for start, size in placed:
+            for low, high in fixed:
+                self.assertTrue(start + size <= low or start >= high, (start, size, low, high))
+
+    def test_packs_leave_the_overlays_and_the_core_1_programs_where_they_were(self):
+        parts = {"overlay": overlay_blob(), "usb_overlay": overlay_blob(),
+                 "core1_mp3": b"\x11" * 3000, "core1_flac": b"\x22" * 2000,
+                 "core1_m4a": b"\x33" * 1000, "glyph_faces": self.FACES}
+        plain = build(**parts)
+        packed = build(language_packs=[language("en")], **parts)
+        offset = word(packed, make_image.LANGUAGE_TABLE_OFFSET + 8)
+        size = word(packed, make_image.LANGUAGE_TABLE_OFFSET + 12)
+        changed = [index for index in range(make_image.fw_end(make_image.FW_SIZE))
+                   if plain[index] != packed[index]]
+        table = range(make_image.LANGUAGE_TABLE_OFFSET, make_image.GLYPH_TABLE_OFFSET + 512)
+        self.assertTrue(all(index in table or offset <= index < offset + size
+                            for index in changed))
+
+    def test_the_trailer_crc_covers_the_packs(self):
+        image = bytearray(build(language_packs=[language("en")]))
+        image[word(image, make_image.LANGUAGE_TABLE_OFFSET + 8) + 60] ^= 1
+        self.assertNotEqual([], make_image.validate_image(bytes(image)))
+
+    def test_the_packs_lie_inside_the_slot_the_updater_writes(self):
+        image = build(glyph_faces=self.FACES, language_packs=[language("en"), language("de")])
+        for index in range(2):
+            offset = word(image, make_image.LANGUAGE_TABLE_OFFSET + 8 + 8 * index)
+            size = word(image, make_image.LANGUAGE_TABLE_OFFSET + 12 + 8 * index)
+            self.assertLessEqual(offset + size, make_image.FW_SIZE)
+
+    def test_no_packs_leave_the_table_empty(self):
+        image = build(glyph_faces=self.FACES)
+        table = make_image.LANGUAGE_TABLE_OFFSET
+        self.assertEqual(bytes(256), image[table:table + 256])
+        self.assertEqual([], make_image.language_packs_in(image))
+
+    def test_a_damaged_pack_is_refused(self):
+        damaged = bytearray(language("en"))
+        damaged[-2] ^= 1
+        for wrong in (bytes(damaged), language("en")[:-1], b"not a pack"):
+            with self.assertRaises(make_image.ImageError):
+                build(language_packs=[wrong])
+
+    def test_the_test_language_never_goes_into_an_image(self):
+        with self.assertRaises(make_image.ImageError):
+            build(language_packs=[language("en"), language(lang_pack.PSEUDO)])
+
+    def test_a_language_packed_twice_is_refused(self):
+        with self.assertRaises(make_image.ImageError):
+            build(language_packs=[language("en"), language("en")])
+
+    def test_more_packs_than_the_table_holds_are_refused(self):
+        codes = [f"l{index}" for index in range(make_image.LANGUAGE_LIMIT + 1)]
+        self.assertEqual(31, make_image.LANGUAGE_LIMIT)
+        with self.assertRaises(make_image.ImageError):
+            build(language_packs=[language(code) for code in codes])
+        self.assertEqual(31, len(make_image.language_packs_in(
+            build(language_packs=[language(code) for code in codes[:31]]))))
+
+    def test_the_face_table_keeps_room_for_31_faces(self):
+        self.assertEqual(31, make_image.GLYPH_FACE_LIMIT)
+        with self.assertRaises(make_image.ImageError):
+            build(glyph_faces=[b"\x01"] * 32)
+
+    def test_the_command_refuses_to_build_an_image_without_a_pack(self):
+        with tempfile.TemporaryDirectory() as directory:
+            elf = Path(directory) / "firmware.elf"
+            elf.write_bytes(firmware_elf(firmware()))
+            output = Path(directory) / "firmware.img"
+            status = make_image.main(["--elf", str(elf), "--output", str(output),
+                                      "--build-tag", "abc1234", "--date", "2026-10-22"])
+            self.assertEqual(1, status)
+            self.assertFalse(output.exists())
+
+    def test_the_player_reads_the_table_where_the_builder_writes_it(self):
+        board = TOOLS_DIRECTORY.parent / "platform" / "device" / "board"
+        source = (board / "language.c").read_text()
+        self.assertIn(f"LANGUAGE_TABLE_OFFSET 0x{make_image.LANGUAGE_TABLE_OFFSET:X}u", source)
+        magic = int.from_bytes(make_image.LANGUAGE_TABLE_MAGIC, "little")
+        self.assertIn(f"LANGUAGE_TABLE_MAGIC 0x{magic:08X}u", source)
+        self.assertIn(f"TABLE_ENTRIES = {make_image.LANGUAGE_LIMIT}", source)
+
+    def test_the_players_pack_memory_is_the_size_the_builder_allows(self):
+        board = TOOLS_DIRECTORY.parent / "platform" / "device" / "board"
+        linker = (board / "echo_device.ld").read_text()
+        region = re.search(r"LANGUAGE_RAM \(rw\) : ORIGIN = (\w+), LENGTH = (\w+)", linker)
+        glyphs = re.search(r"GLYPH_RAM \(rw\) : ORIGIN = (\w+), LENGTH = (\w+)", linker)
+        self.assertEqual(lang_pack.PACK_LIMIT, int(region.group(2), 16))
+        self.assertEqual(int(region.group(1), 16),
+                         int(glyphs.group(1), 16) + int(glyphs.group(2), 16))
+        self.assertEqual(0x0309F000, int(region.group(1), 16) + int(region.group(2), 16))
+        self.assertIn(f"GLYPH_RAM_BYTES = 0x{int(glyphs.group(2), 16):X}",
+                      (board / "glyphs.c").read_text())

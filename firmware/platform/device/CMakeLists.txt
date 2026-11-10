@@ -12,6 +12,7 @@ add_executable(echo_device
     board/glyphs.c
     board/gpio.c
     board/jack.c
+    board/language.c
     board/loader_reboot.c
     board/high_ram.c
     board/input.c
@@ -143,6 +144,10 @@ set(ECHO_OVERLAY_IMPORTS
     hal_input_next_transition
     hal_power_battery
     hal_power_off
+    i18n_format
+    i18n_format_counts
+    i18n_format_text
+    i18n_text
     image_crc_update
     internal_volume_remount
     sd_read
@@ -209,6 +214,7 @@ if(CMAKE_CROSSCOMPILING)
         board/debug_session.c
         board/glyphs.c
         board/high_ram.c
+        board/language.c
         board/overlay.c
         board/panic.c
         board/profiler.c
@@ -289,6 +295,10 @@ set(ECHO_GLYPH_FACE_ARGUMENTS "")
 foreach(face_file ${ECHO_GLYPH_FACE_FILES})
     list(APPEND ECHO_GLYPH_FACE_ARGUMENTS --glyph-face ${face_file})
 endforeach()
+set(ECHO_LANGUAGE_PACK_ARGUMENTS "")
+foreach(pack_file ${ECHO_LANGUAGE_PACK_FILES})
+    list(APPEND ECHO_LANGUAGE_PACK_ARGUMENTS --language-pack ${pack_file})
+endforeach()
 
 add_custom_target(echo_device_image ALL
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/make_image.py
@@ -299,23 +309,27 @@ add_custom_target(echo_device_image ALL
         --core1-flac ${ECHO_CORE1_BINARY}
         --core1-m4a ${ECHO_CORE1_M4A_BINARY}
         ${ECHO_GLYPH_FACE_ARGUMENTS}
+        ${ECHO_LANGUAGE_PACK_ARGUMENTS}
         --output ${ECHO_DEVICE_IMAGE}
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/size_report.py
-        --build ${CMAKE_BINARY_DIR} --summary
+        --build ${CMAKE_BINARY_DIR} --summary ${ECHO_LANGUAGE_PACK_ARGUMENTS}
     BYPRODUCTS ${ECHO_DEVICE_IMAGE}
     DEPENDS echo_device echo_rescan_overlay echo_usb_overlay ${ECHO_CORE1_MP3_BINARY}
         ${ECHO_CORE1_BINARY}
         ${ECHO_CORE1_M4A_BINARY}
+        ${ECHO_LANGUAGE_PACK_FILES}
         ${PROJECT_SOURCE_DIR}/tools/make_image.py
         ${PROJECT_SOURCE_DIR}/tools/identity.py
         ${FIRMWARE_IDENTITY_FILE}
     VERBATIM
 )
 
+add_dependencies(echo_device_image echo_language_packs)
+
 add_custom_target(echo_size_report
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/size_report.py
-        --build ${CMAKE_BINARY_DIR}
-    DEPENDS echo_device echo_rescan_overlay echo_usb_overlay
+        --build ${CMAKE_BINARY_DIR} ${ECHO_LANGUAGE_PACK_ARGUMENTS}
+    DEPENDS echo_device echo_rescan_overlay echo_usb_overlay echo_language_packs
     VERBATIM
     USES_TERMINAL
 )

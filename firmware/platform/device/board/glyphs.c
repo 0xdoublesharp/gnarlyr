@@ -14,7 +14,7 @@
 enum {
     SECTOR_BYTES = 512,
     SECTOR_WORDS = SECTOR_BYTES / 4,
-    GLYPH_RAM_BYTES = 0xD000,
+    GLYPH_RAM_BYTES = 0xB000,
     CACHE_WORDS = (GLYPH_RAM_BYTES - 2 * SECTOR_BYTES) / 4
 };
 
@@ -38,23 +38,13 @@ static bool read_sector(uint32_t lba)
     return true;
 }
 
-static bool read_face(void *context, uint32_t face, uint32_t offset, void *buffer, uint32_t length)
+bool board_slot_read(uint32_t slot, uint32_t at, void *buffer, uint32_t length)
 {
-    (void)context;
-    if (hal_system_restart_pending() || face >= face_count) {
-        return false;
-    }
-    uint32_t start = table[2 + 2 * face];
-    uint32_t size = table[3 + 2 * face];
-    if (offset > size || length > size - offset) {
-        return false;
-    }
-    uint32_t at = start + offset;
     uint8_t *out = buffer;
     while (length > 0) {
         uint32_t within = at % SECTOR_BYTES;
         uint32_t chunk = SECTOR_BYTES - within < length ? SECTOR_BYTES - within : length;
-        if (!read_sector(slot_1 + at / SECTOR_BYTES)) {
+        if (!read_sector(slot + at / SECTOR_BYTES)) {
             return false;
         }
         const uint8_t *bytes = (const uint8_t *)sector + within;
@@ -66,6 +56,20 @@ static bool read_face(void *context, uint32_t face, uint32_t offset, void *buffe
         length -= chunk;
     }
     return true;
+}
+
+static bool read_face(void *context, uint32_t face, uint32_t offset, void *buffer, uint32_t length)
+{
+    (void)context;
+    if (hal_system_restart_pending() || face >= face_count) {
+        return false;
+    }
+    uint32_t start = table[2 + 2 * face];
+    uint32_t size = table[3 + 2 * face];
+    if (offset > size || length > size - offset) {
+        return false;
+    }
+    return board_slot_read(slot_1, start + offset, buffer, length);
 }
 
 void board_glyphs_start(void)
