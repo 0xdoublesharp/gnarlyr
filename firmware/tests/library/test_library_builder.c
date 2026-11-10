@@ -23,12 +23,18 @@ typedef struct Output {
     uint8_t *bytes;
     uint32_t length;
     int writes;
+    int calls;
+    int fail_write;
 } Output;
 
 typedef struct Scratch {
     uint8_t *bytes;
     uint32_t size;
     uint32_t highest;
+    int reads;
+    int writes;
+    int fail_read;
+    int fail_write;
 } Scratch;
 
 typedef struct Built {
@@ -40,6 +46,10 @@ typedef struct Built {
 static bool write_output(void *context, uint32_t offset, const void *bytes, uint32_t length)
 {
     Output *output = context;
+    output->calls++;
+    if (output->calls == output->fail_write) {
+        return false;
+    }
     if (offset > OUTPUT_CAPACITY || length > OUTPUT_CAPACITY - offset) {
         return false;
     }
@@ -57,6 +67,10 @@ static bool write_reference(void *context, uint32_t offset, const void *bytes, u
 static bool scratch_read(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
     Scratch *scratch = context;
+    scratch->reads++;
+    if (scratch->reads == scratch->fail_read) {
+        return false;
+    }
     if (offset > scratch->size || length > scratch->size - offset) {
         return false;
     }
@@ -67,6 +81,10 @@ static bool scratch_read(void *context, uint32_t offset, void *buffer, uint32_t 
 static bool scratch_write(void *context, uint32_t offset, const void *bytes, uint32_t length)
 {
     Scratch *scratch = context;
+    scratch->writes++;
+    if (scratch->writes == scratch->fail_write) {
+        return false;
+    }
     if (offset > scratch->size || length > scratch->size - offset) {
         return false;
     }
@@ -156,10 +174,11 @@ static uint8_t *player_memory(void)
     return memory;
 }
 
-static void start(LibraryBuilder *builder)
+static Scratch *start(LibraryBuilder *builder)
 {
-    library_builder_init(builder, player_memory(), PLAYER_MEMORY,
-                         scratch_io(scratch_of_size(SCRATCH_SIZE)));
+    Scratch *scratch = scratch_of_size(SCRATCH_SIZE);
+    library_builder_init(builder, player_memory(), PLAYER_MEMORY, scratch_io(scratch));
+    return scratch;
 }
 
 static void finish(LibraryBuilder *builder, Built *built)
@@ -623,6 +642,101 @@ static void tagged_album_artists_and_other_folders_keep_their_albums(void)
     free(opened.built.output.bytes);
 }
 
+static void check_preparation_fault(bool read, int operation)
+{
+    LibraryBuilder builder;
+    Scratch *scratch = start(&builder);
+    add_fixture_tracks(&builder);
+    if (read) {
+        scratch->fail_read = scratch->reads + operation;
+    } else {
+        scratch->fail_write = scratch->writes + operation;
+    }
+    Built built;
+    finish(&builder, &built);
+    CHECK_EQUAL(BUILDER_WRITE_FAILED, built.result);
+    CHECK_EQUAL(0, built.output.calls);
+    CHECK_EQUAL(0, built.length);
+    CHECK_EQUAL(BUILDER_WRITE_FAILED, library_builder_prepare(&builder));
+    free(built.output.bytes);
+}
+
+static void failed_scratch_reads_during_preparation_never_publish_a_database(void)
+{
+    check_preparation_fault(true, 1);
+    check_preparation_fault(true, 2);
+    check_preparation_fault(true, 8);
+}
+
+static void failed_scratch_writes_during_preparation_never_publish_a_database(void)
+{
+    check_preparation_fault(false, 1);
+    check_preparation_fault(false, 2);
+    check_preparation_fault(false, 8);
+}
+
+static void a_scratch_read_failure_after_preparation_is_an_io_error(void)
+{
+    LibraryBuilder builder;
+    Scratch *scratch = start(&builder);
+    add_fixture_tracks(&builder);
+    CHECK_EQUAL(BUILDER_OK, library_builder_prepare(&builder));
+    scratch->fail_read = scratch->reads + 1;
+    Built built;
+    finish(&builder, &built);
+    CHECK_EQUAL(BUILDER_WRITE_FAILED, built.result);
+    CHECK_EQUAL(0, built.length);
+    CHECK_EQUAL(0, built.output.calls);
+    free(built.output.bytes);
+}
+
+static void every_destination_failure_leaves_the_database_unpublished(void)
+{
+    LibraryBuilder builder;
+    start(&builder);
+    add_fixture_tracks(&builder);
+    Built reference;
+    finish(&builder, &reference);
+    CHECK_EQUAL(BUILDER_OK, reference.result);
+    CHECK(reference.output.calls >= 3);
+    const int failures[] = {1, 2, reference.output.calls};
+    for (size_t index = 0; index < sizeof failures / sizeof failures[0]; index++) {
+        Output output = fresh_output();
+        output.fail_write = failures[index];
+        memset(output.bytes, 0xA5, OUTPUT_CAPACITY);
+        uint32_t length = 0;
+        CHECK_EQUAL(
+            BUILDER_WRITE_FAILED,
+            library_builder_finish(&builder, (ByteSink){write_output, &output}, 0, &length));
+        CHECK_EQUAL(failures[index], output.calls);
+        CHECK_EQUAL(0, length);
+        CHECK(memcmp(output.bytes, "DSDB", 4) != 0);
+        free(output.bytes);
+    }
+    free(reference.output.bytes);
+}
+
+static void a_failed_destination_can_be_retried_without_losing_tracks(void)
+{
+    LibraryBuilder builder;
+    start(&builder);
+    add_fixture_tracks(&builder);
+    Output failed = fresh_output();
+    failed.fail_write = 1;
+    uint32_t length = 0;
+    CHECK_EQUAL(BUILDER_WRITE_FAILED,
+                library_builder_finish(&builder, (ByteSink){write_output, &failed}, 0, &length));
+    free(failed.bytes);
+    Built built;
+    finish(&builder, &built);
+    CHECK_EQUAL(BUILDER_OK, built.result);
+    MemorySource source = {.bytes = built.output.bytes, .size = built.length};
+    Library library;
+    CHECK_EQUAL(LIBRARY_OK, library_open(&library, memory_source(&source), built.length));
+    CHECK_EQUAL(8, library_count(&library, LIBRARY_TRACKS));
+    free(built.output.bytes);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -642,6 +756,11 @@ int main(void)
         TEST_CASE(a_featured_artist_stays_with_the_album),
         TEST_CASE(a_tie_goes_to_the_artist_first_in_order),
         TEST_CASE(tagged_album_artists_and_other_folders_keep_their_albums),
+        TEST_CASE(failed_scratch_reads_during_preparation_never_publish_a_database),
+        TEST_CASE(failed_scratch_writes_during_preparation_never_publish_a_database),
+        TEST_CASE(a_scratch_read_failure_after_preparation_is_an_io_error),
+        TEST_CASE(every_destination_failure_leaves_the_database_unpublished),
+        TEST_CASE(a_failed_destination_can_be_retried_without_losing_tracks),
     };
     int result = test_run_all(cases, TEST_CASE_COUNT(cases));
     free(scratch_of_size(1)->bytes);
