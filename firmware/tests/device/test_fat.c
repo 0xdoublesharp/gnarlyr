@@ -431,9 +431,9 @@ static void files_reserved_in_a_remembered_folder_open(void)
     FatFile file;
     char path[32];
     for (uint32_t index = 0; index < 40; index++) {
-        snprintf(path, sizeof path, "/.doublesharp/file %u.bin", index);
+        snprintf(path, sizeof path, "/" FIRMWARE_DATA_DIRECTORY "/file %u.bin", index);
         CHECK_EQUAL(FAT_RESERVE_CREATED, fat_reserve(&card->volume, path, 4096));
-        CHECK(fat_open(&card->volume, "/.doublesharp/file 0.bin", &file));
+        CHECK(fat_open(&card->volume, "/" FIRMWARE_DATA_DIRECTORY "/file 0.bin", &file));
         CHECK(fat_open(&card->volume, path, &file));
     }
     sparse_card_free(&card->sparse);

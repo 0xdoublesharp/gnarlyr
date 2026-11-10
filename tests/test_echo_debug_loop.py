@@ -14,11 +14,12 @@ import echo_debug
 from test_echo_debug import SYSTEM_LINES, FakeHost, VolumeCase, medium, player, report_text, usb_tree
 
 IMAGE_BUILD = "abc1234"
+DEBUG = echo_debug.DATA_DIRECTORY + "/debug"
 SCRIPT = "play,down\nmeasure 2000\nscreenshot home\nreconnect\n"
 RED, GREEN, BLUE, WHITE = 0xF800, 0x07E0, 0x001F, 0xFFFF
 
 
-def image(brand=b"DBLSHARP", build=IMAGE_BUILD, size=0x2000):
+def image(brand=echo_debug.IDENTITY["id"].encode("ascii"), build=IMAGE_BUILD, size=0x2000):
     data = bytearray(size)
     data[0x10:0x10 + len(brand)] = brand
     data[0x30:0x30 + len(build)] = build.encode("ascii")
@@ -140,7 +141,7 @@ class Installing(LoopCase):
     def test_the_image_is_copied_as_the_update_file_verified_and_both_drives_ejected(self):
         host = PlayerHost(self)
         result = self.tool(host).install(self.image)
-        copy = self.root / "DBLSHARP.IMG"
+        copy = self.root / echo_debug.UPDATE_FILE
         self.assertEqual(copy.read_bytes(), image())
         self.assertEqual(result["sha256"], hashlib.sha256(image()).hexdigest())
         self.assertEqual((result["bytes"], result["image_build"]), (len(image()), IMAGE_BUILD))
@@ -151,7 +152,7 @@ class Installing(LoopCase):
     def test_nothing_else_is_written_and_the_card_is_not_touched(self):
         before = self.files(self.card)
         self.tool(PlayerHost(self)).install(self.image)
-        self.assertEqual(self.files(self.root), [".doublesharp/debug/report0.txt", "DBLSHARP.IMG"])
+        self.assertEqual(self.files(self.root), [DEBUG + "/report0.txt", echo_debug.UPDATE_FILE])
         self.assertEqual(self.files(self.card), before)
 
     def test_a_file_that_is_not_this_players_image_is_refused_before_anything_is_written(self):
@@ -160,20 +161,20 @@ class Installing(LoopCase):
             self.image.write_bytes(data)
             self.assert_refused("not_an_image", lambda: self.tool(host).install(self.image))
         self.assert_refused("image_missing", lambda: self.tool(host).install(self.root / "none.img"))
-        self.assertFalse((self.root / "DBLSHARP.IMG").exists())
+        self.assertFalse((self.root / echo_debug.UPDATE_FILE).exists())
         self.assertEqual(host.ejected, [])
 
     def test_without_a_player_nothing_is_written(self):
         self.assert_refused("player_not_connected",
                             lambda: self.tool(FakeHost(usb_tree())).install(self.image))
-        self.assertFalse((self.root / "DBLSHARP.IMG").exists())
+        self.assertFalse((self.root / echo_debug.UPDATE_FILE).exists())
 
     def test_a_wrong_volume_is_refused_before_anything_is_written(self):
         host = FakeHost(usb_tree(player([medium("Internal storage", "UNTITLED", self.root)])))
         self.assert_refused("wrong_volume_name", lambda: self.tool(host).install(self.image))
         host = FakeHost(usb_tree(player([medium("SD card", "ECHO", self.root)])))
         self.assert_refused("internal_drive_not_identified", lambda: self.tool(host).install(self.image))
-        self.assertFalse((self.root / "DBLSHARP.IMG").exists())
+        self.assertFalse((self.root / echo_debug.UPDATE_FILE).exists())
 
     def test_restart_writes_the_request_and_waits_for_the_new_build(self):
         def restarted():
@@ -232,12 +233,12 @@ class Waiting(LoopCase):
 class WriteGuard(LoopCase):
     def test_only_the_update_file_and_the_debug_folder_can_be_written(self):
         tool = self.tool(PlayerHost(self))
-        for path in (self.root / "notes.txt", self.root / ".doublesharp" / "settings.bin",
-                     self.root / "Music" / "DBLSHARP.IMG", self.debug / "deeper" / "run.txt",
-                     self.card / "DBLSHARP.IMG", self.card / ".doublesharp" / "debug" / "run.txt",
+        for path in (self.root / "notes.txt", self.root / echo_debug.DATA_DIRECTORY / "settings.bin",
+                     self.root / "Music" / echo_debug.UPDATE_FILE, self.debug / "deeper" / "run.txt",
+                     self.card / echo_debug.UPDATE_FILE, self.card / echo_debug.DATA_DIRECTORY / "debug" / "run.txt",
                      self.debug / ".." / ".." / "escape.txt"):
             self.assert_refused("write_refused", lambda: tool.write(self.root, path, b"x"))
-        self.assertEqual(self.files(self.root), [".doublesharp/debug/report0.txt"])
+        self.assertEqual(self.files(self.root), [DEBUG + "/report0.txt"])
         self.assertEqual(self.files(self.card), [])
 
     def test_a_link_out_of_the_debug_folder_is_not_followed(self):
@@ -253,7 +254,7 @@ class WriteGuard(LoopCase):
         other.mkdir()
         tool = self.tool(PlayerHost(self))
         self.assert_refused("not_a_player_volume",
-                            lambda: tool.write(other, other / "DBLSHARP.IMG", b"x"))
+                            lambda: tool.write(other, other / echo_debug.UPDATE_FILE, b"x"))
         self.assertEqual(self.files(other), [])
 
 
@@ -371,7 +372,7 @@ class Running(LoopCase):
         self.assertEqual((self.debug / "run.txt").read_text(), "build 1051212\n" + SCRIPT)
 
     def test_the_card_is_only_ejected_never_read_or_written(self):
-        (self.card / ".doublesharp" / "debug" / "run.txt").write_text("old")
+        (self.card / echo_debug.DATA_DIRECTORY / "debug" / "run.txt").write_text("old")
         before = {path: path.read_bytes() for path in self.card.rglob("*") if path.is_file()}
         self.tool(self.player_runs()).run(self.script)
         self.assertEqual({path: path.read_bytes() for path in self.card.rglob("*") if path.is_file()}, before)
@@ -426,7 +427,7 @@ class Screenshots(LoopCase):
         tool = self.tool(PlayerHost(self))
         self.assert_refused("write_refused", lambda: tool.screenshots(self.root / "png"))
         self.assert_refused("write_refused", lambda: tool.screenshots(self.debug))
-        self.assertEqual(self.files(self.root), [".doublesharp/debug/report0.txt", ".doublesharp/debug/shot0.565"])
+        self.assertEqual(self.files(self.root), [DEBUG + "/report0.txt", DEBUG + "/shot0.565"])
 
 
 class CommandLine(LoopCase):

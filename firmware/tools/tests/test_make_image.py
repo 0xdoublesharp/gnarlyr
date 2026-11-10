@@ -108,7 +108,7 @@ class CrcTest(unittest.TestCase):
 class BrandTest(unittest.TestCase):
     def test_the_default_brand_and_version_come_from_the_identity_file(self):
         arguments = make_image.parse_arguments(["--elf", "a.elf", "--output", "b.img"])
-        self.assertEqual("DBLSHARP", arguments.brand)
+        self.assertEqual(make_image.IDENTITY.id, arguments.brand)
         self.assertEqual((1, 0, 0), arguments.version)
 
 

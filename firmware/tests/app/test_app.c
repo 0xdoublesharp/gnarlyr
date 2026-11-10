@@ -20,6 +20,7 @@
 #include "hal/system.h"
 #include "library/cover_build.h"
 #include "library/covers.h"
+#include "library/playlist_reader.h"
 #include "library_rescan.h"
 #include "settings/equalizer_slots.h"
 #include "settings/settings.h"
@@ -122,9 +123,9 @@ static void start_app_with_database(const uint8_t *bytes, uint32_t size)
     uint32_t covers_size = 0;
     const uint8_t *covers = fixture_covers_bytes(&covers_size);
     fake_hal_reset();
-    fake_hal_add_file("/.doublesharp/library.db", bytes, size);
-    fake_hal_add_file("/.doublesharp/covers.bin", covers, covers_size);
-    fake_hal_add_file("/.doublesharp/build.tmp", NULL, 16 * 1024 * 1024);
+    fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/library.db", bytes, size);
+    fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/covers.bin", covers, covers_size);
+    fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/build.tmp", NULL, 16 * 1024 * 1024);
     prefill_player_files();
     now_ms = START_MS;
     fake_hal_set_milliseconds(now_ms);
@@ -307,7 +308,7 @@ static void the_home_menu_is_the_root(void)
 {
     start_app();
     step();
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
     CHECK_EQUAL(1, app_screen_depth());
 }
 
@@ -324,7 +325,7 @@ static void back_returns_to_the_previous_screen(void)
     start_app();
     tap(KEY_PLAY);
     tap(KEY_BACK);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
 }
 
 static void a_long_back_returns_home_from_deep_screens(void)
@@ -634,7 +635,7 @@ static void home_art_keeps_the_playing_album(void)
         wait_ms(HOME_ART_CYCLE_MS);
     }
     step();
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
     CHECK_EQUAL(RED_COVER, home_art_probe());
 }
 
@@ -643,7 +644,7 @@ static void the_home_menu_shows_now_playing_last_once_a_track_is_loaded(void)
     start_app_with_library();
     play_first_album_track();
     hold_back();
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
     move_down(HOME_NOW_PLAYING_INDEX);
     tap(KEY_PLAY);
     CHECK(title_is("Now Playing"));
@@ -933,7 +934,7 @@ static void the_color_setting_recolors_the_selection_and_is_saved(void)
     CHECK_EQUAL(ACCENT_RED, settings.accent);
     restart_app();
     wait_ms(1000);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
     CHECK(selection_is_red());
 }
 
@@ -982,7 +983,7 @@ static void the_text_size_survives_a_restart(void)
     choose_text_size(TEXT_SIZE_LARGE);
     restart_app();
     wait_ms(1000);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
     int header = BOARD_THEME.metrics.header_height;
     CHECK(selected_at(header + 36));
     CHECK(!selected_at(header + 40));
@@ -995,7 +996,7 @@ static void the_home_menu_fits_its_rows_to_the_new_size_when_shown_again(void)
     tap(KEY_BACK);
     wait_ms(SLIDE_DURATION_MS);
     step();
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
     int header = BOARD_THEME.metrics.header_height;
     CHECK(selected_at(header + 38 + 36));
     CHECK(!selected_at(header + 38 + 40));
@@ -1503,7 +1504,7 @@ static void lists_stay_instant_with_the_click_settings(void)
     play_with_skip_gesture(SKIP_GESTURE_PLAY_CLICKS);
     hold_back();
     wait_ms(SLIDE_DURATION_MS);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
     move_down(HOME_SETTINGS_INDEX);
     tap(KEY_PLAY);
     CHECK(title_is("Settings"));
@@ -1564,7 +1565,7 @@ static void going_back_slides_the_screen_out_to_the_right(void)
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
     tap(KEY_BACK);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
     CHECK_EQUAL(BOARD_THEME.colors.scrollbar_thumb, scrollbar_probe());
     wait_ms(SLIDE_DURATION_MS);
     CHECK(scrollbar_probe() != BOARD_THEME.colors.scrollbar_thumb);
@@ -1831,7 +1832,7 @@ static void the_splash_ignores_keys_until_it_ends(void)
     app_show_splash();
     step();
     tap(KEY_PLAY);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
     wait_ms(SPLASH_MS);
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
@@ -1900,18 +1901,18 @@ static void start_on_a_fresh_card(HalReserveResult result)
 static void a_fresh_card_gets_the_player_files_and_a_first_scan(void)
 {
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/.doublesharp/settings.bin"));
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/.doublesharp/resume.bin"));
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/.doublesharp/favorites.bin"));
-    CHECK_EQUAL(4 * 1024 * 1024, fake_hal_reserved_size("/.doublesharp/library.db"));
-    uint32_t covers_size = fake_hal_reserved_size("/.doublesharp/covers.bin");
+    CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/settings.bin"));
+    CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/resume.bin"));
+    CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/favorites.bin"));
+    CHECK_EQUAL(4 * 1024 * 1024, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/library.db"));
+    uint32_t covers_size = fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/covers.bin");
     CHECK_EQUAL(80 * 1024 * 1024, covers_size);
     CHECK((covers_size - COVERS_HEADER_SIZE) / (COVERS_ENTRY_SIZE + COVER_BUILD_RECORD_BYTES) >=
           2500);
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/.doublesharp/scan.bin"));
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/.doublesharp/upnext.bin"));
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/.doublesharp/bluetooth.bin"));
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/.doublesharp/favorite_added.bin"));
+    CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/scan.bin"));
+    CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/upnext.bin"));
+    CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/bluetooth.bin"));
+    CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/favorite_added.bin"));
     step();
     CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
     CHECK(toast_is("Library: 0 tracks"));
@@ -2011,7 +2012,7 @@ static void a_new_firmware_rescans_music_that_changed(void)
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
     step();
     static const uint8_t BLANK[16] = {0};
-    CHECK(hal_file_write_at("/.doublesharp/scan.bin", 0, BLANK, sizeof BLANK));
+    CHECK(hal_file_write_at("/" FIRMWARE_DATA_DIRECTORY "/scan.bin", 0, BLANK, sizeof BLANK));
     fake_hal_set_version("newer");
     restart_app();
     step();
@@ -2023,7 +2024,8 @@ static void a_new_firmware_rebuilds_a_library_it_cannot_read(void)
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
     step();
     static const uint8_t OLD_VERSION[2] = {2, 0};
-    CHECK(hal_file_write_at("/.doublesharp/library.db", 4, OLD_VERSION, sizeof OLD_VERSION));
+    CHECK(hal_file_write_at("/" FIRMWARE_DATA_DIRECTORY "/library.db", 4, OLD_VERSION,
+                            sizeof OLD_VERSION));
     fake_hal_set_version("newer");
     restart_app();
     step();
@@ -2035,7 +2037,7 @@ static void a_different_stored_fingerprint_is_rescanned_after_usb(void)
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
     step();
     static const uint8_t BLANK[16] = {0};
-    CHECK(hal_file_write_at("/.doublesharp/scan.bin", 0, BLANK, sizeof BLANK));
+    CHECK(hal_file_write_at("/" FIRMWARE_DATA_DIRECTORY "/scan.bin", 0, BLANK, sizeof BLANK));
     app_request_rescan_if_music_changed();
     step();
     CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
@@ -2383,9 +2385,10 @@ static void add_to_favorite_playlist_keeps_the_cue_part_apart(void)
     uint32_t size = 0;
     const char *text = (const char *)fake_hal_file_bytes("/Favorite Tracks.m3u", &size);
     CHECK(text != NULL);
-    static const char EXPECTED[] = "#EXTM3U\n#DOUBLESHARP-START:1000\n"
-                                   "Cue Artist/Cue Album/Cue Album.flac\n#DOUBLESHARP-START:2493\n"
-                                   "Cue Artist/Cue Album/Cue Album.flac\n";
+    static const char EXPECTED[] =
+        "#EXTM3U\n" PLAYLIST_START_DIRECTIVE "1000\n"
+        "Cue Artist/Cue Album/Cue Album.flac\n" PLAYLIST_START_DIRECTIVE "2493\n"
+        "Cue Artist/Cue Album/Cue Album.flac\n";
     CHECK(strncmp(text, EXPECTED, sizeof EXPECTED - 1) == 0);
     CHECK(text[sizeof EXPECTED - 1] == ' ');
 }
@@ -2574,7 +2577,7 @@ static void the_start_screen_setting_opens_albums(void)
     tap(KEY_BACK);
     CHECK(title_is("Music"));
     tap(KEY_BACK);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
 }
 
 static void the_start_screen_setting_opens_now_playing(void)
@@ -2771,7 +2774,7 @@ static void a_notice_is_drawn_at_once_over_the_current_screen(void)
     app_show_notice("USB", "Connected to a computer");
     CHECK_EQUAL(presents + 1, fake_hal_present_count());
     CHECK(fake_hal_pixels_written() > pixels);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
 }
 
 static void a_notice_turns_the_display_on(void)
@@ -3121,7 +3124,7 @@ static void a_screen_change_is_logged_with_its_depth_and_title(void)
     CHECK_EQUAL(0, memcmp(last_event()->text, "Music\0", 7));
     tap(KEY_BACK);
     CHECK_EQUAL(1, last_event()->value);
-    CHECK_EQUAL(0, memcmp(last_event()->text, "Doubles", 7));
+    CHECK_EQUAL(0, strncmp(last_event()->text, FIRMWARE_SHORT_NAME, DEBUG_LOG_TEXT_BYTES));
 }
 
 static void starting_and_pausing_a_track_is_logged_with_its_number(void)
@@ -3291,7 +3294,7 @@ static void a_key_list_runs_in_order_with_long_presses(void)
 {
     start_app();
     run_script("build any\nplay,play\nback:long\n", 4 * SCRIPT_KEY_MS + KEY_SCRIPT_LONG_MS);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
     CHECK_EQUAL(1, app_screen_depth());
 }
 
@@ -3308,7 +3311,7 @@ static void a_script_without_a_build_line_is_refused_and_still_reconnects(void)
     start_app();
     const DebugScriptRun *run = run_script("play\n", SCRIPT_KEY_MS);
     CHECK_EQUAL(DEBUG_SCRIPT_REFUSED_NO_BUILD, run->state);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
     CHECK_EQUAL(0, fake_hal_usb_reconnect_count());
     run_script_for(DEBUG_SCRIPT_END_MS);
     CHECK_EQUAL(1, fake_hal_usb_reconnect_count());
@@ -3321,7 +3324,7 @@ static void a_script_for_another_build_is_refused(void)
     fake_hal_set_version("1.0.0-abc1234");
     CHECK_EQUAL(DEBUG_SCRIPT_REFUSED_BUILD,
                 run_script("build 7777777\nplay\n", SCRIPT_KEY_MS)->state);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
     CHECK_EQUAL(DEBUG_SCRIPT_REFUSED_BUILD,
                 run_script("build 1.0.0\nplay\n", SCRIPT_KEY_MS)->state);
     fake_hal_set_version("1.0.0");
@@ -3377,7 +3380,7 @@ static void wait_holds_the_script_for_its_time(void)
     start_app();
     load_script("build any\nwait 500\nplay\n");
     run_script_for(400);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
     run_script_for(100 + SCRIPT_KEY_MS);
     CHECK(title_is("Music"));
 }
@@ -3765,7 +3768,8 @@ static void set_chooses_a_settings_option_as_the_screen_does(void)
     CHECK_EQUAL(REPEAT_ALL, app_player_status().repeat);
     Settings saved;
     uint32_t size = 0;
-    const uint8_t *bytes = fake_hal_internal_file_bytes("/.doublesharp/settings.bin", &size);
+    const uint8_t *bytes =
+        fake_hal_internal_file_bytes("/" FIRMWARE_DATA_DIRECTORY "/settings.bin", &size);
     CHECK(bytes != NULL && settings_decode(bytes, size, &saved));
     CHECK_EQUAL(3, saved.brightness);
     CHECK_EQUAL(TEXT_SIZE_LARGE, saved.text_size);
@@ -3803,7 +3807,7 @@ static void a_screenshot_holds_the_frame_the_strip_renderer_draws(void)
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
     CHECK_EQUAL(1, run->screenshot_count);
     CHECK_EQUAL(2, run->screenshot_lines[0]);
-    CHECK(strcmp("/.doublesharp/debug/shot0.565", path) == 0);
+    CHECK(strcmp("/" FIRMWARE_DATA_DIRECTORY "/debug/shot0.565", path) == 0);
     CHECK_EQUAL(32 + FULL_FRAME_PIXELS * 2, size);
     CHECK_EQUAL(0, memcmp(shot, "DSSH\x01\x01", 6));
     CHECK_EQUAL(HAL_DISPLAY_WIDTH, little_endian(shot + 6, 2));
@@ -3829,7 +3833,7 @@ static void a_script_takes_at_most_four_screenshots_in_numbered_files(void)
         "build any\nscreenshot a\nscreenshot b\nscreenshot c\nscreenshot d\nscreenshot e\n", 200);
     fake_hal_screenshot(&path, &size);
     CHECK_EQUAL(DEBUG_SCRIPT_SCREENSHOTS, run->screenshot_count);
-    CHECK(strcmp("/.doublesharp/debug/shot3.565", path) == 0);
+    CHECK(strcmp("/" FIRMWARE_DATA_DIRECTORY "/debug/shot3.565", path) == 0);
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[4]);
     CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[5]);
 }
@@ -3850,7 +3854,7 @@ static void reconnect_ends_the_script_and_asks_for_usb_at_once(void)
     CHECK_EQUAL(DEBUG_SCRIPT_FINISHED, run->state);
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
     CHECK_EQUAL(DEBUG_LINE_NOT_RUN, run->status[2]);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
     CHECK_EQUAL(1, fake_hal_usb_reconnect_count());
     run_script_for(2 * DEBUG_SCRIPT_END_MS);
     CHECK_EQUAL(1, fake_hal_usb_reconnect_count());
@@ -3880,7 +3884,7 @@ static void a_script_past_its_time_limit_is_stopped_and_reconnects(void)
     CHECK_EQUAL(DEBUG_SCRIPT_TIMED_OUT, run->state);
     CHECK_EQUAL(1, fake_hal_usb_reconnect_count());
     CHECK_EQUAL(DEBUG_LINE_NOT_RUN, run->status[6]);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
 }
 
 static void an_aborted_script_lets_go_of_the_key_it_holds(void)
@@ -3892,7 +3896,7 @@ static void an_aborted_script_lets_go_of_the_key_it_holds(void)
     uint32_t before = debug_loop_log()->recorded;
     run_script_for(2000);
     CHECK_EQUAL(DEBUG_SCRIPT_ABORTED, debug_runner_script()->state);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
     CHECK_EQUAL(0, events_of(DEBUG_EVENT_SCREEN, before));
     tap(KEY_PLAY);
     CHECK(title_is("Settings"));
@@ -3940,7 +3944,7 @@ static void menu_opens_now_playing_from_anywhere_while_playing(void)
     start_app_with_library();
     play_first_album_track();
     hold_back();
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
     tap(KEY_MENU);
     CHECK(title_is("Now Playing"));
     int depth = app_screen_depth();
@@ -3953,7 +3957,7 @@ static void menu_does_nothing_while_nothing_plays(void)
 {
     start_app_with_library();
     tap(KEY_MENU);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
 }
 
 int main(void)

@@ -1,4 +1,4 @@
-# Doublesharp Echo interface text: English, the source language.
+# Interface text: English, the source language.
 #
 # One string per line: STR_NAME = text. The names and their order define the
 # catalogue; a translation is a file <code>.txt beside this one with the same

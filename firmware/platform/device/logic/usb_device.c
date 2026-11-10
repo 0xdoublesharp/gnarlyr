@@ -31,7 +31,8 @@ enum {
     BULK_OUT_PACKET_OFFSET = 29,
     FEATURE_ENDPOINT_HALT = 0,
     STRING_SERIAL = 3,
-    PRODUCT_BYTES = 2 + 2 * (sizeof FIRMWARE_NAME - 1)
+    PRODUCT_BYTES = 2 + 2 * (sizeof FIRMWARE_NAME - 1),
+    MANUFACTURER_BYTES = 2 + 2 * (sizeof FIRMWARE_MANUFACTURER - 1)
 };
 
 static const uint8_t DEVICE_DESCRIPTOR[] = {
@@ -83,8 +84,14 @@ static const struct {
     uint8_t type;
     uint_least16_t text[sizeof FIRMWARE_NAME];
 } PRODUCT = {PRODUCT_BYTES, DESCRIPTOR_STRING, u"" FIRMWARE_NAME};
+static const struct {
+    uint8_t length;
+    uint8_t type;
+    uint_least16_t text[sizeof FIRMWARE_MANUFACTURER];
+} MANUFACTURER = {MANUFACTURER_BYTES, DESCRIPTOR_STRING, u"" FIRMWARE_MANUFACTURER};
 
 _Static_assert(PRODUCT_BYTES <= UINT8_MAX, "the product name fits a string descriptor");
+_Static_assert(MANUFACTURER_BYTES <= UINT8_MAX, "the manufacturer's name fits a string descriptor");
 
 UsbSetup usb_setup_parse(const uint8_t packet[8])
 {
@@ -123,7 +130,7 @@ static UsbReply data(const uint8_t *bytes, size_t length, UsbSetup setup)
 
 static UsbReply string_descriptor(const UsbDevice *device, uint8_t index, UsbSetup setup)
 {
-    static const uint8_t *const STRINGS[] = {LANGUAGES, (const uint8_t *)&PRODUCT,
+    static const uint8_t *const STRINGS[] = {LANGUAGES, (const uint8_t *)&MANUFACTURER,
                                              (const uint8_t *)&PRODUCT};
     if (index == STRING_SERIAL) {
         return data(device->serial, device->serial[0], setup);

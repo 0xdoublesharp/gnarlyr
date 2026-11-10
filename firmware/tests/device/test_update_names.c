@@ -13,7 +13,7 @@ static void check_name(uint32_t index, const char *expected)
 static void the_player_scans_its_own_name_then_echoecho_then_echov498_down_to_echov100(void)
 {
     CHECK_EQUAL(401, update_name_count());
-    check_name(0, "/DBLSHARP.IMG");
+    check_name(0, "/" FIRMWARE_UPDATE_FILE);
     check_name(1, "/ECHOECHO.IMG");
     check_name(2, "/ECHOV498.IMG");
     check_name(3, "/ECHOV497.IMG");
@@ -44,9 +44,11 @@ static void every_name_is_an_eight_dot_three_path_at_the_root(void)
     for (uint32_t index = 0; index < update_name_count(); index++) {
         char name[UPDATE_NAME_CAPACITY];
         CHECK(update_name_at(index, name));
-        CHECK_EQUAL(13, strlen(name));
+        const char *dot = strchr(name, '.');
         CHECK_EQUAL('/', name[0]);
-        CHECK(strcmp(name + 9, ".IMG") == 0);
+        CHECK(strchr(name + 1, '/') == NULL);
+        CHECK(dot != NULL && dot - name >= 2 && dot - name <= 9);
+        CHECK(dot != NULL && strcmp(dot, ".IMG") == 0);
     }
 }
 

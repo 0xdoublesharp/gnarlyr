@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "check.h"
@@ -192,7 +193,9 @@ static void inquiry_names_the_vendor_and_the_lun(void)
     Exchange *exchange = collect(msc);
     CHECK_EQUAL(36, exchange->length);
     CHECK_EQUAL(0x80, exchange->data[1]);
-    CHECK(memcmp(exchange->data + 8, "DBLSHARP", 8) == 0);
+    char vendor[9];
+    snprintf(vendor, sizeof vendor, "%-8s", FIRMWARE_ID);
+    CHECK(memcmp(exchange->data + 8, vendor, 8) == 0);
     CHECK(memcmp(exchange->data + 16, "SD card         ", 16) == 0);
     check_csw(exchange, 0, 0);
 }

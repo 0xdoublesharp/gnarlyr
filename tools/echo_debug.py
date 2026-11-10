@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Host side of the Doublesharp Echo debug loop.
+"""Host side of the firmware's debug loop.
 
 Reads what a developer build of the firmware leaves in its debug folder on the player's
 internal drive, over ordinary USB mass storage. Every command prints one JSON object; a
@@ -28,6 +28,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 IDENTITY = json.loads((ROOT / "firmware" / "identity.json").read_text(encoding="utf-8"))
 DATA_DIRECTORY = IDENTITY["data_directory"]
+IDENTITY_NOTE = (f"This checkout's firmware is {IDENTITY['name']} {IDENTITY['version']}: the player is the USB "
+                 f"device of that name, its folder is {IDENTITY['data_directory']}, and an image must carry "
+                 f"the brand {IDENTITY['id']} and is copied as {IDENTITY['update_file']}.")
 DEBUG_DIRECTORY = "debug"
 REPORT_FILES = tuple("report%d.txt" % slot for slot in range(3))
 COLD_START_ADVICE = ("the newest report was written just after a cold start and holds nothing from before it: "
@@ -747,7 +750,8 @@ class JsonParser(argparse.ArgumentParser):
 
 
 def build_parser():
-    parser = JsonParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = JsonParser(description=__doc__, epilog=IDENTITY_NOTE,
+                        formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--volume", type=Path,
                         help="the internal drive's folder, instead of finding the player on USB")
     parser.add_argument("--volume-name", default=DEFAULT_VOLUME_NAME,

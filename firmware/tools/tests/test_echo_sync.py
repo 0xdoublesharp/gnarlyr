@@ -53,8 +53,8 @@ def players_test_card():
     card.add("/AC DC/Back In Black", "02 - Shoot to Thrill.flac", False, 29000000, 101)
     card.add("/AC DC/Back In Black", "cover.jpg", False, 80000, 102)
     card.add("/", "Mix.m3u8", False, 400, 3)
-    card.add("/", ".doublesharp", True, 0, 4)
-    card.add("/.doublesharp", "library.db", False, 4194304, 5)
+    card.add("/", echo_sync.DATA_FOLDER, True, 0, 4)
+    card.add("/" + echo_sync.DATA_FOLDER, "library.db", False, 4194304, 5)
     return card
 
 
@@ -256,7 +256,7 @@ class HostCardTest(unittest.TestCase):
         self.make("Artist/Album/01 - Song.flac", b"12345")
         self.make("Artist/Album/cover.jpg", b"123")
         self.make("Artist/Album/notes.txt")
-        self.make(".doublesharp/library.db")
+        self.make(echo_sync.DATA_FOLDER + "/library.db")
         self.make("Mix.m3u8", b"#EXTM3U")
         computed = echo_sync.card_fingerprint(self.root, FIXED_UTC)
         self.assertEqual(self.listed_card().fingerprint(), computed)
@@ -336,7 +336,7 @@ class SyncTest(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.card = Path(self.directory.name)
-        self.folder = self.card / ".doublesharp"
+        self.folder = self.card / echo_sync.DATA_FOLDER
         album = self.card / "Artist" / "Album"
         album.mkdir(parents=True)
         write_silent_flac(album / "01 - Song.flac", 1)
@@ -449,7 +449,7 @@ class AskForCardTest(unittest.TestCase):
     def test_only_folders_with_an_echo_folder_are_offered(self):
         with tempfile.TemporaryDirectory() as directory:
             player, other = Path(directory, "player"), Path(directory, "other")
-            (player / ".doublesharp").mkdir(parents=True)
+            (player / echo_sync.DATA_FOLDER).mkdir(parents=True)
             other.mkdir()
             self.assertEqual([player], echo_sync.player_cards([other, player,
                                                                Path(directory, "missing")]))

@@ -40,7 +40,7 @@ static void add_player_files(void)
 {
     uint32_t size = 0;
     const uint8_t *bytes = fixture_bytes(&size);
-    fake_hal_add_file("/.doublesharp/library.db", bytes, size);
+    fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/library.db", bytes, size);
     for (size_t index = 0; index < card_files_count(); index++) {
         HalFile file;
         if (card_files_slow(index) && !hal_file_open(&file, card_files_path(index))) {

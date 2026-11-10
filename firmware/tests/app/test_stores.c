@@ -9,6 +9,7 @@
 #include "hal/audio.h"
 #include "hal/storage.h"
 #include "hal/system.h"
+#include "library/playlist_reader.h"
 #include "settings_store.h"
 #include "spoken_library.h"
 
@@ -291,8 +292,9 @@ static void adding_a_cue_part_writes_its_start(void)
                 favorite_playlist_add(library, spoken_library_chapter(library, 2)));
     CHECK_EQUAL(FAVORITE_PLAYLIST_ADDED,
                 favorite_playlist_add(library, spoken_library_chapter(library, 1)));
-    expect_playlist("#EXTM3U\n#DOUBLESHARP-START:300000\nAudiobooks/Zebra Tale.m4b\n"
-                    "#DOUBLESHARP-START:0\nAudiobooks/Zebra Tale.m4b\n");
+    expect_playlist("#EXTM3U\n" PLAYLIST_START_DIRECTIVE
+                    "300000\nAudiobooks/Zebra Tale.m4b\n" PLAYLIST_START_DIRECTIVE
+                    "0\nAudiobooks/Zebra Tale.m4b\n");
     spoken_library_close(&spoken);
 }
 
@@ -309,8 +311,9 @@ static void each_cue_part_is_present_only_once(void)
     CHECK_EQUAL(FAVORITE_PLAYLIST_ADDED, favorite_playlist_add(library, last));
     CHECK_EQUAL(FAVORITE_PLAYLIST_PRESENT, favorite_playlist_add(library, last));
     CHECK_EQUAL(FAVORITE_PLAYLIST_PRESENT, favorite_playlist_add(library, first));
-    expect_playlist("#EXTM3U\n#DOUBLESHARP-START:0\nAudiobooks/Zebra Tale.m4b\n"
-                    "#DOUBLESHARP-START:900000\nAudiobooks/Zebra Tale.m4b\n");
+    expect_playlist("#EXTM3U\n" PLAYLIST_START_DIRECTIVE
+                    "0\nAudiobooks/Zebra Tale.m4b\n" PLAYLIST_START_DIRECTIVE
+                    "900000\nAudiobooks/Zebra Tale.m4b\n");
     spoken_library_close(&spoken);
 }
 
@@ -328,8 +331,8 @@ static void a_plain_line_for_the_file_does_not_stand_for_a_cue_part(void)
                 favorite_playlist_add(library, spoken_library_chapter(library, 2)));
     CHECK_EQUAL(FAVORITE_PLAYLIST_PRESENT,
                 favorite_playlist_add(library, spoken_library_chapter(library, 2)));
-    expect_playlist("#EXTM3U\r\nAudiobooks/Zebra Tale.m4b\n"
-                    "#DOUBLESHARP-START:300000\nAudiobooks/Zebra Tale.m4b\n");
+    expect_playlist("#EXTM3U\r\nAudiobooks/Zebra Tale.m4b\n" PLAYLIST_START_DIRECTIVE
+                    "300000\nAudiobooks/Zebra Tale.m4b\n");
     spoken_library_close(&spoken);
 }
 
@@ -338,8 +341,8 @@ static void a_hand_edited_cue_part_with_windows_line_ends_is_found(void)
     fake_hal_reset();
     SpokenLibrary spoken;
     Library *library = spoken_library_open(&spoken);
-    static const char TEXT[] =
-        "#EXTM3U\r\n#EXTINF:600,Noon\r\n#DOUBLESHARP-START:300000\r\nAudiobooks/Zebra Tale.m4b\r\n";
+    static const char TEXT[] = "#EXTM3U\r\n#EXTINF:600,Noon\r\n" PLAYLIST_START_DIRECTIVE
+                               "300000\r\nAudiobooks/Zebra Tale.m4b\r\n";
     char padded[400];
     memset(padded, ' ', sizeof padded);
     memcpy(padded, TEXT, sizeof TEXT - 1);

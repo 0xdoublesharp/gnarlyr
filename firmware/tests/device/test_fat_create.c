@@ -133,12 +133,14 @@ static void save_card(Card *card, const char *name)
 
 static void reserve_the_player_files(Card *card)
 {
+    CHECK_EQUAL(
+        FAT_RESERVE_CREATED,
+        fat_reserve(&card->volume, "/" FIRMWARE_DATA_DIRECTORY "/settings.bin", SMALL_SIZE));
+    CHECK_EQUAL(
+        FAT_RESERVE_CREATED,
+        fat_reserve(&card->volume, "/" FIRMWARE_DATA_DIRECTORY "/favorites.bin", SMALL_SIZE));
     CHECK_EQUAL(FAT_RESERVE_CREATED,
-                fat_reserve(&card->volume, "/.doublesharp/settings.bin", SMALL_SIZE));
-    CHECK_EQUAL(FAT_RESERVE_CREATED,
-                fat_reserve(&card->volume, "/.doublesharp/favorites.bin", SMALL_SIZE));
-    CHECK_EQUAL(FAT_RESERVE_CREATED,
-                fat_reserve(&card->volume, "/.doublesharp/library.db", LARGE_SIZE));
+                fat_reserve(&card->volume, "/" FIRMWARE_DATA_DIRECTORY "/library.db", LARGE_SIZE));
     CHECK_EQUAL(FAT_RESERVE_CREATED,
                 fat_reserve(&card->volume, "/.existing/covers.bin", LARGE_SIZE));
 }
@@ -148,18 +150,18 @@ static void check_reserve(const char *name)
     Card *card = mounted(name);
     reserve_the_player_files(card);
     remount(card);
-    check_cleared_file(card, "/.doublesharp/settings.bin", SMALL_SIZE);
-    check_cleared_file(card, "/.doublesharp/favorites.bin", SMALL_SIZE);
-    check_cleared_file(card, "/.doublesharp/library.db", LARGE_SIZE);
+    check_cleared_file(card, "/" FIRMWARE_DATA_DIRECTORY "/settings.bin", SMALL_SIZE);
+    check_cleared_file(card, "/" FIRMWARE_DATA_DIRECTORY "/favorites.bin", SMALL_SIZE);
+    check_cleared_file(card, "/" FIRMWARE_DATA_DIRECTORY "/library.db", LARGE_SIZE);
     check_cleared_file(card, "/.existing/covers.bin", LARGE_SIZE);
-    check_contiguous(card, "/.doublesharp/library.db");
+    check_contiguous(card, "/" FIRMWARE_DATA_DIRECTORY "/library.db");
     check_contiguous(card, "/.existing/covers.bin");
-    CHECK(listed(card, "/", ".doublesharp"));
-    CHECK(listed(card, "/.doublesharp", "favorites.bin"));
-    CHECK(listed(card, "/.doublesharp", "library.db"));
+    CHECK(listed(card, "/", FIRMWARE_DATA_DIRECTORY));
+    CHECK(listed(card, "/" FIRMWARE_DATA_DIRECTORY, "favorites.bin"));
+    CHECK(listed(card, "/" FIRMWARE_DATA_DIRECTORY, "library.db"));
     CHECK(listed(card, "/.existing", "covers.bin"));
     check_fixture_files(card);
-    check_write_at_end(card, "/.doublesharp/library.db");
+    check_write_at_end(card, "/" FIRMWARE_DATA_DIRECTORY "/library.db");
     check_write_at_end(card, "/.existing/covers.bin");
     check_fixture_files(card);
     save_card(card, name);
@@ -231,23 +233,25 @@ static void names_the_card_cannot_hold_are_refused_without_writes(void)
 static void long_names_with_the_same_start_get_distinct_short_names(void)
 {
     Card *card = mounted("fat16_superfloppy");
+    CHECK_EQUAL(
+        FAT_RESERVE_CREATED,
+        fat_reserve(&card->volume, "/" FIRMWARE_DATA_DIRECTORY "/favorites one.bin", SMALL_SIZE));
     CHECK_EQUAL(FAT_RESERVE_CREATED,
-                fat_reserve(&card->volume, "/.doublesharp/favorites one.bin", SMALL_SIZE));
-    CHECK_EQUAL(FAT_RESERVE_CREATED,
-                fat_reserve(&card->volume, "/.doublesharp/favorites two.bin", 600));
+                fat_reserve(&card->volume, "/" FIRMWARE_DATA_DIRECTORY "/favorites two.bin", 600));
     uint32_t writes = card->sparse.writes;
-    CHECK_EQUAL(FAT_RESERVE_FAILED, fat_reserve(&card->volume, "/.doublesharp/FAVORI~1.BIN", 600));
+    CHECK_EQUAL(FAT_RESERVE_FAILED,
+                fat_reserve(&card->volume, "/" FIRMWARE_DATA_DIRECTORY "/FAVORI~1.BIN", 600));
     CHECK_EQUAL(writes, card->sparse.writes);
     remount(card);
     FatFile one;
     FatFile two;
-    CHECK(fat_open(&card->volume, "/.doublesharp/favorites one.bin", &one));
-    CHECK(fat_open(&card->volume, "/.doublesharp/favorites two.bin", &two));
+    CHECK(fat_open(&card->volume, "/" FIRMWARE_DATA_DIRECTORY "/favorites one.bin", &one));
+    CHECK(fat_open(&card->volume, "/" FIRMWARE_DATA_DIRECTORY "/favorites two.bin", &two));
     CHECK(one.first_cluster != two.first_cluster);
     CHECK_EQUAL(SMALL_SIZE, one.size);
     CHECK_EQUAL(600, two.size);
-    CHECK(listed(card, "/.doublesharp", "favorites one.bin"));
-    CHECK(listed(card, "/.doublesharp", "favorites two.bin"));
+    CHECK(listed(card, "/" FIRMWARE_DATA_DIRECTORY, "favorites one.bin"));
+    CHECK(listed(card, "/" FIRMWARE_DATA_DIRECTORY, "favorites two.bin"));
     save_card(card, "fat16_short_names");
     sparse_card_free(&card->sparse);
 }

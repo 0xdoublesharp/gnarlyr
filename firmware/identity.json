@@ -1,9 +1,13 @@
 {
-    "name": "Doublesharp Echo",
-    "short_name": "Doublesharp",
-    "id": "DBLSHARP",
+    "name": "FreshBase",
+    "short_name": "FreshBase",
+    "manufacturer": "Doublesharp",
+    "id": "FRSHBS",
     "version": "1.0.0",
-    "data_directory": ".doublesharp",
-    "update_file": "DBLSHARP.IMG",
-    "playlist_start_directive": "DOUBLESHARP-START"
+    "data_directory": ".freshbase",
+    "update_file": "FRSHBS.IMG",
+    "playlist_start_directive": "FRESHBASE-START",
+    "former_ids": [
+        "DBLSHARP"
+    ]
 }

@@ -313,7 +313,7 @@ static void the_home_title_fits_the_header_at_every_size_and_orientation(void)
     for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
         for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
             Theme theme = theme_turned(size, (Orientation)orientation);
-            CHECK(text_width(theme.fonts.header, "Doublesharp") <=
+            CHECK(text_width(theme.fonts.header, FIRMWARE_SHORT_NAME) <=
                   header_title_bounds(&theme).width);
         }
     }
@@ -323,18 +323,17 @@ static void the_splash_shows_the_full_name_at_every_size_in_landscape(void)
 {
     for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
         Theme theme = theme_turned(size, ORIENTATION_LANDSCAPE);
-        CHECK(strcmp("Doublesharp Echo", board_splash_text(&theme)) == 0);
+        CHECK(strcmp(FIRMWARE_NAME, board_splash_text(&theme)) == 0);
     }
 }
 
-static void the_portrait_splash_shortens_the_name_only_at_the_large_size(void)
+static void the_portrait_splash_shows_the_short_name_only_where_the_full_name_is_too_wide(void)
 {
-    Theme small = theme_turned(TEXT_SIZE_SMALL, ORIENTATION_PORTRAIT);
-    Theme medium = theme_turned(TEXT_SIZE_MEDIUM, ORIENTATION_PORTRAIT);
-    Theme large = theme_turned(TEXT_SIZE_LARGE, ORIENTATION_PORTRAIT_FLIPPED);
-    CHECK(strcmp("Doublesharp Echo", board_splash_text(&small)) == 0);
-    CHECK(strcmp("Doublesharp Echo", board_splash_text(&medium)) == 0);
-    CHECK(strcmp("Doublesharp", board_splash_text(&large)) == 0);
+    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+        Theme theme = theme_turned(size, ORIENTATION_PORTRAIT);
+        bool fits = text_width(theme.fonts.title, FIRMWARE_NAME) <= theme.metrics.screen_width;
+        CHECK(strcmp(fits ? FIRMWARE_NAME : FIRMWARE_SHORT_NAME, board_splash_text(&theme)) == 0);
+    }
 }
 
 static void the_splash_text_fits_the_screen_at_every_size_and_orientation(void)
@@ -354,7 +353,7 @@ int main(void)
         TEST_CASE(the_theme_matches_the_display),
         TEST_CASE(the_home_title_fits_the_header_at_every_size_and_orientation),
         TEST_CASE(the_splash_shows_the_full_name_at_every_size_in_landscape),
-        TEST_CASE(the_portrait_splash_shortens_the_name_only_at_the_large_size),
+        TEST_CASE(the_portrait_splash_shows_the_short_name_only_where_the_full_name_is_too_wide),
         TEST_CASE(the_splash_text_fits_the_screen_at_every_size_and_orientation),
         TEST_CASE(the_portrait_theme_stands_the_display_up),
         TEST_CASE(turning_back_to_landscape_restores_the_board_theme),

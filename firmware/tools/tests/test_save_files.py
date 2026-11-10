@@ -39,7 +39,7 @@ class SaveFilesTest(unittest.TestCase):
 
     def test_the_folder_is_created_when_missing(self):
         with tempfile.TemporaryDirectory() as directory:
-            folder = Path(directory) / ".doublesharp"
+            folder = Path(directory) / save_files.IDENTITY.data_directory
             save_files.prepare(folder)
             self.assertTrue((folder / "resume.bin").is_file())
 

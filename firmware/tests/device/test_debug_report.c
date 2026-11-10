@@ -31,7 +31,7 @@ static DebugReportInput plain_input(void)
                           .code = {0x03050000, 0x2666C}};
     return (DebugReportInput){.sequence = 12,
                               .reason = DEBUG_REPORT_USB_SESSION,
-                              .name = "Doublesharp Echo",
+                              .name = FIRMWARE_NAME,
                               .version = "1.0.0-1051212",
                               .uptime_ms = 61000,
                               .clock_mhz = 200,
@@ -262,7 +262,7 @@ static void the_firmware_is_named_with_its_version_and_build_tag(void)
 {
     DebugReportInput input = plain_input();
     format(&input, DEBUG_REPORT_BYTES);
-    CHECK(has_line("firmware.name: Doublesharp Echo"));
+    CHECK(has_line("firmware.name: " FIRMWARE_NAME));
     CHECK(has_line("firmware.version: 1.0.0"));
     CHECK(has_line("firmware.build: 1051212"));
     CHECK(has_line("uptime_ms: 61000"));

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MCP server for the Doublesharp Echo debug loop.
+"""MCP server for the firmware's debug loop.
 
 JSON-RPC 2.0 over stdio, one message per line, standard library only. It offers the
 operations of echo_debug.py as tools and returns the same JSON objects, as text and as
@@ -164,7 +164,8 @@ def serve(tool, lines, output):
 
 
 def main(argv=None, host=None):
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(description=__doc__, epilog=echo_debug.IDENTITY_NOTE,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--volume", type=Path,
                         help="the internal drive's folder, instead of finding the player on USB")
     parser.add_argument("--volume-name", default=echo_debug.DEFAULT_VOLUME_NAME)

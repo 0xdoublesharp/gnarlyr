@@ -95,11 +95,16 @@ static void string_descriptors_are_utf16(void)
     CHECK_EQUAL('1', serial.data[2]);
     CHECK_EQUAL(0, serial.data[3]);
     CHECK_EQUAL('D', serial.data[16]);
+}
+
+static void the_product_string_names_the_firmware_and_the_manufacturer_string_its_maker(void)
+{
+    UsbDevice device = ready_device();
     UsbReply product = usb_device_setup(&device, setup(0x80, 6, 0x0302, 0x0409, 255));
     CHECK_EQUAL(USB_REPLY_DATA, product.kind);
-    CHECK(utf16_is("Doublesharp Echo", product));
+    CHECK(utf16_is(FIRMWARE_NAME, product));
     UsbReply maker = usb_device_setup(&device, setup(0x80, 6, 0x0301, 0x0409, 255));
-    CHECK(utf16_is("Doublesharp Echo", maker));
+    CHECK(utf16_is(FIRMWARE_MANUFACTURER, maker));
 }
 
 static void unknown_descriptors_stall(void)
@@ -270,6 +275,7 @@ int main(void)
         TEST_CASE(a_short_request_gets_a_short_reply),
         TEST_CASE(the_configuration_has_one_bulk_only_scsi_interface),
         TEST_CASE(string_descriptors_are_utf16),
+        TEST_CASE(the_product_string_names_the_firmware_and_the_manufacturer_string_its_maker),
         TEST_CASE(unknown_descriptors_stall),
         TEST_CASE(set_address_acknowledges_and_asks_for_the_address),
         TEST_CASE(set_configuration_activates_the_endpoints_and_is_reported_back),

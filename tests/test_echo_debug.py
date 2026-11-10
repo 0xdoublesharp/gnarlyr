@@ -18,7 +18,7 @@ SYSTEM_LINES = [
     "report.sequence: 12",
     "report.reason: usb_session",
     "report.cold_start: 0",
-    "firmware.name: Doublesharp Echo",
+    "firmware.name: " + echo_debug.IDENTITY["name"],
     "firmware.version: 1.0.0",
     "firmware.build: 1051212",
     "uptime_ms: 61000",
@@ -102,7 +102,7 @@ def medium(name, volume_name, mount_point, size=3 * GIB + 512):
             "volumes": [{"_name": volume_name, "mount_point": str(mount_point), "size_in_bytes": size}]}
 
 
-def player(media, name="Doublesharp Echo", vendor="0x1209", product="0x0001"):
+def player(media, name=echo_debug.IDENTITY["name"], vendor="0x1209", product="0x0001"):
     return {"_name": name, "vendor_id": vendor, "product_id": product, "serial_num": "1A2B3C4D",
             "Media": media}
 
@@ -117,10 +117,10 @@ class VolumeCase(unittest.TestCase):
         self.directory = temporary_directory()
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name) / "ECHO"
-        self.debug = self.root / ".doublesharp" / "debug"
+        self.debug = self.root / echo_debug.DATA_DIRECTORY / "debug"
         self.debug.mkdir(parents=True)
         self.card = Path(self.directory.name) / "MUSIC"
-        (self.card / ".doublesharp" / "debug").mkdir(parents=True)
+        (self.card / echo_debug.DATA_DIRECTORY / "debug").mkdir(parents=True)
 
     def write_report(self, text=None, slot=0):
         path = self.debug / ("report%d.txt" % slot)
@@ -147,7 +147,7 @@ class ReportParsing(unittest.TestCase):
         report = echo_debug.parse_report(report_text())
         values = report["values"]
         self.assertEqual(report["schema"], 1)
-        self.assertEqual(values["firmware.name"], "Doublesharp Echo")
+        self.assertEqual(values["firmware.name"], echo_debug.IDENTITY["name"])
         self.assertEqual(values["firmware.build"], "1051212")
         self.assertEqual(values["uptime_ms"], 61000)
         self.assertIsNone(values["battery.millivolts"])
@@ -385,7 +385,7 @@ class Commands(VolumeCase):
         self.assertEqual(result["report"]["values"]["uptime_ms"], 61000)
 
     def test_the_card_is_never_read_even_when_it_holds_a_report(self):
-        (self.card / ".doublesharp" / "debug" / "report0.txt").write_text(report_text(), encoding="ascii")
+        (self.card / echo_debug.DATA_DIRECTORY / "debug" / "report0.txt").write_text(report_text(), encoding="ascii")
         with self.assertRaises(echo_debug.DebugError) as raised:
             echo_debug.Tool(self.host()).report()
         self.assertEqual(raised.exception.code, "no_report")
@@ -496,6 +496,12 @@ class CommandLine(VolumeCase):
         self.assertEqual(status, 1)
         self.assertEqual(output, {"ok": False, "error": {
             "code": "player_not_connected", "message": output["error"]["message"]}})
+
+    def test_the_help_names_the_firmware_the_tool_looks_for(self):
+        text = " ".join(echo_debug.build_parser().format_help().split())
+        identity = echo_debug.IDENTITY
+        for value in (identity["name"], identity["id"], identity["data_directory"], identity["update_file"]):
+            self.assertIn(value, text)
 
     def test_a_usage_mistake_is_json_too(self):
         status, output = self.run_cli("profile", host=self.host())

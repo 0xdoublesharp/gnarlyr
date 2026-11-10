@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -20,7 +21,8 @@ enum {
     PAYLOAD_END = 0x5000,
     CODE_OFFSET = 0xD68,
     CODE_SIZE = PAYLOAD_END - CODE_OFFSET - 8,
-    MARKER_LENGTH = 11
+    MARKER_LENGTH = 11,
+    BRAND_BYTES = 8
 };
 
 #define RESET_HANDLER 0x03050101u
@@ -163,7 +165,7 @@ static UpdateCheck check_echo_stock(uint8_t *image)
 
 static void an_image_with_our_brand_is_valid(void)
 {
-    CHECK_EQUAL(UPDATE_VALID, check_on(own_image("DBLSHARP"), IMAGE_SIZE));
+    CHECK_EQUAL(UPDATE_VALID, check_on(own_image(FIRMWARE_ID), IMAGE_SIZE));
 }
 
 static void a_podium_echopod_or_recho_image_is_refused(void)
@@ -175,15 +177,24 @@ static void a_podium_echopod_or_recho_image_is_refused(void)
 
 static void a_brand_that_only_resembles_ours_is_refused(void)
 {
-    CHECK_EQUAL(UPDATE_INVALID, check_on(own_image("DBLSHAR"), IMAGE_SIZE));
-    CHECK_EQUAL(UPDATE_INVALID, check_on(own_image("dblsharp"), IMAGE_SIZE));
-    CHECK_EQUAL(UPDATE_INVALID, check_on(own_image("DBLSHARQ"), IMAGE_SIZE));
+    char shorter[] = FIRMWARE_ID;
+    char lower[] = FIRMWARE_ID;
+    char other_end[] = FIRMWARE_ID;
+    shorter[sizeof shorter - 2] = '\0';
+    lower[0] = (char)tolower((unsigned char)lower[0]);
+    other_end[sizeof other_end - 2] ^= 1;
+    CHECK_EQUAL(UPDATE_INVALID, check_on(own_image(shorter), IMAGE_SIZE));
+    CHECK_EQUAL(UPDATE_INVALID, check_on(own_image(lower), IMAGE_SIZE));
+    CHECK_EQUAL(UPDATE_INVALID, check_on(own_image(other_end), IMAGE_SIZE));
     CHECK_EQUAL(UPDATE_INVALID, check_on(own_image(""), IMAGE_SIZE));
+    if (sizeof FIRMWARE_ID - 1 < BRAND_BYTES) {
+        CHECK_EQUAL(UPDATE_INVALID, check_on(own_image(FIRMWARE_ID "X"), IMAGE_SIZE));
+    }
 }
 
 static void a_damaged_image_with_our_brand_is_invalid(void)
 {
-    uint8_t *image = own_image("DBLSHARP");
+    uint8_t *image = own_image(FIRMWARE_ID);
     image[0x2000] ^= 1;
     CHECK_EQUAL(UPDATE_INVALID, check_on(image, IMAGE_SIZE));
 }
@@ -233,7 +244,8 @@ static void stock_echo_images_with_the_wrong_shape_are_invalid(void)
     seal_stock(image);
     CHECK_EQUAL(UPDATE_INVALID, check_echo_stock(image));
     image = echo_stock_image("ECHOV100IMG", 0x54000);
-    memcpy(image + 0x10, "DBLSHARP", 8);
+    memset(image + 0x10, 0, 8);
+    memcpy(image + 0x10, FIRMWARE_ID, sizeof FIRMWARE_ID - 1);
     seal_stock(image);
     CHECK_EQUAL(UPDATE_INVALID, check_echo_stock(image));
     image = echo_stock_image("ECHOV100IMG", 0x54000);
@@ -276,7 +288,7 @@ static void installing_a_stock_echo_image_fills_both_slots_with_every_byte_slot_
 
 static void installing_an_image_with_our_brand_fills_both_slots(void)
 {
-    uint8_t *image = own_image("DBLSHARP");
+    uint8_t *image = own_image(FIRMWARE_ID);
     load(image, IMAGE_SIZE);
     UpdateStorage storage = {storage_read, storage_write, NULL, SLOT_1, SLOT_2, SLOT_SECTORS};
     UpdateFile file = {file_read, size, NULL};

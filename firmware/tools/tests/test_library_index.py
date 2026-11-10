@@ -10,6 +10,7 @@ TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS_DIRECTORY))
 
 import library_index
+from library_index import START_DIRECTIVE_TEXT as START
 from library_fixture import FIXTURE_TRACKS as SAMPLE_TRACKS
 
 HEADER_SIZE = 128
@@ -330,17 +331,17 @@ class PlaylistParsingTest(unittest.TestCase):
         self.assertEqual([None, None], [entry.start for entry in entries])
 
     def test_a_start_directive_belongs_to_the_next_entry_only(self):
-        text = "#EXTM3U\n#DOUBLESHARP-START:1500\nA/one.flac\nA/two.flac\n  #DOUBLESHARP-START:0  \nA/three.flac\n"
+        text = f"#EXTM3U\n{START}1500\nA/one.flac\nA/two.flac\n  {START}0  \nA/three.flac\n"
         self.assertEqual([1500, None, 0], [entry.start for entry in library_index.parse_m3u(text)])
 
     def test_a_malformed_start_directive_is_ignored(self):
-        for line in ("#DOUBLESHARP-START:", "#DOUBLESHARP-START:12x", "#DOUBLESHARP-START:-5",
-                     "#DOUBLESHARP-START:12345678901", "#DOUBLESHARP-START:4294967295", "#doublesharp-start:5"):
+        for line in (START, START + "12x", START + "-5", START + "12345678901", START + "4294967295",
+                     START.lower() + "5"):
             entries = library_index.parse_m3u(f"{line}\nA/one.flac\n")
             self.assertIsNone(entries[0].start, line)
 
     def test_the_last_start_directive_before_an_entry_wins(self):
-        text = "#DOUBLESHARP-START:10\n#DOUBLESHARP-START:20\nA/one.flac\n"
+        text = f"{START}10\n{START}20\nA/one.flac\n"
         self.assertEqual(20, library_index.parse_m3u(text)[0].start)
 
     def test_utf8_with_a_byte_order_mark_is_decoded(self):

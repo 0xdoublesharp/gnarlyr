@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -103,8 +104,9 @@ static uint32_t start_of_entry(const char *text, uint32_t skip)
 
 static void a_start_directive_belongs_to_the_entry_after_it(void)
 {
-    static const char TEXT[] = "#EXTM3U\n#EXTINF:3,Song\n#DOUBLESHARP-START:1500\nA/one.flac\n"
-                               "A/two.flac\n\n  #DOUBLESHARP-START:0  \r\n\r\nA/three.flac\n";
+    static const char TEXT[] =
+        "#EXTM3U\n#EXTINF:3,Song\n" PLAYLIST_START_DIRECTIVE "1500\nA/one.flac\n"
+        "A/two.flac\n\n  " PLAYLIST_START_DIRECTIVE "0  \r\n\r\nA/three.flac\n";
     CHECK_EQUAL(1500u, start_of_entry(TEXT, 0));
     CHECK_EQUAL(PLAYLIST_NO_START, start_of_entry(TEXT, 1));
     CHECK_EQUAL(0u, start_of_entry(TEXT, 2));
@@ -112,29 +114,42 @@ static void a_start_directive_belongs_to_the_entry_after_it(void)
 
 static void the_last_start_directive_before_an_entry_wins(void)
 {
-    CHECK_EQUAL(20u,
-                start_of_entry("#DOUBLESHARP-START:10\n#DOUBLESHARP-START:20\nA/one.flac\n", 0));
+    CHECK_EQUAL(20u, start_of_entry(PLAYLIST_START_DIRECTIVE "10\n" PLAYLIST_START_DIRECTIVE
+                                                             "20\nA/one.flac\n",
+                                    0));
+}
+
+static const char *lower_case_directive(void)
+{
+    static char text[] = PLAYLIST_START_DIRECTIVE "5";
+    for (size_t index = 0; text[index] != '\0'; index++) {
+        text[index] = (char)tolower((unsigned char)text[index]);
+    }
+    return text;
 }
 
 static void a_malformed_start_directive_is_ignored(void)
 {
-    static const char *const LINES[] = {
-        "#DOUBLESHARP-START:",           "#DOUBLESHARP-START:12x",
-        "#DOUBLESHARP-START:-5",         "#DOUBLESHARP-START:12345678901",
-        "#DOUBLESHARP-START:4294967295", "#doublesharp-start:5",
-        "#DOUBLESHARP-START 5"};
-    for (uint32_t index = 0; index < sizeof LINES / sizeof LINES[0]; index++) {
+    const char *const lines[] = {PLAYLIST_START_DIRECTIVE,
+                                 PLAYLIST_START_DIRECTIVE "12x",
+                                 PLAYLIST_START_DIRECTIVE "-5",
+                                 PLAYLIST_START_DIRECTIVE "12345678901",
+                                 PLAYLIST_START_DIRECTIVE "4294967295",
+                                 lower_case_directive(),
+                                 "#" FIRMWARE_PLAYLIST_START_DIRECTIVE " 5"};
+    for (uint32_t index = 0; index < sizeof lines / sizeof lines[0]; index++) {
         char text[128];
-        snprintf(text, sizeof text, "%s\nA/one.flac\n", LINES[index]);
+        snprintf(text, sizeof text, "%s\nA/one.flac\n", lines[index]);
         CHECK_EQUAL(PLAYLIST_NO_START, start_of_entry(text, 0));
     }
-    CHECK_EQUAL(4294967294u, start_of_entry("#DOUBLESHARP-START:4294967294\nA/one.flac\n", 0));
+    CHECK_EQUAL(4294967294u,
+                start_of_entry(PLAYLIST_START_DIRECTIVE "4294967294\nA/one.flac\n", 0));
 }
 
 static void the_playlist_padding_of_a_favorites_file_reads_as_one_entry(void)
 {
     static char text[32768];
-    static const char HEAD[] = "#EXTM3U\n#DOUBLESHARP-START:1000\nA/B/C.flac\n";
+    static const char HEAD[] = "#EXTM3U\n" PLAYLIST_START_DIRECTIVE "1000\nA/B/C.flac\n";
     memset(text, ' ', sizeof text);
     memcpy(text, HEAD, sizeof HEAD - 1);
     MemorySource memory = {.bytes = (const uint8_t *)text, .size = sizeof text};
