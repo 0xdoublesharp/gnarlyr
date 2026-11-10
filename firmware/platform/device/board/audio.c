@@ -88,6 +88,8 @@ static bool volume_set;
 static HalAudioOutput output_setting;
 static uint32_t last_jack_poll_ms;
 static HalAudioStats stats;
+_Static_assert(offsetof(HalAudioStats, output_underruns) == 8,
+               "the emulator follows the output underrun counter");
 static uint32_t read_us_pending;
 static uint32_t output_started_us;
 
@@ -304,6 +306,19 @@ static void serve_fade(void)
     }
 }
 
+static bool output_is_suspended_and_muted(void)
+{
+    return dmac_suspended() && dac_path_is_muted();
+}
+
+static void sample_output_underrun(void)
+{
+    if ((transferring || tone_active) && dac_path_take_underrun() &&
+        !output_is_suspended_and_muted()) {
+        stats.output_underruns++;
+    }
+}
+
 static void end_transfer(bool restarting)
 {
     if (!transferring) {
@@ -314,6 +329,7 @@ static void end_transfer(bool restarting)
     } else {
         dac_path_set_muted(true);
     }
+    sample_output_underrun();
     dac_path_stop_transfer();
     dmac_stop();
     transferring = false;
@@ -364,6 +380,7 @@ static bool start_transfer(uint32_t words, bool audible)
         return false;
     }
     dac_path_start_transfer();
+    (void)dac_path_take_underrun();
     transferring = true;
     dac_path_set_fade_service(serve_fade);
     if (audible) {
@@ -463,6 +480,7 @@ void hal_audio_pause(void)
     ensure_engine();
     if (transferring) {
         dac_path_set_muted(true);
+        sample_output_underrun();
         dmac_suspend();
     }
     audio_engine_pause(&engine);
@@ -477,7 +495,11 @@ void hal_audio_resume(void)
 {
     ensure_engine();
     if (transferring) {
+        bool quiet = output_is_suspended_and_muted();
         dmac_resume();
+        if (quiet) {
+            (void)dac_path_take_underrun();
+        }
         dac_path_set_muted(false);
     }
     audio_engine_resume(&engine);
@@ -687,9 +709,7 @@ static void poll_jack(void)
 void hal_audio_service(void)
 {
     poll_jack();
-    if ((transferring || tone_active) && dac_path_take_underrun()) {
-        stats.output_underruns++;
-    }
+    sample_output_underrun();
     if (stream_service != NULL) {
         stream_service();
         return;

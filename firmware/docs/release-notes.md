@@ -26,6 +26,8 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Playback fixes
 
+- Output-underrun diagnostics exclude intentional muted DMA pauses, clear stale start/resume flags and retain pending playback faults. Unmuted interruptions remain visible.
+
 - Standard speech rates from 8 to 24 kHz are converted to 44.1 or 48 kHz with a fixed-point interpolation filter; 32 kHz uses native output. Seeking and chapter positions stay on the recording clock, with no extra output frames.
 
 - M4B files at any depth appear on Audiobooks and stay out of Music lists. Named roots merge on the shelf; external chaptered files appear once. Whole-file books retain independent positions and play as one book.

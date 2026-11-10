@@ -1789,6 +1789,84 @@ class EchoImageTest(unittest.TestCase):
         self.assertTrue(dsp.loaded(machine))
         self.assert_healthy(session)
 
+    def test_paused_i2s_flags_do_not_count_but_active_flags_still_do(self):
+        rig = self.speech_rig(44100)
+        rig.open_songs()
+        rig.play_song(1)
+        self.assertEqual(0, rig.audio.output_underruns())
+        for expected in (1, 2):
+            rig.audio.output_fault = True
+            rig.run_for(50)
+            self.assertEqual(expected, rig.audio.output_underruns())
+        rig.audio.mute_fault = True
+        rig.press("play")
+        self.assertGreater(rig.audio.suspend_depth, 0)
+        self.assertEqual(3, rig.audio.output_underruns())
+        for _ in range(3):
+            rig.audio.output_fault = True
+            rig.run_for(50)
+            self.assertFalse(rig.audio.output_fault)
+            self.assertEqual(3, rig.audio.output_underruns())
+        self.assert_healthy(rig.session)
+
+    def test_resuming_discards_a_paused_output_flag_and_counts_the_next_active_one(self):
+        rig = self.speech_rig(44100)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.press("play")
+        self.assertGreater(rig.audio.suspend_depth, 0)
+        rig.audio.resume_fault = True
+        rig.press("play")
+        self.assertEqual(0, rig.audio.suspend_depth)
+        self.assertEqual(0, rig.audio.output_underruns())
+        rig.audio.output_fault = True
+        rig.run_for(50)
+        self.assertEqual(1, rig.audio.output_underruns())
+        self.assert_healthy(rig.session)
+
+    def test_starting_output_discards_old_flags_without_hiding_later_faults(self):
+        rig = self.speech_rig(44100)
+        rig.open_songs()
+        rig.audio.start_fault = True
+        rig.play_song(1)
+        self.assertEqual(0, rig.audio.output_underruns())
+        rig.audio.output_fault = True
+        rig.run_for(50)
+        self.assertEqual(1, rig.audio.output_underruns())
+        self.assert_healthy(rig.session)
+
+    def test_an_unmuted_dma_suspension_does_not_hide_an_output_fault(self):
+        rig = self.speech_rig(44100)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.audio.suspend(rig.machine)
+        self.assertGreater(rig.audio.suspend_depth, 0)
+        rig.audio.output_fault = True
+        rig.run_for(50)
+        self.assertEqual(1, rig.audio.output_underruns())
+        rig.audio.resume(rig.machine)
+        self.assert_healthy(rig.session)
+
+    def test_usb_handoff_does_not_charge_a_muted_paused_output_flag(self):
+        rig = self.speech_rig(44100)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.press("play")
+        self.assertGreater(rig.audio.suspend_depth, 0)
+        machine = rig.machine
+        machine.note("usb_session_storage_changed")
+        machine.note("usb_storage_session")
+        rig.audio.mute_fault = True
+        machine.host_ejects()
+        machine.vbus = True
+        self.assertEqual("condition met", self.run_usb_sessions(rig.session, 1),
+                         {"usb": machine.usb_log, "reached": machine.reached,
+                          "pc": hex(machine.current_pc())})
+        self.assertEqual(1, machine.reached["usb_storage_session"])
+        self.assertEqual(0, rig.audio.output_underruns())
+        self.assertFalse(rig.audio.output_fault)
+        self.assert_healthy(rig.session)
+
     def test_native_rate_wav_playback_does_not_load_the_optional_audio_module(self):
         rig = self.speech_rig(44100)
         number, dsp = self.module(rig.machine, "dsp")

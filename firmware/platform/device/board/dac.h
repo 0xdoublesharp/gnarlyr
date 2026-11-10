@@ -14,5 +14,6 @@ void dac_path_fade_out(void);
 void dac_path_set_volume(uint8_t value);
 void dac_path_set_gain(bool high);
 bool dac_path_take_underrun(void);
+bool dac_path_is_muted(void);
 void dac_path_start_transfer(void);
 void dac_path_stop_transfer(void);

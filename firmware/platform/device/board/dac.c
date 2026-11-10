@@ -565,6 +565,11 @@ void dac_path_set_gain(bool high)
     }
 }
 
+bool dac_path_is_muted(void)
+{
+    return muted;
+}
+
 CORE_SEAM bool dac_path_take_underrun(void)
 {
     if (!dac_up || (register_read(I2S_INTSR) & I2S_UNDERRUN) == 0) {

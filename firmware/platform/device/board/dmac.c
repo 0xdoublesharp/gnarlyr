@@ -49,6 +49,11 @@ CORE_SEAM bool dmac_running(void)
     return active && (register_read(DMAC_CHANNEL_ENABLE) & CHANNEL_BIT) != 0;
 }
 
+CORE_SEAM bool dmac_suspended(void)
+{
+    return suspend_depth > 0;
+}
+
 CORE_SEAM bool dmac_start_loop(const DmaItem *item)
 {
     if ((register_read(DMAC_CHANNEL_ENABLE) & CHANNEL_BIT) != 0) {

@@ -9,6 +9,7 @@ bool dmac_present(void);
 bool dmac_start_loop(const DmaItem *item);
 void dmac_stop(void);
 bool dmac_running(void);
+bool dmac_suspended(void);
 uint32_t dmac_source(void);
 void dmac_suspend(void);
 void dmac_resume(void);
