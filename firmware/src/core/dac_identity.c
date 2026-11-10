@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 
+#include "core/i18n.h"
 #include "core/string_builder.h"
 
 enum {
@@ -52,12 +53,12 @@ DacPart dac_identity_part(const DacIdentity *identity)
 static const char *words_for(const DacIdentity *identity)
 {
     if (identity->source == DAC_IDENTITY_SIMULATED) {
-        return "Simulated";
+        return i18n_text(STR_ABOUT_SIMULATED);
     }
     if (identity->source != DAC_IDENTITY_READ) {
-        return "Play a track";
+        return i18n_text(STR_ABOUT_PLAY_A_TRACK);
     }
-    return identity->read_mask == 0 ? "Read failed" : NULL;
+    return identity->read_mask == 0 ? i18n_text(STR_ABOUT_READ_FAILED) : NULL;
 }
 
 static void append_byte(StringBuilder *builder, const DacIdentity *identity, int index)

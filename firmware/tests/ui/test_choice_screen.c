@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include <string.h>
 
 #include "check.h"
 #include "ui/choice_screen.h"
@@ -55,6 +56,27 @@ static Screen *open_choice(int current)
 static ScreenAction press(Screen *screen, Key key, KeyGesture gesture)
 {
     return screen->handle_key(screen->context, (KeyEvent){.key = key, .gesture = gesture}, 100);
+}
+
+static void options_given_as_string_ids_show_the_catalogue_text(void)
+{
+    static const StringId IDS[2] = {STR_OFF, STR_SETTINGS};
+    ChoiceConfig config = {.title = "Pick",
+                           .options = OPTIONS,
+                           .option_ids = IDS,
+                           .option_count = 2,
+                           .current = current_option,
+                           .choose = choose_option,
+                           .theme = &TEST_THEME};
+    choice_screen_init(&choice, config);
+    CHECK(strcmp("Off", choice.model.label(choice.model.context, 0)) == 0);
+    CHECK(strcmp("Settings", choice.model.label(choice.model.context, 1)) == 0);
+}
+
+static void options_given_as_text_are_shown_as_they_are(void)
+{
+    open_choice(0);
+    CHECK(choice.model.label(choice.model.context, 1) == OPTIONS[1]);
 }
 
 static void the_choice_title_is_the_screen_title(void)
@@ -122,6 +144,8 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_choice_title_is_the_screen_title),
+        TEST_CASE(options_given_as_string_ids_show_the_catalogue_text),
+        TEST_CASE(options_given_as_text_are_shown_as_they_are),
         TEST_CASE(the_current_option_starts_selected),
         TEST_CASE(the_current_option_is_marked),
         TEST_CASE(selecting_chooses_the_option_and_leaves),

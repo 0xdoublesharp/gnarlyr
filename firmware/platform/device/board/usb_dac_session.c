@@ -4,6 +4,7 @@
 
 #include "app/app.h"
 #include "board.h"
+#include "core/i18n.h"
 #include "core/string_builder.h"
 #include "device/usb_audio.h"
 #include "device/usb_audio_sink.h"
@@ -17,14 +18,13 @@ enum {
     STREAM_IDLE_MS = 100,
     BACK_HOLD_MS = 1000,
     POLLS_PER_SERVICE = 4,
-    NOTICE_CAPACITY = 64,
+    NOTICE_CAPACITY = 96,
+    NUMBER_CAPACITY = 12,
     HZ_PER_KHZ = 1000,
     BITS_PER_BYTE = 8,
     VOLUME_REPEAT_DELAY_MS = 400,
     VOLUME_REPEAT_MS = 80
 };
-
-static const char TITLE[] = "USB DAC";
 
 static UsbShared *shared;
 static UsbPort port;
@@ -54,38 +54,47 @@ static void serve_usb(void)
     }
 }
 
-static void append_volume(StringBuilder *line)
+static void write_number(char *text, uint32_t value)
 {
-    string_builder_append(line, " \xC2\xB7 Volume ");
-    string_builder_append_unsigned(line, shared->dac_volume);
+    StringBuilder builder = string_builder_make(text, NUMBER_CAPACITY);
+    string_builder_append_unsigned(&builder, value);
 }
 
-static void append_format(StringBuilder *line)
+static void write_rate(char *text)
 {
-    string_builder_append_unsigned(line, audio.rate / HZ_PER_KHZ);
+    StringBuilder builder = string_builder_make(text, NUMBER_CAPACITY);
+    string_builder_append_unsigned(&builder, audio.rate / HZ_PER_KHZ);
     if (audio.rate % HZ_PER_KHZ != 0) {
-        string_builder_append_char(line, '.');
-        string_builder_append_unsigned(line, audio.rate % HZ_PER_KHZ / 100);
+        string_builder_append_char(&builder, '.');
+        string_builder_append_unsigned(&builder, audio.rate % HZ_PER_KHZ / 100);
     }
-    string_builder_append(line, " kHz ");
-    string_builder_append_unsigned(line, BITS_PER_BYTE * usb_audio_sample_bytes(&audio));
-    string_builder_append(line, "-bit");
-    append_volume(line);
+}
+
+static void append_format(StringBuilder *line, const char *volume)
+{
+    char rate[NUMBER_CAPACITY];
+    char bits[NUMBER_CAPACITY];
+    write_rate(rate);
+    write_number(bits, BITS_PER_BYTE * usb_audio_sample_bytes(&audio));
+    const char *arguments[] = {rate, bits, volume};
+    i18n_format(line, STR_USB_DAC_FORMAT, arguments, 3);
 }
 
 static void show_state(void)
 {
     char text[NOTICE_CAPACITY];
+    char volume[NUMBER_CAPACITY];
     StringBuilder line = string_builder_make(text, sizeof text);
+    write_number(volume, shared->dac_volume);
     if (usb_audio_sample_bytes(&audio) == 0) {
-        string_builder_append(&line, "Choose " FIRMWARE_SHORT_NAME " as the sound output");
-        append_volume(&line);
+        const char *arguments[] = {FIRMWARE_SHORT_NAME, volume};
+        i18n_format(&line, STR_USB_DAC_CHOOSE, arguments, 2);
     } else if (open_rate == 0) {
-        string_builder_append(&line, "The audio output didn't start.");
+        string_builder_append(&line, i18n_text(STR_USB_DAC_FAILED));
     } else {
-        append_format(&line);
+        append_format(&line, volume);
     }
-    app_show_notice(TITLE, text);
+    app_show_notice(i18n_text(STR_USB_DAC_TITLE), text);
 }
 
 static void stop_output(void)
@@ -226,7 +235,7 @@ static void start_session(void)
 void usb_dac_session(UsbShared *state)
 {
     shared = state;
-    app_show_notice(TITLE, "Computer found. Starting...");
+    app_show_notice(i18n_text(STR_USB_DAC_TITLE), i18n_text(STR_USB_STARTING));
     uint8_t level = board_audio_volume_level();
     start_session();
     uint8_t starting_volume = shared->dac_volume;

@@ -13,8 +13,17 @@ enum {
 };
 
 static const char FOLDER[] = "/EQ";
-const char *const EQUALIZER_SLOT_LABELS[EQUALIZER_SLOT_COUNT] = {
-    "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Slot 5", "Slot 6", "Slot 7", "Slot 8"};
+const StringId EQUALIZER_PRESET_NAMES[EQUALIZER_PRESET_COUNT] = {
+    STR_OFF,    STR_EQ_RETRO, STR_EQ_BASS,   STR_EQ_HEAVY,
+    STR_EQ_POP, STR_EQ_JAZZ,  STR_EQ_UNIQUE, STR_EQ_CUSTOM};
+static const StringId SLOT_LABELS[EQUALIZER_SLOT_COUNT] = {
+    STR_EQ_SLOT_1, STR_EQ_SLOT_2, STR_EQ_SLOT_3, STR_EQ_SLOT_4,
+    STR_EQ_SLOT_5, STR_EQ_SLOT_6, STR_EQ_SLOT_7, STR_EQ_SLOT_8};
+
+const char *equalizer_presets_slot_label(int slot)
+{
+    return i18n_text(SLOT_LABELS[slot]);
+}
 
 void equalizer_presets_read_slots(EqualizerPresets *presets)
 {
@@ -68,19 +77,19 @@ static void scan_files(EqualizerPresets *presets)
     hal_dir_close(&dir);
 }
 
-void equalizer_presets_scan(EqualizerPresets *presets, const char *const *built_in)
+void equalizer_presets_scan(EqualizerPresets *presets)
 {
     presets->option_count = 0;
     presets->slot_count = 0;
     presets->file_count = 0;
     equalizer_presets_read_slots(presets);
     for (int index = 0; index < EQUALIZER_PRESET_COUNT; index++) {
-        presets->options[presets->option_count++] = built_in[index];
+        presets->options[presets->option_count++] = i18n_text(EQUALIZER_PRESET_NAMES[index]);
     }
     for (int slot = 0; slot < EQUALIZER_SLOT_COUNT; slot++) {
         if (equalizer_slots_used(&presets->slots, slot)) {
             presets->slot_at[presets->slot_count++] = (uint8_t)slot;
-            presets->options[presets->option_count++] = EQUALIZER_SLOT_LABELS[slot];
+            presets->options[presets->option_count++] = equalizer_presets_slot_label(slot);
         }
     }
     scan_files(presets);

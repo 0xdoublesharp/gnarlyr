@@ -11,6 +11,7 @@
 #include "core/deadline.h"
 #include "core/frame_pacer.h"
 #include "core/hash.h"
+#include "core/i18n.h"
 #include "core/key_lock.h"
 #include "core/key_tracker.h"
 #include "core/low_battery.h"
@@ -32,6 +33,7 @@
 #include "hal/display.h"
 #include "hal/input.h"
 #include "hal/power.h"
+#include "language.h"
 #include "library_rescan.h"
 #include "library_store.h"
 #include "music_check.h"
@@ -52,6 +54,8 @@ enum {
     VIEW_STAMP_CHECK_MS = 50,
     VIEW_STAMP_POSITION_MS = 1000,
     RESCAN_PROGRESS_MS = 250,
+    NOTICE_TEXT_CAPACITY = 64,
+    TOAST_TEXT_CAPACITY = 64,
     BATTERY_CHECK_MS = 250,
     CHARGE_LIT_MS = 5000
 };
@@ -103,12 +107,13 @@ typedef struct AppState {
     uint32_t battery_check_ms;
     bool usb_power;
     bool rescan_requested;
+    bool language_requested;
     bool music_check_requested;
     bool prepare_pending;
     size_t prepare_index;
     CardFilesReport prepare_report;
     bool light_after_frame;
-    const char *goodbye_text;
+    StringId goodbye_text;
     Toast toast;
     BluetoothLink bluetooth;
     uint32_t shown_refusals;
@@ -146,8 +151,6 @@ static const FadeTiming SPLASH_TIMING = {.fade_ms = 600, .hold_ms = 500, .rising
 static const uint32_t SCREEN_ON_CLOCK_MHZ = 200;
 static const uint32_t IDLE_CLOCK_MHZ = 96;
 static const FadeTiming GOODBYE_TIMING = {.fade_ms = 600, .hold_ms = 400, .rising = false};
-static const char GOODBYE_TEXT[] = "Goodbye";
-static const char BATTERY_LOW_TEXT[] = "Battery low";
 static Color strip_pixels[HAL_DISPLAY_WIDTH * BOARD_STRIP_HEIGHT];
 static uint32_t row_hashes[HAL_DISPLAY_LONG_SIDE];
 static Theme notice_theme;
@@ -207,7 +210,7 @@ static void take_transition(HalKeyTransition transition)
         key_tracker_cancel(&app.keys, KEY_POWER);
         break;
     case KEY_LOCK_REFUSED:
-        toast_show(&app.toast, LOCKED_HINT, transition.time_ms);
+        toast_show(&app.toast, i18n_text(STR_LOCKED_HINT), transition.time_ms);
         break;
     case KEY_LOCK_SWALLOW:
         break;
@@ -327,7 +330,7 @@ static void finish_shut_down(void)
     power_off_now();
 }
 
-static void shut_down(const char *text)
+static void shut_down(StringId text)
 {
     app.goodbye_text = text;
     save_session();
@@ -526,7 +529,7 @@ static void dispatch_key_events(uint32_t now_ms)
         PowerKeyOutcome outcome = power_policy_key(&app.power, event, now_ms);
         if (outcome.shutdown) {
             debug_loop_shutdown(DEBUG_REPORT_SHUTDOWN);
-            shut_down(GOODBYE_TEXT);
+            shut_down(STR_GOODBYE);
         } else if (outcome.background) {
             run_background(event);
         } else if (!outcome.consumed) {
@@ -559,7 +562,7 @@ static void update_power(uint32_t now_ms)
 {
     if (!app.saying_goodbye && battery_empty(now_ms)) {
         debug_loop_shutdown(DEBUG_REPORT_LOW_BATTERY);
-        shut_down(BATTERY_LOW_TEXT);
+        shut_down(STR_BATTERY_LOW);
         return;
     }
     keep_awake_while_busy(now_ms);
@@ -567,7 +570,7 @@ static void update_power(uint32_t now_ms)
     if (power_policy_update(&app.power, now_ms)) {
         bool slept = sleep_timer && !app.power.sleep_timer_active;
         debug_loop_shutdown(slept ? DEBUG_REPORT_SLEEP_TIMER : DEBUG_REPORT_AUTO_OFF);
-        shut_down(GOODBYE_TEXT);
+        shut_down(STR_GOODBYE);
         return;
     }
     if (app.power.display_on == app.display_on) {
@@ -608,7 +611,7 @@ static void draw_fade(Canvas *canvas, const Fade *fade, const char *text)
 static bool draw_running_fade(Canvas *canvas)
 {
     if (app.saying_goodbye) {
-        draw_fade(canvas, &app.goodbye, app.goodbye_text);
+        draw_fade(canvas, &app.goodbye, i18n_text(app.goodbye_text));
         return true;
     }
     if (!fade_finished(&app.splash, app.now_ms)) {
@@ -816,7 +819,7 @@ static void open_start_screen(uint32_t now_ms)
     }
 }
 
-static void start_screens(uint32_t now_ms)
+static void build_screens(uint32_t now_ms)
 {
     AppScreensContext context = {
         .options = &app.options,
@@ -832,18 +835,42 @@ static void start_screens(uint32_t now_ms)
         .toast = &app.toast,
         .covers = &app.covers,
         .rescan_requested = &app.rescan_requested,
+        .language_requested = &app.language_requested,
         .bluetooth = &app.bluetooth,
     };
     Screen *root = app_screens_init(&app.screens, context);
     screen_stack_init(&app.stack, root, now_ms);
+}
+
+static void start_screens(uint32_t now_ms)
+{
+    build_screens(now_ms);
     open_start_screen(now_ms);
     screen_changed();
+}
+
+static void change_language(uint32_t now_ms)
+{
+    Settings *settings = &app.settings.settings;
+    language_load(settings->language);
+    app.toast.visible = false;
+    app.slide.active = false;
+    build_screens(now_ms);
+    screen_stack_apply(&app.stack, screen_action_push(app_screens_language_row(&app.screens)),
+                       now_ms);
+    use_screen_key_behaviors();
+    if (!language_is(settings->language)) {
+        StringBuilder code = string_builder_make(settings->language, sizeof settings->language);
+        string_builder_append(&code, i18n_code());
+        save_settings();
+        toast_show(&app.toast, i18n_text(STR_LANGUAGE_FAILED), now_ms);
+    }
 }
 
 static void report_card_files(CardFilesReport files, uint32_t now_ms)
 {
     if (files.card_full) {
-        toast_show(&app.toast, "Storage is full", now_ms);
+        toast_show(&app.toast, i18n_text(STR_STORAGE_FULL), now_ms);
         debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_FULL);
     }
     if (files.library_created) {
@@ -867,7 +894,7 @@ void app_start(void)
     app.powered_off = false;
     app.charging = false;
     app.saying_goodbye = false;
-    app.goodbye_text = GOODBYE_TEXT;
+    app.goodbye_text = STR_GOODBYE;
     low_battery_init(&app.low_battery);
     app.battery_check_ms = now_ms;
     app.splash = (Fade){.active = false};
@@ -876,6 +903,7 @@ void app_start(void)
     app.prepare_index = 0;
     app.prepare_report = (CardFilesReport){.library_created = false, .card_full = false};
     settings_store_load(&app.settings);
+    language_load(app.settings.settings.language);
     app.theme = BOARD_THEME;
     apply_orientation();
     follow_appearance();
@@ -897,11 +925,10 @@ static void show_rescan_progress(uint32_t files, uint32_t tracks)
         return;
     }
     shown_ms = now_ms;
-    static char text[48];
+    char text[NOTICE_TEXT_CAPACITY];
     StringBuilder builder = string_builder_make(text, sizeof text);
-    string_builder_append_unsigned(&builder, tracks);
-    string_builder_append(&builder, " tracks so far");
-    app_show_notice("Scanning library", text);
+    i18n_format_counts(&builder, STR_SCAN_TRACKS, tracks, 0);
+    app_show_notice(i18n_text(STR_SCANNING), text);
 }
 
 static void show_cover_progress(uint32_t done, uint32_t total)
@@ -913,18 +940,15 @@ static void show_cover_progress(uint32_t done, uint32_t total)
         return;
     }
     shown_ms = now_ms;
-    static char text[48];
+    char text[NOTICE_TEXT_CAPACITY];
     StringBuilder builder = string_builder_make(text, sizeof text);
-    string_builder_append_unsigned(&builder, done);
-    string_builder_append(&builder, " of ");
-    string_builder_append_unsigned(&builder, total);
-    string_builder_append(&builder, " albums");
-    app_show_notice("Finding covers", text);
+    i18n_format_counts(&builder, STR_COVERS_DONE, done, total);
+    app_show_notice(i18n_text(STR_FINDING_COVERS), text);
 }
 
 static void explain_refusals(uint32_t now_ms)
 {
-    static char text[48];
+    static char text[TOAST_TEXT_CAPACITY];
     uint32_t count = app.player.refusal_count;
     bool fresh = count > app.shown_refusals;
     app.shown_refusals = count;
@@ -936,10 +960,10 @@ static void explain_refusals(uint32_t now_ms)
 
 static void run_rescan(void)
 {
-    app_show_notice("Scanning library", "Starting...");
+    app_show_notice(i18n_text(STR_SCANNING), i18n_text(STR_SCAN_STARTING));
     RescanProgress progress = {show_rescan_progress, show_cover_progress};
     RescanOutcome outcome = library_rescan_run(progress);
-    static char message[48];
+    static char message[TOAST_TEXT_CAPACITY];
     const char *text = library_rescan_message(outcome, message, sizeof message);
     if (outcome.result == SCAN_OK) {
         music_check_remember(music_check_fingerprint());
@@ -1020,13 +1044,11 @@ static void charge_step(uint32_t now_ms)
 
 static void show_prepare_progress(size_t index)
 {
-    static char text[48];
+    char text[NOTICE_TEXT_CAPACITY];
     StringBuilder builder = string_builder_make(text, sizeof text);
-    string_builder_append(&builder, "File ");
-    string_builder_append_unsigned(&builder, (uint32_t)index + 1);
-    string_builder_append(&builder, " of ");
-    string_builder_append_unsigned(&builder, (uint32_t)card_files_count());
-    app_show_notice("Preparing storage", text);
+    i18n_format_counts(&builder, STR_PREPARING_FILE, (uint32_t)index + 1,
+                       (uint32_t)card_files_count());
+    app_show_notice(i18n_text(STR_PREPARING_STORAGE), text);
 }
 
 static bool prepare_step(void)
@@ -1113,6 +1135,7 @@ static uint32_t view_stamp(void)
     stamp = stamp_add(stamp, (uint32_t)bluetooth_of(&app.bluetooth));
     stamp = stamp_add(stamp, app.lock.locked);
     stamp = stamp_add(stamp, app.toast.visible);
+    stamp = stamp_add(stamp, app.toast.until_ms);
     return stamp_add(stamp, (uint32_t)(uintptr_t)app.toast.text);
 }
 
@@ -1142,7 +1165,7 @@ CORE_SEAM void app_step(void)
         app.music_check_requested = false;
         bool changed = hal_system_restart_pending();
         if (!changed) {
-            app_show_notice("Music", "Checking for changes...");
+            app_show_notice(i18n_text(STR_MUSIC), i18n_text(STR_CHECKING_MUSIC));
             changed = !music_check_unchanged() || !library_store_open(&app.library);
         }
         if (!changed) {
@@ -1155,6 +1178,10 @@ CORE_SEAM void app_step(void)
         run_rescan();
         return;
     }
+    if (app.language_requested) {
+        app.language_requested = false;
+        change_language(hal_clock_milliseconds());
+    }
     uint32_t started_us = hal_clock_microseconds();
     uint32_t now_ms = hal_clock_milliseconds();
     app.now_ms = now_ms;
@@ -1165,7 +1192,8 @@ CORE_SEAM void app_step(void)
     read_headset();
     key_tracker_update(&app.keys, now_ms);
     if (key_lock_update(&app.lock, now_ms)) {
-        toast_show(&app.toast, app.lock.locked ? "Buttons locked" : "Buttons unlocked", now_ms);
+        toast_show(&app.toast,
+                   i18n_text(app.lock.locked ? STR_BUTTONS_LOCKED : STR_BUTTONS_UNLOCKED), now_ms);
         if (!app.display_on) {
             power_policy_wake(&app.power, now_ms);
             set_display(true);

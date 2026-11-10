@@ -4,6 +4,7 @@
 
 #include "board_layout.h"
 #include "core/format.h"
+#include "core/i18n.h"
 #include "core/string_builder.h"
 #include "gfx/image.h"
 #include "settings/settings.h"
@@ -32,9 +33,6 @@ static const NowPlayingLayout *layout(const NowPlayingScreen *now_playing)
 
 static const char SEPARATOR[] = " \xC2\xB7 ";
 
-static const char NOTHING_PLAYING[] = "Nothing playing";
-static const char *const REPEAT_TEXT[REPEAT_MODE_COUNT] = {"", "Repeat One", "Repeat All"};
-
 const char *now_playing_codec_name(HalAudioCodec codec)
 {
     switch (codec) {
@@ -61,8 +59,7 @@ void now_playing_stream_text(HalAudioFormat format, char *buffer, size_t capacit
         return;
     }
     if (format.bits_per_sample > 0) {
-        string_builder_append_unsigned(&builder, format.bits_per_sample);
-        string_builder_append(&builder, "-bit");
+        i18n_format_counts(&builder, STR_BIT_DEPTH, format.bits_per_sample, 0);
         string_builder_append(&builder, SEPARATOR);
     }
     char rate[RATE_CAPACITY];
@@ -86,9 +83,7 @@ void now_playing_detail_text(const PlayerStatus *status, char *buffer, size_t ca
     if (has_bitrate) {
         string_builder_append(&builder, SEPARATOR);
     }
-    string_builder_append_unsigned(&builder, status->place.number);
-    string_builder_append(&builder, " of ");
-    string_builder_append_unsigned(&builder, status->place.total);
+    i18n_format_counts(&builder, STR_PLACE, status->place.number, status->place.total);
 }
 
 static NowPlayingCommand by_gesture(KeyGesture gesture, NowPlayingCommand press,
@@ -584,23 +579,26 @@ static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas)
     char remaining[TIME_CAPACITY] = "-";
     format_duration(position_ms, elapsed, sizeof elapsed);
     format_duration(remaining_ms, remaining + 1, sizeof remaining - 1);
+    const char *left = elapsed;
     if (showing(now_playing, NOW_PLAYING_FEEDBACK_VOLUME)) {
-        StringBuilder label = string_builder_make(elapsed, sizeof elapsed);
-        string_builder_append(&label, "Volume");
+        left = i18n_text(STR_VOLUME);
         StringBuilder level = string_builder_make(remaining, sizeof remaining);
         string_builder_append_unsigned(&level, now_playing->status.volume);
     }
     Rect area =
         line_area(theme, layout(now_playing)->times_top, layout(now_playing)->small_line_height);
     TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
-    label_draw(canvas, style, (Label){.area = area, .text = elapsed});
+    label_draw(canvas, style, (Label){.area = area, .text = left});
     draw_right_aligned(canvas, style, area, remaining);
 }
 
 static void modes_text(const PlayerStatus *status, char *buffer, size_t capacity)
 {
     StringBuilder builder = string_builder_make(buffer, capacity);
-    string_builder_append(&builder, REPEAT_TEXT[status->repeat]);
+    if (status->repeat != REPEAT_OFF) {
+        string_builder_append(
+            &builder, i18n_text(status->repeat == REPEAT_ONE ? STR_REPEAT_ONE : STR_REPEAT_ALL));
+    }
 }
 
 static void draw_outline(Canvas *canvas, Rect area, Color color)
@@ -650,7 +648,7 @@ static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
     modes_text(&now_playing->status, modes, sizeof modes);
     if (now_playing->scrubbing) {
         StringBuilder seeking = string_builder_make(modes, sizeof modes);
-        string_builder_append(&seeking, "Seeking \xC2\xB7 Play to jump");
+        string_builder_append(&seeking, i18n_text(STR_SEEKING));
     }
     label_draw(canvas, style,
                (Label){column_area(now_playing, layout(now_playing)->modes_top,
@@ -700,8 +698,9 @@ static void draw_nothing_playing(const Theme *theme, Canvas *canvas)
 {
     TextStyle style = {.font = theme->fonts.body, .color = theme->colors.text_secondary};
     Rect content = theme_content_area(theme);
-    Rect area = label_centered_area(style.font, content, NOTHING_PLAYING);
-    label_draw(canvas, style, (Label){.area = area, .text = NOTHING_PLAYING});
+    const char *message = i18n_text(STR_NOTHING_PLAYING);
+    Rect area = label_centered_area(style.font, content, message);
+    label_draw(canvas, style, (Label){.area = area, .text = message});
 }
 
 static void draw(void *context, Canvas *canvas)
@@ -733,7 +732,7 @@ Screen *now_playing_screen_init(NowPlayingScreen *now_playing, NowPlayingConfig 
     now_playing->feedback_started_ms = 0;
     now_playing->status = (PlayerStatus){.state = PLAYER_IDLE};
     now_playing->screen = (Screen){
-        .title = "Now Playing",
+        .title = i18n_text(STR_NOW_PLAYING),
         .context = now_playing,
         .hold_volume_keys = true,
         .enter = enter,

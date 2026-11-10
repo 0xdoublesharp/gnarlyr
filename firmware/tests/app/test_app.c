@@ -860,7 +860,7 @@ static void the_equalizer_row_names_the_matching_slot(void)
     CHECK_EQUAL(EQUALIZER_PRESET_COUNT + 1, equalizer_presets_slot_option(&presets, 5));
     gains[5] = 4;
     CHECK_EQUAL(-1, equalizer_presets_matching_slot(&presets, gains));
-    CHECK(strcmp(EQUALIZER_SLOT_LABELS[2], "Slot 3") == 0);
+    CHECK(strcmp(equalizer_presets_slot_label(2), "Slot 3") == 0);
 }
 
 static void an_eq_file_is_listed_by_name_and_loaded_on_choosing(void)
@@ -1391,7 +1391,7 @@ static void the_lock_toasts_fit_a_portrait_screen_in_large_text(void)
     Theme theme = BOARD_THEME;
     default_theme_set_text_size(&theme, TEXT_SIZE_LARGE);
     default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
-    const char *const texts[] = {LOCKED_HINT, "Buttons unlocked"};
+    const char *const texts[] = {"Hold Play+Power", "Buttons unlocked"};
     for (int index = 0; index < 2; index++) {
         Toast toast;
         toast_show(&toast, texts[index], 0);

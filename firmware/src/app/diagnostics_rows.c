@@ -1,5 +1,6 @@
 #include "diagnostics_rows.h"
 
+#include "core/i18n.h"
 #include "diagnostics_values.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
@@ -19,13 +20,13 @@ const char *diagnostics_row_music(const void *context)
     (void)context;
     switch (hal_file_volume()) {
     case HAL_VOLUME_CARD:
-        return "Card";
+        return i18n_text(STR_ABOUT_CARD);
     case HAL_VOLUME_INTERNAL:
-        return "Internal";
+        return i18n_text(STR_ABOUT_INTERNAL);
     case HAL_VOLUME_NONE:
         break;
     }
-    return "None";
+    return i18n_text(STR_ABOUT_NONE);
 }
 
 static char battery_text[DIAGNOSTICS_VALUE_CAPACITY];

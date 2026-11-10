@@ -5,6 +5,7 @@
 
 #include "app/app.h"
 #include "board.h"
+#include "core/i18n.h"
 #include "core/string_builder.h"
 #include "debug_probe.h"
 #include "device/block_device.h"
@@ -178,7 +179,7 @@ static void remember_session(UsbSessionEnd end)
 
 static UsbSessionEnd run(void)
 {
-    app_show_notice("USB", "Computer found. Starting...");
+    app_show_notice(i18n_text(STR_USB), i18n_text(STR_USB_STARTING));
     fallback = (UsbFallback){.watching = false};
     debug_report_write(shared, DEBUG_REPORT_USB_SESSION);
     prepare_port();
@@ -187,8 +188,8 @@ static UsbSessionEnd run(void)
     UsbSessionEnd end = USB_SESSION_NO_HOST;
     if (usb_wait_for_host(&port, HOST_TIMEOUT_MS)) {
         usb_fallback_start(&fallback, port.link.high_speed_allowed, hal_clock_milliseconds());
-        app_show_notice("USB", card_present ? "Connected. Eject both drives to finish."
-                                            : "Connected. Eject the drive to finish.");
+        app_show_notice(i18n_text(STR_USB),
+                        i18n_text(card_present ? STR_USB_EJECT_DRIVES : STR_USB_EJECT_DRIVE));
         end = serve();
     }
     usb_session_stop_listening();
@@ -207,8 +208,7 @@ CORE_SEAM bool usb_storage_session(UsbShared *state)
     shared = state;
     UsbSessionEnd end = run();
     if (end == USB_SESSION_UNPLUGGED && shared->last_session.left_mounted != 0) {
-        app_show_notice("Unplugged before ejecting",
-                        "Recent changes may be lost. Eject the drives before unplugging.");
+        app_show_notice(i18n_text(STR_USB_UNPLUGGED), i18n_text(STR_USB_UNPLUGGED_HINT));
         board_wait_for_key();
     }
 #ifndef ECHO_BOOT_TRACE

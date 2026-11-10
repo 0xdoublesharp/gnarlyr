@@ -3,6 +3,7 @@
 #include <stdbool.h>
 
 #include "browse_screen.h"
+#include "core/i18n.h"
 #include "core/power_policy.h"
 #include "cover_cache.h"
 #include "debug_loop_internal.h"
@@ -114,13 +115,15 @@ typedef struct AppScreensContext {
     Toast *toast;
     CoverCache *covers;
     bool *rescan_requested;
+    bool *language_requested;
     SpokenStore *spoken;
     BluetoothLink *bluetooth;
 } AppScreensContext;
 
 Screen *app_screens_init(AppScreens *screens, AppScreensContext context);
-MenuItem app_screens_open_item(const char *label, Screen *target);
-Screen *app_screens_build_menu(MenuScreen *menu, const char *title, const MenuItem *items,
-                               int count, const Theme *theme);
+MenuItem app_screens_open_item(StringId label, Screen *target);
+Screen *app_screens_build_menu(MenuScreen *menu, StringId title, const MenuItem *items, int count,
+                               const Theme *theme);
 void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Theme *theme);
 int app_screens_start_path(AppScreens *screens, StartScreen start, Screen **path);
+Screen *app_screens_language_row(AppScreens *screens);

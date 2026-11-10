@@ -14,14 +14,6 @@ enum {
 static uint8_t packs[PACKS][TEST_PACK_CAPACITY];
 static uint32_t sizes[PACKS];
 
-static void upper_case(const char *english, char *text, size_t capacity)
-{
-    snprintf(text, capacity, "%s", english);
-    for (char *cursor = text; *cursor != '\0'; cursor++) {
-        *cursor = *cursor >= 'a' && *cursor <= 'z' ? (char)(*cursor - 'a' + 'A') : *cursor;
-    }
-}
-
 static void very_long(const char *english, char *text, size_t capacity)
 {
     snprintf(text, capacity, "%s %0200d", english, 0);
@@ -48,7 +40,7 @@ static void standard_image(void)
 {
     start();
     make(0, "en", "English", NULL);
-    make(1, "up", "UPPER", upper_case);
+    make(1, "up", "UPPER", test_pack_upper_case);
     for (int copy = 0; copy < 2; copy++) {
         built_in(copy, 0);
         built_in(copy, 1);
@@ -78,7 +70,7 @@ static void a_chosen_language_of_the_image_is_loaded(void)
 static void the_first_pack_of_the_image_is_the_default_whatever_its_language(void)
 {
     start();
-    make(0, "up", "UPPER", upper_case);
+    make(0, "up", "UPPER", test_pack_upper_case);
     make(1, "en", "English", NULL);
     built_in(0, 0);
     built_in(0, 1);
@@ -209,7 +201,7 @@ static void a_first_copy_from_another_build_is_replaced_by_the_second(void)
     hash_store(packs[0] + TEST_PACK_CATALOGUE_FIELD, STRINGS_HASH ^ 0x55u);
     test_pack_seal(packs[0], sizes[0]);
     make(1, "en", "English", NULL);
-    make(2, "up", "UPPER", upper_case);
+    make(2, "up", "UPPER", test_pack_upper_case);
     built_in(0, 0);
     built_in(1, 1);
     built_in(1, 2);
@@ -221,7 +213,7 @@ static void a_language_missing_from_the_first_copy_comes_from_the_second(void)
 {
     start();
     make(0, "en", "English", NULL);
-    make(1, "up", "UPPER", upper_case);
+    make(1, "up", "UPPER", test_pack_upper_case);
     built_in(0, 0);
     built_in(1, 0);
     built_in(1, 1);
@@ -361,7 +353,7 @@ static void with_the_first_copy_unreadable_the_list_comes_from_the_second(void)
     LanguageList list;
     start();
     make(0, "en", "English", NULL);
-    make(1, "up", "UPPER", upper_case);
+    make(1, "up", "UPPER", test_pack_upper_case);
     built_in(1, 0);
     built_in(1, 1);
     language_list(&list);

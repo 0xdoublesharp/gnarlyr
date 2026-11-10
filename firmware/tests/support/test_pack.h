@@ -29,4 +29,5 @@ typedef struct TestPackLanguage {
 uint32_t test_pack_build(uint8_t *pack, TestPackLanguage language);
 void test_pack_seal(uint8_t *pack, uint32_t size);
 void test_pack_bracketed(const char *english, char *text, size_t capacity);
+void test_pack_upper_case(const char *english, char *text, size_t capacity);
 uint32_t test_pack_load(const char *path, uint8_t *pack, uint32_t capacity);

@@ -3,13 +3,11 @@
 #include <stdbool.h>
 
 #include "board_layout.h"
+#include "core/i18n.h"
 #include "core/string_builder.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/list_navigation.h"
-
-static const char TITLE[] = "Up Next";
-static const char EMPTY_MESSAGE[] = "Nothing is playing";
 
 typedef enum RowKind {
     ROW_PLAYING,
@@ -100,7 +98,7 @@ static bool track_at(const UpNextScreen *up_next, int index, QueueWalk *walk, ui
 
 static const char *state_text(const Player *player)
 {
-    return player->state == PLAYER_PLAYING ? "Playing" : "Paused";
+    return i18n_text(player->state == PLAYER_PLAYING ? STR_PLAYING : STR_PAUSED);
 }
 
 static void load_row(UpNextScreen *up_next, int row, int index, QueueWalk *walk)
@@ -220,12 +218,13 @@ static void draw(void *context, Canvas *canvas)
     const UpNextScreen *up_next = context;
     const Theme *theme = up_next->config.theme;
     Rect content = theme_content_area(theme);
-    header_draw(canvas, theme, TITLE);
+    header_draw(canvas, theme, up_next->screen.title);
     if (up_next->count == 0) {
         TextStyle style = {.font = theme->fonts.body, .color = theme->colors.text_secondary};
         canvas_fill_rect(canvas, content, theme->colors.background);
-        Rect area = label_centered_area(style.font, content, EMPTY_MESSAGE);
-        label_draw(canvas, style, (Label){.area = area, .text = EMPTY_MESSAGE});
+        const char *message = i18n_text(STR_NOTHING_IS_PLAYING);
+        Rect area = label_centered_area(style.font, content, message);
+        label_draw(canvas, style, (Label){.area = area, .text = message});
         return;
     }
     list_view_draw(&up_next->list, canvas, content, up_next->now_ms);
@@ -246,7 +245,7 @@ Screen *up_next_screen_init(UpNextScreen *up_next, UpNextConfig config)
                                  .detail_max_width = BOARD_LAYOUT.up_next_detail_max_width};
     list_view_init(&up_next->list, &up_next->model, config.theme, 0);
     up_next->screen = (Screen){
-        .title = TITLE,
+        .title = i18n_text(STR_UP_NEXT),
         .context = up_next,
         .enter = enter,
         .handle_key = handle_key,

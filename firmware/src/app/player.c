@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "core/format.h"
+#include "core/i18n.h"
 #include "core/string_builder.h"
 #include "hal/storage.h"
 #include "playback/resume_state.h"
@@ -667,19 +668,18 @@ void player_refusal_text(HalAudioRefusal refusal, char *text, size_t capacity)
     case HAL_AUDIO_PROBLEM_RATE: {
         char rate[16];
         format_sample_rate(refusal.sample_rate, rate, sizeof rate);
-        string_builder_append(&builder, rate);
-        string_builder_append(&builder, " isn't supported yet");
+        i18n_format_text(&builder, STR_RATE_UNSUPPORTED, rate);
         return;
     }
     case HAL_AUDIO_PROBLEM_FORMAT:
-        string_builder_append(&builder, "This file type isn't supported yet");
+        string_builder_append(&builder, i18n_text(STR_TYPE_UNSUPPORTED));
         return;
     case HAL_AUDIO_PROBLEM_AAC_ONLY:
-        string_builder_append(&builder, "Only AAC-LC and ALAC M4A play");
+        string_builder_append(&builder, i18n_text(STR_M4A_UNSUPPORTED));
         return;
     case HAL_AUDIO_PROBLEM_UNREADABLE:
     case HAL_AUDIO_PROBLEM_NONE:
         break;
     }
-    string_builder_append(&builder, "Couldn't read the track");
+    string_builder_append(&builder, i18n_text(STR_TRACK_UNREADABLE));
 }

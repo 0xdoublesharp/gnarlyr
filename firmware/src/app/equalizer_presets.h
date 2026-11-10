@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/i18n.h"
 #include "settings/equalizer_slots.h"
 #include "settings/settings.h"
 
@@ -14,7 +15,7 @@ enum {
 };
 
 extern const char EQUALIZER_SLOTS_PATH[];
-extern const char *const EQUALIZER_SLOT_LABELS[EQUALIZER_SLOT_COUNT];
+extern const StringId EQUALIZER_PRESET_NAMES[EQUALIZER_PRESET_COUNT];
 
 typedef struct EqualizerPresets {
     EqualizerSlots slots;
@@ -28,7 +29,8 @@ typedef struct EqualizerPresets {
 
 void equalizer_presets_read_slots(EqualizerPresets *presets);
 bool equalizer_presets_save_slot(EqualizerPresets *presets, int slot, const int8_t *gains);
-void equalizer_presets_scan(EqualizerPresets *presets, const char *const *built_in);
+void equalizer_presets_scan(EqualizerPresets *presets);
+const char *equalizer_presets_slot_label(int slot);
 int equalizer_presets_matching_slot(const EqualizerPresets *presets, const int8_t *gains);
 int equalizer_presets_slot_option(const EqualizerPresets *presets, int slot);
 int equalizer_presets_option_slot(const EqualizerPresets *presets, int option);

@@ -8,23 +8,24 @@ enum {
     RELEASE_DIAGNOSTICS_COUNT = 9
 };
 
-static MenuItem value_item(const char *label, const char *(*value)(const void *context))
+static MenuItem value_item(StringId label, const char *(*value)(const void *context))
 {
-    return (MenuItem){.label = label, .select = NULL, .context = NULL, .value = value};
+    return (MenuItem){.label = i18n_text(label), .select = NULL, .context = NULL, .value = value};
 }
 
 void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Theme *theme)
 {
     (void)options;
     MenuItem *items = screens->diagnostics_items;
-    items[0] = value_item("Firmware", diagnostics_row_firmware);
-    items[1] = value_item("Battery", diagnostics_row_battery);
-    items[2] = value_item("Jack 3.5", diagnostics_row_jack_single_ended);
-    items[3] = value_item("Jack 4.4", diagnostics_row_jack_balanced);
-    items[4] = value_item("Music", diagnostics_row_music);
-    items[5] = value_item("Headset", diagnostics_row_headset);
-    items[6] = value_item("CPU clock", diagnostics_row_cpu_clock);
-    items[7] = value_item("DAC A", diagnostics_row_dac_a);
-    items[8] = value_item("DAC B", diagnostics_row_dac_b);
-    app_screens_build_menu(&screens->diagnostics, "About", items, RELEASE_DIAGNOSTICS_COUNT, theme);
+    items[0] = value_item(STR_ABOUT_FIRMWARE, diagnostics_row_firmware);
+    items[1] = value_item(STR_ABOUT_BATTERY, diagnostics_row_battery);
+    items[2] = value_item(STR_ABOUT_JACK_35, diagnostics_row_jack_single_ended);
+    items[3] = value_item(STR_ABOUT_JACK_44, diagnostics_row_jack_balanced);
+    items[4] = value_item(STR_MUSIC, diagnostics_row_music);
+    items[5] = value_item(STR_ABOUT_HEADSET, diagnostics_row_headset);
+    items[6] = value_item(STR_ABOUT_CPU_CLOCK, diagnostics_row_cpu_clock);
+    items[7] = value_item(STR_ABOUT_DAC_A, diagnostics_row_dac_a);
+    items[8] = value_item(STR_ABOUT_DAC_B, diagnostics_row_dac_b);
+    app_screens_build_menu(&screens->diagnostics, STR_ABOUT, items, RELEASE_DIAGNOSTICS_COUNT,
+                           theme);
 }

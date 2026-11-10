@@ -1,5 +1,6 @@
 #include "favorite_playlist.h"
 
+#include "core/i18n.h"
 #include "core/string_builder.h"
 #include "hal/storage.h"
 #include "library/playlist_reader.h"
@@ -260,7 +261,7 @@ FavoritePlaylistResult favorite_playlist_add(const Library *library, uint16_t tr
 
 const char *favorite_playlist_message(FavoritePlaylistResult result)
 {
-    static const char *const MESSAGES[] = {"Added to Favorites", "Already in Favorites",
-                                           "Couldn't add to Favorites"};
-    return MESSAGES[result];
+    static const StringId MESSAGES[] = {STR_FAVORITE_ADDED, STR_FAVORITE_ALREADY,
+                                        STR_FAVORITE_FAILED};
+    return i18n_text(MESSAGES[result]);
 }

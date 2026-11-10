@@ -1,5 +1,6 @@
 #include "favorites_store.h"
 
+#include "core/i18n.h"
 #include "hal/storage.h"
 
 const char FAVORITES_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/favorites.bin";
@@ -55,15 +56,15 @@ FavoriteResult favorites_store_toggle_album(FavoritesStore *store, uint16_t albu
 const char *favorites_store_message(FavoriteResult result)
 {
     if (!result.saved) {
-        return "Could not save favorites";
+        return i18n_text(STR_FAVORITES_NOT_SAVED);
     }
     switch (result.change) {
     case FAVORITE_ADDED:
-        return "Added to Favorites";
+        return i18n_text(STR_FAVORITE_ADDED);
     case FAVORITE_REMOVED:
-        return "Removed from Favorites";
+        return i18n_text(STR_FAVORITE_REMOVED);
     case FAVORITE_FULL:
-        return "Favorites are full";
+        return i18n_text(STR_FAVORITES_FULL);
     }
     return "";
 }

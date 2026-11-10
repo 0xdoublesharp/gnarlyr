@@ -1,5 +1,6 @@
 #include "equalizer_screen.h"
 
+#include "core/i18n.h"
 #include "core/string_builder.h"
 #include "ui/header.h"
 #include "ui/list_navigation.h"
@@ -9,8 +10,6 @@ enum {
     SAVE_ROW = SETTINGS_EQUALIZER_BANDS
 };
 
-static const char TITLE[] = "Custom EQ";
-static const char SAVE_LABEL[] = "Save to slot";
 static const char *const BAND_LABELS[SETTINGS_EQUALIZER_BANDS] = {
     "31 Hz", "62 Hz", "125 Hz", "250 Hz", "500 Hz", "1 kHz", "2 kHz", "4 kHz", "8 kHz", "16 kHz"};
 
@@ -29,9 +28,11 @@ static void format_slot(EqualizerScreen *equalizer)
 {
     StringBuilder builder =
         string_builder_make(equalizer->text[SAVE_ROW], EQUALIZER_SCREEN_TEXT_CAPACITY);
-    string_builder_append_unsigned(&builder, (uint32_t)equalizer->slot + 1);
+    uint32_t number = (uint32_t)equalizer->slot + 1;
     if (equalizer->config.slot_used(equalizer->config.context, equalizer->slot)) {
-        string_builder_append(&builder, " (used)");
+        i18n_format_counts(&builder, STR_EQ_SLOT_USED, number, 0);
+    } else {
+        string_builder_append_unsigned(&builder, number);
     }
 }
 
@@ -52,7 +53,7 @@ static int band_count(const void *context)
 static const char *band_label(const void *context, int index)
 {
     (void)context;
-    return index == SAVE_ROW ? SAVE_LABEL : BAND_LABELS[index];
+    return index == SAVE_ROW ? i18n_text(STR_EQ_SAVE_TO_SLOT) : BAND_LABELS[index];
 }
 
 static const char *band_gain(const void *context, int index)
@@ -65,8 +66,7 @@ static ScreenAction start_adjusting(void *context, int index)
 {
     EqualizerScreen *equalizer = context;
     StringBuilder builder = string_builder_make(equalizer->title, sizeof equalizer->title);
-    string_builder_append(&builder, index == SAVE_ROW ? SAVE_LABEL : BAND_LABELS[index]);
-    string_builder_append(&builder, ": vol \xC2\xB1");
+    i18n_format_text(&builder, STR_EQ_ADJUSTING, band_label(equalizer, index));
     equalizer->adjusting = true;
     return screen_action_none();
 }
@@ -167,7 +167,7 @@ static void draw(void *context, Canvas *canvas)
 {
     const EqualizerScreen *equalizer = context;
     const Theme *theme = equalizer->config.theme;
-    const char *title = equalizer->adjusting ? equalizer->title : TITLE;
+    const char *title = equalizer->adjusting ? equalizer->title : equalizer->screen.title;
     header_draw(canvas, theme, title);
     list_view_draw(&equalizer->list, canvas, theme_content_area(theme), equalizer->now_ms);
 }
@@ -183,7 +183,7 @@ Screen *equalizer_screen_init(EqualizerScreen *equalizer, EqualizerScreenConfig 
         .context = equalizer, .count = band_count, .label = band_label, .detail = band_gain};
     list_view_init(&equalizer->list, &equalizer->model, config.theme, 0);
     equalizer->screen = (Screen){
-        .title = TITLE,
+        .title = i18n_text(STR_CUSTOM_EQ),
         .context = equalizer,
         .enter = enter,
         .handle_key = handle_key,

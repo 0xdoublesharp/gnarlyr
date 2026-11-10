@@ -57,6 +57,14 @@ void test_pack_bracketed(const char *english, char *text, size_t capacity)
     snprintf(text, capacity, "[%s]", english);
 }
 
+void test_pack_upper_case(const char *english, char *text, size_t capacity)
+{
+    snprintf(text, capacity, "%s", english);
+    for (char *cursor = text; *cursor != '\0'; cursor++) {
+        *cursor = *cursor >= 'a' && *cursor <= 'z' ? (char)(*cursor - 'a' + 'A') : *cursor;
+    }
+}
+
 uint32_t test_pack_load(const char *path, uint8_t *pack, uint32_t capacity)
 {
     FILE *file = fopen(path, "rb");

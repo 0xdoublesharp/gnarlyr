@@ -1,6 +1,7 @@
 #include "spoken_store.h"
 
 #include "core/format.h"
+#include "core/i18n.h"
 #include "core/string_builder.h"
 #include "hal/storage.h"
 
@@ -201,14 +202,11 @@ uint16_t spoken_store_resume_chapter(const SpokenStore *store, uint16_t folder)
     return 0;
 }
 
-static void append_count(StringBuilder *builder, uint32_t count, const char *noun)
+static void append_count(StringBuilder *builder, uint32_t count, bool episodes)
 {
-    string_builder_append_unsigned(builder, count);
-    string_builder_append_char(builder, ' ');
-    string_builder_append(builder, noun);
-    if (count != 1) {
-        string_builder_append_char(builder, 's');
-    }
+    static const StringId PATTERNS[2][2] = {{STR_CHAPTERS, STR_ONE_CHAPTER},
+                                            {STR_EPISODES, STR_ONE_EPISODE}};
+    i18n_format_counts(builder, PATTERNS[episodes][count == 1], count, 0);
 }
 
 static bool describe_folder(const SpokenStore *store, SpokenRow row, StringBuilder *builder)
@@ -218,16 +216,13 @@ static bool describe_folder(const SpokenStore *store, SpokenRow row, StringBuild
     if (!library_read_folder(store->library, row.item.index, &folder) || folder.track_count == 0) {
         return false;
     }
-    const char *noun = row.shelf == SPOKEN_PODCAST ? "episode" : "chapter";
     if (row.shelf != SPOKEN_AUDIOBOOK || !spoken_store_book(store, row.item.index, &bookmark)) {
-        append_count(builder, folder.track_count, noun);
+        append_count(builder, folder.track_count, row.shelf == SPOKEN_PODCAST);
     } else if (bookmark_finished(bookmark)) {
-        string_builder_append(builder, "Finished");
+        string_builder_append(builder, i18n_text(STR_FINISHED));
     } else {
-        string_builder_append(builder, "Chapter ");
-        string_builder_append_unsigned(builder, (uint32_t)bookmark.chapter + 1u);
-        string_builder_append(builder, " of ");
-        string_builder_append_unsigned(builder, folder.track_count);
+        i18n_format_counts(builder, STR_CHAPTER_OF, (uint32_t)bookmark.chapter + 1u,
+                           folder.track_count);
     }
     return true;
 }
@@ -241,7 +236,7 @@ static bool describe_track(const SpokenStore *store, SpokenRow row, StringBuilde
         return false;
     }
     if (bookmark_finished(bookmark)) {
-        string_builder_append(builder, "Played");
+        string_builder_append(builder, i18n_text(STR_PLAYED));
         return true;
     }
     if (bookmark.position_ms == 0 || bookmark.position_ms >= record.duration_ms) {
@@ -249,8 +244,7 @@ static bool describe_track(const SpokenStore *store, SpokenRow row, StringBuilde
     }
     char left[TIME_CAPACITY];
     format_duration(record.duration_ms - bookmark.position_ms, left, sizeof left);
-    string_builder_append(builder, left);
-    string_builder_append(builder, " left");
+    i18n_format_text(builder, STR_TIME_LEFT, left);
     return true;
 }
 

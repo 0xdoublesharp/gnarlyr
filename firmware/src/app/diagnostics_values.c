@@ -1,5 +1,6 @@
 #include "diagnostics_values.h"
 
+#include "core/i18n.h"
 #include "core/string_builder.h"
 
 const char *diagnostics_tone_result_text(HalToneResult result)
@@ -359,13 +360,13 @@ void diagnostics_battery_text(HalBattery battery, char *text, size_t capacity)
 {
     StringBuilder builder = string_builder_make(text, capacity);
     if (!battery.known) {
-        string_builder_append(&builder, "No reading");
-        return;
-    }
-    string_builder_append_unsigned(&builder, battery.millivolts);
-    string_builder_append(&builder, " mV");
-    if (battery.usb_power) {
-        string_builder_append(&builder, battery.charging ? " charging" : " full");
+        string_builder_append(&builder, i18n_text(STR_ABOUT_NO_READING));
+    } else if (battery.usb_power) {
+        i18n_format_counts(&builder, battery.charging ? STR_ABOUT_CHARGING : STR_ABOUT_FULL,
+                           battery.millivolts, 0);
+    } else {
+        string_builder_append_unsigned(&builder, battery.millivolts);
+        string_builder_append(&builder, " mV");
     }
 }
 
@@ -463,7 +464,7 @@ void diagnostics_headset_text(HalHeadsetReading reading, char *text, size_t capa
 {
     StringBuilder builder = string_builder_make(text, capacity);
     if (!reading.known) {
-        string_builder_append(&builder, "Not read");
+        string_builder_append(&builder, i18n_text(STR_ABOUT_NOT_READ));
         return;
     }
     string_builder_append_unsigned(&builder, reading.level);

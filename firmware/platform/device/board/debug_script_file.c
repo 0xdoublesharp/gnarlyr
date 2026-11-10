@@ -4,6 +4,7 @@
 #include "app/app.h"
 #include "app/debug_loop.h"
 #include "board.h"
+#include "core/i18n.h"
 #include "core/seam.h"
 #include "debug_probe.h"
 #include "device/usb_forced.h"
@@ -78,7 +79,7 @@ CORE_SEAM void debug_restart_after_install(FatVolume *volume, const UsbShared *s
         return;
     }
     debug_report_write(shared, DEBUG_REPORT_RESTART);
-    app_show_notice("Update installed", "Restarting...");
+    app_show_notice(i18n_text(STR_UPDATE_INSTALLED), i18n_text(STR_UPDATE_RESTARTING));
     board_display_service();
     board_restart();
 }

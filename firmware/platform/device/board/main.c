@@ -2,6 +2,7 @@
 
 #include "app/app.h"
 #include "board.h"
+#include "core/i18n.h"
 #include "debug_probe.h"
 #include "device/battery_gauge.h"
 #include "device/usb_plug.h"
@@ -49,8 +50,9 @@ static const UsbOverlayEntry *load_usb_code(void)
         return entry;
     }
     usb_power_down();
-    app_show_notice("USB", hal_system_restart_pending() ? "Restart the player to finish the update"
-                                                        : "USB code missing: reinstall the update");
+    app_show_notice(
+        i18n_text(STR_USB),
+        i18n_text(hal_system_restart_pending() ? STR_RESTART_TO_FINISH : STR_USB_CODE_MISSING));
     board_wait_for_key();
     return NULL;
 }
@@ -164,6 +166,15 @@ static void switch_off_when_empty(uint32_t boot_millivolts)
     hal_power_off();
 }
 
+static void explain_missing_text(void)
+{
+    if (i18n_attached()) {
+        return;
+    }
+    app_show_notice(FIRMWARE_SHORT_NAME, "Text is missing: reinstall the update");
+    board_wait_for_key();
+}
+
 #ifdef ECHO_BOOT_TRACE
 enum {
     BOOT_TRACE_MS = 1500
@@ -225,6 +236,7 @@ void board_main(void)
     switch_off_when_empty(boot_millivolts);
     boot_step("app start");
     app_start();
+    explain_missing_text();
     boot_step("splash");
     app_show_splash();
     boot_step("main loop");

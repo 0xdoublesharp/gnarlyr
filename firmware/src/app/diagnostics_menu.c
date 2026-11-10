@@ -18,7 +18,7 @@ static ScreenAction toggle_frame_time(void *context)
 static const char *frame_time_value(const void *context)
 {
     const AppOptions *options = context;
-    return options->show_frame_time ? "On" : "Off";
+    return i18n_text(options->show_frame_time ? STR_ON : STR_OFF);
 }
 
 static ScreenAction toggle_power_taps(void *context)
@@ -31,7 +31,7 @@ static ScreenAction toggle_power_taps(void *context)
 static const char *power_taps_value(const void *context)
 {
     const AppOptions *options = context;
-    return options->ignore_power_taps ? "Ignored" : "Normal";
+    return i18n_text(options->ignore_power_taps ? STR_ABOUT_TAPS_IGNORED : STR_ABOUT_TAPS_NORMAL);
 }
 
 static char clock_text[DIAGNOSTICS_VALUE_CAPACITY];
@@ -86,10 +86,11 @@ static ScreenAction switch_profiler(void *context)
 
 static const char *profiler_value(const void *context)
 {
-    static const char *const STATES[] = {
-        [HAL_PROFILE_OFF] = "Off", [HAL_PROFILE_ON] = "On", [HAL_PROFILE_FULL] = "Full"};
+    static const StringId STATES[] = {[HAL_PROFILE_OFF] = STR_OFF,
+                                      [HAL_PROFILE_ON] = STR_ON,
+                                      [HAL_PROFILE_FULL] = STR_ABOUT_PROFILE_FULL};
     (void)context;
-    return STATES[hal_system_profile_state()];
+    return i18n_text(STATES[hal_system_profile_state()]);
 }
 
 static char usb_sense_text[DIAGNOSTICS_VALUE_CAPACITY];
@@ -118,7 +119,7 @@ static ScreenAction switch_usb_connect(void *context)
 static const char *usb_connect_value(const void *context)
 {
     (void)context;
-    return hal_system_usb_sense().connecting ? "Listening" : "Off";
+    return i18n_text(hal_system_usb_sense().connecting ? STR_ABOUT_LISTENING : STR_OFF);
 }
 
 typedef enum DiagnosticsContext {
@@ -130,7 +131,7 @@ typedef enum DiagnosticsContext {
 } DiagnosticsContext;
 
 typedef struct DiagnosticsRow {
-    const char *label;
+    StringId label;
     ScreenAction (*select)(void *context);
     const char *(*value)(const void *context);
     uint8_t context;
@@ -138,24 +139,24 @@ typedef struct DiagnosticsRow {
 } DiagnosticsRow;
 
 static const DiagnosticsRow ROWS[DIAGNOSTICS_ITEM_COUNT] = {
-    [0] = {"Frame time", toggle_frame_time, frame_time_value, CONTEXT_OPTIONS, false},
-    [1] = {"Firmware", NULL, diagnostics_row_firmware, CONTEXT_NONE, false},
-    [2] = {"CPU clock", cycle_clock, clock_value, CONTEXT_CLOCK, false},
-    [3] = {"Battery", NULL, diagnostics_row_battery, CONTEXT_NONE, false},
-    [4] = {"Bluetooth", bluetooth_screen_open_details, NULL, CONTEXT_BLUETOOTH, true},
-    [5] = {"Stall test", run_stall_test, NULL, CONTEXT_NONE, false},
-    [6] = {"Power taps", toggle_power_taps, power_taps_value, CONTEXT_OPTIONS, false},
-    [7] = {"Jack 3.5", NULL, diagnostics_row_jack_single_ended, CONTEXT_NONE, false},
-    [8] = {"Jack 4.4", NULL, diagnostics_row_jack_balanced, CONTEXT_NONE, false},
-    [9] = {"Watchdog test", run_watchdog_test, NULL, CONTEXT_NONE, false},
-    [10] = {"Music", NULL, diagnostics_row_music, CONTEXT_NONE, false},
-    [11] = {"Headset", NULL, diagnostics_row_headset, CONTEXT_NONE, false},
-    [12] = {"Core 0 busy", NULL, diagnostics_row_core0_busy, CONTEXT_NONE, false},
-    [13] = {"DAC A", NULL, diagnostics_row_dac_a, CONTEXT_NONE, false},
-    [14] = {"DAC B", NULL, diagnostics_row_dac_b, CONTEXT_NONE, false},
-    [15] = {"Profiler", switch_profiler, profiler_value, CONTEXT_NONE, false},
-    [16] = {"USB sense", switch_usb_sense, usb_sense_value, CONTEXT_NONE, false},
-    [17] = {"Connect USB", switch_usb_connect, usb_connect_value, CONTEXT_NONE, false},
+    [0] = {STR_ABOUT_FRAME_TIME, toggle_frame_time, frame_time_value, CONTEXT_OPTIONS, false},
+    [1] = {STR_ABOUT_FIRMWARE, NULL, diagnostics_row_firmware, CONTEXT_NONE, false},
+    [2] = {STR_ABOUT_CPU_CLOCK, cycle_clock, clock_value, CONTEXT_CLOCK, false},
+    [3] = {STR_ABOUT_BATTERY, NULL, diagnostics_row_battery, CONTEXT_NONE, false},
+    [4] = {STR_BLUETOOTH, bluetooth_screen_open_details, NULL, CONTEXT_BLUETOOTH, true},
+    [5] = {STR_ABOUT_STALL_TEST, run_stall_test, NULL, CONTEXT_NONE, false},
+    [6] = {STR_ABOUT_POWER_TAPS, toggle_power_taps, power_taps_value, CONTEXT_OPTIONS, false},
+    [7] = {STR_ABOUT_JACK_35, NULL, diagnostics_row_jack_single_ended, CONTEXT_NONE, false},
+    [8] = {STR_ABOUT_JACK_44, NULL, diagnostics_row_jack_balanced, CONTEXT_NONE, false},
+    [9] = {STR_ABOUT_WATCHDOG_TEST, run_watchdog_test, NULL, CONTEXT_NONE, false},
+    [10] = {STR_MUSIC, NULL, diagnostics_row_music, CONTEXT_NONE, false},
+    [11] = {STR_ABOUT_HEADSET, NULL, diagnostics_row_headset, CONTEXT_NONE, false},
+    [12] = {STR_ABOUT_CORE_BUSY, NULL, diagnostics_row_core0_busy, CONTEXT_NONE, false},
+    [13] = {STR_ABOUT_DAC_A, NULL, diagnostics_row_dac_a, CONTEXT_NONE, false},
+    [14] = {STR_ABOUT_DAC_B, NULL, diagnostics_row_dac_b, CONTEXT_NONE, false},
+    [15] = {STR_ABOUT_PROFILER, switch_profiler, profiler_value, CONTEXT_NONE, false},
+    [16] = {STR_ABOUT_USB_SENSE, switch_usb_sense, usb_sense_value, CONTEXT_NONE, false},
+    [17] = {STR_ABOUT_CONNECT_USB, switch_usb_connect, usb_connect_value, CONTEXT_NONE, false},
 };
 
 static void options_init(AppScreens *screens)
@@ -170,13 +171,11 @@ static void build_rows(AppScreens *screens, AppOptions *options)
                                      [CONTEXT_BLUETOOTH] = &screens->bluetooth};
     for (int index = 0; index < DIAGNOSTICS_ITEM_COUNT; index++) {
         const DiagnosticsRow *row = &ROWS[index];
-        if (row->label != NULL) {
-            screens->diagnostics_items[index] = (MenuItem){.label = row->label,
-                                                           .select = row->select,
-                                                           .context = contexts[row->context],
-                                                           .value = row->value,
-                                                           .opens = row->opens};
-        }
+        screens->diagnostics_items[index] = (MenuItem){.label = i18n_text(row->label),
+                                                       .select = row->select,
+                                                       .context = contexts[row->context],
+                                                       .value = row->value,
+                                                       .opens = row->opens};
     }
 }
 
@@ -184,6 +183,6 @@ void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Them
 {
     options_init(screens);
     build_rows(screens, options);
-    app_screens_build_menu(&screens->diagnostics, "About", screens->diagnostics_items,
+    app_screens_build_menu(&screens->diagnostics, STR_ABOUT, screens->diagnostics_items,
                            DIAGNOSTICS_ITEM_COUNT, theme);
 }
