@@ -1,6 +1,7 @@
 add_library(echo_core STATIC
     dac_identity.c
     deadline.c
+    debug_log.c
     format.c
     frame_pacer.c
     frame_stats.c

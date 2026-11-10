@@ -69,6 +69,7 @@ add_library(echo_device_logic STATIC
     core1_mp3.c
     core1_stream.c
     dac_sequence.c
+    debug_report.c
     flac_source.c
     dma_loop.c
     emmc_layout.c
@@ -99,6 +100,7 @@ add_library(echo_device_logic STATIC
     msc.c
     panel.c
     panic_text.c
+    pc_profile.c
     pll.c
     start_record.c
     sd_card.c
@@ -123,6 +125,7 @@ if(CMAKE_CROSSCOMPILING)
         core1_control.c
         core1_open.c
         dac_sequence.c
+        debug_report.c
         emmc_layout.c
         equalizer_design.c
         exfat_create.c
