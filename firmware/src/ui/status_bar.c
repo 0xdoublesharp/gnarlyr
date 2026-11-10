@@ -11,6 +11,7 @@ enum {
     NUB_DIVISOR = 5,
     BOLT_WIDTH_TENTHS = 6,
     BLUETOOTH_WIDTH_TENTHS = 7,
+    BADGE_GAP = 1,
     TENTHS = 10,
     FULL_PERCENT = 100
 };
@@ -56,11 +57,17 @@ Rect status_bar_lock_area(const Theme *theme)
                   bluetooth.width, bluetooth.height};
 }
 
+static IconId shuffle_badge(StatusShuffle shuffle)
+{
+    return shuffle == STATUS_SHUFFLE_ALBUMS ? ICON_ALBUM_SMALL : ICON_SONG_SMALL;
+}
+
 Rect status_bar_shuffle_area(const Theme *theme, StatusShuffle shuffle)
 {
     Rect lock = status_bar_lock_area(theme);
-    return (Rect){lock.x + lock.width + theme->metrics.padding / 2, lock.y,
-                  icon_shuffle_width(shuffle == STATUS_SHUFFLE_ALBUMS), lock.height};
+    int width = icon_width(shuffle_badge(shuffle), lock.height) + BADGE_GAP +
+                icon_width(ICON_SHUFFLE_SMALL, lock.height);
+    return (Rect){lock.x + lock.width + theme->metrics.padding / 2, lock.y, width, lock.height};
 }
 
 int status_bar_battery_fill_width(uint8_t percent, int inner_width)
@@ -143,31 +150,46 @@ static void draw_battery(Canvas *canvas, const Theme *theme, StatusBarState stat
     canvas_fill_rect(canvas, inner, fill_color(theme, state));
 }
 
+static void draw_icon(Canvas *canvas, IconId icon, Rect area, Color color)
+{
+    icon_draw(canvas, icon, area, (IconInk){color, color});
+}
+
+static void draw_shuffle(Canvas *canvas, const Theme *theme, StatusShuffle shuffle)
+{
+    Rect area = status_bar_shuffle_area(theme, shuffle);
+    Color color = theme->colors.header_text;
+    int arrows = icon_width(ICON_SHUFFLE_SMALL, area.height);
+    draw_icon(canvas, shuffle_badge(shuffle),
+              (Rect){area.x, area.y, area.width - BADGE_GAP - arrows, area.height}, color);
+    draw_icon(canvas, ICON_SHUFFLE_SMALL,
+              (Rect){area.x + area.width - arrows, area.y, arrows, area.height}, color);
+}
+
 void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state)
 {
     Rect icon = status_bar_playback_area(theme);
     Color color = theme->colors.header_text;
     if (state.playback == STATUS_PLAYBACK_PLAYING) {
-        icon_draw_play(canvas, icon, color);
+        draw_icon(canvas, ICON_PLAY, icon, color);
     } else if (state.playback == STATUS_PLAYBACK_PAUSED) {
-        icon_draw_pause(canvas, icon, color);
+        draw_icon(canvas, ICON_PAUSE, icon, color);
     }
     if (state.bluetooth != STATUS_BLUETOOTH_OFF) {
         Color tint =
             state.bluetooth == STATUS_BLUETOOTH_CONNECTED ? color : theme->colors.text_tertiary;
-        icon_draw_bluetooth(canvas, status_bar_bluetooth_area(theme), tint);
+        draw_icon(canvas, ICON_BLUETOOTH_SMALL, status_bar_bluetooth_area(theme), tint);
     }
     if (state.locked) {
-        icon_draw_lock(canvas, status_bar_lock_area(theme), color);
+        draw_icon(canvas, ICON_LOCK, status_bar_lock_area(theme), color);
     }
     if (state.shuffle != STATUS_SHUFFLE_OFF) {
-        icon_draw_shuffle(canvas, status_bar_shuffle_area(theme, state.shuffle), color,
-                          state.shuffle == STATUS_SHUFFLE_ALBUMS);
+        draw_shuffle(canvas, theme, state.shuffle);
     }
     if (state.battery_known) {
         draw_battery(canvas, theme, state);
         if (state.usb_power) {
-            icon_draw_bolt(canvas, status_bar_bolt_area(theme), theme->colors.success);
+            draw_icon(canvas, ICON_BOLT, status_bar_bolt_area(theme), theme->colors.success);
         }
         draw_percent(canvas, theme, state.battery_percent, state.usb_power);
     }
