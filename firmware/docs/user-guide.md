@@ -20,7 +20,7 @@ Gnarlyr 1.0.0 is not released. Developer firmware runs on the owner's full-size 
 
 ## Install
 
-The route that has worked on this project's player is a direct write through maskrom: [`device-install.md`](device-install.md).
+This project's player has used maskrom recovery and file-copy updates between developer builds, including the transition to the canonical Gnarlyr identity. Follow [`device-install.md`](device-install.md) for the route matching the installed firmware.
 
 Installing by copying a file under FiiO's firmware is not verified. FiiO's updater only reads files named `ECHOVnnn.IMG`, so `GNARLYR.IMG` would have to be renamed, and whether FiiO's 2.0.0 accepts it is not known.
 

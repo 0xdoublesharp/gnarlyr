@@ -4,7 +4,7 @@ This covers installing a build you made yourself; there is no released image. Be
 
 ## What has been done on a player
 
-An earlier build of this project, based on Podium 4.5.5, was installed on the owner's Echo (full size, 4 GB) from macOS with exactly the maskrom steps below, and FiiO's 2.0.0 was written back the same way ([`device-recovery.md`](device-recovery.md)). Gnarlyr itself has not been installed on any player yet.
+An earlier build of this project, based on Podium 4.5.5, was installed on the owner's Echo (full size, 4 GB) from macOS with exactly the maskrom steps below, and FiiO's 2.0.0 was written back the same way ([`device-recovery.md`](device-recovery.md)). Canonical Gnarlyr developer firmware has also been installed through the two-hop file-copy transition, with automatic restart/reconnect and live build confirmation. See [`known-issues.md`](known-issues.md) for the bounded device checks.
 
 ## Install through maskrom
 
@@ -80,7 +80,7 @@ FiiO's updater scans the top level of internal storage for `ECHOVnnn.IMG` files 
 
 ## Later updates: Gnarlyr's own updater
 
-File-copy updates have run on the owner's player with earlier developer identities. The canonical `GNARLYR` transition is covered by emulator checks and still needs its own device installation ([`known-issues.md`](known-issues.md)).
+File-copy updates have run on the owner's player with earlier developer identities. The canonical `GNARLYR` transition has completed on the owner's full-size ECHO after exact-image emulator checks ([`known-issues.md`](known-issues.md)).
 
 1. Connect the player. It shows "Computer found", and two drives appear: internal storage and the SD card.
 2. Copy the new image to the top level of internal storage and check it. On macOS: `cp -X firmware/build/release/GNARLYR.IMG /Volumes/<internal drive>/`, then `rm -f /Volumes/<internal drive>/._GNARLYR.IMG` and `shasum -a 256` on both copies.

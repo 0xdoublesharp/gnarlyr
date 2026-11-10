@@ -2,6 +2,8 @@
 
 The canonical identity is `GNARLYR`, with `GNARLYR.IMG`, `/.gnarlyr` and `#GNARLYR-START:`. All ordinary builds, the simulator and host tools read these values from `firmware/identity.json`.
 
+This procedure has completed on the owner's full-size ECHO, including both updater hops and the preserved canonical data copy. The private installation log records its exact images; [`known-issues.md`](known-issues.md) records what was checked on the player.
+
 ## Inputs and preparation
 
 Retain the installed build's image, matching ELF files and `identity.json`, along with the exact-model recovery route. The identity file supplies the previous update filename, image brand, data-folder name and playlist directive; do not infer them from the display name.
