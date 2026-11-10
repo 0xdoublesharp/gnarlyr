@@ -737,6 +737,192 @@ static void a_failed_destination_can_be_retried_without_losing_tracks(void)
     free(built.output.bytes);
 }
 
+static void check_album_metadata(const Opened *opened, uint16_t year, const char *genre)
+{
+    LibraryAlbum album;
+    LibraryGroup group;
+    char name[64];
+    CHECK(library_read_album(&opened->library, 0, &album));
+    CHECK_EQUAL(year, album.year);
+    CHECK(library_read_group(&opened->library, LIBRARY_GENRES, album.genre, &group));
+    CHECK(library_read_string(&opened->library, group.name, name, sizeof name));
+    CHECK_EQUAL(0, strcmp(genre, name));
+}
+
+static void the_most_frequent_genre_represents_a_mixed_album(void)
+{
+    const BuilderTrack tracks[] = {
+        track("A/B/01.flac", "One", "A", "A", "B", "Ambient", 2000, 1),
+        track("A/B/02.flac", "Two", "A", "A", "B", "Rock", 2000, 2),
+        track("A/B/03.flac", "Three", "A", "A", "B", "Rock", 2000, 3),
+    };
+    Opened opened;
+    build_tracks(tracks, 3, &opened);
+    check_album_metadata(&opened, 2000, "Rock");
+    free(opened.built.output.bytes);
+}
+
+static void a_genre_tie_uses_input_order_before_track_sorting(void)
+{
+    const BuilderTrack tracks[] = {
+        track("A/B/02.flac", "Zulu", "A", "A", "B", "Rock", 2000, 2),
+        track("A/B/01.flac", "Alpha", "A", "A", "B", "Ambient", 2000, 1),
+    };
+    Opened opened;
+    build_tracks(tracks, 2, &opened);
+    check_album_metadata(&opened, 2000, "Rock");
+    LibraryTrack first;
+    CHECK(library_read_track(&opened.library, 0, &first));
+    CHECK_EQUAL(1, first.number);
+    free(opened.built.output.bytes);
+}
+
+static void mixed_disc_years_ignore_missing_dates_and_keep_disc_order(void)
+{
+    BuilderTrack tracks[] = {
+        track("A/B/03.flac", "Three", "A", "A", "B", "Rock", 2003, 1),
+        track("A/B/02.flac", "Two", "A", "A", "B", "Rock", 0, 2),
+        track("A/B/01.flac", "One", "A", "A", "B", "Rock", 1998, 1),
+    };
+    tracks[0].disc = 2;
+    Opened opened;
+    build_tracks(tracks, 3, &opened);
+    check_album_metadata(&opened, 1998, "Rock");
+    for (uint32_t index = 0; index < 3; index++) {
+        LibraryTrack item;
+        CHECK(library_read_track(&opened.library, index, &item));
+        CHECK_EQUAL(index == 2 ? 2 : 1, item.disc);
+        CHECK_EQUAL(index == 1 ? 2 : 1, item.number);
+    }
+    free(opened.built.output.bytes);
+}
+
+static void compilation_groups_link_each_album_only_once(void)
+{
+    const BuilderTrack tracks[] = {
+        track("Mix/01.flac", "One", "Alpha", "Various", "Mix", "Rock", 2000, 1),
+        track("Mix/02.flac", "Two", "Beta", "Various", "Mix", "Jazz", 2000, 2),
+        track("Mix/03.flac", "Three", "Alpha", "Various", "Mix", "Rock", 2000, 3),
+        track("Mix/04.flac", "Four", "Beta", "Various", "Mix", "Jazz", 2000, 4),
+    };
+    Opened opened;
+    build_tracks(tracks, 4, &opened);
+    CHECK_EQUAL(1, library_count(&opened.library, LIBRARY_ALBUMS));
+    CHECK(album_is(&opened, 0, "Various", 4));
+    const LibrarySection sections[] = {LIBRARY_ARTISTS, LIBRARY_GENRES};
+    for (size_t section = 0; section < 2; section++) {
+        CHECK_EQUAL(2, library_count(&opened.library, sections[section]));
+        for (uint32_t index = 0; index < 2; index++) {
+            LibraryGroup group;
+            uint16_t album = LIBRARY_NONE;
+            CHECK(library_read_group(&opened.library, sections[section], index, &group));
+            CHECK_EQUAL(1, group.link_count);
+            CHECK(library_read_index(&opened.library, LIBRARY_LINKS, group.first_link, &album));
+            CHECK_EQUAL(0, album);
+        }
+    }
+    free(opened.built.output.bytes);
+}
+
+static void identical_music_and_audiobook_tags_keep_separate_albums(void)
+{
+    const BuilderTrack tracks[] = {
+        track("Audiobooks/Shared/01.flac", "One", "A", "A", "Shared", "G", 2000, 1),
+        track("Music/Shared/01.flac", "One", "A", "A", "Shared", "G", 2000, 1),
+    };
+    Opened opened;
+    build_tracks(tracks, 2, &opened);
+    CHECK_EQUAL(2, library_count(&opened.library, LIBRARY_ALBUMS));
+    CHECK_EQUAL(1, library_music_count(&opened.library, LIBRARY_ALBUMS));
+    CHECK_EQUAL(2, library_count(&opened.library, LIBRARY_TRACKS));
+    CHECK_EQUAL(1, library_music_count(&opened.library, LIBRARY_TRACKS));
+    free(opened.built.output.bytes);
+}
+
+static void empty_tags_remain_readable_strings(void)
+{
+    BuilderTrack item = track("Music/01.flac", "", "", "", "", "", 0, 0);
+    Opened opened;
+    build_tracks(&item, 1, &opened);
+    LibraryTrack result;
+    LibraryAlbum album;
+    char text[8] = "stale";
+    CHECK(library_read_track(&opened.library, 0, &result));
+    CHECK(library_read_string(&opened.library, result.title, text, sizeof text));
+    CHECK_EQUAL(0, strcmp("", text));
+    CHECK(library_read_album(&opened.library, result.album, &album));
+    CHECK(library_read_string(&opened.library, album.title, text, sizeof text));
+    CHECK_EQUAL(0, strcmp("", text));
+    check_album_metadata(&opened, 0, "");
+    free(opened.built.output.bytes);
+}
+
+static void a_large_mixed_album_keeps_votes_and_order_across_sort_runs(void)
+{
+    LibraryBuilder builder;
+    start(&builder);
+    for (uint32_t index = 0; index < 20000; index++) {
+        char path[64];
+        char title[32];
+        snprintf(path, sizeof path, "Music/Large/%05u.flac", index);
+        snprintf(title, sizeof title, "T%05u", index);
+        BuilderTrack item = track(path, title, "A", "A", "Large", index % 4 ? "Jazz" : "Rock",
+                                  (uint16_t)(1990 + index % 20), (uint8_t)(index % 17 + 1));
+        item.disc = (uint8_t)(index % 2 + 1);
+        CHECK_EQUAL(BUILDER_OK, library_builder_add_track(&builder, &item));
+    }
+    Opened opened;
+    finish(&builder, &opened.built);
+    CHECK_EQUAL(BUILDER_OK, opened.built.result);
+    opened.memory = (MemorySource){.bytes = opened.built.output.bytes, .size = opened.built.length};
+    CHECK_EQUAL(LIBRARY_OK,
+                library_open(&opened.library, memory_source(&opened.memory), opened.built.length));
+    CHECK_EQUAL(1, library_count(&opened.library, LIBRARY_ALBUMS));
+    CHECK_EQUAL(20000, library_count(&opened.library, LIBRARY_TRACKS));
+    check_album_metadata(&opened, 1990, "Jazz");
+    LibraryTrack previous = {0};
+    char previous_title[32] = "";
+    for (uint32_t index = 0; index < 20000; index++) {
+        LibraryTrack item;
+        char title[32];
+        CHECK(library_read_track(&opened.library, index, &item));
+        CHECK(library_read_string(&opened.library, item.title, title, sizeof title));
+        if (index != 0) {
+            CHECK(previous.disc < item.disc ||
+                  (previous.disc == item.disc &&
+                   (previous.number < item.number ||
+                    (previous.number == item.number && strcmp(previous_title, title) < 0))));
+        }
+        previous = item;
+        memcpy(previous_title, title, sizeof title);
+    }
+    free(opened.built.output.bytes);
+}
+
+static void check_preparation_checkpoints(bool read)
+{
+    LibraryBuilder builder;
+    Scratch *scratch = start(&builder);
+    add_fixture_tracks(&builder);
+    int before = read ? scratch->reads : scratch->writes;
+    CHECK_EQUAL(BUILDER_OK, library_builder_prepare(&builder));
+    int operations = (read ? scratch->reads : scratch->writes) - before;
+    CHECK(operations >= 4);
+    for (int part = 0; part < 4; part++) {
+        check_preparation_fault(read, 1 + (operations - 1) * part / 3);
+    }
+}
+
+static void scratch_reads_fail_safely_through_the_whole_preparation(void)
+{
+    check_preparation_checkpoints(true);
+}
+
+static void scratch_writes_fail_safely_through_the_whole_preparation(void)
+{
+    check_preparation_checkpoints(false);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -761,6 +947,15 @@ int main(void)
         TEST_CASE(a_scratch_read_failure_after_preparation_is_an_io_error),
         TEST_CASE(every_destination_failure_leaves_the_database_unpublished),
         TEST_CASE(a_failed_destination_can_be_retried_without_losing_tracks),
+        TEST_CASE(the_most_frequent_genre_represents_a_mixed_album),
+        TEST_CASE(a_genre_tie_uses_input_order_before_track_sorting),
+        TEST_CASE(mixed_disc_years_ignore_missing_dates_and_keep_disc_order),
+        TEST_CASE(compilation_groups_link_each_album_only_once),
+        TEST_CASE(identical_music_and_audiobook_tags_keep_separate_albums),
+        TEST_CASE(empty_tags_remain_readable_strings),
+        TEST_CASE(a_large_mixed_album_keeps_votes_and_order_across_sort_runs),
+        TEST_CASE(scratch_reads_fail_safely_through_the_whole_preparation),
+        TEST_CASE(scratch_writes_fail_safely_through_the_whole_preparation),
     };
     int result = test_run_all(cases, TEST_CASE_COUNT(cases));
     free(scratch_of_size(1)->bytes);
