@@ -29,7 +29,7 @@ SpokenKind spoken_kind_of_name(const char *name, size_t length)
     return SPOKEN_NONE;
 }
 
-SpokenKind spoken_kind_of(const char *path)
+SpokenKind spoken_kind_of_folder(const char *path)
 {
     while (*path == '/') {
         path++;
@@ -39,4 +39,18 @@ SpokenKind spoken_kind_of(const char *path)
         length++;
     }
     return path[length] == '/' ? spoken_kind_of_name(path, length) : SPOKEN_NONE;
+}
+
+SpokenKind spoken_kind_of(const char *path)
+{
+    SpokenKind folder = spoken_kind_of_folder(path);
+    if (folder != SPOKEN_NONE) {
+        return folder;
+    }
+    size_t length = 0;
+    while (path[length] != '\0') {
+        length++;
+    }
+    return length >= 4 && name_matches(path + length - 4, 4, ".m4b") ? SPOKEN_AUDIOBOOK
+                                                                     : SPOKEN_NONE;
 }

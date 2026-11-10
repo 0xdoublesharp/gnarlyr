@@ -43,7 +43,7 @@ Music → Search finds songs across their metadata and paths. View options combi
 
 ## Audiobook chapters
 
-A chaptered `.m4b` appears as a book folder containing its chapter titles and lengths. The player scan and desktop echo-sync both preserve these chapters. Author and title folders stay in their original hierarchy. Select a book's chapter folder to continue listening, or hold Play to choose a chapter; this works inside nested folders too. Selecting a chapter starts at its position in the book; the final chapter continues to the file's end. Books without usable chapter information remain playable as one track. Rescan or run echo-sync again after changing chapter information.
+M4B files appear on Audiobooks wherever you keep them. Named `Audiobooks` and `Audiobook` folders share the shelf and retain their folder hierarchy; M4B books in other folders appear directly. Whole-file books remember their own position and play as one book. A chaptered `.m4b` appears as a book folder containing its chapter titles and lengths. The player scan and desktop echo-sync both preserve these chapters. Author and title folders stay in their original hierarchy. Select a book's chapter folder to continue listening, or hold Play to choose a chapter; this works inside nested folders too. Selecting a chapter starts at its position in the book; the final chapter continues to the file's end. Books without usable chapter information remain playable as one track. Rescan or run echo-sync again after changing chapter information or to apply this recognition to an existing library.
 
 ## CUE sheets
 

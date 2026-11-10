@@ -210,6 +210,15 @@ class SpokenWordTest(unittest.TestCase):
         self.assertEqual(0, library_index.spoken_of(spoken_test_track("Podcasts.mp3", "", "",
                                                                       "")))
 
+    def test_m4b_files_are_spoken_outside_the_named_folders(self):
+        tracks = [spoken_test_track(path, "Book", "Reader", "Book") for path in
+                  ("Book.m4b", "Downloads/Writer/Book.M4B", "Music/Album/Book.m4a",
+                   "Downloads/Book.m4b.mp3")]
+        self.assertEqual([1, 1, 0, 0], [library_index.spoken_of(track) for track in tracks])
+        model = library_index.build_library(tracks)
+        self.assertEqual(2, model.music_tracks)
+        self.assertEqual(4, len(model.tracks))
+
     def test_spoken_word_sorts_after_the_music(self):
         self.assertEqual(["Song", "Chapter", "Episode"],
                          [track.title for track in self.library.tracks])

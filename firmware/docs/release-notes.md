@@ -28,6 +28,7 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 - Standard speech rates from 8 to 24 kHz are converted to 44.1 or 48 kHz with a fixed-point interpolation filter; 32 kHz uses native output. Seeking and chapter positions stay on the recording clock, with no extra output frames.
 
+- M4B files at any depth appear on Audiobooks and stay out of Music lists. Named roots merge on the shelf; external chaptered files appear once. Whole-file books retain independent positions and play as one book.
 - Audiobook folder selection resumes the saved chapter and position at every folder depth, including author/title layouts and books made of separate files. Hold Play still opens chapters; selecting a paused loaded book continues its stream.
 
 - Desktop indexing and echo-sync preserve `.m4b` chapter tracks and book folders from Nero and QuickTime chapter metadata, matching the player scanner. Malformed chapter boxes retain valid text-track or whole-book fallbacks.

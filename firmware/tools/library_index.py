@@ -382,7 +382,8 @@ def resolve_playlists(raw_playlists, tracks):
 
 def spoken_of(track):
     parts = track.path.lstrip("/").split("/")
-    return int(len(parts) > 1 and parts[0].encode("utf-8").lower() in SPOKEN_FOLDERS)
+    return int((len(parts) > 1 and parts[0].encode("utf-8").lower() in SPOKEN_FOLDERS)
+               or track.path.lower().endswith(".m4b"))
 
 
 class NameIndex:

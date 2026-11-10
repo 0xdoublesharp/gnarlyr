@@ -13,6 +13,7 @@ add_library(echo_playback STATIC
     resume_state.c
     session_journal.c
     spoken.c
+    spoken_shelf.c
     store.c
     track_order.c
     up_next.c

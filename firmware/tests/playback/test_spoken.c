@@ -1,5 +1,6 @@
 #include "check.h"
 #include "playback/spoken.h"
+#include "playback/spoken_shelf.h"
 #include "spoken_library.h"
 
 static SpokenLibrary spoken;
@@ -10,6 +11,24 @@ static void folders_named_audiobooks_or_podcasts_hold_spoken_word(void)
     CHECK_EQUAL(SPOKEN_AUDIOBOOK, spoken_kind_of("AUDIOBOOK/Book.m4a"));
     CHECK_EQUAL(SPOKEN_PODCAST, spoken_kind_of("/podcasts/Show/Episode.mp3"));
     CHECK_EQUAL(SPOKEN_PODCAST, spoken_kind_of("Podcast/Episode.mp3"));
+}
+
+static void m4b_files_are_books_at_every_folder_depth(void)
+{
+    CHECK_EQUAL(SPOKEN_AUDIOBOOK, spoken_kind_of("Book.m4b"));
+    CHECK_EQUAL(SPOKEN_AUDIOBOOK, spoken_kind_of("/Downloads/Writer/Book.M4B"));
+    CHECK_EQUAL(SPOKEN_PODCAST, spoken_kind_of("Podcasts/Show/Episode.m4b"));
+    CHECK_EQUAL(SPOKEN_NONE, spoken_kind_of("/Downloads/Book.m4a"));
+    CHECK_EQUAL(SPOKEN_NONE, spoken_kind_of("/Downloads/Book.m4b.mp3"));
+    CHECK_EQUAL(SPOKEN_NONE, spoken_kind_of("/Downloads.m4b/Song.mp3"));
+}
+
+static void independent_m4b_files_keep_independent_bookmarks(void)
+{
+    CHECK_EQUAL(spoken_track_key("Downloads/Book One.m4b"),
+                spoken_bookmark_key("Downloads/Book One.m4b"));
+    CHECK(spoken_bookmark_key("Downloads/Writer/One.m4b") !=
+          spoken_bookmark_key("Downloads/Writer/Two.m4b"));
 }
 
 static void other_paths_are_music(void)
@@ -147,11 +166,51 @@ static void a_folder_holds_exactly_its_own_tracks(void)
     CHECK(!spoken_folder_holds(library, record.folder, chapter_two));
 }
 
+static void external_books_can_be_paged_backwards_without_duplicates(void)
+{
+    SpokenLibrary external;
+    Library *library = spoken_library_open_external(&external);
+    SpokenShelf shelf;
+    spoken_shelf_init(&shelf, SPOKEN_AUDIOBOOK, NULL, NULL);
+    CHECK_EQUAL(3, spoken_shelf_count(library, &shelf));
+    BrowseItem first;
+    BrowseItem last;
+    BrowseItem again;
+    CHECK(spoken_shelf_item(library, &shelf, 0, &first));
+    CHECK(spoken_shelf_item(library, &shelf, 2, &last));
+    CHECK(!spoken_shelf_item(library, &shelf, 3, &again));
+    CHECK(spoken_shelf_item(library, &shelf, 0, &again));
+    CHECK_EQUAL(first.kind, again.kind);
+    CHECK_EQUAL(first.index, again.index);
+    CHECK(first.kind != last.kind || first.index != last.index);
+    spoken_shelf_init(&shelf, SPOKEN_NONE, NULL, NULL);
+    CHECK_EQUAL(0, spoken_shelf_count(library, &shelf));
+    CHECK(!spoken_shelf_item(library, &shelf, 0, &again));
+    spoken_library_close(&external);
+}
+
+static void the_audiobook_shelf_exists_without_a_physical_named_folder(void)
+{
+    SpokenLibrary external;
+    Library *library = spoken_library_open_without_shelf(&external);
+    uint16_t folder = 0;
+    CHECK(!spoken_shelf_folder(library, SPOKEN_AUDIOBOOK, &folder));
+    CHECK(spoken_shelf_present(library, SPOKEN_AUDIOBOOK));
+    SpokenShelf shelf;
+    spoken_shelf_init(&shelf, SPOKEN_AUDIOBOOK, NULL, NULL);
+    CHECK_EQUAL(2, spoken_shelf_count(library, &shelf));
+    spoken_shelf_init(&shelf, SPOKEN_PODCAST, NULL, NULL);
+    CHECK_EQUAL(1, spoken_shelf_count(library, &shelf));
+    spoken_library_close(&external);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(folders_named_audiobooks_or_podcasts_hold_spoken_word),
         TEST_CASE(other_paths_are_music),
+        TEST_CASE(m4b_files_are_books_at_every_folder_depth),
+        TEST_CASE(independent_m4b_files_keep_independent_bookmarks),
         TEST_CASE(chapters_of_one_book_share_a_bookmark),
         TEST_CASE(loose_books_and_episodes_have_their_own_bookmark),
         TEST_CASE(the_end_of_a_track_is_its_last_tenth_up_to_30_seconds),
@@ -162,6 +221,8 @@ int main(void)
         TEST_CASE(a_part_of_a_file_is_bookmarked_under_the_file_path),
         TEST_CASE(a_chaptered_book_folder_key_is_its_file_path),
         TEST_CASE(a_folder_holds_exactly_its_own_tracks),
+        TEST_CASE(external_books_can_be_paged_backwards_without_duplicates),
+        TEST_CASE(the_audiobook_shelf_exists_without_a_physical_named_folder),
     };
     int result = test_run_all(cases, TEST_CASE_COUNT(cases));
     spoken_library_close(&spoken);

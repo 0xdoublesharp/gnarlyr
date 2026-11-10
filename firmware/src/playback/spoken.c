@@ -71,7 +71,7 @@ static bool is_part(const LibraryTrack *track)
 uint32_t spoken_bookmark_key(const char *path)
 {
     const char *start = relative(path);
-    if (spoken_kind_of(start) != SPOKEN_AUDIOBOOK || slash_count(start) < 2) {
+    if (spoken_kind_of_folder(start) != SPOKEN_AUDIOBOOK || slash_count(start) < 2) {
         return spoken_track_key(start);
     }
     return hash_update(HASH_START, start, last_slash(start));

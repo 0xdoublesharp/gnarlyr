@@ -33,6 +33,7 @@ static LibrarySection group_section_of(BrowseKind kind)
     case BROWSE_ALBUM_TRACKS:
     case BROWSE_FOLDER:
     case BROWSE_FOLDER_TREE:
+    case BROWSE_SINGLE_TRACK:
         return LIBRARY_ARTISTS;
     }
     return LIBRARY_ARTISTS;
@@ -208,6 +209,8 @@ uint32_t browse_count(const Library *library, BrowseQuery query)
         return folder_item_count(library, query.subject);
     case BROWSE_FOLDER_TREE:
         return tree_count(library, query.subject);
+    case BROWSE_SINGLE_TRACK:
+        return query.subject < library_count(library, LIBRARY_TRACKS) ? 1 : 0;
     case BROWSE_PLAYLISTS:
         return library_count(library, LIBRARY_PLAYLISTS);
     }
@@ -311,6 +314,12 @@ bool browse_item(const Library *library, BrowseQuery query, uint32_t position, B
         return folder_item(library, query.subject, position, item);
     case BROWSE_FOLDER_TREE:
         return tree_item(library, query.subject, position, item);
+    case BROWSE_SINGLE_TRACK:
+        if (position != 0 || query.subject >= library_count(library, LIBRARY_TRACKS)) {
+            return false;
+        }
+        *item = make_item(BROWSE_ITEM_TRACK, LIBRARY_ARTISTS, query.subject);
+        return true;
     }
     return false;
 }
@@ -463,6 +472,7 @@ static bool subject_title(const Library *library, BrowseQuery query, char *buffe
     LibraryGroup group;
     LibraryAlbum album;
     LibraryFolder folder;
+    LibraryTrack track;
     switch (query.kind) {
     case BROWSE_GROUP_ALBUMS:
     case BROWSE_PLAYLIST_TRACKS:
@@ -471,6 +481,9 @@ static bool subject_title(const Library *library, BrowseQuery query, char *buffe
     case BROWSE_ALBUM_TRACKS:
         return library_read_album(library, query.subject, &album) &&
                library_read_string(library, album.title, buffer, capacity);
+    case BROWSE_SINGLE_TRACK:
+        return library_read_track(library, query.subject, &track) &&
+               library_read_string(library, track.title, buffer, capacity);
     case BROWSE_FOLDER:
         return library_read_folder(library, query.subject, &folder) &&
                library_read_string(library, folder.name, buffer, capacity);
@@ -510,6 +523,7 @@ bool browse_title(const Library *library, BrowseQuery query, char *buffer, size_
     case BROWSE_ALBUM_TRACKS:
     case BROWSE_PLAYLIST_TRACKS:
     case BROWSE_FOLDER_TREE:
+    case BROWSE_SINGLE_TRACK:
         return subject_title(library, query, buffer, capacity);
     }
     return false;

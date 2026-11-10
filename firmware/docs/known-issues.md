@@ -63,7 +63,7 @@ The canonical `GNARLYR` identity has not been installed on the owner's player. T
 
 - Chapters are checked in tests on synthetic files and one ffmpeg-made `.m4b`, not with Libation or Audible files. Gapless continuation from one chapter into the next is checked as one decoder stream, not by ear.
 - **Only `.m4b` files are split.** Chapters in `.m4a` and other files are ignored.
-- **Shelves follow the folder hierarchy.** Author and title wrapper folders remain visible. Selecting a folder containing book chapters resumes that book at any depth; holding ▶ opens the chapters. Separate chapter files and chaptered `.m4b` files use the same action. Native button journeys cover nested paths; this flow still needs a check on the player.
+- **M4B books appear on Audiobooks wherever they are stored.** Named audiobook roots keep their author/title hierarchy; books elsewhere appear directly on the shelf. Chaptered files appear once and whole-file books retain independent bookmarks. Rescan or rerun echo-sync to update an existing library. Selecting a folder containing book chapters resumes that book at any depth; holding ▶ opens the chapters. Separate chapter files and chaptered `.m4b` files use the same action. Native button journeys cover nested paths; this flow still needs a check on the player.
 - **A chaptered book remembers one place.** Choosing another chapter moves the bookmark to it.
 - **At most 255 chapters** are read; a longer chapter list ends with the 255th chapter running to the file's end. UTF-16 chapter titles of a text track show as "Chapter n". The desktop indexer now preserves the same chapter layout as the device scanner; the synthetic and ffmpeg-derived fixture libraries match in native comparisons.
 - **Titles are cut at 63 bytes.**
@@ -95,7 +95,7 @@ The canonical `GNARLYR` identity has not been installed on the owner's player. T
 - **Library size:** the library file is 4 MB and the format holds 65,535 tracks. The builder is tested on a computer with 20,000 tracks. A larger library may stop with an error when the file is full. Podium's documentation reports 6,558 tracks and over 1,600 albums on a player.
 - **Album art:** the covers file has room for 2,673 albums. Past that, the remaining albums show without art.
 - **Cover Flow** orders albums by album artist, then year, not by album title like the Albums list.
-- **Spoken word is decided by the top folder.** Only tracks inside an `Audiobooks`, `Audiobook`, `Podcasts` or `Podcast` folder at the top of the card count as audiobooks or podcasts; the same folder names deeper down are music. An author with music too appears under Artists with the music only.
+- **Spoken-word classification:** top-level `Audiobooks`, `Audiobook`, `Podcasts` and `Podcast` folders classify their contents; `.m4b` files elsewhere are audiobooks too. Other files under similarly named nested folders remain music. An author with music too appears under Artists with the music only. Genre tags alone do not classify a file as spoken word. Music search covers the music partition; shelf-wide spoken-word search is not yet available.
 
 ## echo-sync
 

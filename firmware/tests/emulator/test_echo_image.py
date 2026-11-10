@@ -1637,6 +1637,68 @@ class EchoImageTest(unittest.TestCase):
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                    module_elfs=self.module_elfs)
 
+    def test_m4b_files_outside_named_folders_are_on_the_audiobook_shelf(self):
+        from echo_emulator.playback import Rig
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.fat_reader import FatReader
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_R0, UC_ARM_REG_R2, UC_ARM_REG_R3
+        volume = Fat32Volume()
+        volume.add_directory("Downloads")
+        volume.add_directory("Writer", directory="Downloads")
+        volume.add_directory("Other")
+        fixtures = PROJECT / "tests/fixtures/m4b_music/Audiobooks"
+        volume.add_file("Chapters.m4b", (fixtures / "Chpl Book.m4b").read_bytes(),
+                        directory="Downloads/Writer")
+        volume.add_file("Whole.m4b", (fixtures / "Plain Book.m4b").read_bytes(), directory="Other")
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        machine = rig.machine
+        counts, items = [], []
+
+        def count_entry():
+            machine.add_address_hook(machine.reg(UC_ARM_REG_LR) & ~1,
+                                     lambda: counts.append(machine.reg(UC_ARM_REG_R0)))
+
+        def item_entry():
+            position, address = machine.reg(UC_ARM_REG_R2), machine.reg(UC_ARM_REG_R3)
+
+            pending = [True]
+
+            def returned():
+                if pending[0] and machine.reg(UC_ARM_REG_R0):
+                    kind, _, index = struct.unpack("<BBH", machine.read_memory(address, 4))
+                    items.append((position, kind, index))
+                pending[0] = False
+            machine.add_address_hook(machine.reg(UC_ARM_REG_LR) & ~1, returned)
+
+        machine.hook_symbol("spoken_shelf_count", count_entry)
+        machine.hook_symbol("spoken_shelf_item", item_entry)
+        rig.press("next")
+        rig.press("play")
+        self.assertEqual([2], counts)
+        unique = {position: (kind, index) for position, kind, index in items}
+        self.assertEqual({0, 1}, set(unique))
+        reader = FatReader(rig.session.disk, rig.session.layout["volume_start"])
+        database = reader.read(f"/{IDENTITY.data_directory}/library.db")
+        sections = [struct.unpack_from("<IIHH", database, 8 + 12 * index) for index in range(10)]
+        strings = sections[9][0]
+
+        def text(offset):
+            begin = strings + offset
+            return database[begin:database.index(b"\x00", begin)].decode("utf-8")
+
+        labels = set()
+        for kind, index in unique.values():
+            if kind == 3:
+                offset = struct.unpack_from("<I", database, sections[5][0] + 16 * index)[0]
+            else:
+                self.assertEqual(2, kind)
+                offset = struct.unpack_from("<I", database, sections[0][0] + 32 * index + 4)[0]
+            labels.add(text(offset))
+        self.assertEqual({"Chapters", "Other/Whole.m4b"}, labels)
+        self.assertEqual(0, sections[0][3])
+        self.assert_healthy(rig.session)
+
     def speech_rig(self, rate=8000):
         from echo_emulator.playback import Rig
         from echo_emulator.fat_volume import Fat32Volume

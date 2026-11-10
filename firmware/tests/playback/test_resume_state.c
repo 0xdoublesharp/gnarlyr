@@ -63,6 +63,20 @@ static void a_state_survives_a_round_trip(void)
     CHECK(!decoded.from_up_next);
 }
 
+static void a_single_book_source_keeps_its_track_and_resume_position(void)
+{
+    ResumeState original = sample_state();
+    original.plan.source = browse_root_query(BROWSE_SINGLE_TRACK);
+    original.plan.source.subject = original.track;
+    uint8_t bytes[RESUME_STATE_SIZE];
+    ResumeState decoded;
+    resume_state_encode(&original, bytes);
+    CHECK(resume_state_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(BROWSE_SINGLE_TRACK, decoded.plan.source.kind);
+    CHECK_EQUAL(original.track, decoded.plan.source.subject);
+    CHECK_EQUAL(original.position_ms, decoded.position_ms);
+}
+
 static void a_song_from_up_next_is_remembered(void)
 {
     ResumeState original = sample_state();
@@ -129,9 +143,13 @@ static void playlist_sources_are_accepted(void)
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(a_state_survives_a_round_trip),       TEST_CASE(a_wrong_magic_is_rejected),
-        TEST_CASE(a_corrupted_byte_fails_the_checksum), TEST_CASE(a_short_file_is_rejected),
-        TEST_CASE(unknown_modes_are_rejected),          TEST_CASE(playlist_sources_are_accepted),
+        TEST_CASE(a_state_survives_a_round_trip),
+        TEST_CASE(a_single_book_source_keeps_its_track_and_resume_position),
+        TEST_CASE(a_wrong_magic_is_rejected),
+        TEST_CASE(a_corrupted_byte_fails_the_checksum),
+        TEST_CASE(a_short_file_is_rejected),
+        TEST_CASE(unknown_modes_are_rejected),
+        TEST_CASE(playlist_sources_are_accepted),
         TEST_CASE(a_song_from_up_next_is_remembered),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

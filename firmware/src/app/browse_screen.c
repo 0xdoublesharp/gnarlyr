@@ -83,6 +83,10 @@ static uint32_t source_position(const BrowseScreen *browse, int index)
 
 static bool item_at(const BrowseScreen *browse, int index, BrowseItem *item)
 {
+    if (browse->shelf_root) {
+        return spoken_shelf_item(browse->pool->config.library, &browse->pool->shelf_cursor,
+                                 (uint32_t)index, item);
+    }
     return browse_item(browse->pool->config.library, browse->query, source_position(browse, index),
                        item);
 }
@@ -203,6 +207,7 @@ static bool is_lettered(BrowseKind kind)
     case BROWSE_ALBUM_TRACKS:
     case BROWSE_FOLDER:
     case BROWSE_FOLDER_TREE:
+    case BROWSE_SINGLE_TRACK:
     case BROWSE_PLAYLIST_TRACKS:
         break;
     }
@@ -249,7 +254,20 @@ static ScreenAction start_list(BrowseScreen *browse, BrowseQuery source, uint32_
 static ScreenAction play_from(BrowseScreen *browse, int index)
 {
     if (is_loaded_track(browse, index)) {
+        if (browse->shelf_root &&
+            player_status(browse->pool->config.player).state == PLAYER_PAUSED) {
+            player_toggle_pause(browse->pool->config.player);
+        }
         return screen_action_push(browse->pool->config.now_playing);
+    }
+    if (browse->shelf_root) {
+        BrowseItem item;
+        if (!item_at(browse, index, &item)) {
+            return screen_action_none();
+        }
+        BrowseQuery source = browse_root_query(BROWSE_SINGLE_TRACK);
+        source.subject = item.index;
+        return start_list(browse, source, 0);
     }
     return start_list(browse, browse->query, (uint32_t)index);
 }
@@ -656,6 +674,7 @@ Screen *browse_pool_open_shelf(BrowsePool *pool, int level, SpokenKind shelf)
                           i18n_text(shelf == SPOKEN_PODCAST ? STR_PODCASTS : STR_AUDIOBOOKS));
     browse->shelf = shelf;
     browse->shelf_root = true;
-    browse->count = found ? browse->count : 0;
+    spoken_shelf_init(&pool->shelf_cursor, shelf, keep_audio_fed, NULL);
+    browse->count = spoken_shelf_count(pool->config.library, &pool->shelf_cursor);
     return screen;
 }

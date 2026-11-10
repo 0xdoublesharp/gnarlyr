@@ -9,4 +9,5 @@ typedef enum SpokenKind {
 } SpokenKind;
 
 SpokenKind spoken_kind_of(const char *path);
+SpokenKind spoken_kind_of_folder(const char *path);
 SpokenKind spoken_kind_of_name(const char *name, size_t length);

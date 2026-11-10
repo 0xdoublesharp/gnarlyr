@@ -214,15 +214,13 @@ static bool shelf_present(const void *context)
 
 static MenuItem shelf_item(AppScreens *screens, AppScreensContext context, SpokenKind shelf)
 {
-    uint16_t folder = 0;
     BrowseEntry *entry = &screens->shelf_entries[shelf == SPOKEN_PODCAST ? 1 : 0];
     *entry = (BrowseEntry){
         .pool = &screens->browse,
         .store = context.store,
         .unavailable = &screens->no_library.screen,
         .shelf = shelf,
-        .present = context.store->available &&
-                   spoken_shelf_folder(&context.store->library, shelf, &folder),
+        .present = context.store->available && spoken_shelf_present(&context.store->library, shelf),
     };
     return (MenuItem){.label = i18n_text(shelf == SPOKEN_PODCAST ? STR_PODCASTS : STR_AUDIOBOOKS),
                       .select = open_browse,

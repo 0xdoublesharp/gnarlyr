@@ -467,6 +467,10 @@ if(ECHO_BUILD_SIM)
     target_compile_definitions(test_library_scan PRIVATE
         ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
     )
+    add_test(NAME audiobook_indexers_agree
+        COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_audiobook_index.py
+            --scanner $<TARGET_FILE:test_library_scan>
+    )
     add_executable(cover_build_tool library/cover_build_tool.c)
     target_link_libraries(cover_build_tool PRIVATE echo_library_scan echo_sim_storage
         echo_options)

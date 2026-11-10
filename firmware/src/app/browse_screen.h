@@ -5,6 +5,7 @@
 #include "favorites_store.h"
 #include "library/favorites.h"
 #include "library/library_browse.h"
+#include "playback/spoken_shelf.h"
 #include "player.h"
 #include "spoken_store.h"
 #include "ui/list_view.h"
@@ -77,6 +78,7 @@ struct BrowsePool {
     BrowsePoolConfig config;
     BrowseRows rows[BROWSE_ROW_CACHES];
     uint32_t row_uses;
+    SpokenShelf shelf_cursor;
     BrowseScreen screens[BROWSE_DEPTH];
     uint16_t favorite_albums[FAVORITES_CAPACITY];
     uint16_t favorite_count;

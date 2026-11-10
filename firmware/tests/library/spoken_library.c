@@ -105,16 +105,25 @@ static const char *nested_path(const char *path)
     return path;
 }
 
-static void add_tracks(LibraryBuilder *builder, bool nested)
+static void add_tracks(LibraryBuilder *builder, int layout)
 {
     for (size_t index = 0; index < sizeof TRACKS / sizeof TRACKS[0]; index++) {
         BuilderTrack track = TRACKS[index];
-        track.path = nested ? nested_path(track.path) : track.path;
+        track.path = layout == 1 ? nested_path(track.path) : track.path;
+        if (layout >= 2 && track.path == SPOKEN_PARTS_PATH) {
+            track.path = "Downloads/Writer/Zebra Tale.m4b";
+        }
+        if (layout >= 2 && track.path == SPOKEN_SINGLE_BOOK_PATH) {
+            track.path = "Other/Writer/Single Book.m4b";
+        }
+        if (layout == 3 && strncmp(track.path, "Audiobooks/", 11) == 0) {
+            track.path += 11;
+        }
         check_step(library_builder_add_track(builder, &track), track.path);
     }
 }
 
-static Library *open_library(SpokenLibrary *spoken, bool nested)
+static Library *open_library(SpokenLibrary *spoken, int layout)
 {
     uint8_t *memory = malloc(BUILDER_MEMORY);
     Buffer scratch = {.bytes = malloc(SCRATCH_SIZE), .size = SCRATCH_SIZE, .length = 0};
@@ -125,7 +134,7 @@ static Library *open_library(SpokenLibrary *spoken, bool nested)
     LibraryBuilder builder;
     library_builder_init(&builder, memory, BUILDER_MEMORY,
                          (BuilderScratch){buffer_read, buffer_write, &scratch, SCRATCH_SIZE});
-    add_tracks(&builder, nested);
+    add_tracks(&builder, layout);
     uint32_t length = 0;
     check_step(library_builder_prepare(&builder), "prepare");
     check_step(library_builder_finish(&builder, (ByteSink){buffer_write, &output}, 0, &length),
@@ -144,12 +153,22 @@ static Library *open_library(SpokenLibrary *spoken, bool nested)
 
 Library *spoken_library_open(SpokenLibrary *spoken)
 {
-    return open_library(spoken, false);
+    return open_library(spoken, 0);
 }
 
 Library *spoken_library_open_nested(SpokenLibrary *spoken)
 {
-    return open_library(spoken, true);
+    return open_library(spoken, 1);
+}
+
+Library *spoken_library_open_external(SpokenLibrary *spoken)
+{
+    return open_library(spoken, 2);
+}
+
+Library *spoken_library_open_without_shelf(SpokenLibrary *spoken)
+{
+    return open_library(spoken, 3);
 }
 
 void spoken_library_close(SpokenLibrary *spoken)

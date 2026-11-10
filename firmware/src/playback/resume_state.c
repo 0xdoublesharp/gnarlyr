@@ -103,7 +103,8 @@ static bool group_valid(uint8_t group)
 static bool modes_valid(const uint8_t *bytes)
 {
     return bytes[SHUFFLE_FIELD] < SHUFFLE_MODE_COUNT && bytes[REPEAT_FIELD] < REPEAT_MODE_COUNT &&
-           bytes[SOURCE_KIND_FIELD] <= BROWSE_FOLDER_TREE && group_valid(bytes[SOURCE_GROUP_FIELD]);
+           bytes[SOURCE_KIND_FIELD] <= BROWSE_SINGLE_TRACK &&
+           group_valid(bytes[SOURCE_GROUP_FIELD]);
 }
 
 static PlayQueuePlan decode_plan(const uint8_t *bytes)

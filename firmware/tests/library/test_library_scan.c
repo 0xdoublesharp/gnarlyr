@@ -794,8 +794,33 @@ static void a_chaptered_book_is_a_folder_of_its_chapters_and_not_a_file_row(void
     CHECK_EQUAL(stats.tracks, browse_count(&library, whole));
 }
 
-int main(void)
+static int compare_external(const char *folder, const char *expected_path)
 {
+    static Output output;
+    static uint8_t expected[OUTPUT_CAPACITY];
+    Progress progress = {0};
+    ScanStats stats;
+    FILE *file = fopen(expected_path, "rb");
+    if (file == NULL) {
+        return 2;
+    }
+    size_t size = fread(expected, 1, sizeof expected, file);
+    bool read_ok = !ferror(file) && feof(file);
+    fclose(file);
+    return read_ok && scan_folder(folder, &output, &progress, &stats) == SCAN_OK &&
+                   library_compare(expected, (uint32_t)size, output.bytes, stats.length)
+               ? 0
+               : 1;
+}
+
+int main(int argc, char **argv)
+{
+    if (argc == 4 && strcmp(argv[1], "--compare") == 0) {
+        return compare_external(argv[2], argv[3]);
+    }
+    if (argc != 1) {
+        return 2;
+    }
     static const TestCase cases[] = {
         TEST_CASE(scanning_the_tag_fixtures_matches_the_pc_indexer),
         TEST_CASE(scanning_folders_and_playlists_matches_the_pc_indexer),

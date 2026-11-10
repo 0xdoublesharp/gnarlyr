@@ -540,6 +540,78 @@ static void another_chapter_of_the_file_starts_from_its_top(void)
     CHECK_EQUAL(SPOKEN_PART_ONE_MS + SPOKEN_PART_TWO_MS, fake_hal_audio_play_start());
 }
 
+static void books_outside_the_named_folder_share_the_shelf_and_resume(void)
+{
+    SpokenLibrary external;
+    Library *original = library;
+    library = spoken_library_open_external(&external);
+    start();
+    CHECK_EQUAL(1, library_music_count(library, LIBRARY_TRACKS));
+    BrowseScreen *books = shelf(SPOKEN_AUDIOBOOK);
+    CHECK_EQUAL(3, books->count);
+    int selected = -1;
+    for (uint32_t index = 0; index < books->count; index++) {
+        const char *label = books->model.label(books->model.context, (int)index);
+        if (strstr(label, "Zebra Tale") != NULL) {
+            selected = (int)index;
+        }
+    }
+    CHECK(selected >= 0);
+    list_view_select(&books->list, selected, 0);
+    CHECK(press(books, KEY_GESTURE_PRESS).target == &now_playing);
+    CHECK(player_status(&player).spoken);
+    CHECK(path_is(fake_hal_audio_playing_path(), "Downloads/Writer/Zebra Tale.m4b"));
+    follow(0);
+    fake_hal_audio_set_position(MIDWAY_MS);
+    player_toggle_pause(&player);
+    follow(1000);
+    play(SPOKEN_SONG_PATH, false);
+    books = shelf(SPOKEN_AUDIOBOOK);
+    list_view_select(&books->list, selected, 0);
+    CHECK(press(books, KEY_GESTURE_PRESS).target == &now_playing);
+    CHECK_EQUAL(MIDWAY_MS, fake_hal_audio_play_start());
+    library = original;
+    spoken_library_close(&external);
+}
+
+static void whole_m4b_books_play_and_resume_without_a_named_shelf(void)
+{
+    SpokenLibrary external;
+    Library *original = library;
+    library = spoken_library_open_without_shelf(&external);
+    start();
+    CHECK_EQUAL(4, library_music_count(library, LIBRARY_TRACKS));
+    BrowseScreen *books = shelf(SPOKEN_AUDIOBOOK);
+    CHECK_EQUAL(2, books->count);
+    int selected = -1;
+    for (uint32_t index = 0; index < books->count; index++) {
+        const char *label = books->model.label(books->model.context, (int)index);
+        if (strstr(label, "Single Book") != NULL) {
+            selected = (int)index;
+        }
+    }
+    CHECK(selected >= 0);
+    list_view_select(&books->list, selected, 0);
+    CHECK(press(books, KEY_GESTURE_PRESS).target == &now_playing);
+    CHECK(player_status(&player).spoken);
+    CHECK(fake_hal_audio_queued_path() == NULL);
+    CHECK(path_is(fake_hal_audio_playing_path(), "Other/Writer/Single Book.m4b"));
+    follow(0);
+    fake_hal_audio_set_position(MIDWAY_MS);
+    player_toggle_pause(&player);
+    follow(1000);
+    CHECK(press(books, KEY_GESTURE_PRESS).target == &now_playing);
+    CHECK_EQUAL(PLAYER_PLAYING, player_status(&player).state);
+    CHECK_EQUAL(1, fake_hal_audio_play_count());
+    play(SPOKEN_SONG_PATH, false);
+    books = shelf(SPOKEN_AUDIOBOOK);
+    list_view_select(&books->list, selected, 0);
+    CHECK(press(books, KEY_GESTURE_PRESS).target == &now_playing);
+    CHECK_EQUAL(MIDWAY_MS, fake_hal_audio_play_start());
+    library = original;
+    spoken_library_close(&external);
+}
+
 int main(void)
 {
     library = spoken_library_open(&spoken);
@@ -571,6 +643,8 @@ int main(void)
         TEST_CASE(a_loaded_chaptered_book_is_not_restarted),
         TEST_CASE(a_chaptered_book_is_bookmarked_under_its_file_path),
         TEST_CASE(another_chapter_of_the_file_starts_from_its_top),
+        TEST_CASE(books_outside_the_named_folder_share_the_shelf_and_resume),
+        TEST_CASE(whole_m4b_books_play_and_resume_without_a_named_shelf),
     };
     int result = test_run_all(cases, TEST_CASE_COUNT(cases));
     spoken_library_close(&spoken);
