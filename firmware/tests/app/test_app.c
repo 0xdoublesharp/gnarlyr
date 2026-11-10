@@ -3596,7 +3596,7 @@ static void screen_off_darkens_the_screen_at_once_and_screen_on_lights_it(void)
     CHECK(fake_hal_display_on());
     CHECK_EQUAL(DEBUG_LINE_OK, debug_runner_script()->status[1]);
     CHECK_EQUAL(DEBUG_LINE_OK, debug_runner_script()->status[3]);
-    CHECK(title_is("Doublesharp"));
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
 }
 
 static void a_dark_screen_from_a_script_wakes_on_a_key_as_after_the_timeout(void)
