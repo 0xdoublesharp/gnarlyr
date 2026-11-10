@@ -148,6 +148,7 @@ static void put_code_point(TextBuilder *builder, uint32_t code_point)
     if (code_point == 0 || (!builder->started && is_space(code_point))) {
         return;
     }
+    bool space = is_space(code_point);
     uint32_t size = utf8_size(code_point);
     if (builder->length + size >= TRACK_TAG_TEXT_CAPACITY) {
         return;
@@ -159,7 +160,7 @@ static void put_code_point(TextBuilder *builder, uint32_t code_point)
     builder->text[builder->length] = (char)(LEADS[size] | code_point);
     builder->length += size;
     builder->started = true;
-    if (!is_space(code_point)) {
+    if (!space) {
         builder->content_end = builder->length;
     }
 }
