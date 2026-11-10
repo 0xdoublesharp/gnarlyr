@@ -2,15 +2,7 @@
 
 #include "device/core1_stream.h"
 #include "device/vorbis_decoder.h"
-
-enum {
-    VORBIS_RING_BYTES = 65536,
-    VORBIS_RECORD_BYTES = 16,
-    VORBIS_PACKET_BYTES = 32768,
-    VORBIS_RECORD_FIRST = 1,
-    VORBIS_RECORD_LAST = 2,
-    VORBIS_RECORD_END = 4
-};
+#include "device/vorbis_record.h"
 
 _Static_assert((uint32_t)VORBIS_MAX_FRAMES <= (uint32_t)FLAC_MAX_BLOCK,
                "Vorbis output must fit a shared audio slot");

@@ -138,8 +138,25 @@ static OggPacketResult packet_page(OggPackets *reader, bool continued)
     return OGG_PACKET_READY;
 }
 
-static OggPacketResult assemble_packet(OggPackets *reader, uint8_t *buffer, uint32_t capacity,
-                                       OggPacket *packet)
+typedef struct PacketOutput {
+    uint8_t *buffer;
+    uint32_t capacity;
+    bool prefix;
+} PacketOutput;
+
+static OggPacketResult copy_segment(OggPackets *reader, PacketOutput output, uint32_t bytes,
+                                    uint32_t chunk)
+{
+    uint32_t left = bytes < output.capacity ? output.capacity - bytes : 0;
+    if (!output.prefix && chunk > left) {
+        return OGG_PACKET_TOO_LARGE;
+    }
+    uint32_t copy = chunk < left ? chunk : left;
+    return copy == 0 ? OGG_PACKET_READY
+                     : read_bytes(reader->input, reader->body, output.buffer + bytes, copy);
+}
+
+static OggPacketResult assemble_packet(OggPackets *reader, PacketOutput output, OggPacket *packet)
 {
     uint32_t bytes = 0;
     bool continued = false;
@@ -149,11 +166,10 @@ static OggPacketResult assemble_packet(OggPackets *reader, uint8_t *buffer, uint
             return result;
         }
         uint32_t chunk = reader->laces[reader->segment];
-        if (chunk > capacity - bytes) {
-            return OGG_PACKET_TOO_LARGE;
+        if (chunk > UINT32_MAX - bytes) {
+            return OGG_PACKET_INVALID;
         }
-        result =
-            read_bytes(reader->input, reader->body, buffer != NULL ? buffer + bytes : NULL, chunk);
+        result = copy_segment(reader, output, bytes, chunk);
         if (result != OGG_PACKET_READY) {
             return result;
         }
@@ -179,15 +195,14 @@ void ogg_packets_init(OggPackets *reader, FlacInput input)
     *reader = (OggPackets){.input = input};
 }
 
-OggPacketResult ogg_packets_next(OggPackets *reader, uint8_t *buffer, uint32_t capacity,
-                                 OggPacket *packet)
+static OggPacketResult read_packet(OggPackets *reader, PacketOutput output, OggPacket *packet)
 {
-    if ((buffer == NULL && capacity != 0) || packet == NULL) {
+    if ((output.buffer == NULL && output.capacity != 0) || packet == NULL) {
         return OGG_PACKET_INVALID;
     }
     OggPackets candidate = *reader;
     OggPacket result;
-    OggPacketResult outcome = assemble_packet(&candidate, buffer, capacity, &result);
+    OggPacketResult outcome = assemble_packet(&candidate, output, &result);
     if (outcome == OGG_PACKET_READY || outcome == OGG_PACKET_END) {
         *reader = candidate;
     }
@@ -195,4 +210,16 @@ OggPacketResult ogg_packets_next(OggPackets *reader, uint8_t *buffer, uint32_t c
         *packet = result;
     }
     return outcome;
+}
+
+OggPacketResult ogg_packets_next(OggPackets *reader, uint8_t *buffer, uint32_t capacity,
+                                 OggPacket *packet)
+{
+    return read_packet(reader, (PacketOutput){buffer, capacity, false}, packet);
+}
+
+OggPacketResult ogg_packets_prefix(OggPackets *reader, uint8_t *buffer, uint32_t capacity,
+                                   OggPacket *packet)
+{
+    return read_packet(reader, (PacketOutput){buffer, capacity, true}, packet);
 }

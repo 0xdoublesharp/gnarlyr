@@ -41,3 +41,6 @@ typedef struct OggPackets {
 void ogg_packets_init(OggPackets *reader, FlacInput input);
 OggPacketResult ogg_packets_next(OggPackets *reader, uint8_t *buffer, uint32_t capacity,
                                  OggPacket *packet);
+
+OggPacketResult ogg_packets_prefix(OggPackets *reader, uint8_t *buffer, uint32_t capacity,
+                                   OggPacket *packet);

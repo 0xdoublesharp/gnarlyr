@@ -126,6 +126,7 @@ add_library(echo_device_logic STATIC
     usb_plug.c
     vorbis_decoder.c
     vorbis_memory.c
+    vorbis_stream.c
     vop.c
     wav_source.c
 )

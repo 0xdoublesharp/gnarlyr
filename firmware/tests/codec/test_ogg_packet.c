@@ -398,9 +398,81 @@ static void sequence_holes_serial_changes_and_bad_continuations_are_rejected(voi
     }
 }
 
+static void long_packet(void)
+{
+    reset();
+    uint8_t laces[255];
+    memset(laces, 255, sizeof laces);
+    page(2, 0, laces, sizeof laces);
+    static const uint8_t END[] = {255, 7, 2};
+    page(5, 1, END, sizeof END);
+}
+
+static void prefixes_skip_large_metadata_without_narrowing_the_packet_limit(void)
+{
+    long_packet();
+    OggPackets stream = reader();
+    OggPacket packet = {0};
+    CHECK_EQUAL(OGG_PACKET_READY, ogg_packets_prefix(&stream, output, 7, &packet));
+    CHECK_EQUAL(65287, packet.bytes);
+    CHECK(packet.first && !packet.last);
+    CHECK_EQUAL(UINT64_MAX, packet.granule);
+    CHECK_EQUAL(6, output[6]);
+    CHECK_EQUAL(0xA5, output[7]);
+    CHECK_EQUAL(OGG_PACKET_READY, next(&stream, &packet));
+    CHECK_EQUAL(2, packet.bytes);
+    CHECK_EQUAL(2, output[0]);
+    CHECK(packet.last);
+    CHECK_EQUAL(OGG_PACKET_END, next(&stream, &packet));
+}
+
+static void skipped_packets_still_check_every_page_and_can_retry_late_read_failures(void)
+{
+    long_packet();
+    static const uint32_t FAILURES[] = {0, 26, 200, 60000, 65310, 65592};
+    for (uint32_t index = 0; index < sizeof FAILURES / sizeof FAILURES[0]; index++) {
+        OggPackets stream = reader();
+        OggPackets before = stream;
+        OggPacket packet = {.bytes = 99};
+        file.failing = true;
+        file.fail_at = FAILURES[index];
+        CHECK_EQUAL(OGG_PACKET_WAIT, ogg_packets_prefix(&stream, output, 7, &packet));
+        CHECK(memcmp(&stream, &before, sizeof stream) == 0);
+        CHECK_EQUAL(99, packet.bytes);
+        CHECK_EQUAL(0xA5, output[7]);
+        file.failing = false;
+        CHECK_EQUAL(OGG_PACKET_READY, ogg_packets_prefix(&stream, output, 7, &packet));
+        CHECK_EQUAL(65287, packet.bytes);
+    }
+    file.data[file.size - 1] ^= 1;
+    OggPackets stream = reader();
+    OggPackets before = stream;
+    OggPacket packet = {.bytes = 99};
+    CHECK_EQUAL(OGG_PACKET_INVALID, ogg_packets_prefix(&stream, output, 7, &packet));
+    CHECK(memcmp(&stream, &before, sizeof stream) == 0);
+    CHECK_EQUAL(99, packet.bytes);
+}
+
+static void a_zero_length_prefix_discards_only_one_complete_checked_packet(void)
+{
+    long_packet();
+    OggPackets stream = reader();
+    OggPacket packet = {0};
+    CHECK_EQUAL(OGG_PACKET_READY, ogg_packets_prefix(&stream, NULL, 0, &packet));
+    CHECK_EQUAL(65287, packet.bytes);
+    CHECK_EQUAL(OGG_PACKET_READY, next(&stream, &packet));
+    CHECK_EQUAL(2, packet.bytes);
+    CHECK(packet.last);
+    CHECK_EQUAL(OGG_PACKET_INVALID, ogg_packets_prefix(&stream, NULL, 1, &packet));
+    CHECK_EQUAL(OGG_PACKET_INVALID, ogg_packets_prefix(&stream, output, 7, NULL));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(prefixes_skip_large_metadata_without_narrowing_the_packet_limit),
+        TEST_CASE(skipped_packets_still_check_every_page_and_can_retry_late_read_failures),
+        TEST_CASE(a_zero_length_prefix_discards_only_one_complete_checked_packet),
         TEST_CASE(a_real_vorbis_file_preserves_its_headers_and_final_sample_position),
         TEST_CASE(an_input_without_a_read_callback_is_invalid),
         TEST_CASE(a_complete_stream_reports_packet_boundaries_and_the_final_granule),

@@ -1,0 +1,129 @@
+#include "device/vorbis_stream.h"
+
+#include <stddef.h>
+
+static void put32(uint8_t *bytes, uint32_t value)
+{
+    for (uint32_t index = 0; index < 4; index++) {
+        bytes[index] = (uint8_t)(value >> (8 * index));
+    }
+}
+
+bool vorbis_stream_start(VorbisStream *stream, FlacInput file)
+{
+    ogg_packets_init(&stream->packets, file);
+    stream->position = 0;
+    stream->record_done = 0;
+    stream->record_size = 0;
+    stream->headers = 0;
+    stream->ended = false;
+    stream->failed = file.read == NULL;
+    return !stream->failed;
+}
+
+static bool valid_header(const VorbisStream *stream, const OggPacket *packet)
+{
+    static const uint8_t SIGNATURE[] = {'v', 'o', 'r', 'b', 'i', 's'};
+    if (packet->bytes < 7 || packet->last || packet->first != (stream->headers == 0) ||
+        stream->body[0] != 1u + 2u * stream->headers) {
+        return false;
+    }
+    for (uint32_t index = 0; index < sizeof SIGNATURE; index++) {
+        if (stream->body[index + 1] != SIGNATURE[index]) {
+            return false;
+        }
+    }
+    return stream->headers != 1 || packet->bytes >= 16;
+}
+
+static bool make_header(VorbisStream *stream, OggPacket *packet)
+{
+    if (!valid_header(stream, packet)) {
+        return false;
+    }
+    if (stream->headers == 1) {
+        static const uint8_t COMMENT[] = {3, 'v', 'o', 'r', 'b', 'i', 's', 0,
+                                          0, 0,   0,   0,   0,   0,   0,   1};
+        for (uint32_t index = 0; index < sizeof COMMENT; index++) {
+            stream->body[index] = COMMENT[index];
+        }
+        packet->bytes = sizeof COMMENT;
+    }
+    stream->headers++;
+    return true;
+}
+
+static bool begin_record(VorbisStream *stream)
+{
+    OggPacket packet = {0};
+    OggPacketResult result =
+        stream->headers == 1
+            ? ogg_packets_prefix(&stream->packets, stream->body, 7, &packet)
+            : ogg_packets_next(&stream->packets, stream->body, sizeof stream->body, &packet);
+    uint32_t flags = 0;
+    if (result == OGG_PACKET_END && stream->headers == 3) {
+        stream->ended = true;
+        flags = VORBIS_RECORD_END;
+    } else {
+        if (result != OGG_PACKET_READY || packet.bytes == 0 ||
+            (stream->headers < 3 && !make_header(stream, &packet))) {
+            stream->failed = true;
+            return false;
+        }
+        flags = (uint32_t)(packet.first ? VORBIS_RECORD_FIRST : 0) |
+                (uint32_t)(packet.last ? VORBIS_RECORD_LAST : 0);
+    }
+    put32(stream->head, packet.bytes);
+    put32(stream->head + 4, flags);
+    put32(stream->head + 8, (uint32_t)packet.granule);
+    put32(stream->head + 12, (uint32_t)(packet.granule >> 32));
+    stream->record_done = 0;
+    stream->record_size = VORBIS_RECORD_BYTES + packet.bytes;
+    return true;
+}
+
+static uint32_t emit(VorbisStream *stream, uint8_t *out, uint32_t length)
+{
+    uint32_t end = stream->record_size;
+    const uint8_t *source = stream->body;
+    uint32_t offset = stream->record_done - VORBIS_RECORD_BYTES;
+    if (stream->record_done < VORBIS_RECORD_BYTES) {
+        end = VORBIS_RECORD_BYTES;
+        source = stream->head;
+        offset = stream->record_done;
+    }
+    uint32_t left = end - stream->record_done;
+    uint32_t count = length < left ? length : left;
+    for (uint32_t index = 0; index < count; index++) {
+        out[index] = source[offset + index];
+    }
+    stream->record_done += count;
+    return count;
+}
+
+bool vorbis_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    VorbisStream *stream = context;
+    uint8_t *out = buffer;
+    if (stream->failed || offset != stream->position || offset > VORBIS_VIRTUAL_END ||
+        length > VORBIS_VIRTUAL_END - offset || (length != 0 && out == NULL)) {
+        return false;
+    }
+    while (length > 0) {
+        uint32_t count = length;
+        if (stream->ended && stream->record_done == stream->record_size) {
+            for (uint32_t index = 0; index < count; index++) {
+                out[index] = 0;
+            }
+        } else {
+            if (stream->record_done == stream->record_size && !begin_record(stream)) {
+                return false;
+            }
+            count = emit(stream, out, length);
+        }
+        stream->position += count;
+        out += count;
+        length -= count;
+    }
+    return true;
+}
