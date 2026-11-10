@@ -1257,8 +1257,8 @@ uint32_t app_pass_interval_ms(void)
 {
     bool busy = player_status(&app.player).state == PLAYER_PLAYING || app.bluetooth.saved.enabled ||
                 app.pacer.fast_frames > 0 || app.render_urgent || app.render_wanted ||
-                fade_running() || slide_running() || debug_runner_active() || app.charging ||
-                app.prepare_pending || app.rescan_requested || app.music_check_requested;
+                fade_running() || slide_running() || app.charging || app.prepare_pending ||
+                app.rescan_requested || app.music_check_requested;
     if (busy) {
         return PASS_BUSY_MS;
     }
