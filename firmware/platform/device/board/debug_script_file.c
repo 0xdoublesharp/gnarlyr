@@ -6,14 +6,11 @@
 #include "board.h"
 #include "core/seam.h"
 #include "debug_probe.h"
+#include "device/usb_forced.h"
 #include "emmc.h"
 #include "hal/clock.h"
 #include "hal/system.h"
 #include "internal_volume.h"
-
-enum {
-    FORCED_IDLE_MS = 60000
-};
 
 static const char RUN_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/debug/run.txt";
 static const char RESTART_PATH[] = DEBUG_RESTART_PATH;
@@ -22,30 +19,14 @@ static const char RESTART_DONE[] = DEBUG_RESTART_DONE;
 
 _Static_assert(sizeof RESTART_DONE == sizeof RESTART_TEXT, "the answer overwrites the request");
 
-typedef struct ForcedSession {
-    bool cable_seen;
-    uint32_t commands;
-    uint32_t heard_ms;
-} ForcedSession;
-
-static ForcedSession forced;
+static UsbForced forced;
 
 bool debug_session_cable(bool vbus, const Msc *msc)
 {
-    if (vbus) {
-        forced.cable_seen = true;
-        return true;
-    }
-    if (!board_debug_usb_forced() || forced.cable_seen) {
-        return false;
-    }
-    uint32_t commands = msc_stats(msc).commands;
-    uint32_t now_ms = hal_clock_milliseconds();
-    if (commands != forced.commands || forced.heard_ms == 0) {
-        forced.commands = commands;
-        forced.heard_ms = now_ms | 1u;
-    }
-    return now_ms - forced.heard_ms < FORCED_IDLE_MS;
+    return usb_forced_connected(&forced, (UsbForcedNow){.cable = vbus,
+                                                        .requested = board_debug_usb_forced(),
+                                                        .commands = msc_stats(msc).commands,
+                                                        .now_ms = hal_clock_milliseconds()});
 }
 
 static bool take_script(FatVolume *volume)
