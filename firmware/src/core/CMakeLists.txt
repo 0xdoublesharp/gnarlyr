@@ -7,6 +7,7 @@ add_library(echo_core STATIC
     frame_pacer.c
     frame_stats.c
     hash.c
+    i18n.c
     key_lock.c
     key_script.c
     key_tracker.c
@@ -19,3 +20,6 @@ add_library(echo_core STATIC
 )
 target_include_directories(echo_core PUBLIC include)
 target_link_libraries(echo_core PRIVATE echo_options echo_compact)
+if(NOT CMAKE_CROSSCOMPILING)
+    target_compile_definitions(echo_core PRIVATE ECHO_BUILTIN_ENGLISH)
+endif()

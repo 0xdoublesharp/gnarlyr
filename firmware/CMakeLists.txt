@@ -35,8 +35,10 @@ option(ECHO_RELEASE "Leave the developer-only Diagnostics rows out of the build"
 option(ECHO_BOOT_TRACE "Show each start-up step on screen and skip the updater" OFF)
 set(ECHO_PANEL_MADCTL 0x28 CACHE STRING "Memory access control byte of the full-size Echo panel (0x28, or 0x68 to mirror columns)")
 set(ECHO_APP_RAM_BUDGET_BYTES 131072 CACHE STRING "Static RAM budget for src/ on the device")
+set(ECHO_LANGUAGES en CACHE STRING "Language packs built into the image, the default first: codes of assets/lang/<code>.txt")
 
 include(cmake/project_options.cmake)
+include(cmake/language_packs.cmake)
 
 add_subdirectory(src)
 add_subdirectory(platform/device/logic)

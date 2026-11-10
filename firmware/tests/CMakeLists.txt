@@ -2,6 +2,14 @@ add_library(echo_check STATIC support/check.c)
 target_include_directories(echo_check PUBLIC support)
 target_link_libraries(echo_check PRIVATE echo_options)
 
+add_library(echo_test_pack STATIC support/test_pack.c)
+target_include_directories(echo_test_pack PUBLIC support)
+target_link_libraries(echo_test_pack PUBLIC echo_core PRIVATE echo_options)
+
+echo_add_language_pack(${ECHO_TEST_LANGUAGE} ECHO_PSEUDO_PACK)
+list(GET ECHO_LANGUAGE_PACK_FILES 0 ECHO_ENGLISH_PACK)
+add_custom_target(echo_test_language_packs DEPENDS ${ECHO_PSEUDO_PACK} ${ECHO_ENGLISH_PACK})
+
 function(echo_add_unit_test)
     cmake_parse_arguments(TEST "" "NAME" "SOURCES;LIBRARIES;PRIVATE_INCLUDES" ${ARGN})
     add_executable(${TEST_NAME} ${TEST_SOURCES})
@@ -25,6 +33,20 @@ echo_add_unit_test(NAME test_dac_identity SOURCES core/test_dac_identity.c LIBRA
 echo_add_unit_test(NAME test_random SOURCES core/test_random.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_permutation SOURCES core/test_permutation.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_hash SOURCES core/test_hash.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_i18n SOURCES core/test_i18n.c LIBRARIES echo_core echo_test_pack)
+echo_add_unit_test(NAME test_i18n_fallback
+    SOURCES core/test_i18n_fallback.c support/test_pack.c ${PROJECT_SOURCE_DIR}/src/core/i18n.c
+    LIBRARIES echo_core
+)
+echo_add_unit_test(NAME test_language_packs
+    SOURCES core/test_language_packs.c
+    LIBRARIES echo_core echo_test_pack
+)
+target_compile_definitions(test_language_packs PRIVATE
+    ECHO_ENGLISH_PACK="${ECHO_ENGLISH_PACK}"
+    ECHO_PSEUDO_PACK="${ECHO_PSEUDO_PACK}"
+)
+add_dependencies(test_language_packs echo_test_language_packs)
 echo_add_unit_test(NAME test_power_policy SOURCES core/test_power_policy.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_low_battery SOURCES core/test_low_battery.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_key_script SOURCES core/test_key_script.c LIBRARIES echo_core)
@@ -499,6 +521,13 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
         COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/font_build.py
             --config ${PROJECT_SOURCE_DIR}/assets/fonts/fonts.json
             --output ${PROJECT_SOURCE_DIR}/src/fonts
+            --style ${PROJECT_SOURCE_DIR}/.clang-format
+            --check
+    )
+    add_test(NAME strings_up_to_date
+        COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/lang_pack.py
+            --languages ${PROJECT_SOURCE_DIR}/assets/lang
+            --sources ${PROJECT_SOURCE_DIR}/src/core
             --style ${PROJECT_SOURCE_DIR}/.clang-format
             --check
     )
