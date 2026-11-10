@@ -725,7 +725,7 @@ static StatusBarState current_status_bar(void)
         .bluetooth = bluetooth_of(&app.bluetooth),
         .battery_known = battery.known,
         .battery_percent = battery.percent,
-        .charging = battery.charging,
+        .usb_power = battery.usb_power,
         .locked = app.lock.locked,
         .shuffle = (StatusShuffle)player_status(&app.player).shuffle,
     };

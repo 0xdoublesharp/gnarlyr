@@ -134,3 +134,43 @@ uint8_t battery_display_update(BatteryDisplay *display, uint8_t percent, bool us
     }
     return display->shown;
 }
+
+void battery_display_show_full(BatteryDisplay *display)
+{
+    *display = (BatteryDisplay){.shown_known = true, .shown = BATTERY_FULL_PERCENT};
+}
+
+void charge_tracker_init(ChargeTracker *tracker)
+{
+    *tracker = (ChargeTracker){.usb_power = false};
+}
+
+ChargeState charge_tracker_update(ChargeTracker *tracker, ChargeReading reading)
+{
+    if (!reading.usb_power) {
+        charge_tracker_init(tracker);
+        return CHARGE_ON_BATTERY;
+    }
+    if (!tracker->usb_power) {
+        *tracker = (ChargeTracker){.usb_power = true, .usb_since_ms = reading.now_ms};
+    }
+    if (tracker->full) {
+        return CHARGE_FULL;
+    }
+    bool settled = reading.now_ms - tracker->usb_since_ms >= CHARGE_SETTLE_MS;
+    bool looks_full =
+        settled && reading.status_high && reading.millivolts >= CHARGE_FULL_MIN_MILLIVOLTS;
+    if (!looks_full) {
+        tracker->high_seen = false;
+        return CHARGE_CHARGING;
+    }
+    if (!tracker->high_seen) {
+        tracker->high_seen = true;
+        tracker->high_since_ms = reading.now_ms;
+    }
+    if (reading.now_ms - tracker->high_since_ms < CHARGE_FULL_HOLD_MS) {
+        return CHARGE_CHARGING;
+    }
+    tracker->full = true;
+    return CHARGE_FULL;
+}

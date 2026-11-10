@@ -35,7 +35,7 @@ typedef struct StatusBarState {
     StatusBluetooth bluetooth;
     bool battery_known;
     uint8_t battery_percent;
-    bool charging;
+    bool usb_power;
     bool locked;
     StatusShuffle shuffle;
 } StatusBarState;
@@ -48,5 +48,5 @@ Rect status_bar_shuffle_area(const Theme *theme, StatusShuffle shuffle);
 int status_bar_battery_fill_width(uint8_t percent, int inner_width);
 void status_bar_percent_text(uint8_t percent, char *text, size_t capacity);
 Rect status_bar_bolt_area(const Theme *theme);
-Rect status_bar_percent_area(const Theme *theme, const char *text, bool charging);
+Rect status_bar_percent_area(const Theme *theme, const char *text, bool usb_power);
 void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state);

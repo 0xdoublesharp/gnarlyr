@@ -10,7 +10,11 @@ enum {
     BATTERY_DISPLAY_LOAD_STEP = 3,
     BATTERY_BOOT_CUTOFF_MILLIVOLTS = 3400,
     BATTERY_CHARGING_MAX_PERCENT = 99,
-    BATTERY_RECENT_READINGS = 8
+    BATTERY_FULL_PERCENT = 100,
+    BATTERY_RECENT_READINGS = 8,
+    CHARGE_SETTLE_MS = 5000,
+    CHARGE_FULL_HOLD_MS = 2000,
+    CHARGE_FULL_MIN_MILLIVOLTS = 4050
 };
 
 typedef struct BatteryGauge {
@@ -37,3 +41,28 @@ typedef struct BatteryDisplay {
 
 void battery_display_init(BatteryDisplay *display);
 uint8_t battery_display_update(BatteryDisplay *display, uint8_t percent, bool usb_power);
+void battery_display_show_full(BatteryDisplay *display);
+
+typedef enum ChargeState {
+    CHARGE_ON_BATTERY,
+    CHARGE_CHARGING,
+    CHARGE_FULL
+} ChargeState;
+
+typedef struct ChargeReading {
+    bool usb_power;
+    bool status_high;
+    uint32_t millivolts;
+    uint32_t now_ms;
+} ChargeReading;
+
+typedef struct ChargeTracker {
+    bool usb_power;
+    bool high_seen;
+    bool full;
+    uint32_t usb_since_ms;
+    uint32_t high_since_ms;
+} ChargeTracker;
+
+void charge_tracker_init(ChargeTracker *tracker);
+ChargeState charge_tracker_update(ChargeTracker *tracker, ChargeReading reading);

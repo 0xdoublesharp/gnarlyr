@@ -193,6 +193,108 @@ static void a_boot_below_3400_mv_on_battery_switches_off(void)
     CHECK(!battery_boot_cutoff(3000, true));
 }
 
+static ChargeState charge_at(ChargeTracker *tracker, uint32_t now_ms, bool status_high,
+                             uint32_t millivolts)
+{
+    return charge_tracker_update(tracker, (ChargeReading){.usb_power = true,
+                                                          .status_high = status_high,
+                                                          .millivolts = millivolts,
+                                                          .now_ms = now_ms});
+}
+
+static void without_usb_power_the_player_is_on_battery(void)
+{
+    ChargeTracker tracker;
+    charge_tracker_init(&tracker);
+    CHECK_EQUAL(CHARGE_ON_BATTERY,
+                charge_tracker_update(&tracker, (ChargeReading){.status_high = true,
+                                                                .millivolts = 4200,
+                                                                .now_ms = 60000}));
+}
+
+static void usb_power_alone_shows_charging_whatever_the_status_pin_says_at_first(void)
+{
+    ChargeTracker tracker;
+    charge_tracker_init(&tracker);
+    CHECK_EQUAL(CHARGE_CHARGING, charge_at(&tracker, 1000, true, 4200));
+    CHECK_EQUAL(CHARGE_CHARGING, charge_at(&tracker, 1000 + CHARGE_SETTLE_MS - 1, true, 4200));
+}
+
+static void a_low_status_pin_is_charging(void)
+{
+    ChargeTracker tracker;
+    charge_tracker_init(&tracker);
+    charge_at(&tracker, 0, false, 3900);
+    CHECK_EQUAL(CHARGE_CHARGING, charge_at(&tracker, 60000, false, 3900));
+}
+
+static void a_status_pin_held_high_after_settling_is_full(void)
+{
+    ChargeTracker tracker;
+    charge_tracker_init(&tracker);
+    charge_at(&tracker, 0, false, 4180);
+    CHECK_EQUAL(CHARGE_CHARGING, charge_at(&tracker, CHARGE_SETTLE_MS, true, 4180));
+    CHECK_EQUAL(CHARGE_CHARGING,
+                charge_at(&tracker, CHARGE_SETTLE_MS + CHARGE_FULL_HOLD_MS - 1, true, 4180));
+    CHECK_EQUAL(CHARGE_FULL,
+                charge_at(&tracker, CHARGE_SETTLE_MS + CHARGE_FULL_HOLD_MS, true, 4180));
+}
+
+static void a_brief_high_reading_is_not_full(void)
+{
+    ChargeTracker tracker;
+    charge_tracker_init(&tracker);
+    charge_at(&tracker, 0, false, 4180);
+    charge_at(&tracker, 6000, true, 4180);
+    charge_at(&tracker, 7000, false, 4180);
+    CHECK_EQUAL(CHARGE_CHARGING, charge_at(&tracker, 8500, true, 4180));
+    CHECK_EQUAL(CHARGE_FULL, charge_at(&tracker, 10500, true, 4180));
+}
+
+static void a_high_status_pin_on_a_low_battery_is_not_full(void)
+{
+    ChargeTracker tracker;
+    charge_tracker_init(&tracker);
+    charge_at(&tracker, 0, true, 3700);
+    CHECK_EQUAL(CHARGE_CHARGING, charge_at(&tracker, 20000, true, CHARGE_FULL_MIN_MILLIVOLTS - 1));
+    CHECK_EQUAL(CHARGE_CHARGING, charge_at(&tracker, 40000, true, CHARGE_FULL_MIN_MILLIVOLTS - 1));
+}
+
+static void full_stays_full_until_the_cable_comes_out(void)
+{
+    ChargeTracker tracker;
+    charge_tracker_init(&tracker);
+    charge_at(&tracker, 0, true, 4180);
+    charge_at(&tracker, 6000, true, 4180);
+    CHECK_EQUAL(CHARGE_FULL, charge_at(&tracker, 9000, true, 4180));
+    CHECK_EQUAL(CHARGE_FULL, charge_at(&tracker, 60000, false, 4120));
+    CHECK_EQUAL(CHARGE_ON_BATTERY,
+                charge_tracker_update(&tracker, (ChargeReading){.now_ms = 61000}));
+    CHECK_EQUAL(CHARGE_CHARGING, charge_at(&tracker, 62000, true, 4180));
+}
+
+static void the_clock_wrapping_does_not_end_the_settling_early_or_late(void)
+{
+    ChargeTracker tracker;
+    charge_tracker_init(&tracker);
+    uint32_t start = UINT32_MAX - 1000u;
+    charge_at(&tracker, start, true, 4180);
+    CHECK_EQUAL(CHARGE_CHARGING, charge_at(&tracker, start + CHARGE_SETTLE_MS - 1, true, 4180));
+    charge_at(&tracker, start + CHARGE_SETTLE_MS, true, 4180);
+    CHECK_EQUAL(CHARGE_FULL,
+                charge_at(&tracker, start + CHARGE_SETTLE_MS + CHARGE_FULL_HOLD_MS, true, 4180));
+}
+
+static void a_full_battery_shows_100_at_once(void)
+{
+    BatteryDisplay display;
+    battery_display_init(&display);
+    battery_display_update(&display, 97, true);
+    battery_display_show_full(&display);
+    CHECK_EQUAL(100, battery_display_update(&display, 99, true));
+    CHECK_EQUAL(97, battery_display_update(&display, 97, false));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -216,6 +318,15 @@ int main(void)
         TEST_CASE(plugging_in_does_not_drop_the_shown_percent),
         TEST_CASE(unplugging_does_not_raise_the_shown_percent),
         TEST_CASE(a_boot_below_3400_mv_on_battery_switches_off),
+        TEST_CASE(without_usb_power_the_player_is_on_battery),
+        TEST_CASE(usb_power_alone_shows_charging_whatever_the_status_pin_says_at_first),
+        TEST_CASE(a_low_status_pin_is_charging),
+        TEST_CASE(a_status_pin_held_high_after_settling_is_full),
+        TEST_CASE(a_brief_high_reading_is_not_full),
+        TEST_CASE(a_high_status_pin_on_a_low_battery_is_not_full),
+        TEST_CASE(full_stays_full_until_the_cable_comes_out),
+        TEST_CASE(the_clock_wrapping_does_not_end_the_settling_early_or_late),
+        TEST_CASE(a_full_battery_shows_100_at_once),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

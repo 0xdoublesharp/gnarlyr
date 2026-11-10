@@ -91,18 +91,18 @@ Rect status_bar_bolt_area(const Theme *theme)
                   battery.height};
 }
 
-Rect status_bar_percent_area(const Theme *theme, const char *text, bool charging)
+Rect status_bar_percent_area(const Theme *theme, const char *text, bool usb_power)
 {
-    Rect beside = charging ? status_bar_bolt_area(theme) : status_bar_battery_area(theme);
+    Rect beside = usb_power ? status_bar_bolt_area(theme) : status_bar_battery_area(theme);
     int width = text_width(theme->fonts.small, text);
     return (Rect){beside.x - percent_gap(theme) - width, beside.y, width, beside.height};
 }
 
-static void draw_percent(Canvas *canvas, const Theme *theme, uint8_t percent, bool charging)
+static void draw_percent(Canvas *canvas, const Theme *theme, uint8_t percent, bool usb_power)
 {
     char text[STATUS_BAR_PERCENT_CAPACITY];
     status_bar_percent_text(percent, text, sizeof text);
-    Rect area = status_bar_percent_area(theme, text, charging);
+    Rect area = status_bar_percent_area(theme, text, usb_power);
     TextStyle style = {.font = theme->fonts.small, .color = theme->colors.header_text};
     label_draw(canvas, style,
                (Label){.area = label_centered_area(style.font, area, text), .text = text});
@@ -110,7 +110,7 @@ static void draw_percent(Canvas *canvas, const Theme *theme, uint8_t percent, bo
 
 static Color fill_color(const Theme *theme, StatusBarState state)
 {
-    if (state.charging) {
+    if (state.usb_power) {
         return theme->colors.success;
     }
     return state.battery_percent <= STATUS_BAR_LOW_BATTERY_PERCENT ? theme->colors.danger
@@ -166,9 +166,9 @@ void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state)
     }
     if (state.battery_known) {
         draw_battery(canvas, theme, state);
-        if (state.charging) {
+        if (state.usb_power) {
             icon_draw_bolt(canvas, status_bar_bolt_area(theme), theme->colors.success);
         }
-        draw_percent(canvas, theme, state.battery_percent, state.charging);
+        draw_percent(canvas, theme, state.battery_percent, state.usb_power);
     }
 }

@@ -29,12 +29,12 @@ static Canvas draw_status(const Theme *theme, StatusBarState state)
     return canvas;
 }
 
-static StatusBarState battery_at(uint8_t percent, bool charging)
+static StatusBarState battery_at(uint8_t percent, bool usb_power)
 {
     return (StatusBarState){.playback = STATUS_PLAYBACK_NONE,
                             .battery_known = true,
                             .battery_percent = percent,
-                            .charging = charging};
+                            .usb_power = usb_power};
 }
 
 static void an_idle_player_without_a_battery_reading_draws_nothing(void)
@@ -94,7 +94,7 @@ static void a_low_battery_is_drawn_in_the_danger_color(void)
     CHECK(ui_test_area_has_color(&canvas, status_bar_battery_area(&theme), theme.colors.danger));
 }
 
-static void a_charging_battery_is_drawn_in_the_success_color(void)
+static void a_battery_on_usb_power_is_drawn_in_the_success_color(void)
 {
     Theme theme = status_theme();
     Canvas canvas = draw_status(&theme, battery_at(LOW_BATTERY, true));
@@ -142,19 +142,19 @@ static void an_unknown_battery_shows_no_percentage(void)
     CHECK(ui_test_area_has_only(&canvas, percent, theme.colors.header_background));
 }
 
-static void a_charging_battery_has_a_bolt_beside_it(void)
+static void a_battery_on_usb_power_has_a_bolt_beside_it(void)
 {
     Theme theme = status_theme();
     Rect bolt = status_bar_bolt_area(&theme);
     Rect battery = status_bar_battery_area(&theme);
     CHECK(bolt.x + bolt.width < battery.x);
-    Canvas charging = draw_status(&theme, battery_at(50, true));
-    CHECK(ui_test_area_has_color(&charging, bolt, theme.colors.success));
+    Canvas powered = draw_status(&theme, battery_at(50, true));
+    CHECK(ui_test_area_has_color(&powered, bolt, theme.colors.success));
     Canvas resting = draw_status(&theme, battery_at(50, false));
     CHECK(!ui_test_area_has_color(&resting, bolt, theme.colors.success));
 }
 
-static void the_percentage_moves_left_of_the_bolt_while_charging(void)
+static void the_percentage_moves_left_of_the_bolt_on_usb_power(void)
 {
     Theme theme = status_theme();
     Rect bolt = status_bar_bolt_area(&theme);
@@ -191,9 +191,9 @@ int main(void)
         TEST_CASE(the_battery_sits_inside_the_right_inset),
         TEST_CASE(the_fill_follows_the_charge),
         TEST_CASE(a_low_battery_is_drawn_in_the_danger_color),
-        TEST_CASE(a_charging_battery_is_drawn_in_the_success_color),
-        TEST_CASE(a_charging_battery_has_a_bolt_beside_it),
-        TEST_CASE(the_percentage_moves_left_of_the_bolt_while_charging),
+        TEST_CASE(a_battery_on_usb_power_is_drawn_in_the_success_color),
+        TEST_CASE(a_battery_on_usb_power_has_a_bolt_beside_it),
+        TEST_CASE(the_percentage_moves_left_of_the_bolt_on_usb_power),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -3,6 +3,7 @@
 #include "core/seam.h"
 #include "debug_probe.h"
 #include "gpio.h"
+#include "hal/clock.h"
 #include "registers.h"
 #include "usb.h"
 
@@ -63,14 +64,24 @@ static BatteryDisplay display;
 static bool usb_seen;
 static bool usb_before;
 
-static bool charging_now(bool usb_power)
+static ChargeTracker charge;
+
+static bool charge_status_high(void)
 {
     if (!charge_status_ready) {
         gpio_mux(CHARGE_STATUS, GPIO_FUNCTION_GPIO);
         gpio_input(CHARGE_STATUS);
         charge_status_ready = true;
     }
-    return usb_power && !gpio_read(CHARGE_STATUS);
+    return gpio_read(CHARGE_STATUS);
+}
+
+static ChargeState charge_state(bool usb_power, uint32_t millivolts)
+{
+    return charge_tracker_update(&charge, (ChargeReading){.usb_power = usb_power,
+                                                          .status_high = charge_status_high(),
+                                                          .millivolts = millivolts,
+                                                          .now_ms = hal_clock_milliseconds()});
 }
 
 HalBattery hal_power_battery(void)
@@ -82,13 +93,20 @@ HalBattery hal_power_battery(void)
     usb_seen = true;
     usb_before = usb_power;
     BatteryGauge gauge = board_battery_gauge();
-    bool charging = charging_now(usb_power);
+    ChargeState state = charge_state(usb_power, battery_gauge_recent_millivolts(&gauge));
+    bool charging = state == CHARGE_CHARGING;
     if (!battery_gauge_known(&gauge)) {
         return (HalBattery){.known = false, .usb_power = usb_power, .charging = charging};
     }
+    if (state == CHARGE_FULL) {
+        battery_display_show_full(&display);
+    }
+    uint8_t percent = state == CHARGE_FULL
+                          ? BATTERY_FULL_PERCENT
+                          : battery_display_update(
+                                &display, battery_gauge_percent(&gauge, charging), usb_power);
     return (HalBattery){.known = true,
-                        .percent = battery_display_update(
-                            &display, battery_gauge_percent(&gauge, charging), usb_power),
+                        .percent = percent,
                         .charging = charging,
                         .usb_power = usb_power,
                         .millivolts = (uint16_t)battery_gauge_recent_millivolts(&gauge)};
