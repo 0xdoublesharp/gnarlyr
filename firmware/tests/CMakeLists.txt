@@ -8,7 +8,8 @@ target_link_libraries(echo_test_pack PUBLIC echo_core PRIVATE echo_options)
 
 echo_add_language_pack(${ECHO_TEST_LANGUAGE} ECHO_PSEUDO_PACK)
 list(GET ECHO_LANGUAGE_PACK_FILES 0 ECHO_ENGLISH_PACK)
-add_custom_target(echo_test_language_packs DEPENDS ${ECHO_PSEUDO_PACK} ${ECHO_ENGLISH_PACK})
+add_custom_target(echo_test_language_packs DEPENDS ${ECHO_PSEUDO_PACK})
+add_dependencies(echo_test_language_packs echo_language_packs)
 
 function(echo_add_unit_test)
     cmake_parse_arguments(TEST "" "NAME" "SOURCES;LIBRARIES;PRIVATE_INCLUDES" ${ARGN})
