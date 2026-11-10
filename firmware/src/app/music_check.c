@@ -15,49 +15,6 @@ enum {
     RECORD_MAGIC = 0x43535344
 };
 
-typedef struct MusicWalk {
-    HalDir dirs[FINGERPRINT_MAX_DEPTH];
-    HalDirEntry entry;
-} MusicWalk;
-
-static MusicWalk walk;
-static FingerprintWork work;
-
-static bool open_dir(void *context, uint32_t level, const char *path)
-{
-    MusicWalk *state = context;
-    hal_system_keep_alive();
-    return hal_dir_open(&state->dirs[level], path);
-}
-
-static bool next_entry(void *context, uint32_t level, FingerprintEntry *entry)
-{
-    MusicWalk *state = context;
-    hal_system_keep_alive();
-    if (!hal_dir_next(&state->dirs[level], &state->entry)) {
-        return false;
-    }
-    entry->directory = state->entry.directory;
-    entry->size = state->entry.size;
-    entry->modified = state->entry.modified;
-    for (size_t index = 0; index < sizeof entry->name; index++) {
-        entry->name[index] = state->entry.name[index];
-    }
-    return true;
-}
-
-static void close_dir(void *context, uint32_t level)
-{
-    MusicWalk *state = context;
-    hal_dir_close(&state->dirs[level]);
-}
-
-MusicFingerprint music_check_fingerprint(void)
-{
-    FingerprintFiles files = {open_dir, next_entry, close_dir, &walk};
-    return music_fingerprint(&files, &work);
-}
-
 static void put_word(uint8_t *bytes, uint32_t value)
 {
     for (int index = 0; index < 4; index++) {
@@ -100,10 +57,12 @@ static bool read_record(MusicFingerprint *print)
     return read_bytes(bytes) && decode_print(bytes, print);
 }
 
-bool music_check_unchanged(void)
+bool music_check_unchanged(MusicFingerprint current)
 {
     MusicFingerprint stored;
-    return read_record(&stored) && music_fingerprints_match(stored, music_check_fingerprint());
+    return read_record(&stored) && stored.complete && current.complete &&
+           stored.first == current.first && stored.second == current.second &&
+           stored.entries == current.entries;
 }
 
 static void put_version(uint8_t *bytes)

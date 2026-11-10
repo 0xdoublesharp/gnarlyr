@@ -450,17 +450,30 @@ class EchoImageTest(unittest.TestCase):
                 return bytes(data[16:32]).rstrip(b"\0").decode("ascii")
         return None
 
+    def recorded_entries(self, session):
+        for data in self.volume_sectors(session):
+            if data[:4] == b"DSSC":
+                return int.from_bytes(data[12:16], "little")
+        return None
+
     def test_the_scan_record_names_the_version_and_the_build_tag(self):
+        from echo_emulator.modules import ModuleWatch
         track = (PROJECT / "tests" / "fixtures" / "mp3" /
                  "cbr_128_44k_stereo_tagged.mp3").read_bytes()
         session = self.session(files=[("TRACK01.MP3", track, None)])
         machine = session.machine
+        watch = ModuleWatch(session)
+        number, _ = self.module(machine, "library")
         deadline = self.session_module.FRAME_LIMIT_MS
         while self.recorded_version(session) is None and machine.milliseconds() < deadline:
             machine.run(until_ms=machine.milliseconds() + SCAN_RECORD_POLL_MS)
         build_tag = self.image[0x30:0x38].rstrip(b"\0").decode("ascii")
         self.assertEqual(self.recorded_version(session), "1.0.0-" + build_tag)
+        self.assertGreaterEqual(self.recorded_entries(session), 1)
+        self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
+                         [(number, True)])
         self.assert_healthy(session)
+        print("\n[music walk after the first scan] " + watch.describe(watch.loads()[0]))
 
     def assert_every_write_read_back(self, accesses):
         for index, access in enumerate(accesses):
@@ -1855,6 +1868,7 @@ class EchoImageTest(unittest.TestCase):
         watch = ModuleWatch(session)
         settings_number, settings = self.module(machine, "settings")
         views_number, _ = self.module(machine, "views")
+        library_number, _ = self.module(machine, "library")
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
         self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
         self.assertTrue(settings.loaded(machine))
@@ -1865,8 +1879,11 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual([line["status"] for line in ran["lines"]], ["ok"] * 16)
         self.assertEqual(ran["screenshots"], [{"slot": 0, "name": "coverflow"},
                                               {"slot": 1, "name": "settings"}])
-        self.assertEqual([call["module"] for call in watch.loads() if call["loaded"]][:4],
-                         [views_number, settings_number, views_number, settings_number])
+        loads = watch.loads()
+        self.assertEqual([(call["module"], call["loaded"]) for call in loads],
+                         [(library_number, True), (library_number, True), (views_number, True),
+                          (settings_number, True), (views_number, True), (settings_number, True)])
+        self.assertLess(max(call["us"] for call in loads), MODULE_LOAD_LIMIT_MS * 1000)
         screens = [event["detail"] for event in report["events"] if event["kind"] == "screen"]
         self.assertIn("3 " + english("STR_COVER_FLOW")[:7], screens)
         self.assertIn("2 " + english("STR_SETTINGS")[:7], screens)

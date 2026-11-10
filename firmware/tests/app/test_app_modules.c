@@ -398,6 +398,66 @@ static void settings_that_cannot_load_leave_home_usable(void)
     CHECK(title_is("Music"));
 }
 
+static void start_on_a_fresh_card(void)
+{
+    fake_hal_reset();
+    fake_hal_set_empty_card(true);
+    fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
+    now_ms = START_MS;
+    fake_hal_set_milliseconds(now_ms);
+    app_start();
+    while (app_preparing()) {
+        step();
+    }
+    step();
+}
+
+static void the_music_check_walks_the_card_from_its_module(void)
+{
+    start_on_a_fresh_card();
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+    fake_hal_evict_module();
+    int loads = fake_hal_module_loads();
+    int walks = fake_hal_dir_open_count();
+    app_request_rescan_if_music_changed();
+    step();
+    CHECK(fake_hal_dir_open_count() > walks);
+    CHECK_EQUAL(loads + 1, fake_hal_module_loads());
+    CHECK_EQUAL(SCREEN_MODULE_LIBRARY, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+}
+
+static void after_a_music_check_the_screen_on_top_gets_its_module_back(void)
+{
+    start_on_a_fresh_card();
+    open_settings();
+    tap(KEY_PLAY);
+    CHECK(title_is("About"));
+    app_request_rescan_if_music_changed();
+    step();
+    CHECK(title_is("About"));
+    CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+}
+
+static void a_music_check_that_cannot_walk_the_card_rescans_instead(void)
+{
+    start_on_a_fresh_card();
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+    fake_hal_evict_module();
+    fake_hal_break_module(SCREEN_MODULE_LIBRARY, true);
+    int walks = fake_hal_dir_open_count();
+    app_request_rescan_if_music_changed();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    fake_hal_break_module(SCREEN_MODULE_LIBRARY, false);
+    walks = fake_hal_dir_open_count();
+    app_request_rescan_if_music_changed();
+    step();
+    CHECK(fake_hal_dir_open_count() > walks);
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -420,6 +480,9 @@ int main(void)
         TEST_CASE(a_setting_changed_by_a_script_gives_the_slot_back_to_the_screen_on_top),
         TEST_CASE(an_about_value_is_read_through_its_module),
         TEST_CASE(settings_that_cannot_load_leave_home_usable),
+        TEST_CASE(the_music_check_walks_the_card_from_its_module),
+        TEST_CASE(after_a_music_check_the_screen_on_top_gets_its_module_back),
+        TEST_CASE(a_music_check_that_cannot_walk_the_card_rescans_instead),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

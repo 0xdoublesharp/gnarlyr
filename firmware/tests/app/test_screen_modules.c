@@ -79,7 +79,7 @@ static void screens_a_module_builds_for_itself_belong_to_it_too(void)
 static void every_module_has_its_own_memory(void)
 {
     reset();
-    for (int module = SCREEN_MODULE_NONE + 1; module < SCREEN_MODULE_COUNT; module++) {
+    for (int module = SCREEN_MODULE_VIEWS; module <= SCREEN_MODULE_SETTINGS; module++) {
         int held = 0;
         for (size_t at = 0; at < sizeof screens; at += sizeof(void *)) {
             const Screen *screen = (const Screen *)((const char *)&screens + at);

@@ -1044,6 +1044,13 @@ static void explain_refusals(uint32_t now_ms)
     }
 }
 
+static MusicFingerprint walk_music(void)
+{
+    const LibraryModuleEntry *module =
+        (const LibraryModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_LIBRARY);
+    return module != NULL ? module->music_fingerprint() : (MusicFingerprint){.complete = false};
+}
+
 static void run_rescan(void)
 {
     app_show_notice(i18n_text(STR_SCANNING), i18n_text(STR_SCAN_STARTING));
@@ -1052,7 +1059,7 @@ static void run_rescan(void)
     static char message[TOAST_TEXT_CAPACITY];
     const char *text = library_rescan_message(outcome, message, sizeof message);
     if (outcome.result == SCAN_OK) {
-        music_check_remember(music_check_fingerprint());
+        music_check_remember(walk_music());
         app_start();
     } else {
         debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_SCAN_FAILED + (uint32_t)outcome.result);
@@ -1260,7 +1267,7 @@ CORE_SEAM void app_step(void)
         bool changed = hal_system_restart_pending();
         if (!changed) {
             app_show_notice(i18n_text(STR_MUSIC), i18n_text(STR_CHECKING_MUSIC));
-            changed = !music_check_unchanged() || !library_store_open(&app.library);
+            changed = !music_check_unchanged(walk_music()) || !library_store_open(&app.library);
         }
         if (!changed) {
             music_check_note_firmware();

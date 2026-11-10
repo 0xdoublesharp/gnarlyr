@@ -19,7 +19,9 @@ add_library(echo_app STATIC
     language.c
     library_rescan.c
     music_check.c
+    music_walk.c
     library_store.c
+    modules/library_module.c
     modules/settings_module.c
     modules/views_module.c
     player.c

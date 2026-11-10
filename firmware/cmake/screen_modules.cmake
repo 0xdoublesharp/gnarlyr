@@ -1,4 +1,4 @@
-set(ECHO_SCREEN_MODULES views settings)
+set(ECHO_SCREEN_MODULES views settings library)
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
     src/app/screens/cover_flow_screen.c
@@ -16,6 +16,11 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/core/dac_identity.c
     src/settings/equalizer_slots.c
     src/ui/choice_screen.c
+)
+set(ECHO_SCREEN_MODULE_SOURCES_library
+    src/app/modules/library_module.c
+    src/app/music_walk.c
+    src/library/music_fingerprint.c
 )
 if(ECHO_RELEASE)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_settings src/app/diagnostics_menu_release.c)
