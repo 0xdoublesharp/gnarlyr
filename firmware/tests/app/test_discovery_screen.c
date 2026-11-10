@@ -511,9 +511,428 @@ static void finishing_tag_loading_applies_the_new_filters_without_publishing_old
     CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
 }
 
+static void open_filters(void)
+{
+    explore();
+    key(KEY_MENU, KEY_GESTURE_PRESS);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_FILTERS, discovery.mode);
+}
+
+static void artist_album_and_genre_filters_can_be_selected_and_cleared(void)
+{
+    for (int filter = 0; filter < 3; filter++) {
+        start();
+        open_filters();
+        for (int step = 0; step < filter; step++) {
+            key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+        }
+        key(KEY_PLAY, KEY_GESTURE_PRESS);
+        CHECK_EQUAL(DISCOVERY_PICKER, discovery.mode);
+        CHECK(discovery.model.count(&discovery) > 1);
+        key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+        key(KEY_PLAY, KEY_GESTURE_PRESS);
+        CHECK_EQUAL(DISCOVERY_FILTERS, discovery.mode);
+        uint16_t selected = filter == 0   ? discovery.query.artist
+                            : filter == 1 ? discovery.query.album
+                                          : discovery.query.genre;
+        CHECK_EQUAL(0, selected);
+        for (int step = 0; step < filter; step++) {
+            key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+        }
+        key(KEY_PLAY, KEY_GESTURE_PRESS);
+        CHECK_EQUAL(DISCOVERY_PICKER, discovery.mode);
+        key(KEY_PLAY, KEY_GESTURE_PRESS);
+        selected = filter == 0   ? discovery.query.artist
+                   : filter == 1 ? discovery.query.album
+                                 : discovery.query.genre;
+        CHECK_EQUAL(LIBRARY_NONE, selected);
+        key(KEY_BACK, KEY_GESTURE_PRESS);
+        complete();
+        CHECK_EQUAL(LIBRARY_VIEW_READY, discovery_screen_state(&discovery));
+    }
+}
+
+static void year_and_duration_filters_apply_numeric_entries(void)
+{
+    for (int filter = 3; filter <= 6; filter++) {
+        start();
+        open_filters();
+        for (int step = 0; step < filter; step++) {
+            key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+        }
+        key(KEY_PLAY, KEY_GESTURE_PRESS);
+        CHECK_EQUAL(DISCOVERY_EDITOR, discovery.mode);
+        for (int step = 0; step < 4; step++) {
+            key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+        }
+        key(KEY_PLAY, KEY_GESTURE_PRESS);
+        key(KEY_VOLUME_DOWN, KEY_GESTURE_PRESS);
+        key(KEY_VOLUME_DOWN, KEY_GESTURE_PRESS);
+        key(KEY_PLAY, KEY_GESTURE_PRESS);
+        key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+        CHECK_EQUAL(DISCOVERY_FILTERS, discovery.mode);
+        uint32_t actual = filter == 3   ? discovery.query.year_min
+                          : filter == 4 ? discovery.query.year_max
+                          : filter == 5 ? discovery.query.duration_min_ms
+                                        : discovery.query.duration_max_ms;
+        CHECK_EQUAL(filter <= 4 ? 42 : 42 * 60000, actual);
+    }
+}
+
+static void every_sort_choice_and_direction_survives_a_rebuild(void)
+{
+    for (int sort = 0; sort <= 6; sort++) {
+        start();
+        explore();
+        key(KEY_MENU, KEY_GESTURE_PRESS);
+        key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+        key(KEY_PLAY, KEY_GESTURE_PRESS);
+        CHECK_EQUAL(DISCOVERY_SORT, discovery.mode);
+        for (int step = 0; step < sort; step++) {
+            key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+        }
+        key(KEY_PLAY, KEY_GESTURE_PRESS);
+        complete();
+        CHECK_EQUAL(LIBRARY_VIEW_READY, discovery_screen_state(&discovery));
+        if (sort < 6) {
+            CHECK_EQUAL(sort, discovery.query.sort);
+        } else {
+            CHECK(discovery.query.descending);
+        }
+    }
+}
+
+static void finish_tag_change(void)
+{
+    for (int step = 0; step < 2000 && discovery.mode != DISCOVERY_TAGS; step++) {
+        tick();
+    }
+    CHECK_EQUAL(DISCOVERY_TAGS, discovery.mode);
+}
+
+static void tag_creation_rename_and_deletion_update_the_list(void)
+{
+    start();
+    discovery_screen_tags(&discovery, LIBRARY_NONE);
+    tick();
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+    finish_tag_change();
+    CHECK_EQUAL(2, discovery.model.count(&discovery));
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+    CHECK_EQUAL(DISCOVERY_TAG_ACTIONS, discovery.mode);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_EDITOR, discovery.mode);
+    key(KEY_MENU, KEY_GESTURE_PRESS);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+    finish_tag_change();
+    CHECK(strstr(discovery.model.label(&discovery, 1), "b") != NULL);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+    CHECK_EQUAL(DISCOVERY_TAG_ACTIONS, discovery.mode);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_TAG_DELETE, discovery.mode);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    finish_tag_change();
+    CHECK_EQUAL(1, discovery.model.count(&discovery));
+}
+
+static void personal_tag_filters_only_keep_assigned_tracks(void)
+{
+    start();
+    discovery_screen_tags(&discovery, 0);
+    tick();
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+    finish_tag_change();
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    for (int step = 0; step < 2000; step++) {
+        tick();
+    }
+    open_filters();
+    for (int step = 0; step < 7; step++) {
+        key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    }
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_TAG_FILTER, discovery.mode);
+    CHECK_EQUAL(2, discovery.model.count(&discovery));
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(1, discovery.required_tags);
+    key(KEY_BACK, KEY_GESTURE_PRESS);
+    key(KEY_BACK, KEY_GESTURE_PRESS);
+    complete();
+    TrackOrderSource order = discovery_screen_order(&discovery);
+    CHECK_EQUAL(1, order.count);
+    uint16_t track = LIBRARY_NONE;
+    CHECK(order.read(order.context, 0, 1, &track));
+    CHECK_EQUAL(0, track);
+}
+
+static void result_actions_expose_the_selected_tracks_information(void)
+{
+    start();
+    explore();
+    key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+    CHECK_EQUAL(DISCOVERY_ACTIONS, discovery.mode);
+    CHECK_EQUAL(4, discovery.model.count(&discovery));
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_INFO, discovery.mode);
+    CHECK_EQUAL(11, discovery.model.count(&discovery));
+    for (int row = 0; row < 11; row++) {
+        discovery.list.top = row;
+        tick();
+        CHECK(discovery.model.label(&discovery, row) != NULL);
+    }
+    key(KEY_BACK, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_RESULTS, discovery.mode);
+}
+
+static void track_actions_can_start_playback_and_return_to_results(void)
+{
+    for (int action = 2; action <= 3; action++) {
+        start();
+        Player player;
+        player_init(&player, &fixture.library);
+        discovery.config.player = &player;
+        explore();
+        uint16_t expected = LIBRARY_NONE;
+        TrackOrderSource order = discovery_screen_order(&discovery);
+        CHECK(order.read(order.context, 0, 1, &expected));
+        key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+        CHECK_EQUAL(DISCOVERY_ACTIONS, discovery.mode);
+        for (int step = 0; step < action; step++) {
+            key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+        }
+        key(KEY_PLAY, KEY_GESTURE_PRESS);
+        CHECK_EQUAL(DISCOVERY_NOTICE, discovery.mode);
+        CHECK(player_status(&player).has_track);
+        CHECK_EQUAL(expected, player_status(&player).track);
+        key(KEY_BACK, KEY_GESTURE_PRESS);
+        CHECK_EQUAL(DISCOVERY_RESULTS, discovery.mode);
+    }
+}
+
+static void out_of_range_year_is_rejected_without_changing_the_filter(void)
+{
+    start();
+    open_filters();
+    for (int step = 0; step < 3; step++) {
+        key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    }
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_EDITOR, discovery.mode);
+    key(KEY_VOLUME_DOWN, KEY_GESTURE_PRESS);
+    for (int digit = 0; digit < 6; digit++) {
+        key(KEY_PLAY, KEY_GESTURE_PRESS);
+    }
+    key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+    CHECK_EQUAL(DISCOVERY_NOTICE, discovery.mode);
+    CHECK_EQUAL(0, discovery.query.year_min);
+    key(KEY_BACK, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_FILTERS, discovery.mode);
+}
+
+static void a_tag_write_failure_shows_a_notice_without_creating_the_tag(void)
+{
+    start();
+    discovery_screen_tags(&discovery, LIBRARY_NONE);
+    tick();
+    fake_hal_fail_music_writes(true);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+    for (int step = 0; step < 2000 && discovery.mode != DISCOVERY_NOTICE; step++) {
+        tick();
+    }
+    CHECK_EQUAL(DISCOVERY_NOTICE, discovery.mode);
+    fake_hal_fail_music_writes(false);
+    key(KEY_BACK, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_TAGS, discovery.mode);
+    CHECK_EQUAL(1, discovery.model.count(&discovery));
+}
+
+static void track_actions_enqueue_without_interrupting_current_playback(void)
+{
+    for (int action = 2; action <= 3; action++) {
+        start();
+        Player player;
+        player_init(&player, &fixture.library);
+        BrowseQuery single = {.kind = BROWSE_SINGLE_TRACK,
+                              .group = LIBRARY_ARTISTS,
+                              .subject = 0,
+                              .artist = LIBRARY_NONE};
+        CHECK(player_play_list(&player, single, 0, 7));
+        discovery.config.player = &player;
+        explore();
+        key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+        TrackOrderSource order = discovery_screen_order(&discovery);
+        uint16_t expected = LIBRARY_NONE;
+        CHECK(order.read(order.context, 1, 1, &expected));
+        key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+        for (int step = 0; step < action; step++) {
+            key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+        }
+        key(KEY_PLAY, KEY_GESTURE_PRESS);
+        CHECK_EQUAL(DISCOVERY_NOTICE, discovery.mode);
+        CHECK_EQUAL(0, player_status(&player).track);
+        CHECK_EQUAL(1, player.up_next.count);
+        CHECK_EQUAL(expected, player.up_next.tracks[0]);
+    }
+}
+
+static void draw_current_screen(void)
+{
+    Canvas canvas =
+        canvas_make(pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+    discovery.screen.draw(&discovery, &canvas);
+}
+
+static void search_progress_cancel_failure_and_results_draw_distinct_states(void)
+{
+    static Color previous[HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT];
+    start();
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
+    CHECK_EQUAL(LIBRARY_VIEW_SCANNING, discovery_screen_state(&discovery));
+    draw_current_screen();
+    memcpy(previous, pixels, sizeof previous);
+    key(KEY_BACK, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(LIBRARY_VIEW_CANCELLED, discovery_screen_state(&discovery));
+    draw_current_screen();
+    CHECK(memcmp(previous, pixels, sizeof previous) != 0);
+    memcpy(previous, pixels, sizeof previous);
+    refuse_writes = true;
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
+    complete();
+    CHECK_EQUAL(LIBRARY_VIEW_WRITE_FAILED, discovery_screen_state(&discovery));
+    draw_current_screen();
+    CHECK(memcmp(previous, pixels, sizeof previous) != 0);
+    memcpy(previous, pixels, sizeof previous);
+    refuse_writes = false;
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
+    complete();
+    CHECK_EQUAL(LIBRARY_VIEW_READY, discovery_screen_state(&discovery));
+    draw_current_screen();
+    CHECK(memcmp(previous, pixels, sizeof previous) != 0);
+    memcpy(previous, pixels, sizeof previous);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_REQUEST_PLAY, discovery.request);
+    draw_current_screen();
+    CHECK(memcmp(previous, pixels, sizeof previous) != 0);
+}
+
+static void active_filters_change_the_results_summary(void)
+{
+    static Color unfiltered[HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT];
+    start();
+    explore();
+    draw_current_screen();
+    memcpy(unfiltered, pixels, sizeof unfiltered);
+    key(KEY_MENU, KEY_GESTURE_PRESS);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    key(KEY_BACK, KEY_GESTURE_PRESS);
+    complete();
+    CHECK_EQUAL(0, discovery.query.artist);
+    draw_current_screen();
+    CHECK(memcmp(unfiltered, pixels, sizeof unfiltered) != 0);
+}
+
+static void every_active_constraint_is_visible_in_the_results_summary(void)
+{
+    static Color unfiltered[HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT];
+    start();
+    explore();
+    draw_current_screen();
+    memcpy(unfiltered, pixels, sizeof unfiltered);
+    LibraryViewConfig original = discovery.query;
+    for (int filter = 0; filter < 8; filter++) {
+        discovery.query = original;
+        discovery.required_tags = 0;
+        switch (filter) {
+        case 0:
+            discovery.query.artist = 0;
+            break;
+        case 1:
+            discovery.query.album = 0;
+            break;
+        case 2:
+            discovery.query.genre = 0;
+            break;
+        case 3:
+            discovery.query.year_min = 1;
+            break;
+        case 4:
+            discovery.query.year_max = 2025;
+            break;
+        case 5:
+            discovery.query.duration_min_ms = 60000;
+            break;
+        case 6:
+            discovery.query.duration_max_ms = 120000;
+            break;
+        case 7:
+            discovery.required_tags = 1;
+            break;
+        }
+        draw_current_screen();
+        CHECK(memcmp(unfiltered, pixels, sizeof unfiltered) != 0);
+    }
+    discovery.query = original;
+    discovery.required_tags = 0;
+    strcpy(discovery.query.text, "find");
+    draw_current_screen();
+    CHECK(memcmp(unfiltered, pixels, sizeof unfiltered) != 0);
+}
+
+static void a_search_with_no_matches_displays_an_empty_state(void)
+{
+    static Color results[HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT];
+    start();
+    explore();
+    draw_current_screen();
+    memcpy(results, pixels, sizeof results);
+    discovery.query.year_min = UINT16_MAX;
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
+    complete();
+    CHECK_EQUAL(LIBRARY_VIEW_READY, discovery_screen_state(&discovery));
+    CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
+    draw_current_screen();
+    CHECK(memcmp(results, pixels, sizeof results) != 0);
+}
+
 int main(void)
 {
     const TestCase cases[] = {
+        TEST_CASE(every_active_constraint_is_visible_in_the_results_summary),
+        TEST_CASE(a_search_with_no_matches_displays_an_empty_state),
+        TEST_CASE(search_progress_cancel_failure_and_results_draw_distinct_states),
+        TEST_CASE(active_filters_change_the_results_summary),
+        TEST_CASE(track_actions_enqueue_without_interrupting_current_playback),
+        TEST_CASE(track_actions_can_start_playback_and_return_to_results),
+        TEST_CASE(out_of_range_year_is_rejected_without_changing_the_filter),
+        TEST_CASE(a_tag_write_failure_shows_a_notice_without_creating_the_tag),
+        TEST_CASE(tag_creation_rename_and_deletion_update_the_list),
+        TEST_CASE(personal_tag_filters_only_keep_assigned_tracks),
+        TEST_CASE(result_actions_expose_the_selected_tracks_information),
+        TEST_CASE(artist_album_and_genre_filters_can_be_selected_and_cleared),
+        TEST_CASE(year_and_duration_filters_apply_numeric_entries),
+        TEST_CASE(every_sort_choice_and_direction_survives_a_rebuild),
         TEST_CASE(backing_out_of_a_deferred_replacement_never_restores_stale_results),
         TEST_CASE(cancelling_a_deferred_replacement_never_exposes_the_previous_order),
         TEST_CASE(leaving_home_during_tag_loading_cannot_republish_an_old_order),
