@@ -89,6 +89,23 @@ class Session:
         self.disk.write(lba, bytes(sector))
         self.before = self.disk.snapshot()
 
+    def language_pack_span(self, slot):
+        entry = make_image.LANGUAGE_TABLE_OFFSET + 8
+        offset, size = struct.unpack_from("<II", self.image, entry)
+        return self.layout[slot] + offset // 512, (size + 511) // 512
+
+    def damage_language_pack(self, slot):
+        lba = self.language_pack_span(slot)[0] + 1
+        sector = bytearray(self.disk.read(lba, 1))
+        sector[0] ^= 0xFF
+        self.disk.write(lba, bytes(sector))
+        self.before = self.disk.snapshot()
+
+    def language_pack_reads(self, slot):
+        first, count = self.language_pack_span(slot)
+        return [(lba, sectors) for _, lba, sectors in self.card.reads
+                if first <= lba < first + count]
+
     def usb_overlay_reads(self, slot):
         first = self.layout[slot] + make_image.USB_OVERLAY_OFFSET // 512
         last = first + make_image.USB_OVERLAY_CAPACITY // 512

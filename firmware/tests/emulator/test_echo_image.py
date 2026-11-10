@@ -11,6 +11,7 @@ sys.path.insert(0, str(PROJECT / "tools"))
 sys.path.insert(0, str(PROJECT.parent / "tools"))
 
 import echo_debug
+import lang_pack
 import make_image
 from identity import IDENTITY
 
@@ -99,6 +100,9 @@ USB_PHY_TUNING = [("grf", 0x88, 0x0C000C00), ("grf", 0x84, 0xE01F0003), ("grf", 
 USB_POWER_UP = [("cru", 0x80, 0x00800000), ("cru", 0x98, 0x04000000), ("cru", 0xC0, 0x00020000),
                 ("cru", 0xC0, 0x00040000), ("cru", 0xC0, 0x00010000)]
 PROFILED_MS = 1500
+LANGUAGE_RAM = 0x0309D000
+MISSING_TEXT = "Text is missing: reinstall the update"
+STEPS_AFTER_NOTICE = 20
 FNV_START = 2166136261
 FNV_PRIME = 16777619
 
@@ -118,6 +122,10 @@ def expected_init(madctl):
         (0x21, ()), (0x2A, (0x00, 0x31, 0x01, 0x0E)), (0x2B, (0x00, 0x00, 0x01, 0xDF)),
         (0x2C, ()),
     ]
+
+
+def english(name):
+    return dict(lang_pack.read_catalogue())[name]
 
 
 def settings_file(orientation):
@@ -1433,7 +1441,7 @@ class EchoImageTest(unittest.TestCase):
                     until_ms=self.session_module.FRAME_LIMIT_MS)
         executed = machine.count_window_code()
         self.assertEqual(session.run_until_waiting_for_key(), "reached board_wait_for_key")
-        self.assertEqual(notices[-1], ("USB", "USB code missing: reinstall the update"))
+        self.assertEqual(notices[-1], (english("STR_USB"), english("STR_USB_CODE_MISSING")))
         self.assertGreaterEqual(machine.reached["usb_power_down"], 1)
         for name in ("updater_check", "updater_install", "usb_storage_session"):
             self.assertNotIn(name, machine.reached)
@@ -1441,6 +1449,49 @@ class EchoImageTest(unittest.TestCase):
         self.assertFalse(any(machine.read_memory(make_image.OVERLAY_BASE,
                                                  make_image.OVERLAY_CAPACITY)))
         self.assertTrue(session.file_exists("DBLSHARP.IMG"))
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def loaded_language_pack(self, session):
+        pack = make_image.language_packs_in(self.image)[0]
+        return session.machine.read_memory(LANGUAGE_RAM, len(pack)) == pack
+
+    def test_the_text_is_read_from_the_language_pack_in_slot_1(self):
+        session = self.session()
+        self.assertEqual(session.run_to_home_screen(), "condition met")
+        self.assertTrue(self.loaded_language_pack(session))
+        self.assertTrue(session.language_pack_reads("slot_1"))
+        self.assertEqual(session.language_pack_reads("slot_2"), [])
+        self.assert_healthy(session)
+
+    def test_a_damaged_language_pack_in_slot_1_is_replaced_by_the_copy_in_slot_2(self):
+        session = self.session()
+        session.damage_language_pack("slot_1")
+        notices = session.machine.collect_notices()
+        self.assertEqual(session.run_to_home_screen(), "condition met")
+        self.assertTrue(self.loaded_language_pack(session))
+        self.assertTrue(session.language_pack_reads("slot_1"))
+        self.assertTrue(session.language_pack_reads("slot_2"))
+        self.assertNotIn(MISSING_TEXT, [message for _, message in notices])
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def test_without_an_intact_language_pack_the_player_says_so_and_still_starts(self):
+        session = self.session()
+        session.damage_language_pack("slot_1")
+        session.damage_language_pack("slot_2")
+        machine = session.machine
+        notices = machine.collect_notices()
+        machine.answer_waits_for_key(1)
+        machine.note("app_step")
+        reason = machine.run(until=lambda: machine.reached.get("app_step", 0) >= STEPS_AFTER_NOTICE,
+                             until_ms=self.session_module.FRAME_LIMIT_MS)
+        self.assertEqual(reason, "condition met")
+        self.assertEqual(notices[0], (IDENTITY.short_name, MISSING_TEXT))
+        self.assertEqual(machine.reached["board_wait_for_key"], 1)
+        self.assertFalse(self.loaded_language_pack(session))
+        self.assertTrue(session.language_pack_reads("slot_1"))
+        self.assertTrue(session.language_pack_reads("slot_2"))
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 
