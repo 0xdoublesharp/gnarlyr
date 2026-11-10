@@ -200,6 +200,40 @@ static void the_signature_spots_tags_and_frame_headers(void)
     CHECK(!mp3_signature(BAD_RATE));
 }
 
+static void invalid_mpeg_header_fields_are_rejected(void)
+{
+    static const uint8_t BAD[][4] = {
+        {0xff, 0xeb, 0x90, 0x64},
+        {0xff, 0xf9, 0x90, 0x64},
+        {0xff, 0xfb, 0x00, 0x64},
+        {0xff, 0xfb, 0xf0, 0x64},
+        {0xff, 0xfb, 0x9c, 0x64},
+        {0xfe, 0xfb, 0x90, 0x64},
+    };
+    for (uint32_t index = 0; index < sizeof BAD / sizeof BAD[0]; index++) {
+        CHECK(!mp3_signature(BAD[index]));
+    }
+    static const uint8_t LAYER1[] = {0xff, 0xff, 0x90, 0x64};
+    static const uint8_t MPEG25[] = {0xff, 0xe3, 0x90, 0x64};
+    CHECK(mp3_signature(LAYER1));
+    CHECK(mp3_signature(MPEG25));
+}
+
+static void seeking_handles_unknown_length_and_nonmonotonic_tables(void)
+{
+    Mp3Stream stream = {.audio_start = 100, .audio_end = 1100};
+    CHECK_EQUAL(100u, mp3_seek_offset(&stream, 0));
+    CHECK_EQUAL(1100u, mp3_seek_offset(&stream, 1));
+    stream.total_samples = 10000;
+    stream.has_toc = true;
+    stream.toc[50] = 128;
+    stream.toc[51] = 100;
+    stream.toc[99] = 240;
+    CHECK_EQUAL(600u, mp3_seek_offset(&stream, 5050));
+    CHECK_EQUAL(1068u, mp3_seek_offset(&stream, 9950));
+    CHECK_EQUAL(1100u, mp3_seek_offset(&stream, 10000));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -216,6 +250,8 @@ int main(void)
         TEST_CASE(trims_longer_than_the_track_are_ignored),
         TEST_CASE(other_files_are_not_mp3),
         TEST_CASE(the_signature_spots_tags_and_frame_headers),
+        TEST_CASE(invalid_mpeg_header_fields_are_rejected),
+        TEST_CASE(seeking_handles_unknown_length_and_nonmonotonic_tables),
     };
     int result = test_run_all(cases, TEST_CASE_COUNT(cases));
     free(fixture.bytes);
