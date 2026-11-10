@@ -54,6 +54,16 @@ void usb_silence_audio(void)
     gpio_output(DAC_POWER, false);
 }
 
+void usb_start_idle(void)
+{
+    write_grf(PHY_ON_FIRST, sizeof PHY_ON_FIRST / sizeof PHY_ON_FIRST[0]);
+    cru_reset(RESET_USB_A, true);
+    cru_reset(RESET_USB_B, true);
+    cru_reset(RESET_USB_C, true);
+    cru_gate(GATE_USB_A, false);
+    cru_gate(GATE_USB_B, false);
+}
+
 void usb_power_up(void)
 {
     board_debug_usb_powered(true);

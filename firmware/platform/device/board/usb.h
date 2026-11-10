@@ -54,6 +54,7 @@ typedef struct UsbPort {
 } UsbPort;
 
 bool usb_vbus_present(void);
+void usb_start_idle(void);
 void usb_power_up(void);
 void usb_power_down(void);
 void usb_silence_audio(void);

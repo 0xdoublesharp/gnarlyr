@@ -167,6 +167,8 @@ class Grf(RegisterFile):
 
     def read_word(self, offset):
         if offset == GRF_VBUS:
+            if self.machine.first_cable_read is None:
+                self.machine.first_cable_read = len(self.machine.register_log)
             return GRF_VBUS_PRESENT if self.machine.cable_bit() else 0
         return super().read_word(offset)
 
