@@ -35,7 +35,7 @@ void board_debug_after_start(void);
 uint32_t board_debug_interrupted_line(void);
 bool board_debug_take_reconnect(void);
 bool board_debug_usb_forced(void);
-void board_debug_listen_timed_out(void);
+void board_debug_listen_stopped(void);
 DebugReportLoop board_debug_loop(void);
 bool debug_session_cable(bool vbus, const Msc *msc);
 void board_debug_usb_starting(bool dac);
@@ -109,7 +109,7 @@ static inline bool board_debug_usb_forced(void)
     return false;
 }
 
-static inline void board_debug_listen_timed_out(void)
+static inline void board_debug_listen_stopped(void)
 {
 }
 

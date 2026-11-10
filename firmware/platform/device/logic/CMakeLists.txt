@@ -115,6 +115,7 @@ add_library(echo_device_logic STATIC
     usb_audio_sink.c
     usb_device.c
     usb_fallback.c
+    usb_plug.c
     vop.c
     wav_source.c
 )

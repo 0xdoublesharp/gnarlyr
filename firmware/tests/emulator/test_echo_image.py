@@ -71,6 +71,8 @@ RECONNECT_OFF_MS = 1000
 QUIET_AFTER_MS = 4000
 BOOT_FLAG_CLEAR = 0xFFFF0000
 REPORT_START_LIMIT_MS = 250
+CABLE_STEADY_MS = 1000
+CABLE_NOTICED_LIMIT_MS = 100
 CLOCK_SLACK_MS = 5
 CODE_WINDOW_BYTES = 0x2666C
 PROFILE_BUCKET_BYTES = 128
@@ -673,7 +675,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(kinds.count("usb_start"), 2)
         self.assertEqual(kinds.count("usb_end"), 1)
         powers = [event["detail"] for event in report["events"] if event["kind"] == "power"]
-        self.assertEqual(powers, ["1 1", "0 1"])
+        self.assertEqual(powers, ["1 1", "0 1", "1 1"])
         self.assertEqual(values["power.samples"], 1)
         sample = report["power_samples"][0]
         self.assertEqual((sample["vbus"], sample["charge_pin"], sample["playing"],
@@ -710,6 +712,26 @@ class EchoImageTest(unittest.TestCase):
         before = [entry for entry in machine.register_log[:machine.first_cable_read]
                   if entry in USB_PHY_ON + USB_IDLE + USB_PHY_TUNING + USB_POWER_UP]
         self.assertEqual(before, USB_PHY_ON + USB_IDLE)
+        self.assert_healthy(session)
+
+    def test_a_cable_must_hold_for_a_second_before_usb_is_powered_up(self):
+        session = self.session()
+        machine = session.machine
+        listens = machine.trace("usb_session_listen")
+        session.run_to_home_screen()
+        machine.run(until_ms=machine.milliseconds() + 300)
+        machine.vbus = True
+        machine.run(until_ms=machine.milliseconds() + 700)
+        machine.vbus = False
+        machine.run(until_ms=machine.milliseconds() + 100)
+        self.assertEqual(listens, [])
+        self.assertEqual(machine.usb_log, [])
+        machine.vbus = True
+        plugged_ms = machine.milliseconds()
+        machine.run(until=lambda: listens, until_ms=plugged_ms + 3000)
+        self.assertEqual(len(listens), 1)
+        self.assertGreaterEqual(listens[0], plugged_ms + CABLE_STEADY_MS)
+        self.assertLess(listens[0], plugged_ms + CABLE_STEADY_MS + CABLE_NOTICED_LIMIT_MS)
         self.assert_healthy(session)
 
     def test_usb_power_up_writes_the_words_stock_writes(self):
@@ -1179,13 +1201,14 @@ class EchoImageTest(unittest.TestCase):
         values = cold["values"]
         self.assertEqual((values["report.sequence"], values["report.cold_start"]), (2, 1))
         self.assertNotEqual(cold_path, kept_path)
+        self.assertGreaterEqual(values["uptime_ms"], CABLE_STEADY_MS)
         self.assertLess(values["uptime_ms"], 2000)
         self.assertEqual(values["start.warm"], 0)
-        self.assertEqual(values["battery.source"], "start_up_sample")
+        self.assertEqual(values["battery.source"], "gauge")
         self.assertEqual((values["battery.millivolts"], values["battery.usb_power"]), (3999, 1))
-        self.assertEqual((values["power.adc_source"], values["power.adc_raw"]), ("start_up_sample", 819))
-        self.assertEqual(values["power.gauge_readings"], 0)
-        self.assertIsNone(values["power.gauge_millivolts"])
+        self.assertEqual((values["power.adc_source"], values["power.adc_raw"]), ("gauge", 819))
+        self.assertEqual(values["power.gauge_readings"], 1)
+        self.assertEqual(values["power.gauge_millivolts"], 3999)
         third = self.cold_session_on(second)
         newest, older = self.reports(third)
         self.assertEqual((newest[0], newest[1]["values"]["report.sequence"]), (cold_path, 3))
@@ -1268,6 +1291,8 @@ class EchoImageTest(unittest.TestCase):
             machine.note(name)
         notices = machine.collect_notices()
         session.run_to_first_frame()
+        machine.run(until=lambda: session.usb_overlay_reads("slot_1"),
+                    until_ms=self.session_module.FRAME_LIMIT_MS)
         executed = machine.count_window_code()
         self.assertEqual(session.run_until_waiting_for_key(), "reached board_wait_for_key")
         self.assertEqual(notices[-1], ("USB", "USB code missing: reinstall the update"))
@@ -1293,8 +1318,9 @@ class EchoImageTest(unittest.TestCase):
     def realistic_boot(self, sectors_per_cluster, next_free, usb_ms, gap_ms):
         from echo_emulator.real_volume import real_volume
         volume = real_volume(sectors_per_cluster=sectors_per_cluster, next_free=next_free)
-        session = self.session(volume=volume, vbus=True)
+        session = self.session(volume=volume)
         machine = session.machine
+        machine.vbus = True
         listens = machine.trace("usb_session_listen")
         steps = machine.trace("app_step")
         machine.answer_waits_for_key(5)
@@ -1302,6 +1328,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertLess(machine.milliseconds(), FIRST_FRAME_LIMIT_MS)
         self.assertEqual(session.run_to_home_screen(), "condition met")
         self.assertTrue(listens)
+        self.assertGreaterEqual(listens[0], CABLE_STEADY_MS)
         self.assertLess(listens[0], usb_ms)
         self.assertLess(machine.milliseconds(), 20000)
         gaps = [later - earlier for earlier, later in zip(steps, steps[1:])]

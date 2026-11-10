@@ -4,6 +4,7 @@
 #include "board.h"
 #include "debug_probe.h"
 #include "device/battery_gauge.h"
+#include "device/usb_plug.h"
 #include "hal/clock.h"
 #include "hal/power.h"
 #include "hal/system.h"
@@ -16,18 +17,10 @@
 
 enum {
     START_CLOCK_MHZ = 96,
-    HOST_WAIT_MS = 3000,
     EMPTY_NOTICE_MS = 2000
 };
 
-typedef enum UsbState {
-    USB_STATE_UNPLUGGED,
-    USB_STATE_LISTENING,
-    USB_STATE_HANDLED
-} UsbState;
-
-static UsbState usb_state;
-static uint32_t listen_started_ms;
+static UsbPlug usb_plug;
 static HalUsbMode usb_mode;
 static bool dac_session;
 
@@ -38,7 +31,7 @@ void hal_system_set_usb_mode(HalUsbMode mode)
 
 bool board_usb_listening(void)
 {
-    return usb_state == USB_STATE_LISTENING;
+    return usb_plug.state == USB_PLUG_LISTENING;
 }
 
 static void raise_clock_for_usb(void)
@@ -123,42 +116,38 @@ static void start_listening(void)
 {
     raise_clock_for_usb();
     dac_session = usb_mode == HAL_USB_MODE_DAC;
-    if (!(dac_session ? usb_dac_session_listen() : usb_session_listen())) {
+    bool listening = dac_session ? usb_dac_session_listen() : usb_session_listen();
+    if (!listening) {
         report_failed_start();
-        usb_state = USB_STATE_HANDLED;
-        return;
     }
-    listen_started_ms = hal_clock_milliseconds();
-    usb_state = USB_STATE_LISTENING;
+    usb_plug_started(&usb_plug, listening, hal_clock_milliseconds());
 }
 
-static void keep_listening(void)
+static void serve_host(void)
 {
-    if (usb_session_host_seen()) {
-        usb_state = USB_STATE_HANDLED;
+    if (usb_plug.state == USB_PLUG_LISTENING && usb_session_host_seen()) {
+        usb_plug_served(&usb_plug);
         run_session();
-    } else if (hal_clock_milliseconds() - listen_started_ms >= HOST_WAIT_MS) {
-        stop_listening();
-        usb_state = USB_STATE_HANDLED;
-        board_debug_listen_timed_out();
     }
 }
 
 static void check_usb(void)
 {
-    if (usb_state != USB_STATE_LISTENING && board_debug_take_reconnect()) {
-        usb_state = USB_STATE_UNPLUGGED;
+    if (usb_plug.state != USB_PLUG_LISTENING && board_debug_take_reconnect()) {
+        usb_plug_retry(&usb_plug);
     }
-    bool vbus = usb_vbus_present() || board_debug_usb_forced();
-    if (!vbus) {
-        if (usb_state == USB_STATE_LISTENING) {
-            stop_listening();
-        }
-        usb_state = USB_STATE_UNPLUGGED;
-    } else if (usb_state == USB_STATE_UNPLUGGED) {
+    bool cable = usb_vbus_present() || board_debug_usb_forced();
+    switch (usb_plug_update(&usb_plug, cable, hal_clock_milliseconds())) {
+    case USB_PLUG_START:
         start_listening();
-    } else if (usb_state == USB_STATE_LISTENING) {
-        keep_listening();
+        break;
+    case USB_PLUG_STOP:
+        stop_listening();
+        board_debug_listen_stopped();
+        break;
+    case USB_PLUG_NOTHING:
+        serve_host();
+        break;
     }
 }
 
@@ -215,6 +204,7 @@ void board_main(void)
     board_bluetooth_off();
     board_clock_record_boot();
     board_clock_start();
+    usb_plug_update(&usb_plug, usb_vbus_present(), hal_clock_milliseconds());
     board_stall_pause(true);
     hal_system_set_clock_mhz(START_CLOCK_MHZ);
     board_watchdog_start();

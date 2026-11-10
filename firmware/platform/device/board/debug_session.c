@@ -258,7 +258,7 @@ void hal_system_keep_usb_on(bool kept_on)
     }
 }
 
-void board_debug_listen_timed_out(void)
+void board_debug_listen_stopped(void)
 {
     if (!reconnect.forced) {
         return;
