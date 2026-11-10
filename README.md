@@ -25,7 +25,20 @@ python3 tools/firmware.py test
 python3 tools/firmware.py sim --card /path/to/music
 ```
 
-The wrapper checks its prerequisites, keeps all build output on the Scratch volume (`/Volumes/Scratch/SnowskyEcho/build/`, one directory per git worktree) and never touches a player. `test --regex EXPRESSION` runs selected checks; `--jobs N` sets the parallelism.
+The wrapper checks its prerequisites, keeps all build output on the Scratch volume (`/Volumes/Scratch/SnowskyEcho/build/`, one directory per git worktree) and never touches a player. Focused tests build only their executable dependencies. Temporary files and simulator state are also separate for each worktree.
+
+While editing:
+
+```sh
+python3 tools/firmware.py test --regex '^test_player$'
+python3 tools/firmware.py test --group smoke
+python3 tools/firmware.py test --group host --list
+python3 tools/firmware.py build --target echo_sim
+```
+
+`--group host` selects native unit tests. `--group smoke` checks playback, settings, queues, the updater, ARM boot and module fallback. `--list` shows the selected tests, fixtures and build targets without compiling. An unmatched selection fails. Run `test --jobs 6` once after integration for the complete suite.
+
+`--jobs N` sets build and test parallelism; `--build-jobs N` and `--test-jobs N` override them separately. See [development workflow](docs/development.md) for selection and dependency details.
 
 Prerequisites:
 
