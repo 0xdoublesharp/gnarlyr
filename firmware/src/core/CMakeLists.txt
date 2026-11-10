@@ -6,6 +6,7 @@ add_library(echo_core STATIC
     frame_stats.c
     hash.c
     key_lock.c
+    key_script.c
     key_tracker.c
     low_battery.c
     permutation.c

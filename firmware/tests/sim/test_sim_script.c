@@ -1,35 +1,20 @@
 #include "check.h"
 #include "sim_script.h"
 
-static void key_names_map_to_device_keys(void)
+static void a_key_list_becomes_steps(void)
 {
     SimScript script;
-    CHECK(sim_script_parse("up,down,play,menu,back,power", &script));
-    CHECK_EQUAL(6, script.count);
+    CHECK(sim_script_parse("up,back:long", &script));
+    CHECK_EQUAL(2, script.count);
     CHECK_EQUAL(KEY_VOLUME_DOWN, script.steps[0].key);
-    CHECK_EQUAL(KEY_VOLUME_UP, script.steps[1].key);
-    CHECK_EQUAL(KEY_PLAY, script.steps[2].key);
-    CHECK_EQUAL(KEY_MENU, script.steps[3].key);
-    CHECK_EQUAL(KEY_BACK, script.steps[4].key);
-    CHECK_EQUAL(KEY_POWER, script.steps[5].key);
-    CHECK(!script.steps[0].long_press);
+    CHECK_EQUAL(KEY_SCRIPT_LONG, script.steps[1].hold);
 }
 
-static void a_long_suffix_holds_the_key(void)
-{
-    SimScript script;
-    CHECK(sim_script_parse("back:long", &script));
-    CHECK_EQUAL(1, script.count);
-    CHECK(script.steps[0].long_press);
-}
-
-static void unknown_names_are_rejected(void)
+static void a_bad_list_is_rejected(void)
 {
     SimScript script;
     CHECK(!sim_script_parse("play,jump", &script));
-    CHECK(!sim_script_parse("play:short", &script));
     CHECK(!sim_script_parse("", &script));
-    CHECK(!sim_script_parse("play,,back", &script));
 }
 
 static void too_many_steps_are_rejected(void)
@@ -74,7 +59,7 @@ static void a_held_suffix_holds_for_seconds(void)
 {
     SimScript script;
     CHECK(sim_script_parse("down:held", &script));
-    CHECK(script.steps[0].held);
+    CHECK_EQUAL(KEY_SCRIPT_HELD, script.steps[0].hold);
     SimScriptEvent events[SIM_SCRIPT_MAX_EVENTS];
     CHECK_EQUAL(2, sim_script_schedule(&script, 0, events));
     CHECK_EQUAL(KEY_VOLUME_UP, events[0].key);
@@ -84,11 +69,10 @@ static void a_held_suffix_holds_for_seconds(void)
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(key_names_map_to_device_keys),
-        TEST_CASE(a_long_suffix_holds_the_key),
-        TEST_CASE(a_held_suffix_holds_for_seconds),
-        TEST_CASE(unknown_names_are_rejected),
+        TEST_CASE(a_key_list_becomes_steps),
+        TEST_CASE(a_bad_list_is_rejected),
         TEST_CASE(too_many_steps_are_rejected),
+        TEST_CASE(a_held_suffix_holds_for_seconds),
         TEST_CASE(taps_press_and_release_then_leave_a_gap),
         TEST_CASE(long_presses_hold_for_the_hold_time),
     };
