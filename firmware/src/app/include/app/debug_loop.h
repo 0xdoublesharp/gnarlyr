@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "core/debug_log.h"
+#include "core/debug_script.h"
 
 enum {
     DEBUG_STORAGE_FULL = 1,
@@ -18,6 +19,9 @@ void debug_loop_event(DebugEventKind kind, uint32_t value);
 const DebugLog *debug_loop_log(void);
 bool debug_loop_playing(void);
 uint32_t debug_loop_take_shutdown(void);
+DebugScriptRun *debug_runner_script(void);
+void debug_runner_begin(void);
+void debug_runner_abort(void);
 
 #else
 

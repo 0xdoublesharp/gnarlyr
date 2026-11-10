@@ -20,6 +20,7 @@ typedef enum DebugEventKind {
     DEBUG_EVENT_USB_END,
     DEBUG_EVENT_SCRIPT,
     DEBUG_EVENT_POWER,
+    DEBUG_EVENT_USB_CONNECT,
     DEBUG_EVENT_KIND_COUNT
 } DebugEventKind;
 
@@ -32,6 +33,7 @@ typedef enum DebugReportReason {
     DEBUG_REPORT_LOW_BATTERY,
     DEBUG_REPORT_UNPLUGGED,
     DEBUG_REPORT_RESTART,
+    DEBUG_REPORT_NO_HOST,
     DEBUG_REPORT_REASON_COUNT
 } DebugReportReason;
 

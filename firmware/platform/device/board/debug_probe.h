@@ -4,8 +4,13 @@
 #include <stdint.h>
 
 #include "device/debug_report.h"
+#include "device/fat.h"
 #include "device/pc_profile.h"
 #include "usb_session.h"
+
+#define DEBUG_RESTART_PATH "/" FIRMWARE_DATA_DIRECTORY "/debug/restart.req"
+#define DEBUG_RESTART_REQUEST "RESTART AFTER INSTALL"
+#define DEBUG_RESTART_DONE "CONNECT AFTER RESTART"
 
 #ifdef ECHO_DEBUG_LOOP
 
@@ -25,11 +30,21 @@ bool board_debug_usb_kept_on(void);
 void board_debug_power_tick(uint32_t now_ms);
 void board_debug_power_poll(void);
 const PowerHistory *board_debug_power_history(void);
+void board_debug_boot(void);
+void board_debug_after_start(void);
+uint32_t board_debug_interrupted_line(void);
+bool board_debug_take_reconnect(void);
+bool board_debug_usb_forced(void);
+void board_debug_listen_timed_out(void);
+DebugReportLoop board_debug_loop(void);
+bool debug_session_cable(bool vbus, const Msc *msc);
 void board_debug_usb_starting(bool dac);
 void board_debug_usb_ended(void);
 const DebugReportAudio *board_debug_audio(void);
 void board_debug_power_off(void);
 void debug_report_write(const UsbShared *shared, uint32_t reason);
+bool debug_script_take(void);
+void debug_restart_after_install(FatVolume *volume, const UsbShared *shared);
 
 #else
 
@@ -74,6 +89,45 @@ static inline void board_debug_usb_starting(bool dac)
 
 static inline void board_debug_usb_ended(void)
 {
+}
+
+static inline void board_debug_boot(void)
+{
+}
+
+static inline void board_debug_after_start(void)
+{
+}
+
+static inline bool board_debug_take_reconnect(void)
+{
+    return false;
+}
+
+static inline bool board_debug_usb_forced(void)
+{
+    return false;
+}
+
+static inline void board_debug_listen_timed_out(void)
+{
+}
+
+static inline bool debug_session_cable(bool vbus, const Msc *msc)
+{
+    (void)msc;
+    return vbus;
+}
+
+static inline bool debug_script_take(void)
+{
+    return false;
+}
+
+static inline void debug_restart_after_install(FatVolume *volume, const UsbShared *shared)
+{
+    (void)volume;
+    (void)shared;
 }
 
 static inline void debug_report_write(const UsbShared *shared, uint32_t reason)

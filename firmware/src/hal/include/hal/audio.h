@@ -145,6 +145,7 @@ void hal_audio_set_output(HalAudioOutput output);
 void hal_audio_set_equalizer(const HalAudioEqualizer *equalizer);
 HalAudioStatus hal_audio_status(void);
 HalAudioStats hal_audio_stats(void);
+void hal_audio_reset_stats(void);
 void hal_audio_service(void);
 HalToneResult hal_audio_test_tone(void);
 HalToneDetail hal_audio_tone_detail(void);

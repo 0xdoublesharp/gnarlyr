@@ -339,6 +339,10 @@ HalAudioStats hal_audio_stats(void)
     return (HalAudioStats){0};
 }
 
+void hal_audio_reset_stats(void)
+{
+}
+
 HalToneDetail hal_audio_tone_detail(void)
 {
     return (HalToneDetail){.stage = 0, .pending = 0};

@@ -149,6 +149,8 @@ class Machine:
         self.register_log = []
         self.host_stays = False
         self.host_ejected = False
+        self.cable_bit_dies_with_usb = False
+        self.cable_bit_dead = False
         self.entries = {}
         self.entered = None
         self.parked = None
@@ -386,6 +388,15 @@ class Machine:
         """
         self.host_stays = True
         self.stub_symbol("msc_finished", lambda machine: int(machine.host_ejected))
+
+    def cable_bit(self):
+        """What the firmware reads as the cable: on the player the bit stops reporting once
+        the firmware has powered USB down, with the cable still in."""
+        return self.vbus and not self.cable_bit_dead
+
+    def usb_powered_down(self):
+        if self.cable_bit_dies_with_usb:
+            self.cable_bit_dead = True
 
     def host_leaves(self):
         if self.host_stays:

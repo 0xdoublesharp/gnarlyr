@@ -4,19 +4,40 @@
 
 #include "app/debug_loop.h"
 #include "board.h"
+#include "core/seam.h"
 #include "debug_probe.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
+#include "hal/storage.h"
 #include "hal/system.h"
 #include "overlay.h"
 #include "usb.h"
 #include "usb_registers.h"
 #include "usb_session.h"
 
+#define SCRIPT_MARK_MAGIC 0x44535352u
+
 enum {
     POWER_POLL_MS = 250,
-    MILLISECONDS_PER_MINUTE = 60000
+    MILLISECONDS_PER_MINUTE = 60000,
+    RECONNECT_OFF_MS = 1000
 };
+
+typedef struct ScriptMark {
+    uint32_t magic;
+    uint32_t line;
+} ScriptMark;
+
+typedef struct Reconnect {
+    bool requested;
+    bool forced;
+    bool in_session;
+    uint32_t ended_ms;
+    uint32_t interrupted_line;
+    DebugReportLoop loop;
+} Reconnect;
+
+static const char RESTART_DONE[] = DEBUG_RESTART_DONE;
 
 typedef struct PowerWatch {
     volatile bool due;
@@ -27,7 +48,8 @@ typedef struct PowerWatch {
     uint32_t sampled_ms;
 } PowerWatch;
 
-static bool in_session;
+__attribute__((section(".noinit"))) static ScriptMark script_mark;
+static Reconnect reconnect;
 static DebugReportAudio audio;
 static PowerHistory history;
 static PowerWatch watch;
@@ -130,6 +152,76 @@ void board_debug_power_poll(void)
     }
 }
 
+void board_debug_boot(void)
+{
+    if (script_mark.magic == SCRIPT_MARK_MAGIC) {
+        reconnect.interrupted_line = script_mark.line;
+    }
+    script_mark = (ScriptMark){SCRIPT_MARK_MAGIC, 0};
+}
+
+uint32_t board_debug_interrupted_line(void)
+{
+    return reconnect.interrupted_line;
+}
+
+void hal_system_script_mark(uint32_t line)
+{
+    script_mark.line = line;
+}
+
+CORE_SEAM void hal_system_usb_reconnect(void)
+{
+    reconnect.requested = true;
+}
+
+static void note_connect(DebugLoopConnect result)
+{
+    reconnect.loop.last_connect = (uint8_t)result;
+    debug_loop_event(DEBUG_EVENT_USB_CONNECT, result);
+}
+
+bool board_debug_take_reconnect(void)
+{
+    if (!reconnect.requested || reconnect.in_session ||
+        hal_clock_milliseconds() - reconnect.ended_ms < RECONNECT_OFF_MS) {
+        return false;
+    }
+    reconnect.requested = false;
+    reconnect.forced = true;
+    reconnect.loop.attempts++;
+    reconnect.loop.cable_at_connect = usb_vbus_present();
+    note_connect(DEBUG_LOOP_CONNECT_WAITING);
+    return true;
+}
+
+bool board_debug_usb_forced(void)
+{
+    return reconnect.forced;
+}
+
+DebugReportLoop board_debug_loop(void)
+{
+    return reconnect.loop;
+}
+
+void board_debug_after_start(void)
+{
+    char text[sizeof RESTART_DONE - 1];
+    if (!hal_internal_file_read(DEBUG_RESTART_PATH, text, sizeof text)) {
+        return;
+    }
+    for (size_t index = 0; index < sizeof text; index++) {
+        if (text[index] != RESTART_DONE[index]) {
+            return;
+        }
+        text[index] = 0;
+    }
+    hal_internal_file_write(DEBUG_RESTART_PATH, text, sizeof text);
+    reconnect.loop.restarted = true;
+    reconnect.requested = true;
+}
+
 static void note_audio(void)
 {
     audio.state = hal_audio_status().state;
@@ -139,7 +231,7 @@ static void note_audio(void)
 
 void hal_system_save_report(uint32_t reason)
 {
-    if (in_session || hal_system_restart_pending()) {
+    if (reconnect.in_session || hal_system_restart_pending()) {
         return;
     }
     board_stall_pause(true);
@@ -155,7 +247,7 @@ void hal_system_save_report(uint32_t reason)
 void hal_system_keep_usb_on(bool kept_on)
 {
     usb_kept_on = kept_on;
-    if (in_session || board_usb_listening()) {
+    if (reconnect.in_session || board_usb_listening()) {
         return;
     }
     if (kept_on && !usb_powered) {
@@ -164,6 +256,17 @@ void hal_system_keep_usb_on(bool kept_on)
     } else if (!kept_on && usb_powered) {
         usb_power_down();
     }
+}
+
+void board_debug_listen_timed_out(void)
+{
+    if (!reconnect.forced) {
+        return;
+    }
+    reconnect.forced = false;
+    reconnect.loop.unanswered++;
+    note_connect(DEBUG_LOOP_CONNECT_NO_HOST);
+    hal_system_save_report(DEBUG_REPORT_NO_HOST);
 }
 
 void board_debug_power_off(void)
@@ -176,14 +279,22 @@ void board_debug_power_off(void)
 
 void board_debug_usb_starting(bool dac)
 {
-    in_session = true;
+    debug_runner_abort();
+    reconnect.requested = false;
+    reconnect.in_session = true;
+    if (reconnect.forced) {
+        reconnect.loop.answered++;
+        note_connect(DEBUG_LOOP_CONNECT_ANSWERED);
+    }
     note_audio();
     debug_loop_event(DEBUG_EVENT_USB_START, dac);
 }
 
 void board_debug_usb_ended(void)
 {
-    in_session = false;
+    reconnect.in_session = false;
+    reconnect.forced = false;
+    reconnect.ended_ms = hal_clock_milliseconds();
     debug_loop_event(DEBUG_EVENT_USB_END, (uint32_t)hal_system_usb_last().end);
 }
 

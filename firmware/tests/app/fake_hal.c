@@ -20,7 +20,8 @@ enum {
     FILE_CAPACITY = 16,
     WRITTEN_CAPACITY = 1100,
     PATH_CAPACITY = 260,
-    INTERNAL_CAPACITY = 4
+    INTERNAL_CAPACITY = 4,
+    SCREENSHOT_CAPACITY = 32 + HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE * 2
 };
 
 typedef struct FakeAudio {
@@ -107,9 +108,15 @@ typedef struct FakeHal {
     int listing_borrows;
     int keep_alive_count;
     uint32_t idle_us;
+    int audio_stats_resets;
+    int usb_reconnects;
     HalUsbSense usb_sense;
     uint32_t saved_reports[FILE_CAPACITY];
     int saved_report_count;
+    HalAudioState audio_state_at_report;
+    uint32_t script_mark;
+    char screenshot_path[PATH_CAPACITY];
+    uint32_t screenshot_size;
     HalProfileState profile_state;
     int profile_resets;
     HalAudioStats audio_stats;
@@ -655,6 +662,72 @@ void fake_hal_set_audio_stats(HalAudioStats stats)
     fake.audio_stats = stats;
 }
 
+void hal_audio_reset_stats(void)
+{
+    fake.audio_stats_resets++;
+    fake.audio_stats = (HalAudioStats){.underruns = fake.audio_stats.underruns};
+}
+
+int fake_hal_audio_stats_reset_count(void)
+{
+    return fake.audio_stats_resets;
+}
+
+HalUsbSense hal_system_usb_sense(void)
+{
+    return fake.usb_sense;
+}
+
+void hal_system_keep_usb_on(bool kept_on)
+{
+    fake.usb_sense.kept_on = kept_on;
+    fake.usb_sense.powered = kept_on;
+}
+
+void fake_hal_set_usb_cable(bool cable)
+{
+    fake.usb_sense.cable = cable;
+}
+
+void hal_system_usb_reconnect(void)
+{
+    fake.usb_reconnects++;
+}
+
+void hal_system_save_report(uint32_t reason)
+{
+    if (fake.saved_report_count < FILE_CAPACITY) {
+        fake.saved_reports[fake.saved_report_count] = reason;
+    }
+    fake.saved_report_count++;
+    fake.audio_state_at_report = fake.audio.status.state;
+}
+
+int fake_hal_saved_report_count(void)
+{
+    return fake.saved_report_count;
+}
+
+uint32_t fake_hal_saved_report(int index)
+{
+    return fake.saved_reports[index];
+}
+
+int fake_hal_usb_reconnect_count(void)
+{
+    return fake.usb_reconnects;
+}
+
+void hal_system_script_mark(uint32_t line)
+{
+    fake.script_mark = line;
+}
+
+uint32_t fake_hal_script_mark(void)
+{
+    return fake.script_mark;
+}
+
 HalToneDetail hal_audio_tone_detail(void)
 {
     return (HalToneDetail){.stage = 0, .pending = 0};
@@ -841,40 +914,6 @@ void hal_system_keep_alive(void)
 uint32_t hal_system_idle_microseconds(void)
 {
     return fake.idle_us;
-}
-
-HalUsbSense hal_system_usb_sense(void)
-{
-    return fake.usb_sense;
-}
-
-void hal_system_keep_usb_on(bool kept_on)
-{
-    fake.usb_sense.kept_on = kept_on;
-    fake.usb_sense.powered = kept_on;
-}
-
-void fake_hal_set_usb_cable(bool cable)
-{
-    fake.usb_sense.cable = cable;
-}
-
-void hal_system_save_report(uint32_t reason)
-{
-    if (fake.saved_report_count < FILE_CAPACITY) {
-        fake.saved_reports[fake.saved_report_count] = reason;
-    }
-    fake.saved_report_count++;
-}
-
-int fake_hal_saved_report_count(void)
-{
-    return fake.saved_report_count;
-}
-
-uint32_t fake_hal_saved_report(int index)
-{
-    return fake.saved_reports[index];
 }
 
 HalProfileState hal_system_profile_state(void)
@@ -1348,8 +1387,50 @@ bool hal_internal_file_write(const char *path, const void *bytes, uint32_t lengt
     return true;
 }
 
+static uint8_t screenshot[SCREENSHOT_CAPACITY];
+
+static bool is_screenshot(const char *path)
+{
+    size_t length = strlen(path);
+    return length > 4 && strcmp(path + length - 4, ".565") == 0;
+}
+
+static HalReserveResult reserve_screenshot(const char *path, uint32_t size)
+{
+    bool existed = strcmp(fake.screenshot_path, path) == 0;
+    bool refused =
+        fake.reserve_result == HAL_RESERVE_NO_SPACE || fake.reserve_result == HAL_RESERVE_FAILED;
+    if (size > sizeof screenshot || refused) {
+        return refused ? fake.reserve_result : HAL_RESERVE_FAILED;
+    }
+    snprintf(fake.screenshot_path, sizeof fake.screenshot_path, "%s", path);
+    fake.screenshot_size = size;
+    return existed ? HAL_RESERVE_EXISTS : HAL_RESERVE_CREATED;
+}
+
+bool hal_internal_file_write_at(const char *path, uint32_t offset, const void *bytes,
+                                uint32_t length)
+{
+    if (strcmp(fake.screenshot_path, path) != 0 || offset > fake.screenshot_size ||
+        length > fake.screenshot_size - offset) {
+        return false;
+    }
+    memcpy(screenshot + offset, bytes, length);
+    return true;
+}
+
+const uint8_t *fake_hal_screenshot(const char **path, uint32_t *size)
+{
+    *path = fake.screenshot_path;
+    *size = fake.screenshot_size;
+    return screenshot;
+}
+
 HalReserveResult hal_internal_file_reserve(const char *path, uint32_t size)
 {
+    if (is_screenshot(path)) {
+        return reserve_screenshot(path, size);
+    }
     if (fake.reserve_count < FILE_CAPACITY) {
         fake.reserved_paths[fake.reserve_count] = path;
         fake.reserved_sizes[fake.reserve_count] = size;

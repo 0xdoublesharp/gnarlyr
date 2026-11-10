@@ -36,7 +36,26 @@ static const char *const EVENT_NAMES[DEBUG_EVENT_KIND_COUNT] = {
     [DEBUG_EVENT_USB_END] = "usb_end",
     [DEBUG_EVENT_SCRIPT] = "script",
     [DEBUG_EVENT_POWER] = "power",
+    [DEBUG_EVENT_USB_CONNECT] = "usb_connect",
 };
+static const char *const SCRIPT_STATES[DEBUG_SCRIPT_STATE_COUNT] = {
+    [DEBUG_SCRIPT_NONE] = "none",
+    [DEBUG_SCRIPT_PENDING] = "pending",
+    [DEBUG_SCRIPT_RUNNING] = "running",
+    [DEBUG_SCRIPT_FINISHED] = "finished",
+    [DEBUG_SCRIPT_TIMED_OUT] = "timed_out",
+    [DEBUG_SCRIPT_ABORTED] = "aborted",
+    [DEBUG_SCRIPT_REFUSED_TOO_LONG] = "refused_too_long",
+    [DEBUG_SCRIPT_REFUSED_RESTART_PENDING] = "refused_restart_pending",
+    [DEBUG_SCRIPT_REFUSED_NO_BUILD] = "refused_no_build",
+    [DEBUG_SCRIPT_REFUSED_BUILD] = "refused_build",
+};
+static const char *const LINE_STATUSES[DEBUG_LINE_STATUS_COUNT] = {[DEBUG_LINE_NOT_RUN] = "not_run",
+                                                                   [DEBUG_LINE_OK] = "ok",
+                                                                   [DEBUG_LINE_UNKNOWN] = "unknown",
+                                                                   [DEBUG_LINE_BAD_ARGUMENT] =
+                                                                       "bad_argument",
+                                                                   [DEBUG_LINE_FAILED] = "failed"};
 static const char *const REASON_NAMES[DEBUG_REPORT_REASON_COUNT] = {
     [DEBUG_REPORT_NONE] = "none",
     [DEBUG_REPORT_USB_SESSION] = "usb_session",
@@ -46,7 +65,9 @@ static const char *const REASON_NAMES[DEBUG_REPORT_REASON_COUNT] = {
     [DEBUG_REPORT_LOW_BATTERY] = "low_battery",
     [DEBUG_REPORT_UNPLUGGED] = "unplugged",
     [DEBUG_REPORT_RESTART] = "restart",
+    [DEBUG_REPORT_NO_HOST] = "no_host",
 };
+static const char *const CONNECT_NAMES[] = {"none", "waiting", "answered", "no_host"};
 static const char SCHEMA_KEY[] = "debug_report";
 static const char SEQUENCE_KEY[] = "report.sequence";
 static const char COLD_KEY[] = "report.cold_start";
@@ -298,6 +319,32 @@ static void put_usb(Writer *writer, HalUsbLast usb, bool kept_on)
     put_known(writer, "usb.writes_after_eject", known, usb.writes_after_eject);
 }
 
+static const char *boot_kind(const DebugReportInput *input)
+{
+    const HalStartInfo *start = &input->start;
+    if (input->loop.restarted) {
+        return "loop_restart";
+    }
+    if (!start->warm) {
+        return "cold";
+    }
+    if ((start->fault_status | start->hard_fault_status | start->fault_pc) != 0) {
+        return "fault";
+    }
+    return start->previous_power_off ? "restart" : "watchdog_or_reset";
+}
+
+static void put_loop(Writer *writer, const DebugReportInput *input)
+{
+    const DebugReportLoop *loop = &input->loop;
+    put_text(writer, "loop.boot", boot_kind(input));
+    put_unsigned(writer, "loop.connect_attempts", loop->attempts);
+    put_unsigned(writer, "loop.connect_answered", loop->answered);
+    put_unsigned(writer, "loop.connect_unanswered", loop->unanswered);
+    put_text(writer, "loop.last_connect", NAME_IN(CONNECT_NAMES, loop->last_connect));
+    put_known(writer, "loop.cable_bit_at_connect", loop->attempts != 0, loop->cable_at_connect);
+}
+
 static void put_average(Writer *writer, const char *key, uint32_t total, uint32_t count)
 {
     put_known(writer, key, count != 0, count != 0 ? total / count : 0);
@@ -337,6 +384,145 @@ static void put_frames(Writer *writer, const DebugFrames *frames)
     }
 }
 
+static void append_plain(StringBuilder *text, DebugSpan span)
+{
+    for (size_t index = 0; index < span.length; index++) {
+        char character = span.text[index];
+        string_builder_append_char(text, character >= ' ' && character <= '~' ? character : '?');
+    }
+}
+
+static void put_script_line(Writer *writer, const DebugScriptRun *script, uint32_t line,
+                            DebugSpan span)
+{
+    begin(writer, "script.line");
+    string_builder_append_unsigned(&writer->text, line);
+    string_builder_append_char(&writer->text, ' ');
+    string_builder_append(&writer->text, NAME_IN(LINE_STATUSES, script->status[line - 1]));
+    string_builder_append_char(&writer->text, ' ');
+    append_plain(&writer->text, span);
+    finish(writer);
+}
+
+static void put_script_lines(Writer *writer, const DebugScriptRun *script)
+{
+    size_t offset = 0;
+    for (uint32_t line = 1; line <= DEBUG_SCRIPT_LINES && offset < script->length; line++) {
+        DebugSpan span = debug_script_next_line(script->text, script->length, &offset);
+        if (debug_script_parse(span).kind != DEBUG_COMMAND_BLANK) {
+            put_script_line(writer, script, line, span);
+        }
+    }
+}
+
+static void append_field(StringBuilder *text, const char *name, bool known, uint32_t value)
+{
+    string_builder_append_char(text, ' ');
+    string_builder_append(text, name);
+    string_builder_append_char(text, '=');
+    if (known) {
+        string_builder_append_unsigned(text, value);
+    } else {
+        string_builder_append(text, UNKNOWN);
+    }
+}
+
+static void append_average(StringBuilder *text, const char *name, uint32_t total, uint32_t count)
+{
+    append_field(text, name, count != 0, count != 0 ? total / count : 0);
+}
+
+static void append_share(StringBuilder *text, const char *name, uint32_t part, uint32_t whole)
+{
+    bool known = whole >= PERCENT && part <= whole;
+    append_field(text, name, known, known ? share_percent(part, whole) : 0);
+}
+
+static void append_measured_frames(StringBuilder *text, const DebugMeasure *measure)
+{
+    append_field(text, "frames", true, measure->frames);
+    append_average(text, "frame_avg_us", measure->frame_us, measure->frames);
+    append_field(text, "frame_worst_us", measure->frames != 0, measure->frame_worst_us);
+    append_average(text, "update_avg_us", measure->update_us, measure->frames);
+    append_average(text, "draw_avg_us", measure->draw_us, measure->frames);
+    append_average(text, "send_avg_us", measure->send_us, measure->frames);
+}
+
+static void append_measured_audio(StringBuilder *text, const DebugMeasure *measure)
+{
+    bool running = measure->audio_running != 0;
+    bool decoded = measure->blocks != 0;
+    append_field(text, "audio", true, measure->audio_running);
+    append_field(text, "buffered_ms", running, measure->buffered_ms);
+    append_field(text, "underruns", running, measure->underruns);
+    append_field(text, "output_underruns", true, measure->output_underruns);
+    append_field(text, "blocks", true, measure->blocks);
+    append_average(text, "handoff_avg_us", measure->handoff_us, measure->blocks);
+    append_field(text, "handoff_max_us", decoded, measure->handoff_max_us);
+    append_average(text, "read_avg_us", measure->read_us, measure->blocks);
+    append_field(text, "read_max_us", decoded, measure->read_max_us);
+    append_share(text, "audio_busy_percent", measure->audio_busy_us,
+                 running ? measure->audio_elapsed_us : 0);
+}
+
+static void put_measure(Writer *writer, const DebugMeasure *measure)
+{
+    begin(writer, "script.measure");
+    string_builder_append(&writer->text, "line=");
+    string_builder_append_unsigned(&writer->text, measure->line);
+    append_field(&writer->text, "ms", true, measure->duration_ms);
+    append_measured_frames(&writer->text, measure);
+    append_measured_audio(&writer->text, measure);
+    append_share(&writer->text, "core0_busy_percent", measure->clock_us - measure->idle_us,
+                 measure->clock_us);
+    finish(writer);
+}
+
+static DebugSpan line_span(const DebugScriptRun *script, uint32_t wanted)
+{
+    size_t offset = 0;
+    DebugSpan span = {script->text, 0};
+    for (uint32_t line = 1; line <= wanted && offset < script->length; line++) {
+        span = debug_script_next_line(script->text, script->length, &offset);
+    }
+    return span;
+}
+
+static void put_screenshot(Writer *writer, const DebugScriptRun *script, uint32_t slot)
+{
+    begin(writer, "script.screenshot");
+    string_builder_append_unsigned(&writer->text, slot);
+    string_builder_append_char(&writer->text, ' ');
+    append_plain(&writer->text,
+                 debug_script_parse(line_span(script, script->screenshot_lines[slot])).argument);
+    finish(writer);
+}
+
+static void put_script(Writer *writer, const DebugReportInput *input)
+{
+    const DebugScriptRun *script = input->script;
+    if (script == NULL) {
+        put_text(writer, "script.state", UNKNOWN);
+        return;
+    }
+    bool started = script->state >= DEBUG_SCRIPT_RUNNING && script->state <= DEBUG_SCRIPT_ABORTED;
+    put_text(writer, "script.state", NAME_IN(SCRIPT_STATES, script->state));
+    put_known(writer, "script.started_ms", started, script->started_ms);
+    put_known(writer, "script.finished_ms", started && script->state != DEBUG_SCRIPT_RUNNING,
+              script->finished_ms);
+    put_unsigned(writer, "script.interrupted_line", input->interrupted_line);
+    if (script->state == DEBUG_SCRIPT_NONE) {
+        return;
+    }
+    put_script_lines(writer, script);
+    for (uint32_t index = 0; index < script->measure_count; index++) {
+        put_measure(writer, &script->measures[index]);
+    }
+    for (uint32_t slot = 0; slot < script->screenshot_count; slot++) {
+        put_screenshot(writer, script, slot);
+    }
+}
+
 static void append_event_text(StringBuilder *text, const DebugEvent *event)
 {
     if (event->text[0] == '\0') {
@@ -367,6 +553,10 @@ static void append_event_value(StringBuilder *text, const DebugEvent *event)
         append_named_pair(text, NAME_IN(PLAYER_NAMES, value & STATE_MASK), value >> TRACK_SHIFT);
     } else if (event->kind == DEBUG_EVENT_USB_END) {
         string_builder_append(text, NAME_IN(USB_END_NAMES, value));
+    } else if (event->kind == DEBUG_EVENT_SCRIPT && value >= DEBUG_SCRIPT_EVENT_STATE) {
+        string_builder_append(text, NAME_IN(SCRIPT_STATES, value - DEBUG_SCRIPT_EVENT_STATE));
+    } else if (event->kind == DEBUG_EVENT_USB_CONNECT) {
+        string_builder_append(text, NAME_IN(CONNECT_NAMES, value));
     } else if (event->kind == DEBUG_EVENT_POWER) {
         append_named_pair(text, (value & POWER_SAMPLE_VBUS) != 0 ? "1" : "0",
                           (value & POWER_SAMPLE_CHARGE_PIN) != 0 ? 1 : 0);
@@ -481,8 +671,10 @@ uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t
     put_power(&writer, input);
     put_start(&writer, &input->start);
     put_usb(&writer, input->usb, input->power.usb_kept_on);
+    put_loop(&writer, input);
     put_audio(&writer, &input->audio);
     put_frames(&writer, &input->frames);
+    put_script(&writer, input);
     put_events(&writer, input->log);
     put_history(&writer, input->power.history);
     put_profile(&writer, input->profile);

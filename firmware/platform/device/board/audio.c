@@ -681,6 +681,12 @@ void hal_audio_service(void)
     shut_down_when_idle();
 }
 
+void hal_audio_reset_stats(void)
+{
+    stats = (HalAudioStats){0};
+    output_started_us = hal_clock_microseconds();
+}
+
 HalAudioStats hal_audio_stats(void)
 {
     HalAudioStats result = stats;

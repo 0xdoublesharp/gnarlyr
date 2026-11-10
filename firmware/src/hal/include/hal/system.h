@@ -78,7 +78,9 @@ typedef struct HalUsbSense {
 
 HalUsbSense hal_system_usb_sense(void);
 void hal_system_keep_usb_on(bool kept_on);
+void hal_system_usb_reconnect(void);
 void hal_system_save_report(uint32_t reason);
+void hal_system_script_mark(uint32_t line);
 void hal_system_stall_test(void);
 void hal_system_watchdog_test(void);
 void hal_system_keep_alive(void);

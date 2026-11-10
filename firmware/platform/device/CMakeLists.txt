@@ -163,19 +163,26 @@ if(NOT ECHO_RELEASE)
         board_battery_gauge
         board_debug_audio
         board_debug_battery_raw
+        board_debug_interrupted_line
+        board_debug_loop
+        board_debug_usb_forced
         board_debug_power_history
         board_debug_usb_is_powered
         board_debug_usb_kept_on
         board_power_charge_pin
         board_power_shown
         board_profile
+        board_restart
         debug_loop_log
+        debug_runner_begin
+        debug_runner_script
         hal_clock_microseconds
         hal_internal_file_read
         hal_internal_file_reserve
         hal_internal_file_write
         hal_system_clock_mhz
         hal_system_idle_microseconds
+        hal_system_restart_pending
         hal_system_start_info
         hal_system_version
     )
@@ -194,6 +201,7 @@ if(CMAKE_CROSSCOMPILING)
         board/core1.c
         board/dac.c
         board/debug_report_file.c
+        board/debug_script_file.c
         board/debug_session.c
         board/glyphs.c
         board/high_ram.c
@@ -250,7 +258,7 @@ add_executable(echo_usb_overlay
     board/usb_session.c
 )
 if(NOT ECHO_RELEASE)
-    target_sources(echo_usb_overlay PRIVATE board/debug_report_file.c)
+    target_sources(echo_usb_overlay PRIVATE board/debug_report_file.c board/debug_script_file.c)
 endif()
 set_target_properties(echo_usb_overlay PROPERTIES
     SUFFIX .elf

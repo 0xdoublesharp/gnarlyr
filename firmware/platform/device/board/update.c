@@ -5,6 +5,7 @@
 #include "app/app.h"
 #include "board.h"
 #include "core/string_builder.h"
+#include "debug_probe.h"
 #include "device/fat.h"
 #include "device/update_names.h"
 #include "device/updater.h"
@@ -105,6 +106,7 @@ static void install(const UpdateFile *update, const UpdateStorage *storage, Upda
         board_wait_for_key();
         return;
     }
+    debug_restart_after_install(volume, shared);
     const char *title = stock ? "FiiO firmware installed" : "Update installed";
     app_show_notice(title, "Unplug USB, then hold Power.");
     do {

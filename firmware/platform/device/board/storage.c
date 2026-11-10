@@ -174,6 +174,12 @@ bool hal_internal_file_write(const char *path, const void *bytes, uint32_t lengt
     return write_in(player_volume(), path, 0, bytes, length);
 }
 
+bool hal_internal_file_write_at(const char *path, uint32_t offset, const void *bytes,
+                                uint32_t length)
+{
+    return write_in(player_volume(), path, offset, bytes, length);
+}
+
 HalReserveResult hal_internal_file_reserve(const char *path, uint32_t size)
 {
     return reserve_in(player_volume(), path, size);

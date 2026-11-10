@@ -1,0 +1,144 @@
+#pragma once
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+enum {
+    DEBUG_SCRIPT_BYTES = 640,
+    DEBUG_SCRIPT_LINES = 40,
+    DEBUG_SCRIPT_OPS = 48,
+    DEBUG_SCRIPT_MAX_MS = 60000,
+    DEBUG_SCRIPT_NAME_BYTES = 12,
+    DEBUG_SCRIPT_MEASURES = 4,
+    DEBUG_SCRIPT_SCREENSHOTS = 4,
+    DEBUG_SCRIPT_LIMIT_MS = 300000,
+    DEBUG_SCRIPT_END_MS = 2000,
+    DEBUG_SCRIPT_EVENT_STATE = 0x100
+};
+
+typedef enum DebugScriptState {
+    DEBUG_SCRIPT_NONE,
+    DEBUG_SCRIPT_PENDING,
+    DEBUG_SCRIPT_RUNNING,
+    DEBUG_SCRIPT_FINISHED,
+    DEBUG_SCRIPT_TIMED_OUT,
+    DEBUG_SCRIPT_ABORTED,
+    DEBUG_SCRIPT_REFUSED_TOO_LONG,
+    DEBUG_SCRIPT_REFUSED_RESTART_PENDING,
+    DEBUG_SCRIPT_REFUSED_NO_BUILD,
+    DEBUG_SCRIPT_REFUSED_BUILD,
+    DEBUG_SCRIPT_STATE_COUNT
+} DebugScriptState;
+
+typedef enum DebugLineStatus {
+    DEBUG_LINE_NOT_RUN,
+    DEBUG_LINE_OK,
+    DEBUG_LINE_UNKNOWN,
+    DEBUG_LINE_BAD_ARGUMENT,
+    DEBUG_LINE_FAILED,
+    DEBUG_LINE_STATUS_COUNT
+} DebugLineStatus;
+
+typedef enum DebugOpKind {
+    DEBUG_OP_KEY,
+    DEBUG_OP_WAIT,
+    DEBUG_OP_MEASURE,
+    DEBUG_OP_PROFILE,
+    DEBUG_OP_SET,
+    DEBUG_OP_SCREENSHOT,
+    DEBUG_OP_USB_SENSE,
+    DEBUG_OP_RECONNECT
+} DebugOpKind;
+
+typedef struct DebugOp {
+    uint8_t kind;
+    uint8_t line;
+    uint8_t first_length;
+    uint8_t second_length;
+    uint16_t first;
+    uint16_t second;
+} DebugOp;
+
+typedef struct DebugMeasure {
+    uint32_t line;
+    uint32_t duration_ms;
+    uint32_t frames;
+    uint32_t frame_us;
+    uint32_t frame_worst_us;
+    uint32_t update_us;
+    uint32_t draw_us;
+    uint32_t send_us;
+    uint32_t audio_running;
+    uint32_t buffered_ms;
+    uint32_t underruns;
+    uint32_t output_underruns;
+    uint32_t blocks;
+    uint32_t handoff_us;
+    uint32_t handoff_max_us;
+    uint32_t read_us;
+    uint32_t read_max_us;
+    uint32_t audio_busy_us;
+    uint32_t audio_elapsed_us;
+    uint32_t clock_us;
+    uint32_t idle_us;
+} DebugMeasure;
+
+typedef struct DebugScriptRun {
+    char text[DEBUG_SCRIPT_BYTES];
+    uint16_t length;
+    uint8_t state;
+    uint8_t measure_count;
+    uint8_t screenshot_count;
+    uint8_t op_count;
+    uint8_t status[DEBUG_SCRIPT_LINES];
+    uint8_t screenshot_lines[DEBUG_SCRIPT_SCREENSHOTS];
+    uint32_t started_ms;
+    uint32_t finished_ms;
+    DebugMeasure measures[DEBUG_SCRIPT_MEASURES];
+    DebugOp ops[DEBUG_SCRIPT_OPS];
+} DebugScriptRun;
+
+typedef struct DebugScriptHost {
+    const char *version;
+    bool restart_pending;
+} DebugScriptHost;
+
+typedef enum DebugCommandKind {
+    DEBUG_COMMAND_BLANK,
+    DEBUG_COMMAND_BUILD,
+    DEBUG_COMMAND_KEYS,
+    DEBUG_COMMAND_WAIT,
+    DEBUG_COMMAND_MEASURE,
+    DEBUG_COMMAND_PROFILE,
+    DEBUG_COMMAND_SET,
+    DEBUG_COMMAND_SCREENSHOT,
+    DEBUG_COMMAND_USB_SENSE,
+    DEBUG_COMMAND_RECONNECT,
+    DEBUG_COMMAND_UNKNOWN,
+    DEBUG_COMMAND_BAD_ARGUMENT
+} DebugCommandKind;
+
+typedef enum DebugProfileAction {
+    DEBUG_PROFILE_OFF,
+    DEBUG_PROFILE_ON,
+    DEBUG_PROFILE_RESET
+} DebugProfileAction;
+
+typedef struct DebugSpan {
+    const char *text;
+    size_t length;
+} DebugSpan;
+
+typedef struct DebugCommand {
+    DebugCommandKind kind;
+    uint32_t number;
+    DebugSpan argument;
+    DebugSpan value;
+} DebugCommand;
+
+DebugSpan debug_script_next_line(const char *text, size_t length, size_t *offset);
+uint32_t debug_script_line_count(const char *text, size_t length);
+DebugCommand debug_script_parse(DebugSpan line);
+bool debug_span_matches(DebugSpan span, const char *text);
+void debug_script_load(DebugScriptRun *run, uint32_t length, DebugScriptHost host);

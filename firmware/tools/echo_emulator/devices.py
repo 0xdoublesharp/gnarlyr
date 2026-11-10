@@ -48,6 +48,7 @@ STATUS_FIFO_COUNT_SHIFT = 17
 GINTSTS = 0x14
 GRSTCTL = 0x10
 GINT_USB_RESET = 1 << 12
+USB_PHY_OFF = (0xB4, 0x00010001)
 GRSTCTL_SOFT_RESET = 1
 GRSTCTL_FLUSH_BITS = (1 << 4) | (1 << 5)
 GRSTCTL_AHB_IDLE = 1 << 31
@@ -166,13 +167,15 @@ class Grf(RegisterFile):
 
     def read_word(self, offset):
         if offset == GRF_VBUS:
-            return GRF_VBUS_PRESENT if self.machine.vbus else 0
+            return GRF_VBUS_PRESENT if self.machine.cable_bit() else 0
         return super().read_word(offset)
 
     def write_word(self, offset, value):
         super().write_word(offset, value)
         self.machine.grf_log.append((self.machine.stamp(), offset, value))
         self.machine.register_log.append(("grf", offset, value))
+        if (offset, value) == USB_PHY_OFF:
+            self.machine.usb_powered_down()
 
 
 class Pmu(RegisterFile):

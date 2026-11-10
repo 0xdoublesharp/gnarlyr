@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "core/debug_log.h"
+#include "core/debug_script.h"
 #include "device/pc_profile.h"
 #include "device/power_history.h"
 #include "hal/audio.h"
@@ -56,6 +57,22 @@ typedef struct DebugReportPower {
     const PowerHistory *history;
 } DebugReportPower;
 
+typedef enum DebugLoopConnect {
+    DEBUG_LOOP_CONNECT_NONE,
+    DEBUG_LOOP_CONNECT_WAITING,
+    DEBUG_LOOP_CONNECT_ANSWERED,
+    DEBUG_LOOP_CONNECT_NO_HOST
+} DebugLoopConnect;
+
+typedef struct DebugReportLoop {
+    bool restarted;
+    bool cable_at_connect;
+    uint8_t last_connect;
+    uint32_t attempts;
+    uint32_t answered;
+    uint32_t unanswered;
+} DebugReportLoop;
+
 typedef struct DebugReportInput {
     uint32_t sequence;
     DebugReportReason reason;
@@ -71,6 +88,9 @@ typedef struct DebugReportInput {
     HalUsbLast usb;
     DebugReportAudio audio;
     DebugFrames frames;
+    DebugReportLoop loop;
+    const DebugScriptRun *script;
+    uint32_t interrupted_line;
     const DebugLog *log;
     const PcProfile *profile;
 } DebugReportInput;

@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include "core/debug_script.h"
 #include "core/power_policy.h"
 #include "equalizer_presets.h"
 #include "player.h"
@@ -66,3 +67,4 @@ struct SettingsScreens {
 
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                               const Theme *theme);
+bool settings_screens_choose(SettingsScreens *screens, DebugSpan title, DebugSpan option);

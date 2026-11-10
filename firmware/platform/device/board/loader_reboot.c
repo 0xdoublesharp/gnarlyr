@@ -78,6 +78,20 @@ void board_loader_reboot(void)
     }
 }
 
+void board_restart(void)
+{
+    board_start_record_power_off();
+    quiesce_interrupts();
+    enable_all_blocks();
+    reset_pll();
+    register_write(SCB_VTOR, 0);
+    register_write(PMU_BOOT_FLAG, PMU_BOOT_FLAG_CLEAR);
+    __asm__ volatile("dsb" ::: "memory");
+    register_write(SCB_AIRCR, AIRCR_RESET);
+    for (;;) {
+    }
+}
+
 void board_loader_flag_clear(void)
 {
     if ((register_read(PMU_BOOT_FLAG) & PMU_BOOT_FLAG_MASK) == PMU_BOOT_FLAG_VALUE) {

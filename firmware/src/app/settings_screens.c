@@ -429,6 +429,29 @@ static const char *choice_value(const void *context)
     return entry->choice->options[current];
 }
 
+static int option_named(const SettingChoice *choice, DebugSpan option)
+{
+    for (int index = 0; index < choice->option_count; index++) {
+        if (debug_span_matches(option, choice->options[index])) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+bool settings_screens_choose(SettingsScreens *screens, DebugSpan title, DebugSpan option)
+{
+    for (int index = 0; index < SETTINGS_CHOICE_COUNT; index++) {
+        const SettingChoice *choice = &CHOICES[index];
+        int chosen = debug_span_matches(title, choice->title) ? option_named(choice, option) : -1;
+        if (chosen >= 0) {
+            choice->choose(&screens->context, chosen);
+            return true;
+        }
+    }
+    return false;
+}
+
 static ScreenAction request_rescan(void *context)
 {
     SettingsContext *settings = context;

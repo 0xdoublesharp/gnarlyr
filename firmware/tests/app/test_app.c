@@ -7,6 +7,7 @@
 #include "card_files.h"
 #include "check.h"
 #include "core/frame_pacer.h"
+#include "core/key_script.h"
 #include "core/key_tracker.h"
 #include "default_theme.h"
 #include "equalizer_presets.h"
@@ -74,6 +75,9 @@ enum {
     DIAGNOSTICS_PROFILER_INDEX = 15,
     DIAGNOSTICS_USB_SENSE_INDEX = 16,
     DEBUG_FOLLOW_MS = 100,
+    SCRIPT_STEP_MS = 8,
+    CHARGE_DARK_MS = 6000,
+    SCRIPT_KEY_MS = KEY_SCRIPT_TAP_MS + KEY_SCRIPT_GAP_MS + 4 * SCRIPT_STEP_MS,
     FIFTEEN_MINUTES_MS = 15 * 60 * 1000,
     GOODBYE_MS = 1000,
     SPLASH_FADE_MS = 600,
@@ -3107,6 +3111,30 @@ static void the_frame_figures_follow_the_frame_time_overlay(void)
     CHECK(frames.draw_us > 0);
 }
 
+static void load_script(const char *text)
+{
+    DebugScriptRun *run = debug_runner_script();
+    DebugScriptHost host = {hal_system_version(), hal_system_restart_pending()};
+    size_t length = strlen(text);
+    memcpy(run->text, text, length < DEBUG_SCRIPT_BYTES ? length : DEBUG_SCRIPT_BYTES);
+    debug_script_load(run, (uint32_t)length, host);
+    debug_runner_begin();
+}
+
+static void run_script_for(uint32_t duration_ms)
+{
+    for (uint32_t elapsed = 0; elapsed < duration_ms; elapsed += SCRIPT_STEP_MS) {
+        wait_ms(SCRIPT_STEP_MS);
+    }
+}
+
+static const DebugScriptRun *run_script(const char *text, uint32_t duration_ms)
+{
+    load_script(text);
+    run_script_for(duration_ms);
+    return debug_runner_script();
+}
+
 static void a_long_power_press_saves_a_report_before_the_power_goes(void)
 {
     start_app();
@@ -3190,6 +3218,365 @@ static void the_sleep_timer_names_its_report(void)
     wait_ms(GOODBYE_MS);
     CHECK(fake_hal_saved_report_count() >= 1);
     CHECK_EQUAL(DEBUG_REPORT_SLEEP_TIMER, fake_hal_saved_report(0));
+}
+
+static void a_script_presses_keys_as_the_buttons_would(void)
+{
+    start_app();
+    const DebugScriptRun *run = run_script("build any\nplay\n", 2 * SCRIPT_KEY_MS);
+    CHECK(title_is("Music"));
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[0]);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
+    CHECK_EQUAL(DEBUG_SCRIPT_FINISHED, run->state);
+}
+
+static void a_key_list_runs_in_order_with_long_presses(void)
+{
+    start_app();
+    run_script("build any\nplay,play\nback:long\n", 4 * SCRIPT_KEY_MS + KEY_SCRIPT_LONG_MS);
+    CHECK(title_is("Doublesharp"));
+    CHECK_EQUAL(1, app_screen_depth());
+}
+
+static void a_script_plays_a_track(void)
+{
+    start_app_with_library();
+    run_script("build any\nplay\ndown,down,down\nplay,play,play\n", 8 * SCRIPT_KEY_MS);
+    CHECK(title_is("Now Playing"));
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+}
+
+static void a_script_without_a_build_line_is_refused_and_still_reconnects(void)
+{
+    start_app();
+    const DebugScriptRun *run = run_script("play\n", SCRIPT_KEY_MS);
+    CHECK_EQUAL(DEBUG_SCRIPT_REFUSED_NO_BUILD, run->state);
+    CHECK(title_is("Doublesharp"));
+    CHECK_EQUAL(0, fake_hal_usb_reconnect_count());
+    run_script_for(DEBUG_SCRIPT_END_MS);
+    CHECK_EQUAL(1, fake_hal_usb_reconnect_count());
+    CHECK_EQUAL(DEBUG_LINE_NOT_RUN, run->status[0]);
+}
+
+static void a_script_for_another_build_is_refused(void)
+{
+    start_app();
+    fake_hal_set_version("1.0.0-abc1234");
+    CHECK_EQUAL(DEBUG_SCRIPT_REFUSED_BUILD,
+                run_script("build 7777777\nplay\n", SCRIPT_KEY_MS)->state);
+    CHECK(title_is("Doublesharp"));
+    CHECK_EQUAL(DEBUG_SCRIPT_REFUSED_BUILD,
+                run_script("build 1.0.0\nplay\n", SCRIPT_KEY_MS)->state);
+    fake_hal_set_version("1.0.0");
+    CHECK_EQUAL(DEBUG_SCRIPT_REFUSED_BUILD, run_script("build abc1234\n", SCRIPT_KEY_MS)->state);
+}
+
+static void a_script_for_this_build_runs(void)
+{
+    start_app();
+    fake_hal_set_version("1.0.0-abc1234");
+    const DebugScriptRun *run = run_script("# first\n\nbuild abc1234\nplay\n", 2 * SCRIPT_KEY_MS);
+    CHECK_EQUAL(DEBUG_SCRIPT_FINISHED, run->state);
+    CHECK(title_is("Music"));
+}
+
+static void a_script_waits_while_an_update_awaits_its_restart(void)
+{
+    start_app();
+    fake_hal_set_restart_pending(true);
+    CHECK_EQUAL(DEBUG_SCRIPT_REFUSED_RESTART_PENDING,
+                run_script("build any\nplay\n", SCRIPT_KEY_MS)->state);
+    fake_hal_set_restart_pending(false);
+}
+
+static void a_script_past_the_size_or_line_limit_is_refused(void)
+{
+    static char text[DEBUG_SCRIPT_BYTES + 64];
+    start_app();
+    strcpy(text, "build any\n");
+    for (int line = 0; line < DEBUG_SCRIPT_LINES; line++) {
+        strcat(text, "#\n");
+    }
+    CHECK_EQUAL(DEBUG_SCRIPT_REFUSED_TOO_LONG, run_script(text, SCRIPT_STEP_MS)->state);
+    memset(text, '#', sizeof text - 1);
+    memcpy(text, "build any\n", 10);
+    text[sizeof text - 1] = '\0';
+    CHECK_EQUAL(DEBUG_SCRIPT_REFUSED_TOO_LONG, run_script(text, SCRIPT_STEP_MS)->state);
+}
+
+static void an_unknown_line_is_reported_and_the_script_goes_on(void)
+{
+    start_app();
+    const DebugScriptRun *run =
+        run_script("build any\npoke 0x03004000 1\nwait soon\nplay\n", 3 * SCRIPT_KEY_MS);
+    CHECK_EQUAL(DEBUG_LINE_UNKNOWN, run->status[1]);
+    CHECK_EQUAL(DEBUG_LINE_BAD_ARGUMENT, run->status[2]);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[3]);
+    CHECK(title_is("Music"));
+}
+
+static void wait_holds_the_script_for_its_time(void)
+{
+    start_app();
+    load_script("build any\nwait 500\nplay\n");
+    run_script_for(400);
+    CHECK(title_is("Doublesharp"));
+    run_script_for(100 + SCRIPT_KEY_MS);
+    CHECK(title_is("Music"));
+}
+
+static void measure_resets_the_counters_and_records_the_window(void)
+{
+    start_app();
+    fake_hal_set_microseconds_per_read(50);
+    fake_hal_set_audio_stats((HalAudioStats){.underruns = 4, .blocks = 900});
+    load_script("build any\nmeasure 400\n");
+    run_script_for(4 * SCRIPT_STEP_MS);
+    CHECK_EQUAL(1, fake_hal_audio_stats_reset_count());
+    fake_hal_set_audio_stats((HalAudioStats){.buffered_ms = 150,
+                                             .underruns = 6,
+                                             .output_underruns = 1,
+                                             .blocks = 10,
+                                             .decode_max_us = 900,
+                                             .decode_total_us = 5000,
+                                             .read_max_us = 300,
+                                             .read_total_us = 2000,
+                                             .busy_us = 40000,
+                                             .elapsed_us = 400000});
+    run_script_for(420);
+    const DebugScriptRun *run = debug_runner_script();
+    const DebugMeasure *measure = &run->measures[0];
+    CHECK_EQUAL(1, run->measure_count);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
+    CHECK_EQUAL(2, measure->line);
+    CHECK_EQUAL(400, measure->duration_ms);
+    CHECK(measure->frames >= 3);
+    CHECK(measure->frame_us >= measure->update_us + measure->draw_us + measure->send_us);
+    CHECK(measure->frame_worst_us * measure->frames >= measure->frame_us);
+    CHECK_EQUAL(1, measure->audio_running);
+    CHECK_EQUAL(150, measure->buffered_ms);
+    CHECK_EQUAL(2, measure->underruns);
+    CHECK_EQUAL(1, measure->output_underruns);
+    CHECK_EQUAL(10, measure->blocks);
+    CHECK_EQUAL(5000, measure->handoff_us);
+    CHECK_EQUAL(900, measure->handoff_max_us);
+    CHECK_EQUAL(40000, measure->audio_busy_us);
+    CHECK(measure->clock_us > 0);
+}
+
+static void a_fifth_measure_is_reported_as_failed(void)
+{
+    start_app();
+    const DebugScriptRun *run =
+        run_script("build any\nmeasure 8\nmeasure 8\nmeasure 8\nmeasure 8\nmeasure 8\n", 200);
+    CHECK_EQUAL(DEBUG_SCRIPT_MEASURES, run->measure_count);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[4]);
+    CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[5]);
+}
+
+static void profile_commands_switch_and_clear_the_profiler(void)
+{
+    start_app();
+    load_script("build any\nprofile on\nwait 100\nprofile reset\nprofile off\n");
+    run_script_for(60);
+    CHECK_EQUAL(HAL_PROFILE_ON, hal_system_profile_state());
+    int resets = fake_hal_profile_reset_count();
+    run_script_for(120);
+    CHECK_EQUAL(resets + 1, fake_hal_profile_reset_count());
+    CHECK_EQUAL(HAL_PROFILE_OFF, hal_system_profile_state());
+}
+
+static void usb_sense_commands_switch_the_experiment_without_hands(void)
+{
+    start_app();
+    load_script("build any\nusb_sense kept_on\nwait 100\nusb_sense normal\n");
+    run_script_for(60);
+    CHECK(hal_system_usb_sense().kept_on);
+    run_script_for(120);
+    CHECK(!hal_system_usb_sense().kept_on);
+    CHECK_EQUAL(DEBUG_LINE_OK, debug_runner_script()->status[3]);
+}
+
+static void set_chooses_a_settings_option_as_the_screen_does(void)
+{
+    start_app();
+    const DebugScriptRun *run =
+        run_script("build any\nset Brightness=3\nset text size = large\nset Repeat=All\n", 100);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[2]);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[3]);
+    CHECK_EQUAL(3, fake_hal_display_brightness());
+    CHECK_EQUAL(REPEAT_ALL, app_player_status().repeat);
+    Settings saved;
+    uint32_t size = 0;
+    const uint8_t *bytes = fake_hal_internal_file_bytes("/.doublesharp/settings.bin", &size);
+    CHECK(bytes != NULL && settings_decode(bytes, size, &saved));
+    CHECK_EQUAL(3, saved.brightness);
+    CHECK_EQUAL(TEXT_SIZE_LARGE, saved.text_size);
+}
+
+static void set_refuses_what_settings_does_not_offer(void)
+{
+    start_app();
+    const DebugScriptRun *run = run_script(
+        "build any\nset Brightness=11\nset Flash=on\nset Brightness 3\nset Equalizer=#9\n", 100);
+    CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[1]);
+    CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[2]);
+    CHECK_EQUAL(DEBUG_LINE_BAD_ARGUMENT, run->status[3]);
+    CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[4]);
+}
+
+static uint32_t little_endian(const uint8_t *bytes, int count)
+{
+    uint32_t value = 0;
+    for (int index = count - 1; index >= 0; index--) {
+        value = value << 8 | bytes[index];
+    }
+    return value;
+}
+
+static void a_screenshot_holds_the_frame_the_strip_renderer_draws(void)
+{
+    const char *path = NULL;
+    uint32_t size = 0;
+    start_app();
+    wait_ms(SPLASH_MS);
+    wait_ms(FRAME_PACER_IDLE_MS);
+    const DebugScriptRun *run = run_script("build any\nscreenshot home\n", 60);
+    const uint8_t *shot = fake_hal_screenshot(&path, &size);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
+    CHECK_EQUAL(1, run->screenshot_count);
+    CHECK_EQUAL(2, run->screenshot_lines[0]);
+    CHECK(strcmp("/.doublesharp/debug/shot0.565", path) == 0);
+    CHECK_EQUAL(32 + FULL_FRAME_PIXELS * 2, size);
+    CHECK_EQUAL(0, memcmp(shot, "DSSH\x01\x01", 6));
+    CHECK_EQUAL(HAL_DISPLAY_WIDTH, little_endian(shot + 6, 2));
+    CHECK_EQUAL(HAL_DISPLAY_HEIGHT, little_endian(shot + 8, 2));
+    CHECK_EQUAL(32, little_endian(shot + 10, 2));
+    CHECK_EQUAL(0, memcmp(shot + 16, "home\0\0\0\0\0\0\0\0", 12));
+    int different = 0;
+    for (int y = 0; y < HAL_DISPLAY_HEIGHT; y++) {
+        for (int x = 0; x < HAL_DISPLAY_WIDTH; x++) {
+            const uint8_t *pixel = shot + 32 + 2 * (y * HAL_DISPLAY_WIDTH + x);
+            different += little_endian(pixel, 2) != fake_hal_pixel(x, y);
+        }
+    }
+    CHECK_EQUAL(0, different);
+}
+
+static void a_script_takes_at_most_four_screenshots_in_numbered_files(void)
+{
+    const char *path = NULL;
+    uint32_t size = 0;
+    start_app();
+    const DebugScriptRun *run = run_script(
+        "build any\nscreenshot a\nscreenshot b\nscreenshot c\nscreenshot d\nscreenshot e\n", 200);
+    fake_hal_screenshot(&path, &size);
+    CHECK_EQUAL(DEBUG_SCRIPT_SCREENSHOTS, run->screenshot_count);
+    CHECK(strcmp("/.doublesharp/debug/shot3.565", path) == 0);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[4]);
+    CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[5]);
+}
+
+static void a_screenshot_that_cannot_be_stored_is_reported_as_failed(void)
+{
+    start_app();
+    fake_hal_set_reserve_result(HAL_RESERVE_NO_SPACE);
+    const DebugScriptRun *run = run_script("build any\nscreenshot home\n", 60);
+    CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[1]);
+    CHECK_EQUAL(0, run->screenshot_count);
+}
+
+static void reconnect_ends_the_script_and_asks_for_usb_at_once(void)
+{
+    start_app();
+    const DebugScriptRun *run = run_script("build any\nreconnect\nplay\n", 2 * SCRIPT_KEY_MS);
+    CHECK_EQUAL(DEBUG_SCRIPT_FINISHED, run->state);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
+    CHECK_EQUAL(DEBUG_LINE_NOT_RUN, run->status[2]);
+    CHECK(title_is("Doublesharp"));
+    CHECK_EQUAL(1, fake_hal_usb_reconnect_count());
+    run_script_for(2 * DEBUG_SCRIPT_END_MS);
+    CHECK_EQUAL(1, fake_hal_usb_reconnect_count());
+}
+
+static void a_script_that_ends_without_reconnect_reconnects_after_the_safety_time(void)
+{
+    start_app();
+    const DebugScriptRun *run = run_script("build any\nwait 100\n", 200);
+    CHECK_EQUAL(DEBUG_SCRIPT_FINISHED, run->state);
+    CHECK_EQUAL(0, fake_hal_usb_reconnect_count());
+    run_script_for(DEBUG_SCRIPT_END_MS);
+    CHECK_EQUAL(1, fake_hal_usb_reconnect_count());
+    run_script_for(DEBUG_SCRIPT_END_MS);
+    CHECK_EQUAL(1, fake_hal_usb_reconnect_count());
+}
+
+static void a_script_past_its_time_limit_is_stopped_and_reconnects(void)
+{
+    start_app();
+    load_script("build any\nwait 60000\nwait 60000\nwait 60000\nwait 60000\nwait 60000\n"
+                "wait 60000\nplay\n");
+    for (uint32_t elapsed = 0; elapsed < DEBUG_SCRIPT_LIMIT_MS + 1000; elapsed += 500) {
+        wait_ms(500);
+    }
+    const DebugScriptRun *run = debug_runner_script();
+    CHECK_EQUAL(DEBUG_SCRIPT_TIMED_OUT, run->state);
+    CHECK_EQUAL(1, fake_hal_usb_reconnect_count());
+    CHECK_EQUAL(DEBUG_LINE_NOT_RUN, run->status[6]);
+    CHECK(title_is("Doublesharp"));
+}
+
+static void an_aborted_script_lets_go_of_the_key_it_holds(void)
+{
+    start_app();
+    load_script("build any\ndown:held\nplay\n");
+    run_script_for(1000);
+    debug_runner_abort();
+    uint32_t before = debug_loop_log()->recorded;
+    run_script_for(2000);
+    CHECK_EQUAL(DEBUG_SCRIPT_ABORTED, debug_runner_script()->state);
+    CHECK(title_is("Doublesharp"));
+    CHECK_EQUAL(0, events_of(DEBUG_EVENT_SCREEN, before));
+    tap(KEY_PLAY);
+    CHECK(title_is("Settings"));
+}
+
+static void a_script_lights_the_screen_and_leaves_the_charge_screen_before_it_starts(void)
+{
+    fake_hal_reset();
+    fake_hal_set_battery(ON_USB);
+    fake_hal_set_usb_start(true);
+    now_ms = START_MS;
+    fake_hal_set_milliseconds(now_ms);
+    app_start();
+    CHECK(app_charging());
+    wait_ms(CHARGE_DARK_MS);
+    CHECK(!fake_hal_display_on());
+    load_script("build any\nplay\n");
+    run_script_for(SPLASH_MS + 3 * SCRIPT_KEY_MS);
+    CHECK(!app_charging());
+    CHECK(fake_hal_display_on());
+    CHECK(title_is("Music"));
+}
+
+static void the_script_mark_follows_the_line_and_clears_at_the_end(void)
+{
+    start_app();
+    load_script("build any\nwait 200\n");
+    run_script_for(100);
+    CHECK_EQUAL(2, fake_hal_script_mark());
+    run_script_for(200);
+    CHECK_EQUAL(0, fake_hal_script_mark());
+}
+
+static void script_steps_and_states_are_logged(void)
+{
+    start_app();
+    uint32_t before = debug_loop_log()->recorded;
+    run_script("build any\nwait 8\n", 100);
+    CHECK_EQUAL(4, events_of(DEBUG_EVENT_SCRIPT, before));
+    CHECK_EQUAL(DEBUG_SCRIPT_EVENT_STATE + DEBUG_SCRIPT_FINISHED, last_event()->value);
 }
 
 static void menu_opens_now_playing_from_anywhere_while_playing(void)
@@ -3411,6 +3798,12 @@ int main(void)
         TEST_CASE(the_profiler_row_switches_sampling_and_restarts_a_full_profile),
         TEST_CASE(the_usb_sense_row_shows_the_cable_live_and_play_keeps_usb_powered),
         TEST_CASE(the_usb_sense_mode_is_normal_after_every_start),
+        TEST_CASE(a_key_gesture_is_logged_with_its_key_and_time),
+        TEST_CASE(key_repeats_are_left_out_of_the_log),
+        TEST_CASE(a_screen_change_is_logged_with_its_depth_and_title),
+        TEST_CASE(starting_and_pausing_a_track_is_logged_with_its_number),
+        TEST_CASE(new_underruns_are_logged_once_with_their_count),
+        TEST_CASE(the_frame_figures_follow_the_frame_time_overlay),
         TEST_CASE(a_long_power_press_saves_a_report_before_the_power_goes),
         TEST_CASE(switching_off_on_usb_power_saves_a_report_on_the_way_into_charge_mode),
         TEST_CASE(a_cable_start_into_charge_mode_saves_no_report),
@@ -3418,12 +3811,32 @@ int main(void)
         TEST_CASE(an_empty_battery_saves_a_report_named_for_it),
         TEST_CASE(auto_off_names_its_report),
         TEST_CASE(the_sleep_timer_names_its_report),
-        TEST_CASE(a_key_gesture_is_logged_with_its_key_and_time),
-        TEST_CASE(key_repeats_are_left_out_of_the_log),
-        TEST_CASE(a_screen_change_is_logged_with_its_depth_and_title),
-        TEST_CASE(starting_and_pausing_a_track_is_logged_with_its_number),
-        TEST_CASE(new_underruns_are_logged_once_with_their_count),
-        TEST_CASE(the_frame_figures_follow_the_frame_time_overlay),
+        TEST_CASE(a_script_presses_keys_as_the_buttons_would),
+        TEST_CASE(a_key_list_runs_in_order_with_long_presses),
+        TEST_CASE(a_script_plays_a_track),
+        TEST_CASE(a_script_without_a_build_line_is_refused_and_still_reconnects),
+        TEST_CASE(a_script_for_another_build_is_refused),
+        TEST_CASE(a_script_for_this_build_runs),
+        TEST_CASE(a_script_waits_while_an_update_awaits_its_restart),
+        TEST_CASE(a_script_past_the_size_or_line_limit_is_refused),
+        TEST_CASE(an_unknown_line_is_reported_and_the_script_goes_on),
+        TEST_CASE(wait_holds_the_script_for_its_time),
+        TEST_CASE(measure_resets_the_counters_and_records_the_window),
+        TEST_CASE(a_fifth_measure_is_reported_as_failed),
+        TEST_CASE(profile_commands_switch_and_clear_the_profiler),
+        TEST_CASE(usb_sense_commands_switch_the_experiment_without_hands),
+        TEST_CASE(set_chooses_a_settings_option_as_the_screen_does),
+        TEST_CASE(set_refuses_what_settings_does_not_offer),
+        TEST_CASE(a_screenshot_holds_the_frame_the_strip_renderer_draws),
+        TEST_CASE(a_script_takes_at_most_four_screenshots_in_numbered_files),
+        TEST_CASE(a_screenshot_that_cannot_be_stored_is_reported_as_failed),
+        TEST_CASE(reconnect_ends_the_script_and_asks_for_usb_at_once),
+        TEST_CASE(a_script_that_ends_without_reconnect_reconnects_after_the_safety_time),
+        TEST_CASE(a_script_past_its_time_limit_is_stopped_and_reconnects),
+        TEST_CASE(an_aborted_script_lets_go_of_the_key_it_holds),
+        TEST_CASE(a_script_lights_the_screen_and_leaves_the_charge_screen_before_it_starts),
+        TEST_CASE(the_script_mark_follows_the_line_and_clears_at_the_end),
+        TEST_CASE(script_steps_and_states_are_logged),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -8,6 +8,7 @@
 
 enum {
     BUCKETS = 1229,
+    BUSY_BUCKETS = 256,
     GUARD_BYTES = 16
 };
 
@@ -16,12 +17,14 @@ static uint16_t buckets[BUCKETS];
 static DebugLog events;
 static PcProfile profile;
 static PowerHistory history;
+static DebugScriptRun script;
 
 static DebugReportInput plain_input(void)
 {
     memset(buckets, 0, sizeof buckets);
     debug_log_reset(&events);
     history.recorded = 0;
+    memset(&script, 0, sizeof script);
     profile = (PcProfile){.buckets = buckets,
                           .bucket_count = BUCKETS,
                           .bucket_shift = 7,
@@ -35,6 +38,7 @@ static DebugReportInput plain_input(void)
                               .clock_us = 61000000,
                               .idle_us = 45750000,
                               .power = {.history = &history},
+                              .script = &script,
                               .log = &events,
                               .profile = &profile};
 }
@@ -97,8 +101,9 @@ static void the_report_says_which_one_it_is_and_what_wrote_it(void)
     input.reason = DEBUG_REPORT_AUTO_OFF;
     format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("report.reason: auto_off"));
-    static const char *const NAMES[] = {"none",        "usb_session", "shutdown",  "auto_off",
-                                        "sleep_timer", "low_battery", "unplugged", "restart"};
+    static const char *const NAMES[] = {"none",      "usb_session", "shutdown",
+                                        "auto_off",  "sleep_timer", "low_battery",
+                                        "unplugged", "restart",     "no_host"};
     for (int reason = 0; reason < DEBUG_REPORT_REASON_COUNT; reason++) {
         char line[64];
         input.reason = (DebugReportReason)reason;
@@ -397,6 +402,227 @@ static void a_power_event_gives_vbus_and_the_raw_charge_pin(void)
     CHECK(has_line("event: 1001 power 0 1"));
 }
 
+static void load_script(const char *text_to_run)
+{
+    size_t length = strlen(text_to_run);
+    memcpy(script.text, text_to_run, length);
+    debug_script_load(&script, (uint32_t)length, (DebugScriptHost){"1.0.0-abc1234", false});
+}
+
+static void without_a_script_the_section_says_none(void)
+{
+    DebugReportInput input = plain_input();
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("script.state: none"));
+    CHECK(has_line("script.started_ms: unknown"));
+    CHECK(has_line("script.interrupted_line: 0"));
+    CHECK(strstr(text, "script.line") == NULL);
+    input.script = NULL;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("script.state: unknown"));
+}
+
+static void a_finished_script_lists_each_line_with_its_outcome(void)
+{
+    DebugReportInput input = plain_input();
+    load_script(
+        "# open music\nbuild abc1234\n\nplay,down\npoke 1\nwait soon\nset Flash=on\nreconnect\n"
+        "play\n");
+    script.state = DEBUG_SCRIPT_FINISHED;
+    script.started_ms = 5000;
+    script.finished_ms = 5900;
+    script.status[3] = DEBUG_LINE_OK;
+    script.status[6] = DEBUG_LINE_FAILED;
+    script.status[7] = DEBUG_LINE_OK;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("script.state: finished"));
+    CHECK(has_line("script.started_ms: 5000"));
+    CHECK(has_line("script.finished_ms: 5900"));
+    CHECK(has_line("script.line: 2 ok build abc1234"));
+    CHECK(has_line("script.line: 4 ok play,down"));
+    CHECK(has_line("script.line: 5 unknown poke 1"));
+    CHECK(has_line("script.line: 6 bad_argument wait soon"));
+    CHECK(has_line("script.line: 7 failed set Flash=on"));
+    CHECK(has_line("script.line: 8 ok reconnect"));
+    CHECK(has_line("script.line: 9 not_run play"));
+    CHECK(strstr(text, "script.line: 1 ") == NULL);
+    CHECK(strstr(text, "script.line: 3 ") == NULL);
+}
+
+static void a_refused_script_says_why_and_shows_its_lines_as_not_run(void)
+{
+    DebugReportInput input = plain_input();
+    load_script("build 7777777\nplay\n");
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("script.state: refused_build"));
+    CHECK(has_line("script.started_ms: unknown"));
+    CHECK(has_line("script.line: 1 not_run build 7777777"));
+    CHECK(has_line("script.line: 2 not_run play"));
+}
+
+static void a_running_script_has_no_finish_time(void)
+{
+    DebugReportInput input = plain_input();
+    load_script("build any\nwait 60000\n");
+    script.state = DEBUG_SCRIPT_RUNNING;
+    script.started_ms = 7000;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("script.state: running"));
+    CHECK(has_line("script.started_ms: 7000"));
+    CHECK(has_line("script.finished_ms: unknown"));
+}
+
+static void a_script_cut_short_by_a_reset_names_the_line_it_was_on(void)
+{
+    DebugReportInput input = plain_input();
+    input.interrupted_line = 7;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("script.interrupted_line: 7"));
+}
+
+static void script_text_outside_plain_ascii_is_replaced(void)
+{
+    DebugReportInput input = plain_input();
+    load_script("build any\nset Skip songs=Hold vol\xC2\xB1\n");
+    script.state = DEBUG_SCRIPT_FINISHED;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("script.line: 2 not_run set Skip songs=Hold vol??"));
+}
+
+static void a_measure_is_one_line_of_named_figures(void)
+{
+    DebugReportInput input = plain_input();
+    load_script("build any\nmeasure 3000\n");
+    script.state = DEBUG_SCRIPT_FINISHED;
+    script.measure_count = 1;
+    script.measures[0] = (DebugMeasure){.line = 2,
+                                        .duration_ms = 3000,
+                                        .frames = 100,
+                                        .frame_us = 2100000,
+                                        .frame_worst_us = 44000,
+                                        .update_us = 300000,
+                                        .draw_us = 1200000,
+                                        .send_us = 600000,
+                                        .audio_running = 1,
+                                        .buffered_ms = 148,
+                                        .underruns = 2,
+                                        .output_underruns = 1,
+                                        .blocks = 40,
+                                        .handoff_us = 200000,
+                                        .handoff_max_us = 9100,
+                                        .read_us = 48000,
+                                        .read_max_us = 4200,
+                                        .audio_busy_us = 450000,
+                                        .audio_elapsed_us = 3000000,
+                                        .clock_us = 3000000,
+                                        .idle_us = 1200000};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, "\nscript.measure: line=2 ms=3000 frames=100 frame_avg_us=21000 "
+                       "frame_worst_us=44000 update_avg_us=3000 draw_avg_us=12000 "
+                       "send_avg_us=6000 audio=1 buffered_ms=148 underruns=2 output_underruns=1 "
+                       "blocks=40 handoff_avg_us=5000 handoff_max_us=9100 read_avg_us=1200 "
+                       "read_max_us=4200 audio_busy_percent=15 core0_busy_percent=60\n") != NULL);
+}
+
+static void a_measure_without_frames_or_audio_reports_them_as_unknown(void)
+{
+    DebugReportInput input = plain_input();
+    load_script("build any\nmeasure 100\n");
+    script.state = DEBUG_SCRIPT_FINISHED;
+    script.measure_count = 1;
+    script.measures[0] = (DebugMeasure){.line = 2, .duration_ms = 100, .clock_us = 100000};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, "\nscript.measure: line=2 ms=100 frames=0 frame_avg_us=unknown "
+                       "frame_worst_us=unknown update_avg_us=unknown draw_avg_us=unknown "
+                       "send_avg_us=unknown audio=0 buffered_ms=unknown underruns=unknown "
+                       "output_underruns=0 blocks=0 handoff_avg_us=unknown handoff_max_us=unknown "
+                       "read_avg_us=unknown read_max_us=unknown audio_busy_percent=unknown "
+                       "core0_busy_percent=100\n") != NULL);
+}
+
+static void screenshots_are_listed_by_slot_with_their_names(void)
+{
+    DebugReportInput input = plain_input();
+    load_script("build any\nscreenshot home\nplay\nscreenshot music\n");
+    script.state = DEBUG_SCRIPT_FINISHED;
+    script.screenshot_count = 2;
+    script.screenshot_lines[0] = 2;
+    script.screenshot_lines[1] = 4;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("script.screenshot: 0 home"));
+    CHECK(has_line("script.screenshot: 1 music"));
+}
+
+static void script_events_name_the_line_or_the_state(void)
+{
+    DebugReportInput input = plain_input();
+    record(DEBUG_EVENT_SCRIPT, DEBUG_SCRIPT_EVENT_STATE + DEBUG_SCRIPT_RUNNING, NULL);
+    record(DEBUG_EVENT_SCRIPT, 4, NULL);
+    record(DEBUG_EVENT_SCRIPT, DEBUG_SCRIPT_EVENT_STATE + DEBUG_SCRIPT_REFUSED_BUILD, NULL);
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("event: 1000 script running"));
+    CHECK(has_line("event: 1001 script 4"));
+    CHECK(has_line("event: 1002 script refused_build"));
+}
+
+static void the_loop_section_says_how_this_run_started(void)
+{
+    DebugReportInput input = plain_input();
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("loop.boot: cold"));
+    input.start = (HalStartInfo){.warm = true, .previous_power_off = true};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("loop.boot: restart"));
+    input.start = (HalStartInfo){.warm = true};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("loop.boot: watchdog_or_reset"));
+    input.start = (HalStartInfo){.warm = true, .fault_pc = 0x0305A1B2};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("loop.boot: fault"));
+    input.loop.restarted = true;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("loop.boot: loop_restart"));
+    input.start = (HalStartInfo){.warm = false};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("loop.boot: loop_restart"));
+}
+
+static void the_loop_section_counts_sessions_tried_without_the_cable_bit(void)
+{
+    DebugReportInput input = plain_input();
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("loop.connect_attempts: 0"));
+    CHECK(has_line("loop.last_connect: none"));
+    CHECK(has_line("loop.cable_bit_at_connect: unknown"));
+    input.loop = (DebugReportLoop){
+        .attempts = 3, .answered = 2, .unanswered = 1, .last_connect = DEBUG_LOOP_CONNECT_NO_HOST};
+    input.reason = DEBUG_REPORT_NO_HOST;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("report.reason: no_host"));
+    CHECK(has_line("loop.connect_attempts: 3"));
+    CHECK(has_line("loop.connect_answered: 2"));
+    CHECK(has_line("loop.connect_unanswered: 1"));
+    CHECK(has_line("loop.last_connect: no_host"));
+    CHECK(has_line("loop.cable_bit_at_connect: 0"));
+    input.loop.last_connect = DEBUG_LOOP_CONNECT_ANSWERED;
+    input.loop.cable_at_connect = true;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("loop.last_connect: answered"));
+    CHECK(has_line("loop.cable_bit_at_connect: 1"));
+}
+
+static void connect_events_say_what_became_of_the_attempt(void)
+{
+    DebugReportInput input = plain_input();
+    record(DEBUG_EVENT_USB_CONNECT, DEBUG_LOOP_CONNECT_WAITING, NULL);
+    record(DEBUG_EVENT_USB_CONNECT, DEBUG_LOOP_CONNECT_NO_HOST, NULL);
+    record(DEBUG_EVENT_USB_CONNECT, DEBUG_LOOP_CONNECT_ANSWERED, NULL);
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("event: 1000 usb_connect waiting"));
+    CHECK(has_line("event: 1001 usb_connect no_host"));
+    CHECK(has_line("event: 1002 usb_connect answered"));
+}
+
 static void a_cold_start_has_no_previous_run_to_report(void)
 {
     DebugReportInput input = plain_input();
@@ -645,16 +871,69 @@ static void fill_everything(uint16_t bucket_count)
     }
 }
 
-static void the_fullest_report_fits_the_file_without_truncation(void)
+static void fill_script(void)
+{
+    static char full[DEBUG_SCRIPT_BYTES + 1];
+    strcpy(full, "build any\n");
+    for (int index = 0; index < DEBUG_SCRIPT_SCREENSHOTS; index++) {
+        strcat(full, "screenshot abcdefghijkl\nmeasure 60000\n");
+    }
+    while (strlen(full) + 18 <= DEBUG_SCRIPT_BYTES) {
+        strcat(full, "set Brightness=10\n");
+    }
+    load_script(full);
+    script.state = DEBUG_SCRIPT_FINISHED;
+    script.started_ms = 0xFFFFFFFFu;
+    script.finished_ms = 0xFFFFFFFFu;
+    for (int index = 0; index < DEBUG_SCRIPT_SCREENSHOTS; index++) {
+        script.screenshot_lines[script.screenshot_count++] = (uint8_t)(2 + 2 * index);
+        memset(&script.measures[script.measure_count], 0x7F, sizeof(DebugMeasure));
+        script.measures[script.measure_count++].audio_running = 1;
+    }
+}
+
+static const char *last_body_line(void)
+{
+    const char *tail = strstr(text, "\ntruncated: ");
+    const char *line = tail;
+    while (line > text && line[-1] != '\n') {
+        line--;
+    }
+    return line;
+}
+
+static void a_full_report_with_a_busy_histogram_fits_the_file(void)
 {
     DebugReportInput input = plugged_in_at_97_percent();
-    fill_everything(0xfffe);
+    fill_everything(0);
+    fill_script();
+    for (int index = 0; index < BUSY_BUCKETS; index++) {
+        buckets[index] = 0xfffe;
+    }
+    for (int index = BUSY_BUCKETS; index < BUCKETS; index += 8) {
+        buckets[index] = 0xfffe;
+    }
     uint32_t length = format(&input, DEBUG_REPORT_BYTES);
     CHECK(length <= DEBUG_REPORT_BYTES);
     CHECK(has_line("truncated: 0"));
+    CHECK(has_line("script.screenshot: 3 abcdefghijkl"));
     CHECK(strstr(text, "; 65535 4200 100 11111\n") != NULL);
-    CHECK(has_line("profile.row: 4c0 fffe fffe fffe fffe fffe fffe fffe fffe fffe fffe fffe fffe "
-                   "fffe"));
+    CHECK(has_line("profile.row: 4c0 fffe 0 0 0 0 0 0 0 fffe"));
+}
+
+static void the_fullest_report_is_cut_inside_the_histogram_which_comes_last(void)
+{
+    DebugReportInput input = plugged_in_at_97_percent();
+    fill_everything(0xfffe);
+    fill_script();
+    uint32_t length = format(&input, DEBUG_REPORT_BYTES);
+    CHECK(length <= DEBUG_REPORT_BYTES);
+    CHECK(has_line("truncated: 1"));
+    CHECK(has_line("script.screenshot: 3 abcdefghijkl"));
+    CHECK(strstr(text, "\nscript.measure: line=2139062143 ") != NULL);
+    CHECK(strstr(text, "; 65535 4200 100 11111\n") != NULL);
+    CHECK(has_line("profile.buckets: 1229"));
+    CHECK_EQUAL(0, strncmp(last_body_line(), "profile.row: ", 13));
 }
 
 static void a_small_buffer_cuts_at_a_line_and_says_so(void)
@@ -710,6 +989,19 @@ int main(void)
         TEST_CASE(power_values_not_read_yet_are_unknown),
         TEST_CASE(the_power_history_lists_a_sample_per_minute_oldest_first),
         TEST_CASE(a_power_event_gives_vbus_and_the_raw_charge_pin),
+        TEST_CASE(without_a_script_the_section_says_none),
+        TEST_CASE(a_finished_script_lists_each_line_with_its_outcome),
+        TEST_CASE(a_refused_script_says_why_and_shows_its_lines_as_not_run),
+        TEST_CASE(a_running_script_has_no_finish_time),
+        TEST_CASE(a_script_cut_short_by_a_reset_names_the_line_it_was_on),
+        TEST_CASE(script_text_outside_plain_ascii_is_replaced),
+        TEST_CASE(a_measure_is_one_line_of_named_figures),
+        TEST_CASE(a_measure_without_frames_or_audio_reports_them_as_unknown),
+        TEST_CASE(screenshots_are_listed_by_slot_with_their_names),
+        TEST_CASE(script_events_name_the_line_or_the_state),
+        TEST_CASE(the_loop_section_says_how_this_run_started),
+        TEST_CASE(the_loop_section_counts_sessions_tried_without_the_cable_bit),
+        TEST_CASE(connect_events_say_what_became_of_the_attempt),
         TEST_CASE(a_cold_start_has_no_previous_run_to_report),
         TEST_CASE(a_warm_start_reports_the_previous_run_and_its_fault),
         TEST_CASE(the_last_usb_session_is_reported_once_there_was_one),
@@ -725,7 +1017,8 @@ int main(void)
         TEST_CASE(a_full_profile_says_so),
         TEST_CASE(the_end_line_gives_the_length_of_the_body),
         TEST_CASE(the_rest_of_the_file_is_newlines_and_nothing_is_written_past_it),
-        TEST_CASE(the_fullest_report_fits_the_file_without_truncation),
+        TEST_CASE(a_full_report_with_a_busy_histogram_fits_the_file),
+        TEST_CASE(the_fullest_report_is_cut_inside_the_histogram_which_comes_last),
         TEST_CASE(a_small_buffer_cuts_at_a_line_and_says_so),
         TEST_CASE(a_buffer_too_small_for_the_end_lines_gets_nothing),
     };

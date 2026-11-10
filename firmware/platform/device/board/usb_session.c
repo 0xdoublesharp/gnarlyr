@@ -138,7 +138,7 @@ static UsbSessionEnd serve(void)
 {
     MscStats shown = msc_stats(&msc);
     uint32_t refreshed = hal_clock_milliseconds();
-    while (usb_vbus_present()) {
+    while (debug_session_cable(usb_vbus_present(), &msc)) {
         uint32_t now = hal_clock_milliseconds();
         if (now - refreshed >= COUNTER_REFRESH_MS && stats_changed(msc_stats(&msc), shown)) {
             shown = msc_stats(&msc);
@@ -216,5 +216,6 @@ CORE_SEAM bool usb_storage_session(UsbShared *state)
         update_after_usb(shared);
     }
 #endif
-    return usb_session_storage_changed();
+    bool script_taken = end == USB_SESSION_EJECTED && debug_script_take();
+    return usb_session_storage_changed() || script_taken;
 }

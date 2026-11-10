@@ -76,6 +76,7 @@ bool board_usb_listening(void);
 void board_power_hold(void);
 void board_power_pair_set(bool on);
 void board_loader_reboot(void);
+void board_restart(void);
 void board_loader_flag_clear(void);
 void board_power_cut(void);
 bool board_power_key_down(void);

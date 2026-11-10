@@ -17,6 +17,8 @@
 #include "core/string_builder.h"
 #include "cover_cache.h"
 #include "debug_loop_internal.h"
+#include "debug_runner.h"
+#include "debug_screenshot.h"
 #include "default_theme.h"
 #include "draw_profile.h"
 #include "favorites_store.h"
@@ -181,30 +183,38 @@ static Key oriented_key(HalKeyTransition transition)
     return rocker_key(transition.key, app.rocker_swapped[transition.key]);
 }
 
+static void take_transition(HalKeyTransition transition)
+{
+    app.render_urgent = true;
+    Key key = oriented_key(transition);
+    switch (key_lock_transition(&app.lock, key, transition.pressed, transition.time_ms)) {
+    case KEY_LOCK_PASS:
+        if (transition.pressed) {
+            key_tracker_key_down(&app.keys, key, transition.time_ms);
+        } else {
+            key_tracker_key_up(&app.keys, key, transition.time_ms);
+        }
+        break;
+    case KEY_LOCK_COMBO_STARTED:
+        key_tracker_cancel(&app.keys, KEY_PLAY);
+        key_tracker_cancel(&app.keys, KEY_POWER);
+        break;
+    case KEY_LOCK_REFUSED:
+        toast_show(&app.toast, LOCKED_HINT, transition.time_ms);
+        break;
+    case KEY_LOCK_SWALLOW:
+        break;
+    }
+}
+
 static void read_input(void)
 {
     HalKeyTransition transition;
     while (hal_input_next_transition(&transition)) {
-        app.render_urgent = true;
-        Key key = oriented_key(transition);
-        switch (key_lock_transition(&app.lock, key, transition.pressed, transition.time_ms)) {
-        case KEY_LOCK_PASS:
-            if (transition.pressed) {
-                key_tracker_key_down(&app.keys, key, transition.time_ms);
-            } else {
-                key_tracker_key_up(&app.keys, key, transition.time_ms);
-            }
-            break;
-        case KEY_LOCK_COMBO_STARTED:
-            key_tracker_cancel(&app.keys, KEY_PLAY);
-            key_tracker_cancel(&app.keys, KEY_POWER);
-            break;
-        case KEY_LOCK_REFUSED:
-            toast_show(&app.toast, LOCKED_HINT, transition.time_ms);
-            break;
-        case KEY_LOCK_SWALLOW:
-            break;
-        }
+        take_transition(transition);
+    }
+    while (debug_runner_next_key(&transition)) {
+        take_transition(transition);
     }
 }
 
@@ -721,9 +731,9 @@ static StatusBarState current_status_bar(void)
     };
 }
 
-static void render(FrameDrawer drawer, bool drawer_paints_everything)
+static StripRenderer frame_renderer(bool drawer_paints_everything)
 {
-    StripRenderer renderer = {
+    return (StripRenderer){
         .strip_pixels = strip_pixels,
         .screen_width = app.theme.metrics.screen_width,
         .screen_height = app.theme.metrics.screen_height,
@@ -732,6 +742,11 @@ static void render(FrameDrawer drawer, bool drawer_paints_everything)
         .background = BOARD_THEME.colors.background,
         .drawer_paints_everything = drawer_paints_everything,
     };
+}
+
+static void render(FrameDrawer drawer, bool drawer_paints_everything)
+{
+    StripRenderer renderer = frame_renderer(drawer_paints_everything);
     FrameSink sink = {.write = write_to_display, .context = NULL};
     strip_renderer_render(&renderer, drawer, sink);
     hal_display_present();
@@ -1033,6 +1048,37 @@ bool app_preparing(void)
     return app.prepare_pending;
 }
 
+static void start_debug_script(uint32_t now_ms)
+{
+    if (app.charging) {
+        stop_charging(now_ms);
+    }
+    power_policy_wake(&app.power, now_ms);
+}
+
+static bool save_debug_screenshot(const DebugRequest *request)
+{
+    DebugScreenshot shot = {.renderer = frame_renderer(false),
+                            .drawer = {.draw = draw_frame, .context = &app},
+                            .name = request->argument,
+                            .slot = request->slot};
+    app.status_bar = current_status_bar();
+    return debug_screenshot_save(&shot);
+}
+
+static void run_debug_script(uint32_t now_ms)
+{
+    DebugRequest request = debug_runner_step(now_ms, fade_running());
+    if (request.kind == DEBUG_REQUEST_START) {
+        start_debug_script(now_ms);
+    } else if (request.kind == DEBUG_REQUEST_SET) {
+        debug_runner_done(
+            settings_screens_choose(&app.screens.settings, request.argument, request.value));
+    } else if (request.kind == DEBUG_REQUEST_SCREENSHOT) {
+        debug_runner_done(save_debug_screenshot(&request));
+    }
+}
+
 CORE_SEAM void app_step(void)
 {
     if (app.powered_off) {
@@ -1064,6 +1110,7 @@ CORE_SEAM void app_step(void)
     app.now_ms = now_ms;
     hal_audio_service();
     hal_bluetooth_service();
+    run_debug_script(now_ms);
     read_input();
     read_headset();
     key_tracker_update(&app.keys, now_ms);
@@ -1114,6 +1161,8 @@ CORE_SEAM void app_step(void)
     frame_pacer_done(&app.pacer, now_ms, app.frame_sent);
     light_after_first_frame();
     frame_stats_record(&app.frame_stats, hal_clock_microseconds() - started_us);
+    debug_runner_frame(
+        (DebugFrameSources){&app.frame_stats, &app.update_stats, &app.draw_stats, &app.send_stats});
 }
 
 bool app_charging(void)

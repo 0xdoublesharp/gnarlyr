@@ -32,7 +32,7 @@ add_library(echo_app STATIC
     screens/up_next_screen.c
 )
 if(NOT ECHO_RELEASE)
-    target_sources(echo_app PRIVATE debug_loop.c)
+    target_sources(echo_app PRIVATE debug_loop.c debug_runner.c debug_screenshot.c)
 endif()
 target_include_directories(echo_app PUBLIC include PRIVATE .)
 target_link_libraries(echo_app

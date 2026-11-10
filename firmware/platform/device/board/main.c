@@ -140,12 +140,16 @@ static void keep_listening(void)
     } else if (hal_clock_milliseconds() - listen_started_ms >= HOST_WAIT_MS) {
         stop_listening();
         usb_state = USB_STATE_HANDLED;
+        board_debug_listen_timed_out();
     }
 }
 
 static void check_usb(void)
 {
-    bool vbus = usb_vbus_present();
+    if (usb_state != USB_STATE_LISTENING && board_debug_take_reconnect()) {
+        usb_state = USB_STATE_UNPLUGGED;
+    }
+    bool vbus = usb_vbus_present() || board_debug_usb_forced();
     if (!vbus) {
         if (usb_state == USB_STATE_LISTENING) {
             stop_listening();
@@ -203,6 +207,7 @@ static void sleep_until_interrupt(void)
 void board_main(void)
 {
     board_start_record_boot();
+    board_debug_boot();
     board_loader_flag_clear();
     board_power_hold();
     board_power_pair_set(true);
@@ -230,6 +235,7 @@ void board_main(void)
     boot_step("splash");
     app_show_splash();
     boot_step("main loop");
+    board_debug_after_start();
     board_stall_pause(false);
     for (;;) {
         board_stall_beat();

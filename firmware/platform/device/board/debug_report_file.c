@@ -83,6 +83,9 @@ static DebugReportInput gather(const UsbShared *shared, uint32_t reason)
                               .usb = shared->last_session,
                               .audio = *board_debug_audio(),
                               .frames = app_debug_frames(),
+                              .loop = board_debug_loop(),
+                              .script = debug_runner_script(),
+                              .interrupted_line = board_debug_interrupted_line(),
                               .log = debug_loop_log(),
                               .profile = board_profile()};
 }
