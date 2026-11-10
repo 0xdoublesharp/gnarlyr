@@ -4,6 +4,7 @@ add_library(echo_playback STATIC
     resume_state.c
     spoken.c
     store.c
+    track_order.c
     up_next.c
 )
 target_include_directories(echo_playback PUBLIC include)
