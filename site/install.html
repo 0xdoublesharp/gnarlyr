@@ -56,13 +56,13 @@
 <tbody>
 <tr><th scope="row">FiiO stock firmware</th><td>Start with <a href="#first-install">first installation through recovery</a>.</td>
 </tr>
-<tr><th scope="row">Gnarlyr using <code>GNARLYR.img</code></th><td>Use the <a href="#update">manual USB update</a>. Developer builds can also use the <a href="#developer">computer-assisted update loop</a>.</td>
+<tr><th scope="row">Gnarlyr 1.0 or later</th><td>Use the <a href="#update">manual USB update</a>. Developer builds can also use the <a href="#developer">computer-assisted update loop</a>.</td>
 </tr>
 <tr><th scope="row">An older custom build</th><td>Use the <a href="#migration">migration notes</a> to match its image identity before updating.</td>
 </tr>
 </tbody>
 </table>
-<p class="callout"><strong>Current image: <code>GNARLYR.img</code>.</strong> Keep that filename for current Gnarlyr updates. FiiO’s <code>ECHOV200.IMG</code> is the stock restore image.
+<p class="callout"><strong>Gnarlyr 1.0 will be the first public release.</strong> Its image will be <code>GNARLYR.img</code>. FiiO’s <code>ECHOV200.IMG</code> is the stock restore image.
 </p>
 </section>
 <section class="doc-section" id="build" aria-labelledby="build-title">
@@ -184,7 +184,7 @@
 </h2>
 <p class="intro">A custom updater checks the image’s identity as well as its name. Older firmware may need a bridge or the recovery route before it can accept a current Gnarlyr image.
 </p>
-<p>Use the image name specified in your installed build’s update instructions. The name “Gnarlyr” in About alone does not identify its updater. Builds such as <code>cabf8c5</code> still used <code>FRSHBS.IMG</code>; Doublesharp Echo builds used <code>DBLSHARP.IMG</code>. Keep the migration instructions supplied with your current build beside the new image.
+<p>For a pre-release or older custom build, use the update instructions supplied with that build. Earlier Gnarlyr development images used <code>FRSHBS.IMG</code>; Doublesharp Echo used <code>DBLSHARP.IMG</code>. Those names describe development history, not public release versions.
 </p>
 <p>The documented Doublesharp Echo route first installs the <code>bridge-frshbs</code> build, then moves to the later firmware. <code>firmware/docs/device-install.md</code> explains which checkout and helper to use at each step. For other starting builds, use the exact-model recovery installation.
 </p>
