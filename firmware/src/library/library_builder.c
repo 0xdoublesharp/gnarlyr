@@ -509,5 +509,6 @@ BuilderResult library_builder_finish(LibraryBuilder *builder, ByteSink sink, uin
         return outcome(state);
     }
     result = builder_encode(state, prepared, sink, capacity, length);
-    return result != BUILDER_OK ? result : outcome(state);
+    BuilderResult stored = outcome(state);
+    return stored != BUILDER_OK ? stored : result;
 }
