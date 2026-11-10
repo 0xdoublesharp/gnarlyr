@@ -88,6 +88,11 @@ foreach(listening_test listening_log listening_stats listening_export)
         LIBRARIES echo_playback
     )
 endforeach()
+echo_add_unit_test(NAME test_listening_track
+    SOURCES playback/test_listening_track.c
+    LIBRARIES echo_playback echo_library_fixtures
+)
+
 echo_add_unit_test(NAME test_settings SOURCES settings/test_settings.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_rocker SOURCES settings/test_rocker.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_equalizer_fit SOURCES settings/test_equalizer_fit.c LIBRARIES echo_settings)

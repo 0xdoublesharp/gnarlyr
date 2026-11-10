@@ -3,6 +3,7 @@ add_library(echo_playback STATIC
     listening_export.c
     listening_log.c
     listening_stats.c
+    listening_track.c
     mix_catalog.c
     mix_identity.c
     mix_resolve.c
