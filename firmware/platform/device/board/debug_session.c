@@ -20,6 +20,7 @@
 enum {
     POWER_POLL_MS = 250,
     MILLISECONDS_PER_MINUTE = 60000,
+    MILLISECONDS = 1000,
     RECONNECT_OFF_MS = 1000,
     RECONNECT_WAIT_MS = 6000
 };
@@ -168,7 +169,7 @@ void board_debug_power_poll(void)
     follow_levels(power_levels(pin));
     watch.polled = true;
     watch.polled_ms = now_ms;
-    if (!watch.sampled || now_ms - watch.sampled_ms >= MILLISECONDS_PER_MINUTE) {
+    if (!watch.sampled || now_ms - watch.sampled_ms >= POWER_HISTORY_INTERVAL_S * MILLISECONDS) {
         take_sample(now_ms);
     }
 }

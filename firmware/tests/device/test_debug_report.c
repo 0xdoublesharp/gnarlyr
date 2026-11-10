@@ -379,7 +379,7 @@ static void the_power_history_lists_a_sample_per_minute_oldest_first(void)
     power_history_record(&history, (PowerSample){13, 4170, 97, POWER_SAMPLE_PLAYING});
     format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("power.samples: 2"));
-    CHECK(has_line("power.sample_interval_s: 60"));
+    CHECK(has_line("power.sample_interval_s: 90"));
     CHECK(has_line("power.sample: 12 4176 97 11000; 13 4170 97 00100"));
     for (uint16_t minute = 14; minute < 17; minute++) {
         power_history_record(
