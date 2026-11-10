@@ -58,7 +58,8 @@ TOOLS = {
     },
     "echo_run": {
         "description": "Send a debug script (a file, or its text), eject, wait for the player to come back "
-                       "and return the script's results.",
+                       "and return the script's results. Without a timeout the wait is the default plus "
+                       "the minutes of the script's soak lines.",
         "inputSchema": schema({"script": {"type": "string", "description": "path of a script file"},
                                "text": {"type": "string", "description": "the script itself"},
                                "timeout": TIMEOUT}),
@@ -78,7 +79,7 @@ TOOLS = {
 
 
 def run(tool, arguments):
-    timeout = arguments.get("timeout", echo_debug.DEFAULT_TIMEOUT)
+    timeout = arguments.get("timeout")
     if ("script" in arguments) == ("text" in arguments):
         raise echo_debug.DebugError("usage", "give either script (a path) or text (the script itself)")
     if "text" in arguments:

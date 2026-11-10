@@ -26,7 +26,14 @@ def image(brand=b"DBLSHARP", build=IMAGE_BUILD, size=0x2000):
     return bytes(data)
 
 
-def script_report(script, state="finished", build=IMAGE_BUILD, screenshots=("home",), probes=()):
+SOAK_LINE = ("script.soak: line=4 minutes=30 end=done samples=20 first_mv=4012 last_mv=3950 "
+             "mv_per_hour=-142 busy_percent=12 cable_start=1 charge_pin_start=1 supply_off_start=1 "
+             "audio_start=1 screen_start=0 clock_mhz_start=200 cable_end=1 charge_pin_end=unknown "
+             "supply_off_end=1 audio_end=1 screen_end=0 clock_mhz_end=200")
+
+
+def script_report(script, state="finished", build=IMAGE_BUILD, screenshots=("home",), probes=(),
+                  soaks=()):
     lines = [line.replace("1051212", build) for line in SYSTEM_LINES]
     lines += ["script.state: " + state, "script.started_ms: 5000", "script.finished_ms: 9000",
               "script.interrupted_line: 0"]
@@ -37,6 +44,7 @@ def script_report(script, state="finished", build=IMAGE_BUILD, screenshots=("hom
     lines += ["script.screenshot: %d %s" % (slot, name) for slot, name in enumerate(screenshots)]
     lines += ["script.probe: line=%d ms=%d before=%s after=%s cable=%s charge_pin=%s" % probe
               for probe in probes]
+    lines += list(soaks)
     return report_text(lines)
 
 
@@ -288,6 +296,35 @@ class Running(LoopCase):
         self.assertEqual(script["probes"][1]["pin_before"], {"function": 0, "output": True, "level": 1})
         self.assertEqual(script["probes"][1]["pin_after"], {"function": 1, "output": False, "level": 0})
         self.assertEqual((script["probes"][1]["cable"], script["probes"][1]["charge_pin"]), (0, 1))
+
+    def test_a_soak_comes_back_with_its_slope_its_load_and_both_ends(self):
+        self.script.write_text("build any\nsupply off\nscreen off\nsoak 30\n", encoding="utf-8")
+        result = self.tool(self.player_runs(soaks=[SOAK_LINE])).run(self.script)
+        soak = result["script"]["soaks"][0]
+        self.assertEqual((soak["line"], soak["minutes"], soak["end"], soak["samples"]), (4, 30, "done", 20))
+        self.assertEqual((soak["first_mv"], soak["last_mv"], soak["mv_per_hour"]), (4012, 3950, -142))
+        self.assertEqual((soak["busy_percent"], soak["clock_mhz_start"], soak["clock_mhz_end"]), (12, 200, 200))
+        self.assertEqual((soak["supply_off_start"], soak["supply_off_end"]), (1, 1))
+        self.assertEqual((soak["audio_start"], soak["screen_start"], soak["cable_end"]), (1, 0, 1))
+        self.assertEqual((soak["charge_pin_start"], soak["charge_pin_end"]), (1, None))
+
+    def test_the_wait_for_a_script_grows_by_the_minutes_of_its_soaks(self):
+        self.assertEqual(echo_debug.soak_seconds("build any\nsoak 30\nplay\n  SOAK 5 \n# soak 9\nsoak x\n"),
+                         35 * 60)
+        self.assertEqual(echo_debug.run_timeout("build any\nplay\n", None), echo_debug.DEFAULT_TIMEOUT)
+        self.assertEqual(echo_debug.run_timeout("build any\nsoak 180\n", None),
+                         echo_debug.DEFAULT_TIMEOUT + 180 * 60)
+        self.assertEqual(echo_debug.run_timeout("build any\nsoak 180\n", 12000.0), 12000.0)
+        self.script.write_text("build any\nsoak 30\n", encoding="utf-8")
+        result = self.tool(self.player_runs()).run(self.script)
+        self.assertEqual(result["timeout_s"], echo_debug.DEFAULT_TIMEOUT + 30 * 60)
+
+    def test_a_soak_the_player_never_ends_is_waited_for_its_whole_length_and_no_longer(self):
+        self.script.write_text("build any\nsoak 30\n", encoding="utf-8")
+        tool = self.tool(PlayerHost(self, returns=False))
+        self.assert_refused("player_did_not_return", lambda: tool.run(self.script))
+        self.assertGreaterEqual(self.clock.now, echo_debug.DEFAULT_TIMEOUT + 30 * 60)
+        self.assertLess(self.clock.now, echo_debug.DEFAULT_TIMEOUT + 30 * 60 + 120)
 
     def test_a_script_that_names_its_build_is_sent_as_it_is(self):
         self.script.write_text("# nightly\r\nbuild any\r\nplay", encoding="utf-8")

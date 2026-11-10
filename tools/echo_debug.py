@@ -164,7 +164,7 @@ def card_volumes(player):
 def parse_value(text):
     if text == "unknown":
         return None
-    if re.fullmatch(r"\d+", text):
+    if re.fullmatch(r"-?\d+", text):
         return int(text)
     if re.fullmatch(r"0x[0-9a-fA-F]+", text):
         return int(text, 16)
@@ -264,11 +264,12 @@ def parse_report(text):
         raise DebugError("unsupported_schema", f"report schema {schema!r}; this tool reads schema {REPORT_SCHEMA}")
     body, truncated = report_body(text)
     values, events, buckets, unread, samples = {}, [], {}, [], []
-    script = {"lines": [], "measures": [], "screenshots": [], "probes": []}
+    script = {"lines": [], "measures": [], "screenshots": [], "probes": [], "soaks": []}
     repeated = {"script.line": (script["lines"], parse_script_line),
                 "script.measure": (script["measures"], parse_measure),
                 "script.screenshot": (script["screenshots"], parse_screenshot),
-                "script.probe": (script["probes"], parse_measure)}
+                "script.probe": (script["probes"], parse_measure),
+                "script.soak": (script["soaks"], parse_measure)}
     for line in body.splitlines():
         key, separator, value = line.partition(": ")
         if not separator:
@@ -412,6 +413,17 @@ def echoed_lines(data):
     """The script's lines as the player's report shows them: other bytes than plain ASCII as `?`."""
     return ["".join(chr(byte) if 32 <= byte <= 126 else "?" for byte in line.encode("utf-8"))
             for line in script_lines(data.decode("utf-8"))]
+
+
+def soak_seconds(text):
+    """The time a script's soak lines ask the player to wait, in seconds."""
+    minutes = [re.fullmatch(r"soak\s+(\d+)", line, re.IGNORECASE) for line in script_lines(text)]
+    return 60 * sum(int(match.group(1)) for match in minutes if match)
+
+
+def run_timeout(text, timeout):
+    """How long to wait for the player after a script: as asked, or the default plus the script's soaks."""
+    return DEFAULT_TIMEOUT + soak_seconds(text) if timeout is None else timeout
 
 
 def names_build(text):
@@ -686,19 +698,20 @@ class Tool:
                 "started_ms": parsed["values"].get("script.started_ms"),
                 "finished_ms": parsed["values"].get("script.finished_ms")}
 
-    def run(self, script, timeout=DEFAULT_TIMEOUT):
+    def run(self, script, timeout=None):
         if not Path(script).is_file():
             raise DebugError("script_missing", f"{script} is not a file")
         return self.run_text(Path(script).read_text(encoding="utf-8"), timeout)
 
-    def run_text(self, text, timeout=DEFAULT_TIMEOUT):
+    def run_text(self, text, timeout=None):
+        timeout = run_timeout(text, timeout)
         found = self.locate()
         root = self.root()
         build = None if names_build(text) else self.read_report()[1]["values"].get("firmware.build")
         data = prepare_script(text, build)
         target = self.write(root, root / DATA_DIRECTORY / DEBUG_DIRECTORY / RUN_FILE, data)
         result = {"ok": True, "script_file": str(target), "sent": data.decode("utf-8"),
-                  "ejected": self.eject(found), "waited": False}
+                  "ejected": self.eject(found), "waited": False, "timeout_s": timeout}
         if found["source"] == "usb":
             self.wait_for_return(timeout)
             path, parsed = self.read_report()
@@ -754,8 +767,9 @@ def build_parser():
                          help="seconds to wait for the player to come back (default %(default)s)")
     run = commands.add_parser("run", help="copy a script, eject, wait for the player and collect the results")
     run.add_argument("script", type=Path)
-    run.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT,
-                     help="seconds to wait for the player to come back (default %(default)s)")
+    run.add_argument("--timeout", type=float, default=None,
+                     help=f"seconds to wait for the player to come back (default {DEFAULT_TIMEOUT:.0f} "
+                          "plus the minutes of the script's soak lines)")
     wait = commands.add_parser("wait", help="wait until the player is on USB, then print its status")
     wait.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT,
                       help="seconds to wait (default %(default)s)")
