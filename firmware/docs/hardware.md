@@ -1,8 +1,8 @@
 # Echo hardware
 
-A short map of the hardware Doublesharp Echo drives on the full-size Snowsky Echo, for reading the code in `platform/device`. Most of it was first worked out for the Echo Mini by the [ReChord](https://github.com/brnomt/ReChord) project, and the Echo reuses it (same SoC, boot ROM, container, load map and memory map). The Echo values come from Podium's port and its author's reading of the decompiled stock Echo 2.0.0.
+A short map of the hardware FreshBase drives on the full-size Snowsky Echo, for reading the code in `platform/device`. Most of it was first worked out for the Echo Mini by the [ReChord](https://github.com/brnomt/ReChord) project, and the Echo reuses it (same SoC, boot ROM, container, load map and memory map). The Echo values come from Podium's port and its author's reading of the decompiled stock Echo 2.0.0.
 
-What this project checked on a player: on the owner's Echo (4 GB), an earlier build based on Podium 4.5.5 lit the display, read the buttons, played music with volume control, and served internal storage and a microSD card over USB. Doublesharp itself has not run on a player. Observations below that are dated or described as seen on a player are EchoPod's and Podium's authors', made on their players and kept because the code depends on them; this project has not repeated them.
+What this project checked on a player: on the owner's Echo (4 GB), an earlier build based on Podium 4.5.5 lit the display, read the buttons, played music with volume control, and served internal storage and a microSD card over USB. FreshBase itself has not run on a player. Observations below that are dated or described as seen on a player are EchoPod's and Podium's authors', made on their players and kept because the code depends on them; this project has not repeated them.
 
 ## Chip and memory
 
@@ -29,7 +29,7 @@ What this project checked on a player: on the owner's Echo (4 GB), an earlier bu
 - Two Cirrus Logic DAC chips, set up over I2C0 at bus addresses `0x60` and `0x66` (7-bit `0x30` and `0x33`) and fed by I2S1 through DMA from a ring in data RAM. They are CS43198, as FiiO lists: on the owner's player both report `431980 A1.06` (ID `43 19 80`, revision `A1`, subrevision `06`). Settings → About → DAC A (`0x60`) and DAC B (`0x66`) show each chip's identification registers once a track has played (`architecture.md`, DAC identification); `431310` would mean a CS43131, which some inherited code names still assume.
 - 3.5 mm and 4.4 mm outputs. GPIO0.13 high means a 3.5 mm plug, GPIO2.8 high means 4.4 mm. Both jack pins have pull-ups set at start-up.
 - An LPC accelerator next to core 1 speeds up FLAC decoding.
-- No hardware equalizer: the CS43198 has none (only its digital filters and gain), and the SoC's audio path has none in use. FiiO's firmware runs its equalizer in software on core 0, and so does Doublesharp (`docs/architecture.md`, Equalizer).
+- No hardware equalizer: the CS43198 has none (only its digital filters and gain), and the SoC's audio path has none in use. FiiO's firmware runs its equalizer in software on core 0, and so does FreshBase (`docs/architecture.md`, Equalizer).
 
 ## USB
 
@@ -43,7 +43,7 @@ What this project checked on a player: on the owner's Echo (4 GB), an earlier bu
 
 ## Firmware image
 
-- `DBLSHARP.IMG` is a 5 MiB `RKnanoFW` container: an outer header, a table of load rows, the code and data, a copy of the first 512 bytes at `0x44C000` and a CRC-32 trailer at `0x500000`. `tools/make_image.py` builds it, and `docs/architecture.md` describes the layout.
+- `FRSHBS.IMG` is a 5 MiB `RKnanoFW` container: an outer header, a table of load rows, the code and data, a copy of the first 512 bytes at `0x44C000` and a CRC-32 trailer at `0x500000`. `tools/make_image.py` builds it, and `docs/architecture.md` describes the layout.
 - FiiO's updater scans `\ECHOECHO.IMG`, then `\ECHOV100.IMG` to `\ECHOV498.IMG` at the top level of internal storage, and the highest wins. FiiO's own Echo image is 39,845,892 bytes.
 
 ## Board details

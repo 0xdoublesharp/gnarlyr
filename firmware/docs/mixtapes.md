@@ -11,7 +11,7 @@ An entry is not a track index, since a rescan renumbers tracks. It is the track'
 
 ## Catalogue
 
-`/.doublesharp/mixes.bin` is 6,144 bytes: two banks of 3,072, each a header block (magic `DSMC`, version 1, count 32, payload 2,560 bytes) and 32 entries of 80 bytes, one per slot:
+`/.freshbase/mixes.bin` is 6,144 bytes: two banks of 3,072, each a header block (magic `DSMC`, version 1, count 32, payload 2,560 bytes) and 32 entries of 80 bytes, one per slot:
 
 | Offset | Type | Field |
 |---|---|---|
@@ -31,7 +31,7 @@ A slot that is not in use has an empty name, no entries, no bytes and tape file 
 
 ## Tapes
 
-Slot `n` has two files, `/.doublesharp/mixNNa.bin` and `mixNNb.bin` (`mix_tape_path`). A tape is a header block (magic `DSMT`, version 1, count, generation, payload bytes, payload checksum) followed by its entries back to back:
+Slot `n` has two files, `/.freshbase/mixNNa.bin` and `mixNNb.bin` (`mix_tape_path`). A tape is a header block (magic `DSMT`, version 1, count, generation, payload bytes, payload checksum) followed by its entries back to back:
 
 | Offset | Type | Field |
 |---|---|---|

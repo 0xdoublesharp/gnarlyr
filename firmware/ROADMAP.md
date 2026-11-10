@@ -1,6 +1,6 @@
-# Doublesharp Echo feature status
+# FreshBase feature status
 
-Doublesharp Echo 1.0.0 is not released and has not run on a player.
+FreshBase 1.0.0 is not released and has not run on a player.
 
 Status values:
 
@@ -29,7 +29,7 @@ Status values:
 | Battery level, charge screen, low-battery shutdown, auto off | emulator and simulator | |
 | USB mass storage | emulator and simulator | The emulator has no USB traffic; host tests cover the protocol |
 | USB DAC mode | emulator and simulator | Host tests only |
-| Updater: `DBLSHARP.IMG`, and FiiO's image for the way back | emulator and simulator | |
+| Updater: `FRSHBS.IMG`, and FiiO's image for the way back | emulator and simulator | |
 | Link-time optimisation, USB overlay, size report | emulator and simulator | |
 | 12 ms DAC output power-up wait | emulator and simulator | An earlier build with this wait was quiet on the owner's unit |
 | Own name, identifier, version, data folder and update file | emulator and simulator | |
@@ -48,4 +48,4 @@ Status values:
 | Values re-derived from FiiO 2.0.0: volume curve, Bluetooth level, jack pulls, DAC filters, power-down order | not started | |
 | Browser flasher | not started | |
 
-The first install of Doublesharp on a player is stage 3 of the plan and needs the owner's approval. [`docs/known-issues.md`](docs/known-issues.md) lists what that install has to prove.
+The first install of FreshBase on a player is stage 3 of the plan and needs the owner's approval. [`docs/known-issues.md`](docs/known-issues.md) lists what that install has to prove.

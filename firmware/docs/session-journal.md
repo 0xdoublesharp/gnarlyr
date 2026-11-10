@@ -4,7 +4,7 @@
 
 ## File
 
-`/.doublesharp/session.bin` holds two 512-byte records, at offset 0 and 512. A file the player creates reads as zero in its first 4 KB, so a new file is two empty records. A record is one header block (magic `DSSJ`, version 1, count 0, binding = the library's content fingerprint) with 268 bytes of payload inside it:
+`/.freshbase/session.bin` holds two 512-byte records, at offset 0 and 512. A file the player creates reads as zero in its first 4 KB, so a new file is two empty records. A record is one header block (magic `DSSJ`, version 1, count 0, binding = the library's content fingerprint) with 268 bytes of payload inside it:
 
 | Offset in the record | Bytes | Content |
 |---|---|---|

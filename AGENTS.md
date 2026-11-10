@@ -1,4 +1,4 @@
-# Doublesharp Echo development
+# FreshBase development
 
 - The firmware source is under firmware/ with its GPL license and credits; read firmware/CLAUDE.md before changing that tree. Use tools/firmware.py for builds and tests; it routes output to Scratch. Python 3.14 reproduces the firmware Unicode tables.
 - Never write to the player, start a maskrom session or read it raw without the owner's approval for that action; an earlier approval does not carry over. The one exception is a standing approval the owner has granted in writing: its scope and every install made under it are recorded in notes/approvals.md. If that file is absent or does not cover the action, ask. Before any install, have a concrete, reviewable image and a recovery route for this exact model. Never use Echo Mini loaders or flash offsets.

@@ -1,15 +1,15 @@
-# Doublesharp Echo user guide
+# FreshBase user guide
 
-Doublesharp Echo is firmware for the full-size Snowsky (FiiO) Echo music player. It replaces FiiO's firmware and has large text, a Cover Flow album browser, a music library built on the player, favorites, playlists and an Up Next queue. Snowsky and FiiO are trademarks of their owners, and Echo is their product name. Doublesharp Echo is not made, endorsed or supported by FiiO.
+FreshBase is firmware for the full-size Snowsky (FiiO) Echo music player. It replaces FiiO's firmware and has large text, a Cover Flow album browser, a music library built on the player, favorites, playlists and an Up Next queue. Snowsky and FiiO are trademarks of their owners, and Echo is their product name. FreshBase is not made, endorsed or supported by FiiO.
 
-Doublesharp 1.0.0 is not released and has not run on a player yet. This guide describes what the code does, as checked in tests, the simulator and the emulator. Read [`known-issues.md`](known-issues.md) before you install.
+FreshBase 1.0.0 is not released and has not run on a player yet. This guide describes what the code does, as checked in tests, the simulator and the emulator. Read [`known-issues.md`](known-issues.md) before you install.
 
-**Use it at your own risk.** Doublesharp comes with no warranty (see `LICENSE`). Replacing a player's firmware can leave it unable to start; the way back is maskrom recovery ([`device-recovery.md`](device-recovery.md)). Only install it if you're prepared to use that.
+**Use it at your own risk.** FreshBase comes with no warranty (see `LICENSE`). Replacing a player's firmware can leave it unable to start; the way back is maskrom recovery ([`device-recovery.md`](device-recovery.md)). Only install it if you're prepared to use that.
 
 ## Which players
 
-- **Snowsky Echo (full size, 480 × 222 screen): the only player it is built for.** This project has the 4 GB model. Podium's author reports that Podium, which Doublesharp is built on, also runs on the 8 GB model; this project has not tried one. FiiO's update file for this player is called `ECHOVnnn.IMG` (V2.0.0 is `ECHOV200.IMG`).
-- **Echo Mini: not supported.** Doublesharp refuses the Echo Mini's firmware. EchoPod is the firmware for the Echo Mini.
+- **Snowsky Echo (full size, 480 × 222 screen): the only player it is built for.** This project has the 4 GB model. Podium's author reports that Podium, which FreshBase is built on, also runs on the 8 GB model; this project has not tried one. FiiO's update file for this player is called `ECHOVnnn.IMG` (V2.0.0 is `ECHOV200.IMG`).
+- **Echo Mini: not supported.** FreshBase refuses the Echo Mini's firmware. EchoPod is the firmware for the Echo Mini.
 
 ## Before you install
 
@@ -22,20 +22,20 @@ Doublesharp 1.0.0 is not released and has not run on a player yet. This guide de
 
 The route that has worked on this project's player is a direct write through maskrom: [`device-install.md`](device-install.md).
 
-Installing by copying a file under FiiO's firmware is not verified. FiiO's updater only reads files named `ECHOVnnn.IMG`, so `DBLSHARP.IMG` would have to be renamed, and whether FiiO's 2.0.0 accepts it is not known.
+Installing by copying a file under FiiO's firmware is not verified. FiiO's updater only reads files named `ECHOVnnn.IMG`, so `FRSHBS.IMG` would have to be renamed, and whether FiiO's 2.0.0 accepts it is not known.
 
-On the first start with a microSD card in the player, Doublesharp builds its library and album covers. Wait for it to finish before you plug the player into a computer.
+On the first start with a microSD card in the player, FreshBase builds its library and album covers. Wait for it to finish before you plug the player into a computer.
 
 ## Your music
 
 - Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Settings → About → Music shows which one is in use. Settings are kept on internal storage either way, so they stay the same when you insert or remove the card.
-- Doublesharp plays FLAC, MP3 and WAV, up to 192 kHz, and `.m4a` and `.m4b` files with AAC-LC or Apple Lossless audio. It lists the other formats FiiO lists, and says when it can't play one.
+- FreshBase plays FLAC, MP3 and WAV, up to 192 kHz, and `.m4a` and `.m4b` files with AAC-LC or Apple Lossless audio. It lists the other formats FiiO lists, and says when it can't play one.
 - Music → Folders shows the card as it is: folders, then each audio file by its full name with its extension (`01 Intro.mp3`). The other lists show titles from the tags. Hold ▶ on a folder there to play everything under it, subfolders included, in the order Folders shows it (a CUE album plays once, as its songs); the queue follows the shuffle setting and has no length limit beyond the library's 65,535 tracks.
 - A `.cue` file next to a single FLAC, WAV or MP3 album image splits it into one track per CUE track (see "CUE sheets" below). Album covers come from art inside each album's first track, or from a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks.
 - `.m3u` and `.m3u8` playlists anywhere on the card appear under Music → Playlists.
-- **Favorite Playlist.** Hold Play on a song in any list and choose Add to Favorite Playlist. The song goes into `Favorite Tracks.m3u` in the top folder of the music storage (the card, or the player's own storage without a card). The file is made on the first use, holds one path per line relative to that folder, and can be read and edited on a computer. A song that is one track of a CUE album gets the line `#DOUBLESHARP-START:` and the track's start in milliseconds above its path (the path is the album's audio file, so computer players open the whole album); the player and echo-sync use the start to pick that exact track, and a line without it stands for the album's last track. Each track of a CUE album is added and checked on its own. A song already in it shows "Already in Favorites". The file has room for a few hundred songs; when it is full, or a computer edit left it without spare room, the player shows "Couldn't add to Favorites". Music → Playlists shows Favorite Tracks with the new song straight away, with no rescan, also after a restart. Lines added to the file on a computer show after the next library scan.
+- **Favorite Playlist.** Hold Play on a song in any list and choose Add to Favorite Playlist. The song goes into `Favorite Tracks.m3u` in the top folder of the music storage (the card, or the player's own storage without a card). The file is made on the first use, holds one path per line relative to that folder, and can be read and edited on a computer. A song that is one track of a CUE album gets the line `#FRESHBASE-START:` and the track's start in milliseconds above its path (the path is the album's audio file, so computer players open the whole album); the player and echo-sync use the start to pick that exact track, and a line without it stands for the album's last track. Each track of a CUE album is added and checked on its own. A song already in it shows "Already in Favorites". The file has room for a few hundred songs; when it is full, or a computer edit left it without spare room, the player shows "Couldn't add to Favorites". Music → Playlists shows Favorite Tracks with the new song straight away, with no rescan, also after a restart. Lines added to the file on a computer show after the next library scan.
 - The library holds up to 65,535 tracks; [`known-issues.md`](known-issues.md) says what has been tested.
-- Doublesharp keeps its own files in a hidden `/.doublesharp` folder on the card, about 110 MB of them. Don't delete it unless you want the library rebuilt.
+- FreshBase keeps its own files in a hidden `/.freshbase` folder on the card, about 110 MB of them. Don't delete it unless you want the library rebuilt.
 
 ## CUE sheets
 
@@ -68,11 +68,11 @@ Depeche Mode/Violator/
 
 1. On the player, Settings → USB mode → DAC.
 2. Plug in the USB cable. The player shows "USB DAC". It is a standard USB Audio Class 1.0 device, which Windows 10 and later, macOS, Linux, Android and iOS support without a driver (phones need a USB-C or Lightning adapter that passes data).
-3. On the computer, choose Doublesharp Echo as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output). The player shows the format and its volume, for example "48 kHz 24-bit · Volume 35".
+3. On the computer, choose FreshBase as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output). The player shows the format and its volume, for example "48 kHz 24-bit · Volume 35".
 4. Use the computer's volume, the player's volume keys, or both. DAC mode has its own volume, separate from music: it starts at 35 of 60, the screen shows it ("48 kHz 24-bit · Volume 35"), holding Vol± changes it quickly, and the player remembers it for next time. Start low.
 5. Unplug when you're done, or hold Back for a second and let go to go back to the player's own music (it keeps charging).
 
-The player accepts 16 or 24-bit at 44.1 and 48 kHz; the computer picks one (on Windows: Sound settings → Doublesharp Echo → Properties → Advanced). Music on the player stops while it's a DAC, and your drives don't appear: set USB mode back to Storage to copy music. The setting takes effect the next time you plug in. A charger works the same in both modes.
+The player accepts 16 or 24-bit at 44.1 and 48 kHz; the computer picks one (on Windows: Sound settings → FreshBase → Properties → Advanced). Music on the player stops while it's a DAC, and your drives don't appear: set USB mode back to Storage to copy music. The setting takes effect the next time you plug in. A charger works the same in both modes.
 
 ## Build the library on a computer
 
@@ -86,7 +86,7 @@ The tool is **echo-sync**, `tools/echo_sync.py`. It runs from the source; there 
 
 This project has run the tool's tests, not the tool on a real card.
 
-It reads the whole card, as the player does, and writes `library.db`, `covers.bin` and `scan.bin` into the card's `/.doublesharp` folder. If the player has never used the card, it asks before creating `/.doublesharp` (`--yes` creates it without asking). Files the player made are overwritten in place and keep their size; missing ones are made at the player's sizes (4 MB, 80 MB and 4 KB). It then prints what it found, for example "1,402 tracks, 120 albums, 3 playlists" and "115 covers, 5 without art".
+It reads the whole card, as the player does, and writes `library.db`, `covers.bin` and `scan.bin` into the card's `/.freshbase` folder. If the player has never used the card, it asks before creating `/.freshbase` (`--yes` creates it without asking). Files the player made are overwritten in place and keep their size; missing ones are made at the player's sizes (4 MB, 80 MB and 4 KB). It then prints what it found, for example "1,402 tracks, 120 albums, 3 playlists" and "115 covers, 5 without art".
 
 **Why the player doesn't rescan.** After a USB session the player checks for changes: it compares the names, sizes and modification times of the music, playlists and cover images on the card with a fingerprint it keeps in `scan.bin`. The computer writes the same fingerprint, so the check finds nothing new and the player keeps the computer's library. With a card reader there's no USB session, so the player uses the new library straight away.
 
@@ -109,7 +109,7 @@ To see whether it works on your card, let the player scan it once, then run echo
 | `--covers-only` | Rebuild `covers.bin` from the card's `library.db` |
 | `--no-fingerprint` | Leave `scan.bin` alone, so the player compares the music with its own last scan |
 | `--check` | Only compare the computer's fingerprint with the player's |
-| `--yes` | Create `/.doublesharp` without asking |
+| `--yes` | Create `/.freshbase` without asking |
 | `--verbose` | List the albums without art |
 
 The computer picks each album's cover the way the player does: the picture inside the album's first track (FLAC, MP3, WAV, DSF/DFF, `.m4a`, `.ape` and `.wma`; a front cover wins), otherwise a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks. Ogg pictures are skipped, as on the player. The covers can look a little different from the player's own, because the computer resizes them with a different filter. When the player rescans later (for example after you copy a new album to it), it keeps the computer's covers and only decodes art that's new or changed; on a card that isn't FAT32 or exFAT, albums whose cover is an image file are decoded again.
@@ -157,7 +157,7 @@ In portrait, Home and Now Playing show only the status row at the top (no title 
 The player's text is English. Other languages can be added as language packs; none is shipped yet, and none has been tried on a player ([`known-issues.md`](known-issues.md)).
 
 - When the player has more than one language, Settings → Language appears after Orientation and lists them by their own names. Pick one and every screen changes at once; the player starts in it next time.
-- To add a language without reinstalling, copy its pack to the folder `.doublesharp/lang` on the SD card (or on internal storage if you use no card). The file is named after the language's code, for example `de.pack`. The folder is hidden on most computers; create `lang` inside `.doublesharp` if it isn't there. Eject, and the language is in Settings → Language.
+- To add a language without reinstalling, copy its pack to the folder `.freshbase/lang` on the SD card (or on internal storage if you use no card). The file is named after the language's code, for example `de.pack`. The folder is hidden on most computers; create `lang` inside `.freshbase` if it isn't there. Eject, and the language is in Settings → Language.
 - A pack is made for one firmware version. After an update, an older pack may be refused; the player then stays in its built-in language and Settings → Language says "Couldn't load that language" when you pick it. Get the pack made for the new version.
 - If you take out the card that holds the pack, the player uses its built-in language until the card is back.
 - Today's fonts draw English and the accented letters of western European languages. Cyrillic is drawn in lists and titles but not yet in the small text, so it can't be used for a pack; Chinese, Japanese and Korean are not drawn.
@@ -228,7 +228,7 @@ Podcasts/
 - **`.m4b` audiobooks** are indexed like `.m4a` files (AAC-LC or Apple Lossless). When the file carries chapters, it shows up as a book of its own named after the file (`Dune`), with one chapter per marker and the chapter's title as the song title; "Chapter 3 of 41", the chapter list, ▶ to resume, bookmarks and the 30 s / 15 s jumps all work on the chapter, and playing on from one chapter into the next is gapless. Both chapter kinds are read: the Nero `chpl` list and the QuickTime chapter track (what Libation, Audible conversions and ffmpeg write). A file with no chapters, one chapter, or chapter data that can't be read is one track. A book has at most 255 chapters; the rest are part of the last one. Put the `.m4b` straight into `Audiobooks/` (not inside a folder of its own), because a folder is a book by itself. Outside `Audiobooks/` a chaptered `.m4b` is an album of its chapters, like a CUE album, and its row in Folders is a folder named after the file.
 - **Podcasts** lists your shows; open one to see its episodes, each with "23:10 left" or "Played".
 - A chaptered `.m4b` remembers one place for the whole file, keyed by the file's path: the chapter and the position inside it. ▶ on the book resumes that chapter; choosing another chapter from the list starts it at its top, and the place moves with whatever is played. Renaming or moving the file forgets the place.
-- Every book and every episode remembers its own place, even when you play music in between or turn the player off. The places are saved in `/.doublesharp/bookmarks.bin` (the last 128 books and episodes).
+- Every book and every episode remembers its own place, even when you play music in between or turn the player off. The places are saved in `/.freshbase/bookmarks.bin` (the last 128 books and episodes).
 - Books and shows always play in order: shuffle doesn't apply to them, and your shuffle setting for music stays as it was.
 - On Now Playing, holding Vol+ jumps 30 s forward and holding Vol− jumps 15 s back. Jumping past the end of a chapter goes to the next one. To pick another chapter, use the book's chapter list.
 - An episode or book counts as finished once it played to its last tenth (at most its last 30 s).
@@ -236,12 +236,12 @@ Podcasts/
 - Playback speed can't be changed yet.
 - **HE-AAC doesn't play.** An `.m4b` or `.m4a` that isn't AAC-LC or Apple Lossless (HE-AAC with SBR or PS, xHE-AAC) is refused with "Only AAC-LC and ALAC M4A play". Libation can download AAC-LC: in Libation's settings, leave "Request xHE-AAC Codec" off (Libation's FAQ says that makes it download AAC-LC); it keeps whatever codec Audible delivers and doesn't re-encode, so the files may still be HE-AAC for some titles. Libation names every non-MP3 file `.m4b`, whatever its codec.
 
-## Updating Doublesharp
+## Updating FreshBase
 
 An install through the updater has only run in the emulator so far ([`known-issues.md`](known-issues.md)). Charge the battery first.
 
-1. Connect the player and copy the new `DBLSHARP.IMG` to the top level of internal storage, not into a folder.
-2. Eject both drives. The player shows "Checking DBLSHARP.IMG", then "Installing update" with a percentage. Don't unplug or turn it off.
+1. Connect the player and copy the new `FRSHBS.IMG` to the top level of internal storage, not into a folder.
+2. Eject both drives. The player shows "Checking FRSHBS.IMG", then "Installing update" with a percentage. Don't unplug or turn it off.
 3. At "Update installed", unplug USB and hold Power. The player turns off.
 4. Hold Power to start the new version.
 
@@ -249,12 +249,12 @@ The updater deletes the file after a successful install, when it is not a valid 
 
 ## Going back to FiiO's firmware
 
-There are two ways. This project has done the second on its player; the first has not run on a player with Doublesharp.
+There are two ways. This project has done the second on its player; the first has not run on a player with FreshBase.
 
 **Through the updater**
 
 1. Download FiiO's firmware for the Echo from FiiO's website and unzip it. The image is `ECHOV200.IMG` for V2.0.0.
-2. Delete any `DBLSHARP.IMG` from internal storage if it's still there.
+2. Delete any `FRSHBS.IMG` from internal storage if it's still there.
 3. Copy FiiO's `ECHOV200.IMG` to the top level of internal storage, unchanged. It is a 39,845,892-byte file.
 4. Eject both drives. The player checks the file (this takes a while) and shows "Installing FiiO firmware", then "FiiO firmware installed".
 5. Unplug, take the microSD card out, hold Power to turn the player off, and switch it on. Podium's documentation says FiiO's firmware then installs the same file once more at its first start.
@@ -265,7 +265,7 @@ Follow [`device-recovery.md`](device-recovery.md). It writes FiiO's image into b
 
 ## If something goes wrong
 
-- **"isn't a valid image for this player":** for an update, rebuild the image and copy it again. For going back to FiiO, check that the file is FiiO's Echo image (`ECHOV200.IMG`), unchanged (its hash matches the one in FiiO's zip). Doublesharp only installs its own images and FiiO's; to switch to another custom firmware, go back to FiiO's first.
+- **"isn't a valid image for this player":** for an update, rebuild the image and copy it again. For going back to FiiO, check that the file is FiiO's Echo image (`ECHOV200.IMG`), unchanged (its hash matches the one in FiiO's zip). FreshBase only installs its own images and FiiO's; to switch to another custom firmware, go back to FiiO's first.
 - **"Update failed":** copy the file again and retry before turning the player off.
 - **"USB code missing: reinstall the update" or "Restart the player to finish the update":** see Known trade-offs in [`known-issues.md`](known-issues.md).
 - **The player doesn't start at all:** the chip's maskrom mode writes FiiO's firmware back from a computer over USB. It needs a patched `rkdeveloptool` and some care; the steps are in [`device-recovery.md`](device-recovery.md). If the player still runs and you expect trouble, create the file `MASKROM.REQ` on internal storage beforehand (same document).

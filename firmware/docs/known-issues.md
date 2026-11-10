@@ -1,28 +1,28 @@
-# Doublesharp Echo known issues
+# FreshBase known issues
 
-Doublesharp Echo 1.0.0 is not released and has not run on any player yet. It comes with no warranty: use it at your own risk. Read this before you install a build, and keep a way back ([`device-recovery.md`](device-recovery.md)).
+FreshBase 1.0.0 is not released and has not run on any player yet. It comes with no warranty: use it at your own risk. Read this before you install a build, and keep a way back ([`device-recovery.md`](device-recovery.md)).
 
 ## What has been checked
 
-- **Doublesharp itself:** host tests, the simulator and the ARM emulator only (242 checks). The emulator has no USB traffic, no DAC, no SD card and no Bluetooth module, so those paths are covered by host tests of their logic and nothing more.
+- **FreshBase itself:** host tests, the simulator and the ARM emulator only (242 checks). The emulator has no USB traffic, no DAC, no SD card and no Bluetooth module, so those paths are covered by host tests of their logic and nothing more.
 - **On the owner's Echo (full size, 4 GB):** an earlier build of this project, based on Podium 4.5.5, was installed through maskrom. The owner confirmed display, menus, buttons, music playback, volume, USB storage with internal storage and a microSD card, and quiet audio with the 12 ms DAC wait. The unit was also returned to FiiO's 2.0.0 through maskrom and back. The maskrom steps in [`device-install.md`](device-install.md) and [`device-recovery.md`](device-recovery.md) are the ones used.
 - **Everything else** that Podium's and EchoPod's authors tested on their own players has not been repeated by this project. Where this document mentions such a result, it says whose it is.
 
 ## Safety
 
 - **Volume:** the top volume is the DAC's full level, and sensitive earphones can be very loud. Turn the volume down before you put them in.
-- **Battery:** install only with the battery charged. The code switches the player off when the battery runs low and refuses to start on an empty one ("Battery low: Charge the player to turn it on"); neither has been seen on a player with Doublesharp.
+- **Battery:** install only with the battery charged. The code switches the player off when the battery runs low and refuses to start on an empty one ("Battery low: Charge the player to turn it on"); neither has been seen on a player with FreshBase.
 - **Bricking:** a broken image can leave the player unable to start. The updater writes one firmware slot at a time and reads every chunk back, but a power cut during an install is still a risk. The only recovery for a player that doesn't start is the chip's maskrom mode ([`device-recovery.md`](device-recovery.md)), which needs a patched tool and care. Prepare it before the first install.
 
 ## Not proven on a player
 
-These are new or changed in Doublesharp, or were never checked on the owner's unit. Each needs a run on the player before it can be relied on.
+These are new or changed in FreshBase, or were never checked on the owner's unit. Each needs a run on the player before it can be relied on.
 
 - **USB enumeration timing.** The USB code is now loaded from storage into high RAM after the computer's bus reset. Whether a computer still enumerates the player reliably with that load in the path is not known.
 - **USB DAC mode,** which now also runs from the overlay.
 - **A real update install.** The updater borrows the mass-storage write buffer for its work; an install through the updater has only run in the emulator.
 - **Playback after a USB session.** The overlay shares its memory with the decoder workspace.
-- **Language packs.** The pack is read from the firmware slot into high RAM at start-up; that read, the Language choice and a pack file in `/.doublesharp/lang` have run in host tests, the simulator and the emulator only. No translation exists yet, so no language but English has been read by anyone.
+- **Language packs.** The pack is read from the firmware slot into high RAM at start-up; that read, the Language choice and a pack file in `/.freshbase/lang` have run in host tests, the simulator and the emulator only. No translation exists yet, so no language but English has been read by anyone.
 - **Portrait mode.** The two portrait panel settings come from the landscape one by rule. Which way round each sits, and which one swaps the volume rocker, are untested.
 - **The ten-band equalizer's CPU load at 96 kHz.** By instruction count it takes about 55 % of the main core. It has not been heard or measured on a player.
 - **DAC settings not yet checked against the fitted part.** The owner's player has two CS43198 (Settings → About shows `431980 A1.06` for both). Some inherited code and register names assume the CS43131, a related part with a built-in headphone amplifier. The start-up sequence is stock's and audio works, but the gain, volume and filter registers have not been checked against the CS43198's documentation.
@@ -42,9 +42,9 @@ Also unchecked on a player by this project: `.m4a` and `.m4b` playback and seeki
 ## Installing
 
 - **The proven route is maskrom** ([`device-install.md`](device-install.md)): it is how the earlier build was installed on the owner's unit.
-- **Installing by file copy from FiiO's firmware is not verified.** FiiO's updater only reads files named `ECHOVnnn.IMG`, so `DBLSHARP.IMG` would have to be renamed. Whether FiiO's 2.0.0 accepts it is not known. Podium's documentation reports that FiiO's updater installs Podium from a file copy.
+- **Installing by file copy from FiiO's firmware is not verified.** FiiO's updater only reads files named `ECHOVnnn.IMG`, so `FRSHBS.IMG` would have to be renamed. Whether FiiO's 2.0.0 accepts it is not known. Podium's documentation reports that FiiO's updater installs Podium from a file copy.
 - **The Echo Mini isn't supported.** The updater refuses its firmware.
-- **Other custom firmware can't be installed from Doublesharp.** Its updater takes only its own images and FiiO's Echo image; it refuses Podium and EchoPod images. To switch, go back to FiiO's firmware first.
+- **Other custom firmware can't be installed from FreshBase.** Its updater takes only its own images and FiiO's Echo image; it refuses Podium and EchoPod images. To switch, go back to FiiO's firmware first.
 - **Going back to FiiO's firmware through the updater** writes both slots. Keep a maskrom path ready ([`device-recovery.md`](device-recovery.md)).
 
 ## Portrait mode

@@ -4,7 +4,7 @@
 
 ## File
 
-`/.doublesharp/order.bin` is 263,168 bytes: two banks of 131,584.
+`/.freshbase/order.bin` is 263,168 bytes: two banks of 131,584.
 
 | Offset in a bank | Content |
 |---|---|

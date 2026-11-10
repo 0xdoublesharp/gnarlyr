@@ -1,14 +1,14 @@
-# Doublesharp Echo
+# FreshBase
 
-Doublesharp Echo (short name Doublesharp) is firmware for the full-size Snowsky (FiiO) Echo player (480×222). It started from the Podium 4.5.9 source archive, which is a fork of EchoPod, the Echo Mini firmware (`UPSTREAM.md`, `CREDITS.md`). The same portable C app runs in a desktop simulator and on the player. The Echo is the only board.
+FreshBase is firmware for the full-size Snowsky (FiiO) Echo player (480×222). It started from the Podium 4.5.9 source archive, which is a fork of EchoPod, the Echo Mini firmware (`UPSTREAM.md`, `CREDITS.md`). The same portable C app runs in a desktop simulator and on the player. The Echo is the only board.
 
-Doublesharp 1.0.0 is not released and has not run on a player. The repository and device rules are in `../AGENTS.md`.
+FreshBase 1.0.0 is not released and has not run on a player. The repository and device rules are in `../AGENTS.md`.
 
 ## Identity
 
-`identity.json` is the single source for `name` ("Doublesharp Echo": the USB product name and the start-up splash), `short_name` ("Doublesharp": the Home title), `id` ("DBLSHARP": the 8-character image brand and USB storage vendor) and the version. The build, the C code and the tools read it. Never write a name, the identifier or the version anywhere else in code; change the file. In documents, use "Doublesharp Echo" in titles and where the firmware is introduced, and "Doublesharp" after that.
+`identity.json` is the single source for `name` ("FreshBase": the USB product name and the start-up splash), `short_name` ("FreshBase" too: the Home title, and the splash where the name is too wide), `manufacturer` ("Doublesharp": the USB manufacturer name), `id` ("FRSHBS": the image brand, padded with zero bytes to its 8 bytes, and the USB storage vendor, padded with spaces to its 8 characters), the version, `data_directory` (`.freshbase`), `update_file` (`FRSHBS.IMG`) and `playlist_start_directive` (`FRESHBASE-START`). The build, the C code and the tools read it. Never write a name, the identifier or the version anywhere else in code or tests; change the file. C reads the `FIRMWARE_*` definitions, the firmware's Python tools read `tools/identity.py`, and the root tools read `echo_debug.IDENTITY`. The `no_identity_literals` test (`tools/check_identity_literals.py`) and the root test `tests/test_identity_literals.py` fail when a source file spells one of these names, or a former identifier listed in `former_ids`, outside `identity.json` and the generated fixtures. In documents, write FreshBase.
 
-Names that follow from it: the update file `DBLSHARP.IMG`, the data folder `/.doublesharp/`, file magics that start with `DS`, and the playlist directive `#DOUBLESHARP-START:`.
+The firmware was called Doublesharp Echo (`DBLSHARP`, `/.doublesharp/`, `DBLSHARP.IMG`, `#DOUBLESHARP-START:`) until it was renamed; nothing reads those names any more (`docs/release-notes.md`). Doublesharp is still the maker: the four-byte file markers that start with `DS` are format tags named for the maker and did not change. Leave the old name where a document records what happened under it.
 
 ## Layout
 
@@ -41,8 +41,8 @@ python3 tools/firmware.py sim --card /path/to/music
 | Preset | Output |
 |---|---|
 | `dev` | Host build of the simulator and tests, under UndefinedBehaviorSanitizer |
-| `device` | Cross-compiled `build/device/DBLSHARP.IMG` with the developer rows in Settings → About |
-| `release` | `build/release/DBLSHARP.IMG` with the short About menu |
+| `device` | Cross-compiled `build/device/FRSHBS.IMG` with the developer rows in Settings → About |
+| `release` | `build/release/FRSHBS.IMG` with the short About menu |
 
 `test` also builds the `device` preset, runs the emulator scenarios on its image and checks formatting, the absence of comments, generated files being current and the Cortex-M3 RAM budget (`target_audit`).
 
@@ -75,7 +75,7 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 | Code window | 138,712 | 157,292 | 18,580 |
 | Static RAM | 265,068 | 287,296 | 22,228 |
 | Rescan overlay | 88,404 | 98,304 | 9,900 |
-| USB overlay code | 12,840 | 65,536 | 52,696 |
+| USB overlay code | 12,852 | 65,536 | 52,684 |
 | Language pack (English) | 4,563 | 8,192 | 3,629 |
 
 - Keep at least 8 KB free in the release code window after each stage of the plan. Read the report after any change to device code and update these numbers and the ones in `docs/architecture.md` when they move.
@@ -130,12 +130,12 @@ Only after the owner approved it for this session.
 - Firmware slots on the full-size Echo: sector 0 and 81920, 10240 sectors (the image's first 5 MiB) each. Write slot 2 first, read every write back and compare before the next write:
 
   ```sh
-  head -c 5242880 DBLSHARP.IMG > slot.bin
+  head -c 5242880 FRSHBS.IMG > slot.bin
   rkdeveloptool-echo wl 81920 slot.bin && rkdeveloptool-echo rl 81920 10240 rb.bin && cmp slot.bin rb.bin
   ```
 
 - Slot files, read-backs and logs go under `/Volumes/Scratch/SnowskyEcho`, never in the repo. The original device backup stays under `.local/device-backups` in the main checkout.
-- Internal storage mounts as `/Volumes/ECHO`. An update is copied with `cp -X` (no `._` files) to the drive's top level as `DBLSHARP.IMG`, then `diskutil eject /Volumes/ECHO`; the updater runs once the USB session ends. This route is not yet proven on a player for Doublesharp (`docs/known-issues.md`).
+- Internal storage mounts as `/Volumes/ECHO`. An update is copied with `cp -X` (no `._` files) to the drive's top level as `FRSHBS.IMG`, then `diskutil eject /Volumes/ECHO`; the updater runs once the USB session ends. This route is not yet proven on a player for FreshBase (`docs/known-issues.md`).
 
 ## Releasing
 

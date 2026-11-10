@@ -1,6 +1,6 @@
-# Where Doublesharp Echo comes from
+# Where FreshBase comes from
 
-Doublesharp Echo is built on two open-source firmwares, both GPL-3.0-or-later. [`CREDITS.md`](CREDITS.md) says who wrote what.
+FreshBase is built on two open-source firmwares, both GPL-3.0-or-later. [`CREDITS.md`](CREDITS.md) says who wrote what.
 
 | Project | What it is | Source |
 |---|---|---|
@@ -26,7 +26,7 @@ Git keeps the ancestry: `refs/donors/podium-4.5.9` sits on Podium's history, whi
 
 Each was written for the Echo Mini after EchoPod 0.6.0 and brought across by cherry-pick or by hand.
 
-| Doublesharp commit | EchoPod commit | What |
+| This project's commit | EchoPod commit | What |
 |---|---|---|
 | `915126f` | `153de67` | Size report from the linker map |
 | `d766e31` | `9995f0e` | Size report: libgcc member names from Windows paths on any host |

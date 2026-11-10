@@ -1,6 +1,6 @@
 # Recovering a player through maskrom
 
-If the player doesn't start at all, its chip's maskrom mode can still write FiiO's firmware back from a computer over USB. It is also the route this project uses to install builds of Doublesharp Echo ([`device-install.md`](device-install.md)).
+If the player doesn't start at all, its chip's maskrom mode can still write FiiO's firmware back from a computer over USB. It is also the route this project uses to install builds of FreshBase ([`device-install.md`](device-install.md)).
 
 Maskrom writes go straight to internal storage, below the file system. A wrong command can leave the player unable to start until a later write succeeds. Follow the steps exactly, and don't run any command not listed here.
 
@@ -17,7 +17,7 @@ Internal storage may be wiped. If the player still shows its drive over USB, cop
 
 ## Escape hatch: `MASKROM.REQ`
 
-Doublesharp checks internal storage at every start for a file named `MASKROM.REQ` in the top folder. If it starts with the text `MASKROM REQ`, the player overwrites that text with zeros (so the request fires once) and reboots into the boot ROM's USB loader, the same state as step 2 below, with no paperclip and no key combination. To use it, put the file there while the player is still running (`echo "MASKROM REQ" > MASKROM.REQ` on the internal drive), eject, and restart the player. A file without that text, or an empty one, does nothing.
+FreshBase checks internal storage at every start for a file named `MASKROM.REQ` in the top folder. If it starts with the text `MASKROM REQ`, the player overwrites that text with zeros (so the request fires once) and reboots into the boot ROM's USB loader, the same state as step 2 below, with no paperclip and no key combination. To use it, put the file there while the player is still running (`echo "MASKROM REQ" > MASKROM.REQ` on the internal drive), eject, and restart the player. A file without that text, or an empty one, does nothing.
 
 This is checked in the emulator. This project has not used it on a player.
 
@@ -147,7 +147,7 @@ FiiO's image goes into both firmware slots, at sector 81920 and at sector 0, who
 
 Podium's recovery document writes the image once, with `wl 0 ECHOV200.IMG` and no read-back, and reports that this brought FiiO's V2.0.0 back on its author's Echo. This project has not tried the single write.
 
-Before you write, make sure no `ECHOVnnn.IMG`, `ECHOECHO.IMG` or `DBLSHARP.IMG` file is left at the top level of internal storage if you can still see the drive. FiiO's firmware installs a file with one of its own names at its first start, and that would put the old image straight back.
+Before you write, make sure no `ECHOVnnn.IMG`, `ECHOECHO.IMG` or `FRSHBS.IMG` file is left at the top level of internal storage if you can still see the drive. FiiO's firmware installs a file with one of its own names at its first start, and that would put the old image straight back.
 
 ## Rules
 
