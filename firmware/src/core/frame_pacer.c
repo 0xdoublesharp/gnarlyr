@@ -18,8 +18,12 @@ bool frame_pacer_due(const FramePacer *pacer, uint32_t now_ms, bool urgent)
 
 void frame_pacer_done(FramePacer *pacer, uint32_t now_ms, bool changed, bool urgent)
 {
-    bool animating = changed && pacer->changed_last;
-    if (urgent || animating) {
+    if (!changed) {
+        pacer->changed_run = 0;
+    } else if (pacer->changed_run < FRAME_PACER_ANIMATION_FRAMES) {
+        pacer->changed_run++;
+    }
+    if (urgent || pacer->changed_run == FRAME_PACER_ANIMATION_FRAMES) {
         pacer->fast_frames = FRAME_PACER_FAST_FRAMES;
     } else if (!changed && pacer->fast_frames > 0) {
         pacer->fast_frames--;
@@ -27,5 +31,4 @@ void frame_pacer_done(FramePacer *pacer, uint32_t now_ms, bool changed, bool urg
     pacer->started = true;
     pacer->last_ms = now_ms;
     pacer->quiet_frames = changed ? 0 : pacer->quiet_frames + 1;
-    pacer->changed_last = changed;
 }

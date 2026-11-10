@@ -13,6 +13,7 @@
 #include "ui/marquee.h"
 
 enum {
+    MS_PER_SECOND = 1000,
     CODEC_PADDING = 4,
     CODEC_GAP = 7,
     OUTLINE = 1,
@@ -566,12 +567,19 @@ static void draw_right_aligned(Canvas *canvas, TextStyle style, Rect area, const
     label_draw(canvas, style, (Label){.area = right, .text = text});
 }
 
+static uint32_t whole_seconds_left(uint32_t position_ms, uint32_t duration_ms)
+{
+    uint32_t position_s = position_ms / MS_PER_SECOND;
+    uint32_t duration_s = duration_ms / MS_PER_SECOND;
+    return duration_s > position_s ? (duration_s - position_s) * MS_PER_SECOND : 0;
+}
+
 static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas)
 {
     const Theme *theme = now_playing->config.theme;
     uint32_t position_ms = shown_position(now_playing);
     uint32_t duration_ms = now_playing->status.duration_ms;
-    uint32_t remaining_ms = duration_ms > position_ms ? duration_ms - position_ms : 0;
+    uint32_t remaining_ms = whole_seconds_left(position_ms, duration_ms);
     char elapsed[TIME_CAPACITY];
     char remaining[TIME_CAPACITY] = "-";
     format_duration(position_ms, elapsed, sizeof elapsed);

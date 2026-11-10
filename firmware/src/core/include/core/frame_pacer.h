@@ -8,14 +8,15 @@ enum {
     FRAME_PACER_IDLE_MS = 100,
     FRAME_PACER_REST_MS = 1000,
     FRAME_PACER_FAST_FRAMES = 6,
-    FRAME_PACER_IDLE_FRAMES = 2
+    FRAME_PACER_IDLE_FRAMES = 2,
+    FRAME_PACER_ANIMATION_FRAMES = 3
 };
 
 typedef struct FramePacer {
     uint32_t last_ms;
     uint32_t quiet_frames;
     uint8_t fast_frames;
-    bool changed_last;
+    uint8_t changed_run;
     bool started;
 } FramePacer;
 
