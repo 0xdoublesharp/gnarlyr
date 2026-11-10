@@ -84,6 +84,12 @@ USB_POWER_DOWN = [("grf", 0xB4, 0x00010001), ("grf", 0xB4, 0x000E0004), ("grf", 
                   ("grf", 0x98, 0x00040000), ("cru", 0xC0, 0x00020002), ("cru", 0xC0, 0x00040004),
                   ("cru", 0xC0, 0x00010001), ("cru", 0x80, 0x00800080), ("cru", 0x98, 0x04000400)]
 SOFT_DISCONNECT = ("usb", "soft disconnect", 0)
+USB_PHY_ON = [("grf", 0xB8, 0x00010000), ("grf", 0xB4, 0x000E0002), ("grf", 0x98, 0x00040004),
+              ("grf", 0xB4, 0x00010000)]
+USB_PHY_TUNING = [("grf", 0x88, 0x0C000C00), ("grf", 0x84, 0xE01F0003), ("grf", 0x8C, 0x001C0014),
+                  ("grf", 0x80, 0x00070004)]
+USB_POWER_UP = [("cru", 0x80, 0x00800000), ("cru", 0x98, 0x04000000), ("cru", 0xC0, 0x00020000),
+                ("cru", 0xC0, 0x00040000), ("cru", 0xC0, 0x00010000)]
 PROFILED_MS = 1500
 FNV_START = 2166136261
 FNV_PRIME = 16777619
@@ -687,6 +693,23 @@ class EchoImageTest(unittest.TestCase):
     def switch_profiler_on(self, machine):
         for key in [KEY_NEXT, KEY_PLAY, KEY_PLAY] + [KEY_NEXT] * ABOUT_PROFILER_ROW + [KEY_PLAY]:
             self.press(machine, key)
+
+    def index_of(self, log, sequence, start=0):
+        for index in range(start, len(log) - len(sequence) + 1):
+            if log[index:index + len(sequence)] == sequence:
+                return index
+        return None
+
+    def test_usb_power_up_writes_the_words_stock_writes(self):
+        session = self.session(vbus=True)
+        machine = session.machine
+        self.assertEqual(self.boot_until_waiting_for_key(session),
+                         "reached usb_session_storage_changed")
+        log = [entry for entry in machine.register_log if entry[0] in ("grf", "cru")]
+        up = self.index_of(log, USB_POWER_UP + USB_PHY_ON + USB_PHY_TUNING)
+        self.assertIsNotNone(up)
+        self.assertIsNotNone(self.index_of(log, USB_POWER_DOWN, up))
+        self.assert_healthy(session)
 
     def writes_after_last_disconnect(self, machine, since=0):
         log = machine.register_log[since:]
