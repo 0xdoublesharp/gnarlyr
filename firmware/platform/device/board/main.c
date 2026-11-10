@@ -2,6 +2,7 @@
 
 #include "app/app.h"
 #include "board.h"
+#include "core/deadline.h"
 #include "core/i18n.h"
 #include "debug_probe.h"
 #include "device/battery_gauge.h"
@@ -207,6 +208,15 @@ static void sleep_until_interrupt(void)
     idle_us += hal_clock_microseconds() - started_us;
 }
 
+static void sleep_until_next_pass(void)
+{
+    uint32_t due_ms = hal_clock_milliseconds() + app_pass_interval_ms();
+    do {
+        sleep_until_interrupt();
+    } while (usb_plug.state != USB_PLUG_LISTENING &&
+             !deadline_reached(hal_clock_milliseconds(), due_ms));
+}
+
 void board_main(void)
 {
     board_start_record_boot();
@@ -247,6 +257,6 @@ void board_main(void)
         app_step();
         board_display_service();
         check_usb();
-        sleep_until_interrupt();
+        sleep_until_next_pass();
     }
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "core/frame_stats.h"
 
@@ -18,4 +19,5 @@ void app_request_rescan(void);
 void app_request_rescan_if_music_changed(void);
 void app_show_splash(void);
 bool app_charging(void);
+uint32_t app_pass_interval_ms(void);
 bool app_preparing(void);

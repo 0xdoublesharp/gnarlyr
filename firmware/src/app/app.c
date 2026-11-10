@@ -51,6 +51,9 @@
 #include "ui/toast.h"
 
 enum {
+    PASS_BUSY_MS = 1,
+    PASS_SCREEN_ON_MS = 4,
+    PASS_SCREEN_OFF_MS = 10,
     VIEW_STAMP_CHECK_MS = 50,
     VIEW_STAMP_POSITION_MS = 1000,
     RESCAN_PROGRESS_MS = 250,
@@ -1248,6 +1251,18 @@ CORE_SEAM void app_step(void)
 bool app_charging(void)
 {
     return app.charging;
+}
+
+uint32_t app_pass_interval_ms(void)
+{
+    bool busy = player_status(&app.player).state == PLAYER_PLAYING || app.bluetooth.saved.enabled ||
+                app.pacer.fast_frames > 0 || app.render_urgent || app.render_wanted ||
+                fade_running() || slide_running() || debug_runner_active() || app.charging ||
+                app.prepare_pending || app.rescan_requested || app.music_check_requested;
+    if (busy) {
+        return PASS_BUSY_MS;
+    }
+    return app.display_on ? PASS_SCREEN_ON_MS : PASS_SCREEN_OFF_MS;
 }
 
 CORE_SEAM void app_show_notice(const char *title, const char *message)

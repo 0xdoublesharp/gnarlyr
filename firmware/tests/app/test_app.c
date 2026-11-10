@@ -283,6 +283,16 @@ static void a_screen_that_stopped_changing_rests_until_a_key_arrives(void)
     CHECK_EQUAL(presents + 2, fake_hal_present_count());
 }
 
+static void a_resting_screen_asks_for_slow_passes_and_input_brings_fast_ones_back(void)
+{
+    start_app();
+    presents_once_the_screen_rests();
+    CHECK_EQUAL(4, (int)app_pass_interval_ms());
+    fake_hal_queue_transition(KEY_VOLUME_UP, true, now_ms);
+    wait_ms(1);
+    CHECK_EQUAL(1, (int)app_pass_interval_ms());
+}
+
 static void a_resting_screen_is_redrawn_soon_after_what_it_shows_changes(void)
 {
     start_app();
@@ -3718,6 +3728,7 @@ int main(void)
         TEST_CASE(steps_closer_than_the_frame_interval_draw_once),
         TEST_CASE(a_screen_that_stopped_changing_rests_until_a_key_arrives),
         TEST_CASE(a_resting_screen_is_redrawn_soon_after_what_it_shows_changes),
+        TEST_CASE(a_resting_screen_asks_for_slow_passes_and_input_brings_fast_ones_back),
         TEST_CASE(the_home_menu_is_the_root),
         TEST_CASE(selecting_music_opens_the_music_menu),
         TEST_CASE(back_returns_to_the_previous_screen),
