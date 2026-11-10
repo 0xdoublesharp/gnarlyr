@@ -1,11 +1,13 @@
 #include <string.h>
 
 #include "app/app.h"
+#include "app/debug_loop.h"
 #include "app_internal.h"
 #include "board_layout.h"
 #include "card_files.h"
 #include "check.h"
 #include "core/frame_pacer.h"
+#include "core/key_tracker.h"
 #include "default_theme.h"
 #include "equalizer_presets.h"
 #include "fake_hal.h"
@@ -69,6 +71,8 @@ enum {
     DIAGNOSTICS_WATCHDOG_TEST_INDEX = 9,
     DIAGNOSTICS_STALL_TEST_INDEX = 5,
     DIAGNOSTICS_POWER_TAPS_INDEX = 6,
+    DIAGNOSTICS_PROFILER_INDEX = 13,
+    DEBUG_FOLLOW_MS = 100,
     FIFTEEN_MINUTES_MS = 15 * 60 * 1000,
     GOODBYE_MS = 1000,
     SPLASH_FADE_MS = 600,
@@ -2961,6 +2965,123 @@ static void a_clock_that_does_not_lock_stays_where_it_was(void)
     CHECK(title_is("About"));
 }
 
+static void the_profiler_row_switches_sampling_and_restarts_a_full_profile(void)
+{
+    start_app();
+    open_diagnostics_row(DIAGNOSTICS_PROFILER_INDEX);
+    CHECK(strcmp("Off", app_diagnostics_value(DIAGNOSTICS_PROFILER_INDEX)) == 0);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(HAL_PROFILE_ON, hal_system_profile_state());
+    CHECK(strcmp("On", app_diagnostics_value(DIAGNOSTICS_PROFILER_INDEX)) == 0);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(HAL_PROFILE_OFF, hal_system_profile_state());
+    fake_hal_fill_profile();
+    CHECK(strcmp("Full", app_diagnostics_value(DIAGNOSTICS_PROFILER_INDEX)) == 0);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(1, fake_hal_profile_reset_count());
+    CHECK_EQUAL(HAL_PROFILE_ON, hal_system_profile_state());
+}
+
+static uint32_t events_of(DebugEventKind kind, uint32_t since)
+{
+    const DebugLog *log = debug_loop_log();
+    uint32_t found = 0;
+    for (uint32_t index = 0; index < debug_log_count(log); index++) {
+        const DebugEvent *event = debug_log_at(log, index);
+        bool fresh = debug_log_dropped(log) + index >= since;
+        found += fresh && event->kind == kind ? 1 : 0;
+    }
+    return found;
+}
+
+static const DebugEvent *last_event(void)
+{
+    const DebugLog *log = debug_loop_log();
+    return debug_log_at(log, debug_log_count(log) - 1);
+}
+
+static void a_key_gesture_is_logged_with_its_key_and_time(void)
+{
+    start_app();
+    uint32_t before = debug_loop_log()->recorded;
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(1, events_of(DEBUG_EVENT_KEY, before));
+    CHECK_EQUAL(DEBUG_EVENT_KEY, last_event()->kind);
+    CHECK_EQUAL(KEY_VOLUME_UP | KEY_GESTURE_PRESS << 8, last_event()->value);
+    CHECK_EQUAL(now_ms, last_event()->time_ms);
+}
+
+static void key_repeats_are_left_out_of_the_log(void)
+{
+    start_app();
+    uint32_t before = debug_loop_log()->recorded;
+    fake_hal_queue_transition(KEY_VOLUME_UP, true, now_ms);
+    for (int count = 0; count < 20; count++) {
+        wait_ms(100);
+    }
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, now_ms);
+    wait_ms(10);
+    CHECK_EQUAL(1, events_of(DEBUG_EVENT_KEY, before));
+}
+
+static void a_screen_change_is_logged_with_its_depth_and_title(void)
+{
+    start_app();
+    CHECK_EQUAL(DEBUG_EVENT_SCREEN, last_event()->kind);
+    CHECK_EQUAL(1, last_event()->value);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(DEBUG_EVENT_SCREEN, last_event()->kind);
+    CHECK_EQUAL(2, last_event()->value);
+    CHECK_EQUAL(0, memcmp(last_event()->text, "Music\0", 7));
+    tap(KEY_BACK);
+    CHECK_EQUAL(1, last_event()->value);
+    CHECK_EQUAL(0, memcmp(last_event()->text, "Doubles", 7));
+}
+
+static void starting_and_pausing_a_track_is_logged_with_its_number(void)
+{
+    start_app_with_library();
+    uint32_t before = debug_loop_log()->recorded;
+    play_first_album_track();
+    CHECK_EQUAL(1, events_of(DEBUG_EVENT_PLAYER, before));
+    uint32_t track = app_player_status().track;
+    tap(KEY_PLAY);
+    CHECK_EQUAL(2, events_of(DEBUG_EVENT_PLAYER, before));
+    CHECK_EQUAL(DEBUG_EVENT_PLAYER, last_event()->kind);
+    CHECK_EQUAL(PLAYER_PAUSED | track << 8, last_event()->value);
+}
+
+static void new_underruns_are_logged_once_with_their_count(void)
+{
+    start_app();
+    uint32_t before = debug_loop_log()->recorded;
+    fake_hal_set_audio_stats((HalAudioStats){.underruns = 2, .output_underruns = 1});
+    wait_ms(DEBUG_FOLLOW_MS);
+    wait_ms(DEBUG_FOLLOW_MS);
+    CHECK_EQUAL(1, events_of(DEBUG_EVENT_UNDERRUN, before));
+    CHECK_EQUAL(1, events_of(DEBUG_EVENT_OUTPUT_UNDERRUN, before));
+    fake_hal_set_audio_stats((HalAudioStats){.underruns = 3, .output_underruns = 1});
+    wait_ms(DEBUG_FOLLOW_MS);
+    CHECK_EQUAL(2, events_of(DEBUG_EVENT_UNDERRUN, before));
+    CHECK_EQUAL(3, last_event()->value);
+}
+
+static void the_frame_figures_follow_the_frame_time_overlay(void)
+{
+    start_app();
+    fake_hal_set_microseconds_per_read(100);
+    for (int count = 0; count < 5; count++) {
+        wait_ms(FRAME_PACER_IDLE_MS);
+    }
+    DebugFrames frames = app_debug_frames();
+    CHECK_EQUAL(app_frame_stats()->recorded, frames.count);
+    CHECK(frames.count >= 5);
+    CHECK_EQUAL(frame_stats_average_us(app_frame_stats()), frames.total_us);
+    CHECK_EQUAL(frame_stats_worst_us(app_frame_stats()), frames.worst_us);
+    CHECK(frames.total_us >= frames.update_us + frames.draw_us + frames.send_us);
+    CHECK(frames.draw_us > 0);
+}
+
 static void menu_opens_now_playing_from_anywhere_while_playing(void)
 {
     start_app_with_library();
@@ -3177,6 +3298,13 @@ int main(void)
         TEST_CASE(cover_flow_starts_with_a_random_album),
         TEST_CASE(stopping_the_app_saves_the_session),
         TEST_CASE(each_step_records_its_duration),
+        TEST_CASE(the_profiler_row_switches_sampling_and_restarts_a_full_profile),
+        TEST_CASE(a_key_gesture_is_logged_with_its_key_and_time),
+        TEST_CASE(key_repeats_are_left_out_of_the_log),
+        TEST_CASE(a_screen_change_is_logged_with_its_depth_and_title),
+        TEST_CASE(starting_and_pausing_a_track_is_logged_with_its_number),
+        TEST_CASE(new_underruns_are_logged_once_with_their_count),
+        TEST_CASE(the_frame_figures_follow_the_frame_time_overlay),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

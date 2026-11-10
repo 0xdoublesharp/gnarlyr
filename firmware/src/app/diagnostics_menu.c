@@ -67,6 +67,31 @@ static ScreenAction run_watchdog_test(void *context)
     return screen_action_none();
 }
 
+static ScreenAction switch_profiler(void *context)
+{
+    (void)context;
+    switch (hal_system_profile_state()) {
+    case HAL_PROFILE_OFF:
+        hal_system_set_profiling(true);
+        break;
+    case HAL_PROFILE_ON:
+        hal_system_set_profiling(false);
+        break;
+    case HAL_PROFILE_FULL:
+        hal_system_reset_profile();
+        break;
+    }
+    return screen_action_none();
+}
+
+static const char *profiler_value(const void *context)
+{
+    static const char *const STATES[] = {
+        [HAL_PROFILE_OFF] = "Off", [HAL_PROFILE_ON] = "On", [HAL_PROFILE_FULL] = "Full"};
+    (void)context;
+    return STATES[hal_system_profile_state()];
+}
+
 typedef enum DiagnosticsContext {
     CONTEXT_NONE,
     CONTEXT_OPTIONS,
@@ -99,6 +124,7 @@ static const DiagnosticsRow ROWS[DIAGNOSTICS_ITEM_COUNT] = {
     [12] = {"Core 0 busy", NULL, diagnostics_row_core0_busy, CONTEXT_NONE, false},
     [13] = {"DAC A", NULL, diagnostics_row_dac_a, CONTEXT_NONE, false},
     [14] = {"DAC B", NULL, diagnostics_row_dac_b, CONTEXT_NONE, false},
+    [15] = {"Profiler", switch_profiler, profiler_value, CONTEXT_NONE, false},
 };
 
 static void options_init(AppScreens *screens)

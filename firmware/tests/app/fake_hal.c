@@ -106,6 +106,9 @@ typedef struct FakeHal {
     int listing_borrows;
     int keep_alive_count;
     uint32_t idle_us;
+    HalProfileState profile_state;
+    int profile_resets;
+    HalAudioStats audio_stats;
     bool restart_pending;
     HalReserveResult reserve_result;
     const char *reserved_paths[FILE_CAPACITY];
@@ -636,7 +639,12 @@ void hal_audio_service(void)
 
 HalAudioStats hal_audio_stats(void)
 {
-    return (HalAudioStats){0};
+    return fake.audio_stats;
+}
+
+void fake_hal_set_audio_stats(HalAudioStats stats)
+{
+    fake.audio_stats = stats;
 }
 
 HalToneDetail hal_audio_tone_detail(void)
@@ -825,6 +833,36 @@ void hal_system_keep_alive(void)
 uint32_t hal_system_idle_microseconds(void)
 {
     return fake.idle_us;
+}
+
+HalProfileState hal_system_profile_state(void)
+{
+    return fake.profile_state;
+}
+
+void hal_system_set_profiling(bool on)
+{
+    if (fake.profile_state != HAL_PROFILE_FULL) {
+        fake.profile_state = on ? HAL_PROFILE_ON : HAL_PROFILE_OFF;
+    }
+}
+
+void hal_system_reset_profile(void)
+{
+    fake.profile_resets++;
+    if (fake.profile_state == HAL_PROFILE_FULL) {
+        fake.profile_state = HAL_PROFILE_ON;
+    }
+}
+
+void fake_hal_fill_profile(void)
+{
+    fake.profile_state = HAL_PROFILE_FULL;
+}
+
+int fake_hal_profile_reset_count(void)
+{
+    return fake.profile_resets;
 }
 
 int fake_hal_keep_alive_count(void)

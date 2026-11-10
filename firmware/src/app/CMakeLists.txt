@@ -31,6 +31,9 @@ add_library(echo_app STATIC
     screens/now_playing_screen.c
     screens/up_next_screen.c
 )
+if(NOT ECHO_RELEASE)
+    target_sources(echo_app PRIVATE debug_loop.c)
+endif()
 target_include_directories(echo_app PUBLIC include PRIVATE .)
 target_link_libraries(echo_app
     PUBLIC echo_core echo_gfx echo_ui echo_fonts echo_library echo_playback echo_settings echo_hal

@@ -35,6 +35,10 @@ add_executable(echo_device
     board/usb_report.c
 )
 target_sources(echo_device PRIVATE board/panel_vop.c)
+if(NOT ECHO_RELEASE)
+    target_sources(echo_device PRIVATE board/debug_session.c board/profiler.c)
+    set(ECHO_PROFILE_BUCKET_SHIFT 7)
+endif()
 set(ECHO_CORE1_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1.ld)
 add_executable(echo_core1
     core1/main.c
@@ -153,6 +157,21 @@ set(ECHO_OVERLAY_IMPORTS
     usb_silence_audio
     usb_vbus_present
 )
+if(NOT ECHO_RELEASE)
+    list(APPEND ECHO_OVERLAY_IMPORTS
+        app_debug_frames
+        board_debug_audio
+        board_profile
+        debug_loop_log
+        hal_clock_microseconds
+        hal_internal_file_reserve
+        hal_internal_file_write
+        hal_system_clock_mhz
+        hal_system_idle_microseconds
+        hal_system_start_info
+        hal_system_version
+    )
+endif()
 set(ECHO_DEVICE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/board/echo_device.ld)
 set_target_properties(echo_device PROPERTIES
     SUFFIX .elf
@@ -166,10 +185,13 @@ if(CMAKE_CROSSCOMPILING)
         board/bluetooth.c
         board/core1.c
         board/dac.c
+        board/debug_report_file.c
+        board/debug_session.c
         board/glyphs.c
         board/high_ram.c
         board/overlay.c
         board/panic.c
+        board/profiler.c
         board/start_info.c
         board/system.c
         board/update.c
@@ -184,6 +206,10 @@ endif()
 target_link_libraries(echo_device PRIVATE echo_app echo_device_logic echo_options echo_lto)
 list(TRANSFORM ECHO_OVERLAY_IMPORTS PREPEND "-Wl,--require-defined=" OUTPUT_VARIABLE
     ECHO_OVERLAY_IMPORT_OPTIONS)
+if(NOT ECHO_RELEASE)
+    target_link_options(echo_device PRIVATE
+        -Wl,--defsym=device_profile_bucket_shift=${ECHO_PROFILE_BUCKET_SHIFT})
+endif()
 target_link_options(echo_device PRIVATE
     -flto -flto-partition=one
     ${ECHO_OVERLAY_IMPORT_OPTIONS}
@@ -215,6 +241,9 @@ add_executable(echo_usb_overlay
     board/usb_port.c
     board/usb_session.c
 )
+if(NOT ECHO_RELEASE)
+    target_sources(echo_usb_overlay PRIVATE board/debug_report_file.c)
+endif()
 set_target_properties(echo_usb_overlay PROPERTIES
     SUFFIX .elf
     LINK_DEPENDS "${ECHO_USB_OVERLAY_LINKER_SCRIPT};$<TARGET_FILE:echo_device>"

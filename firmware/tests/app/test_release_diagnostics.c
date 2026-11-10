@@ -39,7 +39,7 @@ static void the_release_menu_has_no_tests_that_act_on_the_hardware(void)
 {
     static const char *const DEVELOPER[] = {
         "Test tone", "DMA tone",      "Tone 192k", "Tone 176k", "Stall test", "Watchdog test",
-        "Core 1",    "Core 1 decode", "LPC accel", "High RAM",  "Bluetooth"};
+        "Core 1",    "Core 1 decode", "LPC accel", "High RAM",  "Bluetooth",  "Profiler"};
     const MenuConfig *menu = built();
     for (size_t index = 0; index < sizeof DEVELOPER / sizeof DEVELOPER[0]; index++) {
         CHECK(!has_row(menu, DEVELOPER[index]));

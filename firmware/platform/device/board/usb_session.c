@@ -6,6 +6,7 @@
 #include "app/app.h"
 #include "board.h"
 #include "core/string_builder.h"
+#include "debug_probe.h"
 #include "device/block_device.h"
 #include "device/usb_fallback.h"
 #include "emmc.h"
@@ -179,6 +180,7 @@ static UsbSessionEnd run(void)
 {
     app_show_notice("USB", "Computer found. Starting...");
     fallback = (UsbFallback){.watching = false};
+    debug_report_write(shared);
     prepare_port();
     prepare_luns();
     usb_silence_audio();

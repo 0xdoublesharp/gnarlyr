@@ -2,6 +2,7 @@
 
 #include "app/app.h"
 #include "board.h"
+#include "debug_probe.h"
 #include "device/battery_gauge.h"
 #include "hal/clock.h"
 #include "hal/power.h"
@@ -90,11 +91,13 @@ static void run_dac_session(void)
 
 static void run_session(void)
 {
+    board_debug_usb_starting(dac_session);
     if (dac_session) {
         run_dac_session();
     } else {
         run_usb_session();
     }
+    board_debug_usb_ended();
 }
 
 static void stop_listening(void)
@@ -193,7 +196,7 @@ uint32_t hal_system_idle_microseconds(void)
 static void sleep_until_interrupt(void)
 {
     uint32_t started_us = hal_clock_microseconds();
-    __asm__ volatile("wfi" ::: "memory");
+    board_profile_wait();
     idle_us += hal_clock_microseconds() - started_us;
 }
 

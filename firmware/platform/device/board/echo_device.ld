@@ -31,6 +31,9 @@ SECTIONS
         device_bss_start = .;
         *(.bss .bss.*)
         . = ALIGN(4);
+        PROVIDE(device_profile_buckets = .);
+        . += DEFINED(device_profile_bucket_shift) ? (((LENGTH(CODE_RAM) - 1) >> device_profile_bucket_shift) + 1) * 2 : 0;
+        . = ALIGN(4);
         device_bss_end = .;
     } > DATA_RAM
 
@@ -62,6 +65,12 @@ SECTIONS
         *(.ARM.extab*)
     }
 }
+
+PROVIDE(device_profile_bucket_count = ((LENGTH(CODE_RAM) - 1) >> device_profile_bucket_shift) + 1);
+PROVIDE(device_profile_code_base = ORIGIN(CODE_RAM));
+PROVIDE(device_profile_code_bytes = LENGTH(CODE_RAM));
+PROVIDE(device_profile_overlay_base = ORIGIN(HIGH_RAM));
+PROVIDE(device_profile_overlay_bytes = LENGTH(HIGH_RAM));
 
 ASSERT(ADDR(.code) == 0x03050000, "the code vector table must be at 0x03050000")
 ASSERT(ADDR(.data) == 0x03004000, "the entry vector must be at 0x03004000")

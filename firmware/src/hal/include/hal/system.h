@@ -61,6 +61,15 @@ typedef struct HalLoopCycles {
 } HalLoopCycles;
 
 HalLoopCycles hal_system_loop_cycles(void);
+typedef enum HalProfileState {
+    HAL_PROFILE_OFF,
+    HAL_PROFILE_ON,
+    HAL_PROFILE_FULL
+} HalProfileState;
+
+HalProfileState hal_system_profile_state(void);
+void hal_system_set_profiling(bool on);
+void hal_system_reset_profile(void);
 void hal_system_stall_test(void);
 void hal_system_watchdog_test(void);
 void hal_system_keep_alive(void);

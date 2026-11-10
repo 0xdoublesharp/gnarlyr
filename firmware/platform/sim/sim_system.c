@@ -6,6 +6,7 @@ enum {
 };
 
 static uint32_t clock_mhz = BOOT_CLOCK_MHZ;
+static bool profiling;
 
 const char *hal_system_version(void)
 {
@@ -115,5 +116,19 @@ HalStartInfo hal_system_start_info(void)
 }
 
 void hal_system_watchdog_test(void)
+{
+}
+
+HalProfileState hal_system_profile_state(void)
+{
+    return profiling ? HAL_PROFILE_ON : HAL_PROFILE_OFF;
+}
+
+void hal_system_set_profiling(bool on)
+{
+    profiling = on;
+}
+
+void hal_system_reset_profile(void)
 {
 }

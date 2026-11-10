@@ -1,5 +1,6 @@
 #include "hal/clock.h"
 #include "board.h"
+#include "debug_probe.h"
 #include "device/stall_watch.h"
 #include "device/tick_clock.h"
 #include "hal/system.h"
@@ -73,6 +74,7 @@ __attribute__((naked)) void device_systick_entry(void)
 __attribute__((used)) void board_systick_handler(const uint32_t *frame)
 {
     tick_clock_reload(&clock);
+    board_profile_sample(frame[STACKED_PC_WORD]);
     periods_since_scan++;
     if (periods_since_scan < PERIODS_PER_KEY_SCAN) {
         return;

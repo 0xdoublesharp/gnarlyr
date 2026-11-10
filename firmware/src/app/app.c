@@ -16,6 +16,7 @@
 #include "core/power_policy.h"
 #include "core/string_builder.h"
 #include "cover_cache.h"
+#include "debug_loop_internal.h"
 #include "default_theme.h"
 #include "draw_profile.h"
 #include "favorites_store.h"
@@ -359,6 +360,12 @@ static void use_screen_key_behaviors(void)
     }
 }
 
+static void screen_changed(void)
+{
+    use_screen_key_behaviors();
+    debug_loop_screen(top_screen()->title, screen_stack_depth(&app.stack));
+}
+
 static bool opens_now_playing(KeyEvent event)
 {
     return event.key == KEY_MENU && event.gesture == KEY_GESTURE_PRESS &&
@@ -396,7 +403,7 @@ static void dispatch_to_screen(KeyEvent event, uint32_t now_ms)
                               ? now_playing_action()
                               : screen->handle_key(screen->context, event, now_ms);
     if (screen_stack_apply(&app.stack, action, now_ms)) {
-        use_screen_key_behaviors();
+        screen_changed();
         start_slide(screen, depth_before, now_ms);
     }
 }
@@ -414,7 +421,7 @@ static void show_now_playing(uint32_t now_ms)
     if (may_show_now_playing() &&
         screen_stack_apply(&app.stack, screen_action_push(&app.screens.now_playing.screen),
                            now_ms)) {
-        use_screen_key_behaviors();
+        screen_changed();
     }
 }
 
@@ -494,6 +501,7 @@ static void dispatch_key_events(uint32_t now_ms)
     KeyEvent event;
     while (!app.powered_off && key_tracker_next_event(&app.keys, &event)) {
         app.render_urgent = true;
+        debug_loop_key(event);
         if (ignored_power_tap(event)) {
             continue;
         }
@@ -801,13 +809,14 @@ static void start_screens(uint32_t now_ms)
     Screen *root = app_screens_init(&app.screens, context);
     screen_stack_init(&app.stack, root, now_ms);
     open_start_screen(now_ms);
-    use_screen_key_behaviors();
+    screen_changed();
 }
 
 static void report_card_files(CardFilesReport files, uint32_t now_ms)
 {
     if (files.card_full) {
         toast_show(&app.toast, "Storage is full", now_ms);
+        debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_FULL);
     }
     if (files.library_created) {
         app.rescan_requested = true;
@@ -907,6 +916,8 @@ static void run_rescan(void)
     if (outcome.result == SCAN_OK) {
         music_check_remember(music_check_fingerprint());
         app_start();
+    } else {
+        debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_SCAN_FAILED + (uint32_t)outcome.result);
     }
     app_wake();
     toast_show(&app.toast, text, hal_clock_milliseconds());
@@ -1073,6 +1084,7 @@ CORE_SEAM void app_step(void)
         bluetooth_link_step(&app.bluetooth, &app.player, now_ms);
         spoken_store_follow(&app.spoken, player_status(&app.player), now_ms);
         explain_refusals(now_ms);
+        debug_loop_follow(now_ms, &app.player);
         update_power(now_ms);
     }
     if (app.powered_off) {
@@ -1131,6 +1143,22 @@ void app_wake(void)
 const FrameStats *app_frame_stats(void)
 {
     return &app.frame_stats;
+}
+
+_Static_assert((int)DEBUG_FRAME_PARTS == (int)DRAW_PART_COUNT, "the report names every part");
+
+DebugFrames app_debug_frames(void)
+{
+    DebugFrames frames = {.count = app.frame_stats.recorded,
+                          .total_us = frame_stats_average_us(&app.frame_stats),
+                          .worst_us = frame_stats_worst_us(&app.frame_stats),
+                          .update_us = frame_stats_average_us(&app.update_stats),
+                          .draw_us = frame_stats_average_us(&app.draw_stats),
+                          .send_us = frame_stats_average_us(&app.send_stats)};
+    for (int part = 0; part < DRAW_PART_COUNT; part++) {
+        frames.part_us[part] = draw_profile_average_us((DrawPart)part);
+    }
+    return frames;
 }
 
 const char *app_screen_title(void)

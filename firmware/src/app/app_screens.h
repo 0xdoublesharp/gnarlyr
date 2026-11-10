@@ -5,6 +5,7 @@
 #include "browse_screen.h"
 #include "core/power_policy.h"
 #include "cover_cache.h"
+#include "debug_loop_internal.h"
 #include "diagnostics_values.h"
 #include "favorites_store.h"
 #include "hal/audio.h"
@@ -26,7 +27,7 @@ enum {
     HOME_ITEM_COUNT = 6,
     SHELF_COUNT = 2,
     MUSIC_ITEM_COUNT = 9,
-    DIAGNOSTICS_ITEM_COUNT = 15,
+    DIAGNOSTICS_ITEM_COUNT = 15 + DEBUG_LOOP_ABOUT_ROWS,
     START_PATH_CAPACITY = 2
 };
 
