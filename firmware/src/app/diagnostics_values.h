@@ -36,6 +36,7 @@ void diagnostics_boot_pll_text(HalBootClocks clocks, char *text, size_t capacity
 void diagnostics_usb_registers_text(bool captured, uint32_t first, uint32_t second, char *text,
                                     size_t capacity);
 void diagnostics_usb_last_text(HalUsbLast last, char *text, size_t capacity);
+void diagnostics_usb_sense_text(HalUsbSense sense, char *text, size_t capacity);
 uint32_t diagnostics_next_clock_mhz(uint32_t current_mhz);
 void diagnostics_clock_text(uint32_t mhz, bool failed, char *text, size_t capacity);
 void diagnostics_load_update(LoadWindow *window, HalAudioStats stats);

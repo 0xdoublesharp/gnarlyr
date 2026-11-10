@@ -96,6 +96,14 @@ void diagnostics_usb_last_text(HalUsbLast last, char *text, size_t capacity)
     }
 }
 
+void diagnostics_usb_sense_text(HalUsbSense sense, char *text, size_t capacity)
+{
+    StringBuilder builder = string_builder_make(text, capacity);
+    string_builder_append(&builder, sense.kept_on ? "Kept " : "Auto ");
+    string_builder_append_char(&builder, sense.cable ? '1' : '0');
+    string_builder_append(&builder, sense.powered ? " on" : " off");
+}
+
 void diagnostics_dma_tone_text(DmaToneView view, char *text, size_t capacity)
 {
     StringBuilder builder = string_builder_make(text, capacity);

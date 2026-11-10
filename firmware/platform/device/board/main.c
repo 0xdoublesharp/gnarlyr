@@ -212,7 +212,9 @@ void board_main(void)
     board_stall_pause(true);
     hal_system_set_clock_mhz(START_CLOCK_MHZ);
     board_watchdog_start();
-    uint32_t boot_millivolts = battery_millivolts(board_battery_boot_reading());
+    uint16_t boot_reading = board_battery_boot_reading();
+    board_debug_battery_reading(boot_reading);
+    uint32_t boot_millivolts = battery_millivolts(boot_reading);
     board_input_start();
     board_display_start();
     boot_step("display");

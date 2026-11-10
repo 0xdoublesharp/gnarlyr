@@ -5,6 +5,7 @@
 #include "board.h"
 #include "core/seam.h"
 #include "cru.h"
+#include "debug_probe.h"
 #include "gpio.h"
 #include "hal/clock.h"
 #include "hal/system.h"
@@ -55,6 +56,7 @@ void usb_silence_audio(void)
 
 void usb_power_up(void)
 {
+    board_debug_usb_powered(true);
     cru_gate(GATE_USB_A, true);
     cru_gate(GATE_USB_B, true);
     cru_reset(RESET_USB_B, false);
@@ -70,12 +72,16 @@ CORE_SEAM void usb_power_down(void)
 {
     set_bits(DCTL, DCTL_SOFT_DISCONNECT);
     board_delay_ms(DISCONNECT_HOLD_MS);
+    if (board_debug_usb_kept_on()) {
+        return;
+    }
     write_grf(PHY_OFF, sizeof PHY_OFF / sizeof PHY_OFF[0]);
     cru_reset(RESET_USB_B, true);
     cru_reset(RESET_USB_C, true);
     cru_reset(RESET_USB_A, true);
     cru_gate(GATE_USB_A, false);
     cru_gate(GATE_USB_B, false);
+    board_debug_usb_powered(false);
 }
 
 HalUsbCore hal_system_usb_core(void)

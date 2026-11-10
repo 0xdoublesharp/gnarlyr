@@ -180,7 +180,7 @@ static UsbSessionEnd run(void)
 {
     app_show_notice("USB", "Computer found. Starting...");
     fallback = (UsbFallback){.watching = false};
-    debug_report_write(shared);
+    debug_report_write(shared, DEBUG_REPORT_USB_SESSION);
     prepare_port();
     prepare_luns();
     usb_silence_audio();

@@ -11,7 +11,37 @@
 #include "usb.h"
 #include "usb_session.h"
 
-static const char REPORT_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/debug/report.txt";
+enum {
+    SLOT_DIGIT = sizeof "/" FIRMWARE_DATA_DIRECTORY "/debug/report" - 1
+};
+
+static const char REPORT_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/debug/report0.txt";
+
+typedef struct ReportPath {
+    char text[sizeof REPORT_PATH];
+} ReportPath;
+
+static ReportPath slot_path(uint32_t slot)
+{
+    ReportPath path;
+    for (uint32_t index = 0; index < sizeof REPORT_PATH; index++) {
+        path.text[index] = REPORT_PATH[index];
+    }
+    path.text[SLOT_DIGIT] = (char)('0' + slot);
+    return path;
+}
+
+static DebugReportPlace place_for(char *head, bool cold_start)
+{
+    DebugReportSlot slots[DEBUG_REPORT_SLOTS];
+    for (uint32_t slot = 0; slot < DEBUG_REPORT_SLOTS; slot++) {
+        ReportPath path = slot_path(slot);
+        bool read = hal_internal_file_read(path.text, head, DEBUG_REPORT_HEAD_BYTES);
+        slots[slot] = read ? debug_report_read_head(head, DEBUG_REPORT_HEAD_BYTES)
+                           : (DebugReportSlot){.valid = false};
+    }
+    return debug_report_place(slots, cold_start);
+}
 
 static DebugReportPower power_now(bool charging)
 {
@@ -21,9 +51,12 @@ static DebugReportPower power_now(bool charging)
     BatteryDisplay shown = board_power_shown();
     uint32_t millivolts = battery_gauge_millivolts(&gauge);
     return (DebugReportPower){.vbus = usb_vbus_present(),
+                              .usb_powered = board_debug_usb_is_powered(),
+                              .usb_kept_on = board_debug_usb_kept_on(),
                               .pin_known = pin.ready,
                               .pin_high = pin.high,
                               .adc_known = reading.known,
+                              .adc_from_gauge = gauge.count != 0,
                               .adc_raw = reading.raw,
                               .gauge_readings = gauge.count,
                               .gauge_millivolts = millivolts,
@@ -34,10 +67,11 @@ static DebugReportPower power_now(bool charging)
                               .history = board_debug_power_history()};
 }
 
-static DebugReportInput gather(const UsbShared *shared)
+static DebugReportInput gather(const UsbShared *shared, uint32_t reason)
 {
     HalBattery battery = hal_power_battery();
-    return (DebugReportInput){.name = FIRMWARE_NAME,
+    return (DebugReportInput){.reason = (DebugReportReason)reason,
+                              .name = FIRMWARE_NAME,
                               .version = hal_system_version(),
                               .uptime_ms = hal_clock_milliseconds(),
                               .clock_mhz = hal_system_clock_mhz(),
@@ -53,18 +87,22 @@ static DebugReportInput gather(const UsbShared *shared)
                               .profile = board_profile()};
 }
 
-static bool reserved(void)
+static bool reserved(const char *path)
 {
-    HalReserveResult result = hal_internal_file_reserve(REPORT_PATH, DEBUG_REPORT_BYTES);
+    HalReserveResult result = hal_internal_file_reserve(path, DEBUG_REPORT_BYTES);
     return result == HAL_RESERVE_EXISTS || result == HAL_RESERVE_CREATED;
 }
 
-CORE_SEAM void debug_report_write(const UsbShared *shared)
+CORE_SEAM void debug_report_write(const UsbShared *shared, uint32_t reason)
 {
     char *text = (char *)usb_session_buffer();
-    DebugReportInput input = gather(shared);
+    DebugReportInput input = gather(shared, reason);
+    bool cold_start = debug_report_cold_start(&input.start, input.uptime_ms);
+    DebugReportPlace place = place_for(text, cold_start);
+    ReportPath path = slot_path(place.slot);
+    input.sequence = place.sequence;
     debug_report_format(&input, text, DEBUG_REPORT_BYTES);
-    if (reserved()) {
-        hal_internal_file_write(REPORT_PATH, text, DEBUG_REPORT_BYTES);
+    if (reserved(path.text)) {
+        hal_internal_file_write(path.text, text, DEBUG_REPORT_BYTES);
     }
 }

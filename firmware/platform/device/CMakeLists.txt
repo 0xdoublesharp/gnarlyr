@@ -164,11 +164,14 @@ if(NOT ECHO_RELEASE)
         board_debug_audio
         board_debug_battery_raw
         board_debug_power_history
+        board_debug_usb_is_powered
+        board_debug_usb_kept_on
         board_power_charge_pin
         board_power_shown
         board_profile
         debug_loop_log
         hal_clock_microseconds
+        hal_internal_file_read
         hal_internal_file_reserve
         hal_internal_file_write
         hal_system_clock_mhz

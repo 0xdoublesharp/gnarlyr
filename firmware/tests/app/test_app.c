@@ -72,6 +72,7 @@ enum {
     DIAGNOSTICS_STALL_TEST_INDEX = 5,
     DIAGNOSTICS_POWER_TAPS_INDEX = 6,
     DIAGNOSTICS_PROFILER_INDEX = 15,
+    DIAGNOSTICS_USB_SENSE_INDEX = 16,
     DEBUG_FOLLOW_MS = 100,
     FIFTEEN_MINUTES_MS = 15 * 60 * 1000,
     GOODBYE_MS = 1000,
@@ -2982,6 +2983,30 @@ static void the_profiler_row_switches_sampling_and_restarts_a_full_profile(void)
     CHECK_EQUAL(HAL_PROFILE_ON, hal_system_profile_state());
 }
 
+static void the_usb_sense_row_shows_the_cable_live_and_play_keeps_usb_powered(void)
+{
+    start_app();
+    open_diagnostics_row(DIAGNOSTICS_USB_SENSE_INDEX);
+    CHECK(strcmp("Auto 0 off", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
+    fake_hal_set_usb_cable(true);
+    CHECK(strcmp("Auto 1 off", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
+    tap(KEY_PLAY);
+    CHECK(hal_system_usb_sense().kept_on);
+    CHECK(strcmp("Kept 1 on", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
+    fake_hal_set_usb_cable(false);
+    CHECK(strcmp("Kept 0 on", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
+    tap(KEY_PLAY);
+    CHECK(!hal_system_usb_sense().kept_on);
+    CHECK(strcmp("Auto 0 off", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
+    CHECK(title_is("About"));
+}
+
+static void the_usb_sense_mode_is_normal_after_every_start(void)
+{
+    start_app();
+    CHECK(!hal_system_usb_sense().kept_on);
+}
+
 static uint32_t events_of(DebugEventKind kind, uint32_t since)
 {
     const DebugLog *log = debug_loop_log();
@@ -3080,6 +3105,91 @@ static void the_frame_figures_follow_the_frame_time_overlay(void)
     CHECK_EQUAL(frame_stats_worst_us(app_frame_stats()), frames.worst_us);
     CHECK(frames.total_us >= frames.update_us + frames.draw_us + frames.send_us);
     CHECK(frames.draw_us > 0);
+}
+
+static void a_long_power_press_saves_a_report_before_the_power_goes(void)
+{
+    start_app();
+    hold_power();
+    CHECK_EQUAL(0, fake_hal_saved_report_count());
+    wait_ms(GOODBYE_MS);
+    CHECK_EQUAL(1, fake_hal_power_off_count());
+    CHECK_EQUAL(1, fake_hal_saved_report_count());
+    CHECK_EQUAL(DEBUG_REPORT_SHUTDOWN, fake_hal_saved_report(0));
+}
+
+static void switching_off_on_usb_power_saves_a_report_on_the_way_into_charge_mode(void)
+{
+    start_app();
+    fake_hal_set_battery(ON_USB);
+    wait_ms(300);
+    hold_power();
+    wait_ms(GOODBYE_MS);
+    CHECK(app_charging());
+    CHECK_EQUAL(0, fake_hal_power_off_count());
+    CHECK_EQUAL(1, fake_hal_saved_report_count());
+    CHECK_EQUAL(DEBUG_REPORT_SHUTDOWN, fake_hal_saved_report(0));
+}
+
+static void a_cable_start_into_charge_mode_saves_no_report(void)
+{
+    fake_hal_reset();
+    fake_hal_set_battery(ON_USB);
+    fake_hal_set_usb_start(true);
+    now_ms = START_MS;
+    fake_hal_set_milliseconds(now_ms);
+    app_start();
+    wait_ms(100);
+    CHECK(app_charging());
+    CHECK_EQUAL(0, fake_hal_saved_report_count());
+}
+
+static void unplugging_in_charge_mode_saves_a_report_before_the_power_goes(void)
+{
+    start_app();
+    fake_hal_set_battery(ON_USB);
+    wait_ms(300);
+    hold_power();
+    wait_ms(GOODBYE_MS);
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 64, .millivolts = 3900});
+    wait_ms(500);
+    CHECK_EQUAL(1, fake_hal_power_off_count());
+    CHECK_EQUAL(2, fake_hal_saved_report_count());
+    CHECK_EQUAL(DEBUG_REPORT_UNPLUGGED, fake_hal_saved_report(1));
+}
+
+static void an_empty_battery_saves_a_report_named_for_it(void)
+{
+    start_app();
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 0, .millivolts = 3400});
+    for (int count = 0; count < 12; count++) {
+        wait_ms(250);
+    }
+    wait_ms(GOODBYE_MS);
+    CHECK_EQUAL(1, fake_hal_power_off_count());
+    CHECK_EQUAL(DEBUG_REPORT_LOW_BATTERY, fake_hal_saved_report(0));
+}
+
+static void auto_off_names_its_report(void)
+{
+    start_app();
+    wait_ms(6 * 60 * 1000);
+    wait_ms(GOODBYE_MS);
+    CHECK_EQUAL(1, fake_hal_power_off_count());
+    CHECK_EQUAL(DEBUG_REPORT_AUTO_OFF, fake_hal_saved_report(0));
+}
+
+static void the_sleep_timer_names_its_report(void)
+{
+    start_app();
+    open_setting(SETTINGS_SLEEP_INDEX);
+    move_down(1);
+    tap(KEY_PLAY);
+    fake_hal_set_battery(ON_USB);
+    wait_ms(FIFTEEN_MINUTES_MS);
+    wait_ms(GOODBYE_MS);
+    CHECK(fake_hal_saved_report_count() >= 1);
+    CHECK_EQUAL(DEBUG_REPORT_SLEEP_TIMER, fake_hal_saved_report(0));
 }
 
 static void menu_opens_now_playing_from_anywhere_while_playing(void)
@@ -3299,6 +3409,15 @@ int main(void)
         TEST_CASE(stopping_the_app_saves_the_session),
         TEST_CASE(each_step_records_its_duration),
         TEST_CASE(the_profiler_row_switches_sampling_and_restarts_a_full_profile),
+        TEST_CASE(the_usb_sense_row_shows_the_cable_live_and_play_keeps_usb_powered),
+        TEST_CASE(the_usb_sense_mode_is_normal_after_every_start),
+        TEST_CASE(a_long_power_press_saves_a_report_before_the_power_goes),
+        TEST_CASE(switching_off_on_usb_power_saves_a_report_on_the_way_into_charge_mode),
+        TEST_CASE(a_cable_start_into_charge_mode_saves_no_report),
+        TEST_CASE(unplugging_in_charge_mode_saves_a_report_before_the_power_goes),
+        TEST_CASE(an_empty_battery_saves_a_report_named_for_it),
+        TEST_CASE(auto_off_names_its_report),
+        TEST_CASE(the_sleep_timer_names_its_report),
         TEST_CASE(a_key_gesture_is_logged_with_its_key_and_time),
         TEST_CASE(key_repeats_are_left_out_of_the_log),
         TEST_CASE(a_screen_change_is_logged_with_its_depth_and_title),

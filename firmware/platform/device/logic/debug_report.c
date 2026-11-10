@@ -37,6 +37,19 @@ static const char *const EVENT_NAMES[DEBUG_EVENT_KIND_COUNT] = {
     [DEBUG_EVENT_SCRIPT] = "script",
     [DEBUG_EVENT_POWER] = "power",
 };
+static const char *const REASON_NAMES[DEBUG_REPORT_REASON_COUNT] = {
+    [DEBUG_REPORT_NONE] = "none",
+    [DEBUG_REPORT_USB_SESSION] = "usb_session",
+    [DEBUG_REPORT_SHUTDOWN] = "shutdown",
+    [DEBUG_REPORT_AUTO_OFF] = "auto_off",
+    [DEBUG_REPORT_SLEEP_TIMER] = "sleep_timer",
+    [DEBUG_REPORT_LOW_BATTERY] = "low_battery",
+    [DEBUG_REPORT_UNPLUGGED] = "unplugged",
+    [DEBUG_REPORT_RESTART] = "restart",
+};
+static const char SCHEMA_KEY[] = "debug_report";
+static const char SEQUENCE_KEY[] = "report.sequence";
+static const char COLD_KEY[] = "report.cold_start";
 static const char *const GESTURE_NAMES[] = {"press", "long", "repeat", "double", "triple"};
 static const char *const PLAYER_NAMES[] = {"idle", "playing", "paused"};
 static const char *const AUDIO_NAMES[] = {"stopped", "playing", "paused"};
@@ -144,9 +157,17 @@ static void put_build(Writer *writer, const char *version)
     put_text(writer, "firmware.build", *tag == '-' && tag[1] != '\0' ? tag + 1 : UNKNOWN);
 }
 
+bool debug_report_cold_start(const HalStartInfo *start, uint32_t uptime_ms)
+{
+    return !start->warm && uptime_ms < DEBUG_REPORT_COLD_MS;
+}
+
 static void put_system(Writer *writer, const DebugReportInput *input)
 {
-    put_unsigned(writer, "debug_report", DEBUG_REPORT_SCHEMA);
+    put_unsigned(writer, SCHEMA_KEY, DEBUG_REPORT_SCHEMA);
+    put_unsigned(writer, SEQUENCE_KEY, input->sequence);
+    put_text(writer, "report.reason", NAME_IN(REASON_NAMES, input->reason));
+    put_unsigned(writer, COLD_KEY, debug_report_cold_start(&input->start, input->uptime_ms));
     put_text(writer, "firmware.name", input->name);
     put_build(writer, input->version);
     put_unsigned(writer, "uptime_ms", input->uptime_ms);
@@ -158,11 +179,24 @@ static void put_system(Writer *writer, const DebugReportInput *input)
               unwrapped ? input->clock_us : 0);
 }
 
-static void put_battery(Writer *writer, HalBattery battery)
+static const char *reading_source(bool from_gauge, bool known)
 {
-    put_known(writer, "battery.millivolts", battery.known, battery.millivolts);
-    put_known(writer, "battery.percent", battery.known, battery.percent);
-    put_known(writer, "battery.charging", battery.known, battery.charging);
+    if (!known) {
+        return UNKNOWN;
+    }
+    return from_gauge ? "gauge" : "start_up_sample";
+}
+
+static void put_battery(Writer *writer, const DebugReportInput *input)
+{
+    HalBattery battery = input->battery;
+    bool sampled = !battery.known && input->power.adc_known;
+    uint32_t millivolts = sampled ? battery_millivolts(input->power.adc_raw) : battery.millivolts;
+    uint32_t percent = sampled ? battery_percent_for(millivolts) : battery.percent;
+    put_text(writer, "battery.source", reading_source(battery.known, battery.known || sampled));
+    put_known(writer, "battery.millivolts", battery.known || sampled, millivolts);
+    put_known(writer, "battery.percent", battery.known || sampled, percent);
+    put_unsigned(writer, "battery.charging", battery.charging);
     put_unsigned(writer, "battery.usb_power", battery.usb_power);
 }
 
@@ -172,7 +206,9 @@ static void put_power(Writer *writer, const DebugReportInput *input)
     bool gauged = power->gauge_readings != 0;
     bool charging = input->battery.charging;
     put_unsigned(writer, "power.vbus", power->vbus);
+    put_unsigned(writer, "power.usb_powered", power->usb_powered);
     put_known(writer, "power.charge_pin", power->pin_known, power->pin_high);
+    put_text(writer, "power.adc_source", reading_source(power->adc_from_gauge, power->adc_known));
     put_known(writer, "power.adc_raw", power->adc_known, power->adc_raw);
     put_known(writer, "power.adc_millivolts", power->adc_known, battery_millivolts(power->adc_raw));
     put_unsigned(writer, "power.gauge_readings", power->gauge_readings);
@@ -192,18 +228,30 @@ static void append_flag(StringBuilder *text, uint8_t flags, uint8_t flag)
     string_builder_append_char(text, (flags & flag) != 0 ? '1' : '0');
 }
 
-static void put_sample(Writer *writer, PowerSample sample)
+static void append_sample(StringBuilder *text, PowerSample sample)
+{
+    string_builder_append_unsigned(text, sample.minute);
+    string_builder_append_char(text, ' ');
+    string_builder_append_unsigned(text, sample.millivolts);
+    string_builder_append_char(text, ' ');
+    string_builder_append_unsigned(text, sample.percent);
+    string_builder_append_char(text, ' ');
+    append_flag(text, sample.flags, POWER_SAMPLE_VBUS);
+    append_flag(text, sample.flags, POWER_SAMPLE_CHARGE_PIN);
+    append_flag(text, sample.flags, POWER_SAMPLE_PLAYING);
+    append_flag(text, sample.flags, POWER_SAMPLE_USB_POWERED);
+    append_flag(text, sample.flags, POWER_SAMPLE_USB_KEPT_ON);
+}
+
+static void put_samples(Writer *writer, const PowerHistory *history, uint32_t first, uint32_t end)
 {
     begin(writer, "power.sample");
-    string_builder_append_unsigned(&writer->text, sample.minute);
-    string_builder_append_char(&writer->text, ' ');
-    string_builder_append_unsigned(&writer->text, sample.millivolts);
-    string_builder_append_char(&writer->text, ' ');
-    string_builder_append_unsigned(&writer->text, sample.percent);
-    string_builder_append_char(&writer->text, ' ');
-    append_flag(&writer->text, sample.flags, POWER_SAMPLE_VBUS);
-    append_flag(&writer->text, sample.flags, POWER_SAMPLE_CHARGE_PIN);
-    append_flag(&writer->text, sample.flags, POWER_SAMPLE_PLAYING);
+    for (uint32_t index = first; index < end; index++) {
+        if (index != first) {
+            string_builder_append(&writer->text, "; ");
+        }
+        append_sample(&writer->text, power_history_at(history, index));
+    }
     finish(writer);
 }
 
@@ -213,10 +261,12 @@ static void put_history(Writer *writer, const PowerHistory *history)
         put_text(writer, "power.samples", UNKNOWN);
         return;
     }
+    uint32_t count = power_history_count(history);
     put_unsigned(writer, "power.samples", history->recorded);
     put_unsigned(writer, "power.sample_interval_s", POWER_HISTORY_INTERVAL_S);
-    for (uint32_t index = 0; index < power_history_count(history); index++) {
-        put_sample(writer, power_history_at(history, index));
+    for (uint32_t first = 0; first < count; first += DEBUG_REPORT_ROW_SAMPLES) {
+        uint32_t end = first + DEBUG_REPORT_ROW_SAMPLES;
+        put_samples(writer, history, first, end < count ? end : count);
     }
 }
 
@@ -237,9 +287,10 @@ static void put_start(Writer *writer, const HalStartInfo *start)
     put_address(writer, "fault.pc", warm, start->fault_pc);
 }
 
-static void put_usb(Writer *writer, HalUsbLast usb)
+static void put_usb(Writer *writer, HalUsbLast usb, bool kept_on)
 {
     bool known = usb.end != HAL_USB_END_NONE;
+    put_text(writer, "usb.sense_mode", kept_on ? "kept_on" : "normal");
     put_text(writer, "usb.last_end", NAME_IN(USB_END_NAMES, usb.end));
     put_known(writer, "usb.left_mounted", known, usb.left_mounted);
     put_known(writer, "usb.internal_sectors_written", known, usb.internal_written);
@@ -351,10 +402,10 @@ static void put_events(Writer *writer, const DebugLog *log)
 
 static uint32_t row_end(const PcProfile *profile, uint32_t first)
 {
-    uint32_t end = first;
-    while (end < profile->bucket_count && end - first < DEBUG_REPORT_ROW_BUCKETS &&
-           profile->buckets[end] != 0) {
-        end++;
+    uint32_t end = first + DEBUG_REPORT_ROW_BUCKETS;
+    end = end < profile->bucket_count ? end : profile->bucket_count;
+    while (end > first && profile->buckets[end - 1] == 0) {
+        end--;
     }
     return end;
 }
@@ -374,11 +425,11 @@ static void put_rows(Writer *writer, const PcProfile *profile)
 {
     uint32_t index = 0;
     while (index < profile->bucket_count && !writer->truncated) {
-        uint32_t end = row_end(profile, index);
-        if (end == index) {
+        if (profile->buckets[index] == 0) {
             index++;
             continue;
         }
+        uint32_t end = row_end(profile, index);
         put_row(writer, profile, index, end);
         index = end;
     }
@@ -426,10 +477,10 @@ uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t
     }
     Writer writer = {.text = string_builder_make(text, capacity - DEBUG_REPORT_TAIL_BYTES)};
     put_system(&writer, input);
-    put_battery(&writer, input->battery);
+    put_battery(&writer, input);
     put_power(&writer, input);
     put_start(&writer, &input->start);
-    put_usb(&writer, input->usb);
+    put_usb(&writer, input->usb, input->power.usb_kept_on);
     put_audio(&writer, &input->audio);
     put_frames(&writer, &input->frames);
     put_events(&writer, input->log);
@@ -440,4 +491,82 @@ uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t
         text[index] = '\n';
     }
     return length;
+}
+
+static const char *value_of(const char *head, uint32_t length, const char *key)
+{
+    for (uint32_t start = 0; start < length; start++) {
+        uint32_t index = 0;
+        while (key[index] != '\0' && start + index < length && head[start + index] == key[index]) {
+            index++;
+        }
+        bool at_line = start == 0 || head[start - 1] == '\n';
+        if (at_line && key[index] == '\0' && start + index + 2 <= length &&
+            head[start + index] == ':' && head[start + index + 1] == ' ') {
+            return head + start + index + 2;
+        }
+    }
+    return NULL;
+}
+
+static bool number_at(const char *text, const char *end, uint32_t *number)
+{
+    uint32_t value = 0;
+    const char *cursor = text;
+    while (cursor != NULL && cursor < end && *cursor >= '0' && *cursor <= '9') {
+        value = value * 10 + (uint32_t)(*cursor - '0');
+        cursor++;
+    }
+    *number = value;
+    return cursor != NULL && cursor > text && cursor < end && *cursor == '\n';
+}
+
+DebugReportSlot debug_report_read_head(const char *head, uint32_t length)
+{
+    uint32_t schema = 0;
+    uint32_t cold = 0;
+    DebugReportSlot slot = {.valid = false};
+    const char *end = head + length;
+    slot.valid = number_at(value_of(head, length, SCHEMA_KEY), end, &schema) &&
+                 schema == DEBUG_REPORT_SCHEMA &&
+                 number_at(value_of(head, length, SEQUENCE_KEY), end, &slot.sequence) &&
+                 number_at(value_of(head, length, COLD_KEY), end, &cold);
+    slot.cold_start = cold != 0;
+    return slot;
+}
+
+static int newest_slot(const DebugReportSlot *slots)
+{
+    int newest = -1;
+    for (int slot = 0; slot < DEBUG_REPORT_SLOTS; slot++) {
+        if (slots[slot].valid && (newest < 0 || slots[slot].sequence > slots[newest].sequence)) {
+            newest = slot;
+        }
+    }
+    return newest;
+}
+
+static uint32_t slot_to_replace(const DebugReportSlot *slots)
+{
+    uint32_t oldest = 0;
+    for (uint32_t slot = 0; slot < DEBUG_REPORT_SLOTS; slot++) {
+        if (!slots[slot].valid) {
+            return slot;
+        }
+        if (slots[slot].sequence < slots[oldest].sequence) {
+            oldest = slot;
+        }
+    }
+    return oldest;
+}
+
+DebugReportPlace debug_report_place(const DebugReportSlot *slots, bool cold_start)
+{
+    int newest = newest_slot(slots);
+    if (newest < 0) {
+        return (DebugReportPlace){.slot = 0, .sequence = 1};
+    }
+    bool replace_newest = cold_start && slots[newest].cold_start;
+    return (DebugReportPlace){.slot = replace_newest ? (uint32_t)newest : slot_to_replace(slots),
+                              .sequence = slots[newest].sequence + 1};
 }

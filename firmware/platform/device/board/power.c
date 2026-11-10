@@ -1,6 +1,7 @@
 #include "hal/power.h"
 #include "board.h"
 #include "core/seam.h"
+#include "debug_probe.h"
 #include "gpio.h"
 #include "registers.h"
 #include "usb.h"
@@ -127,6 +128,7 @@ CORE_SEAM void hal_power_off(void)
 {
     board_stall_pause(true);
     board_audio_shut_down();
+    board_debug_power_off();
     board_delay_ms(DAC_DISCHARGE_MS);
     while (gpio_read(POWER_KEY)) {
     }

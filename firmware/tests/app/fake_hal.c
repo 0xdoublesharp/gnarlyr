@@ -1,4 +1,5 @@
 #include "fake_hal.h"
+#include "app/debug_loop.h"
 
 #include "hal/system.h"
 
@@ -106,6 +107,9 @@ typedef struct FakeHal {
     int listing_borrows;
     int keep_alive_count;
     uint32_t idle_us;
+    HalUsbSense usb_sense;
+    uint32_t saved_reports[FILE_CAPACITY];
+    int saved_report_count;
     HalProfileState profile_state;
     int profile_resets;
     HalAudioStats audio_stats;
@@ -310,6 +314,10 @@ HalBattery hal_power_battery(void)
 
 void hal_power_off(void)
 {
+    uint32_t reason = debug_loop_take_shutdown();
+    if (reason != DEBUG_REPORT_NONE) {
+        hal_system_save_report(reason);
+    }
     fake.power_off_count++;
     fake.audio_state_at_power_off = fake.audio.status.state;
 }
@@ -833,6 +841,40 @@ void hal_system_keep_alive(void)
 uint32_t hal_system_idle_microseconds(void)
 {
     return fake.idle_us;
+}
+
+HalUsbSense hal_system_usb_sense(void)
+{
+    return fake.usb_sense;
+}
+
+void hal_system_keep_usb_on(bool kept_on)
+{
+    fake.usb_sense.kept_on = kept_on;
+    fake.usb_sense.powered = kept_on;
+}
+
+void fake_hal_set_usb_cable(bool cable)
+{
+    fake.usb_sense.cable = cable;
+}
+
+void hal_system_save_report(uint32_t reason)
+{
+    if (fake.saved_report_count < FILE_CAPACITY) {
+        fake.saved_reports[fake.saved_report_count] = reason;
+    }
+    fake.saved_report_count++;
+}
+
+int fake_hal_saved_report_count(void)
+{
+    return fake.saved_report_count;
+}
+
+uint32_t fake_hal_saved_report(int index)
+{
+    return fake.saved_reports[index];
 }
 
 HalProfileState hal_system_profile_state(void)

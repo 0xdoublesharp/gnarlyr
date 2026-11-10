@@ -26,7 +26,9 @@ static DebugReportInput plain_input(void)
                           .bucket_count = BUCKETS,
                           .bucket_shift = 7,
                           .code = {0x03050000, 0x2666C}};
-    return (DebugReportInput){.name = "Doublesharp Echo",
+    return (DebugReportInput){.sequence = 12,
+                              .reason = DEBUG_REPORT_USB_SESSION,
+                              .name = "Doublesharp Echo",
                               .version = "1.0.0-1051212",
                               .uptime_ms = 61000,
                               .clock_mhz = 200,
@@ -46,7 +48,7 @@ static uint32_t format(const DebugReportInput *input, uint32_t capacity)
 
 static bool has_line(const char *line)
 {
-    char wanted[160];
+    char wanted[256];
     snprintf(wanted, sizeof wanted, "\n%s\n", line);
     return strstr(text, wanted) != NULL;
 }
@@ -62,6 +64,193 @@ static void the_schema_version_is_the_first_line(void)
     DebugReportInput input = plain_input();
     format(&input, DEBUG_REPORT_BYTES);
     CHECK_EQUAL(0, strncmp(text, "debug_report: 1\n", 16));
+}
+
+static DebugReportInput plugged_in_at_97_percent(void)
+{
+    DebugReportInput input = plain_input();
+    input.battery = (HalBattery){.known = true, .percent = 97, .millivolts = 4180, .usb_power = 1};
+    input.power = (DebugReportPower){.vbus = true,
+                                     .usb_powered = true,
+                                     .pin_known = true,
+                                     .pin_high = true,
+                                     .adc_known = true,
+                                     .adc_raw = 856,
+                                     .gauge_readings = 64,
+                                     .gauge_millivolts = 4176,
+                                     .percent_plain = 97,
+                                     .percent_gauge = 97,
+                                     .shown_known = true,
+                                     .percent_shown = 97,
+                                     .history = &history};
+    return input;
+}
+
+static void the_report_says_which_one_it_is_and_what_wrote_it(void)
+{
+    DebugReportInput input = plain_input();
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK_EQUAL(0, strncmp(text,
+                           "debug_report: 1\nreport.sequence: 12\nreport.reason: usb_session\n"
+                           "report.cold_start: 0\n",
+                           79));
+    input.reason = DEBUG_REPORT_AUTO_OFF;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("report.reason: auto_off"));
+    static const char *const NAMES[] = {"none",        "usb_session", "shutdown",  "auto_off",
+                                        "sleep_timer", "low_battery", "unplugged", "restart"};
+    for (int reason = 0; reason < DEBUG_REPORT_REASON_COUNT; reason++) {
+        char line[64];
+        input.reason = (DebugReportReason)reason;
+        format(&input, DEBUG_REPORT_BYTES);
+        snprintf(line, sizeof line, "report.reason: %s", NAMES[reason]);
+        CHECK(has_line(line));
+    }
+}
+
+static void a_report_in_the_first_seconds_of_a_cold_start_says_so(void)
+{
+    DebugReportInput input = plain_input();
+    input.uptime_ms = 789;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("report.cold_start: 1"));
+    input.uptime_ms = DEBUG_REPORT_COLD_MS;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("report.cold_start: 0"));
+    input.uptime_ms = 789;
+    input.start.warm = true;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("report.cold_start: 0"));
+}
+
+static void before_the_gauge_has_a_reading_the_start_up_sample_stands_in_and_is_labelled(void)
+{
+    DebugReportInput input = plain_input();
+    input.battery = (HalBattery){.known = false, .usb_power = true};
+    input.power.adc_known = true;
+    input.power.adc_raw = 812;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("battery.source: start_up_sample"));
+    CHECK(has_line("battery.millivolts: 3964"));
+    CHECK(has_line("battery.percent: 75"));
+    CHECK(has_line("battery.charging: 0"));
+    CHECK(has_line("battery.usb_power: 1"));
+    CHECK(has_line("power.adc_source: start_up_sample"));
+    CHECK(has_line("power.adc_raw: 812"));
+    CHECK(has_line("power.adc_millivolts: 3964"));
+    CHECK(has_line("power.gauge_millivolts: unknown"));
+}
+
+static void with_gauge_readings_the_battery_lines_are_the_gauges(void)
+{
+    DebugReportInput input = plugged_in_at_97_percent();
+    input.power.adc_from_gauge = true;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("battery.source: gauge"));
+    CHECK(has_line("battery.millivolts: 4180"));
+    CHECK(has_line("battery.percent: 97"));
+    CHECK(has_line("power.adc_source: gauge"));
+}
+
+static DebugReportSlot head_of_formatted(const DebugReportInput *input)
+{
+    format(input, DEBUG_REPORT_BYTES);
+    return debug_report_read_head(text, DEBUG_REPORT_HEAD_BYTES);
+}
+
+static void the_head_of_a_report_gives_its_sequence_and_cold_start_flag(void)
+{
+    DebugReportInput input = plain_input();
+    DebugReportSlot slot = head_of_formatted(&input);
+    CHECK(slot.valid);
+    CHECK_EQUAL(12, slot.sequence);
+    CHECK(!slot.cold_start);
+    input.sequence = 4000000000u;
+    input.uptime_ms = 700;
+    slot = head_of_formatted(&input);
+    CHECK(slot.valid);
+    CHECK_EQUAL(4000000000u, slot.sequence);
+    CHECK(slot.cold_start);
+}
+
+static DebugReportSlot head(const char *start)
+{
+    char bytes[DEBUG_REPORT_HEAD_BYTES];
+    memset(bytes, '\n', sizeof bytes);
+    memcpy(bytes, start, strlen(start));
+    return debug_report_read_head(bytes, sizeof bytes);
+}
+
+static void a_file_that_is_not_a_finished_report_is_not_a_valid_slot(void)
+{
+    char zeros[DEBUG_REPORT_HEAD_BYTES] = {0};
+    CHECK(!debug_report_read_head(zeros, sizeof zeros).valid);
+    CHECK(!head("").valid);
+    CHECK(!head("debug_report: 2\nreport.sequence: 5\nreport.cold_start: 0\n").valid);
+    CHECK(!head("debug_report: 1\nreport.cold_start: 0\n").valid);
+    CHECK(!head("debug_report: 1\nreport.sequence: five\nreport.cold_start: 0\n").valid);
+    CHECK(!head("debug_report: 1\nreport.sequence: 5\n").valid);
+    CHECK(!head("xdebug_report: 1\nreport.sequence: 5\nreport.cold_start: 0\n").valid);
+    CHECK(head("debug_report: 1\nreport.sequence: 5\nreport.reason: x\nreport.cold_start: 0\n")
+              .valid);
+    CHECK(!debug_report_read_head("debug_report: 1\nreport.sequence: 5", 33).valid);
+}
+
+static DebugReportPlace place(const uint32_t *sequences, const bool *cold, bool cold_start)
+{
+    DebugReportSlot slots[DEBUG_REPORT_SLOTS];
+    for (int slot = 0; slot < DEBUG_REPORT_SLOTS; slot++) {
+        slots[slot] = (DebugReportSlot){
+            .valid = sequences[slot] != 0, .cold_start = cold[slot], .sequence = sequences[slot]};
+    }
+    return debug_report_place(slots, cold_start);
+}
+
+static void the_first_reports_fill_the_empty_slots_in_turn(void)
+{
+    const bool warm[DEBUG_REPORT_SLOTS] = {false, false, false};
+    DebugReportPlace first = place((uint32_t[]){0, 0, 0}, warm, false);
+    DebugReportPlace second = place((uint32_t[]){1, 0, 0}, warm, false);
+    DebugReportPlace third = place((uint32_t[]){1, 2, 0}, warm, false);
+    CHECK_EQUAL(0, first.slot);
+    CHECK_EQUAL(1, first.sequence);
+    CHECK_EQUAL(1, second.slot);
+    CHECK_EQUAL(2, second.sequence);
+    CHECK_EQUAL(2, third.slot);
+    CHECK_EQUAL(3, third.sequence);
+}
+
+static void a_new_report_replaces_the_oldest_and_counts_on_from_the_newest(void)
+{
+    const bool warm[DEBUG_REPORT_SLOTS] = {false, false, false};
+    DebugReportPlace next = place((uint32_t[]){7, 5, 6}, warm, false);
+    CHECK_EQUAL(1, next.slot);
+    CHECK_EQUAL(8, next.sequence);
+    next = place((uint32_t[]){7, 8, 6}, warm, true);
+    CHECK_EQUAL(2, next.slot);
+    CHECK_EQUAL(9, next.sequence);
+}
+
+static void a_cold_start_report_replaces_the_cold_start_report_before_it(void)
+{
+    const bool cold[DEBUG_REPORT_SLOTS] = {false, false, true};
+    DebugReportPlace next = place((uint32_t[]){7, 8, 9}, cold, true);
+    CHECK_EQUAL(2, next.slot);
+    CHECK_EQUAL(10, next.sequence);
+    next = place((uint32_t[]){7, 8, 9}, cold, false);
+    CHECK_EQUAL(0, next.slot);
+    CHECK_EQUAL(10, next.sequence);
+}
+
+static void an_older_cold_start_report_is_not_what_a_new_one_replaces(void)
+{
+    const bool cold[DEBUG_REPORT_SLOTS] = {true, false, false};
+    DebugReportPlace next = place((uint32_t[]){7, 8, 9}, cold, true);
+    CHECK_EQUAL(0, next.slot);
+    const bool middle[DEBUG_REPORT_SLOTS] = {false, true, false};
+    next = place((uint32_t[]){7, 8, 9}, middle, true);
+    CHECK_EQUAL(0, next.slot);
+    CHECK_EQUAL(10, next.sequence);
 }
 
 static void the_firmware_is_named_with_its_version_and_build_tag(void)
@@ -104,8 +293,10 @@ static void an_unread_battery_is_unknown_not_zero(void)
 {
     DebugReportInput input = plain_input();
     format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("battery.source: unknown"));
     CHECK(has_line("battery.millivolts: unknown"));
     CHECK(has_line("battery.percent: unknown"));
+    CHECK(has_line("power.adc_source: unknown"));
     input.battery = (HalBattery){.known = true, .percent = 71, .millivolts = 3987, .usb_power = 1};
     format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("battery.millivolts: 3987"));
@@ -113,30 +304,12 @@ static void an_unread_battery_is_unknown_not_zero(void)
     CHECK(has_line("battery.usb_power: 1"));
 }
 
-static DebugReportInput plugged_in_at_97_percent(void)
-{
-    DebugReportInput input = plain_input();
-    input.battery = (HalBattery){.known = true, .percent = 97, .millivolts = 4180, .usb_power = 1};
-    input.power = (DebugReportPower){.vbus = true,
-                                     .pin_known = true,
-                                     .pin_high = true,
-                                     .adc_known = true,
-                                     .adc_raw = 856,
-                                     .gauge_readings = 64,
-                                     .gauge_millivolts = 4176,
-                                     .percent_plain = 97,
-                                     .percent_gauge = 97,
-                                     .shown_known = true,
-                                     .percent_shown = 97,
-                                     .history = &history};
-    return input;
-}
-
 static void the_power_section_gives_the_raw_pin_the_adc_and_each_percent(void)
 {
     DebugReportInput input = plugged_in_at_97_percent();
     format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("power.vbus: 1"));
+    CHECK(has_line("power.usb_powered: 1"));
     CHECK(has_line("power.charge_pin: 1"));
     CHECK(has_line("power.adc_raw: 856"));
     CHECK(has_line("power.adc_millivolts: 4179"));
@@ -202,9 +375,16 @@ static void the_power_history_lists_a_sample_per_minute_oldest_first(void)
     format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("power.samples: 2"));
     CHECK(has_line("power.sample_interval_s: 60"));
-    CHECK(has_line("power.sample: 12 4176 97 110"));
-    CHECK(has_line("power.sample: 13 4170 97 001"));
-    CHECK(strstr(text, "power.sample: 12") < strstr(text, "power.sample: 13"));
+    CHECK(has_line("power.sample: 12 4176 97 11000; 13 4170 97 00100"));
+    for (uint16_t minute = 14; minute < 17; minute++) {
+        power_history_record(
+            &history,
+            (PowerSample){minute, 4100, 90, POWER_SAMPLE_USB_POWERED | POWER_SAMPLE_USB_KEPT_ON});
+    }
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line(
+        "power.sample: 12 4176 97 11000; 13 4170 97 00100; 14 4100 90 00011; 15 4100 90 00011"));
+    CHECK(has_line("power.sample: 16 4100 90 00011"));
 }
 
 static void a_power_event_gives_vbus_and_the_raw_charge_pin(void)
@@ -258,8 +438,13 @@ static void the_last_usb_session_is_reported_once_there_was_one(void)
 {
     DebugReportInput input = plain_input();
     format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("usb.sense_mode: normal"));
     CHECK(has_line("usb.last_end: none"));
     CHECK(has_line("usb.internal_sectors_written: unknown"));
+    input.power.usb_kept_on = true;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("usb.sense_mode: kept_on"));
+    input.power.usb_kept_on = false;
     input.usb = (HalUsbLast){.end = HAL_USB_END_EJECTED, .internal_written = 96};
     format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("usb.last_end: ejected"));
@@ -395,8 +580,10 @@ static void the_histogram_lists_runs_of_used_buckets_in_hex(void)
     CHECK(has_line("profile.code_base: 0x03050000"));
     CHECK(has_line("profile.bucket_bytes: 128"));
     CHECK(has_line("profile.buckets: 1229"));
+    buckets[0x1a3] = 7;
+    format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("profile.row: 0 1 1f"));
-    CHECK(has_line("profile.row: 1a0 fffe"));
+    CHECK(has_line("profile.row: 1a0 fffe 0 0 7"));
 }
 
 static void a_long_run_of_buckets_breaks_into_rows(void)
@@ -450,7 +637,7 @@ static void fill_everything(uint16_t bucket_count)
         buckets[index] = bucket_count;
     }
     for (int index = 0; index < POWER_HISTORY_SAMPLES + 3; index++) {
-        power_history_record(&history, (PowerSample){65535, 4200, 100, 7});
+        power_history_record(&history, (PowerSample){65535, 4200, 100, 31});
     }
     for (int index = 0; index < DEBUG_LOG_CAPACITY + 3; index++) {
         record(DEBUG_EVENT_OUTPUT_UNDERRUN, 0xFFFFFFFFu, "WWWWWWW");
@@ -465,7 +652,7 @@ static void the_fullest_report_fits_the_file_without_truncation(void)
     uint32_t length = format(&input, DEBUG_REPORT_BYTES);
     CHECK(length <= DEBUG_REPORT_BYTES);
     CHECK(has_line("truncated: 0"));
-    CHECK(has_line("power.sample: 65535 4200 100 111"));
+    CHECK(strstr(text, "; 65535 4200 100 11111\n") != NULL);
     CHECK(has_line("profile.row: 4c0 fffe fffe fffe fffe fffe fffe fffe fffe fffe fffe fffe fffe "
                    "fffe"));
 }
@@ -502,6 +689,16 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_schema_version_is_the_first_line),
+        TEST_CASE(the_report_says_which_one_it_is_and_what_wrote_it),
+        TEST_CASE(a_report_in_the_first_seconds_of_a_cold_start_says_so),
+        TEST_CASE(before_the_gauge_has_a_reading_the_start_up_sample_stands_in_and_is_labelled),
+        TEST_CASE(with_gauge_readings_the_battery_lines_are_the_gauges),
+        TEST_CASE(the_head_of_a_report_gives_its_sequence_and_cold_start_flag),
+        TEST_CASE(a_file_that_is_not_a_finished_report_is_not_a_valid_slot),
+        TEST_CASE(the_first_reports_fill_the_empty_slots_in_turn),
+        TEST_CASE(a_new_report_replaces_the_oldest_and_counts_on_from_the_newest),
+        TEST_CASE(a_cold_start_report_replaces_the_cold_start_report_before_it),
+        TEST_CASE(an_older_cold_start_report_is_not_what_a_new_one_replaces),
         TEST_CASE(the_firmware_is_named_with_its_version_and_build_tag),
         TEST_CASE(a_version_without_a_tag_reports_the_build_as_unknown),
         TEST_CASE(core_0_busy_time_is_a_share_of_the_uptime),

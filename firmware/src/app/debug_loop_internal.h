@@ -9,12 +9,14 @@
 #ifdef ECHO_DEBUG_LOOP
 
 enum {
-    DEBUG_LOOP_ABOUT_ROWS = 1
+    DEBUG_LOOP_ABOUT_ROWS = 2
 };
 
 void debug_loop_key(KeyEvent event);
 void debug_loop_screen(const char *title, int depth);
 void debug_loop_follow(uint32_t now_ms, const Player *player);
+void debug_loop_shutdown(DebugReportReason reason);
+void debug_loop_save_report(void);
 
 #else
 
@@ -37,6 +39,15 @@ static inline void debug_loop_follow(uint32_t now_ms, const Player *player)
 {
     (void)now_ms;
     (void)player;
+}
+
+static inline void debug_loop_shutdown(DebugReportReason reason)
+{
+    (void)reason;
+}
+
+static inline void debug_loop_save_report(void)
+{
 }
 
 #endif

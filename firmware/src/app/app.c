@@ -286,6 +286,7 @@ static void start_charging(uint32_t now_ms)
     app.charging = true;
     app.charge_battery = hal_power_battery();
     light_charge_screen(now_ms);
+    debug_loop_save_report();
 }
 
 static void stop_charging(uint32_t now_ms)
@@ -507,6 +508,7 @@ static void dispatch_key_events(uint32_t now_ms)
         }
         PowerKeyOutcome outcome = power_policy_key(&app.power, event, now_ms);
         if (outcome.shutdown) {
+            debug_loop_shutdown(DEBUG_REPORT_SHUTDOWN);
             shut_down(GOODBYE_TEXT);
         } else if (outcome.background) {
             run_background(event);
@@ -539,11 +541,15 @@ static void keep_awake_while_busy(uint32_t now_ms)
 static void update_power(uint32_t now_ms)
 {
     if (!app.saying_goodbye && battery_empty(now_ms)) {
+        debug_loop_shutdown(DEBUG_REPORT_LOW_BATTERY);
         shut_down(BATTERY_LOW_TEXT);
         return;
     }
     keep_awake_while_busy(now_ms);
+    bool sleep_timer = app.power.sleep_timer_active;
     if (power_policy_update(&app.power, now_ms)) {
+        bool slept = sleep_timer && !app.power.sleep_timer_active;
+        debug_loop_shutdown(slept ? DEBUG_REPORT_SLEEP_TIMER : DEBUG_REPORT_AUTO_OFF);
         shut_down(GOODBYE_TEXT);
         return;
     }
@@ -974,6 +980,7 @@ static void charge_step(uint32_t now_ms)
         app.charge_battery = hal_power_battery();
         if (!app.charge_battery.usb_power) {
             app.charging = false;
+            debug_loop_shutdown(DEBUG_REPORT_UNPLUGGED);
             power_off_now();
             return;
         }

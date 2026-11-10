@@ -132,3 +132,18 @@ void hal_system_set_profiling(bool on)
 void hal_system_reset_profile(void)
 {
 }
+
+HalUsbSense hal_system_usb_sense(void)
+{
+    return (HalUsbSense){.kept_on = false};
+}
+
+void hal_system_keep_usb_on(bool kept_on)
+{
+    (void)kept_on;
+}
+
+void hal_system_save_report(uint32_t reason)
+{
+    (void)reason;
+}

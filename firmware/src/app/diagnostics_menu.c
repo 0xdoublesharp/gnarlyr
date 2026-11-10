@@ -92,6 +92,22 @@ static const char *profiler_value(const void *context)
     return STATES[hal_system_profile_state()];
 }
 
+static char usb_sense_text[DIAGNOSTICS_VALUE_CAPACITY];
+
+static ScreenAction switch_usb_sense(void *context)
+{
+    (void)context;
+    hal_system_keep_usb_on(!hal_system_usb_sense().kept_on);
+    return screen_action_none();
+}
+
+static const char *usb_sense_value(const void *context)
+{
+    (void)context;
+    diagnostics_usb_sense_text(hal_system_usb_sense(), usb_sense_text, sizeof usb_sense_text);
+    return usb_sense_text;
+}
+
 typedef enum DiagnosticsContext {
     CONTEXT_NONE,
     CONTEXT_OPTIONS,
@@ -125,6 +141,7 @@ static const DiagnosticsRow ROWS[DIAGNOSTICS_ITEM_COUNT] = {
     [13] = {"DAC A", NULL, diagnostics_row_dac_a, CONTEXT_NONE, false},
     [14] = {"DAC B", NULL, diagnostics_row_dac_b, CONTEXT_NONE, false},
     [15] = {"Profiler", switch_profiler, profiler_value, CONTEXT_NONE, false},
+    [16] = {"USB sense", switch_usb_sense, usb_sense_value, CONTEXT_NONE, false},
 };
 
 static void options_init(AppScreens *screens)

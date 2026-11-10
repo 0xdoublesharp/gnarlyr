@@ -145,6 +145,10 @@ class Machine:
         self.panics = []
         self.reached = {}
         self.usb_connect_count = 0
+        self.usb_log = []
+        self.register_log = []
+        self.host_stays = False
+        self.host_ejected = False
         self.entries = {}
         self.entered = None
         self.parked = None
@@ -366,18 +370,47 @@ class Machine:
         self.halting = True
         self.uc.emu_stop()
 
+    def continue_past_stop(self):
+        """Let the next run go on from a function whose hook stopped the last one on entry."""
+        self.parked = self.uc.reg_read(UC_ARM_REG_PC)
+
     def system_reset_requested(self):
         self.reset_requested = self.cycles()
         self.stop("system reset requested")
 
+    def host_ejects(self):
+        """The host stays plugged in and ejects every drive, where it otherwise unplugs.
+
+        No SCSI traffic is emulated, so the eject is given as the answer of `msc_finished`,
+        the question the session asks on every pass.
+        """
+        self.host_stays = True
+        self.stub_symbol("msc_finished", lambda machine: int(machine.host_ejected))
+
+    def host_leaves(self):
+        if self.host_stays:
+            self.host_ejected = True
+            self.usb_log.append((self.milliseconds(), "host ejects"))
+        else:
+            self.vbus = False
+            self.usb_log.append((self.milliseconds(), "cable pulled"))
+
     def usb_reset_acknowledged(self):
         self.usb_reset_ack = True
-        self.at_ms(self.milliseconds() + HOST_GONE_MS, lambda: setattr(self, "vbus", False))
+        self.usb_log.append((self.milliseconds(), "bus reset acknowledged"))
+        self.at_ms(self.milliseconds() + HOST_GONE_MS, self.host_leaves)
 
     def usb_connected(self):
         self.usb_connect_count += 1
+        self.host_ejected = False
+        self.usb_log.append((self.milliseconds(), "pull-up on" + (", host resets the bus"
+                                                                  if self.vbus else "")))
         if self.vbus:
             self.usb.raise_reset()
+
+    def usb_disconnected(self):
+        self.usb_log.append((self.milliseconds(), "soft disconnect"))
+        self.register_log.append(("usb", "soft disconnect", 0))
 
     def at_ms(self, milliseconds, action):
         self.scheduled.append((milliseconds, action))

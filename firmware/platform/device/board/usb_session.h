@@ -36,6 +36,9 @@ typedef struct UsbOverlayEntry {
     uint32_t magic;
     bool (*storage)(UsbShared *shared);
     void (*dac)(UsbShared *shared);
+#ifdef ECHO_DEBUG_LOOP
+    void (*report)(const UsbShared *shared, uint32_t reason);
+#endif
 } UsbOverlayEntry;
 
 bool usb_session_listen(void);

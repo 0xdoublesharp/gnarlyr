@@ -154,6 +154,7 @@ class Cru(RegisterFile):
 
     def write_word(self, offset, value):
         super().write_word(offset, value)
+        self.machine.register_log.append(("cru", offset, value))
         if offset in (CRU_MODE, CRU_PCLK_SELECT, 0x00, CRU_PLL_CON1):
             self.machine.clock_changed()
 
@@ -171,6 +172,7 @@ class Grf(RegisterFile):
     def write_word(self, offset, value):
         super().write_word(offset, value)
         self.machine.grf_log.append((self.machine.stamp(), offset, value))
+        self.machine.register_log.append(("grf", offset, value))
 
 
 class Pmu(RegisterFile):
@@ -384,6 +386,8 @@ class UsbCore(RegisterFile):
             super().write_word(offset, value)
             if was_disconnected and not value & DCTL_SOFT_DISCONNECT:
                 self.machine.usb_connected()
+            elif not was_disconnected and value & DCTL_SOFT_DISCONNECT:
+                self.machine.usb_disconnected()
             return
         if offset == GRSTCTL:
             self.regs[offset] = value & ~(GRSTCTL_SOFT_RESET | GRSTCTL_FLUSH_BITS)

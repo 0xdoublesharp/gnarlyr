@@ -2,6 +2,7 @@ import argparse
 import importlib.util
 import struct
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -55,8 +56,11 @@ PORTRAIT_LAST_ROW = WIDTH - 1
 SETTINGS_VERSION = 10
 SETTINGS_ORIENTATION_FIELD = 26
 SETTINGS_CHECKSUM_FIELD = 28
-REPORT_PATH = "/" + IDENTITY.data_directory + "/debug/report.txt"
 REPORT_BYTES = 16384
+REPORT_SLOTS = 3
+COLD_REPORT_MS = 10000
+POWER_HOLD_MS = 2600
+DEBUG_FOLDER = IDENTITY.data_directory + "/debug"
 REPORT_START_LIMIT_MS = 250
 CLOCK_SLACK_MS = 5
 CODE_WINDOW_BYTES = 0x2666C
@@ -66,6 +70,11 @@ KEY_PLAY = 250
 KEY_HOLD_MS = 150
 KEY_SETTLE_MS = 350
 ABOUT_PROFILER_ROW = 15
+ABOUT_USB_SENSE_ROW = 16
+USB_POWER_DOWN = [("grf", 0xB4, 0x00010001), ("grf", 0xB4, 0x000E0004), ("grf", 0xB8, 0x00010001),
+                  ("grf", 0x98, 0x00040000), ("cru", 0xC0, 0x00020002), ("cru", 0xC0, 0x00040004),
+                  ("cru", 0xC0, 0x00010001), ("cru", 0x80, 0x00800080), ("cru", 0x98, 0x04000400)]
+SOFT_DISCONNECT = ("usb", "soft disconnect", 0)
 PROFILED_MS = 1500
 FNV_START = 2166136261
 FNV_PRIME = 16777619
@@ -537,11 +546,23 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(session.usb_overlay_reads("slot_2"), [])
         self.assert_healthy(session)
 
+    def reports(self, session):
+        """(path, parsed report) of every report file on the drive, newest first."""
+        reader = session.fat()
+        found = []
+        for slot in range(REPORT_SLOTS):
+            path = "/%s/report%d.txt" % (DEBUG_FOLDER, slot)
+            data = reader.read(path)
+            if data is not None:
+                self.assertEqual(len(data), REPORT_BYTES)
+                found.append((path, echo_debug.parse_report(data.decode("ascii"))))
+        return sorted(found, key=lambda item: -item[1]["values"]["report.sequence"])
+
+    def report_path(self, session):
+        return self.reports(session)[0][0]
+
     def read_report(self, session):
-        data = session.fat().read(REPORT_PATH)
-        self.assertIsNotNone(data)
-        self.assertEqual(len(data), REPORT_BYTES)
-        return echo_debug.parse_report(data.decode("ascii"))
+        return self.reports(session)[0][1]
 
     def mark(self, machine, marks, name, after=None):
         def reached():
@@ -565,6 +586,8 @@ class EchoImageTest(unittest.TestCase):
         values = report["values"]
         self.assertFalse(report["truncated"])
         self.assertEqual(report["unread_lines"], [])
+        self.assertEqual((values["report.sequence"], values["report.reason"],
+                          values["report.cold_start"]), (1, "usb_session", 1))
         self.assertEqual(values["firmware.name"], IDENTITY.name)
         self.assertEqual(values["firmware.version"], IDENTITY.version)
         self.assertEqual(values["firmware.build"],
@@ -575,7 +598,8 @@ class EchoImageTest(unittest.TestCase):
         self.assertTrue(values["core0.idle_us"] <= values["core0.clock_us"])
         self.assertTrue(3900 <= values["battery.millivolts"] <= 4100)
         self.assertEqual(values["battery.usb_power"], 1)
-        self.assertEqual((values["power.vbus"], values["power.charge_pin"]), (1, 1))
+        self.assertEqual((values["power.vbus"], values["power.usb_powered"],
+                          values["power.charge_pin"]), (1, 1, 1))
         self.assertEqual((values["power.adc_raw"], values["power.adc_millivolts"]), (819, 3999))
         self.assertEqual(values["power.gauge_millivolts"], 3999)
         self.assertEqual(values["power.percent_shown"], values["battery.percent"])
@@ -598,7 +622,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(values["profile.bucket_bytes"], PROFILE_BUCKET_BYTES)
         self.assertEqual(values["profile.buckets"], -(-CODE_WINDOW_BYTES // PROFILE_BUCKET_BYTES))
         self.assertEqual(report["profile_buckets"], {})
-        sectors = session.file_sectors(REPORT_PATH)
+        sectors = session.file_sectors(self.report_path(session))
         stamps = [stamp for stamp, lba, count in session.card.writes if lba in sectors]
         self.assertTrue(stamps)
         self.assertTrue(all(started[0] < stamp < served[0] for stamp in stamps))
@@ -606,7 +630,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertLess(delay_ms, REPORT_START_LIMIT_MS)
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
-        text_bytes = len(session.fat().read(REPORT_PATH).rstrip(b"\n"))
+        text_bytes = len(session.fat().read(self.report_path(session)).rstrip(b"\n"))
         print("\n[debug report] %d bytes of text, written in %.1f ms; %.1f ms from the session's "
               "start to serving the host" % (text_bytes, report_ms, delay_ms))
 
@@ -617,7 +641,7 @@ class EchoImageTest(unittest.TestCase):
         machine.answer_waits_for_key(4)
         session.run_to_first_frame()
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
-        first_sectors = session.file_sectors(REPORT_PATH)
+        first_sectors = session.file_sectors(self.report_path(session))
         machine.run(until_ms=machine.milliseconds() + 1500)
         machine.vbus = True
         self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
@@ -635,13 +659,14 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(powers, ["1 1", "0 1"])
         self.assertEqual(values["power.samples"], 1)
         sample = report["power_samples"][0]
-        self.assertEqual((sample["vbus"], sample["charge_pin"], sample["playing"]),
-                         (True, True, False))
+        self.assertEqual((sample["vbus"], sample["charge_pin"], sample["playing"],
+                          sample["usb_powered"]), (True, True, False, True))
         self.assertEqual((sample["minute"], sample["millivolts"]), (0, 3999))
         self.assertEqual(sample["percent"], values["battery.percent"])
-        self.assertEqual(session.file_sectors(REPORT_PATH), first_sectors)
+        self.assertEqual((values["report.sequence"], values["report.cold_start"]), (2, 1))
+        self.assertEqual(session.file_sectors(self.report_path(session)), first_sectors)
         self.assertEqual(session.fat().list("/" + IDENTITY.data_directory + "/debug"),
-                         ["report.txt"])
+                         ["report0.txt"])
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 
@@ -653,6 +678,44 @@ class EchoImageTest(unittest.TestCase):
     def switch_profiler_on(self, machine):
         for key in [KEY_NEXT, KEY_PLAY, KEY_PLAY] + [KEY_NEXT] * ABOUT_PROFILER_ROW + [KEY_PLAY]:
             self.press(machine, key)
+
+    def writes_after_last_disconnect(self, machine, since=0):
+        log = machine.register_log[since:]
+        last = len(log) - 1 - log[::-1].index(SOFT_DISCONNECT)
+        return log[last + 1:]
+
+    def test_usb_sense_kept_on_soft_disconnects_but_leaves_the_usb_hardware_powered(self):
+        session = self.session()
+        machine = session.machine
+        machine.note("hal_system_return_scratch")
+        machine.note("usb_session_storage_changed")
+        machine.answer_waits_for_key(8)
+        machine.run(until=lambda: "hal_system_return_scratch" in machine.reached,
+                    until_ms=self.session_module.FRAME_LIMIT_MS)
+        machine.run(until_ms=machine.milliseconds() + 1500)
+        machine.vbus = True
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        machine.run(until_ms=machine.milliseconds() + 1500)
+        self.assertEqual(self.writes_after_last_disconnect(machine)[:len(USB_POWER_DOWN)],
+                         USB_POWER_DOWN)
+        for key in [KEY_NEXT, KEY_PLAY, KEY_PLAY] + [KEY_NEXT] * ABOUT_USB_SENSE_ROW + [KEY_PLAY]:
+            self.press(machine, key)
+        kept_from = len(machine.register_log)
+        machine.vbus = True
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        machine.run(until_ms=machine.milliseconds() + 1500)
+        values = self.read_report(session)["values"]
+        self.assertEqual((values["usb.sense_mode"], values["power.usb_powered"]), ("kept_on", 1))
+        after = self.writes_after_last_disconnect(machine, kept_from)
+        self.assertEqual([write for write in after if write in USB_POWER_DOWN], [])
+        machine.vbus = True
+        self.assertEqual(self.run_usb_sessions(session, 3), "condition met")
+        machine.run(until_ms=machine.milliseconds() + 1500)
+        normal_from = len(machine.register_log)
+        self.press(machine, KEY_PLAY)
+        self.assertEqual(machine.register_log[normal_from:][-len(USB_POWER_DOWN):], USB_POWER_DOWN)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
 
     def test_the_profiler_row_fills_a_histogram_the_host_tool_symbolises(self):
         session = self.session()
@@ -695,6 +758,121 @@ class EchoImageTest(unittest.TestCase):
         print("\n[profile] %d samples, %s; top functions: %s" % (
             profile["samples"], shares, ", ".join("%s %.0f ms" % (row["name"], row["ms"])
                                           for row in profile["functions"][:5])))
+
+    def ejecting_session(self):
+        session = self.session()
+        machine = session.machine
+        machine.note("usb_session_storage_changed")
+        machine.host_ejects()
+        machine.answer_waits_for_key(4)
+        session.run_to_first_frame()
+        machine.vbus = True
+        return session, machine
+
+    def hold_power(self, machine):
+        machine.power_key_released_at_ms = machine.milliseconds() + POWER_HOLD_MS
+
+    def test_a_long_power_press_saves_a_report_before_the_power_is_cut(self):
+        session = self.session()
+        machine = session.machine
+        machine.note("debug_report_write")
+        session.run_to_home_screen()
+        machine.run(until_ms=COLD_REPORT_MS + 500)
+        self.assertEqual(self.reports(session), [])
+        self.hold_power(machine)
+        self.assertEqual(machine.run(until_ms=machine.milliseconds() + 8000),
+                         "firmware reached hal_power_off")
+        self.assertNotIn("debug_report_write", machine.reached)
+        machine.continue_past_stop()
+        self.assertEqual(machine.run(until_ms=machine.milliseconds() + 5000),
+                         "firmware reached board_power_cut")
+        self.assertEqual(machine.reached["debug_report_write"], 1)
+        self.assertTrue(session.usb_overlay_reads("slot_1"))
+        values = self.read_report(session)["values"]
+        self.assertEqual((values["report.sequence"], values["report.reason"],
+                          values["report.cold_start"]), (1, "shutdown", 0))
+        self.assertGreater(values["uptime_ms"], COLD_REPORT_MS)
+        self.assertEqual(values["battery.source"], "gauge")
+        self.assertEqual((values["power.vbus"], values["power.usb_powered"]), (0, 0))
+        details = [event["kind"] + " " + event["detail"] for event in self.read_report(session)["events"]]
+        self.assertIn("key power long", details)
+        self.assertEqual(machine.faults, [])
+        self.assertEqual(machine.panics, ["hal_power_off", "board_power_cut"])
+        self.assert_only_the_user_volume_changed(session)
+
+    def test_switching_off_on_usb_power_saves_a_report_on_the_way_into_charge_mode(self):
+        session, machine = self.ejecting_session()
+        machine.note("debug_report_write")
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        machine.run(until_ms=COLD_REPORT_MS + 500)
+        self.hold_power(machine)
+        machine.run(until=lambda: machine.reached.get("debug_report_write", 0) >= 2,
+                    until_ms=machine.milliseconds() + 8000)
+        machine.run(until_ms=machine.milliseconds() + 1000)
+        newest, older = self.reports(session)
+        self.assertEqual((newest[1]["values"]["report.sequence"], newest[1]["values"]["report.reason"],
+                          newest[1]["values"]["report.cold_start"]), (2, "shutdown", 0))
+        self.assertEqual((older[1]["values"]["report.reason"], older[1]["values"]["report.cold_start"]),
+                         ("usb_session", 1))
+        self.assertNotEqual(newest[0], older[0])
+        self.assertEqual(newest[1]["values"]["power.vbus"], 1)
+        self.assertEqual(newest[1]["values"]["usb.last_end"], "ejected")
+        self.assertEqual(machine.panics, [])
+        self.assertIsNone(machine.reset_requested)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def cold_session_on(self, earlier):
+        session = earlier.reboot()
+        machine = session.machine
+        machine.note("usb_session_storage_changed")
+        machine.answer_waits_for_key(4)
+        machine.vbus = True
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        return session
+
+    def test_a_cold_start_report_never_overwrites_the_report_before_it(self):
+        first = self.session()
+        machine = first.machine
+        machine.note("usb_session_storage_changed")
+        machine.answer_waits_for_key(4)
+        first.run_to_home_screen()
+        machine.run(until_ms=COLD_REPORT_MS + 500)
+        machine.vbus = True
+        self.assertEqual(self.run_usb_sessions(first, 1), "condition met")
+        kept_path, kept = self.reports(first)[0]
+        kept_bytes = first.fat().read(kept_path)
+        self.assertEqual((kept["values"]["report.sequence"], kept["values"]["report.cold_start"]), (1, 0))
+        second = self.cold_session_on(first)
+        cold_path, cold = self.reports(second)[0]
+        values = cold["values"]
+        self.assertEqual((values["report.sequence"], values["report.cold_start"]), (2, 1))
+        self.assertNotEqual(cold_path, kept_path)
+        self.assertLess(values["uptime_ms"], 2000)
+        self.assertEqual(values["start.warm"], 0)
+        self.assertEqual(values["battery.source"], "start_up_sample")
+        self.assertEqual((values["battery.millivolts"], values["battery.usb_power"]), (3999, 1))
+        self.assertEqual((values["power.adc_source"], values["power.adc_raw"]), ("start_up_sample", 819))
+        self.assertEqual(values["power.gauge_readings"], 0)
+        self.assertIsNone(values["power.gauge_millivolts"])
+        third = self.cold_session_on(second)
+        newest, older = self.reports(third)
+        self.assertEqual((newest[0], newest[1]["values"]["report.sequence"]), (cold_path, 3))
+        self.assertEqual(older[0], kept_path)
+        self.assertEqual(third.fat().read(kept_path), kept_bytes)
+        self.assertEqual(len(third.fat().list("/" + DEBUG_FOLDER)), 2)
+        with tempfile.TemporaryDirectory() as directory:
+            volume = Path(directory) / "volume"
+            third.fat().extract("/" + DEBUG_FOLDER, volume / IDENTITY.data_directory / "debug")
+            tool = echo_debug.Tool(volume=volume)
+            status = tool.status()
+            self.assertTrue(status["cold_start_only"])
+            self.assertIn("advice", status)
+            listed = tool.report()["reports"]
+            self.assertEqual([(item["sequence"], item["cold_start"], item["reason"]) for item in listed],
+                             [(3, True, "usb_session"), (1, False, "usb_session")])
+        self.assert_only_the_user_volume_changed(third)
+        self.assert_healthy(third)
 
     def run_usb_sessions(self, session, count):
         reached = session.machine.reached

@@ -5,6 +5,7 @@
 #include "debug_loop_internal.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
+#include "hal/system.h"
 
 enum {
     FOLLOW_INTERVAL_MS = 100,
@@ -20,6 +21,7 @@ typedef struct DebugLoop {
     uint32_t underruns;
     uint32_t output_underruns;
     uint32_t followed_ms;
+    uint32_t shutdown_reason;
 } DebugLoop;
 
 static DebugLoop loop;
@@ -81,6 +83,26 @@ void debug_loop_follow(uint32_t now_ms, const Player *player)
     if (now_ms - loop.followed_ms >= FOLLOW_INTERVAL_MS) {
         loop.followed_ms = now_ms;
         follow_audio();
+    }
+}
+
+void debug_loop_shutdown(DebugReportReason reason)
+{
+    loop.shutdown_reason = reason;
+}
+
+uint32_t debug_loop_take_shutdown(void)
+{
+    uint32_t reason = loop.shutdown_reason;
+    loop.shutdown_reason = DEBUG_REPORT_NONE;
+    return reason;
+}
+
+void debug_loop_save_report(void)
+{
+    uint32_t reason = debug_loop_take_shutdown();
+    if (reason != DEBUG_REPORT_NONE) {
+        hal_system_save_report(reason);
     }
 }
 

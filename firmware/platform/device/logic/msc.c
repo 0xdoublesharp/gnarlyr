@@ -1,4 +1,5 @@
 #include "device/msc.h"
+#include "core/seam.h"
 
 #include <stddef.h>
 
@@ -144,7 +145,7 @@ static void remember(Msc *msc)
     }
 }
 
-bool msc_finished(const Msc *msc)
+CORE_SEAM bool msc_finished(const Msc *msc)
 {
     return msc->present_at_start != 0 &&
            (msc->ejected & msc->present_at_start) == msc->present_at_start;
