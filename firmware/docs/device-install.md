@@ -101,7 +101,7 @@ Installing FiiO's image this way is the file-copy way back to FiiO's firmware ("
 
 Developer builds up to commit `2991a27` are called Doublesharp Echo. Their updater installs only images with the `DBLSHARP` brand from a file named `DBLSHARP.IMG`, and FreshBase's updater refuses those images, so neither installs the other. A player that runs a Doublesharp Echo build moves over in two installs through the updater. Both have run in the emulator only.
 
-1. **Install the bridge build.** The branch `bridge-frshbs` is commit `2991a27` with one change: its updater also accepts images with the `FRSHBS` brand, in a file named `FRSHBS.IMG` or `DBLSHARP.IMG`. It is a Doublesharp Echo build in every other way, so the build on the player installs it as `DBLSHARP.IMG`. The branch is never merged.
+1. **Install the bridge build.** The branch `bridge-frshbs` is commit `2991a27` with one change to the firmware: its updater also accepts images with the `FRSHBS` brand, in a file named `FRSHBS.IMG` or `DBLSHARP.IMG`. (Its second commit changes the host tool, as the table below says.) It is a Doublesharp Echo build in every other way, so the build on the player installs it as `DBLSHARP.IMG`. The branch is never merged.
 2. **Install FreshBase from the bridge build.** Copy `FRSHBS.IMG` to the top level of internal storage, under its own name or as `DBLSHARP.IMG`, and eject. The bridge build installs it, slot 2 first, like any update.
 
 The debug loop's host tool (`../../tools/echo_debug.py`) looks for the player, its data folder and the image brand of its own checkout, so the checkout decides which step it can do:
