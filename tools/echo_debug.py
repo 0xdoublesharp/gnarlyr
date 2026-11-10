@@ -6,16 +6,23 @@ internal drive, over ordinary USB mass storage. Every command prints one JSON ob
 failure prints {"ok": false, "error": {"code", "message"}} and exits with status 1.
 
 The tool finds the player by its USB identity and its internal drive by name and size. It
-never writes, never formats, never opens a raw device and never reads the microSD card's
-volume. `--volume PATH` names the internal drive's folder directly: for tests, and for a
-volume extracted from an emulator run.
+writes only the update file at the drive's top level and files inside the debug folder. It
+never formats, never opens a raw device and never reads or writes the microSD card's volume;
+it only ejects that volume, because the player ends a USB session when every drive is ejected.
+`--volume PATH` names the internal drive's folder directly: for tests, and for a volume
+extracted from an emulator run. With it nothing is ejected and nothing is waited for.
 """
 import argparse
+import hashlib
 import json
+import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
+import time
+import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +32,23 @@ DEBUG_DIRECTORY = "debug"
 REPORT_FILES = tuple("report%d.txt" % slot for slot in range(3))
 COLD_START_ADVICE = ("the newest report was written just after a cold start and holds nothing from before it: "
                      "leave the player switched on when it is plugged in or reconnects")
+RUN_FILE = "run.txt"
+RESTART_FILE = "restart.req"
+RESTART_TEXT = b"RESTART AFTER INSTALL\n"
+UPDATE_FILE = IDENTITY["update_file"]
+IMAGE_BRAND = slice(0x10, 0x18)
+IMAGE_BUILD = slice(0x30, 0x38)
+IMAGE_BYTES = range(0x1000, (64 << 20) + 1)
+SCRIPT_BYTES = 640
+SCRIPT_LINES = 40
+SCREENSHOT_FILE = "shot%d.565"
+SCREENSHOT_HEADER = struct.Struct("<4sBBHHHI12s4x")
+SCREENSHOT_MAGIC = b"DSSH"
+SCREENSHOT_SIDE = 480
+DEFAULT_TIMEOUT = 420.0
+LEAVE_TIMEOUT = 60.0
+POLL_SECONDS = 0.5
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 REPORT_SCHEMA = 1
 REPORT_BYTES = 16384
 SCHEMA_KEY = "debug_report"
@@ -179,6 +203,30 @@ def parse_sample(text):
             "usb_kept_on": usb_kept_on}
 
 
+def parse_script_line(text):
+    fields = text.split(" ", 2)
+    if len(fields) < 2 or not fields[0].isdigit():
+        raise DebugError("bad_report", f"cannot read the script line {text!r}")
+    return {"line": int(fields[0]), "status": fields[1], "text": fields[2] if len(fields) > 2 else ""}
+
+
+def parse_measure(text):
+    measure = {}
+    for field in text.split():
+        name, separator, value = field.partition("=")
+        if not separator:
+            raise DebugError("bad_report", f"cannot read the measure field {field!r}")
+        measure[name] = parse_value(value)
+    return measure
+
+
+def parse_screenshot(text):
+    fields = text.split()
+    if len(fields) != 2 or not fields[0].isdigit():
+        raise DebugError("bad_report", f"cannot read the screenshot line {text!r}")
+    return {"slot": int(fields[0]), "name": fields[1]}
+
+
 def report_body(text):
     """The report's lines up to its end line, checked against the length that line states."""
     match = re.search(r"^truncated: ([01])\nend: (\d+)\n", text, re.MULTILINE)
@@ -201,6 +249,10 @@ def parse_report(text):
         raise DebugError("unsupported_schema", f"report schema {schema!r}; this tool reads schema {REPORT_SCHEMA}")
     body, truncated = report_body(text)
     values, events, buckets, unread, samples = {}, [], {}, [], []
+    script = {"lines": [], "measures": [], "screenshots": []}
+    repeated = {"script.line": (script["lines"], parse_script_line),
+                "script.measure": (script["measures"], parse_measure),
+                "script.screenshot": (script["screenshots"], parse_screenshot)}
     for line in body.splitlines():
         key, separator, value = line.partition(": ")
         if not separator:
@@ -211,10 +263,12 @@ def parse_report(text):
             parse_row(value, buckets)
         elif key == "power.sample":
             samples.extend(parse_sample(sample) for sample in value.split(";"))
+        elif key in repeated:
+            repeated[key][0].append(repeated[key][1](value))
         else:
             values[key] = parse_text(value) if key.startswith(TEXT_KEY_PREFIXES) else parse_value(value)
     return {"schema": schema, "truncated": truncated, "values": values, "events": events,
-            "power_samples": samples,
+            "power_samples": samples, "script": script,
             "profile_buckets": {str(index): count for index, count in sorted(buckets.items())},
             "unread_lines": unread}
 
@@ -332,13 +386,98 @@ def run_nm(elf, nm=None):
     return result.stdout
 
 
+def script_lines(text):
+    """The lines of a script that are neither blank nor a comment."""
+    return [line.strip() for line in text.split("\n") if line.strip() and not line.strip().startswith("#")]
+
+
+def echoed_lines(data):
+    """The script's lines as the player's report shows them: other bytes than plain ASCII as `?`."""
+    return ["".join(chr(byte) if 32 <= byte <= 126 else "?" for byte in line.encode("utf-8"))
+            for line in script_lines(data.decode("utf-8"))]
+
+
+def names_build(text):
+    lines = script_lines(text)
+    return bool(lines) and lines[0].split()[0].lower() == "build"
+
+
+def prepare_script(text, build):
+    """The script as it is sent: line feeds only, and a `build` line first if it had none."""
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    if not text.endswith("\n"):
+        text += "\n"
+    if not names_build(text):
+        if not build:
+            raise DebugError("build_unknown", "the script names no build and the player's report gives none; "
+                                              "start the script with `build TAG` or `build any`")
+        text = f"build {build}\n" + text
+    data = text.encode("utf-8")
+    if len(data) > SCRIPT_BYTES:
+        raise DebugError("script_too_long", f"the script is {len(data)} bytes; the player takes {SCRIPT_BYTES}")
+    if text.count("\n") > SCRIPT_LINES:
+        raise DebugError("script_too_long", f"the script has {text.count(chr(10))} lines; the player takes {SCRIPT_LINES}")
+    return data
+
+
+def rgb888(pixels, count):
+    """RGB565 little-endian pixels as RGB bytes, widening each channel by its top bits."""
+    output = bytearray(3 * count)
+    for index, (value,) in enumerate(struct.iter_unpack("<H", pixels[:2 * count])):
+        red, green, blue = value >> 11, value >> 5 & 0x3F, value & 0x1F
+        output[3 * index:3 * index + 3] = (red << 3 | red >> 2, green << 2 | green >> 4, blue << 3 | blue >> 2)
+    return bytes(output)
+
+
+def png_chunk(kind, data):
+    return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+
+
+def png_bytes(width, height, rgb):
+    """An 8-bit RGB PNG of the given rows."""
+    row = 3 * width
+    lines = b"".join(b"\0" + rgb[top * row:(top + 1) * row] for top in range(height))
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (PNG_SIGNATURE + png_chunk(b"IHDR", header) + png_chunk(b"IDAT", zlib.compress(lines, 9))
+            + png_chunk(b"IEND", b""))
+
+
+def read_screenshot(data):
+    """(header fields, PNG bytes) of one screenshot file; DebugError when it is not one."""
+    if len(data) < SCREENSHOT_HEADER.size:
+        raise DebugError("bad_screenshot", "the file is shorter than a screenshot header")
+    magic, version, pixel_format, width, height, header, uptime_ms, name = SCREENSHOT_HEADER.unpack_from(data)
+    if magic != SCREENSHOT_MAGIC or (version, pixel_format) != (1, 1):
+        raise DebugError("bad_screenshot", "the file has no finished screenshot in a format this tool reads")
+    if not (0 < width <= SCREENSHOT_SIDE and 0 < height <= SCREENSHOT_SIDE) or header != SCREENSHOT_HEADER.size:
+        raise DebugError("bad_screenshot", f"the screenshot claims {width} x {height} pixels")
+    if len(data) < header + 2 * width * height:
+        raise DebugError("bad_screenshot", "the file is shorter than its picture")
+    fields = {"name": name.rstrip(b"\0").decode("ascii", "replace"), "width": width, "height": height,
+              "uptime_ms": uptime_ms}
+    return fields, png_bytes(width, height, rgb888(data[header:], width * height))
+
+
+def image_build(data):
+    """The build tag of a firmware image for this player; DebugError for any other file."""
+    if len(data) not in IMAGE_BYTES:
+        raise DebugError("not_an_image", f"{len(data)} bytes is not the size of a firmware image")
+    brand = data[IMAGE_BRAND].rstrip(b"\0 ").decode("ascii", "replace")
+    if brand != IDENTITY["id"]:
+        raise DebugError("not_an_image", f"the file's brand is {brand!r}, not {IDENTITY['id']!r}")
+    return data[IMAGE_BUILD].rstrip(b"\0 ").decode("ascii", "replace")
+
+
 class Tool:
     """The operations behind both the command line and the MCP server."""
 
-    def __init__(self, host=None, volume=None, volume_name=DEFAULT_VOLUME_NAME):
+    def __init__(self, host=None, volume=None, volume_name=DEFAULT_VOLUME_NAME, sleep=time.sleep,
+                 clock=time.monotonic):
         self.host = host or MacHost()
         self.volume = Path(volume) if volume is not None else None
         self.volume_name = volume_name
+        self.sleep = sleep
+        self.clock = clock
 
     def override(self):
         if not self.volume.is_dir():
@@ -437,6 +576,139 @@ class Tool:
                 "profile": symbolise(parsed, text, top, map_text)}
 
 
+    def guarded(self, root, path):
+        """The path, if the tool may write it: the update file or a file in the debug folder."""
+        root = root.resolve()
+        debug = root / DATA_DIRECTORY / DEBUG_DIRECTORY
+        resolved = (path.parent.resolve() / path.name)
+        allowed = resolved == root / UPDATE_FILE or resolved.parent == debug
+        if not allowed or resolved.is_symlink() or resolved.is_dir():
+            raise DebugError("write_refused", f"{path} is neither the update file nor a file in the debug folder")
+        return resolved
+
+    def write(self, root, path, data):
+        target = self.guarded(root, path)
+        if not (root / DATA_DIRECTORY).is_dir():
+            raise DebugError("not_a_player_volume", f"{root} has no {DATA_DIRECTORY} folder")
+        target.parent.mkdir(exist_ok=True)
+        with open(target, "wb") as file:
+            file.write(data)
+            file.flush()
+            os.fsync(file.fileno())
+        return target
+
+    def eject(self, found):
+        """Eject every drive of the player so that it ends the session; nothing with --volume."""
+        if found["source"] != "usb":
+            return []
+        mounts = [found["volume"]] + [volume["mount_point"] for volume in found["usb"]["card_volumes"]]
+        for mount in mounts:
+            self.host.eject(mount)
+        return mounts
+
+    def poll(self):
+        try:
+            return self.locate()
+        except DebugError:
+            return {"connected": False}
+
+    def wait_until(self, connected, seconds):
+        deadline = self.clock() + seconds
+        while self.poll()["connected"] != connected:
+            if self.clock() >= deadline:
+                return False
+            self.sleep(POLL_SECONDS)
+        return True
+
+    def wait_for_return(self, timeout):
+        """Wait for the player to leave USB after the eject and to come back by itself."""
+        if not self.wait_until(False, LEAVE_TIMEOUT):
+            raise DebugError("player_did_not_leave", "the player was still on USB a minute after the eject")
+        if not self.wait_until(True, timeout):
+            raise DebugError("player_did_not_return",
+                             f"the player did not come back on USB within {timeout:.0f} s")
+
+    def wait(self, timeout=DEFAULT_TIMEOUT):
+        """Wait until the player is on USB with its internal drive mounted, then report status."""
+        if not self.wait_until(True, timeout):
+            raise DebugError("player_did_not_return",
+                             f"the player was not on USB within {timeout:.0f} s")
+        return self.status()
+
+    def install(self, image, restart=False, timeout=DEFAULT_TIMEOUT):
+        found = self.locate()
+        root = self.root()
+        data = Path(image).read_bytes() if Path(image).is_file() else None
+        if data is None:
+            raise DebugError("image_missing", f"{image} is not a file")
+        build = image_build(data)
+        digest = hashlib.sha256(data).hexdigest()
+        target = self.write(root, root / UPDATE_FILE, data)
+        if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+            raise DebugError("copy_mismatch", f"{target} does not read back as it was written")
+        if restart:
+            self.write(root, root / DATA_DIRECTORY / DEBUG_DIRECTORY / RESTART_FILE, RESTART_TEXT)
+        result = {"ok": True, "update_file": str(target), "bytes": len(data), "sha256": digest,
+                  "image_build": build, "restart_requested": restart, "ejected": self.eject(found),
+                  "waited": False}
+        if restart and found["source"] == "usb":
+            self.wait_for_return(timeout)
+            running = self.read_report()[1]["values"].get("firmware.build")
+            result.update(waited=True, running_build=running, running_the_image=running == build)
+        return result
+
+    def check_run(self, sent, parsed):
+        """The report's script section, if it is the run of the script that was sent."""
+        echoed = [line["text"] for line in parsed["script"]["lines"]]
+        if echoed != echoed_lines(sent):
+            raise DebugError("stale_report", "the report does not show the script that was sent")
+        state = parsed["values"].get("script.state")
+        if state != "finished":
+            raise DebugError("script_" + str(state), f"the player reports the script as {state}")
+        return {"state": state, **parsed["script"],
+                "started_ms": parsed["values"].get("script.started_ms"),
+                "finished_ms": parsed["values"].get("script.finished_ms")}
+
+    def run(self, script, timeout=DEFAULT_TIMEOUT):
+        if not Path(script).is_file():
+            raise DebugError("script_missing", f"{script} is not a file")
+        return self.run_text(Path(script).read_text(encoding="utf-8"), timeout)
+
+    def run_text(self, text, timeout=DEFAULT_TIMEOUT):
+        found = self.locate()
+        root = self.root()
+        build = None if names_build(text) else self.read_report()[1]["values"].get("firmware.build")
+        data = prepare_script(text, build)
+        target = self.write(root, root / DATA_DIRECTORY / DEBUG_DIRECTORY / RUN_FILE, data)
+        result = {"ok": True, "script_file": str(target), "sent": data.decode("utf-8"),
+                  "ejected": self.eject(found), "waited": False}
+        if found["source"] == "usb":
+            self.wait_for_return(timeout)
+            path, parsed = self.read_report()
+            result.update(waited=True, report_path=str(path), script=self.check_run(data, parsed),
+                          events=parsed["events"])
+        return result
+
+    def screenshots(self, out):
+        root = self.root()
+        out = Path(out).resolve()
+        if out == root.resolve() or root.resolve() in out.parents:
+            raise DebugError("write_refused", "the PNG files do not go onto the player's drive")
+        _, parsed = self.read_report()
+        out.mkdir(parents=True, exist_ok=True)
+        converted = []
+        for shot in parsed["script"]["screenshots"]:
+            source = root / DATA_DIRECTORY / DEBUG_DIRECTORY / (SCREENSHOT_FILE % shot["slot"])
+            if not source.is_file():
+                raise DebugError("screenshot_missing", f"{source} does not exist")
+            fields, png = read_screenshot(source.read_bytes())
+            if fields["name"] != shot["name"]:
+                raise DebugError("stale_screenshot", f"{source} holds {fields['name']!r}, not {shot['name']!r}")
+            target = out / (shot["name"] + ".png")
+            target.write_bytes(png)
+            converted.append({**fields, "slot": shot["slot"], "source": str(source), "png": str(target)})
+        return {"ok": True, "screenshots": converted}
+
 
 class JsonParser(argparse.ArgumentParser):
     def error(self, message):
@@ -457,6 +729,21 @@ def build_parser():
     profile.add_argument("--elf", type=Path, required=True, help="echo_device.elf of the build that ran")
     profile.add_argument("--nm", help=f"the nm to run on the ELF (default {ARM_NM})")
     profile.add_argument("--top", type=int, default=DEFAULT_TOP, help="how many rows to list")
+    install = commands.add_parser("install", help=f"copy an image as {UPDATE_FILE}, check the copy and eject")
+    install.add_argument("image", type=Path)
+    install.add_argument("--restart", action="store_true",
+                         help="ask a developer build to restart by itself after the install, and wait for it")
+    install.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT,
+                         help="seconds to wait for the player to come back (default %(default)s)")
+    run = commands.add_parser("run", help="copy a script, eject, wait for the player and collect the results")
+    run.add_argument("script", type=Path)
+    run.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT,
+                     help="seconds to wait for the player to come back (default %(default)s)")
+    wait = commands.add_parser("wait", help="wait until the player is on USB, then print its status")
+    wait.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT,
+                      help="seconds to wait (default %(default)s)")
+    shots = commands.add_parser("screenshots", help="convert the last run's screenshots to PNG")
+    shots.add_argument("--out", type=Path, required=True, help="a folder for the PNG files, not on the player")
     return parser
 
 
@@ -465,6 +752,14 @@ def dispatch(tool, arguments):
         return tool.status()
     if arguments.command == "report":
         return tool.report()
+    if arguments.command == "install":
+        return tool.install(arguments.image, arguments.restart, arguments.timeout)
+    if arguments.command == "run":
+        return tool.run(arguments.script, arguments.timeout)
+    if arguments.command == "wait":
+        return tool.wait(arguments.timeout)
+    if arguments.command == "screenshots":
+        return tool.screenshots(arguments.out)
     return tool.profile(arguments.elf, arguments.nm, arguments.top)
 
 
