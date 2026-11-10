@@ -48,6 +48,7 @@ What this project checked on a player: on the owner's Echo (4 GB), an earlier bu
 
 ## Board details
 
+- The battery ADC (channel 0) reads the rail the player runs from, not the cell alone. On battery, or with the USB supply pins held low, it is the cell (4213 mV full on the owner's player). On USB power while the cell is charging it tracks the cell; once charging has finished it sits above it and moves with the load (4.3 to 4.8 V seen). A reading above 4.3 V on USB power therefore means the charge is complete, and a millivolt figure taken on USB power is not a battery level.
 - GPIO2.0 and GPIO0.14 are the USB supply pins: GPIO2.0 high takes power from USB, GPIO0.14 high charges the battery (meanings from stock's USB audio charging modes). They follow the cable: low with no cable and before power-off, high once cable power is seen. Held high with no cable, a USB-C host does not recognise the player when it is plugged in, so it supplies no power and nothing is detected; seen on the owner's player with a Mac, where lowering GPIO2.0 in that state brought the connection up in 0.3 s.
 - DAC mute is GPIO2.1 and the DAC has no reset pin.
 - The 4.4 mm jack reads high when plugged (GPIO2.8); the 3.5 mm jack reads as above.
