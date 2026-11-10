@@ -6,7 +6,8 @@
 
 enum {
     UNKNOWN = 0,
-    REPLACEMENT = 1
+    REPLACEMENT = 1,
+    PIXELS_PER_ROUND = 8
 };
 
 void frame_diff_init(FrameDiff *diff, uint32_t *hashes, int rows)
@@ -22,17 +23,28 @@ void frame_diff_forget(FrameDiff *diff)
     }
 }
 
+static uint32_t pair_at(const Color *row)
+{
+    uint32_t pair;
+    __builtin_memcpy(&pair, row, sizeof pair);
+    return pair;
+}
+
 static uint32_t row_hash(const Color *row, int width)
 {
     uint32_t hash = HASH_START;
     int index = 0;
+    for (; index + PIXELS_PER_ROUND <= width; index += PIXELS_PER_ROUND) {
+        hash = (hash ^ pair_at(row + index)) * HASH_PRIME;
+        hash = (hash ^ pair_at(row + index + 2)) * HASH_PRIME;
+        hash = (hash ^ pair_at(row + index + 4)) * HASH_PRIME;
+        hash = (hash ^ pair_at(row + index + 6)) * HASH_PRIME;
+    }
     for (; index + 1 < width; index += 2) {
-        hash ^= (uint32_t)row[index] | (uint32_t)row[index + 1] << 16;
-        hash *= HASH_PRIME;
+        hash = (hash ^ pair_at(row + index)) * HASH_PRIME;
     }
     if (index < width) {
-        hash ^= row[index];
-        hash *= HASH_PRIME;
+        hash = (hash ^ row[index]) * HASH_PRIME;
     }
     return hash == UNKNOWN ? REPLACEMENT : hash;
 }
