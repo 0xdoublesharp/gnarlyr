@@ -26,6 +26,15 @@ void board_display_clear(void);
 void board_input_start(void);
 void board_glyphs_start(void);
 bool board_slot_read(uint32_t slot, uint32_t at, void *buffer, uint32_t length);
+
+typedef struct BoardImageTable {
+    uint32_t offset;
+    uint32_t magic;
+    uint32_t rows;
+} BoardImageTable;
+
+bool board_slot_table_row(uint32_t slot, const BoardImageTable *listing, uint32_t index,
+                          uint32_t *row);
 void board_input_sample(uint32_t now_ms);
 BatteryGauge board_battery_gauge(void);
 void board_battery_restart(void);

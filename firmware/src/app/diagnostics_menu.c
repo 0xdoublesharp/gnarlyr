@@ -161,10 +161,10 @@ static const DiagnosticsRow ROWS[DIAGNOSTICS_ITEM_COUNT] = {
 
 static void options_init(AppScreens *screens)
 {
-    screens->clock = (ClockOption){.failed = false};
+    screens->modules.settings.clock = (ClockOption){.failed = false};
 }
 
-static void build_rows(AppScreens *screens, AppOptions *options)
+static void build_rows(SettingsModuleScreens *screens, AppOptions *options)
 {
     void *contexts[CONTEXT_COUNT] = {[CONTEXT_OPTIONS] = options,
                                      [CONTEXT_CLOCK] = &screens->clock,
@@ -181,8 +181,9 @@ static void build_rows(AppScreens *screens, AppOptions *options)
 
 void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Theme *theme)
 {
+    SettingsModuleScreens *own = &screens->modules.settings;
     options_init(screens);
-    build_rows(screens, options);
-    app_screens_build_menu(&screens->diagnostics, STR_ABOUT, screens->diagnostics_items,
+    build_rows(own, options);
+    app_screens_build_menu(&own->diagnostics, STR_ABOUT, own->diagnostics_items,
                            DIAGNOSTICS_ITEM_COUNT, theme);
 }

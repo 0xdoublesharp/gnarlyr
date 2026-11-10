@@ -171,6 +171,17 @@ echo_add_unit_test(NAME test_app_language
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 
+echo_add_unit_test(NAME test_app_modules
+    SOURCES app/test_app_modules.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+echo_add_unit_test(NAME test_screen_modules
+    SOURCES app/test_screen_modules.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
 echo_add_unit_test(NAME test_pseudo_language
     SOURCES app/test_pseudo_language.c app/fake_hal.c support/text_spy.c
     LIBRARIES echo_app echo_library_fixtures echo_test_pack

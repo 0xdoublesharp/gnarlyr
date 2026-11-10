@@ -420,6 +420,153 @@ class SectionCheckTest(unittest.TestCase):
             make_image.check_sections(self.sections_with(".stray", 1))
 
 
+def module_blob(number, body=b"\x5A" * 100):
+    return bytes(16) + make_image.module_magic(number) + body
+
+
+def module_elf(content, bss_size=0, base=make_image.MODULE_BASE):
+    sections = [(".overlay", SHT_PROGBITS, SHF_ALLOC, base, content, len(content))]
+    if bss_size:
+        sections.append((".bss", SHT_NOBITS, SHF_ALLOC | 1, base + len(content), b"", bss_size))
+    return elf_file(sections)
+
+
+class ModuleTest(unittest.TestCase):
+    FACES = [b"\x01" * 700, b"\x02" * 40_000, b"\x03" * 7_000]
+
+    def rows(self, image):
+        return make_image.modules_in(image)
+
+    def test_modules_land_where_their_table_says_in_the_order_of_their_numbers(self):
+        modules = [module_blob(1, b"a" * 900), module_blob(2, b"b" * 40)]
+        image = build(modules=modules)
+        table = make_image.MODULE_TABLE_OFFSET
+        self.assertEqual(b"DSMT", image[table:table + 4])
+        self.assertEqual(2, word(image, table + 4))
+        rows = self.rows(image)
+        self.assertEqual([len(module) for module in modules], [size for _, size in rows])
+        for (offset, size), module in zip(rows, modules):
+            self.assertEqual(0, offset % 512)
+            self.assertEqual(module[16:], image[offset + 16:offset + size])
+        self.assertEqual([], make_image.validate_image(image))
+
+    def test_a_module_header_is_an_overlay_header_with_the_modules_number_in_its_magic(self):
+        parts = firmware(code_tail=b"\x11\x22\x33\x44" * 16)
+        modules = [module_blob(1), module_blob(2, b"second")]
+        image = build(parts, modules=modules)
+        for number, ((offset, size), module) in enumerate(zip(self.rows(image), modules), 1):
+            self.assertEqual(b"DSM" + bytes([number]), image[offset:offset + 4])
+            self.assertEqual(size, word(image, offset + 4))
+            self.assertEqual(make_image.crc32(module[16:]), word(image, offset + 8))
+            self.assertEqual(make_image.crc32(parts.code), word(image, offset + 12))
+
+    def test_a_module_built_against_other_code_gets_another_binding(self):
+        first = build(firmware(code_tail=b"\x01" * 64), modules=[module_blob(1)])
+        second = build(firmware(code_tail=b"\x02" * 64), modules=[module_blob(1)])
+        offset = self.rows(first)[0][0]
+        self.assertEqual(offset, self.rows(second)[0][0])
+        self.assertNotEqual(word(first, offset + 12), word(second, offset + 12))
+
+    def test_modules_given_out_of_order_are_refused(self):
+        with self.assertRaises(make_image.ImageError):
+            build(modules=[module_blob(2), module_blob(1)])
+
+    def test_a_module_without_an_entry_table_is_refused(self):
+        with self.assertRaises(make_image.ImageError):
+            build(modules=[bytes(16)])
+
+    def test_a_module_larger_than_the_slot_is_refused(self):
+        with self.assertRaises(make_image.ImageError):
+            build(modules=[module_blob(1, bytes(make_image.MODULE_CAPACITY))])
+
+    def test_a_module_that_fills_the_slot_is_accepted(self):
+        full = module_blob(1, bytes(make_image.MODULE_CAPACITY - 20))
+        self.assertEqual(make_image.MODULE_CAPACITY, self.rows(build(modules=[full]))[0][1])
+
+    def test_more_modules_than_the_table_holds_are_refused(self):
+        self.assertEqual(31, make_image.MODULE_LIMIT)
+        with self.assertRaises(make_image.ImageError):
+            build(modules=[module_blob(number) for number in range(1, 33)])
+
+    def test_modules_follow_the_faces_and_the_packs_and_move_none_of_them(self):
+        parts = {"overlay": overlay_blob(), "usb_overlay": overlay_blob(),
+                 "core1_mp3": b"\x11" * 3000, "core1_flac": b"\x22" * 2000,
+                 "core1_m4a": b"\x33" * 1000, "glyph_faces": self.FACES,
+                 "language_packs": [language("en")]}
+        plain = build(**parts)
+        with_modules = build(modules=[module_blob(1, b"m" * 5000), module_blob(2)], **parts)
+        rows = self.rows(with_modules)
+        pack = word(with_modules, make_image.LANGUAGE_TABLE_OFFSET + 8)
+        self.assertGreater(rows[0][0], pack)
+        table = range(make_image.MODULE_TABLE_OFFSET, make_image.MODULE_TABLE_OFFSET + 512)
+        changed = [index for index in range(make_image.fw_end(make_image.FW_SIZE))
+                   if plain[index] != with_modules[index]]
+        self.assertTrue(all(index in table or any(offset <= index < offset + size
+                                                  for offset, size in rows)
+                            for index in changed))
+
+    def test_the_modules_lie_inside_the_slot_the_updater_writes_and_the_crc_covers_them(self):
+        image = bytearray(build(glyph_faces=self.FACES, modules=[module_blob(1), module_blob(2)]))
+        for offset, size in self.rows(image):
+            self.assertLessEqual(offset + size, make_image.FW_SIZE)
+        image[self.rows(image)[1][0] + 30] ^= 1
+        self.assertNotEqual([], make_image.validate_image(bytes(image)))
+
+    def test_no_modules_leave_the_table_empty(self):
+        table = make_image.MODULE_TABLE_OFFSET
+        self.assertEqual(bytes(512), build()[table:table + 512])
+        self.assertEqual([], self.rows(build()))
+
+    def test_the_module_table_takes_the_first_sector_after_the_rescan_overlay(self):
+        self.assertEqual(make_image.OVERLAY_OFFSET + make_image.OVERLAY_CAPACITY,
+                         make_image.MODULE_TABLE_OFFSET)
+        self.assertIn((make_image.MODULE_TABLE_OFFSET + 512, make_image.CORE1_MP3_OFFSET),
+                      make_image.GLYPH_REGIONS)
+
+    def test_a_module_comes_from_its_elf_section_and_may_have_zeroed_memory(self):
+        content = module_blob(1)
+        self.assertEqual(content, make_image.module_from_elf(module_elf(content, bss_size=0x400)))
+
+    def test_a_module_linked_for_another_address_is_refused(self):
+        with self.assertRaises(make_image.ImageError):
+            make_image.module_from_elf(module_elf(module_blob(1), base=make_image.OVERLAY_BASE))
+
+    def test_zeroed_memory_past_the_slot_is_refused(self):
+        content = module_blob(1)
+        size = make_image.MODULE_CAPACITY - len(content) + 4
+        with self.assertRaises(make_image.ImageError):
+            make_image.module_from_elf(module_elf(content, bss_size=size))
+
+    def test_the_slot_ends_where_the_overlay_window_ends(self):
+        self.assertEqual(make_image.OVERLAY_BASE + make_image.OVERLAY_CAPACITY,
+                         make_image.MODULE_BASE + make_image.MODULE_CAPACITY)
+
+    def test_the_player_and_the_linker_scripts_use_the_builders_slot_and_table(self):
+        device = TOOLS_DIRECTORY.parent / "platform" / "device"
+        header = (device / "board" / "overlay.h").read_text()
+        self.assertIn(f"MODULE_SLOT_BASE 0x{make_image.MODULE_BASE:08X}u", header)
+        self.assertIn(f"MODULE_SLOT_BYTES 0x{make_image.MODULE_CAPACITY:X}u", header)
+        self.assertIn(f"MODULE_TABLE_OFFSET 0x{make_image.MODULE_TABLE_OFFSET:X}u", header)
+        self.assertIn(f"MODULE_TABLE_ROWS {make_image.MODULE_LIMIT}u", header)
+        table_magic = int.from_bytes(make_image.MODULE_TABLE_MAGIC, "little")
+        self.assertIn(f"MODULE_TABLE_MAGIC 0x{table_magic:08X}u", header)
+        magic = int.from_bytes(make_image.MODULE_MAGIC + b"\x00", "little")
+        self.assertIn(f"MODULE_MAGIC 0x{magic:08X}u", header)
+        region = (f"MODULE_RAM (rw) : ORIGIN = 0x{make_image.MODULE_BASE:08X}, "
+                  f"LENGTH = 0x{make_image.MODULE_CAPACITY:X}")
+        self.assertIn(region, (device / "board" / "echo_device.ld").read_text())
+        script = (device / "overlay" / "screen_module.ld").read_text()
+        for name, access in (("MODULE_RAM", "rx"), ("MODULE_ZEROED", "rw")):
+            self.assertIn(f"{name} ({access}) : ORIGIN = 0x{make_image.MODULE_BASE:08X}, "
+                          f"LENGTH = 0x{make_image.MODULE_CAPACITY:X}", script)
+
+    def test_the_app_and_the_builder_give_a_module_the_same_magic(self):
+        source = TOOLS_DIRECTORY.parent / "src" / "app" / "screen_modules.h"
+        magic = int.from_bytes(make_image.MODULE_MAGIC + b"\x00", "little")
+        self.assertIn(f"(0x{magic:08X}u | (uint32_t)(module) << 24)", source.read_text())
+        self.assertEqual(b"DSM\x02", make_image.module_magic(2))
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -547,7 +694,10 @@ class OverlayLayoutTest(unittest.TestCase):
         window = (make_image.OVERLAY_BASE, make_image.OVERLAY_CAPACITY)
         self.assertEqual(window, (self.defined("OVERLAY_WINDOW_BASE"),
                                   self.defined("OVERLAY_WINDOW_BYTES")))
-        self.assertEqual(window, self.region("board/echo_device.ld", "HIGH_RAM"))
+        base, workspace = self.region("board/echo_device.ld", "HIGH_RAM")
+        slot_base, slot = self.region("board/echo_device.ld", "MODULE_RAM")
+        self.assertEqual(window, (base, workspace + slot))
+        self.assertEqual(base + workspace, slot_base)
         self.assertEqual(window, self.region("overlay/rescan_overlay.ld", "HIGH_RAM"))
         self.assertEqual(window, self.region("overlay/usb_overlay.ld", "HIGH_RAM"))
 
@@ -679,6 +829,7 @@ class GlyphFaceTest(unittest.TestCase):
                  (make_image.CORE1_M4A_OFFSET, make_image.CORE1_M4A_OFFSET + 512 +
                   make_image.CORE1_M4A_CAPACITY),
                  (make_image.GLYPH_TABLE_OFFSET, make_image.GLYPH_TABLE_OFFSET + 512),
+                 (make_image.MODULE_TABLE_OFFSET, make_image.MODULE_TABLE_OFFSET + 512),
                  (make_image.USB_OVERLAY_OFFSET, make_image.FW_SIZE),
                  (make_image.FW_SIZE, make_image.IMAGE_SIZE),
                  (0, make_image.GLYPH_PAYLOAD_LIMIT)]
@@ -751,7 +902,7 @@ class LanguagePackTest(unittest.TestCase):
             [len(face) for face in self.FACES])))
 
     def test_packs_stay_clear_of_the_faces_the_overlays_and_the_core_1_programs(self):
-        faces, packs = make_image.blob_offsets([1_700_000, 1_100_000, 8_000], [8_192, 8_192])
+        faces, packs, _ = make_image.blob_offsets([1_700_000, 1_100_000, 8_000], [8_192, 8_192])
         placed = sorted(zip(faces + packs, [1_700_000, 1_100_000, 8_000, 8_192, 8_192]))
         for (start, size), (next_start, _) in zip(placed, placed[1:]):
             self.assertLessEqual(start + size, next_start)

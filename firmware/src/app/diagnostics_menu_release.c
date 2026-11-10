@@ -16,7 +16,7 @@ static MenuItem value_item(StringId label, const char *(*value)(const void *cont
 void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Theme *theme)
 {
     (void)options;
-    MenuItem *items = screens->diagnostics_items;
+    MenuItem *items = screens->modules.settings.diagnostics_items;
     items[0] = value_item(STR_ABOUT_FIRMWARE, diagnostics_row_firmware);
     items[1] = value_item(STR_ABOUT_BATTERY, diagnostics_row_battery);
     items[2] = value_item(STR_ABOUT_JACK_35, diagnostics_row_jack_single_ended);
@@ -26,6 +26,6 @@ void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Them
     items[6] = value_item(STR_ABOUT_CPU_CLOCK, diagnostics_row_cpu_clock);
     items[7] = value_item(STR_ABOUT_DAC_A, diagnostics_row_dac_a);
     items[8] = value_item(STR_ABOUT_DAC_B, diagnostics_row_dac_b);
-    app_screens_build_menu(&screens->diagnostics, STR_ABOUT, items, RELEASE_DIAGNOSTICS_COUNT,
-                           theme);
+    app_screens_build_menu(&screens->modules.settings.diagnostics, STR_ABOUT, items,
+                           RELEASE_DIAGNOSTICS_COUNT, theme);
 }

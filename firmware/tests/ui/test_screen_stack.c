@@ -43,6 +43,18 @@ static void the_root_is_entered_and_on_top(void)
     CHECK_EQUAL(100, fakes[0].entered_at_ms);
 }
 
+static void the_screen_below_the_top_is_the_one_a_pop_returns_to(void)
+{
+    ScreenStack stack = stack_with_root();
+    CHECK(screen_stack_below_top(&stack) == NULL);
+    screen_stack_apply(&stack, screen_action_push(&fakes[1].screen), 200);
+    screen_stack_apply(&stack, screen_action_push(&fakes[2].screen), 300);
+    CHECK(screen_stack_below_top(&stack) == &fakes[1].screen);
+    CHECK_EQUAL(1, fakes[1].entered);
+    screen_stack_apply(&stack, screen_action_pop(), 400);
+    CHECK(screen_stack_below_top(&stack) == &fakes[0].screen);
+}
+
 static void pushing_enters_the_new_screen(void)
 {
     ScreenStack stack = stack_with_root();
@@ -144,6 +156,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_root_is_entered_and_on_top),
+        TEST_CASE(the_screen_below_the_top_is_the_one_a_pop_returns_to),
         TEST_CASE(pushing_enters_the_new_screen),
         TEST_CASE(popping_reenters_the_revealed_screen),
         TEST_CASE(replacing_swaps_the_top_screen),

@@ -10,13 +10,22 @@
 #define RESCAN_OVERLAY_MAGIC 0x4C564F45u
 #define USB_OVERLAY_IMAGE_OFFSET 0x43C000u
 #define USB_OVERLAY_MAGIC 0x42535545u
+#define MODULE_SLOT_BASE 0x03084400u
+#define MODULE_SLOT_BYTES 0xDC00u
+#define MODULE_TABLE_OFFSET 0x218000u
+#define MODULE_TABLE_MAGIC 0x544D5344u
+#define MODULE_TABLE_ROWS 31u
+#define MODULE_MAGIC 0x004D5344u
+#define MODULE_MAGIC_SHIFT 24
 
 typedef struct BoardOverlay {
     uint32_t image_offset;
     uint32_t magic;
     uint8_t *base;
     uint32_t capacity;
+    uint32_t module;
 } BoardOverlay;
 
 bool board_overlay_load(const BoardOverlay *overlay);
 const void *board_usb_overlay_load(void);
+void board_module_forget(void);

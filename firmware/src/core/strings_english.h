@@ -243,6 +243,7 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_SCAN_NO_ROOM] = "No room for the library",
     [STR_SCAN_NO_CODE] = "Rescan code missing: reinstall the update",
     [STR_RESTART_TO_FINISH] = "Restart the player to finish the update",
+    [STR_SCREEN_MISSING] = "Couldn't open this screen: reinstall the update",
     [STR_USB] = "USB",
     [STR_USB_STARTING] = "Computer found. Starting...",
     [STR_USB_EJECT_DRIVE] = "Connected. Eject the drive to finish.",

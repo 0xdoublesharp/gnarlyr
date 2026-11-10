@@ -1,6 +1,7 @@
 #include "ui/toast.h"
 
 #include "core/deadline.h"
+#include "core/seam.h"
 #include "ui/label.h"
 
 enum {
@@ -8,7 +9,7 @@ enum {
     BORDER = 1
 };
 
-void toast_show(Toast *toast, const char *text, uint32_t now_ms)
+CORE_SEAM void toast_show(Toast *toast, const char *text, uint32_t now_ms)
 {
     *toast = (Toast){.text = text, .until_ms = now_ms + TOAST_DURATION_MS, .visible = true};
 }

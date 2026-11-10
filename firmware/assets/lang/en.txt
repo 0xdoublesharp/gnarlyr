@@ -275,6 +275,7 @@ STR_SCAN_WRITE_FAILED = Could not write the library
 STR_SCAN_NO_ROOM = No room for the library
 STR_SCAN_NO_CODE = Rescan code missing: reinstall the update
 STR_RESTART_TO_FINISH = Restart the player to finish the update
+STR_SCREEN_MISSING = Couldn't open this screen: reinstall the update
 
 # USB. {0} in STR_USB_DAC_CHOOSE is the firmware's name; {0} kHz, {1}-bit and the volume are numbers.
 STR_USB = USB

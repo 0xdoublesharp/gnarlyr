@@ -51,10 +51,12 @@ def with_brand(image, brand):
 
 class Session:
     def __init__(self, image, elf_path, files=(), vbus_after_first_frame=False, volume=None,
-                 vbus_at_start=False, reuse=None, usb_overlay_elf=None, rest_in_waits=True):
+                 vbus_at_start=False, reuse=None, usb_overlay_elf=None, rest_in_waits=True,
+                 module_elfs=()):
         self.image = image
         self.elf_path = elf_path
         self.usb_overlay_elf = usb_overlay_elf
+        self.module_elfs = module_elfs
         if reuse is not None:
             volume = reuse.volume
             card, self.layout = EmmcCard(reuse.disk, Clock()), reuse.layout
@@ -66,7 +68,8 @@ class Session:
             card, self.layout = synthetic_emmc(Clock(), self.image, volume)
         self.card = card
         self.disk = card.disk
-        self.machine = Machine(self.image, elf_path, card, usb_overlay_elf, rest_in_waits)
+        self.machine = Machine(self.image, elf_path, card, usb_overlay_elf, rest_in_waits,
+                               module_elfs)
         card.machine = self.machine
         self.volume = volume
         self.before = self.disk.snapshot()
@@ -76,7 +79,7 @@ class Session:
     def reboot(self, image=None, vbus_after_first_frame=False):
         return Session(image or self.image, self.elf_path, reuse=self,
                        vbus_after_first_frame=vbus_after_first_frame,
-                       usb_overlay_elf=self.usb_overlay_elf)
+                       usb_overlay_elf=self.usb_overlay_elf, module_elfs=self.module_elfs)
 
     def write_slots(self, image):
         self.disk.write(self.layout["slot_1"], image)
@@ -88,6 +91,23 @@ class Session:
         sector[0] ^= 0xFF
         self.disk.write(lba, bytes(sector))
         self.before = self.disk.snapshot()
+
+    def module_span(self, slot, number):
+        offset, size = make_image.modules_in(self.image)[number - 1]
+        return self.layout[slot] + offset // 512, (size + 511) // 512
+
+    def change_module(self, slot, number, at, change):
+        """Change one byte of a stored module: `at` counts from the module's header."""
+        lba = self.module_span(slot, number)[0] + at // 512
+        sector = bytearray(self.disk.read(lba, 1))
+        sector[at % 512] = change(sector[at % 512])
+        self.disk.write(lba, bytes(sector))
+        self.before = self.disk.snapshot()
+
+    def module_reads(self, slot, number):
+        first, count = self.module_span(slot, number)
+        return [(lba, sectors) for _, lba, sectors in self.card.reads
+                if first <= lba < first + count]
 
     def language_pack_span(self, slot):
         entry = make_image.LANGUAGE_TABLE_OFFSET + 8

@@ -36,6 +36,7 @@
 #include "language.h"
 #include "library_rescan.h"
 #include "library_store.h"
+#include "modules/modules.h"
 #include "music_check.h"
 #include "player.h"
 #include "screens/charge_screen.h"
@@ -403,14 +404,31 @@ static bool opens_now_playing(KeyEvent event)
 
 static ScreenAction now_playing_action(void)
 {
-    return top_screen() == &app.screens.up_next.screen
+    return top_screen() == &app.screens.modules.views.up_next.screen
                ? screen_action_pop()
                : screen_action_push(&app.screens.now_playing.screen);
+}
+
+static bool screen_ready(const Screen *screen)
+{
+    ScreenModule module = screen_modules_of(&app.screens, screen);
+    return module == SCREEN_MODULE_NONE || screen_modules_use(&app.screens, module) != NULL;
+}
+
+static bool modules_agree(const Screen *first, const Screen *second)
+{
+    ScreenModule one = screen_modules_of(&app.screens, first);
+    ScreenModule other = screen_modules_of(&app.screens, second);
+    return one == SCREEN_MODULE_NONE || other == SCREEN_MODULE_NONE || one == other;
 }
 
 static void start_slide(Screen *leaving, int depth_before, uint32_t now_ms)
 {
     if (top_screen() == leaving) {
+        return;
+    }
+    app.slide.active = false;
+    if (!modules_agree(leaving, top_screen())) {
         return;
     }
     bool deeper = screen_stack_depth(&app.stack) > depth_before;
@@ -423,6 +441,67 @@ static bool slide_running(void)
     return app.slide.active && !slide_finished(&app.slide, app.now_ms);
 }
 
+static const SettingsModuleEntry *settings_module(void)
+{
+    return (const SettingsModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_SETTINGS);
+}
+
+static void explain_missing_screen(uint32_t now_ms)
+{
+    StringId text = hal_system_restart_pending() ? STR_RESTART_TO_FINISH : STR_SCREEN_MISSING;
+    toast_show(&app.toast, i18n_text(text), now_ms);
+}
+
+static void go_home(uint32_t now_ms)
+{
+    app.slide.active = false;
+    if (screen_stack_apply(&app.stack, screen_action_pop_to_root(), now_ms)) {
+        screen_changed();
+    }
+}
+
+static void settle_screens(uint32_t now_ms)
+{
+    if (!screen_ready(top_screen())) {
+        explain_missing_screen(now_ms);
+        go_home(now_ms);
+    }
+    if (slide_running() &&
+        (!modules_agree(app.leaving, top_screen()) || !screen_ready(app.leaving))) {
+        app.slide.active = false;
+    }
+}
+
+static Screen *next_top(ScreenAction action)
+{
+    switch (action.type) {
+    case SCREEN_ACTION_PUSH:
+    case SCREEN_ACTION_REPLACE:
+        return action.target;
+    case SCREEN_ACTION_POP:
+        return screen_stack_below_top(&app.stack);
+    case SCREEN_ACTION_POP_TO_ROOT:
+    case SCREEN_ACTION_NONE:
+        break;
+    }
+    return NULL;
+}
+
+static bool apply_action(ScreenAction action, uint32_t now_ms)
+{
+    Screen *next = next_top(action);
+    if (next == NULL || screen_ready(next)) {
+        return screen_stack_apply(&app.stack, action, now_ms);
+    }
+    explain_missing_screen(now_ms);
+    if (action.type == SCREEN_ACTION_POP) {
+        go_home(now_ms);
+    } else {
+        settle_screens(now_ms);
+    }
+    return false;
+}
+
 static void dispatch_to_screen(KeyEvent event, uint32_t now_ms)
 {
     Screen *screen = top_screen();
@@ -430,7 +509,7 @@ static void dispatch_to_screen(KeyEvent event, uint32_t now_ms)
     ScreenAction action = opens_now_playing(event)
                               ? now_playing_action()
                               : screen->handle_key(screen->context, event, now_ms);
-    if (screen_stack_apply(&app.stack, action, now_ms)) {
+    if (apply_action(action, now_ms)) {
         screen_changed();
         start_slide(screen, depth_before, now_ms);
     }
@@ -447,8 +526,7 @@ static bool may_show_now_playing(void)
 static void show_now_playing(uint32_t now_ms)
 {
     if (may_show_now_playing() &&
-        screen_stack_apply(&app.stack, screen_action_push(&app.screens.now_playing.screen),
-                           now_ms)) {
+        apply_action(screen_action_push(&app.screens.now_playing.screen), now_ms)) {
         screen_changed();
     }
 }
@@ -823,7 +901,7 @@ static void open_start_screen(uint32_t now_ms)
     Screen *path[START_PATH_CAPACITY];
     int count = app_screens_start_path(&app.screens, app.settings.settings.start_screen, path);
     for (int index = 0; index < count; index++) {
-        screen_stack_apply(&app.stack, screen_action_push(path[index]), now_ms);
+        apply_action(screen_action_push(path[index]), now_ms);
     }
 }
 
@@ -864,8 +942,12 @@ static void change_language(uint32_t now_ms)
     app.toast.visible = false;
     app.slide.active = false;
     build_screens(now_ms);
-    screen_stack_apply(&app.stack, screen_action_push(app_screens_language_row(&app.screens)),
-                       now_ms);
+    const SettingsModuleEntry *module = settings_module();
+    if (module == NULL) {
+        explain_missing_screen(now_ms);
+    } else {
+        apply_action(screen_action_push(module->language_row(&app.screens)), now_ms);
+    }
     use_screen_key_behaviors();
     if (!language_is(settings->language)) {
         StringBuilder code = string_builder_make(settings->language, sizeof settings->language);
@@ -966,6 +1048,13 @@ static void explain_refusals(uint32_t now_ms)
     }
 }
 
+static MusicFingerprint walk_music(void)
+{
+    const LibraryModuleEntry *module =
+        (const LibraryModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_LIBRARY);
+    return module != NULL ? module->music_fingerprint() : (MusicFingerprint){.complete = false};
+}
+
 static void run_rescan(void)
 {
     app_show_notice(i18n_text(STR_SCANNING), i18n_text(STR_SCAN_STARTING));
@@ -974,7 +1063,7 @@ static void run_rescan(void)
     static char message[TOAST_TEXT_CAPACITY];
     const char *text = library_rescan_message(outcome, message, sizeof message);
     if (outcome.result == SCAN_OK) {
-        music_check_remember(music_check_fingerprint());
+        music_check_remember(walk_music());
         app_start();
     } else {
         debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_SCAN_FAILED + (uint32_t)outcome.result);
@@ -1113,6 +1202,15 @@ static bool save_debug_screenshot(const DebugRequest *request)
     return debug_screenshot_save(&shot);
 }
 
+static bool choose_setting(const DebugRequest *request, uint32_t now_ms)
+{
+    const SettingsModuleEntry *module = settings_module();
+    bool chosen = module != NULL && module->choose != NULL &&
+                  module->choose(&app.screens, request->argument, request->value);
+    settle_screens(now_ms);
+    return chosen;
+}
+
 static void run_debug_script(uint32_t now_ms)
 {
     DebugRequest request =
@@ -1122,8 +1220,7 @@ static void run_debug_script(uint32_t now_ms)
     } else if (request.kind == DEBUG_REQUEST_SCREEN) {
         set_debug_screen(request.slot != 0, now_ms);
     } else if (request.kind == DEBUG_REQUEST_SET) {
-        debug_runner_done(
-            settings_screens_choose(&app.screens.settings, request.argument, request.value));
+        debug_runner_done(choose_setting(&request, now_ms));
     } else if (request.kind == DEBUG_REQUEST_SCREENSHOT) {
         debug_runner_done(save_debug_screenshot(&request));
     }
@@ -1187,7 +1284,7 @@ CORE_SEAM void app_step(void)
         bool changed = hal_system_restart_pending();
         if (!changed) {
             app_show_notice(i18n_text(STR_MUSIC), i18n_text(STR_CHECKING_MUSIC));
-            changed = !music_check_unchanged() || !library_store_open(&app.library);
+            changed = !music_check_unchanged(walk_music()) || !library_store_open(&app.library);
         }
         if (!changed) {
             music_check_note_firmware();
@@ -1208,6 +1305,7 @@ CORE_SEAM void app_step(void)
     app.now_ms = now_ms;
     hal_audio_service();
     hal_bluetooth_service();
+    settle_screens(now_ms);
     run_debug_script(now_ms);
     read_input();
     read_headset();
@@ -1359,6 +1457,9 @@ const char *app_toast_text(void)
 
 const char *app_diagnostics_value(int index)
 {
-    const MenuItem *item = &app.screens.diagnostics_items[index];
+    if (settings_module() == NULL) {
+        return NULL;
+    }
+    const MenuItem *item = &app.screens.modules.settings.diagnostics_items[index];
     return item->value != NULL ? item->value(item->context) : NULL;
 }
