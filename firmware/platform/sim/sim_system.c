@@ -64,6 +64,12 @@ const void *hal_system_load_rescan_code(void)
     return &LIBRARY_SCAN_ENTRY;
 }
 
+const void *hal_system_load_module(uint32_t module)
+{
+    (void)module;
+    return NULL;
+}
+
 HalHighRamTest hal_system_high_ram_test(void)
 {
     return (HalHighRamTest){.status = HAL_HIGH_RAM_UNAVAILABLE};

@@ -1466,6 +1466,12 @@ const void *hal_system_load_rescan_code(void)
     return &LIBRARY_SCAN_ENTRY;
 }
 
+const void *hal_system_load_module(uint32_t module)
+{
+    (void)module;
+    return NULL;
+}
+
 static InternalFile *internal_file(const char *path)
 {
     for (int index = 0; index < INTERNAL_CAPACITY; index++) {

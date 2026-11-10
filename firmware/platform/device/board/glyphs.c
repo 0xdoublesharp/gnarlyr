@@ -14,6 +14,8 @@
 enum {
     SECTOR_BYTES = 512,
     SECTOR_WORDS = SECTOR_BYTES / 4,
+    TABLE_HEADER_BYTES = 8,
+    TABLE_ROW_BYTES = 8,
     GLYPH_RAM_BYTES = 0xB000,
     CACHE_WORDS = (GLYPH_RAM_BYTES - 2 * SECTOR_BYTES) / 4
 };
@@ -56,6 +58,16 @@ bool board_slot_read(uint32_t slot, uint32_t at, void *buffer, uint32_t length)
         length -= chunk;
     }
     return true;
+}
+
+bool board_slot_table_row(uint32_t slot, const BoardImageTable *listing, uint32_t index,
+                          uint32_t *row)
+{
+    uint32_t header[2];
+    return board_slot_read(slot, listing->offset, header, sizeof header) &&
+           header[0] == listing->magic && index < header[1] && index < listing->rows &&
+           board_slot_read(slot, listing->offset + TABLE_HEADER_BYTES + TABLE_ROW_BYTES * index,
+                           row, TABLE_ROW_BYTES);
 }
 
 static bool read_face(void *context, uint32_t face, uint32_t offset, void *buffer, uint32_t length)
