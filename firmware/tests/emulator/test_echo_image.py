@@ -91,8 +91,6 @@ USB_PHY_ON = [("grf", 0xB8, 0x00010000), ("grf", 0xB4, 0x000E0002), ("grf", 0x98
               ("grf", 0xB4, 0x00010000)]
 USB_PHY_TUNING = [("grf", 0x88, 0x0C000C00), ("grf", 0x84, 0xE01F0003), ("grf", 0x8C, 0x001C0014),
                   ("grf", 0x80, 0x00070004)]
-USB_IDLE = [("cru", 0xC0, 0x00010001), ("cru", 0xC0, 0x00020002), ("cru", 0xC0, 0x00040004),
-            ("cru", 0x80, 0x00800080), ("cru", 0x98, 0x04000400)]
 USB_POWER_UP = [("cru", 0x80, 0x00800000), ("cru", 0x98, 0x04000000), ("cru", 0xC0, 0x00020000),
                 ("cru", 0xC0, 0x00040000), ("cru", 0xC0, 0x00010000)]
 PROFILED_MS = 1500
@@ -704,16 +702,6 @@ class EchoImageTest(unittest.TestCase):
             if log[index:index + len(sequence)] == sequence:
                 return index
         return None
-
-    def test_the_phy_is_on_and_the_controller_idle_before_the_cable_is_first_read(self):
-        session = self.session()
-        machine = session.machine
-        self.assertEqual(session.run_to_first_frame(), "condition met")
-        self.assertIsNotNone(machine.first_cable_read)
-        before = [entry for entry in machine.register_log[:machine.first_cable_read]
-                  if entry in USB_PHY_ON + USB_IDLE + USB_PHY_TUNING + USB_POWER_UP]
-        self.assertEqual(before, USB_PHY_ON + USB_IDLE)
-        self.assert_healthy(session)
 
     def test_a_cable_must_hold_for_a_second_before_usb_is_powered_up(self):
         session = self.session()

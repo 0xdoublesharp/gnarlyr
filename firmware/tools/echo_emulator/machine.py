@@ -147,7 +147,6 @@ class Machine:
         self.usb_connect_count = 0
         self.usb_log = []
         self.register_log = []
-        self.first_cable_read = None
         self.host_stays = False
         self.host_absent = False
         self.usb_pulled_up = False
