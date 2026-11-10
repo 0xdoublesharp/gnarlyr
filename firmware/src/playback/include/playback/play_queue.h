@@ -6,6 +6,7 @@
 #include "core/permutation.h"
 #include "library/library.h"
 #include "library/library_browse.h"
+#include "playback/track_order.h"
 
 typedef enum ShuffleMode {
     SHUFFLE_OFF,
@@ -51,9 +52,30 @@ typedef struct PlayQueue {
     Permutation order;
     uint16_t count;
     PlayQueueCursor cursor;
+    const TrackOrder *stored_order;
+    uint32_t stored_generation;
 } PlayQueue;
 
+typedef struct PlayQueueWalk {
+    PlayQueueCursor cursor;
+    LibraryAlbum album;
+    uint32_t position;
+    bool has_album;
+} PlayQueueWalk;
+
+typedef struct PlayQueueStream {
+    PlayQueue queue;
+    PlayQueueWalk walk;
+    uint32_t total;
+    uint16_t count;
+    uint16_t current;
+    uint16_t scan;
+    StoreResult result;
+} PlayQueueStream;
+
 bool play_queue_build(PlayQueue *queue, const Library *library, PlayQueuePlan plan);
+bool play_queue_use_order(PlayQueue *queue, const Library *library, const TrackOrder *order,
+                          PlayQueuePlan plan);
 bool play_queue_track_at(const PlayQueue *queue, PlayQueueCursor cursor, uint16_t *track);
 bool play_queue_current(const PlayQueue *queue, uint16_t *track);
 bool play_queue_step(const PlayQueue *queue, PlayQueueCursor from, int direction, bool wrap,
@@ -62,3 +84,7 @@ bool play_queue_neighbor(const PlayQueue *queue, int direction, bool wrap, PlayQ
 bool play_queue_upcoming(const PlayQueue *queue, RepeatMode repeat, PlayQueueCursor *result);
 void play_queue_move_to(PlayQueue *queue, PlayQueueCursor cursor);
 PlayQueuePlace play_queue_place(const PlayQueue *queue);
+
+void play_queue_stream_init(PlayQueueStream *stream, const PlayQueue *queue);
+StoreResult play_queue_stream_prepare(PlayQueueStream *stream);
+TrackOrderSource play_queue_stream_source(PlayQueueStream *stream);

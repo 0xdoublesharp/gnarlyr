@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "big_library.h"
 #include "check.h"
@@ -348,10 +349,115 @@ static void shuffling_many_albums_reaches_every_album_once(void)
     big_library_close(&big);
 }
 
+static void streaming_an_album_queue_preserves_its_order_and_current_position(void)
+{
+    PlayQueue *source = built(album_tracks(BACK_IN_BLACK), SHOOT_TO_THRILL, SHUFFLE_OFF, 7);
+    PlayQueueStream stream;
+    play_queue_stream_init(&stream, source);
+    CHECK_EQUAL(STORE_DONE, play_queue_stream_prepare(&stream));
+    TrackOrderSource tracks = play_queue_stream_source(&stream);
+    CHECK(tracks.read != NULL);
+    if (tracks.read == NULL) {
+        return;
+    }
+    uint16_t values[2] = {0};
+    CHECK(tracks.read(tracks.context, 0, 2, values));
+    CHECK_EQUAL(HELLS_BELLS, values[0]);
+    CHECK_EQUAL(SHOOT_TO_THRILL, values[1]);
+    CHECK_EQUAL(1, stream.current);
+}
+
+static void a_stream_matches_every_shuffle_mode_and_can_seek_backward(void)
+{
+    for (int mode = SHUFFLE_OFF; mode <= SHUFFLE_ALBUMS; mode++) {
+        PlayQueue *source = built(browse_root_query(BROWSE_ALL_SONGS), JOGA, (ShuffleMode)mode, 93);
+        PlayQueueStream stream;
+        play_queue_stream_init(&stream, source);
+        for (int step = 0; step < 10 && stream.result == STORE_WORKING; step++) {
+            play_queue_stream_prepare(&stream);
+        }
+        CHECK_EQUAL(STORE_DONE, stream.result);
+        TrackOrderSource tracks = play_queue_stream_source(&stream);
+        uint16_t actual[32] = {0};
+        CHECK(tracks.count <= 32);
+        CHECK(tracks.read(tracks.context, 0, tracks.count, actual));
+        CHECK_EQUAL(JOGA, actual[stream.current]);
+        PlayQueueCursor cursor = {0};
+        for (uint16_t index = 0; index < tracks.count; index++) {
+            uint16_t expected = LIBRARY_NONE;
+            CHECK(play_queue_track_at(source, cursor, &expected));
+            CHECK_EQUAL(expected, actual[index]);
+            if (index + 1 < tracks.count) {
+                PlayQueueCursor next;
+                CHECK(play_queue_step(source, cursor, 1, false, &next));
+                cursor = next;
+            }
+        }
+        uint16_t first = LIBRARY_NONE;
+        CHECK(tracks.read(tracks.context, 0, 1, &first));
+        CHECK_EQUAL(actual[0], first);
+    }
+}
+
+static void preparing_a_large_album_stream_yields_and_preserves_the_anchor(void)
+{
+    big_library_open(&big, BIG_ALBUMS * 2, 2);
+    PlayQueue *source = built_big(browse_root_query(BROWSE_ALL_SONGS), 4001, SHUFFLE_ALBUMS);
+    PlayQueueStream stream;
+    play_queue_stream_init(&stream, source);
+    int steps = 0;
+    while (play_queue_stream_prepare(&stream) == STORE_WORKING) {
+        CHECK(++steps < BIG_ALBUMS);
+    }
+    CHECK(steps > 1);
+    CHECK_EQUAL(BIG_ALBUMS * 2, stream.count);
+    TrackOrderSource tracks = play_queue_stream_source(&stream);
+    uint16_t current = LIBRARY_NONE;
+    CHECK(tracks.read(tracks.context, stream.current, 1, &current));
+    CHECK_EQUAL(4001, current);
+    CHECK(tracks.read(tracks.context, 0, 1, &current));
+    big_library_close(&big);
+}
+
+static void a_prepared_stream_can_be_copied_before_it_is_read(void)
+{
+    PlayQueue *source = built(browse_root_query(BROWSE_ALL_SONGS), JOGA, SHUFFLE_ALBUMS, 93);
+    PlayQueueStream first;
+    play_queue_stream_init(&first, source);
+    while (play_queue_stream_prepare(&first) == STORE_WORKING) {
+    }
+    CHECK_EQUAL(STORE_DONE, first.result);
+    PlayQueueStream second = first;
+    memset(&first, 0xa5, sizeof first);
+    TrackOrderSource tracks = play_queue_stream_source(&second);
+    uint16_t current = LIBRARY_NONE;
+    CHECK(tracks.read(tracks.context, second.current, 1, &current));
+    CHECK_EQUAL(JOGA, current);
+    CHECK(tracks.read(tracks.context, 0, 1, &current));
+    CHECK(!tracks.read(tracks.context, tracks.count, 1, &current));
+}
+
+static void a_stream_of_a_queue_without_a_current_entry_fails(void)
+{
+    PlayQueue *source = built(album_tracks(BACK_IN_BLACK), SHOOT_TO_THRILL, SHUFFLE_OFF, 7);
+    play_queue_move_to(source, (PlayQueueCursor){source->count, 0});
+    PlayQueueStream stream;
+    play_queue_stream_init(&stream, source);
+    CHECK_EQUAL(STORE_FAILED, play_queue_stream_prepare(&stream));
+    uint16_t track = 0;
+    TrackOrderSource tracks = play_queue_stream_source(&stream);
+    CHECK(!tracks.read(tracks.context, 0, 1, &track));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_stream_matches_every_shuffle_mode_and_can_seek_backward),
+        TEST_CASE(preparing_a_large_album_stream_yields_and_preserves_the_anchor),
         TEST_CASE(a_list_queue_starts_at_the_anchor),
+        TEST_CASE(streaming_an_album_queue_preserves_its_order_and_current_position),
+        TEST_CASE(a_prepared_stream_can_be_copied_before_it_is_read),
+        TEST_CASE(a_stream_of_a_queue_without_a_current_entry_fails),
         TEST_CASE(all_songs_play_in_title_order),
         TEST_CASE(folders_queue_only_their_tracks),
         TEST_CASE(an_anchor_outside_the_list_plays_first),
