@@ -611,7 +611,10 @@ static bool failing_tag_read(void *context, uint32_t offset, void *buffer, uint3
 
 static void metadata_read_failures_leave_terminated_fields_and_bounded_pictures(void)
 {
-    static const char *const names[] = {"id3v24.mp3", "tagged.wma"};
+    static const char *const names[] = {
+        "id3v24.mp3", "tagged.wma", "tagged.flac", "tagged.ogg", "aac.m4a",
+        "tagged.wav", "tagged.ape", "tagged.dsf",  "tagged.dff",
+    };
     for (size_t format = 0; format < sizeof names / sizeof names[0]; format++) {
         Fixture fixture;
         CHECK(load(&fixture, names[format]));
@@ -630,6 +633,7 @@ static void metadata_read_failures_leave_terminated_fields_and_bounded_pictures(
                 CHECK(memchr(tags.text[field], '\0', TRACK_TAG_TEXT_CAPACITY) != NULL);
             }
             CHECK(tags.picture.kind == TAG_PICTURE_NONE ||
+                  tags.picture.kind == TAG_PICTURE_BASE64_FLAC_BLOCK ||
                   (tags.picture.offset <= fixture.size &&
                    tags.picture.length <= fixture.size - tags.picture.offset));
         }
@@ -676,6 +680,80 @@ static void wma_content_header_shorter_than_its_lengths_is_ignored(void)
     CHECK_EQUAL(0, strcmp("", tags.text[TAG_ARTIST]));
 }
 
+typedef struct FlacComments {
+    uint8_t bytes[4096];
+    uint32_t cursor;
+    uint32_t count;
+} FlacComments;
+
+static void flac_comments_start(FlacComments *file)
+{
+    *file = (FlacComments){.cursor = 54};
+    memcpy(file->bytes, "fLaC", 4);
+    file->bytes[7] = 34;
+    file->bytes[42] = 0x84;
+}
+
+static void flac_comment(FlacComments *file, const char *value)
+{
+    uint32_t length = (uint32_t)strlen(value);
+    asf_put_le(file->bytes + file->cursor, length, 4);
+    file->cursor += 4;
+    memcpy(file->bytes + file->cursor, value, length);
+    file->cursor += length;
+    file->count++;
+}
+
+static bool flac_comments_read(FlacComments *file, TrackTags *tags)
+{
+    uint32_t length = file->cursor - 46;
+    file->bytes[43] = (uint8_t)(length >> 16);
+    file->bytes[44] = (uint8_t)(length >> 8);
+    file->bytes[45] = (uint8_t)length;
+    asf_put_le(file->bytes + 50, file->count, 4);
+    MemorySource source = {.bytes = file->bytes, .size = file->cursor};
+    return track_tags_read(memory_source(&source), file->cursor, TAG_FORMAT_FLAC, tags);
+}
+
+static void vorbis_comments_read_case_insensitive_fields_and_front_art(void)
+{
+    FlacComments file;
+    flac_comments_start(&file);
+    flac_comment(&file, "TITLE=First");
+    flac_comment(&file, "title=Second");
+    flac_comment(&file, "ArTiSt=Artist");
+    flac_comment(&file, "ALBUMARTIST=Band");
+    flac_comment(&file, "GENRE=Ambient");
+    flac_comment(&file, "DISCNUMBER=2");
+    flac_comment(&file, "TRACKNUMBER=4");
+    flac_comment(&file, "NoEqualsSign");
+    flac_comment(&file, "NotARecognisedName=Ignored");
+    flac_comment(&file, "METADATA_BLOCK_PICTURE=AAAAAw==");
+    TrackTags tags;
+    CHECK(flac_comments_read(&file, &tags));
+    CHECK_EQUAL(0, strcmp("First", tags.text[TAG_TITLE]));
+    CHECK_EQUAL(0, strcmp("Artist", tags.text[TAG_ARTIST]));
+    CHECK_EQUAL(0, strcmp("Band", tags.text[TAG_ALBUM_ARTIST]));
+    CHECK_EQUAL(0, strcmp("Ambient", tags.text[TAG_GENRE]));
+    CHECK_EQUAL(0, strcmp("2", tags.text[TAG_DISC]));
+    CHECK_EQUAL(0, strcmp("4", tags.text[TAG_TRACK]));
+    CHECK_EQUAL(TAG_PICTURE_BASE64_FLAC_BLOCK, tags.picture.kind);
+    CHECK(tags.picture.front);
+}
+
+static void malformed_vorbis_entries_do_not_read_the_next_block(void)
+{
+    FlacComments file;
+    flac_comments_start(&file);
+    flac_comment(&file, "TITLE=Valid");
+    flac_comment(&file, "ARTIST=No");
+    asf_put_le(file.bytes + 69, 0xffff, 4);
+    TrackTags tags;
+    CHECK(flac_comments_read(&file, &tags));
+    CHECK_EQUAL(0, strcmp("Valid", tags.text[TAG_TITLE]));
+    CHECK_EQUAL(0, strcmp("", tags.text[TAG_ARTIST]));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -701,6 +779,8 @@ int main(void)
         TEST_CASE(metadata_read_failures_leave_terminated_fields_and_bounded_pictures),
         TEST_CASE(wma_incomplete_numeric_attributes_and_picture_data_are_ignored),
         TEST_CASE(wma_content_header_shorter_than_its_lengths_is_ignored),
+        TEST_CASE(vorbis_comments_read_case_insensitive_fields_and_front_art),
+        TEST_CASE(malformed_vorbis_entries_do_not_read_the_next_block),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
