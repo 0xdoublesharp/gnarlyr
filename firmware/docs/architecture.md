@@ -29,7 +29,7 @@ platform/sim        platform/device
 | core | `src/core` | nothing | Pure logic: deadlines, key gestures, frame stats, UTF-8, string building, formatting, hashing, seeded random, the power policy, the DAC identification decode and text, the key-script grammar, the debug event ring, the string catalogue and the language pack reader (see Languages) |
 | gfx | `src/gfx` | core | RGB565 colors and blending, rectangles, clipped canvases, strip rendering, 4-bit anti-aliased text, images drawn into perspective quads |
 | fonts | `src/fonts` | gfx | Generated glyph tables (see Generated code) |
-| ui | `src/ui` | core, gfx | Screen interface and stack, navigation intents, list view, menus, choice screens, messages, toasts, header and status icons, labels, marquee, fades, Cover Flow layout and motion, theme type |
+| ui | `src/ui` | core, gfx | Screen interface and stack, navigation intents, list view, menus, choice screens, messages, toasts, header and status icons, the icon set, labels, marquee, fades, Cover Flow layout and motion, theme type |
 | image | `src/image` | core | Cover decoding for the rescan: a bump arena, a buffered reader, the 112 px area-average grid, inflate, PNG and JPEG (see Covers on the device) |
 | library | `src/library` | core, image | Byte sources, a 4×512 B block cache, the library database reader and its content fingerprint, browse queries, the favorites set and the covers file reader (see `docs/library-format.md`) |
 | codec | `src/codec` | core | FLAC decoding (up to 2 channels, 24 bits, 4,608-sample blocks) from a read callback, with header and frame CRC checks, and seeking by bisection on frame headers; ALAC decoding of one MP4 packet at a time (16, 20 and 24 bit, mono and stereo) into a caller-owned 32 KB state |
@@ -252,6 +252,34 @@ The main loop follows the same idea. Keys are sampled in the 1 ms tick interrupt
 
 Measured on the owner's player at 200 MHz with the developer build: an idle Home screen fell from 28 % of core 0 busy to 2 %, a paused Now Playing screen from 23 % to 2 %, and MP3 playback on Now Playing from 28 % to 11 %, with no underruns.
 
+## Icons
+
+`ui/icons` draws every icon from one table (`GLYPHS` in `src/ui/icons.c`). An icon is a short list of 32-bit operations on a grid of cells: a filled or outlined rectangle (square, or with its corner cells cut), a stroke one to three cells thick, a disc, a ring or any of its quarters, and a triangle pointing left, right, up or down. Each operation takes the icon's main ink or its accent ink (`IconInk`); a caller that wants one colour passes it twice. `icon_draw(canvas, icon, area, ink)` is the only drawing call.
+
+| Box | Icons |
+|---|---|
+| Large, 20×20 cells | Music, Audiobook, Podcast, Now Playing, Mixtape, Audio, Settings, Cover Flow, Artist, Album Artist, Album, Genre, Folder, Song, Playlist, Favorite, Shuffle, Repeat, Display, Theme, Power, Sleep, Timeout, Controls, Start, Rescan, Diagnostics, Gain, Jack, USB, Bluetooth, Key Plus, Key Minus, Key Play, Key Menu, Disc, Hub |
+| Small, 14×14 cells | Play, Pause, Next, Previous, Seek, Queue, Speaker, Album (small), Shuffle (small) |
+| Narrow, 9×14 cells | Bolt, Bluetooth (small), Lock, Song (small) |
+
+The names are the `IconId` values in that order (`ICON_MUSIC` … `ICON_SONG_SMALL`). The status bar draws Play, Pause, Bluetooth (small), Lock, Song (small) or Album (small) beside Shuffle (small), and Bolt; the Now Playing feedback badge draws Play, Pause, Next and Previous; the charge screen draws Bolt. No screen draws the others yet.
+
+Sizes:
+
+- An icon keeps its proportions. `icon_draw` scales its box to the largest size that fits `area` and centres it there; `icon_rows(icon)` is the box's height in cells and `icon_width(icon, height)` its width at a given height, for laying out a slot.
+- At a whole multiple of the grid (14, 28 or 20, 40 pixels high) every cell is a whole number of pixels. Use these sizes. The theme's `status_icon_size` is 14 at every text size, and a large icon at 20 fits the list row of every text size.
+- At any other size edges round to the nearest pixel, every stroke of the icon gets the same thickness (its cells times the scale, rounded, at least one pixel), and discs, rings and triangles are drawn at pixel resolution, not enlarged from the grid. Parts that only touch at the grid size can then sit one pixel apart, and a symmetric icon can be one pixel off balance.
+- Drawing fills whole runs of pixels: equal neighbouring rows of a shape go out as one rectangle, a horizontal or vertical stroke is one rectangle, and a slanted stroke is one rectangle per pixel row.
+
+Adding an icon:
+
+1. Choose the box by use: large for list rows, menus and cards, small for the status bar and badges, narrow for small upright marks. Add the `IconId` inside its group (large, then small, then narrow) and the glyph at the same place in `GLYPHS`.
+2. Build it from the existing operation macros. An operation costs 4 bytes and no code. Coordinates are cells, both ends included; a stroke's thickness extends right and down from its cells.
+3. Accent ink marks the part that carries the meaning and the rest is main ink. The icon must still read when both inks are the same colour, as in the status bar.
+4. Overlap parts that join by a cell, so they stay joined at every size.
+5. In `tests/ui/test_icons.c`, list it in `MIRRORED` or `FLIPPED` if the design is symmetric left to right or top to bottom, and add its entry to `SHAPES`: put 0 there, run `test_icons`, and copy the number the failing check prints. A changed number for any other icon means its pixels changed.
+6. Look at it at every size on the contact sheet: `build/dev/tests/icon_sheet FILE.png` draws all icons, ten to a row in `IconId` order, at 0.8, 1, 1.3, 2 and 3 times their grid, each on a panel the size of its box. Write the file to the Scratch volume, never into the repository.
+
 ## Boards
 
 The board is the full-size Snowsky Echo (480×222, 221 ppi, six keys). Presets: `dev` (simulator and tests, `build/dev`), `device` and `release` (device images). `identity.json` holds the full name (Doublesharp Echo: the USB product name and the splash), the short name (Doublesharp: the Home title), the 8-character identifier (`DBLSHARP`: the image brand and the USB storage vendor) and the version (1.0.0); the build, the C code and the tools read it. The image is always named `DBLSHARP.IMG`. There is one board: Podium removed EchoPod's Echo Mini board when it forked.
@@ -345,6 +373,7 @@ The board is the full-size Snowsky Echo (480×222, 221 ppi, six keys). Presets: 
 | `test_mp4_demux`, `test_m4a_source`, `test_alac` | the MP4 box walk, cursor and seek on ffmpeg-made files, hand-built chunk layouts and broken files; the core 1 M4A decoder streamed through `Core1Source` (AAC within ±3 LSB of ffmpeg's decode at 16 bit, ALAC bit-exact, seeks, a starved feed, the engine playing a file and a gapless pair); the ALAC decoder against ffmpeg's output and corrupted packets |
 | `m4b_fixture_up_to_date` | that `tests/fixtures/m4b_music` (written by `tools/m4b_fixture.py` without any audio: chapters as a `chpl` atom with and without the reserved word, as a QuickTime text track over two chunks, none, one, truncated, a text track pointing past the file, and a messy list) is current, and `tests/fixtures/m4b_real` holds a one-second `.m4b` that ffmpeg wrote with three chapters (`-f ipod` writes both a `chpl` atom and a text track) plus a copy whose `chpl` atom is renamed `free`, so both readers run on real data; `test_library_scan` scans it and checks the chapters, the chapter folder and the tree count; `test_spoken_word` and `test_spoken` check the shelf, resume, bookmark key and jumps on chapter parts |
 | `m4a_music_up_to_date` | that `tests/fixtures/m4a_music.db`, written by the Python indexer from `tests/fixtures/m4a_music` (made by `tools/m4a_fixture.py`: AAC-LC and ALAC files with moov first or last, mono, tags, `covr` and `iTunSMPB`; the 16-bit or 24-bit decodes ffmpeg made are in `tests/fixtures/m4a_pcm`), is current; `test_library_scan` scans the same folder on the player's code path and compares |
+| `icon_sheet_renders` | that the icon contact sheet tool draws every icon and writes its PNG (see Icons) |
 | `no_comments` | that no code file contains a comment |
 | `no_text_literals` | that screen and board code holds no text outside the language pack except the literals listed with their reasons (see Languages) |
 | `strings_up_to_date` | that the committed `core/strings.h` and `core/strings_english.h` match `assets/lang/en.txt` |

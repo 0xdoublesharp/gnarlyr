@@ -20,7 +20,7 @@ Not released, and not yet run on a player: everything below is established by ho
 
 ### Code space
 
-Podium 4.5.9 has 2,392 bytes free in the 157,292-byte code window and 1,376 bytes of static RAM free when built with this project's compiler. Doublesharp's release build has 18,284 and 23,128 bytes free.
+Podium 4.5.9 has 2,392 bytes free in the 157,292-byte code window and 1,376 bytes of static RAM free when built with this project's compiler. Doublesharp's release build has 16,780 and 23,128 bytes free.
 
 - **Link-time optimisation** for the core 0 firmware (from EchoPod).
 - **USB sessions and the updater run from an on-demand overlay** (from EchoPod). Mass storage, USB DAC mode, the update check and the install are loaded into high RAM once a computer is found. If the overlay cannot be loaded from either firmware slot, the player says "USB code missing: reinstall the update" and powers USB down.
