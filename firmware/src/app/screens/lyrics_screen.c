@@ -114,8 +114,11 @@ static void cache_lines(LyricsScreen *screen, int center, bool timed)
     for (int index = 0; index < VISIBLE_LINES; index++) {
         int line = center + index - 1;
         if (line >= 0 && line < work.index.count) {
-            lyrics_text((ByteSource){read_lyrics, &file}, &work.index.lines[line],
-                        work.lines[index], LINE_BYTES);
+            if (!lyrics_text((ByteSource){read_lyrics, &file}, &work.index.lines[line],
+                             work.lines[index], LINE_BYTES)) {
+                work.ready = false;
+                break;
+            }
         }
     }
     hal_file_close(&file);

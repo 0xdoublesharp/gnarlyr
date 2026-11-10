@@ -74,12 +74,12 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 |---|---|---|---|
 | Code window | 147,584 | 157,292 | 9,708 |
 | Static RAM | 264,100 | 278,528 | 14,428 |
-| Rescan overlay | 88,404 | 98,304 | 9,900 |
+| Rescan overlay | 88,436 | 98,304 | 9,868 |
 | USB overlay code | 11,484 | 65,536 | 54,052 |
 | Module views (code + BSS) | 17,952 | 56,320 | 38,368 |
 | Module settings (code + BSS) | 14,412 | 56,320 | 41,908 |
 | Module library (code + BSS) | 39,124 | 56,320 | 17,196 |
-| Module listening (code + BSS) | 17,796 | 56,320 | 38,524 |
+| Module listening (code + BSS) | 17,804 | 56,320 | 38,516 |
 | Audio module (code, no BSS) | 5,832 | 8,192 | 2,360 |
 | Decoder workspace | 41,644 | 41,984 | 340 |
 | Language pack (English) | 7,089 | 16,384 | 9,295 |
