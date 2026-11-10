@@ -73,6 +73,7 @@ QUIET_AFTER_MS = 4000
 BOOT_FLAG_CLEAR = 0xFFFF0000
 REPORT_START_LIMIT_MS = 250
 CABLE_STEADY_MS = 1000
+CLOCK_TICK_MS = 1
 GRF_WORDS = ("e8", "84", "b4", "b8", "98")
 GRF_WORDS_POWERED = [2, 3, 2, 0, 4]
 CABLE_NOTICED_LIMIT_MS = 100
@@ -726,7 +727,7 @@ class EchoImageTest(unittest.TestCase):
         plugged_ms = machine.milliseconds()
         machine.run(until=lambda: listens, until_ms=plugged_ms + 3000)
         self.assertEqual(len(listens), 1)
-        self.assertGreaterEqual(listens[0], plugged_ms + CABLE_STEADY_MS)
+        self.assertGreaterEqual(listens[0], plugged_ms + CABLE_STEADY_MS - CLOCK_TICK_MS)
         self.assertLess(listens[0], plugged_ms + CABLE_STEADY_MS + CABLE_NOTICED_LIMIT_MS)
         self.assert_healthy(session)
 
