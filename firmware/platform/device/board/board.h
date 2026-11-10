@@ -28,6 +28,14 @@ void board_glyphs_start(void);
 void board_input_sample(uint32_t now_ms);
 BatteryGauge board_battery_gauge(void);
 void board_battery_restart(void);
+
+typedef struct BoardChargePin {
+    bool ready;
+    bool high;
+} BoardChargePin;
+
+BoardChargePin board_power_charge_pin(void);
+BatteryDisplay board_power_shown(void);
 void board_systick_handler(const uint32_t *frame);
 void device_systick_entry(void);
 void board_stall_beat(void);

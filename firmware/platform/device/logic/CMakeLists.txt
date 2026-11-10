@@ -102,6 +102,7 @@ add_library(echo_device_logic STATIC
     panic_text.c
     pc_profile.c
     pll.c
+    power_history.c
     start_record.c
     sd_card.c
     stall_watch.c

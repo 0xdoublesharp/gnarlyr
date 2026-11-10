@@ -84,6 +84,7 @@ __attribute__((used)) void board_systick_handler(const uint32_t *frame)
     uint32_t now_ms = tick_clock_milliseconds(&clock, read_counter());
     board_input_sample(now_ms);
     board_start_record_tick(now_ms);
+    board_debug_power_tick(now_ms);
     if (stall_watch_check(&stall_watch, now_ms)) {
         board_panic_stall(frame[STACKED_PC_WORD], frame[STACKED_LR_WORD]);
     }

@@ -160,7 +160,12 @@ set(ECHO_OVERLAY_IMPORTS
 if(NOT ECHO_RELEASE)
     list(APPEND ECHO_OVERLAY_IMPORTS
         app_debug_frames
+        board_battery_gauge
         board_debug_audio
+        board_debug_battery_raw
+        board_debug_power_history
+        board_power_charge_pin
+        board_power_shown
         board_profile
         debug_loop_log
         hal_clock_microseconds

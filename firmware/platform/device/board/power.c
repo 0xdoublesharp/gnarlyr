@@ -93,6 +93,17 @@ HalBattery hal_power_battery(void)
                         .millivolts = (uint16_t)battery_gauge_recent_millivolts(&gauge)};
 }
 
+BoardChargePin board_power_charge_pin(void)
+{
+    return (BoardChargePin){.ready = charge_status_ready,
+                            .high = charge_status_ready && gpio_read(CHARGE_STATUS)};
+}
+
+BatteryDisplay board_power_shown(void)
+{
+    return display;
+}
+
 CORE_SEAM void board_power_cut(void)
 {
     board_backlight_off();

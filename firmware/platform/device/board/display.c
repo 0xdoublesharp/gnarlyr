@@ -2,6 +2,7 @@
 
 #include "board.h"
 #include "cru.h"
+#include "debug_probe.h"
 #include "device/backlight.h"
 #include "gpio.h"
 #include "hal/clock.h"
@@ -126,6 +127,7 @@ static void start_fade_in(void)
 
 void board_display_service(void)
 {
+    board_debug_power_poll();
     if (!ramping) {
         return;
     }

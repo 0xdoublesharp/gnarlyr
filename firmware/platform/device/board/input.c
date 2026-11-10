@@ -1,6 +1,7 @@
 #include "hal/input.h"
 #include "board.h"
 #include "core/seam.h"
+#include "debug_probe.h"
 #include "device/battery_gauge.h"
 #include "device/headset_monitor.h"
 #include "device/key_ladder.h"
@@ -90,6 +91,7 @@ static void take_reading(uint16_t reading, uint32_t now_ms)
     switch (pending_channel) {
     case ADC_BATTERY_CHANNEL:
         battery_gauge_add(&gauge, reading);
+        board_debug_battery_reading(reading);
         record_battery();
         break;
     case ADC_HEADSET_CHANNEL:

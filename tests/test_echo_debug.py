@@ -22,10 +22,19 @@ SYSTEM_LINES = [
     "battery.millivolts: unknown",
     "fault.pc: 0x0305a1b2",
     "usb.last_end: ejected",
+    "power.vbus: 1",
+    "power.charge_pin: 1",
+    "power.adc_raw: 856",
+    "power.percent_shown: 97",
+    "power.held: unknown",
     "events.recorded: 2",
     "events.dropped: 0",
     "event: 371 screen 1 Doubles",
     "event: 1045 key play long",
+    "power.samples: 2",
+    "power.sample_interval_s: 60",
+    "power.sample: 12 4176 97 110",
+    "power.sample: 13 4170 96 001",
     "profile.state: on",
     "profile.samples: 1000",
     "profile.idle: 300",
@@ -151,6 +160,17 @@ class ReportParsing(unittest.TestCase):
         self.assertEqual(events, [{"time_ms": 371, "kind": "screen", "detail": "1 Doubles"},
                                   {"time_ms": 1045, "kind": "key", "detail": "play long"}])
 
+    def test_power_values_and_the_minute_samples_are_read(self):
+        report = echo_debug.parse_report(report_text())
+        self.assertEqual(report["values"]["power.charge_pin"], 1)
+        self.assertEqual(report["values"]["power.adc_raw"], 856)
+        self.assertIsNone(report["values"]["power.held"])
+        self.assertEqual(report["power_samples"], [
+            {"minute": 12, "millivolts": 4176, "percent": 97, "vbus": True, "charge_pin": True,
+             "playing": False},
+            {"minute": 13, "millivolts": 4170, "percent": 96, "vbus": False, "charge_pin": False,
+             "playing": True}])
+
     def test_histogram_rows_are_hex_runs_from_a_first_bucket(self):
         buckets = echo_debug.parse_report(report_text())["profile_buckets"]
         self.assertEqual(buckets, {"0": 0x190, "1": 0xC8, "16": 0x32})
@@ -186,7 +206,8 @@ class ReportParsing(unittest.TestCase):
         self.assertEqual(raised.exception.code, "incomplete_report")
 
     def test_a_bad_event_or_histogram_row_is_an_error(self):
-        for line in ("event: soon key", "profile.row: zz 1", "profile.row: 5"):
+        for line in ("event: soon key", "profile.row: zz 1", "profile.row: 5", "power.sample: 1 2 3",
+                     "power.sample: 1 4000 90 1x0"):
             with self.assertRaises(echo_debug.DebugError) as raised:
                 echo_debug.parse_report(report_text(SYSTEM_LINES + [line]))
             self.assertEqual(raised.exception.code, "bad_report")

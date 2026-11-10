@@ -15,11 +15,13 @@ static char text[DEBUG_REPORT_BYTES + GUARD_BYTES + 1];
 static uint16_t buckets[BUCKETS];
 static DebugLog events;
 static PcProfile profile;
+static PowerHistory history;
 
 static DebugReportInput plain_input(void)
 {
     memset(buckets, 0, sizeof buckets);
     debug_log_reset(&events);
+    history.recorded = 0;
     profile = (PcProfile){.buckets = buckets,
                           .bucket_count = BUCKETS,
                           .bucket_shift = 7,
@@ -30,6 +32,7 @@ static DebugReportInput plain_input(void)
                               .clock_mhz = 200,
                               .clock_us = 61000000,
                               .idle_us = 45750000,
+                              .power = {.history = &history},
                               .log = &events,
                               .profile = &profile};
 }
@@ -108,6 +111,110 @@ static void an_unread_battery_is_unknown_not_zero(void)
     CHECK(has_line("battery.millivolts: 3987"));
     CHECK(has_line("battery.percent: 71"));
     CHECK(has_line("battery.usb_power: 1"));
+}
+
+static DebugReportInput plugged_in_at_97_percent(void)
+{
+    DebugReportInput input = plain_input();
+    input.battery = (HalBattery){.known = true, .percent = 97, .millivolts = 4180, .usb_power = 1};
+    input.power = (DebugReportPower){.vbus = true,
+                                     .pin_known = true,
+                                     .pin_high = true,
+                                     .adc_known = true,
+                                     .adc_raw = 856,
+                                     .gauge_readings = 64,
+                                     .gauge_millivolts = 4176,
+                                     .percent_plain = 97,
+                                     .percent_gauge = 97,
+                                     .shown_known = true,
+                                     .percent_shown = 97,
+                                     .history = &history};
+    return input;
+}
+
+static void the_power_section_gives_the_raw_pin_the_adc_and_each_percent(void)
+{
+    DebugReportInput input = plugged_in_at_97_percent();
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("power.vbus: 1"));
+    CHECK(has_line("power.charge_pin: 1"));
+    CHECK(has_line("power.adc_raw: 856"));
+    CHECK(has_line("power.adc_millivolts: 4179"));
+    CHECK(has_line("power.gauge_readings: 64"));
+    CHECK(has_line("power.gauge_millivolts: 4176"));
+    CHECK(has_line("power.percent_plain: 97"));
+    CHECK(has_line("power.percent_gauge: 97"));
+    CHECK(has_line("power.percent_shown: 97"));
+    CHECK(has_line("power.offset_applied: 0"));
+    CHECK(has_line("power.capped: 0"));
+    CHECK(has_line("power.held: 0"));
+}
+
+static void a_charging_gauge_at_its_limit_is_reported_as_capped(void)
+{
+    DebugReportInput input = plugged_in_at_97_percent();
+    input.battery.charging = true;
+    input.power.pin_high = false;
+    input.power.percent_plain = 100;
+    input.power.percent_gauge = 99;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("power.charge_pin: 0"));
+    CHECK(has_line("power.offset_applied: 1"));
+    CHECK(has_line("power.capped: 1"));
+    CHECK(has_line("power.held: 1"));
+}
+
+static void a_shown_percent_that_lags_the_gauge_is_reported_as_held(void)
+{
+    DebugReportInput input = plugged_in_at_97_percent();
+    input.power.percent_gauge = 92;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("power.capped: 0"));
+    CHECK(has_line("power.held: 1"));
+}
+
+static void power_values_not_read_yet_are_unknown(void)
+{
+    DebugReportInput input = plain_input();
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("power.vbus: 0"));
+    CHECK(has_line("power.charge_pin: unknown"));
+    CHECK(has_line("power.adc_raw: unknown"));
+    CHECK(has_line("power.adc_millivolts: unknown"));
+    CHECK(has_line("power.gauge_readings: 0"));
+    CHECK(has_line("power.gauge_millivolts: unknown"));
+    CHECK(has_line("power.percent_gauge: unknown"));
+    CHECK(has_line("power.percent_shown: unknown"));
+    CHECK(has_line("power.capped: unknown"));
+    CHECK(has_line("power.held: unknown"));
+    CHECK(has_line("power.samples: 0"));
+    input.power.history = NULL;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("power.samples: unknown"));
+}
+
+static void the_power_history_lists_a_sample_per_minute_oldest_first(void)
+{
+    DebugReportInput input = plain_input();
+    power_history_record(&history,
+                         (PowerSample){12, 4176, 97, POWER_SAMPLE_VBUS | POWER_SAMPLE_CHARGE_PIN});
+    power_history_record(&history, (PowerSample){13, 4170, 97, POWER_SAMPLE_PLAYING});
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("power.samples: 2"));
+    CHECK(has_line("power.sample_interval_s: 60"));
+    CHECK(has_line("power.sample: 12 4176 97 110"));
+    CHECK(has_line("power.sample: 13 4170 97 001"));
+    CHECK(strstr(text, "power.sample: 12") < strstr(text, "power.sample: 13"));
+}
+
+static void a_power_event_gives_vbus_and_the_raw_charge_pin(void)
+{
+    DebugReportInput input = plain_input();
+    record(DEBUG_EVENT_POWER, POWER_SAMPLE_VBUS, NULL);
+    record(DEBUG_EVENT_POWER, POWER_SAMPLE_CHARGE_PIN, NULL);
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("event: 1000 power 1 0"));
+    CHECK(has_line("event: 1001 power 0 1"));
 }
 
 static void a_cold_start_has_no_previous_run_to_report(void)
@@ -299,8 +406,9 @@ static void a_long_run_of_buckets_breaks_into_rows(void)
         buckets[index] = 1;
     }
     format(&input, DEBUG_REPORT_BYTES);
-    CHECK(has_line("profile.row: 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1"));
-    CHECK(has_line("profile.row: 10 1 1"));
+    CHECK(
+        has_line("profile.row: 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1"));
+    CHECK(has_line("profile.row: 20 1 1"));
 }
 
 static void a_full_profile_says_so(void)
@@ -336,10 +444,13 @@ static void the_rest_of_the_file_is_newlines_and_nothing_is_written_past_it(void
     }
 }
 
-static void fill_everything(void)
+static void fill_everything(uint16_t bucket_count)
 {
     for (int index = 0; index < BUCKETS; index++) {
-        buckets[index] = 0xfffe;
+        buckets[index] = bucket_count;
+    }
+    for (int index = 0; index < POWER_HISTORY_SAMPLES + 3; index++) {
+        power_history_record(&history, (PowerSample){65535, 4200, 100, 7});
     }
     for (int index = 0; index < DEBUG_LOG_CAPACITY + 3; index++) {
         record(DEBUG_EVENT_OUTPUT_UNDERRUN, 0xFFFFFFFFu, "WWWWWWW");
@@ -349,13 +460,14 @@ static void fill_everything(void)
 
 static void the_fullest_report_fits_the_file_without_truncation(void)
 {
-    DebugReportInput input = plain_input();
-    fill_everything();
+    DebugReportInput input = plugged_in_at_97_percent();
+    fill_everything(0xfffe);
     uint32_t length = format(&input, DEBUG_REPORT_BYTES);
     CHECK(length <= DEBUG_REPORT_BYTES);
     CHECK(has_line("truncated: 0"));
-    CHECK(has_line(
-        "profile.row: 4c0 fffe fffe fffe fffe fffe fffe fffe fffe fffe fffe fffe fffe fffe"));
+    CHECK(has_line("power.sample: 65535 4200 100 111"));
+    CHECK(has_line("profile.row: 4c0 fffe fffe fffe fffe fffe fffe fffe fffe fffe fffe fffe fffe "
+                   "fffe"));
 }
 
 static void a_small_buffer_cuts_at_a_line_and_says_so(void)
@@ -364,7 +476,7 @@ static void a_small_buffer_cuts_at_a_line_and_says_so(void)
         SMALL = 1024
     };
     DebugReportInput input = plain_input();
-    fill_everything();
+    fill_everything(0xfffe);
     uint32_t length = format(&input, SMALL);
     CHECK(length <= SMALL);
     CHECK(has_line("truncated: 1"));
@@ -395,6 +507,12 @@ int main(void)
         TEST_CASE(core_0_busy_time_is_a_share_of_the_uptime),
         TEST_CASE(a_wrapped_microsecond_clock_gives_no_busy_share),
         TEST_CASE(an_unread_battery_is_unknown_not_zero),
+        TEST_CASE(the_power_section_gives_the_raw_pin_the_adc_and_each_percent),
+        TEST_CASE(a_charging_gauge_at_its_limit_is_reported_as_capped),
+        TEST_CASE(a_shown_percent_that_lags_the_gauge_is_reported_as_held),
+        TEST_CASE(power_values_not_read_yet_are_unknown),
+        TEST_CASE(the_power_history_lists_a_sample_per_minute_oldest_first),
+        TEST_CASE(a_power_event_gives_vbus_and_the_raw_charge_pin),
         TEST_CASE(a_cold_start_has_no_previous_run_to_report),
         TEST_CASE(a_warm_start_reports_the_previous_run_and_its_fault),
         TEST_CASE(the_last_usb_session_is_reported_once_there_was_one),

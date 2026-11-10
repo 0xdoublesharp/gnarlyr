@@ -19,6 +19,7 @@ typedef enum DebugEventKind {
     DEBUG_EVENT_USB_START,
     DEBUG_EVENT_USB_END,
     DEBUG_EVENT_SCRIPT,
+    DEBUG_EVENT_POWER,
     DEBUG_EVENT_KIND_COUNT
 } DebugEventKind;
 

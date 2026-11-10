@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "core/debug_log.h"
@@ -15,6 +16,7 @@ DebugFrames app_debug_frames(void);
 
 void debug_loop_event(DebugEventKind kind, uint32_t value);
 const DebugLog *debug_loop_log(void);
+bool debug_loop_playing(void);
 
 #else
 

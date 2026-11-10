@@ -575,6 +575,11 @@ class EchoImageTest(unittest.TestCase):
         self.assertTrue(values["core0.idle_us"] <= values["core0.clock_us"])
         self.assertTrue(3900 <= values["battery.millivolts"] <= 4100)
         self.assertEqual(values["battery.usb_power"], 1)
+        self.assertEqual((values["power.vbus"], values["power.charge_pin"]), (1, 1))
+        self.assertEqual((values["power.adc_raw"], values["power.adc_millivolts"]), (819, 3999))
+        self.assertEqual(values["power.gauge_millivolts"], 3999)
+        self.assertEqual(values["power.percent_shown"], values["battery.percent"])
+        self.assertEqual((values["power.capped"], values["power.held"]), (0, 0))
         self.assertEqual((values["start.count"], values["start.warm"]), (1, 0))
         self.assertIsNone(values["start.previous_uptime_ms"])
         self.assertIsNone(values["fault.pc"])
@@ -626,6 +631,14 @@ class EchoImageTest(unittest.TestCase):
         kinds = [event["kind"] for event in report["events"]]
         self.assertEqual(kinds.count("usb_start"), 2)
         self.assertEqual(kinds.count("usb_end"), 1)
+        powers = [event["detail"] for event in report["events"] if event["kind"] == "power"]
+        self.assertEqual(powers, ["1 1", "0 1"])
+        self.assertEqual(values["power.samples"], 1)
+        sample = report["power_samples"][0]
+        self.assertEqual((sample["vbus"], sample["charge_pin"], sample["playing"]),
+                         (True, True, False))
+        self.assertEqual((sample["minute"], sample["millivolts"]), (0, 3999))
+        self.assertEqual(sample["percent"], values["battery.percent"])
         self.assertEqual(session.file_sectors(REPORT_PATH), first_sectors)
         self.assertEqual(session.fat().list("/" + IDENTITY.data_directory + "/debug"),
                          ["report.txt"])

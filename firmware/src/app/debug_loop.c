@@ -9,7 +9,8 @@
 enum {
     FOLLOW_INTERVAL_MS = 100,
     GESTURE_SHIFT = 8,
-    TRACK_SHIFT = 8
+    TRACK_SHIFT = 8,
+    STATE_MASK = 0xFF
 };
 
 typedef struct DebugLoop {
@@ -81,6 +82,11 @@ void debug_loop_follow(uint32_t now_ms, const Player *player)
         loop.followed_ms = now_ms;
         follow_audio();
     }
+}
+
+bool debug_loop_playing(void)
+{
+    return (loop.player_state & STATE_MASK) == PLAYER_PLAYING;
 }
 
 const DebugLog *debug_loop_log(void)

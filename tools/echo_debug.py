@@ -163,6 +163,15 @@ def parse_row(text, buckets):
         buckets[fields[0] + offset] = count
 
 
+def parse_sample(text):
+    fields = text.split()
+    if len(fields) != 4 or not all(field.isdigit() for field in fields) or len(fields[3]) != 3:
+        raise DebugError("bad_report", f"cannot read the power sample {text!r}")
+    vbus, charge_pin, playing = (digit == "1" for digit in fields[3])
+    return {"minute": int(fields[0]), "millivolts": int(fields[1]), "percent": int(fields[2]),
+            "vbus": vbus, "charge_pin": charge_pin, "playing": playing}
+
+
 def report_body(text):
     """The report's lines up to its end line, checked against the length that line states."""
     match = re.search(r"^truncated: ([01])\nend: (\d+)\n", text, re.MULTILINE)
@@ -184,7 +193,7 @@ def parse_report(text):
     if schema != REPORT_SCHEMA:
         raise DebugError("unsupported_schema", f"report schema {schema!r}; this tool reads schema {REPORT_SCHEMA}")
     body, truncated = report_body(text)
-    values, events, buckets, unread = {}, [], {}, []
+    values, events, buckets, unread, samples = {}, [], {}, [], []
     for line in body.splitlines():
         key, separator, value = line.partition(": ")
         if not separator:
@@ -193,9 +202,12 @@ def parse_report(text):
             events.append(parse_event(value))
         elif key == "profile.row":
             parse_row(value, buckets)
+        elif key == "power.sample":
+            samples.append(parse_sample(value))
         else:
             values[key] = value if key.startswith(TEXT_KEY_PREFIXES) else parse_value(value)
     return {"schema": schema, "truncated": truncated, "values": values, "events": events,
+            "power_samples": samples,
             "profile_buckets": {str(index): count for index, count in sorted(buckets.items())},
             "unread_lines": unread}
 

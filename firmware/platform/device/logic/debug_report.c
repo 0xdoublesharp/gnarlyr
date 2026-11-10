@@ -5,6 +5,7 @@
 #include "core/key.h"
 #include "core/key_script.h"
 #include "core/string_builder.h"
+#include "device/battery_gauge.h"
 
 enum {
     HEX_DIGITS = 8,
@@ -34,6 +35,7 @@ static const char *const EVENT_NAMES[DEBUG_EVENT_KIND_COUNT] = {
     [DEBUG_EVENT_USB_START] = "usb_start",
     [DEBUG_EVENT_USB_END] = "usb_end",
     [DEBUG_EVENT_SCRIPT] = "script",
+    [DEBUG_EVENT_POWER] = "power",
 };
 static const char *const GESTURE_NAMES[] = {"press", "long", "repeat", "double", "triple"};
 static const char *const PLAYER_NAMES[] = {"idle", "playing", "paused"};
@@ -164,6 +166,60 @@ static void put_battery(Writer *writer, HalBattery battery)
     put_unsigned(writer, "battery.usb_power", battery.usb_power);
 }
 
+static void put_power(Writer *writer, const DebugReportInput *input)
+{
+    const DebugReportPower *power = &input->power;
+    bool gauged = power->gauge_readings != 0;
+    bool charging = input->battery.charging;
+    put_unsigned(writer, "power.vbus", power->vbus);
+    put_known(writer, "power.charge_pin", power->pin_known, power->pin_high);
+    put_known(writer, "power.adc_raw", power->adc_known, power->adc_raw);
+    put_known(writer, "power.adc_millivolts", power->adc_known, battery_millivolts(power->adc_raw));
+    put_unsigned(writer, "power.gauge_readings", power->gauge_readings);
+    put_known(writer, "power.gauge_millivolts", gauged, power->gauge_millivolts);
+    put_known(writer, "power.percent_plain", gauged, power->percent_plain);
+    put_known(writer, "power.percent_gauge", gauged, power->percent_gauge);
+    put_known(writer, "power.percent_shown", power->shown_known, power->percent_shown);
+    put_known(writer, "power.offset_applied", gauged, charging);
+    put_known(writer, "power.capped", gauged,
+              charging && power->percent_gauge >= BATTERY_CHARGING_MAX_PERCENT);
+    put_known(writer, "power.held", gauged && power->shown_known,
+              power->percent_shown != power->percent_gauge);
+}
+
+static void append_flag(StringBuilder *text, uint8_t flags, uint8_t flag)
+{
+    string_builder_append_char(text, (flags & flag) != 0 ? '1' : '0');
+}
+
+static void put_sample(Writer *writer, PowerSample sample)
+{
+    begin(writer, "power.sample");
+    string_builder_append_unsigned(&writer->text, sample.minute);
+    string_builder_append_char(&writer->text, ' ');
+    string_builder_append_unsigned(&writer->text, sample.millivolts);
+    string_builder_append_char(&writer->text, ' ');
+    string_builder_append_unsigned(&writer->text, sample.percent);
+    string_builder_append_char(&writer->text, ' ');
+    append_flag(&writer->text, sample.flags, POWER_SAMPLE_VBUS);
+    append_flag(&writer->text, sample.flags, POWER_SAMPLE_CHARGE_PIN);
+    append_flag(&writer->text, sample.flags, POWER_SAMPLE_PLAYING);
+    finish(writer);
+}
+
+static void put_history(Writer *writer, const PowerHistory *history)
+{
+    if (history == NULL) {
+        put_text(writer, "power.samples", UNKNOWN);
+        return;
+    }
+    put_unsigned(writer, "power.samples", history->recorded);
+    put_unsigned(writer, "power.sample_interval_s", POWER_HISTORY_INTERVAL_S);
+    for (uint32_t index = 0; index < power_history_count(history); index++) {
+        put_sample(writer, power_history_at(history, index));
+    }
+}
+
 static void put_start(Writer *writer, const HalStartInfo *start)
 {
     bool warm = start->warm;
@@ -260,6 +316,9 @@ static void append_event_value(StringBuilder *text, const DebugEvent *event)
         append_named_pair(text, NAME_IN(PLAYER_NAMES, value & STATE_MASK), value >> TRACK_SHIFT);
     } else if (event->kind == DEBUG_EVENT_USB_END) {
         string_builder_append(text, NAME_IN(USB_END_NAMES, value));
+    } else if (event->kind == DEBUG_EVENT_POWER) {
+        append_named_pair(text, (value & POWER_SAMPLE_VBUS) != 0 ? "1" : "0",
+                          (value & POWER_SAMPLE_CHARGE_PIN) != 0 ? 1 : 0);
     } else {
         string_builder_append_unsigned(text, value);
     }
@@ -368,11 +427,13 @@ uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t
     Writer writer = {.text = string_builder_make(text, capacity - DEBUG_REPORT_TAIL_BYTES)};
     put_system(&writer, input);
     put_battery(&writer, input->battery);
+    put_power(&writer, input);
     put_start(&writer, &input->start);
     put_usb(&writer, input->usb);
     put_audio(&writer, &input->audio);
     put_frames(&writer, &input->frames);
     put_events(&writer, input->log);
+    put_history(&writer, input->power.history);
     put_profile(&writer, input->profile);
     uint32_t length = put_tail(&writer, capacity);
     for (uint32_t index = length; index < capacity; index++) {
