@@ -280,6 +280,21 @@ static void stop_holds_core_1_and_powers_the_domain_down(void)
     CHECK(writes_in_order(expected, (int)(sizeof expected / sizeof expected[0])));
 }
 
+static void park_holds_core_1_and_stops_its_clocks_without_touching_the_domain_power(void)
+{
+    reset_fake();
+    fake.pmu_power = 0;
+    core1_park(&BUS);
+    CHECK_EQUAL(0u, fake.pmu_power);
+    static const Op expected[] = {
+        {true, CORE1_RUN_RESET, 0x00040004u}, {true, 0x401800C8u, 0x00070007u},
+        {true, 0x401800C4u, 0x40004000u},     {true, 0x4018008Cu, 0x03FF03FFu},
+        {true, 0x40180090u, 0x1F0F1F0Fu},     {true, 0x40180080u, 0x00040004u},
+        {true, 0x401800A4u, 0x00040004u},
+    };
+    CHECK(writes_in_order(expected, (int)(sizeof expected / sizeof expected[0])));
+}
+
 static void stop_reports_a_domain_that_stays_on(void)
 {
     reset_fake();
@@ -303,6 +318,7 @@ int main(void)
         TEST_CASE(run_waits_as_long_as_asked),
         TEST_CASE(an_image_larger_than_core_1_code_ram_is_refused),
         TEST_CASE(stop_holds_core_1_and_powers_the_domain_down),
+        TEST_CASE(park_holds_core_1_and_stops_its_clocks_without_touching_the_domain_power),
         TEST_CASE(stop_reports_a_domain_that_stays_on),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

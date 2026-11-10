@@ -4,6 +4,7 @@
 #include "board.h"
 #include "core/deadline.h"
 #include "core/i18n.h"
+#include "cru.h"
 #include "debug_probe.h"
 #include "device/battery_gauge.h"
 #include "device/usb_plug.h"
@@ -249,6 +250,8 @@ void board_main(void)
     explain_missing_text();
     boot_step("splash");
     app_show_splash();
+    board_core1_park();
+    cru_stop_unused_clocks();
     boot_step("main loop");
     board_debug_after_start();
     board_stall_pause(false);

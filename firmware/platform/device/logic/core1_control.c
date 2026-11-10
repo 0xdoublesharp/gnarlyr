@@ -181,14 +181,20 @@ Core1Result core1_start(const Core1Bus *bus, const uint8_t *image, uint32_t leng
     return loaded == CORE1_OK ? core1_run(bus, REPLY_TIMEOUT_MS) : loaded;
 }
 
-Core1Result core1_stop(const Core1Bus *bus)
+void core1_park(const Core1Bus *bus)
 {
     const Write writes[] = {
         {CRU_RESETS_30, CORE1_HOLD}, {CRU_RESETS_20, 0x00070007u}, {CRU_RESETS_10, 0x40004000u},
         {CRU_GATES_30, 0x03FF03FFu}, {CRU_GATES_40, 0x1F0F1F0Fu},  {CRU_GATES_00, 0x00040004u},
-        {CRU_GATES_90, 0x00040004u}, {GRF_SPEED, BUS_SPEED_SLOW},
+        {CRU_GATES_90, 0x00040004u},
     };
     write_all(bus, writes, sizeof writes / sizeof writes[0]);
+}
+
+Core1Result core1_stop(const Core1Bus *bus)
+{
+    core1_park(bus);
+    bus->write(bus->context, GRF_SPEED, BUS_SPEED_SLOW);
     set_domain_power(bus, true);
     return wait_for_domain(bus, PMU_CORE1_DOMAIN) ? CORE1_OK : CORE1_NO_STOP;
 }

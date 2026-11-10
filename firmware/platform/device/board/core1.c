@@ -168,6 +168,13 @@ CORE_SEAM bool board_core1_start_stream(Core1Program program)
     return true;
 }
 
+void board_core1_park(void)
+{
+    if (!streaming) {
+        core1_park(&BUS);
+    }
+}
+
 CORE_SEAM void board_core1_stop(void)
 {
     if (streaming) {

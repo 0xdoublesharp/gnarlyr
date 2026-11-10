@@ -330,6 +330,18 @@ class EchoImageTest(unittest.TestCase):
     def usb_supply_pins(machine):
         return (machine.gpio[0].regs[GPIO_DATA] >> 14 & 1, machine.gpio[2].regs[GPIO_DATA] & 1)
 
+    def test_before_the_main_loop_core_1_is_parked_and_unused_clocks_are_stopped(self):
+        session = self.session()
+        machine = session.machine
+        session.run_to_home_screen()
+        parked = [("cru", 0xCC, 0x00040004), ("cru", 0xC8, 0x00070007), ("cru", 0xC4, 0x40004000),
+                  ("cru", 0x8C, 0x03FF03FF), ("cru", 0x90, 0x1F0F1F0F), ("cru", 0x80, 0x00040004),
+                  ("cru", 0xA4, 0x00040004), ("cru", 0x88, 0x00070007), ("cru", 0x84, 0x50505050),
+                  ("cru", 0xA0, 0x7D327D32), ("cru", 0xA4, 0x00020002)]
+        written = [entry for entry in machine.register_log if entry in parked]
+        self.assertEqual(written[:len(parked)], parked)
+        self.assert_healthy(session)
+
     def test_backlight_runs_at_25_khz_and_only_after_the_first_frame(self):
         session = self.session()
         session.run_to_home_screen()

@@ -56,6 +56,7 @@ typedef enum Core1Program {
 } Core1Program;
 
 bool board_core1_start_stream(Core1Program program);
+void board_core1_park(void);
 void board_core1_stop(void);
 bool board_core1_streaming(void);
 void board_audio_before_clock_change(void);
