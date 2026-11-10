@@ -202,9 +202,11 @@ static StoreResult resolve(ListeningTop *job)
 {
     ListeningRanked *entry = job->resolved < job->count ? &job->top[job->resolved] : &job->replayed;
     ListeningRecord record;
-    if (entry->tally.key != 0 &&
-        listening_cursor_fetch(&job->cursor, entry->tally.position, &record) &&
-        group_key(job, &record.play.track) == entry->tally.key) {
+    if (entry->tally.key != 0) {
+        if (!listening_cursor_fetch(&job->cursor, entry->tally.position, &record) ||
+            group_key(job, &record.play.track) != entry->tally.key) {
+            return STORE_FAILED;
+        }
         entry->track = record.play.track;
     }
     job->resolved++;
