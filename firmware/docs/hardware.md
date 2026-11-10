@@ -26,10 +26,10 @@ What this project checked on a player: on the owner's Echo (4 GB), an earlier bu
 
 ## Audio
 
-- Two Cirrus Logic DAC chips, set up over I2C0 at bus addresses `0x60` and `0x66` (7-bit `0x30` and `0x33`) and fed by I2S1 through DMA from a ring in data RAM. Which part they are is not established: FiiO lists the CS43198, and inherited code names say CS43131. Settings → About → DAC A (`0x60`) and DAC B (`0x66`) show each chip's identification registers once a track has played (`architecture.md`, DAC identification): `431980` at the start means CS43198, `431310` CS43131. No player has been read yet.
+- Two Cirrus Logic DAC chips, set up over I2C0 at bus addresses `0x60` and `0x66` (7-bit `0x30` and `0x33`) and fed by I2S1 through DMA from a ring in data RAM. They are CS43198, as FiiO lists: on the owner's player both report `431980 A1.06` (ID `43 19 80`, revision `A1`, subrevision `06`). Settings → About → DAC A (`0x60`) and DAC B (`0x66`) show each chip's identification registers once a track has played (`architecture.md`, DAC identification); `431310` would mean a CS43131, which some inherited code names still assume.
 - 3.5 mm and 4.4 mm outputs. GPIO0.13 high means a 3.5 mm plug, GPIO2.8 high means 4.4 mm. Both jack pins have pull-ups set at start-up.
 - An LPC accelerator next to core 1 speeds up FLAC decoding.
-- No hardware equalizer: the CS43131 has none (only its digital filters and gain), and the SoC's audio path has none in use. FiiO's firmware runs its equalizer in software on core 0, and so does Doublesharp (`docs/architecture.md`, Equalizer).
+- No hardware equalizer: the CS43198 has none (only its digital filters and gain), and the SoC's audio path has none in use. FiiO's firmware runs its equalizer in software on core 0, and so does Doublesharp (`docs/architecture.md`, Equalizer).
 
 ## USB
 

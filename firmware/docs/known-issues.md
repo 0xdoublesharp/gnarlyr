@@ -24,7 +24,7 @@ These are new or changed in Doublesharp, or were never checked on the owner's un
 - **Playback after a USB session.** The overlay shares its memory with the decoder workspace.
 - **Portrait mode.** The two portrait panel settings come from the landscape one by rule. Which way round each sits, and which one swaps the volume rocker, are untested.
 - **The ten-band equalizer's CPU load at 96 kHz.** By instruction count it takes about 55 % of the main core. It has not been heard or measured on a player.
-- **Which DAC part is fitted.** Settings → About → DAC A and DAC B report each chip's identification registers after the first track. The read has only run in host tests against a recording bus (the emulator replaces the DAC start-up), so no player's answer is known: FiiO lists the CS43198, and inherited code names say CS43131.
+- **DAC settings not yet checked against the fitted part.** The owner's player has two CS43198 (Settings → About shows `431980 A1.06` for both). Some inherited code and register names assume the CS43131, a related part with a built-in headphone amplifier. The start-up sequence is stock's and audio works, but the gain, volume and filter registers have not been checked against the CS43198's documentation.
 - **Bluetooth.**
 - **The 4.4 mm output.**
 

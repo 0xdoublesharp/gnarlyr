@@ -15,7 +15,7 @@ Not released, and not yet run on a player: everything below is established by ho
 
 ### Sound
 
-- **The DAC chips are reported in Settings → About.** The first time the DAC starts after power-on, the player reads each chip's identification registers and shows them as DAC A and DAC B, for example `431980 A0.00`: the ID bytes (`431980` is a CS43198, `431310` a CS43131), then the revision and subrevision. Before a track has played the rows say `Play a track`. The part is reported, not yet observed: no player has run this build.
+- **The DAC chips are reported in Settings → About.** The first time the DAC starts after power-on, the player reads each chip's identification registers and shows them as DAC A and DAC B, for example `431980 A0.00`: the ID bytes (`431980` is a CS43198, `431310` a CS43131), then the revision and subrevision. Before a track has played the rows say `Play a track`. On the owner's player both chips read `431980 A1.06`: CS43198.
 - **DAC output power-up wait of 12 ms,** as in FiiO's firmware. Podium 4.5.9 waits 10 ms. An earlier build of this project with the 12 ms wait, based on Podium 4.5.5, was confirmed quiet by the owner on their Echo.
 
 ### Code space
