@@ -245,6 +245,9 @@ echo_add_unit_test(NAME test_icons
     LIBRARIES echo_app
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+add_executable(icon_sheet ui/icon_sheet.c)
+target_link_libraries(icon_sheet PRIVATE echo_ui echo_options)
+add_test(NAME icon_sheet_renders COMMAND icon_sheet ${CMAKE_BINARY_DIR}/icon_sheet.png)
 echo_add_unit_test(NAME test_board_layout
     SOURCES app/test_board_layout.c
     LIBRARIES echo_app
