@@ -15,6 +15,9 @@ SCRATCH = Path("/Volumes/Scratch/SnowskyEcho/tmp")
 GIB = 1 << 30
 SYSTEM_LINES = [
     "debug_report: 1",
+    "report.sequence: 12",
+    "report.reason: usb_session",
+    "report.cold_start: 0",
     "firmware.name: Doublesharp Echo",
     "firmware.version: 1.0.0",
     "firmware.build: 1051212",
@@ -31,10 +34,10 @@ SYSTEM_LINES = [
     "events.dropped: 0",
     "event: 371 screen 1 Doubles",
     "event: 1045 key play long",
-    "power.samples: 2",
+    "power.samples: 3",
     "power.sample_interval_s: 60",
-    "power.sample: 12 4176 97 110",
-    "power.sample: 13 4170 96 001",
+    "power.sample: 12 4176 97 11011; 13 4170 96 00100",
+    "power.sample: 14 4168 96 00000",
     "profile.state: on",
     "profile.samples: 1000",
     "profile.idle: 300",
@@ -119,8 +122,10 @@ class VolumeCase(unittest.TestCase):
         self.card = Path(self.directory.name) / "MUSIC"
         (self.card / ".doublesharp" / "debug").mkdir(parents=True)
 
-    def write_report(self, text=None):
-        (self.debug / "report.txt").write_text(report_text() if text is None else text, encoding="ascii")
+    def write_report(self, text=None, slot=0):
+        path = self.debug / ("report%d.txt" % slot)
+        path.write_text(report_text() if text is None else text, encoding="ascii")
+        return path
 
     def host(self, *media):
         media = media or (medium("Internal storage", "ECHO", self.root),
@@ -155,6 +160,10 @@ class ReportParsing(unittest.TestCase):
         lines = [line.replace("1051212", "1051212+") for line in SYSTEM_LINES]
         self.assertEqual(echo_debug.parse_report(report_text(lines))["values"]["firmware.build"], "1051212+")
 
+    def test_an_unknown_build_is_none_not_the_word(self):
+        lines = [line.replace("firmware.build: 1051212", "firmware.build: unknown") for line in SYSTEM_LINES]
+        self.assertIsNone(echo_debug.parse_report(report_text(lines))["values"]["firmware.build"])
+
     def test_events_keep_their_order_time_and_detail(self):
         events = echo_debug.parse_report(report_text())["events"]
         self.assertEqual(events, [{"time_ms": 371, "kind": "screen", "detail": "1 Doubles"},
@@ -167,9 +176,11 @@ class ReportParsing(unittest.TestCase):
         self.assertIsNone(report["values"]["power.held"])
         self.assertEqual(report["power_samples"], [
             {"minute": 12, "millivolts": 4176, "percent": 97, "vbus": True, "charge_pin": True,
-             "playing": False},
+             "playing": False, "usb_powered": True, "usb_kept_on": True},
             {"minute": 13, "millivolts": 4170, "percent": 96, "vbus": False, "charge_pin": False,
-             "playing": True}])
+             "playing": True, "usb_powered": False, "usb_kept_on": False},
+            {"minute": 14, "millivolts": 4168, "percent": 96, "vbus": False, "charge_pin": False,
+             "playing": False, "usb_powered": False, "usb_kept_on": False}])
 
     def test_histogram_rows_are_hex_runs_from_a_first_bucket(self):
         buckets = echo_debug.parse_report(report_text())["profile_buckets"]
@@ -207,7 +218,7 @@ class ReportParsing(unittest.TestCase):
 
     def test_a_bad_event_or_histogram_row_is_an_error(self):
         for line in ("event: soon key", "profile.row: zz 1", "profile.row: 5", "power.sample: 1 2 3",
-                     "power.sample: 1 4000 90 1x0"):
+                     "power.sample: 1 4000 90 1x000", "power.sample: 1 4000 90 1100"):
             with self.assertRaises(echo_debug.DebugError) as raised:
                 echo_debug.parse_report(report_text(SYSTEM_LINES + [line]))
             self.assertEqual(raised.exception.code, "bad_report")
@@ -370,14 +381,67 @@ class Commands(VolumeCase):
         self.write_report()
         result = echo_debug.Tool(self.host()).report()
         self.assertTrue(result["ok"])
-        self.assertEqual(result["path"], str(self.debug / "report.txt"))
+        self.assertEqual(result["path"], str(self.debug / "report0.txt"))
         self.assertEqual(result["report"]["values"]["uptime_ms"], 61000)
 
     def test_the_card_is_never_read_even_when_it_holds_a_report(self):
-        (self.card / ".doublesharp" / "debug" / "report.txt").write_text(report_text(), encoding="ascii")
+        (self.card / ".doublesharp" / "debug" / "report0.txt").write_text(report_text(), encoding="ascii")
         with self.assertRaises(echo_debug.DebugError) as raised:
             echo_debug.Tool(self.host()).report()
         self.assertEqual(raised.exception.code, "no_report")
+
+    def numbered(self, sequence, reason="usb_session", cold=0, uptime=61000):
+        swaps = {"report.sequence: 12": "report.sequence: %d" % sequence,
+                 "report.reason: usb_session": "report.reason: " + reason,
+                 "report.cold_start: 0": "report.cold_start: %d" % cold,
+                 "uptime_ms: 61000": "uptime_ms: %d" % uptime}
+        return report_text([swaps.get(line, line) for line in SYSTEM_LINES])
+
+    def test_every_report_file_is_read_newest_first_and_named(self):
+        self.write_report(self.numbered(7, "shutdown"), 0)
+        self.write_report(self.numbered(9, "usb_session", cold=1, uptime=789), 1)
+        self.write_report(self.numbered(8, "auto_off"), 2)
+        result = echo_debug.Tool(self.host()).report()
+        self.assertEqual([(item["file"], item["sequence"], item["reason"], item["cold_start"])
+                          for item in result["reports"]],
+                         [("report1.txt", 9, "usb_session", True), ("report2.txt", 8, "auto_off", False),
+                          ("report0.txt", 7, "shutdown", False)])
+        self.assertEqual(result["path"], str(self.debug / "report1.txt"))
+        self.assertEqual(result["report"]["values"]["uptime_ms"], 789)
+        self.assertEqual(result["reports"][2]["report"]["values"]["report.reason"], "shutdown")
+        self.assertEqual(result["unreadable"], [])
+
+    def test_a_report_file_that_cannot_be_read_is_named_and_the_others_still_come_back(self):
+        self.write_report(self.numbered(7), 0)
+        (self.debug / "report1.txt").write_bytes(bytes(echo_debug.REPORT_BYTES))
+        result = echo_debug.Tool(self.host()).report()
+        self.assertEqual([item["file"] for item in result["reports"]], ["report0.txt"])
+        self.assertEqual([(item["file"], item["error"]) for item in result["unreadable"]],
+                         [("report1.txt", "not_a_report")])
+
+    def test_only_unreadable_files_are_an_error_that_names_the_first(self):
+        (self.debug / "report2.txt").write_bytes(bytes(echo_debug.REPORT_BYTES))
+        with self.assertRaises(echo_debug.DebugError) as raised:
+            echo_debug.Tool(self.host()).report()
+        self.assertEqual(raised.exception.code, "not_a_report")
+
+    def test_status_names_the_newest_report(self):
+        self.write_report(self.numbered(7, "shutdown"), 0)
+        self.write_report(self.numbered(8), 2)
+        status = echo_debug.Tool(self.host()).status()
+        self.assertTrue(status["report_present"])
+        self.assertEqual(status["newest_report"],
+                         {"file": "report2.txt", "path": str(self.debug / "report2.txt"), "sequence": 8,
+                          "reason": "usb_session", "cold_start": False, "uptime_ms": 61000})
+        self.assertFalse(status["cold_start_only"])
+        self.assertNotIn("advice", status)
+
+    def test_status_says_when_the_newest_report_is_an_empty_cold_start_one(self):
+        self.write_report(self.numbered(7, "shutdown"), 0)
+        self.write_report(self.numbered(8, cold=1, uptime=789), 1)
+        status = echo_debug.Tool(self.host()).status()
+        self.assertTrue(status["cold_start_only"])
+        self.assertIn("leave the player switched on", status["advice"])
 
     def test_report_without_a_player_is_an_error(self):
         with self.assertRaises(echo_debug.DebugError) as raised:
@@ -385,10 +449,11 @@ class Commands(VolumeCase):
         self.assertEqual(raised.exception.code, "player_not_connected")
 
     def test_an_oversized_report_file_is_refused(self):
-        (self.debug / "report.txt").write_bytes(b"debug_report: 1\n" + b"\n" * (5 * echo_debug.REPORT_BYTES))
+        (self.debug / "report0.txt").write_bytes(b"debug_report: 1\n" + b"\n" * (5 * echo_debug.REPORT_BYTES))
         with self.assertRaises(echo_debug.DebugError) as raised:
             echo_debug.Tool(self.host()).report()
         self.assertEqual(raised.exception.code, "bad_report")
+        self.assertEqual(echo_debug.Tool(self.host()).status()["report_present"], False)
 
     def test_profile_symbolises_the_report_and_names_its_build(self):
         self.write_report()

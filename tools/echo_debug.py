@@ -6,9 +6,9 @@ internal drive, over ordinary USB mass storage. Every command prints one JSON ob
 failure prints {"ok": false, "error": {"code", "message"}} and exits with status 1.
 
 The tool finds the player by its USB identity and its internal drive by name and size. It
-never formats, never opens a raw device and never reads or writes the microSD card's volume.
-`--volume PATH` names the internal drive's folder directly: for tests, and for a volume
-extracted from an emulator run.
+never writes, never formats, never opens a raw device and never reads the microSD card's
+volume. `--volume PATH` names the internal drive's folder directly: for tests, and for a
+volume extracted from an emulator run.
 """
 import argparse
 import json
@@ -22,7 +22,9 @@ ROOT = Path(__file__).resolve().parents[1]
 IDENTITY = json.loads((ROOT / "firmware" / "identity.json").read_text(encoding="utf-8"))
 DATA_DIRECTORY = IDENTITY["data_directory"]
 DEBUG_DIRECTORY = "debug"
-REPORT_FILE = "report.txt"
+REPORT_FILES = tuple("report%d.txt" % slot for slot in range(3))
+COLD_START_ADVICE = ("the newest report was written just after a cold start and holds nothing from before it: "
+                     "leave the player switched on when it is plugged in or reconnects")
 REPORT_SCHEMA = 1
 REPORT_BYTES = 16384
 SCHEMA_KEY = "debug_report"
@@ -145,6 +147,10 @@ def parse_value(text):
     return text
 
 
+def parse_text(text):
+    return None if text == "unknown" else text
+
+
 def parse_event(text):
     fields = text.split(" ", 2)
     if len(fields) < 2 or not fields[0].isdigit():
@@ -165,11 +171,12 @@ def parse_row(text, buckets):
 
 def parse_sample(text):
     fields = text.split()
-    if len(fields) != 4 or not all(field.isdigit() for field in fields) or len(fields[3]) != 3:
+    if len(fields) != 4 or not all(field.isdigit() for field in fields) or len(fields[3]) != 5:
         raise DebugError("bad_report", f"cannot read the power sample {text!r}")
-    vbus, charge_pin, playing = (digit == "1" for digit in fields[3])
+    vbus, charge_pin, playing, usb_powered, usb_kept_on = (digit == "1" for digit in fields[3])
     return {"minute": int(fields[0]), "millivolts": int(fields[1]), "percent": int(fields[2]),
-            "vbus": vbus, "charge_pin": charge_pin, "playing": playing}
+            "vbus": vbus, "charge_pin": charge_pin, "playing": playing, "usb_powered": usb_powered,
+            "usb_kept_on": usb_kept_on}
 
 
 def report_body(text):
@@ -203,9 +210,9 @@ def parse_report(text):
         elif key == "profile.row":
             parse_row(value, buckets)
         elif key == "power.sample":
-            samples.append(parse_sample(value))
+            samples.extend(parse_sample(sample) for sample in value.split(";"))
         else:
-            values[key] = value if key.startswith(TEXT_KEY_PREFIXES) else parse_value(value)
+            values[key] = parse_text(value) if key.startswith(TEXT_KEY_PREFIXES) else parse_value(value)
     return {"schema": schema, "truncated": truncated, "values": values, "events": events,
             "power_samples": samples,
             "profile_buckets": {str(index): count for index, count in sorted(buckets.items())},
@@ -366,24 +373,59 @@ class Tool:
     def debug_directory(self):
         return self.root() / DATA_DIRECTORY / DEBUG_DIRECTORY
 
-    def status(self):
-        found = self.locate()
-        report = Path(found["volume"]) / DATA_DIRECTORY / DEBUG_DIRECTORY / REPORT_FILE if found["connected"] else None
-        return {"ok": True, **found, "report_present": bool(report and report.is_file())}
+    def read_reports(self, directory=None):
+        """Every report file on the drive, newest first, and the files that could not be read."""
+        directory = directory or self.debug_directory()
+        reports, unreadable = [], []
+        for name in REPORT_FILES:
+            path = directory / name
+            if not path.is_file():
+                continue
+            try:
+                if path.stat().st_size > 4 * REPORT_BYTES:
+                    raise DebugError("bad_report", f"{path} is {path.stat().st_size} bytes; a report is {REPORT_BYTES}")
+                parsed = parse_report(path.read_bytes().decode("utf-8", "replace"))
+            except DebugError as error:
+                unreadable.append({"file": name, "error": error.code, "message": error.message})
+                continue
+            values = parsed["values"]
+            reports.append({"file": name, "path": str(path), "sequence": values.get("report.sequence"),
+                            "reason": values.get("report.reason"),
+                            "cold_start": values.get("report.cold_start") == 1,
+                            "uptime_ms": values.get("uptime_ms"), "report": parsed})
+        reports.sort(key=lambda item: item["sequence"] if isinstance(item["sequence"], int) else -1,
+                     reverse=True)
+        return reports, unreadable
 
     def read_report(self):
-        path = self.debug_directory() / REPORT_FILE
-        if not path.is_file():
-            raise DebugError("no_report", f"{path} does not exist: the player has not run a developer build "
-                                          "with this drive since it was last cleared")
-        data = path.read_bytes()
-        if len(data) > 4 * REPORT_BYTES:
-            raise DebugError("bad_report", f"{path} is {len(data)} bytes; a report is {REPORT_BYTES}")
-        return path, parse_report(data.decode("utf-8", "replace"))
+        """The newest report's path and contents."""
+        directory = self.debug_directory()
+        reports, unreadable = self.read_reports(directory)
+        if not reports and unreadable:
+            raise DebugError(unreadable[0]["error"], f"{unreadable[0]['file']}: {unreadable[0]['message']}")
+        if not reports:
+            raise DebugError("no_report", f"{directory} holds no report: the player has not run a developer "
+                                          "build with this drive since it was last cleared")
+        return Path(reports[0]["path"]), reports[0]["report"]
+
+    def status(self):
+        found = self.locate()
+        result = {"ok": True, **found, "report_present": False, "newest_report": None,
+                  "cold_start_only": False}
+        if found["connected"]:
+            reports, _ = self.read_reports(Path(found["volume"]) / DATA_DIRECTORY / DEBUG_DIRECTORY)
+            if reports:
+                newest = {key: value for key, value in reports[0].items() if key != "report"}
+                result.update(report_present=True, newest_report=newest, cold_start_only=newest["cold_start"])
+            if result["cold_start_only"]:
+                result["advice"] = COLD_START_ADVICE
+        return result
 
     def report(self):
+        self.root()
+        reports, unreadable = self.read_reports()
         path, parsed = self.read_report()
-        return {"ok": True, "path": str(path), "report": parsed}
+        return {"ok": True, "path": str(path), "report": parsed, "reports": reports, "unreadable": unreadable}
 
     def profile(self, elf, nm=None, top=DEFAULT_TOP, nm_text=None):
         path, parsed = self.read_report()
@@ -393,6 +435,7 @@ class Tool:
         map_text = linker_map.read_text(encoding="utf-8", errors="replace") if linker_map.is_file() else None
         return {"ok": True, "path": str(path), "elf": str(elf), "firmware_build": build,
                 "profile": symbolise(parsed, text, top, map_text)}
+
 
 
 class JsonParser(argparse.ArgumentParser):
@@ -432,6 +475,9 @@ def main(argv=None, host=None):
         result = dispatch(tool, arguments)
     except DebugError as error:
         print(json.dumps(error.as_json()))
+        return 1
+    except OSError as error:
+        print(json.dumps(DebugError("io_error", str(error)).as_json()))
         return 1
     print(json.dumps(result, indent=2))
     return 0
