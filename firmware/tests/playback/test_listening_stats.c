@@ -484,6 +484,56 @@ static void time_listened_to_one_entry_stops_at_the_largest_value(void)
     check_ranked(&job.top[0], 0x1001, UINT32_MAX);
 }
 
+static void rank_before_resolution(ListeningTop *job)
+{
+    reset();
+    add_hand_made_plays();
+    CHECK(
+        listening_top_begin(job, &log_file, LISTENING_BY_TRACK, (ListeningScratch){tallies, WIDE}));
+    for (int step = 0; step < STEP_LIMIT && job->sweeping; step++) {
+        CHECK_EQUAL(STORE_WORKING, listening_top_step(job));
+    }
+    CHECK(!job->sweeping);
+    CHECK(job->count > 0);
+}
+
+static void a_read_failure_while_resolving_a_rank_fails_the_job(void)
+{
+    ListeningTop job;
+    rank_before_resolution(&job);
+    disk.refuse_reads = true;
+    CHECK_EQUAL(STORE_FAILED, listening_top_step(&job));
+    int reads = disk.reads;
+    CHECK_EQUAL(STORE_FAILED, listening_top_step(&job));
+    CHECK_EQUAL(reads, disk.reads);
+    disk.refuse_reads = false;
+}
+
+static void a_record_damaged_after_ranking_cannot_resolve_to_another_song(void)
+{
+    ListeningTop job;
+    rank_before_resolution(&job);
+    uint32_t sequence = job.cursor.next - job.cursor.kept + job.top[0].tally.position;
+    uint32_t offset =
+        LISTENING_RING_OFFSET + sequence % LISTENING_LOG_CAPACITY * LISTENING_RECORD_BYTES;
+    disk.bytes[offset + 20] ^= 1;
+    CHECK_EQUAL(STORE_FAILED, listening_top_step(&job));
+    CHECK_EQUAL(0, job.top[0].track.key);
+}
+
+static void a_failed_ranking_can_be_restarted_after_storage_recovers(void)
+{
+    ListeningTop job;
+    rank_before_resolution(&job);
+    disk.refuse_reads = true;
+    CHECK_EQUAL(STORE_FAILED, listening_top_step(&job));
+    disk.refuse_reads = false;
+    run_top(&job, LISTENING_BY_TRACK, 1);
+    CHECK_EQUAL(0x1001, job.top[0].track.key);
+    CHECK_EQUAL(762000, job.top[0].tally.listened_ms);
+    CHECK_EQUAL(10, log_file.root.counters.totals.plays);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -509,6 +559,9 @@ int main(void)
         TEST_CASE(a_play_logged_while_a_job_runs_is_not_part_of_it),
         TEST_CASE(an_unreadable_log_fails_the_jobs),
         TEST_CASE(time_listened_to_one_entry_stops_at_the_largest_value),
+        TEST_CASE(a_read_failure_while_resolving_a_rank_fails_the_job),
+        TEST_CASE(a_record_damaged_after_ranking_cannot_resolve_to_another_song),
+        TEST_CASE(a_failed_ranking_can_be_restarted_after_storage_recovers),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
