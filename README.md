@@ -10,7 +10,7 @@ Doublesharp Echo builds on [Podium](https://podium-echo.online) and, through it,
 |---|---|
 | [`firmware/`](firmware/README.md) | The firmware source, simulator, emulator, tests and documentation |
 | `tools/firmware.py` | Build and test wrapper for the firmware |
-| `tools/echo_debug.py` | Host side of the developer builds' debug loop: `status`, `report` and `profile --elf ELF` read the player's kept debug reports from its internal drive over USB storage and print JSON; see [the architecture record](firmware/docs/architecture.md), Debug loop |
+| `tools/echo_debug.py`, `tools/echo_debug_mcp.py` | Host side of the developer builds' debug loop, as a command line that prints JSON and as an MCP server: `status`, `report` and `profile --elf ELF` read the player's kept debug reports from its internal drive over USB storage; `install IMAGE [--restart]` copies an update; `run SCRIPT` sends a debug script and returns its results; `wait` and `screenshots --out DIR` complete the loop. See [the architecture record](firmware/docs/architecture.md), Debug loop |
 | `tools/echo_image.py`, `run_analysis.py`, `check_analysis.py`, `rea_session.mjs`, `ghidra/` | Analysis of FiiO's stock image; see [the stock firmware reference](docs/stock-firmware.md) |
 | `tools/recovery/` | CMake project for the patched maskrom tool; see [`firmware/docs/device-recovery.md`](firmware/docs/device-recovery.md) |
 | `tests/` | Tests for the stock-image parser and exporter and for `echo_debug.py` |
