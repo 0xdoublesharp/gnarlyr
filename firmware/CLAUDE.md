@@ -61,7 +61,7 @@ python3 tools/firmware.py sim --card /path/to/music
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 139,008 | 157,292 | 18,284 |
+| Code window | 139,020 | 157,292 | 18,272 |
 | Static RAM | 264,168 | 287,296 | 23,128 |
 | Rescan overlay | 88,404 | 98,304 | 9,900 |
 | USB overlay code | 13,424 | 65,536 | 52,112 |
