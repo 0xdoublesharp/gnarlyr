@@ -82,6 +82,12 @@ foreach(playback_test play_queue resume_state up_next bookmarks spoken store tra
     )
 endforeach()
 
+foreach(listening_test listening_log)
+    echo_add_unit_test(NAME test_${listening_test}
+        SOURCES playback/test_${listening_test}.c playback/listening_fixture.c
+        LIBRARIES echo_playback
+    )
+endforeach()
 echo_add_unit_test(NAME test_settings SOURCES settings/test_settings.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_rocker SOURCES settings/test_rocker.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_equalizer_fit SOURCES settings/test_equalizer_fit.c LIBRARIES echo_settings)
