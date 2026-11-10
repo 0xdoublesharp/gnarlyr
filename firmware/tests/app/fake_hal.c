@@ -104,6 +104,7 @@ typedef struct FakeHal {
     bool fail_music_writes;
     const char *fail_file_writes;
     const char *fail_file_opens;
+    const char *fail_file_reads;
     InternalFile internal[INTERNAL_CAPACITY];
     FakeAudio audio;
     WrittenFile written[FILE_CAPACITY];
@@ -460,6 +461,9 @@ bool hal_file_read(HalFile file, uint32_t offset, void *buffer, uint32_t length)
         return false;
     }
     const FakeFile *source = &fake.files[file.handle];
+    if (fake.fail_file_reads != NULL && strcmp(fake.fail_file_reads, source->path) == 0) {
+        return false;
+    }
     if (offset > source->size || length > source->size - offset) {
         return false;
     }
@@ -1706,4 +1710,9 @@ void fake_hal_fail_file_writes(const char *path)
 void fake_hal_fail_file_opens(const char *path)
 {
     fake.fail_file_opens = path;
+}
+
+void fake_hal_fail_file_reads(const char *path)
+{
+    fake.fail_file_reads = path;
 }
