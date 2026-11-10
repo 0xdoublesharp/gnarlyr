@@ -40,6 +40,26 @@ static void the_battery_level_and_charging_are_read(void)
     CHECK(options.battery_charging);
 }
 
+static void a_notice_is_read_as_a_title_and_its_text(void)
+{
+    char *given[] = {"--notice", "USB DAC", "--notice-text", "Choose the player"};
+    SimOptions options;
+    CHECK(parse(given, 4, &options));
+    CHECK(options.notice_title == given[1]);
+    CHECK(options.notice_text == given[3]);
+}
+
+static void a_notice_needs_both_its_title_and_its_text(void)
+{
+    char *title_only[] = {"--notice", "USB DAC"};
+    char *text_only[] = {"--notice-text", "Choose the player"};
+    SimOptions options;
+    CHECK(!parse(title_only, 2, &options));
+    CHECK(!parse(text_only, 2, &options));
+    CHECK(parse(NULL, 0, &options));
+    CHECK(options.notice_title == NULL && options.notice_text == NULL);
+}
+
 static void a_battery_level_above_full_is_rejected(void)
 {
     char *given[] = {"--battery", "101"};
@@ -120,6 +140,8 @@ int main(void)
         TEST_CASE(a_key_script_is_read),
         TEST_CASE(storage_directories_are_read),
         TEST_CASE(the_battery_level_and_charging_are_read),
+        TEST_CASE(a_notice_is_read_as_a_title_and_its_text),
+        TEST_CASE(a_notice_needs_both_its_title_and_its_text),
         TEST_CASE(a_battery_level_above_full_is_rejected),
         TEST_CASE(an_unknown_option_is_rejected),
         TEST_CASE(an_option_missing_its_value_is_rejected),

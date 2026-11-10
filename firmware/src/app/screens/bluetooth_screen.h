@@ -28,8 +28,9 @@ typedef struct BluetoothScreen {
     ListView list;
     uint32_t now_ms;
     uint8_t nearby_count;
+    uint8_t hint_lines;
     uint8_t nearby[HAL_BLUETOOTH_DEVICE_CAPACITY];
-    char lines[BLUETOOTH_SCREEN_LINE_COUNT][BLUETOOTH_SCREEN_LINE_CAPACITY];
+    char detail_lines[BLUETOOTH_SCREEN_LINE_COUNT - 1][BLUETOOTH_SCREEN_LINE_CAPACITY];
 } BluetoothScreen;
 
 Screen *bluetooth_screen_init(BluetoothScreen *bluetooth, BluetoothLink *link, const Theme *theme);

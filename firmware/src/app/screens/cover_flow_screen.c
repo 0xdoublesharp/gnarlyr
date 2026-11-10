@@ -11,6 +11,7 @@
 #include "ui/cover_flow.h"
 #include "ui/label.h"
 #include "ui/marquee.h"
+#include "ui/message_screen.h"
 #include "ui/navigation.h"
 
 enum {
@@ -419,10 +420,8 @@ static void draw_text(const CoverFlowScreen *flow, Canvas *canvas)
 
 static void draw_empty(const Theme *theme, Canvas *canvas)
 {
-    TextStyle style = {.font = theme->fonts.body, .color = theme->colors.text_secondary};
     Rect screen = {0, 0, theme->metrics.screen_width, theme->metrics.screen_height};
-    const char *message = i18n_text(STR_NOTHING_HERE);
-    label_draw(canvas, style, (Label){label_centered_area(style.font, screen, message), message});
+    message_draw(canvas, theme, screen, i18n_text(STR_NOTHING_HERE));
 }
 
 static void draw_backdrop(const Theme *theme, Canvas *canvas)

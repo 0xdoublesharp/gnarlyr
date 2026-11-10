@@ -20,20 +20,32 @@ void toast_update(Toast *toast, uint32_t now_ms)
     }
 }
 
+static int text_room(const Theme *theme)
+{
+    return theme->metrics.screen_width - 2 * theme->metrics.padding;
+}
+
 static const Font *toast_font(const Toast *toast, const Theme *theme)
 {
-    int room = theme->metrics.screen_width - 2 * theme->metrics.padding;
-    return text_width(theme->fonts.body, toast->text) <= room ? theme->fonts.body
-                                                              : theme->fonts.small;
+    return text_width(theme->fonts.body, toast->text) <= text_room(theme) ? theme->fonts.body
+                                                                          : theme->fonts.small;
+}
+
+static int toast_lines(const Toast *toast, const Theme *theme)
+{
+    int lines = label_wrap_count(toast_font(toast, theme), toast->text, text_room(theme));
+    return lines < TOAST_MAX_LINES ? lines : TOAST_MAX_LINES;
 }
 
 Rect toast_area(const Toast *toast, const Theme *theme)
 {
     const ThemeMetrics *metrics = &theme->metrics;
-    int width = text_width(toast_font(toast, theme), toast->text) + 2 * metrics->padding;
-    width = width < metrics->screen_width ? width : metrics->screen_width;
-    int height =
-        metrics->row_height < metrics->screen_height ? metrics->row_height : metrics->screen_height;
+    const Font *font = toast_font(toast, theme);
+    int lines = toast_lines(toast, theme);
+    int width = text_width(font, toast->text) + 2 * metrics->padding;
+    width = lines == 1 && width < metrics->screen_width ? width : metrics->screen_width;
+    int height = metrics->row_height + (lines - 1) * font_line_height(font);
+    height = height < metrics->screen_height ? height : metrics->screen_height;
     int bottom_margin =
         metrics->screen_height > height + TOAST_BOTTOM_MARGIN ? TOAST_BOTTOM_MARGIN : 0;
     return (Rect){(metrics->screen_width - width) / 2,
@@ -48,9 +60,10 @@ void toast_draw(const Toast *toast, Canvas *canvas, const Theme *theme)
     Rect area = toast_area(toast, theme);
     Rect inner = {area.x + BORDER, area.y + BORDER, area.width - 2 * BORDER,
                   area.height - 2 * BORDER};
+    Rect text = {area.x + theme->metrics.padding, inner.y, area.width - 2 * theme->metrics.padding,
+                 inner.height};
     TextStyle style = {.font = toast_font(toast, theme), .color = theme->colors.header_text};
     canvas_fill_rect(canvas, area, theme->colors.divider);
     canvas_fill_rect(canvas, inner, theme->colors.header_background);
-    Rect text_area = label_centered_area(style.font, inner, toast->text);
-    label_draw(canvas, style, (Label){.area = text_area, .text = toast->text});
+    label_draw_wrapped(canvas, style, (Label){.area = text, .text = toast->text});
 }

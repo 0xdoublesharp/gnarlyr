@@ -12,6 +12,7 @@
 #include "ui/icons.h"
 #include "ui/label.h"
 #include "ui/marquee.h"
+#include "ui/message_screen.h"
 
 enum {
     MS_PER_SECOND = 1000,
@@ -696,11 +697,7 @@ static void draw_badge(const NowPlayingScreen *now_playing, Canvas *canvas)
 
 static void draw_nothing_playing(const Theme *theme, Canvas *canvas)
 {
-    TextStyle style = {.font = theme->fonts.body, .color = theme->colors.text_secondary};
-    Rect content = theme_content_area(theme);
-    const char *message = i18n_text(STR_NOTHING_PLAYING);
-    Rect area = label_centered_area(style.font, content, message);
-    label_draw(canvas, style, (Label){.area = area, .text = message});
+    message_draw(canvas, theme, theme_content_area(theme), i18n_text(STR_NOTHING_PLAYING));
 }
 
 static void draw(void *context, Canvas *canvas)

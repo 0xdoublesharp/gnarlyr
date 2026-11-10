@@ -159,6 +159,12 @@ echo_add_unit_test(NAME test_app_language
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 
+echo_add_unit_test(NAME test_english_layout
+    SOURCES app/test_english_layout.c
+    LIBRARIES echo_app
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
 echo_add_unit_test(NAME test_app
     SOURCES app/test_app.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures

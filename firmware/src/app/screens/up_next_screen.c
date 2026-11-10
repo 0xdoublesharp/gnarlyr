@@ -8,6 +8,7 @@
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/list_navigation.h"
+#include "ui/message_screen.h"
 
 typedef enum RowKind {
     ROW_PLAYING,
@@ -220,11 +221,8 @@ static void draw(void *context, Canvas *canvas)
     Rect content = theme_content_area(theme);
     header_draw(canvas, theme, up_next->screen.title);
     if (up_next->count == 0) {
-        TextStyle style = {.font = theme->fonts.body, .color = theme->colors.text_secondary};
         canvas_fill_rect(canvas, content, theme->colors.background);
-        const char *message = i18n_text(STR_NOTHING_IS_PLAYING);
-        Rect area = label_centered_area(style.font, content, message);
-        label_draw(canvas, style, (Label){.area = area, .text = message});
+        message_draw(canvas, theme, content, i18n_text(STR_NOTHING_IS_PLAYING));
         return;
     }
     list_view_draw(&up_next->list, canvas, content, up_next->now_ms);

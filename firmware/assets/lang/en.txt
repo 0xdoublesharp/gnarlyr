@@ -4,7 +4,8 @@
 # catalogue; a translation is a file <code>.txt beside this one with the same
 # names in any order, and a name it leaves out keeps the English text.
 # {0}, {1}, ... stand for values the player inserts; a translation may move
-# them but must keep each one. Lines starting with # are notes.
+# them but must keep each one. \n starts a new line in a notice; use it only
+# where the English text does. Lines starting with # are notes.
 # Build and install: docs/architecture.md, Languages.
 
 # The language's own name, shown in Settings > Language.
@@ -280,11 +281,11 @@ STR_USB = USB
 STR_USB_STARTING = Computer found. Starting...
 STR_USB_EJECT_DRIVE = Connected. Eject the drive to finish.
 STR_USB_EJECT_DRIVES = Connected. Eject both drives to finish.
-STR_USB_UNPLUGGED = Unplugged before ejecting
+STR_USB_UNPLUGGED = Unplugged too soon
 STR_USB_UNPLUGGED_HINT = Recent changes may be lost. Eject the drives before unplugging.
 STR_USB_CODE_MISSING = USB code missing: reinstall the update
 STR_USB_DAC_TITLE = USB DAC
-STR_USB_DAC_CHOOSE = Choose {0} as the sound output · Volume {1}
+STR_USB_DAC_CHOOSE = Choose {0} as the sound output\nVolume {1}
 STR_USB_DAC_FORMAT = {0} kHz {1}-bit · Volume {2}
 STR_USB_DAC_FAILED = The audio output didn't start.
 

@@ -15,3 +15,4 @@ typedef struct MessageScreen {
 } MessageScreen;
 
 Screen *message_screen_init(MessageScreen *message, MessageConfig config);
+void message_draw(Canvas *canvas, const Theme *theme, Rect area, const char *text);

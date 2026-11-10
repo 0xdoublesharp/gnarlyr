@@ -55,7 +55,7 @@ def read_entries(path):
         match = LINE.match(line)
         if not match:
             raise PackError(f"{path.name}:{number}: expected STR_NAME = text")
-        name, text = match.group(1), match.group(2).strip()
+        name, text = match.group(1), match.group(2).strip().replace("\\n", "\n")
         if name in seen:
             raise PackError(f"{path.name}:{number}: {name} appears twice")
         seen.add(name)
@@ -117,7 +117,8 @@ def drawable_characters(fonts_directory=FONTS):
 
 def check_glyphs(code, texts, drawable):
     for name, text in texts:
-        missing = sorted({character for character in text if ord(character) not in drawable})
+        missing = sorted({character for character in text
+                          if ord(character) not in drawable and character != "\n"})
         if missing:
             shown = " ".join(f"{character} U+{ord(character):04X}" for character in missing)
             raise PackError(f"{code}: {name} uses characters a text size cannot draw: {shown}")
@@ -198,7 +199,8 @@ def language_pack(code, directory=LANGUAGES, fonts_directory=FONTS):
 
 
 def c_literal(text):
-    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    escaped = text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+    return '"' + escaped + '"'
 
 
 def header_source(catalogue):

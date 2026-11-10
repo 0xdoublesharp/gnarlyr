@@ -1,4 +1,5 @@
 #include "check.h"
+#include "ui/label.h"
 #include "ui/message_screen.h"
 #include "ui_test_canvas.h"
 #include "ui_test_theme.h"
@@ -47,6 +48,42 @@ static void the_message_is_drawn_below_the_header(void)
                                  TEST_THEME.colors.header_background));
 }
 
+static int inked_rows(const Canvas *canvas, Rect area)
+{
+    int rows = 0;
+    for (int y = area.y; y < area.y + area.height; y++) {
+        Rect row = {area.x, y, area.width, 1};
+        rows += ui_test_area_has_color(canvas, row, TEST_THEME.colors.text_secondary) ? 1 : 0;
+    }
+    return rows;
+}
+
+static void a_message_too_wide_for_the_screen_wraps_onto_more_lines(void)
+{
+    Canvas shorter = ui_test_canvas();
+    Canvas longer = ui_test_canvas();
+    Rect content = theme_content_area(&TEST_THEME);
+    static const char LONG_TEXT[] = "AB AB AB AB AB AB AB AB AB AB AB AB";
+    CHECK(label_wrap_count(TEST_THEME.fonts.body, LONG_TEXT, content.width - 2) > 1);
+    message_draw(&shorter, &TEST_THEME, content, "AB");
+    int one_line = inked_rows(&shorter, content);
+    message_draw(&longer, &TEST_THEME, content, LONG_TEXT);
+    CHECK(inked_rows(&longer, content) > one_line);
+}
+
+static void a_message_keeps_the_theme_padding_at_both_sides(void)
+{
+    Canvas canvas = ui_test_canvas();
+    Rect content = theme_content_area(&TEST_THEME);
+    int padding = TEST_THEME.metrics.padding;
+    message_draw(&canvas, &TEST_THEME, content, "AB AB AB AB AB AB AB AB AB AB AB AB AB AB AB");
+    Rect left = {content.x, content.y, padding, content.height};
+    Rect right = {content.x + content.width - padding, content.y, padding, content.height};
+    CHECK(!ui_test_area_has_color(&canvas, left, TEST_THEME.colors.text_secondary));
+    CHECK(!ui_test_area_has_color(&canvas, right, TEST_THEME.colors.text_secondary));
+    CHECK(ui_test_area_has_color(&canvas, content, TEST_THEME.colors.text_secondary));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -54,6 +91,8 @@ int main(void)
         TEST_CASE(back_pops_and_a_long_back_goes_home),
         TEST_CASE(other_keys_do_nothing),
         TEST_CASE(the_message_is_drawn_below_the_header),
+        TEST_CASE(a_message_too_wide_for_the_screen_wraps_onto_more_lines),
+        TEST_CASE(a_message_keeps_the_theme_padding_at_both_sides),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

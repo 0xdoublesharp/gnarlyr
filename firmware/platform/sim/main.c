@@ -41,7 +41,8 @@ static void print_usage(void)
     fputs("usage: echo_sim [--scale N] [--frames N] [--headless] [--screenshot FILE.bmp]\n"
           "                [--keys up,down,play,menu,back,power[:long],...]\n"
           "                [--card MUSIC_DIR] [--system-dir DIR_WITH_LIBRARY_DB]\n"
-          "                [--battery PERCENT] [--charging]\n",
+          "                [--battery PERCENT] [--charging]\n"
+          "                [--notice TITLE --notice-text MESSAGE]\n",
           stderr);
 }
 
@@ -164,6 +165,9 @@ static void run(SimSession *session)
 static int finish(const SimOptions *options)
 {
     int status = EXIT_SUCCESS;
+    if (options->notice_title != NULL) {
+        app_show_notice(options->notice_title, options->notice_text);
+    }
     app_stop();
     if (options->screenshot_path != NULL && !sim_display_save_bmp(options->screenshot_path)) {
         SDL_Log("could not save %s: %s", options->screenshot_path, SDL_GetError());

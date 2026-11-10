@@ -49,6 +49,15 @@ class CatalogueTest(unittest.TestCase):
         catalogue = self.read("STR_LANGUAGE_NAME =   English  \nSTR_A=  b c \n")
         self.assertEqual(("STR_A", "b c"), catalogue[1])
 
+    def test_a_backslash_n_in_the_file_is_a_line_break_in_the_text(self):
+        catalogue = self.read(english_file() + "STR_TWO = one\\ntwo\n")
+        self.assertEqual(("STR_TWO", "one\ntwo"), catalogue[3])
+        pack = lang_pack.build_pack("en", catalogue, {})
+        self.assertIn(b"one\ntwo\0", pack)
+        lang_pack.check_glyphs("en", catalogue, DRAWABLE)
+        self.assertIn('[STR_TWO] = "one\\ntwo",', lang_pack.english_source(catalogue))
+        self.assertEqual("[óné\ntwó!!]", lang_pack.pseudo_text("one\ntwo"))
+
     def test_a_line_that_is_not_a_string_is_refused(self):
         for line in ("Hello", "str_lower = x", "NAME = x", "STR_A: x"):
             with self.assertRaises(lang_pack.PackError):

@@ -10,7 +10,8 @@
 #include "ui/navigation.h"
 
 enum {
-    FOOTER_LINE_HEIGHT = 15,
+    FOOTER_LINE_PITCH = 15,
+    HINT_MAX_LINES = 3,
     FOOTER_GAP = 4
 };
 
@@ -180,6 +181,25 @@ static const char *hint(const BluetoothScreen *bluetooth)
     return i18n_text(hint_id(bluetooth));
 }
 
+static int hint_width(const BluetoothScreen *bluetooth)
+{
+    return bluetooth->theme->metrics.screen_width - 2 * bluetooth->theme->metrics.padding;
+}
+
+static uint8_t widest_hint_lines(const BluetoothScreen *bluetooth)
+{
+    static const StringId HINTS[] = {
+        STR_BT_HINT_DISCONNECT, STR_BT_HINT_CONNECTING, STR_BT_HINT_CONNECT, STR_BT_HINT_TURN_OFF,
+        STR_BT_HINT_TURN_ON,    STR_BT_HINT_SEARCHING,  STR_BT_HINT_SEARCH,  STR_BT_HINT_PAIR};
+    int lines = 1;
+    for (size_t index = 0; index < sizeof HINTS / sizeof HINTS[0]; index++) {
+        int needed = label_wrap_count(bluetooth->theme->fonts.small, i18n_text(HINTS[index]),
+                                      hint_width(bluetooth));
+        lines = needed > lines ? needed : lines;
+    }
+    return (uint8_t)(lines < HINT_MAX_LINES ? lines : HINT_MAX_LINES);
+}
+
 static const char *state_text(HalBluetoothState state)
 {
     switch (state) {
@@ -263,12 +283,6 @@ static void write_events(const HalBluetoothLink *link, char *text, uint8_t first
     }
 }
 
-static void write_line(char *line, const char *text)
-{
-    StringBuilder builder = string_builder_make(line, BLUETOOTH_SCREEN_LINE_CAPACITY);
-    string_builder_append(&builder, text);
-}
-
 static void refresh(BluetoothScreen *bluetooth)
 {
     const HalBluetoothStatus *status = hal_bluetooth_status();
@@ -280,11 +294,10 @@ static void refresh(BluetoothScreen *bluetooth)
     if (bluetooth->list.selected >= count) {
         list_view_select(&bluetooth->list, count - 1, bluetooth->now_ms);
     }
-    write_line(bluetooth->lines[BLUETOOTH_SCREEN_HINT_LINE], hint(bluetooth));
-    write_state(status, bluetooth->lines[1]);
-    write_link(&status->link, bluetooth->lines[2]);
-    write_events(&status->link, bluetooth->lines[3], 0);
-    write_events(&status->link, bluetooth->lines[4], BLUETOOTH_SCREEN_EVENTS_PER_LINE);
+    write_state(status, bluetooth->detail_lines[0]);
+    write_link(&status->link, bluetooth->detail_lines[1]);
+    write_events(&status->link, bluetooth->detail_lines[2], 0);
+    write_events(&status->link, bluetooth->detail_lines[3], BLUETOOTH_SCREEN_EVENTS_PER_LINE);
 }
 
 static int footer_lines(const BluetoothScreen *bluetooth)
@@ -295,7 +308,10 @@ static int footer_lines(const BluetoothScreen *bluetooth)
 static Rect list_area(const BluetoothScreen *bluetooth)
 {
     Rect content = theme_content_area(bluetooth->theme);
-    content.height -= footer_lines(bluetooth) * FOOTER_LINE_HEIGHT + FOOTER_GAP;
+    int line_height = font_line_height(bluetooth->theme->fonts.small);
+    int details = footer_lines(bluetooth) - 1;
+    content.height -= FOOTER_GAP + bluetooth->hint_lines * line_height +
+                      (details > 0 ? (details - 1) * FOOTER_LINE_PITCH + line_height : 0);
     return content;
 }
 
@@ -304,6 +320,7 @@ static void enter(void *context, uint32_t now_ms)
     BluetoothScreen *bluetooth = context;
     bluetooth->now_ms = now_ms;
     bluetooth->pairing = false;
+    bluetooth->hint_lines = widest_hint_lines(bluetooth);
     bluetooth->list.visible_rows =
         list_area(bluetooth).height / bluetooth->theme->metrics.row_height;
     list_view_select(&bluetooth->list, 0, now_ms);
@@ -370,6 +387,19 @@ static void update(void *context, uint32_t now_ms)
     refresh(bluetooth);
 }
 
+static Rect draw_hint(const BluetoothScreen *bluetooth, Canvas *canvas, Rect footer)
+{
+    const Theme *theme = bluetooth->theme;
+    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
+    int line_height = font_line_height(style.font);
+    int needed = label_wrap_count(style.font, hint(bluetooth), hint_width(bluetooth));
+    int spare = needed < bluetooth->hint_lines ? bluetooth->hint_lines - needed : 0;
+    Rect area = {footer.x + theme->metrics.padding, footer.y + FOOTER_GAP + spare * line_height,
+                 hint_width(bluetooth), (bluetooth->hint_lines - spare) * line_height};
+    label_draw_paragraph(canvas, style, (Label){.area = area, .text = hint(bluetooth)});
+    return (Rect){area.x, area.y + area.height, area.width, line_height};
+}
+
 static void draw(void *context, Canvas *canvas)
 {
     const BluetoothScreen *bluetooth = context;
@@ -380,21 +410,17 @@ static void draw(void *context, Canvas *canvas)
     Rect footer = {list.x, list.y + list.height, list.width,
                    theme_content_area(theme).height - list.height};
     canvas_fill_rect(canvas, footer, theme->colors.background);
-    for (int index = 0; index < footer_lines(bluetooth); index++) {
-        TextStyle style = {.font = theme->fonts.small,
-                           .color = index == BLUETOOTH_SCREEN_HINT_LINE
-                                        ? theme->colors.text_secondary
-                                        : theme->colors.text_tertiary};
-        Rect area = {footer.x + theme->metrics.padding,
-                     footer.y + FOOTER_GAP + index * FOOTER_LINE_HEIGHT,
-                     footer.width - 2 * theme->metrics.padding, FOOTER_LINE_HEIGHT};
-        label_draw(canvas, style, (Label){.area = area, .text = bluetooth->lines[index]});
+    Rect area = draw_hint(bluetooth, canvas, footer);
+    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_tertiary};
+    for (int index = 1; index < footer_lines(bluetooth); index++, area.y += FOOTER_LINE_PITCH) {
+        label_draw(canvas, style,
+                   (Label){.area = area, .text = bluetooth->detail_lines[index - 1]});
     }
 }
 
 Screen *bluetooth_screen_init(BluetoothScreen *bluetooth, BluetoothLink *link, const Theme *theme)
 {
-    *bluetooth = (BluetoothScreen){.theme = theme, .link = link};
+    *bluetooth = (BluetoothScreen){.theme = theme, .link = link, .hint_lines = 1};
     bluetooth->model = (ListModel){
         .context = bluetooth, .count = row_count, .label = row_label, .detail = row_value};
     list_view_init(&bluetooth->list, &bluetooth->model, theme, 0);
@@ -442,7 +468,8 @@ const char *bluetooth_screen_row_value(const BluetoothScreen *bluetooth, int ind
 
 const char *bluetooth_screen_line(const BluetoothScreen *bluetooth, int index)
 {
-    return bluetooth->lines[index];
+    return index == BLUETOOTH_SCREEN_HINT_LINE ? hint(bluetooth)
+                                               : bluetooth->detail_lines[index - 1];
 }
 
 const char *bluetooth_screen_summary(const void *bluetooth)

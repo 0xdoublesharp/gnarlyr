@@ -107,6 +107,18 @@ static bool read_charging(ArgumentCursor *cursor, SimOptions *options)
     return true;
 }
 
+static bool read_notice_title(ArgumentCursor *cursor, SimOptions *options)
+{
+    options->notice_title = next_value(cursor);
+    return options->notice_title != NULL;
+}
+
+static bool read_notice_text(ArgumentCursor *cursor, SimOptions *options)
+{
+    options->notice_text = next_value(cursor);
+    return options->notice_text != NULL;
+}
+
 static const OptionSpec OPTION_SPECS[] = {
     {"--scale", read_scale},
     {"--frames", read_frames},
@@ -117,6 +129,8 @@ static const OptionSpec OPTION_SPECS[] = {
     {"--system-dir", read_system_directory},
     {"--battery", read_battery},
     {"--charging", read_charging},
+    {"--notice", read_notice_title},
+    {"--notice-text", read_notice_text},
 };
 
 static bool read_option(ArgumentCursor *cursor, SimOptions *options)
@@ -140,5 +154,6 @@ bool sim_options_parse(int argument_count, char **arguments, SimOptions *options
             return false;
         }
     }
-    return !options->headless || options->frame_limit > 0;
+    bool notice_complete = (options->notice_title == NULL) == (options->notice_text == NULL);
+    return notice_complete && (!options->headless || options->frame_limit > 0);
 }

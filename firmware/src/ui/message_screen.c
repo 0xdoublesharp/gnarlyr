@@ -19,16 +19,22 @@ static void update(void *context, uint32_t now_ms)
     (void)now_ms;
 }
 
+void message_draw(Canvas *canvas, const Theme *theme, Rect area, const char *text)
+{
+    TextStyle style = {.font = theme->fonts.body, .color = theme->colors.text_secondary};
+    Rect inner = {area.x + theme->metrics.padding, area.y, area.width - 2 * theme->metrics.padding,
+                  area.height};
+    label_draw_wrapped(canvas, style, (Label){.area = inner, .text = text});
+}
+
 static void draw(void *context, Canvas *canvas)
 {
     const MessageScreen *message = context;
     const Theme *theme = message->config.theme;
     Rect content = theme_content_area(theme);
-    TextStyle style = {.font = theme->fonts.body, .color = theme->colors.text_secondary};
     canvas_fill_rect(canvas, content, theme->colors.background);
     header_draw(canvas, theme, message->config.title);
-    Rect area = label_centered_area(style.font, content, message->config.message);
-    label_draw(canvas, style, (Label){.area = area, .text = message->config.message});
+    message_draw(canvas, theme, content, message->config.message);
 }
 
 Screen *message_screen_init(MessageScreen *message, MessageConfig config)

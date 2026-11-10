@@ -5,7 +5,10 @@
 #include "check.h"
 #include "default_theme.h"
 #include "fake_hal.h"
+#include "gfx/canvas.h"
+#include "hal/display.h"
 #include "screens/bluetooth_screen.h"
+#include "ui/label.h"
 
 enum {
     START_MS = 1000
@@ -66,6 +69,73 @@ static void find_two_devices(void)
     status->devices[0] = BUDS;
     strcpy(status->devices[1].name, "Kitchen");
     status->devices[1].address[0] = 0x22;
+}
+
+static Color pixels[HAL_DISPLAY_WIDTH * HAL_DISPLAY_WIDTH];
+
+static int inked_rows(const Canvas *canvas, const Theme *theme, int first, int last)
+{
+    int rows = 0;
+    for (int y = first; y < last; y++) {
+        for (int x = 0; x < theme->metrics.screen_width; x++) {
+            if (canvas_pixel_at(canvas, x, y) != theme->colors.background) {
+                rows++;
+                break;
+            }
+        }
+    }
+    return rows;
+}
+
+static Canvas blank_screen(const Theme *theme)
+{
+    Rect whole = {0, 0, theme->metrics.screen_width, theme->metrics.screen_height};
+    Canvas canvas = canvas_make(pixels, whole);
+    canvas_clear(&canvas, theme->colors.background);
+    return canvas;
+}
+
+static int rows_of_the_hint_alone(const Theme *theme)
+{
+    Canvas canvas = blank_screen(theme);
+    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
+    Rect area = {0, 0, theme->metrics.screen_width, 2 * font_line_height(style.font)};
+    label_draw(&canvas, style, (Label){.area = area, .text = bluetooth_screen_line(&bluetooth, 0)});
+    return inked_rows(&canvas, theme, 0, area.height);
+}
+
+static int rows_of_the_hint_on_screen(const Theme *theme)
+{
+    fake_hal_reset();
+    toast = (Toast){0};
+    bluetooth_link_start(&link, &toast, START_MS);
+    Screen *screen = bluetooth_screen_init(&bluetooth, &link, theme);
+    screen->enter(screen->context, START_MS);
+    screen->update(screen->context, START_MS + 100);
+    Canvas canvas = blank_screen(theme);
+    screen->draw(screen->context, &canvas);
+    int bottom = theme->metrics.screen_height;
+    return inked_rows(&canvas, theme, bottom - font_line_height(theme->fonts.small), bottom);
+}
+
+static void the_hint_is_one_whole_line_in_landscape(void)
+{
+    int on_screen = rows_of_the_hint_on_screen(&BOARD_THEME);
+    CHECK_EQUAL(1, bluetooth.hint_lines);
+    CHECK(on_screen > 0);
+    CHECK_EQUAL(rows_of_the_hint_alone(&BOARD_THEME), on_screen);
+}
+
+static void in_portrait_the_hint_gets_the_lines_its_longest_text_needs(void)
+{
+    Theme portrait = BOARD_THEME;
+    default_theme_set_orientation(&portrait, ORIENTATION_PORTRAIT);
+    int line = font_line_height(portrait.fonts.small);
+    int on_screen = rows_of_the_hint_on_screen(&portrait);
+    CHECK_EQUAL(3, bluetooth.hint_lines);
+    CHECK_EQUAL(rows_of_the_hint_alone(&portrait), on_screen);
+    CHECK_EQUAL((theme_content_area(&portrait).height - 4 - 3 * line) / portrait.metrics.row_height,
+                bluetooth.list.visible_rows);
 }
 
 static void off_shows_only_the_switch(void)
@@ -324,6 +394,8 @@ int main(void)
         TEST_CASE(the_settings_row_summarises_the_link),
         TEST_CASE(a_connection_is_saved_once),
         TEST_CASE(a_damaged_store_is_ignored),
+        TEST_CASE(the_hint_is_one_whole_line_in_landscape),
+        TEST_CASE(in_portrait_the_hint_gets_the_lines_its_longest_text_needs),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

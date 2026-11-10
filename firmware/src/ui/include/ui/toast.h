@@ -7,7 +7,8 @@
 #include "ui/theme.h"
 
 enum {
-    TOAST_DURATION_MS = 1500
+    TOAST_DURATION_MS = 1500,
+    TOAST_MAX_LINES = 3
 };
 
 typedef struct Toast {
