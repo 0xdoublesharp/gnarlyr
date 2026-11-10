@@ -661,16 +661,16 @@ static void draw_badge_icon(Canvas *canvas, NowPlayingFeedback feedback, Rect ar
 {
     switch (feedback) {
     case NOW_PLAYING_FEEDBACK_NEXT:
-        icon_draw_next(canvas, area, color);
+        icon_draw(canvas, ICON_NEXT, area, (IconInk){color, color});
         return;
     case NOW_PLAYING_FEEDBACK_PREVIOUS:
-        icon_draw_previous(canvas, area, color);
+        icon_draw(canvas, ICON_PREVIOUS, area, (IconInk){color, color});
         return;
     case NOW_PLAYING_FEEDBACK_PAUSE:
-        icon_draw_pause(canvas, area, color);
+        icon_draw(canvas, ICON_PAUSE, area, (IconInk){color, color});
         return;
     case NOW_PLAYING_FEEDBACK_PLAY:
-        icon_draw_play(canvas, area, color);
+        icon_draw(canvas, ICON_PLAY, area, (IconInk){color, color});
         return;
     default:
         return;

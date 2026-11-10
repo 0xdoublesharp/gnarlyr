@@ -50,7 +50,8 @@ static void draw_battery(Canvas *canvas, const Theme *theme, Rect body, HalBatte
     if (battery.charging) {
         Rect bolt = {body.x + (body.width - BOLT_WIDTH) / 2,
                      body.y + (body.height - BOLT_HEIGHT) / 2, BOLT_WIDTH, BOLT_HEIGHT};
-        icon_draw_bolt(canvas, bolt, theme->colors.background);
+        icon_draw(canvas, ICON_BOLT, bolt,
+                  (IconInk){theme->colors.background, theme->colors.background});
     }
 }
 
