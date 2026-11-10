@@ -75,6 +75,9 @@
     .feature-list { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 38px; }
     .feature { padding-block: 22px 24px; border-top: 1px solid var(--line); }
     h3 { margin-bottom: 7px; font-size: 17px; letter-spacing: -.4px; line-height: 1.45; }
+    .task-heading { display: flex; align-items: center; gap: 9px; }
+    .task-icon { width: 20px; height: 20px; flex: 0 0 20px; fill: none; stroke: var(--mint); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    .icon-definitions { position: absolute; width: 0; height: 0; overflow: hidden; }
     .feature p { font-size: 15px; line-height: 1.75; color: var(--muted); }
     .compatibility { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 20px; margin-top: 15px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
     .compatibility strong { color: var(--mint); font-weight: 600; }
@@ -96,6 +99,7 @@
     .terminal-label { color: var(--muted); font: 12px/1.6 var(--mono); }
     pre { max-width: 100%; margin: 8px 0 0; padding: 10px 14px; border-left: 2px solid #8b6d91; background: #1c1529; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.75 var(--mono); color: var(--mint); tab-size: 2; }
     code { font-family: var(--mono); font-size: .91em; overflow-wrap: anywhere; }
+    code.path { overflow-wrap: normal; }
     pre code { font-size: inherit; }
     .cmd { display: block; padding-left: 4ch; text-indent: -4ch; }
     .cmd + .cmd { margin-top: 2px; }
@@ -155,9 +159,12 @@
       h1 { font-size: clamp(49px, 6.3vw, 63px); letter-spacing: -3.5px; }
       .hero .eyebrow { letter-spacing: 1px; }
       .art-note { letter-spacing: 1px; }
-      .feature-list, .steps { column-gap: 25px; }
+      .feature-list { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; }
+      .steps { grid-template-columns: 1fr; gap: 0; }
+      .steps li { display: grid; grid-template-columns: 36px 165px minmax(0, 1fr); gap: 18px; align-items: start; padding-block: 20px; }
+      .steps li::before { margin: 4px 0 0; }
       .get-inner, .recovery-inner { grid-template-columns: 1fr; gap: 30px; }
-      .get-copy { max-width: 65ch; }
+      .get-copy > p { max-width: 65ch; }
     }
     @media (max-width: 700px) {
       .wrap { width: calc(100% - 40px); }
@@ -190,9 +197,11 @@
       .get-inner { grid-template-columns: 1fr; gap: 28px; }
       .terminal-body { padding: 18px 16px 20px; }
       pre { padding: 10px 12px; }
-      .prep { margin-top: 24px; }
+      .prep { margin-top: 20px; }
+      .prep h3 { margin-top: 15px; }
+      .prep details { margin-top: 14px; }
       .steps { grid-template-columns: 1fr; gap: 23px; }
-      .steps li { position: relative; padding-left: 48px; padding-top: 17px; }
+      .steps li { display: block; position: relative; padding: 17px 0 0 48px; }
       .steps li::before { position: absolute; top: 21px; left: 0; }
       .before { margin-bottom: 24px; }
       .install-modes { grid-template-columns: 1fr; gap: 22px; }
@@ -220,6 +229,13 @@
   </style>
 </head>
 <body>
+  <svg class="icon-definitions" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><defs>
+    <symbol id="icon-tools" viewBox="0 0 24 24"><path d="m14 6 4 4M4 20l6-6m-3 7-4-4L15 5a5 5 0 0 1 6-2l-4 4 1 3 3 1a5 5 0 0 1-6 6L7 21Z"/></symbol>
+    <symbol id="icon-build" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3m6 0h4"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path d="M8 3H5v18h14V3h-3M8 3h8v4H8zM8 14l3 3 5-6"/></symbol>
+    <symbol id="icon-usb" viewBox="0 0 24 24"><path d="M12 20V4m-3 3 3-3 3 3m-3 10-6-4V9m6 6 6-4V8"/><circle cx="12" cy="20" r="2"/><circle cx="6" cy="7" r="2"/><path d="M16 4h4v4h-4z"/></symbol>
+    <symbol id="icon-eject" viewBox="0 0 24 24"><path d="m12 4 8 10H4L12 4ZM4 18h16v3H4z"/></symbol>
+  </defs></svg>
   <a class="skip" href="#main">Skip to content</a>
   <header class="header wrap">
     <a class="brand" href="#" aria-label="Gnarlyr home">
@@ -331,17 +347,17 @@
           <h2 id="get-title">Make it Gnarlyr.</h2>
           <p>Start in your SnowskyEcho source checkout. Prepare your tools, build the image, and record its checksum before installing over USB.</p>
           <div class="prep">
-            <h3>You’ll need</h3>
+            <h3 class="task-heading"><svg class="task-icon" aria-hidden="true"><use href="#icon-tools"/></svg>You’ll need</h3>
             <ul class="prep-list">
-              <li>Python 3.14 and the packages in <code>firmware/tools/requirements.txt</code></li>
+              <li>Python 3.14 and the packages in <code class="path">firmware/<wbr>tools/<wbr><span class="nb">requirements.txt</span></code></li>
               <li>CMake, Clang/clang-format, SDL2, FFmpeg, and an Arm GNU cross-compiler</li>
               <li>A mounted Scratch volume at <code>/Volumes/Scratch</code> for build output</li>
             </ul>
             <details id="build-help">
               <summary>Set up your build environment</summary>
               <div class="answer">
-                <p>Create your Python virtual environment on Scratch, and set <code>ECHO_VENV</code> to its folder. Set <code>ECHO_ARM_BIN</code> to the toolchain folder containing <code>arm-none-eabi-gcc</code>.</p>
-                <p>Full setup instructions are in <code>docs/building-firmware.md</code> in your SnowskyEcho checkout.</p>
+                <p>Create your Python virtual environment on Scratch, and set <code>ECHO_VENV</code> to its folder. Set <code>ECHO_ARM_BIN</code> to the toolchain folder containing <code class="nb">arm-none-eabi-gcc</code>.</p>
+                <p>Full setup instructions are in <code class="path">docs/<wbr><span class="nb">building-firmware.md</span></code> in your SnowskyEcho checkout.</p>
               </div>
             </details>
           </div>
@@ -351,14 +367,14 @@
             <div class="terminal-bar"><span>GNARLYR / BUILD</span><span>macOS</span></div>
             <div class="terminal-body">
               <p class="terminal-label">Run from the SnowskyEcho project root.</p>
-              <div class="command">
-                <div class="command-header"><h3>Build the image</h3><button class="copy-button" type="button" data-copy="build-commands" aria-label="Copy build commands"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M13 5V3H3v10h2"/></svg><span>Copy</span></button></div>
-                <pre aria-label="Build commands"><code id="build-commands"><span class="cmd">python3 tools/firmware.py setup</span><span class="cmd">python3 tools/firmware.py build <span class="nb">--preset</span> release</span></code></pre>
+              <div class="command" role="group" aria-labelledby="build-command-title">
+                <div class="command-header"><h3 class="task-heading" id="build-command-title"><svg class="task-icon" aria-hidden="true"><use href="#icon-build"/></svg>Build the image</h3><button class="copy-button" type="button" data-copy="build-commands" aria-label="Copy build commands"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M13 5V3H3v10h2"/></svg><span>Copy</span></button></div>
+                <pre><code id="build-commands"><span class="cmd">python3 tools/firmware.py setup</span><span class="cmd">python3 tools/firmware.py build <span class="nb">--preset</span> release</span></code></pre>
                 <p class="copy-status" id="build-commands-status" role="status" aria-live="polite"></p>
               </div>
-              <div class="command">
-                <div class="command-header"><h3>Record its SHA-256</h3><button class="copy-button" type="button" data-copy="hash-command" aria-label="Copy image checksum command"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M13 5V3H3v10h2"/></svg><span>Copy</span></button></div>
-                <pre aria-label="Image checksum command"><code id="hash-command"><span class="cmd">shasum <span class="nb">-a</span> 256 /Volumes/<wbr>Scratch/<wbr>SnowskyEcho/<wbr>build/<wbr><span class="nb">custom-firmware/</span><wbr>release/<wbr>ECHOV455.IMG</span></code></pre>
+              <div class="command" role="group" aria-labelledby="hash-command-title">
+                <div class="command-header"><h3 class="task-heading" id="hash-command-title"><svg class="task-icon" aria-hidden="true"><use href="#icon-check"/></svg>Record its SHA-256</h3><button class="copy-button" type="button" data-copy="hash-command" aria-label="Copy image checksum command"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M13 5V3H3v10h2"/></svg><span>Copy</span></button></div>
+                <pre><code id="hash-command"><span class="cmd">shasum <span class="nb">-a</span> 256 /Volumes/<wbr>Scratch/<wbr>SnowskyEcho/<wbr>build/<wbr><span class="nb">custom-firmware/</span><wbr>release/<wbr>ECHOV455.IMG</span></code></pre>
                 <p class="copy-status" id="hash-command-status" role="status" aria-live="polite"></p>
               </div>
               <p class="terminal-output"><b>Image</b> ECHOV455.IMG<br><b>Folder</b> /Volumes/<wbr>Scratch/<wbr>SnowskyEcho/<wbr>build/<wbr><span class="nb">custom-firmware/</span><wbr>release/</p>
@@ -373,14 +389,14 @@
       <div class="section-head"><div><p class="eyebrow">Installation</p><h2 id="install-title">Build. Copy. Eject. Enjoy.</h2></div></div>
       <p class="before"><strong>Before you start:</strong> back up your files, charge the ECHO, and turn the volume down. Keep the <a href="#recovery">stock recovery instructions</a> handy.</p>
       <ol class="steps">
-        <li><h3>Build the image</h3><p>Create <code>ECHOV455.IMG</code> with the commands above. Record its <span class="nowrap">SHA-256</span> to check the copy on your player.</p></li>
-        <li><h3>Copy and verify</h3><p>USB shows internal storage and, with a card inserted, a microSD drive. Copy the image to the top level of internal storage as its only update file. <a href="#verify-copy">Check the copied image</a> before ejecting.</p></li>
-        <li><h3>Eject the drives</h3><p>After verifying the copy, use Eject or Safely Remove for every mounted ECHO drive. Finish with the instructions for your install type below.</p></li>
+        <li><h3 class="task-heading"><svg class="task-icon" aria-hidden="true"><use href="#icon-build"/></svg>Build the image</h3><p>Create <code>ECHOV455.IMG</code> with the commands above. Record its <span class="nowrap">SHA-256</span> to check the copy on your player.</p></li>
+        <li><h3 class="task-heading"><svg class="task-icon" aria-hidden="true"><use href="#icon-usb"/></svg>Copy and verify</h3><p>USB shows internal storage and, with a card inserted, a microSD drive. Copy the image to the top level of internal storage as its only update file. <a href="#verify-copy">Check the copied image</a> before ejecting.</p></li>
+        <li><h3 class="task-heading"><svg class="task-icon" aria-hidden="true"><use href="#icon-eject"/></svg>Eject the drives</h3><p>After verifying the copy, use Eject or Safely Remove for every mounted ECHO drive. Finish with the instructions for your install type below.</p></li>
       </ol>
-      <div class="verify-copy" id="verify-copy">
-        <div class="command-header"><h3>Check the copy · macOS</h3><button class="copy-button" type="button" data-copy="verify-command" aria-label="Copy verification command"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M13 5V3H3v10h2"/></svg><span>Copy</span></button></div>
+      <div class="verify-copy" id="verify-copy" role="group" aria-labelledby="verify-command-title">
+        <div class="command-header"><h3 class="task-heading" id="verify-command-title"><svg class="task-icon" aria-hidden="true"><use href="#icon-check"/></svg>Check the copy · macOS</h3><button class="copy-button" type="button" data-copy="verify-command" aria-label="Copy verification command"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M13 5V3H3v10h2"/></svg><span>Copy</span></button></div>
         <p>Replace <code>YOUR_ECHO</code> with the name of the internal drive. The result should match the <span class="nowrap">SHA-256</span> recorded after your build.</p>
-        <pre aria-label="Copied image verification command"><code id="verify-command"><span class="cmd">shasum <span class="nb">-a</span> 256 "/Volumes/<wbr>YOUR_ECHO/<wbr>ECHOV455.IMG"</span></code></pre>
+        <pre><code id="verify-command"><span class="cmd">shasum <span class="nb">-a</span> 256 "/Volumes/<wbr>YOUR_ECHO/<wbr>ECHOV455.IMG"</span></code></pre>
         <p class="copy-status" id="verify-command-status" role="status" aria-live="polite"></p>
       </div>
       <div class="install-modes">
@@ -399,7 +415,7 @@
           <h3>Restore the official firmware</h3>
           <p>Use your saved official full-size ECHO <code>ECHOV200.IMG</code>. Copy it to internal storage as the only update file at the drive root. Eject every ECHO drive, wait for “Update installed,” then unplug and restart.</p>
           <h3>Recover through maskrom</h3>
-          <p>The guide <code>firmware/docs/device-recovery.md</code> in your SnowskyEcho checkout covers the full-size ECHO’s <code>2207:262d</code> USB identity, connection checks, and stock restore with the patched <code>rkdeveloptool</code>. Keep it with your stock image and a data USB cable.</p>
+          <p>The guide <code class="path">firmware/<wbr>docs/<wbr><span class="nb">device-recovery.md</span></code> in your SnowskyEcho checkout covers the full-size ECHO’s <code>2207:262d</code> USB identity, connection checks, and stock restore with the patched <code>rkdeveloptool</code>. Keep it with your stock image and a data USB cable.</p>
         </div>
       </div>
     </section>
@@ -429,7 +445,10 @@
     }
     document.querySelectorAll('[data-copy]').forEach((button) => {
       let resetTimer;
-      button.addEventListener('click', async () => {
+      let pointerType = '';
+      button.addEventListener('pointerdown', (event) => { pointerType = event.pointerType; });
+      button.addEventListener('click', async (event) => {
+        const touchInput = event.detail > 0 && (pointerType === 'touch' || pointerType === 'pen' || matchMedia('(hover: none) and (pointer: coarse)').matches);
         const code = document.getElementById(button.dataset.copy);
         const label = button.querySelector('span');
         const status = document.getElementById(button.dataset.copy + '-status');
@@ -453,7 +472,9 @@
           label.textContent = 'Selected';
           button.setAttribute('aria-label', action.replace(/^Copy /, 'Selected ') + '. Copy again.');
           const shortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘C' : 'Ctrl+C';
-          status.textContent = 'Press ' + shortcut + ' to copy the selected command.';
+          status.textContent = touchInput
+            ? 'Touch and hold the selected command, then choose Copy.'
+            : 'Press ' + shortcut + ' to copy the selected command.';
           holdMs = 8000;
         } finally {
           button.disabled = false;
