@@ -547,7 +547,10 @@ class OverlayLayoutTest(unittest.TestCase):
         window = (make_image.OVERLAY_BASE, make_image.OVERLAY_CAPACITY)
         self.assertEqual(window, (self.defined("OVERLAY_WINDOW_BASE"),
                                   self.defined("OVERLAY_WINDOW_BYTES")))
-        self.assertEqual(window, self.region("board/echo_device.ld", "HIGH_RAM"))
+        base, workspace = self.region("board/echo_device.ld", "HIGH_RAM")
+        slot_base, slot = self.region("board/echo_device.ld", "MODULE_RAM")
+        self.assertEqual(window, (base, workspace + slot))
+        self.assertEqual(base + workspace, slot_base)
         self.assertEqual(window, self.region("overlay/rescan_overlay.ld", "HIGH_RAM"))
         self.assertEqual(window, self.region("overlay/usb_overlay.ld", "HIGH_RAM"))
 

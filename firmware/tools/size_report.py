@@ -17,6 +17,9 @@ from pathlib import Path
 CODE_REGION = "CODE_RAM"
 DATA_REGION = "DATA_RAM"
 OVERLAY_REGION = "HIGH_RAM"
+WORKSPACE_REGION = "HIGH_RAM"
+WORKSPACE_SECTION = ".high_ram"
+MODULE_REGION = "MODULE_RAM"
 USB_IMAGE_REGION = "USB_IMAGE"
 LANGUAGE_REGION = "LANGUAGE_RAM"
 STATE_SECTIONS = (".data", ".bss", ".noinit")
@@ -249,6 +252,12 @@ def split_state(device_map, overlay_map):
     return sorted(stateful(device_map) & stateful(overlay_map))
 
 
+def workspace_line(device_map, regions):
+    """The decoder workspace against the part of high RAM below the module slot."""
+    used = output_sizes(device_map).get(WORKSPACE_SECTION, 0)
+    return limit_line("decoder workspace", used, region_length(regions, WORKSPACE_REGION))
+
+
 def language_line(regions, packs):
     """The largest language pack against the memory the player loads one pack into."""
     name, size = max(packs, key=lambda pack: pack[1])
@@ -266,6 +275,8 @@ def summary(device_map, overlay_map=None, usb_overlay_map=None, packs=()):
         lines.append(limit_line("rescan overlay", overlay, capacity))
     if usb_overlay_map is not None:
         lines += usb_overlay_lines(usb_overlay_map)
+    if MODULE_REGION in regions:
+        lines.append(workspace_line(device_map, regions))
     if packs:
         lines.append(language_line(regions, packs))
     return lines

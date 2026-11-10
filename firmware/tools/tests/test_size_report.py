@@ -210,6 +210,13 @@ class ReportTest(unittest.TestCase):
         over = size_report.summary(with_region, packs=[("ru", 8200)])
         self.assertIn("OVER BY 8", over[-1])
 
+    def test_a_fenced_decoder_workspace_is_measured_against_the_memory_below_the_module_slot(self):
+        fenced = MAP.replace("HIGH_RAM         0x0307a000         0x00018000         rw\n",
+                             "HIGH_RAM         0x0307a000         0x00012400         rw\n"
+                             "MODULE_RAM       0x0308c400         0x00005c00         rw\n")
+        self.assertEqual(size_report.summary(fenced)[2],
+                         "decoder workspace: 73,808 of 74,752 bytes, 944 free")
+
     def test_without_packs_the_summary_has_no_language_line(self):
         self.assertEqual(2, len(size_report.summary(MAP)))
 
