@@ -92,6 +92,8 @@ enum {
     SLEEP_TIMER_OPTION_COUNT = 7,
     AUTO_OFF_OPTION_COUNT = 4,
     SETTINGS_FILE_SIZE = 42,
+    SETTINGS_LANGUAGE_LENGTH = 5,
+    SETTINGS_LANGUAGE_CAPACITY = SETTINGS_LANGUAGE_LENGTH + 1,
     SETTINGS_PREVIOUS_FILE_SIZE = 32
 };
 
@@ -113,6 +115,7 @@ typedef struct Settings {
     TextSize text_size;
     SkipGesture skip_gesture;
     Orientation orientation;
+    char language[SETTINGS_LANGUAGE_CAPACITY];
 } Settings;
 
 typedef struct SettingsEqualizerCurve {

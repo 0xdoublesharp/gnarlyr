@@ -5,7 +5,8 @@
 #include "settings/equalizer_fit.h"
 
 enum {
-    VERSION = 11,
+    VERSION = 12,
+    LANGUAGE_VERSION = 12,
     HALF_DB_VERSION = 11,
     ORIENTATION_VERSION = 10,
     VOLUME_SCALE_VERSION = 9,
@@ -38,6 +39,7 @@ enum {
     ACCENT_FIELD = 17,
     EQUALIZER_FIELD = 18,
     EQUALIZER_GAINS_FIELD = 19,
+    LANGUAGE_FIELD = 19,
     OLD_CHECKSUM_FIELD = 20,
     OLD_BANDS = 5,
     OLD_GAIN_MAX = 10,
@@ -198,6 +200,10 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
     bytes[TEXT_SIZE_FIELD] = (uint8_t)settings->text_size;
     bytes[SKIP_GESTURE_FIELD] = (uint8_t)settings->skip_gesture;
     bytes[ORIENTATION_FIELD] = (uint8_t)settings->orientation;
+    for (int index = 0; index < SETTINGS_LANGUAGE_LENGTH && settings->language[index] != '\0';
+         index++) {
+        bytes[LANGUAGE_FIELD + index] = (uint8_t)settings->language[index];
+    }
     hash_store(bytes + HALF_DB_CHECKSUM_FIELD, checksum_of(bytes, HALF_DB_CHECKSUM_FIELD));
 }
 
@@ -253,6 +259,35 @@ static bool orientation_valid(const uint8_t *bytes)
 {
     return bytes[VERSION_FIELD] < ORIENTATION_VERSION ||
            bytes[ORIENTATION_FIELD] < ORIENTATION_COUNT;
+}
+
+static bool is_code_character(uint8_t byte)
+{
+    return (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
+           (byte >= '0' && byte <= '9') || byte == '-';
+}
+
+static bool language_valid(const uint8_t *bytes)
+{
+    bool ended = false;
+    for (int index = 0; index < SETTINGS_LANGUAGE_LENGTH; index++) {
+        uint8_t byte = bytes[LANGUAGE_FIELD + index];
+        if (byte != 0 && (ended || !is_code_character(byte))) {
+            return false;
+        }
+        ended = byte == 0;
+    }
+    return true;
+}
+
+static void decode_language(const uint8_t *bytes, Settings *settings)
+{
+    if (bytes[VERSION_FIELD] < LANGUAGE_VERSION) {
+        return;
+    }
+    for (int index = 0; index < SETTINGS_LANGUAGE_LENGTH; index++) {
+        settings->language[index] = (char)bytes[LANGUAGE_FIELD + index];
+    }
 }
 
 static void migrate_gains(const uint8_t *bytes, int8_t *gains)
@@ -313,7 +348,8 @@ bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
 {
     if (length < HEADER_SIZE || !header_valid(bytes, length) || !values_valid(bytes) ||
         !equalizer_valid(bytes) || !text_size_valid(bytes) || !skip_gesture_valid(bytes) ||
-        !orientation_valid(bytes)) {
+        !orientation_valid(bytes) ||
+        (bytes[VERSION_FIELD] >= LANGUAGE_VERSION && !language_valid(bytes))) {
         return false;
     }
     *settings = (Settings){
@@ -345,5 +381,6 @@ bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
     settings->orientation = bytes[VERSION_FIELD] < ORIENTATION_VERSION
                                 ? ORIENTATION_LANDSCAPE
                                 : (Orientation)bytes[ORIENTATION_FIELD];
+    decode_language(bytes, settings);
     return true;
 }

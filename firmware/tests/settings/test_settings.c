@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "check.h"
 #include "core/hash.h"
 #include "settings/settings.h"
@@ -19,7 +21,9 @@ enum {
     HALF_DB_GAINS_FIELD = 28,
     HALF_DB_CHECKSUM_FIELD = 38,
     HALF_DB_VERSION = 11,
-    CURRENT_VERSION = 11,
+    CURRENT_VERSION = 12,
+    LANGUAGE_VERSION = 12,
+    LANGUAGE_FIELD = 19,
     ACCENT_VERSION = 5,
     EQUALIZER_VERSION = 6,
     TEXT_SIZE_VERSION = 7,
@@ -501,6 +505,87 @@ static void an_unknown_orientation_is_rejected(void)
     CHECK(!settings_decode(bytes, sizeof bytes, &settings));
 }
 
+static void the_language_code_is_saved_at_bytes_nineteen_to_twenty_three(void)
+{
+    Settings settings = custom_settings();
+    strcpy(settings.language, "pt-BR");
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK(memcmp(bytes + LANGUAGE_FIELD, "pt-BR", SETTINGS_LANGUAGE_LENGTH) == 0);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK(strcmp("pt-BR", decoded.language) == 0);
+}
+
+static void a_short_language_code_is_padded_with_zeros(void)
+{
+    Settings settings = custom_settings();
+    strcpy(settings.language, "de");
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL('e', bytes[LANGUAGE_FIELD + 1]);
+    CHECK_EQUAL(0, bytes[LANGUAGE_FIELD + 2]);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK(strcmp("de", decoded.language) == 0);
+}
+
+static void the_default_language_is_the_image_default(void)
+{
+    CHECK_EQUAL('\0', settings_defaults().language[0]);
+}
+
+static void a_version_eleven_file_keeps_its_values_and_gets_the_default_language(void)
+{
+    Settings settings = custom_settings();
+    strcpy(settings.language, "de");
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[VERSION_FIELD] = HALF_DB_VERSION;
+    rewrite_checksum(bytes);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL('\0', decoded.language[0]);
+    CHECK_EQUAL(ORIENTATION_PORTRAIT_FLIPPED, decoded.orientation);
+    CHECK_EQUAL(-3, decoded.equalizer_gains[9]);
+}
+
+static void a_version_ten_file_does_not_read_its_gains_as_a_language(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    old_layout(bytes, ORIENTATION_VERSION);
+    rewrite_checksum(bytes);
+    Settings decoded;
+    CHECK(settings_decode(bytes, PREVIOUS_FILE_SIZE, &decoded));
+    CHECK_EQUAL('\0', decoded.language[0]);
+}
+
+static bool decodes_with_language_bytes(const char *raw)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    memcpy(bytes + LANGUAGE_FIELD, raw, SETTINGS_LANGUAGE_LENGTH);
+    rewrite_checksum(bytes);
+    return settings_decode(bytes, sizeof bytes, &settings);
+}
+
+static void a_language_code_with_other_characters_is_rejected(void)
+{
+    CHECK(decodes_with_language_bytes("zh-TW"));
+    CHECK(!decodes_with_language_bytes("e/n\0\0"));
+    CHECK(!decodes_with_language_bytes("e.\0\0\0"));
+    CHECK(!decodes_with_language_bytes("\xC3\xA9\0\0\0"));
+}
+
+static void a_language_code_with_text_after_its_end_is_rejected(void)
+{
+    CHECK(!decodes_with_language_bytes("en\0x\0"));
+    CHECK(!decodes_with_language_bytes("\0\0\0\0x"));
+}
+
 static void a_short_file_of_the_new_version_is_rejected(void)
 {
     Settings settings = custom_settings();
@@ -738,6 +823,13 @@ int main(void)
         TEST_CASE(the_equalizer_is_saved_after_the_dac_volume),
         TEST_CASE(a_version_four_file_of_the_old_size_loads_with_the_equalizer_off),
         TEST_CASE(a_short_file_of_the_new_version_is_rejected),
+        TEST_CASE(the_language_code_is_saved_at_bytes_nineteen_to_twenty_three),
+        TEST_CASE(a_short_language_code_is_padded_with_zeros),
+        TEST_CASE(the_default_language_is_the_image_default),
+        TEST_CASE(a_version_eleven_file_keeps_its_values_and_gets_the_default_language),
+        TEST_CASE(a_version_ten_file_does_not_read_its_gains_as_a_language),
+        TEST_CASE(a_language_code_with_other_characters_is_rejected),
+        TEST_CASE(a_language_code_with_text_after_its_end_is_rejected),
         TEST_CASE(the_text_size_is_saved_at_byte_twenty_four),
         TEST_CASE(a_version_six_file_keeps_its_equalizer_and_gets_medium_text),
         TEST_CASE(a_version_six_file_ignores_what_lies_at_the_text_size_byte),
