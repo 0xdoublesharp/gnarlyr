@@ -240,6 +240,11 @@ echo_add_unit_test(NAME test_cover_flow_order
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+echo_add_unit_test(NAME test_icons
+    SOURCES ui/test_icons.c
+    LIBRARIES echo_app
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
 echo_add_unit_test(NAME test_board_layout
     SOURCES app/test_board_layout.c
     LIBRARIES echo_app
