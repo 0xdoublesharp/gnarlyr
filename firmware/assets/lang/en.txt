@@ -287,7 +287,7 @@ STR_USB_UNPLUGGED_HINT = Recent changes may be lost. Eject the drives before unp
 STR_USB_CODE_MISSING = USB code missing: reinstall the update
 STR_USB_DAC_TITLE = USB DAC
 STR_USB_DAC_CHOOSE = Choose {0} as the sound output\nVolume {1}
-STR_USB_DAC_FORMAT = {0} kHz {1}-bit · Volume {2}
+STR_USB_DAC_FORMAT = {0} kHz · {1}-bit\nVolume {2}
 STR_USB_DAC_FAILED = The audio output didn't start.
 
 # Updates. {0} in STR_UPDATE_CHECKING and STR_UPDATE_REFUSED is the file's name; {0}% is the progress.
@@ -398,3 +398,92 @@ STR_NO_LYRICS = No timed lyrics found
 STR_LYRICS_HINT = Add a .lrc beside the song
 
 STR_LYRICS_HOLD_HINT = Hold Menu: lyrics
+
+STR_SEARCH = Search
+STR_EXPLORE = Explore
+STR_SEARCH_RESULTS = Results
+STR_VIEW_OPTIONS = View options
+STR_SEARCH_THIS_LIST = Search this list
+STR_SORT_BY = Sort by
+STR_FILTERS = Filters
+STR_RESET_VIEW = Reset view
+STR_ANY = Any
+STR_TITLE = Title
+STR_ARTIST = Artist
+STR_ALBUM = Album
+STR_ALBUM_ARTIST = Album artist
+STR_GENRE = Genre
+STR_YEAR = Year
+STR_DURATION = Duration
+STR_TRACK_INFO = Track info
+STR_DISC_TRACK = Disc / track
+STR_FILE_PATH = File path
+STR_NO_MATCHES = No matches
+STR_SEARCHING_MUSIC = Searching music...
+STR_SEARCH_FAILED = Could not read music
+STR_SEARCH_CANCELLED = Search cancelled
+STR_DISCOVERY_PREPARING = Preparing queue...
+STR_DISCOVERY_HINT = Menu: view options
+STR_QUERY_CHOOSE_HINT = Volume: choose
+STR_QUERY_ADD_HINT = Play: add
+STR_QUERY_ERASE_HINT = Menu: erase
+STR_QUERY_SEARCH_HINT = Hold Play: search
+STR_ORIGINAL_ORDER = Original order
+STR_ASCENDING = Ascending
+STR_DESCENDING = Descending
+STR_MIN_YEAR = Min year
+STR_MAX_YEAR = Max year
+STR_MIN_DURATION = Min minutes
+STR_MAX_DURATION = Max minutes
+STR_PERSONAL_TAGS = My tags
+STR_NEW_TAG = New tag
+STR_TAGS_EMPTY = No tags yet
+STR_TAG_SAVE_FAILED = Could not save tags
+STR_TAG_NAME = Tag name
+STR_SAVE_HINT = Hold Play: save
+STR_FILTER_ACTIVE = Filtered
+STR_CLEAR_SEARCH = Clear search
+STR_SORT_DIRECTION = Direction
+STR_DONE = Done
+STR_KEEP_TAG = Keep tag
+STR_ENTER_NUMBER = Enter number
+
+STR_VIEW_SAVE_FAILED = View not saved
+
+STR_OPEN_PLAYLIST_FIRST = Open a playlist first
+
+STR_SAVING_TAGS = Saving tags...
+
+STR_LOADING_TAGS = Loading tags...
+
+STR_POWER_PERCENT = {0}%
+
+STR_POWER_UNKNOWN = Reading battery
+
+STR_POWER_VOLTAGE = {0} mV
+
+STR_POWER_USB = USB power
+
+STR_POWER_BATTERY = On battery
+
+STR_POWER_STORAGE = USB storage
+
+STR_POWER_CONNECTING = Connecting USB
+
+STR_POWER_INTERNAL = Internal storage
+
+STR_POWER_INTERNAL_CARD = Internal + microSD
+
+STR_EQ_BROWSE_HINT = Vol: band | Play: adjust
+
+STR_EQ_ADJUST_HINT = Vol: gain | Play: keep | Back: cancel
+
+STR_EQ_PRESET_HINT = Vol: preview | Play: apply
+
+STR_EQ_SLOT_HINT = Vol: slot | Play: save | Back: cancel
+
+STR_EQ_PREAMP = Preamp {0} dB
+
+STR_EQ_REFERENCE = 44.1 kHz response
+
+STR_EQ_GAIN = {0} dB

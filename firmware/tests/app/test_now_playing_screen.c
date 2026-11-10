@@ -304,6 +304,52 @@ static void draw_passive_view(uint32_t position_ms, uint32_t now_ms)
     playback_view.screen.draw(&playback_view, &canvas);
 }
 
+static CoverCache artwork_cache;
+
+static void artwork_has_a_larger_primary_surface_in_every_text_size_and_orientation(void)
+{
+    Color artwork = COLOR_RGB(240, 160, 40);
+    for (size_t index = 0; index < COVER_FULL_PIXELS; index++) {
+        artwork_cache.full[index] = artwork;
+    }
+    artwork_cache.full_state = COVER_LOADED;
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            start_passive_view();
+            default_theme_set_text_size(&playback_theme, (TextSize)size);
+            default_theme_set_orientation(&playback_theme, (Orientation)orientation);
+            playback_view.config.covers = &artwork_cache;
+            playback_view.has_text = true;
+            Canvas canvas =
+                canvas_make(playback_pixels, (Rect){0, 0, playback_theme.metrics.screen_width,
+                                                    playback_theme.metrics.screen_height});
+            playback_view.screen.draw(&playback_view, &canvas);
+            int x = orientation == 0 ? 132 : 35;
+            int y = orientation == 0 ? 100 : 140;
+            CHECK_EQUAL(artwork, playback_pixels[y * playback_theme.metrics.screen_width + x]);
+        }
+    }
+}
+
+static void portrait_titles_that_fit_two_lines_stay_readable_without_scrolling(void)
+{
+    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+        start_passive_view();
+        default_theme_set_text_size(&playback_theme, (TextSize)size);
+        default_theme_set_orientation(&playback_theme, ORIENTATION_PORTRAIT);
+        strcpy(playback_view.title, "Night Transmission");
+        Canvas canvas =
+            canvas_make(playback_pixels, (Rect){0, 0, playback_theme.metrics.screen_width,
+                                                playback_theme.metrics.screen_height});
+        playback_view.now_ms = 1000;
+        playback_view.screen.draw(&playback_view, &canvas);
+        memcpy(previous_pixels, playback_pixels, sizeof playback_pixels);
+        playback_view.now_ms = 1800;
+        playback_view.screen.draw(&playback_view, &canvas);
+        CHECK(memcmp(previous_pixels, playback_pixels, sizeof playback_pixels) == 0);
+    }
+}
+
 static void passive_transport_pixels_stay_stable_within_one_displayed_second(void)
 {
     start_passive_view();
@@ -350,6 +396,8 @@ static void scrubbing_keeps_subsecond_cursor_changes_visible(void)
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(artwork_has_a_larger_primary_surface_in_every_text_size_and_orientation),
+        TEST_CASE(portrait_titles_that_fit_two_lines_stay_readable_without_scrolling),
         TEST_CASE(passive_transport_pixels_stay_stable_within_one_displayed_second),
         TEST_CASE(a_short_track_cannot_promote_passive_transport_to_continuous_fast_frames),
         TEST_CASE(scrubbing_keeps_subsecond_cursor_changes_visible),

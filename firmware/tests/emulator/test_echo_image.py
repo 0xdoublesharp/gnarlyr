@@ -88,9 +88,7 @@ KEY_HOLD_MS = 150
 KEY_SETTLE_MS = 350
 BACKLIGHT_PIN = 4
 SOAK_MINUTE_MS = 60000
-ABOUT_PROFILER_ROW = 15
-ABOUT_USB_SENSE_ROW = 16
-ABOUT_CONNECT_USB_ROW = 17
+ABOUT_PROFILER_ROW = 13
 USB_POWER_DOWN = [("grf", 0xB4, 0x00010001), ("grf", 0xB4, 0x000E0004), ("grf", 0xB8, 0x00010001),
                   ("grf", 0x98, 0x00040000), ("cru", 0xC0, 0x00020002), ("cru", 0xC0, 0x00040004),
                   ("cru", 0xC0, 0x00010001), ("cru", 0x80, 0x00800080), ("cru", 0x98, 0x04000400)]
@@ -107,7 +105,7 @@ MISSING_TEXT = "Text is missing: reinstall the update"
 MODULE_LOAD_LIMIT_MS = 60
 MODULE_REUSE_LIMIT_US = 100
 MODULE_PREFIX = "echo_module_"
-MUSIC_ENTRIES_BEFORE_SONGS = 6
+MUSIC_ROWS_BETWEEN_SONGS_AND_COVER_FLOW = 6
 SETTINGS_PATH = "/" + IDENTITY.data_directory + "/settings.bin"
 SETTINGS_REPEAT_FIELD = 12
 REPEAT_ALL = 2
@@ -878,36 +876,12 @@ class EchoImageTest(unittest.TestCase):
         last = len(log) - 1 - log[::-1].index(SOFT_DISCONNECT)
         return log[last + 1:]
 
-    def test_usb_sense_kept_on_soft_disconnects_but_leaves_the_usb_hardware_powered(self):
-        session = self.session()
-        machine = session.machine
-        machine.note("hal_system_return_scratch")
-        machine.note("usb_session_storage_changed")
-        machine.answer_waits_for_key(8)
-        machine.run(until=lambda: "hal_system_return_scratch" in machine.reached,
-                    until_ms=self.session_module.FRAME_LIMIT_MS)
-        machine.run(until_ms=machine.milliseconds() + 1500)
-        machine.vbus = True
-        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
-        machine.run(until_ms=machine.milliseconds() + 1500)
-        self.assertEqual(self.writes_after_last_disconnect(machine)[:len(USB_POWER_DOWN)],
-                         USB_POWER_DOWN)
-        for key in [KEY_NEXT, KEY_PLAY, KEY_PLAY] + [KEY_NEXT] * ABOUT_USB_SENSE_ROW + [KEY_PLAY]:
-            self.press(machine, key)
-        kept_from = len(machine.register_log)
-        machine.vbus = True
-        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
-        machine.run(until_ms=machine.milliseconds() + 1500)
-        values = self.read_report(session)["values"]
-        self.assertEqual((values["usb.sense_mode"], values["power.usb_powered"]), ("kept_on", 1))
-        after = self.writes_after_last_disconnect(machine, kept_from)
-        self.assertEqual([write for write in after if write in USB_POWER_DOWN], [])
-        machine.vbus = True
-        self.assertEqual(self.run_usb_sessions(session, 3), "condition met")
-        machine.run(until_ms=machine.milliseconds() + 1500)
-        normal_from = len(machine.register_log)
-        self.press(machine, KEY_PLAY)
-        self.assertEqual(machine.register_log[normal_from:][-len(USB_POWER_DOWN):], USB_POWER_DOWN)
+    def test_usb_sense_debug_commands_restore_automatic_power(self):
+        session, machine, report = self.run_probe_script(
+            ["usb_sense kept_on", "wait 100", "usb_sense normal"])
+        self.assertEqual(report["values"]["script.state"], "finished")
+        self.assertEqual([line["status"] for line in report["script"]["lines"]], ["ok"] * 5)
+        self.assertNotEqual(report["values"]["usb.sense_mode"], "kept_on")
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 
@@ -1001,7 +975,7 @@ class EchoImageTest(unittest.TestCase):
         from PIL import Image
         from echo_emulator.playback import ALBUM_COUNT, Rig
         from echo_emulator.real_volume import real_volume
-        script = "\n".join(["build " + self.build_tag(), "play", "down,down,down,down,down,down",
+        script = "\n".join(["build " + self.build_tag(), "play", "down,down,down,down,down,down,down",
                             "play", "play", "wait 1500", "measure 1500", "back:long", "wait 700",
                             "screenshot home", "reconnect", "play", ""])
         volume = self.debug_volume(real_volume(playable=True, album_count=ALBUM_COUNT),
@@ -1347,44 +1321,6 @@ class EchoImageTest(unittest.TestCase):
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
         self.print_usb_log("reconnect without the cable bit", machine)
-
-    def test_connect_usb_serves_a_host_without_the_cable_bit_and_back_stops_listening(self):
-        session, machine = self.ejecting_session(self.debug_volume(), notes=("usb_power_down",))
-        machine.cable_bit_dead = True
-        session.run_to_home_screen()
-        machine.run(until_ms=machine.milliseconds() + 3000)
-        self.assertEqual(machine.usb_log, [])
-        for key in [KEY_NEXT, KEY_PLAY, KEY_PLAY] + [KEY_NEXT] * ABOUT_CONNECT_USB_ROW:
-            self.press(machine, key)
-        pressed_ms = machine.milliseconds()
-        self.press(machine, KEY_PLAY)
-        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
-        self.assertGreaterEqual(self.log_time(machine, "pull-up on"), pressed_ms + CABLE_STEADY_MS)
-        values = self.read_report(session)["values"]
-        self.assertEqual((values["report.reason"], values["usb.grf_e8"], values["usb.b_session"]),
-                         ("usb_session", 0, 1))
-        self.assertEqual((values["loop.connect_attempts"], values["loop.connect_answered"],
-                          values["loop.last_connect"], values["loop.cable_bit_at_connect"]),
-                         (1, 1, "answered", 0))
-        machine.run(until=lambda: machine.usb_log[-1][1] == "soft disconnect",
-                    until_ms=machine.milliseconds() + 1000)
-        self.assertEqual(machine.usb_log[-2][1], "host ejects")
-        machine.host_absent = True
-        downs = machine.reached["usb_power_down"]
-        machine.run(until_ms=machine.milliseconds() + RECONNECT_OFF_MS)
-        self.press(machine, KEY_PLAY)
-        machine.run(until_ms=machine.milliseconds() + CHARGER_MS)
-        self.assertEqual((machine.usb_connect_count, machine.usb_log[-1][1]), (2, "pull-up on"))
-        self.assertEqual(machine.reached["usb_power_down"], downs)
-        self.press(machine, KEY_BACK)
-        self.assertEqual(machine.reached["usb_power_down"], downs + 1)
-        self.assertEqual(machine.usb_log[-1][1], "soft disconnect")
-        self.assertEqual(len(self.reports(session)), 1)
-        machine.run(until_ms=machine.milliseconds() + QUIET_AFTER_MS)
-        self.assertEqual(machine.usb_connect_count, 2)
-        self.assert_only_the_user_volume_changed(session)
-        self.assert_healthy(session)
-        self.print_usb_log("Connect USB by hand", machine)
 
     def test_a_reconnect_nobody_answers_powers_usb_down_and_leaves_a_report(self):
         script = ("build %s\nreconnect\n" % self.build_tag()).encode("ascii")
@@ -1945,7 +1881,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertTrue(settings.loaded(machine))
         loads = watch.loads()
         self.assertEqual([(call["module"], call["loaded"]) for call in loads],
-                         [(settings_number, True), (views_number, True), (settings_number, True)])
+                         [(settings_number, True), (views_number, True), (settings_number, True), (views_number, True), (settings_number, True)])
         self.assertLess(max(call["us"] for call in loads), MODULE_LOAD_LIMIT_MS * 1000)
         self.assert_module_code_never_written(watch)
         self.assertEqual(machine.read_memory(LANGUAGE_RAM, len(pack)), pack)
@@ -1962,7 +1898,7 @@ class EchoImageTest(unittest.TestCase):
         from echo_emulator.modules import ModuleWatch
         from echo_emulator.playback import ALBUM_COUNT
         from echo_emulator.real_volume import real_volume
-        script = "\n".join(["build " + self.build_tag(), "play", "play", "wait 600",
+        script = "\n".join(["build " + self.build_tag(), "play", "down,play", "wait 600",
                             "screenshot coverflow", "set Repeat=All", "down", "wait 300",
                             "back:long", "wait 600", "down", "play", "wait 600",
                             "screenshot settings", "measure 500", "reconnect", ""])
@@ -2018,7 +1954,7 @@ class EchoImageTest(unittest.TestCase):
         rig.run_for(1500)
         rig.press("back")
         rig.press("back")
-        rig.press_many("previous", MUSIC_ENTRIES_BEFORE_SONGS)
+        rig.press_many("previous", MUSIC_ROWS_BETWEEN_SONGS_AND_COVER_FLOW)
         self.assertEqual(watch.other_writes, resident_writes)
         opened = rig.press("play")
         rig.run_for(800)

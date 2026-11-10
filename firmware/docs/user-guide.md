@@ -2,7 +2,7 @@
 
 Gnarlyr is firmware for the full-size Snowsky (FiiO) Echo music player. It replaces FiiO's firmware and has large text, a Cover Flow album browser, a music library built on the player, favorites, playlists and an Up Next queue. Snowsky and FiiO are trademarks of their owners, and Echo is their product name. Gnarlyr is not made, endorsed or supported by FiiO.
 
-Gnarlyr 1.0.0 is not released and has not run on a player yet. This guide describes what the code does, as checked in tests, the simulator and the emulator. Read [`known-issues.md`](known-issues.md) before you install.
+Gnarlyr 1.0.0 is not released. Developer firmware runs on the owner's full-size Echo; [`known-issues.md`](known-issues.md) records the device checks and what still needs validation. This guide describes the implemented behavior.
 
 **Use it at your own risk.** Gnarlyr comes with no warranty (see `LICENSE`). Replacing a player's firmware can leave it unable to start; the way back is maskrom recovery ([`device-recovery.md`](device-recovery.md)). Only install it if you're prepared to use that.
 
@@ -36,6 +36,10 @@ On the first start with a microSD card in the player, Gnarlyr builds its library
 - **Favorite Playlist.** Hold Play on a song in any list and choose Add to Favorite Playlist. The song goes into `Favorite Tracks.m3u` in the top folder of the music storage (the card, or the player's own storage without a card). The file is made on the first use, holds one path per line relative to that folder, and can be read and edited on a computer. A song that is one track of a CUE album gets the line `#FRESHBASE-START:` and the track's start in milliseconds above its path (the path is the album's audio file, so computer players open the whole album); the player and echo-sync use the start to pick that exact track, and a line without it stands for the album's last track. Each track of a CUE album is added and checked on its own. A song already in it shows "Already in Favorites". The file has room for a few hundred songs; when it is full, or a computer edit left it without spare room, the player shows "Couldn't add to Favorites". Music → Playlists shows Favorite Tracks with the new song straight away, with no rescan, also after a restart. Lines added to the file on a computer show after the next library scan.
 - The library holds up to 65,535 tracks; [`known-issues.md`](known-issues.md) says what has been tested.
 - Gnarlyr keeps its own files in a hidden `/.freshbase` folder on the card, about 110 MB of them. Don't delete it unless you want the library rebuilt.
+
+## Search, sorting and personal tags
+
+Music → Search finds songs across their metadata and paths. View options combine sorting, filters and personal tags. See [Search, sorting and personal tags](library-discovery.md) for controls, scopes, limits and saved-view behavior.
 
 ## CUE sheets
 
@@ -169,11 +173,11 @@ Settings → Text size picks Small, Medium (the default) or Large for list rows,
 
 ## Equalizer
 
-Settings → Equalizer picks a sound: Off, Retro, Bass, Heavy, Pop, Jazz, Unique (the same curves as FiiO's firmware), Custom, then your saved slots (Slot 1 to Slot 8) and the files from the `EQ` folder. Choosing a slot or a file copies its curve into Custom. Choosing a slot or Custom also opens Custom EQ, so the curve can be changed right away; for a slot, "Save to slot" starts on that slot. While the curve still matches a slot, Settings → Equalizer shows the slot's name in place of Custom.
+Settings → Equalizer previews a sound: Off, Retro, Bass, Heavy, Pop, Jazz, Unique (the same curves as FiiO's firmware), Custom, then your saved slots (Slot 1 to Slot 8) and the files from the `EQ` folder. Move with vol+ and vol− to hear the highlighted curve and see its frequency response. Browsing leaves saved settings unchanged. Press ▶ to keep the sound; Back cancels. Leaving for Now Playing, Home or another screen, or switching off, restores the kept sound. Choosing a slot or a file copies its curve into Custom. Choosing a slot or Custom also opens Custom EQ, so the curve can be changed right away; for a slot, "Save to slot" starts on that slot. While the curve still matches a slot, Settings → Equalizer shows the slot's name in place of Custom.
 
-Settings → Custom EQ sets the Custom curve with ten bands: 31, 62, 125, 250 and 500 Hz, and 1, 2, 4, 8 and 16 kHz. Select a band with ▶, change it with vol+ and vol− in steps of 0.5 dB (-10.0 to +10.0 dB, shown as +1.5 dB), and press ▶ or ↩ when done. Changing a band switches the equalizer to Custom. The list scrolls in landscape and in portrait.
+Settings → Custom EQ edits ten bands: 31, 62, 125, 250 and 500 Hz, and 1, 2, 4, 8 and 16 kHz. Volume keys choose a band; ▶ enters adjustment. The selected frequency and gain remain visible beside the curve. Adjust with vol+ and vol− in steps of 0.5 dB, from -10.0 to +10.0 dB. Changes are heard while adjusting, but saved settings stay unchanged until ▶ keeps the adjustment. Back cancels the current adjustment. Leaving the editor also cancels an unkept adjustment. Keeping a changed band selects Custom.
 
-**Saving a curve.** The last row of Custom EQ is "Save to slot". Select it with ▶, pick slot 1 to 8 with vol+ and vol− (a slot that already holds a curve shows "used"), and press ▶ to save or ↩ to cancel. The saved curve shows up in Settings → Equalizer as Slot 1 to Slot 8.
+**Saving a curve.** After the last band, Custom EQ offers "Save to slot". Select it with ▶, pick slot 1 to 8 with vol+ and vol− (a slot that already holds a curve shows "used"), and press ▶ to save or ↩ to cancel. The saved curve shows up in Settings → Equalizer as Slot 1 to Slot 8.
 
 **Curves from files.** Make a folder named `EQ` at the root of the memory card (or of the player's storage when no card is inserted) and copy text files into it. Each file shows in Settings → Equalizer by its file name (up to 16 files, names up to 27 characters; names starting with a dot are ignored). Two formats work:
 
@@ -190,7 +194,7 @@ Settings → Custom EQ sets the Custom curve with ten bands: 31, 62, 125, 250 an
 
 Lines starting with `#` are comments. The points can be in any order and at any frequencies: each of the ten bands gets the gain interpolated between its two nearest points (by octave distance), or the nearest point's gain beyond the ends. Gains are rounded to 0.5 dB and limited to ±10 dB. A file without a usable frequency and gain says "Could not read the EQ file" and changes nothing.
 
-Every curve turns the music down a little first, so boosts don't distort; Custom turns it down by its largest boost, or by its deepest dip when it only cuts. A change is heard after about a third of a second. The equalizer works on music up to 96 kHz (higher rates play unchanged) and not in USB DAC mode. Bands at or above a quarter of the music's sample rate do nothing (the 16 kHz band is idle at 44.1 and 48 kHz).
+The graph is a calculated 44.1 kHz filter response with a labeled decibel scale, not an audio spectrum or a measurement of the output. It shows the tone-shaping response before the separately displayed computed preamp value. That value comes from the same linear gain used by the equalizer. Custom calculates preamp compensation from the combined filter response, including overlapping boosts and cuts. A change is heard after about a third of a second. The equalizer works on music up to 96 kHz (higher rates play unchanged) and not in USB DAC mode. Bands at or above a quarter of the music's sample rate do nothing (the 16 kHz band is idle at 44.1 and 48 kHz).
 
 ## Bluetooth headphones
 

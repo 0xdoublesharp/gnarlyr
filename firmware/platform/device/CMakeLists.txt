@@ -122,6 +122,8 @@ add_custom_command(
 set(ECHO_OVERLAY_IMPORTS
     app_remember_dac_volume
     app_show_notice
+    app_show_usb_status
+    app_usb_battery_changed
     board_audio_set_attenuation
     board_audio_stream_close
     board_audio_stream_consumed

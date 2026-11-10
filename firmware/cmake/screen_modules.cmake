@@ -4,6 +4,9 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/mixtape_store.c
     src/app/mixtape_ui.c
     src/app/mixtape_screen.c
+    src/playback/mix_catalog.c
+    src/playback/mix_resolve.c
+    src/playback/mix_tape.c
     src/app/screens/cover_flow_screen.c
     src/app/screens/up_next_screen.c
     src/ui/cover_flow.c
@@ -17,6 +20,9 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/diagnostics_values.c
     src/app/screens/bluetooth_screen.c
     src/app/screens/equalizer_screen.c
+    src/app/screens/equalizer_browser.c
+    src/app/screens/equalizer_plot.c
+    src/settings/equalizer_response.c
     src/core/dac_identity.c
     src/settings/equalizer_slots.c
     src/ui/choice_screen.c
@@ -24,7 +30,15 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
 set(ECHO_SCREEN_MODULE_SOURCES_library
     src/app/modules/library_module.c
     src/app/music_walk.c
+    src/app/discovery_screen.c
+    src/app/discovery_text.c
+    src/app/discovery_preferences.c
+    src/app/discovery_playback.c
+    src/app/personal_tags.c
     src/library/music_fingerprint.c
+    src/library/library_view.c
+    src/library/sort_key.c
+    src/library/sort_fold_table.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/app/modules/listening_module.c

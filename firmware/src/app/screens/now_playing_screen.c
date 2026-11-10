@@ -8,7 +8,6 @@
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "gfx/image.h"
-#include "home_art.h"
 #include "settings/settings.h"
 #include "ui/header.h"
 #include "ui/icons.h"
@@ -18,9 +17,9 @@
 
 enum {
     MS_PER_SECOND = 1000,
-    CODEC_PADDING = 4,
-    CODEC_GAP = 7,
-    OUTLINE = 1,
+    ART_SPINE = 3,
+    ART_SHADOW = 5,
+    TRANSPORT_ICON = 12,
     TIME_CAPACITY = 16,
     BADGE_SIZE = 40,
     BADGE_ICON_SIZE = 18,
@@ -465,15 +464,16 @@ static bool current_cover(const NowPlayingScreen *now_playing, Image *image)
 static int cover_left(const NowPlayingScreen *now_playing)
 {
     const Theme *theme = now_playing->config.theme;
-    return theme_is_portrait(theme) ? (theme->metrics.screen_width - COVER_FULL_SIZE) / 2
-                                    : theme->metrics.padding;
+    return theme_is_portrait(theme)
+               ? (theme->metrics.screen_width - layout(now_playing)->cover_size) / 2
+               : theme->metrics.padding;
 }
 
 static int text_left(const NowPlayingScreen *now_playing)
 {
     int padding = now_playing->config.theme->metrics.padding;
     return !theme_is_portrait(now_playing->config.theme)
-               ? padding + COVER_FULL_SIZE + layout(now_playing)->cover_gap
+               ? padding + layout(now_playing)->cover_size + layout(now_playing)->cover_gap
                : padding;
 }
 
@@ -498,26 +498,26 @@ static uint32_t shown_position(const NowPlayingScreen *now_playing)
 static void draw_cover(const NowPlayingScreen *now_playing, Canvas *canvas)
 {
     Image cover;
-    int left = cover_left(now_playing);
     const Theme *theme = now_playing->config.theme;
+    int left = cover_left(now_playing);
     int top = layout(now_playing)->cover_top;
-    Rect backdrop = theme_is_portrait(theme)
-                        ? (Rect){0, theme->metrics.header_height, theme->metrics.screen_width,
-                                 top + COVER_FULL_SIZE + 10 - theme->metrics.header_height}
-                        : (Rect){left - 4, top - 4, COVER_FULL_SIZE + 8, COVER_FULL_SIZE + 8};
-    home_art_draw_backdrop(canvas, backdrop, theme);
-    if (!current_cover(now_playing, &cover)) {
-        cassette_art_draw(canvas,
-                          (Rect){left, top + (COVER_FULL_SIZE - CASSETTE_HEIGHT) / 2,
-                                 CASSETTE_WIDTH, CASSETTE_HEIGHT},
-                          theme,
-                          (CassetteTape){shown_position(now_playing),
-                                         now_playing->status.duration_ms, FIRMWARE_SHORT_NAME});
+    int size = layout(now_playing)->cover_size;
+    canvas_fill_rect(canvas, (Rect){left + ART_SHADOW, top + ART_SHADOW, size, size},
+                     theme->colors.backdrop_bottom);
+    canvas_fill_rect(canvas, (Rect){left - ART_SPINE, top, ART_SPINE, size},
+                     theme->colors.accent_alt);
+    if (current_cover(now_playing, &cover)) {
+        image_draw_quad(canvas, cover,
+                        (Quad){left, size, top, size, top + ART_SPINE, size - ART_SPINE});
         return;
     }
-    image_draw_quad(canvas, cover,
-                    (Quad){left, COVER_FULL_SIZE, layout(now_playing)->cover_top, COVER_FULL_SIZE,
-                           layout(now_playing)->cover_top, COVER_FULL_SIZE});
+    canvas_fill_rect(canvas, (Rect){left, top, size, size}, theme->colors.backdrop_top);
+    cassette_art_draw(canvas,
+                      (Rect){left + (size - CASSETTE_WIDTH) / 2, top + (size - CASSETTE_HEIGHT) / 2,
+                             CASSETTE_WIDTH, CASSETTE_HEIGHT},
+                      theme,
+                      (CassetteTape){shown_position(now_playing), now_playing->status.duration_ms,
+                                     FIRMWARE_SHORT_NAME});
 }
 
 static Rect line_area(const Theme *theme, int top, int height)
@@ -540,17 +540,27 @@ static void draw_text_line(const NowPlayingScreen *now_playing, Canvas *canvas, 
     label_draw_scrolling(canvas, style, label, (Marquee){.offset = offset, .gap = timing.gap_px});
 }
 
+static void draw_title(const NowPlayingScreen *now_playing, Canvas *canvas, TextStyle style)
+{
+    Label title = {column_area(now_playing, layout(now_playing)->title_top,
+                               layout(now_playing)->text_line_height),
+                   now_playing->title};
+    if (theme_is_portrait(now_playing->config.theme) &&
+        label_wrap_count(style.font, title.text, title.area.width) <= 2) {
+        title.area.height *= 2;
+        label_draw_paragraph(canvas, style, title);
+        return;
+    }
+    draw_text_line(now_playing, canvas, title, style);
+}
+
 static void draw_track_text(const NowPlayingScreen *now_playing, Canvas *canvas)
 {
     const Theme *theme = now_playing->config.theme;
     TextStyle title = {.font = theme->fonts.title, .color = theme->colors.text};
     TextStyle artist = {.font = theme->fonts.body, .color = theme->colors.text_secondary};
-    TextStyle album = {.font = theme->fonts.body, .color = theme->colors.text_tertiary};
-    draw_text_line(now_playing, canvas,
-                   (Label){column_area(now_playing, layout(now_playing)->title_top,
-                                       layout(now_playing)->text_line_height),
-                           now_playing->title},
-                   title);
+    TextStyle album = {.font = theme->fonts.small, .color = theme->colors.text_tertiary};
+    draw_title(now_playing, canvas, title);
     draw_text_line(now_playing, canvas,
                    (Label){column_area(now_playing, layout(now_playing)->artist_top,
                                        layout(now_playing)->text_line_height),
@@ -558,7 +568,7 @@ static void draw_track_text(const NowPlayingScreen *now_playing, Canvas *canvas)
                    artist);
     draw_text_line(now_playing, canvas,
                    (Label){column_area(now_playing, layout(now_playing)->album_top,
-                                       layout(now_playing)->text_line_height),
+                                       layout(now_playing)->small_line_height),
                            now_playing->album},
                    album);
 }
@@ -611,6 +621,12 @@ static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas)
     Rect area =
         line_area(theme, layout(now_playing)->times_top, layout(now_playing)->small_line_height);
     TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
+    Rect icon = {area.x, area.y + (area.height - TRANSPORT_ICON) / 2, TRANSPORT_ICON,
+                 TRANSPORT_ICON};
+    IconId state = now_playing->status.state == PLAYER_PAUSED ? ICON_PAUSE : ICON_PLAY;
+    icon_draw(canvas, state, icon, (IconInk){theme->colors.accent, theme->colors.accent});
+    area.x += TRANSPORT_ICON + theme->metrics.detail_gap;
+    area.width -= TRANSPORT_ICON + theme->metrics.detail_gap;
     label_draw(canvas, style, (Label){.area = area, .text = left});
     draw_right_aligned(canvas, style, area, remaining);
 }
@@ -624,37 +640,25 @@ static void modes_text(const PlayerStatus *status, char *buffer, size_t capacity
     }
 }
 
-static void draw_outline(Canvas *canvas, Rect area, Color color)
-{
-    canvas_fill_rect(canvas, (Rect){area.x, area.y, area.width, OUTLINE}, color);
-    canvas_fill_rect(canvas, (Rect){area.x, area.y + area.height - OUTLINE, area.width, OUTLINE},
-                     color);
-    canvas_fill_rect(canvas, (Rect){area.x, area.y, OUTLINE, area.height}, color);
-    canvas_fill_rect(canvas, (Rect){area.x + area.width - OUTLINE, area.y, OUTLINE, area.height},
-                     color);
-}
-
 static void draw_format(const NowPlayingScreen *now_playing, Canvas *canvas)
 {
     const Theme *theme = now_playing->config.theme;
     HalAudioFormat format = now_playing->status.format;
     const char *codec = now_playing_codec_name(format.codec);
-    if (codec[0] == '\0') {
-        return;
-    }
-    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
-    Rect row = column_area(now_playing, layout(now_playing)->format_top,
-                           layout(now_playing)->small_line_height);
-    int codec_width = text_width(style.font, codec) + 2 * CODEC_PADDING;
-    Rect badge = {row.x, row.y, codec_width, row.height};
-    draw_outline(canvas, badge, theme->colors.text_secondary);
-    Rect codec_text = label_centered_area(style.font, badge, codec);
-    label_draw(canvas, style, (Label){.area = codec_text, .text = codec});
+    char text[STATUS_CAPACITY];
+    StringBuilder builder = string_builder_make(text, sizeof text);
+    string_builder_append(&builder, codec);
     char stream[STATUS_CAPACITY];
     now_playing_stream_text(format, stream, sizeof stream);
-    int stream_left = badge.x + badge.width + CODEC_GAP;
-    Rect stream_area = {stream_left, row.y, row.x + row.width - stream_left, row.height};
-    label_draw(canvas, style, (Label){.area = stream_area, .text = stream});
+    if (codec[0] != '\0' && stream[0] != '\0') {
+        string_builder_append(&builder, SEPARATOR);
+    }
+    string_builder_append(&builder, stream);
+    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_tertiary};
+    label_draw(canvas, style,
+               (Label){column_area(now_playing, layout(now_playing)->format_top,
+                                   layout(now_playing)->small_line_height),
+                       text});
 }
 
 static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
@@ -712,8 +716,8 @@ static void draw_badge(const NowPlayingScreen *now_playing, Canvas *canvas)
         return;
     }
     const Theme *theme = now_playing->config.theme;
-    int center_x = cover_left(now_playing) + COVER_FULL_SIZE / 2;
-    int center_y = layout(now_playing)->cover_top + COVER_FULL_SIZE / 2;
+    int center_x = cover_left(now_playing) + layout(now_playing)->cover_size / 2;
+    int center_y = layout(now_playing)->cover_top + layout(now_playing)->cover_size / 2;
     Rect badge = {center_x - BADGE_SIZE / 2, center_y - BADGE_SIZE / 2, BADGE_SIZE, BADGE_SIZE};
     Rect icon = {center_x - BADGE_ICON_SIZE / 2, center_y - BADGE_ICON_SIZE / 2, BADGE_ICON_SIZE,
                  BADGE_ICON_SIZE};
@@ -731,7 +735,13 @@ static void draw(void *context, Canvas *canvas)
     const NowPlayingScreen *now_playing = context;
     const Theme *theme = now_playing->config.theme;
     canvas_fill_rect(canvas, theme_content_area(theme), theme->colors.background);
-    header_draw(canvas, theme, now_playing->screen.title);
+    Rect header = theme_header_area(theme);
+    canvas_fill_rect(canvas, header, theme->colors.background);
+    canvas_fill_rect(canvas, (Rect){0, header.height - 1, header.width, 1}, theme->colors.divider);
+    TextStyle heading = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
+    Rect title =
+        label_centered_area(heading.font, header_title_bounds(theme), now_playing->screen.title);
+    label_draw(canvas, heading, (Label){title, now_playing->screen.title});
     if (!now_playing->status.has_track) {
         draw_nothing_playing(theme, canvas);
         return;

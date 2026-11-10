@@ -1159,9 +1159,89 @@ static void changed_cue_boundaries_do_not_reuse_the_old_saved_position(void)
     CHECK(!resumed.has_track);
 }
 
+static bool imported_tracks(void *context, uint16_t first, uint16_t count, uint16_t *tracks)
+{
+    const uint16_t *ids = context;
+    for (uint16_t index = 0; index < count; index++) {
+        tracks[index] = ids[first + index];
+    }
+    return true;
+}
+
+static TrackOrder imported_order(Player *owner)
+{
+    static uint16_t ids[] = {HELP, HELLS_BELLS, ARMY_OF_ME, SHOOT_TO_THRILL};
+    TrackOrder order;
+    StoreLoad load = player_storage_order(&owner->storage, &order, NULL);
+    CHECK(load == STORE_EMPTY || load == STORE_READY);
+    TrackOrderJob writer;
+    CHECK(track_order_job_begin(&writer, &order, (TrackOrderSource){imported_tracks, ids, 4},
+                                (TrackOrderEdit){.operation = TRACK_ORDER_COPY}));
+    StoreResult result;
+    do {
+        result = track_order_job_step(&writer);
+    } while (result == STORE_WORKING);
+    CHECK_EQUAL(STORE_DONE, result);
+    return order;
+}
+
+static void a_result_order_starts_the_selected_original_track_and_keeps_its_neighbors(void)
+{
+    Player *started = playing(0);
+    TrackOrder order = imported_order(started);
+    CHECK(player_use_order(started, &order, 2));
+    CHECK_EQUAL(ARMY_OF_ME, player_status(started).track);
+    CHECK_EQUAL(PLAYER_PAUSED, player_status(started).state);
+    CHECK_EQUAL(2, started->queue.cursor.position);
+    player_toggle_pause(started);
+    CHECK(path_is(fake_hal_audio_playing_path(), ARMY_OF_ME_PATH));
+    player_skip(started, 1);
+    CHECK(path_is(fake_hal_audio_playing_path(), SHOOT_TO_THRILL_PATH));
+}
+
+static void a_failed_result_order_publication_keeps_the_old_playback(void)
+{
+    Player *started = playing(0);
+    TrackOrder order = imported_order(started);
+    fake_hal_fail_file_writes(PLAYER_SESSION_PATH);
+    CHECK(!player_use_order(started, &order, 2));
+    CHECK_EQUAL(PLAYER_PLAYING, player_status(started).state);
+    CHECK_EQUAL(HELLS_BELLS, player_status(started).track);
+    CHECK(path_is(fake_hal_audio_playing_path(), HELLS_BELLS_PATH));
+    fake_hal_fail_file_writes(NULL);
+}
+
+static void a_result_order_survives_restart_at_the_selected_row(void)
+{
+    Player *started = playing(0);
+    TrackOrder order = imported_order(started);
+    CHECK(player_use_order(started, &order, 2));
+    Player restored;
+    player_init(&restored, &fixture.library);
+    CHECK(player_restore(&restored));
+    CHECK_EQUAL(ARMY_OF_ME, player_status(&restored).track);
+    CHECK_EQUAL(2, restored.queue.cursor.position);
+    CHECK_EQUAL(4, restored.queue.count);
+}
+
+static void invalid_result_orders_cannot_replace_the_current_song(void)
+{
+    Player *started = playing(0);
+    TrackOrder order = imported_order(started);
+    CHECK(!player_use_order(started, &order, 4));
+    order.config.fingerprint++;
+    CHECK(!player_use_order(started, &order, 0));
+    CHECK_EQUAL(HELLS_BELLS, player_status(started).track);
+    CHECK_EQUAL(PLAYER_PLAYING, player_status(started).state);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_result_order_starts_the_selected_original_track_and_keeps_its_neighbors),
+        TEST_CASE(a_failed_result_order_publication_keeps_the_old_playback),
+        TEST_CASE(a_result_order_survives_restart_at_the_selected_row),
+        TEST_CASE(invalid_result_orders_cannot_replace_the_current_song),
         TEST_CASE(a_same_layout_rescan_cannot_restore_ids_for_different_songs),
         TEST_CASE(changed_cue_boundaries_do_not_reuse_the_old_saved_position),
         TEST_CASE(legacy_resume_and_manual_queue_migrate_without_modifying_original_files),

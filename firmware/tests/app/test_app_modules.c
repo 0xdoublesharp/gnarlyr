@@ -3,9 +3,11 @@
 #include "app/app.h"
 #include "app/debug_loop.h"
 #include "app_internal.h"
+#include "app_screens.h"
 #include "card_files.h"
 #include "check.h"
 #include "cover_cache.h"
+#include "default_theme.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
 #include "hal/storage.h"
@@ -99,6 +101,7 @@ static void open_music(void)
 {
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_VOLUME_UP);
 }
 
 static void open_cover_flow(void)
@@ -132,6 +135,39 @@ static void run_script(const char *text)
     for (uint32_t elapsed = 0; elapsed < SCRIPT_MS; elapsed += SCRIPT_STEP_MS) {
         wait_ms(SCRIPT_STEP_MS);
     }
+}
+
+static void discovery_screen_memory_belongs_to_the_library_module(void)
+{
+    static AppScreens isolated;
+    CHECK_EQUAL(SCREEN_MODULE_LIBRARY,
+                screen_modules_of(&isolated, &isolated.modules.library.discovery.screen));
+}
+
+static void search_is_the_first_music_entry_and_loads_the_library_module(void)
+{
+    start_app();
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_PLAY);
+    CHECK(title_is("Search"));
+    CHECK_EQUAL(SCREEN_MODULE_LIBRARY, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(3, app_screen_depth());
+    tap(KEY_BACK);
+    CHECK(title_is("Music"));
+}
+
+static void the_personal_tag_manager_opens_from_the_last_music_row(void)
+{
+    start_app();
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    CHECK(title_is("My tags"));
+    CHECK_EQUAL(SCREEN_MODULE_LIBRARY, (int)fake_hal_loaded_module());
+    tap(KEY_BACK);
+    CHECK(title_is("Music"));
 }
 
 static void a_module_screen_loads_its_module_when_it_opens(void)
@@ -342,7 +378,8 @@ static void a_screen_of_another_module_takes_the_slot(void)
     CHECK_EQUAL(2, fake_hal_module_loads());
     tap(KEY_BACK);
     tap(KEY_VOLUME_DOWN);
-    open_cover_flow();
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
     CHECK(title_is("Cover Flow"));
     CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
     CHECK_EQUAL(3, fake_hal_module_loads());
@@ -461,9 +498,29 @@ static void a_music_check_that_cannot_walk_the_card_rescans_instead(void)
     CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
 }
 
+static void about_omits_the_old_usb_controls_and_raw_dac_rows(void)
+{
+    AppScreens screens = {0};
+    AppOptions options = {0};
+    diagnostics_menu_build(&screens, &options, &BOARD_THEME);
+    const MenuConfig *menu = &screens.modules.settings.diagnostics.config;
+    CHECK_EQUAL(14, menu->item_count);
+    for (int index = 0; index < menu->item_count; index++) {
+        const char *label = menu->items[index].label;
+        CHECK(strcmp(label, "Connect USB") != 0);
+        CHECK(strcmp(label, "USB sense") != 0);
+        CHECK(strcmp(label, "DAC A") != 0);
+        CHECK(strcmp(label, "DAC B") != 0);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(about_omits_the_old_usb_controls_and_raw_dac_rows),
+        TEST_CASE(discovery_screen_memory_belongs_to_the_library_module),
+        TEST_CASE(search_is_the_first_music_entry_and_loads_the_library_module),
+        TEST_CASE(the_personal_tag_manager_opens_from_the_last_music_row),
         TEST_CASE(a_module_screen_loads_its_module_when_it_opens),
         TEST_CASE(a_module_in_the_slot_is_not_loaded_again),
         TEST_CASE(a_resident_screen_opened_from_a_module_screen_needs_no_load),

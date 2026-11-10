@@ -13,8 +13,6 @@ enum {
     RESERVED_FIELD = 76
 };
 
-const char MIX_CATALOG_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/mixes.bin";
-
 static const StoreKind KIND = {.magic = {'D', 'S', 'M', 'C'}, .version = 1};
 
 typedef struct Request {

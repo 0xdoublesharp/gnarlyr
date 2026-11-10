@@ -11,6 +11,7 @@ typedef struct ModuleSpan {
 } ModuleSpan;
 
 static const ModuleSpan SPANS[SCREEN_MODULE_COUNT] = {
+    [SCREEN_MODULE_LIBRARY] = {offsetof(AppScreens, modules.library), sizeof(LibraryModuleScreens)},
     [SCREEN_MODULE_LISTENING] = {offsetof(AppScreens, modules.listening),
                                  sizeof(ProfileModuleScreens)},
     [SCREEN_MODULE_VIEWS] = {offsetof(AppScreens, modules.views), sizeof(ViewsModuleScreens)},
@@ -29,8 +30,30 @@ ScreenModule screen_modules_of(const AppScreens *screens, const Screen *screen)
     return SCREEN_MODULE_NONE;
 }
 
+void screen_modules_cancel_equalizer_preview(AppScreens *screens)
+{
+    if ((screens->bound_modules & (1u << SCREEN_MODULE_SETTINGS)) == 0 ||
+        screens->context.settings == NULL) {
+        return;
+    }
+    SettingsScreens *settings = &screens->modules.settings.settings;
+    bool *previewing = NULL;
+    if (settings->equalizer_preview == SETTINGS_EQ_PREVIEW_BROWSER) {
+        previewing = &settings->equalizer_browser.previewing;
+    } else if (settings->equalizer_preview == SETTINGS_EQ_PREVIEW_EDITOR) {
+        previewing = &settings->equalizer.previewing;
+    }
+    if (previewing != NULL && *previewing) {
+        *previewing = false;
+        settings_store_apply_equalizer(&screens->context.settings->settings);
+    }
+}
+
 const ScreenModuleEntry *screen_modules_use(AppScreens *screens, ScreenModule module)
 {
+    if (module != SCREEN_MODULE_SETTINGS) {
+        screen_modules_cancel_equalizer_preview(screens);
+    }
     const ScreenModuleEntry *entry = hal_system_load_module((uint32_t)module);
     if (entry == NULL || entry->magic != SCREEN_MODULE_MAGIC(module)) {
         return NULL;

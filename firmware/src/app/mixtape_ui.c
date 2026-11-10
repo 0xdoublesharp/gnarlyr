@@ -57,6 +57,7 @@ void mixtape_ui_cancel(MixtapeUi *ui)
         player_queue_cancel(ui->config.player);
         mixtape_store_cancel(&ui->store);
         track_order_job_abort(&ui->writer);
+        ui->mode = MIXTAPE_LIST;
         finish(ui, i18n_text(STR_CANCELLED));
     }
 }
@@ -209,42 +210,7 @@ static void resolve(MixtapeUi *ui)
 
 static bool publish(MixtapeUi *ui)
 {
-    Player *player = ui->config.player;
-    uint16_t track = 0;
-    MixIdentity identity;
-    if (!track_order_read(&ui->pending, 0, 1, &track) ||
-        mix_identity_read(player->library, track, &identity) != STORE_READY) {
-        return false;
-    }
-    SessionState state = player_session_state(player, &player->up_next);
-    state.queue_kind = SESSION_QUEUE_STORED;
-    state.order_generation = ui->pending.generation;
-    state.resume.plan = (PlayQueuePlan){.source = browse_root_query(BROWSE_ALL_SONGS),
-                                        .anchor_track = track,
-                                        .shuffle = player->shuffle};
-    state.resume.cursor = (PlayQueueCursor){0};
-    state.resume.track = track;
-    state.resume.position_ms = 0;
-    state.resume.from_up_next = false;
-    up_next_clear(&state.up_next);
-    if (!player_store_session(player, &state)) {
-        return false;
-    }
-    player->storage.order = ui->pending;
-    play_queue_use_order(&player->queue, player->library, &player->storage.order,
-                         state.resume.plan);
-    up_next_clear(&player->up_next);
-    player->from_up_next = false;
-    player->has_track = true;
-    player->loaded = false;
-    player->has_next = false;
-    player->track = track;
-    player->start_ms = identity.start_ms;
-    player->paused_position_ms = 0;
-    player->spoken = spoken_kind_of(identity.path) != SPOKEN_NONE;
-    player->state = PLAYER_PAUSED;
-    player->up_next_revision++;
-    return true;
+    return player_use_order(ui->config.player, &ui->pending, 0);
 }
 
 static void copy_queue(MixtapeUi *ui)

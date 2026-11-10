@@ -95,7 +95,7 @@ static void now_playing_text_lines_follow_each_other_without_overlap(void)
         CHECK(layout->title_top >= theme.metrics.header_height);
         CHECK(layout->title_top + layout->text_line_height <= layout->artist_top);
         CHECK(layout->artist_top + layout->text_line_height <= layout->album_top);
-        CHECK(layout->album_top + layout->text_line_height <= layout->format_top);
+        CHECK(layout->album_top + layout->small_line_height <= layout->format_top);
         CHECK(layout->format_top + layout->small_line_height <= layout->detail_top);
         CHECK(layout->detail_top + layout->small_line_height <= layout->modes_top);
         CHECK(layout->modes_top + layout->small_line_height <= layout->progress_top);
@@ -118,7 +118,7 @@ static void now_playing_cover_sits_above_the_progress_bar(void)
         Theme theme = theme_of_size(size);
         const NowPlayingLayout *layout = board_now_playing_layout(&theme);
         CHECK(layout->cover_top >= theme.metrics.header_height);
-        CHECK(layout->cover_top + COVER_FULL_SIZE <= layout->progress_top);
+        CHECK(layout->cover_top + layout->cover_size <= layout->progress_top);
     }
 }
 
@@ -126,8 +126,8 @@ static void now_playing_leaves_a_text_column_beside_the_cover(void)
 {
     for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
         Theme theme = theme_of_size(size);
-        int left =
-            theme.metrics.padding + COVER_FULL_SIZE + board_now_playing_layout(&theme)->cover_gap;
+        int left = theme.metrics.padding + board_now_playing_layout(&theme)->cover_size +
+                   board_now_playing_layout(&theme)->cover_gap;
         CHECK(HAL_DISPLAY_WIDTH - left - theme.metrics.padding >= MIN_TEXT_COLUMN);
     }
 }
@@ -253,12 +253,12 @@ static void portrait_now_playing_lines_follow_each_other_on_screen(void)
         Theme theme = portrait_theme_of_size(size);
         const NowPlayingLayout *layout = board_now_playing_layout(&theme);
         CHECK(layout->cover_top >= theme.metrics.status_height);
-        CHECK(layout->cover_top + COVER_FULL_SIZE <= layout->title_top);
+        CHECK(layout->cover_top + layout->cover_size <= layout->title_top);
         CHECK(line_height(theme.fonts.title) <= layout->text_line_height);
         CHECK(line_height(theme.fonts.body) <= layout->text_line_height);
-        CHECK(layout->title_top + layout->text_line_height <= layout->artist_top);
+        CHECK(layout->title_top + 2 * layout->text_line_height <= layout->artist_top);
         CHECK(layout->artist_top + layout->text_line_height <= layout->album_top);
-        CHECK(layout->album_top + layout->text_line_height <= layout->format_top);
+        CHECK(layout->album_top + layout->small_line_height <= layout->format_top);
         CHECK(layout->format_top + layout->small_line_height <= layout->detail_top);
         CHECK(layout->detail_top + layout->small_line_height <= layout->modes_top);
         CHECK(layout->modes_top + layout->small_line_height <= layout->progress_top);

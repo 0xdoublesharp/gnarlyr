@@ -31,6 +31,7 @@ def parse_arguments():
     parser.add_argument("--toolchain-prefix", default="arm-none-eabi-")
     parser.add_argument("--define", action="append", default=[], metavar="NAME",
                         help="preprocessor definition for every source, e.g. ECHO_FONTS_PACKED")
+    parser.add_argument("--module-source", action="append", default=[], metavar="MODULE=SOURCE")
     return parser.parse_args()
 
 
@@ -85,6 +86,11 @@ def audit(arguments, output_directory):
     flash_by_module = defaultdict(int)
     ram_by_module = defaultdict(int)
     heap_users = []
+    cold_ram = defaultdict(int)
+    owners = {}
+    for assignment in arguments.module_source:
+        module, source = assignment.split("=", 1)
+        owners[source] = module
     for source in sorted(arguments.source_root.rglob("*.c")):
         object_file = compile_object(compiler, flags, source, arguments.source_root,
                                      output_directory)
@@ -92,16 +98,26 @@ def audit(arguments, output_directory):
         module = module_of(source, arguments.source_root)
         flash_by_module[module] += flash
         ram_by_module[module] += ram
+        owner = owners.get(source.relative_to(arguments.source_root).as_posix())
+        if owner is not None:
+            cold_ram[owner] += ram
         for symbol in heap_symbols(arguments.toolchain_prefix + "nm", object_file):
             heap_users.append(f"{source.relative_to(arguments.source_root)} uses {symbol}")
-    return flash_by_module, ram_by_module, heap_users
+    return flash_by_module, ram_by_module, heap_users, cold_ram
 
 
-def report(flash_by_module, ram_by_module, heap_users, budget_bytes):
-    total = sum(ram_by_module.values())
+def report(flash_by_module, ram_by_module, heap_users, budget_bytes, cold_ram=None):
+    cold_ram = cold_ram or {}
+    resident = sum(ram_by_module.values()) - sum(cold_ram.values())
+    total = resident + max(cold_ram.values(), default=0)
     print(f"{'module':<8}{'flash':>12}{'static RAM':>14}")
     for module in sorted(ram_by_module):
         print(f"{module:<8}{flash_by_module[module]:>10,} B{ram_by_module[module]:>12,} B")
+    if cold_ram:
+        print(f"resident static RAM: {resident:,} B")
+        for module in sorted(cold_ram):
+            print(f"cold module {module}: {cold_ram[module]:,} B")
+        print("cold modules share one slot; the largest contributes to peak RAM")
     print(f"{'total':<8}{sum(flash_by_module.values()):>10,} B{total:>12,} B"
           f" of {budget_bytes:,} B RAM budget")
     for user in heap_users:
@@ -115,11 +131,11 @@ def main():
     arguments = parse_arguments()
     with tempfile.TemporaryDirectory() as output_directory:
         try:
-            flash_by_module, ram_by_module, heap_users = audit(arguments, Path(output_directory))
+            flash_by_module, ram_by_module, heap_users, cold_ram = audit(arguments, Path(output_directory))
         except subprocess.CalledProcessError as failure:
             print(f"cross-compile failed: {' '.join(failure.cmd[-3:])}")
             return 1
-    passed = report(flash_by_module, ram_by_module, heap_users, arguments.budget_bytes)
+    passed = report(flash_by_module, ram_by_module, heap_users, arguments.budget_bytes, cold_ram)
     return 0 if passed else 1
 
 

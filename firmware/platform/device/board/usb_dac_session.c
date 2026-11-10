@@ -15,6 +15,7 @@
 
 enum {
     HOST_TIMEOUT_MS = 3000,
+    BATTERY_REFRESH_MS = 1000,
     STREAM_IDLE_MS = 100,
     BACK_HOLD_MS = 1000,
     POLLS_PER_SERVICE = 4,
@@ -94,7 +95,7 @@ static void show_state(void)
     } else {
         append_format(&line, volume);
     }
-    app_show_notice(i18n_text(STR_USB_DAC_TITLE), text);
+    app_show_usb_status((AppUsbStatus){.view = APP_USB_DAC, .detail = text});
 }
 
 static void stop_output(void)
@@ -202,6 +203,8 @@ static bool user_left(void)
 static void serve(void)
 {
     back_pressed_ms = hal_clock_milliseconds();
+    uint32_t refreshed = back_pressed_ms;
+    HalBattery shown_battery = hal_power_battery();
     while (usb_vbus_present() && !user_left()) {
         serve_usb();
         hal_audio_service();
@@ -209,6 +212,15 @@ static void serve(void)
         follow_host();
         keep_output();
         repeat_volume();
+        uint32_t now = hal_clock_milliseconds();
+        if (now - refreshed >= BATTERY_REFRESH_MS) {
+            HalBattery battery = hal_power_battery();
+            if (app_usb_battery_changed(shown_battery, battery)) {
+                show_state();
+            }
+            shown_battery = battery;
+            refreshed = now;
+        }
     }
 }
 
@@ -235,7 +247,8 @@ static void start_session(void)
 void usb_dac_session(UsbShared *state)
 {
     shared = state;
-    app_show_notice(i18n_text(STR_USB_DAC_TITLE), i18n_text(STR_USB_STARTING));
+    app_show_usb_status(
+        (AppUsbStatus){.view = APP_USB_CONNECTING, .detail = i18n_text(STR_USB_STARTING)});
     uint8_t level = board_audio_volume_level();
     start_session();
     uint8_t starting_volume = shared->dac_volume;

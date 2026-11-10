@@ -4,6 +4,20 @@
 #include <stdint.h>
 
 #include "core/frame_stats.h"
+#include "hal/power.h"
+
+typedef enum AppUsbView {
+    APP_USB_CONNECTING,
+    APP_USB_STORAGE,
+    APP_USB_DAC,
+    APP_USB_POWER
+} AppUsbView;
+
+typedef struct AppUsbStatus {
+    AppUsbView view;
+    const char *detail;
+    const char *information;
+} AppUsbStatus;
 
 void app_start(void);
 void app_step(void);
@@ -12,6 +26,8 @@ const FrameStats *app_frame_stats(void);
 const char *app_screen_title(void);
 int app_screen_depth(void);
 void app_show_notice(const char *title, const char *message);
+void app_show_usb_status(AppUsbStatus status);
+bool app_usb_battery_changed(HalBattery before, HalBattery after);
 void app_wake(void);
 void app_release_audio(void);
 void app_remember_dac_volume(uint8_t level);

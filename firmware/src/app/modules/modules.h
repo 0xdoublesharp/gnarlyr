@@ -27,6 +27,13 @@ extern const SettingsModuleEntry SETTINGS_MODULE_ENTRY;
 typedef struct LibraryModuleEntry {
     ScreenModuleEntry module;
     MusicFingerprint (*music_fingerprint)(void);
+    Screen *(*open)(AppScreens *screens, BrowseQuery source, bool edit_search);
+    Screen *(*options)(AppScreens *screens, BrowseQuery source);
+    Screen *(*info)(AppScreens *screens, uint16_t track);
+    Screen *(*tags)(AppScreens *screens, uint16_t track);
+    Screen *(*browse)(AppScreens *screens, BrowseScreen *browse, bool play_group);
+    void (*step)(AppScreens *screens, uint32_t now_ms);
+    void (*cancel)(AppScreens *screens);
 } LibraryModuleEntry;
 
 extern const LibraryModuleEntry LIBRARY_MODULE_ENTRY;

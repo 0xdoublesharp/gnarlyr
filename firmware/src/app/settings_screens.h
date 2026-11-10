@@ -9,6 +9,7 @@
 #include "language.h"
 #include "player.h"
 #include "screens/bluetooth_screen.h"
+#include "screens/equalizer_browser.h"
 #include "screens/equalizer_screen.h"
 #include "settings_store.h"
 #include "ui/choice_screen.h"
@@ -27,6 +28,12 @@ enum {
     SETTINGS_CONTROLS_ITEM = 21,
     SETTINGS_ITEM_COUNT = SETTINGS_CHOICE_COUNT + 5,
     SETTINGS_MESSAGE_CAPACITY = 64
+};
+
+enum {
+    SETTINGS_EQ_PREVIEW_NONE,
+    SETTINGS_EQ_PREVIEW_BROWSER,
+    SETTINGS_EQ_PREVIEW_EDITOR
 };
 
 typedef struct SettingsContext {
@@ -64,9 +71,12 @@ typedef struct SettingsEntry {
 struct SettingsScreens {
     SettingsContext context;
     const Theme *theme;
+    bool appearance_preview;
+    uint8_t equalizer_preview;
     MenuScreen menu;
     union {
         ChoiceScreen choice;
+        EqualizerBrowser equalizer_browser;
         EqualizerScreen equalizer;
     };
     ButtonSettings buttons;

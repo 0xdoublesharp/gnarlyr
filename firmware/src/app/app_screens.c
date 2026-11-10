@@ -6,10 +6,14 @@
 #include "board_layout.h"
 #include "core/i18n.h"
 #include "diagnostics_values.h"
+#include "hal/clock.h"
 #include "hal/power.h"
 #include "hal/system.h"
+#include "modules/modules.h"
 
 typedef enum MusicSource {
+    MUSIC_SEARCH,
+    MUSIC_TAGS,
     MUSIC_COVER_FLOW,
     MUSIC_LIBRARY,
     MUSIC_FAVORITES
@@ -22,14 +26,15 @@ typedef struct MusicEntry {
 } MusicEntry;
 
 enum {
-    MUSIC_COVER_FLOW_ENTRY = 0,
-    MUSIC_ARTISTS_ENTRY = 1,
-    MUSIC_ALBUMS_ENTRY = 3,
-    MUSIC_PLAYLISTS_ENTRY = 7,
-    MUSIC_FAVORITES_ENTRY = 8
+    MUSIC_COVER_FLOW_ENTRY = 1,
+    MUSIC_ARTISTS_ENTRY = 2,
+    MUSIC_ALBUMS_ENTRY = 4,
+    MUSIC_PLAYLISTS_ENTRY = 8,
+    MUSIC_FAVORITES_ENTRY = 9
 };
 
 static const MusicEntry MUSIC_ENTRIES[MUSIC_ITEM_COUNT] = {
+    {STR_SEARCH, MUSIC_SEARCH, BROWSE_ALL_SONGS},
     {STR_COVER_FLOW, MUSIC_COVER_FLOW, BROWSE_ALBUMS},
     {STR_ARTISTS, MUSIC_LIBRARY, BROWSE_ARTISTS},
     {STR_ALBUM_ARTISTS, MUSIC_LIBRARY, BROWSE_ALBUM_ARTISTS},
@@ -39,6 +44,7 @@ static const MusicEntry MUSIC_ENTRIES[MUSIC_ITEM_COUNT] = {
     {STR_ALL_SONGS, MUSIC_LIBRARY, BROWSE_ALL_SONGS},
     {STR_PLAYLISTS, MUSIC_LIBRARY, BROWSE_PLAYLISTS},
     {STR_FAVORITES, MUSIC_FAVORITES, BROWSE_ALBUMS},
+    {STR_PERSONAL_TAGS, MUSIC_TAGS, BROWSE_ALL_SONGS},
 };
 
 static bool player_has_track(const void *context)
@@ -85,9 +91,75 @@ static ScreenAction open_browse(void *context)
     return screen_action_push(browse_screen_for(context));
 }
 
+static const LibraryModuleEntry *library_tools(AppScreens *screens)
+{
+    const LibraryModuleEntry *entry =
+        (const LibraryModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_LIBRARY);
+    if (entry == NULL && screens->context.toast != NULL) {
+        StringId message =
+            hal_system_restart_pending() ? STR_RESTART_TO_FINISH : STR_SCREEN_MISSING;
+        toast_show(screens->context.toast, i18n_text(message), hal_clock_milliseconds());
+    }
+    return entry;
+}
+
+static ScreenAction open_search(void *context)
+{
+    AppScreens *screens = context;
+    if (!screens->context.store->available) {
+        return screen_action_push(&screens->no_library.screen);
+    }
+    const LibraryModuleEntry *entry = library_tools(screens);
+    return entry != NULL
+               ? screen_action_push(entry->open(screens, browse_root_query(BROWSE_ALL_SONGS), true))
+               : screen_action_none();
+}
+
+static ScreenAction open_my_tags(void *context)
+{
+    AppScreens *screens = context;
+    const LibraryModuleEntry *entry = library_tools(screens);
+    return entry != NULL ? screen_action_push(entry->tags(screens, LIBRARY_NONE))
+                         : screen_action_none();
+}
+
+static Screen *browse_options(void *context, BrowseScreen *browse)
+{
+    AppScreens *screens = context;
+    const LibraryModuleEntry *entry = library_tools(screens);
+    return entry != NULL ? entry->browse(screens, browse, false) : NULL;
+}
+
+static Screen *browse_play_group(void *context, BrowseScreen *browse)
+{
+    AppScreens *screens = context;
+    const LibraryModuleEntry *entry = library_tools(screens);
+    return entry != NULL ? entry->browse(screens, browse, true) : NULL;
+}
+
+static Screen *track_info(void *context, uint16_t track)
+{
+    AppScreens *screens = context;
+    const LibraryModuleEntry *entry = library_tools(screens);
+    return entry != NULL ? entry->info(screens, track) : NULL;
+}
+
+static Screen *track_tags(void *context, uint16_t track)
+{
+    AppScreens *screens = context;
+    const LibraryModuleEntry *entry = library_tools(screens);
+    return entry != NULL ? entry->tags(screens, track) : NULL;
+}
+
 static MenuItem music_item(AppScreens *screens, const LibraryStore *store, int index)
 {
     const MusicEntry *entry = &MUSIC_ENTRIES[index];
+    if (entry->source == MUSIC_SEARCH || entry->source == MUSIC_TAGS) {
+        return (MenuItem){.label = i18n_text(entry->label),
+                          .select = entry->source == MUSIC_SEARCH ? open_search : open_my_tags,
+                          .context = screens,
+                          .opens = true};
+    }
     screens->browse_entries[index] = (BrowseEntry){
         .pool = &screens->browse,
         .store = store,
@@ -116,11 +188,16 @@ static void build_music(AppScreens *screens, AppScreensContext context)
         .favorites = context.favorites,
         .toast = context.toast,
         .spoken = context.spoken,
+        .options = browse_options,
+        .info = track_info,
+        .tags = track_tags,
+        .play_group = browse_play_group,
+        .tools_context = screens,
     };
     browse_pool_init(&screens->browse, browse);
     static const IconId icons[MUSIC_ITEM_COUNT] = {
-        ICON_COVER_FLOW, ICON_ARTIST, ICON_ALBUM_ARTIST, ICON_ALBUM,   ICON_GENRE,
-        ICON_FOLDER,     ICON_SONG,   ICON_PLAYLIST,     ICON_FAVORITE};
+        ICON_SEARCH, ICON_COVER_FLOW, ICON_ARTIST,   ICON_ALBUM_ARTIST, ICON_ALBUM, ICON_GENRE,
+        ICON_FOLDER, ICON_SONG,       ICON_PLAYLIST, ICON_FAVORITE,     ICON_GENRE};
     for (int index = 0; index < MUSIC_ITEM_COUNT; index++) {
         screens->music_items[index] = music_item(screens, context.store, index);
         screens->music_items[index].icon = icons[index];
@@ -233,7 +310,12 @@ int app_screens_start_path(AppScreens *screens, StartScreen start, Screen **path
     case START_MAIN_MENU:
         return 0;
     case START_NOW_PLAYING:
-        list_view_select(&screens->home.list, 1, 0);
+        list_view_select(&screens->home.list,
+                         player_status(screens->context.player).has_track
+                             ? 2 + (screens->shelf_entries[0].present ? 1 : 0) +
+                                   (screens->shelf_entries[1].present ? 1 : 0)
+                             : 0,
+                         0);
         path[0] = &screens->now_playing.screen;
         return 1;
     case START_ALBUMS:

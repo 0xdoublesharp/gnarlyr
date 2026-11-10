@@ -9,6 +9,7 @@ enum {
 };
 
 typedef struct NowPlayingLayout {
+    int cover_size;
     int cover_top;
     int cover_gap;
     int title_top;

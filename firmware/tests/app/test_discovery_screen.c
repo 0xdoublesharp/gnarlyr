@@ -1,0 +1,467 @@
+#include <string.h>
+
+#include "check.h"
+#include "core/i18n.h"
+#include "default_theme.h"
+#include "discovery_screen.h"
+#include "fake_hal.h"
+#include "fixture_library.h"
+#include "gfx/text.h"
+#include "settings/settings.h"
+#include "ui/label.h"
+
+static FixtureLibrary fixture;
+static DiscoveryScreen discovery;
+static Theme theme;
+static uint8_t scratch_bytes[LIBRARY_VIEW_WORK_BYTES];
+static Color pixels[HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT];
+static bool refuse_writes;
+static uint32_t clock_ms;
+
+static bool scratch_read(void *context, uint32_t offset, void *bytes, uint32_t count)
+{
+    (void)context;
+    if (offset > sizeof scratch_bytes || count > sizeof scratch_bytes - offset) {
+        return false;
+    }
+    memcpy(bytes, scratch_bytes + offset, count);
+    return true;
+}
+
+static bool scratch_write(void *context, uint32_t offset, const void *bytes, uint32_t count)
+{
+    (void)context;
+    if (refuse_writes || offset > sizeof scratch_bytes || count > sizeof scratch_bytes - offset) {
+        return false;
+    }
+    memcpy(scratch_bytes + offset, bytes, count);
+    return true;
+}
+
+static void start(void)
+{
+    fake_hal_reset();
+    fixture_library_open(&fixture);
+    theme = BOARD_THEME;
+    refuse_writes = false;
+    clock_ms = 0;
+    discovery_screen_init(&discovery,
+                          (DiscoveryScreenConfig){.library = &fixture.library,
+                                                  .theme = &theme,
+                                                  .scratch = {scratch_read, scratch_write, NULL,
+                                                              sizeof scratch_bytes}});
+}
+
+static ScreenAction key(Key button, KeyGesture gesture)
+{
+    return discovery.screen.handle_key(&discovery, (KeyEvent){.key = button, .gesture = gesture},
+                                       ++clock_ms);
+}
+
+static void tick(void)
+{
+    discovery.screen.update(&discovery, ++clock_ms);
+}
+
+static void complete(void)
+{
+    for (int step = 0; step < 20000; step++) {
+        tick();
+        LibraryViewState state = discovery_screen_state(&discovery);
+        if (state != LIBRARY_VIEW_SCANNING && state != LIBRARY_VIEW_SORTING) {
+            return;
+        }
+    }
+    CHECK(false);
+}
+
+static void explore(void)
+{
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
+    complete();
+    CHECK_EQUAL(LIBRARY_VIEW_READY, discovery_screen_state(&discovery));
+}
+
+static void search_owns_menu_and_wake_without_changing_playback(void)
+{
+    start();
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), true);
+    CHECK(discovery.screen.takes_every_key);
+    CHECK(discovery.screen.stays_on_wake);
+    CHECK_EQUAL(DISCOVERY_EDITOR, discovery.mode);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK(strcmp(discovery.editor.text, "a") == 0);
+    key(KEY_MENU, KEY_GESTURE_PRESS);
+    CHECK(strcmp(discovery.editor.text, "") == 0);
+    CHECK_EQUAL(DISCOVERY_EDITOR, discovery.mode);
+    CHECK_EQUAL(0, fake_hal_audio_play_count());
+}
+
+static void playing_results_exposes_the_exact_transformed_order(void)
+{
+    start();
+    explore();
+    int count = discovery.model.count(&discovery);
+    CHECK(count > 1);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    uint16_t expected;
+    TrackOrderSource source = discovery_screen_order(&discovery);
+    CHECK(source.read(source.context, 1, 1, &expected));
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_REQUEST_PLAY, discovery.request);
+    CHECK_EQUAL(1, discovery.play_position);
+    CHECK_EQUAL(0, fake_hal_audio_play_count());
+    CHECK_EQUAL(SCREEN_ACTION_NONE, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+    CHECK_EQUAL(DISCOVERY_REQUEST_CANCEL_PLAY, discovery.request);
+    discovery_screen_playback_done(&discovery, false);
+    CHECK_EQUAL(DISCOVERY_RESULTS, discovery.mode);
+    CHECK_EQUAL(DISCOVERY_REQUEST_NONE, discovery.request);
+}
+
+static void selecting_a_sort_rebuilds_and_keeps_the_original_selected_track(void)
+{
+    start();
+    explore();
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    uint16_t selected;
+    TrackOrderSource source = discovery_screen_order(&discovery);
+    CHECK(source.read(source.context, 1, 1, &selected));
+    key(KEY_MENU, KEY_GESTURE_PRESS);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_SORT, discovery.mode);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(LIBRARY_VIEW_SORT_TITLE, discovery.query.sort);
+    complete();
+    source = discovery_screen_order(&discovery);
+    uint16_t restored;
+    CHECK(source.read(source.context, (uint16_t)discovery.list.selected, 1, &restored));
+    CHECK_EQUAL(selected, restored);
+}
+
+static void filter_choices_change_the_query_and_reset_removes_every_constraint(void)
+{
+    start();
+    explore();
+    key(KEY_MENU, KEY_GESTURE_PRESS);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_FILTERS, discovery.mode);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_PICKER, discovery.mode);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(0, discovery.query.artist);
+    key(KEY_BACK, KEY_GESTURE_PRESS);
+    complete();
+    key(KEY_MENU, KEY_GESTURE_PRESS);
+    for (int step = 0; step < 3; step++) {
+        key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    }
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(LIBRARY_NONE, discovery.query.artist);
+    CHECK_EQUAL(0, discovery.required_tags);
+    CHECK_EQUAL(0, discovery.query.text[0]);
+    CHECK_EQUAL(LIBRARY_VIEW_SORT_ORIGINAL, discovery.query.sort);
+}
+
+static void cancellation_and_failed_reads_do_not_offer_a_playable_partial_list(void)
+{
+    start();
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+    CHECK_EQUAL(LIBRARY_VIEW_CANCELLED, discovery_screen_state(&discovery));
+    CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
+    CHECK_EQUAL(SCREEN_ACTION_POP, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+    refuse_writes = true;
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
+    complete();
+    CHECK_EQUAL(LIBRARY_VIEW_WRITE_FAILED, discovery_screen_state(&discovery));
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_REQUEST_NONE, discovery.request);
+    CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
+}
+
+static void options_back_and_background_cancellation_keep_a_completed_selection(void)
+{
+    start();
+    explore();
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_MENU, KEY_GESTURE_PRESS);
+    key(KEY_BACK, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(1, discovery.list.selected);
+    uint16_t count = discovery_screen_order(&discovery).count;
+    discovery_screen_cancel(&discovery);
+    CHECK_EQUAL(LIBRARY_VIEW_READY, discovery_screen_state(&discovery));
+    CHECK_EQUAL(count, discovery_screen_order(&discovery).count);
+}
+
+static void deferred_tag_initialization_remains_a_pending_search(void)
+{
+    start();
+    PersonalTags opening = {.load = STORE_EMPTY, .result = STORE_WORKING};
+    DiscoveryScreenConfig config = discovery.config;
+    config.tags = &opening;
+    discovery_screen_init(&discovery, config);
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
+    CHECK_EQUAL(LIBRARY_VIEW_SCANNING, discovery_screen_state(&discovery));
+    CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
+    discovery_screen_cancel(&discovery);
+    CHECK_EQUAL(LIBRARY_VIEW_CANCELLED, discovery_screen_state(&discovery));
+}
+
+static void search_work_stops_at_the_clock_budget_and_services_audio(void)
+{
+    start();
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
+    fake_hal_set_microseconds_per_read(3000);
+    int services = fake_hal_audio_service_count();
+    tick();
+    CHECK_EQUAL(LIBRARY_VIEW_SCANNING, discovery_screen_state(&discovery));
+    CHECK(fake_hal_audio_service_count() > services);
+    fake_hal_set_microseconds_per_read(1);
+    complete();
+    CHECK_EQUAL(LIBRARY_VIEW_READY, discovery_screen_state(&discovery));
+}
+
+static LibraryViewAcceptance album_scope(void *context, uint16_t track, const LibraryTrack *record)
+{
+    (void)track;
+    return record->album == *(const uint16_t *)context ? LIBRARY_VIEW_ACCEPT : LIBRARY_VIEW_REJECT;
+}
+
+static void source_scope_is_combined_with_filters_and_survives_reset(void)
+{
+    start();
+    LibraryTrack track;
+    CHECK(library_read_track(&fixture.library, 0, &track));
+    uint16_t album = track.album;
+    discovery.config.scope_accept = album_scope;
+    discovery.config.scope_context = &album;
+    discovery.config.scope_title = i18n_text(STR_FAVORITES);
+    explore();
+    CHECK(strcmp(discovery.screen.title, i18n_text(STR_FAVORITES)) == 0);
+    TrackOrderSource source = discovery_screen_order(&discovery);
+    uint16_t count = source.count;
+    CHECK(count > 0);
+    CHECK(count < browse_count(&fixture.library, browse_root_query(BROWSE_ALL_SONGS)));
+    for (uint16_t index = 0; index < count; index++) {
+        uint16_t id;
+        CHECK(source.read(source.context, index, 1, &id));
+        CHECK(library_read_track(&fixture.library, id, &track));
+        CHECK_EQUAL(album, track.album);
+    }
+    discovery.query.year_min = UINT16_MAX;
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
+    complete();
+    CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
+    key(KEY_MENU, KEY_GESTURE_PRESS);
+    for (int index = 0; index < 3; index++) {
+        key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    }
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    complete();
+    CHECK_EQUAL(count, discovery_screen_order(&discovery).count);
+    CHECK(discovery.config.scope_accept == album_scope);
+}
+
+static void personal_tag_filters_are_intersected_with_the_source_scope(void)
+{
+    start();
+    discovery_screen_tags(&discovery, 0);
+    tick();
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+    for (int step = 0; step < 2000; step++) {
+        tick();
+    }
+    CHECK_EQUAL(DISCOVERY_TAGS, discovery.mode);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    for (int step = 0; step < 2000; step++) {
+        tick();
+    }
+    CHECK(discovery.model.detail(&discovery, 1) != NULL);
+    LibraryTrack track;
+    CHECK(library_read_track(&fixture.library, 0, &track));
+    uint16_t album = track.album;
+    discovery.config.scope_accept = album_scope;
+    discovery.config.scope_context = &album;
+    explore();
+    discovery.required_tags = 1;
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
+    complete();
+    TrackOrderSource source = discovery_screen_order(&discovery);
+    CHECK_EQUAL(1, source.count);
+    uint16_t id = LIBRARY_NONE;
+    CHECK(source.read(source.context, 0, 1, &id));
+    CHECK_EQUAL(0, id);
+    album++;
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
+    complete();
+    CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
+}
+
+static Color expected_footer[HAL_DISPLAY_WIDTH * 20];
+
+static void a_view_save_failure_is_visible_without_disabling_results(void)
+{
+    start();
+    fake_hal_set_reserve_result(HAL_RESERVE_NO_SPACE);
+    explore();
+    Canvas canvas =
+        canvas_make(pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+    discovery.screen.draw(&discovery, &canvas);
+    Rect footer = {0, theme.metrics.screen_height - 20, theme.metrics.screen_width, 20};
+    Canvas expected = canvas_make(expected_footer, footer);
+    canvas_fill_rect(&expected, footer, theme.colors.background);
+    Rect text = {theme.metrics.padding, footer.y, footer.width - 2 * theme.metrics.padding,
+                 footer.height};
+    label_draw(&expected, (TextStyle){theme.fonts.small, theme.colors.text_secondary},
+               (Label){text, i18n_text(STR_VIEW_SAVE_FAILED)});
+    CHECK(memcmp(expected_footer, pixels + footer.y * footer.width, sizeof expected_footer) == 0);
+    CHECK(discovery_screen_order(&discovery).count > 0);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_REQUEST_PLAY, discovery.request);
+}
+
+static void metadata_rows_expose_fields_and_a_full_width_path(void)
+{
+    start();
+    discovery_screen_info(&discovery, 0);
+    tick();
+    CHECK_EQUAL(DISCOVERY_INFO, discovery.mode);
+    CHECK(strstr(discovery.model.label(&discovery, 0), i18n_text(STR_TITLE)) != NULL);
+    discovery.list.top = 8;
+    tick();
+    CHECK(strstr(discovery.model.label(&discovery, 8), i18n_text(STR_FILE_PATH)) != NULL);
+    CHECK_EQUAL(SCREEN_ACTION_POP, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+}
+
+static void personal_tag_management_does_not_assign_a_nonexistent_track(void)
+{
+    start();
+    discovery_screen_tags(&discovery, LIBRARY_NONE);
+    tick();
+    CHECK_EQUAL(DISCOVERY_TAGS, discovery.mode);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_EDITOR, discovery.mode);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+    for (int step = 0; step < 2000 && discovery.mode != DISCOVERY_TAGS; step++) {
+        tick();
+    }
+    CHECK_EQUAL(DISCOVERY_TAGS, discovery.mode);
+    CHECK_EQUAL(2, discovery.model.count(&discovery));
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+    CHECK_EQUAL(DISCOVERY_TAG_ACTIONS, discovery.mode);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_TAG_DELETE, discovery.mode);
+    key(KEY_BACK, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_TAGS, discovery.mode);
+}
+
+static void reinitializing_the_same_screen_discards_the_previous_volume_work(void)
+{
+    start();
+    discovery_screen_tags(&discovery, LIBRARY_NONE);
+    tick();
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+    for (int step = 0; step < 2000; step++) {
+        tick();
+    }
+    CHECK_EQUAL(2, discovery.model.count(&discovery));
+    start();
+    discovery_screen_tags(&discovery, LIBRARY_NONE);
+    for (int step = 0; step < 20; step++) {
+        tick();
+    }
+    CHECK_EQUAL(1, discovery.model.count(&discovery));
+    CHECK_EQUAL(LIBRARY_VIEW_IDLE, discovery_screen_state(&discovery));
+    CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
+}
+
+static void cancelling_a_search_entry_returns_to_its_caller(void)
+{
+    start();
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), true);
+    CHECK_EQUAL(SCREEN_ACTION_POP, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+}
+
+static void text_entry_rejects_overflow_and_erases_whole_utf8_characters(void)
+{
+    DiscoveryText editor;
+    discovery_text_begin(&editor, "4294967296", true);
+    uint32_t number = 7;
+    CHECK(!discovery_text_number(&editor, UINT32_MAX, &number));
+    CHECK_EQUAL(7, number);
+    discovery_text_begin(&editor, "4294967295", true);
+    CHECK(discovery_text_number(&editor, UINT32_MAX, &number));
+    CHECK_EQUAL(UINT32_MAX, number);
+    discovery_text_begin(&editor, "caf\xc3\xa9", false);
+    discovery_text_key(&editor, (KeyEvent){.key = KEY_MENU, .gesture = KEY_GESTURE_PRESS});
+    CHECK(strcmp(editor.text, "caf") == 0);
+}
+
+static void native_layouts_keep_editor_hints_and_rows_inside_every_orientation(void)
+{
+    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+        for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+            start();
+            default_theme_set_text_size(&theme, (TextSize)size);
+            default_theme_set_orientation(&theme, (Orientation)orientation);
+            discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), true);
+            Canvas canvas = canvas_make(
+                pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+            discovery.screen.draw(&discovery, &canvas);
+            int bottom = theme.metrics.header_height + theme.metrics.padding +
+                         2 * theme.metrics.row_height +
+                         4 * (font_line_height(theme.fonts.small) + 2);
+            CHECK(bottom <= theme.metrics.screen_height);
+            const StringId hints[] = {STR_QUERY_CHOOSE_HINT, STR_QUERY_ADD_HINT,
+                                      STR_QUERY_ERASE_HINT, STR_QUERY_SEARCH_HINT};
+            for (unsigned index = 0; index < sizeof hints / sizeof *hints; index++) {
+                CHECK(text_width(theme.fonts.small, i18n_text(hints[index])) <=
+                      theme.metrics.screen_width - 2 * theme.metrics.padding);
+            }
+            key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+            complete();
+            discovery.screen.draw(&discovery, &canvas);
+            CHECK(discovery.list.visible_rows > 0);
+            CHECK(discovery.list.visible_rows * list_view_row_height(&discovery.list) +
+                      theme.metrics.header_height + 40 <=
+                  theme.metrics.screen_height);
+        }
+    }
+}
+
+int main(void)
+{
+    const TestCase cases[] = {
+        TEST_CASE(search_owns_menu_and_wake_without_changing_playback),
+        TEST_CASE(playing_results_exposes_the_exact_transformed_order),
+        TEST_CASE(selecting_a_sort_rebuilds_and_keeps_the_original_selected_track),
+        TEST_CASE(filter_choices_change_the_query_and_reset_removes_every_constraint),
+        TEST_CASE(cancellation_and_failed_reads_do_not_offer_a_playable_partial_list),
+        TEST_CASE(options_back_and_background_cancellation_keep_a_completed_selection),
+        TEST_CASE(deferred_tag_initialization_remains_a_pending_search),
+        TEST_CASE(search_work_stops_at_the_clock_budget_and_services_audio),
+        TEST_CASE(source_scope_is_combined_with_filters_and_survives_reset),
+        TEST_CASE(personal_tag_filters_are_intersected_with_the_source_scope),
+        TEST_CASE(a_view_save_failure_is_visible_without_disabling_results),
+        TEST_CASE(metadata_rows_expose_fields_and_a_full_width_path),
+        TEST_CASE(personal_tag_management_does_not_assign_a_nonexistent_track),
+        TEST_CASE(reinitializing_the_same_screen_discards_the_previous_volume_work),
+        TEST_CASE(cancelling_a_search_entry_returns_to_its_caller),
+        TEST_CASE(text_entry_rejects_overflow_and_erases_whole_utf8_characters),
+        TEST_CASE(native_layouts_keep_editor_hints_and_rows_inside_every_orientation),
+    };
+    return test_run_all(cases, TEST_CASE_COUNT(cases));
+}

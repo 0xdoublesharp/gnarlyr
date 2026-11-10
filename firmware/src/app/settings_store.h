@@ -22,3 +22,4 @@ bool settings_store_save(SettingsStore *store);
 void settings_store_capture(SettingsStore *store, PlayerStatus playback);
 void settings_store_restore_playback(const SettingsStore *store, Player *player, uint32_t seed);
 void settings_store_apply_hardware(const Settings *settings);
+void settings_store_apply_equalizer(const Settings *settings);

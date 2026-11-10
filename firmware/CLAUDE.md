@@ -60,7 +60,7 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 ## Rules
 
 - No comments in any code (C, CMake, Python); the `no_comments` test enforces it. Prose goes into `docs/`.
-- No heap, no recursion, no VLAs, no mutable globals in `src/` outside `app.c`. Buffers are static and sized at compile time. `src/` includes only `<stdint.h>`, `<stdbool.h>`, `<stddef.h>`.
+- No heap, no recursion or VLAs. Resident mutable app state belongs in `app.c`. A cold module may keep a private, fixed-size work buffer in its own BSS; cancel its jobs before eviction and never keep pointers into that buffer in resident playback state. Buffers are sized at compile time. `src/` includes only `<stdint.h>`, `<stdbool.h>`, `<stddef.h>`.
 - Names: `PascalCase` types, `snake_case` functions prefixed with the module (`key_tracker_update`), `UPPER_SNAKE_CASE` prefixed constants, files named after the module.
 - Functions do one thing, aim for under 20 lines, take at most 4 parameters (group the rest into a struct).
 - Formatting is `.clang-format`; warnings are errors.
@@ -74,16 +74,16 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 147,676 | 157,292 | 9,616 |
-| Static RAM | 262,756 | 287,296 | 24,540 |
+| Code window | 147,880 | 157,292 | 9,412 |
+| Static RAM | 263,508 | 287,296 | 23,788 |
 | Rescan overlay | 88,404 | 98,304 | 9,900 |
-| USB overlay code | 11,288 | 65,536 | 54,248 |
-| Module views (code + BSS) | 14,888 | 56,320 | 41,432 |
-| Module settings (code + BSS) | 10,476 | 56,320 | 45,844 |
-| Module library (code + BSS) | 4,076 | 56,320 | 52,244 |
+| USB overlay code | 11,480 | 65,536 | 54,056 |
+| Module views (code + BSS) | 17,964 | 56,320 | 38,356 |
+| Module settings (code + BSS) | 14,412 | 56,320 | 41,908 |
+| Module library (code + BSS) | 39,136 | 56,320 | 17,184 |
 | Module listening (code + BSS) | 17,792 | 56,320 | 38,528 |
 | Decoder workspace | 41,644 | 41,984 | 340 |
-| Language pack (English) | 6,057 | 16,384 | 10,327 |
+| Language pack (English) | 7,081 | 16,384 | 9,303 |
 
 - Keep at least 8 KB free in the release code window after each stage of the plan. Read the report after any change to device code and update these numbers and the ones in `docs/architecture.md` when they move.
 - The core 0 link uses link-time optimisation. Libraries shared with core 1 or the rescan overlay stay out of it.
@@ -142,7 +142,7 @@ Only after the owner approved it for this session.
   ```
 
 - Slot files, read-backs and logs go under `/Volumes/Scratch/SnowskyEcho`, never in the repo. The original device backup stays under `.local/device-backups` in the main checkout.
-- Internal storage mounts as `/Volumes/ECHO`. An update is copied with `cp -X` (no `._` files) to the drive's top level as `FRSHBS.IMG`, then `diskutil eject /Volumes/ECHO`; the updater runs once the USB session ends. File-copy installs with automatic restart/reconnect are recorded on the owner's player through FreshBase `6d027ed`; later candidates still need their own validation (`docs/known-issues.md`).
+- Internal storage mounts as `/Volumes/ECHO`. An update is copied with `cp -X` (no `._` files) to the drive's top level as `FRSHBS.IMG`, then `diskutil eject /Volumes/ECHO`; the updater runs once the USB session ends. File-copy installs with automatic restart/reconnect are recorded on the owner's player through Gnarlyr `57f05fd`; later candidates still need their own validation (`docs/known-issues.md`).
 
 ## Releasing
 

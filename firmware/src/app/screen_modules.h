@@ -22,5 +22,6 @@ typedef struct ScreenModuleEntry {
     void (*bind)(struct AppScreens *screens);
 } ScreenModuleEntry;
 
+void screen_modules_cancel_equalizer_preview(struct AppScreens *screens);
 ScreenModule screen_modules_of(const struct AppScreens *screens, const Screen *screen);
 const ScreenModuleEntry *screen_modules_use(struct AppScreens *screens, ScreenModule module);

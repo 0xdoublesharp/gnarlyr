@@ -96,10 +96,11 @@ echo_add_unit_test(NAME test_listening_track
 
 echo_add_unit_test(NAME test_settings SOURCES settings/test_settings.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_rocker SOURCES settings/test_rocker.c LIBRARIES echo_settings)
+echo_add_unit_test(NAME test_equalizer_response SOURCES settings/test_equalizer_response.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_equalizer_fit SOURCES settings/test_equalizer_fit.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_equalizer_slots SOURCES settings/test_equalizer_slots.c LIBRARIES echo_settings)
 
-foreach(library_test block_cache library library_content library_browse favorites covers sort_key track_fields playlist_reader cue_sheet music_fingerprint lyrics)
+foreach(library_test block_cache library library_content library_browse library_view favorites covers sort_key track_fields playlist_reader cue_sheet music_fingerprint lyrics)
     echo_add_unit_test(NAME test_${library_test}
         SOURCES library/test_${library_test}.c
         LIBRARIES echo_library_fixtures
@@ -189,6 +190,24 @@ echo_add_unit_test(NAME test_pseudo_language
 )
 target_compile_definitions(test_pseudo_language PRIVATE ECHO_PSEUDO_PACK="${ECHO_PSEUDO_PACK}")
 add_dependencies(test_pseudo_language echo_test_language_packs)
+
+echo_add_unit_test(NAME test_equalizer_browser
+    SOURCES app/test_equalizer_browser.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
+echo_add_unit_test(NAME test_equalizer_screen
+    SOURCES app/test_equalizer_screen.c
+    LIBRARIES echo_app
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
+echo_add_unit_test(NAME test_charge_screen
+    SOURCES app/test_charge_screen.c app/fake_hal.c support/text_spy.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
+)
 
 echo_add_unit_test(NAME test_english_layout
     SOURCES app/test_english_layout.c
@@ -459,7 +478,7 @@ if(ECHO_BUILD_SIM)
         COMMAND echo_sim --headless --frames 400
             --card ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/cue_music
             --system-dir ${CMAKE_BINARY_DIR}/sim_cue_system
-            --keys play,down,down,down,play,down,play,play,down,play
+            --keys play,down,down,down,down,play,down,play,play,down,play
             --screenshot ${CMAKE_BINARY_DIR}/sim_cue_album.bmp
     )
 endif()
@@ -510,6 +529,12 @@ if(ARM_GCC)
     set(target_audit_definitions --define ECHO_FONTS_PACKED --define ECHO_DEBUG_LOOP)
     foreach(definition IN LISTS FIRMWARE_DEFINITIONS)
         list(APPEND target_audit_definitions --define ${definition})
+    endforeach()
+    foreach(module IN LISTS ECHO_SCREEN_MODULES)
+        foreach(source IN LISTS ECHO_SCREEN_MODULE_SOURCES_${module})
+            string(REGEX REPLACE "^src/" "" audit_source ${source})
+            list(APPEND target_audit_definitions --module-source ${module}=${audit_source})
+        endforeach()
     endforeach()
     add_test(NAME target_audit
         COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/target_audit.py
@@ -683,7 +708,7 @@ echo_add_unit_test(NAME test_theme_palette
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 
-foreach(feature_test mixtape_store mixtape_ui)
+foreach(feature_test mixtape_store mixtape_ui personal_tags discovery_screen discovery_preferences)
     echo_add_unit_test(NAME test_${feature_test}
         SOURCES app/test_${feature_test}.c app/fake_hal.c
         LIBRARIES echo_app echo_library_fixtures
@@ -708,3 +733,8 @@ echo_add_unit_test(NAME test_portrait_settings_layout
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+
+if(UNIX AND NOT APPLE)
+    target_link_libraries(test_equalizer PRIVATE m)
+    target_link_libraries(test_equalizer_response PRIVATE m)
+endif()

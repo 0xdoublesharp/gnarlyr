@@ -73,6 +73,8 @@ static void save_album(void)
     CHECK(strcmp(toast.text, "Mixtape saved") == 0);
     CHECK_EQUAL(PLAYER_PLAYING, player.state);
     CHECK_EQUAL(1, ui.count);
+    CHECK_EQUAL(MIXTAPE_LIST, ui.mode);
+    CHECK_EQUAL(SCREEN_ACTION_POP, key(KEY_BACK, KEY_GESTURE_PRESS).type);
     MixEntry entry;
     CHECK(mixtape_store_read(&ui.store, 0, &entry));
     CHECK(strcmp(entry.name, "Mixtape 1") == 0);
@@ -166,6 +168,95 @@ static void cancelling_a_load_resumes_the_old_track_at_its_position(void)
     CHECK_EQUAL(0, fake_hal_scratch_outstanding());
     CHECK_EQUAL(PLAYER_PLAYING, player.state);
     CHECK_EQUAL(5432, player_status(&player).position_ms);
+    CHECK_EQUAL(MIXTAPE_LIST, ui.mode);
+    CHECK_EQUAL(SCREEN_ACTION_POP, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+}
+
+static void backing_out_of_an_action_returns_to_its_immediate_parent(void)
+{
+    save_album();
+    open_ui();
+    choose(2);
+    choose(3);
+    CHECK_EQUAL(MIXTAPE_NAME, ui.mode);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+    CHECK_EQUAL(MIXTAPE_ACTIONS, ui.mode);
+    choose(4);
+    CHECK_EQUAL(MIXTAPE_CONFIRM_DELETE, ui.mode);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+    CHECK_EQUAL(MIXTAPE_ACTIONS, ui.mode);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+    CHECK_EQUAL(MIXTAPE_LIST, ui.mode);
+    choose(1);
+    CHECK_EQUAL(MIXTAPE_NAME, ui.mode);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+    CHECK_EQUAL(MIXTAPE_LIST, ui.mode);
+    CHECK_EQUAL(SCREEN_ACTION_POP, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+}
+
+static void cancelling_a_delete_returns_to_the_list_without_deleting_the_mix(void)
+{
+    save_album();
+    open_ui();
+    choose(2);
+    choose(4);
+    choose(1);
+    CHECK(mixtape_ui_api()->busy(&ui));
+    CHECK_EQUAL(SCREEN_ACTION_NONE, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+    CHECK(!mixtape_ui_api()->busy(&ui));
+    CHECK_EQUAL(MIXTAPE_LIST, ui.mode);
+    CHECK_EQUAL(1, ui.count);
+    MixEntry entry;
+    CHECK(mixtape_store_read(&ui.store, 0, &entry));
+    CHECK(entry.active);
+    CHECK(ui.destination == NULL);
+    CHECK_EQUAL(SCREEN_ACTION_POP, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+}
+
+static void cancelling_a_name_edit_restores_the_saved_name_in_parent_screens(void)
+{
+    save_album();
+    open_ui();
+    choose(2);
+    choose(3);
+    memcpy(ui.name, "Unsaved draft", sizeof "Unsaved draft");
+    key(KEY_BACK, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(MIXTAPE_ACTIONS, ui.mode);
+    CHECK(strcmp(ui.name, "Mixtape 1") == 0);
+    CHECK(strcmp(screen->title, "Mixtape 1") == 0);
+    MixEntry entry;
+    CHECK(mixtape_store_read(&ui.store, 0, &entry));
+    CHECK(strcmp(entry.name, "Mixtape 1") == 0);
+    choose(4);
+    CHECK_EQUAL(MIXTAPE_CONFIRM_DELETE, ui.mode);
+    CHECK(strcmp(screen->title, "Mixtape 1") == 0);
+}
+
+static void cancelling_a_save_or_rename_returns_to_the_list(void)
+{
+    reset();
+    choose(1);
+    key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+    CHECK(mixtape_ui_api()->busy(&ui));
+    key(KEY_BACK, KEY_GESTURE_PRESS);
+    CHECK(!mixtape_ui_api()->busy(&ui));
+    CHECK_EQUAL(MIXTAPE_LIST, ui.mode);
+    CHECK_EQUAL(0, ui.count);
+    CHECK_EQUAL(SCREEN_ACTION_POP, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+    save_album();
+    open_ui();
+    choose(2);
+    choose(3);
+    memcpy(ui.name, "Changed", sizeof "Changed");
+    key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+    CHECK(mixtape_ui_api()->busy(&ui));
+    key(KEY_BACK, KEY_GESTURE_PRESS);
+    CHECK(!mixtape_ui_api()->busy(&ui));
+    CHECK_EQUAL(MIXTAPE_LIST, ui.mode);
+    MixEntry entry;
+    CHECK(mixtape_store_read(&ui.store, 0, &entry));
+    CHECK(strcmp(entry.name, "Mixtape 1") == 0);
+    CHECK_EQUAL(SCREEN_ACTION_POP, key(KEY_BACK, KEY_GESTURE_PRESS).type);
 }
 
 static void editing_and_replacing_a_mixtape_preserves_duplicates_across_a_rescan(void)
@@ -234,6 +325,8 @@ static void an_empty_mixtape_can_be_named_renamed_and_deleted_without_playback(v
     MixEntry entry;
     CHECK(mixtape_store_read(&ui.store, 0, &entry));
     CHECK(strcmp(entry.name, "Bj") == 0);
+    CHECK_EQUAL(MIXTAPE_LIST, ui.mode);
+    CHECK_EQUAL(SCREEN_ACTION_POP, key(KEY_BACK, KEY_GESTURE_PRESS).type);
     choose(2);
     choose(0);
     finish();
@@ -249,6 +342,9 @@ static void an_empty_mixtape_can_be_named_renamed_and_deleted_without_playback(v
     choose(1);
     finish();
     CHECK_EQUAL(0, ui.count);
+    CHECK_EQUAL(MIXTAPE_LIST, ui.mode);
+    CHECK(strcmp(toast.text, "Mixtape deleted") == 0);
+    CHECK_EQUAL(SCREEN_ACTION_POP, key(KEY_BACK, KEY_GESTURE_PRESS).type);
 }
 
 static void a_long_name_keeps_its_tail_visible_without_cutting_a_character(void)
@@ -293,6 +389,10 @@ int main(void)
         TEST_CASE(edit_opens_up_next_and_keeps_the_new_queue_paused),
         TEST_CASE(a_failed_root_commit_preserves_the_old_queue_and_releases_scratch),
         TEST_CASE(cancelling_a_load_resumes_the_old_track_at_its_position),
+        TEST_CASE(backing_out_of_an_action_returns_to_its_immediate_parent),
+        TEST_CASE(cancelling_a_delete_returns_to_the_list_without_deleting_the_mix),
+        TEST_CASE(cancelling_a_name_edit_restores_the_saved_name_in_parent_screens),
+        TEST_CASE(cancelling_a_save_or_rename_returns_to_the_list),
         TEST_CASE(an_empty_mixtape_can_be_named_renamed_and_deleted_without_playback),
         TEST_CASE(editing_and_replacing_a_mixtape_preserves_duplicates_across_a_rescan),
     };

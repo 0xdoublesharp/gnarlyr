@@ -122,7 +122,7 @@ void settings_store_restore_playback(const SettingsStore *store, Player *player,
     player_set_repeat(player, settings->repeat);
 }
 
-static void apply_equalizer(const Settings *settings)
+void settings_store_apply_equalizer(const Settings *settings)
 {
     SettingsEqualizerCurve curve = settings_equalizer_curve(settings);
     HalAudioEqualizer equalizer = {.band_count = curve.band_count, .pre_gain = curve.pre_gain};
@@ -140,5 +140,5 @@ void settings_store_apply_hardware(const Settings *settings)
     hal_audio_set_output(HAL_OUTPUTS[settings->output]);
     hal_system_set_usb_mode(HAL_USB_MODES[settings->usb_mode]);
     hal_system_set_dac_volume(settings->dac_volume);
-    apply_equalizer(settings);
+    settings_store_apply_equalizer(settings);
 }

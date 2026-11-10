@@ -8,6 +8,7 @@
 #include "cover_cache.h"
 #include "debug_loop_internal.h"
 #include "diagnostics_values.h"
+#include "discovery_screen.h"
 #include "favorites_store.h"
 #include "hal/audio.h"
 #include "home_art.h"
@@ -32,8 +33,8 @@
 enum {
     HOME_ITEM_COUNT = 8,
     SHELF_COUNT = 2,
-    MUSIC_ITEM_COUNT = 9,
-    DIAGNOSTICS_ITEM_COUNT = 15 + DEBUG_LOOP_ABOUT_ROWS,
+    MUSIC_ITEM_COUNT = 11,
+    DIAGNOSTICS_ITEM_COUNT = 11 + DEBUG_LOOP_ABOUT_ROWS,
     START_PATH_CAPACITY = 2
 };
 
@@ -120,10 +121,15 @@ typedef struct ProfileModuleScreens {
     LyricsScreen lyrics;
 } ProfileModuleScreens;
 
+typedef struct LibraryModuleScreens {
+    DiscoveryScreen discovery;
+} LibraryModuleScreens;
+
 typedef struct AppModuleScreens {
     ViewsModuleScreens views;
     SettingsModuleScreens settings;
     ProfileModuleScreens listening;
+    LibraryModuleScreens library;
 } AppModuleScreens;
 
 typedef struct AppScreens {

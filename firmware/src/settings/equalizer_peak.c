@@ -63,16 +63,27 @@ static uint64_t band_power(uint64_t squared, int gain)
     return (numerator << RATIO_BITS) / denominator;
 }
 
-static uint64_t cascade_power(const int8_t *gains, uint32_t grid)
+uint32_t equalizer_peak_grid_tangent(int point)
+{
+    return GRID_TANGENT[point];
+}
+
+uint64_t equalizer_peak_cascade(const int8_t *gains, const uint32_t *tangents, int count,
+                                uint32_t grid)
 {
     uint64_t power = one(RATIO_BITS);
-    for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
+    for (int band = 0; band < count; band++) {
         if (gains[band] != 0) {
-            uint64_t squared = squared_ratio(grid, BAND_TANGENT[band]);
+            uint64_t squared = squared_ratio(grid, tangents[band]);
             power = power * band_power(squared, gains[band]) >> RATIO_BITS;
         }
     }
     return power;
+}
+
+static uint64_t cascade_power(const int8_t *gains, uint32_t grid)
+{
+    return equalizer_peak_cascade(gains, BAND_TANGENT, SETTINGS_EQUALIZER_BANDS, grid);
 }
 
 static uint64_t peak_power(const int8_t *gains)

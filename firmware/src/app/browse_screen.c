@@ -417,6 +417,20 @@ static ScreenAction add_song_to_favorites(void *context)
     return screen_action_pop();
 }
 
+static ScreenAction open_track_info(void *context)
+{
+    BrowsePool *pool = context;
+    Screen *screen = pool->config.info(pool->config.tools_context, pool->song_actions.track);
+    return screen != NULL ? screen_action_push(screen) : screen_action_none();
+}
+
+static ScreenAction open_track_tags(void *context)
+{
+    BrowsePool *pool = context;
+    Screen *screen = pool->config.tags(pool->config.tools_context, pool->song_actions.track);
+    return screen != NULL ? screen_action_push(screen) : screen_action_none();
+}
+
 static ScreenAction open_song_actions(BrowseScreen *browse, int index, uint16_t track)
 {
     BrowsePool *pool = browse->pool;
@@ -432,9 +446,22 @@ static ScreenAction open_song_actions(BrowseScreen *browse, int index, uint16_t 
     actions->items[2] = (MenuItem){.label = i18n_text(STR_ADD_TO_FAVORITE_PLAYLIST),
                                    .select = add_song_to_favorites,
                                    .context = pool};
+    int count = 3;
+    if (pool->config.info != NULL) {
+        actions->items[count++] = (MenuItem){.label = i18n_text(STR_TRACK_INFO),
+                                             .select = open_track_info,
+                                             .context = pool,
+                                             .opens = true};
+    }
+    if (pool->config.tags != NULL) {
+        actions->items[count++] = (MenuItem){.label = i18n_text(STR_PERSONAL_TAGS),
+                                             .select = open_track_tags,
+                                             .context = pool,
+                                             .opens = true};
+    }
     MenuConfig config = {.title = actions->title,
                          .items = actions->items,
-                         .item_count = SONG_ACTION_COUNT,
+                         .item_count = count,
                          .theme = pool->config.theme};
     return screen_action_push(menu_screen_init(&actions->menu, config));
 }
@@ -474,6 +501,11 @@ static ScreenAction hold_row(void *context, int index)
     if (browse->pool->config.player != NULL && item.kind == BROWSE_ITEM_FOLDER) {
         return play_folder(browse, item);
     }
+    if (item.kind == BROWSE_ITEM_GROUP && browse->pool->config.play_group != NULL) {
+        Screen *screen =
+            browse->pool->config.play_group(browse->pool->config.tools_context, browse);
+        return screen != NULL ? screen_action_push(screen) : screen_action_none();
+    }
     return toggle_favorite(context, index);
 }
 
@@ -481,6 +513,11 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     BrowseScreen *browse = context;
     browse->now_ms = now_ms;
+    if (event.key == KEY_MENU && event.gesture == KEY_GESTURE_LONG_PRESS &&
+        browse->pool->config.options != NULL) {
+        Screen *screen = browse->pool->config.options(browse->pool->config.tools_context, browse);
+        return screen != NULL ? screen_action_push(screen) : screen_action_none();
+    }
     ListSelection selection = {.select = select_row, .hold = hold_row, .context = browse};
     return list_navigation_handle(&browse->list, event, now_ms, selection);
 }

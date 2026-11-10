@@ -80,6 +80,8 @@ void mixtape_ui_refresh(MixtapeUi *ui)
 
 static void enter_mode(MixtapeUi *ui, uint8_t mode)
 {
+    ui->parent_mode =
+        mode == MIXTAPE_NAME || mode == MIXTAPE_CONFIRM_DELETE ? ui->mode : MIXTAPE_LIST;
     ui->mode = mode;
     ui->screen.title = mode == MIXTAPE_LIST   ? i18n_text(STR_MIXTAPES)
                        : mode == MIXTAPE_NAME ? i18n_text(STR_MIXTAPE_NAME)
@@ -204,6 +206,21 @@ static void edit_name(MixtapeUi *ui, KeyEvent event)
     }
 }
 
+static void back_to_parent(MixtapeUi *ui)
+{
+    uint8_t parent = ui->parent_mode;
+    if (ui->mode == MIXTAPE_NAME && parent == MIXTAPE_ACTIONS) {
+        MixEntry entry;
+        if (mixtape_store_read(&ui->store, ui->slot, &entry)) {
+            name_copy(ui->name, entry.name);
+        } else {
+            parent = MIXTAPE_LIST;
+            mixtape_ui_message(ui, i18n_text(STR_MIXTAPES_READ_FAILED));
+        }
+    }
+    enter_mode(ui, parent);
+}
+
 static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     MixtapeUi *ui = context;
@@ -215,7 +232,7 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
         return screen_action_none();
     }
     if (event.key == KEY_BACK && event.gesture == KEY_GESTURE_PRESS && ui->mode != MIXTAPE_LIST) {
-        enter_mode(ui, MIXTAPE_LIST);
+        back_to_parent(ui);
         return screen_action_none();
     }
     if (ui->mode == MIXTAPE_NAME) {

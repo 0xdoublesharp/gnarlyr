@@ -13,11 +13,11 @@ void slide_start(Slide *slide, uint32_t now_ms, SlideDirection direction)
 
 int slide_progress(const Slide *slide, uint32_t now_ms, int width)
 {
-    uint64_t remaining = SLIDE_DURATION_MS - elapsed_of(slide, now_ms);
+    uint64_t elapsed = elapsed_of(slide, now_ms);
     uint64_t duration = SLIDE_DURATION_MS;
-    uint64_t left =
-        (uint64_t)width * remaining * remaining * remaining / (duration * duration * duration);
-    return width - (int)left;
+    uint64_t progress = elapsed * elapsed * (3 * duration - 2 * elapsed);
+    uint64_t scale = duration * duration * duration;
+    return (int)(((uint64_t)width * progress + scale / 2) / scale);
 }
 
 bool slide_finished(const Slide *slide, uint32_t now_ms)

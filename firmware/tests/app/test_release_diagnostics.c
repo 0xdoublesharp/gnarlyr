@@ -26,10 +26,10 @@ static bool has_row(const MenuConfig *menu, const char *label)
 
 static void the_release_menu_keeps_only_the_safe_rows(void)
 {
-    static const char *const SAFE[] = {"Firmware", "Battery",   "Jack 3.5", "Jack 4.4", "Music",
-                                       "Headset",  "CPU clock", "DAC A",    "DAC B"};
+    static const char *const SAFE[] = {"Firmware", "Battery", "Jack 3.5", "Jack 4.4",
+                                       "Music",    "Headset", "CPU clock"};
     const MenuConfig *menu = built();
-    CHECK_EQUAL(9, menu->item_count);
+    CHECK_EQUAL(7, menu->item_count);
     for (size_t index = 0; index < sizeof SAFE / sizeof SAFE[0]; index++) {
         CHECK(has_row(menu, SAFE[index]));
     }
@@ -38,9 +38,9 @@ static void the_release_menu_keeps_only_the_safe_rows(void)
 static void the_release_menu_has_no_tests_that_act_on_the_hardware(void)
 {
     static const char *const DEVELOPER[] = {
-        "Test tone",     "DMA tone", "Tone 192k",     "Tone 176k", "Stall test",
-        "Watchdog test", "Core 1",   "Core 1 decode", "LPC accel", "High RAM",
-        "Bluetooth",     "Profiler", "USB sense"};
+        "Test tone", "DMA tone",      "Tone 192k", "Tone 176k", "Stall test", "Watchdog test",
+        "Core 1",    "Core 1 decode", "LPC accel", "High RAM",  "Bluetooth",  "Profiler",
+        "USB sense", "Connect USB",   "DAC A",     "DAC B"};
     const MenuConfig *menu = built();
     for (size_t index = 0; index < sizeof DEVELOPER / sizeof DEVELOPER[0]; index++) {
         CHECK(!has_row(menu, DEVELOPER[index]));

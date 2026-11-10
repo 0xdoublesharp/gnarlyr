@@ -6,8 +6,11 @@ add_library(echo_library STATIC
     library.c
     library_browse.c
     library_content.c
+    library_view.c
     music_fingerprint.c
     sort_initial.c
+    sort_key.c
+    sort_fold_table.c
     spoken_path.c
 )
 target_include_directories(echo_library PUBLIC include)

@@ -5,7 +5,7 @@
 #include "diagnostics_rows.h"
 
 enum {
-    RELEASE_DIAGNOSTICS_COUNT = 9
+    RELEASE_DIAGNOSTICS_COUNT = 7
 };
 
 static MenuItem value_item(StringId label, const char *(*value)(const void *context))
@@ -24,8 +24,6 @@ void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Them
     items[4] = value_item(STR_MUSIC, diagnostics_row_music);
     items[5] = value_item(STR_ABOUT_HEADSET, diagnostics_row_headset);
     items[6] = value_item(STR_ABOUT_CPU_CLOCK, diagnostics_row_cpu_clock);
-    items[7] = value_item(STR_ABOUT_DAC_A, diagnostics_row_dac_a);
-    items[8] = value_item(STR_ABOUT_DAC_B, diagnostics_row_dac_b);
     app_screens_build_menu(&screens->modules.settings.diagnostics, STR_ABOUT, items,
                            RELEASE_DIAGNOSTICS_COUNT, theme);
 }

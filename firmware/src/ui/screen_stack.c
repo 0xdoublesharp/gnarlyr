@@ -10,8 +10,31 @@ static void enter_top(ScreenStack *stack, uint32_t now_ms)
     }
 }
 
+static int checkpoint_depth(const ScreenStack *stack, const Screen *target)
+{
+    for (int index = 0; index < stack->depth; index++) {
+        if (stack->screens[index] == target) {
+            return index + 1;
+        }
+    }
+    return 0;
+}
+
+static bool return_to_checkpoint(ScreenStack *stack, int depth)
+{
+    if (stack->depth == depth) {
+        return false;
+    }
+    stack->depth = depth;
+    return true;
+}
+
 static bool push(ScreenStack *stack, Screen *target)
 {
+    int depth = checkpoint_depth(stack, target);
+    if (depth > 0) {
+        return return_to_checkpoint(stack, depth);
+    }
     if (target == NULL || stack->depth == SCREEN_STACK_CAPACITY) {
         return false;
     }
@@ -41,6 +64,10 @@ static bool replace(ScreenStack *stack, Screen *target)
 {
     if (target == NULL || stack->depth <= 1) {
         return false;
+    }
+    int depth = checkpoint_depth(stack, target);
+    if (depth > 0 && depth < stack->depth) {
+        return return_to_checkpoint(stack, depth);
     }
     stack->screens[stack->depth - 1] = target;
     return true;

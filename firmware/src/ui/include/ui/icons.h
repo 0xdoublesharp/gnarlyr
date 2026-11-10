@@ -41,6 +41,7 @@ typedef enum IconId {
     ICON_KEY_MENU,
     ICON_DISC,
     ICON_HUB,
+    ICON_SEARCH,
     ICON_PLAY,
     ICON_PAUSE,
     ICON_NEXT,

@@ -103,6 +103,7 @@ typedef struct FakeHal {
     int file_count;
     bool fail_music_writes;
     const char *fail_file_writes;
+    const char *fail_file_opens;
     InternalFile internal[INTERNAL_CAPACITY];
     FakeAudio audio;
     WrittenFile written[FILE_CAPACITY];
@@ -439,6 +440,10 @@ uint32_t hal_clock_microseconds(void)
 
 bool hal_file_open(HalFile *file, const char *path)
 {
+    if (fake.fail_file_opens != NULL && strcmp(fake.fail_file_opens, path) == 0) {
+        *file = (HalFile){.handle = -1, .size = 0};
+        return false;
+    }
     for (int index = 0; index < fake.file_count; index++) {
         if (strcmp(fake.files[index].path, path) == 0) {
             *file = (HalFile){.handle = index, .size = fake.files[index].size};
@@ -1696,4 +1701,9 @@ void fake_hal_fail_music_writes(bool fail)
 void fake_hal_fail_file_writes(const char *path)
 {
     fake.fail_file_writes = path;
+}
+
+void fake_hal_fail_file_opens(const char *path)
+{
+    fake.fail_file_opens = path;
 }

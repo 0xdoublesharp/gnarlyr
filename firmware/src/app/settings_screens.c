@@ -388,10 +388,24 @@ static void save_slot(void *context, int slot)
     toast_show(settings->toast, settings->message, hal_clock_milliseconds());
 }
 
+static void preview_equalizer(void *context, const SettingsEqualizerCurve *curve)
+{
+    (void)context;
+    HalAudioEqualizer equalizer = {.band_count = curve->band_count, .pre_gain = curve->pre_gain};
+    for (int band = 0; band < curve->band_count; band++) {
+        equalizer.band_hz[band] = curve->band_hz[band];
+        equalizer.gain_half_db[band] = curve->gain_half_db[band];
+    }
+    hal_audio_set_equalizer(&equalizer);
+}
+
 static Screen *equalizer_editor(SettingsScreens *screens, int slot)
 {
+    screens->appearance_preview = false;
+    screens->equalizer_preview = SETTINGS_EQ_PREVIEW_EDITOR;
     EqualizerScreenConfig config = {.settings = &screens->context.store->settings,
                                     .changed = equalizer_changed,
+                                    .preview = preview_equalizer,
                                     .slot_used = slot_used,
                                     .save_slot = save_slot,
                                     .context = &screens->context,
@@ -481,11 +495,27 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      NULL},
 };
 
+static Screen *choice_view(SettingsScreens *screens, const SettingChoice *choice,
+                           ChoiceConfig config)
+{
+    if (choice->title != STR_EQUALIZER) {
+        return choice_screen_init(&screens->choice, config);
+    }
+    EqualizerBrowserConfig browser = {.choice = config,
+                                      .settings = &screens->context.store->settings,
+                                      .presets = &screens->presets,
+                                      .preview = preview_equalizer};
+    return equalizer_browser_init(&screens->equalizer_browser, browser);
+}
+
 static ScreenAction open_choice(void *context)
 {
     SettingsEntry *entry = context;
     SettingsScreens *screens = entry->owner;
     const SettingChoice *choice = entry->choice;
+    screens->appearance_preview = choice->choose == choose_appearance;
+    screens->equalizer_preview =
+        choice->title == STR_EQUALIZER ? SETTINGS_EQ_PREVIEW_BROWSER : SETTINGS_EQ_PREVIEW_NONE;
     ChoiceConfig config = {
         .title = i18n_text(choice->title),
         .option_ids = choice->options,
@@ -498,7 +528,7 @@ static ScreenAction open_choice(void *context)
     if (choice->extend != NULL) {
         choice->extend(screens, &config);
     }
-    return screen_action_push(choice_screen_init(&screens->choice, config));
+    return screen_action_push(choice_view(screens, choice, config));
 }
 
 static const char *choice_value(const void *context)
@@ -568,6 +598,8 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
     screens->context.presets = &screens->presets;
     screens->context.languages = &screens->languages;
     screens->theme = theme;
+    screens->appearance_preview = false;
+    screens->equalizer_preview = SETTINGS_EQ_PREVIEW_NONE;
     equalizer_presets_read_slots(&screens->presets);
     language_list(&screens->languages);
     ButtonSettingsConfig buttons = {.settings = &screens->context.store->settings,

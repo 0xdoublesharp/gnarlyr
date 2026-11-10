@@ -305,8 +305,29 @@ static bool mixtape_busy(void)
            app.screens.modules.views.mixtapes.stage != 0;
 }
 
+static bool discovery_is_top(void)
+{
+    return (app.screens.bound_modules & (1u << SCREEN_MODULE_LIBRARY)) != 0 &&
+           top_screen() == &app.screens.modules.library.discovery.screen;
+}
+
+static void cancel_discovery(void)
+{
+    DiscoveryScreen *screen = &app.screens.modules.library.discovery;
+    if (!discovery_is_top() && screen->request == DISCOVERY_REQUEST_NONE) {
+        return;
+    }
+    const LibraryModuleEntry *module =
+        (const LibraryModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_LIBRARY);
+    if (module != NULL && module->cancel != NULL) {
+        module->cancel(&app.screens);
+    }
+}
+
 static void cancel_edits(void)
 {
+    screen_modules_cancel_equalizer_preview(&app.screens);
+    cancel_discovery();
     if (mixtape_busy()) {
         const ViewsModuleEntry *module =
             (const ViewsModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS);
@@ -553,10 +574,20 @@ static Screen *next_top(ScreenAction action)
 static bool apply_action(ScreenAction action, uint32_t now_ms)
 {
     Screen *next = next_top(action);
+    if (top_screen() == &app.screens.modules.settings.settings.choice.screen &&
+        (action.type == SCREEN_ACTION_POP || action.type == SCREEN_ACTION_POP_TO_ROOT ||
+         (next != NULL && next != top_screen()))) {
+        screen_modules_cancel_equalizer_preview(&app.screens);
+    }
     ScreenModule next_module =
         next != NULL ? screen_modules_of(&app.screens, next) : SCREEN_MODULE_NONE;
     if (mixtape_busy() && next_module != SCREEN_MODULE_NONE && next_module != SCREEN_MODULE_VIEWS) {
         cancel_edits();
+    }
+    if (discovery_is_top() &&
+        ((next != NULL && next != &app.screens.modules.library.discovery.screen) ||
+         action.type == SCREEN_ACTION_POP_TO_ROOT)) {
+        cancel_discovery();
     }
     if (next == NULL || screen_ready(next)) {
         return screen_stack_apply(&app.stack, action, now_ms);
@@ -781,6 +812,10 @@ static void dispatch_key_events(uint32_t now_ms)
         if (outcome.shutdown) {
             debug_loop_shutdown(DEBUG_REPORT_SHUTDOWN);
             shut_down(STR_GOODBYE);
+        } else if (event.key == KEY_BACK && event.gesture == KEY_GESTURE_LONG_PRESS) {
+            app_wake();
+            set_display(true);
+            go_home(now_ms);
         } else if (mapped_playback(event, now_ms)) {
             continue;
         } else if (outcome.background && app.screens.now_playing.scrubbing) {
@@ -1053,9 +1088,21 @@ static void start_playback(void)
     cover_cache_open(&app.covers, &app.library.library);
 }
 
+static AppearanceTheme shown_appearance(void)
+{
+    const SettingsScreens *screens = &app.screens.modules.settings.settings;
+    bool settings_ready = (app.screens.bound_modules & (1u << SCREEN_MODULE_SETTINGS)) != 0;
+    if (settings_ready && screens->appearance_preview && top_screen() == &screens->choice.screen &&
+        screens->choice.list.selected >= 0 &&
+        screens->choice.list.selected < APPEARANCE_THEME_COUNT) {
+        return (AppearanceTheme)screens->choice.list.selected;
+    }
+    return app.settings.settings.appearance;
+}
+
 static void follow_appearance(void)
 {
-    default_theme_set_appearance(&app.theme, app.settings.settings.appearance);
+    default_theme_set_appearance(&app.theme, shown_appearance());
     default_theme_set_accent(&app.theme, app.settings.settings.accent);
     notice_theme.colors = app.theme.colors;
     notice_theme.horizon = app.theme.horizon;
@@ -1410,6 +1457,28 @@ static void run_debug_script(uint32_t now_ms)
     }
 }
 
+static void service_discovery(uint32_t now_ms)
+{
+    if (!discovery_is_top()) {
+        return;
+    }
+    const LibraryModuleEntry *module =
+        (const LibraryModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_LIBRARY);
+    if (module == NULL || module->step == NULL) {
+        return;
+    }
+    module->step(&app.screens, now_ms);
+    DiscoveryScreen *screen = &app.screens.modules.library.discovery;
+    if (screen->destination != NULL) {
+        Screen *destination = screen->destination;
+        screen->destination = NULL;
+        if (apply_action(screen_action_push(destination), now_ms)) {
+            screen_changed();
+            app.render_urgent = true;
+        }
+    }
+}
+
 static uint32_t stamp_add(uint32_t stamp, uint32_t value)
 {
     return hash_update(stamp, &value, sizeof value);
@@ -1539,6 +1608,7 @@ CORE_SEAM void app_step(void)
     toast_update(&app.toast, now_ms);
     follow_appearance();
     update_screen(now_ms);
+    service_discovery(now_ms);
     MixtapeUi *mixtapes = &app.screens.modules.views.mixtapes;
     if ((app.screens.bound_modules & (1u << SCREEN_MODULE_VIEWS)) != 0 &&
         mixtapes->destination != NULL) {
@@ -1581,6 +1651,27 @@ uint32_t app_pass_interval_ms(void)
     }
     bool playing = player_status(&app.player).state == PLAYER_PLAYING;
     return app.display_on || playing ? PASS_SCREEN_ON_MS : PASS_SCREEN_OFF_MS;
+}
+
+typedef struct UsbStatusFrame {
+    AppUsbStatus status;
+    HalBattery battery;
+} UsbStatusFrame;
+
+static void draw_usb_status(void *context, Canvas *canvas)
+{
+    const UsbStatusFrame *frame = context;
+    usb_screen_draw(canvas, board_theme(), frame->battery, frame->status);
+}
+
+CORE_SEAM void app_show_usb_status(AppUsbStatus status)
+{
+    UsbStatusFrame frame = {.status = status, .battery = hal_power_battery()};
+    if (!app.display_on) {
+        set_display(true);
+    }
+    render((FrameDrawer){.draw = draw_usb_status, .context = &frame}, false);
+    light_after_first_frame();
 }
 
 CORE_SEAM void app_show_notice(const char *title, const char *message)

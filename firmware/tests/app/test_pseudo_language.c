@@ -21,9 +21,9 @@ enum {
     HOME_SETTINGS_ROW = 1,
     HOME_NOW_PLAYING_ROW = 2,
     HOME_UP_NEXT_ROW = 3,
-    MUSIC_ENTRIES = 9,
-    MUSIC_ALBUMS_ROW = 3,
-    MUSIC_ALL_SONGS_ROW = 6,
+    MUSIC_ENTRIES = 11,
+    MUSIC_ALBUMS_ROW = 4,
+    MUSIC_ALL_SONGS_ROW = 7,
     SETTINGS_ROWS = 20,
     SETTINGS_BLUETOOTH_ROW = 3,
     SETTINGS_SLEEP_ROW = 4,
@@ -32,7 +32,7 @@ enum {
     SETTINGS_CUSTOM_EQ_ROW = 16,
     SETTINGS_RESCAN_ROW = 18,
     SETTINGS_USB_MODE_ROW = 19,
-    ABOUT_ROWS = 18,
+    ABOUT_ROWS = 14,
     EQUALIZER_SAVE_ROW = 10,
     EQUALIZER_SLOT_OPTION = 8,
     MINIMUM_PACK_TEXTS = 400,
@@ -302,9 +302,9 @@ static void open_settings_row(int row)
 
 static void walk_music(void)
 {
-    static const StringId TITLES[MUSIC_ENTRIES] = {STR_COVER_FLOW, STR_ARTISTS,   STR_ALBUM_ARTISTS,
-                                                   STR_ALBUMS,     STR_GENRES,    STR_FOLDERS,
-                                                   STR_ALL_SONGS,  STR_PLAYLISTS, STR_FAVORITES};
+    static const StringId TITLES[MUSIC_ENTRIES] = {
+        STR_SEARCH,  STR_COVER_FLOW, STR_ARTISTS,   STR_ALBUM_ARTISTS, STR_ALBUMS,       STR_GENRES,
+        STR_FOLDERS, STR_ALL_SONGS,  STR_PLAYLISTS, STR_FAVORITES,     STR_PERSONAL_TAGS};
     open_music_row(0);
     show_titled("Music", STR_MUSIC);
     for (int entry = 1; entry < MUSIC_ENTRIES; entry++) {
@@ -316,7 +316,7 @@ static void walk_music(void)
 
 static void walk_cover_flow(void)
 {
-    open_music_row(0);
+    open_music_row(1);
     tap(KEY_PLAY);
     CHECK(strcmp(i18n_text(STR_COVER_FLOW), app_screen_title()) == 0);
     show("Cover Flow");

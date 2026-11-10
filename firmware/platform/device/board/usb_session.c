@@ -135,15 +135,31 @@ static void fall_back_to_full_speed(void)
     usb_port_connect(&port);
 }
 
+static void show_storage_state(void)
+{
+    app_show_usb_status((AppUsbStatus){
+        .view = APP_USB_STORAGE,
+        .information = i18n_text(card_present ? STR_POWER_INTERNAL_CARD : STR_POWER_INTERNAL),
+        .detail = i18n_text(card_present ? STR_USB_EJECT_DRIVES : STR_USB_EJECT_DRIVE)});
+}
+
 static UsbSessionEnd serve(void)
 {
     MscStats shown = msc_stats(&msc);
+    HalBattery shown_battery = hal_power_battery();
     uint32_t refreshed = hal_clock_milliseconds();
     while (debug_session_cable(usb_vbus_present(), &msc)) {
         uint32_t now = hal_clock_milliseconds();
-        if (now - refreshed >= COUNTER_REFRESH_MS && stats_changed(msc_stats(&msc), shown)) {
-            shown = msc_stats(&msc);
-            show_counters(shown);
+        if (now - refreshed >= COUNTER_REFRESH_MS) {
+            HalBattery battery = hal_power_battery();
+            MscStats stats = msc_stats(&msc);
+            if (stats_changed(stats, shown)) {
+                show_counters(stats);
+            } else if (app_usb_battery_changed(shown_battery, battery)) {
+                show_storage_state();
+            }
+            shown = stats;
+            shown_battery = battery;
             refreshed = hal_clock_milliseconds();
         }
         usb_poll(&port);
@@ -179,7 +195,8 @@ static void remember_session(UsbSessionEnd end)
 
 static UsbSessionEnd run(void)
 {
-    app_show_notice(i18n_text(STR_USB), i18n_text(STR_USB_STARTING));
+    app_show_usb_status(
+        (AppUsbStatus){.view = APP_USB_CONNECTING, .detail = i18n_text(STR_USB_STARTING)});
     fallback = (UsbFallback){.watching = false};
     debug_report_write(shared, DEBUG_REPORT_USB_SESSION);
     prepare_port();
@@ -188,8 +205,7 @@ static UsbSessionEnd run(void)
     UsbSessionEnd end = USB_SESSION_NO_HOST;
     if (usb_wait_for_host(&port, HOST_TIMEOUT_MS)) {
         usb_fallback_start(&fallback, port.link.high_speed_allowed, hal_clock_milliseconds());
-        app_show_notice(i18n_text(STR_USB),
-                        i18n_text(card_present ? STR_USB_EJECT_DRIVES : STR_USB_EJECT_DRIVE));
+        show_storage_state();
         end = serve();
     }
     usb_session_stop_listening();

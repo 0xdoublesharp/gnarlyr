@@ -35,6 +35,7 @@ typedef struct MixtapeUi {
     uint16_t slot;
     uint8_t count;
     uint8_t mode;
+    uint8_t parent_mode;
     uint8_t stage;
     uint8_t character;
     int rows_first;

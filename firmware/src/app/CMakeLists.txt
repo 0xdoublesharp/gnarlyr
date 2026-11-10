@@ -4,6 +4,11 @@ add_library(echo_app STATIC
     modules/listening_module.c
     screens/listening_screen.c
     screens/lyrics_screen.c
+    discovery_screen.c
+    discovery_text.c
+    discovery_preferences.c
+    discovery_playback.c
+    personal_tags.c
     player_storage.c
     player_queue.c
     queue_edits.c
@@ -47,6 +52,8 @@ add_library(echo_app STATIC
     screens/charge_screen.c
     screens/cover_flow_screen.c
     screens/equalizer_screen.c
+    screens/equalizer_browser.c
+    screens/equalizer_plot.c
     screens/now_playing_screen.c
     screens/up_next_screen.c
 )

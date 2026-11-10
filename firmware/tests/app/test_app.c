@@ -10,6 +10,7 @@
 #include "core/key_script.h"
 #include "core/key_tracker.h"
 #include "default_theme.h"
+#include "discovery_screen.h"
 #include "equalizer_presets.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
@@ -23,6 +24,7 @@
 #include "library/playlist_reader.h"
 #include "library_rescan.h"
 #include "music_check.h"
+#include "screen_modules.h"
 #include "settings/equalizer_slots.h"
 #include "settings/settings.h"
 #include "settings_store.h"
@@ -40,11 +42,9 @@ enum {
     SETTINGS_SHUFFLE_INDEX = 1,
     DIAGNOSTICS_FRAME_TIME_INDEX = 0,
     DIAGNOSTICS_FIRMWARE_INDEX = 1,
-    DIAGNOSTICS_DAC_A_INDEX = 13,
-    DIAGNOSTICS_DAC_B_INDEX = 14,
-    MUSIC_ARTISTS_INDEX = 1,
-    MUSIC_ALBUMS_INDEX = 3,
-    MUSIC_FOLDERS_INDEX = 5,
+    MUSIC_ARTISTS_INDEX = 2,
+    MUSIC_ALBUMS_INDEX = 4,
+    MUSIC_FOLDERS_INDEX = 6,
     BJORK_POSITION = 3,
     HOME_SETTINGS_INDEX = 1,
     HOME_NOW_PLAYING_INDEX = 2,
@@ -61,12 +61,13 @@ enum {
     SETTINGS_CUSTOM_EQ_INDEX = 15,
     SETTINGS_START_INDEX = 16,
     SETTINGS_RESCAN_INDEX = 17,
-    MUSIC_COVER_FLOW_INDEX = 0,
-    MUSIC_PLAYLISTS_INDEX = 7,
+    SETTINGS_THEME_INDEX = 19,
+    MUSIC_COVER_FLOW_INDEX = 1,
+    MUSIC_PLAYLISTS_INDEX = 8,
     SETTLE_STEPS = 30,
     RED_COVER = 0xF800,
     BLUE_COVER = 0x001F,
-    MUSIC_FAVORITES_INDEX = 8,
+    MUSIC_FAVORITES_INDEX = 9,
     DEFAULT_TIMEOUT_MS = 30000,
     SHORT_TIMEOUT_MS = 10000,
     IDLE_MS = 20000,
@@ -74,9 +75,7 @@ enum {
     DIAGNOSTICS_WATCHDOG_TEST_INDEX = 9,
     DIAGNOSTICS_STALL_TEST_INDEX = 5,
     DIAGNOSTICS_POWER_TAPS_INDEX = 6,
-    DIAGNOSTICS_PROFILER_INDEX = 15,
-    DIAGNOSTICS_USB_SENSE_INDEX = 16,
-    DIAGNOSTICS_CONNECT_USB_INDEX = 17,
+    DIAGNOSTICS_PROFILER_INDEX = 13,
     DEBUG_FOLLOW_MS = 100,
     SCRIPT_STEP_MS = 8,
     CHARGE_DARK_MS = 6000,
@@ -577,6 +576,133 @@ static void play_first_album_track(void)
     tap(KEY_PLAY);
 }
 
+static void holding_menu_on_a_browse_list_opens_its_view_options(void)
+{
+    start_app_with_library();
+    open_music_entry(MUSIC_ALBUMS_INDEX);
+    hold(KEY_MENU);
+    CHECK(title_is("View options"));
+    CHECK_EQUAL(SCREEN_MODULE_LIBRARY, (int)fake_hal_loaded_module());
+    tap(KEY_BACK);
+    CHECK(!title_is("Now Playing"));
+}
+
+static void holding_an_artist_publishes_only_that_artists_songs_before_playing(void)
+{
+    start_app_with_library();
+    open_music_entry(MUSIC_ARTISTS_INDEX);
+    hold(KEY_PLAY);
+    for (int pass = 0; pass < 3000 && !title_is("Now Playing"); pass++) {
+        wait_ms(4);
+    }
+    CHECK(title_is("Now Playing"));
+    static FixtureLibrary reference;
+    fixture_library_open(&reference);
+    BrowseItem chosen;
+    CHECK(browse_item(&reference.library, browse_root_query(BROWSE_ARTISTS), 0, &chosen));
+    PlayerStatus status = app_player_status();
+    LibraryTrack current;
+    CHECK(library_read_track(&reference.library, status.track, &current));
+    CHECK_EQUAL(chosen.index, current.artist);
+    uint32_t expected = 0;
+    for (uint32_t id = 0; id < library_count(&reference.library, LIBRARY_TRACKS); id++) {
+        LibraryTrack candidate;
+        CHECK(library_read_track(&reference.library, id, &candidate));
+        expected += candidate.artist == chosen.index ? 1u : 0u;
+    }
+    CHECK_EQUAL(expected, status.place.total);
+    CHECK_EQUAL(PLAYER_PLAYING, status.state);
+}
+
+static void repeated_lyrics_and_menu_shortcuts_reuse_now_playing_depth(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    int depth = app_screen_depth();
+    int plays = fake_hal_audio_play_count();
+    uint16_t track = app_player_status().track;
+    for (int turn = 0; turn < 10; turn++) {
+        hold(KEY_MENU);
+        CHECK(title_is("Lyrics"));
+        CHECK_EQUAL(depth + 1, app_screen_depth());
+        tap(KEY_MENU);
+        CHECK(title_is("Now Playing"));
+        CHECK_EQUAL(depth, app_screen_depth());
+    }
+    CHECK_EQUAL(plays, fake_hal_audio_play_count());
+    CHECK_EQUAL(track, app_player_status().track);
+}
+
+static void queue_actions_and_menu_shortcuts_reuse_now_playing_before_home(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    int depth = app_screen_depth();
+    int plays = fake_hal_audio_play_count();
+    for (int turn = 0; turn < 8; turn++) {
+        tap(KEY_MENU);
+        CHECK(title_is("Up Next"));
+        hold(KEY_PLAY);
+        CHECK(title_is("Edit Up Next"));
+        tap(KEY_MENU);
+        CHECK(title_is("Now Playing"));
+        CHECK_EQUAL(depth, app_screen_depth());
+    }
+    tap(KEY_MENU);
+    hold(KEY_PLAY);
+    hold_back();
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK_EQUAL(1, app_screen_depth());
+    CHECK_EQUAL(plays, fake_hal_audio_play_count());
+}
+
+static void holding_back_from_mixtape_name_reaches_home(void)
+{
+    start_app_with_library();
+    move_down(2);
+    tap(KEY_PLAY);
+    CHECK(title_is("Mixtapes"));
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Mixtape name"));
+    hold_back();
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK_EQUAL(1, app_screen_depth());
+}
+
+static void holding_back_from_a_busy_mixtape_save_reaches_home(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    hold_back();
+    move_down(4);
+    tap(KEY_PLAY);
+    CHECK(title_is("Mixtapes"));
+    tap(KEY_PLAY);
+    CHECK(title_is("Mixtape name"));
+    hold(KEY_PLAY);
+    hold_back();
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK_EQUAL(1, app_screen_depth());
+}
+
+static void a_song_actions_menu_opens_its_metadata_and_personal_tags(void)
+{
+    start_app_with_library();
+    open_music_entry(MUSIC_ALBUMS_INDEX);
+    tap(KEY_PLAY);
+    hold(KEY_PLAY);
+    move_down(3);
+    tap(KEY_PLAY);
+    CHECK(title_is("Track info"));
+    tap(KEY_BACK);
+    tap(KEY_BACK);
+    hold(KEY_PLAY);
+    move_down(4);
+    tap(KEY_PLAY);
+    CHECK(title_is("My tags"));
+}
+
 static void selecting_a_track_plays_it_and_shows_now_playing(void)
 {
     start_app_with_library();
@@ -751,6 +877,105 @@ static void an_equalizer_preset_reaches_the_audio_and_survives_a_restart(void)
     CHECK_EQUAL(3, fake_hal_audio_equalizer().band_count);
 }
 
+static void browsing_equalizer_presets_previews_audio_but_saves_only_on_play(void)
+{
+    start_app_with_library();
+    open_setting(SETTINGS_EQUALIZER_INDEX);
+    move_down(EQUALIZER_POP);
+    CHECK_EQUAL(3, fake_hal_audio_equalizer().band_count);
+    CHECK_EQUAL(8, fake_hal_audio_equalizer().gain_half_db[0]);
+    SettingsStore store;
+    settings_store_load(&store);
+    CHECK_EQUAL(EQUALIZER_OFF, store.settings.equalizer);
+    tap(KEY_BACK);
+    CHECK(title_is("Settings"));
+    CHECK_EQUAL(0, fake_hal_audio_equalizer().band_count);
+    tap(KEY_PLAY);
+    move_down(EQUALIZER_POP);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(3, fake_hal_audio_equalizer().band_count);
+    settings_store_load(&store);
+    CHECK_EQUAL(EQUALIZER_POP, store.settings.equalizer);
+}
+
+static void stopping_during_an_equalizer_preview_keeps_the_committed_curve(void)
+{
+    start_app_with_library();
+    open_setting(SETTINGS_EQUALIZER_INDEX);
+    move_down(EQUALIZER_POP);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(14336, fake_hal_audio_equalizer().pre_gain);
+    Settings before;
+    CHECK(saved_settings(&before));
+    CHECK_EQUAL(EQUALIZER_POP, before.equalizer);
+    app_stop();
+    CHECK_EQUAL(20480, fake_hal_audio_equalizer().pre_gain);
+    restart_app();
+    CHECK_EQUAL(3, fake_hal_audio_equalizer().band_count);
+    CHECK_EQUAL(8, fake_hal_audio_equalizer().gain_half_db[0]);
+    Settings settings;
+    CHECK(saved_settings(&settings));
+    CHECK_EQUAL(EQUALIZER_POP, settings.equalizer);
+}
+
+static void leaving_an_equalizer_preview_restores_the_curve_without_interrupting_music(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    fake_hal_audio_set_position(5432);
+    PlayerStatus before = app_player_status();
+    uint8_t volume = fake_hal_audio_volume();
+    int gain = fake_hal_audio_gain();
+    int output = fake_hal_audio_output();
+    int dac_volume = fake_hal_dac_volume();
+    hold_back();
+    open_setting(SETTINGS_EQUALIZER_INDEX);
+    move_down(EQUALIZER_POP);
+    CHECK_EQUAL(3, fake_hal_audio_equalizer().band_count);
+    tap(KEY_MENU);
+    CHECK(title_is("Now Playing"));
+    CHECK_EQUAL(0, fake_hal_audio_equalizer().band_count);
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    CHECK_EQUAL(before.track, app_player_status().track);
+    CHECK_EQUAL(5432, app_player_status().position_ms);
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+    CHECK_EQUAL(gain, fake_hal_audio_gain());
+    CHECK_EQUAL(output, fake_hal_audio_output());
+    CHECK_EQUAL(dac_volume, fake_hal_dac_volume());
+    tap(KEY_MENU);
+    CHECK(title_is("Up Next"));
+    CHECK_EQUAL(0, fake_hal_audio_equalizer().band_count);
+    tap(KEY_BACK);
+    tap(KEY_BACK);
+    CHECK(title_is("Equalizer"));
+    move_down(EQUALIZER_POP);
+    CHECK_EQUAL(3, fake_hal_audio_equalizer().band_count);
+    tap(KEY_MENU);
+    CHECK_EQUAL(0, fake_hal_audio_equalizer().band_count);
+}
+
+static void home_and_shutdown_discard_uncommitted_equalizer_previews(void)
+{
+    start_app_with_library();
+    open_setting(SETTINGS_EQUALIZER_INDEX);
+    move_down(EQUALIZER_POP);
+    CHECK_EQUAL(3, fake_hal_audio_equalizer().band_count);
+    hold_back();
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK_EQUAL(0, fake_hal_audio_equalizer().band_count);
+    restart_app();
+    wait_ms(SPLASH_MS);
+    open_setting(SETTINGS_EQUALIZER_INDEX);
+    move_down(EQUALIZER_POP);
+    hold_power();
+    CHECK_EQUAL(0, fake_hal_audio_equalizer().band_count);
+    SettingsStore store;
+    settings_store_load(&store);
+    CHECK_EQUAL(EQUALIZER_OFF, store.settings.equalizer);
+}
+
 static void custom_eq_adjusts_a_band_with_the_volume_keys(void)
 {
     start_app_with_library();
@@ -784,11 +1009,39 @@ static void custom_eq_stops_at_ten_decibels(void)
     for (int press = 0; press < 24; press++) {
         tap(KEY_VOLUME_DOWN);
     }
-    tap(KEY_BACK);
+    CHECK_EQUAL(-20, fake_hal_audio_equalizer().gain_half_db[0]);
+    tap(KEY_PLAY);
     CHECK(title_is("Custom EQ"));
     Settings settings;
     CHECK(saved_settings(&settings));
     CHECK_EQUAL(-20, settings.equalizer_gains[0]);
+}
+
+static void custom_eq_back_discards_the_audible_draft_without_saving_it(void)
+{
+    start_app_with_library();
+    open_setting(SETTINGS_CUSTOM_EQ_INDEX);
+    tap(KEY_PLAY);
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(1, fake_hal_audio_equalizer().band_count);
+    CHECK_EQUAL(1, fake_hal_audio_equalizer().gain_half_db[0]);
+    SettingsStore store;
+    settings_store_load(&store);
+    CHECK_EQUAL(EQUALIZER_OFF, store.settings.equalizer);
+    CHECK_EQUAL(0, store.settings.equalizer_gains[0]);
+    tap(KEY_BACK);
+    CHECK(title_is("Custom EQ"));
+    CHECK_EQUAL(0, fake_hal_audio_equalizer().band_count);
+    tap(KEY_PLAY);
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(1, fake_hal_audio_equalizer().band_count);
+    hold_back();
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK_EQUAL(0, fake_hal_audio_equalizer().band_count);
+    restart_app();
+    settings_store_load(&store);
+    CHECK_EQUAL(EQUALIZER_OFF, store.settings.equalizer);
+    CHECK_EQUAL(0, store.settings.equalizer_gains[0]);
 }
 
 static void save_band_five_to_the_second_slot(void)
@@ -958,6 +1211,98 @@ static void the_color_setting_recolors_the_selection_and_is_saved(void)
     wait_ms(1000);
     CHECK(title_is(FIRMWARE_SHORT_NAME));
     CHECK(selection_is_red());
+}
+
+static void open_theme_with_a_saved_graphite_palette(void)
+{
+    start_app_with_library();
+    SettingsStore store;
+    settings_store_load(&store);
+    store.settings.appearance = APPEARANCE_GRAPHITE;
+    CHECK(settings_store_save(&store));
+    restart_app();
+    wait_ms(SPLASH_MS);
+    open_setting(SETTINGS_THEME_INDEX);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Theme"));
+}
+
+static void check_theme_header(AppearanceTheme appearance)
+{
+    Theme theme = *expected_theme();
+    default_theme_set_appearance(&theme, appearance);
+    Color divider = theme.header_rule ? theme.colors.accent : theme.colors.divider;
+    CHECK_EQUAL(divider, fake_hal_pixel(2, theme.metrics.header_height - 1));
+}
+
+static void scrolling_themes_previews_each_palette_without_saving(void)
+{
+    open_theme_with_a_saved_graphite_palette();
+    for (int index = 0; index < APPEARANCE_THEME_COUNT; index++) {
+        check_theme_header((AppearanceTheme)index);
+        Settings settings;
+        CHECK(saved_settings(&settings));
+        CHECK_EQUAL(APPEARANCE_GRAPHITE, settings.appearance);
+        tap(KEY_VOLUME_UP);
+    }
+    check_theme_header(APPEARANCE_GRAPHITE);
+    tap(KEY_VOLUME_DOWN);
+    check_theme_header(APPEARANCE_CLASSIC);
+}
+
+static void back_from_a_theme_preview_restores_the_saved_palette(void)
+{
+    open_theme_with_a_saved_graphite_palette();
+    tap(KEY_VOLUME_UP);
+    check_theme_header(APPEARANCE_NEON_NOIR);
+    tap(KEY_BACK);
+    CHECK(title_is("Settings"));
+    check_theme_header(APPEARANCE_GRAPHITE);
+    tap(KEY_PLAY);
+    CHECK(title_is("Theme"));
+    check_theme_header(APPEARANCE_GRAPHITE);
+    tap(KEY_BACK);
+    move_up(SETTINGS_THEME_INDEX - SETTINGS_CUSTOM_EQ_INDEX);
+    tap(KEY_PLAY);
+    CHECK(title_is("Custom EQ"));
+    check_theme_header(APPEARANCE_GRAPHITE);
+}
+
+static void choosing_a_preview_saves_it_and_keeps_it_after_restart(void)
+{
+    open_theme_with_a_saved_graphite_palette();
+    move_down(APPEARANCE_SUNSET);
+    tap(KEY_PLAY);
+    CHECK(title_is("Settings"));
+    Settings settings;
+    CHECK(saved_settings(&settings));
+    CHECK_EQUAL(APPEARANCE_SUNSET, settings.appearance);
+    check_theme_header(APPEARANCE_SUNSET);
+    restart_app();
+    wait_ms(SPLASH_MS);
+    check_theme_header(APPEARANCE_SUNSET);
+}
+
+static void leaving_or_stopping_during_a_preview_keeps_the_saved_palette(void)
+{
+    open_theme_with_a_saved_graphite_palette();
+    tap(KEY_VOLUME_UP);
+    check_theme_header(APPEARANCE_NEON_NOIR);
+    hold_back();
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    check_theme_header(APPEARANCE_GRAPHITE);
+    restart_app();
+    wait_ms(SPLASH_MS);
+    open_setting(SETTINGS_THEME_INDEX);
+    tap(KEY_VOLUME_DOWN);
+    check_theme_header(APPEARANCE_CLASSIC);
+    app_stop();
+    restart_app();
+    wait_ms(SPLASH_MS);
+    check_theme_header(APPEARANCE_GRAPHITE);
+    Settings settings;
+    CHECK(saved_settings(&settings));
+    CHECK_EQUAL(APPEARANCE_GRAPHITE, settings.appearance);
 }
 
 static bool selected_at(int y)
@@ -1193,7 +1538,9 @@ static void cover_flow_stacks_the_albums_in_portrait(void)
     choose_orientation(ORIENTATION_PORTRAIT);
     hold_back();
     tap(KEY_VOLUME_UP);
-    open_music_entry(MUSIC_COVER_FLOW_INDEX);
+    tap(KEY_PLAY);
+    portrait_down(MUSIC_COVER_FLOW_INDEX);
+    tap(KEY_PLAY);
     settle();
     CHECK(title_is("Cover Flow"));
     const CoverStackLayout *stack = &BOARD_LAYOUT.cover_stack;
@@ -2697,7 +3044,10 @@ static void cover_flow_starts_at_the_playing_album(void)
     start_app_with_library();
     play_first_album_track();
     hold_back();
-    open_music_entry(MUSIC_COVER_FLOW_INDEX);
+    tap(KEY_PLAY);
+    move_up(MUSIC_ALBUMS_INDEX - MUSIC_COVER_FLOW_INDEX);
+    tap(KEY_PLAY);
+    CHECK(title_is("Cover Flow"));
     tap(KEY_PLAY);
     CHECK(title_is("Back In Black"));
 }
@@ -2831,17 +3181,6 @@ static void diagnostics_shows_the_firmware_version_from_the_hal(void)
     const char *value = app_diagnostics_value(DIAGNOSTICS_FIRMWARE_INDEX);
     CHECK(value != NULL);
     CHECK(strcmp("1e8bebb", value) == 0);
-}
-
-static void diagnostics_shows_each_dac_chip_as_the_hal_read_it(void)
-{
-    static const DacIdentity CS43198 = {
-        DAC_IDENTITY_READ, DAC_IDENTITY_ALL_READ, {0x43, 0x19, 0x80, 0xA0, 0x00}};
-    start_app();
-    CHECK(strcmp("Play a track", app_diagnostics_value(DIAGNOSTICS_DAC_A_INDEX)) == 0);
-    fake_hal_audio_set_dac_identity(0, CS43198);
-    CHECK(strcmp("431980 A0.00", app_diagnostics_value(DIAGNOSTICS_DAC_A_INDEX)) == 0);
-    CHECK(strcmp("Play a track", app_diagnostics_value(DIAGNOSTICS_DAC_B_INDEX)) == 0);
 }
 
 static uint16_t cover_probe(void)
@@ -3041,53 +3380,15 @@ static void the_profiler_row_switches_sampling_and_restarts_a_full_profile(void)
     CHECK_EQUAL(HAL_PROFILE_ON, hal_system_profile_state());
 }
 
-static void the_usb_sense_row_shows_the_cable_live_and_play_keeps_usb_powered(void)
+static void about_wraps_from_profiler_to_frame_time_without_experiment_rows(void)
 {
     start_app();
-    open_diagnostics_row(DIAGNOSTICS_USB_SENSE_INDEX);
-    CHECK(strcmp("Auto 0 off", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
-    fake_hal_set_usb_cable(true);
-    CHECK(strcmp("Auto 1 off", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
-    tap(KEY_PLAY);
-    CHECK(hal_system_usb_sense().kept_on);
-    CHECK(strcmp("Kept 1/0", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
-    fake_hal_set_usb_cable(false);
-    fake_hal_set_usb_session(true);
-    CHECK(strcmp("Kept 0/1", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
-    fake_hal_set_usb_session(false);
-    CHECK(strcmp("Kept 0/0", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
-    tap(KEY_PLAY);
-    CHECK(!hal_system_usb_sense().kept_on);
-    CHECK(strcmp("Auto 0 off", app_diagnostics_value(DIAGNOSTICS_USB_SENSE_INDEX)) == 0);
-    CHECK(title_is("About"));
-}
-
-static void the_connect_usb_row_listens_for_a_host_until_back_is_pressed(void)
-{
-    start_app();
-    open_diagnostics_row(DIAGNOSTICS_CONNECT_USB_INDEX);
-    CHECK(strcmp("Off", app_diagnostics_value(DIAGNOSTICS_CONNECT_USB_INDEX)) == 0);
-    tap(KEY_PLAY);
-    CHECK(hal_system_usb_sense().connecting);
-    CHECK(strcmp("Listening", app_diagnostics_value(DIAGNOSTICS_CONNECT_USB_INDEX)) == 0);
-    CHECK(title_is("About"));
+    open_diagnostics_row(DIAGNOSTICS_PROFILER_INDEX);
+    CHECK(!overlay_visible());
     tap(KEY_VOLUME_UP);
-    tap(KEY_VOLUME_DOWN);
-    CHECK(title_is("About"));
-    CHECK(hal_system_usb_sense().connecting);
-    tap(KEY_BACK);
-    CHECK(!title_is("About"));
-    CHECK(!hal_system_usb_sense().connecting);
-}
-
-static void play_on_the_connect_usb_row_a_second_time_stops_listening(void)
-{
-    start_app();
-    open_diagnostics_row(DIAGNOSTICS_CONNECT_USB_INDEX);
     tap(KEY_PLAY);
-    tap(KEY_PLAY);
-    CHECK(!hal_system_usb_sense().connecting);
-    CHECK(strcmp("Off", app_diagnostics_value(DIAGNOSTICS_CONNECT_USB_INDEX)) == 0);
+    CHECK(overlay_visible());
+    CHECK(strcmp("On", app_diagnostics_value(DIAGNOSTICS_FRAME_TIME_INDEX)) == 0);
 }
 
 static void the_usb_sense_mode_is_normal_after_every_start(void)
@@ -3326,7 +3627,7 @@ static void a_key_list_runs_in_order_with_long_presses(void)
 static void a_script_plays_a_track(void)
 {
     start_app_with_library();
-    run_script("build any\nplay\ndown,down,down\nplay,play,play\n", 8 * SCRIPT_KEY_MS);
+    run_script("build any\nplay\ndown,down,down,down\nplay,play,play\n", 8 * SCRIPT_KEY_MS);
     CHECK(title_is("Now Playing"));
     CHECK(playing_path_is(HELLS_BELLS_PATH));
 }
@@ -3676,7 +3977,7 @@ static void a_soak_waits_its_minutes_and_records_both_ends(void)
 static void a_soak_with_the_screen_on_and_music_playing_says_so(void)
 {
     start_app_with_library();
-    load_script("build any\nplay\ndown,down,down\nplay,play,play\nsoak 1\n");
+    load_script("build any\nplay\ndown,down,down,down\nplay,play,play\nsoak 1\n");
     run_script_for(8 * SCRIPT_KEY_MS);
     CHECK(playing_path_is(HELLS_BELLS_PATH));
     run_script_minutes(1);
@@ -4023,7 +4324,6 @@ int main(void)
         TEST_CASE(the_frame_overlay_shows_average_and_longest_block_times),
         TEST_CASE(the_frame_overlay_shows_zero_before_any_block),
         TEST_CASE(diagnostics_shows_the_firmware_version_from_the_hal),
-        TEST_CASE(diagnostics_shows_each_dac_chip_as_the_hal_read_it),
         TEST_CASE(albums_open_from_the_library),
         TEST_CASE(a_cue_album_lists_its_cue_tracks_and_each_plays_its_own_part),
         TEST_CASE(a_cue_backed_file_in_folders_plays_the_album_from_its_first_cue_track),
@@ -4033,6 +4333,13 @@ int main(void)
         TEST_CASE(back_returns_to_the_previous_list),
         TEST_CASE(folders_can_be_browsed_down_to_an_album),
         TEST_CASE(without_a_library_the_lists_explain_what_is_missing),
+        TEST_CASE(holding_menu_on_a_browse_list_opens_its_view_options),
+        TEST_CASE(holding_an_artist_publishes_only_that_artists_songs_before_playing),
+        TEST_CASE(repeated_lyrics_and_menu_shortcuts_reuse_now_playing_depth),
+        TEST_CASE(queue_actions_and_menu_shortcuts_reuse_now_playing_before_home),
+        TEST_CASE(holding_back_from_mixtape_name_reaches_home),
+        TEST_CASE(holding_back_from_a_busy_mixtape_save_reaches_home),
+        TEST_CASE(a_song_actions_menu_opens_its_metadata_and_personal_tags),
         TEST_CASE(selecting_a_track_plays_it_and_shows_now_playing),
         TEST_CASE(play_on_the_playing_track_opens_now_playing_without_restarting),
         TEST_CASE(play_on_another_track_starts_it),
@@ -4059,8 +4366,13 @@ int main(void)
         TEST_CASE(brightness_is_applied_and_saved),
         TEST_CASE(gain_is_applied),
         TEST_CASE(an_equalizer_preset_reaches_the_audio_and_survives_a_restart),
+        TEST_CASE(browsing_equalizer_presets_previews_audio_but_saves_only_on_play),
+        TEST_CASE(stopping_during_an_equalizer_preview_keeps_the_committed_curve),
+        TEST_CASE(leaving_an_equalizer_preview_restores_the_curve_without_interrupting_music),
+        TEST_CASE(home_and_shutdown_discard_uncommitted_equalizer_previews),
         TEST_CASE(custom_eq_adjusts_a_band_with_the_volume_keys),
         TEST_CASE(custom_eq_stops_at_ten_decibels),
+        TEST_CASE(custom_eq_back_discards_the_audible_draft_without_saving_it),
         TEST_CASE(custom_eq_saves_the_curve_into_a_numbered_slot),
         TEST_CASE(a_saved_slot_is_listed_after_the_presets_and_restores_its_curve),
         TEST_CASE(a_chosen_slot_opens_its_editor_and_saves_back_into_it),
@@ -4069,6 +4381,10 @@ int main(void)
         TEST_CASE(an_unreadable_eq_file_changes_nothing),
         TEST_CASE(saved_settings_are_restored_at_start),
         TEST_CASE(the_color_setting_recolors_the_selection_and_is_saved),
+        TEST_CASE(scrolling_themes_previews_each_palette_without_saving),
+        TEST_CASE(back_from_a_theme_preview_restores_the_saved_palette),
+        TEST_CASE(choosing_a_preview_saves_it_and_keeps_it_after_restart),
+        TEST_CASE(leaving_or_stopping_during_a_preview_keeps_the_saved_palette),
         TEST_CASE(large_text_resizes_the_open_list_at_once_and_is_saved),
         TEST_CASE(small_text_resizes_the_open_list_at_once),
         TEST_CASE(the_text_size_survives_a_restart),
@@ -4194,9 +4510,7 @@ int main(void)
         TEST_CASE(stopping_the_app_saves_the_session),
         TEST_CASE(each_step_records_its_duration),
         TEST_CASE(the_profiler_row_switches_sampling_and_restarts_a_full_profile),
-        TEST_CASE(the_usb_sense_row_shows_the_cable_live_and_play_keeps_usb_powered),
-        TEST_CASE(the_connect_usb_row_listens_for_a_host_until_back_is_pressed),
-        TEST_CASE(play_on_the_connect_usb_row_a_second_time_stops_listening),
+        TEST_CASE(about_wraps_from_profiler_to_frame_time_without_experiment_rows),
         TEST_CASE(the_usb_sense_mode_is_normal_after_every_start),
         TEST_CASE(a_key_gesture_is_logged_with_its_key_and_time),
         TEST_CASE(key_repeats_are_left_out_of_the_log),

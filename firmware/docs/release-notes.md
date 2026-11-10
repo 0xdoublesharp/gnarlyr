@@ -2,6 +2,14 @@
 
 FreshBase starts from Podium 4.5.9 ([`../UPSTREAM.md`](../UPSTREAM.md)). For everything up to and including that version, see [Podium's changelog](https://podium-echo.online/changelog.html).
 
+## Current source candidate
+
+- Search metadata and paths, combine sorting and filters, inspect track information and assign personal mood/activity labels. Scoped Play All and selected-result playback preserve the displayed order.
+- Navigation returns to existing screen checkpoints. Mixtape actions settle at List, modal Back returns to its parent, and hold Back cancels work and reaches Home. Slides use gentle ease-in/ease-out.
+- Native Listen and USB/charging layouts have clearer hierarchy and real state. USB power is separate from charging or full; unreliable USB-powered voltage is omitted.
+- Browsing themes and EQ presets previews them without saving. Custom EQ has a response curve and staged audible editing; leaving a preview restores the saved sound, volume and routing remain unchanged.
+- See [library discovery](library-discovery.md) and the [user guide](user-guide.md). These source changes await the final combined checks and their own device installation.
+
 ## FreshBase 1.0.0 (unreleased)
 
 Not released, and not yet run on a player: everything below is established by host tests, the simulator and the ARM emulator (189 checks). What differs from Podium 4.5.9 so far:
@@ -16,7 +24,7 @@ Not released, and not yet run on a player: everything below is established by ho
 
 ### Sound
 
-- **The DAC chips are reported in Settings → About.** The first time the DAC starts after power-on, the player reads each chip's identification registers and shows them as DAC A and DAC B, for example `431980 A0.00`: the ID bytes (`431980` is a CS43198, `431310` a CS43131), then the revision and subrevision. Before a track has played the rows say `Play a track`. On the owner's player both chips read `431980 A1.06`: CS43198.
+- **DAC identification stays in the development HAL.** Earlier developer builds exposed DAC A and DAC B in About and read both chips on the owner's player as `431980 A1.06` (CS43198). Those raw rows, USB sense and Connect USB are now removed from About; USB sense remains a debug-script operation.
 - **DAC output power-up wait of 12 ms,** as in FiiO's firmware. Podium 4.5.9 waits 10 ms. An earlier build of this project with the 12 ms wait, based on Podium 4.5.5, was confirmed quiet by the owner on their Echo.
 
 ### Code space

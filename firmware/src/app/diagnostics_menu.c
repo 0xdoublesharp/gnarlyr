@@ -93,35 +93,6 @@ static const char *profiler_value(const void *context)
     return i18n_text(STATES[hal_system_profile_state()]);
 }
 
-static char usb_sense_text[DIAGNOSTICS_VALUE_CAPACITY];
-
-static ScreenAction switch_usb_sense(void *context)
-{
-    (void)context;
-    hal_system_keep_usb_on(!hal_system_usb_sense().kept_on);
-    return screen_action_none();
-}
-
-static const char *usb_sense_value(const void *context)
-{
-    (void)context;
-    diagnostics_usb_sense_text(hal_system_usb_sense(), usb_sense_text, sizeof usb_sense_text);
-    return usb_sense_text;
-}
-
-static ScreenAction switch_usb_connect(void *context)
-{
-    (void)context;
-    hal_system_usb_connect(!hal_system_usb_sense().connecting);
-    return screen_action_none();
-}
-
-static const char *usb_connect_value(const void *context)
-{
-    (void)context;
-    return i18n_text(hal_system_usb_sense().connecting ? STR_ABOUT_LISTENING : STR_OFF);
-}
-
 typedef enum DiagnosticsContext {
     CONTEXT_NONE,
     CONTEXT_OPTIONS,
@@ -152,11 +123,7 @@ static const DiagnosticsRow ROWS[DIAGNOSTICS_ITEM_COUNT] = {
     [10] = {STR_MUSIC, NULL, diagnostics_row_music, CONTEXT_NONE, false},
     [11] = {STR_ABOUT_HEADSET, NULL, diagnostics_row_headset, CONTEXT_NONE, false},
     [12] = {STR_ABOUT_CORE_BUSY, NULL, diagnostics_row_core0_busy, CONTEXT_NONE, false},
-    [13] = {STR_ABOUT_DAC_A, NULL, diagnostics_row_dac_a, CONTEXT_NONE, false},
-    [14] = {STR_ABOUT_DAC_B, NULL, diagnostics_row_dac_b, CONTEXT_NONE, false},
-    [15] = {STR_ABOUT_PROFILER, switch_profiler, profiler_value, CONTEXT_NONE, false},
-    [16] = {STR_ABOUT_USB_SENSE, switch_usb_sense, usb_sense_value, CONTEXT_NONE, false},
-    [17] = {STR_ABOUT_CONNECT_USB, switch_usb_connect, usb_connect_value, CONTEXT_NONE, false},
+    [13] = {STR_ABOUT_PROFILER, switch_profiler, profiler_value, CONTEXT_NONE, false},
 };
 
 static void options_init(AppScreens *screens)
