@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include <stdbool.h>
+
 #include "library/library.h"
 #include "memory_source.h"
 
@@ -25,3 +27,4 @@ const uint8_t *fixture_bytes(uint32_t *size);
 const uint8_t *fixture_covers_bytes(uint32_t *size);
 Library *fixture_library_open(FixtureLibrary *fixture);
 Library *fixture_cue_library_open(FixtureLibrary *fixture);
+bool fixture_library_identify(Library *library);

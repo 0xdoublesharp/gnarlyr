@@ -64,7 +64,7 @@ echo_add_unit_test(NAME test_rocker SOURCES settings/test_rocker.c LIBRARIES ech
 echo_add_unit_test(NAME test_equalizer_fit SOURCES settings/test_equalizer_fit.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_equalizer_slots SOURCES settings/test_equalizer_slots.c LIBRARIES echo_settings)
 
-foreach(library_test block_cache library library_browse favorites covers sort_key track_fields playlist_reader cue_sheet music_fingerprint)
+foreach(library_test block_cache library library_content library_browse favorites covers sort_key track_fields playlist_reader cue_sheet music_fingerprint)
     echo_add_unit_test(NAME test_${library_test}
         SOURCES library/test_${library_test}.c
         LIBRARIES echo_library_fixtures

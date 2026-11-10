@@ -1,5 +1,7 @@
 #include "fixture_library.h"
 
+#include "library/library_content.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -62,4 +64,13 @@ Library *fixture_cue_library_open(FixtureLibrary *fixture)
     static uint8_t cue_data[FIXTURE_CAPACITY];
     uint32_t size = load_fixture(ECHO_FIXTURE_DIR "/cue_music.db", cue_data, sizeof cue_data);
     return open_bytes(fixture, cue_data, size);
+}
+
+bool fixture_library_identify(Library *library)
+{
+    LibraryContent job;
+    library_content_begin(&job, library);
+    while (library_content_step(&job) == LIBRARY_CONTENT_WORKING) {
+    }
+    return job.state == LIBRARY_CONTENT_READY;
 }

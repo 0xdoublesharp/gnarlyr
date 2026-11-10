@@ -58,6 +58,8 @@ typedef struct Library {
     ByteSource source;
     LibrarySectionInfo sections[LIBRARY_SECTION_COUNT];
     const LibraryExtraPlaylist *extra;
+    uint32_t content_fingerprint;
+    bool content_known;
 } Library;
 
 typedef struct LibraryTrack {
