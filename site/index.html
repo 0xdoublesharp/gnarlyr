@@ -36,13 +36,14 @@
     .wrap { width: min(1120px, calc(100% - 96px)); margin-inline: auto; }
     .skip { position: absolute; z-index: 10; top: -80px; left: 16px; padding: 8px 18px; color: var(--ink); background: var(--mint); }
     .skip:focus { top: 16px; }
+    .skip:hover { color: var(--ink); }
     .header { min-height: 96px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--line); }
     .brand { display: inline-flex; gap: 10px; align-items: center; text-decoration: none; }
     .brand svg { width: 30px; height: 24px; color: var(--pink); }
     .wordmark { font-size: 25px; font-weight: 900; font-style: italic; letter-spacing: -1.4px; }
     .brand-dot { color: var(--pink); }
     nav { display: flex; align-items: center; gap: 30px; font-size: 13px; font-weight: 600; }
-    nav a { text-decoration: none; }
+    nav a { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; text-decoration: none; }
     nav .nav-cta { padding: 9px 16px; border: 1px solid #8b6d91; }
     .hero { position: relative; isolation: isolate; overflow: hidden; }
     .hero::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(ellipse at 82% 48%, #64265755, transparent 55%); }
@@ -58,10 +59,11 @@
     .button { display: inline-flex; justify-content: center; align-items: center; gap: 24px; padding: 13px 20px; border: 1px solid var(--pink); background: var(--pink); color: var(--ink); text-decoration: none; font-size: 13px; font-weight: 800; transition: box-shadow .18s, transform .18s; }
     .button:hover { background: #ffb4d7; color: var(--ink); transform: translate(-2px, -2px); box-shadow: 4px 4px 0 #75517d; }
     .text-link { font-size: 12px; font-weight: 600; }
+    .nowrap { white-space: nowrap; }
     .hero-note { margin-top: 20px; color: #a99bb9; font: 10px/1.6 var(--mono); }
     .art { position: relative; min-width: 0; aspect-ratio: 1.04; display: grid; align-items: center; }
     .art svg { position: relative; width: 116%; max-width: none; margin-left: -6%; overflow: visible; }
-    .art-note { position: absolute; bottom: 1%; left: 15%; right: 0; text-align: center; color: #c2a2cc; font: 9px/1.5 var(--mono); letter-spacing: 2px; text-transform: uppercase; }
+    .art-note { position: absolute; bottom: -12px; left: 15%; right: 0; text-align: center; color: #c2a2cc; font: 9px/1.5 var(--mono); letter-spacing: 2px; text-transform: uppercase; }
     .format-strip { border-block: 1px solid #704567; background: #22142d; }
     .format-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; padding-block: 18px; font: 10px/1.4 var(--mono); letter-spacing: 1.2px; text-transform: uppercase; color: #d7c5de; }
     .format-inner b { font-weight: 400; color: var(--mint); }
@@ -75,13 +77,13 @@
     .feature { padding-block: 22px 24px; border-top: 1px solid var(--line); }
     .feature-num { display: block; margin-bottom: 10px; font: 10px/1 var(--mono); color: var(--mint); }
     h3 { margin-bottom: 7px; font-size: 17px; letter-spacing: -.4px; line-height: 1.45; }
-    .feature p { font-size: 13px; line-height: 1.8; color: var(--muted); }
+    .feature p { font-size: 14px; line-height: 1.75; color: var(--muted); }
     .compatibility { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 20px; margin-top: 15px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
     .compatibility strong { color: var(--mint); font-weight: 600; }
     .get { border-block: 1px solid var(--line); background: #20162c; }
     .get-inner { display: grid; grid-template-columns: .9fr 1.1fr; gap: 68px; align-items: start; }
     .get-inner > * { min-width: 0; }
-    .get-copy > p { margin-top: 17px; color: var(--muted); font-size: 13px; }
+    .get-copy > p { margin-top: 17px; color: var(--muted); font-size: 14px; }
     .preview-tag { display: inline-block; padding: 4px 9px; margin-bottom: 18px; border: 1px solid #6e5067; color: #ffc0d8; font: 9px/1.4 var(--mono); text-transform: uppercase; letter-spacing: 1px; }
     .get-copy .text-link { display: inline-block; margin-top: 22px; }
     .terminal { min-width: 0; border: 1px solid #a184ad; box-shadow: 7px 7px 0 #402b4d; background: #130f1e; }
@@ -90,27 +92,27 @@
     .terminal-dots i { display: block; width: 6px; height: 6px; border: 1px solid #b49cbe; }
     .terminal-body { padding: 23px; }
     .terminal-label { color: #ad9bb9; font: 10px/1.6 var(--mono); }
-    pre { max-width: 100%; overflow-x: auto; margin: 14px 0 20px; font: 11px/2 var(--mono); color: var(--mint); tab-size: 2; }
+    pre { max-width: 100%; margin: 14px 0 20px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.9 var(--mono); color: var(--mint); tab-size: 2; }
     code { font-family: var(--mono); font-size: .91em; overflow-wrap: anywhere; }
-    pre code { font-size: inherit; overflow-wrap: normal; }
+    pre code { font-size: inherit; overflow-wrap: inherit; }
     .terminal-output { padding-top: 16px; border-top: 1px dashed #493650; font: 10px/1.8 var(--mono); color: #e6cde4; overflow-wrap: anywhere; }
-    .prereqs { margin-top: 15px; font-size: 11px; line-height: 1.8; color: var(--muted); }
+    .prereqs { margin-top: 15px; font-size: 12px; line-height: 1.8; color: var(--muted); }
     .prereqs a { color: var(--paper); }
     .install .section-head { margin-bottom: 26px; }
-    .before { margin-bottom: 30px; border-left: 2px solid var(--pink); padding: 4px 0 4px 16px; color: var(--muted); font-size: 12px; }
+    .before { margin-bottom: 30px; border-left: 2px solid var(--pink); padding: 4px 0 4px 16px; color: var(--muted); font-size: 13px; }
     .before strong { color: var(--paper); }
     .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 38px; list-style: none; padding: 0; margin: 0; counter-reset: steps; }
     .steps li { counter-increment: steps; border-top: 1px solid var(--line); padding-top: 20px; }
     .steps li::before { content: "0" counter(steps) " /"; display: block; margin-bottom: 12px; color: var(--pink); font: 12px/1.4 var(--mono); }
-    .steps p { font-size: 12px; color: var(--muted); line-height: 1.9; }
-    .install-note { margin-top: 24px; color: var(--muted); font-size: 12px; }
+    .steps p { font-size: 13px; color: var(--muted); line-height: 1.8; }
+    .install-note { margin-top: 24px; color: var(--muted); font-size: 13px; }
     .faq { margin-top: 38px; border-top: 1px solid var(--line); }
     details { border-bottom: 1px solid var(--line); }
     summary { position: relative; padding: 18px 35px 18px 0; list-style: none; cursor: pointer; font-size: 13px; font-weight: 600; }
     summary::-webkit-details-marker { display: none; }
     summary::after { position: absolute; right: 3px; top: 16px; content: "+"; color: var(--mint); font: 20px/1 var(--mono); }
     details[open] summary::after { content: "−"; }
-    .answer { max-width: 790px; padding: 0 28px 22px 0; font-size: 12px; line-height: 1.9; color: var(--muted); }
+    .answer { max-width: 790px; padding: 0 28px 22px 0; font-size: 13px; line-height: 1.8; color: var(--muted); }
     .answer strong { color: var(--paper); }
     .answer ul { margin: 12px 0 0; padding-left: 20px; }
     .answer pre { padding: 14px; background: #23182e; border: 1px solid var(--line); }
@@ -147,7 +149,7 @@
       .hero-note { font-size: 9px; margin-top: 17px; }
       .art { width: min(440px, 100%); margin: 6px auto 0; aspect-ratio: 1.3; }
       .art svg { width: 105%; margin-left: -3%; }
-      .art-note { bottom: -2%; left: 0; font-size: 8px; }
+      .art-note { left: 0; font-size: 8px; }
       .format-inner { justify-content: center; gap: 12px 18px; padding-block: 14px; font-size: 9px; }
       .format-inner .star { display: none; }
       .section { padding-block: 48px; }
@@ -156,13 +158,13 @@
       h2 { font-size: 32px; letter-spacing: -1px; }
       .feature-list { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
       .feature { padding-block: 20px; }
-      .feature p { font-size: 12px; line-height: 1.8; }
+      .feature p { font-size: 13px; line-height: 1.75; }
       h3 { font-size: 16px; }
       .compatibility { gap: 6px; display: block; font-size: 11px; }
       .compatibility span { display: block; margin-top: 5px; }
       .get-inner { grid-template-columns: 1fr; gap: 28px; }
       .terminal-body { padding: 20px 16px; }
-      .terminal pre { font-size: 10px; }
+      .terminal pre { font-size: 11px; }
       .steps { grid-template-columns: 1fr; gap: 23px; }
       .steps li { position: relative; padding-left: 48px; padding-top: 17px; }
       .steps li::before { position: absolute; top: 21px; left: 0; }
@@ -195,7 +197,7 @@
     <nav aria-label="Main navigation">
       <a href="#features">Features</a>
       <a href="#install">Install</a>
-      <a class="nav-cta" href="#get">Get firmware <span aria-hidden="true">↗</span></a>
+      <a class="nav-cta" href="#get" aria-label="Build firmware">Build <span aria-hidden="true">↗</span></a>
     </nav>
   </header>
 
@@ -207,8 +209,8 @@
           <h1 id="hero-title"><span>Your ECHO.</span><span class="gnarly">Remixed.</span></h1>
           <p class="hero-copy">A fresh spin on your Snowsky ECHO. Cassette soul, a queue you control, and mixtapes worth keeping.</p>
           <div class="actions">
-            <a class="button" href="#get">Get the firmware <span aria-hidden="true">↗</span></a>
-            <a class="text-link" href="#features">Take a look around <span aria-hidden="true">↓</span></a>
+            <a class="button" href="#get">Build firmware <span aria-hidden="true">↗</span></a>
+            <a class="text-link" href="#features">Explore the features <span aria-hidden="true">↓</span></a>
           </div>
           <p class="hero-note">Free &amp; open source. Built for listening, offline.</p>
         </div>
@@ -277,15 +279,14 @@
     <section class="section wrap" id="features" aria-labelledby="features-title">
       <div class="section-head">
         <div><p class="eyebrow">01 / The good stuff</p><h2 id="features-title">Small player. Bigger personality.</h2></div>
-        <p class="section-side">Your own music, with more ways to make it yours.</p>
       </div>
       <div class="feature-list">
-        <article class="feature"><span class="feature-num">[ 01 ]</span><h3>A cassette state of mind</h3><p>Album art, cassette-inspired menus, moving tape reels, and a playback counter. A little analog character for your digital collection.</p></article>
-        <article class="feature"><span class="feature-num">[ 02 ]</span><h3>Make an actual mixtape</h3><p>Save, name, load, and edit up to 32 mixes. Keep your song order and duplicates, even after a library rescan.</p></article>
-        <article class="feature"><span class="feature-num">[ 03 ]</span><h3>Take over Up Next</h3><p>Reorder, remove, add, or play a song next. Edit album and shuffle queues, then pick up your saved session after a restart.</p></article>
-        <article class="feature"><span class="feature-num">[ 04 ]</span><h3>Buttons, your way</h3><p>Choose eight tap-and-hold assignments across Volume ±, Play, and Menu. Playback shortcuts work with the screen off.</p></article>
-        <article class="feature"><span class="feature-num">[ 05 ]</span><h3>Bring your whole library</h3><p>Browse albums and Cover Flow, use M3U/M3U8 playlists, and split album images with CUE sheets. Build artwork and the library on the player.</p></article>
-        <article class="feature"><span class="feature-num">[ 06 ]</span><h3>Keep it personal</h3><p>Album favorites, audiobook and podcast bookmarks, and saved settings. Use a FAT32 or exFAT microSD card, or internal storage without a card.</p></article>
+        <article class="feature"><span class="feature-num" aria-hidden="true">[ 01 ]</span><h3>A cassette state of mind</h3><p>Album art, cassette menus, animated reels, and a playback counter bring analog character to your collection.</p></article>
+        <article class="feature"><span class="feature-num" aria-hidden="true">[ 02 ]</span><h3>Make a mixtape</h3><p>Save, name, and edit up to 32 mixes. Keep your song order and duplicates through library rescans.</p></article>
+        <article class="feature"><span class="feature-num" aria-hidden="true">[ 03 ]</span><h3>Take over Up Next</h3><p>Add, move, or remove songs in album and shuffle queues. Choose Play Next, then resume your saved session after a restart.</p></article>
+        <article class="feature"><span class="feature-num" aria-hidden="true">[ 04 ]</span><h3>Buttons, your way</h3><p>Set separate tap and hold actions for Volume ±, Play, and Menu. Use playback shortcuts with the screen off.</p></article>
+        <article class="feature"><span class="feature-num" aria-hidden="true">[ 05 ]</span><h3>Bring your whole library</h3><p>Browse albums and Cover Flow, import M3U/M3U8 playlists, and split CUE album images into tracks. Build covers on the player.</p></article>
+        <article class="feature"><span class="feature-num" aria-hidden="true">[ 06 ]</span><h3>Keep it personal</h3><p>Keep album favorites, audiobook and podcast bookmarks, and your settings. Play from a FAT32 or exFAT microSD card, or internal storage.</p></article>
       </div>
       <div class="compatibility"><strong>Made for the full-size ECHO.</strong><span>4 GB / 8 GB family · 480 × 222 display</span></div>
     </section>
@@ -295,10 +296,9 @@
         <div class="get-copy">
           <p class="eyebrow">02 / Press play on something new</p>
           <span class="preview-tag">Build from source</span>
-          <h2 id="get-title">A new side<br>to your ECHO.</h2>
-          <p>Build Gnarlyr from the SnowskyEcho source with the project tools.</p>
-          <p>The release build produces <code>ECHOV455.IMG</code>. Calculate its SHA-256, then follow the install steps below.</p>
-          <a class="text-link" href="#install">Read the install steps first <span aria-hidden="true">↘</span></a>
+          <h2 id="get-title">Make it Gnarlyr.</h2>
+          <p>Build the firmware from your SnowskyEcho checkout, then install it over USB. The commands below create <code>ECHOV455.IMG</code> and calculate its <span class="nowrap">SHA-256</span>.</p>
+          <a class="text-link" href="#install">View install steps <span aria-hidden="true">↓</span></a>
         </div>
         <div>
           <div class="terminal">
@@ -312,20 +312,20 @@ build/custom-firmware/release/ECHOV455.IMG</code></pre>
               <p class="terminal-output">OUTPUT ↳ ECHOV455.IMG<br>/Volumes/Scratch/SnowskyEcho/build/<br>custom-firmware/release/</p>
             </div>
           </div>
-          <p class="prereqs">Requires the source checkout, mounted Scratch volume, Python 3.14, CMake, Clang/clang-format, SDL2, FFmpeg, an Arm cross-compiler, and the firmware’s Python dependencies. See <a href="#build-help">build setup</a> for the project’s environment details.</p>
+          <p class="prereqs">Build tools: Python 3.14, CMake, Clang/clang-format, SDL2, FFmpeg, and an Arm cross-compiler. Follow <a href="#build-help">build setup</a> to prepare the Python dependencies and Scratch volume.</p>
         </div>
       </div>
     </section>
 
     <section class="section install wrap" id="install" aria-labelledby="install-title">
       <div class="section-head"><div><p class="eyebrow">03 / Flip the tape</p><h2 id="install-title">Build. Copy. Eject. Enjoy.</h2></div><p class="section-side">Install over USB in three steps.</p></div>
-      <p class="before"><strong>Before you install:</strong> back up your files, charge the battery, turn the volume down, and keep the <a href="#recovery">stock recovery image</a> handy.</p>
+      <p class="before"><strong>Before you start:</strong> back up your files, charge the ECHO, and turn the volume down. Keep the <a href="#recovery">stock recovery image</a> handy.</p>
       <ol class="steps">
-        <li><h3>Get the right image</h3><p>Build <code>ECHOV455.IMG</code> above. Record its SHA-256, then verify the copied file has the same hash.</p></li>
-        <li><h3>Copy to internal storage</h3><p>Connect the ECHO over USB. Copy the image to the top level of its internal drive, outside any folder. Remove other <code>ECHOVnnn.IMG</code> and <code>ECHOECHO.IMG</code> update files first.</p></li>
-        <li><h3>Eject and let it update</h3><p>Safely eject both drives, then unplug for the first install from stock. Leave the player powered while it updates. Let the first library and artwork scan finish before listening.</p></li>
+        <li><h3>Build the image</h3><p>Run the commands above to create <code>ECHOV455.IMG</code>. Keep its <span class="nowrap">SHA-256</span> to check the copy on your player.</p></li>
+        <li><h3>Copy over USB</h3><p>Copy the image to the top level of internal storage. Keep it as the only update file there, and verify its <span class="nowrap">SHA-256</span> matches your build.</p></li>
+        <li><h3>Eject and update</h3><p>For a first install from stock, eject both drives and unplug. Let the player finish updating and scanning your music before listening.</p></li>
       </ol>
-      <p class="install-note">Already running custom firmware? Eject both drives and wait for “Update installed” before unplugging and restarting with Power.</p>
+      <p class="install-note"><strong>Updating Gnarlyr:</strong> eject both drives and wait for “Update installed,” then unplug and restart with Power.</p>
 
       <div class="faq">
         <details><summary>Which music files and artwork can I use?</summary><div class="answer"><p>Play FLAC, MP3, WAV, AAC-LC, and ALAC in <code>.m4a</code> files. Browse your collection with album art, playlists, and CUE tracks.</p><p>Use embedded album art or a JPEG/PNG named <code>cover</code>, <code>folder</code>, <code>front</code>, or <code>albumart</code>. M3U/M3U8 playlists work alongside saved mixtapes. CUE sheets split single-file FLAC, WAV, and MP3 album images into individual tracks. Accented Latin and Cyrillic titles are supported.</p></div></details>
@@ -341,13 +341,17 @@ build/custom-firmware/release/ECHOV455.IMG</code></pre>
     <p>Built on Podium and EchoPod, with hardware research from ReChord.</p>
   </footer>
   <script>
-    function revealLinkedHelp() {
+    function revealLinkedHelp(hash = location.hash) {
       let id;
-      try { id = decodeURIComponent(location.hash.slice(1)); } catch { return; }
+      try { id = decodeURIComponent(hash.slice(1)); } catch { return; }
       const target = document.getElementById(id);
       if (target instanceof HTMLDetailsElement) target.open = true;
     }
-    window.addEventListener('hashchange', revealLinkedHelp);
+    window.addEventListener('hashchange', () => revealLinkedHelp());
+    document.addEventListener('click', (event) => {
+      const link = event.target instanceof Element ? event.target.closest('a[href^="#"]') : null;
+      if (link) revealLinkedHelp(link.hash);
+    });
     revealLinkedHelp();
   </script>
 </body>
