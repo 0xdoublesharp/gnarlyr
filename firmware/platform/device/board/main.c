@@ -211,7 +211,9 @@ static void sleep_until_interrupt(void)
 
 static void sleep_until_next_pass(void)
 {
-    uint32_t due_ms = hal_clock_milliseconds() + app_pass_interval_ms();
+    uint32_t interval_ms = app_pass_interval_ms();
+    hal_system_coast(interval_ms > 1);
+    uint32_t due_ms = hal_clock_milliseconds() + interval_ms;
     do {
         sleep_until_interrupt();
     } while (usb_plug.state != USB_PLUG_LISTENING &&

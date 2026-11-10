@@ -198,6 +198,7 @@ static Key oriented_key(HalKeyTransition transition)
 
 static void take_transition(HalKeyTransition transition)
 {
+    hal_system_coast(false);
     app.render_urgent = true;
     Key key = oriented_key(transition);
     switch (key_lock_transition(&app.lock, key, transition.pressed, transition.time_ms)) {

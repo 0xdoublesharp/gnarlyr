@@ -342,6 +342,26 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(written[:len(parked)], parked)
         self.assert_healthy(session)
 
+    def test_a_resting_screen_runs_core_0_at_half_speed_and_a_key_brings_full_speed_back(self):
+        session = self.session()
+        machine = session.machine
+        session.run_to_home_screen()
+        machine.run(until=lambda: machine.coast_log and machine.coast_log[-1][1] == 2,
+                    until_ms=machine.milliseconds() + 5000)
+        self.assertEqual(machine.coast_log[-1][1], 2)
+        self.assertEqual(machine.core_hz, 100_000_000)
+        coasting_since = machine.milliseconds()
+        machine.run(until_ms=coasting_since + 1500)
+        self.assertEqual(machine.milliseconds() - coasting_since, 1500)
+        frames = len(machine.panel.groups)
+        machine.press_key(KEY_NEXT, delay_ms=20, hold_ms=KEY_HOLD_MS)
+        machine.run(until=lambda: len(machine.panel.groups) > frames,
+                    until_ms=machine.milliseconds() + 1000)
+        self.assertGreater(len(machine.panel.groups), frames)
+        self.assertEqual(machine.coast_log[-1][1], 1)
+        self.assertEqual(machine.core_hz, 200_000_000)
+        self.assert_healthy(session)
+
     def test_backlight_runs_at_25_khz_and_only_after_the_first_frame(self):
         session = self.session()
         session.run_to_home_screen()

@@ -147,6 +147,7 @@ class Machine:
         self.usb_connect_count = 0
         self.usb_log = []
         self.register_log = []
+        self.coast_log = []
         self.host_stays = False
         self.host_absent = False
         self.usb_pulled_up = False
@@ -211,6 +212,7 @@ class Machine:
             if 0 in (fbdiv, postdiv1, refdiv, postdiv2):
                 return
             hz = CRYSTAL_HZ // refdiv * fbdiv // postdiv1 // postdiv2
+            hz //= (cru.get(devices.CRU_CLOCK_SELECT, 0) & devices.CORE_DIVIDER_MASK) + 1
         self.set_core_hz(hz)
         self.systick.restart()
 

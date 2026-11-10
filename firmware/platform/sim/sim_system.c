@@ -49,6 +49,11 @@ bool hal_system_set_clock_mhz(uint32_t mhz)
     return true;
 }
 
+void hal_system_coast(bool coast)
+{
+    (void)coast;
+}
+
 bool hal_system_restart_pending(void)
 {
     return false;

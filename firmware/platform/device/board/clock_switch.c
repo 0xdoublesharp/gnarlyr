@@ -32,16 +32,20 @@
 #define PCLK_UNDIVIDED 0x03000000u
 #define CORE_SPEED_SLOW 0x30400000u
 #define BUS_SPEED_SLOW 0xC0000000u
+#define CORE_DIVIDER_FIELD 0x00070000u
 
 enum {
     CRYSTAL_MHZ = 24,
     HZ_PER_MHZ = 1000000,
     LOCK_TIMEOUT_MS = 200,
     DIVIDER_SETTLE_US = 10,
-    USB_LOWEST_MHZ = 96
+    USB_LOWEST_MHZ = 96,
+    COAST_FROM_MHZ = 200,
+    COAST_DIVIDER = 2
 };
 
 static uint32_t current_mhz;
+static bool coasting;
 static HalBootClocks boot_clocks;
 
 static void leave_pll(void)
@@ -176,8 +180,23 @@ static bool switch_clock(uint32_t mhz)
     return run_from_pll(mhz);
 }
 
+void hal_system_coast(bool coast)
+{
+    bool wanted = coast && current_mhz == COAST_FROM_MHZ && !board_usb_listening();
+    if (wanted == coasting) {
+        return;
+    }
+    uint32_t divider = wanted ? COAST_DIVIDER : 1;
+    uint32_t primask = irq_save();
+    register_write(CRU_CLOCK_SELECT, CORE_DIVIDER_FIELD | (divider - 1u));
+    board_clock_set_rate(current_mhz / divider);
+    coasting = wanted;
+    irq_restore(primask);
+}
+
 bool hal_system_set_clock_mhz(uint32_t mhz)
 {
+    hal_system_coast(false);
     if (board_usb_listening() && mhz < USB_LOWEST_MHZ) {
         mhz = USB_LOWEST_MHZ;
     }

@@ -4,6 +4,8 @@ GPIO_INPUT_LEVEL = 0x50
 
 CRU_PLL_CON1 = 0x04
 CRU_MODE = 0x10
+CRU_CLOCK_SELECT = 0x14
+CORE_DIVIDER_MASK = 0x0007
 CRU_PCLK_SELECT = 0x18
 PLL_LOCKED = 0x400
 
@@ -155,8 +157,12 @@ class Cru(RegisterFile):
 
     def write_word(self, offset, value):
         super().write_word(offset, value)
+        if offset == CRU_CLOCK_SELECT and value >> 16 == CORE_DIVIDER_MASK:
+            self.machine.coast_log.append((self.machine.milliseconds(), (value & 7) + 1))
+            self.machine.clock_changed()
+            return
         self.machine.register_log.append(("cru", offset, value))
-        if offset in (CRU_MODE, CRU_PCLK_SELECT, 0x00, CRU_PLL_CON1):
+        if offset in (CRU_MODE, CRU_PCLK_SELECT, CRU_CLOCK_SELECT, 0x00, CRU_PLL_CON1):
             self.machine.clock_changed()
 
 

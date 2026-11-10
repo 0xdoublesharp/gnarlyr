@@ -239,6 +239,11 @@ bool hal_system_set_clock_mhz(uint32_t mhz)
     return true;
 }
 
+void hal_system_coast(bool coast)
+{
+    (void)coast;
+}
+
 void fake_hal_add_file(const char *path, const uint8_t *bytes, uint32_t size)
 {
     fake.files[fake.file_count++] =
