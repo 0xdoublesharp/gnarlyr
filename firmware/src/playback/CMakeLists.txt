@@ -1,5 +1,6 @@
 add_library(echo_playback STATIC
     bookmarks.c
+    listening_export.c
     listening_log.c
     mix_catalog.c
     mix_identity.c

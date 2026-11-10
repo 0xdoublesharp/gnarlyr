@@ -90,6 +90,28 @@ ListeningPlay listening_fixture_dated(uint8_t song, uint32_t day, uint32_t secon
     return play;
 }
 
+static bool find_text(void *context, const ListeningTrack *track, ListeningText *text)
+{
+    (void)context;
+    for (int song = 0; song < LISTENING_FIXTURE_SONGS; song++) {
+        const Song *source = &SONGS[song];
+        if (source->track.key == track->key && source->track.index == track->index) {
+            strcpy(text->artist, source->artist);
+            strcpy(text->album, source->album);
+            strcpy(text->title, source->title);
+            strcpy(text->recording, source->recording);
+            text->number = source->number;
+            return true;
+        }
+    }
+    return false;
+}
+
+ListeningLookup listening_fixture_lookup(void)
+{
+    return (ListeningLookup){.text = find_text};
+}
+
 static void see(void *context, const ListeningRecord *record)
 {
     ListeningSeen *seen = context;

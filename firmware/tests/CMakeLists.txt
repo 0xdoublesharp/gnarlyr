@@ -82,7 +82,7 @@ foreach(playback_test play_queue resume_state up_next bookmarks spoken store tra
     )
 endforeach()
 
-foreach(listening_test listening_log)
+foreach(listening_test listening_log listening_export)
     echo_add_unit_test(NAME test_${listening_test}
         SOURCES playback/test_${listening_test}.c playback/listening_fixture.c
         LIBRARIES echo_playback

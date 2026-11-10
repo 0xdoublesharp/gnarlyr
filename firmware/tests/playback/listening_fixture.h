@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "playback/listening_export.h"
 #include "playback/listening_log.h"
 
 enum {
@@ -37,4 +38,5 @@ StoreFile listening_disk_file(ListeningDisk *disk, uint32_t size);
 ListeningLogConfig listening_disk_config(ListeningDisk *disk);
 ListeningPlay listening_fixture_play(uint8_t song, uint32_t listened_ms);
 ListeningPlay listening_fixture_dated(uint8_t song, uint32_t day, uint32_t second);
+ListeningLookup listening_fixture_lookup(void);
 uint16_t listening_fixture_read_all(const ListeningLog *log, ListeningSeen *seen);
