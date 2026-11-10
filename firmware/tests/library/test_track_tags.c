@@ -754,9 +754,137 @@ static void malformed_vorbis_entries_do_not_read_the_next_block(void)
     CHECK_EQUAL(0, strcmp("", tags.text[TAG_ARTIST]));
 }
 
+typedef struct Mp4TagFixture {
+    uint8_t bytes[2048];
+    uint32_t length;
+} Mp4TagFixture;
+
+static void mp4_put32(uint8_t *bytes, uint32_t value)
+{
+    bytes[0] = (uint8_t)(value >> 24);
+    bytes[1] = (uint8_t)(value >> 16);
+    bytes[2] = (uint8_t)(value >> 8);
+    bytes[3] = (uint8_t)value;
+}
+
+static uint32_t mp4_open_atom(Mp4TagFixture *file, const char *type)
+{
+    uint32_t start = file->length;
+    memcpy(file->bytes + start + 4, type, 4);
+    file->length += 8;
+    return start;
+}
+
+static void mp4_close_atom(Mp4TagFixture *file, uint32_t start)
+{
+    mp4_put32(file->bytes + start, file->length - start);
+}
+
+static void mp4_item(Mp4TagFixture *file, const char *type, const uint8_t *value, uint32_t length)
+{
+    uint32_t item = mp4_open_atom(file, type);
+    uint32_t data = mp4_open_atom(file, "data");
+    file->length += 8;
+    memcpy(file->bytes + file->length, value, length);
+    file->length += length;
+    mp4_close_atom(file, data);
+    mp4_close_atom(file, item);
+}
+
+static bool mp4_tags(Mp4TagFixture *file, TrackTags *tags)
+{
+    MemorySource source = {.bytes = file->bytes, .size = file->length};
+    return track_tags_read(memory_source(&source), file->length, TAG_FORMAT_MP4, tags);
+}
+
+static void mp4_tags_read_numeric_tracks_genre_fallback_and_art(void)
+{
+    Mp4TagFixture file = {0};
+    uint32_t moov = mp4_open_atom(&file, "moov");
+    uint32_t udta = mp4_open_atom(&file, "udta");
+    uint32_t meta = mp4_open_atom(&file, "meta");
+    file.length += 4;
+    uint32_t ilst = mp4_open_atom(&file, "ilst");
+    static const uint8_t title[] = {'S', 'o', 'n', 'g'};
+    static const uint8_t track[] = {0, 0, 0, 12, 0, 0};
+    static const uint8_t disc[] = {0, 0, 0, 2, 0, 0};
+    static const uint8_t genre[] = {0, 18};
+    static const uint8_t cover[] = {0xff, 0xd8, 0xff, 0xd9};
+    mp4_item(&file, "\xa9nam", title, sizeof title);
+    mp4_item(&file, "trkn", track, sizeof track);
+    mp4_item(&file, "disk", disc, sizeof disc);
+    mp4_item(&file, "gnre", genre, sizeof genre);
+    mp4_item(&file, "covr", cover, sizeof cover);
+    mp4_close_atom(&file, ilst);
+    mp4_close_atom(&file, meta);
+    mp4_close_atom(&file, udta);
+    mp4_close_atom(&file, moov);
+    TrackTags tags;
+    CHECK(mp4_tags(&file, &tags));
+    CHECK_EQUAL(0, strcmp("Song", tags.text[TAG_TITLE]));
+    CHECK_EQUAL(0, strcmp("12", tags.text[TAG_TRACK]));
+    CHECK_EQUAL(0, strcmp("2", tags.text[TAG_DISC]));
+    CHECK_EQUAL(0, strcmp("Rock", tags.text[TAG_GENRE]));
+    CHECK_EQUAL(TAG_PICTURE_RAW, tags.picture.kind);
+    CHECK(tags.picture.front);
+    CHECK_EQUAL(4, tags.picture.length);
+    CHECK_EQUAL(0xff, file.bytes[tags.picture.offset]);
+}
+
+static Mp4TagFixture mp4_duration_file(uint8_t version, uint32_t length)
+{
+    Mp4TagFixture file = {0};
+    uint32_t moov = mp4_open_atom(&file, "moov");
+    uint32_t trak = mp4_open_atom(&file, "trak");
+    uint32_t mdia = mp4_open_atom(&file, "mdia");
+    uint32_t hdlr = mp4_open_atom(&file, "hdlr");
+    memcpy(file.bytes + file.length + 8, "soun", 4);
+    file.length += 12;
+    mp4_close_atom(&file, hdlr);
+    uint32_t mdhd = mp4_open_atom(&file, "mdhd");
+    uint8_t *body = file.bytes + file.length;
+    body[0] = version;
+    if (version == 0 && length >= 20) {
+        mp4_put32(body + 12, 1000);
+        mp4_put32(body + 16, 2000);
+    } else if (version == 1 && length >= 32) {
+        mp4_put32(body + 20, 1000);
+        mp4_put32(body + 28, 2000);
+    }
+    file.length += length;
+    mp4_close_atom(&file, mdhd);
+    mp4_close_atom(&file, mdia);
+    mp4_close_atom(&file, trak);
+    mp4_close_atom(&file, moov);
+    return file;
+}
+
+static void mp4_duration_requires_a_complete_versioned_header(void)
+{
+    TrackTags tags;
+    for (uint32_t length = 0; length < 20; length++) {
+        Mp4TagFixture file = mp4_duration_file(0, length);
+        CHECK(mp4_tags(&file, &tags));
+        CHECK_EQUAL(0, tags.duration_ms);
+    }
+    for (uint32_t length = 1; length < 32; length++) {
+        Mp4TagFixture file = mp4_duration_file(1, length);
+        CHECK(mp4_tags(&file, &tags));
+        CHECK_EQUAL(0, tags.duration_ms);
+    }
+    Mp4TagFixture version0 = mp4_duration_file(0, 20);
+    CHECK(mp4_tags(&version0, &tags));
+    CHECK_EQUAL(2000, tags.duration_ms);
+    Mp4TagFixture version1 = mp4_duration_file(1, 32);
+    CHECK(mp4_tags(&version1, &tags));
+    CHECK_EQUAL(2000, tags.duration_ms);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(mp4_tags_read_numeric_tracks_genre_fallback_and_art),
+        TEST_CASE(mp4_duration_requires_a_complete_versioned_header),
         TEST_CASE(every_tagged_format_reads_its_fields_duration_and_cover),
         TEST_CASE(an_mp3_with_only_id3v1_and_no_xing_header_still_reads),
         TEST_CASE(an_untagged_flac_has_empty_fields_and_its_duration),
