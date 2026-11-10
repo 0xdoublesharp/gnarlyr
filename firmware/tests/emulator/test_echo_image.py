@@ -1203,7 +1203,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(report["values"]["script.state"], "none")
         self.assertEqual(report["values"]["usb.last_end"], "ejected")
         self.assertEqual(report["script"],
-                         {"lines": [], "measures": [], "screenshots": [], "probes": []})
+                         {"lines": [], "measures": [], "screenshots": [], "probes": [], "soaks": []})
         self.assertEqual(session.fat().list("/" + DEBUG_FOLDER), ["report0.txt"])
         self.assertEqual(machine.reached["debug_script_take"], 2)
         self.assert_only_the_user_volume_changed(session)
