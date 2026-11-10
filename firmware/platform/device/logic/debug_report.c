@@ -67,7 +67,7 @@ static const char *const REASON_NAMES[DEBUG_REPORT_REASON_COUNT] = {
     [DEBUG_REPORT_RESTART] = "restart",
     [DEBUG_REPORT_NO_HOST] = "no_host",
 };
-static const char *const CONNECT_NAMES[] = {"none", "waiting", "answered", "no_host"};
+static const char *const CONNECT_NAMES[] = {"none", "waiting", "answered", "no_host", "cancelled"};
 static const char SCHEMA_KEY[] = "debug_report";
 static const char SEQUENCE_KEY[] = "report.sequence";
 static const char COLD_KEY[] = "report.cold_start";

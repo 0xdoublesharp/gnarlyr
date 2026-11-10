@@ -147,6 +147,11 @@ void hal_system_usb_reconnect(void)
 {
 }
 
+void hal_system_usb_connect(bool on)
+{
+    (void)on;
+}
+
 void hal_system_save_report(uint32_t reason)
 {
     (void)reason;

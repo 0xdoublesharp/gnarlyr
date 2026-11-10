@@ -81,10 +81,12 @@ CODE_WINDOW_BYTES = 0x2666C
 PROFILE_BUCKET_BYTES = 128
 KEY_NEXT = 100
 KEY_PLAY = 250
+KEY_BACK = 500
 KEY_HOLD_MS = 150
 KEY_SETTLE_MS = 350
 ABOUT_PROFILER_ROW = 15
 ABOUT_USB_SENSE_ROW = 16
+ABOUT_CONNECT_USB_ROW = 17
 USB_POWER_DOWN = [("grf", 0xB4, 0x00010001), ("grf", 0xB4, 0x000E0004), ("grf", 0xB8, 0x00010001),
                   ("grf", 0x98, 0x00040000), ("cru", 0xC0, 0x00020002), ("cru", 0xC0, 0x00040004),
                   ("cru", 0xC0, 0x00010001), ("cru", 0x80, 0x00800080), ("cru", 0x98, 0x04000400)]
@@ -1104,6 +1106,44 @@ class EchoImageTest(unittest.TestCase):
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
         self.print_usb_log("reconnect without the cable bit", machine)
+
+    def test_connect_usb_serves_a_host_without_the_cable_bit_and_back_stops_listening(self):
+        session, machine = self.ejecting_session(self.debug_volume(), notes=("usb_power_down",))
+        machine.cable_bit_dead = True
+        session.run_to_home_screen()
+        machine.run(until_ms=machine.milliseconds() + 3000)
+        self.assertEqual(machine.usb_log, [])
+        for key in [KEY_NEXT, KEY_PLAY, KEY_PLAY] + [KEY_NEXT] * ABOUT_CONNECT_USB_ROW:
+            self.press(machine, key)
+        pressed_ms = machine.milliseconds()
+        self.press(machine, KEY_PLAY)
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertGreaterEqual(self.log_time(machine, "pull-up on"), pressed_ms + CABLE_STEADY_MS)
+        values = self.read_report(session)["values"]
+        self.assertEqual((values["report.reason"], values["usb.grf_e8"], values["usb.b_session"]),
+                         ("usb_session", 0, 1))
+        self.assertEqual((values["loop.connect_attempts"], values["loop.connect_answered"],
+                          values["loop.last_connect"], values["loop.cable_bit_at_connect"]),
+                         (1, 1, "answered", 0))
+        machine.run(until=lambda: machine.usb_log[-1][1] == "soft disconnect",
+                    until_ms=machine.milliseconds() + 1000)
+        self.assertEqual(machine.usb_log[-2][1], "host ejects")
+        machine.host_absent = True
+        downs = machine.reached["usb_power_down"]
+        machine.run(until_ms=machine.milliseconds() + RECONNECT_OFF_MS)
+        self.press(machine, KEY_PLAY)
+        machine.run(until_ms=machine.milliseconds() + CHARGER_MS)
+        self.assertEqual((machine.usb_connect_count, machine.usb_log[-1][1]), (2, "pull-up on"))
+        self.assertEqual(machine.reached["usb_power_down"], downs)
+        self.press(machine, KEY_BACK)
+        self.assertEqual(machine.reached["usb_power_down"], downs + 1)
+        self.assertEqual(machine.usb_log[-1][1], "soft disconnect")
+        self.assertEqual(len(self.reports(session)), 1)
+        machine.run(until_ms=machine.milliseconds() + QUIET_AFTER_MS)
+        self.assertEqual(machine.usb_connect_count, 2)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+        self.print_usb_log("Connect USB by hand", machine)
 
     def test_a_reconnect_nobody_answers_powers_usb_down_and_leaves_a_report(self):
         script = ("build %s\nreconnect\n" % self.build_tag()).encode("ascii")

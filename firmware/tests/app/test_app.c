@@ -74,6 +74,7 @@ enum {
     DIAGNOSTICS_POWER_TAPS_INDEX = 6,
     DIAGNOSTICS_PROFILER_INDEX = 15,
     DIAGNOSTICS_USB_SENSE_INDEX = 16,
+    DIAGNOSTICS_CONNECT_USB_INDEX = 17,
     DEBUG_FOLLOW_MS = 100,
     SCRIPT_STEP_MS = 8,
     CHARGE_DARK_MS = 6000,
@@ -3008,6 +3009,34 @@ static void the_usb_sense_row_shows_the_cable_live_and_play_keeps_usb_powered(vo
     CHECK(title_is("About"));
 }
 
+static void the_connect_usb_row_listens_for_a_host_until_back_is_pressed(void)
+{
+    start_app();
+    open_diagnostics_row(DIAGNOSTICS_CONNECT_USB_INDEX);
+    CHECK(strcmp("Off", app_diagnostics_value(DIAGNOSTICS_CONNECT_USB_INDEX)) == 0);
+    tap(KEY_PLAY);
+    CHECK(hal_system_usb_sense().connecting);
+    CHECK(strcmp("Listening", app_diagnostics_value(DIAGNOSTICS_CONNECT_USB_INDEX)) == 0);
+    CHECK(title_is("About"));
+    tap(KEY_VOLUME_UP);
+    tap(KEY_VOLUME_DOWN);
+    CHECK(title_is("About"));
+    CHECK(hal_system_usb_sense().connecting);
+    tap(KEY_BACK);
+    CHECK(!title_is("About"));
+    CHECK(!hal_system_usb_sense().connecting);
+}
+
+static void play_on_the_connect_usb_row_a_second_time_stops_listening(void)
+{
+    start_app();
+    open_diagnostics_row(DIAGNOSTICS_CONNECT_USB_INDEX);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    CHECK(!hal_system_usb_sense().connecting);
+    CHECK(strcmp("Off", app_diagnostics_value(DIAGNOSTICS_CONNECT_USB_INDEX)) == 0);
+}
+
 static void the_usb_sense_mode_is_normal_after_every_start(void)
 {
     start_app();
@@ -3800,6 +3829,8 @@ int main(void)
         TEST_CASE(each_step_records_its_duration),
         TEST_CASE(the_profiler_row_switches_sampling_and_restarts_a_full_profile),
         TEST_CASE(the_usb_sense_row_shows_the_cable_live_and_play_keeps_usb_powered),
+        TEST_CASE(the_connect_usb_row_listens_for_a_host_until_back_is_pressed),
+        TEST_CASE(play_on_the_connect_usb_row_a_second_time_stops_listening),
         TEST_CASE(the_usb_sense_mode_is_normal_after_every_start),
         TEST_CASE(a_key_gesture_is_logged_with_its_key_and_time),
         TEST_CASE(key_repeats_are_left_out_of_the_log),

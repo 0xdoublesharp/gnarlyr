@@ -108,6 +108,19 @@ static const char *usb_sense_value(const void *context)
     return usb_sense_text;
 }
 
+static ScreenAction switch_usb_connect(void *context)
+{
+    (void)context;
+    hal_system_usb_connect(!hal_system_usb_sense().connecting);
+    return screen_action_none();
+}
+
+static const char *usb_connect_value(const void *context)
+{
+    (void)context;
+    return hal_system_usb_sense().connecting ? "Listening" : "Off";
+}
+
 typedef enum DiagnosticsContext {
     CONTEXT_NONE,
     CONTEXT_OPTIONS,
@@ -142,6 +155,7 @@ static const DiagnosticsRow ROWS[DIAGNOSTICS_ITEM_COUNT] = {
     [14] = {"DAC B", NULL, diagnostics_row_dac_b, CONTEXT_NONE, false},
     [15] = {"Profiler", switch_profiler, profiler_value, CONTEXT_NONE, false},
     [16] = {"USB sense", switch_usb_sense, usb_sense_value, CONTEXT_NONE, false},
+    [17] = {"Connect USB", switch_usb_connect, usb_connect_value, CONTEXT_NONE, false},
 };
 
 static void options_init(AppScreens *screens)

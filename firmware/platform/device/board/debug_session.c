@@ -32,6 +32,7 @@ typedef struct ScriptMark {
 typedef struct Reconnect {
     bool requested;
     bool forced;
+    bool manual;
     bool in_session;
     uint32_t ended_ms;
     uint32_t forced_ms;
@@ -80,8 +81,9 @@ HalUsbSense hal_system_usb_sense(void)
     return (HalUsbSense){.kept_on = usb_kept_on,
                          .cable = usb_vbus_present(),
                          .powered = usb_powered,
-                         .session = usb_powered &&
-                                    (read_register(GOTGCTL) & GOTGCTL_B_SESSION_VALID) != 0};
+                         .session =
+                             usb_powered && (read_register(GOTGCTL) & GOTGCTL_B_SESSION_VALID) != 0,
+                         .connecting = reconnect.manual};
 }
 
 void board_debug_read_grf(uint32_t *words)
@@ -218,7 +220,21 @@ bool board_debug_take_reconnect(void)
 
 bool board_debug_usb_forced(void)
 {
-    return reconnect.forced && hal_clock_milliseconds() - reconnect.forced_ms < RECONNECT_WAIT_MS;
+    return reconnect.forced &&
+           (reconnect.manual || hal_clock_milliseconds() - reconnect.forced_ms < RECONNECT_WAIT_MS);
+}
+
+void hal_system_usb_connect(bool on)
+{
+    if (on == reconnect.manual) {
+        return;
+    }
+    reconnect.manual = on;
+    reconnect.requested = on;
+    if (!on && reconnect.forced && !reconnect.in_session) {
+        reconnect.forced = false;
+        note_connect(DEBUG_LOOP_CONNECT_CANCELLED);
+    }
 }
 
 DebugReportLoop board_debug_loop(void)
@@ -285,6 +301,7 @@ void board_debug_listen_stopped(void)
         return;
     }
     reconnect.forced = false;
+    reconnect.manual = false;
     reconnect.loop.unanswered++;
     note_connect(DEBUG_LOOP_CONNECT_NO_HOST);
     hal_system_save_report(DEBUG_REPORT_NO_HOST);
@@ -302,6 +319,7 @@ void board_debug_usb_starting(bool dac)
 {
     debug_runner_abort();
     reconnect.requested = false;
+    reconnect.manual = false;
     reconnect.in_session = true;
     if (reconnect.forced) {
         reconnect.loop.answered++;

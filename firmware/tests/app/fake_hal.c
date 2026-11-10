@@ -699,6 +699,11 @@ void hal_system_usb_reconnect(void)
     fake.usb_reconnects++;
 }
 
+void hal_system_usb_connect(bool on)
+{
+    fake.usb_sense.connecting = on;
+}
+
 void hal_system_save_report(uint32_t reason)
 {
     if (fake.saved_report_count < FILE_CAPACITY) {
