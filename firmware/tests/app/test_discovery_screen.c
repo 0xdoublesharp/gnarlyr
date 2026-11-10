@@ -442,9 +442,83 @@ static void native_layouts_keep_editor_hints_and_rows_inside_every_orientation(v
     }
 }
 
+static void begin_deferred_replacement(PersonalTags *tags)
+{
+    start();
+    *tags = (PersonalTags){.load = STORE_EMPTY, .result = STORE_DONE};
+    DiscoveryScreenConfig config = discovery.config;
+    config.tags = tags;
+    discovery_screen_init(&discovery, config);
+    explore();
+    CHECK(discovery_screen_order(&discovery).count > 0);
+    tags->result = STORE_WORKING;
+    discovery.query.year_min = UINT16_MAX;
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
+    CHECK_EQUAL(LIBRARY_VIEW_SCANNING, discovery_screen_state(&discovery));
+    CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
+}
+
+static void backing_out_of_a_deferred_replacement_never_restores_stale_results(void)
+{
+    PersonalTags tags;
+    begin_deferred_replacement(&tags);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+    CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
+    CHECK(discovery_screen_state(&discovery) != LIBRARY_VIEW_READY);
+}
+
+static void cancelling_a_deferred_replacement_never_exposes_the_previous_order(void)
+{
+    PersonalTags tags;
+    begin_deferred_replacement(&tags);
+    discovery_screen_cancel(&discovery);
+    CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
+    CHECK(discovery_screen_state(&discovery) != LIBRARY_VIEW_READY);
+}
+
+static void leaving_home_during_tag_loading_cannot_republish_an_old_order(void)
+{
+    PersonalTags tags;
+    begin_deferred_replacement(&tags);
+    CHECK_EQUAL(SCREEN_ACTION_POP_TO_ROOT, key(KEY_BACK, KEY_GESTURE_LONG_PRESS).type);
+    CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
+    CHECK(discovery.destination == NULL);
+}
+
+static void a_cancelled_deferred_replacement_can_start_a_fresh_search(void)
+{
+    PersonalTags tags;
+    begin_deferred_replacement(&tags);
+    key(KEY_BACK, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
+    tags.result = STORE_DONE;
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
+    complete();
+    CHECK_EQUAL(LIBRARY_VIEW_READY, discovery_screen_state(&discovery));
+    CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
+    discovery.query.year_min = 0;
+    explore();
+    CHECK(discovery_screen_order(&discovery).count > 0);
+}
+
+static void finishing_tag_loading_applies_the_new_filters_without_publishing_old_results(void)
+{
+    PersonalTags tags;
+    begin_deferred_replacement(&tags);
+    tags.result = STORE_DONE;
+    complete();
+    CHECK_EQUAL(LIBRARY_VIEW_READY, discovery_screen_state(&discovery));
+    CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
+}
+
 int main(void)
 {
     const TestCase cases[] = {
+        TEST_CASE(backing_out_of_a_deferred_replacement_never_restores_stale_results),
+        TEST_CASE(cancelling_a_deferred_replacement_never_exposes_the_previous_order),
+        TEST_CASE(leaving_home_during_tag_loading_cannot_republish_an_old_order),
+        TEST_CASE(a_cancelled_deferred_replacement_can_start_a_fresh_search),
+        TEST_CASE(finishing_tag_loading_applies_the_new_filters_without_publishing_old_results),
         TEST_CASE(search_owns_menu_and_wake_without_changing_playback),
         TEST_CASE(playing_results_exposes_the_exact_transformed_order),
         TEST_CASE(selecting_a_sort_rebuilds_and_keeps_the_original_selected_track),
