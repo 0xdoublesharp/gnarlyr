@@ -50,7 +50,7 @@ normal service configuration/start operations. There is no GitHub release
 workflow or automatic push deployment for this local-only source repository.
 
 The publisher includes only `index.html`, `firmware.html`, `hardware.html`,
-`install.html`, `styles.css`, `site.js`, `favicon.svg`, `robots.txt`,
+`install.html`, `build.html`, `styles.css`, `site.js`, `favicon.svg`, `robots.txt`,
 `sitemap.xml`, and regular public image files under `site/assets/`, up to
 64 MiB total. Firmware, README files, deployment files and hidden files are
 excluded. SHA-256 of the ordered paths and file hashes identifies a release.
@@ -77,9 +77,9 @@ Do not restart the shared proxy for an ordinary site release.
 
 ## Verify and recover
 
-Require HTTP 200 for `/`, `/firmware.html`, `/hardware.html`, `/install.html`,
+Require HTTP 200 for `/`, `/firmware.html`, `/hardware.html`, `/install.html`, `/build.html`,
 `/styles.css`, `/site.js`, `/favicon.svg`, `/robots.txt`, `/sitemap.xml` and
-`/healthz`; compare all nine public files byte-for-byte against local source. Require 404 for
+`/healthz`; compare all ten public files byte-for-byte against local source. Require 404 for
 `/README.md`, `/deploy/compose.yaml` and an unknown path. Verify origin TLS
 separately with `curl --resolve HOST:443:159.89.222.183 https://HOST/`;
 Cloudflare edge HTTPS alone does not verify the origin certificate.
@@ -96,6 +96,21 @@ The site’s host files are under the platform’s `/srv/hosted-data` Restic bac
 scope (six-hour schedule); source also stays on backed-up Data locally.
 No application database backup is needed. Use the platform recovery procedure
 for a host restore; an isolated restore rehearsal is not part of this release.
+
+## Install and developer guide split — 2026-11-10
+
+Published release:
+`6279229fb53f4d5f58936fa73b6125b4fb54fad3f03b178b66c1a7790aa2759b`.
+Rollback: `57f83f3939eb1439914c69f691b277f5fbf3a27f803b17ea368e80a4ed66ece6`.
+Install covers ready-made firmware, first installation, music storage, initial
+settings and later USB updates. Build setup, developer updates, USB internals
+and legacy migration references are on `build.html`. The homepage action leads
+to Install; navigation and the sitemap include Developers.
+
+All ten public files match local source over HTTPS. Health is 200 and private
+or unknown paths are 404. HTML nesting, headings, IDs, links, copy bindings and
+exact command text pass static checks. Mobile Install and desktop Developers
+standalone renders were inspected. Publication did not restart nginx.
 
 ## Evergreen copy — 2026-11-10
 

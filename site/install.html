@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#150f25"><meta name="description" content="Build GNARLYR.img, choose first recovery installation or a later USB update, and understand storage handover and the developer restart loop."><meta property="og:title" content="Make the switch. Keep it simple. — Gnarlyr"><meta property="og:description" content="Build GNARLYR.img, choose first recovery installation or a later USB update, and understand storage handover and the developer restart loop."><meta property="og:type" content="website"><meta property="og:url" content="https://gnarlyr.com/install.html"><link rel="canonical" href="https://gnarlyr.com/install.html"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="stylesheet" href="styles.css"><script src="site.js" defer></script><title>Make the switch. Keep it simple. — Gnarlyr</title>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#150f25"><meta name="description" content="Install GNARLYR.img on your ECHO, add music, choose your settings and follow the steps for future USB updates."><meta property="og:title" content="Install. Set up. Press play. — Gnarlyr"><meta property="og:description" content="Install GNARLYR.img on your ECHO, add music, choose your settings and follow the steps for future USB updates."><meta property="og:type" content="website"><meta property="og:url" content="https://gnarlyr.com/install.html"><link rel="canonical" href="https://gnarlyr.com/install.html"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="stylesheet" href="styles.css"><script src="site.js" defer></script><title>Install. Set up. Press play. — Gnarlyr</title>
 </head>
 <body>
   <svg class="icon-definitions" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -15,202 +15,104 @@
       <svg viewBox="0 0 32 24" fill="none" aria-hidden="true"><rect x="1" y="2" width="30" height="20" rx="3" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="6" width="22" height="9" rx="2" stroke="currentColor"/><circle cx="10" cy="10.5" r="2.5" stroke="currentColor"/><circle cx="22" cy="10.5" r="2.5" stroke="currentColor"/><path d="m8 22 3-5h10l3 5" stroke="currentColor"/></svg>
       <span class="wordmark">GNARLYR<span class="brand-dot">.</span></span>
     </a>
-<nav aria-label="Main navigation"><a href="firmware.html">Features</a><a href="hardware.html">Hardware</a><a href="install.html" aria-current="page">Install</a><a href="install.html#build" class="nav-cta">Build</a>
+<nav aria-label="Main navigation"><a href="firmware.html">Features</a><a href="hardware.html">Hardware</a><a href="install.html" aria-current="page">Install</a><a href="build.html" class="nav-cta">Developers</a>
 </nav>
 </header>
-<main id="main"><div class="page-intro wrap">
-<p class="eyebrow">Build · install · update
-</p>
-<h1 class="page-title">Make the switch. Keep it simple.
-</h1>
-<p>Use this guide with your Gnarlyr source checkout and its matching recovery tools. First installation and later updates use different routes; start with the software already on your ECHO.
-</p></div><div class="doc-layout wrap">
-<nav class="contents" aria-label="On this page">
-<p class="eyebrow">On this page
-</p>
-<ol>
-<li><a href="#choose">Choose your starting point</a>
-</li>
-<li><a href="#build">Build the image · macOS</a>
-</li>
-<li><a href="#first-install">First installation</a>
-</li>
-<li><a href="#update">Later USB updates</a>
-</li>
-<li><a href="#usb">Why the USB steps matter</a>
-</li>
-<li><a href="#developer">Developer loop · macOS</a>
-</li>
-<li><a href="#migration">Older custom builds</a>
-</li>
-<li><a href="#recovery">Recovery and stock firmware</a>
-</li>
-</ol>
-</nav><div>
-<section class="doc-section" id="choose" aria-labelledby="choose-title">
-<h2 id="choose-title">What is on your player now?
-</h2>
-<p class="intro">The first switch from FiiO’s software is a recovery installation. Once Gnarlyr is running, its own updater handles later builds from a copied file.
-</p>
-<table class="data-table">
-<tbody>
-<tr><th scope="row">FiiO stock firmware</th><td>Start with <a href="#first-install">first installation through recovery</a>.</td>
-</tr>
-<tr><th scope="row">Gnarlyr 1.0 or later</th><td>Use the <a href="#update">manual USB update</a>. Developer builds can also use the <a href="#developer">computer-assisted update loop</a>.</td>
-</tr>
-<tr><th scope="row">An older custom build</th><td>Use the <a href="#migration">migration notes</a> to match its image identity before updating.</td>
-</tr>
-</tbody>
-</table>
-<p class="callout"><strong>Gnarlyr image: <code>GNARLYR.img</code>.</strong> Use this filename for Gnarlyr updates. FiiO’s <code>ECHOV200.IMG</code> is the stock restore image.
-</p>
-</section>
-<section class="doc-section" id="build" aria-labelledby="build-title">
-<h2 id="build-title">Build from your checkout.
-</h2>
-<p class="intro">These build steps are for owners of a Gnarlyr source checkout. Run the commands on macOS from its root folder. The build wrapper prepares an image on your computer; it does not install it on the player.
-</p>
+<main id="main">
+<div class="page-intro wrap"><p class="eyebrow">Install · set up · update</p><h1 class="page-title">Install. Set up. Press play.</h1><p>Start with a ready-made GNARLYR.img file. This guide takes you through first installation, adding music and keeping your ECHO up to date.</p></div>
+<div class="doc-layout wrap"><nav class="contents" aria-label="On this page"><p class="eyebrow">On this page</p><ol><li><a href="#get">What you need</a></li>
+<li><a href="#first-install">First installation</a></li>
+<li><a href="#setup">Add music & set up</a></li>
+<li><a href="#update">Update Gnarlyr</a></li>
+<li><a href="#usb">Ejecting & USB</a></li>
+<li><a href="#recovery">Help & recovery</a></li></ol></nav><div>
+<section class="doc-section" id="get" aria-labelledby="get-title">
+<h2 id="get-title">Start with the firmware file.</h2>
+<p class="intro">A firmware image contains the software that runs your player. For installation, you need a ready-made image named GNARLYR.img.</p>
 <ul class="detail-list">
-<li><strong>Python 3.14</strong> and <code>firmware/tools/requirements.txt</code>.
-</li>
-<li><strong>Build tools:</strong> CMake, SDL2, FFmpeg, clang-format and the Arm GNU cross-compiler.
-</li>
-<li><strong>Scratch storage:</strong> mount a disposable build-output volume at <code>/Volumes/Scratch</code>. It keeps generated files separate from your backed-up source. The wrapper creates <code>firmware/build</code> as a link to the checkout’s Scratch output.
-</li>
+<li><strong>The matching release files.</strong> Keep <code>GNARLYR.img</code>, its checksum and its installation guide together. The checksum is a fingerprint you can use to check the file.</li>
+<li><strong>A computer and a USB data cable.</strong> Use a cable that transfers files as well as charging.</li>
+<li><strong>A charged ECHO and a backup.</strong> Copy any music and personal files you want to keep to your computer before the first installation.</li>
 </ul>
-<details id="build-help">
-<summary>Set up the build environment
-</summary><div class="answer">
-<p>Create a Python virtual environment on Scratch. Set <code>ECHO_VENV</code> to that folder and <code>ECHO_ARM_BIN</code> to the folder containing <code>arm-none-eabi-gcc</code>. Full prerequisite instructions are in the checkout’s <code>README.md</code>.
-</p></div>
-</details><div class="command" role="group" aria-labelledby="build-commands-title"><div class="command-header">
-<h3 id="build-commands-title">Build the release image
-</h3><button class="copy-button" type="button" data-copy="build-commands" aria-label="Copy build commands"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M13 5V3H3v10h2"/></svg><span>Copy</span></button></div>
-<pre><code id="build-commands"><span class="cmd">python3 tools/<wbr>firmware.py setup</span><span class="cmd">python3 tools/<wbr>firmware.py build --preset release</span></code></pre>
-<p class="copy-status" id="build-commands-status" role="status" aria-live="polite">
-</p></div><div class="command" role="group" aria-labelledby="hash-command-title"><div class="command-header">
-<h3 id="hash-command-title">Record its SHA-256
-</h3><button class="copy-button" type="button" data-copy="hash-command" aria-label="Copy image checksum command"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M13 5V3H3v10h2"/></svg><span>Copy</span></button></div>
-<pre><code id="hash-command"><span class="cmd">shasum -a 256 firmware/<wbr>build/<wbr>release/<wbr>GNARLYR.img</span></code></pre>
-<p class="copy-status" id="hash-command-status" role="status" aria-live="polite">
-</p></div>
-<p>The output is <code>firmware/build/release/GNARLYR.img</code>. SHA-256 is a fingerprint of the file: comparing fingerprints tells you whether the copy is identical.
-</p>
+<p class="callout">Already have Gnarlyr 1.0 or later? Go straight to <a href="#update">updating Gnarlyr</a>. Switching from FiiO’s software? Start with <a href="#first-install">first installation</a>.</p>
 </section>
 <section class="doc-section" id="first-install" aria-labelledby="first-install-title">
-<h2 id="first-install-title">First, give the player its new software.
-</h2>
-<p class="intro">Recovery mode lets a computer install Gnarlyr directly into the firmware area. Use it for the first switch from FiiO’s software.
-</p>
+<h2 id="first-install-title">Install Gnarlyr for the first time.</h2>
+<p class="intro">The first installation uses the ECHO’s built-in recovery mode. This gives your computer access to install Gnarlyr before its own updater is running.</p>
 <ol class="sequence">
-<li><strong>Build the image and record its fingerprint.</strong> Follow <a href="#build">the build steps above</a> to create <code>GNARLYR.img</code> and record its SHA-256 before starting recovery.
-</li>
-<li><strong>Prepare the player.</strong> Back up your files, charge the ECHO, and keep the official full-size ECHO recovery image with your recovery tools.
-</li>
-<li><strong>Enter maskrom recovery.</strong> Maskrom is the chip’s built-in recovery mode. Unplug USB, press RST with a paperclip, hold every button except Power, then connect USB while holding them. The computer should identify <code>2207:262d</code>, and the patched recovery tool should pass its connection test.
-</li>
-<li><strong>Verify the layout and save a backup.</strong> Follow <code>firmware/docs/device-install.md</code> and <code>firmware/docs/device-recovery.md</code> in your checkout. Check both firmware-slot headers, then read the original firmware twice and compare the complete backups.
-</li>
-<li><strong>Install with readback.</strong> The recovery procedure writes the second slot, reads the entire slot back and compares it with the prepared image. Only then does it write and verify the first slot.
-</li>
-<li><strong>Start Gnarlyr.</strong> Restart the player, check the firmware identity in About, and let the first music and artwork scan finish before reconnecting USB.
-</li>
+<li><strong>Prepare your files.</strong> Have <code>GNARLYR.img</code>, the full-size ECHO recovery tools and the matching installation guide ready. Keep a copy of FiiO’s original firmware for recovery.</li>
+<li><strong>Put the ECHO in recovery mode.</strong> Unplug USB and press the recessed RST button with a paperclip. Hold every button except Power, then connect USB while keeping those buttons held.</li>
+<li><strong>Follow the recovery installation guide.</strong> Use its full-size ECHO procedure to check the connection, back up the original firmware and install the image. Complete the verification steps before restarting.</li>
+<li><strong>Start the player.</strong> Restart into Gnarlyr and check Settings → About. Let the first library and artwork scan finish before connecting USB again.</li>
 </ol>
-<p>Use the exact-model commands in those guides. The initial recovery install uses the image’s first 5 MiB; ordinary later updates use the complete <code>GNARLYR.img</code> file.
-</p>
-<p>FiiO’s file-copy updater accepts official <code>ECHOVnnn.IMG</code> images. Use recovery to install <code>GNARLYR.img</code> for the first time.
-</p>
+<details><summary>Recovery details</summary><div class="answer">
+<p>The recovery mode is called maskrom. The computer should identify <code>2207:262d</code>; the matching recovery tool must pass its connection test.</p>
+<p>The full procedure is in <code>firmware/docs/device-install.md</code> and <code>firmware/docs/device-recovery.md</code> in the source checkout. It checks both firmware-slot headers and compares two complete backups before installation. It writes and verifies the second slot before the first.</p>
+<p>The first recovery installation uses the image’s first 5 MiB. Follow the guide to prepare that file; keep the complete <code>GNARLYR.img</code> for ordinary later updates.</p>
+</div></details>
+</section>
+<section class="doc-section" id="setup" aria-labelledby="setup-title">
+<h2 id="setup-title">Add music. Make it yours.</h2>
+<p class="intro">Once Gnarlyr starts, choose where your music lives and a few settings that make the player comfortable to use.</p>
+<ol class="sequence">
+<li><strong>Choose your music storage.</strong> Gnarlyr uses a readable microSD card when one is inserted. Use FAT32 or exFAT. Without a card, it uses internal storage. Settings → About → Music shows which storage is active.</li>
+<li><strong>Copy your music.</strong> Choose Settings → USB mode → Storage, then connect to your computer. Copy music to the active music drive in any folder layout. Internal storage and an inserted microSD card appear as separate drives.</li>
+<li><strong>Eject and let the library refresh.</strong> Eject every mounted ECHO drive so the player can check for changed music. Let any library and artwork scan finish. For a manual refresh, choose Settings → Rescan library.</li>
+<li><strong>Choose your look and controls.</strong> In Settings, choose Theme, Text size and Orientation. Controls lets you assign playback tap and hold actions. Open Music to browse your collection and start listening.</li>
+</ol>
+<p>Your settings stay on internal storage, so inserting or removing a card keeps your preferences.</p>
 </section>
 <section class="doc-section" id="update" aria-labelledby="update-title">
-<h2 id="update-title">Next time, copy a file.
-</h2>
-<p class="intro">Gnarlyr already knows how to install its next build. You copy the image onto internal storage, check it, then eject the drives so the player can take over.
-</p>
+<h2 id="update-title">For the next update, copy one file.</h2>
+<p class="intro">Once Gnarlyr is installed, its updater handles later versions. Copy the new image, eject the drives and let the player finish before unplugging.</p>
 <ol class="sequence">
-<li><strong>Connect in Storage mode.</strong> Internal storage appears as a drive, plus a separate microSD drive when a card is inserted.
-</li>
-<li><strong>Copy and check.</strong> Put the complete <code>GNARLYR.img</code> at the top level of internal storage as its only update file. Verify the copy before ejecting. On macOS, use <code>cp -X</code> to copy without metadata sidecars and remove any <code>._GNARLYR.img</code> sidecar from the drive.
-</li>
-<li><strong>Eject every mounted ECHO drive.</strong> Wait for the player to check the image, show installation progress and display “Update installed.” Keep the cable connected during the write.
-</li>
-<li><strong>Restart into the new build.</strong> Unplug USB, hold Power for two seconds to switch off, then turn the player back on. Check the firmware version in About. The updater removes the image after a successful installation.
-</li>
-</ol><div class="command" role="group" aria-labelledby="verify-command-title"><div class="command-header">
+<li><strong>Connect in Storage mode.</strong> On the player, choose Settings → USB mode → Storage. Connect USB and open the internal-storage drive on your computer.</li>
+<li><strong>Copy and check the image.</strong> Put the complete <code>GNARLYR.img</code> at the top level of internal storage, outside any folders, as its only update file. Check it against the checksum supplied with the image before ejecting.
+<details><summary>Check the copied file on macOS</summary><div class="answer">
+<div class="command" role="group" aria-labelledby="verify-command-title"><div class="command-header">
 <h3 id="verify-command-title">Check the copied image · macOS
 </h3><button class="copy-button" type="button" data-copy="verify-command" aria-label="Copy verification command"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M13 5V3H3v10h2"/></svg><span>Copy</span></button></div>
 <pre><code id="verify-command"><span class="cmd">shasum -a 256 &quot;/<wbr>Volumes/<wbr>YOUR_ECHO/<wbr>GNARLYR.img&quot;</span></code></pre>
 <p class="copy-status" id="verify-command-status" role="status" aria-live="polite">
 </p></div>
-<p>Replace <code>YOUR_ECHO</code> with the internal drive’s actual name. Compare the result with the build checksum above. The microSD drive is for music; the updater reads the image from internal storage.
-</p>
+<p>Replace <code>YOUR_ECHO</code> with the internal drive’s actual name. Compare the result with the checksum supplied with the image.</p>
+<p>For a copy without macOS metadata sidecars, use <code>cp -X</code>. Remove any <code>._GNARLYR.img</code> sidecar from the drive.</p>
+</div></details></li>
+<li><strong>Eject every ECHO drive.</strong> Eject internal storage and the microSD drive, if present. Keep the cable connected while Gnarlyr checks and installs the image.</li>
+<li><strong>Wait for “Update installed.”</strong> When that message appears, unplug USB, hold Power for two seconds to switch off, then turn the player back on.</li>
+<li><strong>Check the version.</strong> Open Settings → About. The update file is removed after a successful installation.</li>
+</ol>
+<p class="callout">The image belongs on internal storage, even when your music is on microSD.</p>
 </section>
 <section class="doc-section" id="usb" aria-labelledby="usb-title">
-<h2 id="usb-title">Eject first. Unplug when the player is ready.
-</h2>
-<p class="intro">Eject tells the computer to finish writing and gives the storage back to the player. That is when Gnarlyr can inspect the update file and begin installing it.
-</p>
+<h2 id="usb-title">Eject first. Unplug when it is ready.</h2>
+<p class="intro">Eject tells your computer to finish writing and gives the drives back to the player. Unplugging removes the cable. During an update, those are two separate steps.</p>
 <ul class="detail-list">
-<li><strong>Eject is the handover.</strong> While the computer has the drives, it owns file access. Ejecting every drive present at connection returns storage to Gnarlyr and starts the update check.
-</li>
-<li><strong>The cable can stay connected while it writes.</strong> The end of a storage session and removal of the cable are separate events. Wait for “Update installed” before unplugging.
-</li>
-<li><strong>The new USB code starts with the new firmware.</strong> USB and updater code load from the image into a shared memory region. Restarting after installation ensures the running firmware and its USB module match.
-</li>
-<li><strong>Connection handling follows cable power.</strong> Gnarlyr keeps USB power control in sync with the cable state. The stack can retry at full speed if its first high-speed connection does not become usable.
-</li>
+<li><strong>Eject all the drives.</strong> Gnarlyr needs both internal storage and any connected microSD drive returned before the update check starts.</li>
+<li><strong>Leave USB connected during installation.</strong> Wait for “Update installed” before removing the cable.</li>
+<li><strong>Restart after the update.</strong> The restart loads the new firmware and its matching USB code together.</li>
 </ul>
-<p>For everyday music copying, eject every drive before unplugging too. Gnarlyr then checks whether the music changed and rescans when needed.
-</p>
-</section>
-<section class="doc-section" id="developer" aria-labelledby="developer-title">
-<h2 id="developer-title">Let the computer handle the repeat steps.
-</h2>
-<p class="intro">When you are testing developer builds, the macOS helper can do the copy, verification, eject and restart round trip and report which build came back.
-</p>
-<p>Build a developer image with <code>python3 tools/firmware.py build --preset device</code>, then use the matching checkout’s helper:
-</p><div class="command" role="group" aria-labelledby="developer-command-title"><div class="command-header">
-<h3 id="developer-command-title">Install and request a restart
-</h3><button class="copy-button" type="button" data-copy="developer-command" aria-label="Copy developer update command"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M13 5V3H3v10h2"/></svg><span>Copy</span></button></div>
-<pre><code id="developer-command"><span class="cmd">python3 tools/<wbr>echo_debug.py install firmware/<wbr>build/<wbr>device/<wbr>GNARLYR.img --restart</span></code></pre>
-<p class="copy-status" id="developer-command-status" role="status" aria-live="polite">
-</p></div>
-<p>The helper checks the copied file, asks the developer firmware to restart after installation, ejects the player’s drives, waits for it to leave and return on USB, and reads back the running build. Leave the cable connected for this loop.
-</p>
-<p>Ordinary manual updates use the unplug-and-Power sequence above. Automatic restart is a developer-build workflow.
-</p>
-</section>
-<section class="doc-section" id="migration" aria-labelledby="migration-title">
-<h2 id="migration-title">Match the updater to the build you have.
-</h2>
-<p class="intro">A custom updater checks the image’s identity as well as its name. Older firmware may need a bridge or the recovery route before it can accept a current Gnarlyr image.
-</p>
-<p>For a pre-release or older custom build, use the update instructions supplied with that build. Earlier Gnarlyr development images used <code>FRSHBS.IMG</code>; Doublesharp Echo used <code>DBLSHARP.IMG</code>. Those names describe development history, not public release versions.
-</p>
-<p>The documented Doublesharp Echo route first installs the <code>bridge-frshbs</code> build, then moves to the later firmware. <code>firmware/docs/device-install.md</code> explains which checkout and helper to use at each step. For other starting builds, use the exact-model recovery installation.
-</p>
-<p>An image contains an internal firmware identity too. Renaming the file cannot make an incompatible updater accept it.
-</p>
+<p>For everyday music copying, eject every drive too. Gnarlyr checks for changes and refreshes the library when needed.</p>
 </section>
 <section class="doc-section" id="recovery" aria-labelledby="recovery-title">
-<h2 id="recovery-title">Keep a way back to the original software.
-</h2>
-<p class="intro">Recovery mode belongs to the chip, so it remains the separate route for reinstalling stock firmware when the normal player interface cannot be used.
-</p>
-<p>Keep the full-size ECHO’s official <code>ECHOV200.IMG</code> and the exact-model recovery instructions from your checkout. The official V2.0 image is 39,845,892 bytes, with SHA-256:
-</p>
-<pre><code>c6a3b6c86b141c0a428771f8a611fbd44cc12d561acb033a98640b0bf24f8d57</code></pre>
-<p>For a player that does not start, follow <code>firmware/docs/device-recovery.md</code> to restore the official image through maskrom, checking each complete slot readback.
-</p>
-<p>A running Gnarlyr also recognizes the official ECHO image through its updater. Follow the checkout’s return-to-stock instructions for that image; its on-screen messages and restart sequence differ from an ordinary Gnarlyr update.
-</p><a class="text-link" href="https://fiio.com/newsinfo/1151351.html">FiiO’s ECHO firmware page ↗</a>
-</section></div></div>
+<h2 id="recovery-title">Need to try again?</h2>
+<p class="intro">Recovery mode provides a separate way to reinstall firmware if the normal player interface is unavailable.</p>
+<ul class="detail-list">
+<li><strong>The ECHO will not start.</strong> Use the full-size ECHO recovery guide and your saved original firmware. Follow its complete write-and-verify procedure.</li>
+<li><strong>An update was not recognized.</strong> Check that the file is named <code>GNARLYR.img</code>, sits at the top level of internal storage, and is the only update image there.</li>
+<li><strong>You are using an older custom build.</strong> Follow that build’s migration instructions before updating. The <a href="build.html#migration">older-build reference</a> explains image identities.</li>
+<li><strong>You want to return to FiiO’s software.</strong> Use the full-size ECHO’s official <code>ECHOV200.IMG</code> and its matching return-to-stock instructions. <a href="https://fiio.com/newsinfo/1151351.html">FiiO ECHO firmware ↗</a></li>
+</ul>
+<p><a href="build.html#recovery">Recovery reference and image checksum →</a></p>
+</section>
+<p class="callout" id="build"><span id="developer"></span><span id="build-help"></span>Working from source? The <a href="build.html">developer guide</a> covers builds, tool setup and automated developer updates.</p></div></div>
 </main><div class="outro wrap">
 <p class="outro-phrase">Stay offline. Get a little gnarly.
 </p>
 <p class="eyebrow">Made for the music you already love.
 </p></div>
 <footer class="wrap">
-<nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html">Features &amp; improvements</a><a href="hardware.html">ECHO hardware</a><a href="install.html">Install &amp; update</a>
+<nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html">Features &amp; improvements</a><a href="hardware.html">ECHO hardware</a><a href="install.html">Install &amp; update</a><a href="build.html">Developers</a>
 </nav>
 <div class="footer-row"><span>GNARLYR.COM / Open-source ECHO firmware</span><div class="footer-links"><a href="https://podium-echo.online">Podium ↗</a><a href="https://github.com/BasilSkyWalk/echopod">EchoPod ↗</a><a href="https://github.com/brnomt/ReChord">ReChord ↗</a><a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0-or-later ↗</a></div></div>
 <p>Gnarlyr by doublesharp. Built on Podium and EchoPod, with hardware research from ReChord.
