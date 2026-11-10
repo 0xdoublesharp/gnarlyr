@@ -59,7 +59,7 @@ Depeche Mode/Violator/
 
 1. Connect the player. Two drives appear: internal storage and the SD card.
 2. Copy music to the SD card, or to internal storage when no card is in the player.
-3. **Eject both drives before you unplug.** If you unplug first, recent changes may be lost, and the player warns you.
+3. **Eject both drives before you unplug.** If you unplug first, recent changes may be lost, and the player warns you ("Unplugged too soon").
 4. When music changed, the player rebuilds its library by itself. Copying other files doesn't trigger a rebuild. Settings → Rescan library rebuilds it on demand.
 
 ## Using the player as a USB DAC
@@ -151,6 +151,17 @@ Settings → Skip songs picks how the buttons change the song on Now Playing and
 Not tried on a player yet ([`known-issues.md`](known-issues.md)). Settings → Orientation has Landscape (the default), Portrait and Portrait, flipped. The screen turns as soon as you pick, and the player starts the same way next time. Pick whichever portrait way round puts the buttons where you like them.
 
 In portrait, Home and Now Playing show only the status row at the top (no title line); Home shows the album art under the menu, Now Playing puts the cover above the track, Cover Flow stacks the albums from top to bottom, and the status icons sit in a strip above the title. Lists show up to 13 rows. The volume rocker turns with the screen: in Portrait the buttons swap roles, so the one that is Vol− in landscape moves down through lists and the one that is Vol+ moves up; in Portrait, flipped they keep their usual roles. On Now Playing the button nearer the top of the screen turns the volume up, so in Portrait, flipped it's the one labelled Vol−. With the screen off, Vol+ is louder in every orientation.
+
+## Languages
+
+The player's text is English. Other languages can be added as language packs; none is shipped yet, and none has been tried on a player ([`known-issues.md`](known-issues.md)).
+
+- When the player has more than one language, Settings → Language appears after Orientation and lists them by their own names. Pick one and every screen changes at once; the player starts in it next time.
+- To add a language without reinstalling, copy its pack to the folder `.doublesharp/lang` on the SD card (or on internal storage if you use no card). The file is named after the language's code, for example `de.pack`. The folder is hidden on most computers; create `lang` inside `.doublesharp` if it isn't there. Eject, and the language is in Settings → Language.
+- A pack is made for one firmware version. After an update, an older pack may be refused; the player then stays in its built-in language and Settings → Language says "Couldn't load that language" when you pick it. Get the pack made for the new version.
+- If you take out the card that holds the pack, the player uses its built-in language until the card is back.
+- Today's fonts draw English and the accented letters of western European languages. Cyrillic is drawn in lists and titles but not yet in the small text, so it can't be used for a pack; Chinese, Japanese and Korean are not drawn.
+- To make a pack, see `docs/architecture.md`, Languages.
 
 ## Text size
 

@@ -19,7 +19,8 @@ Names that follow from it: the update file `DBLSHARP.IMG`, the data folder `/.do
 | `platform/device/board` | Device-only drivers (RKnano Cortex-M3, DW-MMC eMMC/SD, DWC2 USB, the Cirrus DACs, Bluetooth UART), startup, linker scripts, the overlay loader |
 | `platform/device/logic` | Driver logic without hardware access, unit-tested on the host |
 | `platform/device/core1` | Decoder programs for the second core, stored in the core 0 image |
-| `tools/` | Python: image builder (`make_image.py`), size report (`size_report.py`), emulator (`echo_emulator`), PC library indexer, `echo_sync.py`, font and fixture generators |
+| `assets/` | Font sources and `lang/en.txt`, the English text and string catalogue |
+| `tools/` | Python: image builder (`make_image.py`), size report (`size_report.py`), language pack builder (`lang_pack.py`), emulator (`echo_emulator`), PC library indexer, `echo_sync.py`, font and fixture generators |
 | `tests/` | One test executable per module, emulator scenarios, fixtures |
 | `docs/` | The design record: `architecture.md` (layers, rules, device platform), `hardware.md`, `library-format.md`, `playback-store.md` with `stored-order.md`, `session-journal.md` and `mixtapes.md`, `device-install.md`, `device-recovery.md`, `known-issues.md`, `user-guide.md`, `release-notes.md` |
 
@@ -62,18 +63,20 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 - Functions do one thing, aim for under 20 lines, take at most 4 parameters (group the rest into a struct).
 - Formatting is `.clang-format`; warnings are errors.
 - Every rule in `core`, `gfx` and `ui` has a unit test named after the behaviour.
+- Text a user reads is never a literal in code. Give it a name in `assets/lang/en.txt`, regenerate (`docs/architecture.md`, Languages) and read it with `i18n_text` or `i18n_format`; the `no_text_literals` and `test_pseudo_language` tests enforce it, and `tools/literal_allowlist.txt` lists the few literals that stay, each with its reason. A new screen's text must also pass `test_english_layout`.
 - Documentation states only what this project checked. A result reported by Podium's or EchoPod's authors is either attributed to them or left out.
 
 ## Code space
 
-`tools/size_report.py` prints used and free bytes against each limit after every image build, reading the limits from the linker maps; the linker scripts enforce them. It fails the image build when a library object keeps variables in both the main program and the USB overlay. The `echo_size_report` build target prints the full report (bytes per object, per library, biggest functions and tables). Release build with the DAC rows and the stored-order hooks in the play queue:
+`tools/size_report.py` prints used and free bytes against each limit after every image build, reading the limits from the linker maps; the linker scripts enforce them. It fails the image build when a library object keeps variables in both the main program and the USB overlay. The `echo_size_report` build target prints the full report (bytes per object, per library, biggest functions and tables). Release build with the text in the language pack:
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 139,020 | 157,292 | 18,272 |
-| Static RAM | 264,168 | 287,296 | 23,128 |
+| Code window | 138,332 | 157,292 | 18,960 |
+| Static RAM | 265,052 | 287,296 | 22,244 |
 | Rescan overlay | 88,404 | 98,304 | 9,900 |
-| USB overlay code | 13,424 | 65,536 | 52,112 |
+| USB overlay code | 12,840 | 65,536 | 52,696 |
+| Language pack (English) | 4,563 | 8,192 | 3,629 |
 
 - Keep at least 8 KB free in the release code window after each stage of the plan. Read the report after any change to device code and update these numbers and the ones in `docs/architecture.md` when they move.
 - The core 0 link uses link-time optimisation. Libraries shared with core 1 or the rescan overlay stay out of it.
@@ -104,6 +107,7 @@ A screen change comes with simulator captures at the affected sizes and orientat
 ## Generated files
 
 Never edit by hand; regenerate and commit the output:
+- `src/core/include/core/strings.h`, `src/core/strings_english.h` - `tools/lang_pack.py` from `assets/lang/en.txt`
 - `src/fonts/` and `src/fonts/packs/` - `tools/font_build.py`, `tools/glyph_pack.py`
 - `src/library/sort_fold_table.{c,h}` - `tools/fold_table.py`
 - `tests/fixtures/small_library.db`, `small_covers.bin` - the PC indexer and cover exporter

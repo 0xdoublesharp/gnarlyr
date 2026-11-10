@@ -4,7 +4,7 @@ Doublesharp Echo 1.0.0 is not released and has not run on any player yet. It com
 
 ## What has been checked
 
-- **Doublesharp itself:** host tests, the simulator and the ARM emulator only (189 checks). The emulator has no USB traffic, no DAC, no SD card and no Bluetooth module, so those paths are covered by host tests of their logic and nothing more.
+- **Doublesharp itself:** host tests, the simulator and the ARM emulator only (242 checks). The emulator has no USB traffic, no DAC, no SD card and no Bluetooth module, so those paths are covered by host tests of their logic and nothing more.
 - **On the owner's Echo (full size, 4 GB):** an earlier build of this project, based on Podium 4.5.5, was installed through maskrom. The owner confirmed display, menus, buttons, music playback, volume, USB storage with internal storage and a microSD card, and quiet audio with the 12 ms DAC wait. The unit was also returned to FiiO's 2.0.0 through maskrom and back. The maskrom steps in [`device-install.md`](device-install.md) and [`device-recovery.md`](device-recovery.md) are the ones used.
 - **Everything else** that Podium's and EchoPod's authors tested on their own players has not been repeated by this project. Where this document mentions such a result, it says whose it is.
 
@@ -22,6 +22,7 @@ These are new or changed in Doublesharp, or were never checked on the owner's un
 - **USB DAC mode,** which now also runs from the overlay.
 - **A real update install.** The updater borrows the mass-storage write buffer for its work; an install through the updater has only run in the emulator.
 - **Playback after a USB session.** The overlay shares its memory with the decoder workspace.
+- **Language packs.** The pack is read from the firmware slot into high RAM at start-up; that read, the Language choice and a pack file in `/.doublesharp/lang` have run in host tests, the simulator and the emulator only. No translation exists yet, so no language but English has been read by anyone.
 - **Portrait mode.** The two portrait panel settings come from the landscape one by rule. Which way round each sits, and which one swaps the volume rocker, are untested.
 - **The ten-band equalizer's CPU load at 96 kHz.** By instruction count it takes about 55 % of the main core. It has not been heard or measured on a player.
 - **DAC settings not yet checked against the fitted part.** The owner's player has two CS43198 (Settings → About shows `431980 A1.06` for both). Some inherited code and register names assume the CS43131, a related part with a built-in headphone amplifier. The start-up sequence is stock's and audio works, but the gain, volume and filter registers have not been checked against the CS43198's documentation.
@@ -35,6 +36,7 @@ Also unchecked on a player by this project: `.m4a` and `.m4b` playback and seeki
 
 - **A failed install followed by music.** If an install fails partway through slot 1 and music is then played, the next plug-in shows "Restart the player to finish the update" and does not serve USB. The restart boots the complete slot 2.
 - **USB code damaged in both slots.** The USB overlay is stored in both firmware slots. If it were damaged in both while the main code stayed intact, USB storage would be unavailable ("USB code missing: reinstall the update") and recovery would be through maskrom only.
+- **Language packs are limited to 8 KB, and Cyrillic is not usable yet (open).** English uses 4.6 KB of the 8 KB a pack may have. A Cyrillic translation needs about 1.6 times the English bytes, so it stops fitting once the English text passes about 5 KB, and the small 16 px font has no Cyrillic letters at all, so the pack builder refuses them today. Both are left as they are until a translation needs them (`architecture.md`, Languages).
 - **Text right after an install.** Until the restart, every screen uses the built-in 16 px font, which is ASCII only: accented and Cyrillic letters show as `?`.
 
 ## Installing
@@ -69,7 +71,7 @@ Also unchecked on a player by this project: `.m4a` and `.m4b` playback and seeki
 
 ## USB
 
-- **Eject both drives before you unplug.** Unplugging first can lose the last changes, and the player warns you ("Unplugged before ejecting").
+- **Eject both drives before you unplug.** Unplugging first can lose the last changes, and the player warns you ("Unplugged too soon").
 - **Some file managers only unmount.** The player finishes a USB session when the computer ejects the drive. Finder and `diskutil eject` send that; a file manager that only unmounts leaves the player showing "Eject the drive to finish". Eject in Finder or run `diskutil eject` on the disk.
 - **macOS leaves `._` files** beside everything it copies. The library scan ignores them, but they take space. `dot_clean` on the drive removes them.
 - **USB DAC mode limits:** full speed only (44.1 or 48 kHz, 16 or 24-bit; 88.2 and 96 kHz don't fit this chip's USB buffer); about 20 ms of delay; the player stays in DAC mode until you unplug it or hold Back; Power doesn't turn the screen off during DAC mode. If the computer stops sending audio and starts again, the first 20 ms are silent.
