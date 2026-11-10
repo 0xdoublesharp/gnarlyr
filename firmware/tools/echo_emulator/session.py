@@ -3,6 +3,7 @@ import struct
 import make_image
 
 from .emmc import EmmcCard, synthetic_emmc
+from .fat_reader import FatReader
 from .fat_volume import Fat32Volume, short_name
 from .machine import Machine
 
@@ -101,6 +102,15 @@ class Session:
             if data[offset:offset + 11] == raw:
                 return data[offset:offset + 32]
         return None
+
+    def fat(self):
+        return FatReader(self.disk, self.layout["volume_start"])
+
+    def file_sectors(self, path):
+        reader = self.fat()
+        _, first, size = reader.find(path)
+        start = reader.data_start + (first - 2) * reader.sectors_per_cluster
+        return range(start, start + (size + 511) // 512)
 
     def file_exists(self, name):
         return self.root_entry_start(name) is not None

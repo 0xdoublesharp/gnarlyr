@@ -7,7 +7,9 @@ from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT / "tools"))
+sys.path.insert(0, str(PROJECT.parent / "tools"))
 
+import echo_debug
 import make_image
 from identity import IDENTITY
 
@@ -53,6 +55,18 @@ PORTRAIT_LAST_ROW = WIDTH - 1
 SETTINGS_VERSION = 10
 SETTINGS_ORIENTATION_FIELD = 26
 SETTINGS_CHECKSUM_FIELD = 28
+REPORT_PATH = "/" + IDENTITY.data_directory + "/debug/report.txt"
+REPORT_BYTES = 16384
+REPORT_START_LIMIT_MS = 250
+CLOCK_SLACK_MS = 5
+CODE_WINDOW_BYTES = 0x2666C
+PROFILE_BUCKET_BYTES = 128
+KEY_NEXT = 100
+KEY_PLAY = 250
+KEY_HOLD_MS = 150
+KEY_SETTLE_MS = 350
+ABOUT_PROFILER_ROW = 13
+PROFILED_MS = 1500
 FNV_START = 2166136261
 FNV_PRIME = 16777619
 
@@ -522,6 +536,152 @@ class EchoImageTest(unittest.TestCase):
         self.assertTrue(session.usb_overlay_reads("slot_1"))
         self.assertEqual(session.usb_overlay_reads("slot_2"), [])
         self.assert_healthy(session)
+
+    def read_report(self, session):
+        data = session.fat().read(REPORT_PATH)
+        self.assertIsNotNone(data)
+        self.assertEqual(len(data), REPORT_BYTES)
+        return echo_debug.parse_report(data.decode("ascii"))
+
+    def mark(self, machine, marks, name, after=None):
+        def reached():
+            if after is None or after in marks:
+                marks.setdefault(name, (machine.stamp(), machine.microseconds()))
+
+        machine.hook_symbol(name, reached)
+
+    def test_a_usb_session_starts_by_writing_a_debug_report(self):
+        session = self.session(vbus=True)
+        machine = session.machine
+        marks = {}
+        for name in ("usb_storage_session", "debug_report_write", "usb_silence_audio"):
+            self.mark(machine, marks, name)
+        self.mark(machine, marks, "sd_start", after="debug_report_write")
+        self.assertEqual(self.boot_until_waiting_for_key(session),
+                         "reached usb_session_storage_changed")
+        started, served = marks["usb_storage_session"], marks["usb_silence_audio"]
+        report_ms = (marks["sd_start"][1] - marks["debug_report_write"][1]) / 1000
+        report = self.read_report(session)
+        values = report["values"]
+        self.assertFalse(report["truncated"])
+        self.assertEqual(report["unread_lines"], [])
+        self.assertEqual(values["firmware.name"], IDENTITY.name)
+        self.assertEqual(values["firmware.version"], IDENTITY.version)
+        self.assertEqual(values["firmware.build"],
+                         self.image[0x30:0x38].rstrip(b"\0").decode("ascii"))
+        self.assertTrue(started[1] // 1000 - CLOCK_SLACK_MS <= values["uptime_ms"]
+                        <= served[1] // 1000 + CLOCK_SLACK_MS)
+        self.assertIn(values["clock_mhz"], (96, 200))
+        self.assertTrue(values["core0.idle_us"] <= values["core0.clock_us"])
+        self.assertTrue(3900 <= values["battery.millivolts"] <= 4100)
+        self.assertEqual(values["battery.usb_power"], 1)
+        self.assertEqual((values["start.count"], values["start.warm"]), (1, 0))
+        self.assertIsNone(values["start.previous_uptime_ms"])
+        self.assertIsNone(values["fault.pc"])
+        self.assertEqual(values["usb.last_end"], "none")
+        self.assertIsNone(values["usb.internal_sectors_written"])
+        self.assertEqual((values["audio.state"], values["audio.running"]), ("stopped", 0))
+        self.assertIsNone(values["audio.underruns"])
+        self.assertEqual(values["frame.count"] == 0, values["frame.total_avg_us"] is None)
+        kinds = [event["kind"] for event in report["events"]]
+        self.assertEqual(kinds[0], "screen")
+        self.assertEqual(kinds[-1], "usb_start")
+        self.assertEqual(values["events.recorded"], len(kinds))
+        self.assertEqual(values["profile.state"], "off")
+        self.assertEqual(values["profile.samples"], 0)
+        self.assertEqual(values["profile.code_base"], make_image.CODE_BASE)
+        self.assertEqual(values["profile.bucket_bytes"], PROFILE_BUCKET_BYTES)
+        self.assertEqual(values["profile.buckets"], -(-CODE_WINDOW_BYTES // PROFILE_BUCKET_BYTES))
+        self.assertEqual(report["profile_buckets"], {})
+        sectors = session.file_sectors(REPORT_PATH)
+        stamps = [stamp for stamp, lba, count in session.card.writes if lba in sectors]
+        self.assertTrue(stamps)
+        self.assertTrue(all(started[0] < stamp < served[0] for stamp in stamps))
+        delay_ms = (served[1] - started[1]) / 1000
+        self.assertLess(delay_ms, REPORT_START_LIMIT_MS)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+        text_bytes = len(session.fat().read(REPORT_PATH).rstrip(b"\n"))
+        print("\n[debug report] %d bytes of text, written in %.1f ms; %.1f ms from the session's "
+              "start to serving the host" % (text_bytes, report_ms, delay_ms))
+
+    def test_a_second_session_reports_the_first_and_reuses_the_report_file(self):
+        session = self.session(vbus=True)
+        machine = session.machine
+        machine.note("usb_session_storage_changed")
+        machine.answer_waits_for_key(4)
+        session.run_to_first_frame()
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        first_sectors = session.file_sectors(REPORT_PATH)
+        machine.run(until_ms=machine.milliseconds() + 1500)
+        machine.vbus = True
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        report = self.read_report(session)
+        values = report["values"]
+        self.assertGreaterEqual(values["frame.count"], 1)
+        self.assertGreater(values["frame.total_avg_us"], 0)
+        self.assertEqual(values["usb.last_end"], "unplugged")
+        self.assertEqual(values["usb.left_mounted"], 1)
+        self.assertEqual(values["usb.internal_sectors_written"], 0)
+        kinds = [event["kind"] for event in report["events"]]
+        self.assertEqual(kinds.count("usb_start"), 2)
+        self.assertEqual(kinds.count("usb_end"), 1)
+        self.assertEqual(session.file_sectors(REPORT_PATH), first_sectors)
+        self.assertEqual(session.fat().list("/" + IDENTITY.data_directory + "/debug"),
+                         ["report.txt"])
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def press(self, machine, key):
+        start = machine.milliseconds()
+        machine.press_key(key, delay_ms=20, hold_ms=KEY_HOLD_MS)
+        machine.run(until_ms=start + 20 + KEY_HOLD_MS + KEY_SETTLE_MS)
+
+    def switch_profiler_on(self, machine):
+        for key in [KEY_NEXT, KEY_PLAY, KEY_PLAY] + [KEY_NEXT] * ABOUT_PROFILER_ROW + [KEY_PLAY]:
+            self.press(machine, key)
+
+    def test_the_profiler_row_fills_a_histogram_the_host_tool_symbolises(self):
+        session = self.session()
+        machine = session.machine
+        machine.note("hal_system_return_scratch")
+        machine.note("usb_session_storage_changed")
+        machine.answer_waits_for_key(4)
+        machine.run(until=lambda: "hal_system_return_scratch" in machine.reached,
+                    until_ms=self.session_module.FRAME_LIMIT_MS)
+        machine.run(until_ms=machine.milliseconds() + 1500)
+        self.switch_profiler_on(machine)
+        switched_ms = machine.milliseconds()
+        machine.run(until_ms=switched_ms + PROFILED_MS)
+        marks = {}
+        self.mark(machine, marks, "usb_silence_audio")
+        machine.vbus = True
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        report = self.read_report(session)
+        values = report["values"]
+        self.assertEqual(values["profile.state"], "on")
+        served_ms = marks["usb_silence_audio"][1] // 1000
+        self.assertTrue(PROFILED_MS <= values["profile.samples"]
+                        <= served_ms - switched_ms + KEY_SETTLE_MS + KEY_HOLD_MS)
+        self.assertTrue(abs(values["uptime_ms"] - served_ms) <= REPORT_START_LIMIT_MS)
+        nm_text = echo_debug.run_nm(self.elf)
+        profile = echo_debug.symbolise(report, nm_text, top=100000)
+        self.assertTrue(profile["consistent"])
+        shares = profile["shares_ms"]
+        self.assertGreater(shares["code"], PROFILED_MS // 10)
+        self.assertGreater(shares["idle"], PROFILED_MS // 10)
+        self.assertEqual(shares["other"], 0)
+        attributed = sum(row["ms"] for row in profile["functions"])
+        self.assertTrue(abs(attributed - profile["shares_ms"]["code"]) <= 1)
+        self.assertGreater(len(profile["functions"]), 5)
+        self.assertNotIn(echo_debug.UNATTRIBUTED, [row["name"] for row in profile["functions"][:3]])
+        self.assertTrue(any(row["name"].endswith(".c") for row in profile["files"]))
+        self.assertEqual(machine.watchdog_resets, 0)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+        print("\n[profile] %d samples, %s; top functions: %s" % (
+            profile["samples"], shares, ", ".join("%s %.0f ms" % (row["name"], row["ms"])
+                                          for row in profile["functions"][:5])))
 
     def run_usb_sessions(self, session, count):
         reached = session.machine.reached
