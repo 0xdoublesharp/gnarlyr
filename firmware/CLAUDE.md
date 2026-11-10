@@ -79,7 +79,7 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 | Module views (code + BSS) | 17,952 | 56,320 | 38,368 |
 | Module settings (code + BSS) | 14,412 | 56,320 | 41,908 |
 | Module library (code + BSS) | 39,124 | 56,320 | 17,196 |
-| Module listening (code + BSS) | 17,792 | 56,320 | 38,528 |
+| Module listening (code + BSS) | 17,796 | 56,320 | 38,524 |
 | Audio module (code, no BSS) | 5,832 | 8,192 | 2,360 |
 | Decoder workspace | 41,644 | 41,984 | 340 |
 | Language pack (English) | 7,089 | 16,384 | 9,295 |
