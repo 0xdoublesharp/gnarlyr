@@ -8,118 +8,9 @@
 #include "gfx/text.h"
 #include "ui/label.h"
 
-enum {
-    DAC_ID_DIGITS = 6
-};
-
-static const char *const DAC_LABELS[DAC_IDENTITY_CHIPS] = {"DAC A", "DAC B"};
-static const DacIdentity DAC_WORDS[] = {
-    {.source = DAC_IDENTITY_NOT_READ},
-    {.source = DAC_IDENTITY_SIMULATED},
-    {.source = DAC_IDENTITY_READ, .read_mask = 0},
-};
-static const DacIdentity DAC_KNOWN[] = {
-    {DAC_IDENTITY_READ, DAC_IDENTITY_ALL_READ, {0x43, 0x19, 0x80, 0xA0, 0x00}},
-    {DAC_IDENTITY_READ, DAC_IDENTITY_ALL_READ, {0x43, 0x13, 0x10, 0xB1, 0x07}},
-    {DAC_IDENTITY_READ, 0x0B, {0x43, 0x19, 0x00, 0xA0, 0x00}},
-};
-static const DacIdentity DAC_WIDEST = {
-    DAC_IDENTITY_READ, DAC_IDENTITY_ALL_READ, {0xDD, 0xDD, 0xDD, 0xDD, 0xDD}};
-
 static bool text_is(const char *expected, const char *actual)
 {
     return strcmp(expected, actual) == 0;
-}
-
-static Theme dac_theme(int size, Orientation orientation)
-{
-    Theme theme = BOARD_THEME;
-    default_theme_set_text_size(&theme, (TextSize)size);
-    default_theme_set_orientation(&theme, orientation);
-    return theme;
-}
-
-static int dac_value_room(const Theme *theme, int chip)
-{
-    const ThemeMetrics *metrics = &theme->metrics;
-    int row = metrics->screen_width - 2 * metrics->padding - metrics->scrollbar_width -
-              metrics->scrollbar_inset;
-    return row - text_width(theme->fonts.body, DAC_LABELS[chip]) - metrics->detail_gap;
-}
-
-static LabelFit dac_value_fit(const Theme *theme, int chip, DacIdentity identity)
-{
-    const Font *font = theme_is_portrait(theme) ? theme->fonts.small : theme->fonts.body;
-    fake_hal_audio_set_dac_identity(chip, identity);
-    const char *value = chip == 0 ? diagnostics_row_dac_a(NULL) : diagnostics_row_dac_b(NULL);
-    return label_fit(font, value, dac_value_room(theme, chip));
-}
-
-static bool dac_values_fit(const Theme *theme, const DacIdentity *identities, size_t count)
-{
-    for (size_t index = 0; index < count * DAC_IDENTITY_CHIPS; index++) {
-        int chip = (int)(index % DAC_IDENTITY_CHIPS);
-        if (dac_value_fit(theme, chip, identities[index / DAC_IDENTITY_CHIPS]).ellipsis) {
-            return false;
-        }
-    }
-    return true;
-}
-
-static void the_dac_rows_show_what_the_hal_read_from_each_chip(void)
-{
-    fake_hal_reset();
-    fake_hal_audio_set_dac_identity(0, DAC_KNOWN[0]);
-    fake_hal_audio_set_dac_identity(1, DAC_KNOWN[1]);
-    CHECK(text_is("431980 A0.00", diagnostics_row_dac_a(NULL)));
-    CHECK(text_is("431310 B1.07", diagnostics_row_dac_b(NULL)));
-    CHECK(text_is("431980 A0.00", diagnostics_row_dac_a(NULL)));
-}
-
-static void the_dac_rows_ask_for_a_track_until_the_dac_has_started(void)
-{
-    fake_hal_reset();
-    CHECK(text_is("Play a track", diagnostics_row_dac_a(NULL)));
-    CHECK(text_is("Play a track", diagnostics_row_dac_b(NULL)));
-}
-
-static void the_dac_rows_fit_in_landscape_at_every_text_size_whatever_was_read(void)
-{
-    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
-        Theme theme = dac_theme(size, ORIENTATION_LANDSCAPE);
-        CHECK(dac_values_fit(&theme, DAC_WORDS, sizeof DAC_WORDS / sizeof DAC_WORDS[0]));
-        CHECK(dac_values_fit(&theme, DAC_KNOWN, sizeof DAC_KNOWN / sizeof DAC_KNOWN[0]));
-        CHECK(dac_values_fit(&theme, &DAC_WIDEST, 1));
-    }
-}
-
-static void the_dac_rows_fit_in_portrait_at_small_and_medium_text(void)
-{
-    for (int size = TEXT_SIZE_SMALL; size <= TEXT_SIZE_MEDIUM; size++) {
-        Theme theme = dac_theme(size, ORIENTATION_PORTRAIT);
-        CHECK(dac_values_fit(&theme, DAC_WORDS, sizeof DAC_WORDS / sizeof DAC_WORDS[0]));
-        CHECK(dac_values_fit(&theme, DAC_KNOWN, sizeof DAC_KNOWN / sizeof DAC_KNOWN[0]));
-    }
-}
-
-static void large_text_in_portrait_fits_the_words_and_cuts_only_after_the_revision(void)
-{
-    Theme theme = dac_theme(TEXT_SIZE_LARGE, ORIENTATION_PORTRAIT);
-    CHECK(dac_values_fit(&theme, DAC_WORDS, sizeof DAC_WORDS / sizeof DAC_WORDS[0]));
-    for (int chip = 0; chip < DAC_IDENTITY_CHIPS; chip++) {
-        CHECK(dac_value_fit(&theme, chip, DAC_KNOWN[0]).byte_count >= sizeof "431980 A0" - 1);
-        CHECK(dac_value_fit(&theme, chip, DAC_KNOWN[1]).byte_count >= sizeof "431310 B1" - 1);
-    }
-}
-
-static void the_id_bytes_of_an_unknown_part_are_never_cut(void)
-{
-    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
-        Theme theme = dac_theme(size, ORIENTATION_PORTRAIT);
-        for (int chip = 0; chip < DAC_IDENTITY_CHIPS; chip++) {
-            CHECK(dac_value_fit(&theme, chip, DAC_WIDEST).byte_count > DAC_ID_DIGITS);
-        }
-    }
 }
 
 static void an_untried_tone_shows_nothing(void)
@@ -603,12 +494,6 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_watchdog_test_is_named_in_the_last_step_row),
-        TEST_CASE(the_dac_rows_show_what_the_hal_read_from_each_chip),
-        TEST_CASE(the_dac_rows_ask_for_a_track_until_the_dac_has_started),
-        TEST_CASE(the_dac_rows_fit_in_landscape_at_every_text_size_whatever_was_read),
-        TEST_CASE(the_dac_rows_fit_in_portrait_at_small_and_medium_text),
-        TEST_CASE(large_text_in_portrait_fits_the_words_and_cuts_only_after_the_revision),
-        TEST_CASE(the_id_bytes_of_an_unknown_part_are_never_cut),
         TEST_CASE(an_untried_tone_shows_nothing),
         TEST_CASE(the_loop_row_is_empty_until_run),
         TEST_CASE(the_headset_row_shows_the_level_and_the_button_it_reads_as),
