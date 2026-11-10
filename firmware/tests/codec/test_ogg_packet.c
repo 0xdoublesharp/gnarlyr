@@ -467,9 +467,108 @@ static void a_zero_length_prefix_discards_only_one_complete_checked_packet(void)
     CHECK_EQUAL(OGG_PACKET_INVALID, ogg_packets_prefix(&stream, output, 7, NULL));
 }
 
+static void checked_pages_can_be_probed_without_sequential_packet_state(void)
+{
+    reset();
+    static const uint8_t LACES[] = {3, 2};
+    page(2, 0, LACES, 2);
+    uint32_t at = page(4, 1, LACES, 2);
+    memset(file.data + at + 6, 0, 8);
+    put32(file.data + at + 6, 12345);
+    repair(at, file.size - at);
+    OggPage checked = {0};
+    CHECK_EQUAL(OGG_PACKET_READY, ogg_page_read(reader().input, at, &checked));
+    CHECK_EQUAL(at, checked.offset);
+    CHECK_EQUAL(at + 29, checked.body);
+    CHECK_EQUAL(file.size, checked.next);
+    CHECK_EQUAL(29, checked.serial);
+    CHECK_EQUAL(1, checked.sequence);
+    CHECK_EQUAL(12345, checked.granule);
+    CHECK_EQUAL(4, checked.flags);
+    CHECK_EQUAL(2, checked.last_complete);
+    CHECK_EQUAL(3, checked.laces[0]);
+    OggPage before = checked;
+    file.data[file.size - 1] ^= 1;
+    CHECK_EQUAL(OGG_PACKET_INVALID, ogg_page_read(reader().input, at, &checked));
+    CHECK(memcmp(&before, &checked, sizeof checked) == 0);
+    CHECK_EQUAL(OGG_PACKET_INVALID, ogg_page_read(reader().input, UINT32_MAX, &checked));
+    CHECK_EQUAL(OGG_PACKET_INVALID, ogg_page_read(reader().input, at, NULL));
+}
+
+static void page_search_checks_capture_candidates_and_respects_the_search_range(void)
+{
+    reset();
+    static const uint8_t LACES[] = {255, 10};
+    page(2, 0, LACES, 2);
+    memcpy(file.data + 50, "OggS", 4);
+    memset(file.data + 54, 0, 23);
+    repair(0, file.size);
+    uint32_t at = page(4, 1, LACES, 2);
+    OggPage checked = {.offset = 99};
+    CHECK_EQUAL(OGG_PACKET_END, ogg_page_find(reader().input, 28, at, &checked));
+    CHECK_EQUAL(99, checked.offset);
+    CHECK_EQUAL(OGG_PACKET_READY, ogg_page_find(reader().input, 28, file.size, &checked));
+    CHECK_EQUAL(at, checked.offset);
+    CHECK_EQUAL(OGG_PACKET_READY, ogg_page_find(reader().input, at, at + 1, &checked));
+    CHECK_EQUAL(OGG_PACKET_END, ogg_page_find(reader().input, at + 1, file.size, &checked));
+    CHECK_EQUAL(OGG_PACKET_INVALID, ogg_page_find(reader().input, at, at - 1, &checked));
+    CHECK_EQUAL(OGG_PACKET_INVALID, ogg_page_find(reader().input, 0, file.size + 1, &checked));
+}
+
+static void resume_discards_an_orphan_continuation_and_preserves_following_packets(void)
+{
+    reset();
+    static const uint8_t LONG[] = {255};
+    static const uint8_t END[] = {7, 2};
+    page(2, 0, LONG, 1);
+    uint32_t at = page(1, 1, LONG, 1);
+    page(5, 2, END, 2);
+    OggPackets stream = reader();
+    OggPacket packet = {0};
+    CHECK_EQUAL(OGG_PACKET_READY, ogg_packets_resume(&stream, stream.input, at, 29));
+    CHECK_EQUAL(OGG_PACKET_READY, next(&stream, &packet));
+    CHECK_EQUAL(2, packet.bytes);
+    CHECK_EQUAL(1, output[0]);
+    CHECK(!packet.first && packet.last);
+    CHECK_EQUAL(OGG_PACKET_END, next(&stream, &packet));
+    OggPackets before = stream;
+    CHECK_EQUAL(OGG_PACKET_INVALID, ogg_packets_resume(&stream, stream.input, at, 30));
+    CHECK(memcmp(&stream, &before, sizeof stream) == 0);
+    CHECK_EQUAL(OGG_PACKET_INVALID, ogg_packets_resume(&stream, stream.input, 0, 29));
+}
+
+static void page_probe_search_and_resume_preserve_outputs_after_failed_reads(void)
+{
+    reset();
+    static const uint8_t LACES[] = {255, 2};
+    page(2, 0, LACES, 2);
+    uint32_t at = page(4, 1, LACES, 2);
+    file.failing = true;
+    file.fail_at = file.size - 1;
+    OggPage checked = {.offset = 99};
+    OggPage page_before = checked;
+    CHECK_EQUAL(OGG_PACKET_WAIT, ogg_page_read(reader().input, at, &checked));
+    CHECK(memcmp(&page_before, &checked, sizeof checked) == 0);
+    CHECK_EQUAL(OGG_PACKET_WAIT, ogg_page_find(reader().input, at, file.size, &checked));
+    CHECK(memcmp(&page_before, &checked, sizeof checked) == 0);
+    OggPackets stream = reader();
+    OggPackets before = stream;
+    CHECK_EQUAL(OGG_PACKET_WAIT, ogg_packets_resume(&stream, stream.input, at, 29));
+    CHECK(memcmp(&before, &stream, sizeof stream) == 0);
+    file.failing = false;
+    CHECK_EQUAL(OGG_PACKET_READY, ogg_packets_resume(&stream, stream.input, at, 29));
+    OggPacket packet;
+    CHECK_EQUAL(OGG_PACKET_READY, next(&stream, &packet));
+    CHECK_EQUAL(257, packet.bytes);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(checked_pages_can_be_probed_without_sequential_packet_state),
+        TEST_CASE(page_search_checks_capture_candidates_and_respects_the_search_range),
+        TEST_CASE(resume_discards_an_orphan_continuation_and_preserves_following_packets),
+        TEST_CASE(page_probe_search_and_resume_preserve_outputs_after_failed_reads),
         TEST_CASE(prefixes_skip_large_metadata_without_narrowing_the_packet_limit),
         TEST_CASE(skipped_packets_still_check_every_page_and_can_retry_late_read_failures),
         TEST_CASE(a_zero_length_prefix_discards_only_one_complete_checked_packet),

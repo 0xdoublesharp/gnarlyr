@@ -21,6 +21,19 @@ typedef struct OggPacket {
     bool last;
 } OggPacket;
 
+typedef struct OggPage {
+    uint32_t offset;
+    uint32_t body;
+    uint32_t next;
+    uint32_t serial;
+    uint32_t sequence;
+    uint64_t granule;
+    uint16_t segments;
+    uint16_t last_complete;
+    uint8_t flags;
+    uint8_t laces[OGG_PAGE_SEGMENTS];
+} OggPage;
+
 typedef struct OggPackets {
     FlacInput input;
     uint32_t next_page;
@@ -44,3 +57,8 @@ OggPacketResult ogg_packets_next(OggPackets *reader, uint8_t *buffer, uint32_t c
 
 OggPacketResult ogg_packets_prefix(OggPackets *reader, uint8_t *buffer, uint32_t capacity,
                                    OggPacket *packet);
+
+OggPacketResult ogg_page_read(FlacInput input, uint32_t offset, OggPage *page);
+OggPacketResult ogg_page_find(FlacInput input, uint32_t start, uint32_t limit, OggPage *page);
+OggPacketResult ogg_packets_resume(OggPackets *reader, FlacInput input, uint32_t offset,
+                                   uint32_t serial);

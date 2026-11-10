@@ -15,3 +15,7 @@ A core-1 ring adapter must retain every byte the reader can revisit until a call
 The native packet tests cover a real Vorbis fixture, maximum-size pages, zero-length packets, continued packets, final granules, truncated/corrupt input and exact retry after a failed read at every byte of a multi-page packet. `ogg_packet_tool INPUT OUTPUT` exports checked packets for decoder comparisons as little-endian length (4 bytes), first/last flags (4 bytes), granule (8 bytes), then payload. It is a host test utility.
 
 This packet reader does not decode audio. A separate [bounded Vorbis decoder program](ogg-vorbis.md) is built and tested; a sequential file-to-record adapter is tested with it. Player playback still needs seek/trim control and format selection.
+
+`ogg_page_read` validates a page at an absolute byte offset without requiring preceding packet state. It returns the checked byte range, serial/sequence, flags, laces and granule. `ogg_page_find` searches an exclusive bounded range in chunks, checks capture candidates with the same page parser and ignores invalid capture coincidences inside payload. Callback failures return `OGG_PACKET_WAIT`; all unsuccessful operations preserve the caller's page output.
+
+`ogg_packets_resume` adopts a checked non-BOS page of an expected serial. It discards an orphan continuation, including one spanning subsequent pages, then returns complete packets with the normal sequence/CRC rules. Failure preserves the prior reader. These explicit random-access APIs do not change the strict sequential reader's corruption policy.

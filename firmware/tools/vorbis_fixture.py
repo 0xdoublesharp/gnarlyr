@@ -6,12 +6,18 @@ import subprocess
 from pathlib import Path
 
 TRACKS = (("mono8", 1, 8000, "0.4"), ("stereo44", 2, 44100, "0.4"),
-          ("stereo48", 2, 48000, "0.9"), ("low48", 2, 48000, "-0.1"))
+          ("stereo48", 2, 48000, "0.9"), ("low48", 2, 48000, "-0.1"), ("seek44", 2, 44100, "0.4"),
+          ("seek8", 1, 8000, "0.4"))
 
 
-def signal(channels, rate):
-    values = [int(12000 * math.sin(2 * math.pi * (997 if channel == 0 else 2111) * index / rate))
-              for index in range(rate // 4) for channel in range(channels)]
+def signal(channels, rate, long=False):
+    if long:
+        values = [int(12000 * math.sin(2 * math.pi * ((997 if channel == 0 else 2111) * index / rate +
+                                                   (43 if channel == 0 else 73) * (index / rate) ** 2 / 2)))
+                  for index in range(rate * 13 // 4) for channel in range(channels)]
+    else:
+        values = [int(12000 * math.sin(2 * math.pi * (997 if channel == 0 else 2111) * index / rate))
+                  for index in range(rate // 4) for channel in range(channels)]
     return struct.pack(f"<{len(values)}h", *values)
 
 
@@ -35,7 +41,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     for name, channels, rate, quality in TRACKS:
         encoded = subprocess.run([str(codec), "encode", str(channels), str(rate), quality],
-                                 input=signal(channels, rate), capture_output=True, check=True, env=env).stdout
+                                 input=signal(channels, rate, name.startswith("seek")), capture_output=True, check=True, env=env).stdout
         decoded = subprocess.run([str(codec), "decode"], input=encoded, capture_output=True,
                                  check=True, env=env).stdout
         (args.output / f"{name}.ogg").write_bytes(encoded)

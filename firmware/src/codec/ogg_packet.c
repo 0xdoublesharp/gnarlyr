@@ -65,61 +65,90 @@ static OggPacketResult check_page(FlacInput input, uint32_t offset, uint32_t len
     return crc == expected ? OGG_PACKET_READY : OGG_PACKET_INVALID;
 }
 
-static bool valid_header(const OggPackets *reader, const uint8_t *header, bool continued)
+static bool page_signature(const uint8_t *header)
 {
-    bool capture = header[0] == 'O' && header[1] == 'g' && header[2] == 'g' && header[3] == 'S';
-    bool flags = header[4] == 0 && (header[5] & ~(OGG_FIRST | OGG_LAST | OGG_CONTINUED)) == 0 &&
-                 ((header[5] & OGG_CONTINUED) != 0) == continued;
-    if (!capture || !flags) {
+    return header[0] == 'O' && header[1] == 'g' && header[2] == 'g' && header[3] == 'S' &&
+           header[4] == 0 && (header[5] & ~(OGG_FIRST | OGG_LAST | OGG_CONTINUED)) == 0;
+}
+
+OggPacketResult ogg_page_read(FlacInput input, uint32_t offset, OggPage *page)
+{
+    uint8_t header[OGG_HEADER_BYTES];
+    if (page == NULL) {
+        return OGG_PACKET_INVALID;
+    }
+    OggPacketResult result = read_bytes(input, offset, header, sizeof header);
+    if (result != OGG_PACKET_READY || !page_signature(header)) {
+        return result != OGG_PACKET_READY ? result : OGG_PACKET_INVALID;
+    }
+    OggPage candidate = {.offset = offset, .segments = header[26], .flags = header[5]};
+    candidate.body = offset + sizeof header;
+    result = read_bytes(input, candidate.body, candidate.laces, candidate.segments);
+    if (result != OGG_PACKET_READY) {
+        return result;
+    }
+    candidate.body += candidate.segments;
+    uint32_t size = 0;
+    for (uint32_t index = 0; index < candidate.segments; index++) {
+        size += candidate.laces[index];
+        if (candidate.laces[index] < 255) {
+            candidate.last_complete = (uint16_t)(index + 1);
+        }
+    }
+    if (candidate.body > input.size || size > input.size - candidate.body ||
+        ((candidate.flags & OGG_LAST) != 0 && candidate.segments != 0 &&
+         candidate.laces[candidate.segments - 1] == 255)) {
+        return OGG_PACKET_INVALID;
+    }
+    candidate.next = candidate.body + size;
+    result = check_page(input, offset, candidate.next - offset, little32(header + OGG_CRC_OFFSET));
+    if (result != OGG_PACKET_READY) {
+        return result;
+    }
+    candidate.serial = little32(header + 14);
+    candidate.sequence = little32(header + 18);
+    candidate.granule = (uint64_t)little32(header + 6) | (uint64_t)little32(header + 10) << 32;
+    *page = candidate;
+    return OGG_PACKET_READY;
+}
+
+static bool valid_sequence(const OggPackets *reader, const OggPage *page, bool continued)
+{
+    if (((page->flags & OGG_CONTINUED) != 0) != continued) {
         return false;
     }
     if (!reader->started) {
-        return (header[5] & OGG_FIRST) != 0 && little32(header + 18) == 0;
+        return (page->flags & OGG_FIRST) != 0 && page->sequence == 0;
     }
-    return (header[5] & OGG_FIRST) == 0 && little32(header + 14) == reader->serial &&
-           little32(header + 18) == reader->sequence + 1;
+    return (page->flags & OGG_FIRST) == 0 && page->serial == reader->serial &&
+           page->sequence == reader->sequence + 1;
+}
+
+static void adopt_page(OggPackets *reader, const OggPage *page)
+{
+    reader->body = page->body;
+    reader->next_page = page->next;
+    reader->serial = page->serial;
+    reader->sequence = page->sequence;
+    reader->granule = page->granule;
+    reader->flags = page->flags;
+    reader->segments = page->segments;
+    reader->last_complete = page->last_complete;
+    for (uint32_t index = 0; index < page->segments; index++) {
+        reader->laces[index] = page->laces[index];
+    }
+    reader->segment = 0;
+    reader->started = true;
 }
 
 static OggPacketResult load_page(OggPackets *reader, bool continued)
 {
-    uint8_t header[OGG_HEADER_BYTES];
-    OggPacketResult result = read_bytes(reader->input, reader->next_page, header, sizeof header);
-    if (result != OGG_PACKET_READY || !valid_header(reader, header, continued)) {
+    OggPage page;
+    OggPacketResult result = ogg_page_read(reader->input, reader->next_page, &page);
+    if (result != OGG_PACKET_READY || !valid_sequence(reader, &page, continued)) {
         return result != OGG_PACKET_READY ? result : OGG_PACKET_INVALID;
     }
-    uint32_t offset = reader->next_page + sizeof header;
-    result = read_bytes(reader->input, offset, reader->laces, header[26]);
-    if (result != OGG_PACKET_READY) {
-        return result;
-    }
-    uint32_t size = 0;
-    reader->last_complete = 0;
-    for (uint32_t index = 0; index < header[26]; index++) {
-        size += reader->laces[index];
-        if (reader->laces[index] < 255) {
-            reader->last_complete = (uint16_t)(index + 1);
-        }
-    }
-    offset += header[26];
-    if (offset > reader->input.size || size > reader->input.size - offset ||
-        ((header[5] & OGG_LAST) != 0 && header[26] > 0 && reader->laces[header[26] - 1] == 255)) {
-        return OGG_PACKET_INVALID;
-    }
-    uint32_t length = offset + size - reader->next_page;
-    result =
-        check_page(reader->input, reader->next_page, length, little32(header + OGG_CRC_OFFSET));
-    if (result != OGG_PACKET_READY) {
-        return result;
-    }
-    reader->body = offset;
-    reader->next_page = offset + size;
-    reader->serial = little32(header + 14);
-    reader->sequence = little32(header + 18);
-    reader->granule = (uint64_t)little32(header + 6) | (uint64_t)little32(header + 10) << 32;
-    reader->flags = header[5];
-    reader->segments = header[26];
-    reader->segment = 0;
-    reader->started = true;
+    adopt_page(reader, &page);
     return OGG_PACKET_READY;
 }
 
@@ -222,4 +251,67 @@ OggPacketResult ogg_packets_prefix(OggPackets *reader, uint8_t *buffer, uint32_t
                                    OggPacket *packet)
 {
     return read_packet(reader, (PacketOutput){buffer, capacity, true}, packet);
+}
+
+OggPacketResult ogg_page_find(FlacInput input, uint32_t start, uint32_t limit, OggPage *page)
+{
+    if (page == NULL || input.read == NULL || start > limit || limit > input.size) {
+        return OGG_PACKET_INVALID;
+    }
+    uint8_t bytes[OGG_CHECK_CHUNK + 3];
+    for (uint32_t offset = start; offset < limit;) {
+        uint32_t count = limit - offset < OGG_CHECK_CHUNK ? limit - offset : OGG_CHECK_CHUNK;
+        uint32_t tail = input.size - offset - count;
+        uint32_t length = count + (tail < 3 ? tail : 3);
+        OggPacketResult result = read_bytes(input, offset, bytes, length);
+        if (result != OGG_PACKET_READY) {
+            return result;
+        }
+        for (uint32_t index = 0; index < count && index + 3 < length; index++) {
+            if (bytes[index] == 'O' && bytes[index + 1] == 'g' && bytes[index + 2] == 'g' &&
+                bytes[index + 3] == 'S') {
+                result = ogg_page_read(input, offset + index, page);
+                if (result == OGG_PACKET_READY || result == OGG_PACKET_WAIT) {
+                    return result;
+                }
+            }
+        }
+        offset += count;
+    }
+    return OGG_PACKET_END;
+}
+
+static OggPacketResult skip_orphan(OggPackets *reader)
+{
+    for (;;) {
+        OggPacketResult result = packet_page(reader, true);
+        if (result != OGG_PACKET_READY) {
+            return result;
+        }
+        uint32_t length = reader->laces[reader->segment++];
+        reader->body += length;
+        if (length < 255) {
+            return OGG_PACKET_READY;
+        }
+    }
+}
+
+OggPacketResult ogg_packets_resume(OggPackets *reader, FlacInput input, uint32_t offset,
+                                   uint32_t serial)
+{
+    OggPage page;
+    OggPacketResult result = ogg_page_read(input, offset, &page);
+    if (result != OGG_PACKET_READY || page.serial != serial || (page.flags & OGG_FIRST) != 0) {
+        return result != OGG_PACKET_READY ? result : OGG_PACKET_INVALID;
+    }
+    OggPackets candidate = {.input = input, .emitted = true};
+    adopt_page(&candidate, &page);
+    if ((page.flags & OGG_CONTINUED) != 0) {
+        result = skip_orphan(&candidate);
+        if (result != OGG_PACKET_READY) {
+            return result;
+        }
+    }
+    *reader = candidate;
+    return OGG_PACKET_READY;
 }
