@@ -258,9 +258,8 @@ static void steps_closer_than_the_frame_interval_draw_once(void)
     CHECK_EQUAL(presents + 1, fake_hal_present_count());
 }
 
-static void a_screen_that_stopped_changing_is_redrawn_slowly_until_a_key_arrives(void)
+static int presents_once_the_screen_rests(void)
 {
-    start_app();
     for (int frame = 0; frame < 300; frame++) {
         wait_ms(FRAME_PACER_ACTIVE_MS);
     }
@@ -268,14 +267,30 @@ static void a_screen_that_stopped_changing_is_redrawn_slowly_until_a_key_arrives
     while (fake_hal_present_count() == presents) {
         wait_ms(1);
     }
-    presents = fake_hal_present_count();
-    wait_ms(FRAME_PACER_IDLE_MS / 2);
+    return fake_hal_present_count();
+}
+
+static void a_screen_that_stopped_changing_rests_until_a_key_arrives(void)
+{
+    start_app();
+    int presents = presents_once_the_screen_rests();
+    wait_ms(FRAME_PACER_REST_MS - 1);
     CHECK_EQUAL(presents, fake_hal_present_count());
-    wait_ms(FRAME_PACER_IDLE_MS / 2);
+    wait_ms(1);
     CHECK_EQUAL(presents + 1, fake_hal_present_count());
     fake_hal_queue_transition(KEY_VOLUME_UP, true, now_ms);
     wait_ms(FRAME_PACER_ACTIVE_MS);
     CHECK_EQUAL(presents + 2, fake_hal_present_count());
+}
+
+static void a_resting_screen_is_redrawn_soon_after_what_it_shows_changes(void)
+{
+    start_app();
+    int presents = presents_once_the_screen_rests();
+    fake_hal_set_battery(
+        (HalBattery){.known = true, .percent = 41, .usb_power = true, .charging = true});
+    wait_ms(FRAME_PACER_IDLE_MS);
+    CHECK_EQUAL(presents + 1, fake_hal_present_count());
 }
 
 static void the_home_menu_is_the_root(void)
@@ -3701,7 +3716,8 @@ int main(void)
         TEST_CASE(moving_the_selection_sends_only_part_of_the_screen),
         TEST_CASE(restarting_the_app_sends_a_whole_frame_again),
         TEST_CASE(steps_closer_than_the_frame_interval_draw_once),
-        TEST_CASE(a_screen_that_stopped_changing_is_redrawn_slowly_until_a_key_arrives),
+        TEST_CASE(a_screen_that_stopped_changing_rests_until_a_key_arrives),
+        TEST_CASE(a_resting_screen_is_redrawn_soon_after_what_it_shows_changes),
         TEST_CASE(the_home_menu_is_the_root),
         TEST_CASE(selecting_music_opens_the_music_menu),
         TEST_CASE(back_returns_to_the_previous_screen),

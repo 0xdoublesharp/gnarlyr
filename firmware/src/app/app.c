@@ -10,6 +10,7 @@
 #include "card_files.h"
 #include "core/deadline.h"
 #include "core/frame_pacer.h"
+#include "core/hash.h"
 #include "core/key_lock.h"
 #include "core/key_tracker.h"
 #include "core/low_battery.h"
@@ -48,6 +49,8 @@
 #include "ui/toast.h"
 
 enum {
+    VIEW_STAMP_CHECK_MS = 50,
+    VIEW_STAMP_POSITION_MS = 1000,
     RESCAN_PROGRESS_MS = 250,
     BATTERY_CHECK_MS = 250,
     CHARGE_LIT_MS = 5000
@@ -115,6 +118,10 @@ typedef struct AppState {
     FrameDiff frame_diff;
     FramePacer pacer;
     bool render_urgent;
+    bool render_wanted;
+    bool view_stamp_known;
+    uint32_t view_stamp;
+    uint32_t view_checked_ms;
     bool frame_sent;
     Fade splash;
     Fade goodbye;
@@ -1079,6 +1086,49 @@ static void run_debug_script(uint32_t now_ms)
     }
 }
 
+static uint32_t stamp_add(uint32_t stamp, uint32_t value)
+{
+    return hash_update(stamp, &value, sizeof value);
+}
+
+static uint32_t view_stamp(void)
+{
+    PlayerStatus status = player_status(&app.player);
+    HalBattery battery = hal_power_battery();
+    uint32_t stamp = HASH_START;
+    stamp = stamp_add(stamp, (uint32_t)status.state);
+    stamp = stamp_add(stamp, status.has_track);
+    stamp = stamp_add(stamp, status.track);
+    stamp = stamp_add(stamp, status.position_ms / VIEW_STAMP_POSITION_MS);
+    stamp = stamp_add(stamp, status.duration_ms);
+    stamp = stamp_add(stamp, status.volume);
+    stamp = stamp_add(stamp, (uint32_t)status.shuffle);
+    stamp = stamp_add(stamp, (uint32_t)status.repeat);
+    stamp = stamp_add(stamp, status.place.number);
+    stamp = stamp_add(stamp, status.place.total);
+    stamp = stamp_add(stamp, battery.known);
+    stamp = stamp_add(stamp, battery.percent);
+    stamp = stamp_add(stamp, battery.charging);
+    stamp = stamp_add(stamp, battery.usb_power);
+    stamp = stamp_add(stamp, (uint32_t)bluetooth_of(&app.bluetooth));
+    stamp = stamp_add(stamp, app.lock.locked);
+    stamp = stamp_add(stamp, app.toast.visible);
+    return stamp_add(stamp, (uint32_t)(uintptr_t)app.toast.text);
+}
+
+static bool view_changed(uint32_t now_ms)
+{
+    if (app.view_stamp_known && now_ms - app.view_checked_ms < VIEW_STAMP_CHECK_MS) {
+        return false;
+    }
+    uint32_t stamp = view_stamp();
+    bool changed = app.view_stamp_known && stamp != app.view_stamp;
+    app.view_stamp_known = true;
+    app.view_stamp = stamp;
+    app.view_checked_ms = now_ms;
+    return changed;
+}
+
 CORE_SEAM void app_step(void)
 {
     if (app.powered_off) {
@@ -1150,15 +1200,17 @@ CORE_SEAM void app_step(void)
     toast_update(&app.toast, now_ms);
     follow_appearance();
     update_screen(now_ms);
+    app.render_wanted |= view_changed(now_ms);
     bool urgent = app.render_urgent || app.light_after_frame || fade_running() || slide_running();
-    app.render_urgent = false;
-    if (!app.display_on || !frame_pacer_due(&app.pacer, now_ms, urgent)) {
+    if (!app.display_on || !frame_pacer_due(&app.pacer, now_ms, urgent || app.render_wanted)) {
         return;
     }
+    app.render_urgent = false;
+    app.render_wanted = false;
     frame_stats_record(&app.update_stats, hal_clock_microseconds() - started_us);
     app.frame_sent = false;
     render_frame();
-    frame_pacer_done(&app.pacer, now_ms, app.frame_sent);
+    frame_pacer_done(&app.pacer, now_ms, app.frame_sent, urgent);
     light_after_first_frame();
     frame_stats_record(&app.frame_stats, hal_clock_microseconds() - started_us);
     debug_runner_frame(
