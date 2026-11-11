@@ -961,6 +961,11 @@ static const Theme *board_theme(void)
     return hal_system_restart_pending() ? &notice_theme : &app.theme;
 }
 
+const Theme *app_theme(void)
+{
+    return board_theme();
+}
+
 static void draw_fade(Canvas *canvas, const Fade *fade, const char *text)
 {
     const Theme *theme = board_theme();
@@ -1486,9 +1491,18 @@ void app_release_audio(void)
     player_release_output(&app.player);
 }
 
-void app_remember_dac_volume(uint8_t level)
+AppDacSettings app_dac_settings(void)
 {
-    app.settings.settings.dac_volume = level;
+    const Settings *settings = &app.settings.settings;
+    return (AppDacSettings){settings->dac_volume, (uint8_t)settings->gain,
+                            (uint8_t)settings->output};
+}
+
+void app_remember_dac(AppDacSettings settings)
+{
+    app.settings.settings.dac_volume = settings.volume;
+    app.settings.settings.gain = (GainLevel)settings.gain;
+    app.settings.settings.output = (OutputJack)settings.output;
     settings_store_save(&app.settings);
 }
 
@@ -1947,7 +1961,7 @@ static void draw_usb_status(void *context, Canvas *canvas)
 {
     const UsbStatusFrame *frame = context;
     AppUsbRenderer draw = app.usb_renderer;
-    if (draw == NULL || frame->status.view == APP_USB_CONNECTING) {
+    if (draw == NULL) {
         draw = usb_screen_draw_fallback;
     }
     draw(canvas, board_theme(), frame->battery, frame->status);
@@ -1966,6 +1980,17 @@ CORE_SEAM void app_show_usb_status(AppUsbStatus status)
     }
     render((FrameDrawer){.draw = draw_usb_status, .context = &frame}, false);
     light_after_first_frame();
+}
+
+CORE_SEAM void app_show_usb_area(AppUsbStatus status, Rect area)
+{
+    UsbStatusFrame frame = {.status = status, .battery = hal_power_battery()};
+    StripRenderer renderer = frame_renderer(area, false);
+    strip_renderer_render(&renderer, (FrameDrawer){.draw = draw_usb_status, .context = &frame},
+                          (FrameSink){.write = send_motion, .context = NULL});
+    hal_display_present();
+    frame_diff_mask(&app.frame_diff, area);
+    frame_diff_mask(&app.frame_diff, (Rect){0, 0, 0, 0});
 }
 
 CORE_SEAM void app_show_notice(const char *title, const char *message)

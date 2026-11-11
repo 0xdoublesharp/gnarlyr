@@ -9,10 +9,14 @@
 #include "core/string_builder.h"
 #include "debug_probe.h"
 #include "device/block_device.h"
+#include "device/usb_activity.h"
 #include "device/usb_fallback.h"
+#include "device/usb_leave.h"
 #include "emmc.h"
 #include "hal/clock.h"
+#include "hal/input.h"
 #include "hal/system.h"
+#include "screens/usb_scene.h"
 #include "sd.h"
 #include "usb.h"
 #include "usb_report.h"
@@ -27,7 +31,9 @@ enum {
     CARD_LUN = 1,
     LUN_COUNT = 2,
     WRITE_BUFFER_SECTORS = 64,
-    WORKING_COMMANDS = 2
+    WORKING_COMMANDS = 2,
+    MOTION_FRAME_MS = 100,
+    MOTION_STEP = 3
 };
 
 static UsbShared *shared;
@@ -37,6 +43,11 @@ static Msc msc;
 static UsbFallback fallback;
 static UsbForced forced;
 static uint32_t write_buffer[WRITE_BUFFER_SECTORS * MSC_SECTOR_SIZE / 4];
+static UsbActivity activity;
+static UsbLeave leave;
+static UsbScene scene;
+static uint32_t refused_before;
+static uint32_t motion_ms;
 
 uint32_t *usb_session_buffer(void)
 {
@@ -136,12 +147,111 @@ static void fall_back_to_full_speed(void)
     usb_port_connect(&port);
 }
 
-static void show_storage_state(void)
+static const char *storage_detail(void)
 {
-    app_show_usb_status((AppUsbStatus){
+    if (scene.state == USB_SCENE_WAITING) {
+        return i18n_text(scene.holding ? STR_USB_KEEP_HOLDING : STR_USB_WAITING_HINT);
+    }
+    if (scene.state == USB_SCENE_LEAVING) {
+        return i18n_text(STR_USB_LEAVING_HINT);
+    }
+    return i18n_text(card_present ? STR_USB_EJECT_DRIVES : STR_USB_EJECT_DRIVE);
+}
+
+static AppUsbStatus storage_status(void)
+{
+    return (AppUsbStatus){
         .view = APP_USB_STORAGE,
         .information = i18n_text(card_present ? STR_POWER_INTERNAL_CARD : STR_POWER_INTERNAL),
-        .detail = i18n_text(card_present ? STR_USB_EJECT_DRIVES : STR_USB_EJECT_DRIVE)});
+        .detail = storage_detail(),
+        .scene = &scene};
+}
+
+static void show_storage_state(void)
+{
+    app_show_usb_status(storage_status());
+}
+
+static uint8_t drive_state(uint8_t lun)
+{
+    if ((msc.present_at_start & (1u << lun)) == 0) {
+        return USB_SCENE_DRIVE_ABSENT;
+    }
+    return msc_ejected(&msc, lun) ? USB_SCENE_DRIVE_EJECTED : USB_SCENE_DRIVE_MOUNTED;
+}
+
+static uint8_t traffic_state(UsbLeaveState state, uint32_t now_ms)
+{
+    if (state == USB_LEAVE_WAITING) {
+        return USB_SCENE_WAITING;
+    }
+    if (state != USB_LEAVE_SERVING) {
+        return USB_SCENE_LEAVING;
+    }
+    UsbActivityKind kind = usb_activity_now(&activity, now_ms);
+    if (kind == USB_ACTIVITY_WRITING) {
+        return USB_SCENE_WRITING;
+    }
+    return kind == USB_ACTIVITY_READING ? USB_SCENE_READING : USB_SCENE_CONNECTED;
+}
+
+static bool scene_follow(UsbLeaveState state, uint32_t now_ms)
+{
+    UsbScene before = scene;
+    scene.state = traffic_state(state, now_ms);
+    scene.holding = usb_leave_holding(&leave);
+    scene.high_speed = port.device.speed == USB_SPEED_HIGH;
+    for (uint8_t lun = 0; lun < USB_SCENE_DRIVES; lun++) {
+        scene.drives[lun] = (UsbSceneDrive){msc.luns[lun].sector_count, drive_state(lun)};
+    }
+    return before.state != scene.state || before.holding != scene.holding ||
+           before.high_speed != scene.high_speed ||
+           before.drives[0].state != scene.drives[0].state ||
+           before.drives[1].state != scene.drives[1].state;
+}
+
+static bool moving(void)
+{
+    return scene.state == USB_SCENE_READING || scene.state == USB_SCENE_WRITING ||
+           scene.state == USB_SCENE_WAITING;
+}
+
+static void step_motion(uint32_t now_ms)
+{
+    if (!moving() || now_ms - motion_ms < MOTION_FRAME_MS) {
+        return;
+    }
+    motion_ms = now_ms;
+    scene.turn = (uint8_t)(scene.turn + MOTION_STEP);
+    AppUsbStatus status = storage_status();
+    app_show_usb_area(status, usb_screen_layout(app_theme(), status).art);
+}
+
+static void follow_keys(void)
+{
+    HalKeyTransition key;
+    while (hal_input_next_transition(&key)) {
+        if (key.key == KEY_BACK) {
+            usb_leave_key(&leave, key.pressed, key.time_ms);
+        }
+    }
+}
+
+static UsbLeaveState follow_leave(uint32_t now_ms)
+{
+    follow_keys();
+    MscStats stats = msc_stats(&msc);
+    usb_activity_follow(&activity, &stats, now_ms);
+    UsbLeaveNow now = {.now_ms = now_ms,
+                       .quiet = usb_activity_quiet(&activity, now_ms),
+                       .refused = stats.writes_after_eject != refused_before};
+    UsbLeaveState before = (UsbLeaveState)leave.state;
+    UsbLeaveState state = usb_leave_step(&leave, now);
+    if (before != USB_LEAVE_REMOVING && state == USB_LEAVE_REMOVING) {
+        msc_remove_media(&msc);
+        refused_before = stats.writes_after_eject;
+    }
+    return state;
 }
 
 bool usb_session_present(UsbShared *state, UsbForced *connection, uint32_t commands)
@@ -152,6 +262,33 @@ bool usb_session_present(UsbShared *state, UsbForced *connection, uint32_t comma
                                                            .now_ms = hal_clock_milliseconds()});
 }
 
+static void refresh(MscStats *shown, HalBattery *shown_battery)
+{
+    HalBattery battery = hal_power_battery();
+    MscStats stats = msc_stats(&msc);
+    uint32_t written = usb_activity_written_kib(&activity);
+    if (stats_changed(stats, *shown)) {
+        show_counters(stats);
+    } else if (app_usb_battery_changed(*shown_battery, battery) || written != scene.written_kib) {
+        scene.written_kib = written;
+        show_storage_state();
+    }
+    *shown = stats;
+    *shown_battery = battery;
+}
+
+static UsbSessionEnd ended(UsbLeaveState state)
+{
+    if (state == USB_LEAVE_FORCED) {
+        return USB_SESSION_STOPPED;
+    }
+    if (state == USB_LEAVE_EJECTED || msc_finished(&msc)) {
+        finish_last_reply();
+        return USB_SESSION_EJECTED;
+    }
+    return USB_SESSION_NO_HOST;
+}
+
 static UsbSessionEnd serve(void)
 {
     MscStats shown = msc_stats(&msc);
@@ -159,26 +296,23 @@ static UsbSessionEnd serve(void)
     uint32_t refreshed = hal_clock_milliseconds();
     while (usb_session_present(shared, &forced, msc_stats(&msc).commands)) {
         uint32_t now = hal_clock_milliseconds();
+        UsbLeaveState state = follow_leave(now);
+        if (scene_follow(state, now)) {
+            show_storage_state();
+        }
         if (now - refreshed >= COUNTER_REFRESH_MS) {
-            HalBattery battery = hal_power_battery();
-            MscStats stats = msc_stats(&msc);
-            if (stats_changed(stats, shown)) {
-                show_counters(stats);
-            } else if (app_usb_battery_changed(shown_battery, battery)) {
-                show_storage_state();
-            }
-            shown = stats;
-            shown_battery = battery;
+            refresh(&shown, &shown_battery);
             refreshed = hal_clock_milliseconds();
         }
+        step_motion(now);
         usb_poll(&port);
         board_display_service();
         if (usb_fallback_due(&fallback, session_works(), hal_clock_milliseconds())) {
             fall_back_to_full_speed();
         }
-        if (msc_finished(&msc)) {
-            finish_last_reply();
-            return USB_SESSION_EJECTED;
+        UsbSessionEnd end = ended(state);
+        if (end != USB_SESSION_NO_HOST) {
+            return end;
         }
     }
     return USB_SESSION_UNPLUGGED;
@@ -189,7 +323,8 @@ static HalUsbEnd hal_end(UsbSessionEnd end)
     if (end == USB_SESSION_EJECTED) {
         return HAL_USB_END_EJECTED;
     }
-    return end == USB_SESSION_UNPLUGGED ? HAL_USB_END_UNPLUGGED : HAL_USB_END_NO_HOST;
+    bool unplugged = end == USB_SESSION_UNPLUGGED || end == USB_SESSION_STOPPED;
+    return unplugged ? HAL_USB_END_UNPLUGGED : HAL_USB_END_NO_HOST;
 }
 
 static void remember_session(UsbSessionEnd end)
@@ -208,6 +343,9 @@ static UsbSessionEnd run(void)
         (AppUsbStatus){.view = APP_USB_CONNECTING, .detail = i18n_text(STR_USB_STARTING)});
     fallback = (UsbFallback){.watching = false};
     forced = (UsbForced){0};
+    leave = (UsbLeave){0};
+    scene = (UsbScene){.state = USB_SCENE_CONNECTED};
+    refused_before = 0;
     debug_report_write(shared, DEBUG_REPORT_USB_SESSION);
     prepare_port();
     prepare_luns();
@@ -215,12 +353,14 @@ static UsbSessionEnd run(void)
     UsbSessionEnd end = USB_SESSION_NO_HOST;
     if (usb_wait_for_host(&port, HOST_TIMEOUT_MS)) {
         usb_fallback_start(&fallback, port.link.high_speed_allowed, hal_clock_milliseconds());
+        usb_activity_start(&activity, hal_clock_milliseconds());
+        scene_follow(USB_LEAVE_SERVING, hal_clock_milliseconds());
         show_storage_state();
         end = serve();
     }
     usb_session_stop_listening();
     remember_session(end);
-    shared->show_modes = end == USB_SESSION_EJECTED;
+    shared->show_modes = end == USB_SESSION_EJECTED || end == USB_SESSION_STOPPED;
     return end;
 }
 
@@ -230,19 +370,38 @@ CORE_SEAM bool usb_session_storage_changed(void)
     return stats.lun_sectors_written[INTERNAL_LUN] > 0 || stats.lun_sectors_written[CARD_LUN] > 0;
 }
 
+static void warn(uint8_t state, StringId hint)
+{
+    scene.state = state;
+    app_show_usb_status((AppUsbStatus){.view = APP_USB_STORAGE,
+                                       .information = i18n_text(STR_USB_UNPLUGGED),
+                                       .detail = i18n_text(hint),
+                                       .scene = &scene});
+    board_wait_for_key();
+}
+
+static bool left_early(UsbSessionEnd end)
+{
+    return end == USB_SESSION_STOPPED ||
+           (end == USB_SESSION_UNPLUGGED && shared->last_session.left_mounted != 0);
+}
+
 CORE_SEAM bool usb_storage_session(UsbShared *state)
 {
     shared = state;
     UsbSessionEnd end = run();
-    if (end == USB_SESSION_UNPLUGGED && shared->last_session.left_mounted != 0) {
-        app_show_notice(i18n_text(STR_USB_UNPLUGGED), i18n_text(STR_USB_UNPLUGGED_HINT));
-        board_wait_for_key();
+    if (left_early(end)) {
+        bool stopped = end == USB_SESSION_STOPPED;
+        warn(stopped ? USB_SCENE_STOPPED : USB_SCENE_UNPLUGGED,
+             stopped ? STR_USB_STOPPED_HINT : STR_USB_UNPLUGGED_HINT);
     }
-    if (end == USB_SESSION_EJECTED || end == USB_SESSION_UNPLUGGED) {
+    bool finished =
+        end == USB_SESSION_EJECTED || end == USB_SESSION_UNPLUGGED || end == USB_SESSION_STOPPED;
+    if (finished) {
         time_file_take(end == USB_SESSION_EJECTED);
     }
 #ifndef ECHO_BOOT_TRACE
-    if (end == USB_SESSION_EJECTED || end == USB_SESSION_UNPLUGGED) {
+    if (finished) {
         update_after_usb(shared);
     }
 #endif

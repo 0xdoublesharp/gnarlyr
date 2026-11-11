@@ -6,7 +6,8 @@ enum {
     SETTLE_DIVISOR = 1000,
     GUARD_DIVISOR = 50,
     WORDS_PER_FRAME = 2,
-    WORD_BYTES = 4
+    WORD_BYTES = 4,
+    PEAK_SHIFT = 16
 };
 
 void usb_audio_sink_init(UsbAudioSink *sink, uint32_t *ring, uint32_t ring_frames)
@@ -51,6 +52,23 @@ static uint32_t sample_word(const uint8_t *bytes, uint8_t count)
         word |= (uint32_t)bytes[index] << (8 * (WORD_BYTES - count + index));
     }
     return word;
+}
+
+static void note_peak(UsbAudioSink *sink, int channel, uint32_t word)
+{
+    int32_t sample = (int32_t)word >> PEAK_SHIFT;
+    uint16_t size = (uint16_t)(sample < 0 ? -sample : sample);
+    if (size > sink->peaks[channel]) {
+        sink->peaks[channel] = size;
+    }
+}
+
+void usb_audio_sink_take_peaks(UsbAudioSink *sink, uint16_t *peaks)
+{
+    peaks[0] = sink->peaks[0];
+    peaks[1] = sink->peaks[1];
+    sink->peaks[0] = 0;
+    sink->peaks[1] = 0;
 }
 
 static void clear_range(UsbAudioSink *sink, uint32_t frame, uint32_t end)
@@ -100,8 +118,11 @@ static void write_frames(UsbAudioSink *sink, const uint8_t *bytes, uint32_t fram
     uint32_t total = adjust > 0 ? kept + 1 : kept;
     for (uint32_t index = 0; index < total; index++) {
         const uint8_t *frame = bytes + (index < kept ? index : kept - 1) * frame_bytes;
-        put_frame(sink, sink->written++, sample_word(frame, sink->sample_bytes),
-                  sample_word(frame + sink->sample_bytes, sink->sample_bytes));
+        uint32_t left = sample_word(frame, sink->sample_bytes);
+        uint32_t right = sample_word(frame + sink->sample_bytes, sink->sample_bytes);
+        note_peak(sink, 0, left);
+        note_peak(sink, 1, right);
+        put_frame(sink, sink->written++, left, right);
     }
 }
 

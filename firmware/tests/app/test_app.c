@@ -5205,7 +5205,9 @@ static void clipping_preview_is_discarded_by_back_shutdown_and_unrelated_saves(v
     move_up(1);
     CHECK_EQUAL(75536, fake_hal_audio_replay_gain());
     CHECK_EQUAL(75537, fake_hal_audio_queued_replay_gain());
-    app_remember_dac_volume(17);
+    AppDacSettings dac = app_dac_settings();
+    dac.volume = 17;
+    app_remember_dac(dac);
     Settings chosen;
     CHECK(saved_settings(&chosen));
     CHECK(chosen.prevent_clipping);
@@ -5219,9 +5221,28 @@ static void clipping_preview_is_discarded_by_back_shutdown_and_unrelated_saves(v
     CHECK(chosen.prevent_clipping);
 }
 
+static void dac_choices_made_during_usb_are_saved_with_the_settings(void)
+{
+    fake_hal_reset();
+    app_start();
+    AppDacSettings dac = app_dac_settings();
+    dac.volume = 21;
+    dac.gain = GAIN_HIGH;
+    dac.output = OUTPUT_BALANCED;
+    app_remember_dac(dac);
+    Settings saved;
+    CHECK(saved_settings(&saved));
+    CHECK_EQUAL(21, saved.dac_volume);
+    CHECK_EQUAL(GAIN_HIGH, saved.gain);
+    CHECK_EQUAL(OUTPUT_BALANCED, saved.output);
+    CHECK_EQUAL(21, app_dac_settings().volume);
+    app_stop();
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(dac_choices_made_during_usb_are_saved_with_the_settings),
         TEST_CASE(a_notice_is_drawn_at_once_over_the_current_screen),
         TEST_CASE(a_notice_turns_the_display_on),
         TEST_CASE(waking_keeps_the_screen_on_for_a_full_timeout),

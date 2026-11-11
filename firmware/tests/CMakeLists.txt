@@ -252,6 +252,16 @@ echo_add_unit_test(NAME test_equalizer_screen
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 
+echo_add_unit_test(NAME test_usb_screen
+    SOURCES app/test_usb_screen.c app/fake_hal.c support/text_spy.c support/screen_snapshot.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
+)
+echo_add_unit_test(NAME test_usb_dac_menu
+    SOURCES app/test_usb_dac_menu.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
 echo_add_unit_test(NAME test_charge_screen
     SOURCES app/test_charge_screen.c app/fake_hal.c support/text_spy.c support/screen_snapshot.c
     LIBRARIES echo_app echo_library_fixtures
@@ -363,7 +373,7 @@ echo_add_unit_test(NAME test_bluetooth_screen
     LIBRARIES echo_app echo_library_scan
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
-foreach(device_test audio_math backlight board_pins loader_request update_names updater_echo vop battery_gauge watchdog panic_text stall_watch bt_module card_write core1_control start_record dac_sequence dma_loop flac_accel headset_dips headset_monitor headset_remote jack_sense key_ladder key_scanner msc panel pll sd_card stream_drift tick_clock updater usb_audio usb_audio_sink usb_device usb_fallback usb_activity usb_forced usb_leave usb_plug wav_source pc_profile debug_report power_history rtc_registers time_file wall_clock)
+foreach(device_test audio_math backlight board_pins loader_request update_names updater_echo vop battery_gauge watchdog panic_text stall_watch bt_module card_write core1_control start_record dac_sequence dma_loop flac_accel headset_dips headset_monitor headset_remote jack_sense key_ladder key_scanner msc panel pll sd_card stream_drift tick_clock updater usb_audio usb_audio_sink usb_device usb_fallback usb_activity usb_forced usb_leave usb_level usb_plug wav_source pc_profile debug_report power_history rtc_registers time_file wall_clock)
     echo_add_unit_test(NAME test_${device_test}
         SOURCES device/test_${device_test}.c
         LIBRARIES echo_device_logic
@@ -545,6 +555,8 @@ target_compile_definitions(test_fat_delete PRIVATE
 set_tests_properties(test_fat_delete PROPERTIES TIMEOUT 30 FIXTURES_SETUP created_cards)
 
 if(ECHO_BUILD_SIM)
+    target_link_libraries(test_usb_screen PRIVATE echo_sim_glyphs)
+    target_compile_definitions(test_usb_screen PRIVATE ECHO_TEST_GLYPHS)
     echo_add_unit_test(NAME test_sim_options
         SOURCES sim/test_sim_options.c
         LIBRARIES echo_sim_options

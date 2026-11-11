@@ -178,9 +178,12 @@ set(ECHO_OVERLAY_IMPORTS
     LIBRARY_SCRATCH_PATH
     LIBRARY_STORE_PATH
     RESCAN_TIMES_PATH
-    app_remember_dac_volume
+    app_dac_settings
+    app_remember_dac
     app_show_notice
+    app_show_usb_area
     app_show_usb_status
+    app_theme
     charge_screen_text
     charge_screen_level_text
     charge_screen_usb_title
@@ -249,6 +252,21 @@ set(ECHO_OVERLAY_IMPORTS
     usb_session_stop_listening
     usb_silence_audio
     usb_vbus_present
+    canvas_blend_pixel
+    color_between
+    font_line_height
+    hal_audio_jack
+    hal_audio_set_gain
+    hal_audio_set_output
+    hal_audio_stats
+    hal_system_request_usb_mode
+    label_draw_paragraph
+    list_view_draw
+    list_view_fit_rows
+    list_view_init
+    list_view_move
+    rect_is_empty
+    theme_is_portrait
 )
 if(NOT ECHO_RELEASE)
     list(APPEND ECHO_OVERLAY_IMPORTS
@@ -365,6 +383,10 @@ set(ECHO_USB_OVERLAY_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/usb_overl
 add_executable(echo_usb_overlay
     overlay/usb_overlay.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen.c
+    ${PROJECT_SOURCE_DIR}/src/app/screens/usb_dac_menu.c
+    ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_dac.c
+    ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
+    ${PROJECT_SOURCE_DIR}/src/ui/wire_figure.c
     board/update.c
     board/usb_dac_session.c
     board/time_file_take.c
