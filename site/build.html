@@ -77,6 +77,8 @@
 <h3>Language packs over USB</h3>
 <p>Build a pack in the <a href="languages.html">browser builder</a>, then run <code>python3 tools/echo_debug.py language-install /path/to/es.pack --select</code> with a developer player connected in USB storage mode. The helper checks the pack against the installed build, verifies the copied file and selects the language after reconnecting. Use <code>language-select en</code> to return to English.</p>
 <p>List installed languages with <code>language-list</code>. Check a pack without installing it with <code>language-inspect /path/to/es.pack</code>. The matching <code>echo_language_*</code> MCP tools expose the same operations. Listing ignores macOS <code>._</code> metadata files, and selection resolves the current language’s setting label. Managed installation validates the installed catalogue and same-player music volume, keeping writes limited to language-pack paths. Full usage is in <code>docs/language-packs.md</code>.</p>
+<h3>Button-lock input handling</h3>
+<p>The key-lock source requires an uninterrupted Play+Power hold. Releasing and pressing either key again before completion resets the timer; after a successful toggle, both keys must be released before another hold can toggle it. This corrects interrupted presses being counted as one continuous hold.</p>
 <h3>Audio processing and diagnostics</h3>
 <p>Audio processing remains available as interface modules change. A separate 8 KiB code bank holds sample-rate conversion and M4A/M4B parsing. Diagnostic counts exclude intentionally muted DMA pauses, so a normal pause is not reported as missing audio.</p>
 </section>
