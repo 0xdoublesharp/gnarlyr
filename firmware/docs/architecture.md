@@ -98,11 +98,13 @@ The CMake targets enforce these rules. Each module exposes only its own `include
   | E1 | `safe_start_volume_level`, in music volume steps | 24 (40 % of 60) | 0–60 |
   | E2 | `transition_tenths`, the transition length in 100 ms units | 15 | 5–60 |
   | E3 | reserved | 0 | 0 |
-  | E4–E8 | `home_order`: nine 4-bit Home item indices, low nibble first | 0 to 8, the built-in order | a permutation of 0–8; the high nibble of E8 is zero |
-  | E9–E10 | `home_hidden`: little-endian mask, bit n hides Home item n | 0 | bits 9–15 zero; bit 3 (Settings) zero |
+  | E4–E8 | `home_order`: up to ten 4-bit Home item indices in display order, low nibble first | 0 to 8, the built-in order | see the Home order rule below |
+  | E9–E10 | `home_hidden`: little-endian mask, bit n hides Home item n | 0 | only bits of stored items; bit 3 (Settings) zero |
   | E11–E15 | reserved | 0 | 0 |
 
-  The Home item indices are those of `build_home` (`app/app_screens.c`): 0 Music, 1 Audiobooks, 2 Podcasts, 3 Settings (`SETTINGS_HOME_SETTINGS_ITEM`), 4 Now playing, 5 Up next, 6 Mixtapes, 7 Listening, 8 USB mode. Settings can never be hidden, so Home always keeps an item. Version 15 stores these fields only; nothing reads them yet.
+  The Home item indices are those of `build_home` (`app/app_screens.c`): 0 Music, 1 Audiobooks, 2 Podcasts, 3 Settings (`SETTINGS_HOME_SETTINGS_ITEM`), 4 Now playing, 5 Up next, 6 Mixtapes, 7 Listening, 8 USB mode. Settings can never be hidden, so Home always keeps an item.
+
+  **Home order rule.** A build has N Home items (`SETTINGS_HOME_ITEM_COUNT`, 9 today, at most 10 `SETTINGS_HOME_ORDER_SLOTS`). The stored order is the longest run of leading nibbles that is a permutation of 0..L−1 with every later nibble zero; its length L is the number of items the saving build had. The order is valid when 9 (`SETTINGS_HOME_FIRST_ITEM_COUNT`) ≤ L ≤ N and `home_hidden` sets only bits below L other than bit 3. A build with more items than the file (L < N) appends items L..N−1 at the end, visible; the next save writes all N. An order longer than the build's N (a file from a newer build) is invalid, so the whole file is rejected and the defaults load. A new Home item therefore takes the next index, never reuses or renumbers one, and the tenth item uses the high nibble of E8 and bit 9 of the mask. `settings_home_unpack` implements the rule; `tools/echo_language.py` applies the same rule with N read from the installed build's `settings.h`. Home lists the items in this order without the hidden ones; Now playing and Up next still appear only with a track, and Audiobooks and Podcasts only when their shelf exists. Settings → Home screen edits both fields.
 - Brightness 1–10 maps to a backlight duty of 20, 25, 31, 38, 46, 55, 65, 76, 88 and 100 % (`device/backlight`). Below 100 % GPIO2.4 runs a 25 kHz PWM (`BACKLIGHT_HZ`), whose period follows PCLK and is reprogrammed after every clock switch. The PWM runs as the Rockchip SDK sets it up (`PWM_CTRL` `0x10003`: continuous, duty polarity negative), so the duty register counts the part of the period the pin is **low**: `backlight_duty` writes `period − period × percent / 100`. The SDK's own backlight table works the same way (rate 10 is its brightest, 85 its dimmest). Writing the lit share there instead inverts the levels.
 
 ## Settings and favorites
