@@ -191,6 +191,27 @@ class CodeSpaceTest(image_tests.EchoImageTest):
         self.assert_healthy(rig.session)
 
 
+    def test_arm_rescan_keeps_legacy_half_millisecond_durations(self):
+        def wave(frames):
+            pcm = bytes(frames * 2)
+            return struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ",
+                               16, 1, 1, 48000, 96000, 2, 16, b"data", len(pcm)) + pcm
+        files = [("EVEN.WAV", wave(24024), None), ("ODD.WAV", wave(24072), None),
+                 ("WHOLE.WAV", wave(48000), None)]
+        session = self.session(files=files)
+        session.machine.stop_at("hal_system_return_scratch")
+        self.assertEqual(session.machine.run(until_ms=self.session_module.FRAME_LIMIT_MS),
+                         "reached hal_system_return_scratch")
+        database = session.fat().read("/" + image_tests.IDENTITY.data_directory + "/library.db")
+        offset, count = struct.unpack_from("<II", database, 8)
+        self.assertEqual(count, 3)
+        durations = [struct.unpack_from("<I", database, offset + index * 32 + 16)[0]
+                     for index in range(count)]
+        self.assertEqual(sorted(durations), [500, 501, 1000])
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+
 def main():
     arguments = image_tests.parse_arguments(sys.argv[1:])
     image_tests.CONFIG.update(image=arguments.image, elf=arguments.elf,
