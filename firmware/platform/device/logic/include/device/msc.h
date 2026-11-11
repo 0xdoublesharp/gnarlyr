@@ -45,6 +45,7 @@ typedef struct MscStats {
     uint32_t last_failed_lba;
     uint32_t last_written_lba[MSC_MAX_LUNS];
     uint32_t writes_after_eject;
+    uint32_t flushes;
 } MscStats;
 
 typedef struct MscHistoryEntry {
@@ -76,6 +77,7 @@ typedef struct Msc {
     uint8_t sense_key[MSC_MAX_LUNS];
     uint8_t sense_code[MSC_MAX_LUNS];
     uint8_t ejected;
+    uint8_t removed;
     uint8_t present_at_start;
     bool data_out;
     MscStats stats;
@@ -98,6 +100,7 @@ void msc_receive(Msc *msc, const uint8_t *packet, uint32_t length);
 bool msc_next_in(Msc *msc, uint8_t *buffer, uint32_t capacity, uint32_t *length);
 void msc_prefetch(Msc *msc);
 bool msc_ejected(const Msc *msc, uint8_t lun);
+void msc_remove_media(Msc *msc);
 bool msc_finished(const Msc *msc);
 uint8_t msc_left_mounted(const Msc *msc);
 MscStats msc_stats(const Msc *msc);

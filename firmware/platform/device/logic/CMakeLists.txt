@@ -135,11 +135,13 @@ add_library(echo_device_logic STATIC
     time_file.c
     update_names.c
     updater.c
+    usb_activity.c
     usb_audio.c
     usb_audio_sink.c
     usb_device.c
     usb_fallback.c
     usb_forced.c
+    usb_leave.c
     usb_plug.c
     vorbis_decoder.c
     vorbis_memory.c
@@ -186,9 +188,11 @@ if(CMAKE_CROSSCOMPILING)
         storage_mount.c
         update_names.c
         updater.c
+        usb_activity.c
         usb_audio.c
         usb_device.c
         usb_fallback.c
+        usb_leave.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
 endif()
