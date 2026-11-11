@@ -72,8 +72,9 @@ def load_symbols(elf_path, first=0, last=0xFFFFFFFF):
                 "<IIIBBH", elf, section[4] + position * 16)
             start = names[4] + name
             label = elf[start:elf.index(b"\x00", start)].decode("ascii")
-            if label and (info & 0xF) in (0, 1, 2) and first <= value < last:
-                symbols[label] = value & ~1
+            kind = info & 0xF
+            if label and kind in (0, 1, 2) and first <= value < last:
+                symbols[label] = value if kind == 1 else value & ~1
     return symbols
 
 
