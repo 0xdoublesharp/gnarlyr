@@ -16,6 +16,7 @@ from mutagen.oggopus import OggOpus
 from mutagen.oggvorbis import OggVorbis
 from PIL import Image, ImageDraw, ImageOps
 
+import check_cover_decode
 import cover_export
 
 FULL = 112
@@ -28,9 +29,7 @@ FRONT = 3
 OTHER = 0
 BACK = 4
 SHOWN_LIMIT = 16.0
-PENDING = {"jpeg_cmyk", "jpeg_cmyk_progressive", "jpeg_ycck", "jpeg_exif_orientation_3",
-           "jpeg_exif_orientation_6", "jpeg_exif_orientation_8", "id3v23_unsync",
-           "id3v24_frame_unsync", "ogg_vorbis_picture", "ogg_vorbis_large_picture",
+PENDING = {"id3v23_unsync", "id3v24_frame_unsync", "ogg_vorbis_picture", "ogg_vorbis_large_picture",
            "opus_front_second"}
 ORIENTATION_TAG = 0x0112
 ID3_SOURCE = "id3v24.mp3"
@@ -93,7 +92,6 @@ def with_orientation(image, orientation, **options):
 
 
 def interlaced_png(image):
-    import check_cover_decode
     width, height = image.size
     pixels = list(image.convert("RGB").getdata())
     samples = [[pixels[y * width + x] for x in range(width)] for y in range(height)]
@@ -101,7 +99,6 @@ def interlaced_png(image):
 
 
 def sixteen_bit_png(image):
-    import check_cover_decode
     width, height = image.size
     pixels = list(image.convert("RGB").getdata())
     samples = [[pixels[y * width + x] for x in range(width)] for y in range(height)]
@@ -110,20 +107,6 @@ def sixteen_bit_png(image):
 
 def cmyk_jpeg(image, progressive=False):
     return jpeg(image.convert("CMYK"), quality=92, progressive=progressive)
-
-
-def ycck_jpeg(image):
-    rgb = image.convert("RGB")
-    black = rgb.convert("CMYK").getchannel("K")
-    stored = Image.merge("CMYK", list(rgb.convert("YCbCr").split()) + [black])
-    data = bytearray(jpeg(stored, quality=95))
-    marker = data.find(b"\xff\xee")
-    while marker >= 0 and data[marker + 4:marker + 9] != b"Adobe":
-        marker = data.find(b"\xff\xee", marker + 2)
-    if marker < 0:
-        raise ValueError("Pillow wrote no Adobe marker")
-    data[marker + 15] = 2
-    return bytes(data)
 
 
 def unsupported_sof(data):
@@ -294,7 +277,7 @@ def jpeg_variants(corpus):
     cmyk_progressive = cmyk_jpeg(corpus.art(), progressive=True)
     corpus.flac_one("jpeg_cmyk_progressive", cmyk_progressive,
                     decoded(cmyk_progressive).convert("RGB"))
-    ycck_data = ycck_jpeg(corpus.art())
+    ycck_data = check_cover_decode.ycck_bytes(corpus.art())
     corpus.flac_one("jpeg_ycck", ycck_data, decoded(ycck_data).convert("RGB"))
     oriented = corpus.art(600, 400)
     for orientation in (3, 6, 8):

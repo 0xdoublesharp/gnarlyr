@@ -6,7 +6,7 @@
 #include "image/cover_image.h"
 
 enum {
-    JPEG_MAX_COMPONENTS = 3,
+    JPEG_MAX_COMPONENTS = 4,
     JPEG_TABLES = 4,
     JPEG_BLOCK = 64,
     JPEG_FAST_BITS = 9,
@@ -60,6 +60,7 @@ typedef enum JpegBlockKind {
 
 typedef struct JpegDecoder {
     ImageReader *reader;
+    ImageArena *arena;
     CoverGrid *grid;
     JpegBits bits;
     JpegHuffman dc[JPEG_TABLES];
@@ -80,7 +81,9 @@ typedef struct JpegDecoder {
     int32_t kernel[8][8];
     bool progressive;
     bool frame_seen;
-    bool adobe_rgb;
+    bool adobe;
+    uint32_t transform;
+    uint32_t orientation;
     uint32_t scanned;
     int32_t eob_run;
     int32_t coefficients[JPEG_BLOCK];

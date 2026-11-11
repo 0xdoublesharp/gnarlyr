@@ -181,6 +181,78 @@ static void rectangles_outside_the_crop_do_not_touch_it(void)
     free(grid);
 }
 
+static CoverGrid *quadrant_grid(void)
+{
+    CoverGrid *grid = new_grid(112, 112);
+    for (uint32_t y = 0; y < 112; y++) {
+        for (uint32_t x = 0; x < 112; x++) {
+            add_pixel(grid, x, y, x < 56 && y < 56 ? 255 : 0, x >= 56 && y < 56 ? 255 : 0,
+                      y >= 56 && x < 56 ? 255 : 0);
+        }
+    }
+    return grid;
+}
+
+static void exif_orientation_six_turns_the_cover_clockwise(void)
+{
+    CoverGrid *grid = quadrant_grid();
+    grid->orientation = 6;
+    cover_grid_render(grid, COVER_COLOR_RGB, full, half);
+    CHECK_EQUAL(rgb565(0, 0, 255), full[0]);
+    CHECK_EQUAL(rgb565(255, 0, 0), full[FULL - 1]);
+    CHECK_EQUAL(rgb565(0, 255, 0), full[FULL * FULL - 1]);
+    CHECK_EQUAL(rgb565(0, 0, 0), full[FULL * (FULL - 1)]);
+    CHECK_EQUAL(rgb565(255, 0, 0), half[HALF - 1]);
+    free(grid);
+}
+
+static void every_exif_orientation_puts_the_first_quadrant_where_pillow_does(void)
+{
+    static const uint32_t corners[9] = {
+        0, 0,        FULL - 1,        FULL * FULL - 1,  FULL * (FULL - 1),
+        0, FULL - 1, FULL * FULL - 1, FULL * (FULL - 1)};
+    for (uint32_t orientation = 1; orientation <= 8; orientation++) {
+        CoverGrid *grid = quadrant_grid();
+        grid->orientation = orientation;
+        cover_grid_render(grid, COVER_COLOR_RGB, full, half);
+        CHECK_EQUAL(rgb565(255, 0, 0), full[corners[orientation]]);
+        free(grid);
+    }
+}
+
+static void fill_inks(CoverGrid *grid, int32_t *black, const int32_t *inks)
+{
+    CHECK(cover_grid_attach_black(grid, black));
+    for (uint32_t channel = 0; channel < 4; channel++) {
+        cover_grid_add(grid, channel, (CoverRect){0, 0, 112, 112}, inks[channel]);
+    }
+}
+
+static void adobe_cmyk_multiplies_the_inverted_inks(void)
+{
+    static int32_t black[COVER_GRID_CELLS];
+    CoverGrid *grid = new_grid(112, 112);
+    fill_inks(grid, black, (const int32_t[]){255, 128, 0, 128});
+    cover_grid_render(grid, COVER_COLOR_CMYK_INVERTED, full, half);
+    CHECK_EQUAL(rgb565(128, 64, 0), full[FULL * 7 + 9]);
+    CHECK_EQUAL(rgb565(128, 64, 0), half[HALF * 3 + 2]);
+    cover_grid_init(grid, 112, 112);
+    fill_inks(grid, black, (const int32_t[]){0, 127, 255, 127});
+    cover_grid_render(grid, COVER_COLOR_CMYK, full, half);
+    CHECK_EQUAL(rgb565(128, 64, 0), full[0]);
+    free(grid);
+}
+
+static void ycck_inverts_the_converted_colour_before_black(void)
+{
+    static int32_t black[COVER_GRID_CELLS];
+    CoverGrid *grid = new_grid(112, 112);
+    fill_inks(grid, black, (const int32_t[]){0, 128, 128, 255});
+    cover_grid_render(grid, COVER_COLOR_YCCK, full, half);
+    CHECK_EQUAL(rgb565(255, 255, 255), full[100]);
+    free(grid);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -191,6 +263,10 @@ int main(void)
         TEST_CASE(a_small_image_is_scaled_up_by_repeating_pixels),
         TEST_CASE(half_resolution_chroma_converts_to_rgb),
         TEST_CASE(rectangles_outside_the_crop_do_not_touch_it),
+        TEST_CASE(exif_orientation_six_turns_the_cover_clockwise),
+        TEST_CASE(every_exif_orientation_puts_the_first_quadrant_where_pillow_does),
+        TEST_CASE(adobe_cmyk_multiplies_the_inverted_inks),
+        TEST_CASE(ycck_inverts_the_converted_colour_before_black),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

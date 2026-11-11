@@ -8,7 +8,7 @@ import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 
 FULL = 112
 HALF = 56
@@ -121,10 +121,34 @@ def jpeg_bytes(image, **options):
 
 
 def jpeg_case(name, image, **options):
-    data = jpeg_bytes(image, **options)
+    return jpeg_data_case(name, jpeg_bytes(image, **options))
+
+
+def jpeg_data_case(name, data):
     decoded = Image.open(io.BytesIO(data))
     decoded.load()
-    return Case(name, data, decoded, mean_limit=3.0, max_limit=128, p99_limit=40)
+    return Case(name, data, ImageOps.exif_transpose(decoded), mean_limit=3.0, max_limit=128,
+                p99_limit=40)
+
+
+def ycck_bytes(image):
+    rgb = image.convert("RGB")
+    black = rgb.convert("CMYK").getchannel("K")
+    stored = Image.merge("CMYK", list(rgb.convert("YCbCr").split()) + [black])
+    data = bytearray(jpeg_bytes(stored, quality=95))
+    marker = data.find(b"\xff\xee")
+    while marker >= 0 and data[marker + 4:marker + 9] != b"Adobe":
+        marker = data.find(b"\xff\xee", marker + 2)
+    if marker < 0:
+        raise ValueError("Pillow wrote no Adobe marker")
+    data[marker + 15] = 2
+    return bytes(data)
+
+
+def oriented_bytes(image, orientation):
+    exif = Image.Exif()
+    exif[0x0112] = orientation
+    return jpeg_bytes(image, quality=90, exif=exif.tobytes())
 
 
 def chunk(kind, payload):
@@ -261,6 +285,12 @@ def jpeg_cases():
         jpeg_case("jpeg_odd_size", smooth(333, 517, 10), quality=88),
         jpeg_case("jpeg_progressive_small", smooth(100, 150, 11), quality=90, progressive=True),
         jpeg_case("jpeg_huge", smooth(1800, 1200, 12), quality=92),
+        jpeg_case("jpeg_cmyk", smooth(300, 300, 13).convert("CMYK"), quality=90),
+        jpeg_case("jpeg_cmyk_progressive", smooth(400, 300, 14).convert("CMYK"), quality=90,
+                  progressive=True),
+        jpeg_data_case("jpeg_ycck", ycck_bytes(smooth(300, 300, 15))),
+        jpeg_data_case("jpeg_exif_rotated", oriented_bytes(smooth(320, 200, 16), 6)),
+        jpeg_data_case("jpeg_exif_mirrored", oriented_bytes(smooth(200, 260, 17), 2)),
     ]
 
 
@@ -288,11 +318,12 @@ def png_cases():
 def failing_cases():
     baseline = jpeg_bytes(synthetic(400, 400, 20), quality=90)
     png = png_cases()[0].data
-    cmyk = jpeg_bytes(synthetic(200, 200, 21).convert("CMYK"), quality=90)
+    lossless = bytearray(baseline)
+    lossless[lossless.find(b"\xff\xc0") + 1] = 0xC3
     gif = io.BytesIO()
     synthetic(50, 50, 22).save(gif, "GIF")
     return [
-        failing_case("jpeg_cmyk", cmyk, "unsupported"),
+        failing_case("jpeg_lossless", bytes(lossless), "unsupported"),
         failing_case("jpeg_truncated", baseline[:len(baseline) // 2], "corrupt"),
         failing_case("png_truncated", png[:len(png) // 2], "corrupt"),
         failing_case("gif", gif.getvalue(), "unsupported"),

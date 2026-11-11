@@ -9,6 +9,7 @@ enum {
     COVER_GRID_CELLS = COVER_GRID_SIZE * COVER_GRID_SIZE,
     COVER_GRID_HALF_CELLS = COVER_GRID_HALF * COVER_GRID_HALF,
     COVER_GRID_CHANNELS = 3,
+    COVER_GRID_BLACK = 3,
     COVER_GRID_LIMIT = 16384,
     COVER_GRID_WEIGHT_ONE = 512
 };
@@ -16,7 +17,10 @@ enum {
 typedef enum CoverColor {
     COVER_COLOR_GRAY,
     COVER_COLOR_RGB,
-    COVER_COLOR_YCBCR
+    COVER_COLOR_YCBCR,
+    COVER_COLOR_CMYK,
+    COVER_COLOR_CMYK_INVERTED,
+    COVER_COLOR_YCCK
 } CoverColor;
 
 typedef struct CoverRect {
@@ -36,9 +40,12 @@ typedef struct CoverGrid {
     uint32_t totals_y[COVER_GRID_CHANNELS][COVER_GRID_SIZE];
     int32_t row[COVER_GRID_CHANNELS][COVER_GRID_SIZE];
     int32_t sums[COVER_GRID_CHANNELS][COVER_GRID_CELLS];
+    int32_t *black;
+    uint32_t orientation;
 } CoverGrid;
 
 bool cover_grid_init(CoverGrid *grid, uint32_t width, uint32_t height);
+bool cover_grid_attach_black(CoverGrid *grid, int32_t *plane);
 void cover_grid_set_sampling(CoverGrid *grid, uint32_t channel, uint32_t width, uint32_t height);
 bool cover_grid_touches(const CoverGrid *grid, CoverRect rect);
 void cover_grid_add(CoverGrid *grid, uint32_t channel, CoverRect rect, int32_t value);

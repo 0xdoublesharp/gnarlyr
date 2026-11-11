@@ -12,6 +12,7 @@ enum {
     MARKER_SOS = 0xDA,
     MARKER_DQT = 0xDB,
     MARKER_DRI = 0xDD,
+    MARKER_APP1 = 0xE1,
     MARKER_APP14 = 0xEE,
     MARKER_RST0 = 0xD0,
     MARKER_RST7 = 0xD7,
@@ -25,6 +26,15 @@ enum {
     HUFFMAN_COUNTS = 16,
     MAX_SCANS = 128,
     ADOBE_LENGTH = 12,
+    ADOBE_YCCK = 2,
+    EXIF_HEAD = 14,
+    EXIF_TIFF = 6,
+    EXIF_ENTRY = 12,
+    EXIF_ENTRY_LIMIT = 64,
+    EXIF_ORIENTATION = 0x0112,
+    EXIF_SHORT = 3,
+    ORIENTATION_LAST = 8,
+    INK_COMPONENTS = 4,
     END_OF_BAND = 15,
     ZERO_RUN = 16
 };
@@ -125,9 +135,69 @@ static bool read_adobe(JpegDecoder *decoder, uint32_t length)
         adobe = adobe && bytes[index] == ADOBE[index];
     }
     if (adobe) {
-        decoder->adobe_rgb = bytes[11] == 0;
+        decoder->adobe = true;
+        decoder->transform = bytes[11];
     }
     return image_reader_skip(decoder->reader, length - ADOBE_LENGTH);
+}
+
+static uint32_t exif_number(const uint8_t *bytes, uint32_t size, bool little)
+{
+    uint32_t value = 0;
+    for (uint32_t index = 0; index < size; index++) {
+        uint32_t at = little ? size - 1 - index : index;
+        value = value << 8 | bytes[at];
+    }
+    return value;
+}
+
+static bool exif_header(const uint8_t *head, bool *little)
+{
+    static const uint8_t EXIF[EXIF_TIFF] = {'E', 'x', 'i', 'f', 0, 0};
+    for (uint32_t index = 0; index < EXIF_TIFF; index++) {
+        if (head[index] != EXIF[index]) {
+            return false;
+        }
+    }
+    *little = head[EXIF_TIFF] == 'I';
+    return head[EXIF_TIFF] == head[EXIF_TIFF + 1] && (*little || head[EXIF_TIFF] == 'M');
+}
+
+static void read_orientation(JpegDecoder *decoder, const uint8_t *entry, bool little)
+{
+    uint32_t value = exif_number(entry + 8, 2, little);
+    if (exif_number(entry, 2, little) == EXIF_ORIENTATION &&
+        exif_number(entry + 2, 2, little) == EXIF_SHORT && value >= 1 &&
+        value <= ORIENTATION_LAST) {
+        decoder->orientation = value;
+    }
+}
+
+static bool read_exif(JpegDecoder *decoder, uint32_t length)
+{
+    ImageReader *reader = decoder->reader;
+    uint8_t bytes[EXIF_HEAD];
+    bool little = false;
+    if (length < EXIF_HEAD || !image_reader_read(reader, bytes, EXIF_HEAD) ||
+        !exif_header(bytes, &little)) {
+        return length < EXIF_HEAD ? image_reader_skip(reader, length)
+                                  : image_reader_skip(reader, length - EXIF_HEAD);
+    }
+    uint32_t used = EXIF_TIFF + exif_number(bytes + 10, 4, little);
+    if (used < EXIF_HEAD || used > length - 2 || !image_reader_skip(reader, used - EXIF_HEAD) ||
+        !image_reader_read(reader, bytes, 2)) {
+        return image_reader_skip(reader, length - EXIF_HEAD);
+    }
+    uint32_t count = exif_number(bytes, 2, little);
+    used += 2;
+    for (uint32_t entry = 0;
+         entry < count && entry < EXIF_ENTRY_LIMIT && used + EXIF_ENTRY <= length &&
+         image_reader_read(reader, bytes, EXIF_ENTRY);
+         entry++) {
+        used += EXIF_ENTRY;
+        read_orientation(decoder, bytes, little);
+    }
+    return image_reader_skip(reader, length - used);
 }
 
 static uint32_t ceiling(uint32_t value, uint32_t divisor)
@@ -170,12 +240,19 @@ static void size_components(JpegDecoder *decoder)
         component->blocks_high = ceiling(height, BLOCK_SIDE);
         uint32_t sample_width = (decoder->h_max / component->h) << decoder->shift;
         uint32_t sample_height = (decoder->v_max / component->v) << decoder->shift;
-        cover_grid_set_sampling(decoder->grid, index, sample_width, sample_height);
+        if (index < COVER_GRID_CHANNELS) {
+            cover_grid_set_sampling(decoder->grid, index, sample_width, sample_height);
+        }
     }
 }
 
 static bool sampling_divides(const JpegDecoder *decoder)
 {
+    const JpegComponent *components = decoder->components;
+    if (decoder->component_count == INK_COMPONENTS &&
+        (components[3].h != components[0].h || components[3].v != components[0].v)) {
+        return false;
+    }
     for (uint32_t index = 0; index < decoder->component_count; index++) {
         const JpegComponent *component = &decoder->components[index];
         if (decoder->h_max % component->h != 0 || decoder->v_max % component->v != 0) {
@@ -196,7 +273,8 @@ static CoverImageResult read_frame(JpegDecoder *decoder, uint32_t length)
     if (reader->failed || decoder->frame_seen || length != 6 + 3 * count) {
         return COVER_IMAGE_CORRUPT;
     }
-    if (precision != PRECISION || (count != 1 && count != 3) || decoder->height == 0) {
+    if (precision != PRECISION || (count != 1 && count != 3 && count != INK_COMPONENTS) ||
+        decoder->height == 0) {
         return COVER_IMAGE_UNSUPPORTED;
     }
     decoder->h_max = 1;
@@ -214,6 +292,11 @@ static CoverImageResult read_frame(JpegDecoder *decoder, uint32_t length)
     }
     if (!cover_grid_init(decoder->grid, decoder->width, decoder->height)) {
         return COVER_IMAGE_TOO_BIG;
+    }
+    if (count == INK_COMPONENTS &&
+        !cover_grid_attach_black(decoder->grid,
+                                 image_arena_take(decoder->arena, COVER_GRID_CELLS * 4))) {
+        return COVER_IMAGE_NO_MEMORY;
     }
     decoder->shift = choose_shift(decoder->width, decoder->height);
     decoder->outputs = BLOCK_SIDE >> decoder->shift;
@@ -566,6 +649,8 @@ static CoverImageResult read_segment(JpegDecoder *decoder, uint32_t marker, uint
         read = length == 2 && !reader->failed;
     } else if (marker == MARKER_APP14) {
         read = read_adobe(decoder, length);
+    } else if (marker == MARKER_APP1) {
+        read = read_exif(decoder, length);
     } else if (marker == MARKER_SOS) {
         *step = run_scan(decoder, length, scans);
         return *step == STEP_FAILED ? COVER_IMAGE_CORRUPT : COVER_IMAGE_OK;
@@ -606,9 +691,15 @@ static CoverColor color_of(const JpegDecoder *decoder)
     if (!decoder->frame_seen || decoder->component_count == 1) {
         return COVER_COLOR_GRAY;
     }
+    if (decoder->component_count == INK_COMPONENTS) {
+        return !decoder->adobe                    ? COVER_COLOR_CMYK
+               : decoder->transform == ADOBE_YCCK ? COVER_COLOR_YCCK
+                                                  : COVER_COLOR_CMYK_INVERTED;
+    }
     const JpegComponent *components = decoder->components;
     bool rgb_ids = components[0].id == 'R' && components[1].id == 'G' && components[2].id == 'B';
-    return decoder->adobe_rgb || rgb_ids ? COVER_COLOR_RGB : COVER_COLOR_YCBCR;
+    bool adobe_rgb = decoder->adobe && decoder->transform == 0;
+    return adobe_rgb || rgb_ids ? COVER_COLOR_RGB : COVER_COLOR_YCBCR;
 }
 
 CoverImageResult jpeg_decode(ImageReader *reader, ImageArena *arena, CoverImage *image)
@@ -626,12 +717,15 @@ CoverImageResult jpeg_decode(ImageReader *reader, ImageArena *arena, CoverImage 
         decoder->quant_present[table] = false;
     }
     decoder->reader = reader;
+    decoder->arena = arena;
     decoder->grid = image->grid;
     decoder->frame_seen = false;
-    decoder->adobe_rgb = false;
+    decoder->adobe = false;
+    decoder->orientation = 1;
     decoder->restart_interval = 0;
     decoder->scanned = 0;
     CoverImageResult result = read_markers(decoder);
     image->color = color_of(decoder);
+    image->grid->orientation = decoder->orientation;
     return result;
 }
