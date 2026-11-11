@@ -72,7 +72,7 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 148,212 | 157,292 | 9,080 |
+| Code window | 148,620 | 157,292 | 8,672 |
 | Static RAM | 264,116 | 278,528 | 14,412 |
 | Rescan overlay | 88,468 | 98,304 | 9,836 |
 | USB overlay code | 11,484 | 65,536 | 54,052 |

@@ -134,7 +134,7 @@ typedef struct HalAudioEqualizer {
     uint16_t pre_gain;
 } HalAudioEqualizer;
 
-bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms);
+bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next);
 void hal_audio_queue_next(const HalAudioTrack *track);
 void hal_audio_pause(void);
 void hal_audio_resume(void);

@@ -1806,6 +1806,49 @@ class EchoImageTest(unittest.TestCase):
             self.assertTrue(rig.session.module_reads(slot, number))
         self.assert_healthy(rig.session)
 
+    def test_converted_files_keep_the_waveform_and_dma_continuous_at_the_queue_boundary(self):
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        from echo_emulator.audio import PRODUCED_OFFSET, RING_BYTES
+        from unicorn import UC_HOOK_MEM_WRITE
+        volume = Fat32Volume()
+        pcm = struct.pack("<8h", 0, 2828, 4000, 2828, 0, -2828, -4000, -2828) * 250
+        wav = struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ",
+                          16, 1, 1, 8000, 16000, 2, 16, b"data", len(pcm)) + pcm
+        volume.add_file("A.wav", wav)
+        volume.add_file("B.wav", wav)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        machine = rig.machine
+        samples, starts = {}, []
+        total, boundary = 24000, 12000
+        ring = rig.audio.ring
+
+        def capture(uc, access, address, size, value, user):
+            if len(samples) == total and samples[total - 1][1] is not None:
+                return
+            produced = struct.unpack("<I", machine.read_memory(
+                rig.audio.engine + PRODUCED_OFFSET, 4))[0]
+            at = ring + (produced % (RING_BYTES // 8)) * 8
+            if produced >= total or size not in (4, 8) or address not in (at, at + 4):
+                return
+            pair = samples.setdefault(produced, [None, None])
+            pair[(address - at) // 4] = value & 0xFFFFFFFF
+            if size == 8:
+                pair[1] = (value >> 32) & 0xFFFFFFFF
+
+        machine.uc.hook_add(UC_HOOK_MEM_WRITE, capture, None, ring, ring + RING_BYTES - 1)
+        machine.hook_symbol("dmac_start_loop", lambda: starts.append(machine.milliseconds()))
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(650)
+        self.assertEqual(total, len(samples))
+        self.assertTrue(all(None not in pair for pair in samples.values()))
+        self.assertEqual(1, len(starts), starts)
+        for frame in range(boundary - 144, boundary + 144):
+            self.assertEqual(samples[480 + frame % 48], samples[frame], frame)
+        self.assert_healthy(rig.session)
+
     def test_speech_plays_through_the_independent_audio_module_while_a_menu_module_changes(self):
         rig = self.speech_rig()
         number, dsp = self.module(rig.machine, "dsp")

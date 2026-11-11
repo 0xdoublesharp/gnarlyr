@@ -148,7 +148,7 @@ void audio_engine_set_volume(AudioEngine *engine, uint8_t level);
 void audio_engine_set_equalizer(AudioEngine *engine, const HalAudioEqualizer *curve);
 bool audio_engine_play(AudioEngine *engine, const AudioEngineTrack *track, uint32_t offset_ms);
 const char *audio_engine_current_path(const AudioEngine *engine);
-bool audio_engine_queue_needs_restart(const AudioEngine *engine);
+bool audio_engine_queue_needs_restart(const AudioEngine *engine, const AudioEngineTrack *track);
 void audio_engine_queue_next(AudioEngine *engine, const AudioEngineTrack *track);
 bool audio_engine_seek(AudioEngine *engine, uint32_t position_ms);
 void audio_engine_pause(AudioEngine *engine);

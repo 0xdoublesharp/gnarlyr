@@ -595,7 +595,7 @@ int fake_hal_write_count(void)
     return fake.write_count;
 }
 
-bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
+bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next)
 {
     uint32_t start_ms = track->start_ms + offset_ms;
     uint32_t token = track->token;
@@ -614,6 +614,7 @@ bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
                                          .position_ms = start_ms,
                                          .failed = false,
                                          .idle = false};
+    hal_audio_queue_next(next);
     return true;
 }
 

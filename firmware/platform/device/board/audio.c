@@ -470,7 +470,8 @@ static AudioEngineTrack engine_track(const HalAudioTrack *track)
                               .token = track->token};
 }
 
-CORE_SEAM bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
+CORE_SEAM bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms,
+                              const HalAudioTrack *next)
 {
     ensure_engine();
     ensure_audio_clock();
@@ -480,6 +481,8 @@ CORE_SEAM bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
     if (!audio_engine_play(&engine, &request, offset_ms)) {
         return false;
     }
+    AudioEngineTrack upcoming = engine_track(next);
+    audio_engine_queue_next(&engine, next != NULL ? &upcoming : NULL);
     if (!start_output(true)) {
         audio_engine_stop(&engine);
         return false;
@@ -491,12 +494,12 @@ void hal_audio_queue_next(const HalAudioTrack *track)
 {
     ensure_engine();
     HalAudioStatus status = hal_audio_status();
-    bool restart = audio_engine_queue_needs_restart(&engine);
+    AudioEngineTrack request = engine_track(track);
+    bool restart = audio_engine_queue_needs_restart(&engine, track != NULL ? &request : NULL);
     bool paused = status.state == HAL_AUDIO_PAUSED;
     if (restart) {
         stop_transfer();
     }
-    AudioEngineTrack request = engine_track(track);
     audio_engine_queue_next(&engine, track != NULL ? &request : NULL);
     if (!restart) {
         return;

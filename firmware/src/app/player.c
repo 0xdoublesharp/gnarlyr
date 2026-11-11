@@ -101,25 +101,29 @@ static bool upcoming_track(Player *player, PlayQueueCursor *cursor, uint16_t *tr
            play_queue_track_at(&player->queue, *cursor, track);
 }
 
+static bool prepare_next(Player *player, TrackAudio *audio)
+{
+    PlayQueueCursor upcoming = player->queue.cursor;
+    uint16_t track = 0;
+    player->has_next =
+        upcoming_track(player, &upcoming, &track) && track_audio(player, track, audio);
+    if (!player->has_next) {
+        return false;
+    }
+    player->next_cursor = upcoming;
+    player->next_token = new_token(player);
+    player->next_start_ms = audio->track.start_ms;
+    audio->track.token = player->next_token;
+    return true;
+}
+
 void player_requeue(Player *player)
 {
     if (!player->loaded) {
         return;
     }
     TrackAudio audio;
-    PlayQueueCursor upcoming = player->queue.cursor;
-    uint16_t track = 0;
-    player->has_next =
-        upcoming_track(player, &upcoming, &track) && track_audio(player, track, &audio);
-    if (!player->has_next) {
-        hal_audio_queue_next(NULL);
-        return;
-    }
-    player->next_cursor = upcoming;
-    player->next_token = new_token(player);
-    player->next_start_ms = audio.track.start_ms;
-    audio.track.token = player->next_token;
-    hal_audio_queue_next(&audio.track);
+    hal_audio_queue_next(prepare_next(player, &audio) ? &audio.track : NULL);
 }
 
 static void note_spoken(Player *player, uint16_t track)
@@ -153,7 +157,9 @@ static bool start_current(Player *player, uint32_t start_ms)
     player->up_next_revision++;
     audio.track.token = player->current_token;
     player->start_ms = audio.track.start_ms;
-    player->loaded = hal_audio_play(&audio.track, start_ms);
+    TrackAudio next;
+    bool queued = prepare_next(player, &next);
+    player->loaded = hal_audio_play(&audio.track, start_ms, queued ? &next.track : NULL);
     if (!player->loaded) {
         player->refusal = hal_audio_refusal();
         player->refusal_count++;
@@ -161,7 +167,6 @@ static bool start_current(Player *player, uint32_t start_ms)
         return false;
     }
     player->state = PLAYER_PLAYING;
-    player_requeue(player);
     return true;
 }
 

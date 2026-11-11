@@ -236,7 +236,7 @@ void sim_audio_stop(void)
     close_track(&audio.slots[1]);
 }
 
-bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
+bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next)
 {
     lock();
     close_track(next_track());
@@ -244,6 +244,9 @@ bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
     if (opened) {
         use_stream_rate(current_track()->decoder.sample_rate);
         clear_stream();
+        if (next != NULL) {
+            open_track(next_track(), next, 0);
+        }
     }
     audio.state = opened ? HAL_AUDIO_PLAYING : HAL_AUDIO_STOPPED;
     audio.failed = !opened;

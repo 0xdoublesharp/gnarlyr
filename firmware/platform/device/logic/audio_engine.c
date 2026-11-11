@@ -115,7 +115,6 @@ static bool open_track(AudioEngine *engine, const char *path, uint32_t start_ms,
             (AudioRefusal){.problem = AUDIO_REFUSAL_RATE, .sample_rate = info.sample_rate};
         return false;
     }
-    audio_resample_start(&engine->resample, info.sample_rate);
     if (info.sample_rate != audio_resample_rate(info.sample_rate) &&
         (engine->config.resample_pull == NULL ||
          (engine->config.prepare_resample != NULL && !engine->config.prepare_resample()))) {
@@ -177,6 +176,7 @@ static bool start_track(AudioEngine *engine, const AudioEngineTrack *track, uint
         engine->segment_count = 1;
         return false;
     }
+    audio_resample_start(&engine->resample, engine->decode_rate);
     engine->output_rate = audio_resample_rate(engine->decode_rate);
     design_equalizer(engine);
     push_segment(engine, track->path, track->token, 0, start_ms);
@@ -189,15 +189,20 @@ bool audio_engine_play(AudioEngine *engine, const AudioEngineTrack *track, uint3
     return start_track(engine, track, track->start_ms + offset_ms);
 }
 
-bool audio_engine_queue_needs_restart(const AudioEngine *engine)
+bool audio_engine_queue_needs_restart(const AudioEngine *engine, const AudioEngineTrack *track)
 {
+    if (track == NULL && !engine->has_next && engine->segment_count <= 1 && !engine->rate_pending &&
+        !(engine->resample.ended && engine->decoding)) {
+        return false;
+    }
     return engine->state != AUDIO_ENGINE_STOPPED &&
-           (engine->segment_count > 1 || engine->rate_pending || engine->ended);
+           (engine->segment_count > 1 || engine->rate_pending || engine->ended ||
+            engine->resample.ended);
 }
 
 void audio_engine_queue_next(AudioEngine *engine, const AudioEngineTrack *track)
 {
-    if (audio_engine_queue_needs_restart(engine) &&
+    if (audio_engine_queue_needs_restart(engine, track) &&
         !audio_engine_seek(engine, audio_engine_status(engine).position_ms)) {
         return;
     }
@@ -404,30 +409,73 @@ static void copy_pending(AudioEngine *engine)
     }
 }
 
+static void end_output(AudioEngine *engine)
+{
+    engine->ended = true;
+    engine->end_at = engine->produced;
+}
+
+static bool open_following(AudioEngine *engine)
+{
+    close_file(engine);
+    if (!engine->has_next) {
+        return false;
+    }
+    engine->has_next = false;
+    if (!open_track(engine, engine->next_path, engine->next_start_ms, engine->next_end_ms)) {
+        engine->failed = true;
+        return false;
+    }
+    return true;
+}
+
+static bool prepare_tail(AudioEngine *engine)
+{
+    if (engine->resample.factor <= 1 || engine->config.prepare_resample == NULL ||
+        engine->config.prepare_resample()) {
+        return true;
+    }
+    close_file(engine);
+    audio_resample_start(&engine->resample, 0);
+    engine->failed = true;
+    end_output(engine);
+    return false;
+}
+
+static bool begin_drain(AudioEngine *engine)
+{
+    uint32_t previous_rate = engine->decode_rate;
+    if (open_following(engine) && engine->decode_rate == previous_rate) {
+        push_segment(engine, engine->next_path, engine->next_token,
+                     engine->produced + audio_resample_pending(&engine->resample),
+                     engine->next_start_ms);
+        return false;
+    }
+    if (!prepare_tail(engine)) {
+        return false;
+    }
+    audio_resample_finish(&engine->resample);
+    return true;
+}
+
 static void finish_decoding(AudioEngine *engine)
 {
+    if (!engine->resample.ended && !begin_drain(engine)) {
+        return;
+    }
     if (engine->resample.factor > 1) {
         uint32_t first = engine->produced;
-        audio_resample_finish(&engine->resample);
         copy_resampled(engine);
         equalize(engine, first);
         if (audio_resample_pending(&engine->resample) != 0) {
             return;
         }
     }
-    close_file(engine);
-    if (!engine->has_next) {
-        engine->ended = true;
-        engine->end_at = engine->produced;
+    if (!engine->decoding) {
+        end_output(engine);
         return;
     }
-    engine->has_next = false;
-    if (!open_track(engine, engine->next_path, engine->next_start_ms, engine->next_end_ms)) {
-        engine->ended = true;
-        engine->end_at = engine->produced;
-        engine->failed = true;
-        return;
-    }
+    audio_resample_start(&engine->resample, engine->decode_rate);
     if (audio_resample_rate(engine->decode_rate) != engine->output_rate) {
         engine->rate_pending = true;
         return;
@@ -482,11 +530,16 @@ static void drop_finished_segments(AudioEngine *engine)
     }
 }
 
+static bool unfinished_audio(const AudioEngine *engine)
+{
+    return engine->decoding || (engine->resample.ended && !engine->ended);
+}
+
 void audio_engine_observe(AudioEngine *engine, uint32_t consumed)
 {
     engine->consumed = consumed;
     if ((int32_t)(engine->produced - engine->consumed) < 0) {
-        if (engine->decoding) {
+        if (unfinished_audio(engine)) {
             engine->stats.underruns++;
         }
         engine->produced = engine->consumed;
@@ -504,7 +557,7 @@ void audio_engine_pump(AudioEngine *engine, uint32_t consumed)
         return;
     }
     copy_pending(engine);
-    if (engine->pending_frames == 0 && engine->decoding && free_space(engine) > 0) {
+    if (engine->pending_frames == 0 && unfinished_audio(engine) && free_space(engine) > 0) {
         decode_one(engine);
         if (!engine->rate_pending) {
             copy_pending(engine);

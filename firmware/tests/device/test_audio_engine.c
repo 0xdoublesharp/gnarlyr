@@ -110,19 +110,26 @@ typedef struct ScriptedSource {
     int32_t right[16];
     int waits_before_frame;
     int frames_left;
+    int frames_per_open;
     int releases;
     int closes;
     uint32_t rate;
+    uint32_t next_rate;
 } ScriptedSource;
 
 static ScriptedSource scripted;
 
 static bool scripted_open(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track)
 {
-    (void)path;
     (void)start_ms;
-    const ScriptedSource *source_state = context;
+    ScriptedSource *source_state = context;
+    if (source_state->frames_per_open > 0) {
+        source_state->frames_left = source_state->frames_per_open;
+    }
     uint32_t rate = source_state->rate == 0 ? 44100 : source_state->rate;
+    if (source_state->next_rate != 0 && strcmp(path, "second") == 0) {
+        rate = source_state->next_rate;
+    }
     *track = (AudioTrackInfo){
         .stream = {.sample_rate = rate, .channels = 2, .bits_per_sample = 16, .max_block = 16}};
     return true;
@@ -508,7 +515,7 @@ static bool reference_reaches_ring(const ResampledReference *reference)
         for (int attempt = 0; attempt < 128 && engine.produced <= frame; attempt++) {
             audio_engine_pump(&engine, frame);
         }
-        uint32_t slot = 2 * (frame % RING_FRAMES);
+        uint32_t slot = 2 * (frame % (engine.config.ring_words / 2));
         if (engine.produced <= frame || ring[slot] != reference->words[2 * frame] ||
             ring[slot + 1] != reference->words[2 * frame + 1]) {
             return false;
@@ -570,6 +577,243 @@ static void adjacent_low_rate_chapters_share_filter_history_and_keep_their_posit
     CHECK_EQUAL(1, opens);
     CHECK(!engine.rate_pending);
     free(reference.words);
+}
+
+static ResampledReference joined_speech_reference(uint32_t frames)
+{
+    Fixture pcm = load("independent_16", "pcm");
+    AudioResample resample;
+    audio_resample_start(&resample, 22050);
+    ResampledReference reference = {.words = malloc((size_t)frames * 8 * sizeof(uint32_t))};
+    CHECK(reference.words != NULL);
+    for (uint32_t repeat = 0; repeat < 2; repeat++) {
+        for (uint32_t frame = 0; frame < frames; frame++) {
+            CHECK(audio_resample_push(&resample, expected_at(&pcm, 2 * frame) * 256,
+                                      expected_at(&pcm, 2 * frame + 1) * 256));
+            reference_take(&resample, &reference);
+        }
+    }
+    audio_resample_finish(&resample);
+    reference_take(&resample, &reference);
+    free(pcm.bytes);
+    return reference;
+}
+
+static void separate_converted_files_match_a_single_continuous_filter(void)
+{
+    start_engine();
+    CHECK(play_file("independent_16", 0, 1));
+    uint32_t frames = audio_engine_status(&engine).track.stream.total_samples;
+    queue_file("independent_16", 2);
+    ResampledReference reference = joined_speech_reference(frames);
+    CHECK_EQUAL(frames * 4, reference.frames);
+    CHECK(reference_reaches_ring(&reference));
+    for (int step = 0; step < 4; step++) {
+        audio_engine_pump(&engine, reference.frames);
+    }
+    CHECK_EQUAL(2, opens);
+    CHECK_EQUAL(reference.frames, engine.end_at);
+    CHECK_EQUAL(AUDIO_ENGINE_STOPPED, audio_engine_status(&engine).state);
+    CHECK_EQUAL(2, audio_engine_status(&engine).token);
+    CHECK(!engine.failed && !engine.rate_pending);
+    free(reference.words);
+}
+
+static void append_scripted_reference(ResampledReference *reference, uint32_t rate, uint32_t frames)
+{
+    AudioResample resample;
+    audio_resample_start(&resample, rate);
+    for (uint32_t at = 0; at < frames; at++) {
+        CHECK(audio_resample_push(&resample, scripted.left[at % 16] * 256,
+                                  scripted.right[at % 16] * 256));
+        reference_take(&resample, reference);
+    }
+    audio_resample_finish(&resample);
+    reference_take(&resample, reference);
+}
+
+static void every_converted_rate_keeps_history_across_short_queued_files(void)
+{
+    static const uint32_t RATES[] = {8000, 11025, 12000, 16000, 22050, 24000};
+    uint32_t words[384];
+    for (uint32_t index = 0; index < sizeof RATES / sizeof RATES[0]; index++) {
+        start_scripted_engine(0, 1);
+        scripted.rate = RATES[index];
+        scripted.frames_per_open = 1;
+        CHECK(play_file("first", 0, 1));
+        queue_file("second", 2);
+        ResampledReference reference = {.words = words};
+        append_scripted_reference(&reference, RATES[index], 32);
+        CHECK_EQUAL(32 * (audio_resample_rate(RATES[index]) / RATES[index]), reference.frames);
+        CHECK(reference_reaches_ring(&reference));
+        pump_until_full(reference.frames);
+        CHECK_EQUAL(reference.frames, engine.end_at);
+        CHECK(engine.ended && !engine.failed);
+        uint32_t boundary = reference.frames / 2;
+        CHECK_EQUAL(2, audio_engine_status(&engine).token);
+        CHECK_EQUAL(boundary, engine.segments[0].start);
+    }
+}
+
+static void different_converted_inputs_at_the_same_output_clock_drain_and_restart_exactly(void)
+{
+    start_scripted_engine(0, 1);
+    scripted.rate = 8000;
+    scripted.next_rate = 16000;
+    scripted.frames_per_open = 1;
+    engine.config.ring_words = 16;
+    CHECK(play_file("first", 0, 1));
+    queue_file("second", 2);
+    uint32_t words[288];
+    ResampledReference reference = {.words = words};
+    append_scripted_reference(&reference, 8000, 16);
+    uint32_t boundary = reference.frames;
+    append_scripted_reference(&reference, 16000, 16);
+    CHECK(reference_reaches_ring(&reference));
+    pump_until_full(reference.frames);
+    CHECK_EQUAL(reference.frames, engine.end_at);
+    CHECK_EQUAL(boundary, engine.segments[0].start);
+    CHECK_EQUAL(2, audio_engine_status(&engine).token);
+    CHECK_EQUAL(48000, audio_engine_rate(&engine));
+    CHECK(engine.ended && !engine.failed && !engine.rate_pending);
+}
+
+static void clearing_the_next_file_during_a_filter_drain_rebuilds_the_current_tail(void)
+{
+    start_scripted_engine(0, 1);
+    scripted.rate = 8000;
+    scripted.next_rate = 16000;
+    scripted.frames_per_open = 1;
+    engine.config.ring_words = 16;
+    CHECK(play_file("first", 0, 1));
+    queue_file("second", 2);
+    pump_until_full(0);
+    CHECK(engine.resample.ended && !engine.ended);
+    CHECK_EQUAL(1, engine.segment_count);
+    CHECK(audio_engine_queue_needs_restart(&engine, NULL));
+    audio_engine_pause(&engine);
+    audio_engine_queue_next(&engine, NULL);
+    CHECK_EQUAL(AUDIO_ENGINE_PAUSED, audio_engine_status(&engine).state);
+    uint32_t words[192];
+    ResampledReference reference = {.words = words};
+    append_scripted_reference(&reference, 8000, 16);
+    CHECK(reference_reaches_ring(&reference));
+    pump_until_full(reference.frames);
+    CHECK_EQUAL(reference.frames, engine.end_at);
+    CHECK_EQUAL(1, audio_engine_status(&engine).token);
+    CHECK(!engine.has_next && !engine.failed);
+}
+
+static void converted_tails_finish_after_multiple_small_ring_refills(void)
+{
+    start_engine();
+    engine.config.ring_words = 16;
+    CHECK(play_file("independent_16", 0, 1));
+    uint32_t frames = audio_engine_status(&engine).track.stream.total_samples;
+    ResampledReference reference = speech_reference(0, frames);
+    CHECK(reference_reaches_ring(&reference));
+    pump_until_full(reference.frames);
+    CHECK(engine.ended);
+    CHECK_EQUAL(reference.frames, engine.end_at);
+    CHECK_EQUAL(AUDIO_ENGINE_STOPPED, audio_engine_status(&engine).state);
+    free(reference.words);
+}
+
+static void an_underrun_while_the_final_filter_tail_drains_is_still_counted(void)
+{
+    start_scripted_engine(0, 1);
+    scripted.rate = 8000;
+    engine.config.ring_words = 16;
+    CHECK(play_file("short", 0, 1));
+    pump_until_full(0);
+    CHECK(engine.resample.ended && !engine.ended);
+    uint32_t expected = audio_engine_stats(&engine).underruns + 1;
+    audio_engine_observe(&engine, engine.produced + 1);
+    CHECK_EQUAL(expected, audio_engine_stats(&engine).underruns);
+}
+
+static void an_unreadable_next_file_preserves_the_converted_current_tail(void)
+{
+    start_engine();
+    CHECK(play_file("independent_16", 0, 1));
+    uint32_t frames = audio_engine_status(&engine).track.stream.total_samples;
+    queue_file("missing", 2);
+    ResampledReference reference = speech_reference(0, frames);
+    CHECK(reference_reaches_ring(&reference));
+    pump_until_full(reference.frames);
+    CHECK_EQUAL(reference.frames, engine.end_at);
+    CHECK(engine.ended && engine.failed);
+    CHECK_EQUAL(1, audio_engine_status(&engine).token);
+    free(reference.words);
+}
+
+static AudioSource eviction_source;
+static bool kernel_available;
+static bool kernel_restore;
+static uint32_t invalid_kernel_pulls;
+
+static bool evicting_open(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track)
+{
+    bool opened_source = eviction_source.open(context, path, start_ms, track);
+    if (!opened_source) {
+        kernel_available = false;
+    }
+    return opened_source;
+}
+
+static bool restore_kernel(void)
+{
+    kernel_available = kernel_restore;
+    return kernel_available;
+}
+
+static bool checked_kernel(AudioResample *resample, int32_t *left, int32_t *right)
+{
+    if (!kernel_available) {
+        invalid_kernel_pulls++;
+        return false;
+    }
+    return audio_resample_pull(resample, left, right);
+}
+
+static void a_failed_next_open_reloads_evicted_audio_code_before_draining(void)
+{
+    start_engine();
+    eviction_source = engine.config.source;
+    engine.config.source.open = evicting_open;
+    engine.config.prepare_resample = restore_kernel;
+    engine.config.resample_pull = checked_kernel;
+    kernel_restore = true;
+    invalid_kernel_pulls = 0;
+    CHECK(play_file("independent_16", 0, 1));
+    uint32_t frames = audio_engine_status(&engine).track.stream.total_samples;
+    queue_file("missing", 2);
+    ResampledReference reference = speech_reference(0, frames);
+    CHECK(reference_reaches_ring(&reference));
+    pump_until_full(reference.frames);
+    CHECK_EQUAL(reference.frames, engine.end_at);
+    CHECK_EQUAL(0, invalid_kernel_pulls);
+    CHECK(engine.ended && engine.failed);
+    free(reference.words);
+}
+
+static void unavailable_evicted_audio_code_finishes_with_an_error_without_calling_it(void)
+{
+    start_engine();
+    eviction_source = engine.config.source;
+    engine.config.source.open = evicting_open;
+    engine.config.prepare_resample = restore_kernel;
+    engine.config.resample_pull = checked_kernel;
+    kernel_restore = true;
+    invalid_kernel_pulls = 0;
+    CHECK(play_file("independent_16", 0, 1));
+    kernel_restore = false;
+    queue_file("missing", 2);
+    pump_until_full(0);
+    CHECK(engine.ended && engine.failed && !engine.decoding);
+    CHECK_EQUAL(0, invalid_kernel_pulls);
+    audio_engine_observe(&engine, engine.end_at);
+    CHECK_EQUAL(AUDIO_ENGINE_STOPPED, audio_engine_status(&engine).state);
 }
 
 static void low_rate_filter_tail_drains_before_the_next_output_clock_is_requested(void)
@@ -888,6 +1132,23 @@ static void replacing_a_pending_rate_change_restarts_at_the_current_rate(void)
     CHECK_EQUAL(5u, audio_engine_status(&engine).token);
 }
 
+static void clearing_an_already_empty_queue_preserves_prefetched_audio_and_position(void)
+{
+    start_engine();
+    CHECK(play_file("independent_16", 0, 1));
+    pump_until_full(0);
+    CHECK(engine.ended);
+    audio_engine_observe(&engine, 441);
+    uint32_t produced = engine.produced;
+    uint32_t position = audio_engine_status(&engine).position_ms;
+    int opened_count = opens;
+    audio_engine_queue_next(&engine, NULL);
+    CHECK_EQUAL(opened_count, opens);
+    CHECK_EQUAL(produced, engine.produced);
+    CHECK_EQUAL(position, audio_engine_status(&engine).position_ms);
+    CHECK_EQUAL(441, engine.consumed);
+}
+
 static void adding_after_the_decoder_ended_replaces_buffered_silence(void)
 {
     start_engine();
@@ -908,6 +1169,7 @@ int main(void)
         TEST_CASE(replacing_a_buffered_next_song_keeps_the_current_position),
         TEST_CASE(clearing_a_buffered_next_song_leaves_only_the_current_tail),
         TEST_CASE(replacing_a_pending_rate_change_restarts_at_the_current_rate),
+        TEST_CASE(clearing_an_already_empty_queue_preserves_prefetched_audio_and_position),
         TEST_CASE(adding_after_the_decoder_ended_replaces_buffered_silence),
 
         TEST_CASE(changing_only_the_gains_keeps_the_filter_history),
@@ -945,6 +1207,15 @@ int main(void)
         TEST_CASE(a_real_low_rate_flac_keeps_every_sample_and_its_exact_duration),
         TEST_CASE(low_rate_seeking_and_end_ranges_use_the_decoded_clock),
         TEST_CASE(adjacent_low_rate_chapters_share_filter_history_and_keep_their_positions),
+        TEST_CASE(separate_converted_files_match_a_single_continuous_filter),
+        TEST_CASE(every_converted_rate_keeps_history_across_short_queued_files),
+        TEST_CASE(different_converted_inputs_at_the_same_output_clock_drain_and_restart_exactly),
+        TEST_CASE(clearing_the_next_file_during_a_filter_drain_rebuilds_the_current_tail),
+        TEST_CASE(a_failed_next_open_reloads_evicted_audio_code_before_draining),
+        TEST_CASE(unavailable_evicted_audio_code_finishes_with_an_error_without_calling_it),
+        TEST_CASE(converted_tails_finish_after_multiple_small_ring_refills),
+        TEST_CASE(an_underrun_while_the_final_filter_tail_drains_is_still_counted),
+        TEST_CASE(an_unreadable_next_file_preserves_the_converted_current_tail),
         TEST_CASE(low_rate_filter_tail_drains_before_the_next_output_clock_is_requested),
         TEST_CASE(missing_optional_audio_code_only_refuses_tracks_that_need_it),
         TEST_CASE(an_unsupported_rate_is_refused),
