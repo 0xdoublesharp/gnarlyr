@@ -439,6 +439,52 @@ static void put_frame_bits(uint8_t *bytes, uint32_t *position, uint32_t value, u
     }
 }
 
+static void stereo_channel_assignments_reconstruct_signed_samples_exactly(void)
+{
+    static const int32_t pairs[][2] = {{1000, -5}, {-7, 11}};
+    for (uint32_t assignment = 8; assignment <= 10; assignment++) {
+        for (uint32_t index = 0; index < sizeof pairs / sizeof pairs[0]; index++) {
+            int32_t left = pairs[index][0];
+            int32_t right = pairs[index][1];
+            int32_t side = left - right;
+            int32_t first = assignment == 8 ? left : assignment == 9 ? side : (left + right) / 2;
+            int32_t second = assignment == 9 ? right : side;
+            uint32_t first_width = assignment == 9 ? 17 : 16;
+            uint32_t second_width = assignment == 9 ? 16 : 17;
+            uint8_t bytes[64] = {0xff, 0xf8, 0x69, 0, 0, 15};
+            bytes[3] = (uint8_t)((assignment << 4) | 8);
+            uint32_t at = 6;
+            bytes[at] = frame_crc8(bytes, at);
+            at++;
+            uint32_t bit = at * 8;
+            put_frame_bits(bytes, &bit, 0, 8);
+            put_frame_bits(bytes, &bit, (uint32_t)first & ((1u << first_width) - 1), first_width);
+            put_frame_bits(bytes, &bit, 0, 8);
+            put_frame_bits(bytes, &bit, (uint32_t)second & ((1u << second_width) - 1),
+                           second_width);
+            at = (bit + 7) / 8;
+            uint16_t crc = frame_crc16(bytes, at);
+            bytes[at++] = (uint8_t)(crc >> 8);
+            bytes[at++] = (uint8_t)crc;
+            Buffer input = {bytes, at};
+            FlacInfo info = {.sample_rate = 44100,
+                             .channels = 2,
+                             .bits_per_sample = 16,
+                             .min_block = 16,
+                             .max_block = 16,
+                             .total_samples = 16};
+            flac_start(&decoder, input_of(&input), info);
+            CHECK_EQUAL(FLAC_OK, flac_decode_frame(&decoder));
+            CHECK_EQUAL(16u, decoder.block_samples);
+            for (uint32_t sample = 0; sample < 16; sample++) {
+                CHECK_EQUAL(left, flac_channel(&decoder, 0)[sample]);
+                CHECK_EQUAL(right, flac_channel(&decoder, 1)[sample]);
+            }
+            CHECK_EQUAL(FLAC_END, flac_decode_frame(&decoder));
+        }
+    }
+}
+
 static void sample_size_header_codes_preserve_signed_values(void)
 {
     static const struct {
@@ -939,6 +985,7 @@ int main(void)
         TEST_CASE(all_fixed_predictor_orders_restore_their_expected_samples),
         TEST_CASE(escaped_residuals_decode_signed_samples_with_both_rice_methods),
         TEST_CASE(sample_size_header_codes_preserve_signed_values),
+        TEST_CASE(stereo_channel_assignments_reconstruct_signed_samples_exactly),
         TEST_CASE(invalid_frame_headers_never_publish_samples),
         TEST_CASE(blocks_larger_than_the_buffer_are_refused),
         TEST_CASE(unsupported_streaminfo_limits_are_rejected),
