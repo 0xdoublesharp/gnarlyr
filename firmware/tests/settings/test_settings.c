@@ -21,7 +21,10 @@ enum {
     HALF_DB_GAINS_FIELD = 28,
     HALF_DB_CHECKSUM_FIELD = 38,
     HALF_DB_VERSION = 11,
-    CURRENT_VERSION = 14,
+    CURRENT_VERSION = 15,
+    EXTENSION_VERSION = 15,
+    EXTENSION_FIELD = 38,
+    EXTENSION_CHECKSUM_FIELD = 54,
     LANGUAGE_VERSION = 12,
     LANGUAGE_FIELD = 19,
     ACCENT_VERSION = 5,
@@ -64,9 +67,10 @@ static Settings custom_settings(void)
 
 static void rewrite_checksum(uint8_t *bytes)
 {
-    int field = bytes[VERSION_FIELD] < EQUALIZER_VERSION ? OLD_CHECKSUM_FIELD
-                : bytes[VERSION_FIELD] < HALF_DB_VERSION ? PREVIOUS_CHECKSUM_FIELD
-                                                         : HALF_DB_CHECKSUM_FIELD;
+    int field = bytes[VERSION_FIELD] < EQUALIZER_VERSION   ? OLD_CHECKSUM_FIELD
+                : bytes[VERSION_FIELD] < HALF_DB_VERSION   ? PREVIOUS_CHECKSUM_FIELD
+                : bytes[VERSION_FIELD] < EXTENSION_VERSION ? HALF_DB_CHECKSUM_FIELD
+                                                           : EXTENSION_CHECKSUM_FIELD;
     uint32_t checksum = hash_update(HASH_START, bytes, (uint32_t)field);
     for (int index = 0; index < 4; index++) {
         bytes[field + index] = (uint8_t)(checksum >> (8 * index));
@@ -814,8 +818,7 @@ static void the_theme_version_keeps_the_existing_file_size(void)
     bytes[VERSION_FIELD + 1] = 0;
     bytes[27] = 1;
     rewrite_checksum(bytes);
-    CHECK(settings_decode(bytes, sizeof bytes, &settings));
-    CHECK_EQUAL(42, sizeof bytes);
+    CHECK(settings_decode(bytes, SETTINGS_V14_FILE_SIZE, &settings));
 }
 
 static void a_theme_survives_saving_without_moving_existing_settings(void)
@@ -883,7 +886,7 @@ static void normalization_defaults_off_with_peak_protection_and_migrates_version
     CHECK_EQUAL(original.equalizer, restored.equalizer);
 }
 
-static void normalization_modes_and_peak_protection_round_trip_in_the_existing_record_size(void)
+static void normalization_modes_and_peak_protection_round_trip_in_the_flags_byte(void)
 {
     for (uint8_t mode = REPLAY_GAIN_OFF; mode < REPLAY_GAIN_MODE_COUNT; mode++) {
         for (uint8_t clipping = 0; clipping < 2; clipping++) {
@@ -892,7 +895,7 @@ static void normalization_modes_and_peak_protection_round_trip_in_the_existing_r
             chosen.prevent_clipping = clipping != 0;
             uint8_t bytes[SETTINGS_FILE_SIZE];
             settings_encode(&chosen, bytes);
-            CHECK_EQUAL(42, sizeof bytes);
+            CHECK_EQUAL(mode | (clipping << 2), bytes[5]);
             Settings restored;
             CHECK(settings_decode(bytes, sizeof bytes, &restored));
             CHECK_EQUAL(mode, restored.replay_gain_mode);
@@ -917,12 +920,205 @@ static void invalid_normalization_flags_are_rejected_without_mutating_the_settin
     }
 }
 
+static Settings extension_settings(void)
+{
+    Settings settings = custom_settings();
+    settings.rewind_on_resume = false;
+    settings.safe_start_volume = false;
+    settings.safe_start_volume_level = SETTINGS_VOLUME_MAX;
+    settings.clock_24h = false;
+    settings.track_transition = TRACK_TRANSITION_CROSSFADE;
+    settings.transition_tenths = SETTINGS_TRANSITION_TENTHS_MAX;
+    for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
+        settings.home_order[index] = (uint8_t)(SETTINGS_HOME_ITEM_COUNT - 1 - index);
+    }
+    settings.home_hidden = 0x1F7;
+    return settings;
+}
+
+static void check_extension_defaults(const Settings *settings)
+{
+    CHECK(settings->rewind_on_resume);
+    CHECK(settings->safe_start_volume);
+    CHECK_EQUAL(24, settings->safe_start_volume_level);
+    CHECK(settings->clock_24h);
+    CHECK_EQUAL(TRACK_TRANSITION_OFF, settings->track_transition);
+    CHECK_EQUAL(15, settings->transition_tenths);
+    for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
+        CHECK_EQUAL(index, settings->home_order[index]);
+    }
+    CHECK_EQUAL(0, settings->home_hidden);
+}
+
+static void the_extension_defaults_keep_todays_behaviour(void)
+{
+    Settings settings = settings_defaults();
+    check_extension_defaults(&settings);
+    CHECK_EQUAL(SETTINGS_VOLUME_MAX * 2 / 5, settings.safe_start_volume_level);
+}
+
+static void the_extension_block_sits_between_the_language_and_the_checksum(void)
+{
+    static const uint8_t EXPECTED[16] = {0x07, 24, 15, 0, 0x10, 0x32, 0x54, 0x76, 0x08};
+    Settings settings = settings_defaults();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(58, sizeof bytes);
+    CHECK_EQUAL(15, bytes[VERSION_FIELD]);
+    CHECK(memcmp(bytes + EXTENSION_FIELD, EXPECTED, sizeof EXPECTED) == 0);
+    CHECK_EQUAL(hash_update(HASH_START, bytes, EXTENSION_CHECKSUM_FIELD),
+                hash_load(bytes + EXTENSION_CHECKSUM_FIELD));
+}
+
+static void every_extension_field_survives_a_round_trip(void)
+{
+    static const uint8_t EXPECTED[16] = {0x10, 60, 60, 0, 0x78, 0x56, 0x34, 0x12, 0x00, 0xF7, 0x01};
+    Settings original = extension_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&original, bytes);
+    CHECK(memcmp(bytes + EXTENSION_FIELD, EXPECTED, sizeof EXPECTED) == 0);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK(!decoded.rewind_on_resume);
+    CHECK(!decoded.safe_start_volume);
+    CHECK_EQUAL(SETTINGS_VOLUME_MAX, decoded.safe_start_volume_level);
+    CHECK(!decoded.clock_24h);
+    CHECK_EQUAL(TRACK_TRANSITION_CROSSFADE, decoded.track_transition);
+    CHECK_EQUAL(SETTINGS_TRANSITION_TENTHS_MAX, decoded.transition_tenths);
+    CHECK(memcmp(original.home_order, decoded.home_order, sizeof decoded.home_order) == 0);
+    CHECK_EQUAL(0x1F7, decoded.home_hidden);
+    CHECK_EQUAL(original.volume, decoded.volume);
+}
+
+static void each_comfort_flag_and_the_fade_round_trip_alone(void)
+{
+    for (int flag = 0; flag < 4; flag++) {
+        Settings original = extension_settings();
+        original.rewind_on_resume = flag == 0;
+        original.safe_start_volume = flag == 1;
+        original.clock_24h = flag == 2;
+        original.track_transition = flag == 3 ? TRACK_TRANSITION_FADE : TRACK_TRANSITION_OFF;
+        original.transition_tenths = SETTINGS_TRANSITION_TENTHS_MIN;
+        original.safe_start_volume_level = 0;
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&original, bytes);
+        CHECK_EQUAL(1 << flag, bytes[EXTENSION_FIELD]);
+        Settings decoded;
+        CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+        CHECK_EQUAL(original.rewind_on_resume, decoded.rewind_on_resume);
+        CHECK_EQUAL(original.safe_start_volume, decoded.safe_start_volume);
+        CHECK_EQUAL(original.clock_24h, decoded.clock_24h);
+        CHECK_EQUAL(original.track_transition, decoded.track_transition);
+        CHECK_EQUAL(SETTINGS_TRANSITION_TENTHS_MIN, decoded.transition_tenths);
+        CHECK_EQUAL(0, decoded.safe_start_volume_level);
+    }
+}
+
+static void a_version_fourteen_file_loads_with_the_extension_defaults_and_saves_as_fifteen(void)
+{
+    Settings original = extension_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&original, bytes);
+    bytes[VERSION_FIELD] = 14;
+    bytes[VERSION_FIELD + 1] = REPLAY_GAIN_ALBUM;
+    rewrite_checksum(bytes);
+    Settings decoded;
+    CHECK(settings_decode(bytes, SETTINGS_V14_FILE_SIZE, &decoded));
+    check_extension_defaults(&decoded);
+    CHECK_EQUAL(REPLAY_GAIN_ALBUM, decoded.replay_gain_mode);
+    CHECK_EQUAL(original.volume, decoded.volume);
+    CHECK_EQUAL(original.orientation, decoded.orientation);
+    settings_encode(&decoded, bytes);
+    CHECK_EQUAL(15, bytes[VERSION_FIELD]);
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    check_extension_defaults(&decoded);
+}
+
+static void every_older_version_loads_with_the_extension_defaults(void)
+{
+    for (uint8_t version = 1; version < EXTENSION_VERSION; version++) {
+        Settings original = extension_settings();
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&original, bytes);
+        old_layout(bytes, version);
+        if (version >= LANGUAGE_VERSION) {
+            memset(bytes + LANGUAGE_FIELD, 0, SETTINGS_LANGUAGE_LENGTH);
+            rewrite_checksum(bytes);
+        }
+        Settings decoded;
+        CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+        check_extension_defaults(&decoded);
+        CHECK_EQUAL(original.brightness, decoded.brightness);
+    }
+}
+
+static void a_version_fifteen_file_needs_all_fifty_eight_bytes(void)
+{
+    Settings settings = settings_defaults();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK(!settings_decode(bytes, SETTINGS_V14_FILE_SIZE, &settings));
+    CHECK(!settings_decode(bytes, SETTINGS_FILE_SIZE - 1, &settings));
+}
+
+static void the_checksum_covers_the_extension_block(void)
+{
+    for (int offset = EXTENSION_FIELD; offset < EXTENSION_CHECKSUM_FIELD; offset++) {
+        Settings settings = settings_defaults();
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&settings, bytes);
+        bytes[offset] ^= 0x01;
+        CHECK(!settings_decode(bytes, sizeof bytes, &settings));
+    }
+}
+
+static void each_invalid_extension_value_is_rejected_without_mutating_the_settings(void)
+{
+    static const uint8_t CASES[][2] = {
+        {0, 0x20},  {0, 0x40},  {0, 0x80}, {0, 0x18}, {1, 61},   {2, 4},    {2, 61},   {2, 0},
+        {3, 1},     {4, 0x00},  {4, 0x19}, {6, 0x55}, {8, 0x18}, {8, 0x09}, {9, 0x08}, {9, 0xFF},
+        {10, 0x02}, {10, 0x80}, {11, 1},   {12, 1},   {13, 1},   {14, 1},   {15, 0x80}};
+    for (uint32_t at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
+        Settings original = settings_defaults();
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&original, bytes);
+        bytes[EXTENSION_FIELD + CASES[at][0]] = CASES[at][1];
+        rewrite_checksum(bytes);
+        Settings before = original;
+        CHECK(!settings_decode(bytes, sizeof bytes, &original));
+        CHECK(memcmp(&before, &original, sizeof original) == 0);
+    }
+}
+
+static void every_item_but_settings_may_be_hidden(void)
+{
+    for (int item = 0; item < SETTINGS_HOME_ITEM_COUNT; item++) {
+        Settings original = settings_defaults();
+        original.home_hidden = (uint16_t)(1u << item);
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&original, bytes);
+        Settings decoded;
+        CHECK_EQUAL(item != SETTINGS_HOME_SETTINGS_ITEM,
+                    settings_decode(bytes, sizeof bytes, &decoded));
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(defaults_are_comfortable),
+        TEST_CASE(the_extension_defaults_keep_todays_behaviour),
+        TEST_CASE(the_extension_block_sits_between_the_language_and_the_checksum),
+        TEST_CASE(every_extension_field_survives_a_round_trip),
+        TEST_CASE(each_comfort_flag_and_the_fade_round_trip_alone),
+        TEST_CASE(a_version_fourteen_file_loads_with_the_extension_defaults_and_saves_as_fifteen),
+        TEST_CASE(every_older_version_loads_with_the_extension_defaults),
+        TEST_CASE(a_version_fifteen_file_needs_all_fifty_eight_bytes),
+        TEST_CASE(the_checksum_covers_the_extension_block),
+        TEST_CASE(each_invalid_extension_value_is_rejected_without_mutating_the_settings),
+        TEST_CASE(every_item_but_settings_may_be_hidden),
         TEST_CASE(normalization_defaults_off_with_peak_protection_and_migrates_version_thirteen),
-        TEST_CASE(normalization_modes_and_peak_protection_round_trip_in_the_existing_record_size),
+        TEST_CASE(normalization_modes_and_peak_protection_round_trip_in_the_flags_byte),
         TEST_CASE(invalid_normalization_flags_are_rejected_without_mutating_the_settings),
         TEST_CASE(the_theme_version_keeps_the_existing_file_size),
         TEST_CASE(a_theme_survives_saving_without_moving_existing_settings),

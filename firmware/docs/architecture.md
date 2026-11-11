@@ -70,7 +70,7 @@ The CMake targets enforce these rules. Each module exposes only its own `include
   | 0–3 | `DSST` | 1 |
   | 4 | version | 1 |
   | 5 | reserved, zero | 1–13 |
-  | 5 | ReplayGain mode in bits 0–1, clipping prevention in bit 2 | 14 |
+  | 5 | ReplayGain mode in bits 0–1, clipping prevention in bit 2; bits 3–7 zero | 14 |
   | 6–13 | brightness, screen timeout, gain, output, start screen, shuffle, repeat, volume | 1 |
   | 14 | auto off | 2 |
   | 15 | USB mode | 3 |
@@ -86,12 +86,28 @@ The CMake targets enforce these rules. Each module exposes only its own `include
   | 28–31 | FNV-1a checksum of bytes 0–27 | 6–10 |
   | 19–23 | language code, zero padded | 12 |
   | 28–37 | ten Custom gains in 0.5 dB steps plus 20 (0–40) | 11 |
-  | 38–41 | FNV-1a checksum of bytes 0–37 | 11 |
+  | 38–41 | FNV-1a checksum of bytes 0–37 | 11–14 |
+  | 38–53 | extension block, below | 15 |
+  | 54–57 | FNV-1a checksum of bytes 0–53 | 15 |
+
+  Version 15 inserts a 16-byte extension block before the checksum and grows the file from 42 to 58 bytes. `settings_store` tries 58 bytes, then 42, then 32. Files of versions 1–14 load with the extension defaults, and the next save writes version 15. A version 15 file with any invalid extension value is rejected like any other invalid field. In byte 5, bit 3 is reserved for the battery percent and bits 4–5 for the USB connect mode; version 15 still requires bits 3–7 to be zero. The block's offsets count from byte 38:
+
+  | Byte | Field | Default | Valid |
+  |---|---|---|---|
+  | E0 | bit 0 `rewind_on_resume`, bit 1 `safe_start_volume`, bit 2 `clock_24h`, bits 3–4 `track_transition` (0 off, 1 fade, 2 crossfade) | 1, 1, 1, 0 | `track_transition` below 3, bits 5–7 zero |
+  | E1 | `safe_start_volume_level`, in music volume steps | 24 (40 % of 60) | 0–60 |
+  | E2 | `transition_tenths`, the transition length in 100 ms units | 15 | 5–60 |
+  | E3 | reserved | 0 | 0 |
+  | E4–E8 | `home_order`: nine 4-bit Home item indices, low nibble first | 0 to 8, the built-in order | a permutation of 0–8; the high nibble of E8 is zero |
+  | E9–E10 | `home_hidden`: little-endian mask, bit n hides Home item n | 0 | bits 9–15 zero; bit 3 (Settings) zero |
+  | E11–E15 | reserved | 0 | 0 |
+
+  The Home item indices are those of `build_home` (`app/app_screens.c`): 0 Music, 1 Audiobooks, 2 Podcasts, 3 Settings (`SETTINGS_HOME_SETTINGS_ITEM`), 4 Now playing, 5 Up next, 6 Mixtapes, 7 Listening, 8 USB mode. Settings can never be hidden, so Home always keeps an item. Version 15 stores these fields only; nothing reads them yet.
 - Brightness 1–10 maps to a backlight duty of 20, 25, 31, 38, 46, 55, 65, 76, 88 and 100 % (`device/backlight`). Below 100 % GPIO2.4 runs a 25 kHz PWM (`BACKLIGHT_HZ`), whose period follows PCLK and is reprogrammed after every clock switch. The PWM runs as the Rockchip SDK sets it up (`PWM_CTRL` `0x10003`: continuous, duty polarity negative), so the duty register counts the part of the period the pin is **low**: `backlight_duty` writes `period − period × percent / 100`. The SDK's own backlight table works the same way (rate 10 is its brightest, 85 its dimmest). Writing the lit share there instead inverts the levels.
 
 ## Settings and favorites
 
-- **ReplayGain:** the optional checked library extension supplies Q16 track/album and peak-limited amplitudes. `player` selects a value per current/queued token, and the engine combines it with digital volume outside the PCM loop. Live changes retain buffered audio and do not reopen the source. Settings version 14 stores mode and clipping flags at byte 5 while keeping the 42-byte layout; earlier versions default to Off with peak protection enabled. See [ReplayGain](replay-gain.md) for cache validation, metadata mappings and migration.
+- **ReplayGain:** the optional checked library extension supplies Q16 track/album and peak-limited amplitudes. `player` selects a value per current/queued token, and the engine combines it with digital volume outside the PCM loop. Live changes retain buffered audio and do not reopen the source. Settings version 14 stores mode and clipping flags at byte 5 while keeping the 42-byte layout (version 15 keeps byte 5 and grows the file to 58 bytes); earlier versions default to Off with peak protection enabled. See [ReplayGain](replay-gain.md) for cache validation, metadata mappings and migration.
 - `app/settings_store` loads `/.gnarlyr/settings.bin` (defaults if it's missing or invalid), applies brightness, gain and output through the HAL, and only writes when the encoded bytes changed. Settings belong to the player, not to the music: the file lives on internal storage whether the music comes from the card or from internal storage, through `hal_internal_file_read`, `hal_internal_file_write` and `hal_internal_file_reserve` (same contract as the `hal_file_*` calls, but always the internal volume). `app/card_files` reserves it there. A player upgraded from an earlier build has its settings on the music volume: when internal storage has no valid `settings.bin`, the store loads that copy and the next save writes it to internal storage; from then on the music volume's copy is ignored. On the device, `board/internal_volume` mounts the internal volume on first use, with its own `FatVolume` shared with `board/update`, and the file HAL uses the music volume itself when that already is internal storage. `storage_reset` forgets the internal mount too. In the simulator the system directory stands in for internal storage.
 - `hal_dir_open`, `hal_dir_next` and `hal_dir_close` list a folder: name (UTF-8, up to 767 bytes), folder or file, size, and a hidden flag (the FAT/exFAT hidden attribute on the device, a leading dot in the simulator). `.` and `..` are never listed. On the device, `fat_open_directory` and `fat_next_entry` walk FAT16/FAT32 entries (long names, or 8.3 names with the lowercase flags) and exFAT entry sets; up to 16 folders can be open at once. macOS's `._` files are listed like any other file.
 - Folder entries are read in runs of up to 8 sectors, like file data, and writes of whole sectors go out as one multi-block write without reading them first. `fat_open` remembers the last folder it found (path and entry, up to 255 bytes of path) and starts the next lookup there when the parent path matches, so opening the tracks of one album walks only the album's folder. Mounting or reserving a file forgets it. EchoPod's author reports that on a 1,563-track card this took opening files from 40 s to 1.8 s, and the track scan from 61 s to 19 s.
@@ -355,7 +371,7 @@ The board is the full-size Snowsky Echo (480×222, 221 ppi, six keys). Presets: 
 - `src/` is freestanding C11 and includes only `<stdint.h>`, `<stdbool.h>` and `<stddef.h>`.
 - The `target_audit` test cross-compiles `src/` for Cortex-M3 and reports flash and static RAM per module. It fails on any heap symbol and when static RAM exceeds `ECHO_APP_RAM_BUDGET_BYTES` (144 KiB). This allocation takes 16 KiB of previously unused device RAM; it changes no address or physical boundary. The complete developer image uses 270,488 of 278,528 static RAM bytes, leaving 8,040 bytes. The device linker and size report independently enforce that complete-image limit, including platform buffers and profiler storage.
 - No recursion and no VLAs. The device stack is 16 KB.
-- Data RAM: `.data`, `.bss` and `.noinit` come to 264,868 bytes in the `release` build and 271,072 in `device`, 13,660 and 7,456 bytes below the independent audio module at `0x03048000` (see Image rules); the size report prints this after every image build. The `device` build's extra 6,204 bytes include the debug loop (see Debug loop). The USB sessions and the updater keep their variables in the USB overlay's own zeroed memory, not here. The equalizer's filter state lives in `.high_ram`, since only the CPU touches it and a design rewrites it before use.
+- Data RAM: `.data`, `.bss` and `.noinit` come to 264,916 bytes in the `release` build and 271,120 in `device`, 13,612 and 7,408 bytes below the independent audio module at `0x03048000` (see Image rules); the size report prints this after every image build. The `device` build's extra 6,204 bytes include the debug loop (see Debug loop). The USB sessions and the updater keep their variables in the USB overlay's own zeroed memory, not here. The equalizer's filter state lives in `.high_ram`, since only the CPU touches it and a design rewrites it before use.
 
 ## Code rules
 
