@@ -69,7 +69,7 @@ microseconds), shared by full-file and seeked output.
 
 ## Transport, seeking and queueing
 
-Audio module 9 owns container probing, opening and the virtual stream reader.
+Audio module 10 owns container probing, opening and the virtual stream reader.
 Resident code has only dispatch/wrappers and caller-owned state; the extension,
 DSP and Ogg modules gain no DSD code. The virtual stream is a 32-byte little-endian
 header (`DSDP`, DSD rate, channels, layout, 64-bit remaining bit count, first PCM

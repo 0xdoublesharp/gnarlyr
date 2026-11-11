@@ -33,7 +33,7 @@ PROCESS_MODULE_NUMBER = 7
 PROCESS_MODULE_BASE = 0x0308F000
 PROCESS_MODULE_CAPACITY = 0x3000
 AUDIO_MODULE_NUMBER = 5
-AUDIO_MODULE_NUMBERS = (5, 6, 9)
+AUDIO_MODULE_NUMBERS = (5, 6, 10)
 AUDIO_MODULE_BASE = 0x03048000
 AUDIO_MODULE_CAPACITY = 0x2000
 EXTENSION_MODULE_NUMBER = 8
@@ -299,7 +299,7 @@ def blob_offsets(face_sizes, pack_sizes=(), module_sizes=()):
     packs = [first_fit(free, size) for size in pack_sizes]
     if None in packs:
         raise ImageError(f"language pack {packs.index(None) + 1} doesn't fit the image")
-    modules = [first_fit(free, size) for size in module_sizes]
+    modules = [first_fit(free, size) if size else 0 for size in module_sizes]
     if None in modules:
         raise ImageError(f"module {modules.index(None) + 1} doesn't fit the image")
     return faces, packs, modules
@@ -376,6 +376,8 @@ def check_modules(modules):
     if len(modules) > MODULE_LIMIT:
         raise ImageError(f"the module table holds at most {MODULE_LIMIT} modules")
     for number, module in enumerate(modules, 1):
+        if not module:
+            continue
         _, capacity = module_window(number)
         if not OVERLAY_HEADER_SIZE < len(module) <= capacity:
             raise ImageError(f"module {number} must be more than {OVERLAY_HEADER_SIZE} and at "
@@ -399,6 +401,8 @@ def place_modules(image, parts):
     table = bytearray(MODULE_TABLE_SIZE)
     struct.pack_into("<4sI", table, 0, MODULE_TABLE_MAGIC, len(modules))
     for index, (module, offset) in enumerate(zip(modules, offsets)):
+        if not module:
+            continue
         body = module[OVERLAY_HEADER_SIZE:]
         header = module_magic(index + 1) + struct.pack("<III", len(module), crc32(body),
                                                        code_crc(parts))
@@ -661,10 +665,18 @@ def check_overlay_copies(main_elf, overlay_elf, label, remedy="add them to ECHO_
 
 def modules_from_elfs(main_elf, paths):
     modules = []
-    for number, path in enumerate(paths, 1):
+    for path in paths:
         elf = path.read_bytes()
+        overlay = elf_sections(elf).get(".overlay")
+        entry = b"" if overlay is None else overlay.content[OVERLAY_HEADER_SIZE:OVERLAY_HEADER_SIZE + 4]
+        if len(entry) != 4 or entry[:3] != MODULE_MAGIC:
+            raise ImageError(f"module {path.stem} has no numbered entry")
+        number = entry[3]
+        if number <= len(modules) or number > MODULE_LIMIT:
+            raise ImageError("module numbers must be unique, increasing and within the table")
         check_overlay_copies(main_elf, elf, f"module {number} ({path.stem})",
                              "a source file belongs to the main program or to modules, not both")
+        modules.extend([b""] * (number - len(modules) - 1))
         modules.append(module_from_elf(elf, number))
     return modules
 

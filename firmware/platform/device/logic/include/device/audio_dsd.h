@@ -3,8 +3,8 @@
 #include "device/audio_module.h"
 #include "device/dsd_stream.h"
 
-#define AUDIO_DSD_NUMBER 9u
-#define AUDIO_DSD_MAGIC 0x094D5344u
+#define AUDIO_DSD_NUMBER 10u
+#define AUDIO_DSD_MAGIC 0x0A4D5344u
 
 typedef struct AudioDsdEntry {
     AudioModuleEntry module;
