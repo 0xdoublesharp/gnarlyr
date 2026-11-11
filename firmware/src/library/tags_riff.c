@@ -48,7 +48,7 @@ bool tags_read_wav(TagReader *reader)
         cursor = body + size + (size & 1u);
     }
     if (rate > 0 && block_align > 0 && has_data) {
-        tag_set_duration(reader, (double)data_size / (double)block_align / (double)rate);
+        tag_set_divided_duration(reader, data_size, block_align, rate);
     }
     return rate > 0;
 }
@@ -64,7 +64,7 @@ bool tags_read_dsf(TagReader *reader)
     uint32_t rate = tag_le32(format + 28);
     uint64_t samples = tag_le64(format + 36);
     if (rate > 0) {
-        tag_set_duration(reader, (double)samples / (double)rate);
+        tag_set_duration(reader, samples, rate);
     }
     uint64_t metadata = tag_le64(header + 20);
     uint32_t tag_size = 0;
@@ -164,8 +164,7 @@ bool tags_read_dff(TagReader *reader)
         diin(reader, diin_start, diin_end);
     }
     if (sound.uncompressed && has_data && sound.rate > 0) {
-        double channels = sound.channels > 0 ? (double)sound.channels : 1.0;
-        tag_set_duration(reader, (double)data_size * 8.0 / channels / (double)sound.rate);
+        tag_set_bit_duration(reader, data_size, sound.channels, sound.rate);
     }
     return true;
 }
@@ -210,7 +209,7 @@ bool tags_read_aiff(TagReader *reader)
             if (rate == 0) {
                 return false;
             }
-            tag_set_duration(reader, (double)tag_be32(bytes + 2) / rate);
+            tag_set_duration(reader, tag_be32(bytes + 2), rate);
             common = true;
         } else if (same(bytes, "ID3 ")) {
             uint32_t tag_size = 0;

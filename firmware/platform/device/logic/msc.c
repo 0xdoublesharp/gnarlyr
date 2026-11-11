@@ -161,6 +161,21 @@ bool msc_ejected(const Msc *msc, uint8_t lun)
     return (msc->ejected & (1u << lun)) != 0;
 }
 
+static bool refused(const Msc *msc, uint8_t lun)
+{
+    return ((msc->ejected | msc->removed) & (1u << lun)) != 0;
+}
+
+CORE_SEAM void msc_remove_media(Msc *msc)
+{
+    for (uint8_t index = 0; index < msc->lun_count; index++) {
+        if (msc->luns[index].present) {
+            msc->luns[index].present = false;
+            msc->removed = (uint8_t)(msc->removed | (1u << index));
+        }
+    }
+}
+
 static void set_sense(Msc *msc, uint8_t key, uint8_t code)
 {
     if (msc->lun < MSC_MAX_LUNS) {
@@ -319,10 +334,12 @@ static void execute_ready(Msc *msc, const MscLun *lun, const uint8_t *block)
     case SCSI_WRITE_10:
         write_10(msc, lun, block);
         break;
+    case SCSI_SYNCHRONIZE_CACHE:
+        msc->stats.flushes++;
+        break;
     case SCSI_TEST_UNIT_READY:
     case SCSI_PREVENT_ALLOW:
     case SCSI_VERIFY_10:
-    case SCSI_SYNCHRONIZE_CACHE:
         break;
     default:
         set_sense(msc, SENSE_ILLEGAL_REQUEST, CODE_INVALID_COMMAND);
@@ -344,7 +361,7 @@ static void execute(Msc *msc, const uint8_t *block)
     } else if (block[0] == SCSI_START_STOP_UNIT) {
         start_stop(msc, block);
     } else if (!lun->present) {
-        if (block[0] == SCSI_WRITE_10 && msc_ejected(msc, msc->lun)) {
+        if (block[0] == SCSI_WRITE_10 && refused(msc, msc->lun)) {
             msc->stats.writes_after_eject++;
         }
         set_sense(msc, SENSE_NOT_READY, CODE_MEDIUM_NOT_PRESENT);

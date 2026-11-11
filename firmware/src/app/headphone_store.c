@@ -5,8 +5,6 @@
 #include "hal/audio.h"
 #include "hal/storage.h"
 
-const char HEADPHONE_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/headphones.bin";
-
 static bool read_file(void *context, uint32_t offset, void *bytes, uint32_t length)
 {
     (void)context;
@@ -26,19 +24,6 @@ static bool write_file(void *context, uint32_t offset, const void *bytes, uint32
 {
     (void)context;
     return hal_internal_file_write_at(HEADPHONE_STORE_PATH, offset, bytes, length);
-}
-
-HeadphoneAudio headphone_store_parameters(const HeadphoneProfiles *profiles)
-{
-    if (profiles->current == HEADPHONE_PROFILE_NONE) {
-        return headphone_audio_defaults();
-    }
-    const HeadphoneProfile *profile = &profiles->slots[profiles->current];
-    uint32_t trim = headphone_profile_trim(profile->trim_half_db);
-    uint32_t left = (uint32_t)(100 - (profile->balance > 0 ? profile->balance : 0));
-    uint32_t right = (uint32_t)(100 + (profile->balance < 0 ? profile->balance : 0));
-    return (HeadphoneAudio){(trim * left + 50) / 100, (trim * right + 50) / 100,
-                            profile->volume_ceiling};
 }
 
 void headphone_store_load(HeadphoneStore *store)

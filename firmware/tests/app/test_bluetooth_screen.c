@@ -132,9 +132,9 @@ static void in_portrait_the_hint_gets_the_lines_its_longest_text_needs(void)
     default_theme_set_orientation(&portrait, ORIENTATION_PORTRAIT);
     int line = font_line_height(portrait.fonts.small);
     int on_screen = rows_of_the_hint_on_screen(&portrait);
-    CHECK_EQUAL(3, bluetooth.hint_lines);
+    CHECK_EQUAL(2, bluetooth.hint_lines);
     CHECK_EQUAL(rows_of_the_hint_alone(&portrait), on_screen);
-    CHECK_EQUAL((theme_content_area(&portrait).height - 4 - 3 * line) / portrait.metrics.row_height,
+    CHECK_EQUAL((theme_content_area(&portrait).height - 4 - 2 * line) / portrait.metrics.row_height,
                 bluetooth.list.visible_rows);
 }
 
@@ -174,7 +174,7 @@ static void a_ready_module_searches_while_the_screen_is_open(void)
     screen->update(screen->context, START_MS + 100);
     CHECK(row_is(1, "Pair new device", "Searching…"));
     tap(screen, KEY_VOLUME_UP, START_MS + 200);
-    CHECK(line_is(BLUETOOTH_SCREEN_HINT_LINE, "Searching… put headphones in pairing mode"));
+    CHECK(line_is(BLUETOOTH_SCREEN_HINT_LINE, "Searching… pair your headphones"));
 }
 
 static void found_devices_are_listed_below_the_saved_one(void)
@@ -237,7 +237,7 @@ static void pair_new_device_disconnects_and_searches(void)
     screen->update(screen->context, START_MS + 100);
     tap(screen, KEY_VOLUME_UP, START_MS + 200);
     tap(screen, KEY_VOLUME_UP, START_MS + 300);
-    CHECK(line_is(BLUETOOTH_SCREEN_HINT_LINE, "Play searches for new headphones"));
+    CHECK(line_is(BLUETOOTH_SCREEN_HINT_LINE, "Play searches for headphones"));
     tap(screen, KEY_PLAY, START_MS + 400);
     CHECK_EQUAL(1, fake_hal_bluetooth_disconnect_count());
     fake_hal_bluetooth()->state = HAL_BLUETOOTH_READY;

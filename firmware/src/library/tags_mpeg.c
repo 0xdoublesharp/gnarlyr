@@ -36,7 +36,7 @@ typedef struct MpegFrame {
     uint32_t sample_rate;
     bool sketchy;
     bool has_length;
-    double seconds;
+    uint64_t samples;
 } MpegFrame;
 
 static uint32_t synchsafe(const uint8_t *bytes)
@@ -84,7 +84,7 @@ static bool xing_length(const TagReader *reader, const MpegFrame *frame, uint32_
     result->sketchy = false;
     if ((flags & XING_FRAMES) != 0) {
         result->has_length = true;
-        result->seconds = (double)((uint64_t)frame_size * frames) / (double)frame->sample_rate;
+        result->samples = (uint64_t)frame_size * frames;
     }
     return true;
 }
@@ -100,8 +100,7 @@ static bool vbri_length(const TagReader *reader, const MpegFrame *frame, uint32_
     *result = *frame;
     result->sketchy = false;
     result->has_length = true;
-    result->seconds =
-        (double)((uint64_t)frame_size * tag_be32(vbri + 14)) / (double)frame->sample_rate;
+    result->samples = (uint64_t)frame_size * tag_be32(vbri + 14);
     return true;
 }
 
@@ -231,10 +230,9 @@ bool tags_read_mp3(TagReader *reader)
         return false;
     }
     if (frame.has_length) {
-        tag_set_duration(reader, frame.seconds);
+        tag_set_duration(reader, frame.samples, frame.sample_rate);
     } else {
-        double content = (double)(reader->size - frame.offset);
-        tag_set_duration(reader, 8.0 * content / (double)frame.bitrate);
+        tag_set_bit_duration(reader, reader->size - frame.offset, 1, frame.bitrate);
     }
     return true;
 }

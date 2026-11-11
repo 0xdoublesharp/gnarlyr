@@ -22,6 +22,7 @@ typedef struct UsbAudioSink {
     uint32_t guard;
     uint8_t sample_bytes;
     bool playing;
+    uint16_t peaks[2];
     StreamDrift drift;
     UsbAudioSinkStats stats;
     HeadphoneAudio headphones;
@@ -34,3 +35,4 @@ void usb_audio_sink_set_headphones(UsbAudioSink *sink, HeadphoneAudio profile);
 void usb_audio_sink_write(UsbAudioSink *sink, const uint8_t *bytes, uint32_t length,
                           uint32_t consumed);
 bool usb_audio_sink_primed(const UsbAudioSink *sink);
+void usb_audio_sink_take_peaks(UsbAudioSink *sink, uint16_t *peaks);

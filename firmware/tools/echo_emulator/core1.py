@@ -65,7 +65,7 @@ class Core1:
 
     def boot(self):
         self.put(SHARED + 0x0C, COMMAND_STREAM)
-        for _ in range(200):
+        for _ in range(2000):
             self.run_slice()
             if self.word(SHARED) == READY_MAGIC:
                 return True

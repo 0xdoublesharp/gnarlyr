@@ -82,7 +82,6 @@ static WavSource wav_source;
 static DsdStream dsd_stream;
 static SourceKind source_kind;
 static bool unknown_format;
-static FlacSource software_source;
 static Core1Source core1_source;
 static bool using_core1;
 static bool resume_after_clock_change;
@@ -231,9 +230,6 @@ static AudioSource chosen_source(void)
         return wav_source_interface(&wav_source);
     }
     bool flac = source_kind == SOURCE_FLAC || source_kind == SOURCE_UNKNOWN;
-    if (flac && !using_core1) {
-        return flac_source_interface(&software_source);
-    }
     return core1_source_interface(&core1_source,
                                   flac ? CORE1_FORMAT_FLAC : (Core1Format)source_kind);
 }
@@ -264,7 +260,7 @@ static bool open_chosen(void *context, const char *path, uint32_t start_ms, Audi
     }
     if (source_kind != SOURCE_WAV) {
         using_core1 = board_core1_start_stream((Core1Program)source_kind);
-        if (!using_core1 && source_kind != SOURCE_FLAC) {
+        if (!using_core1) {
             return false;
         }
     }
@@ -304,7 +300,6 @@ static void ensure_engine(void)
         return;
     }
     FlacFileOpener files = {.open = open_file, .close = close_file, .context = NULL};
-    flac_source_init(&software_source, files, &decoding.flac);
     core1_source_init(&core1_source, core1_region(), files, &decoding.flac, FILL_BUDGET_BYTES);
     core1_source.m4a = &decoding.m4a;
     core1_source.ogg = &decoding.ogg;

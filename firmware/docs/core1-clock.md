@@ -29,7 +29,7 @@ Addresses below describe recovered behavior, not vendor function names.
 | `0x0307B500` | 36 clock profiles, seven words each; calculation clock at row offset `0x14` |
 | `0x030685DC` | Combines active profiles, bounds them and calls the clock solver |
 | `0x03068316` | Solves PLL and separate system/calculation dividers |
-| `0x03051C90` | Programs PLL/dividers; enables calculation SRAM multicycle responses above 300 MHz |
+| `0x03051C90` | Programs PLL/dividers; enables calculation SRAM multicycle responses at 300 MHz and above |
 | `0x03051E74` | Direct calculation-divider setter with a 500 MHz limit |
 | `0x030687C0` | Activates a clock profile |
 | `0x03066E32` | Requests profile 31, whose calculation target is 400 MHz |
@@ -81,6 +81,19 @@ publishing a stream generation. DSD and Vorbis measurements are recorded in
 [DSD](dsd.md) and [Vorbis](ogg-vorbis.md); Opus retains its normal clock and its
 [budget](opus.md) is two million cycles per 20 ms. This base has no APE or WMA
 playback program, so no APE compression level or WMA profile is enabled here.
+
+The separate `feature/ape-wma` revision `39533a8d` already uses the real 100 MHz
+budget. Its reported WMA maximum is 464,403 instructions per 20 ms, leaving
+76.8% ideal margin at that clock. Its APE table scales rate limits with the
+actual calculation clock, but doubling every limit would not preserve the
+20% reserve used here: measured 24-bit Normal stereo at 192 kHz costs 3,671,875
+instructions per 20 ms, and High stereo at 96 kHz costs 3,218,750. Both exceed
+3.2 million. Fast stereo at 192 kHz costs 2,307,500 and fits that 200 MHz screen;
+Normal stereo at 96 kHz costs 1,835,938 and needs the boost for that reserve.
+Extra High/Insane stereo at 48 kHz exceed even the full 200 MHz ideal budget.
+These are that branch's fixture measurements, not new measurements or enabled
+APE/WMA behavior in this branch. Integration must connect its opener's
+admission budget to the program's clock request before admitting higher rates.
 
 Native tests cover accepted/refused DSD opens, reference PCM, seeks and endpoints.
 ARM tests observe the actual masked clock writes for rate/channel changes,

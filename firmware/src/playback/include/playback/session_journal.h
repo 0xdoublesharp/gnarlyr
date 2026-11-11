@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "playback/cassette.h"
 #include "playback/resume_state.h"
 #include "playback/store.h"
 #include "playback/up_next.h"
@@ -25,6 +26,7 @@ typedef struct SessionState {
     UpNext up_next;
     uint32_t order_generation;
     SessionQueueKind queue_kind;
+    CassetteState cassette;
 } SessionState;
 
 typedef struct SessionJournalConfig {

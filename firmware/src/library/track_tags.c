@@ -253,25 +253,6 @@ void tag_offer_picture(TagReader *reader, TagPicture picture)
     }
 }
 
-void tag_set_duration(TagReader *reader, double seconds)
-{
-    double milliseconds = seconds * 1000.0;
-    if (!(milliseconds > 0.0)) {
-        reader->tags->duration_ms = 0;
-        return;
-    }
-    if (milliseconds >= 4294967295.0) {
-        reader->tags->duration_ms = 0xFFFFFFFFu;
-        return;
-    }
-    uint32_t whole = (uint32_t)milliseconds;
-    double fraction = milliseconds - (double)whole;
-    if (fraction > 0.5 || (fraction == 0.5 && (whole & 1u) != 0)) {
-        whole++;
-    }
-    reader->tags->duration_ms = whole;
-}
-
 static bool read_format(TagReader *reader, TagFormat format)
 {
     switch (format) {

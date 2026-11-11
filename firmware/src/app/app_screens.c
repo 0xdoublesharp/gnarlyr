@@ -147,6 +147,14 @@ static Screen *browse_play_group(void *context, BrowseScreen *browse)
     return entry != NULL ? entry->browse(screens, browse, true) : NULL;
 }
 
+static Screen *track_tape(void *context, uint16_t track)
+{
+    AppScreens *screens = context;
+    const ViewsModuleEntry *entry =
+        (const ViewsModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_VIEWS);
+    return entry != NULL ? entry->add(&screens->modules.views.mixtapes, track) : NULL;
+}
+
 static Screen *track_info(void *context, uint16_t track)
 {
     AppScreens *screens = context;
@@ -203,6 +211,7 @@ static void build_music(AppScreens *screens, AppScreensContext context)
         .options = browse_options,
         .info = track_info,
         .tags = track_tags,
+        .tape = track_tape,
         .play_group = browse_play_group,
         .tools_context = screens,
     };
@@ -375,7 +384,8 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
                                     .theme = context.compact_theme,
                                     .covers = context.covers,
                                     .up_next = &screens->modules.views.up_next.screen,
-                                    .lyrics = &screens->modules.listening.lyrics.screen};
+                                    .lyrics = &screens->modules.listening.lyrics.screen,
+                                    .flip = &screens->modules.views.cassette_flip.screen};
     screens->context = context;
     screens->bound_modules = 0;
     message_screen_init(&screens->no_library, no_library);

@@ -128,29 +128,30 @@ static const DiagnosticsRow ROWS[DIAGNOSTICS_ITEM_COUNT] = {
 
 static void options_init(AppScreens *screens)
 {
-    screens->modules.settings.clock = (ClockOption){.failed = false};
+    screens->modules.views.diagnostic_clock = (ClockOption){.failed = false};
 }
 
-static void build_rows(SettingsModuleScreens *screens, AppOptions *options)
+static void build_rows(AppScreens *screens, AppOptions *options)
 {
     void *contexts[CONTEXT_COUNT] = {[CONTEXT_OPTIONS] = options,
-                                     [CONTEXT_CLOCK] = &screens->clock,
-                                     [CONTEXT_BLUETOOTH] = &screens->bluetooth};
+                                     [CONTEXT_CLOCK] = &screens->modules.views.diagnostic_clock,
+                                     [CONTEXT_BLUETOOTH] = &screens->modules.settings.bluetooth};
     for (int index = 0; index < DIAGNOSTICS_ITEM_COUNT; index++) {
         const DiagnosticsRow *row = &ROWS[index];
-        screens->diagnostics_items[index] = (MenuItem){.label = i18n_text(row->label),
-                                                       .select = row->select,
-                                                       .context = contexts[row->context],
-                                                       .value = row->value,
-                                                       .opens = row->opens};
+        screens->modules.views.diagnostics_items[index] =
+            (MenuItem){.label = i18n_text(row->label),
+                       .select = row->select,
+                       .context = contexts[row->context],
+                       .value = row->value,
+                       .opens = row->opens};
     }
 }
 
 void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Theme *theme)
 {
-    SettingsModuleScreens *own = &screens->modules.settings;
+    ViewsModuleScreens *own = &screens->modules.views;
     options_init(screens);
-    build_rows(own, options);
+    build_rows(screens, options);
     app_screens_build_menu(&own->diagnostics, STR_ABOUT, own->diagnostics_items,
                            DIAGNOSTICS_ITEM_COUNT, theme);
 }

@@ -159,6 +159,43 @@ static void writing_wraps_around_the_end_of_the_ring(void)
     CHECK_EQUAL(0x30300000u, ring[2 * ((sink.written - 1) % RING_FRAMES)]);
 }
 
+static void put_16(uint8_t *bytes, int16_t left, int16_t right)
+{
+    bytes[0] = (uint8_t)left;
+    bytes[1] = (uint8_t)((uint16_t)left >> 8);
+    bytes[2] = (uint8_t)right;
+    bytes[3] = (uint8_t)((uint16_t)right >> 8);
+}
+
+static void peaks_follow_the_loudest_sample_of_each_channel_until_taken(void)
+{
+    UsbAudioSink sink = started_sink(2);
+    uint8_t bytes[3 * 4];
+    put_16(bytes, 0x0100, -0x0200);
+    put_16(bytes + 4, -0x1000, 0x0300);
+    put_16(bytes + 8, 0x0400, -0x2000);
+    usb_audio_sink_write(&sink, bytes, sizeof bytes, 0);
+    uint16_t peaks[2];
+    usb_audio_sink_take_peaks(&sink, peaks);
+    CHECK_EQUAL(0x1000, peaks[0]);
+    CHECK_EQUAL(0x2000, peaks[1]);
+    usb_audio_sink_take_peaks(&sink, peaks);
+    CHECK_EQUAL(0, peaks[0]);
+    CHECK_EQUAL(0, peaks[1]);
+}
+
+static void the_most_negative_sample_is_a_full_scale_peak(void)
+{
+    UsbAudioSink sink = started_sink(2);
+    uint8_t bytes[4];
+    put_16(bytes, -32768, 32767);
+    usb_audio_sink_write(&sink, bytes, sizeof bytes, 0);
+    uint16_t peaks[2];
+    usb_audio_sink_take_peaks(&sink, peaks);
+    CHECK_EQUAL(32768, peaks[0]);
+    CHECK_EQUAL(32767, peaks[1]);
+}
+
 static void headphones_trim_both_usb_formats_and_survive_rate_restarts(void)
 {
     for (uint8_t width = 2; width <= 3; width++) {
@@ -190,6 +227,8 @@ static void headphones_trim_both_usb_formats_and_survive_rate_restarts(void)
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(peaks_follow_the_loudest_sample_of_each_channel_until_taken),
+        TEST_CASE(the_most_negative_sample_is_a_full_scale_peak),
         TEST_CASE(headphones_trim_both_usb_formats_and_survive_rate_restarts),
         TEST_CASE(sixteen_bit_samples_go_to_the_top_of_each_word),
         TEST_CASE(twenty_four_bit_samples_are_left_justified),

@@ -71,7 +71,7 @@ The generator requires macOS `say` for speech and ffmpeg for native Vorbis and F
 | q10 stereo 48 kHz | 810,554 | 795,674 | 100 | 40.5% | 59.5% | 2.47 |
 | q10 stereo 96 kHz | 1,337,637 | 1,322,801 | 100 | 66.9% | 33.1% | 1.50 |
 | q10 stereo 192 kHz | 2,314,382 | 2,299,549 | 200 | 57.9% | 42.1% | 1.73 |
-| CBR 500 kbit/s stereo 48 kHz | 771,557 | 756,627 | 100 | 38.6% | 61.4% | 2.59 |
+| CBR 500 kbit/s stereo 48 kHz | 771,563 | 756,633 | 100 | 38.6% | 61.4% | 2.59 |
 
 The loader normally selects 100 MHz, providing two million cycles per 20 ms.
 The earlier assumption that every Vorbis stream ran at 200 MHz was incorrect:

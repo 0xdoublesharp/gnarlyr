@@ -33,3 +33,10 @@ bool rtc_time_utc(const uint8_t registers[RTC_TIME_REGISTERS], uint32_t *utc_s)
              time.second;
     return true;
 }
+
+bool rtc_time_trusted(const uint8_t registers[RTC_TIME_REGISTERS], uint32_t *utc_s)
+{
+    RtcTime time;
+    return rtc_registers_decode(registers, &time) && !time.voltage_low && time.year >= 2024 &&
+           time.year <= 2099 && time.weekday < CALENDAR_WEEK_DAYS && rtc_time_utc(registers, utc_s);
+}

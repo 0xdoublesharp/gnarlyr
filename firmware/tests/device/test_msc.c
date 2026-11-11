@@ -919,6 +919,83 @@ static void a_missing_buffer_falls_back_to_single_sectors(void)
     check_write_call(1, 3, 1);
 }
 
+static void removed_media_answers_not_ready_with_medium_not_present_on_every_lun(void)
+{
+    static const uint8_t ready[6] = {0x00};
+    Msc *msc = started();
+    msc_remove_media(msc);
+    for (uint8_t lun = 0; lun < 2; lun++) {
+        send_command(msc, 0, false, lun, ready, 6);
+        check_csw(collect(msc), 1, 0);
+        Exchange *exchange = sense(msc, lun);
+        CHECK_EQUAL(0x02, exchange->data[2]);
+        CHECK_EQUAL(0x3A, exchange->data[12]);
+        CHECK_EQUAL(0x00, exchange->data[13]);
+    }
+}
+
+static void removed_media_refuses_reads_but_still_answers_inquiry(void)
+{
+    uint8_t block[10];
+    static const uint8_t inquiry[6] = {0x12, 0, 0, 0, 36, 0};
+    Msc *msc = started();
+    msc_remove_media(msc);
+    read_10_block(block, 0x28, 0, 1);
+    send_command(msc, 512, true, 0, block, 10);
+    check_csw(collect(msc), 1, 512);
+    CHECK_EQUAL(0, disk_reads);
+    send_command(msc, 36, true, 0, inquiry, 6);
+    check_csw(collect(msc), 0, 0);
+}
+
+static void a_write_after_the_media_is_removed_is_refused_and_counted(void)
+{
+    uint8_t block[10];
+    uint8_t bytes[512] = {0};
+    Msc *msc = started();
+    msc_remove_media(msc);
+    read_10_block(block, 0x2A, 1, 1);
+    send_command(msc, sizeof bytes, false, 0, block, 10);
+    send_data(msc, bytes, sizeof bytes);
+    check_csw(collect(msc), 1, sizeof bytes);
+    CHECK_EQUAL(1, msc_stats(msc).writes_after_eject);
+    CHECK_EQUAL(0, write_call_count);
+}
+
+static void removing_the_media_is_not_a_host_eject(void)
+{
+    Msc *msc = started();
+    msc_remove_media(msc);
+    CHECK(!msc_finished(msc));
+    CHECK(!msc_ejected(msc, 0));
+    CHECK_EQUAL(3, msc_left_mounted(msc));
+}
+
+static void a_write_under_way_when_the_media_is_removed_completes(void)
+{
+    uint8_t block[10];
+    uint8_t bytes[1024];
+    fill_pattern(bytes, sizeof bytes, 9);
+    Msc *msc = started();
+    read_10_block(block, 0x2A, 4, 2);
+    send_command(msc, sizeof bytes, false, 0, block, 10);
+    send_data(msc, bytes, 512);
+    msc_remove_media(msc);
+    send_data(msc, bytes + 512, 512);
+    check_csw(collect(msc), 0, 0);
+    CHECK(memcmp(writable_disk.bytes + 4 * 512, bytes, sizeof bytes) == 0);
+    CHECK_EQUAL(2, msc_stats(msc).sectors_written);
+}
+
+static void synchronize_cache_is_counted_as_a_flush(void)
+{
+    static const uint8_t block[10] = {0x35};
+    Msc *msc = started();
+    send_command(msc, 0, false, 0, block, 10);
+    check_csw(collect(msc), 0, 0);
+    CHECK_EQUAL(1, msc_stats(msc).flushes);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -969,6 +1046,12 @@ int main(void)
         TEST_CASE(a_short_data_phase_writes_only_the_whole_sectors_received),
         TEST_CASE(a_reset_drops_a_partly_filled_batch),
         TEST_CASE(a_missing_buffer_falls_back_to_single_sectors),
+        TEST_CASE(removed_media_answers_not_ready_with_medium_not_present_on_every_lun),
+        TEST_CASE(removed_media_refuses_reads_but_still_answers_inquiry),
+        TEST_CASE(a_write_after_the_media_is_removed_is_refused_and_counted),
+        TEST_CASE(removing_the_media_is_not_a_host_eject),
+        TEST_CASE(a_write_under_way_when_the_media_is_removed_completes),
+        TEST_CASE(synchronize_cache_is_counted_as_a_flush),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -84,10 +84,13 @@ class DsdProgramTest(unittest.TestCase):
                     break
             else:
                 self.fail("DSD did not fill both output slots")
-            for _ in range(10):
-                machine.run_slice()
             expected = {0x70001000} if ratio == 1 and channels == 1 else {0x70001000, 0x70000000}
             self.assertEqual(expected, set(machine.clock_writes))
+            machine.clock_writes.clear()
+            for _ in range(10):
+                machine.run_slice()
+            idle = set() if ratio == 1 and channels == 1 else {0x70001000, 0x70000000}
+            self.assertEqual(idle, set(machine.clock_writes))
             machine.set_control("generation", 0)
             for _ in range(10):
                 machine.run_slice()

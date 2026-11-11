@@ -12,6 +12,13 @@ from echo_image_harness import (
     GPIO_DATA,
     PROMPT_NOTICED_MS,
     USB_PROMPT_MS,
+    DAC_MEASURE_MS,
+    DAC_MENU_FILE_TRANSFER_ROW,
+    DAC_RATE,
+    KEY_MENU,
+    KEY_NEXT,
+    KEY_PLAY,
+    LEAVE_HOLD_MS,
 )
 
 
@@ -110,6 +117,48 @@ class EchoImageTest(EchoImageHarness):
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
         self.print_usb_log("charge screen, file transfer", machine)
+
+
+    def test_holding_back_in_dac_mode_still_returns_to_the_mode_selector(self):
+        session, machine, _ = self.dac_session()
+        self.hold_back(machine, LEAVE_HOLD_MS)
+        machine.note("usb_dac_menu_open")
+        machine.note("usb_modes")
+        machine.run(until_ms=machine.milliseconds() + LEAVE_HOLD_MS + 1000)
+        self.assertEqual(machine.usb_log[-1][1], "soft disconnect")
+        self.assertNotIn("usb_storage_session", machine.reached)
+        self.assertNotIn("usb_dac_menu_open", machine.reached)
+        self.assertEqual(machine.reached.get("usb_modes"), 1)
+        self.assert_healthy(session)
+
+    def test_the_dac_menu_switches_to_file_transfer_without_unplugging(self):
+        session, machine, _ = self.dac_session()
+        for key in (KEY_MENU,) + (KEY_NEXT,) * DAC_MENU_FILE_TRANSFER_ROW + (KEY_PLAY,):
+            self.press(machine, key)
+        machine.answer_waits_for_key(4)
+        self.assertEqual(machine.run(until=lambda: "usb_storage_session" in machine.reached,
+                                     until_ms=machine.milliseconds() + 6000), "condition met")
+        self.assert_healthy(session)
+
+    def test_the_dac_level_meter_keeps_the_usb_audio_loop_fed(self):
+        session, machine, path = self.dac_session()
+        polls = self.poll_stamps(machine)
+        areas = machine.trace("app_show_usb_area") if "app_show_usb_area" in machine.symbols else []
+        state = self.stream_into_dac(machine)
+        machine.run(until_ms=machine.milliseconds() + 500)
+        self.assertIn("board_audio_stream_open", machine.reached)
+        self.assertEqual(path.rate, DAC_RATE)
+        start_areas, start_sent = len(areas), state["sent"]
+        state["late_us"] = 0
+        rate, gap = self.poll_rate(machine, DAC_MEASURE_MS, polls)
+        sent = state["sent"] - start_sent
+        frames = len(areas) - start_areas
+        self.assertGreaterEqual(sent, DAC_MEASURE_MS - 5)
+        self.assertLess(state["late_us"], 2000)
+        self.assert_healthy(session)
+        print("\n[dac stream] %d packets in %d ms, usb_poll %.0f/s, longest poll gap %.2f ms, "
+              "latest packet %.2f ms behind, %d meter and info frames"
+              % (sent, DAC_MEASURE_MS, rate, gap / 1000, state["late_us"] / 1000, frames))
 
 
 if __name__ == "__main__":
