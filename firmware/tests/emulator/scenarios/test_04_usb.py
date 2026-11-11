@@ -242,6 +242,7 @@ class EchoImageTest(EchoImageHarness):
     def test_the_profiler_row_fills_a_histogram_the_host_tool_symbolises(self):
         session = self.session()
         machine = session.machine
+        machine.stub_symbol("extension_home_art_draw_backdrop", lambda machine: None)
         self.assertEqual(make_image.OVERLAY_BASE, machine.symbols["device_profile_overlay_base"])
         self.assertEqual(make_image.PROCESS_MODULE_BASE + make_image.PROCESS_MODULE_CAPACITY,
                          machine.symbols["device_profile_overlay_base"] +

@@ -171,6 +171,7 @@
         "down",
         "down",
         "down",
+        "down",
         "play",
         "down"
       ]
@@ -195,6 +196,7 @@
         "down",
         "down",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -259,6 +261,7 @@
         "down",
         "down",
         "down",
+        "down",
         "down"
       ],
       "group": "settings",
@@ -286,6 +289,7 @@
         "down",
         "down",
         "down",
+        "down",
         "down"
       ],
       "group": "settings",
@@ -299,6 +303,7 @@
         "down",
         "down",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -367,6 +372,7 @@
         "down",
         "down",
         "down",
+        "down",
         "play",
         "down",
         "down",
@@ -384,6 +390,7 @@
         "down",
         "down",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -443,6 +450,7 @@
         "down",
         "down",
         "down",
+        "down",
         "down"
       ],
       "group": "settings",
@@ -456,6 +464,7 @@
         "down",
         "down",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -546,6 +555,7 @@
         "down",
         "down",
         "down",
+        "down",
         "play"
       ]
     },
@@ -557,6 +567,7 @@
         "down",
         "down",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -610,6 +621,7 @@
         "down",
         "down",
         "down",
+        "down",
         "play",
         "down",
         "play",
@@ -639,6 +651,7 @@
         "down",
         "down",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -692,6 +705,7 @@
         "down",
         "down",
         "down",
+        "down",
         "play",
         "down",
         "play",
@@ -733,6 +747,7 @@
         "down",
         "down",
         "down",
+        "down",
         "play",
         "down",
         "play",
@@ -753,6 +768,71 @@
           "STR_CLOCK": "Часы"
         }
       }
+    },
+    {
+      "name": "tape-length",
+      "file": "tape-length.png",
+      "expected_title": "Tape length",
+      "keys": [
+        "down",
+        "down",
+        "down",
+        "play",
+        "down",
+        "down",
+        "play"
+      ]
+    },
+    {
+      "name": "moments",
+      "file": "moments.png",
+      "expected_title": "Moments",
+      "keys": [
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "play",
+        "back:long",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "play"
+      ]
+    },
+    {
+      "name": "date-time",
+      "file": "date-time.png",
+      "expected_title": "Date & time",
+      "keys": [
+        "down",
+        "down",
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play"
+      ]
     }
   ]
 }
