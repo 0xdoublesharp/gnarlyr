@@ -33,7 +33,7 @@
 #include "ui/toast.h"
 
 enum {
-    HOME_ITEM_COUNT = 9,
+    HOME_ITEM_COUNT = 10,
     SHELF_COUNT = 2,
     MUSIC_ITEM_COUNT = 11,
     DIAGNOSTICS_ITEM_COUNT = 11 + DEBUG_LOOP_ABOUT_ROWS,

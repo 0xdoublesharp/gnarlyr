@@ -4598,11 +4598,11 @@ static void an_aborted_script_lets_go_of_the_key_it_holds(void)
     step();
     const Theme *theme = expected_theme();
     int selected = 0;
-    while (selected < 5 &&
+    while (selected < 6 &&
            !selected_at(theme->metrics.header_height + selected * theme->metrics.row_height + 16)) {
         selected++;
     }
-    CHECK(selected < 5);
+    CHECK(selected < 6);
     long pixels = fake_hal_pixels_written();
     uint32_t before = debug_loop_log()->recorded;
     run_script_for(2000);
@@ -4611,8 +4611,9 @@ static void an_aborted_script_lets_go_of_the_key_it_holds(void)
     CHECK_EQUAL(pixels, fake_hal_pixels_written());
     CHECK_EQUAL(0, events_of(DEBUG_EVENT_SCREEN, before));
     tap(KEY_PLAY);
-    static const char *const titles[] = {"Music", "Settings", "Mixtapes", "Listening", "USB mode"};
-    CHECK(selected < 5 && title_is(titles[selected]));
+    static const char *const titles[] = {"Music",     "Settings", "Mixtapes",
+                                         "Listening", "USB mode", "Clock"};
+    CHECK(selected < 6 && title_is(titles[selected]));
 }
 
 static void a_script_lights_the_screen_and_leaves_the_charge_screen_before_it_starts(void)
