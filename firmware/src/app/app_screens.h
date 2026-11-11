@@ -114,15 +114,15 @@ typedef struct ViewsModuleScreens {
     MixtapeUi mixtapes;
     ClockScreen clock;
     CalendarScreen calendar;
+    MenuScreen diagnostics;
+    ClockOption diagnostic_clock;
+    MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
 } ViewsModuleScreens;
 
 typedef struct SettingsModuleScreens {
     SettingsScreens settings;
     BluetoothScreen bluetooth;
-    MenuScreen diagnostics;
     HomeEditor home_editor;
-    ClockOption clock;
-    MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
 } SettingsModuleScreens;
 
 typedef struct ProfileModuleScreens {

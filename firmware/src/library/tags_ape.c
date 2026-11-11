@@ -56,7 +56,7 @@ static void read_length(TagReader *reader, const uint8_t *header)
     }
     if (rate > 0 && total_frames > 0) {
         uint64_t blocks = (uint64_t)(total_frames - 1) * blocks_per_frame + final_frame_blocks;
-        tag_set_duration(reader, (double)blocks / (double)rate);
+        tag_set_duration(reader, blocks, rate);
     }
 }
 

@@ -6,6 +6,7 @@ static void bind(AppScreens *screens)
 {
     const AppScreensContext *context = &screens->context;
     ViewsModuleScreens *views = &screens->modules.views;
+    diagnostics_menu_build(screens, context->options, context->theme);
     UpNextConfig up_next = {.library = &context->store->library,
                             .theme = context->theme,
                             .player = context->player,

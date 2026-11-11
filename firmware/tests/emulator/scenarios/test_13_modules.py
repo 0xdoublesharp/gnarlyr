@@ -3,6 +3,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import echo_image_harness as image_tests
+
 from echo_image_harness import (
     EchoImageHarness,
     main,
@@ -47,7 +49,8 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(settings.loaded(machine))
         for key in (KEY_PLAY, KEY_BACK, KEY_BACK, KEY_PLAY, KEY_NEXT, KEY_PLAY, KEY_BACK):
             self.press(machine, key)
-        self.assertEqual(watch.loads(), loads)
+        self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
+                         [(number, True), (1, True), (number, True)])
         self.assertLess(max(call["us"] for call in watch.calls if not call["sectors"]),
                         MODULE_REUSE_LIMIT_US)
         self.assertTrue(settings.loaded(machine))
@@ -289,6 +292,34 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(session)
         print("\n[module load, track playing] " + watch.describe(first[0]))
         print("[module reuse] %d calls, longest %d us" % (len(reuses), max(reuses)))
+
+    def test_about_uses_the_second_views_copy_when_the_first_is_damaged(self):
+        session, machine = self.started_session()
+        session.change_module("slot_1", 1, 600, lambda byte: byte ^ 0xFF)
+        self.open_settings(machine)
+        self.press(machine, image_tests.KEY_PLAY)
+        _, views = self.module(machine, "views")
+        self.assertTrue(views.loaded(machine))
+        self.assertTrue(session.module_reads("slot_2", 1))
+        self.press(machine, image_tests.KEY_BACK)
+        _, settings = self.module(machine, "settings")
+        self.assertTrue(settings.loaded(machine))
+        self.assert_healthy(session)
+
+    def test_missing_views_keeps_about_shut_and_settings_usable(self):
+        session, machine = self.started_session()
+        for slot in ("slot_1", "slot_2"):
+            session.change_module(slot, 1, 600, lambda byte: byte ^ 0xFF)
+        toasts = self.collect_toasts(machine)
+        self.open_settings(machine)
+        self.press(machine, image_tests.KEY_PLAY)
+        self.assertEqual(toasts, [image_tests.english("STR_SCREEN_MISSING")])
+        self.press(machine, image_tests.KEY_NEXT)
+        self.press(machine, image_tests.KEY_PLAY)
+        _, settings = self.module(machine, "settings")
+        self.assertTrue(settings.loaded(machine))
+        self.assert_healthy(session)
+
 
 
 if __name__ == "__main__":

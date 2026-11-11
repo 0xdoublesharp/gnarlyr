@@ -113,14 +113,8 @@ static uint32_t program_offset(Core1Program program)
     return OFFSETS[program];
 }
 
-static Core1Result place_program(Core1Program program)
+static Core1Result place_program_copy(uint32_t header_sector)
 {
-    EmmcInfo info;
-    if (hal_system_restart_pending() || !emmc_start(&info)) {
-        return CORE1_NO_REPLY;
-    }
-    uint32_t offset = program_offset(program);
-    uint32_t header_sector = info.layout.slot_1 + offset / SECTOR_BYTES;
     if (!emmc_read(NULL, header_sector, 1, staging)) {
         return CORE1_NO_REPLY;
     }
@@ -136,6 +130,17 @@ static Core1Result place_program(Core1Program program)
     }
     core1_prepare(&BUS);
     return CORE1_OK;
+}
+
+static Core1Result place_program(Core1Program program)
+{
+    EmmcInfo info;
+    if (hal_system_restart_pending() || !emmc_start(&info)) {
+        return CORE1_NO_REPLY;
+    }
+    uint32_t sector = program_offset(program) / SECTOR_BYTES;
+    Core1Result result = place_program_copy(info.layout.slot_1 + sector);
+    return result == CORE1_OK ? result : place_program_copy(info.layout.slot_2 + sector);
 }
 
 CORE_SEAM bool board_core1_start_stream(Core1Program program)

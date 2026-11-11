@@ -27,6 +27,7 @@ void board_display_clear(void);
 void board_input_start(void);
 void board_glyphs_start(void);
 void board_extension_start(void);
+void board_wall_time_delete_file(void);
 bool board_slot_read(uint32_t slot, uint32_t at, void *buffer, uint32_t length);
 
 typedef struct BoardImageTable {

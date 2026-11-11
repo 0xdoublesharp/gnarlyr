@@ -40,6 +40,7 @@ add_executable(echo_device
     board/wall_time.c
 )
 target_sources(echo_device PRIVATE board/panel_vop.c)
+target_include_directories(echo_device PRIVATE ${PROJECT_SOURCE_DIR}/src/app)
 if(NOT ECHO_RELEASE)
     target_sources(echo_device PRIVATE board/debug_session.c board/profiler.c)
     set(ECHO_PROFILE_BUCKET_SHIFT 7)
@@ -372,6 +373,7 @@ add_executable(echo_usb_overlay
     board/update.c
     board/usb_dac_session.c
     board/time_file_take.c
+    logic/fat_delete.c
     board/usb_port.c
     board/usb_session.c
 )
@@ -432,6 +434,7 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
     endforeach()
     list(REMOVE_DUPLICATES module_includes)
     add_library(${module_target}_objects OBJECT ${module_sources})
+    target_compile_definitions(${module_target}_objects PRIVATE ECHO_DEVICE_MODULE)
     if(module STREQUAL "dsp")
         target_link_libraries(${module_target}_objects PRIVATE echo_codec)
         target_compile_definitions(${module_target}_objects PRIVATE
@@ -442,12 +445,15 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
     endif()
     if(module STREQUAL "process")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
+        target_include_directories(${module_target}_objects PRIVATE board)
         target_compile_definitions(${module_target}_objects PRIVATE
             equalizer_design=audio_process_equalizer_design
             equalizer_retune=audio_process_equalizer_retune
             equalizer_run=audio_process_equalizer_run
             audio_fade_in=audio_process_fade_in
             audio_fade_out=audio_process_fade_out
+            hal_system_rtc_read=audio_process_rtc_read
+            hal_system_rtc_set=audio_process_rtc_set
         )
     endif()
     if(module STREQUAL "extension")
@@ -457,6 +463,7 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             home_art_draw=extension_home_art_draw
             home_art_draw_backdrop=extension_home_art_draw_backdrop
             home_art_init=extension_home_art_init
+            headphone_store_load=extension_headphone_store_load
             hal_file_remove=extension_hal_file_remove
             home_art_update=extension_home_art_update
             wire_motion_draw=extension_wire_motion_draw

@@ -3,6 +3,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import echo_image_harness as image_tests
+
 from echo_image_harness import (
     EchoImageHarness,
     main,
@@ -432,6 +434,55 @@ class EchoImageTest(EchoImageHarness):
         _, dsp = self.module(machine, "dsp")
         self.assertTrue(dsp.loaded(machine))
         self.assert_healthy(session)
+
+    def test_unavailable_flac_core_refuses_the_track_without_starting_output(self):
+        rig = self.playback_rig()
+        rig.machine.stub_symbol("board_core1_start_stream", lambda machine: 0)
+        starts = rig.machine.trace("dmac_start_loop")
+        rig.open_songs()
+        mark = rig.play_song(1)
+        rig.run_for(500)
+        self.assertIsNone(rig.first_audio_after(mark))
+        self.assertEqual(starts, [])
+        self.assert_healthy(rig.session)
+
+    def damage_flac_program(self, session, slot):
+        lba = session.layout[slot] + image_tests.make_image.CORE1_FLAC_OFFSET // 512 + 1
+        sector = bytearray(session.disk.read(lba, 1))
+        sector[40] ^= 0xFF
+        session.disk.write(lba, bytes(sector))
+        session.before = session.disk.snapshot()
+
+    def test_flac_plays_from_the_second_core_program_copy_after_a_bad_crc(self):
+        rig = self.playback_rig()
+        self.damage_flac_program(rig.session, "slot_1")
+        rig.open_songs()
+        mark = rig.play_song(1)
+        rig.run_for(500)
+        self.assertIsNotNone(rig.first_audio_after(mark), {
+            "active": rig.audio.core1.active, "starts": rig.audio.core1.starts,
+            "requested": rig.audio.requested_program,
+            "control": struct.unpack("<31I", rig.machine.read_memory(0x01020100, 124)),
+            "core_pc": hex(rig.audio.core1.core.pc) if rig.audio.core1.core else None,
+            "loaded": rig.machine.read_memory(0x01000000, 8).hex(),
+            "faults": rig.machine.faults,
+        })
+        self.assertTrue(rig.audio.core1.active)
+        self.assertIn(0, rig.audio.core1.started)
+        self.assertEqual(rig.audio.underruns(mark), [])
+        self.assert_healthy(rig.session)
+
+    def test_two_bad_flac_program_copies_refuse_the_track_without_core_execution(self):
+        rig = self.playback_rig()
+        for slot in ("slot_1", "slot_2"):
+            self.damage_flac_program(rig.session, slot)
+        rig.open_songs()
+        mark = rig.play_song(1)
+        rig.run_for(500)
+        self.assertIsNone(rig.first_audio_after(mark))
+        self.assertEqual(rig.audio.core1.starts, 0)
+        self.assert_healthy(rig.session)
+
 
 
 if __name__ == "__main__":

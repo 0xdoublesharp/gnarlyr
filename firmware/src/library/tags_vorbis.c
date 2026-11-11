@@ -202,7 +202,7 @@ static void read_streaminfo(TagReader *reader, const uint8_t *info)
     uint32_t rate = (uint32_t)info[10] << 12 | (uint32_t)info[11] << 4 | info[12] >> 4;
     uint64_t samples = (uint64_t)(info[13] & 0x0F) << 32 | tag_be32(info + 14);
     if (rate > 0) {
-        tag_set_duration(reader, (double)samples / (double)rate);
+        tag_set_duration(reader, samples, rate);
     }
 }
 
@@ -435,7 +435,7 @@ bool tags_read_ogg(TagReader *reader)
     uint64_t granule = 0;
     if (codec.rate > 0 && first_eos_granule(reader, &first, &granule) &&
         granule >= codec.pre_skip) {
-        tag_set_duration(reader, (double)(granule - codec.pre_skip) / (double)codec.rate);
+        tag_set_duration(reader, granule - codec.pre_skip, codec.rate);
     }
     return true;
 }
