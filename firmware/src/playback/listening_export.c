@@ -107,6 +107,7 @@ static void emit(void *context, const ListeningRecord *record)
     put_line(&sink, &record->play, &text);
     if (job->stage == STAGE_MEASURE) {
         job->bytes += sink.bytes;
+        job->plays++;
     } else if (job->excess > 0 || sink.bytes > room(job)) {
         job->excess -= sink.bytes < job->excess ? sink.bytes : job->excess;
         job->dropped++;
@@ -148,7 +149,7 @@ void listening_export_begin(ListeningExport *job, const ListeningLog *log, Liste
     *job = (ListeningExport){.lookup = lookup,
                              .bytes = sizeof HEADER - 1,
                              .result = lookup.text != NULL ? STORE_WORKING : STORE_FAILED};
-    listening_cursor_begin(&job->cursor, log, 1);
+    listening_cursor_begin(&job->cursor, log, LISTENING_SECTOR_RECORDS);
 }
 
 bool listening_export_write(ListeningExport *job, StoreFile file)

@@ -505,7 +505,7 @@ if(ECHO_BUILD_SIM)
     )
     echo_add_unit_test(NAME test_sim_storage
         SOURCES sim/test_sim_storage.c
-        LIBRARIES echo_sim_storage
+        LIBRARIES echo_sim_storage echo_playback
     )
     echo_add_unit_test(NAME test_sim_glyphs
         SOURCES sim/test_sim_glyphs.c

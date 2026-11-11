@@ -172,6 +172,7 @@ static void a_play_of_a_track_the_lookup_does_not_know_is_left_out(void)
     check_text(WANTED);
     CHECK_EQUAL(2, job.exported);
     CHECK_EQUAL(1, job.unknown);
+    CHECK_EQUAL(2, job.plays);
 }
 
 static void a_damaged_record_is_left_out_of_the_export(void)
@@ -216,16 +217,22 @@ static void a_tag_that_fills_its_buffer_is_cut_at_a_whole_character(void)
     CHECK_EQUAL('\t', line[127 + 127]);
 }
 
-static void every_step_looks_up_at_most_one_play(void)
+static void every_step_reads_the_plays_of_one_sector(void)
 {
     reset();
-    add_three_plays();
-    listening_export_begin(&job, &log_file, listening_fixture_lookup());
-    int steps = 0;
-    while (listening_export_step(&job) == STORE_WORKING && steps < STEP_LIMIT) {
-        CHECK_EQUAL(++steps, job.cursor.position);
+    for (int index = 0; index < 20; index++) {
+        add(listening_fixture_dated(0, MONDAY, 0));
     }
-    CHECK_EQUAL(2, steps);
+    uint32_t first = log_file.root.next - log_file.root.kept;
+    uint32_t sectors = (first + 19) / LISTENING_SECTOR_RECORDS - first / LISTENING_SECTOR_RECORDS;
+    listening_export_begin(&job, &log_file, listening_fixture_lookup());
+    uint32_t steps = 1;
+    while (listening_export_step(&job) == STORE_WORKING && steps < STEP_LIMIT) {
+        CHECK_EQUAL(0, (first + job.cursor.position) % LISTENING_SECTOR_RECORDS);
+        steps++;
+    }
+    CHECK_EQUAL(sectors + 1, steps);
+    CHECK_EQUAL(20, job.plays);
 }
 
 static void a_failed_write_fails_the_export(void)
@@ -298,7 +305,7 @@ int main(void)
         TEST_CASE(a_play_of_a_track_the_lookup_does_not_know_is_left_out),
         TEST_CASE(a_damaged_record_is_left_out_of_the_export),
         TEST_CASE(a_tag_that_fills_its_buffer_is_cut_at_a_whole_character),
-        TEST_CASE(every_step_looks_up_at_most_one_play),
+        TEST_CASE(every_step_reads_the_plays_of_one_sector),
         TEST_CASE(a_failed_write_fails_the_export),
         TEST_CASE(an_unreadable_log_fails_the_export),
         TEST_CASE(an_empty_log_exports_the_header_alone),
