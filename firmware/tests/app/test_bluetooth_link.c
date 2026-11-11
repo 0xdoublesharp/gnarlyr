@@ -1033,7 +1033,7 @@ static void headphones_that_stay_away_leave_the_player_paused(void)
     CHECK(toast_is("Connecting to Buds…"));
     step(START_MS + 100 + BLUETOOTH_LINK_AWAIT_MS);
     CHECK_EQUAL(PLAYER_PAUSED, player.state);
-    CHECK(toast_is("Buds didn't connect · Play tries again"));
+    CHECK(toast_is("Buds didn't connect: Play tries again"));
     connect_to(&BUDS);
     step(START_MS + 200 + BLUETOOTH_LINK_AWAIT_MS);
     CHECK_EQUAL(PLAYER_PAUSED, player.state);

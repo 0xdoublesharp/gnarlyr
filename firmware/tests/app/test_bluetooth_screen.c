@@ -398,9 +398,11 @@ static void bluetooth_switched_off_to_save_battery_says_so_until_play(void)
     Screen *screen = open_dozing_screen(now_ms);
     CHECK(!fake_hal_bluetooth_powered());
     CHECK(row_is(0, "Bluetooth", "On"));
-    CHECK(line_is(BLUETOOTH_SCREEN_HINT_LINE, "Turned off to save battery · Play reconnects"));
+    CHECK(
+        line_is(BLUETOOTH_SCREEN_HINT_LINE, "Turned off to save battery: press Play to reconnect"));
     tap(screen, KEY_VOLUME_UP, now_ms + 50);
-    CHECK(line_is(BLUETOOTH_SCREEN_HINT_LINE, "Turned off to save battery · Play reconnects"));
+    CHECK(
+        line_is(BLUETOOTH_SCREEN_HINT_LINE, "Turned off to save battery: press Play to reconnect"));
     tap(screen, KEY_VOLUME_DOWN, now_ms + 60);
     int tries = fake_hal_bluetooth_connect_count();
     tap(screen, KEY_PLAY, now_ms + 100);

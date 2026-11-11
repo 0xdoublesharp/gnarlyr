@@ -299,7 +299,11 @@ Settings → Bluetooth shows whether Bluetooth is on and which headphones are co
 
 Music plays through the headphones whenever nothing is plugged into either jack. To switch to wired headphones, pause, plug them in and press play: while music is going to Bluetooth the player can't see the jack. After you unplug, the next play goes back to Bluetooth.
 
-The headphones' controls work: pause, play and next/previous track, and taking them out of your ears pauses if they have in-ear detection. If they disconnect, playback pauses. With nothing connected for 5 minutes, Bluetooth switches itself off to save battery until you open its screen again or restart the player. A small Bluetooth mark next to the play icon at the top shows Bluetooth is on (dim) or connected (bright).
+The headphones' controls work: pause, play and next/previous track, and taking them out of your ears pauses if they have in-ear detection. If they disconnect, for example when you walk out of range, playback pauses. When they come back, the player reconnects but stays paused: press ▶ to carry on.
+
+With nothing connected for 5 minutes, Bluetooth switches itself off to save battery. You don't need to turn it back on: if music last played through Bluetooth, pressing ▶ wakes Bluetooth and shows "Connecting to …" with your most recent headphones' name; music starts as soon as they connect. The same happens when you turn the player on and press ▶ before your headphones have reconnected. If they don't connect within 10 seconds, the player stays paused and says so; press ▶ to try again, or plug headphones into a jack and the music plays there. Nothing plays out loud while it waits. The Bluetooth screen shows "Turned off to save battery: press Play to reconnect" while Bluetooth is switched off this way; press ▶ there to reconnect.
+
+If a speaker or headphones stay silent when they connect while music is playing, the player starts their stream again once by itself; you shouldn't need to press play on the speaker. A small Bluetooth mark next to the play icon at the top shows Bluetooth is on (dim) or connected (bright).
 
 ## Audiobooks and podcasts
 

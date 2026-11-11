@@ -205,7 +205,7 @@ STR_BT_CONNECTED_TO = Connected to {0}
 STR_BT_DISCONNECTED_FROM = Disconnected from {0}
 STR_BT_PAUSED_BY = Paused by {0}
 STR_BT_RECONNECTING = Connecting to {0}…
-STR_BT_NOT_BACK = {0} didn't connect · Play tries again
+STR_BT_NOT_BACK = {0} didn't connect: Play tries again
 STR_BT_HINT_DISCONNECT = Play disconnects · hold Play forgets
 STR_BT_HINT_CONNECTING = Connecting… hold Play to forget
 STR_BT_HINT_CONNECT = Play connects · hold Play forgets
@@ -214,7 +214,7 @@ STR_BT_HINT_TURN_ON = Play turns Bluetooth on
 STR_BT_HINT_SEARCHING = Searching… put headphones in pairing mode
 STR_BT_HINT_SEARCH = Play searches for new headphones
 STR_BT_HINT_PAIR = Play pairs with this device
-STR_BT_HINT_DOZING = Turned off to save battery · Play reconnects
+STR_BT_HINT_DOZING = Turned off to save battery: press Play to reconnect
 
 # About.
 STR_ABOUT_FIRMWARE = Firmware

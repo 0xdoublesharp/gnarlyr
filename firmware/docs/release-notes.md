@@ -28,6 +28,14 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 - Existing slides use eased motion. The Home perspective grid stays inside its artwork panel and clear of captions.
 - Obsolete Connect USB, USB sense and raw DAC About rows are removed. Hardware identification remains available to the developer HAL.
 
+## Bluetooth
+
+- When Bluetooth switched itself off after 5 idle minutes, or the player has just been turned on, ▶ wakes it and reconnects the last headphones if music last played through Bluetooth: "Connecting to …", then music starts once they connect. After 10 s without them the player stays paused and says so; wired headphones in either jack play at once. Nothing plays to an empty jack while it waits.
+- A speaker or headphones that pause the stream as it starts get it started again once, so a connection while playing isn't left silent until play is pressed on the speaker.
+- Headphones that come back in range after a loss reconnect without resuming playback.
+- The Bluetooth screen says "Turned off to save battery: press Play to reconnect" while Bluetooth is switched off to save battery, and ▶ there reconnects instead of the screen waking Bluetooth on opening.
+- Checked with host tests and emulator scenarios only; not yet checked on a player.
+
 ## Playback fixes
 
 - Opus R128 track and album gain tags now feed ReplayGain normalization with the +5 dB reference conversion. Standard ReplayGain gain tags take precedence, and the decoder keeps applying header gain once.
