@@ -1417,10 +1417,21 @@ class EchoImageTest(unittest.TestCase):
         self.assert_only_the_user_volume_changed(session)
 
     def test_switching_off_on_usb_power_saves_a_report_on_the_way_into_charge_mode(self):
+        for screen_off in (False, True):
+            with self.subTest(screen_off=screen_off):
+                self.check_usb_charge_shutdown(screen_off)
+
+    def check_usb_charge_shutdown(self, screen_off):
         session, machine = self.ejecting_session(self.debug_volume())
         machine.note("debug_report_write")
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
         machine.run(until_ms=COLD_REPORT_MS + 500)
+        _, settings = self.module(machine, "settings")
+        self.assertTrue(settings.loaded(machine))
+        if screen_off:
+            machine.power_key_released_at_ms = machine.milliseconds() + KEY_HOLD_MS
+            machine.run(until_ms=machine.milliseconds() + KEY_SETTLE_MS)
+            self.assertEqual(machine.gpio[2].regs[GPIO_DATA] & 1 << BACKLIGHT_PIN, 0)
         self.hold_power(machine)
         machine.run(until=lambda: machine.reached.get("debug_report_write", 0) >= 2,
                     until_ms=machine.milliseconds() + 8000)
@@ -1436,6 +1447,14 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(machine.panics, [])
         self.assertIsNone(machine.reset_requested)
         self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+        machine.note("hal_system_request_usb_mode")
+        from echo_emulator.playback import KEYS
+        self.press(machine, KEYS["menu"])
+        self.assertTrue(settings.loaded(machine))
+        self.press(machine, KEY_PLAY)
+        self.assertEqual(machine.reached.get("hal_system_request_usb_mode", 0), 1)
+        self.assertEqual(machine.usb_connect_count, 1)
         self.assert_healthy(session)
 
     def cold_session_on(self, earlier):

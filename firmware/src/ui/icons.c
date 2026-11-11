@@ -98,10 +98,9 @@ enum {
         ACCENT(FILL(5, 13, 14, 13)), ACCENT(FILL(4, 14, 8, 15)), ACCENT(FILL(11, 14, 15, 15)),     \
         ACCENT(FILL(4, 16, 6, 16)), LAST(ACCENT(FILL(13, 16, 15, 16)))
 #define SHUFFLE_GLYPH                                                                              \
-    LINE(1, 4, 4, 4), LINE(4, 4, 13, 13), LINE(13, 13, 17, 13), LINE(14, 10, 17, 13),              \
-        LINE(17, 13, 14, 16), ACCENT(LINE(1, 13, 4, 13)), ACCENT(LINE(4, 13, 6, 11)),              \
-        ACCENT(LINE(11, 6, 13, 4)), ACCENT(LINE(13, 4, 17, 4)), ACCENT(LINE(14, 1, 17, 4)),        \
-        LAST(ACCENT(LINE(17, 4, 14, 7)))
+    LINE(1, 4, 4, 4), LINE(4, 4, 13, 13), LINE(13, 13, 17, 13), ACCENT(LINE(14, 10, 17, 13)),      \
+        ACCENT(LINE(17, 13, 14, 16)), LINE(1, 13, 4, 13), LINE(4, 13, 13, 4), LINE(13, 4, 17, 4),  \
+        ACCENT(LINE(14, 1, 17, 4)), LAST(ACCENT(LINE(17, 4, 14, 7)))
 #define REPEAT_GLYPH                                                                               \
     LINE(2, 9, 2, 5), LINE(2, 5, 4, 3), LINE(4, 3, 16, 3), ACCENT(LINE(13, 0, 16, 3)),             \
         ACCENT(LINE(16, 3, 13, 6)), LINE(16, 9, 16, 13), LINE(16, 13, 14, 15),                     \

@@ -1623,7 +1623,7 @@ CORE_SEAM void app_step(void)
         debug_loop_follow(now_ms, &app.player);
         update_power(now_ms);
     }
-    if (app.powered_off) {
+    if (app.powered_off || app.charging) {
         return;
     }
     if (!app.display_on) {
