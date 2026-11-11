@@ -779,6 +779,13 @@ static void malformed_and_non_linear_edits_do_not_guess_a_trim(void)
             edit.duration = 0;
             break;
         }
+        if (index == 6) {
+            static Builder builder;
+            build_with_edit(&builder, false, &edit);
+            Mp4Track track;
+            CHECK(!mp4_probe((FlacInput){read_builder, &builder, builder.length}, &track));
+            continue;
+        }
         Mp4Track track = probe_edit(&edit);
         CHECK_EQUAL(0u, track.delay);
         CHECK_EQUAL(track.total_samples, track.valid_samples);
@@ -869,6 +876,22 @@ static uint32_t synthetic_aac_config(const Builder *builder)
         }
     }
     return 0;
+}
+
+static void an_explicit_zero_media_timescale_is_not_guessed(void)
+{
+    for (uint32_t wide = 0; wide < 2; wide++) {
+        static Builder builder;
+        EditSpec edit = simple_edit();
+        edit.wide_headers = wide != 0;
+        build_with_edit(&builder, false, &edit);
+        uint32_t mdhd = find_box_type(&builder, "mdhd");
+        CHECK(mdhd != 0);
+        memset(builder.bytes + mdhd + (wide ? 24 : 16), 0, 4);
+        FlacInput input = {.read = read_builder, .context = &builder, .size = builder.length};
+        Mp4Track track;
+        CHECK(!mp4_probe(input, &track));
+    }
 }
 
 static void aac_descriptors_must_identify_a_supported_audio_stream(void)
@@ -1334,6 +1357,7 @@ int main(void)
         TEST_CASE(sample_tables_cannot_extend_into_adjacent_boxes),
         TEST_CASE(overflowing_sample_size_table_indices_are_rejected),
         TEST_CASE(overflowing_chunk_table_indices_are_rejected),
+        TEST_CASE(an_explicit_zero_media_timescale_is_not_guessed),
         TEST_CASE(aac_descriptors_must_identify_a_supported_audio_stream),
         TEST_CASE(aac_configuration_must_fit_inside_its_parent_descriptors),
         TEST_CASE(aac_configurations_report_supported_rates_channels_and_frame_lengths),

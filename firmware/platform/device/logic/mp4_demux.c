@@ -539,9 +539,12 @@ bool mp4_probe(FlacInput input, Mp4Track *track)
         return false;
     }
     stbl = mdia;
-    if (!find_path(input, &stbl, TABLE_PATH, 2) || !collect_tables(input, &stbl, &tables) ||
+    uint32_t scale = time_scale(input, &mdia, MDHD);
+    Mp4Box media_header;
+    if ((scale == 0 && find_box(input, &mdia, 0, MDHD, &media_header)) ||
+        !find_path(input, &stbl, TABLE_PATH, 2) || !collect_tables(input, &stbl, &tables) ||
         !read_codec(input, &tables.box[0], track) || !read_tables(input, &tables, track) ||
-        !read_timing(input, &tables.box[1], track, time_scale(input, &mdia, MDHD))) {
+        !read_timing(input, &tables.box[1], track, scale)) {
         return false;
     }
     track->valid_samples = track->total_samples;
