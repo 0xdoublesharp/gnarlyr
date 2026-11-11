@@ -41,3 +41,8 @@ class TranslationTests(unittest.TestCase):
         token = m.checkpoint_token(source, 'Spanish', 'translategemma:27b')
         self.assertNotEqual(token, m.checkpoint_token([('STR_PLAY', 'Playing')], 'Spanish', 'translategemma:27b'))
         self.assertNotEqual(token, m.checkpoint_token(source, 'French', 'translategemma:27b'))
+
+    def test_prompt_omits_unrelated_placeholder_notes(self):
+        prompt = m.make_prompt('Slot 1', 'Portuguese', 'STR_EQ_SLOT_1', 'Equalizer. {0} is a slot number')
+        self.assertNotIn('{0}', prompt)
+        self.assertIn('Equalizer', prompt)

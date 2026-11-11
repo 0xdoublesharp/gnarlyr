@@ -43,6 +43,8 @@ def read_context(path):
 
 
 def make_prompt(text, language, key, section):
+    if not PLACEHOLDER.search(text):
+        section = section.split('.')[0]
     return (f"You are a professional English (en) to {language} translator. "
             f"Translate a short interface label for a portable music player. "
             f"The label identifier is {key}. Section note: {section}. "
