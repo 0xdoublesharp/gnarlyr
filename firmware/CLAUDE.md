@@ -44,6 +44,8 @@ python3 tools/firmware.py sim --card /path/to/music
 | `device` | Cross-compiled `build/device/GNARLYR.IMG` with the developer rows in Settings → About |
 | `release` | `build/release/GNARLYR.IMG` with the short About menu |
 
+`sccache` is used automatically when it is on PATH, with its shared cache at `/Volumes/Scratch/sccache`; set `ECHO_COMPILER_CACHE=0` to opt out. Host test executables are registered by area in `tests/registration/*.cmake`.
+
 `test` also builds the `device` preset, runs the emulator scenarios on its image and checks formatting, the absence of comments, generated files being current and the Cortex-M3 RAM budget (`target_audit`).
 
 ### Emulator scenarios
@@ -51,10 +53,17 @@ python3 tools/firmware.py sim --card /path/to/music
 Each scenario in `tests/emulator/scenarios/test_*.py` is its own test, named `device_image_boot_<test_name>`, so they run side by side. Use them this way:
 
 - While editing, run only the scenarios the change touches: `python3 tools/firmware.py test --jobs 6 --regex 'device_image_boot_test_usb'`.
-- Run the whole suite once, after the last edit, with `--jobs 6` (`--jobs 10` when nothing else is building). It takes about two minutes. Never run `test_echo_image.py` whole in one process: that is the slow, serial path.
-- A branch must contain `perf(emulator): enter hooked functions through block hooks` and `perf(emulator): rest one slice at each idle key poll`. Start new work from the current `gnarlyr` tip; if a branch is older, bring those commits in before running scenarios.
+- Use the full-suite gate described under Integration after the last edit. Never run `test_echo_image.py` whole in one process: that is the slow, serial path.
+- A branch must contain `perf(emulator): enter hooked functions through block hooks` and `perf(emulator): rest one slice at each idle key poll`. Start new work from the current `main` tip; if a branch is older, bring those commits in before running scenarios.
 - Add new scenarios to the relevant area file under `tests/emulator/scenarios/`, or start a new `test_*.py` there; CMake discovers them automatically. Shared fixtures and helpers live in `tests/emulator/echo_image_harness.py`. The old `test_echo_image.py` command remains a compatibility runner.
 - A new scenario waits on events (a hooked function, a watched write, a drawn frame), not on a count of emulated instructions, and replaces any function it only needs to get past through a `CORE_SEAM`.
+
+## Integration
+
+- Merge each finished branch into `main` as soon as its checks are green; avoid batching completed branches.
+- Feature agents run only their own tests with `python3 tools/firmware.py test --regex '<tests>'` while editing.
+- Give the machine to one full-suite gate after the edits: `python3 tools/firmware.py test --jobs 10` when nothing else is building, otherwise `--jobs 6`. Do not start competing full-suite runs.
+- The measured full suite at `ba71fdcf` was 331 tests in 18.4 minutes with `--jobs 3`. Its 91 ARM image scenarios accounted for 1,025 seconds; each reserves two processors. Use that measurement when planning shared-machine work.
 
 ## Rules
 
