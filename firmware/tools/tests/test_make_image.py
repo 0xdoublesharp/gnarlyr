@@ -437,6 +437,20 @@ class ModuleTest(unittest.TestCase):
     def rows(self, image):
         return make_image.modules_in(image)
 
+    def test_vorbis_module_uses_the_same_audio_window_and_capacity_as_the_dsp(self):
+        content = module_blob(6, bytes(make_image.AUDIO_MODULE_CAPACITY - 20))
+        binary = module_elf(content, base=make_image.AUDIO_MODULE_BASE)
+        self.assertEqual(content, make_image.module_from_elf(binary, 6))
+        modules = [module_blob(number) for number in range(1, 6)] + [content]
+        image = build(modules=modules)
+        self.assertEqual(make_image.AUDIO_MODULE_CAPACITY, self.rows(image)[5][1])
+        modules[5] += b"x"
+        with self.assertRaises(make_image.ImageError):
+            build(modules=modules)
+        with self.assertRaises(make_image.ImageError):
+            make_image.module_from_elf(module_elf(content, bss_size=4,
+                                                base=make_image.AUDIO_MODULE_BASE), 6)
+
     def test_modules_land_where_their_table_says_in_the_order_of_their_numbers(self):
         modules = [module_blob(1, b"a" * 900), module_blob(2, b"b" * 40)]
         image = build(modules=modules)

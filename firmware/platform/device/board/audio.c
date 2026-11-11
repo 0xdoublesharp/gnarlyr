@@ -47,6 +47,7 @@ typedef enum SourceKind {
     SOURCE_WAV,
     SOURCE_MP3,
     SOURCE_M4A,
+    SOURCE_VORBIS,
     SOURCE_UNKNOWN
 } SourceKind;
 
@@ -54,7 +55,10 @@ static union {
     FlacDecoder flac;
     WavBuffers wav;
     M4aStream m4a;
+    VorbisStream vorbis;
 } decoding __attribute__((section(".high_ram")));
+_Static_assert(sizeof(VorbisStream) <= sizeof(FlacDecoder),
+               "Vorbis input must fit the existing decoder workspace");
 static Equalizer equalizer __attribute__((section(".high_ram")));
 static uint32_t music_ring[RING_WORDS];
 static WavSource wav_source;
@@ -168,10 +172,33 @@ static SourceKind kind_of(const char *path)
     if (tag_is(magic, "RIFF") && tag_is(magic + 8, "WAVE")) {
         return SOURCE_WAV;
     }
+    if (tag_is(magic, "OggS")) {
+        return SOURCE_VORBIS;
+    }
     if (mp4_signature(magic)) {
         return SOURCE_M4A;
     }
     return mp3_signature(magic) ? SOURCE_MP3 : SOURCE_UNKNOWN;
+}
+
+CORE_SEAM bool board_audio_vorbis_wait(Core1Source *source)
+{
+    uint32_t started = hal_clock_milliseconds();
+    while (hal_clock_milliseconds() - started < PREFILL_TIMEOUT_MS) {
+        core1_source_fill(source);
+        if (source->read_failed) {
+            return false;
+        }
+        if (source->region.control->vorbis_config_generation == source->generation) {
+            return true;
+        }
+        volatile StreamSlot *slot = &source->region.control->slots[0];
+        if (slot->state == STREAM_SLOT_FULL && slot->generation == source->generation) {
+            return false;
+        }
+        board_delay_ms(1);
+    }
+    return false;
 }
 
 static AudioSource chosen_source(void)
@@ -181,6 +208,10 @@ static AudioSource chosen_source(void)
     }
     if (source_kind == SOURCE_MP3) {
         return core1_source_mp3_interface(&core1_source);
+    }
+    if (source_kind == SOURCE_VORBIS) {
+        return core1_source_vorbis_interface(&core1_source, &decoding.vorbis,
+                                             board_audio_vorbis_wait);
     }
     if (source_kind == SOURCE_M4A) {
         return core1_source_m4a_interface(&core1_source, &decoding.m4a);
@@ -219,6 +250,12 @@ static bool open_chosen(void *context, const char *path, uint32_t start_ms, Audi
     if (source_kind == SOURCE_MP3 || source_kind == SOURCE_M4A) {
         using_core1 = board_core1_start_stream(source_kind == SOURCE_MP3 ? CORE1_PROGRAM_MP3
                                                                          : CORE1_PROGRAM_M4A);
+        if (!using_core1) {
+            return false;
+        }
+    }
+    if (source_kind == SOURCE_VORBIS) {
+        using_core1 = board_core1_start_stream(CORE1_PROGRAM_VORBIS);
         if (!using_core1) {
             return false;
         }
@@ -597,6 +634,8 @@ static HalAudioCodec codec_of(AudioCodec codec)
         return HAL_AUDIO_CODEC_AAC;
     case AUDIO_CODEC_ALAC:
         return HAL_AUDIO_CODEC_ALAC;
+    case AUDIO_CODEC_VORBIS:
+        return HAL_AUDIO_CODEC_VORBIS;
     case AUDIO_CODEC_FLAC:
         break;
     }

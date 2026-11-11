@@ -60,6 +60,7 @@ add_library(echo_device_logic STATIC
     audio_resample.c
     audio_interpolate.c
     audio_dsp_entry.c
+    audio_vorbis_entry.c
     backlight.c
     block_read.c
     board_pins.c
@@ -74,6 +75,7 @@ add_library(echo_device_logic STATIC
     core1_mp3.c
     core1_stream.c
     core1_vorbis.c
+    core1_vorbis_source.c
     dac_sequence.c
     debug_report.c
     flac_source.c

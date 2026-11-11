@@ -164,3 +164,23 @@ bool vorbis_stream_seek(VorbisStream *stream, FlacInput file, const VorbisTrack 
     stream->origin = track->origin;
     return true;
 }
+
+bool vorbis_stream_prepare(VorbisStream *stream, VorbisTrack *track, const VorbisModes *modes,
+                           uint32_t sample)
+{
+    if (stream->failed || stream->ended || stream->headers != 3 ||
+        stream->position != track->header_bytes || stream->record_done != stream->record_size) {
+        return false;
+    }
+    VorbisTrack candidate = *track;
+    uint32_t offset;
+    if (!vorbis_track_origin(&stream->packets, modes, &candidate) ||
+        !vorbis_track_seek(stream->packets.input, &candidate, sample, &offset)) {
+        return false;
+    }
+    stream->seek_offset = offset;
+    stream->serial = candidate.serial;
+    stream->origin = candidate.origin;
+    *track = candidate;
+    return true;
+}

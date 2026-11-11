@@ -327,7 +327,7 @@ set(ECHO_MODULE_IMPORT_ARGUMENTS "")
 set(ECHO_MODULE_IMAGE_ARGUMENTS "")
 set(ECHO_MODULE_MAP_ARGUMENTS "")
 foreach(module IN LISTS ECHO_SCREEN_MODULES)
-    if(module STREQUAL "dsp")
+    if(module STREQUAL "dsp" OR module STREQUAL "vorbis")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_dsp.ld)
     else()
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/screen_module.ld)
@@ -349,6 +349,13 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             mp4_probe=audio_dsp_probe
             mp4_cursor_seek=audio_dsp_seek
             mp4_cursor_next=audio_dsp_next
+        )
+    endif()
+    if(module STREQUAL "vorbis")
+        target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)
+        target_compile_definitions(${module_target}_objects PRIVATE
+            core1_open_vorbis=audio_vorbis_open
+            vorbis_stream_read=audio_vorbis_read
         )
     endif()
     target_include_directories(${module_target}_objects PRIVATE ${module_includes})

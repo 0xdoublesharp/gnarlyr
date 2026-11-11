@@ -1711,6 +1711,101 @@ class EchoImageTest(unittest.TestCase):
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                    volume=volume, module_elfs=self.module_elfs)
 
+    def vorbis_rig(self, mixed=False):
+        from echo_emulator.core1_bridge import Core1Bridge
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        volume = Fat32Volume()
+        if mixed:
+            rate = 8000
+            pcm = struct.pack("<8h", 0, 2828, 4000, 2828, 0, -2828, -4000, -2828) * (rate * 30 // 8)
+            wav = struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ",
+                              16, 1, 1, rate, rate * 2, 2, 16, b"data", len(pcm)) + pcm
+            volume.add_file("A.wav", wav)
+        volume.add_file("B.ogg", (PROJECT / "tests/fixtures/vorbis/seek44.ogg").read_bytes())
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        program = self.elf.with_name("core1_vorbis.bin").read_bytes()
+        return rig, Core1Bridge(rig.audio, program)
+
+    def test_vorbis_player_runs_both_arm_cores_and_switches_audio_modules(self):
+        rig, bridge = self.vorbis_rig(mixed=True)
+        machine = rig.machine
+        _, dsp = self.module(machine, "dsp")
+        number, vorbis = self.module(machine, "vorbis")
+        rig.session.change_module("slot_1", number, 32, lambda byte: byte ^ 1)
+        rig.open_songs()
+        first = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(first))
+        self.assertTrue(dsp.loaded(machine))
+        second = rig.skip("next")
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.rate == 44100 and rig.audio.running,
+            until_ms=machine.milliseconds() + 2000), {
+                "active": bridge.active, "instructions": bridge.core.instructions,
+                "pc": hex(machine.current_pc()),
+                "control": struct.unpack("<31I", machine.read_memory(0x01020100, 124)),
+                "core1": struct.unpack("<31I", bridge.core.uc.mem_read(0x01020100, 124))})
+        self.assertIsNotNone(rig.first_audio_after(second))
+        self.assertGreater(bridge.starts, 0)
+        self.assertTrue(vorbis.loaded(machine))
+        self.assertTrue(rig.session.module_reads("slot_2", number))
+        third = rig.skip("previous")
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.rate == 48000 and rig.audio.running,
+            until_ms=machine.milliseconds() + 2000))
+        self.assertIsNotNone(rig.first_audio_after(third))
+        self.assertTrue(vorbis.loaded(machine))
+        self.assert_healthy(rig.session)
+
+    def test_vorbis_player_opens_at_a_saved_position_and_pauses_without_reconfiguration(self):
+        from unicorn.arm_const import UC_ARM_REG_R1
+        rig, bridge = self.vorbis_rig()
+        machine = rig.machine
+        machine.hook_symbol("hal_audio_play", lambda: machine.uc.reg_write(UC_ARM_REG_R1, 1400))
+        from unicorn import UC_HOOK_MEM_READ
+        from unicorn.arm_const import UC_ARM_REG_PC
+        waiting = machine.symbols["board_audio_vorbis_wait"]
+        end = min(address for address in machine.symbols.values() if address > waiting)
+        injected = []
+
+        def late_old_slot(uc, access, address, size, value, user):
+            pc = uc.reg_read(UC_ARM_REG_PC)
+            if not injected and waiting <= pc < end:
+                uc.mem_write(0x01020134, struct.pack("<5I", 1, 0, 0, 0, 64))
+                injected.append(True)
+
+        machine.uc.hook_add(UC_HOOK_MEM_READ, late_old_slot, None, 0x01020134, 0x01020137)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.running,
+            until_ms=machine.milliseconds() + 2000))
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertEqual(44100, rig.audio.rate)
+        self.assertEqual(1, bridge.starts)
+        self.assertEqual([True], injected)
+        rig.press("play")
+        self.assertGreater(rig.audio.suspend_depth, 0)
+        rig.press("play")
+        self.assertEqual(0, rig.audio.suspend_depth)
+        self.assertEqual(1, bridge.starts)
+        self.assert_healthy(rig.session)
+
+    def test_vorbis_player_refuses_two_damaged_audio_modules(self):
+        rig, bridge = self.vorbis_rig()
+        number, vorbis = self.module(rig.machine, "vorbis")
+        for slot in ("slot_1", "slot_2"):
+            rig.session.change_module(slot, number, 32, lambda byte: byte ^ 1)
+        rig.open_songs()
+        rig.play_song(1)
+        self.assertGreater(bridge.starts, 0)
+        self.assertEqual([], rig.audio.audible)
+        self.assertFalse(vorbis.loaded(rig.machine))
+        for slot in ("slot_1", "slot_2"):
+            self.assertTrue(rig.session.module_reads(slot, number))
+        self.assert_healthy(rig.session)
+
     def test_speech_plays_through_the_independent_audio_module_while_a_menu_module_changes(self):
         rig = self.speech_rig()
         number, dsp = self.module(rig.machine, "dsp")

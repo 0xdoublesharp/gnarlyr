@@ -51,7 +51,7 @@ static bool read_rest(const BoardOverlay *overlay, uint32_t first_sector, uint32
     uint8_t *target = overlay->base + SECTOR_BYTES;
     for (uint32_t done = 0; done < sectors; done += SECTORS_PER_READ) {
         uint32_t count = sectors - done < SECTORS_PER_READ ? sectors - done : SECTORS_PER_READ;
-        if (overlay->module != 0) {
+        if (overlay->module != 0 && (uintptr_t)overlay->base == MODULE_SLOT_BASE) {
             hal_audio_service();
         }
         if (!emmc_read(NULL, first_sector + done, count, target + done * SECTOR_BYTES)) {

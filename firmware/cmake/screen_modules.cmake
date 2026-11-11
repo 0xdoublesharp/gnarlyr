@@ -1,8 +1,16 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp)
+set(ECHO_SCREEN_MODULES views settings library listening dsp vorbis)
 set(ECHO_SCREEN_MODULE_SOURCES_dsp
     platform/device/logic/audio_interpolate.c
     platform/device/logic/audio_dsp_entry.c
     platform/device/logic/mp4_demux.c
+)
+set(ECHO_SCREEN_MODULE_SOURCES_vorbis
+    platform/device/logic/audio_interpolate.c
+    platform/device/logic/audio_vorbis_entry.c
+    platform/device/logic/core1_vorbis_source.c
+    platform/device/logic/vorbis_stream.c
+    platform/device/logic/vorbis_track.c
+    src/codec/ogg_packet.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c

@@ -394,6 +394,11 @@ echo_add_unit_test(NAME test_m4a_source
 )
 target_compile_definitions(test_m4a_source PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 target_include_directories(test_m4a_source PRIVATE device)
+echo_add_unit_test(NAME test_vorbis_source
+    SOURCES device/test_vorbis_source.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_vorbis_source PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 echo_add_unit_test(NAME test_vorbis_seek
     SOURCES device/test_vorbis_seek.c
     LIBRARIES echo_device_logic

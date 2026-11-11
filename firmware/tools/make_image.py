@@ -30,6 +30,7 @@ USB_OVERLAY_MAGIC = b"EUSB"
 MODULE_BASE = 0x03084400
 MODULE_CAPACITY = 0xDC00
 AUDIO_MODULE_NUMBER = 5
+AUDIO_MODULE_NUMBERS = (5, 6)
 AUDIO_MODULE_BASE = 0x03048000
 AUDIO_MODULE_CAPACITY = 0x2000
 MODULE_MAGIC = b"DSM"
@@ -351,7 +352,7 @@ def check_modules(modules):
     if len(modules) > MODULE_LIMIT:
         raise ImageError(f"the module table holds at most {MODULE_LIMIT} modules")
     for number, module in enumerate(modules, 1):
-        capacity = AUDIO_MODULE_CAPACITY if number == AUDIO_MODULE_NUMBER else MODULE_CAPACITY
+        capacity = AUDIO_MODULE_CAPACITY if number in AUDIO_MODULE_NUMBERS else MODULE_CAPACITY
         if not OVERLAY_HEADER_SIZE < len(module) <= capacity:
             raise ImageError(f"module {number} must be more than {OVERLAY_HEADER_SIZE} and at "
                              f"most {capacity:#x} bytes")
@@ -588,7 +589,7 @@ def overlay_from_elf(elf, zeroed=False, base=OVERLAY_BASE, capacity=OVERLAY_CAPA
 
 
 def module_from_elf(elf, number=0):
-    audio = number == AUDIO_MODULE_NUMBER
+    audio = number in AUDIO_MODULE_NUMBERS
     bss = elf_sections(elf).get(".bss") if audio else None
     if bss is not None and bss.size:
         raise ImageError("the audio module must keep all state in its caller")
