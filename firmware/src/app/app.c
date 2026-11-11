@@ -124,6 +124,7 @@ typedef struct AppState {
     BluetoothLink bluetooth;
     uint32_t shown_refusals;
     StatusBarState status_bar;
+    char battery_text[STATUS_BAR_PERCENT_CAPACITY];
     AppScreens screens;
     MessageScreen notice;
     FrameDiff frame_diff;
@@ -1021,6 +1022,15 @@ static StatusBluetooth bluetooth_of(const BluetoothLink *link)
     return link->connected ? STATUS_BLUETOOTH_CONNECTED : STATUS_BLUETOOTH_ON;
 }
 
+static const char *battery_text(HalBattery battery)
+{
+    if (!app.settings.settings.battery_percent) {
+        return NULL;
+    }
+    charge_screen_level_text(battery, app.battery_text, sizeof app.battery_text);
+    return app.battery_text;
+}
+
 static StatusBarState current_status_bar(void)
 {
     HalBattery battery = hal_power_battery();
@@ -1033,6 +1043,7 @@ static StatusBarState current_status_bar(void)
         .charging = battery.charging,
         .locked = app.lock.locked,
         .shuffle = (StatusShuffle)player_status(&app.player).shuffle,
+        .percent = battery_text(battery),
     };
 }
 

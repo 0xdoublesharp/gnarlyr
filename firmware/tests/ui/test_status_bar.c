@@ -1,6 +1,7 @@
 #include "check.h"
 #include "fonts/fonts.h"
 #include "gfx/color.h"
+#include "gfx/text.h"
 #include "ui/header.h"
 #include "ui/status_bar.h"
 #include "ui_test_canvas.h"
@@ -276,6 +277,50 @@ static void the_tip_stays_a_plain_nub_on_usb_power(void)
     CHECK(!ui_test_area_has_color(&canvas, tip, tinted(&theme, theme.colors.success)));
 }
 
+static Rect percent_area(const Theme *theme, const char *text)
+{
+    Rect body = status_bar_battery_body(theme);
+    int width = text_width(theme->fonts.small, text);
+    return (Rect){body.x - PANEL_PADDING / 2 - width, body.y, width, body.height};
+}
+
+static void the_percentage_is_hidden_unless_the_app_passes_it(void)
+{
+    Theme theme = panel_theme();
+    Canvas canvas = draw_panel(&theme, battery_at(HALF_BATTERY, false));
+    CHECK(ui_test_area_has_only(&canvas, percent_area(&theme, "50%"),
+                                theme.colors.header_background));
+}
+
+static void a_shown_percentage_sits_left_of_the_battery_level_with_its_body(void)
+{
+    Theme theme = panel_theme();
+    StatusBarState state = battery_at(HALF_BATTERY, false);
+    state.percent = "50%";
+    Canvas canvas = draw_panel(&theme, state);
+    Rect text = percent_area(&theme, "50%");
+    Rect body = status_bar_battery_body(&theme);
+    CHECK(ui_test_area_has_color(&canvas, text, theme.colors.header_text));
+    Rect gap = {text.x + text.width, body.y, body.x - text.x - text.width, body.height};
+    CHECK(ui_test_area_has_only(&canvas, gap, theme.colors.header_background));
+    Rect above = {text.x, body.y - 2, text.width, 2};
+    CHECK(ui_test_area_has_only(&canvas, above, theme.colors.header_background));
+}
+
+static void a_shown_percentage_turns_red_when_low_and_stays_plain_on_usb_power(void)
+{
+    Theme theme = panel_theme();
+    StatusBarState state = battery_at(LOW_BATTERY, false);
+    state.percent = "10%";
+    Canvas low = draw_panel(&theme, state);
+    Rect text = percent_area(&theme, "10%");
+    CHECK(ui_test_area_has_color(&low, text, tinted(&theme, theme.colors.danger)));
+    state.usb_power = true;
+    Canvas powered = draw_panel(&theme, state);
+    CHECK(ui_test_area_has_color(&powered, text, theme.colors.header_text));
+    CHECK(!ui_test_area_has_color(&powered, text, tinted(&theme, theme.colors.danger)));
+}
+
 static void an_unknown_battery_draws_no_battery(void)
 {
     Theme theme = panel_theme();
@@ -320,6 +365,9 @@ int main(void)
         TEST_CASE(a_charged_battery_shows_a_dark_bolt_on_its_full_fill),
         TEST_CASE(the_outline_stays_unbroken_around_the_bolt_while_charging_or_charged),
         TEST_CASE(the_tip_stays_a_plain_nub_on_usb_power),
+        TEST_CASE(the_percentage_is_hidden_unless_the_app_passes_it),
+        TEST_CASE(a_shown_percentage_sits_left_of_the_battery_level_with_its_body),
+        TEST_CASE(a_shown_percentage_turns_red_when_low_and_stays_plain_on_usb_power),
         TEST_CASE(an_unknown_battery_draws_no_battery),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

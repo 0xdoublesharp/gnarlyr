@@ -186,7 +186,8 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
         bytes[index] = index < MAGIC_SIZE ? MAGIC[index] : 0;
     }
     bytes[VERSION_FIELD] = VERSION;
-    bytes[VERSION_FIELD + 1] = settings->replay_gain_mode | (settings->prevent_clipping ? 4u : 0u);
+    bytes[VERSION_FIELD + 1] = settings->replay_gain_mode | (settings->prevent_clipping ? 4u : 0u) |
+                               (settings->battery_percent ? 8u : 0u);
     bytes[BRIGHTNESS_FIELD] = settings->brightness;
     bytes[TIMEOUT_FIELD] = settings->screen_timeout;
     bytes[GAIN_FIELD] = (uint8_t)settings->gain;
@@ -220,7 +221,7 @@ static bool replay_gain_flags_valid(const uint8_t *bytes)
     uint8_t flags = bytes[VERSION_FIELD + 1];
     return bytes[VERSION_FIELD] < REPLAY_GAIN_VERSION
                ? flags == 0
-               : (flags & 0xF8u) == 0 && (flags & 3u) < REPLAY_GAIN_MODE_COUNT;
+               : (flags & 0xF0u) == 0 && (flags & 3u) < REPLAY_GAIN_MODE_COUNT;
 }
 
 static bool header_valid(const uint8_t *bytes, uint32_t length)
@@ -408,6 +409,7 @@ bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
                                      : (uint8_t)(bytes[VERSION_FIELD + 1] & 3u);
     settings->prevent_clipping =
         bytes[VERSION_FIELD] < REPLAY_GAIN_VERSION || (bytes[VERSION_FIELD + 1] & 4u) != 0;
+    settings->battery_percent = (bytes[VERSION_FIELD + 1] & 8u) != 0;
     return true;
 }
 

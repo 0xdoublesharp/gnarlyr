@@ -20,7 +20,8 @@ typedef enum StatusBluetooth {
 
 enum {
     STATUS_BAR_CRITICAL_BATTERY_PERCENT = 5,
-    STATUS_BAR_LOW_BATTERY_PERCENT = 15
+    STATUS_BAR_LOW_BATTERY_PERCENT = 15,
+    STATUS_BAR_PERCENT_CAPACITY = 12
 };
 
 typedef enum StatusShuffle {
@@ -38,6 +39,7 @@ typedef struct StatusBarState {
     bool charging;
     bool locked;
     StatusShuffle shuffle;
+    const char *percent;
 } StatusBarState;
 
 typedef struct StatusBatteryLook {

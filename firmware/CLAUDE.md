@@ -72,19 +72,19 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 148,984 | 157,292 | 8,308 |
-| Static RAM | 264,284 | 278,528 | 14,244 |
+| Code window | 149,144 | 157,292 | 8,148 |
+| Static RAM | 264,348 | 278,528 | 14,180 |
 | Rescan overlay | 93,004 | 98,304 | 5,300 |
 | USB overlay code | 11,740 | 65,536 | 53,796 |
 | Module views (code + BSS) | 18,408 | 44,032 | 25,624 |
-| Module settings (code + BSS) | 16,880 | 44,032 | 27,152 |
+| Module settings (code + BSS) | 16,908 | 44,032 | 27,124 |
 | Module library (code + BSS) | 39,124 | 44,032 | 4,908 |
 | Module listening (code + BSS) | 17,804 | 44,032 | 26,228 |
 | Audio processing module (code, no BSS) | 1,920 | 12,288 | 10,368 |
 | Audio DSP module (code, no BSS) | 5,832 | 8,192 | 2,360 |
 | Vorbis file module (code, no BSS) | 5,960 | 8,192 | 2,232 |
 | Decoder workspace | 41,648 | 41,984 | 336 |
-| Language pack (English) | 7,216 | 16,384 | 9,168 |
+| Language pack (English) | 7,234 | 16,384 | 9,150 |
 | Vorbis program image bank | 64,768 | 130,048 | 65,280 |
 | Vorbis core-1 static state | 32,952 | 36,864 | 3,912 |
 

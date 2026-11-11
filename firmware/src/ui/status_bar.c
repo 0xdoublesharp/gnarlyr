@@ -1,5 +1,6 @@
 #include "ui/status_bar.h"
 
+#include "gfx/text.h"
 #include "ui/icons.h"
 
 enum {
@@ -139,6 +140,12 @@ static void draw_bolt(Canvas *canvas, const Theme *theme, Rect body, StatusBatte
     draw_icon(&inside, ICON_BOLT, bolt, look.bolt);
 }
 
+static void draw_percent(Canvas *canvas, TextStyle style, Point end, const char *text)
+{
+    end.x -= text_width(style.font, text);
+    text_draw(canvas, style, end, text);
+}
+
 static void draw_battery(Canvas *canvas, const Theme *theme, StatusBarState state)
 {
     StatusBatteryLook look = status_bar_battery_look(theme, state);
@@ -155,6 +162,11 @@ static void draw_battery(Canvas *canvas, const Theme *theme, StatusBarState stat
                      look.outline);
     if (state.usb_power) {
         draw_bolt(canvas, theme, body, look);
+    }
+    if (state.percent != NULL) {
+        TextStyle style = {theme->fonts.small, state.usb_power ? look.outline : look.fill};
+        Point end = {body.x - theme->metrics.padding / 2, body.y + body.height};
+        draw_percent(canvas, style, end, state.percent);
     }
 }
 
