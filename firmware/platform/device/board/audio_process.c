@@ -18,6 +18,9 @@ CORE_SEAM bool board_audio_process_prepare(void)
                                   .base = (uint8_t *)(uintptr_t)AUDIO_PROCESS_BASE,
                                   .capacity = AUDIO_PROCESS_BYTES,
                                   .module = AUDIO_PROCESS_NUMBER};
+    if (ready && board_overlay_is_loaded(&overlay)) {
+        return true;
+    }
     ready = board_overlay_load(&overlay) && entry()->magic == AUDIO_PROCESS_MAGIC;
     return ready;
 }

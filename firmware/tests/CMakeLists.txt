@@ -437,6 +437,16 @@ echo_add_unit_test(NAME test_audio_resample
 if(UNIX)
     target_link_libraries(test_audio_resample PRIVATE m)
 endif()
+add_executable(audio_tempo_tool device/audio_tempo_tool.c)
+target_link_libraries(audio_tempo_tool PRIVATE echo_device_logic echo_options)
+echo_add_unit_test(NAME test_audio_tempo
+    SOURCES device/test_audio_tempo.c
+    LIBRARIES echo_device_logic
+)
+add_dependencies(test_audio_tempo audio_tempo_tool)
+if(UNIX)
+    target_link_libraries(test_audio_tempo PRIVATE m)
+endif()
 echo_add_unit_test(NAME test_audio_engine
     SOURCES device/test_audio_engine.c
     LIBRARIES echo_device_logic

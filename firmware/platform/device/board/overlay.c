@@ -134,6 +134,11 @@ static void clear(const BoardOverlay *overlay, uint32_t from)
     }
 }
 
+CORE_SEAM bool board_overlay_is_loaded(const BoardOverlay *overlay)
+{
+    return already_loaded(overlay) != 0;
+}
+
 bool board_overlay_load(const BoardOverlay *overlay)
 {
     uint32_t size = already_loaded(overlay);

@@ -61,6 +61,7 @@ add_library(echo_device_logic STATIC
     audio_math.c
     audio_trig.c
     audio_resample.c
+    audio_tempo.c
     audio_interpolate.c
     audio_dsp_entry.c
     audio_process_entry.c
