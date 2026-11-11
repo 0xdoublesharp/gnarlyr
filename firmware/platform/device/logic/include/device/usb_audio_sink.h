@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/headphone_audio.h"
 #include "device/stream_drift.h"
 
 typedef struct UsbAudioSinkStats {
@@ -24,11 +25,13 @@ typedef struct UsbAudioSink {
     uint16_t peaks[2];
     StreamDrift drift;
     UsbAudioSinkStats stats;
+    HeadphoneAudio headphones;
 } UsbAudioSink;
 
 void usb_audio_sink_init(UsbAudioSink *sink, uint32_t *ring, uint32_t ring_frames);
 void usb_audio_sink_start(UsbAudioSink *sink, uint32_t rate, uint8_t sample_bytes);
 void usb_audio_sink_set_playing(UsbAudioSink *sink, bool playing);
+void usb_audio_sink_set_headphones(UsbAudioSink *sink, HeadphoneAudio profile);
 void usb_audio_sink_write(UsbAudioSink *sink, const uint8_t *bytes, uint32_t length,
                           uint32_t consumed);
 bool usb_audio_sink_primed(const UsbAudioSink *sink);

@@ -37,7 +37,7 @@ Safe host ejection gives storage ownership back to the player and refreshes its 
 
 ## Font and format limits
 
-The firmware accepts version 1 packs up to 16 KiB. Language codes contain at most five ASCII letters, digits or hyphens. Native names must fit in 27 UTF-8 bytes. Packs must preserve the ordered string catalogue and each entry's numbered placeholders. Every translated character must be drawable at all three text sizes; western European accented letters are supported, while full Cyrillic, CJK and complex-script UI packs require further font work.
+The firmware accepts version 1 packs up to 16 KiB. Language codes contain at most five ASCII letters, digits or hyphens. Native names must fit in 27 UTF-8 bytes. Packs must preserve the ordered string catalogue and each entry's numbered placeholders. Every translated character must be drawable at all three text sizes; western European accented letters and the Russian and Ukrainian Cyrillic ranges are supported. Chinese and Japanese glyphs cover the characters in the current draft catalogs; other characters need the glyph sets regenerated. Arabic and Indic scripts require shaping and additional font work.
 
 For the binary format and image-embedded languages, see [Languages in the architecture guide](../firmware/docs/architecture.md#languages). To regenerate the browser catalogue after changing language entries or font coverage:
 

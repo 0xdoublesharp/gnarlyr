@@ -49,9 +49,11 @@ typedef struct OggPackets {
     bool started;
     bool ended;
     bool emitted;
+    bool multiplexed;
 } OggPackets;
 
 void ogg_packets_init(OggPackets *reader, FlacInput input);
+void ogg_packets_init_first(OggPackets *reader, FlacInput input);
 OggPacketResult ogg_packets_next(OggPackets *reader, uint8_t *buffer, uint32_t capacity,
                                  OggPacket *packet);
 

@@ -11,13 +11,21 @@ static bool follows(const OggPage *page, uint32_t serial, uint32_t sequence)
     return page->serial == serial && page->sequence == sequence && (page->flags & 2) == 0;
 }
 
-bool ogg_track_endpoint(FlacInput input, OggTrack *track)
+static OggPacketResult selected_page(FlacInput input, uint32_t offset, uint32_t serial,
+                                     OggPage *page)
 {
-    uint32_t start = input.size > 2 * MAX_PAGE_BYTES ? input.size - 2 * MAX_PAGE_BYTES : 0;
-    OggPage page;
-    if (ogg_page_find(input, start, input.size, &page) != OGG_PACKET_READY) {
-        return false;
+    while (offset < input.size) {
+        OggPacketResult result = ogg_page_read(input, offset, page);
+        if (result != OGG_PACKET_READY || page->serial == serial) {
+            return result;
+        }
+        offset = page->next;
     }
+    return OGG_PACKET_END;
+}
+
+static bool endpoint(FlacInput input, OggTrack *track, OggPage page)
+{
     uint64_t granule = 0;
     for (;;) {
         if (page.serial != track->serial ||
@@ -28,21 +36,36 @@ bool ogg_track_endpoint(FlacInput input, OggTrack *track)
             granule = page.granule;
         }
         if ((page.flags & 4) != 0) {
+            if (page.granule == UINT64_MAX || granule == 0) {
+                return false;
+            }
             track->samples = (uint32_t)granule;
             track->end_granule = (uint32_t)granule;
-            return page.next == input.size && page.granule != UINT64_MAX && granule > 0;
+            track->stream_end = page.next;
+            return true;
         }
         uint32_t sequence = page.sequence + 1;
-        if (ogg_page_read(input, page.next, &page) != OGG_PACKET_READY ||
+        if (selected_page(input, page.next, track->serial, &page) != OGG_PACKET_READY ||
             !follows(&page, track->serial, sequence)) {
             return false;
         }
     }
 }
 
+bool ogg_track_endpoint(FlacInput input, OggTrack *track)
+{
+    OggPage page;
+    return selected_page(input, 0, track->serial, &page) == OGG_PACKET_READY &&
+           endpoint(input, track, page);
+}
+
 static bool marked_page(FlacInput input, const OggTrack *track, OggPage *page)
 {
-    if (page->serial != track->serial || (page->flags & 2) != 0) {
+    if (page->serial != track->serial &&
+        selected_page(input, page->next, track->serial, page) != OGG_PACKET_READY) {
+        return false;
+    }
+    if (page->offset >= track->stream_end || (page->flags & 2) != 0) {
         return false;
     }
     while (page->granule == UINT64_MAX || page->last_complete == 0) {
@@ -51,7 +74,7 @@ static bool marked_page(FlacInput input, const OggTrack *track, OggPage *page)
                    (page->granule == UINT64_MAX || page->granule <= track->end_granule);
         }
         uint32_t sequence = page->sequence + 1;
-        if (ogg_page_read(input, page->next, page) != OGG_PACKET_READY ||
+        if (selected_page(input, page->next, track->serial, page) != OGG_PACKET_READY ||
             !follows(page, track->serial, sequence)) {
             return false;
         }
@@ -71,7 +94,7 @@ bool ogg_track_seek(FlacInput input, const OggTrack *track, uint32_t sample, uin
     }
     target += track->origin;
     uint32_t low = track->data_offset;
-    uint32_t high = input.size;
+    uint32_t high = track->stream_end;
     uint32_t best = 0;
     while (low < high) {
         uint32_t middle = low + (high - low) / 2;

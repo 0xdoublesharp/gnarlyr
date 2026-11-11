@@ -71,6 +71,7 @@ add_library(echo_device_logic STATIC
     battery_gauge.c
     watchdog.c
     bt_module.c
+    card_format.c
     card_write.c
     core1_control.c
     core1_heap.c
@@ -130,6 +131,7 @@ add_library(echo_device_logic STATIC
     sd_card.c
     stall_watch.c
     storage_mount.c
+    workspace_loan.c
     stream_drift.c
     tick_clock.c
     time_file.c

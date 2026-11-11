@@ -15,6 +15,7 @@ enum {
     LOW_RATE = 16000,
     LOW_OUTPUT_RATE = 32000,
     CHUNK = 1024,
+    SMALL_CHUNK = 37,
     CAPTURE_FRAMES = 9 * RATE,
     TRACK_SECONDS = 4,
     FADE_MS = 1000,
@@ -111,21 +112,26 @@ static void queue(const char *path, uint32_t fade_ms, uint32_t replay_gain)
     audio_engine_queue_next(&engine, &track);
 }
 
-static void capture(uint32_t frames)
+static void capture_in(uint32_t frames, uint32_t chunk)
 {
     uint32_t end = captured_frames + frames;
     while (captured_frames < end && captured_frames < CAPTURE_FRAMES) {
         for (int round = 0; round < 64; round++) {
             audio_engine_pump(&engine, consumed);
         }
-        for (uint32_t index = 0; index < CHUNK && captured_frames < CAPTURE_FRAMES; index++) {
+        for (uint32_t index = 0; index < chunk && captured_frames < CAPTURE_FRAMES; index++) {
             uint32_t slot = 2 * ((consumed + index) % RING_FRAMES);
             captured[captured_frames][0] = (int32_t)ring[slot] >> 8;
             captured[captured_frames][1] = (int32_t)ring[slot + 1] >> 8;
             captured_frames++;
         }
-        consumed += CHUNK;
+        consumed += chunk;
     }
+}
+
+static void capture(uint32_t frames)
+{
+    capture_in(frames, CHUNK);
 }
 
 static double smooth(double x)
@@ -402,6 +408,18 @@ static void a_converted_low_rate_track_fades_on_the_output_clock(void)
     CHECK(largest_gain_step(LOW_OUTPUT_RATE, 6 * LOW_OUTPUT_RATE) <= step_limit(length));
 }
 
+static void a_converted_fade_stays_smooth_when_the_ring_frees_a_few_frames_at_a_time(void)
+{
+    start_engine();
+    play("low", 0);
+    queue("low2", FADE_MS, 0);
+    capture_in(CAPTURE_FRAMES, SMALL_CHUNK);
+    uint32_t length = FADE_MS * LOW_OUTPUT_RATE / 1000;
+    uint32_t boundary = TRACK_SECONDS * LOW_OUTPUT_RATE;
+    CHECK(largest_gain_step(boundary - length, 2 * length) <= step_limit(length));
+    CHECK(near(smooth(0.5), gain_at(boundary - length / 2), 0.002));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -419,6 +437,7 @@ int main(void)
         TEST_CASE(a_fade_out_that_has_begun_finishes_when_the_queue_changes),
         TEST_CASE(a_track_of_unknown_length_only_fades_the_next_one_in),
         TEST_CASE(a_converted_low_rate_track_fades_on_the_output_clock),
+        TEST_CASE(a_converted_fade_stays_smooth_when_the_ring_frees_a_few_frames_at_a_time),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

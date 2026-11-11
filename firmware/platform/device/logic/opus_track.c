@@ -95,7 +95,7 @@ bool opus_track_probe(FlacInput input, OggTrack *track)
                           .max_block = MAX_BLOCK,
                           .opus = true};
     OggPackets packets;
-    ogg_packets_init(&packets, input);
+    ogg_packets_init_first(&packets, input);
     if (track == NULL || !headers(&packets, &candidate) || !ogg_track_endpoint(input, &candidate) ||
         !origin(&packets, &candidate) ||
         candidate.end_granule - candidate.origin <= candidate.pre_skip) {

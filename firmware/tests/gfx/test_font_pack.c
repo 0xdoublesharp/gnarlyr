@@ -263,6 +263,22 @@ static void a_font_without_a_pack_face_ignores_packs(void)
     CHECK(glyph != NULL && glyph->codepoint == FONT_FALLBACK_CODEPOINT);
 }
 
+static bool read_cjk_fallback(void *context, uint32_t face, uint32_t offset, void *buffer,
+                              uint32_t length)
+{
+    return face == 7 && read_pack(context, 0, offset, buffer, length);
+}
+
+static void a_missing_glyph_is_read_from_the_cjk_fallback_face(void)
+{
+    build_pack();
+    font_pack_attach((FontPackReader){read_cjk_fallback, NULL}, memory, sizeof memory);
+    PACKED_FONT = TINY_FONT;
+    PACKED_FONT.pack_face = 1;
+    const Glyph *glyph = font_find_glyph(&PACKED_FONT, codepoint_of(2));
+    CHECK(glyph != NULL && glyph->codepoint == codepoint_of(2));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -283,6 +299,7 @@ int main(void)
         TEST_CASE(without_packs_a_font_uses_the_question_mark),
         TEST_CASE(a_font_reads_the_face_it_names),
         TEST_CASE(a_font_without_a_pack_face_ignores_packs),
+        TEST_CASE(a_missing_glyph_is_read_from_the_cjk_fallback_face),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

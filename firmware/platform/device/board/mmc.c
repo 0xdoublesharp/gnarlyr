@@ -264,21 +264,21 @@ static bool drain_fifo(const MmcHost *host, uint32_t *words, uint32_t total)
 
 static bool failed(const MmcHost *host, MmcStep step);
 
-static bool read_data(const MmcHost *host, uint8_t index, uint32_t address, uint32_t count,
+static bool read_data(const MmcHost *host, uint8_t index, uint32_t address, uint32_t bytes,
                       uint32_t *words)
 {
     if (!prepare_data(host)) {
         return failed(host, MMC_STEP_BUSY_BEFORE);
     }
-    write_register(host, MMC_BLKSIZ, BLOCK_BYTES);
-    write_register(host, MMC_BYTCNT, BLOCK_BYTES * count);
+    write_register(host, MMC_BLKSIZ, bytes < BLOCK_BYTES ? bytes : BLOCK_BYTES);
+    write_register(host, MMC_BYTCNT, bytes);
     write_register(host, MMC_RINTSTS, INT_ALL);
     write_register(host, MMC_CMDARG, address);
     write_register(host, MMC_CMD, CMD_BASE | CMD_DATA_READ | index);
     if (!wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS)) {
         return failed(host, MMC_STEP_COMMAND_START);
     }
-    if (!drain_fifo(host, words, BLOCK_WORDS * count)) {
+    if (!drain_fifo(host, words, bytes / 4)) {
         return failed(host, MMC_STEP_FIFO);
     }
     if (!wait_any(host, MMC_RINTSTS, INT_DATA_FINISHED, DATA_TIMEOUT_MS)) {
@@ -293,7 +293,12 @@ static bool read_data(const MmcHost *host, uint8_t index, uint32_t address, uint
 
 bool mmc_read_block(const MmcHost *host, uint8_t index, uint32_t address, uint32_t *words)
 {
-    return read_data(host, index, address, 1, words);
+    return read_data(host, index, address, BLOCK_BYTES, words);
+}
+
+bool mmc_read_sd_status(const MmcHost *host, uint32_t words[16])
+{
+    return read_data(host, 13, 0, 64, words);
 }
 
 static bool stop_transmission(const MmcHost *host, uint32_t argument)
@@ -320,9 +325,9 @@ bool mmc_read_blocks(const MmcHost *host, uint32_t address, uint32_t count, uint
                      uint32_t *words)
 {
     if (count == 1) {
-        return read_data(host, CMD_READ_SINGLE_BLOCK_INDEX, address, 1, words);
+        return read_data(host, CMD_READ_SINGLE_BLOCK_INDEX, address, BLOCK_BYTES, words);
     }
-    bool read = read_data(host, CMD_READ_MULTIPLE_BLOCK, address, count, words);
+    bool read = read_data(host, CMD_READ_MULTIPLE_BLOCK, address, BLOCK_BYTES * count, words);
     return stop_transmission(host, stop_argument) && read;
 }
 

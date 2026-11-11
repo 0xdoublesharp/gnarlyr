@@ -41,6 +41,7 @@ typedef struct UsbSceneDrive {
 } UsbSceneDrive;
 
 typedef struct UsbSceneDac {
+    const char *headphones;
     uint32_t rate;
     uint32_t seconds;
     uint32_t underruns;

@@ -1,6 +1,6 @@
 # Gnarlyr.com
 
-Static firmware website. Serve this directory with any static host; there is no build step, dependency install or external font. Cloudflare adds its analytics beacon to served HTML. Open `index.html` directly for a local preview. The home page introduces Gnarlyr; `firmware.html` covers features and fixes. `docs.html` is the visual player guide and the entry point for hardware, recovery and developer references. Hardware belongs under Docs and keeps its stable `hardware.html` URL. `recovery.html` holds the detailed macOS first-installation and stock-restoration procedure; `install.html` is the short guide to preparation, music setup and later USB updates. `build.html` holds source builds, developer USB workflows and technical migration/recovery references. `languages.html` builds and checks language packs locally using `language-catalog.js` and `language-packs.js`; it works when opened directly from disk. The main home action goes to Install. All pages share `styles.css` and `site.js`. The script copies commands with success and selection feedback and opens help sections from fragment links. Instructions and expandable help remain available without JavaScript.
+Static firmware website. Serve this directory with any static host; there is no build step, dependency install or external font. Cloudflare adds its analytics beacon to served HTML. Open `index.html` directly for a local preview. The home page introduces the firmware with a Now Playing preview, three screenshot-led feature stories, benefit cards, a hardware purchase section and an installation journey. `firmware.html` covers the complete features and fixes. Hardware specifications and detailed setup stay in their dedicated guides. `docs.html` is the visual player guide and the entry point for hardware, recovery and developer references. Hardware belongs under Docs and keeps its stable `hardware.html` URL. `recovery.html` holds the detailed macOS first-installation and stock-restoration procedure; `install.html` is the short guide to preparation, music setup and later USB updates. `build.html` holds source builds, developer USB workflows and technical migration/recovery references. `languages.html` builds and checks language packs locally using `language-catalog.js` and `language-packs.js`; it works when opened directly from disk. The main home action goes to Install. All pages share `styles.css` and `site.js`. The script copies commands with success and selection feedback and opens help sections from fragment links. Instructions and expandable help remain available without JavaScript.
 
 The cassette artwork is an original inline SVG, not a device photograph or firmware screenshot. The page includes responsive layouts, keyboard focus, reduced-motion support, readable command wrapping, and native expandable installation help. The [UX pass](../docs/gnarlyr-ux.md) records the accepted design and checks.
 
@@ -8,9 +8,9 @@ The Docs screenshots are product assets under `site/assets/screens/`, generated 
 
 DoublePaaS hosting uses the [deployment contract](../docs/deployment.md). Publish the eight HTML pages, shared CSS and JavaScript, language catalogue and builder script, favicon, robots file and sitemap together. The publisher allows those fifteen root files and optional image assets; this README and `deploy/` stay outside the served release.
 
-Firmware references cover main through `d4c2e565`. The guide includes generated Cover Flow artwork, exact-size listening exports, the compact battery display, integrated Ogg Opus opening/indexing/seeking/resume, revised lower-rate conversion, FLAC/MP4/AAC input checks and bounded power/diagnostic counters. Device-validation scope follows `firmware/docs/known-issues.md`; source integration does not establish physical playback. The language-pack builder and USB tools use the current identity and catalogue. All twenty screenshots were regenerated from main; the codec, counter and power-policy changes leave these views unchanged.
+Firmware feature references cover main through `ba71fdcf`; no newer firmware commits were present at the completed-features review. Public feature copy covers implemented player controls, library tools, generated Cover Flow artwork, listening exports, the battery display, audio-file validation and runtime fixes. Ogg playback integration, playback-speed work and converter implementation progress are excluded from public feature and developer pages. Keep plans and validation work in the firmware documentation and ignored notes. All twenty screenshots reflect the current interface.
 
-Developers describes Vorbis and Opus integration, prepared ReplayGain metadata, persistent normalization controls and engine-connected pitch-preserving tempo. Tempo controls remain separate integration work. Opus listening/headroom and the optimized lower-rate converter still need player checks; Features keeps the practical recommendation to convert speech below 32 kHz before copying it. Hardware ratings link to FiiO and Cirrus. Keep unrelated firmware and generated language-catalogue edits outside a website-only publication.
+Developers covers source builds, USB tools, file validation, CUE parsing, ReplayGain controls and preparing speech recordings. Features keeps the practical recommendation to convert speech below 32 kHz before copying it. Hardware ratings link to FiiO and Cirrus. Keep unrelated firmware and generated language-catalogue edits outside a website-only publication.
 
 The first public firmware release will be Gnarlyr 1.0, using the exact image name `GNARLYR.img`. Publish a release version and download only when the firmware is ready. Firmware now uses the canonical Gnarlyr identity. This website task does not change firmware or tooling; the developer guide points to the matching identity-transition procedure for older custom builds.
 
@@ -40,3 +40,27 @@ python3 tools/site_screenshots.py --config /path/to/scenes.json --output /Volume
 Scrolling pages use several real captures rather than a stretched image. Add one recipe per scroll position, with its own filename and key sequence but the same expected title. Keep some overlapping entries between views so the full list is covered. The optional `group` and `view_label` fields describe related captures. Add each new image to the corresponding section in `docs.html`. Settings shows every view by default with explanations beside it; Controls and EQ use expandable galleries.
 
 The player outline is CSS around the image, so regenerated PNGs retain their original pixels and full-size links. During publication, `publish_site.py` appends each referenced asset’s content hash to its URL in the published HTML. Stylesheets, scripts, screenshots and full-size image links therefore get new browser-cache keys when their contents change without editing source pages or changing their local preview paths.
+
+
+## Link preview images
+
+Every public page has its own 1200 × 630 PNG card, Open Graph image metadata and a Twitter/X large-image card. The artwork comes from the homepage’s editable cassette SVG. Titles and descriptions in the HTML remain the source for social text; `tools/site_social.json` controls the words drawn on each image.
+
+Regenerate images and metadata after changing that copy or the cassette artwork:
+
+```sh
+python3 tools/site_social.py
+```
+
+The renderer needs `rsvg-convert` from librsvg and Scratch mounted. Final images go under `site/assets/social/`; their filenames include a content hash so changed cards get a fresh URL. The script updates absolute `https://gnarlyr.com/` image URLs in all eight pages, keeps canonical page URLs intact and removes superseded generated cards for the configured names. Publish the site normally afterward.
+
+
+## Amazon purchase links
+
+Product links point directly to the full-size ECHO listing at `https://www.amazon.com/dp/B0GK61Y1FD?tag=doublesharp-20`. The listing’s model is ECHO with a 2.39-inch display; keep the purchase link specific to that model. Home features a purchase section with a stylized player frame, interface screenshot, hardware highlights and the main shopping button. Other pages use the shared footer shopping button, with contextual links beside hardware references.
+
+Each page includes one short Amazon Associate disclosure beside its main purchase button. The interface avoids repeated affiliate labels. Links retain `rel="sponsored nofollow"`, and the copy explains that firmware is installed separately. There are no redirect scripts, embedded Amazon widgets, copied Amazon images or prices; pricing and availability stay on Amazon.
+
+Homepage screenshots reuse the original simulator PNGs under `site/assets/screens/`. The surrounding player shapes are CSS illustrations. All visible features describe completed capabilities; plans and unfinished integrations stay outside the public feature copy.
+
+When changing the product or affiliate ID, update every placement and verify the destination model on Amazon.

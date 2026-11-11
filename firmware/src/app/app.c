@@ -35,6 +35,7 @@
 #include "hal/display.h"
 #include "hal/input.h"
 #include "hal/power.h"
+#include "headphone_store.h"
 #include "language.h"
 #include "library_rescan.h"
 #include "library_store.h"
@@ -107,6 +108,8 @@ typedef struct AppState {
     ListeningStore listening;
     bool listening_loaded;
     SettingsStore settings;
+    HeadphoneStore headphones;
+    uint8_t headphones_chosen;
     Theme theme;
     Orientation shown_orientation;
     bool rocker_swapped[KEY_COUNT];
@@ -120,6 +123,8 @@ typedef struct AppState {
     bool rescan_requested;
     bool language_requested;
     bool music_check_requested;
+    bool storage_formatted;
+    bool format_success;
     bool prepare_pending;
     size_t prepare_index;
     CardFilesReport prepare_report;
@@ -1303,6 +1308,7 @@ static void build_screens(uint32_t now_ms)
         .player = &app.player,
         .spoken = &app.spoken,
         .settings = &app.settings,
+        .headphones = &app.headphones,
         .favorites = &app.favorites,
         .power = &app.power,
         .toast = &app.toast,
@@ -1390,6 +1396,7 @@ static void start_app(bool power_on)
     app.prepare_report = (CardFilesReport){.library_created = false, .card_full = false};
     settings_store_load(&app.settings);
     language_load(app.settings.settings.language);
+    headphone_store_load(&app.headphones);
     app.theme = BOARD_THEME;
     app.screens.bound_modules = 0;
     apply_orientation(app.settings.settings.orientation);
@@ -1491,11 +1498,23 @@ void app_release_audio(void)
     player_release_output(&app.player);
 }
 
+void app_storage_formatted(bool success)
+{
+    app.storage_formatted = true;
+    app.format_success = success;
+    app.listening_loaded = false;
+}
+
 AppDacSettings app_dac_settings(void)
 {
     const Settings *settings = &app.settings.settings;
     return (AppDacSettings){settings->dac_volume, (uint8_t)settings->gain,
-                            (uint8_t)settings->output};
+                            (uint8_t)settings->output, app.headphones.profiles.current};
+}
+
+const HeadphoneProfiles *app_headphone_profiles(void)
+{
+    return &app.headphones.profiles;
 }
 
 void app_remember_dac(AppDacSettings settings)
@@ -1504,6 +1523,19 @@ void app_remember_dac(AppDacSettings settings)
     app.settings.settings.gain = (GainLevel)settings.gain;
     app.settings.settings.output = (OutputJack)settings.output;
     settings_store_save(&app.settings);
+    if (settings.headphones != app.headphones.profiles.current) {
+        app.headphones_chosen = (uint8_t)(settings.headphones + 1);
+    }
+}
+
+static void commit_dac_headphones(void)
+{
+    const SettingsModuleEntry *entry = app.headphones_chosen != 0 ? settings_module() : NULL;
+    if (entry != NULL) {
+        entry->dac_headphones(&app.headphones, (uint8_t)(app.headphones_chosen - 1), &app.player,
+                              &app.settings);
+    }
+    app.headphones_chosen = 0;
 }
 
 void app_request_rescan(void)
@@ -1518,13 +1550,13 @@ void app_request_rescan_if_music_changed(void)
 }
 
 typedef struct ChargeFrame {
-    const SettingsModuleEntry *entry;
+    const ViewsModuleEntry *entry;
 } ChargeFrame;
 
 static void draw_charge(void *context, Canvas *canvas)
 {
     const ChargeFrame *frame = context;
-    const SettingsModuleEntry *entry = frame->entry;
+    const ViewsModuleEntry *entry = frame->entry;
     if (entry != NULL) {
         entry->charge_draw(canvas, board_theme(), app.charge_battery, app.now_ms);
     } else {
@@ -1641,7 +1673,8 @@ static void charge_step(uint32_t now_ms)
     bool moving = app.charge_battery.usb_power && app.charge_battery.charging;
     bool due = deadline_reached(now_ms, app.pacer.last_ms + CHARGE_SCREEN_FRAME_MS);
     if (app.display_on && (app.render_wanted || (moving && due))) {
-        ChargeFrame frame = {.entry = settings_module()};
+        ChargeFrame frame = {.entry = (const ViewsModuleEntry *)screen_modules_use(
+                                 &app.screens, SCREEN_MODULE_VIEWS)};
         app.render_wanted = false;
         app.pacer.last_ms = now_ms;
         render((FrameDrawer){.draw = draw_charge, .context = &frame}, true);
@@ -1677,6 +1710,9 @@ static bool prepare_step(void)
         }
     }
     app.prepare_pending = false;
+    if (app.headphones.load == STORE_UNREADABLE) {
+        headphone_store_load(&app.headphones);
+    }
     report_card_files(app.prepare_report, hal_clock_milliseconds());
     return false;
 }
@@ -1873,6 +1909,16 @@ CORE_SEAM void app_step(void)
     } else {
         dispatch_key_events(now_ms);
     }
+    if (app.storage_formatted) {
+        bool success = app.format_success;
+        app.storage_formatted = false;
+        app.rescan_requested = false;
+        app.music_check_requested = false;
+        start_app(false);
+        toast_show(&app.toast, i18n_text(success ? STR_CARD_FORMAT_DONE : STR_CARD_FORMAT_FAILED),
+                   hal_clock_milliseconds());
+        return;
+    }
     if (app.saying_goodbye && fade_finished(&app.goodbye, now_ms)) {
         finish_shut_down();
     }
@@ -1899,6 +1945,7 @@ CORE_SEAM void app_step(void)
     follow_appearance();
     update_screen(now_ms);
     follow_usb_chooser(now_ms);
+    commit_dac_headphones();
     service_discovery(now_ms);
     MixtapeUi *mixtapes = &app.screens.modules.views.mixtapes;
     if ((app.screens.bound_modules & (1u << SCREEN_MODULE_VIEWS)) != 0 &&

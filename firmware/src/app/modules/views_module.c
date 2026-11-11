@@ -1,5 +1,6 @@
 #include "mixtape_ui_private.h"
 #include "modules/modules.h"
+#include "screens/charge_screen.h"
 
 static void bind(AppScreens *screens)
 {
@@ -36,4 +37,5 @@ static void bind(AppScreens *screens)
 const ViewsModuleEntry VIEWS_MODULE_ENTRY = {
     .module = {SCREEN_MODULE_MAGIC(SCREEN_MODULE_VIEWS), bind},
     .cancel = mixtape_ui_cancel,
-    .step = mixtape_ui_step};
+    .step = mixtape_ui_step,
+    .charge_draw = charge_art_draw};

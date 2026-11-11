@@ -4,6 +4,7 @@
 
 #include "app/app.h"
 #include "board.h"
+#include "core/headphone_audio.h"
 #include "core/i18n.h"
 #include "device/usb_audio.h"
 #include "device/usb_audio_sink.h"
@@ -11,6 +12,7 @@
 #include "hal/audio.h"
 #include "hal/clock.h"
 #include "hal/input.h"
+#include "headphone_store.h"
 #include "screens/usb_dac_menu.h"
 #include "screens/usb_scene.h"
 #include "settings/settings.h"
@@ -123,6 +125,9 @@ static void follow_info(uint32_t now_ms)
     dac->buffer_ms = buffer_ms();
     dac->underruns = hal_audio_stats().output_underruns - underruns_before;
     dac->seconds = (now_ms - connected_ms) / MS_PER_SECOND;
+    const HeadphoneProfiles *profiles = app_headphone_profiles();
+    dac->headphones =
+        settings.headphones < profiles->count ? profiles->slots[settings.headphones].name : NULL;
 }
 
 static AppUsbStatus dac_status(void)
@@ -218,9 +223,21 @@ static void keep_output(void)
 
 static void set_volume(uint8_t level)
 {
+    level = headphone_audio_limit(hal_audio_headphones(), level);
     shared->dac_volume = level;
     settings.volume = level;
     hal_audio_set_volume(level);
+    usb_dac_menu_show_volume(&menu, level);
+}
+
+static void switch_headphones(void)
+{
+    HeadphoneProfiles chosen = *app_headphone_profiles();
+    chosen.current = settings.headphones;
+    HeadphoneAudio after = headphone_store_parameters(&chosen);
+    set_volume(headphone_audio_switch_volume(hal_audio_headphones(), after, shared->dac_volume));
+    hal_audio_set_headphones(after);
+    usb_audio_sink_set_headphones(&sink, after);
 }
 
 static void step_volume(int step)
@@ -266,7 +283,10 @@ static void apply_choice(UsbDacAction action)
                                              HAL_AUDIO_OUTPUT_BALANCED};
     settings.gain = menu.settings.gain;
     settings.output = menu.settings.output;
-    if (action == USB_DAC_ACTION_VOLUME) {
+    settings.headphones = menu.settings.headphones;
+    if (action == USB_DAC_ACTION_HEADPHONES) {
+        switch_headphones();
+    } else if (action == USB_DAC_ACTION_VOLUME) {
         set_volume(menu.settings.volume);
     } else if (action == USB_DAC_ACTION_GAIN) {
         hal_audio_set_gain(settings.gain == GAIN_HIGH ? HAL_AUDIO_GAIN_HIGH : HAL_AUDIO_GAIN_LOW);
@@ -295,7 +315,8 @@ static void follow_menu(UsbDacAction action)
 static void open_menu(uint32_t now_ms)
 {
     settings.volume = shared->dac_volume;
-    usb_dac_menu_open(&menu, app_theme(), settings, now_ms);
+    usb_dac_menu_open(&menu, (UsbDacMenuConfig){app_theme(), settings, app_headphone_profiles()},
+                      now_ms);
     menu_open = true;
     holding_volume = false;
     show_state();
@@ -368,6 +389,7 @@ static void start_session(void)
     uint32_t frames = 0;
     uint32_t *ring = board_audio_stream_ring(&frames);
     usb_audio_sink_init(&sink, ring, frames);
+    usb_audio_sink_set_headphones(&sink, hal_audio_headphones());
     open_rate = 0;
     received_packets = 0;
     played_packets = 0;
@@ -387,6 +409,7 @@ static void start_session(void)
     if (!shared->dac_volume_known) {
         shared->dac_volume = (uint8_t)SETTINGS_DEFAULT_DAC_VOLUME;
     }
+    shared->dac_volume = headphone_audio_limit(hal_audio_headphones(), shared->dac_volume);
     hal_audio_set_volume(shared->dac_volume);
 }
 
@@ -394,7 +417,7 @@ static void remember(AppDacSettings before)
 {
     settings.volume = shared->dac_volume;
     if (settings.volume != before.volume || settings.gain != before.gain ||
-        settings.output != before.output) {
+        settings.output != before.output || settings.headphones != before.headphones) {
         app_remember_dac(settings);
     }
 }

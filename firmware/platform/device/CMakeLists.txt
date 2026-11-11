@@ -218,6 +218,10 @@ set(ECHO_OVERLAY_IMPORTS
     emmc_volume_write
     emmc_write
     hal_audio_service
+    hal_audio_headphones
+    headphone_audio_limit
+    headphone_audio_defaults
+    headphone_audio_sample
     hal_audio_set_volume
     hal_clock_milliseconds
     hal_clock_microseconds
@@ -267,6 +271,13 @@ set(ECHO_OVERLAY_IMPORTS
     list_view_move
     rect_is_empty
     theme_is_portrait
+    app_headphone_profiles
+    hal_audio_set_headphones
+    headphone_store_parameters
+    string_builder_append
+    string_builder_append_char
+    string_builder_append_unsigned
+    string_builder_make
 )
 if(NOT ECHO_RELEASE)
     list(APPEND ECHO_OVERLAY_IMPORTS
@@ -387,6 +398,7 @@ add_executable(echo_usb_overlay
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_dac.c
     ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
     ${PROJECT_SOURCE_DIR}/src/ui/wire_figure.c
+    ${PROJECT_SOURCE_DIR}/src/core/headphone_audio_switch.c
     board/update.c
     board/usb_dac_session.c
     board/time_file_take.c

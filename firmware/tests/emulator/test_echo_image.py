@@ -965,12 +965,12 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(asked, [])
         return session, machine, asked, charge_frames, dark
 
-    def test_charging_without_the_settings_module_uses_no_usb_overlay(self):
+    def test_charging_without_the_views_module_uses_no_usb_overlay(self):
         session = self.session(vbus_at_start=True)
         machine = session.machine
         machine.power_key_released_at_ms = 0
         machine.host_absent = True
-        number, _ = self.module(machine, "settings")
+        number, _ = self.module(machine, "views")
         for slot in ("slot_1", "slot_2"):
             session.change_module(slot, number, 600, lambda byte: byte ^ 0xFF)
         frames = machine.trace("usb_screen_draw_fallback")
@@ -2107,6 +2107,137 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(0, sections[0][3])
         self.assert_healthy(rig.session)
 
+    def test_card_format_creates_an_empty_card_then_copied_music_plays(self):
+        from echo_emulator.emmc import SdCard, SparseDisk
+        from echo_emulator.fat_volume import Fat32Volume, short_name
+        from echo_emulator.fat_reader import FatReader
+        from echo_emulator.playback import Rig
+        card = SparseDisk(2 * 2 * 1024 * 1024)
+        inserted = []
+
+        def prepare(machine):
+            inserted.append(SdCard(card, machine))
+            machine.sd_controller.card = inserted[0]
+            machine.card_present = True
+
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=Fat32Volume(), module_elfs=self.module_elfs, prepare=prepare)
+        internal_before = rig.session.disk.snapshot()
+        rig.press("next")
+        rig.press("play")
+        for _ in range(3):
+            rig.press("previous")
+        rig.press("play")
+        self.assertEqual([], inserted[0].writes)
+        rig.press("play")
+        self.assertEqual([], inserted[0].writes)
+        rig.press("next")
+        rig.press("play")
+        rig.machine.run(until=lambda: card.read(0, 1)[510:512] == b"\x55\xaa")
+        start = struct.unpack_from("<I", card.read(0, 1), 454)[0]
+        reader = FatReader(card, start)
+
+        def database_ready():
+            found = reader.find(f"/{IDENTITY.data_directory}/library.db")
+            if found is None:
+                return False
+            lba = reader.data_start + (found[1] - 2) * reader.sectors_per_cluster
+            return card.read(lba, 1)[:4] == b"DSDB"
+
+        rig.machine.run(until=database_ready)
+        rig.settle()
+        self.assertTrue(inserted[0].writes)
+        self.assertFalse(any(name.lower().endswith(".wav") for name in reader.list("/")))
+        pcm = struct.pack("<8h", 0, 2828, 4000, 2828, 0, -2828, -4000, -2828) * (44100 * 20 // 8)
+        wav = struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ",
+                          16, 1, 1, 44100, 88200, 2, 16, b"data", len(pcm)) + pcm
+        cluster_bytes = reader.sectors_per_cluster * 512
+        count = (len(wav) + cluster_bytes - 1) // cluster_bytes
+        first = 3
+        while any(reader.next_cluster(cluster) != 0 for cluster in range(first, first + count)):
+            first += count
+        boot = card.read(start, 1)
+        fats = boot[16]
+        fat_sectors = struct.unpack_from("<I", boot, 36)[0]
+        for cluster in range(first, first + count):
+            for copy in range(fats):
+                lba = reader.fat_start + copy * fat_sectors + cluster // 128
+                sector = bytearray(card.read(lba, 1))
+                value = cluster + 1 if cluster < first + count - 1 else 0x0FFFFFFF
+                struct.pack_into("<I", sector, cluster % 128 * 4, value)
+                card.write(lba, sector)
+        card.write(reader.data_start + (first - 2) * reader.sectors_per_cluster,
+                   wav.ljust(count * cluster_bytes, b"\0"))
+        root_lba = reader.data_start + (reader.root - 2) * reader.sectors_per_cluster
+        root = bytearray(card.read(root_lba, reader.sectors_per_cluster))
+        offset = next(index for index in range(0, len(root), 32) if root[index] == 0)
+        root[offset:offset + 11] = short_name("COPIED.WAV")
+        root[offset + 11] = 0x20
+        struct.pack_into("<H", root, offset + 20, first >> 16)
+        struct.pack_into("<HI", root, offset + 26, first & 0xFFFF, len(wav))
+        card.write(root_lba, root)
+        self.assertEqual(wav, reader.read("/COPIED.WAV"))
+        rig.press("next")
+        rig.press("play")
+        rig.press_many("next", 20)
+        rig.press("play")
+        rig.settle(1000)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertEqual(44100, rig.audio.rate)
+        for lba, data in internal_before.items():
+            if lba < rig.session.layout["volume_start"]:
+                self.assertEqual(data, rig.session.disk.read(lba, 1))
+        self.assert_healthy(rig.session)
+
+    def test_card_removal_during_format_reports_failure_and_reinsertion_can_retry(self):
+        from echo_emulator.emmc import SdCard, SparseDisk
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        card = SparseDisk(2 * 2 * 1024 * 1024)
+
+        class RemovedCard(SdCard):
+            removed = False
+
+            def write_blocks(self, argument, data):
+                super().write_blocks(argument, data)
+                if len(self.writes) == 3 and not self.removed:
+                    self.removed = True
+                    self.machine.card_present = False
+
+        inserted = []
+        def prepare(machine):
+            inserted.append(RemovedCard(card, machine))
+            machine.sd_controller.card = inserted[0]
+            machine.card_present = True
+
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=Fat32Volume(), module_elfs=self.module_elfs, prepare=prepare)
+        toasts = self.collect_toasts(rig.machine)
+        def confirm():
+            rig.press("next")
+            rig.press("play")
+            for _ in range(3):
+                rig.press("previous")
+            rig.press("play")
+            rig.press("play")
+            rig.press("next")
+            rig.press("play")
+
+        confirm()
+        rig.machine.run(until=lambda: english("STR_CARD_FORMAT_FAILED") in toasts)
+        self.assertEqual(3, len(inserted[0].writes))
+        self.assertEqual(bytes(512), card.read(0, 1))
+        self.assertEqual(0, rig.machine.watchdog_resets)
+        rig.settle()
+        rig.machine.card_present = True
+        confirm()
+        rig.machine.run(until=lambda: english("STR_CARD_FORMAT_DONE") in toasts)
+        self.assertEqual(b"\x55\xaa", card.read(0, 1)[510:512])
+        self.assertEqual(0, rig.machine.watchdog_resets)
+        self.assert_healthy(rig.session)
+
     def speech_rig(self, rate=8000):
         from echo_emulator.playback import Rig
         from echo_emulator.fat_volume import Fat32Volume
@@ -2176,7 +2307,7 @@ class EchoImageTest(unittest.TestCase):
         rig.press("back", hold=1300)
         rig.press("next")
         rig.press("play")
-        rig.press_many("next", 17)
+        rig.press_many("next", 18)
         rig.press("play")
         rig.press("previous")
         rig.press("play")
@@ -2226,6 +2357,9 @@ class EchoImageTest(unittest.TestCase):
                              2, STANDBY_RATE, STANDBY_RATE * 4, 4, 16, b"data", len(pcm))
         volume = Fat32Volume()
         volume.add_file("Counter.wav", header + pcm)
+        volume.add_directory(IDENTITY.data_directory)
+        volume.add_file("settings.bin", self.saved_settings(4, 15, shuffle=0),
+                        directory=IDENTITY.data_directory)
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                    volume=volume, module_elfs=self.module_elfs)
 
@@ -2455,13 +2589,16 @@ class EchoImageTest(unittest.TestCase):
         return b"RIFF" + struct.pack("<I", len(body)) + body
 
     def transition_settings(self, tenths):
+        return self.saved_settings(4 | 1 << 3, tenths, shuffle=1)
+
+    def saved_settings(self, comfort, tenths, shuffle):
         settings = bytearray(4096)
         settings[:6] = b"DSST" + bytes((15, 0))
         settings[6:9] = bytes((7, 2, 0))
-        settings[11], settings[13], settings[14], settings[16] = 1, 60, 2, 35
+        settings[11], settings[13], settings[14], settings[16] = shuffle, 60, 2, 35
         settings[24], settings[27] = 1, 1
         settings[28:38] = bytes((20,) * 10)
-        settings[38:43] = bytes((4 | 1 << 3, 13, tenths, 0, 0x10))
+        settings[38:43] = bytes((comfort, 13, tenths, 0, 0x10))
         settings[43:47] = bytes((0x32, 0x54, 0x76, 0x08))
         checksum = FNV_START
         for value in settings[:54]:
@@ -2484,11 +2621,12 @@ class EchoImageTest(unittest.TestCase):
             return struct.unpack("<12I", machine.read_memory(machine.symbols["stats"], 48))[10]
 
         def capture(uc, access, address, size, value, user):
-            produced = struct.unpack("<I", machine.read_memory(
-                rig.audio.engine + PRODUCED_OFFSET, 4))[0]
+            produced, consumed = struct.unpack("<II", machine.read_memory(
+                rig.audio.engine + PRODUCED_OFFSET, 8))
             slot = (address - ring) // 8
-            frame = produced if slot == produced % slots else (
-                produced - 1 - (produced - 1 - slot) % slots)
+            ahead = (slot - produced) % slots
+            free = slots - (produced - consumed)
+            frame = produced + ahead if ahead < free else produced - (slots - ahead)
             if frame >= 2 * boundary or size not in (4, 8):
                 return
             pair = watch["frames"].setdefault(frame, [None, None])
@@ -2530,21 +2668,21 @@ class EchoImageTest(unittest.TestCase):
 
     def test_shuffle_fades_out_one_album_and_fades_in_the_next_on_the_output_clock(self):
         from echo_emulator.playback import Rig
-        rate, tenths, level = 16000, 6, 12000
+        rate, output, tenths, level = 16000, 32000, 6, 12000
         volume = self.transition_volume(
             [("A.wav", self.tagged_wav("A", "Album A", rate, 24, level)),
              ("B.wav", self.tagged_wav("B", "Album B", rate, 24, level))], tenths)
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
         machine = rig.machine
-        boundary, length = 48000 * 24 // 10, 48000 * tenths // 10
+        boundary, length = output * 24 // 10, output * tenths // 10
         watch = self.watch_transition(rig, boundary, length)
         frames = watch["frames"]
         rig.open_songs()
         started = rig.play_song(1)
         machine.run(until=lambda: None not in frames.get(2 * boundary - 1, [None]),
                     until_ms=machine.milliseconds() + 8000)
-        self.assertEqual(48000, rig.audio.rate)
+        self.assertEqual(output, rig.audio.rate)
         self.assertEqual([], rig.audio.underruns(started))
 
         def gain(frame):
@@ -2561,7 +2699,7 @@ class EchoImageTest(unittest.TestCase):
                                    delta=0.002, msg=position)
             self.assertAlmostEqual(smooth(position / length), gain(boundary + position),
                                    delta=0.002, msg=position)
-        self.assertAlmostEqual(1.0, gain(boundary + length + 4800), delta=0.001)
+        self.assertAlmostEqual(1.0, gain(boundary + length + output // 10), delta=0.001)
         steps = [abs(gain(frame) - gain(frame - 1))
                  for frame in range(boundary - length, boundary + length)]
         self.assertLess(max(steps), 1.5 / length + 4 / 32768)
@@ -3307,6 +3445,64 @@ class EchoImageTest(unittest.TestCase):
         for key in (KEY_NEXT, KEY_BACK, KEY_NEXT, KEY_PLAY, KEY_BACK, KEY_BACK):
             self.press(machine, key)
         self.assertEqual(len(watch.loads()), 2)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def test_headphone_profiles_switch_during_playback_without_a_volume_rise(self):
+        from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2
+        rig = self.playback_rig()
+        machine, session = rig.machine, rig.session
+        applied = []
+        targets = []
+        starts = machine.trace("dmac_start_loop")
+        def target_volume():
+            return machine.read_memory(machine.symbols["volume_value"], 1)[0]
+        def profile_change():
+            applied.append((machine.reg(UC_ARM_REG_R0), machine.reg(UC_ARM_REG_R1),
+                            machine.reg(UC_ARM_REG_R2) & 255))
+            targets.append(target_volume())
+        machine.hook_symbol("hal_audio_set_headphones", profile_change)
+        rig.open_songs()
+        mark = rig.play_song(1)
+        rig.run_for(500)
+        audible = rig.first_audio_after(mark)
+        self.assertIsNotNone(audible)
+        rig.press_many("back", 3)
+        rig.press("next")
+        rig.press("play")
+        rig.press_many("previous", 4)
+        rig.press("play")
+        rig.press("next")
+        rig.press("play")
+        rig.press_many("next", 2)
+        rig.press("play")
+        rig.press_many("next", 12)
+        rig.press("play")
+        rig.press_many("previous", 2)
+        rig.press("play")
+        self.assertGreater(applied[-1][0], 32700)
+        self.assertLess(applied[-1][0], 33000)
+        self.assertEqual(applied[-1][0], applied[-1][1])
+        before = target_volume()
+        saved_before = session.fat().read(SETTINGS_PATH)[13]
+        rig.press("back")
+        rig.press("previous")
+        rig.press("play")
+        rig.press("next")
+        rig.press("play")
+        self.assertEqual(applied[-1], (65536, 65536, 60))
+        saved_after = session.fat().read(SETTINGS_PATH)[13]
+        self.assertLess(saved_after, saved_before,
+                        (saved_before, saved_after, applied, rig.audio.volumes[-12:]))
+        self.assertGreaterEqual(targets[-1], before + 12)
+        self.assertEqual(target_volume(), targets[-1])
+        raw = session.fat().read("/" + IDENTITY.data_directory + "/headphones.bin")
+        self.assertEqual(len(raw), 1024)
+        current = [raw[offset + 28 + 7] for offset in (0, 512)]
+        self.assertIn(1, current)
+        self.assertEqual(rig.audio.underruns(audible), [])
+        self.assertEqual(len(starts), 1)
+        self.assertEqual(machine.watchdog_resets, 0)
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 

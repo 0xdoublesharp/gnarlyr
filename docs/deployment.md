@@ -19,8 +19,8 @@ regenerate them with `tools/site_screenshots.py` before publishing interface cha
 | Primary URL | https://gnarlyr.com; www redirects to the apex |
 | Secondary validation URL | https://gnarlyr.apps.doublesharp.com |
 | Origin address | `159.89.222.183` |
-| Current content release | `25e7d64e6d172b3a1aed1d19aa606eb479ed958274501b347fbbc4a200a0ec4e` |
-| Rollback content release | `c86ebf54f3f97286cf76f03d2855dcd300a43e22fd622dc8c18cb3c5a68a2b1d` |
+| Current content release | `17486ffbc1f258d7aebd1f1bf8d00cba9843d4b9881796887babeb58259c1432` |
+| Rollback content release | `236ed699f78d4e69669ef82961edffcfe8fdb6c7d91b5307aec07597ec75ed61` |
 
 This is a user-defined Compose Service with normal Coolify parsing, not a
 Git-backed Application. `site/deploy/compose.yaml` owns the runtime, mounts,
@@ -56,7 +56,9 @@ The publisher includes only `index.html`, `firmware.html`, `hardware.html`,
 `sitemap.xml`, `languages.html`, `language-catalog.js`, `language-packs.js`, and regular public image files under `site/assets/`, up to
 64 MiB total. Firmware, README files, deployment files and hidden files are
 excluded. The publisher versions local stylesheet, script and image URLs in each HTML page
-with the SHA-256 prefix of the referenced asset. This keeps cached styling and
+with the SHA-256 prefix of the referenced asset. Social-preview PNGs under
+`site/assets/social/` use content-hashed filenames and absolute HTTPS metadata URLs.
+Regenerate them with `tools/site_social.py` after changing card copy or artwork. This keeps cached styling and
 screenshots in sync with page updates. The source HTML stays unchanged. SHA-256 of the ordered published paths and file hashes identifies a release.
 Existing releases must match before reuse. Publication stages and reads back
 files, then atomically replaces a relative `current` symlink while holding
@@ -84,7 +86,7 @@ Do not restart the shared proxy for an ordinary site release.
 Require HTTP 200 for `/`, `/firmware.html`, `/docs.html`, `/hardware.html`, `/recovery.html`, `/install.html`, `/build.html`,
 `/styles.css`, `/site.js`, `/favicon.svg`, `/robots.txt`, `/sitemap.xml`,
 `/languages.html`, `/language-catalog.js`, `/language-packs.js` and
-`/healthz`; compare all fifteen public root files and every published screenshot byte-for-byte against the publisher’s `public_files()` output at
+`/healthz`; compare all fifteen public root files and every published image byte-for-byte against the publisher’s `public_files()` output at
 the origin, including the generated asset URLs. At the Cloudflare edge, HTML includes an injected analytics beacon;
 remove only that known script when comparing HTML. Other files must match exactly. Require 404 for
 `/README.md`, `/deploy/compose.yaml` and an unknown path. Verify origin TLS

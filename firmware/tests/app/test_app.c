@@ -9,6 +9,7 @@
 #include "check.h"
 #include "core/frame_pacer.h"
 #include "core/hash.h"
+#include "core/headphone_audio.h"
 #include "core/key_script.h"
 #include "core/key_tracker.h"
 #include "default_theme.h"
@@ -19,8 +20,11 @@
 #include "frame_overlay.h"
 #include "gfx/canvas.h"
 #include "gfx/text.h"
+#include "hal/audio.h"
 #include "hal/display.h"
+#include "hal/storage.h"
 #include "hal/system.h"
+#include "headphone_store.h"
 #include "home_art.h"
 #include "library/cover_build.h"
 #include "library/covers.h"
@@ -30,6 +34,7 @@
 #include "screen_modules.h"
 #include "screens/charge_screen.h"
 #include "settings/equalizer_slots.h"
+#include "settings/headphone_profile.h"
 #include "settings/settings.h"
 #include "settings_store.h"
 #include "ui/header.h"
@@ -2503,6 +2508,38 @@ static void a_refused_track_says_why_it_was_skipped(void)
     play_first_album_track();
     CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
     CHECK(toast_is("192 kHz isn't supported yet"));
+}
+
+static void formatting_a_paused_card_clears_the_library_and_saved_playback_state(void)
+{
+    start_app_with_library();
+    fake_hal_set_card(
+        (HalCardInfo){.present = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1}, true);
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 80});
+    static const uint8_t stale[16] = {1};
+    fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/mixes.bin", stale, sizeof stale);
+    play_first_album_track();
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    hold_back();
+    move_down(HOME_SETTINGS_INDEX);
+    tap(KEY_PLAY);
+    move_up(3);
+    tap(KEY_PLAY);
+    CHECK(title_is("Format card"));
+    tap(KEY_PLAY);
+    tap(KEY_VOLUME_UP);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(1, fake_hal_card_formats());
+    CHECK(!app_player_status().has_track);
+    CHECK_EQUAL(PLAYER_IDLE, app_player_status().state);
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(toast_is("Card formatted. The library is empty."));
+    app_start();
+    CHECK(!app_player_status().has_track);
+    uint32_t size = 0;
+    CHECK(fake_hal_file_bytes("/" FIRMWARE_DATA_DIRECTORY "/session.bin", &size) == NULL);
+    CHECK(fake_hal_file_bytes("/" FIRMWARE_DATA_DIRECTORY "/mixes.bin", &size) == NULL);
 }
 
 static void rescanning_without_a_card_says_so(void)
@@ -5230,6 +5267,7 @@ static void dac_choices_made_during_usb_are_saved_with_the_settings(void)
     dac.gain = GAIN_HIGH;
     dac.output = OUTPUT_BALANCED;
     app_remember_dac(dac);
+    app_step();
     Settings saved;
     CHECK(saved_settings(&saved));
     CHECK_EQUAL(21, saved.dac_volume);
@@ -5239,9 +5277,43 @@ static void dac_choices_made_during_usb_are_saved_with_the_settings(void)
     app_stop();
 }
 
+static void a_profile_chosen_in_dac_mode_is_committed_after_the_session(void)
+{
+    fake_hal_reset();
+    CHECK_EQUAL(HAL_RESERVE_CREATED,
+                hal_internal_file_reserve(HEADPHONE_STORE_PATH, HEADPHONE_FILE_BYTES));
+    HeadphoneStore store;
+    headphone_store_load(&store);
+    HeadphoneProfiles profiles = headphone_profiles_defaults();
+    profiles.count = 1;
+    profiles.slots[0] = headphone_profile_defaults();
+    profiles.slots[0].trim_half_db = 12;
+    memcpy(profiles.slots[0].name, "Studio", sizeof "Studio");
+    CHECK_EQUAL(STORE_DONE, headphone_file_save(&store.file, &profiles));
+    app_start();
+    settle();
+    CHECK_EQUAL(1, app_headphone_profiles()->count);
+    CHECK(headphone_profiles_valid(&profiles));
+    CHECK(headphone_profiles_valid(app_headphone_profiles()));
+    AppDacSettings dac = app_dac_settings();
+    CHECK_EQUAL(HEADPHONE_PROFILE_NONE, dac.headphones);
+    dac.volume = 20;
+    dac.headphones = 0;
+    app_remember_dac(dac);
+    app_step();
+    CHECK_EQUAL(0, app_headphone_profiles()->current);
+    CHECK(hal_audio_headphones().left < headphone_audio_defaults().left);
+    Settings saved;
+    CHECK(saved_settings(&saved));
+    CHECK_EQUAL(20, saved.dac_volume);
+    CHECK_EQUAL(0, app_dac_settings().headphones);
+    app_stop();
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_profile_chosen_in_dac_mode_is_committed_after_the_session),
         TEST_CASE(dac_choices_made_during_usb_are_saved_with_the_settings),
         TEST_CASE(a_notice_is_drawn_at_once_over_the_current_screen),
         TEST_CASE(a_notice_turns_the_display_on),
@@ -5409,6 +5481,7 @@ int main(void)
         TEST_CASE(the_splash_draws_over_the_home_screen),
         TEST_CASE(the_sleep_timer_turns_the_player_off),
         TEST_CASE(a_refused_track_says_why_it_was_skipped),
+        TEST_CASE(formatting_a_paused_card_clears_the_library_and_saved_playback_state),
         TEST_CASE(rescanning_without_a_card_says_so),
         TEST_CASE(a_rescan_of_an_empty_card_writes_an_empty_library),
         TEST_CASE(a_rescan_keeps_the_stall_watch_fed),

@@ -23,6 +23,10 @@ function(echo_add_unit_test)
 endfunction()
 
 echo_add_unit_test(NAME test_deadline SOURCES core/test_deadline.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_headphone_audio SOURCES core/test_headphone_audio.c LIBRARIES echo_core)
+if(UNIX)
+    target_link_libraries(test_headphone_audio PRIVATE m)
+endif()
 echo_add_unit_test(NAME test_frame_pacer SOURCES core/test_frame_pacer.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_frame_stats SOURCES core/test_frame_stats.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_key_tracker SOURCES core/test_key_tracker.c LIBRARIES echo_core)
@@ -106,6 +110,8 @@ echo_add_unit_test(NAME test_smart_list
 )
 
 echo_add_unit_test(NAME test_settings SOURCES settings/test_settings.c LIBRARIES echo_settings)
+echo_add_unit_test(NAME test_headphone_profile SOURCES settings/test_headphone_profile.c LIBRARIES echo_settings)
+echo_add_unit_test(NAME test_headphone_file SOURCES settings/test_headphone_file.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_rocker SOURCES settings/test_rocker.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_equalizer_response SOURCES settings/test_equalizer_response.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_equalizer_fit SOURCES settings/test_equalizer_fit.c LIBRARIES echo_settings)
@@ -221,6 +227,15 @@ echo_add_unit_test(NAME test_app_modules
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+echo_add_unit_test(NAME test_card_format_ui
+    SOURCES app/test_card_format_ui.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/card_format_captures)
+add_test(NAME card_format_layout_captures
+    COMMAND test_card_format_ui --captures ${CMAKE_CURRENT_BINARY_DIR}/card_format_captures
+)
 echo_add_unit_test(NAME test_home_screen
     SOURCES app/test_home_screen.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures
@@ -319,6 +334,16 @@ echo_add_unit_test(NAME test_stores
     SOURCES app/test_stores.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+echo_add_unit_test(NAME test_headphone_store
+    SOURCES app/test_headphone_store.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+echo_add_unit_test(NAME test_headphone_editor
+    SOURCES app/test_headphone_editor.c app/fake_hal.c support/text_spy.c support/screen_snapshot.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
 )
 echo_add_unit_test(NAME test_browse_screen
     SOURCES app/test_browse_screen.c app/fake_hal.c
@@ -480,6 +505,9 @@ echo_add_unit_test(NAME test_vorbis_stream
     LIBRARIES echo_device_logic
 )
 target_compile_definitions(test_vorbis_stream PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_executable(vorbis_corpus_tool device/vorbis_corpus_tool.c)
+target_link_libraries(vorbis_corpus_tool PRIVATE echo_device_logic echo_options)
+
 echo_add_unit_test(NAME test_vorbis_memory
     SOURCES device/test_vorbis_memory.c
     LIBRARIES echo_device_logic
@@ -532,6 +560,19 @@ echo_add_unit_test(NAME test_stored_queue
 )
 target_compile_definitions(test_stored_queue PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 set_tests_properties(test_stored_queue PROPERTIES TIMEOUT 30)
+echo_add_unit_test(NAME test_workspace_loan
+    SOURCES device/test_workspace_loan.c
+    LIBRARIES echo_device_logic
+)
+echo_add_unit_test(NAME test_card_format
+    SOURCES device/test_card_format.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_card_format PRIVATE
+    ECHO_FORMAT_IMAGE="${CMAKE_CURRENT_BINARY_DIR}/card-format-test.img"
+)
+set_tests_properties(test_card_format PROPERTIES RESOURCE_LOCK card_format_images TIMEOUT 120)
+
 set(ECHO_CREATED_CARDS ${CMAKE_CURRENT_BINARY_DIR}/created_cards)
 file(MAKE_DIRECTORY ${ECHO_CREATED_CARDS})
 echo_add_unit_test(NAME test_fat_create
@@ -578,7 +619,7 @@ if(ECHO_BUILD_SIM)
     )
     echo_add_unit_test(NAME test_sim_glyphs
         SOURCES sim/test_sim_glyphs.c
-        LIBRARIES echo_sim_glyphs echo_fonts
+        LIBRARIES echo_sim_glyphs echo_fonts echo_test_pack
     )
     target_compile_definitions(test_sim_storage PRIVATE
         ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
@@ -630,9 +671,20 @@ endif()
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
+add_test(NAME card_format_table_up_to_date
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/card_format_tables.py
+        --output ${PROJECT_SOURCE_DIR}/platform/device/logic/card_format_upcase.h --check
+)
+
 find_program(FSCK_MSDOS fsck_msdos)
 find_program(FSCK_EXFAT fsck_exfat)
 if(FSCK_MSDOS AND FSCK_EXFAT)
+    add_test(NAME formatted_cards_pass_fsck
+        COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_formatted_cards.py
+            --tool $<TARGET_FILE:test_card_format>
+            --directory ${CMAKE_CURRENT_BINARY_DIR}/formatted_cards
+    )
+    set_tests_properties(formatted_cards_pass_fsck PROPERTIES RESOURCE_LOCK disk_images TIMEOUT 180)
     add_test(NAME created_cards_pass_fsck
         COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_card_images.py
             ${ECHO_CREATED_CARDS} --expect 7

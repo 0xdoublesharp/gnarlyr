@@ -16,10 +16,13 @@ typedef enum AppUsbView {
 
 struct UsbScene;
 
+struct HeadphoneProfiles;
+
 typedef struct AppDacSettings {
     uint8_t volume;
     uint8_t gain;
     uint8_t output;
+    uint8_t headphones;
 } AppDacSettings;
 
 typedef struct AppUsbStatus {
@@ -52,9 +55,12 @@ void app_ask_usb_mode(void);
 void app_release_audio(void);
 AppDacSettings app_dac_settings(void);
 void app_remember_dac(AppDacSettings settings);
+const struct HeadphoneProfiles *app_headphone_profiles(void);
 void app_request_rescan(void);
 void app_request_rescan_if_music_changed(void);
 void app_show_splash(void);
 bool app_charging(void);
 uint32_t app_pass_interval_ms(void);
 bool app_preparing(void);
+
+void app_storage_formatted(bool success);

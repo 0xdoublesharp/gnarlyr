@@ -1,4 +1,5 @@
 #include "settings_screens.h"
+#include "app/app.h"
 
 #include <stddef.h>
 
@@ -878,14 +879,61 @@ static ScreenAction request_rescan(void *context)
     return screen_action_none();
 }
 
+static const char *format_status(const void *context)
+{
+    const SettingsScreens *screens = context;
+    return screens->card_needs_format ? i18n_text(STR_CARD_FORMAT_NEEDED) : NULL;
+}
+
+static ScreenAction open_format(void *context)
+{
+    SettingsScreens *screens = context;
+    CardFormatConfig config = {.player = screens->context.player,
+                               .theme = screens->theme,
+                               .notice =
+                                   screens->context.format_prepare != NULL ? app_show_notice : NULL,
+                               .prepare = screens->context.format_prepare,
+                               .finished = screens->context.format_finished};
+    return screen_action_push(card_format_screen_init(&screens->card_format, config));
+}
+
 static void buttons_changed(void *context)
 {
     save(context);
 }
 
+static bool headphones_shown(const void *context)
+{
+    const SettingsScreens *screens = context;
+    return screens->context.headphones != NULL;
+}
+
+static void bind_headphones(SettingsScreens *screens)
+{
+    SettingsContext *context = &screens->context;
+    Screen *target = NULL;
+    if (context->headphones != NULL) {
+        HeadphoneEditorConfig config = {context->headphones, context->player, context->store,
+                                        screens->theme, context->toast};
+        target = headphone_editor_init(&screens->headphones, config);
+    }
+    screens->items[SETTINGS_HEADPHONES_ITEM] = (MenuItem){.label = i18n_text(STR_HEADPHONES),
+                                                          .select = menu_open_screen,
+                                                          .context = target,
+                                                          .opens = true,
+                                                          .shown = headphones_shown,
+                                                          .shown_context = screens};
+}
+
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context, const Theme *theme)
 {
     screens->context = context;
+    screens->card_needs_format = hal_card_info().needs_format;
+    screens->items[SETTINGS_FORMAT_ITEM] = (MenuItem){.label = i18n_text(STR_CARD_FORMAT),
+                                                      .select = open_format,
+                                                      .value = format_status,
+                                                      .context = screens,
+                                                      .opens = true};
     screens->context.presets = &screens->presets;
     screens->context.languages = &screens->languages;
     screens->theme = theme;
@@ -900,6 +948,7 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                     .changed = buttons_changed,
                                     .context = &screens->context};
     Screen *controls = button_settings_init(&screens->buttons, buttons);
+    bind_headphones(screens);
     screens->items[SETTINGS_CONTROLS_ITEM] = (MenuItem){.label = i18n_text(STR_CONTROLS),
                                                         .select = menu_open_screen,
                                                         .context = controls,

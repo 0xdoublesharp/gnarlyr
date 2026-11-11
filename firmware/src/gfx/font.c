@@ -3,12 +3,16 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "core/i18n.h"
 #include "gfx/font_pack.h"
 
 enum {
     LEVELS_PER_BYTE = 2,
     HIGH_NIBBLE_SHIFT = 4,
-    NIBBLE_MASK = 0x0F
+    NIBBLE_MASK = 0x0F,
+    BASE_FACES = 7,
+    CHINESE_FACES = 7,
+    JAPANESE_FACES = 14
 };
 
 static const Glyph *search(const Font *font, uint32_t codepoint)
@@ -34,7 +38,18 @@ const Glyph *font_find_glyph(const Font *font, uint32_t codepoint)
 {
     const Glyph *glyph = search(font, codepoint);
     if (glyph == NULL && font->pack_face != 0) {
-        glyph = font_pack_find(font->pack_face - 1u, codepoint);
+        uint32_t face = font->pack_face - 1u;
+        glyph = font_pack_find(face, codepoint);
+        if (glyph == NULL && face < BASE_FACES) {
+            const char *language = i18n_code();
+            bool japanese = language[0] == 'j' && language[1] == 'a' &&
+                            (language[2] == '\0' || language[2] == '-');
+            glyph = font_pack_find(face + (japanese ? JAPANESE_FACES : CHINESE_FACES), codepoint);
+            if (glyph == NULL) {
+                glyph =
+                    font_pack_find(face + (japanese ? CHINESE_FACES : JAPANESE_FACES), codepoint);
+            }
+        }
     }
     return glyph != NULL ? glyph : search(font, FONT_FALLBACK_CODEPOINT);
 }

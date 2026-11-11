@@ -14,7 +14,7 @@ static void write_page(ogg_page *page)
 }
 static int encode(int argc, char **argv)
 {
-    if (argc != 4) {
+    if (argc < 4 || argc > 5) {
         return 2;
     }
     int channels = atoi(argv[1]), rate = atoi(argv[2]);
@@ -30,10 +30,38 @@ static int encode(int argc, char **argv)
     ogg_packet packet, id, tags, setup;
     ogg_page page;
     vorbis_info_init(&info);
-    if (vorbis_encode_init_vbr(&info, channels, rate, quality)) {
+    int result;
+    if (strncmp(argv[3], "cbr:", 4) == 0) {
+        long bitrate = atol(argv[3] + 4);
+        result = vorbis_encode_init(&info, channels, rate, bitrate, bitrate, bitrate);
+    } else if (strncmp(argv[3], "abr:", 4) == 0) {
+        result = vorbis_encode_init(&info, channels, rate, -1, atol(argv[3] + 4), -1);
+    } else {
+        result = vorbis_encode_init_vbr(&info, channels, rate, quality);
+    }
+    if (result) {
         return 1;
     }
     vorbis_comment_init(&comment);
+    if (argc == 5) {
+        FILE *picture = fopen(argv[4], "rb");
+        if (picture == NULL || fseek(picture, 0, SEEK_END) != 0) {
+            return 1;
+        }
+        long size = ftell(picture);
+        char *art = size > 0 ? malloc((size_t)size + 1) : NULL;
+        if (art == NULL || fseek(picture, 0, SEEK_SET) != 0 ||
+            fread(art, 1, (size_t)size, picture) != (size_t)size) {
+            return 1;
+        }
+        fclose(picture);
+        art[size] = 0;
+        vorbis_comment_add_tag(&comment, "METADATA_BLOCK_PICTURE", art);
+        free(art);
+        for (int index = 0; index < 300; index++) {
+            vorbis_comment_add_tag(&comment, "COMMENT", "Corpus metadata");
+        }
+    }
     vorbis_analysis_init(&dsp, &info);
     vorbis_block_init(&dsp, &block);
     ogg_stream_init(&stream, 42);
@@ -103,7 +131,7 @@ int main(int argc, char **argv)
     if (argc == 2 && strcmp(argv[1], "decode") == 0) {
         return decode();
     }
-    if (argc == 5 && strcmp(argv[1], "encode") == 0) {
+    if ((argc == 5 || argc == 6) && strcmp(argv[1], "encode") == 0) {
         return encode(argc - 1, argv + 1);
     }
     return 2;

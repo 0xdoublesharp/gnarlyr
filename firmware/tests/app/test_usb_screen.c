@@ -83,7 +83,8 @@ static UsbScene dac_scene(uint8_t state)
 {
     UsbScene scene = {.state = state};
     if (state != USB_SCENE_DAC_CHOOSE) {
-        scene.dac = (UsbSceneDac){.rate = DAC_RATE,
+        scene.dac = (UsbSceneDac){.headphones = "Studio",
+                                  .rate = DAC_RATE,
                                   .bits = 24,
                                   .volume = 35,
                                   .host_volume = -12 * 256,
@@ -211,7 +212,11 @@ static void every_usb_state_fits_every_theme_size_and_orientation(void)
             for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
                 Theme theme = theme_for(appearance, orientation, size);
                 Canvas canvas = canvas_for(&theme);
-                usb_dac_menu_open(&menu, &theme, (AppDacSettings){35, 0, 0}, 0);
+                usb_dac_menu_open(
+                    &menu,
+                    (UsbDacMenuConfig){&theme, (AppDacSettings){35, 0, 0, HEADPHONE_PROFILE_NONE},
+                                       NULL},
+                    0);
                 for (int index = 0; index < count; index++) {
                     AppUsbStatus status = list[index].status;
                     status.scene = &list[index].scene;

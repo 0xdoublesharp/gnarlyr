@@ -9,8 +9,8 @@ enum {
     GAIN_CHOICES = 2
 };
 
-static const StringId LABELS[USB_DAC_ROW_COUNT] = {STR_VOLUME, STR_GAIN, STR_OUTPUT,
-                                                   STR_FILE_TRANSFER, STR_CHARGE_ONLY};
+static const StringId LABELS[USB_DAC_ROW_COUNT] = {
+    STR_VOLUME, STR_GAIN, STR_OUTPUT, STR_HEADPHONES, STR_FILE_TRANSFER, STR_CHARGE_ONLY};
 static const StringId GAINS[GAIN_CHOICES] = {STR_GAIN_LOW, STR_GAIN_HIGH};
 static const StringId OUTPUTS[OUTPUT_CHOICES] = {STR_OUTPUT_AUTO, STR_JACK_35, STR_JACK_44};
 
@@ -36,6 +36,8 @@ static const char *row_detail(const void *context, int index)
         return i18n_text(GAINS[menu->settings.gain % GAIN_CHOICES]);
     case USB_DAC_ROW_OUTPUT:
         return i18n_text(OUTPUTS[menu->settings.output % OUTPUT_CHOICES]);
+    case USB_DAC_ROW_HEADPHONES:
+        return menu->profile;
     default:
         break;
     }
@@ -48,6 +50,32 @@ static void write_volume(UsbDacMenu *menu)
     string_builder_append_unsigned(&builder, menu->settings.volume);
 }
 
+static void write_profile(UsbDacMenu *menu)
+{
+    StringBuilder builder = string_builder_make(menu->profile, sizeof menu->profile);
+    uint8_t current = menu->settings.headphones;
+    if (menu->profiles == NULL || current >= menu->profiles->count) {
+        string_builder_append(&builder, i18n_text(STR_OFF));
+        return;
+    }
+    const char *name = menu->profiles->slots[current].name;
+    if (name[0] != '\0') {
+        string_builder_append(&builder, name);
+        return;
+    }
+    char number[USB_DAC_MENU_TEXT_CAPACITY];
+    StringBuilder digits = string_builder_make(number, sizeof number);
+    string_builder_append_unsigned(&digits, (uint32_t)current + 1);
+    const char *arguments[] = {number};
+    i18n_format(&builder, STR_HEADPHONE_SLOT, arguments, 1);
+}
+
+void usb_dac_menu_show_volume(UsbDacMenu *menu, uint8_t volume)
+{
+    menu->settings.volume = volume;
+    write_volume(menu);
+}
+
 int usb_dac_menu_rows(const Theme *theme)
 {
     int rows = (theme->metrics.screen_height - theme->metrics.header_height -
@@ -56,15 +84,25 @@ int usb_dac_menu_rows(const Theme *theme)
     return rows < USB_DAC_ROW_COUNT ? rows : USB_DAC_ROW_COUNT;
 }
 
-void usb_dac_menu_open(UsbDacMenu *menu, const Theme *theme, AppDacSettings settings,
-                       uint32_t now_ms)
+void usb_dac_menu_open(UsbDacMenu *menu, UsbDacMenuConfig config, uint32_t now_ms)
 {
-    *menu = (UsbDacMenu){.settings = settings};
+    *menu = (UsbDacMenu){.settings = config.settings, .profiles = config.profiles};
     menu->model =
         (ListModel){.context = menu, .count = row_count, .label = row_label, .detail = row_detail};
     write_volume(menu);
-    list_view_init(&menu->view, &menu->model, theme, now_ms);
-    list_view_fit_rows(&menu->view, usb_dac_menu_rows(theme));
+    write_profile(menu);
+    list_view_init(&menu->view, &menu->model, config.theme, now_ms);
+    list_view_fit_rows(&menu->view, usb_dac_menu_rows(config.theme));
+}
+
+static UsbDacAction next_profile(UsbDacMenu *menu)
+{
+    uint8_t count = menu->profiles != NULL ? menu->profiles->count : 0;
+    uint8_t current = menu->settings.headphones;
+    uint8_t next = current >= count ? 0 : (uint8_t)(current + 1);
+    menu->settings.headphones = next >= count ? (uint8_t)HEADPHONE_PROFILE_NONE : next;
+    write_profile(menu);
+    return menu->settings.headphones == current ? USB_DAC_ACTION_NONE : USB_DAC_ACTION_HEADPHONES;
 }
 
 static UsbDacAction step_volume(UsbDacMenu *menu, int step)
@@ -102,6 +140,8 @@ static UsbDacAction choose(UsbDacMenu *menu)
     case USB_DAC_ROW_OUTPUT:
         menu->settings.output = (uint8_t)((menu->settings.output + 1) % OUTPUT_CHOICES);
         return USB_DAC_ACTION_OUTPUT;
+    case USB_DAC_ROW_HEADPHONES:
+        return next_profile(menu);
     case USB_DAC_ROW_FILE_TRANSFER:
         return USB_DAC_ACTION_FILE_TRANSFER;
     default:
