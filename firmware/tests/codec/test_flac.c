@@ -342,6 +342,34 @@ static void a_header_that_is_not_flac_is_refused(void)
                 flac_read_header(&header_bits, input_of(&buffer), &info, &audio_offset));
 }
 
+static void truncated_streaminfo_headers_are_rejected(void)
+{
+    Buffer flac = load("fixed_16_mono", "flac");
+    CHECK(flac.size >= 42);
+    CHECK_EQUAL(0, memcmp(flac.bytes, "fLaC", 4));
+    uint32_t size = flac.size;
+    for (uint32_t length = 0; length < 42; length++) {
+        flac.size = length;
+        CHECK_EQUAL(FLAC_ERROR, flac_open(&decoder, input_of(&flac)));
+    }
+    flac.size = size;
+    CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input_of(&flac)));
+    free(flac.bytes);
+}
+
+static void metadata_without_streaminfo_or_past_eof_is_rejected(void)
+{
+    Buffer flac = load("fixed_16_mono", "flac");
+    CHECK(flac.size >= 42);
+    flac.bytes[4] = 0x81;
+    CHECK_EQUAL(FLAC_ERROR, flac_open(&decoder, input_of(&flac)));
+    flac.bytes[5] = 0xff;
+    flac.bytes[6] = 0xff;
+    flac.bytes[7] = 0xff;
+    CHECK_EQUAL(FLAC_ERROR, flac_open(&decoder, input_of(&flac)));
+    free(flac.bytes);
+}
+
 static void decoding_can_start_from_audio_bytes_alone(void)
 {
     Buffer flac = load("lpc_24_96k_stereo", "flac");
@@ -405,6 +433,8 @@ int main(void)
         TEST_CASE(a_seek_reads_little_of_the_file),
         TEST_CASE(the_header_alone_gives_the_stream_info_and_audio_offset),
         TEST_CASE(a_header_that_is_not_flac_is_refused),
+        TEST_CASE(truncated_streaminfo_headers_are_rejected),
+        TEST_CASE(metadata_without_streaminfo_or_past_eof_is_rejected),
         TEST_CASE(decoding_can_start_from_audio_bytes_alone),
         TEST_CASE(the_position_moves_from_the_audio_start_to_the_next_frame),
     };
