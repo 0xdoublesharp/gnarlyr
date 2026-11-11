@@ -76,6 +76,11 @@ def scan_table(title, run):
                                   run["emmc_wait_cycles"] / max(run["core_hz"]) if run["core_hz"] else 0,
                                   "/".join(str(hz // 1000000) for hz in run["core_hz"]),
                                   run["wall_seconds"], "; ".join(run["toasts"][-1:]))]
+    if run.get("browsable_ms") is not None:
+        lines.append("  library browsable at %.1f s (scan pass %.1f s); cover pass %s" % (
+            run["browsable_ms"] / 1000, run["scan_pass_ms"] / 1000,
+            "%.1f s, in the background" % (run["cover_pass_ms"] / 1000)
+            if run.get("cover_pass_ms") is not None else "inside the scan pass"))
     lines.append("  %-30s %9s %8s %8s %8s %9s %8s %8s" % (
         "phase", "ms", "M instr", "wait ms", "rd cmds", "rd sect", "wr cmds", "wr sect"))
     hz = max(run["core_hz"]) if run["core_hz"] else 1
@@ -226,7 +231,11 @@ def table(report):
         lines.append("Assumptions: " + json.dumps(report["assumptions"]))
     if "first_scan" in report:
         lines += scan_table("First scan", report["first_scan"])
-    if "rescan" in report:
+    if "rescan" in report and report["rescan"].get("shortcut"):
+        rescan = report["rescan"]
+        lines += ["", "Rescan, nothing changed: %.1f s emulated from the key to \"%s\" (fingerprint walk %s)" % (
+            rescan["emulated_ms"] / 1000, "; ".join(rescan["toasts"][:1]), rescan["fingerprint_walk"])]
+    elif "rescan" in report:
         lines += scan_table("Rescan, nothing changed", report["rescan"])
     if "usb_music_check" in report:
         lines += usb_table(report["usb_music_check"])

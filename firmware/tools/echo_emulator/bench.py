@@ -156,7 +156,11 @@ def firmware_times(session):
 
 
 class ScanRun:
-    """One rescan, from the rescan code's entry to the scratch memory's return."""
+    """One rescan, from the rescan code's entry to the end of its cover pass.
+
+    Builds that run the cover pass in the background, after the library is published, end the
+    scan pass at the first return of the scratch memory; the run then waits for `covers_run` to
+    finish. Older builds end at the first return."""
 
     def __init__(self, session, artifacts, log):
         self.session = session
@@ -168,7 +172,14 @@ class ScanRun:
         self.clock = []
         self.progress = [0, 0]
         self.toasts = []
+        self.toast_us = []
         self.armed = True
+        self.covers_started = None
+        self.covers_ended = None
+        symbols = self.profiler.overlay.symbols
+        self.background = "covers_run" in symbols
+        if self.background:
+            self.machine.add_address_hook(symbols["covers_run"], self.covers_entered)
         self.walks = Calls(session, "walk_music")
         self.machine.add_address_hook(self.profiler.overlay.symbols["rescan_run"], self.entered)
         self.machine.hook_symbol("hal_system_return_scratch", self.left)
@@ -180,10 +191,21 @@ class ScanRun:
             self.started = self.mark()
             self.profiler.start()
 
+    def covers_entered(self):
+        if self.ended is not None and self.covers_started is None:
+            self.covers_started = self.mark()
+
     def left(self):
         if self.started is not None and self.ended is None:
-            self.profiler.stop()
             self.ended = self.mark()
+            if not self.background:
+                self.profiler.stop()
+        elif self.covers_started is not None and self.covers_ended is None:
+            self.covers_ended = self.mark()
+            self.profiler.stop()
+
+    def finished(self):
+        return self.covers_ended if self.background else self.ended
 
     def mark(self):
         machine = self.machine
@@ -196,13 +218,14 @@ class ScanRun:
 
     def toasted(self):
         self.toasts.append(self.machine.read_cstring(self.machine.reg(UC_ARM_REG_R1)).decode("utf-8", "replace"))
+        self.toast_us.append(self.machine.microseconds())
 
     def run(self, limit_ms=SCAN_LIMIT_MS):
         machine = self.machine
         shown = time.time()
         end = machine.milliseconds() + limit_ms
-        while self.ended is None and machine.milliseconds() < end:
-            reason = machine.run(until=lambda: self.ended is not None,
+        while self.finished() is None and machine.milliseconds() < end:
+            reason = machine.run(until=lambda: self.finished() is not None,
                                  until_ms=min(end, machine.milliseconds() + 2000))
             if reason not in ("time limit", "condition met"):
                 raise RuntimeError("the emulator stopped: %s" % reason)
@@ -211,7 +234,7 @@ class ScanRun:
                 self.log("  %d s emulated, %s files and tracks, scan %s" % (
                     machine.milliseconds() // 1000, self.progress,
                     "running" if self.started else "not started"))
-        if self.ended is None:
+        if self.finished() is None:
             raise RuntimeError("the rescan did not finish within %d ms" % limit_ms)
         machine.run(until=lambda: self.walk() is not None, until_ms=machine.milliseconds() + STEP_LIMIT_MS)
         run_for(machine, SETTLE_MS)
@@ -219,16 +242,25 @@ class ScanRun:
     def walk(self):
         return next((call for call in self.walks.records if call["start_us"] >= self.ended["us"]), None)
 
+    def browsable_us(self):
+        later = [moment for moment in self.toast_us if moment >= self.ended["us"]]
+        return later[0] if later else self.ended["us"]
+
     def result(self):
         report = self.profiler.report()
         decode = report["functions"].get("cover_image_decode", {})
         calls = decode.get("calls", 0)
+        last = self.finished()
         return {
-            "emulated_ms": round((self.ended["us"] - self.started["us"]) / 1000, 1),
-            "instructions": self.ended["instructions"] - self.started["instructions"],
-            "emmc_wait_cycles": self.ended["waits"] - self.started["waits"],
+            "emulated_ms": round((last["us"] - self.started["us"]) / 1000, 1),
+            "scan_pass_ms": round((self.ended["us"] - self.started["us"]) / 1000, 1),
+            "browsable_ms": round((self.browsable_us() - self.started["us"]) / 1000, 1),
+            "cover_pass_ms": (round((self.covers_ended["us"] - self.covers_started["us"]) / 1000, 1)
+                              if self.covers_ended else None),
+            "instructions": last["instructions"] - self.started["instructions"],
+            "emmc_wait_cycles": last["waits"] - self.started["waits"],
             "core_hz": sorted(set(self.clock)),
-            "wall_seconds": round(self.ended["wall"] - self.started["wall"], 1),
+            "wall_seconds": round(last["wall"] - self.started["wall"], 1),
             "toasts": self.toasts,
             "counts": library_counts(self.session),
             "firmware_times": firmware_times(self.session),
@@ -272,6 +304,20 @@ def open_settings(machine):
     return False
 
 
+class Shortcut:
+    """A requested rescan that found nothing changed and rebuilt nothing."""
+
+    def __init__(self, run, pressed_us):
+        self.run = run
+        self.pressed_us = pressed_us
+
+    def result(self):
+        run = self.run
+        return {"shortcut": True, "toasts": run.toasts,
+                "emulated_ms": round((run.toast_us[0] - self.pressed_us) / 1000, 1),
+                "fingerprint_walk": walk_summary(run.walks.records[-1] if run.walks.records else None)}
+
+
 def requested_rescan(previous, artifacts, log):
     """Settings → Rescan library, pressed as a user would; the row is found by trying the
     likely positions on fresh starts until the settings module's `request_rescan` runs."""
@@ -285,9 +331,15 @@ def requested_rescan(previous, artifacts, log):
             raise RuntimeError("Settings did not open from Home")
         for _ in range(presses):
             press(machine, "next", settle_ms=120)
+        pressed_us = machine.microseconds()
         press(machine, "play", settle_ms=50)
-        machine.run(until=lambda: run.started is not None, until_ms=machine.milliseconds() + 3000)
-        if not machine.reached.get("request_rescan") or run.started is None:
+        machine.run(until=lambda: run.started is not None or run.toasts,
+                    until_ms=machine.milliseconds() + STEP_LIMIT_MS)
+        if not machine.reached.get("request_rescan"):
+            continue
+        if run.started is None and run.toasts:
+            return session, Shortcut(run, pressed_us), presses
+        if run.started is None:
             continue
         run.run()
         return session, run, presses

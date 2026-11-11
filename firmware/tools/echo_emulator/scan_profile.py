@@ -158,9 +158,10 @@ class Profiler:
                 self.watch(name, self.overlay.symbols[name], overlay=True)
             elif name not in MAIN_FUNCTIONS:
                 self.missing.append(name)
-        entry = self.overlay.symbols.get("rescan_run")
-        if entry is not None:
-            self.machine.add_address_hook(entry, self.overlay_entered)
+        for name in ("rescan_run", "covers_run"):
+            entry = self.overlay.symbols.get(name)
+            if entry is not None:
+                self.machine.add_address_hook(entry, self.overlay_entered)
         self.machine.hook_symbol("hal_system_return_scratch", self.overlay_left)
 
     def overlay_entered(self):
