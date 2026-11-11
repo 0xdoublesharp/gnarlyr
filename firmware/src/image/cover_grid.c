@@ -30,12 +30,6 @@ static const uint8_t ORIENTATIONS[ORIENTATION_COUNT] = {0,
                                                         SWAP | FLIP_X | FLIP_Y,
                                                         SWAP | FLIP_X};
 
-typedef struct CoverSpan {
-    uint32_t first;
-    uint32_t count;
-    uint16_t weights[CELLS];
-} CoverSpan;
-
 bool cover_grid_init(CoverGrid *grid, uint32_t width, uint32_t height)
 {
     if (width == 0 || height == 0 || width > COVER_GRID_LIMIT || height > COVER_GRID_LIMIT) {
@@ -46,6 +40,7 @@ bool cover_grid_init(CoverGrid *grid, uint32_t width, uint32_t height)
     grid->start_y = (height - grid->span) / 2;
     grid->black = NULL;
     grid->orientation = 1;
+    grid->cached_height = 0;
     for (uint32_t channel = 0; channel < COVER_GRID_CHANNELS; channel++) {
         grid->sample_width[channel] = 1;
         grid->sample_height[channel] = 1;
@@ -120,29 +115,54 @@ static void add_spans(CoverGrid *grid, uint32_t channel, const CoverSpan *x, con
     }
 }
 
+static const CoverSpan *rows_of(CoverGrid *grid, uint32_t y, uint32_t height)
+{
+    if (grid->cached_height != height || grid->cached_y != y) {
+        axis_span(grid->start_y, grid->span, y, height, &grid->cached_rows);
+        grid->cached_y = y;
+        grid->cached_height = height;
+    }
+    return &grid->cached_rows;
+}
+
 void cover_grid_add(CoverGrid *grid, uint32_t channel, CoverRect rect, int32_t value)
 {
     CoverSpan x;
-    CoverSpan y;
-    axis_span(grid->start_y, grid->span, rect.y, rect.height, &y);
-    if (y.count == 0) {
+    const CoverSpan *y = rows_of(grid, rect.y, rect.height);
+    if (y->count == 0) {
         return;
     }
     axis_span(grid->start_x, grid->span, rect.x, rect.width, &x);
-    add_spans(grid, channel, &x, &y, value);
+    add_spans(grid, channel, &x, y, value);
+}
+
+void cover_grid_add_block(CoverGrid *grid, uint32_t channel, CoverRect block,
+                          const int32_t *samples, uint32_t outputs)
+{
+    CoverSpan across[COVER_GRID_BLOCK_OUTPUTS];
+    uint32_t width = block.width / outputs;
+    uint32_t height = block.height / outputs;
+    for (uint32_t x = 0; x < outputs; x++) {
+        axis_span(grid->start_x, grid->span, block.x + x * width, width, &across[x]);
+    }
+    for (uint32_t y = 0; y < outputs; y++) {
+        const CoverSpan *down = rows_of(grid, block.y + y * height, height);
+        for (uint32_t x = 0; x < outputs && down->count > 0; x++) {
+            add_spans(grid, channel, &across[x], down, samples[y * outputs + x]);
+        }
+    }
 }
 
 void cover_grid_add_color(CoverGrid *grid, CoverRect rect, const int32_t *values, uint32_t channels)
 {
     CoverSpan x;
-    CoverSpan y;
-    axis_span(grid->start_y, grid->span, rect.y, rect.height, &y);
-    if (y.count == 0) {
+    const CoverSpan *y = rows_of(grid, rect.y, rect.height);
+    if (y->count == 0) {
         return;
     }
     axis_span(grid->start_x, grid->span, rect.x, rect.width, &x);
     for (uint32_t channel = 0; channel < channels; channel++) {
-        add_spans(grid, channel, &x, &y, values[channel]);
+        add_spans(grid, channel, &x, y, values[channel]);
     }
 }
 

@@ -391,31 +391,8 @@ static bool decode_whole_block(JpegDecoder *decoder, JpegComponent *component)
     int32_t difference = jpeg_receive_extend(bits, (uint32_t)size);
     component->predictor = (int32_t)((uint32_t)component->predictor + (uint32_t)difference);
     decoder->coefficients[0] = component->predictor;
-    for (uint32_t index = 1; index < JPEG_BLOCK;) {
-        int32_t symbol = jpeg_decode_symbol(bits, &decoder->ac[component->ac_table]);
-        if (symbol < 0) {
-            return false;
-        }
-        uint32_t run = (uint32_t)symbol >> 4;
-        uint32_t value_size = (uint32_t)symbol & 0x0F;
-        if (value_size == 0) {
-            if (run != END_OF_BAND) {
-                break;
-            }
-            index += ZERO_RUN;
-            continue;
-        }
-        index += run;
-        if (index >= JPEG_BLOCK) {
-            return false;
-        }
-        int32_t value = jpeg_receive_extend(bits, value_size);
-        if (keep) {
-            decoder->coefficients[JPEG_ZIGZAG[index]] = value;
-        }
-        index++;
-    }
-    return !bits->failed;
+    return jpeg_decode_ac(bits, &decoder->ac[component->ac_table],
+                          keep ? decoder->coefficients : NULL);
 }
 
 static bool decode_dc_first(JpegDecoder *decoder, JpegComponent *component, uint32_t low)

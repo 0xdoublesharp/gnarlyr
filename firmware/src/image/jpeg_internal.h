@@ -15,6 +15,7 @@ enum {
 
 typedef struct JpegHuffman {
     uint16_t fast[1 << JPEG_FAST_BITS];
+    int16_t fast_ac[1 << JPEG_FAST_BITS];
     int32_t max_code[JPEG_MAX_CODE_BITS + 2];
     int32_t offset[JPEG_MAX_CODE_BITS + 1];
     uint8_t values[256];
@@ -96,6 +97,7 @@ bool jpeg_build_huffman(JpegHuffman *table, const uint8_t *counts, const uint8_t
 void jpeg_bits_reset(JpegBits *bits, ImageReader *reader);
 int32_t jpeg_decode_symbol(JpegBits *bits, const JpegHuffman *table);
 int32_t jpeg_receive_extend(JpegBits *bits, uint32_t size);
+bool jpeg_decode_ac(JpegBits *bits, const JpegHuffman *table, int32_t *coefficients);
 uint32_t jpeg_read_bits(JpegBits *bits, uint32_t count);
 void jpeg_skip_entropy(ImageReader *reader);
 void jpeg_restart(JpegBits *bits);

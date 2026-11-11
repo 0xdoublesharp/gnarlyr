@@ -9,7 +9,7 @@ enum {
     LEVEL_SHIFT = 128,
     SAMPLE_MAX = 255,
     DELTA_LIMIT = 4095,
-    COEFFICIENT_LIMIT = 65535
+    COEFFICIENT_LIMIT = 32767
 };
 
 static const int32_t COSINES[9] = {4096, 4017, 3784, 3406, 2896, 2276, 1567, 799, 0};
@@ -115,13 +115,15 @@ static bool dequantize_rows(const JpegDecoder *decoder, uint32_t component, int3
 }
 
 static void row_pass(const JpegDecoder *decoder, const int32_t *values, const bool *rows_used,
-                     int64_t rows[BLOCK_SIDE][BLOCK_SIDE])
+                     int32_t rows[BLOCK_SIDE][BLOCK_SIDE])
 {
     for (uint32_t v = 0; v < BLOCK_SIDE; v++) {
+        const int32_t *row = values + v * BLOCK_SIDE;
         for (uint32_t x = 0; x < decoder->outputs; x++) {
-            int64_t sum = 0;
+            const int32_t *kernel = decoder->kernel[x];
+            int32_t sum = 0;
             for (uint32_t u = 0; rows_used[v] && u < BLOCK_SIDE; u++) {
-                sum += (int64_t)decoder->kernel[x][u] * values[v * BLOCK_SIDE + u];
+                sum += kernel[u] * row[u];
             }
             rows[v][x] = sum;
         }
@@ -133,7 +135,7 @@ static void inverse(const JpegDecoder *decoder, uint32_t component, int32_t *sam
     uint32_t outputs = decoder->outputs;
     int32_t values[JPEG_BLOCK];
     bool rows_used[BLOCK_SIDE];
-    int64_t rows[BLOCK_SIDE][BLOCK_SIDE];
+    int32_t rows[BLOCK_SIDE][BLOCK_SIDE];
     dequantize_rows(decoder, component, values, rows_used);
     row_pass(decoder, values, rows_used, rows);
     for (uint32_t y = 0; y < outputs; y++) {
@@ -158,20 +160,14 @@ static bool any_used_coefficient(const JpegDecoder *decoder)
     return false;
 }
 
-static void add_samples(JpegDecoder *decoder, uint32_t component, CoverRect block,
-                        const int32_t *samples, bool whole)
+static void add_samples(JpegDecoder *decoder, uint32_t component, CoverRect block, int32_t *samples,
+                        bool whole)
 {
-    uint32_t outputs = decoder->outputs;
-    uint32_t width = block.width / outputs;
-    uint32_t height = block.height / outputs;
-    for (uint32_t y = 0; y < outputs; y++) {
-        for (uint32_t x = 0; x < outputs; x++) {
-            int32_t value = samples[y * outputs + x];
-            value = whole ? clamp((int64_t)value + LEVEL_SHIFT, 0, SAMPLE_MAX) : value;
-            CoverRect rect = {block.x + x * width, block.y + y * height, width, height};
-            cover_grid_add(decoder->grid, component, rect, value);
-        }
+    uint32_t count = decoder->outputs * decoder->outputs;
+    for (uint32_t index = 0; whole && index < count; index++) {
+        samples[index] = clamp((int64_t)samples[index] + LEVEL_SHIFT, 0, SAMPLE_MAX);
     }
+    cover_grid_add_block(decoder->grid, component, block, samples, decoder->outputs);
 }
 
 static int32_t dc_level(const JpegDecoder *decoder, uint32_t component)
