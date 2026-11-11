@@ -20,6 +20,8 @@ OVERLAY_REGION = "HIGH_RAM"
 WORKSPACE_REGION = "HIGH_RAM"
 WORKSPACE_SECTION = ".high_ram"
 MODULE_REGION = "MODULE_RAM"
+MODULE_WINDOWS = {"dsp": "DSP_RAM", "vorbis": "DSP_RAM", "process": "PROCESS_RAM",
+                  "debug": "DEBUG_RAM"}
 USB_IMAGE_REGION = "USB_IMAGE"
 LANGUAGE_REGION = "LANGUAGE_RAM"
 STATE_SECTIONS = (".data", ".bss", ".noinit")
@@ -284,8 +286,7 @@ def module_problems(device_map, modules):
     problems = []
     regions = memory_regions(device_map)
     for name, module_map in modules:
-        region = "DSP_RAM" if name in ("dsp", "vorbis") else (
-            "PROCESS_RAM" if name == "process" else MODULE_REGION)
+        region = MODULE_WINDOWS.get(name, MODULE_REGION)
         slot = regions.get(region)
         linked = memory_regions(module_map).get(MODULE_REGION)
         if slot is None or linked != slot:
@@ -294,6 +295,8 @@ def module_problems(device_map, modules):
         code, zeroed = module_extent(module_map)
         if name in ("dsp", "vorbis", "process") and zeroed:
             problems.append("the audio module must keep all state in its caller")
+        if name == "debug" and zeroed:
+            problems.append("the debug module must keep all state in the main program")
         if code + zeroed > slot[1]:
             problems.append(f"module {name} is {code + zeroed - slot[1]:,} bytes too large for "
                             "the module slot")

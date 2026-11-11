@@ -6,6 +6,7 @@
 #include "app/debug_loop.h"
 #include "core/debug_script.h"
 #include "core/frame_stats.h"
+#include "debug_screenshot.h"
 #include "hal/input.h"
 
 typedef enum DebugRequestKind {
@@ -35,7 +36,17 @@ typedef struct DebugFrameSources {
     const FrameStats *send;
 } DebugFrameSources;
 
+typedef struct DebugModuleEntry {
+    uint32_t magic;
+    DebugRequest (*step)(uint32_t now_ms, DebugRunnerView view);
+    void (*stop)(uint32_t now_ms, DebugScriptState state);
+    void (*frame)(DebugFrameSources sources);
+    bool (*screenshot)(const DebugScreenshot *shot);
+} DebugModuleEntry;
+
 #ifdef ECHO_DEBUG_LOOP
+
+extern const DebugModuleEntry DEBUG_MODULE_ENTRY;
 
 bool debug_runner_active(void);
 DebugRequest debug_runner_step(uint32_t now_ms, DebugRunnerView view);
@@ -43,6 +54,7 @@ void debug_runner_done(bool succeeded);
 void debug_runner_key_pressed(void);
 bool debug_runner_next_key(HalKeyTransition *transition);
 void debug_runner_frame(DebugFrameSources sources);
+bool debug_runner_screenshot(const DebugScreenshot *shot);
 
 #else
 
@@ -76,6 +88,12 @@ static inline bool debug_runner_next_key(HalKeyTransition *transition)
 static inline void debug_runner_frame(DebugFrameSources sources)
 {
     (void)sources;
+}
+
+static inline bool debug_runner_screenshot(const DebugScreenshot *shot)
+{
+    (void)shot;
+    return false;
 }
 
 #endif

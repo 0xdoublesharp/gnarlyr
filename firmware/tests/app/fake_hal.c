@@ -1566,6 +1566,15 @@ const void *hal_system_load_module(uint32_t module)
     return app_linked_module(module);
 }
 
+const void *hal_system_load_debug_code(void)
+{
+    if ((fake.broken_modules & 1u << DEBUG_MODULE_NUMBER) != 0) {
+        fake.module_refusals++;
+        return NULL;
+    }
+    return app_linked_debug_code();
+}
+
 void fake_hal_break_module(uint32_t module, bool broken)
 {
     uint32_t bit = 1u << module;

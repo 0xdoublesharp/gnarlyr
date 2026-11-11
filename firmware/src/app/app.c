@@ -1473,7 +1473,7 @@ static bool save_debug_screenshot(const DebugRequest *request)
                             .name = request->argument,
                             .slot = request->slot};
     app.status_bar = current_status_bar();
-    return debug_screenshot_save(&shot);
+    return debug_runner_screenshot(&shot);
 }
 
 static bool choose_setting(const DebugRequest *request, uint32_t now_ms)

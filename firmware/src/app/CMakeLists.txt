@@ -63,7 +63,7 @@ if(ECHO_RELEASE)
     target_sources(echo_app PRIVATE diagnostics_menu_release.c)
 else()
     target_sources(echo_app PRIVATE diagnostics_menu.c debug_loop.c debug_runner.c
-        debug_screenshot.c)
+        debug_screenshot.c debug_steps.c modules/debug_module.c)
 endif()
 if(NOT ECHO_BUILD_DEVICE)
     target_sources(echo_app PRIVATE modules/linked_modules.c)

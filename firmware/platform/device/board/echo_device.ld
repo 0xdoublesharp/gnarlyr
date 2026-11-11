@@ -4,6 +4,7 @@ MEMORY
 {
     DATA_RAM (rw) : ORIGIN = 0x03004000, LENGTH = 0x48000
     DSP_RAM (rx) : ORIGIN = 0x03048000, LENGTH = 0x2000
+    DEBUG_RAM (rx) : ORIGIN = 0x0304A000, LENGTH = 0x2000
     CODE_RAM (rx) : ORIGIN = 0x03050000, LENGTH = 0x2666C
     HIGH_RAM (rw) : ORIGIN = 0x0307A000, LENGTH = 0xA400
     MODULE_RAM (rw) : ORIGIN = 0x03084400, LENGTH = 0xAC00
@@ -90,6 +91,8 @@ ASSERT(ORIGIN(PROCESS_RAM) + LENGTH(PROCESS_RAM) == ORIGIN(GLYPH_RAM), "audio pr
 ASSERT(SIZEOF(.data) == 8, "only the entry vector may be in .data: make initialised globals const")
 device_data_limit = ORIGIN(DSP_RAM);
 ASSERT(ORIGIN(DSP_RAM) + LENGTH(DSP_RAM) <= 0x0304A240, "the audio module must stay below the boot ROM boundary")
+ASSERT(ORIGIN(DEBUG_RAM) == ORIGIN(DSP_RAM) + LENGTH(DSP_RAM), "the debug module must follow the audio module")
+ASSERT(ORIGIN(DEBUG_RAM) + LENGTH(DEBUG_RAM) == 0x0304C000, "the debug module must end at the top of core 0 data RAM")
 ASSERT(device_noinit_end <= device_data_limit, ".data, .bss and .noinit must end before the independent audio module")
 
 ASSERT(ORIGIN(GLYPH_RAM) + LENGTH(GLYPH_RAM) == ORIGIN(LANGUAGE_RAM), "the language window must follow the glyph cache")

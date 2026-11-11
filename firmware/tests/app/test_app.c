@@ -3799,6 +3799,20 @@ static void a_script_without_a_build_line_is_refused_and_still_reconnects(void)
     CHECK_EQUAL(DEBUG_LINE_NOT_RUN, run->status[0]);
 }
 
+static void a_script_whose_code_cannot_load_is_aborted_and_still_reconnects(void)
+{
+    start_app();
+    fake_hal_break_module(DEBUG_MODULE_NUMBER, true);
+    const DebugScriptRun *run = run_script("build any\nplay\n", SCRIPT_KEY_MS);
+    CHECK_EQUAL(DEBUG_SCRIPT_ABORTED, run->state);
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK_EQUAL(DEBUG_LINE_NOT_RUN, run->status[1]);
+    CHECK_EQUAL(0, fake_hal_usb_reconnect_count());
+    run_script_for(DEBUG_SCRIPT_END_MS);
+    CHECK_EQUAL(1, fake_hal_usb_reconnect_count());
+    fake_hal_break_module(DEBUG_MODULE_NUMBER, false);
+}
+
 static void a_script_for_another_build_is_refused(void)
 {
     start_app();
@@ -4719,6 +4733,7 @@ int main(void)
         TEST_CASE(a_key_list_runs_in_order_with_long_presses),
         TEST_CASE(a_script_plays_a_track),
         TEST_CASE(a_script_without_a_build_line_is_refused_and_still_reconnects),
+        TEST_CASE(a_script_whose_code_cannot_load_is_aborted_and_still_reconnects),
         TEST_CASE(a_script_for_another_build_is_refused),
         TEST_CASE(a_script_for_this_build_runs),
         TEST_CASE(a_script_waits_while_an_update_awaits_its_restart),

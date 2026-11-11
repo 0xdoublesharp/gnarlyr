@@ -39,7 +39,7 @@ add_executable(echo_device
 )
 target_sources(echo_device PRIVATE board/panel_vop.c)
 if(NOT ECHO_RELEASE)
-    target_sources(echo_device PRIVATE board/debug_poke.c board/debug_session.c board/profiler.c)
+    target_sources(echo_device PRIVATE board/debug_module.c board/debug_session.c board/profiler.c)
     set(ECHO_PROFILE_BUCKET_SHIFT 7)
 endif()
 set(ECHO_CORE1_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1.ld)
@@ -237,6 +237,7 @@ if(CMAKE_CROSSCOMPILING)
         board/bluetooth.c
         board/core1.c
         board/dac.c
+        board/debug_module.c
         board/debug_poke.c
         board/debug_report_file.c
         board/debug_script_file.c
@@ -332,6 +333,8 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_process.ld)
     elseif(module STREQUAL "dsp" OR module STREQUAL "vorbis")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_dsp.ld)
+    elseif(module STREQUAL "debug")
+        set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/debug_module.ld)
     else()
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/screen_module.ld)
     endif()
@@ -361,6 +364,10 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             equalizer_retune=audio_process_equalizer_retune
             equalizer_run=audio_process_equalizer_run
         )
+    endif()
+    if(module STREQUAL "debug")
+        target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
+        target_include_directories(${module_target}_objects PRIVATE board)
     endif()
     if(module STREQUAL "vorbis")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)
