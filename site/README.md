@@ -66,3 +66,19 @@ Each page includes one short Amazon Associate disclosure beside its main purchas
 Homepage screenshots reuse the original simulator PNGs under `site/assets/screens/`. The surrounding player shapes are CSS illustrations. All visible features describe completed capabilities; plans and unfinished integrations stay outside the public feature copy.
 
 When changing the product or affiliate ID, update every placement and verify the destination model on Amazon.
+
+
+## Awin purchase links
+
+Doublesharp’s Awin publisher ID is `3152908`. Network account activation and advertiser-program approval are separate. Add a retailer to the public site after its program appears under Joined and the product’s eligibility is confirmed.
+
+| Advertiser | Awin merchant ID | Full-size ECHO destination |
+| --- | --- | --- |
+| Advanced MP3 Players / AMP3 | `361` | `https://www.advancedmp3players.co.uk/products/fiio-snowsky-echo-portable-hi-res-lossless-music-player` |
+| AliExpress US | `6378` | `https://www.aliexpress.us/item/3256811599037316.html` |
+
+FiiO’s ECHO launch announcement links to the AliExpress destination above. Confirm that regional destination and the exact item in Awin’s Link Builder before publishing an AliExpress link.
+
+Awin deep links use `https://www.awin1.com/cread.php` with `awinmid` for the merchant, `awinaffid=3152908`, an optional placement-specific `clickref`, and a URL-encoded product destination in `ued`. Use the approved advertiser’s Link Builder output for the final public link. Keep links labelled by retailer, use `rel="sponsored nofollow"`, and retain one concise disclosure per page covering all purchase links.
+
+References: [Awin deep-link format](https://success.awin.com/articles/en_US/Knowledge/What-is-deep-linking-and-why-should-I-use-this), [advertiser enrollment](https://success.awin.com/s/article/How-do-I-join-an-advertiser-programme?language=en_US), [AMP3 program](https://ui.awin.com/merchant-profile/361), [AliExpress US program](https://ui.awin.com/merchant-profile/6378), [FiiO ECHO listing](https://www.fiio.com/newsinfo/1120734.html).
