@@ -267,15 +267,17 @@ class Machine:
         self.watchdog = devices.Watchdog(self)
         self.emmc_controller = DwMmc(self, self.card)
         self.sd_controller = DwMmc(self, None)
+        self.grf = devices.Grf(self)
+        self.rtc_bus = devices.RtcBus(self)
         mapping = [
             (self.gpio[0], 0x40160000, PAGE), (self.gpio[1], 0x40170000, PAGE),
-            (self.gpio[2], 0x50030000, PAGE), (devices.Grf(self), 0x50010000, PAGE),
+            (self.gpio[2], 0x50030000, PAGE), (self.grf, 0x50010000, PAGE),
             (self.pmu, 0x50020000, PAGE), (self.cru, 0x40180000, PAGE),
             (devices.Pwm(self), 0x400F0000, PAGE), (devices.SarAdc(self), 0x400D0000, PAGE),
             (self.watchdog, 0x40120000, PAGE), (self.systick, 0xE000E000, PAGE),
             (self.vop, 0x60070000, PAGE), (devices.Dmac(), 0x60000000, PAGE),
             (self.usb, 0x60080000, 0x10000), (self.emmc_controller, 0x60030000, PAGE),
-            (self.sd_controller, 0x60020000, PAGE),
+            (self.sd_controller, 0x60020000, PAGE), (self.rtc_bus, 0x40050000, PAGE),
         ]
         for device, base, size in mapping:
             self.map_device(device, base, size)

@@ -16,9 +16,14 @@ BUILD13 = "013b67f"
 BUILD14 = "e3aa3955"
 
 
+EXTENSION = bytes([0x02, 30, 40, 0, 0x01, 0x23, 0x45, 0x67, 0x08, 0x11, 0x01, 0, 0, 0, 0, 0])
+SETTINGS_SOURCES = ("firmware/src/settings/settings.c", "firmware/src/settings/include/settings/settings.h")
+
+
 def checked(data):
     data = bytearray(data)
-    struct.pack_into("<I", data, 38, echo_language.pack_tools(echo_debug.ROOT).fnv(data[:38]))
+    field = 54 if data[4] >= 15 else 38
+    struct.pack_into("<I", data, field, echo_language.pack_tools(echo_debug.ROOT).fnv(data[:field]))
     return bytes(data)
 
 
@@ -29,8 +34,19 @@ def saved_settings(version=13, flags=0, language="en"):
     data[19:19 + len(language)] = language.encode("ascii")
     data[24:28] = bytes([1, 0, 0, 1])
     data[28:38] = bytes([20] * 10)
-    data[42:] = bytes(index % 251 for index in range(len(data) - 42))
+    tail = 58 if version >= 15 else 42
+    if version >= 15:
+        data[38:54] = EXTENSION
+    data[tail:] = bytes(index % 251 for index in range(len(data) - tail))
     return checked(data)
+
+
+def current_settings_source():
+    original = echo_language.Snapshot.show
+    sources = {path: (echo_debug.ROOT / path).read_text() for path in SETTINGS_SOURCES}
+    def show(snapshot, path):
+        return sources[path] if path in sources else original(snapshot, path)
+    return mock.patch.object(echo_language.Snapshot, "show", show)
 
 
 class CompanionSettings(VolumeCase):
@@ -276,6 +292,82 @@ class CompanionSettings(VolumeCase):
         self.assertEqual(result["value"], "off")
         self.assertEqual(self.path.read_bytes()[5], 2)
 
+
+    def use_version15(self):
+        self.build, self.version = BUILD14, 15
+        self.install_fixture(flags=4)
+        patcher = current_settings_source()
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_version15_settings_change_preserves_the_extension_block_and_moves_the_checksum(self):
+        self.use_version15()
+        before = self.path.read_bytes()
+        tool, _ = self.tool(self.change(24, 2))
+        self.assertEqual(tool.settings_list()["settings_version"], 15)
+        result = tool.settings_set("text_size", "large")
+        self.assertTrue(result["ok"] and result["changed"] and result["verified"])
+        after = self.path.read_bytes()
+        expected = bytearray(before)
+        expected[24] = 2
+        self.assertEqual(after, checked(expected))
+        self.assertEqual(after[38:54], EXTENSION)
+        self.assertEqual(after[58:], before[58:])
+        self.assertNotEqual(after[54:58], before[54:58])
+
+    def test_version15_replay_gain_change_keeps_the_extension_block(self):
+        self.use_version15()
+        tool, _ = self.tool(self.change(5, 6))
+        self.assertEqual(tool.settings_set("replay_gain", "album")["value"], "album")
+        data = self.path.read_bytes()
+        self.assertEqual((data[5], data[38:54]), (6, EXTENSION))
+
+    def test_version15_extension_values_the_firmware_rejects_are_refused_before_writes(self):
+        self.use_version15()
+        cases = ((38, 0x18), (38, 0x20), (39, 61), (40, 4), (40, 61), (41, 1), (42, 0x00),
+                 (46, 0x18), (47, 0x08), (48, 0x02), (49, 1), (53, 0x80))
+        for offset, value in cases:
+            with self.subTest(offset=offset, value=value):
+                data = bytearray(saved_settings(15, 4))
+                data[offset] = value
+                self.path.write_bytes(checked(data))
+                tool, host = self.tool()
+                with self.assertRaises(echo_debug.DebugError) as refused:
+                    tool.settings_set("text_size", "large")
+                self.assertIn(refused.exception.code, ("settings_invalid", "language_settings_invalid"))
+                self.assert_no_write(host)
+
+    def test_version15_checksum_covers_the_extension_block(self):
+        self.use_version15()
+        data = bytearray(self.path.read_bytes())
+        data[53] ^= 1
+        self.path.write_bytes(data)
+        tool, host = self.tool()
+        with self.assertRaises(echo_debug.DebugError) as refused:
+            tool.settings_list()
+        self.assertIn(refused.exception.code, ("settings_invalid", "language_settings_invalid"))
+        self.assert_no_write(host)
+
+    def test_a_version14_file_under_version15_firmware_requires_a_player_save(self):
+        self.use_version15()
+        self.path.write_bytes(saved_settings(14, 4))
+        tool, host = self.tool()
+        with self.assertRaises(echo_debug.DebugError) as refused:
+            tool.settings_set("text_size", "large")
+        self.assertEqual(refused.exception.code, "settings_migration_required")
+        self.assert_no_write(host)
+
+    def test_a_changed_extension_layout_is_refused(self):
+        self.use_version15()
+        original = echo_language.Snapshot.show
+        def show(snapshot, path):
+            text = original(snapshot, path)
+            return text.replace("EXTENSION_CHECKSUM_FIELD = 54", "EXTENSION_CHECKSUM_FIELD = 55")
+        tool, host = self.tool()
+        with mock.patch.object(echo_language.Snapshot, "show", show):
+            with self.assertRaises(echo_debug.DebugError):
+                tool.settings_list()
+        self.assert_no_write(host)
 
     def test_changed_option_metadata_is_refused_before_writes(self):
         original = echo_language.Snapshot.show

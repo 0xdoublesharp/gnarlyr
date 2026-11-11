@@ -224,6 +224,26 @@ static void probe(const DebugOp *op, uint32_t now_ms)
     debug_runner_set_status(result.allowed ? DEBUG_LINE_OK : DEBUG_LINE_REFUSED);
 }
 
+_Static_assert((int)DEBUG_RTC_REGISTERS == (int)HAL_RTC_REGISTERS,
+               "a read keeps every register the board gives");
+
+static void read_rtc(uint32_t now_ms)
+{
+    DebugScriptRun *run = &debug_runner.run;
+    if (run->rtc_count == DEBUG_SCRIPT_RTC_READS) {
+        debug_runner_set_status(DEBUG_LINE_FAILED);
+        return;
+    }
+    HalRtcRead result = hal_system_rtc_read();
+    DebugRtcRead *read = &run->rtc[run->rtc_count++];
+    *read = (DebugRtcRead){
+        .line = debug_runner.line, .status = (uint8_t)result.status, .time_ms = now_ms};
+    for (uint32_t index = 0; index < DEBUG_RTC_REGISTERS; index++) {
+        read->registers[index] = result.registers[index];
+    }
+    debug_runner_set_status(result.status == HAL_RTC_OK ? DEBUG_LINE_OK : DEBUG_LINE_FAILED);
+}
+
 static DebugRequest run_op(const DebugOp *op, uint32_t now_ms)
 {
     switch (op->kind) {
@@ -265,6 +285,9 @@ static DebugRequest run_op(const DebugOp *op, uint32_t now_ms)
         return (DebugRequest){.kind = DEBUG_REQUEST_SCREEN, .slot = op->first};
     case DEBUG_OP_SOAK:
         begin_soak(now_ms, op->first);
+        break;
+    case DEBUG_OP_RTC:
+        read_rtc(now_ms);
         break;
     default:
         probe(op, now_ms);

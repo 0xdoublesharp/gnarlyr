@@ -44,6 +44,14 @@ LOADER_FLAG_REGISTER = 0x4C
 LOADER_SELECT_REGISTER = 0xC4
 LOADER_SELECT_VALUE = 0x01000000
 PWM_PERIOD = 0x04
+MOTION_MAX_SIDE = 104
+MOTION_FRAME_MS = 72
+MOTION_SETTLE_MS = 1000
+MOTION_MEASURE_MS = 3000
+MOTION_LOAD_LIMIT_PERCENT = 8
+STORE_WORKING = 1
+HOME_LISTENING_ROW = 5
+LISTENING_EXPORT_ROW = 4
 PWM_CONTROL = 0x0C
 PWM_RUN = 0x10003
 GPIO_DATA = 0x00
@@ -1195,6 +1203,44 @@ class EchoImageTest(unittest.TestCase):
         for probe in probes:
             print("  %s" % probe)
 
+    def i2c1_state(self, machine):
+        return (machine.grf.regs.get(0x44, 0) >> 8 & 0xF, machine.grf.regs.get(0xBC, 0) >> 2 & 3,
+                machine.cru.regs.get(0xA0, 0) >> 4 & 1, machine.cru.regs.get(0xC4, 0) >> 11 & 1)
+
+    def test_an_rtc_read_opens_i2c1_only_for_its_line_reads_without_writing_and_restores_the_bus(self):
+        script = ("build %s\nrtc read\nreconnect\n" % self.build_tag()).encode("ascii")
+        session, machine = self.ejecting_session(self.debug_volume(run_txt=script))
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(machine.rtc_bus.frames, [])
+        before = self.i2c1_state(machine)
+        self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        read = self.read_report(session)["script"]["rtc"]
+        self.assertEqual(read, [{"line": 2, "ms": read[0]["ms"], "status": "ok",
+                                 "registers": list(machine.rtc_bus.registers), "vl": 0,
+                                 "time": "2026-01-03T12:00:05", "weekday": 6, "century": 0}])
+        self.assertEqual(machine.rtc_bus.frames, [("write", bytes([0xA2, 0x00])), ("read", 0xA3, 16)])
+        self.assertEqual(self.i2c1_state(machine), before)
+        self.assertIn(("grf", 0xBC, 0x000C0008), machine.register_log)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def test_an_rtc_read_without_an_answer_reports_no_ack_and_restores_the_bus(self):
+        script = ("build %s\nrtc read\nreconnect\n" % self.build_tag()).encode("ascii")
+        session, machine = self.ejecting_session(self.debug_volume(run_txt=script))
+        machine.rtc_bus.present = False
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        before = self.i2c1_state(machine)
+        self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        report = self.read_report(session)
+        self.assertEqual([(read["status"], read["registers"]) for read in report["script"]["rtc"]],
+                         [("no_ack", None)])
+        self.assertEqual(report["script"]["lines"][1]["status"], "failed")
+        self.assertEqual(machine.rtc_bus.frames, [("write", bytes([0xA2, 0x00]))])
+        self.assertEqual(self.i2c1_state(machine), before)
+        self.assert_healthy(session)
+
     def test_without_a_script_an_ejected_session_changes_nothing_and_does_not_reconnect(self):
         session, machine = self.ejecting_session(self.debug_volume())
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
@@ -1213,7 +1259,8 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(report["values"]["script.state"], "none")
         self.assertEqual(report["values"]["usb.last_end"], "ejected")
         self.assertEqual(report["script"],
-                         {"lines": [], "measures": [], "screenshots": [], "probes": [], "soaks": []})
+                         {"lines": [], "measures": [], "screenshots": [], "probes": [], "soaks": [],
+                          "rtc": []})
         self.assertEqual(session.fat().list("/" + DEBUG_FOLDER), ["report0.txt"])
         self.assertEqual(machine.reached["debug_script_take"], 2)
         self.assert_only_the_user_volume_changed(session)
@@ -1772,7 +1819,7 @@ class EchoImageTest(unittest.TestCase):
         volume = Fat32Volume()
         volume.add_file("Speech.wav", b"RIFF" + struct.pack("<I", len(body)) + body)
         volume.add_directory(IDENTITY.data_directory)
-        settings = bytearray(42)
+        settings = bytearray(4096)
         settings[:6] = b"DSST" + bytes((14, mode | (4 if clipping else 0)))
         settings[6:9] = bytes((7, 2, 0))
         settings[13], settings[14], settings[16] = 60, 2, 35
@@ -1782,7 +1829,7 @@ class EchoImageTest(unittest.TestCase):
         checksum = FNV_START
         for value in settings[:38]:
             checksum = (checksum ^ value) * FNV_PRIME & 0xFFFFFFFF
-        settings[38:] = struct.pack("<I", checksum)
+        settings[38:42] = struct.pack("<I", checksum)
         volume.add_file("settings.bin", bytes(settings), directory=IDENTITY.data_directory)
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                    volume=volume, module_elfs=self.module_elfs), pattern
@@ -1821,8 +1868,8 @@ class EchoImageTest(unittest.TestCase):
             IDENTITY.data_directory).children if child.name == "settings.bin")
         sector = (rig.session.layout["volume_start"] + rig.session.volume.data_start
                   + (node.first - 2) * rig.session.volume.sectors_per_cluster)
-        saved = rig.session.disk.read(sector, 1)[:42]
-        self.assertEqual(14, saved[4])
+        saved = rig.session.disk.read(sector, 1)[:58]
+        self.assertEqual(15, saved[4])
         self.assertEqual(1, saved[5])
         self.assertEqual([], rig.audio.underruns(started))
         self.assertEqual(0, rig.audio.output_underruns())
@@ -2107,6 +2154,77 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(wanted, got)
         self.assertLess(share, 0.2)
         self.assert_healthy(rig.session)
+    def idle_counter(self, machine):
+        idle = [0]
+
+        def rest(machine):
+            before = machine.microseconds()
+            machine.idle_until_interrupt()
+            idle[0] += machine.microseconds() - before
+            machine.uc.emu_stop()
+
+        machine.stub_symbol("board_profile_wait", rest)
+        return idle
+
+    def busy_percent(self, rig, idle, milliseconds):
+        machine = rig.machine
+        started_us, idle_before = machine.microseconds(), idle[0]
+        rig.run_for(milliseconds)
+        elapsed = machine.microseconds() - started_us
+        return 100.0 * (1 - (idle[0] - idle_before) / elapsed)
+
+    def motion_windows(self, machine, since):
+        return [window for window in machine.panel.windows
+                if window.cycles >= since and window.width <= MOTION_MAX_SIDE
+                and window.width == window.height]
+
+    def open_endless_export(self, rig):
+        machine = rig.machine
+        machine.stub_symbol("listening_export_step", lambda machine: STORE_WORKING)
+        machine.note("listening_export_step")
+        rig.press("back", hold=1300)
+        rig.press_many("next", HOME_LISTENING_ROW)
+        rig.press("play")
+        rig.press_many("next", LISTENING_EXPORT_ROW)
+        rig.press("play")
+        rig.run_for(MOTION_SETTLE_MS)
+        self.assertGreater(machine.reached.get("listening_export_step", 0), 0)
+
+    def measure_motion_load(self, rig, label):
+        machine = rig.machine
+        idle = self.idle_counter(machine)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.open_endless_export(rig)
+        since = machine.cycles()
+        animated = self.busy_percent(rig, idle, MOTION_MEASURE_MS)
+        windows = self.motion_windows(machine, since)
+        self.assertGreaterEqual(len(windows), MOTION_MEASURE_MS * 12 // 1000)
+        self.assertLessEqual(len(windows), MOTION_MEASURE_MS * 15 // 1000 + 1)
+        machine.stub_symbol("wire_motion_due", lambda machine: 0)
+        rig.run_for(MOTION_FRAME_MS * 2)
+        since = machine.cycles()
+        still = self.busy_percent(rig, idle, MOTION_MEASURE_MS)
+        self.assertEqual([], self.motion_windows(machine, since))
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assert_healthy(rig.session)
+        print("\n[%s] core 0 busy with the motion %.1f %%, without it %.1f %%, rate %d Hz, "
+              "%d motion frames in %d ms" % (label, animated, still, rig.audio.rate, len(windows),
+                                              MOTION_MEASURE_MS))
+        return animated, still
+
+    def test_export_motion_leaves_core_0_room_while_44_khz_music_plays(self):
+        from echo_emulator.playback import Rig
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  module_elfs=self.module_elfs)
+        animated, still = self.measure_motion_load(rig, "export motion, 44.1 kHz FLAC")
+        self.assertLess(animated - still, MOTION_LOAD_LIMIT_PERCENT)
+
+    def test_export_motion_leaves_core_0_room_while_converted_music_plays(self):
+        rig = self.speech_rig(22050)
+        animated, still = self.measure_motion_load(rig, "export motion, 22.05 kHz WAV")
+        self.assertLess(animated - still, MOTION_LOAD_LIMIT_PERCENT)
 
     def test_speech_plays_through_the_independent_audio_module_while_a_menu_module_changes(self):
         rig = self.speech_rig()

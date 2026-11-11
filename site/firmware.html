@@ -1,6 +1,19 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" prefix="og: https://ogp.me/ns#">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#150f25"><meta name="description" content="Explore Gnarlyr’s music controls, library tools, sound features and firmware improvements."><meta property="og:title" content="More music. More your way. — Gnarlyr"><meta property="og:description" content="Explore Gnarlyr’s music controls, library tools, sound features and firmware improvements."><meta property="og:type" content="website"><meta property="og:url" content="https://gnarlyr.com/firmware.html"><link rel="canonical" href="https://gnarlyr.com/firmware.html"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="stylesheet" href="styles.css"><script src="site.js" defer></script><title>More music. More your way. — Gnarlyr</title>
+<meta property="og:site_name" content="Gnarlyr">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://gnarlyr.com/assets/social/features-65c097793dcf.png">
+<meta property="og:image:secure_url" content="https://gnarlyr.com/assets/social/features-65c097793dcf.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Gnarlyr cassette artwork beside the words “More music. More your way.”">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="More music. More your way. — Gnarlyr">
+<meta name="twitter:description" content="Explore Gnarlyr’s music controls, library tools, sound features and firmware improvements.">
+<meta name="twitter:image" content="https://gnarlyr.com/assets/social/features-65c097793dcf.png">
+<meta name="twitter:image:alt" content="Gnarlyr cassette artwork beside the words “More music. More your way.”">
 </head>
 <body>
   <svg class="icon-definitions" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -69,7 +82,6 @@
 <ul class="detail-list">
 <li id="gapless"><strong>Gapless playback.</strong> Play compatible, same-sample-rate tracks continuously. MP3 files need gapless information, such as a LAME tag, to trim the encoder’s extra samples. Gnarlyr’s decoder improvements also handle MP3 end trimming after seeking or resuming, and AAC startup trimming and track timing. <a href="#playback-fixes">Read about the playback improvements below.</a></li>
 <li><strong>Supported audio.</strong> Play FLAC, MP3 and WAV, with rates up to 192 kHz for compatible files, plus M4A and M4B containing AAC-LC or Apple Lossless.</li>
-<li><strong>Ogg audio in development.</strong> The current source connects Vorbis and Opus to file opening, seeking and resume. <a href="build.html#codecs">See the audio guide for format limits and player checks.</a></li>
 <li><strong>Playlists and album images.</strong> M3U/M3U8 playlists, album favorites, a Favorite Tracks playlist, and CUE sheets that split a single FLAC, WAV or MP3 album into separate tracks.
 </li>
 <li><strong>Shuffle, repeat and resume.</strong> Shuffle songs or whole albums, repeat your selection, seek within a track and resume playback. Audiobooks and podcasts keep their own bookmarks.</li>
@@ -213,7 +225,11 @@
 <li><strong>Room for features.</strong> Screens, library work and USB modules load into fixed memory regions when needed. The main playback code stays loaded.
 </li>
 </ul><div class="route-links"><a class="text-link" href="install.html">Install and update →</a><a class="text-link" href="build.html">Developer tools &amp; migration →</a></div>
-</section></div></div>
+</section><aside class="purchase-card" id="buy-echo" aria-labelledby="buy-echo-title">
+<div class="purchase-copy"><h3 id="buy-echo-title">Need an ECHO?</h3><p>The full-size Snowsky ECHO is the player behind Gnarlyr. Firmware is installed separately; our <a href="install.html">installation guide</a> walks through setup.</p></div>
+<a class="button purchase-button" href="https://www.amazon.com/dp/B0GK61Y1FD?tag=doublesharp-20" rel="sponsored nofollow" aria-describedby="affiliate-disclosure">View ECHO on Amazon <span aria-hidden="true">↗</span></a>
+<p class="affiliate-disclosure" id="affiliate-disclosure">Affiliate link. As an Amazon Associate I earn from qualifying purchases.</p>
+</aside></div></div>
 </main><div class="outro wrap">
 <p class="outro-phrase">Stay offline. Get a little gnarly.
 </p>

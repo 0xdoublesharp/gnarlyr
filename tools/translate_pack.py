@@ -2,6 +2,7 @@
 """Translate a firmware language catalogue with a local Ollama server."""
 import argparse
 import collections
+import hashlib
 import re
 import sys
 import urllib.error
@@ -42,6 +43,8 @@ def read_context(path):
 
 
 def make_prompt(text, language, key, section):
+    if not PLACEHOLDER.search(text):
+        section = section.split('.')[0]
     return (f"You are a professional English (en) to {language} translator. "
             f"Translate a short interface label for a portable music player. "
             f"The label identifier is {key}. Section note: {section}. "
@@ -72,6 +75,23 @@ def build_pack(source, language, translate):
     return entries
 
 
+def translate_entry(text, language, key, translate):
+    errors = []
+    for attempt in range(3):
+        feedback = ', '.join(errors)
+        value = '\\n'.join(translate(part, language, key, feedback).strip() for part in text.split('\\n'))
+        errors = validate(text, value)
+        if not errors:
+            return value
+        print(f'{key}: attempt {attempt + 1}/3: {", ".join(errors)}', file=sys.stderr, flush=True)
+    raise ValueError(f'{key}: {", ".join(errors)}')
+
+
+def checkpoint_token(source, language, model):
+    data = json.dumps([source, language, model], ensure_ascii=False, separators=(',', ':'))
+    return hashlib.sha256(data.encode('utf-8')).hexdigest()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--input', type=Path, default=Path('firmware/assets/lang/en.txt'))
@@ -84,6 +104,9 @@ def main():
     try:
         source = read_catalogue(args.input)
         context = read_context(args.input)
+        token = checkpoint_token(source, args.language, args.model)
+        if args.resume and args.output.read_text(encoding='utf-8').splitlines()[0] != f'# checkpoint: {token}':
+            raise ValueError('checkpoint does not match source, language, or model')
         completed = read_catalogue(args.output) if args.resume else []
         if completed and [key for key, _ in completed] != [key for key, _ in source[:len(completed)]]:
             raise ValueError('partial catalog keys do not match input')
@@ -102,19 +125,10 @@ def main():
                 return json.load(response)['response']
         with args.output.open('a' if args.resume else 'x', encoding='utf-8') as output:
             if not args.resume:
-                output.write('# Machine translated; review all entries before release.\n')
+                output.write(f'# checkpoint: {token}\n# Machine translated; review all entries before release.\n')
             for index, (key, text) in enumerate(source[len(completed):], len(completed) + 1):
                 print(f'{index}/{len(source)} {key}', flush=True)
-                errors = []
-                for attempt in range(3):
-                    feedback = ', '.join(errors)
-                    value = '\\n'.join(translate(part, args.language, key, feedback).strip() for part in text.split('\\n'))
-                    errors = validate(text, value)
-                    if not errors:
-                        break
-                    print(f'{key}: retry {attempt + 1}/3: {feedback or ", ".join(errors)}', flush=True)
-                if errors:
-                    raise ValueError(f'{key}: {chr(44).join(errors)}')
+                value = translate_entry(text, args.language, key, translate)
                 output.write(f'{key} = {value}\n')
                 output.flush()
     except (OSError, ValueError, KeyError, TypeError, urllib.error.URLError) as exc:

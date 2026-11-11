@@ -6,6 +6,10 @@ The static Gnarlyr.com firmware site lives in [`site/`](site/README.md). Open `s
 
 Gnarlyr builds on [Podium](https://podium-echo.online) and, through it, on [EchoPod](https://github.com/BasilSkyWalk/echopod). Both are GPL-3.0-or-later; credits and provenance are in [`firmware/CREDITS.md`](firmware/CREDITS.md) and [`firmware/UPSTREAM.md`](firmware/UPSTREAM.md). Snowsky, FiiO and Echo are names of their owners; this project is not made, endorsed or supported by FiiO.
 
+## Help translate Gnarlyr
+
+Some language pack drafts are generated with AI and may contain mistakes or awkward wording. If you speak another language, please help translate the interface or submit corrections as an issue or pull request. Include the English text and the suggested translation so we can find the right string. The source catalog and pack format are described in [the language documentation](firmware/docs/architecture.md#languages).
+
 ## Layout
 
 | Path | Contents |

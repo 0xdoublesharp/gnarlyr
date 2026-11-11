@@ -47,8 +47,7 @@ static Recording render_with_paint(Rect rect_to_paint)
     recording = (Recording){.rect_to_paint = rect_to_paint};
     StripRenderer renderer = {
         .strip_pixels = strip_pixels,
-        .screen_width = SCREEN_WIDTH,
-        .screen_height = SCREEN_HEIGHT,
+        .area = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT},
         .strip_height = STRIP_HEIGHT,
         .background = BACKGROUND,
     };
@@ -109,8 +108,7 @@ static void a_drawer_that_paints_everything_skips_the_clear(void)
     }
     StripRenderer renderer = {
         .strip_pixels = strip_pixels,
-        .screen_width = SCREEN_WIDTH,
-        .screen_height = SCREEN_HEIGHT,
+        .area = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT},
         .strip_height = STRIP_HEIGHT,
         .background = BACKGROUND,
         .drawer_paints_everything = true,
@@ -122,6 +120,27 @@ static void a_drawer_that_paints_everything_skips_the_clear(void)
     CHECK_EQUAL(LEFTOVER, recording.frame[4][5]);
 }
 
+static void an_area_is_drawn_and_written_as_its_own_strips(void)
+{
+    static Recording recording;
+    recording = (Recording){.rect_to_paint = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT}};
+    StripRenderer renderer = {
+        .strip_pixels = strip_pixels,
+        .area = {2, 1, 3, 4},
+        .strip_height = (SCREEN_WIDTH * STRIP_HEIGHT) / 3,
+        .background = BACKGROUND,
+    };
+    FrameDrawer drawer = {.draw = record_draw, .context = &recording};
+    FrameSink sink = {.write = record_write, .context = &recording};
+    strip_renderer_render(&renderer, drawer, sink);
+    CHECK_EQUAL(1, recording.draw_count);
+    check_rect((Rect){2, 1, 3, 4}, recording.drawn_bounds[0]);
+    check_rect((Rect){2, 1, 3, 4}, recording.written_areas[0]);
+    CHECK_EQUAL(PAINT, recording.frame[1][2]);
+    CHECK_EQUAL(0, recording.frame[0][0]);
+    CHECK_EQUAL(0, recording.frame[1][5]);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -129,6 +148,7 @@ int main(void)
         TEST_CASE(strips_start_from_the_background_color),
         TEST_CASE(a_rect_spanning_strips_appears_whole),
         TEST_CASE(a_drawer_that_paints_everything_skips_the_clear),
+        TEST_CASE(an_area_is_drawn_and_written_as_its_own_strips),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

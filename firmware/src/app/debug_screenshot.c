@@ -33,8 +33,8 @@ static void fill_header(const DebugScreenshot *shot, uint8_t *header)
     header[3] = 'H';
     header[4] = DEBUG_SCREENSHOT_VERSION;
     header[5] = DEBUG_SCREENSHOT_RGB565;
-    put16(header + 6, (uint32_t)shot->renderer.screen_width);
-    put16(header + 8, (uint32_t)shot->renderer.screen_height);
+    put16(header + 6, (uint32_t)shot->renderer.area.width);
+    put16(header + 8, (uint32_t)shot->renderer.area.height);
     put16(header + 10, DEBUG_SCREENSHOT_HEADER_BYTES);
     put16(header + 12, now_ms);
     put16(header + 14, now_ms >> 16);
@@ -56,8 +56,7 @@ static void write_strip(void *context, Rect area, const Color *pixels)
 
 static bool reserved(const DebugScreenshot *shot, const char *path)
 {
-    uint32_t pixels =
-        (uint32_t)shot->renderer.screen_width * (uint32_t)shot->renderer.screen_height;
+    uint32_t pixels = (uint32_t)shot->renderer.area.width * (uint32_t)shot->renderer.area.height;
     uint32_t size = DEBUG_SCREENSHOT_HEADER_BYTES + pixels * (uint32_t)sizeof(Color);
     HalReserveResult result = hal_internal_file_reserve(path, size);
     return result == HAL_RESERVE_EXISTS || result == HAL_RESERVE_CREATED;
