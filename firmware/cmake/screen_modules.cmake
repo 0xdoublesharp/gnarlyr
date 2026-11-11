@@ -94,6 +94,7 @@ else()
         src/app/debug_screenshot.c
         platform/device/board/debug_poke.c
         platform/device/board/debug_rtc.c
+        platform/device/logic/rtc_time.c
         src/core/calendar.c
     )
 endif()
