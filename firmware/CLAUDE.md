@@ -74,7 +74,7 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 |---|---|---|---|
 | Code window | 148,620 | 157,292 | 8,672 |
 | Static RAM | 264,116 | 278,528 | 14,412 |
-| Rescan overlay | 88,468 | 98,304 | 9,836 |
+| Rescan overlay | 91,612 | 98,304 | 6,692 |
 | USB overlay code | 11,484 | 65,536 | 54,052 |
 | Module views (code + BSS) | 17,952 | 56,320 | 38,368 |
 | Module settings (code + BSS) | 14,412 | 56,320 | 41,908 |

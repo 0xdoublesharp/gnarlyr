@@ -153,9 +153,21 @@ static void offer_attribute(TagReader *reader, const Attribute *attribute)
         return;
     }
     int field = field_for(attribute->name);
+    ReplayGainField gain = replay_gain_field(attribute->name, length_of(attribute->name));
     uint8_t value[VALUE_CAPACITY];
     uint32_t wanted = attribute->length < VALUE_CAPACITY ? attribute->length : VALUE_CAPACITY;
-    if (field < 0 || !tag_read(reader, attribute->offset, value, wanted)) {
+    if ((field < 0 && gain == REPLAY_GAIN_NO_FIELD) ||
+        (gain != REPLAY_GAIN_NO_FIELD && attribute->length > sizeof value) ||
+        !tag_read(reader, attribute->offset, value, wanted)) {
+        return;
+    }
+    if (gain != REPLAY_GAIN_NO_FIELD) {
+        if (attribute->type == TYPE_STRING && (wanted & 1u) == 0) {
+            char text[REPLAY_GAIN_TEXT_CAPACITY];
+            if (tag_decode_gain_text(text, value, wanted, TAG_UTF16LE)) {
+                tag_offer_replay_gain(reader, gain, text);
+            }
+        }
         return;
     }
     if (attribute->type == TYPE_STRING) {
