@@ -16,6 +16,7 @@ class EchoImageTest(EchoImageHarness):
         audio = AudioPath(machine)
         host = UsbAudioHost(machine, rate, width, high)
         host.enumerate()
+        serviced = machine.trace("usb_audio_hid_tick")
         from unicorn.arm_const import UC_ARM_REG_LR
         completed = set()
         self.write_complete = True
@@ -42,6 +43,8 @@ class EchoImageTest(EchoImageHarness):
         self.press(machine, KEY_PLAY)
         self.assertEqual(machine.run(until=lambda: audio.running,
                                      until_ms=machine.milliseconds() + 3000), "condition met")
+        self.assertEqual(machine.run(until=lambda: serviced and serviced[-1] >= audio.started_us / 1000,
+                                     until_ms=machine.milliseconds() + 2000), "condition met")
         return session, audio, host
 
     def stream_rate(self, rate):
@@ -56,7 +59,7 @@ class EchoImageTest(EchoImageHarness):
                                      until_ms=machine.milliseconds() + 5), "condition met")
         sink = machine.overlays[0].symbols["sink"]
         written = struct.unpack("<I", machine.read_memory(sink + 8, 4))[0]
-        stats = struct.unpack("<6I", machine.read_memory(sink + 60, 24))
+        stats = struct.unpack("<6I", machine.read_memory(sink + 24, 24))
         self.assertEqual(stats[1:], (0, 0, 0, 0, 0))
         self.assertEqual(host.missed, 0)
         self.assertGreater(written, rate // 3)
@@ -102,6 +105,17 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(audio.rate, 48000)
         self.assertGreater(len(host.expected), 4800)
         self.assertEqual(host.feedback, [])
+        self.assert_healthy(session)
+
+    def test_usb_audio_stops_at_an_empty_ring_and_reprimes_on_return(self):
+        session, audio, host = self.dac_session(192000)
+        machine = session.machine
+        host.pause_until = machine.microseconds() + 20000
+        self.assertEqual(machine.run(until=lambda: not audio.running,
+                                     until_ms=machine.milliseconds() + 12), "condition met")
+        self.assertEqual(machine.run(until=lambda: audio.running,
+                                     until_ms=machine.milliseconds() + 30), "condition met")
+        self.assertEqual(audio.output_underruns(), 0)
         self.assert_healthy(session)
 
     def test_usb_audio_remote_keys_emit_consumer_press_and_release(self):

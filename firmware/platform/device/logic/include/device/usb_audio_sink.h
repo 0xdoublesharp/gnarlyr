@@ -22,6 +22,7 @@ typedef struct UsbAudioSink {
     uint32_t cleared;
     uint32_t target;
     uint32_t guard;
+    UsbAudioSinkStats stats;
     uint8_t sample_bytes;
     bool playing;
     bool asynchronous;
@@ -31,7 +32,6 @@ typedef struct UsbAudioSink {
     uint16_t feedback_tick;
     bool feedback_started;
     StreamDrift drift;
-    UsbAudioSinkStats stats;
     HeadphoneAudio headphones;
 } UsbAudioSink;
 

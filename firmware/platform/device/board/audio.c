@@ -968,7 +968,10 @@ bool board_audio_stream_play(void)
 void board_audio_stream_pause(void)
 {
     clear_ring();
-    stop_transfer();
+    dac_path_stream_quiet();
+    dac_path_stop_transfer();
+    dmac_stop();
+    transferring = false;
 }
 
 uint32_t board_audio_stream_consumed(void)

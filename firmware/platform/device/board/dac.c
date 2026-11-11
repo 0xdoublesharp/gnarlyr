@@ -542,6 +542,13 @@ void dac_path_set_muted(bool mute)
     fade_to(target);
 }
 
+void dac_path_stream_quiet(void)
+{
+    muted = true;
+    applied_volume = DAC_VOLUME_MUTED;
+    dac_set_muted(&BUS, true, DAC_VOLUME_MUTED);
+}
+
 void dac_path_fade_out(void)
 {
     muted = true;

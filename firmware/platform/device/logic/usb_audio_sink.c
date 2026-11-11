@@ -1,5 +1,10 @@
 #include "device/usb_audio_sink.h"
 
+#include <stddef.h>
+
+_Static_assert(offsetof(UsbAudioSink, stats) == sizeof(uint32_t *) + 5 * sizeof(uint32_t),
+               "the emulator reads sink statistics before optional state");
+
 enum {
     TARGET_DIVISOR = 50,
     WINDOW_DIVISOR = 250,

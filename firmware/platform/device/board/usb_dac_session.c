@@ -150,7 +150,9 @@ static void follow_host(void)
 
 static void keep_output(void)
 {
-    if (playing && hal_clock_milliseconds() - last_packet_ms > STREAM_IDLE_MS) {
+    bool empty = playing && sink.asynchronous &&
+                 (int32_t)(sink.written - board_audio_stream_consumed()) <= 0;
+    if (playing && (empty || hal_clock_milliseconds() - last_packet_ms > STREAM_IDLE_MS)) {
         stop_output();
     } else {
         start_output();
