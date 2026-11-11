@@ -110,6 +110,7 @@ typedef struct AppState {
     SettingsStore settings;
     HeadphoneStore headphones;
     Theme theme;
+    ThemeRuntime themes;
     Orientation shown_orientation;
     bool rocker_swapped[KEY_COUNT];
     FavoritesStore favorites;
@@ -649,6 +650,9 @@ static Screen *next_top(ScreenAction action)
 static bool apply_action(ScreenAction action, uint32_t now_ms)
 {
     Screen *next = next_top(action);
+    if (app.themes.previewing && action.type != SCREEN_ACTION_NONE) {
+        screen_modules_cancel_previews(&app.screens);
+    }
     if (top_screen() == &app.screens.modules.settings.settings.choice.screen &&
         (action.type == SCREEN_ACTION_POP || action.type == SCREEN_ACTION_POP_TO_ROOT ||
          (next != NULL && next != top_screen()))) {
@@ -983,6 +987,7 @@ static bool draw_running_fade(Canvas *canvas)
         return true;
     }
     if (!fade_finished(&app.splash, app.now_ms)) {
+        theme_art_draw(board_theme(), canvas, THEME_ART_SPLASH, whole_screen());
         draw_fade(canvas, &app.splash, board_splash_text(board_theme()));
         return true;
     }
@@ -1266,8 +1271,12 @@ static void follow_appearance(void)
     if (shown->orientation != app.shown_orientation) {
         apply_orientation(shown->orientation);
     }
-    default_theme_set_appearance(&app.theme, shown->appearance);
+    AppearanceTheme appearance = app.themes.stored || app.themes.previewing
+                                     ? (AppearanceTheme)app.themes.shown_base
+                                     : shown->appearance;
+    default_theme_set_appearance(&app.theme, appearance);
     default_theme_set_accent(&app.theme, shown->accent);
+    theme_runtime_apply(&app.themes, &app.theme);
     notice_theme.colors = app.theme.colors;
     notice_theme.horizon = app.theme.horizon;
     notice_theme.header_rule = app.theme.header_rule;
@@ -1297,6 +1306,7 @@ static void build_screens(uint32_t now_ms)
         .options = &app.options,
         .theme = board_theme(),
         .styled_theme = &app.theme,
+        .themes = &app.themes,
         .compact_theme = &compact_theme,
         .store = &app.library,
         .player = &app.player,
@@ -1392,6 +1402,16 @@ static void start_app(bool power_on)
     language_load(app.settings.settings.language);
     headphone_store_load(&app.headphones);
     app.theme = BOARD_THEME;
+    theme_runtime_close(&app.themes);
+    app.themes = (ThemeRuntime){.file = {.handle = -1}};
+    uint8_t selection;
+    if (hal_internal_file_read(THEME_SELECTION_PATH, &selection, 1)) {
+        const ListeningModuleEntry *themes = hal_system_load_module(SCREEN_MODULE_LISTENING);
+        if (themes != NULL &&
+            themes->module.magic == SCREEN_MODULE_MAGIC(SCREEN_MODULE_LISTENING)) {
+            themes->theme_boot(&app.themes);
+        }
+    }
     app.screens.bound_modules = 0;
     apply_orientation(app.settings.settings.orientation);
     follow_appearance();

@@ -30,6 +30,7 @@
 #include "settings/settings.h"
 #include "settings_screens.h"
 #include "settings_store.h"
+#include "theme_picker.h"
 #include "ui/menu_screen.h"
 #include "ui/message_screen.h"
 #include "ui/toast.h"
@@ -95,6 +96,7 @@ typedef struct AppScreensContext {
     const LibraryStore *store;
     Player *player;
     SettingsStore *settings;
+    ThemeRuntime *themes;
     HeadphoneStore *headphones;
     FavoritesStore *favorites;
     PowerPolicy *power;
@@ -126,6 +128,7 @@ typedef struct SettingsModuleScreens {
 } SettingsModuleScreens;
 
 typedef struct ProfileModuleScreens {
+    ThemePicker themes;
     ListeningScreen listening;
     LyricsScreen lyrics;
     SmartListScreen smart_lists;

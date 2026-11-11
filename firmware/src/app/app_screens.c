@@ -361,6 +361,7 @@ static void build_home(AppScreens *screens, AppScreensContext context)
                                  .draw = home_art_draw,
                                  .context = &screens->home_art}};
     menu_screen_init(&screens->home, home);
+    screens->home.list.background = THEME_ART_HOME;
 }
 
 Screen *app_screens_init(AppScreens *screens, AppScreensContext context)

@@ -9,6 +9,7 @@
 #include "playback/listening_export.h"
 #include "playback/listening_stats.h"
 #include "screens/smart_list_work.h"
+#include "theme_picker.h"
 
 enum {
     LISTENING_NAME_BYTES = 128,
@@ -42,6 +43,7 @@ typedef struct ListeningModuleWork {
     const void *owner;
     union {
         ListeningWork listening;
+        ThemeWork themes;
         SmartListWork smart;
         LyricsWork lyrics;
     } as;

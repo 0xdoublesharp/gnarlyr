@@ -3,7 +3,9 @@
 #include <stddef.h>
 
 #include "app_screens.h"
+#include "default_theme.h"
 #include "hal/system.h"
+#include "modules/modules.h"
 
 typedef struct ModuleSpan {
     uint32_t offset;
@@ -32,6 +34,13 @@ ScreenModule screen_modules_of(const AppScreens *screens, const Screen *screen)
 
 void screen_modules_cancel_previews(AppScreens *screens)
 {
+    if (screens->context.themes != NULL && screens->context.themes->previewing) {
+        const ListeningModuleEntry *entry = hal_system_load_module(SCREEN_MODULE_LISTENING);
+        if (entry != NULL && entry->module.magic == SCREEN_MODULE_MAGIC(SCREEN_MODULE_LISTENING)) {
+            entry->theme_restore(screens->context.themes);
+            default_theme_invalidate(screens->context.styled_theme);
+        }
+    }
     if ((screens->bound_modules & (1u << SCREEN_MODULE_SETTINGS)) == 0 ||
         screens->context.settings == NULL) {
         return;
@@ -54,7 +63,8 @@ void screen_modules_cancel_previews(AppScreens *screens)
 
 const ScreenModuleEntry *screen_modules_use(AppScreens *screens, ScreenModule module)
 {
-    if (module != SCREEN_MODULE_SETTINGS) {
+    if (module != SCREEN_MODULE_SETTINGS &&
+        (screens->context.themes == NULL || !screens->context.themes->previewing)) {
         screen_modules_cancel_previews(screens);
     }
     const ScreenModuleEntry *entry = hal_system_load_module((uint32_t)module);

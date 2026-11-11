@@ -20,6 +20,8 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Interface and sound controls
 
+- Install data-only `.gtheme` packs from the card without reflashing. The Theme picker previews palettes/backgrounds, keeps the selected pack across restarts and falls back to a built-in when it is missing or damaged. RGB565 art streams through the existing strip canvas with a small tile cache. Original Pocket Scope and Desktop 98 source packs, a builder/checker, stable update IDs and optional signature metadata are included. The trusted-key list starts empty; unsigned packs work normally. Software checks cover native validation, streaming and persistence; player acceptance is still pending.
+
 - Settings → Clock format selects 12-hour time with AM/PM or 24-hour time for Clock and the status bar, including Calendar. The choice survives restarts.
 - Four named headphone profiles apply attenuation-only trim, left/right balance and a volume ceiling to music and USB DAC output. Settings → Headphones selects and edits them; verified alternating-bank saves keep profiles on internal storage without changing settings v15. Switching to less attenuation lowers the saved mode volumes first. Analog Gain is unchanged; physical output checks remain pending.
 - Five themes with live preview, configurable playback tap/hold actions, shared icons and cassette artwork.

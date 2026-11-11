@@ -135,9 +135,17 @@ static void draw_outline(Canvas *canvas, Rect body, Color color)
                      color);
 }
 
-static void draw_icon(Canvas *canvas, IconId icon, Rect area, Color color)
+typedef struct StatusIcon {
+    IconId icon;
+    Rect area;
+    Color color;
+} StatusIcon;
+
+static void draw_icon(Canvas *canvas, const Theme *theme, StatusIcon item)
 {
-    icon_draw(canvas, icon, area, (IconInk){color, color});
+    if (!theme_art_draw(theme, canvas, THEME_ART_ICON + (int)item.icon, item.area)) {
+        icon_draw(canvas, item.icon, item.area, (IconInk){item.color, item.color});
+    }
 }
 
 static void draw_bolt(Canvas *canvas, const Theme *theme, Rect body, StatusBatteryLook look)
@@ -147,10 +155,11 @@ static void draw_bolt(Canvas *canvas, const Theme *theme, Rect body, StatusBatte
     for (int dy = -HALO; look.bolt_halo && dy <= HALO; dy++) {
         for (int dx = -HALO; dx <= HALO; dx++) {
             Rect shifted = {bolt.x + dx, bolt.y + dy, bolt.width, bolt.height};
-            draw_icon(&inside, ICON_BOLT, shifted, theme->colors.header_background);
+            icon_draw(&inside, ICON_BOLT, shifted,
+                      (IconInk){theme->colors.header_background, theme->colors.header_background});
         }
     }
-    draw_icon(&inside, ICON_BOLT, bolt, look.bolt);
+    draw_icon(&inside, theme, (StatusIcon){ICON_BOLT, bolt, look.bolt});
 }
 
 static void draw_percent(Canvas *canvas, TextStyle style, Point end, const char *text)
@@ -235,10 +244,14 @@ static void draw_shuffle(Canvas *canvas, const Theme *theme, StatusShuffle shuff
     Rect area = status_bar_shuffle_area(theme, shuffle);
     Color color = theme->colors.header_text;
     int arrows = icon_width(ICON_SHUFFLE_SMALL, area.height);
-    draw_icon(canvas, shuffle_badge(shuffle),
-              (Rect){area.x, area.y, area.width - BADGE_GAP - arrows, area.height}, color);
-    draw_icon(canvas, ICON_SHUFFLE_SMALL,
-              (Rect){area.x + area.width - arrows, area.y, arrows, area.height}, color);
+    draw_icon(canvas, theme,
+              (StatusIcon){shuffle_badge(shuffle),
+                           (Rect){area.x, area.y, area.width - BADGE_GAP - arrows, area.height},
+                           color});
+    draw_icon(canvas, theme,
+              (StatusIcon){ICON_SHUFFLE_SMALL,
+                           (Rect){area.x + area.width - arrows, area.y, arrows, area.height},
+                           color});
 }
 
 static void draw_left_icons(Canvas *canvas, const Theme *theme, StatusBarState state)
@@ -246,17 +259,18 @@ static void draw_left_icons(Canvas *canvas, const Theme *theme, StatusBarState s
     Rect icon = status_bar_playback_area(theme);
     Color color = theme->colors.header_text;
     if (state.playback == STATUS_PLAYBACK_PLAYING) {
-        draw_icon(canvas, ICON_PLAY, icon, color);
+        draw_icon(canvas, theme, (StatusIcon){ICON_PLAY, icon, color});
     } else if (state.playback == STATUS_PLAYBACK_PAUSED) {
-        draw_icon(canvas, ICON_PAUSE, icon, color);
+        draw_icon(canvas, theme, (StatusIcon){ICON_PAUSE, icon, color});
     }
     if (state.bluetooth != STATUS_BLUETOOTH_OFF) {
         Color tint =
             state.bluetooth == STATUS_BLUETOOTH_CONNECTED ? color : theme->colors.text_tertiary;
-        draw_icon(canvas, ICON_BLUETOOTH_SMALL, status_bar_bluetooth_area(theme), tint);
+        draw_icon(canvas, theme,
+                  (StatusIcon){ICON_BLUETOOTH_SMALL, status_bar_bluetooth_area(theme), tint});
     }
     if (state.locked) {
-        draw_icon(canvas, ICON_LOCK, status_bar_lock_area(theme), color);
+        draw_icon(canvas, theme, (StatusIcon){ICON_LOCK, status_bar_lock_area(theme), color});
     }
     if (state.shuffle != STATUS_SHUFFLE_OFF) {
         draw_shuffle(canvas, theme, state.shuffle);

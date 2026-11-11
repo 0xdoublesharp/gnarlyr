@@ -570,4 +570,8 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_HEADPHONE_STUDIO] = "Studio",
     [STR_HEADPHONE_TRAVEL] = "Travel",
     [STR_HEADPHONE_SAVED] = "Profile saved",
+    [STR_THEME_DAMAGED] = "Damaged",
+    [STR_THEME_VERIFIED] = "Verified",
+    [STR_THEME_LOW_CONTRAST] = "Low contrast",
+    [STR_THEME_CREDIT] = "{0} · {1}",
 };

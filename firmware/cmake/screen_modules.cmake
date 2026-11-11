@@ -94,6 +94,14 @@ set(ECHO_SCREEN_MODULE_SOURCES_library
     src/library/sort_fold_table.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_listening
+    src/app/theme_pack.c
+    src/app/theme_runtime.c
+    src/app/theme_catalog.c
+    src/app/theme_picker.c
+    src/app/theme_palette.c
+    src/app/theme_signature.c
+    src/app/theme_crypto_curve.c
+    src/app/theme_crypto_sha512.c
     src/app/modules/listening_module.c
     src/app/screens/listening_screen.c
     src/app/screens/lyrics_screen.c
