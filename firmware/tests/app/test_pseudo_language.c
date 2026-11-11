@@ -21,7 +21,8 @@ enum {
     HOME_SETTINGS_ROW = 1,
     HOME_NOW_PLAYING_ROW = 2,
     HOME_UP_NEXT_ROW = 3,
-    MUSIC_ENTRIES = 11,
+    MUSIC_ENTRIES = 12,
+    MUSIC_SMART_LISTS_ROW = 10,
     MUSIC_ALBUMS_ROW = 4,
     MUSIC_ALL_SONGS_ROW = 7,
     SETTINGS_ROWS = 22,
@@ -303,14 +304,28 @@ static void open_settings_row(int row)
 static void walk_music(void)
 {
     static const StringId TITLES[MUSIC_ENTRIES] = {
-        STR_SEARCH,  STR_COVER_FLOW, STR_ARTISTS,   STR_ALBUM_ARTISTS, STR_ALBUMS,       STR_GENRES,
-        STR_FOLDERS, STR_ALL_SONGS,  STR_PLAYLISTS, STR_FAVORITES,     STR_PERSONAL_TAGS};
+        STR_SEARCH,    STR_COVER_FLOW, STR_ARTISTS,     STR_ALBUM_ARTISTS,
+        STR_ALBUMS,    STR_GENRES,     STR_FOLDERS,     STR_ALL_SONGS,
+        STR_PLAYLISTS, STR_FAVORITES,  STR_SMART_LISTS, STR_PERSONAL_TAGS};
     open_music_row(0);
     show_titled("Music", STR_MUSIC);
     for (int entry = 1; entry < MUSIC_ENTRIES; entry++) {
         open_music_row(entry);
         tap(KEY_PLAY);
         show_titled("a Music list", TITLES[entry]);
+    }
+}
+
+static void walk_smart_lists(void)
+{
+    static const StringId LISTS[] = {STR_RECENTLY_ADDED, STR_RECENTLY_PLAYED, STR_MOST_PLAYED,
+                                     STR_NEVER_PLAYED, STR_FORGOTTEN_FAVORITES};
+    for (int list = 0; list < 5; list++) {
+        open_music_row(MUSIC_SMART_LISTS_ROW);
+        tap(KEY_PLAY);
+        down(list);
+        tap(KEY_PLAY);
+        show_titled("a smart list", LISTS[list]);
     }
 }
 
@@ -535,6 +550,7 @@ static void walk_everything(void)
     CHECK(strcmp(FIRMWARE_SHORT_NAME, app_screen_title()) == 0);
     CHECK(show("Home") >= 2);
     walk_music();
+    walk_smart_lists();
     walk_cover_flow();
     walk_settings_rows();
     walk_settings_choices();

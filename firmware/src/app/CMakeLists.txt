@@ -4,6 +4,8 @@ add_library(echo_app STATIC
     modules/listening_module.c
     screens/listening_screen.c
     screens/lyrics_screen.c
+    screens/listening_work.c
+    screens/smart_list_screen.c
     discovery_screen.c
     discovery_text.c
     discovery_preferences.c

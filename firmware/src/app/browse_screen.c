@@ -448,14 +448,14 @@ static ScreenAction open_track_tags(void *context)
     return screen != NULL ? screen_action_push(screen) : screen_action_none();
 }
 
-static ScreenAction open_song_actions(BrowseScreen *browse, int index, uint16_t track)
+Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, const char *name,
+                                 uint32_t now_ms)
 {
-    BrowsePool *pool = browse->pool;
     SongActions *actions = &pool->song_actions;
     actions->track = track;
-    actions->now_ms = browse->now_ms;
+    actions->now_ms = now_ms;
     StringBuilder title = string_builder_make(actions->title, sizeof actions->title);
-    string_builder_append(&title, row_label(browse, index));
+    string_builder_append(&title, name);
     actions->items[0] =
         (MenuItem){.label = i18n_text(STR_PLAY_NEXT), .select = play_song_next, .context = pool};
     actions->items[1] = (MenuItem){
@@ -480,7 +480,13 @@ static ScreenAction open_song_actions(BrowseScreen *browse, int index, uint16_t 
                          .items = actions->items,
                          .item_count = count,
                          .theme = pool->config.theme};
-    return screen_action_push(menu_screen_init(&actions->menu, config));
+    return menu_screen_init(&actions->menu, config);
+}
+
+static ScreenAction open_song_actions(BrowseScreen *browse, int index, uint16_t track)
+{
+    return screen_action_push(
+        browse_pool_song_actions(browse->pool, track, row_label(browse, index), browse->now_ms));
 }
 
 static ScreenAction play_folder(BrowseScreen *browse, BrowseItem item)

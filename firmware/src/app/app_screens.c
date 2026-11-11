@@ -16,7 +16,8 @@ typedef enum MusicSource {
     MUSIC_TAGS,
     MUSIC_COVER_FLOW,
     MUSIC_LIBRARY,
-    MUSIC_FAVORITES
+    MUSIC_FAVORITES,
+    MUSIC_SMART
 } MusicSource;
 
 typedef struct MusicEntry {
@@ -44,6 +45,7 @@ static const MusicEntry MUSIC_ENTRIES[MUSIC_ITEM_COUNT] = {
     {STR_ALL_SONGS, MUSIC_LIBRARY, BROWSE_ALL_SONGS},
     {STR_PLAYLISTS, MUSIC_LIBRARY, BROWSE_PLAYLISTS},
     {STR_FAVORITES, MUSIC_FAVORITES, BROWSE_ALBUMS},
+    {STR_SMART_LISTS, MUSIC_SMART, BROWSE_ALL_SONGS},
     {STR_PERSONAL_TAGS, MUSIC_TAGS, BROWSE_ALL_SONGS},
 };
 
@@ -123,6 +125,14 @@ static ScreenAction open_my_tags(void *context)
                          : screen_action_none();
 }
 
+static ScreenAction open_smart_lists(void *context)
+{
+    AppScreens *screens = context;
+    return screen_action_push(screens->context.store->available
+                                  ? &screens->modules.listening.smart_lists.menu.screen
+                                  : &screens->no_library.screen);
+}
+
 static Screen *browse_options(void *context, BrowseScreen *browse)
 {
     AppScreens *screens = context;
@@ -154,11 +164,13 @@ static Screen *track_tags(void *context, uint16_t track)
 static MenuItem music_item(AppScreens *screens, const LibraryStore *store, int index)
 {
     const MusicEntry *entry = &MUSIC_ENTRIES[index];
-    if (entry->source == MUSIC_SEARCH || entry->source == MUSIC_TAGS) {
-        return (MenuItem){.label = i18n_text(entry->label),
-                          .select = entry->source == MUSIC_SEARCH ? open_search : open_my_tags,
-                          .context = screens,
-                          .opens = true};
+    if (entry->source == MUSIC_SEARCH || entry->source == MUSIC_TAGS ||
+        entry->source == MUSIC_SMART) {
+        ScreenAction (*select)(void *) = entry->source == MUSIC_SEARCH ? open_search
+                                         : entry->source == MUSIC_TAGS ? open_my_tags
+                                                                       : open_smart_lists;
+        return (MenuItem){
+            .label = i18n_text(entry->label), .select = select, .context = screens, .opens = true};
     }
     screens->browse_entries[index] = (BrowseEntry){
         .pool = &screens->browse,
@@ -197,7 +209,7 @@ static void build_music(AppScreens *screens, AppScreensContext context)
     browse_pool_init(&screens->browse, browse);
     static const IconId icons[MUSIC_ITEM_COUNT] = {
         ICON_SEARCH, ICON_COVER_FLOW, ICON_ARTIST,   ICON_ALBUM_ARTIST, ICON_ALBUM, ICON_GENRE,
-        ICON_FOLDER, ICON_SONG,       ICON_PLAYLIST, ICON_FAVORITE,     ICON_GENRE};
+        ICON_FOLDER, ICON_SONG,       ICON_PLAYLIST, ICON_FAVORITE,     ICON_QUEUE, ICON_GENRE};
     for (int index = 0; index < MUSIC_ITEM_COUNT; index++) {
         screens->music_items[index] = music_item(screens, context.store, index);
         screens->music_items[index].icon = icons[index];

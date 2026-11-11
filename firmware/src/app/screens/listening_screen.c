@@ -1,4 +1,5 @@
 #include "listening_screen.h"
+#include "listening_work.h"
 
 #include <stddef.h>
 
@@ -20,9 +21,6 @@ enum {
     MODE_TOTALS,
     MODE_EXPORT,
     MENU_ROWS = 5,
-    NAME_BYTES = 128,
-    VALUE_BYTES = 32,
-    TALLY_CAPACITY = 512,
     STAT_GAP = 8,
     EXPORT_MEASURE,
     EXPORT_WRITE,
@@ -41,20 +39,7 @@ typedef struct ExportStatus {
     const char *hint;
 } ExportStatus;
 
-typedef struct ListeningWork {
-    ListeningScreen *owner;
-    ListeningTop top;
-    ListeningExport export_job;
-    ListeningFile export_file;
-    ListeningTally tallies[TALLY_CAPACITY];
-    char names[LISTENING_TOP_COUNT][NAME_BYTES];
-    char times[LISTENING_TOP_COUNT][VALUE_BYTES];
-    StringId export_reason;
-    uint8_t export_stage;
-    bool named;
-} ListeningWork;
-
-static ListeningWork work;
+static ListeningWork *const work = &listening_module_work.as.listening;
 
 static const StringId MENU[MENU_ROWS] = {
     STR_TOP_ARTISTS, STR_TOP_ALBUMS, STR_TOP_SONGS, STR_LISTENING_TOTALS, STR_EXPORT_PLAYS,
@@ -83,19 +68,19 @@ static void format_time(char *text, size_t capacity, uint64_t millis)
 static int row_count(const void *context)
 {
     const ListeningScreen *screen = context;
-    return screen->mode == MODE_MENU ? MENU_ROWS : work.top.count;
+    return screen->mode == MODE_MENU ? MENU_ROWS : work->top.count;
 }
 
 static const char *row_label(const void *context, int index)
 {
     const ListeningScreen *screen = context;
-    return screen->mode == MODE_MENU ? i18n_text(MENU[index]) : work.names[index];
+    return screen->mode == MODE_MENU ? i18n_text(MENU[index]) : work->names[index];
 }
 
 static const char *row_detail(const void *context, int index)
 {
     const ListeningScreen *screen = context;
-    return screen->mode == MODE_TOP ? work.times[index] : NULL;
+    return screen->mode == MODE_TOP ? work->times[index] : NULL;
 }
 
 static bool row_opens(const void *context, int index)
@@ -107,14 +92,15 @@ static bool row_opens(const void *context, int index)
 
 static void begin_job(ListeningScreen *screen)
 {
-    work = (ListeningWork){.owner = screen};
+    *work = (ListeningWork){0};
+    listening_module_work.owner = screen;
     if (screen->mode == MODE_TOP) {
-        listening_top_begin(&work.top, &screen->config.store->log, screen->group,
-                            (ListeningScratch){work.tallies, TALLY_CAPACITY});
+        listening_top_begin(&work->top, &screen->config.store->log, screen->group,
+                            (ListeningScratch){work->tallies, LISTENING_TALLY_CAPACITY});
     } else if (screen->mode == MODE_EXPORT) {
         ListeningLookup lookup = {listening_store_text, screen->config.store};
-        listening_export_begin(&work.export_job, &screen->config.store->log, lookup);
-        work.export_stage = EXPORT_MEASURE;
+        listening_export_begin(&work->export_job, &screen->config.store->log, lookup);
+        work->export_stage = EXPORT_MEASURE;
     }
 }
 
@@ -144,9 +130,10 @@ static void choose(ListeningScreen *screen)
 
 static void cancel_export(const ListeningScreen *screen)
 {
-    if (screen->mode == MODE_EXPORT && work.owner == screen && work.export_stage == EXPORT_WRITE) {
+    if (screen->mode == MODE_EXPORT && listening_module_work.owner == screen &&
+        work->export_stage == EXPORT_WRITE) {
         (void)hal_file_remove(LISTENING_EXPORT_PATH);
-        work.export_stage = EXPORT_FAILED;
+        work->export_stage = EXPORT_FAILED;
     }
 }
 
@@ -177,7 +164,7 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 static void copy_name(char *target, const char *source)
 {
     size_t index = 0;
-    while (index + 1 < NAME_BYTES && source[index] != '\0') {
+    while (index + 1 < LISTENING_NAME_BYTES && source[index] != '\0') {
         target[index] = source[index];
         index++;
     }
@@ -186,25 +173,25 @@ static void copy_name(char *target, const char *source)
 
 static void name_top(ListeningScreen *screen)
 {
-    for (uint8_t index = 0; index < work.top.count; index++) {
+    for (uint8_t index = 0; index < work->top.count; index++) {
         ListeningText text;
-        const ListeningRanked *rank = &work.top.top[index];
+        const ListeningRanked *rank = &work->top.top[index];
         bool found = listening_store_text(screen->config.store, &rank->track, &text);
         const char *name = !found ? i18n_text(STR_HISTORY_UNAVAILABLE)
                            : screen->group == LISTENING_BY_ARTIST ? text.artist
                            : screen->group == LISTENING_BY_ALBUM  ? text.album
                                                                   : text.title;
-        copy_name(work.names[index], name);
-        format_time(work.times[index], VALUE_BYTES, rank->tally.listened_ms);
+        copy_name(work->names[index], name);
+        format_time(work->times[index], LISTENING_VALUE_BYTES, rank->tally.listened_ms);
     }
-    work.named = true;
+    work->named = true;
     list_view_fit(&screen->list);
 }
 
 static void fail_export(StringId reason)
 {
-    work.export_stage = EXPORT_FAILED;
-    work.export_reason = reason;
+    work->export_stage = EXPORT_FAILED;
+    work->export_reason = reason;
 }
 
 static bool export_file_size(uint32_t *size)
@@ -238,24 +225,24 @@ static bool prepare_export_file(uint32_t bytes)
 
 static void start_export_write(void)
 {
-    ListeningExport *job = &work.export_job;
+    ListeningExport *job = &work->export_job;
     uint32_t bytes =
         job->bytes < LISTENING_EXPORT_FILE_BYTES ? job->bytes : LISTENING_EXPORT_FILE_BYTES;
     if (job->plays == 0) {
-        work.export_stage = EXPORT_EMPTY;
+        work->export_stage = EXPORT_EMPTY;
     } else if (prepare_export_file(bytes) &&
                listening_export_write(
-                   job, listening_store_file(&work.export_file, LISTENING_EXPORT_PATH, bytes))) {
-        work.export_stage = EXPORT_WRITE;
-    } else if (work.export_stage != EXPORT_FAILED) {
+                   job, listening_store_file(&work->export_file, LISTENING_EXPORT_PATH, bytes))) {
+        work->export_stage = EXPORT_WRITE;
+    } else if (work->export_stage != EXPORT_FAILED) {
         fail_export(STR_EXPORT_WRITE_FAILED);
     }
 }
 
 static void advance_export(void)
 {
-    StoreResult result = listening_export_step(&work.export_job);
-    bool writing = work.export_stage == EXPORT_WRITE;
+    StoreResult result = listening_export_step(&work->export_job);
+    bool writing = work->export_stage == EXPORT_WRITE;
     if (result == STORE_WORKING) {
         return;
     }
@@ -265,7 +252,7 @@ static void advance_export(void)
         }
         fail_export(writing ? STR_EXPORT_WRITE_FAILED : STR_HISTORY_UNAVAILABLE);
     } else if (writing) {
-        work.export_stage = EXPORT_DONE;
+        work->export_stage = EXPORT_DONE;
     } else {
         start_export_write();
     }
@@ -274,7 +261,7 @@ static void advance_export(void)
 static void update_export(void)
 {
     uint32_t started_ms = hal_clock_milliseconds();
-    for (int step = 0; step < EXPORT_STEPS && work.export_stage <= EXPORT_WRITE &&
+    for (int step = 0; step < EXPORT_STEPS && work->export_stage <= EXPORT_WRITE &&
                        hal_clock_milliseconds() - started_ms < EXPORT_BUDGET_MS;
          step++) {
         advance_export();
@@ -286,10 +273,10 @@ static void update(void *context, uint32_t now_ms)
 {
     ListeningScreen *screen = context;
     screen->now_ms = now_ms;
-    if (work.owner != screen) {
+    if (listening_module_work.owner != screen) {
         begin_job(screen);
     }
-    if (screen->mode == MODE_TOP && !work.named && listening_top_step(&work.top) == STORE_DONE) {
+    if (screen->mode == MODE_TOP && !work->named && listening_top_step(&work->top) == STORE_DONE) {
         name_top(screen);
     } else if (screen->mode == MODE_EXPORT) {
         update_export();
@@ -311,7 +298,7 @@ static void draw_totals(ListeningScreen *screen, Canvas *canvas, Rect area)
     ListeningTotals totals = listening_store_totals(screen->config.store);
     int padding = theme->metrics.padding;
     int height = (area.height - 4 * STAT_GAP) / 3;
-    char value[VALUE_BYTES];
+    char value[LISTENING_VALUE_BYTES];
     StringId labels[] = {STR_TOTAL_LISTENING, STR_LISTENING_PLAYS, STR_LISTENING_SKIPS};
     for (int index = 0; index < 3; index++) {
         Rect card = {area.x + padding, area.y + STAT_GAP + index * (height + STAT_GAP),
@@ -350,17 +337,17 @@ static void draw_menu(ListeningScreen *screen, Canvas *canvas, Rect content)
 
 static uint32_t export_percent(void)
 {
-    const ListeningCursor *cursor = &work.export_job.cursor;
+    const ListeningCursor *cursor = &work->export_job.cursor;
     uint32_t kept = cursor->kept;
-    uint32_t done = cursor->position + (work.export_stage == EXPORT_WRITE ? kept : 0u);
+    uint32_t done = cursor->position + (work->export_stage == EXPORT_WRITE ? kept : 0u);
     return kept == 0 ? 0 : done * PERCENT / (2u * kept);
 }
 
 static void write_saved(StringBuilder *builder)
 {
-    char count[VALUE_BYTES];
+    char count[LISTENING_VALUE_BYTES];
     StringBuilder number = string_builder_make(count, sizeof count);
-    uint16_t exported = work.export_job.exported;
+    uint16_t exported = work->export_job.exported;
     string_builder_append_unsigned(&number, exported);
     const char *arguments[] = {count, LISTENING_EXPORT_PATH};
     i18n_format(builder, exported == 1 ? STR_EXPORT_ONE_SAVED : STR_EXPORT_SAVED, arguments, 2);
@@ -368,18 +355,19 @@ static void write_saved(StringBuilder *builder)
 
 static void write_export_detail(StringBuilder *builder)
 {
-    uint8_t stage = work.export_stage;
+    uint8_t stage = work->export_stage;
     if (stage <= EXPORT_WRITE) {
         i18n_format_counts(builder, STR_EXPORT_PROGRESS, export_percent(), 0);
     } else if (stage == EXPORT_DONE) {
         write_saved(builder);
     } else if (stage == EXPORT_EMPTY) {
-        string_builder_append(builder, i18n_text(work.export_job.unknown > 0 ? STR_EXPORT_UNKNOWN
-                                                                             : STR_LISTENING_HINT));
-    } else if (work.export_reason == STR_EXPORT_WRITE_FAILED) {
+        string_builder_append(
+            builder,
+            i18n_text(work->export_job.unknown > 0 ? STR_EXPORT_UNKNOWN : STR_LISTENING_HINT));
+    } else if (work->export_reason == STR_EXPORT_WRITE_FAILED) {
         i18n_format_text(builder, STR_EXPORT_WRITE_FAILED, LISTENING_EXPORT_PATH);
     } else {
-        string_builder_append(builder, i18n_text(work.export_reason));
+        string_builder_append(builder, i18n_text(work->export_reason));
     }
 }
 
@@ -416,7 +404,7 @@ static void draw_export(const Theme *theme, Canvas *canvas, Rect area)
                                          STR_EXPORT_NONE, STR_EXPORT_FAILED};
     char detail[DETAIL_BYTES];
     StringBuilder builder = string_builder_make(detail, sizeof detail);
-    uint8_t stage = work.export_stage < EXPORT_MEASURE ? EXPORT_MEASURE : work.export_stage;
+    uint8_t stage = work->export_stage < EXPORT_MEASURE ? EXPORT_MEASURE : work->export_stage;
     write_export_detail(&builder);
     draw_status(theme, canvas, area,
                 (ExportStatus){i18n_text(HEADLINES[stage - EXPORT_MEASURE]), detail,
@@ -436,11 +424,11 @@ static void draw(void *context, Canvas *canvas)
         draw_totals(screen, canvas, content);
     } else if (screen->mode == MODE_EXPORT) {
         draw_export(theme, canvas, content);
-    } else if (work.top.result == STORE_FAILED) {
+    } else if (work->top.result == STORE_FAILED) {
         message_draw(canvas, theme, content, i18n_text(STR_HISTORY_UNAVAILABLE));
-    } else if (!work.named) {
+    } else if (!work->named) {
         message_draw(canvas, theme, content, i18n_text(STR_LISTENING_WORKING));
-    } else if (work.top.count == 0) {
+    } else if (work->top.count == 0) {
         message_draw(canvas, theme, content, i18n_text(STR_LISTENING_EMPTY));
     } else {
         list_view_draw(&screen->list, canvas, content, screen->now_ms);

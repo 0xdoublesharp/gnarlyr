@@ -170,6 +170,34 @@ static void the_personal_tag_manager_opens_from_the_last_music_row(void)
     CHECK(title_is("Music"));
 }
 
+static void smart_lists_open_from_music_and_play_through_the_listening_module(void)
+{
+    start_app();
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_VOLUME_DOWN);
+    tap(KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    CHECK(title_is("Smart Lists"));
+    CHECK_EQUAL(SCREEN_MODULE_LISTENING, (int)fake_hal_loaded_module());
+    wait_ms(SLIDE_DURATION_MS);
+    move_down(3);
+    tap(KEY_PLAY);
+    CHECK(title_is("Never Played"));
+    for (int frame = 0; frame < 50; frame++) {
+        wait_ms(20);
+    }
+    wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_PLAY);
+    CHECK(title_is("Now Playing"));
+    tap(KEY_BACK);
+    CHECK(title_is("Never Played"));
+    CHECK_EQUAL(SCREEN_MODULE_LISTENING, (int)fake_hal_loaded_module());
+    tap(KEY_BACK);
+    tap(KEY_BACK);
+    CHECK(title_is("Music"));
+}
+
 static void a_module_screen_loads_its_module_when_it_opens(void)
 {
     start_app();
@@ -523,6 +551,7 @@ int main(void)
         TEST_CASE(discovery_screen_memory_belongs_to_the_library_module),
         TEST_CASE(search_is_the_first_music_entry_and_loads_the_library_module),
         TEST_CASE(the_personal_tag_manager_opens_from_the_last_music_row),
+        TEST_CASE(smart_lists_open_from_music_and_play_through_the_listening_module),
         TEST_CASE(a_module_screen_loads_its_module_when_it_opens),
         TEST_CASE(a_module_in_the_slot_is_not_loaded_again),
         TEST_CASE(a_resident_screen_opened_from_a_module_screen_needs_no_load),

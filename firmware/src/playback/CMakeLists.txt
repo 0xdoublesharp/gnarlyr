@@ -17,6 +17,7 @@ add_library(echo_playback STATIC
     spoken_shelf.c
     store.c
     track_keys.c
+    track_keys_path.c
     track_order.c
     up_next.c
 )

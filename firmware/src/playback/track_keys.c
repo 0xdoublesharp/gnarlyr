@@ -17,8 +17,6 @@ enum {
 
 _Static_assert(sizeof(TrackKey) == TRACK_KEYS_ENTRY_BYTES, "entries are decoded in place");
 
-const char TRACK_KEYS_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/track_keys.bin";
-
 static const StoreKind KIND = {.magic = {'D', 'S', 'T', 'K'}, .version = 1};
 
 static uint32_t smaller(uint32_t first, uint32_t second)

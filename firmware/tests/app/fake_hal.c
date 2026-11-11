@@ -14,6 +14,7 @@
 #include "hal/power.h"
 #include "hal/storage.h"
 #include "library/library_scan.h"
+#include "playback/track_keys.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -78,8 +79,12 @@ enum {
 };
 
 static uint8_t stores[STORE_SLOTS][STORE_CAPACITY];
-static uint8_t *large_store;
-static uint32_t large_size;
+typedef struct LargeStore {
+    uint8_t *bytes;
+    uint32_t size;
+} LargeStore;
+
+static LargeStore large_stores[2];
 
 typedef struct FakeHal {
     const char *version;
@@ -1425,24 +1430,24 @@ static FakeFile *fake_file(const char *path)
     return NULL;
 }
 
-static uint8_t *large_store_for(FakeFile *file)
+static uint8_t *large_store_for(FakeFile *file, LargeStore *large)
 {
-    if (file->bytes != NULL && file->bytes == large_store) {
-        return large_store;
+    if (file->bytes != NULL && file->bytes == large->bytes) {
+        return large->bytes;
     }
-    if (file->size > large_size) {
-        free(large_store);
-        large_store = malloc(file->size);
-        large_size = file->size;
+    if (file->size > large->size) {
+        free(large->bytes);
+        large->bytes = malloc(file->size);
+        large->size = file->size;
     }
-    if (large_store == NULL) {
-        large_size = 0;
+    if (large->bytes == NULL) {
+        large->size = 0;
         return NULL;
     }
-    memset(large_store, 0, file->size);
-    file->bytes = large_store;
+    memset(large->bytes, 0, file->size);
+    file->bytes = large->bytes;
     file->stored = file->size;
-    return large_store;
+    return large->bytes;
 }
 
 static uint8_t *store_for(FakeFile *file)
@@ -1454,7 +1459,10 @@ static uint8_t *store_for(FakeFile *file)
     }
     if (file->size > STORE_CAPACITY &&
         strcmp(file->path, "/" FIRMWARE_DATA_DIRECTORY "/build.tmp") == 0) {
-        return large_store_for(file);
+        return large_store_for(file, &large_stores[0]);
+    }
+    if (file->size > STORE_CAPACITY && strcmp(file->path, TRACK_KEYS_PATH) == 0) {
+        return large_store_for(file, &large_stores[1]);
     }
     for (int slot = 0; slot < STORE_SLOTS; slot++) {
         if (fake.store_used[slot] == NULL) {

@@ -22,6 +22,7 @@
 #include "screens/listening_screen.h"
 #include "screens/lyrics_screen.h"
 #include "screens/now_playing_screen.h"
+#include "screens/smart_list_screen.h"
 #include "screens/up_next_screen.h"
 #include "settings/settings.h"
 #include "settings_screens.h"
@@ -33,7 +34,7 @@
 enum {
     HOME_ITEM_COUNT = 9,
     SHELF_COUNT = 2,
-    MUSIC_ITEM_COUNT = 11,
+    MUSIC_ITEM_COUNT = 12,
     DIAGNOSTICS_ITEM_COUNT = 11 + DEBUG_LOOP_ABOUT_ROWS,
     START_PATH_CAPACITY = 2
 };
@@ -119,6 +120,7 @@ typedef struct SettingsModuleScreens {
 typedef struct ProfileModuleScreens {
     ListeningScreen listening;
     LyricsScreen lyrics;
+    SmartListScreen smart_lists;
 } ProfileModuleScreens;
 
 typedef struct LibraryModuleScreens {
