@@ -2779,6 +2779,16 @@ static void a_requested_rescan_of_unchanged_music_says_the_library_is_up_to_date
     CHECK(toast_is("Library is up to date"));
 }
 
+static void the_rescan_row_of_unchanged_music_says_the_library_is_up_to_date(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    open_setting(SETTINGS_RESCAN_INDEX);
+    step();
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+    CHECK(toast_is("Library is up to date"));
+}
+
 static void a_requested_rescan_after_a_cut_short_scan_rebuilds_the_library(void)
 {
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
@@ -5711,6 +5721,7 @@ int main(void)
         TEST_CASE(background_covers_wait_while_music_plays),
         TEST_CASE(a_requested_rescan_of_unchanged_music_says_the_library_is_up_to_date),
         TEST_CASE(a_requested_rescan_after_a_cut_short_scan_rebuilds_the_library),
+        TEST_CASE(the_rescan_row_of_unchanged_music_says_the_library_is_up_to_date),
         TEST_CASE(a_requested_rescan_after_a_firmware_update_rebuilds_the_library),
         TEST_CASE(covers_left_pending_resume_after_a_restart),
         TEST_CASE(a_rescan_after_an_installed_update_asks_for_a_restart),

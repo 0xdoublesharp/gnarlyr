@@ -1319,7 +1319,7 @@ static void build_screens(uint32_t now_ms)
         .power = &app.power,
         .toast = &app.toast,
         .covers = &app.covers,
-        .rescan_requested = &app.rescan_requested,
+        .rescan_requested = &app.rescan_manual,
         .language_requested = &app.language_requested,
         .bluetooth = &app.bluetooth,
         .listening = &app.listening,
@@ -1579,7 +1579,6 @@ static void commit_dac_headphones(void)
 void app_request_rescan(void)
 {
     app.rescan_manual = true;
-    app.music_check_requested = true;
 }
 
 void app_request_rescan_if_music_changed(void)
@@ -1909,7 +1908,7 @@ CORE_SEAM void app_step(void)
         listening_store_load(&app.listening, &app.library.library);
         app.listening_loaded = true;
     }
-    if (app.music_check_requested) {
+    if (app.music_check_requested || app.rescan_manual) {
         app.music_check_requested = false;
         bool changed =
             hal_system_restart_pending() ||
@@ -2052,7 +2051,8 @@ uint32_t app_pass_interval_ms(void)
 {
     bool busy = app.bluetooth.saved.enabled || app.pacer.fast_frames > 0 || app.render_urgent ||
                 app.render_wanted || fade_running() || slide_running() || app.charging ||
-                app.prepare_pending || app.rescan_requested || app.music_check_requested;
+                app.prepare_pending || app.rescan_requested || app.music_check_requested ||
+                app.rescan_manual;
     if (busy) {
         return PASS_BUSY_MS;
     }
