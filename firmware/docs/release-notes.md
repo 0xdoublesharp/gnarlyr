@@ -26,6 +26,8 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Playback fixes
 
+- Shuffle can fade between songs (Settings → Transitions, 0.5 to 6 s). Album-order neighbours, parts of one file and spoken word stay gapless. Not yet heard on a player.
+
 - Output-underrun diagnostics exclude intentional muted DMA pauses, clear stale start/resume flags and retain pending playback faults. Unmuted interruptions remain visible.
 
 - Standard speech rates from 8 to 24 kHz are converted to 44.1 or 48 kHz with a fixed-point interpolation filter; 32 kHz uses native output. Seeking and chapter positions stay on the recording clock, with no extra output frames. The filter does about half the multiply work per channel, filters mono once, and core 0 keeps its full clock while converting.
