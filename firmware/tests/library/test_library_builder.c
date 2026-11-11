@@ -699,16 +699,15 @@ static void every_destination_failure_leaves_the_database_unpublished(void)
     finish(&builder, &reference);
     CHECK_EQUAL(BUILDER_OK, reference.result);
     CHECK(reference.output.calls >= 3);
-    const int failures[] = {1, 2, reference.output.calls};
-    for (size_t index = 0; index < sizeof failures / sizeof failures[0]; index++) {
+    for (int failure = 1; failure <= reference.output.calls; failure++) {
         Output output = fresh_output();
-        output.fail_write = failures[index];
+        output.fail_write = failure;
         memset(output.bytes, 0xA5, OUTPUT_CAPACITY);
         uint32_t length = 0;
         CHECK_EQUAL(
             BUILDER_WRITE_FAILED,
             library_builder_finish(&builder, (ByteSink){write_output, &output}, 0, &length));
-        CHECK_EQUAL(failures[index], output.calls);
+        CHECK_EQUAL(failure, output.calls);
         CHECK_EQUAL(0, length);
         CHECK(memcmp(output.bytes, "DSDB", 4) != 0);
         free(output.bytes);
