@@ -16,6 +16,7 @@ add_library(echo_playback STATIC
     spoken_shelf.c
     store.c
     track_order.c
+    track_transition.c
     up_next.c
 )
 target_include_directories(echo_playback PUBLIC include)

@@ -11,6 +11,7 @@
 #include "playback/mix_identity.h"
 #include "playback/resume_state.h"
 #include "playback/spoken.h"
+#include "playback/track_transition.h"
 
 const char PLAYER_RESUME_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/resume.bin";
 const char PLAYER_UP_NEXT_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/upnext.bin";
@@ -108,6 +109,21 @@ static bool upcoming_track(Player *player, PlayQueueCursor *cursor, uint16_t *tr
            play_queue_track_at(&player->queue, *cursor, track);
 }
 
+static uint32_t transition_ms(const Player *player, uint16_t next, const char *next_path)
+{
+    TransitionRequest request = {.fade = player->fade_transitions,
+                                 .tenths = player->transition_tenths,
+                                 .shuffle = player->shuffle,
+                                 .from = {.spoken = player->spoken},
+                                 .to = {.spoken = spoken_kind_of(next_path) != SPOKEN_NONE}};
+    if (!request.fade ||
+        !library_read_track(player->library, player->track, &request.from.record) ||
+        !library_read_track(player->library, next, &request.to.record)) {
+        return 0;
+    }
+    return track_transition_fade_ms(&request);
+}
+
 static bool prepare_next(Player *player, TrackAudio *audio)
 {
     PlayQueueCursor upcoming = player->queue.cursor;
@@ -122,6 +138,7 @@ static bool prepare_next(Player *player, TrackAudio *audio)
     player->next_token = new_token(player);
     player->next_start_ms = audio->track.start_ms;
     audio->track.token = player->next_token;
+    audio->track.fade_ms = transition_ms(player, track, audio->path);
     return true;
 }
 
@@ -912,4 +929,14 @@ void player_set_replay_gain(Player *player, ReplayGainMode mode, bool prevent_cl
             player->next_token,
             library_replay_gain_for(player->library, player->next_track, mode, prevent_clipping));
     }
+}
+
+void player_set_transitions(Player *player, bool fade, uint8_t tenths)
+{
+    if (player->fade_transitions == fade && player->transition_tenths == tenths) {
+        return;
+    }
+    player->fade_transitions = fade;
+    player->transition_tenths = tenths;
+    player_requeue(player);
 }
