@@ -24,7 +24,7 @@ This project's player has used maskrom recovery and file-copy updates between de
 
 Installing by copying a file under FiiO's firmware is not verified. FiiO's updater only reads files named `ECHOVnnn.IMG`, so `GNARLYR.IMG` would have to be renamed, and whether FiiO's 2.0.0 accepts it is not known.
 
-On the first start with a microSD card in the player, Gnarlyr builds its library and album covers. Wait for it to finish before you plug the player into a computer.
+On the first start with a microSD card in the player, Gnarlyr builds its library. You can browse and play as soon as it says "Library: N tracks". Album covers follow while the player is idle and not playing: they appear one album at a time, a press of any key or starting a song pauses them, and they carry on the next time the player sits idle, also after a restart. Albums without their cover yet show their initials. Wait for the library to finish before you plug the player into a computer.
 
 ## Your music
 
@@ -96,7 +96,7 @@ The USB screen shows the connection mode and charging state. While connecting, o
 1. Connect the player and choose **File transfer** when it asks (see [When you plug in](#when-you-plug-in)). Two drives appear: internal storage and the SD card.
 2. Copy music to the SD card, or to internal storage when no card is in the player.
 3. **Eject both drives before you unplug.** If you unplug first, recent changes may be lost, and the player warns you ("Unplugged too soon").
-4. When music changed, the player rebuilds its library by itself. Copying other files doesn't trigger a rebuild. Settings → Rescan library rebuilds it on demand. If the player restarts during a rebuild, it tries again at the next start and leaves out the file it stopped on; after three stops in a row it builds the library without covers.
+4. When music changed, the player rebuilds its library by itself, then finds the new covers while it is idle. Copying other files doesn't trigger a rebuild. Settings → Rescan library checks the card and rebuilds the library when something changed, or after a firmware update; otherwise it says "Library is up to date". If the player restarts during a rebuild, it tries again at the next start and leaves out the file it stopped on; after three stops in a row it builds the library without covers.
 
 ## When you plug in
 
@@ -126,7 +126,7 @@ The player accepts 16 or 24-bit at 44.1 and 48 kHz; the computer picks one (on W
 
 ## Build the library on a computer
 
-Rebuilding on the player takes a while, most of it decoding album covers. A computer can build the same library and album covers instead, straight onto the card, and tell the player that the card has already been scanned.
+Rebuilding on the player takes a while, and its covers fill in afterwards while the player is idle. A computer can build the same library and album covers instead, straight onto the card, and tell the player that the card has already been scanned.
 
 The tool is **echo-sync**, `tools/echo_sync.py`. It runs from the source; there are no packaged downloads. Install Python 3, then the tools' packages once with `python3 -m pip install -r tools/requirements.txt`.
 
