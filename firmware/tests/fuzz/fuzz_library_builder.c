@@ -15,8 +15,7 @@ enum {
     TRACK_BYTES = 8,
     TRACK_LIMIT = 64,
     TEXT_BYTES = 64,
-    CONTROL_BYTES = 8,
-    MIN_CAPACITY = 4096
+    CONTROL_BYTES = 8
 };
 
 typedef struct MemoryFile {
@@ -74,7 +73,10 @@ static void path(char *out, const uint8_t *bytes, uint32_t index)
 
 static uint32_t capacity(uint32_t maximum, uint8_t value)
 {
-    return value == 0 ? maximum : MIN_CAPACITY + (maximum - MIN_CAPACITY) * value / UINT8_MAX;
+    if (value == 0) {
+        return maximum;
+    }
+    return (uint32_t)((uint64_t)maximum * (value - 1u) / (UINT8_MAX - 1u));
 }
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)

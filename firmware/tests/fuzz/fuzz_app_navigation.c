@@ -11,7 +11,7 @@
 #include "player.h"
 
 enum {
-    ACTION_LIMIT = 48,
+    ACTION_LIMIT = 128,
     TAP_MS = 30,
     LONG_MS = 1000
 };
