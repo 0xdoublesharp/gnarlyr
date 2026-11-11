@@ -308,11 +308,11 @@ static uint32_t skip_value(const TagReader *reader, uint32_t offset, uint32_t en
     return end;
 }
 
-static void read_picture_frame(TagReader *reader, const Frame *frame, bool old_style)
+static void offer_picture_frame(TagReader *reader, const Frame *frame, bool old_style)
 {
     uint8_t head[1];
     uint32_t end = frame->offset + frame->length;
-    if (frame->unsync || !tag_read(reader, frame->offset, head, 1)) {
+    if (!tag_read(reader, frame->offset, head, 1)) {
         return;
     }
     uint32_t width = terminator_width(head[0]);
@@ -322,12 +322,36 @@ static void read_picture_frame(TagReader *reader, const Frame *frame, bool old_s
         return;
     }
     cursor = skip_value(reader, cursor + 1, end, width);
+    const TagUnsync *view = reader->unsync;
     if (cursor < end) {
-        tag_offer_picture(reader, (TagPicture){.kind = TAG_PICTURE_RAW,
-                                               .front = type[0] == FRONT_COVER,
-                                               .offset = cursor,
-                                               .length = end - cursor});
+        tag_offer_picture(reader,
+                          (TagPicture){.kind = view != NULL ? TAG_PICTURE_UNSYNC : TAG_PICTURE_RAW,
+                                       .front = type[0] == FRONT_COVER,
+                                       .offset = cursor,
+                                       .length = end - cursor,
+                                       .base = view != NULL ? view->base : 0,
+                                       .end = view != NULL ? view->end : 0});
     }
+}
+
+static void read_through(TagReader *reader, TagUnsync *view, uint32_t base, uint32_t end)
+{
+    tag_unsync_start(view, reader->source, base, end);
+    reader->source = (ByteSource){.read = tag_unsync_read, .context = view};
+    reader->unsync = view;
+}
+
+static void read_picture_frame(TagReader *reader, const Frame *frame, bool old_style)
+{
+    TagUnsync view;
+    ByteSource raw = reader->source;
+    const TagUnsync *outer = reader->unsync;
+    if (frame->unsync) {
+        read_through(reader, &view, frame->offset, frame->offset + frame->length);
+    }
+    offer_picture_frame(reader, frame, old_style);
+    reader->source = raw;
+    reader->unsync = outer;
 }
 
 static TagEncoding gain_frame_encoding(const uint8_t *data, uint32_t length)
@@ -464,11 +488,18 @@ bool tags_read_id3v2(TagReader *reader, uint32_t offset, uint32_t *tag_size)
         tag.end = reader->size;
     }
     uint32_t cursor = offset + HEADER_SIZE;
+    TagUnsync view;
+    ByteSource raw = reader->source;
+    if (tag.version < 4 && tag.unsync) {
+        read_through(reader, &view, cursor, tag.end);
+    }
     if (tag.version >= 3 && (header[5] & FLAG_EXTENDED) != 0) {
         cursor += extended_header_size(reader, &tag, cursor);
     }
     tag.unsync = tag.version == 4 && tag.unsync;
     read_frames(reader, &tag, cursor);
+    reader->source = raw;
+    reader->unsync = NULL;
     if (reader->tags->text[TAG_DATE][0] == '\0' && tag.year[0] != '\0') {
         tag_offer_decoded(reader, TAG_DATE, tag.year);
     }

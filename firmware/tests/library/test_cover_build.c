@@ -873,10 +873,10 @@ static void an_album_spread_over_many_folders_lists_a_bounded_number_of_them(voi
     char path[PATH_CAPACITY];
     reset();
     if (tagged == NULL) {
-        tagged = read_fixture("tags/tagged.ogg", &tagged_size);
+        tagged = read_fixture("tags/id3v1_no_xing.mp3", &tagged_size);
     }
     for (uint32_t folder = 0; folder < 40; folder++) {
-        snprintf(path, sizeof path, "/Mix/d%02u/01.ogg", folder);
+        snprintf(path, sizeof path, "/Mix/d%02u/01.mp3", folder);
         add_file(path, tagged, tagged_size);
     }
     CHECK_EQUAL(SCAN_OK, rescan(true, &stats));

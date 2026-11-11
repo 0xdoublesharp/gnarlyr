@@ -7,6 +7,7 @@
 #include "library/covers.h"
 #include "library/library.h"
 #include "library/track_tags.h"
+#include "tags_internal.h"
 
 enum {
     ALIGNMENT = 8,
@@ -42,9 +43,7 @@ typedef struct CoverLayout {
 } CoverLayout;
 
 typedef struct ArtFile {
-    ByteSource source;
-    uint32_t offset;
-    uint32_t length;
+    ImageSource image;
     uint32_t stamp;
 } ArtFile;
 
@@ -56,6 +55,7 @@ typedef struct CoverMatch {
 typedef struct CoverState {
     Library library;
     TrackTags tags;
+    TagPictureReader picture;
     ScanEntry entry;
     LibraryAlbum album;
     uint32_t key;
@@ -345,21 +345,19 @@ static bool read_track_path(CoverState *state, uint32_t track_index, LibraryTrac
 static bool open_embedded(CoverState *state, const CoverJob *job, ArtFile *art)
 {
     LibraryTrack track;
+    ByteSource source;
     uint32_t size = 0;
     if (!read_track_path(state, state->album.first_track, &track) ||
-        !job->files.open_file(job->files.context, state->path, &art->source, &size)) {
+        !job->files.open_file(job->files.context, state->path, &source, &size)) {
         return false;
     }
     TagFormat format = track_tags_format_for_name(state->path);
-    bool tagged = track_tags_read(art->source, size, format, &state->tags);
-    TagPicture picture = state->tags.picture;
-    if (!tagged || picture.kind != TAG_PICTURE_RAW || picture.length == 0) {
+    if (!track_tags_read(source, size, format, &state->tags) ||
+        !tag_picture_open(&state->picture, source, size, &state->tags.picture, &art->image)) {
         job->files.close_file(job->files.context);
         return false;
     }
-    art->offset = picture.offset;
-    art->length = picture.length;
-    art->stamp = art_stamp(state->path, size, picture.length, ART_EMBEDDED);
+    art->stamp = art_stamp(state->path, size, art->image.length, ART_EMBEDDED);
     return true;
 }
 
@@ -480,12 +478,12 @@ static bool append_name(CoverState *state, const char *name)
 static bool open_art_file(CoverState *state, const CoverJob *job, CoverMatch match, ArtFile *art)
 {
     uint32_t size = 0;
+    ByteSource source;
     if (!append_name(state, match.name) ||
-        !job->files.open_file(job->files.context, state->path, &art->source, &size)) {
+        !job->files.open_file(job->files.context, state->path, &source, &size)) {
         return false;
     }
-    art->offset = 0;
-    art->length = size;
+    art->image = (ImageSource){source.read, source.context, 0, size};
     art->stamp = art_stamp(state->path, size, match.modified, ART_FILE);
     return true;
 }
@@ -524,8 +522,7 @@ static bool open_folder_art(CoverState *state, const CoverJob *job, ArtFile *art
 
 static bool decode_art(CoverState *state, const ArtFile *art)
 {
-    ImageSource image = {art->source.read, art->source.context, art->offset, art->length};
-    return cover_image_decode(image, state->decode_memory, state->decode_size, state->full,
+    return cover_image_decode(art->image, state->decode_memory, state->decode_size, state->full,
                               state->half) == COVER_IMAGE_OK;
 }
 

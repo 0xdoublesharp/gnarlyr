@@ -29,8 +29,6 @@ FRONT = 3
 OTHER = 0
 BACK = 4
 SHOWN_LIMIT = 16.0
-PENDING = {"id3v23_unsync", "id3v24_frame_unsync", "ogg_vorbis_picture", "ogg_vorbis_large_picture",
-           "opus_front_second"}
 ORIENTATION_TAG = 0x0112
 ID3_SOURCE = "id3v24.mp3"
 
@@ -518,9 +516,9 @@ def evaluate(albums, player, pc):
             label, score = identify(records.get(key), references)
             result = outcome(label, album.expected)
             sides.append((result, label, score))
-            if result not in ("shown", "not shown") and album.name not in PENDING:
+            if result not in ("shown", "not shown"):
                 failures.append(f"{album.name}: {side} {result}")
-        if sides[0][1] != sides[1][1] and album.name not in PENDING:
+        if sides[0][1] != sides[1][1]:
             failures.append(f"{album.name}: player chose {sides[0][1]}, echo-sync {sides[1][1]}")
         rows.append((album, sides))
     return rows, failures
