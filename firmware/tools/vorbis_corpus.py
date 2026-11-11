@@ -138,7 +138,7 @@ def main():
         result = entry | json.loads(process.stdout)
         result['success'] = (not result['probe']) if entry['refused'] else result['passed']
         results.append(result)
-        print(f"{entry['file']:28} {'PASS' if result['success'] else 'FAIL':4} {result['workspace_peak']:6} {result['max_packet']:7} {result['max_difference']:3}", flush=True)
+        print(f"{entry['file']:28} {'PASS' if result['success'] else 'FAIL':4} {result['setup_peak']:6} {result['workspace_peak']:6} {result['max_packet']:7} {result['max_difference']:3}", flush=True)
     (args.output / 'results.json').write_text(json.dumps(results, indent=2) + '\n')
     return 0 if all(item['success'] for item in results) else 1
 

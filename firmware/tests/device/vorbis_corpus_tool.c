@@ -12,6 +12,7 @@ static int32_t samples[STREAM_SLOTS][FLAC_MAX_CHANNELS][FLAC_MAX_BLOCK];
 static _Alignas(8) uint8_t ring[VORBIS_RING_BYTES + VORBIS_WORKSPACE_BYTES];
 static uint8_t packet[OGG_PACKET_BYTES];
 static uint32_t peak;
+static uint32_t setup_peak;
 static uint32_t maximum_packet;
 static uint32_t maximum_difference;
 
@@ -53,6 +54,7 @@ static bool normalize(FlacInput input, OggTrack *track)
             return false;
         }
     }
+    setup_peak = peak;
     VorbisModes modes;
     if (!vorbis_decoder_modes(&decoder, &modes) || !vorbis_track_origin(&reader, &modes, track)) {
         return false;
@@ -149,9 +151,9 @@ int main(int argc, char **argv)
         passed = compare(input, &track, reference, targets[index]);
     }
     printf("{\"probe\":%s,\"configured\":%s,\"passed\":%s,\"rate\":%u,\"frames\":%u,"
-           "\"workspace_peak\":%u,\"max_packet\":%u,\"max_difference\":%u}\n",
+           "\"setup_peak\":%u,\"workspace_peak\":%u,\"max_packet\":%u,\"max_difference\":%u}\n",
            probed ? "true" : "false", configured ? "true" : "false", passed ? "true" : "false",
-           track.rate, track.samples, peak, maximum_packet, maximum_difference);
+           track.rate, track.samples, setup_peak, peak, maximum_packet, maximum_difference);
     fclose(file);
     fclose(reference);
     return passed ? 0 : 1;
