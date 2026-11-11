@@ -18,6 +18,8 @@ Gnarlyr 1.0.0 is not released. The developer firmware runs on the owner's full-s
 
 ## Not proven on a player
 
+- **Battery scheduling and runtime.** Screen-off scheduling, input-ring read batching, longer decoder sleep intervals and the minute discharge recorder have software coverage. Runtime, current, SD-card idle behavior, Bluetooth radio drain and audio margin at the changed scheduling cadence need player measurements. No new hours-of-playback claim is made. Follow [the parent measurement procedure](battery-measurements.md), including validation that supply-off actually removes USB power.
+
 - **12/24-hour clock choice.** Software checks cover the setting, midnight/noon, local-time rollover and layouts. Display and persistence on the player remain to be checked.
 
 These checks remain incomplete on the owner's unit; the observed developer flows above do not replace them.
