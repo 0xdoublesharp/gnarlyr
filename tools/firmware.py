@@ -22,11 +22,13 @@ GROUPS = {
 }
 FUZZ_TARGETS = {
     "track_tags": 65536,
+    "timed_metadata": 262144,
     "playlist_reader": 32768,
     "session_journal": 4096,
     "library_database": 65536,
     "mp4_demux": 262144,
     "store": 4096,
+    "mix_catalog": 256,
     "settings_codec": 128,
     "cue_sheet": 65536,
     "discovery_screen": 256,
@@ -39,10 +41,13 @@ FUZZ_TARGETS = {
     "play_queue": 256,
     "mp3_probe": 262144,
     "ogg_track": 196608,
+    "wav_source": 262144,
+    "vorbis_decoder": 196608,
     "opus_decode": 2048,
     "audio_engine": 256,
     "card_format": 64,
     "playback_views": 256,
+    "cover_flow": 256,
     "fat_volume": 400000,
 }
 
@@ -63,6 +68,11 @@ def library_builder_fault_seeds():
 
 FUZZ_SEEDS = {
     "track_tags": [b"\0"],
+    "timed_metadata": [
+        b"[00:00.00]First line\n[00:01.50][00:02.00]Repeated line\n",
+        b"\xef\xbb\xbf[offset:-250]\n[00:00.10]Early\n[9999:59.999]Late\n",
+        b"[00:60.00]invalid\n[00:01.]invalid\n[00:01.1234]invalid\n",
+    ],
     "playlist_reader": [
         b"\xff#EXTM3U\n../A/b.flac\n",
         b"\x1f\xef\xbb\xbfA/one.flac\xe2\x80\xa8A/two.flac\n",
@@ -76,6 +86,7 @@ FUZZ_SEEDS = {
         bytes(range(32)),
         b"\xff\x01\xff\x01\0\x02\0\x02" * 4,
     ],
+    "mix_catalog": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32],
     "settings_codec": [
         bytes(range(128)),
         b"\1" + bytes(range(32)),
@@ -128,6 +139,8 @@ FUZZ_SEEDS = {
     "play_queue": [bytes(range(64)), b"\0\1\2\3" * 32, b"\xff\x80\x40\x20" * 32],
     "mp3_probe": [b"\0", b"ID3\4\0\0\0\0\0\0", b"\xff\xfb\x90\0"],
     "ogg_track": [b"\0", b"OggS" + bytes(24), bytes(range(128))],
+    "wav_source": [b"\0", b"RIFF" + bytes(4) + b"WAVE"],
+    "vorbis_decoder": [b"\0", b"OggS" + bytes(24)],
     "opus_decode": [
         bytes(12) + b"\xf8\xff\xfe",
         bytes([2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255]) + b"\x48\0\0",
@@ -136,6 +149,7 @@ FUZZ_SEEDS = {
     "audio_engine": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32],
     "card_format": [b"\0" * 16, bytes(range(16)), b"\xff\0\0\0" * 4],
     "playback_views": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32],
+    "cover_flow": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32],
     "fat_volume": [b"\0", b"DSSP" + bytes(8)],
 }
 FUZZ_FIXTURES = {
@@ -155,6 +169,10 @@ FUZZ_FIXTURES = {
         SOURCE / "tests/fixtures/m4a_music/Alac Artist/Alac Album/02 Deep.m4a",
         SOURCE / "tests/fixtures/m4a_music/Alac Artist/Alac Album/03 Single.m4a",
     ],
+    "timed_metadata": [
+        *sorted((SOURCE / "tests/fixtures/m4b_music/Audiobooks").glob("*.m4b")),
+        *sorted((SOURCE / "tests/fixtures/m4b_real/Audiobooks").glob("*.m4b")),
+    ],
     "cover_image": [
         ROOT / "site/assets/screens/home.png",
         ROOT / "site/assets/screens/cover-flow.png",
@@ -171,6 +189,8 @@ FUZZ_FIXTURES = {
         SOURCE / "tests/fixtures/tags/tagged.ogg",
         SOURCE / "tests/fixtures/tags/tagged.opus",
     ],
+    "wav_source": [SOURCE / "tests/fixtures/tags/tagged.wav"],
+    "vorbis_decoder": [*sorted((SOURCE / "tests/fixtures/vorbis").glob("*.ogg"))],
     "fat_volume": [
         SOURCE / "tests/fixtures/cards/fat16_superfloppy.sparse",
         SOURCE / "tests/fixtures/cards/fat32_mbr.sparse",

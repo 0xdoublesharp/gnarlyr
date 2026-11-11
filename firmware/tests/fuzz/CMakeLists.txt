@@ -14,11 +14,16 @@ function(echo_add_fuzzer name)
 endfunction()
 
 echo_add_fuzzer(track_tags LIBRARIES echo_library_scan)
+echo_add_fuzzer(timed_metadata
+    LIBRARIES echo_library_scan
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/library
+)
 echo_add_fuzzer(playlist_reader LIBRARIES echo_library_scan)
 echo_add_fuzzer(session_journal LIBRARIES echo_playback)
 echo_add_fuzzer(library_database LIBRARIES echo_library)
 echo_add_fuzzer(mp4_demux LIBRARIES echo_device_logic)
 echo_add_fuzzer(store LIBRARIES echo_playback)
+echo_add_fuzzer(mix_catalog LIBRARIES echo_playback)
 echo_add_fuzzer(settings_codec LIBRARIES echo_settings)
 echo_add_fuzzer(cue_sheet LIBRARIES echo_library_scan)
 echo_add_fuzzer(discovery_screen
@@ -76,6 +81,17 @@ echo_add_fuzzer(playback_views
 target_compile_definitions(fuzz_playback_views PRIVATE
     ECHO_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures"
 )
+echo_add_fuzzer(cover_flow
+    SOURCES ../app/fake_hal.c ../library/memory_source.c ../library/fixture_library.c
+    LIBRARIES echo_app echo_library_scan
+    PRIVATE_INCLUDES
+        ${PROJECT_SOURCE_DIR}/src/app
+        ${PROJECT_SOURCE_DIR}/tests/app
+        ${PROJECT_SOURCE_DIR}/tests/library
+)
+target_compile_definitions(fuzz_cover_flow PRIVATE
+    ECHO_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures"
+)
 echo_add_fuzzer(library_builder
     SOURCES ../library/memory_source.c
     LIBRARIES echo_library_scan
@@ -93,6 +109,8 @@ target_compile_definitions(fuzz_play_queue PRIVATE
 )
 echo_add_fuzzer(mp3_probe LIBRARIES echo_device_logic)
 echo_add_fuzzer(ogg_track LIBRARIES echo_device_logic)
+echo_add_fuzzer(wav_source LIBRARIES echo_device_logic)
+echo_add_fuzzer(vorbis_decoder LIBRARIES echo_device_logic)
 echo_add_fuzzer(opus_decode LIBRARIES echo_device_logic)
 echo_add_fuzzer(audio_engine LIBRARIES echo_device_logic)
 echo_add_fuzzer(card_format LIBRARIES echo_device_logic)
