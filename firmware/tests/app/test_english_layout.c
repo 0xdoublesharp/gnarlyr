@@ -67,11 +67,12 @@ static const StringId SCREEN_TITLES[] = {
     STR_MIXTAPE_NAME,   STR_LISTENING,   STR_TOP_ARTISTS,
     STR_TOP_ALBUMS,     STR_TOP_SONGS,   STR_LISTENING_TOTALS,
     STR_LYRICS,         STR_REPLAY_GAIN, STR_PREVENT_CLIPPING,
+    STR_CLOCK,          STR_CALENDAR,
 };
 
 static const StringId EMPTY_STATES[] = {
     STR_NOTHING_HERE,  STR_NO_LIBRARY_HINT, STR_NO_FAVORITES_HINT,  STR_NO_BOOKS_HINT,
-    STR_NO_SHOWS_HINT, STR_NOTHING_PLAYING, STR_NOTHING_IS_PLAYING,
+    STR_NO_SHOWS_HINT, STR_NOTHING_PLAYING, STR_NOTHING_IS_PLAYING, STR_TIME_UNKNOWN_HINT,
 };
 
 static const StringId TOASTS[] = {
@@ -242,6 +243,27 @@ static void every_empty_screen_message_wraps_whole_at_every_size_and_orientation
     }
 }
 
+static void every_month_title_and_clock_hint_fits_at_every_size_and_orientation(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = themed(size, orientation);
+            int room = header_title_bounds(&theme).width;
+            int line = theme.metrics.screen_width - 2 * theme.metrics.padding;
+            for (int month = 0; month < 12; month++) {
+                char title[64];
+                StringBuilder builder = string_builder_make(title, sizeof title);
+                const char *arguments[] = {i18n_text((StringId)(STR_JANUARY + month)), "2026"};
+                i18n_format(&builder, STR_CALENDAR_MONTH, arguments, 2);
+                CHECK(text_width(theme.fonts.header, title) <= room);
+            }
+            CHECK(text_width(theme.fonts.small, i18n_text(STR_CLOCK_HINT)) <= line);
+            CHECK(text_width(theme.fonts.small, i18n_text(STR_CALENDAR_HINT)) <= line);
+            CHECK(text_width(theme.fonts.title, i18n_text(STR_TIME_UNKNOWN)) <= line);
+        }
+    }
+}
+
 static bool toast_fits(const Theme *theme, const char *text)
 {
     int room = theme->metrics.screen_width - 2 * theme->metrics.padding;
@@ -329,6 +351,7 @@ int main(void)
         TEST_CASE(the_usb_dac_prompt_takes_two_lines_in_landscape_and_three_in_portrait),
         TEST_CASE(every_screen_title_fits_the_header_at_every_size_and_orientation),
         TEST_CASE(every_empty_screen_message_wraps_whole_at_every_size_and_orientation),
+        TEST_CASE(every_month_title_and_clock_hint_fits_at_every_size_and_orientation),
         TEST_CASE(every_toast_is_shown_whole_at_every_size_and_orientation),
         TEST_CASE(a_toast_taller_than_one_line_stays_on_screen),
         TEST_CASE(every_export_status_fits_its_screen_at_every_size_and_orientation),
