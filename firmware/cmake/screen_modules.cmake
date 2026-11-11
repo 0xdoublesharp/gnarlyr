@@ -41,6 +41,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
     src/app/screens/bluetooth_screen.c
+    src/app/bluetooth_link_ui.c
     src/app/screens/equalizer_screen.c
     src/app/screens/equalizer_browser.c
     src/app/screens/equalizer_plot.c

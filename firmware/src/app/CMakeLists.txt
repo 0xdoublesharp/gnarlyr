@@ -21,6 +21,7 @@ add_library(echo_app STATIC
     card_files.c
     app_screens.c
     bluetooth_link.c
+    bluetooth_link_ui.c
     bluetooth_store.c
     board_layout.c
     browse_screen.c
