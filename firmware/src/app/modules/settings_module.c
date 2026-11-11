@@ -36,6 +36,11 @@ static Screen *language_row(AppScreens *screens)
     return &settings->menu.screen;
 }
 
+static Screen *usb_modes(AppScreens *screens)
+{
+    return settings_screens_usb_modes(&screens->modules.settings.settings);
+}
+
 #ifdef ECHO_DEBUG_LOOP
 static bool choose(AppScreens *screens, DebugSpan title, DebugSpan option)
 {
@@ -46,6 +51,7 @@ static bool choose(AppScreens *screens, DebugSpan title, DebugSpan option)
 const SettingsModuleEntry SETTINGS_MODULE_ENTRY = {
     .module = {SCREEN_MODULE_MAGIC(SCREEN_MODULE_SETTINGS), bind},
     .language_row = language_row,
+    .usb_modes = usb_modes,
 #ifdef ECHO_DEBUG_LOOP
     .choose = choose,
 #endif

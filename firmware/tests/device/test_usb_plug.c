@@ -116,6 +116,42 @@ static void a_retry_while_listening_changes_nothing(void)
     CHECK_EQUAL(USB_PLUG_NOTHING, at(20000, true));
 }
 
+static void choosing_player_stops_a_listener_until_the_cable_leaves(void)
+{
+    listening_from(1000);
+    CHECK_EQUAL(USB_PLUG_STOP, usb_plug_request(&plug, false));
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(10000, true));
+    CHECK_EQUAL(USB_PLUG_SERVED, plug.state);
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(11000, false));
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(12000, true));
+    CHECK_EQUAL(USB_PLUG_START, at(13000, true));
+}
+
+static void a_mode_request_restarts_a_served_connection_without_unplugging(void)
+{
+    listening_from(1000);
+    usb_plug_served(&plug);
+    CHECK_EQUAL(USB_PLUG_NOTHING, usb_plug_request(&plug, true));
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(10000, true));
+    CHECK_EQUAL(USB_PLUG_START, at(11000, true));
+}
+
+static void a_mode_change_stops_the_old_listener_before_starting_another(void)
+{
+    listening_from(1000);
+    CHECK_EQUAL(USB_PLUG_STOP, usb_plug_request(&plug, true));
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(10000, true));
+    CHECK_EQUAL(USB_PLUG_START, at(11000, true));
+}
+
+static void an_unplugged_mode_request_does_not_start_a_session(void)
+{
+    plug = (UsbPlug){0};
+    CHECK_EQUAL(USB_PLUG_NOTHING, usb_plug_request(&plug, true));
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(10000, false));
+    CHECK_EQUAL(USB_PLUG_UNPLUGGED, plug.state);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -130,6 +166,10 @@ int main(void)
         TEST_CASE(a_retry_listens_again_with_the_cable_still_in),
         TEST_CASE(a_retry_does_not_restart_a_second_already_being_counted),
         TEST_CASE(a_retry_while_listening_changes_nothing),
+        TEST_CASE(choosing_player_stops_a_listener_until_the_cable_leaves),
+        TEST_CASE(a_mode_request_restarts_a_served_connection_without_unplugging),
+        TEST_CASE(a_mode_change_stops_the_old_listener_before_starting_another),
+        TEST_CASE(an_unplugged_mode_request_does_not_start_a_session),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -169,6 +169,8 @@ typedef struct FakeHal {
     HalBluetoothDevice bluetooth_connected_to;
     int bluetooth_disconnect_count;
     HalUsbMode usb_mode;
+    HalUsbMode requested_usb_mode;
+    int usb_mode_requests;
     uint8_t dac_volume;
 } FakeHal;
 
@@ -856,6 +858,22 @@ HalToneDetail hal_audio_tone_detail(void)
 HalBootClocks hal_system_boot_clocks(void)
 {
     return (HalBootClocks){0};
+}
+
+void hal_system_request_usb_mode(HalUsbMode mode)
+{
+    fake.requested_usb_mode = mode;
+    fake.usb_mode_requests++;
+}
+
+int fake_hal_usb_mode_requests(void)
+{
+    return fake.usb_mode_requests;
+}
+
+HalUsbMode fake_hal_requested_usb_mode(void)
+{
+    return fake.requested_usb_mode;
 }
 
 void hal_system_set_usb_mode(HalUsbMode mode)

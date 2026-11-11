@@ -7,7 +7,6 @@
 #include "core/i18n.h"
 #include "core/seam.h"
 #include "debug_probe.h"
-#include "device/usb_forced.h"
 #include "emmc.h"
 #include "hal/clock.h"
 #include "hal/system.h"
@@ -19,16 +18,6 @@ static const char RESTART_TEXT[] = DEBUG_RESTART_REQUEST;
 static const char RESTART_DONE[] = DEBUG_RESTART_DONE;
 
 _Static_assert(sizeof RESTART_DONE == sizeof RESTART_TEXT, "the answer overwrites the request");
-
-static UsbForced forced;
-
-bool debug_session_cable(bool vbus, const Msc *msc)
-{
-    return usb_forced_connected(&forced, (UsbForcedNow){.cable = vbus,
-                                                        .requested = board_debug_usb_forced(),
-                                                        .commands = msc_stats(msc).commands,
-                                                        .now_ms = hal_clock_milliseconds()});
-}
 
 static bool take_script(FatVolume *volume)
 {

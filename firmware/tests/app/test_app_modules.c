@@ -247,12 +247,13 @@ static void a_module_lost_under_its_screen_is_loaded_again_before_the_screen_run
     start_app();
     open_cover_flow();
     wait_ms(SLIDE_DURATION_MS);
+    const char *toast = app_toast_text();
     fake_hal_evict_module();
     wait_ms(20);
     CHECK(title_is("Cover Flow"));
     CHECK_EQUAL(2, fake_hal_module_loads());
     CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
-    CHECK(app_toast_text() == NULL);
+    CHECK(app_toast_text() == toast);
 }
 
 static void a_screen_whose_module_is_gone_for_good_gives_way_to_home(void)
@@ -303,13 +304,14 @@ static void a_slide_ends_at_once_when_the_leaving_screens_module_cannot_come_bac
     start_app();
     open_cover_flow();
     wait_ms(SLIDE_DURATION_MS);
+    const char *toast = app_toast_text();
     tap(KEY_PLAY);
     fake_hal_evict_module();
     fake_hal_break_module(SCREEN_MODULE_VIEWS, true);
     wait_ms(SLIDE_DURATION_MS / 2);
     CHECK_EQUAL(ALBUM_DEPTH, app_screen_depth());
     CHECK_EQUAL(1, fake_hal_module_loads());
-    CHECK(app_toast_text() == NULL);
+    CHECK(app_toast_text() == toast);
 }
 
 static void module_screens_are_built_again_after_the_app_restarts(void)

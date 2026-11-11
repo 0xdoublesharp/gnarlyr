@@ -1331,12 +1331,36 @@ static void draw_charge(void *context, Canvas *canvas)
     charge_screen_draw(canvas, board_theme(), app.charge_battery);
 }
 
+void app_open_usb_modes(void)
+{
+    if (debug_runner_active() || hal_system_restart_pending()) {
+        return;
+    }
+    Screen *screen = app_screens_usb_modes(&app.screens);
+    uint32_t now_ms = hal_clock_milliseconds();
+    if (screen == NULL) {
+        explain_missing_screen(now_ms);
+        return;
+    }
+    if (app.charging) {
+        app.charging = false;
+        bluetooth_link_start(&app.bluetooth, &app.toast, now_ms);
+    }
+    power_policy_wake(&app.power, now_ms);
+    set_display(true);
+    if (top_screen() != screen && apply_action(screen_action_push(screen), now_ms)) {
+        screen_changed();
+    }
+}
+
 static void follow_charge_keys(uint32_t now_ms)
 {
     KeyEvent event;
     while (app.charging && key_tracker_next_event(&app.keys, &event)) {
         if (event.key == KEY_POWER && event.gesture == KEY_GESTURE_LONG_PRESS) {
             stop_charging(now_ms);
+        } else if (event.key == KEY_MENU && event.gesture == KEY_GESTURE_PRESS) {
+            app_open_usb_modes();
         } else {
             light_charge_screen(now_ms);
         }

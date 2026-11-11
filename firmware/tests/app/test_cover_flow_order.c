@@ -1,8 +1,11 @@
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "big_library.h"
 #include "check.h"
+#include "default_theme.h"
+#include "fake_hal.h"
 #include "fixture_library.h"
 #include "screens/cover_flow_screen.h"
 
@@ -15,6 +18,41 @@ enum {
 static FixtureLibrary fixture;
 static BigLibrary big;
 static uint8_t seen[BIG_ALBUMS];
+static CoverFlowScreen flow;
+static CoverCache covers;
+static FavoritesStore favorites;
+static BrowsePool browse;
+static Player player;
+static Toast toast;
+static Screen *screen;
+static Color pixels[HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT];
+
+static void start_flow(Library *library)
+{
+    fake_hal_reset();
+    player_init(&player, library);
+    favorites_store_load(&favorites, library);
+    cover_cache_open(&covers, library);
+    toast = (Toast){0};
+    browse_pool_init(&browse, (BrowsePoolConfig){.library = library,
+                                                 .theme = &BOARD_THEME,
+                                                 .player = &player,
+                                                 .favorites = &favorites,
+                                                 .toast = &toast});
+    screen = cover_flow_screen_init(&flow, (CoverFlowConfig){.library = library,
+                                                             .theme = &BOARD_THEME,
+                                                             .covers = &covers,
+                                                             .favorites = &favorites,
+                                                             .toast = &toast,
+                                                             .browse = &browse,
+                                                             .player = &player});
+    screen->enter(screen->context, 0);
+}
+
+static void volume(Key key, KeyGesture gesture, uint32_t now_ms)
+{
+    screen->handle_key(screen->context, (KeyEvent){.key = key, .gesture = gesture}, now_ms);
+}
 
 static int album_at(const Library *library, CoverFlowOrder order, uint32_t position)
 {
@@ -112,6 +150,128 @@ static void out_of_order_links_fall_back_to_album_order(void)
     }
 }
 
+static void holding_volume_accelerates_across_albums(void)
+{
+    start_flow(fixture_library_open(&fixture));
+    CHECK_EQUAL(1, flow.target);
+    volume(KEY_VOLUME_UP, KEY_GESTURE_PRESS, 100);
+    CHECK_EQUAL(2, flow.target);
+    volume(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 100 + LIST_FAST_SCROLL_AFTER_MS);
+    CHECK_EQUAL(5, flow.target);
+}
+
+static void a_long_hold_jumps_to_the_next_artist_letter(void)
+{
+    start_flow(fixture_library_open(&fixture));
+    volume(KEY_VOLUME_DOWN, KEY_GESTURE_PRESS, 100);
+    volume(KEY_VOLUME_UP, KEY_GESTURE_PRESS, 200);
+    CHECK_EQUAL(1, flow.target);
+    volume(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 200 + LIST_SECTION_JUMP_AFTER_MS);
+    CHECK_EQUAL(4, flow.target);
+}
+
+static void backward_holds_return_to_the_start_of_the_previous_artist_letter(void)
+{
+    start_flow(fixture_library_open(&fixture));
+    flow.target = 5;
+    volume(KEY_VOLUME_DOWN, KEY_GESTURE_PRESS, 100);
+    CHECK_EQUAL(4, flow.target);
+    volume(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 100 + LIST_SECTION_JUMP_AFTER_MS);
+    CHECK_EQUAL(1, flow.target);
+    volume(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 200 + LIST_SECTION_JUMP_AFTER_MS);
+    CHECK_EQUAL(0, flow.target);
+}
+
+static void taps_and_holds_keep_the_existing_clamped_endpoints(void)
+{
+    start_flow(fixture_library_open(&fixture));
+    for (int index = 0; index < 10; index++) {
+        volume(KEY_VOLUME_DOWN, KEY_GESTURE_PRESS, 100);
+    }
+    CHECK_EQUAL(0, flow.target);
+    volume(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 100 + LIST_SECTION_JUMP_AFTER_MS);
+    CHECK_EQUAL(0, flow.target);
+    for (int index = 0; index < 10; index++) {
+        volume(KEY_VOLUME_UP, KEY_GESTURE_PRESS, 4000);
+    }
+    CHECK_EQUAL(5, flow.target);
+    volume(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 4000 + LIST_SECTION_JUMP_AFTER_MS);
+    CHECK_EQUAL(5, flow.target);
+}
+
+static void fallback_order_jumps_by_album_title_instead_of_unsorted_artists(void)
+{
+    Library *library = fixture_library_open(&fixture);
+    swap_first_two_album_artists(library);
+    start_flow(library);
+    CHECK(!flow.order.linked);
+    volume(KEY_VOLUME_DOWN, KEY_GESTURE_PRESS, 100);
+    volume(KEY_VOLUME_UP, KEY_GESTURE_PRESS, 200);
+    volume(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 200 + LIST_SECTION_JUMP_AFTER_MS);
+    CHECK_EQUAL(3, flow.target);
+}
+
+static void a_new_cover_flow_explains_holding_volume_once(void)
+{
+    start_flow(fixture_library_open(&fixture));
+    CHECK(toast.visible);
+    CHECK(toast.text != NULL && strcmp(toast.text, "Hold volume: A-Z") == 0);
+    toast.visible = false;
+    screen->enter(screen->context, 2000);
+    CHECK(!toast.visible);
+}
+
+static void artwork_loads_in_the_direction_of_travel_before_the_opposite_side(void)
+{
+    start_flow(fixture_library_open(&fixture));
+    uint16_t album = 0;
+    CHECK(cover_flow_order_album(&fixture.library, flow.order, 2, &album));
+    CHECK(cover_cache_load_half(&covers, 3, album));
+    flow.position = 3 * COVER_FLOW_ONE;
+    flow.target = 4;
+    screen->update(screen->context, 0);
+    CHECK_EQUAL(4, covers.halves[4 % COVER_CACHE_SLOTS].position);
+    CHECK(covers.halves[4 % COVER_CACHE_SLOTS].state != COVER_EMPTY);
+    CHECK_EQUAL(-1, covers.halves[2 % COVER_CACHE_SLOTS].position);
+}
+
+static void hold_timing_survives_the_millisecond_clock_wrapping(void)
+{
+    start_flow(fixture_library_open(&fixture));
+    volume(KEY_VOLUME_UP, KEY_GESTURE_PRESS, UINT32_MAX - 1000);
+    volume(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 500);
+    CHECK_EQUAL(5, flow.target);
+}
+
+static void the_letter_badge_is_visible_then_expires_in_every_screen_layout(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            start_flow(fixture_library_open(&fixture));
+            Theme theme = BOARD_THEME;
+            default_theme_set_text_size(&theme, (TextSize)size);
+            default_theme_set_orientation(&theme, (Orientation)orientation);
+            flow.config.theme = &theme;
+            volume(KEY_VOLUME_UP, KEY_GESTURE_PRESS, 100);
+            volume(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 100 + LIST_FAST_SCROLL_AFTER_MS);
+            Canvas canvas = canvas_make(
+                pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+            screen->draw(screen->context, &canvas);
+            CHECK_EQUAL(theme.colors.selection_background,
+                        canvas_pixel_at(&canvas, theme.metrics.padding, theme.metrics.padding));
+            screen->update(screen->context,
+                           100 + LIST_FAST_SCROLL_AFTER_MS + LIST_SECTION_SHOWN_MS);
+            screen->draw(screen->context, &canvas);
+            CHECK(canvas_pixel_at(&canvas, theme.metrics.padding, theme.metrics.padding) !=
+                  theme.colors.selection_background);
+            Rect hint = toast_area(&toast, &theme);
+            CHECK(hint.x >= 0 && hint.y >= 0);
+            CHECK(hint.x + hint.width <= theme.metrics.screen_width);
+            CHECK(hint.y + hint.height <= theme.metrics.screen_height);
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -119,6 +279,15 @@ int main(void)
         TEST_CASE(each_album_is_found_where_it_is_shown),
         TEST_CASE(every_album_of_a_big_library_is_shown_once),
         TEST_CASE(out_of_order_links_fall_back_to_album_order),
+        TEST_CASE(holding_volume_accelerates_across_albums),
+        TEST_CASE(a_long_hold_jumps_to_the_next_artist_letter),
+        TEST_CASE(backward_holds_return_to_the_start_of_the_previous_artist_letter),
+        TEST_CASE(taps_and_holds_keep_the_existing_clamped_endpoints),
+        TEST_CASE(fallback_order_jumps_by_album_title_instead_of_unsorted_artists),
+        TEST_CASE(a_new_cover_flow_explains_holding_volume_once),
+        TEST_CASE(artwork_loads_in_the_direction_of_travel_before_the_opposite_side),
+        TEST_CASE(hold_timing_survives_the_millisecond_clock_wrapping),
+        TEST_CASE(the_letter_badge_is_visible_then_expires_in_every_screen_layout),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

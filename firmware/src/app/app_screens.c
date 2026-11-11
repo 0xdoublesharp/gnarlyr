@@ -230,6 +230,19 @@ static MenuItem shelf_item(AppScreens *screens, AppScreensContext context, Spoke
                       .shown_context = entry};
 }
 
+Screen *app_screens_usb_modes(AppScreens *screens)
+{
+    const SettingsModuleEntry *entry =
+        (const SettingsModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_SETTINGS);
+    return entry != NULL ? entry->usb_modes(screens) : NULL;
+}
+
+static ScreenAction open_usb_modes(void *context)
+{
+    Screen *screen = app_screens_usb_modes(context);
+    return screen != NULL ? screen_action_push(screen) : screen_action_none();
+}
+
 static void build_home(AppScreens *screens, AppScreensContext context)
 {
     const Theme *theme = context.theme;
@@ -249,9 +262,13 @@ static void build_home(AppScreens *screens, AppScreensContext context)
         app_screens_open_item(STR_UP_NEXT, &screens->modules.views.up_next.screen);
     screens->home_items[5].shown = player_has_track;
     screens->home_items[5].shown_context = context.player;
+    screens->home_items[8] = (MenuItem){.label = i18n_text(STR_USB_MODE),
+                                        .select = open_usb_modes,
+                                        .context = screens,
+                                        .opens = true};
     static const IconId icons[HOME_ITEM_COUNT] = {ICON_MUSIC,    ICON_AUDIOBOOK,   ICON_PODCAST,
                                                   ICON_SETTINGS, ICON_NOW_PLAYING, ICON_QUEUE,
-                                                  ICON_MIXTAPE,  ICON_DIAGNOSTICS};
+                                                  ICON_MIXTAPE,  ICON_DIAGNOSTICS, ICON_USB};
     for (int index = 0; index < HOME_ITEM_COUNT; index++) {
         screens->home_items[index].icon = icons[index];
     }

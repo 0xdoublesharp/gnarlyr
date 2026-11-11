@@ -8,6 +8,7 @@
 #include "core/string_builder.h"
 #include "draw_profile.h"
 #include "hal/clock.h"
+#include "library/sort_key.h"
 #include "ui/cover_flow.h"
 #include "ui/label.h"
 #include "ui/marquee.h"
@@ -202,16 +203,23 @@ static void refresh_text(CoverFlowScreen *flow, bool force)
     flow->text_changed_ms = flow->now_ms;
 }
 
+static bool load_half_at(CoverFlowScreen *flow, int position)
+{
+    return position > RANDOM_POSITION && position < flow->count &&
+           cover_cache_load_half(flow->config.covers, position, album_of(flow, position));
+}
+
 static bool load_nearest_half(CoverFlowScreen *flow)
 {
     int center = center_of(flow);
-    for (int distance = 0; distance <= COVER_CACHE_SLOTS / 2; distance++) {
-        for (int side = -1; side <= 1; side += 2) {
-            int position = center + side * distance;
-            if (position > RANDOM_POSITION && position < flow->count &&
-                cover_cache_load_half(flow->config.covers, position, album_of(flow, position))) {
-                return true;
-            }
+    if (load_half_at(flow, center)) {
+        return true;
+    }
+    int direction = flow->target < center ? -1 : 1;
+    for (int distance = 1; distance <= COVER_CACHE_SLOTS / 2; distance++) {
+        if (load_half_at(flow, center + direction * distance) ||
+            load_half_at(flow, center - direction * distance)) {
+            return true;
         }
     }
     return false;
@@ -242,9 +250,57 @@ static int playing_position(const CoverFlowScreen *flow)
     return (int)position + 1;
 }
 
-static void move_target(CoverFlowScreen *flow, int delta)
+static int scroll_count(const void *context)
 {
-    flow->target = max_of(0, min_of(flow->count - 1, flow->target + delta));
+    const CoverFlowScreen *flow = context;
+    return flow->count;
+}
+
+static int scroll_section(const void *context, int position)
+{
+    const CoverFlowScreen *flow = context;
+    const Library *library = flow->config.library;
+    LibraryAlbum album;
+    LibraryGroup artist;
+    if (!library_read_album(library, album_of(flow, position), &album)) {
+        return LIST_SECTION_BEFORE_LETTERS;
+    }
+    uint32_t name = album.title;
+    if (flow->order.linked) {
+        if (!library_read_group(library, LIBRARY_ALBUM_ARTISTS, album.album_artist, &artist)) {
+            return LIST_SECTION_BEFORE_LETTERS;
+        }
+        name = artist.name;
+    }
+    char text[COVER_FLOW_TEXT_CAPACITY];
+    if (!library_read_string(library, name, text, sizeof text)) {
+        return LIST_SECTION_BEFORE_LETTERS;
+    }
+    char initial[2] = {sort_key_initial(text), '\0'};
+    return list_section_of_key(initial);
+}
+
+static void move_target(CoverFlowScreen *flow, Navigation navigation)
+{
+    if (flow->count == 0) {
+        return;
+    }
+    ListModel model = {.context = flow, .count = scroll_count, .section = scroll_section};
+    ListView scroll = {.model = &model,
+                       .selected = flow->target,
+                       .visible_rows = 1,
+                       .scroll_started_ms = flow->scroll_started_ms,
+                       .section_shown_until_ms = flow->section_shown_until_ms};
+    int direction = navigation.intent == NAVIGATION_NEXT ? 1 : -1;
+    if (navigation.repeated) {
+        list_view_keep_scrolling(&scroll, direction, flow->now_ms);
+    } else {
+        scroll.scroll_started_ms = flow->now_ms;
+        list_view_move(&scroll, direction, false, flow->now_ms);
+    }
+    flow->target = scroll.selected;
+    flow->scroll_started_ms = scroll.scroll_started_ms;
+    flow->section_shown_until_ms = scroll.section_shown_until_ms;
 }
 
 static ScreenAction play_random(CoverFlowScreen *flow)
@@ -301,12 +357,11 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     CoverFlowScreen *flow = context;
     flow->now_ms = now_ms;
-    switch (navigation_from_key(event).intent) {
+    Navigation navigation = navigation_from_key(event);
+    switch (navigation.intent) {
     case NAVIGATION_PREVIOUS:
-        move_target(flow, -1);
-        return screen_action_none();
     case NAVIGATION_NEXT:
-        move_target(flow, 1);
+        move_target(flow, navigation);
         return screen_action_none();
     case NAVIGATION_SELECT:
         return open_album(flow);
@@ -329,7 +384,11 @@ static void enter(void *context, uint32_t now_ms)
         int playing = playing_position(flow);
         flow->target = playing != NO_POSITION ? playing : min_of(1, flow->count - 1);
         flow->positioned = true;
+        if (flow->count > 0 && flow->config.toast != NULL) {
+            toast_show(flow->config.toast, i18n_text(STR_COVER_FLOW_HINT), now_ms);
+        }
     }
+    flow->section_shown_until_ms = 0;
     flow->position = (int32_t)flow->target * COVER_FLOW_ONE;
     flow->last_ms = now_ms;
     flow->now_ms = now_ms;
@@ -422,6 +481,22 @@ static void draw_text(const CoverFlowScreen *flow, Canvas *canvas)
     draw_line(flow, canvas, (Label){artist_area, flow->artist}, artist);
 }
 
+static void draw_section(const CoverFlowScreen *flow, Canvas *canvas)
+{
+    if (flow->section_shown_until_ms == 0 ||
+        (int32_t)(flow->now_ms - flow->section_shown_until_ms) >= 0) {
+        return;
+    }
+    const Theme *theme = flow->config.theme;
+    int padding = theme->metrics.padding;
+    int height = font_line_height(theme->fonts.title);
+    Rect badge = {padding, padding, height + 2 * padding, height + padding};
+    const char *letter = list_section_label(scroll_section(flow, flow->target));
+    canvas_fill_rect(canvas, badge, theme->colors.selection_background);
+    label_draw(canvas, (TextStyle){theme->fonts.title, theme->colors.selection_text},
+               (Label){label_centered_area(theme->fonts.title, badge, letter), letter});
+}
+
 static void draw_empty(const Theme *theme, Canvas *canvas)
 {
     Rect screen = {0, 0, theme->metrics.screen_width, theme->metrics.screen_height};
@@ -459,6 +534,7 @@ static void draw(void *context, Canvas *canvas)
     }
     uint32_t text_started_us = hal_clock_microseconds();
     draw_text(flow, canvas);
+    draw_section(flow, canvas);
     draw_profile_add(DRAW_PART_TEXT, hal_clock_microseconds() - text_started_us);
 }
 
@@ -471,6 +547,8 @@ Screen *cover_flow_screen_init(CoverFlowScreen *flow, CoverFlowConfig config)
     flow->position = 0;
     flow->positioned = false;
     flow->text_position = NO_POSITION;
+    flow->scroll_started_ms = 0;
+    flow->section_shown_until_ms = 0;
     flow->title[0] = '\0';
     flow->artist[0] = '\0';
     flow->screen = (Screen){

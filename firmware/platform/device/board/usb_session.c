@@ -35,6 +35,7 @@ static bool card_present;
 static UsbPort port;
 static Msc msc;
 static UsbFallback fallback;
+static UsbForced forced;
 static uint32_t write_buffer[WRITE_BUFFER_SECTORS * MSC_SECTOR_SIZE / 4];
 
 uint32_t *usb_session_buffer(void)
@@ -143,12 +144,20 @@ static void show_storage_state(void)
         .detail = i18n_text(card_present ? STR_USB_EJECT_DRIVES : STR_USB_EJECT_DRIVE)});
 }
 
+bool usb_session_present(UsbShared *state, UsbForced *connection, uint32_t commands)
+{
+    return usb_forced_connected(connection, (UsbForcedNow){.cable = usb_vbus_present(),
+                                                           .requested = state->reconnect.forced,
+                                                           .commands = commands,
+                                                           .now_ms = hal_clock_milliseconds()});
+}
+
 static UsbSessionEnd serve(void)
 {
     MscStats shown = msc_stats(&msc);
     HalBattery shown_battery = hal_power_battery();
     uint32_t refreshed = hal_clock_milliseconds();
-    while (debug_session_cable(usb_vbus_present(), &msc)) {
+    while (usb_session_present(shared, &forced, msc_stats(&msc).commands)) {
         uint32_t now = hal_clock_milliseconds();
         if (now - refreshed >= COUNTER_REFRESH_MS) {
             HalBattery battery = hal_power_battery();
@@ -198,6 +207,7 @@ static UsbSessionEnd run(void)
     app_show_usb_status(
         (AppUsbStatus){.view = APP_USB_CONNECTING, .detail = i18n_text(STR_USB_STARTING)});
     fallback = (UsbFallback){.watching = false};
+    forced = (UsbForced){0};
     debug_report_write(shared, DEBUG_REPORT_USB_SESSION);
     prepare_port();
     prepare_luns();
@@ -210,6 +220,7 @@ static UsbSessionEnd run(void)
     }
     usb_session_stop_listening();
     remember_session(end);
+    shared->show_modes = end == USB_SESSION_EJECTED;
     return end;
 }
 

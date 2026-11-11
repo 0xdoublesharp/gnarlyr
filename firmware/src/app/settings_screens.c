@@ -7,10 +7,12 @@
 #include "default_theme.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
+#include "hal/system.h"
 
 enum {
     BRIGHTNESS_LEVEL_COUNT = SETTINGS_BRIGHTNESS_MAX - SETTINGS_BRIGHTNESS_MIN + 1,
-    MILLISECONDS_PER_MINUTE = 60000
+    MILLISECONDS_PER_MINUTE = 60000,
+    USB_MODE_SELECT_COUNT = 3
 };
 
 static const StringId SHUFFLE_OPTIONS[SHUFFLE_MODE_COUNT] = {STR_OFF, STR_SHUFFLE_SONGS,
@@ -48,7 +50,8 @@ static const StringId OUTPUT_MESSAGES[OUTPUT_JACK_COUNT] = {STR_OUTPUT_FOLLOWS, 
 static const StringId START_OPTIONS[START_SCREEN_COUNT] = {
     STR_START_MAIN_MENU, STR_NOW_PLAYING, STR_ALBUMS,    STR_ARTISTS,
     STR_FAVORITES,       STR_PLAYLISTS,   STR_COVER_FLOW};
-static const StringId USB_MODE_OPTIONS[USB_MODE_COUNT] = {STR_USB_STORAGE, STR_USB_DAC};
+static const StringId USB_MODE_OPTIONS[USB_MODE_SELECT_COUNT] = {STR_PLAYER_MODE, STR_POWER_STORAGE,
+                                                                 STR_USB_DAC_TITLE};
 static const StringId USB_MODE_MESSAGES[USB_MODE_COUNT] = {STR_USB_SHOWS_DRIVES,
                                                            STR_USB_PLAYS_SOUND};
 
@@ -454,15 +457,22 @@ static void choose_start(void *context, int index)
 
 static int current_usb_mode(const void *context)
 {
-    return (int)settings_of(context)->usb_mode;
+    (void)context;
+    return 0;
 }
 
 static void choose_usb_mode(void *context, int index)
 {
+    if (index == 0) {
+        hal_system_request_usb_mode(HAL_USB_MODE_PLAYER);
+        return;
+    }
     SettingsContext *settings = context;
-    editable_settings(context)->usb_mode = (UsbMode)index;
+    editable_settings(context)->usb_mode = (UsbMode)(index - 1);
     apply_and_save(context);
-    toast_show(settings->toast, i18n_text(USB_MODE_MESSAGES[index]), hal_clock_milliseconds());
+    HalUsbMode mode = index == 1 ? HAL_USB_MODE_STORAGE : HAL_USB_MODE_DAC;
+    hal_system_request_usb_mode(mode);
+    toast_show(settings->toast, i18n_text(USB_MODE_MESSAGES[index - 1]), hal_clock_milliseconds());
 }
 
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
@@ -490,7 +500,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_EQUALIZER, EQUALIZER_PRESET_NAMES, EQUALIZER_PRESET_COUNT, current_equalizer,
      choose_equalizer, describe_equalizer, extend_equalizer},
     {STR_START_SCREEN, START_OPTIONS, START_SCREEN_COUNT, current_start, choose_start, NULL, NULL},
-    {STR_USB_MODE, USB_MODE_OPTIONS, USB_MODE_COUNT, current_usb_mode, choose_usb_mode, NULL, NULL},
+    {STR_USB_MODE, USB_MODE_OPTIONS, USB_MODE_SELECT_COUNT, current_usb_mode, choose_usb_mode, NULL,
+     NULL},
     {STR_THEME, THEME_OPTIONS, APPEARANCE_THEME_COUNT, current_appearance, choose_appearance, NULL,
      NULL},
 };
@@ -529,6 +540,11 @@ static ScreenAction open_choice(void *context)
         choice->extend(screens, &config);
     }
     return screen_action_push(choice_view(screens, choice, config));
+}
+
+Screen *settings_screens_usb_modes(SettingsScreens *screens)
+{
+    return open_choice(&screens->entries[SETTINGS_USB_MODE_CHOICE]).target;
 }
 
 static const char *choice_value(const void *context)

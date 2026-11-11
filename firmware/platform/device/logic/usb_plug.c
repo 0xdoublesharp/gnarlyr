@@ -38,3 +38,10 @@ void usb_plug_retry(UsbPlug *plug)
         plug->state = USB_PLUG_UNPLUGGED;
     }
 }
+
+UsbPlugAction usb_plug_request(UsbPlug *plug, bool connect)
+{
+    UsbPlugAction action = plug->state == USB_PLUG_LISTENING ? USB_PLUG_STOP : USB_PLUG_NOTHING;
+    plug->state = connect ? USB_PLUG_UNPLUGGED : USB_PLUG_SERVED;
+    return action;
+}

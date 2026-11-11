@@ -255,7 +255,7 @@ static void draw_power(Canvas *canvas, const Theme *theme, HalBattery battery, A
 void charge_screen_draw(Canvas *canvas, const Theme *theme, HalBattery battery)
 {
     draw_power(canvas, theme, battery,
-               (AppUsbStatus){.view = APP_USB_POWER, .detail = i18n_text(STR_HOLD_POWER)});
+               (AppUsbStatus){.view = APP_USB_POWER, .detail = i18n_text(STR_CHARGE_MODE_HINT)});
 }
 
 void usb_screen_draw(Canvas *canvas, const Theme *theme, HalBattery battery, AppUsbStatus status)

@@ -417,7 +417,7 @@ static void walk_settings_toasts(void)
     show_toast("the output toast", STR_OUTPUT_FOLLOWS);
     choose_option(SETTINGS_OUTPUT_ROW, 1);
     show_toast("the 3.5 mm output toast", STR_OUTPUT_USING_35);
-    choose_option(SETTINGS_USB_MODE_ROW, 1);
+    choose_option(SETTINGS_USB_MODE_ROW, 2);
     show_toast("the USB mode toast", STR_USB_PLAYS_SOUND);
     open_settings_row(SETTINGS_RESCAN_ROW);
     text_spy_reset();

@@ -33,6 +33,8 @@ static UsbAudio audio;
 static UsbAudioSink sink;
 static uint32_t open_rate;
 static uint32_t last_packet_ms;
+static uint32_t received_packets;
+static UsbForced forced;
 static uint32_t back_pressed_ms;
 static bool receiving;
 static bool playing;
@@ -42,6 +44,7 @@ static uint32_t next_repeat_ms;
 
 static void receive_stream(const uint8_t *bytes, uint32_t length)
 {
+    received_packets++;
     if (receiving) {
         last_packet_ms = hal_clock_milliseconds();
         usb_audio_sink_write(&sink, bytes, length, board_audio_stream_consumed());
@@ -200,12 +203,15 @@ static bool user_left(void)
     return false;
 }
 
-static void serve(void)
+static bool serve(void)
 {
     back_pressed_ms = hal_clock_milliseconds();
     uint32_t refreshed = back_pressed_ms;
     HalBattery shown_battery = hal_power_battery();
-    while (usb_vbus_present() && !user_left()) {
+    while (usb_session_present(shared, &forced, received_packets)) {
+        if (user_left()) {
+            return true;
+        }
         serve_usb();
         hal_audio_service();
         board_display_service();
@@ -222,6 +228,7 @@ static void serve(void)
             refreshed = now;
         }
     }
+    return false;
 }
 
 static void start_session(void)
@@ -230,6 +237,8 @@ static void start_session(void)
     uint32_t *ring = board_audio_stream_ring(&frames);
     usb_audio_sink_init(&sink, ring, frames);
     open_rate = 0;
+    received_packets = 0;
+    forced = (UsbForced){0};
     receiving = false;
     playing = false;
     holding_volume = false;
@@ -254,7 +263,7 @@ void usb_dac_session(UsbShared *state)
     uint8_t starting_volume = shared->dac_volume;
     if (usb_wait_for_host(&port, HOST_TIMEOUT_MS)) {
         show_state();
-        serve();
+        shared->show_modes = serve();
     }
     receiving = false;
     stop_output();

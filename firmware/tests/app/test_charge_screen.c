@@ -83,7 +83,8 @@ static void rect_fits(Rect area, const Theme *theme)
 
 static void charge_and_usb_details_fit_every_size_and_orientation(void)
 {
-    static const StringId details[] = {STR_HOLD_POWER, STR_USB_STARTING, STR_USB_EJECT_DRIVE,
+    static const StringId details[] = {STR_HOLD_POWER,       STR_CHARGE_MODE_HINT,
+                                       STR_USB_STARTING,     STR_USB_EJECT_DRIVE,
                                        STR_USB_EJECT_DRIVES, STR_USB_DAC_FAILED};
     for (int orientation = 0; orientation < 2; orientation++) {
         for (int size = 0; size < TEXT_SIZE_COUNT; size++) {

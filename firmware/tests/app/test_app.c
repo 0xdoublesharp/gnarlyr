@@ -812,7 +812,7 @@ static void the_home_menu_shows_now_playing_last_once_a_track_is_loaded(void)
 static void the_home_menu_hides_now_playing_with_nothing_loaded(void)
 {
     start_app_with_library();
-    move_down(4);
+    move_down(5);
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
 }
@@ -1523,7 +1523,7 @@ static void home_puts_the_album_art_under_the_menu_in_portrait(void)
     settle();
     Theme theme = *expected_theme();
     default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
-    int list_bottom = theme.metrics.header_height + 4 * theme.metrics.row_height;
+    int list_bottom = theme.metrics.header_height + 5 * theme.metrics.row_height;
     int cover_middle = list_bottom + 8 + COVER_FULL_SIZE / 2;
     CHECK_EQUAL(RED_COVER, fake_hal_pixel(HAL_DISPLAY_SHORT_SIDE / 2, cover_middle));
     CHECK(fake_hal_pixel(2, list_bottom) == theme.colors.divider);
@@ -2568,6 +2568,64 @@ static void the_charge_screen_goes_dark_and_a_key_lights_it(void)
     tap(KEY_PLAY);
     CHECK(fake_hal_display_on());
     CHECK(app_charging());
+}
+
+static void menu_opens_mode_selection_from_charging_without_restarting(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery(ON_USB);
+    hold_power();
+    wait_ms(GOODBYE_MS);
+    tap(KEY_MENU);
+    CHECK(!app_charging());
+    CHECK(title_is("USB mode"));
+    CHECK(fake_hal_display_on());
+    CHECK_EQUAL(0, fake_hal_power_off_count());
+    tap(KEY_PLAY);
+    CHECK(!title_is("USB mode"));
+    CHECK(!app_charging());
+    CHECK_EQUAL(1, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(HAL_USB_MODE_PLAYER, fake_hal_requested_usb_mode());
+}
+
+static void the_home_menu_opens_the_same_three_mode_selector(void)
+{
+    start_app_with_library();
+    move_down(4);
+    tap(KEY_PLAY);
+    CHECK(title_is("USB mode"));
+    move_down(2);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(HAL_USB_MODE_DAC, fake_hal_usb_mode());
+    CHECK_EQUAL(1, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(HAL_USB_MODE_DAC, fake_hal_requested_usb_mode());
+}
+
+static void storage_selection_and_return_keep_the_playback_session(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    fake_hal_audio_set_position(PLAYING_POSITION_MS);
+    PlayerStatus before = app_player_status();
+    app_open_usb_modes();
+    CHECK(title_is("USB mode"));
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(HAL_USB_MODE_STORAGE, fake_hal_requested_usb_mode());
+    app_release_audio();
+    PlayerStatus after = app_player_status();
+    CHECK_EQUAL(before.track, after.track);
+    CHECK_EQUAL(before.position_ms, after.position_ms);
+    CHECK_EQUAL(PLAYER_PAUSED, after.state);
+    app_open_usb_modes();
+    int depth = app_screen_depth();
+    app_open_usb_modes();
+    CHECK_EQUAL(depth, app_screen_depth());
+    tap(KEY_PLAY);
+    CHECK_EQUAL(HAL_USB_MODE_PLAYER, fake_hal_requested_usb_mode());
+    restart_app();
+    CHECK_EQUAL(before.track, app_player_status().track);
+    CHECK_EQUAL(before.position_ms, app_player_status().position_ms);
 }
 
 static void holding_power_on_the_charge_screen_turns_the_player_on(void)
@@ -4239,11 +4297,11 @@ static void an_aborted_script_lets_go_of_the_key_it_holds(void)
     step();
     const Theme *theme = expected_theme();
     int selected = 0;
-    while (selected < 4 &&
+    while (selected < 5 &&
            !selected_at(theme->metrics.header_height + selected * theme->metrics.row_height + 16)) {
         selected++;
     }
-    CHECK(selected < 4);
+    CHECK(selected < 5);
     long pixels = fake_hal_pixels_written();
     uint32_t before = debug_loop_log()->recorded;
     run_script_for(2000);
@@ -4252,8 +4310,8 @@ static void an_aborted_script_lets_go_of_the_key_it_holds(void)
     CHECK_EQUAL(pixels, fake_hal_pixels_written());
     CHECK_EQUAL(0, events_of(DEBUG_EVENT_SCREEN, before));
     tap(KEY_PLAY);
-    static const char *const titles[] = {"Music", "Settings", "Mixtapes", "Listening"};
-    CHECK(selected < 4 && title_is(titles[selected]));
+    static const char *const titles[] = {"Music", "Settings", "Mixtapes", "Listening", "USB mode"};
+    CHECK(selected < 5 && title_is(titles[selected]));
 }
 
 static void a_script_lights_the_screen_and_leaves_the_charge_screen_before_it_starts(void)
@@ -4492,6 +4550,9 @@ int main(void)
         TEST_CASE(an_empty_battery_on_usb_power_keeps_playing),
         TEST_CASE(switching_off_on_usb_power_shows_the_charge_screen),
         TEST_CASE(the_charge_screen_goes_dark_and_a_key_lights_it),
+        TEST_CASE(menu_opens_mode_selection_from_charging_without_restarting),
+        TEST_CASE(the_home_menu_opens_the_same_three_mode_selector),
+        TEST_CASE(storage_selection_and_return_keep_the_playback_session),
         TEST_CASE(holding_power_on_the_charge_screen_turns_the_player_on),
         TEST_CASE(unplugging_on_the_charge_screen_turns_the_player_off),
         TEST_CASE(a_cable_start_opens_the_charge_screen),

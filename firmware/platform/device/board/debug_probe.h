@@ -41,7 +41,7 @@ bool board_debug_take_reconnect(void);
 bool board_debug_usb_forced(void);
 void board_debug_listen_stopped(void);
 DebugReportLoop board_debug_loop(void);
-bool debug_session_cable(bool vbus, const Msc *msc);
+void board_debug_connect_cancelled(void);
 void board_debug_usb_starting(bool dac);
 void board_debug_usb_ended(void);
 const DebugReportAudio *board_debug_audio(void);
@@ -89,10 +89,12 @@ static inline void board_debug_power_poll(void)
 static inline void board_debug_usb_starting(bool dac)
 {
     (void)dac;
+    usb_session_reconnect_started();
 }
 
 static inline void board_debug_usb_ended(void)
 {
+    usb_session_reconnect_ended();
 }
 
 static inline void board_debug_boot(void)
@@ -110,22 +112,17 @@ static inline bool board_debug_usb_supply_held_off(void)
 
 static inline bool board_debug_take_reconnect(void)
 {
-    return false;
+    return usb_session_take_reconnect();
 }
 
 static inline bool board_debug_usb_forced(void)
 {
-    return false;
+    return usb_session_forced();
 }
 
 static inline void board_debug_listen_stopped(void)
 {
-}
-
-static inline bool debug_session_cable(bool vbus, const Msc *msc)
-{
-    (void)msc;
-    return vbus;
+    usb_session_reconnect_stopped();
 }
 
 static inline bool debug_script_take(void)

@@ -19,6 +19,7 @@ extern const ScreenModuleEntry LISTENING_MODULE_ENTRY;
 typedef struct SettingsModuleEntry {
     ScreenModuleEntry module;
     Screen *(*language_row)(AppScreens *screens);
+    Screen *(*usb_modes)(AppScreens *screens);
     bool (*choose)(AppScreens *screens, DebugSpan title, DebugSpan option);
 } SettingsModuleEntry;
 

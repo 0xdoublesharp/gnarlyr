@@ -34,6 +34,11 @@ void hal_system_set_dac_volume(uint8_t level)
     (void)level;
 }
 
+void hal_system_request_usb_mode(HalUsbMode mode)
+{
+    (void)mode;
+}
+
 void hal_system_set_usb_mode(HalUsbMode mode)
 {
     (void)mode;

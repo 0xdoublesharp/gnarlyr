@@ -20,6 +20,7 @@
 enum {
     SETTINGS_CHOICE_COUNT = 17,
     SETTINGS_LANGUAGE_CHOICE = 9,
+    SETTINGS_USB_MODE_CHOICE = 15,
     SETTINGS_ABOUT_ITEM = 0,
     SETTINGS_BLUETOOTH_ITEM = 3,
     SETTINGS_LANGUAGE_ITEM = 11,
@@ -89,3 +90,4 @@ struct SettingsScreens {
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                               const Theme *theme);
 bool settings_screens_choose(SettingsScreens *screens, DebugSpan title, DebugSpan option);
+Screen *settings_screens_usb_modes(SettingsScreens *screens);

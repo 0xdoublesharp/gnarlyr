@@ -29,3 +29,4 @@ UsbPlugAction usb_plug_update(UsbPlug *plug, bool cable, uint32_t now_ms);
 void usb_plug_started(UsbPlug *plug, bool listening);
 void usb_plug_served(UsbPlug *plug);
 void usb_plug_retry(UsbPlug *plug);
+UsbPlugAction usb_plug_request(UsbPlug *plug, bool connect);

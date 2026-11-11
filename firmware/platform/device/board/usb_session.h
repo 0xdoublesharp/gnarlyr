@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "device/usb_forced.h"
 #include "emmc.h"
 #include "hal/system.h"
 #include "usb.h"
@@ -21,11 +22,22 @@ typedef struct UsbReport {
     UsbProbe after_wait;
 } UsbReport;
 
+typedef struct UsbReconnect {
+    bool requested;
+    bool forced;
+    bool manual;
+    bool in_session;
+    uint32_t ended_ms;
+    uint32_t forced_ms;
+} UsbReconnect;
+
 typedef struct UsbShared {
     UsbLink link;
     UsbReport report;
     EmmcInfo internal;
     HalUsbLast last_session;
+    UsbReconnect reconnect;
+    bool show_modes;
     bool high_speed_failed;
     bool flash_rewritten;
     bool dac_volume_known;
@@ -41,6 +53,13 @@ typedef struct UsbOverlayEntry {
 #endif
 } UsbOverlayEntry;
 
+void usb_session_request_reconnect(bool on);
+bool usb_session_take_reconnect(void);
+bool usb_session_forced(void);
+bool usb_session_reconnect_stopped(void);
+void usb_session_reconnect_started(void);
+void usb_session_reconnect_ended(void);
+bool usb_session_present(UsbShared *state, UsbForced *forced, uint32_t commands);
 bool usb_session_listen(void);
 bool usb_dac_session_listen(void);
 bool usb_session_host_seen(void);

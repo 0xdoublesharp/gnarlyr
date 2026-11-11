@@ -95,6 +95,9 @@ static void run_session(void)
         run_usb_session();
     }
     board_debug_usb_ended();
+    if (usb_session_shared()->show_modes) {
+        app_open_usb_modes();
+    }
 }
 
 static void stop_listening(void)
@@ -133,6 +136,18 @@ static void serve_host(void)
     if (usb_plug.state == USB_PLUG_LISTENING && usb_session_host_seen()) {
         usb_plug_served(&usb_plug);
         run_session();
+    }
+}
+
+void hal_system_request_usb_mode(HalUsbMode mode)
+{
+    bool connect = mode != HAL_USB_MODE_PLAYER;
+    usb_session_request_reconnect(connect);
+    if (usb_plug_request(&usb_plug, connect) == USB_PLUG_STOP) {
+        stop_listening();
+    }
+    if (connect) {
+        usb_mode = mode;
     }
 }
 

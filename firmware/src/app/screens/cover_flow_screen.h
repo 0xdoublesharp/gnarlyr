@@ -44,6 +44,8 @@ typedef struct CoverFlowScreen {
     uint32_t now_ms;
     int text_position;
     uint32_t text_changed_ms;
+    uint32_t scroll_started_ms;
+    uint32_t section_shown_until_ms;
     char title[COVER_FLOW_TEXT_CAPACITY];
     char artist[COVER_FLOW_TEXT_CAPACITY];
 } CoverFlowScreen;

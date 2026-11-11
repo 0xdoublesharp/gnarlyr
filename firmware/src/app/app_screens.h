@@ -31,7 +31,7 @@
 #include "ui/toast.h"
 
 enum {
-    HOME_ITEM_COUNT = 8,
+    HOME_ITEM_COUNT = 9,
     SHELF_COUNT = 2,
     MUSIC_ITEM_COUNT = 11,
     DIAGNOSTICS_ITEM_COUNT = 11 + DEBUG_LOOP_ABOUT_ROWS,
@@ -154,6 +154,7 @@ typedef struct AppScreens {
 } AppScreens;
 
 Screen *app_screens_init(AppScreens *screens, AppScreensContext context);
+Screen *app_screens_usb_modes(AppScreens *screens);
 MenuItem app_screens_open_item(StringId label, Screen *target);
 Screen *app_screens_build_menu(MenuScreen *menu, StringId title, const MenuItem *items, int count,
                                const Theme *theme);

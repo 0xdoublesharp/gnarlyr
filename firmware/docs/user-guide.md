@@ -70,17 +70,23 @@ Depeche Mode/Violator/
 3. **Eject both drives before you unplug.** If you unplug first, recent changes may be lost, and the player warns you ("Unplugged too soon").
 4. When music changed, the player rebuilds its library by itself. Copying other files doesn't trigger a rebuild. Settings → Rescan library rebuilds it on demand.
 
+## Switching USB modes
+
+Open **USB mode** from Home or Settings, or press Menu on the charging screen. Choose **Player**, **USB storage** or **USB DAC**. The player keeps charging while you use it, and you can change modes with the cable connected. The selector marks Player while the player owns the device; the storage and DAC screens show those modes while connected.
+
+Before leaving USB storage, eject both drives on the computer and wait for the mode selector. The player keeps the track, position and queue for your return. From USB DAC, hold Back for a second and release it to return to the selector. Choosing a USB mode also remembers that mode for the next connection; choosing Player leaves that preference unchanged.
+
 ## Using the player as a USB DAC
 
 **Not run on a player by this project** (see [`known-issues.md`](known-issues.md)). In this mode the player is a sound card for your computer or phone: their audio plays through the player's headphone outputs.
 
-1. On the player, Settings → USB mode → DAC.
+1. On the player, Home → USB mode → USB DAC (or use Settings → USB mode).
 2. Plug in the USB cable. The player shows "USB DAC". It is a standard USB Audio Class 1.0 device, which Windows 10 and later, macOS, Linux, Android and iOS support without a driver (phones need a USB-C or Lightning adapter that passes data).
 3. On the computer, choose Gnarlyr as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output). The player shows the format and its volume, for example "48 kHz 24-bit · Volume 35".
 4. Use the computer's volume, the player's volume keys, or both. DAC mode has its own volume, separate from music: it starts at 35 of 60, the screen shows it ("48 kHz 24-bit · Volume 35"), holding Vol± changes it quickly, and the player remembers it for next time. Start low.
-5. Unplug when you're done, or hold Back for a second and let go to go back to the player's own music (it keeps charging).
+5. Hold Back for a second and let go to open the mode selector, then choose Player or USB storage. The player keeps charging.
 
-The player accepts 16 or 24-bit at 44.1 and 48 kHz; the computer picks one (on Windows: Sound settings → Gnarlyr → Properties → Advanced). Music on the player stops while it's a DAC, and your drives don't appear: set USB mode back to Storage to copy music. The setting takes effect the next time you plug in. A charger works the same in both modes.
+The player accepts 16 or 24-bit at 44.1 and 48 kHz; the computer picks one (on Windows: Sound settings → Gnarlyr → Properties → Advanced). Music on the player stops while it's a DAC. Choose USB storage from the mode selector to copy music without removing the cable. A charger works the same in both modes.
 
 ## Build the library on a computer
 
@@ -138,11 +144,11 @@ The Now Playing column above is for Settings → Skip songs = Hold vol±; the ot
 
 With the screen off, ▶‖ still pauses and resumes, a tap of vol± changes the volume and holding vol± skips tracks (or jumps 30 s / 15 s in audiobooks and podcasts).
 
-In Cover Flow (Music → Cover Flow), the tile before the first album, with a shuffle mark for a cover, is **Random album**: press ▶ on it to play a random album from its first track.
+In Cover Flow (Music → Cover Flow), the tile before the first album, with a shuffle mark for a cover, is **Random album**: press ▶ on it to play a random album from its first track. Hold a volume button to scroll faster; keep holding to jump between artist initials. A temporary letter badge shows the current section. Press ▶ to open the selected album, or hold ▶ to favorite it.
 
 ## Charging
 
-The player charges whenever it's plugged in, on or off. Turning it off while it's plugged in (or plugging a charger into a switched-off player) shows the charge screen with a large battery percentage and a slim charge gauge. "Charging" means the charger is active; "Charged" means a known full battery. "USB power" means the cable supplies power while charging is inactive. Before a battery reading is available, the screen shows "Reading battery". The screen goes dark after 5 seconds; press any button to see it again. Hold Power for 2 seconds to turn the player on, or unplug it to switch it off completely. Plugging into a computer still opens USB mode.
+The player charges whenever it's plugged in, on or off. Turning it off while it's plugged in (or plugging a charger into a switched-off player) shows the charge screen with a large battery percentage and a slim charge gauge. "Charging" means the charger is active; "Charged" means a known full battery. "USB power" means the cable supplies power while charging is inactive. Before a battery reading is available, the screen shows "Reading battery". The screen goes dark after 5 seconds; press any button to see it again. Hold Power for 2 seconds to turn the player on, or unplug it to switch it off completely. Press Menu to open the USB mode selector from the charge screen. Plugging into a computer still opens USB mode.
 
 ## Button lock
 

@@ -1293,6 +1293,25 @@ class EchoImageTest(unittest.TestCase):
         self.print_usb_log("restart after install", machine)
         self.print_usb_log("after the restart", restarted)
 
+    def test_a_user_mode_request_reconnects_after_the_cable_bit_dies(self):
+        script = ("build %s\nset USB mode=USB storage\nwait 10000\n"
+                  % self.build_tag()).encode("ascii")
+        session, machine = self.ejecting_session(self.debug_volume(run_txt=script),
+                                                 notes=("hal_system_request_usb_mode",))
+        machine.cable_bit_dies_with_usb = True
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(machine.run(
+            until=lambda: machine.reached.get("hal_system_request_usb_mode", 0) > 0,
+            until_ms=machine.milliseconds() + 2000), "condition met")
+        self.assertTrue(machine.cable_bit_dead)
+        self.assertNotIn("hal_system_usb_reconnect", machine.reached)
+        self.assertEqual(machine.run(
+            until=lambda: machine.reached.get("usb_session_storage_changed", 0) >= 2,
+            until_ms=machine.milliseconds() + 4000), "condition met")
+        self.assertEqual(machine.usb_connect_count, 2)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
     def test_a_reconnect_works_when_the_cable_bit_has_died_with_the_usb_power(self):
         script = ("build %s\nusb_sense kept_on\nusb_sense normal\nwait 100\nreconnect\n"
                   % self.build_tag()).encode("ascii")
