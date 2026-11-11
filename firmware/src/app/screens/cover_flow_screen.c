@@ -367,7 +367,11 @@ static void draw_cover(const CoverFlowScreen *flow, Canvas *canvas, int position
     Image image;
     if (cover_image(flow, position, &image)) {
         uint32_t started_us = hal_clock_microseconds();
-        image_draw_quad_lit(canvas, image, quad, light);
+        if (position == RANDOM_POSITION) {
+            image_draw_quad_smooth(canvas, image, quad, light);
+        } else {
+            image_draw_quad_lit(canvas, image, quad, light);
+        }
         uint32_t reflection_us = hal_clock_microseconds();
         draw_profile_add(DRAW_PART_COVERS, reflection_us - started_us);
         QuadLight reflected = {(uint16_t)(light.left * REFLECTION_LIGHT / COLOR_LIGHT_FULL),

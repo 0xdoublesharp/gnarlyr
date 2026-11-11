@@ -76,6 +76,71 @@ static void a_slanted_quad_shrinks_toward_its_far_edge(void)
     CHECK_EQUAL(0x1000, canvas_pixel_at(&canvas, 2, 1));
 }
 
+static void smooth_scaling_blends_edges_and_preserves_solid_areas(void)
+{
+    static const Color edge[] = {0x0000, 0xFFFF};
+    Image image = {.pixels = edge, .width = 2, .height = 1};
+    Canvas canvas = make_canvas((Rect){0, 0, WIDTH, HEIGHT});
+    image_draw_quad_smooth(&canvas, image, flat(1, 1, 4, 2),
+                           (QuadLight){COLOR_LIGHT_FULL, COLOR_LIGHT_FULL});
+    CHECK_EQUAL(0x0000, canvas_pixel_at(&canvas, 1, 1));
+    CHECK_EQUAL(color_between(0x0000, 0xFFFF, 1, 4), canvas_pixel_at(&canvas, 2, 1));
+    CHECK_EQUAL(color_between(0x0000, 0xFFFF, 3, 4), canvas_pixel_at(&canvas, 3, 1));
+    CHECK_EQUAL(0xFFFF, canvas_pixel_at(&canvas, 4, 1));
+    CHECK_EQUAL(BACKGROUND, canvas_pixel_at(&canvas, 5, 1));
+}
+
+static void smooth_scaling_preserves_native_pixels_and_handles_empty_quads(void)
+{
+    Canvas canvas = make_canvas((Rect){0, 0, WIDTH, HEIGHT});
+    QuadLight light = {COLOR_LIGHT_FULL, COLOR_LIGHT_FULL};
+    image_draw_quad_smooth(&canvas, TWO_BY_TWO, flat(3, 4, 2, 2), light);
+    CHECK_EQUAL(0x1000, canvas_pixel_at(&canvas, 3, 4));
+    CHECK_EQUAL(0x2000, canvas_pixel_at(&canvas, 4, 4));
+    CHECK_EQUAL(0x3000, canvas_pixel_at(&canvas, 3, 5));
+    CHECK_EQUAL(0x4000, canvas_pixel_at(&canvas, 4, 5));
+    image_draw_quad_smooth(&canvas, (Image){0}, flat(0, 0, 4, 4), light);
+    image_draw_quad_smooth(&canvas, TWO_BY_TWO, flat(0, 0, 0, 4), light);
+    image_draw_quad_smooth(&canvas, TWO_BY_TWO, flat(0, 0, 4, 0), light);
+    CHECK_EQUAL(BACKGROUND, canvas_pixel_at(&canvas, 0, 0));
+}
+
+static void smooth_scaling_blends_rows_and_applies_light(void)
+{
+    static const Color edge[] = {0x0000, 0xFFFF};
+    Image image = {.pixels = edge, .width = 1, .height = 2};
+    Canvas canvas = make_canvas((Rect){0, 0, WIDTH, HEIGHT});
+    QuadLight light = {COLOR_LIGHT_FULL / 2, COLOR_LIGHT_FULL / 2};
+    image_draw_quad_smooth(&canvas, image, flat(0, 0, 2, 4), light);
+    CHECK_EQUAL(0x0000, canvas_pixel_at(&canvas, 0, 0));
+    Color blended = color_between(0x0000, 0xFFFF, 1, 4);
+    CHECK_EQUAL(color_scale(blended, COLOR_LIGHT_FULL / 2), canvas_pixel_at(&canvas, 0, 1));
+    CHECK_EQUAL(color_scale(0xFFFF, COLOR_LIGHT_FULL / 2), canvas_pixel_at(&canvas, 1, 3));
+}
+
+static void clipped_smooth_perspective_matches_the_full_render(void)
+{
+    static Color reference[WIDTH * HEIGHT];
+    Canvas canvas = make_canvas((Rect){0, 0, WIDTH, HEIGHT});
+    Quad quad = {-2, 15, -1, 12, 2, 5};
+    QuadLight light = {100, COLOR_LIGHT_FULL};
+    image_draw_quad_smooth(&canvas, TWO_BY_TWO, quad, light);
+    for (int index = 0; index < WIDTH * HEIGHT; index++) {
+        reference[index] = pixels[index];
+    }
+    canvas = make_canvas((Rect){0, 0, WIDTH, HEIGHT});
+    Rect clip = {3, 2, 7, 5};
+    Canvas clipped = canvas_clipped(&canvas, clip);
+    image_draw_quad_smooth(&clipped, TWO_BY_TWO, quad, light);
+    for (int y = 0; y < HEIGHT; y++) {
+        for (int x = 0; x < WIDTH; x++) {
+            bool inside = x >= 3 && x < 10 && y >= 2 && y < 7;
+            CHECK_EQUAL(inside ? reference[y * WIDTH + x] : BACKGROUND,
+                        canvas_pixel_at(&canvas, x, y));
+        }
+    }
+}
+
 static Color sample(Image image, Quad quad, int x, int y)
 {
     int offset = x - quad.left;
@@ -315,6 +380,10 @@ int main(void)
         TEST_CASE(an_image_at_its_own_size_is_copied),
         TEST_CASE(a_larger_quad_scales_the_image_up),
         TEST_CASE(a_slanted_quad_shrinks_toward_its_far_edge),
+        TEST_CASE(smooth_scaling_blends_edges_and_preserves_solid_areas),
+        TEST_CASE(smooth_scaling_preserves_native_pixels_and_handles_empty_quads),
+        TEST_CASE(smooth_scaling_blends_rows_and_applies_light),
+        TEST_CASE(clipped_smooth_perspective_matches_the_full_render),
         TEST_CASE(every_pixel_comes_from_its_source_pixel),
         TEST_CASE(drawing_stays_inside_the_clip),
         TEST_CASE(a_quad_can_be_filled_with_a_color),
