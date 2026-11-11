@@ -9,11 +9,13 @@ CHANNELS = 2
 SAMPLE_RATE = 44100
 BITS = 16
 HEADER_FIXED = 8
-CODED_AND_RATE_BYTES = 3
+LONGEST_CODED = 3
 FRAME_BYTES = HEADER_FIXED + CHANNELS * (1 + BLOCK_SAMPLES * BITS // 8) + 2
+BASE_BYTES = FRAME_BYTES - LONGEST_CODED
+CODED_WIDTHS = ((0x80, 1), (0x800, 2), (None, 3))
+RATE_CODE_44100 = 9
 CRC16_POLY = 0x8005
 CRC8_POLY = 0x07
-RATE_CODES = {1: 0, 2: 12, 3: 13}
 
 
 def crc_table(poly, width):
@@ -64,15 +66,38 @@ def body_bytes():
 
 def streaminfo(total_samples):
     packed = SAMPLE_RATE << 44 | (CHANNELS - 1) << 41 | (BITS - 1) << 36 | total_samples
-    return (struct.pack(">HHI", BLOCK_SAMPLES, BLOCK_SAMPLES, FRAME_BYTES)[:4]
-            + FRAME_BYTES.to_bytes(3, "big") + FRAME_BYTES.to_bytes(3, "big")
+    return (struct.pack(">HH", BLOCK_SAMPLES, BLOCK_SAMPLES)
+            + (BASE_BYTES + 1).to_bytes(3, "big") + FRAME_BYTES.to_bytes(3, "big")
             + packed.to_bytes(8, "big") + bytes(16))
+
+
+def frame_offset(number):
+    total, start = 0, 0
+    for limit, width in CODED_WIDTHS:
+        end = number if limit is None else min(number, limit)
+        if end <= start:
+            break
+        total += (end - start) * (BASE_BYTES + width)
+        start = end
+    return total
+
+
+def locate(position):
+    start = 0
+    for limit, width in CODED_WIDTHS:
+        length = BASE_BYTES + width
+        if limit is None or position < (limit - start) * length:
+            number, within = divmod(position, length)
+            return start + number, within
+        position -= (limit - start) * length
+        start = limit
+    raise ValueError(position)
 
 
 class FlacImage:
     def __init__(self, frames):
         self.frames = frames
-        self.size = HEADER_BYTES + frames * FRAME_BYTES
+        self.size = HEADER_BYTES + frame_offset(frames)
         self.seconds = frames * BLOCK_SAMPLES // SAMPLE_RATE
         self.body = body_bytes()
         self.basis = self.crc_basis()
@@ -87,10 +112,7 @@ class FlacImage:
     def frame(self, number):
         if self.last[0] == number:
             return self.last[1]
-        coded = utf8_number(number)
-        extra = CODED_AND_RATE_BYTES - len(coded)
-        rate_code = RATE_CODES[1 + extra]
-        header = bytes([0xFF, 0xF8, 0xC0 | rate_code, 0x10]) + coded + bytes(extra)
+        header = bytes([0xFF, 0xF8, 0xC0 | RATE_CODE_44100, 0x10]) + utf8_number(number)
         header += bytes([crc8(header)])
         state = crc16(header)
         zero, basis = self.basis
@@ -110,7 +132,7 @@ class FlacImage:
                 chunk = self.head[offset:end]
                 offset += len(chunk)
             else:
-                number, within = divmod(offset - HEADER_BYTES, FRAME_BYTES)
+                number, within = locate(offset - HEADER_BYTES)
                 chunk = self.frame(number)[within:within + end - offset]
                 offset += len(chunk)
             out += chunk
