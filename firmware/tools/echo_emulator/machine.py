@@ -42,6 +42,8 @@ CHARGE_PORT = 2
 CHARGE_PIN = 3
 CARD_DETECT_PORT = 0
 CARD_DETECT_PIN = 11
+BALANCED_PORT = 2
+BALANCED_PIN = 8
 ADC_NO_KEY = 1023
 PLAY_KEY_ADC = 250
 VOLUME_UP_KEY_ADC = 120
@@ -151,6 +153,7 @@ class Machine:
         self.adc_battery_value = ADC_BATTERY_4000_MV
         self.power_key_released_at_ms = 300
         self.card_present = False
+        self.balanced_plugged = False
         self.gpio_log = []
         self.grf_log = []
         self.pwm_log = []
@@ -227,6 +230,8 @@ class Machine:
                 levels |= 1 << POWER_KEY_PIN
         if port == CARD_DETECT_PORT and not self.card_present:
             levels |= 1 << CARD_DETECT_PIN
+        if port == BALANCED_PORT and self.balanced_plugged:
+            levels |= 1 << BALANCED_PIN
         return levels
 
     def clock_changed(self):
@@ -286,6 +291,9 @@ class Machine:
             (self.usb, 0x60080000, 0x10000), (self.emmc_controller, 0x60030000, PAGE),
             (self.sd_controller, 0x60020000, PAGE), (self.rtc_bus, 0x40050000, PAGE),
         ]
+        from .bluetooth import UART_BASE, BluetoothModule
+        self.bluetooth = BluetoothModule(self)
+        mapping.append((self.bluetooth, UART_BASE, PAGE))
         for device, base, size in mapping:
             self.map_device(device, base, size)
 
