@@ -195,13 +195,18 @@ static uint32_t block_size_of(FlacDecoder *decoder, uint32_t code)
     return 0;
 }
 
-static void skip_sample_rate(FlacDecoder *decoder, uint32_t code)
+static uint32_t sample_rate_of(FlacDecoder *decoder, uint32_t code)
 {
-    if (code == 12) {
-        read(decoder, 8);
-    } else if (code == 13 || code == 14) {
-        read(decoder, 16);
+    static const uint32_t RATES[] = {0,     88200, 176400, 192000, 8000,  16000,
+                                     22050, 24000, 32000,  44100,  48000, 96000};
+    if (code == 0) {
+        return decoder->info.sample_rate;
     }
+    if (code < 12) {
+        return RATES[code];
+    }
+    uint32_t value = read(decoder, code == 12 ? 8 : 16);
+    return code == 12 ? value * 1000 : code == 14 ? value * 10 : value;
 }
 
 static bool read_frame_header(FlacDecoder *decoder, FrameHeader *header)
@@ -225,7 +230,7 @@ static bool read_frame_header(FlacDecoder *decoder, FrameHeader *header)
     }
     header->first_sample = (uint32_t)first;
     header->block_size = block_size_of(decoder, block_code);
-    skip_sample_rate(decoder, rate_code);
+    uint32_t sample_rate = sample_rate_of(decoder, rate_code);
     uint8_t expected_crc = flac_bits_crc8(&decoder->bits);
     if (read(decoder, 8) != expected_crc || decoder->bits.failed) {
         return false;
@@ -234,7 +239,8 @@ static bool read_frame_header(FlacDecoder *decoder, FrameHeader *header)
         size_code == 0 ? decoder->info.bits_per_sample : SAMPLE_SIZES[size_code];
     header->channels =
         header->channel_assignment < CHANNEL_LEFT_SIDE ? header->channel_assignment + 1 : 2;
-    return header->block_size > 0 && header->block_size <= FLAC_MAX_BLOCK &&
+    return sample_rate == decoder->info.sample_rate && header->block_size > 0 &&
+           header->block_size <= FLAC_MAX_BLOCK &&
            header->block_size <= UINT32_MAX - header->first_sample && header->bits_per_sample > 0 &&
            header->bits_per_sample <= FLAC_MAX_BITS &&
            header->channel_assignment <= CHANNEL_MID_SIDE &&

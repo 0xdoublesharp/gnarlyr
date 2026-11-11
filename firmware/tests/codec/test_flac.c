@@ -330,6 +330,43 @@ static void standard_and_extended_block_sizes_decode_constant_channels(void)
     }
 }
 
+static void frame_sample_rates_must_match_the_stream(void)
+{
+    static const struct {
+        uint8_t code;
+        uint16_t extra;
+        bool valid;
+    } cases[] = {{0, 0, true},       {9, 0, true},     {1, 0, false},
+                 {12, 44, false},    {12, 0, false},   {13, 44100, true},
+                 {13, 48000, false}, {14, 4410, true}, {14, 4800, false}};
+    for (uint32_t index = 0; index < sizeof cases / sizeof cases[0]; index++) {
+        uint8_t bytes[32] = {0xff, 0xf9, (uint8_t)(0x10u | cases[index].code), 0x18, 0};
+        uint32_t at = 5;
+        if (cases[index].code == 13 || cases[index].code == 14) {
+            bytes[at++] = (uint8_t)(cases[index].extra >> 8);
+        }
+        if (cases[index].code >= 12) {
+            bytes[at++] = (uint8_t)cases[index].extra;
+        }
+        bytes[at] = frame_crc8(bytes, at);
+        at++;
+        static const uint8_t body[] = {0, 0x12, 0x34, 0, 0xff, 0xfe};
+        memcpy(bytes + at, body, sizeof body);
+        at += sizeof body;
+        uint16_t crc = frame_crc16(bytes, at);
+        bytes[at++] = (uint8_t)(crc >> 8);
+        bytes[at++] = (uint8_t)crc;
+        Buffer input = {bytes, at};
+        FlacInfo info = {.sample_rate = 44100,
+                         .channels = 2,
+                         .bits_per_sample = 16,
+                         .min_block = 192,
+                         .max_block = 192};
+        flac_start(&decoder, input_of(&input), info);
+        CHECK_EQUAL(cases[index].valid ? FLAC_OK : FLAC_ERROR, flac_decode_frame(&decoder));
+    }
+}
+
 static void coded_frame_numbers_report_the_correct_sample_and_reject_bad_encodings(void)
 {
     static const struct {
@@ -1165,6 +1202,7 @@ int main(void)
         TEST_CASE(rfc_9639_example_one_decodes_the_specified_samples),
         TEST_CASE(extended_sample_rate_headers_decode_their_audio),
         TEST_CASE(standard_and_extended_block_sizes_decode_constant_channels),
+        TEST_CASE(frame_sample_rates_must_match_the_stream),
         TEST_CASE(coded_frame_numbers_report_the_correct_sample_and_reject_bad_encodings),
         TEST_CASE(rfc_9639_partitioned_lpc_decodes_the_specified_samples),
         TEST_CASE(all_fixed_predictor_orders_restore_their_expected_samples),
