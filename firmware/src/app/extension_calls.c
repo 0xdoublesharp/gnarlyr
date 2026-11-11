@@ -112,3 +112,9 @@ bool hal_clock_set_wall(HalWallTime time)
     const ExtensionModuleEntry *code = extension();
     return code != NULL && code->clock_set(time);
 }
+
+bool hal_clock_restore_wall(int16_t offset_minutes)
+{
+    const ExtensionModuleEntry *code = extension();
+    return code != NULL && code->clock_restore(offset_minutes);
+}

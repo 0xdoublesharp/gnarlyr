@@ -171,6 +171,14 @@ static void every_field_and_the_controls_fit_all_six_layouts(void)
     }
 }
 
+static void an_unknown_clock_editor_keeps_the_saved_offset(void)
+{
+    start(0, 0);
+    settings.clock_offset_minutes = 345;
+    editor.screen.enter(&editor, 0);
+    CHECK_EQUAL(345, editor.offset_minutes);
+}
+
 static void a_missing_extension_cannot_set_an_unknown_clock(void)
 {
     start(0, 0);
@@ -204,6 +212,7 @@ int main(void)
         TEST_CASE(the_hour_field_uses_the_chosen_format_at_midnight_and_noon),
         TEST_CASE(cancel_and_failed_writes_leave_wall_time_unchanged),
         TEST_CASE(every_field_and_the_controls_fit_all_six_layouts),
+        TEST_CASE(an_unknown_clock_editor_keeps_the_saved_offset),
         TEST_CASE(a_missing_extension_cannot_set_an_unknown_clock),
         TEST_CASE(an_unknown_clock_becomes_known_and_uses_the_selected_offset),
     };

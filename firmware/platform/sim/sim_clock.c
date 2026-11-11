@@ -1,4 +1,5 @@
 #include "sim_clock.h"
+#include "app/app.h"
 
 #include <SDL.h>
 #include <stdbool.h>
@@ -92,7 +93,8 @@ uint32_t hal_clock_microseconds(void)
 
 bool hal_clock_set_wall(HalWallTime time)
 {
-    if (hal_system_rtc_set(time.utc_s).status != HAL_RTC_OK) {
+    if (hal_system_rtc_set(time.utc_s).status != HAL_RTC_OK ||
+        !app_store_clock_offset(time.offset_minutes)) {
         return false;
     }
     sim_clock_set_wall(SIM_CLOCK_FIXED, time.utc_s, time.offset_minutes);

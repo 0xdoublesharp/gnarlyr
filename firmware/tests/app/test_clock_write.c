@@ -15,7 +15,14 @@ static bool set_clock(HalWallTime time)
     return accepted;
 }
 
-static const ExtensionModuleEntry code = {.clock_set = set_clock};
+static bool restore_clock(int16_t offset)
+{
+    writes++;
+    written.offset_minutes = offset;
+    return accepted;
+}
+
+static const ExtensionModuleEntry code = {.clock_set = set_clock, .clock_restore = restore_clock};
 
 const void *hal_system_extension_code(void)
 {
@@ -27,6 +34,7 @@ static void missing_extension_refuses_without_writing(void)
     loaded = false;
     writes = 0;
     CHECK(!hal_clock_set_wall((HalWallTime){.utc_s = 1794390060u}));
+    CHECK(!hal_clock_restore_wall(-480));
     CHECK_EQUAL(0, writes);
 }
 
@@ -43,6 +51,8 @@ static void the_write_result_and_time_pass_through_the_extension(void)
     CHECK_EQUAL(2, writes);
     CHECK_EQUAL(wanted.utc_s, written.utc_s);
     CHECK_EQUAL(wanted.offset_minutes, written.offset_minutes);
+    CHECK(hal_clock_restore_wall(345));
+    CHECK_EQUAL(345, written.offset_minutes);
 }
 
 int main(void)

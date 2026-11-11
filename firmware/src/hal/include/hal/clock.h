@@ -19,3 +19,4 @@ uint32_t hal_clock_milliseconds(void);
 uint32_t hal_clock_microseconds(void);
 HalWallTime hal_clock_wall(void);
 bool hal_clock_set_wall(HalWallTime time);
+bool hal_clock_restore_wall(int16_t offset_minutes);

@@ -1402,6 +1402,21 @@ static void start_app(bool power_on)
     }
 }
 
+int16_t app_clock_offset(void)
+{
+    return app.settings.settings.clock_offset_minutes;
+}
+
+bool app_store_clock_offset(int16_t offset)
+{
+    settings_store_capture(&app.settings, player_status(&app.player));
+    bool saved = settings_store_set_clock_offset(&app.settings, offset);
+    if (!saved) {
+        toast_show(&app.toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
+    }
+    return saved;
+}
+
 void app_start(void)
 {
     start_app(true);

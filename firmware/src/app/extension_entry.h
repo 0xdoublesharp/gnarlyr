@@ -25,6 +25,7 @@ typedef struct ExtensionModuleEntry {
     void (*art_backdrop)(Canvas *canvas, Rect area, const Theme *theme);
     bool (*file_remove)(const char *path);
     bool (*clock_set)(HalWallTime time);
+    bool (*clock_restore)(int16_t offset_minutes);
 } ExtensionModuleEntry;
 
 extern const ExtensionModuleEntry EXTENSION_MODULE_ENTRY;

@@ -20,4 +20,5 @@ const ExtensionModuleEntry EXTENSION_MODULE_ENTRY = {
     .art_backdrop = home_art_draw_backdrop,
     .file_remove = hal_file_remove,
     .clock_set = hal_clock_set_wall,
+    .clock_restore = hal_clock_restore_wall,
 };

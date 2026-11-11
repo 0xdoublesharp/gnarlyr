@@ -70,6 +70,9 @@ class Session:
         self.disk = card.disk
         self.machine = Machine(self.image, elf_path, card, usb_overlay_elf, rest_in_waits,
                                module_elfs)
+        if reuse is not None:
+            self.machine.rtc_bus.registers[:] = reuse.machine.rtc_bus.registers
+            self.machine.rtc_bus.present = reuse.machine.rtc_bus.present
         card.machine = self.machine
         self.volume = volume
         self.before = self.disk.snapshot()

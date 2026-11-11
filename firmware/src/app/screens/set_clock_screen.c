@@ -29,7 +29,9 @@ static void enter(void *context, uint32_t now_ms)
                                                         : editor->date.year;
     editor->hour = wall.source == HAL_WALL_UNKNOWN ? 0 : (uint8_t)(local / 3600 % 24);
     editor->minute = wall.source == HAL_WALL_UNKNOWN ? 0 : (uint8_t)(local / 60 % 60);
-    editor->offset_minutes = wall.offset_minutes;
+    editor->offset_minutes = wall.source == HAL_WALL_UNKNOWN
+                                 ? editor->config.settings->clock_offset_minutes
+                                 : wall.offset_minutes;
     uint8_t days = calendar_month_days((CalendarMonth){editor->date.year, editor->date.month});
     editor->date.day = editor->date.day > days ? days : editor->date.day;
     editor->field = 0;

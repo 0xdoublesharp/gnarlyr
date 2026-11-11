@@ -297,6 +297,7 @@ void board_main(void)
     boot_step("main loop");
     board_debug_after_start();
     board_stall_pause(false);
+    board_wall_time_start();
     for (;;) {
         board_stall_beat();
         board_wall_time_keep();
