@@ -443,6 +443,7 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_REPLAY_GAIN_TRACK] = "Track",
     [STR_REPLAY_GAIN_ALBUM] = "Album",
     [STR_PREVENT_CLIPPING] = "Prevent clipping",
+    [STR_BATTERY_PERCENTAGE] = "Battery percent",
     [STR_CLOCK] = "Clock",
     [STR_CALENDAR] = "Calendar",
     [STR_CLOCK_AM] = "AM",

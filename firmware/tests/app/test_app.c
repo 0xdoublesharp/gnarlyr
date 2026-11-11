@@ -4674,6 +4674,32 @@ static void menu_does_nothing_while_nothing_plays(void)
     CHECK(title_is(FIRMWARE_SHORT_NAME));
 }
 
+static Rect left_of_battery(void)
+{
+    Rect body = status_bar_battery_body(expected_theme());
+    return (Rect){body.x - 60, body.y, 56, body.height};
+}
+
+static void battery_percentage_choice_shows_the_level_beside_the_battery_and_survives_restart(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery((HalBattery){.known = true, .percent = HALF_BATTERY});
+    Color ink = expected_theme()->colors.header_text;
+    open_setting(22);
+    CHECK(title_is("Battery percent"));
+    CHECK(!area_has_color(left_of_battery(), ink));
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Settings"));
+    CHECK(area_has_color(left_of_battery(), ink));
+    Settings chosen;
+    CHECK(saved_settings(&chosen));
+    CHECK(chosen.battery_percent);
+    restart_app();
+    CHECK(saved_settings(&chosen));
+    CHECK(chosen.battery_percent);
+}
+
 static void normalization_choices_apply_and_survive_restart(void)
 {
     start_app_with_library();
@@ -4858,6 +4884,8 @@ int main(void)
         TEST_CASE(normalization_choices_apply_and_survive_restart),
         TEST_CASE(normalization_previews_current_and_queued_audio_and_back_restores_it),
         TEST_CASE(clipping_preview_is_discarded_by_back_shutdown_and_unrelated_saves),
+        TEST_CASE(
+            battery_percentage_choice_shows_the_level_beside_the_battery_and_survives_restart),
         TEST_CASE(brightness_is_applied_and_saved),
         TEST_CASE(brightness_previews_without_saving_and_back_restores_it),
         TEST_CASE(leaving_or_stopping_a_brightness_preview_restores_the_saved_level),

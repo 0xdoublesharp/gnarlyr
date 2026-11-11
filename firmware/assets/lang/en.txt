@@ -507,10 +507,12 @@ STR_REPLAY_GAIN = ReplayGain
 STR_REPLAY_GAIN_TRACK = Track
 STR_REPLAY_GAIN_ALBUM = Album
 STR_PREVENT_CLIPPING = Prevent clipping
+STR_BATTERY_PERCENTAGE = Battery percent
 
 # Clock and calendar. In STR_CLOCK_12_HOUR {0} is a time such as 9:41 and {1}
-# is STR_CLOCK_AM or STR_CLOCK_PM. In STR_CLOCK_DATE {0} is the day of the month, {1} the month's name and
-# {2} the year; in STR_CALENDAR_MONTH {0} is the month's name and {1} the year.
+# is STR_CLOCK_AM or STR_CLOCK_PM. In STR_CLOCK_DATE {0} is the day of the
+# month, {1} the month's name and {2} the year; in STR_CALENDAR_MONTH {0} is
+# the month's name and {1} the year.
 STR_CLOCK = Clock
 STR_CALENDAR = Calendar
 STR_CLOCK_AM = AM
