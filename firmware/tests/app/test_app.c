@@ -864,7 +864,7 @@ static void the_home_menu_shows_now_playing_last_once_a_track_is_loaded(void)
 static void the_home_menu_hides_now_playing_with_nothing_loaded(void)
 {
     start_app_with_library();
-    move_down(5);
+    move_down(6);
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
 }
@@ -1707,7 +1707,7 @@ static void home_puts_the_album_art_under_the_menu_in_portrait(void)
     settle();
     Theme theme = *expected_theme();
     default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
-    int list_bottom = theme.metrics.header_height + 5 * theme.metrics.row_height;
+    int list_bottom = theme.metrics.header_height + 6 * theme.metrics.row_height;
     int cover_middle = list_bottom + 8 + COVER_FULL_SIZE / 2;
     CHECK_EQUAL(RED_COVER, fake_hal_pixel(HAL_DISPLAY_SHORT_SIDE / 2, cover_middle));
     CHECK(fake_hal_pixel(2, list_bottom) == theme.colors.divider);
