@@ -86,6 +86,7 @@ typedef struct FakeHal {
     uint16_t panel[HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE];
     HalDisplayRotation rotation;
     long pixels_written;
+    FakeDisplayWrites writes;
     int present_count;
     bool display_on;
     uint8_t brightness;
@@ -327,6 +328,27 @@ void hal_display_write(int x, int y, int width, int height, const uint16_t *pixe
         }
     }
     fake.pixels_written += (long)width * height;
+    FakeDisplayWrites *writes = &fake.writes;
+    FakeArea area = {x, y, width, height};
+    if (writes->count == 0) {
+        writes->first = area;
+        writes->narrowest = width;
+    }
+    writes->narrowest = width < writes->narrowest ? width : writes->narrowest;
+    writes->same &=
+        writes->count == 0 || (writes->first.x == x && writes->first.y == y &&
+                               writes->first.width == width && writes->first.height == height);
+    writes->count++;
+}
+
+void fake_hal_forget_display_writes(void)
+{
+    fake.writes = (FakeDisplayWrites){.same = true};
+}
+
+FakeDisplayWrites fake_hal_display_writes(void)
+{
+    return fake.writes;
 }
 
 void hal_display_present(void)

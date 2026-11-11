@@ -303,6 +303,10 @@ Follow [`device-recovery.md`](device-recovery.md). It writes FiiO's image into b
 
 Settings → Theme offers Neon Noir, Graphite, Sunset, Sea Glass and Classic. Theme changes keep the text size and orientation you selected. Settings → Controls assigns tap and hold actions independently for Volume+, Volume−, Play and Menu during playback. Default keeps the normal skip gesture; Off ignores that action. Reset buttons restores the normal controls. List navigation stays consistent.
 
+## Waiting
+
+When something takes more than a moment, its screen says what is happening and a small wireframe turns under the message: a cassette while saving (Export plays, mixtapes, tags), a disc while working through your music (library scan, finding covers, search, preparing a queue, listening history) and a solid while loading tags. Where the player knows how far it has got, the cassette's tape winds from the left reel to the right, the disc's rim fills in, or the solid's edges light up. Only the wireframe is redrawn, and it stops as soon as the work ends or the screen turns off.
+
 ## Editing a queue
 
 Open Up Next and hold Play on a song for its actions. Move it earlier or later, play it next, or remove it. The playing song offers Edit full queue and Keep current. Clear added removes manually queued songs while keeping the underlying list. Back cancels unfinished queue preparation. The exact edited order and playback position are saved together.

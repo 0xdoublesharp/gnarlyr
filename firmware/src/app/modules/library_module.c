@@ -18,7 +18,8 @@ static void bind(AppScreens *screens)
                           (DiscoveryScreenConfig){.library = &context->store->library,
                                                   .player = context->player,
                                                   .theme = context->theme,
-                                                  .now_playing = &screens->now_playing.screen});
+                                                  .now_playing = &screens->now_playing.screen,
+                                                  .motion = context->motion});
 }
 
 static void clear_scope(DiscoveryScreen *screen)

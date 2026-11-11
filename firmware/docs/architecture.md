@@ -292,6 +292,21 @@ The main loop follows the same idea. Keys are sampled in the 1 ms tick interrupt
 
 Measured on the owner's player at 200 MHz with the developer build: an idle Home screen fell from 28 % of core 0 busy to 2 %, a paused Now Playing screen from 23 % to 2 %, and MP3 playback on Now Playing from 28 % to 11 %, with no underruns.
 
+### Motion during waits
+
+`gfx/wireframe` projects small wireframe models in fixed point: a 65-entry quarter-wave sine table (256 angle steps a turn, exact to half a step of 1/16384), a part placement (spin, size and offset in model units, where 127 is the model's radius), yaw and pitch, and perspective from 384 units away, to points in 1/16 pixel with a depth. Its line rasteriser shares each pixel's ink between the two nearest rows or columns (`canvas_blend_pixel`) and clips the major axis to the canvas clip first, so a line drawn strip by strip matches one drawn whole and costs nothing in strips it misses.
+
+`ui/wire_motion` holds the three figures (a cassette with turning reels and two tape packs, an icosahedron, a tilted disc with a turning hub), all inside the unit sphere and drawn in the theme's accent and secondary text colours, with farther edges fainter. A screen with a wait calls `wire_motion_run` with itself as owner from its update and `wire_motion_end` when the work ends; `wire_motion_progress` makes it determinate (the cassette's tape moves between packs, the disc's rim and the icosahedron's edges light in order). It draws nothing until the wait has lasted 300 ms. Its square is at most 104 pixels a side, so one frame of it fits the strip buffer, and `message_draw_working` lays a message out under it. There is one `WireMotion` (36 bytes), owned by `app.c` and handed to screens through `AppScreensContext`.
+
+Frames of the motion are separate from the frames above:
+
+- `app_step` ticks the motion when it is due: its owner is the top screen (or the scan notice), the display is on and no slide or fade runs. Ticks follow a 72 ms grid from the start (about 14 a second) and the turn follows the clock, so a late pass skips motion rather than slowing it.
+- A tick renders only the motion's square: the strip renderer draws the screen's ordinary `draw` into a canvas of that square and the result is written straight to that window of the panel. The same draw code makes full frames and motion frames, so they always agree.
+- While the motion shows, `frame_diff` leaves the square's columns out of its row hashes (`frame_diff_mask`). Full frames therefore send only what changed around it and the frame pacer sees no change from the motion, so the screen keeps resting at one check a second. Setting or clearing the mask forgets the rows it covers, so those rows are sent whole once when the motion starts and again after it stops.
+- Blocking work with a progress callback (library scan and cover finding) ticks the notice's motion from the callback between its 250 ms notice updates. Work with no callback (the music check, storage preparation, language changes) keeps a plain notice: no frame can be drawn during it.
+
+Now Playing never owns a motion, so it never animates over playing music. In the emulator, holding Export plays in its working state while music plays, the motion added 2.9 points of core 0 busy time with a 44.1 kHz FLAC (38.3 % against 35.4 %) and 1.6 points with a 22.05 kHz WAV converted to 44.1 kHz (25.6 % against 24.0 %), at 12 to 14 frames a second and with no underruns (`device_image_boot_test_export_motion_*`, whose waits count as idle time). These are emulator figures, not player measurements.
+
 ## Icons
 
 `ui/icons` draws every icon from one table (`GLYPHS` in `src/ui/icons.c`). An icon is a short list of 32-bit operations on a grid of cells: a filled or outlined rectangle (square, or with its corner cells cut), a stroke one to three cells thick, a disc, a ring or any of its quarters, and a triangle pointing left, right, up or down. Each operation takes the icon's main ink or its accent ink (`IconInk`); a caller that wants one colour passes it twice. `icon_draw(canvas, icon, area, ink)` is the only drawing call.

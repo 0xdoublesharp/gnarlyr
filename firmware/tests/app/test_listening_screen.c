@@ -35,6 +35,8 @@ static void add_play(uint16_t index, bool known)
     CHECK_EQUAL(STORE_DONE, listening_log_append(&store.log, &play));
 }
 
+static WireMotion motion;
+
 static void start(bool populated)
 {
     fake_hal_reset();
@@ -47,7 +49,7 @@ static void start(bool populated)
     }
     theme = BOARD_THEME;
     clock_ms = 0;
-    listening_screen_init(&screen, (ListeningScreenConfig){&store, &theme});
+    listening_screen_init(&screen, (ListeningScreenConfig){&store, &theme, &motion});
     screen.screen.enter(&screen, clock_ms);
 }
 
@@ -500,7 +502,7 @@ static void an_export_restarted_after_its_buffer_was_reused_still_writes_a_whole
     choose(4);
     tick_until_writing();
     ListeningScreen other;
-    listening_screen_init(&other, (ListeningScreenConfig){&store, &theme});
+    listening_screen_init(&other, (ListeningScreenConfig){&store, &theme, &motion});
     other.screen.enter(&other, 0);
     finish_export();
     CHECK(saw(i18n_text(STR_EXPORT_DONE)));
@@ -514,7 +516,7 @@ static void a_job_rebuilds_after_another_screen_reuses_the_cold_work_buffer(void
     finish_top();
     int count = screen.model.count(&screen);
     ListeningScreen other;
-    listening_screen_init(&other, (ListeningScreenConfig){&store, &theme});
+    listening_screen_init(&other, (ListeningScreenConfig){&store, &theme, &motion});
     other.screen.enter(&other, 0);
     finish_top();
     CHECK_EQUAL(count, screen.model.count(&screen));
@@ -556,6 +558,7 @@ static void show_export_state(int state)
     choose(4);
     if (state == 0) {
         tick();
+        wire_motion_tick(&motion, motion.started_ms + WIRE_MOTION_DELAY_MS + 400);
     } else {
         finish_export();
     }
@@ -575,11 +578,19 @@ static void export_states_render_whole_at_every_size_and_orientation(void)
             CHECK(saw_whole(i18n_text(HEADLINES[state])));
             CHECK(!saw("\xE2\x80\xA6"));
             CHECK(state != 0 || saw(i18n_text(STR_BACK_CANCELS)));
+            CHECK_EQUAL(state == 0, wire_motion_shown(&motion, &screen));
+            CHECK(state != 0 || motion.area.width >= WIRE_MOTION_MIN_SIDE);
             char name[32];
             StringBuilder builder = string_builder_make(name, sizeof name);
             string_builder_append(&builder, "listening-export-");
             string_builder_append(&builder, NAMES[state]);
             screen_snapshot_write(&canvas, name, variant);
+            if (state == 0) {
+                default_theme_set_appearance(&theme, APPEARANCE_SUNSET);
+                canvas = draw();
+                CHECK(saw_whole(i18n_text(HEADLINES[state])));
+                screen_snapshot_write(&canvas, name, variant + 2 * TEXT_SIZE_COUNT);
+            }
         }
     }
 }

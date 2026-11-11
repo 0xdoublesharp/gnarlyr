@@ -100,6 +100,7 @@ typedef struct AppScreensContext {
     SpokenStore *spoken;
     BluetoothLink *bluetooth;
     ListeningStore *listening;
+    WireMotion *motion;
 } AppScreensContext;
 
 typedef struct ViewsModuleScreens {

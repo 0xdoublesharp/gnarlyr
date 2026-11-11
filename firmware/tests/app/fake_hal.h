@@ -112,6 +112,23 @@ uint32_t fake_hal_audio_last_seek(void);
 uint8_t fake_hal_audio_volume(void);
 int fake_hal_audio_state(void);
 int fake_hal_write_count(void);
+
+typedef struct FakeArea {
+    int x;
+    int y;
+    int width;
+    int height;
+} FakeArea;
+
+typedef struct FakeDisplayWrites {
+    FakeArea first;
+    int count;
+    int narrowest;
+    bool same;
+} FakeDisplayWrites;
+
+void fake_hal_forget_display_writes(void);
+FakeDisplayWrites fake_hal_display_writes(void);
 long fake_hal_pixels_written(void);
 int fake_hal_present_count(void);
 bool fake_hal_display_on(void);
