@@ -14,6 +14,16 @@ bool core1_open_flac(void *context, const char *path, uint32_t start_ms, AudioTr
 bool core1_open_mp3(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track);
 bool core1_open_m4a(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track);
 
-bool core1_open_vorbis(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track);
+bool core1_open_ogg(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track);
 
-bool core1_vorbis_read(void *context, uint32_t offset, void *buffer, uint32_t length);
+typedef struct Core1OggStart {
+    uint32_t ring_bytes;
+    uint32_t end_offset;
+    uint32_t first_sample;
+} Core1OggStart;
+
+void core1_ogg_begin(Core1Source *source, const OggTrack *track, Core1OggStart start);
+bool core1_open_vorbis(Core1Source *source, OggTrack *track, uint32_t start_ms);
+bool core1_open_opus(Core1Source *source, const OggTrack *track, uint32_t start_ms);
+
+bool core1_ogg_read(void *context, uint32_t offset, void *buffer, uint32_t length);

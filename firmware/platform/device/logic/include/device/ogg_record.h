@@ -1,0 +1,10 @@
+#pragma once
+
+enum {
+    OGG_RECORD_BYTES = 16,
+    OGG_PACKET_BYTES = 32768,
+    OGG_RECORD_FIRST = 1,
+    OGG_RECORD_LAST = 2,
+    OGG_RECORD_END = 4,
+    OGG_RECORD_ORIGIN = 8
+};

@@ -21,6 +21,16 @@ def signal(channels, rate, long=False):
     return struct.pack(f"<{len(values)}h", *values)
 
 
+def repair_page(data, offset, size):
+    data[offset + 22:offset + 26] = bytes(4)
+    crc = 0
+    for byte in data[offset:offset + size]:
+        crc ^= byte << 24
+        for _ in range(8):
+            crc = ((crc << 1) ^ (0x04C11DB7 if crc & 0x80000000 else 0)) & 0xffffffff
+    struct.pack_into("<I", data, offset + 22, crc)
+
+
 def offset_granules(encoded, delta):
     data = bytearray(encoded)
     offset = 0
@@ -30,13 +40,7 @@ def offset_granules(encoded, delta):
         granule = struct.unpack_from("<Q", data, offset + 6)[0]
         if 0 < granule < (1 << 64) - 1:
             struct.pack_into("<Q", data, offset + 6, granule + delta)
-            data[offset + 22:offset + 26] = bytes(4)
-            crc = 0
-            for byte in data[offset:offset + size]:
-                crc ^= byte << 24
-                for _ in range(8):
-                    crc = ((crc << 1) ^ (0x04C11DB7 if crc & 0x80000000 else 0)) & 0xffffffff
-            struct.pack_into("<I", data, offset + 22, crc)
+            repair_page(data, offset, size)
         offset += size
     return bytes(data)
 

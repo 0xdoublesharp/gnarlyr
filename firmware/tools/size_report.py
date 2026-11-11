@@ -284,7 +284,7 @@ def module_problems(device_map, modules):
     problems = []
     regions = memory_regions(device_map)
     for name, module_map in modules:
-        region = "DSP_RAM" if name in ("dsp", "vorbis") else (
+        region = "DSP_RAM" if name in ("dsp", "ogg") else (
             "PROCESS_RAM" if name == "process" else MODULE_REGION)
         slot = regions.get(region)
         linked = memory_regions(module_map).get(MODULE_REGION)
@@ -292,7 +292,7 @@ def module_problems(device_map, modules):
             problems.append(f"module {name} is not linked for the main program's module slot")
             continue
         code, zeroed = module_extent(module_map)
-        if name in ("dsp", "vorbis", "process") and zeroed:
+        if name in ("dsp", "ogg", "process") and zeroed:
             problems.append("the audio module must keep all state in its caller")
         if code + zeroed > slot[1]:
             problems.append(f"module {name} is {code + zeroed - slot[1]:,} bytes too large for "

@@ -85,7 +85,8 @@ static void start_with_budget(uint32_t budget)
                       &unused_decoder, budget);
     region.ring_bytes = M4A_RING_BYTES;
     core1_stream_init(&stream, region, core1_m4a_decoder(&core1_m4a));
-    interface = core1_source_m4a_interface(&source, &m4a);
+    source.m4a = &m4a;
+    interface = core1_source_interface(&source, CORE1_FORMAT_M4A);
 }
 
 static uint32_t load_reference(const Expect *expect, int32_t (*out)[2])

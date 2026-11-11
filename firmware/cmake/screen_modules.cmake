@@ -1,4 +1,4 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp vorbis process)
+set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process)
 set(ECHO_SCREEN_MODULE_SOURCES_process
     platform/device/logic/audio_process_entry.c
     platform/device/logic/equalizer_design.c
@@ -9,11 +9,15 @@ set(ECHO_SCREEN_MODULE_SOURCES_dsp
     platform/device/logic/audio_dsp_entry.c
     platform/device/logic/mp4_demux.c
 )
-set(ECHO_SCREEN_MODULE_SOURCES_vorbis
+set(ECHO_SCREEN_MODULE_SOURCES_ogg
     platform/device/logic/audio_interpolate.c
-    platform/device/logic/audio_vorbis_entry.c
+    platform/device/logic/audio_ogg_entry.c
+    platform/device/logic/core1_ogg_source.c
+    platform/device/logic/core1_opus_source.c
     platform/device/logic/core1_vorbis_source.c
-    platform/device/logic/vorbis_stream.c
+    platform/device/logic/ogg_stream.c
+    platform/device/logic/ogg_track.c
+    platform/device/logic/opus_track.c
     platform/device/logic/vorbis_track.c
     src/codec/ogg_packet.c
 )

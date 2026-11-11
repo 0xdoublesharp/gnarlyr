@@ -22,6 +22,7 @@ enum {
     FLAC_PROGRAM_OFFSET = 0x280000,
     M4A_PROGRAM_OFFSET = 0x2A0200,
     VORBIS_PROGRAM_OFFSET = 0x260200,
+    OPUS_PROGRAM_OFFSET = 0x2C0200,
     PROGRAM_MAGIC = 0x4D314345,
     STAGING_SECTORS = STAGING_WORDS * WORD_BYTES / SECTOR_BYTES
 };
@@ -104,13 +105,12 @@ static bool copy_program_sectors(uint32_t first_sector, uint32_t size, uint32_t 
 
 static uint32_t program_offset(Core1Program program)
 {
-    if (program == CORE1_PROGRAM_MP3) {
-        return MP3_PROGRAM_OFFSET;
-    }
-    if (program == CORE1_PROGRAM_VORBIS) {
-        return VORBIS_PROGRAM_OFFSET;
-    }
-    return program == CORE1_PROGRAM_M4A ? M4A_PROGRAM_OFFSET : FLAC_PROGRAM_OFFSET;
+    static const uint32_t OFFSETS[] = {
+        [CORE1_PROGRAM_FLAC] = FLAC_PROGRAM_OFFSET, [CORE1_PROGRAM_MP3] = MP3_PROGRAM_OFFSET,
+        [CORE1_PROGRAM_M4A] = M4A_PROGRAM_OFFSET,   [CORE1_PROGRAM_VORBIS] = VORBIS_PROGRAM_OFFSET,
+        [CORE1_PROGRAM_OPUS] = OPUS_PROGRAM_OFFSET,
+    };
+    return OFFSETS[program];
 }
 
 static Core1Result place_program(Core1Program program)

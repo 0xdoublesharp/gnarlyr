@@ -1845,7 +1845,7 @@ class EchoImageTest(unittest.TestCase):
         self.assert_healthy(rig.session)
 
     def vorbis_rig(self, mixed=False):
-        from echo_emulator.core1_bridge import Core1Bridge
+        from echo_emulator.core1_bridge import CORE1_VORBIS, Core1Bridge
         from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.playback import Rig
         volume = Fat32Volume()
@@ -1859,13 +1859,74 @@ class EchoImageTest(unittest.TestCase):
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
         program = self.elf.with_name("core1_vorbis.bin").read_bytes()
-        return rig, Core1Bridge(rig.audio, program)
+        return rig, Core1Bridge(rig.audio, {CORE1_VORBIS: program})
+
+    def opus_rig(self):
+        from echo_emulator.core1_bridge import CORE1_OPUS, CORE1_VORBIS, Core1Bridge
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        volume = Fat32Volume()
+        volume.add_file("B.ogg", (PROJECT / "tests/fixtures/vorbis/seek44.ogg").read_bytes())
+        volume.add_file("C.opus", (PROJECT / "tests/fixtures/opus/stereo48.opus").read_bytes())
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        programs = {CORE1_VORBIS: self.elf.with_name("core1_vorbis.bin").read_bytes(),
+                    CORE1_OPUS: self.elf.with_name("core1_opus.bin").read_bytes()}
+        return rig, Core1Bridge(rig.audio, programs)
+
+    def test_opus_player_seeks_on_the_core1_opus_program_and_pauses_without_restarting(self):
+        from echo_emulator.core1_bridge import CORE1_OPUS
+        from unicorn.arm_const import UC_ARM_REG_R1
+        rig, bridge = self.opus_rig()
+        machine = rig.machine
+        machine.hook_symbol("hal_audio_play", lambda: machine.uc.reg_write(UC_ARM_REG_R1, 1000))
+        _, ogg = self.module(machine, "ogg")
+        rig.open_songs()
+        started = rig.play_song(2)
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.rate == 48000 and rig.audio.running,
+            until_ms=machine.milliseconds() + 3000))
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertEqual([CORE1_OPUS], bridge.started)
+        self.assertTrue(ogg.loaded(machine))
+        control = struct.unpack("<31I", machine.read_memory(0x01020100, 124))
+        self.assertEqual((48000, 2, 24, 96000, 48000), (control[1], control[2], control[3],
+                                                         control[6], control[7]))
+        rig.press("play")
+        self.assertGreater(rig.audio.suspend_depth, 0)
+        rig.press("play")
+        self.assertEqual(0, rig.audio.suspend_depth)
+        self.assertEqual([CORE1_OPUS], bridge.started)
+        self.assert_healthy(rig.session)
+
+    def test_ogg_player_switches_between_the_vorbis_and_opus_programs(self):
+        from echo_emulator.core1_bridge import CORE1_OPUS, CORE1_VORBIS
+        rig, bridge = self.opus_rig()
+        machine = rig.machine
+        rig.open_songs()
+        first = rig.play_song(1)
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.rate == 44100 and rig.audio.running,
+            until_ms=machine.milliseconds() + 3000))
+        self.assertIsNotNone(rig.first_audio_after(first))
+        second = rig.skip("next")
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.rate == 48000 and rig.audio.running,
+            until_ms=machine.milliseconds() + 3000))
+        self.assertIsNotNone(rig.first_audio_after(second))
+        third = rig.skip("previous")
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.rate == 44100 and rig.audio.running,
+            until_ms=machine.milliseconds() + 3000))
+        self.assertIsNotNone(rig.first_audio_after(third))
+        self.assertEqual([CORE1_VORBIS, CORE1_OPUS, CORE1_VORBIS], bridge.started[:3])
+        self.assert_healthy(rig.session)
 
     def test_vorbis_player_runs_both_arm_cores_and_switches_audio_modules(self):
         rig, bridge = self.vorbis_rig(mixed=True)
         machine = rig.machine
         _, dsp = self.module(machine, "dsp")
-        number, vorbis = self.module(machine, "vorbis")
+        number, vorbis = self.module(machine, "ogg")
         rig.session.change_module("slot_1", number, 32, lambda byte: byte ^ 1)
         rig.open_songs()
         first = rig.play_song(1)
@@ -1927,7 +1988,7 @@ class EchoImageTest(unittest.TestCase):
 
     def test_vorbis_player_refuses_two_damaged_audio_modules(self):
         rig, bridge = self.vorbis_rig()
-        number, vorbis = self.module(rig.machine, "vorbis")
+        number, vorbis = self.module(rig.machine, "ogg")
         for slot in ("slot_1", "slot_2"):
             rig.session.change_module(slot, number, 32, lambda byte: byte ^ 1)
         rig.open_songs()

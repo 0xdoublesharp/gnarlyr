@@ -40,25 +40,32 @@ enum {
     TONE_AMPLITUDE = 9000,
     MILLISECONDS_PER_SECOND = 1000,
     JACK_POLL_MS = 10,
-    SNIFF_BYTES = 12
+    SNIFF_BYTES = 32
 };
 
 typedef enum SourceKind {
-    SOURCE_FLAC,
+    SOURCE_FLAC = CORE1_PROGRAM_FLAC,
+    SOURCE_MP3 = CORE1_PROGRAM_MP3,
+    SOURCE_M4A = CORE1_PROGRAM_M4A,
+    SOURCE_VORBIS = CORE1_PROGRAM_VORBIS,
+    SOURCE_OPUS = CORE1_PROGRAM_OPUS,
     SOURCE_WAV,
-    SOURCE_MP3,
-    SOURCE_M4A,
-    SOURCE_VORBIS,
     SOURCE_UNKNOWN
 } SourceKind;
+_Static_assert((int)CORE1_FORMAT_FLAC == (int)SOURCE_FLAC &&
+                   (int)CORE1_FORMAT_MP3 == (int)SOURCE_MP3 &&
+                   (int)CORE1_FORMAT_M4A == (int)SOURCE_M4A &&
+                   (int)CORE1_FORMAT_VORBIS == (int)SOURCE_VORBIS &&
+                   (int)CORE1_FORMAT_OPUS == (int)SOURCE_OPUS,
+               "each core 1 source kind names its program and its opener");
 
 static union {
     FlacDecoder flac;
     WavBuffers wav;
     M4aStream m4a;
-    VorbisStream vorbis;
+    OggStream ogg;
 } decoding __attribute__((section(".high_ram")));
-_Static_assert(sizeof(VorbisStream) <= sizeof(FlacDecoder),
+_Static_assert(sizeof(OggStream) <= sizeof(FlacDecoder),
                "Vorbis input must fit the existing decoder workspace");
 static Equalizer equalizer __attribute__((section(".high_ram")));
 static uint32_t music_ring[RING_WORDS];
@@ -174,7 +181,7 @@ static SourceKind kind_of(const char *path)
         return SOURCE_WAV;
     }
     if (tag_is(magic, "OggS")) {
-        return SOURCE_VORBIS;
+        return tag_is(magic + 28, "Opus") ? SOURCE_OPUS : SOURCE_VORBIS;
     }
     if (mp4_signature(magic)) {
         return SOURCE_M4A;
@@ -207,18 +214,12 @@ static AudioSource chosen_source(void)
     if (source_kind == SOURCE_WAV) {
         return wav_source_interface(&wav_source);
     }
-    if (source_kind == SOURCE_MP3) {
-        return core1_source_mp3_interface(&core1_source);
+    bool flac = source_kind == SOURCE_FLAC || source_kind == SOURCE_UNKNOWN;
+    if (flac && !using_core1) {
+        return flac_source_interface(&software_source);
     }
-    if (source_kind == SOURCE_VORBIS) {
-        return core1_source_vorbis_interface(&core1_source, &decoding.vorbis,
-                                             board_audio_vorbis_wait);
-    }
-    if (source_kind == SOURCE_M4A) {
-        return core1_source_m4a_interface(&core1_source, &decoding.m4a);
-    }
-    return using_core1 ? core1_source_interface(&core1_source)
-                       : flac_source_interface(&software_source);
+    return core1_source_interface(&core1_source,
+                                  flac ? CORE1_FORMAT_FLAC : (Core1Format)source_kind);
 }
 
 static void remember_path(const char *path)
@@ -245,19 +246,9 @@ static bool open_chosen(void *context, const char *path, uint32_t start_ms, Audi
     if (unknown_format || !board_audio_process_prepare()) {
         return false;
     }
-    if (source_kind == SOURCE_FLAC) {
-        using_core1 = board_core1_start_stream(CORE1_PROGRAM_FLAC);
-    }
-    if (source_kind == SOURCE_MP3 || source_kind == SOURCE_M4A) {
-        using_core1 = board_core1_start_stream(source_kind == SOURCE_MP3 ? CORE1_PROGRAM_MP3
-                                                                         : CORE1_PROGRAM_M4A);
-        if (!using_core1) {
-            return false;
-        }
-    }
-    if (source_kind == SOURCE_VORBIS) {
-        using_core1 = board_core1_start_stream(CORE1_PROGRAM_VORBIS);
-        if (!using_core1) {
+    if (source_kind != SOURCE_WAV) {
+        using_core1 = board_core1_start_stream((Core1Program)source_kind);
+        if (!using_core1 && source_kind != SOURCE_FLAC) {
             return false;
         }
     }
@@ -299,6 +290,9 @@ static void ensure_engine(void)
     FlacFileOpener files = {.open = open_file, .close = close_file, .context = NULL};
     flac_source_init(&software_source, files, &decoding.flac);
     core1_source_init(&core1_source, core1_region(), files, &decoding.flac, FILL_BUDGET_BYTES);
+    core1_source.m4a = &decoding.m4a;
+    core1_source.ogg = &decoding.ogg;
+    core1_source.wait_vorbis = board_audio_vorbis_wait;
     wav_source_init(&wav_source, files, &decoding.wav);
     AudioSource source = {open_chosen, next_chosen, release_chosen, close_chosen, NULL};
     audio_engine_init(&engine, (AudioEngineConfig){.source = source,
@@ -641,6 +635,8 @@ static HalAudioCodec codec_of(AudioCodec codec)
         return HAL_AUDIO_CODEC_ALAC;
     case AUDIO_CODEC_VORBIS:
         return HAL_AUDIO_CODEC_VORBIS;
+    case AUDIO_CODEC_OPUS:
+        return HAL_AUDIO_CODEC_OPUS;
     case AUDIO_CODEC_FLAC:
         break;
     }

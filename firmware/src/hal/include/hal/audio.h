@@ -54,7 +54,8 @@ typedef enum HalAudioCodec {
     HAL_AUDIO_CODEC_WAV,
     HAL_AUDIO_CODEC_AAC,
     HAL_AUDIO_CODEC_ALAC,
-    HAL_AUDIO_CODEC_VORBIS
+    HAL_AUDIO_CODEC_VORBIS,
+    HAL_AUDIO_CODEC_OPUS
 } HalAudioCodec;
 
 typedef struct HalAudioFormat {

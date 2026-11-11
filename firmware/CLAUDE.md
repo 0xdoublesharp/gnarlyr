@@ -22,7 +22,7 @@ The four-byte file markers beginning with `DS` remain maker format tags; the bin
 | `assets/` | Font sources and `lang/en.txt`, the English text and string catalogue |
 | `tools/` | Python: image builder (`make_image.py`), size report (`size_report.py`), language pack builder (`lang_pack.py`), emulator (`echo_emulator`), PC library indexer, `echo_sync.py`, font and fixture generators |
 | `tests/` | One test executable per module, emulator scenarios, fixtures |
-| `docs/` | The design record: `architecture.md` (layers, rules, device platform), `hardware.md`, `library-format.md`, `playback-store.md` with `stored-order.md`, `session-journal.md` and `mixtapes.md`, `device-install.md`, `device-recovery.md`, `known-issues.md`, `user-guide.md`, `release-notes.md` |
+| `docs/` | The design record: `architecture.md` (layers, rules, device platform), `ogg-vorbis.md` and `opus.md`, `hardware.md`, `library-format.md`, `playback-store.md` with `stored-order.md`, `session-journal.md` and `mixtapes.md`, `device-install.md`, `device-recovery.md`, `known-issues.md`, `user-guide.md`, `release-notes.md` |
 
 The layer table in `docs/architecture.md` defines which layer may depend on which; keep to it.
 
@@ -82,11 +82,13 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 | Module listening (code + BSS) | 18,604 | 44,032 | 25,428 |
 | Audio processing module (code, no BSS) | 1,920 | 12,288 | 10,368 |
 | Audio DSP module (code, no BSS) | 5,832 | 8,192 | 2,360 |
-| Vorbis file module (code, no BSS) | 5,960 | 8,192 | 2,232 |
+| Ogg file module, Vorbis and Opus (code, no BSS) | 7,040 | 8,192 | 1,152 |
 | Decoder workspace | 41,648 | 41,984 | 336 |
 | Language pack (English) | 7,352 | 16,384 | 9,032 |
 | Vorbis program image bank | 64,768 | 130,048 | 65,280 |
 | Vorbis core-1 static state | 32,952 | 36,864 | 3,912 |
+| Opus program image bank | 98,928 | 131,072 | 32,144 |
+| Opus core-1 static state | 30,908 | 36,864 | 5,956 |
 
 - Keep at least 8 KB free in the release code window after each stage of the plan. Read the report after any change to device code and update these numbers and the ones in `docs/architecture.md` when they move.
 - The core 0 link uses link-time optimisation. Libraries shared with core 1 or the rescan overlay stay out of it.

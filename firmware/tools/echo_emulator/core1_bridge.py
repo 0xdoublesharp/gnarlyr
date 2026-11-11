@@ -2,28 +2,34 @@ from .core1 import CONTROL, RING, SAMPLES, Core1
 
 CONTROL_BYTES = 124
 CORE1_VORBIS = 3
-RING_BYTES = 0x10000
+CORE1_OPUS = 4
+RING_BYTES = {CORE1_VORBIS: 0x10000, CORE1_OPUS: 40960}
 SAMPLE_BYTES = RING - SAMPLES
 DECODER_OWNED = ((44, 48), (96, 24))
 
 
 class Core1Bridge:
-    def __init__(self, audio, program):
+    def __init__(self, audio, programs):
         self.machine = audio.machine
-        self.program = program
+        self.programs = programs
+        self.ring_bytes = 0
         self.active = False
         self.core = None
         self.starts = 0
+        self.started = []
         audio.core1 = self
         self.machine.hook_symbol("core1_source_fill", self.step)
 
     def start(self, program):
         self.active = False
-        if program != CORE1_VORBIS:
+        if program not in self.programs:
             return 0
-        self.core = Core1(self.program, RING_BYTES)
+        self.ring_bytes = RING_BYTES[program]
+        self.core = Core1(self.programs[program], self.ring_bytes)
         self.active = self.core.boot()
         self.starts += int(self.active)
+        if self.active:
+            self.started.append(program)
         return int(self.active)
 
     def step(self):
@@ -31,7 +37,7 @@ class Core1Bridge:
             return
         machine, core = self.machine, self.core
         core.uc.mem_write(CONTROL, machine.read_memory(CONTROL, CONTROL_BYTES))
-        core.uc.mem_write(RING, machine.read_memory(RING, RING_BYTES))
+        core.uc.mem_write(RING, machine.read_memory(RING, self.ring_bytes))
         for _ in range(32):
             core.run_slice()
         machine.uc.mem_write(SAMPLES, bytes(core.uc.mem_read(SAMPLES, SAMPLE_BYTES)))

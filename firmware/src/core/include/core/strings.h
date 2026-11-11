@@ -438,6 +438,7 @@ typedef enum StringId {
     STR_EQ_GAIN,
     STR_POWER_TITLE,
     STR_CODEC_VORBIS,
+    STR_CODEC_OPUS,
     STR_REPLAY_GAIN,
     STR_REPLAY_GAIN_TRACK,
     STR_REPLAY_GAIN_ALBUM,
@@ -445,4 +446,4 @@ typedef enum StringId {
     STRING_COUNT
 } StringId;
 
-#define STRINGS_HASH UINT32_C(0xD4079B74)
+#define STRINGS_HASH UINT32_C(0xACE7AD20)

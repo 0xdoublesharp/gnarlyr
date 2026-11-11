@@ -2,8 +2,8 @@
 #include <string.h>
 
 #include "check.h"
+#include "device/ogg_stream.h"
 #include "device/vorbis_decoder.h"
-#include "device/vorbis_stream.h"
 
 enum {
     FILE_CAPACITY = 196608
@@ -18,9 +18,9 @@ typedef struct File {
 
 static File original;
 static File changed;
-static VorbisStream stream;
-static uint8_t packet[VORBIS_PACKET_BYTES];
-static uint8_t reference_packet[VORBIS_PACKET_BYTES];
+static OggStream stream;
+static uint8_t packet[OGG_PACKET_BYTES];
+static uint8_t reference_packet[OGG_PACKET_BYTES];
 static uint8_t metadata[70000];
 static _Alignas(8) uint8_t workspace[VORBIS_WORKSPACE_BYTES];
 static int32_t pcm_data[2][VORBIS_MAX_FRAMES];
@@ -137,10 +137,10 @@ static void replace_packet(uint32_t which, uint32_t bytes)
 
 static bool next_record(uint32_t *position, VorbisPacket *out, uint32_t fragment)
 {
-    uint8_t head[VORBIS_RECORD_BYTES];
+    uint8_t head[OGG_RECORD_BYTES];
     for (uint32_t done = 0; done < sizeof head;) {
         uint32_t size = fragment < sizeof head - done ? fragment : (uint32_t)sizeof head - done;
-        if (!vorbis_stream_read(&stream, *position, head + done, size)) {
+        if (!ogg_stream_read(&stream, *position, head + done, size)) {
             return false;
         }
         *position += size;
@@ -149,12 +149,12 @@ static bool next_record(uint32_t *position, VorbisPacket *out, uint32_t fragment
     uint32_t bytes = number(head);
     uint32_t flags = number(head + 4);
     CHECK(bytes <= sizeof packet);
-    if (bytes > sizeof packet || flags == VORBIS_RECORD_END) {
+    if (bytes > sizeof packet || flags == OGG_RECORD_END) {
         return false;
     }
     for (uint32_t done = 0; done < bytes;) {
         uint32_t size = fragment < bytes - done ? fragment : bytes - done;
-        if (!vorbis_stream_read(&stream, *position, packet + done, size)) {
+        if (!ogg_stream_read(&stream, *position, packet + done, size)) {
             return false;
         }
         done += size;
@@ -162,14 +162,14 @@ static bool next_record(uint32_t *position, VorbisPacket *out, uint32_t fragment
     }
     *out = (VorbisPacket){.span = {{packet, bytes}, {NULL, 0}},
                           .granule = (uint64_t)number(head + 8) | (uint64_t)number(head + 12) << 32,
-                          .first = (flags & VORBIS_RECORD_FIRST) != 0,
-                          .last = (flags & VORBIS_RECORD_LAST) != 0};
+                          .first = (flags & OGG_RECORD_FIRST) != 0,
+                          .last = (flags & OGG_RECORD_LAST) != 0};
     return true;
 }
 
 static void compare_pcm(File *file, const char *name, uint32_t expected, uint32_t fragment)
 {
-    CHECK(vorbis_stream_start(&stream, input(file)));
+    CHECK(ogg_stream_start(&stream, input(file)));
     CHECK(vorbis_decoder_init(&decoder, workspace, sizeof workspace));
     char path[512];
     (void)snprintf(path, sizeof path, "%s/vorbis/%s.pcm", ECHO_FIXTURE_DIR, name);
@@ -248,7 +248,7 @@ static void failed_storage_and_damaged_metadata_are_errors_rather_than_a_clean_e
     }
     original.failing = true;
     original.fail_at = original.size - 1;
-    CHECK(vorbis_stream_start(&stream, input(&original)));
+    CHECK(ogg_stream_start(&stream, input(&original)));
     uint32_t position = 0;
     VorbisPacket record;
     while (next_record(&position, &record, 19)) {
@@ -256,10 +256,10 @@ static void failed_storage_and_damaged_metadata_are_errors_rather_than_a_clean_e
     CHECK(stream.failed);
     CHECK(!stream.ended);
     original.failing = false;
-    CHECK(!vorbis_stream_read(&stream, stream.position, packet, 1));
+    CHECK(!ogg_stream_read(&stream, stream.position, packet, 1));
     compare_pcm(&original, "stereo44", 11025, 19);
     original.bytes[original.size - 1] ^= 1;
-    CHECK(vorbis_stream_start(&stream, input(&original)));
+    CHECK(ogg_stream_start(&stream, input(&original)));
     position = 0;
     while (next_record(&position, &record, 19)) {
     }
@@ -274,7 +274,7 @@ static void oversized_audio_is_refused_and_never_masquerades_as_end_of_stream(vo
     }
     memset(metadata, 0, sizeof metadata);
     replace_packet(3, sizeof metadata);
-    CHECK(vorbis_stream_start(&stream, input(&changed)));
+    CHECK(ogg_stream_start(&stream, input(&changed)));
     uint32_t position = 0;
     VorbisPacket record;
     for (uint32_t index = 0; index < 3; index++) {
@@ -299,7 +299,7 @@ static void incomplete_or_wrong_configuration_packets_do_not_end_successfully(vo
     info.last = true;
     uint32_t sequence = 0;
     append_packet(reference_packet, info, &sequence);
-    CHECK(vorbis_stream_start(&stream, input(&changed)));
+    CHECK(ogg_stream_start(&stream, input(&changed)));
     uint32_t position = 0;
     VorbisPacket record;
     CHECK(!next_record(&position, &record, 17));
@@ -307,7 +307,7 @@ static void incomplete_or_wrong_configuration_packets_do_not_end_successfully(vo
     CHECK(!stream.ended);
     memset(metadata, 0, 16);
     replace_packet(1, 16);
-    CHECK(vorbis_stream_start(&stream, input(&changed)));
+    CHECK(ogg_stream_start(&stream, input(&changed)));
     position = 0;
     CHECK(next_record(&position, &record, 17));
     CHECK(!next_record(&position, &record, 17));
@@ -319,11 +319,11 @@ static void invalid_requests_preserve_the_current_stream_and_end_padding_is_zero
     if (!load("mono8")) {
         return;
     }
-    CHECK(!vorbis_stream_start(&stream, (FlacInput){0}));
-    CHECK(vorbis_stream_start(&stream, input(&original)));
-    CHECK(!vorbis_stream_read(&stream, 1, packet, 1));
-    CHECK(!vorbis_stream_read(&stream, 0, NULL, 1));
-    CHECK(!vorbis_stream_read(&stream, 0, packet, UINT32_MAX));
+    CHECK(!ogg_stream_start(&stream, (FlacInput){0}));
+    CHECK(ogg_stream_start(&stream, input(&original)));
+    CHECK(!ogg_stream_read(&stream, 1, packet, 1));
+    CHECK(!ogg_stream_read(&stream, 0, NULL, 1));
+    CHECK(!ogg_stream_read(&stream, 0, packet, UINT32_MAX));
     CHECK(!stream.failed);
     CHECK_EQUAL(0, stream.position);
     uint32_t position = 0;
@@ -332,7 +332,7 @@ static void invalid_requests_preserve_the_current_stream_and_end_padding_is_zero
     }
     CHECK(stream.ended && !stream.failed);
     memset(packet, 0xA5, 128);
-    CHECK(vorbis_stream_read(&stream, position, packet, 127));
+    CHECK(ogg_stream_read(&stream, position, packet, 127));
     for (uint32_t index = 0; index < 127; index++) {
         CHECK_EQUAL(0, packet[index]);
     }
@@ -367,15 +367,15 @@ static void bulk_reads_cross_packet_boundaries_and_match_independent_record_fram
         changed.size += 16 + info.bytes;
     }
     uint8_t *end = changed.bytes + changed.size;
-    put32(end + 4, VORBIS_RECORD_END);
-    changed.size += VORBIS_RECORD_BYTES;
+    put32(end + 4, OGG_RECORD_END);
+    changed.size += OGG_RECORD_BYTES;
     static const uint32_t CHUNKS[] = {3, 17, 257, 4096};
     for (uint32_t index = 0; index < sizeof CHUNKS / sizeof CHUNKS[0]; index++) {
-        CHECK(vorbis_stream_start(&stream, input(&original)));
+        CHECK(ogg_stream_start(&stream, input(&original)));
         uint32_t position = 0;
         while (position < changed.size + 127) {
             uint32_t bytes = CHUNKS[index];
-            CHECK(vorbis_stream_read(&stream, position, packet, bytes));
+            CHECK(ogg_stream_read(&stream, position, packet, bytes));
             CHECK(memcmp(packet, changed.bytes + position, bytes) == 0);
             CHECK_EQUAL(position + bytes, stream.position);
             position += bytes;

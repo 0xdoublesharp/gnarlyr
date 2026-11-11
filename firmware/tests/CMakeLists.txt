@@ -440,6 +440,20 @@ echo_add_unit_test(NAME test_vorbis_memory
     SOURCES device/test_vorbis_memory.c
     LIBRARIES echo_device_logic
 )
+echo_add_unit_test(NAME test_opus_track
+    SOURCES device/test_opus_track.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_opus_track PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+echo_add_unit_test(NAME test_opus_source
+    SOURCES device/test_opus_source.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_opus_source PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+echo_add_unit_test(NAME test_opus_decode
+    SOURCES device/test_opus_decode.c
+    LIBRARIES echo_device_logic
+)
 echo_add_unit_test(NAME test_vorbis_decoder
     SOURCES device/test_vorbis_decoder.c
     LIBRARIES echo_device_logic
@@ -685,6 +699,17 @@ if(ARM_GCC)
             FIXTURES_REQUIRED device_image
             SKIP_RETURN_CODE 77
             TIMEOUT 180
+        )
+        add_test(NAME core1_opus_decodes_in_emulator
+            COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
+                ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_core1_opus.py
+                --program ${PROJECT_SOURCE_DIR}/build/device/platform/device/core1_opus.bin
+                --tool $<TARGET_FILE:ogg_packet_tool>
+        )
+        set_tests_properties(core1_opus_decodes_in_emulator PROPERTIES
+            FIXTURES_REQUIRED device_image
+            SKIP_RETURN_CODE 77
+            TIMEOUT 600
         )
         add_test(NAME core1_m4a_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
