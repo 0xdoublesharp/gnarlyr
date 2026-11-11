@@ -282,36 +282,52 @@ static void extended_sample_rate_headers_decode_their_audio(void)
     }
 }
 
-static void a_192_sample_fixed_block_decodes_constant_channels(void)
+static void standard_and_extended_block_sizes_decode_constant_channels(void)
 {
-    uint8_t bytes[80] = {
-        0x66, 0x4c, 0x61, 0x43, 0x80, 0x00, 0x00, 0x22, 0x10, 0x00, 0x10, 0x00, 0x00,
-        0x00, 0x0f, 0x00, 0x00, 0x0f, 0x0a, 0xc4, 0x42, 0xf0, 0x00, 0x00, 0x00, 0xc0,
-    };
-    uint32_t at = 42;
-    uint32_t frame = at;
-    bytes[at++] = 0xff;
-    bytes[at++] = 0xf8;
-    bytes[at++] = 0x19;
-    bytes[at++] = 0x18;
-    bytes[at++] = 0;
-    bytes[at] = frame_crc8(bytes + frame, at - frame);
-    at++;
-    static const uint8_t body[] = {0, 0x12, 0x34, 0, 0xff, 0xfe};
-    memcpy(bytes + at, body, sizeof body);
-    at += sizeof body;
-    uint16_t crc = frame_crc16(bytes + frame, at - frame);
-    bytes[at++] = (uint8_t)(crc >> 8);
-    bytes[at++] = (uint8_t)crc;
-    Buffer input = {bytes, at};
-    CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input_of(&input)));
-    CHECK_EQUAL(FLAC_OK, flac_decode_frame(&decoder));
-    CHECK_EQUAL(192u, decoder.block_samples);
-    for (uint32_t sample = 0; sample < 192; sample++) {
-        CHECK_EQUAL(0x1234, flac_channel(&decoder, 0)[sample]);
-        CHECK_EQUAL(-2, flac_channel(&decoder, 1)[sample]);
+    static const struct {
+        uint8_t code;
+        uint16_t samples;
+    } cases[] = {{1, 192}, {2, 576}, {3, 1152},  {4, 2304},  {5, 4608}, {7, 257},
+                 {8, 256}, {9, 512}, {10, 1024}, {11, 2048}, {12, 4096}};
+    for (uint32_t index = 0; index < sizeof cases / sizeof cases[0]; index++) {
+        uint32_t samples = cases[index].samples;
+        uint8_t bytes[80] = {
+            0x66, 0x4c, 0x61, 0x43, 0x80, 0x00, 0x00, 0x22, 0x10, 0x00, 0x10, 0x00, 0x00,
+            0x00, 0x0f, 0x00, 0x00, 0x0f, 0x0a, 0xc4, 0x42, 0xf0, 0x00, 0x00, 0x00, 0x00,
+        };
+        bytes[8] = bytes[10] = (uint8_t)(samples >> 8);
+        bytes[9] = bytes[11] = (uint8_t)samples;
+        bytes[24] = (uint8_t)(samples >> 8);
+        bytes[25] = (uint8_t)samples;
+        uint32_t at = 42;
+        uint32_t frame = at;
+        bytes[at++] = 0xff;
+        bytes[at++] = 0xf8;
+        bytes[at++] = (uint8_t)((cases[index].code << 4) | 9);
+        bytes[at++] = 0x18;
+        bytes[at++] = 0;
+        if (cases[index].code == 7) {
+            bytes[at++] = (uint8_t)((samples - 1) >> 8);
+            bytes[at++] = (uint8_t)(samples - 1);
+        }
+        bytes[at] = frame_crc8(bytes + frame, at - frame);
+        at++;
+        static const uint8_t body[] = {0, 0x12, 0x34, 0, 0xff, 0xfe};
+        memcpy(bytes + at, body, sizeof body);
+        at += sizeof body;
+        uint16_t crc = frame_crc16(bytes + frame, at - frame);
+        bytes[at++] = (uint8_t)(crc >> 8);
+        bytes[at++] = (uint8_t)crc;
+        Buffer input = {bytes, at};
+        CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input_of(&input)));
+        CHECK_EQUAL(FLAC_OK, flac_decode_frame(&decoder));
+        CHECK_EQUAL(samples, decoder.block_samples);
+        for (uint32_t sample = 0; sample < samples; sample++) {
+            CHECK_EQUAL(0x1234, flac_channel(&decoder, 0)[sample]);
+            CHECK_EQUAL(-2, flac_channel(&decoder, 1)[sample]);
+        }
+        CHECK_EQUAL(FLAC_END, flac_decode_frame(&decoder));
     }
-    CHECK_EQUAL(FLAC_END, flac_decode_frame(&decoder));
 }
 
 static void rfc_9639_partitioned_lpc_decodes_the_specified_samples(void)
@@ -699,7 +715,7 @@ int main(void)
         TEST_CASE(independent_channels_decode_exactly),
         TEST_CASE(rfc_9639_example_one_decodes_the_specified_samples),
         TEST_CASE(extended_sample_rate_headers_decode_their_audio),
-        TEST_CASE(a_192_sample_fixed_block_decodes_constant_channels),
+        TEST_CASE(standard_and_extended_block_sizes_decode_constant_channels),
         TEST_CASE(rfc_9639_partitioned_lpc_decodes_the_specified_samples),
         TEST_CASE(blocks_larger_than_the_buffer_are_refused),
         TEST_CASE(unsupported_streaminfo_limits_are_rejected),
