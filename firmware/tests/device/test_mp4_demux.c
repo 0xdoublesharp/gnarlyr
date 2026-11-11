@@ -487,6 +487,49 @@ static void a_chunk_transition_read_failure_stops_after_the_current_sample(void)
     CHECK_EQUAL(103u, size);
 }
 
+static void cursor_read_failures_never_return_a_wrong_sample_and_seek_recovers(void)
+{
+    for (uint32_t wide = 0; wide < 2; wide++) {
+        static Builder builder;
+        build_synthetic(&builder, wide != 0);
+        FailedInput failure = {.builder = &builder};
+        FlacInput input = {.read = read_with_failure, .context = &failure, .size = builder.length};
+        Mp4Track track;
+        CHECK(mp4_probe(input, &track));
+        uint32_t exercised = 0;
+        for (uint32_t sample = 0; sample < track.sample_count; sample++) {
+            Mp4Cursor cursor;
+            CHECK(mp4_cursor_seek(&cursor, input, &track, sample));
+            failure.calls = 0;
+            uint32_t expected_offset = 0;
+            uint32_t expected_size = 0;
+            CHECK(mp4_cursor_next(&cursor, input, &track, &expected_offset, &expected_size));
+            uint32_t reads = failure.calls;
+            for (uint32_t at = 1; at <= reads; at++) {
+                failure.fail_at = 0;
+                CHECK(mp4_cursor_seek(&cursor, input, &track, sample));
+                failure.calls = 0;
+                failure.fail_at = at;
+                uint32_t offset = 0;
+                uint32_t size = 0;
+                if (mp4_cursor_next(&cursor, input, &track, &offset, &size)) {
+                    CHECK_EQUAL(expected_offset, offset);
+                    CHECK_EQUAL(expected_size, size);
+                    CHECK(!mp4_cursor_next(&cursor, input, &track, &offset, &size));
+                }
+                CHECK(failure.calls >= at);
+                failure.fail_at = 0;
+                CHECK(mp4_cursor_seek(&cursor, input, &track, sample));
+                CHECK(mp4_cursor_next(&cursor, input, &track, &offset, &size));
+                CHECK_EQUAL(expected_offset, offset);
+                CHECK_EQUAL(expected_size, size);
+                exercised++;
+            }
+        }
+        CHECK(exercised > 0);
+    }
+}
+
 static Mp4Track probe_edit(const EditSpec *edit)
 {
     static Builder builder;
@@ -777,6 +820,40 @@ static void aac_sync_extensions_are_interpreted_only_within_their_descriptor(voi
     }
 }
 
+static void malformed_chunk_tables_never_locate_a_sample(void)
+{
+    for (uint32_t variant = 0; variant < 5; variant++) {
+        static Builder builder;
+        build_synthetic(&builder, false);
+        uint32_t stsc = find_box_type(&builder, "stsc");
+        uint32_t stco = find_box_type(&builder, "stco");
+        CHECK(stsc != 0);
+        CHECK(stco != 0);
+        if (variant == 0) {
+            memset(builder.bytes + stsc + 12, 0, 4);
+        } else if (variant == 1) {
+            memset(builder.bytes + stsc + 16, 0, 4);
+        } else if (variant == 2) {
+            memset(builder.bytes + stsc + 24, 0, 4);
+            builder.bytes[stsc + 27] = 1;
+        } else if (variant == 3) {
+            memset(builder.bytes + stsc + 8, 0, 4);
+        } else {
+            memset(builder.bytes + stco + 8, 0, 4);
+        }
+        FlacInput input = {.read = read_builder, .context = &builder, .size = builder.length};
+        Mp4Track track;
+        bool opened = mp4_probe(input, &track);
+        if (variant >= 3) {
+            CHECK(!opened);
+        } else {
+            CHECK(opened);
+            Mp4Cursor cursor;
+            CHECK(!mp4_cursor_seek(&cursor, input, &track, 0));
+        }
+    }
+}
+
 static void fixed_size_samples_seek_across_chunk_runs(void)
 {
     static Builder builder;
@@ -886,6 +963,7 @@ int main(void)
         TEST_CASE(chunk_runs_with_different_sample_counts_are_walked_and_seeked_exactly),
         TEST_CASE(sixty_four_bit_chunk_offsets_work_like_narrow_ones),
         TEST_CASE(fixed_size_samples_seek_across_chunk_runs),
+        TEST_CASE(malformed_chunk_tables_never_locate_a_sample),
         TEST_CASE(aac_configurations_report_supported_rates_channels_and_frame_lengths),
         TEST_CASE(unsupported_aac_configuration_fields_are_rejected),
         TEST_CASE(aac_sync_extensions_are_interpreted_only_within_their_descriptor),
@@ -893,6 +971,7 @@ int main(void)
         TEST_CASE(read_failures_never_publish_a_different_track_layout),
         TEST_CASE(seek_read_failures_are_reported_and_a_retry_can_recover),
         TEST_CASE(a_chunk_transition_read_failure_stops_after_the_current_sample),
+        TEST_CASE(cursor_read_failures_never_return_a_wrong_sample_and_seek_recovers),
         TEST_CASE(a_high_efficiency_configuration_is_refused),
         TEST_CASE(an_sbr_signal_is_refused_only_when_sbr_is_present),
         TEST_CASE(files_that_are_not_mp4_or_are_cut_short_are_refused),
