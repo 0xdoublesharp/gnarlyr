@@ -1040,6 +1040,7 @@ static StatusBarState current_status_bar(void)
         .battery_known = battery.known,
         .battery_percent = battery.percent,
         .usb_power = battery.usb_power,
+        .charging = battery.charging,
         .locked = app.lock.locked,
         .shuffle = (StatusShuffle)player_status(&app.player).shuffle,
     };

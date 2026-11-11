@@ -3401,6 +3401,17 @@ static bool area_has_color(Rect area, Color color)
     return false;
 }
 
+static void the_header_battery_turns_green_on_usb_power(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery(
+        (HalBattery){.known = true, .percent = HALF_BATTERY, .charging = true, .usb_power = true});
+    step();
+    const Theme *theme = expected_theme();
+    CHECK(area_has_color(status_bar_battery_body(theme),
+                         color_between(theme->colors.success, theme->colors.header_text, 1, 3)));
+}
+
 static void the_header_shows_the_play_state_and_battery(void)
 {
     start_app_with_library();
@@ -4957,6 +4968,7 @@ int main(void)
         TEST_CASE(the_start_screen_setting_opens_albums),
         TEST_CASE(the_start_screen_setting_opens_now_playing),
         TEST_CASE(the_header_shows_the_play_state_and_battery),
+        TEST_CASE(the_header_battery_turns_green_on_usb_power),
         TEST_CASE(shuffle_shows_in_the_top_bar_as_songs_or_albums),
         TEST_CASE(cover_flow_opens_from_the_music_menu),
         TEST_CASE(cover_flow_needs_a_library),
