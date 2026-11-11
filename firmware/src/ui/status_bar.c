@@ -1,7 +1,5 @@
 #include "ui/status_bar.h"
 
-#include "core/string_builder.h"
-#include "gfx/text.h"
 #include "ui/icons.h"
 
 enum {
@@ -12,9 +10,11 @@ enum {
     BADGE_GAP = 1,
     TENTHS = 10,
     FULL_PERCENT = 100,
-    DIGIT_SAMPLE = '0',
+    BODY_FIFTHS = 8,
+    FIFTHS = 5,
     TINT_STEPS = 3,
-    FILL_MIN_WIDTH = 3
+    FILL_MIN_WIDTH = 3,
+    HALO = 1
 };
 
 static int band_top(const Theme *theme, int height)
@@ -48,22 +48,17 @@ Rect status_bar_bluetooth_area(const Theme *theme)
                   width > 0 ? width : 1, playback.height};
 }
 
-static int battery_tail(const Theme *theme, int height, bool usb_power)
+Rect status_bar_battery_body(const Theme *theme)
 {
-    return usb_power ? icon_width(ICON_BOLT, theme->metrics.status_icon_size) : nub_width(height);
+    int height = theme->metrics.status_icon_size - 2 * BORDER;
+    int width = height * BODY_FIFTHS / FIFTHS;
+    int right = theme->metrics.screen_width - theme->metrics.padding - nub_width(height);
+    return (Rect){right - width, band_top(theme, height), width, height};
 }
 
-Rect status_bar_battery_body(const Theme *theme, bool usb_power)
+Rect status_bar_battery_area(const Theme *theme)
 {
-    int height = theme->metrics.status_icon_size + 2 * BORDER;
-    int right = theme->metrics.screen_width - theme->metrics.padding;
-    int x = right - battery_tail(theme, height, usb_power) - 2 * height;
-    return (Rect){x, band_top(theme, height), 2 * height, height};
-}
-
-Rect status_bar_battery_area(const Theme *theme, bool usb_power)
-{
-    Rect body = status_bar_battery_body(theme, usb_power);
+    Rect body = status_bar_battery_body(theme);
     return (Rect){body.x, body.y, theme->metrics.screen_width - theme->metrics.padding - body.x,
                   body.height};
 }
@@ -92,30 +87,8 @@ int status_bar_battery_fill_width(uint8_t percent, int inner_width)
 {
     int clamped = percent < FULL_PERCENT ? percent : FULL_PERCENT;
     int width = clamped * inner_width / FULL_PERCENT;
-    return width < FILL_MIN_WIDTH ? 0 : width;
-}
-
-void status_bar_percent_text(uint8_t percent, char *text, size_t capacity)
-{
-    StringBuilder builder = string_builder_make(text, capacity);
-    string_builder_append_unsigned(&builder, percent < FULL_PERCENT ? percent : FULL_PERCENT);
-}
-
-static Rect inner_of(Rect body)
-{
-    return (Rect){body.x + FILL_INSET, body.y + FILL_INSET, body.width - 2 * FILL_INSET,
-                  body.height - 2 * FILL_INSET};
-}
-
-static int digit_height(const Font *font)
-{
-    return font_find_glyph(font, DIGIT_SAMPLE)->top;
-}
-
-bool status_bar_battery_digits_fit(const Theme *theme)
-{
-    return digit_height(theme->fonts.small) <=
-           theme->metrics.status_icon_size + 2 * BORDER - 2 * FILL_INSET;
+    int least = inner_width < FILL_MIN_WIDTH ? inner_width : FILL_MIN_WIDTH;
+    return clamped > 0 && width < least ? least : width;
 }
 
 static Color tint(const Theme *theme, Color color)
@@ -127,39 +100,14 @@ StatusBatteryLook status_bar_battery_look(const Theme *theme, StatusBarState sta
 {
     Color text = theme->colors.header_text;
     Color danger = tint(theme, theme->colors.danger);
-    Color success = tint(theme, theme->colors.success);
     bool low = !state.usb_power && state.battery_percent <= STATUS_BAR_LOW_BATTERY_PERCENT;
     bool critical = low && state.battery_percent <= STATUS_BAR_CRITICAL_BATTERY_PERCENT;
     return (StatusBatteryLook){.outline = critical ? danger : text,
-                               .fill = state.usb_power ? success
+                               .fill = state.usb_power ? tint(theme, theme->colors.success)
                                        : low           ? danger
                                                        : text,
-                               .on_fill = theme->colors.header_background,
-                               .on_empty = low ? danger : text,
-                               .bolt = state.charging ? success : text};
-}
-
-typedef struct Gauge {
-    Rect body;
-    Rect fill;
-    StatusBatteryLook look;
-} Gauge;
-
-static void draw_gauge(Canvas *canvas, const Theme *theme, const Gauge *gauge, uint8_t percent)
-{
-    const Font *font = theme->fonts.small;
-    char text[STATUS_BAR_PERCENT_CAPACITY];
-    status_bar_percent_text(percent, text, sizeof text);
-    if (!status_bar_battery_digits_fit(theme)) {
-        text[0] = '\0';
-    }
-    Rect inner = inner_of(gauge->body);
-    Point pen = {inner.x + (inner.width - text_width(font, text) + 1) / 2,
-                 inner.y + (inner.height + digit_height(font)) / 2};
-    text_draw(canvas, (TextStyle){font, gauge->look.on_empty}, pen, text);
-    canvas_fill_rect(canvas, gauge->fill, gauge->look.fill);
-    Canvas on_fill = canvas_clipped(canvas, gauge->fill);
-    text_draw(&on_fill, (TextStyle){font, gauge->look.on_fill}, pen, text);
+                               .bolt = state.charging ? text : theme->colors.header_background,
+                               .bolt_halo = state.charging};
 }
 
 static void draw_outline(Canvas *canvas, Rect body, Color color)
@@ -177,29 +125,35 @@ static void draw_icon(Canvas *canvas, IconId icon, Rect area, Color color)
     icon_draw(canvas, icon, area, (IconInk){color, color});
 }
 
-static void draw_tail(Canvas *canvas, const Theme *theme, const Gauge *gauge, bool usb_power)
+static void draw_bolt(Canvas *canvas, const Theme *theme, Rect body, StatusBatteryLook look)
 {
-    Rect body = gauge->body;
-    int size = theme->metrics.status_icon_size;
-    int right = body.x + body.width;
-    if (usb_power) {
-        Rect bolt = {right, body.y + BORDER, icon_width(ICON_BOLT, size), size};
-        draw_icon(canvas, ICON_BOLT, bolt, gauge->look.bolt);
-        return;
+    Rect bolt = {body.x, body.y + BORDER, body.width, body.height - 2 * BORDER};
+    for (int dy = -HALO; look.bolt_halo && dy <= HALO; dy++) {
+        for (int dx = -HALO; dx <= HALO; dx++) {
+            Rect shifted = {bolt.x + dx, bolt.y + dy, bolt.width, bolt.height};
+            draw_icon(canvas, ICON_BOLT, shifted, theme->colors.header_background);
+        }
     }
-    int third = body.height / 3;
-    Rect tip = {right, body.y + third, nub_width(body.height), body.height - 2 * third};
-    canvas_fill_rect(canvas, tip, gauge->look.outline);
+    draw_icon(canvas, ICON_BOLT, bolt, look.bolt);
 }
 
 static void draw_battery(Canvas *canvas, const Theme *theme, StatusBarState state)
 {
-    Rect body = status_bar_battery_body(theme, state.usb_power);
-    Gauge gauge = {body, inner_of(body), status_bar_battery_look(theme, state)};
-    gauge.fill.width = status_bar_battery_fill_width(state.battery_percent, gauge.fill.width);
-    draw_outline(canvas, body, gauge.look.outline);
-    draw_gauge(canvas, theme, &gauge, state.battery_percent);
-    draw_tail(canvas, theme, &gauge, state.usb_power);
+    StatusBatteryLook look = status_bar_battery_look(theme, state);
+    Rect body = status_bar_battery_body(theme);
+    Rect fill = {body.x + FILL_INSET, body.y + FILL_INSET, body.width - 2 * FILL_INSET,
+                 body.height - 2 * FILL_INSET};
+    fill.width = status_bar_battery_fill_width(state.battery_percent, fill.width);
+    int third = body.height / 3;
+    draw_outline(canvas, body, look.outline);
+    canvas_fill_rect(canvas, fill, look.fill);
+    canvas_fill_rect(canvas,
+                     (Rect){body.x + body.width, body.y + third, nub_width(body.height),
+                            body.height - 2 * third},
+                     look.outline);
+    if (state.usb_power) {
+        draw_bolt(canvas, theme, body, look);
+    }
 }
 
 static void draw_shuffle(Canvas *canvas, const Theme *theme, StatusShuffle shuffle)

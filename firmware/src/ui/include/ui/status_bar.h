@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 
 #include "gfx/canvas.h"
@@ -21,8 +20,7 @@ typedef enum StatusBluetooth {
 
 enum {
     STATUS_BAR_CRITICAL_BATTERY_PERCENT = 5,
-    STATUS_BAR_LOW_BATTERY_PERCENT = 15,
-    STATUS_BAR_PERCENT_CAPACITY = 4
+    STATUS_BAR_LOW_BATTERY_PERCENT = 15
 };
 
 typedef enum StatusShuffle {
@@ -45,19 +43,16 @@ typedef struct StatusBarState {
 typedef struct StatusBatteryLook {
     Color outline;
     Color fill;
-    Color on_fill;
-    Color on_empty;
     Color bolt;
+    bool bolt_halo;
 } StatusBatteryLook;
 
 Rect status_bar_playback_area(const Theme *theme);
 Rect status_bar_bluetooth_area(const Theme *theme);
-Rect status_bar_battery_body(const Theme *theme, bool usb_power);
-Rect status_bar_battery_area(const Theme *theme, bool usb_power);
+Rect status_bar_battery_body(const Theme *theme);
+Rect status_bar_battery_area(const Theme *theme);
 Rect status_bar_lock_area(const Theme *theme);
 Rect status_bar_shuffle_area(const Theme *theme, StatusShuffle shuffle);
 int status_bar_battery_fill_width(uint8_t percent, int inner_width);
-void status_bar_percent_text(uint8_t percent, char *text, size_t capacity);
-bool status_bar_battery_digits_fit(const Theme *theme);
 StatusBatteryLook status_bar_battery_look(const Theme *theme, StatusBarState state);
 void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state);
