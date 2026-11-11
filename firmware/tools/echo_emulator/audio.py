@@ -155,5 +155,7 @@ class AudioPath:
     def ring_write(self, uc, access, address, size, value, user):
         if not value or not self.plays:
             return
+        if self.running and address >= self.ring + self.ring_words() * WORD_BYTES:
+            return
         if not self.audible or self.audible[-1] < self.plays[-1]:
             self.audible.append(self.machine.milliseconds())
