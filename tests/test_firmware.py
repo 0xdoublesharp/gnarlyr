@@ -121,6 +121,37 @@ class FuzzCommandTests(unittest.TestCase):
         self.assertEqual(firmware.FUZZ_TARGETS["mp4_demux"], 262144)
         self.assertEqual(firmware.FUZZ_TARGETS["store"], 4096)
 
+    def test_discovery_state_machine_target_is_bounded_and_seeded(self):
+        self.assertEqual(firmware.FUZZ_TARGETS["discovery_screen"], 256)
+        self.assertEqual(len(firmware.FUZZ_SEEDS["discovery_screen"]), 3)
+        self.assertTrue(all(len(seed) <= 256 for seed in firmware.FUZZ_SEEDS["discovery_screen"]))
+
+    def test_personal_tags_state_machine_target_is_bounded_and_seeded(self):
+        self.assertEqual(firmware.FUZZ_TARGETS["personal_tags"], 320)
+        self.assertEqual(len(firmware.FUZZ_SEEDS["personal_tags"]), 3)
+        self.assertTrue(all(len(seed) <= 320 for seed in firmware.FUZZ_SEEDS["personal_tags"]))
+
+    def test_browse_state_machine_target_is_bounded_and_seeded(self):
+        self.assertEqual(firmware.FUZZ_TARGETS["browse_screen"], 256)
+        self.assertEqual(len(firmware.FUZZ_SEEDS["browse_screen"]), 3)
+        self.assertTrue(all(len(seed) <= 256 for seed in firmware.FUZZ_SEEDS["browse_screen"]))
+
+    def test_app_navigation_state_machine_target_is_bounded_and_seeded(self):
+        self.assertEqual(firmware.FUZZ_TARGETS["app_navigation"], 128)
+        self.assertEqual(len(firmware.FUZZ_SEEDS["app_navigation"]), 3)
+        self.assertTrue(all(len(seed) <= 128 for seed in firmware.FUZZ_SEEDS["app_navigation"]))
+
+    def test_library_builder_target_is_bounded_and_seeded(self):
+        self.assertEqual(firmware.FUZZ_TARGETS["library_builder"], 512)
+        self.assertEqual(len(firmware.FUZZ_SEEDS["library_builder"]), 3)
+        self.assertTrue(all(len(seed) <= 512 for seed in firmware.FUZZ_SEEDS["library_builder"]))
+
+    def test_cover_image_target_has_canonical_png_fixtures(self):
+        self.assertEqual(firmware.FUZZ_TARGETS["cover_image"], 1048576)
+        fixtures = {path.name for path in firmware.FUZZ_FIXTURES["cover_image"]}
+        self.assertEqual(fixtures, {"home.png", "cover-flow.png", "home-280c6baaadf6.png"})
+        self.assertEqual(len(firmware.COVER_IMAGE_JPEG_FIXTURES), 3)
+
     def test_binary_parser_targets_have_canonical_fixture_seeds(self):
         library = {path.name for path in firmware.FUZZ_FIXTURES["library_database"]}
         mp4 = {path.name for path in firmware.FUZZ_FIXTURES["mp4_demux"]}

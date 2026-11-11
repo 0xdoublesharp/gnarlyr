@@ -29,6 +29,12 @@ FUZZ_TARGETS = {
     "store": 4096,
     "settings_codec": 128,
     "cue_sheet": 65536,
+    "discovery_screen": 256,
+    "personal_tags": 320,
+    "browse_screen": 256,
+    "app_navigation": 128,
+    "library_builder": 512,
+    "cover_image": 1048576,
 }
 FUZZ_SEEDS = {
     "track_tags": [b"\0"],
@@ -61,6 +67,32 @@ FUZZ_SEEDS = {
         b"FILE a.flac WAVE\nTRACK 01 AUDIO\nINDEX 01 00:10:00\n"
         b"TRACK 02 AUDIO\nINDEX 01 00:05:00\nTRACK 03 AUDIO\nINDEX 01 00:10:00\n",
     ],
+    "discovery_screen": [
+        bytes(range(96)),
+        b"\0\1" + bytes([0x20, 0x40, 0x60, 0x80, 0xa0, 0xc0, 0xe0]) * 12,
+        b"\7\2" + bytes([2, 7, 12, 17, 22, 27, 31, 63, 95, 127, 159, 191, 223, 255]) * 6,
+    ],
+    "personal_tags": [
+        bytes(range(160)),
+        b"\0\0\0\0\0\3\0\1\xff\xff\5\0\0\0\0" * 8,
+        b"\0\x1f\0\1\2\1\x1f\0\3\4\2\x1f\0\5\6\4\0\0\0\0" * 6,
+    ],
+    "browse_screen": [
+        bytes(range(96)),
+        b"\0" + bytes([0, 1, 2, 3, 4, 5, 31, 63, 95, 127, 159, 191, 223, 255]) * 6,
+        b"\4" + bytes([2, 7, 12, 17, 22, 27, 32, 37]) * 11,
+    ],
+    "app_navigation": [
+        bytes(range(48)),
+        bytes([0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13]) * 4,
+        bytes([0x20, 0x41, 0x62, 0x83, 0xa4, 0xc5, 0xe0, 0xff]) * 6,
+    ],
+    "library_builder": [
+        bytes(range(128)),
+        b"\0\1\2\3\4\5\6\7" * 32,
+        b"\xff\x80\x40\x20\x10\x08\x04\x02" * 32,
+    ],
+    "cover_image": [b"\0", b"\xff\xd8\xff\xd9", b"\x89PNG\r\n\x1a\n"],
 }
 FUZZ_FIXTURES = {
     "library_database": [
@@ -79,7 +111,17 @@ FUZZ_FIXTURES = {
         SOURCE / "tests/fixtures/m4a_music/Alac Artist/Alac Album/02 Deep.m4a",
         SOURCE / "tests/fixtures/m4a_music/Alac Artist/Alac Album/03 Single.m4a",
     ],
+    "cover_image": [
+        ROOT / "site/assets/screens/home.png",
+        ROOT / "site/assets/screens/cover-flow.png",
+        ROOT / "site/assets/social/home-280c6baaadf6.png",
+    ],
 }
+COVER_IMAGE_JPEG_FIXTURES = [
+    SOURCE / "tests/fixtures/tags/id3v24.mp3",
+    SOURCE / "tests/fixtures/tags/aac.m4a",
+    SOURCE / "tests/fixtures/tags/tagged.flac",
+]
 
 
 def link_directory(path, target):
@@ -223,6 +265,14 @@ def prepare_fuzz_corpus(name):
         write_seed(corpus / f"seed-{index}", seed)
     for fixture in FUZZ_FIXTURES.get(name, ()):
         write_seed(corpus / f"fixture-{fixture.name}", fixture.read_bytes()[:FUZZ_TARGETS[name]])
+    if name == "cover_image":
+        for index, fixture in enumerate(COVER_IMAGE_JPEG_FIXTURES):
+            bytes_ = fixture.read_bytes()
+            start = bytes_.find(b"\xff\xd8")
+            end = bytes_.find(b"\xff\xd9", start + 2)
+            if start < 0 or end < 0:
+                raise SystemExit(f"No JPEG cover found in {fixture}")
+            write_seed(corpus / f"jpeg-{index}", bytes_[start:end + 2])
     if name == "track_tags":
         fixtures = SOURCE / "tests/fixtures/tags"
         for fixture in sorted(fixtures.iterdir()):
