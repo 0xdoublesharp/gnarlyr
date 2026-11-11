@@ -159,6 +159,9 @@ class Release:
             output = self.scratch / "build" / checkout.name
             if output.is_dir() and not output.is_symlink():
                 shutil.rmtree(output)
+            build_temporary = self.scratch / "tmp" / checkout.name
+            if build_temporary.is_dir() and not build_temporary.is_symlink():
+                shutil.rmtree(build_temporary)
             shutil.rmtree(temporary)
 
     def prove(self, old, new):

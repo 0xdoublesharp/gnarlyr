@@ -175,6 +175,9 @@ class ReleaseTests(unittest.TestCase):
                 output = self.scratch / "build" / Path(arguments[3]).name
                 output.mkdir(parents=True)
                 (output / "owned.obj").write_bytes(b"temporary")
+                build_temporary = self.scratch / "tmp" / Path(arguments[3]).name
+                build_temporary.mkdir()
+                (build_temporary / "compiler.tmp").write_bytes(b"temporary")
             else:
                 Path(arguments[-1]).rmdir()
             return ""
@@ -188,6 +191,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(calls[1][:3], ("worktree", "remove", "--force"))
         self.assertFalse(checkout.exists())
         self.assertFalse((self.scratch / "build" / checkout.name).exists())
+        self.assertFalse((self.scratch / "tmp" / checkout.name).exists())
         self.assertTrue(shared.exists())
 
     def test_faults_underruns_missing_fields_and_wrong_build_are_rejected(self):
