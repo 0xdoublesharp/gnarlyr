@@ -7,6 +7,11 @@ static bool repeats(const KeyTracker *tracker, Key key)
     return tracker->config.behaviors[key] == KEY_BEHAVIOR_REPEAT;
 }
 
+static uint32_t supported_delay(uint32_t delay_ms)
+{
+    return delay_ms <= INT32_MAX ? delay_ms : INT32_MAX;
+}
+
 static bool repeats_after_hold(const KeyTracker *tracker, Key key)
 {
     return tracker->config.behaviors[key] == KEY_BEHAVIOR_TAP_HOLD_REPEAT;
@@ -53,6 +58,13 @@ static void push_event(KeyTracker *tracker, Key key, KeyGesture gesture)
 void key_tracker_init(KeyTracker *tracker, const KeyConfig *config)
 {
     *tracker = (KeyTracker){.config = *config};
+    tracker->config.timing.long_press_ms = supported_delay(config->timing.long_press_ms);
+    tracker->config.timing.repeat_delay_ms = supported_delay(config->timing.repeat_delay_ms);
+    tracker->config.timing.repeat_interval_ms = supported_delay(config->timing.repeat_interval_ms);
+    tracker->config.timing.click_window_ms = supported_delay(config->timing.click_window_ms);
+    for (int key = 0; key < KEY_COUNT; key++) {
+        tracker->config.long_press_ms[key] = supported_delay(config->long_press_ms[key]);
+    }
 }
 
 void key_tracker_set_behavior(KeyTracker *tracker, Key key, KeyBehavior behavior)

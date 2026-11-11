@@ -362,6 +362,71 @@ static void click_counting_survives_clock_wraparound(void)
     CHECK_EQUAL(KEY_GESTURE_PRESS, next_gesture(&tracker, KEY_VOLUME_UP));
 }
 
+static KeyTracker tracker_with_timing(KeyTiming timing)
+{
+    KeyTracker original = make_tracker();
+    KeyConfig config = original.config;
+    config.timing = timing;
+    KeyTracker tracker;
+    key_tracker_init(&tracker, &config);
+    return tracker;
+}
+
+static void maximum_shared_long_press_delay_is_not_immediate(void)
+{
+    KeyTracker tracker = tracker_with_timing(
+        (KeyTiming){UINT32_MAX, REPEAT_DELAY_MS, REPEAT_INTERVAL_MS, CLICK_WINDOW_MS});
+    key_tracker_key_down(&tracker, KEY_MENU, 1000);
+    key_tracker_update(&tracker, 1000);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_MENU));
+    key_tracker_update(&tracker, 1000 + UINT32_C(0x7fffffff));
+    CHECK_EQUAL(KEY_GESTURE_LONG_PRESS, next_gesture(&tracker, KEY_MENU));
+}
+
+static void maximum_per_key_long_press_delay_is_not_immediate(void)
+{
+    KeyTracker original = make_tracker();
+    KeyConfig config = original.config;
+    config.long_press_ms[KEY_POWER] = UINT32_MAX;
+    KeyTracker tracker;
+    key_tracker_init(&tracker, &config);
+    key_tracker_key_down(&tracker, KEY_POWER, 1000);
+    key_tracker_update(&tracker, 1000);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_POWER));
+}
+
+static void maximum_repeat_delay_is_not_immediate(void)
+{
+    KeyTracker tracker = tracker_with_timing(
+        (KeyTiming){LONG_PRESS_MS, UINT32_MAX, REPEAT_INTERVAL_MS, CLICK_WINDOW_MS});
+    key_tracker_key_down(&tracker, KEY_VOLUME_UP, 1000);
+    CHECK_EQUAL(KEY_GESTURE_PRESS, next_gesture(&tracker, KEY_VOLUME_UP));
+    key_tracker_update(&tracker, 1000);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
+}
+
+static void maximum_repeat_interval_is_not_immediate(void)
+{
+    KeyTracker tracker =
+        tracker_with_timing((KeyTiming){LONG_PRESS_MS, 1, UINT32_MAX, CLICK_WINDOW_MS});
+    key_tracker_key_down(&tracker, KEY_VOLUME_UP, 1000);
+    CHECK_EQUAL(KEY_GESTURE_PRESS, next_gesture(&tracker, KEY_VOLUME_UP));
+    key_tracker_update(&tracker, 1001);
+    CHECK_EQUAL(KEY_GESTURE_REPEAT, next_gesture(&tracker, KEY_VOLUME_UP));
+    key_tracker_update(&tracker, 1001);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
+}
+
+static void maximum_click_window_is_not_immediate(void)
+{
+    KeyTracker tracker = tracker_with_timing(
+        (KeyTiming){LONG_PRESS_MS, REPEAT_DELAY_MS, REPEAT_INTERVAL_MS, UINT32_MAX});
+    key_tracker_set_behavior(&tracker, KEY_VOLUME_UP, KEY_BEHAVIOR_DOUBLE_CLICK_REPEAT);
+    click(&tracker, KEY_VOLUME_UP, 1000);
+    key_tracker_update(&tracker, 1030);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -392,6 +457,11 @@ int main(void)
         TEST_CASE(a_triple_click_key_counts_up_to_three),
         TEST_CASE(a_triple_click_key_still_long_presses),
         TEST_CASE(click_counting_survives_clock_wraparound),
+        TEST_CASE(maximum_shared_long_press_delay_is_not_immediate),
+        TEST_CASE(maximum_per_key_long_press_delay_is_not_immediate),
+        TEST_CASE(maximum_repeat_delay_is_not_immediate),
+        TEST_CASE(maximum_repeat_interval_is_not_immediate),
+        TEST_CASE(maximum_click_window_is_not_immediate),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
