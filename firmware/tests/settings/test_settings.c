@@ -237,6 +237,60 @@ static void an_unknown_usb_mode_is_rejected(void)
     CHECK(!settings_decode(bytes, sizeof bytes, &settings));
 }
 
+static void plugging_in_asks_by_default(void)
+{
+    CHECK_EQUAL(USB_CONNECT_ASK, settings_defaults().usb_connect);
+}
+
+static void every_plug_in_answer_round_trips_in_bits_four_and_five_of_the_flags_byte(void)
+{
+    static const UsbConnect ANSWERS[] = {USB_CONNECT_ASK, USB_CONNECT_STORAGE, USB_CONNECT_CHARGE};
+    static const uint8_t BITS[] = {0x00, 0x10, 0x20};
+    for (uint32_t at = 0; at < sizeof ANSWERS / sizeof ANSWERS[0]; at++) {
+        Settings chosen = custom_settings();
+        chosen.usb_connect = ANSWERS[at];
+        chosen.replay_gain_mode = REPLAY_GAIN_ALBUM;
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&chosen, bytes);
+        CHECK_EQUAL(CURRENT_VERSION, bytes[VERSION_FIELD]);
+        CHECK_EQUAL(BITS[at], bytes[VERSION_FIELD + 1] & 0x30);
+        CHECK_EQUAL(0, bytes[VERSION_FIELD + 1] & 0xC8);
+        CHECK_EQUAL(USB_MODE_DAC, bytes[USB_MODE_FIELD]);
+        Settings restored;
+        CHECK(settings_decode(bytes, sizeof bytes, &restored));
+        CHECK_EQUAL(ANSWERS[at], restored.usb_connect);
+        CHECK_EQUAL(REPLAY_GAIN_ALBUM, restored.replay_gain_mode);
+        CHECK(restored.prevent_clipping);
+        CHECK_EQUAL(USB_MODE_DAC, restored.usb_mode);
+    }
+}
+
+static void a_version_thirteen_file_asks(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[VERSION_FIELD] = 13;
+    bytes[VERSION_FIELD + 1] = 0;
+    rewrite_checksum(bytes);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(USB_CONNECT_ASK, decoded.usb_connect);
+}
+
+static void the_fourth_plug_in_value_and_the_reserved_bits_are_rejected(void)
+{
+    static const uint8_t FLAGS[] = {0x34, 0x44, 0x84};
+    for (uint32_t at = 0; at < sizeof FLAGS; at++) {
+        Settings settings = custom_settings();
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&settings, bytes);
+        bytes[VERSION_FIELD + 1] = FLAGS[at];
+        rewrite_checksum(bytes);
+        CHECK(!settings_decode(bytes, sizeof bytes, &settings));
+    }
+}
+
 static void a_newer_version_is_rejected(void)
 {
     Settings settings = custom_settings();
@@ -778,6 +832,7 @@ static void settings_survive_a_round_trip(void)
     CHECK_EQUAL(original.volume, decoded.volume);
     CHECK_EQUAL(original.auto_off, decoded.auto_off);
     CHECK_EQUAL(original.usb_mode, decoded.usb_mode);
+    CHECK_EQUAL(original.usb_connect, decoded.usb_connect);
     CHECK_EQUAL(original.dac_volume, decoded.dac_volume);
     CHECK_EQUAL(original.accent, decoded.accent);
     CHECK_EQUAL(original.equalizer, decoded.equalizer);
@@ -929,7 +984,7 @@ static void battery_percentage_defaults_off_and_round_trips_in_a_spare_flag_bit(
 
 static void invalid_normalization_flags_are_rejected_without_mutating_the_settings(void)
 {
-    static const uint8_t FLAGS[] = {3, 7, 16, 128, 255};
+    static const uint8_t FLAGS[] = {3, 7, 0x30, 64, 128, 255};
     for (uint32_t at = 0; at < sizeof FLAGS / sizeof FLAGS[0]; at++) {
         Settings original = custom_settings();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1302,6 +1357,10 @@ int main(void)
         TEST_CASE(a_version_three_file_keeps_its_usb_mode_and_gets_the_default_dac_volume),
         TEST_CASE(a_dac_volume_above_the_top_is_rejected),
         TEST_CASE(an_unknown_usb_mode_is_rejected),
+        TEST_CASE(plugging_in_asks_by_default),
+        TEST_CASE(every_plug_in_answer_round_trips_in_bits_four_and_five_of_the_flags_byte),
+        TEST_CASE(a_version_thirteen_file_asks),
+        TEST_CASE(the_fourth_plug_in_value_and_the_reserved_bits_are_rejected),
         TEST_CASE(a_newer_version_is_rejected),
         TEST_CASE(a_version_eight_volume_converts_to_the_sixty_step_scale),
         TEST_CASE(a_version_eight_volume_above_fifty_is_rejected),

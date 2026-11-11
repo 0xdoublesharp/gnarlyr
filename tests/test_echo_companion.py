@@ -369,6 +369,31 @@ class CompanionSettings(VolumeCase):
                 tool.settings_list()
         self.assert_no_write(host)
 
+    def test_the_usb_answer_bits_survive_a_flags_change_with_or_without_battery_percent(self):
+        self.build, self.version = BUILD14, 14
+        original = echo_language.Snapshot.show
+        old = "bytes[VERSION_FIELD + 1] = settings->replay_gain_mode | (settings->prevent_clipping ? 4u : 0u);"
+        for extra, mask in (("", "0xC8u"), (" | (settings->battery_percent ? 8u : 0u)", "0xC0u")):
+            encoder = old[:-1] + extra + " |\n        (uint8_t)(settings->usb_connect << 4u);"
+            def show(snapshot, path, encoder=encoder, mask=mask):
+                text = original(snapshot, path)
+                if path.endswith("src/settings/settings.c"):
+                    self.assertIn(old, text)
+                    return text.replace(old, encoder).replace("0xF8u", mask)
+                return text
+            with self.subTest(mask=mask), mock.patch.object(echo_language.Snapshot, "show", show):
+                self.install_fixture(flags=4 | 32)
+                tool, _ = self.tool(self.change(5, 32))
+                self.assertEqual(tool.settings_set("prevent_clipping", "off")["value"], "off")
+                self.assertEqual(self.path.read_bytes()[5], 32)
+                (self.debug / "run.txt").unlink(missing_ok=True)
+                self.install_fixture(flags=4 | 48)
+                tool, host = self.tool()
+                with self.assertRaises(echo_debug.DebugError) as refused:
+                    tool.settings_set("prevent_clipping", "off")
+                self.assertEqual(refused.exception.code, "language_settings_invalid")
+                self.assert_no_write(host)
+
     def test_changed_option_metadata_is_refused_before_writes(self):
         original = echo_language.Snapshot.show
         def show(snapshot, path):

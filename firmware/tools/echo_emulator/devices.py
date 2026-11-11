@@ -478,6 +478,8 @@ class UsbCore(RegisterFile):
                 self.machine.usb_disconnected()
             return
         if offset == GRSTCTL:
+            if value & GRSTCTL_SOFT_RESET:
+                self.interrupts = 0
             self.regs[offset] = value & ~(GRSTCTL_SOFT_RESET | GRSTCTL_FLUSH_BITS)
             return
         super().write_word(offset, value)

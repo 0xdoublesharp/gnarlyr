@@ -73,6 +73,18 @@ static void an_offset_needs_a_fixed_clock_and_stays_within_a_day(void)
     CHECK(!parse(not_a_time, 2, &options));
 }
 
+static void a_computer_can_be_found_at_a_given_frame(void)
+{
+    char *given[] = {"--usb-host", "40"};
+    SimOptions options;
+    CHECK(parse(given, 2, &options));
+    CHECK_EQUAL(40, options.usb_host_frame);
+    CHECK(parse(NULL, 0, &options));
+    CHECK_EQUAL(0, options.usb_host_frame);
+    char *zero[] = {"--usb-host", "0"};
+    CHECK(!parse(zero, 2, &options));
+}
+
 static void a_notice_is_read_as_a_title_and_its_text(void)
 {
     char *given[] = {"--notice", "USB DAC", "--notice-text", "Choose the player"};
@@ -184,6 +196,7 @@ int main(void)
         TEST_CASE(non_numeric_values_are_rejected),
         TEST_CASE(a_scale_outside_the_supported_range_is_rejected),
         TEST_CASE(a_headless_run_needs_a_frame_limit),
+        TEST_CASE(a_computer_can_be_found_at_a_given_frame),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

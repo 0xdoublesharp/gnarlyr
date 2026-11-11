@@ -44,6 +44,11 @@ CARD_DETECT_PORT = 0
 CARD_DETECT_PIN = 11
 ADC_NO_KEY = 1023
 PLAY_KEY_ADC = 250
+VOLUME_UP_KEY_ADC = 120
+BACK_KEY_ADC = 500
+USB_ANSWER_FILE_TRANSFER = 1
+PROMPT_KEY_GAP_MS = 300
+PROMPT_KEY_HOLD_MS = 120
 FAILURE_SYMBOLS = ("board_panic_fault", "board_panic_stall", "device_default_handler",
                    "device_fault_entry", "hal_power_off", "board_power_cut")
 IDLE_POLL_SYMBOLS = ("board_input_take_key_press",)
@@ -176,6 +181,7 @@ class Machine:
         self.host_ejected = False
         self.cable_bit_dies_with_usb = False
         self.cable_bit_dead = False
+        self.usb_answer = USB_ANSWER_FILE_TRANSFER
         self.entries = {}
         self.entered = None
         self.parked = None
@@ -323,6 +329,12 @@ class Machine:
         self.uc.hook_add(UC_HOOK_MEM_READ_UNMAPPED | UC_HOOK_MEM_WRITE_UNMAPPED
                          | UC_HOOK_MEM_FETCH_UNMAPPED, self.unmapped)
         self.add_address_hook(TRAMPOLINE, self.exception_return)
+        self.hook_symbol("hal_system_set_usb_answer", self.override_usb_answer)
+
+    def override_usb_answer(self):
+        """Stand in for the owner's When plugged in setting; None keeps the firmware's own."""
+        if self.usb_answer is not None:
+            self.uc.reg_write(UC_ARM_REG_R0, self.usb_answer)
 
     def watch_failures(self):
         for name in FAILURE_SYMBOLS:
@@ -494,6 +506,17 @@ class Machine:
                 self.press_key(PLAY_KEY_ADC)
 
         self.hook_symbol("board_wait_for_key", waiting)
+
+    def answer_usb_prompt(self, keys, times=1):
+        """Press `keys` (ADC values) each time the plug-in prompt opens, up to `times` times."""
+        def asked():
+            self.reached["app_ask_usb_mode"] = self.reached.get("app_ask_usb_mode", 0) + 1
+            if self.reached["app_ask_usb_mode"] > times:
+                return
+            for index, value in enumerate(keys):
+                self.press_key(value, PROMPT_KEY_GAP_MS * (index + 1), PROMPT_KEY_HOLD_MS)
+
+        self.hook_symbol("app_ask_usb_mode", asked)
 
     def trace(self, name):
         stamps = self.traces.setdefault(name, [])

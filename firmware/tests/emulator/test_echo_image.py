@@ -95,6 +95,12 @@ KEY_NEXT = 100
 KEY_PLAY = 250
 KEY_BACK = 500
 KEY_HOLD_MS = 150
+USB_ANSWER_FILE_TRANSFER = 1
+USB_PROMPT_MS = 15000
+PROMPT_NOTICED_MS = 1000
+STARTUP_SETTLED_MS = 5000
+CHARGE_LIT_MS = 5000
+FILE_TRANSFER_KEYS = (KEY_NEXT, KEY_PLAY)
 KEY_SETTLE_MS = 350
 BACKLIGHT_PIN = 4
 SOAK_MINUTE_MS = 60000
@@ -198,12 +204,14 @@ class EchoImageTest(unittest.TestCase):
         cls.usb_overlay_elf = CONFIG["usb_overlay_elf"]
         cls.module_elfs = sorted(Path(cls.elf).parent.glob("echo_module_*.elf"))
 
-    def session(self, files=(), image=None, vbus=False, volume=None, rest_in_waits=True):
+    def session(self, files=(), image=None, vbus=False, volume=None, rest_in_waits=True,
+                usb_answer=USB_ANSWER_FILE_TRANSFER, vbus_at_start=False):
         return self.session_module.Session(image or self.image, self.elf, files=files,
                                            vbus_after_first_frame=vbus, volume=volume,
                                            usb_overlay_elf=self.usb_overlay_elf,
                                            rest_in_waits=rest_in_waits,
-                                           module_elfs=self.module_elfs)
+                                           module_elfs=self.module_elfs, usb_answer=usb_answer,
+                                           vbus_at_start=vbus_at_start)
 
     def assert_healthy(self, session):
         machine = session.machine
@@ -870,6 +878,114 @@ class EchoImageTest(unittest.TestCase):
         self.assert_healthy(session)
         self.print_usb_log("charger, then a host", machine)
 
+    def asked_session(self, vbus_at_start=False):
+        session = self.session(usb_answer=None, vbus_at_start=vbus_at_start)
+        machine = session.machine
+        for name in ("usb_session_storage_changed", "usb_storage_session", "usb_dac_session"):
+            machine.note(name)
+        machine.answer_waits_for_key(4)
+        return session, machine, machine.trace("app_ask_usb_mode")
+
+    def assert_asked_without_enumerating(self, session, asked, count):
+        machine = session.machine
+        self.assertEqual(len(asked), count)
+        self.assertEqual(machine.usb_log[-1][1], "soft disconnect")
+        self.assertFalse(machine.usb_reset_ack)
+        for name in ("usb_session_storage_changed", "usb_storage_session", "usb_dac_session"):
+            self.assertNotIn(name, machine.reached)
+        self.assertEqual(self.usb_supply_pins(machine), (1, 1))
+
+    def choose_file_transfer(self, machine):
+        for key in FILE_TRANSFER_KEYS:
+            self.press(machine, key)
+
+    def test_a_cable_plugged_in_while_the_player_runs_asks_before_it_connects(self):
+        session, machine, asked = self.asked_session()
+        session.run_to_home_screen()
+        machine.vbus = True
+        self.assertEqual(machine.run(until=lambda: asked,
+                                     until_ms=machine.milliseconds() + CABLE_STEADY_MS + 2000),
+                         "condition met")
+        machine.run(until_ms=machine.milliseconds() + PROMPT_NOTICED_MS)
+        self.assertEqual([event for _, event in machine.usb_log],
+                         ["soft disconnect", "pull-up on, host resets the bus", "soft disconnect"])
+        self.assertEqual(machine.gpio[2].regs[GPIO_DATA] >> BACKLIGHT_PIN & 1, 1)
+        machine.run(until_ms=machine.milliseconds() + CHARGER_MS)
+        self.assert_asked_without_enumerating(session, asked, 1)
+        self.assertEqual(machine.usb_connect_count, 1)
+        self.choose_file_transfer(machine)
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(machine.usb_connect_count, 2)
+        self.assertEqual(len(asked), 1)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+        self.print_usb_log("asked, then file transfer", machine)
+
+    def charging_on_a_charger(self):
+        from unicorn.arm_const import UC_ARM_REG_R0
+        session, machine, asked = self.asked_session()
+        machine.host_absent = True
+        charge_frames = machine.trace("charge_art_draw")
+        dark = []
+        machine.hook_symbol("hal_display_set_power",
+                            lambda: dark.append(machine.milliseconds())
+                            if machine.reg(UC_ARM_REG_R0) == 0 else None)
+        session.run_to_home_screen()
+        machine.run(until_ms=STARTUP_SETTLED_MS)
+        machine.vbus = True
+        machine.run(until_ms=machine.milliseconds() + CHARGER_MS)
+        self.assertEqual(asked, [])
+        self.assertEqual([event for _, event in machine.usb_log], ["soft disconnect", "pull-up on"])
+        self.hold_power(machine)
+        self.assertEqual(machine.run(until=lambda: charge_frames,
+                                     until_ms=machine.milliseconds() + POWER_HOLD_MS + 3000),
+                         "condition met")
+        machine.run(until_ms=machine.milliseconds() + CHARGE_LIT_MS + PROMPT_NOTICED_MS)
+        self.assertTrue(dark)
+        self.assertEqual(asked, [])
+        return session, machine, asked, charge_frames, dark
+
+    def test_on_the_charge_screen_only_a_host_wakes_the_prompt_and_silence_keeps_charging(self):
+        session, machine, asked, charge_frames, dark = self.charging_on_a_charger()
+        machine.host_arrives()
+        self.assertEqual(machine.run(until=lambda: asked,
+                                     until_ms=machine.milliseconds() + PROMPT_NOTICED_MS),
+                         "condition met")
+        machine.run(until_ms=machine.milliseconds() + PROMPT_NOTICED_MS)
+        self.assertEqual(machine.gpio[2].regs[GPIO_DATA] >> BACKLIGHT_PIN & 1, 1)
+        self.assert_asked_without_enumerating(session, asked, 1)
+        darkened = len(dark)
+        machine.run(until_ms=asked[0] + USB_PROMPT_MS + PROMPT_NOTICED_MS)
+        self.assertEqual(len(dark), darkened + 1)
+        self.assertGreaterEqual(dark[-1], asked[0] + USB_PROMPT_MS)
+        drawn = len(charge_frames)
+        machine.run(until_ms=machine.milliseconds() + CHARGER_MS)
+        self.assertEqual(len(charge_frames), drawn)
+        self.assertEqual(len(dark), darkened + 1)
+        self.assert_asked_without_enumerating(session, asked, 1)
+        self.assertEqual(machine.usb_connect_count, 1)
+        self.assert_healthy(session)
+        machine.vbus = False
+        machine.run(until_ms=machine.milliseconds() + PROMPT_NOTICED_MS)
+        self.assertEqual(machine.panics, ["hal_power_off"])
+        self.print_usb_log("charge screen, host, quiet prompt", machine)
+
+    def test_on_the_charge_screen_file_transfer_in_the_prompt_starts_the_session(self):
+        session, machine, asked, charge_frames, dark = self.charging_on_a_charger()
+        machine.host_arrives()
+        self.assertEqual(machine.run(until=lambda: asked,
+                                     until_ms=machine.milliseconds() + PROMPT_NOTICED_MS),
+                         "condition met")
+        machine.run(until_ms=machine.milliseconds() + PROMPT_NOTICED_MS)
+        self.assert_asked_without_enumerating(session, asked, 1)
+        self.choose_file_transfer(machine)
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(machine.usb_connect_count, 2)
+        self.assertEqual(len(asked), 1)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+        self.print_usb_log("charge screen, file transfer", machine)
+
     def test_usb_power_up_writes_the_words_stock_writes(self):
         session = self.session(vbus=True)
         machine = session.machine
@@ -955,8 +1071,8 @@ class EchoImageTest(unittest.TestCase):
             volume.add_file(name.replace("_", "."), data, None, DEBUG_FOLDER)
         return volume
 
-    def ejecting_session(self, volume, notes=(), before_start=None):
-        session = self.session(volume=volume)
+    def ejecting_session(self, volume, notes=(), before_start=None, usb_answer=USB_ANSWER_FILE_TRANSFER):
+        session = self.session(volume=volume, usb_answer=usb_answer)
         machine = session.machine
         if before_start is not None:
             before_start(machine)
@@ -1059,15 +1175,19 @@ class EchoImageTest(unittest.TestCase):
 
     def test_a_script_for_another_build_is_removed_unrun_and_the_player_still_reconnects(self):
         volume = self.debug_volume(run_txt=b"build 0000000\nplay\nreconnect\n")
-        session, machine = self.ejecting_session(volume)
+        session, machine = self.ejecting_session(volume, usb_answer=None)
+        machine.answer_usb_prompt(FILE_TRANSFER_KEYS, times=2)
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(machine.reached["app_ask_usb_mode"], 1)
         self.assertFalse(session.fat().exists(RUN_PATH))
         self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
         self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
         report = self.read_report(session)
         self.assertEqual(report["values"]["script.state"], "refused_build")
+        self.assertEqual(machine.reached["app_ask_usb_mode"], 1)
         self.assertEqual([line["status"] for line in report["script"]["lines"]], ["not_run"] * 3)
-        self.assertEqual([event["detail"] for event in report["events"] if event["kind"] == "key"], [])
+        self.assertEqual([event["detail"] for event in report["events"] if event["kind"] == "key"],
+                         ["down press", "play press"])
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 
@@ -1426,9 +1546,10 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(machine.systick.vtor, 0)
         self.assertEqual(machine.panics, [])
         self.assertEqual(self.read_report(first)["values"]["report.reason"], "restart")
-        second = first.reboot(image=first.slot_image("slot_1") + newer[-4:])
+        second = first.reboot(image=first.slot_image("slot_1") + newer[-4:], usb_answer=None)
         restarted = second.machine
-        for name in ("usb_session_storage_changed", "updater_install", "board_restart"):
+        for name in ("usb_session_storage_changed", "updater_install", "board_restart",
+                     "app_ask_usb_mode"):
             restarted.note(name)
         restarted.host_ejects()
         restarted.vbus = True
@@ -1448,12 +1569,13 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(restarted.usb_connect_count, 1)
         self.assertNotIn("updater_install", restarted.reached)
         self.assertNotIn("board_restart", restarted.reached)
+        self.assertNotIn("app_ask_usb_mode", restarted.reached)
         self.assert_healthy(second)
         self.print_usb_log("restart after install", machine)
         self.print_usb_log("after the restart", restarted)
 
     def test_a_user_mode_request_reconnects_after_the_cable_bit_dies(self):
-        script = ("build %s\nset USB mode=USB storage\nwait 10000\n"
+        script = ("build %s\nset USB mode=File transfer\nwait 10000\n"
                   % self.build_tag()).encode("ascii")
         session, machine = self.ejecting_session(self.debug_volume(run_txt=script),
                                                  notes=("hal_system_request_usb_mode",))

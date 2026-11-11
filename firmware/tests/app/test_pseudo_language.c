@@ -26,7 +26,7 @@ enum {
     MUSIC_SMART_LISTS_ROW = 10,
     MUSIC_ALBUMS_ROW = 4,
     MUSIC_ALL_SONGS_ROW = 7,
-    SETTINGS_ROWS = 22,
+    SETTINGS_ROWS = 28,
     SETTINGS_BLUETOOTH_ROW = 3,
     SETTINGS_SLEEP_ROW = 4,
     SETTINGS_OUTPUT_ROW = 14,
@@ -395,13 +395,34 @@ static void walk_settings_rows(void)
 
 static void walk_settings_choices(void)
 {
-    static const StringId TITLES[SETTINGS_ROWS] = {
-        STR_ABOUT,       STR_SHUFFLE,     STR_REPEAT,           STR_BLUETOOTH,
-        STR_SLEEP_TIMER, STR_AUTO_OFF,    STR_SCREEN_TIMEOUT,   STR_BRIGHTNESS,
-        STR_COLOR,       STR_TEXT_SIZE,   STR_ORIENTATION,      STR_LANGUAGE,
-        STR_SKIP_SONGS,  STR_GAIN,        STR_OUTPUT,           STR_EQUALIZER,
-        STR_CUSTOM_EQ,   STR_REPLAY_GAIN, STR_PREVENT_CLIPPING, STR_START_SCREEN,
-        STR_SETTINGS,    STR_USB_MODE};
+    static const StringId TITLES[SETTINGS_ROWS] = {STR_ABOUT,
+                                                   STR_SHUFFLE,
+                                                   STR_REPEAT,
+                                                   STR_BLUETOOTH,
+                                                   STR_SLEEP_TIMER,
+                                                   STR_AUTO_OFF,
+                                                   STR_SCREEN_TIMEOUT,
+                                                   STR_BRIGHTNESS,
+                                                   STR_COLOR,
+                                                   STR_TEXT_SIZE,
+                                                   STR_ORIENTATION,
+                                                   STR_LANGUAGE,
+                                                   STR_SKIP_SONGS,
+                                                   STR_GAIN,
+                                                   STR_OUTPUT,
+                                                   STR_EQUALIZER,
+                                                   STR_CUSTOM_EQ,
+                                                   STR_REPLAY_GAIN,
+                                                   STR_PREVENT_CLIPPING,
+                                                   STR_START_SCREEN,
+                                                   STR_SETTINGS,
+                                                   STR_USB_MODE,
+                                                   STR_THEME,
+                                                   STR_BATTERY_PERCENTAGE,
+                                                   STR_REWIND_ON_RESUME,
+                                                   STR_SAFE_START_VOLUME,
+                                                   STR_TRANSITIONS,
+                                                   STR_USB_ANSWER};
     for (int row = 1; row < SETTINGS_ROWS; row++) {
         if (row == SETTINGS_RESCAN_ROW) {
             continue;
@@ -593,6 +614,16 @@ static void walk_clock(void)
     fake_hal_set_wall(0, 0);
 }
 
+static void walk_usb_prompt(void)
+{
+    begin();
+    app_ask_usb_mode();
+    show_titled("the USB prompt", STR_USB_CONNECTED);
+    begin();
+    app_open_usb_modes();
+    show_titled("USB mode opened by hand", STR_USB_MODE);
+}
+
 static void walk_listening(void)
 {
     begin();
@@ -627,6 +658,7 @@ static void walk_everything(void)
     walk_now_playing();
     walk_listening();
     walk_clock();
+    walk_usb_prompt();
     walk_power();
 }
 

@@ -919,6 +919,12 @@ echo_add_unit_test(NAME test_resume_comfort
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 
+echo_add_unit_test(NAME test_usb_chooser
+    SOURCES app/test_usb_chooser.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
 echo_add_unit_test(NAME test_portrait_settings_layout
     SOURCES app/test_portrait_settings_layout.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures

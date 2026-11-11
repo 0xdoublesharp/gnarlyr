@@ -71,9 +71,9 @@ static Screen *language_row(AppScreens *screens)
     return &settings->menu.screen;
 }
 
-static Screen *usb_modes(AppScreens *screens)
+static Screen *usb_modes(AppScreens *screens, bool prompt)
 {
-    return settings_screens_usb_modes(&screens->modules.settings.settings);
+    return settings_screens_usb_modes(&screens->modules.settings.settings, prompt);
 }
 
 #ifdef ECHO_DEBUG_LOOP

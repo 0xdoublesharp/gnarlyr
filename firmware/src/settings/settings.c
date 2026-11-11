@@ -296,7 +296,8 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
     }
     bytes[VERSION_FIELD] = VERSION;
     bytes[VERSION_FIELD + 1] = settings->replay_gain_mode | (settings->prevent_clipping ? 4u : 0u) |
-                               (settings->battery_percent ? 8u : 0u);
+                               (settings->battery_percent ? 8u : 0u) |
+                               (uint8_t)(settings->usb_connect << 4u);
     bytes[BRIGHTNESS_FIELD] = settings->brightness;
     bytes[TIMEOUT_FIELD] = settings->screen_timeout;
     bytes[GAIN_FIELD] = (uint8_t)settings->gain;
@@ -331,7 +332,8 @@ static bool replay_gain_flags_valid(const uint8_t *bytes)
     uint8_t flags = bytes[VERSION_FIELD + 1];
     return bytes[VERSION_FIELD] < REPLAY_GAIN_VERSION
                ? flags == 0
-               : (flags & 0xF0u) == 0 && (flags & 3u) < REPLAY_GAIN_MODE_COUNT;
+               : (flags & 0xC0u) == 0 && (flags & 3u) < REPLAY_GAIN_MODE_COUNT &&
+                     (flags >> 4u & 3u) < USB_CONNECT_COUNT;
 }
 
 static bool header_valid(const uint8_t *bytes, uint32_t length)
@@ -558,6 +560,7 @@ bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
     settings->prevent_clipping =
         bytes[VERSION_FIELD] < REPLAY_GAIN_VERSION || (bytes[VERSION_FIELD + 1] & 4u) != 0;
     settings->battery_percent = (bytes[VERSION_FIELD + 1] & 8u) != 0;
+    settings->usb_connect = (UsbConnect)(bytes[VERSION_FIELD + 1] >> 4u & 3u);
     decode_extension(bytes, settings);
     return true;
 }

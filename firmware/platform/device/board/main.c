@@ -4,6 +4,7 @@
 #include "board.h"
 #include "core/deadline.h"
 #include "core/i18n.h"
+#include "core/seam.h"
 #include "cru.h"
 #include "debug_probe.h"
 #include "device/battery_gauge.h"
@@ -25,11 +26,17 @@ enum {
 
 static UsbPlug usb_plug;
 static HalUsbMode usb_mode;
+static UsbPlugAnswer usb_answer;
 static bool dac_session;
 
 void hal_system_set_usb_mode(HalUsbMode mode)
 {
     usb_mode = mode;
+}
+
+CORE_SEAM void hal_system_set_usb_answer(HalUsbAnswer answer)
+{
+    usb_answer = (UsbPlugAnswer)answer;
 }
 
 bool board_usb_listening(void)
@@ -121,6 +128,14 @@ static void report_failed_start(void)
 
 static void start_listening(void)
 {
+    bool requested = usb_session_connect_requested();
+    if (!usb_plug_listens(usb_answer, requested)) {
+        usb_plug_served(&usb_plug);
+        return;
+    }
+    if (!requested && usb_answer == USB_PLUG_STORAGE) {
+        usb_mode = HAL_USB_MODE_STORAGE;
+    }
     raise_clock_for_usb();
     dac_session = usb_mode == HAL_USB_MODE_DAC;
     bool listening = dac_session ? usb_dac_session_listen() : usb_session_listen();
@@ -135,6 +150,11 @@ static void serve_host(void)
 {
     if (usb_plug.state == USB_PLUG_LISTENING && usb_session_host_seen()) {
         usb_plug_served(&usb_plug);
+        if (usb_plug_asks(usb_answer, usb_session_connect_requested())) {
+            stop_listening();
+            app_ask_usb_mode();
+            return;
+        }
         run_session();
     }
 }

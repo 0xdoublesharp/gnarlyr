@@ -166,7 +166,7 @@ extern const HomeItem APP_HOME_ITEMS[HOME_ITEM_COUNT];
 
 Screen *app_screens_init(AppScreens *screens, AppScreensContext context);
 void app_screens_arrange_home(AppScreens *screens);
-Screen *app_screens_usb_modes(AppScreens *screens);
+Screen *app_screens_usb_modes(AppScreens *screens, bool prompt);
 MenuItem app_screens_open_item(StringId label, Screen *target);
 Screen *app_screens_build_menu(MenuScreen *menu, StringId title, const MenuItem *items, int count,
                                const Theme *theme);

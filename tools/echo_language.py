@@ -12,7 +12,8 @@ from pathlib import Path
 BUILD = re.compile(r"[0-9a-fA-F]{7,40}")
 CODE = re.compile(r"[A-Za-z0-9-]{1,5}")
 PACK_LIMIT = 16384
-FLAG_MASKS = (0xF8, 0xF0, 0xC0)
+FLAG_MASKS = (0xF8, 0xF0, 0xC8, 0xC0)
+USB_ANSWER_BITS = 0x30
 DIRECTORY_LIMIT = 256
 ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
 
@@ -109,7 +110,11 @@ class Snapshot:
         return stored >= HOME_FIRST_ITEMS and hidden & ~hideable == 0
 
     def settings_flags_valid(self, version, flags):
-        return flags == 0 if version < 14 else flags & self.reserved_flags == 0 and flags & 3 < 3
+        if version < 14:
+            return flags == 0
+        answer_open = self.reserved_flags & USB_ANSWER_BITS == 0
+        return (flags & self.reserved_flags == 0 and flags & 3 < 3 and
+                (not answer_open or flags >> 4 & 3 < 3))
 
     def settings_checksum_field(self, version):
         return 38 if version < 15 else 54

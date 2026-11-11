@@ -30,6 +30,7 @@ void app_show_usb_status(AppUsbStatus status);
 bool app_usb_battery_changed(HalBattery before, HalBattery after);
 void app_wake(void);
 void app_open_usb_modes(void);
+void app_ask_usb_mode(void);
 void app_release_audio(void);
 void app_remember_dac_volume(uint8_t level);
 void app_request_rescan(void);

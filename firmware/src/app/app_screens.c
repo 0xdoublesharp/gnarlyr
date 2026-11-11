@@ -242,16 +242,16 @@ static MenuItem shelf_item(AppScreens *screens, AppScreensContext context, Spoke
                       .shown_context = entry};
 }
 
-Screen *app_screens_usb_modes(AppScreens *screens)
+Screen *app_screens_usb_modes(AppScreens *screens, bool prompt)
 {
     const SettingsModuleEntry *entry =
         (const SettingsModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_SETTINGS);
-    return entry != NULL ? entry->usb_modes(screens) : NULL;
+    return entry != NULL ? entry->usb_modes(screens, prompt) : NULL;
 }
 
 static ScreenAction open_usb_modes(void *context)
 {
-    Screen *screen = app_screens_usb_modes(context);
+    Screen *screen = app_screens_usb_modes(context, false);
     return screen != NULL ? screen_action_push(screen) : screen_action_none();
 }
 

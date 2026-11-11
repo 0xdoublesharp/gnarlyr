@@ -11,6 +11,11 @@ BOUNDS = {6: (1, 10), 7: (0, 6), 8: (0, 1), 9: (0, 2), 10: (0, 6),
           11: (0, 2), 12: (0, 2), 13: (0, 60), 14: (0, 3), 15: (0, 1),
           16: (0, 60), 17: (0, 7), 18: (0, 7), 24: (0, 2), 25: (0, 2),
           26: (0, 2), 27: (0, 4)}
+FLAGS_ENCODING = "bytes[VERSION_FIELD+1]=settings->replay_gain_mode|(settings->prevent_clipping?4u:0u)"
+ENCODINGS = (FLAGS_ENCODING + ";",
+             FLAGS_ENCODING + "|(settings->battery_percent?8u:0u);",
+             FLAGS_ENCODING + "|(uint8_t)(settings->usb_connect<<4u);",
+             FLAGS_ENCODING + "|(settings->battery_percent?8u:0u)|(uint8_t)(settings->usb_connect<<4u);")
 SPECS = (
     ("text_size", "STR_TEXT_SIZE", "TEXT_SIZE_OPTIONS", ("small", "medium", "large"),
      ("STR_SIZE_SMALL", "STR_SIZE_MEDIUM", "STR_SIZE_LARGE"), 24, 255, 0, 0),
@@ -65,10 +70,7 @@ class Layout:
                 raise ValueError("the installed settings choices have changed")
         if snapshot.settings_version >= 14:
             compact = re.sub(r"\s+", "", source)
-            encodings = ("bytes[VERSION_FIELD+1]=settings->replay_gain_mode|(settings->prevent_clipping?4u:0u);",
-                         "bytes[VERSION_FIELD+1]=settings->replay_gain_mode|(settings->prevent_clipping?4u:0u)|"
-                         "(settings->battery_percent?8u:0u);")
-            if not any(encoding in compact for encoding in encodings):
+            if not any(encoding in compact for encoding in ENCODINGS):
                 raise ValueError("the installed ReplayGain settings encoding has changed")
 
     def title_ids(self):

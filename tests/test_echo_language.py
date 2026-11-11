@@ -348,9 +348,9 @@ class LanguageCommands(VolumeCase):
                 self.assertEqual(host.ejected, [])
                 self.assertFalse((self.debug / "run.txt").exists())
 
-    def test_a_layout_with_battery_percent_accepts_bit_3_and_still_rejects_higher_bits(self):
-        for flags, accepted in ((8, True), (13, True), (16, False), (128, False)):
-            with self.subTest(flags=flags), self.replay_gain_snapshot(mask="0xF0u"):
+    def check_flags_with_mask(self, mask, cases):
+        for flags, accepted in cases:
+            with self.subTest(mask=mask, flags=flags), self.replay_gain_snapshot(mask=mask):
                 (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(settings("en", 14, flags))
                 tool, host = self.live_tool("en", version=14, flags=flags)
                 if accepted:
@@ -359,6 +359,17 @@ class LanguageCommands(VolumeCase):
                     with self.assertRaises(echo_debug.DebugError) as raised:
                         tool.language_list()
                     self.assertEqual(raised.exception.code, "language_settings_invalid")
+
+    def test_a_layout_with_battery_percent_accepts_bit_3_and_still_rejects_higher_bits(self):
+        self.check_flags_with_mask("0xF0u", ((8, True), (13, True), (16, False), (128, False)))
+
+    def test_a_layout_with_the_usb_answer_accepts_bits_4_and_5_but_not_answer_3_or_bit_3(self):
+        self.check_flags_with_mask("0xC8u", ((16, True), (32, True), (37, True), (48, False),
+                                             (8, False), (64, False), (128, False)))
+
+    def test_a_layout_with_battery_percent_and_the_usb_answer_accepts_both(self):
+        self.check_flags_with_mask("0xC0u", ((24, True), (45, True), (56, False), (64, False),
+                                             (128, False)))
 
     def test_older_language_settings_require_the_reserved_byte_to_stay_zero(self):
         for version in (12, 13):
