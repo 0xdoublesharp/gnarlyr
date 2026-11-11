@@ -10,6 +10,7 @@ add_library(echo_playback STATIC
     mix_resolve.c
     mix_tape.c
     play_queue.c
+    resume_rewind.c
     resume_state.c
     session_journal.c
     spoken.c

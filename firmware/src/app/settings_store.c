@@ -123,6 +123,7 @@ void settings_store_restore_playback(const SettingsStore *store, Player *player,
     player_set_repeat(player, settings->repeat);
     player_set_replay_gain(player, (ReplayGainMode)settings->replay_gain_mode,
                            settings->prevent_clipping);
+    player_set_rewind(player, settings->rewind_on_resume);
 }
 
 void settings_store_apply_equalizer(const Settings *settings)
