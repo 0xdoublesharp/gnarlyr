@@ -606,6 +606,12 @@ static bool find_run(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track, 
     return false;
 }
 
+static bool sample_fits(FlacInput input, const Mp4Track *track, uint32_t offset, uint32_t size)
+{
+    bool inside = offset <= input.size && size <= input.size - offset;
+    return size <= UINT32_MAX - offset && (track->audio_bytes == 0 || inside);
+}
+
 bool mp4_cursor_seek(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track, uint32_t sample)
 {
     if (sample >= track->sample_count || !find_run(cursor, input, track, sample) ||
@@ -614,7 +620,8 @@ bool mp4_cursor_seek(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track, 
     }
     for (uint32_t index = sample - cursor->in_chunk; index < sample; index++) {
         uint32_t size;
-        if (!size_at(cursor, input, track, index, &size)) {
+        if (!size_at(cursor, input, track, index, &size) ||
+            !sample_fits(input, track, cursor->offset, size)) {
             return false;
         }
         cursor->offset += size;
@@ -640,14 +647,17 @@ static bool next_chunk(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track
 bool mp4_cursor_next(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track, uint32_t *offset,
                      uint32_t *size)
 {
+    uint32_t sample_size;
     if (cursor->sample >= track->sample_count ||
-        !size_at(cursor, input, track, cursor->sample, size)) {
+        !size_at(cursor, input, track, cursor->sample, &sample_size) ||
+        !sample_fits(input, track, cursor->offset, sample_size)) {
         return false;
     }
     *offset = cursor->offset;
+    *size = sample_size;
     cursor->sample++;
     cursor->in_chunk++;
-    cursor->offset += *size;
+    cursor->offset += sample_size;
     if (cursor->in_chunk >= cursor->chunk_samples && cursor->sample < track->sample_count &&
         !next_chunk(cursor, input, track)) {
         cursor->sample = track->sample_count;
