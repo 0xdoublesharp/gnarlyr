@@ -21,10 +21,12 @@ add_library(echo_app STATIC
     card_files.c
     app_screens.c
     bluetooth_link.c
+    bluetooth_link_ui.c
     bluetooth_store.c
     board_layout.c
     browse_screen.c
     cover_cache.c
+    cover_placeholders.c
     default_theme.c
     default_theme_metrics.c
     favorite_playlist.c
@@ -46,6 +48,7 @@ add_library(echo_app STATIC
     modules/views_module.c
     player.c
     screen_modules.c
+    settings_preview.c
     settings_screens.c
     settings_store.c
     spoken_store.c
@@ -63,7 +66,7 @@ if(ECHO_RELEASE)
     target_sources(echo_app PRIVATE diagnostics_menu_release.c)
 else()
     target_sources(echo_app PRIVATE diagnostics_menu.c debug_loop.c debug_runner.c
-        debug_screenshot.c)
+        debug_screenshot.c debug_steps.c modules/debug_module.c)
 endif()
 if(NOT ECHO_BUILD_DEVICE)
     target_sources(echo_app PRIVATE modules/linked_modules.c)

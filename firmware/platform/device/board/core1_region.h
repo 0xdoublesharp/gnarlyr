@@ -4,6 +4,7 @@
 
 #include "device/core1_control.h"
 #include "device/core1_m4a.h"
+#include "device/core1_opus.h"
 #include "device/core1_stream.h"
 #include "device/core1_vorbis.h"
 #include "device/mp3_probe.h"
@@ -64,5 +65,16 @@ static inline StreamRegion core1_region_vorbis(void)
 {
     StreamRegion region = core1_region();
     region.ring_bytes = VORBIS_RING_BYTES;
+    return region;
+}
+
+_Static_assert(OPUS_RING_BYTES + sizeof(OpusWorkspace) <= CORE1_STREAM_RING_BYTES,
+               "the Opus stream and workspace must fit the core 1 ring area");
+_Static_assert(OPUS_RING_BYTES % 8 == 0, "the Opus workspace must stay eight-byte aligned");
+
+static inline StreamRegion core1_region_opus(void)
+{
+    StreamRegion region = core1_region();
+    region.ring_bytes = OPUS_RING_BYTES;
     return region;
 }

@@ -3,7 +3,7 @@
 
 #include "check.h"
 #include "device/core1_vorbis.h"
-#include "device/vorbis_stream.h"
+#include "device/ogg_stream.h"
 
 enum {
     FILE_CAPACITY = 1048576
@@ -16,7 +16,7 @@ static bool failing;
 static uint64_t read_bytes;
 static VorbisModes captured_modes;
 static OggPackets audio_cursor;
-static VorbisStream stream;
+static OggStream stream;
 static Core1Vorbis vorbis;
 static StreamControl control;
 static int32_t samples[STREAM_SLOTS][FLAC_MAX_CHANNELS][FLAC_MAX_BLOCK];
@@ -82,7 +82,7 @@ static void the_probe_reports_decoded_format_and_exact_final_sample_count(void)
     static const uint32_t COUNTS[] = {2000, 11025, 143325, 26000};
     for (uint32_t index = 0; index < 4; index++) {
         CHECK(load(NAMES[index]));
-        VorbisTrack track = {0};
+        OggTrack track = {0};
         CHECK(vorbis_track_probe(input(), &track));
         CHECK_EQUAL(RATES[index], track.rate);
         CHECK_EQUAL(COUNTS[index], track.samples);
@@ -109,9 +109,9 @@ static void compare_frame(FILE *reference, const Core1Block *block, uint32_t fro
     }
 }
 
-static bool normalize_track(VorbisTrack *track)
+static bool normalize_track(OggTrack *track)
 {
-    static uint8_t packet[VORBIS_PACKET_BYTES];
+    static uint8_t packet[OGG_PACKET_BYTES];
     VorbisDecoder decoder;
     if (!vorbis_decoder_init(&decoder, ring + VORBIS_RING_BYTES, VORBIS_WORKSPACE_BYTES)) {
         CHECK(false);
@@ -153,7 +153,7 @@ static bool normalize_track(VorbisTrack *track)
 
 static void compare_loaded_seek(const char *name, uint32_t target)
 {
-    VorbisTrack track;
+    OggTrack track;
     if (!vorbis_track_probe(input(), &track)) {
         CHECK(false);
         return;
@@ -162,13 +162,13 @@ static void compare_loaded_seek(const char *name, uint32_t target)
         return;
     }
     uint32_t clamped = target < track.samples ? target : track.samples;
-    CHECK(vorbis_stream_seek(&stream, input(), &track, target));
+    CHECK(ogg_stream_seek(&stream, input(), &track, target));
     control = (StreamControl){.generation = 1};
     StreamRegion region = {
         .control = &control, .samples = samples, .ring = ring, .ring_bytes = VORBIS_RING_BYTES};
     Core1Decoder decoder = core1_vorbis_decoder(&vorbis, region);
     uint32_t first = stream.seek_offset == 0 ? 0 : clamped;
-    FlacInput virtual_input = {vorbis_stream_read, &stream, VORBIS_VIRTUAL_END};
+    FlacInput virtual_input = {ogg_stream_read, &stream, OGG_VIRTUAL_END};
     bool starved = false;
     decoder.start(decoder.context, virtual_input, (FlacInfo){0}, first, &starved);
     char path[512];
@@ -239,14 +239,14 @@ static void single_page_speech_and_short_tracks_seek_from_the_true_stream_start(
 static void later_seeks_choose_a_preceding_marked_page_and_keep_the_eos_preroll(void)
 {
     CHECK(load("seek44"));
-    VorbisTrack track;
+    OggTrack track;
     CHECK(vorbis_track_probe(input(), &track));
     uint32_t offset = UINT32_MAX;
-    CHECK(vorbis_track_seek(input(), &track, 100, &offset));
+    CHECK(ogg_track_seek(input(), &track, 100, &offset));
     CHECK_EQUAL(0, offset);
-    CHECK(vorbis_track_seek(input(), &track, 60000, &offset));
+    CHECK(ogg_track_seek(input(), &track, 60000, &offset));
     CHECK_EQUAL(4311, offset);
-    CHECK(vorbis_track_seek(input(), &track, 143324, &offset));
+    CHECK(ogg_track_seek(input(), &track, 143324, &offset));
     CHECK_EQUAL(8526, offset);
     OggPage page;
     CHECK_EQUAL(OGG_PACKET_READY, ogg_page_read(input(), offset, &page));
@@ -256,8 +256,8 @@ static void later_seeks_choose_a_preceding_marked_page_and_keep_the_eos_preroll(
 static void failed_or_invalid_probes_leave_the_track_and_seek_result_untouched(void)
 {
     CHECK(load("seek44"));
-    VorbisTrack track = {.rate = 77};
-    VorbisTrack before = track;
+    OggTrack track = {.rate = 77};
+    OggTrack before = track;
     failing = true;
     fail_at = file_size - 1;
     CHECK(!vorbis_track_probe(input(), &track));
@@ -267,12 +267,12 @@ static void failed_or_invalid_probes_leave_the_track_and_seek_result_untouched(v
     uint32_t offset = 99;
     failing = true;
     fail_at = 9000;
-    CHECK(!vorbis_track_seek(input(), &track, 143000, &offset));
+    CHECK(!ogg_track_seek(input(), &track, 143000, &offset));
     CHECK_EQUAL(99, offset);
     failing = false;
     FlacInput short_input = input();
     short_input.size--;
-    CHECK(!vorbis_track_seek(short_input, &track, 143000, &offset));
+    CHECK(!ogg_track_seek(short_input, &track, 143000, &offset));
     CHECK_EQUAL(99, offset);
     OggPage first;
     CHECK_EQUAL(OGG_PACKET_READY, ogg_page_read(input(), 0, &first));
@@ -302,8 +302,8 @@ static void wrong_serial_bad_eos_and_unrepresentable_granules_are_refused(void)
             memset(data + last.offset + 6, 255, 8);
         }
         repair(&last);
-        VorbisTrack track = {.rate = 77};
-        VorbisTrack before = track;
+        OggTrack track = {.rate = 77};
+        OggTrack before = track;
         CHECK(!vorbis_track_probe(input(), &track));
         CHECK(memcmp(&before, &track, sizeof track) == 0);
     }
@@ -335,12 +335,12 @@ static void distant_seeks_read_a_bounded_fraction_of_a_large_file(void)
         repair(&changed);
     }
     file_size = first + 200 * page_size;
-    VorbisTrack track;
+    OggTrack track;
     CHECK(vorbis_track_probe(input(), &track));
     CHECK_EQUAL(200 * 47808, track.samples);
     uint32_t offset = 0;
     read_bytes = 0;
-    CHECK(vorbis_track_seek(input(), &track, track.samples - 1, &offset));
+    CHECK(ogg_track_seek(input(), &track, track.samples - 1, &offset));
     CHECK(offset > file_size / 2);
     CHECK(read_bytes < file_size / 2);
     CHECK_EQUAL(OGG_PACKET_READY, ogg_page_read(input(), offset, &page));
@@ -369,10 +369,10 @@ static void an_empty_timestamp_page_does_not_replace_the_decodable_seek_anchor(v
     CHECK_EQUAL(OGG_PACKET_READY, ogg_page_read(input(), page.next, &page));
     put32(data + page.offset + 18, 5);
     repair(&page);
-    VorbisTrack track;
+    OggTrack track;
     CHECK(vorbis_track_probe(input(), &track));
     uint32_t offset = 0;
-    CHECK(vorbis_track_seek(input(), &track, 60000, &offset));
+    CHECK(ogg_track_seek(input(), &track, 60000, &offset));
     CHECK_EQUAL(4311, offset);
     if (offset != 4311) {
         return;
@@ -402,7 +402,7 @@ static void nonzero_origins_keep_duration_samples_and_seek_positions_on_the_same
     for (uint32_t index = 0; index < sizeof TARGETS / sizeof TARGETS[0]; index++) {
         CHECK(load("seek44"));
         shift_origin(500);
-        VorbisTrack track;
+        OggTrack track;
         CHECK(vorbis_track_probe(input(), &track));
         CHECK_EQUAL(143825, track.samples);
         if (!normalize_track(&track)) {
@@ -428,21 +428,21 @@ static void mode_snapshots_require_a_ready_decoder_and_preserve_the_output_on_fa
 static void header_only_prefill_stops_before_audio_and_origin_failure_keeps_the_track_intact(void)
 {
     CHECK(load("seek44"));
-    VorbisTrack track;
+    OggTrack track;
     CHECK(vorbis_track_probe(input(), &track));
     CHECK(normalize_track(&track));
-    CHECK(vorbis_stream_start(&stream, input()));
+    CHECK(ogg_stream_start(&stream, input()));
     uint8_t head[64];
     for (uint32_t position = 0; position < track.header_bytes;) {
         uint32_t count = track.header_bytes - position;
         count = count < sizeof head ? count : (uint32_t)sizeof head;
-        CHECK(vorbis_stream_read(&stream, position, head, count));
+        CHECK(ogg_stream_read(&stream, position, head, count));
         position += count;
     }
     CHECK_EQUAL(3, stream.headers);
     CHECK_EQUAL(track.data_offset, stream.packets.body);
     CHECK_EQUAL(track.header_bytes, stream.position);
-    VorbisTrack before = track;
+    OggTrack before = track;
     VorbisModes bad = captured_modes;
     bad.count = 65;
     CHECK(!vorbis_track_origin(&audio_cursor, &bad, &track));

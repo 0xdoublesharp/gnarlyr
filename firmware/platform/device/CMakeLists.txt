@@ -39,7 +39,7 @@ add_executable(echo_device
 )
 target_sources(echo_device PRIVATE board/panel_vop.c)
 if(NOT ECHO_RELEASE)
-    target_sources(echo_device PRIVATE board/debug_poke.c board/debug_session.c board/profiler.c)
+    target_sources(echo_device PRIVATE board/debug_module.c board/debug_session.c board/profiler.c)
     set(ECHO_PROFILE_BUCKET_SHIFT 7)
 endif()
 set(ECHO_CORE1_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1.ld)
@@ -134,6 +134,31 @@ add_custom_command(
     OUTPUT ${ECHO_CORE1_VORBIS_BINARY}
     COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:echo_core1_vorbis> core1_vorbis.bin
     DEPENDS echo_core1_vorbis
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    VERBATIM
+)
+add_executable(echo_core1_opus
+    core1/opus_main.c
+    core1/startup.c
+    board/libc.c
+)
+set(ECHO_CORE1_OPUS_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1_opus.ld)
+set_target_properties(echo_core1_opus PROPERTIES
+    SUFFIX .elf
+    LINK_DEPENDS ${ECHO_CORE1_OPUS_LINKER_SCRIPT}
+)
+target_include_directories(echo_core1_opus PRIVATE board)
+target_link_libraries(echo_core1_opus PRIVATE echo_device_logic echo_opus echo_options gcc)
+target_link_options(echo_core1_opus PRIVATE
+    -fno-lto
+    -T${ECHO_CORE1_OPUS_LINKER_SCRIPT}
+    -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_core1_opus.map
+)
+set(ECHO_CORE1_OPUS_BINARY ${CMAKE_CURRENT_BINARY_DIR}/core1_opus.bin)
+add_custom_command(
+    OUTPUT ${ECHO_CORE1_OPUS_BINARY}
+    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:echo_core1_opus> core1_opus.bin
+    DEPENDS echo_core1_opus
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     VERBATIM
 )
@@ -237,6 +262,7 @@ if(CMAKE_CROSSCOMPILING)
         board/bluetooth.c
         board/core1.c
         board/dac.c
+        board/debug_module.c
         board/debug_poke.c
         board/debug_report_file.c
         board/debug_script_file.c
@@ -327,11 +353,16 @@ set(ECHO_MODULE_OBJECT_TARGETS "")
 set(ECHO_MODULE_IMPORT_ARGUMENTS "")
 set(ECHO_MODULE_IMAGE_ARGUMENTS "")
 set(ECHO_MODULE_MAP_ARGUMENTS "")
+foreach(source IN LISTS ECHO_SCREEN_MODULE_FAST_SOURCES)
+    set_source_files_properties(${PROJECT_SOURCE_DIR}/${source} PROPERTIES COMPILE_OPTIONS -O2)
+endforeach()
 foreach(module IN LISTS ECHO_SCREEN_MODULES)
     if(module STREQUAL "process")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_process.ld)
-    elseif(module STREQUAL "dsp" OR module STREQUAL "vorbis")
+    elseif(module STREQUAL "dsp" OR module STREQUAL "ogg")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_dsp.ld)
+    elseif(module STREQUAL "debug")
+        set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/debug_module.ld)
     else()
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/screen_module.ld)
     endif()
@@ -362,11 +393,15 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             equalizer_run=audio_process_equalizer_run
         )
     endif()
-    if(module STREQUAL "vorbis")
+    if(module STREQUAL "debug")
+        target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
+        target_include_directories(${module_target}_objects PRIVATE board)
+    endif()
+    if(module STREQUAL "ogg")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)
         target_compile_definitions(${module_target}_objects PRIVATE
-            core1_open_vorbis=audio_vorbis_open
-            vorbis_stream_read=audio_vorbis_read
+            core1_open_ogg=audio_ogg_open
+            ogg_stream_read=audio_ogg_read
         )
     endif()
     target_include_directories(${module_target}_objects PRIVATE ${module_includes})
@@ -430,6 +465,7 @@ add_custom_target(echo_device_image ALL
         --core1-flac ${ECHO_CORE1_BINARY}
         --core1-m4a ${ECHO_CORE1_M4A_BINARY}
         --core1-vorbis ${ECHO_CORE1_VORBIS_BINARY}
+        --core1-opus ${ECHO_CORE1_OPUS_BINARY}
         ${ECHO_GLYPH_FACE_ARGUMENTS}
         ${ECHO_LANGUAGE_PACK_ARGUMENTS}
         ${ECHO_MODULE_IMAGE_ARGUMENTS}
@@ -443,6 +479,7 @@ add_custom_target(echo_device_image ALL
         ${ECHO_CORE1_BINARY}
         ${ECHO_CORE1_M4A_BINARY}
         ${ECHO_CORE1_VORBIS_BINARY}
+        ${ECHO_CORE1_OPUS_BINARY}
         ${ECHO_LANGUAGE_PACK_FILES}
         ${PROJECT_SOURCE_DIR}/tools/make_image.py
         ${PROJECT_SOURCE_DIR}/tools/identity.py

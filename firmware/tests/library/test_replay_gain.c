@@ -78,7 +78,7 @@ static void the_first_valid_value_wins_without_poisoning_missing_tags(void)
 static void fixed_point_amplitudes_match_independent_exponentiation(void)
 {
     for (int value = -9600; value <= 9600; value++) {
-        double expected = pow(10.0, (double)value / 2000.0) * REPLAY_GAIN_UNITY;
+        double expected = pow(10.0, (double)value / 2000.0) * (double)REPLAY_GAIN_UNITY;
         double actual = replay_gain_amplitude((int16_t)value);
         double tolerance = expected * 0.0001;
         tolerance = tolerance > 2 ? tolerance : 2;
@@ -148,7 +148,7 @@ static void decimal_peak_quantization_matches_exact_binary_boundaries(void)
     uint32_t value = 0;
     for (uint32_t index = 0; index < 2048; index++) {
         char text[REPLAY_GAIN_TEXT_CAPACITY];
-        (void)snprintf(text, sizeof text, "%.24f", (double)value / PEAK_UNITY);
+        (void)snprintf(text, sizeof text, "%.24f", (double)value / (double)PEAK_UNITY);
         ReplayGainTags tags = {0};
         CHECK(offer(&tags, REPLAY_GAIN_TRACK_PEAK, text));
         CHECK_EQUAL(value, tags.peak[0]);

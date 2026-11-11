@@ -166,6 +166,10 @@ echo_add_unit_test(NAME test_marquee SOURCES ui/test_marquee.c LIBRARIES echo_ui
 echo_add_unit_test(NAME test_fade SOURCES ui/test_fade.c LIBRARIES echo_ui)
 echo_add_unit_test(NAME test_slide SOURCES ui/test_slide.c LIBRARIES echo_ui)
 echo_add_unit_test(NAME test_cover_flow SOURCES ui/test_cover_flow.c LIBRARIES echo_ui)
+echo_add_unit_test(NAME test_placeholder_art
+    SOURCES ui/test_placeholder_art.c
+    LIBRARIES echo_ui echo_fonts
+)
 echo_add_unit_test(NAME test_label
     SOURCES ui/test_label.c gfx/tiny_font.c
     LIBRARIES echo_ui
@@ -177,12 +181,17 @@ target_include_directories(echo_ui_fixtures PUBLIC gfx ui)
 target_link_libraries(echo_ui_fixtures PUBLIC echo_ui PRIVATE echo_options)
 
 foreach(ui_test theme_layout list_view list_navigation fast_scroll header menu_screen message_screen
-        choice_screen toast status_bar)
+        choice_screen toast)
     echo_add_unit_test(NAME test_${ui_test}
         SOURCES ui/test_${ui_test}.c
         LIBRARIES echo_ui_fixtures
     )
 endforeach()
+
+echo_add_unit_test(NAME test_status_bar
+    SOURCES ui/test_status_bar.c
+    LIBRARIES echo_ui_fixtures echo_fonts
+)
 
 echo_add_unit_test(NAME test_language
     SOURCES app/test_language.c app/fake_hal.c
@@ -287,6 +296,11 @@ echo_add_unit_test(NAME test_browse_screen
 )
 echo_add_unit_test(NAME test_up_next_screen
     SOURCES app/test_up_next_screen.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+echo_add_unit_test(NAME test_cover_placeholders
+    SOURCES app/test_cover_placeholders.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
@@ -431,6 +445,20 @@ echo_add_unit_test(NAME test_vorbis_memory
     SOURCES device/test_vorbis_memory.c
     LIBRARIES echo_device_logic
 )
+echo_add_unit_test(NAME test_opus_track
+    SOURCES device/test_opus_track.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_opus_track PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+echo_add_unit_test(NAME test_opus_source
+    SOURCES device/test_opus_source.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_opus_source PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+echo_add_unit_test(NAME test_opus_decode
+    SOURCES device/test_opus_decode.c
+    LIBRARIES echo_device_logic
+)
 echo_add_unit_test(NAME test_vorbis_decoder
     SOURCES device/test_vorbis_decoder.c
     LIBRARIES echo_device_logic
@@ -505,7 +533,7 @@ if(ECHO_BUILD_SIM)
     )
     echo_add_unit_test(NAME test_sim_storage
         SOURCES sim/test_sim_storage.c
-        LIBRARIES echo_sim_storage
+        LIBRARIES echo_sim_storage echo_playback
     )
     echo_add_unit_test(NAME test_sim_glyphs
         SOURCES sim/test_sim_glyphs.c
@@ -676,6 +704,17 @@ if(ARM_GCC)
             FIXTURES_REQUIRED device_image
             SKIP_RETURN_CODE 77
             TIMEOUT 180
+        )
+        add_test(NAME core1_opus_decodes_in_emulator
+            COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
+                ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_core1_opus.py
+                --program ${PROJECT_SOURCE_DIR}/build/device/platform/device/core1_opus.bin
+                --tool $<TARGET_FILE:ogg_packet_tool>
+        )
+        set_tests_properties(core1_opus_decodes_in_emulator PROPERTIES
+            FIXTURES_REQUIRED device_image
+            SKIP_RETURN_CODE 77
+            TIMEOUT 600
         )
         add_test(NAME core1_m4a_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python

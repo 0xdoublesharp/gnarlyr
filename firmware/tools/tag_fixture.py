@@ -87,6 +87,17 @@ def make_ogg(path):
     audio.save()
 
 
+def make_opus(path):
+    import base64
+    from mutagen.oggopus import OggOpus
+    encode(path, ["-c:a", "libopus", "-b:a", "64k"], rate=48000)
+    audio = OggOpus(path)
+    audio.clear()
+    vorbis_comments(audio)
+    audio["metadata_block_picture"] = [base64.b64encode(flac_picture().write()).decode("ascii")]
+    audio.save()
+
+
 def id3_frames(tags, version):
     from mutagen import id3
     tags.add(id3.TIT2(encoding=3, text=TITLE))
@@ -259,6 +270,7 @@ FIXTURES = {
     "tagged.flac": make_flac,
     "untagged.flac": make_untagged_flac,
     "tagged.ogg": make_ogg,
+    "tagged.opus": make_opus,
     "id3v24.mp3": make_mp3_v24,
     "id3v23_vbr.mp3": make_mp3_v23,
     "id3v1_no_xing.mp3": make_mp3_v1,

@@ -2,7 +2,9 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://gnarlyr.com/</loc></url>
   <url><loc>https://gnarlyr.com/firmware.html</loc></url>
+  <url><loc>https://gnarlyr.com/docs.html</loc></url>
   <url><loc>https://gnarlyr.com/hardware.html</loc></url>
+  <url><loc>https://gnarlyr.com/recovery.html</loc></url>
   <url><loc>https://gnarlyr.com/install.html</loc></url>
   <url><loc>https://gnarlyr.com/build.html</loc></url>
   <url><loc>https://gnarlyr.com/languages.html</loc></url>

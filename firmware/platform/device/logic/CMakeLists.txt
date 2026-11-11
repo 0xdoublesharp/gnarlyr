@@ -1,4 +1,5 @@
 include(tremor.cmake)
+include(opus.cmake)
 
 set(ECHO_LIBMAD_DIR ${PROJECT_SOURCE_DIR}/third_party/libmad)
 set(FPM_64BIT ON)
@@ -57,11 +58,12 @@ add_library(echo_device_logic STATIC
     aac_decoder.c
     audio_engine.c
     audio_math.c
+    audio_trig.c
     audio_resample.c
     audio_interpolate.c
     audio_dsp_entry.c
     audio_process_entry.c
-    audio_vorbis_entry.c
+    audio_ogg_entry.c
     backlight.c
     block_read.c
     board_pins.c
@@ -74,6 +76,10 @@ add_library(echo_device_logic STATIC
     core1_m4a.c
     core1_open.c
     core1_mp3.c
+    core1_ogg.c
+    core1_ogg_source.c
+    core1_opus.c
+    core1_opus_source.c
     core1_stream.c
     core1_vorbis.c
     core1_vorbis_source.c
@@ -108,6 +114,10 @@ add_library(echo_device_logic STATIC
     mp4_demux.c
     mp4_signature.c
     msc.c
+    ogg_stream.c
+    ogg_track.c
+    opus_decode.c
+    opus_track.c
     panel.c
     panic_text.c
     pc_profile.c
@@ -129,7 +139,6 @@ add_library(echo_device_logic STATIC
     usb_plug.c
     vorbis_decoder.c
     vorbis_memory.c
-    vorbis_stream.c
     vorbis_track.c
     vop.c
     wav_source.c
@@ -180,6 +189,6 @@ if(CMAKE_CROSSCOMPILING)
 endif()
 target_include_directories(echo_device_logic PUBLIC include)
 target_link_libraries(echo_device_logic
-    PUBLIC echo_core echo_hal echo_codec echo_libmad echo_faad echo_tremor
+    PUBLIC echo_core echo_hal echo_codec echo_libmad echo_faad echo_tremor echo_opus
     PRIVATE echo_options
 )

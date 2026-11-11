@@ -2,11 +2,7 @@
 
 #include <stddef.h>
 
-#include "device/vorbis_record.h"
-
-enum {
-    MAX_PAGE_BYTES = 65307
-};
+#include "device/ogg_record.h"
 
 static uint32_t little32(const uint8_t *bytes)
 {
@@ -29,7 +25,7 @@ static bool header(const uint8_t *bytes, const OggPacket *packet, uint32_t index
     return true;
 }
 
-static bool identification(const uint8_t *bytes, const OggPacket *packet, VorbisTrack *track)
+static bool identification(const uint8_t *bytes, const OggPacket *packet, OggTrack *track)
 {
     uint32_t small = bytes[28] & 15u;
     uint32_t large = bytes[28] >> 4;
@@ -44,11 +40,11 @@ static bool identification(const uint8_t *bytes, const OggPacket *packet, Vorbis
     return track->rate >= 8000 && track->rate <= 192000;
 }
 
-static bool configuration(FlacInput input, VorbisTrack *track)
+static bool configuration(FlacInput input, OggTrack *track)
 {
     OggPackets packets;
     ogg_packets_init(&packets, input);
-    track->header_bytes = 3 * VORBIS_RECORD_BYTES;
+    track->header_bytes = 3 * OGG_RECORD_BYTES;
     for (uint32_t index = 0; index < 3; index++) {
         uint8_t bytes[30] = {0};
         OggPacket packet;
@@ -57,7 +53,7 @@ static bool configuration(FlacInput input, VorbisTrack *track)
             !header(bytes, &packet, index) ||
             (index == 0 && !identification(bytes, &packet, track)) ||
             (index == 1 && packet.bytes < 16) ||
-            (index == 2 && (packet.bytes < 8 || packet.bytes > VORBIS_PACKET_BYTES))) {
+            (index == 2 && (packet.bytes < 8 || packet.bytes > OGG_PACKET_BYTES))) {
             return false;
         }
         track->header_bytes += index == 1 ? 16 : packet.bytes;
@@ -67,107 +63,14 @@ static bool configuration(FlacInput input, VorbisTrack *track)
     return true;
 }
 
-static bool follows(const OggPage *page, uint32_t serial, uint32_t sequence)
+bool vorbis_track_probe(FlacInput input, OggTrack *track)
 {
-    return page->serial == serial && page->sequence == sequence && (page->flags & 2) == 0;
-}
-
-static bool endpoint(FlacInput input, VorbisTrack *track)
-{
-    uint32_t start = input.size > 2 * MAX_PAGE_BYTES ? input.size - 2 * MAX_PAGE_BYTES : 0;
-    OggPage page;
-    if (ogg_page_find(input, start, input.size, &page) != OGG_PACKET_READY) {
-        return false;
-    }
-    uint64_t granule = 0;
-    for (;;) {
-        if (page.serial != track->serial ||
-            (page.granule != UINT64_MAX && (page.granule > UINT32_MAX || page.granule < granule))) {
-            return false;
-        }
-        if (page.granule != UINT64_MAX) {
-            granule = page.granule;
-        }
-        if ((page.flags & 4) != 0) {
-            track->samples = (uint32_t)granule;
-            track->end_granule = (uint32_t)granule;
-            return page.next == input.size && page.granule != UINT64_MAX && granule > 0;
-        }
-        uint32_t sequence = page.sequence + 1;
-        if (ogg_page_read(input, page.next, &page) != OGG_PACKET_READY ||
-            !follows(&page, track->serial, sequence)) {
-            return false;
-        }
-    }
-}
-
-bool vorbis_track_probe(FlacInput input, VorbisTrack *track)
-{
-    VorbisTrack candidate = {.file_bytes = input.size};
-    if (track == NULL || !configuration(input, &candidate) || !endpoint(input, &candidate)) {
+    OggTrack candidate = {.file_bytes = input.size};
+    if (track == NULL || !configuration(input, &candidate) ||
+        !ogg_track_endpoint(input, &candidate)) {
         return false;
     }
     *track = candidate;
-    return true;
-}
-
-static bool marked_page(FlacInput input, const VorbisTrack *track, OggPage *page)
-{
-    if (page->serial != track->serial || (page->flags & 2) != 0) {
-        return false;
-    }
-    while (page->granule == UINT64_MAX || page->last_complete == 0) {
-        if ((page->flags & 4) != 0) {
-            return page->segments == 0 &&
-                   (page->granule == UINT64_MAX || page->granule <= track->end_granule);
-        }
-        uint32_t sequence = page->sequence + 1;
-        if (ogg_page_read(input, page->next, page) != OGG_PACKET_READY ||
-            !follows(page, track->serial, sequence)) {
-            return false;
-        }
-    }
-    return page->granule <= track->end_granule;
-}
-
-bool vorbis_track_seek(FlacInput input, const VorbisTrack *track, uint32_t sample, uint32_t *offset)
-{
-    if (track == NULL || offset == NULL || track->samples == 0 || input.read == NULL ||
-        input.size != track->file_bytes || track->data_offset >= input.size) {
-        return false;
-    }
-    uint32_t target = sample < track->samples ? sample : track->samples - 1;
-    if (target > UINT32_MAX - track->origin) {
-        return false;
-    }
-    target += track->origin;
-    uint32_t low = track->data_offset;
-    uint32_t high = input.size;
-    uint32_t best = 0;
-    while (low < high) {
-        uint32_t middle = low + (high - low) / 2;
-        uint32_t span = high - middle < MAX_PAGE_BYTES ? high - middle : MAX_PAGE_BYTES;
-        OggPage page;
-        OggPacketResult result = ogg_page_find(input, middle, middle + span, &page);
-        if (result == OGG_PACKET_END) {
-            high = middle;
-            continue;
-        }
-        if (result != OGG_PACKET_READY) {
-            return false;
-        }
-        uint32_t boundary = page.offset;
-        if (!marked_page(input, track, &page)) {
-            return false;
-        }
-        if (page.granule <= target && (page.flags & 4) == 0) {
-            best = page.offset;
-            low = page.next;
-        } else {
-            high = boundary;
-        }
-    }
-    *offset = best;
     return true;
 }
 
@@ -185,7 +88,7 @@ static uint32_t packet_block(uint8_t byte, const VorbisModes *modes)
     return long_block ? modes->long_block : modes->short_block;
 }
 
-bool vorbis_track_origin(const OggPackets *audio, const VorbisModes *modes, VorbisTrack *track)
+bool vorbis_track_origin(const OggPackets *audio, const VorbisModes *modes, OggTrack *track)
 {
     if (audio == NULL || modes == NULL || track == NULL || modes->count < 1 || modes->count > 64 ||
         modes->short_block != track->min_block || modes->long_block != track->max_block ||
@@ -200,7 +103,7 @@ bool vorbis_track_origin(const OggPackets *audio, const VorbisModes *modes, Vorb
         OggPacket packet;
         uint8_t byte;
         if (ogg_packets_prefix(&cursor, &byte, 1, &packet) != OGG_PACKET_READY ||
-            packet.bytes == 0 || packet.bytes > VORBIS_PACKET_BYTES) {
+            packet.bytes == 0 || packet.bytes > OGG_PACKET_BYTES) {
             return false;
         }
         uint32_t block = packet_block(byte, modes);

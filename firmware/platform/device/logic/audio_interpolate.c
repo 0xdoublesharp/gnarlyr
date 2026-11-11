@@ -7,38 +7,167 @@ enum {
     SAMPLE_MAX = 8388607,
     SAMPLE_MIN = -8388608,
     HISTORY_MASK = AUDIO_RESAMPLE_HISTORY - 1,
-    TAPS = AUDIO_RESAMPLE_LEFT + AUDIO_RESAMPLE_RIGHT + 1
+    TAPS = AUDIO_RESAMPLE_LEFT + AUDIO_RESAMPLE_RIGHT + 1,
+    HALF_TAPS = TAPS / 2,
+    TWELFTHS = 12
 };
 
-static const uint8_t PHASE_ROWS[7][6] = {
-    {0}, {0}, {0, 4}, {0, 3, 5}, {0, 2, 4, 6}, {0}, {0, 1, 3, 4, 5, 7}};
+typedef struct Fold {
+    int32_t (*first)[2];
+    int32_t (*last)[2];
+    const int32_t *coefficients;
+    int count;
+} Fold;
 
-static int32_t round_sample(int64_t value)
+typedef struct Totals {
+    int64_t sample[2];
+} Totals;
+
+static int32_t round_sample(int64_t value, int shift)
 {
-    value += INT64_C(1) << (FRACTION_BITS - 1);
-    int64_t rounded = value >= 0 ? value >> FRACTION_BITS : -((-value - 1) >> FRACTION_BITS) - 1;
+    value += INT64_C(1) << (shift - 1);
+    int64_t rounded = value >= 0 ? value >> shift : -((-value - 1) >> shift) - 1;
     return rounded > SAMPLE_MAX ? SAMPLE_MAX : rounded < SAMPLE_MIN ? SAMPLE_MIN : (int32_t)rounded;
 }
 
-static void interpolate(const AudioResample *resample, int32_t *left, int32_t *right)
+__attribute__((noinline)) static Totals sum_mono(const Fold *fold)
 {
-    const int32_t *row = RESAMPLE_COEFFICIENTS[PHASE_ROWS[resample->factor][resample->phase]];
-    int64_t a = 0;
-    int64_t b = 0;
-    uint32_t first = resample->cursor < AUDIO_RESAMPLE_LEFT
-                         ? AUDIO_RESAMPLE_LEFT - (uint32_t)resample->cursor
-                         : 0;
-    uint64_t available = resample->frames - resample->cursor;
-    uint32_t limit =
-        available > AUDIO_RESAMPLE_RIGHT ? TAPS : AUDIO_RESAMPLE_LEFT + (uint32_t)available;
-    uint32_t at = ((uint32_t)resample->cursor - AUDIO_RESAMPLE_LEFT + first) & HISTORY_MASK;
-    for (uint32_t tap = first; tap < limit; tap++) {
-        a += (int64_t)resample->history[0][at] * row[tap];
-        b += (int64_t)resample->history[1][at] * row[tap];
-        at = (at + 1) & HISTORY_MASK;
+    const int32_t *first = fold->first[0];
+    const int32_t *last = fold->last[0];
+    const int32_t *coefficient = fold->coefficients;
+    const int32_t *end = coefficient + fold->count;
+    int64_t total = 0;
+    do {
+        total += (int64_t)*coefficient++ * (*first + *last);
+        first += 2;
+        last -= 2;
+    } while (coefficient != end);
+    return (Totals){{total, total}};
+}
+
+__attribute__((noinline)) static Totals difference_mono(const Fold *fold)
+{
+    const int32_t *first = fold->first[0];
+    const int32_t *last = fold->last[0];
+    const int32_t *coefficient = fold->coefficients;
+    const int32_t *end = coefficient + fold->count;
+    int64_t total = 0;
+    do {
+        total += (int64_t)*coefficient++ * (*first - *last);
+        first += 2;
+        last -= 2;
+    } while (coefficient != end);
+    return (Totals){{total, total}};
+}
+
+__attribute__((noinline)) static Totals sum_stereo(const Fold *fold)
+{
+    const int32_t *first = fold->first[0];
+    const int32_t *last = fold->last[0];
+    const int32_t *coefficient = fold->coefficients;
+    const int32_t *end = coefficient + fold->count;
+    int64_t left = 0;
+    int64_t right = 0;
+    do {
+        int64_t value = *coefficient++;
+        left += value * (first[0] + last[0]);
+        right += value * (first[1] + last[1]);
+        first += 2;
+        last -= 2;
+    } while (coefficient != end);
+    return (Totals){{left, right}};
+}
+
+__attribute__((noinline)) static Totals difference_stereo(const Fold *fold)
+{
+    const int32_t *first = fold->first[0];
+    const int32_t *last = fold->last[0];
+    const int32_t *coefficient = fold->coefficients;
+    const int32_t *end = coefficient + fold->count;
+    int64_t left = 0;
+    int64_t right = 0;
+    do {
+        int64_t value = *coefficient++;
+        left += value * (first[0] - last[0]);
+        right += value * (first[1] - last[1]);
+        first += 2;
+        last -= 2;
+    } while (coefficient != end);
+    return (Totals){{left, right}};
+}
+
+typedef struct Kernel {
+    int32_t (*window)[2];
+    Totals (*sum)(const Fold *fold);
+    Totals (*difference)(const Fold *fold);
+    int32_t (*output)[2];
+} Kernel;
+
+static void centre(const Kernel *kernel)
+{
+    int32_t (*window)[2] = kernel->window;
+    Totals totals =
+        kernel->sum(&(Fold){window, window + TAPS - 2, RESAMPLE_CENTRE, AUDIO_RESAMPLE_LEFT});
+    for (int channel = 0; channel < 2; channel++) {
+        int64_t total =
+            totals.sample[channel] +
+            (int64_t)RESAMPLE_CENTRE[AUDIO_RESAMPLE_LEFT] * window[AUDIO_RESAMPLE_LEFT][channel] +
+            (int64_t)RESAMPLE_CENTRE[AUDIO_RESAMPLE_LEFT + 1] * window[TAPS - 1][channel];
+        kernel->output[0][channel] = round_sample(total, FRACTION_BITS);
     }
-    *left = round_sample(a);
-    *right = round_sample(b);
+}
+
+static void half(const Kernel *kernel, uint32_t phase)
+{
+    int32_t (*window)[2] = kernel->window;
+    Totals totals = kernel->sum(&(Fold){window, window + TAPS - 1, RESAMPLE_HALF, HALF_TAPS});
+    for (int channel = 0; channel < 2; channel++) {
+        kernel->output[phase][channel] = round_sample(totals.sample[channel], FRACTION_BITS);
+    }
+}
+
+static void pair(const Kernel *kernel, int row, uint32_t early, uint32_t late)
+{
+    int32_t (*window)[2] = kernel->window;
+    Totals sums = kernel->sum(&(Fold){window, window + TAPS - 1, RESAMPLE_SUM[row], HALF_TAPS});
+    Totals differences =
+        kernel->difference(&(Fold){window, window + TAPS - 1, RESAMPLE_DIFFERENCE[row], HALF_TAPS});
+    for (int channel = 0; channel < 2; channel++) {
+        int64_t sum = sums.sample[channel];
+        int64_t difference = differences.sample[channel];
+        kernel->output[early][channel] = round_sample(sum + difference, FRACTION_BITS + 1);
+        kernel->output[late][channel] = round_sample(sum - difference, FRACTION_BITS + 1);
+    }
+}
+
+static int32_t (*gathered(AudioResample *resample, int32_t (*window)[2]))[2]
+{
+    uint32_t start = ((uint32_t)resample->cursor - AUDIO_RESAMPLE_LEFT) & HISTORY_MASK;
+    uint64_t available = resample->frames - resample->cursor;
+    if (available > AUDIO_RESAMPLE_RIGHT) {
+        return resample->history + start;
+    }
+    for (uint32_t tap = 0; tap < TAPS; tap++) {
+        bool present = tap < AUDIO_RESAMPLE_LEFT + available;
+        window[tap][0] = present ? resample->history[start + tap][0] : 0;
+        window[tap][1] = present ? resample->history[start + tap][1] : 0;
+    }
+    return window;
+}
+
+static void interpolate(AudioResample *resample)
+{
+    int32_t window[TAPS][2];
+    uint32_t factor = resample->factor;
+    Kernel kernel = {gathered(resample, window), resample->stereo ? sum_stereo : sum_mono,
+                     resample->stereo ? difference_stereo : difference_mono, resample->output};
+    centre(&kernel);
+    for (uint32_t phase = 1; 2 * phase < factor; phase++) {
+        pair(&kernel, (int)(TWELFTHS * phase / factor) - 2, phase, factor - phase);
+    }
+    if (factor % 2 == 0) {
+        half(&kernel, factor / 2);
+    }
 }
 
 bool audio_resample_pull(AudioResample *resample, int32_t *left, int32_t *right)
@@ -48,13 +177,15 @@ bool audio_resample_pull(AudioResample *resample, int32_t *left, int32_t *right)
          resample->frames - resample->cursor <= AUDIO_RESAMPLE_RIGHT)) {
         return false;
     }
-    if (resample->factor == 1) {
-        uint32_t at = (uint32_t)resample->cursor & HISTORY_MASK;
-        *left = resample->history[0][at];
-        *right = resample->history[1][at];
-    } else {
-        interpolate(resample, left, right);
+    const int32_t *frame = resample->history[(uint32_t)resample->cursor & HISTORY_MASK];
+    if (resample->factor > 1) {
+        if (resample->phase == 0) {
+            interpolate(resample);
+        }
+        frame = resample->output[resample->phase];
     }
+    *left = frame[0];
+    *right = frame[1];
     resample->phase++;
     if (resample->phase == resample->factor) {
         resample->phase = 0;

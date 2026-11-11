@@ -16,6 +16,32 @@ static int32_t output[OUTPUT_CAPACITY];
 static int32_t comparison[OUTPUT_CAPACITY];
 static uint32_t used;
 
+static void take_identical_output(void)
+{
+    int32_t left = 0;
+    int32_t right = 0;
+    while (audio_resample_pull(&state, &left, &right)) {
+        CHECK(used < OUTPUT_CAPACITY);
+        CHECK_EQUAL(left, right);
+        output[used++] = left;
+    }
+}
+
+static uint32_t render_identical(uint32_t rate, uint32_t count)
+{
+    audio_resample_start(&state, rate);
+    used = 0;
+    for (uint32_t index = 0; index < count; index++) {
+        if (!audio_resample_push(&state, input[index], input[index])) {
+            take_identical_output();
+            CHECK(audio_resample_push(&state, input[index], input[index]));
+        }
+    }
+    audio_resample_finish(&state);
+    take_identical_output();
+    return used;
+}
+
 static void take_output(bool silent_right)
 {
     int32_t left = 0;
@@ -95,6 +121,20 @@ static void block_boundaries_and_backpressure_do_not_change_the_samples(void)
     memcpy(comparison, output, first * sizeof output[0]);
     CHECK_EQUAL(first, render(8000, 500, 47));
     CHECK(memcmp(comparison, output, first * sizeof output[0]) == 0);
+}
+
+static void identical_channels_match_a_channel_filtered_beside_another(void)
+{
+    static const uint32_t RATES[] = {8000, 11025, 16000, 22050};
+    for (uint32_t index = 0; index < 500; index++) {
+        input[index] = (int32_t)((index * 48271u) % 16000000u) - 8000000;
+    }
+    for (size_t rate = 0; rate < sizeof RATES / sizeof RATES[0]; rate++) {
+        uint32_t count = render(RATES[rate], 500, 3);
+        memcpy(comparison, output, count * sizeof output[0]);
+        CHECK_EQUAL(count, render_identical(RATES[rate], 500));
+        CHECK(memcmp(comparison, output, count * sizeof output[0]) == 0);
+    }
 }
 
 static void constant_samples_keep_unity_gain_in_every_phase(void)
@@ -184,6 +224,7 @@ int main(void)
         TEST_CASE(native_rates_preserve_every_sample_without_filtering),
         TEST_CASE(short_streams_finish_at_exactly_the_input_duration),
         TEST_CASE(block_boundaries_and_backpressure_do_not_change_the_samples),
+        TEST_CASE(identical_channels_match_a_channel_filtered_beside_another),
         TEST_CASE(constant_samples_keep_unity_gain_in_every_phase),
         TEST_CASE(wide_input_and_filter_overshoot_are_clipped_without_overflow),
         TEST_CASE(restarting_discards_the_old_streams_history_and_pending_phases),

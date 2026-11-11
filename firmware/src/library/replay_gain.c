@@ -242,7 +242,7 @@ bool replay_gain_offer(ReplayGainTags *tags, ReplayGainField field, const char *
         return false;
     }
     if (gain) {
-        tags->gain[field] = number.negative ? -(int16_t)value : (int16_t)value;
+        tags->gain[field] = (int16_t)(number.negative ? -(int32_t)value : (int32_t)value);
     } else {
         tags->peak[field - REPLAY_GAIN_TRACK_PEAK] = value;
     }

@@ -30,13 +30,16 @@ ScreenModule screen_modules_of(const AppScreens *screens, const Screen *screen)
     return SCREEN_MODULE_NONE;
 }
 
-void screen_modules_cancel_equalizer_preview(AppScreens *screens)
+void screen_modules_cancel_previews(AppScreens *screens)
 {
     if ((screens->bound_modules & (1u << SCREEN_MODULE_SETTINGS)) == 0 ||
         screens->context.settings == NULL) {
         return;
     }
     SettingsScreens *settings = &screens->modules.settings.settings;
+    if (settings->preview.choice != STRING_COUNT) {
+        settings->preview_settings(settings, false);
+    }
     bool *previewing = NULL;
     if (settings->equalizer_preview == SETTINGS_EQ_PREVIEW_BROWSER) {
         previewing = &settings->equalizer_browser.previewing;
@@ -52,7 +55,7 @@ void screen_modules_cancel_equalizer_preview(AppScreens *screens)
 const ScreenModuleEntry *screen_modules_use(AppScreens *screens, ScreenModule module)
 {
     if (module != SCREEN_MODULE_SETTINGS) {
-        screen_modules_cancel_equalizer_preview(screens);
+        screen_modules_cancel_previews(screens);
     }
     const ScreenModuleEntry *entry = hal_system_load_module((uint32_t)module);
     if (entry == NULL || entry->magic != SCREEN_MODULE_MAGIC(module)) {

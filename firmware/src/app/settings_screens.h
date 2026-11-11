@@ -11,6 +11,7 @@
 #include "screens/bluetooth_screen.h"
 #include "screens/equalizer_browser.h"
 #include "screens/equalizer_screen.h"
+#include "settings_preview.h"
 #include "settings_store.h"
 #include "ui/choice_screen.h"
 #include "ui/menu_screen.h"
@@ -72,7 +73,9 @@ typedef struct SettingsEntry {
 struct SettingsScreens {
     SettingsContext context;
     const Theme *theme;
-    bool appearance_preview;
+    StringId choice_preview;
+    SettingsPreview preview;
+    const Settings *(*preview_settings)(SettingsScreens *screens, bool active);
     uint8_t equalizer_preview;
     MenuScreen menu;
     union {

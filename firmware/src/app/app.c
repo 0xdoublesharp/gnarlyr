@@ -175,9 +175,8 @@ static Rect whole_screen(void)
     return (Rect){0, 0, metrics->screen_width, metrics->screen_height};
 }
 
-static void apply_orientation(void)
+static void apply_orientation(Orientation orientation)
 {
-    Orientation orientation = app.settings.settings.orientation;
     app.shown_orientation = orientation;
     default_theme_set_orientation(&app.theme, orientation);
     notice_theme = NOTICE_THEME;
@@ -324,9 +323,20 @@ static void cancel_discovery(void)
     }
 }
 
+static const Settings *preview_settings(void)
+{
+    if ((app.screens.bound_modules & (1u << SCREEN_MODULE_SETTINGS)) != 0) {
+        SettingsScreens *screens = &app.screens.modules.settings.settings;
+        if (top_screen() == &screens->choice.screen) {
+            return screens->preview_settings(screens, true);
+        }
+    }
+    return &app.settings.settings;
+}
+
 static void cancel_edits(void)
 {
-    screen_modules_cancel_equalizer_preview(&app.screens);
+    screen_modules_cancel_previews(&app.screens);
     cancel_discovery();
     if (mixtape_busy()) {
         const ViewsModuleEntry *module =
@@ -578,7 +588,7 @@ static bool apply_action(ScreenAction action, uint32_t now_ms)
     if (top_screen() == &app.screens.modules.settings.settings.choice.screen &&
         (action.type == SCREEN_ACTION_POP || action.type == SCREEN_ACTION_POP_TO_ROOT ||
          (next != NULL && next != top_screen()))) {
-        screen_modules_cancel_equalizer_preview(&app.screens);
+        screen_modules_cancel_previews(&app.screens);
     }
     ScreenModule next_module =
         next != NULL ? screen_modules_of(&app.screens, next) : SCREEN_MODULE_NONE;
@@ -1030,6 +1040,7 @@ static StatusBarState current_status_bar(void)
         .battery_known = battery.known,
         .battery_percent = battery.percent,
         .usb_power = battery.usb_power,
+        .charging = battery.charging,
         .locked = app.lock.locked,
         .shuffle = (StatusShuffle)player_status(&app.player).shuffle,
     };
@@ -1089,29 +1100,18 @@ static void start_playback(void)
     cover_cache_open(&app.covers, &app.library.library);
 }
 
-static AppearanceTheme shown_appearance(void)
-{
-    const SettingsScreens *screens = &app.screens.modules.settings.settings;
-    bool settings_ready = (app.screens.bound_modules & (1u << SCREEN_MODULE_SETTINGS)) != 0;
-    if (settings_ready && screens->appearance_preview && top_screen() == &screens->choice.screen &&
-        screens->choice.list.selected >= 0 &&
-        screens->choice.list.selected < APPEARANCE_THEME_COUNT) {
-        return (AppearanceTheme)screens->choice.list.selected;
-    }
-    return app.settings.settings.appearance;
-}
-
 static void follow_appearance(void)
 {
-    default_theme_set_appearance(&app.theme, shown_appearance());
-    default_theme_set_accent(&app.theme, app.settings.settings.accent);
+    const Settings *shown = preview_settings();
+    if (shown->orientation != app.shown_orientation) {
+        apply_orientation(shown->orientation);
+    }
+    default_theme_set_appearance(&app.theme, shown->appearance);
+    default_theme_set_accent(&app.theme, shown->accent);
     notice_theme.colors = app.theme.colors;
     notice_theme.horizon = app.theme.horizon;
     notice_theme.header_rule = app.theme.header_rule;
-    default_theme_set_text_size(&app.theme, app.settings.settings.text_size);
-    if (app.settings.settings.orientation != app.shown_orientation) {
-        apply_orientation();
-    }
+    default_theme_set_text_size(&app.theme, shown->text_size);
 }
 
 static void start_hardware(uint32_t now_ms)
@@ -1222,7 +1222,8 @@ void app_start(void)
     settings_store_load(&app.settings);
     language_load(app.settings.settings.language);
     app.theme = BOARD_THEME;
-    apply_orientation();
+    app.screens.bound_modules = 0;
+    apply_orientation(app.settings.settings.orientation);
     follow_appearance();
     start_playback();
     start_hardware(now_ms);
@@ -1473,7 +1474,7 @@ static bool save_debug_screenshot(const DebugRequest *request)
                             .name = request->argument,
                             .slot = request->slot};
     app.status_bar = current_status_bar();
-    return debug_screenshot_save(&shot);
+    return debug_runner_screenshot(&shot);
 }
 
 static bool choose_setting(const DebugRequest *request, uint32_t now_ms)

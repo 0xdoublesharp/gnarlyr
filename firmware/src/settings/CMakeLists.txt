@@ -1,4 +1,5 @@
-add_library(echo_settings STATIC settings.c equalizer_peak.c equalizer_response.c equalizer_fit.c equalizer_slots.c rocker.c)
+add_library(echo_settings STATIC settings.c equalizer_peak.c equalizer_response.c equalizer_fit.c equalizer_fit_text.c equalizer_slots.c
+    rocker.c)
 target_include_directories(echo_settings PUBLIC include)
 target_link_libraries(echo_settings
     PUBLIC echo_core echo_playback

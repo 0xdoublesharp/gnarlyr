@@ -1,0 +1,8 @@
+libopus 1.6.1
+https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz
+SHA256 6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1
+
+Preserved unchanged: celt/, silk/, src/, include/, COPYING, AUTHORS, README,
+package_version and the three *_sources.mk files from the release archive.
+Excluded: build systems, documentation, tests, tools and optional neural models.
+port/ contains the local bounded scratch-allocation interface.

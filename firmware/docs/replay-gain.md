@@ -20,7 +20,7 @@ The four names are `REPLAYGAIN_TRACK_GAIN`, `REPLAYGAIN_ALBUM_GAIN`, `REPLAYGAIN
 
 | Container | Metadata |
 |---|---|
-| FLAC and Ogg Vorbis | Vorbis comments |
+| FLAC, Ogg Vorbis and Ogg Opus | Vorbis comments (Opus `R128_*` gains are not read) |
 | MP3 | ID3 TXXX/TXX; APEv2 fills missing fields |
 | WAV and DSF | Embedded ID3 TXXX/TXX |
 | AAC/ALAC in MP4 | Freeform atoms with `com.apple.iTunes` or `org.hydrogenaudio.replaygain` as their namespace |

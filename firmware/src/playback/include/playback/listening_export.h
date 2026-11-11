@@ -35,6 +35,7 @@ typedef struct ListeningExport {
     uint32_t offset;
     uint32_t text_end;
     uint16_t fill;
+    uint16_t plays;
     uint16_t exported;
     uint16_t unknown;
     uint16_t dropped;

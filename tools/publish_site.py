@@ -15,7 +15,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
 PUBLIC_FILES = (
-    "index.html", "firmware.html", "hardware.html", "install.html", "build.html",
+    "index.html", "firmware.html", "docs.html", "hardware.html", "recovery.html", "install.html", "build.html",
     "styles.css", "site.js", "favicon.svg", "robots.txt", "sitemap.xml",
     "languages.html", "language-catalog.js", "language-packs.js",
 )

@@ -3,6 +3,7 @@
 
 #include "check.h"
 #include "hal/storage.h"
+#include "playback/listening_export.h"
 #include "sim_storage.h"
 
 typedef struct Found {
@@ -83,6 +84,21 @@ static void deleting_a_system_file_keeps_the_music_files(void)
     hal_file_close(&file);
 }
 
+static void the_play_export_at_the_card_root_can_be_replaced(void)
+{
+    HalFile file;
+    sim_storage_configure(ECHO_TEST_OUTPUT_DIR, NULL);
+    (void)hal_file_remove(LISTENING_EXPORT_PATH);
+    CHECK_EQUAL(HAL_RESERVE_CREATED, hal_file_reserve(LISTENING_EXPORT_PATH, 100));
+    CHECK(hal_file_remove(LISTENING_EXPORT_PATH));
+    CHECK(!hal_file_open(&file, LISTENING_EXPORT_PATH));
+    CHECK_EQUAL(HAL_RESERVE_CREATED, hal_file_reserve(LISTENING_EXPORT_PATH, 40));
+    CHECK(hal_file_open(&file, LISTENING_EXPORT_PATH));
+    CHECK_EQUAL(40, file.size);
+    hal_file_close(&file);
+    CHECK(hal_file_remove(LISTENING_EXPORT_PATH));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -91,6 +107,7 @@ int main(void)
         TEST_CASE(a_missing_folder_does_not_open),
         TEST_CASE(a_read_after_an_overwrite_sees_the_new_bytes),
         TEST_CASE(deleting_a_system_file_keeps_the_music_files),
+        TEST_CASE(the_play_export_at_the_card_root_can_be_replaced),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

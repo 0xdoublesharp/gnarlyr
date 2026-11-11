@@ -15,7 +15,7 @@
       <svg viewBox="0 0 32 24" fill="none" aria-hidden="true"><rect x="1" y="2" width="30" height="20" rx="3" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="6" width="22" height="9" rx="2" stroke="currentColor"/><circle cx="10" cy="10.5" r="2.5" stroke="currentColor"/><circle cx="22" cy="10.5" r="2.5" stroke="currentColor"/><path d="m8 22 3-5h10l3 5" stroke="currentColor"/></svg>
       <span class="wordmark">GNARLYR<span class="brand-dot">.</span></span>
     </a>
-<nav aria-label="Main navigation"><a href="firmware.html">Features</a><a href="hardware.html">Hardware</a><a href="install.html">Install</a><a href="languages.html" class="nav-cta">Languages</a></nav>
+<nav aria-label="Main navigation"><a href="firmware.html">Features</a><a href="docs.html">Docs</a><a href="install.html">Install</a><a href="languages.html" class="nav-cta">Languages</a></nav>
 </header>
 <main id="main">
 <div class="page-intro wrap"><p class="eyebrow">Source builds · developer tools</p><h1 class="page-title">Build and develop.</h1><p>Build firmware, use the developer USB loop and explore codec tools from a Gnarlyr source checkout. For a ready-made image and player setup, use the <a href="install.html">Install guide</a>.</p></div>
@@ -25,6 +25,7 @@
 <li><a href="#processing">ReplayGain &amp; tempo source</a></li>
 <li><a href="#usb">USB internals</a></li>
 <li><a href="#migration">Older custom builds</a></li>
+<li><a href="#recovery-tools">Recovery tool setup</a></li>
 <li><a href="#recovery">Recovery reference</a></li></ol></nav><div>
 <section class="doc-section" id="build" aria-labelledby="build-title">
 <h2 id="build-title">Build from your checkout.
@@ -77,14 +78,16 @@
 <h3>Language packs over USB</h3>
 <p>Build a pack in the <a href="languages.html">browser builder</a>, then run <code>python3 tools/echo_debug.py language-install /path/to/es.pack --select</code> with a developer player connected in USB storage mode. The helper checks the pack against the installed build, verifies the copied file and selects the language after reconnecting. Use <code>language-select en</code> to return to English.</p>
 <p>List installed languages with <code>language-list</code>. Check a pack without installing it with <code>language-inspect /path/to/es.pack</code>. The matching <code>echo_language_*</code> MCP tools expose the same operations. Listing ignores macOS <code>._</code> metadata files, and selection resolves the current language’s setting label. Managed installation validates the installed catalogue and same-player music volume, keeping writes limited to language-pack paths. Full usage is in <code>docs/language-packs.md</code>.</p>
+<h3>Reversible display and audio previews</h3>
+<p>The settings source previews the highlighted Accent Color, Brightness, Text size, Orientation, Gain, Output, ReplayGain or Prevent clipping value while you browse. Play saves the choice; Back, leaving the picker or switching off restores the saved value. Accent Color affects Graphite’s highlights and decorative details.</p>
 <h3>Button-lock input handling</h3>
 <p>The key-lock source requires an uninterrupted Play+Power hold. Releasing and pressing either key again before completion resets the timer; after a successful toggle, both keys must be released before another hold can toggle it. This corrects interrupted presses being counted as one continuous hold.</p>
 <h3>Audio processing and diagnostics</h3>
 <p>Audio processing remains available as interface modules change. A separate 8 KiB code bank holds sample-rate conversion and M4A/M4B parsing. Diagnostic counts exclude intentionally muted DMA pauses, so a normal pause is not reported as missing audio.</p>
 </section>
 <section class="doc-section" id="codecs" aria-labelledby="codecs-title">
-<h2 id="codecs-title">Vorbis and audio pipeline integrations.</h2>
-<p class="intro">An Ogg file wraps compressed audio in packets; a decoder turns them into samples. The newer audio source connects those pieces to the player, including file opening, duration, seeking and saved-position startup.</p>
+<h2 id="codecs-title">Vorbis, Opus and the audio pipeline.</h2>
+<p class="intro">An Ogg file wraps compressed audio in packets; a decoder turns them into samples. The Vorbis source connects those pieces to the player, including file opening, duration, seeking and saved-position startup.</p>
 <ul class="detail-list">
 <li><strong>Checked Ogg input.</strong> The packet reader validates pages, CRC, sequence and continuation before forwarding audio. Large comments and embedded artwork stay out of the decoder workspace; the original file stays unchanged.</li>
 <li><strong>Bounded Vorbis decoding.</strong> A separate core-1 program uses pinned Xiph Tremor source, a 64 KiB workspace and a 32 KiB compressed-packet limit. The source handles mono/stereo configuration, refuses oversized setups and keeps duration and seek positions on the same sample timeline.</li>
@@ -92,12 +95,20 @@
 <li><strong>Continuous conversion across queued files.</strong> Files with the same decoded input rate retain converter history and output boundaries. A rate change drains and restarts the filter. Initial current/next publication precedes DAC prefill; clearing an already-empty queue preserves prepared audio and position.</li>
 <li><strong>Metadata bounds.</strong> Unicode tag text is preserved during whitespace trimming. WMA fields, MP4 duration headers and MP3 APE footer lengths are checked before they affect metadata or audio bounds.</li>
 </ul>
-<p>These integrations describe source behavior. Vorbis listening, processing headroom and converted-file transitions still need checks on the ECHO; Opus remains outside the implemented playback formats.</p>
+<p>Vorbis is connected to the playback source. Listening, processing headroom and converted-file transitions still need checks on the ECHO.</p>
+<h3>Opus decoder and image bank</h3>
+<p>Opus is another audio format carried in Ogg files. The Opus development branch adds a fixed-point libopus decoder and a separate core-1 program stored in its own firmware-image bank.</p>
+<ul class="detail-list">
+<li><strong>Bounded decoding.</strong> The component handles SILK, CELT and hybrid packets, mono or stereo, with output rates from 8 to 48 kHz and packets up to 120 ms.</li>
+<li><strong>Track timing and output level.</strong> The core-1 program reads the channel configuration, initial samples to skip and header gain. It publishes long packets in pieces that fit the shared output buffers.</li>
+<li><strong>Shared packet transport.</strong> Vorbis and Opus use the same checked record reader. The image builder reserves the Opus bank separately from glyphs, language packs and other modules.</li>
+</ul>
+<p>The decoder and image bank are components for player integration. They do not yet add Opus to the player’s supported formats. Opening files, seeking, resume and real-time playback need the completed integration and ECHO checks. See <code>firmware/docs/opus.md</code> alongside the Opus branch’s code and image configuration.</p>
 <p>The host test utility <code>ogg_packet_tool</code> exports checked packets for decoder comparisons. See <code>firmware/docs/ogg-packets.md</code> and <code>firmware/docs/ogg-vorbis.md</code> in the matching audio source checkout.</p>
 </section>
 <section class="doc-section" id="processing" aria-labelledby="processing-title">
 <h2 id="processing-title">Loudness and tempo processing in source.</h2>
-<p class="intro">ReplayGain uses stored loudness information to adjust a song’s level. A tempo kernel changes pace while preserving pitch. The audio branch implements these as separate parts of the processing pipeline.</p>
+<p class="intro">ReplayGain uses stored loudness information to adjust a song’s level. Tempo processing changes pace while preserving pitch. The audio branch connects both to the playback engine; normal speed remains the default.</p>
 <h3>ReplayGain controls and metadata</h3>
 <ul class="detail-list">
 <li><strong>Off, Track and Album.</strong> Off is the default. Track uses each song’s gain; Album retains the tagged level relationships within an album. Missing preferred gain falls back to the other kind; untagged or unreadable gain data uses the normal level.</li>
@@ -105,9 +116,17 @@
 <li><strong>Saved controls and continuous playback.</strong> Mode and clipping choices are persistent. Changes affect newly buffered audio without reopening the current track or restarting DMA, and each current/queued track carries its own gain.</li>
 <li><strong>Checked library data.</strong> Rescanning or desktop indexing prepares gain records without rewriting music files or changing the base library fingerprint used by queues and labels. Peak values round conservatively; removed tags clear stale gain data, and invalid caches do not supply unchecked amplification.</li>
 </ul>
-<h3>Pitch-preserving tempo kernel</h3>
+<h3>Pitch-preserving tempo in the device engine</h3>
 <p>The fixed-memory kernel accepts signed 24-bit stereo samples at 8–48 kHz and integer speeds from 50 to 200 percent. At 100 percent it copies samples unchanged. Caller-owned storage bounds the working memory.</p>
-<p>The kernel is a processing component, not a player speed setting: Playback and Settings do not call it yet. ReplayGain listening/headroom and end-to-end tempo playback require their own ECHO checks.</p>
+<ul class="detail-list">
+<li><strong>Stretch before conversion.</strong> The device engine applies track gain and volume, adjusts tempo at the decoded rate, converts lower-rate speech for output, then applies EQ.</li>
+<li><strong>Positions stay tied to the recording.</strong> Seeking and speed changes use the audible source position, preserve pause state and restore the prepared next track with its gain.</li>
+<li><strong>Continuous chapter and queue boundaries.</strong> Same-rate queued files and adjacent chapters keep processing history. Rate changes drain the pending audio before restarting the relevant stage.</li>
+<li><strong>Fixed working memory.</strong> Non-unity tempo reuses part of the audio ring and private processing storage. It accepts supported decoded rates up to 48 kHz; normal-speed rate support is unchanged.</li>
+</ul>
+<p>Persistent speed controls and simulator integration are separate work. The engine connection does not yet provide a player speed setting. ReplayGain listening/headroom and tempo quality and throughput require ECHO checks.</p>
+<h3>Preparing lower-rate speech</h3>
+<p>The converter handles 8, 11.025, 12, 16, 22.05 and 24 kHz input in source, but hardware reports show dropouts in this playback path. For listening, convert recordings below 32 kHz to 44.1 or 48 kHz on your computer before copying them. Engine and decoder comparisons alone do not establish real-time performance on the player.</p>
 <p>See <code>firmware/docs/replay-gain.md</code> and <code>firmware/docs/audio-tempo.md</code> in the audio source checkout.</p>
 </section>
 <section class="doc-section" id="usb" aria-labelledby="usb-title">
@@ -142,6 +161,8 @@
 <p>Gnarlyr uses <code>GNARLYR</code>, the data folder <code>/.gnarlyr</code> and the CUE playlist directive <code>#GNARLYR-START:</code>. The transition guide explains how to update older exported CUE playlists while preserving their paths and track positions. Ordinary music files keep their contents.</p>
 <p>Keep the original backup and exact-model recovery files throughout the transition. Renaming an image alone cannot change the identity inside it.</p>
 </section>
+<section class="doc-section" id="recovery-tools" aria-labelledby="recovery-tools-title"><h2 id="recovery-tools-title">Build the ECHO recovery tool.</h2><p class="intro">The recovery tool talks to the chip before the player software starts. Build the patched version for the full-size ECHO from your Gnarlyr checkout on macOS.</p><p>Use the project’s libusb and CMake prerequisites. With Scratch mounted, run these commands from the repository root. Clone and patch once; the patch refuses a checkout it does not recognize or one already patched.</p><pre><code><span class="cmd">export TMPDIR=/Volumes/Scratch/SnowskyEcho/tmp/recovery-tool</span><span class="cmd">mkdir -p &quot;$TMPDIR&quot;</span><span class="cmd">git clone https://github.com/rockchip-linux/rkdeveloptool.git .local/references/rkdeveloptool</span><span class="cmd">git -C .local/references/rkdeveloptool checkout --detach 304f073752fd25c854e1bcf05d8e7f925b1f4e14</span><span class="cmd">python3 firmware/tools/patch_rkdeveloptool.py .local/references/rkdeveloptool</span><span class="cmd">cmake -S tools/recovery -B /Volumes/Scratch/SnowskyEcho/build/recovery-tool \
+  -DRKDEVELOPTOOL_SOURCE=&quot;$PWD/.local/references/rkdeveloptool&quot; -DCMAKE_BUILD_TYPE=Release</span><span class="cmd">cmake --build /Volumes/Scratch/SnowskyEcho/build/recovery-tool -j4</span><span class="cmd">export PATH=&quot;/Volumes/Scratch/SnowskyEcho/build/recovery-tool:$PATH&quot;</span></code></pre><p>The result is <code>rkdeveloptool-echo</code>, version 1.32. The project verifies the pinned revision and patched contents before building. <a href="recovery.html">Continue with the first-installation and recovery guide →</a></p></section>
 <section class="doc-section" id="recovery" aria-labelledby="recovery-title">
 <h2 id="recovery-title">Restore the original firmware.
 </h2>
@@ -162,7 +183,7 @@
 <p class="eyebrow">Made for the music you already love.
 </p></div>
 <footer class="wrap">
-<nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html">Features &amp; improvements</a><a href="hardware.html">ECHO hardware</a><a href="install.html">Install &amp; update</a><a href="languages.html">Languages</a><a href="build.html" aria-current="page">Developers</a></nav>
+<nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html">Features &amp; improvements</a><a href="docs.html">Docs</a><a href="install.html">Install &amp; update</a><a href="languages.html">Languages</a><a href="build.html" aria-current="page">Developers</a></nav>
 <div class="footer-row"><span>GNARLYR.COM / Open-source ECHO firmware</span><div class="footer-links"><a href="https://podium-echo.online">Podium ↗</a><a href="https://github.com/BasilSkyWalk/echopod">EchoPod ↗</a><a href="https://github.com/brnomt/ReChord">ReChord ↗</a><a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0-or-later ↗</a></div></div>
 <p>Gnarlyr by doublesharp. Built on Podium and EchoPod, with hardware research from ReChord.
 </p>

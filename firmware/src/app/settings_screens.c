@@ -408,7 +408,7 @@ static void preview_equalizer(void *context, const SettingsEqualizerCurve *curve
 
 static Screen *equalizer_editor(SettingsScreens *screens, int slot)
 {
-    screens->appearance_preview = false;
+    screens->choice_preview = STRING_COUNT;
     screens->equalizer_preview = SETTINGS_EQ_PREVIEW_EDITOR;
     EqualizerScreenConfig config = {.settings = &screens->context.store->settings,
                                     .changed = equalizer_changed,
@@ -562,7 +562,7 @@ static ScreenAction open_choice(void *context)
     SettingsEntry *entry = context;
     SettingsScreens *screens = entry->owner;
     const SettingChoice *choice = entry->choice;
-    screens->appearance_preview = choice->choose == choose_appearance;
+    screens->choice_preview = choice->title;
     screens->equalizer_preview =
         choice->title == STR_EQUALIZER ? SETTINGS_EQ_PREVIEW_BROWSER : SETTINGS_EQ_PREVIEW_NONE;
     ChoiceConfig config = {
@@ -652,8 +652,10 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
     screens->context.presets = &screens->presets;
     screens->context.languages = &screens->languages;
     screens->theme = theme;
-    screens->appearance_preview = false;
+    screens->choice_preview = STRING_COUNT;
     screens->equalizer_preview = SETTINGS_EQ_PREVIEW_NONE;
+    screens->preview = (SettingsPreview){.choice = STRING_COUNT};
+    screens->preview_settings = settings_preview_shown;
     equalizer_presets_read_slots(&screens->presets);
     language_list(&screens->languages);
     ButtonSettingsConfig buttons = {.settings = &screens->context.store->settings,

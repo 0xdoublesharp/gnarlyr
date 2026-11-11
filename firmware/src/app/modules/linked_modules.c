@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "debug_runner.h"
 #include "modules/modules.h"
 
 const void *app_linked_module(uint32_t module)
@@ -13,4 +14,13 @@ const void *app_linked_module(uint32_t module)
         [SCREEN_MODULE_LISTENING] = &LISTENING_MODULE_ENTRY,
     };
     return module < SCREEN_MODULE_COUNT ? ENTRIES[module] : NULL;
+}
+
+const void *app_linked_debug_code(void)
+{
+#ifdef ECHO_DEBUG_LOOP
+    return &DEBUG_MODULE_ENTRY;
+#else
+    return NULL;
+#endif
 }

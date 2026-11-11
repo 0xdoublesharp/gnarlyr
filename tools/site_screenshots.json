@@ -1,0 +1,207 @@
+{
+  "version": 1,
+  "defaults": {
+    "frames": 900,
+    "battery": 80
+  },
+  "demo": {
+    "tracks": [
+      {
+        "title": "First Light",
+        "artist": "{firmware_name} Demo",
+        "album": "Daybreak",
+        "seconds": 30
+      },
+      {
+        "title": "Night Drive",
+        "artist": "{firmware_name} Demo",
+        "album": "After Hours",
+        "seconds": 30
+      },
+      {
+        "title": "Soft Focus",
+        "artist": "{firmware_name} Demo",
+        "album": "After Hours",
+        "seconds": 30
+      }
+    ],
+    "lyrics": "[00:00.00]A new day begins\n[00:03.00]Take the long way home\n[00:10.00]One more song\n",
+    "audiobook": {
+      "chapters": [
+        "Opening",
+        "The Middle",
+        "Finale"
+      ],
+      "title": "City Stories",
+      "artist": "{firmware_name} Demo"
+    }
+  },
+  "screens": [
+    {
+      "name": "home",
+      "file": "home.png",
+      "expected_title": "{firmware_name}",
+      "keys": []
+    },
+    {
+      "name": "cover-flow",
+      "file": "cover-flow.png",
+      "expected_title": "Cover Flow",
+      "keys": [
+        "play",
+        "down",
+        "play"
+      ]
+    },
+    {
+      "name": "search",
+      "file": "search.png",
+      "expected_title": "Search",
+      "keys": [
+        "play",
+        "play"
+      ]
+    },
+    {
+      "name": "now-playing",
+      "file": "now-playing.png",
+      "expected_title": "Now Playing",
+      "keys": [
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "play"
+      ]
+    },
+    {
+      "name": "up-next",
+      "file": "up-next.png",
+      "expected_title": "Up Next",
+      "keys": [
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "play",
+        "menu"
+      ]
+    },
+    {
+      "name": "mixtapes",
+      "file": "mixtapes.png",
+      "expected_title": "Mixtapes",
+      "keys": [
+        "down",
+        "down",
+        "down",
+        "play"
+      ]
+    },
+    {
+      "name": "listening",
+      "file": "listening.png",
+      "expected_title": "Listening",
+      "keys": [
+        "down",
+        "down",
+        "down",
+        "down",
+        "play"
+      ]
+    },
+    {
+      "name": "lyrics",
+      "file": "lyrics.png",
+      "expected_title": "Lyrics",
+      "keys": [
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "play",
+        "menu:long"
+      ]
+    },
+    {
+      "name": "audiobook-chapters",
+      "file": "audiobook-chapters.png",
+      "expected_title": "City Stories",
+      "keys": [
+        "down",
+        "play",
+        "play:long"
+      ]
+    },
+    {
+      "name": "equalizer",
+      "file": "equalizer.png",
+      "expected_title": "Equalizer",
+      "keys": [
+        "down",
+        "down",
+        "play",
+        "up",
+        "up",
+        "up",
+        "up",
+        "up",
+        "up",
+        "up",
+        "up",
+        "up",
+        "play",
+        "down"
+      ]
+    },
+    {
+      "name": "controls",
+      "file": "controls.png",
+      "expected_title": "Controls",
+      "keys": [
+        "down",
+        "down",
+        "play",
+        "up",
+        "play"
+      ]
+    },
+    {
+      "name": "themes",
+      "file": "themes.png",
+      "expected_title": "Theme",
+      "keys": [
+        "down",
+        "down",
+        "play",
+        "up",
+        "up",
+        "play"
+      ]
+    },
+    {
+      "name": "usb-mode",
+      "file": "usb-mode.png",
+      "expected_title": "USB mode",
+      "keys": [
+        "up",
+        "play"
+      ]
+    }
+  ]
+}

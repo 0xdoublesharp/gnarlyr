@@ -62,7 +62,8 @@ typedef enum Core1Program {
     CORE1_PROGRAM_FLAC,
     CORE1_PROGRAM_MP3,
     CORE1_PROGRAM_M4A,
-    CORE1_PROGRAM_VORBIS
+    CORE1_PROGRAM_VORBIS,
+    CORE1_PROGRAM_OPUS
 } Core1Program;
 
 bool board_core1_start_stream(Core1Program program);
@@ -73,6 +74,7 @@ void board_audio_before_clock_change(void);
 void board_audio_after_clock_change(void);
 void board_audio_shut_down(void);
 uint8_t board_audio_volume_level(void);
+bool board_audio_converting(void);
 void board_audio_set_attenuation(uint8_t steps);
 bool board_audio_stream_open(uint32_t rate, void (*service)(void));
 uint32_t *board_audio_stream_ring(uint32_t *frames);

@@ -75,6 +75,11 @@ const void *hal_system_load_module(uint32_t module)
     return app_linked_module(module);
 }
 
+const void *hal_system_load_debug_code(void)
+{
+    return app_linked_debug_code();
+}
+
 HalHighRamTest hal_system_high_ram_test(void)
 {
     return (HalHighRamTest){.status = HAL_HIGH_RAM_UNAVAILABLE};

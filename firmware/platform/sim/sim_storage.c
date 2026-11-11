@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include "hal/storage.h"
+#include "playback/listening_export.h"
 
 enum {
     OPEN_FILE_CAPACITY = 8,
@@ -120,6 +121,11 @@ static bool is_system_path(const char *path)
 {
     return storage.system_directory != NULL &&
            strncmp(path, SYSTEM_PREFIX, sizeof SYSTEM_PREFIX - 1) == 0;
+}
+
+static bool is_removable(const char *path)
+{
+    return is_system_path(path) || strcmp(path, LISTENING_EXPORT_PATH) == 0;
 }
 
 static bool replace_file(const char *from, const char *to)
@@ -301,6 +307,6 @@ void hal_dir_close(HalDir *dir)
 bool hal_file_remove(const char *path)
 {
     char resolved[PATH_CAPACITY];
-    return is_system_path(path) && sim_storage_host_path(path, resolved, sizeof resolved) &&
+    return is_removable(path) && sim_storage_host_path(path, resolved, sizeof resolved) &&
            remove(resolved) == 0;
 }
