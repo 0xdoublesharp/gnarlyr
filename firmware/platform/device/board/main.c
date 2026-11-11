@@ -56,6 +56,7 @@ static const UsbOverlayEntry *load_usb_code(void)
     app_release_audio();
     const UsbOverlayEntry *entry = board_usb_overlay_load();
     if (entry != NULL && entry->magic == USB_OVERLAY_MAGIC) {
+        app_set_usb_renderer(entry->draw);
         return entry;
     }
     usb_power_down();
@@ -72,6 +73,7 @@ static void run_usb_session(void)
     raise_clock_for_usb();
     const UsbOverlayEntry *usb = load_usb_code();
     bool storage_changed = usb != NULL && usb->storage(usb_session_shared());
+    app_set_usb_renderer(NULL);
     if (storage_changed || hal_system_restart_pending()) {
         storage_reset();
         app_start();
@@ -89,6 +91,7 @@ static void run_dac_session(void)
     if (usb != NULL) {
         usb->dac(usb_session_shared());
     }
+    app_set_usb_renderer(NULL);
     app_wake();
     board_stall_pause(false);
 }

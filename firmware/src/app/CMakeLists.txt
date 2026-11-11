@@ -56,9 +56,13 @@ add_library(echo_app STATIC
     settings_preview.c
     settings_screens.c
     settings_store.c
+    headphone_store.c
+    headphone_store_edit.c
+    headphone_editor.c
     spoken_store.c
     wall_time.c
     screens/bluetooth_screen.c
+    screens/card_format_screen.c
     screens/calendar_screen.c
     screens/clock_screen.c
     screens/charge_screen.c
@@ -78,8 +82,10 @@ else()
 endif()
 if(ECHO_BUILD_DEVICE)
     target_sources(echo_app PRIVATE extension_calls.c)
+    target_compile_definitions(echo_app PRIVATE ECHO_USB_OVERLAY_RENDERER)
 else()
-    target_sources(echo_app PRIVATE modules/linked_modules.c library_rescan_job.c)
+    target_sources(echo_app PRIVATE modules/linked_modules.c library_rescan_job.c
+        screens/usb_screen.c)
 endif()
 target_include_directories(echo_app PUBLIC include PRIVATE .)
 target_link_libraries(echo_app

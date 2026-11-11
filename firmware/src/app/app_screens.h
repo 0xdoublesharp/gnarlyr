@@ -95,6 +95,7 @@ typedef struct AppScreensContext {
     const LibraryStore *store;
     Player *player;
     SettingsStore *settings;
+    HeadphoneStore *headphones;
     FavoritesStore *favorites;
     PowerPolicy *power;
     Toast *toast;

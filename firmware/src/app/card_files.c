@@ -9,6 +9,7 @@
 #include "favorite_playlist.h"
 #include "favorites_store.h"
 #include "hal/storage.h"
+#include "headphone_store.h"
 #include "library_rescan.h"
 #include "library_store.h"
 #include "listening_store.h"
@@ -40,6 +41,7 @@ static const CardFile CARD_FILES[] = {
     {LIBRARY_SCRATCH_PATH, SCRATCH_FILE_BYTES, false},
     {SETTINGS_STORE_PATH, SMALL_FILE_BYTES, true},
     {SETTINGS_BUTTONS_PATH, SETTINGS_BUTTONS_FILE_SIZE, true},
+    {HEADPHONE_STORE_PATH, HEADPHONE_FILE_BYTES, true},
     {PLAYER_SESSION_PATH, SMALL_FILE_BYTES, false},
     {PLAYER_ORDER_PATH, TRACK_ORDER_FILE_BYTES, false},
     {MIX_CATALOG_PATH, MIX_CATALOG_BYTES, false},

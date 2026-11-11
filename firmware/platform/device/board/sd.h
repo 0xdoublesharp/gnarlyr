@@ -9,3 +9,8 @@ bool sd_start(BlockDevice *device);
 uint32_t sd_sector_count(void);
 bool sd_read(void *context, uint32_t lba, uint32_t count, void *buffer);
 bool sd_write(void *context, uint32_t lba, uint32_t count, const void *buffer);
+
+bool sd_present(void);
+uint32_t sd_generation(void);
+void sd_forget(void);
+uint32_t sd_allocation_unit(void);

@@ -41,6 +41,8 @@ typedef struct SimAudio {
     HalAudioGain analog_gain;
     HalAudioOutput output;
     HalAudioEqualizer equalizer;
+    HeadphoneAudio headphones;
+    uint8_t volume;
 } SimAudio;
 
 static SimAudio audio;
@@ -148,7 +150,8 @@ static bool decode_chunk(void)
     }
     float gain = audio.gain * track->replay_gain;
     for (uint64_t sample = 0; sample < frames * STEREO; sample++) {
-        float value = chunk[sample] * gain;
+        uint32_t channel = sample % STEREO == 0 ? audio.headphones.left : audio.headphones.right;
+        float value = chunk[sample] * gain * ((float)channel / REPLAY_GAIN_UNITY);
         chunk[sample] = value > 1 ? 1 : value < -1 ? -1 : value;
     }
     SDL_AudioStreamPut(audio.stream, chunk, (int)(frames * BYTES_PER_FRAME));
@@ -201,6 +204,8 @@ bool sim_audio_start(bool virtual_output)
     SDL_memset(&audio, 0, sizeof audio);
     audio.virtual_output = virtual_output;
     audio.gain = 1.0f;
+    audio.volume = HAL_AUDIO_VOLUME_MAX;
+    audio.headphones = headphone_audio_defaults();
     audio.state = HAL_AUDIO_STOPPED;
     if (virtual_output) {
         return true;
@@ -308,10 +313,26 @@ void hal_audio_seek(uint32_t position_ms)
 
 void hal_audio_set_volume(uint8_t level)
 {
+    level = headphone_audio_limit(audio.headphones, level);
     float decibels = (float)level - (float)HAL_AUDIO_VOLUME_MAX;
     lock();
     audio.gain = level == 0 ? 0.0f : powf(10.0f, decibels / DECIBELS_PER_FACTOR_OF_TEN);
+    audio.volume = level;
     unlock();
+}
+
+HeadphoneAudio hal_audio_headphones(void)
+{
+    return audio.headphones;
+}
+
+void hal_audio_set_headphones(HeadphoneAudio profile)
+{
+    lock();
+    audio.headphones = profile;
+    clear_stream();
+    unlock();
+    hal_audio_set_volume(audio.volume);
 }
 
 void hal_audio_set_gain(HalAudioGain gain)

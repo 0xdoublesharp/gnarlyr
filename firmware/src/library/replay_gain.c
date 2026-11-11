@@ -8,6 +8,11 @@ enum {
     TEXT_LIMIT = REPLAY_GAIN_TEXT_CAPACITY - 1,
     KEPT_DIGITS = 12,
     GAIN_LIMIT = 9600,
+    R128_TEXT_LIMIT = 6,
+    R128_MAX = 32767,
+    R128_SCALE = 256,
+    R128_REFERENCE_OFFSET = 5 * R128_SCALE,
+    CENTI_DB = 100,
     PEAK_SCALE = 16777216
 };
 
@@ -230,7 +235,8 @@ bool replay_gain_offer(ReplayGainTags *tags, ReplayGainField field, const char *
                        uint32_t length)
 {
     if (tags == NULL || text == NULL || length == 0 || length > TEXT_LIMIT ||
-        (uint32_t)field >= REPLAY_GAIN_NO_FIELD || (tags->present & (1u << field)) != 0) {
+        (uint32_t)field >= REPLAY_GAIN_NO_FIELD ||
+        (tags->present & (uint8_t)~tags->r128 & (1u << field)) != 0) {
         return false;
     }
     bool gain = field <= REPLAY_GAIN_ALBUM_GAIN;
@@ -247,6 +253,47 @@ bool replay_gain_offer(ReplayGainTags *tags, ReplayGainField field, const char *
         tags->peak[field - REPLAY_GAIN_TRACK_PEAK] = value;
     }
     tags->present |= (uint8_t)(1u << field);
+    tags->r128 &= (uint8_t)~(1u << field);
+    return true;
+}
+
+static bool r128_value(const char *text, uint32_t length, int32_t *value)
+{
+    if (length == 0 || length > R128_TEXT_LIMIT) {
+        return false;
+    }
+    bool negative = text[0] == '-';
+    uint32_t first = negative || text[0] == '+' ? 1u : 0u;
+    uint32_t number = 0;
+    for (uint32_t at = first; at < length; at++) {
+        if (!digit(text[at])) {
+            return false;
+        }
+        number = number * 10 + (uint32_t)(text[at] - '0');
+    }
+    if (first == length || number > R128_MAX + (negative ? 1u : 0u)) {
+        return false;
+    }
+    *value = negative ? -(int32_t)number : (int32_t)number;
+    return true;
+}
+
+bool replay_gain_offer_r128(ReplayGainTags *tags, ReplayGainField field, const char *text,
+                            uint32_t length)
+{
+    int32_t value;
+    if (tags == NULL || text == NULL || (uint32_t)field > REPLAY_GAIN_ALBUM_GAIN ||
+        (tags->present & (1u << field)) != 0 || !r128_value(text, length, &value)) {
+        return false;
+    }
+    int32_t scaled = (value + R128_REFERENCE_OFFSET) * CENTI_DB;
+    int32_t gain = (scaled + (scaled < 0 ? -R128_SCALE / 2 : R128_SCALE / 2)) / R128_SCALE;
+    if (gain < -GAIN_LIMIT || gain > GAIN_LIMIT) {
+        return false;
+    }
+    tags->gain[field] = (int16_t)gain;
+    tags->present |= (uint8_t)(1u << field);
+    tags->r128 |= (uint8_t)(1u << field);
     return true;
 }
 

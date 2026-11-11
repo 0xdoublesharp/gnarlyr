@@ -11,8 +11,6 @@ enum {
     FRONT_COVER = 3,
     ID3_HEADER_SIZE = 10,
     OGG_HEADER_SIZE = 27,
-    OGG_SEARCH_CHUNK = 512,
-    OGG_SEARCH_LIMIT = 65536,
     VORBIS_PACKET_PREFIX = 7,
     OPUS_PACKET_PREFIX = 8,
     OPUS_HEAD_SIZE = 19,
@@ -87,6 +85,16 @@ static bool base64_picture_is_front(const uint8_t *text, uint32_t length)
     return (bits >> 4) == FRONT_COVER;
 }
 
+static ReplayGainField r128_field(const uint8_t *key, uint32_t length)
+{
+    if (tag_same_text_folded((const char *)key, length, "r128_track_gain")) {
+        return REPLAY_GAIN_TRACK_GAIN;
+    }
+    return tag_same_text_folded((const char *)key, length, "r128_album_gain")
+               ? REPLAY_GAIN_ALBUM_GAIN
+               : REPLAY_GAIN_NO_FIELD;
+}
+
 static void offer_entry(TagReader *reader, ByteSource source, uint32_t offset, uint32_t length)
 {
     uint8_t value[VALUE_CAPACITY];
@@ -111,10 +119,17 @@ static void offer_entry(TagReader *reader, ByteSource source, uint32_t offset, u
         return;
     }
     ReplayGainField gain = replay_gain_field((const char *)value, key);
-    if (gain != REPLAY_GAIN_NO_FIELD) {
+    ReplayGainField r128 = reader->opus ? r128_field(value, key) : REPLAY_GAIN_NO_FIELD;
+    if (gain != REPLAY_GAIN_NO_FIELD || r128 != REPLAY_GAIN_NO_FIELD) {
         if (value_length <= sizeof value &&
             source_read(source, value_offset, value, value_length)) {
-            (void)replay_gain_offer(&reader->replay_gain, gain, (const char *)value, value_length);
+            if (r128 != REPLAY_GAIN_NO_FIELD) {
+                (void)replay_gain_offer_r128(&reader->replay_gain, r128, (const char *)value,
+                                             value_length);
+            } else {
+                (void)replay_gain_offer(&reader->replay_gain, gain, (const char *)value,
+                                        value_length);
+            }
         }
         return;
     }
@@ -254,7 +269,9 @@ typedef struct OggPage {
     uint32_t offset;
     uint32_t header_length;
     uint32_t body_length;
+    uint32_t serial;
     uint64_t granule;
+    uint8_t flags;
 } OggPage;
 
 static bool read_page(const TagReader *reader, uint32_t offset, OggPage *page)
@@ -262,7 +279,8 @@ static bool read_page(const TagReader *reader, uint32_t offset, OggPage *page)
     uint8_t header[OGG_HEADER_SIZE];
     uint8_t segments[255];
     if (!tag_read(reader, offset, header, sizeof header) ||
-        !tag_same_text((const char *)header, 4, "OggS")) {
+        !tag_same_text((const char *)header, 4, "OggS") || header[4] != 0 ||
+        (header[5] & ~7u) != 0) {
         return false;
     }
     uint32_t count = header[26];
@@ -273,25 +291,57 @@ static bool read_page(const TagReader *reader, uint32_t offset, OggPage *page)
     for (uint32_t index = 0; index < count; index++) {
         body += segments[index];
     }
+    uint32_t header_length = OGG_HEADER_SIZE + count;
+    if (body > reader->size - offset - header_length ||
+        ((header[5] & 4) != 0 && count != 0 && segments[count - 1] == 255)) {
+        return false;
+    }
     *page = (OggPage){.offset = offset,
-                      .header_length = OGG_HEADER_SIZE + count,
+                      .header_length = header_length,
                       .body_length = body,
-                      .granule = tag_le64(header + 6)};
+                      .serial = tag_le32(header + 14),
+                      .granule = tag_le64(header + 6),
+                      .flags = header[5]};
     return true;
+}
+
+static uint32_t page_end(const OggPage *page)
+{
+    return page->offset + page->header_length + page->body_length;
+}
+
+static bool read_serial_page(const TagReader *reader, uint32_t offset, uint32_t serial,
+                             OggPage *page)
+{
+    while (offset < reader->size) {
+        if (!read_page(reader, offset, page)) {
+            return false;
+        }
+        if (page->serial == serial) {
+            return true;
+        }
+        offset = page_end(page);
+    }
+    return false;
 }
 
 typedef struct OggStream {
     TagReader *reader;
     OggPage page;
     uint32_t page_start;
+    uint32_t serial;
 } OggStream;
 
 static bool stream_seek(OggStream *stream, uint32_t offset)
 {
     while (offset >= stream->page_start + stream->page.body_length) {
-        uint32_t next = stream->page.offset + stream->page.header_length + stream->page.body_length;
+        if ((stream->page.flags & 4) != 0) {
+            return false;
+        }
+        uint32_t next = page_end(&stream->page);
         stream->page_start += stream->page.body_length;
-        if (!read_page(stream->reader, next, &stream->page)) {
+        if (!read_serial_page(stream->reader, next, stream->serial, &stream->page) ||
+            (stream->page.flags & 2) != 0) {
             return false;
         }
     }
@@ -323,30 +373,20 @@ static bool read_stream_bytes(void *context, uint32_t offset, void *buffer, uint
     return true;
 }
 
-static bool last_page_granule(const TagReader *reader, uint64_t *granule)
+static bool first_eos_granule(const TagReader *reader, const OggPage *first, uint64_t *granule)
 {
-    uint8_t chunk[OGG_SEARCH_CHUNK + 3];
-    uint32_t limit = reader->size < OGG_SEARCH_LIMIT ? reader->size : OGG_SEARCH_LIMIT;
-    uint32_t floor = reader->size - limit;
-    uint32_t end = reader->size;
-    while (end > floor) {
-        uint32_t start = end - floor > OGG_SEARCH_CHUNK ? end - OGG_SEARCH_CHUNK : floor;
-        uint32_t length = end - start + 3 <= reader->size - start ? end - start + 3 : end - start;
-        if (!tag_read(reader, start, chunk, length)) {
+    OggPage page = *first;
+    while ((page.flags & 4) == 0) {
+        if (!read_serial_page(reader, page_end(&page), first->serial, &page) ||
+            (page.flags & 2) != 0) {
             return false;
         }
-        for (uint32_t index = length < 4 ? 0 : length - 3; index-- > 0;) {
-            OggPage page;
-            if (chunk[index] == 'O' && index + 3 < length &&
-                tag_same_text((const char *)chunk + index, 4, "OggS") &&
-                read_page(reader, start + index, &page)) {
-                *granule = page.granule;
-                return true;
-            }
-        }
-        end = start;
     }
-    return false;
+    if (page.granule == UINT64_MAX) {
+        return false;
+    }
+    *granule = page.granule;
+    return true;
 }
 
 typedef struct OggCodec {
@@ -379,8 +419,11 @@ bool tags_read_ogg(TagReader *reader)
         !ogg_codec(identification, &codec)) {
         return false;
     }
-    OggStream stream = {.reader = reader, .page_start = 0};
-    if (!read_page(reader, first.header_length + first.body_length, &stream.page)) {
+    OggStream stream = {.reader = reader, .page_start = 0, .serial = first.serial};
+    reader->opus = codec.prefix == OPUS_PACKET_PREFIX;
+    if ((first.flags & 4) != 0 ||
+        !read_serial_page(reader, page_end(&first), first.serial, &stream.page) ||
+        (stream.page.flags & 2) != 0) {
         return false;
     }
     ByteSource source = {.read = read_stream_bytes, .context = &stream};
@@ -390,7 +433,7 @@ bool tags_read_ogg(TagReader *reader)
         tags_read_vorbis_comment(reader, source, codec.prefix, UINT32_MAX);
     }
     uint64_t granule = 0;
-    if (codec.rate > 0 && last_page_granule(reader, &granule) && granule != UINT64_MAX &&
+    if (codec.rate > 0 && first_eos_granule(reader, &first, &granule) &&
         granule >= codec.pre_skip) {
         tag_set_duration(reader, (double)(granule - codec.pre_skip) / (double)codec.rate);
     }

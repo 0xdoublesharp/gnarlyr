@@ -43,7 +43,7 @@ static bool identification(const uint8_t *bytes, const OggPacket *packet, OggTra
 static bool configuration(FlacInput input, OggTrack *track)
 {
     OggPackets packets;
-    ogg_packets_init(&packets, input);
+    ogg_packets_init_first(&packets, input);
     track->header_bytes = 3 * OGG_RECORD_BYTES;
     for (uint32_t index = 0; index < 3; index++) {
         uint8_t bytes[30] = {0};

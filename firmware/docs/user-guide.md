@@ -30,12 +30,26 @@ On the first start with a microSD card in the player, Gnarlyr builds its library
 
 - Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Settings → About → Music shows which one is in use. Settings are kept on internal storage either way, so they stay the same when you insert or remove the card.
 - Gnarlyr plays FLAC, MP3 and WAV, up to 192 kHz, and `.m4a` and `.m4b` files with AAC-LC or Apple Lossless audio. Speech recordings at 8, 11.025, 12, 16, 22.05 and 24 kHz are converted to 32, 44.1 or 48 kHz for playback; 32 kHz plays at its original rate. Speed and pitch stay the same. It lists the other formats FiiO lists, and says when it can't play one.
+- Ogg Vorbis (`.ogg`) accepts mono or stereo at 8–192 kHz within the decoder limits; Ogg Opus (`.opus`) accepts mono or stereo with channel mapping family 0. Chained Vorbis files play the first stream only. Large picture comments and separate interleaved streams are skipped during decoding. Both formats play in the desktop simulator; player listening and high-rate playback still need checking. See [format limits](ogg-vorbis.md).
 - Music → Folders shows the card as it is: folders, then each audio file by its full name with its extension (`01 Intro.mp3`). The other lists show titles from the tags. Hold ▶ on a folder there to play everything under it, subfolders included, in the order Folders shows it (a CUE album plays once, as its songs); the queue follows the shuffle setting and has no length limit beyond the library's 65,535 tracks.
 - A `.cue` file next to a single FLAC, WAV or MP3 album image splits it into one track per CUE track (see "CUE sheets" below). Album covers come from art inside each album's first track, or from a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks.
 - `.m3u` and `.m3u8` playlists anywhere on the card appear under Music → Playlists.
 - **Favorite Playlist.** Hold Play on a song in any list and choose Add to Favorite Playlist. The song goes into `Favorite Tracks.m3u` in the top folder of the music storage (the card, or the player's own storage without a card). The file is made on the first use, holds one path per line relative to that folder, and can be read and edited on a computer. A song that is one track of a CUE album gets the line `#GNARLYR-START:` and the track's start in milliseconds above its path (the path is the album's audio file, so computer players open the whole album); the player and echo-sync use the start to pick that exact track, and a line without it stands for the album's last track. Each track of a CUE album is added and checked on its own. A song already in it shows "Already in Favorites". The file has room for a few hundred songs; when it is full, or a computer edit left it without spare room, the player shows "Couldn't add to Favorites". Music → Playlists shows Favorite Tracks with the new song straight away, with no rescan, also after a restart. Lines added to the file on a computer show after the next library scan.
 - The library holds up to 65,535 tracks; [`known-issues.md`](known-issues.md) says what has been tested.
 - Gnarlyr keeps its own files in a hidden `/.gnarlyr` folder on the card, about 110 MB of them. Don't delete it unless you want the library rebuilt.
+
+## Format a card
+
+Back up everything you want to keep on the microSD card. Formatting erases its music, library, saved queue, resume positions and mixtapes.
+
+1. Pause playback from the card and finish any USB session. Charge the battery above 30%, or connect a charger.
+2. Open Settings → Format card. Check the card size and the warning that everything on it will be erased.
+3. Press Play to continue. The second confirmation starts on Cancel; choose Erase card with a volume key, then press Play. Back cancels either confirmation.
+4. Keep the card inserted until formatting finishes. The library starts empty; copy music over USB to rebuild it.
+
+Cards through 32 GB use FAT32; larger cards use exFAT. The volume is named ECHO. Internal storage keeps its files. This is a quick format: old file contents can remain recoverable until new files overwrite them.
+
+An interrupted format reports that the card needs formatting. Reinsert the card and choose Format card again before copying music. Physical card formatting still needs the owner checks listed in [known issues](known-issues.md).
 
 ## Search, sorting and personal tags
 
@@ -76,6 +90,8 @@ Depeche Mode/Violator/
 - Rescan the library (Settings → Rescan library) or run echo-sync again after adding or changing a sheet.
 
 ## Copying music over USB
+
+The USB screen shows the connection mode and charging state. While connecting, or if charging artwork is unavailable, a plain text screen keeps the state and instructions visible.
 
 1. Connect the player and choose **File transfer** when it asks (see [When you plug in](#when-you-plug-in)). Two drives appear: internal storage and the SD card.
 2. Copy music to the SD card, or to internal storage when no card is in the player.
@@ -186,6 +202,19 @@ Settings → Skip songs picks how the buttons change the song on Now Playing and
 
 After a pause, ▶ picks up a little before where you stopped, so you don't lose the thread. The longer the pause, the further back: nothing for a pause of 10 seconds or less, 3 seconds after a minute, 10 seconds after ten minutes and 20 seconds after an hour or more. Audiobooks and podcasts go back half as far again (4.5 s, 15 s and 30 s). After the player was switched off, the first ▶ goes back 20 seconds (30 seconds for audiobooks and podcasts), since the player has no clock to tell how long it was off. It never goes back past the start of the song, chapter or CUE track. If you move the position yourself while paused, ▶ plays from exactly there. The time on Now Playing shows the jump. Settings → Rewind on resume turns this off.
 
+## Headphone profiles
+
+Settings → Headphones keeps four profiles. **Active profile** chooses one, or **Off** to use neutral sound. Open a profile to edit it, then choose **Use profile** to make it active.
+
+- **Name:** choose In-ear, Over-ear, On-ear, Earbuds, Studio or Travel.
+- **Trim:** reduce the level from 0 to −12 dB in 0.5 dB steps.
+- **Balance:** move left or right in 1% steps. Balance reduces the opposite channel and never boosts either one.
+- **Volume ceiling:** limit the volume to a step from 0 to 60; 0 mutes it.
+
+Press ▶ to save a value; Back cancels the choice. The selected profile, names and values are kept on internal storage across restarts and card changes. Trim, balance and the ceiling apply to music and USB DAC output. Music and USB DAC keep their separate volume levels.
+
+Switching to a louder profile, including Off, lowers those volume levels first so neither channel rises unexpectedly. Restoring a channel that was completely muted can lower the volume to 0. Turn it up again as needed, within the chosen ceiling. Music already buffered finishes before new trim and balance values reach it.
+
 ## Safe start volume
 
 When you turn the player on, plug headphones into either jack or connect Bluetooth headphones, a volume above the safe level is lowered to it, and a short "Volume lowered to 24" message says so. A quieter volume is never raised. Turn it up again as usual; it stays where you put it until the next time you turn the player on or plug headphones in. Settings → Safe start volume picks the level (12, 18, 24, 30 or 36, on the same scale Now Playing shows; 24 is the default) or Off. The USB DAC keeps its own volume and isn't affected.
@@ -244,7 +273,7 @@ The graph is a calculated 44.1 kHz filter response with a labeled decibel scale,
 
 ## ReplayGain
 
-Settings → ReplayGain offers Off, Track and Album. Track uses each song's prepared gain; Album uses the album gain to keep the level relationships within an album. If one kind of gain is missing, the player uses the other. Songs without gain tags keep their normal level. Off is the default.
+Settings → ReplayGain offers Off, Track and Album. Track uses each song's prepared gain; Album uses the album gain to keep the level relationships within an album. If one kind of gain is missing, the player uses the other. Songs without gain tags keep their normal level. Opus files also use their R128 track or album gain tags, converted to the ReplayGain reference; standard ReplayGain gain tags take precedence when both are present. Off is the default.
 
 Leave Settings → Prevent clipping on to limit normalization using the file's peak tags. Without peak tags, it retains attenuation and limits boosts to unity. Turning it off allows the full tagged gain. Changes apply to newly buffered audio while the current and next songs keep playing.
 
@@ -358,7 +387,7 @@ Home → Mixtapes saves a queue as a named list. Save queue captures the current
 
 Gnarlyr sets its clock from your Mac. Every companion command that ejects the player (`python3 tools/echo_debug.py set-time` does only that) leaves the Mac's time on the drive, and the player sets its clock as the drive is ejected. The clock then keeps going while the player is on. When the player has been switched off or restarted, the time is unknown until the next sync.
 
-While the time is set it also shows in the status bar, left of the battery; in landscape it steps aside for a long screen title. Home → Clock shows the time, the weekday and the date in 24-hour time. Press ▶ for Calendar: the current month from Monday with today marked. The volume buttons move a month at a time, ▶ goes back to the current month and Back returns to Clock. Without a set time both say so and how to set it.
+While the time is set it also shows in the status bar, left of the battery; in landscape it steps aside for a long screen title. Settings → Clock format chooses 12-hour time with AM/PM or 24-hour time (the default). The status bar follows the same choice, including in Calendar. Home → Clock shows the time, the weekday and the date. Press ▶ for Calendar: the current month from Monday with today marked. The volume buttons move a month at a time, ▶ goes back to the current month and Back returns to Clock. Without a set time both say so and how to set it.
 
 ## Listening and lyrics
 

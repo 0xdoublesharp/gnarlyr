@@ -118,7 +118,7 @@ static bool normalize_track(OggTrack *track)
         return false;
     }
     OggPackets reader;
-    ogg_packets_init(&reader, input());
+    ogg_packets_init_first(&reader, input());
     for (uint32_t index = 0; index < 3; index++) {
         OggPacket packet_info;
         if (ogg_packets_next(&reader, packet, sizeof packet, &packet_info) != OGG_PACKET_READY) {
@@ -472,9 +472,36 @@ static void cropped_first_pages_match_the_independent_reference_before_and_after
     }
 }
 
+static void chained_and_multiplexed_files_play_and_seek_only_the_first_vorbis_link(void)
+{
+    static const char *const NAMES[] = {"chained44", "multiplexed44"};
+    static const char *const REFERENCES[] = {"stereo44", "seek44"};
+    for (uint32_t index = 0; index < 2; index++) {
+        CHECK(load(NAMES[index]));
+        OggTrack track;
+        CHECK(vorbis_track_probe(input(), &track));
+        compare_loaded_seek(REFERENCES[index], 0);
+        compare_loaded_seek(REFERENCES[index], 5000);
+        compare_loaded_seek(REFERENCES[index], index == 0 ? 11025 : 100000);
+    }
+    CHECK(load("chained44"));
+    uint32_t original = file_size;
+    memset(data + original, 0, 3 * 65307);
+    file_size += 3 * 65307;
+    compare_loaded_seek("stereo44", 5000);
+    CHECK(load("stereo44"));
+    original = file_size;
+    for (uint32_t index = 1; index < 50; index++) {
+        memcpy(data + index * original, data, original);
+    }
+    file_size = 50 * original;
+    compare_loaded_seek("stereo44", 5000);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(chained_and_multiplexed_files_play_and_seek_only_the_first_vorbis_link),
         TEST_CASE(cropped_first_pages_match_the_independent_reference_before_and_after_seeking),
         TEST_CASE(header_only_prefill_stops_before_audio_and_origin_failure_keeps_the_track_intact),
         TEST_CASE(nonzero_origins_keep_duration_samples_and_seek_positions_on_the_same_timeline),

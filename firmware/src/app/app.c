@@ -35,6 +35,7 @@
 #include "hal/display.h"
 #include "hal/input.h"
 #include "hal/power.h"
+#include "headphone_store.h"
 #include "language.h"
 #include "library_rescan.h"
 #include "library_store.h"
@@ -107,6 +108,7 @@ typedef struct AppState {
     ListeningStore listening;
     bool listening_loaded;
     SettingsStore settings;
+    HeadphoneStore headphones;
     Theme theme;
     Orientation shown_orientation;
     bool rocker_swapped[KEY_COUNT];
@@ -120,6 +122,8 @@ typedef struct AppState {
     bool rescan_requested;
     bool language_requested;
     bool music_check_requested;
+    bool storage_formatted;
+    bool format_success;
     bool prepare_pending;
     size_t prepare_index;
     CardFilesReport prepare_report;
@@ -131,6 +135,7 @@ typedef struct AppState {
     StatusBarState status_bar;
     char battery_text[STATUS_BAR_PERCENT_CAPACITY];
     char clock_text[STATUS_BAR_CLOCK_CAPACITY];
+    AppUsbRenderer usb_renderer;
     AppScreens screens;
     MessageScreen notice;
     WireMotion motion;
@@ -1021,14 +1026,17 @@ static void draw_slide(Canvas *canvas, Screen *arriving)
     }
 }
 
-static StatusBarState shown_status_bar(const AppState *state, const char *title)
+static StatusBarState shown_status_bar(const AppState *state, const Screen *screen)
 {
     StatusBarState bar = state->status_bar;
     const Theme *theme = board_theme();
+    const char *title = screen->title;
     if (bar.clock == NULL || title == NULL || theme->metrics.status_height > 0) {
         return bar;
     }
-    int title_end = (theme->metrics.screen_width + text_width(theme->fonts.header, title)) / 2;
+    int width = screen->header_title_width != 0 ? screen->header_title_width
+                                                : text_width(theme->fonts.header, title);
+    int title_end = (theme->metrics.screen_width + width) / 2;
     if (status_bar_clock_area(theme, bar).x < title_end + theme->metrics.padding) {
         bar.clock = NULL;
     }
@@ -1048,7 +1056,7 @@ static void draw_frame(void *context, Canvas *canvas)
         screen->draw(screen->context, canvas);
     }
     if (!screen->full_screen) {
-        status_bar_draw(canvas, board_theme(), shown_status_bar(state, screen->title));
+        status_bar_draw(canvas, board_theme(), shown_status_bar(state, screen));
     }
     toast_draw(&state->toast, canvas, board_theme());
     if (state->options.show_frame_time) {
@@ -1294,6 +1302,7 @@ static void build_screens(uint32_t now_ms)
         .player = &app.player,
         .spoken = &app.spoken,
         .settings = &app.settings,
+        .headphones = &app.headphones,
         .favorites = &app.favorites,
         .power = &app.power,
         .toast = &app.toast,
@@ -1352,6 +1361,11 @@ static void report_card_files(CardFilesReport files, uint32_t now_ms)
 
 static void start_app(bool power_on)
 {
+#ifdef ECHO_USB_OVERLAY_RENDERER
+    app.usb_renderer = NULL;
+#else
+    app.usb_renderer = usb_screen_draw;
+#endif
     uint32_t now_ms = hal_clock_milliseconds();
     key_tracker_init(&app.keys, &KEY_CONFIG);
     frame_stats_reset(&app.frame_stats);
@@ -1376,6 +1390,7 @@ static void start_app(bool power_on)
     app.prepare_report = (CardFilesReport){.library_created = false, .card_full = false};
     settings_store_load(&app.settings);
     language_load(app.settings.settings.language);
+    headphone_store_load(&app.headphones);
     app.theme = BOARD_THEME;
     app.screens.bound_modules = 0;
     apply_orientation(app.settings.settings.orientation);
@@ -1477,6 +1492,13 @@ void app_release_audio(void)
     player_release_output(&app.player);
 }
 
+void app_storage_formatted(bool success)
+{
+    app.storage_formatted = true;
+    app.format_success = success;
+    app.listening_loaded = false;
+}
+
 void app_remember_dac_volume(uint8_t level)
 {
     app.settings.settings.dac_volume = level;
@@ -1495,17 +1517,17 @@ void app_request_rescan_if_music_changed(void)
 }
 
 typedef struct ChargeFrame {
-    const SettingsModuleEntry *entry;
+    const ViewsModuleEntry *entry;
 } ChargeFrame;
 
 static void draw_charge(void *context, Canvas *canvas)
 {
     const ChargeFrame *frame = context;
-    const SettingsModuleEntry *entry = frame->entry;
+    const ViewsModuleEntry *entry = frame->entry;
     if (entry != NULL) {
         entry->charge_draw(canvas, board_theme(), app.charge_battery, app.now_ms);
     } else {
-        usb_screen_draw(
+        usb_screen_draw_fallback(
             canvas, board_theme(), app.charge_battery,
             (AppUsbStatus){.view = APP_USB_POWER, .detail = i18n_text(STR_CHARGE_MODE_HINT)});
     }
@@ -1618,7 +1640,8 @@ static void charge_step(uint32_t now_ms)
     bool moving = app.charge_battery.usb_power && app.charge_battery.charging;
     bool due = deadline_reached(now_ms, app.pacer.last_ms + CHARGE_SCREEN_FRAME_MS);
     if (app.display_on && (app.render_wanted || (moving && due))) {
-        ChargeFrame frame = {.entry = settings_module()};
+        ChargeFrame frame = {.entry = (const ViewsModuleEntry *)screen_modules_use(
+                                 &app.screens, SCREEN_MODULE_VIEWS)};
         app.render_wanted = false;
         app.pacer.last_ms = now_ms;
         render((FrameDrawer){.draw = draw_charge, .context = &frame}, true);
@@ -1654,6 +1677,9 @@ static bool prepare_step(void)
         }
     }
     app.prepare_pending = false;
+    if (app.headphones.load == STORE_UNREADABLE) {
+        headphone_store_load(&app.headphones);
+    }
     report_card_files(app.prepare_report, hal_clock_milliseconds());
     return false;
 }
@@ -1850,6 +1876,16 @@ CORE_SEAM void app_step(void)
     } else {
         dispatch_key_events(now_ms);
     }
+    if (app.storage_formatted) {
+        bool success = app.format_success;
+        app.storage_formatted = false;
+        app.rescan_requested = false;
+        app.music_check_requested = false;
+        start_app(false);
+        toast_show(&app.toast, i18n_text(success ? STR_CARD_FORMAT_DONE : STR_CARD_FORMAT_FAILED),
+                   hal_clock_milliseconds());
+        return;
+    }
     if (app.saying_goodbye && fade_finished(&app.goodbye, now_ms)) {
         finish_shut_down();
     }
@@ -1937,7 +1973,16 @@ typedef struct UsbStatusFrame {
 static void draw_usb_status(void *context, Canvas *canvas)
 {
     const UsbStatusFrame *frame = context;
-    usb_screen_draw(canvas, board_theme(), frame->battery, frame->status);
+    AppUsbRenderer draw = app.usb_renderer;
+    if (draw == NULL || frame->status.view == APP_USB_CONNECTING) {
+        draw = usb_screen_draw_fallback;
+    }
+    draw(canvas, board_theme(), frame->battery, frame->status);
+}
+
+CORE_SEAM void app_set_usb_renderer(AppUsbRenderer renderer)
+{
+    app.usb_renderer = renderer;
 }
 
 CORE_SEAM void app_show_usb_status(AppUsbStatus status)

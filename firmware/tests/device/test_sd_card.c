@@ -277,6 +277,20 @@ static void a_wrong_cmd8_echo_fails(void)
     CHECK(find_command(&card, 41, 0) == NULL);
 }
 
+static void the_csd_erase_unit_is_available_when_sd_status_is_unknown(void)
+{
+    FakeCard card = sdsc_v1_card();
+    set_bits(card.csd, 22, 4, 9);
+    set_bits(card.csd, 39, 7, 31);
+    SdHost host = host_for(&card);
+    SdCard sd;
+    CHECK(sd_card_init(&sd, &host));
+    CHECK_EQUAL(32, sd.erase_sectors);
+    set_bits(card.csd, 46, 1, 1);
+    CHECK(sd_card_init(&sd, &host));
+    CHECK_EQUAL(1, sd.erase_sectors);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -292,6 +306,7 @@ int main(void)
         TEST_CASE(a_card_that_stays_busy_fails_after_100_tries),
         TEST_CASE(no_card_fails_without_sending_commands),
         TEST_CASE(a_wrong_cmd8_echo_fails),
+        TEST_CASE(the_csd_erase_unit_is_available_when_sd_status_is_unknown),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

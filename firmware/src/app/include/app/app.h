@@ -19,6 +19,11 @@ typedef struct AppUsbStatus {
     const char *information;
 } AppUsbStatus;
 
+struct Canvas;
+struct Theme;
+typedef void (*AppUsbRenderer)(struct Canvas *canvas, const struct Theme *theme, HalBattery battery,
+                               AppUsbStatus status);
+
 void app_start(void);
 void app_step(void);
 void app_stop(void);
@@ -27,6 +32,7 @@ const char *app_screen_title(void);
 int app_screen_depth(void);
 void app_show_notice(const char *title, const char *message);
 void app_show_usb_status(AppUsbStatus status);
+void app_set_usb_renderer(AppUsbRenderer renderer);
 bool app_usb_battery_changed(HalBattery before, HalBattery after);
 void app_wake(void);
 void app_open_usb_modes(void);
@@ -39,3 +45,5 @@ void app_show_splash(void);
 bool app_charging(void);
 uint32_t app_pass_interval_ms(void);
 bool app_preparing(void);
+
+void app_storage_formatted(bool success);

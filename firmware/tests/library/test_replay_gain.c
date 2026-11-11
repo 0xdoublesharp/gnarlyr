@@ -162,6 +162,39 @@ static void decimal_peak_quantization_matches_exact_binary_boundaries(void)
     }
 }
 
+static void every_r128_integer_rounds_after_the_reference_conversion(void)
+{
+    for (int raw = -32768; raw <= 32767; raw++) {
+        char text[8];
+        int length = snprintf(text, sizeof text, "%d", raw);
+        int expected = (int)round(((double)raw / 256.0 + 5.0) * 100.0);
+        ReplayGainTags tags = {0};
+        bool supported = expected >= -9600 && expected <= 9600;
+        CHECK_EQUAL(supported,
+                    replay_gain_offer_r128(&tags, REPLAY_GAIN_TRACK_GAIN, text, (uint32_t)length));
+        CHECK_EQUAL(supported ? expected : 0, tags.gain[0]);
+        CHECK_EQUAL(supported ? 1 : 0, tags.present);
+    }
+}
+
+static void standard_gain_replaces_r128_without_invalid_values_poisoning_it(void)
+{
+    ReplayGainTags tags = {0};
+    CHECK(replay_gain_offer_r128(&tags, REPLAY_GAIN_TRACK_GAIN, "256", 3));
+    CHECK_EQUAL(600, tags.gain[0]);
+    CHECK(!offer(&tags, REPLAY_GAIN_TRACK_GAIN, "bad"));
+    CHECK_EQUAL(600, tags.gain[0]);
+    CHECK(!replay_gain_offer_r128(&tags, REPLAY_GAIN_TRACK_GAIN, "0", 1));
+    CHECK(offer(&tags, REPLAY_GAIN_TRACK_GAIN, "0 dB"));
+    CHECK_EQUAL(0, tags.gain[0]);
+    CHECK_EQUAL(0, tags.r128);
+    CHECK(!replay_gain_offer_r128(&tags, REPLAY_GAIN_TRACK_GAIN, "256", 3));
+    CHECK(!offer(&tags, REPLAY_GAIN_TRACK_GAIN, "6 dB"));
+    CHECK(!replay_gain_offer_r128(NULL, REPLAY_GAIN_ALBUM_GAIN, "0", 1));
+    CHECK(!replay_gain_offer_r128(&tags, REPLAY_GAIN_ALBUM_GAIN, NULL, 1));
+    CHECK(!replay_gain_offer_r128(&tags, REPLAY_GAIN_TRACK_PEAK, "0", 1));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -174,6 +207,8 @@ int main(void)
         TEST_CASE(peak_rounding_never_allows_the_declared_peak_above_full_scale),
         TEST_CASE(peaks_just_above_binary_boundaries_round_up_from_all_decimal_digits),
         TEST_CASE(decimal_peak_quantization_matches_exact_binary_boundaries),
+        TEST_CASE(every_r128_integer_rounds_after_the_reference_conversion),
+        TEST_CASE(standard_gain_replaces_r128_without_invalid_values_poisoning_it),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
