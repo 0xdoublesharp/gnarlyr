@@ -60,7 +60,7 @@ Each scenario in `tests/emulator/scenarios/test_*.py` is its own test, named `de
 
 ## Integration
 
-- Merge each finished branch into `main` as soon as its checks are green; avoid batching completed branches.
+- Land finished work promptly. A single ready branch merges into `main` once its full-suite gate is green; when several are ready together, combine them on a short-lived integration branch with one full suite (see `../docs/development.md`). Don't hold finished branches back for a large batch.
 - Feature agents run only their own tests with `python3 tools/firmware.py test --regex '<tests>'` while editing.
 - Give the machine to one full-suite gate after the edits: `python3 tools/firmware.py test --jobs 10` when nothing else is building, otherwise `--jobs 6`. Do not start competing full-suite runs.
 - The last measured full suite on `main` was 385 tests in 634 seconds with `--jobs 6` on a shared machine. 115 of those tests are ARM image scenarios, and each reserves two processors. Use that measurement when planning shared-machine work.
