@@ -24,7 +24,7 @@ static bool read_file(void *context, uint32_t offset, void *out, uint32_t bytes)
 static bool normalize(FlacInput input, OggTrack *track)
 {
     OggPackets reader;
-    ogg_packets_init(&reader, input);
+    ogg_packets_init_first(&reader, input);
     VorbisDecoder decoder;
     if (!vorbis_decoder_init(&decoder, ring + VORBIS_RING_BYTES, VORBIS_WORKSPACE_BYTES)) {
         return false;
