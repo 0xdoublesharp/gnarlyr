@@ -13,7 +13,10 @@ enum {
     OGG_HEADER_SIZE = 27,
     OGG_SEARCH_CHUNK = 512,
     OGG_SEARCH_LIMIT = 65536,
-    VORBIS_PACKET_PREFIX = 7
+    VORBIS_PACKET_PREFIX = 7,
+    OPUS_PACKET_PREFIX = 8,
+    OPUS_HEAD_SIZE = 19,
+    OPUS_RATE = 48000
 };
 
 typedef struct VorbisKey {
@@ -346,29 +349,50 @@ static bool last_page_granule(const TagReader *reader, uint64_t *granule)
     return false;
 }
 
+typedef struct OggCodec {
+    uint32_t rate;
+    uint32_t pre_skip;
+    uint32_t prefix;
+    const char *comment;
+} OggCodec;
+
+static bool ogg_codec(const uint8_t *head, OggCodec *codec)
+{
+    if (head[0] == 1 && tag_same_text((const char *)head + 1, 6, "vorbis")) {
+        *codec = (OggCodec){tag_le32(head + 12), 0, VORBIS_PACKET_PREFIX, "\3vorbis"};
+        return true;
+    }
+    if (tag_same_text((const char *)head, 8, "OpusHead")) {
+        *codec = (OggCodec){OPUS_RATE, tag_le16(head + 10), OPUS_PACKET_PREFIX, "OpusTags"};
+        return true;
+    }
+    return false;
+}
+
 bool tags_read_ogg(TagReader *reader)
 {
     OggPage first;
-    uint8_t identification[16];
+    uint8_t identification[OPUS_HEAD_SIZE];
+    OggCodec codec;
     if (!read_page(reader, 0, &first) || first.body_length < sizeof identification ||
         !tag_read(reader, first.header_length, identification, sizeof identification) ||
-        identification[0] != 1 || !tag_same_text((const char *)identification + 1, 6, "vorbis")) {
+        !ogg_codec(identification, &codec)) {
         return false;
     }
-    uint32_t rate = tag_le32(identification + 12);
     OggStream stream = {.reader = reader, .page_start = 0};
     if (!read_page(reader, first.header_length + first.body_length, &stream.page)) {
         return false;
     }
     ByteSource source = {.read = read_stream_bytes, .context = &stream};
-    uint8_t prefix[VORBIS_PACKET_PREFIX];
-    if (source_read(source, 0, prefix, sizeof prefix) && prefix[0] == 3 &&
-        tag_same_text((const char *)prefix + 1, 6, "vorbis")) {
-        tags_read_vorbis_comment(reader, source, VORBIS_PACKET_PREFIX, UINT32_MAX);
+    uint8_t prefix[OPUS_PACKET_PREFIX];
+    if (source_read(source, 0, prefix, codec.prefix) &&
+        tag_same_text((const char *)prefix, codec.prefix, codec.comment)) {
+        tags_read_vorbis_comment(reader, source, codec.prefix, UINT32_MAX);
     }
     uint64_t granule = 0;
-    if (rate > 0 && last_page_granule(reader, &granule) && granule != UINT64_MAX) {
-        tag_set_duration(reader, (double)granule / (double)rate);
+    if (codec.rate > 0 && last_page_granule(reader, &granule) && granule != UINT64_MAX &&
+        granule >= codec.pre_skip) {
+        tag_set_duration(reader, (double)(granule - codec.pre_skip) / (double)codec.rate);
     }
     return true;
 }
