@@ -146,6 +146,8 @@ enum {
     SETTINGS_TRANSITION_TENTHS_MIN = 5,
     SETTINGS_TRANSITION_TENTHS_MAX = 60,
     SETTINGS_DEFAULT_TRANSITION_TENTHS = 15,
+    SETTINGS_SPEED_COUNT = 9,
+    SETTINGS_SPEED_NORMAL = 3,
     SETTINGS_HOME_ITEM_COUNT = 10,
     SETTINGS_HOME_SETTINGS_ITEM = 3,
     SETTINGS_HOME_FIRST_ITEM_COUNT = 9,
@@ -191,6 +193,7 @@ typedef struct Settings {
     uint8_t transition_tenths;
     uint8_t home_order[SETTINGS_HOME_ITEM_COUNT];
     uint16_t home_hidden;
+    uint8_t playback_speed;
 } Settings;
 
 typedef struct SettingsEqualizerCurve {
@@ -213,6 +216,7 @@ SettingsEqualizerCurve settings_equalizer_curve(const Settings *settings);
 void settings_encode(const Settings *settings, uint8_t *bytes);
 bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings);
 bool settings_home_unpack(const uint8_t *packed, int item_count, uint8_t *order, uint16_t *hidden);
+uint8_t settings_speed_percent(int option);
 
 ButtonAction settings_default_button_action(PlaybackButton button);
 ButtonAction settings_button_action(const Settings *settings, PlaybackButton button);

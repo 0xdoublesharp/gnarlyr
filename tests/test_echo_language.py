@@ -384,10 +384,13 @@ class LanguageCommands(VolumeCase):
                             tool.language_list()
                         self.assertEqual(raised.exception.code, "language_settings_invalid")
 
-    def current_snapshot(self, home_items=None):
+    def current_snapshot(self, home_items=None, speed=True):
         original = echo_language.Snapshot.show
         sources = {path: (ROOT / path).read_text() for path in
                    ("firmware/src/settings/settings.c", "firmware/src/settings/include/settings/settings.h")}
+        if not speed:
+            source = "firmware/src/settings/settings.c"
+            sources[source] = re.sub(r"\n\s*SPEED_BYTE = 3,", "", sources[source])
         if home_items is not None:
             header = "firmware/src/settings/include/settings/settings.h"
             sources[header] = re.sub(r"SETTINGS_HOME_ITEM_COUNT = \d+", "SETTINGS_HOME_ITEM_COUNT = %d" % home_items,
@@ -450,8 +453,8 @@ class LanguageCommands(VolumeCase):
 
     def test_version15_settings_with_an_invalid_extension_cannot_be_verified(self):
         valid = bytes([0x07, 24, 15, 0, 0x10, 0x32, 0x54, 0x76, 0x08]) + bytes(7)
-        for offset, value in ((0, 0x18), (1, 61), (2, 4), (3, 1), (4, 0x00), (8, 0x18), (9, 0x08),
-                              (10, 0x02), (15, 1)):
+        for offset, value in ((0, 0x18), (1, 61), (2, 4), (3, 6), (3, 0xFC), (4, 0x00), (8, 0x18),
+                              (9, 0x08), (10, 0x02), (15, 1)):
             extension = bytearray(valid)
             extension[offset] = value
             with self.subTest(offset=offset, value=value), self.current_snapshot():
@@ -462,6 +465,27 @@ class LanguageCommands(VolumeCase):
                     tool.language_list()
                 self.assertEqual(raised.exception.code, "language_settings_invalid")
                 self.assertEqual(host.ejected, [])
+
+    def test_version15_settings_with_a_saved_playback_speed_verify(self):
+        valid = bytes([0x07, 24, 15, 0, 0x10, 0x32, 0x54, 0x76, 0x08]) + bytes(7)
+        for step in (0xFD, 0xFF, 1, 5):
+            extension = bytearray(valid)
+            extension[3] = step
+            with self.subTest(step=step), self.current_snapshot():
+                (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(
+                    settings("en", 15, 0, bytes(extension)))
+                tool, host = self.live_tool("en", version=15)
+                self.assertIn("languages", tool.language_list())
+
+    def test_a_build_without_the_speed_byte_still_requires_it_clear(self):
+        valid = bytes([0x07, 24, 15, 1, 0x10, 0x32, 0x54, 0x76, 0x08]) + bytes(7)
+        with self.current_snapshot(speed=False):
+            (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(
+                settings("en", 15, 0, valid))
+            tool, host = self.live_tool()
+            with self.assertRaises(echo_debug.DebugError) as raised:
+                tool.language_list()
+            self.assertEqual(raised.exception.code, "language_settings_invalid")
 
     def test_future_or_changed_replay_gain_layouts_fail_closed(self):
         for options in ({"source_version": 16}, {"mask": "0xE0u"}, {"extra_mode": True}):

@@ -416,6 +416,28 @@ static void the_safe_volume_row_picks_a_level(void)
     CHECK_EQUAL(36, saved.safe_start_volume_level);
 }
 
+static void the_speed_row_saves_and_applies_a_faster_speed(void)
+{
+    open_settings_row(9, "Playback speed");
+    for (int option = 0; option < 3; option++) {
+        tap(KEY_VOLUME_UP);
+    }
+    tap(KEY_PLAY);
+    CHECK(strcmp(app_screen_title(), "Settings") == 0);
+    CHECK_EQUAL(6, saved_settings().playback_speed);
+    CHECK_EQUAL(150, fake_hal_audio_speed());
+    CHECK_EQUAL(150, app_player_status().speed);
+}
+
+static void a_saved_speed_is_applied_at_power_on(void)
+{
+    Settings settings = settings_defaults();
+    settings.playback_speed = 1;
+    boot_with(settings, false);
+    CHECK_EQUAL(75, fake_hal_audio_speed());
+    CHECK_EQUAL(75, app_player_status().speed);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -439,6 +461,8 @@ int main(void)
         TEST_CASE(the_rewind_row_turns_rewinding_off),
         TEST_CASE(the_safe_volume_row_turns_the_cap_off),
         TEST_CASE(the_safe_volume_row_picks_a_level),
+        TEST_CASE(the_speed_row_saves_and_applies_a_faster_speed),
+        TEST_CASE(a_saved_speed_is_applied_at_power_on),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

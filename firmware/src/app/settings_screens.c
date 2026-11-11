@@ -615,6 +615,22 @@ static const StringId TRANSITION_LENGTH_OPTIONS[] = {
     STR_SECONDS_0_5, STR_SECONDS_1, STR_SECONDS_1_5, STR_SECONDS_2,
     STR_SECONDS_3,   STR_SECONDS_4, STR_SECONDS_6};
 static const uint8_t TRANSITION_TENTHS[] = {5, 10, 15, 20, 30, 40, 60};
+static const StringId SPEED_OPTIONS[SETTINGS_SPEED_COUNT] = {
+    STR_SPEED_050, STR_SPEED_075, STR_SPEED_090, STR_SPEED_100, STR_SPEED_110,
+    STR_SPEED_125, STR_SPEED_150, STR_SPEED_175, STR_SPEED_200};
+
+static int current_speed(const void *context)
+{
+    return settings_of(context)->playback_speed;
+}
+
+static void choose_speed(void *context, int index)
+{
+    SettingsContext *settings = context;
+    editable_settings(context)->playback_speed = (uint8_t)index;
+    player_set_speed(settings->player, settings_speed_percent(index));
+    save(settings);
+}
 
 static void apply_transitions(SettingsContext *context)
 {
@@ -699,6 +715,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      NULL},
     {STR_BATTERY_PERCENTAGE, OFF_ON_OPTIONS, 2, current_battery_percent, choose_battery_percent,
      NULL, NULL},
+    {STR_PLAYBACK_SPEED, SPEED_OPTIONS, SETTINGS_SPEED_COUNT, current_speed, choose_speed, NULL,
+     NULL},
     {STR_REWIND_ON_RESUME, OFF_ON_OPTIONS, 2, current_rewind, choose_rewind, NULL, NULL},
     {STR_SAFE_START_VOLUME, NULL, SAFE_VOLUME_OPTION_COUNT, current_safe_volume, choose_safe_volume,
      describe_safe_volume, extend_safe_volume},

@@ -58,6 +58,7 @@ enum {
     COMFORT_BYTE = 0,
     SAFE_LEVEL_BYTE = 1,
     TRANSITION_BYTE = 2,
+    SPEED_BYTE = 3,
     HOME_ORDER_BYTE = 4,
     HOME_HIDDEN_BYTE = 9,
     RESERVED_BYTE = 11,
@@ -156,6 +157,7 @@ static void read_extension(const uint8_t *extension, Settings *settings)
     settings->track_transition = (TrackTransition)(comfort >> TRANSITION_SHIFT);
     settings->safe_start_volume_level = extension[SAFE_LEVEL_BYTE];
     settings->transition_tenths = extension[TRANSITION_BYTE];
+    settings->playback_speed = (uint8_t)(SETTINGS_SPEED_NORMAL + (int8_t)extension[SPEED_BYTE]);
     settings_home_unpack(extension + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT,
                          settings->home_order, &settings->home_hidden);
 }
@@ -281,6 +283,7 @@ static void encode_extension(const Settings *settings, uint8_t *extension)
                                         ((unsigned)settings->track_transition << TRANSITION_SHIFT));
     extension[SAFE_LEVEL_BYTE] = settings->safe_start_volume_level;
     extension[TRANSITION_BYTE] = settings->transition_tenths;
+    extension[SPEED_BYTE] = (uint8_t)(settings->playback_speed - SETTINGS_SPEED_NORMAL);
     for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
         extension[HOME_ORDER_BYTE + index / 2] |=
             (uint8_t)(settings->home_order[index] << (NIBBLE_BITS * (index & 1)));
@@ -429,7 +432,7 @@ static bool home_valid(const uint8_t *extension)
 
 static bool reserved_clear(const uint8_t *extension)
 {
-    uint8_t any = extension[TRANSITION_BYTE + 1];
+    uint8_t any = 0;
     for (int index = 0; index < RESERVED_COUNT; index++) {
         any |= extension[RESERVED_BYTE + index];
     }
@@ -444,7 +447,8 @@ static bool extension_valid(const uint8_t *bytes)
     const uint8_t *extension = bytes + EXTENSION_FIELD;
     uint8_t comfort = extension[COMFORT_BYTE];
     uint8_t tenths = extension[TRANSITION_BYTE];
-    return comfort >> TRANSITION_SHIFT < TRACK_TRANSITION_COUNT &&
+    uint8_t speed = (uint8_t)(extension[SPEED_BYTE] + SETTINGS_SPEED_NORMAL);
+    return comfort >> TRANSITION_SHIFT < TRACK_TRANSITION_COUNT && speed < SETTINGS_SPEED_COUNT &&
            extension[SAFE_LEVEL_BYTE] <= SETTINGS_VOLUME_MAX &&
            tenths >= SETTINGS_TRANSITION_TENTHS_MIN && tenths <= SETTINGS_TRANSITION_TENTHS_MAX &&
            home_valid(extension) && reserved_clear(extension);
@@ -610,4 +614,11 @@ bool settings_buttons_decode(const uint8_t *bytes, uint32_t length, Settings *se
         settings->button_actions[index] = bytes[8 + index];
     }
     return true;
+}
+
+uint8_t settings_speed_percent(int option)
+{
+    static const uint8_t PERCENT[SETTINGS_SPEED_COUNT] = {50, 75, 90, 100, 110, 125, 150, 175, 200};
+    return option >= 0 && option < SETTINGS_SPEED_COUNT ? PERCENT[option]
+                                                        : PERCENT[SETTINGS_SPEED_NORMAL];
 }
