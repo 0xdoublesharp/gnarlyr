@@ -168,7 +168,7 @@ In portrait, Home shows the Gnarlyr title below the status row and Now Playing k
 
 ## Languages
 
-The player's text is English. Other languages can be added as language packs; none is shipped yet, and none has been tried on a player ([`known-issues.md`](known-issues.md)).
+The player includes English. Add other languages as external packs without reinstalling the firmware.
 
 - When the player has more than one language, Settings → Language appears after Orientation and lists them by their own names. Pick one and every screen changes at once; the player starts in it next time.
 - To add a language without reinstalling, copy its pack to the folder `.gnarlyr/lang` on the SD card (or on internal storage if you use no card). The file is named after the language's code, for example `de.pack`. The folder is hidden on most computers; create `lang` inside `.gnarlyr` if it isn't there. Eject, and the language is in Settings → Language.
