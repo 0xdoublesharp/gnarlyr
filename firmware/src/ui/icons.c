@@ -77,12 +77,12 @@ enum {
     LINE(1, 3, 17, 3), LINE(1, 9, 17, 9), LINE(1, 15, 17, 15), ACCENT(BLOCK(6, 1, 9, 6)),          \
         ACCENT(BLOCK(12, 7, 15, 12)), LAST(ACCENT(BLOCK(3, 13, 6, 18)))
 #define COVER_FLOW_GLYPH                                                                           \
-    ACCENT(BLOCK(5, 3, 14, 12)), TRIANGLE(0, 4, 3, 11, POINT_LEFT),                                \
-        TRIANGLE(16, 4, 19, 11, POINT_RIGHT), LAST(LINE(5, 16, 13, 16))
+    LINE(1, 5, 1, 14), LINE(17, 5, 17, 14), LINE(4, 3, 4, 16), LINE(14, 3, 14, 16),                \
+        LAST(ACCENT(BOX(7, 1, 12, 18)))
 #define ARTIST_GLYPH ACCENT(DISC(6, 1, 8)), LAST(ARC(2, 11, 16, TOP))
 #define ALBUM_ARTIST_GLYPH                                                                         \
     RING(10, 0, 10), DISC(14, 4, 2), ACCENT(DISC(2, 4, 6)), LAST(ARC(0, 12, 12, TOP))
-#define ALBUM_GLYPH ARC(6, 2, 14, RIGHT), BOX(1, 3, 13, 16), LAST(ACCENT(DISC(5, 8, 5)))
+#define ALBUM_GLYPH BOX(1, 1, 18, 18), ACCENT(RING(4, 4, 12)), LAST(ACCENT(DISC(9, 9, 2)))
 #define GENRE_GLYPH                                                                                \
     LINE(1, 9, 6, 4), LINE(1, 9, 6, 14), LINE(6, 4, 17, 4), LINE(17, 4, 17, 14),                   \
         LINE(6, 14, 17, 14), LAST(ACCENT(DISC(6, 8, 4)))
@@ -93,14 +93,19 @@ enum {
     LINE(1, 3, 11, 3), LINE(1, 8, 11, 8), LINE(1, 13, 7, 13), LINE(16, 4, 16, 15),                 \
         LAST(ACCENT(DISC(11, 12, 6)))
 #define FAVORITE_GLYPH                                                                             \
-    ACCENT(TRIANGLE(7, 0, 12, 9, POINT_UP)), ACCENT(TRIANGLE(0, 6, 19, 13, POINT_DOWN)),           \
-        ACCENT(THICK(6, 11, 3, 16)), LAST(ACCENT(THICK(11, 11, 14, 16)))
+    ACCENT(FILL(9, 1, 10, 2)), ACCENT(FILL(8, 3, 11, 4)), ACCENT(FILL(7, 5, 12, 6)),               \
+        ACCENT(FILL(1, 7, 18, 8)), ACCENT(FILL(3, 9, 16, 10)), ACCENT(FILL(5, 11, 14, 12)),        \
+        ACCENT(FILL(5, 13, 14, 13)), ACCENT(FILL(4, 14, 8, 15)), ACCENT(FILL(11, 14, 15, 15)),     \
+        ACCENT(FILL(4, 16, 6, 16)), LAST(ACCENT(FILL(13, 16, 15, 16)))
 #define SHUFFLE_GLYPH                                                                              \
-    LINE(1, 4, 4, 4), LINE(4, 4, 13, 13), ACCENT(TRIANGLE(14, 10, 18, 17, POINT_RIGHT)),           \
-        LINE(1, 13, 4, 13), LINE(4, 13, 13, 4), LAST(ACCENT(TRIANGLE(14, 1, 18, 8, POINT_RIGHT)))
+    LINE(1, 4, 4, 4), LINE(4, 4, 13, 13), LINE(13, 13, 17, 13), LINE(14, 10, 17, 13),              \
+        LINE(17, 13, 14, 16), ACCENT(LINE(1, 13, 4, 13)), ACCENT(LINE(4, 13, 6, 11)),              \
+        ACCENT(LINE(11, 6, 13, 4)), ACCENT(LINE(13, 4, 17, 4)), ACCENT(LINE(14, 1, 17, 4)),        \
+        LAST(ACCENT(LINE(17, 4, 14, 7)))
 #define REPEAT_GLYPH                                                                               \
-    LINE(2, 4, 13, 4), LINE(1, 4, 1, 10), ACCENT(TRIANGLE(14, 1, 18, 8, POINT_RIGHT)),             \
-        LINE(6, 14, 17, 14), LINE(17, 8, 17, 14), LAST(ACCENT(TRIANGLE(1, 11, 5, 18, POINT_LEFT)))
+    LINE(2, 9, 2, 5), LINE(2, 5, 4, 3), LINE(4, 3, 16, 3), ACCENT(LINE(13, 0, 16, 3)),             \
+        ACCENT(LINE(16, 3, 13, 6)), LINE(16, 9, 16, 13), LINE(16, 13, 14, 15),                     \
+        LINE(14, 15, 2, 15), ACCENT(LINE(5, 12, 2, 15)), LAST(ACCENT(LINE(2, 15, 5, 18)))
 #define DISPLAY_GLYPH                                                                              \
     ACCENT(HALF_DISC(2, 2, 16, TOP)), LINE(0, 10, 18, 10), LINE(3, 14, 15, 14),                    \
         LAST(LINE(6, 18, 12, 18))
@@ -118,7 +123,9 @@ enum {
 #define DIAGNOSTICS_GLYPH                                                                          \
     BOX(1, 1, 18, 14), ACCENT(LINE(4, 10, 7, 5)), ACCENT(LINE(7, 5, 11, 10)),                      \
         ACCENT(LINE(11, 10, 14, 5)), LINE(9, 15, 9, 16), LAST(LINE(6, 17, 12, 17))
-#define GAIN_GLYPH RING(1, 1, 18), LAST(ACCENT(THICK(8, 10, 12, 6)))
+#define GAIN_GLYPH                                                                                 \
+    ARC(1, 2, 18, TOP), LINE(1, 11, 1, 15), LINE(17, 11, 17, 15), ACCENT(LINE(9, 12, 13, 7)),      \
+        LAST(ACCENT(DISC(7, 11, 5)))
 #define JACK_GLYPH                                                                                 \
     BLOCK(8, 0, 11, 2), FILL(8, 4, 11, 6), FILL(8, 8, 11, 11), ACCENT(BLOCK(6, 12, 13, 17)),       \
         LAST(FILL(9, 18, 10, 19))
@@ -150,7 +157,8 @@ enum {
     LINE(1, 2, 11, 2), LINE(1, 6, 5, 6), LINE(1, 10, 5, 10),                                       \
         LAST(ACCENT(TRIANGLE(9, 7, 13, 13, POINT_RIGHT)))
 #define SPEAKER_GLYPH                                                                              \
-    FILL(0, 5, 2, 8), TRIANGLE(2, 3, 6, 10, POINT_LEFT), LAST(ACCENT(ARC(3, 2, 10, RIGHT)))
+    FILL(0, 5, 2, 8), TRIANGLE(2, 2, 6, 11, POINT_LEFT), ACCENT(ARC(4, 2, 10, RIGHT)),             \
+        LAST(FILL(5, 2, 6, 11))
 #define ALBUM_SMALL_GLYPH LAST(ICON_OP(OP_RING, 0, 0, 14, 5, TOP | BOTTOM))
 #define SHUFFLE_SMALL_GLYPH                                                                        \
     THIN(0, 3, 3, 3), THIN(3, 3, 9, 9), TRIANGLE(10, 8, 13, 12, POINT_RIGHT), THIN(0, 10, 3, 10),  \

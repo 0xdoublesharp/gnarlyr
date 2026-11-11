@@ -24,5 +24,6 @@ typedef struct QuadLight {
 
 void image_draw_quad(Canvas *canvas, Image image, Quad quad);
 void image_draw_quad_lit(Canvas *canvas, Image image, Quad quad, QuadLight light);
+void image_draw_quad_smooth(Canvas *canvas, Image image, Quad quad, QuadLight light);
 void image_draw_reflection(Canvas *canvas, Image image, Quad quad, QuadLight light, int rows);
 void image_fill_quad(Canvas *canvas, Quad quad, Color color);

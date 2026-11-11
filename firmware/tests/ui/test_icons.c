@@ -377,6 +377,16 @@ static void an_icon_stays_inside_the_canvas_clip(void)
     CHECK_EQUAL(0, count_ink(&canvas, half, false));
 }
 
+static void enlarged_diagonals_use_the_destination_resolution(void)
+{
+    Canvas canvas = blank_canvas();
+    Rect area = {ORIGIN, ORIGIN, 2 * ICON_LARGE_GRID, 2 * ICON_LARGE_GRID};
+    icon_draw(&canvas, ICON_SHUFFLE, area, (IconInk){MAIN, MAIN});
+    CHECK_EQUAL(MAIN, canvas_pixel_at(&canvas, ORIGIN + 12, ORIGIN + 9));
+    CHECK_EQUAL(BACKGROUND, canvas_pixel_at(&canvas, ORIGIN + 13, ORIGIN + 9));
+    CHECK_EQUAL(0, count_ink(&canvas, area, false));
+}
+
 static void accent_parts_use_the_accent_ink(void)
 {
     Canvas canvas = blank_canvas();
@@ -412,6 +422,7 @@ int main(void)
         TEST_CASE(the_strokes_of_an_icon_share_one_width_at_an_odd_size),
         TEST_CASE(an_icon_scales_to_fill_a_larger_area),
         TEST_CASE(an_icon_stays_inside_the_canvas_clip),
+        TEST_CASE(enlarged_diagonals_use_the_destination_resolution),
         TEST_CASE(accent_parts_use_the_accent_ink),
         TEST_CASE(no_icon_draws_nothing),
     };

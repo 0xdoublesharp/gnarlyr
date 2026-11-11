@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#150f25"><meta name="description" content="Build GNARLYR.img, use developer USB updates, explore codec-integration tools, and follow migration and recovery references."><meta property="og:title" content="Build and develop. — Gnarlyr"><meta property="og:description" content="Build GNARLYR.img, use developer USB updates, explore codec-integration tools, and follow migration and recovery references."><meta property="og:type" content="website"><meta property="og:url" content="https://gnarlyr.com/build.html"><link rel="canonical" href="https://gnarlyr.com/build.html"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="stylesheet" href="styles.css"><script src="site.js" defer></script><title>Build and develop. — Gnarlyr</title>
+</head>
+<body>
+  <svg class="icon-definitions" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><defs>
+    <symbol id="icon-checklist" viewBox="0 0 24 24"><path d="m3.5 6 1.75 1.75L8.5 4.5m-5 7.5 1.75 1.75 3.25-3.25m-5 7.5 1.75 1.75 3.25-3.25M12 6h8.5M12 12h8.5M12 18h8.5"/></symbol>
+    <symbol id="icon-build" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3m6 0h4"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path d="M8 3H5v18h14V3h-3M8 3h8v4H8zM8 14l3 3 5-6"/></symbol>
+    <symbol id="icon-usb" viewBox="0 0 24 24"><path d="M12 18V3m-3 3 3-3 3 3m-3 9-7-4V8m7 5 7-4V6"/><circle cx="12" cy="20" r="2"/><circle cx="5" cy="6" r="2"/><path d="M17 2h4v4h-4z"/></symbol>
+    <symbol id="icon-eject" viewBox="0 0 24 24"><path d="m12 4 8 10H4L12 4ZM4 18h16v3H4z"/></symbol>
+  </defs></svg>
+<a class="skip" href="#main">Skip to content</a>
+<header class="header wrap">    <a class="brand" href="index.html" aria-label="Gnarlyr home">
+      <svg viewBox="0 0 32 24" fill="none" aria-hidden="true"><rect x="1" y="2" width="30" height="20" rx="3" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="6" width="22" height="9" rx="2" stroke="currentColor"/><circle cx="10" cy="10.5" r="2.5" stroke="currentColor"/><circle cx="22" cy="10.5" r="2.5" stroke="currentColor"/><path d="m8 22 3-5h10l3 5" stroke="currentColor"/></svg>
+      <span class="wordmark">GNARLYR<span class="brand-dot">.</span></span>
+    </a>
+<nav aria-label="Main navigation"><a href="firmware.html">Features</a><a href="hardware.html">Hardware</a><a href="install.html">Install</a><a href="build.html" aria-current="page" class="nav-cta">Developers</a>
+</nav>
+</header>
+<main id="main">
+<div class="page-intro wrap"><p class="eyebrow">Source builds · developer tools</p><h1 class="page-title">Build and develop.</h1><p>Build firmware, use the developer USB loop and explore codec tools from a Gnarlyr source checkout. For a ready-made image and player setup, use the <a href="install.html">Install guide</a>.</p></div>
+<div class="doc-layout wrap"><nav class="contents" aria-label="On this page"><p class="eyebrow">On this page</p><ol><li><a href="#build">Build from source · macOS</a></li>
+<li><a href="#developer">Developer USB updates</a></li>
+<li><a href="#codecs">Codec integration tools</a></li>
+<li><a href="#usb">USB internals</a></li>
+<li><a href="#migration">Older custom builds</a></li>
+<li><a href="#recovery">Recovery reference</a></li></ol></nav><div>
+<section class="doc-section" id="build" aria-labelledby="build-title">
+<h2 id="build-title">Build from your checkout.
+</h2>
+<p class="intro">Run these commands on macOS from the root of your Gnarlyr checkout. The wrapper builds an image on your computer. Installation is a separate step.
+</p>
+<ul class="detail-list">
+<li><strong>Python 3.14</strong> with the packages in <code>firmware/tools/requirements.txt</code>.
+</li>
+<li><strong>Build tools:</strong> CMake, SDL2, FFmpeg, clang-format and the Arm GNU cross-compiler.
+</li>
+<li><strong>Build-output storage:</strong> mount a volume at <code>/Volumes/Scratch</code> for generated files. The wrapper links <code>firmware/build</code> to this checkout’s output there, keeping builds separate from source.
+</li>
+</ul>
+<details id="build-help">
+<summary>Set up the build environment
+</summary><div class="answer">
+<p>Create a Python virtual environment on Scratch. Set <code>ECHO_VENV</code> to that folder and <code>ECHO_ARM_BIN</code> to the folder containing <code>arm-none-eabi-gcc</code>. Full prerequisite instructions are in the checkout’s <code>README.md</code>.
+</p></div>
+</details><div class="command" role="group" aria-labelledby="build-commands-title"><div class="command-header">
+<h3 id="build-commands-title">Build the release image
+</h3><button class="copy-button" type="button" data-copy="build-commands" aria-label="Copy build commands"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M13 5V3H3v10h2"/></svg><span>Copy</span></button></div>
+<pre><code id="build-commands"><span class="cmd">python3 tools/<wbr>firmware.py setup</span><span class="cmd">python3 tools/<wbr>firmware.py build --preset release</span></code></pre>
+<p class="copy-status" id="build-commands-status" role="status" aria-live="polite">
+</p></div><div class="command" role="group" aria-labelledby="hash-command-title"><div class="command-header">
+<h3 id="hash-command-title">Record its SHA-256
+</h3><button class="copy-button" type="button" data-copy="hash-command" aria-label="Copy image checksum command"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M13 5V3H3v10h2"/></svg><span>Copy</span></button></div>
+<pre><code id="hash-command"><span class="cmd">shasum -a 256 firmware/<wbr>build/<wbr>release/<wbr>GNARLYR.img</span></code></pre>
+<p class="copy-status" id="hash-command-status" role="status" aria-live="polite">
+</p></div>
+<p>The output is <code>firmware/build/release/GNARLYR.img</code>. SHA-256 is a fingerprint of the file: comparing fingerprints tells you whether the copy is identical.
+</p>
+</section>
+<section class="doc-section" id="developer" aria-labelledby="developer-title">
+<h2 id="developer-title">Repeat developer updates over USB.
+</h2>
+<p class="intro">The macOS helper copies and checks a developer image, ejects the drives, requests a restart and reports the running build after USB reconnects.
+</p>
+<p>Build a developer image with <code>python3 tools/firmware.py build --preset device</code>, then use the matching checkout’s helper:
+</p><div class="command" role="group" aria-labelledby="developer-command-title"><div class="command-header">
+<h3 id="developer-command-title">Install and request a restart
+</h3><button class="copy-button" type="button" data-copy="developer-command" aria-label="Copy developer update command"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M13 5V3H3v10h2"/></svg><span>Copy</span></button></div>
+<pre><code id="developer-command"><span class="cmd">python3 tools/<wbr>echo_debug.py install firmware/<wbr>build/<wbr>device/<wbr>GNARLYR.img --restart</span></code></pre>
+<p class="copy-status" id="developer-command-status" role="status" aria-live="polite">
+</p></div>
+<p>Leave USB connected. The helper checks the copied file, requests the developer restart, ejects the drives and waits for the player to return with its running-build report.
+</p>
+<p><a href="install.html#update">Ordinary manual updates</a> use the player’s unplug-and-Power sequence. Automatic restart is a developer-build workflow.
+</p>
+<h3>Audio processing and diagnostics</h3>
+<p>Audio processing remains available as interface modules change. A separate 8 KiB code bank holds sample-rate conversion and M4A/M4B parsing. Diagnostic counts exclude intentionally muted DMA pauses, so a normal pause is not reported as missing audio.</p>
+</section>
+<section class="doc-section" id="codecs" aria-labelledby="codecs-title">
+<h2 id="codecs-title">Tools for codec integration.</h2>
+<p class="intro">An Ogg container wraps compressed audio in packets; a decoder turns those packets into samples. Developers can inspect the packets and exercise the integer Vorbis decoder independently of player playback.</p>
+<ul class="detail-list">
+<li><strong>Checked Ogg packets.</strong> The reader reconstructs packets across pages and checks each page’s CRC, sequence and continuation. Caller-owned buffers keep memory bounded; failed reads can be retried without advancing the packet state.</li>
+<li><strong>A separate Vorbis decoder.</strong> A core-1 program uses pinned Xiph Tremor source with a caller-owned 64 KiB workspace and bounded mono/stereo output.</li>
+<li><strong>Packet exports for comparisons.</strong> The host test utility <code>ogg_packet_tool</code> exports checked packets for decoder comparisons. Source guides are <code>firmware/docs/ogg-packets.md</code> and <code>firmware/docs/ogg-vorbis.md</code>.</li>
+</ul>
+<p>These are codec-integration components. The player’s <a href="firmware.html#foundation">supported playback formats</a> remain FLAC, MP3, WAV, AAC-LC and ALAC in M4A/M4B; Ogg Vorbis and Opus are not enabled for normal playback.</p>
+</section>
+<section class="doc-section" id="usb" aria-labelledby="usb-title">
+<h2 id="usb-title">How USB hands storage back to the player.
+</h2>
+<p class="intro">Eject completes host writes and returns storage to the player, allowing Gnarlyr to inspect the image and start installation.
+</p>
+<ul class="detail-list">
+<li><strong>Eject is the handover.</strong> The computer owns file access during a storage session. Eject every drive present at connection to return that access and start the update check.
+</li>
+<li><strong>The cable can stay connected while it writes.</strong> Ending the storage session leaves cable power connected. Wait for “Update installed” before unplugging.
+</li>
+<li><strong>The new USB code starts with the new firmware.</strong> USB and updater code load from the image into a shared memory region. Restarting after installation ensures the running firmware and its USB module match.
+</li>
+<li><strong>Connection handling follows cable power.</strong> Gnarlyr keeps USB power control in sync with the cable state. The stack can retry at full speed if its first high-speed connection does not become usable.
+</li>
+</ul>
+<p>For everyday music copying, eject every drive before unplugging too. Gnarlyr then checks whether the music changed and rescans when needed.
+</p>
+</section>
+<section class="doc-section" id="migration" aria-labelledby="migration-title">
+<h2 id="migration-title">Migrate an older firmware identity.</h2>
+<p class="intro">An updater checks an image’s internal identity as well as its filename. A matching transition image starts Gnarlyr from an older custom build while you preserve the player’s data.</p>
+<ol class="sequence">
+<li><strong>Identify the installed build.</strong> Use its matching <code>identity.json</code> for the update filename, image brand and data-folder name.</li>
+<li><strong>Back up the data on each volume.</strong> Keep the complete existing data folder and prepare its copy at <code>/.gnarlyr</code>. Preserve settings, EQ choices, queues, mixtapes, labels, favorites, bookmarks and listening records.</li>
+<li><strong>Prepare the matching transition image.</strong> Its transport header uses the installed updater’s identity; its code and modules match the ordinary Gnarlyr image. Follow <code>firmware/docs/identity-transition.md</code> to validate both update steps before installation.</li>
+<li><strong>Install in order.</strong> Install the transition image first, then the ordinary <code>GNARLYR.img</code>. Use the matching host tools and debug folder for each stage.</li>
+<li><strong>Check the preserved state.</strong> Verify your settings, saved mixes, queue, bookmarks, playback and normal USB transfers before retiring the previous data folder.</li>
+</ol>
+<p>Gnarlyr uses <code>GNARLYR</code>, the data folder <code>/.gnarlyr</code> and the CUE playlist directive <code>#GNARLYR-START:</code>. The transition guide explains how to update older exported CUE playlists while preserving their paths and track positions. Ordinary music files keep their contents.</p>
+<p>Keep the original backup and exact-model recovery files throughout the transition. Renaming an image alone cannot change the identity inside it.</p>
+</section>
+<section class="doc-section" id="recovery" aria-labelledby="recovery-title">
+<h2 id="recovery-title">Restore the original firmware.
+</h2>
+<p class="intro">The chip’s built-in recovery mode can reinstall stock firmware when the player cannot start normally.
+</p>
+<p>Keep the full-size ECHO’s official <code>ECHOV200.IMG</code> and the exact-model recovery instructions from your checkout. The official V2.0 image is 39,845,892 bytes, with SHA-256:
+</p>
+<pre><code>c6a3b6c86b141c0a428771f8a611fbd44cc12d561acb033a98640b0bf24f8d57</code></pre>
+<p>For a player that does not start, follow <code>firmware/docs/device-recovery.md</code> to restore the official image through maskrom, checking each complete slot readback.
+</p>
+<p>A running Gnarlyr also recognizes the official ECHO image through its updater. Follow the checkout’s return-to-stock instructions for that image; its on-screen messages and restart sequence differ from an ordinary Gnarlyr update.
+</p><a class="text-link" href="https://fiio.com/newsinfo/1151351.html">FiiO ECHO firmware ↗</a>
+</section>
+</div></div>
+</main><div class="outro wrap">
+<p class="outro-phrase">Stay offline. Get a little gnarly.
+</p>
+<p class="eyebrow">Made for the music you already love.
+</p></div>
+<footer class="wrap">
+<nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html">Features &amp; improvements</a><a href="hardware.html">ECHO hardware</a><a href="install.html">Install &amp; update</a><a href="build.html">Developers</a>
+</nav>
+<div class="footer-row"><span>GNARLYR.COM / Open-source ECHO firmware</span><div class="footer-links"><a href="https://podium-echo.online">Podium ↗</a><a href="https://github.com/BasilSkyWalk/echopod">EchoPod ↗</a><a href="https://github.com/brnomt/ReChord">ReChord ↗</a><a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0-or-later ↗</a></div></div>
+<p>Gnarlyr by doublesharp. Built on Podium and EchoPod, with hardware research from ReChord.
+</p>
+</footer>
+</body></html>
