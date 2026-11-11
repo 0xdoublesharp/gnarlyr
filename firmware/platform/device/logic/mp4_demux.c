@@ -206,6 +206,13 @@ static bool read_config(FlacInput input, const Mp4Box *esds, Mp4Track *track)
             if (length < skip) {
                 return false;
             }
+            if (tag == TAG_DECODER) {
+                uint8_t kind[2];
+                if (!read_bytes(input, at, kind, sizeof kind) ||
+                    (kind[0] != 0x40 && kind[0] != 0x67) || (kind[1] & 0xfdu) != 0x15) {
+                    return false;
+                }
+            }
             limit = at + length;
             at += skip;
         } else if (tag == TAG_CONFIG) {

@@ -871,6 +871,30 @@ static uint32_t synthetic_aac_config(const Builder *builder)
     return 0;
 }
 
+static void aac_descriptors_must_identify_a_supported_audio_stream(void)
+{
+    static const struct {
+        uint8_t object;
+        uint8_t stream;
+        bool accepted;
+    } cases[] = {{0x40, 0x15, true},
+                 {0x67, 0x15, true},
+                 {0x6b, 0x15, false},
+                 {0x40, 0x11, false},
+                 {0x40, 0x14, false}};
+    for (uint32_t variant = 0; variant < sizeof cases / sizeof cases[0]; variant++) {
+        static Builder builder;
+        build_synthetic(&builder, false);
+        uint32_t esds = find_box_type(&builder, "esds");
+        CHECK(esds != 0);
+        builder.bytes[esds + 15] = cases[variant].object;
+        builder.bytes[esds + 16] = cases[variant].stream;
+        FlacInput input = {.read = read_builder, .context = &builder, .size = builder.length};
+        Mp4Track track;
+        CHECK_EQUAL(cases[variant].accepted, mp4_probe(input, &track));
+    }
+}
+
 static void aac_configuration_must_fit_inside_its_parent_descriptors(void)
 {
     for (uint32_t variant = 0; variant < 2; variant++) {
@@ -1310,6 +1334,7 @@ int main(void)
         TEST_CASE(sample_tables_cannot_extend_into_adjacent_boxes),
         TEST_CASE(overflowing_sample_size_table_indices_are_rejected),
         TEST_CASE(overflowing_chunk_table_indices_are_rejected),
+        TEST_CASE(aac_descriptors_must_identify_a_supported_audio_stream),
         TEST_CASE(aac_configuration_must_fit_inside_its_parent_descriptors),
         TEST_CASE(aac_configurations_report_supported_rates_channels_and_frame_lengths),
         TEST_CASE(unsupported_aac_configuration_fields_are_rejected),
