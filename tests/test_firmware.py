@@ -73,6 +73,12 @@ class SelectionTests(unittest.TestCase):
 
 
 class FuzzCommandTests(unittest.TestCase):
+    def test_cue_sheet_target_has_boundary_seeds(self):
+        self.assertEqual(firmware.FUZZ_TARGETS["cue_sheet"], 65536)
+        corpus = b"\n".join(firmware.FUZZ_SEEDS["cue_sheet"])
+        for boundary in (b"TRACK 00", b"TRACK 100", b"00:60:00", b"00:00:75"):
+            self.assertIn(boundary, corpus)
+
     def test_settings_codec_target_has_bounded_structured_seeds(self):
         self.assertEqual(firmware.FUZZ_TARGETS["settings_codec"], 128)
         self.assertEqual(

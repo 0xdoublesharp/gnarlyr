@@ -38,6 +38,11 @@ class ParseCueTest(unittest.TestCase):
         self.assertEqual(-1, cue_sheet.index_start("00 00:00:01"))
         self.assertEqual(-1, cue_sheet.index_start("01 00:00"))
 
+    def test_index_fields_stay_within_cue_limits_and_end_at_the_line(self):
+        self.assertEqual(-1, cue_sheet.index_start("01 00:60:00"))
+        self.assertEqual(-1, cue_sheet.index_start("01 00:00:75"))
+        self.assertEqual(-1, cue_sheet.index_start("01 00:00:00 trailing"))
+
     def test_keywords_ignore_case(self):
         sheet = cue_sheet.parse_cue('file "a.wav" wave\nrem date 2001\nTrAcK 03 audio\n'
                                     "title Plain Title\nPERFORMER Someone Else\nindex 01 00:01:00\n")
@@ -59,6 +64,26 @@ class ParseCueTest(unittest.TestCase):
                                     "TRACK 02 AUDIO\nINDEX 00 00:10:00\nTRACK 03 AUDIO\n"
                                     "INDEX 00 00:20:00\nINDEX 01 00:30:00\n")
         self.assertEqual([(1, 0), (3, 30000)], [(t.number, t.start_ms) for t in sheet.tracks])
+
+    def test_track_numbers_must_be_between_one_and_ninety_nine(self):
+        sheet = cue_sheet.parse_cue(FILE_HEADER +
+                                    "TRACK AUDIO\nINDEX 01 00:00:00\n"
+                                    "TRACK 00 AUDIO\nTITLE Not Album\nPERFORMER Not Artist\n"
+                                    "INDEX 01 00:01:00\n"
+                                    "TRACK 100 AUDIO\nINDEX 01 00:02:00\n"
+                                    "TRACK 01AUDIO\nINDEX 01 00:03:00\n"
+                                    "TRACK 09 AUDIO\nINDEX 01 00:04:00\n")
+        self.assertEqual([(9, 4000)], [(track.number, track.start_ms) for track in sheet.tracks])
+        self.assertEqual(("", ""), (sheet.title, sheet.performer))
+
+    def test_equal_or_descending_starts_are_dropped(self):
+        sheet = cue_sheet.parse_cue(FILE_HEADER +
+                                    "TRACK 01 AUDIO\nINDEX 01 00:10:00\n"
+                                    "TRACK 02 AUDIO\nINDEX 01 00:05:00\n"
+                                    "TRACK 03 AUDIO\nINDEX 01 00:10:00\n"
+                                    "TRACK 04 AUDIO\nINDEX 01 00:15:00\n")
+        self.assertEqual([(1, 10000), (4, 15000)],
+                         [(track.number, track.start_ms) for track in sheet.tracks])
 
     def test_a_sheet_needs_one_file_and_a_track(self):
         self.assertIsNotNone(cue_sheet.parse_cue(FILE_HEADER + two_tracks()))

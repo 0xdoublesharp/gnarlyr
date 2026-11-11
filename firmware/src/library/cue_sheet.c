@@ -104,6 +104,16 @@ static char *read_digits(char *text, uint32_t *value)
     return text;
 }
 
+static uint32_t track_number(char *rest)
+{
+    uint32_t value = 0;
+    char *cursor = read_digits(rest, &value);
+    if (cursor == rest || value < 1 || value > 99 || (*cursor != '\0' && !is_blank(*cursor))) {
+        return 0;
+    }
+    return value;
+}
+
 static bool read_index(char *rest, uint32_t *start_ms)
 {
     uint32_t number = 0;
@@ -119,6 +129,10 @@ static bool read_index(char *rest, uint32_t *start_ms)
         if (cursor == start || (field < 2 && *cursor++ != ':')) {
             return false;
         }
+    }
+    cursor = skip_blanks(cursor);
+    if (fields[1] >= 60 || fields[2] >= FRAMES_PER_SECOND || *cursor != '\0') {
+        return false;
     }
     uint64_t frames = ((uint64_t)fields[0] * 60 + fields[1]) * FRAMES_PER_SECOND + fields[2];
     uint64_t milliseconds = frames * MILLISECONDS_PER_SECOND / FRAMES_PER_SECOND;
@@ -170,10 +184,16 @@ static void note_file(CueSheet *sheet, char *rest)
     }
 }
 
+static bool building_ready(const CueSheet *sheet)
+{
+    return sheet->has_building && sheet->building.start_ms != CUE_NO_START &&
+           (!sheet->has_pending || sheet->building.start_ms > sheet->pending.start_ms);
+}
+
 static const CueEntry *close_building(CueSheet *sheet)
 {
     const CueEntry *ready = NULL;
-    if (sheet->has_building && sheet->building.start_ms != CUE_NO_START) {
+    if (building_ready(sheet)) {
         if (sheet->has_pending) {
             sheet->out = sheet->pending;
             sheet->out.end_ms = sheet->building.start_ms;
@@ -216,11 +236,11 @@ static const CueEntry *handle_line(CueSheet *sheet, char *line)
         note_file(sheet, rest);
     } else if (kind == CUE_TRACK) {
         ready = close_building(sheet);
-        read_digits(rest, &value);
-        begin_building(sheet, value);
+        begin_building(sheet, track_number(rest));
     } else if (kind == CUE_TITLE || kind == CUE_PERFORMER) {
         set_text(sheet, kind, value_of(rest, true));
-    } else if (kind == CUE_INDEX && sheet->has_building && read_index(rest, &value)) {
+    } else if (kind == CUE_INDEX && sheet->has_building && sheet->building.number != 0 &&
+               read_index(rest, &value)) {
         sheet->building.start_ms = value;
     } else if (kind == CUE_REM) {
         note_rem(sheet, rest);

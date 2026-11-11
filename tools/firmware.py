@@ -28,6 +28,7 @@ FUZZ_TARGETS = {
     "mp4_demux": 262144,
     "store": 4096,
     "settings_codec": 128,
+    "cue_sheet": 65536,
 }
 FUZZ_SEEDS = {
     "track_tags": [b"\0"],
@@ -49,6 +50,16 @@ FUZZ_SEEDS = {
         b"\1" + bytes(range(32)),
         b"\2" + bytes(range(64)),
         b"\3" + b"\xff" * 32,
+    ],
+    "cue_sheet": [
+        b'FILE "a.flac" WAVE\nTRACK 01 AUDIO\nINDEX 01 00:00:00\n'
+        b"TRACK 02 AUDIO\nINDEX 01 03:20:00\n",
+        b"FILE a.flac WAVE\nTRACK 00 AUDIO\nINDEX 01 00:00:00\n"
+        b"TRACK 100 AUDIO\nINDEX 01 00:01:00\nTRACK AUDIO\nINDEX 01 00:02:00\n",
+        b"FILE a.flac WAVE\nTRACK 01 AUDIO\nINDEX 01 00:60:00\n"
+        b"TRACK 02 AUDIO\nINDEX 01 00:00:75\nTRACK 03 AUDIO\nINDEX 01 00:00:00 trailing\n",
+        b"FILE a.flac WAVE\nTRACK 01 AUDIO\nINDEX 01 00:10:00\n"
+        b"TRACK 02 AUDIO\nINDEX 01 00:05:00\nTRACK 03 AUDIO\nINDEX 01 00:10:00\n",
     ],
 }
 FUZZ_FIXTURES = {

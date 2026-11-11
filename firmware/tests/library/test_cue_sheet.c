@@ -151,6 +151,48 @@ static void malformed_index_lines_are_ignored(void)
     CHECK_EQUAL(26u, parsed.entries[0].start_ms);
 }
 
+static void track_numbers_must_be_between_one_and_ninety_nine(void)
+{
+    static Parsed parsed;
+    parse("FILE a.wav WAVE\nTRACK AUDIO\nINDEX 01 00:00:00\n"
+          "TRACK 00 AUDIO\nTITLE Not Album\nPERFORMER Not Artist\nINDEX 01 00:01:00\n"
+          "TRACK 100 AUDIO\nINDEX 01 00:02:00\n"
+          "TRACK 01AUDIO\nINDEX 01 00:03:00\nTRACK 09 AUDIO\nINDEX 01 00:04:00\n",
+          &parsed);
+    CHECK_EQUAL(1u, parsed.count);
+    CHECK_EQUAL(9u, parsed.entries[0].number);
+    CHECK_EQUAL(4000u, parsed.entries[0].start_ms);
+    CHECK(text_is(parsed.sheet.album.title, ""));
+    CHECK(text_is(parsed.sheet.album.performer, ""));
+}
+
+static void index_fields_stay_within_cue_limits_and_end_at_the_line(void)
+{
+    static Parsed parsed;
+    parse("FILE a.wav WAVE\nTRACK 01 AUDIO\nINDEX 01 00:60:00\n", &parsed);
+    CHECK_EQUAL(0u, parsed.count);
+    parse("FILE a.wav WAVE\nTRACK 01 AUDIO\nINDEX 01 00:00:75\n", &parsed);
+    CHECK_EQUAL(0u, parsed.count);
+    parse("FILE a.wav WAVE\nTRACK 01 AUDIO\nINDEX 01 00:00:00 trailing\n", &parsed);
+    CHECK_EQUAL(0u, parsed.count);
+    CHECK(!parsed.usable);
+}
+
+static void equal_or_descending_starts_are_dropped(void)
+{
+    static Parsed parsed;
+    parse("FILE a.wav WAVE\nTRACK 01 AUDIO\nINDEX 01 00:10:00\n"
+          "TRACK 02 AUDIO\nINDEX 01 00:05:00\nTRACK 03 AUDIO\nINDEX 01 00:10:00\n"
+          "TRACK 04 AUDIO\nINDEX 01 00:15:00\n",
+          &parsed);
+    CHECK_EQUAL(2u, parsed.count);
+    CHECK_EQUAL(1u, parsed.entries[0].number);
+    CHECK_EQUAL(10000u, parsed.entries[0].start_ms);
+    CHECK_EQUAL(15000u, parsed.entries[0].end_ms);
+    CHECK_EQUAL(4u, parsed.entries[1].number);
+    CHECK_EQUAL(15000u, parsed.entries[1].start_ms);
+}
+
 static void a_sheet_is_usable_with_one_file_and_at_least_one_track(void)
 {
     static Parsed parsed;
@@ -180,6 +222,9 @@ int main(void)
         TEST_CASE(text_that_is_not_utf8_reads_as_windows_1252),
         TEST_CASE(a_track_without_index_01_is_dropped_and_its_neighbours_close_up),
         TEST_CASE(malformed_index_lines_are_ignored),
+        TEST_CASE(track_numbers_must_be_between_one_and_ninety_nine),
+        TEST_CASE(index_fields_stay_within_cue_limits_and_end_at_the_line),
+        TEST_CASE(equal_or_descending_starts_are_dropped),
         TEST_CASE(a_sheet_is_usable_with_one_file_and_at_least_one_track),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

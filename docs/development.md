@@ -26,6 +26,7 @@ python3 tools/firmware.py fuzz --target library_database --runs 10000 --seed 1
 python3 tools/firmware.py fuzz --target mp4_demux --runs 10000 --seed 1
 python3 tools/firmware.py fuzz --target store --runs 10000 --seed 1
 python3 tools/firmware.py fuzz --target settings_codec --runs 10000 --seed 1
+python3 tools/firmware.py fuzz --target cue_sheet --runs 100000 --seed 1
 python3 tools/firmware.py fuzz
 ```
 
