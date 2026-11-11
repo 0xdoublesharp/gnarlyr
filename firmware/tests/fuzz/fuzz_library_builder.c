@@ -14,13 +14,19 @@ enum {
     OUTPUT_BYTES = 2 * 1024 * 1024,
     TRACK_BYTES = 8,
     TRACK_LIMIT = 64,
-    TEXT_BYTES = 64
+    TEXT_BYTES = 64,
+    CONTROL_BYTES = 8,
+    MIN_CAPACITY = 4096
 };
 
 typedef struct MemoryFile {
     uint8_t *bytes;
     uint32_t size;
     uint32_t used;
+    uint32_t reads;
+    uint32_t writes;
+    uint32_t fail_read;
+    uint32_t fail_write;
 } MemoryFile;
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
@@ -28,6 +34,10 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
 static bool read_file(void *context, uint32_t offset, void *bytes, uint32_t length)
 {
     MemoryFile *file = context;
+    file->reads++;
+    if (file->fail_read != 0 && file->reads == file->fail_read) {
+        return false;
+    }
     if (offset > file->size || length > file->size - offset) {
         return false;
     }
@@ -38,6 +48,10 @@ static bool read_file(void *context, uint32_t offset, void *bytes, uint32_t leng
 static bool write_file(void *context, uint32_t offset, const void *bytes, uint32_t length)
 {
     MemoryFile *file = context;
+    file->writes++;
+    if (file->fail_write != 0 && file->writes == file->fail_write) {
+        return false;
+    }
     if (offset > file->size || length > file->size - offset) {
         return false;
     }
@@ -58,6 +72,11 @@ static void path(char *out, const uint8_t *bytes, uint32_t index)
              bytes[2]);
 }
 
+static uint32_t capacity(uint32_t maximum, uint8_t value)
+{
+    return value == 0 ? maximum : MIN_CAPACITY + (maximum - MIN_CAPACITY) * value / UINT8_MAX;
+}
+
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
     static uint8_t player[PLAYER_BYTES];
@@ -66,18 +85,30 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     memset(player, 0, sizeof player);
     memset(scratch_bytes, 0, sizeof scratch_bytes);
     memset(output_bytes, 0, sizeof output_bytes);
-    MemoryFile scratch = {.bytes = scratch_bytes, .size = sizeof scratch_bytes};
-    MemoryFile output = {.bytes = output_bytes, .size = sizeof output_bytes};
+    uint8_t controls[CONTROL_BYTES] = {0};
+    size_t control_size = size < sizeof controls ? size : sizeof controls;
+    memcpy(controls, data, control_size);
+    uint32_t player_size = capacity(sizeof player, controls[0]);
+    uint32_t scratch_size = capacity(sizeof scratch_bytes, controls[1]);
+    uint32_t output_size = capacity(sizeof output_bytes, controls[2]);
+    MemoryFile scratch = {.bytes = scratch_bytes,
+                          .size = scratch_size,
+                          .fail_read = controls[3],
+                          .fail_write = controls[4]};
+    MemoryFile output = {
+        .bytes = output_bytes, .size = output_size, .fail_write = controls[5]};
     LibraryBuilder builder;
-    library_builder_init(&builder, player, sizeof player,
-                         (BuilderScratch){read_file, write_file, &scratch, scratch.size});
-    uint32_t tracks = (uint32_t)(size / TRACK_BYTES);
+    library_builder_init(&builder, player, player_size,
+                         (BuilderScratch){read_file, write_file, &scratch, scratch_size});
+    const uint8_t *track_data = size > CONTROL_BYTES ? data + CONTROL_BYTES : data + size;
+    size_t track_size = size > CONTROL_BYTES ? size - CONTROL_BYTES : 0;
+    uint32_t tracks = (uint32_t)(track_size / TRACK_BYTES);
     if (tracks > TRACK_LIMIT) {
         tracks = TRACK_LIMIT;
     }
     uint32_t added = 0;
     for (uint32_t index = 0; index < tracks; index++) {
-        const uint8_t *bytes = data + index * TRACK_BYTES;
+        const uint8_t *bytes = track_data + index * TRACK_BYTES;
         char file[TEXT_BYTES];
         char title[TEXT_BYTES];
         char artist[TEXT_BYTES];
@@ -112,23 +143,24 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
             break;
         }
     }
-    if (size > 1 && (data[0] & 8u) != 0) {
+    if (track_size > 1 && (controls[6] & 8u) != 0) {
         BuilderResult begin = library_builder_begin_playlist(&builder, "Fuzz Mix", "Playlists");
         fuzz_require(begin >= BUILDER_OK && begin <= BUILDER_NO_ROOM);
         for (uint32_t index = 0; begin == BUILDER_OK && index < tracks; index += 2) {
             char entry[TEXT_BYTES];
-            path(entry, data + index * TRACK_BYTES, index);
+            path(entry, track_data + index * TRACK_BYTES, index);
             BuilderResult result = library_builder_playlist_entry(
-                &builder, entry, (data[index * TRACK_BYTES] & 16u) != 0 ? BUILDER_ANY_START : 0);
+                &builder, entry,
+                (track_data[index * TRACK_BYTES] & 16u) != 0 ? BUILDER_ANY_START : 0);
             fuzz_require(result >= BUILDER_OK && result <= BUILDER_NO_ROOM);
         }
     }
     uint32_t length = 0;
     BuilderResult result =
-        library_builder_finish(&builder, (ByteSink){write_file, &output}, output.size, &length);
+        library_builder_finish(&builder, (ByteSink){write_file, &output}, output_size, &length);
     fuzz_require(result >= BUILDER_OK && result <= BUILDER_NO_ROOM);
     if (result == BUILDER_OK) {
-        fuzz_require(length == output.used && length <= output.size);
+        fuzz_require(length == output.used && length <= output_size);
         MemorySource source = {.bytes = output.bytes, .size = length};
         Library library;
         fuzz_require(library_open(&library, memory_source(&source), length) == LIBRARY_OK);

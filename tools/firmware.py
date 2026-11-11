@@ -35,6 +35,10 @@ FUZZ_TARGETS = {
     "app_navigation": 128,
     "library_builder": 512,
     "cover_image": 1048576,
+    "placeholder_art": 256,
+    "play_queue": 256,
+    "mp3_probe": 262144,
+    "opus_decode": 2048,
 }
 FUZZ_SEEDS = {
     "track_tags": [b"\0"],
@@ -93,6 +97,19 @@ FUZZ_SEEDS = {
         b"\xff\x80\x40\x20\x10\x08\x04\x02" * 32,
     ],
     "cover_image": [b"\0", b"\xff\xd8\xff\xd9", b"\x89PNG\r\n\x1a\n"],
+    "placeholder_art": [
+        b"The Velvet Underground",
+        "...And Justice for All".encode(),
+        "\u6771\u4eac Nights".encode(),
+        bytes(range(128)),
+    ],
+    "play_queue": [bytes(range(64)), b"\0\1\2\3" * 32, b"\xff\x80\x40\x20" * 32],
+    "mp3_probe": [b"\0", b"ID3\4\0\0\0\0\0\0", b"\xff\xfb\x90\0"],
+    "opus_decode": [
+        bytes(12) + b"\xf8\xff\xfe",
+        bytes([2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255]) + b"\x48\0\0",
+        bytes(range(64)),
+    ],
 }
 FUZZ_FIXTURES = {
     "library_database": [
@@ -115,6 +132,11 @@ FUZZ_FIXTURES = {
         ROOT / "site/assets/screens/home.png",
         ROOT / "site/assets/screens/cover-flow.png",
         ROOT / "site/assets/social/home-280c6baaadf6.png",
+    ],
+    "mp3_probe": [
+        SOURCE / "tests/fixtures/tags/id3v24.mp3",
+        SOURCE / "tests/fixtures/tags/id3v23_vbr.mp3",
+        SOURCE / "tests/fixtures/tags/id3v1_no_xing.mp3",
     ],
 }
 COVER_IMAGE_JPEG_FIXTURES = [

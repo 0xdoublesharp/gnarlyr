@@ -18,21 +18,33 @@ enum {
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
 
-static void add_library_files(void)
+static void add_library_files(uint8_t control)
 {
     static FixtureLibrary fixture;
     fixture_library_open(&fixture);
     uint32_t covers_size = 0;
     const uint8_t *covers = fixture_covers_bytes(&covers_size);
-    fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/library.db", fixture.bytes, fixture.size);
-    fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/covers.bin", covers, covers_size);
-    fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/build.tmp", NULL, 16 * 1024 * 1024);
-    for (size_t index = 0; index < card_files_count(); index++) {
-        if (card_files_slow(index)) {
-            fake_hal_add_file(card_files_path(index), NULL, 4096);
+    if ((control & 2u) == 0) {
+        uint32_t size = (control & 1u) != 0 ? fixture.size / 3 : fixture.size;
+        fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/library.db", fixture.bytes, size);
+    }
+    if ((control & 8u) == 0) {
+        uint32_t size = (control & 4u) != 0 ? covers_size / 3 : covers_size;
+        fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/covers.bin", covers, size);
+    }
+    fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/build.tmp", NULL,
+                      (control & 16u) != 0 ? 4096 : 16 * 1024 * 1024);
+    if ((control & 32u) == 0) {
+        for (size_t index = 0; index < card_files_count(); index++) {
+            if (card_files_slow(index)) {
+                fake_hal_add_file(card_files_path(index), NULL, 4096);
+            }
         }
     }
-    music_check_remember((MusicFingerprint){.complete = true});
+    if ((control & 64u) == 0) {
+        music_check_remember((MusicFingerprint){.complete = true});
+    }
+    fake_hal_fail_music_writes((control & 128u) != 0);
 }
 
 static void check_app(void)
@@ -75,7 +87,7 @@ static void apply_environment(uint8_t value)
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
     fake_hal_reset();
-    add_library_files();
+    add_library_files(size > 0 ? data[0] : 0);
     uint32_t now_ms = 1000;
     fake_hal_set_milliseconds(now_ms);
     app_start();

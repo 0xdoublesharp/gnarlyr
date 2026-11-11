@@ -57,6 +57,18 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     PersonalTags tags;
     fake_hal_reset();
     fixture_library_open(&fixture);
+    if (size > 1 && (data[0] & 1u) != 0) {
+        fake_hal_add_file(PERSONAL_TAG_PATH_A, data + 1, (uint32_t)(size - 1));
+    }
+    if (size > 2 && (data[0] & 2u) != 0) {
+        fake_hal_add_file(PERSONAL_TAG_PATH_B, data + 2, (uint32_t)(size - 2));
+    }
+    if ((size > 0 ? data[0] : 0) & 4u) {
+        fake_hal_fail_file_opens(PERSONAL_TAG_PATH_A);
+    }
+    if ((size > 0 ? data[0] : 0) & 8u) {
+        fake_hal_fail_file_reads(PERSONAL_TAG_PATH_B);
+    }
     personal_tags_init(&tags, &fixture.library);
     uint16_t tracks = (uint16_t)library_count(&fixture.library, LIBRARY_TRACKS);
     size_t actions = size / ACTION_BYTES;

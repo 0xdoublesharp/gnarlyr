@@ -152,6 +152,17 @@ class FuzzCommandTests(unittest.TestCase):
         self.assertEqual(fixtures, {"home.png", "cover-flow.png", "home-280c6baaadf6.png"})
         self.assertEqual(len(firmware.COVER_IMAGE_JPEG_FIXTURES), 3)
 
+    def test_ui_and_queue_targets_are_bounded_and_seeded(self):
+        for name in ("placeholder_art", "play_queue"):
+            self.assertEqual(firmware.FUZZ_TARGETS[name], 256)
+            self.assertTrue(firmware.FUZZ_SEEDS[name])
+            self.assertTrue(all(len(seed) <= 256 for seed in firmware.FUZZ_SEEDS[name]))
+
+    def test_decoder_targets_are_bounded_and_have_canonical_inputs(self):
+        self.assertEqual(firmware.FUZZ_TARGETS["mp3_probe"], 262144)
+        self.assertEqual(firmware.FUZZ_TARGETS["opus_decode"], 2048)
+        self.assertEqual(len(firmware.FUZZ_FIXTURES["mp3_probe"]), 3)
+
     def test_binary_parser_targets_have_canonical_fixture_seeds(self):
         library = {path.name for path in firmware.FUZZ_FIXTURES["library_database"]}
         mp4 = {path.name for path in firmware.FUZZ_FIXTURES["mp4_demux"]}

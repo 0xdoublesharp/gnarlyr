@@ -71,3 +71,14 @@ echo_add_fuzzer(library_builder
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/tests/library
 )
 echo_add_fuzzer(cover_image LIBRARIES echo_image)
+echo_add_fuzzer(placeholder_art LIBRARIES echo_ui echo_fonts)
+echo_add_fuzzer(play_queue
+    SOURCES ../library/memory_source.c ../library/fixture_library.c
+    LIBRARIES echo_playback echo_library_scan
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/tests/library
+)
+target_compile_definitions(fuzz_play_queue PRIVATE
+    ECHO_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures"
+)
+echo_add_fuzzer(mp3_probe LIBRARIES echo_device_logic)
+echo_add_fuzzer(opus_decode LIBRARIES echo_device_logic)
