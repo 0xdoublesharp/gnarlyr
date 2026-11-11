@@ -353,6 +353,10 @@ static bool read_tables(FlacInput input, const Mp4Tables *tables, Mp4Track *trac
     const Mp4Box *sizes = &tables->box[TABLE_SIZES];
     const Mp4Box *runs = &tables->box[TABLE_RUNS];
     const Mp4Box *chunks = &tables->box[TABLE_CHUNKS];
+    if (sizes->end - sizes->body < 12 || runs->end - runs->body < 8 ||
+        chunks->end - chunks->body < 8) {
+        return false;
+    }
     track->wide_offsets = chunks->type == CO64;
     track->sizes_at = sizes->body + 12;
     track->runs_at = runs->body + 8;
@@ -361,7 +365,10 @@ static bool read_tables(FlacInput input, const Mp4Tables *tables, Mp4Track *trac
            read_word(input, sizes->body + 8, &track->sample_count) &&
            read_word(input, runs->body + 4, &track->run_count) &&
            read_word(input, chunks->body + 4, &track->chunk_count) && track->run_count > 0 &&
-           track->chunk_count > 0;
+           track->chunk_count > 0 &&
+           (track->fixed_size != 0 || track->sample_count <= (sizes->end - track->sizes_at) / 4) &&
+           track->run_count <= (runs->end - track->runs_at) / 12 &&
+           track->chunk_count <= (chunks->end - track->chunks_at) / (track->wide_offsets ? 8 : 4);
 }
 
 static bool same_text(const uint8_t *bytes, const char *text)

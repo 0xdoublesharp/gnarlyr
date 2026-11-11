@@ -950,6 +950,24 @@ static void malformed_chunk_tables_never_locate_a_sample(void)
     }
 }
 
+static void sample_tables_cannot_extend_into_adjacent_boxes(void)
+{
+    for (uint32_t wide = 0; wide < 2; wide++) {
+        for (uint32_t table = 0; table < 3; table++) {
+            static Builder builder;
+            build_synthetic(&builder, wide != 0);
+            const char *name = table == 0 ? "stsz" : table == 1 ? "stsc" : wide ? "co64" : "stco";
+            uint32_t box = find_box_type(&builder, name);
+            CHECK(box != 0);
+            uint32_t count_at = box + (table == 0 ? 12 : 8);
+            builder.bytes[count_at + 3] = (uint8_t)(table == 0 ? 11 : table == 1 ? 3 : 5);
+            FlacInput input = {.read = read_builder, .context = &builder, .size = builder.length};
+            Mp4Track track;
+            CHECK(!mp4_probe(input, &track));
+        }
+    }
+}
+
 static void overflowing_chunk_table_indices_are_rejected(void)
 {
     for (uint32_t wide = 0; wide < 2; wide++) {
@@ -971,9 +989,12 @@ static void overflowing_chunk_table_indices_are_rejected(void)
         builder.bytes[stsc + 15] = (uint8_t)first;
         FlacInput input = {.read = read_builder, .context = &builder, .size = builder.length};
         Mp4Track track;
+        CHECK(!mp4_probe(input, &track));
+        memset(builder.bytes + chunks + 8, 0, 4);
+        builder.bytes[chunks + 11] = 4;
         CHECK(mp4_probe(input, &track));
         CHECK_EQUAL(1u, track.run_count);
-        CHECK_EQUAL(first, track.chunk_count);
+        track.chunk_count = first;
         Mp4Cursor cursor;
         CHECK(!mp4_cursor_seek(&cursor, input, &track, 0));
     }
@@ -989,8 +1010,11 @@ static void overflowing_sample_size_table_indices_are_rejected(void)
     memcpy(builder.bytes + stsz + 12, count, sizeof count);
     FlacInput input = {.read = read_builder, .context = &builder, .size = builder.length};
     Mp4Track track;
+    CHECK(!mp4_probe(input, &track));
+    memset(builder.bytes + stsz + 12, 0, 4);
+    builder.bytes[stsz + 15] = 10;
     CHECK(mp4_probe(input, &track));
-    CHECK_EQUAL(UINT32_C(0x40000001), track.sample_count);
+    track.sample_count = UINT32_C(0x40000001);
     Mp4Cursor cursor = {.sample = UINT32_C(0x40000000), .chunk_samples = 1};
     uint32_t offset = 0;
     uint32_t size = 0;
@@ -1157,6 +1181,7 @@ int main(void)
         TEST_CASE(malformed_chunk_tables_never_locate_a_sample),
         TEST_CASE(overflowing_sample_offsets_are_rejected),
         TEST_CASE(a_sample_ending_at_the_offset_limit_is_not_rejected_early),
+        TEST_CASE(sample_tables_cannot_extend_into_adjacent_boxes),
         TEST_CASE(overflowing_sample_size_table_indices_are_rejected),
         TEST_CASE(overflowing_chunk_table_indices_are_rejected),
         TEST_CASE(aac_configurations_report_supported_rates_channels_and_frame_lengths),
