@@ -52,7 +52,10 @@ add_library(echo_app STATIC
     settings_screens.c
     settings_store.c
     spoken_store.c
+    wall_time.c
     screens/bluetooth_screen.c
+    screens/calendar_screen.c
+    screens/clock_screen.c
     screens/charge_screen.c
     screens/charge_art.c
     screens/cover_flow_screen.c

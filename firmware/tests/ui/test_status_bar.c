@@ -355,6 +355,68 @@ static void a_shown_percentage_turns_red_when_low_and_stays_plain_on_usb_power(v
     CHECK(!ui_test_area_has_color(&powered, text, tinted(&theme, theme.colors.danger)));
 }
 
+static void the_clock_is_hidden_unless_the_app_passes_it(void)
+{
+    Theme theme = panel_theme();
+    StatusBarState state = battery_at(HALF_BATTERY, false);
+    Canvas canvas = draw_panel(&theme, state);
+    state.clock = "09:41";
+    CHECK(ui_test_area_has_only(&canvas, status_bar_clock_area(&theme, state),
+                                theme.colors.header_background));
+}
+
+static void a_shown_clock_sits_left_of_the_battery_in_the_header_text(void)
+{
+    Theme theme = panel_theme();
+    StatusBarState state = battery_at(HALF_BATTERY, false);
+    state.clock = "09:41";
+    Canvas canvas = draw_panel(&theme, state);
+    Rect clock = status_bar_clock_area(&theme, state);
+    Rect body = status_bar_battery_body(&theme);
+    CHECK(status_bar_clock_fits(&theme, state));
+    CHECK(clock.x + clock.width + PANEL_PADDING / 2 == body.x);
+    CHECK(ui_test_area_has_color(&canvas, clock, theme.colors.header_text));
+    Rect gap = {clock.x + clock.width, body.y, body.x - clock.x - clock.width, body.height};
+    CHECK(ui_test_area_has_only(&canvas, gap, theme.colors.header_background));
+}
+
+static void a_shown_percentage_pushes_the_clock_further_left(void)
+{
+    Theme theme = panel_theme();
+    StatusBarState state = battery_at(HALF_BATTERY, false);
+    state.clock = "9:41";
+    Rect alone = status_bar_clock_area(&theme, state);
+    state.percent = "50%";
+    Rect pushed = status_bar_clock_area(&theme, state);
+    CHECK_EQUAL(alone.x - PANEL_PADDING / 2 - text_width(theme.fonts.small, "50%"), pushed.x);
+    CHECK(pushed.x + pushed.width <= percent_area(&theme, "50%").x);
+}
+
+static void a_clock_that_would_reach_the_left_icons_is_left_out(void)
+{
+    Theme theme = panel_theme();
+    StatusBarState state = battery_at(HALF_BATTERY, false);
+    state.clock = "09:41";
+    state.playback = STATUS_PLAYBACK_PLAYING;
+    Rect clock = status_bar_clock_area(&theme, state);
+    CHECK(clock.x > status_bar_left_end(&theme, state));
+    CHECK(!status_bar_clock_fits(&theme, state));
+    Canvas canvas = draw_panel(&theme, state);
+    Rect right = {status_bar_left_end(&theme, state) + 1, clock.y,
+                  status_bar_battery_body(&theme).x - status_bar_left_end(&theme, state) - 2,
+                  clock.height};
+    CHECK(ui_test_area_has_only(&canvas, right, theme.colors.header_background));
+}
+
+static void without_a_battery_reading_the_clock_ends_at_the_right_padding(void)
+{
+    Theme theme = panel_theme();
+    StatusBarState state = {.clock = "09:41"};
+    Rect clock = status_bar_clock_area(&theme, state);
+    CHECK_EQUAL(theme.metrics.screen_width - PANEL_PADDING, clock.x + clock.width);
+    CHECK(status_bar_clock_fits(&theme, state));
+}
+
 static void an_unknown_battery_draws_no_battery(void)
 {
     Theme theme = panel_theme();
@@ -404,6 +466,11 @@ int main(void)
         TEST_CASE(the_percentage_is_hidden_unless_the_app_passes_it),
         TEST_CASE(a_shown_percentage_sits_left_of_the_battery_level_with_its_body),
         TEST_CASE(a_shown_percentage_turns_red_when_low_and_stays_plain_on_usb_power),
+        TEST_CASE(the_clock_is_hidden_unless_the_app_passes_it),
+        TEST_CASE(a_shown_clock_sits_left_of_the_battery_in_the_header_text),
+        TEST_CASE(a_shown_percentage_pushes_the_clock_further_left),
+        TEST_CASE(a_clock_that_would_reach_the_left_icons_is_left_out),
+        TEST_CASE(without_a_battery_reading_the_clock_ends_at_the_right_padding),
         TEST_CASE(an_unknown_battery_draws_no_battery),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

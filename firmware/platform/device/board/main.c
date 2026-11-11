@@ -264,6 +264,7 @@ void board_main(void)
     switch_off_when_empty(boot_millivolts);
     boot_step("app start");
     app_start();
+    board_wall_time_forget_file();
     explain_missing_text();
     boot_step("splash");
     app_show_splash();
@@ -274,6 +275,7 @@ void board_main(void)
     board_stall_pause(false);
     for (;;) {
         board_stall_beat();
+        board_wall_time_keep();
         app_step();
         board_display_service();
         check_usb();

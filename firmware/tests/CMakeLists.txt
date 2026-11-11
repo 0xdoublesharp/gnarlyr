@@ -30,6 +30,8 @@ echo_add_unit_test(NAME test_key_lock SOURCES core/test_key_lock.c LIBRARIES ech
 echo_add_unit_test(NAME test_utf8 SOURCES core/test_utf8.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_string_builder SOURCES core/test_string_builder.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_format SOURCES core/test_format.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_calendar SOURCES core/test_calendar.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_clock_face SOURCES core/test_clock_face.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_dac_identity SOURCES core/test_dac_identity.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_random SOURCES core/test_random.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_permutation SOURCES core/test_permutation.c LIBRARIES echo_core)
@@ -343,7 +345,7 @@ echo_add_unit_test(NAME test_bluetooth_screen
     LIBRARIES echo_app echo_library_scan
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
-foreach(device_test audio_math backlight board_pins loader_request update_names updater_echo vop battery_gauge watchdog panic_text stall_watch bt_module card_write core1_control start_record dac_sequence dma_loop flac_accel headset_dips headset_monitor headset_remote jack_sense key_ladder key_scanner msc panel pll sd_card stream_drift tick_clock updater usb_audio usb_audio_sink usb_device usb_fallback usb_forced usb_plug wav_source pc_profile debug_report power_history rtc_registers)
+foreach(device_test audio_math backlight board_pins loader_request update_names updater_echo vop battery_gauge watchdog panic_text stall_watch bt_module card_write core1_control start_record dac_sequence dma_loop flac_accel headset_dips headset_monitor headset_remote jack_sense key_ladder key_scanner msc panel pll sd_card stream_drift tick_clock updater usb_audio usb_audio_sink usb_device usb_fallback usb_forced usb_plug wav_source pc_profile debug_report power_history rtc_registers time_file wall_clock)
     echo_add_unit_test(NAME test_${device_test}
         SOURCES device/test_${device_test}.c
         LIBRARIES echo_device_logic
@@ -899,6 +901,12 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(test_equalizer PRIVATE m)
     target_link_libraries(test_equalizer_response PRIVATE m)
 endif()
+
+echo_add_unit_test(NAME test_clock_screen
+    SOURCES app/test_clock_screen.c app/fake_hal.c support/text_spy.c support/screen_snapshot.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
+)
 
 echo_add_unit_test(NAME test_lyrics_screen
     SOURCES app/test_lyrics_screen.c app/fake_hal.c support/text_spy.c support/screen_snapshot.c

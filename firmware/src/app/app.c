@@ -8,6 +8,7 @@
 #include "bluetooth_link.h"
 #include "board_layout.h"
 #include "card_files.h"
+#include "core/clock_face.h"
 #include "core/deadline.h"
 #include "core/frame_pacer.h"
 #include "core/hash.h"
@@ -27,6 +28,7 @@
 #include "frame_overlay.h"
 #include "gfx/frame_diff.h"
 #include "gfx/strip_renderer.h"
+#include "gfx/text.h"
 #include "hal/audio.h"
 #include "hal/bluetooth.h"
 #include "hal/clock.h"
@@ -51,6 +53,7 @@
 #include "ui/status_bar.h"
 #include "ui/toast.h"
 #include "ui/wire_motion.h"
+#include "wall_time.h"
 
 enum {
     PASS_BUSY_MS = 1,
@@ -58,6 +61,7 @@ enum {
     PASS_SCREEN_OFF_MS = 10,
     VIEW_STAMP_CHECK_MS = 50,
     VIEW_STAMP_POSITION_MS = 1000,
+    VIEW_STAMP_MINUTE_S = 60,
     RESCAN_PROGRESS_MS = 250,
     NOTICE_TEXT_CAPACITY = 64,
     TOAST_TEXT_CAPACITY = 64,
@@ -126,6 +130,7 @@ typedef struct AppState {
     uint32_t shown_refusals;
     StatusBarState status_bar;
     char battery_text[STATUS_BAR_PERCENT_CAPACITY];
+    char clock_text[STATUS_BAR_CLOCK_CAPACITY];
     AppScreens screens;
     MessageScreen notice;
     WireMotion motion;
@@ -966,6 +971,20 @@ static void draw_slide(Canvas *canvas, Screen *arriving)
     }
 }
 
+static StatusBarState shown_status_bar(const AppState *state, const char *title)
+{
+    StatusBarState bar = state->status_bar;
+    const Theme *theme = board_theme();
+    if (bar.clock == NULL || title == NULL || theme->metrics.status_height > 0) {
+        return bar;
+    }
+    int title_end = (theme->metrics.screen_width + text_width(theme->fonts.header, title)) / 2;
+    if (status_bar_clock_area(theme, bar).x < title_end + theme->metrics.padding) {
+        bar.clock = NULL;
+    }
+    return bar;
+}
+
 static void draw_frame(void *context, Canvas *canvas)
 {
     const AppState *state = context;
@@ -979,7 +998,7 @@ static void draw_frame(void *context, Canvas *canvas)
         screen->draw(screen->context, canvas);
     }
     if (!screen->full_screen) {
-        status_bar_draw(canvas, board_theme(), state->status_bar);
+        status_bar_draw(canvas, board_theme(), shown_status_bar(state, screen->title));
     }
     toast_draw(&state->toast, canvas, board_theme());
     if (state->options.show_frame_time) {
@@ -1044,6 +1063,17 @@ static const char *battery_text(HalBattery battery)
     return app.battery_text;
 }
 
+static const char *clock_text(void)
+{
+    WallNow now = wall_time_now();
+    if (!now.known) {
+        return NULL;
+    }
+    StringBuilder builder = string_builder_make(app.clock_text, sizeof app.clock_text);
+    clock_face_text(&builder, clock_face(now.local_s, wall_time_24h(&app.settings.settings)));
+    return app.clock_text;
+}
+
 static StatusBarState current_status_bar(void)
 {
     HalBattery battery = hal_power_battery();
@@ -1057,6 +1087,7 @@ static StatusBarState current_status_bar(void)
         .locked = app.lock.locked,
         .shuffle = (StatusShuffle)player_status(&app.player).shuffle,
         .percent = battery_text(battery),
+        .clock = clock_text(),
     };
 }
 
@@ -1607,6 +1638,7 @@ static uint32_t view_stamp(void)
 {
     PlayerStatus status = player_status(&app.player);
     HalBattery battery = hal_power_battery();
+    WallNow wall = wall_time_now();
     uint32_t stamp = HASH_START;
     stamp = stamp_add(stamp, (uint32_t)status.state);
     stamp = stamp_add(stamp, status.has_track);
@@ -1626,6 +1658,7 @@ static uint32_t view_stamp(void)
     stamp = stamp_add(stamp, app.lock.locked);
     stamp = stamp_add(stamp, app.toast.visible);
     stamp = stamp_add(stamp, app.toast.until_ms);
+    stamp = stamp_add(stamp, wall.known ? wall.local_s / VIEW_STAMP_MINUTE_S : 0);
     return stamp_add(stamp, (uint32_t)(uintptr_t)app.toast.text);
 }
 

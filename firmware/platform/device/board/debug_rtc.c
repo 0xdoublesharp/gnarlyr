@@ -4,6 +4,7 @@
 #include "board.h"
 #include "cru.h"
 #include "device/audio_math.h"
+#include "device/rtc_time.h"
 #include "gpio.h"
 #include "hal/clock.h"
 #include "hal/system.h"
@@ -50,7 +51,9 @@ enum {
     I2C_TIMEOUT_MS = 10,
     I2C_BUS_KHZ = 100,
     RESET_PULSE_US = 200,
-    BYTES_PER_WORD = 4
+    BYTES_PER_WORD = 4,
+    RTC_VOLTAGE_LOW = 0x80,
+    RTC_SET_SLACK_S = 2
 };
 
 static const GpioPin RTC_PINS[] = {{2, 12}, {2, 13}};
@@ -139,20 +142,43 @@ static HalRtcStatus bus_stop(HalRtcStatus status)
     return status != HAL_RTC_OK ? status : stopped;
 }
 
-static HalRtcStatus point_at_first_register(void)
+static HalRtcStatus send(const uint8_t *bytes, uint32_t count)
 {
     HalRtcStatus status = bus_start(0);
     if (status != HAL_RTC_OK) {
         return bus_stop(status);
     }
-    register_write(I2C_TXDATA, RTC_ADDRESS | RTC_FIRST_REGISTER << 8);
+    for (uint32_t word = 0; word * BYTES_PER_WORD < count; word++) {
+        uint32_t value = 0;
+        for (uint32_t byte = 0; byte < BYTES_PER_WORD && word * BYTES_PER_WORD + byte < count;
+             byte++) {
+            value |= (uint32_t)bytes[word * BYTES_PER_WORD + byte] << (8 * byte);
+        }
+        register_write(I2C_TXDATA + BYTES_PER_WORD * word, value);
+    }
     register_write(I2C_IPD, I2C_ALL_PENDING);
-    register_write(I2C_MTXCNT, 2);
+    register_write(I2C_MTXCNT, count);
     status = wait_pending(I2C_TX_DONE | I2C_NAK);
     if (status == HAL_RTC_OK && (register_read(I2C_IPD) & I2C_NAK) != 0) {
         status = HAL_RTC_NO_ACK;
     }
     return bus_stop(status);
+}
+
+static HalRtcStatus point_at_first_register(void)
+{
+    static const uint8_t FRAME[] = {RTC_ADDRESS, RTC_FIRST_REGISTER};
+    return send(FRAME, sizeof FRAME);
+}
+
+static HalRtcStatus write_time(const uint8_t *registers)
+{
+    uint8_t frame[2 + RTC_TIME_REGISTERS - RTC_REGISTER_SECONDS] = {RTC_ADDRESS,
+                                                                    RTC_REGISTER_SECONDS};
+    for (int index = RTC_REGISTER_SECONDS; index < RTC_TIME_REGISTERS; index++) {
+        frame[2 + index - RTC_REGISTER_SECONDS] = registers[index];
+    }
+    return send(frame, sizeof frame);
 }
 
 static void take_bytes(uint8_t *registers)
@@ -188,16 +214,48 @@ static HalRtcStatus receive_registers(uint8_t *registers)
     return bus_stop(status);
 }
 
-HalRtcRead hal_system_rtc_read(void)
+static HalRtcRead read_registers(void)
 {
-    HalRtcRead read = {.status = HAL_RTC_OK};
-    BusState state = save_bus();
-    open_bus();
-    read.status = point_at_first_register();
+    HalRtcRead read = {.status = point_at_first_register()};
     if (read.status == HAL_RTC_OK) {
         read.status = receive_registers(read.registers);
     }
+    return read;
+}
+
+HalRtcRead hal_system_rtc_read(void)
+{
+    BusState state = save_bus();
+    open_bus();
+    HalRtcRead read = read_registers();
     restore_bus(&state);
     hal_system_keep_alive();
+    return read;
+}
+
+static bool reads_back(uint32_t utc_s, const uint8_t *registers)
+{
+    uint32_t found = 0;
+    return (registers[RTC_REGISTER_SECONDS] & RTC_VOLTAGE_LOW) == 0 &&
+           rtc_time_utc(registers, &found) && found - utc_s <= RTC_SET_SLACK_S;
+}
+
+HalRtcRead hal_system_rtc_set(uint32_t utc_s)
+{
+    uint8_t wanted[RTC_TIME_REGISTERS];
+    if (!rtc_time_registers(utc_s, wanted)) {
+        return (HalRtcRead){.status = HAL_RTC_NO_TIME};
+    }
+    BusState state = save_bus();
+    open_bus();
+    HalRtcRead read = {.status = write_time(wanted)};
+    if (read.status == HAL_RTC_OK) {
+        read = read_registers();
+    }
+    restore_bus(&state);
+    hal_system_keep_alive();
+    if (read.status == HAL_RTC_OK && !reads_back(utc_s, read.registers)) {
+        read.status = HAL_RTC_MISMATCH;
+    }
     return read;
 }

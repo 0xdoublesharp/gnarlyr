@@ -44,3 +44,25 @@ bool rtc_registers_decode(const uint8_t registers[RTC_TIME_REGISTERS], RtcTime *
     time->year = (uint16_t)(RTC_FIRST_YEAR + year);
     return valid && time->day != 0 && time->month != 0;
 }
+
+static uint8_t to_bcd(uint8_t value)
+{
+    return (uint8_t)(value / DECIMAL << BCD_TENS_SHIFT | value % DECIMAL);
+}
+
+bool rtc_registers_encode(const RtcTime *time, uint8_t registers[RTC_TIME_REGISTERS])
+{
+    if (time->year < RTC_FIRST_YEAR || time->year > RTC_LAST_YEAR || time->month == 0 ||
+        time->month > MAX_MONTH || time->day == 0 || time->day > MAX_DAY || time->hour > MAX_HOUR ||
+        time->minute > MAX_MINUTE || time->second > MAX_SECOND) {
+        return false;
+    }
+    registers[RTC_REGISTER_SECONDS] = to_bcd(time->second);
+    registers[RTC_REGISTER_MINUTES] = to_bcd(time->minute);
+    registers[RTC_REGISTER_HOURS] = to_bcd(time->hour);
+    registers[RTC_REGISTER_DAYS] = to_bcd(time->day);
+    registers[RTC_REGISTER_WEEKDAYS] = time->weekday & WEEKDAYS_MASK;
+    registers[RTC_REGISTER_MONTHS] = to_bcd(time->month);
+    registers[RTC_REGISTER_YEARS] = to_bcd((uint8_t)(time->year - RTC_FIRST_YEAR));
+    return true;
+}

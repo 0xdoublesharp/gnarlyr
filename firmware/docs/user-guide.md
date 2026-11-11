@@ -315,10 +315,16 @@ Open Up Next and hold Play on a song for its actions. Move it earlier or later, 
 
 Home → Mixtapes saves a queue as a named list. Save queue captures the current sequence; New mixtape starts an empty one. While naming, the volume buttons choose a character, Play adds it, Menu erases it and holding Play saves the name. A mixtape's actions play it, load it into Up Next for editing, replace its contents, rename it or delete it. Songs are matched by their paths and cue boundaries after a rescan.
 
+## Clock and calendar
+
+Gnarlyr sets its clock from your Mac. Every companion command that ejects the player (`python3 tools/echo_debug.py set-time` does only that) leaves the Mac's time on the drive, and the player sets its clock as the drive is ejected. The clock then keeps going while the player is on. When the player has been switched off or restarted, the time is unknown until the next sync.
+
+While the time is set it also shows in the status bar, left of the battery; in landscape it steps aside for a long screen title. Home → Clock shows the time, the weekday and the date in 24-hour time. Press ▶ for Calendar: the current month from Monday with today marked. The volume buttons move a month at a time, ▶ goes back to the current month and Back returns to Clock. Without a set time both say so and how to set it.
+
 ## Listening and lyrics
 
 Home → Listening shows total listening time, plays, skips, and top songs, albums and artists. It records time while music is playing. Totals and ranked lists work without a calendar clock.
 
-Export plays saves your plays to `/.scrobbler.log` at the top of the player's drive, in the Rockbox scrobbler format that import tools read; your history stays as it is. It starts as soon as you choose it and shows how far it has got; Back cancels it. When it finishes it shows how many plays it saved. Each export replaces the previous file. With nothing to export it says so and leaves the file alone. Plays of songs no longer in the library are left out. The player has no clock, so every play is saved with the time 0.
+Export plays saves your plays to `/.scrobbler.log` at the top of the player's drive, in the Rockbox scrobbler format that import tools read; your history stays as it is. It starts as soon as you choose it and shows how far it has got; Back cancels it. When it finishes it shows how many plays it saved. Each export replaces the previous file. With nothing to export it says so and leaves the file alone. Plays of songs no longer in the library are left out. Times are saved in UTC. A play gets its time only while the player's clock is set (see Clock and calendar); a play made while the clock was not set is saved with the time 0.
 
 Place a timed `.lrc` file beside a song, with the same filename stem. Hold Menu on Now Playing to open Lyrics; tap Menu still opens Up Next. Lyrics follow playback, and the volume buttons move through the lines. Back returns to Now Playing.

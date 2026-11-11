@@ -515,9 +515,28 @@ static void walk_power(void)
     CHECK(show("the charge screen when charged") >= 2);
 }
 
+static void walk_clock(void)
+{
+    begin();
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    show_titled("Clock without a time", STR_CLOCK);
+    tap(KEY_PLAY);
+    show_titled("Calendar without a time", STR_CALENDAR);
+    begin();
+    fake_hal_set_wall(1794390060u, 60);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    show_titled("Clock", STR_CLOCK);
+    tap(KEY_PLAY);
+    show_titled("Calendar", STR_CALENDAR);
+    fake_hal_set_wall(0, 0);
+}
+
 static void walk_listening(void)
 {
     begin();
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
@@ -545,6 +564,7 @@ static void walk_everything(void)
     walk_song_actions();
     walk_now_playing();
     walk_listening();
+    walk_clock();
     walk_power();
 }
 

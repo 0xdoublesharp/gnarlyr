@@ -22,7 +22,7 @@ enum {
 const char LISTENING_EXPORT_PATH[] = "/.scrobbler.log";
 
 static const char HEADER[] =
-    "#AUDIOSCROBBLER/1.1\n#TZ/UNKNOWN\n#CLIENT/" FIRMWARE_NAME " " FIRMWARE_VERSION "\n";
+    "#AUDIOSCROBBLER/1.1\n#TZ/UTC\n#CLIENT/" FIRMWARE_NAME " " FIRMWARE_VERSION "\n";
 
 typedef struct Sink {
     ListeningExport *job;

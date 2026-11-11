@@ -266,9 +266,10 @@ static void build_home(AppScreens *screens, AppScreensContext context)
                                         .select = open_usb_modes,
                                         .context = screens,
                                         .opens = true};
-    static const IconId icons[HOME_ITEM_COUNT] = {ICON_MUSIC,    ICON_AUDIOBOOK,   ICON_PODCAST,
-                                                  ICON_SETTINGS, ICON_NOW_PLAYING, ICON_QUEUE,
-                                                  ICON_MIXTAPE,  ICON_DIAGNOSTICS, ICON_USB};
+    screens->home_items[9] = app_screens_open_item(STR_CLOCK, &screens->modules.views.clock.screen);
+    static const IconId icons[HOME_ITEM_COUNT] = {
+        ICON_MUSIC, ICON_AUDIOBOOK, ICON_PODCAST,     ICON_SETTINGS, ICON_NOW_PLAYING,
+        ICON_QUEUE, ICON_MIXTAPE,   ICON_DIAGNOSTICS, ICON_USB,      ICON_TIMEOUT};
     for (int index = 0; index < HOME_ITEM_COUNT; index++) {
         screens->home_items[index].icon = icons[index];
     }

@@ -181,6 +181,55 @@ static void draw_battery(Canvas *canvas, const Theme *theme, StatusBarState stat
     }
 }
 
+int status_bar_left_end(const Theme *theme, StatusBarState state)
+{
+    Rect last = {theme->metrics.padding, 0, 0, 0};
+    if (state.shuffle != STATUS_SHUFFLE_OFF) {
+        last = status_bar_shuffle_area(theme, state.shuffle);
+    } else if (state.locked) {
+        last = status_bar_lock_area(theme);
+    } else if (state.bluetooth != STATUS_BLUETOOTH_OFF) {
+        last = status_bar_bluetooth_area(theme);
+    } else if (state.playback != STATUS_PLAYBACK_NONE) {
+        last = status_bar_playback_area(theme);
+    }
+    return last.x + last.width;
+}
+
+static int right_group_start(const Theme *theme, StatusBarState state)
+{
+    if (!state.battery_known) {
+        return theme->metrics.screen_width - theme->metrics.padding / 2;
+    }
+    int start = status_bar_battery_body(theme).x;
+    if (state.percent != NULL) {
+        start -= theme->metrics.padding / 2 + text_width(theme->fonts.small, state.percent);
+    }
+    return start;
+}
+
+Rect status_bar_clock_area(const Theme *theme, StatusBarState state)
+{
+    Rect body = status_bar_battery_body(theme);
+    int width = state.clock != NULL ? text_width(theme->fonts.small, state.clock) : 0;
+    int end = right_group_start(theme, state) - theme->metrics.padding / 2;
+    return (Rect){end - width, body.y, width, body.height};
+}
+
+bool status_bar_clock_fits(const Theme *theme, StatusBarState state)
+{
+    return state.clock != NULL && status_bar_clock_area(theme, state).x >=
+                                      status_bar_left_end(theme, state) + theme->metrics.padding;
+}
+
+static void draw_clock(Canvas *canvas, const Theme *theme, StatusBarState state)
+{
+    Rect area = status_bar_clock_area(theme, state);
+    TextStyle style = {theme->fonts.small, theme->colors.header_text};
+    text_draw(canvas, style, (Point){area.x, label_baseline(theme->fonts.small, area)},
+              state.clock);
+}
+
 static void draw_shuffle(Canvas *canvas, const Theme *theme, StatusShuffle shuffle)
 {
     Rect area = status_bar_shuffle_area(theme, shuffle);
@@ -192,7 +241,7 @@ static void draw_shuffle(Canvas *canvas, const Theme *theme, StatusShuffle shuff
               (Rect){area.x + area.width - arrows, area.y, arrows, area.height}, color);
 }
 
-void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state)
+static void draw_left_icons(Canvas *canvas, const Theme *theme, StatusBarState state)
 {
     Rect icon = status_bar_playback_area(theme);
     Color color = theme->colors.header_text;
@@ -212,7 +261,15 @@ void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state)
     if (state.shuffle != STATUS_SHUFFLE_OFF) {
         draw_shuffle(canvas, theme, state.shuffle);
     }
+}
+
+void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state)
+{
+    draw_left_icons(canvas, theme, state);
     if (state.battery_known) {
         draw_battery(canvas, theme, state);
+    }
+    if (status_bar_clock_fits(theme, state)) {
+        draw_clock(canvas, theme, state);
     }
 }

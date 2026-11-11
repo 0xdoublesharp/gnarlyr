@@ -241,11 +241,15 @@ static void a_scripts_soaks_add_their_minutes_to_its_time_limit(void)
 
 static void rtc_read_lines_become_steps_and_other_actions_are_refused(void)
 {
-    const DebugScriptRun *loaded = load("build any\nrtc read\nrtc write\nrtc\n");
+    const DebugScriptRun *loaded = load("build any\nrtc read\nrtc write\nrtc\nrtc set\n");
     CHECK_EQUAL(DEBUG_SCRIPT_PENDING, loaded->state);
-    CHECK_EQUAL(1, loaded->op_count);
+    CHECK_EQUAL(2, loaded->op_count);
     CHECK_EQUAL(DEBUG_OP_RTC, loaded->ops[0].kind);
+    CHECK_EQUAL(DEBUG_RTC_READ, loaded->ops[0].first);
     CHECK_EQUAL(2, loaded->ops[0].line);
+    CHECK_EQUAL(DEBUG_OP_RTC, loaded->ops[1].kind);
+    CHECK_EQUAL(DEBUG_RTC_SET, loaded->ops[1].first);
+    CHECK_EQUAL(5, loaded->ops[1].line);
     CHECK_EQUAL(0, loaded->rtc_count);
     CHECK_EQUAL(DEBUG_LINE_BAD_ARGUMENT, loaded->status[2]);
     CHECK_EQUAL(DEBUG_LINE_BAD_ARGUMENT, loaded->status[3]);

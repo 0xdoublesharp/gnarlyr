@@ -124,12 +124,14 @@ add_library(echo_device_logic STATIC
     pll.c
     power_history.c
     rtc_registers.c
+    rtc_time.c
     start_record.c
     sd_card.c
     stall_watch.c
     storage_mount.c
     stream_drift.c
     tick_clock.c
+    time_file.c
     update_names.c
     updater.c
     usb_audio.c
@@ -142,6 +144,7 @@ add_library(echo_device_logic STATIC
     vorbis_memory.c
     vorbis_track.c
     vop.c
+    wall_clock.c
     wav_source.c
 )
 if(CMAKE_CROSSCOMPILING)

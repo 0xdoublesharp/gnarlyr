@@ -172,7 +172,7 @@ class Manager:
         if self.read(newer) != before:
             self.error("settings_conflict", "the saved settings changed before the command was sent")
         runner = self.api.Tool(host=self.tool.host, volume_name=self.tool.volume_name,
-                               sleep=self.tool.sleep, clock=self.tool.clock)
+                               sleep=self.tool.sleep, clock=self.tool.clock, wall=self.tool.wall)
         ran = runner.run_text(script, timeout)
         after = self.read(self.language.recheck(context))
         expected = layout.changed(spec, value, before)

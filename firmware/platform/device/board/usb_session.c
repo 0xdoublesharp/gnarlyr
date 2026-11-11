@@ -238,6 +238,9 @@ CORE_SEAM bool usb_storage_session(UsbShared *state)
         app_show_notice(i18n_text(STR_USB_UNPLUGGED), i18n_text(STR_USB_UNPLUGGED_HINT));
         board_wait_for_key();
     }
+    if (end == USB_SESSION_EJECTED || end == USB_SESSION_UNPLUGGED) {
+        time_file_take(end == USB_SESSION_EJECTED);
+    }
 #ifndef ECHO_BOOT_TRACE
     if (end == USB_SESSION_EJECTED || end == USB_SESSION_UNPLUGGED) {
         update_after_usb(shared);

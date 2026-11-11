@@ -18,6 +18,8 @@
 #include "player.h"
 #include "screen_modules.h"
 #include "screens/bluetooth_screen.h"
+#include "screens/calendar_screen.h"
+#include "screens/clock_screen.h"
 #include "screens/cover_flow_screen.h"
 #include "screens/listening_screen.h"
 #include "screens/lyrics_screen.h"
@@ -31,7 +33,7 @@
 #include "ui/toast.h"
 
 enum {
-    HOME_ITEM_COUNT = SETTINGS_HOME_ITEM_COUNT,
+    HOME_ITEM_COUNT = 10,
     SHELF_COUNT = 2,
     MUSIC_ITEM_COUNT = 11,
     DIAGNOSTICS_ITEM_COUNT = 11 + DEBUG_LOOP_ABOUT_ROWS,
@@ -107,6 +109,8 @@ typedef struct ViewsModuleScreens {
     CoverFlowScreen cover_flow;
     UpNextScreen up_next;
     MixtapeUi mixtapes;
+    ClockScreen clock;
+    CalendarScreen calendar;
 } ViewsModuleScreens;
 
 typedef struct SettingsModuleScreens {

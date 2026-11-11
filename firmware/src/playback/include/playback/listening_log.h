@@ -63,6 +63,7 @@ typedef struct ListeningPlay {
     uint32_t end_ms;
     uint32_t uptime_s;
     uint32_t clock_s;
+    int16_t offset_minutes;
     ListeningEnd end;
     ListeningOutput output;
     ListeningFormat format;

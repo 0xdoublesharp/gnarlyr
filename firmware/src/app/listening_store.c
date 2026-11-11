@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "hal/clock.h"
 #include "hal/storage.h"
 #include "hal/system.h"
 
@@ -120,6 +121,7 @@ static bool lossless(HalAudioCodec codec)
 static void begin(ListeningStore *store, ListeningObservation observation, uint32_t now_ms)
 {
     const PlayerStatus *status = &observation.status;
+    HalWallTime wall = hal_clock_wall();
     ListeningTrack track;
     if (!status->has_track || status->state == PLAYER_IDLE || store->library == NULL ||
         listening_track_read(store->library, status->track, &track) != STORE_READY) {
@@ -131,6 +133,8 @@ static void begin(ListeningStore *store, ListeningObservation observation, uint3
         .start_ms = status->position_ms,
         .end_ms = status->position_ms,
         .uptime_s = now_ms / SECOND_MS,
+        .clock_s = wall.source != HAL_WALL_UNKNOWN ? wall.utc_s : 0,
+        .offset_minutes = wall.source != HAL_WALL_UNKNOWN ? wall.offset_minutes : 0,
         .output = observation.output,
         .format = listening_format_class(lossless(status->format.codec), status->format.sample_rate,
                                          status->format.bits_per_sample),

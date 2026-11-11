@@ -931,7 +931,7 @@ static void the_home_menu_shows_now_playing_last_once_a_track_is_loaded(void)
 static void the_home_menu_hides_now_playing_with_nothing_loaded(void)
 {
     start_app_with_library();
-    move_down(5);
+    move_down(6);
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
 }
@@ -1774,7 +1774,7 @@ static void home_puts_the_album_art_under_the_menu_in_portrait(void)
     settle();
     Theme theme = *expected_theme();
     default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
-    int list_bottom = theme.metrics.header_height + 5 * theme.metrics.row_height;
+    int list_bottom = theme.metrics.header_height + 6 * theme.metrics.row_height;
     int cover_middle = list_bottom + 8 + COVER_FULL_SIZE / 2;
     CHECK_EQUAL(RED_COVER, fake_hal_pixel(HAL_DISPLAY_SHORT_SIDE / 2, cover_middle));
     CHECK(fake_hal_pixel(2, list_bottom) == theme.colors.divider);
@@ -4236,6 +4236,24 @@ static void rtc_read_lines_keep_the_registers_and_a_bus_error_fails_the_line(voi
     CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[5]);
 }
 
+static void rtc_set_writes_the_synced_time_and_refuses_without_one(void)
+{
+    start_app();
+    fake_hal_set_rtc_answer((HalRtcRead){.status = HAL_RTC_OK});
+    const DebugScriptRun *run = run_script("build any\nrtc set\nwait 20\n", 200);
+    CHECK_EQUAL(HAL_RTC_NO_TIME, run->rtc[0].status);
+    CHECK_EQUAL(DEBUG_RTC_SET, run->rtc[0].action);
+    CHECK_EQUAL(0, fake_hal_rtc_read_count());
+    CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[1]);
+    fake_hal_set_wall(1794390060u, 60);
+    run = run_script("build any\nrtc set\nwait 20\n", 200);
+    CHECK_EQUAL(HAL_RTC_OK, run->rtc[0].status);
+    CHECK(fake_hal_rtc_written() - 1794390060u <= 1);
+    CHECK_EQUAL(fake_hal_rtc_written(), run->rtc[0].written_s);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
+    fake_hal_set_wall(0, 0);
+}
+
 static void a_probe_the_board_refuses_is_reported_and_leaves_no_record(void)
 {
     start_app();
@@ -4647,11 +4665,11 @@ static void an_aborted_script_lets_go_of_the_key_it_holds(void)
     step();
     const Theme *theme = expected_theme();
     int selected = 0;
-    while (selected < 5 &&
+    while (selected < 6 &&
            !selected_at(theme->metrics.header_height + selected * theme->metrics.row_height + 16)) {
         selected++;
     }
-    CHECK(selected < 5);
+    CHECK(selected < 6);
     long pixels = fake_hal_pixels_written();
     uint32_t before = debug_loop_log()->recorded;
     run_script_for(2000);
@@ -4660,8 +4678,9 @@ static void an_aborted_script_lets_go_of_the_key_it_holds(void)
     CHECK_EQUAL(pixels, fake_hal_pixels_written());
     CHECK_EQUAL(0, events_of(DEBUG_EVENT_SCREEN, before));
     tap(KEY_PLAY);
-    static const char *const titles[] = {"Music", "Settings", "Mixtapes", "Listening", "USB mode"};
-    CHECK(selected < 5 && title_is(titles[selected]));
+    static const char *const titles[] = {"Music",     "Settings", "Mixtapes",
+                                         "Listening", "USB mode", "Clock"};
+    CHECK(selected < 6 && title_is(titles[selected]));
 }
 
 static void a_script_lights_the_screen_and_leaves_the_charge_screen_before_it_starts(void)
@@ -4746,6 +4765,24 @@ static void battery_percentage_choice_shows_the_level_beside_the_battery_and_sur
     restart_app();
     CHECK(saved_settings(&chosen));
     CHECK(chosen.battery_percent);
+}
+
+static void the_status_bar_shows_the_set_time_and_nothing_without_one(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery((HalBattery){.known = true, .percent = HALF_BATTERY});
+    Color ink = expected_theme()->colors.header_text;
+    StatusBarState state = {
+        .battery_known = true, .battery_percent = HALF_BATTERY, .clock = "09:41"};
+    Rect clock = status_bar_clock_area(expected_theme(), state);
+    wait_ms(500);
+    CHECK(!area_has_color(clock, ink));
+    fake_hal_set_wall(1794390060u, 0);
+    wait_ms(500);
+    CHECK(area_has_color(clock, ink));
+    fake_hal_set_wall(0, 0);
+    wait_ms(500);
+    CHECK(!area_has_color(clock, ink));
 }
 
 static void normalization_choices_apply_and_survive_restart(void)
@@ -4936,6 +4973,7 @@ int main(void)
         TEST_CASE(clipping_preview_is_discarded_by_back_shutdown_and_unrelated_saves),
         TEST_CASE(
             battery_percentage_choice_shows_the_level_beside_the_battery_and_survives_restart),
+        TEST_CASE(the_status_bar_shows_the_set_time_and_nothing_without_one),
         TEST_CASE(brightness_is_applied_and_saved),
         TEST_CASE(brightness_previews_without_saving_and_back_restores_it),
         TEST_CASE(leaving_or_stopping_a_brightness_preview_restores_the_saved_level),
@@ -5129,6 +5167,7 @@ int main(void)
         TEST_CASE(peek_poke_and_gpio_lines_ask_the_board_and_keep_what_it_answers),
         TEST_CASE(a_probe_the_board_refuses_is_reported_and_leaves_no_record),
         TEST_CASE(rtc_read_lines_keep_the_registers_and_a_bus_error_fails_the_line),
+        TEST_CASE(rtc_set_writes_the_synced_time_and_refuses_without_one),
         TEST_CASE(a_script_keeps_sixteen_probes_and_does_not_make_a_seventeenth),
         TEST_CASE(supply_off_holds_the_usb_supply_off_until_supply_on),
         TEST_CASE(the_supply_comes_back_when_a_script_ends_without_saying_so),

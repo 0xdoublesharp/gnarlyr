@@ -56,6 +56,21 @@ static void paused_time_and_seek_distance_are_never_counted_as_listening(void)
     CHECK_EQUAL(6000, seen.first.play.end_ms);
 }
 
+static void a_play_started_with_the_clock_set_carries_its_utc_time_and_offset(void)
+{
+    reset();
+    fake_hal_set_wall(1794482460, -480);
+    listening_store_follow(&store, observed(20, 0, PLAYER_PLAYING), 1000);
+    fake_hal_set_wall(1794490000, 60);
+    listening_store_flush(&store, observed(20, 5000, PLAYER_PAUSED), 6000);
+    fake_hal_set_wall(0, 0);
+    ListeningSeen seen;
+    CHECK_EQUAL(0, listening_fixture_read_all(&store.log, &seen));
+    CHECK_EQUAL(1, seen.count);
+    CHECK_EQUAL(1794482460, seen.first.play.clock_s);
+    CHECK_EQUAL(-480, seen.first.play.offset_minutes);
+}
+
 static void repeating_the_same_track_starts_a_distinct_play_without_a_skip(void)
 {
     reset();
@@ -323,6 +338,7 @@ int main(void)
         TEST_CASE(a_decode_failure_to_idle_is_recorded_as_stopped),
         TEST_CASE(an_unknown_duration_does_not_discard_elapsed_time_on_a_track_change),
         TEST_CASE(paused_time_and_seek_distance_are_never_counted_as_listening),
+        TEST_CASE(a_play_started_with_the_clock_set_carries_its_utc_time_and_offset),
         TEST_CASE(repeating_the_same_track_starts_a_distinct_play_without_a_skip),
         TEST_CASE(the_last_song_finishing_is_not_reported_as_stopped),
         TEST_CASE(a_failed_write_is_retried_once_without_duplicate_counts),

@@ -115,6 +115,8 @@ typedef enum HalRtcStatus {
     HAL_RTC_OK,
     HAL_RTC_NO_ACK,
     HAL_RTC_TIMEOUT,
+    HAL_RTC_NO_TIME,
+    HAL_RTC_MISMATCH,
     HAL_RTC_STATUS_COUNT
 } HalRtcStatus;
 
@@ -124,6 +126,7 @@ typedef struct HalRtcRead {
 } HalRtcRead;
 
 HalRtcRead hal_system_rtc_read(void);
+HalRtcRead hal_system_rtc_set(uint32_t utc_s);
 uint8_t hal_system_power_levels(void);
 uint32_t hal_system_power_samples(void);
 void hal_system_hold_usb_supply_off(bool held);

@@ -72,3 +72,4 @@ bool usb_session_storage_changed(void);
 uint32_t *usb_session_buffer(void);
 void usb_dac_session(UsbShared *shared);
 void update_after_usb(UsbShared *shared);
+void time_file_take(bool apply);

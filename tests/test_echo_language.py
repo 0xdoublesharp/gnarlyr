@@ -417,6 +417,18 @@ class LanguageCommands(VolumeCase):
                 self.assertEqual(raised.exception.code, "language_build_unknown")
                 self.assertEqual(host.ejected, [])
 
+    def test_a_build_with_the_battery_percent_bit_accepts_it_and_still_rejects_higher_bits(self):
+        for flags, accepted in ((8 | 2, True), (16, False)):
+            with self.subTest(flags=flags), self.replay_gain_snapshot(mask="0xF0u"):
+                (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(settings("en", 14, flags))
+                tool, _ = self.live_tool()
+                if accepted:
+                    self.assertEqual(tool.language_list()["selected"], "en")
+                else:
+                    with self.assertRaises(echo_debug.DebugError) as raised:
+                        tool.language_list()
+                    self.assertEqual(raised.exception.code, "language_settings_invalid")
+
     def test_catalogue_upgrade_ignores_old_choices_and_replaces_the_saved_pack(self):
         old = PACK.build_pack("fr", CATALOGUE[:-1], {"STR_LANGUAGE_NAME": "Ancien"})
         other = PACK.build_pack("de", CATALOGUE[:-1], {"STR_LANGUAGE_NAME": "Deutsch"})
