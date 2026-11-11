@@ -2519,7 +2519,7 @@ static void formatting_a_paused_card_clears_the_library_and_saved_playback_state
     hold_back();
     move_down(HOME_SETTINGS_INDEX);
     tap(KEY_PLAY);
-    tap(KEY_VOLUME_DOWN);
+    move_up(3);
     tap(KEY_PLAY);
     CHECK(title_is("Format card"));
     tap(KEY_PLAY);

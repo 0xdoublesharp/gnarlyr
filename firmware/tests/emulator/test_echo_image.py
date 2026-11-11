@@ -2125,7 +2125,8 @@ class EchoImageTest(unittest.TestCase):
         internal_before = rig.session.disk.snapshot()
         rig.press("next")
         rig.press("play")
-        rig.press("previous")
+        for _ in range(3):
+            rig.press("previous")
         rig.press("play")
         self.assertEqual([], inserted[0].writes)
         rig.press("play")
@@ -2178,7 +2179,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(wav, reader.read("/COPIED.WAV"))
         rig.press("next")
         rig.press("play")
-        rig.press_many("next", 19)
+        rig.press_many("next", 20)
         rig.press("play")
         rig.settle(1000)
         rig.open_songs()
@@ -2217,7 +2218,8 @@ class EchoImageTest(unittest.TestCase):
         def confirm():
             rig.press("next")
             rig.press("play")
-            rig.press("previous")
+            for _ in range(3):
+                rig.press("previous")
             rig.press("play")
             rig.press("play")
             rig.press("next")

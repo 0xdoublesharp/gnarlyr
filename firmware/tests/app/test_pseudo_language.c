@@ -531,7 +531,9 @@ static void walk_card_format(void)
     fake_hal_set_card(
         (HalCardInfo){.present = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1}, true);
     fake_hal_set_battery((HalBattery){.known = true, .percent = 80});
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    for (int row = 0; row < 3; row++) {
+        tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    }
     tap(KEY_PLAY);
     show_titled("the card format warning", STR_CARD_FORMAT);
     tap(KEY_PLAY);
@@ -544,7 +546,6 @@ static void walk_card_format(void)
 static void open_home_editor(void)
 {
     open_settings_row(0);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
