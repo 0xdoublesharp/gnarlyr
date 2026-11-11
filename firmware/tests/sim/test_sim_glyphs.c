@@ -1,9 +1,11 @@
 #include <stddef.h>
 
 #include "check.h"
+#include "core/i18n.h"
 #include "fonts/fonts.h"
 #include "gfx/font_pack.h"
 #include "sim_glyphs.h"
+#include "test_pack.h"
 
 static const Font *const ALL_FONTS[] = {
     &FONT_INTER_REGULAR_16,
@@ -98,11 +100,38 @@ static void the_no_break_space_is_blank(void)
     }
 }
 
+static void cjk_glyphs_use_the_selected_language_face(void)
+{
+    static uint8_t pack[TEST_PACK_CAPACITY];
+    CHECK_EQUAL(64, sim_glyphs_attach());
+    for (uint32_t face = 7; face < 21; face++) {
+        const Glyph *glyph = font_pack_find(face, 0x4EBA);
+        CHECK(glyph != NULL && glyph->codepoint == 0x4EBA);
+        CHECK(glyph != NULL && font_pack_bitmap(glyph) != NULL);
+    }
+    const Glyph *last_chinese = font_pack_find(7, 0xFF1B);
+    CHECK(last_chinese != NULL && last_chinese->codepoint == 0xFF1B);
+    const Glyph *last_japanese = font_pack_find(14, 0xFF5E);
+    CHECK(last_japanese != NULL && last_japanese->codepoint == 0xFF5E);
+    uint32_t size = test_pack_build(pack, (TestPackLanguage){"ja", "Japanese", NULL});
+    CHECK(i18n_attach(pack, size));
+    const Glyph *japanese = font_find_glyph(&FONT_INTER_REGULAR_22, 0x4EBA);
+    CHECK(japanese != NULL && japanese->codepoint == 0x4EBA);
+    CHECK(japanese == font_pack_find(15, 0x4EBA));
+    size = test_pack_build(pack, (TestPackLanguage){"zh-CN", "Chinese", NULL});
+    CHECK(i18n_attach(pack, size));
+    const Glyph *chinese = font_find_glyph(&FONT_INTER_REGULAR_22, 0x4EBA);
+    CHECK(chinese != NULL && chinese->codepoint == 0x4EBA);
+    CHECK(chinese == font_pack_find(8, 0x4EBA));
+    i18n_detach();
+}
+
 int main(void)
 {
     sim_glyphs_attach();
     static const TestCase cases[] = {
         TEST_CASE(the_memory_left_beside_the_language_pack_caches_64_glyphs),
+        TEST_CASE(cjk_glyphs_use_the_selected_language_face),
         TEST_CASE(the_committed_accent_packs_load),
         TEST_CASE(every_accented_letter_comes_from_a_pack),
         TEST_CASE(the_22_px_fonts_have_cyrillic),

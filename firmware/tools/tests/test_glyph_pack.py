@@ -35,7 +35,7 @@ class CharacterSetTest(unittest.TestCase):
 
     def test_the_echo_faces_hold_ascii_latin1_and_punctuation(self):
         config = json.loads((ASSETS_DIRECTORY / "glyph_pack.json").read_text())
-        echo_faces = config["faces"][1:]
+        echo_faces = config["faces"][1:7]
         self.assertEqual(["inter_regular_22", "inter_semibold_22", "inter_regular_18", "inter_semibold_18",
                           "inter_regular_26", "inter_semibold_26"], [face["name"] for face in echo_faces])
         for face in echo_faces:
@@ -44,6 +44,17 @@ class CharacterSetTest(unittest.TestCase):
             self.assertTrue(set(range(160, 256)) <= wanted)
             self.assertTrue(set(range(0x400, 0x460)) <= wanted)
             self.assertTrue({0x2013, 0x2019, 0x2026, 0x20AC, 0x2713} <= wanted)
+
+    def test_cjk_faces_contain_every_configured_glyph(self):
+        config = json.loads((ASSETS_DIRECTORY / "glyph_pack.json").read_text())
+        faces = config["faces"][7:]
+        base = [face["name"] for face in config["faces"][:7]]
+        self.assertEqual([name + suffix for suffix in ("_sc", "_jp") for name in base],
+                         [face["name"] for face in faces])
+        for face in faces:
+            path = TOOLS_DIRECTORY.parent / "src/fonts/packs" / (face["name"] + ".bin")
+            glyphs = glyph_pack.read_face(path.read_bytes())
+            self.assertEqual(glyph_pack.face_characters(face), glyphs.keys())
 
     def test_the_echo_faces_may_hold_larger_glyphs(self):
         config = json.loads((ASSETS_DIRECTORY / "glyph_pack.json").read_text())

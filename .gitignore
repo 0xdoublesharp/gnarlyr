@@ -4,6 +4,7 @@ __pycache__/
 *.img
 *.elf
 *.bin
+!firmware/src/fonts/packs/*.bin
 *.zip
 *.map.json
 analysis.json

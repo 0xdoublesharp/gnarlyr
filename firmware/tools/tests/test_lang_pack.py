@@ -178,8 +178,8 @@ class TranslationTest(unittest.TestCase):
 
     def test_a_character_some_text_size_cannot_draw_is_refused(self):
         with self.assertRaises(lang_pack.PackError) as refused:
-            self.pack({"ja.txt": "STR_HELLO = こんにちは\n"}, "ja")
-        self.assertIn("U+3053", str(refused.exception))
+            self.pack({"ja.txt": "STR_HELLO = 🦊\n"}, "ja")
+        self.assertIn("U+1F98A", str(refused.exception))
 
     def test_a_missing_translation_file_is_an_error(self):
         with self.assertRaises(FileNotFoundError):
@@ -197,6 +197,21 @@ class GlyphCoverageTest(unittest.TestCase):
         drawable = lang_pack.drawable_characters()
         self.assertTrue(set(range(0x400, 0x460)) <= drawable)
         lang_pack.check_glyphs("ru", [("STR_HELLO", "Привет")], drawable)
+
+    def test_fallback_faces_contribute_only_when_available_at_every_size(self):
+        fonts = {"character_ranges": [], "fonts": [
+            {"pack_face": "a", "fallback_faces": ["a_cjk"]},
+            {"pack_face": "b", "fallback_faces": ["b_cjk"]},
+        ]}
+        packs = {"faces": [
+            {"name": "a", "ranges": [[65, 65]]},
+            {"name": "b", "ranges": [[65, 65]]},
+            {"name": "a_cjk", "ranges": [[0x4E2D, 0x4E2D]]},
+            {"name": "b_cjk", "ranges": [[0x4E2D, 0x4E2D]]},
+        ]}
+        self.assertEqual({65, 0x4E2D}, lang_pack.drawable_from_config(fonts, packs))
+        packs["faces"].pop()
+        self.assertEqual({65}, lang_pack.drawable_from_config(fonts, packs))
 
     def test_text_in_the_drawable_set_passes(self):
         lang_pack.check_glyphs("fr", [("STR_HELLO", "Déjà vu… ★")], DRAWABLE | {0x2026, 0x2605})

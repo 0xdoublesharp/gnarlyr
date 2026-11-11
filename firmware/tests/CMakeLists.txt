@@ -537,7 +537,7 @@ if(ECHO_BUILD_SIM)
     )
     echo_add_unit_test(NAME test_sim_glyphs
         SOURCES sim/test_sim_glyphs.c
-        LIBRARIES echo_sim_glyphs echo_fonts
+        LIBRARIES echo_sim_glyphs echo_fonts echo_test_pack
     )
     target_compile_definitions(test_sim_storage PRIVATE
         ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
