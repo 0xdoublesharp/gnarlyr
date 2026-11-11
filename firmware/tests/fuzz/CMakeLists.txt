@@ -92,6 +92,7 @@ target_compile_definitions(fuzz_play_queue PRIVATE
     ECHO_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures"
 )
 echo_add_fuzzer(mp3_probe LIBRARIES echo_device_logic)
+echo_add_fuzzer(ogg_track LIBRARIES echo_device_logic)
 echo_add_fuzzer(opus_decode LIBRARIES echo_device_logic)
 echo_add_fuzzer(audio_engine LIBRARIES echo_device_logic)
 echo_add_fuzzer(card_format LIBRARIES echo_device_logic)

@@ -38,6 +38,7 @@ FUZZ_TARGETS = {
     "placeholder_art": 256,
     "play_queue": 256,
     "mp3_probe": 262144,
+    "ogg_track": 196608,
     "opus_decode": 2048,
     "audio_engine": 256,
     "card_format": 64,
@@ -126,6 +127,7 @@ FUZZ_SEEDS = {
     ],
     "play_queue": [bytes(range(64)), b"\0\1\2\3" * 32, b"\xff\x80\x40\x20" * 32],
     "mp3_probe": [b"\0", b"ID3\4\0\0\0\0\0\0", b"\xff\xfb\x90\0"],
+    "ogg_track": [b"\0", b"OggS" + bytes(24), bytes(range(128))],
     "opus_decode": [
         bytes(12) + b"\xf8\xff\xfe",
         bytes([2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255]) + b"\x48\0\0",
@@ -162,6 +164,12 @@ FUZZ_FIXTURES = {
         SOURCE / "tests/fixtures/tags/id3v24.mp3",
         SOURCE / "tests/fixtures/tags/id3v23_vbr.mp3",
         SOURCE / "tests/fixtures/tags/id3v1_no_xing.mp3",
+    ],
+    "ogg_track": [
+        *sorted((SOURCE / "tests/fixtures/vorbis").glob("*.ogg")),
+        *sorted((SOURCE / "tests/fixtures/opus").glob("*.opus")),
+        SOURCE / "tests/fixtures/tags/tagged.ogg",
+        SOURCE / "tests/fixtures/tags/tagged.opus",
     ],
     "fat_volume": [
         SOURCE / "tests/fixtures/cards/fat16_superfloppy.sparse",

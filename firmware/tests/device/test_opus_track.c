@@ -91,6 +91,8 @@ static void toc_bytes_give_every_standard_packet_duration(void)
     for (uint32_t index = 0; index < sizeof cases / sizeof cases[0]; index++) {
         CHECK_EQUAL(cases[index].frames, opus_track_frames(cases[index].toc, cases[index].bytes));
     }
+    CHECK_EQUAL(0, opus_track_frames(NULL, 0));
+    CHECK_EQUAL(0, opus_track_frames(cases[0].toc, 0));
 }
 
 static void probes_report_pre_skip_trimmed_lengths_and_origins(void)

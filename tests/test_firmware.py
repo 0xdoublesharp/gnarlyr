@@ -165,6 +165,10 @@ class FuzzCommandTests(unittest.TestCase):
         self.assertTrue(firmware.FUZZ_SEEDS["card_format"])
         self.assertTrue(all(len(seed) <= 64 for seed in firmware.FUZZ_SEEDS["card_format"]))
 
+        self.assertEqual(firmware.FUZZ_TARGETS["ogg_track"], 196608)
+        self.assertGreaterEqual(len(firmware.FUZZ_FIXTURES["ogg_track"]), 10)
+        self.assertTrue(all(path.exists() for path in firmware.FUZZ_FIXTURES["ogg_track"]))
+
     def test_decoder_targets_are_bounded_and_have_canonical_inputs(self):
         self.assertEqual(firmware.FUZZ_TARGETS["mp3_probe"], 262144)
         self.assertEqual(firmware.FUZZ_TARGETS["opus_decode"], 2048)
