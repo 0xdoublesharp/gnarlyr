@@ -275,7 +275,6 @@ set(ECHO_OVERLAY_IMPORTS
     theme_is_portrait
     app_headphone_profiles
     hal_audio_set_headphones
-    headphone_store_parameters
     string_builder_append
     string_builder_append_char
     string_builder_append_unsigned
@@ -402,6 +401,8 @@ add_executable(echo_usb_overlay
     ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
     ${PROJECT_SOURCE_DIR}/src/ui/wire_figure.c
     ${PROJECT_SOURCE_DIR}/src/core/headphone_audio_switch.c
+    ${PROJECT_SOURCE_DIR}/src/app/headphone_parameters.c
+    ${PROJECT_SOURCE_DIR}/src/settings/headphone_profile.c
     board/update.c
     board/usb_dac_session.c
     board/time_file_take.c
