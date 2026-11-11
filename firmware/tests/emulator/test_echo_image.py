@@ -3341,7 +3341,8 @@ class EchoImageTest(unittest.TestCase):
         self.assertTrue(settings.loaded(machine))
         for key in (KEY_PLAY, KEY_BACK, KEY_BACK, KEY_PLAY, KEY_NEXT, KEY_PLAY, KEY_BACK):
             self.press(machine, key)
-        self.assertEqual(watch.loads(), loads)
+        self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
+                         [(number, True), (1, True), (number, True)])
         self.assertLess(max(call["us"] for call in watch.calls if not call["sectors"]),
                         MODULE_REUSE_LIMIT_US)
         self.assertTrue(settings.loaded(machine))

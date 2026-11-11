@@ -54,6 +54,33 @@ class CodeSpaceTest(image_tests.EchoImageTest):
         self.test_a_time_file_already_there_at_power_on_is_removed_and_never_applied()
         self.assertTrue(self.latest_session.module_reads("slot_2", 8))
 
+    def test_about_uses_the_second_views_copy_when_the_first_is_damaged(self):
+        session, machine = self.started_session()
+        session.change_module("slot_1", 1, 600, lambda byte: byte ^ 0xFF)
+        self.open_settings(machine)
+        self.press(machine, image_tests.KEY_PLAY)
+        _, views = self.module(machine, "views")
+        self.assertTrue(views.loaded(machine))
+        self.assertTrue(session.module_reads("slot_2", 1))
+        self.press(machine, image_tests.KEY_BACK)
+        _, settings = self.module(machine, "settings")
+        self.assertTrue(settings.loaded(machine))
+        self.assert_healthy(session)
+
+    def test_missing_views_keeps_about_shut_and_settings_usable(self):
+        session, machine = self.started_session()
+        for slot in ("slot_1", "slot_2"):
+            session.change_module(slot, 1, 600, lambda byte: byte ^ 0xFF)
+        toasts = self.collect_toasts(machine)
+        self.open_settings(machine)
+        self.press(machine, image_tests.KEY_PLAY)
+        self.assertEqual(toasts, [image_tests.english("STR_SCREEN_MISSING")])
+        self.press(machine, image_tests.KEY_NEXT)
+        self.press(machine, image_tests.KEY_PLAY)
+        _, settings = self.module(machine, "settings")
+        self.assertTrue(settings.loaded(machine))
+        self.assert_healthy(session)
+
 
 def main():
     arguments = image_tests.parse_arguments(sys.argv[1:])

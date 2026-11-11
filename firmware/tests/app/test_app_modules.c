@@ -377,7 +377,7 @@ static void a_start_screen_in_a_module_that_cannot_load_starts_on_the_screen_bef
     CHECK(title_is("Cover Flow"));
 }
 
-static void settings_and_the_screens_it_opens_share_one_module(void)
+static void settings_returns_from_about_to_its_own_module(void)
 {
     start_app();
     open_settings();
@@ -385,6 +385,7 @@ static void settings_and_the_screens_it_opens_share_one_module(void)
     CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
     tap(KEY_PLAY);
     CHECK(title_is("About"));
+    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
     tap(KEY_BACK);
     move_down(SETTINGS_SHUFFLE_ROW);
     tap(KEY_PLAY);
@@ -393,7 +394,7 @@ static void settings_and_the_screens_it_opens_share_one_module(void)
     move_down(SETTINGS_BLUETOOTH_ROW - SETTINGS_SHUFFLE_ROW);
     tap(KEY_PLAY);
     CHECK(title_is("Bluetooth"));
-    CHECK_EQUAL(1, fake_hal_module_loads());
+    CHECK_EQUAL(3, fake_hal_module_loads());
 }
 
 static void a_screen_of_another_module_takes_the_slot(void)
@@ -450,9 +451,9 @@ static void an_about_value_is_read_through_its_module(void)
     start_app();
     CHECK_EQUAL(0, fake_hal_module_loads());
     CHECK(app_diagnostics_value(1) != NULL);
-    CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
     fake_hal_evict_module();
-    fake_hal_break_module(SCREEN_MODULE_SETTINGS, true);
+    fake_hal_break_module(SCREEN_MODULE_VIEWS, true);
     CHECK(app_diagnostics_value(1) == NULL);
 }
 
@@ -506,7 +507,7 @@ static void after_a_music_check_the_screen_on_top_gets_its_module_back(void)
     app_request_rescan_if_music_changed();
     step();
     CHECK(title_is("About"));
-    CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
     CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
 }
 
@@ -533,7 +534,7 @@ static void about_omits_the_old_usb_controls_and_raw_dac_rows(void)
     AppScreens screens = {0};
     AppOptions options = {0};
     diagnostics_menu_build(&screens, &options, &BOARD_THEME);
-    const MenuConfig *menu = &screens.modules.settings.diagnostics.config;
+    const MenuConfig *menu = &screens.modules.views.diagnostics.config;
     CHECK_EQUAL(14, menu->item_count);
     for (int index = 0; index < menu->item_count; index++) {
         const char *label = menu->items[index].label;
@@ -565,7 +566,7 @@ int main(void)
         TEST_CASE(a_slide_ends_at_once_when_the_leaving_screens_module_cannot_come_back),
         TEST_CASE(module_screens_are_built_again_after_the_app_restarts),
         TEST_CASE(a_start_screen_in_a_module_that_cannot_load_starts_on_the_screen_before_it),
-        TEST_CASE(settings_and_the_screens_it_opens_share_one_module),
+        TEST_CASE(settings_returns_from_about_to_its_own_module),
         TEST_CASE(a_screen_of_another_module_takes_the_slot),
         TEST_CASE(a_module_that_cannot_load_does_not_cost_the_screen_under_it_its_own),
         TEST_CASE(a_setting_changed_by_a_script_gives_the_slot_back_to_the_screen_on_top),

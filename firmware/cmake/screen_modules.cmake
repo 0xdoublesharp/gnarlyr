@@ -33,6 +33,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
+    src/app/diagnostics_rows.c
+    src/app/diagnostics_values.c
     src/app/mixtape_store.c
     src/app/mixtape_ui.c
     src/app/mixtape_screen.c
@@ -67,8 +69,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/button_settings.c
     src/app/home_editor.c
     src/app/equalizer_presets.c
-    src/app/diagnostics_rows.c
-    src/app/diagnostics_values.c
     src/app/screens/bluetooth_screen.c
     src/app/bluetooth_link_ui.c
     src/app/screens/equalizer_screen.c
@@ -108,9 +108,9 @@ set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/library/lyrics.c
 )
 if(ECHO_RELEASE)
-    list(APPEND ECHO_SCREEN_MODULE_SOURCES_settings src/app/diagnostics_menu_release.c)
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu_release.c)
 else()
-    list(APPEND ECHO_SCREEN_MODULE_SOURCES_settings src/app/diagnostics_menu.c)
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu.c)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_process
         src/app/modules/debug_module.c
         src/app/debug_steps.c

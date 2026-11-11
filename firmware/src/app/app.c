@@ -2075,9 +2075,9 @@ const char *app_toast_text(void)
 
 const char *app_diagnostics_value(int index)
 {
-    if (settings_module() == NULL) {
+    if (screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS) == NULL) {
         return NULL;
     }
-    const MenuItem *item = &app.screens.modules.settings.diagnostics_items[index];
+    const MenuItem *item = &app.screens.modules.views.diagnostics_items[index];
     return item->value != NULL ? item->value(item->context) : NULL;
 }
