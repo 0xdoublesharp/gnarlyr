@@ -95,8 +95,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
                           .size = scratch_size,
                           .fail_read = controls[3],
                           .fail_write = controls[4]};
-    MemoryFile output = {
-        .bytes = output_bytes, .size = output_size, .fail_write = controls[5]};
+    MemoryFile output = {.bytes = output_bytes, .size = output_size, .fail_write = controls[5]};
     LibraryBuilder builder;
     library_builder_init(&builder, player, player_size,
                          (BuilderScratch){read_file, write_file, &scratch, scratch_size});
