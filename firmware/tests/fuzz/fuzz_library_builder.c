@@ -79,6 +79,11 @@ static uint32_t capacity(uint32_t maximum, uint8_t value)
     return (uint32_t)((uint64_t)maximum * (value - 1u) / (UINT8_MAX - 1u));
 }
 
+static uint32_t fault_ordinal(uint8_t value, uint8_t page)
+{
+    return value == 0 ? 0 : value + (uint32_t)(page & 15u) * UINT8_MAX;
+}
+
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
     static uint8_t player[PLAYER_BYTES];
@@ -95,9 +100,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     uint32_t output_size = capacity(sizeof output_bytes, controls[2]);
     MemoryFile scratch = {.bytes = scratch_bytes,
                           .size = scratch_size,
-                          .fail_read = controls[3],
-                          .fail_write = controls[4]};
-    MemoryFile output = {.bytes = output_bytes, .size = output_size, .fail_write = controls[5]};
+                          .fail_read = fault_ordinal(controls[3], controls[7]),
+                          .fail_write = fault_ordinal(controls[4], controls[7])};
+    MemoryFile output = {.bytes = output_bytes,
+                         .size = output_size,
+                         .fail_write = fault_ordinal(controls[5], controls[7])};
     LibraryBuilder builder;
     library_builder_init(&builder, player, player_size,
                          (BuilderScratch){read_file, write_file, &scratch, scratch_size});
