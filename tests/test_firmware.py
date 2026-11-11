@@ -72,5 +72,58 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(error.exception.code, 2)
 
 
+class FuzzCommandTests(unittest.TestCase):
+    def test_fuzz_cli_selects_a_bounded_reproducible_campaign(self):
+        with mock.patch.object(
+            sys,
+            "argv",
+            ["firmware.py", "fuzz", "--target", "track_tags", "--runs", "250", "--seed", "7"],
+        ):
+            _, args = firmware.arguments()
+        self.assertEqual(args.target, ["track_tags"])
+        self.assertEqual((args.runs, args.seed), (250, 7))
+
+    def test_fuzz_command_keeps_corpus_and_artifacts_explicit(self):
+        command = firmware.fuzz_command(
+            Path("/build/fuzz_track_tags"),
+            Path("/scratch/corpus"),
+            Path("/scratch/artifacts"),
+            runs=250,
+            seed=7,
+            max_length=65536,
+        )
+        self.assertEqual(command[0], Path("/build/fuzz_track_tags"))
+        self.assertIn("-runs=250", command)
+        self.assertIn("-seed=7", command)
+        self.assertIn("-max_len=65536", command)
+        self.assertIn("-artifact_prefix=/scratch/artifacts/", command)
+        self.assertEqual(command[-1], Path("/scratch/corpus"))
+
+    def test_fuzz_options_cannot_be_silently_ignored_by_tests(self):
+        with mock.patch.object(sys, "argv", ["firmware.py", "test", "--runs", "10"]):
+            with mock.patch("sys.stderr"), self.assertRaises(SystemExit) as error:
+                firmware.arguments()
+        self.assertEqual(error.exception.code, 2)
+
+    def test_fuzz_seed_must_select_a_reproducible_sequence(self):
+        with mock.patch.object(sys, "argv", ["firmware.py", "fuzz", "--seed", "0"]):
+            with mock.patch("sys.stderr"), self.assertRaises(SystemExit) as error:
+                firmware.arguments()
+        self.assertEqual(error.exception.code, 2)
+
+    def test_canonical_seed_is_refreshed_without_replacing_generated_entries(self):
+        path = mock.Mock()
+        path.exists.return_value = True
+        path.read_bytes.return_value = b"old"
+        firmware.write_seed(path, b"new")
+        path.write_bytes.assert_called_once_with(b"new")
+
+    def test_fuzz_configuration_pins_the_clang_selected_by_the_wrapper(self):
+        with mock.patch.object(firmware.shutil, "which", return_value="/toolchain/bin/clang"):
+            with mock.patch.object(firmware, "run") as run:
+                firmware.configure("fuzz", {"PATH": "/toolchain/bin"}, Path("/python"))
+        self.assertIn("-DCMAKE_C_COMPILER=/toolchain/bin/clang", run.call_args.args[0])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -11,6 +11,21 @@
       }
     },
     {
+      "name": "fuzz",
+      "displayName": "Host fuzzers (Clang, ASan, UBSan)",
+      "binaryDir": "${sourceDir}/build/fuzz",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_COMPILER": "clang",
+        "ECHO_SANITIZE": "ON",
+        "ECHO_ADDRESS_SANITIZER": "ON",
+        "ECHO_BUILD_SIM": "OFF",
+        "ECHO_BUILD_TESTS": "OFF",
+        "ECHO_BUILD_DEVICE": "OFF",
+        "ECHO_BUILD_FUZZERS": "ON"
+      }
+    },
+    {
       "name": "device",
       "displayName": "Device firmware (Cortex-M3, Release -O2)",
       "binaryDir": "${sourceDir}/build/device",
@@ -37,6 +52,10 @@
     {
       "name": "dev",
       "configurePreset": "dev"
+    },
+    {
+      "name": "fuzz",
+      "configurePreset": "fuzz"
     },
     {
       "name": "device",

@@ -2,9 +2,9 @@
 
 Start firmware work from the current `gnarlyr` branch. Each worktree gets its own build directory, temporary directory and simulator state under `/Volumes/Scratch/SnowskyEcho`. The wrapper stops if Scratch is not mounted and keeps the shared compiler cache separate.
 
-## Concurrent feature and coverage work
+## Concurrent feature, coverage and fuzz work
 
-The feature owner integrates firmware on `gnarlyr` in `~/Workspaces/worktrees/SnowskyEcho/fresh-base`. The coverage worker uses `test/branch-coverage-90` in `~/Workspaces/worktrees/SnowskyEcho/branch-coverage-90`, limited to coverage improvements and reproduced bug fixes. Each worker edits and builds only in its own worktree. Preserve the root checkout and its unrelated work.
+The feature owner integrates firmware on `gnarlyr` in `~/Workspaces/worktrees/SnowskyEcho/fresh-base`. The coverage worker uses `test/branch-coverage-90` in `~/Workspaces/worktrees/SnowskyEcho/branch-coverage-90`, limited to coverage improvements and reproduced bug fixes. The fuzz worker uses `test/fuzz-invariants` in `~/Workspaces/worktrees/SnowskyEcho/fuzz-invariants`, owning `firmware/tests/fuzz/` and its build, wrapper and documentation registrations. Each worker edits and builds only in its own worktree. Preserve the root checkout and its unrelated work.
 
 Agree on the component and source files before starting a batch. The feature owner reserves files under active development; the coverage worker coordinates any overlapping bug fix first. Test registrations, including `firmware/tests/CMakeLists.txt`, travel in branch commits through the same integration process.
 
@@ -12,7 +12,20 @@ Hand off each completed component, aiming for a small batch every 20–30 minute
 
 Only the feature owner writes to the delivery worktree or merges into `gnarlyr`. At a feature checkpoint, commit the completed feature changes, inspect the incoming diff and overlap, then merge the exact tested coverage commit. If unfinished delivery edits overlap, finish or park that component before merging; the coverage worker leaves those edits alone. Run the affected checks and smoke group on the combined tree, and report the resulting commit to the coverage worker. Resolve conflicts explicitly and rerun the checks they affect. Preserve a coverage worker's passing results when the merge leaves their inputs unchanged.
 
-After integration, the coverage worker merges the reported `gnarlyr` commit into its clean branch before the next dependent batch. Keep Scratch build outputs separate per worktree. Run the complete required suite once after the final integration edits, and repeat only for changes or failures that invalidate it. Source and software checks do not authorize player writes or establish hardware acceptance.
+After integration, the coverage and fuzz workers merge the reported `gnarlyr` commit into their clean branches before the next dependent batch. The fuzz worker also syncs before a new campaign when either the parser or persistence code under test changed. Keep Scratch build outputs, corpora and reports separate per worktree. Run the complete required suite once after the final integration edits, and repeat only for changes or failures that invalidate it. Source and software checks do not authorize player writes or establish hardware acceptance.
+
+## Fuzz and invariant checks
+
+The host fuzzers use Clang libFuzzer with AddressSanitizer and UndefinedBehaviorSanitizer. The wrapper keeps generated builds, evolving corpora and crash artifacts under `/Volumes/Scratch/SnowskyEcho`; only harness source and deterministic regression tests belong in Git.
+
+```sh
+python3 tools/firmware.py fuzz --target track_tags --runs 10000 --seed 1
+python3 tools/firmware.py fuzz --target playlist_reader --runs 10000 --seed 1
+python3 tools/firmware.py fuzz --target session_journal --runs 10000 --seed 1
+python3 tools/firmware.py fuzz
+```
+
+Without `--target`, the wrapper builds and runs every target for 10,000 executions with seed 1. Repeat `--target` to select several targets. A crash must be reproducible from its Scratch artifact and converted into an ordinary focused unit test before fixing production code. Hand off the regression, fix and passing focused fuzz campaign as one small commit; do not commit the corpus or artifact.
 
 ## Edit and check one component
 
@@ -60,7 +73,7 @@ python3 tools/firmware.py sim --card /path/to/music
 python3 tools/firmware.py build --preset release --target echo_size_report
 ```
 
-`--target` can be repeated and is accepted only by `build`. Without it, `build` builds the complete preset. `sim` builds only `echo_sim` and its dependencies. Simulator state lives in `/Volumes/Scratch/SnowskyEcho/data/<worktree>/sim-system`; existing state in older locations is preserved.
+`--target` can be repeated and is accepted by `build` and `fuzz`. Without it, `build` builds the complete preset and `fuzz` runs every fuzzer. `sim` builds only `echo_sim` and its dependencies. Simulator state lives in `/Volumes/Scratch/SnowskyEcho/data/<worktree>/sim-system`; existing state in older locations is preserved.
 
 ## Resource checks and hardware acceptance
 

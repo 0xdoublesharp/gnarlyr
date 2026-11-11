@@ -162,6 +162,9 @@ typedef struct Line {
 
 static void put(Line *line, uint32_t code_point)
 {
+    if (code_point == 0) {
+        code_point = REPLACEMENT;
+    }
     uint8_t bytes[4];
     uint32_t size = code_point < 0x80 ? 1 : code_point < 0x800 ? 2 : code_point < 0x10000 ? 3 : 4;
     uint32_t value = code_point;
