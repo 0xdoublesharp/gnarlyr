@@ -345,6 +345,30 @@ static void back_returns_to_the_previous_screen(void)
     CHECK(title_is(FIRMWARE_SHORT_NAME));
 }
 
+static void repeated_play_on_a_listening_leaf_keeps_one_back_to_its_menu(void)
+{
+    start_app();
+    move_down(3);
+    tap(KEY_PLAY);
+    CHECK(title_is("Listening"));
+    int depth = app_screen_depth();
+    for (int row = 0; row < 5; row++) {
+        move_down(row);
+        tap(KEY_PLAY);
+        for (int press = 0; press < 4; press++) {
+            tap(KEY_PLAY);
+            wait_ms(200);
+        }
+        CHECK_EQUAL(depth, app_screen_depth());
+        tap(KEY_BACK);
+        CHECK(title_is("Listening"));
+        CHECK_EQUAL(depth, app_screen_depth());
+        move_up(row);
+    }
+    tap(KEY_BACK);
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+}
+
 static void a_long_back_returns_home_from_deep_screens(void)
 {
     start_app();
@@ -4473,6 +4497,7 @@ int main(void)
         TEST_CASE(the_home_menu_is_the_root),
         TEST_CASE(selecting_music_opens_the_music_menu),
         TEST_CASE(back_returns_to_the_previous_screen),
+        TEST_CASE(repeated_play_on_a_listening_leaf_keeps_one_back_to_its_menu),
         TEST_CASE(a_long_back_returns_home_from_deep_screens),
         TEST_CASE(the_frame_overlay_is_off_until_enabled_in_diagnostics),
         TEST_CASE(the_frame_overlay_splits_the_frame_time),
