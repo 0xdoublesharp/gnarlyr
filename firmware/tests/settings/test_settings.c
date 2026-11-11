@@ -954,7 +954,7 @@ static Settings extension_settings(void)
     for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
         settings.home_order[index] = (uint8_t)(SETTINGS_HOME_ITEM_COUNT - 1 - index);
     }
-    settings.home_hidden = 0x1F7;
+    settings.home_hidden = 0x3F7;
     return settings;
 }
 
@@ -981,7 +981,7 @@ static void the_extension_defaults_keep_todays_behaviour(void)
 
 static void the_extension_block_sits_between_the_language_and_the_checksum(void)
 {
-    static const uint8_t EXPECTED[16] = {0x07, 24, 15, 0, 0x10, 0x32, 0x54, 0x76, 0x08};
+    static const uint8_t EXPECTED[16] = {0x07, 24, 15, 0, 0x10, 0x32, 0x54, 0x76, 0x98};
     Settings settings = settings_defaults();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
@@ -994,7 +994,7 @@ static void the_extension_block_sits_between_the_language_and_the_checksum(void)
 
 static void every_extension_field_survives_a_round_trip(void)
 {
-    static const uint8_t EXPECTED[16] = {0x10, 60, 60, 0, 0x78, 0x56, 0x34, 0x12, 0x00, 0xF7, 0x01};
+    static const uint8_t EXPECTED[16] = {0x10, 60, 60, 0, 0x89, 0x67, 0x45, 0x23, 0x01, 0xF7, 0x03};
     Settings original = extension_settings();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&original, bytes);
@@ -1008,7 +1008,7 @@ static void every_extension_field_survives_a_round_trip(void)
     CHECK_EQUAL(TRACK_TRANSITION_CROSSFADE, decoded.track_transition);
     CHECK_EQUAL(SETTINGS_TRANSITION_TENTHS_MAX, decoded.transition_tenths);
     CHECK(memcmp(original.home_order, decoded.home_order, sizeof decoded.home_order) == 0);
-    CHECK_EQUAL(0x1F7, decoded.home_hidden);
+    CHECK_EQUAL(0x3F7, decoded.home_hidden);
     CHECK_EQUAL(original.volume, decoded.volume);
 }
 
@@ -1098,8 +1098,8 @@ static void each_invalid_extension_value_is_rejected_without_mutating_the_settin
 {
     static const uint8_t CASES[][2] = {
         {0, 0x20},  {0, 0x40},  {0, 0x80}, {0, 0x18}, {1, 61},   {2, 4},    {2, 61},   {2, 0},
-        {3, 1},     {4, 0x00},  {4, 0x19}, {6, 0x55}, {8, 0x18}, {8, 0x09}, {9, 0x08}, {9, 0xFF},
-        {10, 0x02}, {10, 0x80}, {11, 1},   {12, 1},   {13, 1},   {14, 1},   {15, 0x80}};
+        {3, 1},     {4, 0x00},  {4, 0x11}, {6, 0x55}, {8, 0x18}, {8, 0x09}, {9, 0x08}, {9, 0xFF},
+        {10, 0x04}, {10, 0x80}, {11, 1},   {12, 1},   {13, 1},   {14, 1},   {15, 0x80}};
     for (uint32_t at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
         Settings original = settings_defaults();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1125,6 +1125,118 @@ static void every_item_but_settings_may_be_hidden(void)
     }
 }
 
+static void pack_home(uint8_t *packed, const uint8_t *order, int count, uint16_t hidden)
+{
+    memset(packed, 0, SETTINGS_HOME_PACKED_SIZE);
+    for (int index = 0; index < count; index++) {
+        packed[index / 2] |= (uint8_t)(order[index] << (4 * (index & 1)));
+    }
+    packed[5] = (uint8_t)hidden;
+    packed[6] = (uint8_t)(hidden >> 8);
+}
+
+static void a_saved_home_order_and_hidden_mask_are_applied_on_load(void)
+{
+    static const uint8_t ORDER[] = {4, 3, 0, 8, 7, 6, 5, 2, 1};
+    Settings original = settings_defaults();
+    memcpy(original.home_order, ORDER, sizeof ORDER);
+    original.home_hidden = 1u << 2 | 1u << 8;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&original, bytes);
+    Settings decoded = settings_defaults();
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK(memcmp(ORDER, decoded.home_order, sizeof ORDER) == 0);
+    CHECK_EQUAL(1u << 2 | 1u << 8, decoded.home_hidden);
+}
+
+static void an_order_from_a_build_with_more_items_drops_the_unknown_ones(void)
+{
+    static const uint8_t ORDER[] = {9, 4, 0, 1, 2, 3, 5, 6, 7, 8};
+    static const uint8_t KNOWN[] = {4, 0, 1, 2, 3, 5, 6, 7, 8};
+    uint8_t packed[SETTINGS_HOME_PACKED_SIZE];
+    pack_home(packed, ORDER, 10, 1u << 9 | 1u << 2);
+    uint8_t order[SETTINGS_HOME_ORDER_SLOTS];
+    uint16_t hidden = 0;
+    CHECK(settings_home_unpack(packed, 9, order, &hidden));
+    CHECK(memcmp(KNOWN, order, sizeof KNOWN) == 0);
+    CHECK_EQUAL(1u << 2, hidden);
+    CHECK(settings_home_unpack(packed, 10, order, &hidden));
+    CHECK(memcmp(ORDER, order, sizeof ORDER) == 0);
+    CHECK_EQUAL(1u << 9 | 1u << 2, hidden);
+}
+
+static void a_settings_file_from_a_build_with_fewer_home_items_keeps_every_other_setting(void)
+{
+    static const uint8_t ORDER[] = {6, 0, 1, 2, 3, 4, 5, 7, 8};
+    static const uint8_t MIGRATED[] = {6, 0, 1, 2, 3, 4, 5, 7, 8, 9};
+    Settings original = extension_settings();
+    original.home_hidden = 0;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&original, bytes);
+    pack_home(bytes + EXTENSION_FIELD + 4, ORDER, 9, 1u << 7);
+    rewrite_checksum(bytes);
+    Settings decoded = settings_defaults();
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK(memcmp(MIGRATED, decoded.home_order, sizeof MIGRATED) == 0);
+    CHECK_EQUAL(1u << 7, decoded.home_hidden);
+    CHECK_EQUAL(original.volume, decoded.volume);
+    CHECK_EQUAL(original.track_transition, decoded.track_transition);
+    CHECK_EQUAL(original.transition_tenths, decoded.transition_tenths);
+}
+
+static void an_order_saved_with_fewer_items_gains_the_new_ones_at_the_end_visible(void)
+{
+    static const uint8_t ORDER[] = {8, 7, 6, 5, 4, 3, 2, 1, 0};
+    static const uint8_t MIGRATED[] = {8, 7, 6, 5, 4, 3, 2, 1, 0, 9};
+    uint8_t packed[SETTINGS_HOME_PACKED_SIZE];
+    pack_home(packed, ORDER, 9, 1u << 2);
+    uint8_t order[SETTINGS_HOME_ORDER_SLOTS];
+    uint16_t hidden = 0;
+    CHECK(settings_home_unpack(packed, 10, order, &hidden));
+    CHECK(memcmp(MIGRATED, order, sizeof MIGRATED) == 0);
+    CHECK_EQUAL(1u << 2, hidden);
+}
+
+static void a_ten_item_build_may_hide_its_tenth_item_but_never_settings(void)
+{
+    static const uint8_t ORDER[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    uint8_t packed[SETTINGS_HOME_PACKED_SIZE];
+    uint8_t order[SETTINGS_HOME_ORDER_SLOTS];
+    uint16_t hidden = 0;
+    pack_home(packed, ORDER, 10, 1u << 9);
+    CHECK(settings_home_unpack(packed, 10, order, &hidden));
+    CHECK_EQUAL(1u << 9, hidden);
+    pack_home(packed, ORDER, 10, 1u << SETTINGS_HOME_SETTINGS_ITEM);
+    CHECK(!settings_home_unpack(packed, 10, order, &hidden));
+}
+
+static void a_hidden_item_the_saving_build_did_not_have_is_rejected(void)
+{
+    static const uint8_t ORDER[] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
+    uint8_t packed[SETTINGS_HOME_PACKED_SIZE];
+    pack_home(packed, ORDER, 9, 1u << 9);
+    uint8_t order[SETTINGS_HOME_ORDER_SLOTS];
+    uint16_t hidden = 0;
+    CHECK(!settings_home_unpack(packed, 10, order, &hidden));
+}
+
+static void orders_that_are_not_a_permutation_of_the_first_items_are_rejected(void)
+{
+    static const uint8_t SHORT[] = {0, 1, 2, 3, 4, 5, 6, 7};
+    static const uint8_t REPEATED[] = {0, 1, 2, 3, 4, 5, 6, 7, 7};
+    static const uint8_t GAP[] = {0, 1, 2, 3, 4, 5, 6, 7, 9};
+    static const uint8_t TRAILING[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 1};
+    const uint8_t *cases[] = {SHORT, REPEATED, GAP, TRAILING};
+    const int counts[] = {8, 9, 9, 10};
+    for (int at = 0; at < 4; at++) {
+        uint8_t packed[SETTINGS_HOME_PACKED_SIZE];
+        pack_home(packed, cases[at], counts[at], 0);
+        uint8_t order[SETTINGS_HOME_ORDER_SLOTS];
+        uint16_t hidden = 0;
+        CHECK(!settings_home_unpack(packed, 10, order, &hidden));
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -1139,6 +1251,13 @@ int main(void)
         TEST_CASE(the_checksum_covers_the_extension_block),
         TEST_CASE(each_invalid_extension_value_is_rejected_without_mutating_the_settings),
         TEST_CASE(every_item_but_settings_may_be_hidden),
+        TEST_CASE(a_saved_home_order_and_hidden_mask_are_applied_on_load),
+        TEST_CASE(an_order_from_a_build_with_more_items_drops_the_unknown_ones),
+        TEST_CASE(a_settings_file_from_a_build_with_fewer_home_items_keeps_every_other_setting),
+        TEST_CASE(an_order_saved_with_fewer_items_gains_the_new_ones_at_the_end_visible),
+        TEST_CASE(a_ten_item_build_may_hide_its_tenth_item_but_never_settings),
+        TEST_CASE(a_hidden_item_the_saving_build_did_not_have_is_rejected),
+        TEST_CASE(orders_that_are_not_a_permutation_of_the_first_items_are_rejected),
         TEST_CASE(normalization_defaults_off_with_peak_protection_and_migrates_version_thirteen),
         TEST_CASE(normalization_modes_and_peak_protection_round_trip_in_the_flags_byte),
         TEST_CASE(battery_percentage_defaults_off_and_round_trips_in_a_spare_flag_bit),

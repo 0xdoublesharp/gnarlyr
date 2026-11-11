@@ -318,6 +318,9 @@ Settings → Theme offers Neon Noir, Graphite, Sunset, Sea Glass and Classic. Th
 ## Waiting
 
 When something takes more than a moment, its screen says what is happening and a small wireframe turns under the message: a cassette while saving (Export plays, mixtapes, tags), a disc while working through your music (library scan, finding covers, search, preparing a queue, listening history) and a solid while loading tags. Where the player knows how far it has got, the cassette's tape winds from the left reel to the right, the disc's rim fills in, or the solid's edges light up. Only the wireframe is redrawn, and it stops as soon as the work ends or the screen turns off.
+## Customising Home
+
+Settings → Home screen lists every Home item in Home order, each marked Shown or Hidden; Settings is marked Always shown and stays on Home. Press Play on an item for **Hide from Home** (or **Show on Home**) and **Move**. Move picks the item up, and so does holding Play on it: the title reads Move: vol ±, the volume buttons move the item up and down the list, Play places it and Back puts it back where it was. **Reset to default** restores the original order with every item shown. Each change is saved at once and Home follows it straight away, keeping your place on the item you had selected. Hiding only ever removes an item: Now Playing and Up Next still appear only while something is loaded, and Audiobooks and Podcasts only when their folders exist.
 
 ## Editing a queue
 

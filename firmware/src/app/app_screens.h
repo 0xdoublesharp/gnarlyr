@@ -12,6 +12,7 @@
 #include "favorites_store.h"
 #include "hal/audio.h"
 #include "home_art.h"
+#include "home_editor.h"
 #include "library_store.h"
 #include "listening_store.h"
 #include "mixtape_ui.h"
@@ -34,7 +35,7 @@
 #include "ui/toast.h"
 
 enum {
-    HOME_ITEM_COUNT = 10,
+    HOME_ITEM_COUNT = SETTINGS_HOME_ITEM_COUNT,
     SHELF_COUNT = 2,
     MUSIC_ITEM_COUNT = 12,
     DIAGNOSTICS_ITEM_COUNT = 11 + DEBUG_LOOP_ABOUT_ROWS,
@@ -118,6 +119,7 @@ typedef struct SettingsModuleScreens {
     SettingsScreens settings;
     BluetoothScreen bluetooth;
     MenuScreen diagnostics;
+    HomeEditor home_editor;
     ClockOption clock;
     MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
 } SettingsModuleScreens;
@@ -160,7 +162,10 @@ typedef struct AppScreens {
     AppModuleScreens modules;
 } AppScreens;
 
+extern const HomeItem APP_HOME_ITEMS[HOME_ITEM_COUNT];
+
 Screen *app_screens_init(AppScreens *screens, AppScreensContext context);
+void app_screens_arrange_home(AppScreens *screens);
 Screen *app_screens_usb_modes(AppScreens *screens);
 MenuItem app_screens_open_item(StringId label, Screen *target);
 Screen *app_screens_build_menu(MenuScreen *menu, StringId title, const MenuItem *items, int count,

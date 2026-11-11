@@ -221,6 +221,11 @@ echo_add_unit_test(NAME test_app_modules
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+echo_add_unit_test(NAME test_home_screen
+    SOURCES app/test_home_screen.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
 echo_add_unit_test(NAME test_screen_modules
     SOURCES app/test_screen_modules.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures
@@ -254,8 +259,8 @@ echo_add_unit_test(NAME test_charge_screen
 )
 
 echo_add_unit_test(NAME test_english_layout
-    SOURCES app/test_english_layout.c
-    LIBRARIES echo_app
+    SOURCES app/test_english_layout.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 

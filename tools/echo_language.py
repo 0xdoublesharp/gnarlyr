@@ -32,6 +32,10 @@ def git(root, *arguments):
     return result.stdout.decode("utf-8")
 
 
+HOME_FIRST_ITEMS = 9
+HOME_SLOTS = 10
+
+
 def constant(source, name):
     match = re.search(r"\b" + name + r"\s*=\s*(\d+)\b", source)
     if match is None:
@@ -69,6 +73,8 @@ class Snapshot:
                     constant(source, "EXTENSION_VERSION"), constant(source, "EXTENSION_FIELD"),
                     constant(source, "EXTENSION_CHECKSUM_FIELD")) != (15, 38, 54):
                 raise ValueError("the installed settings extension layout is unsupported")
+            if self.settings_version >= 15:
+                self.check_home_layout()
         except (ValueError, KeyError, OSError, self.format.PackError) as error:
             raise api.DebugError("language_build_unknown", str(error)) from error
 
@@ -85,6 +91,23 @@ class Snapshot:
             raise ValueError("the installed ReplayGain settings layout is unsupported")
         self.reserved_flags = masks[0]
 
+    def check_home_layout(self):
+        header = self.show("firmware/src/settings/include/settings/settings.h")
+        self.home_items = constant(header, "SETTINGS_HOME_ITEM_COUNT")
+        self.home_settings_item = constant(header, "SETTINGS_HOME_SETTINGS_ITEM")
+        if ((constant(header, "SETTINGS_HOME_FIRST_ITEM_COUNT"), constant(header, "SETTINGS_HOME_ORDER_SLOTS"))
+                != (HOME_FIRST_ITEMS, HOME_SLOTS) or not HOME_FIRST_ITEMS <= self.home_items <= HOME_SLOTS or
+                self.home_settings_item >= HOME_FIRST_ITEMS):
+            raise ValueError("the installed Home layout is unsupported")
+
+    def home_valid(self, block):
+        order = [block[4 + index // 2] >> 4 * (index % 2) & 15 for index in range(HOME_SLOTS)]
+        stored = max((count for count in range(1, HOME_SLOTS + 1)
+                      if sorted(order[:count]) == list(range(count)) and not any(order[count:])), default=0)
+        hidden = block[9] | block[10] << 8
+        hideable = (1 << stored) - 1 & ~(1 << self.home_settings_item)
+        return stored >= HOME_FIRST_ITEMS and hidden & ~hideable == 0
+
     def settings_flags_valid(self, version, flags):
         return flags == 0 if version < 14 else flags & self.reserved_flags == 0 and flags & 3 < 3
 
@@ -100,11 +123,8 @@ class Snapshot:
         if data[4] < 15:
             return True
         block = data[38:54]
-        order = [block[4 + index // 2] >> 4 * (index % 2) & 15 for index in range(10)]
-        hidden = block[9] | block[10] << 8
         return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and block[3] == 0 and
-                sorted(order[:9]) == list(range(9)) and order[9] == 0 and hidden & ~0x1F7 == 0 and
-                not any(block[11:]))
+                self.home_valid(block) and not any(block[11:]))
 
     def show(self, path):
         return git(self.api.ROOT, "show", self.commit + ":" + path)
