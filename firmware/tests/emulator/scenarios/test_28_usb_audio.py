@@ -87,7 +87,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(host.missed, 0)
         self.assertGreater(written, rate // 3)
         ring, frames = struct.unpack("<2I", machine.read_memory(sink, 8))
-        self.assertEqual(frames, 2300)
+        self.assertEqual(frames, 2200)
         self.assertIn(ring, range(0x0307A000, 0x03092000))
         self.assertEqual(written * 2, len(host.expected))
         for frame in range(written - 100, written):

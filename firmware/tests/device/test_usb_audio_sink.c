@@ -276,7 +276,7 @@ static void feedback_tracks_the_output_clock_and_steers_the_host_toward_target_f
 static void stream_with_clock_error(uint32_t rate, uint8_t width, int32_t ppm)
 {
     UsbAudioSink sink;
-    usb_audio_sink_init(&sink, ring, 2300);
+    usb_audio_sink_init(&sink, ring, 2200);
     usb_audio_sink_set_asynchronous(&sink, true);
     usb_audio_sink_start(&sink, rate, width);
     uint64_t host_phase = 0;
@@ -319,7 +319,7 @@ static void stream_with_clock_error(uint32_t rate, uint8_t width, int32_t ppm)
     CHECK_EQUAL(0, sink.stats.repeated);
     for (uint32_t frame = sink.written - 100; frame < sink.written; frame++) {
         for (uint8_t channel = 0; channel < 2; channel++) {
-            CHECK_EQUAL((frame + channel) << (8 * (4 - width)), ring[(frame % 2300) * 2 + channel]);
+            CHECK_EQUAL((frame + channel) << (8 * (4 - width)), ring[(frame % 2200) * 2 + channel]);
         }
     }
 }
@@ -338,7 +338,7 @@ static void every_rate_and_width_streams_bit_exact_with_fast_and_slow_device_clo
 static void a_two_millisecond_delivery_burst_stays_inside_the_192_khz_buffer(void)
 {
     UsbAudioSink sink;
-    usb_audio_sink_init(&sink, ring, 2300);
+    usb_audio_sink_init(&sink, ring, 2200);
     usb_audio_sink_set_asynchronous(&sink, true);
     usb_audio_sink_start(&sink, 192000, 4);
     uint8_t packet[192] = {0};

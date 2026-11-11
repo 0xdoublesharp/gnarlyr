@@ -40,7 +40,7 @@ static UsbPort port;
 static UsbAudio audio;
 static UsbAudioSink sink;
 #ifdef ECHO_DEBUG_LOOP
-#define USB_DAC_RING_FRAMES 2300u
+#define USB_DAC_RING_FRAMES 2200u
 #else
 #define USB_DAC_RING_FRAMES 3000u
 #endif
