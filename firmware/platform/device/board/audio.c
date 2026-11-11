@@ -874,6 +874,11 @@ void board_audio_shut_down(void)
     using_core1 = false;
 }
 
+bool board_audio_converting(void)
+{
+    return engine_ready && transferring && engine.resample.factor > 1;
+}
+
 uint8_t board_audio_volume_level(void)
 {
     return volume_level;

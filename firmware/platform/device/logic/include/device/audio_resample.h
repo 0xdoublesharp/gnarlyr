@@ -6,16 +6,19 @@
 enum {
     AUDIO_RESAMPLE_HISTORY = 64,
     AUDIO_RESAMPLE_LEFT = 23,
-    AUDIO_RESAMPLE_RIGHT = 24
+    AUDIO_RESAMPLE_RIGHT = 24,
+    AUDIO_RESAMPLE_FACTOR_LIMIT = 6
 };
 
 typedef struct AudioResample {
-    int32_t history[2][AUDIO_RESAMPLE_HISTORY];
+    int32_t history[2 * AUDIO_RESAMPLE_HISTORY][2];
+    int32_t output[AUDIO_RESAMPLE_FACTOR_LIMIT][2];
     uint64_t frames;
     uint64_t cursor;
     uint8_t factor;
     uint8_t phase;
     bool ended;
+    bool stereo;
 } AudioResample;
 
 uint32_t audio_resample_rate(uint32_t input_rate);
