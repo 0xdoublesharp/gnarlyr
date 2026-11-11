@@ -84,7 +84,8 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 | Audio processing module (code, no BSS) | 2,156 | 12,288 | 10,132 |
 | Audio DSP module (code, no BSS) | 6,348 | 8,192 | 1,844 |
 | Ogg file module, Vorbis and Opus (code, no BSS) | 7,076 | 8,192 | 1,116 |
-| Debug module, `device` preset (code, no BSS) | 2,932 | 8,192 | 5,260 |
+| Extension module (code, no BSS) | 3,496 | 8,192 | 4,696 |
+| Extension module, `device` preset | 6,408 | 8,192 | 1,784 |
 | Decoder workspace | 41,648 | 41,984 | 336 |
 | Language pack (English) | 7,384 | 16,384 | 9,000 |
 | Vorbis program image bank | 64,840 | 130,048 | 65,208 |
@@ -93,7 +94,7 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 | Opus core-1 static state | 30,908 | 36,864 | 5,956 |
 
 - Keep at least 4 KB free in the release code window and at least 1 KB in the `device` one. The `device` build is what the debug loop installs, so it must link; the free space is a margin for the next change, not a hardware need. Read the report after any change to device code and update these numbers and the ones in `docs/architecture.md` when they move.
-- Code that runs only from one module's screens belongs in that module, and debug-loop code that only a running script needs belongs in the debug module (`docs/architecture.md`, Demand-loaded UI modules and Debug module). Hooks the debug loop needs at start-up, before a script or while another module is loaded stay resident.
+- Code that runs only from one module's screens belongs in that module, debug-loop code that only a running script needs belongs in the extension module, and so does code that must stay callable beside every UI module but that start-up, USB sessions and the audio path never use, behind wrappers that do nothing when the module is missing (`docs/architecture.md`, Demand-loaded UI modules and Extension module). Hooks the debug loop needs at start-up, before a script or while another module is loaded stay resident.
 - The core 0 link uses link-time optimisation. Libraries shared with core 1 or the rescan overlay stay out of it.
 - `CORE_SEAM` (`src/core/include/core/seam.h`) marks the functions the emulator replaces or watches, so link-time optimisation cannot inline or remove them. It must stay on every function the emulator names (`tools/echo_emulator`, `tests/emulator`); the emulator fails when a named function is missing from the image.
 - USB session code (mass storage, USB DAC, the DWC2 transfer code) and the updater live in the USB overlay, which is loaded into high RAM once a host is found. New code for those paths goes into the overlay, not the main program. Functions the overlay calls in the main program must be listed in `ECHO_OVERLAY_IMPORTS` (`platform/device/CMakeLists.txt`). Only listening for a host, the state kept across sessions and the start-up loader request stay resident. `docs/architecture.md` (Overlay loader, USB overlay) has the details.

@@ -21,7 +21,7 @@ WORKSPACE_REGION = "HIGH_RAM"
 WORKSPACE_SECTION = ".high_ram"
 MODULE_REGION = "MODULE_RAM"
 MODULE_WINDOWS = {"dsp": "DSP_RAM", "ogg": "DSP_RAM", "process": "PROCESS_RAM",
-                  "debug": "DEBUG_RAM"}
+                  "extension": "EXTENSION_RAM"}
 USB_IMAGE_REGION = "USB_IMAGE"
 LANGUAGE_REGION = "LANGUAGE_RAM"
 STATE_SECTIONS = (".data", ".bss", ".noinit")
@@ -295,8 +295,8 @@ def module_problems(device_map, modules):
         code, zeroed = module_extent(module_map)
         if name in ("dsp", "ogg", "process") and zeroed:
             problems.append("the audio module must keep all state in its caller")
-        if name == "debug" and zeroed:
-            problems.append("the debug module must keep all state in the main program")
+        if name == "extension" and zeroed:
+            problems.append("the extension module must keep all state in the main program")
         if code + zeroed > slot[1]:
             problems.append(f"module {name} is {code + zeroed - slot[1]:,} bytes too large for "
                             "the module slot")

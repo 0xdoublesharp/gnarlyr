@@ -263,6 +263,7 @@ void board_main(void)
     boot_step("jack");
     switch_off_when_empty(boot_millivolts);
     boot_step("app start");
+    board_extension_start();
     app_start();
     explain_missing_text();
     boot_step("splash");

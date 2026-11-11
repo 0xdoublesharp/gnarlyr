@@ -11,6 +11,7 @@ add_executable(echo_device
     board/dmac.c
     board/display.c
     board/emmc.c
+    board/extension.c
     board/glyphs.c
     board/gpio.c
     board/jack.c
@@ -39,7 +40,7 @@ add_executable(echo_device
 )
 target_sources(echo_device PRIVATE board/panel_vop.c)
 if(NOT ECHO_RELEASE)
-    target_sources(echo_device PRIVATE board/debug_module.c board/debug_session.c board/profiler.c)
+    target_sources(echo_device PRIVATE board/debug_session.c board/profiler.c)
     set(ECHO_PROFILE_BUCKET_SHIFT 7)
 endif()
 set(ECHO_CORE1_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1.ld)
@@ -262,7 +263,7 @@ if(CMAKE_CROSSCOMPILING)
         board/bluetooth.c
         board/core1.c
         board/dac.c
-        board/debug_module.c
+        board/extension.c
         board/debug_poke.c
         board/debug_report_file.c
         board/debug_rtc.c
@@ -362,8 +363,8 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_process.ld)
     elseif(module STREQUAL "dsp" OR module STREQUAL "ogg")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_dsp.ld)
-    elseif(module STREQUAL "debug")
-        set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/debug_module.ld)
+    elseif(module STREQUAL "extension")
+        set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/extension_module.ld)
     else()
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/screen_module.ld)
     endif()
@@ -394,9 +395,23 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             equalizer_run=audio_process_equalizer_run
         )
     endif()
-    if(module STREQUAL "debug")
+    if(module STREQUAL "extension")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
         target_include_directories(${module_target}_objects PRIVATE board)
+        target_compile_definitions(${module_target}_objects PRIVATE
+            home_art_draw=extension_home_art_draw
+            home_art_draw_backdrop=extension_home_art_draw_backdrop
+            home_art_init=extension_home_art_init
+            home_art_update=extension_home_art_update
+            wire_motion_draw=extension_wire_motion_draw
+            wire_motion_due=extension_wire_motion_due
+            wire_motion_end=extension_wire_motion_end
+            wire_motion_fit=extension_wire_motion_fit
+            wire_motion_progress=extension_wire_motion_progress
+            wire_motion_run=extension_wire_motion_run
+            wire_motion_shown=extension_wire_motion_shown
+            wire_motion_tick=extension_wire_motion_tick
+        )
     endif()
     if(module STREQUAL "ogg")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)

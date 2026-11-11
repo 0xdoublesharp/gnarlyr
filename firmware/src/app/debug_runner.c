@@ -76,12 +76,12 @@ void debug_runner_done(bool succeeded)
     debug_runner_set_status(succeeded ? DEBUG_LINE_OK : DEBUG_LINE_FAILED);
 }
 
-static const DebugModuleEntry *debug_code(void)
+static const DebugCodeEntry *debug_code(void)
 {
-    return (const DebugModuleEntry *)hal_system_load_debug_code();
+    return (const DebugCodeEntry *)hal_system_load_debug_code();
 }
 
-static const DebugModuleEntry *running_code(void)
+static const DebugCodeEntry *running_code(void)
 {
     return debug_runner.run.state == DEBUG_SCRIPT_RUNNING ? debug_code() : NULL;
 }
@@ -93,7 +93,7 @@ void debug_runner_abort(void)
         return;
     }
     uint32_t now_ms = hal_clock_milliseconds();
-    const DebugModuleEntry *code = running_code();
+    const DebugCodeEntry *code = running_code();
     if (code != NULL) {
         code->stop(now_ms, DEBUG_SCRIPT_ABORTED);
     } else {
@@ -121,7 +121,7 @@ DebugRequest debug_runner_step(uint32_t now_ms, DebugRunnerView view)
         reconnect_when_due(now_ms);
         return none;
     }
-    const DebugModuleEntry *code = debug_code();
+    const DebugCodeEntry *code = debug_code();
     if (code == NULL) {
         debug_runner_finish(now_ms, DEBUG_SCRIPT_ABORTED);
         debug_runner.reconnect_due = true;
@@ -136,7 +136,7 @@ void debug_runner_frame(DebugFrameSources sources)
     if (debug_runner.phase != DEBUG_PHASE_MEASURING) {
         return;
     }
-    const DebugModuleEntry *code = running_code();
+    const DebugCodeEntry *code = running_code();
     if (code != NULL) {
         code->frame(sources);
     }
@@ -144,6 +144,6 @@ void debug_runner_frame(DebugFrameSources sources)
 
 bool debug_runner_screenshot(const DebugScreenshot *shot)
 {
-    const DebugModuleEntry *code = running_code();
+    const DebugCodeEntry *code = running_code();
     return code != NULL && code->screenshot(shot);
 }

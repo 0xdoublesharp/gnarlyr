@@ -1,5 +1,6 @@
 #include "fake_hal.h"
 #include "app/debug_loop.h"
+#include "app/extension.h"
 #include "app/linked_modules.h"
 
 #include "hal/system.h"
@@ -1608,7 +1609,7 @@ const void *hal_system_load_module(uint32_t module)
 
 const void *hal_system_load_debug_code(void)
 {
-    if ((fake.broken_modules & 1u << DEBUG_MODULE_NUMBER) != 0) {
+    if ((fake.broken_modules & 1u << EXTENSION_MODULE_NUMBER) != 0) {
         fake.module_refusals++;
         return NULL;
     }

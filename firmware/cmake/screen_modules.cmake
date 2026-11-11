@@ -1,4 +1,4 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process)
+set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension)
 set(ECHO_SCREEN_MODULE_SOURCES_process
     platform/device/logic/audio_process_entry.c
     platform/device/logic/audio_trig.c
@@ -21,6 +21,12 @@ set(ECHO_SCREEN_MODULE_SOURCES_ogg
     platform/device/logic/opus_track.c
     platform/device/logic/vorbis_track.c
     src/codec/ogg_packet.c
+)
+set(ECHO_SCREEN_MODULE_SOURCES_extension
+    src/app/modules/extension_module.c
+    src/app/home_art.c
+    src/gfx/wireframe.c
+    src/ui/wire_motion.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
@@ -84,8 +90,7 @@ if(ECHO_RELEASE)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_settings src/app/diagnostics_menu_release.c)
 else()
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_settings src/app/diagnostics_menu.c)
-    list(APPEND ECHO_SCREEN_MODULES debug)
-    set(ECHO_SCREEN_MODULE_SOURCES_debug
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_extension
         src/app/modules/debug_module.c
         src/app/debug_steps.c
         src/app/debug_screenshot.c

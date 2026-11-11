@@ -36,9 +36,9 @@ AUDIO_MODULE_NUMBER = 5
 AUDIO_MODULE_NUMBERS = (5, 6)
 AUDIO_MODULE_BASE = 0x03048000
 AUDIO_MODULE_CAPACITY = 0x2000
-DEBUG_MODULE_NUMBER = 8
-DEBUG_MODULE_BASE = 0x0304A000
-DEBUG_MODULE_CAPACITY = 0x2000
+EXTENSION_MODULE_NUMBER = 8
+EXTENSION_MODULE_BASE = 0x0304A000
+EXTENSION_MODULE_CAPACITY = 0x2000
 MODULE_MAGIC = b"DSM"
 MODULE_TABLE_OFFSET = OVERLAY_OFFSET + OVERLAY_CAPACITY
 MODULE_TABLE_MAGIC = b"DSMT"
@@ -363,8 +363,8 @@ def module_window(number):
         return AUDIO_MODULE_BASE, AUDIO_MODULE_CAPACITY
     if number == PROCESS_MODULE_NUMBER:
         return PROCESS_MODULE_BASE, PROCESS_MODULE_CAPACITY
-    if number == DEBUG_MODULE_NUMBER:
-        return DEBUG_MODULE_BASE, DEBUG_MODULE_CAPACITY
+    if number == EXTENSION_MODULE_NUMBER:
+        return EXTENSION_MODULE_BASE, EXTENSION_MODULE_CAPACITY
     return MODULE_BASE, MODULE_CAPACITY
 
 
@@ -610,11 +610,11 @@ def overlay_from_elf(elf, zeroed=False, base=OVERLAY_BASE, capacity=OVERLAY_CAPA
 
 
 def module_from_elf(elf, number=0):
-    stateless = number in (*AUDIO_MODULE_NUMBERS, PROCESS_MODULE_NUMBER, DEBUG_MODULE_NUMBER)
+    stateless = number in (*AUDIO_MODULE_NUMBERS, PROCESS_MODULE_NUMBER, EXTENSION_MODULE_NUMBER)
     bss = elf_sections(elf).get(".bss") if stateless else None
     if bss is not None and bss.size:
-        raise ImageError("the debug module must keep all state in the main program"
-                         if number == DEBUG_MODULE_NUMBER else
+        raise ImageError("the extension module must keep all state in the main program"
+                         if number == EXTENSION_MODULE_NUMBER else
                          "the audio module must keep all state in its caller")
     base, capacity = module_window(number)
     return overlay_from_elf(elf, zeroed=True, base=base, capacity=capacity)

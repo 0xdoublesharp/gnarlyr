@@ -43,6 +43,7 @@ add_library(echo_app STATIC
     music_check.c
     music_walk.c
     library_store.c
+    modules/extension_module.c
     modules/library_module.c
     modules/settings_module.c
     modules/views_module.c
@@ -68,7 +69,9 @@ else()
     target_sources(echo_app PRIVATE diagnostics_menu.c debug_loop.c debug_runner.c
         debug_screenshot.c debug_steps.c modules/debug_module.c)
 endif()
-if(NOT ECHO_BUILD_DEVICE)
+if(ECHO_BUILD_DEVICE)
+    target_sources(echo_app PRIVATE extension_calls.c)
+else()
     target_sources(echo_app PRIVATE modules/linked_modules.c)
 endif()
 target_include_directories(echo_app PUBLIC include PRIVATE .)
