@@ -11,6 +11,7 @@ sys.path.insert(0, str(PROJECT / "tools"))
 sys.path.insert(0, str(PROJECT.parent / "tools"))
 
 import echo_debug
+import image_artifacts
 import lang_pack
 import make_image
 from identity import IDENTITY
@@ -209,7 +210,7 @@ class EchoImageHarness(unittest.TestCase):
         cls.image = Path(CONFIG["image"]).read_bytes()
         cls.elf = CONFIG["elf"]
         cls.usb_overlay_elf = CONFIG["usb_overlay_elf"]
-        cls.module_elfs = sorted(Path(cls.elf).parent.glob("echo_module_*.elf"))
+        cls.module_elfs = image_artifacts.module_elfs(Path(cls.elf).parents[2])
 
     def session(self, files=(), image=None, vbus=False, volume=None, rest_in_waits=True,
                 usb_answer=USB_ANSWER_FILE_TRANSFER, vbus_at_start=False):

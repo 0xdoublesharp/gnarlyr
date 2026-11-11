@@ -82,7 +82,9 @@ class HookTests(unittest.TestCase):
 
     def test_candidates_get_their_own_symbols_and_only_old_hooks_are_optional(self):
         directory = mock.MagicMock()
-        with mock.patch("echo_emulator.session.Session") as session:
+        modules = [Path("platform/device/echo_module_views.elf")]
+        with mock.patch("echo_emulator.session.Session") as session, \
+                mock.patch.object(prove_upgrade.image_artifacts, "module_elfs", return_value=modules) as listed:
             with mock.patch.object(prove_upgrade.make_image, "validate_image", return_value=[]):
                 with mock.patch.object(prove_upgrade.make_image, "firmware_from_elf") as parts:
                     parts.return_value = SimpleNamespace(code=b"", data=b"")
@@ -91,6 +93,8 @@ class HookTests(unittest.TestCase):
                         self.assertEqual(session.call_args.kwargs["optional_hooks"], ("hal_system_set_usb_answer",))
                         prove_upgrade.candidate_session(directory)
                         self.assertEqual(session.call_args.kwargs["optional_hooks"], ())
+        listed.assert_called_with(directory)
+        self.assertEqual(session.call_args.kwargs["module_elfs"], modules)
 
 
 class BuiltImageTests(unittest.TestCase):

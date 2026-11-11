@@ -529,6 +529,17 @@ foreach(pack_file ${ECHO_LANGUAGE_PACK_FILES})
 endforeach()
 
 add_custom_target(echo_device_image ALL
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/image_artifacts.py
+        --build ${CMAKE_BINARY_DIR}
+        --elf $<TARGET_FILE:echo_device>
+        --elf $<TARGET_FILE:echo_rescan_overlay>
+        --elf $<TARGET_FILE:echo_usb_overlay>
+        --elf $<TARGET_FILE:echo_core1>
+        --elf $<TARGET_FILE:echo_core1_mp3>
+        --elf $<TARGET_FILE:echo_core1_m4a>
+        --elf $<TARGET_FILE:echo_core1_vorbis>
+        --elf $<TARGET_FILE:echo_core1_opus>
+        ${ECHO_MODULE_IMAGE_ARGUMENTS}
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/make_image.py
         --elf $<TARGET_FILE:echo_device>
         --overlay $<TARGET_FILE:echo_rescan_overlay>
@@ -548,6 +559,7 @@ add_custom_target(echo_device_image ALL
         ${ECHO_LANGUAGE_PACK_ARGUMENTS}
         ${ECHO_MODULE_MAP_ARGUMENTS}
     BYPRODUCTS ${ECHO_DEVICE_IMAGE} ${CMAKE_BINARY_DIR}/size-summary.txt
+        ${CMAKE_BINARY_DIR}/image-artifacts.json
     DEPENDS echo_device echo_rescan_overlay echo_usb_overlay ${ECHO_MODULE_TARGETS}
         ${ECHO_CORE1_MP3_BINARY}
         ${ECHO_CORE1_BINARY}
@@ -556,6 +568,7 @@ add_custom_target(echo_device_image ALL
         ${ECHO_CORE1_OPUS_BINARY}
         ${ECHO_LANGUAGE_PACK_FILES}
         ${PROJECT_SOURCE_DIR}/tools/make_image.py
+        ${PROJECT_SOURCE_DIR}/tools/image_artifacts.py
         ${PROJECT_SOURCE_DIR}/tools/identity.py
         ${FIRMWARE_IDENTITY_FILE}
     VERBATIM

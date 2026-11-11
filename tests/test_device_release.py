@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import device_release as release
 import echo_debug
 import firmware
+import image_artifacts
 
 NEW = "a" * 40
 OLD = "b" * 40
@@ -76,12 +77,16 @@ class ReleaseTests(unittest.TestCase):
         self.new_build = self.make_build(self.root / "firmware/build/device", NEW)
         self.old_candidate = self.runner.freeze(self.old_build, OLD)
 
-    def make_build(self, path, sha):
+    def make_build(self, path, sha, recorded=True):
         directory = path / "platform/device"
         directory.mkdir(parents=True, exist_ok=True)
-        for name in ("echo_device", "echo_usb_overlay", "echo_rescan_overlay", "echo_module_settings"):
+        names = ("echo_device", "echo_usb_overlay", "echo_rescan_overlay", "echo_module_settings")
+        for name in names:
             for suffix in (".elf", ".map"):
                 (directory / (name + suffix)).write_bytes((name + suffix + sha).encode())
+        if recorded:
+            image_artifacts.record(path, [directory / f"{name}.elf" for name in names[:3]],
+                                   [directory / "echo_module_settings.elf"])
         data = bytearray(0x500004)
         data[echo_debug.IMAGE_BRAND] = echo_debug.IDENTITY["id"].encode().ljust(8, b"\0")
         data[echo_debug.IMAGE_BUILD] = sha[:7].encode().ljust(8, b"\0")
@@ -155,6 +160,22 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "checksum"):
             self.runner.installed_candidate(OLD)
 
+    def test_freezing_keeps_only_the_files_the_image_was_built_from(self):
+        stale = self.new_build / "platform/device/echo_module_debug.elf"
+        stale.write_bytes(b"left by an earlier configuration")
+        candidate = self.runner.freeze(self.new_build, NEW)
+        self.assertFalse((candidate / "platform/device/echo_module_debug.elf").exists())
+        self.assertTrue((candidate / image_artifacts.MANIFEST).is_file())
+        self.assertEqual(image_artifacts.module_elfs(candidate),
+                         [candidate / "platform/device/echo_module_settings.elf"])
+
+    def test_a_current_build_without_its_artifact_list_is_not_frozen(self):
+        build = self.make_build(self.base / "unrecorded", NEW, recorded=False)
+        with self.assertRaisesRegex(ValueError, image_artifacts.MANIFEST):
+            self.runner.freeze(build, NEW)
+        historical = self.runner.freeze(build, NEW, historical=True)
+        self.assertTrue((historical / "platform/device/echo_module_settings.elf").is_file())
+
     def test_missing_historical_candidate_builds_exact_commit_and_removes_checkout(self):
         with mock.patch.object(self.runner, "git") as git:
             with mock.patch.object(self.runner, "build", return_value=self.old_build) as build:
@@ -163,7 +184,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(result, self.old_candidate)
         self.assertEqual(git.call_args_list[0].args[:3], ("worktree", "add", "--detach"))
         self.assertEqual(git.call_args_list[0].args[-1], NEW)
-        freeze.assert_called_once_with(self.old_build, NEW)
+        freeze.assert_called_once_with(self.old_build, NEW, historical=True)
         build.assert_called_once()
 
     def test_failed_historical_build_removes_only_its_checkout_and_output(self):

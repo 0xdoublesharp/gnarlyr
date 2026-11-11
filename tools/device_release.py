@@ -6,9 +6,13 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 
 import echo_debug
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "firmware/tools"))
+import image_artifacts
 
 EXCLUDED_STATE = {"library.db", "covers.bin", "build.tmp", "view.tmp", "debug"}
 
@@ -94,7 +98,8 @@ class Release:
         if manifest["commit"] != sha or not manifest["files"]:
             raise ValueError("Frozen candidate commit does not match")
         paths = {str(path.relative_to(candidate)) for path in candidate.rglob("*")
-                 if path.is_file() and (path.suffix in (".elf", ".map") or path.name == echo_debug.UPDATE_FILE)}
+                 if path.is_file() and (path.suffix in (".elf", ".map")
+                                        or path.name in (echo_debug.UPDATE_FILE, image_artifacts.MANIFEST))}
         if paths != set(manifest["files"]):
             raise ValueError("Frozen candidate file set changed")
         for name, expected in manifest["files"].items():
@@ -106,7 +111,16 @@ class Release:
             raise ValueError("Candidate image build does not match clean HEAD")
         return manifest
 
-    def freeze(self, build, sha):
+    def build_artifacts(self, build, historical):
+        recorded = image_artifacts.read_manifest(build)
+        if recorded is not None:
+            return [build / image_artifacts.MANIFEST, *(build / name for name in recorded["files"])]
+        if not historical:
+            raise ValueError(f"Missing {image_artifacts.MANIFEST} in {build}; rebuild the device image")
+        directory = build / "platform/device"
+        return [*sorted(directory.glob("echo_*.elf")), *sorted(directory.glob("echo_*.map"))]
+
+    def freeze(self, build, sha, historical=False):
         candidate = self.scratch / "reports" / f"candidate-{sha}"
         if candidate.exists():
             self.validate_candidate(candidate, sha)
@@ -116,7 +130,7 @@ class Release:
         image = build / echo_debug.UPDATE_FILE
         if self.resolve(echo_debug.image_build(image.read_bytes())) != sha:
             raise ValueError("Candidate image build does not match clean HEAD")
-        artifacts = [image, *sorted(build.rglob("*.elf")), *sorted(build.rglob("*.map"))]
+        artifacts = [image, *self.build_artifacts(build, historical)]
         for name in ("echo_device", "echo_usb_overlay", "echo_rescan_overlay"):
             for suffix in (".elf", ".map"):
                 if not (build / "platform/device" / (name + suffix)).is_file():
@@ -152,7 +166,7 @@ class Release:
         checkout = temporary / (temporary.name + "-source")
         try:
             self.git("worktree", "add", "--detach", str(checkout), sha)
-            return self.freeze(self.build(checkout), sha)
+            return self.freeze(self.build(checkout), sha, historical=True)
         finally:
             if checkout.exists():
                 self.git("worktree", "remove", "--force", str(checkout))

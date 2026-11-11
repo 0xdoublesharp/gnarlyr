@@ -3,6 +3,7 @@ import json
 import struct
 from pathlib import Path
 
+import image_artifacts
 import make_image
 from identity import IDENTITY
 
@@ -75,7 +76,7 @@ def candidate_session(directory, files=(), reuse=None, historical=False):
     return Session(image, symbols / "echo_device.elf",
                    files=files, reuse=reuse, vbus_after_first_frame=bool(files),
                    usb_overlay_elf=symbols / "echo_usb_overlay.elf",
-                   module_elfs=sorted(symbols.glob("echo_module_*.elf")),
+                   module_elfs=image_artifacts.module_elfs(directory),
                    optional_hooks=("hal_system_set_usb_answer",) if historical else ())
 
 
