@@ -9,7 +9,7 @@ from echo_image_harness import (
     EchoImageHarness,
     main,
     HEIGHT,
-    HOME_UP_NEXT_AFTER_SETTINGS,
+    HOME_MIXTAPES_BEFORE_SETTINGS,
     KEY_BACK,
     KEY_NEXT,
     KEY_PLAY,
@@ -38,7 +38,7 @@ class EchoImageTest(EchoImageHarness):
         resident_ms = self.release_to_first_draw_ms(machine, KEY_PLAY)
         self.press(machine, KEY_BACK)
         self.assertEqual(watch.loads(), [])
-        self.press(machine, KEY_NEXT)
+        self.press(machine, image_tests.KEY_PREVIOUS)
         module_ms = self.release_to_first_draw_ms(machine, KEY_PLAY)
         self.assertLessEqual(module_ms - resident_ms, MODULE_LOAD_LIMIT_MS)
         loads = watch.loads()
@@ -47,7 +47,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(session.module_reads("slot_1", number))
         self.assertEqual(session.module_reads("slot_2", number), [])
         self.assertTrue(settings.loaded(machine))
-        for key in (KEY_PLAY, KEY_BACK, KEY_BACK, KEY_PLAY, KEY_NEXT, KEY_PLAY, KEY_BACK):
+        for key in (KEY_PLAY, KEY_BACK, KEY_BACK, KEY_PLAY, image_tests.KEY_PREVIOUS, KEY_PLAY, KEY_BACK):
             self.press(machine, key)
         self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
                          [(number, True), (1, True), (number, True)])
@@ -203,7 +203,7 @@ class EchoImageTest(EchoImageHarness):
         audible = rig.first_audio_after(mark)
         self.assertIsNotNone(audible)
         rig.press_many("back", 3)
-        rig.press("next")
+        rig.press("previous")
         opened = rig.press("play")
         self.assertTrue(settings.loaded(machine))
         rig.press_many("next", SETTINGS_REPEAT_ROW)
@@ -212,12 +212,12 @@ class EchoImageTest(EchoImageHarness):
         rig.press("play")
         self.assertEqual(session.fat().read(SETTINGS_PATH)[SETTINGS_REPEAT_FIELD], REPEAT_ALL)
         rig.press("back")
-        rig.press_many("next", HOME_UP_NEXT_AFTER_SETTINGS)
+        rig.press_many("previous", HOME_MIXTAPES_BEFORE_SETTINGS)
         rig.press("play")
         rig.run_for(400)
         self.assertTrue(views.loaded(machine))
         rig.press("back")
-        rig.press_many("previous", HOME_UP_NEXT_AFTER_SETTINGS)
+        rig.press_many("next", HOME_MIXTAPES_BEFORE_SETTINGS)
         rig.press("play")
         rig.run_for(400)
         self.assertTrue(settings.loaded(machine))
@@ -242,7 +242,7 @@ class EchoImageTest(EchoImageHarness):
         from echo_emulator.real_volume import real_volume
         script = "\n".join(["build " + self.build_tag(), "play", "down,play", "wait 600",
                             "screenshot coverflow", "set Repeat=All", "down", "wait 300",
-                            "back:long", "wait 600", "down", "play", "wait 600",
+                            "back:long", "wait 600", "up", "play", "wait 600",
                             "screenshot settings", "measure 500", "reconnect", ""])
         volume = self.debug_volume(real_volume(playable=True, album_count=ALBUM_COUNT),
                                    run_txt=script.encode("ascii"))

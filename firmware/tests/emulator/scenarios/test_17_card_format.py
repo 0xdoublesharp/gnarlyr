@@ -29,7 +29,7 @@ class EchoImageTest(EchoImageHarness):
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=Fat32Volume(), module_elfs=self.module_elfs, prepare=prepare)
         internal_before = rig.session.disk.snapshot()
-        rig.press("next")
+        rig.press("previous")
         rig.press("play")
         for _ in range(3):
             rig.press("previous")
@@ -83,7 +83,7 @@ class EchoImageTest(EchoImageHarness):
         struct.pack_into("<HI", root, offset + 26, first & 0xFFFF, len(wav))
         card.write(root_lba, root)
         self.assertEqual(wav, reader.read("/COPIED.WAV"))
-        rig.press("next")
+        rig.press("previous")
         rig.press("play")
         rig.press_many("next", 21)
         rig.press("play")
@@ -122,7 +122,7 @@ class EchoImageTest(EchoImageHarness):
                   volume=Fat32Volume(), module_elfs=self.module_elfs, prepare=prepare)
         toasts = self.collect_toasts(rig.machine)
         def confirm():
-            rig.press("next")
+            rig.press("previous")
             rig.press("play")
             for _ in range(3):
                 rig.press("previous")

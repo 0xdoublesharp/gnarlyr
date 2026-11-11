@@ -59,7 +59,7 @@ MOTION_SETTLE_MS = 1000
 MOTION_MEASURE_MS = 3000
 MOTION_LOAD_LIMIT_PERCENT = 8
 STORE_WORKING = 1
-HOME_LISTENING_ROW = 5
+HOME_LISTENING_ROW = 3
 LISTENING_EXPORT_ROW = 4
 PWM_CONTROL = 0x0C
 PWM_RUN = 0x10003
@@ -100,6 +100,7 @@ CABLE_NOTICED_LIMIT_MS = 100
 CLOCK_SLACK_MS = 5
 CODE_WINDOW_BYTES = 0x2666C
 PROFILE_BUCKET_BYTES = 128
+KEY_PREVIOUS = 35
 KEY_NEXT = 100
 KEY_PLAY = 250
 KEY_BACK = 500
@@ -149,7 +150,7 @@ SETTINGS_PATH = "/" + IDENTITY.data_directory + "/settings.bin"
 SETTINGS_REPEAT_FIELD = 12
 REPEAT_ALL = 2
 SETTINGS_REPEAT_ROW = 2
-HOME_UP_NEXT_AFTER_SETTINGS = 2
+HOME_MIXTAPES_BEFORE_SETTINGS = 4
 STEP_GAP_WITH_A_MODULE_MS = 250
 STEPS_AFTER_NOTICE = 20
 FNV_START = 2166136261
@@ -497,7 +498,8 @@ class EchoImageHarness(unittest.TestCase):
         machine.run(until_ms=start + 20 + KEY_HOLD_MS + KEY_SETTLE_MS)
 
     def switch_profiler_on(self, machine):
-        for key in [KEY_NEXT, KEY_PLAY, KEY_PLAY] + [KEY_NEXT] * ABOUT_PROFILER_ROW + [KEY_PLAY]:
+        self.open_settings(machine)
+        for key in [KEY_PLAY] + [KEY_NEXT] * ABOUT_PROFILER_ROW + [KEY_PLAY]:
             self.press(machine, key)
 
     def index_of(self, log, sequence, start=0):
@@ -1111,7 +1113,7 @@ class EchoImageHarness(unittest.TestCase):
         return drawn - released
 
     def open_settings(self, machine):
-        self.press(machine, KEY_NEXT)
+        self.press(machine, KEY_PREVIOUS)
         self.press(machine, KEY_PLAY)
 
     def assert_module_screen_refused(self, session, watch, toasts, number):

@@ -32,7 +32,7 @@ class EchoImageTest(EchoImageHarness):
         audible = rig.first_audio_after(mark)
         self.assertIsNotNone(audible)
         rig.press_many("back", 3)
-        rig.press("next")
+        rig.press("previous")
         rig.press("play")
         rig.press_many("previous", 4)
         rig.press("play")

@@ -34,7 +34,7 @@ class EchoImageTest(EchoImageHarness):
             value = entry()
             return len(value) == 80 and struct.unpack_from("<H", value, 68)[0] == count
 
-        rig.press_many("next", 2)
+        rig.press_many("next", 1)
         rig.press("play")
         rig.press_many("next", 2)
         rig.press("play")
@@ -47,7 +47,7 @@ class EchoImageTest(EchoImageHarness):
         for track, side in ((0, 0), (1, 1)):
             rig.press("back", hold=1300)
             if track == 0:
-                rig.press_many("previous", 2)
+                rig.press_many("previous", 1)
             rig.press("play")
             if track == 0:
                 rig.press_many("next", 7)
@@ -63,7 +63,7 @@ class EchoImageTest(EchoImageHarness):
             machine.run(until=lambda: saved_count(track + 1), until_ms=machine.milliseconds() + 6000)
             self.assertTrue(saved_count(track + 1), entry().hex())
         rig.press("back", hold=1300)
-        rig.press_many("next", 2)
+        rig.press_many("next", 1)
         rig.press("play")
         rig.press_many("next", 2)
         rig.press("play")
