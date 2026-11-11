@@ -76,7 +76,9 @@ add_library(echo_device_logic STATIC
     core1_open.c
     core1_mp3.c
     core1_ogg.c
+    core1_ogg_source.c
     core1_opus.c
+    core1_opus_source.c
     core1_stream.c
     core1_vorbis.c
     core1_vorbis_source.c
@@ -114,6 +116,7 @@ add_library(echo_device_logic STATIC
     ogg_stream.c
     ogg_track.c
     opus_decode.c
+    opus_track.c
     panel.c
     panic_text.c
     pc_profile.c

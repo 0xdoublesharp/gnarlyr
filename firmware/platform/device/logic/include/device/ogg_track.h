@@ -15,6 +15,7 @@ typedef struct OggTrack {
     uint16_t max_block;
     uint16_t pre_skip;
     uint8_t channels;
+    bool opus;
 } OggTrack;
 
 bool ogg_track_endpoint(FlacInput input, OggTrack *track);

@@ -98,10 +98,10 @@ static void start_with(uint32_t ring_bytes, bool mp3)
     if (mp3) {
         core1_stream_init(&stream, region,
                           core1_mp3_decoder(&core1_mp3, &mp3_decoder, &control, mp3_tail));
-        interface = core1_source_mp3_interface(&source);
+        interface = core1_source_interface(&source, CORE1_FORMAT_MP3);
     } else {
         core1_stream_init(&stream, region, core1_flac_decoder(&core1_flac, &core1_decoder));
-        interface = core1_source_interface(&source);
+        interface = core1_source_interface(&source, CORE1_FORMAT_FLAC);
     }
 }
 

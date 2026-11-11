@@ -21,6 +21,7 @@ typedef struct OggStream {
     bool ended;
     bool failed;
     bool seeked;
+    bool opus;
     uint8_t head[OGG_RECORD_BYTES];
     uint8_t body[OGG_PACKET_BYTES];
 } OggStream;
@@ -28,6 +29,7 @@ typedef struct OggStream {
 bool ogg_stream_start(OggStream *stream, FlacInput file);
 bool ogg_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length);
 
+bool ogg_stream_resume(OggStream *stream, FlacInput file, const OggTrack *track, uint32_t offset);
 bool ogg_stream_seek(OggStream *stream, FlacInput file, const OggTrack *track, uint32_t sample);
 
 bool ogg_stream_prepare_vorbis(OggStream *stream, OggTrack *track, const VorbisModes *modes,

@@ -21,9 +21,39 @@ bool ogg_stream_start(OggStream *stream, FlacInput file)
     stream->origin = 0;
     stream->origin_sent = false;
     stream->seeked = false;
+    stream->opus = false;
     stream->ended = false;
     stream->failed = file.read == NULL;
     return !stream->failed;
+}
+
+static bool audio_next(const OggStream *stream)
+{
+    return stream->headers == (stream->opus ? 2 : 3);
+}
+
+static bool signed_as(const uint8_t *bytes, const char *signature)
+{
+    for (uint32_t index = 0; signature[index] != '\0'; index++) {
+        if (bytes[index] != (uint8_t)signature[index]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool opus_header(OggStream *stream, const OggPacket *packet)
+{
+    uint8_t prefix[8];
+    OggPacket tags;
+    if (packet->bytes < 19 || !packet->first || packet->last ||
+        !signed_as(stream->body, "OpusHead") ||
+        ogg_packets_prefix(&stream->packets, prefix, sizeof prefix, &tags) != OGG_PACKET_READY ||
+        tags.bytes < sizeof prefix || tags.first || !signed_as(prefix, "OpusTags")) {
+        return false;
+    }
+    stream->headers = 2;
+    return true;
 }
 
 static bool valid_header(const OggStream *stream, const OggPacket *packet)
@@ -43,6 +73,9 @@ static bool valid_header(const OggStream *stream, const OggPacket *packet)
 
 static bool make_header(OggStream *stream, OggPacket *packet)
 {
+    if (stream->opus) {
+        return opus_header(stream, packet);
+    }
     if (!valid_header(stream, packet)) {
         return false;
     }
@@ -60,7 +93,7 @@ static bool make_header(OggStream *stream, OggPacket *packet)
 
 static bool begin_record(OggStream *stream)
 {
-    if (stream->headers == 3 && stream->origin != 0 && !stream->origin_sent) {
+    if (audio_next(stream) && stream->origin != 0 && !stream->origin_sent) {
         put32(stream->head, 0);
         put32(stream->head + 4, OGG_RECORD_ORIGIN);
         put32(stream->head + 8, stream->origin);
@@ -70,7 +103,7 @@ static bool begin_record(OggStream *stream)
         stream->record_size = OGG_RECORD_BYTES;
         return true;
     }
-    if (stream->headers == 3 && stream->seek_offset != 0 && !stream->seeked) {
+    if (audio_next(stream) && stream->seek_offset != 0 && !stream->seeked) {
         FlacInput file = stream->packets.input;
         if (ogg_packets_resume(&stream->packets, file, stream->seek_offset, stream->serial) !=
             OGG_PACKET_READY) {
@@ -81,16 +114,16 @@ static bool begin_record(OggStream *stream)
     }
     OggPacket packet = {0};
     OggPacketResult result =
-        stream->headers == 1
+        stream->headers == 1 && !stream->opus
             ? ogg_packets_prefix(&stream->packets, stream->body, 7, &packet)
             : ogg_packets_next(&stream->packets, stream->body, sizeof stream->body, &packet);
     uint32_t flags = 0;
-    if (result == OGG_PACKET_END && stream->headers == 3) {
+    if (result == OGG_PACKET_END && audio_next(stream)) {
         stream->ended = true;
         flags = OGG_RECORD_END;
     } else {
         if (result != OGG_PACKET_READY || packet.bytes == 0 ||
-            (stream->headers < 3 && !make_header(stream, &packet))) {
+            (!audio_next(stream) && !make_header(stream, &packet))) {
             stream->failed = true;
             return false;
         }
@@ -152,22 +185,29 @@ bool ogg_stream_read(void *context, uint32_t offset, void *buffer, uint32_t leng
     return true;
 }
 
-bool ogg_stream_seek(OggStream *stream, FlacInput file, const OggTrack *track, uint32_t sample)
+bool ogg_stream_resume(OggStream *stream, FlacInput file, const OggTrack *track, uint32_t offset)
 {
-    uint32_t offset;
-    if (!ogg_track_seek(file, track, sample, &offset) || !ogg_stream_start(stream, file)) {
+    if (!ogg_stream_start(stream, file)) {
         return false;
     }
     stream->seek_offset = offset;
     stream->serial = track->serial;
     stream->origin = track->origin;
+    stream->opus = track->opus;
     return true;
+}
+
+bool ogg_stream_seek(OggStream *stream, FlacInput file, const OggTrack *track, uint32_t sample)
+{
+    uint32_t offset;
+    return ogg_track_seek(file, track, sample, &offset) &&
+           ogg_stream_resume(stream, file, track, offset);
 }
 
 bool ogg_stream_prepare_vorbis(OggStream *stream, OggTrack *track, const VorbisModes *modes,
                                uint32_t sample)
 {
-    if (stream->failed || stream->ended || stream->headers != 3 ||
+    if (stream->failed || stream->ended || stream->opus || stream->headers != 3 ||
         stream->position != track->header_bytes || stream->record_done != stream->record_size) {
         return false;
     }

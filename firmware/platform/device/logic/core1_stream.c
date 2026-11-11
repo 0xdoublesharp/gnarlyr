@@ -321,28 +321,14 @@ static void close_stream(void *context)
     core1_source_stop(context);
 }
 
-AudioSource core1_source_interface(Core1Source *source)
+AudioSource core1_source_interface(Core1Source *source, Core1Format format)
 {
-    return (AudioSource){core1_open_flac, next_frame, release_frame, close_stream, source};
-}
-
-AudioSource core1_source_mp3_interface(Core1Source *source)
-{
-    return (AudioSource){core1_open_mp3, next_frame, release_frame, close_stream, source};
-}
-
-AudioSource core1_source_m4a_interface(Core1Source *source, M4aStream *stream)
-{
-    source->m4a = stream;
-    return (AudioSource){core1_open_m4a, next_frame, release_frame, close_stream, source};
-}
-
-AudioSource core1_source_ogg_interface(Core1Source *source, OggStream *stream,
-                                       bool (*wait)(Core1Source *source))
-{
-    source->ogg = stream;
-    source->wait_vorbis = wait;
-    return (AudioSource){core1_open_ogg, next_frame, release_frame, close_stream, source};
+    static bool (*const OPENS[])(void *, const char *, uint32_t, AudioTrackInfo *) = {
+        [CORE1_FORMAT_FLAC] = core1_open_flac, [CORE1_FORMAT_MP3] = core1_open_mp3,
+        [CORE1_FORMAT_M4A] = core1_open_m4a,   [CORE1_FORMAT_VORBIS] = core1_open_ogg,
+        [CORE1_FORMAT_OPUS] = core1_open_ogg,
+    };
+    return (AudioSource){OPENS[format], next_frame, release_frame, close_stream, source};
 }
 
 bool core1_ogg_read(void *context, uint32_t offset, void *buffer, uint32_t length)

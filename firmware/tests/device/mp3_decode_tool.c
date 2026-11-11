@@ -55,7 +55,7 @@ int main(int argc, char **argv)
     }
     core1_source_init(&source, (StreamRegion){.control = &control},
                       (FlacFileOpener){open_file, close_file, NULL}, &unused_decoder, 4096);
-    AudioSource interface = core1_source_mp3_interface(&source);
+    AudioSource interface = core1_source_interface(&source, CORE1_FORMAT_MP3);
     AudioTrackInfo info;
     if (!interface.open(interface.context, argv[1], (uint32_t)strtoul(argv[2], NULL, 10), &info)) {
         return 1;

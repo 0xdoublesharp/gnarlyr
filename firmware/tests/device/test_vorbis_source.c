@@ -145,7 +145,9 @@ static void reset(uint32_t budget)
                       &unused_decoder, budget);
     region.ring_bytes = VORBIS_RING_BYTES;
     core1_stream_init(&consumer, region, core1_vorbis_decoder(&decoder, region));
-    interface = core1_source_ogg_interface(&source, &producer, wait_config);
+    source.ogg = &producer;
+    source.wait_vorbis = wait_config;
+    interface = core1_source_interface(&source, CORE1_FORMAT_VORBIS);
 }
 
 static AudioFrameResult next_frame(AudioFrame *frame)

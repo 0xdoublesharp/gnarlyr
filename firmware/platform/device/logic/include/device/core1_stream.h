@@ -95,6 +95,14 @@ typedef struct Core1Stream {
 void core1_stream_init(Core1Stream *stream, StreamRegion region, Core1Decoder decoder);
 bool core1_stream_step(Core1Stream *stream);
 
+typedef enum Core1Format {
+    CORE1_FORMAT_FLAC,
+    CORE1_FORMAT_MP3,
+    CORE1_FORMAT_M4A,
+    CORE1_FORMAT_VORBIS,
+    CORE1_FORMAT_OPUS
+} Core1Format;
+
 typedef struct Core1Source {
     StreamRegion region;
     FlacSource flac;
@@ -122,9 +130,4 @@ typedef struct Core1Source {
 void core1_source_init(Core1Source *source, StreamRegion region, FlacFileOpener files,
                        FlacDecoder *decoder, uint32_t fill_budget);
 void core1_source_fill(Core1Source *source);
-AudioSource core1_source_interface(Core1Source *source);
-AudioSource core1_source_mp3_interface(Core1Source *source);
-AudioSource core1_source_m4a_interface(Core1Source *source, M4aStream *stream);
-
-AudioSource core1_source_ogg_interface(Core1Source *source, OggStream *stream,
-                                       bool (*wait)(Core1Source *source));
+AudioSource core1_source_interface(Core1Source *source, Core1Format format);

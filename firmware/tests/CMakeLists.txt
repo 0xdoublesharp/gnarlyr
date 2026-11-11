@@ -431,6 +431,16 @@ echo_add_unit_test(NAME test_vorbis_memory
     SOURCES device/test_vorbis_memory.c
     LIBRARIES echo_device_logic
 )
+echo_add_unit_test(NAME test_opus_track
+    SOURCES device/test_opus_track.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_opus_track PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+echo_add_unit_test(NAME test_opus_source
+    SOURCES device/test_opus_source.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_opus_source PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 echo_add_unit_test(NAME test_opus_decode
     SOURCES device/test_opus_decode.c
     LIBRARIES echo_device_logic

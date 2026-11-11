@@ -12,9 +12,12 @@ set(ECHO_SCREEN_MODULE_SOURCES_dsp
 set(ECHO_SCREEN_MODULE_SOURCES_ogg
     platform/device/logic/audio_interpolate.c
     platform/device/logic/audio_ogg_entry.c
+    platform/device/logic/core1_ogg_source.c
+    platform/device/logic/core1_opus_source.c
     platform/device/logic/core1_vorbis_source.c
     platform/device/logic/ogg_stream.c
     platform/device/logic/ogg_track.c
+    platform/device/logic/opus_track.c
     platform/device/logic/vorbis_track.c
     src/codec/ogg_packet.c
 )
