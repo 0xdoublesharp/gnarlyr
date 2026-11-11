@@ -1,5 +1,6 @@
 #include <stddef.h>
 
+#include "core/seam.h"
 #include "hal/clock.h"
 #include "usb.h"
 #include "usb_registers.h"
@@ -122,6 +123,8 @@ static void handle_reset(UsbPort *port)
     port->configured = false;
     port->in_busy = false;
     port->control_out_pending = false;
+    port->control_data_pending = false;
+    port->setup_pending = false;
     port->hid = (UsbAudioHid){0};
     if (port->msc != NULL) {
         msc_reset(port->msc);
@@ -265,19 +268,25 @@ static void process_setup(UsbPort *port)
     finish_setup(port, setup, reply);
 }
 
-static void finish_control_out(UsbPort *port, uint32_t length)
+static void finish_control_out(UsbPort *port, uint32_t length, const uint8_t *bytes)
 {
     port->control_out_pending = false;
-    UsbReply reply = usb_audio_receive(port->audio, port->control_out,
-                                       (const uint8_t *)port->out_packet, (uint16_t)length);
+    UsbReply reply = usb_audio_receive(port->audio, port->control_out, bytes, (uint16_t)length);
     finish_setup(port, port->control_out, reply);
 }
 
 static void deliver(UsbPort *port, uint32_t endpoint, uint32_t length)
 {
     const uint8_t *bytes = (const uint8_t *)port->out_packet;
-    if (endpoint == 0 && port->control_out_pending) {
-        finish_control_out(port, length);
+    if (endpoint == 0 && port->defer_control &&
+        (port->control_out_pending || port->setup_pending)) {
+        for (uint32_t index = 0; index < length && index < sizeof port->control_data; index++) {
+            port->control_data[index] = bytes[index];
+        }
+        port->control_data_pending = true;
+        port->control_data_length = (uint16_t)length;
+    } else if (endpoint == 0 && port->control_out_pending) {
+        finish_control_out(port, length, bytes);
     } else if (endpoint == BULK_ENDPOINT && port->audio == NULL) {
         msc_receive(port->msc, bytes, length);
     } else if (endpoint == BULK_ENDPOINT && port->receive_stream != NULL) {
@@ -302,6 +311,8 @@ static void handle_receive(UsbPort *port)
     uint32_t count = (status >> RX_STATUS_COUNT_SHIFT) & RX_STATUS_COUNT_MASK;
     uint32_t type = (status >> RX_STATUS_TYPE_SHIFT) & RX_STATUS_TYPE_MASK;
     if (type == PACKET_SETUP_DATA) {
+        port->control_data_pending = false;
+        port->control_out_pending = false;
         read_fifo(port->setup, sizeof port->setup / 4, count);
         port->setup_pending = true;
     } else if (type == PACKET_OUT_DATA) {
@@ -317,7 +328,7 @@ static void handle_out_endpoints(UsbPort *port)
     if ((pending & (1u << 16)) != 0) {
         uint32_t events = read_register(out_control(0) + 0x08u);
         write_register(out_control(0) + 0x08u, events);
-        if ((events & EP_INT_SETUP) != 0 && port->setup_pending) {
+        if ((events & EP_INT_SETUP) != 0 && port->setup_pending && !port->defer_control) {
             process_setup(port);
         }
         arm_setup();
@@ -455,7 +466,7 @@ static void take_speed(UsbPort *port)
     port->bulk_packet = usb_device_bulk_packet_size(&port->device);
 }
 
-void usb_poll(UsbPort *port)
+CORE_SEAM void usb_poll(UsbPort *port)
 {
     uint32_t events = read_register(GINTSTS);
     if ((events & GINT_USB_RESET) != 0) {
@@ -465,6 +476,13 @@ void usb_poll(UsbPort *port)
         take_speed(port);
         arm_setup();
         write_register(GINTSTS, GINT_ENUMERATION_DONE);
+    }
+    if (!port->defer_control && port->setup_pending) {
+        process_setup(port);
+    }
+    if (!port->defer_control && port->control_data_pending) {
+        port->control_data_pending = false;
+        finish_control_out(port, port->control_data_length, port->control_data);
     }
     if ((events & GINT_RX_LEVEL) != 0) {
         handle_receive(port);
@@ -484,6 +502,14 @@ void usb_poll(UsbPort *port)
     }
     pump_bulk_in(port);
     pump_audio_in(port);
+}
+
+void usb_poll_audio(UsbPort *port)
+{
+    bool deferred = port->defer_control;
+    port->defer_control = true;
+    usb_poll(port);
+    port->defer_control = deferred;
 }
 
 bool usb_reply_pending(const UsbPort *port)

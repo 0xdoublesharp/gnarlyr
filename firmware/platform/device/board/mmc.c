@@ -106,6 +106,7 @@ static bool wait_clear(const MmcHost *host, uint32_t offset, uint32_t bits, uint
 {
     uint32_t start = hal_clock_milliseconds();
     while ((read_register(host, offset) & bits) != 0) {
+        board_audio_stream_service();
         if (hal_clock_milliseconds() - start > timeout_ms) {
             return false;
         }
@@ -117,6 +118,7 @@ static bool wait_any(const MmcHost *host, uint32_t offset, uint32_t bits, uint32
 {
     uint32_t start = hal_clock_milliseconds();
     while ((read_register(host, offset) & bits) == 0) {
+        board_audio_stream_service();
         if (hal_clock_milliseconds() - start > timeout_ms) {
             return false;
         }
@@ -255,6 +257,9 @@ static bool drain_fifo(const MmcHost *host, uint32_t *words, uint32_t total)
         }
         uint32_t status = read_register(host, MMC_STATUS);
         uint32_t count = (status >> STATUS_FIFO_COUNT_SHIFT) & STATUS_FIFO_COUNT_MASK;
+        if (count == 0) {
+            board_audio_stream_service();
+        }
         while (count-- > 0 && received < total) {
             words[received++] = read_register(host, MMC_FIFO);
         }

@@ -980,6 +980,13 @@ uint32_t board_audio_stream_consumed(void)
     return transferring ? consumed : 0;
 }
 
+void board_audio_stream_service(void)
+{
+    if (stream_service != NULL) {
+        stream_service();
+    }
+}
+
 void board_audio_stream_close(void)
 {
     board_audio_shut_down();

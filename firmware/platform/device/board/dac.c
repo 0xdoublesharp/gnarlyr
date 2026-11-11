@@ -136,6 +136,7 @@ static bool wait_pending(uint32_t bits, I2cStage stage)
 {
     uint32_t start = hal_clock_milliseconds();
     while ((register_read(I2C_IPD) & bits) == 0) {
+        board_audio_stream_service();
         if (hal_clock_milliseconds() - start >= I2C_TIMEOUT_MS) {
             note_failure(stage);
             return false;

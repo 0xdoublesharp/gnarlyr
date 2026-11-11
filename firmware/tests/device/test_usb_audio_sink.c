@@ -168,6 +168,43 @@ static void writing_wraps_around_the_end_of_the_ring(void)
     CHECK_EQUAL(0x30300000u, ring[2 * ((sink.written - 1) % RING_FRAMES)]);
 }
 
+static void put_16(uint8_t *bytes, int16_t left, int16_t right)
+{
+    bytes[0] = (uint8_t)left;
+    bytes[1] = (uint8_t)((uint16_t)left >> 8);
+    bytes[2] = (uint8_t)right;
+    bytes[3] = (uint8_t)((uint16_t)right >> 8);
+}
+
+static void peaks_follow_the_loudest_sample_of_each_channel_until_taken(void)
+{
+    UsbAudioSink sink = started_sink(2);
+    uint8_t bytes[3 * 4];
+    put_16(bytes, 0x0100, -0x0200);
+    put_16(bytes + 4, -0x1000, 0x0300);
+    put_16(bytes + 8, 0x0400, -0x2000);
+    usb_audio_sink_write(&sink, bytes, sizeof bytes, 0);
+    uint16_t peaks[2];
+    usb_audio_sink_take_peaks(&sink, peaks);
+    CHECK_EQUAL(0x1000, peaks[0]);
+    CHECK_EQUAL(0x2000, peaks[1]);
+    usb_audio_sink_take_peaks(&sink, peaks);
+    CHECK_EQUAL(0, peaks[0]);
+    CHECK_EQUAL(0, peaks[1]);
+}
+
+static void the_most_negative_sample_is_a_full_scale_peak(void)
+{
+    UsbAudioSink sink = started_sink(2);
+    uint8_t bytes[4];
+    put_16(bytes, -32768, 32767);
+    usb_audio_sink_write(&sink, bytes, sizeof bytes, 0);
+    uint16_t peaks[2];
+    usb_audio_sink_take_peaks(&sink, peaks);
+    CHECK_EQUAL(32768, peaks[0]);
+    CHECK_EQUAL(32767, peaks[1]);
+}
+
 static void headphones_trim_both_usb_formats_and_survive_rate_restarts(void)
 {
     for (uint8_t width = 2; width <= 3; width++) {
@@ -239,7 +276,7 @@ static void feedback_tracks_the_output_clock_and_steers_the_host_toward_target_f
 static void stream_with_clock_error(uint32_t rate, uint8_t width, int32_t ppm)
 {
     UsbAudioSink sink;
-    usb_audio_sink_init(&sink, ring, 3000);
+    usb_audio_sink_init(&sink, ring, 2300);
     usb_audio_sink_set_asynchronous(&sink, true);
     usb_audio_sink_start(&sink, rate, width);
     uint64_t host_phase = 0;
@@ -282,7 +319,7 @@ static void stream_with_clock_error(uint32_t rate, uint8_t width, int32_t ppm)
     CHECK_EQUAL(0, sink.stats.repeated);
     for (uint32_t frame = sink.written - 100; frame < sink.written; frame++) {
         for (uint8_t channel = 0; channel < 2; channel++) {
-            CHECK_EQUAL((frame + channel) << (8 * (4 - width)), ring[(frame % 3000) * 2 + channel]);
+            CHECK_EQUAL((frame + channel) << (8 * (4 - width)), ring[(frame % 2300) * 2 + channel]);
         }
     }
 }
@@ -301,7 +338,7 @@ static void every_rate_and_width_streams_bit_exact_with_fast_and_slow_device_clo
 static void a_two_millisecond_delivery_burst_stays_inside_the_192_khz_buffer(void)
 {
     UsbAudioSink sink;
-    usb_audio_sink_init(&sink, ring, 3000);
+    usb_audio_sink_init(&sink, ring, 2300);
     usb_audio_sink_set_asynchronous(&sink, true);
     usb_audio_sink_start(&sink, 192000, 4);
     uint8_t packet[192] = {0};
@@ -324,14 +361,36 @@ static void a_two_millisecond_delivery_burst_stays_inside_the_192_khz_buffer(voi
     CHECK_EQUAL(0, sink.stats.repeated);
 }
 
+static void the_meter_measures_trimmed_samples_at_every_usb_width(void)
+{
+    for (uint8_t width = 2; width <= 4; width++) {
+        UsbAudioSink sink = started_sink(width);
+        usb_audio_sink_set_headphones(
+            &sink, (HeadphoneAudio){.left = REPLAY_GAIN_UNITY / 4, .right = REPLAY_GAIN_UNITY / 2});
+        uint8_t bytes[8] = {0};
+        for (uint8_t index = 0; index < width; index++) {
+            bytes[index] = index == width - 1 ? 0x7F : 0xFF;
+        }
+        bytes[2 * width - 1] = 0x80;
+        usb_audio_sink_write(&sink, bytes, 2u * width, 0);
+        uint16_t peaks[2];
+        usb_audio_sink_take_peaks(&sink, peaks);
+        CHECK_EQUAL(width == 2 ? 8191 : 8192, peaks[0]);
+        CHECK_EQUAL(16384, peaks[1]);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(the_meter_measures_trimmed_samples_at_every_usb_width),
         TEST_CASE(a_two_millisecond_delivery_burst_stays_inside_the_192_khz_buffer),
         TEST_CASE(every_rate_and_width_streams_bit_exact_with_fast_and_slow_device_clocks),
         TEST_CASE(asynchronous_audio_never_drops_or_repeats_frames_to_correct_fill),
         TEST_CASE(feedback_tracks_the_output_clock_and_steers_the_host_toward_target_fill),
         TEST_CASE(thirty_two_bit_samples_preserve_every_bit_at_unity_gain),
+        TEST_CASE(peaks_follow_the_loudest_sample_of_each_channel_until_taken),
+        TEST_CASE(the_most_negative_sample_is_a_full_scale_peak),
         TEST_CASE(headphones_trim_both_usb_formats_and_survive_rate_restarts),
         TEST_CASE(sixteen_bit_samples_go_to_the_top_of_each_word),
         TEST_CASE(twenty_four_bit_samples_are_left_justified),

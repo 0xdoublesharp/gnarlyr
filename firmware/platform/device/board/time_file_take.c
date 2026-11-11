@@ -2,12 +2,13 @@
 #include <stdint.h>
 
 #include "board.h"
+#include "core/seam.h"
 #include "device/time_file.h"
 #include "emmc.h"
 #include "internal_volume.h"
 #include "usb_session.h"
 
-void time_file_take(bool apply)
+CORE_SEAM void time_file_take(bool apply)
 {
     EmmcInfo info;
     FatVolume *volume = emmc_start(&info) ? internal_volume_remount() : NULL;

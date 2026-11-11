@@ -34,6 +34,7 @@ class UsbAudioHost:
         self.pause_until = 0
         self.bus_started = False
         self.in_due = {}
+        self.vary_levels = False
 
     def setup(self, kind, request, value=0, index=0, length=0, payload=b""):
         self.requests.append((struct.pack("<BBHHH", kind, request, value, index, length), payload))
@@ -111,6 +112,10 @@ class UsbAudioHost:
         for _ in range(count):
             left = (0x12345678 + self.sequence) & 0xFFFFFFFF
             right = (0xFEDCBA98 - self.sequence) & 0xFFFFFFFF
+            if self.vary_levels:
+                shift = (self.sequence // (self.rate // 8)) % 5
+                left >>= shift
+                right = (0x654321FE - self.sequence) >> (4 - shift)
             self.sequence += 1
             for word in (left, right):
                 sample = word.to_bytes(4, "little")[4 - self.width:]

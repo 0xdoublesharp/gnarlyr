@@ -1,24 +1,39 @@
-#include "charge_screen.h"
+#include "usb_screen_parts.h"
 
 #include "core/i18n.h"
-#include "core/utf8.h"
 #include "home_art.h"
 #include "ui/label.h"
+#include "ui/wire_figure.h"
 
 enum {
     FULL_PERCENT = 100,
-    READOUT_SCALE = 2,
-    TEXT_CAPACITY = 64
+    TINT_STEPS = 3,
+    LAMP_DIVISOR = 3,
+    ART_COLUMN_FIFTHS = 2,
+    FIFTHS = 5,
+    STATE_LINES = 2,
+    METER_BAR_LINES = 2,
+    ART_TALL_PARTS = 5,
+    ART_WIDE_PARTS = 8,
+    FLOOR_QUARTERS = 3,
+    SPAN_QUARTERS = 5,
+    FIGURE_WIDE_TENTHS = 12,
+    FIGURE_TALL_TENTHS = 8,
+    QUARTERS = 4,
+    BATTERY_WIDTH = 24,
+    BATTERY_HEIGHT = 12,
+    BATTERY_NUB = 2,
+    MSC_BYTES_PER_SECTOR = 512,
+    BYTES_PER_KIB = 1024,
+    BYTES_PER_TENTH_MB = 100000,
+    MB_PER_GB = 1000,
+    TENTHS = 10,
+    WHOLE_FROM = 1000
 };
 
-typedef struct PowerInformation {
-    HalBattery battery;
-    const char *text;
-} PowerInformation;
-
-static int shown_percent(HalBattery battery)
+static int smaller(int first, int second)
 {
-    return battery.percent < FULL_PERCENT ? battery.percent : FULL_PERCENT;
+    return first < second ? first : second;
 }
 
 static int larger(int first, int second)
@@ -26,187 +41,443 @@ static int larger(int first, int second)
     return first > second ? first : second;
 }
 
-static Rect screen_detail(const Theme *theme, const char *detail)
+const UsbScene *usb_screen_scene(AppUsbStatus status)
 {
-    int padding = theme->metrics.padding;
-    int width = theme->metrics.screen_width - 2 * padding;
-    int height =
-        label_wrap_count(theme->fonts.small, detail, width) * font_line_height(theme->fonts.small);
-    return (Rect){padding, theme->metrics.screen_height - padding - height, width, height};
+    static const UsbScene PLAIN = {.state = USB_SCENE_CONNECTED};
+    static const UsbScene STARTING = {.state = USB_SCENE_STARTING};
+    if (status.scene != NULL) {
+        return status.scene;
+    }
+    return status.view == APP_USB_CONNECTING ? &STARTING : &PLAIN;
 }
 
-ChargeScreenLayout charge_screen_layout(const Theme *theme, const char *detail)
+void usb_screen_service(const UsbScene *scene)
+{
+    if (scene->service != NULL) {
+        scene->service();
+    }
+}
+
+static Rect detail_area(const Theme *theme, const char *detail)
 {
     int pad = theme->metrics.padding;
     int width = theme->metrics.screen_width - 2 * pad;
-    int line = font_line_height(theme->fonts.title);
-    int small = font_line_height(theme->fonts.small);
-    int gauge = larger(1, 3 * theme->metrics.scrollbar_inset);
-    int first = theme->metrics.header_height + pad;
-    ChargeScreenLayout layout = {.header = {pad, 0, width, theme->metrics.header_height},
-                                 .detail = screen_detail(theme, detail)};
+    int lines = detail == NULL ? 0 : label_wrap_count(theme->fonts.small, detail, width);
+    int height = lines * font_line_height(theme->fonts.small);
+    return (Rect){pad, theme->metrics.screen_height - pad - height, width, height};
+}
+
+static Rect meter_in(const Theme *theme, Rect region)
+{
+    int bar = smaller(METER_BAR_LINES * font_line_height(theme->fonts.small),
+                      (region.height - theme->metrics.padding) / 2);
+    int height = 2 * bar + theme->metrics.padding / 2;
+    return (Rect){region.x, region.y + (region.height - height) / 2, region.width, height};
+}
+
+static Rect figure_in(Rect art)
+{
+    int span = smaller(art.width, art.height * SPAN_QUARTERS / QUARTERS);
+    int width = smaller(art.width, span * FIGURE_WIDE_TENTHS / TENTHS);
+    int height = smaller(art.height, span * FIGURE_TALL_TENTHS / TENTHS);
+    return (Rect){art.x + (art.width - width) / 2, art.y + (art.height - height) / 2, width,
+                  height};
+}
+
+static UsbScreenLayout portrait_layout(const Theme *theme, UsbScreenLayout layout)
+{
+    int pad = theme->metrics.padding;
+    int top = layout.header.y + layout.header.height + pad;
+    int height = layout.header.width * ART_TALL_PARTS / ART_WIDE_PARTS;
     int bottom = layout.detail.y - pad;
-    if (theme_is_portrait(theme)) {
-        int group = READOUT_SCALE * line + 3 * pad + line + pad / 2 + small + gauge;
-        int top = first + (bottom - first - group) / 2;
-        layout.percent = (Rect){pad, top, width, READOUT_SCALE * line};
-        layout.status = (Rect){pad, top + READOUT_SCALE * line + pad, width, line};
-        layout.voltage = (Rect){pad, layout.status.y + line + pad / 2, width, small};
-        layout.battery = (Rect){pad, layout.voltage.y + small + 2 * pad, width, gauge};
-        return layout;
-    }
-    int side = (width - 2 * pad) / 2;
-    int content = larger(READOUT_SCALE * line, line + small + pad / 2);
-    int group = content + pad + gauge;
-    int top = first + (bottom - first - group) / 2;
-    int right = pad + side + 2 * pad;
-    int status_top = top + (content - line - small - pad / 2) / 2;
-    layout.percent =
-        (Rect){pad, top + (content - READOUT_SCALE * line) / 2, side, READOUT_SCALE * line};
-    layout.status = (Rect){right, status_top, side, line};
-    layout.voltage = (Rect){right, status_top + line + pad / 2, side, small};
-    layout.battery = (Rect){pad, top + content + pad, width, gauge};
+    Rect art = {layout.header.x, top, layout.header.width, height};
+    layout.art = art;
+    layout.figure = figure_in(art);
+    layout.meter = meter_in(theme, art);
+    int below = top + height + pad;
+    int state = STATE_LINES * font_line_height(theme->fonts.title);
+    layout.state = (Rect){layout.header.x, below, layout.header.width, state};
+    layout.lines = (Rect){layout.header.x, below + state + pad / 2, layout.header.width,
+                          bottom - below - state - pad / 2};
     return layout;
 }
 
-static void draw_battery(Canvas *canvas, const Theme *theme, Rect area, HalBattery battery)
+static UsbScreenLayout landscape_layout(const Theme *theme, UsbScreenLayout layout)
 {
-    canvas_fill_rect(canvas, area, theme->colors.divider);
+    int pad = theme->metrics.padding;
+    int top = layout.header.y + layout.header.height + pad;
+    int bottom = layout.detail.y - pad;
+    int column = layout.header.width * ART_COLUMN_FIFTHS / FIFTHS;
+    layout.art = (Rect){layout.header.x, top, column, bottom - top};
+    layout.figure = figure_in(layout.art);
+    layout.meter = meter_in(theme, layout.art);
+    int right = layout.header.x + column + pad;
+    int width = layout.header.x + layout.header.width - right;
+    int state = STATE_LINES * font_line_height(theme->fonts.title);
+    layout.state = (Rect){right, top, width, state};
+    layout.lines = (Rect){right, top + state + pad / 2, width, bottom - top - state - pad / 2};
+    return layout;
+}
+
+UsbScreenLayout usb_screen_layout(const Theme *theme, AppUsbStatus status)
+{
+    int pad = theme->metrics.padding;
+    UsbScreenLayout layout = {
+        .header = {pad, 0, theme->metrics.screen_width - 2 * pad, theme->metrics.header_height},
+        .detail = detail_area(theme, status.detail)};
+    return theme_is_portrait(theme) ? portrait_layout(theme, layout)
+                                    : landscape_layout(theme, layout);
+}
+
+Color usb_screen_tint(Color color, Color toward)
+{
+    return color_between(color, toward, 1, TINT_STEPS);
+}
+
+void usb_screen_text(const UsbPainter *painter, Rect area, TextStyle style, const char *text)
+{
+    usb_screen_service(painter->scene);
+    label_draw(painter->canvas, style, (Label){area, text});
+    usb_screen_service(painter->scene);
+}
+
+static void draw_battery_icon(const UsbPainter *painter, Rect body)
+{
+    const ThemeColors *colors = &painter->theme->colors;
+    HalBattery battery = painter->battery;
+    Color ink = colors->header_text;
+    Rect nub = {body.x + body.width, body.y + body.height / 3, BATTERY_NUB, body.height / 3};
+    canvas_fill_rect(painter->canvas, body, ink);
+    canvas_fill_rect(painter->canvas, nub, ink);
+    Rect inside = {body.x + 1, body.y + 1, body.width - 2, body.height - 2};
+    canvas_fill_rect(painter->canvas, inside, colors->header_background);
     if (!battery.known) {
         return;
     }
-    Color ink = battery.charging || shown_percent(battery) == FULL_PERCENT ? theme->colors.success
-                                                                           : theme->colors.accent;
-    Rect fill = area;
-    fill.width = area.width * shown_percent(battery) / FULL_PERCENT;
-    canvas_fill_rect(canvas, fill, ink);
-    if (fill.width > 0) {
-        canvas_fill_rect(canvas, (Rect){fill.x, fill.y, fill.width, 1}, theme->colors.accent);
-    }
+    Rect fill = {inside.x + 1, inside.y + 1, inside.width - 2, inside.height - 2};
+    fill.width = larger(1, fill.width * smaller(battery.percent, FULL_PERCENT) / FULL_PERCENT);
+    canvas_fill_rect(painter->canvas, fill, battery.usb_power ? colors->success : ink);
 }
 
-static void draw_line(Canvas *canvas, TextStyle style, Rect area, const char *text)
+static int draw_battery(const UsbPainter *painter, Rect row)
 {
-    label_draw(canvas, style, (Label){.area = area, .text = text});
+    const Theme *theme = painter->theme;
+    char text[USB_SCREEN_TEXT_CAPACITY];
+    charge_screen_level_text(painter->battery, text, sizeof text);
+    Rect body = {row.x + row.width - BATTERY_WIDTH - BATTERY_NUB,
+                 row.y + (row.height - BATTERY_HEIGHT) / 2, BATTERY_WIDTH, BATTERY_HEIGHT};
+    draw_battery_icon(painter, body);
+    int width = text_width(theme->fonts.small, text);
+    int left = body.x - theme->metrics.padding / 2 - width;
+    usb_screen_text(painter, (Rect){left, row.y, width, row.height},
+                    (TextStyle){theme->fonts.small, theme->colors.header_text}, text);
+    return left - row.x;
 }
 
-static void draw_header(Canvas *canvas, const Theme *theme, Rect area, AppUsbView view)
+static void draw_header(const UsbPainter *painter, const char *title)
 {
-    Rect name = area;
+    const Theme *theme = painter->theme;
+    Rect band = {0, 0, theme->metrics.screen_width, theme->metrics.header_height};
+    canvas_fill_rect(painter->canvas, band, theme->colors.header_background);
+    canvas_fill_rect(painter->canvas, (Rect){0, band.height - 1, band.width, 1},
+                     theme->header_rule ? theme->colors.accent : theme->colors.divider);
+    Rect row = painter->layout.header;
+    row.height -= 1;
+    Rect second = row;
     if (theme_is_portrait(theme)) {
-        name.height = font_line_height(theme->fonts.header);
+        row.height = font_line_height(theme->fonts.header);
+        second.y += row.height;
+        second.height -= row.height;
     }
-    draw_line(canvas, (TextStyle){theme->fonts.header, theme->colors.text}, name,
-              FIRMWARE_SHORT_NAME);
-    const char *title = charge_screen_usb_title(view);
-    int width = text_width(theme->fonts.small, title);
-    Rect right = {area.x + area.width - width, area.y, width, area.height};
+    int room = draw_battery(painter, row);
+    Color ink = theme->colors.header_text;
+    TextStyle name = {theme->fonts.header, ink};
+    TextStyle mode = {theme->fonts.small, usb_screen_tint(theme->colors.accent, ink)};
+    int title_width = text_width(theme->fonts.small, title);
     if (theme_is_portrait(theme)) {
-        right = (Rect){area.x, area.y + name.height, area.width, area.height - name.height};
+        usb_screen_text(painter, (Rect){row.x, row.y, room, row.height}, name, FIRMWARE_SHORT_NAME);
+        usb_screen_text(painter, second, mode, title);
+        return;
     }
-    draw_line(canvas, (TextStyle){theme->fonts.small, theme->colors.accent}, right, title);
-    int cap = theme->metrics.padding;
-    canvas_fill_rect(canvas, (Rect){area.x, area.y + area.height, area.width, 1},
-                     theme->colors.divider);
-    canvas_fill_rect(canvas, (Rect){area.x, area.y + area.height, cap, 1}, theme->colors.accent);
-    canvas_fill_rect(canvas, (Rect){area.x + area.width - cap, area.y + area.height, cap, 1},
-                     theme->colors.accent_alt);
+    int gap = theme->metrics.padding;
+    int title_x = row.x + room - gap - title_width;
+    usb_screen_text(painter, (Rect){row.x, row.y, title_x - gap - row.x, row.height}, name,
+                    FIRMWARE_SHORT_NAME);
+    usb_screen_text(painter, (Rect){title_x, row.y, title_width, row.height}, mode, title);
 }
 
-static void draw_scaled_level(Canvas *canvas, const Theme *theme, Rect area, const char *text)
+static void draw_floor(const UsbPainter *painter, int rule)
 {
+    const Theme *theme = painter->theme;
+    Rect art = painter->layout.art;
+    int horizon = art.y + art.height * FLOOR_QUARTERS / QUARTERS;
+    int left = theme_is_portrait(theme) ? 0 : art.x;
+    int width = theme_is_portrait(theme) ? theme->metrics.screen_width : art.width;
+    int floor = theme_is_portrait(theme) ? art.y + art.height : rule;
+    if (floor - horizon < 2) {
+        return;
+    }
+    Canvas clipped = canvas_clipped(painter->canvas, (Rect){left, horizon, width, floor - horizon});
+    home_art_draw_backdrop(&clipped,
+                           (Rect){left, 2 * horizon - floor, width, 2 * (floor - horizon)}, theme);
+}
+
+static void draw_stage(const UsbPainter *painter)
+{
+    const Theme *theme = painter->theme;
+    const ThemeColors *colors = &theme->colors;
+    int top = theme->metrics.header_height;
+    int rule = painter->layout.detail.y - theme->metrics.padding;
+    int width = theme->metrics.screen_width;
+    canvas_fill_gradient(painter->canvas, (Rect){0, top, width, rule - top}, colors->backdrop_top,
+                         colors->backdrop_bottom);
+    if (painter->status.view != APP_USB_DAC) {
+        draw_floor(painter, rule);
+    }
+    canvas_fill_rect(painter->canvas, (Rect){0, rule, width, theme->metrics.screen_height - rule},
+                     colors->background);
+    canvas_fill_rect(painter->canvas,
+                     (Rect){painter->layout.detail.x, rule, painter->layout.detail.width, 1},
+                     colors->divider);
+}
+
+static bool warning(const UsbScene *scene)
+{
+    return scene->state == USB_SCENE_UNPLUGGED || scene->state == USB_SCENE_STOPPED ||
+           scene->state == USB_SCENE_DAC_FAILED;
+}
+
+Color usb_screen_lamp_color(const Theme *theme, const UsbScene *scene)
+{
+    const ThemeColors *colors = &theme->colors;
+    switch (scene->state) {
+    case USB_SCENE_WRITING:
+    case USB_SCENE_DAC_PLAYING:
+        return colors->success;
+    case USB_SCENE_READING:
+    case USB_SCENE_WAITING:
+    case USB_SCENE_LEAVING:
+    case USB_SCENE_STARTING:
+        return colors->accent;
+    default:
+        break;
+    }
+    return warning(scene) ? colors->danger : colors->text_tertiary;
+}
+
+static void draw_cassette(const UsbPainter *painter)
+{
+    Theme ink = *painter->theme;
+    if (warning(painter->scene)) {
+        ink.colors.accent = ink.colors.danger;
+    }
+    WireFigureFrame frame = {WIRE_SHAPE_CASSETTE, painter->scene->turn, WIRE_FIGURE_ENDLESS};
+    Canvas figure = canvas_clipped(painter->canvas, painter->layout.figure);
+    wire_figure_draw(&figure, &ink, painter->layout.art, frame);
+}
+
+static StringId state_text(const UsbScene *scene)
+{
+    static const StringId TEXTS[] = {
+        [USB_SCENE_STARTING] = STR_POWER_CONNECTING,
+        [USB_SCENE_CONNECTED] = STR_USB_STATE_CONNECTED,
+        [USB_SCENE_READING] = STR_USB_STATE_READING,
+        [USB_SCENE_WRITING] = STR_USB_STATE_WRITING,
+        [USB_SCENE_WAITING] = STR_USB_STATE_WAITING,
+        [USB_SCENE_LEAVING] = STR_USB_STATE_LEAVING,
+        [USB_SCENE_UNPLUGGED] = STR_USB_UNPLUGGED,
+        [USB_SCENE_STOPPED] = STR_USB_STOPPED,
+    };
+    return scene->state < sizeof TEXTS / sizeof TEXTS[0] ? TEXTS[scene->state]
+                                                         : STR_USB_STATE_CONNECTED;
+}
+
+int usb_screen_draw_state(const UsbPainter *painter, const char *text)
+{
+    const Theme *theme = painter->theme;
     const Font *font = theme->fonts.title;
-    int width = text_width(font, text);
-    int scale = width * READOUT_SCALE <= area.width ? READOUT_SCALE : 1;
-    int x = area.x + (area.width - width * scale) / 2;
-    Canvas clipped = canvas_clipped(canvas, area);
-    const char *cursor = text;
-    for (uint32_t codepoint = utf8_next(&cursor); codepoint != 0; codepoint = utf8_next(&cursor)) {
-        const Glyph *glyph = font_find_glyph(font, codepoint);
-        if (glyph != NULL) {
-            int advance = glyph->advance * scale;
-            text_draw_glyph_scaled(&clipped, (TextStyle){font, theme->colors.text},
-                                   (Rect){x, area.y, advance, area.height}, codepoint, scale);
-            x += advance;
-        }
+    Rect area = painter->layout.state;
+    int line = font_line_height(font);
+    int lamp = larger(4, line / LAMP_DIVISOR);
+    int indent = lamp + theme->metrics.padding / 2;
+    int width = area.width - indent;
+    int lines = smaller(STATE_LINES, label_wrap_count(font, text, width));
+    Rect words = {area.x + indent, area.y, width, lines * line};
+    Rect dot = {area.x, area.y + (line - lamp) / 2, lamp, lamp};
+    canvas_fill_rect(painter->canvas, dot, usb_screen_lamp_color(theme, painter->scene));
+    Color ink = warning(painter->scene) ? usb_screen_tint(theme->colors.danger, theme->colors.text)
+                                        : theme->colors.text;
+    label_draw_paragraph(painter->canvas, (TextStyle){font, ink}, (Label){words, text});
+    return words.y + words.height;
+}
+
+void usb_screen_append_tenths(StringBuilder *builder, uint32_t tenths)
+{
+    string_builder_append_unsigned(builder, tenths / TENTHS);
+    if (tenths < WHOLE_FROM) {
+        string_builder_append_char(builder, '.');
+        string_builder_append_unsigned(builder, tenths % TENTHS);
     }
 }
 
-static void draw_percent(Canvas *canvas, const Theme *theme, Rect area, HalBattery battery)
+static void amount_text(char *text, uint32_t tenths_mb)
 {
-    char text[TEXT_CAPACITY];
-    charge_screen_level_text(battery, text, sizeof text);
-    if (battery.known) {
-        draw_scaled_level(canvas, theme, area, text);
-    } else {
-        Rect centered = label_centered_area(theme->fonts.small, area, text);
-        draw_line(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary}, centered,
-                  text);
+    char number[USB_SCREEN_NUMBER_CAPACITY];
+    StringBuilder digits = string_builder_make(number, sizeof number);
+    bool gigabytes = tenths_mb >= TENTHS * MB_PER_GB;
+    usb_screen_append_tenths(&digits, gigabytes ? tenths_mb / MB_PER_GB : tenths_mb);
+    StringBuilder builder = string_builder_make(text, USB_SCREEN_TEXT_CAPACITY);
+    const char *arguments[] = {number};
+    i18n_format(&builder, gigabytes ? STR_USB_GB : STR_USB_MB, arguments, 1);
+}
+
+static void size_text(char *text, uint32_t sectors)
+{
+    amount_text(text, (uint32_t)((uint64_t)sectors * MSC_BYTES_PER_SECTOR / BYTES_PER_TENTH_MB));
+}
+
+void usb_screen_row(const UsbPainter *painter, Rect row, const char *name, const char *value)
+{
+    const Theme *theme = painter->theme;
+    const Font *font = theme->fonts.small;
+    int value_width = smaller(text_width(font, value), row.width);
+    Rect right = {row.x + row.width - value_width, row.y, value_width, row.height};
+    Rect left = {row.x, row.y, row.width - value_width - theme->metrics.padding / 2, row.height};
+    usb_screen_text(painter, left, (TextStyle){font, theme->colors.text_secondary}, name);
+    usb_screen_text(painter, right, (TextStyle){font, theme->colors.text}, value);
+}
+
+static void draw_drive(const UsbPainter *painter, Rect row, StringId name, UsbSceneDrive drive)
+{
+    char size[USB_SCREEN_TEXT_CAPACITY];
+    if (drive.state == USB_SCENE_DRIVE_EJECTED) {
+        usb_screen_row(painter, row, i18n_text(name), i18n_text(STR_USB_EJECTED));
+        return;
+    }
+    size_text(size, drive.sectors);
+    usb_screen_row(painter, row, i18n_text(name), size);
+}
+
+static void next_row(Rect *row)
+{
+    row->y += row->height;
+}
+
+static void draw_storage_lines(const UsbPainter *painter, Rect area)
+{
+    const UsbScene *scene = painter->scene;
+    int bottom = area.y + area.height;
+    Rect row = {area.x, area.y, area.width, font_line_height(painter->theme->fonts.small)};
+    char text[USB_SCREEN_TEXT_CAPACITY];
+    if (scene->written_kib > 0 && !warning(scene) && row.y + row.height <= bottom) {
+        amount_text(text,
+                    (uint32_t)((uint64_t)scene->written_kib * BYTES_PER_KIB / BYTES_PER_TENTH_MB));
+        usb_screen_row(painter, row, i18n_text(STR_USB_COPIED), text);
+        next_row(&row);
+    }
+    static const StringId NAMES[USB_SCENE_DRIVES] = {STR_POWER_INTERNAL, STR_USB_CARD};
+    for (int lun = 0; lun < USB_SCENE_DRIVES; lun++) {
+        UsbSceneDrive drive = scene->drives[lun];
+        if (drive.state != USB_SCENE_DRIVE_ABSENT && row.y + row.height <= bottom) {
+            draw_drive(painter, row, NAMES[lun], drive);
+            next_row(&row);
+        }
+    }
+    if (!warning(scene) && row.y + row.height <= bottom) {
+        usb_screen_row(painter, row, i18n_text(STR_USB),
+                       i18n_text(scene->high_speed ? STR_USB_HIGH_SPEED : STR_USB_FULL_SPEED));
     }
 }
 
-static void draw_information(Canvas *canvas, const Theme *theme, Rect area,
-                             PowerInformation information)
+bool usb_screen_touches(const UsbPainter *painter, Rect area)
 {
-    HalBattery battery = information.battery;
-    char voltage[TEXT_CAPACITY];
-    const char *text = information.text;
-    if (text == NULL && battery.usb_power) {
-        if (battery.charging || (battery.known && shown_percent(battery) == FULL_PERCENT)) {
-            text = i18n_text(STR_POWER_USB);
-        }
-    } else if (text == NULL && battery.known && battery.millivolts != 0) {
-        StringBuilder builder = string_builder_make(voltage, sizeof voltage);
-        i18n_format_counts(&builder, STR_POWER_VOLTAGE, battery.millivolts, 0);
-        text = voltage;
-    }
-    if (text != NULL) {
-        if (theme_is_portrait(theme)) {
-            area = label_centered_area(theme->fonts.small, area, text);
-        }
-        draw_line(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary}, area,
-                  text);
+    Rect clip = painter->canvas->clip;
+    return area.width > 0 && area.height > 0 && clip.x < area.x + area.width &&
+           area.x < clip.x + clip.width && clip.y < area.y + area.height &&
+           area.y < clip.y + clip.height;
+}
+
+void usb_screen_show_in_bands(AppUsbStatus status, Rect area)
+{
+    int band = status.view == APP_USB_DAC && usb_screen_scene(status)->high_speed
+                   ? 1
+                   : USB_SCREEN_BAND_HEIGHT;
+    for (int top = area.y; top < area.y + area.height; top += band) {
+        int height = area.y + area.height - top;
+        height = height < band ? height : band;
+        app_show_usb_area(status, (Rect){area.x, top, area.width, height});
     }
 }
 
-static void draw_power(Canvas *canvas, const Theme *theme, HalBattery battery, AppUsbStatus status)
+Rect usb_screen_column(const UsbScreenLayout *layout)
 {
-    ChargeScreenLayout layout = charge_screen_layout(theme, status.detail);
-    canvas_fill_rect(canvas,
-                     (Rect){0, 0, theme->metrics.screen_width, theme->metrics.screen_height},
-                     theme->colors.background);
-    int top = layout.battery.y + layout.battery.height + theme->metrics.padding;
-    Rect horizon = {layout.battery.x, top, layout.battery.width,
-                    layout.detail.y - theme->metrics.padding - top};
-    if (!rect_is_empty(horizon)) {
-        Canvas clipped = canvas_clipped(canvas, horizon);
-        if (horizon.height >= 2 * font_line_height(theme->fonts.small)) {
-            home_art_draw_backdrop(&clipped, horizon, theme);
-        } else {
-            canvas_fill_gradient(&clipped, horizon, theme->colors.backdrop_top,
-                                 theme->colors.backdrop_bottom);
-        }
+    return (Rect){layout->lines.x, layout->state.y, layout->lines.width,
+                  layout->lines.y + layout->lines.height - layout->state.y};
+}
+
+void usb_screen_draw_frame(const UsbPainter *painter, const char *title)
+{
+    draw_stage(painter);
+    usb_screen_service(painter->scene);
+    const Theme *theme = painter->theme;
+    if (usb_screen_touches(painter, painter->layout.header)) {
+        draw_header(painter, title);
     }
-    draw_header(canvas, theme, layout.header, status.view);
-    draw_battery(canvas, theme, layout.battery, battery);
-    draw_percent(canvas, theme, layout.percent, battery);
-    char text[TEXT_CAPACITY];
-    charge_screen_text(battery, text, sizeof text);
-    Rect state = theme_is_portrait(theme)
-                     ? label_centered_area(theme->fonts.title, layout.status, text)
-                     : layout.status;
-    draw_line(canvas, (TextStyle){theme->fonts.title, theme->colors.text}, state, text);
-    draw_information(canvas, theme, layout.voltage,
-                     (PowerInformation){battery, status.information});
-    canvas_fill_rect(
-        canvas,
-        (Rect){layout.detail.x, layout.detail.y - theme->metrics.padding, layout.detail.width, 1},
-        theme->colors.divider);
-    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
-                       (Label){layout.detail, status.detail});
+    if (usb_screen_touches(painter, painter->layout.detail)) {
+        label_draw_wrapped_serviced(
+            painter->canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+            (Label){painter->layout.detail, painter->status.detail}, painter->scene->service);
+    }
+}
+
+static void draw_storage(const UsbPainter *painter)
+{
+    usb_screen_draw_frame(painter, charge_screen_usb_title(painter->status.view));
+    if (usb_screen_touches(painter, painter->layout.figure)) {
+        draw_cassette(painter);
+    }
+    if (usb_screen_touches(painter, usb_screen_column(&painter->layout))) {
+        int below = usb_screen_draw_state(painter, i18n_text(state_text(painter->scene)));
+        draw_storage_lines(painter, usb_screen_lines_below(painter, below));
+    }
+}
+
+Rect usb_screen_lines_below(const UsbPainter *painter, int below)
+{
+    Rect lines = painter->layout.lines;
+    int top = below + painter->theme->metrics.padding / 2;
+    return (Rect){lines.x, top, lines.width, lines.y + lines.height - top};
+}
+
+void usb_screen_draw_power(const UsbPainter *painter)
+{
+    char state[USB_SCREEN_TEXT_CAPACITY];
+    char level[USB_SCREEN_TEXT_CAPACITY];
+    usb_screen_draw_frame(painter, charge_screen_usb_title(painter->status.view));
+    draw_cassette(painter);
+    charge_screen_text(painter->battery, state, sizeof state);
+    int below = usb_screen_draw_state(painter, state);
+    Rect lines = usb_screen_lines_below(painter, below);
+    lines.height = font_line_height(painter->theme->fonts.small);
+    charge_screen_level_text(painter->battery, level, sizeof level);
+    usb_screen_row(painter, lines, i18n_text(STR_POWER_TITLE), level);
 }
 
 void usb_screen_draw(Canvas *canvas, const Theme *theme, HalBattery battery, AppUsbStatus status)
 {
-    draw_power(canvas, theme, battery, status);
+    usb_screen_service(usb_screen_scene(status));
+    UsbPainter painter = {.canvas = canvas,
+                          .theme = theme,
+                          .battery = battery,
+                          .status = status,
+                          .scene = usb_screen_scene(status),
+                          .layout = usb_screen_layout(theme, status)};
+    usb_screen_service(painter.scene);
+    if (status.view == APP_USB_DAC) {
+        usb_screen_draw_dac(&painter);
+    } else if (status.view == APP_USB_POWER) {
+        usb_screen_draw_power(&painter);
+    } else {
+        draw_storage(&painter);
+    }
 }

@@ -27,5 +27,7 @@ void label_draw(Canvas *canvas, TextStyle style, Label label);
 size_t label_wrap_line(const Font *font, const char *text, int max_width);
 int label_wrap_count(const Font *font, const char *text, int max_width);
 void label_draw_wrapped(Canvas *canvas, TextStyle style, Label label);
+void label_draw_wrapped_serviced(Canvas *canvas, TextStyle style, Label label,
+                                 void (*service)(void));
 void label_draw_paragraph(Canvas *canvas, TextStyle style, Label label);
 void label_draw_scrolling(Canvas *canvas, TextStyle style, Label label, Marquee marquee);

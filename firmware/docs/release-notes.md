@@ -5,7 +5,7 @@ Gnarlyr builds on Podium 4.5.9 and EchoPod with their GPL credits preserved. The
 ## USB DAC
 
 - High-speed UAC2 adds stereo 16/24/32-bit PCM at 44.1, 48, 88.2, 96, 176.4 and 192 kHz. Full-speed UAC1 retains 16/24-bit at 44.1/48 kHz.
-- Explicit feedback follows the player’s clock without dropping or repeating samples in UAC2. A 24 KB overlay ring targets 5 ms of device buffering; headphone trim/balance and DAC volume remain available. An empty USB stream is cleared and muted before it reprimes.
+- Explicit feedback follows the player’s clock without dropping or repeating samples in UAC2. The USB overlay ring targets 5 ms of device buffering (18,400 bytes in device, 24,000 in release); headphone trim/balance and DAC volume remain available. An empty USB stream is cleared and muted before it reprimes.
 - ▶ sends host play/pause; 400 ms Vol+ and Vol− holds send next and previous. Volume taps change the local DAC volume.
 - Native descriptor, clock-drift and PCM tests and ARM streaming scenarios cover software behavior. Physical host compatibility, clock accuracy, both outputs, remote keys and hardware CPU margin remain open in the [host acceptance checks](known-issues.md#usb-dac-host-acceptance).
 
@@ -29,6 +29,9 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 - Settings → Clock format selects 12-hour time with AM/PM or 24-hour time for Clock and the status bar, including Calendar. The choice survives restarts.
 - Four named headphone profiles apply attenuation-only trim, left/right balance and a volume ceiling to music and USB DAC output. Settings → Headphones selects and edits them; verified alternating-bank saves keep profiles on internal storage without changing settings v15. Switching to less attenuation lowers the saved mode volumes first. Analog Gain is unchanged; physical output checks remain pending.
+- The USB screens are redesigned in the theme's style: a wireframe cassette whose reels turn while the computer reads or writes, a state light, the amount copied, each drive's size or ejected state, the USB speed and the battery. The DAC screen adds a level meter, the format, both volumes, the jack, buffer, clock correction, underruns and time connected.
+- File transfer can be ended from the player: hold Back for a second. The player waits until the computer has stopped writing for 3 seconds, tells it the drives are gone and finishes as after an eject; holding on for 3 more seconds disconnects at once with a warning.
+- The DAC menu (Menu in DAC mode) changes volume, gain, output and the headphone profile, or switches to File transfer or Charge only, without leaving DAC mode.
 - Five themes with live preview, configurable playback tap/hold actions, shared icons and cassette artwork.
 - Flat retro-future headers and focus accents, clearer Listen and charging layouts, a larger battery readout and an honest distinction between USB power, charging and full.
 - Theme and EQ browsing preview without saving. Custom EQ has a response curve and staged audible editing; leaving a preview restores the saved choice.

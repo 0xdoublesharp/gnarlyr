@@ -88,6 +88,7 @@ bool board_audio_stream_play(void);
 void board_audio_stream_pause(void);
 uint32_t board_audio_stream_consumed(void);
 void board_audio_stream_close(void);
+void board_audio_stream_service(void);
 struct CardFormat *board_audio_lend_format(void);
 void board_audio_return_format(void);
 bool board_audio_workspace_lent(void);

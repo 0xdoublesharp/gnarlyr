@@ -31,6 +31,7 @@ typedef struct UsbAudioSink {
     uint32_t feedback_consumed;
     uint16_t feedback_tick;
     bool feedback_started;
+    uint16_t peaks[2];
     StreamDrift drift;
     HeadphoneAudio headphones;
 } UsbAudioSink;
@@ -44,3 +45,4 @@ void usb_audio_sink_write(UsbAudioSink *sink, const uint8_t *bytes, uint32_t len
 bool usb_audio_sink_primed(const UsbAudioSink *sink);
 void usb_audio_sink_set_asynchronous(UsbAudioSink *sink, bool asynchronous);
 uint32_t usb_audio_sink_feedback(UsbAudioSink *sink, uint32_t consumed, uint16_t tick);
+void usb_audio_sink_take_peaks(UsbAudioSink *sink, uint16_t *peaks);

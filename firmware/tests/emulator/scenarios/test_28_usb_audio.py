@@ -15,9 +15,20 @@ class EchoImageTest(EchoImageHarness):
         machine.host_stays = True
         audio = AudioPath(machine)
         host = UsbAudioHost(machine, rate, width, high)
+        host.vary_levels = True
         host.enumerate()
         serviced = machine.trace("usb_audio_hid_tick")
-        from unicorn.arm_const import UC_ARM_REG_LR
+        self.meter_draws = machine.trace("app_show_usb_area")
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_R0, UC_ARM_REG_R3
+        self.scene_updates = []
+        def scene_updated():
+            pointer = machine.reg(UC_ARM_REG_R3)
+            if machine.reg(UC_ARM_REG_R0) == 2 and pointer:
+                data = machine.read_memory(pointer, 60)
+                rate, seconds, underruns, ppm = struct.unpack_from("<IIIi", data, 28)
+                buffered = struct.unpack_from("<H", data, 46)[0]
+                self.scene_updates.append((rate, data[48], buffered, ppm, underruns, tuple(data[53:55]), seconds))
+        machine.hook_symbol("app_show_usb_area", scene_updated)
         completed = set()
         self.write_complete = True
         self.sink_instructions = 0
@@ -64,24 +75,33 @@ class EchoImageTest(EchoImageHarness):
         start = machine.milliseconds()
         measured_us = machine.microseconds()
         sink_instructions = self.sink_instructions
-        machine.run(until_ms=start + 400)
+        meter_before = len(self.meter_draws)
+        machine.run(until_ms=start + 1300)
         host.pause_until = machine.microseconds() + 1000000
         self.assertEqual(machine.run(until=lambda: self.write_complete and not host.rx and not host.words,
                                      until_ms=machine.milliseconds() + 5), "condition met")
         sink = machine.overlays[0].symbols["sink"]
         written = struct.unpack("<I", machine.read_memory(sink + 8, 4))[0]
         stats = struct.unpack("<6I", machine.read_memory(sink + 24, 24))
-        self.assertEqual(stats[1:], (0, 0, 0, 0, 0))
+        self.assertEqual(stats[1:], (0, 0, 0, 0, 0), (host.missed, len(self.meter_draws)))
         self.assertEqual(host.missed, 0)
         self.assertGreater(written, rate // 3)
         ring, frames = struct.unpack("<2I", machine.read_memory(sink, 8))
-        self.assertEqual(frames, 3000)
+        self.assertEqual(frames, 2300)
         self.assertIn(ring, range(0x0307A000, 0x03092000))
         self.assertEqual(written * 2, len(host.expected))
         for frame in range(written - 100, written):
             words = struct.unpack("<2I", machine.read_memory(ring + (frame % frames) * 8, 8))
             self.assertEqual(words, tuple(host.expected[frame * 2:frame * 2 + 2]))
         self.assertGreater(len(host.feedback), 100)
+        self.assertGreater(len(self.meter_draws) - meter_before, 2)
+        self.assertGreater(len({update[5] for update in self.scene_updates}), 4)
+        shown = self.scene_updates[-1]
+        self.assertEqual(shown[:2], (rate, 32))
+        self.assertTrue(1 <= shown[2] <= 10, shown)
+        self.assertLess(abs(shown[3]), 1500)
+        self.assertEqual(shown[4], 0)
+        self.assertGreaterEqual(shown[6], 1)
         self.assertEqual(audio.rate, rate)
         self.assertEqual(audio.output_underruns(), 0)
         fill = written - (machine.microseconds() - audio.started_us) * rate // 1000000
@@ -128,6 +148,29 @@ class EchoImageTest(EchoImageHarness):
                                      until_ms=machine.milliseconds() + 12), "condition met")
         self.assertEqual(machine.run(until=lambda: audio.running,
                                      until_ms=machine.milliseconds() + 30), "condition met")
+        self.assertEqual(audio.output_underruns(), 0)
+        self.assert_healthy(session)
+
+    def test_usb_audio_control_payloads_and_menu_keys_survive_live_meter_rendering(self):
+        session, audio, host = self.dac_session(96000)
+        machine = session.machine
+        first = len(host.responses)
+        for volume in (-2560, -5120, 0):
+            host.setup(0x21, 1, 0x0200, 0x0200, 2, struct.pack("<h", volume))
+            host.setup(0xA1, 1, 0x0200, 0x0200, 2)
+        self.assertEqual(machine.run(until=lambda: len(host.responses) >= first + 6,
+                                     until_ms=machine.milliseconds() + 2000), "condition met")
+        values = [struct.unpack("<h", response)[0] for setup, response in host.responses[first:]
+                  if setup[:2] == (0xA1, 1)]
+        self.assertEqual(values, [-2560, -5120, 0])
+        for key in (350, KEY_NEXT, KEY_PLAY, 500, 500):
+            self.press(machine, key)
+        self.assertEqual(host.hid, [])
+        self.press(machine, KEY_PLAY)
+        self.assertEqual(host.hid, [0xCD, 0])
+        sink = machine.overlays[0].symbols["sink"]
+        self.assertEqual(struct.unpack("<5I", machine.read_memory(sink + 28, 20)), (0, 0, 0, 0, 0))
+        self.assertEqual(host.missed, 0)
         self.assertEqual(audio.output_underruns(), 0)
         self.assert_healthy(session)
 

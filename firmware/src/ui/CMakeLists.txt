@@ -18,6 +18,7 @@ add_library(echo_ui STATIC
     status_bar.c
     theme.c
     toast.c
+    wire_figure.c
     wire_motion.c
 )
 target_include_directories(echo_ui PUBLIC include)
