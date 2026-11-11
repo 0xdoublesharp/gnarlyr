@@ -27,6 +27,7 @@ FUZZ_TARGETS = {
     "library_database": 65536,
     "mp4_demux": 262144,
     "store": 4096,
+    "settings_codec": 128,
 }
 FUZZ_SEEDS = {
     "track_tags": [b"\0"],
@@ -42,6 +43,12 @@ FUZZ_SEEDS = {
         b"\0" * 16,
         bytes(range(32)),
         b"\xff\x01\xff\x01\0\x02\0\x02" * 4,
+    ],
+    "settings_codec": [
+        bytes(range(128)),
+        b"\1" + bytes(range(32)),
+        b"\2" + bytes(range(64)),
+        b"\3" + b"\xff" * 32,
     ],
 }
 FUZZ_FIXTURES = {
