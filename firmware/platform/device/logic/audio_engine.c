@@ -16,7 +16,8 @@ enum {
     SAMPLE_MAX = 8388607,
     SAMPLE_MIN = -8388608,
     MILLISECONDS_PER_SECOND = 1000,
-    STEP_GAIN_Q16 = 58409
+    STEP_GAIN_Q16 = 58409,
+    COASTING_CONVERSION_RATE = 32000
 };
 
 static void copy_path(char *destination, const char *source)
@@ -733,6 +734,12 @@ void audio_engine_restart(AudioEngine *engine)
     engine->output_rate = audio_resample_rate(engine->decode_rate);
     design_equalizer(engine);
     push_segment(engine, engine->next_path, engine->next_token, 0, engine->next_start_ms);
+}
+
+bool audio_engine_needs_full_clock(const AudioEngine *engine)
+{
+    return engine->resample.factor > 1 &&
+           (engine->resample.stereo || engine->output_rate > COASTING_CONVERSION_RATE);
 }
 
 uint32_t audio_engine_rate(const AudioEngine *engine)

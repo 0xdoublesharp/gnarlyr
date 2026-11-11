@@ -927,6 +927,27 @@ static void speech_rates_use_the_matching_supported_output_clock(void)
     }
 }
 
+static bool full_clock_after_playing(uint32_t rate, bool stereo)
+{
+    CHECK(scripted_rate_plays(rate));
+    for (int index = 0; index < 16 && !stereo; index++) {
+        scripted.right[index] = scripted.left[index];
+    }
+    pump_until_full(0);
+    return audio_engine_needs_full_clock(&engine);
+}
+
+static void only_stereo_conversions_and_conversions_above_32_khz_need_the_full_clock(void)
+{
+    CHECK(!full_clock_after_playing(8000, false));
+    CHECK(!full_clock_after_playing(16000, false));
+    CHECK(full_clock_after_playing(16000, true));
+    CHECK(full_clock_after_playing(11025, false));
+    CHECK(full_clock_after_playing(24000, false));
+    CHECK(!full_clock_after_playing(44100, true));
+    CHECK(!full_clock_after_playing(32000, true));
+}
+
 static void rates_up_to_192_khz_play_and_higher_ones_are_refused(void)
 {
     CHECK(scripted_rate_plays(192000));
@@ -1457,6 +1478,7 @@ int main(void)
         TEST_CASE(low_rate_filter_tail_drains_before_the_next_output_clock_is_requested),
         TEST_CASE(missing_optional_audio_code_only_refuses_tracks_that_need_it),
         TEST_CASE(an_unsupported_rate_is_refused),
+        TEST_CASE(only_stereo_conversions_and_conversions_above_32_khz_need_the_full_clock),
         TEST_CASE(rates_up_to_192_khz_play_and_higher_ones_are_refused),
         TEST_CASE(speech_rates_use_the_matching_supported_output_clock),
         TEST_CASE(a_queued_track_at_an_unsupported_rate_is_refused_with_its_rate),

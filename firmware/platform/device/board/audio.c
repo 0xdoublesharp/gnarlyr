@@ -876,7 +876,7 @@ void board_audio_shut_down(void)
 
 bool board_audio_converting(void)
 {
-    return engine_ready && transferring && engine.resample.factor > 1;
+    return engine_ready && transferring && audio_engine_needs_full_clock(&engine);
 }
 
 uint8_t board_audio_volume_level(void)

@@ -166,6 +166,7 @@ void audio_engine_pump(AudioEngine *engine, uint32_t consumed);
 AudioEngineStats audio_engine_stats(const AudioEngine *engine);
 bool audio_engine_wants_rate(const AudioEngine *engine, uint32_t *rate);
 void audio_engine_restart(AudioEngine *engine);
+bool audio_engine_needs_full_clock(const AudioEngine *engine);
 uint32_t audio_engine_rate(const AudioEngine *engine);
 uint32_t audio_engine_buffered(const AudioEngine *engine, uint32_t consumed);
 AudioEngineStatus audio_engine_status(const AudioEngine *engine);
