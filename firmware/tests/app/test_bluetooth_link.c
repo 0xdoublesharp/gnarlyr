@@ -823,6 +823,113 @@ static void a_remembered_device_updates_its_name_when_it_reconnects(void)
     CHECK(bluetooth_link_knows(&link, &BUDS));
 }
 
+static void sleeping_an_enabled_module_is_idempotent_and_resume_wakes_it(void)
+{
+    fresh();
+    start();
+    bluetooth_link_sleep(&link);
+    CHECK(!fake_hal_bluetooth_powered());
+    bluetooth_link_set_enabled(&link, true, START_MS);
+    bluetooth_link_sleep(&link);
+    CHECK(!fake_hal_bluetooth_powered());
+    CHECK(stored().enabled);
+    CHECK(!bluetooth_link_searching(&link));
+    bluetooth_link_sleep(&link);
+    step(START_MS + BLUETOOTH_LINK_RETRY_MS);
+    CHECK(!fake_hal_bluetooth_powered());
+    bluetooth_link_resume(&link, &toast, START_MS + BLUETOOTH_LINK_RETRY_MS);
+    CHECK(fake_hal_bluetooth_powered());
+}
+
+static void choosing_a_different_device_during_paired_confirmation_resets_the_old_one(void)
+{
+    fresh();
+    BluetoothSaved two = {.enabled = true, .count = 2, .devices = {BUDS, SPEAKER}};
+    bluetooth_store_save(&two);
+    start();
+    ready();
+    step(START_MS + 100);
+    fake_hal_bluetooth()->pairing = HAL_BLUETOOTH_PAIRED;
+    step(START_MS + 200);
+    bluetooth_link_choose(&link, 1, START_MS + 300);
+    CHECK_EQUAL(1, fake_hal_bluetooth_disconnect_count());
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTING, bluetooth_link_device_state(&link, 1));
+    fake_hal_bluetooth()->pairing = HAL_BLUETOOTH_PAIRING_NONE;
+    ready();
+    step(START_MS + 300 + BLUETOOTH_LINK_RESET_MS - 1);
+    CHECK_EQUAL(1, fake_hal_bluetooth_connect_count());
+    step(START_MS + 300 + BLUETOOTH_LINK_RESET_MS);
+    CHECK_EQUAL(2, fake_hal_bluetooth_connect_count());
+    CHECK(strcmp("Speaker", fake_hal_bluetooth_connect_target()->name) == 0);
+}
+
+static void a_seventh_device_evicts_only_the_least_recent_saved_device(void)
+{
+    fresh();
+    BluetoothSaved full = {.enabled = true, .count = BLUETOOTH_STORE_DEVICES};
+    for (uint32_t index = 0; index < BLUETOOTH_STORE_DEVICES; index++) {
+        full.devices[index] = BUDS;
+        full.devices[index].address[0] = (uint8_t)(20 + index);
+    }
+    bluetooth_store_save(&full);
+    start();
+    connect_to(&SPEAKER);
+    step(START_MS + 100);
+    BluetoothSaved saved = stored();
+    CHECK_EQUAL(BLUETOOTH_STORE_DEVICES, saved.count);
+    CHECK(strcmp("Speaker", saved.devices[0].name) == 0);
+    for (uint32_t index = 1; index < BLUETOOTH_STORE_DEVICES; index++) {
+        CHECK_EQUAL(full.devices[index - 1].address[0], saved.devices[index].address[0]);
+    }
+    CHECK(!bluetooth_link_knows(&link, &full.devices[BLUETOOTH_STORE_DEVICES - 1]));
+    CHECK(bluetooth_link_knows(&link, &SPEAKER));
+}
+
+static void discovery_skips_unknown_devices_and_connects_the_known_match(void)
+{
+    fresh();
+    save(true, &BUDS);
+    start();
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_SCANNING;
+    fake_hal_bluetooth()->devices[0] = SPEAKER;
+    fake_hal_bluetooth()->devices[1] = BUDS;
+    fake_hal_bluetooth()->device_count = 2;
+    fake_hal_bluetooth()->found_now = 3;
+    step(START_MS + 100);
+    CHECK_EQUAL(1, fake_hal_bluetooth_connect_count());
+    CHECK(strcmp("Buds", fake_hal_bluetooth_connect_target()->name) == 0);
+}
+
+static void a_newly_found_saved_device_can_connect_while_ready(void)
+{
+    fresh();
+    save(true, &BUDS);
+    start();
+    ready();
+    fake_hal_bluetooth()->devices[0] = BUDS;
+    fake_hal_bluetooth()->device_count = 1;
+    fake_hal_bluetooth()->found_now = 1;
+    step(START_MS + 100);
+    CHECK_EQUAL(1, fake_hal_bluetooth_connect_count());
+    CHECK(strcmp("Buds", fake_hal_bluetooth_connect_target()->name) == 0);
+}
+
+static void forgetting_another_saved_device_keeps_the_chosen_target(void)
+{
+    fresh();
+    BluetoothSaved two = {.enabled = true, .count = 2, .devices = {BUDS, SPEAKER}};
+    bluetooth_store_save(&two);
+    start();
+    ready();
+    bluetooth_link_choose(&link, 0, START_MS + 100);
+    bluetooth_link_forget(&link, 1);
+    CHECK_EQUAL(0, fake_hal_bluetooth_disconnect_count());
+    CHECK_EQUAL(1, stored().count);
+    step(START_MS + 100);
+    CHECK_EQUAL(1, fake_hal_bluetooth_connect_count());
+    CHECK(strcmp("Buds", fake_hal_bluetooth_connect_target()->name) == 0);
+}
+
 static void forgetting_disconnects_and_clears_the_device(void)
 {
     fresh();
@@ -883,6 +990,12 @@ int main(void)
         TEST_CASE(searching_disconnects_and_scans_without_reconnecting),
         TEST_CASE(an_old_single_device_store_still_loads),
         TEST_CASE(forgetting_disconnects_and_clears_the_device),
+        TEST_CASE(sleeping_an_enabled_module_is_idempotent_and_resume_wakes_it),
+        TEST_CASE(choosing_a_different_device_during_paired_confirmation_resets_the_old_one),
+        TEST_CASE(a_seventh_device_evicts_only_the_least_recent_saved_device),
+        TEST_CASE(discovery_skips_unknown_devices_and_connects_the_known_match),
+        TEST_CASE(a_newly_found_saved_device_can_connect_while_ready),
+        TEST_CASE(forgetting_another_saved_device_keeps_the_chosen_target),
         TEST_CASE(invalid_saved_device_indices_leave_the_connection_and_store_alone),
         TEST_CASE(forgetting_a_pending_connection_cancels_it_without_retrying),
         TEST_CASE(forgetting_an_unconnected_device_keeps_the_other_connection),
