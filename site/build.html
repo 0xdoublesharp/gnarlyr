@@ -15,14 +15,14 @@
       <svg viewBox="0 0 32 24" fill="none" aria-hidden="true"><rect x="1" y="2" width="30" height="20" rx="3" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="6" width="22" height="9" rx="2" stroke="currentColor"/><circle cx="10" cy="10.5" r="2.5" stroke="currentColor"/><circle cx="22" cy="10.5" r="2.5" stroke="currentColor"/><path d="m8 22 3-5h10l3 5" stroke="currentColor"/></svg>
       <span class="wordmark">GNARLYR<span class="brand-dot">.</span></span>
     </a>
-<nav aria-label="Main navigation"><a href="firmware.html">Features</a><a href="hardware.html">Hardware</a><a href="install.html">Install</a><a href="build.html" aria-current="page" class="nav-cta">Developers</a>
-</nav>
+<nav aria-label="Main navigation"><a href="firmware.html">Features</a><a href="hardware.html">Hardware</a><a href="install.html">Install</a><a href="languages.html" class="nav-cta">Languages</a></nav>
 </header>
 <main id="main">
 <div class="page-intro wrap"><p class="eyebrow">Source builds · developer tools</p><h1 class="page-title">Build and develop.</h1><p>Build firmware, use the developer USB loop and explore codec tools from a Gnarlyr source checkout. For a ready-made image and player setup, use the <a href="install.html">Install guide</a>.</p></div>
 <div class="doc-layout wrap"><nav class="contents" aria-label="On this page"><p class="eyebrow">On this page</p><ol><li><a href="#build">Build from source · macOS</a></li>
 <li><a href="#developer">Developer USB updates</a></li>
 <li><a href="#codecs">Audio source integrations</a></li>
+<li><a href="#processing">ReplayGain &amp; tempo source</a></li>
 <li><a href="#usb">USB internals</a></li>
 <li><a href="#migration">Older custom builds</a></li>
 <li><a href="#recovery">Recovery reference</a></li></ol></nav><div>
@@ -76,7 +76,7 @@
 </p>
 <h3>Language packs over USB</h3>
 <p>Build a pack in the <a href="languages.html">browser builder</a>, then run <code>python3 tools/echo_debug.py language-install /path/to/es.pack --select</code> with a developer player connected in USB storage mode. The helper checks the pack against the installed build, verifies the copied file and selects the language after reconnecting. Use <code>language-select en</code> to return to English.</p>
-<p>List installed languages with <code>language-list</code>. Check a pack without installing it with <code>language-inspect /path/to/es.pack</code>. The matching <code>echo_language_*</code> MCP tools expose the same operations. Full usage is in <code>docs/language-packs.md</code>.</p>
+<p>List installed languages with <code>language-list</code>. Check a pack without installing it with <code>language-inspect /path/to/es.pack</code>. The matching <code>echo_language_*</code> MCP tools expose the same operations. Listing ignores macOS <code>._</code> metadata files, and selection resolves the current language’s setting label. Managed installation validates the installed catalogue and same-player music volume, keeping writes limited to language-pack paths. Full usage is in <code>docs/language-packs.md</code>.</p>
 <h3>Audio processing and diagnostics</h3>
 <p>Audio processing remains available as interface modules change. A separate 8 KiB code bank holds sample-rate conversion and M4A/M4B parsing. Diagnostic counts exclude intentionally muted DMA pauses, so a normal pause is not reported as missing audio.</p>
 </section>
@@ -92,6 +92,21 @@
 </ul>
 <p>These integrations describe source behavior. Vorbis listening, processing headroom and converted-file transitions still need checks on the ECHO; Opus remains outside the implemented playback formats.</p>
 <p>The host test utility <code>ogg_packet_tool</code> exports checked packets for decoder comparisons. See <code>firmware/docs/ogg-packets.md</code> and <code>firmware/docs/ogg-vorbis.md</code> in the matching audio source checkout.</p>
+</section>
+<section class="doc-section" id="processing" aria-labelledby="processing-title">
+<h2 id="processing-title">Loudness and tempo processing in source.</h2>
+<p class="intro">ReplayGain uses stored loudness information to adjust a song’s level. A tempo kernel changes pace while preserving pitch. The audio branch implements these as separate parts of the processing pipeline.</p>
+<h3>ReplayGain controls and metadata</h3>
+<ul class="detail-list">
+<li><strong>Off, Track and Album.</strong> Off is the default. Track uses each song’s gain; Album retains the tagged level relationships within an album. Missing preferred gain falls back to the other kind; untagged or unreadable gain data uses the normal level.</li>
+<li><strong>Peak-aware normalization.</strong> Prevent clipping is on by default. It uses peak tags to cap gain; without peaks it retains attenuation and caps boosts at unity. Turning it off allows the full tagged gain. EQ keeps its separate headroom policy.</li>
+<li><strong>Saved controls and continuous playback.</strong> Mode and clipping choices are persistent. Changes affect newly buffered audio without reopening the current track or restarting DMA, and each current/queued track carries its own gain.</li>
+<li><strong>Checked library data.</strong> Rescanning or desktop indexing prepares gain records without rewriting music files or changing the base library fingerprint used by queues and labels. Peak values round conservatively; removed tags clear stale gain data, and invalid caches do not supply unchecked amplification.</li>
+</ul>
+<h3>Pitch-preserving tempo kernel</h3>
+<p>The fixed-memory kernel accepts signed 24-bit stereo samples at 8–48 kHz and integer speeds from 50 to 200 percent. At 100 percent it copies samples unchanged. Caller-owned storage bounds the working memory.</p>
+<p>The kernel is a processing component, not a player speed setting: Playback and Settings do not call it yet. ReplayGain listening/headroom and end-to-end tempo playback require their own ECHO checks.</p>
+<p>See <code>firmware/docs/replay-gain.md</code> and <code>firmware/docs/audio-tempo.md</code> in the audio source checkout.</p>
 </section>
 <section class="doc-section" id="usb" aria-labelledby="usb-title">
 <h2 id="usb-title">How USB hands storage back to the player.
@@ -145,8 +160,7 @@
 <p class="eyebrow">Made for the music you already love.
 </p></div>
 <footer class="wrap">
-<nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html">Features &amp; improvements</a><a href="hardware.html">ECHO hardware</a><a href="install.html">Install &amp; update</a><a href="build.html">Developers</a>
-</nav>
+<nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html">Features &amp; improvements</a><a href="hardware.html">ECHO hardware</a><a href="install.html">Install &amp; update</a><a href="languages.html">Languages</a><a href="build.html" aria-current="page">Developers</a></nav>
 <div class="footer-row"><span>GNARLYR.COM / Open-source ECHO firmware</span><div class="footer-links"><a href="https://podium-echo.online">Podium ↗</a><a href="https://github.com/BasilSkyWalk/echopod">EchoPod ↗</a><a href="https://github.com/brnomt/ReChord">ReChord ↗</a><a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0-or-later ↗</a></div></div>
 <p>Gnarlyr by doublesharp. Built on Podium and EchoPod, with hardware research from ReChord.
 </p>

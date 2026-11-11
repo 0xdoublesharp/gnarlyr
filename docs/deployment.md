@@ -19,8 +19,8 @@ screenshots under `site/assets/` when they are ready, then publish the updated p
 | Primary URL | https://gnarlyr.com; www redirects to the apex |
 | Secondary validation URL | https://gnarlyr.apps.doublesharp.com |
 | Origin address | `159.89.222.183` |
-| Current content release | `82bda27c08b02fadf0b502ce925f4aae20b39d4c7eb2a9d24c1b437c4c193909` |
-| Rollback content release | `bbb8c41c4c4df48779faf86722e66b4b8fde83406e18523ecff7302dda8eda30` |
+| Current content release | `72ce51cc3491ec68085c2db2cbd34260b6451546594a4bc7c945c0b7e08c3fc3` |
+| Rollback content release | `82bda27c08b02fadf0b502ce925f4aae20b39d4c7eb2a9d24c1b437c4c193909` |
 
 This is a user-defined Compose Service with normal Coolify parsing, not a
 Git-backed Application. `site/deploy/compose.yaml` owns the runtime, mounts,
