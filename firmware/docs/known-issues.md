@@ -47,6 +47,8 @@ Also unchecked on a player by this project: `.m4a` and `.m4b` playback and seeki
 
 ## Known trade-offs
 
+- **A plain track that crashes the scan takes two stops to find.** Plain tracks are marked in batches of 8 to keep the scan fast; the start after a stop marks that batch track by track, and the start after that skips the track. CUE sheets, `.m4b` files, playlists and cover-pass files are skipped at the first restart. The scan-stop protection has run only in the emulator.
+- **echo-sync leaves the scan record alone.** If a scan on the player stopped and the card is then rebuilt with echo-sync, the player still rescans once at the next start.
 - **A failed install followed by music.** If an install fails partway through slot 1 and music is then played, the next plug-in shows "Restart the player to finish the update" and does not serve USB. The restart boots the complete slot 2.
 - **Audio module damaged in both slots.** Lower-rate conversion and M4A demuxing require this module. If both copies fail validation, those tracks are refused; native-rate FLAC, MP3 and WAV remain available. A healthy copy in either slot is enough.
 - **USB code damaged in both slots.** The USB overlay is stored in both firmware slots. If it were damaged in both while the main code stayed intact, USB storage would be unavailable ("USB code missing: reinstall the update") and recovery would be through maskrom only.
