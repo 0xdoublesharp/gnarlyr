@@ -1,3 +1,4 @@
+import json
 import re
 import struct
 import sys
@@ -268,6 +269,226 @@ class GeneratedSourceTest(unittest.TestCase):
             self.assertEqual("en", lang_pack.pack_code(output.read_bytes()))
             write_languages(languages, {"en.txt": english_file() + "STR_NEW = New\n"})
             self.assertEqual(1, lang_pack.main(common + ["--check"]))
+
+
+def rechecked(pack):
+    changed = bytearray(pack)
+    checksum = lang_pack.fnv(changed[lang_pack.CHECKSUM_END:],
+                             lang_pack.fnv(changed[:lang_pack.CHECKSUM_OFFSET]))
+    struct.pack_into("<I", changed, lang_pack.CHECKSUM_OFFSET, checksum)
+    return bytes(changed)
+
+
+def header_changed(pack, field, value):
+    values = list(lang_pack.HEADER.unpack_from(pack))
+    values[field] = value
+    changed = bytearray(pack)
+    changed[:lang_pack.HEADER.size] = lang_pack.HEADER.pack(*values)
+    return rechecked(changed)
+
+
+class PackCodeValidationTest(unittest.TestCase):
+    def test_a_checksummed_code_with_forbidden_characters_is_refused(self):
+        pack = lang_pack.build_pack("en", CATALOGUE, {})
+        for code in (b"en$" + bytes(5), b"abcdef" + bytes(2), bytes(8)):
+            with self.subTest(code=code), self.assertRaises(lang_pack.PackError):
+                lang_pack.pack_code(header_changed(pack, 6, code))
+
+    def test_hidden_metadata_after_the_first_nul_is_refused(self):
+        pack = lang_pack.build_pack("en", CATALOGUE, {})
+        with self.assertRaises(lang_pack.PackError):
+            lang_pack.pack_code(header_changed(pack, 6, b"en\0x" + bytes(4)))
+        with self.assertRaises(lang_pack.PackError):
+            lang_pack.pack_code(header_changed(pack, 7, b"English\0x" + bytes(19)))
+
+
+class FullPackValidationTest(unittest.TestCase):
+    def validate(self, pack, catalogue=CATALOGUE, drawable=DRAWABLE):
+        return lang_pack.validate_pack(pack, catalogue, drawable)
+
+    def test_generated_packs_return_complete_metadata_and_texts(self):
+        for code, translations in (("en", {}), ("de", {"STR_LANGUAGE_NAME": "Deutsch",
+                                                        "STR_HELLO": "Grüße"})):
+            pack = lang_pack.build_pack(code, CATALOGUE, translations)
+            self.assertEqual({"code": code, "name": translations.get("STR_LANGUAGE_NAME", "English"),
+                              "count": len(CATALOGUE), "size": len(pack),
+                              "catalogue_hash": lang_pack.catalogue_hash(CATALOGUE),
+                              "texts": {name: translations.get(name, english)
+                                        for name, english in CATALOGUE}}, self.validate(pack))
+
+    def test_format_version_exact_length_and_checksum_are_checked(self):
+        pack = lang_pack.build_pack("en", CATALOGUE, {})
+        bad = [b"", pack[:55], pack[:-1], pack + b"\0", header_changed(pack, 0, b"NOPE"),
+               header_changed(pack, 1, 2), header_changed(pack, 3, len(pack) - 1)]
+        damaged = bytearray(pack)
+        damaged[-2] ^= 1
+        bad.append(bytes(damaged))
+        for value in bad:
+            with self.subTest(length=len(value)), self.assertRaises(lang_pack.PackError):
+                self.validate(value)
+
+    def test_a_checksummed_pack_larger_than_the_player_capacity_is_refused(self):
+        pack = lang_pack.build_pack("en", CATALOGUE, {})
+        oversized = pack + bytes(lang_pack.PACK_LIMIT + 1 - len(pack))
+        oversized = header_changed(oversized, 3, len(oversized))
+        with self.assertRaises(lang_pack.PackError):
+            self.validate(oversized)
+
+    def test_count_and_catalogue_hash_must_match_the_target_catalogue(self):
+        pack = lang_pack.build_pack("en", CATALOGUE, {})
+        for bad in (header_changed(pack, 2, len(CATALOGUE) - 1),
+                    header_changed(pack, 4, lang_pack.catalogue_hash(CATALOGUE) ^ 1)):
+            with self.assertRaises(lang_pack.PackError):
+                self.validate(bad)
+        renamed = [CATALOGUE[0], ("STR_OTHER", "Hello"), CATALOGUE[2]]
+        with self.assertRaises(lang_pack.PackError):
+            self.validate(pack, renamed)
+
+    def test_metadata_needs_utf8_nul_termination_and_zero_padding(self):
+        pack = lang_pack.build_pack("en", CATALOGUE, {})
+        for field, value in ((6, b"a" * lang_pack.CODE_BYTES),
+                             (6, b"\xff" + bytes(lang_pack.CODE_BYTES - 1)),
+                             (7, b"N" * lang_pack.NAME_BYTES),
+                             (7, b"\xff" + bytes(lang_pack.NAME_BYTES - 1)),
+                             (7, bytes(lang_pack.NAME_BYTES)),
+                             (7, b"English\0X" + bytes(19))):
+            with self.subTest(field=field, value=value), self.assertRaises(lang_pack.PackError):
+                self.validate(header_changed(pack, field, value))
+
+    def test_header_name_must_equal_the_catalogue_language_name(self):
+        pack = lang_pack.build_pack("en", CATALOGUE, {})
+        with self.assertRaises(lang_pack.PackError):
+            self.validate(header_changed(pack, 7, b"Other" + bytes(23)))
+
+    def test_offsets_are_body_relative_and_must_start_a_terminated_string(self):
+        pack = lang_pack.build_pack("en", CATALOGUE, {})
+        base = lang_pack.HEADER.size + 2 * len(CATALOGUE)
+        for offset in (len(pack) - base, 0xFFFF, 1):
+            changed = bytearray(pack)
+            struct.pack_into("<H", changed, lang_pack.HEADER.size + 2, offset)
+            with self.subTest(offset=offset), self.assertRaises(lang_pack.PackError):
+                self.validate(rechecked(changed))
+        changed = bytearray(pack)
+        changed[-1] = ord("x")
+        with self.assertRaises(lang_pack.PackError):
+            self.validate(rechecked(changed))
+
+    def test_shared_string_offsets_are_valid(self):
+        catalogue = [("STR_LANGUAGE_NAME", "English"), ("STR_A", "Same"), ("STR_B", "Same")]
+        pack = bytearray(lang_pack.build_pack("en", catalogue, {}))
+        first = struct.unpack_from("<H", pack, lang_pack.HEADER.size + 2)[0]
+        struct.pack_into("<H", pack, lang_pack.HEADER.size + 4, first)
+        checked = self.validate(rechecked(pack), catalogue)
+        self.assertEqual("Same", checked["texts"]["STR_B"])
+
+    def test_invalid_utf8_and_empty_body_strings_are_refused(self):
+        pack = lang_pack.build_pack("en", CATALOGUE, {})
+        base = lang_pack.HEADER.size + 2 * len(CATALOGUE)
+        hello = struct.unpack_from("<H", pack, lang_pack.HEADER.size + 2)[0]
+        for value in (0, 0xFF):
+            changed = bytearray(pack)
+            changed[base + hello] = value
+            with self.subTest(value=value), self.assertRaises(lang_pack.PackError):
+                self.validate(rechecked(changed))
+
+    def test_translations_keep_the_existing_placeholder_set_semantics(self):
+        good = lang_pack.build_pack("xx", CATALOGUE, {"STR_COUNT": "{1} / {0}, {0}"})
+        self.assertEqual("{1} / {0}, {0}", self.validate(good)["texts"]["STR_COUNT"])
+        for text in ("Songs", "{0} only", "{0} {1} {2}"):
+            with self.subTest(text=text), self.assertRaises(lang_pack.PackError):
+                self.validate(lang_pack.build_pack("xx", CATALOGUE, {"STR_COUNT": text}))
+
+    def test_unsupported_glyphs_in_any_string_are_refused(self):
+        with self.assertRaises(lang_pack.PackError):
+            self.validate(lang_pack.build_pack("xx", CATALOGUE, {"STR_HELLO": "Ж"}))
+        pack = lang_pack.build_pack("xx", CATALOGUE, {"STR_HELLO": "one\ntwo"})
+        self.assertEqual("one\ntwo", self.validate(pack)["texts"]["STR_HELLO"])
+
+    def test_real_english_and_pseudo_packs_validate(self):
+        catalogue = lang_pack.read_catalogue()
+        drawable = lang_pack.drawable_characters()
+        for code in (lang_pack.ENGLISH, lang_pack.PSEUDO):
+            pack = lang_pack.language_pack(code)
+            result = lang_pack.validate_pack(pack, catalogue, drawable)
+            self.assertEqual(code, result["code"])
+            self.assertEqual(len(catalogue), len(result["texts"]))
+
+
+class CatalogueExportTest(unittest.TestCase):
+    def test_catalogue_text_uses_the_same_rules_without_a_source_file(self):
+        self.assertEqual(CATALOGUE, lang_pack.read_catalogue_text(english_file(), "commit:en.txt"))
+        with self.assertRaises(lang_pack.PackError) as refused:
+            lang_pack.read_catalogue_text("STR_A = A\n", "commit:en.txt")
+        self.assertIn("commit:en.txt", str(refused.exception))
+
+    def test_font_configuration_can_be_resolved_without_a_source_directory(self):
+        fonts = json.loads((lang_pack.FONTS / "fonts.json").read_text())
+        packs = json.loads((lang_pack.FONTS / "glyph_pack.json").read_text())
+        self.assertEqual(lang_pack.drawable_characters(), lang_pack.drawable_from_config(fonts, packs))
+
+    def test_catalogue_info_is_json_ready_with_ordered_entries_and_sorted_glyphs(self):
+        info = lang_pack.catalogue_info(CATALOGUE, DRAWABLE)
+        self.assertEqual({"version": 1, "magic": "DSLP", "pack_limit": 16384,
+                          "code_limit": 5, "code_bytes": 8, "name_bytes": 28,
+                          "name_id": "STR_LANGUAGE_NAME",
+                          "catalogue_hash": lang_pack.catalogue_hash(CATALOGUE),
+                          "entries": [{"id": name, "english": text} for name, text in CATALOGUE],
+                          "glyphs": sorted(DRAWABLE)}, info)
+        self.assertEqual(info, json.loads(json.dumps(info)))
+
+    def test_browser_export_is_deterministic_and_checkable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "catalogue.js"
+            arguments = ["--export-catalogue", str(destination)]
+            self.assertEqual(0, lang_pack.main(arguments))
+            first = destination.read_text(encoding="utf-8")
+            prefix = "globalThis.LANGUAGE_CATALOGUE = "
+            self.assertTrue(first.startswith(prefix))
+            self.assertEqual(lang_pack.catalogue_info(lang_pack.read_catalogue(),
+                                                      lang_pack.drawable_characters()),
+                             json.loads(first[len(prefix):].rstrip(";\n")))
+            self.assertEqual(0, lang_pack.main(arguments))
+            self.assertEqual(first, destination.read_text(encoding="utf-8"))
+            self.assertEqual(0, lang_pack.main(arguments + ["--check"]))
+            destination.write_text("stale\n")
+            self.assertEqual(1, lang_pack.main(arguments + ["--check"]))
+
+    def test_the_committed_browser_export_matches_the_catalogue_and_fonts(self):
+        destination = ROOT.parent / "site/language-catalog.js"
+        self.assertEqual(lang_pack.browser_source(lang_pack.read_catalogue(),
+                                                  lang_pack.drawable_characters()),
+                         destination.read_text(encoding="utf-8"))
+
+
+class NativeNameValidationTest(unittest.TestCase):
+    def test_native_names_cannot_contain_line_breaks_or_nonprintable_characters(self):
+        for character in ("\n", "\r", "\t", "\0", "\x1b", "\x7f", "\x85", "\u200b", "\u2028"):
+            with self.subTest(character=repr(character)), self.assertRaises(lang_pack.PackError):
+                lang_pack.build_pack("xx", CATALOGUE, {"STR_LANGUAGE_NAME": "A" + character + "B"})
+
+    def test_checksummed_native_names_with_controls_are_refused(self):
+        good = lang_pack.build_pack("en", CATALOGUE, {})
+        base = lang_pack.HEADER.size + 2 * len(CATALOGUE)
+        for name in ("E\nglish", "E\rglish", "E\tglish", "E\x1bglish", "Engli\x7fh", "En\x85ish", "En\u2028sh"):
+            encoded = name.encode("utf-8")
+            self.assertEqual(7, len(encoded))
+            changed = bytearray(header_changed(good, 7, encoded.ljust(lang_pack.NAME_BYTES, b"\0")))
+            changed[base:base + len(encoded)] = encoded
+            with self.subTest(name=repr(name)), self.assertRaises(lang_pack.PackError):
+                lang_pack.validate_pack(rechecked(changed), CATALOGUE, DRAWABLE | {ord(c) for c in name})
+
+    def test_direct_pack_building_refuses_embedded_nuls_in_every_translation(self):
+        for key, text in (("STR_HELLO", "A\0B"), ("STR_COUNT", "{0}\0{1}"),
+                          ("STR_LANGUAGE_NAME", "English\0")):
+            with self.subTest(key=key), self.assertRaises(lang_pack.PackError):
+                lang_pack.build_pack("xx", CATALOGUE, {key: text})
+
+    def test_message_line_breaks_and_printable_accented_names_still_work(self):
+        pack = lang_pack.build_pack("fr", CATALOGUE, {"STR_LANGUAGE_NAME": "Français",
+                                                      "STR_HELLO": "one\ntwo"})
+        checked = lang_pack.validate_pack(pack, CATALOGUE, DRAWABLE)
+        self.assertEqual("Français", checked["name"])
+        self.assertEqual("one\ntwo", checked["texts"]["STR_HELLO"])
 
 
 if __name__ == "__main__":

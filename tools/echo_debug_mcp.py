@@ -78,6 +78,34 @@ TOOLS = {
 }
 
 
+TOOLS.update({
+    "echo_language_inspect": {
+        "description": "Validate a language pack against an explicit clean firmware build or the installed build.",
+        "inputSchema": schema({"pack": {"type": "string"}, "build": {"type": "string"}}, ["pack"]),
+        "call": lambda tool, arguments: tool.language_inspect(arguments["pack"], arguments.get("build")),
+    },
+    "echo_language_list": {
+        "description": "List validated language packs on this USB player's active music volume.",
+        "inputSchema": schema({"music_volume": {"type": "string"}}),
+        "call": lambda tool, arguments: tool.language_list(arguments.get("music_volume")),
+    },
+    "echo_language_install": {
+        "description": "Publish a checked language pack, preserve a replacement backup, reconnect and optionally select it.",
+        "inputSchema": schema({"pack": {"type": "string"}, "select": {"type": "boolean"},
+                               "music_volume": {"type": "string"}, "timeout": TIMEOUT}, ["pack"]),
+        "call": lambda tool, arguments: tool.language_install(arguments["pack"], arguments.get("select", False),
+                    arguments.get("music_volume"), arguments.get("timeout", echo_debug.DEFAULT_TIMEOUT)),
+    },
+    "echo_language_select": {
+        "description": "Select an installed pack through the verified current language's Settings label and reconnect.",
+        "inputSchema": schema({"code": {"type": "string"}, "music_volume": {"type": "string"},
+                               "timeout": TIMEOUT}, ["code"]),
+        "call": lambda tool, arguments: tool.language_select(arguments["code"], arguments.get("music_volume"),
+                                            arguments.get("timeout", echo_debug.DEFAULT_TIMEOUT)),
+    },
+})
+
+
 def run(tool, arguments):
     timeout = arguments.get("timeout")
     if ("script" in arguments) == ("text" in arguments):

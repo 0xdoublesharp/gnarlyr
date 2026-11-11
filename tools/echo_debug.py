@@ -7,10 +7,12 @@ failure prints {"ok": false, "error": {"code", "message"}} and exits with status
 
 The tool finds the player by its USB identity and its internal drive by name and size. It
 writes only the update file at the drive's top level and files inside the debug folder. It
-never formats, never opens a raw device and never reads or writes the microSD card's volume;
-it only ejects that volume, because the player ends a USB session when every drive is ejected.
+never formats or opens a raw device. Language commands separately permit validated packs
+inside the active music volume's language folder, bound to the installed clean build.
+Other commands only eject the card, because every drive must be ejected to end a USB session.
 `--volume PATH` names the internal drive's folder directly: for tests, and for a volume
-extracted from an emulator run. With it nothing is ejected and nothing is waited for.
+extracted from an emulator run. Ordinary debug commands then skip ejection and waiting.
+Language commands still require USB discovery and use the connected player for refresh.
 """
 import argparse
 import hashlib
@@ -722,6 +724,22 @@ class Tool:
                           events=parsed["events"])
         return result
 
+    def language_manager(self):
+        import echo_language
+        return echo_language.Manager(self, sys.modules[__name__])
+
+    def language_inspect(self, pack, build=None):
+        return self.language_manager().inspect(pack, build)
+
+    def language_list(self, music_volume=None):
+        return self.language_manager().list(music_volume)
+
+    def language_install(self, pack, select=False, music_volume=None, timeout=DEFAULT_TIMEOUT):
+        return self.language_manager().install(pack, select, music_volume, timeout)
+
+    def language_select(self, code, music_volume=None, timeout=DEFAULT_TIMEOUT):
+        return self.language_manager().select(code, music_volume, timeout)
+
     def screenshots(self, out):
         root = self.root()
         out = Path(out).resolve()
@@ -779,10 +797,31 @@ def build_parser():
                       help="seconds to wait (default %(default)s)")
     shots = commands.add_parser("screenshots", help="convert the last run's screenshots to PNG")
     shots.add_argument("--out", type=Path, required=True, help="a folder for the PNG files, not on the player")
+    inspect_language = commands.add_parser("language-inspect", help="validate a language pack against a clean firmware build")
+    inspect_language.add_argument("pack", type=Path)
+    inspect_language.add_argument("--build", help="clean firmware commit, otherwise the installed build")
+    list_languages = commands.add_parser("language-list", help="list the active music volume's language packs")
+    install_language = commands.add_parser("language-install", help="validate, publish and refresh a language pack")
+    install_language.add_argument("pack", type=Path)
+    install_language.add_argument("--select", action="store_true", help="select the published language too")
+    select_language = commands.add_parser("language-select", help="select an installed language using its localized menu")
+    select_language.add_argument("code")
+    for command in (list_languages, install_language, select_language):
+        command.add_argument("--music-volume", type=Path, help="the active music volume belonging to this USB player")
+    for command in (install_language, select_language):
+        command.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
     return parser
 
 
 def dispatch(tool, arguments):
+    if arguments.command == "language-inspect":
+        return tool.language_inspect(arguments.pack, arguments.build)
+    if arguments.command == "language-list":
+        return tool.language_list(arguments.music_volume)
+    if arguments.command == "language-install":
+        return tool.language_install(arguments.pack, arguments.select, arguments.music_volume, arguments.timeout)
+    if arguments.command == "language-select":
+        return tool.language_select(arguments.code, arguments.music_volume, arguments.timeout)
     if arguments.command == "status":
         return tool.status()
     if arguments.command == "report":

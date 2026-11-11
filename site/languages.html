@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#150f25">
+  <meta name="description" content="Build and check a language pack for your Gnarlyr player, then copy it over USB. Your translations stay in your browser.">
+  <meta property="og:title" content="Languages — Gnarlyr">
+  <meta property="og:description" content="Make your player speak your language. Build a translation pack or check one you already have.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://gnarlyr.com/languages.html">
+  <link rel="canonical" href="https://gnarlyr.com/languages.html">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="styles.css">
+  <script src="site.js" defer></script>
+  <script src="language-catalog.js" defer></script>
+  <script src="language-packs.js" defer></script>
+  <title>Languages — Gnarlyr</title>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="header wrap">
+  <a class="brand" href="index.html" aria-label="Gnarlyr home">
+    <svg viewBox="0 0 32 24" fill="none" aria-hidden="true"><rect x="1" y="2" width="30" height="20" rx="3" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="6" width="22" height="9" rx="2" stroke="currentColor"/><circle cx="10" cy="10.5" r="2.5" stroke="currentColor"/><circle cx="22" cy="10.5" r="2.5" stroke="currentColor"/><path d="m8 22 3-5h10l3 5" stroke="currentColor"/></svg>
+    <span class="wordmark">GNARLYR<span class="brand-dot">.</span></span>
+  </a>
+  <nav aria-label="Main navigation"><a href="firmware.html">Features</a><a href="hardware.html">Hardware</a><a href="install.html">Install</a><a href="build.html">Developers</a><a href="languages.html" aria-current="page">Languages</a></nav>
+</header>
+<main id="main">
+  <div class="page-intro wrap">
+    <p class="eyebrow">Language packs · USB installation</p>
+    <h1 class="page-title">Your player.<br>Your language.</h1>
+    <p>Build a translation pack or check one you already have. Your text and files stay in your browser.</p>
+  </div>
+  <noscript><p class="wrap callout">Turn on JavaScript to build and check packs here. You can also build them from the source checkout with the <a href="build.html">developer tools</a>.</p></noscript>
+  <div class="language-tools wrap">
+    <section class="language-panel" aria-labelledby="build-title">
+      <p class="eyebrow">01 / Make a pack</p>
+      <h2 id="build-title">Start with your words.</h2>
+      <p class="language-description">Download the English template, translate the text after each <code>=</code>, then import it below. Any entry you leave out or empty uses English.</p>
+      <button class="button language-secondary" id="download-template" type="button">Download English template</button>
+      <form id="language-builder" novalidate>
+        <div class="language-fields">
+          <div class="language-field">
+            <label for="language-code">Language code</label>
+            <input id="language-code" name="language-code" type="text" placeholder="es" maxlength="5" autocomplete="off" spellcheck="false" aria-describedby="code-help" required>
+            <p id="code-help">1–5 letters, numbers or hyphens: <code>es</code>, <code>de</code>, <code>pt-BR</code>.</p>
+          </div>
+          <div class="language-field">
+            <label for="language-name">Native language name</label>
+            <input id="language-name" name="language-name" type="text" placeholder="Español" autocomplete="off" aria-describedby="name-help" required>
+            <p id="name-help">The name shown in the player’s Language menu.</p>
+          </div>
+        </div>
+        <div class="language-field">
+          <label for="translation-file">Import translation text</label>
+          <input id="translation-file" name="translation-file" type="file" accept=".txt,text/plain" aria-describedby="translation-help">
+          <p id="translation-help">Keep the <code>STR_</code> names and placeholders such as <code>{0}</code>. Write <code>\n</code> for a line break.</p>
+          <p id="translation-status" class="language-status" role="status" aria-live="polite"></p>
+        </div>
+        <div class="language-field">
+          <label for="translation-text">Your translation</label>
+          <textarea id="translation-text" name="translation-text" rows="12" maxlength="262144" spellcheck="false" aria-describedby="editor-help" placeholder="STR_LANGUAGE_NAME = Español&#10;STR_SETTINGS = Ajustes"></textarea>
+          <p id="editor-help">Paste or edit entries here. The native-name field and <code>STR_LANGUAGE_NAME</code> stay in step. Packs must fit in 16 KiB and use characters the player can display.</p>
+        </div>
+        <p id="language-error" class="language-error" role="alert" hidden></p>
+        <div class="language-actions">
+          <button class="button" type="submit">Build language pack</button>
+          <button class="button language-secondary" id="download-pack" type="button" disabled>Download .pack</button>
+        </div>
+        <div class="language-ready" id="pack-ready" role="status" aria-live="polite" hidden>
+          <strong>Ready to copy.</strong>
+          <p id="pack-summary"></p>
+          <p>Download your pack, then follow the <a href="#install-pack">USB steps below</a>.</p>
+        </div>
+      </form>
+    </section>
+    <div class="language-side">
+      <section class="language-panel" aria-labelledby="check-title">
+        <p class="eyebrow">02 / Check a pack</p>
+        <h2 id="check-title">Have a pack already?</h2>
+        <p class="language-description">Check that it matches the current template, fits the player and has supported text before you copy it.</p>
+        <div class="language-field">
+          <label for="pack-file">Choose a .pack file</label>
+          <input id="pack-file" name="pack-file" type="file" accept=".pack,application/octet-stream" aria-describedby="inspection-status">
+        </div>
+        <p class="language-status" id="inspection-status" role="status" aria-live="polite"></p>
+        <div class="language-ready" id="inspection-result" hidden>
+          <strong id="inspection-summary"></strong>
+          <p>Load it into the editor to make changes and download a new pack.</p>
+          <button class="button language-secondary" id="edit-pack" type="button" disabled>Edit this pack</button>
+        </div>
+      </section>
+      <aside class="language-note" aria-labelledby="characters-title">
+        <h3 id="characters-title">Keep it readable.</h3>
+        <p>The player currently supports English and Western European characters throughout its interface. This tool points out text it cannot display.</p>
+        <p>Use the template supplied with your firmware. If a firmware update changes the template, rebuild your pack from your saved translation text.</p>
+      </aside>
+    </div>
+  </div>
+  <section class="doc-section wrap language-install" id="install-pack" aria-labelledby="install-title">
+    <p class="eyebrow">03 / Put it on your player</p>
+    <h2 id="install-title">Copy. Eject. Choose.</h2>
+    <ol class="sequence">
+      <li><strong>Open USB storage.</strong> Connect the ECHO and choose Home → USB mode → USB storage.</li>
+      <li><strong>Open your music drive.</strong> Use the microSD drive if a readable card is inserted; otherwise use internal storage. Settings → About → Music identifies the active storage.</li>
+      <li><strong>Copy the pack.</strong> Open or create <code>.gnarlyr/lang</code> on that drive and copy your downloaded file there. Keep its name: for example, <code>es.pack</code>. Keep a copy of any pack you replace and save your translation text on your computer.</li>
+      <li><strong>Safely eject every ECHO drive.</strong> Wait for the USB mode chooser, then select Player. There is no need to unplug or restart.</li>
+      <li><strong>Choose your language.</strong> Open Settings → Language and select its native name. The interface changes straight away; your choice is kept for the next start.</li>
+    </ol>
+    <p>Keep the built-in English fallback available. To return to English, choose <strong>English</strong> in the Language menu. If an external pack is missing or incompatible, the player uses its built-in language.</p>
+    <p>A browser pack check uses this page’s template. If the player refuses the file, use the template matching your installed firmware and rebuild it.</p>
+  </section>
+</main>
+<div class="outro wrap"><p class="outro-phrase">Stay offline. Get a little gnarly.</p><p class="eyebrow">Made for the music you already love.</p></div>
+<footer class="wrap">
+  <nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html">Features &amp; improvements</a><a href="hardware.html">ECHO hardware</a><a href="install.html">Install &amp; update</a><a href="build.html">Developers</a><a href="languages.html" aria-current="page">Languages</a></nav>
+  <div class="footer-row"><span>GNARLYR.COM / Open-source ECHO firmware</span><div class="footer-links"><a href="https://podium-echo.online">Podium ↗</a><a href="https://github.com/BasilSkyWalk/echopod">EchoPod ↗</a><a href="https://brnomt.github.io/reChord">ReChord ↗</a><a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0-or-later ↗</a></div></div>
+  <p>Gnarlyr by doublesharp. Built on Podium and EchoPod, with hardware research from ReChord.</p>
+</footer>
+</body>
+</html>

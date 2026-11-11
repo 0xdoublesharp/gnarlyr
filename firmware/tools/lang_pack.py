@@ -45,36 +45,44 @@ def fnv(data, value=HASH_START):
     return value
 
 
-def read_entries(path):
-    """[(name, text)] of a language file, in file order."""
+def entries_from_text(text, source):
     entries = []
     seen = set()
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    for number, line in enumerate(text.splitlines(), start=1):
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         match = LINE.match(line)
         if not match:
-            raise PackError(f"{path.name}:{number}: expected STR_NAME = text")
+            raise PackError(f"{source}:{number}: expected STR_NAME = text")
         name, text = match.group(1), match.group(2).strip().replace("\\n", "\n")
         if name in seen:
-            raise PackError(f"{path.name}:{number}: {name} appears twice")
+            raise PackError(f"{source}:{number}: {name} appears twice")
         seen.add(name)
         entries.append((name, text))
     return entries
 
 
-def read_catalogue(directory=LANGUAGES):
-    catalogue = read_entries(Path(directory) / f"{ENGLISH}.txt")
+def read_entries(path):
+    return entries_from_text(path.read_text(encoding="utf-8"), path.name)
+
+
+def read_catalogue_text(text, source="en.txt"):
+    catalogue = entries_from_text(text, source)
     names = [name for name, _ in catalogue]
     if NAME_ID not in names:
-        raise PackError(f"{ENGLISH}.txt has no {NAME_ID}")
+        raise PackError(f"{source} has no {NAME_ID}")
     for name, text in catalogue:
         if not text:
-            raise PackError(f"{ENGLISH}.txt: {name} is empty")
+            raise PackError(f"{source}: {name} is empty")
         wanted = sorted(set(PLACEHOLDER.findall(text)))
         if wanted != [str(index) for index in range(len(wanted))]:
-            raise PackError(f"{ENGLISH}.txt: {name} must number its placeholders from 0")
+            raise PackError(f"{source}: {name} must number its placeholders from 0")
     return catalogue
+
+
+def read_catalogue(directory=LANGUAGES):
+    path = Path(directory) / f"{ENGLISH}.txt"
+    return read_catalogue_text(path.read_text(encoding="utf-8"), path.name)
 
 
 def catalogue_hash(catalogue):
@@ -105,6 +113,10 @@ def drawable_characters(fonts_directory=FONTS):
     """The characters every text size can draw."""
     fonts = json.loads((Path(fonts_directory) / "fonts.json").read_text(encoding="utf-8"))
     packs = json.loads((Path(fonts_directory) / "glyph_pack.json").read_text(encoding="utf-8"))
+    return drawable_from_config(fonts, packs)
+
+
+def drawable_from_config(fonts, packs):
     faces = {face["name"]: range_characters(face["ranges"]) for face in packs["faces"]}
     shared = range_characters(fonts["character_ranges"])
     drawable = None
@@ -112,7 +124,7 @@ def drawable_characters(fonts_directory=FONTS):
         own = shared | range_characters(font.get("extra_ranges", []))
         own |= faces.get(font.get("pack_face"), set())
         drawable = own if drawable is None else drawable & own
-    return drawable
+    return drawable if drawable is not None else set()
 
 
 def check_glyphs(code, texts, drawable):
@@ -131,13 +143,22 @@ def padded(text, size, what):
     return data.ljust(size, b"\0")
 
 
+def check_native_name(name):
+    if not name or not name.isprintable():
+        raise PackError("language name must be a nonempty, single printable line")
+
+
 def build_pack(code, catalogue, translations):
-    if not CODE.match(code) or len(code) > CODE_LIMIT:
+    if not CODE.fullmatch(code) or len(code) > CODE_LIMIT:
         raise PackError(f"language code {code!r} must be 1 to {CODE_LIMIT} letters, digits or '-'")
     texts = [(name, translations.get(name) or english) for name, english in catalogue]
+    name = dict(texts)[NAME_ID]
+    check_native_name(name)
     body = bytearray()
     offsets = []
-    for _, text in texts:
+    for identifier, text in texts:
+        if "\0" in text:
+            raise PackError(f"{code}: {identifier} contains an embedded NUL")
         offsets.append(len(body))
         body += text.encode("utf-8") + b"\0"
     if len(body) > 0x10000:
@@ -146,7 +167,6 @@ def build_pack(code, catalogue, translations):
     size = HEADER.size + len(table) + len(body)
     if size > PACK_LIMIT:
         raise PackError(f"{code}: the pack is {size:,} bytes, over the {PACK_LIMIT:,} byte limit")
-    name = dict(texts)[NAME_ID]
     header = HEADER.pack(MAGIC, VERSION, len(catalogue), size, catalogue_hash(catalogue), 0,
                          padded(code, CODE_BYTES, "language code"),
                          padded(name, NAME_BYTES, "language name"))
@@ -156,18 +176,86 @@ def build_pack(code, catalogue, translations):
     return bytes(pack)
 
 
-def pack_code(pack):
-    """The language code of a sound pack; PackError names what is wrong with any other."""
+def decoded_text(data, what):
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise PackError(f"{what} is not valid UTF-8") from error
+
+
+def metadata_text(data, what):
+    end = data.find(b"\0")
+    if end <= 0 or any(data[end + 1:]):
+        raise PackError(f"{what} must be nonempty, NUL-terminated and zero-padded")
+    return decoded_text(data[:end], what)
+
+
+def pack_info(pack):
     if len(pack) < HEADER.size:
         raise PackError("shorter than a pack header")
-    magic, version, count, size, _, checksum, code, _ = HEADER.unpack_from(pack)
+    magic, version, count, size, catalogue, checksum, code, name = HEADER.unpack_from(pack)
     if magic != MAGIC or version != VERSION:
         raise PackError("not a version 1 language pack")
     if size != len(pack) or size > PACK_LIMIT or size <= HEADER.size + 2 * count:
         raise PackError(f"its size field is {size:,}, the file is {len(pack):,} bytes")
     if checksum != fnv(pack[CHECKSUM_END:], fnv(pack[:CHECKSUM_OFFSET])):
         raise PackError("its checksum is wrong")
-    return code.rstrip(b"\0").decode("ascii")
+    language = metadata_text(code, "language code")
+    if not CODE.fullmatch(language) or len(language) > CODE_LIMIT:
+        raise PackError(f"language code must be 1 to {CODE_LIMIT} letters, digits or '-'")
+    native_name = metadata_text(name, "language name")
+    check_native_name(native_name)
+    return {"code": language, "name": native_name,
+            "count": count, "size": size, "catalogue_hash": catalogue}
+
+
+def pack_code(pack):
+    return pack_info(pack)["code"]
+
+
+def pack_text(body, offset, name):
+    if offset >= len(body) or (offset > 0 and body[offset - 1] != 0):
+        raise PackError(f"{name}: its offset does not start a body string")
+    end = body.find(b"\0", offset)
+    if end < 0:
+        raise PackError(f"{name}: its string is not NUL-terminated")
+    text = decoded_text(body[offset:end], name)
+    if not text:
+        raise PackError(f"{name}: its string is empty")
+    return text
+
+
+def validate_pack(data, catalogue, drawable):
+    pack = bytes(data)
+    info = pack_info(pack)
+    if info["count"] != len(catalogue) or info["catalogue_hash"] != catalogue_hash(catalogue):
+        raise PackError("the pack catalogue does not match this firmware")
+    body = pack[HEADER.size + 2 * info["count"]:]
+    if body[-1] != 0:
+        raise PackError("the pack body is not NUL-terminated")
+    decoded_text(body, "pack body")
+    offsets = struct.unpack_from(f"<{info['count']}H", pack, HEADER.size)
+    texts = {name: pack_text(body, offset, name)
+             for (name, _), offset in zip(catalogue, offsets)}
+    if texts.get(NAME_ID) != info["name"]:
+        raise PackError("the header language name does not match its catalogue text")
+    check_placeholders(info["code"], catalogue, texts)
+    check_glyphs(info["code"], texts.items(), drawable)
+    return {**info, "texts": texts}
+
+
+def catalogue_info(catalogue, drawable):
+    return {"version": VERSION, "magic": MAGIC.decode("ascii"), "pack_limit": PACK_LIMIT,
+            "code_limit": CODE_LIMIT, "code_bytes": CODE_BYTES, "name_bytes": NAME_BYTES,
+            "name_id": NAME_ID, "catalogue_hash": catalogue_hash(catalogue),
+            "entries": [{"id": name, "english": text} for name, text in catalogue],
+            "glyphs": sorted(drawable)}
+
+
+def browser_source(catalogue, drawable):
+    info = catalogue_info(catalogue, drawable)
+    return "globalThis.LANGUAGE_CATALOGUE = " + json.dumps(
+        info, sort_keys=True, ensure_ascii=True, separators=(",", ":")) + ";\n"
 
 
 def pseudo_text(text):
@@ -257,6 +345,19 @@ def write_pack(arguments):
     return 0
 
 
+def write_catalogue(arguments):
+    source = browser_source(read_catalogue(arguments.languages), drawable_characters())
+    path = arguments.export_catalogue
+    if arguments.check:
+        if not path.exists() or path.read_text(encoding="utf-8") != source:
+            print(f"out of date: {path}", file=sys.stderr)
+            return 1
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding="utf-8")
+    return 0
+
+
 def parse_arguments(argv):
     parser = argparse.ArgumentParser(description="Build language packs and the string catalogue")
     parser.add_argument("--languages", type=Path, default=LANGUAGES,
@@ -265,13 +366,15 @@ def parse_arguments(argv):
     parser.add_argument("--style", type=Path, help=".clang-format for the generated headers")
     parser.add_argument("--check", action="store_true",
                         help="fail if the committed headers differ from a fresh build")
+    parser.add_argument("--export-catalogue", type=Path,
+                        help="write the browser catalogue and drawable glyphs as JavaScript")
     parser.add_argument("--pack", help=f"language code to pack; {PSEUDO} is the test language")
     parser.add_argument("--output", type=Path, help="pack file to write")
     arguments = parser.parse_args(argv)
     if bool(arguments.pack) != bool(arguments.output):
         parser.error("--pack and --output go together")
-    if not arguments.pack and not arguments.sources:
-        parser.error("nothing to do: give --sources or --pack")
+    if not arguments.pack and not arguments.sources and not arguments.export_catalogue:
+        parser.error("nothing to do: give --sources, --pack or --export-catalogue")
     return arguments
 
 
@@ -279,7 +382,8 @@ def main(argv=None):
     arguments = parse_arguments(argv)
     try:
         status = write_sources(arguments) if arguments.sources else 0
-        return status or (write_pack(arguments) if arguments.pack else 0)
+        status = status or (write_pack(arguments) if arguments.pack else 0)
+        return status or (write_catalogue(arguments) if arguments.export_catalogue else 0)
     except PackError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1

@@ -251,3 +251,24 @@ nav a[aria-current="page"]{color:var(--mint);text-decoration:underline}
 @media(max-width:1000px){.doc-layout{grid-template-columns:minmax(0,1fr);gap:24px}.contents{position:static;padding-bottom:12px;border-bottom:1px solid var(--line)}.contents ol{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 20px}}
 @media(max-width:700px){.page-intro{padding-block:42px 30px}.page-title{font-size:40px;letter-spacing:-1.7px}.page-intro>p:last-child{font-size:17px}.contents ol{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}.doc-layout{padding-bottom:35px}.doc-section{padding-block:28px}.doc-section h2{font-size:30px}.data-table{font-size:14px}.data-table th,.data-table td{padding-block:12px}.data-table tbody th{width:36%}.spec-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.doc-section .command-header{flex-wrap:wrap}.doc-section .command-header h3{max-width:calc(100% - 100px)}}
 @media(max-width:480px){.doc-section pre{padding-inline:12px}}
+
+.language-tools{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:28px;align-items:start;padding-bottom:48px}
+.language-tools>*{min-width:0}.language-panel{border:1px solid var(--line);padding:28px;background:color-mix(in srgb,var(--ink),var(--paper) 3%)}
+.language-panel>.eyebrow,.language-install>.eyebrow{color:var(--mint);margin-bottom:12px}.language-panel h2{font-size:30px;letter-spacing:-1px}
+.language-description{color:var(--muted);margin-top:16px}.language-panel>.button{margin-top:20px}
+.language-fields{display:grid;grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr);gap:20px}.language-field{margin-top:24px;min-width:0}
+.language-field label{display:block;font-weight:700;margin-bottom:8px}.language-field p,.language-note p{color:var(--muted);font-size:14px;margin-top:8px}
+.language-field input,.language-field textarea{display:block;width:100%;min-width:0;min-height:48px;border:1px solid var(--line);border-radius:0;background:var(--ink);color:var(--paper);padding:11px 12px;font:inherit}
+.language-field textarea{resize:vertical;font:13px/1.65 var(--mono);min-height:220px;tab-size:2}.language-field input::placeholder,.language-field textarea::placeholder{color:var(--muted);opacity:.7}
+.language-field input[type=file]{font-size:13px;padding:8px}.language-field input::file-selector-button{font:inherit;background:var(--line);color:var(--paper);border:0;padding:7px 9px;margin-right:10px;cursor:pointer}
+.language-field input:focus-visible,.language-field textarea:focus-visible{outline:3px solid var(--mint);outline-offset:3px}
+.language-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}.language-tools button{font-family:inherit;cursor:pointer}
+.language-secondary{background:transparent;color:var(--paper);border-color:var(--line);gap:10px}.language-secondary:hover{background:var(--line);color:var(--paper)}
+.language-tools button:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}.language-tools [hidden]{display:none!important}
+.language-ready{border-left:2px solid var(--mint);background:color-mix(in srgb,var(--ink),var(--mint) 5%);padding:14px 16px;margin-top:20px;overflow-wrap:anywhere}
+.language-ready strong{color:var(--mint)}.language-ready p{font-size:14px;margin-top:6px}.language-ready .button{margin-top:16px}
+.language-error{color:var(--paper);border-left:2px solid var(--pink);padding:10px 14px;background:color-mix(in srgb,var(--ink),var(--pink) 8%);margin-top:20px;overflow-wrap:anywhere}
+.language-status{font-size:14px;color:var(--mint);overflow-wrap:anywhere}.language-status:empty{display:none}.language-note{border-top:1px solid var(--line);margin-top:26px;padding-top:22px}
+.language-install{margin-bottom:32px}.language-install .sequence{max-width:72ch}.language-install>p{max-width:72ch}
+@media(max-width:900px){.language-tools{grid-template-columns:minmax(0,1fr)}.language-side{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px}.language-note{margin-top:0;padding:24px 0}}
+@media(max-width:600px){.language-panel{padding:20px}.language-fields,.language-side{grid-template-columns:minmax(0,1fr);gap:0}.language-fields .language-field+.language-field{margin-top:20px}.language-note{margin-top:24px;padding-top:22px}.language-actions .button{flex:1 1 100%}.language-panel h2{font-size:28px}}

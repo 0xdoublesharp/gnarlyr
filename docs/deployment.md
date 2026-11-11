@@ -53,7 +53,7 @@ workflow or automatic push deployment for this local-only source repository.
 
 The publisher includes only `index.html`, `firmware.html`, `hardware.html`,
 `install.html`, `build.html`, `styles.css`, `site.js`, `favicon.svg`, `robots.txt`,
-`sitemap.xml`, and regular public image files under `site/assets/`, up to
+`sitemap.xml`, `languages.html`, `language-catalog.js`, `language-packs.js`, and regular public image files under `site/assets/`, up to
 64 MiB total. Firmware, README files, deployment files and hidden files are
 excluded. SHA-256 of the ordered paths and file hashes identifies a release.
 Existing releases must match before reuse. Publication stages and reads back
@@ -80,8 +80,9 @@ Do not restart the shared proxy for an ordinary site release.
 ## Verify and recover
 
 Require HTTP 200 for `/`, `/firmware.html`, `/hardware.html`, `/install.html`, `/build.html`,
-`/styles.css`, `/site.js`, `/favicon.svg`, `/robots.txt`, `/sitemap.xml` and
-`/healthz`; compare all ten public files byte-for-byte against local source at
+`/styles.css`, `/site.js`, `/favicon.svg`, `/robots.txt`, `/sitemap.xml`,
+`/languages.html`, `/language-catalog.js`, `/language-packs.js` and
+`/healthz`; compare all thirteen public files byte-for-byte against local source at
 the origin. At the Cloudflare edge, HTML includes an injected analytics beacon;
 remove only that known script when comparing HTML. Other files must match exactly. Require 404 for
 `/README.md`, `/deploy/compose.yaml` and an unknown path. Verify origin TLS

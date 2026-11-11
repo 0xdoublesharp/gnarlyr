@@ -75,6 +75,10 @@ python3 tools/firmware.py build --preset release --target echo_size_report
 
 `--target` can be repeated and is accepted by `build` and `fuzz`. Without it, `build` builds the complete preset and `fuzz` runs every fuzzer. `sim` builds only `echo_sim` and its dependencies. Simulator state lives in `/Volumes/Scratch/SnowskyEcho/data/<worktree>/sim-system`; existing state in older locations is preserved.
 
+## Language-pack tools
+
+The [browser builder and USB CLI/MCP workflow](language-packs.md) add and select external packs without changing device code. Managed installation validates the entire pack against the installed build from Git history, checks staged writes and refreshes the player through the existing USB debug loop.
+
 ## Resource checks and hardware acceptance
 
 Before adding device behavior, choose its resident or module location and budget. Keep the release code reserve required by `firmware/CLAUDE.md`. Define caller-owned state, imported functions, cancellation and module-eviction behavior before connecting a new screen or codec.

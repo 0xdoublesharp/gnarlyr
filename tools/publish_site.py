@@ -17,6 +17,7 @@ SITE = ROOT / "site"
 PUBLIC_FILES = (
     "index.html", "firmware.html", "hardware.html", "install.html", "build.html",
     "styles.css", "site.js", "favicon.svg", "robots.txt", "sitemap.xml",
+    "languages.html", "language-catalog.js", "language-packs.js",
 )
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".svg", ".avif"}
 
