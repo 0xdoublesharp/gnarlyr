@@ -431,6 +431,10 @@ echo_add_unit_test(NAME test_vorbis_memory
     SOURCES device/test_vorbis_memory.c
     LIBRARIES echo_device_logic
 )
+echo_add_unit_test(NAME test_opus_decode
+    SOURCES device/test_opus_decode.c
+    LIBRARIES echo_device_logic
+)
 echo_add_unit_test(NAME test_vorbis_decoder
     SOURCES device/test_vorbis_decoder.c
     LIBRARIES echo_device_logic

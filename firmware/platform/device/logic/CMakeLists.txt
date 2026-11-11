@@ -1,4 +1,5 @@
 include(tremor.cmake)
+include(opus.cmake)
 
 set(ECHO_LIBMAD_DIR ${PROJECT_SOURCE_DIR}/third_party/libmad)
 set(FPM_64BIT ON)
@@ -108,6 +109,7 @@ add_library(echo_device_logic STATIC
     mp4_demux.c
     mp4_signature.c
     msc.c
+    opus_decode.c
     panel.c
     panic_text.c
     pc_profile.c
@@ -180,6 +182,6 @@ if(CMAKE_CROSSCOMPILING)
 endif()
 target_include_directories(echo_device_logic PUBLIC include)
 target_link_libraries(echo_device_logic
-    PUBLIC echo_core echo_hal echo_codec echo_libmad echo_faad echo_tremor
+    PUBLIC echo_core echo_hal echo_codec echo_libmad echo_faad echo_tremor echo_opus
     PRIVATE echo_options
 )
