@@ -298,6 +298,29 @@ class Running(LoopCase):
         self.assertEqual(script["probes"][1]["pin_after"], {"function": 1, "output": False, "level": 0})
         self.assertEqual((script["probes"][1]["cable"], script["probes"][1]["charge_pin"]), (0, 1))
 
+    def test_clock_reads_come_back_with_every_register_the_decoded_time_and_the_trust_flag(self):
+        self.script.write_text("build any\nrtc read\nrtc read\nrtc read\n", encoding="utf-8")
+        reads = ["script.rtc: line=2 ms=5120 status=ok registers=00000500120306012680808080000000 vl=0 "
+                 "time=2026-01-03T12:00:05 weekday=6 century=0",
+                 "script.rtc: line=3 ms=5200 status=ok registers=0800ffffffffffffffffffffffffffff vl=1 "
+                 "time=invalid weekday=7 century=1",
+                 "script.rtc: line=4 ms=5300 status=no_ack registers=unknown vl=unknown time=unknown "
+                 "weekday=unknown century=unknown"]
+        script = self.tool(self.player_runs(soaks=reads)).run(self.script)["script"]
+        self.assertEqual(script["rtc"][0],
+                         {"line": 2, "ms": 5120, "status": "ok",
+                          "registers": [0, 0, 5, 0, 0x12, 3, 6, 1, 0x26, 0x80, 0x80, 0x80, 0x80, 0, 0, 0],
+                          "vl": 0, "time": "2026-01-03T12:00:05", "weekday": 6, "century": 0})
+        self.assertEqual((script["rtc"][1]["vl"], script["rtc"][1]["time"]), (1, "invalid"))
+        self.assertEqual(script["rtc"][2],
+                         {"line": 4, "ms": 5300, "status": "no_ack", "registers": None, "vl": None,
+                          "time": None, "weekday": None, "century": None})
+
+    def test_a_clock_read_with_damaged_registers_is_a_bad_report(self):
+        with self.assertRaises(echo_debug.DebugError) as raised:
+            echo_debug.parse_rtc("line=2 ms=1 status=ok registers=00zz vl=0")
+        self.assertEqual(raised.exception.code, "bad_report")
+
     def test_a_soak_comes_back_with_its_slope_its_load_and_both_ends(self):
         self.script.write_text("build any\nsupply off\nscreen off\nsoak 30\n", encoding="utf-8")
         result = self.tool(self.player_runs(soaks=[SOAK_LINE])).run(self.script)

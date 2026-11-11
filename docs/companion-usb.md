@@ -8,7 +8,7 @@ python3 tools/echo_debug.py settings-set text_size large
 python3 tools/echo_debug.py settings-set orientation landscape
 ```
 
-`settings-list` returns canonical keys and values together with their current localized labels. Supported display controls are `text_size`, `orientation`, `brightness` and `screen_timeout`. Firmware with the declared version 14 settings layout also exposes `replay_gain` and `prevent_clipping`. Choose values from the returned options.
+`settings-list` returns canonical keys and values together with their current localized labels. Supported display controls are `text_size`, `orientation`, `brightness` and `screen_timeout`. Firmware with the declared version 14 or 15 settings layout also exposes `replay_gain` and `prevent_clipping`. For version 15 the helper checks the 16-byte extension block (bytes 38–53) and the checksum at bytes 54–57, and keeps the block unchanged when it changes a setting. Choose values from the returned options.
 
 The helper resolves the exact installed build in local Git history and checks its settings layout, language catalogue and current translation. After a change, it verifies the complete saved-settings file: the requested value and checksum must change as expected, and every other byte must be preserved. An unexpected result is reported without replaying the command.
 

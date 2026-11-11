@@ -574,6 +574,34 @@ static void probes_are_listed_with_both_words_the_time_and_the_two_levels(void)
                    "charge_pin=1"));
 }
 
+static void rtc_reads_list_every_register_the_decoded_time_and_the_trust_flag(void)
+{
+    DebugReportInput input = plain_input();
+    load_script("build any\nrtc read\nrtc read\nrtc read\n");
+    script.state = DEBUG_SCRIPT_FINISHED;
+    script.rtc[0] = (DebugRtcRead){2,
+                                   HAL_RTC_OK,
+                                   5120,
+                                   {0x00, 0x00, 0x05, 0x00, 0x12, 0x03, 0x06, 0x01, 0x26, 0x80,
+                                    0x80, 0x80, 0x80, 0x00, 0x00, 0x00}};
+    script.rtc[1] = (DebugRtcRead){3,
+                                   HAL_RTC_OK,
+                                   5200,
+                                   {0x08, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}};
+    script.rtc[2] = (DebugRtcRead){4, HAL_RTC_NO_ACK, 5300, {0}};
+    script.rtc_count = 3;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("script.rtc: line=2 ms=5120 status=ok "
+                   "registers=00000500120306012680808080000000 vl=0 time=2026-01-03T12:00:05 "
+                   "weekday=6 century=0"));
+    CHECK(has_line("script.rtc: line=3 ms=5200 status=ok "
+                   "registers=0800ffffffffffffffffffffffffffff vl=1 time=invalid weekday=7 "
+                   "century=1"));
+    CHECK(has_line("script.rtc: line=4 ms=5300 status=no_ack registers=unknown vl=unknown "
+                   "time=unknown weekday=unknown century=unknown"));
+}
+
 static DebugSoak soak_over(uint32_t first_sample, uint32_t samples)
 {
     for (uint32_t index = 0; index < first_sample + samples + 2; index++) {
@@ -1167,6 +1195,7 @@ int main(void)
         TEST_CASE(a_running_script_has_no_finish_time),
         TEST_CASE(a_script_cut_short_by_a_reset_names_the_line_it_was_on),
         TEST_CASE(script_text_outside_plain_ascii_is_replaced),
+        TEST_CASE(rtc_reads_list_every_register_the_decoded_time_and_the_trust_flag),
         TEST_CASE(a_measure_is_one_line_of_named_figures),
         TEST_CASE(a_measure_without_frames_or_audio_reports_them_as_unknown),
         TEST_CASE(screenshots_are_listed_by_slot_with_their_names),

@@ -39,6 +39,7 @@ typedef struct ExportStatus {
     const char *headline;
     const char *detail;
     const char *hint;
+    WireMotion *motion;
 } ExportStatus;
 
 typedef struct ListeningWork {
@@ -282,6 +283,29 @@ static void update_export(void)
     }
 }
 
+static uint32_t export_percent(void)
+{
+    const ListeningCursor *cursor = &work.export_job.cursor;
+    uint32_t kept = cursor->kept;
+    uint32_t done = cursor->position + (work.export_stage == EXPORT_WRITE ? kept : 0u);
+    return kept == 0 ? 0 : done * PERCENT / (2u * kept);
+}
+
+static void follow_motion(ListeningScreen *screen, uint32_t now_ms)
+{
+    WireMotion *motion = screen->config.motion;
+    bool exporting = screen->mode == MODE_EXPORT && work.export_stage <= EXPORT_WRITE;
+    bool ranking = screen->mode == MODE_TOP && !work.named && work.top.result != STORE_FAILED;
+    if (!exporting && !ranking) {
+        wire_motion_end(motion, screen);
+        return;
+    }
+    wire_motion_run(motion, screen, exporting ? WIRE_SHAPE_CASSETTE : WIRE_SHAPE_DISC, now_ms);
+    if (exporting) {
+        wire_motion_progress(motion, export_percent(), PERCENT);
+    }
+}
+
 static void update(void *context, uint32_t now_ms)
 {
     ListeningScreen *screen = context;
@@ -294,6 +318,7 @@ static void update(void *context, uint32_t now_ms)
     } else if (screen->mode == MODE_EXPORT) {
         update_export();
     }
+    follow_motion(screen, now_ms);
     hal_audio_service();
 }
 
@@ -348,14 +373,6 @@ static void draw_menu(ListeningScreen *screen, Canvas *canvas, Rect content)
     draw_totals(screen, canvas, panel);
 }
 
-static uint32_t export_percent(void)
-{
-    const ListeningCursor *cursor = &work.export_job.cursor;
-    uint32_t kept = cursor->kept;
-    uint32_t done = cursor->position + (work.export_stage == EXPORT_WRITE ? kept : 0u);
-    return kept == 0 ? 0 : done * PERCENT / (2u * kept);
-}
-
 static void write_saved(StringBuilder *builder)
 {
     char count[VALUE_BYTES];
@@ -388,6 +405,18 @@ static int wrapped_height(const Font *font, const char *text, int width)
     return label_wrap_count(font, text, width) * font_line_height(font);
 }
 
+static int draw_motion_above(Canvas *canvas, const Theme *theme, Rect column, WireMotion *motion)
+{
+    Rect space = {column.x, column.y, column.width, column.height - STAT_GAP};
+    int side = motion != NULL ? wire_motion_fit(space).width : 0;
+    int top = column.y + (column.height - (side > 0 ? side + STAT_GAP : 0)) / 2;
+    if (side > 0) {
+        wire_motion_draw(motion, canvas, theme, (Rect){column.x, top, column.width, side});
+        top += side + STAT_GAP;
+    }
+    return top;
+}
+
 static void draw_status(const Theme *theme, Canvas *canvas, Rect area, ExportStatus status)
 {
     const Font *title = theme->fonts.title;
@@ -397,7 +426,9 @@ static void draw_status(const Theme *theme, Canvas *canvas, Rect area, ExportSta
     int hint = status.hint != NULL ? font_line_height(theme->fonts.small) : 0;
     int headline = wrapped_height(title, status.headline, inner.width);
     int detail = wrapped_height(body, status.detail, inner.width);
-    int top = inner.y + (inner.height - hint - headline - STAT_GAP - detail) / 2;
+    Rect column = {inner.x, inner.y, inner.width,
+                   inner.height - hint - headline - STAT_GAP - detail};
+    int top = draw_motion_above(canvas, theme, column, status.motion);
     label_draw_wrapped(canvas, (TextStyle){title, theme->colors.text},
                        (Label){{inner.x, top, inner.width, headline}, status.headline});
     label_draw_wrapped(
@@ -410,17 +441,20 @@ static void draw_status(const Theme *theme, Canvas *canvas, Rect area, ExportSta
     }
 }
 
-static void draw_export(const Theme *theme, Canvas *canvas, Rect area)
+static void draw_export(const ListeningScreen *screen, Canvas *canvas, Rect area)
 {
+    const Theme *theme = screen->config.theme;
     static const StringId HEADLINES[] = {STR_EXPORT_WORKING, STR_EXPORT_WORKING, STR_EXPORT_DONE,
                                          STR_EXPORT_NONE, STR_EXPORT_FAILED};
     char detail[DETAIL_BYTES];
     StringBuilder builder = string_builder_make(detail, sizeof detail);
     uint8_t stage = work.export_stage < EXPORT_MEASURE ? EXPORT_MEASURE : work.export_stage;
     write_export_detail(&builder);
+    bool working = stage <= EXPORT_WRITE;
     draw_status(theme, canvas, area,
                 (ExportStatus){i18n_text(HEADLINES[stage - EXPORT_MEASURE]), detail,
-                               stage <= EXPORT_WRITE ? i18n_text(STR_BACK_CANCELS) : NULL});
+                               working ? i18n_text(STR_BACK_CANCELS) : NULL,
+                               working ? screen->config.motion : NULL});
 }
 
 static void draw(void *context, Canvas *canvas)
@@ -435,11 +469,14 @@ static void draw(void *context, Canvas *canvas)
     } else if (screen->mode == MODE_TOTALS) {
         draw_totals(screen, canvas, content);
     } else if (screen->mode == MODE_EXPORT) {
-        draw_export(theme, canvas, content);
+        draw_export(screen, canvas, content);
     } else if (work.top.result == STORE_FAILED) {
         message_draw(canvas, theme, content, i18n_text(STR_HISTORY_UNAVAILABLE));
     } else if (!work.named) {
-        message_draw(canvas, theme, content, i18n_text(STR_LISTENING_WORKING));
+        MessageConfig working = {.message = i18n_text(STR_LISTENING_WORKING),
+                                 .theme = theme,
+                                 .motion = screen->config.motion};
+        message_draw_working(canvas, content, &working);
     } else if (work.top.count == 0) {
         message_draw(canvas, theme, content, i18n_text(STR_LISTENING_EMPTY));
     } else {

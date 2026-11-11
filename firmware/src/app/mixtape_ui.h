@@ -6,6 +6,7 @@
 #include "ui/list_view.h"
 #include "ui/screen.h"
 #include "ui/toast.h"
+#include "ui/wire_motion.h"
 
 enum {
     MIXTAPE_VISIBLE_ROWS = THEME_MAX_ROWS
@@ -17,6 +18,7 @@ typedef struct MixtapeUiConfig {
     Toast *toast;
     Screen *now_playing;
     Screen *up_next;
+    WireMotion *motion;
 } MixtapeUiConfig;
 
 typedef struct MixtapeUi {
