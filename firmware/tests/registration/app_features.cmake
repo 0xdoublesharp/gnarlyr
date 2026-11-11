@@ -80,3 +80,9 @@ echo_add_unit_test(NAME test_working_motion
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
 )
+
+echo_add_unit_test(NAME test_status_bar_items
+    SOURCES app/test_status_bar_items.c
+    LIBRARIES echo_app
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)

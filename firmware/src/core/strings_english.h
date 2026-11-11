@@ -570,4 +570,12 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_HEADPHONE_STUDIO] = "Studio",
     [STR_HEADPHONE_TRAVEL] = "Travel",
     [STR_HEADPHONE_SAVED] = "Profile saved",
+    [STR_STATUS_BAR] = "Status bar",
+    [STR_STATUS_VOLUME] = "Show volume",
+    [STR_STATUS_REPEAT] = "Show repeat",
+    [STR_STATUS_POSITION] = "Queue position",
+    [STR_BATTERY_STYLE] = "Battery style",
+    [STR_BATTERY_SOLID] = "Solid",
+    [STR_BATTERY_SEGMENTED] = "Segmented",
+    [STR_STATUS_PLACE] = "{0}/{1}",
 };

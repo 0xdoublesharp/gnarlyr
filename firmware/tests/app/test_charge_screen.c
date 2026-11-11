@@ -456,11 +456,35 @@ static void explicit_frame_time_keeps_the_picture_independent_of_clock_reads(voi
     CHECK_EQUAL(first, frame_hash(&theme));
 }
 
+static void usb_dac_shows_the_player_volume_when_the_status_item_is_enabled(void)
+{
+    Theme theme = BOARD_THEME;
+    theme.colors.header_text = theme.colors.background;
+    Canvas canvas =
+        canvas_make(pixels, (Rect){0, 0, HAL_DISPLAY_LONG_SIDE, HAL_DISPLAY_SHORT_SIDE});
+    AppUsbStatus status = {.view = APP_USB_DAC, .detail = "", .volume = 47, .show_volume = true};
+    text_spy_reset();
+    usb_screen_draw(&canvas, &theme, (HalBattery){0}, status);
+    CHECK(saw("47"));
+    bool visible = false;
+    for (int y = 0; y < theme.metrics.header_height; y++) {
+        for (int x = 0; x < 80; x++) {
+            visible |= canvas_pixel_at(&canvas, x, y) == theme.colors.text;
+        }
+    }
+    CHECK(visible);
+    status.show_volume = false;
+    text_spy_reset();
+    usb_screen_draw(&canvas, &theme, (HalBattery){0}, status);
+    CHECK(!saw("47"));
+}
+
 int main(void)
 {
     fake_hal_reset();
     i18n_detach();
     static const TestCase cases[] = {
+        TEST_CASE(usb_dac_shows_the_player_volume_when_the_status_item_is_enabled),
         TEST_CASE(battery_percentage_dominates_a_full_width_slim_gauge),
         TEST_CASE(connecting_and_cleared_renderers_use_only_resident_drawing),
         TEST_CASE(usb_and_fallback_frames_fit_every_size_and_orientation),

@@ -68,6 +68,7 @@ static const StringId USB_MODE_MESSAGES[USB_MODE_COUNT] = {STR_USB_SHOWS_DRIVES,
 static const StringId REPLAY_GAIN_OPTIONS[REPLAY_GAIN_MODE_COUNT] = {STR_OFF, STR_REPLAY_GAIN_TRACK,
                                                                      STR_REPLAY_GAIN_ALBUM};
 static const StringId OFF_ON_OPTIONS[] = {STR_OFF, STR_ON};
+static const StringId BATTERY_STYLE_OPTIONS[] = {STR_BATTERY_SOLID, STR_BATTERY_SEGMENTED};
 
 static const Settings *settings_of(const void *context)
 {
@@ -662,6 +663,58 @@ static bool transition_length_shown(const void *context)
     return current_transition(context) != 0;
 }
 
+static int current_status_volume(const void *context)
+{
+    return (settings_of(context)->status_items & SETTINGS_STATUS_VOLUME) != 0;
+}
+
+static void choose_status_volume(void *context, int index)
+{
+    Settings *settings = editable_settings(context);
+    settings->status_items = (uint8_t)((settings->status_items & ~SETTINGS_STATUS_VOLUME) |
+                                       (index != 0 ? SETTINGS_STATUS_VOLUME : 0));
+    save(context);
+}
+
+static int current_status_repeat(const void *context)
+{
+    return (settings_of(context)->status_items & SETTINGS_STATUS_REPEAT) != 0;
+}
+
+static void choose_status_repeat(void *context, int index)
+{
+    Settings *settings = editable_settings(context);
+    settings->status_items = (uint8_t)((settings->status_items & ~SETTINGS_STATUS_REPEAT) |
+                                       (index != 0 ? SETTINGS_STATUS_REPEAT : 0));
+    save(context);
+}
+
+static int current_status_position(const void *context)
+{
+    return (settings_of(context)->status_items & SETTINGS_STATUS_POSITION) != 0;
+}
+
+static void choose_status_position(void *context, int index)
+{
+    Settings *settings = editable_settings(context);
+    settings->status_items = (uint8_t)((settings->status_items & ~SETTINGS_STATUS_POSITION) |
+                                       (index != 0 ? SETTINGS_STATUS_POSITION : 0));
+    save(context);
+}
+
+static int current_status_style(const void *context)
+{
+    return (settings_of(context)->status_items & SETTINGS_STATUS_SEGMENTED) != 0;
+}
+
+static void choose_status_style(void *context, int index)
+{
+    Settings *settings = editable_settings(context);
+    settings->status_items = (uint8_t)((settings->status_items & ~SETTINGS_STATUS_SEGMENTED) |
+                                       (index != 0 ? SETTINGS_STATUS_SEGMENTED : 0));
+    save(context);
+}
+
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_SHUFFLE, SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, current_shuffle, choose_shuffle, NULL, NULL},
     {STR_REPEAT, REPEAT_OPTIONS, REPEAT_MODE_COUNT, current_repeat, choose_repeat, NULL, NULL},
@@ -707,6 +760,12 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      current_transition_length, choose_transition_length, NULL, NULL},
     {STR_USB_ANSWER, USB_ANSWER_OPTIONS, USB_CONNECT_COUNT, current_usb_answer, choose_usb_answer,
      NULL, NULL},
+    {STR_STATUS_VOLUME, OFF_ON_OPTIONS, 2, current_status_volume, choose_status_volume, NULL, NULL},
+    {STR_STATUS_REPEAT, OFF_ON_OPTIONS, 2, current_status_repeat, choose_status_repeat, NULL, NULL},
+    {STR_STATUS_POSITION, OFF_ON_OPTIONS, 2, current_status_position, choose_status_position, NULL,
+     NULL},
+    {STR_BATTERY_STYLE, BATTERY_STYLE_OPTIONS, 2, current_status_style, choose_status_style, NULL,
+     NULL},
 };
 
 static Screen *choice_view(SettingsScreens *screens, const SettingChoice *choice,
@@ -925,6 +984,30 @@ static void bind_headphones(SettingsScreens *screens)
                                                           .shown_context = screens};
 }
 
+static void bind_status_bar(SettingsScreens *screens)
+{
+    for (int index = 0; index < SETTINGS_STATUS_COUNT; index++) {
+        int choice = index == 3   ? SETTINGS_STATUS_CHOICE
+                     : index == 4 ? SETTINGS_CHOICE_COUNT - 1
+                                  : SETTINGS_MAIN_CHOICE_COUNT + index;
+        screens->status_items[index] = (MenuItem){.label = i18n_text(CHOICES[choice].title),
+                                                  .select = open_choice,
+                                                  .context = &screens->entries[choice],
+                                                  .value = choice_value,
+                                                  .opens = true};
+    }
+    MenuConfig config = {.title = i18n_text(STR_STATUS_BAR),
+                         .items = screens->status_items,
+                         .item_count = SETTINGS_STATUS_COUNT,
+                         .theme = screens->theme,
+                         .detail_below = true};
+    Screen *menu = menu_screen_init(&screens->status_menu, config);
+    screens->items[SETTINGS_STATUS_CHOICE + 4] = (MenuItem){.label = i18n_text(STR_STATUS_BAR),
+                                                            .select = menu_open_screen,
+                                                            .context = menu,
+                                                            .opens = true};
+}
+
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context, const Theme *theme)
 {
     screens->context = context;
@@ -967,6 +1050,9 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                                          .opens = true};
     for (int index = 0; index < SETTINGS_CHOICE_COUNT; index++) {
         screens->entries[index] = (SettingsEntry){.choice = &CHOICES[index], .owner = screens};
+        if (index >= SETTINGS_MAIN_CHOICE_COUNT) {
+            continue;
+        }
         int item = index + 1;
         item = item < SETTINGS_BLUETOOTH_ITEM ? item : item + 1;
         item = item < SETTINGS_CUSTOM_EQ_ITEM ? item : item + 1;
@@ -977,6 +1063,7 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                           .value = choice_value,
                                           .opens = true};
     }
+    bind_status_bar(screens);
     screens->items[SETTINGS_LANGUAGE_ITEM].shown = language_shown;
     screens->items[SETTINGS_LANGUAGE_ITEM].shown_context = &screens->languages;
     screens->items[SETTINGS_TRANSITION_LENGTH_ITEM].shown = transition_length_shown;

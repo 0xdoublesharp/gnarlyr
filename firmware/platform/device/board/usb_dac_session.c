@@ -98,7 +98,8 @@ static void show_state(void)
     } else {
         append_format(&line, volume);
     }
-    app_show_usb_status((AppUsbStatus){.view = APP_USB_DAC, .detail = text});
+    app_show_usb_status(
+        (AppUsbStatus){.view = APP_USB_DAC, .detail = text, .volume = shared->dac_volume});
 }
 
 static void stop_output(void)

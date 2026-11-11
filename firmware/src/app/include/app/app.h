@@ -17,6 +17,8 @@ typedef struct AppUsbStatus {
     AppUsbView view;
     const char *detail;
     const char *information;
+    uint8_t volume;
+    bool show_volume;
 } AppUsbStatus;
 
 struct Canvas;

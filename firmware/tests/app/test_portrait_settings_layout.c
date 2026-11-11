@@ -118,6 +118,14 @@ static void settings_values_use_the_same_whole_label_layout_in_large_portrait(vo
     screens.items[SETTINGS_ABOUT_ITEM].label = i18n_text(STR_ABOUT);
     screen->enter(screen->context, 0);
     MenuScreen *menu = &screens.menu;
+    CHECK(strcmp(menu->model.label(menu, menu->model.count(menu) - 1), i18n_text(STR_CONTROLS)) ==
+          0);
+    bool has_status_bar = false;
+    for (int row = 0; row < menu->model.count(menu); row++) {
+        const char *label = menu->model.label(menu, row);
+        has_status_bar |= label != NULL && strcmp(label, "Status bar") == 0;
+    }
+    CHECK(has_status_bar);
     int index = 0;
     while (index < menu->model.count(menu) &&
            strcmp(menu->model.label(menu, index), i18n_text(STR_SCREEN_TIMEOUT)) != 0) {
@@ -143,6 +151,48 @@ static void settings_values_use_the_same_whole_label_layout_in_large_portrait(vo
                  theme.fonts.small, menu->model.detail(menu, index));
 }
 
+static void status_bar_choices_fit_every_size_and_orientation_and_save_independently(void)
+{
+    static SettingsScreens screens;
+    static Player player;
+    static Library library;
+    static PowerPolicy power;
+    static Toast toast;
+    static BluetoothLink link;
+    static BluetoothScreen bluetooth;
+    for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            open_controls((TextSize)size, (Orientation)orientation);
+            player_init(&player, &library);
+            bluetooth_screen_init(&bluetooth, &link, &theme);
+            SettingsContext context = {.store = &store,
+                                       .player = &player,
+                                       .power = &power,
+                                       .toast = &toast,
+                                       .bluetooth = &bluetooth,
+                                       .theme = &theme};
+            settings_screens_init(&screens, context, &theme);
+            CHECK(strcmp(screens.items[SETTINGS_CONTROLS_ITEM].label, i18n_text(STR_CONTROLS)) ==
+                  0);
+            for (int row = 0; row < SETTINGS_STATUS_COUNT; row++) {
+                const MenuItem *item = &screens.status_items[row];
+                CHECK(text_width(theme.fonts.body, item->label) <=
+                      theme.metrics.screen_width - 2 * theme.metrics.padding);
+                CHECK(item->value(item->context) != NULL);
+                ScreenAction action = item->select(item->context);
+                CHECK(action.target != NULL);
+            }
+            store.settings.status_items = 0xD0;
+            DebugSpan title = {i18n_text(STR_STATUS_VOLUME), 0};
+            title.length = strlen(title.text);
+            DebugSpan option = {i18n_text(STR_ON), 0};
+            option.length = strlen(option.text);
+            CHECK(settings_screens_choose(&screens, title, option));
+            CHECK_EQUAL(0xD0 | SETTINGS_STATUS_VOLUME, store.settings.status_items);
+        }
+    }
+}
+
 static void landscape_controls_keep_the_original_row_geometry(void)
 {
     for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
@@ -154,6 +204,7 @@ static void landscape_controls_keep_the_original_row_geometry(void)
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(status_bar_choices_fit_every_size_and_orientation_and_save_independently),
         TEST_CASE(value_rows_get_a_separate_line_in_large_portrait),
         TEST_CASE(every_control_label_and_value_is_shown_whole_in_portrait),
         TEST_CASE(landscape_controls_keep_the_original_row_geometry),

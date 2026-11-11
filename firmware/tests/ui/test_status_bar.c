@@ -289,9 +289,11 @@ static void the_outline_stays_unbroken_around_the_bolt_while_charging_or_charged
                     {body.x, body.y + body.height - 1, body.width, 1},
                     {body.x, body.y, 1, body.height},
                     {body.x + body.width - 1, body.y, 1, body.height}};
-    for (int charging = 0; charging < 2; charging++) {
+    for (int mode = 0; mode < 4; mode++) {
+        bool charging = (mode & 1) != 0;
         StatusBarState state = battery_at(charging ? HALF_BATTERY : 100, true);
-        state.charging = charging != 0;
+        state.charging = charging;
+        state.segmented = mode >= 2;
         Canvas canvas = draw_panel(&theme, state);
         for (int edge = 0; edge < 4; edge++) {
             CHECK(ui_test_area_has_only(&canvas, edges[edge], theme.colors.header_text));
@@ -440,9 +442,84 @@ static void a_locked_player_shows_a_padlock(void)
     CHECK(lock.x > status_bar_bluetooth_area(&theme).x);
 }
 
+static void volume_draws_a_speaker_and_the_player_units_when_enabled(void)
+{
+    Theme theme = panel_theme();
+    Canvas canvas = draw_panel(&theme, (StatusBarState){.volume = "47"});
+    Rect volume = {12, 7, 40, 16};
+    CHECK(ui_test_area_has_color(&canvas, volume, theme.colors.header_text));
+}
+
+static void a_queue_position_is_centred_when_the_title_is_hidden(void)
+{
+    Theme theme = panel_theme();
+    Canvas canvas = draw_panel(&theme, (StatusBarState){.position = "3/12"});
+    int width = text_width(theme.fonts.small, "3/12");
+    Rect position = {(PANEL_WIDTH - width) / 2, 7, width, 16};
+    CHECK(ui_test_area_has_color(&canvas, position, theme.colors.header_text));
+}
+
+static void a_segmented_battery_has_gaps_between_five_green_bars(void)
+{
+    Theme theme = panel_theme();
+    StatusBarState state = battery_at(100, false);
+    state.segmented = true;
+    Canvas canvas = draw_panel(&theme, state);
+    Rect inner = inner_of(status_bar_battery_body(&theme));
+    CHECK(ui_test_area_has_color(&canvas, inner, tinted(&theme, theme.colors.success)));
+    CHECK(ui_test_area_has_color(&canvas, inner, theme.colors.header_background));
+}
+
+static void segmented_levels_round_up_and_keep_the_low_and_critical_thresholds(void)
+{
+    Theme theme = panel_theme();
+    Rect body = status_bar_battery_body(&theme);
+    Rect inner = inner_of(body);
+    for (int percent = 0; percent <= 255; percent++) {
+        StatusBarState state = battery_at((uint8_t)percent, false);
+        state.segmented = true;
+        Canvas canvas = draw_panel(&theme, state);
+        Color fill = tinted(&theme, percent <= 15 ? theme.colors.danger : theme.colors.success);
+        Color outline =
+            percent <= 5 ? tinted(&theme, theme.colors.danger) : theme.colors.header_text;
+        CHECK_EQUAL(outline, canvas_pixel_at(&canvas, body.x, body.y));
+        int bars = percent >= 100 ? 5 : (percent + 19) / 20;
+        for (int bar = 0; bar < 5; bar++) {
+            int x = inner.x + bar * (inner.width / 5);
+            CHECK_EQUAL(bar < bars ? fill : theme.colors.header_background,
+                        canvas_pixel_at(&canvas, x, inner.y));
+            CHECK_EQUAL(theme.colors.header_background,
+                        canvas_pixel_at(&canvas, x + inner.width / 5 - 1, inner.y));
+        }
+    }
+}
+
+static void repeat_one_adds_a_song_badge_and_repeat_off_draws_nothing(void)
+{
+    Theme theme = panel_theme();
+    StatusBarState state = {.repeat = 2};
+    Rect all = status_bar_item_area(&theme, &state, STATUS_BAR_REPEAT);
+    Canvas canvas = draw_panel(&theme, state);
+    CHECK(ui_test_area_has_color(&canvas, all, theme.colors.header_text));
+    state.repeat = 1;
+    Rect one = status_bar_item_area(&theme, &state, STATUS_BAR_REPEAT);
+    CHECK(one.width > all.width);
+    canvas = draw_panel(&theme, state);
+    Rect badge = {all.x + all.width + 1, one.y, one.width - all.width - 1, one.height};
+    CHECK(ui_test_area_has_color(&canvas, badge, theme.colors.header_text));
+    state.repeat = 0;
+    canvas = draw_panel(&theme, state);
+    CHECK(ui_test_area_has_only(&canvas, one, theme.colors.header_background));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(segmented_levels_round_up_and_keep_the_low_and_critical_thresholds),
+        TEST_CASE(repeat_one_adds_a_song_badge_and_repeat_off_draws_nothing),
+        TEST_CASE(volume_draws_a_speaker_and_the_player_units_when_enabled),
+        TEST_CASE(a_queue_position_is_centred_when_the_title_is_hidden),
+        TEST_CASE(a_segmented_battery_has_gaps_between_five_green_bars),
         TEST_CASE(a_locked_player_shows_a_padlock),
         TEST_CASE(an_idle_player_without_a_battery_reading_draws_nothing),
         TEST_CASE(a_playing_player_shows_the_play_icon_at_the_left),

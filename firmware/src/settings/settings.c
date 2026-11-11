@@ -60,8 +60,7 @@ enum {
     TRANSITION_BYTE = 2,
     HOME_ORDER_BYTE = 4,
     HOME_HIDDEN_BYTE = 9,
-    RESERVED_BYTE = 11,
-    RESERVED_COUNT = 5,
+    STATUS_ITEMS_BYTE = 13,
     EXTENSION_SIZE = 16,
     REWIND_BIT = 1,
     SAFE_START_BIT = 2,
@@ -149,6 +148,7 @@ bool settings_home_unpack(const uint8_t *packed, int item_count, uint8_t *order,
 
 static void read_extension(const uint8_t *extension, Settings *settings)
 {
+    settings->status_items = extension[STATUS_ITEMS_BYTE];
     uint8_t comfort = extension[COMFORT_BYTE];
     settings->rewind_on_resume = (comfort & REWIND_BIT) != 0;
     settings->safe_start_volume = (comfort & SAFE_START_BIT) != 0;
@@ -279,6 +279,7 @@ static void encode_extension(const Settings *settings, uint8_t *extension)
                                         (settings->safe_start_volume ? SAFE_START_BIT : 0) |
                                         (settings->clock_24h ? CLOCK_24H_BIT : 0) |
                                         ((unsigned)settings->track_transition << TRANSITION_SHIFT));
+    extension[STATUS_ITEMS_BYTE] = settings->status_items;
     extension[SAFE_LEVEL_BYTE] = settings->safe_start_volume_level;
     extension[TRANSITION_BYTE] = settings->transition_tenths;
     for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
@@ -429,11 +430,7 @@ static bool home_valid(const uint8_t *extension)
 
 static bool reserved_clear(const uint8_t *extension)
 {
-    uint8_t any = extension[TRANSITION_BYTE + 1];
-    for (int index = 0; index < RESERVED_COUNT; index++) {
-        any |= extension[RESERVED_BYTE + index];
-    }
-    return any == 0;
+    return (extension[3] | extension[11] | extension[12] | extension[14] | extension[15]) == 0;
 }
 
 static bool extension_valid(const uint8_t *bytes)

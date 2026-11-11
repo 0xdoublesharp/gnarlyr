@@ -1,9 +1,11 @@
 #include "charge_screen.h"
 
 #include "core/i18n.h"
+#include "core/string_builder.h"
 #include "core/utf8.h"
 #include "home_art.h"
 #include "ui/label.h"
+#include "ui/status_bar.h"
 
 enum {
     FULL_PERCENT = 100,
@@ -90,15 +92,24 @@ static void draw_line(Canvas *canvas, TextStyle style, Rect area, const char *te
     label_draw(canvas, style, (Label){.area = area, .text = text});
 }
 
-static void draw_header(Canvas *canvas, const Theme *theme, Rect area, AppUsbView view)
+static void draw_header(Canvas *canvas, const Theme *theme, Rect area, AppUsbStatus status)
 {
     Rect name = area;
     if (theme_is_portrait(theme)) {
         name.height = font_line_height(theme->fonts.header);
     }
-    draw_line(canvas, (TextStyle){theme->fonts.header, theme->colors.text}, name,
-              FIRMWARE_SHORT_NAME);
-    const char *title = charge_screen_usb_title(view);
+    if (status.view == APP_USB_DAC && status.show_volume) {
+        char volume[4];
+        StringBuilder builder = string_builder_make(volume, sizeof volume);
+        string_builder_append_unsigned(&builder, status.volume);
+        Theme header = *theme;
+        header.colors.header_text = theme->colors.text;
+        status_bar_draw(canvas, &header, (StatusBarState){.volume = volume});
+    } else {
+        draw_line(canvas, (TextStyle){theme->fonts.header, theme->colors.text}, name,
+                  FIRMWARE_SHORT_NAME);
+    }
+    const char *title = charge_screen_usb_title(status.view);
     int width = text_width(theme->fonts.small, title);
     Rect right = {area.x + area.width - width, area.y, width, area.height};
     if (theme_is_portrait(theme)) {
@@ -187,7 +198,7 @@ static void draw_power(Canvas *canvas, const Theme *theme, HalBattery battery, A
                                  theme->colors.backdrop_bottom);
         }
     }
-    draw_header(canvas, theme, layout.header, status.view);
+    draw_header(canvas, theme, layout.header, status);
     draw_battery(canvas, theme, layout.battery, battery);
     draw_percent(canvas, theme, layout.percent, battery);
     char text[TEXT_CAPACITY];

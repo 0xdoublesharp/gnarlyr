@@ -194,6 +194,7 @@ set(ECHO_OVERLAY_IMPORTS
     label_centered_area
     label_wrap_count
     text_width
+    status_bar_draw
     text_draw_glyph_scaled
     utf8_next
     app_usb_battery_changed

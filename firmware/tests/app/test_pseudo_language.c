@@ -397,35 +397,17 @@ static void walk_settings_rows(void)
 
 static void walk_settings_choices(void)
 {
-    static const StringId TITLES[SETTINGS_ROWS] = {STR_ABOUT,
-                                                   STR_SHUFFLE,
-                                                   STR_REPEAT,
-                                                   STR_BLUETOOTH,
-                                                   STR_SLEEP_TIMER,
-                                                   STR_AUTO_OFF,
-                                                   STR_SCREEN_TIMEOUT,
-                                                   STR_CLOCK_FORMAT,
-                                                   STR_BRIGHTNESS,
-                                                   STR_COLOR,
-                                                   STR_TEXT_SIZE,
-                                                   STR_ORIENTATION,
-                                                   STR_LANGUAGE,
-                                                   STR_SKIP_SONGS,
-                                                   STR_GAIN,
-                                                   STR_OUTPUT,
-                                                   STR_EQUALIZER,
-                                                   STR_CUSTOM_EQ,
-                                                   STR_REPLAY_GAIN,
-                                                   STR_PREVENT_CLIPPING,
-                                                   STR_START_SCREEN,
-                                                   STR_SETTINGS,
-                                                   STR_USB_MODE,
-                                                   STR_THEME,
-                                                   STR_BATTERY_PERCENTAGE,
-                                                   STR_REWIND_ON_RESUME,
-                                                   STR_SAFE_START_VOLUME,
-                                                   STR_TRANSITIONS,
-                                                   STR_USB_ANSWER};
+    static const StringId TITLES[SETTINGS_ROWS] = {
+        STR_ABOUT,          STR_SHUFFLE,          STR_REPEAT,
+        STR_BLUETOOTH,      STR_SLEEP_TIMER,      STR_AUTO_OFF,
+        STR_SCREEN_TIMEOUT, STR_CLOCK_FORMAT,     STR_BRIGHTNESS,
+        STR_COLOR,          STR_TEXT_SIZE,        STR_ORIENTATION,
+        STR_LANGUAGE,       STR_SKIP_SONGS,       STR_GAIN,
+        STR_OUTPUT,         STR_EQUALIZER,        STR_CUSTOM_EQ,
+        STR_REPLAY_GAIN,    STR_PREVENT_CLIPPING, STR_START_SCREEN,
+        STR_SETTINGS,       STR_USB_MODE,         STR_THEME,
+        STR_STATUS_BAR,     STR_REWIND_ON_RESUME, STR_SAFE_START_VOLUME,
+        STR_TRANSITIONS,    STR_USB_ANSWER};
     for (int row = 1; row < SETTINGS_ROWS; row++) {
         if (row == SETTINGS_RESCAN_ROW) {
             continue;
