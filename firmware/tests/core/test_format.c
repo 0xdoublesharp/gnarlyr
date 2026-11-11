@@ -85,6 +85,11 @@ static void sample_rates_show_kilohertz_with_a_decimal_only_when_needed(void)
     CHECK(rate_formats_as(192000, "192 kHz"));
 }
 
+static void sample_rate_rounding_does_not_wrap_at_the_input_limit(void)
+{
+    CHECK(rate_formats_as(UINT32_MAX, "4294967.3 kHz"));
+}
+
 static void bitrates_group_thousands(void)
 {
     CHECK(bitrate_formats_as(320, "320 kbps"));
@@ -120,6 +125,7 @@ int main(void)
         TEST_CASE(durations_round_down_to_whole_seconds),
         TEST_CASE(long_durations_show_hours),
         TEST_CASE(sample_rates_show_kilohertz_with_a_decimal_only_when_needed),
+        TEST_CASE(sample_rate_rounding_does_not_wrap_at_the_input_limit),
         TEST_CASE(bitrates_group_thousands),
         TEST_CASE(the_average_bitrate_comes_from_audio_bytes_and_length),
         TEST_CASE(an_unknown_length_has_no_bitrate),

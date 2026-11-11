@@ -53,7 +53,7 @@ void format_duration(uint32_t milliseconds, char *buffer, size_t capacity)
 
 void format_sample_rate(uint32_t hertz, char *buffer, size_t capacity)
 {
-    uint32_t tenths = (hertz + HERTZ_PER_TENTH_KHZ / 2) / HERTZ_PER_TENTH_KHZ;
+    uint32_t tenths = (uint32_t)(((uint64_t)hertz + HERTZ_PER_TENTH_KHZ / 2) / HERTZ_PER_TENTH_KHZ);
     StringBuilder builder = string_builder_make(buffer, capacity);
     string_builder_append_unsigned(&builder, tenths / TENTHS_PER_KHZ);
     if (tenths % TENTHS_PER_KHZ != 0) {

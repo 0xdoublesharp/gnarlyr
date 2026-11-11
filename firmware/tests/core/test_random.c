@@ -59,16 +59,24 @@ static void a_bound_of_one_always_gives_zero(void)
 static void bounded_draw_retries_values_outside_the_unbiased_range(void)
 {
     const uint32_t bound = UINT32_C(0x80000001);
-    Random expected = random_seeded(8192);
-    Random actual = random_seeded(8192);
+    const uint32_t threshold = (uint32_t)(0u - bound) % bound;
+    Random expected = random_seeded(32);
+    Random actual = random_seeded(32);
     uint32_t rejected = random_next(&expected);
-    CHECK(rejected >= bound);
+    CHECK(rejected < threshold);
     uint32_t accepted = random_next(&expected);
-    while (accepted >= bound) {
+    while (accepted < threshold) {
         accepted = random_next(&expected);
     }
-    CHECK_EQUAL(accepted, random_below(&actual, bound));
+    CHECK_EQUAL(accepted % bound, random_below(&actual, bound));
     CHECK_EQUAL(expected.state, actual.state);
+}
+
+static void power_of_two_bounds_do_not_discard_uniform_draws(void)
+{
+    Random random = {.state = UINT32_C(0x5e6cfce7)};
+    CHECK_EQUAL(1, random_below(&random, 2));
+    CHECK_EQUAL(UINT32_MAX, random.state);
 }
 
 int main(void)
@@ -80,6 +88,7 @@ int main(void)
         TEST_CASE(bounded_draws_stay_below_the_bound_and_cover_it),
         TEST_CASE(a_bound_of_one_always_gives_zero),
         TEST_CASE(bounded_draw_retries_values_outside_the_unbiased_range),
+        TEST_CASE(power_of_two_bounds_do_not_discard_uniform_draws),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
