@@ -443,4 +443,7 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_REPLAY_GAIN_TRACK] = "Track",
     [STR_REPLAY_GAIN_ALBUM] = "Album",
     [STR_PREVENT_CLIPPING] = "Prevent clipping",
+    [STR_REWIND_ON_RESUME] = "Rewind on resume",
+    [STR_SAFE_START_VOLUME] = "Safe start volume",
+    [STR_VOLUME_LOWERED] = "Volume lowered to {0}",
 };
