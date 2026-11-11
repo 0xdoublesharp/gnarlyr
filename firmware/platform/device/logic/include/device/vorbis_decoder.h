@@ -1,6 +1,7 @@
 #pragma once
 
 #include "device/vorbis_memory.h"
+#include "device/vorbis_modes.h"
 
 enum {
     VORBIS_CHANNELS = 2,
@@ -42,3 +43,5 @@ typedef struct VorbisDecoder {
 bool vorbis_decoder_init(VorbisDecoder *decoder, void *workspace, uint32_t capacity);
 bool vorbis_decoder_header(VorbisDecoder *decoder, VorbisPacket packet);
 bool vorbis_decoder_decode(VorbisDecoder *decoder, VorbisPacket packet, VorbisPcm *pcm);
+
+bool vorbis_decoder_modes(const VorbisDecoder *decoder, VorbisModes *modes);

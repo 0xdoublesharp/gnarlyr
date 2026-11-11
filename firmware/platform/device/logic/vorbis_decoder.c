@@ -138,3 +138,25 @@ CORE_SEAM bool vorbis_decoder_decode(VorbisDecoder *decoder, VorbisPacket packet
     vorbis_memory_unbind();
     return true;
 }
+
+bool vorbis_decoder_modes(const VorbisDecoder *decoder, VorbisModes *modes)
+{
+    if (!decoder->ready || decoder->failed || modes == NULL) {
+        return false;
+    }
+    const vorbis_info *info = decoder->info;
+    const codec_setup_info *setup = info->codec_setup;
+    if (setup->modes < 1 || setup->modes > 64) {
+        return false;
+    }
+    VorbisModes snapshot = {.short_block = (uint32_t)setup->blocksizes[0],
+                            .long_block = (uint32_t)setup->blocksizes[1],
+                            .count = (uint32_t)setup->modes};
+    for (uint32_t mode = 0; mode < snapshot.count; mode++) {
+        if (setup->mode_param[mode].blockflag != 0) {
+            snapshot.long_modes[mode / 32] |= 1u << (mode % 32);
+        }
+    }
+    *modes = snapshot;
+    return true;
+}
