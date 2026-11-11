@@ -1,7 +1,5 @@
 #include "ui/marquee.h"
 
-#include <limits.h>
-
 enum {
     MILLISECONDS_PER_SECOND = 1000
 };
@@ -25,5 +23,5 @@ int marquee_offset(MarqueeTiming timing, int text_width, int view_width, uint32_
     }
     uint64_t travelled = (phase_ms - timing.pause_ms) * timing.speed_px_per_s;
     uint64_t offset = travelled / MILLISECONDS_PER_SECOND;
-    return offset < INT_MAX ? (int)offset : INT_MAX;
+    return offset < INT32_MAX ? (int)offset : INT32_MAX;
 }
