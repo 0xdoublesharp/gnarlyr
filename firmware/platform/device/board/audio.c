@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "audio_dsp.h"
+#include "audio_process.h"
 #include "board.h"
 #include "core/format.h"
 #include "core/seam.h"
@@ -241,7 +242,7 @@ static bool open_chosen(void *context, const char *path, uint32_t start_ms, Audi
     remember_path(path);
     source_kind = kind_of(path);
     unknown_format = source_kind == SOURCE_UNKNOWN;
-    if (unknown_format) {
+    if (unknown_format || !board_audio_process_prepare()) {
         return false;
     }
     if (source_kind == SOURCE_FLAC) {

@@ -28,7 +28,10 @@ USB_OVERLAY_OFFSET = 0x43C000
 USB_OVERLAY_CAPACITY = 0x10000
 USB_OVERLAY_MAGIC = b"EUSB"
 MODULE_BASE = 0x03084400
-MODULE_CAPACITY = 0xDC00
+MODULE_CAPACITY = 0xAC00
+PROCESS_MODULE_NUMBER = 7
+PROCESS_MODULE_BASE = 0x0308F000
+PROCESS_MODULE_CAPACITY = 0x3000
 AUDIO_MODULE_NUMBER = 5
 AUDIO_MODULE_NUMBERS = (5, 6)
 AUDIO_MODULE_BASE = 0x03048000
@@ -348,11 +351,19 @@ def module_magic(number):
     return MODULE_MAGIC + bytes([number])
 
 
+def module_window(number):
+    if number in AUDIO_MODULE_NUMBERS:
+        return AUDIO_MODULE_BASE, AUDIO_MODULE_CAPACITY
+    if number == PROCESS_MODULE_NUMBER:
+        return PROCESS_MODULE_BASE, PROCESS_MODULE_CAPACITY
+    return MODULE_BASE, MODULE_CAPACITY
+
+
 def check_modules(modules):
     if len(modules) > MODULE_LIMIT:
         raise ImageError(f"the module table holds at most {MODULE_LIMIT} modules")
     for number, module in enumerate(modules, 1):
-        capacity = AUDIO_MODULE_CAPACITY if number in AUDIO_MODULE_NUMBERS else MODULE_CAPACITY
+        _, capacity = module_window(number)
         if not OVERLAY_HEADER_SIZE < len(module) <= capacity:
             raise ImageError(f"module {number} must be more than {OVERLAY_HEADER_SIZE} and at "
                              f"most {capacity:#x} bytes")
@@ -589,13 +600,12 @@ def overlay_from_elf(elf, zeroed=False, base=OVERLAY_BASE, capacity=OVERLAY_CAPA
 
 
 def module_from_elf(elf, number=0):
-    audio = number in AUDIO_MODULE_NUMBERS
+    audio = number in (*AUDIO_MODULE_NUMBERS, PROCESS_MODULE_NUMBER)
     bss = elf_sections(elf).get(".bss") if audio else None
     if bss is not None and bss.size:
         raise ImageError("the audio module must keep all state in its caller")
-    return overlay_from_elf(elf, zeroed=True,
-                            base=AUDIO_MODULE_BASE if audio else MODULE_BASE,
-                            capacity=AUDIO_MODULE_CAPACITY if audio else MODULE_CAPACITY)
+    base, capacity = module_window(number)
+    return overlay_from_elf(elf, zeroed=True, base=base, capacity=capacity)
 
 
 def elf_symbols(elf):

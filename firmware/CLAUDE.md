@@ -72,14 +72,15 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 148,964 | 157,292 | 8,328 |
+| Code window | 147,736 | 157,292 | 9,556 |
 | Static RAM | 264,228 | 278,528 | 14,300 |
 | Rescan overlay | 92,996 | 98,304 | 5,308 |
 | USB overlay code | 11,484 | 65,536 | 54,052 |
-| Module views (code + BSS) | 17,952 | 56,320 | 38,368 |
-| Module settings (code + BSS) | 14,572 | 56,320 | 41,748 |
-| Module library (code + BSS) | 39,124 | 56,320 | 17,196 |
-| Module listening (code + BSS) | 17,804 | 56,320 | 38,516 |
+| Module views (code + BSS) | 17,952 | 44,032 | 26,080 |
+| Module settings (code + BSS) | 14,572 | 44,032 | 29,460 |
+| Module library (code + BSS) | 39,124 | 44,032 | 4,908 |
+| Module listening (code + BSS) | 17,804 | 44,032 | 26,228 |
+| Audio processing module (code, no BSS) | 1,920 | 12,288 | 10,368 |
 | Audio DSP module (code, no BSS) | 5,832 | 8,192 | 2,360 |
 | Vorbis file module (code, no BSS) | 5,960 | 8,192 | 2,232 |
 | Decoder workspace | 41,648 | 41,984 | 336 |

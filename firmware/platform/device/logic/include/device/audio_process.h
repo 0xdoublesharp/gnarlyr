@@ -1,0 +1,15 @@
+#pragma once
+
+#include "device/equalizer.h"
+
+#define AUDIO_PROCESS_BASE 0x0308F000u
+#define AUDIO_PROCESS_BYTES 0x3000u
+#define AUDIO_PROCESS_NUMBER 7u
+#define AUDIO_PROCESS_MAGIC 0x074D5344u
+
+typedef struct AudioProcessEntry {
+    uint32_t magic;
+    bool (*design)(Equalizer *equalizer, const HalAudioEqualizer *curve, uint32_t rate);
+    bool (*retune)(Equalizer *equalizer, EqualizerChange change, uint32_t rate);
+    void (*run)(Equalizer *equalizer, uint32_t *words, uint32_t frames);
+} AudioProcessEntry;

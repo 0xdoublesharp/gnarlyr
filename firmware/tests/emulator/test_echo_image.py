@@ -888,6 +888,10 @@ class EchoImageTest(unittest.TestCase):
     def test_the_profiler_row_fills_a_histogram_the_host_tool_symbolises(self):
         session = self.session()
         machine = session.machine
+        self.assertEqual(make_image.OVERLAY_BASE, machine.symbols["device_profile_overlay_base"])
+        self.assertEqual(make_image.PROCESS_MODULE_BASE + make_image.PROCESS_MODULE_CAPACITY,
+                         machine.symbols["device_profile_overlay_base"] +
+                         machine.symbols["device_profile_overlay_bytes"])
         machine.note("hal_system_return_scratch")
         machine.note("usb_session_storage_changed")
         machine.answer_waits_for_key(4)
@@ -1711,7 +1715,7 @@ class EchoImageTest(unittest.TestCase):
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                    volume=volume, module_elfs=self.module_elfs)
 
-    def replay_gain_rig(self, mode, clipping=True):
+    def replay_gain_rig(self, mode, clipping=True, equalizer=0):
         from echo_emulator.playback import Rig
         from echo_emulator.fat_volume import Fat32Volume
         pattern = (0, 14142, 20000, 14142, 0, -14142, -20000, -14142)
@@ -1734,6 +1738,7 @@ class EchoImageTest(unittest.TestCase):
         settings[:6] = b"DSST" + bytes((14, mode | (4 if clipping else 0)))
         settings[6:9] = bytes((7, 2, 0))
         settings[13], settings[14], settings[16] = 60, 2, 35
+        settings[18] = equalizer
         settings[24], settings[27] = 1, 1
         settings[28:38] = bytes((20,) * 10)
         checksum = FNV_START
@@ -1957,6 +1962,8 @@ class EchoImageTest(unittest.TestCase):
                         {overlay.name: overlay.loaded(rig.machine)
                          for overlay in rig.machine.modules})
         self.assertTrue(dsp.loaded(rig.machine))
+        _, process = self.module(rig.machine, "process")
+        self.assertTrue(process.loaded(rig.machine))
         rig.run_for(200)
         self.assertEqual([], rig.audio.underruns(started))
         self.assert_healthy(rig.session)
@@ -2105,6 +2112,76 @@ class EchoImageTest(unittest.TestCase):
         self.assertFalse(dsp.loaded(rig.machine))
         self.assertEqual([], rig.session.module_reads("slot_1", number))
         self.assertEqual([], rig.session.module_reads("slot_2", number))
+        self.assert_healthy(rig.session)
+
+    def test_processing_code_falls_back_to_the_other_firmware_slot(self):
+        rig = self.speech_rig(44100)
+        number, process = self.module(rig.machine, "process")
+        rig.session.change_module("slot_1", number, 32, lambda byte: byte ^ 1)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertTrue(process.loaded(rig.machine))
+        for slot in ("slot_1", "slot_2"):
+            self.assertTrue(rig.session.module_reads(slot, number))
+        self.assert_healthy(rig.session)
+
+    def test_missing_processing_code_refuses_playback_without_executing_it(self):
+        rig = self.speech_rig(44100)
+        number, process = self.module(rig.machine, "process")
+        for slot in ("slot_1", "slot_2"):
+            rig.session.change_module(slot, number, 32, lambda byte: byte ^ 1)
+        calls = []
+        rig.machine.hook_symbol("audio_process_equalizer_design", lambda: calls.append(True))
+        rig.open_songs()
+        rig.play_song(1)
+        self.assertEqual([], rig.audio.audible)
+        self.assertEqual([], calls)
+        self.assertFalse(process.loaded(rig.machine))
+        for slot in ("slot_1", "slot_2"):
+            self.assertTrue(rig.session.module_reads(slot, number))
+        self.assert_healthy(rig.session)
+
+    def test_eq_processing_survives_ui_changes_and_reloads_after_usb(self):
+        rig, _ = self.replay_gain_rig(0, equalizer=1)
+        machine = rig.machine
+        number, process = self.module(machine, "process")
+        runs = []
+        machine.hook_symbol("audio_process_equalizer_run", lambda: runs.append(machine.milliseconds()))
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertTrue(runs)
+        self.assertTrue(process.loaded(machine))
+        rig.press("back", hold=1300)
+        rig.press("next")
+        rig.press("play")
+        _, settings = self.module(machine, "settings")
+        self.assertTrue(settings.loaded(machine))
+        self.assertTrue(process.loaded(machine))
+        before = len(runs)
+        rig.run_for(100)
+        self.assertGreater(len(runs), before)
+        self.assertEqual([], rig.audio.underruns(started))
+        machine.note("usb_session_storage_changed")
+        machine.note("usb_storage_session")
+        machine.host_ejects()
+        machine.vbus = True
+        self.assertEqual("condition met", self.run_usb_sessions(rig.session, 1))
+        self.assertFalse(process.loaded(machine))
+        rig.run_for(600)
+        reads = len(rig.session.module_reads("slot_1", number))
+        rig.press("back", hold=1300)
+        rig.press("previous")
+        rig.press("play")
+        rig.press("play")
+        rig.play_song(1)
+        started = rig.press("play")
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertTrue(process.loaded(machine))
+        self.assertGreater(len(rig.session.module_reads("slot_1", number)), reads)
+        self.assertGreater(len(runs), before)
+        self.assertEqual([], rig.audio.underruns(started))
         self.assert_healthy(rig.session)
 
     def test_a_damaged_audio_module_in_slot_1_falls_back_to_slot_2(self):

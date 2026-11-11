@@ -101,10 +101,8 @@ class Overlay:
 
 
 def module_overlay(image, offset, module_elfs):
-    audio = any(image[offset:offset + 4] == make_image.module_magic(number)
-                for number in make_image.AUDIO_MODULE_NUMBERS)
-    base = make_image.AUDIO_MODULE_BASE if audio else make_image.MODULE_BASE
-    capacity = make_image.AUDIO_MODULE_CAPACITY if audio else make_image.MODULE_CAPACITY
+    number = image[offset + 3]
+    base, capacity = make_image.module_window(number)
     for elf_path in module_elfs:
         try:
             return Overlay(image, elf_path, offset, base, capacity)
