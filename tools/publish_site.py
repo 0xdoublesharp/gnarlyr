@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish Gnarlyr's public static files through the DoublePaaS owner helper.
+"""Publish public static files through the DoublePaaS owner helper.
 
 No firmware, source archives, or deployment configuration is served. Existing
 releases remain available for rollback. Publishing does not restart nginx.
@@ -51,6 +51,20 @@ def public_files():
     return files
 
 
+def publication_root():
+    mounts = []
+    for line in (SITE / "deploy/compose.yaml").read_text().splitlines():
+        fields = line.strip().removeprefix("- ").split(":")
+        if len(fields) == 3 and fields[1:] == ["/site", "ro"]:
+            path = Path(fields[0])
+            if path.parts[:3] != ("/", "srv", "hosted-data") or len(path.parts) != 5 or path.name != "frontend" or ".." in path.parts:
+                raise SystemExit("The public frontend mount must name this site's hosted-data directory")
+            mounts.append(str(path))
+    if len(mounts) != 1:
+        raise SystemExit("Expected one read-only public frontend mount in the deployment contract")
+    return mounts[0]
+
+
 def release_id(files):
     identity = [[name, hashlib.sha256(data).hexdigest()] for name, data in sorted(files.items())]
     return hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode()).hexdigest()
@@ -62,6 +76,7 @@ def main():
     parser.add_argument("--admin", type=Path, default=Path.home() / "Workspaces/DoublePaaS/scripts/admin.py")
     args = parser.parse_args()
     files = public_files()
+    destination = publication_root()
     identity = release_id(files)
     if args.check:
         print(json.dumps({"release": identity, "files": sorted(files), "bytes": sum(map(len, files.values()))}))
@@ -73,12 +88,12 @@ def main():
     payload = {name: base64.b64encode(data).decode("ascii") for name, data in files.items()}
     # Local source is encoded as data, never interpolated into shell commands.
     script = """set -e
-python3 - <<'GNARLYR_PUBLISH'
+python3 - <<'STATIC_SITE_PUBLISH'
 import base64, fcntl, hashlib, json, os, shutil, uuid
 from pathlib import Path
 files = {name: base64.b64decode(data, validate=True) for name, data in PAYLOAD.items()}
 identity = RELEASE_ID
-root = Path('/srv/hosted-data/gnarlyr/frontend')
+root = Path(PUBLICATION_ROOT)
 root.mkdir(parents=True, exist_ok=True, mode=0o755)
 releases = root / 'releases'
 releases.mkdir(exist_ok=True, mode=0o755)
@@ -120,8 +135,8 @@ with (root / '.publish.lock').open('a') as lock:
     finally:
         temporary.unlink(missing_ok=True)
     print(json.dumps({'release': identity, 'previous': previous, 'files': len(files)}))
-GNARLYR_PUBLISH
-""".replace("identity = RELEASE_ID", "identity = " + repr(identity), 1).replace("PAYLOAD.items()", repr(payload) + ".items()", 1)
+STATIC_SITE_PUBLISH
+""".replace("PUBLICATION_ROOT", repr(destination), 1).replace("identity = RELEASE_ID", "identity = " + repr(identity), 1).replace("PAYLOAD.items()", repr(payload) + ".items()", 1)
     subprocess.run(["python3", "-B", str(args.admin)], input=script.encode(), check=True)
 
 
