@@ -47,6 +47,7 @@ typedef struct FakeAudio {
     uint32_t queued_fade_ms;
     uint32_t play_fade_ms;
     uint32_t sleep_remaining_ms;
+    uint8_t repeat_state;
     int seek_count;
     uint32_t last_seek_ms;
     uint8_t volume;
@@ -701,6 +702,7 @@ int fake_hal_write_count(void)
 
 bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next)
 {
+    fake.audio.repeat_state = 0;
     uint32_t start_ms = track->start_ms + offset_ms;
     uint32_t token = track->token;
     fake.audio.play_count++;
@@ -1948,4 +1950,10 @@ void hal_audio_set_sleep_remaining(uint32_t remaining_ms)
 uint32_t fake_hal_audio_sleep_remaining(void)
 {
     return fake.audio.sleep_remaining_ms;
+}
+
+uint8_t hal_audio_repeat_mark(bool clear)
+{
+    fake.audio.repeat_state = clear ? 0 : (uint8_t)((fake.audio.repeat_state + 1) % 3);
+    return fake.audio.repeat_state;
 }

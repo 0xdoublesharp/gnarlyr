@@ -37,7 +37,8 @@ typedef enum NowPlayingCommand {
     NOW_PLAYING_SEEK_FORWARD_FAST,
     NOW_PLAYING_SEEK_BACK,
     NOW_PLAYING_SEEK_BACK_FAST,
-    NOW_PLAYING_LYRICS
+    NOW_PLAYING_LYRICS,
+    NOW_PLAYING_REPEAT_MARK
 } NowPlayingCommand;
 
 enum {
@@ -80,6 +81,7 @@ typedef struct NowPlayingScreen {
     PlayerStatus status;
     bool scrubbing;
     uint32_t scrub_position_ms;
+    uint32_t repeat_feedback_ms;
     bool has_text;
     uint16_t text_track;
     uint16_t album_index;

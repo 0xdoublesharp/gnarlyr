@@ -39,11 +39,16 @@ typedef struct SimAudio {
     bool failed;
     float gain;
     float sleep_gain;
+    uint32_t sleep_window_ms;
+    bool sleep_fading;
     HalAudioGain analog_gain;
     HalAudioOutput output;
     HalAudioEqualizer equalizer;
     HeadphoneAudio headphones;
     uint8_t volume;
+    uint8_t repeat_state;
+    uint64_t repeat_a;
+    uint64_t repeat_b;
 } SimAudio;
 
 static SimAudio audio;
@@ -123,6 +128,7 @@ static void clear_stream(void)
 
 static bool switch_to_next(void)
 {
+    audio.repeat_state = 0;
     close_track(current_track());
     if (!next_track()->open) {
         audio.state = HAL_AUDIO_STOPPED;
@@ -139,10 +145,13 @@ static bool decode_chunk(void)
     if (!track->open) {
         return false;
     }
+    if (audio.repeat_state == 2 && track->decoder.frame >= audio.repeat_b) {
+        sim_decoder_seek(&track->decoder, audio.repeat_a);
+    }
     uint64_t wanted = CHUNK_FRAMES;
-    if (track->end_frame != 0) {
-        uint64_t left =
-            track->end_frame > track->decoder.frame ? track->end_frame - track->decoder.frame : 0;
+    uint64_t end = audio.repeat_state == 2 ? audio.repeat_b : track->end_frame;
+    if (end != 0) {
+        uint64_t left = end > track->decoder.frame ? end - track->decoder.frame : 0;
         wanted = left < wanted ? left : wanted;
     }
     uint64_t frames = wanted == 0 ? 0 : sim_decoder_read_stereo(&track->decoder, chunk, wanted);
@@ -227,6 +236,11 @@ void sim_audio_tick(uint32_t elapsed_ms)
         return;
     }
     track->decoder.frame += frames_for(elapsed_ms, track->decoder.sample_rate);
+    if (audio.repeat_state == 2 && track->decoder.frame >= audio.repeat_b) {
+        track->decoder.frame = audio.repeat_a + (track->decoder.frame - audio.repeat_a) %
+                                                    (audio.repeat_b - audio.repeat_a);
+        return;
+    }
     bool past_end = track->end_frame != 0 && track->decoder.frame >= track->end_frame;
     if (past_end || track->decoder.frame >= track->decoder.total_frames) {
         switch_to_next();
@@ -249,6 +263,7 @@ void sim_audio_stop(void)
 
 bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next)
 {
+    audio.repeat_state = 0;
     lock();
     close_track(next_track());
     bool opened = open_track(current_track(), track, offset_ms);
@@ -454,8 +469,38 @@ void hal_audio_set_replay_gain(uint32_t token, uint32_t gain)
 
 void hal_audio_set_sleep_remaining(uint32_t remaining_ms)
 {
-    float x = remaining_ms < 60000 ? (float)remaining_ms / 60000 : 1.0f;
     lock();
+    bool fading = remaining_ms <= 60000;
+    if (fading && !audio.sleep_fading) {
+        audio.sleep_window_ms = remaining_ms != 0 ? remaining_ms : 1;
+    }
+    audio.sleep_fading = fading;
+    float x = fading ? (float)remaining_ms / (float)audio.sleep_window_ms : 1.0f;
+    x = x < 1.0f ? x : 1.0f;
     audio.sleep_gain = x * x * (3.0f - 2.0f * x);
     unlock();
+}
+
+uint8_t hal_audio_repeat_mark(bool clear)
+{
+    lock();
+    SimTrack *track = current_track();
+    if (!track->open) {
+        unlock();
+        return 0;
+    }
+    if (clear || audio.repeat_state == 2) {
+        audio.repeat_state = 0;
+    } else if (audio.repeat_state == 0) {
+        audio.repeat_a = track->decoder.frame;
+        audio.repeat_state = 1;
+    } else if (track->decoder.frame > audio.repeat_a) {
+        audio.repeat_b = track->decoder.frame;
+        audio.repeat_state = 2;
+        sim_decoder_seek(&track->decoder, audio.repeat_a);
+        clear_stream();
+    }
+    uint8_t state = audio.repeat_state;
+    unlock();
+    return state;
 }

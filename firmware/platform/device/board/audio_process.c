@@ -62,3 +62,29 @@ void audio_fade_out(AudioFadeBlock block, AudioFadeRamp *ramp, int64_t remaining
         entry()->fade_out(block, ramp, remaining);
     }
 }
+
+void audio_shape_block(AudioEngine *engine, uint32_t first, bool tail)
+{
+    if (ready) {
+        entry()->shape(engine, first, tail);
+    }
+}
+
+void audio_engine_set_sleep_remaining(AudioEngine *engine, uint32_t remaining_ms)
+{
+    if (ready) {
+        entry()->sleep(engine, remaining_ms);
+    }
+}
+
+CORE_SEAM uint8_t audio_engine_repeat_mark(AudioEngine *engine, bool clear)
+{
+    return ready ? entry()->repeat_mark(engine, clear) : 0;
+}
+
+void audio_convert_pending(const AudioEngine *engine, uint32_t *words, uint32_t frames, int shift)
+{
+    if (ready) {
+        entry()->convert(engine, words, frames, shift);
+    }
+}

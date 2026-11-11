@@ -1568,9 +1568,38 @@ static void seeking_in_standby_moves_the_resume_point_without_powering_up(void)
     CHECK_EQUAL(10000, fake_hal_audio_play_start());
 }
 
+static void ab_marks_suppress_the_next_track_and_clear_on_skip(void)
+{
+    Player *started = playing(0);
+    player_repeat_mark(started);
+    CHECK_EQUAL(1, player_status(started).ab_repeat);
+    CHECK(fake_hal_audio_queued_path() != NULL);
+    player_repeat_mark(started);
+    CHECK_EQUAL(2, player_status(started).ab_repeat);
+    CHECK(fake_hal_audio_queued_path() == NULL);
+    player_repeat_mark(started);
+    CHECK_EQUAL(0, player_status(started).ab_repeat);
+    CHECK(fake_hal_audio_queued_path() != NULL);
+    player_repeat_mark(started);
+    player_skip(started, 1);
+    CHECK_EQUAL(0, player_status(started).ab_repeat);
+}
+
+static void an_end_sleep_timer_clears_the_ab_loop_and_can_finish(void)
+{
+    Player *started = playing(0);
+    player_repeat_mark(started);
+    player_repeat_mark(started);
+    player_set_stop_after_track(started, true);
+    CHECK_EQUAL(0, player_status(started).ab_repeat);
+    CHECK(fake_hal_audio_queued_path() == NULL);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(ab_marks_suppress_the_next_track_and_clear_on_skip),
+        TEST_CASE(an_end_sleep_timer_clears_the_ab_loop_and_can_finish),
         TEST_CASE(auto_gain_uses_album_neighbors_and_track_gain_for_song_shuffle),
         TEST_CASE(auto_gain_keeps_separated_album_tracks_at_track_gain),
         TEST_CASE(auto_gain_does_not_treat_a_foreign_up_next_track_as_an_album_neighbor),

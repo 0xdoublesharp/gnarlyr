@@ -1805,6 +1805,7 @@ static uint32_t view_stamp(void)
     stamp = stamp_add(stamp, status.volume);
     stamp = stamp_add(stamp, (uint32_t)status.shuffle);
     stamp = stamp_add(stamp, (uint32_t)status.repeat);
+    stamp = stamp_add(stamp, status.ab_repeat);
     stamp = stamp_add(stamp, status.place.number);
     stamp = stamp_add(stamp, status.place.total);
     stamp = stamp_add(stamp, battery.known);

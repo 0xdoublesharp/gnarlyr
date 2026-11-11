@@ -175,7 +175,8 @@ static bool prepare_next(Player *player, TrackAudio *audio)
 {
     PlayQueueCursor upcoming = player->queue.cursor;
     uint16_t track = 0;
-    player->has_next = !player->stop_after_track && upcoming_track(player, &upcoming, &track);
+    player->has_next = !player->stop_after_track && player->ab_repeat != 2 &&
+                       upcoming_track(player, &upcoming, &track);
     player->next_cursor = upcoming;
     player->has_next = player->has_next && track_audio(player, track, audio);
     if (!player->has_next) {
@@ -225,6 +226,7 @@ static bool start_track(Player *player, uint32_t start_ms, bool from_bookmark)
     }
     player->spoken = spoken_kind_of(audio.path) != SPOKEN_NONE;
     start_ms = from_bookmark ? resume_point(player, track, start_ms) : start_ms;
+    player->ab_repeat = 0;
     player->previous_track = player->has_track ? player->track : LIBRARY_NONE;
     player->track = track;
     player->has_track = true;
@@ -605,6 +607,7 @@ static void take_next_and_note(Player *player)
 static void advance_to_next(Player *player)
 {
     player->up_next_revision++;
+    player->ab_repeat = 0;
     player->previous_track = player->track;
     take_next_and_note(player);
     player->current_token = player->next_token;
@@ -746,6 +749,7 @@ void player_release_output(Player *player)
         return;
     }
     player->paused_position_ms = current_position(player);
+    player->ab_repeat = 0;
     player_save(player);
     player->loaded = false;
     player->has_next = false;
@@ -786,7 +790,7 @@ bool player_in_standby(const Player *player)
 
 static void release_long_pause(Player *player, uint32_t now_ms)
 {
-    if (player->state != PLAYER_PAUSED || player->standby_held) {
+    if (player->state != PLAYER_PAUSED || player->standby_held || player->ab_repeat != 0) {
         player->pause_timing = false;
     } else if (!player->pause_timing) {
         player->pause_timing = true;
@@ -989,6 +993,7 @@ PlayerStatus player_status(const Player *player)
         .repeat = player->repeat,
         .place = player->has_track ? play_queue_place(&player->queue) : (PlayQueuePlace){0, 0},
         .format = current_format(player),
+        .ab_repeat = player->ab_repeat,
         .spoken = player->has_track && player->spoken,
     };
 }
@@ -1056,8 +1061,20 @@ void player_set_transitions(Player *player, bool fade, uint8_t tenths)
 
 void player_set_stop_after_track(Player *player, bool stop)
 {
+    if (stop && player->ab_repeat != 0) {
+        hal_audio_repeat_mark(true);
+        player->ab_repeat = 0;
+    }
     if (player->stop_after_track != stop) {
         player->stop_after_track = stop;
+        player_requeue(player);
+    }
+}
+
+void player_repeat_mark(Player *player)
+{
+    if (player->loaded) {
+        player->ab_repeat = hal_audio_repeat_mark(false);
         player_requeue(player);
     }
 }

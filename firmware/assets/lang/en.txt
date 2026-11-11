@@ -79,7 +79,7 @@ STR_REPEAT_ALL = Repeat All
 STR_BIT_DEPTH = {0}-bit
 STR_PLACE = {0} of {1}
 STR_VOLUME = Volume
-STR_SEEKING = Seeking · Play to jump
+STR_SEEKING = Menu: A-B, Play: seek
 STR_RATE_UNSUPPORTED = {0} isn't supported yet
 STR_TYPE_UNSUPPORTED = This file type isn't supported yet
 STR_M4A_UNSUPPORTED = Only AAC-LC and ALAC M4A play
@@ -652,3 +652,7 @@ STR_SLEEP_END_CHAPTER = End of chapter/episode
 STR_SLEEP_AT = Turning off: {0}
 
 STR_REPLAY_GAIN_AUTO = Auto
+
+STR_AB_OFF = A-B off
+STR_AB_A = A set, B next
+STR_AB_LOOP = A-B repeat
