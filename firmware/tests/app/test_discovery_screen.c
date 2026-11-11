@@ -946,6 +946,36 @@ static void autoplay_of_an_empty_search_does_not_request_playback(void)
     CHECK_EQUAL(0, fake_hal_audio_play_count());
 }
 
+static void autoplay_waits_for_a_search_and_stops_if_it_is_cancelled(void)
+{
+    start();
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
+    CHECK_EQUAL(LIBRARY_VIEW_SCANNING, discovery_screen_state(&discovery));
+    discovery.auto_play = true;
+    discovery_playback_step(&discovery, 0);
+    CHECK(discovery.auto_play);
+    CHECK_EQUAL(DISCOVERY_REQUEST_NONE, discovery.request);
+    discovery_screen_cancel(&discovery);
+    discovery_playback_step(&discovery, 0);
+    CHECK(!discovery.auto_play);
+    CHECK_EQUAL(DISCOVERY_REQUEST_NONE, discovery.request);
+    CHECK_EQUAL(0, fake_hal_audio_play_count());
+}
+
+static void cancelling_a_play_request_clears_it_without_starting_audio(void)
+{
+    start();
+    explore();
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_REQUEST_PLAY, discovery.request);
+    discovery.auto_play = true;
+    discovery_playback_cancel(&discovery);
+    CHECK_EQUAL(DISCOVERY_REQUEST_NONE, discovery.request);
+    CHECK(!discovery.auto_play);
+    CHECK_EQUAL(LIBRARY_VIEW_READY, discovery_screen_state(&discovery));
+    CHECK_EQUAL(0, fake_hal_audio_play_count());
+}
+
 int main(void)
 {
     const TestCase cases[] = {
@@ -953,6 +983,8 @@ int main(void)
         TEST_CASE(a_search_with_no_matches_displays_an_empty_state),
         TEST_CASE(playback_without_a_player_fails_without_losing_search_results),
         TEST_CASE(autoplay_of_an_empty_search_does_not_request_playback),
+        TEST_CASE(autoplay_waits_for_a_search_and_stops_if_it_is_cancelled),
+        TEST_CASE(cancelling_a_play_request_clears_it_without_starting_audio),
         TEST_CASE(search_progress_cancel_failure_and_results_draw_distinct_states),
         TEST_CASE(active_filters_change_the_results_summary),
         TEST_CASE(track_actions_enqueue_without_interrupting_current_playback),
