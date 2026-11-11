@@ -29,9 +29,8 @@ static void begin_config(M4aStream *stream)
     uint32_t size = 1u + stream->track.config_size;
     put_length(stream->head, size);
     stream->head[M4A_RECORD_HEADER_BYTES] = stream->track.codec;
-    for (uint32_t index = 0; index < stream->track.config_size; index++) {
-        stream->head[M4A_RECORD_HEADER_BYTES + 1 + index] = stream->track.config[index];
-    }
+    memcpy(stream->head + M4A_RECORD_HEADER_BYTES + 1, stream->track.config,
+           stream->track.config_size);
     stream->head_size = M4A_RECORD_HEADER_BYTES + size;
     stream->body_size = 0;
     stream->configured = true;
@@ -87,9 +86,7 @@ static uint32_t emit(M4aStream *stream, uint8_t *out, uint32_t length)
     if (stream->record_done < stream->head_size) {
         uint32_t left = stream->head_size - stream->record_done;
         uint32_t count = length < left ? length : left;
-        for (uint32_t index = 0; index < count; index++) {
-            out[index] = stream->head[stream->record_done + index];
-        }
+        memcpy(out, stream->head + stream->record_done, count);
         return count;
     }
     uint32_t into = stream->record_done - stream->head_size;
@@ -101,7 +98,8 @@ bool m4a_stream_read(void *context, uint32_t offset, void *buffer, uint32_t leng
 {
     M4aStream *stream = context;
     uint8_t *out = buffer;
-    if (offset != stream->position) {
+    if (offset != stream->position || length > M4A_VIRTUAL_END ||
+        offset > M4A_VIRTUAL_END - length) {
         return false;
     }
     while (length > 0) {

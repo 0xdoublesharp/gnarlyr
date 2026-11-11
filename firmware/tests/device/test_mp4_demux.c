@@ -581,6 +581,22 @@ static void a_chunk_transition_failure_delivers_the_current_packet_then_reports_
     CHECK_EQUAL(103, bytes[0]);
 }
 
+static void virtual_stream_reads_cannot_cross_the_advertised_end(void)
+{
+    M4aStream stream = {.position = M4A_VIRTUAL_END - 1, .ended = true};
+    uint8_t bytes[] = {0xa5, 0xa5};
+    CHECK(!m4a_stream_read(&stream, M4A_VIRTUAL_END - 1, bytes, sizeof bytes));
+    CHECK_EQUAL(M4A_VIRTUAL_END - 1, stream.position);
+    CHECK_EQUAL(0xa5, bytes[0]);
+    CHECK_EQUAL(0xa5, bytes[1]);
+    stream = (M4aStream){.position = M4A_VIRTUAL_END - 1, .ended = true};
+    CHECK(m4a_stream_read(&stream, M4A_VIRTUAL_END - 1, bytes, 1));
+    CHECK_EQUAL(M4A_VIRTUAL_END, stream.position);
+    CHECK_EQUAL(0, bytes[0]);
+    CHECK(!m4a_stream_read(&stream, M4A_VIRTUAL_END, bytes, 1));
+    CHECK(m4a_stream_read(&stream, M4A_VIRTUAL_END, NULL, 0));
+}
+
 static void a_sample_table_read_failure_is_not_reported_as_clean_end_of_stream(void)
 {
     static Builder builder;
@@ -1261,6 +1277,7 @@ int main(void)
         TEST_CASE(seek_read_failures_are_reported_and_a_retry_can_recover),
         TEST_CASE(a_chunk_transition_read_failure_stops_after_the_current_sample),
         TEST_CASE(a_sample_table_read_failure_is_not_reported_as_clean_end_of_stream),
+        TEST_CASE(virtual_stream_reads_cannot_cross_the_advertised_end),
         TEST_CASE(a_chunk_transition_failure_delivers_the_current_packet_then_reports_error),
         TEST_CASE(cursor_read_failures_never_return_a_wrong_sample_and_seek_recovers),
         TEST_CASE(a_high_efficiency_configuration_is_refused),
