@@ -62,16 +62,18 @@ enum {
     SETTINGS_ORIENTATION_INDEX = 11,
     SETTINGS_SKIP_INDEX = 12,
     SETTINGS_GAIN_INDEX = 13,
-    SETTINGS_EQUALIZER_INDEX = 15,
-    SETTINGS_CUSTOM_EQ_INDEX = 16,
-    SETTINGS_REPLAY_GAIN_INDEX = 17,
-    SETTINGS_CLIPPING_INDEX = 18,
-    SETTINGS_START_INDEX = 19,
-    SETTINGS_RESCAN_INDEX = 20,
-    SETTINGS_USB_MODE_INDEX = 21,
-    SETTINGS_THEME_INDEX = 22,
-    SETTINGS_BATTERY_PERCENT_INDEX = 23,
-    SETTINGS_USB_ANSWER_INDEX = 27,
+    SETTINGS_DAC_FILTER_INDEX = 14,
+    SETTINGS_EQUALIZER_INDEX = 16,
+    SETTINGS_CUSTOM_EQ_INDEX = 17,
+    SETTINGS_REPLAY_GAIN_INDEX = 18,
+    SETTINGS_CLIPPING_INDEX = 19,
+    SETTINGS_START_INDEX = 20,
+    SETTINGS_RESCAN_INDEX = 21,
+    SETTINGS_USB_MODE_INDEX = 22,
+    SETTINGS_THEME_INDEX = 23,
+    SETTINGS_BATTERY_PERCENT_INDEX = 24,
+    SETTINGS_USB_ANSWER_INDEX = 28,
+    GAIN_RISE_STEPS = 6,
     USB_PROMPT_MS = 15000,
     CHARGE_LIT_MS = 5000,
     MUSIC_COVER_FLOW_INDEX = 1,
@@ -997,6 +999,75 @@ static void gain_is_applied(void)
     CHECK_EQUAL(HAL_AUDIO_GAIN_HIGH, fake_hal_audio_gain());
 }
 
+static void choosing_high_gain_lowers_both_volumes_before_the_gain_rises(void)
+{
+    start_app_with_library();
+    uint8_t volume = fake_hal_audio_volume();
+    CHECK(volume > GAIN_RISE_STEPS);
+    open_setting(SETTINGS_GAIN_INDEX);
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(HAL_AUDIO_GAIN_HIGH, fake_hal_audio_gain());
+    CHECK_EQUAL(volume - GAIN_RISE_STEPS, fake_hal_volume_at_gain());
+    CHECK_EQUAL(SETTINGS_DEFAULT_DAC_VOLUME - GAIN_RISE_STEPS, fake_hal_dac_volume_at_gain());
+    CHECK_EQUAL(volume - GAIN_RISE_STEPS, app_player_status().volume);
+    Settings settings;
+    CHECK(saved_settings(&settings));
+    CHECK_EQUAL(GAIN_HIGH, settings.gain);
+    CHECK_EQUAL(volume - GAIN_RISE_STEPS, settings.volume);
+    CHECK_EQUAL(SETTINGS_DEFAULT_DAC_VOLUME - GAIN_RISE_STEPS, settings.dac_volume);
+}
+
+static void choosing_low_gain_or_the_same_gain_keeps_the_volume(void)
+{
+    start_app_with_library();
+    open_setting(SETTINGS_GAIN_INDEX);
+    move_down(1);
+    tap(KEY_PLAY);
+    uint8_t volume = fake_hal_audio_volume();
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(HAL_AUDIO_GAIN_HIGH, fake_hal_audio_gain());
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+    tap(KEY_PLAY);
+    move_up(1);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(HAL_AUDIO_GAIN_LOW, fake_hal_audio_gain());
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+    CHECK_EQUAL(volume, app_player_status().volume);
+}
+
+static void high_gain_lowers_from_the_headphone_ceiling(void)
+{
+    start_app_with_library();
+    open_setting(SETTINGS_GAIN_INDEX);
+    move_down(1);
+    hal_audio_set_headphones((HeadphoneAudio){REPLAY_GAIN_UNITY, REPLAY_GAIN_UNITY, 10});
+    tap(KEY_PLAY);
+    CHECK_EQUAL(10 - GAIN_RISE_STEPS, fake_hal_volume_at_gain());
+    CHECK_EQUAL(10 - GAIN_RISE_STEPS, fake_hal_dac_volume_at_gain());
+    CHECK_EQUAL(10 - GAIN_RISE_STEPS, app_player_status().volume);
+}
+
+static void the_dac_filter_applies_on_play_saves_and_returns_after_a_restart(void)
+{
+    start_app_with_library();
+    CHECK_EQUAL(HAL_AUDIO_FILTER_FAST_LOW_LATENCY, fake_hal_audio_filter());
+    open_setting(SETTINGS_DAC_FILTER_INDEX);
+    CHECK(title_is("DAC filter"));
+    move_down(DAC_FILTER_NON_OVERSAMPLING);
+    CHECK_EQUAL(HAL_AUDIO_FILTER_FAST_LOW_LATENCY, fake_hal_audio_filter());
+    tap(KEY_PLAY);
+    CHECK(title_is("Settings"));
+    CHECK_EQUAL(HAL_AUDIO_FILTER_NON_OVERSAMPLING, fake_hal_audio_filter());
+    Settings settings;
+    CHECK(saved_settings(&settings));
+    CHECK_EQUAL(DAC_FILTER_NON_OVERSAMPLING, settings.dac_filter);
+    hal_audio_set_filter(HAL_AUDIO_FILTER_FAST_LOW_LATENCY);
+    restart_app();
+    CHECK_EQUAL(HAL_AUDIO_FILTER_NON_OVERSAMPLING, fake_hal_audio_filter());
+}
+
 static void brightness_previews_without_saving_and_back_restores_it(void)
 {
     start_app_with_library();
@@ -1036,7 +1107,7 @@ static void leaving_or_stopping_a_brightness_preview_restores_the_saved_level(vo
     CHECK_EQUAL(settings_defaults().brightness, store.settings.brightness);
 }
 
-static void gain_and_output_preview_without_saving_and_cancel_without_restarting_music(void)
+static void gain_waits_for_play_and_output_previews_without_restarting_music(void)
 {
     start_app_with_library();
     play_first_album_track();
@@ -1044,13 +1115,13 @@ static void gain_and_output_preview_without_saving_and_cancel_without_restarting
     open_setting(SETTINGS_GAIN_INDEX);
     int plays = fake_hal_audio_play_count();
     tap(KEY_VOLUME_UP);
-    CHECK_EQUAL(HAL_AUDIO_GAIN_HIGH, fake_hal_audio_gain());
+    CHECK_EQUAL(HAL_AUDIO_GAIN_LOW, fake_hal_audio_gain());
     SettingsStore store;
     settings_store_load(&store);
     CHECK_EQUAL(GAIN_LOW, store.settings.gain);
     tap(KEY_BACK);
     CHECK_EQUAL(HAL_AUDIO_GAIN_LOW, fake_hal_audio_gain());
-    move_down(1);
+    move_down(SETTINGS_EQUALIZER_INDEX - 1 - SETTINGS_GAIN_INDEX);
     tap(KEY_PLAY);
     CHECK(title_is("Output"));
     tap(KEY_VOLUME_UP);
@@ -5333,8 +5404,12 @@ int main(void)
         TEST_CASE(brightness_is_applied_and_saved),
         TEST_CASE(brightness_previews_without_saving_and_back_restores_it),
         TEST_CASE(leaving_or_stopping_a_brightness_preview_restores_the_saved_level),
-        TEST_CASE(gain_and_output_preview_without_saving_and_cancel_without_restarting_music),
+        TEST_CASE(gain_waits_for_play_and_output_previews_without_restarting_music),
         TEST_CASE(gain_is_applied),
+        TEST_CASE(choosing_high_gain_lowers_both_volumes_before_the_gain_rises),
+        TEST_CASE(choosing_low_gain_or_the_same_gain_keeps_the_volume),
+        TEST_CASE(high_gain_lowers_from_the_headphone_ceiling),
+        TEST_CASE(the_dac_filter_applies_on_play_saves_and_returns_after_a_restart),
         TEST_CASE(an_equalizer_preset_reaches_the_audio_and_survives_a_restart),
         TEST_CASE(browsing_equalizer_presets_previews_audio_but_saves_only_on_play),
         TEST_CASE(stopping_during_an_equalizer_preview_keeps_the_committed_curve),

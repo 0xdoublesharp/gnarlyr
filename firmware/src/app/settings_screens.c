@@ -1,5 +1,6 @@
 #include "settings_screens.h"
 #include "app/app.h"
+#include "audio_settings.h"
 
 #include <stddef.h>
 
@@ -51,6 +52,9 @@ static const StringId ORIENTATION_OPTIONS[ORIENTATION_COUNT] = {STR_LANDSCAPE, S
 static const StringId SKIP_OPTIONS[SKIP_GESTURE_COUNT] = {STR_SKIP_HOLD, STR_SKIP_DOUBLE,
                                                           STR_SKIP_PLAY};
 static const StringId GAIN_OPTIONS[GAIN_LEVEL_COUNT] = {STR_GAIN_LOW, STR_GAIN_HIGH};
+static const StringId FILTER_OPTIONS[DAC_FILTER_COUNT] = {
+    STR_FILTER_FAST_LOW_LATENCY, STR_FILTER_FAST_PHASE_COMPENSATED, STR_FILTER_SLOW_LOW_LATENCY,
+    STR_FILTER_SLOW_PHASE_COMPENSATED, STR_FILTER_NON_OVERSAMPLING};
 static const StringId OUTPUT_OPTIONS[OUTPUT_JACK_COUNT] = {STR_OUTPUT_AUTO, STR_JACK_35,
                                                            STR_JACK_44};
 static const StringId OUTPUT_MESSAGES[OUTPUT_JACK_COUNT] = {STR_OUTPUT_FOLLOWS, STR_OUTPUT_USING_35,
@@ -81,12 +85,17 @@ static Settings *editable_settings(void *context)
     return &settings->store->settings;
 }
 
+static void report_unsaved(SettingsContext *context, bool saved)
+{
+    if (!saved) {
+        toast_show(context->toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
+    }
+}
+
 static void save(SettingsContext *context)
 {
     settings_store_capture(context->store, player_status(context->player));
-    if (!settings_store_save(context->store)) {
-        toast_show(context->toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
-    }
+    report_unsaved(context, settings_store_save(context->store));
 }
 
 static void apply_and_save(SettingsContext *context)
@@ -316,8 +325,21 @@ static int current_gain(const void *context)
 
 static void choose_gain(void *context, int index)
 {
-    editable_settings(context)->gain = (GainLevel)index;
-    apply_and_save(context);
+    SettingsContext *settings = context;
+    report_unsaved(settings,
+                   audio_settings_set_gain(settings->store, settings->player, (GainLevel)index));
+}
+
+static int current_filter(const void *context)
+{
+    return (int)settings_of(context)->dac_filter;
+}
+
+static void choose_filter(void *context, int index)
+{
+    SettingsContext *settings = context;
+    report_unsaved(settings,
+                   audio_settings_set_filter(settings->store, settings->player, (DacFilter)index));
 }
 
 static int current_output(const void *context)
@@ -684,6 +706,7 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
                                   describe_language, extend_language},
     {STR_SKIP_SONGS, SKIP_OPTIONS, SKIP_GESTURE_COUNT, current_skip, choose_skip, NULL, NULL},
     {STR_GAIN, GAIN_OPTIONS, GAIN_LEVEL_COUNT, current_gain, choose_gain, NULL, NULL},
+    {STR_DAC_FILTER, FILTER_OPTIONS, DAC_FILTER_COUNT, current_filter, choose_filter, NULL, NULL},
     {STR_OUTPUT, OUTPUT_OPTIONS, OUTPUT_JACK_COUNT, current_output, choose_output, describe_output,
      NULL},
     {STR_EQUALIZER, EQUALIZER_PRESET_NAMES, EQUALIZER_PRESET_COUNT, current_equalizer,

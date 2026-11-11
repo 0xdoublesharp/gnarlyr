@@ -1010,6 +1010,7 @@ static Settings extension_settings(void)
         settings.home_order[index] = (uint8_t)(SETTINGS_HOME_ITEM_COUNT - 1 - index);
     }
     settings.home_hidden = 0x3F7;
+    settings.dac_filter = DAC_FILTER_SLOW_PHASE_COMPENSATED;
     return settings;
 }
 
@@ -1025,6 +1026,7 @@ static void check_extension_defaults(const Settings *settings)
         CHECK_EQUAL(index, settings->home_order[index]);
     }
     CHECK_EQUAL(0, settings->home_hidden);
+    CHECK_EQUAL(DAC_FILTER_FAST_LOW_LATENCY, settings->dac_filter);
 }
 
 static void the_extension_defaults_keep_todays_behaviour(void)
@@ -1049,7 +1051,8 @@ static void the_extension_block_sits_between_the_language_and_the_checksum(void)
 
 static void every_extension_field_survives_a_round_trip(void)
 {
-    static const uint8_t EXPECTED[16] = {0x10, 60, 60, 0, 0x89, 0x67, 0x45, 0x23, 0x01, 0xF7, 0x03};
+    static const uint8_t EXPECTED[16] = {0x10, 60,   60,   0, 0x89, 0x67, 0x45, 0x23,
+                                         0x01, 0xF7, 0x03, 0, 0,    0,    0x03};
     Settings original = extension_settings();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&original, bytes);
@@ -1064,7 +1067,36 @@ static void every_extension_field_survives_a_round_trip(void)
     CHECK_EQUAL(SETTINGS_TRANSITION_TENTHS_MAX, decoded.transition_tenths);
     CHECK(memcmp(original.home_order, decoded.home_order, sizeof decoded.home_order) == 0);
     CHECK_EQUAL(0x3F7, decoded.home_hidden);
+    CHECK_EQUAL(DAC_FILTER_SLOW_PHASE_COMPENSATED, decoded.dac_filter);
     CHECK_EQUAL(original.volume, decoded.volume);
+}
+
+static void the_gain_default_is_unchanged_and_the_filter_defaults_to_stocks_fast_low_latency(void)
+{
+    Settings settings = settings_defaults();
+    CHECK_EQUAL(GAIN_LOW, settings.gain);
+    CHECK_EQUAL(DAC_FILTER_FAST_LOW_LATENCY, settings.dac_filter);
+    CHECK_EQUAL(5, DAC_FILTER_COUNT);
+}
+
+static void each_dac_filter_round_trips_alone_in_the_low_bits_of_extension_byte_fourteen(void)
+{
+    for (int filter = 0; filter < DAC_FILTER_COUNT; filter++) {
+        Settings original = settings_defaults();
+        uint8_t plain[SETTINGS_FILE_SIZE];
+        settings_encode(&original, plain);
+        original.dac_filter = (uint8_t)filter;
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&original, bytes);
+        CHECK_EQUAL(filter, bytes[EXTENSION_FIELD + 14]);
+        for (int offset = EXTENSION_FIELD; offset < EXTENSION_CHECKSUM_FIELD; offset++) {
+            CHECK(offset == EXTENSION_FIELD + 14 || bytes[offset] == plain[offset]);
+        }
+        Settings decoded;
+        CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+        CHECK_EQUAL(filter, decoded.dac_filter);
+        CHECK_EQUAL(GAIN_LOW, decoded.gain);
+    }
 }
 
 static void each_comfort_flag_and_the_fade_round_trip_alone(void)
@@ -1151,10 +1183,11 @@ static void the_checksum_covers_the_extension_block(void)
 
 static void each_invalid_extension_value_is_rejected_without_mutating_the_settings(void)
 {
-    static const uint8_t CASES[][2] = {
-        {0, 0x20},  {0, 0x40},  {0, 0x80}, {0, 0x18}, {1, 61},   {2, 4},    {2, 61},   {2, 0},
-        {3, 1},     {4, 0x00},  {4, 0x11}, {6, 0x55}, {8, 0x18}, {8, 0x09}, {9, 0x08}, {9, 0xFF},
-        {10, 0x04}, {10, 0x80}, {11, 1},   {12, 1},   {13, 1},   {14, 1},   {15, 0x80}};
+    static const uint8_t CASES[][2] = {{0, 0x20}, {0, 0x40},  {0, 0x80},  {0, 0x18},  {1, 61},
+                                       {2, 4},    {2, 61},    {2, 0},     {3, 1},     {4, 0x00},
+                                       {4, 0x11}, {6, 0x55},  {8, 0x18},  {8, 0x09},  {9, 0x08},
+                                       {9, 0xFF}, {10, 0x04}, {10, 0x80}, {11, 1},    {12, 1},
+                                       {13, 1},   {14, 5},    {14, 7},    {14, 0x80}, {15, 0x80}};
     for (uint32_t at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
         Settings original = settings_defaults();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1321,6 +1354,8 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(defaults_are_comfortable),
         TEST_CASE(the_extension_defaults_keep_todays_behaviour),
+        TEST_CASE(the_gain_default_is_unchanged_and_the_filter_defaults_to_stocks_fast_low_latency),
+        TEST_CASE(each_dac_filter_round_trips_alone_in_the_low_bits_of_extension_byte_fourteen),
         TEST_CASE(the_extension_block_sits_between_the_language_and_the_checksum),
         TEST_CASE(every_extension_field_survives_a_round_trip),
         TEST_CASE(each_comfort_flag_and_the_fade_round_trip_alone),

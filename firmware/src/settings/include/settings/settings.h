@@ -11,6 +11,14 @@ typedef enum GainLevel {
     GAIN_HIGH
 } GainLevel;
 
+typedef enum DacFilter {
+    DAC_FILTER_FAST_LOW_LATENCY,
+    DAC_FILTER_FAST_PHASE_COMPENSATED,
+    DAC_FILTER_SLOW_LOW_LATENCY,
+    DAC_FILTER_SLOW_PHASE_COMPENSATED,
+    DAC_FILTER_NON_OVERSAMPLING
+} DacFilter;
+
 typedef enum OutputJack {
     OUTPUT_AUTO,
     OUTPUT_SINGLE_ENDED,
@@ -118,6 +126,7 @@ typedef enum TrackTransition {
 
 enum {
     GAIN_LEVEL_COUNT = GAIN_HIGH + 1,
+    DAC_FILTER_COUNT = DAC_FILTER_NON_OVERSAMPLING + 1,
     APPEARANCE_THEME_COUNT = APPEARANCE_CLASSIC + 1,
     BUTTON_ACTION_COUNT = BUTTON_ACTION_HOME + 1,
     PLAYBACK_BUTTON_COUNT = PLAYBACK_MENU_HOLD + 1,
@@ -189,6 +198,7 @@ typedef struct Settings {
     bool clock_24h;
     TrackTransition track_transition;
     uint8_t transition_tenths;
+    uint8_t dac_filter;
     uint8_t home_order[SETTINGS_HOME_ITEM_COUNT];
     uint16_t home_hidden;
 } Settings;

@@ -623,9 +623,14 @@ CORE_SEAM CORE_COLD void hal_audio_set_headphones(HeadphoneAudio profile)
     apply_volume();
 }
 
-void hal_audio_set_gain(HalAudioGain gain)
+CORE_SEAM void hal_audio_set_gain(HalAudioGain gain)
 {
     dac_path_set_gain(gain == HAL_AUDIO_GAIN_HIGH);
+}
+
+CORE_SEAM void hal_audio_set_filter(HalAudioFilter filter)
+{
+    dac_path_set_filter((uint8_t)filter);
 }
 
 void hal_audio_set_output(HalAudioOutput output)

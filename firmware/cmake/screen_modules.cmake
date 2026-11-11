@@ -56,6 +56,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/screens/card_format_screen.c
     src/app/headphone_editor.c
     src/app/headphone_store_edit.c
+    src/app/audio_settings.c
     src/settings/headphone_profile_edit.c
     src/settings/headphone_file_save.c
     src/core/headphone_audio_switch.c

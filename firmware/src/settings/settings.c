@@ -62,6 +62,8 @@ enum {
     HOME_HIDDEN_BYTE = 9,
     RESERVED_BYTE = 11,
     RESERVED_COUNT = 5,
+    DAC_FILTER_BYTE = 14,
+    DAC_FILTER_MASK = 0x07,
     EXTENSION_SIZE = 16,
     REWIND_BIT = 1,
     SAFE_START_BIT = 2,
@@ -158,6 +160,7 @@ static void read_extension(const uint8_t *extension, Settings *settings)
     settings->transition_tenths = extension[TRANSITION_BYTE];
     settings_home_unpack(extension + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT,
                          settings->home_order, &settings->home_hidden);
+    settings->dac_filter = extension[DAC_FILTER_BYTE] & DAC_FILTER_MASK;
 }
 
 Settings settings_defaults(void)
@@ -287,6 +290,7 @@ static void encode_extension(const Settings *settings, uint8_t *extension)
     }
     extension[HOME_HIDDEN_BYTE] = (uint8_t)settings->home_hidden;
     extension[HOME_HIDDEN_BYTE + 1] = (uint8_t)(settings->home_hidden >> 8);
+    extension[DAC_FILTER_BYTE] |= (uint8_t)(settings->dac_filter & DAC_FILTER_MASK);
 }
 
 void settings_encode(const Settings *settings, uint8_t *bytes)
@@ -430,10 +434,11 @@ static bool home_valid(const uint8_t *extension)
 static bool reserved_clear(const uint8_t *extension)
 {
     uint8_t any = extension[TRANSITION_BYTE + 1];
-    for (int index = 0; index < RESERVED_COUNT; index++) {
-        any |= extension[RESERVED_BYTE + index];
+    for (int index = RESERVED_BYTE; index < RESERVED_BYTE + RESERVED_COUNT; index++) {
+        uint8_t reserved = index == DAC_FILTER_BYTE ? (uint8_t)~DAC_FILTER_MASK : 0xFF;
+        any |= extension[index] & reserved;
     }
-    return any == 0;
+    return any == 0 && (extension[DAC_FILTER_BYTE] & DAC_FILTER_MASK) < DAC_FILTER_COUNT;
 }
 
 static bool extension_valid(const uint8_t *bytes)

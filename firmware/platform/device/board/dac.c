@@ -118,7 +118,7 @@ static HalToneDetail detail;
 static DacIdentity identity[DAC_IDENTITY_CHIPS];
 static uint8_t volume_value;
 static bool volume_known;
-static bool gain_high;
+static DacAnalog analog;
 static bool dac_up;
 static bool muted;
 static uint8_t applied_volume;
@@ -443,14 +443,11 @@ static HalToneResult start_audio_path(const AudioRate *rate, uint32_t divider, u
     }
     start_acodec(rate->acodec);
     start_i2s(divider, format, interrupts, transfer);
-    DacResult configured = dac_configure(&BUS, rate->dac_byte);
+    DacResult configured = dac_configure(&BUS, rate->dac_byte, analog);
     if (configured != DAC_READY) {
         dac_output_off(&BUS);
         stop_i2s();
         return result_of(configured);
-    }
-    if (gain_high) {
-        dac_set_gain(&BUS, true);
     }
     dac_up = true;
     muted = true;
@@ -557,12 +554,45 @@ void dac_path_set_volume(uint8_t value)
     }
 }
 
+static void serving_delay(void *context, uint32_t microseconds)
+{
+    (void)context;
+    wait_serving(microseconds);
+}
+
+static const DacBus SERVING_BUS = {dac_write, dac_read, dac_set_pin, serving_delay, NULL};
+
+static void set_analog(DacAnalog next)
+{
+    DacAnalog before = analog;
+    analog = next;
+    if (!dac_up || (before.gain_high == next.gain_high && before.filter == next.filter)) {
+        return;
+    }
+    bool was_muted = muted;
+    dac_path_set_muted(true);
+    (void)dac_apply_analog(&SERVING_BUS, before, next);
+    if (!was_muted) {
+        dac_path_set_muted(false);
+    }
+}
+
 void dac_path_set_gain(bool high)
 {
-    gain_high = high;
-    if (dac_up) {
-        dac_set_gain(&BUS, high);
+    set_analog((DacAnalog){.gain_high = high, .filter = analog.filter});
+}
+
+void dac_path_set_filter(uint8_t filter)
+{
+    if (filter < DAC_ANALOG_FILTERS) {
+        set_analog((DacAnalog){.gain_high = analog.gain_high, .filter = filter});
     }
+}
+
+bool dac_path_read_register(uint32_t map, uint8_t *left, uint8_t *right)
+{
+    return dac_up && dac_read(NULL, DAC_LEFT_ADDRESS, map, left) &&
+           dac_read(NULL, DAC_RIGHT_ADDRESS, map, right);
 }
 
 bool dac_path_is_muted(void)
