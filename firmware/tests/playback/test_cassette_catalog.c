@@ -1,7 +1,6 @@
 #include <string.h>
 
 #include "check.h"
-#include "core/hash.h"
 #include "playback/mix_catalog.h"
 
 static uint8_t disk[MIX_CATALOG_BYTES];
@@ -78,7 +77,7 @@ static void impossible_splits_budgets_and_side_counts_are_refused(void)
     CHECK(!mix_catalog_begin(&job, &catalog, 0, (MixPatch){entry, 0}));
 }
 
-static void an_older_single_sided_catalogue_loads_without_changing_its_bytes(void)
+static void ordinary_single_sided_entries_keep_zero_cassette_fields_without_rewriting(void)
 {
     memset(disk, 0, sizeof disk);
     MixCatalog catalog;
@@ -90,8 +89,6 @@ static void an_older_single_sided_catalogue_loads_without_changing_its_bytes(voi
     CHECK(mix_catalog_begin(&job, &catalog, 0, (MixPatch){entry, 0}));
     while (mix_catalog_step(&job) == STORE_WORKING) {
     }
-    store_put16(disk + 4, 1);
-    store_put32(disk + 24, hash_update(HASH_START, disk, 24));
     uint8_t before[MIX_CATALOG_BYTES];
     memcpy(before, disk, sizeof before);
     CHECK_EQUAL(STORE_READY, mix_catalog_open(&catalog, io()));
@@ -106,7 +103,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(a_two_sided_catalogue_keeps_its_split_and_budget_after_restart),
         TEST_CASE(impossible_splits_budgets_and_side_counts_are_refused),
-        TEST_CASE(an_older_single_sided_catalogue_loads_without_changing_its_bytes),
+        TEST_CASE(ordinary_single_sided_entries_keep_zero_cassette_fields_without_rewriting),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

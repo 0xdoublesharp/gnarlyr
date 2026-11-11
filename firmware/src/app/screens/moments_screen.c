@@ -279,10 +279,10 @@ static bool play_moment(MomentsScreen *screen)
     source.subject = work->resolve.track;
     if (!player_play_from(player, (PlayerListStart){.source = source,
                                                     .in_order = true,
+                                                    .exact_position = true,
                                                     .position_ms = work->moment.position_ms})) {
         return false;
     }
-    player_seek(player, work->moment.position_ms);
     if (!player_save(player)) {
         return false;
     }

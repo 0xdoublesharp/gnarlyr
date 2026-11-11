@@ -1,7 +1,6 @@
 #include <string.h>
 
 #include "check.h"
-#include "core/hash.h"
 #include "playback/session_journal.h"
 
 static uint8_t disk[SESSION_FILE_BYTES];
@@ -115,19 +114,17 @@ static void uncertain_flip_requires_reopening_and_invalid_side_positions_never_p
     CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
 }
 
-static void a_legacy_session_loads_with_no_cassette(void)
+static void an_unrecognized_payload_shape_does_not_restore_partial_state(void)
 {
     reset();
     SessionState state = sample();
-    state.cassette = (CassetteState){0};
     CHECK_EQUAL(STORE_DONE, session_journal_save(&journal, &state));
-    StoreKind old = {.magic = {'D', 'S', 'S', 'J'}, .version = 1, .inline_payload = true};
+    StoreKind kind = {.magic = {'D', 'S', 'S', 'J'}, .version = 1, .inline_payload = true};
     StoreHeader header = {.generation = 1, .bytes = 268, .binding = 7};
-    store_encode(&old, &header, disk);
-    SessionState restored;
-    CHECK_EQUAL(STORE_READY, session_journal_open(&journal, config(), &restored));
-    CHECK(!restored.cassette.active);
-    CHECK_EQUAL(3, restored.order_generation);
+    store_encode(&kind, &header, disk);
+    SessionState restored = {.resume.position_ms = 777};
+    CHECK_EQUAL(STORE_CORRUPT, session_journal_open(&journal, config(), &restored));
+    CHECK_EQUAL(777, restored.resume.position_ms);
 }
 
 int main(void)
@@ -135,7 +132,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(torn_flip_publications_keep_side_entry_and_position_together),
         TEST_CASE(uncertain_flip_requires_reopening_and_invalid_side_positions_never_publish),
-        TEST_CASE(a_legacy_session_loads_with_no_cassette),
+        TEST_CASE(an_unrecognized_payload_shape_does_not_restore_partial_state),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

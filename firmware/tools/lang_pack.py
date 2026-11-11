@@ -123,6 +123,8 @@ def drawable_from_config(fonts, packs):
     for font in fonts["fonts"]:
         own = shared | range_characters(font.get("extra_ranges", []))
         own |= faces.get(font.get("pack_face"), set())
+        for fallback in font.get("fallback_faces", []):
+            own |= faces.get(fallback, set())
         drawable = own if drawable is None else drawable & own
     return drawable if drawable is not None else set()
 

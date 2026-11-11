@@ -5,15 +5,13 @@
 enum {
     ORDER_FIELD = RESUME_STATE_SIZE + UP_NEXT_STATE_SIZE,
     KIND_FIELD = ORDER_FIELD + 4,
-    LEGACY_PAYLOAD_BYTES = ORDER_FIELD + 8,
-    CASSETTE_FIELD = LEGACY_PAYLOAD_BYTES,
+    CASSETTE_FIELD = ORDER_FIELD + 8,
     PAYLOAD_BYTES = CASSETTE_FIELD + 12
 };
 
 const char SESSION_JOURNAL_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/session.bin";
 
-static const StoreKind KIND = {
-    .magic = {'D', 'S', 'S', 'J'}, .version = 2, .inline_payload = true, .oldest_version = 1};
+static const StoreKind KIND = {.magic = {'D', 'S', 'S', 'J'}, .version = 1, .inline_payload = true};
 
 typedef struct Reader {
     const SessionJournalConfig *config;
@@ -98,7 +96,7 @@ static void encode_cassette(const CassetteState *tape, uint8_t *bytes)
 }
 
 static bool decode_payload(const SessionJournalConfig *config, const uint8_t *bytes,
-                           SessionState *state, uint16_t version)
+                           SessionState *state)
 {
     *state = (SessionState){.order_generation = store_get32(bytes + ORDER_FIELD),
                             .queue_kind = (SessionQueueKind)bytes[KIND_FIELD]};
@@ -107,8 +105,7 @@ static bool decode_payload(const SessionJournalConfig *config, const uint8_t *by
            up_next_decode(bytes + RESUME_STATE_SIZE, UP_NEXT_STATE_SIZE, config->fingerprint,
                           &state->up_next) &&
            ids_valid(config, state) && kind_valid(state) &&
-           (version == 1 || decode_cassette(bytes + CASSETTE_FIELD, &state->cassette)) &&
-           cassette_valid(state);
+           decode_cassette(bytes + CASSETTE_FIELD, &state->cassette) && cassette_valid(state);
 }
 
 static bool wanted(const Reader *reader, const StoreHeader *header)
@@ -131,10 +128,8 @@ static StoreLoad check_record(void *context, uint8_t bank, const StoreHeader *he
     if (load != STORE_READY) {
         return load;
     }
-    bool decoded =
-        again.generation == header->generation &&
-        again.bytes == (again.version == 1 ? LEGACY_PAYLOAD_BYTES : PAYLOAD_BYTES) &&
-        decode_payload(reader->config, block + STORE_FIELD_BYTES, &reader->state, again.version);
+    bool decoded = again.generation == header->generation && again.bytes == PAYLOAD_BYTES &&
+                   decode_payload(reader->config, block + STORE_FIELD_BYTES, &reader->state);
     return decoded ? STORE_READY : STORE_CORRUPT;
 }
 
@@ -218,7 +213,7 @@ StoreResult session_journal_save(SessionJournal *journal, const SessionState *st
         return STORE_FAILED;
     }
     make_record(journal, state, block);
-    if (!decode_payload(&journal->config, block + STORE_FIELD_BYTES, &check, 2)) {
+    if (!decode_payload(&journal->config, block + STORE_FIELD_BYTES, &check)) {
         return STORE_FAILED;
     }
     uint8_t bank = journal->valid ? (uint8_t)(1 - journal->bank) : 0;

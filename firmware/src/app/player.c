@@ -227,7 +227,8 @@ static void resume_paused(Player *player)
     uint32_t back = rewind_due(player);
     player->rewind_pause = RESUME_REWIND_NONE;
     if (!player->loaded) {
-        start_track(player, resume_rewind_position(player->paused_position_ms, back), back == 0);
+        start_track(player, resume_rewind_position(player->paused_position_ms, back),
+                    back == 0 && !player->cassette.active);
         return;
     }
     uint32_t position = current_position(player);
@@ -353,7 +354,9 @@ bool player_play_from(Player *player, PlayerListStart start)
                           .shuffle = start.in_order ? SHUFFLE_OFF : player->shuffle,
                           .seed = start.seed};
     if (!play_queue_build(&player->queue, player->library, plan) ||
-        !start_playable(player, start.position_ms, 1, player->repeat == REPEAT_ALL)) {
+        !(start.exact_position
+              ? start_track(player, start.position_ms, false)
+              : start_playable(player, start.position_ms, 1, player->repeat == REPEAT_ALL))) {
         return false;
     }
     player_save(player);
@@ -370,7 +373,7 @@ void player_toggle_pause(Player *player)
                                       player->cassette.side == 0 ? 0 : player->cassette.split};
         play_queue_move_to(&player->queue, cursor);
         player->rewind_pause = RESUME_REWIND_NONE;
-        (void)start_current(player, 0);
+        (void)start_track(player, 0, false);
         (void)player_save(player);
         return;
     }

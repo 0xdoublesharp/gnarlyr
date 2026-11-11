@@ -119,6 +119,35 @@ static void every_visible_moment_has_a_label_in_small_portrait(void)
     }
 }
 
+static uint32_t spoken_position(void *context, uint16_t track)
+{
+    (void)context;
+    (void)track;
+    return 12345;
+}
+
+static void a_moment_at_zero_overrides_a_spoken_bookmark_before_audio_starts(void)
+{
+    reset();
+    LibraryTrack track;
+    CHECK(library_read_track(&fixture.library, 0, &track));
+    uint32_t path = fixture.library.sections[LIBRARY_STRINGS].offset + track.path;
+    strcpy((char *)fixture.bytes + path, "Audiobooks/m.flac");
+    player_set_resume(&player, (PlayerResume){spoken_position, NULL});
+    CHECK(player_play_list(&player, browse_root_query(BROWSE_SINGLE_TRACK), 0, 0));
+    fake_hal_audio_set_position(0);
+    choose(0, KEY_GESTURE_PRESS);
+    finish();
+    player_release_output(&player);
+    player_init(&player, &fixture.library);
+    player_set_resume(&player, (PlayerResume){spoken_position, NULL});
+    open_screen();
+    choose(1, KEY_GESTURE_PRESS);
+    finish();
+    CHECK_EQUAL(0, fake_hal_audio_play_start());
+    CHECK_EQUAL(0, player_status(&player).position_ms);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -126,6 +155,7 @@ int main(void)
         TEST_CASE(hold_delete_removes_only_the_chosen_moment_after_confirmation),
         TEST_CASE(saving_without_a_track_gives_feedback_and_creates_no_file),
         TEST_CASE(every_visible_moment_has_a_label_in_small_portrait),
+        TEST_CASE(a_moment_at_zero_overrides_a_spoken_bookmark_before_audio_starts),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

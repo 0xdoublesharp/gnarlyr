@@ -14,7 +14,7 @@ enum {
     RESERVED_FIELD = 76
 };
 
-static const StoreKind KIND = {.magic = {'D', 'S', 'M', 'C'}, .version = 2, .oldest_version = 1};
+static const StoreKind KIND = {.magic = {'D', 'S', 'M', 'C'}, .version = 1};
 
 typedef struct Request {
     const StoreFile *file;

@@ -93,12 +93,41 @@ static void side_b_ends_finitely_even_with_repeat_all(void)
     CHECK_EQUAL(2, player.track);
 }
 
+static uint32_t spoken_position(void *context, uint16_t track)
+{
+    (void)context;
+    (void)track;
+    return 12345;
+}
+
+static void flipping_and_cold_resume_at_zero_do_not_apply_spoken_bookmarks(void)
+{
+    start();
+    LibraryTrack track;
+    CHECK(library_read_track(&fixture.library, 1, &track));
+    uint32_t path = fixture.library.sections[LIBRARY_STRINGS].offset + track.path;
+    strcpy((char *)fixture.bytes + path, "Audiobooks/b.flac");
+    player_set_resume(&player, (PlayerResume){spoken_position, NULL});
+    fake_hal_audio_finish_track();
+    player_update(&player, 100);
+    player_toggle_pause(&player);
+    CHECK_EQUAL(0, fake_hal_audio_play_start());
+    fake_hal_audio_set_position(0);
+    CHECK(player_save(&player));
+    player_init(&player, &fixture.library);
+    player_set_resume(&player, (PlayerResume){spoken_position, NULL});
+    CHECK(player_restore(&player));
+    player_toggle_pause(&player);
+    CHECK_EQUAL(0, fake_hal_audio_play_start());
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(side_a_never_prefetches_side_b_and_requires_a_flip),
         TEST_CASE(side_b_resumes_its_entry_and_exact_position_after_restart),
         TEST_CASE(side_b_ends_finitely_even_with_repeat_all),
+        TEST_CASE(flipping_and_cold_resume_at_zero_do_not_apply_spoken_bookmarks),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

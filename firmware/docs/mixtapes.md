@@ -11,7 +11,7 @@ An entry is not a track index, since a rescan renumbers tracks. It is the track'
 
 ## Catalogue
 
-`/.gnarlyr/mixes.bin` is 6,144 bytes: two banks of 3,072, each a header block (magic `DSMC`, version 2, count 32, payload 2,560 bytes) and 32 entries of 80 bytes, one per slot:
+`/.gnarlyr/mixes.bin` is 6,144 bytes: two banks of 3,072, each a header block (magic `DSMC`, version 1, count 32, payload 2,560 bytes) and 32 entries of 80 bytes, one per slot:
 
 | Offset | Type | Field |
 |---|---|---|
@@ -97,6 +97,6 @@ Saves and deletes copy the list to the spare bank through `StoreWrite`: invalida
 
 New two-sided tape creates a named C60 or C90 cassette in the same 32-slot catalogue. Each side holds at most 64 tracks and at most 30 or 45 minutes respectively. Hold Play on a song in a Music list, choose Add to tape, select the cassette and choose Side A or Side B. Additions keep their order on the selected side; a Side A addition is inserted before Side B. Both sides need a song before playback. Adding requires every existing identity to resolve uniquely and every track to have a known, positive duration that fits its side. Failure leaves the published tape unchanged.
 
-Cassette tapes keep the version-1 `DSMT` format: Side A entries followed by Side B entries, with the split and duration budget in the catalogue entry. Version-1 catalogues still load with ordinary single-sided entries; reading them changes no bytes. The next catalogue write uses version 2. Existing ordinary mixtapes retain their save, replace, edit, rename and delete actions. Cassette actions are Resume tape, Play Side A, Play Side B, Rename and Delete.
+Cassette tapes keep the version-1 `DSMT` format: Side A entries followed by Side B entries, with the split and duration budget in the catalogue entry. Ordinary single-sided entries have zero cassette fields. Existing ordinary mixtapes retain their save, replace, edit, rename and delete actions. Cassette actions are Resume tape, Play Side A, Play Side B, Rename and Delete.
 
 The player publishes the resolved order and cassette state in one session-journal record. The cassette state records its catalogue slot and tape generation, total count, Side A split, current side and whether that side has finished. Prefetch and skips stay within the current side regardless of repeat. At the end of Side A, playback stops and a cassette screen offers Flip to Side B; Play starts Side B. At the end of Side B, Play rewinds to Side A. Back dismisses the prompt while keeping playback stopped. Restart preserves the exact side, entry and relative millisecond position, including a pending flip; the normal cold-resume rewind is omitted for cassette playback. Resume tape continues the active cassette when its generation still matches. Queue editing is unavailable during cassette playback; playing another list exits cassette mode.

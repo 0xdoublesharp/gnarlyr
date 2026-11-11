@@ -50,7 +50,8 @@
       "name": "inter_regular_16",
       "file": "inter/Inter-Regular.ttf",
       "size": 16,
-      "pack_face": "inter_regular_16_latin1"
+      "pack_face": "inter_regular_16_latin1",
+      "fallback_faces": ["inter_regular_16_latin1_sc", "inter_regular_16_latin1_jp"]
     },
     {
       "name": "inter_regular_22",
@@ -71,7 +72,8 @@
           1169
         ]
       ],
-      "pack_face": "inter_regular_22"
+      "pack_face": "inter_regular_22",
+      "fallback_faces": ["inter_regular_22_sc", "inter_regular_22_jp"]
     },
     {
       "name": "inter_semibold_22",
@@ -92,7 +94,8 @@
           1169
         ]
       ],
-      "pack_face": "inter_semibold_22"
+      "pack_face": "inter_semibold_22",
+      "fallback_faces": ["inter_semibold_22_sc", "inter_semibold_22_jp"]
     },
     {
       "name": "inter_regular_18",
@@ -113,7 +116,8 @@
           1169
         ]
       ],
-      "pack_face": "inter_regular_18"
+      "pack_face": "inter_regular_18",
+      "fallback_faces": ["inter_regular_18_sc", "inter_regular_18_jp"]
     },
     {
       "name": "inter_semibold_18",
@@ -134,7 +138,8 @@
           1169
         ]
       ],
-      "pack_face": "inter_semibold_18"
+      "pack_face": "inter_semibold_18",
+      "fallback_faces": ["inter_semibold_18_sc", "inter_semibold_18_jp"]
     },
     {
       "name": "inter_regular_26",
@@ -155,7 +160,8 @@
           1169
         ]
       ],
-      "pack_face": "inter_regular_26"
+      "pack_face": "inter_regular_26",
+      "fallback_faces": ["inter_regular_26_sc", "inter_regular_26_jp"]
     },
     {
       "name": "inter_semibold_26",
@@ -176,7 +182,8 @@
           1169
         ]
       ],
-      "pack_face": "inter_semibold_26"
+      "pack_face": "inter_semibold_26",
+      "fallback_faces": ["inter_semibold_26_sc", "inter_semibold_26_jp"]
     }
   ]
 }

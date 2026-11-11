@@ -489,7 +489,7 @@ static bool remaining_output(const AudioEngine *engine, int64_t *remaining)
 {
     uint32_t end = engine->decode_limit != 0 ? engine->decode_limit
                                              : engine->decode_track.stream.total_samples;
-    if (end == 0 || !engine->holding_frame) {
+    if (end == 0) {
         return false;
     }
     int64_t input = (int64_t)end - engine->frame.first_sample - engine->pending_offset;
