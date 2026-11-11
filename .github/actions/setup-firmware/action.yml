@@ -8,14 +8,14 @@ runs:
       run: |
         set -euo pipefail
         if [ "${{ runner.os }}" = Linux ]; then
-          mkdir -p "$RUNNER_TEMP/scratch"
           sudo mkdir -p /Volumes/Scratch
-          sudo mount --bind "$RUNNER_TEMP/scratch" /Volumes/Scratch
+          sudo mount -t tmpfs -o size=16G tmpfs /Volumes/Scratch
           sudo chown "$(id -u):$(id -g)" /Volumes/Scratch
         else
           hdiutil create -size 40g -fs APFS -volname Scratch -type SPARSE "$RUNNER_TEMP/Scratch.sparseimage"
           hdiutil attach -nobrowse -mountpoint /Volumes/Scratch "$RUNNER_TEMP/Scratch.sparseimage"
         fi
+        python3 -c 'import os; assert os.path.ismount("/Volumes/Scratch"), "Scratch is not mounted"'
         mkdir -p /Volumes/Scratch/SnowskyEcho/{tools,tmp/ci,reports/ci,dist}
         echo 'TMPDIR=/Volumes/Scratch/SnowskyEcho/tmp/ci' >> "$GITHUB_ENV"
         echo 'PYTHONDONTWRITEBYTECODE=1' >> "$GITHUB_ENV"
