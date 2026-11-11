@@ -500,8 +500,11 @@ static void build_menu(SmartListScreen *screen)
 Screen *smart_list_screen_init(SmartListScreen *screen, SmartListScreenConfig config)
 {
     *screen = (SmartListScreen){.config = config};
-    screen->model = (ListModel){
-        .context = screen, .count = row_count, .label = row_label, .detail = row_detail};
+    screen->model = (ListModel){.context = screen,
+                                .count = row_count,
+                                .label = row_label,
+                                .detail = row_detail,
+                                .detail_below = true};
     screen->screen = (Screen){.title = i18n_text(STR_SMART_LISTS),
                               .context = screen,
                               .enter = enter,
