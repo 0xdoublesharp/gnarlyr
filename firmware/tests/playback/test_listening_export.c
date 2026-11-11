@@ -9,7 +9,7 @@ enum {
     TEXT_CAPACITY = 16384
 };
 
-#define HEADER "#AUDIOSCROBBLER/1.1\n#TZ/UNKNOWN\n#CLIENT/" FIRMWARE_NAME " " FIRMWARE_VERSION "\n"
+#define HEADER "#AUDIOSCROBBLER/1.1\n#TZ/UTC\n#CLIENT/" FIRMWARE_NAME " " FIRMWARE_VERSION "\n"
 #define HUNTER "Björk\tHomogenic\tHunter\t1\t254\tL\t1794182400\t\n"
 #define JOGA_SKIPPED "Björk\tHomogenic\tJóga\t2\t305\tS\t1794182700\t\n"
 #define PAD_LINE "#                                                              \n"
@@ -97,6 +97,18 @@ static void without_a_clock_the_timestamp_is_zero(void)
     reset();
     add(listening_fixture_play(0, 254000));
     add(listening_fixture_play(4, 103999));
+    CHECK_EQUAL(STORE_DONE, export_to(sizeof WANTED - 1));
+    check_text(WANTED);
+}
+
+static void the_timestamp_is_utc_whatever_the_offset_of_the_play(void)
+{
+    static const char WANTED[] = HEADER "Björk\tHomogenic\tHunter\t1\t254\tL\t1794182400\t\n";
+    reset();
+    ListeningPlay play = listening_fixture_play(0, 254000);
+    play.clock_s = 1794182400;
+    play.offset_minutes = -480;
+    add(play);
     CHECK_EQUAL(STORE_DONE, export_to(sizeof WANTED - 1));
     check_text(WANTED);
 }
@@ -298,6 +310,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(the_log_is_exported_as_a_scrobbler_file_byte_for_byte),
         TEST_CASE(without_a_clock_the_timestamp_is_zero),
+        TEST_CASE(the_timestamp_is_utc_whatever_the_offset_of_the_play),
         TEST_CASE(tabs_and_line_breaks_in_a_tag_become_spaces_and_missing_fields_stay_empty),
         TEST_CASE(the_rest_of_a_larger_file_is_comment_lines),
         TEST_CASE(a_file_of_several_sectors_is_written_whole_sectors_first),

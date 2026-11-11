@@ -224,7 +224,7 @@ static size_t check_record(const char *line, size_t left)
 
 static void check_scrobbler_file(uint32_t plays)
 {
-    static const char *const HEADERS[] = {"#AUDIOSCROBBLER/1.1\n", "#TZ/UNKNOWN\n",
+    static const char *const HEADERS[] = {"#AUDIOSCROBBLER/1.1\n", "#TZ/UTC\n",
                                           "#CLIENT/" FIRMWARE_NAME " " FIRMWARE_VERSION "\n"};
     uint32_t size = 0;
     const uint8_t *bytes = fake_hal_file_bytes(LISTENING_EXPORT_PATH, &size);

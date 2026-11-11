@@ -53,6 +53,7 @@ static void a_play_is_read_back_with_every_field(void)
         .end_ms = 210000,
         .uptime_s = 4321,
         .clock_s = 1794268800,
+        .offset_minutes = -480,
         .end = LISTENING_REPLACED,
         .output = LISTENING_OUTPUT_USB_DAC,
         .format = LISTENING_FORMAT_HIRES};
@@ -73,6 +74,7 @@ static void a_play_is_read_back_with_every_field(void)
     CHECK_EQUAL(210000, seen.first.play.end_ms);
     CHECK_EQUAL(4321, seen.first.play.uptime_s);
     CHECK_EQUAL(1794268800, seen.first.play.clock_s);
+    CHECK_EQUAL(-480, seen.first.play.offset_minutes);
     CHECK_EQUAL(LISTENING_REPLACED, seen.first.play.end);
     CHECK_EQUAL(LISTENING_OUTPUT_USB_DAC, seen.first.play.output);
     CHECK_EQUAL(LISTENING_FORMAT_HIRES, seen.first.play.format);
@@ -96,7 +98,7 @@ static void the_file_is_two_counter_blocks_and_a_ring_of_64_byte_records(void)
     ListeningPlay play = listening_fixture_play(0, 254000);
     CHECK_EQUAL(STORE_DONE, listening_log_append(&log_file, &play));
     CHECK(memcmp(disk.bytes, "DSLL", 4) == 0);
-    CHECK_EQUAL(1, disk.bytes[VERSION_FIELD]);
+    CHECK_EQUAL(2, disk.bytes[VERSION_FIELD]);
     CHECK_EQUAL(0, disk.bytes[STORE_BLOCK_BYTES]);
     const uint8_t *record = disk.bytes + SLOT_ONE;
     CHECK_EQUAL(1, get32(record));
@@ -108,6 +110,7 @@ static void the_file_is_two_counter_blocks_and_a_ring_of_64_byte_records(void)
     CHECK_EQUAL(10, record[44]);
     CHECK_EQUAL(LISTENING_FINISHED, record[46]);
     CHECK_EQUAL(LISTENING_FORMAT_LOSSLESS, record[48]);
+    CHECK_EQUAL(0, record[49]);
     CHECK_EQUAL(hash_update(HASH_START, record, RECORD_CHECK_FIELD),
                 get32(record + RECORD_CHECK_FIELD));
     CHECK_EQUAL(STORE_DONE, listening_log_append(&log_file, &play));
@@ -384,7 +387,7 @@ static void a_later_version_is_never_overwritten(void)
 {
     reset();
     append_plays(1);
-    disk.bytes[VERSION_FIELD] = 2;
+    disk.bytes[VERSION_FIELD] = 3;
     seal(disk.bytes);
     before = disk;
     CHECK_EQUAL(STORE_UNSUPPORTED, reopen());
@@ -392,6 +395,85 @@ static void a_later_version_is_never_overwritten(void)
     CHECK_EQUAL(STORE_FAILED, listening_log_append(&log_file, &play));
     CHECK_EQUAL(STORE_FAILED, listening_log_note(&log_file, LISTENING_BOOT));
     CHECK(memcmp(before.bytes, disk.bytes, sizeof disk.bytes) == 0);
+}
+
+static void seal_record(uint8_t *record)
+{
+    uint32_t check = hash_update(HASH_START, record, RECORD_CHECK_FIELD);
+    for (int index = 0; index < 4; index++) {
+        record[RECORD_CHECK_FIELD + index] = (uint8_t)(check >> (8 * index));
+    }
+}
+
+static void make_version_one(uint32_t plays)
+{
+    for (int bank = 0; bank < 2; bank++) {
+        uint8_t *block = disk.bytes + bank * STORE_BLOCK_BYTES;
+        if (block[0] == 'D') {
+            block[VERSION_FIELD] = 1;
+            seal(block);
+        }
+    }
+    for (uint32_t sequence = 1; sequence <= plays; sequence++) {
+        uint8_t *record = disk.bytes + LISTENING_RING_OFFSET + sequence * LISTENING_RECORD_BYTES;
+        record[36] = 0x80;
+        record[49] = 0;
+        record[50] = 0x20;
+        seal_record(record);
+    }
+}
+
+static void a_version_one_log_opens_and_its_plays_read_without_a_clock(void)
+{
+    reset();
+    ListeningPlay dated = listening_fixture_play(0, 254000);
+    dated.clock_s = 1794268800;
+    dated.offset_minutes = 60;
+    CHECK_EQUAL(STORE_DONE, listening_log_append(&log_file, &dated));
+    CHECK_EQUAL(STORE_DONE, listening_log_append(&log_file, &dated));
+    make_version_one(2);
+    CHECK_EQUAL(STORE_READY, reopen());
+    ListeningSeen seen;
+    CHECK_EQUAL(0, listening_fixture_read_all(&log_file, &seen));
+    CHECK_EQUAL(2, seen.count);
+    CHECK_EQUAL(0, seen.first.play.clock_s);
+    CHECK_EQUAL(0, seen.first.play.offset_minutes);
+    CHECK_EQUAL(2, log_file.root.counters.totals.plays);
+}
+
+static void the_first_write_after_version_one_moves_the_log_to_version_two(void)
+{
+    reset();
+    append_plays(3);
+    make_version_one(3);
+    CHECK_EQUAL(STORE_READY, reopen());
+    ListeningPlay dated = listening_fixture_play(1, 1000);
+    dated.clock_s = 1794268800;
+    dated.offset_minutes = -300;
+    CHECK_EQUAL(STORE_DONE, listening_log_append(&log_file, &dated));
+    CHECK_EQUAL(2, disk.bytes[log_file.bank * STORE_BLOCK_BYTES + VERSION_FIELD]);
+    CHECK_EQUAL(1, disk.bytes[(1 - log_file.bank) * STORE_BLOCK_BYTES + VERSION_FIELD]);
+    CHECK_EQUAL(STORE_READY, reopen());
+    ListeningSeen seen;
+    CHECK_EQUAL(0, listening_fixture_read_all(&log_file, &seen));
+    CHECK_EQUAL(4, seen.count);
+    CHECK_EQUAL(0, seen.first.play.clock_s);
+    CHECK_EQUAL(1794268800, seen.last.play.clock_s);
+    CHECK_EQUAL(-300, seen.last.play.offset_minutes);
+    CHECK_EQUAL(4, log_file.root.counters.totals.plays);
+}
+
+static void a_record_with_unknown_clock_flags_is_damaged(void)
+{
+    reset();
+    append_plays(2);
+    uint8_t *record = disk.bytes + SLOT_ONE;
+    record[49] = 0x02;
+    seal_record(record);
+    CHECK_EQUAL(STORE_READY, reopen());
+    ListeningSeen seen;
+    CHECK_EQUAL(1, listening_fixture_read_all(&log_file, &seen));
+    CHECK_EQUAL(1, seen.count);
 }
 
 static void one_damaged_counter_block_falls_back_to_the_one_before(void)
@@ -528,6 +610,9 @@ int main(void)
         TEST_CASE(this_session_counts_only_plays_since_the_log_was_opened),
         TEST_CASE(an_unreadable_read_back_stops_writing_until_the_log_is_opened_again),
         TEST_CASE(a_later_version_is_never_overwritten),
+        TEST_CASE(a_version_one_log_opens_and_its_plays_read_without_a_clock),
+        TEST_CASE(the_first_write_after_version_one_moves_the_log_to_version_two),
+        TEST_CASE(a_record_with_unknown_clock_flags_is_damaged),
         TEST_CASE(one_damaged_counter_block_falls_back_to_the_one_before),
         TEST_CASE(two_damaged_counter_blocks_start_the_log_again),
         TEST_CASE(a_file_that_is_too_short_or_cannot_be_read_is_refused),

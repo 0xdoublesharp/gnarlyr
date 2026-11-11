@@ -1276,6 +1276,40 @@ class EchoImageTest(unittest.TestCase):
         self.assertFalse(session.fat().exists(TIME_PATH))
         self.assert_healthy(session)
 
+    def test_a_time_file_from_an_ejected_session_dates_the_next_play_in_the_listening_log(self):
+        from echo_emulator.playback import ALBUM_COUNT, Rig
+        from echo_emulator.real_volume import real_volume
+        script = "\n".join(["build " + self.build_tag(), "play", "down,down,down,down,down,down,down",
+                            "play", "play", "wait 3000", "reconnect", ""])
+        volume = self.debug_volume(real_volume(playable=True, album_count=ALBUM_COUNT),
+                                   run_txt=script.encode("ascii"))
+        volume.add_file("time.bin", self.time_file(NOVEMBER_2026, -480), None, IDENTITY.data_directory)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf, volume=volume,
+                  module_elfs=self.module_elfs,
+                  prepare=lambda machine: machine.stub_symbol("board_wall_time_forget_file",
+                                                              lambda machine: 0))
+        session, machine = rig.session, rig.machine
+        for name in ("usb_session_storage_changed", "debug_script_take", "hal_system_usb_reconnect"):
+            machine.note(name)
+        machine.host_ejects()
+        machine.vbus = True
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        set_ms = machine.milliseconds()
+        self.assertFalse(session.fat().exists(TIME_PATH))
+        self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
+        self.assertTrue(rig.audio.plays)
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        listens = session.fat().read("/" + IDENTITY.data_directory + "/listens.bin")
+        record = listens[1024 + 64:1024 + 128]
+        sequence, clock = struct.unpack_from("<I", record, 0)[0], struct.unpack_from("<I", record, 36)[0]
+        flags, offset = record[49], struct.unpack_from("<h", record, 50)[0]
+        self.assertEqual(sequence, 1)
+        self.assertEqual((flags, offset), (1, -480))
+        elapsed_s = (machine.milliseconds() - set_ms) // 1000
+        self.assertTrue(NOVEMBER_2026 <= clock <= NOVEMBER_2026 + elapsed_s + 1, (clock, elapsed_s))
+        self.assertEqual(listens[4], 2)
+        self.assert_healthy(session)
+
     def test_a_time_file_already_there_at_power_on_is_removed_and_never_applied(self):
         session, machine, sets = self.time_session(self.time_file(NOVEMBER_2026, 0),
                                                    written_before_power_on=True)

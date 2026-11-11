@@ -2,7 +2,7 @@
 
 Gnarlyr can keep a record of what was played: one entry per play in a ring, and totals that outlive the ring. `playback/listening_log` stores them, `playback/listening_stats` computes the statistics, `playback/listening_export` writes the plays as a scrobbler file and `playback/listening_track` derives a track's keys from the library. Block format, generations and publication are in `playback-store.md`.
 
-Nothing in the app calls these modules yet, and none of this has run on a player.
+The app logs plays through `app/listening_store` and exports them from Home → Listening; none of this has run on a player.
 
 ## File
 
@@ -18,7 +18,7 @@ A file the player creates reads as zero in its first 4 KB and holds whatever was
 
 ## Counters
 
-Each copy is one header block (magic `DSLL`, version 1, count 0, binding 0) with 92 bytes of payload inside it:
+Each copy is one header block (magic `DSLL`, version 2, count 0, binding 0) with 92 bytes of payload inside it. The payload is the same in versions 1 and 2; version 2 adds the clock fields of the records (below):
 
 | Offset in the block | Type | Field |
 |---|---|---|
@@ -42,6 +42,8 @@ The counters are the root of the ring: they say which records exist. `listening_
 | corrupt | both copies are damaged: the log starts again as a new one and the records in the ring are no longer read |
 | unreadable, unsupported | nothing is written until the log is opened again, so a later version is never overwritten |
 
+A version 1 log opens as it is: its plays are read without a clock, and the first counter write after it is a version 2 block. Firmware that only knows version 1 then finds the log unsupported and leaves it alone. `StoreKind.oldest_version` (`playback/store`) is the oldest version a kind still reads; a kind writes only its own.
+
 ## Records
 
 A play with sequence number `s` is in slot `s mod 4,096`. The first play has sequence 1.
@@ -57,21 +59,23 @@ A play with sequence number `s` is in slot `s mod 4,096`. The first play has seq
 | 24 | `u32` | position where the play started, in ms |
 | 28 | `u32` | position where it ended, in ms |
 | 32 | `u32` | seconds since start-up when the play started |
-| 36 | `u32` | clock when the play started, 0 when no clock was known |
+| 36 | `u32` | clock when the play started, in seconds since 1970-01-01 00:00 UTC; read only when byte 49 says so |
 | 40 | `u32` | the boots counter when the play was logged |
 | 44 | `u16` | index of the track in the library at that time |
 | 46 | `u8` | how it ended: 0 finished, 1 skipped, 2 stopped, 3 replaced by another track |
 | 47 | `u8` | output: 0 3.5 mm, 1 4.4 mm, 2 Bluetooth, 3 USB DAC |
 | 48 | `u8` | format class: 0 lossy, 1 lossless, 2 high resolution |
-| 49 | 11 | 0 |
+| 49 | `u8` | clock flags: bit 0 set when the clock at 36 is a UTC time; every other bit 0 |
+| 50 | `i16` | the local offset from UTC in minutes when the play started, 0 without a clock |
+| 52 | 8 | 0 |
 | 60 | `u32` | FNV-1a of bytes 0–59 |
 
 - The keys identify a track, its album and its artist across rescans. The track key is the hash of the identity mixtapes use (`mix_identity_hash`: path, start and end, `mixtapes.md`). The album key is `library_album_key`, which favorites and covers use. The artist key is the FNV-1a hash of the track artist's name, cut at 255 bytes. `listening_track_read` reads all three for a track of the open library.
 - The library index is a hint for finding the track again without a search. Whoever uses it compares the key.
-- The clock is in seconds since 1970-01-01 00:00 in the player's local time. The caller supplies it; the layer never reads a clock.
+- The clock and the offset come from the caller; the layer never reads a clock. The app takes them from `hal_clock_wall` when the play starts (`architecture.md`, Wall clock), so a play has a clock only while the player's time is known; any other play has 0, and so does every play from a version 1 log, whatever bytes 36 to 51 hold. A record with an unknown bit set in byte 49 is damaged.
 - `listening_format_class` gives the class: lossy; lossless up to 48 kHz and 16 bits; high resolution for lossless above either.
 
-With `next` and `kept` from the counters, the ring holds the sequences from `next − kept` to `next − 1`. A slot is read as a play only when its checksum holds, its three kinds are in range and it carries exactly the sequence its slot stands for. Any other slot in that range is skipped and counted as damaged; slots outside it are never read.
+With `next` and `kept` from the counters, the ring holds the sequences from `next − kept` to `next − 1`. A slot is read as a play only when its checksum holds, its three kinds and its clock flags are in range and it carries exactly the sequence its slot stands for. Any other slot in that range is skipped and counted as damaged; slots outside it are never read.
 
 ## Writing
 
@@ -101,7 +105,7 @@ Two terms: a play is every record. A listen is a play that ran for at least half
 
 ### Summary
 
-`listening_summary_begin` takes the current time on the same clock as the records, or 0 when there is none.
+`listening_summary_begin` takes the current local time (UTC seconds plus the offset), or 0 when there is none. A play's day is the local date of its UTC clock plus its own offset, so plays keep the day they were heard on after a change of time zone.
 
 | Field | Meaning | From |
 |---|---|---|
@@ -115,6 +119,7 @@ Two terms: a play is every record. A listen is a play that ran for at least half
 - A play without a clock, or dated after today, counts for no day.
 - With a clock the job takes one pass. A streak of 64 days or more takes one more pass for every further 64 days.
 - `listening_skip_permille` gives the skip rate of any of these totals: skips per thousand plays.
+- No screen shows the summary yet: Home → Listening → Totals reads the counters. A dated row (today, this week, the streak) would begin a summary job with `hal_clock_wall`'s UTC seconds plus its offset, and say the time is unknown when the clock is not set.
 
 ### Top lists
 
@@ -140,7 +145,7 @@ A full ring with 1,500 different tracks takes 47 passes with 32 entries (384 byt
 
 ```
 #AUDIOSCROBBLER/1.1
-#TZ/UNKNOWN
+#TZ/UTC
 #CLIENT/Gnarlyr 1.0.0
 Björk	Homogenic	Hunter	1	254	L	1794182400	
 ```
@@ -148,7 +153,7 @@ Björk	Homogenic	Hunter	1	254	L	1794182400
 A line is artist, album, title, track number, length in seconds, rating, the clock when the play started and the MusicBrainz recording id, separated by tabs and ended by a line feed.
 
 - The rating is `L` for a listen and `S` for any other play.
-- The time is the record's clock: local time, which `#TZ/UNKNOWN` states. A play logged without a clock has the time 0.
+- The time is the record's clock, in UTC, which `#TZ/UTC` states (Audioscrobbler 1.1). A play logged without a clock keeps the time 0, as before this field was filled: a scrobbler that refuses such a line drops only that play.
 - The client line is the name and version of `identity.json`.
 - The text comes from the caller through `ListeningLookup`: one call per play with the record's `ListeningTrack`, filling a `ListeningText`. A play the lookup does not know is left out and counted in `unknown`. A track number of 0, an empty album and an empty recording id are written as empty fields.
 - A tag is at most 127 bytes and is cut at a whole UTF-8 character. A control character in a tag is written as a space.
@@ -177,4 +182,4 @@ No scrobbling tool has been run on a file written this way.
 
 ## Tests
 
-`test_listening_log` (the round trip, the layout, the two writes of a play, the counters, wrap-around, a write cut at every byte of the record and of the counters, damaged and misplaced records, a new file over old records, the off switch, the counter copies, an uncertain write, a later version), `test_listening_stats` (the summary with and without a clock, the week, streaks across 64 days, each top list on a hand-made log, the most replayed track, table sizes from 1 to 64 against a count made by the test, damaged records, a full ring, a play logged during a job), `test_listening_export` (the file byte for byte, no clock, control characters, the fill, a file that is too small, unknown tracks, long tags, a sector per step, failed writes), `test_listening_screen` (no plays, unknown songs only, the file against the format and ending after its last line, replacing smaller and larger files, a full ring, a full card, failed writes, leaving during the write, repeated Play, exporting again, a reused work buffer, the states at every size and orientation) and `test_listening_track` (the keys against the library fixture and the CUE fixture).
+`test_listening_log` (the round trip, the layout, the two writes of a play, the counters, wrap-around, a write cut at every byte of the record and of the counters, damaged and misplaced records, a new file over old records, the off switch, the counter copies, an uncertain write, a later version, a version 1 log read without clocks, the first write moving it to version 2, unknown clock flags), `test_listening_stats` (the summary with and without a clock, the local day a play's offset puts it in, the week, streaks across 64 days, each top list on a hand-made log, the most replayed track, table sizes from 1 to 64 against a count made by the test, damaged records, a full ring, a play logged during a job), `test_listening_export` (the file byte for byte, no clock, UTC whatever the play's offset, control characters, the fill, a file that is too small, unknown tracks, long tags, a sector per step, failed writes), `test_listening_screen` (no plays, unknown songs only, the file against the format and ending after its last line, replacing smaller and larger files, a full ring, a full card, failed writes, leaving during the write, repeated Play, exporting again, a reused work buffer, the states at every size and orientation) `test_listening_track` (the keys against the library fixture and the CUE fixture), `test_listening_store` (among others, a play started with the clock set carries its UTC time and offset) and the emulator scenario in which a companion time file from an ejected session dates the next play.

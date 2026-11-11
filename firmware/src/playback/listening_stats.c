@@ -4,9 +4,16 @@
 
 enum {
     DAY_SECONDS = 86400,
+    MINUTE_SECONDS = 60,
     WEEK_DAYS = 7,
     DAYS_FROM_MONDAY_TO_EPOCH = 3
 };
+
+static uint32_t local_day(const ListeningPlay *play)
+{
+    int32_t offset = (int32_t)play->offset_minutes * MINUTE_SECONDS;
+    return (play->clock_s + (uint32_t)offset) / DAY_SECONDS;
+}
 
 static uint32_t week_of(uint32_t day)
 {
@@ -26,7 +33,7 @@ static void count_periods(ListeningSummaryJob *job, uint32_t day, const Listenin
 static void summarise(void *context, const ListeningRecord *record)
 {
     ListeningSummaryJob *job = context;
-    uint32_t day = record->play.clock_s / DAY_SECONDS;
+    uint32_t day = local_day(&record->play);
     if (record->play.clock_s == 0 || day > job->newest) {
         return;
     }
