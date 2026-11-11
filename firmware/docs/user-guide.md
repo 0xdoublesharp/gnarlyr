@@ -160,6 +160,14 @@ The top bar shows, from the left: play or pause, Bluetooth, the padlock, and the
 
 Settings → Skip songs picks how the buttons change the song on Now Playing and with the screen off. Hold vol± (the default): hold Vol+ for the next song and Vol− for the previous one. Double vol±: double-click Vol+ for the next song and Vol− for the previous one; a single click changes the volume after a short pause, and holding Vol+ fast-forwards and holding Vol− rewinds inside the song (5 s per step, 15 s per step after about a second), also with the screen off. Double/triple Play: double-click ▶ for the next song and triple-click for the previous one; a single click pauses or resumes after a short pause, and Vol± keep changing the volume at once. In lists and menus the buttons always react at once. With Hold vol± or Double vol±, holding Vol+ or Vol− right after a volume step, while the volume bar is still showing (about 2.5 seconds after the step, with the screen on or off), keeps changing the volume instead of skipping or seeking; pressing any other button ends that.
 
+## Rewind on resume
+
+After a pause, ▶ picks up a little before where you stopped, so you don't lose the thread. The longer the pause, the further back: nothing for a pause of 10 seconds or less, 3 seconds after a minute, 10 seconds after ten minutes and 20 seconds after an hour or more. Audiobooks and podcasts go back half as far again (4.5 s, 15 s and 30 s). After the player was switched off, the first ▶ goes back 20 seconds (30 seconds for audiobooks and podcasts), since the player has no clock to tell how long it was off. It never goes back past the start of the song, chapter or CUE track. If you move the position yourself while paused, ▶ plays from exactly there. The time on Now Playing shows the jump. Settings → Rewind on resume turns this off.
+
+## Safe start volume
+
+When you turn the player on, plug headphones into either jack or connect Bluetooth headphones, a volume above the safe level is lowered to it, and a short "Volume lowered to 24" message says so. A quieter volume is never raised. Turn it up again as usual; it stays where you put it until the next time you turn the player on or plug headphones in. Settings → Safe start volume picks the level (12, 18, 24, 30 or 36, on the same scale Now Playing shows; 24 is the default) or Off. The USB DAC keeps its own volume and isn't affected.
+
 ## Portrait mode
 
 Not tried on a player yet ([`known-issues.md`](known-issues.md)). Settings → Orientation has Landscape (the default), Portrait and Portrait, flipped. The screen turns as soon as you pick, and the player starts the same way next time. Pick whichever portrait way round puts the buttons where you like them.
