@@ -740,7 +740,6 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
         item = item < SETTINGS_BLUETOOTH_ITEM ? item : item + 1;
         item = item < SETTINGS_CUSTOM_EQ_ITEM ? item : item + 1;
         item = item < SETTINGS_RESCAN_ITEM ? item : item + 1;
-        item = item < SETTINGS_CONTROLS_ITEM ? item : item + 1;
         screens->items[item] = (MenuItem){.label = i18n_text(CHOICES[index].title),
                                           .select = open_choice,
                                           .context = &screens->entries[index],
