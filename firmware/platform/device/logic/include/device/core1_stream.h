@@ -7,6 +7,7 @@
 #include "device/audio_engine.h"
 #include "device/flac_source.h"
 #include "device/m4a_stream.h"
+#include "device/vorbis_modes.h"
 
 enum {
     STREAM_SLOTS = 2,
@@ -38,6 +39,8 @@ typedef struct StreamControl {
     uint32_t released;
     StreamSlot slots[STREAM_SLOTS];
     uint32_t tail_trim;
+    VorbisModes vorbis_modes;
+    uint32_t vorbis_config_generation;
 } StreamControl;
 
 typedef struct StreamRegion {

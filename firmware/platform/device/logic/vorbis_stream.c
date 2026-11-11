@@ -18,6 +18,8 @@ bool vorbis_stream_start(VorbisStream *stream, FlacInput file)
     stream->headers = 0;
     stream->seek_offset = 0;
     stream->serial = 0;
+    stream->origin = 0;
+    stream->origin_sent = false;
     stream->seeked = false;
     stream->ended = false;
     stream->failed = file.read == NULL;
@@ -58,6 +60,16 @@ static bool make_header(VorbisStream *stream, OggPacket *packet)
 
 static bool begin_record(VorbisStream *stream)
 {
+    if (stream->headers == 3 && stream->origin != 0 && !stream->origin_sent) {
+        put32(stream->head, 0);
+        put32(stream->head + 4, VORBIS_RECORD_ORIGIN);
+        put32(stream->head + 8, stream->origin);
+        put32(stream->head + 12, 0);
+        stream->origin_sent = true;
+        stream->record_done = 0;
+        stream->record_size = VORBIS_RECORD_BYTES;
+        return true;
+    }
     if (stream->headers == 3 && stream->seek_offset != 0 && !stream->seeked) {
         FlacInput file = stream->packets.input;
         if (ogg_packets_resume(&stream->packets, file, stream->seek_offset, stream->serial) !=
@@ -149,5 +161,6 @@ bool vorbis_stream_seek(VorbisStream *stream, FlacInput file, const VorbisTrack 
     }
     stream->seek_offset = offset;
     stream->serial = track->serial;
+    stream->origin = track->origin;
     return true;
 }

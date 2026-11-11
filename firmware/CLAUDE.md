@@ -83,8 +83,8 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 | Audio module (code, no BSS) | 5,832 | 8,192 | 2,360 |
 | Decoder workspace | 41,644 | 41,984 | 340 |
 | Language pack (English) | 7,089 | 16,384 | 9,295 |
-| Vorbis program image bank | 64,328 | 130,048 | 65,720 |
-| Vorbis core-1 static state | 32,940 | 36,864 | 3,924 |
+| Vorbis program image bank | 64,776 | 130,048 | 65,272 |
+| Vorbis core-1 static state | 32,948 | 36,864 | 3,916 |
 
 - Keep at least 8 KB free in the release code window after each stage of the plan. Read the report after any change to device code and update these numbers and the ones in `docs/architecture.md` when they move.
 - The core 0 link uses link-time optimisation. Libraries shared with core 1 or the rescan overlay stay out of it.
