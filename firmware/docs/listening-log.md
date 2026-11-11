@@ -1,6 +1,6 @@
 # Listening log
 
-Gnarlyr can keep a record of what was played: one entry per play in a ring, and totals that outlive the ring. `playback/listening_log` stores them, `playback/listening_stats` computes the statistics, `playback/listening_export` writes the plays as a scrobbler file and `playback/listening_track` derives a track's keys from the library. Block format, generations and publication are in `playback-store.md`.
+Gnarlyr can keep a record of what was played: one entry per play in a ring, and totals that outlive the ring. `playback/listening_log` stores them, `playback/listening_stats` computes the statistics, `playback/listening_export` writes the plays as a scrobbler file and `playback/listening_track` derives a track's keys from the library. Block format, generations and publication are in `playback-store.md`. The smart lists in the Music menu rank songs from the ring (`smart-lists.md`).
 
 The app logs plays through `app/listening_store` and exports them from Home → Listening; none of this has run on a player.
 

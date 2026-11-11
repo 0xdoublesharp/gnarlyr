@@ -403,6 +403,21 @@ STR_EXPORT_UNKNOWN = Played songs aren't in the library
 STR_EXPORT_WRITE_FAILED = Could not write {0}
 STR_HISTORY_UNAVAILABLE = History unavailable
 STR_LISTENING_HOURS = {0} h {1} min
+
+# Smart lists in the Music menu. {0} in STR_SMART_CHECKING and STR_SMART_FINDING is a percentage.
+STR_SMART_LISTS = Smart Lists
+STR_RECENTLY_ADDED = Recently Added
+STR_RECENTLY_PLAYED = Recently Played
+STR_MOST_PLAYED = Most Played
+STR_NEVER_PLAYED = Never Played
+STR_FORGOTTEN_FAVORITES = Old Favorites
+STR_SMART_CHECKING = Checking the library... {0}%
+STR_SMART_FINDING = Finding songs... {0}%
+STR_SMART_NONE_ADDED = New songs appear here after a rescan
+STR_SMART_NONE_PLAYED = Nothing played yet
+STR_SMART_NONE_LISTENED = Songs you listen to will show up here
+STR_SMART_ALL_PLAYED = You've played every song
+STR_SMART_NONE_FORGOTTEN = Favorites you haven't played in a while show up here
 STR_LYRICS = Lyrics
 STR_NO_LYRICS = No timed lyrics found
 STR_LYRICS_HINT = Add a .lrc beside the song
