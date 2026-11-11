@@ -105,6 +105,7 @@ src/app/spoken_store.c: "/bookmarks.bin"
 # /debug/run.txt; none is drawn).
 src/core/debug_script.c: "any"
 src/core/debug_script.c: "build"
+src/core/debug_script.c: "dac"
 src/core/debug_script.c: "function"
 src/core/debug_script.c: "gpio"
 src/core/debug_script.c: "high"

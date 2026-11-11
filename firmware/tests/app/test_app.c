@@ -4473,6 +4473,21 @@ static void peek_poke_and_gpio_lines_ask_the_board_and_keep_what_it_answers(void
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[3]);
 }
 
+static void dac_lines_ask_the_board_for_one_register_of_both_chips(void)
+{
+    start_app();
+    fake_hal_set_probe_answer((HalProbe){true, 0, 0x31, 0x31});
+    const DebugScriptRun *run = run_script("build any\ndac 0x080000\n", 200);
+    CHECK_EQUAL(1, fake_hal_probe_count());
+    FakeProbeCall dac = fake_hal_probe_call(0);
+    CHECK_EQUAL(HAL_PROBE_DAC, dac.kind);
+    CHECK_EQUAL(0x080000u, dac.first);
+    CHECK_EQUAL(1, run->probe_count);
+    CHECK_EQUAL(0x31u, run->probes[0].before);
+    CHECK_EQUAL(0x31u, run->probes[0].after);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
+}
+
 static void rtc_read_lines_keep_the_registers_and_a_bus_error_fails_the_line(void)
 {
     start_app();
@@ -5608,6 +5623,7 @@ int main(void)
         TEST_CASE(usb_sense_commands_switch_the_experiment_without_hands),
         TEST_CASE(peek_poke_and_gpio_lines_ask_the_board_and_keep_what_it_answers),
         TEST_CASE(a_probe_the_board_refuses_is_reported_and_leaves_no_record),
+        TEST_CASE(dac_lines_ask_the_board_for_one_register_of_both_chips),
         TEST_CASE(rtc_read_lines_keep_the_registers_and_a_bus_error_fails_the_line),
         TEST_CASE(rtc_set_writes_the_synced_time_and_refuses_without_one),
         TEST_CASE(a_script_keeps_sixteen_probes_and_does_not_make_a_seventeenth),

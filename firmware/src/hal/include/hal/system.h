@@ -95,7 +95,8 @@ void hal_system_usb_connect(bool on);
 typedef enum HalProbeKind {
     HAL_PROBE_PEEK,
     HAL_PROBE_POKE,
-    HAL_PROBE_PIN
+    HAL_PROBE_PIN,
+    HAL_PROBE_DAC
 } HalProbeKind;
 
 enum {

@@ -28,6 +28,7 @@ static const Word WORDS[] = {
     {"peek", DEBUG_COMMAND_PEEK},
     {"poke", DEBUG_COMMAND_POKE},
     {"gpio", DEBUG_COMMAND_GPIO},
+    {"dac", DEBUG_COMMAND_DAC},
     {"supply", DEBUG_COMMAND_SUPPLY},
     {"screen", DEBUG_COMMAND_SCREEN},
     {"soak", DEBUG_COMMAND_SOAK},
@@ -287,6 +288,8 @@ static bool arguments_fit(DebugCommand *command)
         return parse_words(command, 2);
     case DEBUG_COMMAND_GPIO:
         return parse_gpio(command);
+    case DEBUG_COMMAND_DAC:
+        return parse_words(command, 1) && command->number <= DEBUG_DAC_MAP_MAX;
     case DEBUG_COMMAND_SUPPLY:
     case DEBUG_COMMAND_SCREEN:
     case DEBUG_COMMAND_STANDBY:
@@ -415,6 +418,9 @@ static bool add_probe(DebugScriptRun *run, const DebugCommand *command, uint32_t
         op = new_op(run, DEBUG_OP_POKE, line);
         op->first = add_word(run, command->number);
         op->second = add_word(run, command->second);
+        return true;
+    case DEBUG_COMMAND_DAC:
+        new_op(run, DEBUG_OP_DAC, line)->first = add_word(run, command->number);
         return true;
     case DEBUG_COMMAND_GPIO:
         op = new_op(run, DEBUG_OP_PIN, line);
