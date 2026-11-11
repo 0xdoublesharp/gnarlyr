@@ -77,7 +77,8 @@ static FlacResult read_streaminfo(FlacBits *bits, FlacInfo *info)
     for (int index = 0; index < 16; index++) {
         flac_bits_read(bits, 8);
     }
-    if (bits->failed) {
+    if (bits->failed || info->sample_rate == 0 || info->min_block < 16 ||
+        info->max_block < info->min_block || info->bits_per_sample < 4) {
         return FLAC_ERROR;
     }
     bool supported = high == 0 && info->max_block <= FLAC_MAX_BLOCK &&

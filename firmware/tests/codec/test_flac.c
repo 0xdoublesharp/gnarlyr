@@ -803,6 +803,38 @@ static void unsupported_streaminfo_limits_are_rejected(void)
     free(flac.bytes);
 }
 
+static void invalid_audio_streaminfo_fields_are_rejected(void)
+{
+    Buffer flac = load("fixed_16_mono", "flac");
+    CHECK(flac.size >= 42);
+    uint8_t original[42];
+    memcpy(original, flac.bytes, sizeof original);
+    for (uint32_t variant = 0; variant < 5; variant++) {
+        memcpy(flac.bytes, original, sizeof original);
+        if (variant == 0) {
+            flac.bytes[18] = 0;
+            flac.bytes[19] = 0;
+            flac.bytes[20] &= 0x0f;
+        } else if (variant == 1) {
+            flac.bytes[8] = 0;
+            flac.bytes[9] = 15;
+        } else if (variant == 2) {
+            flac.bytes[10] = 0;
+            flac.bytes[11] = 15;
+        } else if (variant == 3) {
+            flac.bytes[8] = 0x12;
+            flac.bytes[9] = 1;
+            flac.bytes[10] = 0x12;
+            flac.bytes[11] = 0;
+        } else {
+            flac.bytes[20] &= 0xfe;
+            flac.bytes[21] = (uint8_t)((flac.bytes[21] & 0x0f) | 0x20);
+        }
+        CHECK_EQUAL(FLAC_ERROR, flac_open(&decoder, input_of(&flac)));
+    }
+    free(flac.bytes);
+}
+
 static void a_file_that_is_not_flac_is_refused(void)
 {
     Buffer pcm = load("fixed_16_mono", "pcm");
@@ -1146,6 +1178,7 @@ int main(void)
         TEST_CASE(a_frame_ending_at_the_sample_position_limit_decodes_and_seeks),
         TEST_CASE(blocks_larger_than_the_buffer_are_refused),
         TEST_CASE(unsupported_streaminfo_limits_are_rejected),
+        TEST_CASE(invalid_audio_streaminfo_fields_are_rejected),
         TEST_CASE(a_file_that_is_not_flac_is_refused),
         TEST_CASE(an_id3_prefix_with_footer_preserves_decoded_audio),
         TEST_CASE(a_truncated_file_ends_with_an_error),
