@@ -24,7 +24,7 @@ This project's player has used maskrom recovery and file-copy updates between de
 
 Installing by copying a file under FiiO's firmware is not verified. FiiO's updater only reads files named `ECHOVnnn.IMG`, so `GNARLYR.IMG` would have to be renamed, and whether FiiO's 2.0.0 accepts it is not known.
 
-On the first start with a microSD card in the player, Gnarlyr builds its library. You can browse and play as soon as it says "Library: N tracks". Album covers follow while the player is idle and not playing: they appear one album at a time, a press of any key or starting a song pauses them, and they carry on the next time the player sits idle, also after a restart. Albums without their cover yet show their initials. Wait for the library to finish before you plug the player into a computer.
+On the first start with a microSD card in the player, Gnarlyr builds its library. You can browse and play as soon as it says "Library: N tracks". Album covers follow while the player is idle and not playing (or paused for a minute): they appear one album at a time, a press of any key or starting a song pauses them, and they carry on the next time the player sits idle, also after a restart. Albums without their cover yet show their initials. Wait for the library to finish before you plug the player into a computer.
 
 ## Your music
 

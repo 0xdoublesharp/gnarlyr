@@ -2810,7 +2810,7 @@ static void a_requested_rescan_after_a_firmware_update_rebuilds_the_library(void
     CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
 }
 
-static void background_covers_wait_while_music_plays(void)
+static void background_covers_wait_while_music_plays_or_is_briefly_paused(void)
 {
     start_app_with_library();
     const uint8_t pending[8] = {'D', 'S', 'S', 'G', 0, 1, 0, 1};
@@ -2827,6 +2827,9 @@ static void background_covers_wait_while_music_plays(void)
     tap(KEY_PLAY);
     CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
     now_ms += 3000;
+    step();
+    CHECK_EQUAL(covers, fake_hal_covers_writes());
+    now_ms += 60000;
     step();
     CHECK(fake_hal_covers_writes() > covers);
     CHECK_EQUAL(0, saved_guard_byte(SCAN_GUARD_COVERS_BYTE));
@@ -5718,7 +5721,7 @@ int main(void)
         TEST_CASE(a_rescan_of_an_empty_card_writes_an_empty_library),
         TEST_CASE(a_rescan_keeps_the_stall_watch_fed),
         TEST_CASE(a_rescan_rebuilds_the_covers_file_once_the_player_is_idle),
-        TEST_CASE(background_covers_wait_while_music_plays),
+        TEST_CASE(background_covers_wait_while_music_plays_or_is_briefly_paused),
         TEST_CASE(a_requested_rescan_of_unchanged_music_says_the_library_is_up_to_date),
         TEST_CASE(a_requested_rescan_after_a_cut_short_scan_rebuilds_the_library),
         TEST_CASE(the_rescan_row_of_unchanged_music_says_the_library_is_up_to_date),

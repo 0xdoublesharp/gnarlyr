@@ -66,6 +66,7 @@ enum {
     VIEW_STAMP_MINUTE_S = 60,
     RESCAN_PROGRESS_MS = 250,
     COVERS_IDLE_MS = 3000,
+    COVERS_PAUSED_MS = 60000,
     NOTICE_TEXT_CAPACITY = 64,
     TOAST_TEXT_CAPACITY = 64,
     BATTERY_CHECK_MS = 250,
@@ -1490,8 +1491,9 @@ static MusicFingerprint walk_music(void)
 static void continue_covers(uint32_t now_ms)
 {
     bool idle = now_ms - app.power.last_activity_ms >= COVERS_IDLE_MS;
-    if (!app.covers_pending || !idle || debug_runner_active() || hal_input_waiting() ||
-        player_status(&app.player).state == PLAYER_PLAYING) {
+    bool rested = !app.player.loaded || (app.player.state == PLAYER_PAUSED &&
+                                         now_ms - app.player.paused_since_ms >= COVERS_PAUSED_MS);
+    if (!app.covers_pending || !idle || !rested || debug_runner_active() || hal_input_waiting()) {
         return;
     }
     if (app.player.loaded) {
