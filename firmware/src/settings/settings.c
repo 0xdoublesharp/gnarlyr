@@ -88,11 +88,12 @@ static const uint8_t DEFAULT_EXTENSION[EXTENSION_SIZE] = {
         REWIND_BIT | SAFE_START_BIT | CLOCK_24H_BIT | TRACK_TRANSITION_OFF << TRANSITION_SHIFT,
     [SAFE_LEVEL_BYTE] = SETTINGS_DEFAULT_SAFE_START_VOLUME,
     [TRANSITION_BYTE] = SETTINGS_DEFAULT_TRANSITION_TENTHS,
-    [HOME_ORDER_BYTE] = 0x10,
-    0x32,
-    0x54,
-    0x76,
-    0x98};
+    [HOME_ORDER_BYTE] = 0x60,
+    0x87,
+    0x19,
+    0x52,
+    0x43,
+    [HOME_HIDDEN_BYTE] = (1u << 1) | (1u << 2) | (1u << 5)};
 static const uint16_t TIMEOUT_SECONDS[SCREEN_TIMEOUT_OPTION_COUNT] = {10, 20, 30, 60, 120, 300, 0};
 static const uint8_t SLEEP_MINUTES[SLEEP_TIMER_OPTION_COUNT] = {0, 15, 30, 45, 60, 90, 120};
 static const uint8_t AUTO_OFF_MINUTES[AUTO_OFF_OPTION_COUNT] = {0, 1, 5, 10};
@@ -167,6 +168,14 @@ static void read_extension(const uint8_t *extension, Settings *settings)
     settings->transition_tenths = extension[TRANSITION_BYTE];
     settings_home_unpack(extension + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT,
                          settings->home_order, &settings->home_hidden);
+    bool untouched = settings->home_hidden == 0;
+    for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
+        untouched = untouched && settings->home_order[index] == index;
+    }
+    if (untouched) {
+        settings_home_unpack(DEFAULT_EXTENSION + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT,
+                             settings->home_order, &settings->home_hidden);
+    }
 }
 
 Settings settings_defaults(void)

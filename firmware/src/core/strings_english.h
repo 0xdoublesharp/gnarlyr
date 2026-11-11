@@ -632,4 +632,5 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_SET_CLOCK_HINT] = "Vol: change · Menu: next · Play: save · Back: cancel",
     [STR_SET_CLOCK_SAVED] = "Time saved",
     [STR_SET_CLOCK_FAILED] = "Couldn't set clock",
+    [STR_LISTENING_STATS] = "Listening Stats",
 };

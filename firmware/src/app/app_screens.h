@@ -40,6 +40,7 @@ enum {
     HOME_ITEM_COUNT = SETTINGS_HOME_ITEM_COUNT,
     SHELF_COUNT = 2,
     MUSIC_ITEM_COUNT = 12,
+    MUSIC_MENU_ITEM_COUNT = MUSIC_ITEM_COUNT + 2,
     DIAGNOSTICS_ITEM_COUNT = 11 + DEBUG_LOOP_ABOUT_ROWS,
     START_PATH_CAPACITY = 2
 };
@@ -162,7 +163,7 @@ typedef struct AppScreens {
     Core1AccelOption core1_accel;
     MenuItem home_items[HOME_ITEM_COUNT];
     HomeArt home_art;
-    MenuItem music_items[MUSIC_ITEM_COUNT];
+    MenuItem music_items[MUSIC_MENU_ITEM_COUNT];
     HighRamOption high_ram;
     AppModuleScreens modules;
 } AppScreens;

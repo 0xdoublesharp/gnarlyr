@@ -443,6 +443,12 @@ class LanguageCommands(VolumeCase):
         self.assertFalse(self.home_order_verifies([7, 6, 5, 4, 3, 2, 1, 0], home_items=10))
         self.assertFalse(self.home_order_verifies([0, 1, 2, 3, 4, 5, 6, 7, 7]))
 
+    def test_current_and_old_default_home_layouts_remain_valid(self):
+        self.assertTrue(self.home_order_verifies([0, 6, 7, 8, 9, 1, 2, 5, 3, 4], 0x26))
+        self.assertTrue(self.home_order_verifies(list(range(10))))
+        self.assertTrue(self.home_order_verifies(list(range(9))))
+        self.assertTrue(self.home_order_verifies(list(range(10)), 1 << 4))
+
     def test_an_unexpected_home_layout_fails_closed(self):
         with self.current_snapshot(home_items=11):
             tool, host = self.live_tool()

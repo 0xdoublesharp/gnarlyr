@@ -16,7 +16,7 @@ static int row_count(const void *context)
 
 static bool is_item_row(int index)
 {
-    return index < SETTINGS_HOME_ITEM_COUNT;
+    return index < HOME_EDITOR_ITEM_COUNT;
 }
 
 static const HomeItem *item_at(const HomeEditor *editor, int index)
@@ -70,9 +70,10 @@ static void announce(HomeEditor *editor, StringId pattern, int item)
 static void commit(HomeEditor *editor, StringId pattern, int item)
 {
     Settings *settings = editor->config.settings;
-    for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
+    for (int index = 0; index < HOME_EDITOR_ITEM_COUNT; index++) {
         settings->home_order[index] = editor->order[index];
     }
+    settings->home_order[HOME_EDITOR_ITEM_COUNT] = SETTINGS_HOME_NOW_PLAYING_ITEM;
     if (editor->config.changed(editor->config.context)) {
         announce(editor, pattern, item);
     }
@@ -80,8 +81,12 @@ static void commit(HomeEditor *editor, StringId pattern, int item)
 
 static void sync_order(HomeEditor *editor)
 {
+    int count = 0;
     for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
-        editor->order[index] = editor->config.settings->home_order[index];
+        int item = editor->config.settings->home_order[index];
+        if (item != SETTINGS_HOME_NOW_PLAYING_ITEM) {
+            editor->order[count++] = (uint8_t)item;
+        }
     }
 }
 
@@ -96,7 +101,7 @@ static void shift(HomeEditor *editor, int direction)
 {
     int from = editor->list.selected;
     int to = from + direction;
-    if (to < 0 || to >= SETTINGS_HOME_ITEM_COUNT) {
+    if (to < 0 || to >= HOME_EDITOR_ITEM_COUNT) {
         return;
     }
     uint8_t item = editor->order[from];
@@ -179,7 +184,7 @@ static ScreenAction reset(HomeEditor *editor)
 {
     Settings defaults = settings_defaults();
     editor->config.settings->home_hidden = defaults.home_hidden;
-    for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
+    for (int index = 0; index < HOME_EDITOR_ITEM_COUNT; index++) {
         editor->order[index] = defaults.home_order[index];
     }
     commit(editor, STR_HOME_WAS_RESET, SETTINGS_HOME_SETTINGS_ITEM);

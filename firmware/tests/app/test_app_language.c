@@ -14,7 +14,7 @@
 enum {
     START_MS = 1000,
     KEY_HOLD_MS = 50,
-    HOME_SETTINGS_INDEX = 1,
+    HOME_SETTINGS_INDEX = 5,
     SETTINGS_ORIENTATION_INDEX = 12,
     SETTINGS_LANGUAGE_INDEX = 13,
     SETTINGS_DEPTH = 2,
@@ -105,7 +105,7 @@ static bool title_is(const char *expected)
 
 static void open_setting(int index)
 {
-    move_down(HOME_SETTINGS_INDEX);
+    move_down(HOME_SETTINGS_INDEX + (app_player_status().has_track ? 1 : 0));
     tap(KEY_PLAY);
     move_down(index);
     tap(KEY_PLAY);

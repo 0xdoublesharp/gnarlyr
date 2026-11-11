@@ -1021,10 +1021,9 @@ static void check_extension_defaults(const Settings *settings)
     CHECK(settings->clock_24h);
     CHECK_EQUAL(TRACK_TRANSITION_OFF, settings->track_transition);
     CHECK_EQUAL(15, settings->transition_tenths);
-    for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
-        CHECK_EQUAL(index, settings->home_order[index]);
-    }
-    CHECK_EQUAL(0, settings->home_hidden);
+    static const uint8_t ORDER[] = {0, 6, 7, 8, 9, 1, 2, 5, 3, 4};
+    CHECK(memcmp(ORDER, settings->home_order, sizeof ORDER) == 0);
+    CHECK_EQUAL(1u << 1 | 1u << 2 | 1u << 5, settings->home_hidden);
 }
 
 static void the_extension_defaults_keep_todays_behaviour(void)
@@ -1036,7 +1035,7 @@ static void the_extension_defaults_keep_todays_behaviour(void)
 
 static void the_extension_block_sits_between_the_language_and_the_checksum(void)
 {
-    static const uint8_t EXPECTED[16] = {0x07, 24, 15, 0, 0x10, 0x32, 0x54, 0x76, 0x98};
+    static const uint8_t EXPECTED[16] = {0x07, 24, 15, 0, 0x60, 0x87, 0x19, 0x52, 0x43, 0x26};
     Settings settings = settings_defaults();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
@@ -1211,18 +1210,53 @@ static void pack_home(uint8_t *packed, const uint8_t *order, int count, uint16_t
     packed[6] = (uint8_t)(hidden >> 8);
 }
 
-static void a_saved_home_order_and_hidden_mask_are_applied_on_load(void)
+static void the_old_untouched_home_defaults_adopt_the_new_defaults(void)
 {
-    static const uint8_t ORDER[] = {4, 3, 0, 8, 7, 6, 5, 2, 1};
+    static const uint8_t OLD[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    static const uint8_t EXPECTED[] = {0, 6, 7, 8, 9, 1, 2, 5, 3, 4};
+    for (int count = 9; count <= 10; count++) {
+        Settings original = extension_settings();
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&original, bytes);
+        pack_home(bytes + EXTENSION_FIELD + 4, OLD, count, 0);
+        rewrite_checksum(bytes);
+        Settings decoded;
+        CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+        CHECK(memcmp(EXPECTED, decoded.home_order, sizeof EXPECTED) == 0);
+        CHECK_EQUAL(1u << 1 | 1u << 2 | 1u << 5, decoded.home_hidden);
+        CHECK_EQUAL(original.volume, decoded.volume);
+        CHECK_EQUAL(original.track_transition, decoded.track_transition);
+    }
+}
+
+static void changing_only_the_old_default_mask_keeps_the_custom_layout(void)
+{
+    static const uint8_t ORDER[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
     Settings original = settings_defaults();
     memcpy(original.home_order, ORDER, sizeof ORDER);
-    original.home_hidden = 1u << 2 | 1u << 8;
+    original.home_hidden = 1u << 4;
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&original, bytes);
-    Settings decoded = settings_defaults();
+    Settings decoded;
     CHECK(settings_decode(bytes, sizeof bytes, &decoded));
     CHECK(memcmp(ORDER, decoded.home_order, sizeof ORDER) == 0);
-    CHECK_EQUAL(1u << 2 | 1u << 8, decoded.home_hidden);
+    CHECK_EQUAL(original.home_hidden, decoded.home_hidden);
+}
+
+static void a_saved_home_order_and_hidden_mask_are_applied_on_load(void)
+{
+    static const uint8_t ORDER[] = {4, 3, 0, 8, 7, 6, 5, 2, 1, 9};
+    for (int hidden = 0; hidden < 2; hidden++) {
+        Settings original = settings_defaults();
+        memcpy(original.home_order, ORDER, sizeof ORDER);
+        original.home_hidden = hidden != 0 ? 1u << 2 | 1u << 8 : 0;
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&original, bytes);
+        Settings decoded = settings_defaults();
+        CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+        CHECK(memcmp(ORDER, decoded.home_order, sizeof ORDER) == 0);
+        CHECK_EQUAL(original.home_hidden, decoded.home_hidden);
+    }
 }
 
 static void an_order_from_a_build_with_more_items_drops_the_unknown_ones(void)
@@ -1352,6 +1386,8 @@ int main(void)
         TEST_CASE(the_checksum_covers_the_extension_block),
         TEST_CASE(each_invalid_extension_value_is_rejected_without_mutating_the_settings),
         TEST_CASE(every_item_but_settings_may_be_hidden),
+        TEST_CASE(the_old_untouched_home_defaults_adopt_the_new_defaults),
+        TEST_CASE(changing_only_the_old_default_mask_keeps_the_custom_layout),
         TEST_CASE(a_saved_home_order_and_hidden_mask_are_applied_on_load),
         TEST_CASE(an_order_from_a_build_with_more_items_drops_the_unknown_ones),
         TEST_CASE(a_settings_file_from_a_build_with_fewer_home_items_keeps_every_other_setting),

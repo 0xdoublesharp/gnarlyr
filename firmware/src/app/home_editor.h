@@ -13,7 +13,8 @@
 #include "ui/toast.h"
 
 enum {
-    HOME_EDITOR_ROWS = SETTINGS_HOME_ITEM_COUNT + 1,
+    HOME_EDITOR_ITEM_COUNT = SETTINGS_HOME_ITEM_COUNT - 1,
+    HOME_EDITOR_ROWS = HOME_EDITOR_ITEM_COUNT + 1,
     HOME_EDITOR_ACTION_COUNT = 2,
     HOME_EDITOR_TEXT_CAPACITY = 64
 };
@@ -39,7 +40,7 @@ typedef struct HomeEditor {
     ListView list;
     MenuScreen actions;
     MenuItem action_items[HOME_EDITOR_ACTION_COUNT];
-    uint8_t order[SETTINGS_HOME_ITEM_COUNT];
+    uint8_t order[HOME_EDITOR_ITEM_COUNT];
     int8_t target;
     int8_t picked_from;
     bool moving;

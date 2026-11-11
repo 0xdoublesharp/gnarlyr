@@ -18,10 +18,10 @@ enum {
     KEY_HOLD_MS = 50,
     FRAME_MS = 120,
     SETTLE_FRAMES = 4,
-    HOME_ROWS = 6,
-    HOME_SETTINGS_ROW = 1,
-    HOME_NOW_PLAYING_ROW = 2,
-    HOME_UP_NEXT_ROW = 3,
+    HOME_ROWS = 7,
+    HOME_SETTINGS_ROW = 5,
+    HOME_NOW_PLAYING_ROW = 0,
+
     MUSIC_ENTRIES = 12,
     MUSIC_SMART_LISTS_ROW = 10,
     MUSIC_ALBUMS_ROW = 4,
@@ -35,7 +35,7 @@ enum {
     SETTINGS_RESCAN_ROW = 22,
     SETTINGS_USB_MODE_ROW = 23,
     ABOUT_ROWS = 14,
-    HOME_EDITOR_PODCASTS_ROW = 2,
+    HOME_EDITOR_PODCASTS_ROW = 6,
     EQUALIZER_SAVE_ROW = 10,
     EQUALIZER_SLOT_OPTION = 8,
     MINIMUM_PACK_TEXTS = 400,
@@ -379,9 +379,7 @@ static void walk_now_playing(void)
     hold(KEY_PLAY, 700);
     CHECK(show("Now Playing while seeking") > 0);
     tap(KEY_PLAY);
-    back(3);
-    down(HOME_UP_NEXT_ROW);
-    tap(KEY_PLAY);
+    tap(KEY_MENU);
     show_titled("Up Next", STR_UP_NEXT);
 }
 
@@ -621,7 +619,7 @@ static void walk_power(void)
 static void walk_clock(void)
 {
     begin();
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    down(4);
     tap(KEY_PLAY);
     show_titled("Clock without a time", STR_CLOCK);
     tap(KEY_PLAY);
@@ -630,7 +628,7 @@ static void walk_clock(void)
         variant_clock_24h = format != 0;
         begin();
         fake_hal_set_wall(1794390060u, 60);
-        tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+        down(4);
         tap(KEY_PLAY);
         show_titled("Clock", STR_CLOCK);
         tap(KEY_PLAY);
@@ -657,9 +655,7 @@ static void walk_usb_prompt(void)
 static void walk_listening(void)
 {
     begin();
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    down(2);
     tap(KEY_PLAY);
     show_titled("Listening", STR_LISTENING);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);

@@ -56,8 +56,8 @@ enum {
     MUSIC_ALBUMS_INDEX = 4,
     MUSIC_FOLDERS_INDEX = 6,
     BJORK_POSITION = 3,
-    HOME_SETTINGS_INDEX = 1,
-    HOME_NOW_PLAYING_INDEX = 2,
+    HOME_SETTINGS_INDEX = 5,
+    HOME_NOW_PLAYING_INDEX = 0,
     SETTINGS_REPEAT_INDEX = 2,
     SETTINGS_SLEEP_INDEX = 4,
     SETTINGS_TIMEOUT_INDEX = 6,
@@ -363,7 +363,7 @@ static void back_returns_to_the_previous_screen(void)
 static void repeated_play_on_a_listening_leaf_keeps_one_back_to_its_menu(void)
 {
     start_app();
-    move_down(3);
+    move_down(2);
     tap(KEY_PLAY);
     CHECK(title_is("Listening"));
     int depth = app_screen_depth();
@@ -387,7 +387,7 @@ static void repeated_play_on_a_listening_leaf_keeps_one_back_to_its_menu(void)
 static void exporting_without_plays_settles_at_once_and_keeps_one_back(void)
 {
     start_app();
-    move_down(3);
+    move_down(2);
     tap(KEY_PLAY);
     move_up(2);
     tap(KEY_PLAY);
@@ -423,7 +423,7 @@ static void the_frame_overlay_is_off_until_enabled_in_diagnostics(void)
     start_app();
     step();
     CHECK(!overlay_visible());
-    move_down(HOME_SETTINGS_INDEX);
+    move_down(HOME_SETTINGS_INDEX + (app_player_status().has_track ? 1 : 0));
     tap(KEY_PLAY);
     move_down(SETTINGS_ABOUT_INDEX);
     tap(KEY_PLAY);
@@ -724,7 +724,7 @@ static void queue_actions_and_menu_shortcuts_reuse_now_playing_before_home(void)
 static void holding_back_from_mixtape_name_reaches_home(void)
 {
     start_app_with_library();
-    move_down(2);
+    move_down(1);
     tap(KEY_PLAY);
     CHECK(title_is("Mixtapes"));
     move_down(1);
@@ -740,7 +740,7 @@ static void holding_back_from_a_busy_mixtape_save_reaches_home(void)
     start_app_with_library();
     play_first_album_track();
     hold_back();
-    move_down(4);
+    move_down(2);
     tap(KEY_PLAY);
     CHECK(title_is("Mixtapes"));
     tap(KEY_PLAY);
@@ -756,7 +756,7 @@ static void open_mixtape_name_while_playing(void)
     start_app_with_library();
     play_first_album_track();
     hold_back();
-    move_down(4);
+    move_down(2);
     tap(KEY_PLAY);
     tap(KEY_PLAY);
     CHECK(title_is("Mixtape name"));
@@ -928,7 +928,7 @@ static void home_art_keeps_the_playing_album(void)
     CHECK_EQUAL(RED_COVER, home_art_probe());
 }
 
-static void the_home_menu_shows_now_playing_last_once_a_track_is_loaded(void)
+static void the_home_menu_shows_now_playing_first_once_a_track_is_loaded(void)
 {
     start_app_with_library();
     play_first_album_track();
@@ -949,7 +949,7 @@ static void the_home_menu_hides_now_playing_with_nothing_loaded(void)
 
 static void open_setting(int index)
 {
-    move_down(HOME_SETTINGS_INDEX);
+    move_down(HOME_SETTINGS_INDEX + (app_player_status().has_track ? 1 : 0));
     tap(KEY_PLAY);
     move_down(index);
     tap(KEY_PLAY);
@@ -1645,8 +1645,10 @@ static void the_home_menu_fits_its_rows_to_the_new_size_when_shown_again(void)
     step();
     CHECK(title_is(FIRMWARE_SHORT_NAME));
     int header = expected_theme()->metrics.header_height;
-    CHECK(selected_at(header + 38 + 36));
-    CHECK(!selected_at(header + 38 + 40));
+    int height = expected_theme()->metrics.row_height;
+    int rows = theme_content_area(expected_theme()).height / height;
+    CHECK(selected_at(header + (rows - 1) * height + height - 2));
+    CHECK(!selected_at(header + rows * height));
 }
 
 static void settle(void);
@@ -1736,7 +1738,7 @@ static void portrait_home_and_lists_keep_their_title_below_the_status_row(void)
     CHECK(title.y > 0);
     CHECK(fake_hal_pixel(HAL_DISPLAY_SHORT_SIDE - 1, theme.metrics.header_height - 1) ==
           (theme.header_rule ? theme.colors.accent : theme.colors.divider));
-    tap(KEY_VOLUME_UP);
+    tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
     step();
@@ -1796,7 +1798,7 @@ static void now_playing_centres_the_cover_under_the_status_row_in_portrait(void)
     start_app_with_library();
     choose_orientation(ORIENTATION_PORTRAIT);
     hold_back();
-    tap(KEY_VOLUME_UP);
+    tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     portrait_down(MUSIC_ALBUMS_INDEX);
     tap(KEY_PLAY);
@@ -1816,7 +1818,7 @@ static void cover_flow_stacks_the_albums_in_portrait(void)
     start_app_with_library();
     choose_orientation(ORIENTATION_PORTRAIT);
     hold_back();
-    tap(KEY_VOLUME_UP);
+    tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     portrait_down(MUSIC_COVER_FLOW_INDEX);
     tap(KEY_PLAY);
@@ -2152,7 +2154,7 @@ static void lists_stay_instant_with_the_click_settings(void)
     hold_back();
     wait_ms(SLIDE_DURATION_MS);
     CHECK(title_is(FIRMWARE_SHORT_NAME));
-    move_down(HOME_SETTINGS_INDEX);
+    move_down(HOME_SETTINGS_INDEX + (app_player_status().has_track ? 1 : 0));
     tap(KEY_PLAY);
     CHECK(title_is("Settings"));
 }
@@ -2522,7 +2524,7 @@ static void formatting_a_paused_card_clears_the_library_and_saved_playback_state
     tap(KEY_PLAY);
     CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
     hold_back();
-    move_down(HOME_SETTINGS_INDEX);
+    move_down(HOME_SETTINGS_INDEX + (app_player_status().has_track ? 1 : 0));
     tap(KEY_PLAY);
     move_up(3);
     tap(KEY_PLAY);
@@ -3087,7 +3089,7 @@ static void the_plug_in_answer_is_chosen_in_settings_applied_and_saved(void)
 static void the_home_menu_opens_the_same_three_mode_selector(void)
 {
     start_app_with_library();
-    move_down(4);
+    move_down(3);
     tap(KEY_PLAY);
     CHECK(title_is("USB mode"));
     move_down(2);
@@ -3292,6 +3294,7 @@ static void a_favorite_shows_in_playlists_without_a_rescan(void)
     settle();
     hold_back();
     wait_ms(SLIDE_DURATION_MS);
+    move_down(1);
     open_music_entry(MUSIC_PLAYLISTS_INDEX);
     move_down(1);
     tap(KEY_PLAY);
@@ -3405,13 +3408,13 @@ static void shuffled_folder_play_starts_from_a_random_song(void)
     CHECK(moved);
 }
 
-static void the_home_menu_shows_up_next_below_now_playing(void)
+static void the_home_now_playing_row_keeps_up_next_reachable(void)
 {
     start_app_with_library();
     play_first_album_track();
     hold_back();
-    move_down(HOME_NOW_PLAYING_INDEX + 1);
     tap(KEY_PLAY);
+    tap(KEY_MENU);
     CHECK(title_is("Up Next"));
 }
 
@@ -3615,6 +3618,7 @@ static void cover_flow_starts_at_the_playing_album(void)
     start_app_with_library();
     play_first_album_track();
     hold_back();
+    move_down(1);
     tap(KEY_PLAY);
     move_up(MUSIC_ALBUMS_INDEX - MUSIC_COVER_FLOW_INDEX);
     tap(KEY_PLAY);
@@ -3885,7 +3889,7 @@ static void waking_while_paused_keeps_the_screen(void)
 
 static void open_diagnostics_row(int index)
 {
-    move_down(HOME_SETTINGS_INDEX);
+    move_down(HOME_SETTINGS_INDEX + (app_player_status().has_track ? 1 : 0));
     tap(KEY_PLAY);
     move_down(SETTINGS_ABOUT_INDEX);
     tap(KEY_PLAY);
@@ -4961,8 +4965,8 @@ static void an_aborted_script_lets_go_of_the_key_it_holds(void)
     CHECK_EQUAL(pixels, fake_hal_pixels_written());
     CHECK_EQUAL(0, events_of(DEBUG_EVENT_SCREEN, before));
     tap(KEY_PLAY);
-    static const char *const titles[] = {"Music",     "Settings", "Mixtapes",
-                                         "Listening", "USB mode", "Clock"};
+    static const char *const titles[] = {"Music",    "Mixtapes", "Listening",
+                                         "USB mode", "Clock",    "Settings"};
     CHECK(selected < 6 && title_is(titles[selected]));
 }
 
@@ -5149,7 +5153,7 @@ static void a_calendar_month_title_keeps_its_room_before_the_status_clock(void)
     fake_hal_set_wall(1794390060u, 0);
     fake_hal_set_battery((HalBattery){.known = true, .percent = 64});
     restart_app();
-    tap(KEY_VOLUME_DOWN);
+    move_down(4);
     tap(KEY_PLAY);
     CHECK(title_is("Clock"));
     tap(KEY_PLAY);
@@ -5401,7 +5405,7 @@ int main(void)
         TEST_CASE(now_playing_without_a_cover_shows_the_cassette),
         TEST_CASE(now_playing_keys_control_the_player),
         TEST_CASE(lists_still_move_as_soon_as_a_volume_key_goes_down),
-        TEST_CASE(the_home_menu_shows_now_playing_last_once_a_track_is_loaded),
+        TEST_CASE(the_home_menu_shows_now_playing_first_once_a_track_is_loaded),
         TEST_CASE(the_home_menu_hides_now_playing_with_nothing_loaded),
         TEST_CASE(the_horizon_stays_inside_its_panel),
         TEST_CASE(home_art_shows_a_library_cover_when_idle),
@@ -5557,7 +5561,7 @@ int main(void)
         TEST_CASE(a_cable_start_opens_the_charge_screen),
         TEST_CASE(holding_play_on_a_folder_plays_everything_under_it_in_order),
         TEST_CASE(shuffled_folder_play_starts_from_a_random_song),
-        TEST_CASE(the_home_menu_shows_up_next_below_now_playing),
+        TEST_CASE(the_home_now_playing_row_keeps_up_next_reachable),
         TEST_CASE(holding_play_on_a_folder_without_songs_shows_a_toast),
         TEST_CASE(holding_play_on_a_song_in_folders_still_opens_play_next),
         TEST_CASE(holding_play_on_an_album_adds_it_to_favorites),
