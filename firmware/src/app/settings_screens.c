@@ -1,5 +1,6 @@
 #include "settings_screens.h"
 #include "app/app.h"
+#include "settings_actions.h"
 
 #include <stddef.h>
 
@@ -81,72 +82,6 @@ static Settings *editable_settings(void *context)
     return &settings->store->settings;
 }
 
-static void save(SettingsContext *context)
-{
-    settings_store_capture(context->store, player_status(context->player));
-    if (!settings_store_save(context->store)) {
-        toast_show(context->toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
-    }
-}
-
-static void apply_and_save(SettingsContext *context)
-{
-    settings_store_apply_hardware(&context->store->settings);
-    save(context);
-}
-
-static int current_shuffle(const void *context)
-{
-    const SettingsContext *settings = context;
-    return (int)player_status(settings->player).shuffle;
-}
-
-static void choose_shuffle(void *context, int index)
-{
-    SettingsContext *settings = context;
-    player_set_shuffle(settings->player, (ShuffleMode)index, hal_clock_microseconds());
-    save(settings);
-}
-
-static int current_repeat(const void *context)
-{
-    const SettingsContext *settings = context;
-    return (int)player_status(settings->player).repeat;
-}
-
-static void choose_repeat(void *context, int index)
-{
-    SettingsContext *settings = context;
-    player_set_repeat(settings->player, (RepeatMode)index);
-    save(settings);
-}
-
-static int current_sleep(const void *context)
-{
-    const SettingsContext *settings = context;
-    return settings->power->sleep_timer_active ? settings->sleep_option : 0;
-}
-
-static void choose_sleep(void *context, int index)
-{
-    SettingsContext *settings = context;
-    uint32_t now_ms = hal_clock_milliseconds();
-    uint32_t minutes = settings_sleep_option_minutes(index);
-    settings->sleep_option = index;
-    if (minutes == 0) {
-        power_policy_cancel_sleep_timer(settings->power);
-    } else {
-        power_policy_start_sleep_timer(settings->power, minutes * MILLISECONDS_PER_MINUTE, now_ms);
-    }
-    StringBuilder message = string_builder_make(settings->message, sizeof settings->message);
-    if (minutes == 0) {
-        string_builder_append(&message, i18n_text(STR_SLEEP_OFF));
-    } else {
-        i18n_format_text(&message, STR_SLEEP_IN, i18n_text(SLEEP_OPTIONS[index]));
-    }
-    toast_show(settings->toast, settings->message, now_ms);
-}
-
 static int current_timeout(const void *context)
 {
     return settings_of(context)->screen_timeout;
@@ -157,7 +92,7 @@ static void choose_timeout(void *context, int index)
     SettingsContext *settings = context;
     editable_settings(context)->screen_timeout = (uint8_t)index;
     power_policy_set_timeout(settings->power, settings_screen_timeout_ms(settings_of(context)));
-    save(settings);
+    settings_action_save(settings);
 }
 
 static int current_auto_off(const void *context)
@@ -173,7 +108,7 @@ static int current_clock_format(const void *context)
 static void choose_clock_format(void *context, int index)
 {
     editable_settings(context)->clock_24h = index != 0;
-    save(context);
+    settings_action_save(context);
 }
 
 static void choose_auto_off(void *context, int index)
@@ -182,7 +117,7 @@ static void choose_auto_off(void *context, int index)
     editable_settings(context)->auto_off = (uint8_t)index;
     power_policy_set_auto_off(settings->power, settings_auto_off_ms(settings_of(context)),
                               hal_clock_milliseconds());
-    save(settings);
+    settings_action_save(settings);
 }
 
 static int current_brightness(const void *context)
@@ -193,7 +128,7 @@ static int current_brightness(const void *context)
 static void choose_brightness(void *context, int index)
 {
     editable_settings(context)->brightness = (uint8_t)(index + SETTINGS_BRIGHTNESS_MIN);
-    apply_and_save(context);
+    settings_action_apply_and_save(context);
 }
 
 static const char *describe_brightness(const void *context, int current)
@@ -217,7 +152,7 @@ static int current_accent(const void *context)
 static void choose_accent(void *context, int index)
 {
     editable_settings(context)->accent = (AccentColor)index;
-    save(context);
+    settings_action_save(context);
 }
 
 static int current_appearance(const void *context)
@@ -231,7 +166,7 @@ static void choose_appearance(void *context, int index)
     editable_settings(context)->appearance = (AppearanceTheme)index;
     default_theme_set_appearance(settings->theme, (AppearanceTheme)index);
     default_theme_set_accent(settings->theme, settings_of(context)->accent);
-    save(settings);
+    settings_action_save(settings);
 }
 
 static int current_text_size(const void *context)
@@ -244,7 +179,7 @@ static void choose_text_size(void *context, int index)
     SettingsContext *settings = context;
     editable_settings(context)->text_size = (TextSize)index;
     default_theme_set_text_size(settings->theme, (TextSize)index);
-    save(settings);
+    settings_action_save(settings);
 }
 
 static int current_orientation(const void *context)
@@ -257,7 +192,7 @@ static void choose_orientation(void *context, int index)
     SettingsContext *settings = context;
     editable_settings(context)->orientation = (Orientation)index;
     default_theme_set_orientation(settings->theme, (Orientation)index);
-    save(settings);
+    settings_action_save(settings);
 }
 
 static int current_language(const void *context)
@@ -272,7 +207,7 @@ static void choose_language(void *context, int index)
     StringBuilder code =
         string_builder_make(editable_settings(context)->language, SETTINGS_LANGUAGE_CAPACITY);
     string_builder_append(&code, settings->languages->codes[index]);
-    save(settings);
+    settings_action_save(settings);
     if (settings->language_requested != NULL) {
         *settings->language_requested = true;
     }
@@ -306,7 +241,7 @@ static int current_skip(const void *context)
 static void choose_skip(void *context, int index)
 {
     editable_settings(context)->skip_gesture = (SkipGesture)index;
-    save(context);
+    settings_action_save(context);
 }
 
 static int current_gain(const void *context)
@@ -317,7 +252,7 @@ static int current_gain(const void *context)
 static void choose_gain(void *context, int index)
 {
     editable_settings(context)->gain = (GainLevel)index;
-    apply_and_save(context);
+    settings_action_apply_and_save(context);
 }
 
 static int current_output(const void *context)
@@ -329,7 +264,7 @@ static void choose_output(void *context, int index)
 {
     SettingsContext *settings = context;
     editable_settings(context)->output = (OutputJack)index;
-    apply_and_save(context);
+    settings_action_apply_and_save(context);
     toast_show(settings->toast, i18n_text(OUTPUT_MESSAGES[index]), hal_clock_milliseconds());
 }
 
@@ -343,56 +278,12 @@ static const char *describe_output(const void *context, int current)
     return i18n_text(jack == HAL_AUDIO_JACK_BALANCED ? STR_OUTPUT_AUTO_44 : STR_OUTPUT_AUTO_35);
 }
 
-static int active_slot(const void *context)
-{
-    const SettingsContext *settings = context;
-    const Settings *chosen = settings_of(context);
-    return chosen->equalizer == EQUALIZER_CUSTOM
-               ? equalizer_presets_matching_slot(settings->presets, chosen->equalizer_gains)
-               : -1;
-}
-
-static int current_equalizer(const void *context)
-{
-    const SettingsContext *settings = context;
-    int slot = active_slot(context);
-    return slot < 0 ? (int)settings_of(context)->equalizer
-                    : equalizer_presets_slot_option(settings->presets, slot);
-}
-
-static const char *describe_equalizer(const void *context, int current)
-{
-    int slot = active_slot(context);
-    return slot < 0 ? i18n_text(EQUALIZER_PRESET_NAMES[current])
-                    : equalizer_presets_slot_label(slot);
-}
-
-static void choose_equalizer(void *context, int index)
-{
-    SettingsContext *settings = context;
-    Settings *chosen = editable_settings(context);
-    int8_t gains[SETTINGS_EQUALIZER_BANDS];
-    if (index >= EQUALIZER_PRESET_COUNT) {
-        if (!equalizer_presets_load(settings->presets, index, gains)) {
-            toast_show(settings->toast, i18n_text(STR_EQ_FILE_UNREADABLE),
-                       hal_clock_milliseconds());
-            return;
-        }
-        for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
-            chosen->equalizer_gains[band] = gains[band];
-        }
-        index = EQUALIZER_CUSTOM;
-    }
-    chosen->equalizer = (EqualizerPreset)index;
-    apply_and_save(context);
-}
-
 static void equalizer_changed(void *context, bool finished)
 {
     SettingsContext *settings = context;
     settings_store_apply_hardware(&settings->store->settings);
     if (finished) {
-        save(settings);
+        settings_action_save(settings);
     }
 }
 
@@ -446,7 +337,8 @@ static ScreenAction open_custom_equalizer(void *context)
 {
     SettingsScreens *screens = context;
     equalizer_presets_read_slots(&screens->presets);
-    return screen_action_push(equalizer_editor(screens, active_slot(&screens->context)));
+    return screen_action_push(
+        equalizer_editor(screens, settings_action_active_slot(&screens->context)));
 }
 
 static Screen *open_chosen_equalizer(void *context, int index)
@@ -477,7 +369,7 @@ static int current_start(const void *context)
 static void choose_start(void *context, int index)
 {
     editable_settings(context)->start_screen = (StartScreen)index;
-    save(context);
+    settings_action_save(context);
 }
 
 static int current_usb_mode(const void *context)
@@ -494,7 +386,7 @@ static void choose_usb_mode(void *context, int index)
     }
     SettingsContext *settings = context;
     editable_settings(context)->usb_mode = (UsbMode)(index - 1);
-    apply_and_save(context);
+    settings_action_apply_and_save(context);
     HalUsbMode mode = index == 1 ? HAL_USB_MODE_STORAGE : HAL_USB_MODE_DAC;
     hal_system_request_usb_mode(mode);
     toast_show(settings->toast, i18n_text(USB_MODE_MESSAGES[index - 1]), hal_clock_milliseconds());
@@ -508,7 +400,7 @@ static int current_usb_answer(const void *context)
 static void choose_usb_answer(void *context, int index)
 {
     editable_settings(context)->usb_connect = (UsbConnect)index;
-    apply_and_save(context);
+    settings_action_apply_and_save(context);
 }
 
 static int current_replay_gain(const void *context)
@@ -521,24 +413,10 @@ static int current_prevent_clipping(const void *context)
     return settings_of(context)->prevent_clipping ? 1 : 0;
 }
 
-static void apply_replay_gain(SettingsContext *context)
-{
-    const Settings *settings = &context->store->settings;
-    player_set_replay_gain(context->player, (ReplayGainMode)settings->replay_gain_mode,
-                           settings->prevent_clipping);
-    save(context);
-}
-
-static void choose_replay_gain(void *context, int index)
-{
-    editable_settings(context)->replay_gain_mode = (uint8_t)index;
-    apply_replay_gain(context);
-}
-
 static void choose_prevent_clipping(void *context, int index)
 {
     editable_settings(context)->prevent_clipping = index != 0;
-    apply_replay_gain(context);
+    settings_action_apply_replay_gain(context);
 }
 
 static int current_battery_percent(const void *context)
@@ -549,7 +427,7 @@ static int current_battery_percent(const void *context)
 static void choose_battery_percent(void *context, int index)
 {
     editable_settings(context)->battery_percent = index != 0;
-    save(context);
+    settings_action_save(context);
 }
 
 static int current_rewind(const void *context)
@@ -562,7 +440,7 @@ static void choose_rewind(void *context, int index)
     SettingsContext *settings = context;
     editable_settings(context)->rewind_on_resume = index != 0;
     player_set_rewind(settings->player, index != 0);
-    save(settings);
+    settings_action_save(settings);
 }
 
 static const char *const SAFE_VOLUME_LEVELS[SAFE_VOLUME_OPTION_COUNT] = {"",   "12", "18",
@@ -585,7 +463,7 @@ static void choose_safe_volume(void *context, int index)
     if (index != 0) {
         settings->safe_start_volume_level = (uint8_t)((index + 1) * SAFE_VOLUME_STEP);
     }
-    save(context);
+    settings_action_save(context);
 }
 
 static const char *describe_safe_volume(const void *context, int current)
@@ -616,31 +494,6 @@ static const StringId TRANSITION_LENGTH_OPTIONS[] = {
     STR_SECONDS_3,   STR_SECONDS_4, STR_SECONDS_6};
 static const uint8_t TRANSITION_TENTHS[] = {5, 10, 15, 20, 30, 40, 60};
 
-static void apply_transitions(SettingsContext *context)
-{
-    const Settings *settings = &context->store->settings;
-    player_set_transitions(context->player, settings->track_transition != TRACK_TRANSITION_OFF,
-                           settings->transition_tenths);
-    save(context);
-}
-
-static int current_transition(const void *context)
-{
-    return settings_of(context)->track_transition != TRACK_TRANSITION_OFF ? 1 : 0;
-}
-
-static void choose_transition(void *context, int index)
-{
-    SettingsContext *settings = context;
-    editable_settings(context)->track_transition =
-        index != 0 ? TRACK_TRANSITION_FADE : TRACK_TRANSITION_OFF;
-    apply_transitions(settings);
-    if (index != 0) {
-        toast_show(settings->toast, i18n_text(STR_TRANSITIONS_IN_SHUFFLE),
-                   hal_clock_milliseconds());
-    }
-}
-
 static int current_transition_length(const void *context)
 {
     uint8_t tenths = settings_of(context)->transition_tenths;
@@ -654,19 +507,21 @@ static int current_transition_length(const void *context)
 static void choose_transition_length(void *context, int index)
 {
     editable_settings(context)->transition_tenths = TRANSITION_TENTHS[index];
-    apply_transitions(context);
+    settings_action_apply_transitions(context);
 }
 
 static bool transition_length_shown(const void *context)
 {
-    return current_transition(context) != 0;
+    return settings_action_current_transition(context) != 0;
 }
 
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
-    {STR_SHUFFLE, SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, current_shuffle, choose_shuffle, NULL, NULL},
-    {STR_REPEAT, REPEAT_OPTIONS, REPEAT_MODE_COUNT, current_repeat, choose_repeat, NULL, NULL},
-    {STR_SLEEP_TIMER, SLEEP_OPTIONS, SLEEP_TIMER_OPTION_COUNT, current_sleep, choose_sleep, NULL,
-     NULL},
+    {STR_SHUFFLE, SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, settings_action_current_shuffle,
+     settings_action_choose_shuffle, NULL, NULL},
+    {STR_REPEAT, REPEAT_OPTIONS, REPEAT_MODE_COUNT, settings_action_current_repeat,
+     settings_action_choose_repeat, NULL, NULL},
+    {STR_SLEEP_TIMER, SLEEP_OPTIONS, SLEEP_TIMER_OPTION_COUNT, settings_action_current_sleep,
+     settings_action_choose_sleep, NULL, NULL},
     {STR_AUTO_OFF, AUTO_OFF_OPTIONS, AUTO_OFF_OPTION_COUNT, current_auto_off, choose_auto_off, NULL,
      NULL},
     {STR_SCREEN_TIMEOUT, TIMEOUT_OPTIONS, SCREEN_TIMEOUT_OPTION_COUNT, current_timeout,
@@ -686,10 +541,11 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_GAIN, GAIN_OPTIONS, GAIN_LEVEL_COUNT, current_gain, choose_gain, NULL, NULL},
     {STR_OUTPUT, OUTPUT_OPTIONS, OUTPUT_JACK_COUNT, current_output, choose_output, describe_output,
      NULL},
-    {STR_EQUALIZER, EQUALIZER_PRESET_NAMES, EQUALIZER_PRESET_COUNT, current_equalizer,
-     choose_equalizer, describe_equalizer, extend_equalizer},
+    {STR_EQUALIZER, EQUALIZER_PRESET_NAMES, EQUALIZER_PRESET_COUNT,
+     settings_action_current_equalizer, settings_action_choose_equalizer,
+     settings_action_describe_equalizer, extend_equalizer},
     {STR_REPLAY_GAIN, REPLAY_GAIN_OPTIONS, REPLAY_GAIN_MODE_COUNT, current_replay_gain,
-     choose_replay_gain, NULL, NULL},
+     settings_action_choose_replay_gain, NULL, NULL},
     {STR_PREVENT_CLIPPING, OFF_ON_OPTIONS, 2, current_prevent_clipping, choose_prevent_clipping,
      NULL, NULL},
     {STR_START_SCREEN, START_OPTIONS, START_SCREEN_COUNT, current_start, choose_start, NULL, NULL},
@@ -702,7 +558,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_REWIND_ON_RESUME, OFF_ON_OPTIONS, 2, current_rewind, choose_rewind, NULL, NULL},
     {STR_SAFE_START_VOLUME, NULL, SAFE_VOLUME_OPTION_COUNT, current_safe_volume, choose_safe_volume,
      describe_safe_volume, extend_safe_volume},
-    {STR_TRANSITIONS, TRANSITION_OPTIONS, 2, current_transition, choose_transition, NULL, NULL},
+    {STR_TRANSITIONS, TRANSITION_OPTIONS, 2, settings_action_current_transition,
+     settings_action_choose_transition, NULL, NULL},
     {STR_TRANSITION_LENGTH, TRANSITION_LENGTH_OPTIONS, (int)sizeof TRANSITION_TENTHS,
      current_transition_length, choose_transition_length, NULL, NULL},
     {STR_USB_ANSWER, USB_ANSWER_OPTIONS, USB_CONNECT_COUNT, current_usb_answer, choose_usb_answer,
@@ -899,7 +756,7 @@ static ScreenAction open_format(void *context)
 
 static void buttons_changed(void *context)
 {
-    save(context);
+    settings_action_save(context);
 }
 
 static bool headphones_shown(const void *context)

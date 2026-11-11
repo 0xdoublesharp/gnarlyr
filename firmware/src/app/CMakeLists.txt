@@ -55,6 +55,8 @@ add_library(echo_app STATIC
     screen_modules.c
     settings_preview.c
     settings_screens.c
+    settings_actions.c
+    screens/quick_settings_screen.c
     settings_store.c
     headphone_store.c
     headphone_store_edit.c

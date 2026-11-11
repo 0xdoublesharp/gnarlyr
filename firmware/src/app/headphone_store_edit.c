@@ -1,5 +1,7 @@
 #include "headphone_store.h"
 
+#include "core/i18n.h"
+#include "core/string_builder.h"
 #include "hal/audio.h"
 #include "hal/system.h"
 
@@ -32,4 +34,15 @@ bool headphone_store_commit(HeadphoneStore *store, const HeadphoneProfiles *prof
     store->active = next;
     hal_audio_set_headphones(next);
     return true;
+}
+
+void headphone_store_fill_slots(HeadphoneProfiles *profiles)
+{
+    for (int slot = profiles->count; slot < HEADPHONE_PROFILE_LIMIT; slot++) {
+        HeadphoneProfile *profile = &profiles->slots[slot];
+        *profile = headphone_profile_defaults();
+        StringBuilder name = string_builder_make(profile->name, sizeof profile->name);
+        i18n_format_counts(&name, STR_HEADPHONE_SLOT, (uint32_t)slot + 1, 0);
+    }
+    profiles->count = HEADPHONE_PROFILE_LIMIT;
 }

@@ -57,6 +57,7 @@ PowerKeyOutcome power_policy_key(PowerPolicy *policy, KeyEvent event, uint32_t n
 
 void power_policy_start_sleep_timer(PowerPolicy *policy, uint32_t duration_ms, uint32_t now_ms)
 {
+    policy->sleep_duration_ms = supported_delay(duration_ms);
     policy->sleep_timer_active = true;
     policy->sleep_deadline_ms = now_ms + supported_delay(duration_ms);
 }

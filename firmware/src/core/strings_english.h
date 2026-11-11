@@ -570,4 +570,7 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_HEADPHONE_STUDIO] = "Studio",
     [STR_HEADPHONE_TRAVEL] = "Travel",
     [STR_HEADPHONE_SAVED] = "Profile saved",
+    [STR_QUICK_SETTINGS] = "Quick Settings",
+    [STR_QUICK_SETTINGS_HINT] = "Play: change · Back: close",
+    [STR_PLAYBACK_SPEED] = "Playback speed",
 };

@@ -32,6 +32,15 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
+    src/app/screens/quick_settings_screen.c
+    src/app/settings_actions.c
+    src/app/equalizer_presets.c
+    src/settings/equalizer_slots.c
+    src/settings/equalizer_fit_text.c
+    src/app/headphone_store_edit.c
+    src/settings/headphone_profile_edit.c
+    src/settings/headphone_file_save.c
+    src/core/headphone_audio_switch.c
     src/app/mixtape_store.c
     src/app/mixtape_ui.c
     src/app/mixtape_screen.c
@@ -62,6 +71,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/language_list.c
     src/app/modules/settings_module.c
     src/app/settings_screens.c
+    src/app/settings_actions.c
     src/app/settings_preview.c
     src/app/button_settings.c
     src/app/home_editor.c

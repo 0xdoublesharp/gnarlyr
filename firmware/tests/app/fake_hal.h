@@ -166,3 +166,5 @@ uint32_t fake_hal_audio_play_fade_ms(void);
 
 void fake_hal_set_card(HalCardInfo info, bool result);
 int fake_hal_card_formats(void);
+
+void fake_hal_fail_internal_writes(const char *path);

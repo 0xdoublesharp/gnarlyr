@@ -11,6 +11,7 @@ typedef struct PowerPolicy {
     uint32_t last_activity_ms;
     uint32_t timeout_ms;
     uint32_t sleep_deadline_ms;
+    uint32_t sleep_duration_ms;
     uint32_t auto_off_ms;
     uint32_t awake_ms;
 } PowerPolicy;
