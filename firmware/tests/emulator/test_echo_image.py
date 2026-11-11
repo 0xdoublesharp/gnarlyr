@@ -1772,7 +1772,7 @@ class EchoImageTest(unittest.TestCase):
         volume = Fat32Volume()
         volume.add_file("Speech.wav", b"RIFF" + struct.pack("<I", len(body)) + body)
         volume.add_directory(IDENTITY.data_directory)
-        settings = bytearray(42)
+        settings = bytearray(4096)
         settings[:6] = b"DSST" + bytes((14, mode | (4 if clipping else 0)))
         settings[6:9] = bytes((7, 2, 0))
         settings[13], settings[14], settings[16] = 60, 2, 35
@@ -1782,7 +1782,7 @@ class EchoImageTest(unittest.TestCase):
         checksum = FNV_START
         for value in settings[:38]:
             checksum = (checksum ^ value) * FNV_PRIME & 0xFFFFFFFF
-        settings[38:] = struct.pack("<I", checksum)
+        settings[38:42] = struct.pack("<I", checksum)
         volume.add_file("settings.bin", bytes(settings), directory=IDENTITY.data_directory)
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                    volume=volume, module_elfs=self.module_elfs), pattern
@@ -1821,8 +1821,8 @@ class EchoImageTest(unittest.TestCase):
             IDENTITY.data_directory).children if child.name == "settings.bin")
         sector = (rig.session.layout["volume_start"] + rig.session.volume.data_start
                   + (node.first - 2) * rig.session.volume.sectors_per_cluster)
-        saved = rig.session.disk.read(sector, 1)[:42]
-        self.assertEqual(14, saved[4])
+        saved = rig.session.disk.read(sector, 1)[:58]
+        self.assertEqual(15, saved[4])
         self.assertEqual(1, saved[5])
         self.assertEqual([], rig.audio.underruns(started))
         self.assertEqual(0, rig.audio.output_underruns())

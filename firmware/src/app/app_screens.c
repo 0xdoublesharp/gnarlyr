@@ -253,7 +253,7 @@ static void build_home(AppScreens *screens, AppScreensContext context)
         app_screens_open_item(STR_LISTENING, &screens->modules.listening.listening.screen);
     screens->home_items[1] = shelf_item(screens, context, SPOKEN_AUDIOBOOK);
     screens->home_items[2] = shelf_item(screens, context, SPOKEN_PODCAST);
-    screens->home_items[3] =
+    screens->home_items[SETTINGS_HOME_SETTINGS_ITEM] =
         app_screens_open_item(STR_SETTINGS, &screens->modules.settings.settings.menu.screen);
     screens->home_items[4] = app_screens_open_item(STR_NOW_PLAYING, &screens->now_playing.screen);
     screens->home_items[4].shown = player_has_track;
