@@ -33,6 +33,7 @@
 </li>
 <li><a href="#discovery">Find and organize</a>
 </li>
+<li><a href="#daily-use">Cover Flow &amp; USB</a></li>
 <li><a href="#queues">Queues and mixtapes</a>
 </li>
 <li><a href="#listening">Listening and sound</a>
@@ -56,7 +57,7 @@
 </li>
 <li><strong>Controls that fit your hands.</strong> Set a tap and a hold action for Volume+, Volume−, Play and Menu: eight playback shortcuts. Choose volume, seeking, playback, Home or Up Next actions. Audio shortcuts work with the screen off; list navigation keeps its usual controls.
 </li>
-<li><strong>A cassette-inspired interface.</strong> Album artwork, cassette art and clear playback indicators connect Home, Music and Now Playing. Consistent headers and focus highlights make lists easier to follow. Audio &amp; connections groups sound and connection controls together.
+<li><strong>A cassette-inspired interface.</strong> Album artwork, cassette art and clear playback indicators connect Home, Music and Now Playing. Refined shuffle, repeat, favorite, album, gain and speaker icons make controls easier to recognize; Cover Flow’s Random album tile uses smoother artwork sampling. Audio &amp; connections groups sound and connection controls together.
 </li>
 <li><strong>Language packs.</strong> English is built in. The player supports version-matched translation packs loaded from storage and remembers your language choice.
 </li>
@@ -80,6 +81,16 @@
 </li>
 <li><strong>Remembered views.</strong> Search text, sorting and filters are saved. When the library changes, selections tied to old library IDs reset. Cancel a pending search and start another without bringing back stale results.
 </li>
+</ul>
+</section>
+<section class="doc-section" id="daily-use" aria-labelledby="daily-use-title">
+<h2 id="daily-use-title">Move through albums. Keep your place.</h2>
+<p class="intro">Cover Flow gives larger collections quicker navigation. The USB mode chooser lets you return to the player or copy files without removing the cable.</p>
+<ul class="detail-list">
+<li><strong>Browse Cover Flow by letter.</strong> Hold a volume button to scroll faster; keep holding to jump between initials. A temporary letter badge shows your place. Play opens the selected album and holding Play favorites it.</li>
+<li><strong>Choose a USB mode.</strong> Open USB mode from Home or Settings. The chooser lists Player, USB storage and USB DAC.</li>
+<li><strong>Return to the player without unplugging.</strong> Eject both drives on the computer and wait for the chooser, then select Player. Your track, position and queue stay available. Choose USB storage again to reconnect the drives on the same cable.</li>
+<li><strong>Keep the connection preference.</strong> Choosing USB storage or USB DAC remembers that mode for the next connection. Choosing Player leaves the saved USB preference unchanged.</li>
 </ul>
 </section>
 <section class="doc-section" id="queues" aria-labelledby="queues-title">
@@ -166,6 +177,7 @@
 <h3>Library and navigation</h3>
 <ul class="detail-list">
 <li><strong>Rescans restore the intended song.</strong> Saved sessions check the library’s contents before reusing track IDs, avoiding a wrong song or stale CUE position after a database change.</li>
+<li><strong>Safer metadata parsing.</strong> Tag readers preserve Unicode text during whitespace trimming and bound WMA content and MP4 duration reads. The MP3 reader rejects malformed APE footer lengths before locating the audio endpoint.</li>
 <li><strong>Storage failures stay visible.</strong> Library scans preserve storage errors through the final index write instead of replacing them with a different failure.</li>
 <li><strong>Search and labels keep their place.</strong> Searches cover long paths across metadata chunks and preserve the selected song. Cancelled searches do not restore stale results. Label saves protect a newer data bank if a read temporarily fails.</li>
 <li><strong>Lyrics handle failed reads.</strong> Lyrics use the correct storage path and stop displaying cached text when a line read fails, avoiding partial or stale lines.</li>
@@ -176,6 +188,7 @@
 <ul class="detail-list">
 <li><strong>USB-C detection follows the cable.</strong> USB power control uses the correct supply settings as the cable connects and disconnects.</li>
 <li><strong>New activity resets wake timers.</strong> A recent wake event no longer makes the screen timeout or automatic power-off timer expire immediately.</li>
+<li><strong>Charging views keep the right code active.</strong> The charging screen no longer continues updating an interface module that has been replaced.</li>
 <li><strong>Power states stay distinct.</strong> The USB screen shows Storage or DAC mode, a battery estimate and the relevant drive, eject, audio-format or volume details. Charging, charged and USB-powered states stay separate; a USB supply reading is not shown as battery voltage.</li>
 <li><strong>The interface does less unnecessary work.</strong> Bounded progress redraws, idle sleeping, frame pacing and clock coasting reduce processor work.</li>
 </ul>

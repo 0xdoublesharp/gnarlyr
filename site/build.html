@@ -22,7 +22,7 @@
 <div class="page-intro wrap"><p class="eyebrow">Source builds · developer tools</p><h1 class="page-title">Build and develop.</h1><p>Build firmware, use the developer USB loop and explore codec tools from a Gnarlyr source checkout. For a ready-made image and player setup, use the <a href="install.html">Install guide</a>.</p></div>
 <div class="doc-layout wrap"><nav class="contents" aria-label="On this page"><p class="eyebrow">On this page</p><ol><li><a href="#build">Build from source · macOS</a></li>
 <li><a href="#developer">Developer USB updates</a></li>
-<li><a href="#codecs">Codec integration tools</a></li>
+<li><a href="#codecs">Audio source integrations</a></li>
 <li><a href="#usb">USB internals</a></li>
 <li><a href="#migration">Older custom builds</a></li>
 <li><a href="#recovery">Recovery reference</a></li></ol></nav><div>
@@ -78,14 +78,17 @@
 <p>Audio processing remains available as interface modules change. A separate 8 KiB code bank holds sample-rate conversion and M4A/M4B parsing. Diagnostic counts exclude intentionally muted DMA pauses, so a normal pause is not reported as missing audio.</p>
 </section>
 <section class="doc-section" id="codecs" aria-labelledby="codecs-title">
-<h2 id="codecs-title">Tools for codec integration.</h2>
-<p class="intro">An Ogg container wraps compressed audio in packets; a decoder turns those packets into samples. Developers can inspect the packets and exercise the integer Vorbis decoder independently of player playback.</p>
+<h2 id="codecs-title">Vorbis and audio pipeline integrations.</h2>
+<p class="intro">An Ogg file wraps compressed audio in packets; a decoder turns them into samples. The newer audio source connects those pieces to the player, including file opening, duration, seeking and saved-position startup.</p>
 <ul class="detail-list">
-<li><strong>Checked Ogg packets.</strong> The reader reconstructs packets across pages and checks each page’s CRC, sequence and continuation. Caller-owned buffers keep memory bounded; failed reads can be retried without advancing the packet state.</li>
-<li><strong>A separate Vorbis decoder.</strong> A core-1 program uses pinned Xiph Tremor source with a caller-owned 64 KiB workspace and bounded mono/stereo output.</li>
-<li><strong>Packet exports for comparisons.</strong> The host test utility <code>ogg_packet_tool</code> exports checked packets for decoder comparisons. Source guides are <code>firmware/docs/ogg-packets.md</code> and <code>firmware/docs/ogg-vorbis.md</code>.</li>
+<li><strong>Checked Ogg input.</strong> The packet reader validates pages, CRC, sequence and continuation before forwarding audio. Large comments and embedded artwork stay out of the decoder workspace; the original file stays unchanged.</li>
+<li><strong>Bounded Vorbis decoding.</strong> A separate core-1 program uses pinned Xiph Tremor source, a 64 KiB workspace and a 32 KiB compressed-packet limit. The source handles mono/stereo configuration, refuses oversized setups and keeps duration and seek positions on the same sample timeline.</li>
+<li><strong>Safe track changes.</strong> Setup finishes before audio is released. Refills discard output from older track generations, and late setup results cannot abort a newer track.</li>
+<li><strong>Continuous conversion across queued files.</strong> Files with the same decoded input rate retain converter history and output boundaries. A rate change drains and restarts the filter. Initial current/next publication precedes DAC prefill; clearing an already-empty queue preserves prepared audio and position.</li>
+<li><strong>Metadata bounds.</strong> Unicode tag text is preserved during whitespace trimming. WMA fields, MP4 duration headers and MP3 APE footer lengths are checked before they affect metadata or audio bounds.</li>
 </ul>
-<p>These are codec-integration components. The player’s <a href="firmware.html#foundation">supported playback formats</a> remain FLAC, MP3, WAV, AAC-LC and ALAC in M4A/M4B; Ogg Vorbis and Opus are not enabled for normal playback.</p>
+<p>These integrations describe source behavior. Vorbis listening, processing headroom and converted-file transitions still need checks on the ECHO; Opus remains outside the implemented playback formats.</p>
+<p>The host test utility <code>ogg_packet_tool</code> exports checked packets for decoder comparisons. See <code>firmware/docs/ogg-packets.md</code> and <code>firmware/docs/ogg-vorbis.md</code> in the matching audio source checkout.</p>
 </section>
 <section class="doc-section" id="usb" aria-labelledby="usb-title">
 <h2 id="usb-title">How USB hands storage back to the player.
@@ -104,6 +107,7 @@
 </ul>
 <p>For everyday music copying, eject every drive before unplugging too. Gnarlyr then checks whether the music changed and rescans when needed.
 </p>
+<p>The cable-connected mode chooser is opened from Home, Settings or Menu on the charging screen. Eject storage volumes before switching back to Player; choosing storage again re-enumerates the drives without a physical unplug. The charging lifecycle gates callbacks while the interface module is inactive.</p>
 </section>
 <section class="doc-section" id="migration" aria-labelledby="migration-title">
 <h2 id="migration-title">Migrate an older firmware identity.</h2>
