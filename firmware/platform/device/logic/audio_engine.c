@@ -9,7 +9,10 @@ enum {
     GAIN_SHIFT = 16,
     OUTPUT_BITS = 24,
     WORD_BITS = 32,
+    WORD_SHIFT = WORD_BITS - OUTPUT_BITS,
     WORDS_PER_FRAME = 2,
+    SIXTEEN_BITS = 16,
+    STAGE_FRAMES = AUDIO_RESAMPLE_HISTORY - AUDIO_RESAMPLE_LEFT,
     SAMPLE_MAX = 8388607,
     SAMPLE_MIN = -8388608,
     MILLISECONDS_PER_SECOND = 1000,
@@ -132,7 +135,7 @@ static CORE_COLD bool open_track(AudioEngine *engine, const char *path, uint32_t
         return false;
     }
     if (info.sample_rate != audio_resample_rate(info.sample_rate) &&
-        (engine->config.resample_pull == NULL ||
+        (engine->config.resample_render == NULL ||
          (engine->config.prepare_resample != NULL && !engine->config.prepare_resample()))) {
         close_file(engine);
         engine->refusal = (AudioRefusal){.problem = AUDIO_REFUSAL_UNREADABLE};
@@ -282,7 +285,7 @@ static int64_t floor_shift(int64_t value, int shift)
     return value >= 0 ? value >> shift : -((-value - 1) >> shift) - 1;
 }
 
-static int32_t to_output(int32_t sample, int bits, uint32_t gain)
+__attribute__((noinline)) static int32_t to_output(int32_t sample, int bits, uint32_t gain)
 {
     int64_t value = (int64_t)sample * gain;
     int shift = GAIN_SHIFT + bits - OUTPUT_BITS;
@@ -298,6 +301,93 @@ static int32_t to_output(int32_t sample, int bits, uint32_t gain)
     return value > SAMPLE_MAX ? SAMPLE_MAX : value < SAMPLE_MIN ? SAMPLE_MIN : (int32_t)value;
 }
 
+static int32_t saturate(int32_t sample)
+{
+    return sample > SAMPLE_MAX ? SAMPLE_MAX : sample < SAMPLE_MIN ? SAMPLE_MIN : sample;
+}
+
+static int32_t unity_16(int32_t sample)
+{
+    return sample > INT16_MAX   ? SAMPLE_MAX
+           : sample < INT16_MIN ? SAMPLE_MIN
+                                : sample * (1 << (OUTPUT_BITS - SIXTEEN_BITS));
+}
+
+typedef struct PcmSpan {
+    uint32_t *words;
+    const int32_t *left;
+    const int32_t *right;
+    uint32_t frames;
+    int shift;
+} PcmSpan;
+
+static void convert_16(const PcmSpan *span)
+{
+    uint32_t *words = span->words;
+    const int32_t *left = span->left;
+    const int32_t *right = span->right;
+    const int32_t *end = left + span->frames;
+    int shift = span->shift;
+    if (left == right) {
+        for (; left != end; left++, words += WORDS_PER_FRAME) {
+            uint32_t word = (uint32_t)unity_16(*left) << shift;
+            words[0] = word;
+            words[1] = word;
+        }
+        return;
+    }
+    for (; left != end; left++, right++, words += WORDS_PER_FRAME) {
+        words[0] = (uint32_t)unity_16(*left) << shift;
+        words[1] = (uint32_t)unity_16(*right) << shift;
+    }
+}
+
+static void convert_24(const PcmSpan *span)
+{
+    uint32_t *words = span->words;
+    const int32_t *left = span->left;
+    const int32_t *right = span->right;
+    const int32_t *end = left + span->frames;
+    int shift = span->shift;
+    if (left == right) {
+        for (; left != end; left++, words += WORDS_PER_FRAME) {
+            uint32_t word = (uint32_t)saturate(*left) << shift;
+            words[0] = word;
+            words[1] = word;
+        }
+        return;
+    }
+    for (; left != end; left++, right++, words += WORDS_PER_FRAME) {
+        words[0] = (uint32_t)saturate(*left) << shift;
+        words[1] = (uint32_t)saturate(*right) << shift;
+    }
+}
+
+static void convert_scaled(const PcmSpan *span, int bits, uint32_t gain)
+{
+    uint32_t *words = span->words;
+    bool mono = span->left == span->right;
+    for (uint32_t index = 0; index < span->frames; index++, words += WORDS_PER_FRAME) {
+        words[0] = (uint32_t)to_output(span->left[index], bits, gain) << span->shift;
+        words[1] =
+            mono ? words[0] : (uint32_t)to_output(span->right[index], bits, gain) << span->shift;
+    }
+}
+
+static void convert_pending(const AudioEngine *engine, uint32_t *words, uint32_t frames, int shift)
+{
+    uint32_t at = engine->pending_offset;
+    PcmSpan span = {words, engine->frame.left + at, engine->frame.right + at, frames, shift};
+    int bits = engine->frame.bits;
+    if (engine->output_gain != UNITY_GAIN || (bits != SIXTEEN_BITS && bits != OUTPUT_BITS)) {
+        convert_scaled(&span, bits, engine->output_gain);
+    } else if (bits == SIXTEEN_BITS) {
+        convert_16(&span);
+    } else {
+        convert_24(&span);
+    }
+}
+
 static uint32_t ring_frames(const AudioEngine *engine)
 {
     return engine->config.ring_words / WORDS_PER_FRAME;
@@ -308,18 +398,34 @@ static uint32_t free_space(const AudioEngine *engine)
     return ring_frames(engine) - (engine->produced - engine->consumed);
 }
 
-static uint32_t output_word(int32_t sample)
+static uint32_t ring_span(const AudioEngine *engine, uint32_t **words)
 {
-    return (uint32_t)sample << (WORD_BITS - OUTPUT_BITS);
+    uint32_t start = engine->produced % ring_frames(engine);
+    uint32_t contiguous = ring_frames(engine) - start;
+    uint32_t space = free_space(engine);
+    *words = &engine->config.ring[WORDS_PER_FRAME * start];
+    return contiguous < space ? contiguous : space;
 }
 
-static void write_frame(AudioEngine *engine, int32_t left, int32_t right)
+static uint32_t smaller(uint32_t first, uint32_t second)
 {
-    uint32_t *slot =
-        &engine->config.ring[WORDS_PER_FRAME * (engine->produced % ring_frames(engine))];
-    slot[0] = output_word(left);
-    slot[1] = output_word(right);
-    engine->produced++;
+    return first < second ? first : second;
+}
+
+static uint32_t input_available(const AudioEngine *engine)
+{
+    if (engine->decode_limit == 0) {
+        return engine->pending_frames;
+    }
+    uint32_t position = engine->frame.first_sample + engine->pending_offset;
+    uint32_t remaining = position < engine->decode_limit ? engine->decode_limit - position : 0;
+    return smaller(engine->pending_frames, remaining);
+}
+
+static void consume_input(AudioEngine *engine, uint32_t frames)
+{
+    engine->pending_offset += frames;
+    engine->pending_frames -= frames;
 }
 
 static bool at_limit(const AudioEngine *engine)
@@ -343,30 +449,31 @@ static void equalize(AudioEngine *engine, uint32_t first)
     }
 }
 
-static void copy_resampled(AudioEngine *engine)
+static void render_resampled(AudioEngine *engine)
 {
-    int32_t left = 0;
-    int32_t right = 0;
-    while (free_space(engine) > 0 && engine->config.resample_pull != NULL &&
-           engine->config.resample_pull(&engine->resample, &left, &right)) {
-        write_frame(engine, left, right);
+    uint32_t *words = NULL;
+    uint32_t room = 0;
+    while (engine->config.resample_render != NULL && (room = ring_span(engine, &words)) > 0) {
+        uint32_t made = engine->config.resample_render(&engine->resample, words, room);
+        engine->produced += made;
+        if (made < room) {
+            return;
+        }
     }
 }
 
 static void interpolate_pending(AudioEngine *engine)
 {
-    copy_resampled(engine);
-    while (engine->pending_frames > 0 && free_space(engine) > 0 && !at_limit(engine)) {
-        uint32_t at = engine->pending_offset;
-        int bits = engine->frame.bits;
-        if (!audio_resample_push(&engine->resample,
-                                 to_output(engine->frame.left[at], bits, engine->output_gain),
-                                 to_output(engine->frame.right[at], bits, engine->output_gain))) {
-            break;
+    render_resampled(engine);
+    while (free_space(engine) > 0) {
+        uint32_t frames = smaller(input_available(engine), audio_resample_room(&engine->resample));
+        if (frames == 0) {
+            return;
         }
-        engine->pending_offset++;
-        engine->pending_frames--;
-        copy_resampled(engine);
+        int32_t stage[WORDS_PER_FRAME * STAGE_FRAMES];
+        convert_pending(engine, (uint32_t *)stage, frames, 0);
+        consume_input(engine, audio_resample_push(&engine->resample, stage, frames));
+        render_resampled(engine);
     }
 }
 
@@ -378,17 +485,26 @@ static void copy_until_limit(AudioEngine *engine)
         equalize(engine, first);
         return;
     }
-    const int32_t *left = engine->frame.left;
-    const int32_t *right = engine->frame.right;
-    int bits = engine->frame.bits;
-    while (engine->pending_frames > 0 && free_space(engine) > 0 && !at_limit(engine)) {
-        uint32_t index = engine->pending_offset;
-        write_frame(engine, to_output(left[index], bits, engine->output_gain),
-                    to_output(right[index], bits, engine->output_gain));
-        engine->pending_offset++;
-        engine->pending_frames--;
+    uint32_t *words = NULL;
+    uint32_t frames = 0;
+    while ((frames = smaller(input_available(engine), ring_span(engine, &words))) > 0) {
+        convert_pending(engine, words, frames, WORD_SHIFT);
+        engine->produced += frames;
+        consume_input(engine, frames);
     }
     equalize(engine, first);
+}
+
+static void fill_silence(AudioEngine *engine)
+{
+    uint32_t *words = NULL;
+    uint32_t frames = 0;
+    while ((frames = ring_span(engine, &words)) > 0) {
+        for (uint32_t index = 0; index < WORDS_PER_FRAME * frames; index++) {
+            words[index] = 0;
+        }
+        engine->produced += frames;
+    }
 }
 
 static void finish_decoding(AudioEngine *engine);
@@ -496,7 +612,7 @@ static void finish_decoding(AudioEngine *engine)
     }
     if (engine->resample.factor > 1) {
         uint32_t first = engine->produced;
-        copy_resampled(engine);
+        render_resampled(engine);
         equalize(engine, first);
         if (audio_resample_pending(&engine->resample) != 0) {
             return;
@@ -595,9 +711,7 @@ void audio_engine_pump(AudioEngine *engine, uint32_t consumed)
         }
     }
     if (!engine->decoding) {
-        while (free_space(engine) > 0) {
-            write_frame(engine, 0, 0);
-        }
+        fill_silence(engine);
     }
 }
 

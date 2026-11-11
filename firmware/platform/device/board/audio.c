@@ -300,7 +300,7 @@ static void ensure_engine(void)
                                                    .ring_words = RING_WORDS,
                                                    .equalizer = &equalizer,
                                                    .prepare_resample = board_audio_dsp_prepare,
-                                                   .resample_pull = board_audio_dsp_pull});
+                                                   .resample_render = board_audio_dsp_render});
     engine_ready = true;
 }
 

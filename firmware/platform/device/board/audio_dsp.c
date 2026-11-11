@@ -32,9 +32,9 @@ CORE_SEAM bool board_audio_ogg_prepare(void)
     return load(AUDIO_OGG_NUMBER, AUDIO_OGG_MAGIC);
 }
 
-bool board_audio_dsp_pull(AudioResample *resample, int32_t *left, int32_t *right)
+uint32_t board_audio_dsp_render(AudioResample *resample, uint32_t *words, uint32_t frames)
 {
-    return entry()->pull(resample, left, right);
+    return entry()->render(resample, words, frames);
 }
 
 CORE_SEAM bool mp4_probe(FlacInput input, Mp4Track *track)

@@ -101,7 +101,7 @@ static void start_engine(void)
     audio_engine_init(&engine, (AudioEngineConfig){.source = flac_source_interface(&source),
                                                    .ring = ring,
                                                    .ring_words = RING_WORDS,
-                                                   .resample_pull = audio_resample_pull});
+                                                   .resample_render = audio_resample_render});
     audio_engine_set_volume(&engine, FULL_VOLUME);
 }
 
@@ -180,7 +180,7 @@ static void start_scripted_engine(int waits, int frames)
     audio_engine_init(&engine, (AudioEngineConfig){.source = interface,
                                                    .ring = ring,
                                                    .ring_words = RING_WORDS,
-                                                   .resample_pull = audio_resample_pull});
+                                                   .resample_render = audio_resample_render});
     audio_engine_set_volume(&engine, FULL_VOLUME);
 }
 
@@ -486,13 +486,15 @@ typedef struct ResampledReference {
 
 static void reference_take(AudioResample *resample, ResampledReference *reference)
 {
-    int32_t left = 0;
-    int32_t right = 0;
-    while (audio_resample_pull(resample, &left, &right)) {
-        reference->words[2 * reference->frames] = word_of(left, 24);
-        reference->words[2 * reference->frames + 1] = word_of(right, 24);
+    while (audio_resample_render(resample, &reference->words[2 * reference->frames], 1) == 1) {
         reference->frames++;
     }
+}
+
+static bool reference_push(AudioResample *resample, int32_t left, int32_t right)
+{
+    const int32_t frame[2] = {left, right};
+    return audio_resample_push(resample, frame, 1) == 1;
 }
 
 static ResampledReference speech_reference(uint32_t first, uint32_t count)
@@ -503,8 +505,8 @@ static ResampledReference speech_reference(uint32_t first, uint32_t count)
     ResampledReference reference = {.words = malloc((size_t)count * 4 * sizeof(uint32_t))};
     CHECK(reference.words != NULL);
     for (uint32_t frame = first; frame < first + count; frame++) {
-        CHECK(audio_resample_push(&resample, expected_at(&pcm, 2 * frame) * 256,
-                                  expected_at(&pcm, 2 * frame + 1) * 256));
+        CHECK(reference_push(&resample, expected_at(&pcm, 2 * frame) * 256,
+                             expected_at(&pcm, 2 * frame + 1) * 256));
         reference_take(&resample, &reference);
     }
     audio_resample_finish(&resample);
@@ -592,8 +594,8 @@ static ResampledReference joined_speech_reference(uint32_t frames)
     CHECK(reference.words != NULL);
     for (uint32_t repeat = 0; repeat < 2; repeat++) {
         for (uint32_t frame = 0; frame < frames; frame++) {
-            CHECK(audio_resample_push(&resample, expected_at(&pcm, 2 * frame) * 256,
-                                      expected_at(&pcm, 2 * frame + 1) * 256));
+            CHECK(reference_push(&resample, expected_at(&pcm, 2 * frame) * 256,
+                                 expected_at(&pcm, 2 * frame + 1) * 256));
             reference_take(&resample, &reference);
         }
     }
@@ -628,8 +630,8 @@ static void append_scripted_reference(ResampledReference *reference, uint32_t ra
     AudioResample resample;
     audio_resample_start(&resample, rate);
     for (uint32_t at = 0; at < frames; at++) {
-        CHECK(audio_resample_push(&resample, scripted.left[at % 16] * 256,
-                                  scripted.right[at % 16] * 256));
+        CHECK(
+            reference_push(&resample, scripted.left[at % 16] * 256, scripted.right[at % 16] * 256));
         reference_take(&resample, reference);
     }
     audio_resample_finish(&resample);
@@ -797,13 +799,13 @@ static bool restore_kernel(void)
     return kernel_available;
 }
 
-static bool checked_kernel(AudioResample *resample, int32_t *left, int32_t *right)
+static uint32_t checked_kernel(AudioResample *resample, uint32_t *words, uint32_t frames)
 {
     if (!kernel_available) {
         invalid_kernel_pulls++;
-        return false;
+        return 0;
     }
-    return audio_resample_pull(resample, left, right);
+    return audio_resample_render(resample, words, frames);
 }
 
 static void a_failed_next_open_reloads_evicted_audio_code_before_draining(void)
@@ -812,7 +814,7 @@ static void a_failed_next_open_reloads_evicted_audio_code_before_draining(void)
     eviction_source = engine.config.source;
     engine.config.source.open = evicting_open;
     engine.config.prepare_resample = restore_kernel;
-    engine.config.resample_pull = checked_kernel;
+    engine.config.resample_render = checked_kernel;
     kernel_restore = true;
     invalid_kernel_pulls = 0;
     CHECK(play_file("independent_16", 0, 1));
@@ -833,7 +835,7 @@ static void unavailable_evicted_audio_code_finishes_with_an_error_without_callin
     eviction_source = engine.config.source;
     engine.config.source.open = evicting_open;
     engine.config.prepare_resample = restore_kernel;
-    engine.config.resample_pull = checked_kernel;
+    engine.config.resample_render = checked_kernel;
     kernel_restore = true;
     invalid_kernel_pulls = 0;
     CHECK(play_file("independent_16", 0, 1));
@@ -1323,8 +1325,8 @@ static void converted_files_apply_their_gain_before_sharing_filter_history(void)
     for (uint32_t file = 0; file < 2; file++) {
         for (uint32_t frame = 0; frame < 16; frame++) {
             int32_t scale = file == 0 ? 256 : 128;
-            CHECK(audio_resample_push(&resample, scripted.left[frame] * scale,
-                                      scripted.right[frame] * scale));
+            CHECK(reference_push(&resample, scripted.left[frame] * scale,
+                                 scripted.right[frame] * scale));
             reference_take(&resample, &reference);
         }
     }

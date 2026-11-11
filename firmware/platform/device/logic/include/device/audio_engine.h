@@ -65,7 +65,7 @@ typedef struct AudioEngineConfig {
     uint32_t ring_words;
     Equalizer *equalizer;
     bool (*prepare_resample)(void);
-    bool (*resample_pull)(AudioResample *resample, int32_t *left, int32_t *right);
+    uint32_t (*resample_render)(AudioResample *resample, uint32_t *words, uint32_t frames);
 } AudioEngineConfig;
 
 typedef enum AudioRefusalProblem {

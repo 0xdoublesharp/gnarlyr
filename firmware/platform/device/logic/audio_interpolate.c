@@ -9,7 +9,8 @@ enum {
     HISTORY_MASK = AUDIO_RESAMPLE_HISTORY - 1,
     TAPS = AUDIO_RESAMPLE_LEFT + AUDIO_RESAMPLE_RIGHT + 1,
     HALF_TAPS = TAPS / 2,
-    QUARTERS = 4
+    QUARTERS = 4,
+    SAMPLE_SHIFT = 8
 };
 
 typedef struct Fold {
@@ -168,26 +169,33 @@ static void interpolate(AudioResample *resample)
     half(&kernel, factor / 2);
 }
 
-bool audio_resample_pull(AudioResample *resample, int32_t *left, int32_t *right)
+static bool ready(const AudioResample *resample)
 {
-    if (resample->factor == 0 || resample->cursor == resample->frames ||
-        (!resample->ended && resample->factor > 1 &&
-         resample->frames - resample->cursor <= AUDIO_RESAMPLE_RIGHT)) {
-        return false;
-    }
-    const int32_t *frame = resample->history[(uint32_t)resample->cursor & HISTORY_MASK];
-    if (resample->factor > 1) {
-        if (resample->phase == 0) {
-            interpolate(resample);
+    return resample->factor != 0 && resample->cursor != resample->frames &&
+           (resample->ended || resample->factor == 1 ||
+            resample->frames - resample->cursor > AUDIO_RESAMPLE_RIGHT);
+}
+
+uint32_t audio_resample_render(AudioResample *resample, uint32_t *words, uint32_t frames)
+{
+    uint32_t *start = words;
+    uint32_t *end = words + 2 * frames;
+    while (words != end && ready(resample)) {
+        int32_t (*phases)[2] = &resample->history[(uint32_t)resample->cursor & HISTORY_MASK];
+        if (resample->factor > 1) {
+            if (resample->phase == 0) {
+                interpolate(resample);
+            }
+            phases = resample->output;
         }
-        frame = resample->output[resample->phase];
+        uint32_t phase = resample->phase;
+        uint32_t last = resample->factor;
+        for (; phase < last && words != end; phase++, words += 2) {
+            words[0] = (uint32_t)phases[phase][0] << SAMPLE_SHIFT;
+            words[1] = (uint32_t)phases[phase][1] << SAMPLE_SHIFT;
+        }
+        resample->phase = (uint8_t)(phase == last ? 0 : phase);
+        resample->cursor += phase == last;
     }
-    *left = frame[0];
-    *right = frame[1];
-    resample->phase++;
-    if (resample->phase == resample->factor) {
-        resample->phase = 0;
-        resample->cursor++;
-    }
-    return true;
+    return (uint32_t)(words - start) / 2;
 }
