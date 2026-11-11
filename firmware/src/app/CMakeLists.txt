@@ -3,6 +3,7 @@ add_library(echo_app STATIC
     cassette_art.c
     modules/listening_module.c
     screens/listening_screen.c
+    screens/moments_screen.c
     screens/lyrics_screen.c
     screens/listening_work.c
     screens/smart_list_screen.c

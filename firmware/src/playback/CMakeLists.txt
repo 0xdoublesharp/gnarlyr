@@ -4,6 +4,7 @@ add_library(echo_playback STATIC
     listening_log.c
     listening_stats.c
     listening_track.c
+    moments.c
     mix_catalog.c
     mix_catalog_path.c
     mix_identity.c

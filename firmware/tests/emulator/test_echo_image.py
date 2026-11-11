@@ -2396,6 +2396,53 @@ class EchoImageTest(unittest.TestCase):
             self.assertTrue(rig.session.module_reads(slot, number))
         self.assert_healthy(rig.session)
 
+    def test_a_saved_moment_replays_from_its_position_after_restart(self):
+        from echo_emulator.audio import AudioPath
+        from echo_emulator.fat_reader import FatReader
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        from unicorn.arm_const import UC_ARM_REG_R1
+        volume = Fat32Volume()
+        volume.add_file("Moment.wav", self.tagged_wav("Moment", "Saved", 44100, 600, 12000))
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(1500)
+        rig.press("back", hold=1300)
+        rig.press_many("next", HOME_LISTENING_ROW)
+        rig.press("play")
+        rig.press_many("next", 5)
+        rig.press("play")
+        rig.press("play")
+        reader = FatReader(rig.session.disk, rig.session.layout["volume_start"])
+        path = "/" + IDENTITY.data_directory + "/moments.bin"
+        rig.machine.run(until=lambda: reader.exists(path) and reader.read(path)[:4] == b"DSMO",
+                        until_ms=rig.machine.milliseconds() + 6000)
+        saved = reader.read(path)
+        self.assertEqual(b"DSMO", saved[:4])
+        position = struct.unpack_from("<I", saved, 512 + 268)[0]
+        self.assertGreater(position, 1000)
+        again = rig.session.reboot()
+        resumed = Rig.__new__(Rig)
+        resumed.session, resumed.machine = again, again.machine
+        resumed.audio = AudioPath(again.machine)
+        resumed.steps = again.machine.trace("app_step")
+        again.run_to_home_screen()
+        resumed.settle(1000)
+        resumed.press_many("next", HOME_LISTENING_ROW)
+        resumed.press("play")
+        resumed.press_many("next", 5)
+        resumed.press("play")
+        starts = []
+        again.machine.hook_symbol("hal_audio_play", lambda: starts.append(
+            again.machine.uc.reg_read(UC_ARM_REG_R1)))
+        resumed.press("next")
+        resumed.press("play")
+        again.machine.run(until=lambda: bool(starts), until_ms=again.machine.milliseconds() + 6000)
+        self.assertEqual([position], starts)
+        self.assert_healthy(again)
+
     def tagged_wav(self, title, album, rate, tenths, level):
         frames = bytearray()
         for frame_id, text in (("TIT2", title), ("TALB", album), ("TPE1", album), ("TRCK", "1")):

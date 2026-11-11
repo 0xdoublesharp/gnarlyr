@@ -82,3 +82,11 @@ The lent memory holds the table and one `u16` per tape entry: 393,214 bytes for 
 ## Tests
 
 `test_mix_catalog` (restart, a failed write at each of the 7 writes, an unreadable publication, cancelling at every step, stale generations, a damaged newest bank, both banks damaged, all 32 slots, invalid names and sizes), `test_mix_tape` (paths, CUE boundaries and repeats; a full tape of the longest paths; damage; entries that do not parse under a matching checksum; an empty tape; a source that changes after measuring; one read per payload block; file names; invalid identities), `test_mix_resolve` (reordered tracks, missing entries, changed boundaries, ambiguous identities, and a full library and tape inside the scratch size).
+
+## Saved moments
+
+Listening → Moments keeps up to 64 marked positions, newest first. Save current moment captures the audible track identity and its position relative to that track or chapter. The label contains the title and formatted time. A full list refuses another save until an entry is deleted. Selecting a moment resolves its whole path and CUE/chapter boundaries against the current library; missing or ambiguous identities remain saved and do not start another song.
+
+`playback/moments` stores `/.gnarlyr/moments.bin` independently of library generations. Its two 22,016-byte banks each contain a 512-byte `DSMO` version-1 header followed by up to 64 fixed 336-byte entries. The header count is the number of entries; payload bytes equal count × 336 and binding is zero. Each entry contains a `MixIdentity` encoding in bytes 0–267, padded with zeros, a little-endian relative position at 268–271 and a terminated 64-byte label at 272–335. Positions cannot exceed an explicitly bounded part. Unused payload beyond the header's byte count is ignored.
+
+Saves and deletes copy the list to the spare bank through `StoreWrite`: invalidate, write, read back, publish and compare. Publication uncertainty requires reopening before another edit. Opening verifies checksums, counts and every entry, and can recover the older valid bank. Unsupported versions, unreadable banks and two corrupt banks refuse edits. New-file preparation clears and reads back the second header because its offset lies beyond the file allocator's initial zeroed region. Resident screens hold no pointers into the listening module's private work buffer.

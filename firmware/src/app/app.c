@@ -1887,6 +1887,15 @@ CORE_SEAM void app_step(void)
             app.render_urgent = true;
         }
     }
+    MomentsScreen *moments = &app.screens.modules.listening.moments;
+    if (top_screen() == &moments->screen && moments->destination != NULL) {
+        Screen *destination = moments->destination;
+        moments->destination = NULL;
+        if (apply_action(screen_action_push(destination), now_ms)) {
+            screen_changed();
+            app.render_urgent = true;
+        }
+    }
     render_when_due(now_ms, started_us);
     wire_motion_end(&app.motion, &app.notice);
     FrameDrawer drawer = {.draw = draw_frame, .context = &app};

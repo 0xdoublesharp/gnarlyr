@@ -634,6 +634,10 @@ static void walk_listening(void)
     show_titled("Listening", STR_LISTENING);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
+    show_titled("Moments", STR_MOMENTS);
+    tap(KEY_BACK);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
     CHECK(strcmp(i18n_text(STR_EXPORT_PLAYS), app_screen_title()) == 0);
     CHECK(show("Export plays") >= 3);
 }

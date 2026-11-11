@@ -88,6 +88,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_library
 set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/app/modules/listening_module.c
     src/app/screens/listening_screen.c
+    src/app/screens/moments_screen.c
+    src/playback/moments.c
     src/app/screens/lyrics_screen.c
     src/app/screens/listening_work.c
     src/app/screens/smart_list_screen.c

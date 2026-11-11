@@ -360,6 +360,12 @@ Gnarlyr sets its clock from your Mac. Every companion command that ejects the pl
 
 While the time is set it also shows in the status bar, left of the battery; in landscape it steps aside for a long screen title. Home → Clock shows the time, the weekday and the date in 24-hour time. Press ▶ for Calendar: the current month from Monday with today marked. The volume buttons move a month at a time, ▶ goes back to the current month and Back returns to Clock. Without a set time both say so and how to set it.
 
+## Saved moments
+
+Open Home → Listening → Moments while listening and choose **Save current moment**. Each row shows the song title and saved time, newest first. Select one to play from that exact place. Hold Play on a saved row and choose Delete to remove it, or Keep moment to cancel. You can keep 64 moments; delete one when the list is full.
+
+Moments survive restarts and library rescans. They follow the song's path and exact CUE or chapter boundaries. If a file is moved or its chapter boundaries change, its moment stays in the list and says the song or chapter is unavailable until that identity returns.
+
 ## Listening and lyrics
 
 Home → Listening shows total listening time, plays, skips, and top songs, albums and artists. It records time while music is playing. Totals and ranked lists work without a calendar clock.

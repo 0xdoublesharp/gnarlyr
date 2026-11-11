@@ -79,7 +79,7 @@ target_compile_definitions(echo_library_fixtures PRIVATE
 )
 target_link_libraries(echo_library_fixtures PUBLIC echo_library echo_library_scan PRIVATE echo_options)
 
-foreach(playback_test play_queue resume_rewind resume_state up_next bookmarks spoken store track_order track_transition session_journal mix_catalog mix_tape mix_resolve store_roots)
+foreach(playback_test play_queue resume_rewind resume_state up_next bookmarks spoken store track_order track_transition session_journal moments mix_catalog mix_tape mix_resolve store_roots)
     echo_add_unit_test(NAME test_${playback_test}
         SOURCES playback/test_${playback_test}.c
         LIBRARIES echo_playback echo_library_fixtures
@@ -972,4 +972,10 @@ echo_add_unit_test(NAME test_working_motion
     SOURCES app/test_working_motion.c app/fake_hal.c support/text_spy.c support/screen_snapshot.c
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
+)
+
+echo_add_unit_test(NAME test_moments_screen
+    SOURCES app/test_moments_screen.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
