@@ -13,7 +13,7 @@ static const AudioEffectsEntry *entry(void)
     return (const AudioEffectsEntry *)(uintptr_t)(AUDIO_EFFECTS_BASE + OVERLAY_HEADER_BYTES);
 }
 
-CORE_SEAM bool board_audio_effects_prepare(void)
+CORE_SEAM CORE_COLD bool board_audio_effects_prepare(void)
 {
     const BoardOverlay overlay = {.image_offset = 0,
                                   .magic = AUDIO_EFFECTS_MAGIC,
