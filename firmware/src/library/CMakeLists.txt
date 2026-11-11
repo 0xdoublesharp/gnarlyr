@@ -34,7 +34,6 @@ add_library(echo_library_scan STATIC
     library_scan.c
     library_scan_chapters.c
     library_scan_cue.c
-    library_scan_entry.c
     mp4_chapters.c
     playlist_reader.c
     replay_gain.c

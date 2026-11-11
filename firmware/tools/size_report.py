@@ -325,9 +325,10 @@ def summary(device_map, overlay_map=None, usb_overlay_map=None, packs=(), module
     lines = [limit_line("code window", code, region_length(regions, CODE_REGION)),
              data_line(device_map, regions)]
     if overlay_map is not None:
-        overlay = output_sizes(overlay_map).get(".overlay", 0)
+        overlay_code, overlay_zeroed = module_extent(overlay_map)
+        overlay = overlay_code + overlay_zeroed
         capacity = region_length(memory_regions(overlay_map), OVERLAY_REGION)
-        lines.append(limit_line("rescan overlay", overlay, capacity))
+        lines.append(limit_line("rescan overlay code + .bss", overlay, capacity))
     if usb_overlay_map is not None:
         lines += usb_overlay_lines(usb_overlay_map)
     lines += module_lines(modules)

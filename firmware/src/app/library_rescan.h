@@ -2,20 +2,7 @@
 
 #include <stdint.h>
 
-#include "library/cover_build.h"
-#include "library/library_scan.h"
-
-typedef struct RescanOutcome {
-    ScanResult result;
-    ScanStats stats;
-    ScanResult cover_result;
-    CoverStats covers;
-} RescanOutcome;
-
-typedef struct RescanProgress {
-    void (*tracks)(uint32_t files, uint32_t tracks);
-    void (*covers)(uint32_t done, uint32_t total);
-} RescanProgress;
+#include "app/rescan_module.h"
 
 extern const char LIBRARY_SCRATCH_PATH[];
 extern const char RESCAN_TIMES_PATH[];

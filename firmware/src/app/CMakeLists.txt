@@ -72,7 +72,7 @@ endif()
 if(ECHO_BUILD_DEVICE)
     target_sources(echo_app PRIVATE extension_calls.c)
 else()
-    target_sources(echo_app PRIVATE modules/linked_modules.c)
+    target_sources(echo_app PRIVATE modules/linked_modules.c library_rescan_job.c)
 endif()
 target_include_directories(echo_app PUBLIC include PRIVATE .)
 target_link_libraries(echo_app

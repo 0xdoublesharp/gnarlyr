@@ -738,7 +738,7 @@ def main(argv=None):
         if arguments.overlay:
             overlay_elf = arguments.overlay.read_bytes()
             check_overlay_copies(main_elf, overlay_elf, "rescan overlay")
-            overlay = overlay_from_elf(overlay_elf)
+            overlay = overlay_from_elf(overlay_elf, zeroed=True)
         if arguments.usb_overlay:
             usb_overlay_elf = arguments.usb_overlay.read_bytes()
             check_overlay_copies(main_elf, usb_overlay_elf, "USB overlay")

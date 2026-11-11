@@ -5,6 +5,7 @@
 
 #include "hal/system.h"
 
+#include "app/rescan_module.h"
 #include "core/i18n.h"
 #include "hal/audio.h"
 #include "hal/bluetooth.h"
@@ -14,7 +15,6 @@
 #include "hal/language.h"
 #include "hal/power.h"
 #include "hal/storage.h"
-#include "library/library_scan.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1590,7 +1590,7 @@ bool hal_system_restart_pending(void)
 
 const void *hal_system_load_rescan_code(void)
 {
-    return &LIBRARY_SCAN_ENTRY;
+    return &RESCAN_MODULE_ENTRY;
 }
 
 const void *hal_system_load_module(uint32_t module)

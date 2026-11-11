@@ -173,6 +173,10 @@ add_custom_command(
 )
 
 set(ECHO_OVERLAY_IMPORTS
+    COVER_CACHE_PATH
+    LIBRARY_SCRATCH_PATH
+    LIBRARY_STORE_PATH
+    RESCAN_TIMES_PATH
     app_remember_dac_volume
     app_show_notice
     app_show_usb_status
@@ -196,6 +200,18 @@ set(ECHO_OVERLAY_IMPORTS
     hal_audio_service
     hal_audio_set_volume
     hal_clock_milliseconds
+    hal_clock_microseconds
+    hal_dir_close
+    hal_dir_next
+    hal_dir_open
+    hal_file_close
+    hal_file_open
+    hal_file_read
+    hal_file_write
+    hal_file_write_at
+    hal_system_borrow_listing
+    hal_system_borrow_scratch
+    hal_system_keep_alive
     hal_input_next_transition
     hal_power_battery
     hal_power_off
@@ -239,7 +255,6 @@ if(NOT ECHO_RELEASE)
         debug_loop_log
         debug_runner_begin
         debug_runner_script
-        hal_clock_microseconds
         hal_internal_file_read
         hal_internal_file_reserve
         hal_internal_file_write
@@ -289,6 +304,7 @@ if(CMAKE_CROSSCOMPILING)
         board/usb_report.c
         board/usb_session.c
         logic/fat_delete.c
+        ${PROJECT_SOURCE_DIR}/src/app/library_rescan_job.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
 endif()
@@ -307,7 +323,14 @@ target_link_options(echo_device PRIVATE
 )
 
 set(ECHO_OVERLAY_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/rescan_overlay.ld)
-add_executable(echo_rescan_overlay overlay/rescan_overlay.c)
+add_executable(echo_rescan_overlay
+    overlay/rescan_overlay.c
+    ${PROJECT_SOURCE_DIR}/src/app/library_rescan_job.c
+)
+target_include_directories(echo_rescan_overlay PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/app
+    $<TARGET_PROPERTY:echo_app,INTERFACE_INCLUDE_DIRECTORIES>
+)
 set_target_properties(echo_rescan_overlay PROPERTIES
     SUFFIX .elf
     LINK_DEPENDS "${ECHO_OVERLAY_LINKER_SCRIPT};$<TARGET_FILE:echo_device>"
