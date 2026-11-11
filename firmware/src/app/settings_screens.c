@@ -662,6 +662,42 @@ static bool transition_length_shown(const void *context)
     return current_transition(context) != 0;
 }
 
+static const StringId CROSSFEED_OPTIONS[] = {STR_OFF, STR_CROSSFEED_LOW, STR_CROSSFEED_MEDIUM,
+                                             STR_CROSSFEED_HIGH};
+
+static int current_skip_silence(const void *context)
+{
+    return settings_of(context)->skip_silence ? 1 : 0;
+}
+
+static void choose_skip_silence(void *context, int index)
+{
+    editable_settings(context)->skip_silence = index != 0;
+    save(context);
+}
+
+static int current_speech_boost(const void *context)
+{
+    return settings_of(context)->speech_boost ? 1 : 0;
+}
+
+static void choose_speech_boost(void *context, int index)
+{
+    editable_settings(context)->speech_boost = index != 0;
+    save(context);
+}
+
+static int current_crossfeed(const void *context)
+{
+    return settings_of(context)->crossfeed;
+}
+
+static void choose_crossfeed(void *context, int index)
+{
+    editable_settings(context)->crossfeed = (uint8_t)index;
+    save(context);
+}
+
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_SHUFFLE, SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, current_shuffle, choose_shuffle, NULL, NULL},
     {STR_REPEAT, REPEAT_OPTIONS, REPEAT_MODE_COUNT, current_repeat, choose_repeat, NULL, NULL},
@@ -707,6 +743,10 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      current_transition_length, choose_transition_length, NULL, NULL},
     {STR_USB_ANSWER, USB_ANSWER_OPTIONS, USB_CONNECT_COUNT, current_usb_answer, choose_usb_answer,
      NULL, NULL},
+    {STR_SKIP_SILENCE, OFF_ON_OPTIONS, 2, current_skip_silence, choose_skip_silence, NULL, NULL},
+    {STR_SPEECH_BOOST, OFF_ON_OPTIONS, 2, current_speech_boost, choose_speech_boost, NULL, NULL},
+    {STR_CROSSFEED, CROSSFEED_OPTIONS, HAL_AUDIO_CROSSFEED_LEVELS, current_crossfeed,
+     choose_crossfeed, NULL, NULL},
 };
 
 static Screen *choice_view(SettingsScreens *screens, const SettingChoice *choice,

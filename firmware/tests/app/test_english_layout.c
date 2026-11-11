@@ -118,6 +118,9 @@ static const StringId SCREEN_TITLES[] = {
     STR_TRANSITION_LENGTH,
     STR_USB_CONNECTED,
     STR_USB_ANSWER,
+    STR_CROSSFEED,
+    STR_SKIP_SILENCE,
+    STR_SPEECH_BOOST,
 };
 
 static const StringId EMPTY_STATES[] = {
