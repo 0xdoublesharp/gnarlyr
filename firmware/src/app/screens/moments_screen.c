@@ -157,7 +157,7 @@ static bool capture(MomentsScreen *screen)
     Player *player = screen->config.player;
     PlayerStatus status = player_status(player);
     if (!status.has_track) {
-        message(screen, STR_MOMENT_NO_TRACK);
+        message(screen, STR_NOTHING_PLAYING);
         return false;
     }
     LibraryTrack track;

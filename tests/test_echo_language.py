@@ -97,7 +97,9 @@ class LanguageCommands(VolumeCase):
             text = (self.debug / "run.txt").read_text()
             self.sent.append(text)
             if selected is not None:
-                (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(settings(selected, version, flags))
+                path = self.root / echo_debug.DATA_DIRECTORY / "settings.bin"
+                kept = path.read_bytes()[38:54] if version >= 15 and path.exists() else None
+                path.write_bytes(settings(selected, version, flags, kept if kept and len(kept) == 16 else None))
             self.write_report(script_report(text, build=BUILD, screenshots=()))
         host = PlayerHost(self, act=act)
         clock = Clock()

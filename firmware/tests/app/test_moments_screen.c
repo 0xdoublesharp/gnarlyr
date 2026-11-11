@@ -99,7 +99,7 @@ static void saving_without_a_track_gives_feedback_and_creates_no_file(void)
     reset();
     choose(0, KEY_GESTURE_PRESS);
     finish();
-    CHECK(strcmp(toast.text, i18n_text(STR_MOMENT_NO_TRACK)) == 0);
+    CHECK(strcmp(toast.text, i18n_text(STR_NOTHING_PLAYING)) == 0);
     CHECK_EQUAL(0, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/moments.bin"));
 }
 

@@ -35,8 +35,8 @@ enum {
 };
 
 static const char HOME[] = FIRMWARE_SHORT_NAME;
-static const char MISSING[] = "Couldn't open this screen: reinstall the update";
-static const char RESTART[] = "Restart the player to finish the update";
+static const char MISSING[] = "Screen missing: reinstall update";
+static const char RESTART[] = "Restart to finish the update";
 
 static uint32_t now_ms;
 

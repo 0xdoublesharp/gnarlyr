@@ -217,7 +217,7 @@ static void a_language_that_fails_its_checks_keeps_the_loaded_one_and_says_so(vo
     bracketed[bracketed_size - 4] ^= 1;
     CHECK(strcmp("en", i18n_code()) == 0);
     CHECK(title_is("Settings"));
-    CHECK(app_toast_text() != NULL && strcmp("Couldn't load that language", app_toast_text()) == 0);
+    CHECK(app_toast_text() != NULL && strcmp("Couldn't load language", app_toast_text()) == 0);
     CHECK(saved_language_is("en"));
 }
 

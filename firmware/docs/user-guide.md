@@ -95,14 +95,14 @@ Depeche Mode/Violator/
 2. Copy music to the SD card, or to internal storage when no card is in the player.
 3. Leave File transfer in one of two ways:
    - **Eject on the computer.** Eject both drives (Finder's eject button, or `diskutil eject`). The player shows the mode selector.
-   - **Hold Back on the player** for a second. If the computer hasn't written anything for 3 seconds, the player tells it the drives are gone, shows "Disconnecting..." for 2 seconds and then the mode selector, just as after an eject. If the computer is still writing, the player shows "Computer is still writing..." and disconnects as soon as it stops. To disconnect at once anyway, keep holding Back for 3 more seconds; recent changes may be lost, and the player says so ("Disconnected too soon").
+   - **Hold Back on the player** for a second. If the computer hasn't written anything for 3 seconds, the player tells it the drives are gone, shows "Disconnecting..." for 2 seconds and then the mode selector, just as after an eject. If the computer is still writing, the player shows "Still writing..." and disconnects as soon as it stops. To disconnect at once anyway, keep holding Back for 3 more seconds; recent changes may be lost, and the player says so ("Disconnected too soon").
 4. When music changed, the player rebuilds its library by itself. Copying other files doesn't trigger a rebuild. Settings → Rescan library rebuilds it on demand.
 
 If you unplug the cable before either, recent changes may be lost, and the player warns you ("Unplugged too soon").
 
 After a disconnect from the player, the computer sees the drives disappear rather than being ejected. A Mac may then show its "Disk Not Ejected Properly" notice; when the player had waited for the computer to finish writing, your files are already on the player.
 
-**The USB screen** shows a cassette in your theme's colours whose reels turn while the computer reads or writes, a light beside the state (Connected to computer, Reading..., Copying..., Computer is still writing..., Disconnecting...), how much has been copied, each drive's size or "Ejected", the USB speed, the battery and how to leave. It works in both orientations and every text size.
+**The USB screen** shows a cassette in your theme's colours whose reels turn while the computer reads or writes, a light beside the state (Connected, Reading..., Copying..., Still writing..., Disconnecting...), how much has been copied, each drive's size or "Ejected", the USB speed, the battery and how to leave. It works in both orientations and every text size.
 
 ## When you plug in
 
@@ -245,7 +245,7 @@ The player includes English. Add other languages as external packs without reins
 
 - When the player has more than one language, Settings → Language appears after Orientation and lists them by their own names. Pick one and every screen changes at once; the player starts in it next time.
 - To add a language without reinstalling, copy its pack to the folder `.gnarlyr/lang` on the SD card (or on internal storage if you use no card). The file is named after the language's code, for example `de.pack`. The folder is hidden on most computers; create `lang` inside `.gnarlyr` if it isn't there. Eject, and the language is in Settings → Language.
-- A pack is made for one firmware version. After an update, an older pack may be refused; the player then stays in its built-in language and Settings → Language says "Couldn't load that language" when you pick it. Get the pack made for the new version.
+- A pack is made for one firmware version. After an update, an older pack may be refused; the player then stays in its built-in language and Settings → Language says "Couldn't load language" when you pick it. Get the pack made for the new version.
 - If you take out the card that holds the pack, the player uses its built-in language until the card is back.
 - Today's fonts draw English and the accented letters of western European languages. Cyrillic is drawn in lists and titles but not yet in the small text, so it can't be used for a pack; Chinese, Japanese and Korean are not drawn.
 - To make a pack, open the [browser builder](../../site/languages.html), download its English template, and translate the entries. Choose a language code and its native name, then build and download the pack. Missing translations use English. The builder checks the text and characters supported by this firmware. See [language-pack tools](../../docs/language-packs.md) for checked USB installation and language selection from a computer.
@@ -277,7 +277,7 @@ Settings → Custom EQ edits ten bands: 31, 62, 125, 250 and 500 Hz, and 1, 2, 4
   16000 -4.5
   ```
 
-Lines starting with `#` are comments. The points can be in any order and at any frequencies: each of the ten bands gets the gain interpolated between its two nearest points (by octave distance), or the nearest point's gain beyond the ends. Gains are rounded to 0.5 dB and limited to ±10 dB. A file without a usable frequency and gain says "Could not read the EQ file" and changes nothing.
+Lines starting with `#` are comments. The points can be in any order and at any frequencies: each of the ten bands gets the gain interpolated between its two nearest points (by octave distance), or the nearest point's gain beyond the ends. Gains are rounded to 0.5 dB and limited to ±10 dB. A file without a usable frequency and gain says "Couldn't read EQ file" and changes nothing.
 
 The graph is a calculated 44.1 kHz filter response with a labeled decibel scale, not an audio spectrum or a measurement of the output. It shows the tone-shaping response before the separately displayed computed preamp value. That value comes from the same linear gain used by the equalizer. Custom calculates preamp compensation from the combined filter response, including overlapping boosts and cuts. A change is heard after about a third of a second. The equalizer works on music up to 96 kHz (higher rates play unchanged) and not in USB DAC mode. Bands at or above a quarter of the music's sample rate do nothing (the 16 kHz band is idle at 44.1 and 48 kHz).
 
@@ -370,7 +370,7 @@ Follow [`device-recovery.md`](device-recovery.md). It writes FiiO's image into b
 
 - **"isn't a valid image for this player":** for an update, rebuild the image and copy it again. For going back to FiiO, check that the file is FiiO's Echo image (`ECHOV200.IMG`), unchanged (its hash matches the one in FiiO's zip). Gnarlyr only installs its own images and FiiO's; to switch to another custom firmware, go back to FiiO's first.
 - **"Update failed":** copy the file again and retry before turning the player off.
-- **"USB code missing: reinstall the update" or "Restart the player to finish the update":** see Known trade-offs in [`known-issues.md`](known-issues.md).
+- **"USB code missing: reinstall the update" or "Restart to finish the update":** see Known trade-offs in [`known-issues.md`](known-issues.md).
 - **The player doesn't start at all:** the chip's maskrom mode writes FiiO's firmware back from a computer over USB. It needs a patched `rkdeveloptool` and some care; the steps are in [`device-recovery.md`](device-recovery.md). If the player still runs and you expect trouble, create the file `MASKROM.REQ` on internal storage beforehand (same document).
 - **Noting a problem:** write down what you did, the FiiO version the player had before, and the Firmware line from Settings → About.
 
@@ -399,7 +399,7 @@ Home → Mixtapes → New two-sided tape makes a C60 or C90 cassette: 30 or 45 m
 
 Hold Play on a song in a Music list, choose **Add to tape**, choose your cassette and then **Side A** or **Side B**. Songs join the end of that side. Add at least one song to each side before playing. A side that is full refuses another song and keeps what you already saved.
 
-Open the tape for **Resume tape**, **Play Side A** or **Play Side B**. It plays in the saved order. Side A stops at its end and shows a cassette with **Flip to Side B**; press Play to flip, or Back to stay stopped. Side B stops at its end too; Play rewinds the tape to Side A. Repeat does not cross a side boundary. The player remembers the side, song and exact position across restarts, including a side waiting to be flipped.
+Open the tape for **Resume tape**, **Play Side A** or **Play Side B**. It plays in the saved order. Side A stops at its end and shows a cassette and offers to flip to Side B; press Play to flip, or Back to stay stopped. Side B stops at its end too; Play rewinds the tape to Side A. Repeat does not cross a side boundary. The player remembers the side, song and exact position across restarts, including a side waiting to be flipped.
 
 Rename and Delete work as for other mixtapes. To play a different queue, select another song or mixtape. Ordinary single-sided mixtapes keep their existing actions.
 
@@ -415,7 +415,7 @@ While the time is set it also shows in the status bar, left of the battery; in l
 
 ## Saved moments
 
-Open Home → Listening → Moments while listening and choose **Save current moment**. Each row shows the song title and saved time, newest first. Select one to play from that exact place. Hold Play on a saved row and choose Delete to remove it, or Keep moment to cancel. You can keep 64 moments; delete one when the list is full.
+Open Home → Listening → Moments while listening and choose **Save moment**. Each row shows the song title and saved time, newest first. Select one to play from that exact place. Hold Play on a saved row and choose Delete to remove it, or Keep moment to cancel. You can keep 64 moments; delete one when the list is full.
 
 Moments survive restarts and library rescans. They follow the song's path and exact CUE or chapter boundaries. If a file is moved or its chapter boundaries change, its moment stays in the list and says the song or chapter is unavailable until that identity returns.
 
