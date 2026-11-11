@@ -53,3 +53,10 @@ python3 tools/site_social.py
 ```
 
 The renderer needs `rsvg-convert` from librsvg and Scratch mounted. Final images go under `site/assets/social/`; their filenames include a content hash so changed cards get a fresh URL. The script updates absolute `https://gnarlyr.com/` image URLs in all eight pages, keeps canonical page URLs intact and removes superseded generated cards for the configured names. Publish the site normally afterward.
+
+
+## Amazon purchase links
+
+Home, Features and the hardware specifications link directly to the full-size ECHO listing at `https://www.amazon.com/dp/B0GK61Y1FD?tag=doublesharp-20`. The listing’s model is ECHO with a 2.39-inch display; keep the purchase link specific to that model. Each placement identifies the affiliate link, includes the Amazon Associate disclosure and explains that firmware is installed separately. Links use `rel="sponsored nofollow"`; there are no redirect scripts, embedded Amazon widgets or copied product images. Prices and availability stay on Amazon.
+
+When changing the product or affiliate ID, update all three placements and verify the destination model on Amazon. The public feature list continues to cover completed work; the purchase links do not introduce a roadmap.
