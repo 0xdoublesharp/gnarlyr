@@ -22,7 +22,7 @@ The four-byte file markers beginning with `DS` remain maker format tags; the bin
 | `assets/` | Font sources and `lang/en.txt`, the English text and string catalogue |
 | `tools/` | Python: image builder (`make_image.py`), size report (`size_report.py`), language pack builder (`lang_pack.py`), emulator (`echo_emulator`), PC library indexer, `echo_sync.py`, font and fixture generators |
 | `tests/` | One test executable per module, emulator scenarios, fixtures |
-| `docs/` | The design record: `architecture.md` (layers, rules, device platform), `hardware.md`, `library-format.md`, `playback-store.md` with `stored-order.md`, `session-journal.md` and `mixtapes.md`, `device-install.md`, `device-recovery.md`, `known-issues.md`, `user-guide.md`, `release-notes.md` |
+| `docs/` | The design record: `architecture.md` (layers, rules, device platform), `ogg-vorbis.md` and `opus.md`, `hardware.md`, `library-format.md`, `playback-store.md` with `stored-order.md`, `session-journal.md` and `mixtapes.md`, `device-install.md`, `device-recovery.md`, `known-issues.md`, `user-guide.md`, `release-notes.md` |
 
 The layer table in `docs/architecture.md` defines which layer may depend on which; keep to it.
 
@@ -72,21 +72,23 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 149,064 | 157,292 | 8,228 |
+| Code window | 148,908 | 157,292 | 8,384 |
 | Static RAM | 264,284 | 278,528 | 14,244 |
-| Rescan overlay | 93,004 | 98,304 | 5,300 |
+| Rescan overlay | 93,124 | 98,304 | 5,180 |
 | USB overlay code | 11,740 | 65,536 | 53,796 |
 | Module views (code + BSS) | 18,408 | 44,032 | 25,624 |
 | Module settings (code + BSS) | 16,880 | 44,032 | 27,152 |
-| Module library (code + BSS) | 39,124 | 44,032 | 4,908 |
+| Module library (code + BSS) | 39,136 | 44,032 | 4,896 |
 | Module listening (code + BSS) | 17,804 | 44,032 | 26,228 |
 | Audio processing module (code, no BSS) | 1,920 | 12,288 | 10,368 |
 | Audio DSP module (code, no BSS) | 5,832 | 8,192 | 2,360 |
-| Vorbis file module (code, no BSS) | 5,960 | 8,192 | 2,232 |
+| Ogg file module, Vorbis and Opus (code, no BSS) | 7,040 | 8,192 | 1,152 |
 | Decoder workspace | 41,648 | 41,984 | 336 |
-| Language pack (English) | 7,216 | 16,384 | 9,168 |
-| Vorbis program image bank | 64,768 | 130,048 | 65,280 |
+| Language pack (English) | 7,223 | 16,384 | 9,161 |
+| Vorbis program image bank | 64,840 | 130,048 | 65,208 |
 | Vorbis core-1 static state | 32,952 | 36,864 | 3,912 |
+| Opus program image bank | 98,928 | 131,072 | 32,144 |
+| Opus core-1 static state | 30,908 | 36,864 | 5,956 |
 
 - Keep at least 8 KB free in the release code window after each stage of the plan. Read the report after any change to device code and update these numbers and the ones in `docs/architecture.md` when they move.
 - The core 0 link uses link-time optimisation. Libraries shared with core 1 or the rescan overlay stay out of it.

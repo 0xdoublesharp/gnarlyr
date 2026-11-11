@@ -1,107 +1,68 @@
-# Standalone Opus decoder
+# Opus playback and decoder program
 
-The full fixed-point decoder fits the existing exclusive core 1 code bank.
-The standalone component supports SILK, CELT and hybrid, mono/stereo, the five
-standard output rates from 8 to 48 kHz, PLC, FEC and packets up to 120 ms. Player
-integration, image storage placement and physical playback checks remain.
+Ogg Opus files (`.opus`) play through a separate core-1 program built from the fixed-point libopus 1.6.1 decoder. Core 0 opens and seeks the file in the Ogg audio module (module 6) and streams packet records to core 1, as for [Vorbis](ogg-vorbis.md). Mono and stereo streams with channel mapping family 0 are accepted. Native tests, Cortex-M3 emulator tests and two-core player scenarios cover decoding, trimming, gain, origins, seeking and failures. Opus has not been heard on a player, and its real-time margin on the player's core 1 is unmeasured.
 
 ## Source and configuration
 
-`third_party/opus` contains the unchanged source subset from the official
-[libopus 1.6.1 archive](https://www.opus-codec.org/downloads/). VERSION records the
-retained paths and archive SHA256
-`6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1`.
-COPYING preserves the upstream BSD-style redistribution terms.
+`third_party/opus` contains the unchanged source subset of the official [libopus 1.6.1 archive](https://www.opus-codec.org/downloads/); `VERSION` records the retained paths and the archive SHA-256 `6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1`. `COPYING` keeps the upstream BSD-style terms, and `CREDITS.md` names the authors.
 
-Compile the source lists `OPUS_SOURCES`, `CELT_SOURCES`, `SILK_SOURCES` and
-`SILK_SOURCES_FIXED` from the three upstream `*_sources.mk` files, with function
-and data sections plus linker garbage collection. Define `OPUS_BUILD`,
-`FIXED_POINT`, `DISABLE_FLOAT_API`, `ENABLE_HARDENING` and `PACKAGE_VERSION`.
-Force-include `port/opus_support.h` for the vendored translation units. Optional
-neural enhancements, custom modes, float APIs, SIMD dispatch and 96 kHz extensions
-are disabled. All standard Opus coding modes remain available.
+`platform/device/logic/opus.cmake` compiles the upstream `OPUS_SOURCES`, `CELT_SOURCES`, `SILK_SOURCES` and `SILK_SOURCES_FIXED` lists with `OPUS_BUILD`, `FIXED_POINT`, `DISABLE_FLOAT_API`, `ENABLE_HARDENING` and `PACKAGE_VERSION`, and force-includes `port/opus_support.h`. Neural enhancements, custom modes, the float API, SIMD dispatch and 96 kHz extensions are off; every standard Opus coding mode (SILK, hybrid, CELT) stays. Unused encoder objects are dropped by the linker.
 
-The port replaces upstream stack-allocation macros with checked caller-owned
-scratch. Every allocation checks multiplication, alignment and remaining space.
-There is no heap or VLA. Exhaustion returns `OPUS_DECODE_EXHAUSTED` through a
-checkpoint, releases the active arena and requires decoder reinitialization.
-The component supports one active decode call at a time.
+The port replaces the upstream stack-allocation macros with a checked caller-owned scratch arena. Every allocation checks multiplication, alignment and remaining space; there is no heap and no VLA. Exhaustion, an internal assertion or an allocation through the heap hooks leaves through a checkpoint (`__builtin_setjmp` on Cortex-M3, `setjmp` on the host), releases the arena and leaves the decoder unready until it is initialized again. One decode call is active at a time.
 
-## API and memory
+## Decoder wrapper
 
-`opus_decode_state_bytes` reports caller-owned state size. `opus_decode_init`
-accepts separate eight-byte-aligned state and scratch buffers. The recommended
-scratch capacity is `OPUS_DECODE_SCRATCH_BYTES` (32,768 bytes); smaller arenas fail
-safely if exhausted. Initialization rejects overlapping buffers.
+`device/opus_decode` takes separate eight-byte-aligned state and scratch buffers and refuses overlapping or misaligned ones. `opus_decode_packet` decodes a bounded packet into caller-owned interleaved 16-bit PCM (at most 5,760 frames, 120 ms at 48 kHz) and reports frames, rate, channels and coding mode; loss concealment and FEC need an explicit duration. `opus_decode_set_gain` applies the identification header's output gain through libopus (`OPUS_SET_GAIN`, Q7.8 dB, the full signed 16-bit range).
 
-`opus_decode_packet` accepts a bounded packet and caller-owned interleaved
-16-bit PCM. Plain packet input uses `frames=0`; PLC and FEC require an explicit
-requested duration. Output reports frames, rate, channels and packet coding mode.
-FEC may conceal loss when usable redundancy is absent. Container pre-skip,
-header gain, end trimming and seek pre-roll belong to the stream layer.
+The wrapper's host tests run under UndefinedBehaviorSanitizer: silence packets for every mode at the five output rates in mono and stereo, a 120 ms packet, loss and FEC durations, refused short output that leaves state and samples unchanged, recoverable arena exhaustion, alias rejection, a 12,800-case malformed-packet and FEC matrix inside a 32 KiB arena with canaries, and the gain setter's bounds. Before integration the standalone component also passed all twelve RFC 8251 test vectors in mono and stereo at 48 kHz (24 cases, every final range and the upstream `opus_compare` check), with a scratch high-water mark of 13,924 bytes; those runs are not part of the firmware test suite.
 
-| Measured ARM resource | Bytes |
+## Records and core 1
+
+Opus uses the Ogg record transport described in [the Vorbis document](ogg-vorbis.md): little-endian length, flags and granule, then the packet, with a 32 KiB payload limit. The stream sends the `OpusHead` packet alone as the first record (flag 1), reads `OpusTags` only far enough to check its signature and drops it, sends an origin record (flag 8) when the stream's first granule is not where its first packet starts, and then the audio packets with their page granules. A checked end-of-stream page ends the virtual stream with flag 4.
+
+`device/core1_opus` reads records through the shared checked reader `core1_ogg_fetch` and copies each packet into a private snapshot, so a track change cannot alter a packet being decoded. The head record must carry only flag 1, at least 19 bytes, `OpusHead`, a version below 16, 1 or 2 channels matching the stream control block and mapping family 0; it initializes the decoder at 48 kHz, records the pre-skip and applies the output gain. A later head, an audio packet marked first, an empty audio packet, a duplicate or late origin, a granule below the origin or a decode failure ends the stream through the failure path.
+
+Positions count decoded samples from the stream origin. A stream that starts at its beginning is positioned from its first packet. After a seek, the stream control block's nonzero `first_sample` marks the start as unpositioned: packets are decoded (they serve as pre-roll) but published only once a packet with a known granule fixes its end, and from then on positions accumulate. Later granules are not used to move positions, because the final page's granule trims the end rather than shifting it. Published blocks subtract the pre-skip and drop samples before it; a 120 ms packet is published in parts of at most 4,608 frames, the size of a shared output slot. Samples are written at 24-bit scale (16-bit value times 256).
+
+The core-1 ring area holds a 40 KiB input ring, then the 32 KiB packet snapshot, the 32 KiB decoder scratch and the 23,040-byte 120 ms PCM stage (129,536 of 131,072 bytes); a static assertion in `board/core1_region.h` keeps that layout inside the area. The 30,720-byte state buffer lives in the program's BSS (30,908 bytes in total), below the 16 KiB stack reserve that `core1/core1_opus.ld` enforces. Built at `-O2`, the program is 98,928 bytes of the 131,072-byte core-1 code bank.
+
+The program is stored at image offset `0x2C0200`, directly after the glyph table, with the usual `EC1M` header, length and CRC; `make_image.py` places glyph faces, language packs and modules only after its 0x20000-byte bank, and `board/core1.c` loads it through the existing core-1 loader. No start-up path or storage write range changes.
+
+## Opening, trimming and seeking on core 0
+
+`board/audio.c` reads 32 bytes of a file: `OggS` with `Opus` at byte 28 (the first packet of a valid Opus stream, alone on its page) starts the Opus program, other Ogg files the Vorbis program. Both go to `core1_open_ogg` in module 6, which uses `opus_track_probe` to decide.
+
+`device/opus_track` checks `OpusHead` (the fields above, a packet within the transport limit, first and not last) and the `OpusTags` signature through the bounded packet reader, without keeping comments. It finds the final granule with the shared page search (`ogg_track_endpoint`). The origin is the first granule minus the durations of the packets up to it, from each packet's TOC byte (and frame count for code 3; more than 120 ms is refused). A first granule smaller than those durations is accepted only on an end-of-stream page, where it trims a short stream. The track length is the final granule minus origin and pre-skip and must be positive; positions are 32-bit, so longer endpoints are refused. Failed probes leave the caller's track unchanged.
+
+To start at sample `t`, the opener asks the shared page bisection (`ogg_track_seek`) for the last unmarked-EOS page whose granule is at most `t + pre-skip − 3,840`, which is RFC 7845's 80 ms pre-roll. When `t` is 0 or that point lies before the first audio page, decoding starts at the beginning instead. The stream replays the identification header, then resumes at the chosen page. The source discards everything before `t` and stops at the track length, so pre-skip, end trimming and seek targets share one timeline. The opener publishes `first_sample` before the stream generation, so core 1 never decodes audio before it knows how to position it; unlike Vorbis there is no configuration handshake.
+
+The module's code and the Vorbis code share the record stream, page seek, endpoint search and start-up of the shared source; module 6 is 7,040 of its 8,192 bytes, with no BSS. Resident code gained the Opus sniff, the program offset and the codec label; one table-driven `core1_source_interface` replaced four per-format interface builders, so the release code window is 156 bytes smaller than before Opus.
+
+## Checks
+
+- **Fixtures** (`tests/fixtures/opus`, `tools/opus_fixture.py`): chirps encoded by ffmpeg's libopus encoder, with references from ffmpeg's floating-point libopus decoder: 128 kbit/s stereo CELT, 16 kbit/s mono SILK, 120 ms stereo packets, a +3 dB header gain and a stream with every granule moved 4,800 samples later. Against these references the fixed-point decoder differs by at most 8 units at 128 kbit/s (RMS 1.7), 1 unit for SILK and 13 units with the gain (RMS 4.0); the tests allow 16 units and RMS 4.5. A one-sample position error on these signals produces differences in the thousands.
+- **Native** (`test_opus_track`, `test_opus_source`): TOC durations for every configuration and frame-count limit; probe lengths, pre-skip and origin; refused versions, channel counts, mapping families, signatures, checksums, truncated files, early granules on non-final pages and non-positive lengths; seek pages at least the pre-roll before targets; the record order and end; a damaged page as a sticky error. The source test plays every fixture through the real opener, record stream and core-1 adapter with refill budgets down to 7 bytes, from the start, after seeks (positions exact, samples within 16 units from 200 ms after the target) and at the end, and covers failed opens, failed reads during playback and reopening over full slots of an older generation.
+- **Cortex-M3 emulator** (`core1_opus_decodes_in_emulator`): the ARM program decodes each fixture to the reference, wraps records across the ring, anchors a resumed stream at its first known granule (positions exact; samples within the limit from 80 ms on), refuses ten kinds of malformed record and an oversized packet without faults or stack overflow, and publishes only the new generation after a track change during decode.
+- **Two-core player scenarios** (`test_echo_image.py`): the main player and the real Opus program open an Opus file at a saved position, run at 48 kHz, report the trimmed length and seek target, and pause and resume without restarting core 1; a second scenario switches Vorbis → Opus → Vorbis and checks the program each time.
+
+## Real-time cost
+
+The Cortex-M3 emulator counts instructions for whole fixtures (core-1 idle time included, which is small because the harness always has input and free slots). Per 20 ms of output:
+
+| Stream | Instructions |
 |---|---:|
-| Text, including checked component and freestanding helpers | 55,372 |
-| Constants and codec tables | 28,884 |
-| Code and constants combined | 84,256 |
-| Remaining in the 131,072-byte code bank | 46,816 |
-| Mono decoder state | 18,340 |
-| Stereo decoder state | 27,060 |
-| Context plus active-context pointer | 60 |
-| Observed scratch high water | 13,924 |
-| Observed checked ARM stack high water | 2,492 |
+| Opus stereo, 20 ms packets, 64 kbit/s | 829,650 |
+| Opus stereo, 96 kbit/s | 877,576 |
+| Opus stereo, 128 kbit/s (fixture) | 920,497 |
+| Opus stereo, 160 kbit/s | 943,124 |
+| Opus stereo, 256 kbit/s | 992,282 |
+| Opus stereo, 120 ms packets, 96 kbit/s | 794,821 |
+| Opus mono SILK, 16 kbit/s | 507,252 |
+| Vorbis stereo 44.1 kHz, 3.25 s chirp (`seek44`) | 282,572 |
+| AAC-LC stereo 44.1 kHz, 123 kbit/s | 539,421 |
 
-Measurements use Arm GNU 15.3.1, Cortex-M3 Thumb and `-Oz`. Stack observations
-cover the exercised paths; the proposed reservation remains 16 KiB.
+Stereo Opus at typical bitrates needs about 41–50 million instructions per second, roughly 1.7 times AAC and 3.3 times Vorbis. At one cycle per instruction that is a quarter of core 1's 200 MHz. Cortex-M3 multiplies, loads and branches take more than one cycle, so the real share is higher. Cycle counts, memory wait states and input starvation behaviour can only be measured on the player.
 
-The existing 49,152-byte local data/stack bank can hold stereo state, the
-60-byte context and a 16,384-byte guarded stack, leaving 5,648 bytes for the
-stream wrapper and alignment. The 131,072-byte input/workspace bank can hold:
+## Not yet checked on a player
 
-| Proposed simultaneous reservation | Bytes |
-|---|---:|
-| Input ring | 8,192 |
-| Complete packet | 61,440 |
-| Checked scratch | 32,768 |
-| 120 ms stereo interleaved PCM | 23,040 |
-| Remaining | 5,632 |
-
-The packet limit accommodates 48 maximum-length frames plus framing; excessive
-padding is rejected. The core 0 Ogg reader must stream fragments without another
-complete packet copy. A 120 ms packet can produce 5,760 frames, exceeding the
-current 4,608-frame planar output slot. Publish the staged PCM in smaller blocks.
-The existing two output slots keep their current allocation.
-
-## Checks and integration gates
-
-Eight focused behaviors pass under UndefinedBehaviorSanitizer, including
-32 KiB arena canaries, alias rejection, insufficient-output state preservation,
-recoverable exhaustion and a 12,800-case malformed-packet/FEC matrix across all
-TOCs, five rates and both output channel counts.
-
-All twelve official [RFC8251 test streams](https://opus-codec.org/testvectors/)
-pass in mono and stereo at 48 kHz: 24 cases, 40,150 packets and 30,780,960 frames.
-Every packet's entropy final range matches; upstream `opus_compare` quality
-checks pass. Scratch high water is 13,924 bytes. Existing eight-second Opus
-fixtures decode to 384,000 frames each after trimming. Encoded SILK/hybrid/CELT
-references differ by at most two 16-bit units from ffmpeg's libopus backend and
-one unit across ARM and host fixed-point builds. ARM also passes tiny-arena
-exhaustion/reinitialization and explicit PLC/FEC duration checks.
-
-A long random-packet sequence produces larger ARM/host concealment differences.
-The first isolated difference follows eight random packets and occurs on a
-two-byte SILK packet, whose one-byte payload invokes upstream PLC. This stress
-check establishes bounded execution; official conformance quality and final
-ranges establish decoder acceptance. The reproduction is retained on Scratch.
-
-The new component is not registered in the current firmware build. Integration
-must measure its cold source module and main firmware reserve (at least 8,192
-bytes), allocate image storage after checking existing program/table ranges,
-and test Ogg packet streaming, gain/trimming/seeking and USB transitions.
-Physical checks must establish real-time decoding and input starvation behavior.
-Unused runtime code capacity does not establish an unused image storage offset.
-
-Probe sources and scripts are under `/Volumes/Scratch/SnowskyEcho/tmp/opus-fit`;
-objects and stack records are under `build/opus-fit`, and logs/PCM under
-`reports/opus-fit` within the same Scratch project directory.
+Listening on both outputs, the real decode margin and core-1 load at high bitrates, seeking and resume by ear, track changes between Opus, Vorbis and other formats, gapless queueing of Opus files, and behaviour while the card is busy.
