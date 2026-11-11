@@ -80,7 +80,7 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 | Module views (code + BSS) | 21,932 | 44,032 | 22,100 |
 | Module settings (code + BSS) | 18,764 | 44,032 | 25,268 |
 | Module library (code + BSS) | 39,136 | 44,032 | 4,896 |
-| Module listening (code + BSS) | 18,604 | 44,032 | 25,428 |
+| Module listening (code + BSS) | 18,600 | 44,032 | 25,432 |
 | Audio processing module (code, no BSS) | 2,156 | 12,288 | 10,132 |
 | Audio DSP module (code, no BSS) | 6,348 | 8,192 | 1,844 |
 | Ogg file module, Vorbis and Opus (code, no BSS) | 7,076 | 8,192 | 1,116 |
