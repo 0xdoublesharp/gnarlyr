@@ -41,6 +41,9 @@ void parametric_store_read(ParametricStore *store, ParametricEq *custom)
         .source = {read_file, NULL}, .write = write_file, .size = PARAMETRIC_FILE_BYTES};
     bank = (ParametricBank){0};
     parametric_file_open(&store->file, file, &bank);
+    if (bank.shaping[0].active) {
+        sound_shaping_words(&bank.shaping[0], store->description, sizeof store->description);
+    }
     store->file.needs_reload |= uncertain;
     if (custom != NULL) {
         *custom = bank.custom;

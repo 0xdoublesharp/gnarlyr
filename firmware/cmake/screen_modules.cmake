@@ -33,6 +33,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/ui/wire_motion.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_equalizer
+    src/settings/sound_shaping.c
     src/app/parametric_store.c
     src/settings/parametric_file.c
     src/ui/choice_screen.c
@@ -45,6 +46,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     src/app/equalizer_presets.c
     src/app/screens/equalizer_screen.c
     src/app/screens/parametric_screen.c
+    src/app/screens/sound_shaping_screen.c
     src/app/screens/equalizer_browser.c
     src/app/screens/equalizer_plot.c
     src/settings/equalizer_response.c

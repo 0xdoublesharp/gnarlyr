@@ -356,6 +356,9 @@ static const char *describe_equalizer(const void *context, int current)
                                      STR_EQ_SLOT_5, STR_EQ_SLOT_6, STR_EQ_SLOT_7, STR_EQ_SLOT_8};
     const SettingsContext *settings = context;
     int slot = settings->store->equalizer_slot;
+    if (current == EQUALIZER_PARAMETRIC && settings->store->parametric.description[0] != '\0') {
+        return settings->store->parametric.description;
+    }
     return slot >= 0 && slot < EQUALIZER_SLOT_COUNT ? i18n_text(slots[slot])
                                                     : i18n_text(EQUALIZER_PRESET_NAMES[current]);
 }

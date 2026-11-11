@@ -8,3 +8,5 @@ echo_add_unit_test(NAME test_parametric SOURCES settings/test_parametric.c LIBRA
 echo_add_unit_test(NAME test_equalizer_slots SOURCES settings/test_equalizer_slots.c LIBRARIES echo_settings)
 
 echo_add_unit_test(NAME test_parametric_file SOURCES settings/test_parametric_file.c LIBRARIES echo_settings)
+
+echo_add_unit_test(NAME test_sound_shaping SOURCES settings/test_sound_shaping.c LIBRARIES echo_settings)

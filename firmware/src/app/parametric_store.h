@@ -9,6 +9,7 @@ extern const char PARAMETRIC_STORE_PATH[];
 typedef struct ParametricStore {
     ParametricFile file;
     bool uncertain;
+    char description[64];
 } ParametricStore;
 
 typedef struct ParametricModuleEntry {

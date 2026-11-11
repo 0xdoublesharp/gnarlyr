@@ -27,7 +27,9 @@ static const StringId FIELDS[] = {STR_PEQ_ENABLED, STR_PEQ_TYPE, STR_PEQ_FREQUEN
 static int rows(const void *context)
 {
     const ParametricScreen *editor = context;
-    return editor->filter < 0 ? editor->working.count + 3 : FIELD_COUNT;
+    return editor->shaping_mode ? SOUND_SHAPING_COUNT + 3
+           : editor->filter < 0 ? editor->working.count + 3
+                                : FIELD_COUNT;
 }
 
 static const char *label(const void *context, int index)
@@ -214,6 +216,9 @@ static ScreenAction key(void *context, KeyEvent event, uint32_t now_ms)
     ParametricScreen *editor = context;
     editor->now_ms = now_ms;
     NavigationIntent intent = navigation_from_key(event).intent;
+    if (editor->shaping_mode) {
+        return sound_shaping_screen_key(editor, intent);
+    }
     if (intent == NAVIGATION_NEXT || intent == NAVIGATION_PREVIOUS) {
         int step = intent == NAVIGATION_NEXT ? 1 : -1;
         if (editor->adjusting) {
@@ -271,7 +276,7 @@ static void draw_rows(ParametricScreen *editor, Canvas *canvas, Rect area)
 static void summary(const ParametricScreen *editor, StringBuilder *builder)
 {
     int row = editor->list.selected;
-    if (editor->filter < 0 && row < editor->working.count) {
+    if (!editor->shaping_mode && editor->filter < 0 && row < editor->working.count) {
         const ParametricFilter *filter = &editor->working.filters[row];
         string_builder_append(builder, editor->details[row]);
         string_builder_append_char(builder, ' ');
@@ -293,14 +298,19 @@ static void draw(void *context, Canvas *canvas)
 {
     ParametricScreen *editor = context;
     const Theme *theme = editor->config.theme;
-    const char *hint = i18n_text(editor->adjusting ? STR_PEQ_EDIT_HINT : STR_PEQ_BROWSE_HINT);
+    StringId hint_id = editor->shaping_mode
+                           ? editor->adjusting ? STR_SHAPE_EDIT_HINT : STR_SHAPE_HINT
+                       : editor->adjusting ? STR_PEQ_EDIT_HINT
+                                           : STR_PEQ_BROWSE_HINT;
+    const char *hint = i18n_text(hint_id);
     EqualizerPlotLayout layout = equalizer_plot_layout(theme, hint, true);
     int small = font_line_height(theme->fonts.small);
     char text[128];
     StringBuilder builder = string_builder_make(text, sizeof text);
     summary(editor, &builder);
     bool portrait = theme_is_portrait(theme);
-    bool filter_summary = editor->filter < 0 && editor->list.selected < editor->working.count;
+    bool filter_summary = !editor->shaping_mode && editor->filter < 0 &&
+                          editor->list.selected < editor->working.count;
     const char *detail_text =
         portrait && !filter_summary ? editor->details[editor->list.selected] : text;
     layout.primary.height = portrait ? layout.primary.height : small;
@@ -329,10 +339,18 @@ static void draw(void *context, Canvas *canvas)
         label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.accent},
                    (Label){layout.primary, text});
     }
-    equalizer_plot_draw(canvas, theme, layout.plot,
-                        (EqualizerPlotView){.response = &editor->response,
-                                            .selected_band = -1,
-                                            .adjusting = editor->adjusting});
+    if (editor->shaping_mode) {
+        layout.plot = sound_shaping_screen_slider(editor, canvas, layout.plot);
+    }
+    if (editor->shaping_mode && editor->notice != STRING_COUNT) {
+        label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.danger},
+                           (Label){layout.plot, i18n_text(editor->notice)});
+    } else {
+        equalizer_plot_draw(canvas, theme, layout.plot,
+                            (EqualizerPlotView){.response = &editor->response,
+                                                .selected_band = -1,
+                                                .adjusting = editor->adjusting});
+    }
     equalizer_plot_caption(canvas, theme, layout.preamp, &editor->response);
     label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary},
                (Label){layout.reference, i18n_text(STR_EQ_REFERENCE)});
@@ -350,7 +368,14 @@ static void enter(void *context, uint32_t now_ms)
     editor->adjusting = false;
     editor->previewing = false;
     list_view_select(&editor->list, 0, now_ms);
-    response(editor);
+    editor->shaping_mode = editor->shaping_requested;
+    editor->shaping_requested = false;
+    editor->screen.title = i18n_text(editor->shaping_mode ? STR_SOUND_SHAPING : STR_PEQ);
+    if (editor->shaping_mode) {
+        sound_shaping_screen_enter(editor);
+    } else {
+        response(editor);
+    }
 }
 
 Screen *parametric_screen_init(ParametricScreen *editor, ParametricScreenConfig config)

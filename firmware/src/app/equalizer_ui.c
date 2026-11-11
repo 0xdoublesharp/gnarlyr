@@ -45,26 +45,39 @@ static void save(EqualizerUi *ui)
     }
 }
 
-static bool commit(void *context, const ParametricEq *eq, int slot)
+static bool publish(EqualizerUi *ui, const ParametricBank *bank, int slot)
 {
-    EqualizerUi *ui = context;
-    ParametricBank bank = *parametric_store_bank();
-    bank.custom = *eq;
-    if (slot >= 0) {
-        bank.slots[slot] = *eq;
-        bank.used |= (uint8_t)(1u << slot);
-    }
-    if (!parametric_store_save(&ui->store->parametric, &bank)) {
+    if (!parametric_store_save(&ui->store->parametric, bank)) {
         message(ui, false, slot);
         return false;
     }
-    ui->store->settings.parametric = *eq;
+    ui->store->settings.parametric = bank->custom;
     ui->store->settings.equalizer = EQUALIZER_PARAMETRIC;
     save(ui);
     if (slot >= 0) {
         message(ui, true, slot);
     }
     return true;
+}
+
+static bool shape_commit(void *context, const ParametricEq *eq, const SoundShaping *shape, int slot)
+{
+    EqualizerUi *ui = context;
+    ParametricBank bank = *parametric_store_bank();
+    bank.custom = *eq;
+    bank.shaping[0] = *shape;
+    if (slot >= 0) {
+        bank.slots[slot] = *eq;
+        bank.shaping[slot + 1] = *shape;
+        bank.used |= (uint8_t)(1u << slot);
+    }
+    return publish(ui, &bank, slot);
+}
+
+static bool commit(void *context, const ParametricEq *eq, int slot)
+{
+    SoundShaping plain = {0};
+    return shape_commit(context, eq, &plain, slot);
 }
 
 static void preview(void *context, const SettingsEqualizerCurve *curve)
@@ -107,6 +120,10 @@ static void changed(void *context, bool finished)
 static int current(const void *context)
 {
     const EqualizerUi *ui = context;
+    if (ui->store->settings.equalizer == EQUALIZER_PARAMETRIC &&
+        parametric_store_bank()->shaping[0].active) {
+        return ui->presets->option_count - 1;
+    }
     int slot = active_slot(ui);
     return slot < 0 ? (int)ui->store->settings.equalizer
                     : equalizer_presets_slot_option(ui->presets, slot);
@@ -115,13 +132,21 @@ static int current(const void *context)
 static void choose(void *context, int option)
 {
     EqualizerUi *ui = context;
+    if (option == ui->presets->option_count - 1) {
+        return;
+    }
     Settings next = ui->store->settings;
     if (!equalizer_presets_choose(ui->presets, option, &next)) {
         toast_show(ui->toast, i18n_text(STR_EQ_FILE_UNREADABLE), hal_clock_milliseconds());
         return;
     }
-    if (next.equalizer == EQUALIZER_PARAMETRIC && !commit(ui, &next.parametric, -1)) {
-        return;
+    if (next.equalizer == EQUALIZER_PARAMETRIC) {
+        int slot = equalizer_presets_option_slot(ui->presets, option);
+        SoundShaping shape =
+            slot >= 0 ? parametric_store_bank()->shaping[slot + 1] : (SoundShaping){0};
+        if (!shape_commit(ui, &next.parametric, &shape, -1)) {
+            return;
+        }
     }
     ui->store->settings = next;
     save(ui);
@@ -134,6 +159,13 @@ static Screen *open(void *context, int option)
 {
     EqualizerUi *ui = context;
     int slot = equalizer_presets_option_slot(ui->presets, option);
+    bool shaping = option == ui->presets->option_count - 1 ||
+                   (slot >= 0 && parametric_store_bank()->shaping[slot + 1].active);
+    if (shaping) {
+        ui->parametric.shaping_requested = true;
+        ui->parametric.slot = slot < 0 ? 0 : slot;
+        return &ui->parametric.screen;
+    }
     if (ui->store->settings.equalizer == EQUALIZER_PARAMETRIC) {
         ui->parametric.slot = slot < 0 ? 0 : slot;
         return &ui->parametric.screen;
@@ -211,6 +243,8 @@ void equalizer_ui_init(EqualizerUi *ui, SettingsStore *store, Player *player, To
     screen->enter = enter_graphic;
     ParametricScreenConfig parametric = {.settings = &store->settings,
                                          .commit = commit,
+                                         .shape_commit = shape_commit,
+                                         .bank = parametric_store_bank(),
                                          .preview = preview,
                                          .context = ui,
                                          .theme = theme};

@@ -75,6 +75,7 @@ add_library(echo_app STATIC
     screens/cover_flow_screen.c
     screens/equalizer_screen.c
     screens/parametric_screen.c
+    screens/sound_shaping_screen.c
     screens/equalizer_browser.c
     screens/equalizer_plot.c
     screens/now_playing_screen.c

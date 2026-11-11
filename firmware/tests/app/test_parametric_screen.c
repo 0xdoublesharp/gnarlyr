@@ -162,9 +162,69 @@ static void adjusting_keeps_the_full_preamp_caption_visible_in_every_layout(void
     }
 }
 
+static bool shape_commit(void *context, const ParametricEq *eq, const SoundShaping *shape, int slot)
+{
+    CHECK(shape->active);
+    return commit(context, eq, slot);
+}
+
+static void shaping_previews_cancels_saves_resets_and_refuses_an_overfull_stack(void)
+{
+    start();
+    ParametricBank bank = {0};
+    bank.used = 1;
+    bank.slots[0].count = 10;
+    for (int index = 0; index < 10; index++) {
+        bank.slots[0].filters[index] = (ParametricFilter){1000, 70, -10, PARAMETRIC_PEAK, true};
+    }
+    editor.config.bank = &bank;
+    editor.config.shape_commit = shape_commit;
+    editor.shaping_requested = true;
+    editor.screen.enter(&editor, 0);
+    CHECK(editor.shaping_mode);
+    key(KEY_PLAY);
+    key(KEY_VOLUME_UP);
+    CHECK_EQUAL(1, editor.shaping.positions[0]);
+    CHECK_EQUAL(0, committed);
+    CHECK_EQUAL(1, previewed);
+    key(KEY_BACK);
+    CHECK_EQUAL(0, editor.shaping.positions[0]);
+    key(KEY_PLAY);
+    key(KEY_VOLUME_UP);
+    key(KEY_PLAY);
+    CHECK_EQUAL(1, committed);
+    CHECK_EQUAL(1, settings.parametric.count);
+    for (int index = 0; index < 7; index++) {
+        key(KEY_VOLUME_UP);
+    }
+    key(KEY_PLAY);
+    CHECK_EQUAL(0, settings.parametric.count);
+    CHECK_EQUAL(0, editor.shaping.positions[0]);
+    key(KEY_VOLUME_UP);
+    key(KEY_PLAY);
+    key(KEY_VOLUME_UP);
+    key(KEY_PLAY);
+    CHECK_EQUAL(1, saved_slot);
+    key(KEY_VOLUME_UP);
+    key(KEY_PLAY);
+    key(KEY_VOLUME_UP);
+    key(KEY_PLAY);
+    CHECK_EQUAL(10, settings.parametric.count);
+    CHECK_EQUAL(10, editor.shaping.base_count);
+    for (int index = 0; index < 9; index++) {
+        key(KEY_VOLUME_DOWN);
+    }
+    key(KEY_PLAY);
+    key(KEY_VOLUME_UP);
+    CHECK_EQUAL(0, editor.shaping.positions[0]);
+    CHECK_EQUAL(STR_SHAPE_LIMIT, editor.notice);
+    CHECK_EQUAL(10, settings.parametric.count);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(shaping_previews_cancels_saves_resets_and_refuses_an_overfull_stack),
         TEST_CASE(add_edit_cancel_keep_and_remove_work_with_buttons),
         TEST_CASE(failed_publication_keeps_the_saved_curve_and_slot_selection_works),
         TEST_CASE(every_native_layout_draws_the_editor_and_graph),

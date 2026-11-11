@@ -2,11 +2,13 @@
 
 #include "core/parametric.h"
 #include "playback/store.h"
+#include "settings/sound_shaping.h"
 
 enum {
     PARAMETRIC_SLOT_COUNT = 8,
     PARAMETRIC_RECORD_BYTES = 84,
-    PARAMETRIC_PAYLOAD_BYTES = 4 + 9 * PARAMETRIC_RECORD_BYTES,
+    PARAMETRIC_LEGACY_BYTES = 4 + 9 * PARAMETRIC_RECORD_BYTES,
+    PARAMETRIC_PAYLOAD_BYTES = PARAMETRIC_LEGACY_BYTES + 9 * SOUND_SHAPING_BYTES,
     PARAMETRIC_BANK_BYTES = 3 * STORE_BLOCK_BYTES,
     PARAMETRIC_FILE_BYTES = 2 * PARAMETRIC_BANK_BYTES
 };
@@ -14,6 +16,7 @@ enum {
 typedef struct ParametricBank {
     ParametricEq custom;
     ParametricEq slots[PARAMETRIC_SLOT_COUNT];
+    SoundShaping shaping[PARAMETRIC_SLOT_COUNT + 1];
     uint8_t used;
 } ParametricBank;
 

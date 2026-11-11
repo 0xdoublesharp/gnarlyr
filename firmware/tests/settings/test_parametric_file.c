@@ -115,11 +115,40 @@ static void canonical_encoding_rejects_invalid_filters_and_padding(void)
     CHECK(!parametric_bank_encode(&bank, bytes));
 }
 
+static void shaping_positions_survive_custom_and_slots_and_old_payloads_still_load(void)
+{
+    ParametricBank bank = {0};
+    bank.shaping[0] = (SoundShaping){.positions = {2, -3, 0, 1}, .active = true};
+    ParametricEq base = {0};
+    CHECK(sound_shaping_build(&bank.custom, &base, &bank.shaping[0]));
+    bank.used = 128;
+    bank.slots[7] = bank.custom;
+    bank.shaping[8] = bank.shaping[0];
+    uint8_t bytes[PARAMETRIC_PAYLOAD_BYTES];
+    ParametricBank restored;
+    CHECK(parametric_bank_encode(&bank, bytes));
+    CHECK(parametric_bank_decode(bytes, &restored));
+    CHECK(restored.shaping[0].active);
+    CHECK_EQUAL(2, restored.shaping[0].positions[0]);
+    CHECK_EQUAL(-3, restored.shaping[8].positions[1]);
+    bytes[1] = 0;
+    CHECK(parametric_bank_decode(bytes, &restored));
+    CHECK(!restored.shaping[0].active);
+    CHECK(!restored.shaping[8].active);
+    CHECK(parametric_same(&restored.custom, &bank.custom));
+    bytes[1] = 1;
+    bytes[PARAMETRIC_LEGACY_BYTES] = 6;
+    CHECK(!parametric_bank_decode(bytes, &restored));
+    bytes[1] = 2;
+    CHECK(!parametric_bank_decode(bytes, &restored));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(bank_round_trips_and_a_torn_write_keeps_the_previous_copy),
         TEST_CASE(canonical_encoding_rejects_invalid_filters_and_padding),
+        TEST_CASE(shaping_positions_survive_custom_and_slots_and_old_payloads_still_load),
         TEST_CASE(corrupt_newest_payload_falls_back_and_uncertain_readback_blocks_saves),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

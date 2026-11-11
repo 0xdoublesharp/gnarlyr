@@ -1,6 +1,8 @@
 #pragma once
 
 #include "equalizer_screen.h"
+#include "settings/parametric_file.h"
+#include "ui/navigation.h"
 
 typedef struct ParametricScreenConfig {
     Settings *settings;
@@ -9,6 +11,9 @@ typedef struct ParametricScreenConfig {
     void *context;
     const Theme *theme;
     int slot;
+    const ParametricBank *bank;
+    bool (*shape_commit)(void *context, const ParametricEq *eq, const SoundShaping *shape,
+                         int slot);
 } ParametricScreenConfig;
 
 typedef struct ParametricScreen {
@@ -26,6 +31,18 @@ typedef struct ParametricScreen {
     int slot;
     bool adjusting;
     bool previewing;
+    SoundShaping shaping;
+    SoundShaping kept_shaping;
+    ParametricEq base;
+    int base_slot;
+    int kept_base_slot;
+    StringId notice;
+    bool shaping_mode;
+    bool shaping_requested;
 } ParametricScreen;
 
 Screen *parametric_screen_init(ParametricScreen *editor, ParametricScreenConfig config);
+void sound_shaping_screen_enter(ParametricScreen *editor);
+ScreenAction sound_shaping_screen_key(ParametricScreen *editor, NavigationIntent intent);
+void sound_shaping_screen_texts(ParametricScreen *editor);
+Rect sound_shaping_screen_slider(const ParametricScreen *editor, Canvas *canvas, Rect area);

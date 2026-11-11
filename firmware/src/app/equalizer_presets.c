@@ -42,6 +42,7 @@ bool equalizer_presets_save_slot(EqualizerPresets *presets, int slot, const int8
     if (presets->parametric != NULL && (parametric_store_bank()->used >> slot & 1) != 0) {
         ParametricBank bank = *parametric_store_bank();
         bank.used &= (uint8_t)~(1u << slot);
+        bank.shaping[slot + 1] = (SoundShaping){0};
         return parametric_store_save(presets->parametric, &bank);
     }
     return true;
@@ -97,6 +98,7 @@ void equalizer_presets_scan(EqualizerPresets *presets)
         }
     }
     scan_files(presets);
+    presets->options[presets->option_count++] = i18n_text(STR_SOUND_SHAPING);
 }
 
 int equalizer_presets_matching_slot(const EqualizerPresets *presets, const int8_t *gains)
@@ -152,6 +154,9 @@ bool equalizer_presets_slot_used(const EqualizerPresets *presets, int slot)
 bool equalizer_presets_choose(EqualizerPresets *presets, int option, Settings *settings)
 {
     presets->trimmed = false;
+    if (option == presets->option_count - 1) {
+        return true;
+    }
     if (option < EQUALIZER_PRESET_COUNT) {
         settings->equalizer = (EqualizerPreset)option;
         return true;
