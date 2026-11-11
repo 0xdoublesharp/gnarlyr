@@ -241,6 +241,32 @@ static void wake_and_timeout_checks_cross_the_millisecond_counter_wrap(void)
     CHECK(power_policy_update(&policy, 55));
 }
 
+static void maximum_display_timeout_does_not_expire_immediately(void)
+{
+    PowerPolicy policy;
+    power_policy_init(&policy, UINT32_MAX, START_MS);
+    CHECK(!power_policy_update(&policy, START_MS));
+    CHECK(policy.display_on);
+    CHECK(!power_policy_update(&policy, START_MS + UINT32_C(0x7fffffff)));
+    CHECK(!policy.display_on);
+}
+
+static void maximum_auto_off_delay_does_not_expire_immediately(void)
+{
+    PowerPolicy policy = fresh_policy();
+    power_policy_set_auto_off(&policy, UINT32_MAX, START_MS);
+    CHECK(!power_policy_update(&policy, START_MS));
+    CHECK(power_policy_update(&policy, START_MS + UINT32_C(0x7fffffff)));
+}
+
+static void maximum_sleep_timer_does_not_expire_immediately(void)
+{
+    PowerPolicy policy = fresh_policy();
+    power_policy_start_sleep_timer(&policy, UINT32_MAX, START_MS);
+    CHECK(!power_policy_update(&policy, START_MS));
+    CHECK(power_policy_update(&policy, START_MS + UINT32_C(0x7fffffff)));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -266,6 +292,9 @@ int main(void)
         TEST_CASE(waking_with_a_newer_timestamp_does_not_immediately_blank_the_screen),
         TEST_CASE(waking_with_a_newer_timestamp_does_not_immediately_auto_off),
         TEST_CASE(wake_and_timeout_checks_cross_the_millisecond_counter_wrap),
+        TEST_CASE(maximum_display_timeout_does_not_expire_immediately),
+        TEST_CASE(maximum_auto_off_delay_does_not_expire_immediately),
+        TEST_CASE(maximum_sleep_timer_does_not_expire_immediately),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

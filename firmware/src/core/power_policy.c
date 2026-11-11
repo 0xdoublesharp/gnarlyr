@@ -7,6 +7,11 @@ static PowerKeyOutcome outcome(bool consumed, bool shutdown, bool background)
     return (PowerKeyOutcome){.consumed = consumed, .shutdown = shutdown, .background = background};
 }
 
+static uint32_t supported_delay(uint32_t delay_ms)
+{
+    return delay_ms <= INT32_MAX ? delay_ms : INT32_MAX;
+}
+
 static PowerKeyOutcome power_key(PowerPolicy *policy, KeyGesture gesture)
 {
     if (gesture == KEY_GESTURE_LONG_PRESS) {
@@ -26,7 +31,7 @@ static bool is_media_key(Key key)
 void power_policy_init(PowerPolicy *policy, uint32_t timeout_ms, uint32_t now_ms)
 {
     *policy = (PowerPolicy){.display_on = true,
-                            .timeout_ms = timeout_ms,
+                            .timeout_ms = supported_delay(timeout_ms),
                             .last_activity_ms = now_ms,
                             .auto_off_ms = 0,
                             .awake_ms = now_ms};
@@ -34,7 +39,7 @@ void power_policy_init(PowerPolicy *policy, uint32_t timeout_ms, uint32_t now_ms
 
 void power_policy_set_timeout(PowerPolicy *policy, uint32_t timeout_ms)
 {
-    policy->timeout_ms = timeout_ms;
+    policy->timeout_ms = supported_delay(timeout_ms);
 }
 
 PowerKeyOutcome power_policy_key(PowerPolicy *policy, KeyEvent event, uint32_t now_ms)
@@ -53,7 +58,7 @@ PowerKeyOutcome power_policy_key(PowerPolicy *policy, KeyEvent event, uint32_t n
 void power_policy_start_sleep_timer(PowerPolicy *policy, uint32_t duration_ms, uint32_t now_ms)
 {
     policy->sleep_timer_active = true;
-    policy->sleep_deadline_ms = now_ms + duration_ms;
+    policy->sleep_deadline_ms = now_ms + supported_delay(duration_ms);
 }
 
 void power_policy_cancel_sleep_timer(PowerPolicy *policy)
@@ -75,7 +80,7 @@ void power_policy_rest(PowerPolicy *policy)
 
 void power_policy_set_auto_off(PowerPolicy *policy, uint32_t auto_off_ms, uint32_t now_ms)
 {
-    policy->auto_off_ms = auto_off_ms;
+    policy->auto_off_ms = supported_delay(auto_off_ms);
     policy->awake_ms = now_ms;
 }
 
