@@ -27,6 +27,7 @@
 #include "screens/lyrics_screen.h"
 #include "screens/moments_screen.h"
 #include "screens/now_playing_screen.h"
+#include "screens/quick_settings_screen.h"
 #include "screens/smart_list_screen.h"
 #include "screens/up_next_screen.h"
 #include "settings/settings.h"
@@ -113,6 +114,7 @@ typedef struct AppScreensContext {
 typedef struct ViewsModuleScreens {
     CoverFlowScreen cover_flow;
     UpNextScreen up_next;
+    QuickSettingsScreen quick_settings;
     MixtapeUi mixtapes;
     CassetteFlipScreen cassette_flip;
     ClockScreen clock;

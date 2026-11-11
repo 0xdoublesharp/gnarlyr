@@ -23,6 +23,7 @@ typedef struct UpNextConfig {
     const Theme *theme;
     Player *player;
     Toast *toast;
+    Screen *now_playing;
 } UpNextConfig;
 
 typedef struct UpNextScreen UpNextScreen;

@@ -383,7 +383,7 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
                                     .library = &context.store->library,
                                     .theme = context.compact_theme,
                                     .covers = context.covers,
-                                    .up_next = &screens->modules.views.up_next.screen,
+                                    .quick_settings = &screens->modules.views.quick_settings.screen,
                                     .lyrics = &screens->modules.listening.lyrics.screen,
                                     .flip = &screens->modules.views.cassette_flip.screen};
     screens->context = context;

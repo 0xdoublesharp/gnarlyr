@@ -60,6 +60,8 @@ add_library(echo_app STATIC
     settings_preview.c
     settings_screens.c
     screens/set_clock_screen.c
+    settings_actions.c
+    screens/quick_settings_screen.c
     settings_store.c
     headphone_store.c
     headphone_parameters.c

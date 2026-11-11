@@ -201,7 +201,8 @@ static ScreenAction select_row(void *context, int index)
         }
         break;
     }
-    return screen_action_pop();
+    return up_next->config.now_playing != NULL ? screen_action_push(up_next->config.now_playing)
+                                               : screen_action_pop();
 }
 
 static bool action_shown(const void *context)

@@ -42,6 +42,17 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
+    src/app/screens/quick_settings_screen.c
+    src/app/settings_actions.c
+    src/app/equalizer_presets.c
+    src/settings/equalizer_slots.c
+    src/settings/equalizer_fit_text.c
+    src/app/headphone_store_edit.c
+    src/app/headphone_parameters.c
+    src/settings/headphone_profile.c
+    src/settings/headphone_profile_edit.c
+    src/settings/headphone_file_save.c
+    src/core/headphone_audio_switch.c
     src/app/mixtape_store.c
     src/app/order_adopt.c
     src/app/mixtape_ui.c
@@ -81,6 +92,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/modules/settings_module.c
     src/app/settings_screens.c
     src/app/screens/set_clock_screen.c
+    src/app/settings_actions.c
     src/app/settings_preview.c
     src/app/button_settings.c
     src/app/home_editor.c

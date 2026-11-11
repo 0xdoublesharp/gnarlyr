@@ -115,6 +115,7 @@ typedef struct FakeHal {
     int file_count;
     bool fail_music_writes;
     const char *fail_file_writes;
+    const char *fail_internal_writes;
     const char *fail_file_opens;
     const char *fail_file_reads;
     InternalFile internal[INTERNAL_CAPACITY];
@@ -1789,7 +1790,8 @@ bool hal_internal_file_write(const char *path, const void *bytes, uint32_t lengt
 {
     InternalFile *file = internal_slot(path);
     if (file == NULL || length > WRITTEN_CAPACITY ||
-        (fake.fail_file_writes != NULL && strcmp(path, fake.fail_file_writes) == 0)) {
+        (fake.fail_file_writes != NULL && strcmp(path, fake.fail_file_writes) == 0) ||
+        (fake.fail_internal_writes != NULL && strcmp(path, fake.fail_internal_writes) == 0)) {
         return false;
     }
     memcpy(file->bytes, bytes, length);
@@ -1823,6 +1825,9 @@ bool hal_internal_file_write_at(const char *path, uint32_t offset, const void *b
                                 uint32_t length)
 {
     InternalFile *file = internal_file(path);
+    if (fake.fail_internal_writes != NULL && strcmp(path, fake.fail_internal_writes) == 0) {
+        return false;
+    }
     if (file != NULL && offset <= file->size && length <= file->size - offset &&
         offset + length <= sizeof file->bytes) {
         memcpy(file->bytes + offset, bytes, length);
@@ -1949,4 +1954,9 @@ bool hal_clock_set_wall(HalWallTime time)
     fake.wall = time;
     fake.wall_set_ms = hal_clock_milliseconds();
     return true;
+}
+
+void fake_hal_fail_internal_writes(const char *path)
+{
+    fake.fail_internal_writes = path;
 }

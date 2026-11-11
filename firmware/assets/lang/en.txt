@@ -725,3 +725,6 @@ STR_BATTERY_STYLE = Battery style
 STR_BATTERY_SOLID = Solid
 STR_BATTERY_SEGMENTED = Segmented
 STR_STATUS_PLACE = {0}/{1}
+STR_QUICK_SETTINGS = Quick Settings
+STR_QUICK_SETTINGS_HINT = Play: change · Back: close
+STR_PLAYBACK_SPEED = Playback speed

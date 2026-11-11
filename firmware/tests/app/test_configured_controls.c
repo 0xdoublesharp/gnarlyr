@@ -93,7 +93,7 @@ static void start_with(Settings chosen)
     CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
 }
 
-static void default_controls_still_pause_change_volume_and_open_up_next(void)
+static void default_controls_still_pause_change_volume_and_open_quick_settings(void)
 {
     start_with(settings_defaults());
     int volume = fake_hal_audio_volume();
@@ -104,7 +104,7 @@ static void default_controls_still_pause_change_volume_and_open_up_next(void)
     tap(KEY_PLAY);
     CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
     tap(KEY_MENU);
-    CHECK(strcmp(app_screen_title(), "Up Next") == 0);
+    CHECK(strcmp(app_screen_title(), "Quick Settings") == 0);
 }
 
 static void a_custom_play_tap_runs_once_without_also_pausing(void)
@@ -282,7 +282,7 @@ static void a_mapped_seek_owns_the_rocker_and_play_until_it_commits(void)
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(default_controls_still_pause_change_volume_and_open_up_next),
+        TEST_CASE(default_controls_still_pause_change_volume_and_open_quick_settings),
         TEST_CASE(a_custom_play_tap_runs_once_without_also_pausing),
         TEST_CASE(a_custom_play_hold_runs_once_without_the_tap_action),
         TEST_CASE(holding_a_mapped_skip_does_not_skip_again_on_repeat_events),

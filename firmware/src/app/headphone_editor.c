@@ -271,21 +271,10 @@ static void draw(void *context, Canvas *canvas)
     list_view_draw(&editor->list, canvas, theme_content_area(theme), editor->now_ms);
 }
 
-static void fill_slots(HeadphoneProfiles *profiles)
-{
-    for (int slot = profiles->count; slot < HEADPHONE_PROFILE_LIMIT; slot++) {
-        HeadphoneProfile *profile = &profiles->slots[slot];
-        *profile = headphone_profile_defaults();
-        StringBuilder name = string_builder_make(profile->name, sizeof profile->name);
-        i18n_format_counts(&name, STR_HEADPHONE_SLOT, (uint32_t)slot + 1, 0);
-    }
-    profiles->count = HEADPHONE_PROFILE_LIMIT;
-}
-
 Screen *headphone_editor_init(HeadphoneEditor *editor, HeadphoneEditorConfig config)
 {
     *editor = (HeadphoneEditor){.config = config};
-    fill_slots(&config.store->profiles);
+    headphone_store_fill_slots(&config.store->profiles);
     editor->label_text = editor->label;
     editor->detail_text = editor->detail;
     editor->model = (ListModel){.context = editor,

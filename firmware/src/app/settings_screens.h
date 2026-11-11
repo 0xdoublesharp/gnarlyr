@@ -64,7 +64,6 @@ typedef struct SettingsContext {
     Theme *theme;
     EqualizerPresets *presets;
     const LanguageList *languages;
-    int sleep_option;
     char message[SETTINGS_MESSAGE_CAPACITY];
 } SettingsContext;
 

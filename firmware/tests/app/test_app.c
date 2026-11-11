@@ -707,6 +707,10 @@ static void queue_actions_and_menu_shortcuts_reuse_now_playing_before_home(void)
     int plays = fake_hal_audio_play_count();
     for (int turn = 0; turn < 8; turn++) {
         tap(KEY_MENU);
+        if (turn == 0) {
+            move_down(8);
+        }
+        tap(KEY_PLAY);
         CHECK(title_is("Up Next"));
         hold(KEY_PLAY);
         CHECK(title_is("Edit Up Next"));
@@ -715,6 +719,7 @@ static void queue_actions_and_menu_shortcuts_reuse_now_playing_before_home(void)
         CHECK_EQUAL(depth, app_screen_depth());
     }
     tap(KEY_MENU);
+    tap(KEY_PLAY);
     hold(KEY_PLAY);
     hold_back();
     CHECK(title_is(FIRMWARE_SHORT_NAME));
@@ -1159,7 +1164,7 @@ static void leaving_an_equalizer_preview_restores_the_curve_without_interrupting
     CHECK_EQUAL(output, fake_hal_audio_output());
     CHECK_EQUAL(dac_volume, fake_hal_dac_volume());
     tap(KEY_MENU);
-    CHECK(title_is("Up Next"));
+    CHECK(title_is("Quick Settings"));
     CHECK_EQUAL(0, fake_hal_audio_equalizer().band_count);
     tap(KEY_BACK);
     tap(KEY_BACK);
@@ -3343,12 +3348,12 @@ static void play_next_with_nothing_playing_starts_the_song(void)
     CHECK(toast_is("Playing"));
 }
 
-static void menu_on_now_playing_opens_up_next(void)
+static void menu_on_now_playing_opens_quick_settings(void)
 {
     start_app_with_library();
     play_first_album_track();
     tap(KEY_MENU);
-    CHECK(title_is("Up Next"));
+    CHECK(title_is("Quick Settings"));
     tap(KEY_MENU);
     CHECK(title_is("Now Playing"));
     tap(KEY_MENU);
@@ -3361,6 +3366,8 @@ static void choosing_a_song_in_up_next_plays_it(void)
     start_app_with_library();
     play_first_album_track();
     tap(KEY_MENU);
+    move_down(8);
+    tap(KEY_PLAY);
     move_down(1);
     tap(KEY_PLAY);
     CHECK(title_is("Now Playing"));
@@ -5014,7 +5021,7 @@ static void menu_opens_now_playing_from_anywhere_while_playing(void)
     CHECK(title_is("Now Playing"));
     int depth = app_screen_depth();
     tap(KEY_MENU);
-    CHECK(title_is("Up Next"));
+    CHECK(title_is("Quick Settings"));
     CHECK_EQUAL(depth + 1, app_screen_depth());
 }
 
@@ -5569,7 +5576,7 @@ int main(void)
         TEST_CASE(holding_play_on_a_folder_without_songs_shows_a_toast),
         TEST_CASE(holding_play_on_a_song_in_folders_still_opens_play_next),
         TEST_CASE(holding_play_on_an_album_adds_it_to_favorites),
-        TEST_CASE(menu_on_now_playing_opens_up_next),
+        TEST_CASE(menu_on_now_playing_opens_quick_settings),
         TEST_CASE(choosing_a_song_in_up_next_plays_it),
         TEST_CASE(holding_play_on_a_song_offers_up_next),
         TEST_CASE(add_to_favorite_playlist_writes_a_playlist_file),
