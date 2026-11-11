@@ -590,15 +590,7 @@ static void rtc_reads_list_every_register_the_decoded_time_and_the_trust_flag(vo
                                    .registers = {0x08, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
                                                  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}};
     script.rtc[2] = (DebugRtcRead){.line = 4, .status = HAL_RTC_NO_ACK, .time_ms = 5300};
-    script.rtc[3] =
-        (DebugRtcRead){.line = 5,
-                       .status = HAL_RTC_OK,
-                       .action = DEBUG_RTC_SET,
-                       .time_ms = 5400,
-                       .written_s = 1794390060,
-                       .registers = {0x00, 0x00, 0x00, 0x41, 0x09, 0x11, 0x03, 0x11, 0x26}};
-    script.rtc[4] = (DebugRtcRead){.line = 6, .status = HAL_RTC_NO_TIME, .action = DEBUG_RTC_SET};
-    script.rtc_count = 5;
+    script.rtc_count = 3;
     format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("script.rtc: line=2 ms=5120 action=read written_s=unknown status=ok "
                    "registers=00000500120306012680808080000000 vl=0 time=2026-01-03T12:00:05 "
@@ -608,6 +600,16 @@ static void rtc_reads_list_every_register_the_decoded_time_and_the_trust_flag(vo
                    "century=1"));
     CHECK(has_line("script.rtc: line=4 ms=5300 action=read written_s=unknown status=no_ack "
                    "registers=unknown vl=unknown time=unknown weekday=unknown century=unknown"));
+    script.rtc[0] =
+        (DebugRtcRead){.line = 5,
+                       .status = HAL_RTC_OK,
+                       .action = DEBUG_RTC_SET,
+                       .time_ms = 5400,
+                       .written_s = 1794390060,
+                       .registers = {0x00, 0x00, 0x00, 0x41, 0x09, 0x11, 0x03, 0x11, 0x26}};
+    script.rtc[1] = (DebugRtcRead){.line = 6, .status = HAL_RTC_NO_TIME, .action = DEBUG_RTC_SET};
+    script.rtc_count = 2;
+    format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("script.rtc: line=5 ms=5400 action=set written_s=1794390060 status=ok "
                    "registers=00000041091103112600000000000000 vl=0 time=2026-11-11T09:41:00 "
                    "weekday=3 century=0"));
