@@ -49,6 +49,7 @@ INPUT_OUTPUT = {
     "write_library": "write",
     "write_scratch": "write",
     "write_covers": "write",
+    "write_handle": "write",
     "timed_write": "write",
     "hal_system_keep_alive": "keep alive",
 }

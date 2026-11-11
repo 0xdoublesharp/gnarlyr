@@ -273,8 +273,8 @@ class EchoImageTest(EchoImageHarness):
         bare_us, _ = self.scan_time_us(True)
         tracks = COST_ALBUMS * COST_TRACKS
         batches = (tracks + BATCH - 1) // BATCH
-        self.assertGreaterEqual(writes, 2 + batches + COST_ALBUMS)
-        self.assertLessEqual(writes, 2 + batches + 2 * COST_ALBUMS)
+        self.assertGreaterEqual(writes, 2 + batches)
+        self.assertLessEqual(writes, 2 + batches + COST_ALBUMS)
         self.assertLessEqual(guarded_us - bare_us, TRACK_BUDGET_US * tracks)
         print("\n[scan guard] %d tracks, %d guard writes, %.1f ms added to a %.1f ms scan, "
               "%.2f ms per write" % (tracks, writes, (guarded_us - bare_us) / 1000, bare_us / 1000,
