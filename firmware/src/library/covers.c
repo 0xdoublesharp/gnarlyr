@@ -10,6 +10,8 @@ enum {
     FULL_BYTES = COVER_FULL_PIXELS * BYTES_PER_PIXEL,
     HALF_BYTES = COVER_HALF_PIXELS * BYTES_PER_PIXEL,
     RECORD_BYTES = FULL_BYTES + HALF_BYTES,
+    COVERS_WINDOW = 64,
+    COVERS_GUESSES = 2,
     BITS_PER_BYTE = 8
 };
 
@@ -54,35 +56,66 @@ bool covers_open(Covers *covers, ByteSource source, uint32_t size)
     return true;
 }
 
-static bool read_entry(const Covers *covers, uint32_t position, uint32_t *key, uint32_t *record)
+typedef struct CoverRange {
+    uint32_t low;
+    uint32_t high;
+    uint64_t low_key;
+    uint64_t high_key;
+    uint32_t windows;
+} CoverRange;
+
+static uint32_t window_start(const CoverRange *range, uint32_t key, bool interpolate)
 {
-    uint8_t entry[COVERS_ENTRY_SIZE];
-    uint32_t offset = COVERS_HEADER_SIZE + position * COVERS_ENTRY_SIZE;
-    if (!covers->source.read(covers->source.context, offset, entry, sizeof entry)) {
-        return false;
-    }
-    *key = u32_at(entry, 0);
+    uint64_t span = range->high_key - range->low_key;
+    uint64_t guess = ((uint64_t)key - range->low_key) * (range->high - range->low) / span;
+    uint32_t middle = interpolate ? range->low + (uint32_t)guess : (range->low + range->high) / 2;
+    uint32_t start =
+        middle > range->low + COVERS_WINDOW / 2 ? middle - COVERS_WINDOW / 2 : range->low;
+    return range->high - start < COVERS_WINDOW && range->high > COVERS_WINDOW + range->low
+               ? range->high - COVERS_WINDOW
+               : start;
+}
+
+static int found_record(const Covers *covers, const uint8_t *entry, uint32_t key, uint32_t *record)
+{
     *record = u32_at(entry, 4);
-    return true;
+    return u32_at(entry, 0) == key && *record <= covers->size &&
+           covers->size - *record >= RECORD_BYTES;
+}
+
+static int search_window(const Covers *covers, uint32_t key, CoverRange *range, uint32_t *record)
+{
+    uint8_t entries[COVERS_WINDOW * COVERS_ENTRY_SIZE];
+    uint32_t first = window_start(range, key, range->windows++ < COVERS_GUESSES);
+    uint32_t count = range->high - first < COVERS_WINDOW ? range->high - first : COVERS_WINDOW;
+    uint32_t offset = COVERS_HEADER_SIZE + first * COVERS_ENTRY_SIZE;
+    if (!covers->source.read(covers->source.context, offset, entries, count * COVERS_ENTRY_SIZE)) {
+        return 0;
+    }
+    uint32_t index = 0;
+    while (index < count && u32_at(entries, index * COVERS_ENTRY_SIZE) < key) {
+        index++;
+    }
+    if (index == count) {
+        range->low = first + count;
+        range->low_key = (uint64_t)u32_at(entries, (count - 1) * COVERS_ENTRY_SIZE) + 1;
+        return -1;
+    }
+    if (index > 0 || u32_at(entries, 0) == key) {
+        return found_record(covers, entries + index * COVERS_ENTRY_SIZE, key, record);
+    }
+    range->high = first;
+    range->high_key = u32_at(entries, 0);
+    return -1;
 }
 
 bool covers_find(const Covers *covers, uint32_t key, uint32_t *record)
 {
-    uint32_t low = 0;
-    uint32_t high = covers->count;
-    while (low < high) {
-        uint32_t middle = low + (high - low) / 2;
-        uint32_t found = 0;
-        if (!read_entry(covers, middle, &found, record)) {
-            return false;
-        }
-        if (found == key) {
-            return *record <= covers->size && covers->size - *record >= RECORD_BYTES;
-        }
-        if (found < key) {
-            low = middle + 1;
-        } else {
-            high = middle;
+    CoverRange range = {0, covers->count, 0, (uint64_t)UINT32_MAX + 1, 0};
+    while (range.low < range.high && key >= range.low_key && key < range.high_key) {
+        int result = search_window(covers, key, &range, record);
+        if (result >= 0) {
+            return result == 1;
         }
     }
     return false;
