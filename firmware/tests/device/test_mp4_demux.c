@@ -434,6 +434,59 @@ static void read_failures_never_publish_a_different_track_layout(void)
     }
 }
 
+static void seek_read_failures_are_reported_and_a_retry_can_recover(void)
+{
+    static Builder builder;
+    build_synthetic(&builder, true);
+    FailedInput failure = {.builder = &builder};
+    FlacInput input = {.read = read_with_failure, .context = &failure, .size = builder.length};
+    Mp4Track track;
+    Mp4Cursor cursor;
+    CHECK(mp4_probe(input, &track));
+    failure.calls = 0;
+    CHECK(mp4_cursor_seek(&cursor, input, &track, 5));
+    uint32_t reads = failure.calls;
+    CHECK(reads > 0);
+    for (uint32_t at = 1; at <= reads; at++) {
+        failure.calls = 0;
+        failure.fail_at = at;
+        CHECK(!mp4_cursor_seek(&cursor, input, &track, 5));
+        failure.calls = 0;
+        failure.fail_at = 0;
+        CHECK(mp4_cursor_seek(&cursor, input, &track, 5));
+        uint32_t offset;
+        uint32_t size;
+        CHECK(mp4_cursor_next(&cursor, input, &track, &offset, &size));
+        CHECK_EQUAL(5207u, offset);
+        CHECK_EQUAL(105u, size);
+    }
+}
+
+static void a_chunk_transition_read_failure_stops_after_the_current_sample(void)
+{
+    static Builder builder;
+    build_synthetic(&builder, false);
+    FailedInput failure = {.builder = &builder};
+    FlacInput input = {.read = read_with_failure, .context = &failure, .size = builder.length};
+    Mp4Track track;
+    Mp4Cursor cursor;
+    CHECK(mp4_probe(input, &track));
+    CHECK(mp4_cursor_seek(&cursor, input, &track, 2));
+    failure.calls = 0;
+    failure.fail_at = 1;
+    uint32_t offset;
+    uint32_t size;
+    CHECK(mp4_cursor_next(&cursor, input, &track, &offset, &size));
+    CHECK_EQUAL(1201u, offset);
+    CHECK_EQUAL(102u, size);
+    CHECK(!mp4_cursor_next(&cursor, input, &track, &offset, &size));
+    failure.fail_at = 0;
+    CHECK(mp4_cursor_seek(&cursor, input, &track, 3));
+    CHECK(mp4_cursor_next(&cursor, input, &track, &offset, &size));
+    CHECK_EQUAL(5000u, offset);
+    CHECK_EQUAL(103u, size);
+}
+
 static Mp4Track probe_edit(const EditSpec *edit)
 {
     static Builder builder;
@@ -692,6 +745,8 @@ int main(void)
         TEST_CASE(chunk_runs_with_different_sample_counts_are_walked_and_seeked_exactly),
         TEST_CASE(sixty_four_bit_chunk_offsets_work_like_narrow_ones),
         TEST_CASE(read_failures_never_publish_a_different_track_layout),
+        TEST_CASE(seek_read_failures_are_reported_and_a_retry_can_recover),
+        TEST_CASE(a_chunk_transition_read_failure_stops_after_the_current_sample),
         TEST_CASE(a_high_efficiency_configuration_is_refused),
         TEST_CASE(an_sbr_signal_is_refused_only_when_sbr_is_present),
         TEST_CASE(files_that_are_not_mp4_or_are_cut_short_are_refused),
