@@ -243,6 +243,36 @@ static void a_chapter_entry_claiming_bytes_outside_its_atom_is_rejected(void)
     CHECK_EQUAL(0, chapters.count);
 }
 
+static void short_chapter_headers_and_unicode_titles_are_handled_safely(void)
+{
+    ChapterBuffer file = {0};
+    uint32_t moov = chapter_atom(&file, "moov");
+    uint32_t udta = chapter_atom(&file, "udta");
+    uint32_t chpl = chapter_atom(&file, "chpl");
+    file.length += 4;
+    file.bytes[file.length++] = 2;
+    char long_title[80];
+    memset(long_title, 'a', 62);
+    memcpy(long_title + 62, "\xe2\x82\xac", 4);
+    chapter_entry(&file, 0, long_title);
+    chapter_entry(&file, 1000000,
+                  "\xfe\xff"
+                  "A");
+    chapter_close(&file, chpl);
+    chapter_close(&file, udta);
+    chapter_close(&file, moov);
+    MemorySource memory = {.bytes = file.bytes, .size = file.length};
+    Mp4Chapters chapters;
+    CHECK(mp4_chapters_open(&chapters, memory_source(&memory), file.length, 0));
+    CHECK_EQUAL(2, chapters.count);
+    char title[MP4_CHAPTER_TITLE];
+    mp4_chapter_title(&chapters, 0, title);
+    CHECK_EQUAL(62u, strlen(title));
+    CHECK(memcmp(title, long_title, 62) == 0);
+    mp4_chapter_title(&chapters, 1, title);
+    CHECK_EQUAL(0, strcmp("", title));
+}
+
 static void corrupt_atom_fields_never_publish_out_of_bounds_chapters(void)
 {
     const char *names[] = {"m4b_real/Audiobooks/Real Book.m4b",
@@ -344,6 +374,7 @@ int main(void)
         TEST_CASE(truncated_files_never_publish_out_of_bounds_chapters),
         TEST_CASE(chapter_lists_discard_duplicates_and_times_beyond_the_end),
         TEST_CASE(a_chapter_entry_claiming_bytes_outside_its_atom_is_rejected),
+        TEST_CASE(short_chapter_headers_and_unicode_titles_are_handled_safely),
         TEST_CASE(corrupt_atom_fields_never_publish_out_of_bounds_chapters),
         TEST_CASE(damaged_chapter_tables_cannot_publish_invalid_locations),
     };

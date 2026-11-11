@@ -396,6 +396,97 @@ static bool read_builder(void *context, uint32_t offset, void *destination, uint
     return true;
 }
 
+typedef struct FailedInput {
+    Builder *builder;
+    uint32_t calls;
+    uint32_t fail_at;
+} FailedInput;
+
+static bool read_with_failure(void *context, uint32_t offset, void *destination, uint32_t length)
+{
+    FailedInput *input = context;
+    input->calls++;
+    return input->calls != input->fail_at &&
+           read_builder(input->builder, offset, destination, length);
+}
+
+static void read_failures_never_publish_a_different_track_layout(void)
+{
+    static Builder builder;
+    build_synthetic(&builder, false);
+    FailedInput failure = {.builder = &builder};
+    FlacInput input = {.read = read_with_failure, .context = &failure, .size = builder.length};
+    Mp4Track expected;
+    CHECK(mp4_probe(input, &expected));
+    uint32_t reads = failure.calls;
+    CHECK(reads > 0);
+    for (uint32_t at = 1; at <= reads; at++) {
+        failure.calls = 0;
+        failure.fail_at = at;
+        Mp4Track track;
+        if (mp4_probe(input, &track)) {
+            CHECK_EQUAL(expected.codec, track.codec);
+            CHECK_EQUAL(expected.channels, track.channels);
+            CHECK_EQUAL(expected.sample_rate, track.sample_rate);
+            CHECK_EQUAL(expected.sample_count, track.sample_count);
+            CHECK_EQUAL(expected.total_samples, track.total_samples);
+        }
+    }
+}
+
+static void seek_read_failures_are_reported_and_a_retry_can_recover(void)
+{
+    static Builder builder;
+    build_synthetic(&builder, true);
+    FailedInput failure = {.builder = &builder};
+    FlacInput input = {.read = read_with_failure, .context = &failure, .size = builder.length};
+    Mp4Track track;
+    Mp4Cursor cursor;
+    CHECK(mp4_probe(input, &track));
+    failure.calls = 0;
+    CHECK(mp4_cursor_seek(&cursor, input, &track, 5));
+    uint32_t reads = failure.calls;
+    CHECK(reads > 0);
+    for (uint32_t at = 1; at <= reads; at++) {
+        failure.calls = 0;
+        failure.fail_at = at;
+        CHECK(!mp4_cursor_seek(&cursor, input, &track, 5));
+        failure.calls = 0;
+        failure.fail_at = 0;
+        CHECK(mp4_cursor_seek(&cursor, input, &track, 5));
+        uint32_t offset;
+        uint32_t size;
+        CHECK(mp4_cursor_next(&cursor, input, &track, &offset, &size));
+        CHECK_EQUAL(5207u, offset);
+        CHECK_EQUAL(105u, size);
+    }
+}
+
+static void a_chunk_transition_read_failure_stops_after_the_current_sample(void)
+{
+    static Builder builder;
+    build_synthetic(&builder, false);
+    FailedInput failure = {.builder = &builder};
+    FlacInput input = {.read = read_with_failure, .context = &failure, .size = builder.length};
+    Mp4Track track;
+    Mp4Cursor cursor;
+    CHECK(mp4_probe(input, &track));
+    CHECK(mp4_cursor_seek(&cursor, input, &track, 2));
+    failure.calls = 0;
+    failure.fail_at = 1;
+    uint32_t offset;
+    uint32_t size;
+    CHECK(mp4_cursor_next(&cursor, input, &track, &offset, &size));
+    CHECK_EQUAL(1201u, offset);
+    CHECK_EQUAL(102u, size);
+    CHECK(!mp4_cursor_next(&cursor, input, &track, &offset, &size));
+    failure.fail_at = 0;
+    CHECK(mp4_cursor_seek(&cursor, input, &track, 3));
+    CHECK(mp4_cursor_next(&cursor, input, &track, &offset, &size));
+    CHECK_EQUAL(5000u, offset);
+    CHECK_EQUAL(103u, size);
+}
+
 static Mp4Track probe_edit(const EditSpec *edit)
 {
     static Builder builder;
@@ -583,6 +674,54 @@ static void sixty_four_bit_chunk_offsets_work_like_narrow_ones(void)
     check_synthetic_layout(true);
 }
 
+static uint32_t find_box_type(const Builder *builder, const char *name)
+{
+    for (uint32_t index = 4; index + 16 < builder->length; index++) {
+        if (memcmp(builder->bytes + index, name, 4) == 0) {
+            return index;
+        }
+    }
+    return 0;
+}
+
+static void fixed_size_samples_seek_across_chunk_runs(void)
+{
+    static Builder builder;
+    build_synthetic(&builder, false);
+    uint32_t stsz = find_box_type(&builder, "stsz");
+    CHECK(stsz != 0);
+    builder.bytes[stsz + 11] = 120;
+    FlacInput input = {.read = read_builder, .context = &builder, .size = builder.length};
+    Mp4Track track;
+    CHECK(mp4_probe(input, &track));
+    CHECK_EQUAL(120u, track.fixed_size);
+    Mp4Cursor cursor;
+    CHECK(mp4_cursor_seek(&cursor, input, &track, 5));
+    uint32_t offset;
+    uint32_t size;
+    CHECK(mp4_cursor_next(&cursor, input, &track, &offset, &size));
+    CHECK_EQUAL(5240u, offset);
+    CHECK_EQUAL(120u, size);
+    CHECK(mp4_cursor_seek(&cursor, input, &track, 8));
+    CHECK(mp4_cursor_next(&cursor, input, &track, &offset, &size));
+    CHECK_EQUAL(20000u, offset);
+    CHECK_EQUAL(120u, size);
+}
+
+static void a_chunk_offset_above_the_addressable_range_is_rejected(void)
+{
+    static Builder builder;
+    build_synthetic(&builder, true);
+    uint32_t co64 = find_box_type(&builder, "co64");
+    CHECK(co64 != 0);
+    builder.bytes[co64 + 15] = 1;
+    FlacInput input = {.read = read_builder, .context = &builder, .size = builder.length};
+    Mp4Track track;
+    CHECK(mp4_probe(input, &track));
+    Mp4Cursor cursor;
+    CHECK(!mp4_cursor_seek(&cursor, input, &track, 0));
+}
+
 static void a_high_efficiency_configuration_is_refused(void)
 {
     M4aFile file = m4a_file_load(AAC_ALBUM "01 Lead.m4a");
@@ -653,6 +792,11 @@ int main(void)
         TEST_CASE(malformed_and_non_linear_edits_do_not_guess_a_trim),
         TEST_CASE(chunk_runs_with_different_sample_counts_are_walked_and_seeked_exactly),
         TEST_CASE(sixty_four_bit_chunk_offsets_work_like_narrow_ones),
+        TEST_CASE(fixed_size_samples_seek_across_chunk_runs),
+        TEST_CASE(a_chunk_offset_above_the_addressable_range_is_rejected),
+        TEST_CASE(read_failures_never_publish_a_different_track_layout),
+        TEST_CASE(seek_read_failures_are_reported_and_a_retry_can_recover),
+        TEST_CASE(a_chunk_transition_read_failure_stops_after_the_current_sample),
         TEST_CASE(a_high_efficiency_configuration_is_refused),
         TEST_CASE(an_sbr_signal_is_refused_only_when_sbr_is_present),
         TEST_CASE(files_that_are_not_mp4_or_are_cut_short_are_refused),

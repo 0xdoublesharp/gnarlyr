@@ -175,6 +175,89 @@ static void storage_and_library_read_errors_are_not_empty_search_results(void)
     CHECK_EQUAL(LIBRARY_VIEW_READ_FAILED, finish());
 }
 
+static void invalid_search_configuration_is_rejected_before_scanning(void)
+{
+    LibraryViewConfig config = begin_fixture();
+    config.sort = (LibraryViewSort)(LIBRARY_VIEW_SORT_DURATION + 1);
+    CHECK_EQUAL(LIBRARY_VIEW_INVALID,
+                library_view_begin(&view, &fixture.library, &config, scratch()));
+    config = library_view_defaults();
+    config.fields = UINT32_MAX;
+    CHECK_EQUAL(LIBRARY_VIEW_INVALID,
+                library_view_begin(&view, &fixture.library, &config, scratch()));
+    config = library_view_defaults();
+    config.year_min = 2000;
+    config.year_max = 1999;
+    CHECK_EQUAL(LIBRARY_VIEW_INVALID,
+                library_view_begin(&view, &fixture.library, &config, scratch()));
+    config = library_view_defaults();
+    config.duration_min_ms = 2;
+    config.duration_max_ms = 1;
+    CHECK_EQUAL(LIBRARY_VIEW_INVALID,
+                library_view_begin(&view, &fixture.library, &config, scratch()));
+    config = library_view_defaults();
+    memset(config.text, 'x', sizeof config.text);
+    CHECK_EQUAL(LIBRARY_VIEW_INVALID,
+                library_view_begin(&view, &fixture.library, &config, scratch()));
+}
+
+static void invalid_work_storage_and_result_ranges_are_rejected(void)
+{
+    LibraryViewConfig config = begin_fixture();
+    BuilderScratch storage = scratch();
+    storage.read = NULL;
+    CHECK_EQUAL(LIBRARY_VIEW_INVALID,
+                library_view_begin(&view, &fixture.library, &config, storage));
+    storage = scratch();
+    storage.write = NULL;
+    CHECK_EQUAL(LIBRARY_VIEW_INVALID,
+                library_view_begin(&view, &fixture.library, &config, storage));
+    storage = scratch();
+    storage.size--;
+    CHECK_EQUAL(LIBRARY_VIEW_INVALID,
+                library_view_begin(&view, &fixture.library, &config, storage));
+    library_view_begin(&view, &fixture.library, &config, scratch());
+    CHECK_EQUAL(LIBRARY_VIEW_READY, finish());
+    CHECK(library_view_read(&view, view.count, 0, NULL));
+    CHECK(!library_view_read(&view, 0, 1, NULL));
+    uint16_t track;
+    CHECK(!library_view_read(&view, view.count, 1, &track));
+    work.fail_read = true;
+    CHECK(!library_view_read(&view, 0, 1, &track));
+}
+
+static void invalid_scopes_do_not_produce_results(void)
+{
+    LibraryViewConfig config = begin_fixture();
+    config.source = browse_root_query(BROWSE_ARTISTS);
+    CHECK_EQUAL(LIBRARY_VIEW_INVALID,
+                library_view_begin(&view, &fixture.library, &config, scratch()));
+    config.source = browse_root_query(BROWSE_FOLDER_TREE);
+    config.source.subject = LIBRARY_NONE;
+    CHECK_EQUAL(LIBRARY_VIEW_INVALID,
+                library_view_begin(&view, &fixture.library, &config, scratch()));
+    config.source = browse_root_query(BROWSE_ALBUM_TRACKS);
+    config.source.subject = LIBRARY_NONE;
+    CHECK_EQUAL(LIBRARY_VIEW_READ_FAILED,
+                library_view_begin(&view, &fixture.library, &config, scratch()));
+    config.source = browse_root_query(BROWSE_PLAYLIST_TRACKS);
+    config.source.subject = LIBRARY_NONE;
+    CHECK_EQUAL(LIBRARY_VIEW_READ_FAILED,
+                library_view_begin(&view, &fixture.library, &config, scratch()));
+}
+
+static void ready_results_are_invalidated_when_the_library_changes(void)
+{
+    LibraryViewConfig config = begin_fixture();
+    library_view_begin(&view, &fixture.library, &config, scratch());
+    CHECK_EQUAL(LIBRARY_VIEW_READY, finish());
+    uint16_t track;
+    CHECK(library_view_read(&view, 0, 1, &track));
+    fixture.library.content_fingerprint++;
+    CHECK(!library_view_read(&view, 0, 1, &track));
+    CHECK_EQUAL(LIBRARY_VIEW_CHANGED, library_view_step(&view));
+}
+
 static void title_artist_and_album_sorts_are_stable_in_both_directions(void)
 {
     LibraryViewConfig config = begin_fixture();
@@ -447,6 +530,10 @@ int main(void)
         TEST_CASE(original_direction_and_duration_ties_do_not_renumber_tracks),
         TEST_CASE(cancellation_and_content_changes_make_results_unavailable),
         TEST_CASE(storage_and_library_read_errors_are_not_empty_search_results),
+        TEST_CASE(invalid_search_configuration_is_rejected_before_scanning),
+        TEST_CASE(invalid_work_storage_and_result_ranges_are_rejected),
+        TEST_CASE(invalid_scopes_do_not_produce_results),
+        TEST_CASE(ready_results_are_invalidated_when_the_library_changes),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

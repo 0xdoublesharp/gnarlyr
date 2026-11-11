@@ -197,6 +197,30 @@ static void rfc_9639_example_one_decodes_the_specified_samples(void)
     CHECK_EQUAL(FLAC_END, flac_decode_frame(&decoder));
 }
 
+static void rfc_9639_partitioned_lpc_decodes_the_specified_samples(void)
+{
+    static uint8_t bytes[] = {
+        0x66, 0x4c, 0x61, 0x43, 0x80, 0x00, 0x00, 0x22, 0x10, 0x00, 0x10, 0x00, 0x00, 0x00, 0x1f,
+        0x00, 0x00, 0x1f, 0x07, 0xd0, 0x00, 0x70, 0x00, 0x00, 0x00, 0x18, 0xf8, 0xf9, 0xe3, 0x96,
+        0xf5, 0xcb, 0xcf, 0xc6, 0xdc, 0x80, 0x7f, 0x99, 0x77, 0x90, 0x6b, 0x32, 0xff, 0xf8, 0x68,
+        0x02, 0x00, 0x17, 0xe9, 0x44, 0x00, 0x4f, 0x6f, 0x31, 0x3d, 0x10, 0x47, 0xd2, 0x27, 0xcb,
+        0x6d, 0x09, 0x08, 0x31, 0x45, 0x2b, 0xdc, 0x28, 0x22, 0x22, 0x80, 0x57, 0xa3,
+    };
+    static const int32_t expected[] = {0,  79,  111, 78,  8,   -61, -90, -68, -13, 42, 67, 53,
+                                       13, -27, -46, -38, -12, 14,  24,  19,  6,   -4, -5, 0};
+    Buffer input = {bytes, sizeof bytes};
+    CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input_of(&input)));
+    CHECK_EQUAL(32000u, decoder.info.sample_rate);
+    CHECK_EQUAL(1, decoder.info.channels);
+    CHECK_EQUAL(8, decoder.info.bits_per_sample);
+    CHECK_EQUAL(FLAC_OK, flac_decode_frame(&decoder));
+    CHECK_EQUAL(24u, decoder.block_samples);
+    for (uint32_t index = 0; index < sizeof expected / sizeof expected[0]; index++) {
+        CHECK_EQUAL(expected[index], flac_channel(&decoder, 0)[index]);
+    }
+    CHECK_EQUAL(FLAC_END, flac_decode_frame(&decoder));
+}
+
 static void blocks_larger_than_the_buffer_are_refused(void)
 {
     Buffer flac = load("big_blocks_16", "flac");
@@ -210,6 +234,40 @@ static void a_file_that_is_not_flac_is_refused(void)
     Buffer pcm = load("fixed_16_mono", "pcm");
     CHECK_EQUAL(FLAC_ERROR, flac_open(&decoder, input_of(&pcm)));
     free(pcm.bytes);
+}
+
+static void an_id3_prefix_with_footer_preserves_decoded_audio(void)
+{
+    Buffer flac = load("fixed_16_mono", "flac");
+    CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input_of(&flac)));
+    uint32_t original_offset = decoder.audio_offset;
+    CHECK_EQUAL(FLAC_OK, flac_decode_frame(&decoder));
+    int32_t first_sample = flac_channel(&decoder, 0)[0];
+    uint32_t block_samples = decoder.block_samples;
+    enum {
+        PREFIX = 23
+    };
+    uint8_t *bytes = calloc(flac.size + PREFIX, 1);
+    CHECK(bytes != NULL);
+    if (bytes == NULL) {
+        free(flac.bytes);
+        return;
+    }
+    memcpy(bytes, "ID3", 3);
+    bytes[3] = 4;
+    bytes[5] = 0x10;
+    bytes[9] = 3;
+    memcpy(bytes + 13, bytes, 10);
+    memcpy(bytes + 13, "3DI", 3);
+    memcpy(bytes + PREFIX, flac.bytes, flac.size);
+    Buffer tagged = {bytes, flac.size + PREFIX};
+    CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input_of(&tagged)));
+    CHECK_EQUAL(original_offset + PREFIX, decoder.audio_offset);
+    CHECK_EQUAL(FLAC_OK, flac_decode_frame(&decoder));
+    CHECK_EQUAL(block_samples, decoder.block_samples);
+    CHECK_EQUAL(first_sample, flac_channel(&decoder, 0)[0]);
+    free(bytes);
+    free(flac.bytes);
 }
 
 static FlacResult decode_to_the_end(void)
@@ -422,8 +480,10 @@ int main(void)
         TEST_CASE(odd_block_sizes_decode_exactly),
         TEST_CASE(independent_channels_decode_exactly),
         TEST_CASE(rfc_9639_example_one_decodes_the_specified_samples),
+        TEST_CASE(rfc_9639_partitioned_lpc_decodes_the_specified_samples),
         TEST_CASE(blocks_larger_than_the_buffer_are_refused),
         TEST_CASE(a_file_that_is_not_flac_is_refused),
+        TEST_CASE(an_id3_prefix_with_footer_preserves_decoded_audio),
         TEST_CASE(a_truncated_file_ends_with_an_error),
         TEST_CASE(a_corrupted_frame_is_caught),
         TEST_CASE(frames_report_their_first_sample),

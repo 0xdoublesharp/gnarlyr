@@ -125,6 +125,35 @@ static void labels_require_complete_nonempty_utf8_with_at_most_32_bytes(void)
         &tags, (PersonalTagChange){.operation = PERSONAL_TAG_ASSIGN, .track = 0, .mask = 2}));
 }
 
+static void invalid_label_operations_preserve_existing_names_and_assignments(void)
+{
+    reset();
+    create(0, "Ambient");
+    create(1, "Focus");
+    assign(0, 3);
+    CHECK(!personal_tags_change(
+        &tags, (PersonalTagChange){.operation = PERSONAL_TAG_CREATE, .tag = 2, .name = "Ambient"}));
+    CHECK(!personal_tags_change(
+        &tags, (PersonalTagChange){.operation = PERSONAL_TAG_RENAME, .tag = 1, .name = "Ambient"}));
+    CHECK(!personal_tags_change(
+        &tags, (PersonalTagChange){.operation = PERSONAL_TAG_RENAME, .tag = 2, .name = "New"}));
+    CHECK(!personal_tags_change(&tags,
+                                (PersonalTagChange){.operation = PERSONAL_TAG_DELETE, .tag = 2}));
+    CHECK(!personal_tags_change(
+        &tags, (PersonalTagChange){.operation = PERSONAL_TAG_CREATE, .tag = 32, .name = "New"}));
+    CHECK(!personal_tags_change(
+        &tags, (PersonalTagChange){.operation = PERSONAL_TAG_CREATE, .tag = 2, .name = NULL}));
+    CHECK(!personal_tags_change(&tags, (PersonalTagChange){.operation = (PersonalTagOperation)99}));
+    CHECK(!personal_tags_change(
+        &tags,
+        (PersonalTagChange){.operation = PERSONAL_TAG_ASSIGN, .track = UINT16_MAX, .mask = 1}));
+    CHECK(personal_tags_name(&tags, 32) == NULL);
+    reopen();
+    CHECK_EQUAL(0, strcmp("Ambient", personal_tags_name(&tags, 0)));
+    CHECK_EQUAL(0, strcmp("Focus", personal_tags_name(&tags, 1)));
+    CHECK_EQUAL(3u, mask(0));
+}
+
 static void cancellation_and_failed_writes_keep_published_labels_and_assignments(void)
 {
     for (int cutoff = 0; cutoff < 24; cutoff++) {
@@ -497,6 +526,7 @@ int main(void)
         TEST_CASE(labels_and_multiple_assignments_persist_without_touching_music),
         TEST_CASE(rename_delete_and_slot_reuse_never_relabel_old_tracks),
         TEST_CASE(labels_require_complete_nonempty_utf8_with_at_most_32_bytes),
+        TEST_CASE(invalid_label_operations_preserve_existing_names_and_assignments),
         TEST_CASE(cancellation_and_failed_writes_keep_published_labels_and_assignments),
         TEST_CASE(paths_and_cue_ranges_survive_library_row_reordering),
         TEST_CASE(unreadable_or_truncated_track_paths_fail_instead_of_matching),

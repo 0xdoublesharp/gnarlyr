@@ -63,6 +63,15 @@ static bool read_stream(void *context, uint32_t offset, void *buffer, uint32_t l
     return true;
 }
 
+static bool reject_read(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    (void)context;
+    (void)offset;
+    (void)buffer;
+    (void)length;
+    return false;
+}
+
 static void start_writing(void)
 {
     memset(&writer, 0, sizeof writer);
@@ -207,6 +216,33 @@ static void running_out_of_input_fails(void)
     CHECK(!flac_bits_read_rice(&bits, decoded, 400, 3));
 }
 
+static void signed_and_wide_reads_preserve_bit_boundaries(void)
+{
+    start_writing();
+    put_bits(1, 1);
+    put_bits(0x40000000, 31);
+    put_bits(0x3fffffff, 31);
+    put_bits(0xabcdef01, 32);
+    start_reading();
+    CHECK_EQUAL(0, flac_bits_read_signed(&bits, 0));
+    CHECK_EQUAL(-1, flac_bits_read_signed(&bits, 1));
+    CHECK_EQUAL(-1073741824, flac_bits_read_signed(&bits, 31));
+    CHECK_EQUAL(1073741823, flac_bits_read_signed(&bits, 31));
+    CHECK_EQUAL(0xabcdef01u, flac_bits_read(&bits, 32));
+    CHECK(!bits.failed);
+}
+
+static void a_storage_failure_propagates_for_fast_and_wide_rice_parameters(void)
+{
+    const uint32_t parameters[] = {4, 25};
+    FlacInput input = {.read = reject_read, .context = NULL, .size = 4096};
+    for (uint32_t index = 0; index < sizeof parameters / sizeof parameters[0]; index++) {
+        flac_bits_start(&bits, input, 0);
+        CHECK(!flac_bits_read_rice(&bits, decoded, 4, parameters[index]));
+        CHECK(bits.failed);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -218,6 +254,8 @@ int main(void)
         TEST_CASE(the_checksums_cover_exactly_the_bytes_read),
         TEST_CASE(a_reset_starts_the_checksums_at_the_current_byte),
         TEST_CASE(running_out_of_input_fails),
+        TEST_CASE(signed_and_wide_reads_preserve_bit_boundaries),
+        TEST_CASE(a_storage_failure_propagates_for_fast_and_wide_rice_parameters),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

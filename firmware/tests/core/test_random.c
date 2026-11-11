@@ -56,6 +56,21 @@ static void a_bound_of_one_always_gives_zero(void)
     CHECK_EQUAL(0, random_below(&random, 0));
 }
 
+static void bounded_draw_retries_values_outside_the_unbiased_range(void)
+{
+    const uint32_t bound = UINT32_C(0x80000001);
+    Random expected = random_seeded(8192);
+    Random actual = random_seeded(8192);
+    uint32_t rejected = random_next(&expected);
+    CHECK(rejected >= bound);
+    uint32_t accepted = random_next(&expected);
+    while (accepted >= bound) {
+        accepted = random_next(&expected);
+    }
+    CHECK_EQUAL(accepted, random_below(&actual, bound));
+    CHECK_EQUAL(expected.state, actual.state);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -64,6 +79,7 @@ int main(void)
         TEST_CASE(a_zero_seed_still_produces_numbers),
         TEST_CASE(bounded_draws_stay_below_the_bound_and_cover_it),
         TEST_CASE(a_bound_of_one_always_gives_zero),
+        TEST_CASE(bounded_draw_retries_values_outside_the_unbiased_range),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
