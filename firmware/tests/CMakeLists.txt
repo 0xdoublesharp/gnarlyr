@@ -764,14 +764,20 @@ if(ARM_GCC)
                 TIMEOUT 900
             )
         endforeach()
-        add_test(NAME device_code_space
-            COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
-                ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_code_space.py
-        )
-        set_tests_properties(device_code_space PROPERTIES
-            FIXTURES_REQUIRED device_image SKIP_RETURN_CODE 77 LABELS echo_image
-            PROCESSORS 2 TIMEOUT 900
-        )
+        set(code_space_tests ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_code_space.py)
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${code_space_tests})
+        file(STRINGS ${code_space_tests} code_space_cases REGEX "^    def test_")
+        foreach(case_line IN LISTS code_space_cases)
+            string(REGEX REPLACE "^    def (test_[A-Za-z0-9_]+).*" "\\1" case_name "${case_line}")
+            set(test_name device_code_space_${case_name})
+            add_test(NAME ${test_name}
+                COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python ${code_space_tests} ${case_name}
+            )
+            set_tests_properties(${test_name} PROPERTIES
+                FIXTURES_REQUIRED device_image SKIP_RETURN_CODE 77 LABELS echo_image
+                PROCESSORS 2 TIMEOUT 900
+            )
+        endforeach()
         add_test(NAME core1_mp3_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
                 ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_core1_mp3.py
