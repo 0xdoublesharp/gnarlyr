@@ -164,6 +164,8 @@ The Now Playing column above is for Settings → Skip songs = Hold vol±; the ot
 
 With the screen off, ▶‖ still pauses and resumes, a tap of vol± changes the volume and holding vol± skips tracks (or jumps 30 s / 15 s in audiobooks and podcasts).
 
+After 30 seconds paused, the player switches its sound output off to save battery. Play then takes a moment longer to start and fades in from where you paused; Bluetooth headphones stay connected.
+
 In Cover Flow (Music → Cover Flow), the tile before the first album, with a shuffle mark for a cover, is **Random album**: press ▶ on it to play a random album from its first track. Hold a volume button to scroll faster; keep holding to jump between artist initials. A temporary letter badge shows the current section. Press ▶ to open the selected album, or hold ▶ to favorite it. An album without artwork gets a cover made from its initials, or its artist's when the title has none, in colours from the current theme.
 
 ## Charging

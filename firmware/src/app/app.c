@@ -1712,6 +1712,9 @@ static void run_debug_script(uint32_t now_ms)
         debug_runner_done(choose_setting(&request, now_ms));
     } else if (request.kind == DEBUG_REQUEST_SCREENSHOT) {
         debug_runner_done(save_debug_screenshot(&request));
+    } else if (request.kind == DEBUG_REQUEST_STANDBY) {
+        player_hold_standby(&app.player, request.slot == 0);
+        debug_runner_done(true);
     }
 }
 

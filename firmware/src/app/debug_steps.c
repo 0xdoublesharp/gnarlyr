@@ -184,6 +184,13 @@ static DebugRequest request(DebugRequestKind kind, const DebugOp *op)
                           .slot = debug_runner.run.screenshot_count};
 }
 
+static DebugRequest ask_app(DebugRequestKind kind, uint32_t slot)
+{
+    debug_runner.phase = DEBUG_PHASE_REQUESTED;
+    debug_runner.requested = (uint8_t)kind;
+    return (DebugRequest){.kind = kind, .slot = slot};
+}
+
 static void press_key(const DebugOp *op, uint32_t now_ms)
 {
     debug_runner.key = (Key)op->first_length;
@@ -298,9 +305,9 @@ static DebugRequest run_op(const DebugOp *op, uint32_t now_ms)
         debug_runner_set_status(DEBUG_LINE_OK);
         break;
     case DEBUG_OP_SCREEN:
-        debug_runner.phase = DEBUG_PHASE_REQUESTED;
-        debug_runner.requested = DEBUG_REQUEST_SCREEN;
-        return (DebugRequest){.kind = DEBUG_REQUEST_SCREEN, .slot = op->first};
+        return ask_app(DEBUG_REQUEST_SCREEN, op->first);
+    case DEBUG_OP_STANDBY:
+        return ask_app(DEBUG_REQUEST_STANDBY, op->first);
     case DEBUG_OP_SOAK:
         begin_soak(now_ms, op->first);
         break;

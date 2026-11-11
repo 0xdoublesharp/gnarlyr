@@ -54,7 +54,8 @@ void debug_loop_screen(const char *title, int depth)
 static void follow_player(const Player *player)
 {
     uint32_t track = player->has_track ? player->track : 0u;
-    uint32_t state = (uint32_t)player->state | track << TRACK_SHIFT;
+    uint32_t shown = player_in_standby(player) ? DEBUG_PLAYER_STANDBY : (uint32_t)player->state;
+    uint32_t state = shown | track << TRACK_SHIFT;
     if (state != loop.player_state) {
         record(DEBUG_EVENT_PLAYER, state, NULL);
     }

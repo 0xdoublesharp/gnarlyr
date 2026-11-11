@@ -722,9 +722,19 @@ static void follow_jack(Player *player)
     }
 }
 
+void player_hold_standby(Player *player, bool held)
+{
+    player->standby_held = held;
+}
+
+bool player_in_standby(const Player *player)
+{
+    return player->state == PLAYER_PAUSED && player->has_track && !player->loaded;
+}
+
 static void release_long_pause(Player *player, uint32_t now_ms)
 {
-    if (player->state != PLAYER_PAUSED) {
+    if (player->state != PLAYER_PAUSED || player->standby_held) {
         player->pause_timing = false;
     } else if (!player->pause_timing) {
         player->pause_timing = true;

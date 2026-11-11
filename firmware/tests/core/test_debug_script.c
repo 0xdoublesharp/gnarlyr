@@ -213,6 +213,20 @@ static void supply_and_screen_take_off_or_on(void)
     CHECK_EQUAL(1, loaded->ops[3].first);
 }
 
+static void standby_takes_off_or_on(void)
+{
+    CHECK_EQUAL(DEBUG_COMMAND_STANDBY, parse("standby off").kind);
+    CHECK_EQUAL(0, parse("standby off").number);
+    CHECK_EQUAL(1, parse("Standby ON").number);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("standby").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("standby later").kind);
+    const DebugScriptRun *loaded = load("build any\nstandby off\nstandby on\n");
+    CHECK_EQUAL(2, loaded->op_count);
+    CHECK_EQUAL(DEBUG_OP_STANDBY, loaded->ops[0].kind);
+    CHECK_EQUAL(0, loaded->ops[0].first);
+    CHECK_EQUAL(1, loaded->ops[1].first);
+}
+
 static void soak_takes_one_to_180_minutes(void)
 {
     CHECK_EQUAL(DEBUG_COMMAND_SOAK, parse("soak 30").kind);
@@ -443,6 +457,7 @@ int main(void)
         TEST_CASE(poke_takes_an_address_and_a_value),
         TEST_CASE(gpio_names_a_pin_and_what_to_do_with_it),
         TEST_CASE(supply_and_screen_take_off_or_on),
+        TEST_CASE(standby_takes_off_or_on),
         TEST_CASE(soak_takes_one_to_180_minutes),
         TEST_CASE(a_scripts_soaks_add_their_minutes_to_its_time_limit),
         TEST_CASE(probe_lines_keep_their_words_beside_the_steps),

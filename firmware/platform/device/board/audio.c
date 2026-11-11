@@ -525,7 +525,9 @@ void hal_audio_pause(void)
 
 void hal_audio_release(void)
 {
-    board_audio_shut_down();
+    if (stream_service == NULL) {
+        board_audio_shut_down();
+    }
 }
 
 void hal_audio_resume(void)

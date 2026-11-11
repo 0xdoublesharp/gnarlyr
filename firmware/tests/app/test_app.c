@@ -4600,6 +4600,99 @@ static void a_soak_adds_its_minutes_to_the_scripts_time_limit_and_outlasts_auto_
     CHECK_EQUAL(0, fake_hal_power_off_count());
 }
 
+static void wait_in_half_seconds(uint32_t duration_ms)
+{
+    for (uint32_t elapsed = 0; elapsed < duration_ms; elapsed += 500) {
+        wait_ms(500);
+    }
+}
+
+static void pause_now_playing_into_standby(void)
+{
+    play_first_album_track();
+    tap(KEY_PLAY);
+    wait_ms(1000);
+    wait_ms(PLAYER_PAUSE_RELEASE_MS);
+    CHECK_EQUAL(1, fake_hal_audio_release_count());
+}
+
+static const DebugEvent *last_player_event(void)
+{
+    const DebugLog *log = debug_loop_log();
+    for (uint32_t index = debug_log_count(log); index > 0; index--) {
+        const DebugEvent *event = debug_log_at(log, index - 1);
+        if (event->kind == DEBUG_EVENT_PLAYER) {
+            return event;
+        }
+    }
+    return NULL;
+}
+
+static void standby_and_the_resume_from_it_are_logged_with_the_track(void)
+{
+    start_app_with_library();
+    pause_now_playing_into_standby();
+    uint32_t track = app_player_status().track;
+    CHECK_EQUAL(DEBUG_PLAYER_STANDBY | track << 8, last_player_event()->value);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PLAYING | track << 8, last_player_event()->value);
+}
+
+static void a_scripts_standby_off_keeps_a_long_pause_powered_until_standby_on(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    tap(KEY_PLAY);
+    load_script("build any\nstandby off\nwait 50000\nstandby on\nwait 50000\n");
+    wait_in_half_seconds(45000);
+    CHECK_EQUAL(0, fake_hal_audio_release_count());
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    wait_in_half_seconds(40000);
+    CHECK_EQUAL(1, fake_hal_audio_release_count());
+}
+
+static void auto_off_counts_from_the_last_key_while_the_player_rests_in_standby(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    uint32_t paused_ms = now_ms;
+    tap(KEY_PLAY);
+    wait_ms(1000);
+    wait_ms(PLAYER_PAUSE_RELEASE_MS);
+    CHECK_EQUAL(1, fake_hal_audio_release_count());
+    wait_in_half_seconds(paused_ms + 5 * 60 * 1000 - 2000 - now_ms);
+    CHECK_EQUAL(0, fake_hal_power_off_count());
+    wait_ms(4000);
+    wait_ms(GOODBYE_MS);
+    CHECK_EQUAL(1, fake_hal_power_off_count());
+    CHECK_EQUAL(DEBUG_REPORT_AUTO_OFF, fake_hal_saved_report(0));
+}
+
+static void the_sleep_timer_runs_out_on_time_while_the_player_rests_in_standby(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery(
+        (HalBattery){.known = true, .percent = 80, .millivolts = 3900, .usb_power = true});
+    play_first_album_track();
+    tap(KEY_PLAY);
+    hold_back();
+    open_setting(SETTINGS_SLEEP_INDEX);
+    move_down(1);
+    uint32_t set_ms = now_ms;
+    tap(KEY_PLAY);
+    wait_ms(1000);
+    wait_ms(PLAYER_PAUSE_RELEASE_MS);
+    CHECK_EQUAL(1, fake_hal_audio_release_count());
+    int plays = fake_hal_audio_play_count();
+    wait_in_half_seconds(set_ms + FIFTEEN_MINUTES_MS - 2000 - now_ms);
+    CHECK(!app_charging());
+    wait_ms(4000);
+    wait_ms(GOODBYE_MS);
+    CHECK(app_charging());
+    CHECK_EQUAL(plays, fake_hal_audio_play_count());
+    CHECK_EQUAL(1, fake_hal_audio_release_count());
+}
+
 static void a_key_press_ends_a_soak_early_and_gives_the_supply_back(void)
 {
     start_app();
@@ -5341,6 +5434,10 @@ int main(void)
         TEST_CASE(a_soak_waits_its_minutes_and_records_both_ends),
         TEST_CASE(a_soak_with_the_screen_on_and_music_playing_says_so),
         TEST_CASE(a_soak_adds_its_minutes_to_the_scripts_time_limit_and_outlasts_auto_off),
+        TEST_CASE(standby_and_the_resume_from_it_are_logged_with_the_track),
+        TEST_CASE(a_scripts_standby_off_keeps_a_long_pause_powered_until_standby_on),
+        TEST_CASE(auto_off_counts_from_the_last_key_while_the_player_rests_in_standby),
+        TEST_CASE(the_sleep_timer_runs_out_on_time_while_the_player_rests_in_standby),
         TEST_CASE(a_key_press_ends_a_soak_early_and_gives_the_supply_back),
         TEST_CASE(a_key_the_script_pressed_before_a_soak_does_not_end_it),
         TEST_CASE(a_battery_under_3600_millivolts_for_a_minute_ends_a_soak),

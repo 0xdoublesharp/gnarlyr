@@ -26,6 +26,13 @@ DEEP_TRACK = 12
 FIRST_AUDIO_LIMIT_MS = 1500
 TRACK_GAP_LIMIT_MS = 1000
 FADE_LIMIT_MS = 1500
+STANDBY_MS = 30000
+STANDBY_RATE = 44100
+STANDBY_SECONDS = 45
+STANDBY_RESUME_LIMIT_MS = 100
+DAC_MUTED = 0xFF
+DAC_RAMP_STEP = 6
+KEY_TAP_MS = 150
 SCAN_RECORD_POLL_MS = 100
 FAT_READS_PER_SECOND_LIMIT = 40
 SPIN_POLLS_PER_REST = 10
@@ -2118,6 +2125,81 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(0, rig.audio.suspend_depth)
         self.assert_normalized_pcm(rig, pattern, replay_gain.amplitude(-1200))
         self.assertEqual([], rig.audio.underruns(started))
+        self.assertEqual(0, rig.audio.output_underruns())
+        self.assert_healthy(rig.session)
+
+    def standby_rig(self):
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        block = bytearray(65536 * 4)
+        block[0::4] = bytes(range(256)) * 256
+        block[1::4] = bytes(value for value in range(256) for _ in range(256))
+        frames = STANDBY_RATE * STANDBY_SECONDS
+        pcm = bytearray()
+        for high in range(frames // 65536 + 1):
+            block[2::4] = bytes((high,)) * 65536
+            pcm += block
+        pcm = bytes(pcm[:frames * 4])
+        header = struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ", 16, 1,
+                             2, STANDBY_RATE, STANDBY_RATE * 4, 4, 16, b"data", len(pcm))
+        volume = Fat32Volume()
+        volume.add_file("Counter.wav", header + pcm)
+        return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                   volume=volume, module_elfs=self.module_elfs)
+
+    def counter_frame(self, rig, frame):
+        from echo_emulator.audio import RING_BYTES
+        offset = rig.audio.ring + frame % (RING_BYTES // 8) * 8
+        left, right = struct.unpack("<II", rig.machine.read_memory(offset, 8))
+        return (right >> 16) << 16 | left >> 16
+
+    def next_played_frame(self, rig):
+        played = rig.audio.elapsed_us(rig.machine) * rig.audio.rate // 1000000
+        return self.counter_frame(rig, played)
+
+    def assert_ramp(self, volumes, end):
+        values = [value for _, value in volumes]
+        self.assertEqual(end, values[-1], values)
+        for earlier, later in zip(values, values[1:]):
+            self.assertLessEqual(abs(later - earlier), DAC_RAMP_STEP, values)
+            self.assertGreaterEqual((later - earlier) * (end - values[0]), 0, values)
+
+    def test_a_long_pause_rests_in_standby_and_play_resumes_at_the_same_sample_with_a_fade(self):
+        rig = self.standby_rig()
+        machine = rig.machine
+        stops = machine.trace("dac_path_stop")
+        first_frames = []
+        machine.hook_symbol("dac_path_start_transfer",
+                            lambda: first_frames.append(self.counter_frame(rig, 0)))
+        rig.open_songs()
+        rig.play_song(1)
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.running, until_ms=machine.milliseconds() + 3000))
+        rig.run_for(1500)
+        target = rig.audio.volumes[-1][1]
+        paused_at = rig.press("play")
+        self.assertGreater(rig.audio.suspend_depth, 0)
+        paused_frame = self.next_played_frame(rig)
+        pause_fade = [entry for entry in rig.audio.volumes if entry[0] >= paused_at]
+        self.assert_ramp(pause_fade, DAC_MUTED)
+        self.assertEqual("condition met", machine.run(
+            until=lambda: stops and stops[-1] > paused_at,
+            until_ms=paused_at + STANDBY_MS + 2000))
+        self.assertGreaterEqual(stops[-1] - paused_at, STANDBY_MS)
+        self.assertFalse(rig.audio.running)
+        resting = [value for stamp, value in rig.audio.volumes if stamp > pause_fade[-1][0]]
+        self.assertTrue(all(value == DAC_MUTED for value in resting), resting)
+        pressed_at = rig.press("play", hold=KEY_TAP_MS)
+        self.assertTrue(rig.audio.running)
+        started_ms = rig.audio.started_us // 1000
+        self.assertLess(started_ms - (pressed_at + KEY_TAP_MS), STANDBY_RESUME_LIMIT_MS)
+        resumed_frame = first_frames[-1]
+        self.assertLessEqual(0, paused_frame - resumed_frame)
+        self.assertLessEqual(paused_frame - resumed_frame, STANDBY_RATE // 1000)
+        fade_in = [entry for entry in rig.audio.volumes if entry[0] >= pressed_at]
+        self.assertGreaterEqual(fade_in[0][0], started_ms)
+        self.assertGreater(fade_in[0][1], target)
+        self.assert_ramp(fade_in, target)
         self.assertEqual(0, rig.audio.output_underruns())
         self.assert_healthy(rig.session)
 
