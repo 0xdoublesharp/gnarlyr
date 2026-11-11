@@ -23,3 +23,21 @@ class TranslationTests(unittest.TestCase):
         self.assertIn('STR_PLAYING', prompt)
         self.assertIn('Shared words', prompt)
         self.assertTrue(prompt.endswith('\\n\\n\\nPlaying'.replace('\\n', '\n')))
+
+    def test_retries_invalid_placeholders(self):
+        calls = []
+        def translate(text, language, key, feedback):
+            calls.append(feedback)
+            return 'Conectar {0}' if len(calls) == 1 else 'Conectar'
+        self.assertEqual(m.translate_entry('Connect', 'Spanish', 'STR_CONNECT', translate), 'Conectar')
+        self.assertIn('placeholders differ', calls[1])
+
+    def test_fails_after_invalid_retries(self):
+        with self.assertRaises(ValueError):
+            m.translate_entry('Connect', 'Spanish', 'STR_CONNECT', lambda *args: 'Conectar {0}')
+
+    def test_checkpoint_binds_source_and_language(self):
+        source = [('STR_PLAY', 'Play')]
+        token = m.checkpoint_token(source, 'Spanish', 'translategemma:27b')
+        self.assertNotEqual(token, m.checkpoint_token([('STR_PLAY', 'Playing')], 'Spanish', 'translategemma:27b'))
+        self.assertNotEqual(token, m.checkpoint_token(source, 'French', 'translategemma:27b'))
