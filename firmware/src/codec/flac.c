@@ -94,11 +94,15 @@ static FlacResult read_metadata(FlacBits *bits, FlacInfo *info, uint32_t *audio_
         last = flac_bits_read(bits, 1) != 0;
         uint32_t type = flac_bits_read(bits, 7);
         uint32_t length = flac_bits_read(bits, 24);
-        if (bits->failed) {
+        if (bits->failed || type == 127 || (!found && type != METADATA_STREAMINFO) ||
+            (found && type == METADATA_STREAMINFO)) {
             return FLAC_ERROR;
         }
         uint32_t next = flac_bits_offset(bits) + length;
-        if (type == METADATA_STREAMINFO && length == STREAMINFO_BYTES) {
+        if (type == METADATA_STREAMINFO) {
+            if (length != STREAMINFO_BYTES) {
+                return FLAC_ERROR;
+            }
             FlacResult result = read_streaminfo(bits, info);
             if (result != FLAC_OK) {
                 return result;
