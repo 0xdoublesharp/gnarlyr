@@ -84,7 +84,7 @@ bool spoken_near_end(uint32_t position_ms, uint32_t duration_ms)
     }
     uint32_t margin = duration_ms / SPOKEN_FINISH_DIVISOR;
     margin = margin < SPOKEN_FINISH_MARGIN_MS ? margin : SPOKEN_FINISH_MARGIN_MS;
-    return position_ms + margin >= duration_ms;
+    return position_ms >= duration_ms - margin;
 }
 
 uint32_t spoken_record_key(const char *path, const LibraryTrack *track)

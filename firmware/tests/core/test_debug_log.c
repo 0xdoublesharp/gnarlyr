@@ -66,6 +66,17 @@ static void an_event_is_sixteen_bytes(void)
     CHECK_EQUAL(16, sizeof(DebugEvent));
 }
 
+static void the_ring_keeps_events_when_the_lifetime_count_saturates(void)
+{
+    DebugLog log = log_with(DEBUG_LOG_CAPACITY);
+    log.recorded = UINT32_MAX;
+    DebugEvent event = debug_event_make(999, DEBUG_EVENT_KEY, 77, NULL);
+    debug_log_record(&log, &event);
+    CHECK_EQUAL(DEBUG_LOG_CAPACITY, debug_log_count(&log));
+    CHECK_EQUAL(UINT32_MAX - DEBUG_LOG_CAPACITY, debug_log_dropped(&log));
+    CHECK_EQUAL(77, debug_log_at(&log, DEBUG_LOG_CAPACITY - 1)->value);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -76,6 +87,7 @@ int main(void)
         TEST_CASE(an_event_keeps_the_start_of_its_text),
         TEST_CASE(a_short_or_missing_text_is_zero_padded),
         TEST_CASE(an_event_is_sixteen_bytes),
+        TEST_CASE(the_ring_keeps_events_when_the_lifetime_count_saturates),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

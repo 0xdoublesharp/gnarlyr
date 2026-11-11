@@ -64,6 +64,12 @@ static void the_end_of_a_track_is_its_last_tenth_up_to_30_seconds(void)
     CHECK(spoken_near_end(90000, 100000));
 }
 
+static void near_end_detection_does_not_wrap_for_long_tracks(void)
+{
+    CHECK(spoken_near_end(UINT32_MAX - 1000, UINT32_MAX));
+    CHECK(spoken_near_end(UINT32_MAX, UINT32_MAX));
+}
+
 static void the_shelves_are_found_under_the_music_root(void)
 {
     Library *library = spoken_library_open(&spoken);
@@ -214,6 +220,7 @@ int main(void)
         TEST_CASE(chapters_of_one_book_share_a_bookmark),
         TEST_CASE(loose_books_and_episodes_have_their_own_bookmark),
         TEST_CASE(the_end_of_a_track_is_its_last_tenth_up_to_30_seconds),
+        TEST_CASE(near_end_detection_does_not_wrap_for_long_tracks),
         TEST_CASE(the_shelves_are_found_under_the_music_root),
         TEST_CASE(a_book_folder_key_matches_its_chapters),
         TEST_CASE(chapters_are_counted_in_folder_order),

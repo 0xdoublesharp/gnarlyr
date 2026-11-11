@@ -47,6 +47,7 @@ typedef struct DebugEvent {
 typedef struct DebugLog {
     DebugEvent events[DEBUG_LOG_CAPACITY];
     uint32_t recorded;
+    uint32_t next_slot;
 } DebugLog;
 
 typedef struct DebugFrames {

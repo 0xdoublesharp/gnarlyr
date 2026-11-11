@@ -14,13 +14,16 @@ DebugEvent debug_event_make(uint32_t time_ms, DebugEventKind kind, uint32_t valu
 
 void debug_log_reset(DebugLog *log)
 {
-    log->recorded = 0;
+    *log = (DebugLog){0};
 }
 
 void debug_log_record(DebugLog *log, const DebugEvent *event)
 {
-    log->events[log->recorded % DEBUG_LOG_CAPACITY] = *event;
-    log->recorded++;
+    log->events[log->next_slot] = *event;
+    log->next_slot = (log->next_slot + 1) % DEBUG_LOG_CAPACITY;
+    if (log->recorded < UINT32_MAX) {
+        log->recorded++;
+    }
 }
 
 uint32_t debug_log_count(const DebugLog *log)
@@ -35,6 +38,6 @@ uint32_t debug_log_dropped(const DebugLog *log)
 
 const DebugEvent *debug_log_at(const DebugLog *log, uint32_t index)
 {
-    uint32_t oldest = debug_log_dropped(log);
+    uint32_t oldest = log->recorded < DEBUG_LOG_CAPACITY ? 0 : log->next_slot;
     return &log->events[(oldest + index) % DEBUG_LOG_CAPACITY];
 }
