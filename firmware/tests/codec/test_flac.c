@@ -53,12 +53,16 @@ static FlacInput input_of(Buffer *buffer)
 typedef struct FailingInput {
     Buffer *buffer;
     bool fail;
+    uint32_t calls;
+    uint32_t fail_at;
 } FailingInput;
 
 static bool read_failing_input(void *context, uint32_t offset, void *destination, uint32_t length)
 {
     FailingInput *input = context;
-    return !input->fail && read_memory(input->buffer, offset, destination, length);
+    input->calls++;
+    return !input->fail && input->calls != input->fail_at &&
+           read_memory(input->buffer, offset, destination, length);
 }
 
 static int32_t expected_at(const Buffer *pcm, uint32_t index)
@@ -350,6 +354,34 @@ static void a_storage_failure_never_publishes_a_partial_frame_and_can_recover(vo
     free(pcm.bytes);
 }
 
+static void every_frame_read_failure_rejects_the_frame_without_losing_recovery(void)
+{
+    Buffer flac = load("lpc_24_96k_stereo", "flac");
+    Buffer pcm = load("lpc_24_96k_stereo", "pcm");
+    FailingInput source = {.buffer = &flac};
+    FlacInput input = {.read = read_failing_input, .context = &source, .size = flac.size};
+    CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input));
+    source.calls = 0;
+    CHECK_EQUAL(FLAC_OK, flac_decode_frame(&decoder));
+    uint32_t reads = source.calls;
+    CHECK(reads > 1);
+    for (uint32_t at = 1; at <= reads; at++) {
+        source.fail_at = 0;
+        CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input));
+        source.calls = 0;
+        source.fail_at = at;
+        CHECK_EQUAL(FLAC_ERROR, flac_decode_frame(&decoder));
+        CHECK_EQUAL(0u, decoder.block_samples);
+        source.fail_at = 0;
+        CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input));
+        CHECK_EQUAL(FLAC_OK, flac_decode_frame(&decoder));
+        CHECK_EQUAL(expected_at(&pcm, 0), flac_channel(&decoder, 0)[0]);
+        CHECK_EQUAL(expected_at(&pcm, 1), flac_channel(&decoder, 1)[0]);
+    }
+    free(flac.bytes);
+    free(pcm.bytes);
+}
+
 static bool seeks_to(const char *name, uint32_t target)
 {
     Buffer flac = load(name, "flac");
@@ -542,6 +574,7 @@ int main(void)
         TEST_CASE(a_truncated_file_ends_with_an_error),
         TEST_CASE(a_corrupted_frame_is_caught),
         TEST_CASE(a_storage_failure_never_publishes_a_partial_frame_and_can_recover),
+        TEST_CASE(every_frame_read_failure_rejects_the_frame_without_losing_recovery),
         TEST_CASE(frames_report_their_first_sample),
         TEST_CASE(seeking_lands_on_the_frame_that_holds_the_target),
         TEST_CASE(decoding_carries_on_after_a_seek),
