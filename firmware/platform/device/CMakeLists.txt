@@ -198,6 +198,7 @@ set(ECHO_OVERLAY_IMPORTS
     utf8_next
     app_usb_battery_changed
     board_audio_set_attenuation
+    board_audio_stream_buffer
     board_audio_stream_close
     board_audio_stream_consumed
     board_audio_stream_open

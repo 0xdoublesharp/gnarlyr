@@ -5,6 +5,7 @@
 
 #include "device/msc.h"
 #include "device/usb_audio.h"
+#include "device/usb_audio_hid.h"
 #include "device/usb_device.h"
 
 enum {
@@ -50,6 +51,10 @@ typedef struct UsbPort {
     UsbDevice device;
     Msc *msc;
     UsbAudio *audio;
+    UsbAudioHid hid;
+    uint32_t hid_sent_ms;
+    uint32_t (*feedback)(uint16_t tick);
+    void (*format_changed)(void);
     void (*receive_stream)(const uint8_t *bytes, uint32_t length);
 } UsbPort;
 

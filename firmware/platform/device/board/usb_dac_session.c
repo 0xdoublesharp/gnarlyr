@@ -22,15 +22,14 @@ enum {
     NOTICE_CAPACITY = 96,
     NUMBER_CAPACITY = 12,
     HZ_PER_KHZ = 1000,
-    BITS_PER_BYTE = 8,
-    VOLUME_REPEAT_DELAY_MS = 400,
-    VOLUME_REPEAT_MS = 80
+    BITS_PER_BYTE = 8
 };
 
 static UsbShared *shared;
 static UsbPort port;
 static UsbAudio audio;
 static UsbAudioSink sink;
+static uint32_t stream_ring[6000];
 static uint32_t open_rate;
 static uint32_t last_packet_ms;
 static uint32_t received_packets;
@@ -38,9 +37,16 @@ static UsbForced forced;
 static uint32_t back_pressed_ms;
 static bool receiving;
 static bool playing;
-static bool holding_volume;
-static int held_step;
-static uint32_t next_repeat_ms;
+
+static void start_output(void)
+{
+    if (!playing && receiving && usb_audio_sink_primed(&sink)) {
+        playing = true;
+        usb_audio_sink_set_playing(&sink, true);
+        playing = board_audio_stream_play();
+        usb_audio_sink_set_playing(&sink, playing);
+    }
+}
 
 static void receive_stream(const uint8_t *bytes, uint32_t length)
 {
@@ -48,7 +54,16 @@ static void receive_stream(const uint8_t *bytes, uint32_t length)
     if (receiving) {
         last_packet_ms = hal_clock_milliseconds();
         usb_audio_sink_write(&sink, bytes, length, board_audio_stream_consumed());
+        start_output();
     }
+}
+
+static uint32_t feedback(uint16_t tick)
+{
+    if (!playing || sink.rate != audio.rate) {
+        return (uint32_t)(((uint64_t)audio.rate << 16) / 8000);
+    }
+    return usb_audio_sink_feedback(&sink, board_audio_stream_consumed(), tick);
 }
 
 static void serve_usb(void)
@@ -107,6 +122,7 @@ static void stop_output(void)
         board_audio_stream_pause();
         playing = false;
     }
+    usb_audio_sink_set_asynchronous(&sink, usb_audio_asynchronous(&audio));
     usb_audio_sink_start(&sink, audio.rate, usb_audio_sample_bytes(&audio));
 }
 
@@ -136,9 +152,8 @@ static void keep_output(void)
 {
     if (playing && hal_clock_milliseconds() - last_packet_ms > STREAM_IDLE_MS) {
         stop_output();
-    } else if (!playing && receiving && usb_audio_sink_primed(&sink)) {
-        playing = board_audio_stream_play();
-        usb_audio_sink_set_playing(&sink, playing);
+    } else {
+        start_output();
     }
 }
 
@@ -151,33 +166,6 @@ static void step_volume(int step)
     shared->dac_volume = headphone_audio_limit(hal_audio_headphones(), (uint8_t)level);
     hal_audio_set_volume(shared->dac_volume);
     show_state();
-}
-
-static void start_holding(int step, uint32_t now_ms)
-{
-    step_volume(step);
-    holding_volume = true;
-    held_step = step;
-    next_repeat_ms = now_ms + VOLUME_REPEAT_DELAY_MS;
-}
-
-static void repeat_volume(void)
-{
-    uint32_t now_ms = hal_clock_milliseconds();
-    if (holding_volume && (int32_t)(now_ms - next_repeat_ms) >= 0) {
-        step_volume(held_step);
-        next_repeat_ms = now_ms + VOLUME_REPEAT_MS;
-    }
-}
-
-static void follow_volume_key(HalKeyTransition key)
-{
-    int step = key.key == KEY_VOLUME_UP ? 1 : -1;
-    if (key.pressed) {
-        start_holding(step, key.time_ms);
-    } else if (holding_volume && held_step == step) {
-        holding_volume = false;
-    }
 }
 
 static bool back_released_after_hold(HalKeyTransition key)
@@ -196,8 +184,9 @@ static bool user_left(void)
         if (key.key == KEY_BACK && back_released_after_hold(key)) {
             return true;
         }
-        if (key.key == KEY_VOLUME_UP || key.key == KEY_VOLUME_DOWN) {
-            follow_volume_key(key);
+        int step = usb_audio_hid_key(&port.hid, key.key, key.pressed, key.time_ms);
+        if (step != 0) {
+            step_volume(step);
         }
     }
     return false;
@@ -217,7 +206,7 @@ static bool serve(void)
         board_display_service();
         follow_host();
         keep_output();
-        repeat_volume();
+        usb_audio_hid_tick(&port.hid, hal_clock_milliseconds());
         uint32_t now = hal_clock_milliseconds();
         if (now - refreshed >= BATTERY_REFRESH_MS) {
             HalBattery battery = hal_power_battery();
@@ -233,6 +222,7 @@ static bool serve(void)
 
 static void start_session(void)
 {
+    board_audio_stream_buffer(stream_ring, sizeof stream_ring / (2 * sizeof stream_ring[0]));
     uint32_t frames = 0;
     uint32_t *ring = board_audio_stream_ring(&frames);
     usb_audio_sink_init(&sink, ring, frames);
@@ -242,10 +232,11 @@ static void start_session(void)
     forced = (UsbForced){0};
     receiving = false;
     playing = false;
-    holding_volume = false;
     port = (UsbPort){.link = shared->link,
                      .bulk_packet = USB_PACKET_SIZE,
                      .audio = &audio,
+                     .feedback = feedback,
+                     .format_changed = follow_host,
                      .receive_stream = receive_stream};
     usb_audio_init(&audio, &port.device);
     if (!shared->dac_volume_known) {

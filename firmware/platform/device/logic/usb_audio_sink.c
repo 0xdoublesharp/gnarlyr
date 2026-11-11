@@ -19,8 +19,11 @@ void usb_audio_sink_start(UsbAudioSink *sink, uint32_t rate, uint8_t sample_byte
 {
     sink->written = 0;
     sink->cleared = 0;
-    sink->target = rate / TARGET_DIVISOR;
-    sink->guard = rate / GUARD_DIVISOR;
+    sink->rate = rate;
+    sink->feedback_rate = (uint32_t)(((uint64_t)rate << 16) / 8000);
+    sink->feedback_started = false;
+    sink->target = rate / (sink->asynchronous ? 200 : TARGET_DIVISOR);
+    sink->guard = rate / (sink->asynchronous ? 1000 : GUARD_DIVISOR);
     sink->sample_bytes = sample_bytes;
     sink->playing = false;
     StreamDriftLimits limits = {(int32_t)sink->target, (int32_t)(rate / WINDOW_DIVISOR),
@@ -90,7 +93,7 @@ static bool fill_out_of_range(const UsbAudioSink *sink, uint32_t frames, uint32_
 
 static int32_t adjustment(UsbAudioSink *sink, uint32_t consumed)
 {
-    if (!sink->playing) {
+    if (!sink->playing || sink->asynchronous) {
         return 0;
     }
     int32_t adjust = stream_drift_adjust(&sink->drift, (int32_t)(sink->written - consumed));
@@ -118,13 +121,49 @@ void usb_audio_sink_write(UsbAudioSink *sink, const uint8_t *bytes, uint32_t len
                           uint32_t consumed)
 {
     uint32_t frames = sink->sample_bytes == 0 ? 0 : length / (2u * sink->sample_bytes);
-    if (frames == 0) {
+    if (frames == 0 || sink->sample_bytes > 4 ||
+        frames + sink->target + sink->guard + 1 > sink->ring_frames) {
         return;
     }
     sink->stats.packets++;
     if (fill_out_of_range(sink, frames, consumed)) {
+        sink->stats.underruns += (int32_t)(sink->written - consumed) < 0 ? 1u : 0u;
+        sink->stats.overflows += (int32_t)(sink->written - consumed) >= 0 ? 1u : 0u;
         realign(sink, consumed);
     }
     write_frames(sink, bytes, frames, adjustment(sink, consumed));
     clear_ahead(sink);
+}
+
+void usb_audio_sink_set_asynchronous(UsbAudioSink *sink, bool asynchronous)
+{
+    sink->asynchronous = asynchronous;
+}
+
+uint32_t usb_audio_sink_feedback(UsbAudioSink *sink, uint32_t consumed, uint16_t tick)
+{
+    if (!sink->playing) {
+        sink->feedback_started = false;
+        return sink->feedback_rate;
+    }
+    if (!sink->feedback_started) {
+        sink->feedback_consumed = consumed;
+        sink->feedback_tick = tick;
+        sink->feedback_started = true;
+    }
+    uint16_t elapsed = (uint16_t)((tick - sink->feedback_tick) & 0x3FFF);
+    if (elapsed >= 1024) {
+        uint32_t measured =
+            (uint32_t)(((uint64_t)(consumed - sink->feedback_consumed) << 16) / elapsed);
+        uint32_t nominal = (uint32_t)(((uint64_t)sink->rate << 16) / 8000);
+        if (measured > nominal - nominal / 100 && measured < nominal + nominal / 100) {
+            sink->feedback_rate = measured;
+        }
+        sink->feedback_consumed = consumed;
+        sink->feedback_tick = tick;
+    }
+    int32_t error = (int32_t)(sink->written - consumed) - (int32_t)sink->target;
+    int32_t limit = (int32_t)(sink->feedback_rate / 1000);
+    int32_t correction = error < -limit / 8 ? -limit : error > limit / 8 ? limit : error * 8;
+    return (uint32_t)((int32_t)sink->feedback_rate - correction);
 }

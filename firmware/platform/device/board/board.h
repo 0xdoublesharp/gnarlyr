@@ -83,6 +83,7 @@ bool board_audio_converting(void);
 void board_audio_set_attenuation(uint8_t steps);
 bool board_audio_stream_open(uint32_t rate, void (*service)(void));
 uint32_t *board_audio_stream_ring(uint32_t *frames);
+void board_audio_stream_buffer(uint32_t *buffer, uint32_t frames);
 bool board_audio_stream_play(void);
 void board_audio_stream_pause(void);
 uint32_t board_audio_stream_consumed(void);
