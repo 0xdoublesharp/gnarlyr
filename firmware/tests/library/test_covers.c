@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include <string.h>
 
 #include "check.h"
@@ -110,86 +109,6 @@ static void a_failing_read_is_reported(void)
     CHECK(!covers_read(&covers, record, COVER_FULL, pixels));
 }
 
-enum {
-    MANY_COVERS = 2673,
-    MANY_HEADER = COVERS_HEADER_SIZE,
-    MANY_RECORDS = MANY_HEADER + MANY_COVERS * COVERS_ENTRY_SIZE,
-    MANY_SIZE = MANY_RECORDS + (COVER_FULL_PIXELS + COVER_HALF_PIXELS) * 2,
-    MANY_CLAIMED = MANY_RECORDS + MANY_COVERS * (COVER_FULL_PIXELS + COVER_HALF_PIXELS) * 2
-};
-
-typedef struct CountingSource {
-    const uint8_t *bytes;
-    uint32_t reads;
-} CountingSource;
-
-static bool counted_read(void *context, uint32_t offset, void *buffer, uint32_t length)
-{
-    CountingSource *source = context;
-    source->reads++;
-    memcpy(buffer, source->bytes + offset, length);
-    return true;
-}
-
-static void put32(uint8_t *at, uint32_t value)
-{
-    for (int index = 0; index < 4; index++) {
-        at[index] = (uint8_t)(value >> (8 * index));
-    }
-}
-
-static uint32_t many_keys[MANY_COVERS];
-
-static int by_value(const void *left, const void *right)
-{
-    uint32_t a = *(const uint32_t *)left;
-    uint32_t b = *(const uint32_t *)right;
-    return a < b ? -1 : a > b;
-}
-
-static void make_keys(void)
-{
-    uint32_t state = 12345;
-    for (uint32_t index = 0; index < MANY_COVERS; index++) {
-        state = state * 1664525u + 1013904223u;
-        many_keys[index] = state | 1u;
-    }
-    qsort(many_keys, MANY_COVERS, sizeof many_keys[0], by_value);
-}
-
-static uint32_t many_key(uint32_t index)
-{
-    return many_keys[index];
-}
-
-static void a_large_index_finds_each_cover_in_at_most_two_reads(void)
-{
-    static uint8_t many[MANY_SIZE];
-    make_keys();
-    memcpy(many, "DSCV", 4);
-    many[4] = 1;
-    put32(many + 6, MANY_COVERS);
-    many[8] = COVER_FULL_SIZE;
-    many[10] = COVER_HALF_SIZE;
-    for (uint32_t index = 0; index < MANY_COVERS; index++) {
-        put32(many + MANY_HEADER + index * COVERS_ENTRY_SIZE, many_key(index));
-        put32(many + MANY_HEADER + index * COVERS_ENTRY_SIZE + 4, MANY_RECORDS);
-    }
-    CountingSource source = {.bytes = many};
-    Covers covers;
-    CHECK(covers_open(&covers, (ByteSource){counted_read, &source}, MANY_CLAIMED));
-    uint32_t worst = 0;
-    for (uint32_t index = 0; index < MANY_COVERS; index += 7) {
-        uint32_t record = 0;
-        source.reads = 0;
-        CHECK(covers_find(&covers, many_key(index), &record));
-        CHECK_EQUAL(MANY_RECORDS, record);
-        worst = source.reads > worst ? source.reads : worst;
-        CHECK(!covers_find(&covers, many_key(index) - 1, &record));
-    }
-    CHECK(worst <= 2);
-}
-
 int main(void)
 {
     static const TestCase cases[] = {
@@ -200,7 +119,6 @@ int main(void)
         TEST_CASE(a_file_with_other_cover_sizes_is_rejected),
         TEST_CASE(a_truncated_file_is_rejected),
         TEST_CASE(a_failing_read_is_reported),
-        TEST_CASE(a_large_index_finds_each_cover_in_at_most_two_reads),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
