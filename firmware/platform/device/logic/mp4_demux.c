@@ -308,6 +308,7 @@ static bool read_timing(FlacInput input, const Mp4Box *stts, Mp4Track *track, ui
     uint32_t count;
     uint32_t delta;
     uint64_t duration = 0;
+    uint32_t samples_left = track->sample_count;
     if (stts->end - stts->body < 8 || !read_word(input, stts->body + 4, &entries) || entries == 0 ||
         entries > STTS_SCAN_LIMIT || entries > (stts->end - stts->body - 8) / 8) {
         return false;
@@ -316,12 +317,13 @@ static bool read_timing(FlacInput input, const Mp4Box *stts, Mp4Track *track, ui
     for (uint32_t index = 0; index < entries; index++) {
         if (!read_word(input, stts->body + 8 + 8 * index, &count) ||
             !read_word(input, stts->body + 12 + 8 * index, &delta) || delta == 0 ||
-            duration > UINT64_MAX - (uint64_t)count * delta) {
+            count > samples_left || duration > UINT64_MAX - (uint64_t)count * delta) {
             return false;
         }
         duration += (uint64_t)count * delta;
+        samples_left -= count;
     }
-    return track->frame_samples != 0 &&
+    return samples_left == 0 && track->frame_samples != 0 &&
            sample_units(duration, scale, track->sample_rate, &track->total_samples);
 }
 
@@ -515,9 +517,8 @@ bool mp4_probe(FlacInput input, Mp4Track *track)
     }
     stbl = mdia;
     if (!find_path(input, &stbl, TABLE_PATH, 2) || !collect_tables(input, &stbl, &tables) ||
-        !read_codec(input, &tables.box[0], track) ||
-        !read_timing(input, &tables.box[1], track, time_scale(input, &mdia, MDHD)) ||
-        !read_tables(input, &tables, track)) {
+        !read_codec(input, &tables.box[0], track) || !read_tables(input, &tables, track) ||
+        !read_timing(input, &tables.box[1], track, time_scale(input, &mdia, MDHD))) {
         return false;
     }
     track->valid_samples = track->total_samples;
