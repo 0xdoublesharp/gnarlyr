@@ -354,6 +354,68 @@ static void a_resume_after_power_off_starts_twenty_seconds_back(void)
     CHECK_EQUAL(42000 - RESUME_REWIND_COLD_MUSIC_MS, fake_hal_audio_play_start());
 }
 
+static void open_settings_row(int from_bottom, const char *title)
+{
+    boot_with(settings_defaults(), false);
+    start_playing();
+    hold(KEY_BACK, 1000);
+    tap(KEY_VOLUME_UP);
+    tap(KEY_PLAY);
+    CHECK(strcmp(app_screen_title(), "Settings") == 0);
+    for (int row = 0; row < from_bottom; row++) {
+        tap(KEY_VOLUME_DOWN);
+    }
+    tap(KEY_PLAY);
+    CHECK(strcmp(app_screen_title(), title) == 0);
+}
+
+static Settings saved_settings(void)
+{
+    SettingsStore saved;
+    settings_store_load(&saved);
+    return saved.settings;
+}
+
+static void the_rewind_row_turns_rewinding_off(void)
+{
+    open_settings_row(3, "Rewind on resume");
+    tap(KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    CHECK(strcmp(app_screen_title(), "Settings") == 0);
+    CHECK(!saved_settings().rewind_on_resume);
+    tap(KEY_POWER);
+    fake_hal_audio_set_position(42000);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    wait_ms(61000);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    CHECK_EQUAL(42000, fake_hal_audio_play_start());
+}
+
+static void the_safe_volume_row_turns_the_cap_off(void)
+{
+    open_settings_row(2, "Safe start volume");
+    for (int option = 0; option < 3; option++) {
+        tap(KEY_VOLUME_DOWN);
+    }
+    tap(KEY_PLAY);
+    Settings saved = saved_settings();
+    CHECK(!saved.safe_start_volume);
+    CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME, saved.safe_start_volume_level);
+}
+
+static void the_safe_volume_row_picks_a_level(void)
+{
+    open_settings_row(2, "Safe start volume");
+    tap(KEY_VOLUME_UP);
+    tap(KEY_VOLUME_UP);
+    tap(KEY_PLAY);
+    Settings saved = saved_settings();
+    CHECK(saved.safe_start_volume);
+    CHECK_EQUAL(36, saved.safe_start_volume_level);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -374,6 +436,9 @@ int main(void)
         TEST_CASE(resuming_after_a_minute_jumps_back_three_seconds),
         TEST_CASE(rewind_off_resumes_where_it_paused),
         TEST_CASE(a_resume_after_power_off_starts_twenty_seconds_back),
+        TEST_CASE(the_rewind_row_turns_rewinding_off),
+        TEST_CASE(the_safe_volume_row_turns_the_cap_off),
+        TEST_CASE(the_safe_volume_row_picks_a_level),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
