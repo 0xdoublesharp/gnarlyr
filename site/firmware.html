@@ -173,18 +173,19 @@
 <h3>Audio-file checks</h3>
 <p>Files can contain damaged or contradictory information. These checks reject invalid data before it is used to locate or decode audio.</p>
 <ul class="detail-list">
-<li><strong>FLAC headers agree with the audio.</strong> Metadata order, lengths and sample ranges are checked. Frame sample rates, bit depths and block sizes must match the stream’s declared limits.</li>
+<li><strong>FLAC headers agree with the audio.</strong> Metadata order, lengths and sample ranges are checked, including tag headers and frame numbering. Frames must match the declared rate, bit depth and block limits, and stay within the file’s declared sample count.</li>
 <li><strong>M4A and M4B stay within their file boundaries.</strong> Sample tables, chunk descriptions, timing and AAC/ALAC configuration are checked. Truncated records and unsupported decoder configurations are rejected.</li>
 </ul>
 <h3>Library and navigation</h3>
 <ul class="detail-list">
+<li><strong>CUE albums keep valid track boundaries.</strong> The player and computer indexer ignore invalid track numbers, malformed times and starts that repeat or go backwards. Valid neighboring tracks remain in order. <a href="docs.html#cue-albums">Learn how to use CUE albums.</a></li>
 <li><strong>Rescans restore the intended song.</strong> Saved sessions check the library’s contents before reusing track IDs, avoiding a wrong song or stale CUE position after a database change.</li>
 <li><strong>Checked language-pack copies.</strong> USB tools validate a pack against the installed firmware, verify copied bytes and ignore macOS metadata files when listing packs. Returning to English also handles translated setting labels.</li>
 <li><strong>Safer metadata parsing.</strong> Tag readers preserve Unicode text during whitespace trimming and bound WMA content and MP4 duration reads. The MP3 reader rejects malformed APE footer lengths before locating the audio endpoint.</li>
 <li><strong>Storage failures stay visible.</strong> Library scans preserve storage errors through the final index write instead of replacing them with a different failure.</li>
 <li><strong>Search and labels keep their place.</strong> Searches cover long paths across metadata chunks and preserve the selected song. Cancelled searches do not restore stale results. Label saves protect a newer data bank if a read temporarily fails.</li>
 <li><strong>Lyrics handle failed reads.</strong> Lyrics use the correct storage path and stop displaying cached text when a line read fails, avoiding partial or stale lines.</li>
-<li><strong>Books resume inside nested folders.</strong> Selecting a book continues its saved chapter and position. Desktop indexing preserves its chapters, with a whole-book fallback for unreadable chapter data.</li>
+<li><strong>Book positions handle long durations.</strong> Selecting a book continues its saved chapter and position inside nested folders. End-of-book checks avoid arithmetic overflow on very long recordings. Desktop indexing preserves chapters, with a whole-book fallback for unreadable chapter data.</li>
 <li><strong>Navigation returns cleanly.</strong> Mixtape loading finishes before playback opens, and seeking keeps control of its cursor and confirmation keys. Returning to Now Playing, Lyrics or Up Next reuses the existing screen. Hold Back to cancel work and return Home.</li>
 </ul>
 <h3>USB, display and power</h3>
@@ -192,6 +193,7 @@
 <li><strong>USB-C detection follows the cable.</strong> USB power control uses the correct supply settings as the cable connects and disconnects.</li>
 <li><strong>Continuous button-lock hold in source.</strong> If either Play or Power is released and pressed again before the combination completes, the hold timer restarts. A completed hold toggles the lock only once until both keys are released.</li>
 <li><strong>Power timers stay within their range.</strong> New activity resets wake timers without expiring screen timeout or auto off immediately. Screen, sleep and auto-off delays are bounded so large values cannot break clock comparisons.</li>
+<li><strong>Scrolling titles handle extreme sizes.</strong> Text scrolling uses checked width and timing calculations, including very wide titles and short animation cycles.</li>
 <li><strong>Charging views keep the right code active.</strong> The charging screen no longer continues updating an interface module that has been replaced.</li>
 <li><strong>Power states stay distinct.</strong> The USB screen shows Storage or DAC mode, a battery estimate and the relevant drive, eject, audio-format or volume details. Charging, charged and USB-powered states stay separate; a USB supply reading is not shown as battery voltage.</li>
 <li><strong>The interface does less unnecessary work.</strong> Bounded progress redraws, idle sleeping, frame pacing and clock coasting reduce processor work.</li>

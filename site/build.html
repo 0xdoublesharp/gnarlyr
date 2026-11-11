@@ -81,9 +81,11 @@
 <h3>Reversible display and audio previews</h3>
 <p>The settings source previews the highlighted Accent Color, Brightness, Text size, Orientation, Gain, Output, ReplayGain or Prevent clipping value while you browse. Play saves the choice; Back, leaving the picker or switching off restores the saved value. Accent Color affects Graphite’s highlights and decorative details.</p>
 <h3>Button-lock input handling</h3>
-<p>The key-lock source requires an uninterrupted Play+Power hold. Releasing and pressing either key again before completion resets the timer; after a successful toggle, both keys must be released before another hold can toggle it. This corrects interrupted presses being counted as one continuous hold.</p>
+<p>The key-lock source requires an uninterrupted Play+Power hold. Releasing and pressing either key again before completion resets the timer; after a successful toggle, both keys must be released before another hold can toggle it. This corrects interrupted presses being counted as one continuous hold. Hold, repeat and multiple-click delays are capped at the clock-comparison limit before use.</p>
 <h3>Audio processing and diagnostics</h3>
-<p>Audio processing remains available as interface modules change. A separate 8 KiB code bank holds sample-rate conversion and M4A/M4B parsing. Diagnostic counts exclude intentionally muted DMA pauses, so a normal pause is not reported as missing audio. Frame counters stop at their maximum instead of wrapping, and large duration and bitrate calculations use checked arithmetic.</p>
+<p>Audio processing remains available as interface modules change. A separate 8 KiB code bank holds sample-rate conversion and M4A/M4B parsing. Diagnostic counts exclude intentionally muted DMA pauses, so a normal pause is not reported as missing audio. Frame counters stop at their maximum instead of wrapping, and large duration and bitrate calculations use checked arithmetic. The debug event ring keeps its write position separately from its event count, preserving record order when the counter reaches its limit.</p>
+<h3>Matching CUE parsing on the player and computer</h3>
+<p>A CUE sheet splits one audio file into track ranges. Both parsers accept track numbers 1–99, require seconds below 60 and frame positions below 75, and reject extra text after a timestamp. Track starts must increase; invalid entries are dropped while valid neighbors remain. FLAC checks also validate ID3 headers, frame numbering and ranges against the declared total sample count.</p>
 </section>
 <section class="doc-section" id="codecs" aria-labelledby="codecs-title">
 <h2 id="codecs-title">Vorbis, Opus and the audio pipeline.</h2>
