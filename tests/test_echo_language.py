@@ -343,6 +343,29 @@ class LanguageCommands(VolumeCase):
                 self.assertEqual(host.ejected, [])
                 self.assertFalse((self.debug / "run.txt").exists())
 
+    def check_flags_with_mask(self, mask, cases):
+        for flags, accepted in cases:
+            with self.subTest(mask=mask, flags=flags), self.replay_gain_snapshot(mask=mask):
+                (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(settings("en", 14, flags))
+                tool, host = self.live_tool("en", version=14, flags=flags)
+                if accepted:
+                    self.assertEqual(tool.language_list()["selected"], "en")
+                else:
+                    with self.assertRaises(echo_debug.DebugError) as raised:
+                        tool.language_list()
+                    self.assertEqual(raised.exception.code, "language_settings_invalid")
+
+    def test_a_layout_with_battery_percent_accepts_bit_3_and_still_rejects_higher_bits(self):
+        self.check_flags_with_mask("0xF0u", ((8, True), (13, True), (16, False), (128, False)))
+
+    def test_a_layout_with_the_usb_answer_accepts_bits_4_and_5_but_not_answer_3_or_bit_3(self):
+        self.check_flags_with_mask("0xC8u", ((16, True), (32, True), (37, True), (48, False),
+                                             (8, False), (64, False), (128, False)))
+
+    def test_a_layout_with_battery_percent_and_the_usb_answer_accepts_both(self):
+        self.check_flags_with_mask("0xC0u", ((24, True), (45, True), (56, False), (64, False),
+                                             (128, False)))
+
     def test_older_language_settings_require_the_reserved_byte_to_stay_zero(self):
         for version in (12, 13):
             for flags in (0, 1, 4, 255):
@@ -357,7 +380,7 @@ class LanguageCommands(VolumeCase):
                         self.assertEqual(raised.exception.code, "language_settings_invalid")
 
     def test_future_or_changed_replay_gain_layouts_fail_closed(self):
-        for options in ({"source_version": 15}, {"mask": "0xF0u"}, {"extra_mode": True}):
+        for options in ({"source_version": 15}, {"mask": "0xE0u"}, {"extra_mode": True}):
             with self.subTest(options=options), self.replay_gain_snapshot(**options):
                 tool, host = self.live_tool()
                 with self.assertRaises(echo_debug.DebugError) as raised:
