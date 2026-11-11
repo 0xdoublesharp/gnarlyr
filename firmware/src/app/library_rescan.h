@@ -7,5 +7,5 @@
 extern const char LIBRARY_SCRATCH_PATH[];
 extern const char RESCAN_TIMES_PATH[];
 
-RescanOutcome library_rescan_run(RescanProgress progress);
+RescanOutcome library_rescan_run(RescanProgress progress, uint32_t stops);
 const char *library_rescan_message(RescanOutcome outcome, char *text, uint32_t capacity);

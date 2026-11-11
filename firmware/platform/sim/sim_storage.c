@@ -23,6 +23,7 @@ typedef struct SimStorage {
     const char *card_directory;
     const char *system_directory;
     FILE *files[OPEN_FILE_CAPACITY];
+    char file_paths[OPEN_FILE_CAPACITY][PATH_CAPACITY];
     DIR *dirs[OPEN_DIR_CAPACITY];
     char dir_paths[OPEN_DIR_CAPACITY][PATH_CAPACITY];
 } SimStorage;
@@ -94,6 +95,7 @@ bool hal_file_open(HalFile *file, const char *path)
         return false;
     }
     storage.files[slot] = handle;
+    snprintf(storage.file_paths[slot], PATH_CAPACITY, "%s", path);
     *file = (HalFile){.handle = slot, .size = (uint32_t)size};
     return true;
 }
@@ -169,6 +171,12 @@ bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes, uin
     bool written =
         fseek(handle, (long)offset, SEEK_SET) == 0 && fwrite(bytes, 1, length, handle) == length;
     return fclose(handle) == 0 && written;
+}
+
+bool hal_file_write_open(HalFile file, uint32_t offset, const void *bytes, uint32_t length)
+{
+    return file_of(file) != NULL &&
+           hal_file_write_at(storage.file_paths[file.handle], offset, bytes, length);
 }
 
 HalVolume hal_file_volume(void)

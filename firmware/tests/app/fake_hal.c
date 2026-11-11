@@ -26,7 +26,7 @@ enum {
     PROBE_CALL_CAPACITY = 32,
     WRITTEN_CAPACITY = 1100,
     PATH_CAPACITY = 260,
-    INTERNAL_CAPACITY = 4,
+    INTERNAL_CAPACITY = 6,
     SCREENSHOT_CAPACITY = 32 + HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE * 2
 };
 
@@ -1640,6 +1640,14 @@ bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes, uin
     fake.library_writes += strcmp(path, "/" FIRMWARE_DATA_DIRECTORY "/library.db") == 0;
     fake.covers_writes += strcmp(path, "/" FIRMWARE_DATA_DIRECTORY "/covers.bin") == 0;
     return true;
+}
+
+bool hal_file_write_open(HalFile file, uint32_t offset, const void *bytes, uint32_t length)
+{
+    if (file.handle < 0 || file.handle >= fake.file_count) {
+        return false;
+    }
+    return hal_file_write_at(fake.files[file.handle].path, offset, bytes, length);
 }
 
 HalHighRamTest hal_system_high_ram_test(void)

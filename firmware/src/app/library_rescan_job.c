@@ -2,11 +2,14 @@
 
 #include <stddef.h>
 
+#include "app/debug_loop.h"
 #include "cover_cache.h"
 #include "hal/clock.h"
 #include "hal/storage.h"
 #include "hal/system.h"
 #include "library_store.h"
+#include "music_check.h"
+#include "scan_guard.h"
 
 enum {
     TIME_LIST,
@@ -21,6 +24,8 @@ enum {
 
 static uint32_t spent[TIME_SLOTS * 2];
 static uint32_t pass;
+static ScanGuard guard;
+static HalFile guard_file;
 
 static void spend(uint32_t kind, uint32_t since)
 {
@@ -72,6 +77,39 @@ static void close_dir(void *context)
     hal_dir_close(&files->dir);
 }
 
+static void save_guard(void)
+{
+    (void)hal_file_write_open(guard_file, SCAN_GUARD_OFFSET, &guard, SCAN_GUARD_BYTES);
+}
+
+static void start_guard(uint32_t stops)
+{
+    guard = (ScanGuard){.magic = 0};
+    if (hal_file_open(&guard_file, MUSIC_CHECK_PATH)) {
+        (void)hal_file_read(guard_file, SCAN_GUARD_OFFSET, &guard, SCAN_GUARD_BYTES);
+    }
+    scan_guard_begin(&guard, stops);
+    save_guard();
+}
+
+static void end_guard(void)
+{
+    guard.running = 0;
+    save_guard();
+    hal_file_close(&guard_file);
+}
+
+static bool guard_allows(const char *path, uint32_t size)
+{
+    ScanGuardStep step = scan_guard_open(&guard, scan_guard_mark(path, size, pass == 1));
+    if (step == SCAN_GUARD_SAVE) {
+        save_guard();
+    } else if (step == SCAN_GUARD_SKIP) {
+        debug_loop_event(DEBUG_EVENT_STORAGE, guard.seen);
+    }
+    return step != SCAN_GUARD_SKIP;
+}
+
 static bool read_handle(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
     const HalFile *file = context;
@@ -89,6 +127,10 @@ static bool open_file(void *context, const char *path, ByteSource *source, uint3
     bool opened = hal_file_open(&files->file, path);
     spend(TIME_OPEN, since);
     if (!opened) {
+        return false;
+    }
+    if (!guard_allows(path, files->file.size)) {
+        hal_file_close(&files->file);
         return false;
     }
     *source = (ByteSource){.read = read_handle, .context = &files->file};
@@ -128,9 +170,7 @@ static void report(void *context, uint32_t files, uint32_t tracks)
 {
     RescanFiles *rescan = context;
     hal_system_keep_alive();
-    if (rescan->progress.tracks != NULL) {
-        rescan->progress.tracks(files, tracks);
-    }
+    rescan->progress.tracks(files, tracks);
 }
 
 static bool write_covers(void *context, uint32_t offset, const void *bytes, uint32_t length)
@@ -144,50 +184,39 @@ static void report_covers(void *context, uint32_t done, uint32_t total)
 {
     RescanFiles *rescan = context;
     hal_system_keep_alive();
-    if (rescan->progress.covers != NULL) {
-        rescan->progress.covers(done, total);
-    }
+    rescan->progress.covers(done, total);
 }
 
-static uint32_t reserved_size_of(const char *path)
+static ScanResult build_into(const ScanJob *scan, RescanFiles *files, CoverStats *stats)
 {
-    HalFile file;
-    if (!hal_file_open(&file, path)) {
-        return 0;
-    }
-    uint32_t size = file.size;
-    hal_file_close(&file);
-    return size;
-}
-
-static ScanResult build_covers(const ScanJob *scan, CoverStats *stats)
-{
-    RescanFiles *files = scan->files.context;
-    uint32_t capacity = reserved_size_of(COVER_CACHE_PATH);
-    *stats = (CoverStats){.albums = 0, .covers = 0, .reused = 0, .missing = 0};
-    if (capacity == 0) {
-        return SCAN_NO_ROOM;
-    }
     if (!hal_file_open(&files->library, LIBRARY_STORE_PATH)) {
         return SCAN_WRITE_FAILED;
     }
-    bool previous = hal_file_open(&files->covers, COVER_CACHE_PATH);
     CoverJob job = {
         .files = scan->files,
         .library = {read_handle, &files->library},
         .library_size = files->library.size,
         .sink = {write_covers, NULL},
-        .previous = {previous ? read_handle : NULL, &files->covers},
-        .capacity = capacity,
+        .previous = {read_handle, &files->covers},
+        .capacity = files->covers.size,
         .memory = scan->memory,
         .size = scan->size,
         .progress = {report_covers, files},
     };
     ScanResult result = cover_build(&job, stats);
-    if (previous) {
-        hal_file_close(&files->covers);
-    }
     hal_file_close(&files->library);
+    return result;
+}
+
+static ScanResult build_covers(const ScanJob *scan, CoverStats *stats)
+{
+    RescanFiles *files = scan->files.context;
+    *stats = (CoverStats){.albums = 0, .covers = 0, .reused = 0, .missing = 0};
+    if (!hal_file_open(&files->covers, COVER_CACHE_PATH)) {
+        return SCAN_NO_ROOM;
+    }
+    ScanResult result = files->covers.size > 0 ? build_into(scan, files, stats) : SCAN_NO_ROOM;
+    hal_file_close(&files->covers);
     return result;
 }
 
@@ -203,16 +232,19 @@ static void run_passes(const ScanJob *job, RescanOutcome *outcome)
     if (outcome->result == SCAN_OK) {
         pass = 1;
         since = hal_clock_microseconds();
-        outcome->cover_result = build_covers(job, &outcome->covers);
+        outcome->cover_result =
+            scan_guard_covers_allowed(&guard) ? build_covers(job, &outcome->covers) : SCAN_NO_ROOM;
         spend(TIME_TOTAL, since);
     }
     (void)hal_file_write(RESCAN_TIMES_PATH, spent, sizeof spent);
 }
 
-static RescanOutcome rescan_run(uint32_t capacity, HalFile scratch, RescanProgress progress)
+static RescanOutcome rescan_run(uint32_t capacity, HalFile scratch, RescanProgress progress,
+                                uint32_t stops)
 {
     static RescanFiles files;
     RescanOutcome outcome = {.result = SCAN_NO_MUSIC_ROOT, .cover_result = SCAN_OK};
+    start_guard(stops);
     files.scratch = scratch;
     files.progress = progress;
     uint32_t size = 0;
@@ -231,6 +263,7 @@ static RescanOutcome rescan_run(uint32_t capacity, HalFile scratch, RescanProgre
         .progress = {report, &files},
     };
     run_passes(&job, &outcome);
+    end_guard();
     hal_file_close(&files.scratch);
     return outcome;
 }

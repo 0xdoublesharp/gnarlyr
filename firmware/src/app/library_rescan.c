@@ -38,7 +38,7 @@ static bool music_root_exists(void)
     return true;
 }
 
-RescanOutcome library_rescan_run(RescanProgress progress)
+RescanOutcome library_rescan_run(RescanProgress progress, uint32_t stops)
 {
     HalFile scratch;
     RescanOutcome outcome = {.result = SCAN_NO_MUSIC_ROOT, .cover_result = SCAN_OK};
@@ -60,7 +60,7 @@ RescanOutcome library_rescan_run(RescanProgress progress)
         outcome.result = SCAN_NO_CODE;
         return outcome;
     }
-    outcome = entry->run(capacity, scratch, progress);
+    outcome = entry->run(capacity, scratch, progress, stops);
     hal_system_return_scratch();
     return outcome;
 }
