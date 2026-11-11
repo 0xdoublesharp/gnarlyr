@@ -22,6 +22,8 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 - Settings → Clock format selects 12-hour time with AM/PM or 24-hour time for Clock and the status bar, including Calendar. The choice survives restarts.
 - Four named headphone profiles apply attenuation-only trim, left/right balance and a volume ceiling to music and USB DAC output. Settings → Headphones selects and edits them; verified alternating-bank saves keep profiles on internal storage without changing settings v15. Switching to less attenuation lowers the saved mode volumes first. Analog Gain is unchanged; physical output checks remain pending.
+- Crossfeed (Off, Low, Medium, High) blends each channel into the other ear for headphones, as a Settings default and per headphone profile. Profiles saved by earlier builds load with crossfeed off. Stereo music and spoken word only; USB DAC output is unchanged.
+- Skip silence shortens pauses in audiobooks and podcasts to a quarter second, and Speech boost evens out their volume without going above full scale. Positions, bookmarks and chapters stay exact. Native tests and emulator scenarios cover them; nothing has been heard on the player yet.
 - Five themes with live preview, configurable playback tap/hold actions, shared icons and cassette artwork.
 - Flat retro-future headers and focus accents, clearer Listen and charging layouts, a larger battery readout and an honest distinction between USB power, charging and full.
 - Theme and EQ browsing preview without saving. Custom EQ has a response curve and staged audible editing; leaving a preview restores the saved choice.
