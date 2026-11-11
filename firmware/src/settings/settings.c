@@ -130,13 +130,20 @@ bool settings_home_unpack(const uint8_t *packed, int item_count, uint8_t *order,
     int stored = home_stored_count(packed);
     unsigned mask = packed[HOME_HIDDEN_PACKED] | (unsigned)packed[HOME_HIDDEN_PACKED + 1] << 8;
     unsigned hideable = ((1u << stored) - 1) & ~(1u << SETTINGS_HOME_SETTINGS_ITEM);
-    if (stored < SETTINGS_HOME_FIRST_ITEM_COUNT || stored > item_count || (mask & ~hideable) != 0) {
+    if (stored < SETTINGS_HOME_FIRST_ITEM_COUNT || (mask & ~hideable) != 0) {
         return false;
     }
-    for (int index = 0; index < item_count; index++) {
-        order[index] = (uint8_t)(index < stored ? home_item(packed, index) : index);
+    int count = 0;
+    for (int index = 0; index < stored; index++) {
+        uint8_t item = home_item(packed, index);
+        if (item < item_count) {
+            order[count++] = item;
+        }
     }
-    *hidden = (uint16_t)mask;
+    for (; count < item_count; count++) {
+        order[count] = (uint8_t)count;
+    }
+    *hidden = (uint16_t)(mask & ((1u << item_count) - 1));
     return true;
 }
 

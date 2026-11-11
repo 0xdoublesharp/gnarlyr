@@ -1127,16 +1127,39 @@ static void a_saved_home_order_and_hidden_mask_are_applied_on_load(void)
     CHECK_EQUAL(1u << 2 | 1u << 8, decoded.home_hidden);
 }
 
-static void a_home_order_from_a_build_with_more_items_is_rejected(void)
+static void an_order_from_a_build_with_more_items_drops_the_unknown_ones(void)
 {
-    static const uint8_t ORDER[] = {9, 0, 1, 2, 3, 4, 5, 6, 7, 8};
+    static const uint8_t ORDER[] = {9, 4, 0, 1, 2, 3, 5, 6, 7, 8};
+    static const uint8_t KNOWN[] = {4, 0, 1, 2, 3, 5, 6, 7, 8};
     uint8_t packed[SETTINGS_HOME_PACKED_SIZE];
-    pack_home(packed, ORDER, 10, 0);
+    pack_home(packed, ORDER, 10, 1u << 9 | 1u << 2);
     uint8_t order[SETTINGS_HOME_ORDER_SLOTS];
     uint16_t hidden = 0;
-    CHECK(!settings_home_unpack(packed, SETTINGS_HOME_ITEM_COUNT, order, &hidden));
+    CHECK(settings_home_unpack(packed, SETTINGS_HOME_ITEM_COUNT, order, &hidden));
+    CHECK(memcmp(KNOWN, order, sizeof KNOWN) == 0);
+    CHECK_EQUAL(1u << 2, hidden);
     CHECK(settings_home_unpack(packed, 10, order, &hidden));
     CHECK(memcmp(ORDER, order, sizeof ORDER) == 0);
+    CHECK_EQUAL(1u << 9 | 1u << 2, hidden);
+}
+
+static void a_settings_file_from_a_build_with_more_home_items_keeps_every_other_setting(void)
+{
+    static const uint8_t ORDER[] = {6, 9, 0, 1, 2, 3, 4, 5, 7, 8};
+    static const uint8_t KNOWN[] = {6, 0, 1, 2, 3, 4, 5, 7, 8};
+    Settings original = extension_settings();
+    original.home_hidden = 0;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&original, bytes);
+    pack_home(bytes + EXTENSION_FIELD + 4, ORDER, 10, 1u << 9 | 1u << 7);
+    rewrite_checksum(bytes);
+    Settings decoded = settings_defaults();
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK(memcmp(KNOWN, decoded.home_order, sizeof KNOWN) == 0);
+    CHECK_EQUAL(1u << 7, decoded.home_hidden);
+    CHECK_EQUAL(original.volume, decoded.volume);
+    CHECK_EQUAL(original.track_transition, decoded.track_transition);
+    CHECK_EQUAL(original.transition_tenths, decoded.transition_tenths);
 }
 
 static void an_order_saved_with_fewer_items_gains_the_new_ones_at_the_end_visible(void)
@@ -1207,7 +1230,8 @@ int main(void)
         TEST_CASE(each_invalid_extension_value_is_rejected_without_mutating_the_settings),
         TEST_CASE(every_item_but_settings_may_be_hidden),
         TEST_CASE(a_saved_home_order_and_hidden_mask_are_applied_on_load),
-        TEST_CASE(a_home_order_from_a_build_with_more_items_is_rejected),
+        TEST_CASE(an_order_from_a_build_with_more_items_drops_the_unknown_ones),
+        TEST_CASE(a_settings_file_from_a_build_with_more_home_items_keeps_every_other_setting),
         TEST_CASE(an_order_saved_with_fewer_items_gains_the_new_ones_at_the_end_visible),
         TEST_CASE(a_ten_item_build_may_hide_its_tenth_item_but_never_settings),
         TEST_CASE(a_hidden_item_the_saving_build_did_not_have_is_rejected),

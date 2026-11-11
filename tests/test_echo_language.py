@@ -404,17 +404,18 @@ class LanguageCommands(VolumeCase):
                 return False
             return True
 
-    def test_a_home_order_follows_the_items_of_the_installed_build(self):
+    def test_a_home_order_follows_the_firmware_rule_for_any_item_count(self):
         nine = [8, 7, 6, 5, 4, 3, 2, 1, 0]
         ten = [9, 0, 1, 2, 3, 4, 5, 6, 7, 8]
         self.assertTrue(self.home_order_verifies(nine, 1 << 2))
-        self.assertFalse(self.home_order_verifies(ten))
+        self.assertTrue(self.home_order_verifies(ten, 1 << 9))
         self.assertFalse(self.home_order_verifies(nine, 1 << 9))
         self.assertTrue(self.home_order_verifies(nine, 1 << 2, home_items=10))
         self.assertTrue(self.home_order_verifies(ten, 1 << 9, home_items=10))
         self.assertFalse(self.home_order_verifies(nine, 1 << 9, home_items=10))
         self.assertFalse(self.home_order_verifies(ten, 1 << 3, home_items=10))
         self.assertFalse(self.home_order_verifies([7, 6, 5, 4, 3, 2, 1, 0], home_items=10))
+        self.assertFalse(self.home_order_verifies([0, 1, 2, 3, 4, 5, 6, 7, 7]))
 
     def test_an_unexpected_home_layout_fails_closed(self):
         with self.current_snapshot(home_items=11):

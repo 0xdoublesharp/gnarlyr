@@ -102,7 +102,7 @@ class Snapshot:
                       if sorted(order[:count]) == list(range(count)) and not any(order[count:])), default=0)
         hidden = block[9] | block[10] << 8
         hideable = (1 << stored) - 1 & ~(1 << self.home_settings_item)
-        return HOME_FIRST_ITEMS <= stored <= self.home_items and hidden & ~hideable == 0
+        return stored >= HOME_FIRST_ITEMS and hidden & ~hideable == 0
 
     def settings_flags_valid(self, version, flags):
         return flags == 0 if version < 14 else flags & 0xF8 == 0 and flags & 3 < 3
