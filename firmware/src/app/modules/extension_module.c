@@ -1,5 +1,6 @@
 #include "debug_runner.h"
 #include "extension_entry.h"
+#include "hal/clock.h"
 #include "hal/storage.h"
 #include "screen_modules.h"
 
@@ -18,4 +19,5 @@ const ExtensionModuleEntry EXTENSION_MODULE_ENTRY = {
     .art_draw = home_art_draw,
     .art_backdrop = home_art_draw_backdrop,
     .file_remove = hal_file_remove,
+    .clock_set = hal_clock_set_wall,
 };

@@ -106,3 +106,9 @@ bool hal_file_remove(const char *path)
     const ExtensionModuleEntry *code = extension();
     return code != NULL && code->file_remove(path);
 }
+
+bool hal_clock_set_wall(HalWallTime time)
+{
+    const ExtensionModuleEntry *code = extension();
+    return code != NULL && code->clock_set(time);
+}

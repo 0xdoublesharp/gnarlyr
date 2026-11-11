@@ -56,22 +56,22 @@ enum {
     SETTINGS_REPEAT_INDEX = 2,
     SETTINGS_SLEEP_INDEX = 4,
     SETTINGS_TIMEOUT_INDEX = 6,
-    SETTINGS_BRIGHTNESS_INDEX = 8,
-    SETTINGS_COLOR_INDEX = 9,
-    SETTINGS_TEXT_SIZE_INDEX = 10,
-    SETTINGS_ORIENTATION_INDEX = 11,
-    SETTINGS_SKIP_INDEX = 12,
-    SETTINGS_GAIN_INDEX = 13,
-    SETTINGS_EQUALIZER_INDEX = 15,
-    SETTINGS_CUSTOM_EQ_INDEX = 16,
-    SETTINGS_REPLAY_GAIN_INDEX = 17,
-    SETTINGS_CLIPPING_INDEX = 18,
-    SETTINGS_START_INDEX = 19,
-    SETTINGS_RESCAN_INDEX = 20,
-    SETTINGS_USB_MODE_INDEX = 21,
-    SETTINGS_THEME_INDEX = 22,
-    SETTINGS_BATTERY_PERCENT_INDEX = 23,
-    SETTINGS_USB_ANSWER_INDEX = 27,
+    SETTINGS_BRIGHTNESS_INDEX = 9,
+    SETTINGS_COLOR_INDEX = 10,
+    SETTINGS_TEXT_SIZE_INDEX = 11,
+    SETTINGS_ORIENTATION_INDEX = 12,
+    SETTINGS_SKIP_INDEX = 13,
+    SETTINGS_GAIN_INDEX = 14,
+    SETTINGS_EQUALIZER_INDEX = 16,
+    SETTINGS_CUSTOM_EQ_INDEX = 17,
+    SETTINGS_REPLAY_GAIN_INDEX = 18,
+    SETTINGS_CLIPPING_INDEX = 19,
+    SETTINGS_START_INDEX = 20,
+    SETTINGS_RESCAN_INDEX = 21,
+    SETTINGS_USB_MODE_INDEX = 22,
+    SETTINGS_THEME_INDEX = 23,
+    SETTINGS_BATTERY_PERCENT_INDEX = 24,
+    SETTINGS_USB_ANSWER_INDEX = 28,
     USB_PROMPT_MS = 15000,
     CHARGE_LIT_MS = 5000,
     MUSIC_COVER_FLOW_INDEX = 1,
@@ -5048,6 +5048,31 @@ static void check_status_clock(const char *text)
     }
 }
 
+static void date_and_time_opens_next_to_clock_format(void)
+{
+    start_app_with_library();
+    open_setting(8);
+    CHECK(title_is("Date & time"));
+}
+
+static void saving_date_and_time_refreshes_the_status_bar_without_restarting(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery((HalBattery){.known = true, .percent = HALF_BATTERY, .millivolts = 4000});
+    fake_hal_set_rtc_answer((HalRtcRead){.status = HAL_RTC_OK});
+    open_setting(8);
+    for (int field = 0; field < 4; field++) {
+        tap(KEY_MENU);
+    }
+    tap(KEY_VOLUME_UP);
+    tap(KEY_PLAY);
+    CHECK(title_is("Settings"));
+    wait_ms(2000);
+    settle();
+    check_status_clock("00:01");
+    CHECK_EQUAL(1767225660u, fake_hal_rtc_written());
+}
+
 static void the_clock_format_choice_is_saved_and_controls_stays_last(void)
 {
     start_app_with_library();
@@ -5296,6 +5321,8 @@ int main(void)
         TEST_CASE(
             battery_percentage_choice_shows_the_level_beside_the_battery_and_survives_restart),
         TEST_CASE(the_status_bar_shows_the_set_time_and_nothing_without_one),
+        TEST_CASE(date_and_time_opens_next_to_clock_format),
+        TEST_CASE(saving_date_and_time_refreshes_the_status_bar_without_restarting),
         TEST_CASE(the_clock_format_choice_is_saved_and_controls_stays_last),
         TEST_CASE(a_calendar_month_title_keeps_its_room_before_the_status_clock),
         TEST_CASE(brightness_is_applied_and_saved),

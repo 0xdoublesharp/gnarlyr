@@ -26,6 +26,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_ogg
 set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/app/modules/extension_module.c
     platform/device/board/file_remove.c
+    platform/device/board/debug_rtc.c
+    platform/device/logic/rtc_time.c
     src/app/home_art.c
     src/gfx/wireframe.c
     src/ui/wire_motion.c
@@ -43,7 +45,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/screens/up_next_screen.c
     src/app/screens/calendar_screen.c
     src/app/screens/clock_screen.c
-    src/core/calendar.c
     src/ui/cover_flow.c
     src/ui/placeholder_art.c
     src/gfx/image_quad.c
@@ -54,6 +55,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/modules/settings_module.c
     src/app/screens/charge_art.c
     src/app/settings_screens.c
+    src/app/screens/set_clock_screen.c
     src/app/settings_preview.c
     src/app/button_settings.c
     src/app/home_editor.c
@@ -107,9 +109,6 @@ else()
         src/app/debug_steps.c
         src/app/debug_screenshot.c
         platform/device/board/debug_poke.c
-        platform/device/board/debug_rtc.c
-        platform/device/logic/rtc_time.c
-        src/core/calendar.c
     )
 endif()
 

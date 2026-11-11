@@ -259,3 +259,12 @@ HalRtcRead hal_system_rtc_set(uint32_t utc_s)
     }
     return read;
 }
+
+bool hal_clock_set_wall(HalWallTime time)
+{
+    if (hal_system_rtc_set(time.utc_s).status != HAL_RTC_OK) {
+        return false;
+    }
+    board_wall_time_set(time);
+    return true;
+}

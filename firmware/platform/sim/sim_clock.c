@@ -5,6 +5,7 @@
 #include <time.h>
 
 #include "hal/clock.h"
+#include "hal/system.h"
 
 enum {
     MICROSECONDS_PER_SECOND = 1000000
@@ -25,6 +26,7 @@ typedef struct SimWall {
     uint32_t utc_s;
     uint32_t set_ms;
     int16_t offset_minutes;
+    uint8_t source;
 } SimWall;
 
 static SimClock clock_state;
@@ -50,7 +52,8 @@ void sim_clock_set_wall(SimClockMode mode, uint32_t utc_s, int16_t offset_minute
     wall_state = (SimWall){.mode = mode,
                            .utc_s = utc_s,
                            .set_ms = hal_clock_milliseconds(),
-                           .offset_minutes = offset_minutes};
+                           .offset_minutes = offset_minutes,
+                           .source = HAL_WALL_COMPUTER};
 }
 
 static HalWallTime host_time(void)
@@ -74,7 +77,7 @@ HalWallTime hal_clock_wall(void)
     uint32_t elapsed_s = (hal_clock_milliseconds() - wall_state.set_ms) / MILLISECONDS_PER_SECOND;
     return (HalWallTime){.utc_s = wall_state.utc_s + elapsed_s,
                          .offset_minutes = wall_state.offset_minutes,
-                         .source = HAL_WALL_COMPUTER};
+                         .source = wall_state.source};
 }
 
 uint32_t hal_clock_microseconds(void)
@@ -85,4 +88,14 @@ uint32_t hal_clock_microseconds(void)
     uint64_t remainder = counter % frequency;
     return (uint32_t)(whole_seconds * MICROSECONDS_PER_SECOND +
                       remainder * MICROSECONDS_PER_SECOND / frequency);
+}
+
+bool hal_clock_set_wall(HalWallTime time)
+{
+    if (hal_system_rtc_set(time.utc_s).status != HAL_RTC_OK) {
+        return false;
+    }
+    sim_clock_set_wall(SIM_CLOCK_FIXED, time.utc_s, time.offset_minutes);
+    wall_state.source = time.source;
+    return true;
 }

@@ -450,6 +450,7 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
         target_include_directories(${module_target}_objects PRIVATE board)
         target_compile_definitions(${module_target}_objects PRIVATE
+            hal_clock_set_wall=extension_hal_clock_set_wall
             home_art_draw=extension_home_art_draw
             home_art_draw_backdrop=extension_home_art_draw_backdrop
             home_art_init=extension_home_art_init

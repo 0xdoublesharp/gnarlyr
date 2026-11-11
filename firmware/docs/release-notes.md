@@ -18,6 +18,8 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Interface and sound controls
 
+- Settings → Date & time edits the local date, hour, minute and UTC offset, writes the clock chip through the extension module and updates the running wall clock immediately after successful readback. Back cancels; a failed save keeps the running clock unchanged. Later Mac time syncs still replace manual settings. Listening timestamps remain UTC. The simulator supports the same setting path; on-player validation remains pending.
+
 - Settings → Clock format selects 12-hour time with AM/PM or 24-hour time for Clock and the status bar, including Calendar. The choice survives restarts.
 
 - Five themes with live preview, configurable playback tap/hold actions, shared icons and cassette artwork.

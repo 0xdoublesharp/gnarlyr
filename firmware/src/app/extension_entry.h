@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "app/extension.h"
+#include "hal/clock.h"
 #include "home_art.h"
 #include "ui/wire_motion.h"
 
@@ -23,6 +24,7 @@ typedef struct ExtensionModuleEntry {
     void (*art_draw)(void *context, Canvas *canvas, Rect area);
     void (*art_backdrop)(Canvas *canvas, Rect area, const Theme *theme);
     bool (*file_remove)(const char *path);
+    bool (*clock_set)(HalWallTime time);
 } ExtensionModuleEntry;
 
 extern const ExtensionModuleEntry EXTENSION_MODULE_ENTRY;

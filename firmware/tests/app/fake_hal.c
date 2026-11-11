@@ -1875,3 +1875,14 @@ uint32_t fake_hal_audio_play_fade_ms(void)
 {
     return fake.audio.play_fade_ms;
 }
+
+bool hal_clock_set_wall(HalWallTime time)
+{
+    if ((fake.broken_modules & 1u << EXTENSION_MODULE_NUMBER) != 0 ||
+        hal_system_rtc_set(time.utc_s).status != HAL_RTC_OK) {
+        return false;
+    }
+    fake.wall = time;
+    fake.wall_set_ms = hal_clock_milliseconds();
+    return true;
+}

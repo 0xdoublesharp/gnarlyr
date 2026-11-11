@@ -1425,6 +1425,38 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(self.i2c1_state(machine), before)
         self.assert_healthy(session)
 
+    def test_settings_sets_the_clock_chip_and_refreshes_the_status_bar(self):
+        from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_SP
+        rig = self.playback_rig()
+        machine = rig.machine
+        sets, clocks = [], set()
+
+        def wall_set():
+            sets.append((machine.reg(UC_ARM_REG_R0), machine.reg(UC_ARM_REG_R1)))
+
+        def status_draw():
+            address = struct.unpack("<I", machine.read_memory(machine.reg(UC_ARM_REG_SP) + 4, 4))[0]
+            if address:
+                clocks.add(machine.read_memory(address, 24).split(b"\x00", 1)[0])
+
+        machine.hook_symbol("board_wall_time_set", wall_set)
+        machine.hook_symbol("status_bar_draw", status_draw)
+        before = self.i2c1_state(machine)
+        rig.press("next")
+        rig.press("play")
+        rig.press_many("next", 8)
+        rig.press("play")
+        rig.press_many("menu", 4)
+        rig.press("next")
+        rig.press("play")
+        expected = 1767225660
+        self.assertEqual(sets, [(expected, 2 << 16)])
+        self.assertEqual(list(machine.rtc_bus.registers[2:9]), [0, 1, 0, 1, 4, 1, 0x26])
+        self.assertIn(b"00:01", clocks)
+        self.assertEqual(self.i2c1_state(machine), before)
+        self.assert_only_the_user_volume_changed(rig.session)
+        self.assert_healthy(rig.session)
+
     def test_an_rtc_read_without_an_answer_reports_no_ack_and_restores_the_bus(self):
         script = ("build %s\nrtc read\nreconnect\n" % self.build_tag()).encode("ascii")
         session, machine = self.ejecting_session(self.debug_volume(run_txt=script))
