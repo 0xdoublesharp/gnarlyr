@@ -330,6 +330,55 @@ static void standard_and_extended_block_sizes_decode_constant_channels(void)
     }
 }
 
+static void coded_frame_numbers_report_the_correct_sample_and_reject_bad_encodings(void)
+{
+    static const struct {
+        uint8_t number[4];
+        uint8_t length;
+        uint32_t first_sample;
+        bool valid;
+    } cases[] = {
+        {{0x7f}, 1, 127, true},
+        {{0xc2, 0x80}, 2, 128, true},
+        {{0xe0, 0xa0, 0x80}, 3, 2048, true},
+        {{0xf0, 0x90, 0x80, 0x80}, 4, 65536, true},
+        {{0x80}, 1, 0, false},
+        {{0xfe}, 1, 0, false},
+        {{0xc2, 0x41}, 2, 0, false},
+    };
+    for (uint32_t index = 0; index < sizeof cases / sizeof cases[0]; index++) {
+        uint8_t bytes[32] = {0xff, 0xf9, 0x19, 0x18};
+        uint32_t at = 4;
+        memcpy(bytes + at, cases[index].number, cases[index].length);
+        at += cases[index].length;
+        bytes[at] = frame_crc8(bytes, at);
+        at++;
+        static const uint8_t body[] = {0, 0x12, 0x34, 0, 0xff, 0xfe};
+        memcpy(bytes + at, body, sizeof body);
+        at += sizeof body;
+        uint16_t crc = frame_crc16(bytes, at);
+        bytes[at++] = (uint8_t)(crc >> 8);
+        bytes[at++] = (uint8_t)crc;
+        Buffer input = {bytes, at};
+        FlacInfo info = {.sample_rate = 44100,
+                         .channels = 2,
+                         .bits_per_sample = 16,
+                         .min_block = 192,
+                         .max_block = 192};
+        flac_start(&decoder, input_of(&input), info);
+        FlacResult result = flac_decode_frame(&decoder);
+        CHECK_EQUAL(cases[index].valid ? FLAC_OK : FLAC_ERROR, result);
+        if (cases[index].valid) {
+            CHECK_EQUAL(cases[index].first_sample, decoder.frame_first_sample);
+            CHECK_EQUAL(192u, decoder.block_samples);
+            CHECK_EQUAL(0x1234, flac_channel(&decoder, 0)[0]);
+            CHECK_EQUAL(-2, flac_channel(&decoder, 1)[191]);
+        } else {
+            CHECK_EQUAL(0u, decoder.block_samples);
+        }
+    }
+}
+
 static void rfc_9639_partitioned_lpc_decodes_the_specified_samples(void)
 {
     static uint8_t bytes[] = {
@@ -716,6 +765,7 @@ int main(void)
         TEST_CASE(rfc_9639_example_one_decodes_the_specified_samples),
         TEST_CASE(extended_sample_rate_headers_decode_their_audio),
         TEST_CASE(standard_and_extended_block_sizes_decode_constant_channels),
+        TEST_CASE(coded_frame_numbers_report_the_correct_sample_and_reject_bad_encodings),
         TEST_CASE(rfc_9639_partitioned_lpc_decodes_the_specified_samples),
         TEST_CASE(blocks_larger_than_the_buffer_are_refused),
         TEST_CASE(unsupported_streaminfo_limits_are_rejected),
