@@ -27,9 +27,10 @@ void player_queue_cancel(Player *player)
     }
 }
 
-static PlayerQueueEditResult begin(Player *player)
+PlayerQueueEditResult player_queue_begin(Player *player)
 {
-    if (player_queue_busy(player) || !player->has_track || !player_queue_is_current(player)) {
+    if (player->cassette.active || player_queue_busy(player) || !player->has_track ||
+        !player_queue_is_current(player)) {
         return PLAYER_QUEUE_EDIT_STALE;
     }
     bool resume = player->loaded && player->state == PLAYER_PLAYING;
@@ -52,32 +53,6 @@ static PlayerQueueEditResult begin(Player *player)
     return PLAYER_QUEUE_EDIT_WORKING;
 }
 
-PlayerQueueEditResult player_snapshot_queue(Player *player)
-{
-    PlayerQueueEditResult result = begin(player);
-    if (result == PLAYER_QUEUE_EDIT_WORKING) {
-        player->editing.snapshot = true;
-    }
-    return result;
-}
-
-PlayerQueueEditResult player_edit_queue(Player *player, uint32_t revision, uint16_t row,
-                                        UpNextEdit edit)
-{
-    if (revision != player->up_next_revision) {
-        return PLAYER_QUEUE_EDIT_STALE;
-    }
-    if ((unsigned)edit >= UP_NEXT_EDIT_COUNT || (row == 0 && edit != UP_NEXT_CLEAR)) {
-        return PLAYER_QUEUE_EDIT_INVALID;
-    }
-    PlayerQueueEditResult result = begin(player);
-    if (result == PLAYER_QUEUE_EDIT_WORKING) {
-        player->editing.action = edit;
-        player->editing.row = row;
-    }
-    return result;
-}
-
 PlayerUpNextResult player_queue_insert(Player *player, uint16_t track, bool next)
 {
     if (track >= library_count(player->library, LIBRARY_TRACKS)) {
@@ -86,7 +61,7 @@ PlayerUpNextResult player_queue_insert(Player *player, uint16_t track, bool next
     if (player->queue.count == TRACK_ORDER_CAPACITY) {
         return PLAYER_UP_NEXT_FULL;
     }
-    PlayerQueueEditResult result = begin(player);
+    PlayerQueueEditResult result = player_queue_begin(player);
     if (result != PLAYER_QUEUE_EDIT_WORKING) {
         return result == PLAYER_QUEUE_EDIT_STALE ? PLAYER_UP_NEXT_CHANGED
                                                  : PLAYER_UP_NEXT_SAVE_FAILED;

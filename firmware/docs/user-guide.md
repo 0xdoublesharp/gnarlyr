@@ -383,6 +383,16 @@ Open Up Next and hold Play on a song for its actions. Move it earlier or later, 
 
 Home → Mixtapes saves a queue as a named list. Save queue captures the current sequence; New mixtape starts an empty one. While naming, the volume buttons choose a character, Play adds it, Menu erases it and holding Play saves the name. A mixtape's actions play it, load it into Up Next for editing, replace its contents, rename it or delete it. Songs are matched by their paths and cue boundaries after a rescan.
 
+## Side A/B tapes
+
+Home → Mixtapes → New two-sided tape makes a C60 or C90 cassette: 30 or 45 minutes per side, with up to 64 songs on each side. Choose a length and name it with the usual naming controls.
+
+Hold Play on a song in a Music list, choose **Add to tape**, choose your cassette and then **Side A** or **Side B**. Songs join the end of that side. Add at least one song to each side before playing. A side that is full refuses another song and keeps what you already saved.
+
+Open the tape for **Resume tape**, **Play Side A** or **Play Side B**. It plays in the saved order. Side A stops at its end and shows a cassette with **Flip to Side B**; press Play to flip, or Back to stay stopped. Side B stops at its end too; Play rewinds the tape to Side A. Repeat does not cross a side boundary. The player remembers the side, song and exact position across restarts, including a side waiting to be flipped.
+
+Rename and Delete work as for other mixtapes. To play a different queue, select another song or mixtape. Ordinary single-sided mixtapes keep their existing actions.
+
 ## Clock and calendar
 
 Settings → Date & time, beside Clock format, shows the current date and time, or Not set. Open it to edit the year (2024–2099), month, day, hour, minute and UTC offset. Vol+ and Vol− change the focused value; hold to repeat. Menu moves to the next field, holding Menu moves to the previous one, ▶ saves and Back cancels. The day follows the month length, including leap years. The hour follows Clock format, with AM/PM in 12-hour time. Saving sets seconds to zero and updates the status bar, Clock and Calendar at once. If saving fails, the editor stays open and the running clock keeps its previous time.
@@ -392,6 +402,12 @@ Enter your local date and time. UTC offset is the difference between your local 
 Your Mac can also set the clock. Every companion command that ejects the player (`python3 tools/echo_debug.py set-time` does only that) leaves the Mac's time and offset on the drive, and the player applies them as the drive is ejected. A later Mac sync replaces a time set in Settings; a later successful Settings save replaces the last sync. The clock then keeps going while the player is on. Saving on the player keeps UTC in the clock chip and the offset in Settings. After switching off or restarting, Gnarlyr reads the chip once, a couple of seconds after startup, and restores local time with the saved offset. If audio is already active, recovery waits until it stops. If the chip cannot supply a valid, trusted date and time, the clock stays Not set; set it in Settings or sync with your Mac.
 
 While the time is set it also shows in the status bar, left of the battery; in landscape it steps aside for a long screen title. Settings → Clock format chooses 12-hour time with AM/PM or 24-hour time (the default). The status bar follows the same choice, including in Calendar. Home → Clock shows the time, the weekday and the date. Press ▶ for Calendar: the current month from Monday with today marked. The volume buttons move a month at a time, ▶ goes back to the current month and Back returns to Clock. Without a set time both say so and how to set it.
+
+## Saved moments
+
+Open Home → Listening → Moments while listening and choose **Save current moment**. Each row shows the song title and saved time, newest first. Select one to play from that exact place. Hold Play on a saved row and choose Delete to remove it, or Keep moment to cancel. You can keep 64 moments; delete one when the list is full.
+
+Moments survive restarts and library rescans. They follow the song's path and exact CUE or chapter boundaries. If a file is moved or its chapter boundaries change, its moment stays in the list and says the song or chapter is unavailable until that identity returns.
 
 ## Listening and lyrics
 

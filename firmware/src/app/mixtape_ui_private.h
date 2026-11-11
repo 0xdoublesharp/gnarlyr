@@ -6,7 +6,10 @@ enum {
     MIXTAPE_LIST,
     MIXTAPE_ACTIONS,
     MIXTAPE_NAME,
-    MIXTAPE_CONFIRM_DELETE
+    MIXTAPE_CONFIRM_DELETE,
+    MIXTAPE_LENGTH,
+    MIXTAPE_PICK,
+    MIXTAPE_SIDE
 };
 enum {
     MIXTAPE_SNAPSHOT = 1,
@@ -15,6 +18,9 @@ enum {
     MIXTAPE_RESOLVE,
     MIXTAPE_COPY
 };
+
+Screen *mixtape_ui_add(MixtapeUi *ui, uint16_t track);
+bool mixtape_ui_append(MixtapeUi *ui);
 
 Screen *mixtape_ui_init(MixtapeUi *ui, MixtapeUiConfig config);
 bool mixtape_ui_busy(const MixtapeUi *ui);

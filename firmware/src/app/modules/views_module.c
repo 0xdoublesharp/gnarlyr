@@ -26,6 +26,8 @@ static void bind(AppScreens *screens)
                                                          .settings = &context->settings->settings,
                                                          .calendar = &views->calendar.screen});
     cover_flow_screen_init(&views->cover_flow, cover_flow);
+    cassette_flip_screen_init(&views->cassette_flip, context->player, context->theme,
+                              &views->mixtapes);
     mixtape_ui_api()->init(&views->mixtapes,
                            (MixtapeUiConfig){.player = context->player,
                                              .theme = context->theme,
@@ -39,4 +41,5 @@ const ViewsModuleEntry VIEWS_MODULE_ENTRY = {
     .module = {SCREEN_MODULE_MAGIC(SCREEN_MODULE_VIEWS), bind},
     .cancel = mixtape_ui_cancel,
     .step = mixtape_ui_step,
+    .add = mixtape_ui_add,
     .charge_draw = charge_art_draw};

@@ -4,7 +4,7 @@ echo_add_unit_test(NAME test_theme_palette
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 
-foreach(feature_test mixtape_store mixtape_ui personal_tags discovery_screen discovery_preferences)
+foreach(feature_test cassette_ui moments_screen player_cassette mixtape_store mixtape_ui personal_tags discovery_screen discovery_preferences)
     echo_add_unit_test(NAME test_${feature_test}
         SOURCES app/test_${feature_test}.c app/fake_hal.c
         LIBRARIES echo_app echo_library_fixtures
@@ -90,4 +90,9 @@ echo_add_unit_test(NAME test_clock_write
     SOURCES app/test_clock_write.c ${PROJECT_SOURCE_DIR}/src/app/extension_calls.c
     LIBRARIES echo_app
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+echo_add_unit_test(NAME test_cassette_flip
+    SOURCES app/test_cassette_flip.c app/fake_hal.c support/text_spy.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
 )

@@ -20,10 +20,12 @@
 #include "screen_modules.h"
 #include "screens/bluetooth_screen.h"
 #include "screens/calendar_screen.h"
+#include "screens/cassette_flip_screen.h"
 #include "screens/clock_screen.h"
 #include "screens/cover_flow_screen.h"
 #include "screens/listening_screen.h"
 #include "screens/lyrics_screen.h"
+#include "screens/moments_screen.h"
 #include "screens/now_playing_screen.h"
 #include "screens/smart_list_screen.h"
 #include "screens/up_next_screen.h"
@@ -112,6 +114,7 @@ typedef struct ViewsModuleScreens {
     CoverFlowScreen cover_flow;
     UpNextScreen up_next;
     MixtapeUi mixtapes;
+    CassetteFlipScreen cassette_flip;
     ClockScreen clock;
     CalendarScreen calendar;
     MenuScreen diagnostics;
@@ -127,6 +130,7 @@ typedef struct SettingsModuleScreens {
 
 typedef struct ProfileModuleScreens {
     ListeningScreen listening;
+    MomentsScreen moments;
     LyricsScreen lyrics;
     SmartListScreen smart_lists;
 } ProfileModuleScreens;

@@ -138,6 +138,14 @@ bool mixtape_store_change(MixtapeStore *store, MixtapeChange change)
     if (change.operation != MIXTAPE_SAVE) {
         return begin_catalog(store, store->entry, PUBLISH);
     }
+    if (change.side_minutes != 0 &&
+        ((change.side_minutes != 30 && change.side_minutes != 45) ||
+         change.side_a_count > change.source.count || change.side_a_count > 64 ||
+         change.source.count - change.side_a_count > 64)) {
+        return false;
+    }
+    store->entry.side_minutes = change.side_minutes;
+    store->entry.side_a_count = change.side_minutes != 0 ? change.side_a_count : 0;
     store->entry.active = true;
     store->entry.generation++;
     store->entry.file_bank = previous.active ? (uint8_t)(1 - previous.file_bank) : 0;
