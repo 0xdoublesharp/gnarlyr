@@ -20,14 +20,13 @@ class EchoImageTest(EchoImageHarness):
         from unicorn.arm_const import UC_ARM_REG_LR
         completed = set()
         self.write_complete = True
-        self.sink_cycles = 0
-        self.packet_started = 0
+        self.sink_instructions = 0
+        if rate == 192000:
+            self.meter_copy(machine)
         def leave_packet():
-            self.sink_cycles += machine.cycles() - self.packet_started
             self.write_complete = True
         def enter_packet():
             self.write_complete = False
-            self.packet_started = machine.cycles()
             address = machine.reg(UC_ARM_REG_LR) & ~1
             if address not in completed:
                 completed.add(address)
@@ -47,12 +46,24 @@ class EchoImageTest(EchoImageHarness):
                                      until_ms=machine.milliseconds() + 2000), "condition met")
         return session, audio, host
 
+    def meter_copy(self, machine):
+        from unicorn import UC_HOOK_CODE
+        symbols = machine.overlays[0].symbols
+        def count_instruction(uc, address, size, user):
+            if not self.write_complete:
+                self.sink_instructions += 1
+        for name in ("usb_audio_sink_write", "headphone_audio_word"):
+            first = symbols[name]
+            last = min(address for label, address in symbols.items()
+                       if address > first and not label.startswith("$"))
+            machine.uc.hook_add(UC_HOOK_CODE, count_instruction, None, first, last - 1)
+
     def stream_rate(self, rate):
         session, audio, host = self.dac_session(rate)
         machine = session.machine
         start = machine.milliseconds()
         measured_us = machine.microseconds()
-        sink_cycles = self.sink_cycles
+        sink_instructions = self.sink_instructions
         machine.run(until_ms=start + 400)
         host.pause_until = machine.microseconds() + 1000000
         self.assertEqual(machine.run(until=lambda: self.write_complete and not host.rx and not host.words,
@@ -77,9 +88,11 @@ class EchoImageTest(EchoImageHarness):
         self.assertGreater(fill, 0)
         self.assertLess(fill, rate // 50)
         self.assert_healthy(session)
-        sink_share = (self.sink_cycles - sink_cycles) * 100000000 / ((machine.microseconds() - measured_us) * machine.core_hz)
+        sink_share = (self.sink_instructions - sink_instructions) * 100000000 / ((machine.microseconds() - measured_us) * machine.core_hz)
         print("\n[USB DAC] %d Hz 32-bit, zero missed packets/underruns, fill %.2f ms; "
-              "sink %.2f%% at one cycle/instruction, core 0 polling busy 100%%" % (rate, fill * 1000 / rate, sink_share))
+              "core 0 polling busy 100%%" % (rate, fill * 1000 / rate))
+        if rate == 192000:
+            print("[USB DAC sink] %.2f%% of 200 MHz at one cycle/instruction, counted directly including unity gain" % sink_share)
 
     def test_usb_audio_streams_44100_asynchronous_bit_exact(self):
         self.stream_rate(44100)
