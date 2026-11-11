@@ -106,6 +106,24 @@ typedef struct HalProbe {
 } HalProbe;
 
 HalProbe hal_system_probe(HalProbeKind kind, uint32_t first, uint32_t second);
+
+enum {
+    HAL_RTC_REGISTERS = 16
+};
+
+typedef enum HalRtcStatus {
+    HAL_RTC_OK,
+    HAL_RTC_NO_ACK,
+    HAL_RTC_TIMEOUT,
+    HAL_RTC_STATUS_COUNT
+} HalRtcStatus;
+
+typedef struct HalRtcRead {
+    HalRtcStatus status;
+    uint8_t registers[HAL_RTC_REGISTERS];
+} HalRtcRead;
+
+HalRtcRead hal_system_rtc_read(void);
 uint8_t hal_system_power_levels(void);
 uint32_t hal_system_power_samples(void);
 void hal_system_hold_usb_supply_off(bool held);

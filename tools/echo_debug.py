@@ -240,6 +240,30 @@ def describe_probes(script):
             probe["pin_before"], probe["pin_after"] = pin_state(words[0]), pin_state(words[1])
 
 
+def parse_registers(text):
+    if text == "unknown":
+        return None
+    if not re.fullmatch(r"(?:[0-9a-f]{2}){16}", text):
+        raise DebugError("bad_report", f"cannot read the clock registers {text!r}")
+    return list(bytes.fromhex(text))
+
+
+def parse_rtc(text):
+    """A clock chip read: its line, time and status, the sixteen registers and what they decode to."""
+    read = {}
+    for field in text.split():
+        name, separator, value = field.partition("=")
+        if not separator:
+            raise DebugError("bad_report", f"cannot read the clock field {field!r}")
+        if name == "registers":
+            read[name] = parse_registers(value)
+        elif name in ("status", "time"):
+            read[name] = parse_text(value)
+        else:
+            read[name] = parse_value(value)
+    return read
+
+
 def parse_screenshot(text):
     fields = text.split()
     if len(fields) != 2 or not fields[0].isdigit():
@@ -269,12 +293,13 @@ def parse_report(text):
         raise DebugError("unsupported_schema", f"report schema {schema!r}; this tool reads schema {REPORT_SCHEMA}")
     body, truncated = report_body(text)
     values, events, buckets, unread, samples = {}, [], {}, [], []
-    script = {"lines": [], "measures": [], "screenshots": [], "probes": [], "soaks": []}
+    script = {"lines": [], "measures": [], "screenshots": [], "probes": [], "soaks": [], "rtc": []}
     repeated = {"script.line": (script["lines"], parse_script_line),
                 "script.measure": (script["measures"], parse_measure),
                 "script.screenshot": (script["screenshots"], parse_screenshot),
                 "script.probe": (script["probes"], parse_measure),
-                "script.soak": (script["soaks"], parse_measure)}
+                "script.soak": (script["soaks"], parse_measure),
+                "script.rtc": (script["rtc"], parse_rtc)}
     for line in body.splitlines():
         key, separator, value = line.partition(": ")
         if not separator:

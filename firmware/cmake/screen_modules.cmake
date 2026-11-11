@@ -90,6 +90,7 @@ else()
         src/app/debug_steps.c
         src/app/debug_screenshot.c
         platform/device/board/debug_poke.c
+        platform/device/board/debug_rtc.c
     )
 endif()
 

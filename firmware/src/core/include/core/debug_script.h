@@ -15,6 +15,8 @@ enum {
     DEBUG_SCRIPT_WORDS = 16,
     DEBUG_SCRIPT_PROBES = 16,
     DEBUG_SCRIPT_SOAKS = 2,
+    DEBUG_SCRIPT_RTC_READS = 4,
+    DEBUG_RTC_REGISTERS = 16,
     DEBUG_SOAK_MAX_MINUTES = 180,
     DEBUG_SOAK_LOW_MILLIVOLTS = 3600,
     DEBUG_SOAK_LOW_MS = 60000,
@@ -62,7 +64,8 @@ typedef enum DebugOpKind {
     DEBUG_OP_PIN,
     DEBUG_OP_SUPPLY,
     DEBUG_OP_SCREEN,
-    DEBUG_OP_SOAK
+    DEBUG_OP_SOAK,
+    DEBUG_OP_RTC
 } DebugOpKind;
 
 typedef enum DebugPinAction {
@@ -123,6 +126,13 @@ typedef struct DebugProbe {
     uint32_t after;
 } DebugProbe;
 
+typedef struct DebugRtcRead {
+    uint8_t line;
+    uint8_t status;
+    uint32_t time_ms;
+    uint8_t registers[DEBUG_RTC_REGISTERS];
+} DebugRtcRead;
+
 typedef enum DebugSoakEnd {
     DEBUG_SOAK_RUNNING,
     DEBUG_SOAK_DONE,
@@ -167,6 +177,7 @@ typedef struct DebugScriptRun {
     uint8_t word_count;
     uint8_t probe_count;
     uint8_t soak_count;
+    uint8_t rtc_count;
     uint8_t status[DEBUG_SCRIPT_LINES];
     uint8_t screenshot_lines[DEBUG_SCRIPT_SCREENSHOTS];
     uint32_t started_ms;
@@ -177,6 +188,7 @@ typedef struct DebugScriptRun {
     uint32_t words[DEBUG_SCRIPT_WORDS];
     DebugProbe probes[DEBUG_SCRIPT_PROBES];
     DebugSoak soaks[DEBUG_SCRIPT_SOAKS];
+    DebugRtcRead rtc[DEBUG_SCRIPT_RTC_READS];
 } DebugScriptRun;
 
 typedef struct DebugScriptHost {
@@ -201,6 +213,7 @@ typedef enum DebugCommandKind {
     DEBUG_COMMAND_SUPPLY,
     DEBUG_COMMAND_SCREEN,
     DEBUG_COMMAND_SOAK,
+    DEBUG_COMMAND_RTC,
     DEBUG_COMMAND_UNKNOWN,
     DEBUG_COMMAND_BAD_ARGUMENT
 } DebugCommandKind;
