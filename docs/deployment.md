@@ -19,8 +19,8 @@ regenerate them with `tools/site_screenshots.py` before publishing interface cha
 | Primary URL | https://gnarlyr.com; www redirects to the apex |
 | Secondary validation URL | https://gnarlyr.apps.doublesharp.com |
 | Origin address | `159.89.222.183` |
-| Current content release | `5e187df6a1869e45ce41a72bbd684eb7aa1496806e3962978f8ae6f0f8a492b2` |
-| Rollback content release | `a3b7a8e4389b323aebe058e155f99c463f381c115291d24bbd97a2b2648e4914` |
+| Current content release | `17486ffbc1f258d7aebd1f1bf8d00cba9843d4b9881796887babeb58259c1432` |
+| Rollback content release | `236ed699f78d4e69669ef82961edffcfe8fdb6c7d91b5307aec07597ec75ed61` |
 
 This is a user-defined Compose Service with normal Coolify parsing, not a
 Git-backed Application. `site/deploy/compose.yaml` owns the runtime, mounts,
