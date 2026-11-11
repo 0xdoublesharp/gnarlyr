@@ -656,6 +656,44 @@ static void escaped_residuals_decode_signed_samples_with_both_rice_methods(void)
     }
 }
 
+static void fixed_frame_numbers_use_maximum_block_size_and_reject_sample_overflow(void)
+{
+    static const uint8_t numbers[][4] = {{1, 0, 0, 0}, {0xf4, 0x80, 0x80, 0x80}};
+    for (uint32_t variant = 0; variant < 2; variant++) {
+        uint8_t bytes[32] = {0xff, 0xf8, 0x69, 0x08};
+        uint32_t at = 4;
+        uint32_t length = variant == 0 ? 1 : 4;
+        memcpy(bytes + at, numbers[variant], length);
+        at += length;
+        bytes[at++] = 15;
+        bytes[at] = frame_crc8(bytes, at);
+        at++;
+        bytes[at++] = 0;
+        bytes[at++] = 0xff;
+        bytes[at++] = 0xfe;
+        uint16_t crc = frame_crc16(bytes, at);
+        bytes[at++] = (uint8_t)(crc >> 8);
+        bytes[at++] = (uint8_t)crc;
+        Buffer input = {bytes, at};
+        FlacInfo info = {.sample_rate = 44100,
+                         .channels = 1,
+                         .bits_per_sample = 16,
+                         .min_block = 16,
+                         .max_block = 4608};
+        flac_start(&decoder, input_of(&input), info);
+        if (variant == 0) {
+            CHECK_EQUAL(FLAC_OK, flac_decode_frame(&decoder));
+            CHECK_EQUAL(4608u, decoder.frame_first_sample);
+            CHECK_EQUAL(16u, decoder.block_samples);
+            CHECK_EQUAL(-2, flac_channel(&decoder, 0)[15]);
+            CHECK_EQUAL(FLAC_END, flac_decode_frame(&decoder));
+        } else {
+            CHECK_EQUAL(FLAC_ERROR, flac_decode_frame(&decoder));
+            CHECK_EQUAL(0u, decoder.block_samples);
+        }
+    }
+}
+
 static void rfc_9639_partitioned_lpc_decodes_the_specified_samples(void)
 {
     static uint8_t bytes[] = {
@@ -1050,6 +1088,7 @@ int main(void)
         TEST_CASE(stereo_channel_assignments_reconstruct_signed_samples_exactly),
         TEST_CASE(invalid_frame_headers_never_publish_samples),
         TEST_CASE(malformed_subframes_and_residuals_never_publish_samples),
+        TEST_CASE(fixed_frame_numbers_use_maximum_block_size_and_reject_sample_overflow),
         TEST_CASE(blocks_larger_than_the_buffer_are_refused),
         TEST_CASE(unsupported_streaminfo_limits_are_rejected),
         TEST_CASE(a_file_that_is_not_flac_is_refused),
