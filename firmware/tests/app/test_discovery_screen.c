@@ -3,6 +3,7 @@
 #include "check.h"
 #include "core/i18n.h"
 #include "default_theme.h"
+#include "discovery_playback.h"
 #include "discovery_screen.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
@@ -916,11 +917,42 @@ static void a_search_with_no_matches_displays_an_empty_state(void)
     CHECK(memcmp(results, pixels, sizeof results) != 0);
 }
 
+static void playback_without_a_player_fails_without_losing_search_results(void)
+{
+    start();
+    explore();
+    uint16_t count = discovery_screen_order(&discovery).count;
+    CHECK(count > 0);
+    CHECK(discovery.config.player == NULL);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_REQUEST_PLAY, discovery.request);
+    discovery_playback_step(&discovery, 0);
+    CHECK_EQUAL(DISCOVERY_REQUEST_NONE, discovery.request);
+    CHECK_EQUAL(count, discovery_screen_order(&discovery).count);
+    CHECK_EQUAL(0, fake_hal_audio_play_count());
+}
+
+static void autoplay_of_an_empty_search_does_not_request_playback(void)
+{
+    start();
+    discovery.query.year_min = UINT16_MAX;
+    discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
+    complete();
+    CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
+    discovery.auto_play = true;
+    discovery_playback_step(&discovery, 0);
+    CHECK(!discovery.auto_play);
+    CHECK_EQUAL(DISCOVERY_REQUEST_NONE, discovery.request);
+    CHECK_EQUAL(0, fake_hal_audio_play_count());
+}
+
 int main(void)
 {
     const TestCase cases[] = {
         TEST_CASE(every_active_constraint_is_visible_in_the_results_summary),
         TEST_CASE(a_search_with_no_matches_displays_an_empty_state),
+        TEST_CASE(playback_without_a_player_fails_without_losing_search_results),
+        TEST_CASE(autoplay_of_an_empty_search_does_not_request_playback),
         TEST_CASE(search_progress_cancel_failure_and_results_draw_distinct_states),
         TEST_CASE(active_filters_change_the_results_summary),
         TEST_CASE(track_actions_enqueue_without_interrupting_current_playback),
