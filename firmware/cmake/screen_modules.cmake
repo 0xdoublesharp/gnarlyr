@@ -48,6 +48,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/settings/equalizer_response.c
     src/core/dac_identity.c
     src/settings/equalizer_slots.c
+    src/settings/equalizer_fit_text.c
     src/ui/choice_screen.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_library
