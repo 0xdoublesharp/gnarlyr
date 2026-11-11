@@ -46,22 +46,26 @@ static bool inside(Rect area, int x, int y)
 
 static void art_and_text_fit_every_theme_orientation_and_size(void)
 {
-    for (int appearance = 0; appearance < APPEARANCE_THEME_COUNT; appearance++) {
-        for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
-            for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
-                Canvas canvas = start(orientation, size, appearance, NOW_PLAYING_VU);
-                MeterNowPlayingLayout layout = meter_now_playing_layout(&theme);
-                CHECK(layout.stage.y >= theme.metrics.header_height);
-                CHECK(layout.stage.y + layout.stage.height < (orientation == 0 ? 196 : 367));
-                CHECK(rect_is_empty(rect_intersection(layout.dials[0], layout.dials[1])));
-                for (int line = 0; line < 2; line++) {
-                    CHECK(layout.text[line].height >=
-                          font_line_height(line == 0 ? theme.fonts.title : theme.fonts.body));
-                    CHECK(layout.text[line].x + layout.text[line].width <=
-                          theme.metrics.screen_width - theme.metrics.padding);
+    for (int style = NOW_PLAYING_VU; style <= NOW_PLAYING_SPECTRUM; style++) {
+        for (int appearance = 0; appearance < APPEARANCE_THEME_COUNT; appearance++) {
+            for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+                for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+                    Canvas canvas = start(orientation, size, appearance, (NowPlayingStyle)style);
+                    MeterNowPlayingLayout layout = meter_now_playing_layout(&theme);
+                    CHECK(layout.stage.y >= theme.metrics.header_height);
+                    CHECK(layout.stage.y + layout.stage.height < (orientation == 0 ? 196 : 367));
+                    CHECK(rect_is_empty(rect_intersection(layout.dials[0], layout.dials[1])));
+                    for (int line = 0; line < 2; line++) {
+                        CHECK(layout.text[line].height >=
+                              font_line_height(line == 0 ? theme.fonts.title : theme.fonts.body));
+                        CHECK(layout.text[line].y + layout.text[line].height <=
+                              (orientation == 0 ? 196 : 367));
+                        CHECK(layout.text[line].x + layout.text[line].width <=
+                              theme.metrics.screen_width - theme.metrics.padding);
+                    }
+                    canvas_clear(&canvas, theme.colors.background);
+                    meter_now_playing_draw(&screen, &canvas);
                 }
-                canvas_clear(&canvas, theme.colors.background);
-                meter_now_playing_draw(&screen, &canvas);
             }
         }
     }
@@ -78,6 +82,7 @@ static void frames_change_only_the_meter_rectangles_and_decay_to_rest(void)
             canvas_clear(&canvas, theme.colors.background);
             meter_now_playing_draw(&screen, &canvas);
             memcpy(before, pixels, sizeof pixels);
+            hal_display_write(0, 0, canvas.bounds.width, canvas.bounds.height, pixels);
             for (int frame = 0; frame < 5; frame++) {
                 screen.now_ms += 80;
                 meter_now_playing_animate(&screen, &diff, true);
@@ -85,6 +90,14 @@ static void frames_change_only_the_meter_rectangles_and_decay_to_rest(void)
             canvas_clear(&canvas, theme.colors.background);
             meter_now_playing_draw(&screen, &canvas);
             CHECK(memcmp(before, pixels, sizeof pixels) != 0);
+            int mismatches = 0;
+            for (int y = 0; y < canvas.bounds.height; y++) {
+                for (int x = 0; x < canvas.bounds.width; x++) {
+                    mismatches +=
+                        fake_hal_pixel(x, y) != pixels[y * canvas.bounds.width + x] ? 1 : 0;
+                }
+            }
+            CHECK_EQUAL(0, mismatches);
             MeterNowPlayingLayout layout = meter_now_playing_layout(&theme);
             for (int y = 0; y < canvas.bounds.height; y++) {
                 for (int x = 0; x < canvas.bounds.width; x++) {
@@ -134,9 +147,46 @@ static void hidden_and_early_ticks_never_sample_or_send(void)
     CHECK_EQUAL(1, fake_hal_visual_reads());
 }
 
+static void peak_dots_hold_for_half_a_second_then_go_out(void)
+{
+    Canvas canvas = start(0, TEXT_SIZE_MEDIUM, APPEARANCE_NEON_NOIR, NOW_PLAYING_VU);
+    for (int sample = 0; sample < 1024; sample++) {
+        samples[sample] = (uint32_t)32767 << 16;
+    }
+    FrameDiff diff = {0};
+    screen.now_ms = 1000;
+    meter_now_playing_animate(&screen, &diff, true);
+    Rect dial = meter_now_playing_layout(&theme).dials[0];
+    meter_now_playing_draw(&screen, &canvas);
+    CHECK_EQUAL(theme.colors.danger, canvas_pixel_at(&canvas, dial.x + dial.width - 9, dial.y + 5));
+    memset(samples, 0, sizeof samples);
+    screen.status.state = PLAYER_PAUSED;
+    screen.now_ms = 1400;
+    meter_now_playing_animate(&screen, &diff, true);
+    meter_now_playing_draw(&screen, &canvas);
+    CHECK_EQUAL(theme.colors.danger, canvas_pixel_at(&canvas, dial.x + dial.width - 9, dial.y + 5));
+    screen.now_ms = 1560;
+    meter_now_playing_animate(&screen, &diff, true);
+    meter_now_playing_draw(&screen, &canvas);
+    CHECK_EQUAL(theme.colors.divider,
+                canvas_pixel_at(&canvas, dial.x + dial.width - 9, dial.y + 5));
+}
+
+static void unlit_peak_dots_stay_dark_after_long_uptime(void)
+{
+    Canvas canvas = start(0, TEXT_SIZE_MEDIUM, APPEARANCE_NEON_NOIR, NOW_PLAYING_VU);
+    screen.now_ms = UINT32_C(0x90000000);
+    Rect dial = meter_now_playing_layout(&theme).dials[0];
+    meter_now_playing_draw(&screen, &canvas);
+    CHECK_EQUAL(theme.colors.divider,
+                canvas_pixel_at(&canvas, dial.x + dial.width - 9, dial.y + 5));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(unlit_peak_dots_stay_dark_after_long_uptime),
+        TEST_CASE(peak_dots_hold_for_half_a_second_then_go_out),
         TEST_CASE(art_and_text_fit_every_theme_orientation_and_size),
         TEST_CASE(frames_change_only_the_meter_rectangles_and_decay_to_rest),
         TEST_CASE(hidden_and_early_ticks_never_sample_or_send),

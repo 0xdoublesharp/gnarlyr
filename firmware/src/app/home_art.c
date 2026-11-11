@@ -123,8 +123,9 @@ static void draw_horizon(Canvas *canvas, Rect area, const Theme *theme)
         int y = top + line * line * height / 36;
         canvas_fill_rect(canvas, (Rect){area.x, y, area.width, 1}, ink);
     }
+    Rect visible = rect_intersection(canvas->clip, (Rect){area.x, top, area.width, height});
     for (int ray = -5; ray <= 5; ray++) {
-        for (int y = 0; y < height; y++) {
+        for (int y = visible.y - top; y < visible.y + visible.height - top; y++) {
             int x = area.x + area.width / 2 + ray * (6 + y * area.width / (height * 5));
             canvas_fill_rect(canvas, (Rect){x, top + y, 1, 1}, ink);
         }

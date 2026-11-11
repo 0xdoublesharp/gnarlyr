@@ -66,19 +66,21 @@ class EchoImageTest(EchoImageHarness):
         _, views = self.module(machine, "views")
         self.assertTrue(views.loaded(machine))
         rig.run_for(300)
+        reads = machine.trace("hal_audio_visual_buffer")
+        since_ms = machine.milliseconds()
         since = machine.cycles()
         animated = self.busy_percent(rig, idle, 3000)
         windows = [window for window in machine.panel.windows if window.cycles >= since and window.width < 300]
         self.assertGreater(len(windows), 0)
-        if style == 3:
-            frames = len([window for window in windows if window.width == 270]) // 39
-            self.assertGreaterEqual(frames, 35)
-            self.assertLessEqual(frames, 39)
+        frames = len([stamp for stamp in reads if stamp >= since_ms])
+        self.assertGreaterEqual(frames, 29)
+        self.assertLessEqual(frames, 31)
         machine.stub_symbol("meter_now_playing_animate", lambda machine: 0)
         rig.run_for(200)
         still = self.busy_percent(rig, idle, 3000)
         self.assertLessEqual(animated - still, 3)
         self.assertEqual([], rig.audio.underruns(started))
+        self.assertEqual(0, rig.audio.output_underruns())
         self.assertEqual(32000 if converted else 44100, rig.audio.rate)
         self.assert_healthy(rig.session)
         print("\n[%s %s] core 0 animated %.2f %%, still %.2f %%, increase %.2f points, no underruns" %

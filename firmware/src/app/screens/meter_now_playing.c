@@ -107,14 +107,29 @@ static void dial(const NowPlayingScreen *screen, Canvas *canvas, int channel)
                   neon_art_ink(theme, theme->colors.accent));
     canvas_fill_rect(&clipped, (Rect){center.x - 2, center.y - 2, 5, 5}, theme->colors.text);
     Rect dot = peak_dot(area);
-    Color led = (int32_t)(state.peak_until[channel] - screen->now_ms) > 0 ? theme->colors.danger
-                                                                          : theme->colors.divider;
+    Color led =
+        state.peak_until[channel] != 0 && (int32_t)(state.peak_until[channel] - screen->now_ms) > 0
+            ? theme->colors.danger
+            : theme->colors.divider;
     canvas_fill_rect(&clipped, dot, color_between(theme->colors.backdrop_top, led, 1, 3));
     canvas_fill_rect(&clipped, (Rect){dot.x + 1, dot.y + 1, 4, 4}, led);
     TextStyle label = {theme->fonts.small, theme->colors.text_secondary};
     label_draw(&clipped, label,
                (Label){{area.x + 2, area.y + 2, 32, font_line_height(label.font)},
                        i18n_text(channel == 0 ? STR_METER_LEFT : STR_METER_RIGHT)});
+}
+
+static Rect band_area(Rect area, int band)
+{
+    int pitch = area.width / AUDIO_VISUAL_BANDS;
+    int width = pitch - (pitch > 10 ? 4 : 2);
+    int x = area.x + band * pitch + (area.width - pitch * AUDIO_VISUAL_BANDS) / 2;
+    return (Rect){x, area.y, width, area.height};
+}
+
+static int band_top(Rect area, uint8_t level)
+{
+    return area.y + area.height - 5 - level * (area.height - 16) / 255;
 }
 
 static void spectrum(const NowPlayingScreen *screen, Canvas *canvas)
@@ -125,28 +140,36 @@ static void spectrum(const NowPlayingScreen *screen, Canvas *canvas)
     if (rect_is_empty(clipped.clip)) {
         return;
     }
-    int pitch = area.width / AUDIO_VISUAL_BANDS;
-    int width = pitch - (pitch > 10 ? 4 : 2);
     int bottom = area.y + area.height - 5;
-    int height = area.height - 16;
     for (int band = 0; band < AUDIO_VISUAL_BANDS; band++) {
-        int x = area.x + band * pitch + (area.width - pitch * AUDIO_VISUAL_BANDS) / 2;
-        int rise = state.bars[band] * height / 255;
+        Rect column = band_area(area, band);
+        Rect glow = {column.x - 1, column.y, column.width + 2, column.height};
+        if (rect_is_empty(rect_intersection(clipped.clip, glow))) {
+            continue;
+        }
+        int top = band_top(area, state.bars[band]);
         Color ink = color_between(theme->colors.accent, theme->colors.accent_alt, band,
                                   AUDIO_VISUAL_BANDS - 1);
-        Rect bar = {x, bottom - rise, width, rise};
-        canvas_fill_gradient(&clipped, bar, ink,
+        Rect bar = {column.x, top, column.width, bottom - top};
+        Canvas fill = canvas_clipped(&clipped, bar);
+        canvas_fill_gradient(&fill, (Rect){column.x, area.y, column.width, bottom - area.y}, ink,
                              color_between(theme->colors.backdrop_bottom, ink, 1, 4));
-        if (rise > 0) {
-            neon_art_line(&clipped, (Point){x, bottom - rise}, (Point){x, bottom - 1},
+        if (top < bottom) {
+            neon_art_line(&clipped, (Point){column.x, top}, (Point){column.x, bottom - 1},
                           neon_art_ink(theme, ink));
-            for (int y = bottom - rise + 3; y < bottom; y += 4) {
-                canvas_fill_rect(&clipped, (Rect){x + 2, y, width - 2, 1},
+            int first = area.y + 3;
+            int start = fill.clip.y;
+            if (first < start) {
+                first += (start - first + 3) / 4 * 4;
+            }
+            int end = fill.clip.y + fill.clip.height;
+            for (int y = first; y < end; y += 4) {
+                canvas_fill_rect(&clipped, (Rect){column.x + 2, y, column.width - 2, 1},
                                  theme->colors.backdrop_top);
             }
         }
-        int cap = bottom - state.caps[band] * height / 255;
-        canvas_fill_rect(&clipped, (Rect){x, cap - 2, width, 2}, theme->colors.text);
+        int cap = band_top(area, state.caps[band]);
+        canvas_fill_rect(&clipped, (Rect){column.x, cap - 2, column.width, 2}, theme->colors.text);
     }
 }
 
@@ -197,14 +220,41 @@ static void render(NowPlayingScreen *screen, Rect area)
                     (FrameDrawer){draw_motion, screen}, (FrameSink){send_motion, NULL});
 }
 
+static void render_spectrum(NowPlayingScreen *screen, const uint8_t *bars, const uint8_t *caps)
+{
+    Rect area = meter_now_playing_layout(screen->config.theme).spectrum;
+    for (int band = 0; band < AUDIO_VISUAL_BANDS; band++) {
+        Rect column = band_area(area, band);
+        int previous = band_top(area, bars[band]);
+        int current = band_top(area, state.bars[band]);
+        if (previous != current) {
+            int top = previous < current ? previous : current;
+            int bottom = previous > current ? previous : current;
+            render(screen, rect_intersection(area, (Rect){column.x - 1, top - 2, column.width + 2,
+                                                          bottom - top + 4}));
+        }
+        previous = band_top(area, caps[band]);
+        current = band_top(area, state.caps[band]);
+        if (previous != current) {
+            render(screen, rect_intersection(
+                               area, (Rect){column.x - 1, previous - 3, column.width + 2, 4}));
+            render(screen,
+                   rect_intersection(area, (Rect){column.x - 1, current - 3, column.width + 2, 4}));
+        }
+    }
+}
+
 static uint8_t falling(uint8_t value, unsigned fall)
 {
     return value > fall ? (uint8_t)(value - fall) : 0;
 }
 
-static void update_bars(const AudioVisualLevels *levels, uint32_t elapsed, uint32_t now)
+static bool update_bars(const AudioVisualLevels *levels, uint32_t elapsed, uint32_t now)
 {
+    bool changed = false;
     for (int band = 0; band < AUDIO_VISUAL_BANDS; band++) {
+        uint8_t previous_bar = state.bars[band];
+        uint8_t previous_cap = state.caps[band];
         uint8_t next = levels->band[band];
         uint8_t lower = falling(state.bars[band], elapsed / 4);
         state.bars[band] = next > lower ? next : lower;
@@ -214,7 +264,9 @@ static void update_bars(const AudioVisualLevels *levels, uint32_t elapsed, uint3
         } else if ((int32_t)(now - state.cap_until[band]) >= 0) {
             state.caps[band] = falling(state.caps[band], elapsed / 12);
         }
+        changed |= previous_bar != state.bars[band] || previous_cap != state.caps[band];
     }
+    return changed;
 }
 
 static Rect needle_area(Rect dial, uint8_t previous, uint8_t current)
@@ -256,11 +308,13 @@ static void update_needles(NowPlayingScreen *screen, const AudioVisualLevels *le
                 needle_area(layout.dials[channel], state.echo[channel], state.shown[channel]));
             render(screen, area);
         }
-        bool was_lit = (int32_t)(state.peak_until[channel] - state.updated_ms) > 0;
+        bool was_lit = state.peak_until[channel] != 0 &&
+                       (int32_t)(state.peak_until[channel] - state.updated_ms) > 0;
         if (levels->peak[channel] >= 30000) {
             state.peak_until[channel] = screen->now_ms + 500;
         }
-        bool lit = (int32_t)(state.peak_until[channel] - screen->now_ms) > 0;
+        bool lit = state.peak_until[channel] != 0 &&
+                   (int32_t)(state.peak_until[channel] - screen->now_ms) > 0;
         if (lit != was_lit) {
             render(screen, peak_dot(layout.dials[channel]));
         }
@@ -310,8 +364,15 @@ CORE_SEAM bool meter_now_playing_animate(NowPlayingScreen *screen, FrameDiff *di
     if (style == NOW_PLAYING_VU) {
         update_needles(screen, &levels, elapsed);
     } else {
-        update_bars(&levels, elapsed, screen->now_ms);
-        render(screen, meter_now_playing_layout(screen->config.theme).spectrum);
+        uint8_t bars[AUDIO_VISUAL_BANDS];
+        uint8_t caps[AUDIO_VISUAL_BANDS];
+        for (int band = 0; band < AUDIO_VISUAL_BANDS; band++) {
+            bars[band] = state.bars[band];
+            caps[band] = state.caps[band];
+        }
+        if (update_bars(&levels, elapsed, screen->now_ms)) {
+            render_spectrum(screen, bars, caps);
+        }
     }
     state.updated_ms = screen->now_ms;
     hal_display_present();

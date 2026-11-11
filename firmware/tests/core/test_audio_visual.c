@@ -26,6 +26,9 @@ static void fft_matches_a_double_dft_for_every_bin(void)
         }
         CHECK(fabs(real - work.real[bin]) < 12);
         CHECK(fabs(imag - work.imag[bin]) < 12);
+        double expected = sqrt(real * real + imag * imag);
+        double measured = hypot(work.real[bin], work.imag[bin]);
+        CHECK(fabs(expected - measured) < 14);
     }
 }
 

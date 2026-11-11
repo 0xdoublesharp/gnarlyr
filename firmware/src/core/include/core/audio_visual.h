@@ -6,7 +6,7 @@
 enum {
     AUDIO_VISUAL_FFT = 256,
     AUDIO_VISUAL_BANDS = 16,
-    AUDIO_VISUAL_FRAME_MS = 80
+    AUDIO_VISUAL_FRAME_MS = 100
 };
 
 typedef struct AudioVisualBuffer {

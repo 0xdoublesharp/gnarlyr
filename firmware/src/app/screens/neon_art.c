@@ -22,6 +22,15 @@ NeonInk neon_art_ink(const Theme *theme, Color color)
 
 static void line(Canvas *canvas, Point from, Point to, NeonInk ink)
 {
+    Rect bounds = {from.x < to.x ? from.x : to.x, from.y < to.y ? from.y : to.y,
+                   absolute(to.x - from.x) + 1, absolute(to.y - from.y) + 1};
+    if (rect_is_empty(rect_intersection(canvas->clip, bounds))) {
+        return;
+    }
+    if (from.x == to.x || from.y == to.y) {
+        canvas_fill_rect(canvas, bounds, ink.bright);
+        return;
+    }
     int dx = absolute(to.x - from.x);
     int dy = -absolute(to.y - from.y);
     int sx = from.x < to.x ? 1 : -1;
@@ -46,10 +55,11 @@ static void line(Canvas *canvas, Point from, Point to, NeonInk ink)
 
 void neon_art_line(Canvas *canvas, Point from, Point to, NeonInk ink)
 {
+    bool horizontal = absolute(to.x - from.x) >= absolute(to.y - from.y);
     for (int side = -1; side <= 1; side += 2) {
-        line(canvas, (Point){from.x + side, from.y}, (Point){to.x + side, to.y},
-             (NeonInk){ink.halo, ink.halo});
-        line(canvas, (Point){from.x, from.y + side}, (Point){to.x, to.y + side},
+        int x = horizontal ? 0 : side;
+        int y = horizontal ? side : 0;
+        line(canvas, (Point){from.x + x, from.y + y}, (Point){to.x + x, to.y + y},
              (NeonInk){ink.halo, ink.halo});
     }
     line(canvas, from, to, ink);
