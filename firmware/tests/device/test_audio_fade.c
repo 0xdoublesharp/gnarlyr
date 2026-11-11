@@ -8,6 +8,7 @@
 enum {
     RING_FRAMES = 8192,
     RING_WORDS = 2 * RING_FRAMES,
+    STRETCH_WORDS = 6000,
     FULL_VOLUME = 60,
     BLOCK = 256,
     LEVEL = 16384,
@@ -93,6 +94,7 @@ static void start_engine(void)
     audio_engine_init(&engine, (AudioEngineConfig){.source = source,
                                                    .ring = ring,
                                                    .ring_words = RING_WORDS,
+                                                   .stretch_words = STRETCH_WORDS,
                                                    .resample_render = audio_resample_render});
     audio_engine_set_volume(&engine, FULL_VOLUME);
     consumed = 0;
@@ -120,7 +122,7 @@ static void capture_in(uint32_t frames, uint32_t chunk)
             audio_engine_pump(&engine, consumed);
         }
         for (uint32_t index = 0; index < chunk && captured_frames < CAPTURE_FRAMES; index++) {
-            uint32_t slot = 2 * ((consumed + index) % RING_FRAMES);
+            uint32_t slot = 2 * ((consumed + index) % (engine.config.ring_words / 2));
             captured[captured_frames][0] = (int32_t)ring[slot] >> 8;
             captured[captured_frames][1] = (int32_t)ring[slot + 1] >> 8;
             captured_frames++;
@@ -364,18 +366,36 @@ static void pausing_during_a_fade_keeps_its_shape(void)
     CHECK(follows_ramp(boundary, length, false, length));
 }
 
-static void a_fade_out_that_has_begun_finishes_when_the_queue_changes(void)
+static void a_fade_out_that_has_begun_finishes_and_fades_in_when_the_queue_changes(void)
 {
     start_engine();
     play("a", 0);
     queue("b", FADE_MS, 0);
     capture(TRACK_SECONDS * RATE - RATE / 2);
     queue("b", 0, 0);
-    capture(RATE);
+    capture(2 * RATE);
     uint32_t length = FADE_MS * RATE / 1000;
     uint32_t boundary = TRACK_SECONDS * RATE;
     CHECK(follows_ramp(boundary - length, length, true, length));
-    CHECK(exactly_level(boundary, RATE / 4, LEVEL * 256));
+    CHECK(follows_ramp(boundary, length, false, length));
+    CHECK(exactly_level(boundary + length, RATE / 4, LEVEL * 256));
+}
+
+static void a_fade_in_mirrors_its_ramp_over_the_tail_before_its_start(void)
+{
+    static uint32_t words[2 * 64];
+    fill(words, 64, 1000000);
+    AudioFadeRamp ramp = {.start = 20, .length = 32, .reciprocal = UINT32_MAX / 32, .active = true};
+    audio_fade_in((AudioFadeBlock){.ring = words, .ring_frames = 64, .first = 0, .frames = 64},
+                  &ramp);
+    bool mirrored = true;
+    for (int frame = 0; frame < 20; frame++) {
+        mirrored = mirrored && words[2 * frame] == words[2 * (40 - frame)];
+    }
+    CHECK(mirrored);
+    CHECK_EQUAL(0, (int32_t)words[2 * 20] >> 8);
+    CHECK_EQUAL(1000000, (int32_t)words[2 * 52] >> 8);
+    CHECK(!ramp.active);
 }
 
 static void a_track_of_unknown_length_only_fades_the_next_one_in(void)
@@ -420,6 +440,64 @@ static void a_converted_fade_stays_smooth_when_the_ring_frees_a_few_frames_at_a_
     CHECK(near(smooth(0.5), gain_at(boundary - length / 2), 0.002));
 }
 
+static uint32_t stretched(uint32_t frames, uint8_t speed)
+{
+    return (uint32_t)((200ull * frames + speed) / (2u * speed));
+}
+
+static void stretched_tracks_fade_out_and_in_exactly_at_the_stretched_boundary(void)
+{
+    static const uint8_t SPEEDS[] = {50, 75, 150, 200};
+    for (size_t at = 0; at < sizeof SPEEDS / sizeof SPEEDS[0]; at++) {
+        start_engine();
+        audio_engine_set_speed(&engine, SPEEDS[at]);
+        play("a", 0);
+        queue("b", FADE_MS, 0);
+        uint32_t length = FADE_MS * RATE / 1000;
+        uint32_t boundary = stretched(TRACK_SECONDS * RATE, SPEEDS[at]);
+        capture(boundary + length + RATE / 2);
+        CHECK_EQUAL(STRETCH_WORDS, engine.config.ring_words);
+        CHECK(exactly_level(0, boundary - length, LEVEL * 256));
+        CHECK(follows_ramp(boundary - length, length, true, length));
+        CHECK(follows_ramp(boundary, length, false, length));
+        CHECK(exactly_level(boundary + length, captured_frames - boundary - length, LEVEL * 256));
+        CHECK(channels_match(0, captured_frames));
+        CHECK_EQUAL(2u, audio_engine_status(&engine).token);
+    }
+}
+
+static void stretched_speech_fades_on_the_output_clock_after_conversion(void)
+{
+    static const uint8_t SPEEDS[] = {50, 150, 200};
+    for (size_t at = 0; at < sizeof SPEEDS / sizeof SPEEDS[0]; at++) {
+        start_engine();
+        audio_engine_set_speed(&engine, SPEEDS[at]);
+        play("low", 0);
+        queue("low2", FADE_MS, 0);
+        uint32_t length = FADE_MS * LOW_OUTPUT_RATE / 1000;
+        uint32_t boundary = 2 * stretched(TRACK_SECONDS * LOW_RATE, SPEEDS[at]);
+        capture(boundary + length + LOW_OUTPUT_RATE / 2);
+        CHECK_EQUAL(LOW_OUTPUT_RATE, audio_engine_rate(&engine));
+        CHECK(near(1.0, gain_at(boundary - length - LOW_OUTPUT_RATE / 4), 0.001));
+        CHECK(near(smooth(0.25), gain_at(boundary - length / 4), 0.002));
+        CHECK(near(smooth(0.75), gain_at(boundary - 3 * length / 4), 0.002));
+        CHECK(near(smooth(0.5), gain_at(boundary + length / 2), 0.002));
+        CHECK(near(1.0, gain_at(boundary + length + LOW_OUTPUT_RATE / 4), 0.001));
+        CHECK(largest_gain_step(LOW_OUTPUT_RATE, boundary) <= step_limit(length));
+    }
+}
+
+static void a_stretched_track_without_a_queued_fade_ends_at_full_level(void)
+{
+    start_engine();
+    audio_engine_set_speed(&engine, 150);
+    play("a", 0);
+    queue("b", 0, 0);
+    uint32_t boundary = stretched(TRACK_SECONDS * RATE, 150);
+    capture(boundary + RATE);
+    CHECK(exactly_level(0, boundary + RATE, LEVEL * 256));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -434,10 +512,14 @@ int main(void)
         TEST_CASE(seeking_into_the_fade_out_continues_from_that_point_of_the_curve),
         TEST_CASE(seeking_during_the_fade_in_plays_the_next_track_at_full_level),
         TEST_CASE(pausing_during_a_fade_keeps_its_shape),
-        TEST_CASE(a_fade_out_that_has_begun_finishes_when_the_queue_changes),
+        TEST_CASE(a_fade_out_that_has_begun_finishes_and_fades_in_when_the_queue_changes),
+        TEST_CASE(a_fade_in_mirrors_its_ramp_over_the_tail_before_its_start),
         TEST_CASE(a_track_of_unknown_length_only_fades_the_next_one_in),
         TEST_CASE(a_converted_low_rate_track_fades_on_the_output_clock),
         TEST_CASE(a_converted_fade_stays_smooth_when_the_ring_frees_a_few_frames_at_a_time),
+        TEST_CASE(stretched_tracks_fade_out_and_in_exactly_at_the_stretched_boundary),
+        TEST_CASE(stretched_speech_fades_on_the_output_clock_after_conversion),
+        TEST_CASE(a_stretched_track_without_a_queued_fade_ends_at_full_level),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

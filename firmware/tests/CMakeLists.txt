@@ -447,6 +447,13 @@ add_dependencies(test_audio_tempo audio_tempo_tool)
 if(UNIX)
     target_link_libraries(test_audio_tempo PRIVATE m)
 endif()
+echo_add_unit_test(NAME test_audio_tempo_stage
+    SOURCES device/test_audio_tempo_stage.c
+    LIBRARIES echo_device_logic
+)
+if(UNIX)
+    target_link_libraries(test_audio_tempo_stage PRIVATE m)
+endif()
 echo_add_unit_test(NAME test_audio_engine
     SOURCES device/test_audio_engine.c
     LIBRARIES echo_device_logic
@@ -460,6 +467,13 @@ echo_add_unit_test(NAME test_audio_engine_pcm
     SOURCES device/test_audio_engine_pcm.c
     LIBRARIES echo_device_logic
 )
+echo_add_unit_test(NAME test_audio_engine_tempo
+    SOURCES device/test_audio_engine_tempo.c
+    LIBRARIES echo_device_logic
+)
+if(UNIX)
+    target_link_libraries(test_audio_engine_tempo PRIVATE m)
+endif()
 echo_add_unit_test(NAME test_mp3_probe
     SOURCES device/test_mp3_probe.c
     LIBRARIES echo_device_logic

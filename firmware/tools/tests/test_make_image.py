@@ -437,7 +437,17 @@ class ModuleTest(unittest.TestCase):
     def rows(self, image):
         return make_image.modules_in(image)
 
-    def test_processing_module_has_an_independent_bounded_window_without_state(self):
+    def test_processing_private_state_fits_its_own_window(self):
+        number = make_image.PROCESS_MODULE_NUMBER
+        base, capacity = make_image.module_window(number)
+        content = module_blob(number, bytes(4096))
+        remaining = capacity - len(content)
+        binary = module_elf(content, base=base, bss_size=remaining)
+        self.assertEqual(content, make_image.module_from_elf(binary, number))
+        with self.assertRaises(make_image.ImageError):
+            make_image.module_from_elf(module_elf(content, base=base, bss_size=remaining + 4), number)
+
+    def test_processing_module_has_an_independent_bounded_window(self):
         base, capacity, number = 0x0308F000, 0x3000, 7
         content = module_blob(number, bytes(capacity - 20))
         self.assertEqual(content, make_image.module_from_elf(module_elf(content, base=base), number))
@@ -447,9 +457,8 @@ class ModuleTest(unittest.TestCase):
         modules[-1] += b"x"
         with self.assertRaises(make_image.ImageError):
             build(modules=modules)
-        for binary in (module_elf(content), module_elf(content, base=base, bss_size=4)):
-            with self.assertRaises(make_image.ImageError):
-                make_image.module_from_elf(binary, number)
+        with self.assertRaises(make_image.ImageError):
+            make_image.module_from_elf(module_elf(content), number)
 
     def test_extension_module_has_its_own_window_above_the_audio_bank_without_state(self):
         base, capacity, number = 0x0304A000, 0x2000, 8

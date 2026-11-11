@@ -3191,9 +3191,15 @@ class EchoImageTest(unittest.TestCase):
             uc.emu_start(address | 1, STUB_RETURN, count=20_000_000)
             self.assertEqual(STUB_RETURN, uc.reg_read(UC_ARM_REG_PC), name)
             return uc.reg_read(UC_ARM_REG_R0)
+        ring = machine.symbols["music_ring"]
+        source_words, target_words = ring, ring + 64 * 8
+
         def drain(output):
-            while call("audio_tempo_pull", scratch, scratch + 128, scratch + 132):
-                output.extend(uc.mem_read(scratch + 128, 8))
+            while True:
+                made = call("audio_process_tempo_pull", target_words, 64, 0)
+                if not made:
+                    return
+                output.extend(uc.mem_read(target_words, made * 8))
         marker = b"\xa7" * 64
         uc.mem_write(following, marker)
         self.assertEqual(1, call("board_audio_process_prepare"))
@@ -3210,11 +3216,7 @@ class EchoImageTest(unittest.TestCase):
         uc.mem_write(damaged, original)
         uc.ctl_remove_cache(process.base, process.base + len(process.stored))
         for rate, speed in ((8000, 50), (16000, 100), (48000, 50), (48000, 150), (48000, 200)):
-            needed = 2 * (rate // 16) + 2
-            first_frames = min(bank_frames, needed)
-            second_frames = needed - first_frames
-            self.assertEqual(1, call("audio_tempo_start", scratch, bank, following,
-                                     first_frames | second_frames << 16, rate, speed))
+            self.assertEqual(1, call("audio_process_tempo_start", bank, bank_frames, rate, speed))
             frames = 12000
             pcm = [(abs((index * 71) % 2048 - 1024) * 4000 - 2000000,
                     abs((index * 37 + 103) % 2048 - 1024) * 4000 - 2000000)
@@ -3228,14 +3230,17 @@ class EchoImageTest(unittest.TestCase):
                 expected = target.read_bytes()
             actual = bytearray()
             before = instructions[0]
-            for left, right in pcm:
-                if not call("audio_tempo_push", scratch, left, right):
+            for first in range(0, frames, 41):
+                chunk = pcm[first:first + 41]
+                uc.mem_write(source_words, b"".join(struct.pack("<ii", *frame) for frame in chunk))
+                taken = 0
+                while taken < len(chunk):
+                    taken += call("audio_process_tempo_push", source_words + taken * 8,
+                                  len(chunk) - taken)
                     drain(actual)
-                    self.assertEqual(1, call("audio_tempo_push", scratch, left, right))
-                drain(actual)
-            call("audio_tempo_finish", scratch)
+            call("audio_process_tempo_finish")
             drain(actual)
-            self.assertEqual(1, call("audio_tempo_done", scratch))
+            self.assertEqual(0, call("audio_process_tempo_pending", 0))
             self.assertEqual(expected, actual, (rate, speed))
             self.assertEqual(b"\xa5" * 64, bytes(uc.mem_read(guard, 64)))
             print("tempo ARM: rate=%d speed=%d frames=%d instructions=%d per_output=%.1f" %

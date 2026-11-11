@@ -52,16 +52,31 @@ void equalizer_run(Equalizer *equalizer, uint32_t *words, uint32_t frames)
     }
 }
 
-void audio_fade_in(AudioFadeBlock block, AudioFadeRamp *ramp)
+void audio_engine_stage_shape(AudioEngine *engine, uint32_t first, bool tail)
 {
     if (ready) {
-        entry()->fade_in(block, ramp);
+        entry()->shape(engine, first, tail);
     }
 }
 
-void audio_fade_out(AudioFadeBlock block, AudioFadeRamp *ramp, int64_t remaining)
+uint32_t audio_engine_stage_stretch(AudioEngine *engine, const int32_t *stage, uint32_t frames)
+{
+    return ready ? entry()->stretch(engine, stage, frames) : 0;
+}
+
+bool audio_tempo_stage_start(uint8_t *buffer, uint32_t frames, uint32_t rate, uint16_t speed)
+{
+    return ready && entry()->tempo_start(buffer, frames, rate, speed);
+}
+
+void audio_tempo_stage_finish(void)
 {
     if (ready) {
-        entry()->fade_out(block, ramp, remaining);
+        entry()->tempo_finish();
     }
+}
+
+uint32_t audio_tempo_stage_pending(uint32_t input)
+{
+    return ready ? entry()->tempo_pending(input) : 0;
 }

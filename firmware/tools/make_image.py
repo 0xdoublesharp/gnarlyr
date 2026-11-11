@@ -610,7 +610,7 @@ def overlay_from_elf(elf, zeroed=False, base=OVERLAY_BASE, capacity=OVERLAY_CAPA
 
 
 def module_from_elf(elf, number=0):
-    stateless = number in (*AUDIO_MODULE_NUMBERS, PROCESS_MODULE_NUMBER, EXTENSION_MODULE_NUMBER)
+    stateless = number in (*AUDIO_MODULE_NUMBERS, EXTENSION_MODULE_NUMBER)
     bss = elf_sections(elf).get(".bss") if stateless else None
     if bss is not None and bss.size:
         raise ImageError("the extension module must keep all state in the main program"

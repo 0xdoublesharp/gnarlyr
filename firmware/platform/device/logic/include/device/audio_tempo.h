@@ -51,3 +51,13 @@ bool audio_tempo_push(AudioTempo *tempo, int32_t left, int32_t right);
 bool audio_tempo_pull(AudioTempo *tempo, int32_t *left, int32_t *right);
 void audio_tempo_finish(AudioTempo *tempo);
 bool audio_tempo_done(const AudioTempo *tempo);
+
+enum {
+    AUDIO_TEMPO_STAGE_SPARE_FRAMES = 669
+};
+
+bool audio_tempo_stage_start(uint8_t *buffer, uint32_t frames, uint32_t rate, uint16_t speed);
+uint32_t audio_tempo_stage_push(const int32_t *samples, uint32_t frames);
+uint32_t audio_tempo_stage_pull(int32_t *samples, uint32_t frames, int shift);
+void audio_tempo_stage_finish(void);
+uint32_t audio_tempo_stage_pending(uint32_t input);
