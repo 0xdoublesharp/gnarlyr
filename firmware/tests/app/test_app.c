@@ -35,6 +35,7 @@
 #include "ui/slide.h"
 #include "ui/status_bar.h"
 #include "ui/toast.h"
+#include "ui/wire_motion.h"
 
 enum {
     PLAYING_POSITION_MS = 60000,
@@ -737,6 +738,72 @@ static void holding_back_from_a_busy_mixtape_save_reaches_home(void)
     hold_back();
     CHECK(title_is(FIRMWARE_SHORT_NAME));
     CHECK_EQUAL(1, app_screen_depth());
+}
+
+static void open_mixtape_name_while_playing(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    hold_back();
+    move_down(4);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    CHECK(title_is("Mixtape name"));
+}
+
+static int steps_until_toast(uint32_t interval_ms, int limit)
+{
+    int count = 0;
+    while (app_toast_text() == NULL && count < limit) {
+        wait_ms(interval_ms);
+        count++;
+    }
+    return count;
+}
+
+static void a_slow_mixtape_save_animates_only_its_square_then_the_screen_rests(void)
+{
+    open_mixtape_name_while_playing();
+    fake_hal_set_microseconds_per_read(9000);
+    hold(KEY_PLAY);
+    for (int count = 0; count < 6; count++) {
+        wait_ms(100);
+    }
+    fake_hal_forget_display_writes();
+    for (int count = 0; count < 10; count++) {
+        wait_ms(100);
+    }
+    FakeDisplayWrites writes = fake_hal_display_writes();
+    CHECK(app_toast_text() == NULL);
+    CHECK_EQUAL(10, writes.count);
+    CHECK(writes.same);
+    CHECK(writes.first.width >= WIRE_MOTION_MIN_SIDE);
+    CHECK(writes.first.width <= WIRE_MOTION_MAX_SIDE);
+    CHECK_EQUAL(writes.first.width, writes.first.height);
+    CHECK(steps_until_toast(100, 100) < 100);
+    fake_hal_set_microseconds_per_read(0);
+    CHECK(strcmp("Mixtape saved", app_toast_text()) == 0);
+    for (int count = 0; count < 600 && app_toast_text() != NULL; count++) {
+        wait_ms(10);
+    }
+    wait_ms(1500);
+    fake_hal_forget_display_writes();
+    for (int count = 0; count < 300; count++) {
+        wait_ms(10);
+    }
+    CHECK_EQUAL(0, fake_hal_display_writes().count);
+    CHECK(app_pass_interval_ms() > 1);
+}
+
+static void a_quick_mixtape_save_never_shows_its_motion(void)
+{
+    open_mixtape_name_while_playing();
+    hold(KEY_PLAY);
+    fake_hal_forget_display_writes();
+    CHECK(steps_until_toast(10, 100) < 30);
+    FakeDisplayWrites writes = fake_hal_display_writes();
+    CHECK(writes.count > 0);
+    CHECK_EQUAL(HAL_DISPLAY_WIDTH, writes.narrowest);
 }
 
 static void a_song_actions_menu_opens_its_metadata_and_personal_tags(void)
@@ -4150,6 +4217,25 @@ static void peek_poke_and_gpio_lines_ask_the_board_and_keep_what_it_answers(void
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[3]);
 }
 
+static void rtc_read_lines_keep_the_registers_and_a_bus_error_fails_the_line(void)
+{
+    start_app();
+    fake_hal_set_rtc_answer((HalRtcRead){HAL_RTC_OK, {0x00, 0x00, 0x05, 0x00, 0x12, 0x03}});
+    const DebugScriptRun *run = run_script("build any\nrtc read\nwait 20\n", 200);
+    CHECK_EQUAL(1, fake_hal_rtc_read_count());
+    CHECK_EQUAL(1, run->rtc_count);
+    CHECK_EQUAL(2, run->rtc[0].line);
+    CHECK_EQUAL(HAL_RTC_OK, run->rtc[0].status);
+    CHECK_EQUAL(0x12, run->rtc[0].registers[4]);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
+    fake_hal_set_rtc_answer((HalRtcRead){.status = HAL_RTC_TIMEOUT});
+    run = run_script("build any\nrtc read\nrtc read\nrtc read\nrtc read\nrtc read\n", 200);
+    CHECK_EQUAL(4, run->rtc_count);
+    CHECK_EQUAL(HAL_RTC_TIMEOUT, run->rtc[3].status);
+    CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[1]);
+    CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[5]);
+}
+
 static void a_probe_the_board_refuses_is_reported_and_leaves_no_record(void)
 {
     start_app();
@@ -4636,6 +4722,32 @@ static void menu_does_nothing_while_nothing_plays(void)
     CHECK(title_is(FIRMWARE_SHORT_NAME));
 }
 
+static Rect left_of_battery(void)
+{
+    Rect body = status_bar_battery_body(expected_theme());
+    return (Rect){body.x - 60, body.y, 56, body.height};
+}
+
+static void battery_percentage_choice_shows_the_level_beside_the_battery_and_survives_restart(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery((HalBattery){.known = true, .percent = HALF_BATTERY});
+    Color ink = expected_theme()->colors.header_text;
+    open_setting(22);
+    CHECK(title_is("Battery percent"));
+    CHECK(!area_has_color(left_of_battery(), ink));
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Settings"));
+    CHECK(area_has_color(left_of_battery(), ink));
+    Settings chosen;
+    CHECK(saved_settings(&chosen));
+    CHECK(chosen.battery_percent);
+    restart_app();
+    CHECK(saved_settings(&chosen));
+    CHECK(chosen.battery_percent);
+}
+
 static void normalization_choices_apply_and_survive_restart(void)
 {
     start_app_with_library();
@@ -4792,6 +4904,8 @@ int main(void)
         TEST_CASE(queue_actions_and_menu_shortcuts_reuse_now_playing_before_home),
         TEST_CASE(holding_back_from_mixtape_name_reaches_home),
         TEST_CASE(holding_back_from_a_busy_mixtape_save_reaches_home),
+        TEST_CASE(a_slow_mixtape_save_animates_only_its_square_then_the_screen_rests),
+        TEST_CASE(a_quick_mixtape_save_never_shows_its_motion),
         TEST_CASE(a_song_actions_menu_opens_its_metadata_and_personal_tags),
         TEST_CASE(selecting_a_track_plays_it_and_shows_now_playing),
         TEST_CASE(play_on_the_playing_track_opens_now_playing_without_restarting),
@@ -4820,6 +4934,8 @@ int main(void)
         TEST_CASE(normalization_choices_apply_and_survive_restart),
         TEST_CASE(normalization_previews_current_and_queued_audio_and_back_restores_it),
         TEST_CASE(clipping_preview_is_discarded_by_back_shutdown_and_unrelated_saves),
+        TEST_CASE(
+            battery_percentage_choice_shows_the_level_beside_the_battery_and_survives_restart),
         TEST_CASE(brightness_is_applied_and_saved),
         TEST_CASE(brightness_previews_without_saving_and_back_restores_it),
         TEST_CASE(leaving_or_stopping_a_brightness_preview_restores_the_saved_level),
@@ -5012,6 +5128,7 @@ int main(void)
         TEST_CASE(usb_sense_commands_switch_the_experiment_without_hands),
         TEST_CASE(peek_poke_and_gpio_lines_ask_the_board_and_keep_what_it_answers),
         TEST_CASE(a_probe_the_board_refuses_is_reported_and_leaves_no_record),
+        TEST_CASE(rtc_read_lines_keep_the_registers_and_a_bus_error_fails_the_line),
         TEST_CASE(a_script_keeps_sixteen_probes_and_does_not_make_a_seventeenth),
         TEST_CASE(supply_off_holds_the_usb_supply_off_until_supply_on),
         TEST_CASE(the_supply_comes_back_when_a_script_ends_without_saying_so),

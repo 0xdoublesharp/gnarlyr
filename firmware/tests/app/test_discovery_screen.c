@@ -16,6 +16,7 @@ static FixtureLibrary fixture;
 static DiscoveryScreen discovery;
 static Player playback_player;
 static Theme theme;
+static WireMotion motion;
 static uint8_t scratch_bytes[LIBRARY_VIEW_WORK_BYTES];
 static Color pixels[HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT];
 static bool refuse_writes;
@@ -51,6 +52,7 @@ static void start(void)
     discovery_screen_init(&discovery,
                           (DiscoveryScreenConfig){.library = &fixture.library,
                                                   .theme = &theme,
+                                                  .motion = &motion,
                                                   .scratch = {scratch_read, scratch_write, NULL,
                                                               sizeof scratch_bytes}});
 }

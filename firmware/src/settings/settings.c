@@ -5,7 +5,8 @@
 #include "settings/equalizer_fit.h"
 
 enum {
-    VERSION = 14,
+    VERSION = 15,
+    EXTENSION_VERSION = 15,
     REPLAY_GAIN_VERSION = 14,
     APPEARANCE_VERSION = 13,
     LANGUAGE_VERSION = 12,
@@ -52,6 +53,24 @@ enum {
     SKIP_GESTURE_FIELD = 25,
     ORIENTATION_FIELD = 26,
     APPEARANCE_FIELD = 27,
+    EXTENSION_FIELD = 38,
+    EXTENSION_CHECKSUM_FIELD = 54,
+    COMFORT_BYTE = 0,
+    SAFE_LEVEL_BYTE = 1,
+    TRANSITION_BYTE = 2,
+    HOME_ORDER_BYTE = 4,
+    HOME_HIDDEN_BYTE = 9,
+    RESERVED_BYTE = 11,
+    RESERVED_COUNT = 5,
+    EXTENSION_SIZE = 16,
+    REWIND_BIT = 1,
+    SAFE_START_BIT = 2,
+    CLOCK_24H_BIT = 4,
+    TRANSITION_SHIFT = 3,
+    HOME_ALL_ITEMS = (1 << SETTINGS_HOME_ITEM_COUNT) - 1,
+    HOME_HIDEABLE = HOME_ALL_ITEMS & ~(1 << SETTINGS_HOME_SETTINGS_ITEM),
+    NIBBLE_BITS = 4,
+    NIBBLE_MASK = 0xF,
     CHECKSUM_SIZE = 4,
     CURVE_FREQUENCIES = 7,
     HUNDRED = 100,
@@ -64,6 +83,16 @@ enum {
 };
 
 static const uint8_t MAGIC[MAGIC_SIZE] = {'D', 'S', 'S', 'T'};
+static const uint8_t DEFAULT_EXTENSION[EXTENSION_SIZE] = {
+    [COMFORT_BYTE] =
+        REWIND_BIT | SAFE_START_BIT | CLOCK_24H_BIT | TRACK_TRANSITION_OFF << TRANSITION_SHIFT,
+    [SAFE_LEVEL_BYTE] = SETTINGS_DEFAULT_SAFE_START_VOLUME,
+    [TRANSITION_BYTE] = SETTINGS_DEFAULT_TRANSITION_TENTHS,
+    [HOME_ORDER_BYTE] = 0x10,
+    0x32,
+    0x54,
+    0x76,
+    0x08};
 static const uint16_t TIMEOUT_SECONDS[SCREEN_TIMEOUT_OPTION_COUNT] = {10, 20, 30, 60, 120, 300, 0};
 static const uint8_t SLEEP_MINUTES[SLEEP_TIMER_OPTION_COUNT] = {0, 15, 30, 45, 60, 90, 120};
 static const uint8_t AUTO_OFF_MINUTES[AUTO_OFF_OPTION_COUNT] = {0, 1, 5, 10};
@@ -76,9 +105,34 @@ static const int8_t PRESET_GAINS[EQUALIZER_PRESET_COUNT][CURVE_FREQUENCIES] = {
 static const uint16_t PRESET_PRE_GAINS[EQUALIZER_PRESET_COUNT] = {
     SETTINGS_UNITY_PRE_GAIN, 21504, 14336, 20480, 20480, 14336, 14336, 12288};
 
+static uint8_t home_item(const uint8_t *extension, int index)
+{
+    return (extension[HOME_ORDER_BYTE + index / 2] >> (NIBBLE_BITS * (index & 1))) & NIBBLE_MASK;
+}
+
+static uint16_t home_hidden(const uint8_t *extension)
+{
+    return (uint16_t)(extension[HOME_HIDDEN_BYTE] | extension[HOME_HIDDEN_BYTE + 1] << 8);
+}
+
+static void read_extension(const uint8_t *extension, Settings *settings)
+{
+    uint8_t comfort = extension[COMFORT_BYTE];
+    settings->rewind_on_resume = (comfort & REWIND_BIT) != 0;
+    settings->safe_start_volume = (comfort & SAFE_START_BIT) != 0;
+    settings->clock_24h = (comfort & CLOCK_24H_BIT) != 0;
+    settings->track_transition = (TrackTransition)(comfort >> TRANSITION_SHIFT);
+    settings->safe_start_volume_level = extension[SAFE_LEVEL_BYTE];
+    settings->transition_tenths = extension[TRANSITION_BYTE];
+    for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
+        settings->home_order[index] = home_item(extension, index);
+    }
+    settings->home_hidden = home_hidden(extension);
+}
+
 Settings settings_defaults(void)
 {
-    return (Settings){
+    Settings settings = {
         .brightness = DEFAULT_BRIGHTNESS,
         .screen_timeout = DEFAULT_TIMEOUT_OPTION,
         .gain = GAIN_LOW,
@@ -99,6 +153,8 @@ Settings settings_defaults(void)
         .replay_gain_mode = REPLAY_GAIN_OFF,
         .prevent_clipping = true,
     };
+    read_extension(DEFAULT_EXTENSION, &settings);
+    return settings;
 }
 
 uint32_t settings_timeout_option_seconds(int option)
@@ -170,14 +226,31 @@ SettingsEqualizerCurve settings_equalizer_curve(const Settings *settings)
 
 static int checksum_field(uint8_t version)
 {
-    return version < EQUALIZER_VERSION ? OLD_CHECKSUM_FIELD
-           : version < HALF_DB_VERSION ? PREVIOUS_CHECKSUM_FIELD
-                                       : HALF_DB_CHECKSUM_FIELD;
+    return version < EQUALIZER_VERSION   ? OLD_CHECKSUM_FIELD
+           : version < HALF_DB_VERSION   ? PREVIOUS_CHECKSUM_FIELD
+           : version < EXTENSION_VERSION ? HALF_DB_CHECKSUM_FIELD
+                                         : EXTENSION_CHECKSUM_FIELD;
 }
 
 static uint32_t checksum_of(const uint8_t *bytes, int field)
 {
     return hash_update(HASH_START, bytes, (uint32_t)field);
+}
+
+static void encode_extension(const Settings *settings, uint8_t *extension)
+{
+    extension[COMFORT_BYTE] = (uint8_t)((settings->rewind_on_resume ? REWIND_BIT : 0) |
+                                        (settings->safe_start_volume ? SAFE_START_BIT : 0) |
+                                        (settings->clock_24h ? CLOCK_24H_BIT : 0) |
+                                        ((unsigned)settings->track_transition << TRANSITION_SHIFT));
+    extension[SAFE_LEVEL_BYTE] = settings->safe_start_volume_level;
+    extension[TRANSITION_BYTE] = settings->transition_tenths;
+    for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
+        extension[HOME_ORDER_BYTE + index / 2] |=
+            (uint8_t)(settings->home_order[index] << (NIBBLE_BITS * (index & 1)));
+    }
+    extension[HOME_HIDDEN_BYTE] = (uint8_t)settings->home_hidden;
+    extension[HOME_HIDDEN_BYTE + 1] = (uint8_t)(settings->home_hidden >> 8);
 }
 
 void settings_encode(const Settings *settings, uint8_t *bytes)
@@ -186,7 +259,8 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
         bytes[index] = index < MAGIC_SIZE ? MAGIC[index] : 0;
     }
     bytes[VERSION_FIELD] = VERSION;
-    bytes[VERSION_FIELD + 1] = settings->replay_gain_mode | (settings->prevent_clipping ? 4u : 0u);
+    bytes[VERSION_FIELD + 1] = settings->replay_gain_mode | (settings->prevent_clipping ? 4u : 0u) |
+                               (settings->battery_percent ? 8u : 0u);
     bytes[BRIGHTNESS_FIELD] = settings->brightness;
     bytes[TIMEOUT_FIELD] = settings->screen_timeout;
     bytes[GAIN_FIELD] = (uint8_t)settings->gain;
@@ -212,7 +286,8 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
          index++) {
         bytes[LANGUAGE_FIELD + index] = (uint8_t)settings->language[index];
     }
-    hash_store(bytes + HALF_DB_CHECKSUM_FIELD, checksum_of(bytes, HALF_DB_CHECKSUM_FIELD));
+    encode_extension(settings, bytes + EXTENSION_FIELD);
+    hash_store(bytes + EXTENSION_CHECKSUM_FIELD, checksum_of(bytes, EXTENSION_CHECKSUM_FIELD));
 }
 
 static bool replay_gain_flags_valid(const uint8_t *bytes)
@@ -220,7 +295,7 @@ static bool replay_gain_flags_valid(const uint8_t *bytes)
     uint8_t flags = bytes[VERSION_FIELD + 1];
     return bytes[VERSION_FIELD] < REPLAY_GAIN_VERSION
                ? flags == 0
-               : (flags & 0xF8u) == 0 && (flags & 3u) < REPLAY_GAIN_MODE_COUNT;
+               : (flags & 0xF0u) == 0 && (flags & 3u) < REPLAY_GAIN_MODE_COUNT;
 }
 
 static bool header_valid(const uint8_t *bytes, uint32_t length)
@@ -306,6 +381,46 @@ static void decode_language(const uint8_t *bytes, Settings *settings)
     }
 }
 
+static bool home_valid(const uint8_t *extension)
+{
+    unsigned seen = 0;
+    for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
+        seen |= 1u << home_item(extension, index);
+    }
+    return seen == HOME_ALL_ITEMS && home_item(extension, SETTINGS_HOME_ITEM_COUNT) == 0 &&
+           (home_hidden(extension) & ~HOME_HIDEABLE) == 0;
+}
+
+static bool reserved_clear(const uint8_t *extension)
+{
+    uint8_t any = extension[TRANSITION_BYTE + 1];
+    for (int index = 0; index < RESERVED_COUNT; index++) {
+        any |= extension[RESERVED_BYTE + index];
+    }
+    return any == 0;
+}
+
+static bool extension_valid(const uint8_t *bytes)
+{
+    if (bytes[VERSION_FIELD] < EXTENSION_VERSION) {
+        return true;
+    }
+    const uint8_t *extension = bytes + EXTENSION_FIELD;
+    uint8_t comfort = extension[COMFORT_BYTE];
+    uint8_t tenths = extension[TRANSITION_BYTE];
+    return comfort >> TRANSITION_SHIFT < TRACK_TRANSITION_COUNT &&
+           extension[SAFE_LEVEL_BYTE] <= SETTINGS_VOLUME_MAX &&
+           tenths >= SETTINGS_TRANSITION_TENTHS_MIN && tenths <= SETTINGS_TRANSITION_TENTHS_MAX &&
+           home_valid(extension) && reserved_clear(extension);
+}
+
+static void decode_extension(const uint8_t *bytes, Settings *settings)
+{
+    read_extension(bytes[VERSION_FIELD] < EXTENSION_VERSION ? DEFAULT_EXTENSION
+                                                            : bytes + EXTENSION_FIELD,
+                   settings);
+}
+
 static void migrate_gains(const uint8_t *bytes, int8_t *gains)
 {
     EqualizerFit fit;
@@ -364,7 +479,7 @@ bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
 {
     if (length < HEADER_SIZE || !header_valid(bytes, length) || !values_valid(bytes) ||
         !equalizer_valid(bytes) || !text_size_valid(bytes) || !skip_gesture_valid(bytes) ||
-        !orientation_valid(bytes) ||
+        !orientation_valid(bytes) || !extension_valid(bytes) ||
         (bytes[VERSION_FIELD] >= APPEARANCE_VERSION &&
          bytes[APPEARANCE_FIELD] >= APPEARANCE_THEME_COUNT) ||
         (bytes[VERSION_FIELD] >= LANGUAGE_VERSION && !language_valid(bytes))) {
@@ -408,6 +523,8 @@ bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
                                      : (uint8_t)(bytes[VERSION_FIELD + 1] & 3u);
     settings->prevent_clipping =
         bytes[VERSION_FIELD] < REPLAY_GAIN_VERSION || (bytes[VERSION_FIELD + 1] & 4u) != 0;
+    settings->battery_percent = (bytes[VERSION_FIELD + 1] & 8u) != 0;
+    decode_extension(bytes, settings);
     return true;
 }
 

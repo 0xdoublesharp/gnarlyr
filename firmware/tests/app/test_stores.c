@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/hash.h"
 #include "fake_hal.h"
 #include "favorite_playlist.h"
 #include "favorites_store.h"
@@ -85,6 +86,27 @@ static void settings_from_the_music_volume_move_to_internal_storage(void)
     fake_hal_replace_music_volume();
     settings_store_load(&settings);
     CHECK_EQUAL(BRIGHT, settings.settings.brightness);
+}
+
+static void a_version_fourteen_file_loads_and_is_saved_as_version_fifteen(void)
+{
+    uint8_t old[SETTINGS_FILE_SIZE];
+    Settings written = settings_defaults();
+    written.brightness = BRIGHT;
+    written.clock_24h = false;
+    settings_encode(&written, old);
+    old[4] = 14;
+    hash_store(old + 38, hash_update(HASH_START, old, 38));
+    fake_hal_reset();
+    fake_hal_add_file(SETTINGS_STORE_PATH, old, SETTINGS_V14_FILE_SIZE);
+    settings_store_load(&settings);
+    CHECK_EQUAL(BRIGHT, settings.settings.brightness);
+    CHECK(settings.settings.clock_24h);
+    CHECK(settings_store_save(&settings));
+    uint32_t size = 0;
+    const uint8_t *saved = fake_hal_internal_file_bytes(SETTINGS_STORE_PATH, &size);
+    CHECK_EQUAL(SETTINGS_FILE_SIZE, size);
+    CHECK_EQUAL(15, saved[4]);
 }
 
 static void internal_settings_win_over_the_music_volume_copy(void)
@@ -386,7 +408,7 @@ static void a_corrupt_button_map_keeps_other_settings_and_safe_controls(void)
                 settings_button_action(&settings.settings, PLAYBACK_PLAY_TAP));
 }
 
-static void normalization_settings_restore_to_the_player_without_changing_the_record_size(void)
+static void normalization_settings_restore_to_the_player_from_a_full_record(void)
 {
     fake_hal_reset();
     settings_store_load(&settings);
@@ -401,7 +423,7 @@ static void normalization_settings_restore_to_the_player_without_changing_the_re
     CHECK(!player.prevent_clipping);
     uint32_t size = 0;
     CHECK(fake_hal_internal_file_bytes(SETTINGS_STORE_PATH, &size) != NULL);
-    CHECK_EQUAL(42, size);
+    CHECK_EQUAL(SETTINGS_FILE_SIZE, size);
 }
 
 int main(void)
@@ -409,7 +431,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(without_a_file_the_defaults_are_used),
         TEST_CASE(saved_settings_are_loaded_again),
-        TEST_CASE(normalization_settings_restore_to_the_player_without_changing_the_record_size),
+        TEST_CASE(normalization_settings_restore_to_the_player_from_a_full_record),
         TEST_CASE(theme_and_button_choices_survive_a_restart_and_card_change),
         TEST_CASE(a_corrupt_button_map_keeps_other_settings_and_safe_controls),
         TEST_CASE(the_equalizer_curve_reaches_the_hal),
@@ -417,6 +439,7 @@ int main(void)
         TEST_CASE(unchanged_settings_are_not_written_again),
         TEST_CASE(settings_survive_a_change_of_music_volume),
         TEST_CASE(settings_from_the_music_volume_move_to_internal_storage),
+        TEST_CASE(a_version_fourteen_file_loads_and_is_saved_as_version_fifteen),
         TEST_CASE(internal_settings_win_over_the_music_volume_copy),
         TEST_CASE(a_corrupted_settings_file_falls_back_to_the_defaults),
         TEST_CASE(hardware_settings_reach_the_hal),

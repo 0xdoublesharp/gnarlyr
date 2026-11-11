@@ -6,6 +6,7 @@
 #include "player.h"
 #include "ui/list_view.h"
 #include "ui/screen.h"
+#include "ui/wire_motion.h"
 
 typedef enum DiscoveryRequest {
     DISCOVERY_REQUEST_NONE,
@@ -40,6 +41,7 @@ typedef struct DiscoveryScreenConfig {
                                           const LibraryTrack *record);
     void *scope_context;
     const char *scope_title;
+    WireMotion *motion;
 } DiscoveryScreenConfig;
 
 typedef struct DiscoveryScreen {
