@@ -20,6 +20,7 @@ typedef struct SimOptions {
     const char *system_directory;
     uint8_t battery_percent;
     bool battery_charging;
+    uint32_t usb_host_frame;
     const char *notice_title;
     const char *notice_text;
 } SimOptions;

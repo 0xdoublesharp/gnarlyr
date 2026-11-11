@@ -107,6 +107,16 @@ static bool read_charging(ArgumentCursor *cursor, SimOptions *options)
     return true;
 }
 
+static bool read_usb_host(ArgumentCursor *cursor, SimOptions *options)
+{
+    unsigned long frame = 0;
+    if (!parse_number(next_value(cursor), 1, UINT32_MAX, &frame)) {
+        return false;
+    }
+    options->usb_host_frame = (uint32_t)frame;
+    return true;
+}
+
 static bool read_notice_title(ArgumentCursor *cursor, SimOptions *options)
 {
     options->notice_title = next_value(cursor);
@@ -129,6 +139,7 @@ static const OptionSpec OPTION_SPECS[] = {
     {"--system-dir", read_system_directory},
     {"--battery", read_battery},
     {"--charging", read_charging},
+    {"--usb-host", read_usb_host},
     {"--notice", read_notice_title},
     {"--notice-text", read_notice_text},
 };

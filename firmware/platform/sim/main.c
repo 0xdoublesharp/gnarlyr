@@ -41,7 +41,7 @@ static void print_usage(void)
     fputs("usage: echo_sim [--scale N] [--frames N] [--headless] [--screenshot FILE.bmp]\n"
           "                [--keys up,down,play,menu,back,power[:long],...]\n"
           "                [--card MUSIC_DIR] [--system-dir DIR_WITH_LIBRARY_DB]\n"
-          "                [--battery PERCENT] [--charging]\n"
+          "                [--battery PERCENT] [--charging] [--usb-host FRAME]\n"
           "                [--notice TITLE --notice-text MESSAGE]\n",
           stderr);
 }
@@ -156,6 +156,9 @@ static void run(SimSession *session)
     while (pump_events() && !frame_limit_reached(session) && !sim_power_off_requested()) {
         uint32_t frame_started_ms = hal_clock_milliseconds();
         inject_scripted_keys(session);
+        if (session->frames + 1 == session->options.usb_host_frame) {
+            app_ask_usb_mode();
+        }
         app_step();
         session->frames++;
         finish_frame(session, frame_started_ms, &next_title_ms);
