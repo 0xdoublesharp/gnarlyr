@@ -7,7 +7,7 @@
 enum {
     LEFT = 0x60,
     RIGHT = 0x66,
-    OP_CAPACITY = 256,
+    OP_CAPACITY = 512,
     IDENTITY_PAGE = 0x0100,
     IDENTITY_REGISTERS = 5,
     START_VOLUME = 0x5E
@@ -38,6 +38,9 @@ typedef struct FakeBus {
     uint8_t status[2];
     uint8_t power_control[2];
     uint8_t identity_failures[2];
+    uint8_t done_after[2];
+    uint32_t powered_down_us[2];
+    uint32_t elapsed_us;
     bool silent;
 } FakeBus;
 
@@ -65,8 +68,18 @@ static bool fake_write(void *context, uint8_t address, uint32_t map, uint8_t val
     record((Op){OP_WRITE, address, map, value});
     if (map == 0x020000) {
         fake.power_control[chip_of(address)] = value;
+        fake.powered_down_us[chip_of(address)] = fake.elapsed_us;
     }
     return true;
+}
+
+static uint8_t read_status_register(int chip)
+{
+    if ((fake.power_control[chip] & 0x10) == 0) {
+        return fake.status[chip];
+    }
+    bool done = fake.elapsed_us - fake.powered_down_us[chip] >= fake.done_after[chip] * 1000u;
+    return (uint8_t)(fake.status[chip] | (done ? 0x01 : 0x00));
 }
 
 static bool is_identity_map(uint32_t map)
@@ -96,7 +109,8 @@ static bool fake_read(void *context, uint8_t address, uint32_t map, uint8_t *val
     if (is_identity_map(map)) {
         return read_identity(address, map, value);
     }
-    *value = map == 0x0F0000 ? fake.status[chip_of(address)] : fake.power_control[chip_of(address)];
+    int chip = chip_of(address);
+    *value = map == 0x0F0000 ? read_status_register(chip) : fake.power_control[chip];
     return true;
 }
 
@@ -110,6 +124,7 @@ static void fake_delay(void *context, uint32_t microseconds)
 {
     (void)context;
     record((Op){OP_DELAY, 0, 0, microseconds});
+    fake.elapsed_us += microseconds;
 }
 
 static DacBus fresh_bus(void)
@@ -437,23 +452,84 @@ static void output_on_unmutes_and_restores_the_channel_values(void)
     CHECK_EQUAL(cursor, fake.count);
 }
 
-static void output_off_mutes_and_powers_down(void)
+static DacBus playing_bus(uint8_t left_done_after, uint8_t right_done_after)
 {
     DacBus bus = fresh_bus();
+    fake.power_control[0] = 0xA6;
+    fake.power_control[1] = 0xA6;
+    fake.done_after[0] = left_done_after;
+    fake.done_after[1] = right_done_after;
     cursor = 0;
+    return bus;
+}
+
+static bool next_status_read(uint8_t address)
+{
+    return next_is((Op){OP_READ, address, 0x0F0000, 0});
+}
+
+static bool next_power_down(uint8_t address, uint8_t before, uint8_t bit)
+{
+    return next_is((Op){OP_DELAY, 0, 0, 100}) && next_is((Op){OP_READ, address, 0x020000, 0}) &&
+           next_one(address, 0x020000, (uint8_t)(before | bit));
+}
+
+static bool next_muted_output(void)
+{
+    return next_pin(DAC_PIN_MUTE, true) && next_pin(DAC_PIN_ENABLE_A, true) &&
+           next_both(0x090001, 0xFF) && next_both(0x090002, 0xFF);
+}
+
+static bool next_supplies_off(void)
+{
+    return next_both(0x0B0000, 0x00) && next_delay_ms(10) && next_pin(DAC_PIN_AMP, false) &&
+           next_pin(DAC_PIN_RESET, true) && next_pin(DAC_PIN_ENABLE_B, false);
+}
+
+static void output_off_mutes_then_powers_the_outputs_down_before_the_serial_port(void)
+{
+    DacBus bus = playing_bus(0, 0);
     dac_output_off(&bus);
-    CHECK(next_pin(DAC_PIN_MUTE, true));
-    CHECK(next_pin(DAC_PIN_ENABLE_A, true));
-    CHECK(next_both(0x090001, 0xFF));
-    CHECK(next_both(0x090002, 0xFF));
-    CHECK(next_both(0x020000, 0x10));
-    CHECK(next_delay_ms(5));
-    CHECK(next_both(0x0B0000, 0x00));
-    CHECK(next_delay_ms(10));
-    CHECK(next_pin(DAC_PIN_AMP, false));
-    CHECK(next_pin(DAC_PIN_RESET, true));
-    CHECK(next_pin(DAC_PIN_ENABLE_B, false));
+    CHECK(next_muted_output());
+    CHECK(next_status_read(LEFT) && next_status_read(RIGHT));
+    CHECK(next_power_down(LEFT, 0xA6, 0x10));
+    CHECK(next_power_down(RIGHT, 0xA6, 0x10));
+    CHECK(next_status_read(LEFT) && next_status_read(RIGHT));
+    CHECK(next_power_down(LEFT, 0xB6, 0x40));
+    CHECK(next_power_down(RIGHT, 0xB6, 0x40));
+    CHECK(next_supplies_off());
     CHECK_EQUAL(cursor, fake.count);
+    CHECK_EQUAL(0xF6, fake.power_control[0]);
+    CHECK_EQUAL(0xF6, fake.power_control[1]);
+}
+
+static void output_off_waits_for_both_chips_to_finish_their_output_ramp(void)
+{
+    DacBus bus = playing_bus(3, 5);
+    dac_output_off(&bus);
+    int waits = 0;
+    int serial_port_downs = 0;
+    for (int index = 0; index < fake.count && serial_port_downs == 0; index++) {
+        Op op = fake.ops[index];
+        waits += op.kind == OP_DELAY && op.value == 1000 ? 1 : 0;
+        serial_port_downs += op.kind == OP_WRITE && op.map == 0x020000 && (op.value & 0x40) != 0;
+    }
+    CHECK_EQUAL(5, waits);
+    CHECK_EQUAL(0xF6, fake.power_control[0]);
+}
+
+static void a_chip_that_never_reports_its_ramp_done_is_given_up_after_150_ms(void)
+{
+    DacBus bus = playing_bus(255, 255);
+    dac_output_off(&bus);
+    int waits = 0;
+    for (int index = 0; index < fake.count; index++) {
+        waits += fake.ops[index].kind == OP_DELAY && fake.ops[index].value == 1000 ? 1 : 0;
+    }
+    CHECK_EQUAL(150, waits);
+    CHECK_EQUAL(0xF6, fake.power_control[1]);
+    CHECK_EQUAL(OP_PIN, fake.ops[fake.count - 1].kind);
+    CHECK_EQUAL(DAC_PIN_ENABLE_B, fake.ops[fake.count - 1].map);
 }
 
 static void muting_holds_the_pin_and_mutes_both_chips(void)
@@ -537,7 +613,9 @@ int main(void)
         TEST_CASE(one_chip_reporting_not_ready_carries_on),
         TEST_CASE(a_silent_bus_reports_no_reply),
         TEST_CASE(output_on_unmutes_and_restores_the_channel_values),
-        TEST_CASE(output_off_mutes_and_powers_down),
+        TEST_CASE(output_off_mutes_then_powers_the_outputs_down_before_the_serial_port),
+        TEST_CASE(output_off_waits_for_both_chips_to_finish_their_output_ramp),
+        TEST_CASE(a_chip_that_never_reports_its_ramp_done_is_given_up_after_150_ms),
         TEST_CASE(muting_holds_the_pin_and_mutes_both_chips),
         TEST_CASE(setting_the_volume_writes_both_pcm_volume_registers),
         TEST_CASE(the_gain_setting_writes_the_headphone_gain_register),

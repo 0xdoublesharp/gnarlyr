@@ -7,6 +7,8 @@ enum {
     CHIP_COUNT = DAC_IDENTITY_CHIPS,
     STATUS_MAP = 0x0F0000,
     STATUS_NOT_READY = 0x03,
+    STATUS_POWER_DOWN_DONE = 0x01,
+    POWER_DOWN_LIMIT_MS = 150,
     POWER_CONTROL_MAP = 0x020000,
     SERIAL_PORT_BIT = 0x40,
     HEADPHONE_BIT = 0x10,
@@ -120,17 +122,23 @@ static bool write_mono_table(const DacBus *bus)
     return true;
 }
 
-static bool release_power_bit(const DacBus *bus, uint8_t bit)
+static bool change_power_bit(const DacBus *bus, uint8_t bit, bool down)
 {
     for (int chip = 0; chip < CHIP_COUNT; chip++) {
         uint8_t value = 0;
         bus->delay_us(bus->context, RELEASE_WAIT_US);
         if (!bus->read(bus->context, CHIPS[chip], POWER_CONTROL_MAP, &value) ||
-            !bus->write(bus->context, CHIPS[chip], POWER_CONTROL_MAP, (uint8_t)(value & ~bit))) {
+            !bus->write(bus->context, CHIPS[chip], POWER_CONTROL_MAP,
+                        (uint8_t)(down ? value | bit : value & ~bit))) {
             return false;
         }
     }
     return true;
+}
+
+static bool release_power_bit(const DacBus *bus, uint8_t bit)
+{
+    return change_power_bit(bus, bit, false);
 }
 
 static DacResult read_status(const DacBus *bus)
@@ -264,13 +272,35 @@ void dac_output_on(const DacBus *bus, uint8_t volume)
     wait_ms(bus, 10);
 }
 
+static void wait_for_power_down(const DacBus *bus)
+{
+    uint32_t waited_ms = 0;
+    for (int chip = 0; chip < CHIP_COUNT; chip++) {
+        uint8_t status = 0;
+        while (bus->read(bus->context, CHIPS[chip], STATUS_MAP, &status) &&
+               (status & STATUS_POWER_DOWN_DONE) == 0 && waited_ms < POWER_DOWN_LIMIT_MS) {
+            wait_ms(bus, 1);
+            waited_ms++;
+        }
+    }
+}
+
+static void power_down_outputs(const DacBus *bus)
+{
+    (void)read_status(bus);
+    if (!change_power_bit(bus, HEADPHONE_BIT, true)) {
+        return;
+    }
+    wait_for_power_down(bus);
+    change_power_bit(bus, SERIAL_PORT_BIT, true);
+}
+
 void dac_output_off(const DacBus *bus)
 {
     set_pin(bus, DAC_PIN_MUTE, true);
     set_pin(bus, DAC_PIN_ENABLE_A, true);
     dac_set_volume(bus, DAC_VOLUME_MUTED);
-    write_both(bus, 0x020000, 0x10);
-    wait_ms(bus, 5);
+    power_down_outputs(bus);
     write_both(bus, 0x0B0000, 0x00);
     wait_ms(bus, 10);
     set_pin(bus, DAC_PIN_AMP, false);
