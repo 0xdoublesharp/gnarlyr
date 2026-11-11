@@ -72,15 +72,15 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 145,988 | 157,292 | 11,304 |
-| Code window, `device` preset | 150,036 | 157,292 | 7,256 |
-| Static RAM | 264,924 | 278,528 | 13,604 |
+| Code window | 149,468 | 157,292 | 7,824 |
+| Code window, `device` preset | 153,580 | 157,292 | 3,712 |
+| Static RAM | 265,052 | 278,528 | 13,476 |
 | Rescan overlay | 93,124 | 98,304 | 5,180 |
 | USB overlay code | 11,740 | 65,536 | 53,796 |
-| Module views (code + BSS) | 21,932 | 44,032 | 22,100 |
-| Module settings (code + BSS) | 18,764 | 44,032 | 25,268 |
-| Module library (code + BSS) | 39,136 | 44,032 | 4,896 |
-| Module listening (code + BSS) | 18,600 | 44,032 | 25,432 |
+| Module views (code + BSS) | 21,984 | 44,032 | 22,048 |
+| Module settings (code + BSS) | 18,816 | 44,032 | 25,216 |
+| Module library (code + BSS) | 39,416 | 44,032 | 4,616 |
+| Module listening (code + BSS) | 18,892 | 44,032 | 25,140 |
 | Audio processing module (code, no BSS) | 2,156 | 12,288 | 10,132 |
 | Audio DSP module (code, no BSS) | 6,348 | 8,192 | 1,844 |
 | Ogg file module, Vorbis and Opus (code, no BSS) | 7,076 | 8,192 | 1,116 |
