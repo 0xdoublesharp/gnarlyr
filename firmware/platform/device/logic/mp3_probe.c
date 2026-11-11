@@ -148,9 +148,10 @@ static uint32_t audio_end(FlacInput input, uint32_t start)
         input.read(input.context, end - APE_FOOTER_BYTES, bytes, sizeof bytes) &&
         same_tag(bytes, "APETAGEX", 8)) {
         uint32_t size = little_endian(bytes + 12);
-        uint32_t whole = size + ((bytes[23] & APE_HEADER_FLAG) != 0 ? APE_FOOTER_BYTES : 0);
+        uint64_t whole =
+            (uint64_t)size + ((bytes[23] & APE_HEADER_FLAG) != 0 ? APE_FOOTER_BYTES : 0);
         if (whole <= end - start) {
-            end -= whole;
+            end -= (uint32_t)whole;
         }
     }
     return end;
