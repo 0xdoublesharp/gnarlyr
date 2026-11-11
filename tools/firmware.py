@@ -20,6 +20,20 @@ GROUPS = {
              "device_image_boot_test_normal_boot_reaches_the_home_screen_using_only_the_user_volume|"
              "device_image_boot_test_a_damaged_module_in_slot_1_is_replaced_by_the_copy_in_slot_2)$",
 }
+FUZZ_TARGETS = {
+    "track_tags": 65536,
+    "playlist_reader": 32768,
+    "session_journal": 4096,
+}
+FUZZ_SEEDS = {
+    "track_tags": [b"\0"],
+    "playlist_reader": [
+        b"\xff#EXTM3U\n../A/b.flac\n",
+        b"\x1f\xef\xbb\xbfA/one.flac\xe2\x80\xa8A/two.flac\n",
+        b"\x03Bj\xf6rk/J\xf3ga.flac\x85end.flac\n",
+    ],
+    "session_journal": [b"\0", bytes(range(64)), b"\xff" * 64],
+}
 
 
 def link_directory(path, target):
@@ -73,6 +87,11 @@ def configure(preset, env, python):
         query.parent.mkdir(parents=True, exist_ok=True)
         query.touch()
     command = ["cmake", "--preset", preset, f"-DPython3_EXECUTABLE={python}"]
+    if preset == "fuzz":
+        compiler = shutil.which("clang", path=env["PATH"])
+        if compiler is None:
+            raise SystemExit("Missing prerequisite: clang; see README.md")
+        command.append(f"-DCMAKE_C_COMPILER={compiler}")
     launcher = shutil.which("sccache", path=env["PATH"]) if env.get("ECHO_COMPILER_CACHE", "0") == "1" else None
     command.append(f"-DCMAKE_C_COMPILER_LAUNCHER={launcher or ''}")
     run(command, env)
@@ -132,10 +151,50 @@ def selected_tests(regex, env):
     return tests
 
 
+def fuzz_command(binary, corpus, artifacts, runs, seed, max_length):
+    return [
+        binary,
+        f"-runs={runs}",
+        f"-seed={seed}",
+        f"-max_len={max_length}",
+        "-timeout=2",
+        "-rss_limit_mb=2048",
+        "-print_final_stats=1",
+        f"-artifact_prefix={artifacts}/",
+        corpus,
+    ]
+
+
+def write_seed(path, data):
+    if not path.exists() or path.read_bytes() != data:
+        path.write_bytes(data)
+
+
+def prepare_fuzz_corpus(name):
+    corpus = SCRATCH / "data" / BUILD_NAME / "fuzz" / name
+    corpus.mkdir(parents=True, exist_ok=True)
+    for index, seed in enumerate(FUZZ_SEEDS[name]):
+        write_seed(corpus / f"seed-{index}", seed)
+    if name == "track_tags":
+        fixtures = SOURCE / "tests/fixtures/tags"
+        for fixture in sorted(fixtures.iterdir()):
+            if fixture.is_file():
+                write_seed(corpus / f"tag-{fixture.name}", fixture.read_bytes()[:FUZZ_TARGETS[name]])
+    return corpus
+
+
+def run_fuzzer(name, runs, seed, env):
+    corpus = prepare_fuzz_corpus(name)
+    artifacts = SCRATCH / "reports" / BUILD_NAME / "fuzz" / name
+    artifacts.mkdir(parents=True, exist_ok=True)
+    binary = SOURCE / "build/fuzz/tests/fuzz" / f"fuzz_{name}"
+    run(fuzz_command(binary, corpus, artifacts, runs, seed, FUZZ_TARGETS[name]), env)
+
+
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("setup", "build", "test", "sim"))
-    parser.add_argument("--preset", choices=("dev", "device", "release"), default="dev")
+    parser.add_argument("action", choices=("setup", "build", "test", "sim", "fuzz"))
+    parser.add_argument("--preset", choices=("dev", "fuzz", "device", "release"), default="dev")
     parser.add_argument("--jobs", type=int, choices=range(1, 17), default=4)
     parser.add_argument("--build-jobs", type=int, choices=range(1, 17), help="Override build parallelism")
     parser.add_argument("--test-jobs", type=int, choices=range(1, 17), help="Override test parallelism")
@@ -143,13 +202,25 @@ def arguments():
     selection.add_argument("--regex", help="CTest test-name expression; build only selected executables")
     selection.add_argument("--group", choices=GROUPS, help="host: native unit tests; smoke: native and ARM integration")
     parser.add_argument("--list", action="store_true", help="List selected tests and build targets without compiling")
-    parser.add_argument("--target", action="append", help="Build one target; repeat for several targets")
+    parser.add_argument("--target", action="append", help="Build or fuzz one target; repeat for several targets")
+    parser.add_argument("--runs", type=int, help="Fuzzer executions per target")
+    parser.add_argument("--seed", type=int, help="Deterministic fuzzer seed")
     parser.add_argument("--card", type=Path, help="Simulator music directory")
     args = parser.parse_args()
     if (args.regex is not None or args.group or args.list or args.test_jobs) and args.action != "test":
         parser.error("--regex, --group, --list and --test-jobs require the test action")
-    if args.target and args.action != "build":
-        parser.error("--target requires the build action")
+    if args.target and args.action not in ("build", "fuzz"):
+        parser.error("--target requires the build or fuzz action")
+    if args.action == "fuzz":
+        unknown = sorted(set(args.target or ()) - set(FUZZ_TARGETS))
+        if unknown:
+            parser.error(f"unknown fuzz target: {', '.join(unknown)}")
+        if args.runs is not None and args.runs < 1:
+            parser.error("--runs must be positive")
+        if args.seed is not None and args.seed < 1:
+            parser.error("--seed must be positive")
+    elif args.runs is not None or args.seed is not None:
+        parser.error("--runs and --seed require the fuzz action")
     if args.action == "sim" and (not args.card or not args.card.is_dir()):
         parser.error("sim requires --card pointing to a music directory")
     return parser, args
@@ -162,6 +233,15 @@ def main():
         print(f"Source: {SOURCE}; output: {SOURCE / 'build'} -> {(SOURCE / 'build').resolve()}")
         return
     preset = "dev" if args.action in ("test", "sim") else args.preset
+    if args.action == "fuzz":
+        targets = args.target or list(FUZZ_TARGETS)
+        configure("fuzz", env, python)
+        compile_targets("fuzz", env, [f"fuzz_{name}" for name in targets])
+        runs = args.runs if args.runs is not None else 10000
+        seed = args.seed if args.seed is not None else 1
+        for name in targets:
+            run_fuzzer(name, runs, seed, env)
+        return
     configure(preset, env, python)
     if args.action == "test":
         regex = GROUPS.get(args.group, args.regex)

@@ -187,6 +187,13 @@ static void truncated_entries_do_not_split_utf8_or_consume_the_next_line(void)
     CHECK(!playlist_reader_next(&reader, entry, sizeof entry));
 }
 
+static void nul_bytes_do_not_truncate_an_entry(void)
+{
+    static const char TEXT[] = "\0hidden.flac\n";
+    static const char *const WANTED[] = {"\xef\xbf\xbdhidden.flac", NULL};
+    check_entries(TEXT, sizeof TEXT - 1, WANTED);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -201,6 +208,7 @@ int main(void)
         TEST_CASE(the_playlist_padding_of_a_favorites_file_reads_as_one_entry),
         TEST_CASE(unicode_whitespace_is_trimmed_without_losing_inner_spaces),
         TEST_CASE(truncated_entries_do_not_split_utf8_or_consume_the_next_line),
+        TEST_CASE(nul_bytes_do_not_truncate_an_entry),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
