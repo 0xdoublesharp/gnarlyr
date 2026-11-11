@@ -20,8 +20,9 @@ typedef enum StatusBluetooth {
 } StatusBluetooth;
 
 enum {
+    STATUS_BAR_CRITICAL_BATTERY_PERCENT = 5,
     STATUS_BAR_LOW_BATTERY_PERCENT = 15,
-    STATUS_BAR_PERCENT_CAPACITY = 8
+    STATUS_BAR_PERCENT_CAPACITY = 4
 };
 
 typedef enum StatusShuffle {
@@ -36,17 +37,27 @@ typedef struct StatusBarState {
     bool battery_known;
     uint8_t battery_percent;
     bool usb_power;
+    bool charging;
     bool locked;
     StatusShuffle shuffle;
 } StatusBarState;
 
+typedef struct StatusBatteryLook {
+    Color outline;
+    Color fill;
+    Color on_fill;
+    Color on_empty;
+    Color bolt;
+} StatusBatteryLook;
+
 Rect status_bar_playback_area(const Theme *theme);
 Rect status_bar_bluetooth_area(const Theme *theme);
-Rect status_bar_battery_area(const Theme *theme);
+Rect status_bar_battery_body(const Theme *theme, bool usb_power);
+Rect status_bar_battery_area(const Theme *theme, bool usb_power);
 Rect status_bar_lock_area(const Theme *theme);
 Rect status_bar_shuffle_area(const Theme *theme, StatusShuffle shuffle);
 int status_bar_battery_fill_width(uint8_t percent, int inner_width);
 void status_bar_percent_text(uint8_t percent, char *text, size_t capacity);
-Rect status_bar_bolt_area(const Theme *theme);
-Rect status_bar_percent_area(const Theme *theme, const char *text, bool usb_power);
+bool status_bar_battery_digits_fit(const Theme *theme);
+StatusBatteryLook status_bar_battery_look(const Theme *theme, StatusBarState state);
 void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state);

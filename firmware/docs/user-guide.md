@@ -154,7 +154,7 @@ The player charges whenever it's plugged in, on or off. Turning it off while it'
 
 Hold ▶, then press Power while still holding it, and keep both down for about a second to lock the buttons, for example before the player goes into a pocket; do the same to unlock. While locked, a padlock shows in the top bar and every button except Power is ignored; Power still turns the screen on and off. Pressing another button shows "Hold Play+Power" if the screen is on. Locking or unlocking lights the screen to confirm. Wired headset buttons keep working. Restarting the player unlocks it.
 
-The top bar shows, from the left: play or pause, Bluetooth, the padlock, and the shuffle mode (a note with crossed arrows for Shuffle Songs, a disc with crossed arrows for Shuffle Albums); the battery sits on the right.
+The top bar shows, from the left: play or pause, Bluetooth, the padlock, and the shuffle mode (a note with crossed arrows for Shuffle Songs, a disc with crossed arrows for Shuffle Albums); the battery sits on the right. The battery shows its charge as a fill with the percentage written inside it. Below 16% the fill and the number turn red, and at 5% or less the whole battery turns red. While the cable supplies power, the fill turns green and a bolt replaces the battery's tip: a green bolt while charging, a plain bolt once it's charged.
 
 ## Skip songs
 

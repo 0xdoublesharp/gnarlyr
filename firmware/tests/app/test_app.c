@@ -3242,6 +3242,21 @@ static bool area_has_color(Rect area, Color color)
     return false;
 }
 
+static void the_header_battery_ends_in_a_charging_bolt_on_usb_power(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery(
+        (HalBattery){.known = true, .percent = HALF_BATTERY, .charging = true, .usb_power = true});
+    step();
+    const Theme *theme = expected_theme();
+    Rect body = status_bar_battery_body(theme, true);
+    Rect area = status_bar_battery_area(theme, true);
+    Rect tail = {body.x + body.width, area.y, area.x + area.width - body.x - body.width,
+                 area.height};
+    CHECK(area_has_color(tail,
+                         color_between(theme->colors.success, theme->colors.header_text, 1, 3)));
+}
+
 static void the_header_shows_the_play_state_and_battery(void)
 {
     start_app_with_library();
@@ -3249,7 +3264,7 @@ static void the_header_shows_the_play_state_and_battery(void)
     Color icon = expected_theme()->colors.header_text;
     step();
     CHECK(!area_has_color(status_bar_playback_area(expected_theme()), icon));
-    CHECK(area_has_color(status_bar_battery_area(expected_theme()), icon));
+    CHECK(area_has_color(status_bar_battery_area(expected_theme(), false), icon));
     play_first_album_track();
     CHECK(area_has_color(status_bar_playback_area(expected_theme()), icon));
 }
@@ -4689,6 +4704,7 @@ int main(void)
         TEST_CASE(the_start_screen_setting_opens_albums),
         TEST_CASE(the_start_screen_setting_opens_now_playing),
         TEST_CASE(the_header_shows_the_play_state_and_battery),
+        TEST_CASE(the_header_battery_ends_in_a_charging_bolt_on_usb_power),
         TEST_CASE(shuffle_shows_in_the_top_bar_as_songs_or_albums),
         TEST_CASE(cover_flow_opens_from_the_music_menu),
         TEST_CASE(cover_flow_needs_a_library),
