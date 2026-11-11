@@ -927,6 +927,16 @@ static void events_are_listed_oldest_first_with_names(void)
     CHECK(strstr(text, "event: 1000") < strstr(text, "event: 1004"));
 }
 
+static void a_paused_player_with_its_output_powered_down_is_named_standby(void)
+{
+    DebugReportInput input = plain_input();
+    record(DEBUG_EVENT_PLAYER, 2 | 17 << 8, NULL);
+    record(DEBUG_EVENT_PLAYER, DEBUG_PLAYER_STANDBY | 17 << 8, NULL);
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("event: 1000 player paused 17"));
+    CHECK(has_line("event: 1001 player standby 17"));
+}
+
 static void event_text_outside_plain_ascii_is_replaced(void)
 {
     DebugReportInput input = plain_input();
@@ -1190,6 +1200,7 @@ int main(void)
         TEST_CASE(running_audio_reports_averages_worst_times_and_the_busy_share),
         TEST_CASE(frame_figures_are_unknown_until_a_frame_was_drawn),
         TEST_CASE(events_are_listed_oldest_first_with_names),
+        TEST_CASE(a_paused_player_with_its_output_powered_down_is_named_standby),
         TEST_CASE(event_text_outside_plain_ascii_is_replaced),
         TEST_CASE(an_unknown_event_kind_is_named_as_such),
         TEST_CASE(missing_sources_are_reported_as_unknown),

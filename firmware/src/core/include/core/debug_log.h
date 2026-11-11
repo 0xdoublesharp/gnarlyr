@@ -5,7 +5,8 @@
 enum {
     DEBUG_LOG_CAPACITY = 48,
     DEBUG_LOG_TEXT_BYTES = 7,
-    DEBUG_FRAME_PARTS = 6
+    DEBUG_FRAME_PARTS = 6,
+    DEBUG_PLAYER_STANDBY = 3
 };
 
 typedef enum DebugEventKind {

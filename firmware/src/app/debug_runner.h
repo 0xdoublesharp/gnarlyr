@@ -14,7 +14,8 @@ typedef enum DebugRequestKind {
     DEBUG_REQUEST_START,
     DEBUG_REQUEST_SET,
     DEBUG_REQUEST_SCREENSHOT,
-    DEBUG_REQUEST_SCREEN
+    DEBUG_REQUEST_SCREEN,
+    DEBUG_REQUEST_STANDBY
 } DebugRequestKind;
 
 typedef struct DebugRequest {

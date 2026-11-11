@@ -31,6 +31,7 @@ static const Word WORDS[] = {
     {"supply", DEBUG_COMMAND_SUPPLY},
     {"screen", DEBUG_COMMAND_SCREEN},
     {"soak", DEBUG_COMMAND_SOAK},
+    {"standby", DEBUG_COMMAND_STANDBY},
 };
 
 static const char *const PROFILE_ACTIONS[] = {
@@ -286,6 +287,7 @@ static bool arguments_fit(DebugCommand *command)
         return parse_gpio(command);
     case DEBUG_COMMAND_SUPPLY:
     case DEBUG_COMMAND_SCREEN:
+    case DEBUG_COMMAND_STANDBY:
         return parse_choice(command->argument, SWITCH_STATES,
                             sizeof SWITCH_STATES / sizeof SWITCH_STATES[0], &command->number);
     case DEBUG_COMMAND_SOAK:
@@ -429,7 +431,8 @@ static bool add_numbered(DebugScriptRun *run, const DebugCommand *command, uint3
         [DEBUG_COMMAND_RECONNECT] = 1 + DEBUG_OP_RECONNECT,
         [DEBUG_COMMAND_SUPPLY] = 1 + DEBUG_OP_SUPPLY,
         [DEBUG_COMMAND_SCREEN] = 1 + DEBUG_OP_SCREEN,
-        [DEBUG_COMMAND_SOAK] = 1 + DEBUG_OP_SOAK};
+        [DEBUG_COMMAND_SOAK] = 1 + DEBUG_OP_SOAK,
+        [DEBUG_COMMAND_STANDBY] = 1 + DEBUG_OP_STANDBY};
     if (command->kind >= DEBUG_COMMAND_UNKNOWN || OPS[command->kind] == 0) {
         return false;
     }

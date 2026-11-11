@@ -1318,6 +1318,97 @@ static void normalization_keeps_pause_state_and_damaged_metadata_falls_back_to_u
     CHECK_EQUAL(plays, fake_hal_audio_play_count());
 }
 
+static void enter_standby(Player *started, uint32_t paused_at_ms)
+{
+    player_toggle_pause(started);
+    player_update(started, paused_at_ms);
+    player_update(started, paused_at_ms + PLAYER_PAUSE_RELEASE_MS);
+}
+
+static void a_pause_becomes_standby_only_once_the_output_is_released(void)
+{
+    Player *started = playing(1);
+    CHECK(!player_in_standby(started));
+    player_toggle_pause(started);
+    player_update(started, 1000);
+    CHECK(!player_in_standby(started));
+    player_update(started, 1000 + PLAYER_PAUSE_RELEASE_MS);
+    CHECK(player_in_standby(started));
+    player_toggle_pause(started);
+    CHECK(!player_in_standby(started));
+    CHECK_EQUAL(PLAYER_PLAYING, player_status(started).state);
+}
+
+static void holding_standby_keeps_a_long_pause_powered_until_it_is_allowed_again(void)
+{
+    Player *started = playing(1);
+    player_hold_standby(started, true);
+    player_toggle_pause(started);
+    player_update(started, 1000);
+    player_update(started, 1000 + 10 * PLAYER_PAUSE_RELEASE_MS);
+    CHECK_EQUAL(0, fake_hal_audio_release_count());
+    CHECK(!player_in_standby(started));
+    player_hold_standby(started, false);
+    uint32_t allowed_ms = 2000 + 10 * PLAYER_PAUSE_RELEASE_MS;
+    player_update(started, allowed_ms);
+    player_update(started, allowed_ms + PLAYER_PAUSE_RELEASE_MS - 1);
+    CHECK_EQUAL(0, fake_hal_audio_release_count());
+    player_update(started, allowed_ms + PLAYER_PAUSE_RELEASE_MS);
+    CHECK_EQUAL(1, fake_hal_audio_release_count());
+}
+
+static void an_output_handed_to_a_usb_session_is_never_released_by_a_long_pause(void)
+{
+    Player *started = playing(1);
+    player_release_output(started);
+    player_update(started, 1000);
+    player_update(started, 1000 + 3 * PLAYER_PAUSE_RELEASE_MS);
+    CHECK_EQUAL(0, fake_hal_audio_release_count());
+    CHECK_EQUAL(PLAYER_PAUSED, player_status(started).state);
+}
+
+static void resuming_from_standby_keeps_the_replay_gain_and_the_following_track(void)
+{
+    Player *started = tagged_player();
+    player_set_replay_gain(started, REPLAY_GAIN_TRACK, false);
+    CHECK(player_play_list(started, back_in_black(), 0, SEED));
+    uint32_t gain = fake_hal_audio_replay_gain();
+    uint32_t queued_gain = fake_hal_audio_queued_replay_gain();
+    fake_hal_audio_set_position(61234);
+    enter_standby(started, 1000);
+    CHECK_EQUAL(61234, player_status(started).position_ms);
+    player_toggle_pause(started);
+    CHECK_EQUAL(61234, fake_hal_audio_play_start());
+    CHECK_EQUAL(gain, fake_hal_audio_replay_gain());
+    CHECK_EQUAL(queued_gain, fake_hal_audio_queued_replay_gain());
+    CHECK(path_is(fake_hal_audio_queued_path(), SHOOT_TO_THRILL_PATH));
+}
+
+static void skipping_in_standby_starts_the_next_track_from_its_beginning(void)
+{
+    Player *started = playing(0);
+    fake_hal_audio_set_position(42000);
+    enter_standby(started, 1000);
+    player_skip(started, 1);
+    CHECK(path_is(fake_hal_audio_playing_path(), SHOOT_TO_THRILL_PATH));
+    CHECK_EQUAL(0, fake_hal_audio_play_start());
+    CHECK_EQUAL(PLAYER_PLAYING, player_status(started).state);
+}
+
+static void seeking_in_standby_moves_the_resume_point_without_powering_up(void)
+{
+    Player *started = playing(1);
+    fake_hal_audio_set_position(42000);
+    enter_standby(started, 1000);
+    int plays = fake_hal_audio_play_count();
+    player_seek(started, 10000);
+    CHECK_EQUAL(plays, fake_hal_audio_play_count());
+    CHECK_EQUAL(0, fake_hal_audio_seek_count());
+    CHECK(player_in_standby(started));
+    player_toggle_pause(started);
+    CHECK_EQUAL(10000, fake_hal_audio_play_start());
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -1352,6 +1443,12 @@ int main(void)
         TEST_CASE(invalid_queue_edits_do_not_write_or_change_revision),
         TEST_CASE(adding_and_play_next_report_failed_saves),
         TEST_CASE(editing_a_released_queue_does_not_reclaim_audio_output),
+        TEST_CASE(a_pause_becomes_standby_only_once_the_output_is_released),
+        TEST_CASE(holding_standby_keeps_a_long_pause_powered_until_it_is_allowed_again),
+        TEST_CASE(an_output_handed_to_a_usb_session_is_never_released_by_a_long_pause),
+        TEST_CASE(resuming_from_standby_keeps_the_replay_gain_and_the_following_track),
+        TEST_CASE(skipping_in_standby_starts_the_next_track_from_its_beginning),
+        TEST_CASE(seeking_in_standby_moves_the_resume_point_without_powering_up),
 
         TEST_CASE(initialization_clears_a_previous_queue_binding),
         TEST_CASE(playing_a_list_starts_the_selected_track),
