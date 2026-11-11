@@ -212,6 +212,76 @@ static void rfc_9639_example_one_decodes_the_specified_samples(void)
     CHECK_EQUAL(FLAC_END, flac_decode_frame(&decoder));
 }
 
+static uint8_t frame_crc8(const uint8_t *bytes, uint32_t length)
+{
+    uint32_t crc = 0;
+    for (uint32_t index = 0; index < length; index++) {
+        crc ^= bytes[index];
+        for (uint32_t bit = 0; bit < 8; bit++) {
+            crc = (uint8_t)((crc & 0x80u) != 0 ? (crc << 1) ^ 0x07u : crc << 1);
+        }
+    }
+    return (uint8_t)crc;
+}
+
+static uint16_t frame_crc16(const uint8_t *bytes, uint32_t length)
+{
+    uint32_t crc = 0;
+    for (uint32_t index = 0; index < length; index++) {
+        crc ^= (uint32_t)bytes[index] << 8;
+        for (uint32_t bit = 0; bit < 8; bit++) {
+            crc = (uint16_t)((crc & 0x8000u) != 0 ? (crc << 1) ^ 0x8005u : crc << 1);
+        }
+    }
+    return (uint16_t)crc;
+}
+
+static void extended_sample_rate_headers_decode_their_audio(void)
+{
+    static const uint8_t header[] = {
+        0x66, 0x4c, 0x61, 0x43, 0x80, 0x00, 0x00, 0x22, 0x10, 0x00, 0x10, 0x00, 0x00, 0x00,
+        0x0f, 0x00, 0x00, 0x0f, 0x0a, 0xc4, 0x42, 0xf0, 0x00, 0x00, 0x00, 0x01, 0x3e, 0x84,
+        0xb4, 0x18, 0x07, 0xdc, 0x69, 0x03, 0x07, 0x58, 0x6a, 0x3d, 0xad, 0x1a, 0x2e, 0x0f,
+    };
+    static const uint8_t body[] = {0x03, 0x58, 0xfd, 0x03, 0x12, 0x8b};
+    for (uint8_t code = 12; code <= 14; code++) {
+        uint8_t bytes[80] = {0};
+        memcpy(bytes, header, sizeof header);
+        if (code == 12) {
+            bytes[19] = 0xbe;
+            bytes[20] = 0x02;
+        }
+        uint32_t at = sizeof header;
+        uint32_t frame = at;
+        bytes[at++] = 0xff;
+        bytes[at++] = 0xf8;
+        bytes[at++] = (uint8_t)(0x60u | code);
+        bytes[at++] = 0x18;
+        bytes[at++] = 0;
+        bytes[at++] = 0;
+        uint32_t rate = code == 12 ? 44 : code == 13 ? 44100 : 4410;
+        if (code != 12) {
+            bytes[at++] = (uint8_t)(rate >> 8);
+        }
+        bytes[at++] = (uint8_t)rate;
+        bytes[at] = frame_crc8(bytes + frame, at - frame);
+        at++;
+        memcpy(bytes + at, body, sizeof body);
+        at += sizeof body;
+        uint16_t crc = frame_crc16(bytes + frame, at - frame);
+        bytes[at++] = (uint8_t)(crc >> 8);
+        bytes[at++] = (uint8_t)crc;
+        Buffer input = {bytes, at};
+        CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input_of(&input)));
+        CHECK_EQUAL(code == 12 ? 44000u : 44100u, decoder.info.sample_rate);
+        CHECK_EQUAL(FLAC_OK, flac_decode_frame(&decoder));
+        CHECK_EQUAL(1u, decoder.block_samples);
+        CHECK_EQUAL(25588, flac_channel(&decoder, 0)[0]);
+        CHECK_EQUAL(10416, flac_channel(&decoder, 1)[0]);
+        CHECK_EQUAL(FLAC_END, flac_decode_frame(&decoder));
+    }
+}
+
 static void rfc_9639_partitioned_lpc_decodes_the_specified_samples(void)
 {
     static uint8_t bytes[] = {
@@ -596,6 +666,7 @@ int main(void)
         TEST_CASE(odd_block_sizes_decode_exactly),
         TEST_CASE(independent_channels_decode_exactly),
         TEST_CASE(rfc_9639_example_one_decodes_the_specified_samples),
+        TEST_CASE(extended_sample_rate_headers_decode_their_audio),
         TEST_CASE(rfc_9639_partitioned_lpc_decodes_the_specified_samples),
         TEST_CASE(blocks_larger_than_the_buffer_are_refused),
         TEST_CASE(unsupported_streaminfo_limits_are_rejected),
