@@ -43,6 +43,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/screens/up_next_screen.c
     src/app/screens/calendar_screen.c
     src/app/screens/clock_screen.c
+    src/app/screens/charge_art.c
     src/core/calendar.c
     src/ui/cover_flow.c
     src/ui/placeholder_art.c
@@ -60,7 +61,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/core/headphone_audio_switch.c
     src/app/language_list.c
     src/app/modules/settings_module.c
-    src/app/screens/charge_art.c
     src/app/settings_screens.c
     src/app/settings_preview.c
     src/app/button_settings.c

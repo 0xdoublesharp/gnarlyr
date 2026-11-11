@@ -965,12 +965,12 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(asked, [])
         return session, machine, asked, charge_frames, dark
 
-    def test_charging_without_the_settings_module_uses_no_usb_overlay(self):
+    def test_charging_without_the_views_module_uses_no_usb_overlay(self):
         session = self.session(vbus_at_start=True)
         machine = session.machine
         machine.power_key_released_at_ms = 0
         machine.host_absent = True
-        number, _ = self.module(machine, "settings")
+        number, _ = self.module(machine, "views")
         for slot in ("slot_1", "slot_2"):
             session.change_module(slot, number, 600, lambda byte: byte ^ 0xFF)
         frames = machine.trace("usb_screen_draw_fallback")

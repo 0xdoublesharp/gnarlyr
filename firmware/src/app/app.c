@@ -1517,13 +1517,13 @@ void app_request_rescan_if_music_changed(void)
 }
 
 typedef struct ChargeFrame {
-    const SettingsModuleEntry *entry;
+    const ViewsModuleEntry *entry;
 } ChargeFrame;
 
 static void draw_charge(void *context, Canvas *canvas)
 {
     const ChargeFrame *frame = context;
-    const SettingsModuleEntry *entry = frame->entry;
+    const ViewsModuleEntry *entry = frame->entry;
     if (entry != NULL) {
         entry->charge_draw(canvas, board_theme(), app.charge_battery, app.now_ms);
     } else {
@@ -1640,7 +1640,8 @@ static void charge_step(uint32_t now_ms)
     bool moving = app.charge_battery.usb_power && app.charge_battery.charging;
     bool due = deadline_reached(now_ms, app.pacer.last_ms + CHARGE_SCREEN_FRAME_MS);
     if (app.display_on && (app.render_wanted || (moving && due))) {
-        ChargeFrame frame = {.entry = settings_module()};
+        ChargeFrame frame = {.entry = (const ViewsModuleEntry *)screen_modules_use(
+                                 &app.screens, SCREEN_MODULE_VIEWS)};
         app.render_wanted = false;
         app.pacer.last_ms = now_ms;
         render((FrameDrawer){.draw = draw_charge, .context = &frame}, true);
