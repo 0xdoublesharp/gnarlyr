@@ -1,5 +1,6 @@
 set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process)
 set(ECHO_SCREEN_MODULE_SOURCES_process
+    platform/device/logic/audio_fade.c
     platform/device/logic/audio_process_entry.c
     platform/device/logic/audio_trig.c
     platform/device/logic/equalizer_design.c

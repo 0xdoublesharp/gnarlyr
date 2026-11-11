@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "codec/flac.h"
+#include "device/audio_fade.h"
 #include "device/audio_resample.h"
 #include "device/equalizer.h"
 #include "hal/audio.h"
@@ -85,6 +86,7 @@ typedef struct AudioEngineTrack {
     uint32_t end_ms;
     uint32_t token;
     uint32_t replay_gain;
+    uint32_t fade_ms;
 } AudioEngineTrack;
 
 typedef struct AudioSegment {
@@ -142,6 +144,10 @@ typedef struct AudioEngine {
     uint32_t gain;
     uint32_t track_gain;
     uint32_t next_gain;
+    uint32_t next_fade_ms;
+    uint32_t decode_fade_ms;
+    AudioFadeRamp fade_in;
+    AudioFadeRamp fade_out;
     uint32_t output_gain;
     uint32_t decode_token;
     HalAudioEqualizer equalizer_curve;

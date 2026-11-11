@@ -48,3 +48,17 @@ void equalizer_run(Equalizer *equalizer, uint32_t *words, uint32_t frames)
         entry()->run(equalizer, words, frames);
     }
 }
+
+void audio_fade_in(AudioFadeBlock block, AudioFadeRamp *ramp)
+{
+    if (ready) {
+        entry()->fade_in(block, ramp);
+    }
+}
+
+void audio_fade_out(AudioFadeBlock block, AudioFadeRamp *ramp, int64_t remaining)
+{
+    if (ready) {
+        entry()->fade_out(block, ramp, remaining);
+    }
+}

@@ -391,6 +391,8 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             equalizer_design=audio_process_equalizer_design
             equalizer_retune=audio_process_equalizer_retune
             equalizer_run=audio_process_equalizer_run
+            audio_fade_in=audio_process_fade_in
+            audio_fade_out=audio_process_fade_out
         )
     endif()
     if(module STREQUAL "debug")
