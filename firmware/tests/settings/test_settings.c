@@ -1237,6 +1237,30 @@ static void orders_that_are_not_a_permutation_of_the_first_items_are_rejected(vo
     }
 }
 
+static void safe_start_volume_lowers_a_louder_volume_to_its_level(void)
+{
+    Settings settings = settings_defaults();
+    CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME, settings_safe_start_volume(&settings, 50));
+    settings.safe_start_volume_level = 30;
+    CHECK_EQUAL(30, settings_safe_start_volume(&settings, 31));
+}
+
+static void safe_start_volume_never_raises_the_volume(void)
+{
+    Settings settings = settings_defaults();
+    CHECK_EQUAL(0, settings_safe_start_volume(&settings, 0));
+    CHECK_EQUAL(10, settings_safe_start_volume(&settings, 10));
+    CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME,
+                settings_safe_start_volume(&settings, SETTINGS_DEFAULT_SAFE_START_VOLUME));
+}
+
+static void safe_start_volume_off_keeps_the_volume(void)
+{
+    Settings settings = settings_defaults();
+    settings.safe_start_volume = false;
+    CHECK_EQUAL(SETTINGS_VOLUME_MAX, settings_safe_start_volume(&settings, SETTINGS_VOLUME_MAX));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -1321,6 +1345,9 @@ int main(void)
         TEST_CASE(custom_attenuates_more_for_a_bigger_peak),
         TEST_CASE(custom_with_only_cuts_keeps_headroom_that_grows_with_the_cut),
         TEST_CASE(flat_custom_is_a_flat_curve),
+        TEST_CASE(safe_start_volume_lowers_a_louder_volume_to_its_level),
+        TEST_CASE(safe_start_volume_never_raises_the_volume),
+        TEST_CASE(safe_start_volume_off_keeps_the_volume),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

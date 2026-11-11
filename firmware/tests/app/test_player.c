@@ -1318,6 +1318,125 @@ static void normalization_keeps_pause_state_and_damaged_metadata_falls_back_to_u
     CHECK_EQUAL(plays, fake_hal_audio_play_count());
 }
 
+static Player *paused_with_rewind(uint32_t position_ms, uint32_t paused_at_ms)
+{
+    Player *started = playing(1);
+    player_set_rewind(started, true);
+    fake_hal_audio_set_position(position_ms);
+    fake_hal_set_milliseconds(paused_at_ms);
+    player_toggle_pause(started);
+    return started;
+}
+
+static void resuming_after_a_short_pause_does_not_rewind(void)
+{
+    Player *started = paused_with_rewind(42000, 1000);
+    fake_hal_set_milliseconds(11000);
+    player_toggle_pause(started);
+    CHECK_EQUAL(0, fake_hal_audio_seek_count());
+    CHECK_EQUAL(42000, player_status(started).position_ms);
+    CHECK_EQUAL(PLAYER_PLAYING, player_status(started).state);
+}
+
+static void resuming_after_a_minute_rewinds_three_seconds(void)
+{
+    Player *started = paused_with_rewind(42000, 1000);
+    fake_hal_set_milliseconds(61000);
+    player_toggle_pause(started);
+    CHECK_EQUAL(1, fake_hal_audio_seek_count());
+    CHECK_EQUAL(39000, fake_hal_audio_last_seek());
+    CHECK_EQUAL(39000, player_status(started).position_ms);
+    CHECK_EQUAL(HAL_AUDIO_PLAYING, fake_hal_audio_state());
+}
+
+static void the_pause_is_timed_across_the_tick_counter_wrapping(void)
+{
+    Player *started = paused_with_rewind(42000, UINT32_MAX - 29999);
+    fake_hal_set_milliseconds(30000);
+    player_toggle_pause(started);
+    CHECK_EQUAL(39000, fake_hal_audio_last_seek());
+}
+
+static void resuming_a_released_pause_starts_rewound(void)
+{
+    Player *started = paused_with_rewind(42000, 1000);
+    player_update(started, 1000);
+    player_update(started, 1000 + PLAYER_PAUSE_RELEASE_MS);
+    CHECK_EQUAL(1, fake_hal_audio_release_count());
+    fake_hal_set_milliseconds(1000 + 600000);
+    player_toggle_pause(started);
+    CHECK_EQUAL(32000, fake_hal_audio_play_start());
+}
+
+static void the_rewind_never_goes_before_the_start_of_the_track(void)
+{
+    Player *started = paused_with_rewind(2000, 1000);
+    fake_hal_set_milliseconds(1000 + 3600000);
+    player_toggle_pause(started);
+    CHECK_EQUAL(0, fake_hal_audio_last_seek());
+    CHECK_EQUAL(0, player_status(started).position_ms);
+}
+
+static void seeking_while_paused_cancels_the_rewind(void)
+{
+    Player *started = paused_with_rewind(42000, 1000);
+    player_seek(started, 50000);
+    fake_hal_set_milliseconds(1000 + 600000);
+    player_toggle_pause(started);
+    CHECK_EQUAL(1, fake_hal_audio_seek_count());
+    CHECK_EQUAL(50000, player_status(started).position_ms);
+}
+
+static void rewind_off_resumes_exactly_where_it_paused(void)
+{
+    Player *started = paused_with_rewind(42000, 1000);
+    player_set_rewind(started, false);
+    fake_hal_set_milliseconds(1000 + 3600000);
+    player_toggle_pause(started);
+    CHECK_EQUAL(0, fake_hal_audio_seek_count());
+    CHECK_EQUAL(42000, player_status(started).position_ms);
+}
+
+static Player *restored_with_rewind(bool rewind, Player *resumed)
+{
+    Player *started = playing(1);
+    fake_hal_audio_set_position(42000);
+    CHECK(player_save(started));
+    player_init(resumed, &fixture.library);
+    player_set_rewind(resumed, rewind);
+    CHECK(player_restore(resumed));
+    return resumed;
+}
+
+static void a_cold_resume_rewinds_twenty_seconds(void)
+{
+    Player resumed;
+    restored_with_rewind(true, &resumed);
+    CHECK_EQUAL(42000, player_status(&resumed).position_ms);
+    player_toggle_pause(&resumed);
+    CHECK(path_is(fake_hal_audio_playing_path(), SHOOT_TO_THRILL_PATH));
+    CHECK_EQUAL(42000 - RESUME_REWIND_COLD_MUSIC_MS, fake_hal_audio_play_start());
+}
+
+static void a_cold_resume_with_rewind_off_starts_in_place(void)
+{
+    Player resumed;
+    restored_with_rewind(false, &resumed);
+    player_toggle_pause(&resumed);
+    CHECK_EQUAL(42000, fake_hal_audio_play_start());
+}
+
+static void a_cold_resume_rewinds_only_the_first_play(void)
+{
+    Player resumed;
+    restored_with_rewind(true, &resumed);
+    player_toggle_pause(&resumed);
+    fake_hal_audio_set_position(30000);
+    player_toggle_pause(&resumed);
+    player_toggle_pause(&resumed);
+    CHECK_EQUAL(0, fake_hal_audio_seek_count());
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -1389,6 +1508,16 @@ int main(void)
         TEST_CASE(playing_again_after_a_released_pause_resumes_in_place),
         TEST_CASE(resuming_before_the_release_restarts_the_pause_timer),
         TEST_CASE(a_saved_session_resumes_paused_at_its_position),
+        TEST_CASE(resuming_after_a_short_pause_does_not_rewind),
+        TEST_CASE(resuming_after_a_minute_rewinds_three_seconds),
+        TEST_CASE(the_pause_is_timed_across_the_tick_counter_wrapping),
+        TEST_CASE(resuming_a_released_pause_starts_rewound),
+        TEST_CASE(the_rewind_never_goes_before_the_start_of_the_track),
+        TEST_CASE(seeking_while_paused_cancels_the_rewind),
+        TEST_CASE(rewind_off_resumes_exactly_where_it_paused),
+        TEST_CASE(a_cold_resume_rewinds_twenty_seconds),
+        TEST_CASE(a_cold_resume_with_rewind_off_starts_in_place),
+        TEST_CASE(a_cold_resume_rewinds_only_the_first_play),
         TEST_CASE(a_session_from_another_library_is_ignored),
         TEST_CASE(the_session_is_saved_regularly_while_playing),
         TEST_CASE(an_added_song_plays_after_the_current_track),

@@ -9,6 +9,7 @@
 #include "library/library.h"
 #include "library/library_browse.h"
 #include "playback/play_queue.h"
+#include "playback/resume_rewind.h"
 #include "playback/up_next.h"
 #include "player_storage.h"
 #include "queue_edits.h"
@@ -128,6 +129,9 @@ typedef struct Player {
     uint32_t last_save_ms;
     bool pause_timing;
     uint32_t paused_since_ms;
+    bool rewind_on_resume;
+    ResumeRewindPause rewind_pause;
+    uint32_t paused_at_ms;
     HalAudioJack jack;
     uint32_t refusal_count;
     HalAudioRefusal refusal;
@@ -143,6 +147,7 @@ bool player_play_list(Player *player, BrowseQuery source, uint32_t position, uin
 bool player_play_from(Player *player, PlayerListStart start);
 bool player_use_order(Player *player, const TrackOrder *order, uint16_t position);
 void player_set_resume(Player *player, PlayerResume resume);
+void player_set_rewind(Player *player, bool on);
 void player_jump(Player *player, int32_t delta_ms);
 void player_toggle_pause(Player *player);
 void player_skip(Player *player, int direction);

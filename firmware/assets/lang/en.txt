@@ -582,3 +582,8 @@ STR_HOME_WAS_SHOWN = {0} shown on Home
 STR_HOME_PLACED = {0} placed
 STR_HOME_MOVE_CANCELLED = Move cancelled
 STR_HOME_WAS_RESET = Home screen reset
+
+# Resume comfort. {0} in STR_VOLUME_LOWERED is the music volume step (0 to 60), as Now Playing shows it.
+STR_REWIND_ON_RESUME = Rewind on resume
+STR_SAFE_START_VOLUME = Safe start volume
+STR_VOLUME_LOWERED = Volume lowered to {0}

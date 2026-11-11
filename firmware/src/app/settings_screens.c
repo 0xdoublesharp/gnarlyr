@@ -12,7 +12,10 @@
 enum {
     BRIGHTNESS_LEVEL_COUNT = SETTINGS_BRIGHTNESS_MAX - SETTINGS_BRIGHTNESS_MIN + 1,
     MILLISECONDS_PER_MINUTE = 60000,
-    USB_MODE_SELECT_COUNT = 3
+    USB_MODE_SELECT_COUNT = 3,
+    SAFE_VOLUME_OPTION_COUNT = 6,
+    SAFE_VOLUME_STEP = 6,
+    SAFE_VOLUME_TEXT_CAPACITY = 4
 };
 
 static const StringId SHUFFLE_OPTIONS[SHUFFLE_MODE_COUNT] = {STR_OFF, STR_SHUFFLE_SONGS,
@@ -520,6 +523,64 @@ static void choose_battery_percent(void *context, int index)
     save(context);
 }
 
+static int current_rewind(const void *context)
+{
+    return settings_of(context)->rewind_on_resume ? 1 : 0;
+}
+
+static void choose_rewind(void *context, int index)
+{
+    SettingsContext *settings = context;
+    editable_settings(context)->rewind_on_resume = index != 0;
+    player_set_rewind(settings->player, index != 0);
+    save(settings);
+}
+
+static const char *const SAFE_VOLUME_LEVELS[SAFE_VOLUME_OPTION_COUNT] = {"",   "12", "18",
+                                                                         "24", "30", "36"};
+static const char *safe_volume_options[SAFE_VOLUME_OPTION_COUNT];
+
+static int current_safe_volume(const void *context)
+{
+    const Settings *settings = settings_of(context);
+    int option = (settings->safe_start_volume_level + SAFE_VOLUME_STEP / 2) / SAFE_VOLUME_STEP - 1;
+    option = option < 1 ? 1 : option;
+    option = option < SAFE_VOLUME_OPTION_COUNT ? option : SAFE_VOLUME_OPTION_COUNT - 1;
+    return settings->safe_start_volume ? option : 0;
+}
+
+static void choose_safe_volume(void *context, int index)
+{
+    Settings *settings = editable_settings(context);
+    settings->safe_start_volume = index != 0;
+    if (index != 0) {
+        settings->safe_start_volume_level = (uint8_t)((index + 1) * SAFE_VOLUME_STEP);
+    }
+    save(context);
+}
+
+static const char *describe_safe_volume(const void *context, int current)
+{
+    static char text[SAFE_VOLUME_TEXT_CAPACITY];
+    if (current == 0) {
+        return i18n_text(STR_OFF);
+    }
+    StringBuilder level = string_builder_make(text, sizeof text);
+    string_builder_append_unsigned(&level, settings_of(context)->safe_start_volume_level);
+    return text;
+}
+
+static void extend_safe_volume(SettingsScreens *screens, ChoiceConfig *config)
+{
+    (void)screens;
+    safe_volume_options[0] = i18n_text(STR_OFF);
+    for (int index = 1; index < SAFE_VOLUME_OPTION_COUNT; index++) {
+        safe_volume_options[index] = SAFE_VOLUME_LEVELS[index];
+    }
+    config->options = safe_volume_options;
+    config->option_ids = NULL;
+}
+
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_SHUFFLE, SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, current_shuffle, choose_shuffle, NULL, NULL},
     {STR_REPEAT, REPEAT_OPTIONS, REPEAT_MODE_COUNT, current_repeat, choose_repeat, NULL, NULL},
@@ -555,6 +616,9 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      NULL},
     {STR_BATTERY_PERCENTAGE, OFF_ON_OPTIONS, 2, current_battery_percent, choose_battery_percent,
      NULL, NULL},
+    {STR_REWIND_ON_RESUME, OFF_ON_OPTIONS, 2, current_rewind, choose_rewind, NULL, NULL},
+    {STR_SAFE_START_VOLUME, NULL, SAFE_VOLUME_OPTION_COUNT, current_safe_volume, choose_safe_volume,
+     describe_safe_volume, extend_safe_volume},
 };
 
 static Screen *choice_view(SettingsScreens *screens, const SettingChoice *choice,

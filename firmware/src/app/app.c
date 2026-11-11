@@ -157,6 +157,10 @@ typedef struct AppState {
     KeyLock lock;
     uint32_t volume_changed_ms;
     HalBattery charge_battery;
+    HalAudioJack listener_jack;
+    bool listener_bluetooth;
+    bool volume_lowered;
+    uint8_t lowered_volume;
 } AppState;
 
 static AppState app;
@@ -172,6 +176,7 @@ static Theme compact_theme;
 
 static void follow_compact_theme(void);
 static void render_when_due(uint32_t now_ms, uint32_t started_us);
+static bool fade_running(void);
 
 static Screen *top_screen(void)
 {
@@ -407,9 +412,52 @@ static void start_charging(uint32_t now_ms)
     debug_loop_save_report();
 }
 
+static void lower_start_volume(void)
+{
+    uint8_t volume = player_status(&app.player).volume;
+    uint8_t safe = settings_safe_start_volume(&app.settings.settings, volume);
+    if (safe < volume) {
+        player_change_volume(&app.player, (int)safe - (int)volume);
+        app.volume_lowered = true;
+        app.lowered_volume = safe;
+    }
+}
+
+static void note_listeners(void)
+{
+    app.listener_jack = hal_audio_jack();
+    app.listener_bluetooth = app.bluetooth.connected;
+}
+
+static void follow_listeners(void)
+{
+    HalAudioJack jack = hal_audio_jack();
+    bool plugged = jack != HAL_AUDIO_JACK_NONE && jack != app.listener_jack;
+    bool linked = app.bluetooth.connected && !app.listener_bluetooth;
+    note_listeners();
+    if (plugged || linked) {
+        lower_start_volume();
+    }
+}
+
+static void explain_lowered_volume(uint32_t now_ms)
+{
+    static char text[TOAST_TEXT_CAPACITY];
+    if (!app.volume_lowered || app.toast.visible || !app.display_on || fade_running()) {
+        return;
+    }
+    app.volume_lowered = false;
+    if (player_status(&app.player).volume == app.lowered_volume) {
+        StringBuilder builder = string_builder_make(text, sizeof text);
+        i18n_format_counts(&builder, STR_VOLUME_LOWERED, app.lowered_volume, 0);
+        toast_show(&app.toast, text, now_ms);
+    }
+}
+
 static void stop_charging(uint32_t now_ms)
 {
     app.charging = false;
+    lower_start_volume();
     bluetooth_link_start(&app.bluetooth, &app.toast, now_ms);
     power_policy_wake(&app.power, now_ms);
     if (!app.display_on) {
@@ -1300,7 +1348,7 @@ static void report_card_files(CardFilesReport files, uint32_t now_ms)
     }
 }
 
-void app_start(void)
+static void start_app(bool power_on)
 {
     uint32_t now_ms = hal_clock_milliseconds();
     key_tracker_init(&app.keys, &KEY_CONFIG);
@@ -1332,9 +1380,18 @@ void app_start(void)
     start_hardware(now_ms);
     bluetooth_link_resume(&app.bluetooth, &app.toast, now_ms);
     start_screens(now_ms);
+    note_listeners();
+    app.volume_lowered = false;
     if (hal_power_take_usb_start()) {
         start_charging(now_ms);
+    } else if (power_on) {
+        lower_start_volume();
     }
+}
+
+void app_start(void)
+{
+    start_app(true);
 }
 
 static void show_rescan_progress(uint32_t files, uint32_t tracks)
@@ -1400,7 +1457,7 @@ static void run_rescan(void)
     const char *text = library_rescan_message(outcome, message, sizeof message);
     if (outcome.result == SCAN_OK) {
         music_check_remember(walk_music());
-        app_start();
+        start_app(false);
     } else {
         debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_SCAN_FAILED + (uint32_t)outcome.result);
     }
@@ -1748,6 +1805,7 @@ CORE_SEAM void app_step(void)
             listening_store_follow(&app.listening, listening_observation(), now_ms);
         }
         bluetooth_link_step(&app.bluetooth, &app.player, now_ms);
+        follow_listeners();
         spoken_store_follow(&app.spoken, player_status(&app.player), now_ms);
         explain_refusals(now_ms);
         debug_loop_follow(now_ms, &app.player);
@@ -1760,6 +1818,7 @@ CORE_SEAM void app_step(void)
         use_wanted_clock();
     }
     toast_update(&app.toast, now_ms);
+    explain_lowered_volume(now_ms);
     follow_appearance();
     update_screen(now_ms);
     service_discovery(now_ms);

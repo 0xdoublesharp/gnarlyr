@@ -510,4 +510,7 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_HOME_PLACED] = "{0} placed",
     [STR_HOME_MOVE_CANCELLED] = "Move cancelled",
     [STR_HOME_WAS_RESET] = "Home screen reset",
+    [STR_REWIND_ON_RESUME] = "Rewind on resume",
+    [STR_SAFE_START_VOLUME] = "Safe start volume",
+    [STR_VOLUME_LOWERED] = "Volume lowered to {0}",
 };

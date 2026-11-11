@@ -161,6 +161,34 @@ static void shuffling_plays_cue_tracks_with_their_own_ranges(void)
     CHECK(queued_start == MIDDLE_START || queued_start == MIDDLE_END);
 }
 
+static void a_rewind_on_resume_stops_at_the_start_of_the_cue_track(void)
+{
+    Player *started = playing(1);
+    player_set_rewind(started, true);
+    fake_hal_audio_set_position(MIDDLE_START + 600);
+    fake_hal_set_milliseconds(1000);
+    player_toggle_pause(started);
+    fake_hal_set_milliseconds(1000 + 3600000);
+    player_toggle_pause(started);
+    CHECK_EQUAL(1, fake_hal_audio_seek_count());
+    CHECK_EQUAL(MIDDLE_START, fake_hal_audio_last_seek());
+    CHECK_EQUAL(0, player_status(started).position_ms);
+}
+
+static void a_cold_resume_stops_at_the_start_of_the_cue_track(void)
+{
+    Player *started = playing(1);
+    fake_hal_audio_set_position(MIDDLE_START + 600);
+    CHECK(player_save(started));
+    Player resumed;
+    player_init(&resumed, &fixture.library);
+    player_set_rewind(&resumed, true);
+    CHECK(player_restore(&resumed));
+    player_toggle_pause(&resumed);
+    CHECK_EQUAL(MIDDLE_START, fake_hal_audio_play_start());
+    CHECK_EQUAL(MIDDLE_END, fake_hal_audio_play_end());
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -176,6 +204,8 @@ int main(void)
         TEST_CASE(a_cue_track_added_to_up_next_is_queued_with_its_range),
         TEST_CASE(releasing_the_output_keeps_the_position_inside_the_cue_track),
         TEST_CASE(shuffling_plays_cue_tracks_with_their_own_ranges),
+        TEST_CASE(a_rewind_on_resume_stops_at_the_start_of_the_cue_track),
+        TEST_CASE(a_cold_resume_stops_at_the_start_of_the_cue_track),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

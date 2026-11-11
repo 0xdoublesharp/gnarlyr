@@ -212,6 +212,12 @@ uint32_t settings_auto_off_ms(const Settings *settings)
     return settings_auto_off_option_minutes(settings->auto_off) * MILLISECONDS_PER_MINUTE;
 }
 
+uint8_t settings_safe_start_volume(const Settings *settings, uint8_t volume)
+{
+    bool capped = settings->safe_start_volume && volume > settings->safe_start_volume_level;
+    return capped ? settings->safe_start_volume_level : volume;
+}
+
 static void add_band(SettingsEqualizerCurve *curve, uint16_t hz, int gain)
 {
     if (gain != 0) {

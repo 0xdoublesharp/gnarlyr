@@ -200,6 +200,7 @@ uint32_t settings_sleep_option_minutes(int option);
 uint32_t settings_screen_timeout_ms(const Settings *settings);
 uint32_t settings_auto_off_option_minutes(int option);
 uint32_t settings_auto_off_ms(const Settings *settings);
+uint8_t settings_safe_start_volume(const Settings *settings, uint8_t volume);
 SettingsEqualizerCurve settings_equalizer_curve(const Settings *settings);
 void settings_encode(const Settings *settings, uint8_t *bytes);
 bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings);
