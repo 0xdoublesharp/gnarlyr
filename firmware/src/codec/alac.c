@@ -354,8 +354,8 @@ static AlacResult read_header(const AlacDecoder *decoder, AlacBits *bits, AlacEl
         element->count |= bits_read(bits, 16);
     }
     uint32_t shifted = element->shift_bytes * ALAC_SHIFT_BYTE_BITS;
-    if (element->count > config->frame_length || element->shift_bytes > ALAC_SHIFT_BYTES_MAX ||
-        shifted >= config->bit_depth) {
+    if (element->count == 0 || element->count > config->frame_length ||
+        element->shift_bytes > ALAC_SHIFT_BYTES_MAX || shifted >= config->bit_depth) {
         return ALAC_BAD_DATA;
     }
     element->sample_bits = config->bit_depth - shifted + (element->channels - 1u);

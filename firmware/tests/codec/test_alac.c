@@ -410,6 +410,17 @@ static void a_hand_built_partial_mono_escape_frame_decodes(void)
     CHECK_EQUAL(-1, alac_channel(&decoder, 0)[2]);
 }
 
+static void an_empty_partial_frame_is_rejected(void)
+{
+    Writer writer;
+    AlacConfig config = test_config(1, 16);
+    alac_start(&decoder, &config);
+    start_element(&writer, 0, 8 | 1);
+    put_bits(&writer, 0, 32);
+    CHECK_EQUAL(ALAC_BAD_DATA, alac_decode_packet(&decoder, writer.bytes, finish(&writer)));
+    CHECK_EQUAL(0, alac_samples(&decoder));
+}
+
 static void a_partial_frame_longer_than_the_frame_length_is_rejected(void)
 {
     Writer writer;
@@ -611,6 +622,7 @@ int main(void)
         TEST_CASE(stereo_streams_return_distinct_channels),
         TEST_CASE(a_hand_built_stereo_escape_frame_decodes),
         TEST_CASE(a_hand_built_partial_mono_escape_frame_decodes),
+        TEST_CASE(an_empty_partial_frame_is_rejected),
         TEST_CASE(a_partial_frame_longer_than_the_frame_length_is_rejected),
         TEST_CASE(three_shifted_bytes_are_rejected),
         TEST_CASE(an_escape_frame_cut_short_is_rejected),
