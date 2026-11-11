@@ -13,7 +13,8 @@ static const HalAudioOutput HAL_OUTPUTS[OUTPUT_JACK_COUNT] = {
     HAL_AUDIO_OUTPUT_AUTO, HAL_AUDIO_OUTPUT_SINGLE_ENDED, HAL_AUDIO_OUTPUT_BALANCED};
 static const HalUsbMode HAL_USB_MODES[USB_MODE_COUNT] = {HAL_USB_MODE_STORAGE, HAL_USB_MODE_DAC};
 
-static const uint32_t FILE_SIZES[] = {SETTINGS_FILE_SIZE, SETTINGS_PREVIOUS_FILE_SIZE};
+static const uint32_t FILE_SIZES[] = {SETTINGS_FILE_SIZE, SETTINGS_V14_FILE_SIZE,
+                                      SETTINGS_PREVIOUS_FILE_SIZE};
 
 static bool read_music_volume(uint8_t *bytes, uint32_t length)
 {

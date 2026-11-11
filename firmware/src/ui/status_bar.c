@@ -1,17 +1,20 @@
 #include "ui/status_bar.h"
 
+#include "gfx/text.h"
 #include "ui/icons.h"
+#include "ui/label.h"
 
 enum {
-    BORDER = 1,
-    FILL_INSET = 2,
+    FRAME = 1,
+    BORDER_DIVISOR = 8,
+    FILL_GAP = 1,
     NUB_DIVISOR = 5,
     BLUETOOTH_WIDTH_TENTHS = 7,
     BADGE_GAP = 1,
     TENTHS = 10,
     FULL_PERCENT = 100,
-    BODY_FIFTHS = 8,
-    FIFTHS = 5,
+    BODY_EIGHTHS = 13,
+    EIGHTHS = 8,
     TINT_STEPS = 3,
     FILL_MIN_WIDTH = 3,
     HALO = 1
@@ -34,6 +37,17 @@ static int nub_width(int size)
     return size / NUB_DIVISOR > 0 ? size / NUB_DIVISOR : 1;
 }
 
+static int border_of(Rect body)
+{
+    return body.height / BORDER_DIVISOR > 0 ? body.height / BORDER_DIVISOR : 1;
+}
+
+static Rect inset(Rect area, int amount)
+{
+    return (Rect){area.x + amount, area.y + amount, area.width - 2 * amount,
+                  area.height - 2 * amount};
+}
+
 Rect status_bar_playback_area(const Theme *theme)
 {
     int size = theme->metrics.status_icon_size;
@@ -50,8 +64,8 @@ Rect status_bar_bluetooth_area(const Theme *theme)
 
 Rect status_bar_battery_body(const Theme *theme)
 {
-    int height = theme->metrics.status_icon_size - 2 * BORDER;
-    int width = height * BODY_FIFTHS / FIFTHS;
+    int height = theme->metrics.status_icon_size + 2 * FRAME;
+    int width = height * BODY_EIGHTHS / EIGHTHS;
     int right = theme->metrics.screen_width - theme->metrics.padding - nub_width(height);
     return (Rect){right - width, band_top(theme, height), width, height};
 }
@@ -112,11 +126,12 @@ StatusBatteryLook status_bar_battery_look(const Theme *theme, StatusBarState sta
 
 static void draw_outline(Canvas *canvas, Rect body, Color color)
 {
-    canvas_fill_rect(canvas, (Rect){body.x, body.y, body.width, BORDER}, color);
-    canvas_fill_rect(canvas, (Rect){body.x, body.y + body.height - BORDER, body.width, BORDER},
+    int border = border_of(body);
+    canvas_fill_rect(canvas, (Rect){body.x, body.y, body.width, border}, color);
+    canvas_fill_rect(canvas, (Rect){body.x, body.y + body.height - border, body.width, border},
                      color);
-    canvas_fill_rect(canvas, (Rect){body.x, body.y, BORDER, body.height}, color);
-    canvas_fill_rect(canvas, (Rect){body.x + body.width - BORDER, body.y, BORDER, body.height},
+    canvas_fill_rect(canvas, (Rect){body.x, body.y, border, body.height}, color);
+    canvas_fill_rect(canvas, (Rect){body.x + body.width - border, body.y, border, body.height},
                      color);
 }
 
@@ -127,8 +142,7 @@ static void draw_icon(Canvas *canvas, IconId icon, Rect area, Color color)
 
 static void draw_bolt(Canvas *canvas, const Theme *theme, Rect body, StatusBatteryLook look)
 {
-    Rect bolt = {body.x + BORDER, body.y + BORDER, body.width - 2 * BORDER,
-                 body.height - 2 * BORDER};
+    Rect bolt = inset(body, border_of(body));
     Canvas inside = canvas_clipped(canvas, bolt);
     for (int dy = -HALO; look.bolt_halo && dy <= HALO; dy++) {
         for (int dx = -HALO; dx <= HALO; dx++) {
@@ -139,22 +153,31 @@ static void draw_bolt(Canvas *canvas, const Theme *theme, Rect body, StatusBatte
     draw_icon(&inside, ICON_BOLT, bolt, look.bolt);
 }
 
+static void draw_percent(Canvas *canvas, TextStyle style, Point end, const char *text)
+{
+    end.x -= text_width(style.font, text);
+    text_draw(canvas, style, end, text);
+}
+
 static void draw_battery(Canvas *canvas, const Theme *theme, StatusBarState state)
 {
     StatusBatteryLook look = status_bar_battery_look(theme, state);
     Rect body = status_bar_battery_body(theme);
-    Rect fill = {body.x + FILL_INSET, body.y + FILL_INSET, body.width - 2 * FILL_INSET,
-                 body.height - 2 * FILL_INSET};
+    Rect fill = inset(body, border_of(body) + FILL_GAP);
     fill.width = status_bar_battery_fill_width(state.battery_percent, fill.width);
-    int third = body.height / 3;
     draw_outline(canvas, body, look.outline);
     canvas_fill_rect(canvas, fill, look.fill);
     canvas_fill_rect(canvas,
-                     (Rect){body.x + body.width, body.y + third, nub_width(body.height),
-                            body.height - 2 * third},
+                     (Rect){body.x + body.width, body.y + body.height / 4, nub_width(body.height),
+                            body.height / 2},
                      look.outline);
     if (state.usb_power) {
         draw_bolt(canvas, theme, body, look);
+    }
+    if (state.percent != NULL) {
+        TextStyle style = {theme->fonts.small, state.usb_power ? look.outline : look.fill};
+        Point end = {body.x - theme->metrics.padding / 2, label_baseline(theme->fonts.small, body)};
+        draw_percent(canvas, style, end, state.percent);
     }
 }
 

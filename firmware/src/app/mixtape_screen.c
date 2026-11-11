@@ -261,6 +261,11 @@ static void update(void *context, uint32_t now_ms)
     ui->now_ms = now_ms;
     mixtape_ui_step(ui, now_ms);
     refresh_labels(ui);
+    if (mixtape_ui_busy(ui)) {
+        wire_motion_run(ui->config.motion, ui, WIRE_SHAPE_CASSETTE, now_ms);
+    } else {
+        wire_motion_end(ui->config.motion, ui);
+    }
 }
 
 const char *mixtape_ui_name_view(const char *name, const Font *font, int width)
@@ -312,7 +317,8 @@ static void draw(void *context, Canvas *canvas)
             (MessageConfig){.title = ui->stage >= MIXTAPE_OPEN ? i18n_text(STR_OPENING_MIXTAPE)
                                                                : i18n_text(STR_SAVING_MIXTAPE),
                             .message = i18n_text(STR_BACK_CANCELS),
-                            .theme = ui->config.theme});
+                            .theme = ui->config.theme,
+                            .motion = ui->config.motion});
         screen->draw(screen->context, canvas);
         return;
     }

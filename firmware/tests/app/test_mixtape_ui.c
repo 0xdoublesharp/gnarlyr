@@ -15,6 +15,7 @@ static Toast toast;
 static Screen now_playing;
 static Screen up_next;
 static Screen *screen;
+static WireMotion motion;
 
 static void open_ui(void)
 {
@@ -22,7 +23,8 @@ static void open_ui(void)
                                                            .theme = &BOARD_THEME,
                                                            .toast = &toast,
                                                            .now_playing = &now_playing,
-                                                           .up_next = &up_next});
+                                                           .up_next = &up_next,
+                                                           .motion = &motion});
     screen->enter(screen->context, 100);
 }
 

@@ -3,8 +3,9 @@
 static void bind(AppScreens *screens)
 {
     const AppScreensContext *context = &screens->context;
-    listening_screen_init(&screens->modules.listening.listening,
-                          (ListeningScreenConfig){context->listening, context->theme});
+    listening_screen_init(
+        &screens->modules.listening.listening,
+        (ListeningScreenConfig){context->listening, context->theme, context->motion});
     lyrics_screen_init(
         &screens->modules.listening.lyrics,
         (LyricsScreenConfig){context->player, &context->store->library, context->theme});

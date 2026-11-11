@@ -30,9 +30,23 @@ static uint32_t pair_at(const Color *row)
     return pair;
 }
 
-static uint32_t row_hash(const Color *row, int width)
+static void forget_rows(FrameDiff *diff, Rect area)
 {
-    uint32_t hash = HASH_START;
+    int bottom = area.y + area.height < diff->rows ? area.y + area.height : diff->rows;
+    for (int row = area.y < 0 ? 0 : area.y; row < bottom; row++) {
+        diff->hashes[row] = UNKNOWN;
+    }
+}
+
+void frame_diff_mask(FrameDiff *diff, Rect area)
+{
+    forget_rows(diff, diff->masked);
+    forget_rows(diff, area);
+    diff->masked = area;
+}
+
+static uint32_t span_hash(uint32_t hash, const Color *row, int width)
+{
     int index = 0;
     for (; index + PIXELS_PER_ROUND <= width; index += PIXELS_PER_ROUND) {
         hash = (hash ^ pair_at(row + index)) * HASH_PRIME;
@@ -46,6 +60,26 @@ static uint32_t row_hash(const Color *row, int width)
     if (index < width) {
         hash = (hash ^ row[index]) * HASH_PRIME;
     }
+    return hash;
+}
+
+static bool row_masked(const FrameDiff *diff, int y)
+{
+    Rect masked = diff->masked;
+    return !rect_is_empty(masked) && y >= masked.y && y < masked.y + masked.height;
+}
+
+static uint32_t row_hash(const FrameDiff *diff, int y, const Color *row, int width)
+{
+    uint32_t hash = HASH_START;
+    if (row_masked(diff, y)) {
+        Rect masked = diff->masked;
+        int right = masked.x + masked.width;
+        hash = span_hash(hash, row, masked.x);
+        hash = span_hash(hash, row + right, width - right);
+    } else {
+        hash = span_hash(hash, row, width);
+    }
     return hash == UNKNOWN ? REPLACEMENT : hash;
 }
 
@@ -54,7 +88,7 @@ static bool row_changed(FrameDiff *diff, int y, const Color *row, int width)
     if (y < 0 || y >= diff->rows) {
         return true;
     }
-    uint32_t hash = row_hash(row, width);
+    uint32_t hash = row_hash(diff, y, row, width);
     bool changed = diff->hashes[y] != hash;
     diff->hashes[y] = hash;
     return changed;

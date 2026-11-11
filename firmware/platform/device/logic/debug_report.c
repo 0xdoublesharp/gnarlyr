@@ -6,6 +6,7 @@
 #include "core/key_script.h"
 #include "core/string_builder.h"
 #include "device/battery_gauge.h"
+#include "device/rtc_registers.h"
 
 enum {
     HEX_DIGITS = 8,
@@ -82,6 +83,8 @@ static const char *const REASON_NAMES[DEBUG_REPORT_REASON_COUNT] = {
     [DEBUG_REPORT_RESTART] = "restart",
     [DEBUG_REPORT_NO_HOST] = "no_host",
 };
+static const char *const RTC_STATUSES[HAL_RTC_STATUS_COUNT] = {
+    [HAL_RTC_OK] = "ok", [HAL_RTC_NO_ACK] = "no_ack", [HAL_RTC_TIMEOUT] = "timeout"};
 static const char *const CONNECT_NAMES[] = {"none", "waiting", "answered", "no_host", "cancelled"};
 static const char SCHEMA_KEY[] = "debug_report";
 static const char SEQUENCE_KEY[] = "report.sequence";
@@ -534,6 +537,65 @@ static void put_probe(Writer *writer, const DebugProbe *probe)
     finish(writer);
 }
 
+static void append_two_digits(StringBuilder *text, char separator, uint32_t value)
+{
+    string_builder_append_char(text, separator);
+    string_builder_append_char(text, (char)('0' + value / 10 % 10));
+    string_builder_append_char(text, (char)('0' + value % 10));
+}
+
+static void append_rtc_time(StringBuilder *text, const RtcTime *time)
+{
+    string_builder_append(text, " time=");
+    string_builder_append_unsigned(text, time->year);
+    append_two_digits(text, '-', time->month);
+    append_two_digits(text, '-', time->day);
+    append_two_digits(text, 'T', time->hour);
+    append_two_digits(text, ':', time->minute);
+    append_two_digits(text, ':', time->second);
+}
+
+static void append_rtc_registers(StringBuilder *text, const DebugRtcRead *read)
+{
+    string_builder_append(text, " registers=");
+    for (uint32_t index = 0; index < DEBUG_RTC_REGISTERS; index++) {
+        append_hex(text, read->registers[index], 2);
+    }
+}
+
+static void append_rtc_decoded(StringBuilder *text, const DebugRtcRead *read)
+{
+    RtcTime time;
+    bool valid = rtc_registers_decode(read->registers, &time);
+    append_field(text, "vl", true, time.voltage_low);
+    if (valid) {
+        append_rtc_time(text, &time);
+    } else {
+        string_builder_append(text, " time=invalid");
+    }
+    append_field(text, "weekday", true, time.weekday);
+    append_field(text, "century", true, time.century);
+}
+
+static void put_rtc(Writer *writer, const DebugRtcRead *read)
+{
+    begin(writer, "script.rtc");
+    string_builder_append(&writer->text, "line=");
+    string_builder_append_unsigned(&writer->text, read->line);
+    append_field(&writer->text, "ms", true, read->time_ms);
+    string_builder_append(&writer->text, " status=");
+    string_builder_append(&writer->text, NAME_IN(RTC_STATUSES, read->status));
+    if (read->status == HAL_RTC_OK) {
+        append_rtc_registers(&writer->text, read);
+        append_rtc_decoded(&writer->text, read);
+    } else {
+        string_builder_append(&writer->text,
+                              " registers=unknown vl=unknown time=unknown weekday=unknown "
+                              "century=unknown");
+    }
+    finish(writer);
+}
+
 typedef struct SoakVoltage {
     uint32_t samples;
     bool known;
@@ -684,6 +746,9 @@ static void put_script_results(Writer *writer, const DebugScriptRun *script,
     }
     for (uint32_t index = 0; index < script->probe_count; index++) {
         put_probe(writer, &script->probes[index]);
+    }
+    for (uint32_t index = 0; index < script->rtc_count; index++) {
+        put_rtc(writer, &script->rtc[index]);
     }
 }
 

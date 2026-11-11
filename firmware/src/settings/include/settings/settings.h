@@ -104,6 +104,12 @@ typedef enum Orientation {
     ORIENTATION_PORTRAIT_FLIPPED
 } Orientation;
 
+typedef enum TrackTransition {
+    TRACK_TRANSITION_OFF,
+    TRACK_TRANSITION_FADE,
+    TRACK_TRANSITION_CROSSFADE
+} TrackTransition;
+
 enum {
     GAIN_LEVEL_COUNT = GAIN_HIGH + 1,
     APPEARANCE_THEME_COUNT = APPEARANCE_CLASSIC + 1,
@@ -118,6 +124,7 @@ enum {
     TEXT_SIZE_COUNT = TEXT_SIZE_LARGE + 1,
     SKIP_GESTURE_COUNT = SKIP_GESTURE_PLAY_CLICKS + 1,
     ORIENTATION_COUNT = ORIENTATION_PORTRAIT_FLIPPED + 1,
+    TRACK_TRANSITION_COUNT = TRACK_TRANSITION_CROSSFADE + 1,
     SETTINGS_EQUALIZER_BANDS = 10,
     SETTINGS_EQUALIZER_GAIN_MAX = 20,
     SETTINGS_UNITY_PRE_GAIN = 32768,
@@ -128,7 +135,14 @@ enum {
     SCREEN_TIMEOUT_OPTION_COUNT = 7,
     SLEEP_TIMER_OPTION_COUNT = 7,
     AUTO_OFF_OPTION_COUNT = 4,
-    SETTINGS_FILE_SIZE = 42,
+    SETTINGS_DEFAULT_SAFE_START_VOLUME = 24,
+    SETTINGS_TRANSITION_TENTHS_MIN = 5,
+    SETTINGS_TRANSITION_TENTHS_MAX = 60,
+    SETTINGS_DEFAULT_TRANSITION_TENTHS = 15,
+    SETTINGS_HOME_ITEM_COUNT = 9,
+    SETTINGS_HOME_SETTINGS_ITEM = 3,
+    SETTINGS_FILE_SIZE = 58,
+    SETTINGS_V14_FILE_SIZE = 42,
     SETTINGS_LANGUAGE_LENGTH = 5,
     SETTINGS_LANGUAGE_CAPACITY = SETTINGS_LANGUAGE_LENGTH + 1,
     SETTINGS_PREVIOUS_FILE_SIZE = 32
@@ -157,6 +171,15 @@ typedef struct Settings {
     char language[SETTINGS_LANGUAGE_CAPACITY];
     uint8_t replay_gain_mode;
     bool prevent_clipping;
+    bool battery_percent;
+    bool rewind_on_resume;
+    bool safe_start_volume;
+    uint8_t safe_start_volume_level;
+    bool clock_24h;
+    TrackTransition track_transition;
+    uint8_t transition_tenths;
+    uint8_t home_order[SETTINGS_HOME_ITEM_COUNT];
+    uint16_t home_hidden;
 } Settings;
 
 typedef struct SettingsEqualizerCurve {

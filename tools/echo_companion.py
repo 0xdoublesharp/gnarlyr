@@ -42,8 +42,8 @@ class Layout:
         self.snapshot = snapshot
         source = snapshot.show("firmware/src/settings/settings.c")
         self.ui = snapshot.show("firmware/src/app/settings_screens.c")
-        if snapshot.settings_version not in (13, 14):
-            raise ValueError("only the declared version 13 and 14 settings layouts are supported")
+        if snapshot.settings_version not in (13, 14, 15):
+            raise ValueError("only the declared version 13 to 15 settings layouts are supported")
         if any(echo_language.constant(source, name) != value for name, value in FIELDS.items()):
             raise ValueError("the installed settings fields have changed")
         header = snapshot.show("firmware/src/settings/include/settings/settings.h")
@@ -63,9 +63,12 @@ class Layout:
             actual = tuple(re.findall(r"\bSTR_[A-Z0-9_]+\b", body)) if spec[4] else tuple(re.findall(r'"([0-9]+)"', body))
             if actual != (spec[4] or spec[3]) or not re.search(r"\{\s*" + spec[1] + r"\s*,", self.ui):
                 raise ValueError("the installed settings choices have changed")
-        if snapshot.settings_version == 14:
+        if snapshot.settings_version >= 14:
             compact = re.sub(r"\s+", "", source)
-            if "bytes[VERSION_FIELD+1]=settings->replay_gain_mode|(settings->prevent_clipping?4u:0u);" not in compact:
+            encodings = ("bytes[VERSION_FIELD+1]=settings->replay_gain_mode|(settings->prevent_clipping?4u:0u);",
+                         "bytes[VERSION_FIELD+1]=settings->replay_gain_mode|(settings->prevent_clipping?4u:0u)|"
+                         "(settings->battery_percent?8u:0u);")
+            if not any(encoding in compact for encoding in encodings):
                 raise ValueError("the installed ReplayGain settings encoding has changed")
 
     def title_ids(self):
@@ -79,7 +82,8 @@ class Layout:
         changed = bytearray(data)
         raw = (spec[3].index(value) + spec[8]) << spec[7]
         changed[spec[5]] = changed[spec[5]] & (255 ^ spec[6]) | raw
-        struct.pack_into("<I", changed, 38, self.snapshot.format.fnv(changed[:38]))
+        field = self.snapshot.settings_checksum_field(changed[4])
+        struct.pack_into("<I", changed, field, self.snapshot.format.fnv(changed[:field]))
         return bytes(changed)
 
 
@@ -105,13 +109,13 @@ class Manager:
         except FileNotFoundError:
             self.error("settings_missing", "save settings on the player before companion control")
         snapshot = context["snapshot"]
-        if len(data) < 42 or data[:4] != b"DSST" or snapshot.format.fnv(data[:38]) != int.from_bytes(data[38:42], "little"):
+        if not snapshot.settings_checksum_valid(data):
             self.error("settings_invalid", "the saved settings header or checksum is invalid")
         if data[4] != snapshot.settings_version:
             self.error("settings_migration_required", "save settings with the installed firmware before companion control")
         if (not snapshot.settings_flags_valid(data[4], data[5]) or
                 any(not low <= data[offset] <= high for offset, (low, high) in BOUNDS.items()) or
-                any(value > 40 for value in data[28:38])):
+                any(value > 40 for value in data[28:38]) or not snapshot.settings_extension_valid(data)):
             self.error("settings_invalid", "the saved settings contain values the firmware would reject")
         return data
 

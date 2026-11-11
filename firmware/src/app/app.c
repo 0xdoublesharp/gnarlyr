@@ -50,6 +50,7 @@
 #include "ui/slide.h"
 #include "ui/status_bar.h"
 #include "ui/toast.h"
+#include "ui/wire_motion.h"
 
 enum {
     PASS_BUSY_MS = 1,
@@ -124,8 +125,10 @@ typedef struct AppState {
     BluetoothLink bluetooth;
     uint32_t shown_refusals;
     StatusBarState status_bar;
+    char battery_text[STATUS_BAR_PERCENT_CAPACITY];
     AppScreens screens;
     MessageScreen notice;
+    WireMotion motion;
     FrameDiff frame_diff;
     FramePacer pacer;
     bool render_urgent;
@@ -163,6 +166,7 @@ static Theme notice_theme;
 static Theme compact_theme;
 
 static void follow_compact_theme(void);
+static void render_when_due(uint32_t now_ms, uint32_t started_us);
 
 static Screen *top_screen(void)
 {
@@ -1031,6 +1035,15 @@ static StatusBluetooth bluetooth_of(const BluetoothLink *link)
     return link->connected ? STATUS_BLUETOOTH_CONNECTED : STATUS_BLUETOOTH_ON;
 }
 
+static const char *battery_text(HalBattery battery)
+{
+    if (!app.settings.settings.battery_percent) {
+        return NULL;
+    }
+    charge_screen_level_text(battery, app.battery_text, sizeof app.battery_text);
+    return app.battery_text;
+}
+
 static StatusBarState current_status_bar(void)
 {
     HalBattery battery = hal_power_battery();
@@ -1043,17 +1056,16 @@ static StatusBarState current_status_bar(void)
         .charging = battery.charging,
         .locked = app.lock.locked,
         .shuffle = (StatusShuffle)player_status(&app.player).shuffle,
+        .percent = battery_text(battery),
     };
 }
 
-static StripRenderer frame_renderer(bool drawer_paints_everything)
+static StripRenderer frame_renderer(Rect area, bool drawer_paints_everything)
 {
     return (StripRenderer){
         .strip_pixels = strip_pixels,
-        .screen_width = app.theme.metrics.screen_width,
-        .screen_height = app.theme.metrics.screen_height,
-        .strip_height =
-            (int)(sizeof strip_pixels / sizeof strip_pixels[0]) / app.theme.metrics.screen_width,
+        .area = area,
+        .strip_height = (int)(sizeof strip_pixels / sizeof strip_pixels[0]) / area.width,
         .background = BOARD_THEME.colors.background,
         .drawer_paints_everything = drawer_paints_everything,
     };
@@ -1061,10 +1073,57 @@ static StripRenderer frame_renderer(bool drawer_paints_everything)
 
 static void render(FrameDrawer drawer, bool drawer_paints_everything)
 {
-    StripRenderer renderer = frame_renderer(drawer_paints_everything);
+    StripRenderer renderer = frame_renderer(whole_screen(), drawer_paints_everything);
     FrameSink sink = {.write = write_to_display, .context = NULL};
     strip_renderer_render(&renderer, drawer, sink);
     hal_display_present();
+}
+
+static void send_motion(void *context, Rect area, const Color *pixels)
+{
+    (void)context;
+    hal_audio_service();
+    hal_bluetooth_service();
+    hal_display_write(area.x, area.y, area.width, area.height, pixels);
+}
+
+static void render_motion(FrameDrawer drawer)
+{
+    StripRenderer renderer = frame_renderer(app.motion.area, false);
+    strip_renderer_render(&renderer, drawer, (FrameSink){.write = send_motion, .context = NULL});
+    hal_display_present();
+}
+
+static bool same_area(Rect first, Rect second)
+{
+    return first.x == second.x && first.y == second.y && first.width == second.width &&
+           first.height == second.height;
+}
+
+static void mask_motion(const void *owner)
+{
+    Rect area = wire_motion_shown(&app.motion, owner) ? app.motion.area : (Rect){0, 0, 0, 0};
+    if (!same_area(area, app.frame_diff.masked)) {
+        frame_diff_mask(&app.frame_diff, area);
+        app.render_wanted = true;
+    }
+}
+
+static void animate(FrameDrawer drawer, const void *owner, bool visible, uint32_t now_ms)
+{
+    bool due = visible && app.motion.owner == owner && wire_motion_due(&app.motion, now_ms);
+    if (due) {
+        wire_motion_tick(&app.motion, now_ms);
+    }
+    mask_motion(visible ? owner : NULL);
+    if (!due) {
+        return;
+    }
+    if (rect_is_empty(app.motion.area)) {
+        app.render_wanted = true;
+    } else {
+        render_motion(drawer);
+    }
 }
 
 static void render_frame(void)
@@ -1084,6 +1143,18 @@ static void draw_notice(void *context, Canvas *canvas)
 {
     Screen *screen = context;
     screen->draw(screen->context, canvas);
+}
+
+static void animate_notice(void)
+{
+    FrameDrawer drawer = {.draw = draw_notice, .context = &app.notice.screen};
+    animate(drawer, &app.notice, app.display_on, hal_clock_milliseconds());
+}
+
+static void show_working_notice(StringId title, const char *message, WireShape shape)
+{
+    wire_motion_run(&app.motion, &app.notice, shape, hal_clock_milliseconds());
+    app_show_notice(i18n_text(title), message);
 }
 
 static void start_playback(void)
@@ -1150,6 +1221,7 @@ static void build_screens(uint32_t now_ms)
         .language_requested = &app.language_requested,
         .bluetooth = &app.bluetooth,
         .listening = &app.listening,
+        .motion = &app.motion,
     };
     Screen *root = app_screens_init(&app.screens, context);
     screen_stack_init(&app.stack, root, now_ms);
@@ -1240,6 +1312,7 @@ static void show_rescan_progress(uint32_t files, uint32_t tracks)
     uint32_t now_ms = hal_clock_milliseconds();
     hal_bluetooth_service();
     if (files > 1 && now_ms - shown_ms < RESCAN_PROGRESS_MS) {
+        animate_notice();
         return;
     }
     shown_ms = now_ms;
@@ -1254,7 +1327,9 @@ static void show_cover_progress(uint32_t done, uint32_t total)
     static uint32_t shown_ms;
     uint32_t now_ms = hal_clock_milliseconds();
     hal_bluetooth_service();
+    wire_motion_progress(&app.motion, done, total);
     if (done > 0 && done < total && now_ms - shown_ms < RESCAN_PROGRESS_MS) {
+        animate_notice();
         return;
     }
     shown_ms = now_ms;
@@ -1287,7 +1362,7 @@ static void run_rescan(void)
 {
     cancel_edits();
     flush_listening();
-    app_show_notice(i18n_text(STR_SCANNING), i18n_text(STR_SCAN_STARTING));
+    show_working_notice(STR_SCANNING, i18n_text(STR_SCAN_STARTING), WIRE_SHAPE_DISC);
     RescanProgress progress = {show_rescan_progress, show_cover_progress};
     RescanOutcome outcome = library_rescan_run(progress);
     static char message[TOAST_TEXT_CAPACITY];
@@ -1469,7 +1544,7 @@ static void set_debug_screen(bool on, uint32_t now_ms)
 
 static bool save_debug_screenshot(const DebugRequest *request)
 {
-    DebugScreenshot shot = {.renderer = frame_renderer(false),
+    DebugScreenshot shot = {.renderer = frame_renderer(whole_screen(), false),
                             .drawer = {.draw = draw_frame, .context = &app},
                             .name = request->argument,
                             .slot = request->slot};
@@ -1665,6 +1740,14 @@ CORE_SEAM void app_step(void)
             app.render_urgent = true;
         }
     }
+    render_when_due(now_ms, started_us);
+    wire_motion_end(&app.motion, &app.notice);
+    FrameDrawer drawer = {.draw = draw_frame, .context = &app};
+    animate(drawer, top_screen(), app.display_on && !fade_running() && !slide_running(), now_ms);
+}
+
+static void render_when_due(uint32_t now_ms, uint32_t started_us)
+{
     app.render_wanted |= view_changed(now_ms);
     bool urgent = app.render_urgent || app.light_after_frame || fade_running() || slide_running();
     if (!app.display_on || !frame_pacer_due(&app.pacer, now_ms, urgent || app.render_wanted)) {
@@ -1722,7 +1805,11 @@ CORE_SEAM void app_show_usb_status(AppUsbStatus status)
 
 CORE_SEAM void app_show_notice(const char *title, const char *message)
 {
-    MessageConfig config = {.title = title, .message = message, .theme = &notice_theme};
+    bool working = app.motion.running && app.motion.owner == &app.notice;
+    MessageConfig config = {.title = title,
+                            .message = message,
+                            .theme = &notice_theme,
+                            .motion = working ? &app.motion : NULL};
     Screen *screen = message_screen_init(&app.notice, config);
     if (!app.display_on) {
         set_display(true);

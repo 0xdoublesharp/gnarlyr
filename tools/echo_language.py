@@ -12,6 +12,7 @@ from pathlib import Path
 BUILD = re.compile(r"[0-9a-fA-F]{7,40}")
 CODE = re.compile(r"[A-Za-z0-9-]{1,5}")
 PACK_LIMIT = 16384
+FLAG_MASKS = (0xF8, 0xF0, 0xC0)
 DIRECTORY_LIMIT = 256
 ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
 
@@ -57,12 +58,16 @@ class Snapshot:
                 raise ValueError("the installed firmware identity differs from this tool")
             source = self.show("firmware/src/settings/settings.c")
             self.settings_version = constant(source, "VERSION")
-            if (self.settings_version not in (12, 13, 14) or
+            if (self.settings_version not in (12, 13, 14, 15) or
                     (constant(source, "LANGUAGE_VERSION"), constant(source, "LANGUAGE_FIELD"),
                      constant(source, "HALF_DB_CHECKSUM_FIELD")) != (12, 19, 38)):
                 raise ValueError("the installed settings layout is unsupported")
-            if self.settings_version == 14:
+            if self.settings_version >= 14:
                 self.check_replay_gain_layout(source)
+            if self.settings_version >= 15 and (
+                    constant(source, "EXTENSION_VERSION"), constant(source, "EXTENSION_FIELD"),
+                    constant(source, "EXTENSION_CHECKSUM_FIELD")) != (15, 38, 54):
+                raise ValueError("the installed settings extension layout is unsupported")
         except (ValueError, KeyError, OSError, self.format.PackError) as error:
             raise api.DebugError("language_build_unknown", str(error)) from error
 
@@ -71,14 +76,34 @@ class Snapshot:
         declaration = re.search(r"typedef\s+enum\s+ReplayGainMode\s*\{([^}]+)\}", modes)
         names = [name.strip() for name in declaration.group(1).split(",")] if declaration else []
         compact = re.sub(r"\s+", "", source)
+        masks = [mask for mask in FLAG_MASKS
+                 if f"(flags&0x{mask:02X}u)==0&&(flags&3u)<REPLAY_GAIN_MODE_COUNT" in compact]
         if (constant(source, "REPLAY_GAIN_VERSION") != 14 or
                 names != ["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
-                          "REPLAY_GAIN_MODE_COUNT"] or
-                "(flags&0xF8u)==0&&(flags&3u)<REPLAY_GAIN_MODE_COUNT" not in compact):
+                          "REPLAY_GAIN_MODE_COUNT"] or len(masks) != 1):
             raise ValueError("the installed ReplayGain settings layout is unsupported")
+        self.reserved_flags = masks[0]
 
     def settings_flags_valid(self, version, flags):
-        return flags == 0 if version < 14 else flags & 0xF8 == 0 and flags & 3 < 3
+        return flags == 0 if version < 14 else flags & self.reserved_flags == 0 and flags & 3 < 3
+
+    def settings_checksum_field(self, version):
+        return 38 if version < 15 else 54
+
+    def settings_checksum_valid(self, data):
+        field = self.settings_checksum_field(data[4]) if len(data) > 4 else 38
+        return (len(data) >= field + 4 and data[:4] == b"DSST" and
+                self.format.fnv(data[:field]) == int.from_bytes(data[field:field + 4], "little"))
+
+    def settings_extension_valid(self, data):
+        if data[4] < 15:
+            return True
+        block = data[38:54]
+        order = [block[4 + index // 2] >> 4 * (index % 2) & 15 for index in range(10)]
+        hidden = block[9] | block[10] << 8
+        return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and block[3] == 0 and
+                sorted(order[:9]) == list(range(9)) and order[9] == 0 and hidden & ~0x1F7 == 0 and
+                not any(block[11:]))
 
     def show(self, path):
         return git(self.api.ROOT, "show", self.commit + ":" + path)
@@ -324,10 +349,11 @@ class Manager:
             except FileNotFoundError:
                 continue
             version = data[4] if len(data) > 4 else 0
-            if (len(data) < 42 or data[:4] != b"DSST" or
-                    not 12 <= version <= context["snapshot"].settings_version or
-                    not context["snapshot"].settings_flags_valid(version, data[5]) or
-                    context["snapshot"].format.fnv(data[:38]) != int.from_bytes(data[38:42], "little")):
+            snapshot = context["snapshot"]
+            if (not snapshot.settings_checksum_valid(data) or
+                    not 12 <= version <= snapshot.settings_version or
+                    not snapshot.settings_flags_valid(version, data[5]) or
+                    not snapshot.settings_extension_valid(data)):
                 self.error("language_settings_invalid", "the saved language setting cannot be verified")
             raw = data[19:24]
             code, separator, tail = raw.partition(b"\0")
