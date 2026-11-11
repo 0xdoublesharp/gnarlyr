@@ -73,6 +73,17 @@ class SelectionTests(unittest.TestCase):
 
 
 class FuzzCommandTests(unittest.TestCase):
+    def test_settings_codec_target_has_bounded_structured_seeds(self):
+        self.assertEqual(firmware.FUZZ_TARGETS["settings_codec"], 128)
+        self.assertEqual(
+            [seed[0] for seed in firmware.FUZZ_SEEDS["settings_codec"]],
+            [0, 1, 2, 3],
+        )
+        self.assertEqual(
+            [len(seed) for seed in firmware.FUZZ_SEEDS["settings_codec"]],
+            [128, 33, 65, 33],
+        )
+
     def test_high_value_parser_and_store_targets_are_registered(self):
         self.assertEqual(firmware.FUZZ_TARGETS["library_database"], 65536)
         self.assertEqual(firmware.FUZZ_TARGETS["mp4_demux"], 262144)
