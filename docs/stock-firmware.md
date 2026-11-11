@@ -62,7 +62,8 @@ The display code is in module 4: file offset `0x59b18`, loads at `0x0307e48c`, 1
 - The register writer (`0x03060f00`) sends three address bytes, an auto-increment byte and the value to bus addresses `0x60` and `0x66` (7-bit `0x30` and `0x33`). It sets the channel map registers `0x05000a` and `0x05000b` to 7 and 15, and applies balance to the volume registers `0x090001` and `0x090002`.
 - The reader is `0x0306101c`, using the same addressing for both chips.
 - The parts are two CS43198, as FiiO lists. On the owner's ECHO (4 GB) both chips report ID `43 19 80`, revision `A1`, subrevision `06` (Doublesharp Echo 1.0.0, Settings → About, read 2026-11-09). Some inherited code names still say CS43131; the register sequence is stock's either way.
-- Not compared with stock yet: the default digital filter, the volume curve, the gain values and the power-down order.
+- Gain, digital filter and volume writes, with their addresses, defaults and the data sheet's reading of each value, are in [`firmware/docs/hardware.md`](../firmware/docs/hardware.md) (Audio). Stock writes gain `0x080000` and filter `0x090000` during start-up with the outputs powered down, and again directly, without muting or powering down, when Settings changes them during playback (`0x030611c8`, `0x03061206`). The analysis exported modules 0+1, 0+32 and 0+27 and scanned every module's code for calls to the register writer and for loads and stores of the two setting bytes.
+- Not compared with stock yet: the volume curve and the power-down order.
 
 ## Limits of this record
 
