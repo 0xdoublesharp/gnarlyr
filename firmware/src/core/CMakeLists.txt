@@ -1,4 +1,5 @@
 add_library(echo_core STATIC
+    audio_visual.c
     calendar.c
     clock_face.c
     dac_identity.c
