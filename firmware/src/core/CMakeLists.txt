@@ -22,6 +22,7 @@ add_library(echo_core STATIC
     parametric_model.c
     parametric.c
     parametric_curve.c
+    parametric_bound.c
     power_policy.c
     random.c
     string_builder.c

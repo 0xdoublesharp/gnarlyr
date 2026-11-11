@@ -144,10 +144,10 @@ static void headroom_bounds_the_response_and_impulse_at_every_rate(void)
                 CHECK(parametric_bound(&k) / unit >= norm);
                 uint16_t pre = parametric_pre_gain(&eq, rates[r]);
                 CHECK(pre > 0);
-                CHECK(pre / 32768.0 * norm < 0.81);
+                CHECK(pre / 32768.0 * norm < 1.0);
                 for (int hz = 20; hz < 15000; hz += 113) {
                     double power = parametric_power(&k, (uint32_t)hz, rates[r]) / (double)(1 << 20);
-                    CHECK(pre / 32768.0 * sqrt(power) < 0.81);
+                    CHECK(pre / 32768.0 * sqrt(power) < 1.0);
                 }
             }
         }

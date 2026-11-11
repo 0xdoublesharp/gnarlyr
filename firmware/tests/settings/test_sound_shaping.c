@@ -101,6 +101,40 @@ static void row_words_describe_both_directions_and_neutral(void)
     CHECK(strcmp(text, "Cool · Dark") == 0);
 }
 
+static void a_small_warmth_boost_uses_only_the_headroom_it_needs_and_neutral_is_unity(void)
+{
+    static const uint32_t rates[] = {32000, 44100, 48000, 88200, 96000};
+    ParametricEq base = {0};
+    SoundShaping shape = {.active = true};
+    for (unsigned rate = 0; rate < sizeof rates / sizeof rates[0]; rate++) {
+        ParametricEq eq;
+        CHECK(sound_shaping_build(&eq, &base, &shape));
+        CHECK_EQUAL(32768, parametric_pre_gain(&eq, rates[rate]));
+        shape.positions[0] = 2;
+        CHECK(sound_shaping_build(&eq, &base, &shape));
+        CHECK_EQUAL(1, eq.count);
+        CHECK_EQUAL(0, eq.preamp);
+        uint64_t gain = parametric_pre_gain(&eq, rates[rate]);
+        int attenuation = parametric_decibels(gain * gain >> 10);
+        CHECK(attenuation >= -35 && attenuation <= -20);
+        shape.positions[0] = 0;
+    }
+}
+
+static void the_capture_curve_is_bounded_as_one_cascade_and_requested_attenuation_is_kept(void)
+{
+    ParametricEq base = {0};
+    SoundShaping shape = {.positions = {2, 1}, .active = true};
+    ParametricEq eq;
+    CHECK(sound_shaping_build(&eq, &base, &shape));
+    uint64_t gain = parametric_pre_gain(&eq, 44100);
+    int attenuation = parametric_decibels(gain * gain >> 10);
+    CHECK(attenuation >= -35 && attenuation <= -30);
+    eq.preamp = -62;
+    gain = parametric_pre_gain(&eq, 44100);
+    CHECK_EQUAL(-62, parametric_decibels(gain * gain >> 10));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -108,6 +142,8 @@ int main(void)
         TEST_CASE(stacking_is_atomic_and_respects_the_ten_filter_budget),
         TEST_CASE(automatic_headroom_covers_extremes_at_every_supported_rate),
         TEST_CASE(row_words_describe_both_directions_and_neutral),
+        TEST_CASE(a_small_warmth_boost_uses_only_the_headroom_it_needs_and_neutral_is_unity),
+        TEST_CASE(the_capture_curve_is_bounded_as_one_cascade_and_requested_attenuation_is_kept),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

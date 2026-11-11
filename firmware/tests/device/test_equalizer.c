@@ -506,6 +506,55 @@ static void sound_shaping_extremes_do_not_clip_full_scale_music_or_transients(vo
     }
 }
 
+static void tight_headroom_survives_the_worst_sign_pattern_of_each_cascade_prefix(void)
+{
+    static double impulse[4096];
+    static const uint32_t rates[] = {32000, 44100, 48000, 88200, 96000};
+    for (int bright = 0; bright < 2; bright++) {
+        SoundShaping shape = {.positions = {2}, .active = true};
+        shape.positions[1] = (int8_t)bright;
+        ParametricEq base = {0};
+        HalAudioEqualizer curve = {.is_parametric = true};
+        CHECK(sound_shaping_build(&curve.parametric, &base, &shape));
+        for (unsigned rate = 0; rate < sizeof rates / sizeof rates[0]; rate++) {
+            for (int prefix = 1; prefix <= 1 + bright; prefix++) {
+                CHECK(equalizer_design(&equalizer, &curve, rates[rate]));
+                double history[PARAMETRIC_FILTERS][4] = {0};
+                for (int frame = 0; frame < 4096; frame++) {
+                    double value = frame == 0 ? 1.0 : 0.0;
+                    for (int index = 0; index < prefix; index++) {
+                        EqualizerSection k = equalizer.sections[index];
+                        double *h = history[index];
+                        double next =
+                            (k.b0 * value + k.b1 * h[0] + k.b2 * h[1] + k.a1 * h[2] + k.a2 * h[3]) /
+                            (double)(1 << PARAMETRIC_BITS);
+                        h[1] = h[0];
+                        h[0] = value;
+                        h[3] = h[2];
+                        h[2] = next;
+                        value = next;
+                    }
+                    impulse[frame] = value;
+                }
+                for (int frame = 0; frame < 4096; frame++) {
+                    int32_t sample = impulse[4095 - frame] < 0 ? -FULL_SCALE : FULL_SCALE;
+                    words[2 * frame] = (uint32_t)sample << 8;
+                    words[2 * frame + 1] = (uint32_t)-sample << 8;
+                }
+                equalizer.section_count = prefix;
+                equalizer_run(&equalizer, words, 4096);
+                for (int frame = 0; frame < 4096; frame++) {
+                    CHECK(abs(sample_at((uint32_t)frame, 0)) < FULL_SCALE);
+                    CHECK(abs(sample_at((uint32_t)frame, 1)) < FULL_SCALE);
+                }
+                if (bright == 0) {
+                    CHECK(abs(sample_at(4095, 0)) > FULL_SCALE * 9 / 10);
+                }
+            }
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -527,6 +576,7 @@ int main(void)
         TEST_CASE(a_gain_change_keeps_the_filter_history_and_does_not_click),
         TEST_CASE(equalizer_off_leaves_the_samples_alone),
         TEST_CASE(sound_shaping_extremes_do_not_clip_full_scale_music_or_transients),
+        TEST_CASE(tight_headroom_survives_the_worst_sign_pattern_of_each_cascade_prefix),
         TEST_CASE(parametric_boosts_cuts_shelves_and_transients_stay_below_the_clamp),
         TEST_CASE(parametric_preamp_works_without_filters_and_nyquist_filters_are_inactive),
     };

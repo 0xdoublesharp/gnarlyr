@@ -53,6 +53,7 @@ int16_t parametric_decibels(uint64_t power);
 uint64_t parametric_power(const ParametricSection *section, uint32_t hz, uint32_t rate);
 
 uint64_t parametric_bound(const ParametricSection *section);
+uint16_t parametric_cascade_pre_gain(const ParametricSection *sections, int count);
 int16_t parametric_response(const ParametricEq *eq, uint32_t hz, uint32_t rate);
 uint16_t parametric_pre_gain(const ParametricEq *eq, uint32_t rate);
 

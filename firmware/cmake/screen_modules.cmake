@@ -2,6 +2,7 @@ set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extensi
 set(ECHO_SCREEN_MODULE_SOURCES_process
     src/core/parametric.c
     src/core/parametric_curve.c
+    src/core/parametric_bound.c
     platform/device/logic/audio_fade.c
     platform/device/logic/audio_process_entry.c
     platform/device/logic/audio_trig.c
@@ -48,6 +49,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     src/app/equalizer_ui.c
     src/core/parametric.c
     src/core/parametric_curve.c
+    src/core/parametric_bound.c
     src/app/parametric_store_save.c
     src/settings/parametric_file_save.c
     src/settings/parametric_import.c

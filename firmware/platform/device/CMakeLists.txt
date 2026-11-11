@@ -446,6 +446,14 @@ set(ECHO_MODULE_MAP_ARGUMENTS "")
 foreach(source IN LISTS ECHO_SCREEN_MODULE_FAST_SOURCES)
     set_source_files_properties(${PROJECT_SOURCE_DIR}/${source} PROPERTIES COMPILE_OPTIONS -O2)
 endforeach()
+set_source_files_properties(
+    ${PROJECT_SOURCE_DIR}/src/core/parametric.c
+    ${PROJECT_SOURCE_DIR}/src/core/parametric_curve.c
+    ${PROJECT_SOURCE_DIR}/src/core/parametric_bound.c
+    ${PROJECT_SOURCE_DIR}/src/app/debug_steps.c
+    ${PROJECT_SOURCE_DIR}/src/app/debug_screenshot.c
+    PROPERTIES COMPILE_OPTIONS -Os
+)
 foreach(module IN LISTS ECHO_SCREEN_MODULES)
     if(module STREQUAL "process")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_process.ld)
