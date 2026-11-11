@@ -1,4 +1,4 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension)
+set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension utilities)
 set(ECHO_SCREEN_MODULE_SHARED_SOURCES src/codec/flac.c src/codec/flac_bits.c)
 set(ECHO_SCREEN_MODULE_SOURCES_process
     platform/device/logic/core1_open_flac.c
@@ -45,6 +45,18 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
+    src/app/screens/cover_flow_screen.c
+    src/app/cover_placeholders.c
+    src/app/screens/up_next_screen.c
+    src/app/queue_actions.c
+    src/app/queue_edits.c
+    src/app/screens/charge_art.c
+    src/ui/cover_flow.c
+    src/ui/placeholder_art.c
+    src/gfx/image_quad.c
+)
+set(ECHO_SCREEN_MODULE_SOURCES_utilities
+    src/app/modules/utilities_module.c
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
     src/app/mixtape_store.c
@@ -56,19 +68,12 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/playback/mix_catalog.c
     src/playback/mix_resolve.c
     src/playback/mix_tape.c
-    src/app/screens/cover_flow_screen.c
-    src/app/cover_placeholders.c
-    src/app/screens/up_next_screen.c
-    src/app/queue_actions.c
-    src/app/queue_edits.c
     src/app/screens/calendar_screen.c
     src/core/calendar_view.c
     src/app/screens/cassette_flip_screen.c
     src/app/screens/clock_screen.c
-    src/app/screens/charge_art.c
-    src/ui/cover_flow.c
-    src/ui/placeholder_art.c
-    src/gfx/image_quad.c
+    src/app/queue_actions.c
+    src/app/queue_edits.c
 )
 set(ECHO_SCREEN_MODULE_FAST_SOURCES src/gfx/image_quad.c)
 set(ECHO_SCREEN_MODULE_SOURCES_settings
@@ -133,9 +138,9 @@ set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/library/lyrics.c
 )
 if(ECHO_RELEASE)
-    list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu_release.c)
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_utilities src/app/diagnostics_menu_release.c)
 else()
-    list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu.c)
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_utilities src/app/diagnostics_menu.c)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_process
         src/app/modules/debug_module.c
         src/app/debug_steps.c

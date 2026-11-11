@@ -94,9 +94,9 @@ static void each_module_builds_its_own_screens(void)
     CHECK(screen_modules_use(&screens, SCREEN_MODULE_SETTINGS) != NULL);
     CHECK(screens.modules.settings.settings.menu.screen.draw != NULL);
     CHECK(screens.modules.settings.bluetooth.screen.draw != NULL);
-    CHECK(screens.modules.views.diagnostics.screen.draw == NULL);
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS,
-                screen_modules_of(&screens, &screens.modules.views.diagnostics.screen));
+    CHECK(screens.modules.utilities.diagnostics.screen.draw == NULL);
+    CHECK_EQUAL(SCREEN_MODULE_UTILITIES,
+                screen_modules_of(&screens, &screens.modules.utilities.diagnostics.screen));
     CHECK(screens.modules.views.cover_flow.screen.draw == NULL);
     CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
 }
@@ -120,7 +120,7 @@ static void using_a_module_loads_it_and_builds_its_screens(void)
     CHECK_EQUAL(1, fake_hal_module_loads());
     CHECK(screens.modules.views.cover_flow.screen.draw != NULL);
     CHECK(screens.modules.views.up_next.screen.draw != NULL);
-    CHECK(screens.modules.views.diagnostics.screen.draw != NULL);
+    CHECK(screens.modules.utilities.diagnostics.screen.draw == NULL);
 }
 
 static void a_module_builds_its_screens_once_until_the_screens_are_built_again(void)
@@ -147,6 +147,19 @@ static void a_module_that_cannot_load_is_not_used_and_builds_nothing(void)
     CHECK(screen_modules_use(&screens, SCREEN_MODULE_VIEWS) != NULL);
 }
 
+static void the_ninth_module_loads_independently_of_views(void)
+{
+    reset();
+    CHECK(screen_modules_use(&screens, (ScreenModule)9) != NULL);
+    CHECK_EQUAL(9, (int)SCREEN_MODULE_UTILITIES);
+    CHECK_EQUAL(9, (int)fake_hal_loaded_module());
+    CHECK(screens.modules.utilities.diagnostics.screen.draw != NULL);
+    CHECK(screens.modules.utilities.clock.screen.draw != NULL);
+    CHECK(screens.modules.views.cover_flow.screen.draw == NULL);
+    CHECK(screen_modules_use(&screens, SCREEN_MODULE_VIEWS) != NULL);
+    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -159,6 +172,7 @@ int main(void)
         TEST_CASE(using_a_module_loads_it_and_builds_its_screens),
         TEST_CASE(a_module_builds_its_screens_once_until_the_screens_are_built_again),
         TEST_CASE(a_module_that_cannot_load_is_not_used_and_builds_nothing),
+        TEST_CASE(the_ninth_module_loads_independently_of_views),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

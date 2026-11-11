@@ -11,7 +11,7 @@ static const MenuConfig *built(void)
 {
     memset(&screens, 0, sizeof screens);
     diagnostics_menu_build(&screens, &options, &BOARD_THEME);
-    return &screens.modules.views.diagnostics.config;
+    return &screens.modules.utilities.diagnostics.config;
 }
 
 static bool has_row(const MenuConfig *menu, const char *label)

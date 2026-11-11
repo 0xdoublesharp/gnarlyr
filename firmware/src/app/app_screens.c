@@ -150,9 +150,9 @@ static Screen *browse_play_group(void *context, BrowseScreen *browse)
 static Screen *track_tape(void *context, uint16_t track)
 {
     AppScreens *screens = context;
-    const ViewsModuleEntry *entry =
-        (const ViewsModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_VIEWS);
-    return entry != NULL ? entry->add(&screens->modules.views.mixtapes, track) : NULL;
+    const UtilitiesModuleEntry *entry =
+        (const UtilitiesModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_UTILITIES);
+    return entry != NULL ? entry->add(&screens->modules.utilities.mixtapes, track) : NULL;
 }
 
 static Screen *track_info(void *context, uint16_t track)
@@ -284,10 +284,10 @@ static void home_catalog(AppScreens *screens, MenuItem *items)
                                         &screens->modules.settings.settings.menu.screen,
                                         &screens->now_playing.screen,
                                         &screens->modules.views.up_next.screen,
-                                        &screens->modules.views.mixtapes.screen,
+                                        &screens->modules.utilities.mixtapes.screen,
                                         &screens->modules.listening.listening.screen,
                                         NULL,
-                                        &screens->modules.views.clock.screen};
+                                        &screens->modules.utilities.clock.screen};
     for (int index = 0; index < HOME_ITEM_COUNT; index++) {
         items[index] = app_screens_open_item(APP_HOME_ITEMS[index].label, targets[index]);
     }
@@ -385,7 +385,7 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
                                     .covers = context.covers,
                                     .up_next = &screens->modules.views.up_next.screen,
                                     .lyrics = &screens->modules.listening.lyrics.screen,
-                                    .flip = &screens->modules.views.cassette_flip.screen};
+                                    .flip = &screens->modules.utilities.cassette_flip.screen};
     screens->context = context;
     screens->bound_modules = 0;
     message_screen_init(&screens->no_library, no_library);

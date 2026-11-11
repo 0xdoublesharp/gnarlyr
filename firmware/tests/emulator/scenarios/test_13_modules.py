@@ -11,6 +11,7 @@ from echo_image_harness import (
     HEIGHT,
     HOME_UP_NEXT_AFTER_SETTINGS,
     KEY_BACK,
+    KEY_MENU,
     KEY_NEXT,
     KEY_PLAY,
     LANGUAGE_RAM,
@@ -50,7 +51,7 @@ class EchoImageTest(EchoImageHarness):
         for key in (KEY_PLAY, KEY_BACK, KEY_BACK, KEY_PLAY, KEY_NEXT, KEY_PLAY, KEY_BACK):
             self.press(machine, key)
         self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
-                         [(number, True), (1, True), (number, True)])
+                         [(number, True), (9, True), (number, True)])
         self.assertLess(max(call["us"] for call in watch.calls if not call["sectors"]),
                         MODULE_REUSE_LIMIT_US)
         self.assertTrue(settings.loaded(machine))
@@ -160,34 +161,55 @@ class EchoImageTest(EchoImageHarness):
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 
-    def test_a_usb_session_restores_about_from_views_then_back_restores_settings(self):
+    def test_a_usb_session_restores_about_from_utilities_then_back_restores_settings(self):
         from echo_emulator.modules import ModuleWatch
         session, machine = self.started_session()
         watch = ModuleWatch(session)
         settings_number, settings = self.module(machine, "settings")
-        views_number, views = self.module(machine, "views")
+        utilities_number, utilities = self.module(machine, "utilities")
         machine.note("usb_session_storage_changed")
         machine.note("usb_storage_session")
         self.open_settings(machine)
         self.press(machine, KEY_PLAY)
         self.press(machine, KEY_NEXT)
-        self.assertTrue(views.loaded(machine))
+        self.assertTrue(utilities.loaded(machine))
         self.assertFalse(settings.loaded(machine))
         machine.vbus = True
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
         self.assertEqual(machine.reached["usb_storage_session"], 1)
-        self.assertFalse(views.loaded(machine))
+        self.assertFalse(utilities.loaded(machine))
         machine.run(until_ms=machine.milliseconds() + 600)
-        self.assertTrue(views.loaded(machine))
+        self.assertTrue(utilities.loaded(machine))
         self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
-                         [(settings_number, True), (views_number, True), (views_number, True)])
+                         [(settings_number, True), (utilities_number, True), (utilities_number, True)])
         self.press(machine, KEY_BACK)
         self.assertTrue(settings.loaded(machine))
         self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
-                         [(settings_number, True), (views_number, True), (views_number, True),
+                         [(settings_number, True), (utilities_number, True), (utilities_number, True),
                           (settings_number, True)])
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
+
+    def test_now_playing_and_up_next_cross_the_module_seam_without_stalling(self):
+        from echo_emulator.modules import ModuleWatch
+        rig = self.playback_rig()
+        machine = rig.machine
+        watch = ModuleWatch(rig.session)
+        number, views = self.module(machine, "views")
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        latencies = [self.release_to_first_draw_ms(machine, key)
+                     for key in (KEY_MENU, KEY_BACK, KEY_MENU, KEY_BACK)]
+        self.assertLessEqual(max(latencies), MODULE_LOAD_LIMIT_MS)
+        self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
+                         [(number, True)])
+        self.assertTrue(views.loaded(machine))
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assert_module_code_never_written(watch)
+        self.assert_healthy(rig.session)
+        print("\n[Now Playing / Up Next] release to first pixels: %s ms" % latencies)
+        print("[first list load] " + watch.describe(watch.loads()[0]))
 
     def test_modules_change_places_and_a_setting_is_saved_while_a_track_keeps_playing(self):
         from echo_emulator.modules import ModuleWatch
@@ -325,23 +347,23 @@ class EchoImageTest(EchoImageHarness):
         print("\n[module load, track playing] " + watch.describe(first[0]))
         print("[module reuse] %d calls, longest %d us" % (len(reuses), max(reuses)))
 
-    def test_about_uses_the_second_views_copy_when_the_first_is_damaged(self):
+    def test_about_uses_the_second_utilities_copy_when_the_first_is_damaged(self):
         session, machine = self.started_session()
-        session.change_module("slot_1", 1, 600, lambda byte: byte ^ 0xFF)
+        session.change_module("slot_1", 9, 600, lambda byte: byte ^ 0xFF)
         self.open_settings(machine)
         self.press(machine, image_tests.KEY_PLAY)
-        _, views = self.module(machine, "views")
-        self.assertTrue(views.loaded(machine))
-        self.assertTrue(session.module_reads("slot_2", 1))
+        _, utilities = self.module(machine, "utilities")
+        self.assertTrue(utilities.loaded(machine))
+        self.assertTrue(session.module_reads("slot_2", 9))
         self.press(machine, image_tests.KEY_BACK)
         _, settings = self.module(machine, "settings")
         self.assertTrue(settings.loaded(machine))
         self.assert_healthy(session)
 
-    def test_missing_views_keeps_about_shut_and_settings_usable(self):
+    def test_missing_utilities_keeps_about_shut_and_settings_usable(self):
         session, machine = self.started_session()
         for slot in ("slot_1", "slot_2"):
-            session.change_module(slot, 1, 600, lambda byte: byte ^ 0xFF)
+            session.change_module(slot, 9, 600, lambda byte: byte ^ 0xFF)
         toasts = self.collect_toasts(machine)
         self.open_settings(machine)
         self.press(machine, image_tests.KEY_PLAY)

@@ -128,17 +128,17 @@ static const DiagnosticsRow ROWS[DIAGNOSTICS_ITEM_COUNT] = {
 
 static void options_init(AppScreens *screens)
 {
-    screens->modules.views.diagnostic_clock = (ClockOption){.failed = false};
+    screens->modules.utilities.diagnostic_clock = (ClockOption){.failed = false};
 }
 
 static void build_rows(AppScreens *screens, AppOptions *options)
 {
     void *contexts[CONTEXT_COUNT] = {[CONTEXT_OPTIONS] = options,
-                                     [CONTEXT_CLOCK] = &screens->modules.views.diagnostic_clock,
+                                     [CONTEXT_CLOCK] = &screens->modules.utilities.diagnostic_clock,
                                      [CONTEXT_BLUETOOTH] = &screens->modules.settings.bluetooth};
     for (int index = 0; index < DIAGNOSTICS_ITEM_COUNT; index++) {
         const DiagnosticsRow *row = &ROWS[index];
-        screens->modules.views.diagnostics_items[index] =
+        screens->modules.utilities.diagnostics_items[index] =
             (MenuItem){.label = i18n_text(row->label),
                        .select = row->select,
                        .context = contexts[row->context],
@@ -149,7 +149,7 @@ static void build_rows(AppScreens *screens, AppOptions *options)
 
 void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Theme *theme)
 {
-    ViewsModuleScreens *own = &screens->modules.views;
+    UtilitiesModuleScreens *own = &screens->modules.utilities;
     options_init(screens);
     build_rows(screens, options);
     app_screens_build_menu(&own->diagnostics, STR_ABOUT, own->diagnostics_items,

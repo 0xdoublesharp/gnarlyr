@@ -322,8 +322,8 @@ static void flush_listening(void)
 
 static bool mixtape_busy(void)
 {
-    return (app.screens.bound_modules & (1u << SCREEN_MODULE_VIEWS)) != 0 &&
-           app.screens.modules.views.mixtapes.stage != 0;
+    return (app.screens.bound_modules & (1u << SCREEN_MODULE_UTILITIES)) != 0 &&
+           app.screens.modules.utilities.mixtapes.stage != 0;
 }
 
 static bool discovery_is_top(void)
@@ -361,10 +361,10 @@ static void cancel_edits(void)
     screen_modules_cancel_previews(&app.screens);
     cancel_discovery();
     if (mixtape_busy()) {
-        const ViewsModuleEntry *module =
-            (const ViewsModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS);
+        const UtilitiesModuleEntry *module =
+            (const UtilitiesModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_UTILITIES);
         if (module != NULL && module->cancel != NULL) {
-            module->cancel(&app.screens.modules.views.mixtapes);
+            module->cancel(&app.screens.modules.utilities.mixtapes);
         }
     }
     player_queue_cancel(&app.player);
@@ -372,11 +372,11 @@ static void cancel_edits(void)
 
 static void continue_mixtape(uint32_t now_ms)
 {
-    if (mixtape_busy() && top_screen() != &app.screens.modules.views.mixtapes.screen) {
-        const ViewsModuleEntry *module =
-            (const ViewsModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS);
+    if (mixtape_busy() && top_screen() != &app.screens.modules.utilities.mixtapes.screen) {
+        const UtilitiesModuleEntry *module =
+            (const UtilitiesModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_UTILITIES);
         if (module != NULL && module->step != NULL) {
-            module->step(&app.screens.modules.views.mixtapes, now_ms);
+            module->step(&app.screens.modules.utilities.mixtapes, now_ms);
         }
     }
 }
@@ -657,7 +657,8 @@ static bool apply_action(ScreenAction action, uint32_t now_ms)
     }
     ScreenModule next_module =
         next != NULL ? screen_modules_of(&app.screens, next) : SCREEN_MODULE_NONE;
-    if (mixtape_busy() && next_module != SCREEN_MODULE_NONE && next_module != SCREEN_MODULE_VIEWS) {
+    if (mixtape_busy() && next_module != SCREEN_MODULE_NONE &&
+        next_module != SCREEN_MODULE_UTILITIES) {
         cancel_edits();
     }
     if (discovery_is_top() &&
@@ -1974,8 +1975,8 @@ CORE_SEAM void app_step(void)
     follow_usb_chooser(now_ms);
     commit_dac_headphones();
     service_discovery(now_ms);
-    MixtapeUi *mixtapes = &app.screens.modules.views.mixtapes;
-    if ((app.screens.bound_modules & (1u << SCREEN_MODULE_VIEWS)) != 0 &&
+    MixtapeUi *mixtapes = &app.screens.modules.utilities.mixtapes;
+    if ((app.screens.bound_modules & (1u << SCREEN_MODULE_UTILITIES)) != 0 &&
         mixtapes->destination != NULL) {
         follow_destination(&mixtapes->destination, now_ms);
     }
@@ -2149,9 +2150,9 @@ const char *app_toast_text(void)
 
 const char *app_diagnostics_value(int index)
 {
-    if (screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS) == NULL) {
+    if (screen_modules_use(&app.screens, SCREEN_MODULE_UTILITIES) == NULL) {
         return NULL;
     }
-    const MenuItem *item = &app.screens.modules.views.diagnostics_items[index];
+    const MenuItem *item = &app.screens.modules.utilities.diagnostics_items[index];
     return item->value != NULL ? item->value(item->context) : NULL;
 }

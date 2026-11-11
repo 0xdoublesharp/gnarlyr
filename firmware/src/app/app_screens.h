@@ -113,6 +113,9 @@ typedef struct AppScreensContext {
 typedef struct ViewsModuleScreens {
     CoverFlowScreen cover_flow;
     UpNextScreen up_next;
+} ViewsModuleScreens;
+
+typedef struct UtilitiesModuleScreens {
     MixtapeUi mixtapes;
     CassetteFlipScreen cassette_flip;
     ClockScreen clock;
@@ -120,7 +123,7 @@ typedef struct ViewsModuleScreens {
     MenuScreen diagnostics;
     ClockOption diagnostic_clock;
     MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
-} ViewsModuleScreens;
+} UtilitiesModuleScreens;
 
 typedef struct SettingsModuleScreens {
     SettingsScreens settings;
@@ -141,6 +144,7 @@ typedef struct LibraryModuleScreens {
 
 typedef struct AppModuleScreens {
     ViewsModuleScreens views;
+    UtilitiesModuleScreens utilities;
     SettingsModuleScreens settings;
     ProfileModuleScreens listening;
     LibraryModuleScreens library;

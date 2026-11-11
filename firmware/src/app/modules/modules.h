@@ -11,13 +11,18 @@
 
 typedef struct ViewsModuleEntry {
     ScreenModuleEntry module;
-    void (*cancel)(MixtapeUi *ui);
-    void (*step)(MixtapeUi *ui, uint32_t now_ms);
-    Screen *(*add)(MixtapeUi *ui, uint16_t track);
     void (*charge_draw)(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms);
 } ViewsModuleEntry;
 
+typedef struct UtilitiesModuleEntry {
+    ScreenModuleEntry module;
+    void (*cancel)(MixtapeUi *ui);
+    void (*step)(MixtapeUi *ui, uint32_t now_ms);
+    Screen *(*add)(MixtapeUi *ui, uint16_t track);
+} UtilitiesModuleEntry;
+
 extern const ViewsModuleEntry VIEWS_MODULE_ENTRY;
+extern const UtilitiesModuleEntry UTILITIES_MODULE_ENTRY;
 extern const ScreenModuleEntry LISTENING_MODULE_ENTRY;
 
 typedef struct SettingsModuleEntry {
