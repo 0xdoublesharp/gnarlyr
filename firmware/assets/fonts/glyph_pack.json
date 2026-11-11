@@ -4,7 +4,8 @@
       "name": "inter_regular_16_latin1",
       "file": "inter/Inter-Regular.ttf",
       "size": 16,
-      "ranges": [[160, 255]]
+      "max_bitmap": 128,
+      "ranges": [[160, 255], [1024, 1119], [1168, 1169]]
     },
     {
       "name": "inter_regular_22",

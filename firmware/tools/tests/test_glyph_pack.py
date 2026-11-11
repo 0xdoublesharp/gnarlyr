@@ -25,7 +25,13 @@ class CharacterSetTest(unittest.TestCase):
     def test_the_latin1_faces_hold_the_accented_letters(self):
         config = json.loads((ASSETS_DIRECTORY / "glyph_pack.json").read_text())
         for face in config["faces"][:1]:
-            self.assertEqual(set(range(160, 256)), glyph_pack.face_characters(face))
+            self.assertTrue(set(range(160, 256)) | set(range(1024, 1120)) <= glyph_pack.face_characters(face))
+
+    def test_small_face_contains_cyrillic_bitmaps(self):
+        path = TOOLS_DIRECTORY.parent / "src/fonts/packs/inter_regular_16_latin1.bin"
+        glyphs = glyph_pack.read_face(path.read_bytes())
+        self.assertTrue(set(range(0x400, 0x460)) <= glyphs.keys())
+        self.assertTrue({0x490, 0x491} <= glyphs.keys())
 
     def test_the_echo_faces_hold_ascii_latin1_and_punctuation(self):
         config = json.loads((ASSETS_DIRECTORY / "glyph_pack.json").read_text())
@@ -44,7 +50,7 @@ class CharacterSetTest(unittest.TestCase):
         limits = {face["name"]: face.get("max_bitmap", glyph_pack.MAX_BITMAP_BYTES)
                   for face in config["faces"]}
         self.assertEqual(256, limits["inter_regular_22"])
-        self.assertEqual(glyph_pack.MAX_BITMAP_BYTES, limits["inter_regular_16_latin1"])
+        self.assertEqual(128, limits["inter_regular_16_latin1"])
         self.assertEqual(320, limits["inter_semibold_26"])
 
     def test_the_player_reads_every_face_and_its_largest_glyph(self):
