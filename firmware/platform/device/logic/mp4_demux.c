@@ -527,19 +527,27 @@ static bool chunk_offset(FlacInput input, const Mp4Track *track, uint32_t chunk,
     if (chunk == 0 || chunk > track->chunk_count) {
         return false;
     }
+    uint32_t shift = track->wide_offsets ? 3 : 2;
+    if (chunk - 1 > ((UINT32_MAX - track->chunks_at) >> shift)) {
+        return false;
+    }
+    uint32_t at = track->chunks_at + ((chunk - 1) << shift);
     if (!track->wide_offsets) {
-        return read_word(input, track->chunks_at + 4 * (chunk - 1), offset);
+        return read_word(input, at, offset);
     }
     uint32_t high;
-    return read_word(input, track->chunks_at + 8 * (chunk - 1), &high) && high == 0 &&
-           read_word(input, track->chunks_at + 8 * (chunk - 1) + 4, offset);
+    return at <= UINT32_MAX - 4 && read_word(input, at, &high) && high == 0 &&
+           read_word(input, at + 4, offset);
 }
 
 static bool read_run(FlacInput input, const Mp4Track *track, uint32_t run, uint32_t *first,
                      uint32_t *samples)
 {
+    if (run > (UINT32_MAX - track->runs_at) / 12) {
+        return false;
+    }
     uint32_t at = track->runs_at + 12 * run;
-    return read_word(input, at, first) && read_word(input, at + 4, samples);
+    return at <= UINT32_MAX - 4 && read_word(input, at, first) && read_word(input, at + 4, samples);
 }
 
 static bool run_end(FlacInput input, const Mp4Track *track, uint32_t run, uint32_t *end)
@@ -566,7 +574,8 @@ static bool size_at(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track, u
         uint32_t left = track->sample_count - index;
         uint32_t count = left < MP4_SIZE_WINDOW ? left : MP4_SIZE_WINDOW;
         uint8_t bytes[4 * MP4_SIZE_WINDOW];
-        if (!read_bytes(input, track->sizes_at + 4 * index, bytes, 4 * count)) {
+        if (index > (UINT32_MAX - track->sizes_at) / 4 ||
+            !read_bytes(input, track->sizes_at + 4 * index, bytes, 4 * count)) {
             return false;
         }
         for (uint32_t item = 0; item < count; item++) {
@@ -614,7 +623,7 @@ bool mp4_cursor_seek(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track, 
     }
     for (uint32_t index = sample - cursor->in_chunk; index < sample; index++) {
         uint32_t size;
-        if (!size_at(cursor, input, track, index, &size)) {
+        if (!size_at(cursor, input, track, index, &size) || size > UINT32_MAX - cursor->offset) {
             return false;
         }
         cursor->offset += size;
@@ -641,7 +650,8 @@ bool mp4_cursor_next(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track, 
                      uint32_t *size)
 {
     if (cursor->sample >= track->sample_count ||
-        !size_at(cursor, input, track, cursor->sample, size)) {
+        !size_at(cursor, input, track, cursor->sample, size) ||
+        *size > UINT32_MAX - cursor->offset) {
         return false;
     }
     *offset = cursor->offset;

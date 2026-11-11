@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "device/m4a_stream.h"
 #include "device/mp4_demux.h"
 #include "m4a_fixture_files.h"
 
@@ -418,6 +419,15 @@ static void read_failures_never_publish_a_different_track_layout(void)
     FlacInput input = {.read = read_with_failure, .context = &failure, .size = builder.length};
     Mp4Track expected;
     CHECK(mp4_probe(input, &expected));
+    CHECK_EQUAL(MP4_CODEC_AAC, expected.codec);
+    CHECK_EQUAL(2u, expected.channels);
+    CHECK_EQUAL(44100u, expected.sample_rate);
+    CHECK_EQUAL(1024u, expected.frame_samples);
+    CHECK_EQUAL(SYNTHETIC_SAMPLES, expected.sample_count);
+    CHECK_EQUAL(10240u, expected.total_samples);
+    CHECK_EQUAL(2u, expected.config_size);
+    CHECK_EQUAL(0x12, expected.config[0]);
+    CHECK_EQUAL(0x10, expected.config[1]);
     uint32_t reads = failure.calls;
     CHECK(reads > 0);
     for (uint32_t at = 1; at <= reads; at++) {
@@ -427,9 +437,23 @@ static void read_failures_never_publish_a_different_track_layout(void)
         if (mp4_probe(input, &track)) {
             CHECK_EQUAL(expected.codec, track.codec);
             CHECK_EQUAL(expected.channels, track.channels);
+            CHECK_EQUAL(expected.bits, track.bits);
+            CHECK_EQUAL(expected.config_size, track.config_size);
+            CHECK(memcmp(expected.config, track.config, expected.config_size) == 0);
             CHECK_EQUAL(expected.sample_rate, track.sample_rate);
+            CHECK_EQUAL(expected.frame_samples, track.frame_samples);
             CHECK_EQUAL(expected.sample_count, track.sample_count);
             CHECK_EQUAL(expected.total_samples, track.total_samples);
+            CHECK_EQUAL(expected.delay, track.delay);
+            CHECK_EQUAL(expected.valid_samples, track.valid_samples);
+            CHECK_EQUAL(expected.audio_bytes, track.audio_bytes);
+            CHECK_EQUAL(expected.fixed_size, track.fixed_size);
+            CHECK_EQUAL(expected.sizes_at, track.sizes_at);
+            CHECK_EQUAL(expected.chunks_at, track.chunks_at);
+            CHECK_EQUAL(expected.chunk_count, track.chunk_count);
+            CHECK_EQUAL(expected.runs_at, track.runs_at);
+            CHECK_EQUAL(expected.run_count, track.run_count);
+            CHECK_EQUAL(expected.wide_offsets, track.wide_offsets);
         }
     }
 }
@@ -496,6 +520,8 @@ static void cursor_read_failures_never_return_a_wrong_sample_and_seek_recovers(v
         FlacInput input = {.read = read_with_failure, .context = &failure, .size = builder.length};
         Mp4Track track;
         CHECK(mp4_probe(input, &track));
+        static const uint32_t expected_offsets[] = {1000, 1100, 1201, 5000,  5103,
+                                                    5207, 9000, 9106, 20000, 20108};
         uint32_t exercised = 0;
         for (uint32_t sample = 0; sample < track.sample_count; sample++) {
             Mp4Cursor cursor;
@@ -504,6 +530,8 @@ static void cursor_read_failures_never_return_a_wrong_sample_and_seek_recovers(v
             uint32_t expected_offset = 0;
             uint32_t expected_size = 0;
             CHECK(mp4_cursor_next(&cursor, input, &track, &expected_offset, &expected_size));
+            CHECK_EQUAL(expected_offsets[sample], expected_offset);
+            CHECK_EQUAL(100u + sample, expected_size);
             uint32_t reads = failure.calls;
             for (uint32_t at = 1; at <= reads; at++) {
                 failure.fail_at = 0;
@@ -854,6 +882,101 @@ static void malformed_chunk_tables_never_locate_a_sample(void)
     }
 }
 
+static void overflowing_chunk_table_indices_are_rejected(void)
+{
+    for (uint32_t wide = 0; wide < 2; wide++) {
+        static Builder builder;
+        build_synthetic(&builder, wide != 0);
+        uint32_t stsc = find_box_type(&builder, "stsc");
+        uint32_t chunks = find_box_type(&builder, wide ? "co64" : "stco");
+        CHECK(stsc != 0);
+        CHECK(chunks != 0);
+        uint32_t first = wide ? UINT32_C(0x20000001) : UINT32_C(0x40000001);
+        builder.bytes[stsc + 11] = 1;
+        builder.bytes[chunks + 8] = (uint8_t)(first >> 24);
+        builder.bytes[chunks + 9] = (uint8_t)(first >> 16);
+        builder.bytes[chunks + 10] = (uint8_t)(first >> 8);
+        builder.bytes[chunks + 11] = (uint8_t)first;
+        builder.bytes[stsc + 12] = (uint8_t)(first >> 24);
+        builder.bytes[stsc + 13] = (uint8_t)(first >> 16);
+        builder.bytes[stsc + 14] = (uint8_t)(first >> 8);
+        builder.bytes[stsc + 15] = (uint8_t)first;
+        FlacInput input = {.read = read_builder, .context = &builder, .size = builder.length};
+        Mp4Track track;
+        CHECK(mp4_probe(input, &track));
+        CHECK_EQUAL(1u, track.run_count);
+        CHECK_EQUAL(first, track.chunk_count);
+        Mp4Cursor cursor;
+        CHECK(!mp4_cursor_seek(&cursor, input, &track, 0));
+    }
+}
+
+static void overflowing_sample_size_table_indices_are_rejected(void)
+{
+    static Builder builder;
+    build_synthetic(&builder, false);
+    uint32_t stsz = find_box_type(&builder, "stsz");
+    CHECK(stsz != 0);
+    static const uint8_t count[] = {0x40, 0, 0, 1};
+    memcpy(builder.bytes + stsz + 12, count, sizeof count);
+    FlacInput input = {.read = read_builder, .context = &builder, .size = builder.length};
+    Mp4Track track;
+    CHECK(mp4_probe(input, &track));
+    CHECK_EQUAL(UINT32_C(0x40000001), track.sample_count);
+    Mp4Cursor cursor = {.sample = UINT32_C(0x40000000), .chunk_samples = 1};
+    uint32_t offset = 0;
+    uint32_t size = 0;
+    CHECK(!mp4_cursor_next(&cursor, input, &track, &offset, &size));
+}
+
+static void a_sample_ending_at_the_offset_limit_is_not_rejected_early(void)
+{
+    static const uint8_t limit_minus_100[] = {0xff, 0xff, 0xff, 0x9b};
+    for (uint32_t wide = 0; wide < 2; wide++) {
+        static Builder builder;
+        build_synthetic(&builder, wide != 0);
+        uint32_t box = find_box_type(&builder, wide ? "co64" : "stco");
+        CHECK(box != 0);
+        memcpy(builder.bytes + box + (wide ? 16 : 12), limit_minus_100, sizeof limit_minus_100);
+        FlacInput input = {.read = read_builder, .context = &builder, .size = UINT32_MAX};
+        Mp4Track track;
+        CHECK(mp4_probe(input, &track));
+        Mp4Cursor cursor;
+        CHECK(mp4_cursor_seek(&cursor, input, &track, 1));
+        CHECK_EQUAL(UINT32_MAX, cursor.offset);
+        CHECK(mp4_cursor_seek(&cursor, input, &track, 0));
+        uint32_t offset = 0;
+        uint32_t size = 0;
+        CHECK(mp4_cursor_next(&cursor, input, &track, &offset, &size));
+        CHECK_EQUAL(UINT32_MAX - 100, offset);
+        CHECK_EQUAL(100u, size);
+        CHECK(!mp4_cursor_next(&cursor, input, &track, &offset, &size));
+    }
+}
+
+static void overflowing_sample_offsets_are_rejected(void)
+{
+    static const uint8_t near_end[] = {0xff, 0xff, 0xff, 0xf0};
+    for (uint32_t wide = 0; wide < 2; wide++) {
+        static Builder builder;
+        build_synthetic(&builder, wide != 0);
+        uint32_t box = find_box_type(&builder, wide ? "co64" : "stco");
+        CHECK(box != 0);
+        memcpy(builder.bytes + box + (wide ? 16 : 12), near_end, sizeof near_end);
+        FlacInput input = {.read = read_builder, .context = &builder, .size = UINT32_MAX};
+        Mp4Track track;
+        CHECK(mp4_probe(input, &track));
+        Mp4Cursor cursor;
+        CHECK(!mp4_cursor_seek(&cursor, input, &track, 1));
+        M4aStream stream;
+        CHECK(!m4a_stream_start(&stream, input, &track, 1));
+        CHECK(mp4_cursor_seek(&cursor, input, &track, 0));
+        uint32_t offset = 0;
+        uint32_t size = 0;
+        CHECK(!mp4_cursor_next(&cursor, input, &track, &offset, &size));
+    }
+}
+
 static void fixed_size_samples_seek_across_chunk_runs(void)
 {
     static Builder builder;
@@ -964,6 +1087,10 @@ int main(void)
         TEST_CASE(sixty_four_bit_chunk_offsets_work_like_narrow_ones),
         TEST_CASE(fixed_size_samples_seek_across_chunk_runs),
         TEST_CASE(malformed_chunk_tables_never_locate_a_sample),
+        TEST_CASE(overflowing_sample_offsets_are_rejected),
+        TEST_CASE(a_sample_ending_at_the_offset_limit_is_not_rejected_early),
+        TEST_CASE(overflowing_sample_size_table_indices_are_rejected),
+        TEST_CASE(overflowing_chunk_table_indices_are_rejected),
         TEST_CASE(aac_configurations_report_supported_rates_channels_and_frame_lengths),
         TEST_CASE(unsupported_aac_configuration_fields_are_rejected),
         TEST_CASE(aac_sync_extensions_are_interpreted_only_within_their_descriptor),

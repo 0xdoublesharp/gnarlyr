@@ -81,7 +81,7 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 | Module library (code + BSS) | 39,124 | 44,032 | 4,908 |
 | Module listening (code + BSS) | 17,804 | 44,032 | 26,228 |
 | Audio processing module (code, no BSS) | 1,920 | 12,288 | 10,368 |
-| Audio DSP module (code, no BSS) | 5,832 | 8,192 | 2,360 |
+| Audio DSP module (code, no BSS) | 5,880 | 8,192 | 2,312 |
 | Vorbis file module (code, no BSS) | 5,960 | 8,192 | 2,232 |
 | Decoder workspace | 41,648 | 41,984 | 336 |
 | Language pack (English) | 7,216 | 16,384 | 9,168 |
