@@ -78,7 +78,7 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 | Rescan overlay | 93,124 | 98,304 | 5,180 |
 | USB overlay code | 11,740 | 65,536 | 53,796 |
 | Module views (code + BSS) | 21,932 | 44,032 | 22,100 |
-| Module settings (code + BSS) | 19,024 | 44,032 | 25,008 |
+| Module settings (code + BSS) | 19,016 | 44,032 | 25,016 |
 | Module library (code + BSS) | 39,136 | 44,032 | 4,896 |
 | Module listening (code + BSS) | 18,604 | 44,032 | 25,428 |
 | Audio processing module (code, no BSS) | 2,752 | 12,288 | 9,536 |
