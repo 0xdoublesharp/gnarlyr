@@ -131,6 +131,7 @@ add_library(echo_device_logic STATIC
     sd_card.c
     stall_watch.c
     storage_mount.c
+    workspace_loan.c
     stream_drift.c
     tick_clock.c
     time_file.c

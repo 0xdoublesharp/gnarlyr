@@ -149,6 +149,9 @@ static const void *load_window(uint32_t offset, uint32_t magic)
 {
     uint8_t *base = (uint8_t *)(uintptr_t)OVERLAY_WINDOW_BASE;
     BoardOverlay overlay = {offset, magic, base, OVERLAY_WINDOW_BYTES, 0};
+    if (board_audio_workspace_lent()) {
+        return NULL;
+    }
     board_audio_shut_down();
     board_module_forget();
     return board_overlay_load(&overlay) ? base + OVERLAY_HEADER_BYTES : NULL;

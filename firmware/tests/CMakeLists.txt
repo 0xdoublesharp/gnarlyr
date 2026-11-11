@@ -550,6 +550,10 @@ echo_add_unit_test(NAME test_stored_queue
 )
 target_compile_definitions(test_stored_queue PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 set_tests_properties(test_stored_queue PROPERTIES TIMEOUT 30)
+echo_add_unit_test(NAME test_workspace_loan
+    SOURCES device/test_workspace_loan.c
+    LIBRARIES echo_device_logic
+)
 echo_add_unit_test(NAME test_card_format
     SOURCES device/test_card_format.c
     LIBRARIES echo_device_logic

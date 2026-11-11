@@ -11,6 +11,7 @@
 #include "dac.h"
 #include "device/audio_engine.h"
 #include "device/audio_math.h"
+#include "device/card_format.h"
 #include "device/dac_sequence.h"
 #include "device/dma_loop.h"
 #include "device/equalizer.h"
@@ -19,6 +20,7 @@
 #include "device/mp3_probe.h"
 #include "device/mp4_demux.h"
 #include "device/wav_source.h"
+#include "device/workspace_loan.h"
 #include "dmac.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
@@ -64,9 +66,13 @@ static union {
     WavBuffers wav;
     M4aStream m4a;
     OggStream ogg;
+    CardFormat format;
 } decoding __attribute__((section(".high_ram")));
 _Static_assert(sizeof(OggStream) <= sizeof(FlacDecoder),
                "Vorbis input must fit the existing decoder workspace");
+_Static_assert(sizeof(CardFormat) <= sizeof(FlacDecoder),
+               "the card formatter must fit the existing decoder workspace");
+static WorkspaceLoan workspace_loan;
 static Equalizer equalizer __attribute__((section(".high_ram")));
 static uint32_t music_ring[RING_WORDS];
 static WavSource wav_source;
@@ -472,6 +478,9 @@ static AudioEngineTrack engine_track(const HalAudioTrack *track)
 CORE_SEAM bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms,
                               const HalAudioTrack *next)
 {
+    if (!workspace_loan_claimable(&workspace_loan)) {
+        return false;
+    }
     ensure_engine();
     ensure_audio_clock();
     stop_tone();
@@ -921,6 +930,9 @@ static void clear_ring(void)
 
 bool board_audio_stream_open(uint32_t rate, void (*service)(void))
 {
+    if (!workspace_loan_claimable(&workspace_loan)) {
+        return false;
+    }
     ensure_engine();
     ensure_audio_clock();
     board_audio_shut_down();
@@ -962,4 +974,29 @@ CORE_SEAM void hal_audio_set_replay_gain(uint32_t token, uint32_t gain)
 {
     ensure_engine();
     audio_engine_set_replay_gain(&engine, token, gain);
+}
+
+static WorkspaceActivity audio_activity(void)
+{
+    bool playing = engine_ready && audio_engine_status(&engine).state != AUDIO_ENGINE_STOPPED;
+    return (WorkspaceActivity){.playing = playing,
+                               .stream_open = stream_service != NULL,
+                               .output_up = path_up || transferring,
+                               .core1_busy = using_core1 || board_core1_streaming(),
+                               .tone = tone_active};
+}
+
+struct CardFormat *board_audio_lend_format(void)
+{
+    return workspace_loan_take(&workspace_loan, audio_activity()) ? &decoding.format : NULL;
+}
+
+void board_audio_return_format(void)
+{
+    workspace_loan_return(&workspace_loan);
+}
+
+bool board_audio_workspace_lent(void)
+{
+    return !workspace_loan_claimable(&workspace_loan);
 }
