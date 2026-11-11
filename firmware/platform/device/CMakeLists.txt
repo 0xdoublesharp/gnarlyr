@@ -40,6 +40,7 @@ add_executable(echo_device
     board/wall_time.c
 )
 target_sources(echo_device PRIVATE board/panel_vop.c)
+target_include_directories(echo_device PRIVATE ${PROJECT_SOURCE_DIR}/src/app)
 if(NOT ECHO_RELEASE)
     target_sources(echo_device PRIVATE board/debug_session.c board/profiler.c)
     set(ECHO_PROFILE_BUCKET_SHIFT 7)
@@ -372,6 +373,7 @@ add_executable(echo_usb_overlay
     board/update.c
     board/usb_dac_session.c
     board/time_file_take.c
+    logic/fat_delete.c
     board/usb_port.c
     board/usb_session.c
 )
@@ -432,6 +434,7 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
     endforeach()
     list(REMOVE_DUPLICATES module_includes)
     add_library(${module_target}_objects OBJECT ${module_sources})
+    target_compile_definitions(${module_target}_objects PRIVATE ECHO_DEVICE_MODULE)
     if(module STREQUAL "dsp")
         target_link_libraries(${module_target}_objects PRIVATE echo_codec)
         target_compile_definitions(${module_target}_objects PRIVATE

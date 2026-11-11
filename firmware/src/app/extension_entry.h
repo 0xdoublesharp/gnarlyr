@@ -23,6 +23,7 @@ typedef struct ExtensionModuleEntry {
     void (*art_draw)(void *context, Canvas *canvas, Rect area);
     void (*art_backdrop)(Canvas *canvas, Rect area, const Theme *theme);
     bool (*file_remove)(const char *path);
+    void (*forget_time_file)(void);
 } ExtensionModuleEntry;
 
 extern const ExtensionModuleEntry EXTENSION_MODULE_ENTRY;

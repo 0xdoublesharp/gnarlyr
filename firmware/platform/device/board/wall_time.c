@@ -2,8 +2,9 @@
 #include "core/seam.h"
 #include "device/time_file.h"
 #include "device/wall_clock.h"
+#include "extension_entry.h"
 #include "hal/clock.h"
-#include "internal_volume.h"
+#include "hal/system.h"
 
 static WallClock wall;
 
@@ -24,8 +25,8 @@ void board_wall_time_keep(void)
 
 CORE_SEAM void board_wall_time_forget_file(void)
 {
-    FatVolume *volume = internal_volume_mount();
-    if (volume != NULL) {
-        (void)fat_delete(volume, TIME_FILE_PATH);
+    const ExtensionModuleEntry *code = hal_system_extension_code();
+    if (code != NULL) {
+        code->forget_time_file();
     }
 }
