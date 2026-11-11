@@ -25,6 +25,7 @@ add_library(echo_app STATIC
     board_layout.c
     browse_screen.c
     cover_cache.c
+    cover_placeholders.c
     default_theme.c
     default_theme_metrics.c
     favorite_playlist.c

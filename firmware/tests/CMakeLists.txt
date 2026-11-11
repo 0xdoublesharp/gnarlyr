@@ -294,6 +294,11 @@ echo_add_unit_test(NAME test_up_next_screen
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+echo_add_unit_test(NAME test_cover_placeholders
+    SOURCES app/test_cover_placeholders.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
 echo_add_unit_test(NAME test_cover_flow_order
     SOURCES app/test_cover_flow_order.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures

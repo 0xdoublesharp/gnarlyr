@@ -3,14 +3,16 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "library/library.h"
+
 enum {
     MAX_SMALL = 255,
     NUMBER_CEILING = 1000000,
     YEAR_DIGITS = 4
 };
 
-static const char UNKNOWN_ARTIST[] = "Unknown Artist";
-static const char UNKNOWN_ALBUM[] = "Unknown Album";
+static const char UNKNOWN_ARTIST[] = LIBRARY_UNKNOWN_ARTIST;
+static const char UNKNOWN_ALBUM[] = LIBRARY_UNKNOWN_ALBUM;
 static const char UNKNOWN_GENRE[] = "Unknown Genre";
 
 static bool is_digit(char character)

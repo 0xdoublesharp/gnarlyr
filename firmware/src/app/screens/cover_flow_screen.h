@@ -43,6 +43,7 @@ typedef struct CoverFlowScreen {
     uint32_t last_ms;
     uint32_t now_ms;
     int text_position;
+    uint32_t art_palette;
     uint32_t text_changed_ms;
     uint32_t scroll_started_ms;
     uint32_t section_shown_until_ms;
