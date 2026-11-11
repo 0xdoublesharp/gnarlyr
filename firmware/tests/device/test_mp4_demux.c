@@ -684,6 +684,99 @@ static uint32_t find_box_type(const Builder *builder, const char *name)
     return 0;
 }
 
+static uint32_t synthetic_aac_config(const Builder *builder)
+{
+    static const uint8_t prefix[] = {5, 2, 0x12, 0x10};
+    for (uint32_t at = 0; at + sizeof prefix <= builder->length; at++) {
+        if (memcmp(builder->bytes + at, prefix, sizeof prefix) == 0) {
+            return at + 2;
+        }
+    }
+    return 0;
+}
+
+static void aac_configurations_report_supported_rates_channels_and_frame_lengths(void)
+{
+    static const uint32_t rates[] = {96000, 88200, 64000, 48000, 44100, 32000, 24000,
+                                     22050, 16000, 12000, 11025, 8000,  7350};
+    for (uint32_t index = 0; index < sizeof rates / sizeof rates[0]; index++) {
+        for (uint32_t channels = 1; channels <= 2; channels++) {
+            for (uint32_t short_frame = 0; short_frame <= 1; short_frame++) {
+                static Builder builder;
+                build_synthetic(&builder, false);
+                uint32_t at = synthetic_aac_config(&builder);
+                CHECK(at != 0);
+                builder.bytes[at] = (uint8_t)(0x10u | (index >> 1));
+                builder.bytes[at + 1] =
+                    (uint8_t)((index << 7) | (channels << 3) | (short_frame << 2));
+                Mp4Track track;
+                CHECK(mp4_probe((FlacInput){read_builder, &builder, builder.length}, &track));
+                CHECK_EQUAL(MP4_CODEC_AAC, track.codec);
+                CHECK_EQUAL(rates[index], track.sample_rate);
+                CHECK_EQUAL(channels, track.channels);
+                CHECK_EQUAL(short_frame ? 960u : 1024u, track.frame_samples);
+                CHECK_EQUAL(2u, track.config_size);
+            }
+        }
+    }
+}
+
+static void unsupported_aac_configuration_fields_are_rejected(void)
+{
+    static const struct {
+        uint8_t first;
+        uint8_t second;
+        uint8_t length;
+    } cases[] = {
+        {0x12, 0x10, 0}, {0x12, 0x10, 1}, {0x17, 0x10, 2}, {0x17, 0x90, 2},
+        {0x12, 0x00, 2}, {0x12, 0x18, 2}, {0x0a, 0x10, 2},
+    };
+    for (uint32_t index = 0; index < sizeof cases / sizeof cases[0]; index++) {
+        static Builder builder;
+        build_synthetic(&builder, false);
+        uint32_t at = synthetic_aac_config(&builder);
+        CHECK(at != 0);
+        builder.bytes[at - 1] = cases[index].length;
+        builder.bytes[at] = cases[index].first;
+        builder.bytes[at + 1] = cases[index].second;
+        Mp4Track track;
+        CHECK(!mp4_probe((FlacInput){read_builder, &builder, builder.length}, &track));
+    }
+}
+
+static void aac_sync_extensions_are_interpreted_only_within_their_descriptor(void)
+{
+    static const struct {
+        uint8_t length;
+        uint8_t sync;
+        uint8_t extension;
+        uint8_t flags;
+        bool accepted;
+    } cases[] = {
+        {4, 0x55, 0xe5, 0, true},   {4, 0x56, 0xe2, 0, true}, {4, 0x56, 0xe5, 0, true},
+        {4, 0x56, 0xfd, 0, false},  {5, 0x56, 0xe5, 0, true}, {5, 0x56, 0xe5, 0x80, false},
+        {20, 0x56, 0xe5, 0, false},
+    };
+    for (uint32_t index = 0; index < sizeof cases / sizeof cases[0]; index++) {
+        static Builder builder;
+        build_synthetic(&builder, false);
+        uint32_t at = synthetic_aac_config(&builder);
+        CHECK(at != 0);
+        builder.bytes[at - 1] = cases[index].length;
+        builder.bytes[at + 2] = cases[index].sync;
+        builder.bytes[at + 3] = cases[index].extension;
+        builder.bytes[at + 4] = cases[index].flags;
+        Mp4Track track;
+        bool accepted = mp4_probe((FlacInput){read_builder, &builder, builder.length}, &track);
+        CHECK_EQUAL(cases[index].accepted, accepted);
+        if (accepted) {
+            CHECK_EQUAL(44100u, track.sample_rate);
+            CHECK_EQUAL(2u, track.channels);
+            CHECK_EQUAL(2u, track.config_size);
+        }
+    }
+}
+
 static void fixed_size_samples_seek_across_chunk_runs(void)
 {
     static Builder builder;
@@ -793,6 +886,9 @@ int main(void)
         TEST_CASE(chunk_runs_with_different_sample_counts_are_walked_and_seeked_exactly),
         TEST_CASE(sixty_four_bit_chunk_offsets_work_like_narrow_ones),
         TEST_CASE(fixed_size_samples_seek_across_chunk_runs),
+        TEST_CASE(aac_configurations_report_supported_rates_channels_and_frame_lengths),
+        TEST_CASE(unsupported_aac_configuration_fields_are_rejected),
+        TEST_CASE(aac_sync_extensions_are_interpreted_only_within_their_descriptor),
         TEST_CASE(a_chunk_offset_above_the_addressable_range_is_rejected),
         TEST_CASE(read_failures_never_publish_a_different_track_layout),
         TEST_CASE(seek_read_failures_are_reported_and_a_retry_can_recover),

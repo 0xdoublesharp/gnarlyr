@@ -24,6 +24,9 @@ KeyLockVerdict key_lock_transition(KeyLock *lock, Key key, bool pressed, uint32_
             return KEY_LOCK_COMBO_STARTED;
         }
         if (lock->combo) {
+            if (pressed && !was_held && lock->held[partner_of(key)] && !lock->combo_done) {
+                lock->combo_since_ms = now_ms;
+            }
             lock->combo = lock->held[KEY_PLAY] || lock->held[KEY_POWER];
             return KEY_LOCK_SWALLOW;
         }

@@ -72,6 +72,108 @@ static bool title_is(Library *library, BrowseQuery query, const char *expected)
     return browse_title(library, query, title, sizeof title) && strcmp(expected, title) == 0;
 }
 
+typedef struct FaultSource {
+    ByteSource source;
+    uint32_t calls;
+    uint32_t fail_at;
+} FaultSource;
+
+static bool read_with_fault(void *context, uint32_t offset, void *bytes, uint32_t length)
+{
+    FaultSource *fault = context;
+    fault->calls++;
+    return fault->calls != fault->fail_at &&
+           fault->source.read(fault->source.context, offset, bytes, length);
+}
+
+static bool browse_read_operation(Library *library, uint32_t operation)
+{
+    BrowseQuery query = browse_root_query(BROWSE_ALL_SONGS);
+    BrowseItem item = {.kind = BROWSE_ITEM_TRACK, .group = LIBRARY_ARTISTS, .index = HELP};
+    if (operation == 1 || operation == 9) {
+        query = browse_root_query(BROWSE_GROUP_ALBUMS);
+        query.subject = BJORK;
+    } else if (operation == 2 || operation == 10) {
+        query = browse_root_query(BROWSE_ALBUM_TRACKS);
+        query.subject = BEST_OF;
+    } else if (operation == 3 || operation == 12) {
+        query = browse_root_query(BROWSE_FOLDER);
+        query.subject = BJORK_FOLDER;
+    } else if (operation == 4) {
+        query = browse_root_query(BROWSE_PLAYLIST_TRACKS);
+    } else if (operation == 11) {
+        query = browse_root_query(BROWSE_SINGLE_TRACK);
+        query.subject = HELP;
+    }
+    if (operation < 5) {
+        return browse_item(library, query, 0, &item);
+    }
+    if (operation < 9) {
+        if (operation == 5) {
+            item =
+                (BrowseItem){.kind = BROWSE_ITEM_GROUP, .group = LIBRARY_ARTISTS, .index = BJORK};
+        } else if (operation == 6) {
+            item = (BrowseItem){.kind = BROWSE_ITEM_ALBUM, .index = BEST_OF};
+        } else if (operation == 8) {
+            item = (BrowseItem){.kind = BROWSE_ITEM_FOLDER, .index = BJORK_FOLDER};
+        }
+        char label[TEXT_CAPACITY];
+        char detail[TEXT_CAPACITY];
+        BrowseText text = {label, sizeof label, detail, sizeof detail};
+        return browse_item_text(library, query, item, text);
+    }
+    char title[TEXT_CAPACITY];
+    return browse_title(library, query, title, sizeof title);
+}
+
+static void failed_record_and_text_reads_are_reported_and_can_be_retried(void)
+{
+    for (uint32_t operation = 0; operation < 13; operation++) {
+        Library *library = open_fixture();
+        FaultSource fault = {.source = library->source};
+        library->source = (ByteSource){read_with_fault, &fault};
+        CHECK(browse_read_operation(library, operation));
+        uint32_t reads = fault.calls;
+        CHECK(reads > 0);
+        for (uint32_t call = 1; call <= reads; call++) {
+            fault.calls = 0;
+            fault.fail_at = call;
+            CHECK(!browse_read_operation(library, operation));
+            CHECK(fault.calls >= call);
+            fault.fail_at = 0;
+            CHECK(browse_read_operation(library, operation));
+        }
+    }
+}
+
+static void positions_and_subjects_outside_each_view_are_refused(void)
+{
+    Library *library = open_fixture();
+    static const BrowseKind kinds[] = {
+        BROWSE_ARTISTS,         BROWSE_ALBUM_ARTISTS, BROWSE_GENRES,       BROWSE_ALBUMS,
+        BROWSE_ALL_SONGS,       BROWSE_PLAYLISTS,     BROWSE_GROUP_ALBUMS, BROWSE_ALBUM_TRACKS,
+        BROWSE_PLAYLIST_TRACKS, BROWSE_FOLDER,        BROWSE_FOLDER_TREE,  BROWSE_SINGLE_TRACK,
+    };
+    for (uint32_t index = 0; index < sizeof kinds / sizeof kinds[0]; index++) {
+        BrowseQuery query = browse_root_query(kinds[index]);
+        uint32_t count = browse_count(library, query);
+        BrowseItem item;
+        CHECK(!browse_item(library, query, count, &item));
+        CHECK(!browse_item(library, query, UINT32_MAX, &item));
+    }
+    static const BrowseKind subject_kinds[] = {
+        BROWSE_GROUP_ALBUMS, BROWSE_ALBUM_TRACKS, BROWSE_PLAYLIST_TRACKS,
+        BROWSE_FOLDER,       BROWSE_FOLDER_TREE,  BROWSE_SINGLE_TRACK,
+    };
+    for (uint32_t index = 0; index < sizeof subject_kinds / sizeof subject_kinds[0]; index++) {
+        BrowseQuery query = browse_root_query(subject_kinds[index]);
+        query.subject = LIBRARY_NONE;
+        CHECK_EQUAL(0u, browse_count(library, query));
+        BrowseItem item;
+        CHECK(!browse_item(library, query, 0, &item));
+    }
+}
+
 static void top_level_views_count_their_tables(void)
 {
     Library *library = open_fixture();
@@ -367,6 +469,8 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(top_level_views_count_their_tables),
+        TEST_CASE(failed_record_and_text_reads_are_reported_and_can_be_retried),
+        TEST_CASE(positions_and_subjects_outside_each_view_are_refused),
         TEST_CASE(top_level_items_point_at_their_records),
         TEST_CASE(an_artist_opens_their_albums_in_order),
         TEST_CASE(an_album_reached_through_an_artist_lists_only_their_tracks),

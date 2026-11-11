@@ -15,8 +15,7 @@
       <svg viewBox="0 0 32 24" fill="none" aria-hidden="true"><rect x="1" y="2" width="30" height="20" rx="3" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="6" width="22" height="9" rx="2" stroke="currentColor"/><circle cx="10" cy="10.5" r="2.5" stroke="currentColor"/><circle cx="22" cy="10.5" r="2.5" stroke="currentColor"/><path d="m8 22 3-5h10l3 5" stroke="currentColor"/></svg>
       <span class="wordmark">GNARLYR<span class="brand-dot">.</span></span>
     </a>
-<nav aria-label="Main navigation"><a href="firmware.html" aria-current="page">Features</a><a href="hardware.html">Hardware</a><a href="install.html">Install</a><a href="build.html" class="nav-cta">Developers</a>
-</nav>
+<nav aria-label="Main navigation"><a href="firmware.html" aria-current="page">Features</a><a href="hardware.html">Hardware</a><a href="install.html">Install</a><a href="languages.html" class="nav-cta">Languages</a></nav>
 </header>
 <main id="main"><div class="page-intro wrap">
 <p class="eyebrow">Firmware features
@@ -59,7 +58,7 @@
 </li>
 <li><strong>A cassette-inspired interface.</strong> Album artwork, cassette art and clear playback indicators connect Home, Music and Now Playing. Refined shuffle, repeat, favorite, album, gain and speaker icons make controls easier to recognize; Cover Flow’s Random album tile uses smoother artwork sampling. Audio &amp; connections groups sound and connection controls together.
 </li>
-<li><strong>Language packs.</strong> English is built in. The player supports version-matched translation packs loaded from storage and remembers your language choice.
+<li><strong>Language packs.</strong> English is built in. Use the <a href="languages.html">language-pack builder</a> to create, inspect or edit a pack in your browser, then install it over USB and choose Settings → Language. Version-matched packs change interface text without reinstalling firmware; English remains available.
 </li>
 </ul>
 </section>
@@ -177,6 +176,7 @@
 <h3>Library and navigation</h3>
 <ul class="detail-list">
 <li><strong>Rescans restore the intended song.</strong> Saved sessions check the library’s contents before reusing track IDs, avoiding a wrong song or stale CUE position after a database change.</li>
+<li><strong>Checked language-pack copies.</strong> USB tools validate a pack against the installed firmware, verify copied bytes and ignore macOS metadata files when listing packs. Returning to English also handles translated setting labels.</li>
 <li><strong>Safer metadata parsing.</strong> Tag readers preserve Unicode text during whitespace trimming and bound WMA content and MP4 duration reads. The MP3 reader rejects malformed APE footer lengths before locating the audio endpoint.</li>
 <li><strong>Storage failures stay visible.</strong> Library scans preserve storage errors through the final index write instead of replacing them with a different failure.</li>
 <li><strong>Search and labels keep their place.</strong> Searches cover long paths across metadata chunks and preserve the selected song. Cancelled searches do not restore stale results. Label saves protect a newer data bank if a read temporarily fails.</li>
@@ -187,6 +187,7 @@
 <h3>USB, display and power</h3>
 <ul class="detail-list">
 <li><strong>USB-C detection follows the cable.</strong> USB power control uses the correct supply settings as the cable connects and disconnects.</li>
+<li><strong>Continuous button-lock hold in source.</strong> If either Play or Power is released and pressed again before the combination completes, the hold timer restarts. A completed hold toggles the lock only once until both keys are released.</li>
 <li><strong>New activity resets wake timers.</strong> A recent wake event no longer makes the screen timeout or automatic power-off timer expire immediately.</li>
 <li><strong>Charging views keep the right code active.</strong> The charging screen no longer continues updating an interface module that has been replaced.</li>
 <li><strong>Power states stay distinct.</strong> The USB screen shows Storage or DAC mode, a battery estimate and the relevant drive, eject, audio-format or volume details. Charging, charged and USB-powered states stay separate; a USB supply reading is not shown as battery voltage.</li>
@@ -214,8 +215,7 @@
 <p class="eyebrow">Made for the music you already love.
 </p></div>
 <footer class="wrap">
-<nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html">Features &amp; improvements</a><a href="hardware.html">ECHO hardware</a><a href="install.html">Install &amp; update</a><a href="build.html">Developers</a>
-</nav>
+<nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html" aria-current="page">Features &amp; improvements</a><a href="hardware.html">ECHO hardware</a><a href="install.html">Install &amp; update</a><a href="languages.html">Languages</a><a href="build.html">Developers</a></nav>
 <div class="footer-row"><span>GNARLYR.COM / Open-source ECHO firmware</span><div class="footer-links"><a href="https://podium-echo.online">Podium ↗</a><a href="https://github.com/BasilSkyWalk/echopod">EchoPod ↗</a><a href="https://github.com/brnomt/ReChord">ReChord ↗</a><a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0-or-later ↗</a></div></div>
 <p>Gnarlyr by doublesharp. Built on Podium and EchoPod, with hardware research from ReChord.
 </p>
