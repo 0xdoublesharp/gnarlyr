@@ -31,6 +31,8 @@ The stdio server `python3 tools/echo_debug_mcp.py` exposes `echo_language_inspec
 
 Before publishing a pack, the helper validates its complete contents against that catalogue, writes a temporary file, flushes it and checks the readback. Replacing a pack retains a backup. Only language-pack paths are writable through these operations; firmware and debug operations keep their existing write boundaries.
 
+After a firmware catalogue change, `language-list` reports old packs under `incompatible_files`. Install the rebuilt pack under the same code to preserve the previous bytes as a backup and publish its compatible replacement.
+
 Safe host ejection gives storage ownership back to the player and refreshes its available languages. Built-in English remains available if an external pack is absent or cannot load. Keep replacement backups: file checks do not guarantee recovery of an external translation after a power loss during filesystem publication.
 
 ## Font and format limits

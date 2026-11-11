@@ -59,6 +59,7 @@ typedef struct Library {
     LibrarySectionInfo sections[LIBRARY_SECTION_COUNT];
     const LibraryExtraPlaylist *extra;
     uint32_t content_fingerprint;
+    uint32_t size;
     bool content_known;
 } Library;
 

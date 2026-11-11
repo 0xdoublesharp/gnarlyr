@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/seam.h"
 #include "device/core1_source_private.h"
 
 void core1_publish(void)
@@ -224,11 +225,23 @@ uint32_t core1_source_next_generation(Core1Source *source)
     return source->generation;
 }
 
-void core1_source_fill(Core1Source *source)
+static void drop_stale_slots(Core1Source *source)
+{
+    volatile StreamControl *control = source->region.control;
+    for (uint32_t index = 0; index < STREAM_SLOTS; index++) {
+        volatile StreamSlot *slot = &control->slots[index];
+        if (slot->state == STREAM_SLOT_FULL && slot->generation != source->generation) {
+            slot->state = STREAM_SLOT_EMPTY;
+        }
+    }
+}
+
+CORE_SEAM void core1_source_fill(Core1Source *source)
 {
     if (!source->streaming || source->read_failed) {
         return;
     }
+    drop_stale_slots(source);
     volatile StreamControl *control = source->region.control;
     uint32_t released =
         control->acked_generation == source->generation ? control->released : source->start_offset;
@@ -248,17 +261,6 @@ void core1_source_fill(Core1Source *source)
         budget -= length;
         core1_publish();
         control->written = source->written;
-    }
-}
-
-static void drop_stale_slots(Core1Source *source)
-{
-    volatile StreamControl *control = source->region.control;
-    for (uint32_t index = 0; index < STREAM_SLOTS; index++) {
-        volatile StreamSlot *slot = &control->slots[index];
-        if (slot->state == STREAM_SLOT_FULL && slot->generation != source->generation) {
-            slot->state = STREAM_SLOT_EMPTY;
-        }
     }
 }
 
@@ -291,6 +293,7 @@ static AudioFrameResult next_frame(void *context, AudioFrame *frame)
         }
         uint32_t end = core1_smaller(first + slot->samples, source->play_end);
         uint32_t from = first > source->lead_trim ? first : source->lead_trim;
+        from = from > source->skip_before ? from : source->skip_before;
         if (from >= end) {
             advance_slot(source);
             continue;
@@ -332,4 +335,17 @@ AudioSource core1_source_m4a_interface(Core1Source *source, M4aStream *stream)
 {
     source->m4a = stream;
     return (AudioSource){core1_open_m4a, next_frame, release_frame, close_stream, source};
+}
+
+AudioSource core1_source_vorbis_interface(Core1Source *source, VorbisStream *stream,
+                                          bool (*wait)(Core1Source *source))
+{
+    source->vorbis = stream;
+    source->wait_vorbis = wait;
+    return (AudioSource){core1_open_vorbis, next_frame, release_frame, close_stream, source};
+}
+
+bool core1_vorbis_read(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    return vorbis_stream_read(context, offset, buffer, length);
 }

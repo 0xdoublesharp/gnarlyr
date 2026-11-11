@@ -166,6 +166,10 @@ Not tried on a player yet ([`known-issues.md`](known-issues.md)). Settings → O
 
 In portrait, Home shows the Gnarlyr title below the status row and Now Playing keeps the compact status row; Home shows the album art under the menu, Now Playing puts the cover above the track, Cover Flow stacks the albums from top to bottom, and the status icons sit in a strip above the title. Lists show up to 13 rows. The volume rocker turns with the screen: in Portrait the buttons swap roles, so the one that is Vol− in landscape moves down through lists and the one that is Vol+ moves up; in Portrait, flipped they keep their usual roles. On Now Playing the button nearer the top of the screen turns the volume up, so in Portrait, flipped it's the one labelled Vol−. With the screen off, Vol+ is louder in every orientation.
 
+## Charging display
+
+The charging screen shows a large battery graphic and percentage. Its energy animation runs while the battery is charging and stops when the screen goes dark. An unknown reading keeps the battery graphic hollow. Press Menu to choose Player, USB storage or USB DAC; hold Power to return to the player.
+
 ## Languages
 
 The player includes English. Add other languages as external packs without reinstalling the firmware.
@@ -205,6 +209,14 @@ Settings → Custom EQ edits ten bands: 31, 62, 125, 250 and 500 Hz, and 1, 2, 4
 Lines starting with `#` are comments. The points can be in any order and at any frequencies: each of the ten bands gets the gain interpolated between its two nearest points (by octave distance), or the nearest point's gain beyond the ends. Gains are rounded to 0.5 dB and limited to ±10 dB. A file without a usable frequency and gain says "Could not read the EQ file" and changes nothing.
 
 The graph is a calculated 44.1 kHz filter response with a labeled decibel scale, not an audio spectrum or a measurement of the output. It shows the tone-shaping response before the separately displayed computed preamp value. That value comes from the same linear gain used by the equalizer. Custom calculates preamp compensation from the combined filter response, including overlapping boosts and cuts. A change is heard after about a third of a second. The equalizer works on music up to 96 kHz (higher rates play unchanged) and not in USB DAC mode. Bands at or above a quarter of the music's sample rate do nothing (the 16 kHz band is idle at 44.1 and 48 kHz).
+
+## ReplayGain
+
+Settings → ReplayGain offers Off, Track and Album. Track uses each song's prepared gain; Album uses the album gain to keep the level relationships within an album. If one kind of gain is missing, the player uses the other. Songs without gain tags keep their normal level. Off is the default.
+
+Leave Settings → Prevent clipping on to limit normalization using the file's peak tags. Without peak tags, it retains attenuation and limits boosts to unity. Turning it off allows the full tagged gain. Changes apply to newly buffered audio while the current and next songs keep playing.
+
+The player reads existing ReplayGain tags. Rescan the library, or rebuild it with the desktop indexer, to add gain data to an older library. Your music files are unchanged.
 
 ## Bluetooth headphones
 

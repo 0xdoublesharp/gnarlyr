@@ -6,7 +6,8 @@ MEMORY
     DSP_RAM (rx) : ORIGIN = 0x03048000, LENGTH = 0x2000
     CODE_RAM (rx) : ORIGIN = 0x03050000, LENGTH = 0x2666C
     HIGH_RAM (rw) : ORIGIN = 0x0307A000, LENGTH = 0xA400
-    MODULE_RAM (rw) : ORIGIN = 0x03084400, LENGTH = 0xDC00
+    MODULE_RAM (rw) : ORIGIN = 0x03084400, LENGTH = 0xAC00
+    PROCESS_RAM (rx) : ORIGIN = 0x0308F000, LENGTH = 0x3000
     GLYPH_RAM (rw) : ORIGIN = 0x03092000, LENGTH = 0x9000
     LANGUAGE_RAM (rw) : ORIGIN = 0x0309B000, LENGTH = 0x4000
 }
@@ -79,12 +80,13 @@ PROVIDE(device_profile_bucket_count = ((LENGTH(CODE_RAM) - 1) >> device_profile_
 PROVIDE(device_profile_code_base = ORIGIN(CODE_RAM));
 PROVIDE(device_profile_code_bytes = LENGTH(CODE_RAM));
 PROVIDE(device_profile_overlay_base = ORIGIN(HIGH_RAM));
-PROVIDE(device_profile_overlay_bytes = LENGTH(HIGH_RAM) + LENGTH(MODULE_RAM));
+PROVIDE(device_profile_overlay_bytes = ORIGIN(GLYPH_RAM) - ORIGIN(HIGH_RAM));
 
 ASSERT(ADDR(.code) == 0x03050000, "the code vector table must be at 0x03050000")
 ASSERT(ADDR(.data) == 0x03004000, "the entry vector must be at 0x03004000")
 ASSERT(ORIGIN(HIGH_RAM) + LENGTH(HIGH_RAM) == ORIGIN(MODULE_RAM), "the module slot must follow the decoder workspace")
-ASSERT(ORIGIN(MODULE_RAM) + LENGTH(MODULE_RAM) == ORIGIN(GLYPH_RAM), "the module slot must end where the glyph cache starts")
+ASSERT(ORIGIN(MODULE_RAM) + LENGTH(MODULE_RAM) == ORIGIN(PROCESS_RAM), "the UI slot must end where audio processing starts")
+ASSERT(ORIGIN(PROCESS_RAM) + LENGTH(PROCESS_RAM) == ORIGIN(GLYPH_RAM), "audio processing must end where the glyph cache starts")
 ASSERT(SIZEOF(.data) == 8, "only the entry vector may be in .data: make initialised globals const")
 device_data_limit = ORIGIN(DSP_RAM);
 ASSERT(ORIGIN(DSP_RAM) + LENGTH(DSP_RAM) <= 0x0304A240, "the audio module must stay below the boot ROM boundary")

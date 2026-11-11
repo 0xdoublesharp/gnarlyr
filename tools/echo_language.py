@@ -13,6 +13,7 @@ BUILD = re.compile(r"[0-9a-fA-F]{7,40}")
 CODE = re.compile(r"[A-Za-z0-9-]{1,5}")
 PACK_LIMIT = 16384
 DIRECTORY_LIMIT = 256
+ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
 
 
 @lru_cache(maxsize=1)
@@ -56,11 +57,28 @@ class Snapshot:
                 raise ValueError("the installed firmware identity differs from this tool")
             source = self.show("firmware/src/settings/settings.c")
             self.settings_version = constant(source, "VERSION")
-            if (constant(source, "LANGUAGE_VERSION"), constant(source, "LANGUAGE_FIELD"),
-                    constant(source, "HALF_DB_CHECKSUM_FIELD")) != (12, 19, 38):
+            if (self.settings_version not in (12, 13, 14) or
+                    (constant(source, "LANGUAGE_VERSION"), constant(source, "LANGUAGE_FIELD"),
+                     constant(source, "HALF_DB_CHECKSUM_FIELD")) != (12, 19, 38)):
                 raise ValueError("the installed settings layout is unsupported")
+            if self.settings_version == 14:
+                self.check_replay_gain_layout(source)
         except (ValueError, KeyError, OSError, self.format.PackError) as error:
             raise api.DebugError("language_build_unknown", str(error)) from error
+
+    def check_replay_gain_layout(self, source):
+        modes = self.show("firmware/src/core/include/core/replay_gain.h")
+        declaration = re.search(r"typedef\s+enum\s+ReplayGainMode\s*\{([^}]+)\}", modes)
+        names = [name.strip() for name in declaration.group(1).split(",")] if declaration else []
+        compact = re.sub(r"\s+", "", source)
+        if (constant(source, "REPLAY_GAIN_VERSION") != 14 or
+                names != ["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
+                          "REPLAY_GAIN_MODE_COUNT"] or
+                "(flags&0xF8u)==0&&(flags&3u)<REPLAY_GAIN_MODE_COUNT" not in compact):
+            raise ValueError("the installed ReplayGain settings layout is unsupported")
+
+    def settings_flags_valid(self, version, flags):
+        return flags == 0 if version < 14 else flags & 0xF8 == 0 and flags & 3 < 3
 
     def show(self, path):
         return git(self.api.ROOT, "show", self.commit + ":" + path)
@@ -70,6 +88,40 @@ class Snapshot:
             return self.format.validate_pack(data, self.catalogue, self.drawable)
         except self.format.PackError as error:
             raise self.api.DebugError("language_pack_invalid", str(error)) from error
+
+    def file_info(self, data, repairing=False):
+        try:
+            return self.format.pack_info(data)
+        except self.format.PackError as error:
+            if repairing and len(data) >= self.format.HEADER.size:
+                fields = self.format.HEADER.unpack(data[:self.format.HEADER.size])
+                magic, version, count, size, catalogue, _, code, name = fields
+                if (magic == self.format.MAGIC and version == self.format.VERSION and count > 0 and
+                        size == len(data) and size <= PACK_LIMIT and
+                        size > self.format.HEADER.size + 2 * count):
+                    try:
+                        code = self.format.metadata_text(code, "language code")
+                        name = self.format.metadata_text(name, "language name")
+                        if not CODE.fullmatch(code):
+                            raise self.format.PackError("the replacement target has an invalid code")
+                        self.format.check_native_name(name)
+                        return {"code": code, "name": name, "count": count,
+                                "size": size, "catalogue_hash": catalogue}
+                    except self.format.PackError as metadata_error:
+                        error = metadata_error
+            raise self.api.DebugError("language_pack_invalid", str(error)) from error
+
+    def setting_title_ids(self):
+        try:
+            source = self.show("firmware/src/app/settings_screens.c")
+        except ValueError as error:
+            raise self.api.DebugError("language_build_unknown", str(error)) from error
+        match = re.search(r"\bCHOICES\s*\[[^]]+\]\s*=\s*\{(.*?)\n\};", source, re.DOTALL)
+        names = re.findall(r"\{\s*(STR_[A-Z0-9_]+)\s*,", match.group(1)) if match else []
+        known = {name for name, _ in self.catalogue}
+        if not names or any(name not in known for name in names):
+            raise self.api.DebugError("language_build_unknown", "the installed setting titles are unknown")
+        return names
 
     def english(self):
         return self.validate(self.format.build_pack("en", self.catalogue, {}))
@@ -271,9 +323,10 @@ class Manager:
                 data = read_file(root, (self.api.DATA_DIRECTORY, "settings.bin"), 4096)
             except FileNotFoundError:
                 continue
-            version = int.from_bytes(data[4:6], "little")
+            version = data[4] if len(data) > 4 else 0
             if (len(data) < 42 or data[:4] != b"DSST" or
                     not 12 <= version <= context["snapshot"].settings_version or
+                    not context["snapshot"].settings_flags_valid(version, data[5]) or
                     context["snapshot"].format.fnv(data[:38]) != int.from_bytes(data[38:42], "little")):
                 self.error("language_settings_invalid", "the saved language setting cannot be verified")
             raw = data[19:24]
@@ -286,9 +339,10 @@ class Manager:
                 self.error("language_settings_invalid", "the saved language code is not ASCII")
         return "en"
 
-    def packs(self, context):
+    def packs(self, context, repair_code=None, incompatible_files=None):
         snapshot = context["snapshot"]
         entries = [{**snapshot.english(), "source": "builtin", "path": None}]
+        seen = set()
         try:
             with directory(context["music"], (self.api.DATA_DIRECTORY, "lang")) as descriptor:
                 names = sorted(os.listdir(descriptor))
@@ -298,15 +352,32 @@ class Manager:
                     if name.startswith(".") or not name.endswith(".pack"):
                         continue
                     code = self.code(name[:-5])
+                    if (code.lower() in seen or
+                            (repair_code is not None and code.lower() == repair_code.lower() and code != repair_code)):
+                        self.error("language_code_mismatch", "the language code conflicts with an existing FAT filename")
+                    seen.add(code.lower())
+                    data = read_at(descriptor, name, PACK_LIMIT)
+                    metadata = snapshot.file_info(data, repairing=code == repair_code)
+                    if metadata["code"] != code:
+                        self.error("language_code_mismatch", "the pack filename differs from its language code")
+                    path = str(context["music"] / self.api.DATA_DIRECTORY / "lang" / name)
+                    if (metadata["count"] != len(snapshot.catalogue) or
+                            metadata["catalogue_hash"] != snapshot.format.catalogue_hash(snapshot.catalogue)):
+                        if incompatible_files is not None:
+                            incompatible_files.append({**metadata, "path": path, "reason": "catalogue_mismatch"})
+                        continue
                     if code.lower() == "en":
                         self.error("language_english_protected", "an external English pack would hide the builtin fallback")
-                    info = snapshot.validate(read_at(descriptor, name, PACK_LIMIT))
-                    if info["code"] != code:
-                        self.error("language_code_mismatch", "the pack filename differs from its language code")
-                    entries.append({**info, "source": "file", "path": str(context["music"] / self.api.DATA_DIRECTORY / "lang" / name)})
+                    try:
+                        info = snapshot.validate(data)
+                    except self.api.DebugError:
+                        if code == repair_code:
+                            continue
+                        raise
+                    entries.append({**info, "source": "file", "path": path})
         except FileNotFoundError:
             pass
-        if (len(entries) > 8 or len({item["name"] for item in entries}) != len(entries) or
+        if (len(entries) > 8 or len({item["name"].translate(ASCII_LOWER) for item in entries}) != len(entries) or
                 len({item["code"].lower() for item in entries}) != len(entries)):
             self.error("language_choices_ambiguous", "the language menu is full or has duplicate native names")
         return entries
@@ -314,14 +385,16 @@ class Manager:
     def list(self, music_volume=None):
         context = self.context(music_volume)
         selected = self.selected(context)
+        incompatible = []
         languages = [{key: value for key, value in entry.items() if key != "texts"}
-                     for entry in self.packs(context)]
+                     for entry in self.packs(context, incompatible_files=incompatible)]
         saved = selected
         selected = selected if selected in {entry["code"] for entry in languages} else "en"
         for entry in languages:
             entry["selected"] = entry["code"] == selected
         return {"ok": True, **context["snapshot"].metadata(), "music_volume": str(context["music"]),
-                "selected": selected, "saved_language": saved, "languages": languages}
+                "selected": selected, "saved_language": saved, "languages": languages,
+                "incompatible_files": incompatible}
 
     def safe_script_text(self, text, label=False):
         if (not isinstance(text, str) or not text or text != text.strip() or
@@ -346,6 +419,11 @@ class Manager:
             texts = entries[active]["texts"]
             key = "STR_SETTING_LANGUAGE" if "STR_SETTING_LANGUAGE" in texts else "STR_LANGUAGE"
             label = self.safe_script_text(texts[key], label=True)
+            titles = [texts[name].translate(ASCII_LOWER)
+                      for name in context["snapshot"].setting_title_ids()]
+            names = [entry["name"].translate(ASCII_LOWER) for entry in entries.values()]
+            if titles.count(label.translate(ASCII_LOWER)) != 1 or len(set(names)) != len(names):
+                self.error("language_choices_ambiguous", "the localized language choices are ambiguous")
             name = self.safe_script_text(entries[code]["name"])
             text += "set " + label + "=" + name + "\nwait 250\n"
         return self.api.prepare_script(text + "reconnect\n", context["snapshot"].build).decode("utf-8")
@@ -372,10 +450,10 @@ class Manager:
         code = self.code(info["code"])
         if code.lower() == "en":
             self.error("language_english_protected", "builtin English cannot be replaced")
-        existing = self.packs(context)
+        existing = self.packs(context, repair_code=code)
         if any(item["code"].lower() == code.lower() and item["code"] != code for item in existing):
             self.error("language_code_mismatch", "the language code conflicts with an existing FAT filename")
-        if any(item["code"] != code and item["name"] == info["name"] for item in existing):
+        if any(item["code"] != code and item["name"].translate(ASCII_LOWER) == info["name"].translate(ASCII_LOWER) for item in existing):
             self.error("language_choices_ambiguous", "another language already uses this native name")
         if code not in {item["code"] for item in existing} and len(existing) >= 8:
             self.error("language_choices_ambiguous", "the firmware language menu is full")

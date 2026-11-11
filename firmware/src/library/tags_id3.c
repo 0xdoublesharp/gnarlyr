@@ -24,6 +24,7 @@ enum {
     ENCODING_LATIN1 = 0,
     ENCODING_UTF16 = 1,
     ENCODING_UTF16BE = 2,
+    ENCODING_UTF8 = 3,
     GENRE_TEXT_CAPACITY = 64,
     NO_GENRE = 255
 };
@@ -34,7 +35,8 @@ typedef enum FrameKind {
     FRAME_GENRE,
     FRAME_YEAR,
     FRAME_PICTURE,
-    FRAME_OLD_PICTURE
+    FRAME_OLD_PICTURE,
+    FRAME_REPLAY_GAIN
 } FrameKind;
 
 typedef struct FrameName {
@@ -50,7 +52,7 @@ static const FrameName FRAMES[] = {
     {"TCON", "TCO", FRAME_GENRE, TAG_GENRE},       {"TDRC", "", FRAME_TEXT, TAG_DATE},
     {"TYER", "TYE", FRAME_YEAR, TAG_DATE},         {"TPOS", "TPA", FRAME_TEXT, TAG_DISC},
     {"TRCK", "TRK", FRAME_TEXT, TAG_TRACK},        {"APIC", "", FRAME_PICTURE, TAG_TITLE},
-    {"", "PIC", FRAME_OLD_PICTURE, TAG_TITLE},
+    {"", "PIC", FRAME_OLD_PICTURE, TAG_TITLE},     {"TXXX", "TXX", FRAME_REPLAY_GAIN, TAG_TITLE},
 };
 
 typedef struct Id3Tag {
@@ -328,13 +330,54 @@ static void read_picture_frame(TagReader *reader, const Frame *frame, bool old_s
     }
 }
 
+static TagEncoding gain_frame_encoding(const uint8_t *data, uint32_t length)
+{
+    if (data[0] == ENCODING_LATIN1) {
+        return TAG_LATIN1;
+    }
+    if (data[0] == ENCODING_UTF8) {
+        return TAG_UTF8;
+    }
+    return data[0] == ENCODING_UTF16BE || (length >= 3 && tag_be16(data + 1) == 0xFEFF)
+               ? TAG_UTF16BE
+               : TAG_UTF16LE;
+}
+
+static void read_replay_gain_frame(TagReader *reader, const Frame *frame)
+{
+    uint8_t data[FRAME_CAPACITY];
+    uint32_t length = frame->length;
+    if (length == 0 || length > sizeof data || !tag_read(reader, frame->offset, data, length)) {
+        return;
+    }
+    length = frame->unsync ? remove_unsync(data, length) : length;
+    uint32_t width = terminator_width(data[0]);
+    uint32_t end = value_end(data, 1, length, width);
+    if (data[0] > 3 || (length - 1) % width != 0 || end + width > length) {
+        return;
+    }
+    TagEncoding encoding = gain_frame_encoding(data, length);
+    char key[REPLAY_GAIN_TEXT_CAPACITY];
+    char value[REPLAY_GAIN_TEXT_CAPACITY];
+    if (!tag_decode_gain_text(key, data + 1, end - 1, encoding)) {
+        return;
+    }
+    uint32_t start = end + width;
+    end = value_end(data, start, length, width);
+    if (tag_decode_gain_text(value, data + start, end - start, encoding)) {
+        tag_offer_replay_gain(reader, replay_gain_field(key, length_of(key)), value);
+    }
+}
+
 static void read_frame(TagReader *reader, const Frame *frame, Id3Tag *tag)
 {
     const FrameName *name = frame_named(frame->id, tag->version);
     if (name == NULL) {
         return;
     }
-    if (name->kind == FRAME_PICTURE || name->kind == FRAME_OLD_PICTURE) {
+    if (name->kind == FRAME_REPLAY_GAIN) {
+        read_replay_gain_frame(reader, frame);
+    } else if (name->kind == FRAME_PICTURE || name->kind == FRAME_OLD_PICTURE) {
         read_picture_frame(reader, frame, name->kind == FRAME_OLD_PICTURE);
     } else {
         read_text_frame(reader, frame, name, tag);

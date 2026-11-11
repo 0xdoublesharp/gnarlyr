@@ -1,7 +1,9 @@
 #include <stddef.h>
 
 #include "builder_internal.h"
+#include "core/hash.h"
 #include "library/sort_key.h"
+#include "library_gain_format.h"
 
 enum {
     HEADER_SIZE = 128,
@@ -39,6 +41,7 @@ typedef struct Writer {
     ByteSink sink;
     uint32_t offset;
     uint32_t used;
+    uint32_t hash;
     bool failed;
     uint8_t buffer[BUFFER_SIZE];
 } Writer;
@@ -83,6 +86,7 @@ static void put_byte(Writer *writer, uint8_t value)
 {
     writer->buffer[writer->used++] = value;
     writer->offset++;
+    writer->hash = (writer->hash ^ value) * HASH_PRIME;
     if (writer->used == BUFFER_SIZE) {
         flush(writer);
     }
@@ -109,9 +113,11 @@ static void put_bytes(Writer *writer, const char *bytes, uint32_t length)
 
 static void pad_to(Writer *writer, uint32_t offset)
 {
+    uint32_t hash = writer->hash;
     while (writer->offset < offset) {
         put_byte(writer, 0);
     }
+    writer->hash = hash;
 }
 
 static uint32_t take_string(Encode *encode, uint32_t length)
@@ -322,6 +328,8 @@ static void plan(Encode *encode, Layout *layout, uint32_t strings)
 static void write_header(Writer *writer, const Layout *layout)
 {
     put_u32(writer, 0);
+    static const uint8_t MAGIC[4] = {'D', 'S', 'D', 'B'};
+    writer->hash = hash_update(HASH_START, MAGIC, sizeof MAGIC);
     put_u16(writer, VERSION);
     put_u16(writer, SECTION_COUNT);
     for (int section = 0; section < SECTION_COUNT; section++) {
@@ -649,6 +657,35 @@ static bool load_columns(Encode *encode)
            encode->folder_path != NULL;
 }
 
+static bool write_gain_extension(Encode *encode)
+{
+    Writer *writer = encode->writer;
+    uint32_t fingerprint = writer->hash;
+    uint8_t header[LIBRARY_GAIN_HEADER_SIZE] = {0};
+    hash_store(header, LIBRARY_GAIN_MAGIC);
+    header[4] = LIBRARY_GAIN_VERSION;
+    header[6] = LIBRARY_GAIN_RECORD_SIZE;
+    hash_store(header + 8, encode->state->track_count);
+    hash_store(header + 12, fingerprint);
+    hash_store(header + 16, hash_update(HASH_START, header, 16));
+    put_bytes(writer, (const char *)header, sizeof header);
+    for (uint32_t index = 0; index < encode->state->track_count; index++) {
+        TrackRow row;
+        if (!builder_read_row(&encode->prepared->rows, encode->state, encode->final_tracks[index],
+                              &row)) {
+            return false;
+        }
+        uint8_t record[LIBRARY_GAIN_RECORD_SIZE];
+        hash_store(record, row.replay_gain.track);
+        hash_store(record + 4, row.replay_gain.album);
+        hash_store(record + 8, row.replay_gain.track_safe);
+        hash_store(record + 12, row.replay_gain.album_safe);
+        hash_store(record + 16, library_gain_record_hash(fingerprint, index, record));
+        put_bytes(writer, (const char *)record, sizeof record);
+    }
+    return !writer->failed;
+}
+
 BuilderResult builder_encode(BuilderState *state, Prepared *prepared, ByteSink sink,
                              uint32_t capacity, uint32_t *length)
 {
@@ -666,7 +703,13 @@ BuilderResult builder_encode(BuilderState *state, Prepared *prepared, ByteSink s
     }
     Layout layout;
     plan(&encode, &layout, strings);
-    if (capacity != 0 && layout.end > capacity) {
+    uint64_t end = layout.end;
+    if (state->gain_present) {
+        end += LIBRARY_GAIN_HEADER_SIZE + (uint64_t)state->track_count * LIBRARY_GAIN_RECORD_SIZE;
+    } else if (capacity >= end && capacity - end >= 4) {
+        end += 4;
+    }
+    if (end > UINT32_MAX || (capacity != 0 && end > capacity)) {
         return BUILDER_NO_ROOM;
     }
     *writer = (Writer){.sink = sink, .offset = 0, .used = 0, .failed = false};
@@ -677,11 +720,17 @@ BuilderResult builder_encode(BuilderState *state, Prepared *prepared, ByteSink s
     if (!emit_track_strings(&encode) || !emit_names(&encode)) {
         return BUILDER_WRITE_FAILED;
     }
+    if (state->gain_present && !write_gain_extension(&encode)) {
+        return BUILDER_WRITE_FAILED;
+    }
+    if (!state->gain_present && end > layout.end) {
+        put_u32(writer, 0);
+    }
     flush(writer);
     static const uint8_t MAGIC[4] = {'D', 'S', 'D', 'B'};
     if (writer->failed || !sink.write(sink.context, 0, MAGIC, sizeof MAGIC)) {
         return BUILDER_WRITE_FAILED;
     }
-    *length = layout.end;
+    *length = (uint32_t)end;
     return BUILDER_OK;
 }

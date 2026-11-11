@@ -24,6 +24,7 @@ static void start_vorbis(void *context, FlacInput input, FlacInfo info, uint32_t
     vorbis->origin_set = false;
     vorbis->region.control->vorbis_config_generation = 0;
     vorbis->audio_started = false;
+    vorbis->positioned = false;
     vorbis->generation = vorbis->region.control->generation;
     vorbis->anchored = first_sample == 0;
     void *workspace = (void *)(uintptr_t)(vorbis->region.ring + vorbis->region.ring_bytes);
@@ -113,6 +114,13 @@ static bool decode_audio(Core1Vorbis *vorbis, const VorbisPacket *packet, Core1B
         normalized.granule -= vorbis->origin;
     }
     packet = &normalized;
+    if (!vorbis->positioned) {
+        if (vorbis->region.control->vorbis_start_generation == vorbis->generation) {
+            core1_observe();
+            vorbis->anchored = vorbis->region.control->first_sample == 0;
+        }
+        vorbis->positioned = true;
+    }
     vorbis->audio_started = true;
     VorbisPcm pcm = {.channels = {channels[0], channels[1]}, .capacity = FLAC_MAX_BLOCK};
     if (!vorbis_decoder_decode(&vorbis->decoder, *packet, &pcm)) {

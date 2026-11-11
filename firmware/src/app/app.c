@@ -369,6 +369,7 @@ static void power_off_now(void)
 static void light_charge_screen(uint32_t now_ms)
 {
     app.charge_lit_until_ms = now_ms + CHARGE_LIT_MS;
+    app.render_wanted = true;
     if (!app.display_on) {
         set_display(true);
     }
@@ -1325,10 +1326,21 @@ void app_request_rescan_if_music_changed(void)
     app.music_check_requested = true;
 }
 
+typedef struct ChargeFrame {
+    const SettingsModuleEntry *entry;
+} ChargeFrame;
+
 static void draw_charge(void *context, Canvas *canvas)
 {
-    (void)context;
-    charge_screen_draw(canvas, board_theme(), app.charge_battery);
+    const ChargeFrame *frame = context;
+    const SettingsModuleEntry *entry = frame->entry;
+    if (entry != NULL) {
+        entry->charge_draw(canvas, board_theme(), app.charge_battery, app.now_ms);
+    } else {
+        usb_screen_draw(
+            canvas, board_theme(), app.charge_battery,
+            (AppUsbStatus){.view = APP_USB_POWER, .detail = i18n_text(STR_CHARGE_MODE_HINT)});
+    }
 }
 
 void app_open_usb_modes(void)
@@ -1375,7 +1387,9 @@ static void charge_step(uint32_t now_ms)
     }
     if (deadline_reached(now_ms, app.battery_check_ms)) {
         app.battery_check_ms = now_ms + BATTERY_CHECK_MS;
-        app.charge_battery = hal_power_battery();
+        HalBattery battery = hal_power_battery();
+        app.render_wanted |= app_usb_battery_changed(app.charge_battery, battery);
+        app.charge_battery = battery;
         if (!app.charge_battery.usb_power) {
             app.charging = false;
             debug_loop_shutdown(DEBUG_REPORT_UNPLUGGED);
@@ -1386,8 +1400,13 @@ static void charge_step(uint32_t now_ms)
     if (app.display_on && deadline_reached(now_ms, app.charge_lit_until_ms)) {
         set_display(false);
     }
-    if (app.display_on) {
-        render((FrameDrawer){.draw = draw_charge, .context = NULL}, true);
+    bool moving = app.charge_battery.usb_power && app.charge_battery.charging;
+    bool due = deadline_reached(now_ms, app.pacer.last_ms + CHARGE_SCREEN_FRAME_MS);
+    if (app.display_on && (app.render_wanted || (moving && due))) {
+        ChargeFrame frame = {.entry = settings_module()};
+        app.render_wanted = false;
+        app.pacer.last_ms = now_ms;
+        render((FrameDrawer){.draw = draw_charge, .context = &frame}, true);
         light_after_first_frame();
     } else {
         use_wanted_clock();
@@ -1586,9 +1605,11 @@ CORE_SEAM void app_step(void)
     app.now_ms = now_ms;
     hal_audio_service();
     hal_bluetooth_service();
-    continue_mixtape(now_ms);
-    settle_screens(now_ms);
     run_debug_script(now_ms);
+    if (!app.charging) {
+        continue_mixtape(now_ms);
+        settle_screens(now_ms);
+    }
     read_input();
     read_headset();
     key_tracker_update(&app.keys, now_ms);

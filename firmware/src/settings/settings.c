@@ -5,7 +5,8 @@
 #include "settings/equalizer_fit.h"
 
 enum {
-    VERSION = 13,
+    VERSION = 14,
+    REPLAY_GAIN_VERSION = 14,
     APPEARANCE_VERSION = 13,
     LANGUAGE_VERSION = 12,
     HALF_DB_VERSION = 11,
@@ -95,6 +96,8 @@ Settings settings_defaults(void)
         .text_size = TEXT_SIZE_MEDIUM,
         .skip_gesture = SKIP_GESTURE_HOLD,
         .orientation = ORIENTATION_LANDSCAPE,
+        .replay_gain_mode = REPLAY_GAIN_OFF,
+        .prevent_clipping = true,
     };
 }
 
@@ -183,6 +186,7 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
         bytes[index] = index < MAGIC_SIZE ? MAGIC[index] : 0;
     }
     bytes[VERSION_FIELD] = VERSION;
+    bytes[VERSION_FIELD + 1] = settings->replay_gain_mode | (settings->prevent_clipping ? 4u : 0u);
     bytes[BRIGHTNESS_FIELD] = settings->brightness;
     bytes[TIMEOUT_FIELD] = settings->screen_timeout;
     bytes[GAIN_FIELD] = (uint8_t)settings->gain;
@@ -211,6 +215,14 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
     hash_store(bytes + HALF_DB_CHECKSUM_FIELD, checksum_of(bytes, HALF_DB_CHECKSUM_FIELD));
 }
 
+static bool replay_gain_flags_valid(const uint8_t *bytes)
+{
+    uint8_t flags = bytes[VERSION_FIELD + 1];
+    return bytes[VERSION_FIELD] < REPLAY_GAIN_VERSION
+               ? flags == 0
+               : (flags & 0xF8u) == 0 && (flags & 3u) < REPLAY_GAIN_MODE_COUNT;
+}
+
 static bool header_valid(const uint8_t *bytes, uint32_t length)
 {
     for (int index = 0; index < MAGIC_SIZE; index++) {
@@ -220,7 +232,7 @@ static bool header_valid(const uint8_t *bytes, uint32_t length)
     }
     uint8_t version = bytes[VERSION_FIELD];
     int field = checksum_field(version);
-    return version >= FIRST_VERSION && version <= VERSION && bytes[VERSION_FIELD + 1] == 0 &&
+    return version >= FIRST_VERSION && version <= VERSION && replay_gain_flags_valid(bytes) &&
            length >= (uint32_t)(field + CHECKSUM_SIZE) &&
            hash_load(bytes + field) == checksum_of(bytes, field);
 }
@@ -391,6 +403,11 @@ bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
                                ? APPEARANCE_NEON_NOIR
                                : (AppearanceTheme)bytes[APPEARANCE_FIELD];
     decode_language(bytes, settings);
+    settings->replay_gain_mode = bytes[VERSION_FIELD] < REPLAY_GAIN_VERSION
+                                     ? REPLAY_GAIN_OFF
+                                     : (uint8_t)(bytes[VERSION_FIELD + 1] & 3u);
+    settings->prevent_clipping =
+        bytes[VERSION_FIELD] < REPLAY_GAIN_VERSION || (bytes[VERSION_FIELD + 1] & 4u) != 0;
     return true;
 }
 

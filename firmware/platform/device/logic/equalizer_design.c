@@ -1,3 +1,4 @@
+#include "core/seam.h"
 #include "device/audio_math.h"
 #include "device/equalizer.h"
 
@@ -107,7 +108,7 @@ static bool build_sections(Equalizer *equalizer, const HalAudioEqualizer *curve,
     return equalizer->section_count > 0;
 }
 
-bool equalizer_design(Equalizer *equalizer, const HalAudioEqualizer *curve, uint32_t rate)
+CORE_SEAM bool equalizer_design(Equalizer *equalizer, const HalAudioEqualizer *curve, uint32_t rate)
 {
     bool designed = build_sections(equalizer, curve, rate);
     clear_history(equalizer);

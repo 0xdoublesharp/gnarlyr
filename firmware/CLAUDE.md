@@ -72,19 +72,21 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 149,064 | 157,292 | 8,228 |
-| Static RAM | 264,156 | 278,528 | 14,372 |
-| Rescan overlay | 88,468 | 98,304 | 9,836 |
+| Code window | 149,040 | 157,292 | 8,252 |
+| Static RAM | 264,284 | 278,528 | 14,244 |
+| Rescan overlay | 93,004 | 98,304 | 5,300 |
 | USB overlay code | 11,740 | 65,536 | 53,796 |
-| Module views (code + BSS) | 18,408 | 56,320 | 37,912 |
-| Module settings (code + BSS) | 14,468 | 56,320 | 41,852 |
-| Module library (code + BSS) | 39,124 | 56,320 | 17,196 |
-| Module listening (code + BSS) | 17,804 | 56,320 | 38,516 |
-| Audio module (code, no BSS) | 5,832 | 8,192 | 2,360 |
-| Decoder workspace | 41,644 | 41,984 | 340 |
-| Language pack (English) | 7,159 | 16,384 | 9,225 |
-| Vorbis program image bank | 64,776 | 130,048 | 65,272 |
-| Vorbis core-1 static state | 32,948 | 36,864 | 3,916 |
+| Module views (code + BSS) | 18,408 | 44,032 | 25,624 |
+| Module settings (code + BSS) | 16,880 | 44,032 | 27,152 |
+| Module library (code + BSS) | 39,124 | 44,032 | 4,908 |
+| Module listening (code + BSS) | 17,804 | 44,032 | 26,228 |
+| Audio processing module (code, no BSS) | 1,920 | 12,288 | 10,368 |
+| Audio DSP module (code, no BSS) | 5,832 | 8,192 | 2,360 |
+| Vorbis file module (code, no BSS) | 5,960 | 8,192 | 2,232 |
+| Decoder workspace | 41,648 | 41,984 | 336 |
+| Language pack (English) | 7,216 | 16,384 | 9,168 |
+| Vorbis program image bank | 64,768 | 130,048 | 65,280 |
+| Vorbis core-1 static state | 32,952 | 36,864 | 3,912 |
 
 - Keep at least 8 KB free in the release code window after each stage of the plan. Read the report after any change to device code and update these numbers and the ones in `docs/architecture.md` when they move.
 - The core 0 link uses link-time optimisation. Libraries shared with core 1 or the rescan overlay stay out of it.

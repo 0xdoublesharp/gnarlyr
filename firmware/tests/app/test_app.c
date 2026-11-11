@@ -26,6 +26,7 @@
 #include "library_rescan.h"
 #include "music_check.h"
 #include "screen_modules.h"
+#include "screens/charge_screen.h"
 #include "settings/equalizer_slots.h"
 #include "settings/settings.h"
 #include "settings_store.h"
@@ -60,9 +61,9 @@ enum {
     SETTINGS_GAIN_INDEX = 12,
     SETTINGS_EQUALIZER_INDEX = 14,
     SETTINGS_CUSTOM_EQ_INDEX = 15,
-    SETTINGS_START_INDEX = 16,
-    SETTINGS_RESCAN_INDEX = 17,
-    SETTINGS_THEME_INDEX = 19,
+    SETTINGS_START_INDEX = 18,
+    SETTINGS_RESCAN_INDEX = 19,
+    SETTINGS_THEME_INDEX = 21,
     MUSIC_COVER_FLOW_INDEX = 1,
     MUSIC_PLAYLISTS_INDEX = 8,
     SETTLE_STEPS = 30,
@@ -2570,6 +2571,61 @@ static void the_charge_screen_goes_dark_and_a_key_lights_it(void)
     CHECK(app_charging());
 }
 
+static void charging_motion_waits_for_its_next_frame_and_stops_in_the_dark(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery(ON_USB);
+    hold_power();
+    wait_ms(GOODBYE_MS);
+    wait_ms(1);
+    int first = fake_hal_present_count();
+    wait_ms(CHARGE_SCREEN_FRAME_MS - 1);
+    CHECK_EQUAL(first, fake_hal_present_count());
+    wait_ms(1);
+    CHECK(fake_hal_present_count() > first);
+    wait_ms(5000);
+    CHECK(!fake_hal_display_on());
+    int dark = fake_hal_present_count();
+    wait_ms(1000);
+    CHECK_EQUAL(dark, fake_hal_present_count());
+    tap(KEY_PLAY);
+    CHECK(fake_hal_display_on());
+    CHECK(fake_hal_present_count() > dark);
+}
+
+static void charging_keeps_its_renderer_loaded_until_the_player_wakes(void)
+{
+    start_app_with_library();
+    open_music_entry(MUSIC_COVER_FLOW_INDEX);
+    fake_hal_set_battery(ON_USB);
+    hold_power();
+    wait_ms(GOODBYE_MS);
+    wait_ms(1);
+    int loads = fake_hal_module_loads();
+    wait_ms(20);
+    CHECK_EQUAL(loads, fake_hal_module_loads());
+    wait_ms(CHARGE_SCREEN_FRAME_MS);
+    CHECK_EQUAL(loads, fake_hal_module_loads());
+    hold_power();
+    CHECK(!app_charging());
+    CHECK(title_is("Cover Flow"));
+}
+
+static void a_charged_battery_does_not_keep_redrawing_an_unchanged_screen(void)
+{
+    start_app_with_library();
+    HalBattery battery = ON_USB;
+    battery.charging = false;
+    battery.percent = 100;
+    fake_hal_set_battery(battery);
+    hold_power();
+    wait_ms(GOODBYE_MS);
+    wait_ms(1);
+    int first = fake_hal_present_count();
+    wait_ms(1000);
+    CHECK_EQUAL(first, fake_hal_present_count());
+}
+
 static void menu_opens_mode_selection_from_charging_without_restarting(void)
 {
     start_app_with_library();
@@ -4372,6 +4428,32 @@ static void menu_does_nothing_while_nothing_plays(void)
     CHECK(title_is(FIRMWARE_SHORT_NAME));
 }
 
+static void normalization_choices_apply_and_survive_restart(void)
+{
+    start_app_with_library();
+    open_setting(16);
+    CHECK(title_is("ReplayGain"));
+    move_down(2);
+    tap(KEY_PLAY);
+    CHECK(title_is("Settings"));
+    Settings chosen;
+    CHECK(saved_settings(&chosen));
+    CHECK_EQUAL(REPLAY_GAIN_ALBUM, chosen.replay_gain_mode);
+    CHECK(chosen.prevent_clipping);
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Prevent clipping"));
+    move_up(1);
+    tap(KEY_PLAY);
+    CHECK(saved_settings(&chosen));
+    CHECK_EQUAL(REPLAY_GAIN_ALBUM, chosen.replay_gain_mode);
+    CHECK(!chosen.prevent_clipping);
+    restart_app();
+    CHECK(saved_settings(&chosen));
+    CHECK_EQUAL(REPLAY_GAIN_ALBUM, chosen.replay_gain_mode);
+    CHECK(!chosen.prevent_clipping);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -4439,6 +4521,7 @@ int main(void)
         TEST_CASE(home_art_moves_on_and_skips_albums_without_a_cover),
         TEST_CASE(home_art_keeps_the_playing_album),
         TEST_CASE(settings_choose_shuffle_and_repeat),
+        TEST_CASE(normalization_choices_apply_and_survive_restart),
         TEST_CASE(brightness_is_applied_and_saved),
         TEST_CASE(gain_is_applied),
         TEST_CASE(an_equalizer_preset_reaches_the_audio_and_survives_a_restart),
@@ -4550,6 +4633,9 @@ int main(void)
         TEST_CASE(an_empty_battery_on_usb_power_keeps_playing),
         TEST_CASE(switching_off_on_usb_power_shows_the_charge_screen),
         TEST_CASE(the_charge_screen_goes_dark_and_a_key_lights_it),
+        TEST_CASE(charging_motion_waits_for_its_next_frame_and_stops_in_the_dark),
+        TEST_CASE(charging_keeps_its_renderer_loaded_until_the_player_wakes),
+        TEST_CASE(a_charged_battery_does_not_keep_redrawing_an_unchanged_screen),
         TEST_CASE(menu_opens_mode_selection_from_charging_without_restarting),
         TEST_CASE(the_home_menu_opens_the_same_three_mode_selector),
         TEST_CASE(storage_selection_and_return_keep_the_playback_session),

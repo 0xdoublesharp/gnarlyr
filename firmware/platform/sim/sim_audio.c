@@ -24,6 +24,7 @@ typedef struct SimTrack {
     SimDecoder decoder;
     uint32_t token;
     uint64_t end_frame;
+    float replay_gain;
     bool open;
 } SimTrack;
 
@@ -87,6 +88,7 @@ static bool open_track(SimTrack *track, const HalAudioTrack *request, uint32_t o
     char host_path[HOST_PATH_CAPACITY];
     close_track(track);
     track->token = request->token;
+    track->replay_gain = (float)(request->replay_gain != 0 ? request->replay_gain : 65536) / 65536;
     track->open = sim_storage_host_path(request->path, host_path, sizeof host_path) &&
                   sim_decoder_open(&track->decoder, host_path);
     if (track->open) {
@@ -144,8 +146,10 @@ static bool decode_chunk(void)
     if (frames == 0) {
         return switch_to_next();
     }
+    float gain = audio.gain * track->replay_gain;
     for (uint64_t sample = 0; sample < frames * STEREO; sample++) {
-        chunk[sample] *= audio.gain;
+        float value = chunk[sample] * gain;
+        chunk[sample] = value > 1 ? 1 : value < -1 ? -1 : value;
     }
     SDL_AudioStreamPut(audio.stream, chunk, (int)(frames * BYTES_PER_FRAME));
     return true;
@@ -236,7 +240,7 @@ void sim_audio_stop(void)
     close_track(&audio.slots[1]);
 }
 
-bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
+bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next)
 {
     lock();
     close_track(next_track());
@@ -244,6 +248,9 @@ bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
     if (opened) {
         use_stream_rate(current_track()->decoder.sample_rate);
         clear_stream();
+        if (next != NULL) {
+            open_track(next_track(), next, 0);
+        }
     }
     audio.state = opened ? HAL_AUDIO_PLAYING : HAL_AUDIO_STOPPED;
     audio.failed = !opened;
@@ -409,4 +416,15 @@ HalAudioStatus hal_audio_status(void)
     };
     unlock();
     return status;
+}
+
+void hal_audio_set_replay_gain(uint32_t token, uint32_t gain)
+{
+    lock();
+    for (int index = 0; index < SLOT_COUNT; index++) {
+        if (audio.slots[index].open && audio.slots[index].token == token) {
+            audio.slots[index].replay_gain = (float)(gain != 0 ? gain : 65536) / 65536;
+        }
+    }
+    unlock();
 }

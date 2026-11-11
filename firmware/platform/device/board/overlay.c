@@ -3,8 +3,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "audio_process.h"
 #include "board.h"
 #include "core/seam.h"
+#include "device/audio_process.h"
 #include "device/image_crc.h"
 #include "emmc.h"
 #include "hal/audio.h"
@@ -19,8 +21,11 @@ enum {
 
 _Static_assert(OVERLAY_WINDOW_BYTES % SECTOR_BYTES == 0, "whole sectors fit the window");
 _Static_assert(MODULE_SLOT_BYTES % SECTOR_BYTES == 0, "whole sectors fit the module slot");
-_Static_assert(MODULE_SLOT_BASE + MODULE_SLOT_BYTES == OVERLAY_WINDOW_BASE + OVERLAY_WINDOW_BYTES,
-               "the module slot is the end of the overlay window");
+_Static_assert(MODULE_SLOT_BASE + MODULE_SLOT_BYTES == AUDIO_PROCESS_BASE,
+               "the UI slot ends where audio processing starts");
+_Static_assert(AUDIO_PROCESS_BASE + AUDIO_PROCESS_BYTES ==
+                   OVERLAY_WINDOW_BASE + OVERLAY_WINDOW_BYTES,
+               "audio processing is the end of the overlay window");
 
 static const BoardImageTable MODULE_TABLE = {MODULE_TABLE_OFFSET, MODULE_TABLE_MAGIC,
                                              MODULE_TABLE_ROWS};
@@ -51,7 +56,7 @@ static bool read_rest(const BoardOverlay *overlay, uint32_t first_sector, uint32
     uint8_t *target = overlay->base + SECTOR_BYTES;
     for (uint32_t done = 0; done < sectors; done += SECTORS_PER_READ) {
         uint32_t count = sectors - done < SECTORS_PER_READ ? sectors - done : SECTORS_PER_READ;
-        if (overlay->module != 0) {
+        if (overlay->module != 0 && (uintptr_t)overlay->base == MODULE_SLOT_BASE) {
             hal_audio_service();
         }
         if (!emmc_read(NULL, first_sector + done, count, target + done * SECTOR_BYTES)) {
@@ -144,7 +149,7 @@ static const void *load_window(uint32_t offset, uint32_t magic)
     uint8_t *base = (uint8_t *)(uintptr_t)OVERLAY_WINDOW_BASE;
     BoardOverlay overlay = {offset, magic, base, OVERLAY_WINDOW_BYTES, 0};
     board_audio_shut_down();
-    loaded_module = 0;
+    board_module_forget();
     return board_overlay_load(&overlay) ? base + OVERLAY_HEADER_BYTES : NULL;
 }
 
@@ -161,6 +166,7 @@ const void *board_usb_overlay_load(void)
 void board_module_forget(void)
 {
     loaded_module = 0;
+    board_audio_process_forget();
 }
 
 static bool load_module(uint32_t module, uint8_t *base)

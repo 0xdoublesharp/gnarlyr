@@ -8,6 +8,7 @@
 #include "device/flac_source.h"
 #include "device/m4a_stream.h"
 #include "device/vorbis_modes.h"
+#include "device/vorbis_stream.h"
 
 enum {
     STREAM_SLOTS = 2,
@@ -41,6 +42,7 @@ typedef struct StreamControl {
     uint32_t tail_trim;
     VorbisModes vorbis_modes;
     uint32_t vorbis_config_generation;
+    uint32_t vorbis_start_generation;
 } StreamControl;
 
 typedef struct StreamRegion {
@@ -103,10 +105,13 @@ typedef struct Core1Source {
     uint32_t end_offset;
     uint32_t written;
     uint32_t lead_trim;
+    uint32_t skip_before;
     uint32_t play_end;
     uint32_t fill_budget;
     uint32_t ring_capacity;
     M4aStream *m4a;
+    VorbisStream *vorbis;
+    bool (*wait_vorbis)(struct Core1Source *source);
     uint8_t bits_per_sample;
     uint8_t channels;
     bool streaming;
@@ -120,3 +125,6 @@ void core1_source_fill(Core1Source *source);
 AudioSource core1_source_interface(Core1Source *source);
 AudioSource core1_source_mp3_interface(Core1Source *source);
 AudioSource core1_source_m4a_interface(Core1Source *source, M4aStream *stream);
+
+AudioSource core1_source_vorbis_interface(Core1Source *source, VorbisStream *stream,
+                                          bool (*wait)(Core1Source *source));

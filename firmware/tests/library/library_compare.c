@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "library/library.h"
+#include "library/library_gain.h"
 
 enum {
     TEXT_CAPACITY = 2048
@@ -76,6 +77,21 @@ static void same_links(Pair *pair, const char *what, uint32_t index, uint32_t ex
     }
 }
 
+static void compare_gain(Pair *pair, uint32_t index)
+{
+    ReplayGain left;
+    ReplayGain right;
+    if (!library_read_replay_gain(&pair->expected, index, &left) ||
+        !library_read_replay_gain(&pair->actual, index, &right)) {
+        differ(pair, "track", index, "unreadable gain");
+        return;
+    }
+    same_number(pair, "track", index, "track gain", left.track, right.track);
+    same_number(pair, "track", index, "album gain", left.album, right.album);
+    same_number(pair, "track", index, "safe track gain", left.track_safe, right.track_safe);
+    same_number(pair, "track", index, "safe album gain", left.album_safe, right.album_safe);
+}
+
 static void compare_tracks(Pair *pair)
 {
     for (uint32_t index = 0; index < library_count(&pair->expected, LIBRARY_TRACKS); index++) {
@@ -97,6 +113,7 @@ static void compare_tracks(Pair *pair)
         same_number(pair, "track", index, "number", left.number, right.number);
         same_number(pair, "track", index, "start", left.start_ms, right.start_ms);
         same_number(pair, "track", index, "end", left.end_ms, right.end_ms);
+        compare_gain(pair, index);
     }
 }
 

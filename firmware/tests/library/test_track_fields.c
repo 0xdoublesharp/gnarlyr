@@ -112,13 +112,35 @@ static void numbers_over_255_are_capped(void)
     CHECK_EQUAL(255, fields.track.disc);
 }
 
+static void replay_gain_survives_metadata_conversion_and_clears_for_an_untagged_track(void)
+{
+    TrackTags tags = empty_tags();
+    tags.replay_gain = (ReplayGain){100000, 80000, 50000, 40000};
+    static TrackFields fields;
+    track_fields_from_tags("a.flac", &tags, &fields);
+    CHECK_EQUAL(100000, fields.track.replay_gain.track);
+    CHECK_EQUAL(80000, fields.track.replay_gain.album);
+    CHECK_EQUAL(50000, fields.track.replay_gain.track_safe);
+    CHECK_EQUAL(40000, fields.track.replay_gain.album_safe);
+    tags = empty_tags();
+    track_fields_from_tags("b.flac", &tags, &fields);
+    CHECK_EQUAL(0, fields.track.replay_gain.track);
+    CHECK_EQUAL(0, fields.track.replay_gain.album);
+    CHECK_EQUAL(0, fields.track.replay_gain.track_safe);
+    CHECK_EQUAL(0, fields.track.replay_gain.album_safe);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(numbers_take_the_leading_integer), TEST_CASE(years_take_the_first_four_digits),
-        TEST_CASE(tags_are_used_when_present),       TEST_CASE(missing_tags_fall_back_to_the_path),
-        TEST_CASE(artists_fill_in_for_each_other),   TEST_CASE(file_names_give_titles_and_numbers),
+        TEST_CASE(numbers_take_the_leading_integer),
+        TEST_CASE(years_take_the_first_four_digits),
+        TEST_CASE(tags_are_used_when_present),
+        TEST_CASE(missing_tags_fall_back_to_the_path),
+        TEST_CASE(artists_fill_in_for_each_other),
+        TEST_CASE(file_names_give_titles_and_numbers),
         TEST_CASE(numbers_over_255_are_capped),
+        TEST_CASE(replay_gain_survives_metadata_conversion_and_clears_for_an_untagged_track),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -36,6 +36,7 @@ add_library(echo_app STATIC
     frame_overlay.c
     home_art.c
     language.c
+    language_list.c
     library_rescan.c
     music_check.c
     music_walk.c
@@ -50,6 +51,7 @@ add_library(echo_app STATIC
     spoken_store.c
     screens/bluetooth_screen.c
     screens/charge_screen.c
+    screens/charge_art.c
     screens/cover_flow_screen.c
     screens/equalizer_screen.c
     screens/equalizer_browser.c

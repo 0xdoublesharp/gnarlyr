@@ -437,6 +437,34 @@ class ModuleTest(unittest.TestCase):
     def rows(self, image):
         return make_image.modules_in(image)
 
+    def test_processing_module_has_an_independent_bounded_window_without_state(self):
+        base, capacity, number = 0x0308F000, 0x3000, 7
+        content = module_blob(number, bytes(capacity - 20))
+        self.assertEqual(content, make_image.module_from_elf(module_elf(content, base=base), number))
+        modules = [module_blob(index) for index in range(1, number)] + [content]
+        image = build(modules=modules)
+        self.assertEqual(capacity, self.rows(image)[number - 1][1])
+        modules[-1] += b"x"
+        with self.assertRaises(make_image.ImageError):
+            build(modules=modules)
+        for binary in (module_elf(content), module_elf(content, base=base, bss_size=4)):
+            with self.assertRaises(make_image.ImageError):
+                make_image.module_from_elf(binary, number)
+
+    def test_vorbis_module_uses_the_same_audio_window_and_capacity_as_the_dsp(self):
+        content = module_blob(6, bytes(make_image.AUDIO_MODULE_CAPACITY - 20))
+        binary = module_elf(content, base=make_image.AUDIO_MODULE_BASE)
+        self.assertEqual(content, make_image.module_from_elf(binary, 6))
+        modules = [module_blob(number) for number in range(1, 6)] + [content]
+        image = build(modules=modules)
+        self.assertEqual(make_image.AUDIO_MODULE_CAPACITY, self.rows(image)[5][1])
+        modules[5] += b"x"
+        with self.assertRaises(make_image.ImageError):
+            build(modules=modules)
+        with self.assertRaises(make_image.ImageError):
+            make_image.module_from_elf(module_elf(content, bss_size=4,
+                                                base=make_image.AUDIO_MODULE_BASE), 6)
+
     def test_modules_land_where_their_table_says_in_the_order_of_their_numbers(self):
         modules = [module_blob(1, b"a" * 900), module_blob(2, b"b" * 40)]
         image = build(modules=modules)
@@ -560,9 +588,11 @@ class ModuleTest(unittest.TestCase):
         with self.assertRaises(make_image.ImageError):
             make_image.module_from_elf(module_elf(content, bss_size=size))
 
-    def test_the_slot_ends_where_the_overlay_window_ends(self):
-        self.assertEqual(make_image.OVERLAY_BASE + make_image.OVERLAY_CAPACITY,
+    def test_ui_and_processing_slots_fill_the_end_of_the_overlay_window(self):
+        self.assertEqual(make_image.PROCESS_MODULE_BASE,
                          make_image.MODULE_BASE + make_image.MODULE_CAPACITY)
+        self.assertEqual(make_image.OVERLAY_BASE + make_image.OVERLAY_CAPACITY,
+                         make_image.PROCESS_MODULE_BASE + make_image.PROCESS_MODULE_CAPACITY)
 
     def test_the_player_and_the_linker_scripts_use_the_builders_slot_and_table(self):
         device = TOOLS_DIRECTORY.parent / "platform" / "device"
@@ -578,6 +608,10 @@ class ModuleTest(unittest.TestCase):
         region = (f"MODULE_RAM (rw) : ORIGIN = 0x{make_image.MODULE_BASE:08X}, "
                   f"LENGTH = 0x{make_image.MODULE_CAPACITY:X}")
         self.assertIn(region, (device / "board" / "echo_device.ld").read_text())
+        process = (device / "logic" / "include" / "device" / "audio_process.h").read_text()
+        self.assertIn(f"AUDIO_PROCESS_BASE 0x{make_image.PROCESS_MODULE_BASE:08X}u", process)
+        self.assertIn(f"AUDIO_PROCESS_BYTES 0x{make_image.PROCESS_MODULE_CAPACITY:X}u", process)
+        self.assertIn(f"AUDIO_PROCESS_NUMBER {make_image.PROCESS_MODULE_NUMBER}u", process)
         script = (device / "overlay" / "screen_module.ld").read_text()
         for name, access in (("MODULE_RAM", "rx"), ("MODULE_ZEROED", "rw")):
             self.assertIn(f"{name} ({access}) : ORIGIN = 0x{make_image.MODULE_BASE:08X}, "
@@ -719,8 +753,12 @@ class OverlayLayoutTest(unittest.TestCase):
                                   self.defined("OVERLAY_WINDOW_BYTES")))
         base, workspace = self.region("board/echo_device.ld", "HIGH_RAM")
         slot_base, slot = self.region("board/echo_device.ld", "MODULE_RAM")
-        self.assertEqual(window, (base, workspace + slot))
+        process_base, process = self.region("board/echo_device.ld", "PROCESS_RAM")
+        self.assertEqual(window, (base, workspace + slot + process))
         self.assertEqual(base + workspace, slot_base)
+        self.assertEqual(slot_base + slot, process_base)
+        self.assertEqual((process_base, process),
+                         self.region("overlay/audio_process.ld", "MODULE_RAM"))
         self.assertEqual(window, self.region("overlay/rescan_overlay.ld", "HIGH_RAM"))
         self.assertEqual(window, self.region("overlay/usb_overlay.ld", "HIGH_RAM"))
 

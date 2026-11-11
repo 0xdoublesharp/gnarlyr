@@ -7,6 +7,11 @@
 #include "hal/power.h"
 #include "ui/theme.h"
 
+enum {
+    CHARGE_SCREEN_FRAME_MS = 200,
+    CHARGE_SCREEN_PHASES = 8
+};
+
 typedef struct ChargeScreenLayout {
     Rect header;
     Rect battery;
@@ -16,8 +21,11 @@ typedef struct ChargeScreenLayout {
     Rect detail;
 } ChargeScreenLayout;
 
+ChargeScreenLayout charge_screen_art_layout(const Theme *theme);
 ChargeScreenLayout charge_screen_layout(const Theme *theme, const char *detail);
 void usb_screen_draw(Canvas *canvas, const Theme *theme, HalBattery battery, AppUsbStatus status);
+void charge_art_draw(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms);
+void charge_screen_draw_at(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms);
 void charge_screen_draw(Canvas *canvas, const Theme *theme, HalBattery battery);
 void charge_screen_text(HalBattery battery, char *text, size_t capacity);
 void charge_screen_level_text(HalBattery battery, char *text, size_t capacity);

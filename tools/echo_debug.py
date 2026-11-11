@@ -740,6 +740,16 @@ class Tool:
     def language_select(self, code, music_volume=None, timeout=DEFAULT_TIMEOUT):
         return self.language_manager().select(code, music_volume, timeout)
 
+    def companion_manager(self):
+        import echo_companion
+        return echo_companion.Manager(self, sys.modules[__name__])
+
+    def settings_list(self, music_volume=None):
+        return self.companion_manager().list(music_volume)
+
+    def settings_set(self, setting, value, music_volume=None, timeout=DEFAULT_TIMEOUT):
+        return self.companion_manager().set(setting, value, music_volume, timeout)
+
     def screenshots(self, out):
         root = self.root()
         out = Path(out).resolve()
@@ -810,10 +820,21 @@ def build_parser():
         command.add_argument("--music-volume", type=Path, help="the active music volume belonging to this USB player")
     for command in (install_language, select_language):
         command.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
+    list_settings = commands.add_parser("settings-list", help="list supported companion settings and canonical values")
+    set_setting = commands.add_parser("settings-set", help="change one supported setting and verify saved-state readback")
+    set_setting.add_argument("setting")
+    set_setting.add_argument("value")
+    for command in (list_settings, set_setting):
+        command.add_argument("--music-volume", type=Path, help="the active music volume belonging to this USB player")
+    set_setting.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
     return parser
 
 
 def dispatch(tool, arguments):
+    if arguments.command == "settings-list":
+        return tool.settings_list(arguments.music_volume)
+    if arguments.command == "settings-set":
+        return tool.settings_set(arguments.setting, arguments.value, arguments.music_volume, arguments.timeout)
     if arguments.command == "language-inspect":
         return tool.language_inspect(arguments.pack, arguments.build)
     if arguments.command == "language-list":

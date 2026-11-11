@@ -120,6 +120,8 @@ void settings_store_restore_playback(const SettingsStore *store, Player *player,
     player_change_volume(player, (int)settings->volume - (int)player_status(player).volume);
     player_set_shuffle(player, settings->shuffle, seed);
     player_set_repeat(player, settings->repeat);
+    player_set_replay_gain(player, (ReplayGainMode)settings->replay_gain_mode,
+                           settings->prevent_clipping);
 }
 
 void settings_store_apply_equalizer(const Settings *settings)

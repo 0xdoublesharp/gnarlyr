@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/hash.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
 #include "hal/storage.h"
@@ -1235,6 +1236,88 @@ static void invalid_result_orders_cannot_replace_the_current_song(void)
     CHECK_EQUAL(PLAYER_PLAYING, player_status(started).state);
 }
 
+static Player *tagged_player(void)
+{
+    Player *started = fresh_player();
+    uint32_t fingerprint = library_fingerprint(&fixture.library);
+    uint32_t count = library_count(&fixture.library, LIBRARY_TRACKS);
+    uint8_t *header = fixture.bytes + fixture.size;
+    memset(header, 0, 20 + count * 20);
+    memcpy(header, "DSRG", 4);
+    header[4] = 1;
+    header[6] = 20;
+    hash_store(header + 8, count);
+    hash_store(header + 12, fingerprint);
+    hash_store(header + 16, hash_update(HASH_START, header, 16));
+    for (uint32_t index = 0; index < count; index++) {
+        uint8_t prefix[8];
+        hash_store(prefix, fingerprint);
+        hash_store(prefix + 4, index);
+        uint8_t *record = header + 20 + index * 20;
+        hash_store(record, 65536 + (index + 1) * 10000);
+        hash_store(record + 4, 65536 - index * 1000);
+        hash_store(record + 8, 32768 + index);
+        hash_store(record + 12, 32768 + index);
+        hash_store(record + 16,
+                   hash_update(hash_update(HASH_START, prefix, sizeof prefix), record, 16));
+    }
+    fixture.size += 20 + count * 20;
+    fixture.memory.size = fixture.size;
+    CHECK_EQUAL(LIBRARY_OK,
+                library_open(&fixture.library, memory_source(&fixture.memory), fixture.size));
+    return started;
+}
+
+static void normalization_defaults_off_and_applies_to_both_initial_tracks_when_enabled(void)
+{
+    Player *started = tagged_player();
+    CHECK(player_play_list(started, back_in_black(), 0, SEED));
+    CHECK_EQUAL(65536, fake_hal_audio_replay_gain());
+    CHECK_EQUAL(65536, fake_hal_audio_queued_replay_gain());
+    player_release_output(started);
+    player_set_replay_gain(started, REPLAY_GAIN_TRACK, true);
+    CHECK(player_play_list(started, back_in_black(), 0, SEED));
+    CHECK_EQUAL(32768, fake_hal_audio_replay_gain());
+    CHECK_EQUAL(32769, fake_hal_audio_queued_replay_gain());
+}
+
+static void live_normalization_updates_current_and_prefetched_tracks_without_restarting(void)
+{
+    Player *started = tagged_player();
+    CHECK(player_play_list(started, back_in_black(), 0, SEED));
+    int plays = fake_hal_audio_play_count();
+    int seeks = fake_hal_audio_seek_count();
+    player_set_replay_gain(started, REPLAY_GAIN_TRACK, false);
+    CHECK_EQUAL(75536, fake_hal_audio_replay_gain());
+    CHECK_EQUAL(85536, fake_hal_audio_queued_replay_gain());
+    CHECK_EQUAL(plays, fake_hal_audio_play_count());
+    CHECK_EQUAL(seeks, fake_hal_audio_seek_count());
+    fake_hal_audio_finish_track();
+    player_set_replay_gain(started, REPLAY_GAIN_ALBUM, false);
+    CHECK_EQUAL(64536, fake_hal_audio_replay_gain());
+    player_update(started, 1);
+    CHECK_EQUAL(SHOOT_TO_THRILL, player_status(started).track);
+    player_set_replay_gain(started, REPLAY_GAIN_OFF, true);
+    CHECK_EQUAL(65536, fake_hal_audio_replay_gain());
+}
+
+static void normalization_keeps_pause_state_and_damaged_metadata_falls_back_to_unity(void)
+{
+    Player *started = tagged_player();
+    player_set_replay_gain(started, REPLAY_GAIN_TRACK, false);
+    uint32_t base = fixture.size - 20 - FIXTURE_TRACKS * 20;
+    fixture.bytes[base + 20 + 16] ^= 1;
+    CHECK(player_play_list(started, back_in_black(), 0, SEED));
+    CHECK_EQUAL(65536, fake_hal_audio_replay_gain());
+    CHECK_EQUAL(85536, fake_hal_audio_queued_replay_gain());
+    player_toggle_pause(started);
+    int plays = fake_hal_audio_play_count();
+    player_set_replay_gain(started, REPLAY_GAIN_ALBUM, true);
+    CHECK_EQUAL(HAL_AUDIO_PAUSED, fake_hal_audio_state());
+    CHECK_EQUAL(PLAYER_PAUSED, player_status(started).state);
+    CHECK_EQUAL(plays, fake_hal_audio_play_count());
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -1272,6 +1355,9 @@ int main(void)
 
         TEST_CASE(initialization_clears_a_previous_queue_binding),
         TEST_CASE(playing_a_list_starts_the_selected_track),
+        TEST_CASE(normalization_defaults_off_and_applies_to_both_initial_tracks_when_enabled),
+        TEST_CASE(live_normalization_updates_current_and_prefetched_tracks_without_restarting),
+        TEST_CASE(normalization_keeps_pause_state_and_damaged_metadata_falls_back_to_unity),
         TEST_CASE(the_status_carries_the_playing_tracks_format),
         TEST_CASE(the_format_waits_for_the_audio_to_reach_the_track),
         TEST_CASE(the_status_counts_the_place_in_the_queue),

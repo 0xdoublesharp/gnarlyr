@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "core/replay_gain.h"
 #include "hal/audio.h"
 #include "library/library.h"
 #include "library/library_browse.h"
@@ -108,6 +109,8 @@ typedef struct Player {
     RepeatMode repeat;
     ShuffleMode shuffle;
     uint8_t volume;
+    uint8_t replay_gain_mode;
+    bool prevent_clipping;
     PlayerState state;
     bool has_track;
     bool loaded;
@@ -117,6 +120,7 @@ typedef struct Player {
     uint32_t token_counter;
     uint32_t current_token;
     bool has_next;
+    uint16_t next_track;
     uint32_t next_token;
     uint32_t next_start_ms;
     PlayQueueCursor next_cursor;
@@ -163,3 +167,5 @@ bool player_save(Player *player);
 void player_release_output(Player *player);
 bool player_restore(Player *player);
 PlayerStatus player_status(const Player *player);
+
+void player_set_replay_gain(Player *player, ReplayGainMode mode, bool prevent_clipping);

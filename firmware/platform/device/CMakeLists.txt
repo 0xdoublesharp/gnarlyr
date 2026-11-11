@@ -1,6 +1,7 @@
 add_executable(echo_device
     board/audio.c
     board/audio_dsp.c
+    board/audio_process.c
     board/bluetooth.c
     board/clock.c
     board/clock_switch.c
@@ -327,7 +328,9 @@ set(ECHO_MODULE_IMPORT_ARGUMENTS "")
 set(ECHO_MODULE_IMAGE_ARGUMENTS "")
 set(ECHO_MODULE_MAP_ARGUMENTS "")
 foreach(module IN LISTS ECHO_SCREEN_MODULES)
-    if(module STREQUAL "dsp")
+    if(module STREQUAL "process")
+        set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_process.ld)
+    elseif(module STREQUAL "dsp" OR module STREQUAL "vorbis")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_dsp.ld)
     else()
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/screen_module.ld)
@@ -351,8 +354,26 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             mp4_cursor_next=audio_dsp_next
         )
     endif()
+    if(module STREQUAL "process")
+        target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
+        target_compile_definitions(${module_target}_objects PRIVATE
+            equalizer_design=audio_process_equalizer_design
+            equalizer_retune=audio_process_equalizer_retune
+            equalizer_run=audio_process_equalizer_run
+        )
+    endif()
+    if(module STREQUAL "vorbis")
+        target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)
+        target_compile_definitions(${module_target}_objects PRIVATE
+            core1_open_vorbis=audio_vorbis_open
+            vorbis_stream_read=audio_vorbis_read
+        )
+    endif()
     target_include_directories(${module_target}_objects PRIVATE ${module_includes})
-    target_link_libraries(${module_target}_objects PRIVATE echo_app echo_options echo_compact)
+    target_link_libraries(${module_target}_objects PRIVATE echo_app echo_options)
+    if(NOT module STREQUAL "process")
+        target_link_libraries(${module_target}_objects PRIVATE echo_compact)
+    endif()
     add_executable(${module_target} $<TARGET_OBJECTS:${module_target}_objects>)
     set_target_properties(${module_target} PROPERTIES
         SUFFIX .elf

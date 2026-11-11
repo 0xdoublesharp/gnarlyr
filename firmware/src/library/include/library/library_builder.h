@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/replay_gain.h"
+
 typedef struct BuilderTrack {
     const char *path;
     const char *title;
@@ -19,6 +21,7 @@ typedef struct BuilderTrack {
     uint32_t end_ms;
     const char *sheet;
     bool chapters;
+    ReplayGain replay_gain;
 } BuilderTrack;
 
 typedef struct ByteSink {

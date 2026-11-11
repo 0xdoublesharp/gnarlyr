@@ -4,6 +4,7 @@
 
 #include "app_screens.h"
 #include "core/debug_script.h"
+#include "hal/power.h"
 #include "library/music_fingerprint.h"
 #include "screen_modules.h"
 
@@ -20,6 +21,7 @@ typedef struct SettingsModuleEntry {
     ScreenModuleEntry module;
     Screen *(*language_row)(AppScreens *screens);
     Screen *(*usb_modes)(AppScreens *screens);
+    void (*charge_draw)(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms);
     bool (*choose)(AppScreens *screens, DebugSpan title, DebugSpan option);
 } SettingsModuleEntry;
 

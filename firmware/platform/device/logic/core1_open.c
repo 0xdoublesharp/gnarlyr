@@ -24,6 +24,7 @@ bool core1_open_flac(void *context, const char *path, uint32_t start_ms, AudioTr
     source->end_offset = source->input.size;
     source->written = source->start_offset;
     source->lead_trim = 0;
+    source->skip_before = 0;
     source->play_end = UINT32_MAX;
     source->slot = 0;
     source->read_failed = false;
@@ -72,6 +73,7 @@ bool core1_open_mp3(void *context, const char *path, uint32_t start_ms, AudioTra
     source->end_offset = mp3.audio_end;
     source->written = source->start_offset;
     source->lead_trim = mp3.lead_trim;
+    source->skip_before = 0;
     source->play_end = UINT32_MAX;
     source->slot = 0;
     source->read_failed = false;
@@ -124,6 +126,7 @@ static bool begin_m4a(Core1Source *source, const Mp4Track *mp4, uint32_t packet)
     source->end_offset = M4A_VIRTUAL_END;
     source->written = 0;
     source->lead_trim = mp4->delay;
+    source->skip_before = 0;
     source->play_end = mp4->delay + mp4->valid_samples;
     source->slot = 0;
     source->read_failed = false;

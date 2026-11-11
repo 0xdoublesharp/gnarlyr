@@ -298,9 +298,71 @@ static bool read_format(TagReader *reader, TagFormat format)
     return false;
 }
 
+static bool empty_gain_tail(const uint8_t *text, uint32_t length, uint32_t at)
+{
+    while (at < length) {
+        if (text[at++] != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static uint32_t gain_bom(const uint8_t *text, uint32_t length, TagEncoding *encoding)
+{
+    if (length < 2 || (*encoding != TAG_UTF16LE && *encoding != TAG_UTF16BE)) {
+        return 0;
+    }
+    if (tag_be16(text) == 0xFEFF || tag_be16(text) == 0xFFFE) {
+        *encoding = tag_be16(text) == 0xFEFF ? TAG_UTF16BE : TAG_UTF16LE;
+        return 2;
+    }
+    return 0;
+}
+
+bool tag_decode_gain_text(char *out, const uint8_t *text, uint32_t length, TagEncoding encoding)
+{
+    uint32_t width = encoding == TAG_UTF16LE || encoding == TAG_UTF16BE ? 2 : 1;
+    if (length % width != 0) {
+        return false;
+    }
+    uint32_t count = 0;
+    for (uint32_t at = gain_bom(text, length, &encoding); at < length; at += width) {
+        uint32_t value = width == 1                ? text[at]
+                         : encoding == TAG_UTF16BE ? tag_be16(text + at)
+                                                   : tag_le16(text + at);
+        if (value == 0) {
+            if (!empty_gain_tail(text, length, at)) {
+                return false;
+            }
+            break;
+        }
+        if (count + 1 >= REPLAY_GAIN_TEXT_CAPACITY || value > 127 ||
+            (value < 32 && (value < 9 || value > 13))) {
+            return false;
+        }
+        out[count++] = (char)value;
+    }
+    out[count] = '\0';
+    return true;
+}
+
+void tag_offer_replay_gain(TagReader *reader, ReplayGainField field, const char *text)
+{
+    uint32_t length = 0;
+    while (length < TRACK_TAG_TEXT_CAPACITY && text[length] != '\0') {
+        length++;
+    }
+    (void)replay_gain_offer(&reader->replay_gain, field, text, length);
+}
+
 bool track_tags_read(ByteSource source, uint32_t size, TagFormat format, TrackTags *tags)
 {
     *tags = (TrackTags){.duration_ms = 0, .picture = {.kind = TAG_PICTURE_NONE}};
     TagReader reader = {.source = source, .size = size, .tags = tags};
-    return read_format(&reader, format);
+    bool read = read_format(&reader, format);
+    if (read) {
+        tags->replay_gain = replay_gain_finish(&reader.replay_gain);
+    }
+    return read;
 }
