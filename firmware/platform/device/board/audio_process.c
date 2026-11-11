@@ -88,3 +88,13 @@ void audio_convert_pending(const AudioEngine *engine, uint32_t *words, uint32_t 
         entry()->convert(engine, words, frames, shift);
     }
 }
+
+void audio_engine_set_equalizer(AudioEngine *engine, const HalAudioEqualizer *curve)
+{
+    if (ready) {
+        entry()->set_equalizer(engine, curve);
+    } else {
+        engine->equalizer_curve = *curve;
+        engine->equalizing = false;
+    }
+}

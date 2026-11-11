@@ -7,6 +7,7 @@ const AudioProcessEntry AUDIO_PROCESS_MODULE_ENTRY = {
     .run = equalizer_run,
     .fade_in = audio_fade_in,
     .fade_out = audio_fade_out,
+    .set_equalizer = audio_engine_set_equalizer,
     .convert = audio_convert_pending,
     .shape = audio_shape_block,
     .sleep = audio_engine_set_sleep_remaining,

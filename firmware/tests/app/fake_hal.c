@@ -93,6 +93,7 @@ typedef struct LargeStore {
 static LargeStore large_stores[2];
 
 typedef struct FakeHal {
+    uint8_t battery_care_mode;
     const char *version;
     uint16_t panel[HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE];
     HalDisplayRotation rotation;
@@ -1956,4 +1957,14 @@ uint8_t hal_audio_repeat_mark(bool clear)
 {
     fake.audio.repeat_state = clear ? 0 : (uint8_t)((fake.audio.repeat_state + 1) % 3);
     return fake.audio.repeat_state;
+}
+
+void hal_power_set_battery_care(uint8_t mode)
+{
+    fake.battery_care_mode = mode;
+}
+
+uint8_t fake_hal_battery_care_mode(void)
+{
+    return fake.battery_care_mode;
 }

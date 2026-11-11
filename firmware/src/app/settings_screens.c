@@ -9,6 +9,7 @@
 #include "default_theme.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
+#include "hal/power.h"
 #include "hal/system.h"
 
 enum {
@@ -34,6 +35,7 @@ static const StringId AUTO_OFF_OPTIONS[AUTO_OFF_OPTION_COUNT] = {STR_OFF, STR_MI
 static const StringId TIMEOUT_OPTIONS[SCREEN_TIMEOUT_OPTION_COUNT] = {
     STR_SECONDS_10, STR_SECONDS_20, STR_SECONDS_30, STR_MINUTES_1,
     STR_MINUTES_2,  STR_MINUTES_5,  STR_NEVER};
+static const StringId BATTERY_CARE_OPTIONS[] = {STR_CHARGE_FULL, STR_RUN_USB};
 static const StringId CLOCK_FORMAT_OPTIONS[] = {STR_CLOCK_12H, STR_CLOCK_24H};
 static const char *const BRIGHTNESS_OPTIONS[BRIGHTNESS_LEVEL_COUNT] = {"1", "2", "3", "4", "5",
                                                                        "6", "7", "8", "9", "10"};
@@ -118,6 +120,20 @@ static void choose_repeat(void *context, int index)
 {
     SettingsContext *settings = context;
     player_set_repeat(settings->player, (RepeatMode)index);
+    save(settings);
+}
+
+static int current_battery_care(const void *context)
+{
+    return settings_of(context)->battery_care == 2 ? 1 : 0;
+}
+
+static void choose_battery_care(void *context, int index)
+{
+    SettingsContext *settings = context;
+    uint8_t mode = index == 1 ? 2 : 0;
+    settings->store->settings.battery_care = mode;
+    hal_power_set_battery_care(mode);
     save(settings);
 }
 
@@ -710,6 +726,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      current_transition_length, choose_transition_length, NULL, NULL},
     {STR_USB_ANSWER, USB_ANSWER_OPTIONS, USB_CONNECT_COUNT, current_usb_answer, choose_usb_answer,
      NULL, NULL},
+    {STR_BATTERY_CARE, BATTERY_CARE_OPTIONS, 2, current_battery_care, choose_battery_care, NULL,
+     NULL},
 };
 
 static Screen *choice_view(SettingsScreens *screens, const SettingChoice *choice,

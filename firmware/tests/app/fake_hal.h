@@ -168,3 +168,5 @@ void fake_hal_set_card(HalCardInfo info, bool result);
 int fake_hal_card_formats(void);
 
 uint32_t fake_hal_audio_sleep_remaining(void);
+
+uint8_t fake_hal_battery_care_mode(void);

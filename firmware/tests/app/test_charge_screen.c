@@ -456,11 +456,37 @@ static void explicit_frame_time_keeps_the_picture_independent_of_clock_reads(voi
     CHECK_EQUAL(first, frame_hash(&theme));
 }
 
+static void disabled_charging_is_shown_even_when_the_usb_rail_reads_full(void)
+{
+    char text[64];
+    HalBattery battery = {
+        .known = true, .usb_power = true, .percent = 100, .charge_disabled = true};
+    charge_screen_text(battery, text, sizeof text);
+    CHECK(strcmp(text, i18n_text(STR_CHARGE_DISABLED)) == 0);
+    HalBattery before = battery;
+    before.charge_disabled = false;
+    CHECK(app_usb_battery_changed(before, battery));
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = BOARD_THEME;
+            default_theme_set_text_size(&theme, (TextSize)size);
+            default_theme_set_orientation(&theme, (Orientation)orientation);
+            ChargeScreenLayout layout = charge_screen_art_layout(&theme);
+            CHECK(text_width(theme.fonts.title, text) <= layout.status.width);
+            Canvas canvas = canvas_make(
+                pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+            charge_screen_draw_at(&canvas, &theme, battery, 0);
+            screen_snapshot_write(&canvas, "battery-care", orientation * TEXT_SIZE_COUNT + size);
+        }
+    }
+}
+
 int main(void)
 {
     fake_hal_reset();
     i18n_detach();
     static const TestCase cases[] = {
+        TEST_CASE(disabled_charging_is_shown_even_when_the_usb_rail_reads_full),
         TEST_CASE(battery_percentage_dominates_a_full_width_slim_gauge),
         TEST_CASE(connecting_and_cleared_renderers_use_only_resident_drawing),
         TEST_CASE(usb_and_fallback_frames_fit_every_size_and_orientation),

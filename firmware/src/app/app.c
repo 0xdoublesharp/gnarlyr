@@ -1811,6 +1811,7 @@ static uint32_t view_stamp(void)
     stamp = stamp_add(stamp, battery.known);
     stamp = stamp_add(stamp, battery.percent);
     stamp = stamp_add(stamp, battery.charging);
+    stamp = stamp_add(stamp, battery.charge_disabled);
     stamp = stamp_add(stamp, battery.usb_power);
     stamp = stamp_add(stamp, (uint32_t)bluetooth_of(&app.bluetooth));
     stamp = stamp_add(stamp, app.lock.locked);

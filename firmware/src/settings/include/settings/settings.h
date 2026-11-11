@@ -185,6 +185,8 @@ typedef struct Settings {
     uint8_t replay_gain_mode;
     bool prevent_clipping;
     bool battery_percent;
+    uint8_t battery_care;
+    uint8_t shared_e14;
     bool rewind_on_resume;
     bool safe_start_volume;
     uint8_t safe_start_volume_level;

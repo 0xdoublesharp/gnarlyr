@@ -37,6 +37,9 @@ AUTO_GAIN_SPEC = ("replay_gain", "STR_REPLAY_GAIN", "REPLAY_GAIN_OPTIONS",
                   ("off", "track", "album", "auto"),
                   ("STR_OFF", "STR_REPLAY_GAIN_TRACK", "STR_REPLAY_GAIN_ALBUM", "STR_REPLAY_GAIN_AUTO"),
                   5, 3, 0, 0)
+BATTERY_CARE_SPEC = ("battery_care", "STR_BATTERY_CARE", "BATTERY_CARE_OPTIONS",
+                     ("charge_to_full", "run_from_usb"), ("STR_CHARGE_FULL", "STR_RUN_USB"),
+                     52, 24, 4, 0)
 CLOCK_SPEC = ("clock_24h", "STR_CLOCK_FORMAT", "CLOCK_FORMAT_OPTIONS", ("12h", "24h"),
               ("STR_CLOCK_12H", "STR_CLOCK_24H"), 38, 4, 2, 0)
 
@@ -74,6 +77,8 @@ class Layout:
             if echo_language.constant(source, "CLOCK_24H_BIT") != 4:
                 raise ValueError("the installed clock setting encoding has changed")
             self.specs += (CLOCK_SPEC,)
+        if snapshot.battery_care_supported:
+            self.specs += (BATTERY_CARE_SPEC,)
         self.title_ids()
         for spec in self.specs:
             options = spec[2]

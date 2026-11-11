@@ -60,6 +60,9 @@ enum {
     TRANSITION_BYTE = 2,
     HOME_ORDER_BYTE = 4,
     HOME_HIDDEN_BYTE = 9,
+    BATTERY_CARE_BYTE = 14,
+    BATTERY_CARE_SHIFT = 3,
+    BATTERY_CARE_MASK = 24,
     RESERVED_BYTE = 11,
     RESERVED_COUNT = 5,
     EXTENSION_SIZE = 16,
@@ -149,6 +152,9 @@ bool settings_home_unpack(const uint8_t *packed, int item_count, uint8_t *order,
 
 static void read_extension(const uint8_t *extension, Settings *settings)
 {
+    settings->battery_care =
+        (extension[BATTERY_CARE_BYTE] & BATTERY_CARE_MASK) >> BATTERY_CARE_SHIFT;
+    settings->shared_e14 = extension[BATTERY_CARE_BYTE] & (uint8_t)~BATTERY_CARE_MASK;
     uint8_t comfort = extension[COMFORT_BYTE];
     settings->rewind_on_resume = (comfort & REWIND_BIT) != 0;
     settings->safe_start_volume = (comfort & SAFE_START_BIT) != 0;
@@ -275,6 +281,8 @@ static uint32_t checksum_of(const uint8_t *bytes, int field)
 
 static void encode_extension(const Settings *settings, uint8_t *extension)
 {
+    extension[BATTERY_CARE_BYTE] = (settings->shared_e14 & (uint8_t)~BATTERY_CARE_MASK) |
+                                   (uint8_t)(settings->battery_care << BATTERY_CARE_SHIFT);
     extension[COMFORT_BYTE] = (uint8_t)((settings->rewind_on_resume ? REWIND_BIT : 0) |
                                         (settings->safe_start_volume ? SAFE_START_BIT : 0) |
                                         (settings->clock_24h ? CLOCK_24H_BIT : 0) |
@@ -431,7 +439,9 @@ static bool reserved_clear(const uint8_t *extension)
 {
     uint8_t any = extension[TRANSITION_BYTE + 1];
     for (int index = 0; index < RESERVED_COUNT; index++) {
-        any |= extension[RESERVED_BYTE + index];
+        if (RESERVED_BYTE + index != BATTERY_CARE_BYTE) {
+            any |= extension[RESERVED_BYTE + index];
+        }
     }
     return any == 0;
 }
@@ -447,7 +457,8 @@ static bool extension_valid(const uint8_t *bytes)
     return comfort >> TRANSITION_SHIFT < TRACK_TRANSITION_COUNT &&
            extension[SAFE_LEVEL_BYTE] <= SETTINGS_VOLUME_MAX &&
            tenths >= SETTINGS_TRANSITION_TENTHS_MIN && tenths <= SETTINGS_TRANSITION_TENTHS_MAX &&
-           home_valid(extension) && reserved_clear(extension);
+           home_valid(extension) && reserved_clear(extension) &&
+           ((extension[BATTERY_CARE_BYTE] & BATTERY_CARE_MASK) >> BATTERY_CARE_SHIFT) < 3;
 }
 
 static void decode_extension(const uint8_t *bytes, Settings *settings)

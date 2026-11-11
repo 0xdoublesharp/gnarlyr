@@ -92,7 +92,7 @@ The CMake targets enforce these rules. Each module exposes only its own `include
   | 38–53 | extension block, below | 15 |
   | 54–57 | FNV-1a checksum of bytes 0–53 | 15 |
 
-  Version 15 inserts a 16-byte extension block before the checksum and grows the file from 42 to 58 bytes. `settings_store` tries 58 bytes, then 42, then 32. Files of versions 1–14 load with the extension defaults, and the next save writes version 15. A version 15 file with any invalid extension value is rejected like any other invalid field. In byte 5, bit 3 is reserved for the battery percent and bits 4–5 for the USB connect mode; version 15 still requires bits 3–7 to be zero. The block's offsets count from byte 38:
+  Version 15 inserts a 16-byte extension block before the checksum and grows the file from 42 to 58 bytes. `settings_store` tries 58 bytes, then 42, then 32. Files of versions 1–14 load with the extension defaults, and the next save writes version 15. A version 15 file with any invalid extension value is rejected like any other invalid field. In byte 5, bit 3 stores battery percent and bits 4–5 store the USB connect mode; bits 6–7 remain zero. ReplayGain uses bits 0–1, including value 3 for Auto. The block's offsets count from byte 38:
 
   | Byte | Field | Default | Valid |
   |---|---|---|---|
@@ -102,7 +102,8 @@ The CMake targets enforce these rules. Each module exposes only its own `include
   | E3 | reserved | 0 | 0 |
   | E4–E8 | `home_order`: up to ten 4-bit Home item indices in display order, low nibble first | 0 to 9, the built-in order | see the Home order rule below |
   | E9–E10 | `home_hidden`: little-endian mask, bit n hides Home item n | 0 | only bits of stored items; bit 3 (Settings) zero |
-  | E11–E15 | reserved | 0 | 0 |
+  | E11–E13, E15 | reserved | 0 | 0 |
+  | E14 | bits 3–4 battery care: 0 charge to full, 1 reserved 80% mode (currently charge to full), 2 run from USB | 0 | below 3; all other bits preserved |
 
   The Home item indices are those of `APP_HOME_ITEMS` (`app/app_screens.c`): 0 Music, 1 Audiobooks, 2 Podcasts, 3 Settings (`SETTINGS_HOME_SETTINGS_ITEM`), 4 Now playing, 5 Up next, 6 Mixtapes, 7 Listening, 8 USB mode, 9 Clock. Settings can never be hidden, so Home always keeps an item. `rewind_on_resume` drives Rewind on resume (see Playback) and `safe_start_volume` with its level drives Safe start volume (see Settings and favorites); `track_transition` and `transition_tenths` drive Transitions (see Playback); `clock_24h` drives Clock format through `wall_time_24h` for Clock and status-bar time (see Wall clock).
 
@@ -735,4 +736,12 @@ While the Now Playing seek cursor is open, Menu cycles A, B and clear at the aud
 
 Activation and clearing rebuild buffered audio once; subsequent loops use the existing source-handoff path. Next-track preparation is suppressed while looping. A track token change clears pending A; manual playback clears both marks. Pauses with marks retain the output so standby does not discard them. USB handoff clears marks. End sleep clears marks before suppressing the queue. Exact PCM tests cover FLAC marks between millisecond ticks, across a FLAC block and inside a CUE-style range; MP3 retains its source’s approximate seek contract.
 
-The processing module now owns PCM span conversion, transition/sleep shaping and mark changes through `AudioProcessEntry`; the resident engine retains source lifecycle and loop boundary enforcement. The module has no BSS, the fixed engine and player state stay with their owners, and the source-open path requires the checked module before PCM processing. A missing module refuses playback as before. No extension-module code or settings bytes are added.
+The processing module now owns PCM span conversion, transition/sleep shaping, live EQ retuning and mark changes through `AudioProcessEntry`; the resident engine retains source lifecycle and loop boundary enforcement. The module has no BSS, the fixed engine and player state stay with their owners, and the source-open path requires the checked module before PCM processing. A missing module refuses playback as before. No extension-module code or settings bytes are added.
+
+## USB power without charging
+
+Battery care owns only E14 bits 3–4 in settings v15. `shared_e14` preserves all other E14 bits through saves; no other extension allocation changes. Value 1 is reserved for an 80% limiter and safely charges to full in this build; the picker exposes only values 0 and 2. The companion uses the same masked field and preserves the shared bits. Controls remains the final Settings row.
+
+`board_power_usb_supply_follow` remains the sole owner of GPIO2.0 and GPIO0.14. Its two-bit cached output separates USB supply (GPIO2.0 high whenever cable power is requested) from charging (GPIO0.14 high). Stock's UAC Computer mode at module 9 `0x030815a2`–`0x030816f2` uses that high/low combination for “Power only, no charging”; Normal keeps both high. Pin order comes from `board_power_pair`, and power-off drives both low. No extension code is added.
+
+`battery_care_charge` keeps charging enabled for unknown readings and below 3,600 mV; once enabled it stays on until 3,800 mV. The board requires eight readings before allowing charging off, starts each plug-in with charging enabled, and checks the policy from both the main USB follower and battery reads in USB and charge-screen loops. Charger-tracker state resets when output bits change; disabled charging cannot be reported as active or charged. The charge screen explicitly says Charging off. USB supply remains enabled throughout this override. The ADC reads the supply rail, so percentage limiting is not implemented and physical charger/load checks remain required.

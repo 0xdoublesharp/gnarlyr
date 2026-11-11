@@ -213,3 +213,33 @@ void audio_convert_pending(const AudioEngine *engine, uint32_t *words, uint32_t 
         convert_24(&span);
     }
 }
+
+static bool same_curve(const HalAudioEqualizer *first, const HalAudioEqualizer *second)
+{
+    bool same = first->band_count == second->band_count && first->pre_gain == second->pre_gain;
+    for (int band = 0; same && band < first->band_count && band < HAL_AUDIO_EQUALIZER_BANDS;
+         band++) {
+        same = first->band_hz[band] == second->band_hz[band] &&
+               first->gain_half_db[band] == second->gain_half_db[band];
+    }
+    return same;
+}
+
+void audio_engine_set_equalizer(AudioEngine *engine, const HalAudioEqualizer *curve)
+{
+    if (same_curve(&engine->equalizer_curve, curve)) {
+        return;
+    }
+    HalAudioEqualizer before = engine->equalizer_curve;
+    engine->equalizer_curve = *curve;
+    if (engine->equalizing && engine->config.equalizer != NULL) {
+        engine->equalizing = equalizer_retune(
+            engine->config.equalizer,
+            (EqualizerChange){.before = &before, .after = &engine->equalizer_curve},
+            engine->output_rate);
+    } else {
+        engine->equalizing = engine->config.equalizer != NULL &&
+                             equalizer_design(engine->config.equalizer, &engine->equalizer_curve,
+                                              engine->output_rate);
+    }
+}

@@ -5286,9 +5286,26 @@ static void clipping_preview_is_discarded_by_back_shutdown_and_unrelated_saves(v
     CHECK(chosen.prevent_clipping);
 }
 
+static void battery_care_can_be_set_and_is_applied_again_after_restart(void)
+{
+    start_app_with_library();
+    const DebugScriptRun *run = run_script("build any\nset Battery care=Run from USB\n", 100);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
+    CHECK_EQUAL(2, fake_hal_battery_care_mode());
+    Settings settings;
+    CHECK(saved_settings(&settings));
+    CHECK_EQUAL(2, settings.battery_care);
+    restart_app();
+    CHECK_EQUAL(2, fake_hal_battery_care_mode());
+    run = run_script("build any\nset Battery care=Charge to full\n", 100);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
+    CHECK_EQUAL(0, fake_hal_battery_care_mode());
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(battery_care_can_be_set_and_is_applied_again_after_restart),
         TEST_CASE(a_notice_is_drawn_at_once_over_the_current_screen),
         TEST_CASE(a_notice_turns_the_display_on),
         TEST_CASE(waking_keeps_the_screen_on_for_a_full_timeout),

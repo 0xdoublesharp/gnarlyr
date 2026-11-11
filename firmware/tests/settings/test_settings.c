@@ -1154,7 +1154,7 @@ static void each_invalid_extension_value_is_rejected_without_mutating_the_settin
     static const uint8_t CASES[][2] = {
         {0, 0x20},  {0, 0x40},  {0, 0x80}, {0, 0x18}, {1, 61},   {2, 4},    {2, 61},   {2, 0},
         {3, 1},     {4, 0x00},  {4, 0x11}, {6, 0x55}, {8, 0x18}, {8, 0x09}, {9, 0x08}, {9, 0xFF},
-        {10, 0x04}, {10, 0x80}, {11, 1},   {12, 1},   {13, 1},   {14, 1},   {15, 0x80}};
+        {10, 0x04}, {10, 0x80}, {11, 1},   {12, 1},   {13, 1},   {14, 24},  {15, 0x80}};
     for (uint32_t at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
         Settings original = settings_defaults();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1316,9 +1316,32 @@ static void safe_start_volume_off_keeps_the_volume(void)
     CHECK_EQUAL(SETTINGS_VOLUME_MAX, settings_safe_start_volume(&settings, SETTINGS_VOLUME_MAX));
 }
 
+static void battery_care_owns_only_e14_bits_three_and_four(void)
+{
+    for (int other = 0; other < 256; other++) {
+        if ((other & 24) != 0) {
+            continue;
+        }
+        Settings settings = settings_defaults();
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&settings, bytes);
+        bytes[52] = (uint8_t)(other | 16);
+        rewrite_checksum(bytes);
+        CHECK(settings_decode(bytes, sizeof bytes, &settings));
+        settings.volume = 7;
+        settings_encode(&settings, bytes);
+        CHECK_EQUAL(other | 16, bytes[52]);
+        CHECK_EQUAL(2, settings.battery_care);
+        settings.battery_care = 0;
+        settings_encode(&settings, bytes);
+        CHECK_EQUAL(other, bytes[52]);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(battery_care_owns_only_e14_bits_three_and_four),
         TEST_CASE(defaults_are_comfortable),
         TEST_CASE(the_extension_defaults_keep_todays_behaviour),
         TEST_CASE(the_extension_block_sits_between_the_language_and_the_checksum),

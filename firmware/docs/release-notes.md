@@ -20,6 +20,8 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Interface and sound controls
 
+- Battery care adds Run from USB with charging disabled above a safe voltage, and Charge to full. Low or unknown readings enable charging again; the charge screen shows Charging off. An 80% limit is unavailable because the USB-powered ADC does not reliably measure cell charge. Real charger/load acceptance remains open.
+
 - Settings → Clock format selects 12-hour time with AM/PM or 24-hour time for Clock and the status bar, including Calendar. The choice survives restarts.
 - Four named headphone profiles apply attenuation-only trim, left/right balance and a volume ceiling to music and USB DAC output. Settings → Headphones selects and edits them; verified alternating-bank saves keep profiles on internal storage without changing settings v15. Switching to less attenuation lowers the saved mode volumes first. Analog Gain is unchanged; physical output checks remain pending.
 - Five themes with live preview, configurable playback tap/hold actions, shared icons and cassette artwork.

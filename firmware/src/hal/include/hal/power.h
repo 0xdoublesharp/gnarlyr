@@ -8,6 +8,7 @@ typedef struct HalBattery {
     uint8_t percent;
     bool charging;
     bool usb_power;
+    bool charge_disabled;
     uint16_t millivolts;
 } HalBattery;
 
@@ -24,3 +25,5 @@ typedef struct HalPowerHold {
 HalPowerHold hal_power_boot_hold(void);
 bool hal_power_take_usb_start(void);
 void hal_power_off(void);
+
+void hal_power_set_battery_care(uint8_t mode);

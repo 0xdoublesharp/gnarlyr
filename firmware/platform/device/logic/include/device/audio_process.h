@@ -16,6 +16,7 @@ typedef struct AudioProcessEntry {
     void (*run)(Equalizer *equalizer, uint32_t *words, uint32_t frames);
     void (*fade_in)(AudioFadeBlock block, AudioFadeRamp *ramp);
     void (*fade_out)(AudioFadeBlock block, AudioFadeRamp *ramp, int64_t remaining);
+    void (*set_equalizer)(AudioEngine *engine, const HalAudioEqualizer *curve);
     void (*convert)(const AudioEngine *engine, uint32_t *words, uint32_t frames, int shift);
     void (*shape)(AudioEngine *engine, uint32_t first, bool tail);
     void (*sleep)(AudioEngine *engine, uint32_t remaining_ms);

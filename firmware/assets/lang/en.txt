@@ -656,3 +656,8 @@ STR_REPLAY_GAIN_AUTO = Auto
 STR_AB_OFF = A-B off
 STR_AB_A = A set, B next
 STR_AB_LOOP = A-B repeat
+
+STR_BATTERY_CARE = Battery care
+STR_CHARGE_FULL = Charge to full
+STR_RUN_USB = Run from USB
+STR_CHARGE_DISABLED = Charging off
