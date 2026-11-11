@@ -1028,6 +1028,30 @@ static void cancelling_a_stored_order_write_allows_a_later_retry(void)
     CHECK(fake_hal_audio_play_count() > 0);
 }
 
+static void a_failed_order_write_keeps_the_current_track_playing(void)
+{
+    start();
+    fake_hal_add_file(PLAYER_SESSION_PATH, NULL, 4096);
+    player_init(&playback_player, &fixture.library);
+    player_restore(&playback_player);
+    CHECK(player_play_list(&playback_player, browse_root_query(BROWSE_ALL_SONGS), 0, 7));
+    PlayerStatus before = player_status(&playback_player);
+    CHECK(before.has_track);
+    discovery.config.player = &playback_player;
+    explore();
+    fake_hal_fail_file_writes(PLAYER_ORDER_PATH);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    for (uint32_t step = 0; step < 10000 && discovery.request != DISCOVERY_REQUEST_NONE; step++) {
+        discovery_playback_step(&discovery, step);
+    }
+    fake_hal_fail_file_writes(NULL);
+    CHECK_EQUAL(DISCOVERY_REQUEST_NONE, discovery.request);
+    PlayerStatus after = player_status(&playback_player);
+    CHECK(after.has_track);
+    CHECK_EQUAL(before.track, after.track);
+    CHECK_EQUAL(PLAYER_PLAYING, after.state);
+}
+
 int main(void)
 {
     const TestCase cases[] = {
@@ -1039,6 +1063,7 @@ int main(void)
         TEST_CASE(cancelling_a_play_request_clears_it_without_starting_audio),
         TEST_CASE(playing_a_discovery_result_starts_the_selected_track),
         TEST_CASE(cancelling_a_stored_order_write_allows_a_later_retry),
+        TEST_CASE(a_failed_order_write_keeps_the_current_track_playing),
         TEST_CASE(search_progress_cancel_failure_and_results_draw_distinct_states),
         TEST_CASE(active_filters_change_the_results_summary),
         TEST_CASE(track_actions_enqueue_without_interrupting_current_playback),
