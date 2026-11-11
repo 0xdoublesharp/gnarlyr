@@ -293,7 +293,7 @@ def module_problems(device_map, modules):
             problems.append(f"module {name} is not linked for the main program's module slot")
             continue
         code, zeroed = module_extent(module_map)
-        if name in ("dsp", "ogg", "process") and zeroed:
+        if name in ("dsp", "ogg") and zeroed:
             problems.append("the audio module must keep all state in its caller")
         if name == "extension" and zeroed:
             problems.append("the extension module must keep all state in the main program")

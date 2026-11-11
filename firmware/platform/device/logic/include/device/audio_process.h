@@ -5,7 +5,7 @@
 #include "device/equalizer.h"
 
 #define AUDIO_PROCESS_BASE 0x0308F000u
-#define AUDIO_PROCESS_BYTES 0x3000u
+#define AUDIO_PROCESS_BYTES 0x5000u
 #define AUDIO_PROCESS_NUMBER 7u
 #define AUDIO_PROCESS_MAGIC 0x074D5344u
 

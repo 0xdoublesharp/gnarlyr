@@ -1,7 +1,7 @@
 MEMORY
 {
-    MODULE_RAM (rx) : ORIGIN = 0x0308F000, LENGTH = 0x3000
-    MODULE_ZEROED (rw) : ORIGIN = 0x0308F000, LENGTH = 0x3000
+    MODULE_RAM (rx) : ORIGIN = 0x0308F000, LENGTH = 0x5000
+    MODULE_ZEROED (rw) : ORIGIN = 0x0308F000, LENGTH = 0x5000
 }
 
 SECTIONS
@@ -41,4 +41,4 @@ ASSERT(module_entry_end - module_entry >= 8, "a module needs one entry table nam
 ASSERT(SIZEOF(.data) == 0, "a module may not hold initialised data: make it const")
 ASSERT(ADDR(.bss) >= ADDR(.overlay) + SIZEOF(.overlay), "a module's .bss must follow its code")
 
-ASSERT(SIZEOF(.bss) == 0, "the audio module must keep all state in the caller")
+ASSERT(ADDR(.bss) + SIZEOF(.bss) <= ORIGIN(MODULE_ZEROED) + LENGTH(MODULE_ZEROED), "the processing code and private state must fit their bank")

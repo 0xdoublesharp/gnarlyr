@@ -6,10 +6,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from echo_image_harness import (
     EchoImageHarness,
     main,
+    make_image,
 )
 
 
 class EchoImageTest(EchoImageHarness):
+    def test_processing_capacity_grows_while_the_glyph_cache_keeps_64_slots(self):
+        self.assertEqual(0x5000, make_image.PROCESS_MODULE_CAPACITY)
+        session, machine = self.started_session()
+        slots = int.from_bytes(machine.read_memory(machine.symbols["slot_count"], 4), "little")
+        self.assertEqual(64, slots)
+        self.assert_healthy(session)
+
     def test_paused_i2s_flags_do_not_count_but_active_flags_still_do(self):
         rig = self.speech_rig(44100)
         rig.open_songs()

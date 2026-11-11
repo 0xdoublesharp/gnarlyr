@@ -24,9 +24,8 @@ _Static_assert(OVERLAY_WINDOW_BYTES % SECTOR_BYTES == 0, "whole sectors fit the 
 _Static_assert(MODULE_SLOT_BYTES % SECTOR_BYTES == 0, "whole sectors fit the module slot");
 _Static_assert(MODULE_SLOT_BASE + MODULE_SLOT_BYTES == AUDIO_PROCESS_BASE,
                "the UI slot ends where audio processing starts");
-_Static_assert(AUDIO_PROCESS_BASE + AUDIO_PROCESS_BYTES ==
-                   OVERLAY_WINDOW_BASE + OVERLAY_WINDOW_BYTES,
-               "audio processing is the end of the overlay window");
+_Static_assert(AUDIO_PROCESS_BASE + AUDIO_PROCESS_BYTES == GLYPH_WINDOW_BASE,
+               "audio processing ends where the glyph cache starts");
 
 static const BoardImageTable MODULE_TABLE = {MODULE_TABLE_OFFSET, MODULE_TABLE_MAGIC,
                                              MODULE_TABLE_ROWS};

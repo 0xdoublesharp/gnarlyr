@@ -6,6 +6,7 @@
 #include "emmc.h"
 #include "gfx/font_pack.h"
 #include "hal/system.h"
+#include "overlay.h"
 
 #define GLYPH_TABLE_OFFSET 0x2C0000u
 #define GLYPH_TABLE_MAGIC 0x54504745u
@@ -16,8 +17,7 @@ enum {
     SECTOR_WORDS = SECTOR_BYTES / 4,
     TABLE_HEADER_BYTES = 8,
     TABLE_ROW_BYTES = 8,
-    GLYPH_RAM_BYTES = 0x9000,
-    CACHE_WORDS = (GLYPH_RAM_BYTES - 2 * SECTOR_BYTES) / 4
+    CACHE_WORDS = (GLYPH_WINDOW_BYTES - 2 * SECTOR_BYTES) / 4
 };
 
 static uint32_t table[SECTOR_WORDS] __attribute__((section(".glyph_ram")));
