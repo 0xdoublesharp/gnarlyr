@@ -690,6 +690,56 @@ static void a_scratch_read_failure_after_preparation_is_an_io_error(void)
     free(built.output.bytes);
 }
 
+static Scratch *prepare_for_encoding(LibraryBuilder *builder)
+{
+    Scratch *scratch = start(builder);
+    add_fixture_tracks(builder);
+    CHECK_EQUAL(BUILDER_OK, library_builder_begin_playlist(builder, "Road Trip", "Playlists"));
+    CHECK_EQUAL(BUILDER_OK,
+                library_builder_playlist_entry(
+                    builder, "../AC DC/Back In Black/1-01 - Hells Bells.flac", BUILDER_ANY_START));
+    return scratch;
+}
+
+static void check_encoding_faults(bool read)
+{
+    LibraryBuilder reference;
+    Scratch *scratch = prepare_for_encoding(&reference);
+    int before = read ? scratch->reads : scratch->writes;
+    Built built;
+    finish(&reference, &built);
+    CHECK_EQUAL(BUILDER_OK, built.result);
+    int operations = (read ? scratch->reads : scratch->writes) - before;
+    CHECK(operations > 0);
+    free(built.output.bytes);
+    int checkpoints = operations < 128 ? operations : 128;
+    for (int part = 0; part < checkpoints; part++) {
+        LibraryBuilder builder;
+        scratch = prepare_for_encoding(&builder);
+        int failure = checkpoints > 1 ? 1 + (operations - 1) * part / (checkpoints - 1) : 1;
+        if (read) {
+            scratch->fail_read = scratch->reads + failure;
+        } else {
+            scratch->fail_write = scratch->writes + failure;
+        }
+        finish(&builder, &built);
+        CHECK_EQUAL(BUILDER_WRITE_FAILED, built.result);
+        CHECK_EQUAL(0u, built.length);
+        CHECK(memcmp(built.output.bytes, "DSDB", 4) != 0);
+        free(built.output.bytes);
+    }
+}
+
+static void scratch_read_failures_during_encoding_do_not_publish_a_database(void)
+{
+    check_encoding_faults(true);
+}
+
+static void scratch_write_failures_during_encoding_do_not_publish_a_database(void)
+{
+    check_encoding_faults(false);
+}
+
 static void every_destination_failure_leaves_the_database_unpublished(void)
 {
     LibraryBuilder builder;
@@ -944,6 +994,8 @@ int main(void)
         TEST_CASE(failed_scratch_reads_during_preparation_never_publish_a_database),
         TEST_CASE(failed_scratch_writes_during_preparation_never_publish_a_database),
         TEST_CASE(a_scratch_read_failure_after_preparation_is_an_io_error),
+        TEST_CASE(scratch_read_failures_during_encoding_do_not_publish_a_database),
+        TEST_CASE(scratch_write_failures_during_encoding_do_not_publish_a_database),
         TEST_CASE(every_destination_failure_leaves_the_database_unpublished),
         TEST_CASE(a_failed_destination_can_be_retried_without_losing_tracks),
         TEST_CASE(the_most_frequent_genre_represents_a_mixed_album),
