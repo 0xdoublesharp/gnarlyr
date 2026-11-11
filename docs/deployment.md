@@ -2,8 +2,8 @@
 
 The app session owns this static website’s manual publication and DoublePaaS
 runtime. Website deployment does not build, distribute, or flash firmware.
-There is no public Gnarlyr source or firmware release URL yet. Add firmware
-screenshots under `site/assets/` when they are ready, then publish the updated page.
+There is no public Gnarlyr source or firmware release URL yet. The visual Docs guide uses simulator screenshots under `site/assets/screens/`;
+regenerate them with `tools/site_screenshots.py` before publishing interface changes.
 
 ## Production
 
@@ -19,8 +19,8 @@ screenshots under `site/assets/` when they are ready, then publish the updated p
 | Primary URL | https://gnarlyr.com; www redirects to the apex |
 | Secondary validation URL | https://gnarlyr.apps.doublesharp.com |
 | Origin address | `159.89.222.183` |
-| Current content release | `acea3cc825bb5be0db47339a4e3ee9abd1d920b3475352008b57cc4dcff6587e` |
-| Rollback content release | `850bc17f6970532d1e32584d4464c1cf653520e2a8191e3710538c211373d6f2` |
+| Current content release | `9d6f9d2fcdfedbdc8d7889d93905cc39103d2d792576466dc1e1885e94081170` |
+| Rollback content release | `acea3cc825bb5be0db47339a4e3ee9abd1d920b3475352008b57cc4dcff6587e` |
 
 This is a user-defined Compose Service with normal Coolify parsing, not a
 Git-backed Application. `site/deploy/compose.yaml` owns the runtime, mounts,
@@ -52,7 +52,7 @@ normal service configuration/start operations. There is no GitHub release
 workflow or automatic push deployment for this local-only source repository.
 
 The publisher includes only `index.html`, `firmware.html`, `hardware.html`,
-`install.html`, `build.html`, `styles.css`, `site.js`, `favicon.svg`, `robots.txt`,
+`docs.html`, `recovery.html`, `install.html`, `build.html`, `styles.css`, `site.js`, `favicon.svg`, `robots.txt`,
 `sitemap.xml`, `languages.html`, `language-catalog.js`, `language-packs.js`, and regular public image files under `site/assets/`, up to
 64 MiB total. Firmware, README files, deployment files and hidden files are
 excluded. SHA-256 of the ordered paths and file hashes identifies a release.
@@ -79,10 +79,10 @@ Do not restart the shared proxy for an ordinary site release.
 
 ## Verify and recover
 
-Require HTTP 200 for `/`, `/firmware.html`, `/hardware.html`, `/install.html`, `/build.html`,
+Require HTTP 200 for `/`, `/firmware.html`, `/docs.html`, `/hardware.html`, `/recovery.html`, `/install.html`, `/build.html`,
 `/styles.css`, `/site.js`, `/favicon.svg`, `/robots.txt`, `/sitemap.xml`,
 `/languages.html`, `/language-catalog.js`, `/language-packs.js` and
-`/healthz`; compare all thirteen public files byte-for-byte against local source at
+`/healthz`; compare all fifteen public root files and every published screenshot byte-for-byte against local source at
 the origin. At the Cloudflare edge, HTML includes an injected analytics beacon;
 remove only that known script when comparing HTML. Other files must match exactly. Require 404 for
 `/README.md`, `/deploy/compose.yaml` and an unknown path. Verify origin TLS

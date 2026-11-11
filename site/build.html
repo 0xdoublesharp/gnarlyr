@@ -15,7 +15,7 @@
       <svg viewBox="0 0 32 24" fill="none" aria-hidden="true"><rect x="1" y="2" width="30" height="20" rx="3" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="6" width="22" height="9" rx="2" stroke="currentColor"/><circle cx="10" cy="10.5" r="2.5" stroke="currentColor"/><circle cx="22" cy="10.5" r="2.5" stroke="currentColor"/><path d="m8 22 3-5h10l3 5" stroke="currentColor"/></svg>
       <span class="wordmark">GNARLYR<span class="brand-dot">.</span></span>
     </a>
-<nav aria-label="Main navigation"><a href="firmware.html">Features</a><a href="hardware.html">Hardware</a><a href="install.html">Install</a><a href="languages.html" class="nav-cta">Languages</a></nav>
+<nav aria-label="Main navigation"><a href="firmware.html">Features</a><a href="docs.html">Docs</a><a href="install.html">Install</a><a href="languages.html" class="nav-cta">Languages</a></nav>
 </header>
 <main id="main">
 <div class="page-intro wrap"><p class="eyebrow">Source builds · developer tools</p><h1 class="page-title">Build and develop.</h1><p>Build firmware, use the developer USB loop and explore codec tools from a Gnarlyr source checkout. For a ready-made image and player setup, use the <a href="install.html">Install guide</a>.</p></div>
@@ -25,6 +25,7 @@
 <li><a href="#processing">ReplayGain &amp; tempo source</a></li>
 <li><a href="#usb">USB internals</a></li>
 <li><a href="#migration">Older custom builds</a></li>
+<li><a href="#recovery-tools">Recovery tool setup</a></li>
 <li><a href="#recovery">Recovery reference</a></li></ol></nav><div>
 <section class="doc-section" id="build" aria-labelledby="build-title">
 <h2 id="build-title">Build from your checkout.
@@ -160,6 +161,8 @@
 <p>Gnarlyr uses <code>GNARLYR</code>, the data folder <code>/.gnarlyr</code> and the CUE playlist directive <code>#GNARLYR-START:</code>. The transition guide explains how to update older exported CUE playlists while preserving their paths and track positions. Ordinary music files keep their contents.</p>
 <p>Keep the original backup and exact-model recovery files throughout the transition. Renaming an image alone cannot change the identity inside it.</p>
 </section>
+<section class="doc-section" id="recovery-tools" aria-labelledby="recovery-tools-title"><h2 id="recovery-tools-title">Build the ECHO recovery tool.</h2><p class="intro">The recovery tool talks to the chip before the player software starts. Build the patched version for the full-size ECHO from your Gnarlyr checkout on macOS.</p><p>Use the project’s libusb and CMake prerequisites. With Scratch mounted, run these commands from the repository root. Clone and patch once; the patch refuses a checkout it does not recognize or one already patched.</p><pre><code><span class="cmd">export TMPDIR=/Volumes/Scratch/SnowskyEcho/tmp/recovery-tool</span><span class="cmd">mkdir -p &quot;$TMPDIR&quot;</span><span class="cmd">git clone https://github.com/rockchip-linux/rkdeveloptool.git .local/references/rkdeveloptool</span><span class="cmd">git -C .local/references/rkdeveloptool checkout --detach 304f073752fd25c854e1bcf05d8e7f925b1f4e14</span><span class="cmd">python3 firmware/tools/patch_rkdeveloptool.py .local/references/rkdeveloptool</span><span class="cmd">cmake -S tools/recovery -B /Volumes/Scratch/SnowskyEcho/build/recovery-tool \
+  -DRKDEVELOPTOOL_SOURCE=&quot;$PWD/.local/references/rkdeveloptool&quot; -DCMAKE_BUILD_TYPE=Release</span><span class="cmd">cmake --build /Volumes/Scratch/SnowskyEcho/build/recovery-tool -j4</span><span class="cmd">export PATH=&quot;/Volumes/Scratch/SnowskyEcho/build/recovery-tool:$PATH&quot;</span></code></pre><p>The result is <code>rkdeveloptool-echo</code>, version 1.32. The project verifies the pinned revision and patched contents before building. <a href="recovery.html">Continue with the first-installation and recovery guide →</a></p></section>
 <section class="doc-section" id="recovery" aria-labelledby="recovery-title">
 <h2 id="recovery-title">Restore the original firmware.
 </h2>
@@ -180,7 +183,7 @@
 <p class="eyebrow">Made for the music you already love.
 </p></div>
 <footer class="wrap">
-<nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html">Features &amp; improvements</a><a href="hardware.html">ECHO hardware</a><a href="install.html">Install &amp; update</a><a href="languages.html">Languages</a><a href="build.html" aria-current="page">Developers</a></nav>
+<nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html">Features &amp; improvements</a><a href="docs.html">Docs</a><a href="install.html">Install &amp; update</a><a href="languages.html">Languages</a><a href="build.html" aria-current="page">Developers</a></nav>
 <div class="footer-row"><span>GNARLYR.COM / Open-source ECHO firmware</span><div class="footer-links"><a href="https://podium-echo.online">Podium ↗</a><a href="https://github.com/BasilSkyWalk/echopod">EchoPod ↗</a><a href="https://github.com/brnomt/ReChord">ReChord ↗</a><a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0-or-later ↗</a></div></div>
 <p>Gnarlyr by doublesharp. Built on Podium and EchoPod, with hardware research from ReChord.
 </p>
