@@ -157,6 +157,7 @@ typedef struct Settings {
     char language[SETTINGS_LANGUAGE_CAPACITY];
     uint8_t replay_gain_mode;
     bool prevent_clipping;
+    bool battery_percent;
 } Settings;
 
 typedef struct SettingsEqualizerCurve {

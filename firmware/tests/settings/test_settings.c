@@ -902,9 +902,31 @@ static void normalization_modes_and_peak_protection_round_trip_in_the_existing_r
     }
 }
 
+static void battery_percentage_defaults_off_and_round_trips_in_a_spare_flag_bit(void)
+{
+    CHECK(!settings_defaults().battery_percent);
+    Settings chosen = custom_settings();
+    chosen.battery_percent = true;
+    chosen.replay_gain_mode = REPLAY_GAIN_TRACK;
+    chosen.prevent_clipping = false;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&chosen, bytes);
+    CHECK_EQUAL(14, bytes[4]);
+    CHECK_EQUAL(42, sizeof bytes);
+    Settings restored;
+    CHECK(settings_decode(bytes, sizeof bytes, &restored));
+    CHECK(restored.battery_percent);
+    CHECK_EQUAL(REPLAY_GAIN_TRACK, restored.replay_gain_mode);
+    CHECK(!restored.prevent_clipping);
+    chosen.battery_percent = false;
+    settings_encode(&chosen, bytes);
+    CHECK(settings_decode(bytes, sizeof bytes, &restored));
+    CHECK(!restored.battery_percent);
+}
+
 static void invalid_normalization_flags_are_rejected_without_mutating_the_settings(void)
 {
-    static const uint8_t FLAGS[] = {3, 7, 8, 128, 255};
+    static const uint8_t FLAGS[] = {3, 7, 16, 128, 255};
     for (uint32_t at = 0; at < sizeof FLAGS / sizeof FLAGS[0]; at++) {
         Settings original = custom_settings();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -923,6 +945,7 @@ int main(void)
         TEST_CASE(defaults_are_comfortable),
         TEST_CASE(normalization_defaults_off_with_peak_protection_and_migrates_version_thirteen),
         TEST_CASE(normalization_modes_and_peak_protection_round_trip_in_the_existing_record_size),
+        TEST_CASE(battery_percentage_defaults_off_and_round_trips_in_a_spare_flag_bit),
         TEST_CASE(invalid_normalization_flags_are_rejected_without_mutating_the_settings),
         TEST_CASE(the_theme_version_keeps_the_existing_file_size),
         TEST_CASE(a_theme_survives_saving_without_moving_existing_settings),
