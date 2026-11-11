@@ -311,6 +311,8 @@ Home → Mixtapes saves a queue as a named list. Save queue captures the current
 
 ## Listening and lyrics
 
-Home → Listening shows total listening time, plays, skips, and top songs, albums and artists. It records time while music is playing. Totals and ranked lists work without a calendar clock. Export plays writes `/.scrobbler.log` for import tools.
+Home → Listening shows total listening time, plays, skips, and top songs, albums and artists. It records time while music is playing. Totals and ranked lists work without a calendar clock.
+
+Export plays saves your plays to `/.scrobbler.log` at the top of the player's drive, in the Rockbox scrobbler format that import tools read; your history stays as it is. It starts as soon as you choose it and shows how far it has got; Back cancels it. When it finishes it shows how many plays it saved. Each export replaces the previous file. With nothing to export it says so and leaves the file alone. Plays of songs no longer in the library are left out. The player has no clock, so every play is saved with the time 0.
 
 Place a timed `.lrc` file beside a song, with the same filename stem. Hold Menu on Now Playing to open Lyrics; tap Menu still opens Up Next. Lyrics follow playback, and the volume buttons move through the lines. Back returns to Now Playing.

@@ -155,10 +155,14 @@ A line is artist, album, title, track number, length in seconds, rating, the clo
 
 The player's file writer cannot grow a file, so the job has two parts on one `ListeningExport`:
 
-1. `listening_export_begin` and steps until done: one pass that adds up the size of the text in `bytes`. Nothing is written.
-2. `listening_export_write` with a file, and steps until done: the text is written in blocks of 512 bytes, one play and at most one write per step.
+1. `listening_export_begin` and steps until done: one pass that adds up the size of the text in `bytes` and counts the plays it will write in `plays`. Nothing is written.
+2. `listening_export_write` with a file, and steps until done: the text is written in blocks of 512 bytes.
 
-A file larger than the text is filled to its end with comment lines: `#`, 62 spaces and a line feed, the last one shorter. A file smaller than the text gets the newest plays that fit; the oldest are left out and counted in `dropped`. A write that fails ends the job as failed.
+A step reads the plays of one 512-byte sector of the ring, at most eight, and may write several blocks. A file larger than the text is filled to its end with comment lines: `#`, 62 spaces and a line feed, the last one shorter. A file smaller than the text gets the newest plays that fit; the oldest are left out and counted in `dropped`. A write that fails ends the job as failed.
+
+### Export plays screen
+
+Home → Listening → Export plays (`app/screens/listening_screen`) runs the job as soon as it opens; each pass takes up to 16 steps or 12 ms. When the measure finds no plays to write, the screen says so and leaves any earlier file alone. Otherwise it gives the file exactly the size of the text, so the file ends after its last line and holds no padding: an existing `/.scrobbler.log` of another size is deleted and reserved again at that size (at most `LISTENING_EXPORT_FILE_BYTES`, 2 MiB, which a ring of 4,096 plays cannot reach: its longest text is about 1.85 MB). If the old file cannot be deleted, or the card is full, the export fails without writing. Back or a long Back while the file is being written deletes the partial file. The screen shows the share of the two passes done, then the number of plays written and the file's name, the reason there was nothing to write, or why it failed.
 
 No scrobbling tool has been run on a file written this way.
 
@@ -173,4 +177,4 @@ No scrobbling tool has been run on a file written this way.
 
 ## Tests
 
-`test_listening_log` (the round trip, the layout, the two writes of a play, the counters, wrap-around, a write cut at every byte of the record and of the counters, damaged and misplaced records, a new file over old records, the off switch, the counter copies, an uncertain write, a later version), `test_listening_stats` (the summary with and without a clock, the week, streaks across 64 days, each top list on a hand-made log, the most replayed track, table sizes from 1 to 64 against a count made by the test, damaged records, a full ring, a play logged during a job), `test_listening_export` (the file byte for byte, no clock, control characters, the fill, a file that is too small, unknown tracks, long tags, failed writes) and `test_listening_track` (the keys against the library fixture and the CUE fixture).
+`test_listening_log` (the round trip, the layout, the two writes of a play, the counters, wrap-around, a write cut at every byte of the record and of the counters, damaged and misplaced records, a new file over old records, the off switch, the counter copies, an uncertain write, a later version), `test_listening_stats` (the summary with and without a clock, the week, streaks across 64 days, each top list on a hand-made log, the most replayed track, table sizes from 1 to 64 against a count made by the test, damaged records, a full ring, a play logged during a job), `test_listening_export` (the file byte for byte, no clock, control characters, the fill, a file that is too small, unknown tracks, long tags, a sector per step, failed writes), `test_listening_screen` (no plays, unknown songs only, the file against the format and ending after its last line, replacing smaller and larger files, a full ring, a full card, failed writes, leaving during the write, repeated Play, exporting again, a reused work buffer, the states at every size and orientation) and `test_listening_track` (the keys against the library fixture and the CUE fixture).
