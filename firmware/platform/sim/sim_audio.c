@@ -151,7 +151,7 @@ static bool decode_chunk(void)
     float gain = audio.gain * track->replay_gain;
     for (uint64_t sample = 0; sample < frames * STEREO; sample++) {
         uint32_t channel = sample % STEREO == 0 ? audio.headphones.left : audio.headphones.right;
-        float value = chunk[sample] * gain * ((float)channel / REPLAY_GAIN_UNITY);
+        float value = chunk[sample] * gain * ((float)channel / (float)REPLAY_GAIN_UNITY);
         chunk[sample] = value > 1 ? 1 : value < -1 ? -1 : value;
     }
     SDL_AudioStreamPut(audio.stream, chunk, (int)(frames * BYTES_PER_FRAME));
