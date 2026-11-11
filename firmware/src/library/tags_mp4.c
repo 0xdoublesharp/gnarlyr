@@ -93,16 +93,20 @@ static void read_duration(TagReader *reader, const Mp4Atom *trak)
     Mp4Atom mdhd;
     uint8_t data[32];
     if (!tags_mp4_find_child(reader, trak, 0, "mdia", &mdia) ||
-        !tags_mp4_find_child(reader, &mdia, 0, "mdhd", &mdhd) ||
-        !tag_read(reader, mdhd.body, data, mdhd.end - mdhd.body < 32 ? mdhd.end - mdhd.body : 32)) {
+        !tags_mp4_find_child(reader, &mdia, 0, "mdhd", &mdhd)) {
+        return;
+    }
+    uint32_t available = mdhd.end - mdhd.body;
+    uint32_t amount = available < sizeof data ? available : sizeof data;
+    if (amount == 0 || !tag_read(reader, mdhd.body, data, amount)) {
         return;
     }
     uint32_t unit = 0;
     uint64_t length = 0;
-    if (data[0] == 0) {
+    if (data[0] == 0 && amount >= 20) {
         unit = tag_be32(data + 12);
         length = tag_be32(data + 16);
-    } else if (data[0] == 1) {
+    } else if (data[0] == 1 && amount >= 32) {
         unit = tag_be32(data + 20);
         length = tag_be64(data + 24);
     }

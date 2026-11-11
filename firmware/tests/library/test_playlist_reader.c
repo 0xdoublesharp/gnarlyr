@@ -162,6 +162,29 @@ static void the_playlist_padding_of_a_favorites_file_reads_as_one_entry(void)
     CHECK(!playlist_reader_next(&reader, entry, sizeof entry));
 }
 
+static void unicode_whitespace_is_trimmed_without_losing_inner_spaces(void)
+{
+    static const char TEXT[] = "\xc2\xa0\xe1\x9a\x80\xe2\x80\x83" "Artist "
+                               "\xf0\x9f\x8e\xb5 Track.flac\xe3\x80\x80\n";
+    static const char *const WANTED[] = {"Artist \xf0\x9f\x8e\xb5 Track.flac", NULL};
+    check_entries(TEXT, sizeof TEXT - 1, WANTED);
+}
+
+static void truncated_entries_do_not_split_utf8_or_consume_the_next_line(void)
+{
+    static const char TEXT[] = "A\xe2\x82\xac" "B.flac\nnext.flac\n";
+    MemorySource memory = {.bytes = (const uint8_t *)TEXT, .size = sizeof TEXT - 1};
+    PlaylistReader reader;
+    char small[5];
+    char entry[PLAYLIST_ENTRY_CAPACITY];
+    CHECK(playlist_reader_open(&reader, memory_source(&memory), memory.size));
+    CHECK(playlist_reader_next(&reader, small, sizeof small));
+    CHECK_EQUAL(0, strcmp("A\xe2\x82\xac", small));
+    CHECK(playlist_reader_next(&reader, entry, sizeof entry));
+    CHECK_EQUAL(0, strcmp("next.flac", entry));
+    CHECK(!playlist_reader_next(&reader, entry, sizeof entry));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -174,6 +197,8 @@ int main(void)
         TEST_CASE(the_last_start_directive_before_an_entry_wins),
         TEST_CASE(a_malformed_start_directive_is_ignored),
         TEST_CASE(the_playlist_padding_of_a_favorites_file_reads_as_one_entry),
+        TEST_CASE(unicode_whitespace_is_trimmed_without_losing_inner_spaces),
+        TEST_CASE(truncated_entries_do_not_split_utf8_or_consume_the_next_line),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
