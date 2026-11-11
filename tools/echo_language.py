@@ -45,6 +45,7 @@ class Snapshot:
             code = "language_build_dirty" if isinstance(build, str) and "+" in build else "language_build_unknown"
             raise api.DebugError(code, "language operations require an exact clean installed firmware build")
         self.format = pack_tools(api.ROOT)
+        self.flags_reserved = 0xF8
         try:
             self.commit = git(api.ROOT, "rev-parse", "--verify", build + "^{commit}").strip()
             self.build = build
@@ -71,14 +72,15 @@ class Snapshot:
         declaration = re.search(r"typedef\s+enum\s+ReplayGainMode\s*\{([^}]+)\}", modes)
         names = [name.strip() for name in declaration.group(1).split(",")] if declaration else []
         compact = re.sub(r"\s+", "", source)
+        reserved = re.search(r"\(flags&0x(F8|F0)u\)==0&&\(flags&3u\)<REPLAY_GAIN_MODE_COUNT", compact)
         if (constant(source, "REPLAY_GAIN_VERSION") != 14 or
                 names != ["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
-                          "REPLAY_GAIN_MODE_COUNT"] or
-                "(flags&0xF8u)==0&&(flags&3u)<REPLAY_GAIN_MODE_COUNT" not in compact):
+                          "REPLAY_GAIN_MODE_COUNT"] or reserved is None):
             raise ValueError("the installed ReplayGain settings layout is unsupported")
+        self.flags_reserved = int(reserved.group(1), 16)
 
     def settings_flags_valid(self, version, flags):
-        return flags == 0 if version < 14 else flags & 0xF8 == 0 and flags & 3 < 3
+        return flags == 0 if version < 14 else flags & self.flags_reserved == 0 and flags & 3 < 3
 
     def show(self, path):
         return git(self.api.ROOT, "show", self.commit + ":" + path)

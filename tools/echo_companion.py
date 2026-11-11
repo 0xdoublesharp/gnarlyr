@@ -65,7 +65,9 @@ class Layout:
                 raise ValueError("the installed settings choices have changed")
         if snapshot.settings_version == 14:
             compact = re.sub(r"\s+", "", source)
-            if "bytes[VERSION_FIELD+1]=settings->replay_gain_mode|(settings->prevent_clipping?4u:0u);" not in compact:
+            if not re.search(r"bytes\[VERSION_FIELD\+1\]=settings->replay_gain_mode\|"
+                             r"\(settings->prevent_clipping\?4u:0u\)(\|\(settings->battery_percent\?8u:0u\))?;",
+                             compact):
                 raise ValueError("the installed ReplayGain settings encoding has changed")
 
     def title_ids(self):
