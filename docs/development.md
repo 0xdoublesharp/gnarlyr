@@ -2,6 +2,18 @@
 
 Start firmware work from the current `gnarlyr` branch. Each worktree gets its own build directory, temporary directory and simulator state under `/Volumes/Scratch/SnowskyEcho`. The wrapper stops if Scratch is not mounted and keeps the shared compiler cache separate.
 
+## Concurrent feature and coverage work
+
+The feature owner integrates firmware on `gnarlyr` in `~/Workspaces/worktrees/SnowskyEcho/fresh-base`. The coverage worker uses `test/branch-coverage-90` in `~/Workspaces/worktrees/SnowskyEcho/branch-coverage-90`, limited to coverage improvements and reproduced bug fixes. Each worker edits and builds only in its own worktree. Preserve the root checkout and its unrelated work.
+
+Agree on the component and source files before starting a batch. The feature owner reserves files under active development; the coverage worker coordinates any overlapping bug fix first. Test registrations, including `firmware/tests/CMakeLists.txt`, travel in branch commits through the same integration process.
+
+Hand off each completed component, aiming for a small batch every 20–30 minutes of active work. Include the exact commit and base, changed files, focused and smoke results, measured coverage changes, and a reproducer for each bug fix. Commit complete batches separately from unfinished work and continue the next independent component while integration is pending.
+
+Only the feature owner writes to the delivery worktree or merges into `gnarlyr`. At a feature checkpoint, commit the completed feature changes, inspect the incoming diff and overlap, then merge the exact tested coverage commit. If unfinished delivery edits overlap, finish or park that component before merging; the coverage worker leaves those edits alone. Run the affected checks and smoke group on the combined tree, and report the resulting commit to the coverage worker. Resolve conflicts explicitly and rerun the checks they affect. Preserve a coverage worker's passing results when the merge leaves their inputs unchanged.
+
+After integration, the coverage worker merges the reported `gnarlyr` commit into its clean branch before the next dependent batch. Keep Scratch build outputs separate per worktree. Run the complete required suite once after the final integration edits, and repeat only for changes or failures that invalidate it. Source and software checks do not authorize player writes or establish hardware acceptance.
+
 ## Edit and check one component
 
 ```sh
