@@ -14,6 +14,7 @@
 #include "listening_store.h"
 #include "music_check.h"
 #include "playback/mix_catalog.h"
+#include "playback/track_keys.h"
 #include "player.h"
 #include "settings_store.h"
 #include "spoken_store.h"
@@ -52,6 +53,7 @@ static const CardFile CARD_FILES[] = {
     {RESCAN_TIMES_PATH, SMALL_FILE_BYTES, false},
     {BLUETOOTH_STORE_PATH, SMALL_FILE_BYTES, false},
     {FAVORITE_ADDED_PATH, SMALL_FILE_BYTES, false},
+    {TRACK_KEYS_PATH, TRACK_KEYS_FILE_BYTES, false},
 };
 
 size_t card_files_count(void)

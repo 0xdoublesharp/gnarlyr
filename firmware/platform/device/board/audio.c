@@ -300,7 +300,7 @@ static void ensure_engine(void)
                                                    .ring_words = RING_WORDS,
                                                    .equalizer = &equalizer,
                                                    .prepare_resample = board_audio_dsp_prepare,
-                                                   .resample_pull = board_audio_dsp_pull});
+                                                   .resample_render = board_audio_dsp_render});
     engine_ready = true;
 }
 
@@ -463,7 +463,8 @@ static AudioEngineTrack engine_track(const HalAudioTrack *track)
                               .start_ms = track->start_ms,
                               .end_ms = track->end_ms,
                               .token = track->token,
-                              .replay_gain = track->replay_gain};
+                              .replay_gain = track->replay_gain,
+                              .fade_ms = track->fade_ms};
 }
 
 CORE_SEAM bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms,
@@ -524,7 +525,9 @@ void hal_audio_pause(void)
 
 void hal_audio_release(void)
 {
-    board_audio_shut_down();
+    if (stream_service == NULL) {
+        board_audio_shut_down();
+    }
 }
 
 void hal_audio_resume(void)
@@ -876,7 +879,7 @@ void board_audio_shut_down(void)
 
 bool board_audio_converting(void)
 {
-    return engine_ready && transferring && engine.resample.factor > 1;
+    return engine_ready && transferring && audio_engine_needs_full_clock(&engine);
 }
 
 uint8_t board_audio_volume_level(void)

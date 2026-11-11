@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fold_table import formatted
 
-PAIRED = (2, 3, 4)
+QUARTER = 3
 LEFT = 23
 RIGHT = 24
 FRACTION_BITS = 30
@@ -43,18 +43,16 @@ def coefficients(phase):
 
 def folded():
     taps = LEFT + RIGHT + 1
-    centre, half = coefficients(0), coefficients(6)
+    centre, half, quarter = coefficients(0), coefficients(6), coefficients(QUARTER)
     assert centre[:taps - 1] == centre[taps - 2::-1] and half == half[::-1]
-    tables = {"RESAMPLE_CENTRE": centre[:LEFT + 1] + [centre[taps - 1]],
-              "RESAMPLE_HALF": half[:taps // 2]}
-    sums, differences = [], []
-    for phase in PAIRED:
-        row = coefficients(phase)
-        assert coefficients(12 - phase) == row[::-1]
-        sums.append([row[index] + row[taps - 1 - index] for index in range(taps // 2)])
-        differences.append([row[index] - row[taps - 1 - index] for index in range(taps // 2)])
-    assert all(abs(value) < 1 << 31 for row in sums + differences for value in row)
-    return tables, {"RESAMPLE_SUM": sums, "RESAMPLE_DIFFERENCE": differences}
+    assert coefficients(12 - QUARTER) == quarter[::-1]
+    sums = [quarter[index] + quarter[taps - 1 - index] for index in range(taps // 2)]
+    differences = [quarter[index] - quarter[taps - 1 - index] for index in range(taps // 2)]
+    assert all(abs(value) < 1 << 31 for value in sums + differences)
+    return {"RESAMPLE_CENTRE": centre[:LEFT + 1] + [centre[taps - 1]],
+            "RESAMPLE_HALF": half[:taps // 2],
+            "RESAMPLE_QUARTER_SUM": sums,
+            "RESAMPLE_QUARTER_DIFFERENCE": differences}
 
 
 def table_lines(values):
@@ -63,18 +61,10 @@ def table_lines(values):
 
 
 def render():
-    single, paired = folded()
     rows = ["#pragma once", "", "#include <stdint.h>", ""]
-    for name, values in single.items():
+    for name, values in folded().items():
         rows.append(f"static const int32_t {name}[{len(values)}] = {{")
         rows.extend(line[4:] for line in table_lines(values))
-        rows.extend(["};", ""])
-    for name, table in paired.items():
-        rows.append(f"static const int32_t {name}[{len(table)}][{len(table[0])}] = {{")
-        for values in table:
-            rows.append("    {")
-            rows.extend(table_lines(values))
-            rows.append("    },")
         rows.extend(["};", ""])
     return "\n".join(rows)
 

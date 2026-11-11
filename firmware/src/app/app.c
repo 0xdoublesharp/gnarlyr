@@ -8,6 +8,7 @@
 #include "bluetooth_link.h"
 #include "board_layout.h"
 #include "card_files.h"
+#include "core/clock_face.h"
 #include "core/deadline.h"
 #include "core/frame_pacer.h"
 #include "core/hash.h"
@@ -27,6 +28,7 @@
 #include "frame_overlay.h"
 #include "gfx/frame_diff.h"
 #include "gfx/strip_renderer.h"
+#include "gfx/text.h"
 #include "hal/audio.h"
 #include "hal/bluetooth.h"
 #include "hal/clock.h"
@@ -51,6 +53,7 @@
 #include "ui/status_bar.h"
 #include "ui/toast.h"
 #include "ui/wire_motion.h"
+#include "wall_time.h"
 
 enum {
     PASS_BUSY_MS = 1,
@@ -58,6 +61,7 @@ enum {
     PASS_SCREEN_OFF_MS = 10,
     VIEW_STAMP_CHECK_MS = 50,
     VIEW_STAMP_POSITION_MS = 1000,
+    VIEW_STAMP_MINUTE_S = 60,
     RESCAN_PROGRESS_MS = 250,
     NOTICE_TEXT_CAPACITY = 64,
     TOAST_TEXT_CAPACITY = 64,
@@ -126,6 +130,7 @@ typedef struct AppState {
     uint32_t shown_refusals;
     StatusBarState status_bar;
     char battery_text[STATUS_BAR_PERCENT_CAPACITY];
+    char clock_text[STATUS_BAR_CLOCK_CAPACITY];
     AppScreens screens;
     MessageScreen notice;
     WireMotion motion;
@@ -147,11 +152,17 @@ typedef struct AppState {
     bool display_on;
     bool powered_off;
     bool charging;
+    bool usb_chooser_charging;
+    Screen *usb_chooser;
     uint32_t charge_lit_until_ms;
     bool volume_changed;
     KeyLock lock;
     uint32_t volume_changed_ms;
     HalBattery charge_battery;
+    HalAudioJack listener_jack;
+    bool listener_bluetooth;
+    bool volume_lowered;
+    uint8_t lowered_volume;
 } AppState;
 
 static AppState app;
@@ -167,6 +178,7 @@ static Theme compact_theme;
 
 static void follow_compact_theme(void);
 static void render_when_due(uint32_t now_ms, uint32_t started_us);
+static bool fade_running(void);
 
 static Screen *top_screen(void)
 {
@@ -402,9 +414,52 @@ static void start_charging(uint32_t now_ms)
     debug_loop_save_report();
 }
 
+static void lower_start_volume(void)
+{
+    uint8_t volume = player_status(&app.player).volume;
+    uint8_t safe = settings_safe_start_volume(&app.settings.settings, volume);
+    if (safe < volume) {
+        player_change_volume(&app.player, (int)safe - (int)volume);
+        app.volume_lowered = true;
+        app.lowered_volume = safe;
+    }
+}
+
+static void note_listeners(void)
+{
+    app.listener_jack = hal_audio_jack();
+    app.listener_bluetooth = app.bluetooth.connected;
+}
+
+static void follow_listeners(void)
+{
+    HalAudioJack jack = hal_audio_jack();
+    bool plugged = jack != HAL_AUDIO_JACK_NONE && jack != app.listener_jack;
+    bool linked = app.bluetooth.connected && !app.listener_bluetooth;
+    note_listeners();
+    if (plugged || linked) {
+        lower_start_volume();
+    }
+}
+
+static void explain_lowered_volume(uint32_t now_ms)
+{
+    static char text[TOAST_TEXT_CAPACITY];
+    if (!app.volume_lowered || app.toast.visible || !app.display_on || fade_running()) {
+        return;
+    }
+    app.volume_lowered = false;
+    if (player_status(&app.player).volume == app.lowered_volume) {
+        StringBuilder builder = string_builder_make(text, sizeof text);
+        i18n_format_counts(&builder, STR_VOLUME_LOWERED, app.lowered_volume, 0);
+        toast_show(&app.toast, text, now_ms);
+    }
+}
+
 static void stop_charging(uint32_t now_ms)
 {
     app.charging = false;
+    lower_start_volume();
     bluetooth_link_start(&app.bluetooth, &app.toast, now_ms);
     power_policy_wake(&app.power, now_ms);
     if (!app.display_on) {
@@ -707,7 +762,7 @@ static void read_headset(void)
 {
     HalHeadsetCommand command;
     while (hal_input_next_headset_command(&command)) {
-        if (!app.powered_off && !app.charging && !fade_running()) {
+        if (!app.powered_off && !app.charging && !app.usb_chooser_charging && !fade_running()) {
             run_player_command(HEADSET_COMMANDS[command]);
         }
     }
@@ -966,6 +1021,20 @@ static void draw_slide(Canvas *canvas, Screen *arriving)
     }
 }
 
+static StatusBarState shown_status_bar(const AppState *state, const char *title)
+{
+    StatusBarState bar = state->status_bar;
+    const Theme *theme = board_theme();
+    if (bar.clock == NULL || title == NULL || theme->metrics.status_height > 0) {
+        return bar;
+    }
+    int title_end = (theme->metrics.screen_width + text_width(theme->fonts.header, title)) / 2;
+    if (status_bar_clock_area(theme, bar).x < title_end + theme->metrics.padding) {
+        bar.clock = NULL;
+    }
+    return bar;
+}
+
 static void draw_frame(void *context, Canvas *canvas)
 {
     const AppState *state = context;
@@ -979,7 +1048,7 @@ static void draw_frame(void *context, Canvas *canvas)
         screen->draw(screen->context, canvas);
     }
     if (!screen->full_screen) {
-        status_bar_draw(canvas, board_theme(), state->status_bar);
+        status_bar_draw(canvas, board_theme(), shown_status_bar(state, screen->title));
     }
     toast_draw(&state->toast, canvas, board_theme());
     if (state->options.show_frame_time) {
@@ -1044,6 +1113,17 @@ static const char *battery_text(HalBattery battery)
     return app.battery_text;
 }
 
+static const char *clock_text(void)
+{
+    WallNow now = wall_time_now();
+    if (!now.known) {
+        return NULL;
+    }
+    StringBuilder builder = string_builder_make(app.clock_text, sizeof app.clock_text);
+    clock_face_text(&builder, clock_face(now.local_s, wall_time_24h(&app.settings.settings)));
+    return app.clock_text;
+}
+
 static StatusBarState current_status_bar(void)
 {
     HalBattery battery = hal_power_battery();
@@ -1057,6 +1137,7 @@ static StatusBarState current_status_bar(void)
         .locked = app.lock.locked,
         .shuffle = (StatusShuffle)player_status(&app.player).shuffle,
         .percent = battery_text(battery),
+        .clock = clock_text(),
     };
 }
 
@@ -1269,7 +1350,7 @@ static void report_card_files(CardFilesReport files, uint32_t now_ms)
     }
 }
 
-void app_start(void)
+static void start_app(bool power_on)
 {
     uint32_t now_ms = hal_clock_milliseconds();
     key_tracker_init(&app.keys, &KEY_CONFIG);
@@ -1282,6 +1363,8 @@ void app_start(void)
     app.toast = (Toast){.visible = false};
     app.powered_off = false;
     app.charging = false;
+    app.usb_chooser_charging = false;
+    app.usb_chooser = NULL;
     app.saying_goodbye = false;
     app.goodbye_text = STR_GOODBYE;
     low_battery_init(&app.low_battery);
@@ -1301,9 +1384,18 @@ void app_start(void)
     start_hardware(now_ms);
     bluetooth_link_resume(&app.bluetooth, &app.toast, now_ms);
     start_screens(now_ms);
+    note_listeners();
+    app.volume_lowered = false;
     if (hal_power_take_usb_start()) {
         start_charging(now_ms);
+    } else if (power_on) {
+        lower_start_volume();
     }
+}
+
+void app_start(void)
+{
+    start_app(true);
 }
 
 static void show_rescan_progress(uint32_t files, uint32_t tracks)
@@ -1369,7 +1461,7 @@ static void run_rescan(void)
     const char *text = library_rescan_message(outcome, message, sizeof message);
     if (outcome.result == SCAN_OK) {
         music_check_remember(walk_music());
-        app_start();
+        start_app(false);
     } else {
         debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_SCAN_FAILED + (uint32_t)outcome.result);
     }
@@ -1419,25 +1511,72 @@ static void draw_charge(void *context, Canvas *canvas)
     }
 }
 
-void app_open_usb_modes(void)
+static void open_usb_chooser(bool prompt)
 {
-    if (debug_runner_active() || hal_system_restart_pending()) {
+    if (debug_runner_active() || hal_system_restart_pending() || app.saying_goodbye) {
         return;
     }
-    Screen *screen = app_screens_usb_modes(&app.screens);
+    Screen *screen = app_screens_usb_modes(&app.screens, prompt);
     uint32_t now_ms = hal_clock_milliseconds();
     if (screen == NULL) {
         explain_missing_screen(now_ms);
         return;
     }
-    if (app.charging) {
-        app.charging = false;
-        bluetooth_link_start(&app.bluetooth, &app.toast, now_ms);
-    }
+    app.usb_chooser_charging |= app.charging;
+    app.charging = false;
+    app.usb_chooser = screen;
     power_policy_wake(&app.power, now_ms);
     set_display(true);
-    if (top_screen() != screen && apply_action(screen_action_push(screen), now_ms)) {
+    if (top_screen() == screen) {
+        screen->enter(screen->context, now_ms);
+    } else if (apply_action(screen_action_push(screen), now_ms)) {
         screen_changed();
+    }
+}
+
+void app_open_usb_modes(void)
+{
+    open_usb_chooser(false);
+}
+
+CORE_SEAM void app_ask_usb_mode(void)
+{
+    open_usb_chooser(true);
+}
+
+static void resume_charging(uint32_t now_ms, bool lit)
+{
+    app.usb_chooser_charging = false;
+    app.charging = true;
+    app.charge_battery = hal_power_battery();
+    if (lit) {
+        light_charge_screen(now_ms);
+    } else {
+        set_display(false);
+    }
+}
+
+static void follow_usb_chooser(uint32_t now_ms)
+{
+    if (app.usb_chooser == NULL) {
+        return;
+    }
+    const UsbChooser *usb = &app.screens.modules.settings.settings.usb;
+    bool open = top_screen() == app.usb_chooser;
+    bool lapsed =
+        open && (usb->timed || app.usb_chooser_charging) && (usb->expired || !app.display_on);
+    if (lapsed && apply_action(screen_action_pop(), now_ms)) {
+        screen_changed();
+        open = false;
+    }
+    if (open) {
+        app.render_wanted |= usb->redraw;
+        app.screens.modules.settings.settings.usb.redraw = false;
+        return;
+    }
+    app.usb_chooser = NULL;
+    if (app.usb_chooser_charging) {
+        resume_charging(now_ms, !lapsed);
     }
 }
 
@@ -1573,6 +1712,9 @@ static void run_debug_script(uint32_t now_ms)
         debug_runner_done(choose_setting(&request, now_ms));
     } else if (request.kind == DEBUG_REQUEST_SCREENSHOT) {
         debug_runner_done(save_debug_screenshot(&request));
+    } else if (request.kind == DEBUG_REQUEST_STANDBY) {
+        player_hold_standby(&app.player, request.slot == 0);
+        debug_runner_done(true);
     }
 }
 
@@ -1607,6 +1749,7 @@ static uint32_t view_stamp(void)
 {
     PlayerStatus status = player_status(&app.player);
     HalBattery battery = hal_power_battery();
+    WallNow wall = wall_time_now();
     uint32_t stamp = HASH_START;
     stamp = stamp_add(stamp, (uint32_t)status.state);
     stamp = stamp_add(stamp, status.has_track);
@@ -1626,6 +1769,7 @@ static uint32_t view_stamp(void)
     stamp = stamp_add(stamp, app.lock.locked);
     stamp = stamp_add(stamp, app.toast.visible);
     stamp = stamp_add(stamp, app.toast.until_ms);
+    stamp = stamp_add(stamp, wall.known ? wall.local_s / VIEW_STAMP_MINUTE_S : 0);
     return stamp_add(stamp, (uint32_t)(uintptr_t)app.toast.text);
 }
 
@@ -1715,6 +1859,7 @@ CORE_SEAM void app_step(void)
             listening_store_follow(&app.listening, listening_observation(), now_ms);
         }
         bluetooth_link_step(&app.bluetooth, &app.player, now_ms);
+        follow_listeners();
         spoken_store_follow(&app.spoken, player_status(&app.player), now_ms);
         explain_refusals(now_ms);
         debug_loop_follow(now_ms, &app.player);
@@ -1727,8 +1872,10 @@ CORE_SEAM void app_step(void)
         use_wanted_clock();
     }
     toast_update(&app.toast, now_ms);
+    explain_lowered_volume(now_ms);
     follow_appearance();
     update_screen(now_ms);
+    follow_usb_chooser(now_ms);
     service_discovery(now_ms);
     MixtapeUi *mixtapes = &app.screens.modules.views.mixtapes;
     if ((app.screens.bound_modules & (1u << SCREEN_MODULE_VIEWS)) != 0 &&

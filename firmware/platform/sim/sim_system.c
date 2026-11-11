@@ -1,6 +1,6 @@
 #include "app/linked_modules.h"
+#include "app/rescan_module.h"
 #include "hal/system.h"
-#include "library/library_scan.h"
 
 enum {
     BOOT_CLOCK_MHZ = 24
@@ -44,6 +44,11 @@ void hal_system_set_usb_mode(HalUsbMode mode)
     (void)mode;
 }
 
+void hal_system_set_usb_answer(HalUsbAnswer answer)
+{
+    (void)answer;
+}
+
 uint32_t hal_system_clock_mhz(void)
 {
     return clock_mhz;
@@ -67,7 +72,7 @@ bool hal_system_restart_pending(void)
 
 const void *hal_system_load_rescan_code(void)
 {
-    return &LIBRARY_SCAN_ENTRY;
+    return &RESCAN_MODULE_ENTRY;
 }
 
 const void *hal_system_load_module(uint32_t module)
@@ -198,6 +203,12 @@ HalProbe hal_system_probe(HalProbeKind kind, uint32_t first, uint32_t second)
 
 HalRtcRead hal_system_rtc_read(void)
 {
+    return (HalRtcRead){.status = HAL_RTC_NO_ACK};
+}
+
+HalRtcRead hal_system_rtc_set(uint32_t utc_s)
+{
+    (void)utc_s;
     return (HalRtcRead){.status = HAL_RTC_NO_ACK};
 }
 

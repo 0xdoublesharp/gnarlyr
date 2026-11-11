@@ -26,6 +26,13 @@ DEEP_TRACK = 12
 FIRST_AUDIO_LIMIT_MS = 1500
 TRACK_GAP_LIMIT_MS = 1000
 FADE_LIMIT_MS = 1500
+STANDBY_MS = 30000
+STANDBY_RATE = 44100
+STANDBY_SECONDS = 45
+STANDBY_RESUME_LIMIT_MS = 100
+DAC_MUTED = 0xFF
+DAC_RAMP_STEP = 6
+KEY_TAP_MS = 150
 SCAN_RECORD_POLL_MS = 100
 FAT_READS_PER_SECOND_LIMIT = 40
 SPIN_POLLS_PER_REST = 10
@@ -71,6 +78,8 @@ COLD_REPORT_MS = 10000
 POWER_HOLD_MS = 2600
 DEBUG_FOLDER = IDENTITY.data_directory + "/debug"
 RUN_PATH = "/" + DEBUG_FOLDER + "/run.txt"
+TIME_PATH = "/" + IDENTITY.data_directory + "/time.bin"
+NOVEMBER_2026 = 1794482460
 RESTART_PATH = "/" + DEBUG_FOLDER + "/restart.req"
 RESTART_REQUEST = b"RESTART AFTER INSTALL\n"
 RESTART_ANSWER = b"CONNECT AFTER RESTART\n"
@@ -93,6 +102,12 @@ KEY_NEXT = 100
 KEY_PLAY = 250
 KEY_BACK = 500
 KEY_HOLD_MS = 150
+USB_ANSWER_FILE_TRANSFER = 1
+USB_PROMPT_MS = 15000
+PROMPT_NOTICED_MS = 1000
+STARTUP_SETTLED_MS = 5000
+CHARGE_LIT_MS = 5000
+FILE_TRANSFER_KEYS = (KEY_NEXT, KEY_PLAY)
 KEY_SETTLE_MS = 350
 BACKLIGHT_PIN = 4
 SOAK_MINUTE_MS = 60000
@@ -196,12 +211,14 @@ class EchoImageTest(unittest.TestCase):
         cls.usb_overlay_elf = CONFIG["usb_overlay_elf"]
         cls.module_elfs = sorted(Path(cls.elf).parent.glob("echo_module_*.elf"))
 
-    def session(self, files=(), image=None, vbus=False, volume=None, rest_in_waits=True):
+    def session(self, files=(), image=None, vbus=False, volume=None, rest_in_waits=True,
+                usb_answer=USB_ANSWER_FILE_TRANSFER, vbus_at_start=False):
         return self.session_module.Session(image or self.image, self.elf, files=files,
                                            vbus_after_first_frame=vbus, volume=volume,
                                            usb_overlay_elf=self.usb_overlay_elf,
                                            rest_in_waits=rest_in_waits,
-                                           module_elfs=self.module_elfs)
+                                           module_elfs=self.module_elfs, usb_answer=usb_answer,
+                                           vbus_at_start=vbus_at_start)
 
     def assert_healthy(self, session):
         machine = session.machine
@@ -868,6 +885,114 @@ class EchoImageTest(unittest.TestCase):
         self.assert_healthy(session)
         self.print_usb_log("charger, then a host", machine)
 
+    def asked_session(self, vbus_at_start=False):
+        session = self.session(usb_answer=None, vbus_at_start=vbus_at_start)
+        machine = session.machine
+        for name in ("usb_session_storage_changed", "usb_storage_session", "usb_dac_session"):
+            machine.note(name)
+        machine.answer_waits_for_key(4)
+        return session, machine, machine.trace("app_ask_usb_mode")
+
+    def assert_asked_without_enumerating(self, session, asked, count):
+        machine = session.machine
+        self.assertEqual(len(asked), count)
+        self.assertEqual(machine.usb_log[-1][1], "soft disconnect")
+        self.assertFalse(machine.usb_reset_ack)
+        for name in ("usb_session_storage_changed", "usb_storage_session", "usb_dac_session"):
+            self.assertNotIn(name, machine.reached)
+        self.assertEqual(self.usb_supply_pins(machine), (1, 1))
+
+    def choose_file_transfer(self, machine):
+        for key in FILE_TRANSFER_KEYS:
+            self.press(machine, key)
+
+    def test_a_cable_plugged_in_while_the_player_runs_asks_before_it_connects(self):
+        session, machine, asked = self.asked_session()
+        session.run_to_home_screen()
+        machine.vbus = True
+        self.assertEqual(machine.run(until=lambda: asked,
+                                     until_ms=machine.milliseconds() + CABLE_STEADY_MS + 2000),
+                         "condition met")
+        machine.run(until_ms=machine.milliseconds() + PROMPT_NOTICED_MS)
+        self.assertEqual([event for _, event in machine.usb_log],
+                         ["soft disconnect", "pull-up on, host resets the bus", "soft disconnect"])
+        self.assertEqual(machine.gpio[2].regs[GPIO_DATA] >> BACKLIGHT_PIN & 1, 1)
+        machine.run(until_ms=machine.milliseconds() + CHARGER_MS)
+        self.assert_asked_without_enumerating(session, asked, 1)
+        self.assertEqual(machine.usb_connect_count, 1)
+        self.choose_file_transfer(machine)
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(machine.usb_connect_count, 2)
+        self.assertEqual(len(asked), 1)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+        self.print_usb_log("asked, then file transfer", machine)
+
+    def charging_on_a_charger(self):
+        from unicorn.arm_const import UC_ARM_REG_R0
+        session, machine, asked = self.asked_session()
+        machine.host_absent = True
+        charge_frames = machine.trace("charge_art_draw")
+        dark = []
+        machine.hook_symbol("hal_display_set_power",
+                            lambda: dark.append(machine.milliseconds())
+                            if machine.reg(UC_ARM_REG_R0) == 0 else None)
+        session.run_to_home_screen()
+        machine.run(until_ms=STARTUP_SETTLED_MS)
+        machine.vbus = True
+        machine.run(until_ms=machine.milliseconds() + CHARGER_MS)
+        self.assertEqual(asked, [])
+        self.assertEqual([event for _, event in machine.usb_log], ["soft disconnect", "pull-up on"])
+        self.hold_power(machine)
+        self.assertEqual(machine.run(until=lambda: charge_frames,
+                                     until_ms=machine.milliseconds() + POWER_HOLD_MS + 3000),
+                         "condition met")
+        machine.run(until_ms=machine.milliseconds() + CHARGE_LIT_MS + PROMPT_NOTICED_MS)
+        self.assertTrue(dark)
+        self.assertEqual(asked, [])
+        return session, machine, asked, charge_frames, dark
+
+    def test_on_the_charge_screen_only_a_host_wakes_the_prompt_and_silence_keeps_charging(self):
+        session, machine, asked, charge_frames, dark = self.charging_on_a_charger()
+        machine.host_arrives()
+        self.assertEqual(machine.run(until=lambda: asked,
+                                     until_ms=machine.milliseconds() + PROMPT_NOTICED_MS),
+                         "condition met")
+        machine.run(until_ms=machine.milliseconds() + PROMPT_NOTICED_MS)
+        self.assertEqual(machine.gpio[2].regs[GPIO_DATA] >> BACKLIGHT_PIN & 1, 1)
+        self.assert_asked_without_enumerating(session, asked, 1)
+        darkened = len(dark)
+        machine.run(until_ms=asked[0] + USB_PROMPT_MS + PROMPT_NOTICED_MS)
+        self.assertEqual(len(dark), darkened + 1)
+        self.assertGreaterEqual(dark[-1], asked[0] + USB_PROMPT_MS)
+        drawn = len(charge_frames)
+        machine.run(until_ms=machine.milliseconds() + CHARGER_MS)
+        self.assertEqual(len(charge_frames), drawn)
+        self.assertEqual(len(dark), darkened + 1)
+        self.assert_asked_without_enumerating(session, asked, 1)
+        self.assertEqual(machine.usb_connect_count, 1)
+        self.assert_healthy(session)
+        machine.vbus = False
+        machine.run(until_ms=machine.milliseconds() + PROMPT_NOTICED_MS)
+        self.assertEqual(machine.panics, ["hal_power_off"])
+        self.print_usb_log("charge screen, host, quiet prompt", machine)
+
+    def test_on_the_charge_screen_file_transfer_in_the_prompt_starts_the_session(self):
+        session, machine, asked, charge_frames, dark = self.charging_on_a_charger()
+        machine.host_arrives()
+        self.assertEqual(machine.run(until=lambda: asked,
+                                     until_ms=machine.milliseconds() + PROMPT_NOTICED_MS),
+                         "condition met")
+        machine.run(until_ms=machine.milliseconds() + PROMPT_NOTICED_MS)
+        self.assert_asked_without_enumerating(session, asked, 1)
+        self.choose_file_transfer(machine)
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(machine.usb_connect_count, 2)
+        self.assertEqual(len(asked), 1)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+        self.print_usb_log("charge screen, file transfer", machine)
+
     def test_usb_power_up_writes_the_words_stock_writes(self):
         session = self.session(vbus=True)
         machine = session.machine
@@ -953,9 +1078,11 @@ class EchoImageTest(unittest.TestCase):
             volume.add_file(name.replace("_", "."), data, None, DEBUG_FOLDER)
         return volume
 
-    def ejecting_session(self, volume, notes=()):
-        session = self.session(volume=volume)
+    def ejecting_session(self, volume, notes=(), before_start=None, usb_answer=USB_ANSWER_FILE_TRANSFER):
+        session = self.session(volume=volume, usb_answer=usb_answer)
         machine = session.machine
+        if before_start is not None:
+            before_start(machine)
         for name in ("usb_session_storage_changed", "debug_script_take", "hal_system_usb_reconnect",
                      "debug_restart_after_install", "board_restart", "updater_install",
                      "board_wait_for_power_hold", *notes):
@@ -1055,15 +1182,19 @@ class EchoImageTest(unittest.TestCase):
 
     def test_a_script_for_another_build_is_removed_unrun_and_the_player_still_reconnects(self):
         volume = self.debug_volume(run_txt=b"build 0000000\nplay\nreconnect\n")
-        session, machine = self.ejecting_session(volume)
+        session, machine = self.ejecting_session(volume, usb_answer=None)
+        machine.answer_usb_prompt(FILE_TRANSFER_KEYS, times=2)
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(machine.reached["app_ask_usb_mode"], 1)
         self.assertFalse(session.fat().exists(RUN_PATH))
         self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
         self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
         report = self.read_report(session)
         self.assertEqual(report["values"]["script.state"], "refused_build")
+        self.assertEqual(machine.reached["app_ask_usb_mode"], 1)
         self.assertEqual([line["status"] for line in report["script"]["lines"]], ["not_run"] * 3)
-        self.assertEqual([event["detail"] for event in report["events"] if event["kind"] == "key"], [])
+        self.assertEqual([event["detail"] for event in report["events"] if event["kind"] == "key"],
+                         ["down press", "play press"])
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 
@@ -1216,13 +1347,37 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
         self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
         read = self.read_report(session)["script"]["rtc"]
-        self.assertEqual(read, [{"line": 2, "ms": read[0]["ms"], "status": "ok",
-                                 "registers": list(machine.rtc_bus.registers), "vl": 0,
+        self.assertEqual(read, [{"line": 2, "ms": read[0]["ms"], "action": "read", "written_s": None,
+                                 "status": "ok", "registers": list(machine.rtc_bus.registers), "vl": 0,
                                  "time": "2026-01-03T12:00:05", "weekday": 6, "century": 0}])
         self.assertEqual(machine.rtc_bus.frames, [("write", bytes([0xA2, 0x00])), ("read", 0xA3, 16)])
         self.assertEqual(self.i2c1_state(machine), before)
         self.assertIn(("grf", 0xBC, 0x000C0008), machine.register_log)
         self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def test_an_rtc_set_writes_the_synced_utc_time_clears_the_trust_flag_and_reads_it_back(self):
+        script = ("build %s\nrtc set\nrtc read\nreconnect\n" % self.build_tag()).encode("ascii")
+        volume = self.debug_volume(run_txt=script)
+        volume.add_file("time.bin", self.time_file(NOVEMBER_2026, -480), None, IDENTITY.data_directory)
+        session, machine = self.ejecting_session(volume, before_start=lambda machine: machine.stub_symbol(
+            "board_wall_time_forget_file", lambda machine: 0))
+        machine.rtc_bus.registers[2] |= 0x80
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        before = self.i2c1_state(machine)
+        self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        written, read = self.read_report(session)["script"]["rtc"]
+        self.assertEqual((written["action"], written["status"], written["vl"]), ("set", "ok", 0))
+        self.assertTrue(NOVEMBER_2026 <= written["written_s"] <= NOVEMBER_2026 + 5, written)
+        self.assertEqual((read["action"], read["status"], read["vl"]), ("read", "ok", 0))
+        frame = machine.rtc_bus.frames[0]
+        self.assertEqual((frame[0], frame[1][:2], len(frame[1])), ("write", bytes([0xA2, 0x02]), 9))
+        self.assertEqual(frame[1][2] & 0x80, 0)
+        self.assertNotIn(0x00, [entry[1][1] for entry in machine.rtc_bus.frames
+                                if entry[0] == "write" and len(entry[1]) > 2])
+        self.assertTrue(read["time"].startswith("2026-11-12T11:21"), read)
+        self.assertEqual(self.i2c1_state(machine), before)
         self.assert_healthy(session)
 
     def test_an_rtc_read_without_an_answer_reports_no_ack_and_restores_the_bus(self):
@@ -1239,6 +1394,86 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(report["script"]["lines"][1]["status"], "failed")
         self.assertEqual(machine.rtc_bus.frames, [("write", bytes([0xA2, 0x00]))])
         self.assertEqual(self.i2c1_state(machine), before)
+        self.assert_healthy(session)
+
+    @staticmethod
+    def time_file(utc, offset):
+        return echo_debug.time_file_bytes(utc, offset)
+
+    def time_session(self, data, written_before_power_on=False):
+        """A session whose host leaves a time file: one written during the session unless asked.
+
+        The emulated host writes nothing while connected, so a file meant to arrive during the
+        session is on the drive from the start and the start-up removal is passed over."""
+        volume = self.debug_volume()
+        volume.add_file("time.bin", data, None, IDENTITY.data_directory)
+        keep = None if written_before_power_on else (
+            lambda machine: machine.stub_symbol("board_wall_time_forget_file", lambda machine: 0))
+        session, machine = self.ejecting_session(volume, before_start=keep)
+        from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1
+        sets = []
+        machine.hook_symbol("board_wall_time_set", lambda: sets.append(
+            (machine.reg(UC_ARM_REG_R0), machine.reg(UC_ARM_REG_R1))))
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        machine.run(until_ms=machine.milliseconds() + QUIET_AFTER_MS)
+        return session, machine, sets
+
+    def test_an_ejected_session_with_a_time_file_sets_the_clock_and_removes_the_file(self):
+        session, machine, sets = self.time_session(self.time_file(NOVEMBER_2026, -480))
+        self.assertEqual(len(sets), 1)
+        utc, packed = sets[0]
+        self.assertEqual(utc, NOVEMBER_2026)
+        self.assertEqual(struct.unpack("<hBx", struct.pack("<I", packed)), (-480, 1))
+        self.assertFalse(session.fat().exists(TIME_PATH))
+        self.assert_healthy(session)
+
+    def test_a_damaged_time_file_is_removed_without_setting_the_clock(self):
+        damaged = bytearray(self.time_file(NOVEMBER_2026, 60))
+        damaged[9] ^= 1
+        session, machine, sets = self.time_session(bytes(damaged))
+        self.assertEqual(sets, [])
+        self.assertFalse(session.fat().exists(TIME_PATH))
+        self.assert_healthy(session)
+
+    def test_a_time_file_from_an_ejected_session_dates_the_next_play_in_the_listening_log(self):
+        from echo_emulator.playback import ALBUM_COUNT, Rig
+        from echo_emulator.real_volume import real_volume
+        script = "\n".join(["build " + self.build_tag(), "play", "down,down,down,down,down,down,down",
+                            "play", "play", "wait 3000", "reconnect", ""])
+        volume = self.debug_volume(real_volume(playable=True, album_count=ALBUM_COUNT),
+                                   run_txt=script.encode("ascii"))
+        volume.add_file("time.bin", self.time_file(NOVEMBER_2026, -480), None, IDENTITY.data_directory)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf, volume=volume,
+                  module_elfs=self.module_elfs,
+                  prepare=lambda machine: machine.stub_symbol("board_wall_time_forget_file",
+                                                              lambda machine: 0))
+        session, machine = rig.session, rig.machine
+        for name in ("usb_session_storage_changed", "debug_script_take", "hal_system_usb_reconnect"):
+            machine.note(name)
+        machine.host_ejects()
+        machine.vbus = True
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        set_ms = machine.milliseconds()
+        self.assertFalse(session.fat().exists(TIME_PATH))
+        self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
+        self.assertTrue(rig.audio.plays)
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        listens = session.fat().read("/" + IDENTITY.data_directory + "/listens.bin")
+        record = listens[1024 + 64:1024 + 128]
+        sequence, clock = struct.unpack_from("<I", record, 0)[0], struct.unpack_from("<I", record, 36)[0]
+        flags, offset = record[49], struct.unpack_from("<h", record, 50)[0]
+        self.assertEqual(sequence, 1)
+        self.assertEqual((flags, offset), (1, -480))
+        elapsed_s = (machine.milliseconds() - set_ms) // 1000
+        self.assertTrue(NOVEMBER_2026 <= clock <= NOVEMBER_2026 + elapsed_s + 1, (clock, elapsed_s))
+        self.assertEqual(listens[4], 2)
+        self.assert_healthy(session)
+
+    def test_a_time_file_already_there_at_power_on_is_removed_and_never_applied(self):
+        session, machine, sets = self.time_session(self.time_file(NOVEMBER_2026, 0),
+                                                   written_before_power_on=True)
+        self.assertEqual(sets, [])
+        self.assertFalse(session.fat().exists(TIME_PATH))
         self.assert_healthy(session)
 
     def test_without_a_script_an_ejected_session_changes_nothing_and_does_not_reconnect(self):
@@ -1318,9 +1553,10 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(machine.systick.vtor, 0)
         self.assertEqual(machine.panics, [])
         self.assertEqual(self.read_report(first)["values"]["report.reason"], "restart")
-        second = first.reboot(image=first.slot_image("slot_1") + newer[-4:])
+        second = first.reboot(image=first.slot_image("slot_1") + newer[-4:], usb_answer=None)
         restarted = second.machine
-        for name in ("usb_session_storage_changed", "updater_install", "board_restart"):
+        for name in ("usb_session_storage_changed", "updater_install", "board_restart",
+                     "app_ask_usb_mode"):
             restarted.note(name)
         restarted.host_ejects()
         restarted.vbus = True
@@ -1340,12 +1576,13 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(restarted.usb_connect_count, 1)
         self.assertNotIn("updater_install", restarted.reached)
         self.assertNotIn("board_restart", restarted.reached)
+        self.assertNotIn("app_ask_usb_mode", restarted.reached)
         self.assert_healthy(second)
         self.print_usb_log("restart after install", machine)
         self.print_usb_log("after the restart", restarted)
 
     def test_a_user_mode_request_reconnects_after_the_cable_bit_dies(self):
-        script = ("build %s\nset USB mode=USB storage\nwait 10000\n"
+        script = ("build %s\nset USB mode=File transfer\nwait 10000\n"
                   % self.build_tag()).encode("ascii")
         session, machine = self.ejecting_session(self.debug_volume(run_txt=script),
                                                  notes=("hal_system_request_usb_mode",))
@@ -1683,6 +1920,43 @@ class EchoImageTest(unittest.TestCase):
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 
+    def extension_loaded(self, session):
+        offset, size = make_image.modules_in(self.image)[make_image.EXTENSION_MODULE_NUMBER - 1]
+        stored = self.image[offset:offset + size]
+        return session.machine.read_memory(make_image.EXTENSION_MODULE_BASE, size) == stored
+
+    def test_a_damaged_extension_module_in_slot_1_is_replaced_by_the_copy_in_slot_2(self):
+        session = self.session()
+        number = make_image.EXTENSION_MODULE_NUMBER
+        session.change_module("slot_1", number, 600, lambda byte: byte ^ 0xFF)
+        self.assertEqual(session.run_to_home_screen(), "condition met")
+        self.assertTrue(self.extension_loaded(session))
+        self.assertTrue(session.module_reads("slot_1", number))
+        self.assertTrue(session.module_reads("slot_2", number))
+        reads = [session.module_reads(slot, number) for slot in ("slot_1", "slot_2")]
+        session.machine.run(until_ms=session.machine.milliseconds() + 1500)
+        self.assertEqual(reads, [session.module_reads(slot, number) for slot in ("slot_1", "slot_2")])
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def test_without_an_intact_extension_module_the_player_starts_and_none_of_it_runs(self):
+        session = self.session()
+        number = make_image.EXTENSION_MODULE_NUMBER
+        for slot in ("slot_1", "slot_2"):
+            session.change_module(slot, number, 600, lambda byte: byte ^ 0xFF)
+        machine = session.machine
+        executed = machine.count_window_code(make_image.EXTENSION_MODULE_BASE,
+                                             make_image.EXTENSION_MODULE_CAPACITY)
+        self.assertEqual(session.run_to_home_screen(), "condition met")
+        machine.run(until_ms=machine.milliseconds() + 1500)
+        self.assertEqual(executed[0], 0)
+        self.assertFalse(any(machine.read_memory(make_image.EXTENSION_MODULE_BASE,
+                                                 make_image.EXTENSION_MODULE_CAPACITY)))
+        self.assertTrue(session.module_reads("slot_1", number))
+        self.assertTrue(session.module_reads("slot_2", number))
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
     def test_internal_storage_is_read_with_multiple_block_commands_that_are_stopped(self):
         session = self.session()
         session.run_to_home_screen()
@@ -1891,6 +2165,84 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(0, rig.audio.output_underruns())
         self.assert_healthy(rig.session)
 
+    def standby_rig(self):
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        block = bytearray(65536 * 4)
+        block[0::4] = bytes(range(256)) * 256
+        block[1::4] = bytes(value for value in range(256) for _ in range(256))
+        frames = STANDBY_RATE * STANDBY_SECONDS
+        pcm = bytearray()
+        for high in range(frames // 65536 + 1):
+            block[2::4] = bytes((high,)) * 65536
+            pcm += block
+        pcm = bytes(pcm[:frames * 4])
+        header = struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ", 16, 1,
+                             2, STANDBY_RATE, STANDBY_RATE * 4, 4, 16, b"data", len(pcm))
+        volume = Fat32Volume()
+        volume.add_file("Counter.wav", header + pcm)
+        volume.add_directory(IDENTITY.data_directory)
+        volume.add_file("settings.bin", self.saved_settings(4, 15, shuffle=0),
+                        directory=IDENTITY.data_directory)
+        return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                   volume=volume, module_elfs=self.module_elfs)
+
+    def counter_frame(self, rig, frame):
+        from echo_emulator.audio import RING_BYTES
+        offset = rig.audio.ring + frame % (RING_BYTES // 8) * 8
+        left, right = struct.unpack("<II", rig.machine.read_memory(offset, 8))
+        return (right >> 16) << 16 | left >> 16
+
+    def next_played_frame(self, rig):
+        played = rig.audio.elapsed_us(rig.machine) * rig.audio.rate // 1000000
+        return self.counter_frame(rig, played)
+
+    def assert_ramp(self, volumes, end):
+        values = [value for _, value in volumes]
+        self.assertEqual(end, values[-1], values)
+        for earlier, later in zip(values, values[1:]):
+            self.assertLessEqual(abs(later - earlier), DAC_RAMP_STEP, values)
+            self.assertGreaterEqual((later - earlier) * (end - values[0]), 0, values)
+
+    def test_a_long_pause_rests_in_standby_and_play_resumes_at_the_same_sample_with_a_fade(self):
+        rig = self.standby_rig()
+        machine = rig.machine
+        stops = machine.trace("dac_path_stop")
+        first_frames = []
+        machine.hook_symbol("dac_path_start_transfer",
+                            lambda: first_frames.append(self.counter_frame(rig, 0)))
+        rig.open_songs()
+        rig.play_song(1)
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.running, until_ms=machine.milliseconds() + 3000))
+        rig.run_for(1500)
+        target = rig.audio.volumes[-1][1]
+        paused_at = rig.press("play")
+        self.assertGreater(rig.audio.suspend_depth, 0)
+        paused_frame = self.next_played_frame(rig)
+        pause_fade = [entry for entry in rig.audio.volumes if entry[0] >= paused_at]
+        self.assert_ramp(pause_fade, DAC_MUTED)
+        self.assertEqual("condition met", machine.run(
+            until=lambda: stops and stops[-1] > paused_at,
+            until_ms=paused_at + STANDBY_MS + 2000))
+        self.assertGreaterEqual(stops[-1] - paused_at, STANDBY_MS)
+        self.assertFalse(rig.audio.running)
+        resting = [value for stamp, value in rig.audio.volumes if stamp > pause_fade[-1][0]]
+        self.assertTrue(all(value == DAC_MUTED for value in resting), resting)
+        pressed_at = rig.press("play", hold=KEY_TAP_MS)
+        self.assertTrue(rig.audio.running)
+        started_ms = rig.audio.started_us // 1000
+        self.assertLess(started_ms - (pressed_at + KEY_TAP_MS), STANDBY_RESUME_LIMIT_MS)
+        resumed_frame = first_frames[-1]
+        self.assertLessEqual(0, paused_frame - resumed_frame)
+        self.assertLessEqual(paused_frame - resumed_frame, STANDBY_RATE // 1000)
+        fade_in = [entry for entry in rig.audio.volumes if entry[0] >= pressed_at]
+        self.assertGreaterEqual(fade_in[0][0], started_ms)
+        self.assertGreater(fade_in[0][1], target)
+        self.assert_ramp(fade_in, target)
+        self.assertEqual(0, rig.audio.output_underruns())
+        self.assert_healthy(rig.session)
+
     def vorbis_rig(self, mixed=False):
         from echo_emulator.core1_bridge import CORE1_VORBIS, Core1Bridge
         from echo_emulator.fat_volume import Fat32Volume
@@ -1993,7 +2345,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertTrue(rig.session.module_reads("slot_2", number))
         third = rig.skip("previous")
         self.assertEqual("condition met", machine.run(
-            until=lambda: rig.audio.rate == 48000 and rig.audio.running,
+            until=lambda: rig.audio.rate == 32000 and rig.audio.running,
             until_ms=machine.milliseconds() + 2000))
         self.assertIsNotNone(rig.first_audio_after(third))
         self.assertTrue(vorbis.loaded(machine))
@@ -2047,11 +2399,206 @@ class EchoImageTest(unittest.TestCase):
             self.assertTrue(rig.session.module_reads(slot, number))
         self.assert_healthy(rig.session)
 
+    def tagged_wav(self, title, album, rate, tenths, level):
+        frames = bytearray()
+        for frame_id, text in (("TIT2", title), ("TALB", album), ("TPE1", album), ("TRCK", "1")):
+            payload = b"\x00" + text.encode()
+            frames += frame_id.encode() + struct.pack(">I", len(payload)) + b"\x00\x00" + payload
+        size = len(frames)
+        tag = b"ID3\x03\x00\x00" + bytes((size >> shift & 127 for shift in (21, 14, 7, 0))) + frames
+        pcm = struct.pack("<hh", level, -level) * (rate * tenths // 10)
+        body = (b"WAVEfmt " + struct.pack("<IHHIIHH", 16, 1, 2, rate, rate * 4, 4, 16)
+                + b"data" + struct.pack("<I", len(pcm)) + pcm
+                + b"id3 " + struct.pack("<I", len(tag)) + tag + bytes(len(tag) % 2))
+        return b"RIFF" + struct.pack("<I", len(body)) + body
+
+    def transition_settings(self, tenths):
+        return self.saved_settings(4 | 1 << 3, tenths, shuffle=1)
+
+    def saved_settings(self, comfort, tenths, shuffle):
+        settings = bytearray(4096)
+        settings[:6] = b"DSST" + bytes((15, 0))
+        settings[6:9] = bytes((7, 2, 0))
+        settings[11], settings[13], settings[14], settings[16] = shuffle, 60, 2, 35
+        settings[24], settings[27] = 1, 1
+        settings[28:38] = bytes((20,) * 10)
+        settings[38:43] = bytes((comfort, 13, tenths, 0, 0x10))
+        settings[43:47] = bytes((0x32, 0x54, 0x76, 0x08))
+        checksum = FNV_START
+        for value in settings[:54]:
+            checksum = (checksum ^ value) * FNV_PRIME & 0xFFFFFFFF
+        settings[54:58] = struct.pack("<I", checksum)
+        return bytes(settings)
+
+    def watch_transition(self, rig, boundary, length):
+        from echo_emulator.audio import PRODUCED_OFFSET, RING_BYTES
+        from unicorn import UC_HOOK_CODE, UC_HOOK_MEM_WRITE
+        machine, ring, slots = rig.machine, rig.audio.ring, RING_BYTES // 8
+        watch = {"frames": {}, "instructions": 0,
+                 "marks": {boundary - 2 * length: None, boundary - length: None,
+                           boundary + length: None}}
+        _, process = self.module(machine, "process")
+        fade = sorted(address for name, address in process.symbols.items() if "fade" in name)
+        after = min(address for address in process.symbols.values() if address > fade[-1])
+
+        def busy_us():
+            return struct.unpack("<12I", machine.read_memory(machine.symbols["stats"], 48))[10]
+
+        def capture(uc, access, address, size, value, user):
+            produced, consumed = struct.unpack("<II", machine.read_memory(
+                rig.audio.engine + PRODUCED_OFFSET, 8))
+            slot = (address - ring) // 8
+            ahead = (slot - produced) % slots
+            free = slots - (produced - consumed)
+            frame = produced + ahead if ahead < free else produced - (slots - ahead)
+            if frame >= 2 * boundary or size not in (4, 8):
+                return
+            pair = watch["frames"].setdefault(frame, [None, None])
+            pair[(address - ring) % 8 // 4] = value & 0xFFFFFFFF
+            if size == 8:
+                pair[1] = (value >> 32) & 0xFFFFFFFF
+            for mark, seen in watch["marks"].items():
+                if seen is None and produced >= mark:
+                    watch["marks"][mark] = (machine.microseconds(), busy_us())
+
+        def count(uc, address, size, user):
+            watch["instructions"] += 1
+
+        machine.uc.hook_add(UC_HOOK_MEM_WRITE, capture, None, ring, ring + RING_BYTES - 1)
+        machine.uc.hook_add(UC_HOOK_CODE, count, None, fade[0], after - 1)
+        return watch
+
+    def transition_load(self, watch, length, label):
+        (t0, b0), (t1, b1), (t2, b2) = (watch["marks"][key] for key in sorted(watch["marks"]))
+        steady, fading = (b1 - b0) / (t1 - t0), (b2 - b1) / (t2 - t1)
+        print("\n[%s] core 0 busy %.1f %% before, %.1f %% during the fades; "
+              "ramp %.1f instructions per output frame"
+              % (label, 100 * steady, 100 * fading, watch["instructions"] / (2 * length)))
+        return fading
+
+    @staticmethod
+    def sample_value(word):
+        return (word - (word >> 31 << 32)) >> 8
+
+    def transition_volume(self, files, tenths):
+        from echo_emulator.fat_volume import Fat32Volume
+        volume = Fat32Volume()
+        for name, data in files:
+            volume.add_file(name, data)
+        volume.add_directory(IDENTITY.data_directory)
+        volume.add_file("settings.bin", self.transition_settings(tenths),
+                        directory=IDENTITY.data_directory)
+        return volume
+
+    def test_shuffle_fades_out_one_album_and_fades_in_the_next_on_the_output_clock(self):
+        from echo_emulator.playback import Rig
+        rate, output, tenths, level = 16000, 32000, 6, 12000
+        volume = self.transition_volume(
+            [("A.wav", self.tagged_wav("A", "Album A", rate, 24, level)),
+             ("B.wav", self.tagged_wav("B", "Album B", rate, 24, level))], tenths)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        machine = rig.machine
+        boundary, length = output * 24 // 10, output * tenths // 10
+        watch = self.watch_transition(rig, boundary, length)
+        frames = watch["frames"]
+        rig.open_songs()
+        started = rig.play_song(1)
+        machine.run(until=lambda: None not in frames.get(2 * boundary - 1, [None]),
+                    until_ms=machine.milliseconds() + 8000)
+        self.assertEqual(output, rig.audio.rate)
+        self.assertEqual([], rig.audio.underruns(started))
+
+        def gain(frame):
+            return self.sample_value(frames[frame][0]) / (level * 256)
+
+        def smooth(x):
+            return x * x * (3 - 2 * x)
+
+        for frame in range(length, boundary - length, 997):
+            self.assertAlmostEqual(1.0, gain(frame), delta=0.001, msg=frame)
+        for step in range(1, 8):
+            position = length * step // 8
+            self.assertAlmostEqual(smooth(position / length), gain(boundary - position),
+                                   delta=0.002, msg=position)
+            self.assertAlmostEqual(smooth(position / length), gain(boundary + position),
+                                   delta=0.002, msg=position)
+        self.assertAlmostEqual(1.0, gain(boundary + length + output // 10), delta=0.001)
+        steps = [abs(gain(frame) - gain(frame - 1))
+                 for frame in range(boundary - length, boundary + length)]
+        self.assertLess(max(steps), 1.5 / length + 4 / 32768)
+        for frame in range(length, 2 * boundary - length, 101):
+            left, right = (self.sample_value(word) for word in frames[frame])
+            self.assertLessEqual(abs(left + right), 1, frame)
+        self.assertLess(self.transition_load(watch, length, "16 kHz WAV shuffle fade"), 0.2)
+        self.assert_healthy(rig.session)
+
+    def tagged_opus(self, title, album):
+        import io
+        import mutagen.oggopus
+        stream = io.BytesIO((PROJECT / "tests/fixtures/opus/stereo48.opus").read_bytes())
+        tagged = mutagen.oggopus.OggOpus(stream)
+        tagged.tags["title"], tagged.tags["album"] = [title], [album]
+        tagged.tags["tracknumber"] = ["1"]
+        stream.seek(0)
+        tagged.save(stream)
+        return stream.getvalue()
+
+    def test_shuffle_fades_between_opus_albums_on_core_0(self):
+        from echo_emulator.core1_bridge import CORE1_OPUS, Core1Bridge
+        from echo_emulator.playback import Rig
+        from unicorn.arm_const import UC_ARM_REG_SP
+        tenths = 6
+        volume = self.transition_volume([("A.opus", self.tagged_opus("A", "Album A")),
+                                         ("B.opus", self.tagged_opus("B", "Album B"))], tenths)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        Core1Bridge(rig.audio, {CORE1_OPUS: self.elf.with_name("core1_opus.bin").read_bytes()})
+        machine = rig.machine
+        length, starts = 48000 * tenths // 10, []
+        watch = self.watch_transition(rig, 1 << 30, length)
+        frames = watch["frames"]
+
+        def fade_in_start():
+            ramp = struct.unpack("<I", machine.read_memory(machine.reg(UC_ARM_REG_SP), 4))[0]
+            starts.append(struct.unpack("<I", machine.read_memory(ramp, 4))[0])
+
+        machine.hook_symbol("audio_process_fade_in", fade_in_start)
+        rig.open_songs()
+        rig.play_song(1)
+        machine.run(until=lambda: starts and max(frames, default=0) >= starts[0] + 3 * length,
+                    until_ms=machine.milliseconds() + 14000)
+        self.assertEqual(48000, rig.audio.rate)
+        self.assertTrue(starts)
+        boundary = starts[0]
+
+        def loudest(first, count):
+            present = [frames[frame][0] for frame in range(first, first + count) if frame in frames]
+            self.assertTrue(present, first)
+            return max(abs(self.sample_value(word)) for word in present)
+
+        def smooth(x):
+            return x * x * (3 - 2 * x)
+
+        peak = loudest(0, 48000)
+        self.assertGreater(peak, 0)
+        checked = 0
+        for frame in range(boundary - length, boundary + length):
+            if frame in frames:
+                distance = boundary - frame if frame < boundary else frame - boundary
+                limit = peak * smooth(distance / length) + peak / 1000
+                self.assertLessEqual(abs(self.sample_value(frames[frame][0])), limit, frame)
+                checked += 1
+        self.assertGreater(checked, length // 2)
+        self.assertGreater(loudest(boundary + 2 * length, length), peak / 2)
+        self.assertGreater(watch["instructions"], 20 * length)
+        print("\n[Opus shuffle fade] ramp %.1f instructions per output frame"
+              % (watch["instructions"] / (2 * length)))
+        self.assert_healthy(rig.session)
+
     def test_converted_files_keep_the_waveform_and_dma_continuous_at_the_queue_boundary(self):
         from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.playback import Rig
-        from echo_emulator.audio import PRODUCED_OFFSET, RING_BYTES
-        from unicorn import UC_HOOK_MEM_WRITE
         volume = Fat32Volume()
         pcm = struct.pack("<8h", 0, 2828, 4000, 2828, 0, -2828, -4000, -2828) * 250
         wav = struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ",
@@ -2061,34 +2608,36 @@ class EchoImageTest(unittest.TestCase):
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
         machine = rig.machine
-        samples, starts = {}, []
-        total, boundary = 24000, 12000
-        ring = rig.audio.ring
-
-        def capture(uc, access, address, size, value, user):
-            if len(samples) == total and samples[total - 1][1] is not None:
-                return
-            produced = struct.unpack("<I", machine.read_memory(
-                rig.audio.engine + PRODUCED_OFFSET, 4))[0]
-            at = ring + (produced % (RING_BYTES // 8)) * 8
-            if produced >= total or size not in (4, 8) or address not in (at, at + 4):
-                return
-            pair = samples.setdefault(produced, [None, None])
-            pair[(address - at) // 4] = value & 0xFFFFFFFF
-            if size == 8:
-                pair[1] = (value >> 32) & 0xFFFFFFFF
-
-        machine.uc.hook_add(UC_HOOK_MEM_WRITE, capture, None, ring, ring + RING_BYTES - 1)
+        starts = []
+        factor = 4
+        boundary = 2000 * factor
+        total = 2 * boundary
+        samples = self.capture_output(rig, total)
         machine.hook_symbol("dmac_start_loop", lambda: starts.append(machine.milliseconds()))
         rig.open_songs()
         rig.play_song(1)
         rig.run_for(650)
         self.assertEqual(total, len(samples))
-        self.assertTrue(all(None not in pair for pair in samples.values()))
         self.assertEqual(1, len(starts), starts)
-        for frame in range(boundary - 144, boundary + 144):
-            self.assertEqual(samples[480 + frame % 48], samples[frame], frame)
+        period = 8 * factor
+        for frame in range(boundary - 3 * period, boundary + 3 * period):
+            self.assertEqual(samples[10 * period + frame % period], samples[frame], frame)
         self.assert_healthy(rig.session)
+
+    def capture_output(self, rig, total):
+        from echo_emulator.audio import PRODUCED_OFFSET, RING_BYTES
+        machine, ring, frames = rig.machine, rig.audio.ring, RING_BYTES // 8
+        samples = []
+
+        def capture():
+            produced = struct.unpack("<I", machine.read_memory(
+                rig.audio.engine + PRODUCED_OFFSET, 4))[0]
+            while len(samples) < min(produced, total):
+                slot = len(samples) % frames
+                samples.append(struct.unpack("<II", machine.read_memory(ring + slot * 8, 8)))
+
+        machine.hook_symbol("audio_engine_pump", capture)
+        return samples
 
     def converted_reference(self, channels, factor, count):
         import audio_resample_table
@@ -2107,10 +2656,8 @@ class EchoImageTest(unittest.TestCase):
         return frames
 
     def test_converted_stereo_matches_the_filter_and_leaves_core_0_mostly_idle(self):
-        from echo_emulator.audio import PRODUCED_OFFSET, RING_BYTES
         from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.playback import Rig
-        from unicorn import UC_HOOK_MEM_WRITE
         rate, total = 16000, 14400
         left = [index * 7919 % 20000 - 10000 for index in range(rate * 3)]
         right = [index * 104729 % 16000 - 8000 for index in range(rate * 3)]
@@ -2121,36 +2668,24 @@ class EchoImageTest(unittest.TestCase):
         volume.add_file("Speech.wav", wav)
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
-        machine, ring, samples = rig.machine, rig.audio.ring, {}
-
-        def capture(uc, access, address, size, value, user):
-            produced = struct.unpack("<I", machine.read_memory(
-                rig.audio.engine + PRODUCED_OFFSET, 4))[0]
-            at = ring + (produced % (RING_BYTES // 8)) * 8
-            if produced >= total or size not in (4, 8) or address not in (at, at + 4):
-                return
-            pair = samples.setdefault(produced, [None, None])
-            pair[(address - at) // 4] = value & 0xFFFFFFFF
-            if size == 8:
-                pair[1] = (value >> 32) & 0xFFFFFFFF
+        machine = rig.machine
+        samples = self.capture_output(rig, total)
 
         def busy_us():
             return struct.unpack("<12I", machine.read_memory(machine.symbols["stats"], 48))[10]
 
-        machine.uc.hook_add(UC_HOOK_MEM_WRITE, capture, None, ring, ring + RING_BYTES - 1)
         rig.open_songs()
         started = rig.play_song(1)
-        machine.run(until=lambda: None not in samples.get(total - 1, [None]),
-                    until_ms=machine.milliseconds() + 3000)
+        machine.run(until=lambda: len(samples) >= total, until_ms=machine.milliseconds() + 3000)
         busy, since = busy_us(), machine.microseconds()
         rig.run_for(1000)
         share = (busy_us() - busy) / (machine.microseconds() - since)
-        self.assertEqual(48000, rig.audio.rate)
+        self.assertEqual(32000, rig.audio.rate)
         self.assertEqual([], rig.audio.underruns(started))
         got = [tuple((word - (word >> 31 << 32)) >> 8 for word in samples[frame])
                for frame in range(total)]
         wanted = self.converted_reference(([value << 8 for value in left],
-                                           [value << 8 for value in right]), 3, total)
+                                           [value << 8 for value in right]), 2, total)
         self.assertEqual(wanted, got)
         self.assertLess(share, 0.2)
         self.assert_healthy(rig.session)
@@ -2226,6 +2761,42 @@ class EchoImageTest(unittest.TestCase):
         animated, still = self.measure_motion_load(rig, "export motion, 22.05 kHz WAV")
         self.assertLess(animated - still, MOTION_LOAD_LIMIT_PERCENT)
 
+    def test_mono_speech_at_32_khz_lets_core_0_coast_without_underruns(self):
+        rig = self.speech_rig()
+        machine = rig.machine
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.rate == 32000 and machine.coast_log[-1][1] == 2,
+            until_ms=machine.milliseconds() + 5000))
+        rig.run_for(1500)
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assert_healthy(rig.session)
+
+    def test_stereo_speech_conversion_keeps_core_0_at_full_speed(self):
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        rate = 16000
+        pcm = b"".join(struct.pack("<hh", index % 200 - 100, 100 - index % 300)
+                       for index in range(rate * 4))
+        wav = struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ",
+                          16, 1, 2, rate, rate * 4, 4, 16, b"data", len(pcm)) + pcm
+        volume = Fat32Volume()
+        volume.add_file("Stereo.wav", wav)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        machine = rig.machine
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(500)
+        self.assertEqual(32000, rig.audio.rate)
+        playing_since = machine.milliseconds()
+        rig.run_for(2000)
+        self.assertEqual([], [entry for entry in machine.coast_log
+                              if entry[0] >= playing_since and entry[1] == 2])
+        self.assertEqual(200_000_000, machine.core_hz)
+        self.assert_healthy(rig.session)
+
     def test_speech_plays_through_the_independent_audio_module_while_a_menu_module_changes(self):
         rig = self.speech_rig()
         number, dsp = self.module(rig.machine, "dsp")
@@ -2233,7 +2804,7 @@ class EchoImageTest(unittest.TestCase):
         rig.open_songs()
         started = rig.play_song(1)
         self.assertIsNotNone(rig.first_audio_after(started))
-        self.assertEqual(48000, rig.audio.rate)
+        self.assertEqual(32000, rig.audio.rate)
         self.assertTrue(dsp.loaded(rig.machine))
         self.assertTrue(rig.session.module_reads("slot_1", number))
         rig.press("back", hold=1300)

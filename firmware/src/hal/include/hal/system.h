@@ -54,7 +54,14 @@ typedef enum HalUsbMode {
     HAL_USB_MODE_PLAYER
 } HalUsbMode;
 
+typedef enum HalUsbAnswer {
+    HAL_USB_ANSWER_ASK,
+    HAL_USB_ANSWER_STORAGE,
+    HAL_USB_ANSWER_CHARGE
+} HalUsbAnswer;
+
 void hal_system_set_usb_mode(HalUsbMode mode);
+void hal_system_set_usb_answer(HalUsbAnswer answer);
 void hal_system_request_usb_mode(HalUsbMode mode);
 void hal_system_set_dac_volume(uint8_t level);
 
@@ -115,6 +122,8 @@ typedef enum HalRtcStatus {
     HAL_RTC_OK,
     HAL_RTC_NO_ACK,
     HAL_RTC_TIMEOUT,
+    HAL_RTC_NO_TIME,
+    HAL_RTC_MISMATCH,
     HAL_RTC_STATUS_COUNT
 } HalRtcStatus;
 
@@ -124,6 +133,7 @@ typedef struct HalRtcRead {
 } HalRtcRead;
 
 HalRtcRead hal_system_rtc_read(void);
+HalRtcRead hal_system_rtc_set(uint32_t utc_s);
 uint8_t hal_system_power_levels(void);
 uint32_t hal_system_power_samples(void);
 void hal_system_hold_usb_supply_off(bool held);
@@ -152,6 +162,7 @@ bool hal_system_restart_pending(void);
 const void *hal_system_load_rescan_code(void);
 const void *hal_system_load_module(uint32_t module);
 const void *hal_system_load_debug_code(void);
+const void *hal_system_extension_code(void);
 void *hal_system_borrow_scratch(uint32_t *size);
 void *hal_system_borrow_listing(uint32_t *size);
 void hal_system_return_scratch(void);

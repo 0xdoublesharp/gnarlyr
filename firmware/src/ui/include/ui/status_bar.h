@@ -21,7 +21,8 @@ typedef enum StatusBluetooth {
 enum {
     STATUS_BAR_CRITICAL_BATTERY_PERCENT = 5,
     STATUS_BAR_LOW_BATTERY_PERCENT = 15,
-    STATUS_BAR_PERCENT_CAPACITY = 12
+    STATUS_BAR_PERCENT_CAPACITY = 12,
+    STATUS_BAR_CLOCK_CAPACITY = 24
 };
 
 typedef enum StatusShuffle {
@@ -40,6 +41,7 @@ typedef struct StatusBarState {
     bool locked;
     StatusShuffle shuffle;
     const char *percent;
+    const char *clock;
 } StatusBarState;
 
 typedef struct StatusBatteryLook {
@@ -56,5 +58,8 @@ Rect status_bar_battery_area(const Theme *theme);
 Rect status_bar_lock_area(const Theme *theme);
 Rect status_bar_shuffle_area(const Theme *theme, StatusShuffle shuffle);
 int status_bar_battery_fill_width(uint8_t percent, int inner_width);
+int status_bar_left_end(const Theme *theme, StatusBarState state);
+Rect status_bar_clock_area(const Theme *theme, StatusBarState state);
+bool status_bar_clock_fits(const Theme *theme, StatusBarState state);
 StatusBatteryLook status_bar_battery_look(const Theme *theme, StatusBarState state);
 void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state);

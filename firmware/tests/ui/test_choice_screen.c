@@ -140,6 +140,20 @@ static void the_list_is_drawn_under_the_header(void)
     CHECK(ui_test_area_has_only(&canvas, first_row, TEST_THEME.colors.selection_background));
 }
 
+static const char *countdown_on_first(const void *context, int index)
+{
+    (void)context;
+    return index == 0 ? "9 s" : NULL;
+}
+
+static void a_detail_callback_takes_the_place_of_the_check_mark(void)
+{
+    open_choice(1);
+    choice.config.detail = countdown_on_first;
+    CHECK(strcmp("9 s", choice.model.detail(choice.model.context, 0)) == 0);
+    CHECK(choice.model.detail(choice.model.context, 1) == NULL);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -151,6 +165,7 @@ int main(void)
         TEST_CASE(selecting_chooses_the_option_and_leaves),
         TEST_CASE(choosing_can_continue_into_another_screen),
         TEST_CASE(back_leaves_without_choosing),
+        TEST_CASE(a_detail_callback_takes_the_place_of_the_check_mark),
         TEST_CASE(the_list_is_drawn_under_the_header),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

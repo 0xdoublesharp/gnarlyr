@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/deadline.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "default_theme.h"
@@ -12,7 +13,12 @@
 enum {
     BRIGHTNESS_LEVEL_COUNT = SETTINGS_BRIGHTNESS_MAX - SETTINGS_BRIGHTNESS_MIN + 1,
     MILLISECONDS_PER_MINUTE = 60000,
-    USB_MODE_SELECT_COUNT = 3
+    USB_MODE_SELECT_COUNT = 3,
+    SAFE_VOLUME_OPTION_COUNT = 6,
+    SAFE_VOLUME_STEP = 6,
+    SAFE_VOLUME_TEXT_CAPACITY = 4,
+    USB_PROMPT_MS = 15000,
+    MILLISECONDS_PER_SECOND = 1000
 };
 
 static const StringId SHUFFLE_OPTIONS[SHUFFLE_MODE_COUNT] = {STR_OFF, STR_SHUFFLE_SONGS,
@@ -50,8 +56,10 @@ static const StringId OUTPUT_MESSAGES[OUTPUT_JACK_COUNT] = {STR_OUTPUT_FOLLOWS, 
 static const StringId START_OPTIONS[START_SCREEN_COUNT] = {
     STR_START_MAIN_MENU, STR_NOW_PLAYING, STR_ALBUMS,    STR_ARTISTS,
     STR_FAVORITES,       STR_PLAYLISTS,   STR_COVER_FLOW};
-static const StringId USB_MODE_OPTIONS[USB_MODE_SELECT_COUNT] = {STR_PLAYER_MODE, STR_POWER_STORAGE,
+static const StringId USB_MODE_OPTIONS[USB_MODE_SELECT_COUNT] = {STR_CHARGE_ONLY, STR_FILE_TRANSFER,
                                                                  STR_USB_DAC_TITLE};
+static const StringId USB_ANSWER_OPTIONS[USB_CONNECT_COUNT] = {STR_ASK, STR_FILE_TRANSFER,
+                                                               STR_CHARGE_ONLY};
 static const StringId USB_MODE_MESSAGES[USB_MODE_COUNT] = {STR_USB_SHOWS_DRIVES,
                                                            STR_USB_PLAYS_SOUND};
 
@@ -479,6 +487,17 @@ static void choose_usb_mode(void *context, int index)
     toast_show(settings->toast, i18n_text(USB_MODE_MESSAGES[index - 1]), hal_clock_milliseconds());
 }
 
+static int current_usb_answer(const void *context)
+{
+    return (int)settings_of(context)->usb_connect;
+}
+
+static void choose_usb_answer(void *context, int index)
+{
+    editable_settings(context)->usb_connect = (UsbConnect)index;
+    apply_and_save(context);
+}
+
 static int current_replay_gain(const void *context)
 {
     return settings_of(context)->replay_gain_mode;
@@ -520,6 +539,116 @@ static void choose_battery_percent(void *context, int index)
     save(context);
 }
 
+static int current_rewind(const void *context)
+{
+    return settings_of(context)->rewind_on_resume ? 1 : 0;
+}
+
+static void choose_rewind(void *context, int index)
+{
+    SettingsContext *settings = context;
+    editable_settings(context)->rewind_on_resume = index != 0;
+    player_set_rewind(settings->player, index != 0);
+    save(settings);
+}
+
+static const char *const SAFE_VOLUME_LEVELS[SAFE_VOLUME_OPTION_COUNT] = {"",   "12", "18",
+                                                                         "24", "30", "36"};
+static const char *safe_volume_options[SAFE_VOLUME_OPTION_COUNT];
+
+static int current_safe_volume(const void *context)
+{
+    const Settings *settings = settings_of(context);
+    int option = (settings->safe_start_volume_level + SAFE_VOLUME_STEP / 2) / SAFE_VOLUME_STEP - 1;
+    option = option < 1 ? 1 : option;
+    option = option < SAFE_VOLUME_OPTION_COUNT ? option : SAFE_VOLUME_OPTION_COUNT - 1;
+    return settings->safe_start_volume ? option : 0;
+}
+
+static void choose_safe_volume(void *context, int index)
+{
+    Settings *settings = editable_settings(context);
+    settings->safe_start_volume = index != 0;
+    if (index != 0) {
+        settings->safe_start_volume_level = (uint8_t)((index + 1) * SAFE_VOLUME_STEP);
+    }
+    save(context);
+}
+
+static const char *describe_safe_volume(const void *context, int current)
+{
+    static char text[SAFE_VOLUME_TEXT_CAPACITY];
+    if (current == 0) {
+        return i18n_text(STR_OFF);
+    }
+    StringBuilder level = string_builder_make(text, sizeof text);
+    string_builder_append_unsigned(&level, settings_of(context)->safe_start_volume_level);
+    return text;
+}
+
+static void extend_safe_volume(SettingsScreens *screens, ChoiceConfig *config)
+{
+    (void)screens;
+    safe_volume_options[0] = i18n_text(STR_OFF);
+    for (int index = 1; index < SAFE_VOLUME_OPTION_COUNT; index++) {
+        safe_volume_options[index] = SAFE_VOLUME_LEVELS[index];
+    }
+    config->options = safe_volume_options;
+    config->option_ids = NULL;
+}
+
+static const StringId TRANSITION_OPTIONS[] = {STR_OFF, STR_TRANSITION_FADE};
+static const StringId TRANSITION_LENGTH_OPTIONS[] = {
+    STR_SECONDS_0_5, STR_SECONDS_1, STR_SECONDS_1_5, STR_SECONDS_2,
+    STR_SECONDS_3,   STR_SECONDS_4, STR_SECONDS_6};
+static const uint8_t TRANSITION_TENTHS[] = {5, 10, 15, 20, 30, 40, 60};
+
+static void apply_transitions(SettingsContext *context)
+{
+    const Settings *settings = &context->store->settings;
+    player_set_transitions(context->player, settings->track_transition != TRACK_TRANSITION_OFF,
+                           settings->transition_tenths);
+    save(context);
+}
+
+static int current_transition(const void *context)
+{
+    return settings_of(context)->track_transition != TRACK_TRANSITION_OFF ? 1 : 0;
+}
+
+static void choose_transition(void *context, int index)
+{
+    SettingsContext *settings = context;
+    editable_settings(context)->track_transition =
+        index != 0 ? TRACK_TRANSITION_FADE : TRACK_TRANSITION_OFF;
+    apply_transitions(settings);
+    if (index != 0) {
+        toast_show(settings->toast, i18n_text(STR_TRANSITIONS_IN_SHUFFLE),
+                   hal_clock_milliseconds());
+    }
+}
+
+static int current_transition_length(const void *context)
+{
+    uint8_t tenths = settings_of(context)->transition_tenths;
+    int chosen = 0;
+    for (int index = 1; index < (int)sizeof TRANSITION_TENTHS; index++) {
+        chosen = TRANSITION_TENTHS[index] <= tenths ? index : chosen;
+    }
+    return chosen;
+}
+
+static void choose_transition_length(void *context, int index)
+{
+    editable_settings(context)->transition_tenths = TRANSITION_TENTHS[index];
+    apply_transitions(context);
+}
+
+static bool transition_length_shown(const void *context)
+{
+    return current_transition(context) != 0;
+}
+
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_SHUFFLE, SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, current_shuffle, choose_shuffle, NULL, NULL},
     {STR_REPEAT, REPEAT_OPTIONS, REPEAT_MODE_COUNT, current_repeat, choose_repeat, NULL, NULL},
@@ -554,6 +683,14 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_THEME, THEME_OPTIONS, APPEARANCE_THEME_COUNT, current_appearance, choose_appearance, NULL,
      NULL},
     {STR_BATTERY_PERCENTAGE, OFF_ON_OPTIONS, 2, current_battery_percent, choose_battery_percent,
+     NULL, NULL},
+    {STR_REWIND_ON_RESUME, OFF_ON_OPTIONS, 2, current_rewind, choose_rewind, NULL, NULL},
+    {STR_SAFE_START_VOLUME, NULL, SAFE_VOLUME_OPTION_COUNT, current_safe_volume, choose_safe_volume,
+     describe_safe_volume, extend_safe_volume},
+    {STR_TRANSITIONS, TRANSITION_OPTIONS, 2, current_transition, choose_transition, NULL, NULL},
+    {STR_TRANSITION_LENGTH, TRANSITION_LENGTH_OPTIONS, (int)sizeof TRANSITION_TENTHS,
+     current_transition_length, choose_transition_length, NULL, NULL},
+    {STR_USB_ANSWER, USB_ANSWER_OPTIONS, USB_CONNECT_COUNT, current_usb_answer, choose_usb_answer,
      NULL, NULL},
 };
 
@@ -593,9 +730,82 @@ static ScreenAction open_choice(void *context)
     return screen_action_push(choice_view(screens, choice, config));
 }
 
-Screen *settings_screens_usb_modes(SettingsScreens *screens)
+static const char *usb_countdown(const void *context, int index)
 {
-    return open_choice(&screens->entries[SETTINGS_USB_MODE_CHOICE]).target;
+    const SettingsScreens *screens =
+        (const SettingsScreens *)((const char *)context - offsetof(SettingsScreens, context));
+    return index == 0 ? screens->usb.countdown : NULL;
+}
+
+static void usb_count_down(UsbChooser *usb, uint32_t now_ms)
+{
+    usb->expired = usb->timed && deadline_reached(now_ms, usb->until_ms);
+    uint32_t left = usb->expired ? 0
+                                 : (usb->until_ms - now_ms + MILLISECONDS_PER_SECOND - 1) /
+                                       MILLISECONDS_PER_SECOND;
+    if (!usb->timed || left == usb->seconds) {
+        return;
+    }
+    usb->seconds = left;
+    usb->redraw = true;
+    StringBuilder text = string_builder_make(usb->countdown, sizeof usb->countdown);
+    i18n_format_counts(&text, STR_USB_PROMPT_SECONDS, left, 0);
+}
+
+static void usb_enter(void *context, uint32_t now_ms)
+{
+    UsbChooser *usb = context;
+    usb->until_ms = now_ms + USB_PROMPT_MS;
+    usb->seconds = 0;
+    usb->choice.screen.enter(&usb->choice, now_ms);
+    usb_count_down(usb, now_ms);
+}
+
+static ScreenAction usb_key(void *context, KeyEvent event, uint32_t now_ms)
+{
+    UsbChooser *usb = context;
+    usb->until_ms = now_ms + USB_PROMPT_MS;
+    usb_count_down(usb, now_ms);
+    return usb->choice.screen.handle_key(&usb->choice, event, now_ms);
+}
+
+static void usb_update(void *context, uint32_t now_ms)
+{
+    UsbChooser *usb = context;
+    usb->choice.screen.update(&usb->choice, now_ms);
+    usb_count_down(usb, now_ms);
+}
+
+static void usb_draw(void *context, Canvas *canvas)
+{
+    UsbChooser *usb = context;
+    usb->choice.screen.draw(&usb->choice, canvas);
+}
+
+Screen *settings_screens_usb_modes(SettingsScreens *screens, bool prompt)
+{
+    UsbChooser *usb = &screens->usb;
+    const char *title = i18n_text(prompt ? STR_USB_CONNECTED : STR_USB_MODE);
+    ChoiceConfig config = {.title = title,
+                           .option_ids = USB_MODE_OPTIONS,
+                           .option_count = USB_MODE_SELECT_COUNT,
+                           .current = current_usb_mode,
+                           .choose = choose_usb_mode,
+                           .detail = prompt ? usb_countdown : NULL,
+                           .context = &screens->context,
+                           .theme = screens->theme};
+    choice_screen_init(&usb->choice, config);
+    usb->timed = prompt;
+    usb->countdown[0] = '\0';
+    usb->screen = (Screen){.title = title,
+                           .context = usb,
+                           .takes_every_key = true,
+                           .stays_on_wake = true,
+                           .enter = usb_enter,
+                           .handle_key = usb_key,
+                           .update = usb_update,
+                           .draw = usb_draw};
+    return &usb->screen;
 }
 
 static const char *choice_value(const void *context)
@@ -706,6 +916,8 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
     }
     screens->items[SETTINGS_LANGUAGE_ITEM].shown = language_shown;
     screens->items[SETTINGS_LANGUAGE_ITEM].shown_context = &screens->languages;
+    screens->items[SETTINGS_TRANSITION_LENGTH_ITEM].shown = transition_length_shown;
+    screens->items[SETTINGS_TRANSITION_LENGTH_ITEM].shown_context = &screens->context;
     MenuConfig menu = {.title = i18n_text(STR_SETTINGS),
                        .items = screens->items,
                        .item_count = SETTINGS_ITEM_COUNT,

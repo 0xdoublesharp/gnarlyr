@@ -227,6 +227,8 @@ class RtcBus(RegisterFile):
             return
         if count > 1:
             self.pointer = frame[1] % self.REGISTERS
+        for offset, byte in enumerate(frame[2:]):
+            self.registers[(self.pointer + offset) % self.REGISTERS] = byte
         self.pend(self.TX_DONE)
 
     def receive(self, count):
@@ -476,6 +478,8 @@ class UsbCore(RegisterFile):
                 self.machine.usb_disconnected()
             return
         if offset == GRSTCTL:
+            if value & GRSTCTL_SOFT_RESET:
+                self.interrupts = 0
             self.regs[offset] = value & ~(GRSTCTL_SOFT_RESET | GRSTCTL_FLUSH_BITS)
             return
         super().write_word(offset, value)

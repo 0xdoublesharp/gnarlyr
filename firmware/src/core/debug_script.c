@@ -32,13 +32,14 @@ static const Word WORDS[] = {
     {"screen", DEBUG_COMMAND_SCREEN},
     {"soak", DEBUG_COMMAND_SOAK},
     {"rtc", DEBUG_COMMAND_RTC},
+    {"standby", DEBUG_COMMAND_STANDBY},
 };
 
 static const char *const PROFILE_ACTIONS[] = {
     [DEBUG_PROFILE_OFF] = "off", [DEBUG_PROFILE_ON] = "on", [DEBUG_PROFILE_RESET] = "reset"};
 static const char *const SENSE_MODES[] = {"normal", "kept_on"};
 static const char *const SWITCH_STATES[] = {"off", "on"};
-static const char *const RTC_ACTIONS[] = {"read"};
+static const char *const RTC_ACTIONS[] = {[DEBUG_RTC_READ] = "read", [DEBUG_RTC_SET] = "set"};
 static const char *const PIN_ACTIONS[] = {[DEBUG_PIN_READ] = "read",
                                           [DEBUG_PIN_LOW] = "low",
                                           [DEBUG_PIN_HIGH] = "high",
@@ -288,6 +289,7 @@ static bool arguments_fit(DebugCommand *command)
         return parse_gpio(command);
     case DEBUG_COMMAND_SUPPLY:
     case DEBUG_COMMAND_SCREEN:
+    case DEBUG_COMMAND_STANDBY:
         return parse_choice(command->argument, SWITCH_STATES,
                             sizeof SWITCH_STATES / sizeof SWITCH_STATES[0], &command->number);
     case DEBUG_COMMAND_RTC:
@@ -435,7 +437,8 @@ static bool add_numbered(DebugScriptRun *run, const DebugCommand *command, uint3
         [DEBUG_COMMAND_SUPPLY] = 1 + DEBUG_OP_SUPPLY,
         [DEBUG_COMMAND_SCREEN] = 1 + DEBUG_OP_SCREEN,
         [DEBUG_COMMAND_SOAK] = 1 + DEBUG_OP_SOAK,
-        [DEBUG_COMMAND_RTC] = 1 + DEBUG_OP_RTC};
+        [DEBUG_COMMAND_RTC] = 1 + DEBUG_OP_RTC,
+        [DEBUG_COMMAND_STANDBY] = 1 + DEBUG_OP_STANDBY};
     if (command->kind >= DEBUG_COMMAND_UNKNOWN || OPS[command->kind] == 0) {
         return false;
     }

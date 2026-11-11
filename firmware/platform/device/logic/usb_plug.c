@@ -45,3 +45,13 @@ UsbPlugAction usb_plug_request(UsbPlug *plug, bool connect)
     plug->state = connect ? USB_PLUG_UNPLUGGED : USB_PLUG_SERVED;
     return action;
 }
+
+bool usb_plug_listens(UsbPlugAnswer answer, bool requested)
+{
+    return requested || answer != USB_PLUG_CHARGE;
+}
+
+bool usb_plug_asks(UsbPlugAnswer answer, bool requested)
+{
+    return !requested && answer == USB_PLUG_ASK;
+}

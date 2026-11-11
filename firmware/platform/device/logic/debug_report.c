@@ -83,14 +83,20 @@ static const char *const REASON_NAMES[DEBUG_REPORT_REASON_COUNT] = {
     [DEBUG_REPORT_RESTART] = "restart",
     [DEBUG_REPORT_NO_HOST] = "no_host",
 };
-static const char *const RTC_STATUSES[HAL_RTC_STATUS_COUNT] = {
-    [HAL_RTC_OK] = "ok", [HAL_RTC_NO_ACK] = "no_ack", [HAL_RTC_TIMEOUT] = "timeout"};
+static const char *const RTC_STATUSES[HAL_RTC_STATUS_COUNT] = {[HAL_RTC_OK] = "ok",
+                                                               [HAL_RTC_NO_ACK] = "no_ack",
+                                                               [HAL_RTC_TIMEOUT] = "timeout",
+                                                               [HAL_RTC_NO_TIME] = "no_time",
+                                                               [HAL_RTC_MISMATCH] = "mismatch"};
+static const char *const RTC_ACTIONS[] = {[DEBUG_RTC_READ] = "read", [DEBUG_RTC_SET] = "set"};
 static const char *const CONNECT_NAMES[] = {"none", "waiting", "answered", "no_host", "cancelled"};
 static const char SCHEMA_KEY[] = "debug_report";
 static const char SEQUENCE_KEY[] = "report.sequence";
 static const char COLD_KEY[] = "report.cold_start";
 static const char *const GESTURE_NAMES[] = {"press", "long", "repeat", "double", "triple"};
-static const char *const PLAYER_NAMES[] = {"idle", "playing", "paused"};
+static const char *const PLAYER_NAMES[] = {"idle", "playing", "paused", "standby"};
+_Static_assert(sizeof PLAYER_NAMES / sizeof PLAYER_NAMES[0] == DEBUG_PLAYER_STANDBY + 1,
+               "the report names the standby state the event log records");
 static const char *const AUDIO_NAMES[] = {"stopped", "playing", "paused"};
 static const char *const USB_END_NAMES[] = {"none", "ejected", "unplugged", "no_host"};
 static const char *const STEP_NAMES[HAL_START_STEP_COUNT] = {
@@ -577,15 +583,23 @@ static void append_rtc_decoded(StringBuilder *text, const DebugRtcRead *read)
     append_field(text, "century", true, time.century);
 }
 
+static void append_rtc_head(StringBuilder *text, const DebugRtcRead *read)
+{
+    string_builder_append(text, "line=");
+    string_builder_append_unsigned(text, read->line);
+    append_field(text, "ms", true, read->time_ms);
+    string_builder_append(text, " action=");
+    string_builder_append(text, NAME_IN(RTC_ACTIONS, read->action));
+    append_field(text, "written_s", read->written_s != 0, read->written_s);
+    string_builder_append(text, " status=");
+    string_builder_append(text, NAME_IN(RTC_STATUSES, read->status));
+}
+
 static void put_rtc(Writer *writer, const DebugRtcRead *read)
 {
     begin(writer, "script.rtc");
-    string_builder_append(&writer->text, "line=");
-    string_builder_append_unsigned(&writer->text, read->line);
-    append_field(&writer->text, "ms", true, read->time_ms);
-    string_builder_append(&writer->text, " status=");
-    string_builder_append(&writer->text, NAME_IN(RTC_STATUSES, read->status));
-    if (read->status == HAL_RTC_OK) {
+    append_rtc_head(&writer->text, read);
+    if (read->status == HAL_RTC_OK || read->status == HAL_RTC_MISMATCH) {
         append_rtc_registers(&writer->text, read);
         append_rtc_decoded(&writer->text, read);
     } else {

@@ -101,7 +101,7 @@ static void start_engine(void)
     audio_engine_init(&engine, (AudioEngineConfig){.source = flac_source_interface(&source),
                                                    .ring = ring,
                                                    .ring_words = RING_WORDS,
-                                                   .resample_pull = audio_resample_pull});
+                                                   .resample_render = audio_resample_render});
     audio_engine_set_volume(&engine, FULL_VOLUME);
 }
 
@@ -180,7 +180,7 @@ static void start_scripted_engine(int waits, int frames)
     audio_engine_init(&engine, (AudioEngineConfig){.source = interface,
                                                    .ring = ring,
                                                    .ring_words = RING_WORDS,
-                                                   .resample_pull = audio_resample_pull});
+                                                   .resample_render = audio_resample_render});
     audio_engine_set_volume(&engine, FULL_VOLUME);
 }
 
@@ -486,13 +486,15 @@ typedef struct ResampledReference {
 
 static void reference_take(AudioResample *resample, ResampledReference *reference)
 {
-    int32_t left = 0;
-    int32_t right = 0;
-    while (audio_resample_pull(resample, &left, &right)) {
-        reference->words[2 * reference->frames] = word_of(left, 24);
-        reference->words[2 * reference->frames + 1] = word_of(right, 24);
+    while (audio_resample_render(resample, &reference->words[2 * reference->frames], 1) == 1) {
         reference->frames++;
     }
+}
+
+static bool reference_push(AudioResample *resample, int32_t left, int32_t right)
+{
+    const int32_t frame[2] = {left, right};
+    return audio_resample_push(resample, frame, 1) == 1;
 }
 
 static ResampledReference speech_reference(uint32_t first, uint32_t count)
@@ -503,8 +505,8 @@ static ResampledReference speech_reference(uint32_t first, uint32_t count)
     ResampledReference reference = {.words = malloc((size_t)count * 4 * sizeof(uint32_t))};
     CHECK(reference.words != NULL);
     for (uint32_t frame = first; frame < first + count; frame++) {
-        CHECK(audio_resample_push(&resample, expected_at(&pcm, 2 * frame) * 256,
-                                  expected_at(&pcm, 2 * frame + 1) * 256));
+        CHECK(reference_push(&resample, expected_at(&pcm, 2 * frame) * 256,
+                             expected_at(&pcm, 2 * frame + 1) * 256));
         reference_take(&resample, &reference);
     }
     audio_resample_finish(&resample);
@@ -592,8 +594,8 @@ static ResampledReference joined_speech_reference(uint32_t frames)
     CHECK(reference.words != NULL);
     for (uint32_t repeat = 0; repeat < 2; repeat++) {
         for (uint32_t frame = 0; frame < frames; frame++) {
-            CHECK(audio_resample_push(&resample, expected_at(&pcm, 2 * frame) * 256,
-                                      expected_at(&pcm, 2 * frame + 1) * 256));
+            CHECK(reference_push(&resample, expected_at(&pcm, 2 * frame) * 256,
+                                 expected_at(&pcm, 2 * frame + 1) * 256));
             reference_take(&resample, &reference);
         }
     }
@@ -628,8 +630,8 @@ static void append_scripted_reference(ResampledReference *reference, uint32_t ra
     AudioResample resample;
     audio_resample_start(&resample, rate);
     for (uint32_t at = 0; at < frames; at++) {
-        CHECK(audio_resample_push(&resample, scripted.left[at % 16] * 256,
-                                  scripted.right[at % 16] * 256));
+        CHECK(
+            reference_push(&resample, scripted.left[at % 16] * 256, scripted.right[at % 16] * 256));
         reference_take(&resample, reference);
     }
     audio_resample_finish(&resample);
@@ -678,7 +680,33 @@ static void different_converted_inputs_at_the_same_output_clock_drain_and_restar
     CHECK_EQUAL(reference.frames, engine.end_at);
     CHECK_EQUAL(boundary, engine.segments[0].start);
     CHECK_EQUAL(2, audio_engine_status(&engine).token);
-    CHECK_EQUAL(48000, audio_engine_rate(&engine));
+    CHECK_EQUAL(32000, audio_engine_rate(&engine));
+    CHECK(engine.ended && !engine.failed && !engine.rate_pending);
+}
+
+static void wideband_speech_and_native_32_khz_files_share_one_output_clock(void)
+{
+    start_scripted_engine(0, 1);
+    scripted.rate = 16000;
+    scripted.next_rate = 32000;
+    scripted.frames_per_open = 1;
+    engine.config.ring_words = 16;
+    CHECK(play_file("first", 0, 1));
+    queue_file("second", 2);
+    uint32_t words[128];
+    ResampledReference reference = {.words = words};
+    append_scripted_reference(&reference, 16000, 16);
+    uint32_t boundary = reference.frames;
+    for (uint32_t at = 0; at < 16; at++) {
+        words[2 * reference.frames] = word_of(scripted.left[at], 16);
+        words[2 * reference.frames + 1] = word_of(scripted.right[at], 16);
+        reference.frames++;
+    }
+    CHECK(reference_reaches_ring(&reference));
+    pump_until_full(reference.frames);
+    CHECK_EQUAL(reference.frames, engine.end_at);
+    CHECK_EQUAL(boundary, engine.segments[0].start);
+    CHECK_EQUAL(32000, audio_engine_rate(&engine));
     CHECK(engine.ended && !engine.failed && !engine.rate_pending);
 }
 
@@ -771,13 +799,13 @@ static bool restore_kernel(void)
     return kernel_available;
 }
 
-static bool checked_kernel(AudioResample *resample, int32_t *left, int32_t *right)
+static uint32_t checked_kernel(AudioResample *resample, uint32_t *words, uint32_t frames)
 {
     if (!kernel_available) {
         invalid_kernel_pulls++;
-        return false;
+        return 0;
     }
-    return audio_resample_pull(resample, left, right);
+    return audio_resample_render(resample, words, frames);
 }
 
 static void a_failed_next_open_reloads_evicted_audio_code_before_draining(void)
@@ -786,7 +814,7 @@ static void a_failed_next_open_reloads_evicted_audio_code_before_draining(void)
     eviction_source = engine.config.source;
     engine.config.source.open = evicting_open;
     engine.config.prepare_resample = restore_kernel;
-    engine.config.resample_pull = checked_kernel;
+    engine.config.resample_render = checked_kernel;
     kernel_restore = true;
     invalid_kernel_pulls = 0;
     CHECK(play_file("independent_16", 0, 1));
@@ -807,7 +835,7 @@ static void unavailable_evicted_audio_code_finishes_with_an_error_without_callin
     eviction_source = engine.config.source;
     engine.config.source.open = evicting_open;
     engine.config.prepare_resample = restore_kernel;
-    engine.config.resample_pull = checked_kernel;
+    engine.config.resample_render = checked_kernel;
     kernel_restore = true;
     invalid_kernel_pulls = 0;
     CHECK(play_file("independent_16", 0, 1));
@@ -891,12 +919,33 @@ static bool scripted_rate_plays(uint32_t rate)
 static void speech_rates_use_the_matching_supported_output_clock(void)
 {
     static const uint32_t INPUTS[] = {8000, 11025, 12000, 16000, 22050, 24000, 32000};
-    static const uint32_t OUTPUTS[] = {48000, 44100, 48000, 48000, 44100, 48000, 32000};
+    static const uint32_t OUTPUTS[] = {32000, 44100, 48000, 32000, 44100, 48000, 32000};
     for (size_t index = 0; index < sizeof INPUTS / sizeof INPUTS[0]; index++) {
         CHECK(scripted_rate_plays(INPUTS[index]));
         CHECK_EQUAL(OUTPUTS[index], audio_engine_rate(&engine));
         CHECK_EQUAL(INPUTS[index], audio_engine_status(&engine).track.stream.sample_rate);
     }
+}
+
+static bool full_clock_after_playing(uint32_t rate, bool stereo)
+{
+    CHECK(scripted_rate_plays(rate));
+    for (int index = 0; index < 16 && !stereo; index++) {
+        scripted.right[index] = scripted.left[index];
+    }
+    pump_until_full(0);
+    return audio_engine_needs_full_clock(&engine);
+}
+
+static void only_stereo_conversions_and_conversions_above_32_khz_need_the_full_clock(void)
+{
+    CHECK(!full_clock_after_playing(8000, false));
+    CHECK(!full_clock_after_playing(16000, false));
+    CHECK(full_clock_after_playing(16000, true));
+    CHECK(full_clock_after_playing(11025, false));
+    CHECK(full_clock_after_playing(24000, false));
+    CHECK(!full_clock_after_playing(44100, true));
+    CHECK(!full_clock_after_playing(32000, true));
 }
 
 static void rates_up_to_192_khz_play_and_higher_ones_are_refused(void)
@@ -1297,8 +1346,8 @@ static void converted_files_apply_their_gain_before_sharing_filter_history(void)
     for (uint32_t file = 0; file < 2; file++) {
         for (uint32_t frame = 0; frame < 16; frame++) {
             int32_t scale = file == 0 ? 256 : 128;
-            CHECK(audio_resample_push(&resample, scripted.left[frame] * scale,
-                                      scripted.right[frame] * scale));
+            CHECK(reference_push(&resample, scripted.left[frame] * scale,
+                                 scripted.right[frame] * scale));
             reference_take(&resample, &reference);
         }
     }
@@ -1309,7 +1358,7 @@ static void converted_files_apply_their_gain_before_sharing_filter_history(void)
     CHECK(audio_engine_play(&engine, &first, 0));
     audio_engine_queue_next(&engine, &next);
     pump_until_full(0);
-    CHECK_EQUAL(192, reference.frames);
+    CHECK_EQUAL(32 * audio_resample_rate(8000) / 8000, reference.frames);
     CHECK_EQUAL(reference.frames, engine.end_at);
     CHECK(memcmp(words, ring, reference.frames * 2 * sizeof(uint32_t)) == 0);
 }
@@ -1419,6 +1468,7 @@ int main(void)
         TEST_CASE(separate_converted_files_match_a_single_continuous_filter),
         TEST_CASE(every_converted_rate_keeps_history_across_short_queued_files),
         TEST_CASE(different_converted_inputs_at_the_same_output_clock_drain_and_restart_exactly),
+        TEST_CASE(wideband_speech_and_native_32_khz_files_share_one_output_clock),
         TEST_CASE(clearing_the_next_file_during_a_filter_drain_rebuilds_the_current_tail),
         TEST_CASE(a_failed_next_open_reloads_evicted_audio_code_before_draining),
         TEST_CASE(unavailable_evicted_audio_code_finishes_with_an_error_without_calling_it),
@@ -1428,6 +1478,7 @@ int main(void)
         TEST_CASE(low_rate_filter_tail_drains_before_the_next_output_clock_is_requested),
         TEST_CASE(missing_optional_audio_code_only_refuses_tracks_that_need_it),
         TEST_CASE(an_unsupported_rate_is_refused),
+        TEST_CASE(only_stereo_conversions_and_conversions_above_32_khz_need_the_full_clock),
         TEST_CASE(rates_up_to_192_khz_play_and_higher_ones_are_refused),
         TEST_CASE(speech_rates_use_the_matching_supported_output_clock),
         TEST_CASE(a_queued_track_at_an_unsupported_rate_is_refused_with_its_rate),

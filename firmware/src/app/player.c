@@ -6,11 +6,13 @@
 #include "core/format.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
+#include "hal/clock.h"
 #include "hal/storage.h"
 #include "library/library_gain.h"
 #include "playback/mix_identity.h"
 #include "playback/resume_state.h"
 #include "playback/spoken.h"
+#include "playback/track_transition.h"
 
 const char PLAYER_RESUME_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/resume.bin";
 const char PLAYER_UP_NEXT_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/upnext.bin";
@@ -108,6 +110,21 @@ static bool upcoming_track(Player *player, PlayQueueCursor *cursor, uint16_t *tr
            play_queue_track_at(&player->queue, *cursor, track);
 }
 
+static uint32_t transition_ms(const Player *player, uint16_t next, const char *next_path)
+{
+    TransitionRequest request = {.fade = player->fade_transitions,
+                                 .tenths = player->transition_tenths,
+                                 .shuffle = player->shuffle,
+                                 .from = {.spoken = player->spoken},
+                                 .to = {.spoken = spoken_kind_of(next_path) != SPOKEN_NONE}};
+    if (!request.fade ||
+        !library_read_track(player->library, player->track, &request.from.record) ||
+        !library_read_track(player->library, next, &request.to.record)) {
+        return 0;
+    }
+    return track_transition_fade_ms(&request);
+}
+
 static bool prepare_next(Player *player, TrackAudio *audio)
 {
     PlayQueueCursor upcoming = player->queue.cursor;
@@ -122,6 +139,7 @@ static bool prepare_next(Player *player, TrackAudio *audio)
     player->next_token = new_token(player);
     player->next_start_ms = audio->track.start_ms;
     audio->track.token = player->next_token;
+    audio->track.fade_ms = transition_ms(player, track, audio->path);
     return true;
 }
 
@@ -149,16 +167,17 @@ static uint32_t resume_point(const Player *player, uint16_t track, uint32_t star
     return player->resume.position_for(player->resume.context, track);
 }
 
-static bool start_current(Player *player, uint32_t start_ms)
+static bool start_track(Player *player, uint32_t start_ms, bool from_bookmark)
 {
     TrackAudio audio;
     uint16_t track = 0;
+    player->rewind_pause = RESUME_REWIND_NONE;
     if (!current_track(player, &track) || !track_audio(player, track, &audio)) {
         become_idle(player);
         return false;
     }
     player->spoken = spoken_kind_of(audio.path) != SPOKEN_NONE;
-    start_ms = resume_point(player, track, start_ms);
+    start_ms = from_bookmark ? resume_point(player, track, start_ms) : start_ms;
     player->track = track;
     player->has_track = true;
     player->current_token = new_token(player);
@@ -178,8 +197,45 @@ static bool start_current(Player *player, uint32_t start_ms)
     return true;
 }
 
+static bool start_current(Player *player, uint32_t start_ms)
+{
+    return start_track(player, start_ms, true);
+}
+
+static void note_pause(Player *player)
+{
+    player->rewind_pause = RESUME_REWIND_TIMED;
+    player->paused_at_ms = hal_clock_milliseconds();
+}
+
+static uint32_t rewind_due(const Player *player)
+{
+    ResumeRewind rewind = {.pause = player->rewind_pause,
+                           .paused_ms = hal_clock_milliseconds() - player->paused_at_ms,
+                           .spoken = player->spoken};
+    return player->rewind_on_resume ? resume_rewind_ms(rewind) : 0;
+}
+
+static void resume_paused(Player *player)
+{
+    uint32_t back = rewind_due(player);
+    player->rewind_pause = RESUME_REWIND_NONE;
+    if (!player->loaded) {
+        start_track(player, resume_rewind_position(player->paused_position_ms, back), back == 0);
+        return;
+    }
+    uint32_t position = current_position(player);
+    uint32_t target = resume_rewind_position(position, back);
+    if (target != position) {
+        hal_audio_seek(player->start_ms + target);
+    }
+    hal_audio_resume();
+    player->state = PLAYER_PLAYING;
+}
+
 static void restart_track(Player *player)
 {
+    player->rewind_pause = RESUME_REWIND_NONE;
     if (player->loaded) {
         hal_audio_seek(player->start_ms);
     } else {
@@ -298,6 +354,7 @@ bool player_use_order(Player *player, const TrackOrder *order, uint16_t position
     player->track = track;
     player->start_ms = identity.start_ms;
     player->paused_position_ms = 0;
+    player->rewind_pause = RESUME_REWIND_NONE;
     player->spoken = spoken_kind_of(identity.path) != SPOKEN_NONE;
     player->state = PLAYER_PAUSED;
     player->up_next_revision++;
@@ -307,6 +364,11 @@ bool player_use_order(Player *player, const TrackOrder *order, uint16_t position
 void player_set_resume(Player *player, PlayerResume resume)
 {
     player->resume = resume;
+}
+
+void player_set_rewind(Player *player, bool on)
+{
+    player->rewind_on_resume = on;
 }
 
 bool player_play_list(Player *player, BrowseQuery source, uint32_t position, uint32_t seed)
@@ -344,15 +406,11 @@ void player_toggle_pause(Player *player)
     case PLAYER_PLAYING:
         hal_audio_pause();
         player->state = PLAYER_PAUSED;
+        note_pause(player);
         player_save(player);
         return;
     case PLAYER_PAUSED:
-        if (player->loaded) {
-            hal_audio_resume();
-            player->state = PLAYER_PLAYING;
-            return;
-        }
-        start_current(player, player->paused_position_ms);
+        resume_paused(player);
         return;
     case PLAYER_IDLE:
         if (player->has_track) {
@@ -415,6 +473,7 @@ void player_seek(Player *player, uint32_t position_ms)
     if (!player->has_track) {
         return;
     }
+    player->rewind_pause = RESUME_REWIND_NONE;
     if (player->loaded) {
         hal_audio_seek(player->start_ms + position_ms);
     } else {
@@ -640,6 +699,7 @@ void player_release_output(Player *player)
     player->has_next = false;
     if (player->state == PLAYER_PLAYING) {
         player->state = PLAYER_PAUSED;
+        note_pause(player);
     }
 }
 
@@ -662,9 +722,19 @@ static void follow_jack(Player *player)
     }
 }
 
+void player_hold_standby(Player *player, bool held)
+{
+    player->standby_held = held;
+}
+
+bool player_in_standby(const Player *player)
+{
+    return player->state == PLAYER_PAUSED && player->has_track && !player->loaded;
+}
+
 static void release_long_pause(Player *player, uint32_t now_ms)
 {
-    if (player->state != PLAYER_PAUSED) {
+    if (player->state != PLAYER_PAUSED || player->standby_held) {
         player->pause_timing = false;
     } else if (!player->pause_timing) {
         player->pause_timing = true;
@@ -804,6 +874,7 @@ static void restore_position(Player *player, const ResumeState *state)
     player->shuffle = state->plan.shuffle;
     player->state = PLAYER_PAUSED;
     player->paused_position_ms = state->position_ms;
+    player->rewind_pause = RESUME_REWIND_COLD;
     note_spoken(player, player->track);
     player_change_volume(player, (int)state->volume - (int)player->volume);
 }
@@ -912,4 +983,14 @@ void player_set_replay_gain(Player *player, ReplayGainMode mode, bool prevent_cl
             player->next_token,
             library_replay_gain_for(player->library, player->next_track, mode, prevent_clipping));
     }
+}
+
+void player_set_transitions(Player *player, bool fade, uint8_t tenths)
+{
+    if (player->fade_transitions == fade && player->transition_tenths == tenths) {
+        return;
+    }
+    player->fade_transitions = fade;
+    player->transition_tenths = tenths;
+    player_requeue(player);
 }

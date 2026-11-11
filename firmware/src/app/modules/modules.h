@@ -20,7 +20,7 @@ extern const ScreenModuleEntry LISTENING_MODULE_ENTRY;
 typedef struct SettingsModuleEntry {
     ScreenModuleEntry module;
     Screen *(*language_row)(AppScreens *screens);
-    Screen *(*usb_modes)(AppScreens *screens);
+    Screen *(*usb_modes)(AppScreens *screens, bool prompt);
     void (*charge_draw)(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms);
     bool (*choose)(AppScreens *screens, DebugSpan title, DebugSpan option);
 } SettingsModuleEntry;

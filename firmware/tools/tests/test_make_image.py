@@ -451,7 +451,7 @@ class ModuleTest(unittest.TestCase):
             with self.assertRaises(make_image.ImageError):
                 make_image.module_from_elf(binary, number)
 
-    def test_debug_module_has_its_own_window_above_the_audio_bank_without_state(self):
+    def test_extension_module_has_its_own_window_above_the_audio_bank_without_state(self):
         base, capacity, number = 0x0304A000, 0x2000, 8
         self.assertEqual(make_image.AUDIO_MODULE_BASE + make_image.AUDIO_MODULE_CAPACITY, base)
         content = module_blob(number, bytes(capacity - 20))

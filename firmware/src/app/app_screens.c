@@ -16,7 +16,8 @@ typedef enum MusicSource {
     MUSIC_TAGS,
     MUSIC_COVER_FLOW,
     MUSIC_LIBRARY,
-    MUSIC_FAVORITES
+    MUSIC_FAVORITES,
+    MUSIC_SMART
 } MusicSource;
 
 typedef struct MusicEntry {
@@ -44,6 +45,7 @@ static const MusicEntry MUSIC_ENTRIES[MUSIC_ITEM_COUNT] = {
     {STR_ALL_SONGS, MUSIC_LIBRARY, BROWSE_ALL_SONGS},
     {STR_PLAYLISTS, MUSIC_LIBRARY, BROWSE_PLAYLISTS},
     {STR_FAVORITES, MUSIC_FAVORITES, BROWSE_ALBUMS},
+    {STR_SMART_LISTS, MUSIC_SMART, BROWSE_ALL_SONGS},
     {STR_PERSONAL_TAGS, MUSIC_TAGS, BROWSE_ALL_SONGS},
 };
 
@@ -123,6 +125,14 @@ static ScreenAction open_my_tags(void *context)
                          : screen_action_none();
 }
 
+static ScreenAction open_smart_lists(void *context)
+{
+    AppScreens *screens = context;
+    return screen_action_push(screens->context.store->available
+                                  ? &screens->modules.listening.smart_lists.menu.screen
+                                  : &screens->no_library.screen);
+}
+
 static Screen *browse_options(void *context, BrowseScreen *browse)
 {
     AppScreens *screens = context;
@@ -154,11 +164,13 @@ static Screen *track_tags(void *context, uint16_t track)
 static MenuItem music_item(AppScreens *screens, const LibraryStore *store, int index)
 {
     const MusicEntry *entry = &MUSIC_ENTRIES[index];
-    if (entry->source == MUSIC_SEARCH || entry->source == MUSIC_TAGS) {
-        return (MenuItem){.label = i18n_text(entry->label),
-                          .select = entry->source == MUSIC_SEARCH ? open_search : open_my_tags,
-                          .context = screens,
-                          .opens = true};
+    if (entry->source == MUSIC_SEARCH || entry->source == MUSIC_TAGS ||
+        entry->source == MUSIC_SMART) {
+        ScreenAction (*select)(void *) = entry->source == MUSIC_SEARCH ? open_search
+                                         : entry->source == MUSIC_TAGS ? open_my_tags
+                                                                       : open_smart_lists;
+        return (MenuItem){
+            .label = i18n_text(entry->label), .select = select, .context = screens, .opens = true};
     }
     screens->browse_entries[index] = (BrowseEntry){
         .pool = &screens->browse,
@@ -197,7 +209,7 @@ static void build_music(AppScreens *screens, AppScreensContext context)
     browse_pool_init(&screens->browse, browse);
     static const IconId icons[MUSIC_ITEM_COUNT] = {
         ICON_SEARCH, ICON_COVER_FLOW, ICON_ARTIST,   ICON_ALBUM_ARTIST, ICON_ALBUM, ICON_GENRE,
-        ICON_FOLDER, ICON_SONG,       ICON_PLAYLIST, ICON_FAVORITE,     ICON_GENRE};
+        ICON_FOLDER, ICON_SONG,       ICON_PLAYLIST, ICON_FAVORITE,     ICON_QUEUE, ICON_GENRE};
     for (int index = 0; index < MUSIC_ITEM_COUNT; index++) {
         screens->music_items[index] = music_item(screens, context.store, index);
         screens->music_items[index].icon = icons[index];
@@ -230,52 +242,118 @@ static MenuItem shelf_item(AppScreens *screens, AppScreensContext context, Spoke
                       .shown_context = entry};
 }
 
-Screen *app_screens_usb_modes(AppScreens *screens)
+Screen *app_screens_usb_modes(AppScreens *screens, bool prompt)
 {
     const SettingsModuleEntry *entry =
         (const SettingsModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_SETTINGS);
-    return entry != NULL ? entry->usb_modes(screens) : NULL;
+    return entry != NULL ? entry->usb_modes(screens, prompt) : NULL;
 }
 
 static ScreenAction open_usb_modes(void *context)
 {
-    Screen *screen = app_screens_usb_modes(context);
+    Screen *screen = app_screens_usb_modes(context, false);
     return screen != NULL ? screen_action_push(screen) : screen_action_none();
+}
+
+const HomeItem APP_HOME_ITEMS[HOME_ITEM_COUNT] = {{STR_MUSIC, ICON_MUSIC},
+                                                  {STR_AUDIOBOOKS, ICON_AUDIOBOOK},
+                                                  {STR_PODCASTS, ICON_PODCAST},
+                                                  {STR_SETTINGS, ICON_SETTINGS},
+                                                  {STR_NOW_PLAYING, ICON_NOW_PLAYING},
+                                                  {STR_UP_NEXT, ICON_QUEUE},
+                                                  {STR_MIXTAPES, ICON_MIXTAPE},
+                                                  {STR_LISTENING, ICON_DIAGNOSTICS},
+                                                  {STR_USB_MODE, ICON_USB},
+                                                  {STR_CLOCK, ICON_TIMEOUT}};
+
+static void home_catalog(AppScreens *screens, MenuItem *items)
+{
+    AppScreensContext context = screens->context;
+    Screen *targets[HOME_ITEM_COUNT] = {&screens->music.screen,
+                                        NULL,
+                                        NULL,
+                                        &screens->modules.settings.settings.menu.screen,
+                                        &screens->now_playing.screen,
+                                        &screens->modules.views.up_next.screen,
+                                        &screens->modules.views.mixtapes.screen,
+                                        &screens->modules.listening.listening.screen,
+                                        NULL,
+                                        &screens->modules.views.clock.screen};
+    for (int index = 0; index < HOME_ITEM_COUNT; index++) {
+        items[index] = app_screens_open_item(APP_HOME_ITEMS[index].label, targets[index]);
+    }
+    items[1] = shelf_item(screens, context, SPOKEN_AUDIOBOOK);
+    items[2] = shelf_item(screens, context, SPOKEN_PODCAST);
+    for (int index = 4; index <= 5; index++) {
+        items[index].shown = player_has_track;
+        items[index].shown_context = context.player;
+    }
+    items[8].select = open_usb_modes;
+    items[8].context = screens;
+    for (int index = 0; index < HOME_ITEM_COUNT; index++) {
+        items[index].icon = APP_HOME_ITEMS[index].icon;
+    }
+}
+
+static int arrange_home(AppScreens *screens)
+{
+    MenuItem items[HOME_ITEM_COUNT];
+    home_catalog(screens, items);
+    const Settings *settings = &screens->context.settings->settings;
+    unsigned hidden = settings->home_hidden & ~(1u << SETTINGS_HOME_SETTINGS_ITEM);
+    int count = 0;
+    for (int index = 0; index < HOME_ITEM_COUNT; index++) {
+        int item = settings->home_order[index];
+        if (((hidden >> item) & 1u) == 0) {
+            screens->home_items[count++] = items[item];
+        }
+    }
+    return count;
+}
+
+static bool home_shown(const MenuItem *item)
+{
+    return item->shown == NULL || item->shown(item->shown_context);
+}
+
+static const void *home_selected(const AppScreens *screens)
+{
+    int remaining = screens->home.list.selected;
+    for (int index = 0; index < screens->home.config.item_count; index++) {
+        const MenuItem *item = &screens->home_items[index];
+        if (home_shown(item) && remaining-- == 0) {
+            return item->context;
+        }
+    }
+    return NULL;
+}
+
+static int home_position(const AppScreens *screens, const void *context)
+{
+    int position = 0;
+    for (int index = 0; index < screens->home.config.item_count; index++) {
+        const MenuItem *item = &screens->home_items[index];
+        if (item->context == context) {
+            return position;
+        }
+        position += home_shown(item) ? 1 : 0;
+    }
+    return 0;
+}
+
+void app_screens_arrange_home(AppScreens *screens)
+{
+    const void *selected = home_selected(screens);
+    screens->home.config.item_count = arrange_home(screens);
+    list_view_select(&screens->home.list, home_position(screens, selected), 0);
 }
 
 static void build_home(AppScreens *screens, AppScreensContext context)
 {
-    const Theme *theme = context.theme;
-    screens->home_items[0] = app_screens_open_item(STR_MUSIC, &screens->music.screen);
-    screens->home_items[6] =
-        app_screens_open_item(STR_MIXTAPES, &screens->modules.views.mixtapes.screen);
-    screens->home_items[7] =
-        app_screens_open_item(STR_LISTENING, &screens->modules.listening.listening.screen);
-    screens->home_items[1] = shelf_item(screens, context, SPOKEN_AUDIOBOOK);
-    screens->home_items[2] = shelf_item(screens, context, SPOKEN_PODCAST);
-    screens->home_items[SETTINGS_HOME_SETTINGS_ITEM] =
-        app_screens_open_item(STR_SETTINGS, &screens->modules.settings.settings.menu.screen);
-    screens->home_items[4] = app_screens_open_item(STR_NOW_PLAYING, &screens->now_playing.screen);
-    screens->home_items[4].shown = player_has_track;
-    screens->home_items[4].shown_context = context.player;
-    screens->home_items[5] =
-        app_screens_open_item(STR_UP_NEXT, &screens->modules.views.up_next.screen);
-    screens->home_items[5].shown = player_has_track;
-    screens->home_items[5].shown_context = context.player;
-    screens->home_items[8] = (MenuItem){.label = i18n_text(STR_USB_MODE),
-                                        .select = open_usb_modes,
-                                        .context = screens,
-                                        .opens = true};
-    static const IconId icons[HOME_ITEM_COUNT] = {ICON_MUSIC,    ICON_AUDIOBOOK,   ICON_PODCAST,
-                                                  ICON_SETTINGS, ICON_NOW_PLAYING, ICON_QUEUE,
-                                                  ICON_MIXTAPE,  ICON_DIAGNOSTICS, ICON_USB};
-    for (int index = 0; index < HOME_ITEM_COUNT; index++) {
-        screens->home_items[index].icon = icons[index];
-    }
-    home_art_init(&screens->home_art, context.covers, context.store, context.player, theme);
+    home_art_init(&screens->home_art, context.covers, context.store, context.player, context.theme);
     MenuConfig home = {.title = FIRMWARE_SHORT_NAME,
                        .items = screens->home_items,
-                       .item_count = HOME_ITEM_COUNT,
+                       .item_count = arrange_home(screens),
                        .theme = context.theme,
                        .panel = {.width = BOARD_LAYOUT.home_art_width,
                                  .min_height = BOARD_LAYOUT.home_art_min_height,
@@ -327,8 +405,7 @@ int app_screens_start_path(AppScreens *screens, StartScreen start, Screen **path
     case START_NOW_PLAYING:
         list_view_select(&screens->home.list,
                          player_status(screens->context.player).has_track
-                             ? 2 + (screens->shelf_entries[0].present ? 1 : 0) +
-                                   (screens->shelf_entries[1].present ? 1 : 0)
+                             ? home_position(screens, &screens->now_playing.screen)
                              : 0,
                          0);
         path[0] = &screens->now_playing.screen;

@@ -45,6 +45,9 @@ def compiler_include_directory(compiler):
 
 def include_flags(compiler, source_root):
     flags = ["-isystem", compiler_include_directory(compiler)]
+    sysroot = run([compiler, "-print-sysroot"]).strip()
+    if sysroot:
+        flags += ["-isystem", str(Path(sysroot) / "include")]
     for directory in sorted(source_root.glob("*/include")):
         flags += ["-I", str(directory)]
     return flags

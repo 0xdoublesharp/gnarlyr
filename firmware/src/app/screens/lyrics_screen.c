@@ -1,4 +1,5 @@
 #include "lyrics_screen.h"
+#include "listening_work.h"
 
 #include <stddef.h>
 
@@ -13,22 +14,11 @@
 #include "ui/navigation.h"
 
 enum {
-    VISIBLE_LINES = 3,
-    LINE_BYTES = 192,
     FOOTER_HEIGHT = 24,
     LINE_GAP = 6
 };
 
-typedef struct LyricsWork {
-    LyricsScreen *owner;
-    LyricsIndex index;
-    char lines[VISIBLE_LINES][LINE_BYTES];
-    int center;
-    bool timed;
-    bool ready;
-} LyricsWork;
-
-static LyricsWork work;
+static LyricsWork *const work = &listening_module_work.as.lyrics;
 
 static bool read_lyrics(void *context, uint32_t offset, void *bytes, uint32_t length)
 {
@@ -86,7 +76,8 @@ static bool open_sidecar(LyricsScreen *screen, HalFile *file)
 
 static void load(LyricsScreen *screen, PlayerStatus status)
 {
-    work = (LyricsWork){.owner = screen, .center = -2};
+    *work = (LyricsWork){.center = -2};
+    listening_module_work.owner = screen;
     screen->known = true;
     screen->track = status.track;
     screen->token = screen->config.player->current_token;
@@ -95,28 +86,28 @@ static void load(LyricsScreen *screen, PlayerStatus status)
     if (!status.has_track || !sidecar_path(screen, status.track) || !open_sidecar(screen, &file)) {
         return;
     }
-    work.ready = lyrics_parse(&work.index, (ByteSource){read_lyrics, &file}, file.size);
+    work->ready = lyrics_parse(&work->index, (ByteSource){read_lyrics, &file}, file.size);
     hal_file_close(&file);
 }
 
 static void cache_lines(LyricsScreen *screen, int center, bool timed)
 {
-    for (int index = 0; index < VISIBLE_LINES; index++) {
-        work.lines[index][0] = '\0';
+    for (int index = 0; index < LYRICS_VISIBLE_LINES; index++) {
+        work->lines[index][0] = '\0';
     }
-    work.center = center;
-    work.timed = timed;
+    work->center = center;
+    work->timed = timed;
     HalFile file;
     if (!open_sidecar(screen, &file)) {
-        work.ready = false;
+        work->ready = false;
         return;
     }
-    for (int index = 0; index < VISIBLE_LINES; index++) {
+    for (int index = 0; index < LYRICS_VISIBLE_LINES; index++) {
         int line = center + index - 1;
-        if (line >= 0 && line < work.index.count) {
-            if (!lyrics_text((ByteSource){read_lyrics, &file}, &work.index.lines[line],
-                             work.lines[index], LINE_BYTES)) {
-                work.ready = false;
+        if (line >= 0 && line < work->index.count) {
+            if (!lyrics_text((ByteSource){read_lyrics, &file}, &work->index.lines[line],
+                             work->lines[index], LYRICS_LINE_BYTES)) {
+                work->ready = false;
                 break;
             }
         }
@@ -129,20 +120,20 @@ static void update(void *context, uint32_t now_ms)
     LyricsScreen *screen = context;
     PlayerStatus status = player_status(screen->config.player);
     (void)now_ms;
-    if (work.owner != screen || !screen->known || screen->track != status.track ||
+    if (listening_module_work.owner != screen || !screen->known || screen->track != status.track ||
         screen->token != screen->config.player->current_token) {
         load(screen, status);
     }
-    if (!work.ready || work.index.count == 0) {
+    if (!work->ready || work->index.count == 0) {
         return;
     }
     uint32_t position = status.position_ms;
     position =
         UINT32_MAX - position < screen->cue_start_ms ? UINT32_MAX : position + screen->cue_start_ms;
-    int current = lyrics_current(&work.index, position);
+    int current = lyrics_current(&work->index, position);
     int center = (current < 0 ? 0 : current) + screen->scroll;
-    center = center < 0 ? 0 : center >= work.index.count ? work.index.count - 1 : center;
-    if (center != work.center || work.timed != (current == center)) {
+    center = center < 0 ? 0 : center >= work->index.count ? work->index.count - 1 : center;
+    if (center != work->center || work->timed != (current == center)) {
         cache_lines(screen, center, current == center);
     }
 }
@@ -199,7 +190,7 @@ static void draw(void *context, Canvas *canvas)
     Rect content = theme_content_area(theme);
     canvas_fill_rect(canvas, content, theme->colors.background);
     header_draw(canvas, theme, screen->screen.title);
-    if (!work.ready || work.index.count == 0) {
+    if (!work->ready || work->index.count == 0) {
         Rect message = content;
         message.height = content.height * 2 / 3;
         message_draw(canvas, theme, message, i18n_text(STR_NO_LYRICS));
@@ -214,17 +205,17 @@ static void draw(void *context, Canvas *canvas)
     area.width -= 2 * theme->metrics.padding;
     area.height -= FOOTER_HEIGHT;
     int side = (area.height - 2 * LINE_GAP) / 4;
-    for (int index = 0; index < VISIBLE_LINES; index++) {
+    for (int index = 0; index < LYRICS_VISIBLE_LINES; index++) {
         bool current = index == 1;
         Rect line = {area.x,
                      area.y + (index == 0   ? 0
                                : index == 1 ? side + LINE_GAP
                                             : area.height - side),
                      area.width, current ? area.height - 2 * side - 2 * LINE_GAP : side};
-        TextStyle style = {.font = current && work.timed ? theme->fonts.title : theme->fonts.body,
-                           .color = current && work.timed ? theme->colors.text
-                                                          : theme->colors.text_secondary};
-        label_draw_wrapped(canvas, style, (Label){line, work.lines[index]});
+        TextStyle style = {.font = current && work->timed ? theme->fonts.title : theme->fonts.body,
+                           .color = current && work->timed ? theme->colors.text
+                                                           : theme->colors.text_secondary};
+        label_draw_wrapped(canvas, style, (Label){line, work->lines[index]});
     }
     draw_footer(screen, canvas, content);
 }

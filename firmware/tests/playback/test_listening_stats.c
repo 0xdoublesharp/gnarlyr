@@ -104,6 +104,20 @@ static void with_a_clock_today_and_this_week_count_the_plays_dated_in_them(void)
     CHECK_EQUAL(500, listening_skip_permille(&summary.today));
 }
 
+static void a_play_counts_for_the_local_day_its_offset_puts_it_in(void)
+{
+    reset();
+    ListeningPlay east = listening_fixture_dated(0, WEDNESDAY - 1, LISTENING_FIXTURE_DAY - 1800);
+    east.offset_minutes = 60;
+    ListeningPlay west = listening_fixture_dated(1, WEDNESDAY + 1, 1800);
+    west.offset_minutes = -60;
+    add(east);
+    add(west);
+    ListeningSummary summary = summary_at(WEDNESDAY, NOON);
+    CHECK_EQUAL(2, summary.today.plays);
+    CHECK_EQUAL(1, summary.streak_days);
+}
+
 static void the_week_starts_on_monday(void)
 {
     reset();
@@ -539,6 +553,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(without_a_clock_the_summary_is_this_session_and_all_time),
         TEST_CASE(with_a_clock_today_and_this_week_count_the_plays_dated_in_them),
+        TEST_CASE(a_play_counts_for_the_local_day_its_offset_puts_it_in),
         TEST_CASE(the_week_starts_on_monday),
         TEST_CASE(the_streak_counts_days_in_a_row_up_to_today),
         TEST_CASE(a_day_without_a_play_yet_keeps_the_streak_of_the_day_before),

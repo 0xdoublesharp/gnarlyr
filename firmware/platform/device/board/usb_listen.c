@@ -122,6 +122,11 @@ bool usb_session_take_reconnect(void)
     return true;
 }
 
+bool usb_session_connect_requested(void)
+{
+    return shared.reconnect.forced || shared.reconnect.requested;
+}
+
 bool usb_session_forced(void)
 {
     const UsbReconnect *connect = &shared.reconnect;

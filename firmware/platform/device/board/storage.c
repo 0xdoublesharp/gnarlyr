@@ -243,7 +243,7 @@ void hal_dir_close(HalDir *dir)
     dir->handle = -1;
 }
 
-bool hal_file_remove(const char *path)
+FatVolume *board_music_volume(void)
 {
-    return mounted() && fat_delete(&volume, path);
+    return mounted() ? &volume : NULL;
 }

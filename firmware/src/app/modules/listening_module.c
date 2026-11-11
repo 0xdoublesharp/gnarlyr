@@ -9,6 +9,8 @@ static void bind(AppScreens *screens)
     lyrics_screen_init(
         &screens->modules.listening.lyrics,
         (LyricsScreenConfig){context->player, &context->store->library, context->theme});
+    smart_list_screen_init(&screens->modules.listening.smart_lists,
+                           (SmartListScreenConfig){context->listening, &screens->browse});
 }
 
 const ScreenModuleEntry LISTENING_MODULE_ENTRY = {

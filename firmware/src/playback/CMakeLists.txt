@@ -10,12 +10,17 @@ add_library(echo_playback STATIC
     mix_resolve.c
     mix_tape.c
     play_queue.c
+    resume_rewind.c
     resume_state.c
     session_journal.c
+    smart_list.c
     spoken.c
     spoken_shelf.c
     store.c
+    track_keys.c
+    track_keys_path.c
     track_order.c
+    track_transition.c
     up_next.c
 )
 target_include_directories(echo_playback PUBLIC include)

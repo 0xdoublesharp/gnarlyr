@@ -6,8 +6,9 @@ internal drive, over ordinary USB mass storage. Every command prints one JSON ob
 failure prints {"ok": false, "error": {"code", "message"}} and exits with status 1.
 
 The tool finds the player by its USB identity and its internal drive by name and size. It
-writes only the update file at the drive's top level and files inside the debug folder. It
-never formats or opens a raw device. Language commands separately permit validated packs
+writes only the update file at the drive's top level, files inside the debug folder and, just
+before every eject, the time file that sets the player's clock. It never formats or opens a raw
+device. Language commands separately permit validated packs
 inside the active music volume's language folder, bound to the installed clean build.
 Other commands only eject the card, because every drive must be ejected to end a USB session.
 `--volume PATH` names the internal drive's folder directly: for tests, and for a volume
@@ -41,6 +42,14 @@ RUN_FILE = "run.txt"
 RESTART_FILE = "restart.req"
 RESTART_TEXT = b"RESTART AFTER INSTALL\n"
 UPDATE_FILE = IDENTITY["update_file"]
+TIME_FILE = "time.bin"
+TIME_MAGIC = b"DSTM"
+TIME_VERSION = 1
+TIME_EARLIEST = 1735689600
+TIME_LATEST = 4102444799
+TIME_OFFSET_MINUTES = range(-720, 841)
+FNV_START = 2166136261
+FNV_PRIME = 16777619
 IMAGE_BRAND = slice(0x10, 0x18)
 IMAGE_BUILD = slice(0x30, 0x38)
 IMAGE_BYTES = range(0x1000, (64 << 20) + 1)
@@ -74,6 +83,28 @@ SOURCE_ROOTS = ("/firmware/src/", "/firmware/platform/device/", "/firmware/platf
                 "/firmware/third_party/", "/firmware/")
 UNATTRIBUTED = "(no function)"
 UNKNOWN_FILE = "(unknown file)"
+
+
+def fnv1a(data):
+    value = FNV_START
+    for byte in data:
+        value = (value ^ byte) * FNV_PRIME & 0xFFFFFFFF
+    return value
+
+
+def time_file_bytes(utc, offset_minutes):
+    """The player's time file: UTC seconds and the local offset in minutes, sealed with FNV-1a."""
+    if not TIME_EARLIEST <= utc <= TIME_LATEST or offset_minutes not in TIME_OFFSET_MINUTES:
+        raise DebugError("clock_out_of_range",
+                         f"the computer's clock ({utc} s, offset {offset_minutes} min) is outside what the player accepts")
+    body = TIME_MAGIC + struct.pack("<HhI", TIME_VERSION, offset_minutes, utc) + bytes(16)
+    return body + struct.pack("<I", fnv1a(body))
+
+
+def computer_time():
+    """This computer's clock: whole UTC seconds and the local offset from UTC in minutes."""
+    now = time.time()
+    return int(now), time.localtime(now).tm_gmtoff // 60
 
 
 class DebugError(Exception):
@@ -531,8 +562,10 @@ class Tool:
     """The operations behind both the command line and the MCP server."""
 
     def __init__(self, host=None, volume=None, volume_name=DEFAULT_VOLUME_NAME, sleep=time.sleep,
-                 clock=time.monotonic):
+                 clock=time.monotonic, wall=computer_time):
         self.host = host or MacHost()
+        self.wall = wall
+        self.sent_time = None
         self.volume = Path(volume) if volume is not None else None
         self.volume_name = volume_name
         self.sleep = sleep
@@ -636,13 +669,14 @@ class Tool:
 
 
     def guarded(self, root, path):
-        """The path, if the tool may write it: the update file or a file in the debug folder."""
+        """The path, if the tool may write it: the update file, the time file or a file in the debug folder."""
         root = root.resolve()
         debug = root / DATA_DIRECTORY / DEBUG_DIRECTORY
         resolved = (path.parent.resolve() / path.name)
-        allowed = resolved == root / UPDATE_FILE or resolved.parent == debug
+        allowed = resolved in (root / UPDATE_FILE, root / DATA_DIRECTORY / TIME_FILE) or resolved.parent == debug
         if not allowed or resolved.is_symlink() or resolved.is_dir():
-            raise DebugError("write_refused", f"{path} is neither the update file nor a file in the debug folder")
+            raise DebugError("write_refused",
+                             f"{path} is not the update file, the time file or a file in the debug folder")
         return resolved
 
     def write(self, root, path, data):
@@ -656,10 +690,28 @@ class Tool:
             os.fsync(file.fileno())
         return target
 
+    def send_time(self, root, required=True):
+        """Leave the computer's time for the player, which sets its clock when the drive is ejected.
+
+        A clock the player would refuse fails `set-time`; any other command goes on without it."""
+        utc, offset = self.wall()
+        try:
+            data = time_file_bytes(utc, offset)
+        except DebugError as error:
+            if required:
+                raise
+            self.sent_time = {"time_skipped": error.message}
+            return self.sent_time
+        target = self.write(root, root / DATA_DIRECTORY / TIME_FILE, data)
+        self.sent_time = {"time_file": str(target), "utc": utc, "offset_minutes": offset}
+        return self.sent_time
+
     def eject(self, found):
-        """Eject every drive of the player so that it ends the session; nothing with --volume."""
+        """Send the time and eject every drive of the player so that it ends the session; nothing
+        with --volume."""
         if found["source"] != "usb":
             return []
+        self.send_time(Path(found["volume"]), required=False)
         mounts = [found["volume"]] + [volume["mount_point"] for volume in found["usb"]["card_volumes"]]
         for mount in mounts:
             self.host.eject(mount)
@@ -775,6 +827,16 @@ class Tool:
     def settings_set(self, setting, value, music_volume=None, timeout=DEFAULT_TIMEOUT):
         return self.companion_manager().set(setting, value, music_volume, timeout)
 
+    def set_time(self):
+        """Send the computer's time and eject; the player sets its clock as the session ends."""
+        found = self.locate()
+        root = self.root()
+        time_file_bytes(*self.wall())
+        if found["source"] != "usb":
+            self.send_time(root)
+        ejected = self.eject(found)
+        return {"ok": True, **self.sent_time, "ejected": ejected}
+
     def screenshots(self, out):
         root = self.root()
         out = Path(out).resolve()
@@ -852,6 +914,8 @@ def build_parser():
     for command in (list_settings, set_setting):
         command.add_argument("--music-volume", type=Path, help="the active music volume belonging to this USB player")
     set_setting.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
+    commands.add_parser("set-time", help="send this computer's time to the player and eject; every other "
+                                         "command that ejects sends it too")
     return parser
 
 
@@ -868,6 +932,8 @@ def dispatch(tool, arguments):
         return tool.language_install(arguments.pack, arguments.select, arguments.music_volume, arguments.timeout)
     if arguments.command == "language-select":
         return tool.language_select(arguments.code, arguments.music_volume, arguments.timeout)
+    if arguments.command == "set-time":
+        return tool.set_time()
     if arguments.command == "status":
         return tool.status()
     if arguments.command == "report":

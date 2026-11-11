@@ -152,6 +152,43 @@ static void an_unplugged_mode_request_does_not_start_a_session(void)
     CHECK_EQUAL(USB_PLUG_UNPLUGGED, plug.state);
 }
 
+static void a_plain_cable_asks_once_a_host_is_found_and_charge_only_never_listens(void)
+{
+    CHECK(usb_plug_listens(USB_PLUG_ASK, false));
+    CHECK(usb_plug_asks(USB_PLUG_ASK, false));
+    CHECK(!usb_plug_listens(USB_PLUG_CHARGE, false));
+    CHECK(usb_plug_listens(USB_PLUG_STORAGE, false));
+    CHECK(!usb_plug_asks(USB_PLUG_STORAGE, false));
+}
+
+static void a_requested_connection_never_asks_and_always_listens(void)
+{
+    for (int answer = USB_PLUG_ASK; answer <= USB_PLUG_CHARGE; answer++) {
+        CHECK(usb_plug_listens((UsbPlugAnswer)answer, true));
+        CHECK(!usb_plug_asks((UsbPlugAnswer)answer, true));
+    }
+}
+
+static void an_asked_insertion_is_not_asked_again_until_the_cable_is_replugged(void)
+{
+    listening_from(1000);
+    usb_plug_served(&plug);
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(30000, true));
+    CHECK_EQUAL(USB_PLUG_SERVED, plug.state);
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(31000, false));
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(32000, true));
+    CHECK_EQUAL(USB_PLUG_START, at(32000 + USB_PLUG_STEADY_MS, true));
+}
+
+static void choosing_file_transfer_after_asking_listens_again_on_the_same_cable(void)
+{
+    listening_from(1000);
+    usb_plug_served(&plug);
+    CHECK_EQUAL(USB_PLUG_NOTHING, usb_plug_request(&plug, true));
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(40000, true));
+    CHECK_EQUAL(USB_PLUG_START, at(40000 + USB_PLUG_STEADY_MS, true));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -170,6 +207,10 @@ int main(void)
         TEST_CASE(a_mode_request_restarts_a_served_connection_without_unplugging),
         TEST_CASE(a_mode_change_stops_the_old_listener_before_starting_another),
         TEST_CASE(an_unplugged_mode_request_does_not_start_a_session),
+        TEST_CASE(a_plain_cable_asks_once_a_host_is_found_and_charge_only_never_listens),
+        TEST_CASE(a_requested_connection_never_asks_and_always_listens),
+        TEST_CASE(an_asked_insertion_is_not_asked_again_until_the_cable_is_replugged),
+        TEST_CASE(choosing_file_transfer_after_asking_listens_again_on_the_same_cable),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

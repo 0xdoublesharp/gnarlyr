@@ -32,6 +32,12 @@ typedef enum UsbMode {
     USB_MODE_DAC
 } UsbMode;
 
+typedef enum UsbConnect {
+    USB_CONNECT_ASK,
+    USB_CONNECT_STORAGE,
+    USB_CONNECT_CHARGE
+} UsbConnect;
+
 typedef enum AccentColor {
     ACCENT_BLUE,
     ACCENT_RED,
@@ -119,6 +125,7 @@ enum {
     OUTPUT_JACK_COUNT = OUTPUT_BALANCED + 1,
     START_SCREEN_COUNT = START_COVER_FLOW + 1,
     USB_MODE_COUNT = USB_MODE_DAC + 1,
+    USB_CONNECT_COUNT = USB_CONNECT_CHARGE + 1,
     ACCENT_COLOR_COUNT = ACCENT_GRAPHITE + 1,
     EQUALIZER_PRESET_COUNT = EQUALIZER_CUSTOM + 1,
     TEXT_SIZE_COUNT = TEXT_SIZE_LARGE + 1,
@@ -139,8 +146,11 @@ enum {
     SETTINGS_TRANSITION_TENTHS_MIN = 5,
     SETTINGS_TRANSITION_TENTHS_MAX = 60,
     SETTINGS_DEFAULT_TRANSITION_TENTHS = 15,
-    SETTINGS_HOME_ITEM_COUNT = 9,
+    SETTINGS_HOME_ITEM_COUNT = 10,
     SETTINGS_HOME_SETTINGS_ITEM = 3,
+    SETTINGS_HOME_FIRST_ITEM_COUNT = 9,
+    SETTINGS_HOME_ORDER_SLOTS = 10,
+    SETTINGS_HOME_PACKED_SIZE = 7,
     SETTINGS_FILE_SIZE = 58,
     SETTINGS_V14_FILE_SIZE = 42,
     SETTINGS_LANGUAGE_LENGTH = 5,
@@ -159,6 +169,7 @@ typedef struct Settings {
     uint8_t volume;
     uint8_t auto_off;
     UsbMode usb_mode;
+    UsbConnect usb_connect;
     uint8_t dac_volume;
     AccentColor accent;
     AppearanceTheme appearance;
@@ -197,9 +208,11 @@ uint32_t settings_sleep_option_minutes(int option);
 uint32_t settings_screen_timeout_ms(const Settings *settings);
 uint32_t settings_auto_off_option_minutes(int option);
 uint32_t settings_auto_off_ms(const Settings *settings);
+uint8_t settings_safe_start_volume(const Settings *settings, uint8_t volume);
 SettingsEqualizerCurve settings_equalizer_curve(const Settings *settings);
 void settings_encode(const Settings *settings, uint8_t *bytes);
 bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings);
+bool settings_home_unpack(const uint8_t *packed, int item_count, uint8_t *order, uint16_t *hidden);
 
 ButtonAction settings_default_button_action(PlaybackButton button);
 ButtonAction settings_button_action(const Settings *settings, PlaybackButton button);

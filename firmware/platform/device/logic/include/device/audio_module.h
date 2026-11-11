@@ -4,5 +4,5 @@
 
 typedef struct AudioModuleEntry {
     uint32_t magic;
-    bool (*pull)(AudioResample *resample, int32_t *left, int32_t *right);
+    uint32_t (*render)(AudioResample *resample, uint32_t *words, uint32_t frames);
 } AudioModuleEntry;

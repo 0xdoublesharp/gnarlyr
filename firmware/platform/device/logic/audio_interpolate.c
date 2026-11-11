@@ -9,7 +9,8 @@ enum {
     HISTORY_MASK = AUDIO_RESAMPLE_HISTORY - 1,
     TAPS = AUDIO_RESAMPLE_LEFT + AUDIO_RESAMPLE_RIGHT + 1,
     HALF_TAPS = TAPS / 2,
-    TWELFTHS = 12
+    QUARTERS = 4,
+    SAMPLE_SHIFT = 8
 };
 
 typedef struct Fold {
@@ -126,17 +127,17 @@ static void half(const Kernel *kernel, uint32_t phase)
     }
 }
 
-static void pair(const Kernel *kernel, int row, uint32_t early, uint32_t late)
+static void quarters(const Kernel *kernel)
 {
     int32_t (*window)[2] = kernel->window;
-    Totals sums = kernel->sum(&(Fold){window, window + TAPS - 1, RESAMPLE_SUM[row], HALF_TAPS});
-    Totals differences =
-        kernel->difference(&(Fold){window, window + TAPS - 1, RESAMPLE_DIFFERENCE[row], HALF_TAPS});
+    Totals sums = kernel->sum(&(Fold){window, window + TAPS - 1, RESAMPLE_QUARTER_SUM, HALF_TAPS});
+    Totals differences = kernel->difference(
+        &(Fold){window, window + TAPS - 1, RESAMPLE_QUARTER_DIFFERENCE, HALF_TAPS});
     for (int channel = 0; channel < 2; channel++) {
         int64_t sum = sums.sample[channel];
         int64_t difference = differences.sample[channel];
-        kernel->output[early][channel] = round_sample(sum + difference, FRACTION_BITS + 1);
-        kernel->output[late][channel] = round_sample(sum - difference, FRACTION_BITS + 1);
+        kernel->output[1][channel] = round_sample(sum + difference, FRACTION_BITS + 1);
+        kernel->output[3][channel] = round_sample(sum - difference, FRACTION_BITS + 1);
     }
 }
 
@@ -162,34 +163,39 @@ static void interpolate(AudioResample *resample)
     Kernel kernel = {gathered(resample, window), resample->stereo ? sum_stereo : sum_mono,
                      resample->stereo ? difference_stereo : difference_mono, resample->output};
     centre(&kernel);
-    for (uint32_t phase = 1; 2 * phase < factor; phase++) {
-        pair(&kernel, (int)(TWELFTHS * phase / factor) - 2, phase, factor - phase);
+    if (factor == QUARTERS) {
+        quarters(&kernel);
     }
-    if (factor % 2 == 0) {
-        half(&kernel, factor / 2);
-    }
+    half(&kernel, factor / 2);
 }
 
-bool audio_resample_pull(AudioResample *resample, int32_t *left, int32_t *right)
+static bool ready(const AudioResample *resample)
 {
-    if (resample->factor == 0 || resample->cursor == resample->frames ||
-        (!resample->ended && resample->factor > 1 &&
-         resample->frames - resample->cursor <= AUDIO_RESAMPLE_RIGHT)) {
-        return false;
-    }
-    const int32_t *frame = resample->history[(uint32_t)resample->cursor & HISTORY_MASK];
-    if (resample->factor > 1) {
-        if (resample->phase == 0) {
-            interpolate(resample);
+    return resample->factor != 0 && resample->cursor != resample->frames &&
+           (resample->ended || resample->factor == 1 ||
+            resample->frames - resample->cursor > AUDIO_RESAMPLE_RIGHT);
+}
+
+uint32_t audio_resample_render(AudioResample *resample, uint32_t *words, uint32_t frames)
+{
+    uint32_t *start = words;
+    uint32_t *end = words + 2 * frames;
+    while (words != end && ready(resample)) {
+        int32_t (*phases)[2] = &resample->history[(uint32_t)resample->cursor & HISTORY_MASK];
+        if (resample->factor > 1) {
+            if (resample->phase == 0) {
+                interpolate(resample);
+            }
+            phases = resample->output;
         }
-        frame = resample->output[resample->phase];
+        uint32_t phase = resample->phase;
+        uint32_t last = resample->factor;
+        for (; phase < last && words != end; phase++, words += 2) {
+            words[0] = (uint32_t)phases[phase][0] << SAMPLE_SHIFT;
+            words[1] = (uint32_t)phases[phase][1] << SAMPLE_SHIFT;
+        }
+        resample->phase = (uint8_t)(phase == last ? 0 : phase);
+        resample->cursor += phase == last;
     }
-    *left = frame[0];
-    *right = frame[1];
-    resample->phase++;
-    if (resample->phase == resample->factor) {
-        resample->phase = 0;
-        resample->cursor++;
-    }
-    return true;
+    return (uint32_t)(words - start) / 2;
 }

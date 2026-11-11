@@ -1,5 +1,6 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process)
+set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension)
 set(ECHO_SCREEN_MODULE_SOURCES_process
+    platform/device/logic/audio_fade.c
     platform/device/logic/audio_process_entry.c
     platform/device/logic/audio_trig.c
     platform/device/logic/equalizer_design.c
@@ -22,6 +23,13 @@ set(ECHO_SCREEN_MODULE_SOURCES_ogg
     platform/device/logic/vorbis_track.c
     src/codec/ogg_packet.c
 )
+set(ECHO_SCREEN_MODULE_SOURCES_extension
+    src/app/modules/extension_module.c
+    platform/device/board/file_remove.c
+    src/app/home_art.c
+    src/gfx/wireframe.c
+    src/ui/wire_motion.c
+)
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
     src/app/mixtape_store.c
@@ -33,6 +41,9 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/screens/cover_flow_screen.c
     src/app/cover_placeholders.c
     src/app/screens/up_next_screen.c
+    src/app/screens/calendar_screen.c
+    src/app/screens/clock_screen.c
+    src/core/calendar.c
     src/ui/cover_flow.c
     src/ui/placeholder_art.c
     src/gfx/image_quad.c
@@ -45,6 +56,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/settings_screens.c
     src/app/settings_preview.c
     src/app/button_settings.c
+    src/app/home_editor.c
     src/app/equalizer_presets.c
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
@@ -66,6 +78,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_library
     src/app/discovery_text.c
     src/app/discovery_preferences.c
     src/app/discovery_playback.c
+    src/app/order_publish.c
     src/app/personal_tags.c
     src/library/music_fingerprint.c
     src/library/library_view.c
@@ -76,7 +89,12 @@ set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/app/modules/listening_module.c
     src/app/screens/listening_screen.c
     src/app/screens/lyrics_screen.c
+    src/app/screens/listening_work.c
+    src/app/screens/smart_list_screen.c
+    src/app/order_publish.c
     src/playback/listening_stats.c
+    src/playback/smart_list.c
+    src/playback/track_keys.c
     src/playback/listening_export.c
     src/library/lyrics.c
 )
@@ -84,13 +102,14 @@ if(ECHO_RELEASE)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_settings src/app/diagnostics_menu_release.c)
 else()
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_settings src/app/diagnostics_menu.c)
-    list(APPEND ECHO_SCREEN_MODULES debug)
-    set(ECHO_SCREEN_MODULE_SOURCES_debug
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_extension
         src/app/modules/debug_module.c
         src/app/debug_steps.c
         src/app/debug_screenshot.c
         platform/device/board/debug_poke.c
         platform/device/board/debug_rtc.c
+        platform/device/logic/rtc_time.c
+        src/core/calendar.c
     )
 endif()
 

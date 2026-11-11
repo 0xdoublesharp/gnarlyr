@@ -173,10 +173,10 @@ static bool read_block(WavSource *source, uint32_t first, uint32_t frames)
         }
         for (uint32_t index = 0; index < count; index++) {
             const uint8_t *frame = buffers->raw + index * format.frame_bytes;
-            int32_t left = sample_from(frame, format.bits);
-            buffers->left[done + index] = left;
-            buffers->right[done + index] =
-                format.channels > 1 ? sample_from(frame + sample_bytes, format.bits) : left;
+            buffers->left[done + index] = sample_from(frame, format.bits);
+            if (format.channels > 1) {
+                buffers->right[done + index] = sample_from(frame + sample_bytes, format.bits);
+            }
         }
         done += count;
     }
@@ -195,7 +195,8 @@ static AudioFrameResult next_frame(void *context, AudioFrame *frame)
         return AUDIO_FRAME_ERROR;
     }
     *frame = (AudioFrame){.left = source->buffers->left,
-                          .right = source->buffers->right,
+                          .right = source->format.channels > 1 ? source->buffers->right
+                                                               : source->buffers->left,
                           .first_sample = source->next_frame,
                           .samples = frames,
                           .bits = source->format.bits};

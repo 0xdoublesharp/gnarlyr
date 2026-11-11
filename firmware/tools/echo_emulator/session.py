@@ -5,7 +5,7 @@ import make_image
 from .emmc import EmmcCard, synthetic_emmc
 from .fat_reader import FatReader
 from .fat_volume import Fat32Volume, short_name
-from .machine import Machine
+from .machine import USB_ANSWER_FILE_TRANSFER, Machine
 
 LOADER_REQUEST_NAME = "MASKROM.REQ"
 LOADER_REQUEST_TEXT = b"MASKROM REQ"
@@ -52,7 +52,7 @@ def with_brand(image, brand):
 class Session:
     def __init__(self, image, elf_path, files=(), vbus_after_first_frame=False, volume=None,
                  vbus_at_start=False, reuse=None, usb_overlay_elf=None, rest_in_waits=True,
-                 module_elfs=()):
+                 module_elfs=(), usb_answer=USB_ANSWER_FILE_TRANSFER):
         self.image = image
         self.elf_path = elf_path
         self.usb_overlay_elf = usb_overlay_elf
@@ -75,11 +75,14 @@ class Session:
         self.before = self.disk.snapshot()
         self.vbus_after_first_frame = vbus_after_first_frame
         self.machine.vbus = vbus_at_start
+        self.machine.usb_answer = usb_answer
 
-    def reboot(self, image=None, vbus_after_first_frame=False):
+    def reboot(self, image=None, vbus_after_first_frame=False,
+               usb_answer=USB_ANSWER_FILE_TRANSFER):
         return Session(image or self.image, self.elf_path, reuse=self,
                        vbus_after_first_frame=vbus_after_first_frame,
-                       usb_overlay_elf=self.usb_overlay_elf, module_elfs=self.module_elfs)
+                       usb_overlay_elf=self.usb_overlay_elf, module_elfs=self.module_elfs,
+                       usb_answer=usb_answer)
 
     def write_slots(self, image):
         self.disk.write(self.layout["slot_1"], image)

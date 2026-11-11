@@ -10,7 +10,7 @@ SECTIONS
     .overlay :
     {
         LONG(0) LONG(0) LONG(0) LONG(0)
-        KEEP(*(.rodata.LIBRARY_SCAN_ENTRY))
+        KEEP(*(.rodata.RESCAN_MODULE_ENTRY))
         *(.text .text.*)
         *(.rodata .rodata.*)
         . = ALIGN(4);
@@ -30,5 +30,6 @@ SECTIONS
 }
 
 ASSERT(ADDR(.overlay) == 0x0307A000, "the overlay must start at 0x0307A000")
-ASSERT(LIBRARY_SCAN_ENTRY == 0x0307A010, "the entry table must follow the 16-byte header")
-ASSERT(SIZEOF(.data) == 0 && SIZEOF(.bss) == 0, "the overlay may only hold code and constants")
+ASSERT(RESCAN_MODULE_ENTRY == 0x0307A010, "the entry table must follow the 16-byte header")
+ASSERT(SIZEOF(.data) == 0, "the overlay may not hold initialised data")
+ASSERT(ADDR(.bss) >= ADDR(.overlay) + SIZEOF(.overlay), "the overlay's .bss must follow its code")

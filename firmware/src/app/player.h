@@ -9,6 +9,7 @@
 #include "library/library.h"
 #include "library/library_browse.h"
 #include "playback/play_queue.h"
+#include "playback/resume_rewind.h"
 #include "playback/up_next.h"
 #include "player_storage.h"
 #include "queue_edits.h"
@@ -111,6 +112,8 @@ typedef struct Player {
     uint8_t volume;
     uint8_t replay_gain_mode;
     bool prevent_clipping;
+    bool fade_transitions;
+    uint8_t transition_tenths;
     PlayerState state;
     bool has_track;
     bool loaded;
@@ -127,7 +130,11 @@ typedef struct Player {
     PlayerNextSource next_source;
     uint32_t last_save_ms;
     bool pause_timing;
+    bool standby_held;
     uint32_t paused_since_ms;
+    bool rewind_on_resume;
+    ResumeRewindPause rewind_pause;
+    uint32_t paused_at_ms;
     HalAudioJack jack;
     uint32_t refusal_count;
     HalAudioRefusal refusal;
@@ -143,6 +150,7 @@ bool player_play_list(Player *player, BrowseQuery source, uint32_t position, uin
 bool player_play_from(Player *player, PlayerListStart start);
 bool player_use_order(Player *player, const TrackOrder *order, uint16_t position);
 void player_set_resume(Player *player, PlayerResume resume);
+void player_set_rewind(Player *player, bool on);
 void player_jump(Player *player, int32_t delta_ms);
 void player_toggle_pause(Player *player);
 void player_skip(Player *player, int direction);
@@ -165,7 +173,10 @@ void player_update(Player *player, uint32_t now_ms);
 void player_refusal_text(HalAudioRefusal refusal, char *text, size_t capacity);
 bool player_save(Player *player);
 void player_release_output(Player *player);
+void player_hold_standby(Player *player, bool held);
+bool player_in_standby(const Player *player);
 bool player_restore(Player *player);
 PlayerStatus player_status(const Player *player);
 
 void player_set_replay_gain(Player *player, ReplayGainMode mode, bool prevent_clipping);
+void player_set_transitions(Player *player, bool fade, uint8_t tenths);

@@ -7,6 +7,7 @@
 #include "check.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
+#include "home_editor.h"
 #include "settings/settings.h"
 #include "settings_store.h"
 #include "test_pack.h"
@@ -21,10 +22,11 @@ enum {
     HOME_SETTINGS_ROW = 1,
     HOME_NOW_PLAYING_ROW = 2,
     HOME_UP_NEXT_ROW = 3,
-    MUSIC_ENTRIES = 11,
+    MUSIC_ENTRIES = 12,
+    MUSIC_SMART_LISTS_ROW = 10,
     MUSIC_ALBUMS_ROW = 4,
     MUSIC_ALL_SONGS_ROW = 7,
-    SETTINGS_ROWS = 22,
+    SETTINGS_ROWS = 28,
     SETTINGS_BLUETOOTH_ROW = 3,
     SETTINGS_SLEEP_ROW = 4,
     SETTINGS_OUTPUT_ROW = 14,
@@ -33,6 +35,7 @@ enum {
     SETTINGS_RESCAN_ROW = 20,
     SETTINGS_USB_MODE_ROW = 21,
     ABOUT_ROWS = 14,
+    HOME_EDITOR_PODCASTS_ROW = 2,
     EQUALIZER_SAVE_ROW = 10,
     EQUALIZER_SLOT_OPTION = 8,
     MINIMUM_PACK_TEXTS = 400,
@@ -303,14 +306,28 @@ static void open_settings_row(int row)
 static void walk_music(void)
 {
     static const StringId TITLES[MUSIC_ENTRIES] = {
-        STR_SEARCH,  STR_COVER_FLOW, STR_ARTISTS,   STR_ALBUM_ARTISTS, STR_ALBUMS,       STR_GENRES,
-        STR_FOLDERS, STR_ALL_SONGS,  STR_PLAYLISTS, STR_FAVORITES,     STR_PERSONAL_TAGS};
+        STR_SEARCH,    STR_COVER_FLOW, STR_ARTISTS,     STR_ALBUM_ARTISTS,
+        STR_ALBUMS,    STR_GENRES,     STR_FOLDERS,     STR_ALL_SONGS,
+        STR_PLAYLISTS, STR_FAVORITES,  STR_SMART_LISTS, STR_PERSONAL_TAGS};
     open_music_row(0);
     show_titled("Music", STR_MUSIC);
     for (int entry = 1; entry < MUSIC_ENTRIES; entry++) {
         open_music_row(entry);
         tap(KEY_PLAY);
         show_titled("a Music list", TITLES[entry]);
+    }
+}
+
+static void walk_smart_lists(void)
+{
+    static const StringId LISTS[] = {STR_RECENTLY_ADDED, STR_RECENTLY_PLAYED, STR_MOST_PLAYED,
+                                     STR_NEVER_PLAYED, STR_FORGOTTEN_FAVORITES};
+    for (int list = 0; list < 5; list++) {
+        open_music_row(MUSIC_SMART_LISTS_ROW);
+        tap(KEY_PLAY);
+        down(list);
+        tap(KEY_PLAY);
+        show_titled("a smart list", LISTS[list]);
     }
 }
 
@@ -378,13 +395,34 @@ static void walk_settings_rows(void)
 
 static void walk_settings_choices(void)
 {
-    static const StringId TITLES[SETTINGS_ROWS] = {
-        STR_ABOUT,       STR_SHUFFLE,     STR_REPEAT,           STR_BLUETOOTH,
-        STR_SLEEP_TIMER, STR_AUTO_OFF,    STR_SCREEN_TIMEOUT,   STR_BRIGHTNESS,
-        STR_COLOR,       STR_TEXT_SIZE,   STR_ORIENTATION,      STR_LANGUAGE,
-        STR_SKIP_SONGS,  STR_GAIN,        STR_OUTPUT,           STR_EQUALIZER,
-        STR_CUSTOM_EQ,   STR_REPLAY_GAIN, STR_PREVENT_CLIPPING, STR_START_SCREEN,
-        STR_SETTINGS,    STR_USB_MODE};
+    static const StringId TITLES[SETTINGS_ROWS] = {STR_ABOUT,
+                                                   STR_SHUFFLE,
+                                                   STR_REPEAT,
+                                                   STR_BLUETOOTH,
+                                                   STR_SLEEP_TIMER,
+                                                   STR_AUTO_OFF,
+                                                   STR_SCREEN_TIMEOUT,
+                                                   STR_BRIGHTNESS,
+                                                   STR_COLOR,
+                                                   STR_TEXT_SIZE,
+                                                   STR_ORIENTATION,
+                                                   STR_LANGUAGE,
+                                                   STR_SKIP_SONGS,
+                                                   STR_GAIN,
+                                                   STR_OUTPUT,
+                                                   STR_EQUALIZER,
+                                                   STR_CUSTOM_EQ,
+                                                   STR_REPLAY_GAIN,
+                                                   STR_PREVENT_CLIPPING,
+                                                   STR_START_SCREEN,
+                                                   STR_SETTINGS,
+                                                   STR_USB_MODE,
+                                                   STR_THEME,
+                                                   STR_BATTERY_PERCENTAGE,
+                                                   STR_REWIND_ON_RESUME,
+                                                   STR_SAFE_START_VOLUME,
+                                                   STR_TRANSITIONS,
+                                                   STR_USB_ANSWER};
     for (int row = 1; row < SETTINGS_ROWS; row++) {
         if (row == SETTINGS_RESCAN_ROW) {
             continue;
@@ -484,6 +522,49 @@ static void walk_bluetooth(void)
     CHECK(show("Home with Bluetooth on") >= 2);
 }
 
+static void open_home_editor(void)
+{
+    open_settings_row(0);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+}
+
+static void walk_home_editor_rows(void)
+{
+    open_home_editor();
+    show_titled("Home screen", STR_HOME_SCREEN);
+    for (int row = 1; row < HOME_EDITOR_ROWS; row++) {
+        down(1);
+        show_titled("a Home screen row", STR_HOME_SCREEN);
+    }
+    tap(KEY_PLAY);
+    show_toast("the Home reset toast", STR_HOME_WAS_RESET);
+}
+
+static void walk_home_editor(void)
+{
+    walk_home_editor_rows();
+    open_home_editor();
+    down(HOME_EDITOR_PODCASTS_ROW);
+    tap(KEY_PLAY);
+    show_titled("a Home item's actions", STR_PODCASTS);
+    tap(KEY_PLAY);
+    show_toast("the Home hidden toast", STRING_COUNT);
+    tap(KEY_PLAY);
+    show_titled("a hidden Home item's actions", STR_PODCASTS);
+    tap(KEY_PLAY);
+    show_toast("the Home shown toast", STRING_COUNT);
+    hold(KEY_PLAY, 700);
+    CHECK(show("a Home item being moved") >= 2);
+    down(1);
+    tap(KEY_PLAY);
+    show_toast("the Home placed toast", STRING_COUNT);
+    hold(KEY_PLAY, 700);
+    tap(KEY_BACK);
+    show_toast("the Home move cancelled toast", STR_HOME_MOVE_CANCELLED);
+}
+
 static void walk_about(void)
 {
     open_settings_row(0);
@@ -515,9 +596,38 @@ static void walk_power(void)
     CHECK(show("the charge screen when charged") >= 2);
 }
 
+static void walk_clock(void)
+{
+    begin();
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    show_titled("Clock without a time", STR_CLOCK);
+    tap(KEY_PLAY);
+    show_titled("Calendar without a time", STR_CALENDAR);
+    begin();
+    fake_hal_set_wall(1794390060u, 60);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    show_titled("Clock", STR_CLOCK);
+    tap(KEY_PLAY);
+    show_titled("Calendar", STR_CALENDAR);
+    fake_hal_set_wall(0, 0);
+}
+
+static void walk_usb_prompt(void)
+{
+    begin();
+    app_ask_usb_mode();
+    show_titled("the USB prompt", STR_USB_CONNECTED);
+    begin();
+    app_open_usb_modes();
+    show_titled("USB mode opened by hand", STR_USB_MODE);
+}
+
 static void walk_listening(void)
 {
     begin();
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
@@ -535,16 +645,20 @@ static void walk_everything(void)
     CHECK(strcmp(FIRMWARE_SHORT_NAME, app_screen_title()) == 0);
     CHECK(show("Home") >= 2);
     walk_music();
+    walk_smart_lists();
     walk_cover_flow();
     walk_settings_rows();
     walk_settings_choices();
     walk_settings_toasts();
     walk_equalizer();
     walk_bluetooth();
+    walk_home_editor();
     walk_about();
     walk_song_actions();
     walk_now_playing();
     walk_listening();
+    walk_clock();
+    walk_usb_prompt();
     walk_power();
 }
 

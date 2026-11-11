@@ -577,29 +577,44 @@ static void probes_are_listed_with_both_words_the_time_and_the_two_levels(void)
 static void rtc_reads_list_every_register_the_decoded_time_and_the_trust_flag(void)
 {
     DebugReportInput input = plain_input();
-    load_script("build any\nrtc read\nrtc read\nrtc read\n");
+    load_script("build any\nrtc read\nrtc read\nrtc read\nrtc set\nrtc set\n");
     script.state = DEBUG_SCRIPT_FINISHED;
-    script.rtc[0] = (DebugRtcRead){2,
-                                   HAL_RTC_OK,
-                                   5120,
-                                   {0x00, 0x00, 0x05, 0x00, 0x12, 0x03, 0x06, 0x01, 0x26, 0x80,
-                                    0x80, 0x80, 0x80, 0x00, 0x00, 0x00}};
-    script.rtc[1] = (DebugRtcRead){3,
-                                   HAL_RTC_OK,
-                                   5200,
-                                   {0x08, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}};
-    script.rtc[2] = (DebugRtcRead){4, HAL_RTC_NO_ACK, 5300, {0}};
+    script.rtc[0] = (DebugRtcRead){.line = 2,
+                                   .status = HAL_RTC_OK,
+                                   .time_ms = 5120,
+                                   .registers = {0x00, 0x00, 0x05, 0x00, 0x12, 0x03, 0x06, 0x01,
+                                                 0x26, 0x80, 0x80, 0x80, 0x80, 0x00, 0x00, 0x00}};
+    script.rtc[1] = (DebugRtcRead){.line = 3,
+                                   .status = HAL_RTC_OK,
+                                   .time_ms = 5200,
+                                   .registers = {0x08, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                                                 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}};
+    script.rtc[2] = (DebugRtcRead){.line = 4, .status = HAL_RTC_NO_ACK, .time_ms = 5300};
     script.rtc_count = 3;
     format(&input, DEBUG_REPORT_BYTES);
-    CHECK(has_line("script.rtc: line=2 ms=5120 status=ok "
+    CHECK(has_line("script.rtc: line=2 ms=5120 action=read written_s=unknown status=ok "
                    "registers=00000500120306012680808080000000 vl=0 time=2026-01-03T12:00:05 "
                    "weekday=6 century=0"));
-    CHECK(has_line("script.rtc: line=3 ms=5200 status=ok "
+    CHECK(has_line("script.rtc: line=3 ms=5200 action=read written_s=unknown status=ok "
                    "registers=0800ffffffffffffffffffffffffffff vl=1 time=invalid weekday=7 "
                    "century=1"));
-    CHECK(has_line("script.rtc: line=4 ms=5300 status=no_ack registers=unknown vl=unknown "
-                   "time=unknown weekday=unknown century=unknown"));
+    CHECK(has_line("script.rtc: line=4 ms=5300 action=read written_s=unknown status=no_ack "
+                   "registers=unknown vl=unknown time=unknown weekday=unknown century=unknown"));
+    script.rtc[0] =
+        (DebugRtcRead){.line = 5,
+                       .status = HAL_RTC_OK,
+                       .action = DEBUG_RTC_SET,
+                       .time_ms = 5400,
+                       .written_s = 1794390060,
+                       .registers = {0x00, 0x00, 0x00, 0x41, 0x09, 0x11, 0x03, 0x11, 0x26}};
+    script.rtc[1] = (DebugRtcRead){.line = 6, .status = HAL_RTC_NO_TIME, .action = DEBUG_RTC_SET};
+    script.rtc_count = 2;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("script.rtc: line=5 ms=5400 action=set written_s=1794390060 status=ok "
+                   "registers=00000041091103112600000000000000 vl=0 time=2026-11-11T09:41:00 "
+                   "weekday=3 century=0"));
+    CHECK(has_line("script.rtc: line=6 ms=0 action=set written_s=unknown status=no_time "
+                   "registers=unknown vl=unknown time=unknown weekday=unknown century=unknown"));
 }
 
 static DebugSoak soak_over(uint32_t first_sample, uint32_t samples)
@@ -955,6 +970,16 @@ static void events_are_listed_oldest_first_with_names(void)
     CHECK(strstr(text, "event: 1000") < strstr(text, "event: 1004"));
 }
 
+static void a_paused_player_with_its_output_powered_down_is_named_standby(void)
+{
+    DebugReportInput input = plain_input();
+    record(DEBUG_EVENT_PLAYER, 2 | 17 << 8, NULL);
+    record(DEBUG_EVENT_PLAYER, DEBUG_PLAYER_STANDBY | 17 << 8, NULL);
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("event: 1000 player paused 17"));
+    CHECK(has_line("event: 1001 player standby 17"));
+}
+
 static void event_text_outside_plain_ascii_is_replaced(void)
 {
     DebugReportInput input = plain_input();
@@ -1219,6 +1244,7 @@ int main(void)
         TEST_CASE(running_audio_reports_averages_worst_times_and_the_busy_share),
         TEST_CASE(frame_figures_are_unknown_until_a_frame_was_drawn),
         TEST_CASE(events_are_listed_oldest_first_with_names),
+        TEST_CASE(a_paused_player_with_its_output_powered_down_is_named_standby),
         TEST_CASE(event_text_outside_plain_ascii_is_replaced),
         TEST_CASE(an_unknown_event_kind_is_named_as_such),
         TEST_CASE(missing_sources_are_reported_as_unknown),

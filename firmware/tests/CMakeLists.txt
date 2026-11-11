@@ -30,6 +30,8 @@ echo_add_unit_test(NAME test_key_lock SOURCES core/test_key_lock.c LIBRARIES ech
 echo_add_unit_test(NAME test_utf8 SOURCES core/test_utf8.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_string_builder SOURCES core/test_string_builder.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_format SOURCES core/test_format.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_calendar SOURCES core/test_calendar.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_clock_face SOURCES core/test_clock_face.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_dac_identity SOURCES core/test_dac_identity.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_random SOURCES core/test_random.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_permutation SOURCES core/test_permutation.c LIBRARIES echo_core)
@@ -77,7 +79,7 @@ target_compile_definitions(echo_library_fixtures PRIVATE
 )
 target_link_libraries(echo_library_fixtures PUBLIC echo_library echo_library_scan PRIVATE echo_options)
 
-foreach(playback_test play_queue resume_state up_next bookmarks spoken store track_order session_journal mix_catalog mix_tape mix_resolve store_roots)
+foreach(playback_test play_queue resume_rewind resume_state up_next bookmarks spoken store track_order track_transition session_journal mix_catalog mix_tape mix_resolve store_roots)
     echo_add_unit_test(NAME test_${playback_test}
         SOURCES playback/test_${playback_test}.c
         LIBRARIES echo_playback echo_library_fixtures
@@ -93,6 +95,14 @@ endforeach()
 echo_add_unit_test(NAME test_listening_track
     SOURCES playback/test_listening_track.c
     LIBRARIES echo_playback echo_library_fixtures
+)
+echo_add_unit_test(NAME test_track_keys
+    SOURCES playback/test_track_keys.c playback/keys_disk.c
+    LIBRARIES echo_playback echo_library_fixtures
+)
+echo_add_unit_test(NAME test_smart_list
+    SOURCES playback/test_smart_list.c playback/keys_disk.c playback/listening_fixture.c
+    LIBRARIES echo_playback
 )
 
 echo_add_unit_test(NAME test_settings SOURCES settings/test_settings.c LIBRARIES echo_settings)
@@ -211,6 +221,11 @@ echo_add_unit_test(NAME test_app_modules
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+echo_add_unit_test(NAME test_home_screen
+    SOURCES app/test_home_screen.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
 echo_add_unit_test(NAME test_screen_modules
     SOURCES app/test_screen_modules.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures
@@ -244,8 +259,8 @@ echo_add_unit_test(NAME test_charge_screen
 )
 
 echo_add_unit_test(NAME test_english_layout
-    SOURCES app/test_english_layout.c
-    LIBRARIES echo_app
+    SOURCES app/test_english_layout.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 
@@ -272,6 +287,11 @@ echo_add_unit_test(NAME test_player
 )
 echo_add_unit_test(NAME test_player_cue
     SOURCES app/test_player_cue.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+echo_add_unit_test(NAME test_player_transitions
+    SOURCES app/test_player_transitions.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
@@ -343,7 +363,7 @@ echo_add_unit_test(NAME test_bluetooth_screen
     LIBRARIES echo_app echo_library_scan
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
-foreach(device_test audio_math backlight board_pins loader_request update_names updater_echo vop battery_gauge watchdog panic_text stall_watch bt_module card_write core1_control start_record dac_sequence dma_loop flac_accel headset_dips headset_monitor headset_remote jack_sense key_ladder key_scanner msc panel pll sd_card stream_drift tick_clock updater usb_audio usb_audio_sink usb_device usb_fallback usb_forced usb_plug wav_source pc_profile debug_report power_history rtc_registers)
+foreach(device_test audio_math backlight board_pins loader_request update_names updater_echo vop battery_gauge watchdog panic_text stall_watch bt_module card_write core1_control start_record dac_sequence dma_loop flac_accel headset_dips headset_monitor headset_remote jack_sense key_ladder key_scanner msc panel pll sd_card stream_drift tick_clock updater usb_audio usb_audio_sink usb_device usb_fallback usb_forced usb_plug wav_source pc_profile debug_report power_history rtc_registers time_file wall_clock)
     echo_add_unit_test(NAME test_${device_test}
         SOURCES device/test_${device_test}.c
         LIBRARIES echo_device_logic
@@ -397,6 +417,14 @@ echo_add_unit_test(NAME test_audio_engine
     LIBRARIES echo_device_logic
 )
 target_compile_definitions(test_audio_engine PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+echo_add_unit_test(NAME test_audio_fade
+    SOURCES device/test_audio_fade.c
+    LIBRARIES echo_device_logic
+)
+echo_add_unit_test(NAME test_audio_engine_pcm
+    SOURCES device/test_audio_engine_pcm.c
+    LIBRARIES echo_device_logic
+)
 echo_add_unit_test(NAME test_mp3_probe
     SOURCES device/test_mp3_probe.c
     LIBRARIES echo_device_logic
@@ -889,6 +917,18 @@ echo_add_unit_test(NAME test_configured_controls
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 
+echo_add_unit_test(NAME test_resume_comfort
+    SOURCES app/test_resume_comfort.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
+echo_add_unit_test(NAME test_usb_chooser
+    SOURCES app/test_usb_chooser.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
 echo_add_unit_test(NAME test_portrait_settings_layout
     SOURCES app/test_portrait_settings_layout.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures
@@ -900,10 +940,24 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(test_equalizer_response PRIVATE m)
 endif()
 
+echo_add_unit_test(NAME test_clock_screen
+    SOURCES app/test_clock_screen.c app/fake_hal.c support/text_spy.c support/screen_snapshot.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
+)
+
 echo_add_unit_test(NAME test_lyrics_screen
     SOURCES app/test_lyrics_screen.c app/fake_hal.c support/text_spy.c support/screen_snapshot.c
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
+)
+
+echo_add_unit_test(NAME test_smart_list_screen
+    SOURCES app/test_smart_list_screen.c app/fake_hal.c playback/listening_fixture.c
+        support/text_spy.c support/screen_snapshot.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
+        ${CMAKE_CURRENT_SOURCE_DIR}/playback
 )
 
 echo_add_unit_test(NAME test_listening_screen

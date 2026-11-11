@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include "app_screens.h"
 #include "check.h"
 #include "core/i18n.h"
 #include "default_theme.h"
@@ -93,12 +94,36 @@ static const StringId SCREEN_TITLES[] = {
     STR_LYRICS,
     STR_REPLAY_GAIN,
     STR_PREVENT_CLIPPING,
+    STR_CLOCK,
+    STR_CALENDAR,
     STR_BATTERY_PERCENTAGE,
+    STR_SMART_LISTS,
+    STR_RECENTLY_ADDED,
+    STR_RECENTLY_PLAYED,
+    STR_MOST_PLAYED,
+    STR_NEVER_PLAYED,
+    STR_FORGOTTEN_FAVORITES,
+    STR_HOME_SCREEN,
+    STR_HOME_MOVING,
+    STR_REWIND_ON_RESUME,
+    STR_SAFE_START_VOLUME,
+    STR_TRANSITIONS,
+    STR_TRANSITION_LENGTH,
+    STR_USB_CONNECTED,
+    STR_USB_ANSWER,
 };
 
 static const StringId EMPTY_STATES[] = {
-    STR_NOTHING_HERE,  STR_NO_LIBRARY_HINT, STR_NO_FAVORITES_HINT,  STR_NO_BOOKS_HINT,
-    STR_NO_SHOWS_HINT, STR_NOTHING_PLAYING, STR_NOTHING_IS_PLAYING,
+    STR_NOTHING_HERE,        STR_NO_LIBRARY_HINT,   STR_NO_FAVORITES_HINT,
+    STR_NO_BOOKS_HINT,       STR_NO_SHOWS_HINT,     STR_NOTHING_PLAYING,
+    STR_NOTHING_IS_PLAYING,  STR_SMART_NONE_ADDED,  STR_SMART_NONE_PLAYED,
+    STR_SMART_NONE_LISTENED, STR_SMART_ALL_PLAYED,  STR_SMART_NONE_FORGOTTEN,
+    STR_HISTORY_UNAVAILABLE, STR_TIME_UNKNOWN_HINT,
+};
+
+static const Pattern SCREEN_MESSAGE_PATTERNS[] = {
+    {STR_SMART_CHECKING, {"100"}},
+    {STR_SMART_FINDING, {"100"}},
 };
 
 static const StringId TOASTS[] = {
@@ -121,7 +146,8 @@ static const StringId TOASTS[] = {
     STR_SCAN_NO_SCRATCH,    STR_SCAN_FOLDER_TOO_BIG,
     STR_SCAN_PATH_TOO_LONG, STR_SCAN_WRITE_FAILED,
     STR_SCAN_NO_ROOM,       STR_SCAN_NO_CODE,
-    STR_RESTART_TO_FINISH,
+    STR_RESTART_TO_FINISH,  STR_HOME_MOVE_CANCELLED,
+    STR_HOME_WAS_RESET,
 };
 
 static const Pattern TOAST_PATTERNS[] = {
@@ -130,6 +156,7 @@ static const Pattern TOAST_PATTERNS[] = {
     {STR_RATE_UNSUPPORTED, {"352.8 kHz"}},
     {STR_LIBRARY_COVERS, {"Library: 65535 tracks", "2673"}},
     {STR_LIBRARY_NO_COVERS, {"Library: 65535 tracks"}},
+    {STR_VOLUME_LOWERED, {"60"}},
 };
 
 static const Pattern EXPORT_HEADLINES[] = {
@@ -265,6 +292,32 @@ static void every_empty_screen_message_wraps_whole_at_every_size_and_orientation
             for (size_t index = 0; index < sizeof EMPTY_STATES / sizeof EMPTY_STATES[0]; index++) {
                 CHECK(notice_fits(&theme, i18n_text(EMPTY_STATES[index])));
             }
+            for (size_t index = 0;
+                 index < sizeof SCREEN_MESSAGE_PATTERNS / sizeof SCREEN_MESSAGE_PATTERNS[0];
+                 index++) {
+                CHECK(notice_fits(&theme, pattern_text(SCREEN_MESSAGE_PATTERNS[index])));
+            }
+        }
+    }
+}
+
+static void every_month_title_and_clock_hint_fits_at_every_size_and_orientation(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = themed(size, orientation);
+            int room = header_title_bounds(&theme).width;
+            int line = theme.metrics.screen_width - 2 * theme.metrics.padding;
+            for (int month = 0; month < 12; month++) {
+                char title[64];
+                StringBuilder builder = string_builder_make(title, sizeof title);
+                const char *arguments[] = {i18n_text((StringId)(STR_JANUARY + month)), "2026"};
+                i18n_format(&builder, STR_CALENDAR_MONTH, arguments, 2);
+                CHECK(text_width(theme.fonts.header, title) <= room);
+            }
+            CHECK(text_width(theme.fonts.small, i18n_text(STR_CLOCK_HINT)) <= line);
+            CHECK(text_width(theme.fonts.small, i18n_text(STR_CALENDAR_HINT)) <= line);
+            CHECK(text_width(theme.fonts.title, i18n_text(STR_TIME_UNKNOWN)) <= line);
         }
     }
 }
@@ -287,6 +340,25 @@ static void every_toast_is_shown_whole_at_every_size_and_orientation(void)
             for (size_t index = 0; index < sizeof TOAST_PATTERNS / sizeof TOAST_PATTERNS[0];
                  index++) {
                 CHECK(toast_fits(&theme, pattern_text(TOAST_PATTERNS[index])));
+            }
+        }
+    }
+}
+
+static void every_home_item_name_and_its_toasts_fit_at_every_size_and_orientation(void)
+{
+    static const StringId TOAST_IDS[] = {STR_HOME_WAS_HIDDEN, STR_HOME_WAS_SHOWN, STR_HOME_PLACED};
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = themed(size, orientation);
+            int room = header_title_bounds(&theme).width;
+            for (int item = 0; item < HOME_ITEM_COUNT; item++) {
+                const char *name = i18n_text(APP_HOME_ITEMS[item].label);
+                CHECK(text_width(theme.fonts.header, name) <= room);
+                for (int toast = 0; toast < 3; toast++) {
+                    Pattern text = {TOAST_IDS[toast], {name}};
+                    CHECK(toast_fits(&theme, pattern_text(text)));
+                }
             }
         }
     }
@@ -356,7 +428,9 @@ int main(void)
         TEST_CASE(the_usb_dac_prompt_takes_two_lines_in_landscape_and_three_in_portrait),
         TEST_CASE(every_screen_title_fits_the_header_at_every_size_and_orientation),
         TEST_CASE(every_empty_screen_message_wraps_whole_at_every_size_and_orientation),
+        TEST_CASE(every_month_title_and_clock_hint_fits_at_every_size_and_orientation),
         TEST_CASE(every_toast_is_shown_whole_at_every_size_and_orientation),
+        TEST_CASE(every_home_item_name_and_its_toasts_fit_at_every_size_and_orientation),
         TEST_CASE(a_toast_taller_than_one_line_stays_on_screen),
         TEST_CASE(every_export_status_fits_its_screen_at_every_size_and_orientation),
         TEST_CASE(every_bluetooth_hint_fits_three_lines_in_portrait_and_one_in_landscape),

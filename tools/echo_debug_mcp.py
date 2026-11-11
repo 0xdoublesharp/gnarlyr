@@ -119,6 +119,12 @@ TOOLS.update({
         "call": lambda tool, arguments: tool.settings_set(arguments["setting"], arguments["value"],
                     arguments.get("music_volume"), arguments.get("timeout", echo_debug.DEFAULT_TIMEOUT)),
     },
+    "echo_set_time": {
+        "description": "Send this computer's UTC time and offset to the player and eject; the player sets its "
+                       "clock as the USB session ends. Every other operation that ejects sends the time too.",
+        "inputSchema": schema(),
+        "call": lambda tool, arguments: tool.set_time(),
+    },
 })
 
 

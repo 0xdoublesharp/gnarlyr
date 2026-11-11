@@ -107,6 +107,16 @@ static bool read_charging(ArgumentCursor *cursor, SimOptions *options)
     return true;
 }
 
+static bool read_usb_host(ArgumentCursor *cursor, SimOptions *options)
+{
+    unsigned long frame = 0;
+    if (!parse_number(next_value(cursor), 1, UINT32_MAX, &frame)) {
+        return false;
+    }
+    options->usb_host_frame = (uint32_t)frame;
+    return true;
+}
+
 static bool read_notice_title(ArgumentCursor *cursor, SimOptions *options)
 {
     options->notice_title = next_value(cursor);
@@ -119,6 +129,36 @@ static bool read_notice_text(ArgumentCursor *cursor, SimOptions *options)
     return options->notice_text != NULL;
 }
 
+static bool read_clock(ArgumentCursor *cursor, SimOptions *options)
+{
+    const char *text = next_value(cursor);
+    unsigned long seconds = 0;
+    if (text != NULL && strcmp(text, "now") == 0) {
+        options->clock_mode = SIM_CLOCK_NOW;
+        return true;
+    }
+    if (!parse_number(text, 1, UINT32_MAX, &seconds)) {
+        return false;
+    }
+    options->clock_mode = SIM_CLOCK_FIXED;
+    options->clock_utc_s = (uint32_t)seconds;
+    return true;
+}
+
+static bool read_utc_offset(ArgumentCursor *cursor, SimOptions *options)
+{
+    const char *text = next_value(cursor);
+    bool west = text != NULL && text[0] == '-';
+    unsigned long minutes = 0;
+    if (!parse_number(west ? text + 1 : text, 0, west ? SIM_OFFSET_WEST : SIM_OFFSET_EAST,
+                      &minutes)) {
+        return false;
+    }
+    options->clock_offset_minutes = (int16_t)(west ? -(long)minutes : (long)minutes);
+    options->clock_offset_given = true;
+    return true;
+}
+
 static const OptionSpec OPTION_SPECS[] = {
     {"--scale", read_scale},
     {"--frames", read_frames},
@@ -129,8 +169,11 @@ static const OptionSpec OPTION_SPECS[] = {
     {"--system-dir", read_system_directory},
     {"--battery", read_battery},
     {"--charging", read_charging},
+    {"--usb-host", read_usb_host},
     {"--notice", read_notice_title},
     {"--notice-text", read_notice_text},
+    {"--clock", read_clock},
+    {"--utc-offset", read_utc_offset},
 };
 
 static bool read_option(ArgumentCursor *cursor, SimOptions *options)
@@ -155,5 +198,6 @@ bool sim_options_parse(int argument_count, char **arguments, SimOptions *options
         }
     }
     bool notice_complete = (options->notice_title == NULL) == (options->notice_text == NULL);
-    return notice_complete && (!options->headless || options->frame_limit > 0);
+    bool offset_fits = !options->clock_offset_given || options->clock_mode == SIM_CLOCK_FIXED;
+    return notice_complete && offset_fits && (!options->headless || options->frame_limit > 0);
 }

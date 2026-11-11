@@ -41,8 +41,9 @@ static void print_usage(void)
     fputs("usage: echo_sim [--scale N] [--frames N] [--headless] [--screenshot FILE.bmp]\n"
           "                [--keys up,down,play,menu,back,power[:long],...]\n"
           "                [--card MUSIC_DIR] [--system-dir DIR_WITH_LIBRARY_DB]\n"
-          "                [--battery PERCENT] [--charging]\n"
-          "                [--notice TITLE --notice-text MESSAGE]\n",
+          "                [--battery PERCENT] [--charging] [--usb-host FRAME]\n"
+          "                [--notice TITLE --notice-text MESSAGE]\n"
+          "                [--clock now | --clock UTC_SECONDS [--utc-offset MINUTES]]\n",
           stderr);
 }
 
@@ -156,6 +157,9 @@ static void run(SimSession *session)
     while (pump_events() && !frame_limit_reached(session) && !sim_power_off_requested()) {
         uint32_t frame_started_ms = hal_clock_milliseconds();
         inject_scripted_keys(session);
+        if (session->frames + 1 == session->options.usb_host_frame) {
+            app_ask_usb_mode();
+        }
         app_step();
         session->frames++;
         finish_frame(session, frame_started_ms, &next_title_ms);
@@ -198,6 +202,8 @@ int main(int argument_count, char **arguments)
     sim_storage_configure(session.options.card_directory, session.options.system_directory);
     sim_audio_start(session.options.headless);
     sim_power_configure(session.options.battery_percent, session.options.battery_charging);
+    sim_clock_set_wall(session.options.clock_mode, session.options.clock_utc_s,
+                       session.options.clock_offset_minutes);
     sim_glyphs_attach();
     app_start();
     app_show_splash();

@@ -2,6 +2,7 @@
 
 #include "app/app.h"
 #include "app/debug_loop.h"
+#include "app/extension.h"
 #include "app_internal.h"
 #include "board_layout.h"
 #include "card_files.h"
@@ -67,7 +68,12 @@ enum {
     SETTINGS_CLIPPING_INDEX = 17,
     SETTINGS_START_INDEX = 18,
     SETTINGS_RESCAN_INDEX = 19,
+    SETTINGS_USB_MODE_INDEX = 20,
     SETTINGS_THEME_INDEX = 21,
+    SETTINGS_BATTERY_PERCENT_INDEX = 22,
+    SETTINGS_USB_ANSWER_INDEX = 26,
+    USB_PROMPT_MS = 15000,
+    CHARGE_LIT_MS = 5000,
     MUSIC_COVER_FLOW_INDEX = 1,
     MUSIC_PLAYLISTS_INDEX = 8,
     SETTLE_STEPS = 30,
@@ -931,7 +937,7 @@ static void the_home_menu_shows_now_playing_last_once_a_track_is_loaded(void)
 static void the_home_menu_hides_now_playing_with_nothing_loaded(void)
 {
     start_app_with_library();
-    move_down(5);
+    move_down(6);
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
 }
@@ -1774,7 +1780,7 @@ static void home_puts_the_album_art_under_the_menu_in_portrait(void)
     settle();
     Theme theme = *expected_theme();
     default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
-    int list_bottom = theme.metrics.header_height + 5 * theme.metrics.row_height;
+    int list_bottom = theme.metrics.header_height + 6 * theme.metrics.row_height;
     int cover_middle = list_bottom + 8 + COVER_FULL_SIZE / 2;
     CHECK_EQUAL(RED_COVER, fake_hal_pixel(HAL_DISPLAY_SHORT_SIDE / 2, cover_middle));
     CHECK(fake_hal_pixel(2, list_bottom) == theme.colors.divider);
@@ -2876,7 +2882,7 @@ static void a_charged_battery_does_not_keep_redrawing_an_unchanged_screen(void)
     CHECK_EQUAL(first, fake_hal_present_count());
 }
 
-static void menu_opens_mode_selection_from_charging_without_restarting(void)
+static void menu_on_the_charge_screen_opens_usb_mode_and_charge_only_returns_to_charging(void)
 {
     start_app_with_library();
     fake_hal_set_battery(ON_USB);
@@ -2889,9 +2895,156 @@ static void menu_opens_mode_selection_from_charging_without_restarting(void)
     CHECK_EQUAL(0, fake_hal_power_off_count());
     tap(KEY_PLAY);
     CHECK(!title_is("USB mode"));
-    CHECK(!app_charging());
+    CHECK(app_charging());
+    CHECK(fake_hal_display_on());
     CHECK_EQUAL(1, fake_hal_usb_mode_requests());
     CHECK_EQUAL(HAL_USB_MODE_PLAYER, fake_hal_requested_usb_mode());
+}
+
+static void start_charging_on_usb(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery(ON_USB);
+    hold_power();
+    wait_ms(GOODBYE_MS);
+    wait_ms(CHARGE_LIT_MS);
+    CHECK(app_charging());
+    CHECK(!fake_hal_display_on());
+}
+
+static void a_host_found_while_playing_asks_and_playback_goes_on(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    app_ask_usb_mode();
+    step();
+    CHECK(title_is("USB connected"));
+    CHECK(fake_hal_display_on());
+    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+}
+
+static void a_quiet_prompt_lapses_to_charge_only_and_playback_goes_on(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    const char *before = app_screen_title();
+    app_ask_usb_mode();
+    wait_ms(USB_PROMPT_MS - 1000);
+    CHECK(title_is("USB connected"));
+    wait_ms(1000);
+    CHECK(title_is(before));
+    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    CHECK(!app_charging());
+}
+
+static void choosing_file_transfer_in_the_prompt_requests_a_storage_session(void)
+{
+    start_app_with_library();
+    app_ask_usb_mode();
+    step();
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(!title_is("USB connected"));
+    CHECK_EQUAL(1, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(HAL_USB_MODE_STORAGE, fake_hal_requested_usb_mode());
+}
+
+static void the_prompt_gives_way_to_charge_only_when_the_screen_goes_dark(void)
+{
+    start_app_with_library();
+    SettingsStore store;
+    settings_store_load(&store);
+    store.settings.screen_timeout = 0;
+    CHECK(settings_store_save(&store));
+    restart_app();
+    wait_ms(SPLASH_MS);
+    app_ask_usb_mode();
+    step();
+    CHECK(title_is("USB connected"));
+    wait_ms(SHORT_TIMEOUT_MS);
+    wait_ms(10);
+    CHECK(!fake_hal_display_on());
+    CHECK(!title_is("USB connected"));
+    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
+}
+
+static void a_host_found_on_the_charge_screen_wakes_it_to_the_prompt(void)
+{
+    start_charging_on_usb();
+    app_ask_usb_mode();
+    step();
+    CHECK(!app_charging());
+    CHECK(fake_hal_display_on());
+    CHECK(title_is("USB connected"));
+    CHECK_EQUAL(0, fake_hal_power_off_count());
+}
+
+static void a_lapsed_prompt_on_the_charge_screen_goes_back_to_dark_charging(void)
+{
+    start_charging_on_usb();
+    app_ask_usb_mode();
+    step();
+    wait_ms(USB_PROMPT_MS);
+    CHECK(app_charging());
+    CHECK(!fake_hal_display_on());
+    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(0, fake_hal_power_off_count());
+}
+
+static void back_on_the_charge_screen_prompt_goes_back_to_charging(void)
+{
+    start_charging_on_usb();
+    app_ask_usb_mode();
+    step();
+    tap(KEY_BACK);
+    CHECK(app_charging());
+    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
+}
+
+static void file_transfer_from_the_charge_screen_prompt_connects_and_keeps_charging(void)
+{
+    start_charging_on_usb();
+    app_ask_usb_mode();
+    step();
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(app_charging());
+    CHECK_EQUAL(HAL_USB_MODE_STORAGE, fake_hal_requested_usb_mode());
+}
+
+static void a_host_found_with_usb_mode_open_turns_it_into_the_prompt(void)
+{
+    start_app_with_library();
+    app_open_usb_modes();
+    step();
+    wait_ms(USB_PROMPT_MS);
+    int depth = app_screen_depth();
+    app_ask_usb_mode();
+    step();
+    CHECK(title_is("USB connected"));
+    CHECK_EQUAL(depth, app_screen_depth());
+    wait_ms(USB_PROMPT_MS - 1000);
+    CHECK(title_is("USB connected"));
+    wait_ms(1000);
+    CHECK(!title_is("USB connected"));
+}
+
+static void the_plug_in_answer_is_chosen_in_settings_applied_and_saved(void)
+{
+    start_app_with_library();
+    CHECK_EQUAL(HAL_USB_ANSWER_ASK, fake_hal_usb_answer());
+    open_setting(SETTINGS_USB_ANSWER_INDEX);
+    CHECK(title_is("When plugged in"));
+    move_down(2);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(HAL_USB_ANSWER_CHARGE, fake_hal_usb_answer());
+    Settings settings;
+    CHECK(saved_settings(&settings));
+    CHECK_EQUAL(USB_CONNECT_CHARGE, settings.usb_connect);
+    restart_app();
+    CHECK_EQUAL(HAL_USB_ANSWER_CHARGE, fake_hal_usb_answer());
 }
 
 static void the_home_menu_opens_the_same_three_mode_selector(void)
@@ -4039,7 +4192,7 @@ static void a_script_without_a_build_line_is_refused_and_still_reconnects(void)
 static void a_script_whose_code_cannot_load_is_aborted_and_still_reconnects(void)
 {
     start_app();
-    fake_hal_break_module(DEBUG_MODULE_NUMBER, true);
+    fake_hal_break_module(EXTENSION_MODULE_NUMBER, true);
     const DebugScriptRun *run = run_script("build any\nplay\n", SCRIPT_KEY_MS);
     CHECK_EQUAL(DEBUG_SCRIPT_ABORTED, run->state);
     CHECK(title_is(FIRMWARE_SHORT_NAME));
@@ -4047,7 +4200,7 @@ static void a_script_whose_code_cannot_load_is_aborted_and_still_reconnects(void
     CHECK_EQUAL(0, fake_hal_usb_reconnect_count());
     run_script_for(DEBUG_SCRIPT_END_MS);
     CHECK_EQUAL(1, fake_hal_usb_reconnect_count());
-    fake_hal_break_module(DEBUG_MODULE_NUMBER, false);
+    fake_hal_break_module(EXTENSION_MODULE_NUMBER, false);
 }
 
 static void a_script_for_another_build_is_refused(void)
@@ -4234,6 +4387,24 @@ static void rtc_read_lines_keep_the_registers_and_a_bus_error_fails_the_line(voi
     CHECK_EQUAL(HAL_RTC_TIMEOUT, run->rtc[3].status);
     CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[1]);
     CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[5]);
+}
+
+static void rtc_set_writes_the_synced_time_and_refuses_without_one(void)
+{
+    start_app();
+    fake_hal_set_rtc_answer((HalRtcRead){.status = HAL_RTC_OK});
+    const DebugScriptRun *run = run_script("build any\nrtc set\nwait 20\n", 200);
+    CHECK_EQUAL(HAL_RTC_NO_TIME, run->rtc[0].status);
+    CHECK_EQUAL(DEBUG_RTC_SET, run->rtc[0].action);
+    CHECK_EQUAL(0, fake_hal_rtc_read_count());
+    CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[1]);
+    fake_hal_set_wall(1794390060u, 60);
+    run = run_script("build any\nrtc set\nwait 20\n", 200);
+    CHECK_EQUAL(HAL_RTC_OK, run->rtc[0].status);
+    CHECK(fake_hal_rtc_written() - 1794390060u <= 1);
+    CHECK_EQUAL(fake_hal_rtc_written(), run->rtc[0].written_s);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
+    fake_hal_set_wall(0, 0);
 }
 
 static void a_probe_the_board_refuses_is_reported_and_leaves_no_record(void)
@@ -4428,6 +4599,99 @@ static void a_soak_adds_its_minutes_to_the_scripts_time_limit_and_outlasts_auto_
     CHECK_EQUAL(DEBUG_SOAK_DONE, run->soaks[0].end);
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[2]);
     CHECK_EQUAL(0, fake_hal_power_off_count());
+}
+
+static void wait_in_half_seconds(uint32_t duration_ms)
+{
+    for (uint32_t elapsed = 0; elapsed < duration_ms; elapsed += 500) {
+        wait_ms(500);
+    }
+}
+
+static void pause_now_playing_into_standby(void)
+{
+    play_first_album_track();
+    tap(KEY_PLAY);
+    wait_ms(1000);
+    wait_ms(PLAYER_PAUSE_RELEASE_MS);
+    CHECK_EQUAL(1, fake_hal_audio_release_count());
+}
+
+static const DebugEvent *last_player_event(void)
+{
+    const DebugLog *log = debug_loop_log();
+    for (uint32_t index = debug_log_count(log); index > 0; index--) {
+        const DebugEvent *event = debug_log_at(log, index - 1);
+        if (event->kind == DEBUG_EVENT_PLAYER) {
+            return event;
+        }
+    }
+    return NULL;
+}
+
+static void standby_and_the_resume_from_it_are_logged_with_the_track(void)
+{
+    start_app_with_library();
+    pause_now_playing_into_standby();
+    uint32_t track = app_player_status().track;
+    CHECK_EQUAL(DEBUG_PLAYER_STANDBY | track << 8, last_player_event()->value);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PLAYING | track << 8, last_player_event()->value);
+}
+
+static void a_scripts_standby_off_keeps_a_long_pause_powered_until_standby_on(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    tap(KEY_PLAY);
+    load_script("build any\nstandby off\nwait 50000\nstandby on\nwait 50000\n");
+    wait_in_half_seconds(45000);
+    CHECK_EQUAL(0, fake_hal_audio_release_count());
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    wait_in_half_seconds(40000);
+    CHECK_EQUAL(1, fake_hal_audio_release_count());
+}
+
+static void auto_off_counts_from_the_last_key_while_the_player_rests_in_standby(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    uint32_t paused_ms = now_ms;
+    tap(KEY_PLAY);
+    wait_ms(1000);
+    wait_ms(PLAYER_PAUSE_RELEASE_MS);
+    CHECK_EQUAL(1, fake_hal_audio_release_count());
+    wait_in_half_seconds(paused_ms + 5 * 60 * 1000 - 2000 - now_ms);
+    CHECK_EQUAL(0, fake_hal_power_off_count());
+    wait_ms(4000);
+    wait_ms(GOODBYE_MS);
+    CHECK_EQUAL(1, fake_hal_power_off_count());
+    CHECK_EQUAL(DEBUG_REPORT_AUTO_OFF, fake_hal_saved_report(0));
+}
+
+static void the_sleep_timer_runs_out_on_time_while_the_player_rests_in_standby(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery(
+        (HalBattery){.known = true, .percent = 80, .millivolts = 3900, .usb_power = true});
+    play_first_album_track();
+    tap(KEY_PLAY);
+    hold_back();
+    open_setting(SETTINGS_SLEEP_INDEX);
+    move_down(1);
+    uint32_t set_ms = now_ms;
+    tap(KEY_PLAY);
+    wait_ms(1000);
+    wait_ms(PLAYER_PAUSE_RELEASE_MS);
+    CHECK_EQUAL(1, fake_hal_audio_release_count());
+    int plays = fake_hal_audio_play_count();
+    wait_in_half_seconds(set_ms + FIFTEEN_MINUTES_MS - 2000 - now_ms);
+    CHECK(!app_charging());
+    wait_ms(4000);
+    wait_ms(GOODBYE_MS);
+    CHECK(app_charging());
+    CHECK_EQUAL(plays, fake_hal_audio_play_count());
+    CHECK_EQUAL(1, fake_hal_audio_release_count());
 }
 
 static void a_key_press_ends_a_soak_early_and_gives_the_supply_back(void)
@@ -4647,11 +4911,11 @@ static void an_aborted_script_lets_go_of_the_key_it_holds(void)
     step();
     const Theme *theme = expected_theme();
     int selected = 0;
-    while (selected < 5 &&
+    while (selected < 6 &&
            !selected_at(theme->metrics.header_height + selected * theme->metrics.row_height + 16)) {
         selected++;
     }
-    CHECK(selected < 5);
+    CHECK(selected < 6);
     long pixels = fake_hal_pixels_written();
     uint32_t before = debug_loop_log()->recorded;
     run_script_for(2000);
@@ -4660,8 +4924,9 @@ static void an_aborted_script_lets_go_of_the_key_it_holds(void)
     CHECK_EQUAL(pixels, fake_hal_pixels_written());
     CHECK_EQUAL(0, events_of(DEBUG_EVENT_SCREEN, before));
     tap(KEY_PLAY);
-    static const char *const titles[] = {"Music", "Settings", "Mixtapes", "Listening", "USB mode"};
-    CHECK(selected < 5 && title_is(titles[selected]));
+    static const char *const titles[] = {"Music",     "Settings", "Mixtapes",
+                                         "Listening", "USB mode", "Clock"};
+    CHECK(selected < 6 && title_is(titles[selected]));
 }
 
 static void a_script_lights_the_screen_and_leaves_the_charge_screen_before_it_starts(void)
@@ -4733,7 +4998,7 @@ static void battery_percentage_choice_shows_the_level_beside_the_battery_and_sur
     start_app_with_library();
     fake_hal_set_battery((HalBattery){.known = true, .percent = HALF_BATTERY});
     Color ink = expected_theme()->colors.header_text;
-    open_setting(22);
+    open_setting(SETTINGS_BATTERY_PERCENT_INDEX);
     CHECK(title_is("Battery percent"));
     CHECK(!area_has_color(left_of_battery(), ink));
     move_down(1);
@@ -4746,6 +5011,24 @@ static void battery_percentage_choice_shows_the_level_beside_the_battery_and_sur
     restart_app();
     CHECK(saved_settings(&chosen));
     CHECK(chosen.battery_percent);
+}
+
+static void the_status_bar_shows_the_set_time_and_nothing_without_one(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery((HalBattery){.known = true, .percent = HALF_BATTERY});
+    Color ink = expected_theme()->colors.header_text;
+    StatusBarState state = {
+        .battery_known = true, .battery_percent = HALF_BATTERY, .clock = "09:41"};
+    Rect clock = status_bar_clock_area(expected_theme(), state);
+    wait_ms(500);
+    CHECK(!area_has_color(clock, ink));
+    fake_hal_set_wall(1794390060u, 0);
+    wait_ms(500);
+    CHECK(area_has_color(clock, ink));
+    fake_hal_set_wall(0, 0);
+    wait_ms(500);
+    CHECK(!area_has_color(clock, ink));
 }
 
 static void normalization_choices_apply_and_survive_restart(void)
@@ -4936,6 +5219,7 @@ int main(void)
         TEST_CASE(clipping_preview_is_discarded_by_back_shutdown_and_unrelated_saves),
         TEST_CASE(
             battery_percentage_choice_shows_the_level_beside_the_battery_and_survives_restart),
+        TEST_CASE(the_status_bar_shows_the_set_time_and_nothing_without_one),
         TEST_CASE(brightness_is_applied_and_saved),
         TEST_CASE(brightness_previews_without_saving_and_back_restores_it),
         TEST_CASE(leaving_or_stopping_a_brightness_preview_restores_the_saved_level),
@@ -5056,7 +5340,17 @@ int main(void)
         TEST_CASE(charging_motion_waits_for_its_next_frame_and_stops_in_the_dark),
         TEST_CASE(charging_keeps_its_renderer_loaded_until_the_player_wakes),
         TEST_CASE(a_charged_battery_does_not_keep_redrawing_an_unchanged_screen),
-        TEST_CASE(menu_opens_mode_selection_from_charging_without_restarting),
+        TEST_CASE(menu_on_the_charge_screen_opens_usb_mode_and_charge_only_returns_to_charging),
+        TEST_CASE(a_host_found_while_playing_asks_and_playback_goes_on),
+        TEST_CASE(a_quiet_prompt_lapses_to_charge_only_and_playback_goes_on),
+        TEST_CASE(choosing_file_transfer_in_the_prompt_requests_a_storage_session),
+        TEST_CASE(the_prompt_gives_way_to_charge_only_when_the_screen_goes_dark),
+        TEST_CASE(a_host_found_on_the_charge_screen_wakes_it_to_the_prompt),
+        TEST_CASE(a_lapsed_prompt_on_the_charge_screen_goes_back_to_dark_charging),
+        TEST_CASE(back_on_the_charge_screen_prompt_goes_back_to_charging),
+        TEST_CASE(file_transfer_from_the_charge_screen_prompt_connects_and_keeps_charging),
+        TEST_CASE(a_host_found_with_usb_mode_open_turns_it_into_the_prompt),
+        TEST_CASE(the_plug_in_answer_is_chosen_in_settings_applied_and_saved),
         TEST_CASE(the_home_menu_opens_the_same_three_mode_selector),
         TEST_CASE(storage_selection_and_return_keep_the_playback_session),
         TEST_CASE(holding_power_on_the_charge_screen_turns_the_player_on),
@@ -5129,6 +5423,7 @@ int main(void)
         TEST_CASE(peek_poke_and_gpio_lines_ask_the_board_and_keep_what_it_answers),
         TEST_CASE(a_probe_the_board_refuses_is_reported_and_leaves_no_record),
         TEST_CASE(rtc_read_lines_keep_the_registers_and_a_bus_error_fails_the_line),
+        TEST_CASE(rtc_set_writes_the_synced_time_and_refuses_without_one),
         TEST_CASE(a_script_keeps_sixteen_probes_and_does_not_make_a_seventeenth),
         TEST_CASE(supply_off_holds_the_usb_supply_off_until_supply_on),
         TEST_CASE(the_supply_comes_back_when_a_script_ends_without_saying_so),
@@ -5140,6 +5435,10 @@ int main(void)
         TEST_CASE(a_soak_waits_its_minutes_and_records_both_ends),
         TEST_CASE(a_soak_with_the_screen_on_and_music_playing_says_so),
         TEST_CASE(a_soak_adds_its_minutes_to_the_scripts_time_limit_and_outlasts_auto_off),
+        TEST_CASE(standby_and_the_resume_from_it_are_logged_with_the_track),
+        TEST_CASE(a_scripts_standby_off_keeps_a_long_pause_powered_until_standby_on),
+        TEST_CASE(auto_off_counts_from_the_last_key_while_the_player_rests_in_standby),
+        TEST_CASE(the_sleep_timer_runs_out_on_time_while_the_player_rests_in_standby),
         TEST_CASE(a_key_press_ends_a_soak_early_and_gives_the_supply_back),
         TEST_CASE(a_key_the_script_pressed_before_a_soak_does_not_end_it),
         TEST_CASE(a_battery_under_3600_millivolts_for_a_minute_ends_a_soak),

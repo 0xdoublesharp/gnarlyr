@@ -12,6 +12,8 @@ static const HalAudioGain HAL_GAINS[GAIN_LEVEL_COUNT] = {HAL_AUDIO_GAIN_LOW, HAL
 static const HalAudioOutput HAL_OUTPUTS[OUTPUT_JACK_COUNT] = {
     HAL_AUDIO_OUTPUT_AUTO, HAL_AUDIO_OUTPUT_SINGLE_ENDED, HAL_AUDIO_OUTPUT_BALANCED};
 static const HalUsbMode HAL_USB_MODES[USB_MODE_COUNT] = {HAL_USB_MODE_STORAGE, HAL_USB_MODE_DAC};
+static const HalUsbAnswer HAL_USB_ANSWERS[USB_CONNECT_COUNT] = {
+    HAL_USB_ANSWER_ASK, HAL_USB_ANSWER_STORAGE, HAL_USB_ANSWER_CHARGE};
 
 static const uint32_t FILE_SIZES[] = {SETTINGS_FILE_SIZE, SETTINGS_V14_FILE_SIZE,
                                       SETTINGS_PREVIOUS_FILE_SIZE};
@@ -123,6 +125,9 @@ void settings_store_restore_playback(const SettingsStore *store, Player *player,
     player_set_repeat(player, settings->repeat);
     player_set_replay_gain(player, (ReplayGainMode)settings->replay_gain_mode,
                            settings->prevent_clipping);
+    player_set_rewind(player, settings->rewind_on_resume);
+    player_set_transitions(player, settings->track_transition != TRACK_TRANSITION_OFF,
+                           settings->transition_tenths);
 }
 
 void settings_store_apply_equalizer(const Settings *settings)
@@ -142,6 +147,7 @@ void settings_store_apply_hardware(const Settings *settings)
     hal_audio_set_gain(HAL_GAINS[settings->gain]);
     hal_audio_set_output(HAL_OUTPUTS[settings->output]);
     hal_system_set_usb_mode(HAL_USB_MODES[settings->usb_mode]);
+    hal_system_set_usb_answer(HAL_USB_ANSWERS[settings->usb_connect]);
     hal_system_set_dac_volume(settings->dac_volume);
     settings_store_apply_equalizer(settings);
 }

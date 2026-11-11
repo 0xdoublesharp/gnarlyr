@@ -612,10 +612,54 @@ static void whole_m4b_books_play_and_resume_without_a_named_shelf(void)
     spoken_library_close(&external);
 }
 
+static void a_spoken_track_rewinds_more_after_a_pause(void)
+{
+    start();
+    player_set_rewind(&player, true);
+    play(SPOKEN_CHAPTER_TWO_PATH, true);
+    fake_hal_audio_set_position(MIDWAY_MS);
+    fake_hal_set_milliseconds(1000);
+    player_toggle_pause(&player);
+    fake_hal_set_milliseconds(61000);
+    player_toggle_pause(&player);
+    CHECK_EQUAL(MIDWAY_MS - 4500, fake_hal_audio_last_seek());
+}
+
+static void a_chapter_part_rewinds_no_further_than_its_start(void)
+{
+    start();
+    player_set_rewind(&player, true);
+    play_part(1);
+    fake_hal_audio_set_position(at_part(SPOKEN_PART_ONE_MS, 5000));
+    player_toggle_pause(&player);
+    fake_hal_set_milliseconds(3600000);
+    player_toggle_pause(&player);
+    CHECK_EQUAL(SPOKEN_PART_ONE_MS, fake_hal_audio_last_seek());
+    CHECK_EQUAL(0, player_status(&player).position_ms);
+}
+
+static void a_rewind_to_the_top_is_not_undone_by_the_bookmark(void)
+{
+    start();
+    player_set_rewind(&player, true);
+    play(SPOKEN_CHAPTER_TWO_PATH, true);
+    follow(0);
+    fake_hal_audio_set_position(8000);
+    player_toggle_pause(&player);
+    follow(1000);
+    player_release_output(&player);
+    fake_hal_set_milliseconds(600000);
+    player_toggle_pause(&player);
+    CHECK_EQUAL(0, fake_hal_audio_play_start());
+}
+
 int main(void)
 {
     library = spoken_library_open(&spoken);
     static const TestCase cases[] = {
+        TEST_CASE(a_spoken_track_rewinds_more_after_a_pause),
+        TEST_CASE(a_chapter_part_rewinds_no_further_than_its_start),
+        TEST_CASE(a_rewind_to_the_top_is_not_undone_by_the_bookmark),
         TEST_CASE(books_play_in_order_even_with_shuffle_on),
         TEST_CASE(holding_volume_jumps_within_a_chapter),
         TEST_CASE(jumping_past_the_end_starts_the_next_chapter),

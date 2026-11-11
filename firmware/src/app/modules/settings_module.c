@@ -3,6 +3,39 @@
 
 #include <stddef.h>
 
+#include "core/i18n.h"
+#include "hal/clock.h"
+
+static bool home_changed(void *context)
+{
+    AppScreens *screens = context;
+    SettingsStore *store = screens->context.settings;
+    settings_store_capture(store, player_status(screens->context.player));
+    bool saved = settings_store_save(store);
+    if (!saved) {
+        toast_show(screens->context.toast, i18n_text(STR_SETTINGS_NOT_SAVED),
+                   hal_clock_milliseconds());
+    }
+    app_screens_arrange_home(screens);
+    return saved;
+}
+
+static void bind_home_editor(AppScreens *screens)
+{
+    SettingsModuleScreens *own = &screens->modules.settings;
+    HomeEditorConfig config = {.settings = &screens->context.settings->settings,
+                               .items = APP_HOME_ITEMS,
+                               .theme = screens->context.theme,
+                               .toast = screens->context.toast,
+                               .changed = home_changed,
+                               .context = screens};
+    Screen *editor = home_editor_init(&own->home_editor, config);
+    own->settings.items[SETTINGS_HOME_ITEM] = (MenuItem){.label = i18n_text(STR_HOME_SCREEN),
+                                                         .select = menu_open_screen,
+                                                         .context = editor,
+                                                         .opens = true};
+}
+
 static void bind(AppScreens *screens)
 {
     const AppScreensContext *context = &screens->context;
@@ -22,6 +55,7 @@ static void bind(AppScreens *screens)
     settings_screens_init(&own->settings, settings, context->theme);
     own->settings.items[SETTINGS_ABOUT_ITEM] =
         app_screens_open_item(STR_ABOUT, &own->diagnostics.screen);
+    bind_home_editor(screens);
     diagnostics_menu_build(screens, context->options, context->theme);
 }
 
@@ -37,9 +71,9 @@ static Screen *language_row(AppScreens *screens)
     return &settings->menu.screen;
 }
 
-static Screen *usb_modes(AppScreens *screens)
+static Screen *usb_modes(AppScreens *screens, bool prompt)
 {
-    return settings_screens_usb_modes(&screens->modules.settings.settings);
+    return settings_screens_usb_modes(&screens->modules.settings.settings, prompt);
 }
 
 #ifdef ECHO_DEBUG_LOOP

@@ -1,9 +1,11 @@
 #include "fake_hal.h"
 #include "app/debug_loop.h"
+#include "app/extension.h"
 #include "app/linked_modules.h"
 
 #include "hal/system.h"
 
+#include "app/rescan_module.h"
 #include "core/i18n.h"
 #include "hal/audio.h"
 #include "hal/bluetooth.h"
@@ -13,7 +15,7 @@
 #include "hal/language.h"
 #include "hal/power.h"
 #include "hal/storage.h"
-#include "library/library_scan.h"
+#include "playback/track_keys.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,6 +44,8 @@ typedef struct FakeAudio {
     uint32_t queued_token;
     uint32_t replay_gain;
     uint32_t queued_replay_gain;
+    uint32_t queued_fade_ms;
+    uint32_t play_fade_ms;
     int seek_count;
     uint32_t last_seek_ms;
     uint8_t volume;
@@ -78,8 +82,12 @@ enum {
 };
 
 static uint8_t stores[STORE_SLOTS][STORE_CAPACITY];
-static uint8_t *large_store;
-static uint32_t large_size;
+typedef struct LargeStore {
+    uint8_t *bytes;
+    uint32_t size;
+} LargeStore;
+
+static LargeStore large_stores[2];
 
 typedef struct FakeHal {
     const char *version;
@@ -128,6 +136,9 @@ typedef struct FakeHal {
     int probe_count;
     FakeProbeCall probe_calls[PROBE_CALL_CAPACITY];
     HalRtcRead rtc_answer;
+    uint32_t rtc_written_s;
+    HalWallTime wall;
+    uint32_t wall_set_ms;
     int rtc_reads;
     HalUsbSense usb_sense;
     uint32_t saved_reports[FILE_CAPACITY];
@@ -174,6 +185,7 @@ typedef struct FakeHal {
     HalBluetoothDevice bluetooth_connected_to;
     int bluetooth_disconnect_count;
     HalUsbMode usb_mode;
+    HalUsbAnswer usb_answer;
     HalUsbMode requested_usb_mode;
     int usb_mode_requests;
     uint8_t dac_volume;
@@ -451,6 +463,23 @@ bool hal_input_next_transition(HalKeyTransition *transition)
     return true;
 }
 
+void fake_hal_set_wall(uint32_t utc_s, int16_t offset_minutes)
+{
+    fake.wall = (HalWallTime){.utc_s = utc_s,
+                              .offset_minutes = offset_minutes,
+                              .source = utc_s != 0 ? HAL_WALL_COMPUTER : HAL_WALL_UNKNOWN};
+    fake.wall_set_ms = hal_clock_milliseconds();
+}
+
+HalWallTime hal_clock_wall(void)
+{
+    HalWallTime time = fake.wall;
+    if (time.source != HAL_WALL_UNKNOWN) {
+        time.utc_s += (hal_clock_milliseconds() - fake.wall_set_ms) / 1000;
+    }
+    return time;
+}
+
 uint32_t hal_clock_milliseconds(void)
 {
     return fake.now_ms;
@@ -639,6 +668,7 @@ bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAud
     fake.audio.play_start_ms = start_ms;
     fake.audio.play_end_ms = track->end_ms;
     fake.audio.replay_gain = track->replay_gain != 0 ? track->replay_gain : 65536;
+    fake.audio.play_fade_ms = track->fade_ms;
     fake.audio.status = (HalAudioStatus){.state = HAL_AUDIO_PLAYING,
                                          .token = token,
                                          .position_ms = start_ms,
@@ -657,6 +687,7 @@ void hal_audio_queue_next(const HalAudioTrack *track)
         fake.audio.queued_start_ms = track->start_ms;
         fake.audio.queued_end_ms = track->end_ms;
         fake.audio.queued_replay_gain = track->replay_gain != 0 ? track->replay_gain : 65536;
+        fake.audio.queued_fade_ms = track->fade_ms;
     }
 }
 
@@ -852,6 +883,18 @@ HalRtcRead hal_system_rtc_read(void)
     return fake.rtc_answer;
 }
 
+HalRtcRead hal_system_rtc_set(uint32_t utc_s)
+{
+    fake.rtc_reads++;
+    fake.rtc_written_s = utc_s;
+    return fake.rtc_answer;
+}
+
+uint32_t fake_hal_rtc_written(void)
+{
+    return fake.rtc_written_s;
+}
+
 void fake_hal_set_rtc_answer(HalRtcRead answer)
 {
     fake.rtc_answer = answer;
@@ -925,6 +968,16 @@ HalUsbMode fake_hal_requested_usb_mode(void)
 void hal_system_set_usb_mode(HalUsbMode mode)
 {
     fake.usb_mode = mode;
+}
+
+void hal_system_set_usb_answer(HalUsbAnswer answer)
+{
+    fake.usb_answer = answer;
+}
+
+HalUsbAnswer fake_hal_usb_answer(void)
+{
+    return fake.usb_answer;
 }
 
 int fake_hal_usb_mode(void)
@@ -1465,24 +1518,24 @@ static FakeFile *fake_file(const char *path)
     return NULL;
 }
 
-static uint8_t *large_store_for(FakeFile *file)
+static uint8_t *large_store_for(FakeFile *file, LargeStore *large)
 {
-    if (file->bytes != NULL && file->bytes == large_store) {
-        return large_store;
+    if (file->bytes != NULL && file->bytes == large->bytes) {
+        return large->bytes;
     }
-    if (file->size > large_size) {
-        free(large_store);
-        large_store = malloc(file->size);
-        large_size = file->size;
+    if (file->size > large->size) {
+        free(large->bytes);
+        large->bytes = malloc(file->size);
+        large->size = file->size;
     }
-    if (large_store == NULL) {
-        large_size = 0;
+    if (large->bytes == NULL) {
+        large->size = 0;
         return NULL;
     }
-    memset(large_store, 0, file->size);
-    file->bytes = large_store;
+    memset(large->bytes, 0, file->size);
+    file->bytes = large->bytes;
     file->stored = file->size;
-    return large_store;
+    return large->bytes;
 }
 
 static uint8_t *store_for(FakeFile *file)
@@ -1494,7 +1547,10 @@ static uint8_t *store_for(FakeFile *file)
     }
     if (file->size > STORE_CAPACITY &&
         strcmp(file->path, "/" FIRMWARE_DATA_DIRECTORY "/build.tmp") == 0) {
-        return large_store_for(file);
+        return large_store_for(file, &large_stores[0]);
+    }
+    if (file->size > STORE_CAPACITY && strcmp(file->path, TRACK_KEYS_PATH) == 0) {
+        return large_store_for(file, &large_stores[1]);
     }
     for (int slot = 0; slot < STORE_SLOTS; slot++) {
         if (fake.store_used[slot] == NULL) {
@@ -1589,7 +1645,7 @@ bool hal_system_restart_pending(void)
 
 const void *hal_system_load_rescan_code(void)
 {
-    return &LIBRARY_SCAN_ENTRY;
+    return &RESCAN_MODULE_ENTRY;
 }
 
 const void *hal_system_load_module(uint32_t module)
@@ -1608,7 +1664,7 @@ const void *hal_system_load_module(uint32_t module)
 
 const void *hal_system_load_debug_code(void)
 {
-    if ((fake.broken_modules & 1u << DEBUG_MODULE_NUMBER) != 0) {
+    if ((fake.broken_modules & 1u << EXTENSION_MODULE_NUMBER) != 0) {
         fake.module_refusals++;
         return NULL;
     }
@@ -1808,4 +1864,14 @@ uint32_t fake_hal_audio_replay_gain(void)
 uint32_t fake_hal_audio_queued_replay_gain(void)
 {
     return fake.audio.queued_replay_gain;
+}
+
+uint32_t fake_hal_audio_queued_fade_ms(void)
+{
+    return fake.audio.has_queued ? fake.audio.queued_fade_ms : 0;
+}
+
+uint32_t fake_hal_audio_play_fade_ms(void)
+{
+    return fake.audio.play_fade_ms;
 }

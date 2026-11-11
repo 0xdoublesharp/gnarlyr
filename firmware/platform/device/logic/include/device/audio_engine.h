@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "codec/flac.h"
+#include "device/audio_fade.h"
 #include "device/audio_resample.h"
 #include "device/equalizer.h"
 #include "hal/audio.h"
@@ -65,7 +66,7 @@ typedef struct AudioEngineConfig {
     uint32_t ring_words;
     Equalizer *equalizer;
     bool (*prepare_resample)(void);
-    bool (*resample_pull)(AudioResample *resample, int32_t *left, int32_t *right);
+    uint32_t (*resample_render)(AudioResample *resample, uint32_t *words, uint32_t frames);
 } AudioEngineConfig;
 
 typedef enum AudioRefusalProblem {
@@ -85,6 +86,7 @@ typedef struct AudioEngineTrack {
     uint32_t end_ms;
     uint32_t token;
     uint32_t replay_gain;
+    uint32_t fade_ms;
 } AudioEngineTrack;
 
 typedef struct AudioSegment {
@@ -142,6 +144,10 @@ typedef struct AudioEngine {
     uint32_t gain;
     uint32_t track_gain;
     uint32_t next_gain;
+    uint32_t next_fade_ms;
+    uint32_t decode_fade_ms;
+    AudioFadeRamp fade_in;
+    AudioFadeRamp fade_out;
     uint32_t output_gain;
     uint32_t decode_token;
     HalAudioEqualizer equalizer_curve;
@@ -166,6 +172,7 @@ void audio_engine_pump(AudioEngine *engine, uint32_t consumed);
 AudioEngineStats audio_engine_stats(const AudioEngine *engine);
 bool audio_engine_wants_rate(const AudioEngine *engine, uint32_t *rate);
 void audio_engine_restart(AudioEngine *engine);
+bool audio_engine_needs_full_clock(const AudioEngine *engine);
 uint32_t audio_engine_rate(const AudioEngine *engine);
 uint32_t audio_engine_buffered(const AudioEngine *engine, uint32_t consumed);
 AudioEngineStatus audio_engine_status(const AudioEngine *engine);

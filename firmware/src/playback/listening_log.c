@@ -34,7 +34,13 @@ enum {
     RECORD_ENDED = 46,
     RECORD_OUTPUT = 47,
     RECORD_FORMAT = 48,
+    RECORD_CLOCK_FLAGS = 49,
+    RECORD_OFFSET = 50,
     RECORD_CHECK = 60
+};
+
+enum {
+    CLOCK_UTC = 0x01
 };
 
 enum {
@@ -51,7 +57,8 @@ _Static_assert((int)ROOT_BYTES <= (int)STORE_INLINE_BYTES, "the counters fit the
 
 const char LISTENING_LOG_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/listens.bin";
 
-static const StoreKind KIND = {.magic = {'D', 'S', 'L', 'L'}, .version = 1, .inline_payload = true};
+static const StoreKind KIND = {
+    .magic = {'D', 'S', 'L', 'L'}, .version = 2, .inline_payload = true, .oldest_version = 1};
 
 typedef struct Reader {
     const StoreFile *file;
@@ -135,6 +142,10 @@ static void encode_record(const ListeningRecord *record, uint8_t *bytes)
     bytes[RECORD_ENDED] = (uint8_t)play->end;
     bytes[RECORD_OUTPUT] = (uint8_t)play->output;
     bytes[RECORD_FORMAT] = (uint8_t)play->format;
+    if (play->clock_s != 0) {
+        bytes[RECORD_CLOCK_FLAGS] = CLOCK_UTC;
+        store_put16(bytes + RECORD_OFFSET, (uint16_t)play->offset_minutes);
+    }
     store_put32(bytes + RECORD_CHECK, hash_update(HASH_START, bytes, RECORD_CHECK));
 }
 
@@ -142,6 +153,12 @@ static bool kinds_valid(uint8_t end, uint8_t output, uint8_t format)
 {
     return end < LISTENING_END_COUNT && output < LISTENING_OUTPUT_COUNT &&
            format < LISTENING_FORMAT_COUNT;
+}
+
+static bool record_kinds_valid(const uint8_t *bytes)
+{
+    return kinds_valid(bytes[RECORD_ENDED], bytes[RECORD_OUTPUT], bytes[RECORD_FORMAT]) &&
+           (bytes[RECORD_CLOCK_FLAGS] & ~CLOCK_UTC) == 0;
 }
 
 static void decode_play(const uint8_t *bytes, ListeningPlay *play)
@@ -155,7 +172,9 @@ static void decode_play(const uint8_t *bytes, ListeningPlay *play)
     play->start_ms = store_get32(bytes + RECORD_START);
     play->end_ms = store_get32(bytes + RECORD_END);
     play->uptime_s = store_get32(bytes + RECORD_UPTIME);
-    play->clock_s = store_get32(bytes + RECORD_CLOCK);
+    bool timed = (bytes[RECORD_CLOCK_FLAGS] & CLOCK_UTC) != 0;
+    play->clock_s = timed ? store_get32(bytes + RECORD_CLOCK) : 0;
+    play->offset_minutes = timed ? (int16_t)store_get16(bytes + RECORD_OFFSET) : 0;
     play->end = (ListeningEnd)bytes[RECORD_ENDED];
     play->output = (ListeningOutput)bytes[RECORD_OUTPUT];
     play->format = (ListeningFormat)bytes[RECORD_FORMAT];
@@ -164,7 +183,7 @@ static void decode_play(const uint8_t *bytes, ListeningPlay *play)
 static bool decode_record(const uint8_t *bytes, ListeningRecord *record)
 {
     if (store_get32(bytes + RECORD_CHECK) != hash_update(HASH_START, bytes, RECORD_CHECK) ||
-        !kinds_valid(bytes[RECORD_ENDED], bytes[RECORD_OUTPUT], bytes[RECORD_FORMAT])) {
+        !record_kinds_valid(bytes)) {
         return false;
     }
     record->sequence = store_get32(bytes + RECORD_SEQUENCE);

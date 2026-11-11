@@ -22,7 +22,7 @@ The four-byte file markers beginning with `DS` remain maker format tags; the bin
 | `assets/` | Font sources and `lang/en.txt`, the English text and string catalogue |
 | `tools/` | Python: image builder (`make_image.py`), size report (`size_report.py`), language pack builder (`lang_pack.py`), emulator (`echo_emulator`), PC library indexer, `echo_sync.py`, font and fixture generators |
 | `tests/` | One test executable per module, emulator scenarios, fixtures |
-| `docs/` | The design record: `architecture.md` (layers, rules, device platform), `ogg-vorbis.md` and `opus.md`, `hardware.md`, `library-format.md`, `playback-store.md` with `stored-order.md`, `session-journal.md` and `mixtapes.md`, `device-install.md`, `device-recovery.md`, `known-issues.md`, `user-guide.md`, `release-notes.md` |
+| `docs/` | The design record: `architecture.md` (layers, rules, device platform), `ogg-vorbis.md` and `opus.md`, `hardware.md`, `library-format.md`, `smart-lists.md`, `playback-store.md` with `stored-order.md`, `session-journal.md` and `mixtapes.md`, `device-install.md`, `device-recovery.md`, `known-issues.md`, `user-guide.md`, `release-notes.md` |
 
 The layer table in `docs/architecture.md` defines which layer may depend on which; keep to it.
 
@@ -72,28 +72,31 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 149,468 | 157,292 | 7,824 |
-| Code window, `device` preset | 153,580 | 157,292 | 3,712 |
-| Static RAM | 265,052 | 278,528 | 13,476 |
-| Rescan overlay | 93,124 | 98,304 | 5,180 |
-| USB overlay code | 11,740 | 65,536 | 53,796 |
-| Module views (code + BSS) | 21,984 | 44,032 | 22,048 |
-| Module settings (code + BSS) | 18,816 | 44,032 | 25,216 |
-| Module library (code + BSS) | 39,416 | 44,032 | 4,616 |
-| Module listening (code + BSS) | 18,892 | 44,032 | 25,140 |
-| Audio processing module (code, no BSS) | 2,156 | 12,288 | 10,132 |
-| Audio DSP module (code, no BSS) | 6,348 | 8,192 | 1,844 |
-| Ogg file module, Vorbis and Opus (code, no BSS) | 7,076 | 8,192 | 1,116 |
-| Debug module, `device` preset (code, no BSS) | 2,932 | 8,192 | 5,260 |
+| Code window | 150,192 | 157,292 | 7,100 |
+| Code window, `device` preset | 154,496 | 157,292 | 2,796 |
+| Static RAM | 266,908 | 278,528 | 11,620 |
+| Rescan overlay (code + BSS) | 95,128 | 98,304 | 3,176 |
+| USB overlay code | 12,012 | 65,536 | 53,524 |
+| Module views (code + BSS) | 25,328 | 44,032 | 18,704 |
+| Module settings (code + BSS) | 22,100 | 44,032 | 21,932 |
+| Module library (code + BSS) | 39,544 | 44,032 | 4,488 |
+| Module listening (code + BSS) | 28,984 | 44,032 | 15,048 |
+| Audio processing module (code, no BSS) | 2,752 | 12,288 | 9,536 |
+| Audio DSP module (code, no BSS) | 5,928 | 8,192 | 2,264 |
+| Ogg file module, Vorbis and Opus (code, no BSS) | 6,656 | 8,192 | 1,536 |
+| Extension module (code, no BSS) | 3,524 | 8,192 | 4,668 |
+| Extension module, `device` preset | 7,552 | 8,192 | 640 |
 | Decoder workspace | 41,648 | 41,984 | 336 |
-| Language pack (English) | 7,384 | 16,384 | 9,000 |
+| Language pack (English) | 8,615 | 16,384 | 7,769 |
 | Vorbis program image bank | 64,840 | 130,048 | 65,208 |
 | Vorbis core-1 static state | 32,952 | 36,864 | 3,912 |
 | Opus program image bank | 98,928 | 131,072 | 32,144 |
 | Opus core-1 static state | 30,908 | 36,864 | 5,956 |
 
 - Keep at least 4 KB free in the release code window and at least 1 KB in the `device` one. The `device` build is what the debug loop installs, so it must link; the free space is a margin for the next change, not a hardware need. Read the report after any change to device code and update these numbers and the ones in `docs/architecture.md` when they move.
-- Code that runs only from one module's screens belongs in that module, and debug-loop code that only a running script needs belongs in the debug module (`docs/architecture.md`, Demand-loaded UI modules and Debug module). Hooks the debug loop needs at start-up, before a script or while another module is loaded stay resident.
+- Code that runs only from one module's screens belongs in that module, debug-loop code that only a running script needs belongs in the extension module, and so does code that must stay callable beside every UI module but that start-up, USB sessions and the audio path never use, behind wrappers that do nothing when the module is missing (`docs/architecture.md`, Demand-loaded UI modules and Extension module). Hooks the debug loop needs at start-up, before a script or while another module is loaded stay resident.
+- The extension module occupies the 8 KiB window at `0x0304A000` in both presets. It contains wait motion, Home artwork and file removal; the `device` build uses the same module and window for debug steps, probes, RTC reads and writes and screenshots. It loads after `board_power_hold()` through CRC and running-code checks with slot fallback. If both copies fail, resident wrappers omit optional drawing, refuse file removal and abort debug scripts while startup, playback and USB remain available.
+- The rescan overlay owns the scan callbacks, cover pass, timing and temporary file state. Its private BSS follows its code and is cleared by the overlay loader; both must fit its window. Resident code keeps preflight checks, loading and result messages.
 - The core 0 link uses link-time optimisation. Libraries shared with core 1 or the rescan overlay stay out of it.
 - `CORE_SEAM` (`src/core/include/core/seam.h`) marks the functions the emulator replaces or watches, so link-time optimisation cannot inline or remove them. It must stay on every function the emulator names (`tools/echo_emulator`, `tests/emulator`); the emulator fails when a named function is missing from the image.
 - USB session code (mass storage, USB DAC, the DWC2 transfer code) and the updater live in the USB overlay, which is loaded into high RAM once a host is found. New code for those paths goes into the overlay, not the main program. Functions the overlay calls in the main program must be listed in `ECHO_OVERLAY_IMPORTS` (`platform/device/CMakeLists.txt`). Only listening for a host, the state kept across sessions and the start-up loader request stay resident. `docs/architecture.md` (Overlay loader, USB overlay) has the details.

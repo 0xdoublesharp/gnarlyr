@@ -127,6 +127,7 @@ typedef struct HalAudioTrack {
     uint32_t end_ms;
     uint32_t token;
     uint32_t replay_gain;
+    uint32_t fade_ms;
 } HalAudioTrack;
 
 typedef struct HalAudioEqualizer {

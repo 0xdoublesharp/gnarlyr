@@ -149,6 +149,19 @@ static void usb_voltage_is_hidden_and_the_real_mode_and_charge_are_visible(void)
     CHECK(!saw("4800 mV"));
 }
 
+static bool battery_shows(const Theme *theme, Color color)
+{
+    Rect battery = charge_screen_art_layout(theme).battery;
+    for (int y = battery.y; y < battery.y + battery.height; y++) {
+        for (int x = battery.x; x < battery.x + battery.width; x++) {
+            if (pixels[y * theme->metrics.screen_width + x] == color) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 static void an_unknown_battery_has_no_invented_percent_or_voltage(void)
 {
     Theme theme = BOARD_THEME;
@@ -157,15 +170,7 @@ static void an_unknown_battery_has_no_invented_percent_or_voltage(void)
     charge_screen_draw(&canvas, &theme, (HalBattery){.usb_power = true});
     CHECK(saw(i18n_text(STR_POWER_UNKNOWN)));
     CHECK(saw(i18n_text(STR_POWER_USB)));
-    Rect information = charge_screen_art_layout(&theme).voltage;
-    bool blank_information = true;
-    for (int y = information.y; y < information.y + information.height; y++) {
-        for (int x = information.x; x < information.x + information.width; x++) {
-            blank_information &=
-                pixels[y * theme.metrics.screen_width + x] == theme.colors.background;
-        }
-    }
-    CHECK(blank_information);
+    CHECK(!battery_shows(&theme, theme.colors.success));
     CHECK(!saw("0%"));
     CHECK(!saw("0 mV"));
     CHECK(!saw(i18n_text(STR_CHARGED)));
@@ -253,13 +258,13 @@ static void graphical_charge_layout_fits_all_six_variants_without_text_overlap(v
             rect_fits(layout.battery, &theme);
             rect_fits(layout.percent, &theme);
             rect_fits(layout.status, &theme);
-            rect_fits(layout.voltage, &theme);
             rect_fits(layout.detail, &theme);
             CHECK(layout.battery.height >= 2 * font_line_height(theme.fonts.small));
             CHECK(layout.header.y + layout.header.height <= layout.battery.y);
             CHECK(layout.percent.y + layout.percent.height <= layout.status.y);
-            CHECK(layout.status.y + layout.status.height <= layout.voltage.y);
-            CHECK(layout.voltage.y + layout.voltage.height <=
+            CHECK(layout.status.y + layout.status.height <=
+                  layout.detail.y - theme.metrics.padding);
+            CHECK(layout.battery.y + layout.battery.height <=
                   layout.detail.y - theme.metrics.padding);
             if (orientation == ORIENTATION_LANDSCAPE) {
                 CHECK(layout.battery.x + layout.battery.width <= layout.percent.x);
@@ -309,6 +314,72 @@ static void charging_artwork_draws_identically_in_display_strips(void)
     }
 }
 
+static Color still[HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE];
+
+static bool changes_stay_inside(const Theme *theme, Rect area)
+{
+    for (int y = 0; y < theme->metrics.screen_height; y++) {
+        for (int x = 0; x < theme->metrics.screen_width; x++) {
+            int index = y * theme->metrics.screen_width + x;
+            if (pixels[index] != still[index] &&
+                rect_is_empty(rect_intersection(area, (Rect){x, y, 1, 1}))) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static void charging_motion_redraws_only_the_inside_of_the_battery(void)
+{
+    static const HalBattery states[] = {
+        {.known = true, .percent = 64, .charging = true, .usb_power = true},
+        {.known = true, .percent = 2, .charging = true, .usb_power = true},
+        {.charging = true, .usb_power = true},
+    };
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = charge_theme(size, orientation);
+            Canvas canvas = charge_canvas(&theme);
+            Rect battery = charge_screen_art_layout(&theme).battery;
+            for (size_t index = 0; index < sizeof states / sizeof states[0]; index++) {
+                charge_screen_draw_at(&canvas, &theme, states[index], 0);
+                memcpy(still, pixels, sizeof still);
+                uint32_t peak = CHARGE_SCREEN_FRAME_MS * CHARGE_SCREEN_PHASES / 2;
+                charge_screen_draw_at(&canvas, &theme, states[index], peak);
+                CHECK(memcmp(still, pixels, sizeof still) != 0);
+                CHECK(changes_stay_inside(&theme, battery));
+            }
+        }
+    }
+}
+
+static void every_theme_paints_its_header_band_and_backdrop(void)
+{
+    HalBattery battery = {.known = true, .percent = 64, .charging = true, .usb_power = true};
+    for (int appearance = 0; appearance < APPEARANCE_THEME_COUNT; appearance++) {
+        Theme theme = BOARD_THEME;
+        default_theme_set_appearance(&theme, (AppearanceTheme)appearance);
+        Canvas canvas = charge_canvas(&theme);
+        charge_screen_draw_at(&canvas, &theme, battery, 0);
+        CHECK_EQUAL(theme.colors.header_background, pixels[0]);
+        CHECK_EQUAL(theme.colors.backdrop_top,
+                    pixels[theme.metrics.header_height * theme.metrics.screen_width]);
+        CHECK(battery_shows(&theme, theme.colors.success));
+    }
+}
+
+static void a_nearly_empty_battery_still_shows_a_sliver_of_charge(void)
+{
+    Theme theme = BOARD_THEME;
+    Canvas canvas = charge_canvas(&theme);
+    charge_screen_draw_at(&canvas, &theme,
+                          (HalBattery){.known = true, .percent = 1, .usb_power = true}, 0);
+    CHECK(battery_shows(&theme, theme.colors.success));
+    charge_screen_draw_at(&canvas, &theme, (HalBattery){.known = true, .usb_power = true}, 0);
+    CHECK(!battery_shows(&theme, theme.colors.success));
+}
+
 static void explicit_frame_time_keeps_the_picture_independent_of_clock_reads(void)
 {
     Theme theme = BOARD_THEME;
@@ -344,6 +415,9 @@ int main(void)
         TEST_CASE(values_above_full_render_as_full_instead_of_overflowing_the_battery),
         TEST_CASE(charging_artwork_draws_identically_in_display_strips),
         TEST_CASE(explicit_frame_time_keeps_the_picture_independent_of_clock_reads),
+        TEST_CASE(charging_motion_redraws_only_the_inside_of_the_battery),
+        TEST_CASE(every_theme_paints_its_header_band_and_backdrop),
+        TEST_CASE(a_nearly_empty_battery_still_shows_a_sliver_of_charge),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

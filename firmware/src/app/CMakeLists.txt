@@ -4,10 +4,13 @@ add_library(echo_app STATIC
     modules/listening_module.c
     screens/listening_screen.c
     screens/lyrics_screen.c
+    screens/listening_work.c
+    screens/smart_list_screen.c
     discovery_screen.c
     discovery_text.c
     discovery_preferences.c
     discovery_playback.c
+    order_publish.c
     personal_tags.c
     player_storage.c
     player_queue.c
@@ -16,6 +19,7 @@ add_library(echo_app STATIC
     mixtape_ui.c
     mixtape_screen.c
     button_settings.c
+    home_editor.c
     theme_palette.c
     listening_store.c
     card_files.c
@@ -43,6 +47,7 @@ add_library(echo_app STATIC
     music_check.c
     music_walk.c
     library_store.c
+    modules/extension_module.c
     modules/library_module.c
     modules/settings_module.c
     modules/views_module.c
@@ -52,7 +57,10 @@ add_library(echo_app STATIC
     settings_screens.c
     settings_store.c
     spoken_store.c
+    wall_time.c
     screens/bluetooth_screen.c
+    screens/calendar_screen.c
+    screens/clock_screen.c
     screens/charge_screen.c
     screens/charge_art.c
     screens/cover_flow_screen.c
@@ -68,8 +76,10 @@ else()
     target_sources(echo_app PRIVATE diagnostics_menu.c debug_loop.c debug_runner.c
         debug_screenshot.c debug_steps.c modules/debug_module.c)
 endif()
-if(NOT ECHO_BUILD_DEVICE)
-    target_sources(echo_app PRIVATE modules/linked_modules.c)
+if(ECHO_BUILD_DEVICE)
+    target_sources(echo_app PRIVATE extension_calls.c)
+else()
+    target_sources(echo_app PRIVATE modules/linked_modules.c library_rescan_job.c)
 endif()
 target_include_directories(echo_app PUBLIC include PRIVATE .)
 target_link_libraries(echo_app
