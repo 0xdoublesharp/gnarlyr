@@ -140,7 +140,10 @@ class EchoImageTest(EchoImageHarness):
         number, settings = self.module(machine, "settings")
         machine.note("usb_session_storage_changed")
         machine.note("usb_storage_session")
-        for key in (KEY_NEXT, KEY_PLAY, KEY_PLAY, KEY_NEXT):
+        self.open_settings(machine)
+        for _ in range(SETTINGS_REPEAT_ROW):
+            self.press(machine, KEY_NEXT)
+        for key in (KEY_PLAY, KEY_NEXT):
             self.press(machine, key)
         self.assertTrue(settings.loaded(machine))
         machine.vbus = True
@@ -154,6 +157,35 @@ class EchoImageTest(EchoImageHarness):
         for key in (KEY_NEXT, KEY_BACK, KEY_NEXT, KEY_PLAY, KEY_BACK, KEY_BACK):
             self.press(machine, key)
         self.assertEqual(len(watch.loads()), 2)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def test_a_usb_session_restores_about_from_views_then_back_restores_settings(self):
+        from echo_emulator.modules import ModuleWatch
+        session, machine = self.started_session()
+        watch = ModuleWatch(session)
+        settings_number, settings = self.module(machine, "settings")
+        views_number, views = self.module(machine, "views")
+        machine.note("usb_session_storage_changed")
+        machine.note("usb_storage_session")
+        self.open_settings(machine)
+        self.press(machine, KEY_PLAY)
+        self.press(machine, KEY_NEXT)
+        self.assertTrue(views.loaded(machine))
+        self.assertFalse(settings.loaded(machine))
+        machine.vbus = True
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(machine.reached["usb_storage_session"], 1)
+        self.assertFalse(views.loaded(machine))
+        machine.run(until_ms=machine.milliseconds() + 600)
+        self.assertTrue(views.loaded(machine))
+        self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
+                         [(settings_number, True), (views_number, True), (views_number, True)])
+        self.press(machine, KEY_BACK)
+        self.assertTrue(settings.loaded(machine))
+        self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
+                         [(settings_number, True), (views_number, True), (views_number, True),
+                          (settings_number, True)])
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 
