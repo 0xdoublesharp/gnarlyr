@@ -45,6 +45,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/settings_screens.c
     src/app/settings_preview.c
     src/app/button_settings.c
+    src/app/home_editor.c
     src/app/equalizer_presets.c
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c

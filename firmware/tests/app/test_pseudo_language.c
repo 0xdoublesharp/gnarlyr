@@ -7,6 +7,7 @@
 #include "check.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
+#include "home_editor.h"
 #include "settings/settings.h"
 #include "settings_store.h"
 #include "test_pack.h"
@@ -33,6 +34,7 @@ enum {
     SETTINGS_RESCAN_ROW = 20,
     SETTINGS_USB_MODE_ROW = 21,
     ABOUT_ROWS = 14,
+    HOME_EDITOR_PODCASTS_ROW = 2,
     EQUALIZER_SAVE_ROW = 10,
     EQUALIZER_SLOT_OPTION = 8,
     MINIMUM_PACK_TEXTS = 400,
@@ -484,6 +486,48 @@ static void walk_bluetooth(void)
     CHECK(show("Home with Bluetooth on") >= 2);
 }
 
+static void open_home_editor(void)
+{
+    open_settings_row(0);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+}
+
+static void walk_home_editor_rows(void)
+{
+    open_home_editor();
+    show_titled("Home screen", STR_HOME_SCREEN);
+    for (int row = 1; row < HOME_EDITOR_ROWS; row++) {
+        down(1);
+        show_titled("a Home screen row", STR_HOME_SCREEN);
+    }
+    tap(KEY_PLAY);
+    show_toast("the Home reset toast", STR_HOME_WAS_RESET);
+}
+
+static void walk_home_editor(void)
+{
+    walk_home_editor_rows();
+    open_home_editor();
+    down(HOME_EDITOR_PODCASTS_ROW);
+    tap(KEY_PLAY);
+    show_titled("a Home item's actions", STR_PODCASTS);
+    tap(KEY_PLAY);
+    show_toast("the Home hidden toast", STRING_COUNT);
+    tap(KEY_PLAY);
+    show_titled("a hidden Home item's actions", STR_PODCASTS);
+    tap(KEY_PLAY);
+    show_toast("the Home shown toast", STRING_COUNT);
+    hold(KEY_PLAY, 700);
+    CHECK(show("a Home item being moved") >= 2);
+    down(1);
+    tap(KEY_PLAY);
+    show_toast("the Home placed toast", STRING_COUNT);
+    hold(KEY_PLAY, 700);
+    tap(KEY_BACK);
+    show_toast("the Home move cancelled toast", STR_HOME_MOVE_CANCELLED);
+}
+
 static void walk_about(void)
 {
     open_settings_row(0);
@@ -541,6 +585,7 @@ static void walk_everything(void)
     walk_settings_toasts();
     walk_equalizer();
     walk_bluetooth();
+    walk_home_editor();
     walk_about();
     walk_song_actions();
     walk_now_playing();

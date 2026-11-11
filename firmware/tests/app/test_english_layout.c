@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include "app_screens.h"
 #include "check.h"
 #include "core/i18n.h"
 #include "default_theme.h"
@@ -67,6 +68,7 @@ static const StringId SCREEN_TITLES[] = {
     STR_MIXTAPE_NAME,   STR_LISTENING,   STR_TOP_ARTISTS,
     STR_TOP_ALBUMS,     STR_TOP_SONGS,   STR_LISTENING_TOTALS,
     STR_LYRICS,         STR_REPLAY_GAIN, STR_PREVENT_CLIPPING,
+    STR_HOME_SCREEN,    STR_HOME_MOVING,
 };
 
 static const StringId EMPTY_STATES[] = {
@@ -94,7 +96,8 @@ static const StringId TOASTS[] = {
     STR_SCAN_NO_SCRATCH,    STR_SCAN_FOLDER_TOO_BIG,
     STR_SCAN_PATH_TOO_LONG, STR_SCAN_WRITE_FAILED,
     STR_SCAN_NO_ROOM,       STR_SCAN_NO_CODE,
-    STR_RESTART_TO_FINISH,
+    STR_RESTART_TO_FINISH,  STR_HOME_MOVE_CANCELLED,
+    STR_HOME_WAS_RESET,
 };
 
 static const Pattern TOAST_PATTERNS[] = {
@@ -265,6 +268,25 @@ static void every_toast_is_shown_whole_at_every_size_and_orientation(void)
     }
 }
 
+static void every_home_item_name_and_its_toasts_fit_at_every_size_and_orientation(void)
+{
+    static const StringId TOAST_IDS[] = {STR_HOME_WAS_HIDDEN, STR_HOME_WAS_SHOWN, STR_HOME_PLACED};
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = themed(size, orientation);
+            int room = header_title_bounds(&theme).width;
+            for (int item = 0; item < HOME_ITEM_COUNT; item++) {
+                const char *name = i18n_text(APP_HOME_ITEMS[item].label);
+                CHECK(text_width(theme.fonts.header, name) <= room);
+                for (int toast = 0; toast < 3; toast++) {
+                    Pattern text = {TOAST_IDS[toast], {name}};
+                    CHECK(toast_fits(&theme, pattern_text(text)));
+                }
+            }
+        }
+    }
+}
+
 static int export_height(const Theme *theme, const char *headline, const char *detail)
 {
     int width = theme_content_area(theme).width - 2 * theme->metrics.padding;
@@ -330,6 +352,7 @@ int main(void)
         TEST_CASE(every_screen_title_fits_the_header_at_every_size_and_orientation),
         TEST_CASE(every_empty_screen_message_wraps_whole_at_every_size_and_orientation),
         TEST_CASE(every_toast_is_shown_whole_at_every_size_and_orientation),
+        TEST_CASE(every_home_item_name_and_its_toasts_fit_at_every_size_and_orientation),
         TEST_CASE(a_toast_taller_than_one_line_stays_on_screen),
         TEST_CASE(every_export_status_fits_its_screen_at_every_size_and_orientation),
         TEST_CASE(every_bluetooth_hint_fits_three_lines_in_portrait_and_one_in_landscape),

@@ -16,6 +16,7 @@ add_library(echo_app STATIC
     mixtape_ui.c
     mixtape_screen.c
     button_settings.c
+    home_editor.c
     theme_palette.c
     listening_store.c
     card_files.c
