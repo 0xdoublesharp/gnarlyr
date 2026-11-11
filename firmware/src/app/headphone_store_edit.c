@@ -33,3 +33,18 @@ bool headphone_store_commit(HeadphoneStore *store, const HeadphoneProfiles *prof
     hal_audio_set_headphones(next);
     return true;
 }
+
+void headphone_store_choose_for_dac(HeadphoneStore *store, uint8_t chosen, Player *player,
+                                    SettingsStore *settings)
+{
+    HeadphoneProfiles profiles = store->profiles;
+    profiles.current = chosen;
+    uint8_t usb = settings->settings.dac_volume;
+    if (!headphone_store_commit(store, &profiles, player, settings)) {
+        hal_audio_set_headphones(store->active);
+        return;
+    }
+    settings->settings.dac_volume = usb;
+    hal_system_set_dac_volume(usb);
+    settings_store_save(settings);
+}

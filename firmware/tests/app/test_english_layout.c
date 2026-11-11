@@ -49,8 +49,6 @@ typedef struct Pattern {
 } Pattern;
 
 static const Pattern NOTICE_PATTERNS[] = {
-    {STR_USB_DAC_CHOOSE, {FIRMWARE_SHORT_NAME, "60"}},
-    {STR_USB_DAC_FORMAT, {"44.1", "24", "60"}},
     {STR_CARD_FORMAT_PROGRESS, {"100"}},
     {STR_UPDATE_PROGRESS, {"100"}},
     {STR_UPDATE_CHECKING, {FIRMWARE_UPDATE_FILE}},
@@ -268,16 +266,6 @@ static void every_notice_message_wraps_whole_into_the_notice_in_both_orientation
     }
 }
 
-static void the_usb_dac_prompt_takes_two_lines_in_landscape_and_three_in_portrait(void)
-{
-    const char *prompt = pattern_text(NOTICE_PATTERNS[0]);
-    for (int orientation = 0; orientation < 2; orientation++) {
-        Theme theme = notice_theme(orientation);
-        int room = theme.metrics.screen_width - 2 * theme.metrics.padding;
-        CHECK_EQUAL(orientation == 0 ? 2 : 3, label_wrap_count(theme.fonts.body, prompt, room));
-    }
-}
-
 static void every_screen_title_fits_the_header_at_every_size_and_orientation(void)
 {
     for (int orientation = 0; orientation < 2; orientation++) {
@@ -433,7 +421,6 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(every_notice_title_fits_the_header_in_both_orientations),
         TEST_CASE(every_notice_message_wraps_whole_into_the_notice_in_both_orientations),
-        TEST_CASE(the_usb_dac_prompt_takes_two_lines_in_landscape_and_three_in_portrait),
         TEST_CASE(every_screen_title_fits_the_header_at_every_size_and_orientation),
         TEST_CASE(every_empty_screen_message_wraps_whole_at_every_size_and_orientation),
         TEST_CASE(every_month_title_and_clock_hint_fits_at_every_size_and_orientation),

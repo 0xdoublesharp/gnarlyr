@@ -35,6 +35,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
     platform/device/logic/rtc_time.c
     src/app/home_art.c
     src/gfx/wireframe.c
+    src/ui/wire_figure.c
     src/ui/wire_motion.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views

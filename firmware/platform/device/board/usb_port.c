@@ -1,5 +1,6 @@
 #include <stddef.h>
 
+#include "core/seam.h"
 #include "hal/clock.h"
 #include "usb.h"
 #include "usb_registers.h"
@@ -363,7 +364,7 @@ static void take_speed(UsbPort *port)
     port->bulk_packet = usb_device_bulk_packet_size(&port->device);
 }
 
-void usb_poll(UsbPort *port)
+CORE_SEAM void usb_poll(UsbPort *port)
 {
     uint32_t events = read_register(GINTSTS);
     if ((events & GINT_USB_RESET) != 0) {

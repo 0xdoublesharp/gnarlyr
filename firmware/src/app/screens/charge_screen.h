@@ -22,7 +22,6 @@ typedef struct ChargeScreenLayout {
 } ChargeScreenLayout;
 
 ChargeScreenLayout charge_screen_art_layout(const Theme *theme);
-ChargeScreenLayout charge_screen_layout(const Theme *theme, const char *detail);
 void usb_screen_draw(Canvas *canvas, const Theme *theme, HalBattery battery, AppUsbStatus status);
 void usb_screen_draw_fallback(Canvas *canvas, const Theme *theme, HalBattery battery,
                               AppUsbStatus status);

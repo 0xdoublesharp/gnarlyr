@@ -9,6 +9,7 @@
 #include "check.h"
 #include "core/frame_pacer.h"
 #include "core/hash.h"
+#include "core/headphone_audio.h"
 #include "core/key_script.h"
 #include "core/key_tracker.h"
 #include "default_theme.h"
@@ -19,8 +20,11 @@
 #include "frame_overlay.h"
 #include "gfx/canvas.h"
 #include "gfx/text.h"
+#include "hal/audio.h"
 #include "hal/display.h"
+#include "hal/storage.h"
 #include "hal/system.h"
+#include "headphone_store.h"
 #include "home_art.h"
 #include "library/cover_build.h"
 #include "library/covers.h"
@@ -30,6 +34,7 @@
 #include "screen_modules.h"
 #include "screens/charge_screen.h"
 #include "settings/equalizer_slots.h"
+#include "settings/headphone_profile.h"
 #include "settings/settings.h"
 #include "settings_store.h"
 #include "ui/header.h"
@@ -5262,7 +5267,9 @@ static void clipping_preview_is_discarded_by_back_shutdown_and_unrelated_saves(v
     move_up(1);
     CHECK_EQUAL(75536, fake_hal_audio_replay_gain());
     CHECK_EQUAL(75537, fake_hal_audio_queued_replay_gain());
-    app_remember_dac_volume(17);
+    AppDacSettings dac = app_dac_settings();
+    dac.volume = 17;
+    app_remember_dac(dac);
     Settings chosen;
     CHECK(saved_settings(&chosen));
     CHECK(chosen.prevent_clipping);
@@ -5276,9 +5283,63 @@ static void clipping_preview_is_discarded_by_back_shutdown_and_unrelated_saves(v
     CHECK(chosen.prevent_clipping);
 }
 
+static void dac_choices_made_during_usb_are_saved_with_the_settings(void)
+{
+    fake_hal_reset();
+    app_start();
+    AppDacSettings dac = app_dac_settings();
+    dac.volume = 21;
+    dac.gain = GAIN_HIGH;
+    dac.output = OUTPUT_BALANCED;
+    app_remember_dac(dac);
+    app_step();
+    Settings saved;
+    CHECK(saved_settings(&saved));
+    CHECK_EQUAL(21, saved.dac_volume);
+    CHECK_EQUAL(GAIN_HIGH, saved.gain);
+    CHECK_EQUAL(OUTPUT_BALANCED, saved.output);
+    CHECK_EQUAL(21, app_dac_settings().volume);
+    app_stop();
+}
+
+static void a_profile_chosen_in_dac_mode_is_committed_after_the_session(void)
+{
+    fake_hal_reset();
+    CHECK_EQUAL(HAL_RESERVE_CREATED,
+                hal_internal_file_reserve(HEADPHONE_STORE_PATH, HEADPHONE_FILE_BYTES));
+    HeadphoneStore store;
+    headphone_store_load(&store);
+    HeadphoneProfiles profiles = headphone_profiles_defaults();
+    profiles.count = 1;
+    profiles.slots[0] = headphone_profile_defaults();
+    profiles.slots[0].trim_half_db = 12;
+    memcpy(profiles.slots[0].name, "Studio", sizeof "Studio");
+    CHECK_EQUAL(STORE_DONE, headphone_file_save(&store.file, &profiles));
+    app_start();
+    settle();
+    CHECK_EQUAL(1, app_headphone_profiles()->count);
+    CHECK(headphone_profiles_valid(&profiles));
+    CHECK(headphone_profiles_valid(app_headphone_profiles()));
+    AppDacSettings dac = app_dac_settings();
+    CHECK_EQUAL(HEADPHONE_PROFILE_NONE, dac.headphones);
+    dac.volume = 20;
+    dac.headphones = 0;
+    app_remember_dac(dac);
+    app_step();
+    CHECK_EQUAL(0, app_headphone_profiles()->current);
+    CHECK(hal_audio_headphones().left < headphone_audio_defaults().left);
+    Settings saved;
+    CHECK(saved_settings(&saved));
+    CHECK_EQUAL(20, saved.dac_volume);
+    CHECK_EQUAL(0, app_dac_settings().headphones);
+    app_stop();
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_profile_chosen_in_dac_mode_is_committed_after_the_session),
+        TEST_CASE(dac_choices_made_during_usb_are_saved_with_the_settings),
         TEST_CASE(a_notice_is_drawn_at_once_over_the_current_screen),
         TEST_CASE(a_notice_turns_the_display_on),
         TEST_CASE(waking_keeps_the_screen_on_for_a_full_timeout),

@@ -26,6 +26,9 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 - Settings → Clock format selects 12-hour time with AM/PM or 24-hour time for Clock and the status bar, including Calendar. The choice survives restarts.
 - Four named headphone profiles apply attenuation-only trim, left/right balance and a volume ceiling to music and USB DAC output. Settings → Headphones selects and edits them; verified alternating-bank saves keep profiles on internal storage without changing settings v15. Switching to less attenuation lowers the saved mode volumes first. Analog Gain is unchanged; physical output checks remain pending.
+- The USB screens are redesigned in the theme's style: a wireframe cassette whose reels turn while the computer reads or writes, a state light, the amount copied, each drive's size or ejected state, the USB speed and the battery. The DAC screen adds a level meter, the format, both volumes, the jack, buffer, clock correction, underruns and time connected.
+- File transfer can be ended from the player: hold Back for a second. The player waits until the computer has stopped writing for 3 seconds, tells it the drives are gone and finishes as after an eject; holding on for 3 more seconds disconnects at once with a warning.
+- The DAC menu (Menu in DAC mode) changes volume, gain, output and the headphone profile, or switches to File transfer or Charge only, without leaving DAC mode.
 - Five themes with live preview, configurable playback tap/hold actions, shared icons and cassette artwork.
 - Flat retro-future headers and focus accents, clearer Listen and charging layouts, a larger battery readout and an honest distinction between USB power, charging and full.
 - Theme and EQ browsing preview without saving. Custom EQ has a response curve and staged audible editing; leaving a preview restores the saved choice.
