@@ -867,6 +867,43 @@ static void unsupported_streaminfo_limits_are_rejected(void)
     free(flac.bytes);
 }
 
+typedef struct SparseMetadata {
+    uint8_t header[42];
+    bool wrapped;
+} SparseMetadata;
+
+static bool read_sparse_metadata(void *context, uint32_t offset, void *destination, uint32_t length)
+{
+    SparseMetadata *source = context;
+    uint8_t *out = destination;
+    memset(out, 0, length);
+    if (offset == 0) {
+        memcpy(out, source->header, sizeof source->header);
+    } else if (offset >= 42 && (offset - 42) % UINT32_C(0x01000003) == 0) {
+        out[0] = 1;
+        out[1] = 0xff;
+        out[2] = 0xff;
+        out[3] = 0xff;
+    } else {
+        source->wrapped = true;
+        out[0] = 0x81;
+    }
+    return true;
+}
+
+static void metadata_offsets_never_wrap_to_the_start_of_a_large_file(void)
+{
+    Buffer original = load("fixed_16_mono", "flac");
+    CHECK(original.size >= 42);
+    SparseMetadata source = {0};
+    memcpy(source.header, original.bytes, sizeof source.header);
+    source.header[4] = 0;
+    FlacInput input = {.read = read_sparse_metadata, .context = &source, .size = UINT32_MAX};
+    CHECK_EQUAL(FLAC_ERROR, flac_open(&decoder, input));
+    CHECK(!source.wrapped);
+    free(original.bytes);
+}
+
 static void streaminfo_must_be_first_and_unique(void)
 {
     Buffer original = load("fixed_16_mono", "flac");
@@ -1277,6 +1314,7 @@ int main(void)
         TEST_CASE(a_frame_ending_at_the_sample_position_limit_decodes_and_seeks),
         TEST_CASE(blocks_larger_than_the_buffer_are_refused),
         TEST_CASE(unsupported_streaminfo_limits_are_rejected),
+        TEST_CASE(metadata_offsets_never_wrap_to_the_start_of_a_large_file),
         TEST_CASE(streaminfo_must_be_first_and_unique),
         TEST_CASE(invalid_audio_streaminfo_fields_are_rejected),
         TEST_CASE(a_file_that_is_not_flac_is_refused),

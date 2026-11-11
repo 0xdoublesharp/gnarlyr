@@ -98,7 +98,11 @@ static FlacResult read_metadata(FlacBits *bits, FlacInfo *info, uint32_t *audio_
             (found && type == METADATA_STREAMINFO)) {
             return FLAC_ERROR;
         }
-        uint32_t next = flac_bits_offset(bits) + length;
+        uint32_t next = flac_bits_offset(bits);
+        if (next > bits->input.size || length > bits->input.size - next) {
+            return FLAC_ERROR;
+        }
+        next += length;
         if (type == METADATA_STREAMINFO) {
             if (length != STREAMINFO_BYTES) {
                 return FLAC_ERROR;
@@ -108,9 +112,6 @@ static FlacResult read_metadata(FlacBits *bits, FlacInfo *info, uint32_t *audio_
                 return result;
             }
             found = true;
-        }
-        if (next > bits->input.size) {
-            return FLAC_ERROR;
         }
         flac_bits_start(bits, bits->input, next);
     }
