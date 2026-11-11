@@ -150,7 +150,7 @@ static uint32_t audio_end(FlacInput input, uint32_t start)
         uint32_t size = little_endian(bytes + 12);
         uint64_t whole =
             (uint64_t)size + ((bytes[23] & APE_HEADER_FLAG) != 0 ? APE_FOOTER_BYTES : 0);
-        if (whole <= end - start) {
+        if (size >= APE_FOOTER_BYTES && whole <= end - start) {
             end -= (uint32_t)whole;
         }
     }

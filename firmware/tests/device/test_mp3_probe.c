@@ -212,6 +212,23 @@ static void an_overflowing_ape_footer_does_not_shorten_audio(void)
     CHECK_EQUAL(fixture.size - 64, stream.audio_end);
 }
 
+static void an_ape_tag_smaller_than_its_footer_does_not_shorten_audio(void)
+{
+    load("cbr_192_48k_stereo_bare");
+    CHECK(fixture.size > 32);
+    uint8_t *footer = fixture.bytes + fixture.size - 32;
+    memset(footer, 0, 32);
+    memcpy(footer, "APETAGEX", 8);
+    footer[12] = 31;
+    FlacInput input = {.read = read_fixture, .context = NULL, .size = fixture.size};
+    Mp3Stream stream;
+    CHECK(mp3_probe(input, &stream));
+    CHECK_EQUAL(fixture.size, stream.audio_end);
+    footer[12] = 32;
+    CHECK(mp3_probe(input, &stream));
+    CHECK_EQUAL(fixture.size - 32, stream.audio_end);
+}
+
 static void the_signature_spots_tags_and_frame_headers(void)
 {
     static const uint8_t TAG[4] = {'I', 'D', '3', 3};
@@ -270,6 +287,7 @@ int main(void)
         TEST_CASE(trims_longer_than_the_track_are_ignored),
         TEST_CASE(other_files_are_not_mp3),
         TEST_CASE(an_overflowing_ape_footer_does_not_shorten_audio),
+        TEST_CASE(an_ape_tag_smaller_than_its_footer_does_not_shorten_audio),
         TEST_CASE(the_signature_spots_tags_and_frame_headers),
         TEST_CASE(invalid_mpeg_header_fields_are_rejected),
         TEST_CASE(seeking_handles_unknown_length_and_nonmonotonic_tables),
