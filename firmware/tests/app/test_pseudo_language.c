@@ -527,6 +527,7 @@ static void open_home_editor(void)
     open_settings_row(0);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
 }
 
@@ -638,6 +639,32 @@ static void walk_listening(void)
     CHECK(show("Export plays") >= 3);
 }
 
+static void walk_headphones(void)
+{
+    static const StringId FIELDS[] = {STR_HEADPHONE_NAME, STR_HEADPHONE_TRIM, STR_HEADPHONE_BALANCE,
+                                      STR_HEADPHONE_CEILING};
+    open_settings_row(0);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    show_titled("Headphones", STR_HEADPHONES);
+    tap(KEY_PLAY);
+    show_titled("the active headphone choices", STR_HEADPHONE_ACTIVE);
+    down(1);
+    show("another headphone choice");
+    back(1);
+    down(1);
+    tap(KEY_PLAY);
+    show("a headphone profile");
+    for (int field = 0; field < 4; field++) {
+        down(1);
+        tap(KEY_PLAY);
+        show_titled("a headphone value", FIELDS[field]);
+        down(1);
+        show("another headphone value");
+        back(1);
+    }
+}
+
 static void walk_everything(void)
 {
     begin();
@@ -653,6 +680,7 @@ static void walk_everything(void)
     walk_equalizer();
     walk_bluetooth();
     walk_home_editor();
+    walk_headphones();
     walk_about();
     walk_song_actions();
     walk_now_playing();

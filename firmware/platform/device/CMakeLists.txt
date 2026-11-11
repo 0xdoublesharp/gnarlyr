@@ -200,6 +200,10 @@ set(ECHO_OVERLAY_IMPORTS
     emmc_volume_write
     emmc_write
     hal_audio_service
+    hal_audio_headphones
+    headphone_audio_limit
+    headphone_audio_defaults
+    headphone_audio_sample
     hal_audio_set_volume
     hal_clock_milliseconds
     hal_clock_microseconds

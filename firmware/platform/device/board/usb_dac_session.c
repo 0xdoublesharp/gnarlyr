@@ -148,7 +148,7 @@ static void step_volume(int step)
     if (level < 0 || level > HAL_AUDIO_VOLUME_MAX) {
         return;
     }
-    shared->dac_volume = (uint8_t)level;
+    shared->dac_volume = headphone_audio_limit(hal_audio_headphones(), (uint8_t)level);
     hal_audio_set_volume(shared->dac_volume);
     show_state();
 }
@@ -236,6 +236,7 @@ static void start_session(void)
     uint32_t frames = 0;
     uint32_t *ring = board_audio_stream_ring(&frames);
     usb_audio_sink_init(&sink, ring, frames);
+    usb_audio_sink_set_headphones(&sink, hal_audio_headphones());
     open_rate = 0;
     received_packets = 0;
     forced = (UsbForced){0};
@@ -250,6 +251,7 @@ static void start_session(void)
     if (!shared->dac_volume_known) {
         shared->dac_volume = (uint8_t)SETTINGS_DEFAULT_DAC_VOLUME;
     }
+    shared->dac_volume = headphone_audio_limit(hal_audio_headphones(), shared->dac_volume);
     hal_audio_set_volume(shared->dac_volume);
 }
 

@@ -119,7 +119,7 @@ static void semantic_errors_are_rejected_even_with_a_valid_checksum(void)
                    {8, 1},
                    {15, 1},
                    {HEADER_BYTES, 0},
-                   {HEADER_BYTES + 24, 49},
+                   {HEADER_BYTES + 24, 25},
                    {HEADER_BYTES + 25, 61},
                    {HEADER_BYTES + 26, 101},
                    {HEADER_BYTES + 26, 155},
@@ -180,21 +180,20 @@ static void pcm_unity_preserves_bits_and_rounding_matches_existing_engine(void)
     static const int32_t samples[] = {SAMPLE_MIN, SAMPLE_MIN + 1, -65536,    -3, -2, -1, 0, 1, 2, 3,
                                       65536,      SAMPLE_MAX - 1, SAMPLE_MAX};
     for (size_t index = 0; index < sizeof samples / sizeof samples[0]; index++) {
-        CHECK_EQUAL(samples[index],
-                    headphone_profile_sample(samples[index], 24, REPLAY_GAIN_UNITY));
+        CHECK_EQUAL(samples[index], headphone_audio_sample(samples[index], 24, REPLAY_GAIN_UNITY));
         uint32_t word = (uint32_t)samples[index] << 8;
-        CHECK_EQUAL(word, headphone_profile_word(word, REPLAY_GAIN_UNITY));
+        CHECK_EQUAL(word, headphone_audio_word(word, REPLAY_GAIN_UNITY));
     }
-    CHECK_EQUAL(256, headphone_profile_sample(1, 16, REPLAY_GAIN_UNITY));
-    CHECK_EQUAL(-8388608, headphone_profile_sample(-32768, 16, REPLAY_GAIN_UNITY));
-    CHECK_EQUAL(0, headphone_profile_sample(-1, 24, REPLAY_GAIN_UNITY / 2));
-    CHECK_EQUAL(-1, headphone_profile_sample(-3, 24, REPLAY_GAIN_UNITY / 2));
-    CHECK_EQUAL(2, headphone_profile_sample(3, 24, REPLAY_GAIN_UNITY / 2));
-    CHECK_EQUAL(0, headphone_profile_sample(INT32_MIN, 32, 0));
-    CHECK_EQUAL(SAMPLE_MAX, headphone_profile_sample(INT32_MAX, 32, UINT32_MAX));
-    CHECK_EQUAL(SAMPLE_MIN, headphone_profile_sample(INT32_MIN, 32, UINT32_MAX));
-    CHECK_EQUAL(SAMPLE_MAX, headphone_profile_sample(SAMPLE_MAX, 24, 2 * REPLAY_GAIN_UNITY));
-    CHECK_EQUAL(SAMPLE_MIN, headphone_profile_sample(SAMPLE_MIN, 24, 2 * REPLAY_GAIN_UNITY));
+    CHECK_EQUAL(256, headphone_audio_sample(1, 16, REPLAY_GAIN_UNITY));
+    CHECK_EQUAL(-8388608, headphone_audio_sample(-32768, 16, REPLAY_GAIN_UNITY));
+    CHECK_EQUAL(0, headphone_audio_sample(-1, 24, REPLAY_GAIN_UNITY / 2));
+    CHECK_EQUAL(-1, headphone_audio_sample(-3, 24, REPLAY_GAIN_UNITY / 2));
+    CHECK_EQUAL(2, headphone_audio_sample(3, 24, REPLAY_GAIN_UNITY / 2));
+    CHECK_EQUAL(0, headphone_audio_sample(INT32_MIN, 32, 0));
+    CHECK_EQUAL(SAMPLE_MAX, headphone_audio_sample(INT32_MAX, 32, UINT32_MAX));
+    CHECK_EQUAL(SAMPLE_MIN, headphone_audio_sample(INT32_MIN, 32, UINT32_MAX));
+    CHECK_EQUAL(SAMPLE_MAX, headphone_audio_sample(SAMPLE_MAX, 24, 2 * REPLAY_GAIN_UNITY));
+    CHECK_EQUAL(SAMPLE_MIN, headphone_audio_sample(SAMPLE_MIN, 24, 2 * REPLAY_GAIN_UNITY));
 }
 
 static void none_and_unused_slots_have_a_canonical_encoding(void)
@@ -306,7 +305,7 @@ static void invalid_models_and_small_buffers_never_publish_partial_bytes(void)
             invalid.current = 5;
             break;
         case 2:
-            invalid.slots[1].trim_half_db = 49;
+            invalid.slots[1].trim_half_db = 25;
             break;
         case 3:
             invalid.slots[1].volume_ceiling = 61;
@@ -385,7 +384,8 @@ static void trim_balance_and_replay_gain_remain_bounded_across_every_setting(voi
     profile.balance = 0;
     profile.trim_half_db = HEADPHONE_PROFILE_TRIM_MAX_HALF_DB;
     HeadphoneProfileGains maximum_trim = headphone_profile_gains(&profile, REPLAY_GAIN_UNITY);
-    CHECK(maximum_trim.left > 4100 && maximum_trim.left < 4200);
+    CHECK_EQUAL(24, HEADPHONE_PROFILE_TRIM_MAX_HALF_DB);
+    CHECK(maximum_trim.left > 16400 && maximum_trim.left < 16500);
     profile.trim_half_db++;
     CHECK_EQUAL(0, headphone_profile_gains(&profile, REPLAY_GAIN_UNITY).left);
     CHECK_EQUAL(0, headphone_profile_limit_volume(&profile, 60));
@@ -396,27 +396,27 @@ static void trim_balance_and_replay_gain_remain_bounded_across_every_setting(voi
 static void pcm_unity_covers_every_sixteen_bit_sample_and_original_word(void)
 {
     for (int32_t sample = -32768; sample <= 32767; sample++) {
-        CHECK_EQUAL(sample * 256, headphone_profile_sample(sample, 16, REPLAY_GAIN_UNITY));
+        CHECK_EQUAL(sample * 256, headphone_audio_sample(sample, 16, REPLAY_GAIN_UNITY));
     }
     uint32_t random = 1;
     for (int index = 0; index < 10000; index++) {
         random = random * UINT32_C(1664525) + UINT32_C(1013904223);
-        CHECK_EQUAL(random, headphone_profile_word(random, REPLAY_GAIN_UNITY));
+        CHECK_EQUAL(random, headphone_audio_word(random, REPLAY_GAIN_UNITY));
         int32_t sample = (int32_t)(random >> 8);
         sample -= (random & UINT32_C(0x80000000)) != 0 ? 1 << 24 : 0;
-        CHECK_EQUAL(sample, headphone_profile_sample(sample, 24, REPLAY_GAIN_UNITY));
-        int32_t attenuated = headphone_profile_sample(sample, 24, REPLAY_GAIN_UNITY / 2);
+        CHECK_EQUAL(sample, headphone_audio_sample(sample, 24, REPLAY_GAIN_UNITY));
+        int32_t attenuated = headphone_audio_sample(sample, 24, REPLAY_GAIN_UNITY / 2);
         CHECK(attenuated >= SAMPLE_MIN && attenuated <= SAMPLE_MAX);
         CHECK_EQUAL((uint32_t)attenuated << 8,
-                    headphone_profile_word(random & UINT32_C(0xFFFFFF00), REPLAY_GAIN_UNITY / 2));
+                    headphone_audio_word(random & UINT32_C(0xFFFFFF00), REPLAY_GAIN_UNITY / 2));
     }
-    CHECK_EQUAL(SAMPLE_MIN, headphone_profile_sample(INT32_MIN, 32, REPLAY_GAIN_UNITY));
-    CHECK_EQUAL(SAMPLE_MAX, headphone_profile_sample(INT32_MAX, 32, REPLAY_GAIN_UNITY));
-    CHECK_EQUAL(0, headphone_profile_sample(1, 0, REPLAY_GAIN_UNITY));
-    CHECK_EQUAL(0, headphone_profile_sample(1, 33, REPLAY_GAIN_UNITY));
+    CHECK_EQUAL(SAMPLE_MIN, headphone_audio_sample(INT32_MIN, 32, REPLAY_GAIN_UNITY));
+    CHECK_EQUAL(SAMPLE_MAX, headphone_audio_sample(INT32_MAX, 32, REPLAY_GAIN_UNITY));
+    CHECK_EQUAL(0, headphone_audio_sample(1, 0, REPLAY_GAIN_UNITY));
+    CHECK_EQUAL(0, headphone_audio_sample(1, 33, REPLAY_GAIN_UNITY));
     for (uint8_t bits = 1; bits <= 32; bits++) {
-        CHECK_EQUAL(SAMPLE_MIN, headphone_profile_sample(INT32_MIN, bits, UINT32_MAX));
-        CHECK_EQUAL(SAMPLE_MAX, headphone_profile_sample(INT32_MAX, bits, UINT32_MAX));
+        CHECK_EQUAL(SAMPLE_MIN, headphone_audio_sample(INT32_MIN, bits, UINT32_MAX));
+        CHECK_EQUAL(SAMPLE_MAX, headphone_audio_sample(INT32_MAX, bits, UINT32_MAX));
     }
 }
 

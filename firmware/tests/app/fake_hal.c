@@ -52,6 +52,7 @@ typedef struct FakeAudio {
     HalAudioGain gain;
     HalAudioOutput output;
     HalAudioEqualizer equalizer;
+    HeadphoneAudio headphones;
     int refused_plays;
     HalAudioJack jack;
     HalAudioRefusal refusal;
@@ -233,6 +234,7 @@ static int language_reads;
 void fake_hal_reset(void)
 {
     fake = (FakeHal){.reserve_result = HAL_RESERVE_CREATED};
+    fake.audio.headphones = headphone_audio_defaults();
     eq_count = 0;
     language_file_count = 0;
     language_reads = 0;
@@ -717,7 +719,18 @@ void hal_audio_seek(uint32_t position_ms)
 
 void hal_audio_set_volume(uint8_t level)
 {
-    fake.audio.volume = level;
+    fake.audio.volume = headphone_audio_limit(fake.audio.headphones, level);
+}
+
+void hal_audio_set_headphones(HeadphoneAudio profile)
+{
+    fake.audio.volume = headphone_audio_limit(profile, fake.audio.volume);
+    fake.audio.headphones = profile;
+}
+
+HeadphoneAudio hal_audio_headphones(void)
+{
+    return fake.audio.headphones;
 }
 
 void hal_audio_set_gain(HalAudioGain gain)
@@ -1765,6 +1778,13 @@ static HalReserveResult reserve_screenshot(const char *path, uint32_t size)
 bool hal_internal_file_write_at(const char *path, uint32_t offset, const void *bytes,
                                 uint32_t length)
 {
+    InternalFile *file = internal_file(path);
+    if (file != NULL && offset <= file->size && length <= file->size - offset &&
+        offset + length <= sizeof file->bytes) {
+        memcpy(file->bytes + offset, bytes, length);
+        fake.write_count++;
+        return true;
+    }
     if (strcmp(fake.screenshot_path, path) != 0 || offset > fake.screenshot_size ||
         length > fake.screenshot_size - offset) {
         return false;

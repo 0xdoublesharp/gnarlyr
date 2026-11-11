@@ -35,6 +35,7 @@
 #include "hal/display.h"
 #include "hal/input.h"
 #include "hal/power.h"
+#include "headphone_store.h"
 #include "language.h"
 #include "library_rescan.h"
 #include "library_store.h"
@@ -107,6 +108,7 @@ typedef struct AppState {
     ListeningStore listening;
     bool listening_loaded;
     SettingsStore settings;
+    HeadphoneStore headphones;
     Theme theme;
     Orientation shown_orientation;
     bool rocker_swapped[KEY_COUNT];
@@ -1294,6 +1296,7 @@ static void build_screens(uint32_t now_ms)
         .player = &app.player,
         .spoken = &app.spoken,
         .settings = &app.settings,
+        .headphones = &app.headphones,
         .favorites = &app.favorites,
         .power = &app.power,
         .toast = &app.toast,
@@ -1376,6 +1379,7 @@ static void start_app(bool power_on)
     app.prepare_report = (CardFilesReport){.library_created = false, .card_full = false};
     settings_store_load(&app.settings);
     language_load(app.settings.settings.language);
+    headphone_store_load(&app.headphones);
     app.theme = BOARD_THEME;
     app.screens.bound_modules = 0;
     apply_orientation(app.settings.settings.orientation);
@@ -1654,6 +1658,9 @@ static bool prepare_step(void)
         }
     }
     app.prepare_pending = false;
+    if (app.headphones.load == STORE_UNREADABLE) {
+        headphone_store_load(&app.headphones);
+    }
     report_card_files(app.prepare_report, hal_clock_milliseconds());
     return false;
 }

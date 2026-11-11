@@ -42,6 +42,7 @@ static void bind(AppScreens *screens)
     SettingsModuleScreens *own = &screens->modules.settings;
     SettingsContext settings = {
         .store = context->settings,
+        .headphones = context->headphones,
         .player = context->player,
         .power = context->power,
         .toast = context->toast,

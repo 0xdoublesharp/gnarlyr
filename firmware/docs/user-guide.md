@@ -186,6 +186,19 @@ Settings → Skip songs picks how the buttons change the song on Now Playing and
 
 After a pause, ▶ picks up a little before where you stopped, so you don't lose the thread. The longer the pause, the further back: nothing for a pause of 10 seconds or less, 3 seconds after a minute, 10 seconds after ten minutes and 20 seconds after an hour or more. Audiobooks and podcasts go back half as far again (4.5 s, 15 s and 30 s). After the player was switched off, the first ▶ goes back 20 seconds (30 seconds for audiobooks and podcasts), since the player has no clock to tell how long it was off. It never goes back past the start of the song, chapter or CUE track. If you move the position yourself while paused, ▶ plays from exactly there. The time on Now Playing shows the jump. Settings → Rewind on resume turns this off.
 
+## Headphone profiles
+
+Settings → Headphones keeps four profiles. **Active profile** chooses one, or **Off** to use neutral sound. Open a profile to edit it, then choose **Use profile** to make it active.
+
+- **Name:** choose In-ear, Over-ear, On-ear, Earbuds, Studio or Travel.
+- **Trim:** reduce the level from 0 to −12 dB in 0.5 dB steps.
+- **Balance:** move left or right in 1% steps. Balance reduces the opposite channel and never boosts either one.
+- **Volume ceiling:** limit the volume to a step from 0 to 60; 0 mutes it.
+
+Press ▶ to save a value; Back cancels the choice. The selected profile, names and values are kept on internal storage across restarts and card changes. Trim, balance and the ceiling apply to music and USB DAC output. Music and USB DAC keep their separate volume levels.
+
+Switching to a louder profile, including Off, lowers those volume levels first so neither channel rises unexpectedly. Restoring a channel that was completely muted can lower the volume to 0. Turn it up again as needed, within the chosen ceiling. Music already buffered finishes before new trim and balance values reach it.
+
 ## Safe start volume
 
 When you turn the player on, plug headphones into either jack or connect Bluetooth headphones, a volume above the safe level is lowered to it, and a short "Volume lowered to 24" message says so. A quieter volume is never raised. Turn it up again as usual; it stays where you put it until the next time you turn the player on or plug headphones in. Settings → Safe start volume picks the level (12, 18, 24, 30 or 36, on the same scale Now Playing shows; 24 is the default) or Off. The USB DAC keeps its own volume and isn't affected.

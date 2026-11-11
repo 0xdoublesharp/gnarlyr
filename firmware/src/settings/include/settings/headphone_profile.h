@@ -3,14 +3,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "core/replay_gain.h"
+#include "core/headphone_audio.h"
 #include "settings/settings.h"
 
 enum {
     HEADPHONE_PROFILE_LIMIT = 4,
     HEADPHONE_PROFILE_NONE = HEADPHONE_PROFILE_LIMIT,
     HEADPHONE_PROFILE_NAME_BYTES = 24,
-    HEADPHONE_PROFILE_TRIM_MAX_HALF_DB = 48,
+    HEADPHONE_PROFILE_TRIM_MAX_HALF_DB = 24,
     HEADPHONE_PROFILE_BALANCE_MAX = 100,
     HEADPHONE_PROFILES_FILE_SIZE = 148
 };
@@ -42,5 +42,4 @@ bool headphone_profiles_encode(const HeadphoneProfiles *profiles, uint8_t *bytes
 bool headphone_profiles_decode(const uint8_t *bytes, uint32_t length, HeadphoneProfiles *profiles);
 HeadphoneProfileGains headphone_profile_gains(const HeadphoneProfile *profile, uint32_t input_gain);
 uint8_t headphone_profile_limit_volume(const HeadphoneProfile *profile, uint8_t requested);
-int32_t headphone_profile_sample(int32_t sample, uint8_t bits, uint32_t gain);
-uint32_t headphone_profile_word(uint32_t word, uint32_t gain);
+uint32_t headphone_profile_trim(uint8_t steps);

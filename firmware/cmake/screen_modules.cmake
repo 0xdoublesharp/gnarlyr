@@ -50,6 +50,11 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
 )
 set(ECHO_SCREEN_MODULE_FAST_SOURCES src/gfx/image_quad.c)
 set(ECHO_SCREEN_MODULE_SOURCES_settings
+    src/app/headphone_editor.c
+    src/app/headphone_store_edit.c
+    src/settings/headphone_profile_edit.c
+    src/settings/headphone_file_save.c
+    src/core/headphone_audio_switch.c
     src/app/language_list.c
     src/app/modules/settings_module.c
     src/app/screens/charge_art.c
