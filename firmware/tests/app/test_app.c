@@ -35,6 +35,7 @@
 #include "ui/slide.h"
 #include "ui/status_bar.h"
 #include "ui/toast.h"
+#include "ui/wire_motion.h"
 
 enum {
     PLAYING_POSITION_MS = 60000,
@@ -737,6 +738,72 @@ static void holding_back_from_a_busy_mixtape_save_reaches_home(void)
     hold_back();
     CHECK(title_is(FIRMWARE_SHORT_NAME));
     CHECK_EQUAL(1, app_screen_depth());
+}
+
+static void open_mixtape_name_while_playing(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    hold_back();
+    move_down(4);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    CHECK(title_is("Mixtape name"));
+}
+
+static int steps_until_toast(uint32_t interval_ms, int limit)
+{
+    int count = 0;
+    while (app_toast_text() == NULL && count < limit) {
+        wait_ms(interval_ms);
+        count++;
+    }
+    return count;
+}
+
+static void a_slow_mixtape_save_animates_only_its_square_then_the_screen_rests(void)
+{
+    open_mixtape_name_while_playing();
+    fake_hal_set_microseconds_per_read(9000);
+    hold(KEY_PLAY);
+    for (int count = 0; count < 6; count++) {
+        wait_ms(100);
+    }
+    fake_hal_forget_display_writes();
+    for (int count = 0; count < 10; count++) {
+        wait_ms(100);
+    }
+    FakeDisplayWrites writes = fake_hal_display_writes();
+    CHECK(app_toast_text() == NULL);
+    CHECK_EQUAL(10, writes.count);
+    CHECK(writes.same);
+    CHECK(writes.first.width >= WIRE_MOTION_MIN_SIDE);
+    CHECK(writes.first.width <= WIRE_MOTION_MAX_SIDE);
+    CHECK_EQUAL(writes.first.width, writes.first.height);
+    CHECK(steps_until_toast(100, 100) < 100);
+    fake_hal_set_microseconds_per_read(0);
+    CHECK(strcmp("Mixtape saved", app_toast_text()) == 0);
+    for (int count = 0; count < 600 && app_toast_text() != NULL; count++) {
+        wait_ms(10);
+    }
+    wait_ms(1500);
+    fake_hal_forget_display_writes();
+    for (int count = 0; count < 300; count++) {
+        wait_ms(10);
+    }
+    CHECK_EQUAL(0, fake_hal_display_writes().count);
+    CHECK(app_pass_interval_ms() > 1);
+}
+
+static void a_quick_mixtape_save_never_shows_its_motion(void)
+{
+    open_mixtape_name_while_playing();
+    hold(KEY_PLAY);
+    fake_hal_forget_display_writes();
+    CHECK(steps_until_toast(10, 100) < 30);
+    FakeDisplayWrites writes = fake_hal_display_writes();
+    CHECK(writes.count > 0);
+    CHECK_EQUAL(HAL_DISPLAY_WIDTH, writes.narrowest);
 }
 
 static void a_song_actions_menu_opens_its_metadata_and_personal_tags(void)
@@ -4767,6 +4834,8 @@ int main(void)
         TEST_CASE(queue_actions_and_menu_shortcuts_reuse_now_playing_before_home),
         TEST_CASE(holding_back_from_mixtape_name_reaches_home),
         TEST_CASE(holding_back_from_a_busy_mixtape_save_reaches_home),
+        TEST_CASE(a_slow_mixtape_save_animates_only_its_square_then_the_screen_rests),
+        TEST_CASE(a_quick_mixtape_save_never_shows_its_motion),
         TEST_CASE(a_song_actions_menu_opens_its_metadata_and_personal_tags),
         TEST_CASE(selecting_a_track_plays_it_and_shows_now_playing),
         TEST_CASE(play_on_the_playing_track_opens_now_playing_without_restarting),

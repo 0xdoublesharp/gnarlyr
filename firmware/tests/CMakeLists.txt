@@ -883,3 +883,9 @@ echo_add_unit_test(NAME test_listening_screen
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
         ${CMAKE_CURRENT_SOURCE_DIR}/playback
 )
+
+echo_add_unit_test(NAME test_working_motion
+    SOURCES app/test_working_motion.c app/fake_hal.c support/text_spy.c support/screen_snapshot.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
+)

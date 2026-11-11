@@ -991,6 +991,40 @@ static bool step_view(DiscoveryScreen *screen)
     return true;
 }
 
+static bool searching(const DiscoveryScreen *screen)
+{
+    return screen->mode == DISCOVERY_RESULTS && busy_view();
+}
+
+static int working_shape(const DiscoveryScreen *screen)
+{
+    bool tags = screen->mode == DISCOVERY_TAGS || screen->mode == DISCOVERY_TAG_FILTER;
+    if (screen->mode == DISCOVERY_EDITOR) {
+        return -1;
+    }
+    if (work.tag_change) {
+        return WIRE_SHAPE_CASSETTE;
+    }
+    if (screen->request != DISCOVERY_REQUEST_NONE || searching(screen)) {
+        return WIRE_SHAPE_DISC;
+    }
+    return tags && tags_busy() ? WIRE_SHAPE_ICOSAHEDRON : -1;
+}
+
+static void follow_motion(DiscoveryScreen *screen, uint32_t now_ms)
+{
+    WireMotion *motion = screen->config.motion;
+    int shape = working_shape(screen);
+    if (shape < 0) {
+        wire_motion_end(motion, screen);
+        return;
+    }
+    wire_motion_run(motion, screen, (WireShape)shape, now_ms);
+    if (screen->request == DISCOVERY_REQUEST_NONE && searching(screen)) {
+        wire_motion_progress(motion, work.view.scanned, work.view.total);
+    }
+}
+
 static void update(void *context, uint32_t now_ms)
 {
     DiscoveryScreen *screen = context;
@@ -1011,6 +1045,7 @@ static void update(void *context, uint32_t now_ms)
         restore_selection(screen);
     }
     refresh_rows(screen);
+    follow_motion(screen, now_ms);
     hal_audio_service();
 }
 
@@ -1108,6 +1143,14 @@ static void draw_summary(const DiscoveryScreen *screen, Canvas *canvas, Rect are
     draw_line(canvas, theme, area, text, true);
 }
 
+static void draw_working(const DiscoveryScreen *screen, Canvas *canvas, Rect area, const char *text)
+{
+    MessageConfig config = {.message = text,
+                            .theme = screen->config.theme,
+                            .motion = working_shape(screen) >= 0 ? screen->config.motion : NULL};
+    message_draw_working(canvas, area, &config);
+}
+
 static void draw(void *context, Canvas *canvas)
 {
     DiscoveryScreen *screen = context;
@@ -1120,7 +1163,7 @@ static void draw(void *context, Canvas *canvas)
         return;
     }
     if (screen->request != DISCOVERY_REQUEST_NONE || work.tag_change) {
-        message_draw(canvas, theme, area,
+        draw_working(screen, canvas, area,
                      i18n_text(work.tag_change ? STR_SAVING_TAGS : STR_DISCOVERY_PREPARING));
         return;
     }
@@ -1131,7 +1174,7 @@ static void draw(void *context, Canvas *canvas)
     if (screen->mode == DISCOVERY_RESULTS) {
         draw_summary(screen, canvas, area);
         if (busy_view() || work.view.state != LIBRARY_VIEW_READY || work.view.count == 0) {
-            message_draw(canvas, theme, list_area(screen), state_message());
+            draw_working(screen, canvas, list_area(screen), state_message());
         } else {
             list_view_draw(&screen->list, canvas, list_area(screen), screen->now_ms);
         }
@@ -1144,7 +1187,7 @@ static void draw(void *context, Canvas *canvas)
         return;
     }
     if ((screen->mode == DISCOVERY_TAGS || screen->mode == DISCOVERY_TAG_FILTER) && tags_busy()) {
-        message_draw(canvas, theme, area, i18n_text(STR_LOADING_TAGS));
+        draw_working(screen, canvas, area, i18n_text(STR_LOADING_TAGS));
     } else {
         list_view_draw(&screen->list, canvas, area, screen->now_ms);
     }

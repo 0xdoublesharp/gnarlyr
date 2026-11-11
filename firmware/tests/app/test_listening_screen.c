@@ -35,6 +35,8 @@ static void add_play(uint16_t index, bool known)
     CHECK_EQUAL(STORE_DONE, listening_log_append(&store.log, &play));
 }
 
+static WireMotion motion;
+
 static void start(bool populated)
 {
     fake_hal_reset();
@@ -47,7 +49,7 @@ static void start(bool populated)
     }
     theme = BOARD_THEME;
     clock_ms = 0;
-    listening_screen_init(&screen, (ListeningScreenConfig){&store, &theme});
+    listening_screen_init(&screen, (ListeningScreenConfig){&store, &theme, &motion});
     screen.screen.enter(&screen, clock_ms);
 }
 
@@ -500,7 +502,7 @@ static void an_export_restarted_after_its_buffer_was_reused_still_writes_a_whole
     choose(4);
     tick_until_writing();
     ListeningScreen other;
-    listening_screen_init(&other, (ListeningScreenConfig){&store, &theme});
+    listening_screen_init(&other, (ListeningScreenConfig){&store, &theme, &motion});
     other.screen.enter(&other, 0);
     finish_export();
     CHECK(saw(i18n_text(STR_EXPORT_DONE)));
@@ -514,7 +516,7 @@ static void a_job_rebuilds_after_another_screen_reuses_the_cold_work_buffer(void
     finish_top();
     int count = screen.model.count(&screen);
     ListeningScreen other;
-    listening_screen_init(&other, (ListeningScreenConfig){&store, &theme});
+    listening_screen_init(&other, (ListeningScreenConfig){&store, &theme, &motion});
     other.screen.enter(&other, 0);
     finish_top();
     CHECK_EQUAL(count, screen.model.count(&screen));
