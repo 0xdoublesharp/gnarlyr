@@ -556,6 +556,65 @@ static void invalid_frame_headers_never_publish_samples(void)
     }
 }
 
+static void malformed_subframes_and_residuals_never_publish_samples(void)
+{
+    for (uint32_t variant = 0; variant < 9; variant++) {
+        uint8_t bytes[64] = {0xff, 0xf8, 0x69, 0x08, 0, 15};
+        if (variant == 4) {
+            bytes[5] = 14;
+        } else if (variant == 6) {
+            bytes[5] = 0;
+        }
+        uint32_t at = 6;
+        bytes[at] = frame_crc8(bytes, at);
+        at++;
+        uint32_t bit = at * 8;
+        if (variant == 0) {
+            put_frame_bits(bytes, &bit, 0x80, 8);
+        } else if (variant == 1) {
+            put_frame_bits(bytes, &bit, 0x04, 8);
+        } else if (variant == 2) {
+            put_frame_bits(bytes, &bit, 0x01, 8);
+            put_frame_bits(bytes, &bit, 1, 16);
+        } else if (variant == 3) {
+            put_frame_bits(bytes, &bit, 0x10, 8);
+            put_frame_bits(bytes, &bit, 2, 2);
+        } else if (variant == 4) {
+            put_frame_bits(bytes, &bit, 0x10, 8);
+            put_frame_bits(bytes, &bit, 0, 2);
+            put_frame_bits(bytes, &bit, 1, 4);
+        } else if (variant == 5) {
+            put_frame_bits(bytes, &bit, 0x18, 8);
+            for (uint32_t sample = 0; sample < 4; sample++) {
+                put_frame_bits(bytes, &bit, 0, 16);
+            }
+            put_frame_bits(bytes, &bit, 0, 2);
+            put_frame_bits(bytes, &bit, 3, 4);
+        } else if (variant == 6) {
+            put_frame_bits(bytes, &bit, 0x18, 8);
+        } else {
+            put_frame_bits(bytes, &bit, 0x40, 8);
+            put_frame_bits(bytes, &bit, 0, 16);
+            put_frame_bits(bytes, &bit, variant == 7 ? 15 : 0, 4);
+            put_frame_bits(bytes, &bit, variant == 8 ? 31 : 0, 5);
+        }
+        at = (bit + 7) / 8;
+        uint16_t crc = frame_crc16(bytes, at);
+        bytes[at++] = (uint8_t)(crc >> 8);
+        bytes[at++] = (uint8_t)crc;
+        Buffer input = {bytes, at};
+        FlacInfo info = {.sample_rate = 44100,
+                         .channels = 1,
+                         .bits_per_sample = 16,
+                         .min_block = 16,
+                         .max_block = 16,
+                         .total_samples = 16};
+        flac_start(&decoder, input_of(&input), info);
+        CHECK_EQUAL(FLAC_ERROR, flac_decode_frame(&decoder));
+        CHECK_EQUAL(0u, decoder.block_samples);
+    }
+}
+
 static void escaped_residuals_decode_signed_samples_with_both_rice_methods(void)
 {
     for (uint32_t method = 0; method <= 1; method++) {
@@ -987,6 +1046,7 @@ int main(void)
         TEST_CASE(sample_size_header_codes_preserve_signed_values),
         TEST_CASE(stereo_channel_assignments_reconstruct_signed_samples_exactly),
         TEST_CASE(invalid_frame_headers_never_publish_samples),
+        TEST_CASE(malformed_subframes_and_residuals_never_publish_samples),
         TEST_CASE(blocks_larger_than_the_buffer_are_refused),
         TEST_CASE(unsupported_streaminfo_limits_are_rejected),
         TEST_CASE(a_file_that_is_not_flac_is_refused),
