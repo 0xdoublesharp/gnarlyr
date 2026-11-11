@@ -380,6 +380,9 @@ static void walk_now_playing(void)
     CHECK(show("Now Playing while seeking") > 0);
     tap(KEY_PLAY);
     tap(KEY_MENU);
+    show_titled("Quick Settings", STR_QUICK_SETTINGS);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
     show_titled("Up Next", STR_UP_NEXT);
 }
 

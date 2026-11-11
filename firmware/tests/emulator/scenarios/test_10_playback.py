@@ -57,7 +57,8 @@ class EchoImageTest(EchoImageHarness):
 
         machine.hook_symbol("spoken_shelf_count", count_entry)
         machine.hook_symbol("spoken_shelf_item", item_entry)
-        rig.press("next")
+        rig.press("play")
+        rig.press("previous")
         rig.press("play")
         self.assertEqual([2], counts)
         unique = {position: (kind, index) for position, kind, index in items}
@@ -91,7 +92,7 @@ class EchoImageTest(EchoImageHarness):
         self.assert_normalized_pcm(rig, pattern, 65536)
         plays = len(rig.audio.plays)
         rig.press("back", hold=1300)
-        rig.press("next")
+        rig.press("previous")
         rig.press("play")
         rig.press_many("next", 19)
         rig.press("play")

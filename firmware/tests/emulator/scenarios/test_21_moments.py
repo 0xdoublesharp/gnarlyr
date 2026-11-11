@@ -98,7 +98,6 @@ class EchoImageTest(EchoImageHarness):
         restored = []
         again.machine.hook_symbol("hal_audio_play", lambda: restored.append(
             again.machine.uc.reg_read(UC_ARM_REG_R1)))
-        resumed.press_many("next", 2)
         resumed.press("play")
         resumed.press("play")
         self.assertEqual([position], restored)

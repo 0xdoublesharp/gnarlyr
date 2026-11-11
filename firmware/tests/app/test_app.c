@@ -3423,6 +3423,9 @@ static void the_home_now_playing_row_keeps_up_next_reachable(void)
     hold_back();
     tap(KEY_PLAY);
     tap(KEY_MENU);
+    CHECK(title_is("Quick Settings"));
+    tap(KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
     CHECK(title_is("Up Next"));
 }
 
