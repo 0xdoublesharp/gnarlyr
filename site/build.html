@@ -83,27 +83,27 @@
 <h3>Button-lock input handling</h3>
 <p>The key-lock source requires an uninterrupted Play+Power hold. Releasing and pressing either key again before completion resets the timer; after a successful toggle, both keys must be released before another hold can toggle it. This corrects interrupted presses being counted as one continuous hold.</p>
 <h3>Audio processing and diagnostics</h3>
-<p>Audio processing remains available as interface modules change. A separate 8 KiB code bank holds sample-rate conversion and M4A/M4B parsing. Diagnostic counts exclude intentionally muted DMA pauses, so a normal pause is not reported as missing audio.</p>
+<p>Audio processing remains available as interface modules change. A separate 8 KiB code bank holds sample-rate conversion and M4A/M4B parsing. Diagnostic counts exclude intentionally muted DMA pauses, so a normal pause is not reported as missing audio. Frame counters stop at their maximum instead of wrapping, and large duration and bitrate calculations use checked arithmetic.</p>
 </section>
 <section class="doc-section" id="codecs" aria-labelledby="codecs-title">
 <h2 id="codecs-title">Vorbis, Opus and the audio pipeline.</h2>
-<p class="intro">An Ogg file wraps compressed audio in packets; a decoder turns them into samples. The Vorbis source connects those pieces to the player, including file opening, duration, seeking and saved-position startup.</p>
+<p class="intro">An Ogg file wraps compressed audio in packets; a decoder turns them into samples. Current source connects both Vorbis and Opus to the player’s file opening, duration, seeking and saved-position startup.</p>
 <ul class="detail-list">
 <li><strong>Checked Ogg input.</strong> The packet reader validates pages, CRC, sequence and continuation before forwarding audio. Large comments and embedded artwork stay out of the decoder workspace; the original file stays unchanged.</li>
 <li><strong>Bounded Vorbis decoding.</strong> A separate core-1 program uses pinned Xiph Tremor source, a 64 KiB workspace and a 32 KiB compressed-packet limit. The source handles mono/stereo configuration, refuses oversized setups and keeps duration and seek positions on the same sample timeline.</li>
 <li><strong>Safe track changes.</strong> Setup finishes before audio is released. Refills discard output from older track generations, and late setup results cannot abort a newer track.</li>
 <li><strong>Continuous conversion across queued files.</strong> Files with the same decoded input rate retain converter history and output boundaries. A rate change drains and restarts the filter. Initial current/next publication precedes DAC prefill; clearing an already-empty queue preserves prepared audio and position.</li>
-<li><strong>Metadata bounds.</strong> Unicode tag text is preserved during whitespace trimming. WMA fields, MP4 duration headers and MP3 APE footer lengths are checked before they affect metadata or audio bounds.</li>
+<li><strong>Metadata and decoder bounds.</strong> FLAC metadata and frames must agree on rate, bit depth and block limits. M4A tables stay within their boxes; timing clocks, chunk descriptions and AAC/ALAC configurations are validated. Truncated virtual records fail instead of supplying incomplete audio.</li>
 </ul>
 <p>Vorbis is connected to the playback source. Listening, processing headroom and converted-file transitions still need checks on the ECHO.</p>
-<h3>Opus decoder and image bank</h3>
-<p>Opus is another audio format carried in Ogg files. The Opus development branch adds a fixed-point libopus decoder and a separate core-1 program stored in its own firmware-image bank.</p>
+<h3>Integrated Opus playback</h3>
+<p>Opus is another audio format carried in Ogg files. The player source now opens <code>.opus</code> files and uses a fixed-point libopus 1.6.1 decoder in a separate core-1 program. Both library indexers recognize Opus and read its comments.</p>
 <ul class="detail-list">
-<li><strong>Bounded decoding.</strong> The component handles SILK, CELT and hybrid packets, mono or stereo, with output rates from 8 to 48 kHz and packets up to 120 ms.</li>
-<li><strong>Track timing and output level.</strong> The core-1 program reads the channel configuration, initial samples to skip and header gain. It publishes long packets in pieces that fit the shared output buffers.</li>
+<li><strong>Bounded decoding.</strong> Mono and stereo streams with channel mapping family 0 decode at 48 kHz. SILK, CELT and hybrid packets are handled, including packets up to 120 ms. Multichannel streams and packets above 32 KiB are refused.</li>
+<li><strong>Seeking and resume.</strong> Initial and final extra samples are trimmed on the same timeline as duration and saved position. Seeking decodes an 80 ms lead-in before the target so the decoder can settle. Header gain sets the output level; long packets are split to fit the output buffers.</li>
 <li><strong>Shared packet transport.</strong> Vorbis and Opus use the same checked record reader. The image builder reserves the Opus bank separately from glyphs, language packs and other modules.</li>
 </ul>
-<p>The decoder and image bank are components for player integration. They do not yet add Opus to the player’s supported formats. Opening files, seeking, resume and real-time playback need the completed integration and ECHO checks. See <code>firmware/docs/opus.md</code> alongside the Opus branch’s code and image configuration.</p>
+<p>Native and ARM emulator checks cover Opus decoding, seeking, resume and switching between Vorbis and Opus. Opus has not yet been heard on the ECHO; listening, real-time processing headroom and gapless transitions remain player checks. The simulator does not play Opus. See <code>firmware/docs/opus.md</code> in your checkout.</p>
 <p>The host test utility <code>ogg_packet_tool</code> exports checked packets for decoder comparisons. See <code>firmware/docs/ogg-packets.md</code> and <code>firmware/docs/ogg-vorbis.md</code> in the matching audio source checkout.</p>
 </section>
 <section class="doc-section" id="processing" aria-labelledby="processing-title">
@@ -126,7 +126,8 @@
 </ul>
 <p>Persistent speed controls and simulator integration are separate work. The engine connection does not yet provide a player speed setting. ReplayGain listening/headroom and tempo quality and throughput require ECHO checks.</p>
 <h3>Preparing lower-rate speech</h3>
-<p>The converter handles 8, 11.025, 12, 16, 22.05 and 24 kHz input in source, but hardware reports show dropouts in this playback path. For listening, convert recordings below 32 kHz to 44.1 or 48 kHz on your computer before copying them. Engine and decoder comparisons alone do not establish real-time performance on the player.</p>
+<p>The converter handles 8, 11.025, 12, 16, 22.05 and 24 kHz input. The updated filter reuses matching calculations, filters mono once and keeps the main processor at full clock during conversion. This cuts the filter’s multiply work roughly in half while preserving the output samples.</p>
+<p>An earlier converter produced dropouts on the player; the revised path still needs a player measurement. For listening, convert recordings below 32 kHz to 44.1 or 48 kHz on your computer before copying them.</p>
 <p>See <code>firmware/docs/replay-gain.md</code> and <code>firmware/docs/audio-tempo.md</code> in the audio source checkout.</p>
 </section>
 <section class="doc-section" id="usb" aria-labelledby="usb-title">
