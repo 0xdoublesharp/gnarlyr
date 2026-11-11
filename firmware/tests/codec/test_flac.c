@@ -330,6 +330,33 @@ static void standard_and_extended_block_sizes_decode_constant_channels(void)
     }
 }
 
+static void frame_bit_depth_must_match_the_stream(void)
+{
+    static const struct {
+        uint8_t code;
+        uint8_t body_bytes;
+        bool valid;
+    } cases[] = {{0, 6, true}, {4, 6, true}, {5, 7, false}, {6, 8, false}};
+    for (uint32_t index = 0; index < sizeof cases / sizeof cases[0]; index++) {
+        uint8_t bytes[32] = {0xff, 0xf9, 0x19, (uint8_t)(0x10u | (uint32_t)cases[index].code << 1),
+                             0};
+        uint32_t at = 5;
+        bytes[at] = frame_crc8(bytes, at);
+        at += 1 + cases[index].body_bytes;
+        uint16_t crc = frame_crc16(bytes, at);
+        bytes[at++] = (uint8_t)(crc >> 8);
+        bytes[at++] = (uint8_t)crc;
+        Buffer input = {bytes, at};
+        FlacInfo info = {.sample_rate = 44100,
+                         .channels = 2,
+                         .bits_per_sample = 16,
+                         .min_block = 192,
+                         .max_block = 192};
+        flac_start(&decoder, input_of(&input), info);
+        CHECK_EQUAL(cases[index].valid ? FLAC_OK : FLAC_ERROR, flac_decode_frame(&decoder));
+    }
+}
+
 static void frame_sample_rates_must_match_the_stream(void)
 {
     static const struct {
@@ -1202,6 +1229,7 @@ int main(void)
         TEST_CASE(rfc_9639_example_one_decodes_the_specified_samples),
         TEST_CASE(extended_sample_rate_headers_decode_their_audio),
         TEST_CASE(standard_and_extended_block_sizes_decode_constant_channels),
+        TEST_CASE(frame_bit_depth_must_match_the_stream),
         TEST_CASE(frame_sample_rates_must_match_the_stream),
         TEST_CASE(coded_frame_numbers_report_the_correct_sample_and_reject_bad_encodings),
         TEST_CASE(rfc_9639_partitioned_lpc_decodes_the_specified_samples),
