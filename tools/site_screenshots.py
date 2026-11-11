@@ -46,6 +46,16 @@ def load_config(path):
         keys = case.get("keys", [])
         if not isinstance(keys, list) or len(keys) > 100 or any(not isinstance(k, str) or not KEY.fullmatch(k) for k in keys):
             raise ValueError(f"Invalid key sequence for {name}")
+        language = case.get("language")
+        if language is not None:
+            if not isinstance(language, dict) or not isinstance(language.get("code"), str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]{0,4}", language["code"]):
+                raise ValueError(f"Invalid language code for {name}")
+            strings = language.get("strings")
+            if not isinstance(strings, dict) or not strings or any(
+                    not isinstance(key, str) or not re.fullmatch(r"STR_[A-Z0-9_]+", key) or
+                    not isinstance(value, str) or not value.strip() or any(c in value for c in "\n\r\0")
+                    for key, value in strings.items()):
+                raise ValueError(f"Invalid language strings for {name}")
         bounded(case.get("frames", defaults.get("frames", 900)), 100, 20000, "frames")
         if not isinstance(case.get("expected_title"), str) or not case["expected_title"].strip():
             raise ValueError(f"Expected screen title is required for {name}")
@@ -134,11 +144,29 @@ def create_demo(config, work, env):
     return card, library
 
 
+def prepare_language(case, system, work, env):
+    language = case.get("language")
+    if language is None:
+        return
+    source = work / (case["name"] + "-language")
+    source.mkdir()
+    shutil.copyfile(ROOT / "firmware/assets/lang/en.txt", source / "en.txt")
+    code = language["code"]
+    (source / (code + ".txt")).write_text("\n".join(
+        key + " = " + value for key, value in language["strings"].items()) + "\n", encoding="utf-8")
+    output = system / "lang"
+    output.mkdir()
+    run([ROOT / "firmware/.venv/bin/python", ROOT / "firmware/tools/lang_pack.py",
+         "--languages", source, "--pack", code, "--output", output / (code + ".pack")],
+        work / (case["name"] + "-language.log"), env)
+
+
 def render_case(case, context):
     work, env = context["work"], context["env"]
     system = work / (case["name"] + "-system")
     system.mkdir()
     shutil.copyfile(context["library"], system / "library.db")
+    prepare_language(case, system, work, env)
     bmp = work / (case["name"] + ".bmp")
     command = [context["simulator"], "--headless", "--frames", str(case.get("frames", context["defaults"].get("frames", 900))),
                "--battery", str(context["defaults"].get("battery", 80)), "--card", context["card"], "--system-dir", system, "--screenshot", bmp]
@@ -147,6 +175,13 @@ def render_case(case, context):
     result = run(command, work / (case["name"] + ".log"), env)
     if not any(line.startswith(case["expected_title"] + ":") for line in result.splitlines()):
         raise ValueError(f"{case['name']} did not reach {case['expected_title']!r}; inspect {work / (case['name'] + '.log')}")
+    if case.get("language"):
+        schema = (ROOT / "firmware/src/settings/settings.c").read_text()
+        offset = int(re.search(r"\bLANGUAGE_FIELD\s*=\s*(\d+)", schema)[1])
+        saved = (system / "settings.bin").read_bytes()
+        code = case["language"]["code"].encode("ascii")
+        if saved[offset:offset + len(code) + 1] != code + b"\0":
+            raise ValueError(f"{case['name']} did not select its configured language")
     data = bmp_to_png(bmp.read_bytes())
     size = struct.unpack_from(">II", data, 16)
     if list(size) != case.get("size", [480, 222]):
