@@ -2000,6 +2000,199 @@ class EchoImageTest(unittest.TestCase):
             self.assertTrue(rig.session.module_reads(slot, number))
         self.assert_healthy(rig.session)
 
+    def tagged_wav(self, title, album, rate, tenths, level):
+        frames = bytearray()
+        for frame_id, text in (("TIT2", title), ("TALB", album), ("TPE1", album), ("TRCK", "1")):
+            payload = b"\x00" + text.encode()
+            frames += frame_id.encode() + struct.pack(">I", len(payload)) + b"\x00\x00" + payload
+        size = len(frames)
+        tag = b"ID3\x03\x00\x00" + bytes((size >> shift & 127 for shift in (21, 14, 7, 0))) + frames
+        pcm = struct.pack("<hh", level, -level) * (rate * tenths // 10)
+        body = (b"WAVEfmt " + struct.pack("<IHHIIHH", 16, 1, 2, rate, rate * 4, 4, 16)
+                + b"data" + struct.pack("<I", len(pcm)) + pcm
+                + b"id3 " + struct.pack("<I", len(tag)) + tag + bytes(len(tag) % 2))
+        return b"RIFF" + struct.pack("<I", len(body)) + body
+
+    def transition_settings(self, tenths):
+        settings = bytearray(4096)
+        settings[:6] = b"DSST" + bytes((15, 0))
+        settings[6:9] = bytes((7, 2, 0))
+        settings[11], settings[13], settings[14], settings[16] = 1, 60, 2, 35
+        settings[24], settings[27] = 1, 1
+        settings[28:38] = bytes((20,) * 10)
+        settings[38:43] = bytes((4 | 1 << 3, 13, tenths, 0, 0x10))
+        settings[43:47] = bytes((0x32, 0x54, 0x76, 0x08))
+        checksum = FNV_START
+        for value in settings[:54]:
+            checksum = (checksum ^ value) * FNV_PRIME & 0xFFFFFFFF
+        settings[54:58] = struct.pack("<I", checksum)
+        return bytes(settings)
+
+    def watch_transition(self, rig, boundary, length):
+        from echo_emulator.audio import PRODUCED_OFFSET, RING_BYTES
+        from unicorn import UC_HOOK_CODE, UC_HOOK_MEM_WRITE
+        machine, ring, slots = rig.machine, rig.audio.ring, RING_BYTES // 8
+        watch = {"frames": {}, "instructions": 0,
+                 "marks": {boundary - 2 * length: None, boundary - length: None,
+                           boundary + length: None}}
+        _, process = self.module(machine, "process")
+        fade = sorted(address for name, address in process.symbols.items() if "fade" in name)
+        after = min(address for address in process.symbols.values() if address > fade[-1])
+
+        def busy_us():
+            return struct.unpack("<12I", machine.read_memory(machine.symbols["stats"], 48))[10]
+
+        def capture(uc, access, address, size, value, user):
+            produced = struct.unpack("<I", machine.read_memory(
+                rig.audio.engine + PRODUCED_OFFSET, 4))[0]
+            slot = (address - ring) // 8
+            frame = produced if slot == produced % slots else (
+                produced - 1 - (produced - 1 - slot) % slots)
+            if frame >= 2 * boundary or size not in (4, 8):
+                return
+            pair = watch["frames"].setdefault(frame, [None, None])
+            pair[(address - ring) % 8 // 4] = value & 0xFFFFFFFF
+            if size == 8:
+                pair[1] = (value >> 32) & 0xFFFFFFFF
+            for mark, seen in watch["marks"].items():
+                if seen is None and produced >= mark:
+                    watch["marks"][mark] = (machine.microseconds(), busy_us())
+
+        def count(uc, address, size, user):
+            watch["instructions"] += 1
+
+        machine.uc.hook_add(UC_HOOK_MEM_WRITE, capture, None, ring, ring + RING_BYTES - 1)
+        machine.uc.hook_add(UC_HOOK_CODE, count, None, fade[0], after - 1)
+        return watch
+
+    def transition_load(self, watch, length, label):
+        (t0, b0), (t1, b1), (t2, b2) = (watch["marks"][key] for key in sorted(watch["marks"]))
+        steady, fading = (b1 - b0) / (t1 - t0), (b2 - b1) / (t2 - t1)
+        print("\n[%s] core 0 busy %.1f %% before, %.1f %% during the fades; "
+              "ramp %.1f instructions per output frame"
+              % (label, 100 * steady, 100 * fading, watch["instructions"] / (2 * length)))
+        return fading
+
+    @staticmethod
+    def sample_value(word):
+        return (word - (word >> 31 << 32)) >> 8
+
+    def transition_volume(self, files, tenths):
+        from echo_emulator.fat_volume import Fat32Volume
+        volume = Fat32Volume()
+        for name, data in files:
+            volume.add_file(name, data)
+        volume.add_directory(IDENTITY.data_directory)
+        volume.add_file("settings.bin", self.transition_settings(tenths),
+                        directory=IDENTITY.data_directory)
+        return volume
+
+    def test_shuffle_fades_out_one_album_and_fades_in_the_next_on_the_output_clock(self):
+        from echo_emulator.playback import Rig
+        rate, tenths, level = 16000, 6, 12000
+        volume = self.transition_volume(
+            [("A.wav", self.tagged_wav("A", "Album A", rate, 24, level)),
+             ("B.wav", self.tagged_wav("B", "Album B", rate, 24, level))], tenths)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        machine = rig.machine
+        boundary, length = 48000 * 24 // 10, 48000 * tenths // 10
+        watch = self.watch_transition(rig, boundary, length)
+        frames = watch["frames"]
+        rig.open_songs()
+        started = rig.play_song(1)
+        machine.run(until=lambda: None not in frames.get(2 * boundary - 1, [None]),
+                    until_ms=machine.milliseconds() + 8000)
+        self.assertEqual(48000, rig.audio.rate)
+        self.assertEqual([], rig.audio.underruns(started))
+
+        def gain(frame):
+            return self.sample_value(frames[frame][0]) / (level * 256)
+
+        def smooth(x):
+            return x * x * (3 - 2 * x)
+
+        for frame in range(length, boundary - length, 997):
+            self.assertAlmostEqual(1.0, gain(frame), delta=0.001, msg=frame)
+        for step in range(1, 8):
+            position = length * step // 8
+            self.assertAlmostEqual(smooth(position / length), gain(boundary - position),
+                                   delta=0.002, msg=position)
+            self.assertAlmostEqual(smooth(position / length), gain(boundary + position),
+                                   delta=0.002, msg=position)
+        self.assertAlmostEqual(1.0, gain(boundary + length + 4800), delta=0.001)
+        steps = [abs(gain(frame) - gain(frame - 1))
+                 for frame in range(boundary - length, boundary + length)]
+        self.assertLess(max(steps), 1.5 / length + 4 / 32768)
+        for frame in range(length, 2 * boundary - length, 101):
+            left, right = (self.sample_value(word) for word in frames[frame])
+            self.assertLessEqual(abs(left + right), 1, frame)
+        self.assertLess(self.transition_load(watch, length, "16 kHz WAV shuffle fade"), 0.2)
+        self.assert_healthy(rig.session)
+
+    def tagged_opus(self, title, album):
+        import io
+        import mutagen.oggopus
+        stream = io.BytesIO((PROJECT / "tests/fixtures/opus/stereo48.opus").read_bytes())
+        tagged = mutagen.oggopus.OggOpus(stream)
+        tagged.tags["title"], tagged.tags["album"] = [title], [album]
+        tagged.tags["tracknumber"] = ["1"]
+        stream.seek(0)
+        tagged.save(stream)
+        return stream.getvalue()
+
+    def test_shuffle_fades_between_opus_albums_on_core_0(self):
+        from echo_emulator.core1_bridge import CORE1_OPUS, Core1Bridge
+        from echo_emulator.playback import Rig
+        from unicorn.arm_const import UC_ARM_REG_SP
+        tenths = 6
+        volume = self.transition_volume([("A.opus", self.tagged_opus("A", "Album A")),
+                                         ("B.opus", self.tagged_opus("B", "Album B"))], tenths)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        Core1Bridge(rig.audio, {CORE1_OPUS: self.elf.with_name("core1_opus.bin").read_bytes()})
+        machine = rig.machine
+        length, starts = 48000 * tenths // 10, []
+        watch = self.watch_transition(rig, 1 << 30, length)
+        frames = watch["frames"]
+
+        def fade_in_start():
+            ramp = struct.unpack("<I", machine.read_memory(machine.reg(UC_ARM_REG_SP), 4))[0]
+            starts.append(struct.unpack("<I", machine.read_memory(ramp, 4))[0])
+
+        machine.hook_symbol("audio_process_fade_in", fade_in_start)
+        rig.open_songs()
+        rig.play_song(1)
+        machine.run(until=lambda: starts and max(frames, default=0) >= starts[0] + 3 * length,
+                    until_ms=machine.milliseconds() + 14000)
+        self.assertEqual(48000, rig.audio.rate)
+        self.assertTrue(starts)
+        boundary = starts[0]
+
+        def loudest(first, count):
+            present = [frames[frame][0] for frame in range(first, first + count) if frame in frames]
+            self.assertTrue(present, first)
+            return max(abs(self.sample_value(word)) for word in present)
+
+        def smooth(x):
+            return x * x * (3 - 2 * x)
+
+        peak = loudest(0, 48000)
+        self.assertGreater(peak, 0)
+        checked = 0
+        for frame in range(boundary - length, boundary + length):
+            if frame in frames:
+                distance = boundary - frame if frame < boundary else frame - boundary
+                limit = peak * smooth(distance / length) + peak / 1000
+                self.assertLessEqual(abs(self.sample_value(frames[frame][0])), limit, frame)
+                checked += 1
+        self.assertGreater(checked, length // 2)
+        self.assertGreater(loudest(boundary + 2 * length, length), peak / 2)
+        self.assertGreater(watch["instructions"], 20 * length)
+        print("\n[Opus shuffle fade] ramp %.1f instructions per output frame"
+              % (watch["instructions"] / (2 * length)))
+        self.assert_healthy(rig.session)
+
     def test_converted_files_keep_the_waveform_and_dma_continuous_at_the_queue_boundary(self):
         from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.playback import Rig
