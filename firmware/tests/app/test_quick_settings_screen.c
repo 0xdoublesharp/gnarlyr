@@ -83,7 +83,7 @@ static void every_eq_preset_and_used_slot_cycles_and_persists(void)
 {
     start();
     int8_t gains[SETTINGS_EQUALIZER_BANDS] = {2, -2, 4, -4, 6, -6, 8, -8, 10, -10};
-    CHECK(equalizer_presets_save_slot(&panel.presets, 5, gains));
+    CHECK(equalizer_presets_save_slot(panel.config.settings.presets, 5, gains));
     panel.screen.enter(&panel, 100);
     for (int index = 1; index < EQUALIZER_PRESET_COUNT; index++) {
         choose(2);

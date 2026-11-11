@@ -21,7 +21,6 @@ typedef struct QuickSettingsConfig {
 typedef struct QuickSettingsScreen {
     Screen screen;
     QuickSettingsConfig config;
-    EqualizerPresets presets;
     ListModel model;
     ListView list;
     uint32_t now_ms;

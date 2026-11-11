@@ -23,6 +23,8 @@ enum {
     MILLISECONDS_PER_SECOND = 1000
 };
 
+static EqualizerPresets presets;
+
 static const StringId SHUFFLE_OPTIONS[SHUFFLE_MODE_COUNT] = {STR_OFF, STR_SHUFFLE_SONGS,
                                                              STR_SHUFFLE_ALBUMS};
 static const StringId REPEAT_OPTIONS[REPEAT_MODE_COUNT] = {STR_OFF, STR_REPEAT_MODE_ONE,
@@ -337,7 +339,7 @@ static Screen *equalizer_editor(SettingsScreens *screens, int slot)
 static ScreenAction open_custom_equalizer(void *context)
 {
     SettingsScreens *screens = context;
-    equalizer_presets_read_slots(&screens->presets);
+    equalizer_presets_read_slots(&presets);
     return screen_action_push(
         equalizer_editor(screens, settings_action_active_slot(&screens->context)));
 }
@@ -346,7 +348,7 @@ static Screen *open_chosen_equalizer(void *context, int index)
 {
     SettingsScreens *screens =
         (SettingsScreens *)((char *)context - offsetof(SettingsScreens, context));
-    int slot = equalizer_presets_option_slot(&screens->presets, index);
+    int slot = equalizer_presets_option_slot(&presets, index);
     bool editable = slot >= 0 || index == EQUALIZER_CUSTOM;
     return editable && screens->context.store->settings.equalizer == EQUALIZER_CUSTOM
                ? equalizer_editor(screens, slot)
@@ -355,10 +357,11 @@ static Screen *open_chosen_equalizer(void *context, int index)
 
 static void extend_equalizer(SettingsScreens *screens, ChoiceConfig *config)
 {
-    equalizer_presets_scan(&screens->presets);
-    config->options = screens->presets.options;
+    (void)screens;
+    equalizer_presets_scan(&presets);
+    config->options = presets.options;
     config->option_ids = NULL;
-    config->option_count = screens->presets.option_count;
+    config->option_count = presets.option_count;
     config->open = open_chosen_equalizer;
 }
 
@@ -633,7 +636,7 @@ static Screen *choice_view(SettingsScreens *screens, const SettingChoice *choice
     }
     EqualizerBrowserConfig browser = {.choice = config,
                                       .settings = &screens->context.store->settings,
-                                      .presets = &screens->presets,
+                                      .presets = &presets,
                                       .preview = preview_equalizer};
     return equalizer_browser_init(&screens->equalizer_browser, browser);
 }
@@ -890,14 +893,14 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                                       .value = format_status,
                                                       .context = screens,
                                                       .opens = true};
-    screens->context.presets = &screens->presets;
+    screens->context.presets = &presets;
     screens->context.languages = &screens->languages;
     screens->theme = theme;
     screens->choice_preview = STRING_COUNT;
     screens->equalizer_preview = SETTINGS_EQ_PREVIEW_NONE;
     screens->preview = (SettingsPreview){.choice = STRING_COUNT};
     screens->preview_settings = settings_preview_shown;
-    equalizer_presets_read_slots(&screens->presets);
+    equalizer_presets_read_slots(&presets);
     language_list(&screens->languages);
     ButtonSettingsConfig buttons = {.settings = &screens->context.store->settings,
                                     .theme = theme,

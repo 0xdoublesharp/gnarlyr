@@ -23,6 +23,8 @@ enum {
     ROW_COUNT
 };
 
+static EqualizerPresets presets;
+
 static const StringId LABELS[] = {
     STR_SHUFFLE,     STR_REPEAT,      STR_EQUALIZER,   STR_HEADPHONES, STR_PLAYBACK_SPEED,
     STR_SLEEP_TIMER, STR_TRANSITIONS, STR_REPLAY_GAIN, STR_LYRICS,     STR_UP_NEXT};
@@ -121,7 +123,7 @@ static ScreenAction select_row(void *context, int index)
     case EQUALIZER:
         settings_action_choose_equalizer(settings,
                                          (settings_action_current_equalizer(settings) + 1) %
-                                             (EQUALIZER_PRESET_COUNT + panel->presets.slot_count));
+                                             (EQUALIZER_PRESET_COUNT + presets.slot_count));
         break;
     case HEADPHONES:
         cycle_headphones(settings);
@@ -168,7 +170,7 @@ static void enter(void *context, uint32_t now_ms)
 {
     QuickSettingsScreen *panel = context;
     refresh_selection(panel, now_ms);
-    equalizer_presets_scan(&panel->presets);
+    equalizer_presets_scan(&presets);
     list_view_fit_rows(&panel->list,
                        list_view_rows_in(&panel->list, rows_area(panel->config.theme).height));
 }
@@ -207,7 +209,7 @@ static void draw(void *context, Canvas *canvas)
 Screen *quick_settings_screen_init(QuickSettingsScreen *panel, QuickSettingsConfig config)
 {
     *panel = (QuickSettingsScreen){.config = config};
-    panel->config.settings.presets = &panel->presets;
+    panel->config.settings.presets = &presets;
     panel->model = (ListModel){.context = panel,
                                .count = count,
                                .label = label,

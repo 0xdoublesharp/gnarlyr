@@ -113,7 +113,6 @@ struct SettingsScreens {
     };
     ButtonSettings buttons;
     HeadphoneEditor headphones;
-    EqualizerPresets presets;
     LanguageList languages;
     UsbChooser usb;
     CardFormatScreen card_format;
