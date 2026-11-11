@@ -26,7 +26,6 @@ enum {
     ALAC_RUN_SCALE = 6,
     ALAC_REFILL_LEVEL = 24,
     ALAC_MAX_PACKET_BYTES = 1 << 24,
-    ALAC_MAX_KB = 24,
     ALAC_PB_FACTOR_DIVISOR = 4
 };
 
@@ -85,14 +84,6 @@ static uint32_t read_be32(const uint8_t *bytes)
     return (uint32_t)bytes[0] << 24 | (uint32_t)bytes[1] << 16 | (uint32_t)bytes[2] << 8 | bytes[3];
 }
 
-static bool cookie_is_supported(const AlacConfig *config)
-{
-    bool depth_ok = config->bit_depth == 16 || config->bit_depth == 20 || config->bit_depth == 24;
-    bool channels_ok = config->channels == 1 || config->channels == 2;
-    bool frame_ok = config->frame_length >= 1 && config->frame_length <= ALAC_MAX_FRAME_SAMPLES;
-    return depth_ok && channels_ok && frame_ok && config->kb <= ALAC_MAX_KB;
-}
-
 bool alac_parse_cookie(const uint8_t *bytes, uint32_t length, AlacConfig *config)
 {
     if (bytes == NULL || config == NULL || length < ALAC_COOKIE_BYTES || bytes[4] != 0) {
@@ -108,7 +99,7 @@ bool alac_parse_cookie(const uint8_t *bytes, uint32_t length, AlacConfig *config
         .max_run = (uint16_t)((bytes[10] << 8) | bytes[11]),
         .sample_rate = read_be32(bytes + 20),
     };
-    if (!cookie_is_supported(&parsed)) {
+    if (!alac_config_supported(&parsed)) {
         return false;
     }
     *config = parsed;

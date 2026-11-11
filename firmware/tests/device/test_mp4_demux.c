@@ -108,6 +108,27 @@ static void alac_files_report_their_cookie_depth_and_channels(void)
     m4a_file_free(&file);
 }
 
+static void unsupported_alac_cookies_are_rejected_during_probe(void)
+{
+    static const uint8_t OFFSETS[] = {4, 5, 8, 9};
+    static const uint8_t VALUES[] = {1, 8, 40, 3};
+    for (uint32_t variant = 0; variant < sizeof OFFSETS; variant++) {
+        M4aFile file = m4a_file_load(ALAC_ALBUM "01 Lossless.m4a");
+        uint32_t at = 4;
+        while (at + 32 <= file.size &&
+               !(memcmp(file.bytes + at, "alac", 4) == 0 && file.bytes[at - 1] == 36)) {
+            at++;
+        }
+        CHECK(at + 32 <= file.size);
+        if (at + 32 <= file.size) {
+            file.bytes[at + 8 + OFFSETS[variant]] = VALUES[variant];
+            Mp4Track track;
+            CHECK(!mp4_probe(m4a_file_input(&file), &track));
+        }
+        m4a_file_free(&file);
+    }
+}
+
 static void the_cursor_visits_every_sample_inside_the_media_data(void)
 {
     M4aFile file;
@@ -1210,6 +1231,7 @@ int main(void)
         TEST_CASE(a_malformed_gapless_tag_falls_back_to_the_edit_list),
         TEST_CASE(a_mono_aac_file_at_48k_is_recognised),
         TEST_CASE(alac_files_report_their_cookie_depth_and_channels),
+        TEST_CASE(unsupported_alac_cookies_are_rejected_during_probe),
         TEST_CASE(the_cursor_visits_every_sample_inside_the_media_data),
         TEST_CASE(seeking_lands_on_the_same_sample_as_walking),
         TEST_CASE(overflowing_or_truncated_timing_is_refused),

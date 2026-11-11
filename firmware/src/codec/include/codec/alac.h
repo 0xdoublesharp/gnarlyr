@@ -6,7 +6,8 @@
 enum {
     ALAC_COOKIE_BYTES = 24,
     ALAC_MAX_CHANNELS = 2,
-    ALAC_MAX_FRAME_SAMPLES = 4096
+    ALAC_MAX_FRAME_SAMPLES = 4096,
+    ALAC_MAX_KB = 24
 };
 
 typedef struct AlacConfig {
@@ -19,6 +20,14 @@ typedef struct AlacConfig {
     uint8_t channels;
     uint16_t max_run;
 } AlacConfig;
+
+static inline bool alac_config_supported(const AlacConfig *config)
+{
+    bool depth_ok = config->bit_depth == 16 || config->bit_depth == 20 || config->bit_depth == 24;
+    bool channels_ok = config->channels == 1 || config->channels == 2;
+    bool frame_ok = config->frame_length >= 1 && config->frame_length <= ALAC_MAX_FRAME_SAMPLES;
+    return depth_ok && channels_ok && frame_ok && config->kb <= ALAC_MAX_KB;
+}
 
 typedef enum AlacResult {
     ALAC_OK,

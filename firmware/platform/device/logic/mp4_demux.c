@@ -1,5 +1,7 @@
 #include "device/mp4_demux.h"
 
+#include "codec/alac.h"
+
 #include <stddef.h>
 
 enum {
@@ -255,11 +257,19 @@ static bool read_alac(FlacInput input, const Mp4Box *entry, Mp4Track *track)
         !read_bytes(input, cookie.body + FULL_BOX, track->config, ALAC_COOKIE)) {
         return false;
     }
+    AlacConfig config = {.frame_length = big_endian(track->config),
+                         .sample_rate = big_endian(track->config + ALAC_COOKIE_RATE_AT),
+                         .bit_depth = track->config[5],
+                         .kb = track->config[8],
+                         .channels = track->config[9]};
+    if (track->config[4] != 0 || !alac_config_supported(&config)) {
+        return false;
+    }
     track->config_size = ALAC_COOKIE;
-    track->bits = track->config[5];
-    track->channels = track->config[9];
-    track->sample_rate = big_endian(track->config + ALAC_COOKIE_RATE_AT);
-    track->frame_samples = big_endian(track->config);
+    track->bits = config.bit_depth;
+    track->channels = config.channels;
+    track->sample_rate = config.sample_rate;
+    track->frame_samples = config.frame_length;
     return true;
 }
 
