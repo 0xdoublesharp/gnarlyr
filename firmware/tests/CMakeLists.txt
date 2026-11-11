@@ -125,6 +125,10 @@ echo_add_unit_test(NAME test_library_builder
 )
 set_tests_properties(test_library_builder PROPERTIES TIMEOUT 600)
 target_compile_definitions(test_library_builder PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+echo_add_unit_test(NAME test_library_replay_gain
+    SOURCES library/test_library_replay_gain.c
+    LIBRARIES echo_library_fixtures
+)
 echo_add_unit_test(NAME test_replay_gain
     SOURCES library/test_replay_gain.c
     LIBRARIES echo_library_scan
@@ -517,6 +521,12 @@ if(ECHO_BUILD_SIM)
     )
     target_compile_definitions(test_library_scan PRIVATE
         ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+    )
+    add_test(NAME replay_gain_cache_matches_desktop
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/library/check_replay_gain_cache.py
+            --builder $<TARGET_FILE:test_library_replay_gain>
+            --scanner $<TARGET_FILE:test_library_scan>
+            --fixtures ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/tags
     )
     add_test(NAME audiobook_indexers_agree
         COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_audiobook_index.py

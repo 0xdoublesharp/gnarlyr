@@ -294,6 +294,10 @@ void builder_row_encode(const TrackRow *row, uint8_t *bytes)
     builder_put16(bytes + 56, row->sheet);
     bytes[58] = row->continued;
     bytes[59] = 0;
+    builder_put32(bytes + 60, row->replay_gain.track);
+    builder_put32(bytes + 64, row->replay_gain.album);
+    builder_put32(bytes + 68, row->replay_gain.track_safe);
+    builder_put32(bytes + 72, row->replay_gain.album_safe);
 }
 
 void builder_row_decode(const uint8_t *bytes, TrackRow *row)
@@ -313,6 +317,8 @@ void builder_row_decode(const uint8_t *bytes, TrackRow *row)
     row->end_ms = builder_get32(bytes + 52);
     row->sheet = builder_get16(bytes + 56);
     row->continued = bytes[58];
+    row->replay_gain = (ReplayGain){builder_get32(bytes + 60), builder_get32(bytes + 64),
+                                    builder_get32(bytes + 68), builder_get32(bytes + 72)};
 }
 
 void builder_folder_encode(const FolderRow *row, uint8_t *bytes)

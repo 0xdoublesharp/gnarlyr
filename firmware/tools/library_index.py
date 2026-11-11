@@ -11,6 +11,10 @@ from typing import NamedTuple, Optional
 
 from cue_sheet import ascii_fold, parse_cue
 from identity import IDENTITY
+from replay_gain import encode_extension as encode_gain_extension
+from replay_gain import from_tags as replay_gain_from_tags
+from replay_gain import hash_bytes as gain_hash_bytes
+from replay_gain import tag_values as replay_gain_tag_values
 
 MAGIC = b"DSDB"
 VERSION = 6
@@ -69,6 +73,7 @@ class TrackInfo:
     sheet: str = ""
     part: int = 0
     chapters: bool = False
+    replay_gain: tuple = (0, 0, 0, 0)
 
 
 @dataclass
@@ -193,6 +198,7 @@ def track_from_tags(relative_path, tags, duration_seconds):
         number=min(parse_number(first_tag(tags, "tracknumber")) or file_number, MAX_U8),
         duration_ms=min(round(duration_seconds * 1000), MAX_U32),
         album_artist_guessed=not album_artist,
+        replay_gain=replay_gain_from_tags(tags),
     )
 
 
@@ -273,7 +279,9 @@ def raw_tag_values(tags):
 def normalized_tags(audio):
     if audio is None or audio.tags is None:
         return {}
-    return {key: [nfc(value) for value in values] for key, values in raw_tag_values(audio.tags).items()}
+    values = raw_tag_values(audio.tags)
+    values.update(replay_gain_tag_values(audio.tags))
+    return {key: [nfc(value) for value in data] for key, data in values.items()}
 
 
 def mp4_metadata(handle):
@@ -290,8 +298,19 @@ def read_track(root, path):
     from tag_skim import open_skimming
     with open_skimming(path) as handle:
         audio = mp4_metadata(handle) if path.suffix.lower() == ".m4b" else File(handle)
+        tags = normalized_tags(audio)
+        if path.suffix.lower() == ".mp3":
+            from mutagen.apev2 import APEv2, error
+            try:
+                ape = APEv2(handle)
+                extra = raw_tag_values(ape)
+                extra.update(replay_gain_tag_values(ape))
+            except error:
+                extra = {}
+            for key, values in extra.items():
+                tags.setdefault(key, []).extend(nfc(value) for value in values)
     duration = audio.info.length if audio is not None else 0.0
-    return track_from_tags(nfc(path.relative_to(root).as_posix()), normalized_tags(audio), duration)
+    return track_from_tags(nfc(path.relative_to(root).as_posix()), tags, duration)
 
 
 def parse_m3u(text):
@@ -665,7 +684,15 @@ def encode_library(model):
         body += bytes(-len(body) % SECTION_ALIGNMENT)
         header += SECTION_ENTRY.pack(HEADER_SIZE + len(body), count, record_size, music)
         body += data
-    return bytes(header) + bytes(HEADER_SIZE - len(header)) + bytes(body)
+    header += bytes(HEADER_SIZE - len(header))
+    base = bytes(header) + bytes(body)
+    gains = [track.replay_gain for track in model.tracks]
+    if not any(track or album for track, album, _, _ in gains):
+        return base
+    fingerprint = gain_hash_bytes(header)
+    for data, *_ in sections:
+        fingerprint = gain_hash_bytes(data, fingerprint)
+    return base + encode_gain_extension(gains, fingerprint)
 
 
 def visible_files(root, suffixes):

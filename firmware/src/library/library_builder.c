@@ -348,7 +348,8 @@ BuilderResult library_builder_add_track(LibraryBuilder *builder, const BuilderTr
                     .guessed = track->album_artist_guessed ? 1 : 0,
                     .duration_ms = track->duration_ms,
                     .start_ms = track->start_ms,
-                    .end_ms = track->end_ms};
+                    .end_ms = track->end_ms,
+                    .replay_gain = track->replay_gain};
     const char *texts[BUILDER_FIELDS - 1] = {track->title, track->artist, track->album_artist,
                                              track->album, track->genre};
     bool stored = place_path(state, track->path, &row) && place_sheet(state, track, &row);
@@ -364,6 +365,8 @@ BuilderResult library_builder_add_track(LibraryBuilder *builder, const BuilderTr
     state->text_bytes +=
         (title > 0 ? title + 1 : 0) + state->scan->chain_path_length + row.length[BUILDER_FILE] + 1;
     state->track_count++;
+    state->gain_present =
+        state->gain_present || track->replay_gain.track != 0 || track->replay_gain.album != 0;
     return BUILDER_OK;
 }
 

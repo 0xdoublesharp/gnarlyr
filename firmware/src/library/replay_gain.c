@@ -15,16 +15,13 @@ typedef struct Number {
     uint64_t mantissa;
     int32_t exponent;
     uint32_t at;
+    uint32_t start;
+    uint32_t end;
+    int32_t point;
+    uint32_t digits;
     uint8_t kept;
     bool negative;
-    bool extra;
 } Number;
-
-typedef struct FixedScale {
-    uint32_t scale;
-    uint32_t maximum;
-    bool ceiling;
-} FixedScale;
 
 static const char *const KEYS[] = {"replaygain_track_gain", "replaygain_album_gain",
                                    "replaygain_track_peak", "replaygain_album_peak"};
@@ -74,7 +71,6 @@ static void accumulate(Number *number, uint32_t value, bool fraction)
         }
     } else {
         number->exponent++;
-        number->extra = number->extra || value != 0;
     }
 }
 
@@ -86,6 +82,8 @@ static bool decimal_part(const char *text, uint32_t length, Number *number)
         char value = text[number->at];
         if (digit(value)) {
             accumulate(number, (uint32_t)(value - '0'), fraction);
+            number->point += fraction ? 0 : 1;
+            number->digits++;
             digits = true;
         } else if (value == '.' && !fraction) {
             fraction = true;
@@ -94,6 +92,7 @@ static bool decimal_part(const char *text, uint32_t length, Number *number)
         }
         number->at++;
     }
+    number->end = number->at;
     return digits;
 }
 
@@ -116,6 +115,7 @@ static bool exponent_part(const char *text, uint32_t length, Number *number)
         }
     }
     number->exponent += negative ? -value : value;
+    number->point += negative ? -value : value;
     return number->at > start;
 }
 
@@ -126,6 +126,7 @@ static bool number_of(const char *text, uint32_t length, bool units, Number *num
     if (number->at < length && (number->negative || text[number->at] == '+')) {
         number->at++;
     }
+    number->start = number->at;
     if (!decimal_part(text, length, number) || !exponent_part(text, length, number)) {
         return false;
     }
@@ -137,10 +138,10 @@ static bool number_of(const char *text, uint32_t length, bool units, Number *num
     return number->at == length;
 }
 
-static uint64_t fraction_value(const Number *number, uint64_t value, bool ceiling)
+static uint64_t fraction_value(const Number *number, uint64_t value)
 {
     if (number->exponent < -19) {
-        return ceiling && (value != 0 || number->extra) ? 1 : 0;
+        return 0;
     }
     uint64_t divisor = 1;
     for (int32_t step = 0; step > number->exponent; step--) {
@@ -148,24 +149,77 @@ static uint64_t fraction_value(const Number *number, uint64_t value, bool ceilin
     }
     uint64_t result = value / divisor;
     uint64_t remainder = value % divisor;
-    bool increment = ceiling ? remainder != 0 || number->extra : remainder >= divisor / 2;
+    bool increment = remainder >= divisor / 2;
     return result + (increment ? 1u : 0u);
 }
 
-static bool fixed_value(const Number *number, FixedScale scale, uint32_t *out)
+static bool gain_value(const Number *number, uint32_t *out)
 {
-    uint64_t value = number->mantissa * scale.scale;
+    uint64_t value = number->mantissa * 100;
     if (number->exponent < 0) {
-        value = fraction_value(number, value, scale.ceiling);
+        value = fraction_value(number, value);
     } else {
         for (int32_t step = 0; step < number->exponent; step++) {
-            if (value > scale.maximum / 10) {
+            if (value > GAIN_LIMIT / 10) {
                 return false;
             }
             value *= 10;
         }
     }
-    if (value > scale.maximum) {
+    if (value > GAIN_LIMIT) {
+        return false;
+    }
+    *out = (uint32_t)value;
+    return true;
+}
+
+static uint32_t peak_fraction(const char *text, const Number *number)
+{
+    uint32_t value = 0;
+    int32_t position = (int32_t)number->digits;
+    for (uint32_t at = number->end; at > number->start;) {
+        char next = text[--at];
+        if (next != '.' && --position >= number->point) {
+            value = ((uint32_t)(next - '0') * PEAK_SCALE + value + 9) / 10;
+        }
+    }
+    for (int32_t leading = number->point; leading < 0; leading++) {
+        value = (value + 9) / 10;
+    }
+    return value;
+}
+
+static bool peak_integer(const char *text, const Number *number, uint32_t *out)
+{
+    uint32_t value = 0;
+    int32_t position = 0;
+    for (uint32_t at = number->start; at < number->end && position < number->point; at++) {
+        if (text[at] != '.') {
+            value = value * 10 + (uint32_t)(text[at] - '0');
+            position++;
+            if (value > UINT32_MAX / PEAK_SCALE) {
+                return false;
+            }
+        }
+    }
+    for (; position < number->point; position++) {
+        if (value > UINT32_MAX / PEAK_SCALE / 10) {
+            return false;
+        }
+        value *= 10;
+    }
+    *out = value;
+    return true;
+}
+
+static bool peak_value(const char *text, const Number *number, uint32_t *out)
+{
+    uint32_t whole;
+    if (!peak_integer(text, number, &whole)) {
+        return false;
+    }
+    uint64_t value = (uint64_t)whole * PEAK_SCALE + peak_fraction(text, number);
+    if (value > UINT32_MAX) {
         return false;
     }
     *out = (uint32_t)value;
@@ -180,11 +234,10 @@ bool replay_gain_offer(ReplayGainTags *tags, ReplayGainField field, const char *
         return false;
     }
     bool gain = field <= REPLAY_GAIN_ALBUM_GAIN;
-    FixedScale scale =
-        gain ? (FixedScale){100, GAIN_LIMIT, false} : (FixedScale){PEAK_SCALE, UINT32_MAX, true};
     Number number;
     uint32_t value;
-    if (!number_of(text, length, gain, &number) || !fixed_value(&number, scale, &value) ||
+    if (!number_of(text, length, gain, &number) ||
+        !(gain ? gain_value(&number, &value) : peak_value(text, &number, &value)) ||
         (!gain && number.negative && value != 0)) {
         return false;
     }

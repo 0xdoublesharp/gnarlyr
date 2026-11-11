@@ -2,6 +2,7 @@ import argparse
 import math
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,6 +11,10 @@ import mutagen
 from mutagen.apev2 import APEv2
 from mutagen.id3 import ID3, TXXX
 from mutagen.mp4 import MP4
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
+
+import library_index
 
 READER = None
 FIXTURES = None
@@ -50,6 +55,9 @@ class ReplayGainFormatsTest(unittest.TestCase):
         self.assertEqual(52428, gains[2])
         self.assertEqual(gains[1], gains[3])
 
+    def assert_desktop_agrees(self, path):
+        self.assertEqual(read_gains(path), library_index.read_track(path.parent, path).replay_gain)
+
     def test_standard_tags_in_real_supported_containers(self):
         with tempfile.TemporaryDirectory(prefix="replaygain-tags-") as directory:
             for name in FORMATS:
@@ -58,6 +66,7 @@ class ReplayGainFormatsTest(unittest.TestCase):
                     shutil.copyfile(FIXTURES / name, path)
                     write_tags(path, VALUES)
                     self.assert_normalization(read_gains(path))
+                    self.assert_desktop_agrees(path)
 
     def test_id3_text_encodings_and_versions(self):
         with tempfile.TemporaryDirectory(prefix="replaygain-id3-") as directory:
@@ -67,6 +76,7 @@ class ReplayGainFormatsTest(unittest.TestCase):
                     shutil.copyfile(FIXTURES / "id3v24.mp3", path)
                     write_tags(path, VALUES, encoding=encoding, version=version)
                     self.assert_normalization(read_gains(path))
+                    self.assert_desktop_agrees(path)
 
     def test_mp3_apev2_fallback_and_id3_precedence(self):
         with tempfile.TemporaryDirectory(prefix="replaygain-ape-") as directory:
@@ -77,10 +87,12 @@ class ReplayGainFormatsTest(unittest.TestCase):
                 ape[key] = value
             ape.save(path)
             self.assert_normalization(read_gains(path))
+            self.assert_desktop_agrees(path)
             write_tags(path, {"REPLAYGAIN_TRACK_GAIN": "0 dB"})
             gains = read_gains(path)
             self.assertEqual(65536, gains[0])
             self.assertEqual(52428, gains[2])
+            self.assert_desktop_agrees(path)
 
     def test_invalid_id3_encoding_and_overlong_utf8_do_not_become_gain(self):
         with tempfile.TemporaryDirectory(prefix="replaygain-encoding-") as directory:

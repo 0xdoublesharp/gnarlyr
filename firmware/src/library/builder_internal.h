@@ -17,7 +17,7 @@ enum {
     BUILDER_ALBUM = 3,
     BUILDER_GENRE = 4,
     BUILDER_FILE = 5,
-    BUILDER_ROW_SIZE = 60,
+    BUILDER_ROW_SIZE = 76,
     BUILDER_FOLDER_SIZE = 8,
     BUILDER_SHEET_BIT = 0x8000,
     BUILDER_CHAPTERS_BIT = 0x4000,
@@ -93,6 +93,7 @@ typedef struct TrackRow {
     uint32_t end_ms;
     uint16_t sheet;
     uint8_t continued;
+    ReplayGain replay_gain;
 } TrackRow;
 
 typedef struct FolderRow {
@@ -200,6 +201,7 @@ typedef struct BuilderState {
     ScanTime *scan;
     Prepared *prepared;
     bool prepare_done;
+    bool gain_present;
     BuilderResult prepare_result;
 } BuilderState;
 

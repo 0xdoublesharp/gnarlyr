@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "check.h"
@@ -129,6 +130,38 @@ static void peak_rounding_never_allows_the_declared_peak_above_full_scale(void)
     }
 }
 
+static void peaks_just_above_binary_boundaries_round_up_from_all_decimal_digits(void)
+{
+    ReplayGainTags tags = {0};
+    CHECK(offer(&tags, REPLAY_GAIN_TRACK_PEAK, "1.000000059604644775390626"));
+    CHECK_EQUAL(PEAK_UNITY + 2, tags.peak[0]);
+    tags = (ReplayGainTags){0};
+    CHECK(offer(&tags, REPLAY_GAIN_TRACK_PEAK, "1.000000059604644775390625"));
+    CHECK_EQUAL(PEAK_UNITY + 1, tags.peak[0]);
+    tags = (ReplayGainTags){0};
+    CHECK(offer(&tags, REPLAY_GAIN_TRACK_PEAK, "255.999999940395355224609375"));
+    CHECK_EQUAL(UINT32_MAX, tags.peak[0]);
+}
+
+static void decimal_peak_quantization_matches_exact_binary_boundaries(void)
+{
+    uint32_t value = 0;
+    for (uint32_t index = 0; index < 2048; index++) {
+        char text[REPLAY_GAIN_TEXT_CAPACITY];
+        (void)snprintf(text, sizeof text, "%.24f", (double)value / PEAK_UNITY);
+        ReplayGainTags tags = {0};
+        CHECK(offer(&tags, REPLAY_GAIN_TRACK_PEAK, text));
+        CHECK_EQUAL(value, tags.peak[0]);
+        if (value != UINT32_MAX) {
+            (void)strcat(text, "0000000001");
+            tags = (ReplayGainTags){0};
+            CHECK(offer(&tags, REPLAY_GAIN_TRACK_PEAK, text));
+            CHECK_EQUAL(value + 1, tags.peak[0]);
+        }
+        value = value * UINT32_C(1664525) + UINT32_C(1013904223);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -139,6 +172,8 @@ int main(void)
         TEST_CASE(fixed_point_amplitudes_match_independent_exponentiation),
         TEST_CASE(clipping_uses_the_matching_peak_and_falls_back_conservatively),
         TEST_CASE(peak_rounding_never_allows_the_declared_peak_above_full_scale),
+        TEST_CASE(peaks_just_above_binary_boundaries_round_up_from_all_decimal_digits),
+        TEST_CASE(decimal_peak_quantization_matches_exact_binary_boundaries),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

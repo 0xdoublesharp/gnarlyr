@@ -128,7 +128,7 @@ static bool fingerprint_contents(Library *library)
 
 LibraryStatus library_open(Library *library, ByteSource source, uint32_t size)
 {
-    *library = (Library){.source = source};
+    *library = (Library){.source = source, .size = size};
     uint8_t header[LIBRARY_HEADER_SIZE];
     if (source.read == NULL || size < LIBRARY_HEADER_SIZE ||
         !read_source(library, 0, header, sizeof header)) {
@@ -139,7 +139,7 @@ LibraryStatus library_open(Library *library, ByteSource source, uint32_t size)
         status = LIBRARY_UNREADABLE;
     }
     if (status != LIBRARY_OK) {
-        *library = (Library){.source = source};
+        *library = (Library){.source = source, .size = size};
     }
     return status;
 }

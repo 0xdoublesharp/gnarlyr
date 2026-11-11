@@ -200,4 +200,5 @@ void track_fields_from_tags(const char *path, const TrackTags *tags, TrackFields
     track->end_ms = 0;
     track->sheet = NULL;
     track->chapters = false;
+    track->replay_gain = tags->replay_gain;
 }

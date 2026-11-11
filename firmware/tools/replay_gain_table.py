@@ -1,23 +1,17 @@
 import argparse
-import decimal
 from pathlib import Path
 
 from fold_table import formatted
+from replay_gain import gain_powers
 
 
 def render():
     rows = ["#pragma once", "", "#include <stdint.h>", "",
             "static const uint64_t REPLAY_GAIN_POWERS[2][14] = {"]
-    with decimal.localcontext() as context:
-        context.prec = 60
-        for sign in (1, -1):
-            rows.append("    {")
-            for bit in range(14):
-                exponent = decimal.Decimal(sign * (1 << bit)) / 2000
-                value = decimal.Decimal(10) ** exponent * (1 << 32)
-                fixed = int(value.to_integral_value(rounding=decimal.ROUND_HALF_EVEN))
-                rows.append(f"        UINT64_C({fixed}),")
-            rows.append("    },")
+    for factors in gain_powers():
+        rows.append("    {")
+        rows.extend(f"        UINT64_C({fixed})," for fixed in factors)
+        rows.append("    },")
     rows.extend(["};", ""])
     return "\n".join(rows)
 
