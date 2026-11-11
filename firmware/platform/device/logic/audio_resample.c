@@ -2,6 +2,19 @@
 
 #include <stddef.h>
 
+enum {
+    SAMPLE_MAX = 8388607,
+    SAMPLE_MIN = -8388608
+};
+
+static int32_t filtered_input(const AudioResample *resample, int32_t sample)
+{
+    if (resample->factor == 1) {
+        return sample;
+    }
+    return sample > SAMPLE_MAX ? SAMPLE_MAX : sample < SAMPLE_MIN ? SAMPLE_MIN : sample;
+}
+
 uint32_t audio_resample_rate(uint32_t input_rate)
 {
     static const uint32_t RATES[] = {8000,  11025, 12000, 16000, 22050,  24000, 32000,
@@ -29,8 +42,13 @@ bool audio_resample_push(AudioResample *resample, int32_t left, int32_t right)
         return false;
     }
     uint32_t at = (uint32_t)resample->frames & (AUDIO_RESAMPLE_HISTORY - 1);
-    resample->history[0][at] = left;
-    resample->history[1][at] = right;
+    left = filtered_input(resample, left);
+    right = filtered_input(resample, right);
+    resample->history[at][0] = left;
+    resample->history[at][1] = right;
+    resample->history[at + AUDIO_RESAMPLE_HISTORY][0] = left;
+    resample->history[at + AUDIO_RESAMPLE_HISTORY][1] = right;
+    resample->stereo |= left != right;
     resample->frames++;
     return true;
 }
