@@ -72,8 +72,8 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 146,464 | 157,292 | 10,828 |
-| Code window, `device` preset | 150,520 | 157,292 | 6,772 |
+| Code window | 146,616 | 157,292 | 10,676 |
+| Code window, `device` preset | 150,704 | 157,292 | 6,588 |
 | Static RAM | 264,868 | 278,528 | 13,660 |
 | Rescan overlay | 93,124 | 98,304 | 5,180 |
 | USB overlay code | 11,740 | 65,536 | 53,796 |
@@ -84,7 +84,7 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 | Audio processing module (code, no BSS) | 2,156 | 12,288 | 10,132 |
 | Audio DSP module (code, no BSS) | 6,348 | 8,192 | 1,844 |
 | Ogg file module, Vorbis and Opus (code, no BSS) | 7,076 | 8,192 | 1,116 |
-| Debug module, `device` preset (code, no BSS) | 2,232 | 8,192 | 5,960 |
+| Debug module, `device` preset (code, no BSS) | 2,264 | 8,192 | 5,928 |
 | Decoder workspace | 41,648 | 41,984 | 336 |
 | Language pack (English) | 7,366 | 16,384 | 9,018 |
 | Vorbis program image bank | 64,840 | 130,048 | 65,208 |
