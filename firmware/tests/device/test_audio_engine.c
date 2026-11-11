@@ -110,21 +110,32 @@ typedef struct ScriptedSource {
     int32_t right[16];
     int waits_before_frame;
     int frames_left;
+    int frames_per_open;
     int releases;
     int closes;
     uint32_t rate;
+    uint32_t next_rate;
+    uint8_t bits;
 } ScriptedSource;
 
 static ScriptedSource scripted;
 
 static bool scripted_open(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track)
 {
-    (void)path;
     (void)start_ms;
-    const ScriptedSource *source_state = context;
+    ScriptedSource *source_state = context;
+    if (source_state->frames_per_open > 0) {
+        source_state->frames_left = source_state->frames_per_open;
+    }
     uint32_t rate = source_state->rate == 0 ? 44100 : source_state->rate;
+    if (source_state->next_rate != 0 && strcmp(path, "second") == 0) {
+        rate = source_state->next_rate;
+    }
     *track = (AudioTrackInfo){
-        .stream = {.sample_rate = rate, .channels = 2, .bits_per_sample = 16, .max_block = 16}};
+        .stream = {.sample_rate = rate,
+                   .channels = 2,
+                   .bits_per_sample = source_state->bits == 0 ? 16 : source_state->bits,
+                   .max_block = 16}};
     return true;
 }
 
@@ -143,7 +154,7 @@ static AudioFrameResult scripted_next(void *context, AudioFrame *frame)
                           .right = source_state->right,
                           .first_sample = 0,
                           .samples = 16,
-                          .bits = 16};
+                          .bits = source_state->bits == 0 ? 16 : source_state->bits};
     return AUDIO_FRAME_READY;
 }
 
@@ -508,7 +519,7 @@ static bool reference_reaches_ring(const ResampledReference *reference)
         for (int attempt = 0; attempt < 128 && engine.produced <= frame; attempt++) {
             audio_engine_pump(&engine, frame);
         }
-        uint32_t slot = 2 * (frame % RING_FRAMES);
+        uint32_t slot = 2 * (frame % (engine.config.ring_words / 2));
         if (engine.produced <= frame || ring[slot] != reference->words[2 * frame] ||
             ring[slot + 1] != reference->words[2 * frame + 1]) {
             return false;
@@ -570,6 +581,243 @@ static void adjacent_low_rate_chapters_share_filter_history_and_keep_their_posit
     CHECK_EQUAL(1, opens);
     CHECK(!engine.rate_pending);
     free(reference.words);
+}
+
+static ResampledReference joined_speech_reference(uint32_t frames)
+{
+    Fixture pcm = load("independent_16", "pcm");
+    AudioResample resample;
+    audio_resample_start(&resample, 22050);
+    ResampledReference reference = {.words = malloc((size_t)frames * 8 * sizeof(uint32_t))};
+    CHECK(reference.words != NULL);
+    for (uint32_t repeat = 0; repeat < 2; repeat++) {
+        for (uint32_t frame = 0; frame < frames; frame++) {
+            CHECK(audio_resample_push(&resample, expected_at(&pcm, 2 * frame) * 256,
+                                      expected_at(&pcm, 2 * frame + 1) * 256));
+            reference_take(&resample, &reference);
+        }
+    }
+    audio_resample_finish(&resample);
+    reference_take(&resample, &reference);
+    free(pcm.bytes);
+    return reference;
+}
+
+static void separate_converted_files_match_a_single_continuous_filter(void)
+{
+    start_engine();
+    CHECK(play_file("independent_16", 0, 1));
+    uint32_t frames = audio_engine_status(&engine).track.stream.total_samples;
+    queue_file("independent_16", 2);
+    ResampledReference reference = joined_speech_reference(frames);
+    CHECK_EQUAL(frames * 4, reference.frames);
+    CHECK(reference_reaches_ring(&reference));
+    for (int step = 0; step < 4; step++) {
+        audio_engine_pump(&engine, reference.frames);
+    }
+    CHECK_EQUAL(2, opens);
+    CHECK_EQUAL(reference.frames, engine.end_at);
+    CHECK_EQUAL(AUDIO_ENGINE_STOPPED, audio_engine_status(&engine).state);
+    CHECK_EQUAL(2, audio_engine_status(&engine).token);
+    CHECK(!engine.failed && !engine.rate_pending);
+    free(reference.words);
+}
+
+static void append_scripted_reference(ResampledReference *reference, uint32_t rate, uint32_t frames)
+{
+    AudioResample resample;
+    audio_resample_start(&resample, rate);
+    for (uint32_t at = 0; at < frames; at++) {
+        CHECK(audio_resample_push(&resample, scripted.left[at % 16] * 256,
+                                  scripted.right[at % 16] * 256));
+        reference_take(&resample, reference);
+    }
+    audio_resample_finish(&resample);
+    reference_take(&resample, reference);
+}
+
+static void every_converted_rate_keeps_history_across_short_queued_files(void)
+{
+    static const uint32_t RATES[] = {8000, 11025, 12000, 16000, 22050, 24000};
+    uint32_t words[384];
+    for (uint32_t index = 0; index < sizeof RATES / sizeof RATES[0]; index++) {
+        start_scripted_engine(0, 1);
+        scripted.rate = RATES[index];
+        scripted.frames_per_open = 1;
+        CHECK(play_file("first", 0, 1));
+        queue_file("second", 2);
+        ResampledReference reference = {.words = words};
+        append_scripted_reference(&reference, RATES[index], 32);
+        CHECK_EQUAL(32 * (audio_resample_rate(RATES[index]) / RATES[index]), reference.frames);
+        CHECK(reference_reaches_ring(&reference));
+        pump_until_full(reference.frames);
+        CHECK_EQUAL(reference.frames, engine.end_at);
+        CHECK(engine.ended && !engine.failed);
+        uint32_t boundary = reference.frames / 2;
+        CHECK_EQUAL(2, audio_engine_status(&engine).token);
+        CHECK_EQUAL(boundary, engine.segments[0].start);
+    }
+}
+
+static void different_converted_inputs_at_the_same_output_clock_drain_and_restart_exactly(void)
+{
+    start_scripted_engine(0, 1);
+    scripted.rate = 8000;
+    scripted.next_rate = 16000;
+    scripted.frames_per_open = 1;
+    engine.config.ring_words = 16;
+    CHECK(play_file("first", 0, 1));
+    queue_file("second", 2);
+    uint32_t words[288];
+    ResampledReference reference = {.words = words};
+    append_scripted_reference(&reference, 8000, 16);
+    uint32_t boundary = reference.frames;
+    append_scripted_reference(&reference, 16000, 16);
+    CHECK(reference_reaches_ring(&reference));
+    pump_until_full(reference.frames);
+    CHECK_EQUAL(reference.frames, engine.end_at);
+    CHECK_EQUAL(boundary, engine.segments[0].start);
+    CHECK_EQUAL(2, audio_engine_status(&engine).token);
+    CHECK_EQUAL(48000, audio_engine_rate(&engine));
+    CHECK(engine.ended && !engine.failed && !engine.rate_pending);
+}
+
+static void clearing_the_next_file_during_a_filter_drain_rebuilds_the_current_tail(void)
+{
+    start_scripted_engine(0, 1);
+    scripted.rate = 8000;
+    scripted.next_rate = 16000;
+    scripted.frames_per_open = 1;
+    engine.config.ring_words = 16;
+    CHECK(play_file("first", 0, 1));
+    queue_file("second", 2);
+    pump_until_full(0);
+    CHECK(engine.resample.ended && !engine.ended);
+    CHECK_EQUAL(1, engine.segment_count);
+    CHECK(audio_engine_queue_needs_restart(&engine, NULL));
+    audio_engine_pause(&engine);
+    audio_engine_queue_next(&engine, NULL);
+    CHECK_EQUAL(AUDIO_ENGINE_PAUSED, audio_engine_status(&engine).state);
+    uint32_t words[192];
+    ResampledReference reference = {.words = words};
+    append_scripted_reference(&reference, 8000, 16);
+    CHECK(reference_reaches_ring(&reference));
+    pump_until_full(reference.frames);
+    CHECK_EQUAL(reference.frames, engine.end_at);
+    CHECK_EQUAL(1, audio_engine_status(&engine).token);
+    CHECK(!engine.has_next && !engine.failed);
+}
+
+static void converted_tails_finish_after_multiple_small_ring_refills(void)
+{
+    start_engine();
+    engine.config.ring_words = 16;
+    CHECK(play_file("independent_16", 0, 1));
+    uint32_t frames = audio_engine_status(&engine).track.stream.total_samples;
+    ResampledReference reference = speech_reference(0, frames);
+    CHECK(reference_reaches_ring(&reference));
+    pump_until_full(reference.frames);
+    CHECK(engine.ended);
+    CHECK_EQUAL(reference.frames, engine.end_at);
+    CHECK_EQUAL(AUDIO_ENGINE_STOPPED, audio_engine_status(&engine).state);
+    free(reference.words);
+}
+
+static void an_underrun_while_the_final_filter_tail_drains_is_still_counted(void)
+{
+    start_scripted_engine(0, 1);
+    scripted.rate = 8000;
+    engine.config.ring_words = 16;
+    CHECK(play_file("short", 0, 1));
+    pump_until_full(0);
+    CHECK(engine.resample.ended && !engine.ended);
+    uint32_t expected = audio_engine_stats(&engine).underruns + 1;
+    audio_engine_observe(&engine, engine.produced + 1);
+    CHECK_EQUAL(expected, audio_engine_stats(&engine).underruns);
+}
+
+static void an_unreadable_next_file_preserves_the_converted_current_tail(void)
+{
+    start_engine();
+    CHECK(play_file("independent_16", 0, 1));
+    uint32_t frames = audio_engine_status(&engine).track.stream.total_samples;
+    queue_file("missing", 2);
+    ResampledReference reference = speech_reference(0, frames);
+    CHECK(reference_reaches_ring(&reference));
+    pump_until_full(reference.frames);
+    CHECK_EQUAL(reference.frames, engine.end_at);
+    CHECK(engine.ended && engine.failed);
+    CHECK_EQUAL(1, audio_engine_status(&engine).token);
+    free(reference.words);
+}
+
+static AudioSource eviction_source;
+static bool kernel_available;
+static bool kernel_restore;
+static uint32_t invalid_kernel_pulls;
+
+static bool evicting_open(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track)
+{
+    bool opened_source = eviction_source.open(context, path, start_ms, track);
+    if (!opened_source) {
+        kernel_available = false;
+    }
+    return opened_source;
+}
+
+static bool restore_kernel(void)
+{
+    kernel_available = kernel_restore;
+    return kernel_available;
+}
+
+static bool checked_kernel(AudioResample *resample, int32_t *left, int32_t *right)
+{
+    if (!kernel_available) {
+        invalid_kernel_pulls++;
+        return false;
+    }
+    return audio_resample_pull(resample, left, right);
+}
+
+static void a_failed_next_open_reloads_evicted_audio_code_before_draining(void)
+{
+    start_engine();
+    eviction_source = engine.config.source;
+    engine.config.source.open = evicting_open;
+    engine.config.prepare_resample = restore_kernel;
+    engine.config.resample_pull = checked_kernel;
+    kernel_restore = true;
+    invalid_kernel_pulls = 0;
+    CHECK(play_file("independent_16", 0, 1));
+    uint32_t frames = audio_engine_status(&engine).track.stream.total_samples;
+    queue_file("missing", 2);
+    ResampledReference reference = speech_reference(0, frames);
+    CHECK(reference_reaches_ring(&reference));
+    pump_until_full(reference.frames);
+    CHECK_EQUAL(reference.frames, engine.end_at);
+    CHECK_EQUAL(0, invalid_kernel_pulls);
+    CHECK(engine.ended && engine.failed);
+    free(reference.words);
+}
+
+static void unavailable_evicted_audio_code_finishes_with_an_error_without_calling_it(void)
+{
+    start_engine();
+    eviction_source = engine.config.source;
+    engine.config.source.open = evicting_open;
+    engine.config.prepare_resample = restore_kernel;
+    engine.config.resample_pull = checked_kernel;
+    kernel_restore = true;
+    invalid_kernel_pulls = 0;
+    CHECK(play_file("independent_16", 0, 1));
+    kernel_restore = false;
+    queue_file("missing", 2);
+    pump_until_full(0);
+    CHECK(engine.ended && engine.failed && !engine.decoding);
+    CHECK_EQUAL(0, invalid_kernel_pulls);
+    audio_engine_observe(&engine, engine.end_at);
+    CHECK_EQUAL(AUDIO_ENGINE_STOPPED, audio_engine_status(&engine).state);
 }
 
 static void low_rate_filter_tail_drains_before_the_next_output_clock_is_requested(void)
@@ -888,6 +1136,23 @@ static void replacing_a_pending_rate_change_restarts_at_the_current_rate(void)
     CHECK_EQUAL(5u, audio_engine_status(&engine).token);
 }
 
+static void clearing_an_already_empty_queue_preserves_prefetched_audio_and_position(void)
+{
+    start_engine();
+    CHECK(play_file("independent_16", 0, 1));
+    pump_until_full(0);
+    CHECK(engine.ended);
+    audio_engine_observe(&engine, 441);
+    uint32_t produced = engine.produced;
+    uint32_t position = audio_engine_status(&engine).position_ms;
+    int opened_count = opens;
+    audio_engine_queue_next(&engine, NULL);
+    CHECK_EQUAL(opened_count, opens);
+    CHECK_EQUAL(produced, engine.produced);
+    CHECK_EQUAL(position, audio_engine_status(&engine).position_ms);
+    CHECK_EQUAL(441, engine.consumed);
+}
+
 static void adding_after_the_decoder_ended_replaces_buffered_silence(void)
 {
     start_engine();
@@ -902,12 +1167,210 @@ static void adding_after_the_decoder_ended_replaces_buffered_silence(void)
     CHECK_EQUAL(5u, audio_engine_status(&engine).token);
 }
 
+static uint32_t gained_word(uint32_t word, uint32_t gain)
+{
+    int64_t value = (int64_t)((int32_t)word / 256) * gain + 32768;
+    value = value >= 0 ? value / 65536 : -((-value + 65535) / 65536);
+    value = value > 8388607 ? 8388607 : value < -8388608 ? -8388608 : value;
+    return (uint32_t)value << 8;
+}
+
+static void replay_gain_scales_pcm_and_unity_matches_the_existing_output_exactly(void)
+{
+    static uint32_t reference[RING_WORDS];
+    start_engine();
+    CHECK(play_file("lpc_16_44k_stereo", 0, 1));
+    pump_until_full(0);
+    memcpy(reference, ring, sizeof reference);
+    static const uint32_t GAINS[] = {0, 65536, 32768, 131072};
+    for (uint32_t at = 0; at < sizeof GAINS / sizeof GAINS[0]; at++) {
+        start_engine();
+        AudioEngineTrack track = {
+            .path = "lpc_16_44k_stereo", .token = 1, .replay_gain = GAINS[at]};
+        CHECK(audio_engine_play(&engine, &track, 0));
+        pump_until_full(0);
+        uint32_t gain = GAINS[at] == 0 ? 65536 : GAINS[at];
+        for (uint32_t sample = 0; sample < RING_WORDS; sample++) {
+            uint32_t expected = gained_word(reference[sample], gain);
+            CHECK_EQUAL(expected, ring[sample]);
+            if (expected != ring[sample]) {
+                break;
+            }
+        }
+    }
+}
+
+static void contiguous_chapters_change_gain_without_reopening_the_file(void)
+{
+    static uint32_t reference[176];
+    start_engine();
+    CHECK(play_range("lpc_16_44k_stereo", 0, 2, 1));
+    pump_until_full(0);
+    memcpy(reference, ring, sizeof reference);
+    start_engine();
+    AudioEngineTrack first = {
+        .path = "lpc_16_44k_stereo", .end_ms = 1, .token = 1, .replay_gain = 65536};
+    AudioEngineTrack next = {
+        .path = "lpc_16_44k_stereo", .start_ms = 1, .end_ms = 2, .token = 2, .replay_gain = 32768};
+    CHECK(audio_engine_play(&engine, &first, 0));
+    audio_engine_queue_next(&engine, &next);
+    pump_until_full(0);
+    CHECK_EQUAL(1, opens);
+    CHECK_EQUAL(88, engine.end_at);
+    for (uint32_t sample = 0; sample < 176; sample++) {
+        CHECK_EQUAL(gained_word(reference[sample], sample < 88 ? 65536 : 32768), ring[sample]);
+    }
+}
+
+static void live_gain_updates_future_samples_without_restarting_and_survives_seek(void)
+{
+    start_engine();
+    engine.config.ring_words = 2048;
+    CHECK(play_file("lpc_16_44k_stereo", 0, 5));
+    pump_until_full(0);
+    audio_engine_set_replay_gain(&engine, 999, 131072);
+    audio_engine_set_replay_gain(&engine, 5, 32768);
+    pump_until_full(128);
+    CHECK_EQUAL(1, opens);
+    Fixture pcm = load("lpc_16_44k_stereo", "pcm");
+    CHECK(pcm.size >= 2 * (1024 + 128) * sizeof(int32_t));
+    for (uint32_t frame = 0; frame < 128; frame++) {
+        uint32_t pcm_index = 2 * (1024 + frame);
+        CHECK_EQUAL(gained_word(word_of(expected_at(&pcm, pcm_index), 16), 32768), ring[2 * frame]);
+    }
+    CHECK(audio_engine_seek(&engine, 0));
+    pump_until_full(0);
+    CHECK_EQUAL(gained_word(word_of(expected_at(&pcm, 1000), 16), 32768), ring[1000]);
+    free(pcm.bytes);
+}
+
+static void boosted_extreme_samples_saturate_safely_at_every_admitted_bit_depth(void)
+{
+    static const uint8_t BITS[] = {4, 8, 16, 24, 32};
+    for (uint32_t at = 0; at < sizeof BITS / sizeof BITS[0]; at++) {
+        start_scripted_engine(0, 1);
+        scripted.bits = BITS[at];
+        for (uint32_t frame = 0; frame < 16; frame++) {
+            scripted.left[frame] = INT32_MAX;
+            scripted.right[frame] = INT32_MIN;
+        }
+        AudioEngineTrack track = {.path = "samples", .token = 1, .replay_gain = UINT32_MAX};
+        CHECK(audio_engine_play(&engine, &track, 0));
+        pump_until_full(0);
+        CHECK_EQUAL(UINT32_C(0x7FFFFF00), ring[0]);
+        CHECK_EQUAL(UINT32_C(0x80000000), ring[1]);
+        audio_engine_set_volume(&engine, 0);
+        CHECK(audio_engine_seek(&engine, 0));
+        scripted.frames_left = 1;
+        pump_until_full(0);
+        CHECK_EQUAL(0, ring[0]);
+        CHECK_EQUAL(0, ring[1]);
+    }
+}
+
+static void normalization_composes_with_volume_before_saturation(void)
+{
+    start_scripted_engine(0, 1);
+    for (uint32_t frame = 0; frame < 16; frame++) {
+        scripted.left[frame] = 20000;
+        scripted.right[frame] = -20000;
+    }
+    audio_engine_set_volume(&engine, 48);
+    CHECK(engine.gain > 16000 && engine.gain < 17000);
+    uint32_t combined = engine.gain * 4;
+    AudioEngineTrack track = {.path = "samples", .token = 1, .replay_gain = 4 * 65536};
+    CHECK(audio_engine_play(&engine, &track, 0));
+    pump_until_full(0);
+    CHECK_EQUAL(gained_word(word_of(20000, 16), combined), ring[0]);
+    CHECK_EQUAL(gained_word(word_of(-20000, 16), combined), ring[1]);
+}
+
+static void converted_files_apply_their_gain_before_sharing_filter_history(void)
+{
+    start_scripted_engine(0, 1);
+    scripted.rate = 8000;
+    scripted.frames_per_open = 1;
+    static uint32_t words[512];
+    ResampledReference reference = {.words = words};
+    AudioResample resample;
+    audio_resample_start(&resample, 8000);
+    for (uint32_t file = 0; file < 2; file++) {
+        for (uint32_t frame = 0; frame < 16; frame++) {
+            int32_t scale = file == 0 ? 256 : 128;
+            CHECK(audio_resample_push(&resample, scripted.left[frame] * scale,
+                                      scripted.right[frame] * scale));
+            reference_take(&resample, &reference);
+        }
+    }
+    audio_resample_finish(&resample);
+    reference_take(&resample, &reference);
+    AudioEngineTrack first = {.path = "first", .token = 1, .replay_gain = 65536};
+    AudioEngineTrack next = {.path = "second", .token = 2, .replay_gain = 32768};
+    CHECK(audio_engine_play(&engine, &first, 0));
+    audio_engine_queue_next(&engine, &next);
+    pump_until_full(0);
+    CHECK_EQUAL(192, reference.frames);
+    CHECK_EQUAL(reference.frames, engine.end_at);
+    CHECK(memcmp(words, ring, reference.frames * 2 * sizeof(uint32_t)) == 0);
+}
+
+static void a_live_gain_for_a_prefetched_track_is_preserved_when_seeking_into_it(void)
+{
+    start_engine();
+    AudioEngineTrack first = {.path = "lpc_16_44k_stereo", .end_ms = 1, .token = 1};
+    AudioEngineTrack next = {.path = "lpc_16_44k_stereo", .token = 2};
+    CHECK(audio_engine_play(&engine, &first, 0));
+    audio_engine_queue_next(&engine, &next);
+    pump_until_full(0);
+    CHECK_EQUAL(2, opens);
+    audio_engine_set_replay_gain(&engine, 1, 131072);
+    audio_engine_set_replay_gain(&engine, 2, 32768);
+    CHECK_EQUAL(2, opens);
+    audio_engine_observe(&engine, 44);
+    CHECK_EQUAL(2, audio_engine_status(&engine).token);
+    CHECK(audio_engine_seek(&engine, 0));
+    pump_until_full(0);
+    Fixture pcm = load("lpc_16_44k_stereo", "pcm");
+    CHECK_EQUAL(gained_word(word_of(expected_at(&pcm, 1000), 16), 32768), ring[1000]);
+    free(pcm.bytes);
+}
+
+static void live_normalization_targets_the_decoder_while_a_new_output_clock_waits(void)
+{
+    start_engine();
+    AudioEngineTrack first = {.path = "odd_blocks_16", .token = 1, .replay_gain = 65536};
+    AudioEngineTrack next = {.path = "lpc_24_96k_stereo", .token = 2, .replay_gain = 32768};
+    CHECK(audio_engine_play(&engine, &first, 0));
+    audio_engine_queue_next(&engine, &next);
+    pump_until_full(0);
+    CHECK(engine.rate_pending);
+    CHECK_EQUAL(1, audio_engine_status(&engine).token);
+    audio_engine_set_replay_gain(&engine, 1, 131072);
+    audio_engine_set_replay_gain(&engine, 2, 16384);
+    audio_engine_pump(&engine, 3001);
+    uint32_t rate = 0;
+    CHECK(audio_engine_wants_rate(&engine, &rate));
+    CHECK_EQUAL(96000, rate);
+    audio_engine_restart(&engine);
+    pump_until_full(0);
+    Fixture pcm = load("lpc_24_96k_stereo", "pcm");
+    for (uint32_t sample = 0; sample < 200; sample++) {
+        uint32_t expected = gained_word(word_of(expected_at(&pcm, sample), 24), 16384);
+        CHECK_EQUAL(expected, ring[sample]);
+        if (expected != ring[sample]) {
+            break;
+        }
+    }
+    free(pcm.bytes);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(replacing_a_buffered_next_song_keeps_the_current_position),
         TEST_CASE(clearing_a_buffered_next_song_leaves_only_the_current_tail),
         TEST_CASE(replacing_a_pending_rate_change_restarts_at_the_current_rate),
+        TEST_CASE(clearing_an_already_empty_queue_preserves_prefetched_audio_and_position),
         TEST_CASE(adding_after_the_decoder_ended_replaces_buffered_silence),
 
         TEST_CASE(changing_only_the_gains_keeps_the_filter_history),
@@ -941,10 +1404,27 @@ int main(void)
         TEST_CASE(starting_part_way_skips_to_that_sample),
         TEST_CASE(seeking_restarts_the_ring_at_the_new_place),
         TEST_CASE(volume_scales_the_samples),
+        TEST_CASE(replay_gain_scales_pcm_and_unity_matches_the_existing_output_exactly),
+        TEST_CASE(contiguous_chapters_change_gain_without_reopening_the_file),
+        TEST_CASE(live_gain_updates_future_samples_without_restarting_and_survives_seek),
+        TEST_CASE(boosted_extreme_samples_saturate_safely_at_every_admitted_bit_depth),
+        TEST_CASE(normalization_composes_with_volume_before_saturation),
+        TEST_CASE(converted_files_apply_their_gain_before_sharing_filter_history),
+        TEST_CASE(a_live_gain_for_a_prefetched_track_is_preserved_when_seeking_into_it),
+        TEST_CASE(live_normalization_targets_the_decoder_while_a_new_output_clock_waits),
         TEST_CASE(mono_plays_on_both_channels),
         TEST_CASE(a_real_low_rate_flac_keeps_every_sample_and_its_exact_duration),
         TEST_CASE(low_rate_seeking_and_end_ranges_use_the_decoded_clock),
         TEST_CASE(adjacent_low_rate_chapters_share_filter_history_and_keep_their_positions),
+        TEST_CASE(separate_converted_files_match_a_single_continuous_filter),
+        TEST_CASE(every_converted_rate_keeps_history_across_short_queued_files),
+        TEST_CASE(different_converted_inputs_at_the_same_output_clock_drain_and_restart_exactly),
+        TEST_CASE(clearing_the_next_file_during_a_filter_drain_rebuilds_the_current_tail),
+        TEST_CASE(a_failed_next_open_reloads_evicted_audio_code_before_draining),
+        TEST_CASE(unavailable_evicted_audio_code_finishes_with_an_error_without_calling_it),
+        TEST_CASE(converted_tails_finish_after_multiple_small_ring_refills),
+        TEST_CASE(an_underrun_while_the_final_filter_tail_drains_is_still_counted),
+        TEST_CASE(an_unreadable_next_file_preserves_the_converted_current_tail),
         TEST_CASE(low_rate_filter_tail_drains_before_the_next_output_clock_is_requested),
         TEST_CASE(missing_optional_audio_code_only_refuses_tracks_that_need_it),
         TEST_CASE(an_unsupported_rate_is_refused),

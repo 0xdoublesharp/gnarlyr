@@ -11,14 +11,13 @@ WORD_BYTES = 4
 WORDS_PER_FRAME = 2
 RING_BYTES = 7 * 4000 * WORD_BYTES
 SILENT_RETURNS = ("dac_set_muted", "dac_output_on", "dac_set_gain", "dac_path_start_transfer",
-                  "dac_path_stop_transfer", "dac_path_stop",
-                  "board_core1_stop")
-FALSE_RETURNS = ("board_core1_start_stream", "board_core1_streaming")
+                  "dac_path_stop_transfer", "dac_path_stop")
 
 
 class AudioPath:
     def __init__(self, machine):
         self.machine = machine
+        self.core1 = None
         self.rate = 44100
         self.ring = machine.symbols["music_ring"]
         self.running = False
@@ -46,8 +45,10 @@ class AudioPath:
         machine.stub_symbol("dmac_running", lambda machine: int(self.running))
         for name in SILENT_RETURNS:
             machine.stub_symbol(name, lambda machine: None)
-        for name in FALSE_RETURNS:
-            machine.stub_symbol(name, lambda machine: 0)
+        machine.stub_symbol("board_core1_start_stream", self.start_core1)
+        machine.stub_symbol("board_core1_streaming", lambda machine: int(
+            self.core1 is not None and self.core1.active))
+        machine.stub_symbol("board_core1_stop", self.stop_core1)
         machine.stub_symbol("dmac_stop", self.stop)
         machine.stub_symbol("dmac_suspend", self.suspend)
         machine.stub_symbol("dmac_resume", self.resume)
@@ -59,6 +60,13 @@ class AudioPath:
         machine.hook_symbol("audio_engine_pump", self.sample_level)
         machine.uc.hook_add(UC_HOOK_MEM_WRITE, self.ring_write, None, self.ring,
                             self.ring + RING_BYTES - 1)
+
+    def start_core1(self, machine):
+        return 0 if self.core1 is None else self.core1.start(machine.reg(UC_ARM_REG_R0))
+
+    def stop_core1(self, machine):
+        if self.core1 is not None:
+            self.core1.active = False
 
     def set_volume(self, machine):
         self.volumes.append((machine.milliseconds(), machine.reg(UC_ARM_REG_R1)))

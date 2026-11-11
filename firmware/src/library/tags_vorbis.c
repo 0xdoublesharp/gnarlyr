@@ -107,6 +107,14 @@ static void offer_entry(TagReader *reader, ByteSource source, uint32_t offset, u
         }
         return;
     }
+    ReplayGainField gain = replay_gain_field((const char *)value, key);
+    if (gain != REPLAY_GAIN_NO_FIELD) {
+        if (value_length <= sizeof value &&
+            source_read(source, value_offset, value, value_length)) {
+            (void)replay_gain_offer(&reader->replay_gain, gain, (const char *)value, value_length);
+        }
+        return;
+    }
     int field = field_for_key(value, key);
     if (field < 0) {
         return;

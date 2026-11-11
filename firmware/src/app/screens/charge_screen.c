@@ -3,6 +3,7 @@
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "core/utf8.h"
+#include "hal/clock.h"
 #include "home_art.h"
 #include "ui/label.h"
 
@@ -252,10 +253,14 @@ static void draw_power(Canvas *canvas, const Theme *theme, HalBattery battery, A
                        (Label){layout.detail, status.detail});
 }
 
+void charge_screen_draw_at(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms)
+{
+    charge_art_draw(canvas, theme, battery, now_ms);
+}
+
 void charge_screen_draw(Canvas *canvas, const Theme *theme, HalBattery battery)
 {
-    draw_power(canvas, theme, battery,
-               (AppUsbStatus){.view = APP_USB_POWER, .detail = i18n_text(STR_CHARGE_MODE_HINT)});
+    charge_screen_draw_at(canvas, theme, battery, hal_clock_milliseconds());
 }
 
 void usb_screen_draw(Canvas *canvas, const Theme *theme, HalBattery battery, AppUsbStatus status)

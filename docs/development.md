@@ -75,6 +75,10 @@ python3 tools/firmware.py build --preset release --target echo_size_report
 
 `--target` can be repeated and is accepted by `build` and `fuzz`. Without it, `build` builds the complete preset and `fuzz` runs every fuzzer. `sim` builds only `echo_sim` and its dependencies. Simulator state lives in `/Volumes/Scratch/SnowskyEcho/data/<worktree>/sim-system`; existing state in older locations is preserved.
 
+## USB companion settings
+
+The [companion control operations](companion-usb.md) expose validated settings discovery and changes through both CLI and MCP, with exact installed-build binding and saved-state verification after reconnect.
+
 ## Language-pack tools
 
 The [browser builder and USB CLI/MCP workflow](language-packs.md) add and select external packs without changing device code. Managed installation validates the entire pack against the installed build from Git history, checks staged writes and refreshes the player through the existing USB debug loop.

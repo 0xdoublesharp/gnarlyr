@@ -386,11 +386,30 @@ static void a_corrupt_button_map_keeps_other_settings_and_safe_controls(void)
                 settings_button_action(&settings.settings, PLAYBACK_PLAY_TAP));
 }
 
+static void normalization_settings_restore_to_the_player_without_changing_the_record_size(void)
+{
+    fake_hal_reset();
+    settings_store_load(&settings);
+    settings.settings.replay_gain_mode = REPLAY_GAIN_ALBUM;
+    settings.settings.prevent_clipping = false;
+    CHECK(settings_store_save(&settings));
+    settings_store_load(&settings);
+    Player player;
+    player_init(&player, fixture_library_open(&fixture));
+    settings_store_restore_playback(&settings, &player, 1);
+    CHECK_EQUAL(REPLAY_GAIN_ALBUM, player.replay_gain_mode);
+    CHECK(!player.prevent_clipping);
+    uint32_t size = 0;
+    CHECK(fake_hal_internal_file_bytes(SETTINGS_STORE_PATH, &size) != NULL);
+    CHECK_EQUAL(42, size);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(without_a_file_the_defaults_are_used),
         TEST_CASE(saved_settings_are_loaded_again),
+        TEST_CASE(normalization_settings_restore_to_the_player_without_changing_the_record_size),
         TEST_CASE(theme_and_button_choices_survive_a_restart_and_card_change),
         TEST_CASE(a_corrupt_button_map_keeps_other_settings_and_safe_controls),
         TEST_CASE(the_equalizer_curve_reaches_the_hal),

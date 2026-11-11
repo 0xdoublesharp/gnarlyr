@@ -106,6 +106,22 @@ TOOLS.update({
 })
 
 
+TOOLS.update({
+    "echo_settings_list": {
+        "description": "List the installed build's supported companion settings with canonical values and localized labels.",
+        "inputSchema": schema({"music_volume": {"type": "string"}}),
+        "call": lambda tool, arguments: tool.settings_list(arguments.get("music_volume")),
+    },
+    "echo_settings_set": {
+        "description": "Set one allowlisted setting through the player and verify only its saved field and checksum changed.",
+        "inputSchema": schema({"setting": {"type": "string"}, "value": {"type": "string"},
+                               "music_volume": {"type": "string"}, "timeout": TIMEOUT}, ["setting", "value"]),
+        "call": lambda tool, arguments: tool.settings_set(arguments["setting"], arguments["value"],
+                    arguments.get("music_volume"), arguments.get("timeout", echo_debug.DEFAULT_TIMEOUT)),
+    },
+})
+
+
 def run(tool, arguments):
     timeout = arguments.get("timeout")
     if ("script" in arguments) == ("text" in arguments):

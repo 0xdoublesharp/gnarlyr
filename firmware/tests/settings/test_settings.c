@@ -21,7 +21,7 @@ enum {
     HALF_DB_GAINS_FIELD = 28,
     HALF_DB_CHECKSUM_FIELD = 38,
     HALF_DB_VERSION = 11,
-    CURRENT_VERSION = 13,
+    CURRENT_VERSION = 14,
     LANGUAGE_VERSION = 12,
     LANGUAGE_FIELD = 19,
     ACCENT_VERSION = 5,
@@ -76,6 +76,7 @@ static void rewrite_checksum(uint8_t *bytes)
 static void old_layout(uint8_t *bytes, uint8_t version)
 {
     bytes[VERSION_FIELD] = version;
+    bytes[VERSION_FIELD + 1] = 0;
     int first_new = version < ACCENT_VERSION      ? ACCENT_FIELD
                     : version < EQUALIZER_VERSION ? EQUALIZER_FIELD
                     : version < TEXT_SIZE_VERSION ? TEXT_SIZE_FIELD
@@ -128,6 +129,7 @@ static void a_version_one_file_keeps_its_values_and_gets_the_default_auto_off(vo
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
     bytes[VERSION_FIELD] = 1;
+    bytes[VERSION_FIELD + 1] = 0;
     bytes[AUTO_OFF_FIELD] = 0;
     rewrite_checksum(bytes);
     Settings decoded;
@@ -144,6 +146,7 @@ static void a_version_two_file_keeps_its_auto_off_and_uses_usb_storage(void)
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
     bytes[VERSION_FIELD] = 2;
+    bytes[VERSION_FIELD + 1] = 0;
     bytes[USB_MODE_FIELD] = 0;
     rewrite_checksum(bytes);
     Settings decoded;
@@ -168,6 +171,7 @@ static void a_version_three_file_keeps_its_usb_mode_and_gets_the_default_dac_vol
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
     bytes[VERSION_FIELD] = 3;
+    bytes[VERSION_FIELD + 1] = 0;
     bytes[DAC_VOLUME_FIELD] = 0;
     rewrite_checksum(bytes);
     Settings decoded;
@@ -190,6 +194,7 @@ static void a_version_four_file_keeps_its_dac_volume_and_gets_the_blue_accent(vo
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
     bytes[VERSION_FIELD] = 4;
+    bytes[VERSION_FIELD + 1] = 0;
     bytes[ACCENT_FIELD] = 0;
     rewrite_checksum(bytes);
     Settings decoded;
@@ -413,6 +418,7 @@ static Settings decoded_version_eight(uint8_t volume, uint8_t dac_volume)
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
     bytes[VERSION_FIELD] = SKIP_GESTURE_VERSION;
+    bytes[VERSION_FIELD + 1] = 0;
     bytes[VOLUME_FIELD] = volume;
     bytes[DAC_VOLUME_FIELD] = dac_volume;
     rewrite_checksum(bytes);
@@ -442,6 +448,7 @@ static void a_version_eight_volume_above_fifty_is_rejected(void)
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
     bytes[VERSION_FIELD] = SKIP_GESTURE_VERSION;
+    bytes[VERSION_FIELD + 1] = 0;
     bytes[VOLUME_FIELD] = 51;
     rewrite_checksum(bytes);
     CHECK(!settings_decode(bytes, sizeof bytes, &settings));
@@ -487,6 +494,7 @@ static void a_version_nine_file_keeps_its_values_and_starts_in_landscape(void)
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
     bytes[VERSION_FIELD] = VOLUME_SCALE_VERSION;
+    bytes[VERSION_FIELD + 1] = 0;
     rewrite_checksum(bytes);
     Settings decoded;
     CHECK(settings_decode(bytes, sizeof bytes, &decoded));
@@ -542,6 +550,7 @@ static void a_version_eleven_file_keeps_its_values_and_gets_the_default_language
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
     bytes[VERSION_FIELD] = HALF_DB_VERSION;
+    bytes[VERSION_FIELD + 1] = 0;
     rewrite_checksum(bytes);
     Settings decoded;
     CHECK(settings_decode(bytes, sizeof bytes, &decoded));
@@ -802,6 +811,7 @@ static void the_theme_version_keeps_the_existing_file_size(void)
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
     bytes[VERSION_FIELD] = 13;
+    bytes[VERSION_FIELD + 1] = 0;
     bytes[27] = 1;
     rewrite_checksum(bytes);
     CHECK(settings_decode(bytes, sizeof bytes, &settings));
@@ -829,6 +839,7 @@ static void a_previous_version_uses_the_default_theme(void)
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
     bytes[VERSION_FIELD] = 12;
+    bytes[VERSION_FIELD + 1] = 0;
     bytes[27] = 255;
     rewrite_checksum(bytes);
     CHECK(settings_decode(bytes, sizeof bytes, &settings));
@@ -852,10 +863,67 @@ static void button_maps_survive_a_separate_bounded_record(void)
     CHECK_EQUAL(BUTTON_ACTION_UP_NEXT, settings_button_action(&loaded, PLAYBACK_PLAY_HOLD));
 }
 
+static void normalization_defaults_off_with_peak_protection_and_migrates_version_thirteen(void)
+{
+    Settings defaults = settings_defaults();
+    CHECK_EQUAL(REPLAY_GAIN_OFF, defaults.replay_gain_mode);
+    CHECK(defaults.prevent_clipping);
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    Settings original = custom_settings();
+    settings_encode(&original, bytes);
+    bytes[4] = 13;
+    bytes[5] = 0;
+    rewrite_checksum(bytes);
+    Settings restored;
+    CHECK(settings_decode(bytes, sizeof bytes, &restored));
+    CHECK_EQUAL(REPLAY_GAIN_OFF, restored.replay_gain_mode);
+    CHECK(restored.prevent_clipping);
+    CHECK_EQUAL(original.volume, restored.volume);
+    CHECK_EQUAL(original.orientation, restored.orientation);
+    CHECK_EQUAL(original.equalizer, restored.equalizer);
+}
+
+static void normalization_modes_and_peak_protection_round_trip_in_the_existing_record_size(void)
+{
+    for (uint8_t mode = REPLAY_GAIN_OFF; mode < REPLAY_GAIN_MODE_COUNT; mode++) {
+        for (uint8_t clipping = 0; clipping < 2; clipping++) {
+            Settings chosen = custom_settings();
+            chosen.replay_gain_mode = mode;
+            chosen.prevent_clipping = clipping != 0;
+            uint8_t bytes[SETTINGS_FILE_SIZE];
+            settings_encode(&chosen, bytes);
+            CHECK_EQUAL(42, sizeof bytes);
+            Settings restored;
+            CHECK(settings_decode(bytes, sizeof bytes, &restored));
+            CHECK_EQUAL(mode, restored.replay_gain_mode);
+            CHECK_EQUAL(clipping, restored.prevent_clipping);
+            CHECK_EQUAL(chosen.volume, restored.volume);
+        }
+    }
+}
+
+static void invalid_normalization_flags_are_rejected_without_mutating_the_settings(void)
+{
+    static const uint8_t FLAGS[] = {3, 7, 8, 128, 255};
+    for (uint32_t at = 0; at < sizeof FLAGS / sizeof FLAGS[0]; at++) {
+        Settings original = custom_settings();
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&original, bytes);
+        bytes[5] = FLAGS[at];
+        rewrite_checksum(bytes);
+        Settings before = original;
+        CHECK(!settings_decode(bytes, sizeof bytes, &original));
+        CHECK(memcmp(&before, &original, sizeof original) == 0);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(defaults_are_comfortable),
+        TEST_CASE(normalization_defaults_off_with_peak_protection_and_migrates_version_thirteen),
+        TEST_CASE(normalization_modes_and_peak_protection_round_trip_in_the_existing_record_size),
+        TEST_CASE(invalid_normalization_flags_are_rejected_without_mutating_the_settings),
         TEST_CASE(the_theme_version_keeps_the_existing_file_size),
         TEST_CASE(a_theme_survives_saving_without_moving_existing_settings),
         TEST_CASE(a_previous_version_uses_the_default_theme),

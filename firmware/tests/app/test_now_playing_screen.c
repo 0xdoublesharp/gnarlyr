@@ -240,6 +240,7 @@ static void the_codec_has_a_short_name(void)
     CHECK(strcmp("WAV", now_playing_codec_name(HAL_AUDIO_CODEC_WAV)) == 0);
     CHECK(strcmp("AAC", now_playing_codec_name(HAL_AUDIO_CODEC_AAC)) == 0);
     CHECK(strcmp("ALAC", now_playing_codec_name(HAL_AUDIO_CODEC_ALAC)) == 0);
+    CHECK(strcmp("Vorbis", now_playing_codec_name(HAL_AUDIO_CODEC_VORBIS)) == 0);
     CHECK(strcmp("", now_playing_codec_name(HAL_AUDIO_CODEC_UNKNOWN)) == 0);
 }
 

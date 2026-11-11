@@ -125,6 +125,24 @@ echo_add_unit_test(NAME test_library_builder
 )
 set_tests_properties(test_library_builder PROPERTIES TIMEOUT 600)
 target_compile_definitions(test_library_builder PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+echo_add_unit_test(NAME test_library_replay_gain
+    SOURCES library/test_library_replay_gain.c
+    LIBRARIES echo_library_fixtures
+)
+echo_add_unit_test(NAME test_replay_gain
+    SOURCES library/test_replay_gain.c
+    LIBRARIES echo_library_scan
+)
+if(UNIX)
+    target_link_libraries(test_replay_gain PRIVATE m)
+endif()
+add_executable(replay_gain_tag_tool library/replay_gain_tag_tool.c)
+target_link_libraries(replay_gain_tag_tool PRIVATE echo_library_scan echo_options)
+add_test(NAME replay_gain_metadata_formats
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/library/check_replay_gain_tags.py
+        --reader $<TARGET_FILE:replay_gain_tag_tool>
+        --fixtures ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/tags
+)
 echo_add_unit_test(NAME test_track_tags
     SOURCES library/test_track_tags.c
     LIBRARIES echo_library_fixtures
@@ -394,6 +412,11 @@ echo_add_unit_test(NAME test_m4a_source
 )
 target_compile_definitions(test_m4a_source PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 target_include_directories(test_m4a_source PRIVATE device)
+echo_add_unit_test(NAME test_vorbis_source
+    SOURCES device/test_vorbis_source.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_vorbis_source PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 echo_add_unit_test(NAME test_vorbis_seek
     SOURCES device/test_vorbis_seek.c
     LIBRARIES echo_device_logic
@@ -498,6 +521,12 @@ if(ECHO_BUILD_SIM)
     )
     target_compile_definitions(test_library_scan PRIVATE
         ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+    )
+    add_test(NAME replay_gain_cache_matches_desktop
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/library/check_replay_gain_cache.py
+            --builder $<TARGET_FILE:test_library_replay_gain>
+            --scanner $<TARGET_FILE:test_library_scan>
+            --fixtures ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/tags
     )
     add_test(NAME audiobook_indexers_agree
         COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_audiobook_index.py
@@ -751,6 +780,12 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/check_library_index.cmake
         )
     endforeach()
+    add_test(NAME replay_gain_table_up_to_date
+        COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/replay_gain_table.py
+            --output ${PROJECT_SOURCE_DIR}/src/library/replay_gain_table.h
+            --style ${PROJECT_SOURCE_DIR}/.clang-format
+            --check
+    )
     add_test(NAME audio_resample_table_up_to_date
         COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/audio_resample_table.py
             --output ${PROJECT_SOURCE_DIR}/platform/device/logic/audio_resample_table.h

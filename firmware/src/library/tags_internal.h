@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "library/replay_gain.h"
 #include "library/track_tags.h"
 
 typedef enum TagEncoding {
@@ -17,6 +18,7 @@ typedef struct TagReader {
     uint32_t size;
     TrackTags *tags;
     bool present[TAG_FIELD_COUNT];
+    ReplayGainTags replay_gain;
 } TagReader;
 
 typedef struct Mp4Atom {
@@ -41,6 +43,8 @@ void tag_offer(TagReader *reader, TagField field, const uint8_t *text, uint32_t 
                TagEncoding encoding);
 void tag_offer_decoded(TagReader *reader, TagField field, const char *text);
 void tag_offer_picture(TagReader *reader, TagPicture picture);
+void tag_offer_replay_gain(TagReader *reader, ReplayGainField field, const char *text);
+bool tag_decode_gain_text(char *out, const uint8_t *text, uint32_t length, TagEncoding encoding);
 void tag_set_duration(TagReader *reader, double seconds);
 
 bool tags_read_flac(TagReader *reader);
@@ -59,4 +63,5 @@ bool tags_read_wav(TagReader *reader);
 bool tags_read_dsf(TagReader *reader);
 bool tags_read_dff(TagReader *reader);
 bool tags_read_ape(TagReader *reader);
+void tags_read_apev2(TagReader *reader);
 bool tags_read_wma(TagReader *reader);

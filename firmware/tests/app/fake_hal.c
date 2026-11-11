@@ -40,6 +40,8 @@ typedef struct FakeAudio {
     char queued_path[PATH_CAPACITY];
     bool has_queued;
     uint32_t queued_token;
+    uint32_t replay_gain;
+    uint32_t queued_replay_gain;
     int seek_count;
     uint32_t last_seek_ms;
     uint8_t volume;
@@ -535,6 +537,7 @@ void fake_hal_audio_finish_track(void)
         return;
     }
     fake.audio.status.token = fake.audio.queued_token;
+    fake.audio.replay_gain = fake.audio.queued_replay_gain;
     fake.audio.status.position_ms = fake.audio.queued_start_ms;
     fake.audio.play_end_ms = fake.audio.queued_end_ms;
     copy_path(fake.audio.playing_path, fake.audio.queued_path);
@@ -597,7 +600,7 @@ int fake_hal_write_count(void)
     return fake.write_count;
 }
 
-bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
+bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next)
 {
     uint32_t start_ms = track->start_ms + offset_ms;
     uint32_t token = track->token;
@@ -611,11 +614,13 @@ bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms)
     copy_path(fake.audio.playing_path, track->path);
     fake.audio.play_start_ms = start_ms;
     fake.audio.play_end_ms = track->end_ms;
+    fake.audio.replay_gain = track->replay_gain != 0 ? track->replay_gain : 65536;
     fake.audio.status = (HalAudioStatus){.state = HAL_AUDIO_PLAYING,
                                          .token = token,
                                          .position_ms = start_ms,
                                          .failed = false,
                                          .idle = false};
+    hal_audio_queue_next(next);
     return true;
 }
 
@@ -627,6 +632,7 @@ void hal_audio_queue_next(const HalAudioTrack *track)
         fake.audio.queued_token = track->token;
         fake.audio.queued_start_ms = track->start_ms;
         fake.audio.queued_end_ms = track->end_ms;
+        fake.audio.queued_replay_gain = track->replay_gain != 0 ? track->replay_gain : 65536;
     }
 }
 
@@ -1733,4 +1739,24 @@ void fake_hal_fail_file_opens(const char *path)
 void fake_hal_fail_file_reads(const char *path)
 {
     fake.fail_file_reads = path;
+}
+
+void hal_audio_set_replay_gain(uint32_t token, uint32_t gain)
+{
+    if (fake.audio.status.token == token) {
+        fake.audio.replay_gain = gain != 0 ? gain : 65536;
+    }
+    if (fake.audio.has_queued && fake.audio.queued_token == token) {
+        fake.audio.queued_replay_gain = gain != 0 ? gain : 65536;
+    }
+}
+
+uint32_t fake_hal_audio_replay_gain(void)
+{
+    return fake.audio.replay_gain;
+}
+
+uint32_t fake_hal_audio_queued_replay_gain(void)
+{
+    return fake.audio.queued_replay_gain;
 }

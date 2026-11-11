@@ -431,4 +431,9 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_EQ_REFERENCE] = "44.1 kHz response",
     [STR_EQ_GAIN] = "{0} dB",
     [STR_POWER_TITLE] = "Power",
+    [STR_CODEC_VORBIS] = "Vorbis",
+    [STR_REPLAY_GAIN] = "ReplayGain",
+    [STR_REPLAY_GAIN_TRACK] = "Track",
+    [STR_REPLAY_GAIN_ALBUM] = "Album",
+    [STR_PREVENT_CLIPPING] = "Prevent clipping",
 };

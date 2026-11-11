@@ -31,6 +31,10 @@ Each section directory entry is `u32 offset`, `u32 count`, `u16 record size`, `u
 | 8 | links | 2 | shared `u16` lists that groups, playlists and folders point into |
 | 9 | strings | 1 | NUL-terminated UTF-8; offset 0 is the empty string; duplicates stored once |
 
+## Optional ReplayGain extension
+
+The device scanner and PC indexer append a checked gain table after the normal sections when gain metadata exists. The base header and records stay at version 6, and the gain table is excluded from the content fingerprint used by saved playback and labels. Legacy files remain readable. The extension layout, validation and reserved-file publication rules are in [ReplayGain metadata](replay-gain.md#library-cache).
+
 ## Records
 
 | Record | Layout |

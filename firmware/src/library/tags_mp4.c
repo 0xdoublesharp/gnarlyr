@@ -199,8 +199,63 @@ static void read_cover(TagReader *reader, const Mp4Atom *data)
     }
 }
 
+static bool gain_atom_text(const TagReader *reader, const Mp4Atom *atom, char *text)
+{
+    uint32_t length = atom->end - atom->body;
+    if (length < 4 || length - 4 >= 64 || !tag_read(reader, atom->body + 4, text, length - 4)) {
+        return false;
+    }
+    text[length - 4] = '\0';
+    return true;
+}
+
+static void read_gain_data(TagReader *reader, const Mp4Atom *data, ReplayGainField field)
+{
+    uint8_t head[8];
+    uint8_t value[64];
+    uint32_t length = data->end - data->body;
+    if (length < 8 || length - 8 > sizeof value || !tag_read(reader, data->body, head, 8) ||
+        tag_be32(head) != 1 || !tag_read(reader, data->body + 8, value, length - 8)) {
+        return;
+    }
+    (void)replay_gain_offer(&reader->replay_gain, field, (const char *)value, length - 8);
+}
+
+static void read_gain_item(TagReader *reader, const Mp4Atom *item)
+{
+    Mp4Atom mean;
+    Mp4Atom name;
+    char text[64];
+    if (!tags_mp4_find_child(reader, item, 0, "mean", &mean) ||
+        !gain_atom_text(reader, &mean, text)) {
+        return;
+    }
+    uint32_t length = mean.end - mean.body - 4;
+    if (!tag_same_text(text, length, "com.apple.iTunes") &&
+        !tag_same_text(text, length, "org.hydrogenaudio.replaygain")) {
+        return;
+    }
+    if (!tags_mp4_find_child(reader, item, 0, "name", &name) ||
+        !gain_atom_text(reader, &name, text)) {
+        return;
+    }
+    ReplayGainField field = replay_gain_field(text, name.end - name.body - 4);
+    uint32_t cursor = item->body;
+    Mp4Atom data;
+    while (field != REPLAY_GAIN_NO_FIELD && tags_mp4_read_atom(reader, cursor, item->end, &data)) {
+        if (tag_same_text(data.type, 4, "data")) {
+            read_gain_data(reader, &data, field);
+        }
+        cursor = data.end;
+    }
+}
+
 static void read_item(TagReader *reader, const Mp4Atom *item_atom, const Mp4Atom *genre_fallback)
 {
+    if (tag_same_text(item_atom->type, 4, "----")) {
+        read_gain_item(reader, item_atom);
+        return;
+    }
     const Mp4Item *item = item_for(item_atom->type);
     bool cover = tag_same_text(item_atom->type, 4, "covr");
     if (item == NULL && !cover && genre_fallback == NULL) {

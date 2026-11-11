@@ -53,7 +53,8 @@ typedef enum HalAudioCodec {
     HAL_AUDIO_CODEC_MP3,
     HAL_AUDIO_CODEC_WAV,
     HAL_AUDIO_CODEC_AAC,
-    HAL_AUDIO_CODEC_ALAC
+    HAL_AUDIO_CODEC_ALAC,
+    HAL_AUDIO_CODEC_VORBIS
 } HalAudioCodec;
 
 typedef struct HalAudioFormat {
@@ -124,6 +125,7 @@ typedef struct HalAudioTrack {
     uint32_t start_ms;
     uint32_t end_ms;
     uint32_t token;
+    uint32_t replay_gain;
 } HalAudioTrack;
 
 typedef struct HalAudioEqualizer {
@@ -133,7 +135,7 @@ typedef struct HalAudioEqualizer {
     uint16_t pre_gain;
 } HalAudioEqualizer;
 
-bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms);
+bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next);
 void hal_audio_queue_next(const HalAudioTrack *track);
 void hal_audio_pause(void);
 void hal_audio_resume(void);
@@ -156,3 +158,5 @@ HalDmaToneStatus hal_audio_dma_tone_status(void);
 HalJackPins hal_audio_jack_pins(void);
 HalAudioJack hal_audio_jack(void);
 HalAudioRefusal hal_audio_refusal(void);
+
+void hal_audio_set_replay_gain(uint32_t token, uint32_t gain);

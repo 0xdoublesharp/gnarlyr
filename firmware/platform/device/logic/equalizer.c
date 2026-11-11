@@ -1,4 +1,5 @@
 #include "device/equalizer.h"
+#include "core/seam.h"
 
 enum {
     SAMPLE_SHIFT = 8,
@@ -33,7 +34,7 @@ static void run_section(EqualizerSection k, EqualizerHistory *history, uint32_t 
     *history = h;
 }
 
-void equalizer_run(Equalizer *equalizer, uint32_t *words, uint32_t frames)
+CORE_SEAM void equalizer_run(Equalizer *equalizer, uint32_t *words, uint32_t frames)
 {
     for (int section = 0; section < equalizer->section_count; section++) {
         for (int channel = 0; channel < EQUALIZER_CHANNELS; channel++) {

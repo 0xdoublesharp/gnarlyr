@@ -131,11 +131,19 @@ static uint32_t read_item(TagReader *reader, uint32_t cursor, uint32_t end)
     }
     uint32_t type = flags & TYPE_MASK;
     int field = field_for(key, key_length);
-    if (type == TYPE_TEXT && field >= 0) {
+    ReplayGainField gain = replay_gain_field(key, key_length);
+    if (type == TYPE_TEXT && (field >= 0 || gain != REPLAY_GAIN_NO_FIELD)) {
         uint8_t text[VALUE_CAPACITY];
         uint32_t wanted = size < VALUE_CAPACITY ? size : VALUE_CAPACITY;
+        if (gain != REPLAY_GAIN_NO_FIELD && size > sizeof text) {
+            return value + size;
+        }
         if (tag_read(reader, value, text, wanted)) {
-            offer_values(reader, (TagField)field, text, wanted);
+            if (gain != REPLAY_GAIN_NO_FIELD) {
+                (void)replay_gain_offer(&reader->replay_gain, gain, (const char *)text, wanted);
+            } else {
+                offer_values(reader, (TagField)field, text, wanted);
+            }
         }
     } else if (type == TYPE_BINARY && is_cover_key(key, key_length)) {
         read_cover(reader, value, size, tag_same_text_folded(key, key_length, "cover art (front)"));
@@ -149,7 +157,7 @@ static bool footer_at(const TagReader *reader, uint32_t offset, uint8_t *footer)
            tag_same_text((const char *)footer, 8, "APETAGEX");
 }
 
-static void read_apev2(TagReader *reader)
+void tags_read_apev2(TagReader *reader)
 {
     uint8_t footer[FOOTER_SIZE];
     uint32_t end = reader->size;
@@ -179,6 +187,6 @@ bool tags_read_ape(TagReader *reader)
         return false;
     }
     read_length(reader, header);
-    read_apev2(reader);
+    tags_read_apev2(reader);
     return true;
 }

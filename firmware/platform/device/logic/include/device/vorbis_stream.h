@@ -30,3 +30,6 @@ bool vorbis_stream_read(void *context, uint32_t offset, void *buffer, uint32_t l
 
 bool vorbis_stream_seek(VorbisStream *stream, FlacInput file, const VorbisTrack *track,
                         uint32_t sample);
+
+bool vorbis_stream_prepare(VorbisStream *stream, VorbisTrack *track, const VorbisModes *modes,
+                           uint32_t sample);

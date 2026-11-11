@@ -40,7 +40,8 @@ typedef enum AudioCodec {
     AUDIO_CODEC_WAV,
     AUDIO_CODEC_MP3,
     AUDIO_CODEC_AAC,
-    AUDIO_CODEC_ALAC
+    AUDIO_CODEC_ALAC,
+    AUDIO_CODEC_VORBIS
 } AudioCodec;
 
 typedef struct AudioTrackInfo {
@@ -82,6 +83,7 @@ typedef struct AudioEngineTrack {
     uint32_t start_ms;
     uint32_t end_ms;
     uint32_t token;
+    uint32_t replay_gain;
 } AudioEngineTrack;
 
 typedef struct AudioSegment {
@@ -90,6 +92,7 @@ typedef struct AudioSegment {
     uint32_t base_ms;
     uint32_t end_ms;
     uint32_t rate;
+    uint32_t replay_gain;
     AudioTrackInfo track;
     char path[AUDIO_ENGINE_PATH_CAPACITY];
 } AudioSegment;
@@ -136,6 +139,10 @@ typedef struct AudioEngine {
     uint32_t next_end_ms;
     char next_path[AUDIO_ENGINE_PATH_CAPACITY];
     uint32_t gain;
+    uint32_t track_gain;
+    uint32_t next_gain;
+    uint32_t output_gain;
+    uint32_t decode_token;
     HalAudioEqualizer equalizer_curve;
     bool equalizing;
     AudioEngineStats stats;
@@ -147,7 +154,7 @@ void audio_engine_set_volume(AudioEngine *engine, uint8_t level);
 void audio_engine_set_equalizer(AudioEngine *engine, const HalAudioEqualizer *curve);
 bool audio_engine_play(AudioEngine *engine, const AudioEngineTrack *track, uint32_t offset_ms);
 const char *audio_engine_current_path(const AudioEngine *engine);
-bool audio_engine_queue_needs_restart(const AudioEngine *engine);
+bool audio_engine_queue_needs_restart(const AudioEngine *engine, const AudioEngineTrack *track);
 void audio_engine_queue_next(AudioEngine *engine, const AudioEngineTrack *track);
 bool audio_engine_seek(AudioEngine *engine, uint32_t position_ms);
 void audio_engine_pause(AudioEngine *engine);
@@ -162,3 +169,5 @@ uint32_t audio_engine_rate(const AudioEngine *engine);
 uint32_t audio_engine_buffered(const AudioEngine *engine, uint32_t consumed);
 AudioEngineStatus audio_engine_status(const AudioEngine *engine);
 AudioRefusal audio_engine_refusal(const AudioEngine *engine);
+
+void audio_engine_set_replay_gain(AudioEngine *engine, uint32_t token, uint32_t gain);

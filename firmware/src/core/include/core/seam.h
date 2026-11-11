@@ -5,3 +5,9 @@
 #else
 #define CORE_SEAM
 #endif
+
+#if defined(__GNUC__) || defined(__clang__)
+#define CORE_COLD __attribute__((cold))
+#else
+#define CORE_COLD
+#endif

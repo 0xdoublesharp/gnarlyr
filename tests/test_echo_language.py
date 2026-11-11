@@ -28,10 +28,11 @@ def pack(code="fr", name="Francais", **texts):
     return PACK.build_pack(code, CATALOGUE, {"STR_LANGUAGE_NAME": name, **texts})
 
 
-def settings(code="en"):
+def settings(code="en", version=13, flags=0):
     data = bytearray(42)
     data[:4] = b"DSST"
-    data[4] = 13
+    data[4] = version
+    data[5] = flags
     data[19:19 + len(code)] = code.encode("ascii")
     data[24] = 2
     struct.pack_into("<I", data, 38, PACK.fnv(data[:38]))
@@ -85,13 +86,13 @@ class LanguageCommands(VolumeCase):
         self.assertEqual(result["error"]["code"], "language_english_protected")
 
 
-    def live_tool(self, selected=None):
+    def live_tool(self, selected=None, version=13, flags=0):
         self.sent = []
         def act():
             text = (self.debug / "run.txt").read_text()
             self.sent.append(text)
             if selected is not None:
-                (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(settings(selected))
+                (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(settings(selected, version, flags))
             self.write_report(script_report(text, build=BUILD, screenshots=()))
         host = PlayerHost(self, act=act)
         clock = Clock()
@@ -195,6 +196,34 @@ class LanguageCommands(VolumeCase):
         self.assertEqual([item.name for item in self.lang.iterdir()], ["fr.pack"])
         self.assertEqual(host.ejected, [])
 
+    def test_localized_language_title_cannot_redirect_to_another_setting(self):
+        for label in ("Brightness", "bRIGHTNESS"):
+            with self.subTest(label=label):
+                (self.lang / "fr.pack").write_bytes(pack(STR_LANGUAGE=label))
+                (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(settings("fr"))
+                self.pack.write_bytes(pack("de", "5"))
+                before = (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").read_bytes()
+                tool, host = self.live_tool("de")
+                with self.assertRaises(echo_debug.DebugError) as raised:
+                    tool.language_install(self.pack, select=True)
+                self.assertEqual(raised.exception.code, "language_choices_ambiguous")
+                self.assertFalse((self.lang / "de.pack").exists())
+                self.assertEqual((self.root / echo_debug.DATA_DIRECTORY / "settings.bin").read_bytes(), before)
+                self.assertEqual(host.ejected, [])
+
+    def test_native_names_cannot_alias_builtin_english_by_ascii_case(self):
+        self.pack.write_bytes(pack("de", "ENGLISH"))
+        tool, host = self.live_tool()
+        with self.assertRaises(echo_debug.DebugError) as raised:
+            tool.language_install(self.pack)
+        self.assertEqual(raised.exception.code, "language_choices_ambiguous")
+        self.assertFalse((self.lang / "de.pack").exists())
+        (self.lang / "de.pack").write_bytes(self.pack.read_bytes())
+        with self.assertRaises(echo_debug.DebugError) as raised:
+            tool.language_select("de")
+        self.assertEqual(raised.exception.code, "language_choices_ambiguous")
+        self.assertEqual(host.ejected, [])
+
     def test_unsafe_current_label_cannot_publish_or_inject_a_script(self):
         (self.lang / "de.pack").write_bytes(pack("de", "Deutsch", STR_LANGUAGE="Sprache\nreconnect"))
         (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(settings("de"))
@@ -270,6 +299,130 @@ class LanguageCommands(VolumeCase):
                 tool.language_install(self.pack)
         self.assertEqual((self.lang / "fr.pack").read_bytes(), old)
         self.assertEqual([item.name for item in self.lang.iterdir()], ["fr.pack"])
+        self.assertEqual(host.ejected, [])
+
+    def replay_gain_snapshot(self, source_version=14, mask="0xF8u", extra_mode=False):
+        original = echo_language.Snapshot.show
+        source = subprocess.check_output(["git", "show",
+            "e3aa3955:firmware/src/settings/settings.c"], cwd=ROOT, text=True)
+        source = source.replace("VERSION = 14,", "VERSION = " + str(source_version) + ",", 1)
+        source = source.replace("0xF8u", mask)
+        modes = subprocess.check_output(["git", "show",
+            "e3aa3955:firmware/src/core/include/core/replay_gain.h"], cwd=ROOT, text=True)
+        if extra_mode:
+            modes = modes.replace("    REPLAY_GAIN_MODE_COUNT", "    REPLAY_GAIN_EXTRA,\n    REPLAY_GAIN_MODE_COUNT")
+        def show(snapshot, path):
+            if path == "firmware/src/settings/settings.c":
+                return source
+            if path == "firmware/src/core/include/core/replay_gain.h":
+                return modes
+            return original(snapshot, path)
+        return mock.patch.object(echo_language.Snapshot, "show", show)
+
+    def test_version14_replay_gain_flags_preserve_language_listing_and_selection(self):
+        (self.lang / "fr.pack").write_bytes(pack(STR_LANGUAGE="Langue"))
+        for flags in (0, 1, 2, 4, 5, 6):
+            with self.subTest(flags=flags), self.replay_gain_snapshot():
+                (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(settings("fr", 14, flags))
+                tool, host = self.live_tool("en", version=14, flags=flags)
+                self.assertEqual(tool.language_list()["selected"], "fr")
+                self.assertEqual(tool.language_select("en")["selected"], "en")
+                self.assertIn("set Langue=English\n", self.sent[0])
+                self.assertEqual(host.ejected, [str(self.root), str(self.card)])
+                data = (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").read_bytes()
+                self.assertEqual((data[4], data[5]), (14, flags))
+
+    def test_version14_rejects_reserved_replay_gain_flags_before_writes(self):
+        for flags in (3, 7, 8, 128, 255):
+            with self.subTest(flags=flags), self.replay_gain_snapshot():
+                (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(settings("en", 14, flags))
+                tool, host = self.live_tool()
+                with self.assertRaises(echo_debug.DebugError) as raised:
+                    tool.language_select("en")
+                self.assertEqual(raised.exception.code, "language_settings_invalid")
+                self.assertEqual(host.ejected, [])
+                self.assertFalse((self.debug / "run.txt").exists())
+
+    def test_older_language_settings_require_the_reserved_byte_to_stay_zero(self):
+        for version in (12, 13):
+            for flags in (0, 1, 4, 255):
+                with self.subTest(version=version, flags=flags), self.replay_gain_snapshot():
+                    (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(settings("en", version, flags))
+                    tool, _ = self.live_tool()
+                    if flags == 0:
+                        self.assertEqual(tool.language_list()["selected"], "en")
+                    else:
+                        with self.assertRaises(echo_debug.DebugError) as raised:
+                            tool.language_list()
+                        self.assertEqual(raised.exception.code, "language_settings_invalid")
+
+    def test_future_or_changed_replay_gain_layouts_fail_closed(self):
+        for options in ({"source_version": 15}, {"mask": "0xF0u"}, {"extra_mode": True}):
+            with self.subTest(options=options), self.replay_gain_snapshot(**options):
+                tool, host = self.live_tool()
+                with self.assertRaises(echo_debug.DebugError) as raised:
+                    tool.language_list()
+                self.assertEqual(raised.exception.code, "language_build_unknown")
+                self.assertEqual(host.ejected, [])
+
+    def test_catalogue_upgrade_ignores_old_choices_and_replaces_the_saved_pack(self):
+        old = PACK.build_pack("fr", CATALOGUE[:-1], {"STR_LANGUAGE_NAME": "Ancien"})
+        other = PACK.build_pack("de", CATALOGUE[:-1], {"STR_LANGUAGE_NAME": "Deutsch"})
+        (self.lang / "fr.pack").write_bytes(old)
+        (self.lang / "de.pack").write_bytes(other)
+        (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(settings("fr"))
+        tool, host = self.live_tool("fr")
+        listed = tool.language_list()
+        self.assertEqual([item["code"] for item in listed["languages"]], ["en"])
+        self.assertEqual((listed["selected"], listed["saved_language"]), ("en", "fr"))
+        self.assertEqual({item["code"] for item in listed["incompatible_files"]}, {"fr", "de"})
+        self.assertEqual(tool.language_install(self.pack, select=True)["selected"], "fr")
+        self.assertEqual((self.lang / "fr.pack.bak").read_bytes(), old)
+        self.assertEqual((self.lang / "fr.pack").read_bytes(), pack())
+        self.assertEqual((self.lang / "de.pack").read_bytes(), other)
+        self.assertEqual(host.ejected, [str(self.root), str(self.card)])
+        self.assertIn("set Language=Francais\n", self.sent[0])
+
+    def damaged_body(self, code, checksum=True):
+        data = bytearray(pack(code, "Ancien"))
+        struct.pack_into("<H", data, PACK.HEADER.size, len(data))
+        if checksum:
+            checksum = PACK.fnv(data[PACK.CHECKSUM_END:], PACK.fnv(data[:PACK.CHECKSUM_OFFSET]))
+            struct.pack_into("<I", data, PACK.CHECKSUM_OFFSET, checksum)
+        return bytes(data)
+
+    def test_an_explicit_exact_code_replacement_can_repair_a_damaged_body(self):
+        for checksum in (False, True):
+            with self.subTest(checksum=checksum):
+                old = self.damaged_body("fr", checksum)
+                (self.lang / "fr.pack").write_bytes(old)
+                tool, host = self.live_tool("fr")
+                self.assertEqual(tool.language_install(self.pack, select=True)["selected"], "fr")
+                self.assertEqual((self.lang / "fr.pack.bak").read_bytes(), old)
+                self.assertEqual((self.lang / "fr.pack").read_bytes(), pack())
+                self.assertEqual(host.ejected, [str(self.root), str(self.card)])
+
+    def test_an_unrelated_current_catalogue_damaged_body_remains_a_hard_error(self):
+        damaged = self.damaged_body("de")
+        (self.lang / "de.pack").write_bytes(damaged)
+        tool, host = self.live_tool("fr")
+        with self.assertRaises(echo_debug.DebugError) as raised:
+            tool.language_install(self.pack, select=True)
+        self.assertEqual(raised.exception.code, "language_pack_invalid")
+        self.assertFalse((self.lang / "fr.pack").exists())
+        self.assertEqual((self.lang / "de.pack").read_bytes(), damaged)
+        self.assertEqual(host.ejected, [])
+
+    def test_catalogue_mismatch_cannot_hide_a_wrong_filename_code_or_oversize_target(self):
+        old = PACK.build_pack("de", CATALOGUE[:-1], {"STR_LANGUAGE_NAME": "Deutsch"})
+        (self.lang / "fr.pack").write_bytes(old)
+        tool, host = self.live_tool("fr")
+        with self.assertRaises(echo_debug.DebugError) as raised:
+            tool.language_install(self.pack)
+        self.assertEqual(raised.exception.code, "language_code_mismatch")
+        (self.lang / "fr.pack").write_bytes(b"x" * (echo_language.PACK_LIMIT + 1))
+        with self.assertRaises(OSError):
+            tool.language_install(self.pack)
         self.assertEqual(host.ejected, [])
 
     def test_mcp_parity_and_wrong_types_return_structured_errors(self):
