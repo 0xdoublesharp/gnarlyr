@@ -22,52 +22,29 @@
 </p>
 <h1 class="page-title">More music. More your way.
 </h1>
-<p>Find your music, arrange what plays next and make the controls your own. Explore Gnarlyr’s features, playback foundation and reliability improvements.
+<p>Find music, enjoy gapless albums, save a mix and make the controls your own. Browse features by task, then explore the fixes behind them. Gnarlyr builds on Podium and EchoPod.
 </p></div><div class="doc-layout wrap">
 <nav class="contents" aria-label="On this page">
 <p class="eyebrow">On this page
 </p>
 <ol>
-<li><a href="#additions">Gnarlyr additions</a>
-</li>
-<li><a href="#discovery">Find and organize</a>
-</li>
-<li><a href="#daily-use">Cover Flow &amp; USB</a></li>
-<li><a href="#queues">Queues and mixtapes</a>
-</li>
-<li><a href="#listening">Listening and sound</a>
-</li>
-<li><a href="#spoken">Audiobooks &amp; speech</a></li>
-<li><a href="#foundation">Built-in playback</a>
-</li>
-<li><a href="#improvements">Fixes and improvements</a>
-</li>
-<li><a href="#tools">Updates and developer tools</a>
-</li>
+<li><a href="#discovery">Find &amp; organize music</a></li>
+<li><a href="#foundation">Playback &amp; gapless</a></li>
+<li><a href="#queues">Queues &amp; mixtapes</a></li>
+<li><a href="#listening">Sound, lyrics &amp; stats</a></li>
+<li><a href="#spoken">Audiobooks &amp; chapters</a></li>
+<li><a href="#additions">Appearance &amp; controls</a></li>
+<li><a href="#daily-use">USB &amp; connections</a></li>
+<li><a href="#improvements">Fixes &amp; reliability</a></li>
+<li><a href="#tools">Updates &amp; developer tools</a></li>
 </ol>
 </nav><div>
-<section class="doc-section" id="additions" aria-labelledby="additions-title">
-<h2 id="additions-title">Make the player your own.
-</h2>
-<p class="intro">Gnarlyr replaces the software on your ECHO. Themes, readable layouts and configurable buttons let you make it comfortable to use.
-</p>
-<ul class="detail-list">
-<li><strong>Themes and readable layouts.</strong> Choose from five themes and three text sizes, with landscape, portrait or flipped portrait layouts. Preview themes as you browse: Play keeps the choice and Back restores your saved look. Palette files let you customize the built-in themes.
-</li>
-<li><strong>Controls that fit your hands.</strong> Set a tap and a hold action for Volume+, Volume−, Play and Menu: eight playback shortcuts. Choose volume, seeking, playback, Home or Up Next actions. Audio shortcuts work with the screen off; list navigation keeps its usual controls.
-</li>
-<li><strong>A cassette-inspired interface.</strong> Album artwork, cassette art and clear playback indicators connect Home, Music and Now Playing. Refined shuffle, repeat, favorite, album, gain and speaker icons make controls easier to recognize; Cover Flow’s Random album tile uses smoother artwork sampling. Audio &amp; connections groups sound and connection controls together.
-</li>
-<li><strong>Language packs.</strong> English is built in. Use the <a href="languages.html">language-pack builder</a> to create, inspect or edit a pack in your browser, then install it over USB and choose Settings → Language. Version-matched packs change interface text without reinstalling firmware; English remains available.
-</li>
-</ul>
-</section>
 <section class="doc-section" id="discovery" aria-labelledby="discovery-title">
-<h2 id="discovery-title">Find it, then play it your way.
-</h2>
-<p class="intro">Search finds matching songs, filters narrow the list, and sorting puts it in the order you want. Personal labels help organize music without editing the files.
-</p>
+<h2 id="discovery-title">Find and organize your music.</h2>
+<p class="intro">Browse albums, search for a song or narrow a long list. Personal labels help organize music without editing the files.</p>
 <ul class="detail-list">
+<li><strong>Browse your music.</strong> Explore albums, artists, album artists, genres, folders and songs, with embedded or folder artwork, Cover Flow and random-album playback.</li>
+<li><strong>Browse Cover Flow by letter.</strong> Hold a volume button to scroll faster; keep holding to jump between initials. A temporary letter badge shows your place. Play opens the selected album and holding Play favorites it.</li>
 <li><strong>Search the whole collection.</strong> Search titles, artists, albums, album artists, genres and file paths. Matching ignores case and accents; names keep their original spelling on screen.
 </li>
 <li><strong>Sorting and combined filters.</strong> Sort up to 65,535 songs by title, artist, album, year or duration, ascending or descending, or keep the original order. Combine artist, album, genre, year, length and personal-label filters.
@@ -80,23 +57,26 @@
 </li>
 <li><strong>Remembered views.</strong> Search text, sorting and filters are saved. When the library changes, selections tied to old library IDs reset. Cancel a pending search and start another without bringing back stale results.
 </li>
+<li><strong>Computer indexing.</strong> Build the library and artwork on a computer with the source-based <code>echo-sync</code> tool.
+</li>
 </ul>
+
 </section>
-<section class="doc-section" id="daily-use" aria-labelledby="daily-use-title">
-<h2 id="daily-use-title">Move through albums. Keep your place.</h2>
-<p class="intro">Cover Flow gives larger collections quicker navigation. The USB mode chooser lets you return to the player or copy files without removing the cable.</p>
+<section class="doc-section" id="foundation" aria-labelledby="foundation-title">
+<h2 id="foundation-title">Playback, formats and gapless albums.</h2>
+<p class="intro">Gapless playback joins tracks without adding a pause, so a live album or continuous mix keeps flowing. Compatible tracks need the same sample rate. Gnarlyr builds on playback support from Podium and EchoPod.</p>
 <ul class="detail-list">
-<li><strong>Browse Cover Flow by letter.</strong> Hold a volume button to scroll faster; keep holding to jump between initials. A temporary letter badge shows your place. Play opens the selected album and holding Play favorites it.</li>
-<li><strong>Choose a USB mode.</strong> Open USB mode from Home or Settings. The chooser lists Player, USB storage and USB DAC.</li>
-<li><strong>Return to the player without unplugging.</strong> Eject both drives on the computer and wait for the chooser, then select Player. Your track, position and queue stay available. Choose USB storage again to reconnect the drives on the same cable.</li>
-<li><strong>Keep the connection preference.</strong> Choosing USB storage or USB DAC remembers that mode for the next connection. Choosing Player leaves the saved USB preference unchanged.</li>
+<li id="gapless"><strong>Gapless playback.</strong> Play compatible, same-sample-rate tracks continuously. Gnarlyr’s decoder improvements also handle MP3 end trimming after seeking or resuming, and AAC startup trimming and track timing. <a href="#playback-fixes">Read about the playback improvements below.</a></li>
+<li><strong>Supported audio.</strong> Play FLAC, MP3 and WAV, with rates up to 192 kHz for compatible files, plus M4A and M4B containing AAC-LC or Apple Lossless.</li>
+<li><strong>Playlists and album images.</strong> M3U/M3U8 playlists, album favorites, a Favorite Tracks playlist, and CUE sheets that split a single FLAC, WAV or MP3 album into separate tracks.
+</li>
+<li><strong>Shuffle, repeat and resume.</strong> Shuffle songs or whole albums, repeat your selection, seek within a track and resume playback. Audiobooks and podcasts keep their own bookmarks.</li>
 </ul>
+
 </section>
 <section class="doc-section" id="queues" aria-labelledby="queues-title">
-<h2 id="queues-title">Build a mix, keep the order.
-</h2>
-<p class="intro">Up Next is your current play order. Save it as a named mixtape to return to it later. Changing Up Next leaves the saved mix alone until you save over it.
-</p>
+<h2 id="queues-title">Queues and saved mixtapes.</h2>
+<p class="intro">Up Next is your current play order. Save it as a named mixtape to return to it later. Changing Up Next leaves the saved mix alone until you save over it.</p>
 <ul class="detail-list">
 <li><strong>Edit the full queue.</strong> Move songs earlier, later or straight to next. Remove entries, clear added songs or keep only the current track. Turn an album or shuffled queue into an editable play order.
 </li>
@@ -107,25 +87,27 @@
 <li><strong>Queue and resume saved together.</strong> The saved play order and position stay together. Resume returns to the matching queue; cancelling an edit keeps the previous session.
 </li>
 </ul>
+
 </section>
 <section class="doc-section" id="listening" aria-labelledby="listening-title">
-<h2 id="listening-title">See your listening. Shape your sound.
-</h2>
-<p class="intro">See listening totals, follow lyrics and try an EQ setting while music plays. Keep a sound change when you are happy with it.
-</p>
+<h2 id="listening-title">Sound, lyrics and listening stats.</h2>
+<p class="intro">Adjust the sound while music plays, follow the lyrics and see what you listen to most.</p>
 <ul class="detail-list">
-<li><strong>Listening totals and exports.</strong> See time listened, plays, skips and your top artists, albums and songs. Export an Audioscrobbler-compatible <code>.scrobbler.log</code> for other listening tools.
-</li>
-<li><strong>Timed lyrics.</strong> Keep a matching LRC lyrics file beside the song. Hold Menu on Now Playing to follow the words as it plays.
+<li><strong>Sound controls.</strong> Gain and headphone volume-scale settings, software EQ presets, saved custom curves and EQ-file imports.
 </li>
 <li><strong>Audible preset previews.</strong> Hear EQ presets as you browse their curves. Play keeps a preset; Back or leaving the preview restores your saved sound.
 </li>
 <li><strong>Custom EQ editing.</strong> Adjust each band with numeric feedback and hear the draft as you work. Play keeps an adjustment; Back cancels it.
 </li>
+<li><strong>Timed lyrics.</strong> Keep a matching LRC lyrics file beside the song. Hold Menu on Now Playing to follow the words as it plays.
+</li>
+<li><strong>Listening totals and exports.</strong> See time listened, plays, skips and your top artists, albums and songs. Export an Audioscrobbler-compatible <code>.scrobbler.log</code> for other listening tools.
+</li>
 </ul>
+
 </section>
 <section class="doc-section" id="spoken" aria-labelledby="spoken-title">
-<h2 id="spoken-title">Your books, chapters and bookmarks.</h2>
+<h2 id="spoken-title">Audiobooks, chapters and bookmarks.</h2>
 <p class="intro">An M4B file can hold a whole audiobook and its chapters. Gnarlyr puts books on their own shelf and remembers where you stopped.</p>
 <ul class="detail-list">
 <li><strong>Find books wherever you store them.</strong> M4B files appear in Audiobooks without needing a special folder, and stay out of Music. Files in Podcast folders remain podcasts. Author and title folders keep their hierarchy.</li>
@@ -141,34 +123,45 @@
 </div></details>
 <p>Rescan on the player or run <code>echo-sync</code> after adding books or changing chapter information. A rescan also applies audiobook recognition to an existing library.</p>
 </section>
-<section class="doc-section" id="foundation" aria-labelledby="foundation-title">
-<h2 id="foundation-title">The playback foundation.
+<section class="doc-section" id="additions" aria-labelledby="additions-title">
+<h2 id="additions-title">Appearance, buttons and languages.
 </h2>
-<p class="intro">Gnarlyr builds on the library, playback and hardware support from Podium and EchoPod. That shared foundation includes the capabilities below.
+<p class="intro">Choose a readable layout, assign button shortcuts and use the interface in your preferred language.
 </p>
 <ul class="detail-list">
-<li><strong>Music and artwork.</strong> Play FLAC, MP3 and WAV, with rates up to 192 kHz for compatible files, plus M4A and M4B containing AAC-LC or Apple Lossless. Browse albums, artists, album artists, genres, folders and songs, with embedded or folder artwork, Cover Flow and random-album playback.
+<li><strong>Themes and readable layouts.</strong> Choose from five themes and three text sizes, with landscape, portrait or flipped portrait layouts. Preview themes as you browse: Play keeps the choice and Back restores your saved look. Palette files let you customize the built-in themes.
 </li>
-<li><strong>Playlists and album images.</strong> M3U/M3U8 playlists, album favorites, a Favorite Tracks playlist, and CUE sheets that split a single FLAC, WAV or MP3 album into separate tracks.
+<li><strong>Controls that fit your hands.</strong> Set a tap and a hold action for Volume+, Volume−, Play and Menu: eight playback shortcuts. Choose volume, seeking, playback, Home or Up Next actions. Audio shortcuts work with the screen off; list navigation keeps its usual controls.
 </li>
-<li><strong>Playback choices.</strong> Song or album shuffle, repeat, same-sample-rate gapless playback, seeking and resume. Audiobooks and podcasts keep their own bookmarks.
+<li><strong>A cassette-inspired interface.</strong> Album artwork, cassette art and clear playback indicators connect Home, Music and Now Playing. Refined shuffle, repeat, favorite, album, gain and speaker icons make controls easier to recognize; Cover Flow’s Random album tile uses smoother artwork sampling. Audio &amp; connections groups sound and connection controls together.
 </li>
-<li><strong>Sound controls.</strong> Gain and headphone volume-scale settings, software EQ presets, saved custom curves and EQ-file imports.
-</li>
-<li><strong>Connections and everyday controls.</strong> USB storage or USB Audio Class 1.0 DAC mode, Bluetooth headphone pairing and remembered devices, wired-headset controls, button lock, charging display and sleep/power settings.
-</li>
-<li><strong>Computer indexing.</strong> Build the library and artwork on a computer with the source-based <code>echo-sync</code> tool.
+<li><strong>Language packs.</strong> English is built in. Use the <a href="languages.html">language-pack builder</a> to create, inspect or edit a pack in your browser, then install it over USB and choose Settings → Language. Version-matched packs change interface text without reinstalling firmware; English remains available.
 </li>
 </ul>
 </section>
+<section class="doc-section" id="daily-use" aria-labelledby="daily-use-title">
+<h2 id="daily-use-title">USB and everyday connections.</h2>
+<p class="intro">Use the ECHO as a player, a USB drive or a USB DAC for your computer’s audio. Switch USB modes without removing the cable.</p>
+<ul class="detail-list">
+<li><strong>Choose a USB mode.</strong> Open USB mode from Home or Settings. The chooser lists Player, USB storage and USB DAC.</li>
+<li><strong>Return to the player without unplugging.</strong> Eject both drives on the computer and wait for the chooser, then select Player. Your track, position and queue stay available. Choose USB storage again to reconnect the drives on the same cable.</li>
+<li><strong>Keep the connection preference.</strong> Choosing USB storage or USB DAC remembers that mode for the next connection. Choosing Player leaves the saved USB preference unchanged.</li>
+<li><strong>USB audio and wireless listening.</strong> USB DAC mode uses USB Audio Class 1.0. Pair Bluetooth headphones and keep remembered devices for later connections.</li>
+<li><strong>Everyday controls.</strong> Use wired-headset controls, button lock, the charging display and sleep or power settings.</li>
+</ul>
+
+</section>
 <section class="doc-section" id="improvements" aria-labelledby="improvements-title">
-<h2 id="improvements-title">Reliability, from playback to storage.</h2>
+<h2 id="improvements-title">Fixes and reliability improvements.</h2>
 <p class="intro">These changes improve Gnarlyr and the code it inherits. They help keep playback, saved state and the interface in step.</p>
-<h3>Playback and listening</h3>
+<h3 id="playback-fixes">Gapless playback and track transitions</h3>
 <ul class="detail-list">
 <li><strong>The next song follows your queue edits.</strong> Replacing the next track also rebuilds its prepared audio, so playback follows the new order.</li>
-<li><strong>Gapless MP3 after seeking.</strong> Encoder tail padding is trimmed after a seek or part-way resume. Files without gapless information keep every decoded sample.</li>
+<li><strong>MP3 gapless trimming after seeking or resume.</strong> The decoder trims the encoder’s extra silent tail even when you seek or resume part-way through a track. Files without gapless information keep every decoded sample.</li>
 <li><strong>AAC timing stays aligned.</strong> The decoder uses supported M4A timing information to trim extra startup samples and honor the intended duration. Seeking stays aligned with the file’s timing.</li>
+</ul>
+<h3>Playback and listening records</h3>
+<ul class="detail-list">
 <li><strong>Listening totals stop with the track.</strong> Idle playback closes the listening record, and time accounting stops at a known track endpoint. Top-list calculations report unavailable history when required records cannot be read.</li>
 <li><strong>Pauses do not inflate diagnostic counts.</strong> Intentionally muted, paused output is excluded from false output-underrun reports.</li>
 <li><strong>DAC startup matches stock timing.</strong> The output power-up wait is 12 ms, correcting the inherited 10 ms wait.</li>
