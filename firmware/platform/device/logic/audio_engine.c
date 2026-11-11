@@ -150,9 +150,21 @@ static CORE_COLD bool open_track(AudioEngine *engine, const char *path, uint32_t
     return true;
 }
 
+static AudioFadeRamp fade_ramp(const AudioEngine *engine, uint32_t fade_ms, uint32_t start)
+{
+    uint32_t length = frame_limit(fade_ms, engine->output_rate);
+    return (AudioFadeRamp){.start = start,
+                           .length = length,
+                           .reciprocal = length == 0 ? 0 : UINT32_MAX / length,
+                           .active = length > 0};
+}
+
 static CORE_COLD void push_segment(AudioEngine *engine, const char *path, uint32_t token,
                                    uint32_t start, uint32_t base_ms)
 {
+    engine->fade_out = (AudioFadeRamp){0};
+    engine->fade_in = fade_ramp(engine, engine->decode_fade_ms, start);
+    engine->decode_fade_ms = 0;
     if (engine->segment_count == AUDIO_ENGINE_SEGMENTS) {
         for (int index = 1; index < AUDIO_ENGINE_SEGMENTS; index++) {
             engine->segments[index - 1] = engine->segments[index];
@@ -187,6 +199,7 @@ static CORE_COLD bool start_track(AudioEngine *engine, const AudioEngineTrack *t
     reset_positions(engine);
     engine->stats = (AudioEngineStats){0};
     engine->failed = false;
+    engine->decode_fade_ms = 0;
     set_track_gain(engine, track->replay_gain);
     engine->decode_token = track->token;
     if (!open_track(engine, track->path, start_ms, track->end_ms)) {
@@ -235,6 +248,7 @@ CORE_COLD void audio_engine_queue_next(AudioEngine *engine, const AudioEngineTra
         engine->next_gain = track->replay_gain;
         copy_path(engine->next_path, track->path);
     }
+    engine->next_fade_ms = track != NULL ? track->fade_ms : 0;
 }
 
 CORE_COLD bool audio_engine_seek(AudioEngine *engine, uint32_t position_ms)
@@ -343,6 +357,66 @@ static void equalize(AudioEngine *engine, uint32_t first)
     }
 }
 
+static bool same_text(const char *left, const char *right)
+{
+    size_t index = 0;
+    while (left[index] != '\0' && left[index] == right[index]) {
+        index++;
+    }
+    return left[index] == right[index];
+}
+
+static bool fading_out(AudioEngine *engine)
+{
+    if (engine->fade_out.begun) {
+        return true;
+    }
+    bool wanted = engine->has_next && engine->next_fade_ms != 0 && engine->segment_count > 0 &&
+                  !same_text(engine->segments[engine->segment_count - 1].path, engine->next_path);
+    engine->fade_out =
+        wanted ? fade_ramp(engine, engine->next_fade_ms, 0) : (AudioFadeRamp){.active = false};
+    return engine->fade_out.active;
+}
+
+static bool remaining_output(const AudioEngine *engine, int64_t *remaining)
+{
+    uint32_t end = engine->decode_limit != 0 ? engine->decode_limit
+                                             : engine->decode_track.stream.total_samples;
+    if (end == 0 || !engine->holding_frame) {
+        return false;
+    }
+    int64_t input = (int64_t)end - engine->frame.first_sample - engine->pending_offset;
+    uint32_t factor = engine->resample.factor > 1 ? engine->resample.factor : 1;
+    *remaining = input * factor + audio_resample_pending(&engine->resample);
+    return true;
+}
+
+static void shape_block(AudioEngine *engine, uint32_t first, bool tail)
+{
+    uint32_t frames = engine->produced - first;
+    if (frames == 0) {
+        return;
+    }
+    AudioFadeBlock block = {.ring = engine->config.ring,
+                            .ring_frames = ring_frames(engine),
+                            .first = first,
+                            .frames = frames};
+    if (engine->fade_in.active) {
+        audio_fade_in(block, &engine->fade_in);
+    }
+    int64_t remaining = audio_resample_pending(&engine->resample);
+    if (tail ? engine->fade_out.active
+             : fading_out(engine) && remaining_output(engine, &remaining)) {
+        audio_fade_out(block, &engine->fade_out, remaining);
+    }
+}
+
+static void process_block(AudioEngine *engine, uint32_t first, bool tail)
+{
+    shape_block(engine, first, tail);
+    equalize(engine, first);
+}
+
 static void copy_resampled(AudioEngine *engine)
 {
     int32_t left = 0;
@@ -375,7 +449,7 @@ static void copy_until_limit(AudioEngine *engine)
     uint32_t first = engine->produced;
     if (engine->resample.factor > 1) {
         interpolate_pending(engine);
-        equalize(engine, first);
+        process_block(engine, first, false);
         return;
     }
     const int32_t *left = engine->frame.left;
@@ -388,19 +462,10 @@ static void copy_until_limit(AudioEngine *engine)
         engine->pending_offset++;
         engine->pending_frames--;
     }
-    equalize(engine, first);
+    process_block(engine, first, false);
 }
 
 static void finish_decoding(AudioEngine *engine);
-
-static bool same_text(const char *left, const char *right)
-{
-    size_t index = 0;
-    while (left[index] != '\0' && left[index] == right[index]) {
-        index++;
-    }
-    return left[index] == right[index];
-}
 
 static bool continues_in_stream(const AudioEngine *engine)
 {
@@ -416,6 +481,7 @@ static bool end_segment(AudioEngine *engine)
         return false;
     }
     engine->has_next = false;
+    engine->decode_fade_ms = engine->fade_out.active ? engine->next_fade_ms : 0;
     set_track_gain(engine, engine->next_gain);
     engine->decode_token = engine->next_token;
     engine->decode_end_ms = engine->next_end_ms;
@@ -457,6 +523,7 @@ static bool open_following(AudioEngine *engine)
     }
     set_track_gain(engine, engine->next_gain);
     engine->decode_token = engine->next_token;
+    engine->decode_fade_ms = engine->fade_out.active ? engine->next_fade_ms : 0;
     return true;
 }
 
@@ -497,7 +564,7 @@ static void finish_decoding(AudioEngine *engine)
     if (engine->resample.factor > 1) {
         uint32_t first = engine->produced;
         copy_resampled(engine);
-        equalize(engine, first);
+        process_block(engine, first, true);
         if (audio_resample_pending(&engine->resample) != 0) {
             return;
         }

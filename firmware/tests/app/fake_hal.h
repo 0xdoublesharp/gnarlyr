@@ -160,3 +160,5 @@ void fake_hal_fail_file_reads(const char *path);
 
 uint32_t fake_hal_audio_replay_gain(void);
 uint32_t fake_hal_audio_queued_replay_gain(void);
+uint32_t fake_hal_audio_queued_fade_ms(void);
+uint32_t fake_hal_audio_play_fade_ms(void);

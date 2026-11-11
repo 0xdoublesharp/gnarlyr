@@ -43,6 +43,8 @@ typedef struct FakeAudio {
     uint32_t queued_token;
     uint32_t replay_gain;
     uint32_t queued_replay_gain;
+    uint32_t queued_fade_ms;
+    uint32_t play_fade_ms;
     int seek_count;
     uint32_t last_seek_ms;
     uint8_t volume;
@@ -664,6 +666,7 @@ bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAud
     fake.audio.play_start_ms = start_ms;
     fake.audio.play_end_ms = track->end_ms;
     fake.audio.replay_gain = track->replay_gain != 0 ? track->replay_gain : 65536;
+    fake.audio.play_fade_ms = track->fade_ms;
     fake.audio.status = (HalAudioStatus){.state = HAL_AUDIO_PLAYING,
                                          .token = token,
                                          .position_ms = start_ms,
@@ -682,6 +685,7 @@ void hal_audio_queue_next(const HalAudioTrack *track)
         fake.audio.queued_start_ms = track->start_ms;
         fake.audio.queued_end_ms = track->end_ms;
         fake.audio.queued_replay_gain = track->replay_gain != 0 ? track->replay_gain : 65536;
+        fake.audio.queued_fade_ms = track->fade_ms;
     }
 }
 
@@ -1848,4 +1852,14 @@ uint32_t fake_hal_audio_replay_gain(void)
 uint32_t fake_hal_audio_queued_replay_gain(void)
 {
     return fake.audio.queued_replay_gain;
+}
+
+uint32_t fake_hal_audio_queued_fade_ms(void)
+{
+    return fake.audio.has_queued ? fake.audio.queued_fade_ms : 0;
+}
+
+uint32_t fake_hal_audio_play_fade_ms(void)
+{
+    return fake.audio.play_fade_ms;
 }

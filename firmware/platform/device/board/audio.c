@@ -463,7 +463,8 @@ static AudioEngineTrack engine_track(const HalAudioTrack *track)
                               .start_ms = track->start_ms,
                               .end_ms = track->end_ms,
                               .token = track->token,
-                              .replay_gain = track->replay_gain};
+                              .replay_gain = track->replay_gain,
+                              .fade_ms = track->fade_ms};
 }
 
 CORE_SEAM bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms,

@@ -79,7 +79,7 @@ target_compile_definitions(echo_library_fixtures PRIVATE
 )
 target_link_libraries(echo_library_fixtures PUBLIC echo_library echo_library_scan PRIVATE echo_options)
 
-foreach(playback_test play_queue resume_rewind resume_state up_next bookmarks spoken store track_order session_journal mix_catalog mix_tape mix_resolve store_roots)
+foreach(playback_test play_queue resume_rewind resume_state up_next bookmarks spoken store track_order track_transition session_journal mix_catalog mix_tape mix_resolve store_roots)
     echo_add_unit_test(NAME test_${playback_test}
         SOURCES playback/test_${playback_test}.c
         LIBRARIES echo_playback echo_library_fixtures
@@ -290,6 +290,11 @@ echo_add_unit_test(NAME test_player_cue
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+echo_add_unit_test(NAME test_player_transitions
+    SOURCES app/test_player_transitions.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
 echo_add_unit_test(NAME test_spoken_word
     SOURCES app/test_spoken_word.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures
@@ -412,6 +417,10 @@ echo_add_unit_test(NAME test_audio_engine
     LIBRARIES echo_device_logic
 )
 target_compile_definitions(test_audio_engine PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+echo_add_unit_test(NAME test_audio_fade
+    SOURCES device/test_audio_fade.c
+    LIBRARIES echo_device_logic
+)
 echo_add_unit_test(NAME test_mp3_probe
     SOURCES device/test_mp3_probe.c
     LIBRARIES echo_device_logic

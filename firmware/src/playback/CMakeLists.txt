@@ -20,6 +20,7 @@ add_library(echo_playback STATIC
     track_keys.c
     track_keys_path.c
     track_order.c
+    track_transition.c
     up_next.c
 )
 target_include_directories(echo_playback PUBLIC include)

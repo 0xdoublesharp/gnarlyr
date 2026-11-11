@@ -240,6 +240,12 @@ Leave Settings → Prevent clipping on to limit normalization using the file's p
 
 The player reads existing ReplayGain tags. Rescan the library, or rebuild it with the desktop indexer, to add gain data to an older library. Your music files are unchanged.
 
+## Transitions
+
+Settings → Transitions offers Off and Fade. With Fade, while shuffle is on, the end of each song fades out and the next one fades in. Settings → Transition length, shown while Transitions is on, sets each fade from 0.5 to 6 seconds; 1.5 seconds is the default, and a fade never takes more than a third of either song. Songs that follow each other on an album, in album order, still play gapless, and so do CUE tracks and chapters of one file, audiobooks and podcasts, and songs shorter than 2 seconds. Skipping, choosing a song or seeking starts it straight away, without a long fade. Without shuffle, songs play as before. Transitions don't apply to USB DAC mode.
+
+Fade plays one song after the other. A crossfade, where the next song starts while the current one fades out, would need two decoders running at once; that doesn't fit in the player's memory.
+
 ## Bluetooth headphones
 
 Settings → Bluetooth shows whether Bluetooth is on and which headphones are connected. Open it to turn Bluetooth on or off, connect, switch or pair headphones. The screen lists your headphones (the player remembers up to six, most recent first) with their state, a **Pair new device** row, and a hint for the selected row at the bottom.

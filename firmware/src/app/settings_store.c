@@ -124,6 +124,8 @@ void settings_store_restore_playback(const SettingsStore *store, Player *player,
     player_set_replay_gain(player, (ReplayGainMode)settings->replay_gain_mode,
                            settings->prevent_clipping);
     player_set_rewind(player, settings->rewind_on_resume);
+    player_set_transitions(player, settings->track_transition != TRACK_TRANSITION_OFF,
+                           settings->transition_tenths);
 }
 
 void settings_store_apply_equalizer(const Settings *settings)
