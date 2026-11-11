@@ -34,6 +34,10 @@ static SimCodec codec_for(const char *path)
     if (has_extension(path, ".wav")) {
         return SIM_CODEC_WAV;
     }
+    if (has_extension(path, ".ogg") || has_extension(path, ".oga") ||
+        has_extension(path, ".opus")) {
+        return SIM_CODEC_OGG;
+    }
     return SIM_CODEC_NONE;
 }
 
@@ -83,6 +87,19 @@ static bool open_wav(SimDecoder *decoder, const char *path)
     return true;
 }
 
+static bool open_ogg(SimDecoder *decoder, const char *path)
+{
+    if (!sim_ogg_open(&decoder->ogg, path)) {
+        return false;
+    }
+    decoder->sample_rate = decoder->ogg.track.rate;
+    decoder->channels = decoder->ogg.track.channels;
+    decoder->bits_per_sample = 0;
+    decoder->audio_bytes = decoder->ogg.track.stream_end - decoder->ogg.track.data_offset;
+    decoder->total_frames = decoder->ogg.track.samples;
+    return true;
+}
+
 static bool open_codec(SimDecoder *decoder, const char *path)
 {
     switch (decoder->codec) {
@@ -90,6 +107,8 @@ static bool open_codec(SimDecoder *decoder, const char *path)
         return open_flac(decoder, path);
     case SIM_CODEC_MP3:
         return open_mp3(decoder, path);
+    case SIM_CODEC_OGG:
+        return open_ogg(decoder, path);
     case SIM_CODEC_WAV:
         return open_wav(decoder, path);
     case SIM_CODEC_NONE:
@@ -121,6 +140,8 @@ static uint64_t read_native(SimDecoder *decoder, uint64_t count)
         return drflac_read_pcm_frames_f32(decoder->flac, count, native_samples);
     case SIM_CODEC_MP3:
         return drmp3_read_pcm_frames_f32(&decoder->mp3, count, native_samples);
+    case SIM_CODEC_OGG:
+        return sim_ogg_read(&decoder->ogg, native_samples, count);
     case SIM_CODEC_WAV:
         return drwav_read_pcm_frames_f32(&decoder->wav, count, native_samples);
     case SIM_CODEC_NONE:
@@ -153,6 +174,9 @@ bool sim_decoder_seek(SimDecoder *decoder, uint64_t frame)
     case SIM_CODEC_MP3:
         sought = drmp3_seek_to_pcm_frame(&decoder->mp3, frame);
         break;
+    case SIM_CODEC_OGG:
+        sought = sim_ogg_seek(&decoder->ogg, frame);
+        break;
     case SIM_CODEC_WAV:
         sought = drwav_seek_to_pcm_frame(&decoder->wav, frame);
         break;
@@ -175,6 +199,9 @@ void sim_decoder_close(SimDecoder *decoder)
     case SIM_CODEC_MP3:
         drmp3_uninit(&decoder->mp3);
         break;
+    case SIM_CODEC_OGG:
+        sim_ogg_close(&decoder->ogg);
+        break;
     case SIM_CODEC_WAV:
         drwav_uninit(&decoder->wav);
         break;
@@ -191,6 +218,8 @@ static HalAudioCodec hal_codec(SimCodec codec)
         return HAL_AUDIO_CODEC_FLAC;
     case SIM_CODEC_MP3:
         return HAL_AUDIO_CODEC_MP3;
+    case SIM_CODEC_OGG:
+        return HAL_AUDIO_CODEC_VORBIS;
     case SIM_CODEC_WAV:
         return HAL_AUDIO_CODEC_WAV;
     case SIM_CODEC_NONE:
@@ -205,7 +234,9 @@ HalAudioFormat sim_decoder_format(const SimDecoder *decoder)
         return (HalAudioFormat){.codec = HAL_AUDIO_CODEC_UNKNOWN};
     }
     return (HalAudioFormat){
-        .codec = hal_codec(decoder->codec),
+        .codec = decoder->codec == SIM_CODEC_OGG && decoder->ogg.track.opus
+                     ? HAL_AUDIO_CODEC_OPUS
+                     : hal_codec(decoder->codec),
         .sample_rate = decoder->sample_rate,
         .bits_per_sample = (uint8_t)decoder->bits_per_sample,
         .channels = (uint8_t)decoder->channels,
