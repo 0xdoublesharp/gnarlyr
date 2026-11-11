@@ -649,9 +649,12 @@ static bool next_chunk(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track
 bool mp4_cursor_next(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track, uint32_t *offset,
                      uint32_t *size)
 {
-    if (cursor->sample >= track->sample_count ||
-        !size_at(cursor, input, track, cursor->sample, size) ||
+    if (cursor->failed || cursor->sample >= track->sample_count) {
+        return false;
+    }
+    if (!size_at(cursor, input, track, cursor->sample, size) ||
         *size > UINT32_MAX - cursor->offset) {
+        cursor->failed = true;
         return false;
     }
     *offset = cursor->offset;
@@ -660,7 +663,7 @@ bool mp4_cursor_next(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track, 
     cursor->offset += *size;
     if (cursor->in_chunk >= cursor->chunk_samples && cursor->sample < track->sample_count &&
         !next_chunk(cursor, input, track)) {
-        cursor->sample = track->sample_count;
+        cursor->failed = true;
     }
     return true;
 }

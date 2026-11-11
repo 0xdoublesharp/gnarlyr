@@ -511,6 +511,74 @@ static void a_chunk_transition_read_failure_stops_after_the_current_sample(void)
     CHECK_EQUAL(103u, size);
 }
 
+static bool read_virtual_with_failure(void *context, uint32_t offset, void *destination,
+                                      uint32_t length)
+{
+    FailedInput *input = context;
+    input->calls++;
+    if (input->calls == input->fail_at) {
+        return false;
+    }
+    if (offset <= input->builder->length && length <= input->builder->length - offset) {
+        return read_builder(input->builder, offset, destination, length);
+    }
+    if (offset >= 1000 && offset <= 30000 && length <= 30000 - offset) {
+        memset(destination, 0x5a, length);
+        return true;
+    }
+    return false;
+}
+
+static void a_chunk_transition_failure_delivers_the_current_packet_then_reports_error(void)
+{
+    static Builder builder;
+    build_synthetic(&builder, false);
+    FailedInput failure = {.builder = &builder};
+    FlacInput input = {.read = read_virtual_with_failure, .context = &failure, .size = 30000};
+    Mp4Track track;
+    CHECK(mp4_probe(input, &track));
+    M4aStream stream;
+    CHECK(m4a_stream_start(&stream, input, &track, 2));
+    uint8_t bytes[4 + 102];
+    uint32_t config_bytes = M4A_RECORD_HEADER_BYTES + 1u + track.config_size;
+    CHECK(m4a_stream_read(&stream, 0, bytes, config_bytes));
+    failure.calls = 0;
+    failure.fail_at = 1;
+    CHECK(m4a_stream_read(&stream, config_bytes, bytes, sizeof bytes));
+    CHECK_EQUAL(102, bytes[0]);
+    CHECK_EQUAL(0, bytes[1]);
+    CHECK_EQUAL(0, bytes[2]);
+    CHECK_EQUAL(0, bytes[3]);
+    for (uint32_t index = 4; index < sizeof bytes; index++) {
+        CHECK_EQUAL(0x5a, bytes[index]);
+    }
+    CHECK(!m4a_stream_read(&stream, config_bytes + sizeof bytes, bytes, 4));
+    failure.fail_at = 0;
+    CHECK(m4a_stream_start(&stream, input, &track, 3));
+    CHECK(m4a_stream_read(&stream, 0, bytes, config_bytes));
+    CHECK(m4a_stream_read(&stream, config_bytes, bytes, 4));
+    CHECK_EQUAL(103, bytes[0]);
+}
+
+static void a_sample_table_read_failure_is_not_reported_as_clean_end_of_stream(void)
+{
+    static Builder builder;
+    build_synthetic(&builder, false);
+    FailedInput failure = {.builder = &builder};
+    FlacInput input = {.read = read_with_failure, .context = &failure, .size = builder.length};
+    Mp4Track track;
+    CHECK(mp4_probe(input, &track));
+    M4aStream stream;
+    CHECK(m4a_stream_start(&stream, input, &track, 0));
+    uint8_t bytes[16] = {0};
+    uint32_t config_bytes = M4A_RECORD_HEADER_BYTES + 1u + track.config_size;
+    CHECK(m4a_stream_read(&stream, 0, bytes, config_bytes));
+    failure.calls = 0;
+    failure.fail_at = 1;
+    CHECK(!m4a_stream_read(&stream, config_bytes, bytes, M4A_RECORD_HEADER_BYTES));
+    CHECK_EQUAL(1u, failure.calls);
+}
+
 static void cursor_read_failures_never_return_a_wrong_sample_and_seek_recovers(void)
 {
     for (uint32_t wide = 0; wide < 2; wide++) {
@@ -1098,6 +1166,8 @@ int main(void)
         TEST_CASE(read_failures_never_publish_a_different_track_layout),
         TEST_CASE(seek_read_failures_are_reported_and_a_retry_can_recover),
         TEST_CASE(a_chunk_transition_read_failure_stops_after_the_current_sample),
+        TEST_CASE(a_sample_table_read_failure_is_not_reported_as_clean_end_of_stream),
+        TEST_CASE(a_chunk_transition_failure_delivers_the_current_packet_then_reports_error),
         TEST_CASE(cursor_read_failures_never_return_a_wrong_sample_and_seek_recovers),
         TEST_CASE(a_high_efficiency_configuration_is_refused),
         TEST_CASE(an_sbr_signal_is_refused_only_when_sbr_is_present),

@@ -47,6 +47,7 @@ typedef struct Mp4Cursor {
     uint32_t offset;
     uint32_t window_first;
     uint32_t window_count;
+    bool failed;
     uint32_t window[MP4_SIZE_WINDOW];
 } Mp4Cursor;
 

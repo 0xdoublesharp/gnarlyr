@@ -1,5 +1,7 @@
 #include "device/m4a_stream.h"
 
+#include <string.h>
+
 static void put_length(uint8_t *bytes, uint32_t value)
 {
     bytes[0] = (uint8_t)value;
@@ -49,8 +51,10 @@ static bool begin_sample(M4aStream *stream)
     uint32_t size = 0;
     while (size == 0) {
         if (!mp4_cursor_next(&stream->cursor, stream->file, &stream->track, &offset, &size)) {
-            begin_end(stream);
-            return true;
+            if (!stream->cursor.failed) {
+                begin_end(stream);
+            }
+            return !stream->cursor.failed;
         }
     }
     if (offset > stream->file.size || size > stream->file.size - offset) {
@@ -93,13 +97,6 @@ static uint32_t emit(M4aStream *stream, uint8_t *out, uint32_t length)
     return read_body(stream, stream->body_offset + into, out, length < left ? length : left);
 }
 
-static void fill_zeros(uint8_t *out, uint32_t length)
-{
-    for (uint32_t index = 0; index < length; index++) {
-        out[index] = 0;
-    }
-}
-
 bool m4a_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
     M4aStream *stream = context;
@@ -109,7 +106,7 @@ bool m4a_stream_read(void *context, uint32_t offset, void *buffer, uint32_t leng
     }
     while (length > 0) {
         if (stream->ended && stream->record_done == stream->head_size) {
-            fill_zeros(out, length);
+            memset(out, 0, length);
             stream->position += length;
             return true;
         }
