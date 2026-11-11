@@ -39,6 +39,7 @@ FUZZ_TARGETS = {
     "play_queue": 256,
     "mp3_probe": 262144,
     "opus_decode": 2048,
+    "fat_volume": 400000,
 }
 FUZZ_SEEDS = {
     "track_tags": [b"\0"],
@@ -110,6 +111,7 @@ FUZZ_SEEDS = {
         bytes([2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255]) + b"\x48\0\0",
         bytes(range(64)),
     ],
+    "fat_volume": [b"\0", b"DSSP" + bytes(8)],
 }
 FUZZ_FIXTURES = {
     "library_database": [
@@ -137,6 +139,11 @@ FUZZ_FIXTURES = {
         SOURCE / "tests/fixtures/tags/id3v24.mp3",
         SOURCE / "tests/fixtures/tags/id3v23_vbr.mp3",
         SOURCE / "tests/fixtures/tags/id3v1_no_xing.mp3",
+    ],
+    "fat_volume": [
+        SOURCE / "tests/fixtures/cards/fat16_superfloppy.sparse",
+        SOURCE / "tests/fixtures/cards/fat32_mbr.sparse",
+        SOURCE / "tests/fixtures/cards/exfat_mbr.sparse",
     ],
 }
 COVER_IMAGE_JPEG_FIXTURES = [

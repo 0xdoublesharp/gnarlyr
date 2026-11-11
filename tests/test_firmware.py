@@ -163,6 +163,14 @@ class FuzzCommandTests(unittest.TestCase):
         self.assertEqual(firmware.FUZZ_TARGETS["opus_decode"], 2048)
         self.assertEqual(len(firmware.FUZZ_FIXTURES["mp3_probe"]), 3)
 
+    def test_fat_target_has_each_supported_volume_fixture(self):
+        self.assertEqual(firmware.FUZZ_TARGETS["fat_volume"], 400000)
+        fixtures = {path.name for path in firmware.FUZZ_FIXTURES["fat_volume"]}
+        self.assertEqual(
+            fixtures,
+            {"fat16_superfloppy.sparse", "fat32_mbr.sparse", "exfat_mbr.sparse"},
+        )
+
     def test_binary_parser_targets_have_canonical_fixture_seeds(self):
         library = {path.name for path in firmware.FUZZ_FIXTURES["library_database"]}
         mp4 = {path.name for path in firmware.FUZZ_FIXTURES["mp4_demux"]}
