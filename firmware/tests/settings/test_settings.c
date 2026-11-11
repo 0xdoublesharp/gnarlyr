@@ -914,8 +914,8 @@ static void battery_percentage_defaults_off_and_round_trips_in_a_spare_flag_bit(
     chosen.prevent_clipping = false;
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&chosen, bytes);
-    CHECK_EQUAL(14, bytes[4]);
-    CHECK_EQUAL(42, sizeof bytes);
+    CHECK_EQUAL(15, bytes[4]);
+    CHECK_EQUAL(58, sizeof bytes);
     Settings restored;
     CHECK(settings_decode(bytes, sizeof bytes, &restored));
     CHECK(restored.battery_percent);
