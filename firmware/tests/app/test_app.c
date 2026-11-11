@@ -2507,7 +2507,7 @@ static void a_refused_track_says_why_it_was_skipped(void)
     fake_hal_audio_refuse_plays(1);
     play_first_album_track();
     CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
-    CHECK(toast_is("192 kHz isn't supported yet"));
+    CHECK(toast_is("192 kHz isn't supported"));
 }
 
 static void formatting_a_paused_card_clears_the_library_and_saved_playback_state(void)
@@ -2534,7 +2534,7 @@ static void formatting_a_paused_card_clears_the_library_and_saved_playback_state
     CHECK(!app_player_status().has_track);
     CHECK_EQUAL(PLAYER_IDLE, app_player_status().state);
     CHECK(title_is(FIRMWARE_SHORT_NAME));
-    CHECK(toast_is("Card formatted. The library is empty."));
+    CHECK(toast_is("Card formatted"));
     app_start();
     CHECK(!app_player_status().has_track);
     uint32_t size = 0;
@@ -2749,7 +2749,7 @@ static void a_rescan_after_an_installed_update_asks_for_a_restart(void)
     step();
     CHECK_EQUAL(0, fake_hal_scratch_borrow_count());
     CHECK_EQUAL(0, fake_hal_library_writes());
-    CHECK(toast_is("Restart the player to finish the update"));
+    CHECK(toast_is("Restart to finish the update"));
 }
 
 static void the_music_check_after_an_installed_update_skips_the_walk(void)
@@ -2761,7 +2761,7 @@ static void the_music_check_after_an_installed_update_skips_the_walk(void)
     app_request_rescan_if_music_changed();
     step();
     CHECK_EQUAL(before, fake_hal_dir_open_count());
-    CHECK(toast_is("Restart the player to finish the update"));
+    CHECK(toast_is("Restart to finish the update"));
 }
 
 static void a_rescan_without_scratch_memory_says_so(void)
@@ -2772,7 +2772,7 @@ static void a_rescan_without_scratch_memory_says_so(void)
     app_request_rescan();
     step();
     fake_hal_refuse_scratch(false);
-    CHECK(toast_is("Couldn't free memory for the scan"));
+    CHECK(toast_is("No memory for the scan"));
 }
 
 static bool rescan_message_is(ScanResult result, const char *expected)
@@ -2784,8 +2784,8 @@ static bool rescan_message_is(ScanResult result, const char *expected)
 
 static void each_way_a_scan_runs_out_has_its_own_message(void)
 {
-    CHECK(rescan_message_is(SCAN_OUT_OF_MEMORY, "Library too big for the player's memory"));
-    CHECK(rescan_message_is(SCAN_TOO_MANY, "Too many tracks for the player"));
+    CHECK(rescan_message_is(SCAN_OUT_OF_MEMORY, "Library too big for memory"));
+    CHECK(rescan_message_is(SCAN_TOO_MANY, "Too many tracks"));
 }
 
 static void a_rescan_borrows_the_idle_audio_buffer_for_its_listing(void)
@@ -3429,7 +3429,7 @@ static void holding_play_on_a_folder_without_songs_shows_a_toast(void)
     move_down(2);
     hold(KEY_PLAY);
     CHECK(title_is("Folders"));
-    CHECK(toast_is("No songs in this folder"));
+    CHECK(toast_is("No songs here"));
 }
 
 static void holding_play_on_a_song_in_folders_still_opens_play_next(void)

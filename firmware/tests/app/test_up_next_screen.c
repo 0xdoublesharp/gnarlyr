@@ -298,7 +298,7 @@ static void a_failed_save_keeps_the_actions_open_for_retry(void)
     CHECK_EQUAL(SCREEN_ACTION_NONE, choose_action(actions, "Remove").type);
     CHECK_EQUAL(1, player.up_next.count);
     CHECK(toast.visible);
-    CHECK(strcmp("Could not save queue", toast.text) == 0);
+    CHECK(strcmp("Couldn't save queue", toast.text) == 0);
     fake_hal_fail_music_writes(false);
     CHECK_EQUAL(SCREEN_ACTION_POP, choose_action(actions, "Remove").type);
     screen->enter(screen->context, 350);

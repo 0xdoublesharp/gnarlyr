@@ -129,7 +129,7 @@ static void host_volume_text(char *text, const UsbSceneDac *dac)
     if (db == 0) {
         number_text(number, 0);
     }
-    format_one(text, STR_USB_DAC_DB, number);
+    format_one(text, STR_EQ_GAIN, number);
 }
 
 static void time_text(char *text, uint32_t seconds)
@@ -155,7 +155,7 @@ static StringId jack_text(uint8_t jack)
     if (jack == HAL_AUDIO_JACK_BALANCED) {
         return STR_JACK_44;
     }
-    return jack == HAL_AUDIO_JACK_SINGLE_ENDED ? STR_JACK_35 : STR_USB_DAC_NO_JACK;
+    return jack == HAL_AUDIO_JACK_SINGLE_ENDED ? STR_JACK_35 : STR_ABOUT_NONE;
 }
 
 static void fill_cells(const UsbSceneDac *dac, bool high_speed, DacCell *cells)
@@ -206,7 +206,7 @@ static StringId dac_state_text(const UsbScene *scene)
 {
     switch (scene->state) {
     case USB_SCENE_DAC_PLAYING:
-        return STR_USB_DAC_PLAYING;
+        return STR_PLAYING;
     case USB_SCENE_DAC_READY:
         return STR_USB_DAC_IDLE;
     case USB_SCENE_DAC_FAILED:
