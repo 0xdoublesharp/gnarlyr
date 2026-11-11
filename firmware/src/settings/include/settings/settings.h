@@ -6,6 +6,11 @@
 #include "core/replay_gain.h"
 #include "playback/play_queue.h"
 
+typedef enum NowPlayingStyle {
+    NOW_PLAYING_COVER,
+    NOW_PLAYING_CASSETTE
+} NowPlayingStyle;
+
 typedef enum GainLevel {
     GAIN_LOW,
     GAIN_HIGH
@@ -191,6 +196,7 @@ typedef struct Settings {
     uint8_t transition_tenths;
     uint8_t home_order[SETTINGS_HOME_ITEM_COUNT];
     uint16_t home_hidden;
+    uint8_t display_flags;
 } Settings;
 
 typedef struct SettingsEqualizerCurve {
@@ -218,3 +224,6 @@ ButtonAction settings_default_button_action(PlaybackButton button);
 ButtonAction settings_button_action(const Settings *settings, PlaybackButton button);
 void settings_buttons_encode(const Settings *settings, uint8_t *bytes);
 bool settings_buttons_decode(const uint8_t *bytes, uint32_t length, Settings *settings);
+
+NowPlayingStyle settings_now_playing_style(const Settings *settings);
+void settings_set_now_playing_style(Settings *settings, NowPlayingStyle style);

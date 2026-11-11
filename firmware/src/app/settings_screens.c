@@ -40,6 +40,7 @@ static const char *const BRIGHTNESS_OPTIONS[BRIGHTNESS_LEVEL_COUNT] = {"1", "2",
 static const StringId ACCENT_OPTIONS[ACCENT_COLOR_COUNT] = {
     STR_COLOR_BLUE, STR_COLOR_RED,    STR_COLOR_ORANGE, STR_COLOR_GREEN,
     STR_COLOR_TEAL, STR_COLOR_PURPLE, STR_COLOR_PINK,   STR_COLOR_GRAPHITE};
+static const StringId NOW_PLAYING_OPTIONS[] = {STR_NOW_PLAYING_COVER, STR_NOW_PLAYING_CASSETTE};
 static const StringId THEME_OPTIONS[APPEARANCE_THEME_COUNT] = {
     STR_THEME_GRAPHITE,  STR_THEME_NEON_NOIR, STR_THEME_SUNSET,
     STR_THEME_SEA_GLASS, STR_THEME_CLASSIC,
@@ -662,6 +663,17 @@ static bool transition_length_shown(const void *context)
     return current_transition(context) != 0;
 }
 
+static int current_now_playing(const void *context)
+{
+    return (int)settings_now_playing_style(settings_of(context));
+}
+
+static void choose_now_playing(void *context, int index)
+{
+    settings_set_now_playing_style(editable_settings(context), (NowPlayingStyle)index);
+    save(context);
+}
+
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_SHUFFLE, SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, current_shuffle, choose_shuffle, NULL, NULL},
     {STR_REPEAT, REPEAT_OPTIONS, REPEAT_MODE_COUNT, current_repeat, choose_repeat, NULL, NULL},
@@ -707,6 +719,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      current_transition_length, choose_transition_length, NULL, NULL},
     {STR_USB_ANSWER, USB_ANSWER_OPTIONS, USB_CONNECT_COUNT, current_usb_answer, choose_usb_answer,
      NULL, NULL},
+    {STR_NOW_PLAYING_STYLE, NOW_PLAYING_OPTIONS, 2, current_now_playing, choose_now_playing, NULL,
+     NULL},
 };
 
 static Screen *choice_view(SettingsScreens *screens, const SettingChoice *choice,

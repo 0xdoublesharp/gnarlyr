@@ -1154,7 +1154,7 @@ static void each_invalid_extension_value_is_rejected_without_mutating_the_settin
     static const uint8_t CASES[][2] = {
         {0, 0x20},  {0, 0x40},  {0, 0x80}, {0, 0x18}, {1, 61},   {2, 4},    {2, 61},   {2, 0},
         {3, 1},     {4, 0x00},  {4, 0x11}, {6, 0x55}, {8, 0x18}, {8, 0x09}, {9, 0x08}, {9, 0xFF},
-        {10, 0x04}, {10, 0x80}, {11, 1},   {12, 1},   {13, 1},   {14, 1},   {15, 0x80}};
+        {10, 0x04}, {10, 0x80}, {11, 1},   {12, 1},   {14, 1},   {15, 0x80}};
     for (uint32_t at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
         Settings original = settings_defaults();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1316,9 +1316,27 @@ static void safe_start_volume_off_keeps_the_volume(void)
     CHECK_EQUAL(SETTINGS_VOLUME_MAX, settings_safe_start_volume(&settings, SETTINGS_VOLUME_MAX));
 }
 
+static void cassette_style_and_other_e13_flags_survive_saving(void)
+{
+    Settings settings = settings_defaults();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[EXTENSION_FIELD + 13] = 0xB5;
+    rewrite_checksum(bytes);
+    CHECK(settings_decode(bytes, sizeof bytes, &settings));
+    CHECK_EQUAL(NOW_PLAYING_CASSETTE, settings_now_playing_style(&settings));
+    settings_set_now_playing_style(&settings, NOW_PLAYING_COVER);
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(0x95, bytes[EXTENSION_FIELD + 13]);
+    settings_set_now_playing_style(&settings, NOW_PLAYING_CASSETTE);
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(0xB5, bytes[EXTENSION_FIELD + 13]);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(cassette_style_and_other_e13_flags_survive_saving),
         TEST_CASE(defaults_are_comfortable),
         TEST_CASE(the_extension_defaults_keep_todays_behaviour),
         TEST_CASE(the_extension_block_sits_between_the_language_and_the_checksum),

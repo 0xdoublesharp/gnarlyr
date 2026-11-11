@@ -32,6 +32,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
+    src/app/screens/cassette_now_playing.c
     src/app/mixtape_store.c
     src/app/mixtape_ui.c
     src/app/mixtape_screen.c

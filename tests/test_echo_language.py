@@ -409,6 +409,15 @@ class LanguageCommands(VolumeCase):
             data = path.read_bytes()
             self.assertEqual((data[4], data[5]), (15, 5))
 
+    def test_cassette_style_and_other_e13_bits_allow_language_reads(self):
+        extension = bytearray(self.home_extension(list(range(10))))
+        extension[13] = 0xB5
+        with self.current_snapshot():
+            (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(
+                settings("en", 15, 0, extension))
+            tool, _ = self.live_tool()
+            self.assertEqual(tool.language_list()["selected"], "en")
+
     def home_extension(self, order, hidden=0):
         nibbles = bytearray(5)
         for index, item in enumerate(order):

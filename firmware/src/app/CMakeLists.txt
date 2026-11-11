@@ -71,6 +71,7 @@ add_library(echo_app STATIC
     screens/equalizer_screen.c
     screens/equalizer_browser.c
     screens/equalizer_plot.c
+    screens/cassette_now_playing.c
     screens/now_playing_screen.c
     screens/up_next_screen.c
 )

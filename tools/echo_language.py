@@ -52,6 +52,7 @@ class Snapshot:
             raise api.DebugError(code, "language operations require an exact clean installed firmware build")
         self.format = pack_tools(api.ROOT)
         self.flags_reserved = 0xF8
+        self.display_flags_byte = None
         try:
             self.commit = git(api.ROOT, "rev-parse", "--verify", build + "^{commit}").strip()
             self.build = build
@@ -76,6 +77,10 @@ class Snapshot:
                 raise ValueError("the installed settings extension layout is unsupported")
             if self.settings_version >= 15:
                 self.check_home_layout()
+                if re.search(r"\bDISPLAY_FLAGS_BYTE\s*=", source):
+                    self.display_flags_byte = constant(source, "DISPLAY_FLAGS_BYTE")
+                    if self.display_flags_byte != 13:
+                        raise ValueError("the installed display flags layout is unsupported")
         except (ValueError, KeyError, OSError, self.format.PackError) as error:
             raise api.DebugError("language_build_unknown", str(error)) from error
 
@@ -129,7 +134,8 @@ class Snapshot:
             return True
         block = data[38:54]
         return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and block[3] == 0 and
-                self.home_valid(block) and not any(block[11:]))
+                self.home_valid(block) and not any(block[index] for index in range(11, 16)
+                                                  if index != self.display_flags_byte))
 
     def show(self, path):
         return git(self.api.ROOT, "show", self.commit + ":" + path)

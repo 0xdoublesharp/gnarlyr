@@ -1,10 +1,13 @@
 #include "mixtape_ui_private.h"
 #include "modules/modules.h"
+#include "screens/cassette_now_playing.h"
 #include "screens/charge_screen.h"
 
 static void bind(AppScreens *screens)
 {
     const AppScreensContext *context = &screens->context;
+    screens->now_playing.config.cassette_draw = cassette_now_playing_draw;
+    screens->now_playing.config.cassette_animate = cassette_now_playing_animate;
     ViewsModuleScreens *views = &screens->modules.views;
     UpNextConfig up_next = {.library = &context->store->library,
                             .theme = context->theme,
