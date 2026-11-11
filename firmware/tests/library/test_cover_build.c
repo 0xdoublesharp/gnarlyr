@@ -488,6 +488,39 @@ static void a_removed_album_frees_its_place_for_a_new_one(void)
     CHECK_EQUAL(BLUE.pixel, cover_pixel("Gamma"));
 }
 
+static void limited_cover_space_preserves_what_fits_and_reports_the_rest(void)
+{
+    static const uint32_t no_slot[] = {0, COVERS_HEADER_SIZE, COVERS_HEADER_SIZE + RECORD_SLOT - 1};
+    for (uint32_t index = 0; index < sizeof no_slot / sizeof no_slot[0]; index++) {
+        CoverStats stats;
+        three_albums();
+        covers_capacity = no_slot[index];
+        CHECK_EQUAL(SCAN_NO_ROOM, rescan(false, &stats));
+        CHECK_EQUAL(3u, stats.albums);
+        CHECK_EQUAL(0u, stats.covers);
+    }
+    CoverStats stats;
+    three_albums();
+    covers_capacity = COVERS_HEADER_SIZE + RECORD_SLOT;
+    CHECK_EQUAL(SCAN_OK, rescan(false, &stats));
+    CHECK_EQUAL(3u, stats.albums);
+    CHECK_EQUAL(1u, stats.covers);
+    CHECK_EQUAL(2u, stats.missing);
+    uint16_t alpha = cover_pixel("Alpha");
+    uint16_t beta = cover_pixel("Beta");
+    uint16_t gamma = cover_pixel("Gamma");
+    CHECK((alpha == RED.pixel && beta == 0 && gamma == 0) ||
+          (alpha == 0 && beta == GREEN.pixel && gamma == 0) ||
+          (alpha == 0 && beta == 0 && gamma == BLUE.pixel));
+    CHECK_EQUAL(SCAN_OK, rescan(true, &stats));
+    CHECK_EQUAL(1u, stats.covers);
+    CHECK_EQUAL(1u, stats.reused);
+    CHECK_EQUAL(2u, stats.missing);
+    CHECK_EQUAL(alpha, cover_pixel("Alpha"));
+    CHECK_EQUAL(beta, cover_pixel("Beta"));
+    CHECK_EQUAL(gamma, cover_pixel("Gamma"));
+}
+
 static void an_album_without_art_loses_its_cover(void)
 {
     CoverStats stats;
@@ -732,6 +765,7 @@ int main(void)
         TEST_CASE(replaced_art_is_decoded_again),
         TEST_CASE(a_removed_album_frees_its_place_for_a_new_one),
         TEST_CASE(an_album_without_art_loses_its_cover),
+        TEST_CASE(limited_cover_space_preserves_what_fits_and_reports_the_rest),
         TEST_CASE(a_file_without_stamps_is_built_again),
         TEST_CASE(a_damaged_index_is_ignored),
         TEST_CASE(without_a_previous_file_everything_is_decoded),
