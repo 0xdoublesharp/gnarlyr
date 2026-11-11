@@ -87,6 +87,16 @@ static bool base64_picture_is_front(const uint8_t *text, uint32_t length)
     return (bits >> 4) == FRONT_COVER;
 }
 
+static ReplayGainField r128_field(const uint8_t *key, uint32_t length)
+{
+    if (tag_same_text_folded((const char *)key, length, "r128_track_gain")) {
+        return REPLAY_GAIN_TRACK_GAIN;
+    }
+    return tag_same_text_folded((const char *)key, length, "r128_album_gain")
+               ? REPLAY_GAIN_ALBUM_GAIN
+               : REPLAY_GAIN_NO_FIELD;
+}
+
 static void offer_entry(TagReader *reader, ByteSource source, uint32_t offset, uint32_t length)
 {
     uint8_t value[VALUE_CAPACITY];
@@ -111,10 +121,17 @@ static void offer_entry(TagReader *reader, ByteSource source, uint32_t offset, u
         return;
     }
     ReplayGainField gain = replay_gain_field((const char *)value, key);
-    if (gain != REPLAY_GAIN_NO_FIELD) {
+    ReplayGainField r128 = reader->opus ? r128_field(value, key) : REPLAY_GAIN_NO_FIELD;
+    if (gain != REPLAY_GAIN_NO_FIELD || r128 != REPLAY_GAIN_NO_FIELD) {
         if (value_length <= sizeof value &&
             source_read(source, value_offset, value, value_length)) {
-            (void)replay_gain_offer(&reader->replay_gain, gain, (const char *)value, value_length);
+            if (r128 != REPLAY_GAIN_NO_FIELD) {
+                (void)replay_gain_offer_r128(&reader->replay_gain, r128, (const char *)value,
+                                             value_length);
+            } else {
+                (void)replay_gain_offer(&reader->replay_gain, gain, (const char *)value,
+                                        value_length);
+            }
         }
         return;
     }
@@ -380,6 +397,7 @@ bool tags_read_ogg(TagReader *reader)
         return false;
     }
     OggStream stream = {.reader = reader, .page_start = 0};
+    reader->opus = codec.prefix == OPUS_PACKET_PREFIX;
     if (!read_page(reader, first.header_length + first.body_length, &stream.page)) {
         return false;
     }

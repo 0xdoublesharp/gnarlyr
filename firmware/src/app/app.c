@@ -131,6 +131,7 @@ typedef struct AppState {
     StatusBarState status_bar;
     char battery_text[STATUS_BAR_PERCENT_CAPACITY];
     char clock_text[STATUS_BAR_CLOCK_CAPACITY];
+    AppUsbRenderer usb_renderer;
     AppScreens screens;
     MessageScreen notice;
     WireMotion motion;
@@ -1021,14 +1022,17 @@ static void draw_slide(Canvas *canvas, Screen *arriving)
     }
 }
 
-static StatusBarState shown_status_bar(const AppState *state, const char *title)
+static StatusBarState shown_status_bar(const AppState *state, const Screen *screen)
 {
     StatusBarState bar = state->status_bar;
     const Theme *theme = board_theme();
+    const char *title = screen->title;
     if (bar.clock == NULL || title == NULL || theme->metrics.status_height > 0) {
         return bar;
     }
-    int title_end = (theme->metrics.screen_width + text_width(theme->fonts.header, title)) / 2;
+    int width = screen->header_title_width != 0 ? screen->header_title_width
+                                                : text_width(theme->fonts.header, title);
+    int title_end = (theme->metrics.screen_width + width) / 2;
     if (status_bar_clock_area(theme, bar).x < title_end + theme->metrics.padding) {
         bar.clock = NULL;
     }
@@ -1048,7 +1052,7 @@ static void draw_frame(void *context, Canvas *canvas)
         screen->draw(screen->context, canvas);
     }
     if (!screen->full_screen) {
-        status_bar_draw(canvas, board_theme(), shown_status_bar(state, screen->title));
+        status_bar_draw(canvas, board_theme(), shown_status_bar(state, screen));
     }
     toast_draw(&state->toast, canvas, board_theme());
     if (state->options.show_frame_time) {
@@ -1352,6 +1356,11 @@ static void report_card_files(CardFilesReport files, uint32_t now_ms)
 
 static void start_app(bool power_on)
 {
+#ifdef ECHO_USB_OVERLAY_RENDERER
+    app.usb_renderer = NULL;
+#else
+    app.usb_renderer = usb_screen_draw;
+#endif
     uint32_t now_ms = hal_clock_milliseconds();
     key_tracker_init(&app.keys, &KEY_CONFIG);
     frame_stats_reset(&app.frame_stats);
@@ -1505,7 +1514,7 @@ static void draw_charge(void *context, Canvas *canvas)
     if (entry != NULL) {
         entry->charge_draw(canvas, board_theme(), app.charge_battery, app.now_ms);
     } else {
-        usb_screen_draw(
+        usb_screen_draw_fallback(
             canvas, board_theme(), app.charge_battery,
             (AppUsbStatus){.view = APP_USB_POWER, .detail = i18n_text(STR_CHARGE_MODE_HINT)});
     }
@@ -1937,7 +1946,16 @@ typedef struct UsbStatusFrame {
 static void draw_usb_status(void *context, Canvas *canvas)
 {
     const UsbStatusFrame *frame = context;
-    usb_screen_draw(canvas, board_theme(), frame->battery, frame->status);
+    AppUsbRenderer draw = app.usb_renderer;
+    if (draw == NULL || frame->status.view == APP_USB_CONNECTING) {
+        draw = usb_screen_draw_fallback;
+    }
+    draw(canvas, board_theme(), frame->battery, frame->status);
+}
+
+CORE_SEAM void app_set_usb_renderer(AppUsbRenderer renderer)
+{
+    app.usb_renderer = renderer;
 }
 
 CORE_SEAM void app_show_usb_status(AppUsbStatus status)

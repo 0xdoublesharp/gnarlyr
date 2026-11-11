@@ -77,6 +77,8 @@ Depeche Mode/Violator/
 
 ## Copying music over USB
 
+The USB screen shows the connection mode and charging state. While connecting, or if charging artwork is unavailable, a plain text screen keeps the state and instructions visible.
+
 1. Connect the player and choose **File transfer** when it asks (see [When you plug in](#when-you-plug-in)). Two drives appear: internal storage and the SD card.
 2. Copy music to the SD card, or to internal storage when no card is in the player.
 3. **Eject both drives before you unplug.** If you unplug first, recent changes may be lost, and the player warns you ("Unplugged too soon").
@@ -244,7 +246,7 @@ The graph is a calculated 44.1 kHz filter response with a labeled decibel scale,
 
 ## ReplayGain
 
-Settings → ReplayGain offers Off, Track and Album. Track uses each song's prepared gain; Album uses the album gain to keep the level relationships within an album. If one kind of gain is missing, the player uses the other. Songs without gain tags keep their normal level. Off is the default.
+Settings → ReplayGain offers Off, Track and Album. Track uses each song's prepared gain; Album uses the album gain to keep the level relationships within an album. If one kind of gain is missing, the player uses the other. Songs without gain tags keep their normal level. Opus files also use their R128 track or album gain tags, converted to the ReplayGain reference; standard ReplayGain gain tags take precedence when both are present. Off is the default.
 
 Leave Settings → Prevent clipping on to limit normalization using the file's peak tags. Without peak tags, it retains attenuation and limits boosts to unity. Turning it off allows the full tagged gain. Changes apply to newly buffered audio while the current and next songs keep playing.
 
@@ -358,7 +360,7 @@ Home → Mixtapes saves a queue as a named list. Save queue captures the current
 
 Gnarlyr sets its clock from your Mac. Every companion command that ejects the player (`python3 tools/echo_debug.py set-time` does only that) leaves the Mac's time on the drive, and the player sets its clock as the drive is ejected. The clock then keeps going while the player is on. When the player has been switched off or restarted, the time is unknown until the next sync.
 
-While the time is set it also shows in the status bar, left of the battery; in landscape it steps aside for a long screen title. Home → Clock shows the time, the weekday and the date in 24-hour time. Press ▶ for Calendar: the current month from Monday with today marked. The volume buttons move a month at a time, ▶ goes back to the current month and Back returns to Clock. Without a set time both say so and how to set it.
+While the time is set it also shows in the status bar, left of the battery; in landscape it steps aside for a long screen title. Settings → Clock format chooses 12-hour time with AM/PM or 24-hour time (the default). The status bar follows the same choice, including in Calendar. Home → Clock shows the time, the weekday and the date. Press ▶ for Calendar: the current month from Monday with today marked. The volume buttons move a month at a time, ▶ goes back to the current month and Back returns to Clock. Without a set time both say so and how to set it.
 
 ## Listening and lyrics
 

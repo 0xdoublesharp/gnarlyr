@@ -20,18 +20,21 @@ The four names are `REPLAYGAIN_TRACK_GAIN`, `REPLAYGAIN_ALBUM_GAIN`, `REPLAYGAIN
 
 | Container | Metadata |
 |---|---|
-| FLAC, Ogg Vorbis and Ogg Opus | Vorbis comments (Opus `R128_*` gains are not read) |
+| FLAC and Ogg Vorbis | Vorbis comments |
+| Ogg Opus | Vorbis comments, with `R128_TRACK_GAIN` and `R128_ALBUM_GAIN` as gain fallbacks |
 | MP3 | ID3 TXXX/TXX; APEv2 fills missing fields |
 | WAV and DSF | Embedded ID3 TXXX/TXX |
 | AAC/ALAC in MP4 | Freeform atoms with `com.apple.iTunes` or `org.hydrogenaudio.replaygain` as their namespace |
 | Monkey's Audio | APEv2 text items |
 | WMA | ASF string attributes |
 
-Each field keeps its first valid value. Invalid values leave the field available for a later valid value. In MP3, valid ID3 fields take precedence over APEv2. R128 and SoundCheck fields are not interpreted.
+Each field keeps its first valid value. Invalid values leave the field available for a later valid value. In MP3, valid ID3 fields take precedence over APEv2. In Opus, valid `REPLAYGAIN_*_GAIN` fields take precedence over the corresponding R128 gain, regardless of comment order. Invalid ReplayGain values leave a valid R128 fallback available. SoundCheck fields are not interpreted.
 
 ID3 values support Latin-1, UTF-8 and both UTF-16 byte orders, with BOM handling. Numeric text must contain ASCII characters. Unsupported encodings, malformed UTF-16 and non-ASCII numeric bytes are rejected. ASF values with embedded NULs followed by nonzero data are rejected.
 
 ## Numeric representation
+
+Opus R128 gains follow [RFC 7845 section 5.2.1](https://www.rfc-editor.org/rfc/rfc7845.html#section-5.2.1): signed base-10 integers from -32768 to 32767, up to six ASCII characters including an optional sign, without whitespace. Each Q7.8 dB value is converted from the -23 LUFS reference to ReplayGain 2.0's -18 LUFS reference by adding 5 dB, then rounding to centidecibels with ties away from zero. Converted gains outside the existing -96 to +96 dB range are ignored. The Opus decoder already applies the identification header's output gain; the tag gain is additional and does not include that header gain a second time. The device scanner and desktop indexer use the same mapping, only for Opus containers.
 
 Gain text accepts a sign, decimal point, optional scientific exponent, surrounding ASCII whitespace and an optional case-insensitive `dB` suffix. Peak text uses the same numeric syntax without a unit. Each numeric value is limited to 64 bytes and an explicit exponent between -99 and 99.
 
@@ -68,7 +71,7 @@ CUE parts and file chapters inherit their audio file's gain. Per-track CUE `REM`
 
 ## Verification and generation
 
-`test_replay_gain` compares all 19,201 supported centidecibel inputs with independent floating-point exponentiation and checks parsing, duplicate handling and conservative peak limits. `replay_gain_metadata_formats` writes tags into copies of real container fixtures using Mutagen, then reads them through the C tag reader. It also checks ID3 encoding variants, MP3 tag precedence, malformed values and unknown MP4 namespaces.
+`test_replay_gain` compares all 19,201 supported centidecibel inputs with independent floating-point exponentiation and checks parsing, duplicate handling and conservative peak limits. `replay_gain_metadata_formats` writes tags into copies of real container fixtures using Mutagen, then reads them through the C tag reader. It also checks ID3 encoding variants, MP3 tag precedence, malformed values and unknown MP4 namespaces. The Opus fixtures from `tools/tag_fixture.py` cover R128 reference conversion, rounding, both comment orders, malformed integers, duplicate values, header-gain separation and device/desktop agreement; `test_replay_gain` compares all 65,536 signed Q7.8 values with independent floating-point rounding.
 
 Regenerate the table with Python 3.14 from the firmware directory:
 

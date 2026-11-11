@@ -21,10 +21,13 @@ typedef struct ReplayGainTags {
     int16_t gain[2];
     uint32_t peak[2];
     uint8_t present;
+    uint8_t r128;
 } ReplayGainTags;
 
 ReplayGainField replay_gain_field(const char *key, uint32_t length);
 bool replay_gain_offer(ReplayGainTags *tags, ReplayGainField field, const char *text,
                        uint32_t length);
+bool replay_gain_offer_r128(ReplayGainTags *tags, ReplayGainField field, const char *text,
+                            uint32_t length);
 uint32_t replay_gain_amplitude(int16_t centi_db);
 ReplayGain replay_gain_finish(const ReplayGainTags *tags);

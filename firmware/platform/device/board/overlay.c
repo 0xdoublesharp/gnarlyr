@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "app/app.h"
 #include "audio_process.h"
 #include "board.h"
 #include "core/seam.h"
@@ -165,6 +166,7 @@ const void *board_usb_overlay_load(void)
 
 void board_module_forget(void)
 {
+    app_set_usb_renderer(NULL);
     loaded_module = 0;
     board_audio_process_forget();
 }

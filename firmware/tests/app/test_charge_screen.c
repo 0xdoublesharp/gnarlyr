@@ -6,6 +6,8 @@
 #include "fake_hal.h"
 #include "gfx/text.h"
 #include "hal/display.h"
+#include "screen_modules.h"
+#include "screen_snapshot.h"
 #include "screens/charge_screen.h"
 #include "text_spy.h"
 #include "ui/label.h"
@@ -41,6 +43,7 @@ static void a_known_full_battery_on_usb_is_reported_charged(void)
 }
 
 static Color pixels[HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE];
+static int registered_draws;
 
 static bool saw(const char *text)
 {
@@ -50,6 +53,66 @@ static bool saw(const char *text)
         }
     }
     return false;
+}
+
+static void registered_usb_draw(Canvas *canvas, const Theme *theme, HalBattery battery,
+                                AppUsbStatus status)
+{
+    registered_draws++;
+    usb_screen_draw(canvas, theme, battery, status);
+}
+
+static void connecting_and_cleared_renderers_use_only_resident_drawing(void)
+{
+    fake_hal_reset();
+    app_start();
+    registered_draws = 0;
+    app_set_usb_renderer(registered_usb_draw);
+    AppUsbStatus status = {.view = APP_USB_CONNECTING, .detail = i18n_text(STR_USB_STARTING)};
+    int loads = fake_hal_module_loads();
+    app_show_usb_status(status);
+    CHECK_EQUAL(0, registered_draws);
+    status.view = APP_USB_STORAGE;
+    app_show_usb_status(status);
+    CHECK(registered_draws > 0);
+    int called = registered_draws;
+    app_set_usb_renderer(NULL);
+    fake_hal_break_module(SCREEN_MODULE_SETTINGS, true);
+    app_show_usb_status(status);
+    CHECK_EQUAL(called, registered_draws);
+    CHECK_EQUAL(loads, fake_hal_module_loads());
+    fake_hal_break_module(SCREEN_MODULE_SETTINGS, false);
+}
+
+static void usb_and_fallback_frames_fit_every_size_and_orientation(void)
+{
+    HalBattery battery = {.known = true, .percent = 64, .usb_power = true, .charging = true};
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = BOARD_THEME;
+            default_theme_set_text_size(&theme, (TextSize)size);
+            default_theme_set_orientation(&theme, (Orientation)orientation);
+            Canvas canvas = canvas_make(
+                pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+            for (int view = APP_USB_CONNECTING; view <= APP_USB_POWER; view++) {
+                AppUsbStatus status = {.view = (AppUsbView)view,
+                                       .detail = i18n_text(STR_USB_EJECT_DRIVES),
+                                       .information = i18n_text(STR_POWER_INTERNAL_CARD)};
+                int variant = (orientation * TEXT_SIZE_COUNT + size) * 4 + view;
+                text_spy_reset();
+                usb_screen_draw(&canvas, &theme, battery, status);
+                CHECK(saw(i18n_text(STR_CHARGING)));
+                CHECK(saw(charge_screen_usb_title(status.view)));
+                CHECK(saw(status.information));
+                screen_snapshot_write(&canvas, "usb", variant);
+                text_spy_reset();
+                usb_screen_draw_fallback(&canvas, &theme, battery, status);
+                CHECK(saw(i18n_text(STR_CHARGING)));
+                CHECK(saw(charge_screen_usb_title(status.view)));
+                screen_snapshot_write(&canvas, "usb-fallback", variant);
+            }
+        }
+    }
 }
 
 static void only_visible_battery_changes_require_a_usb_redraw(void)
@@ -399,6 +462,8 @@ int main(void)
     i18n_detach();
     static const TestCase cases[] = {
         TEST_CASE(battery_percentage_dominates_a_full_width_slim_gauge),
+        TEST_CASE(connecting_and_cleared_renderers_use_only_resident_drawing),
+        TEST_CASE(usb_and_fallback_frames_fit_every_size_and_orientation),
         TEST_CASE(only_visible_battery_changes_require_a_usb_redraw),
         TEST_CASE(charge_and_usb_details_fit_every_size_and_orientation),
         TEST_CASE(usb_voltage_is_hidden_and_the_real_mode_and_charge_are_visible),
