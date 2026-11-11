@@ -41,6 +41,11 @@ add_test(NAME replay_gain_metadata_formats
         --reader $<TARGET_FILE:replay_gain_tag_tool>
         --fixtures ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/tags
 )
+echo_add_unit_test(NAME test_tag_duration
+    SOURCES library/test_tag_duration.c
+    LIBRARIES echo_library_scan
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/library
+)
 echo_add_unit_test(NAME test_track_tags
     SOURCES library/test_track_tags.c
     LIBRARIES echo_library_fixtures

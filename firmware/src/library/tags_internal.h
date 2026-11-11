@@ -46,7 +46,10 @@ void tag_offer_decoded(TagReader *reader, TagField field, const char *text);
 void tag_offer_picture(TagReader *reader, TagPicture picture);
 void tag_offer_replay_gain(TagReader *reader, ReplayGainField field, const char *text);
 bool tag_decode_gain_text(char *out, const uint8_t *text, uint32_t length, TagEncoding encoding);
-void tag_set_duration(TagReader *reader, double seconds);
+void tag_set_duration(TagReader *reader, uint64_t units, uint64_t rate);
+void tag_set_divided_duration(TagReader *reader, uint64_t units, uint32_t alignment, uint32_t rate);
+void tag_set_bit_duration(TagReader *reader, uint64_t bytes, uint32_t channels, uint32_t rate);
+void tag_set_preroll_duration(TagReader *reader, uint64_t ticks, uint64_t preroll_ms);
 
 bool tags_read_flac(TagReader *reader);
 bool tags_read_ogg(TagReader *reader);

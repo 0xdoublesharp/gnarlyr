@@ -77,12 +77,15 @@ typedef struct NowPlayingConfig {
     Screen *lyrics;
     void (*cassette_draw)(const struct NowPlayingScreen *screen, Canvas *canvas);
     bool (*cassette_animate)(struct NowPlayingScreen *screen, FrameDiff *diff, bool visible);
+    Screen *flip;
 } NowPlayingConfig;
 
 typedef struct NowPlayingScreen {
     Screen screen;
     NowPlayingConfig config;
     PlayerStatus status;
+    Screen *destination;
+    bool flip_prompted;
     bool scrubbing;
     uint32_t scrub_position_ms;
     bool has_text;

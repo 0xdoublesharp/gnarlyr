@@ -85,7 +85,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(wav, reader.read("/COPIED.WAV"))
         rig.press("next")
         rig.press("play")
-        rig.press_many("next", 20)
+        rig.press_many("next", 21)
         rig.press("play")
         rig.settle(1000)
         rig.open_songs()

@@ -1,5 +1,6 @@
 #include "app/linked_modules.h"
 #include "app/rescan_module.h"
+#include "device/rtc_time.h"
 #include "hal/system.h"
 
 enum {
@@ -201,15 +202,20 @@ HalProbe hal_system_probe(HalProbeKind kind, uint32_t first, uint32_t second)
     return (HalProbe){.allowed = false};
 }
 
+static HalRtcRead rtc = {.status = HAL_RTC_NO_TIME};
+
 HalRtcRead hal_system_rtc_read(void)
 {
-    return (HalRtcRead){.status = HAL_RTC_NO_ACK};
+    return rtc;
 }
 
 HalRtcRead hal_system_rtc_set(uint32_t utc_s)
 {
-    (void)utc_s;
-    return (HalRtcRead){.status = HAL_RTC_NO_ACK};
+    if (!rtc_time_registers(utc_s, rtc.registers)) {
+        return (HalRtcRead){.status = HAL_RTC_NO_TIME};
+    }
+    rtc.status = HAL_RTC_OK;
+    return rtc;
 }
 
 void hal_system_save_report(uint32_t reason)

@@ -33,7 +33,6 @@ MeterNowPlayingLayout meter_now_playing_layout(const Theme *theme)
 }
 
 typedef struct MeterState {
-    AudioVisualWork work;
     AudioVisualNeedle needles[2];
     uint8_t shown[2];
     uint8_t echo[2];
@@ -50,7 +49,6 @@ typedef struct MeterState {
 } MeterState;
 
 static MeterState state;
-static Color strip_pixels[1024];
 
 void meter_now_playing_reset(void)
 {
@@ -195,12 +193,8 @@ static void send_motion(void *context, Rect area, const Color *pixels)
 
 static void render(NowPlayingScreen *screen, Rect area)
 {
-    StripRenderer renderer = {.strip_pixels = strip_pixels,
-                              .area = area,
-                              .strip_height = 1024 / area.width,
-                              .background = screen->config.theme->colors.background};
-    strip_renderer_render(&renderer, (FrameDrawer){draw_motion, screen},
-                          (FrameSink){send_motion, NULL});
+    neon_art_render(area, screen->config.theme->colors.background,
+                    (FrameDrawer){draw_motion, screen}, (FrameSink){send_motion, NULL});
 }
 
 static uint8_t falling(uint8_t value, unsigned fall)
@@ -310,7 +304,7 @@ CORE_SEAM bool meter_now_playing_animate(NowPlayingScreen *screen, FrameDiff *di
     state.frame = frame;
     AudioVisualLevels levels = {0};
     if (screen->status.state == PLAYER_PLAYING) {
-        levels = audio_visual_measure(&state.work, hal_audio_visual_buffer(),
+        levels = audio_visual_measure(neon_art_audio_work(), hal_audio_visual_buffer(),
                                       style == NOW_PLAYING_SPECTRUM);
     }
     if (style == NOW_PLAYING_VU) {

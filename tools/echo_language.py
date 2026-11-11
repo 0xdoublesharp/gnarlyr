@@ -76,6 +76,10 @@ class Snapshot:
                     constant(source, "EXTENSION_VERSION"), constant(source, "EXTENSION_FIELD"),
                     constant(source, "EXTENSION_CHECKSUM_FIELD")) != (15, 38, 54):
                 raise ValueError("the installed settings extension layout is unsupported")
+            self.clock_offset_byte = (constant(source, "CLOCK_OFFSET_BYTE")
+                                      if re.search(r"\bCLOCK_OFFSET_BYTE\s*=", source) else None)
+            if self.clock_offset_byte not in (None, 11):
+                raise ValueError("the installed clock offset layout is unsupported")
             if self.settings_version >= 15:
                 self.check_home_layout()
                 if re.search(r"\bDISPLAY_FLAGS_BYTE\s*=", source):
@@ -138,10 +142,12 @@ class Snapshot:
         if data[4] < 15:
             return True
         block = data[38:54]
+        offset = int.from_bytes(block[11:13], "little", signed=True) if self.clock_offset_byte else 0
+        reserved = 13 if self.clock_offset_byte else 11
         return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and block[3] == 0 and
-                self.home_valid(block) and not any(block[index] & (0x7F if index == self.style_flags_byte else 0xFF)
-                                                  for index in range(11, 16)
-                                                  if index != self.display_flags_byte))
+                -720 <= offset <= 840 and self.home_valid(block) and
+                not any(block[index] & (0x7F if index == self.style_flags_byte else 0xFF)
+                        for index in range(reserved, 16) if index != self.display_flags_byte))
 
     def show(self, path):
         return git(self.api.ROOT, "show", self.commit + ":" + path)

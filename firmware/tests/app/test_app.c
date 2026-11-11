@@ -9,6 +9,7 @@
 #include "check.h"
 #include "core/frame_pacer.h"
 #include "core/hash.h"
+#include "core/headphone_audio.h"
 #include "core/key_script.h"
 #include "core/key_tracker.h"
 #include "default_theme.h"
@@ -19,8 +20,11 @@
 #include "frame_overlay.h"
 #include "gfx/canvas.h"
 #include "gfx/text.h"
+#include "hal/audio.h"
 #include "hal/display.h"
+#include "hal/storage.h"
 #include "hal/system.h"
+#include "headphone_store.h"
 #include "home_art.h"
 #include "library/cover_build.h"
 #include "library/covers.h"
@@ -30,6 +34,7 @@
 #include "screen_modules.h"
 #include "screens/charge_screen.h"
 #include "settings/equalizer_slots.h"
+#include "settings/headphone_profile.h"
 #include "settings/settings.h"
 #include "settings_store.h"
 #include "ui/header.h"
@@ -56,22 +61,22 @@ enum {
     SETTINGS_REPEAT_INDEX = 2,
     SETTINGS_SLEEP_INDEX = 4,
     SETTINGS_TIMEOUT_INDEX = 6,
-    SETTINGS_BRIGHTNESS_INDEX = 8,
-    SETTINGS_COLOR_INDEX = 9,
-    SETTINGS_TEXT_SIZE_INDEX = 10,
-    SETTINGS_ORIENTATION_INDEX = 11,
-    SETTINGS_SKIP_INDEX = 12,
-    SETTINGS_GAIN_INDEX = 13,
-    SETTINGS_EQUALIZER_INDEX = 15,
-    SETTINGS_CUSTOM_EQ_INDEX = 16,
-    SETTINGS_REPLAY_GAIN_INDEX = 17,
-    SETTINGS_CLIPPING_INDEX = 18,
-    SETTINGS_START_INDEX = 19,
-    SETTINGS_RESCAN_INDEX = 20,
-    SETTINGS_USB_MODE_INDEX = 21,
-    SETTINGS_THEME_INDEX = 22,
-    SETTINGS_BATTERY_PERCENT_INDEX = 23,
-    SETTINGS_USB_ANSWER_INDEX = 27,
+    SETTINGS_BRIGHTNESS_INDEX = 9,
+    SETTINGS_COLOR_INDEX = 10,
+    SETTINGS_TEXT_SIZE_INDEX = 11,
+    SETTINGS_ORIENTATION_INDEX = 12,
+    SETTINGS_SKIP_INDEX = 13,
+    SETTINGS_GAIN_INDEX = 14,
+    SETTINGS_EQUALIZER_INDEX = 16,
+    SETTINGS_CUSTOM_EQ_INDEX = 17,
+    SETTINGS_REPLAY_GAIN_INDEX = 18,
+    SETTINGS_CLIPPING_INDEX = 19,
+    SETTINGS_START_INDEX = 20,
+    SETTINGS_RESCAN_INDEX = 21,
+    SETTINGS_USB_MODE_INDEX = 22,
+    SETTINGS_THEME_INDEX = 23,
+    SETTINGS_BATTERY_PERCENT_INDEX = 24,
+    SETTINGS_USB_ANSWER_INDEX = 28,
     USB_PROMPT_MS = 15000,
     CHARGE_LIT_MS = 5000,
     MUSIC_COVER_FLOW_INDEX = 1,
@@ -384,7 +389,7 @@ static void exporting_without_plays_settles_at_once_and_keeps_one_back(void)
     start_app();
     move_down(3);
     tap(KEY_PLAY);
-    move_up(1);
+    move_up(2);
     tap(KEY_PLAY);
     CHECK(title_is("Export plays"));
     int depth = app_screen_depth();
@@ -2502,7 +2507,7 @@ static void a_refused_track_says_why_it_was_skipped(void)
     fake_hal_audio_refuse_plays(1);
     play_first_album_track();
     CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
-    CHECK(toast_is("192 kHz isn't supported yet"));
+    CHECK(toast_is("192 kHz isn't supported"));
 }
 
 static void formatting_a_paused_card_clears_the_library_and_saved_playback_state(void)
@@ -2529,7 +2534,7 @@ static void formatting_a_paused_card_clears_the_library_and_saved_playback_state
     CHECK(!app_player_status().has_track);
     CHECK_EQUAL(PLAYER_IDLE, app_player_status().state);
     CHECK(title_is(FIRMWARE_SHORT_NAME));
-    CHECK(toast_is("Card formatted. The library is empty."));
+    CHECK(toast_is("Card formatted"));
     app_start();
     CHECK(!app_player_status().has_track);
     uint32_t size = 0;
@@ -2744,7 +2749,7 @@ static void a_rescan_after_an_installed_update_asks_for_a_restart(void)
     step();
     CHECK_EQUAL(0, fake_hal_scratch_borrow_count());
     CHECK_EQUAL(0, fake_hal_library_writes());
-    CHECK(toast_is("Restart the player to finish the update"));
+    CHECK(toast_is("Restart to finish the update"));
 }
 
 static void the_music_check_after_an_installed_update_skips_the_walk(void)
@@ -2756,7 +2761,7 @@ static void the_music_check_after_an_installed_update_skips_the_walk(void)
     app_request_rescan_if_music_changed();
     step();
     CHECK_EQUAL(before, fake_hal_dir_open_count());
-    CHECK(toast_is("Restart the player to finish the update"));
+    CHECK(toast_is("Restart to finish the update"));
 }
 
 static void a_rescan_without_scratch_memory_says_so(void)
@@ -2767,7 +2772,7 @@ static void a_rescan_without_scratch_memory_says_so(void)
     app_request_rescan();
     step();
     fake_hal_refuse_scratch(false);
-    CHECK(toast_is("Couldn't free memory for the scan"));
+    CHECK(toast_is("No memory for the scan"));
 }
 
 static bool rescan_message_is(ScanResult result, const char *expected)
@@ -2779,8 +2784,8 @@ static bool rescan_message_is(ScanResult result, const char *expected)
 
 static void each_way_a_scan_runs_out_has_its_own_message(void)
 {
-    CHECK(rescan_message_is(SCAN_OUT_OF_MEMORY, "Library too big for the player's memory"));
-    CHECK(rescan_message_is(SCAN_TOO_MANY, "Too many tracks for the player"));
+    CHECK(rescan_message_is(SCAN_OUT_OF_MEMORY, "Library too big for memory"));
+    CHECK(rescan_message_is(SCAN_TOO_MANY, "Too many tracks"));
 }
 
 static void a_rescan_borrows_the_idle_audio_buffer_for_its_listing(void)
@@ -3424,7 +3429,7 @@ static void holding_play_on_a_folder_without_songs_shows_a_toast(void)
     move_down(2);
     hold(KEY_PLAY);
     CHECK(title_is("Folders"));
-    CHECK(toast_is("No songs in this folder"));
+    CHECK(toast_is("No songs here"));
 }
 
 static void holding_play_on_a_song_in_folders_still_opens_play_next(void)
@@ -5080,6 +5085,31 @@ static void check_status_clock(const char *text)
     }
 }
 
+static void date_and_time_opens_next_to_clock_format(void)
+{
+    start_app_with_library();
+    open_setting(8);
+    CHECK(title_is("Date & time"));
+}
+
+static void saving_date_and_time_refreshes_the_status_bar_without_restarting(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery((HalBattery){.known = true, .percent = HALF_BATTERY, .millivolts = 4000});
+    fake_hal_set_rtc_answer((HalRtcRead){.status = HAL_RTC_OK});
+    open_setting(8);
+    for (int field = 0; field < 4; field++) {
+        tap(KEY_MENU);
+    }
+    tap(KEY_VOLUME_UP);
+    tap(KEY_PLAY);
+    CHECK(title_is("Settings"));
+    wait_ms(2000);
+    settle();
+    check_status_clock("00:01");
+    CHECK_EQUAL(1767225660u, fake_hal_rtc_written());
+}
+
 static void the_clock_format_choice_is_saved_and_controls_stays_last(void)
 {
     start_app_with_library();
@@ -5237,7 +5267,9 @@ static void clipping_preview_is_discarded_by_back_shutdown_and_unrelated_saves(v
     move_up(1);
     CHECK_EQUAL(75536, fake_hal_audio_replay_gain());
     CHECK_EQUAL(75537, fake_hal_audio_queued_replay_gain());
-    app_remember_dac_volume(17);
+    AppDacSettings dac = app_dac_settings();
+    dac.volume = 17;
+    app_remember_dac(dac);
     Settings chosen;
     CHECK(saved_settings(&chosen));
     CHECK(chosen.prevent_clipping);
@@ -5251,9 +5283,63 @@ static void clipping_preview_is_discarded_by_back_shutdown_and_unrelated_saves(v
     CHECK(chosen.prevent_clipping);
 }
 
+static void dac_choices_made_during_usb_are_saved_with_the_settings(void)
+{
+    fake_hal_reset();
+    app_start();
+    AppDacSettings dac = app_dac_settings();
+    dac.volume = 21;
+    dac.gain = GAIN_HIGH;
+    dac.output = OUTPUT_BALANCED;
+    app_remember_dac(dac);
+    app_step();
+    Settings saved;
+    CHECK(saved_settings(&saved));
+    CHECK_EQUAL(21, saved.dac_volume);
+    CHECK_EQUAL(GAIN_HIGH, saved.gain);
+    CHECK_EQUAL(OUTPUT_BALANCED, saved.output);
+    CHECK_EQUAL(21, app_dac_settings().volume);
+    app_stop();
+}
+
+static void a_profile_chosen_in_dac_mode_is_committed_after_the_session(void)
+{
+    fake_hal_reset();
+    CHECK_EQUAL(HAL_RESERVE_CREATED,
+                hal_internal_file_reserve(HEADPHONE_STORE_PATH, HEADPHONE_FILE_BYTES));
+    HeadphoneStore store;
+    headphone_store_load(&store);
+    HeadphoneProfiles profiles = headphone_profiles_defaults();
+    profiles.count = 1;
+    profiles.slots[0] = headphone_profile_defaults();
+    profiles.slots[0].trim_half_db = 12;
+    memcpy(profiles.slots[0].name, "Studio", sizeof "Studio");
+    CHECK_EQUAL(STORE_DONE, headphone_file_save(&store.file, &profiles));
+    app_start();
+    settle();
+    CHECK_EQUAL(1, app_headphone_profiles()->count);
+    CHECK(headphone_profiles_valid(&profiles));
+    CHECK(headphone_profiles_valid(app_headphone_profiles()));
+    AppDacSettings dac = app_dac_settings();
+    CHECK_EQUAL(HEADPHONE_PROFILE_NONE, dac.headphones);
+    dac.volume = 20;
+    dac.headphones = 0;
+    app_remember_dac(dac);
+    app_step();
+    CHECK_EQUAL(0, app_headphone_profiles()->current);
+    CHECK(hal_audio_headphones().left < headphone_audio_defaults().left);
+    Settings saved;
+    CHECK(saved_settings(&saved));
+    CHECK_EQUAL(20, saved.dac_volume);
+    CHECK_EQUAL(0, app_dac_settings().headphones);
+    app_stop();
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_profile_chosen_in_dac_mode_is_committed_after_the_session),
+        TEST_CASE(dac_choices_made_during_usb_are_saved_with_the_settings),
         TEST_CASE(a_notice_is_drawn_at_once_over_the_current_screen),
         TEST_CASE(a_notice_turns_the_display_on),
         TEST_CASE(waking_keeps_the_screen_on_for_a_full_timeout),
@@ -5328,6 +5414,8 @@ int main(void)
         TEST_CASE(
             battery_percentage_choice_shows_the_level_beside_the_battery_and_survives_restart),
         TEST_CASE(the_status_bar_shows_the_set_time_and_nothing_without_one),
+        TEST_CASE(date_and_time_opens_next_to_clock_format),
+        TEST_CASE(saving_date_and_time_refreshes_the_status_bar_without_restarting),
         TEST_CASE(the_clock_format_choice_is_saved_and_controls_stays_last),
         TEST_CASE(a_calendar_month_title_keeps_its_room_before_the_status_clock),
         TEST_CASE(brightness_is_applied_and_saved),

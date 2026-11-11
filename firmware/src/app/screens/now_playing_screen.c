@@ -437,6 +437,7 @@ static void enter(void *context, uint32_t now_ms)
 {
     NowPlayingScreen *now_playing = context;
     now_playing->has_text = false;
+    now_playing->destination = NULL;
     now_playing->scrubbing = false;
     now_playing->feedback = NOW_PLAYING_FEEDBACK_NONE;
     refresh(now_playing, now_ms);
@@ -453,6 +454,12 @@ static void update(void *context, uint32_t now_ms)
 {
     NowPlayingScreen *now_playing = context;
     refresh(now_playing, now_ms);
+    if (!now_playing->config.player->cassette.flip) {
+        now_playing->flip_prompted = false;
+    } else if (!now_playing->flip_prompted && now_playing->config.flip != NULL) {
+        now_playing->flip_prompted = true;
+        now_playing->destination = now_playing->config.flip;
+    }
     if (now_playing->config.covers != NULL && now_playing->status.has_track) {
         cover_cache_load_full(now_playing->config.covers, now_playing->album_index);
     }
@@ -677,6 +684,21 @@ static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
                        detail});
     char modes[STATUS_CAPACITY];
     modes_text(&now_playing->status, modes, sizeof modes);
+    const CassetteState *tape =
+        now_playing->config.player != NULL ? &now_playing->config.player->cassette : NULL;
+    if (tape != NULL && tape->active) {
+        StringBuilder side = string_builder_make(modes, sizeof modes);
+        if (tape->flip) {
+            string_builder_append(
+                &side, i18n_text(tape->side == 0 ? STR_SIDE_A_FINISHED : STR_SIDE_B_FINISHED));
+        } else {
+            char entry[16];
+            StringBuilder number = string_builder_make(entry, sizeof entry);
+            uint32_t first = tape->side == 0 ? 0 : tape->split;
+            string_builder_append_unsigned(&number, now_playing->status.place.number - first);
+            i18n_format_text(&side, tape->side == 0 ? STR_TAPE_SIDE_A : STR_TAPE_SIDE_B, entry);
+        }
+    }
     if (now_playing->scrubbing) {
         StringBuilder seeking = string_builder_make(modes, sizeof modes);
         string_builder_append(&seeking, i18n_text(STR_SEEKING));
@@ -740,9 +762,9 @@ static void draw(void *context, Canvas *canvas)
     const Theme *theme = now_playing->config.theme;
     canvas_fill_rect(canvas, theme_content_area(theme), theme->colors.background);
     Rect header = theme_header_area(theme);
-    canvas_fill_rect(canvas, header, theme->colors.background);
+    canvas_fill_rect(canvas, header, theme->colors.header_background);
     canvas_fill_rect(canvas, (Rect){0, header.height - 1, header.width, 1}, theme->colors.divider);
-    TextStyle heading = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
+    TextStyle heading = {.font = theme->fonts.small, .color = theme->colors.header_text};
     Rect title =
         label_centered_area(heading.font, header_title_bounds(theme), now_playing->screen.title);
     label_draw(canvas, heading, (Label){title, now_playing->screen.title});
@@ -771,6 +793,8 @@ static void draw(void *context, Canvas *canvas)
 Screen *now_playing_screen_init(NowPlayingScreen *now_playing, NowPlayingConfig config)
 {
     now_playing->config = config;
+    now_playing->destination = NULL;
+    now_playing->flip_prompted = false;
     now_playing->has_text = false;
     now_playing->scrubbing = false;
     now_playing->scrub_position_ms = 0;

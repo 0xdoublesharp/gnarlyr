@@ -17,13 +17,19 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 - Waking the player keeps the screen on even when a fresh wake timestamp is newer than the current app step. Screen timeout and auto off also remain correct across clock wraparound.
 - Navigation returns to existing checkpoints. Mixtape actions settle at List, modal Back returns to its parent, and hold Back cancels work and reaches Home.
 - Full queue editing, journaled resume, named mixtapes, listening history/export and timed sidecar lyrics.
+- C60/C90 two-sided tapes have per-side time and song limits, song-list additions, a cassette flip prompt and exact side/entry/position resume. Single-sided tapes retain their existing actions; the catalogue and session formats stay at version 1.
+- Listening → Moments saves up to 64 labelled positions by path and chapter boundaries, replays them after a restart or rescan, and supports confirmed deletion. Spare-bank writes preserve the published list through interrupted saves.
 
 ## Interface and sound controls
 
 - Settings → Now Playing style adds Cassette, VU meters and Spectrum beside Cover. The cassette uses neon wireframe artwork with turning spokes; VU has separate left/right needles and peak lights; Spectrum has sixteen theme-coloured bars and peak caps over the perspective floor. The saved choice survives a restart. Native, simulator and emulator checks cover the interface, analysis and playback load; player acceptance remains open.
+- Settings → Date & time edits the local date, hour, minute and UTC offset, writes the clock chip through the extension module and updates the running wall clock immediately after successful readback. Back cancels; a failed save keeps the running clock unchanged. Date and time set on the player now survive restart and power-off: one deferred RTC read restores trusted UTC with the saved offset, with no read during USB or active audio. Later Mac time syncs still replace the running clock and save their offset. Listening timestamps remain UTC. The simulator supports the same setting path; on-player validation remains pending.
 
 - Settings → Clock format selects 12-hour time with AM/PM or 24-hour time for Clock and the status bar, including Calendar. The choice survives restarts.
 - Four named headphone profiles apply attenuation-only trim, left/right balance and a volume ceiling to music and USB DAC output. Settings → Headphones selects and edits them; verified alternating-bank saves keep profiles on internal storage without changing settings v15. Switching to less attenuation lowers the saved mode volumes first. Analog Gain is unchanged; physical output checks remain pending.
+- The USB screens are redesigned in the theme's style: a wireframe cassette whose reels turn while the computer reads or writes, a state light, the amount copied, each drive's size or ejected state, the USB speed and the battery. The DAC screen adds a level meter, the format, both volumes, the jack, buffer, clock correction, underruns and time connected.
+- File transfer can be ended from the player: hold Back for a second. The player waits until the computer has stopped writing for 3 seconds, tells it the drives are gone and finishes as after an eject; holding on for 3 more seconds disconnects at once with a warning.
+- The DAC menu (Menu in DAC mode) changes volume, gain, output and the headphone profile, or switches to File transfer or Charge only, without leaving DAC mode.
 - Five themes with live preview, configurable playback tap/hold actions, shared icons and cassette artwork.
 - Flat retro-future headers and focus accents, clearer Listen and charging layouts, a larger battery readout and an honest distinction between USB power, charging and full.
 - Theme and EQ browsing preview without saving. Custom EQ has a response curve and staged audible editing; leaving a preview restores the saved choice.

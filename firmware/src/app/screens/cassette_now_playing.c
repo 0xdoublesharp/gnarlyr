@@ -12,13 +12,11 @@
 #include "ui/label.h"
 
 enum {
-    REEL_PIXELS = 1024,
     PHASE_STEPS = 16,
     SPOKES = 3,
     SINE_SCALE = 16
 };
 
-static Color reel_pixels[REEL_PIXELS];
 static const int8_t SINE[PHASE_STEPS] = {0, 6,  11,  15,  16,  15,  11,  6,
                                          0, -6, -11, -15, -16, -15, -11, -6};
 
@@ -229,12 +227,8 @@ CORE_SEAM bool cassette_now_playing_animate(NowPlayingScreen *screen, FrameDiff 
     screen->reel_position_ms = screen->status.position_ms;
     for (int index = 0; index < 2; index++) {
         Rect reel = layout.reels[index];
-        StripRenderer renderer = {.strip_pixels = reel_pixels,
-                                  .area = reel,
-                                  .strip_height = REEL_PIXELS / reel.width,
-                                  .background = screen->config.theme->colors.background};
-        strip_renderer_render(&renderer, (FrameDrawer){draw_motion, screen},
-                              (FrameSink){send_reels, NULL});
+        neon_art_render(reel, screen->config.theme->colors.background,
+                        (FrameDrawer){draw_motion, screen}, (FrameSink){send_reels, NULL});
     }
     hal_display_present();
     return changed;

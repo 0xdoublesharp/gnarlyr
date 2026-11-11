@@ -4,6 +4,8 @@
 #include <stdint.h>
 
 #include "app/extension.h"
+#include "hal/clock.h"
+#include "headphone_store.h"
 #include "home_art.h"
 #include "ui/wire_motion.h"
 
@@ -23,6 +25,10 @@ typedef struct ExtensionModuleEntry {
     void (*art_draw)(void *context, Canvas *canvas, Rect area);
     void (*art_backdrop)(Canvas *canvas, Rect area, const Theme *theme);
     bool (*file_remove)(const char *path);
+    void (*forget_time_file)(void);
+    void (*headphones_load)(HeadphoneStore *store);
+    bool (*clock_set)(HalWallTime time);
+    bool (*clock_restore)(int16_t offset_minutes);
 } ExtensionModuleEntry;
 
 extern const ExtensionModuleEntry EXTENSION_MODULE_ENTRY;

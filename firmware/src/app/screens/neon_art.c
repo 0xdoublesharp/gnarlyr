@@ -1,5 +1,15 @@
 #include "neon_art.h"
 
+static union {
+    AudioVisualWork audio;
+    Color pixels[1024];
+} work;
+
+AudioVisualWork *neon_art_audio_work(void)
+{
+    return &work.audio;
+}
+
 static int absolute(int value)
 {
     return value < 0 ? -value : value;
@@ -53,4 +63,13 @@ void neon_art_frame(Canvas *canvas, Rect area, NeonInk ink)
     neon_art_line(canvas, (Point){right, area.y}, (Point){right, bottom}, ink);
     neon_art_line(canvas, (Point){right, bottom}, (Point){area.x, bottom}, ink);
     neon_art_line(canvas, (Point){area.x, bottom}, (Point){area.x, area.y}, ink);
+}
+
+void neon_art_render(Rect area, Color background, FrameDrawer drawer, FrameSink sink)
+{
+    StripRenderer renderer = {.strip_pixels = work.pixels,
+                              .area = area,
+                              .strip_height = 1024 / area.width,
+                              .background = background};
+    strip_renderer_render(&renderer, drawer, sink);
 }

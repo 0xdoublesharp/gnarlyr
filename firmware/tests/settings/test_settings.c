@@ -1130,6 +1130,27 @@ static void every_older_version_loads_with_the_extension_defaults(void)
     }
 }
 
+static void the_utc_offset_uses_two_spare_extension_bytes_and_round_trips(void)
+{
+    static const int16_t OFFSETS[] = {-720, -480, -7, 0, 1, 345, 840};
+    for (unsigned at = 0; at < sizeof OFFSETS / sizeof OFFSETS[0]; at++) {
+        Settings original = settings_defaults();
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&original, bytes);
+        bytes[EXTENSION_FIELD + 11] = (uint8_t)OFFSETS[at];
+        bytes[EXTENSION_FIELD + 12] = (uint8_t)((uint16_t)OFFSETS[at] >> 8);
+        rewrite_checksum(bytes);
+        Settings restored;
+        bool valid = settings_decode(bytes, sizeof bytes, &restored);
+        CHECK(valid);
+        if (valid) {
+            settings_encode(&restored, bytes);
+            CHECK_EQUAL((uint8_t)OFFSETS[at], bytes[EXTENSION_FIELD + 11]);
+            CHECK_EQUAL((uint8_t)((uint16_t)OFFSETS[at] >> 8), bytes[EXTENSION_FIELD + 12]);
+        }
+    }
+}
+
 static void a_version_fifteen_file_needs_all_fifty_eight_bytes(void)
 {
     Settings settings = settings_defaults();
@@ -1153,9 +1174,9 @@ static void the_checksum_covers_the_extension_block(void)
 static void each_invalid_extension_value_is_rejected_without_mutating_the_settings(void)
 {
     static const uint8_t CASES[][2] = {
-        {0, 0x20},  {0, 0x40},  {0, 0x80}, {0, 0x18}, {1, 61},   {2, 4},    {2, 61},   {2, 0},
-        {3, 1},     {4, 0x00},  {4, 0x11}, {6, 0x55}, {8, 0x18}, {8, 0x09}, {9, 0x08}, {9, 0xFF},
-        {10, 0x04}, {10, 0x80}, {11, 1},   {12, 1},   {14, 1},   {15, 0x80}};
+        {0, 0x20},  {0, 0x40},  {0, 0x80},  {0, 0x18},  {1, 61},   {2, 4},    {2, 61},   {2, 0},
+        {3, 1},     {4, 0x00},  {4, 0x11},  {6, 0x55},  {8, 0x18}, {8, 0x09}, {9, 0x08}, {9, 0xFF},
+        {10, 0x04}, {10, 0x80}, {12, 0x04}, {12, 0xFC}, {14, 1},   {15, 0x80}};
     for (uint32_t at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
         Settings original = settings_defaults();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1366,6 +1387,7 @@ int main(void)
         TEST_CASE(each_comfort_flag_and_the_fade_round_trip_alone),
         TEST_CASE(a_version_fourteen_file_loads_with_the_extension_defaults_and_saves_as_fifteen),
         TEST_CASE(every_older_version_loads_with_the_extension_defaults),
+        TEST_CASE(the_utc_offset_uses_two_spare_extension_bytes_and_round_trips),
         TEST_CASE(a_version_fifteen_file_needs_all_fifty_eight_bytes),
         TEST_CASE(the_checksum_covers_the_extension_block),
         TEST_CASE(each_invalid_extension_value_is_rejected_without_mutating_the_settings),

@@ -13,6 +13,7 @@
 #include "screens/card_format_screen.h"
 #include "screens/equalizer_browser.h"
 #include "screens/equalizer_screen.h"
+#include "screens/set_clock_screen.h"
 #include "settings_preview.h"
 #include "settings_store.h"
 #include "ui/choice_screen.h"
@@ -26,15 +27,16 @@ enum {
     SETTINGS_USB_MODE_CHOICE = 18,
     SETTINGS_ABOUT_ITEM = 0,
     SETTINGS_BLUETOOTH_ITEM = 3,
-    SETTINGS_LANGUAGE_ITEM = 12,
-    SETTINGS_CUSTOM_EQ_ITEM = 17,
-    SETTINGS_RESCAN_ITEM = 21,
-    SETTINGS_TRANSITION_LENGTH_ITEM = 28,
-    SETTINGS_HEADPHONES_ITEM = SETTINGS_CHOICE_COUNT + 4,
-    SETTINGS_FORMAT_ITEM = SETTINGS_CHOICE_COUNT + 5,
-    SETTINGS_HOME_ITEM = SETTINGS_CHOICE_COUNT + 6,
-    SETTINGS_CONTROLS_ITEM = SETTINGS_CHOICE_COUNT + 7,
-    SETTINGS_ITEM_COUNT = SETTINGS_CHOICE_COUNT + 8,
+    SETTINGS_DATE_TIME_ITEM = 8,
+    SETTINGS_LANGUAGE_ITEM = 13,
+    SETTINGS_CUSTOM_EQ_ITEM = 18,
+    SETTINGS_RESCAN_ITEM = 22,
+    SETTINGS_TRANSITION_LENGTH_ITEM = 29,
+    SETTINGS_HEADPHONES_ITEM = SETTINGS_CHOICE_COUNT + 5,
+    SETTINGS_FORMAT_ITEM = SETTINGS_CHOICE_COUNT + 6,
+    SETTINGS_HOME_ITEM = SETTINGS_CHOICE_COUNT + 7,
+    SETTINGS_CONTROLS_ITEM = SETTINGS_CHOICE_COUNT + 8,
+    SETTINGS_ITEM_COUNT = SETTINGS_CHOICE_COUNT + 9,
     SETTINGS_MESSAGE_CAPACITY = 64,
     SETTINGS_COUNTDOWN_CAPACITY = 16
 };
@@ -101,6 +103,7 @@ struct SettingsScreens {
     MenuScreen menu;
     union {
         ChoiceScreen choice;
+        SetClockScreen clock;
         EqualizerBrowser equalizer_browser;
         EqualizerScreen equalizer;
     };

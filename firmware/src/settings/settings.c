@@ -64,8 +64,9 @@ enum {
     CASSETTE_BIT = 1 << 5,
     STYLE_FLAGS_BYTE = 14,
     STYLE_HIGH_BIT = 1 << 7,
-    RESERVED_BYTE = 11,
-    RESERVED_COUNT = 5,
+    CLOCK_OFFSET_BYTE = 11,
+    RESERVED_BYTE = 13,
+    RESERVED_COUNT = 3,
     EXTENSION_SIZE = 16,
     REWIND_BIT = 1,
     SAFE_START_BIT = 2,
@@ -151,12 +152,20 @@ bool settings_home_unpack(const uint8_t *packed, int item_count, uint8_t *order,
     return true;
 }
 
+static int16_t clock_offset(const uint8_t *extension)
+{
+    uint16_t offset =
+        extension[CLOCK_OFFSET_BYTE] | (uint16_t)((uint16_t)extension[CLOCK_OFFSET_BYTE + 1] << 8);
+    return (int16_t)(offset <= INT16_MAX ? offset : (int32_t)offset - 65536);
+}
+
 static void read_extension(const uint8_t *extension, Settings *settings)
 {
     uint8_t comfort = extension[COMFORT_BYTE];
     settings->rewind_on_resume = (comfort & REWIND_BIT) != 0;
     settings->safe_start_volume = (comfort & SAFE_START_BIT) != 0;
     settings->clock_24h = (comfort & CLOCK_24H_BIT) != 0;
+    settings->clock_offset_minutes = clock_offset(extension);
     settings->track_transition = (TrackTransition)(comfort >> TRANSITION_SHIFT);
     settings->safe_start_volume_level = extension[SAFE_LEVEL_BYTE];
     settings->transition_tenths = extension[TRANSITION_BYTE];
@@ -289,6 +298,8 @@ static void encode_extension(const Settings *settings, uint8_t *extension)
     extension[TRANSITION_BYTE] = settings->transition_tenths;
     extension[DISPLAY_FLAGS_BYTE] = settings->display_flags;
     extension[STYLE_FLAGS_BYTE] = settings->style_flags & STYLE_HIGH_BIT;
+    extension[CLOCK_OFFSET_BYTE] = (uint8_t)settings->clock_offset_minutes;
+    extension[CLOCK_OFFSET_BYTE + 1] = (uint8_t)((uint16_t)settings->clock_offset_minutes >> 8);
     for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
         extension[HOME_ORDER_BYTE + index / 2] |=
             (uint8_t)(settings->home_order[index] << (NIBBLE_BITS * (index & 1)));
@@ -455,10 +466,11 @@ static bool extension_valid(const uint8_t *bytes)
     const uint8_t *extension = bytes + EXTENSION_FIELD;
     uint8_t comfort = extension[COMFORT_BYTE];
     uint8_t tenths = extension[TRANSITION_BYTE];
+    int16_t offset = clock_offset(extension);
     return comfort >> TRANSITION_SHIFT < TRACK_TRANSITION_COUNT &&
            extension[SAFE_LEVEL_BYTE] <= SETTINGS_VOLUME_MAX &&
            tenths >= SETTINGS_TRANSITION_TENTHS_MIN && tenths <= SETTINGS_TRANSITION_TENTHS_MAX &&
-           home_valid(extension) && reserved_clear(extension);
+           offset >= -720 && offset <= 840 && home_valid(extension) && reserved_clear(extension);
 }
 
 static void decode_extension(const uint8_t *bytes, Settings *settings)
