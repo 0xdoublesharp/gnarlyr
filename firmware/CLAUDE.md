@@ -22,7 +22,7 @@ The four-byte file markers beginning with `DS` remain maker format tags; the bin
 | `assets/` | Font sources and `lang/en.txt`, the English text and string catalogue |
 | `tools/` | Python: image builder (`make_image.py`), size report (`size_report.py`), language pack builder (`lang_pack.py`), emulator (`echo_emulator`), PC library indexer, `echo_sync.py`, font and fixture generators |
 | `tests/` | One test executable per module, emulator scenarios, fixtures |
-| `docs/` | The design record: `architecture.md` (layers, rules, device platform), `ogg-vorbis.md` and `opus.md`, `hardware.md`, `library-format.md`, `playback-store.md` with `stored-order.md`, `session-journal.md` and `mixtapes.md`, `device-install.md`, `device-recovery.md`, `known-issues.md`, `user-guide.md`, `release-notes.md` |
+| `docs/` | The design record: `architecture.md` (layers, rules, device platform), `ogg-vorbis.md` and `opus.md`, `hardware.md`, `library-format.md`, `smart-lists.md`, `playback-store.md` with `stored-order.md`, `session-journal.md` and `mixtapes.md`, `device-install.md`, `device-recovery.md`, `known-issues.md`, `user-guide.md`, `release-notes.md` |
 
 The layer table in `docs/architecture.md` defines which layer may depend on which; keep to it.
 
@@ -72,21 +72,21 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 145,788 | 157,292 | 11,504 |
-| Code window, `device` preset | 149,836 | 157,292 | 7,456 |
-| Static RAM | 264,868 | 278,528 | 13,660 |
+| Code window | 145,860 | 157,292 | 11,432 |
+| Code window, `device` preset | 149,908 | 157,292 | 7,384 |
+| Static RAM | 266,508 | 278,528 | 12,020 |
 | Rescan overlay | 93,124 | 98,304 | 5,180 |
 | USB overlay code | 11,740 | 65,536 | 53,796 |
 | Module views (code + BSS) | 21,932 | 44,032 | 22,100 |
 | Module settings (code + BSS) | 18,748 | 44,032 | 25,284 |
-| Module library (code + BSS) | 39,136 | 44,032 | 4,896 |
-| Module listening (code + BSS) | 18,604 | 44,032 | 25,428 |
+| Module library (code + BSS) | 39,252 | 44,032 | 4,780 |
+| Module listening (code + BSS) | 28,692 | 44,032 | 15,340 |
 | Audio processing module (code, no BSS) | 2,156 | 12,288 | 10,132 |
 | Audio DSP module (code, no BSS) | 6,284 | 8,192 | 1,908 |
 | Ogg file module, Vorbis and Opus (code, no BSS) | 7,076 | 8,192 | 1,116 |
 | Debug module, `device` preset (code, no BSS) | 2,232 | 8,192 | 5,960 |
 | Decoder workspace | 41,648 | 41,984 | 336 |
-| Language pack (English) | 7,366 | 16,384 | 9,018 |
+| Language pack (English) | 7,697 | 16,384 | 8,687 |
 | Vorbis program image bank | 64,840 | 130,048 | 65,208 |
 | Vorbis core-1 static state | 32,952 | 36,864 | 3,912 |
 | Opus program image bank | 98,928 | 131,072 | 32,144 |

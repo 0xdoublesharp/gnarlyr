@@ -33,6 +33,7 @@ These checks remain incomplete on the owner's unit; the observed developer flows
 - **Bluetooth.**
 - **Remaining developer-loop and power checks.** File-copy installs, saved reports, scripts, restart/reconnect and frame/load measurements have run on the player. Recorded 15-minute playback and idle battery soaks completed and returned reports; the cable bit remained 1 with the supply override active. These short voltage observations do not establish battery runtime or complete isolation from USB power. Low-battery abort/report behavior, charging from a low battery, charger-pin interpretation and profiler attribution to individual functions still need hardware validation. The experimental USB sense setting is not an established battery-saving mode.
 - **The 4.4 mm output.**
+- **Smart lists.** Covered by host tests and simulator captures only. How long the first library check and each list take with the owner's library and listening history, and the new 1.5 MB `track_keys.bin` being reserved on an existing card, still need a player check.
 
 Also unchecked on a player by this project: `.m4a` and `.m4b` playback and seeking speed, `.m4b` chapters, CUE sheets by ear, wired headset buttons, the `MASKROM.REQ` request, going back to FiiO's firmware through the updater, the charge screen, auto off, and audiobook bookmarks.
 

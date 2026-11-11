@@ -41,6 +41,18 @@ On the first start with a microSD card in the player, Gnarlyr builds its library
 
 Music → Search finds songs across their metadata and paths. View options combine sorting, filters and personal tags. See [Search, sorting and personal tags](library-discovery.md) for controls, scopes, limits and saved-view behavior.
 
+## Smart lists
+
+Music → Smart Lists has five lists that build themselves from what you play and add. Each holds up to 100 songs and works like the other song lists: ▶ plays the list from the selected song (Shuffle applies as usual), and holding ▶ offers Play Next, Add to Up Next and the other song actions. The player has no clock, so these lists count plays and library updates instead of days:
+
+- **Recently Added**: songs that are new to the library, newest first. The first time you open a smart list, the player notes the songs already there; songs that appear after a later rescan or library build show up here, those from the latest change first.
+- **Recently Played**: the songs you played last, each once, newest first.
+- **Most Played**: the songs you listened to most. A play counts when at least half of the song was heard.
+- **Never Played**: songs you haven't played, the newest additions first, then in album order.
+- **Old Favorites**: songs from your Favorite Tracks playlist and favorite albums that you haven't played in your last 500 plays, the longest unplayed first, then favorites you have never played.
+
+The history behind them is your last 4,096 plays. The first list you open after the library changed checks the library first and says so; a list is then remembered until you play something, restart the player or change your favorites, so opening it again is instant.
+
 ## Audiobook chapters
 
 M4B files appear on Audiobooks wherever you keep them. Named `Audiobooks` and `Audiobook` folders share the shelf and retain their folder hierarchy; M4B books in other folders appear directly. Whole-file books remember their own position and play as one book. A chaptered `.m4b` appears as a book folder containing its chapter titles and lengths. The player scan and desktop echo-sync both preserve these chapters. Author and title folders stay in their original hierarchy. Select a book's chapter folder to continue listening, or hold Play to choose a chapter; this works inside nested folders too. Selecting a chapter starts at its position in the book; the final chapter continues to the file's end. Books without usable chapter information remain playable as one track. Rescan or run echo-sync again after changing chapter information or to apply this recognition to an existing library.
