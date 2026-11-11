@@ -283,8 +283,7 @@ static void read_file_properties(TagReader *reader, uint32_t body, uint32_t end)
     }
     uint64_t play_duration = tag_le64(properties + 40);
     uint64_t preroll = tag_le64(properties + 56);
-    double seconds = (double)play_duration / 10000000.0 - (double)preroll / 1000.0;
-    tag_set_duration(reader, seconds > 0.0 ? seconds : 0.0);
+    tag_set_preroll_duration(reader, play_duration, preroll);
 }
 
 static void read_object(TagReader *reader, const uint8_t *guid, uint32_t body, uint32_t end)

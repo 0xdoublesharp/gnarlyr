@@ -15,6 +15,7 @@ typedef struct ListeningScreenConfig {
 typedef struct ListeningScreen {
     Screen screen;
     ListeningScreenConfig config;
+    Screen *moments;
     ListModel model;
     ListView list;
     uint32_t now_ms;

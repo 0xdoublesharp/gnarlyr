@@ -1414,6 +1414,21 @@ static void start_app(bool power_on)
     }
 }
 
+int16_t app_clock_offset(void)
+{
+    return app.settings.settings.clock_offset_minutes;
+}
+
+CORE_COLD bool app_store_clock_offset(int16_t offset)
+{
+    settings_store_capture(&app.settings, player_status(&app.player));
+    bool saved = settings_store_set_clock_offset(&app.settings, offset);
+    if (!saved) {
+        toast_show(&app.toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
+    }
+    return saved;
+}
+
 void app_start(void)
 {
     start_app(true);
@@ -1777,6 +1792,18 @@ static void run_debug_script(uint32_t now_ms)
     }
 }
 
+static void follow_destination(Screen **pending, uint32_t now_ms)
+{
+    Screen *destination = *pending;
+    if (destination != NULL) {
+        *pending = NULL;
+        if (apply_action(screen_action_push(destination), now_ms)) {
+            screen_changed();
+            app.render_urgent = true;
+        }
+    }
+}
+
 static void service_discovery(uint32_t now_ms)
 {
     if (!discovery_is_top()) {
@@ -1950,12 +1977,14 @@ CORE_SEAM void app_step(void)
     MixtapeUi *mixtapes = &app.screens.modules.views.mixtapes;
     if ((app.screens.bound_modules & (1u << SCREEN_MODULE_VIEWS)) != 0 &&
         mixtapes->destination != NULL) {
-        Screen *destination = mixtapes->destination;
-        mixtapes->destination = NULL;
-        if (apply_action(screen_action_push(destination), now_ms)) {
-            screen_changed();
-            app.render_urgent = true;
-        }
+        follow_destination(&mixtapes->destination, now_ms);
+    }
+    MomentsScreen *moments = &app.screens.modules.listening.moments;
+    if (top_screen() == &moments->screen && moments->destination != NULL) {
+        follow_destination(&moments->destination, now_ms);
+    }
+    if (top_screen() == &app.screens.now_playing.screen) {
+        follow_destination(&app.screens.now_playing.destination, now_ms);
     }
     render_when_due(now_ms, started_us);
     wire_motion_end(&app.motion, &app.notice);
@@ -2120,9 +2149,9 @@ const char *app_toast_text(void)
 
 const char *app_diagnostics_value(int index)
 {
-    if (settings_module() == NULL) {
+    if (screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS) == NULL) {
         return NULL;
     }
-    const MenuItem *item = &app.screens.modules.settings.diagnostics_items[index];
+    const MenuItem *item = &app.screens.modules.views.diagnostics_items[index];
     return item->value != NULL ? item->value(item->context) : NULL;
 }

@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "playback/cassette.h"
 #include "playback/mix_identity.h"
 
 enum {
@@ -56,9 +57,15 @@ static bool entry_valid(const MixEntry *entry)
 {
     if (!entry->active) {
         return entry->name[0] == 0 && entry->count == 0 && entry->bytes == 0 &&
-               entry->file_bank == 0;
+               entry->file_bank == 0 && entry->side_minutes == 0 && entry->side_a_count == 0;
     }
-    return name_valid(entry->name) && entry->file_bank <= 1 && size_valid(entry);
+    bool sides = entry->side_minutes == 0
+                     ? entry->side_a_count == 0
+                     : (entry->side_minutes == 30 || entry->side_minutes == 45) &&
+                           entry->side_a_count <= entry->count &&
+                           entry->side_a_count <= CASSETTE_SIDE_CAPACITY &&
+                           entry->count - entry->side_a_count <= CASSETTE_SIDE_CAPACITY;
+    return name_valid(entry->name) && entry->file_bank <= 1 && size_valid(entry) && sides;
 }
 
 static void encode_entry(const MixEntry *entry, uint8_t *bytes)
@@ -74,6 +81,8 @@ static void encode_entry(const MixEntry *entry, uint8_t *bytes)
     bytes[BANK_FIELD] = entry->file_bank;
     bytes[ACTIVE_FIELD] = entry->active ? 1 : 0;
     store_put32(bytes + BYTES_FIELD, entry->bytes);
+    store_put16(bytes + RESERVED_FIELD, entry->side_a_count);
+    bytes[RESERVED_FIELD + 2] = entry->side_minutes;
 }
 
 static bool decode_entry(const uint8_t *bytes, MixEntry *entry)
@@ -82,12 +91,13 @@ static bool decode_entry(const uint8_t *bytes, MixEntry *entry)
                         .bytes = store_get32(bytes + BYTES_FIELD),
                         .count = store_get16(bytes + COUNT_FIELD),
                         .file_bank = bytes[BANK_FIELD],
-                        .active = bytes[ACTIVE_FIELD] == 1};
+                        .active = bytes[ACTIVE_FIELD] == 1,
+                        .side_a_count = store_get16(bytes + RESERVED_FIELD),
+                        .side_minutes = bytes[RESERVED_FIELD + 2]};
     for (int index = 0; index < MIX_NAME_BYTES; index++) {
         entry->name[index] = (char)bytes[index];
     }
-    return bytes[ACTIVE_FIELD] <= 1 && store_get32(bytes + RESERVED_FIELD) == 0 &&
-           entry_valid(entry);
+    return bytes[ACTIVE_FIELD] <= 1 && bytes[RESERVED_FIELD + 3] == 0 && entry_valid(entry);
 }
 
 static uint32_t payload_offset(uint8_t bank, uint32_t position)

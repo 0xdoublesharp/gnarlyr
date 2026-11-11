@@ -332,7 +332,7 @@ static void an_empty_mixtape_can_be_named_renamed_and_deleted_without_playback(v
     choose(2);
     choose(0);
     finish();
-    CHECK(strcmp(toast.text, "This mixtape is empty") == 0);
+    CHECK(strcmp(toast.text, "Mixtape is empty") == 0);
     CHECK(!player.has_track);
     CHECK_EQUAL(0, fake_hal_scratch_borrow_count());
     open_ui();

@@ -1,7 +1,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "app/app.h"
 #include "board.h"
+#include "core/seam.h"
 #include "cru.h"
 #include "device/audio_math.h"
 #include "device/rtc_time.h"
@@ -223,7 +225,7 @@ static HalRtcRead read_registers(void)
     return read;
 }
 
-HalRtcRead hal_system_rtc_read(void)
+CORE_SEAM HalRtcRead hal_system_rtc_read(void)
 {
     BusState state = save_bus();
     open_bus();
@@ -258,4 +260,25 @@ HalRtcRead hal_system_rtc_set(uint32_t utc_s)
         read.status = HAL_RTC_MISMATCH;
     }
     return read;
+}
+
+bool hal_clock_set_wall(HalWallTime time)
+{
+    if (hal_system_rtc_set(time.utc_s).status != HAL_RTC_OK ||
+        !app_store_clock_offset(time.offset_minutes)) {
+        return false;
+    }
+    board_wall_time_set(time);
+    return true;
+}
+
+CORE_SEAM bool hal_clock_restore_wall(int16_t offset_minutes)
+{
+    HalRtcRead read = hal_system_rtc_read();
+    uint32_t utc = 0;
+    if (read.status != HAL_RTC_OK || !rtc_time_trusted(read.registers, &utc)) {
+        return false;
+    }
+    board_wall_time_set((HalWallTime){utc, offset_minutes, HAL_WALL_PLAYER});
+    return true;
 }

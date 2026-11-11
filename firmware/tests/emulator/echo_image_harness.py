@@ -635,15 +635,18 @@ class EchoImageHarness(unittest.TestCase):
     def time_file(utc, offset):
         return echo_debug.time_file_bytes(utc, offset)
 
-    def time_session(self, data, written_before_power_on=False):
+    def time_session(self, data, written_before_power_on=False, rtc_valid=True):
         """A session whose host leaves a time file: one written during the session unless asked.
 
         The emulated host writes nothing while connected, so a file meant to arrive during the
         session is on the drive from the start and the start-up removal is passed over."""
         volume = self.debug_volume()
         volume.add_file("time.bin", data, None, IDENTITY.data_directory)
-        keep = None if written_before_power_on else (
-            lambda machine: machine.stub_symbol("board_wall_time_forget_file", lambda machine: 0))
+        def keep(machine):
+            if not rtc_valid:
+                machine.rtc_bus.registers[2] |= 0x80
+            if not written_before_power_on:
+                machine.stub_symbol("board_wall_time_forget_file", lambda machine: 0)
         session, machine = self.ejecting_session(volume, before_start=keep)
         from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1
         sets = []
@@ -652,6 +655,7 @@ class EchoImageHarness(unittest.TestCase):
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
         machine.run(until_ms=machine.milliseconds() + QUIET_AFTER_MS)
         return session, machine, sets
+
 
     def hold_power(self, machine):
         machine.power_key_released_at_ms = machine.milliseconds() + POWER_HOLD_MS
@@ -739,10 +743,11 @@ class EchoImageHarness(unittest.TestCase):
         self.assert_healthy(session)
         summary("realistic %d sectors per cluster" % sectors_per_cluster, session)
 
-    def playback_rig(self):
+    def playback_rig(self, prepare=None):
         from echo_emulator.playback import Rig
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
-                   module_elfs=self.module_elfs)
+                   module_elfs=self.module_elfs, prepare=prepare)
+
 
     def speech_rig(self, rate=8000):
         from echo_emulator.playback import Rig

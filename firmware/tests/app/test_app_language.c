@@ -15,8 +15,8 @@ enum {
     START_MS = 1000,
     KEY_HOLD_MS = 50,
     HOME_SETTINGS_INDEX = 1,
-    SETTINGS_ORIENTATION_INDEX = 11,
-    SETTINGS_LANGUAGE_INDEX = 12,
+    SETTINGS_ORIENTATION_INDEX = 12,
+    SETTINGS_LANGUAGE_INDEX = 13,
     SETTINGS_DEPTH = 2,
     MUSIC_ALL_SONGS_INDEX = 7
 };
@@ -217,7 +217,7 @@ static void a_language_that_fails_its_checks_keeps_the_loaded_one_and_says_so(vo
     bracketed[bracketed_size - 4] ^= 1;
     CHECK(strcmp("en", i18n_code()) == 0);
     CHECK(title_is("Settings"));
-    CHECK(app_toast_text() != NULL && strcmp("Couldn't load that language", app_toast_text()) == 0);
+    CHECK(app_toast_text() != NULL && strcmp("Couldn't load language", app_toast_text()) == 0);
     CHECK(saved_language_is("en"));
 }
 
@@ -269,11 +269,11 @@ static void changing_the_language_keeps_the_music_playing(void)
 static void a_toast_from_before_the_change_is_dropped(void)
 {
     start_with(2, false);
-    open_setting(SETTINGS_LANGUAGE_INDEX - 8);
+    open_setting(SETTINGS_LANGUAGE_INDEX - 9);
     move_down(1);
     tap(KEY_PLAY);
     CHECK(app_toast_text() != NULL);
-    move_down(8);
+    move_down(9);
     tap(KEY_PLAY);
     move_down(1);
     tap(KEY_PLAY);

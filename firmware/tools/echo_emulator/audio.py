@@ -1,5 +1,7 @@
 import struct
 
+import make_image
+
 from unicorn import UC_HOOK_MEM_WRITE
 from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1
 
@@ -34,7 +36,13 @@ class AudioPath:
         self.audible = []
         self.levels = []
         self.engine = machine.symbols["engine"]
+        self.requested_program = 0
         self.install()
+        from .core1_bridge import CORE1_FLAC, Core1Bridge
+        offset = make_image.CORE1_FLAC_OFFSET
+        size = struct.unpack_from("<I", machine.image, offset + 4)[0]
+        begin = offset + make_image.CORE1_MODULE_HEADER_SIZE
+        Core1Bridge(self, {CORE1_FLAC: machine.image[begin:begin + size]})
 
     def install(self):
         machine = self.machine
@@ -46,10 +54,11 @@ class AudioPath:
         machine.stub_symbol("dmac_running", lambda machine: int(self.running))
         for name in SILENT_RETURNS:
             machine.stub_symbol(name, lambda machine: None)
-        machine.stub_symbol("board_core1_start_stream", self.start_core1)
-        machine.stub_symbol("board_core1_streaming", lambda machine: int(
-            self.core1 is not None and self.core1.active))
-        machine.stub_symbol("board_core1_stop", self.stop_core1)
+        machine.hook_symbol("board_core1_start_stream", self.note_program)
+        for name in ("core1_power_up", "core1_hold", "core1_prepare"):
+            machine.stub_symbol(name, lambda machine: 0)
+        machine.stub_symbol("core1_run", self.start_core1)
+        machine.stub_symbol("core1_stop", self.stop_core1)
         machine.stub_symbol("dmac_stop", self.stop)
         machine.stub_symbol("dmac_suspend", self.suspend)
         machine.stub_symbol("dmac_resume", self.resume)
@@ -62,12 +71,19 @@ class AudioPath:
         machine.uc.hook_add(UC_HOOK_MEM_WRITE, self.ring_write, None, self.ring,
                             self.ring + RING_BYTES - 1)
 
+    def note_program(self):
+        self.requested_program = self.machine.reg(UC_ARM_REG_R0)
+
     def start_core1(self, machine):
-        return 0 if self.core1 is None else self.core1.start(machine.reg(UC_ARM_REG_R0))
+        command = struct.unpack("<I", machine.read_memory(0x0102000C, 4))[0]
+        if command != 2:
+            return 0
+        return 0 if self.core1 is not None and self.core1.start(self.requested_program) else 1
 
     def stop_core1(self, machine):
         if self.core1 is not None:
             self.core1.active = False
+        return 0
 
     def set_volume(self, machine):
         self.volumes.append((machine.milliseconds(), machine.reg(UC_ARM_REG_R1)))

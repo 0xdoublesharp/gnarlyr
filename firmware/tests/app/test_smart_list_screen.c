@@ -214,7 +214,7 @@ static void the_first_list_checks_the_library_and_says_so(void)
     CHECK(working());
     CHECK(smart.checking);
     draw();
-    CHECK(saw("Checking the library"));
+    CHECK(saw("Checking library"));
     finish();
     CHECK_EQUAL((int)library_music_count(&fixture.library, LIBRARY_TRACKS), rows());
     open_list(SMART_LIST_RECENTLY_PLAYED);

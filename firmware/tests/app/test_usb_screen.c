@@ -195,7 +195,7 @@ static void check_texts(const Variant *variant)
         CHECK(saw(i18n_text(STR_POWER_INTERNAL)));
     }
     if (variant->scene.state == USB_SCENE_DAC_PLAYING && variant->scene.menu == NULL) {
-        CHECK(saw(i18n_text(STR_USB_DAC_PLAYING)));
+        CHECK(saw(i18n_text(STR_PLAYING)));
         CHECK(saw(i18n_text(STR_VOLUME)));
         CHECK(saw("35"));
     }

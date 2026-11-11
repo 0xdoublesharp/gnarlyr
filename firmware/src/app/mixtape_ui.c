@@ -12,7 +12,8 @@
 static const MixtapeUiApi API = {.init = mixtape_ui_init,
                                  .busy = mixtape_ui_busy,
                                  .step = mixtape_ui_step,
-                                 .cancel = mixtape_ui_cancel};
+                                 .cancel = mixtape_ui_cancel,
+                                 .add = mixtape_ui_add};
 
 const MixtapeUiApi *mixtape_ui_api(void)
 {
@@ -42,6 +43,11 @@ static void finish(MixtapeUi *ui, const char *message)
     ui->destination = NULL;
     return_scratch(ui);
     ui->stage = 0;
+    if (ui->appending) {
+        ui->adding = false;
+        ui->appending = false;
+    }
+    ui->mode = ui->adding ? MIXTAPE_PICK : ui->mode;
     if (ui->resume && ui->config.player->state == PLAYER_PAUSED) {
         player_toggle_pause(ui->config.player);
     }
@@ -53,6 +59,9 @@ static void finish(MixtapeUi *ui, const char *message)
 void mixtape_ui_cancel(MixtapeUi *ui)
 {
     ui->destination = NULL;
+    ui->adding = false;
+    ui->appending = false;
+    ui->add_requested = false;
     if (mixtape_ui_busy(ui)) {
         player_queue_cancel(ui->config.player);
         mixtape_store_cancel(&ui->store);
@@ -78,7 +87,9 @@ static bool begin_save(MixtapeUi *ui)
     MixtapeChange change = {.operation = ui->renaming ? MIXTAPE_RENAME : MIXTAPE_SAVE,
                             .slot = ui->slot,
                             .name = ui->name,
-                            .source = source};
+                            .source = source,
+                            .side_minutes = ui->side_minutes,
+                            .side_a_count = ui->side_a_count};
     if (!mixtape_store_change(&ui->store, change)) {
         return false;
     }
@@ -139,7 +150,7 @@ bool mixtape_ui_load(MixtapeUi *ui)
 static bool begin_resolve(MixtapeUi *ui)
 {
     Player *player = ui->config.player;
-    if (ui->store.tape.count == 0 || (player->has_track && !player_save(player))) {
+    if ((ui->store.tape.count == 0 && !ui->adding) || (player->has_track && !player_save(player))) {
         return false;
     }
     player_release_output(player);
@@ -154,6 +165,11 @@ static void open_tape(MixtapeUi *ui)
 {
     StoreResult result = mixtape_store_step(&ui->store);
     if (result == STORE_DONE) {
+        if (!ui->adding && ui->side_minutes != 0 &&
+            (ui->side_a_count == 0 || ui->side_a_count == ui->store.tape.count)) {
+            finish(ui, i18n_text(STR_TAPE_NEEDS_SIDES));
+            return;
+        }
         if (begin_resolve(ui)) {
             ui->stage = MIXTAPE_RESOLVE;
         } else {
@@ -168,6 +184,13 @@ static void open_tape(MixtapeUi *ui)
 static bool session_writable(Player *player)
 {
     HalFile file;
+    const SessionJournal *journal = &player->storage.journal;
+    bool fresh = !player->has_track && !journal->valid && journal->config.file.size == 0;
+    if (journal->config.file.source.read == NULL || (fresh && journal->needs_reload)) {
+        SessionState state;
+        (void)player_storage_load(&player->storage, player->fingerprint,
+                                  library_count(player->library, LIBRARY_TRACKS), &state);
+    }
     if (!hal_file_open(&file, PLAYER_SESSION_PATH)) {
         return true;
     }
@@ -197,7 +220,13 @@ static void resolve(MixtapeUi *ui)
 {
     StoreResult result = mix_resolve_step(&ui->resolver);
     if (result == STORE_DONE) {
-        if (begin_copy(ui)) {
+        if (ui->adding) {
+            if (!mixtape_ui_append(ui)) {
+                finish(ui, i18n_text(STR_TAPE_ADD_FAILED));
+            }
+        } else if (ui->side_minutes != 0 && ui->resolver.missing != 0) {
+            finish(ui, i18n_text(STR_SONGS_UNAVAILABLE));
+        } else if (begin_copy(ui)) {
             ui->stage = MIXTAPE_COPY;
         } else {
             finish(ui, ui->resolver.count == 0 ? i18n_text(STR_SONGS_UNAVAILABLE)
@@ -210,7 +239,22 @@ static void resolve(MixtapeUi *ui)
 
 static bool publish(MixtapeUi *ui)
 {
-    return player_use_order(ui->config.player, &ui->pending, 0);
+    Player *player = ui->config.player;
+    if (ui->side_minutes != 0 && (ui->resolver.missing != 0 || ui->side_a_count == 0 ||
+                                  ui->side_a_count == ui->resolver.count)) {
+        return false;
+    }
+    uint16_t position = ui->side_minutes != 0 && ui->selected_side != 0 ? ui->side_a_count : 0;
+    CassetteState cassette = {0};
+    if (ui->side_minutes != 0) {
+        cassette = (CassetteState){.generation = ui->store.entry.generation,
+                                   .count = ui->pending.count,
+                                   .split = ui->side_a_count,
+                                   .slot = (uint8_t)ui->slot,
+                                   .side = ui->selected_side,
+                                   .active = true};
+    }
+    return player_use_tape(player, &ui->pending, position, &cassette);
 }
 
 static void copy_queue(MixtapeUi *ui)
@@ -245,8 +289,9 @@ void mixtape_ui_step(MixtapeUi *ui, uint32_t now_ms)
             if (result != STORE_WORKING) {
                 const char *message = ui->mode == MIXTAPE_CONFIRM_DELETE
                                           ? i18n_text(STR_MIXTAPE_DELETED)
-                                      : ui->renaming ? i18n_text(STR_MIXTAPE_RENAMED)
-                                                     : i18n_text(STR_MIXTAPE_SAVED);
+                                      : ui->appending ? i18n_text(STR_TAPE_ADDED)
+                                      : ui->renaming  ? i18n_text(STR_MIXTAPE_RENAMED)
+                                                      : i18n_text(STR_MIXTAPE_SAVED);
                 if (result == STORE_DONE) {
                     ui->mode = MIXTAPE_LIST;
                 }

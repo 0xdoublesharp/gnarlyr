@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "app/app.h"
 #include "board.h"
 #include "core/seam.h"
 #include "device/time_file.h"
@@ -22,6 +23,7 @@ CORE_SEAM void time_file_take(bool apply)
         apply && file.size == TIME_FILE_BYTES && fat_read(volume, &file, 0, bytes, sizeof bytes);
     fat_delete(volume, TIME_FILE_PATH);
     if (read && time_file_parse(bytes, &time)) {
+        (void)app_store_clock_offset(time.offset_minutes);
         board_wall_time_set(time);
     }
 }
