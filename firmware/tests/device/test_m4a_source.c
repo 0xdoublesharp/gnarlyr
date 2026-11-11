@@ -318,6 +318,20 @@ static void consecutive_m4a_tracks_play_without_a_gap(void)
     CHECK(ok);
 }
 
+static void truncated_virtual_records_fail_instead_of_waiting_forever(void)
+{
+    uint8_t bytes[] = {4, 0, 0, 0, 1, 2};
+    for (uint32_t length = 0; length <= sizeof bytes; length++) {
+        M4aFile file = {.bytes = bytes, .size = length};
+        Core1M4a context;
+        Core1Decoder decoder = core1_m4a_decoder(&context);
+        core1_heap_init(heap, sizeof heap);
+        decoder.start(decoder.context, m4a_file_input(&file), (FlacInfo){0}, 0, NULL);
+        Core1Block block = {0};
+        CHECK_EQUAL(CORE1_FAILED, decoder.decode(decoder.context, &block));
+    }
+}
+
 static void the_aac_decoder_rejects_a_truncated_core_coder_dependency(void)
 {
     static AacDecoder decoder;
@@ -340,6 +354,7 @@ static void the_aac_decoder_rejects_short_frames(void)
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(truncated_virtual_records_fail_instead_of_waiting_forever),
         TEST_CASE(the_aac_decoder_rejects_a_truncated_core_coder_dependency),
         TEST_CASE(the_aac_decoder_rejects_short_frames),
         TEST_CASE(an_aac_file_streams_through_core_1_like_the_reference_decoder),

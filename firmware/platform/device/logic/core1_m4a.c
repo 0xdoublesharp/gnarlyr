@@ -31,6 +31,9 @@ static Core1DecodeResult fetch(Core1M4a *m4a, uint8_t *destination, uint32_t cap
                                uint32_t *size)
 {
     uint8_t header[M4A_RECORD_HEADER_BYTES];
+    if (m4a->position > m4a->source.size || sizeof header > m4a->source.size - m4a->position) {
+        return CORE1_FAILED;
+    }
     if (!m4a->source.read(m4a->source.context, m4a->position, header, sizeof header)) {
         return CORE1_STARVED;
     }
@@ -38,7 +41,7 @@ static Core1DecodeResult fetch(Core1M4a *m4a, uint8_t *destination, uint32_t cap
     if (*size == 0) {
         return CORE1_FINISHED;
     }
-    if (*size > capacity) {
+    if (*size > capacity || *size > m4a->source.size - m4a->position - sizeof header) {
         return CORE1_FAILED;
     }
     if (!m4a->source.read(m4a->source.context, m4a->position + sizeof header, destination, *size)) {
