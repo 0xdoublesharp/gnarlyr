@@ -908,8 +908,8 @@ static void check_preparation_checkpoints(bool read)
     CHECK_EQUAL(BUILDER_OK, library_builder_prepare(&builder));
     int operations = (read ? scratch->reads : scratch->writes) - before;
     CHECK(operations >= 4);
-    for (int part = 0; part < 4; part++) {
-        check_preparation_fault(read, 1 + (operations - 1) * part / 3);
+    for (int part = 0; part < 16; part++) {
+        check_preparation_fault(read, 1 + (operations - 1) * part / 15);
     }
 }
 
