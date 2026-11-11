@@ -100,7 +100,8 @@ typedef enum Core1Format {
     CORE1_FORMAT_MP3,
     CORE1_FORMAT_M4A,
     CORE1_FORMAT_VORBIS,
-    CORE1_FORMAT_OPUS
+    CORE1_FORMAT_OPUS,
+    CORE1_FORMAT_DSD
 } Core1Format;
 
 typedef struct Core1Source {
@@ -119,6 +120,7 @@ typedef struct Core1Source {
     uint32_t ring_capacity;
     M4aStream *m4a;
     OggStream *ogg;
+    struct DsdStream *dsd;
     bool (*wait_vorbis)(struct Core1Source *source);
     uint8_t bits_per_sample;
     uint8_t channels;

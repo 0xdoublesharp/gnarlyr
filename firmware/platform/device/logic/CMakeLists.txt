@@ -55,6 +55,10 @@ target_compile_definitions(echo_faad PRIVATE
 target_compile_options(echo_faad PRIVATE -w)
 
 add_library(echo_device_logic STATIC
+    core1_dsd.c
+    dsd_track.c
+    dsd_stream.c
+    core1_dsd_source.c
     aiff_format.c
     aac_decoder.c
     audio_engine.c
@@ -66,6 +70,7 @@ add_library(echo_device_logic STATIC
     audio_dsp_entry.c
     audio_process_entry.c
     audio_ogg_entry.c
+    audio_dsd_entry.c
     backlight.c
     block_read.c
     board_pins.c

@@ -703,7 +703,7 @@ class OverlayTest(unittest.TestCase):
         end = make_image.USB_OVERLAY_OFFSET + make_image.USB_OVERLAY_CAPACITY
         self.assertEqual(make_image.FW_SIZE, end)
         self.assertEqual(0, make_image.USB_OVERLAY_OFFSET % 512)
-        self.assertIn((make_image.CORE1_OPUS_END, make_image.USB_OVERLAY_OFFSET),
+        self.assertIn((make_image.CORE1_DSD_END, make_image.USB_OVERLAY_OFFSET),
                       make_image.GLYPH_REGIONS)
 
     def test_the_trailer_crc_covers_the_usb_overlay(self):
@@ -918,6 +918,23 @@ class Core1ModuleTest(unittest.TestCase):
                          make_image.CORE1_MODULE_CAPACITY)
         with self.assertRaises(make_image.ImageError):
             build(core1_opus=bytes(make_image.CORE1_MODULE_CAPACITY + 1))
+
+    def test_dsd_program_follows_opus_with_checked_crc_and_a_bounded_bank(self):
+        program = bytes(range(256)) * 7
+        image = build(core1_dsd=program, core1_opus=b"\x55" * 512)
+        offset = make_image.CORE1_DSD_OFFSET
+        self.assertEqual(make_image.CORE1_OPUS_END, offset)
+        self.assertEqual(b"EC1M", image[offset:offset + 4])
+        self.assertEqual(len(program), word(image, offset + 4))
+        self.assertEqual(make_image.crc32(program), word(image, offset + 8))
+        start = offset + make_image.CORE1_MODULE_HEADER_SIZE
+        self.assertEqual(program, image[start:start + len(program)])
+        self.assertEqual([], make_image.validate_image(image))
+        self.assertEqual((make_image.CORE1_DSD_END, make_image.USB_OVERLAY_OFFSET),
+                         make_image.GLYPH_REGIONS[1])
+        build(core1_dsd=bytes(make_image.CORE1_MODULE_CAPACITY))
+        with self.assertRaises(make_image.ImageError):
+            build(core1_dsd=bytes(make_image.CORE1_MODULE_CAPACITY + 1))
 
     def test_no_program_leaves_the_space_empty(self):
         offset = make_image.CORE1_MP3_OFFSET

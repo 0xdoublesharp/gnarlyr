@@ -98,3 +98,11 @@ echo_add_unit_test(NAME test_core1_stream
     LIBRARIES echo_device_logic
 )
 target_compile_definitions(test_core1_stream PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+
+echo_add_unit_test(NAME test_dsd_source
+    SOURCES device/test_dsd_source.c
+    LIBRARIES echo_device_logic
+)
+
+add_executable(dsd_stream_tool device/dsd_stream_tool.c)
+target_link_libraries(dsd_stream_tool PRIVATE echo_device_logic echo_options)

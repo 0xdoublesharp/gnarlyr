@@ -1071,10 +1071,37 @@ static void aiff_id3_metadata_and_art_are_read(void)
     free(original.bytes);
 }
 
+static void dff_diin_artist_and_title_are_read_with_chunk_bounds(void)
+{
+    uint8_t bytes[72] = {0};
+    memcpy(bytes, "FRM8", 4);
+    mp4_put32(bytes + 8, sizeof bytes - 12);
+    memcpy(bytes + 12, "DSD DIIN", 8);
+    mp4_put32(bytes + 24, 44);
+    memcpy(bytes + 28, "DIAR", 4);
+    mp4_put32(bytes + 36, 10);
+    mp4_put32(bytes + 40, 6);
+    memcpy(bytes + 44, "Artist", 6);
+    memcpy(bytes + 50, "DITI", 4);
+    mp4_put32(bytes + 58, 9);
+    mp4_put32(bytes + 62, 5);
+    memcpy(bytes + 66, "Title", 5);
+    MemorySource source = {.bytes = bytes, .size = sizeof bytes};
+    TrackTags tags;
+    CHECK(track_tags_read(memory_source(&source), sizeof bytes, TAG_FORMAT_DFF, &tags));
+    CHECK_EQUAL(0, strcmp("Artist", tags.text[TAG_ARTIST]));
+    CHECK_EQUAL(0, strcmp("Title", tags.text[TAG_TITLE]));
+    mp4_put32(bytes + 62, 100);
+    CHECK(track_tags_read(memory_source(&source), sizeof bytes, TAG_FORMAT_DFF, &tags));
+    CHECK_EQUAL(0, strcmp("Artist", tags.text[TAG_ARTIST]));
+    CHECK_EQUAL(0, strcmp("", tags.text[TAG_TITLE]));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(aiff_id3_metadata_and_art_are_read),
+        TEST_CASE(dff_diin_artist_and_title_are_read_with_chunk_bounds),
         TEST_CASE(mp4_tags_read_numeric_tracks_genre_fallback_and_art),
         TEST_CASE(mp4_duration_requires_a_complete_versioned_header),
         TEST_CASE(mp4_text_genre_takes_priority_over_the_legacy_genre),

@@ -138,7 +138,8 @@ static bool open_source(void *context, const char *path, uint32_t start_ms, Audi
                                          .bits_per_sample = format.bits,
                                          .total_samples = format.frames},
                               .audio_bytes = format.frames * format.frame_bytes,
-                              .codec = AUDIO_CODEC_WAV};
+                              .codec = format.big_endian || format.aifc ? AUDIO_CODEC_AIFF
+                                                                        : AUDIO_CODEC_WAV};
     return true;
 }
 

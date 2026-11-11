@@ -35,6 +35,48 @@ def add_picture(path, data, picture_type):
     audio.save()
 
 
+class DsdMetadataTest(unittest.TestCase):
+    def test_diin_fields_fill_missing_id3_and_id3_wins(self):
+        from dsd_fixture import dff
+        from mutagen.dsdiff import DSDIFF
+        from mutagen.id3 import TIT2
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "Music.dff"
+            path.write_bytes(dff([bytes(32), bytes(32)], 2822400,
+                                 artist="DIIN artist", title="DIIN title"))
+            track = library_index.read_track(root, path)
+            self.assertEqual(("DIIN title", "DIIN artist"), (track.title, track.artist))
+            audio = DSDIFF(path)
+            audio.add_tags()
+            audio.tags.add(TIT2(encoding=3, text=["ID3 title"]))
+            audio.save()
+            track = library_index.read_track(root, path)
+            self.assertEqual(("ID3 title", "DIIN artist"), (track.title, track.artist))
+
+    def test_dsf_and_dff_have_id3_artwork_and_library_parity(self):
+        from dsd_fixture import dsf, dff
+        from mutagen import File
+        from mutagen.id3 import TIT2, TPE1, TALB, APIC
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for suffix, builder in (("dsf", dsf), ("dff", dff)):
+                path = root / f"Music.{suffix}"
+                path.write_bytes(builder([bytes(35280), bytes(35280)], 2822400))
+                audio = File(path)
+                audio.add_tags()
+                audio.tags.add(TIT2(encoding=3, text=["DSD title"]))
+                audio.tags.add(TPE1(encoding=3, text=["Artist"]))
+                audio.tags.add(TALB(encoding=3, text=["Album"]))
+                art = image_bytes((70, 80, 90))
+                audio.tags.add(APIC(encoding=3, mime="image/png", type=3, data=art))
+                audio.save()
+                track = library_index.read_track(root, path)
+                self.assertEqual(("DSD title", "Artist", "Album", 100),
+                                 (track.title, track.artist, track.album, track.duration_ms))
+                self.assertEqual([(3, art)], cover_export.embedded_pictures(path))
+
+
 class AiffMetadataTest(unittest.TestCase):
     def test_aiff_is_indexed_with_id3_tags_and_embedded_art(self):
         from mutagen.aiff import AIFF

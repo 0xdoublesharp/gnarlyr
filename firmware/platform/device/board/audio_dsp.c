@@ -1,6 +1,7 @@
 #include "audio_dsp.h"
 
 #include "core/seam.h"
+#include "device/audio_dsd.h"
 #include "device/audio_dsp.h"
 #include "device/audio_ogg.h"
 #include "device/core1_source_private.h"
@@ -23,6 +24,9 @@ static bool load(uint32_t number, uint32_t magic)
 
 bool board_audio_dsp_prepare(void)
 {
+    if (entry()->magic == AUDIO_DSD_MAGIC) {
+        return load(AUDIO_DSD_NUMBER, AUDIO_DSD_MAGIC);
+    }
     return entry()->magic == AUDIO_OGG_MAGIC ? load(AUDIO_OGG_NUMBER, AUDIO_OGG_MAGIC)
                                              : load(AUDIO_DSP_NUMBER, AUDIO_DSP_MAGIC);
 }
@@ -72,4 +76,17 @@ CORE_SEAM bool aiff_probe(FlacInput input, WavFormat *format)
 {
     const AudioDspEntry *dsp = (const AudioDspEntry *)entry();
     return load(AUDIO_DSP_NUMBER, AUDIO_DSP_MAGIC) && dsp->aiff(input, format);
+}
+
+CORE_SEAM bool core1_open_dsd(void *context, const char *path, uint32_t start_ms,
+                              AudioTrackInfo *track)
+{
+    const AudioDsdEntry *dsd = (const AudioDsdEntry *)entry();
+    return load(AUDIO_DSD_NUMBER, AUDIO_DSD_MAGIC) && dsd->open(context, path, start_ms, track);
+}
+
+CORE_SEAM bool dsd_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    const AudioDsdEntry *dsd = (const AudioDsdEntry *)entry();
+    return entry()->magic == AUDIO_DSD_MAGIC && dsd->read(context, offset, buffer, length);
 }

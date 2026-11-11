@@ -348,6 +348,7 @@ static void aiff_pcm_and_aifc_play_and_seek(void)
                 AudioSource audio = fresh_source();
                 AudioTrackInfo track;
                 CHECK(audio.open(audio.context, "a.aiff", 0, &track));
+                CHECK_EQUAL(AUDIO_CODEC_AIFF, track.codec);
                 CHECK_EQUAL(44100u, track.stream.sample_rate);
                 CHECK_EQUAL(5000u, track.stream.total_samples);
                 CHECK(plays_through(audio, channels, bits, 5000));

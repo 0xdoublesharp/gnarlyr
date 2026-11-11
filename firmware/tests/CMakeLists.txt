@@ -194,6 +194,16 @@ if(ARM_GCC)
             SKIP_RETURN_CODE 77
             TIMEOUT 600
         )
+        add_test(NAME core1_dsd_decodes_in_emulator
+            COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
+                ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_core1_dsd.py
+                --program ${PROJECT_SOURCE_DIR}/build/device/platform/device/core1_dsd.bin
+                --tool $<TARGET_FILE:dsd_stream_tool>
+        )
+        set_tests_properties(core1_dsd_decodes_in_emulator PROPERTIES
+            FIXTURES_REQUIRED device_image
+            TIMEOUT 600
+        )
         add_test(NAME core1_m4a_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
                 ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_core1_m4a.py

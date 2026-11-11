@@ -299,6 +299,10 @@ def read_track(root, path):
     with open_skimming(path) as handle:
         audio = mp4_metadata(handle) if path.suffix.lower() == ".m4b" else File(handle)
         tags = normalized_tags(audio)
+        if path.suffix.lower() == ".dff":
+            from dsd_metadata import diin_tags
+            for field, value in diin_tags(handle).items():
+                tags.setdefault(field, [value])
         if path.suffix.lower() == ".mp3":
             from mutagen.apev2 import APEv2, error
             try:

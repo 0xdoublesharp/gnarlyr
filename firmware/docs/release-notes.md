@@ -1,5 +1,18 @@
 # Gnarlyr release notes
 
+Gnarlyr builds on Podium 4.5.9 and EchoPod with their GPL credits preserved. The source provenance is recorded in [`../UPSTREAM.md`](../UPSTREAM.md). Version 1.0.0 is not released; hardware checks are recorded in [`known-issues.md`](known-issues.md).
+
+## Unreleased: DSD PCM conversion
+
+- Added a dedicated DSF/DFF decoder, 88.2 kHz PCM conversion, seeking, queued
+  transitions, ID3 artwork and DFF DIIN artist/title fallback in both scanners.
+- The existing 100 MHz core-1 clock admits mono/stereo DSD64 and mono DSD128
+  under the instruction screen. Stereo DSD128 and all DSD256 exceed that floor
+  and are refused. DST and multichannel DSD remain unsupported.
+- Generated native reference tests, filter-response checks and ARM decoder
+  comparisons cover software behavior. Physical playback and real-time margin
+  have not been checked on the player.
+
 ## Unreleased: AIFF playback
 
 - Added AIFF and AIFF-C `NONE`/`sowt` through the WAV PCM path, with seeking,
@@ -8,8 +21,6 @@
 - Generated native fixtures cover playback, seeks, endpoints, tags and artwork.
   This addition has not been checked on the player.
 
-
-Gnarlyr builds on Podium 4.5.9 and EchoPod with their GPL credits preserved. The source provenance is recorded in [`../UPSTREAM.md`](../UPSTREAM.md). Version 1.0.0 is not released; hardware checks are recorded in [`known-issues.md`](known-issues.md).
 
 ## Identity and files
 

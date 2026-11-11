@@ -100,6 +100,32 @@ static void read_properties(const TagReader *reader, uint32_t start, uint32_t en
     }
 }
 
+static void diin(TagReader *reader, uint32_t start, uint32_t end)
+{
+    uint8_t chunk[16];
+    for (uint32_t cursor = start; end - cursor >= 12;) {
+        if (!tag_read(reader, cursor, chunk, 12)) {
+            return;
+        }
+        uint64_t size = tag_be64(chunk + 4);
+        uint32_t body = cursor + 12;
+        if (size > end - body || (size & 1u) > end - body - size) {
+            return;
+        }
+        TagField field = same(chunk, "DIAR") ? TAG_ARTIST : TAG_TITLE;
+        if ((same(chunk, "DIAR") || same(chunk, "DITI")) && size >= 4 && !reader->present[field] &&
+            tag_read(reader, body, chunk + 12, 4)) {
+            uint32_t count = tag_be32(chunk + 12);
+            uint8_t text[TRACK_TAG_TEXT_CAPACITY];
+            uint32_t wanted = count < sizeof text ? count : sizeof text;
+            if (count <= size - 4 && tag_read(reader, body + 4, text, wanted)) {
+                tag_offer(reader, field, text, wanted, TAG_LATIN1);
+            }
+        }
+        cursor = body + (uint32_t)size + (uint32_t)(size & 1u);
+    }
+}
+
 bool tags_read_dff(TagReader *reader)
 {
     uint8_t chunk[DFF_HEADER];
@@ -110,6 +136,8 @@ bool tags_read_dff(TagReader *reader)
     DffSound sound = {.rate = 0, .channels = 0, .uncompressed = false};
     uint64_t data_size = 0;
     bool has_data = false;
+    uint32_t diin_start = 0;
+    uint32_t diin_end = 0;
     uint32_t cursor = DFF_HEADER;
     while (cursor <= reader->size - DFF_CHUNK_HEADER &&
            tag_read(reader, cursor, chunk, DFF_CHUNK_HEADER)) {
@@ -123,11 +151,17 @@ bool tags_read_dff(TagReader *reader)
         } else if (same(chunk, "DSD ")) {
             data_size = size;
             has_data = true;
+        } else if (same(chunk, "DIIN")) {
+            diin_start = body;
+            diin_end = body + (uint32_t)size;
         } else if (same(chunk, "ID3 ")) {
             uint32_t tag_size = 0;
             tags_read_id3v2(reader, body, &tag_size);
         }
         cursor = body + (uint32_t)size + (uint32_t)(size & 1u);
+    }
+    if (diin_start != 0) {
+        diin(reader, diin_start, diin_end);
     }
     if (sound.uncompressed && has_data && sound.rate > 0) {
         double channels = sound.channels > 0 ? (double)sound.channels : 1.0;

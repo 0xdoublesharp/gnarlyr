@@ -164,6 +164,31 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     VERBATIM
 )
+add_executable(echo_core1_dsd
+    core1/dsd_main.c
+    core1/startup.c
+    board/libc.c
+)
+set(ECHO_CORE1_DSD_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1_dsd.ld)
+set_target_properties(echo_core1_dsd PROPERTIES
+    SUFFIX .elf
+    LINK_DEPENDS ${ECHO_CORE1_DSD_LINKER_SCRIPT}
+)
+target_include_directories(echo_core1_dsd PRIVATE board)
+target_link_libraries(echo_core1_dsd PRIVATE echo_device_logic echo_options gcc)
+target_link_options(echo_core1_dsd PRIVATE
+    -fno-lto
+    -T${ECHO_CORE1_DSD_LINKER_SCRIPT}
+    -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_core1_dsd.map
+)
+set(ECHO_CORE1_DSD_BINARY ${CMAKE_CURRENT_BINARY_DIR}/core1_dsd.bin)
+add_custom_command(
+    OUTPUT ${ECHO_CORE1_DSD_BINARY}
+    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:echo_core1_dsd> core1_dsd.bin
+    DEPENDS echo_core1_dsd
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    VERBATIM
+)
 set(ECHO_CORE1_BINARY ${CMAKE_CURRENT_BINARY_DIR}/core1.bin)
 add_custom_command(
     OUTPUT ${ECHO_CORE1_BINARY}
@@ -414,7 +439,7 @@ endforeach()
 foreach(module IN LISTS ECHO_SCREEN_MODULES)
     if(module STREQUAL "process")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_process.ld)
-    elseif(module STREQUAL "dsp" OR module STREQUAL "ogg")
+    elseif(module STREQUAL "dsp" OR module STREQUAL "ogg" OR module STREQUAL "dsd")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_dsp.ld)
     elseif(module STREQUAL "extension")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/extension_module.ld)
@@ -475,6 +500,13 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         target_compile_definitions(${module_target}_objects PRIVATE
             core1_open_ogg=audio_ogg_open
             ogg_stream_read=audio_ogg_read
+        )
+    endif()
+    if(module STREQUAL "dsd")
+        target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)
+        target_compile_definitions(${module_target}_objects PRIVATE
+            core1_open_dsd=audio_dsd_open
+            dsd_stream_read=audio_dsd_read
         )
     endif()
     target_include_directories(${module_target}_objects PRIVATE ${module_includes})
@@ -540,6 +572,7 @@ add_custom_target(echo_device_image ALL
         --elf $<TARGET_FILE:echo_core1_m4a>
         --elf $<TARGET_FILE:echo_core1_vorbis>
         --elf $<TARGET_FILE:echo_core1_opus>
+        --elf $<TARGET_FILE:echo_core1_dsd>
         ${ECHO_MODULE_IMAGE_ARGUMENTS}
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/make_image.py
         --elf $<TARGET_FILE:echo_device>
@@ -550,6 +583,7 @@ add_custom_target(echo_device_image ALL
         --core1-m4a ${ECHO_CORE1_M4A_BINARY}
         --core1-vorbis ${ECHO_CORE1_VORBIS_BINARY}
         --core1-opus ${ECHO_CORE1_OPUS_BINARY}
+        --core1-dsd ${ECHO_CORE1_DSD_BINARY}
         ${ECHO_GLYPH_FACE_ARGUMENTS}
         ${ECHO_LANGUAGE_PACK_ARGUMENTS}
         ${ECHO_MODULE_IMAGE_ARGUMENTS}
@@ -567,6 +601,7 @@ add_custom_target(echo_device_image ALL
         ${ECHO_CORE1_M4A_BINARY}
         ${ECHO_CORE1_VORBIS_BINARY}
         ${ECHO_CORE1_OPUS_BINARY}
+        ${ECHO_CORE1_DSD_BINARY}
         ${ECHO_LANGUAGE_PACK_FILES}
         ${PROJECT_SOURCE_DIR}/tools/make_image.py
         ${PROJECT_SOURCE_DIR}/tools/image_artifacts.py

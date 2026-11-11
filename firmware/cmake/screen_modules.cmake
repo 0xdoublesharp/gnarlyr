@@ -1,4 +1,4 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension)
+set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension dsd)
 set(ECHO_SCREEN_MODULE_SOURCES_process
     platform/device/logic/audio_fade.c
     platform/device/logic/audio_process_entry.c
@@ -11,6 +11,13 @@ set(ECHO_SCREEN_MODULE_SOURCES_dsp
     platform/device/logic/audio_interpolate.c
     platform/device/logic/audio_dsp_entry.c
     platform/device/logic/mp4_demux.c
+)
+set(ECHO_SCREEN_MODULE_SOURCES_dsd
+    platform/device/logic/audio_dsd_entry.c
+    platform/device/logic/audio_interpolate.c
+    platform/device/logic/core1_dsd_source.c
+    platform/device/logic/dsd_stream.c
+    platform/device/logic/dsd_track.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_ogg
     platform/device/logic/audio_interpolate.c

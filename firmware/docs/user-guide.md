@@ -29,7 +29,7 @@ On the first start with a microSD card in the player, Gnarlyr builds its library
 ## Your music
 
 - Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Settings → About → Music shows which one is in use. Settings are kept on internal storage either way, so they stay the same when you insert or remove the card.
-- Gnarlyr plays FLAC, MP3 and WAV, up to 192 kHz, and `.m4a` and `.m4b` files with AAC-LC or Apple Lossless audio. Speech recordings at 8, 11.025, 12, 16, 22.05 and 24 kHz are converted to 32, 44.1 or 48 kHz for playback; 32 kHz plays at its original rate. Speed and pitch stay the same. It lists the other formats FiiO lists, and says when it can't play one.
+- Gnarlyr supports FLAC, MP3, WAV and 16/24-bit AIFF, up to 192 kHz, and `.m4a` and `.m4b` files with AAC-LC or Apple Lossless audio. Speech recordings at 8, 11.025, 12, 16, 22.05 and 24 kHz are converted to 32, 44.1 or 48 kHz for playback; 32 kHz plays at its original rate. Speed and pitch stay the same. DSF/DFF convert to 88.2 kHz PCM: DSD64 accepts mono/stereo and DSD128 accepts mono; stereo DSD128 and DSD256 are refused. It lists the other formats FiiO lists, and says when it can't play one.
 - Ogg Vorbis (`.ogg`) accepts mono or stereo at 8–192 kHz within the decoder limits; Ogg Opus (`.opus`) accepts mono or stereo with channel mapping family 0. Chained Vorbis files play the first stream only. Large picture comments and separate interleaved streams are skipped during decoding. Both formats play in the desktop simulator; player listening and high-rate playback still need checking. See [format limits](ogg-vorbis.md).
 - Music → Folders shows the card as it is: folders, then each audio file by its full name with its extension (`01 Intro.mp3`). The other lists show titles from the tags. Hold ▶ on a folder there to play everything under it, subfolders included, in the order Folders shows it (a CUE album plays once, as its songs); the queue follows the shuffle setting and has no length limit beyond the library's 65,535 tracks.
 - A `.cue` file next to a single FLAC, WAV or MP3 album image splits it into one track per CUE track (see "CUE sheets" below). Album covers come from art inside each album's first track, or from a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks.
@@ -162,7 +162,7 @@ To see whether it works on your card, let the player scan it once, then run echo
 | `--yes` | Create `/.gnarlyr` without asking |
 | `--verbose` | List the albums without art |
 
-The computer picks each album's cover the way the player does: the picture inside the album's first track (FLAC, MP3, WAV, DSF/DFF, `.m4a`, `.ape` and `.wma`; a front cover wins), otherwise a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks. Ogg pictures are skipped, as on the player. The covers can look a little different from the player's own, because the computer resizes them with a different filter. When the player rescans later (for example after you copy a new album to it), it keeps the computer's covers and only decodes art that's new or changed; on a card that isn't FAT32 or exFAT, albums whose cover is an image file are decoded again.
+The computer picks each album's cover the way the player does: the picture inside the album's first track (FLAC, MP3, WAV, AIFF, DSF/DFF, `.m4a`, `.ape` and `.wma`; a front cover wins), otherwise a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks. Ogg pictures are skipped, as on the player. The covers can look a little different from the player's own, because the computer resizes them with a different filter. When the player rescans later (for example after you copy a new album to it), it keeps the computer's covers and only decodes art that's new or changed; on a card that isn't FAT32 or exFAT, albums whose cover is an image file are decoded again.
 
 ## Buttons
 
@@ -403,3 +403,11 @@ AIFF (`.aiff`, `.aif`) and uncompressed AIFF-C (`.aifc`, `NONE` or `sowt`) accep
 mono or stereo 16/24-bit music at standard rates from 8 to 192 kHz. Seeking and
 queued transitions follow the WAV rules. ID3 tags and embedded album art appear
 in the library. Compressed AIFF-C and floating point files cannot play.
+
+### DSD files
+
+DSF and uncompressed DFF play as 88.2 kHz PCM. Mono and stereo DSD64 and mono
+DSD128 are accepted. Stereo DSD128, DSD256, multichannel DSD and DST-compressed
+DFF are refused. DoP output is unavailable. ID3 tags and artwork appear in the
+library; DFF's DIIN artist/title fill missing ID3 fields. The output uses the
+usual seeking and queue controls.
