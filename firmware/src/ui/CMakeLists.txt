@@ -12,6 +12,7 @@ add_library(echo_ui STATIC
     menu_screen.c
     message_screen.c
     navigation.c
+    placeholder_art.c
     screen.c
     screen_stack.c
     status_bar.c

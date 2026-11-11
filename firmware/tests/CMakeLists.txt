@@ -166,6 +166,10 @@ echo_add_unit_test(NAME test_marquee SOURCES ui/test_marquee.c LIBRARIES echo_ui
 echo_add_unit_test(NAME test_fade SOURCES ui/test_fade.c LIBRARIES echo_ui)
 echo_add_unit_test(NAME test_slide SOURCES ui/test_slide.c LIBRARIES echo_ui)
 echo_add_unit_test(NAME test_cover_flow SOURCES ui/test_cover_flow.c LIBRARIES echo_ui)
+echo_add_unit_test(NAME test_placeholder_art
+    SOURCES ui/test_placeholder_art.c
+    LIBRARIES echo_ui echo_fonts
+)
 echo_add_unit_test(NAME test_label
     SOURCES ui/test_label.c gfx/tiny_font.c
     LIBRARIES echo_ui
