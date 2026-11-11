@@ -328,3 +328,5 @@ nav a[aria-current="location"]{color:var(--mint);text-decoration:underline}
 .features-page #improvements .feature-icon{color:var(--pink)}
 @media(max-width:900px){.feature-showcase{gap:16px}.feature-preview{padding:20px 14px}.feature-preview h2{font-size:20px}}
 @media(max-width:700px){.feature-facts{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.feature-showcase{grid-template-columns:minmax(0,1fr);gap:18px;padding-bottom:32px}.feature-preview{padding:24px}.feature-preview .screen-image{max-width:400px;margin-inline:auto}.feature-preview h2{font-size:23px}.feature-heading{gap:12px}.feature-icon{width:38px;height:38px;padding:7px}.features-page .detail-list>li{padding-left:18px}}
+
+.language-gallery{margin-top:32px;padding-top:24px;border-top:1px solid var(--line)}.language-gallery>p{max-width:68ch;color:var(--muted);margin-top:14px;line-height:1.75}.language-gallery .doc-gallery{margin-top:24px;padding-bottom:0;gap:28px}.language-gallery .language-caption{font-weight:400;color:var(--muted)}.doc-section .language-gallery h3{font-size:24px;line-height:1.35;letter-spacing:-.5px;margin-top:0}.language-gallery .screen-image{max-width:none}

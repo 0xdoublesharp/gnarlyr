@@ -55,6 +55,14 @@ class ScreenshotConfigTests(unittest.TestCase):
             with self.subTest(keys=keys, frames=frames), self.assertRaises(ValueError):
                 self.config([{"name": "home", "file": "home.png", "expected_title": "Home", "keys": keys, "frames": frames}])
 
+    def test_language_scenes_reject_unsafe_codes_and_missing_translations(self):
+        for language in ({"code": "../es", "strings": {"STR_MUSIC": "Música"}},
+                         {"code": "es", "strings": {}},
+                         {"code": "es", "strings": {"STR_MUSIC": "Music\nSettings"}}):
+            with self.subTest(language=language), self.assertRaises(ValueError):
+                self.config([{"name": "home-es", "file": "home-es.png", "expected_title": "Home",
+                              "language": language}])
+
 
 class ScreenshotPixelTests(unittest.TestCase):
     def test_bottom_up_and_top_down_bmp_preserve_exact_rgb_pixels(self):

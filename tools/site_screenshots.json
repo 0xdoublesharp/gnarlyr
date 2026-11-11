@@ -589,6 +589,170 @@
         "down",
         "play"
       ]
+    },
+    {
+      "name": "home-es",
+      "file": "home-es.png",
+      "expected_title": "{firmware_name}",
+      "keys": [
+        "down",
+        "down",
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "down",
+        "play",
+        "back"
+      ],
+      "group": "languages",
+      "view_label": "Español",
+      "language": {
+        "code": "es",
+        "strings": {
+          "STR_LANGUAGE_NAME": "Español",
+          "STR_MUSIC": "Música",
+          "STR_AUDIOBOOKS": "Audiolibros",
+          "STR_SETTINGS": "Ajustes",
+          "STR_MIXTAPES": "Mezclas",
+          "STR_LISTENING": "Estadísticas",
+          "STR_USB_MODE": "Modo USB",
+          "STR_CLOCK": "Reloj"
+        }
+      }
+    },
+    {
+      "name": "home-fr",
+      "file": "home-fr.png",
+      "expected_title": "{firmware_name}",
+      "keys": [
+        "down",
+        "down",
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "down",
+        "play",
+        "back"
+      ],
+      "group": "languages",
+      "view_label": "Français",
+      "language": {
+        "code": "fr",
+        "strings": {
+          "STR_LANGUAGE_NAME": "Français",
+          "STR_MUSIC": "Musique",
+          "STR_AUDIOBOOKS": "Livres audio",
+          "STR_SETTINGS": "Paramètres",
+          "STR_MIXTAPES": "Mixtapes",
+          "STR_LISTENING": "Statistiques",
+          "STR_USB_MODE": "Mode USB",
+          "STR_CLOCK": "Horloge"
+        }
+      }
+    },
+    {
+      "name": "home-de",
+      "file": "home-de.png",
+      "expected_title": "{firmware_name}",
+      "keys": [
+        "down",
+        "down",
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "down",
+        "play",
+        "back"
+      ],
+      "group": "languages",
+      "view_label": "Deutsch",
+      "language": {
+        "code": "de",
+        "strings": {
+          "STR_LANGUAGE_NAME": "Deutsch",
+          "STR_MUSIC": "Musik",
+          "STR_AUDIOBOOKS": "Hörbücher",
+          "STR_SETTINGS": "Einstellungen",
+          "STR_MIXTAPES": "Mixtapes",
+          "STR_LISTENING": "Hörstatistik",
+          "STR_USB_MODE": "USB-Modus",
+          "STR_CLOCK": "Uhr"
+        }
+      }
+    },
+    {
+      "name": "home-ru",
+      "file": "home-ru.png",
+      "expected_title": "{firmware_name}",
+      "keys": [
+        "down",
+        "down",
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "down",
+        "play",
+        "back"
+      ],
+      "group": "languages",
+      "view_label": "Русский",
+      "language": {
+        "code": "ru",
+        "strings": {
+          "STR_LANGUAGE_NAME": "Русский",
+          "STR_MUSIC": "Музыка",
+          "STR_AUDIOBOOKS": "Аудиокниги",
+          "STR_SETTINGS": "Настройки",
+          "STR_MIXTAPES": "Микстейпы",
+          "STR_LISTENING": "Статистика",
+          "STR_USB_MODE": "Режим USB",
+          "STR_CLOCK": "Часы"
+        }
+      }
     }
   ]
 }
