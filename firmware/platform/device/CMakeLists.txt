@@ -179,6 +179,7 @@ set(ECHO_OVERLAY_IMPORTS
     LIBRARY_SCRATCH_PATH
     LIBRARY_STORE_PATH
     RESCAN_TIMES_PATH
+    app_store_clock_offset
     app_remember_dac_volume
     app_show_notice
     app_show_usb_status
@@ -321,6 +322,7 @@ if(CMAKE_CROSSCOMPILING)
         board/system.c
         board/update.c
         board/update_request.c
+        board/wall_time.c
         board/usb_dac_session.c
         board/usb_listen.c
         board/usb_report.c
@@ -454,12 +456,16 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             audio_fade_out=audio_process_fade_out
             hal_system_rtc_read=audio_process_rtc_read
             hal_system_rtc_set=audio_process_rtc_set
+            hal_clock_set_wall=audio_process_clock_set_wall
+            hal_clock_restore_wall=audio_process_clock_restore_wall
         )
     endif()
     if(module STREQUAL "extension")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
         target_include_directories(${module_target}_objects PRIVATE board)
         target_compile_definitions(${module_target}_objects PRIVATE
+            hal_clock_set_wall=extension_hal_clock_set_wall
+            hal_clock_restore_wall=extension_hal_clock_restore_wall
             home_art_draw=extension_home_art_draw
             home_art_draw_backdrop=extension_home_art_draw_backdrop
             home_art_init=extension_home_art_init
