@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#150f25"><meta name="description" content="Custom firmware for the full-size Snowsky ECHO: search, editable queues, mixtapes, themes, hardware findings, and clear installation instructions."><meta property="og:title" content="Gnarlyr — A new side to your ECHO"><meta property="og:description" content="Custom firmware for the full-size Snowsky ECHO: search, editable queues, mixtapes, themes, hardware findings, and clear installation instructions."><meta property="og:type" content="website"><meta property="og:url" content="https://gnarlyr.com/"><link rel="canonical" href="https://gnarlyr.com/"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="stylesheet" href="styles.css"><script src="site.js" defer></script><title>Gnarlyr — A new side to your ECHO</title>
+</head>
+<body>
+  <svg class="icon-definitions" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><defs>
+    <symbol id="icon-checklist" viewBox="0 0 24 24"><path d="m3.5 6 1.75 1.75L8.5 4.5m-5 7.5 1.75 1.75 3.25-3.25m-5 7.5 1.75 1.75 3.25-3.25M12 6h8.5M12 12h8.5M12 18h8.5"/></symbol>
+    <symbol id="icon-build" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3m6 0h4"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path d="M8 3H5v18h14V3h-3M8 3h8v4H8zM8 14l3 3 5-6"/></symbol>
+    <symbol id="icon-usb" viewBox="0 0 24 24"><path d="M12 18V3m-3 3 3-3 3 3m-3 9-7-4V8m7 5 7-4V6"/><circle cx="12" cy="20" r="2"/><circle cx="5" cy="6" r="2"/><path d="M17 2h4v4h-4z"/></symbol>
+    <symbol id="icon-eject" viewBox="0 0 24 24"><path d="m12 4 8 10H4L12 4ZM4 18h16v3H4z"/></symbol>
+  </defs></svg>
+<a class="skip" href="#main">Skip to content</a>
+<header class="header wrap">    <a class="brand" href="index.html" aria-label="Gnarlyr home">
+      <svg viewBox="0 0 32 24" fill="none" aria-hidden="true"><rect x="1" y="2" width="30" height="20" rx="3" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="6" width="22" height="9" rx="2" stroke="currentColor"/><circle cx="10" cy="10.5" r="2.5" stroke="currentColor"/><circle cx="22" cy="10.5" r="2.5" stroke="currentColor"/><path d="m8 22 3-5h10l3 5" stroke="currentColor"/></svg>
+      <span class="wordmark">GNARLYR<span class="brand-dot">.</span></span>
+    </a>
+<nav aria-label="Main navigation"><a href="firmware.html">Features</a><a href="hardware.html">Hardware</a><a href="install.html">Install</a><a href="build.html" class="nav-cta">Developers</a>
+</nav>
+</header>
+<main id="main">
+<section class="hero" aria-labelledby="hero-title">
+      <div class="hero-inner wrap">
+        <div>
+<p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Open firmware / SNOWSKY ECHO
+</p>
+<h1 id="hero-title"><span>Your ECHO.</span><span class="gnarly">Remixed.</span>
+</h1>
+<p class="hero-copy">Find a song, shape the queue, save a mixtape. Gnarlyr gives your full-size Snowsky ECHO more ways to enjoy the music you own.
+</p>
+          <div class="actions">
+            <a class="button" href="install.html">Install Gnarlyr <span aria-hidden="true">→</span></a>
+            <a class="text-link" href="firmware.html">Explore the features <span aria-hidden="true">→</span></a>
+          </div>
+<p class="hero-note">Your music. Your player. Built for listening, offline.
+</p>
+        </div>
+        <div class="art" aria-hidden="true">
+          <svg viewBox="0 0 600 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="sun" x1="300" y1="42" x2="300" y2="300" gradientUnits="userSpaceOnUse"><stop stop-color="#ffc584"/><stop offset=".5" stop-color="#ff92b5"/><stop offset="1" stop-color="#b16aca"/></linearGradient>
+              <linearGradient id="shell" x1="70" y1="130" x2="470" y2="410" gradientUnits="userSpaceOnUse"><stop stop-color="#dad2ef"/><stop offset=".5" stop-color="#9e8fbb"/><stop offset="1" stop-color="#5e5079"/></linearGradient>
+              <linearGradient id="label" x1="130" y1="156" x2="430" y2="350" gradientUnits="userSpaceOnUse"><stop stop-color="#f5d6d8"/><stop offset=".48" stop-color="#e9b5d4"/><stop offset="1" stop-color="#bda3df"/></linearGradient>
+              <linearGradient id="tape" x1="100" y1="0" x2="490" y2="0" gradientUnits="userSpaceOnUse"><stop stop-color="#30233d"/><stop offset=".5" stop-color="#20182e"/><stop offset="1" stop-color="#493151"/></linearGradient>
+              <linearGradient id="chrome" x1="250" y1="225" x2="250" y2="303" gradientUnits="userSpaceOnUse"><stop stop-color="#f7f2e9"/><stop offset=".45" stop-color="#b0a9c2"/><stop offset=".5" stop-color="#665c7b"/><stop offset="1" stop-color="#d8cee2"/></linearGradient>
+              <pattern id="grid" width="46" height="32" patternUnits="userSpaceOnUse"><path d="M46 0H0V32" stroke="#c177ba" stroke-opacity=".35" stroke-width="1"/></pattern>
+              <clipPath id="sun-clip"><circle cx="324" cy="183" r="128"/></clipPath>
+              <filter id="shadow" x="0" y="0" width="600" height="500" filterUnits="userSpaceOnUse"><feGaussianBlur stdDeviation="15"/></filter>
+            </defs>
+            <g clip-path="url(#sun-clip)">
+              <path d="M188 40h275v136H188zM188 183h275v16H188zM188 207h275v14H188zM188 229h275v12H188zM188 249h275v10H188zM188 267h275v8H188zM188 283h275v7H188zM188 298h275v7H188z" fill="url(#sun)"/>
+            </g>
+            <path d="M44 344h510M94 365h410M143 391h311M192 426h212" stroke="#ad67a8" stroke-opacity=".28"/>
+            <path d="m60 340 68 104m29-104 32 104m68-104-3 104m101-104-36 104m133-104-72 104m164-104-111 104" stroke="#ad67a8" stroke-opacity=".28"/>
+            <ellipse cx="310" cy="397" rx="202" ry="22" fill="#05030c" opacity=".65" filter="url(#shadow)"/>
+            <g transform="translate(15 8) rotate(-12 290 270)">
+              <rect x="79" y="151" width="440" height="271" rx="23" fill="#4b3e5d" stroke="#30223c" stroke-width="2"/>
+              <rect x="70" y="139" width="440" height="271" rx="23" fill="url(#shell)" stroke="#eee0f3" stroke-width="1.5"/>
+              <rect x="78" y="147" width="424" height="255" rx="18" stroke="#6e5d83" stroke-width="1"/>
+              <rect x="91" y="158" width="397" height="177" rx="10" fill="url(#label)" stroke="#665674" stroke-width="1.5"/>
+              <path d="M94 194h391M94 199h391M94 204h391" stroke="#a75e98" stroke-width="2"/>
+              <text x="110" y="185" fill="#3c244a" font-family="Arial, sans-serif" font-size="20" font-weight="900" font-style="italic" letter-spacing="-1">GNARLYR</text>
+              <text x="465" y="183" fill="#4f335a" font-family="monospace" font-size="10" text-anchor="end" letter-spacing="1">STEREO / A</text>
+              <text x="113" y="226" fill="#4d2b58" font-family="monospace" font-size="11" letter-spacing="3">THE GOOD STUFF. ON REPEAT.</text>
+              <rect x="115" y="243" width="350" height="71" rx="34" fill="url(#tape)" stroke="#5e426e" stroke-width="3"/>
+              <rect x="242" y="258" width="97" height="39" rx="3" fill="#a595b4" stroke="#140f1e" stroke-width="2"/>
+              <path d="M253 258v39m74-39v39" stroke="#63506e" stroke-width="7"/>
+              <path d="M253 268h74m-74 5h74m-74 5h74m-74 5h74m-74 5h74" stroke="#4b3b58" stroke-width="2"/>
+              <circle cx="173" cy="278" r="29" fill="#130f1d" stroke="url(#chrome)" stroke-width="7"/>
+              <circle cx="173" cy="278" r="14" fill="#ddd0e0"/>
+              <circle cx="173" cy="278" r="7" fill="#33273e"/>
+              <path d="M173 258v9m0 22v9m-20-20h9m22 0h9m-34-14 6 6m16 16 6 6m0-28-6 6m-16 16-6 6" stroke="#a295b1" stroke-width="5"/>
+              <circle cx="407" cy="278" r="29" fill="#130f1d" stroke="url(#chrome)" stroke-width="7"/>
+              <circle cx="407" cy="278" r="14" fill="#ddd0e0"/>
+              <circle cx="407" cy="278" r="7" fill="#33273e"/>
+              <path d="M407 258v9m0 22v9m-20-20h9m22 0h9m-34-14 6 6m16 16 6 6m0-28-6 6m-16 16-6 6" stroke="#a295b1" stroke-width="5"/>
+              <path d="m191 410 23-59h151l24 59" fill="#8f7eaa" stroke="#d5c5de" stroke-width="1.5"/>
+              <path d="m208 399 15-38h132l16 38" stroke="#665476"/>
+              <circle cx="233" cy="383" r="6" fill="#23192e"/><circle cx="346" cy="383" r="6" fill="#23192e"/>
+              <rect x="264" y="376" width="51" height="12" rx="4" fill="#40324e"/>
+              <g fill="#cfc0df" stroke="#675576" stroke-width="1.5"><circle cx="85" cy="155" r="4"/><circle cx="494" cy="155" r="4"/><circle cx="86" cy="393" r="4"/><circle cx="494" cy="393" r="4"/></g>
+              <path d="M82 155h6m403 0h6M83 393h6m402 0h6" stroke="#675576"/>
+              <text x="110" y="363" fill="#392b48" font-family="monospace" font-size="23" font-weight="bold">A</text>
+              <text x="472" y="363" fill="#392b48" font-family="monospace" font-size="19" font-weight="bold" text-anchor="end">90</text>
+              <path d="M105 374h46m-46 5h32m292-5h46m-32 5h32" stroke="#6b587c"/>
+            </g>
+            <g stroke="#a1edda" stroke-width="1.3"><path d="M100 111v22m-11-11h22"/><path d="M504 94v14m-7-7h14"/><path d="M537 299v19m-9-10h18"/></g>
+            <circle cx="127" cy="79" r="2" fill="#ffb1ce"/><circle cx="465" cy="55" r="2" fill="#c2a4e0"/>
+          </svg>
+          <span class="art-note">A new side to your ECHO</span>
+        </div>
+      </div>
+</section>
+<div class="format-strip"><div class="format-inner wrap"><b>Your collection. No connection.</b><span>FLAC / MP3 / WAV / M4A / M4B</span><span>GPL-3.0-or-later</span></div></div>
+<section class="section wrap" id="features" aria-labelledby="features-title"><div class="section-head"><div>
+<p class="eyebrow">The good stuff
+</p>
+<h2 id="features-title">More ways to enjoy your music.
+</h2></div></div><div class="feature-list"><article class="feature">
+<h3>Find the song you mean
+</h3>
+<p>Search titles, artists, albums and paths. Narrow the list with filters and personal labels, then choose its order.
+</p></article><article class="feature">
+<h3>Make a mixtape
+</h3>
+<p>Save up to 32 named mixes. Reorder the full queue, keep repeated songs, and choose what plays next.
+</p></article><article class="feature">
+<h3>Buttons, your way
+</h3>
+<p>Set tap and hold actions for Volume ±, Play and Menu. Your playback shortcuts work with the screen off.
+</p></article><article class="feature">
+<h3>Give it your colors
+</h3>
+<p>Choose from five themes, three text sizes and landscape or portrait layouts. Preview a theme as you browse.
+</p></article><article class="feature">
+<h3>See your listening
+</h3>
+<p>See listening totals and your top artists, albums and songs. Export your play log and follow lyrics as a song plays.
+</p></article><article class="feature">
+<h3>Hear it before you keep it
+</h3>
+<p>Listen to EQ presets as you browse, or fine-tune a custom curve. Keep the sound you like; cancel to return to your saved settings.
+</p></article></div><div class="route-links"><a class="text-link" href="firmware.html">All features &amp; improvements →</a><a class="text-link" href="firmware.html#improvements">What we’ve fixed →</a></div>
+</section>
+<section class="section wrap" id="audiobooks" aria-labelledby="audiobooks-title">
+<p class="eyebrow">Books belong here, too</p>
+<h2 id="audiobooks-title">Find your chapter. Keep your place.</h2>
+<p class="section-copy">Find your M4B audiobooks on one shelf, choose a chapter and resume where you stopped. Supported speech recordings keep their original speed and pitch.</p>
+<a class="text-link" href="firmware.html#spoken">Audiobooks &amp; speech playback →</a>
+</section>
+<section class="section hardware-summary" id="hardware" aria-labelledby="hardware-title"><div class="wrap">
+<p class="eyebrow">Meet the ECHO
+</p>
+<h2 id="hardware-title">The ECHO at a glance.
+</h2>
+<p class="section-copy">A color screen, physical buttons and two Cirrus Logic CS43198 audio chips, with internal storage and a microSD slot for your collection.
+</p><dl class="spec-strip"><div><dt>2.39 inches</dt><dd>IPS screen · 480 × 222 landscape</dd></div><div><dt>Dual CS43198</dt><dd>Cirrus Logic audio converters</dd></div><div><dt>4 GB / 8 GB</dt><dd>Internal storage options</dd></div><div><dt>3.5 + 4.4 mm</dt><dd>Single-ended and balanced outputs</dd></div></dl><a class="text-link" href="hardware.html">ECHO specs &amp; hardware →</a></div>
+</section>
+<section class="section wrap" id="install" aria-labelledby="install-title">
+<p class="eyebrow">Make it Gnarlyr
+</p>
+<h2 id="install-title">Get started. Keep it updated.
+</h2>
+<p class="section-copy">Use the ECHO’s recovery mode for the first installation. After that, update Gnarlyr by copying its image to internal storage.
+</p><div class="route-links"><a class="button" href="install.html#first-install">First installation →</a><a class="text-link" href="install.html#update">Update Gnarlyr →</a></div>
+<p class="section-copy" id="get">Working from source? <a id="build-help" href="build.html#build">Build the current firmware</a>.
+</p>
+<p class="section-copy" id="recovery"><a href="install.html#recovery">Recovery and returning to stock →</a>
+</p>
+</section>
+</main><div class="outro wrap">
+<p class="outro-phrase">Stay offline. Get a little gnarly.
+</p>
+<p class="eyebrow">Made for the music you already love.
+</p></div>
+<footer class="wrap">
+<nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html">Features &amp; improvements</a><a href="hardware.html">ECHO hardware</a><a href="install.html">Install &amp; update</a><a href="build.html">Developers</a>
+</nav>
+<div class="footer-row"><span>GNARLYR.COM / Open-source ECHO firmware</span><div class="footer-links"><a href="https://podium-echo.online">Podium ↗</a><a href="https://github.com/BasilSkyWalk/echopod">EchoPod ↗</a><a href="https://github.com/brnomt/ReChord">ReChord ↗</a><a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0-or-later ↗</a></div></div>
+<p>Gnarlyr by doublesharp. Built on Podium and EchoPod, with hardware research from ReChord.
+</p>
+</footer>
+</body></html>
