@@ -158,6 +158,13 @@ enum {
     SETTINGS_PREVIOUS_FILE_SIZE = 32
 };
 
+enum {
+    SETTINGS_STATUS_VOLUME = 1,
+    SETTINGS_STATUS_REPEAT = 2,
+    SETTINGS_STATUS_POSITION = 4,
+    SETTINGS_STATUS_SEGMENTED = 8
+};
+
 typedef struct Settings {
     uint8_t brightness;
     uint8_t screen_timeout;
@@ -183,6 +190,7 @@ typedef struct Settings {
     uint8_t replay_gain_mode;
     bool prevent_clipping;
     bool battery_percent;
+    uint8_t status_items;
     bool rewind_on_resume;
     bool safe_start_volume;
     uint8_t safe_start_volume_level;

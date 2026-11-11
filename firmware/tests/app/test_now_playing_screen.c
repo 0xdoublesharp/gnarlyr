@@ -394,9 +394,19 @@ static void scrubbing_keeps_subsecond_cursor_changes_visible(void)
     CHECK(memcmp(previous_pixels, playback_pixels, sizeof playback_pixels) != 0);
 }
 
+static void now_playing_keeps_the_status_band_on_its_header_palette(void)
+{
+    start_passive_view();
+    playback_theme.colors.header_background = COLOR_RGB(16, 32, 48);
+    playback_theme.colors.background = COLOR_RGB(248, 240, 224);
+    draw_passive_view(0, 1000);
+    CHECK_EQUAL(playback_theme.colors.header_background, playback_pixels[0]);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(now_playing_keeps_the_status_band_on_its_header_palette),
         TEST_CASE(artwork_has_a_larger_primary_surface_in_every_text_size_and_orientation),
         TEST_CASE(portrait_titles_that_fit_two_lines_stay_readable_without_scrolling),
         TEST_CASE(passive_transport_pixels_stay_stable_within_one_displayed_second),

@@ -1025,6 +1025,7 @@ static void check_extension_defaults(const Settings *settings)
         CHECK_EQUAL(index, settings->home_order[index]);
     }
     CHECK_EQUAL(0, settings->home_hidden);
+    CHECK_EQUAL(0, settings->status_items);
 }
 
 static void the_extension_defaults_keep_todays_behaviour(void)
@@ -1175,7 +1176,7 @@ static void each_invalid_extension_value_is_rejected_without_mutating_the_settin
     static const uint8_t CASES[][2] = {
         {0, 0x20},  {0, 0x40},  {0, 0x80},  {0, 0x18},  {1, 61},   {2, 4},    {2, 61},   {2, 0},
         {3, 1},     {4, 0x00},  {4, 0x11},  {6, 0x55},  {8, 0x18}, {8, 0x09}, {9, 0x08}, {9, 0xFF},
-        {10, 0x04}, {10, 0x80}, {12, 0x04}, {12, 0xFC}, {13, 1},   {14, 1},   {15, 0x80}};
+        {10, 0x04}, {10, 0x80}, {12, 0x04}, {12, 0xFC}, {14, 1},   {15, 0x80}};
     for (uint32_t at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
         Settings original = settings_defaults();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1337,9 +1338,54 @@ static void safe_start_volume_off_keeps_the_volume(void)
     CHECK_EQUAL(SETTINGS_VOLUME_MAX, settings_safe_start_volume(&settings, SETTINGS_VOLUME_MAX));
 }
 
+static void status_bar_choices_round_trip_in_e13_without_using_other_extensions(void)
+{
+    Settings settings = settings_defaults();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[51] = 255;
+    rewrite_checksum(bytes);
+    CHECK(settings_decode(bytes, sizeof bytes, &settings));
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(255, bytes[51]);
+    CHECK_EQUAL(0, bytes[49]);
+    CHECK_EQUAL(0, bytes[50]);
+    CHECK_EQUAL(0, bytes[52]);
+    CHECK_EQUAL(0, bytes[53]);
+}
+
+static void all_status_choices_and_legacy_percent_files_keep_their_values(void)
+{
+    for (int flags = 0; flags < 256; flags++) {
+        Settings settings = settings_defaults();
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&settings, bytes);
+        bytes[51] = (uint8_t)flags;
+        rewrite_checksum(bytes);
+        CHECK(settings_decode(bytes, sizeof bytes, &settings));
+        CHECK_EQUAL(flags, settings.status_items);
+        CHECK(!settings.battery_percent);
+        settings_encode(&settings, bytes);
+        CHECK_EQUAL(flags, bytes[51]);
+    }
+    for (int version = 14; version <= 15; version++) {
+        Settings settings = settings_defaults();
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&settings, bytes);
+        bytes[4] = (uint8_t)version;
+        bytes[5] |= 8;
+        rewrite_checksum(bytes);
+        CHECK(settings_decode(bytes, sizeof bytes, &settings));
+        CHECK_EQUAL(0, settings.status_items);
+        CHECK(settings.battery_percent);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(all_status_choices_and_legacy_percent_files_keep_their_values),
+        TEST_CASE(status_bar_choices_round_trip_in_e13_without_using_other_extensions),
         TEST_CASE(defaults_are_comfortable),
         TEST_CASE(the_extension_defaults_keep_todays_behaviour),
         TEST_CASE(the_extension_block_sits_between_the_language_and_the_checksum),

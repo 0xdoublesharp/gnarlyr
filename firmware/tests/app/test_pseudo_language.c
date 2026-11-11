@@ -422,7 +422,7 @@ static void walk_settings_choices(void)
                                                    STR_SETTINGS,
                                                    STR_USB_MODE,
                                                    STR_THEME,
-                                                   STR_BATTERY_PERCENTAGE,
+                                                   STR_STATUS_BAR,
                                                    STR_REWIND_ON_RESUME,
                                                    STR_SAFE_START_VOLUME,
                                                    STR_TRANSITIONS,

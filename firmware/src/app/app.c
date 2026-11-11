@@ -136,6 +136,8 @@ typedef struct AppState {
     StatusBarState status_bar;
     char battery_text[STATUS_BAR_PERCENT_CAPACITY];
     char clock_text[STATUS_BAR_CLOCK_CAPACITY];
+    char volume_text[4];
+    char position_text[24];
     AppUsbRenderer usb_renderer;
     AppScreens screens;
     MessageScreen notice;
@@ -1037,14 +1039,9 @@ static StatusBarState shown_status_bar(const AppState *state, const Screen *scre
     StatusBarState bar = state->status_bar;
     const Theme *theme = board_theme();
     const char *title = screen->title;
-    if (bar.clock == NULL || title == NULL || theme->metrics.status_height > 0) {
-        return bar;
-    }
-    int width = screen->header_title_width != 0 ? screen->header_title_width
-                                                : text_width(theme->fonts.header, title);
-    int title_end = (theme->metrics.screen_width + width) / 2;
-    if (status_bar_clock_area(theme, bar).x < title_end + theme->metrics.padding) {
-        bar.clock = NULL;
+    if (title != NULL && theme->metrics.status_height == 0) {
+        bar.title_width = screen->header_title_width != 0 ? screen->header_title_width
+                                                          : text_width(theme->fonts.header, title);
     }
     return bar;
 }
@@ -1141,17 +1138,30 @@ static const char *clock_text(void)
 static StatusBarState current_status_bar(void)
 {
     HalBattery battery = hal_power_battery();
+    PlayerStatus status = player_status(&app.player);
+    uint8_t items = app.settings.settings.status_items;
+    StringBuilder volume = string_builder_make(app.volume_text, sizeof app.volume_text);
+    string_builder_append_unsigned(&volume, status.volume);
+    StringBuilder position = string_builder_make(app.position_text, sizeof app.position_text);
+    status_bar_position_text(&position,
+                             (StatusQueuePosition){status.place.number, status.place.total, NULL});
     return (StatusBarState){
-        .playback = playback_of(player_status(&app.player).state),
-        .bluetooth = bluetooth_of(&app.bluetooth),
+        .playback = (uint8_t)playback_of(status.state),
+        .bluetooth = (uint8_t)bluetooth_of(&app.bluetooth),
         .battery_known = battery.known,
         .battery_percent = battery.percent,
         .usb_power = battery.usb_power,
         .charging = battery.charging,
         .locked = app.lock.locked,
-        .shuffle = (StatusShuffle)player_status(&app.player).shuffle,
+        .shuffle = (uint8_t)status.shuffle,
         .percent = battery_text(battery),
         .clock = clock_text(),
+        .volume = (items & SETTINGS_STATUS_VOLUME) != 0 ? app.volume_text : NULL,
+        .position = (items & SETTINGS_STATUS_POSITION) != 0 && status.place.total > 0
+                        ? app.position_text
+                        : NULL,
+        .repeat = (items & SETTINGS_STATUS_REPEAT) != 0 ? (uint8_t)status.repeat : 0,
+        .segmented = (items & SETTINGS_STATUS_SEGMENTED) != 0,
     };
 }
 
@@ -1847,6 +1857,8 @@ static uint32_t view_stamp(void)
     stamp = stamp_add(stamp, (uint32_t)status.repeat);
     stamp = stamp_add(stamp, status.place.number);
     stamp = stamp_add(stamp, status.place.total);
+    stamp = stamp_add(stamp, app.settings.settings.status_items |
+                                 (uint32_t)app.settings.settings.battery_percent << 8);
     stamp = stamp_add(stamp, battery.known);
     stamp = stamp_add(stamp, battery.percent);
     stamp = stamp_add(stamp, battery.charging);

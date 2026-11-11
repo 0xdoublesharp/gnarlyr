@@ -340,6 +340,33 @@ class CompanionSettings(VolumeCase):
             self.assertEqual(self.path.read_bytes(), checked(expected))
             self.assertIn("set Clock format=24-hour\n", self.sent[0])
 
+    def test_status_bar_settings_use_e13_and_preserve_the_reserved_clock_bytes(self):
+        self.use_version15()
+        original = echo_language.Snapshot.show
+        paths = ("firmware/assets/lang/en.txt", "firmware/src/app/settings_screens.c")
+        def show(snapshot, path):
+            return (echo_debug.ROOT / path).read_text() if path in paths else original(snapshot, path)
+        choices = (("status_volume", "on", 1), ("status_repeat", "on", 2),
+                   ("status_position", "on", 4),
+                   ("battery_style", "segmented", 8), ("battery_percent", "on", 0))
+        with mock.patch.object(echo_language.Snapshot, "show", show):
+            for key, value, bit in choices:
+                with self.subTest(key=key):
+                    before = bytearray(saved_settings(15, 4))
+                    before[51] = 0xA0
+                    self.path.write_bytes(checked(before))
+                    def change(data):
+                        data[51] |= bit
+                        if key == "battery_percent":
+                            data[5] |= 8
+                        return data
+                    tool, _ = self.tool(change)
+                    listed = {item["key"]: item for item in tool.settings_list()["settings"]}
+                    self.assertIn(key, listed)
+                    self.assertEqual(tool.settings_set(key, value)["value"], value)
+                    self.assertEqual(self.path.read_bytes()[51], 0xA0 | bit)
+                    self.assertEqual(self.path.read_bytes()[49:51], bytes(2))
+
     def test_version15_extension_values_the_firmware_rejects_are_refused_before_writes(self):
         self.use_version15()
         cases = ((38, 0x18), (38, 0x20), (39, 61), (40, 4), (40, 61), (41, 1), (42, 0x00),

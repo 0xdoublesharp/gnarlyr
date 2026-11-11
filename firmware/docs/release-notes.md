@@ -2,6 +2,13 @@
 
 Gnarlyr builds on Podium 4.5.9 and EchoPod with their GPL credits preserved. The source provenance is recorded in [`../UPSTREAM.md`](../UPSTREAM.md). Version 1.0.0 is not released; hardware checks are recorded in [`known-issues.md`](known-issues.md).
 
+## Status bar
+
+- Settings → Status bar adds live player volume, repeat mode, queue position and percentage switches, and an optional five-bar battery. Existing files keep the solid battery and clock defaults. Controls stays last in Settings.
+- Now Playing uses the header palette for its top band, keeping status icons and numbers readable in Classic.
+- Queue position is centred in portrait and appears in landscape when the title is hidden. Items fit by priority at every text size; the battery and screen title keep their places.
+- Native checks cover fitting, battery levels and thresholds, settings migration and layout; the focused ARM scenario follows volume and queue changes. Simulator captures cover Neon Noir, Graphite and Classic in both orientations and all text sizes. Player acceptance remains with the integration owner.
+
 ## Identity and files
 
 The canonical firmware name is **Gnarlyr**, made by **doublesharp**. The image identifier and USB storage vendor are `GNARLYR`; the update file is `GNARLYR.IMG`, the data directory is `/.gnarlyr`, and exported CUE playlist entries use `#GNARLYR-START:`. `identity.json` supplies the build, simulator and host tools.

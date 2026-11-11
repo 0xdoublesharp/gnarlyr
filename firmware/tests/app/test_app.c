@@ -75,7 +75,8 @@ enum {
     SETTINGS_RESCAN_INDEX = 21,
     SETTINGS_USB_MODE_INDEX = 22,
     SETTINGS_THEME_INDEX = 23,
-    SETTINGS_BATTERY_PERCENT_INDEX = 24,
+    SETTINGS_STATUS_BAR_INDEX = 24,
+    STATUS_BAR_BATTERY_PERCENT_INDEX = 3,
     SETTINGS_USB_ANSWER_INDEX = 28,
     USB_PROMPT_MS = 15000,
     CHARGE_LIT_MS = 5000,
@@ -5035,12 +5036,15 @@ static void battery_percentage_choice_shows_the_level_beside_the_battery_and_sur
     start_app_with_library();
     fake_hal_set_battery((HalBattery){.known = true, .percent = HALF_BATTERY});
     Color ink = expected_theme()->colors.header_text;
-    open_setting(SETTINGS_BATTERY_PERCENT_INDEX);
+    open_setting(SETTINGS_STATUS_BAR_INDEX);
+    CHECK(title_is("Status bar"));
+    move_down(STATUS_BAR_BATTERY_PERCENT_INDEX);
+    tap(KEY_PLAY);
     CHECK(title_is("Battery percent"));
     CHECK(!area_has_color(left_of_battery(), ink));
     move_down(1);
     tap(KEY_PLAY);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Status bar"));
     CHECK(area_has_color(left_of_battery(), ink));
     Settings chosen;
     CHECK(saved_settings(&chosen));
@@ -5161,7 +5165,11 @@ static void a_calendar_month_title_keeps_its_room_before_the_status_clock(void)
     header_draw(&canvas, theme, "November 2026");
     status_bar_draw(
         &canvas, theme,
-        (StatusBarState){.battery_known = true, .battery_percent = 64, .percent = "64%"});
+        (StatusBarState){.battery_known = true,
+                         .battery_percent = 64,
+                         .percent = "64%",
+                         .clock = "9:41 AM",
+                         .title_width = text_width(theme->fonts.header, "November 2026")});
     for (int y = 0; y < theme->metrics.header_height; y++) {
         for (int x = 0; x < theme->metrics.screen_width; x++) {
             CHECK_EQUAL(canvas_pixel_at(&canvas, x, y), fake_hal_pixel(x, y));

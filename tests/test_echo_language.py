@@ -412,6 +412,16 @@ class LanguageCommands(VolumeCase):
             self.assertEqual((data[4], data[5]), (15, 5))
             self.assertEqual(struct.unpack_from("<h", data, 49)[0], -480)
 
+    def test_status_bar_extension_choices_are_accepted_only_by_supporting_builds(self):
+        path = self.root / echo_debug.DATA_DIRECTORY / "settings.bin"
+        for value in (1, 2, 4, 8, 16, 32, 63, 64, 128):
+            with self.subTest(value=value), self.current_snapshot():
+                block = bytearray(self.home_extension(list(range(10))))
+                block[13] = value
+                path.write_bytes(settings("en", 15, 4, bytes(block)))
+                tool, _ = self.live_tool()
+                self.assertEqual(tool.language_list()["selected"], "en")
+
     def home_extension(self, order, hidden=0):
         nibbles = bytearray(5)
         for index, item in enumerate(order):

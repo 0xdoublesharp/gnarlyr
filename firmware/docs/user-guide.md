@@ -202,7 +202,7 @@ The player charges whenever it's plugged in, on or off. Turning it off while it'
 
 Hold ▶, then press Power while still holding it, and keep both down for about a second to lock the buttons, for example before the player goes into a pocket; do the same to unlock. While locked, a padlock shows in the top bar and every button except Power is ignored; Power still turns the screen on and off. Pressing another button shows "Hold Play+Power" if the screen is on. Locking or unlocking lights the screen to confirm. Wired headset buttons keep working. Restarting the player unlocks it.
 
-The top bar shows, from the left: play or pause, Bluetooth, the padlock, and the shuffle mode (a note with crossed arrows for Shuffle Songs, a disc with crossed arrows for Shuffle Albums); the battery sits on the right. The battery's fill shows how much charge is left. At 15% or less the fill turns red, and at 5% or less the outline turns red too. While the cable supplies power, the fill turns green and a bolt appears inside the battery: a light bolt with a dark edge while charging, a plain dark bolt once it's charged. To see the level as a number too, turn on Settings → Battery percent: the percentage then shows to the left of the battery, in red when low.
+The top bar shows, from the left: play or pause, Bluetooth, the padlock, and the shuffle mode (a note with crossed arrows for Shuffle Songs, a disc with crossed arrows for Shuffle Albums); the battery sits on the right. The battery's fill shows how much charge is left. At 15% or less the fill turns red, and at 5% or less the outline turns red too. While the cable supplies power, the fill turns green and a bolt appears inside the battery: a light bolt with a dark edge while charging, a plain dark bolt once it's charged. To see the level as a number too, turn on Settings → Status bar → Battery percent: the percentage then shows to the left of the battery, in red when low.
 
 ## Skip songs
 
@@ -403,6 +403,16 @@ Open the tape for **Resume tape**, **Play Side A** or **Play Side B**. It plays 
 
 Rename and Delete work as for other mixtapes. To play a different queue, select another song or mixtape. Ordinary single-sided mixtapes keep their existing actions.
 
+## Status bar
+
+Settings → Status bar chooses **Show volume**, **Show repeat**, **Queue position**, **Battery percent** and **Battery style**. Volume, repeat, position and percent start off; the clock appears when the time is known. Solid is the default battery style. Choices are kept across restarts.
+
+Volume shows a speaker and the player's own 0–60 level, changing as you adjust it. Repeat shows the repeat arrows for All, with a small song badge for One, and is hidden for Off. Queue position shows the current place and total, such as **3/12**, while a queue is loaded. It is centred in portrait; landscape shows it when the screen title is hidden.
+
+Segmented battery uses five green bars, one for each started fifth of the charge. At 15% or less its bars turn red; at 5% or less its outline turns red too. Both styles show the same charging bolt on USB power.
+
+When space is tight, the battery, existing playback/link/lock/shuffle icons and the screen title keep their places. The remaining items get space in this order: volume, queue position, clock, repeat, battery percent. A smaller item may fit when a wider one cannot. Text size keeps the status icons and small numbers at the same size.
+
 ## Clock and calendar
 
 Settings → Date & time, beside Clock format, shows the current date and time, or Not set. Open it to edit the year (2024–2099), month, day, hour, minute and UTC offset. Vol+ and Vol− change the focused value; hold to repeat. Menu moves to the next field, holding Menu moves to the previous one, ▶ saves and Back cancels. The day follows the month length, including leap years. The hour follows Clock format, with AM/PM in 12-hour time. Saving sets seconds to zero and updates the status bar, Clock and Calendar at once. If saving fails, the editor stays open and the running clock keeps its previous time.
@@ -411,7 +421,7 @@ Enter your local date and time. UTC offset is the difference between your local 
 
 Your Mac can also set the clock. Every companion command that ejects the player (`python3 tools/echo_debug.py set-time` does only that) leaves the Mac's time and offset on the drive, and the player applies them as the drive is ejected. A later Mac sync replaces a time set in Settings; a later successful Settings save replaces the last sync. The clock then keeps going while the player is on. Saving on the player keeps UTC in the clock chip and the offset in Settings. After switching off or restarting, Gnarlyr reads the chip once, a couple of seconds after startup, and restores local time with the saved offset. If audio is already active, recovery waits until it stops. If the chip cannot supply a valid, trusted date and time, the clock stays Not set; set it in Settings or sync with your Mac.
 
-While the time is set it also shows in the status bar, left of the battery; in landscape it steps aside for a long screen title. Settings → Clock format chooses 12-hour time with AM/PM or 24-hour time (the default). The status bar follows the same choice, including in Calendar. Home → Clock shows the time, the weekday and the date. Press ▶ for Calendar: the current month from Monday with today marked. The volume buttons move a month at a time, ▶ goes back to the current month and Back returns to Clock. Without a set time both say so and how to set it.
+The set time also shows in the status bar, left of the battery; in landscape it steps aside for a long screen title. Settings → Clock format chooses 12-hour time with AM/PM or 24-hour time (the default). The status bar follows the same choice, including in Calendar. Home → Clock shows the time, the weekday and the date. Press ▶ for Calendar: the current month from Monday with today marked. The volume buttons move a month at a time, ▶ goes back to the current month and Back returns to Clock. Without a set time both say so and how to set it.
 
 ## Saved moments
 

@@ -52,6 +52,7 @@ class Snapshot:
             raise api.DebugError(code, "language operations require an exact clean installed firmware build")
         self.format = pack_tools(api.ROOT)
         self.flags_reserved = 0xF8
+        self.status_items_supported = False
         try:
             self.commit = git(api.ROOT, "rev-parse", "--verify", build + "^{commit}").strip()
             self.build = build
@@ -80,6 +81,9 @@ class Snapshot:
                 raise ValueError("the installed clock offset layout is unsupported")
             if self.settings_version >= 15:
                 self.check_home_layout()
+                self.status_items_supported = "STATUS_ITEMS_BYTE" in source
+                if self.status_items_supported and constant(source, "STATUS_ITEMS_BYTE") != 13:
+                    raise ValueError("the installed status bar settings layout is unsupported")
         except (ValueError, KeyError, OSError, self.format.PackError) as error:
             raise api.DebugError("language_build_unknown", str(error)) from error
 
@@ -133,9 +137,13 @@ class Snapshot:
             return True
         block = data[38:54]
         offset = int.from_bytes(block[11:13], "little", signed=True) if self.clock_offset_byte else 0
-        reserved = 13 if self.clock_offset_byte else 11
+        reserved = list(block[11:])
+        if self.clock_offset_byte:
+            reserved[0:2] = [0, 0]
+        if self.status_items_supported:
+            reserved[2] = 0
         return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and block[3] == 0 and
-                -720 <= offset <= 840 and self.home_valid(block) and not any(block[reserved:]))
+                -720 <= offset <= 840 and self.home_valid(block) and not any(reserved))
 
     def show(self, path):
         return git(self.api.ROOT, "show", self.commit + ":" + path)

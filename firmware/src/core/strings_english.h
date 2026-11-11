@@ -632,4 +632,12 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_SET_CLOCK_HINT] = "Vol: change · Menu: next · Play: save · Back: cancel",
     [STR_SET_CLOCK_SAVED] = "Time saved",
     [STR_SET_CLOCK_FAILED] = "Couldn't set clock",
+    [STR_STATUS_BAR] = "Status bar",
+    [STR_STATUS_VOLUME] = "Show volume",
+    [STR_STATUS_REPEAT] = "Show repeat",
+    [STR_STATUS_POSITION] = "Queue position",
+    [STR_BATTERY_STYLE] = "Battery style",
+    [STR_BATTERY_SOLID] = "Solid",
+    [STR_BATTERY_SEGMENTED] = "Segmented",
+    [STR_STATUS_PLACE] = "{0}/{1}",
 };

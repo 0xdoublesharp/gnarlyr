@@ -36,6 +36,19 @@ SPECS = (
 CLOCK_SPEC = ("clock_24h", "STR_CLOCK_FORMAT", "CLOCK_FORMAT_OPTIONS", ("12h", "24h"),
               ("STR_CLOCK_12H", "STR_CLOCK_24H"), 38, 4, 2, 0)
 
+STATUS_SPECS = (
+    ("status_volume", "STR_STATUS_VOLUME", "OFF_ON_OPTIONS", ("off", "on"),
+     ("STR_OFF", "STR_ON"), 51, 1, 0, 0),
+    ("status_repeat", "STR_STATUS_REPEAT", "OFF_ON_OPTIONS", ("off", "on"),
+     ("STR_OFF", "STR_ON"), 51, 2, 1, 0),
+    ("status_position", "STR_STATUS_POSITION", "OFF_ON_OPTIONS", ("off", "on"),
+     ("STR_OFF", "STR_ON"), 51, 4, 2, 0),
+    ("battery_style", "STR_BATTERY_STYLE", "BATTERY_STYLE_OPTIONS", ("solid", "segmented"),
+     ("STR_BATTERY_SOLID", "STR_BATTERY_SEGMENTED"), 51, 8, 3, 0),
+    ("battery_percent", "STR_BATTERY_PERCENTAGE", "OFF_ON_OPTIONS", ("off", "on"),
+     ("STR_OFF", "STR_ON"), 5, 8, 3, 0),
+)
+
 
 def array_source(source, name):
     match = re.search(r"\b" + name + r"\s*\[[^]]*\]\s*=\s*\{([^}]+)\}", source)
@@ -68,6 +81,8 @@ class Layout:
             if echo_language.constant(source, "CLOCK_24H_BIT") != 4:
                 raise ValueError("the installed clock setting encoding has changed")
             self.specs += (CLOCK_SPEC,)
+        if snapshot.status_items_supported and "STR_STATUS_VOLUME" in self.title_ids():
+            self.specs += STATUS_SPECS
         self.title_ids()
         for spec in self.specs:
             options = spec[2]
