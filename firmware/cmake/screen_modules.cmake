@@ -28,7 +28,9 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/screens/cover_flow_screen.c
     src/app/screens/up_next_screen.c
     src/ui/cover_flow.c
+    src/gfx/image_quad.c
 )
+set(ECHO_SCREEN_MODULE_FAST_SOURCES src/gfx/image_quad.c)
 set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/language_list.c
     src/app/modules/settings_module.c

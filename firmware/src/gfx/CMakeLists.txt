@@ -5,6 +5,7 @@ add_library(echo_gfx STATIC
     font_pack.c
     frame_diff.c
     image.c
+    image_quad.c
     rect.c
     strip_renderer.c
     text.c
