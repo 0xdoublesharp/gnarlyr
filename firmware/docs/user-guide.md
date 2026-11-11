@@ -91,12 +91,18 @@ Depeche Mode/Violator/
 
 ## Copying music over USB
 
-The USB screen shows the connection mode and charging state. While connecting, or if charging artwork is unavailable, a plain text screen keeps the state and instructions visible.
-
 1. Connect the player and choose **File transfer** when it asks (see [When you plug in](#when-you-plug-in)). Two drives appear: internal storage and the SD card.
 2. Copy music to the SD card, or to internal storage when no card is in the player.
-3. **Eject both drives before you unplug.** If you unplug first, recent changes may be lost, and the player warns you ("Unplugged too soon").
+3. Leave File transfer in one of two ways:
+   - **Eject on the computer.** Eject both drives (Finder's eject button, or `diskutil eject`). The player shows the mode selector.
+   - **Hold Back on the player** for a second. If the computer hasn't written anything for 3 seconds, the player tells it the drives are gone, shows "Disconnecting..." for 2 seconds and then the mode selector, just as after an eject. If the computer is still writing, the player shows "Computer is still writing..." and disconnects as soon as it stops. To disconnect at once anyway, keep holding Back for 3 more seconds; recent changes may be lost, and the player says so ("Disconnected too soon").
 4. When music changed, the player rebuilds its library by itself. Copying other files doesn't trigger a rebuild. Settings → Rescan library rebuilds it on demand.
+
+If you unplug the cable before either, recent changes may be lost, and the player warns you ("Unplugged too soon").
+
+After a disconnect from the player, the computer sees the drives disappear rather than being ejected. A Mac may then show its "Disk Not Ejected Properly" notice; when the player had waited for the computer to finish writing, your files are already on the player.
+
+**The USB screen** shows a cassette in your theme's colours whose reels turn while the computer reads or writes, a light beside the state (Connected to computer, Reading..., Copying..., Computer is still writing..., Disconnecting...), how much has been copied, each drive's size or "Ejected", the USB speed, the battery and how to leave. It works in both orientations and every text size.
 
 ## When you plug in
 
@@ -110,7 +116,7 @@ Settings → When plugged in changes this: **Ask** (the default), **File transfe
 
 Open **USB mode** from Home or Settings, or press Menu on the charging screen. Choose **Charge only**, **File transfer** or **USB DAC**. The player keeps charging while you use it, and you can change modes with the cable connected. Charge only ends a connection and leaves the player to charge; from the charging screen, leaving the selector in any way returns to the charging screen.
 
-Before leaving File transfer, eject both drives on the computer and wait for the mode selector. The player keeps the track, position and queue for your return. From USB DAC, hold Back for a second and release it to return to the selector.
+To leave File transfer, eject both drives on the computer or hold Back on the player (see [Copying music over USB](#copying-music-over-usb)), then wait for the mode selector. The player keeps the track, position and queue for your return. From USB DAC, hold Back for a second and release it to return to the selector, or use the DAC menu.
 
 ## Using the player as a USB DAC
 
@@ -118,9 +124,13 @@ Before leaving File transfer, eject both drives on the computer and wait for the
 
 1. Plug in the USB cable and choose **USB DAC** when the player asks (or, with the cable in, Home → USB mode → USB DAC).
 2. The player shows "USB DAC". It is a standard USB Audio Class 1.0 device, which Windows 10 and later, macOS, Linux, Android and iOS support without a driver (phones need a USB-C or Lightning adapter that passes data).
-3. On the computer, choose Gnarlyr as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output). The player shows the format and its volume, for example "48 kHz 24-bit · Volume 35".
-4. Use the computer's volume, the player's volume keys, or both. DAC mode has its own volume, separate from music: it starts at 35 of 60, the screen shows it ("48 kHz 24-bit · Volume 35"), holding Vol± changes it quickly, and the player remembers it for next time. Start low.
+3. On the computer, choose Gnarlyr as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output).
+4. Use the computer's volume, the player's volume keys, or both. DAC mode has its own volume, separate from music: it starts at 35 of 60, holding Vol± changes it quickly, and the player remembers it for next time. Start low.
 5. Hold Back for a second and let go to open the mode selector, then choose Charge only or File transfer. The player keeps charging.
+
+**The DAC screen** shows whether sound is playing, the format (for example "48 kHz · 24-bit"), a level meter for the left and right channels, the player's volume, the computer's volume (or Muted), the headphone jack in use, the buffer, the clock correction in ppm, underruns since you connected, the time connected and the USB speed. With a headphone profile on, its name sits beside the format.
+
+**The DAC menu** (press Menu) changes, without leaving DAC mode: **Volume** (press Play, then Vol±), **Gain**, **Output** (which jack's volume levels to use), **Headphones** (Off or one of your profiles) and switches to **File transfer** or **Charge only**. Vol± moves, Play changes the highlighted row, Back or Menu closes the menu. Your choices are kept for next time. The equalizer and ReplayGain don't apply in DAC mode; the sound reaches the DAC as the computer sends it, with only volume, gain and the headphone profile's trim, balance and ceiling.
 
 The player accepts 16 or 24-bit at 44.1 and 48 kHz; the computer picks one (on Windows: Sound settings → Gnarlyr → Properties → Advanced). Music on the player stops while it's a DAC. Choose File transfer from the mode selector to copy music without removing the cable. A charger works the same in both modes.
 
