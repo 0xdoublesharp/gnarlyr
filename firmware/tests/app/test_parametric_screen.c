@@ -1,5 +1,7 @@
 #include "check.h"
+#include "core/i18n.h"
 #include "default_theme.h"
+#include "screens/equalizer_plot.h"
 #include "screens/parametric_screen.h"
 
 static Settings settings;
@@ -115,12 +117,58 @@ static void every_native_layout_draws_the_editor_and_graph(void)
     }
 }
 
+static void adjusting_keeps_the_full_preamp_caption_visible_in_every_layout(void)
+{
+    static Color expected_pixels[480 * 222];
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            start();
+            Theme theme = BOARD_THEME;
+            default_theme_set_orientation(&theme, (Orientation)orientation);
+            default_theme_set_text_size(&theme, (TextSize)size);
+            settings.parametric =
+                (ParametricEq){.count = 2,
+                               .preamp = -62,
+                               .filters = {{105, 70, -23, PARAMETRIC_LOW_SHELF, true},
+                                           {1000, 140, 62, PARAMETRIC_PEAK, true}}};
+            ParametricScreenConfig config = editor.config;
+            config.theme = &theme;
+            parametric_screen_init(&editor, config);
+            key(KEY_PLAY);
+            key(KEY_VOLUME_UP);
+            key(KEY_VOLUME_UP);
+            key(KEY_VOLUME_UP);
+            key(KEY_PLAY);
+            EqualizerPlotLayout layout =
+                equalizer_plot_layout(&theme, i18n_text(STR_PEQ_EDIT_HINT), true);
+            Canvas actual = canvas_make(
+                pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+            for (int y = 0; y < theme.metrics.screen_height; y += 23) {
+                int height =
+                    theme.metrics.screen_height - y < 23 ? theme.metrics.screen_height - y : 23;
+                Canvas strip = canvas_make(pixels + y * theme.metrics.screen_width,
+                                           (Rect){0, y, theme.metrics.screen_width, height});
+                editor.screen.draw(&editor, &strip);
+            }
+            Canvas expected = canvas_make(expected_pixels, actual.bounds);
+            canvas_clear(&expected, theme.colors.background);
+            equalizer_plot_caption(&expected, &theme, layout.preamp, &editor.response);
+            for (int y = layout.preamp.y; y < layout.preamp.y + layout.preamp.height; y++) {
+                for (int x = layout.preamp.x; x < layout.preamp.x + layout.preamp.width; x++) {
+                    CHECK_EQUAL(canvas_pixel_at(&expected, x, y), canvas_pixel_at(&actual, x, y));
+                }
+            }
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(add_edit_cancel_keep_and_remove_work_with_buttons),
         TEST_CASE(failed_publication_keeps_the_saved_curve_and_slot_selection_works),
         TEST_CASE(every_native_layout_draws_the_editor_and_graph),
+        TEST_CASE(adjusting_keeps_the_full_preamp_caption_visible_in_every_layout),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
