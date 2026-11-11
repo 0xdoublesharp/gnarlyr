@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and run the ECHO firmware locally; no player access."""
+"""Build, regenerate and check firmware; install-device explicitly accesses the player."""
 import argparse
 import json
 import os
@@ -241,7 +241,11 @@ def run_fuzzer(name, runs, seed, env):
 
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("setup", "build", "test", "sim", "fuzz"))
+    parser.add_argument("action", choices=("setup", "build", "test", "sim", "fuzz", "regen", "sizes", "install-device"))
+    parser.add_argument("--check", action="store_true", help="regen: fail if generated sources or assets are stale")
+    parser.add_argument("--existing", action="store_true", help="sizes: read existing release/device builds without rebuilding")
+    parser.add_argument("--dry-run", action="store_true", help="install-device: freeze, prove and back up without installing")
+    parser.add_argument("--owner-approved", action="store_true", help="install-device: confirm owner approval for this installation and exact-model recovery readiness")
     parser.add_argument("--preset", choices=("dev", "fuzz", "device", "release"), default="dev")
     parser.add_argument("--jobs", type=int, choices=range(1, 17), default=4)
     parser.add_argument("--build-jobs", type=int, choices=range(1, 17), help="Override build parallelism")
@@ -255,6 +259,10 @@ def arguments():
     parser.add_argument("--seed", type=int, help="Deterministic fuzzer seed")
     parser.add_argument("--card", type=Path, help="Simulator music directory")
     args = parser.parse_args()
+    for enabled, action, option in ((args.check, "regen", "--check"), (args.existing, "sizes", "--existing"),
+                                   (args.dry_run or args.owner_approved, "install-device", "--dry-run/--owner-approved")):
+        if enabled and args.action != action:
+            parser.error(f"{option} requires {action}")
     if (args.regex is not None or args.group or args.list or args.test_jobs) and args.action != "test":
         parser.error("--regex, --group, --list and --test-jobs require the test action")
     if args.target and args.action not in ("build", "fuzz"):
@@ -277,6 +285,22 @@ def arguments():
 def main():
     parser, args = arguments()
     env, python = environment(args.build_jobs or args.jobs)
+    if args.action in ("regen", "sizes", "install-device"):
+        from firmware_tasks import print_sizes, regenerate
+
+        if args.action == "regen":
+            regenerate(SOURCE, env, python, args.check)
+        elif args.action == "sizes":
+            if not args.existing:
+                for name in ("release", "device"):
+                    configure(name, env, python)
+                    compile_targets(name, env, ["echo_device_image"])
+            print_sizes(SOURCE)
+        else:
+            from device_release import Release
+
+            Release(ROOT, SCRATCH, env, python).execute(args.dry_run, args.owner_approved)
+        return
     if args.action == "setup":
         print(f"Source: {SOURCE}; output: {SOURCE / 'build'} -> {(SOURCE / 'build').resolve()}")
         return
@@ -319,4 +343,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        raise SystemExit(str(error)) from None
