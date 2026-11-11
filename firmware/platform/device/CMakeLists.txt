@@ -263,17 +263,22 @@ if(CMAKE_CROSSCOMPILING)
         board/bluetooth.c
         board/core1.c
         board/dac.c
-        board/extension.c
         board/debug_poke.c
         board/debug_report_file.c
         board/debug_rtc.c
         board/debug_script_file.c
         board/debug_session.c
+        board/extension.c
         board/glyphs.c
         board/high_ram.c
+        board/internal_volume.c
+        board/jack.c
         board/language.c
+        board/loader_reboot.c
+        board/main.c
         board/overlay.c
         board/panic.c
+        board/power.c
         board/profiler.c
         board/start_info.c
         board/system.c
