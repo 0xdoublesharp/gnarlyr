@@ -1,4 +1,5 @@
 #include "settings_screens.h"
+#include "app/app.h"
 
 #include <stddef.h>
 
@@ -878,6 +879,24 @@ static ScreenAction request_rescan(void *context)
     return screen_action_none();
 }
 
+static const char *format_status(const void *context)
+{
+    const SettingsScreens *screens = context;
+    return screens->card_needs_format ? i18n_text(STR_CARD_FORMAT_NEEDED) : NULL;
+}
+
+static ScreenAction open_format(void *context)
+{
+    SettingsScreens *screens = context;
+    CardFormatConfig config = {.player = screens->context.player,
+                               .theme = screens->theme,
+                               .notice =
+                                   screens->context.format_prepare != NULL ? app_show_notice : NULL,
+                               .prepare = screens->context.format_prepare,
+                               .finished = screens->context.format_finished};
+    return screen_action_push(card_format_screen_init(&screens->card_format, config));
+}
+
 static void buttons_changed(void *context)
 {
     save(context);
@@ -886,6 +905,12 @@ static void buttons_changed(void *context)
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context, const Theme *theme)
 {
     screens->context = context;
+    screens->card_needs_format = hal_card_info().needs_format;
+    screens->items[SETTINGS_FORMAT_ITEM] = (MenuItem){.label = i18n_text(STR_CARD_FORMAT),
+                                                      .select = open_format,
+                                                      .value = format_status,
+                                                      .context = screens,
+                                                      .opens = true};
     screens->context.presets = &screens->presets;
     screens->context.languages = &screens->languages;
     screens->theme = theme;

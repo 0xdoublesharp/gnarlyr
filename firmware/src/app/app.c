@@ -120,6 +120,8 @@ typedef struct AppState {
     bool rescan_requested;
     bool language_requested;
     bool music_check_requested;
+    bool storage_formatted;
+    bool format_success;
     bool prepare_pending;
     size_t prepare_index;
     CardFilesReport prepare_report;
@@ -1486,6 +1488,13 @@ void app_release_audio(void)
     player_release_output(&app.player);
 }
 
+void app_storage_formatted(bool success)
+{
+    app.storage_formatted = true;
+    app.format_success = success;
+    app.listening_loaded = false;
+}
+
 void app_remember_dac_volume(uint8_t level)
 {
     app.settings.settings.dac_volume = level;
@@ -1858,6 +1867,16 @@ CORE_SEAM void app_step(void)
         drain_key_events();
     } else {
         dispatch_key_events(now_ms);
+    }
+    if (app.storage_formatted) {
+        bool success = app.format_success;
+        app.storage_formatted = false;
+        app.rescan_requested = false;
+        app.music_check_requested = false;
+        start_app(false);
+        toast_show(&app.toast, i18n_text(success ? STR_CARD_FORMAT_DONE : STR_CARD_FORMAT_FAILED),
+                   hal_clock_milliseconds());
+        return;
     }
     if (app.saying_goodbye && fade_finished(&app.goodbye, now_ms)) {
         finish_shut_down();

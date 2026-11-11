@@ -2505,6 +2505,38 @@ static void a_refused_track_says_why_it_was_skipped(void)
     CHECK(toast_is("192 kHz isn't supported yet"));
 }
 
+static void formatting_a_paused_card_clears_the_library_and_saved_playback_state(void)
+{
+    start_app_with_library();
+    fake_hal_set_card(
+        (HalCardInfo){.present = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1}, true);
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 80});
+    static const uint8_t stale[16] = {1};
+    fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/mixes.bin", stale, sizeof stale);
+    play_first_album_track();
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    hold_back();
+    move_down(HOME_SETTINGS_INDEX);
+    tap(KEY_PLAY);
+    tap(KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    CHECK(title_is("Format card"));
+    tap(KEY_PLAY);
+    tap(KEY_VOLUME_UP);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(1, fake_hal_card_formats());
+    CHECK(!app_player_status().has_track);
+    CHECK_EQUAL(PLAYER_IDLE, app_player_status().state);
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(toast_is("Card formatted. The library is empty."));
+    app_start();
+    CHECK(!app_player_status().has_track);
+    uint32_t size = 0;
+    CHECK(fake_hal_file_bytes("/" FIRMWARE_DATA_DIRECTORY "/session.bin", &size) == NULL);
+    CHECK(fake_hal_file_bytes("/" FIRMWARE_DATA_DIRECTORY "/mixes.bin", &size) == NULL);
+}
+
 static void rescanning_without_a_card_says_so(void)
 {
     start_app_with_library();
@@ -5388,6 +5420,7 @@ int main(void)
         TEST_CASE(the_splash_draws_over_the_home_screen),
         TEST_CASE(the_sleep_timer_turns_the_player_off),
         TEST_CASE(a_refused_track_says_why_it_was_skipped),
+        TEST_CASE(formatting_a_paused_card_clears_the_library_and_saved_playback_state),
         TEST_CASE(rescanning_without_a_card_says_so),
         TEST_CASE(a_rescan_of_an_empty_card_writes_an_empty_library),
         TEST_CASE(a_rescan_keeps_the_stall_watch_fed),

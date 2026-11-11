@@ -45,3 +45,5 @@ void app_show_splash(void);
 bool app_charging(void);
 uint32_t app_pass_interval_ms(void);
 bool app_preparing(void);
+
+void app_storage_formatted(bool success);

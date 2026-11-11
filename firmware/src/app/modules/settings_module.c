@@ -1,3 +1,4 @@
+#include "app/app.h"
 #include "modules/modules.h"
 #include "screens/charge_screen.h"
 
@@ -42,6 +43,8 @@ static void bind(AppScreens *screens)
     SettingsModuleScreens *own = &screens->modules.settings;
     SettingsContext settings = {
         .store = context->settings,
+        .format_prepare = app_release_audio,
+        .format_finished = app_storage_formatted,
         .player = context->player,
         .power = context->power,
         .toast = context->toast,

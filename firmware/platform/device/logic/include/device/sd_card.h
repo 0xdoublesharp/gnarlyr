@@ -37,6 +37,7 @@ typedef struct SdCard {
     bool high_capacity;
     uint16_t rca;
     uint32_t sector_count;
+    uint32_t erase_sectors;
     uint8_t bus_width;
 } SdCard;
 

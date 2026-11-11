@@ -61,3 +61,16 @@ typedef struct HalDirEntry {
 bool hal_dir_open(HalDir *dir, const char *path);
 bool hal_dir_next(HalDir *dir, HalDirEntry *entry);
 void hal_dir_close(HalDir *dir);
+
+typedef struct HalCardInfo {
+    uint32_t sectors;
+    uint32_t generation;
+    bool present;
+    bool needs_format;
+    bool usb_busy;
+} HalCardInfo;
+
+typedef bool (*HalCardProgress)(void *context, uint32_t done, uint32_t total);
+
+HalCardInfo hal_card_info(void);
+bool hal_card_format(HalCardInfo expected, HalCardProgress progress, void *context);
