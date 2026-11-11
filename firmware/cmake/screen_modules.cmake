@@ -26,7 +26,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_ogg
 set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/app/modules/extension_module.c
     platform/device/board/file_remove.c
-    platform/device/logic/fat_delete.c
     src/app/home_art.c
     src/gfx/wireframe.c
     src/ui/wire_motion.c

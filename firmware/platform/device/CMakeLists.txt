@@ -305,7 +305,6 @@ if(CMAKE_CROSSCOMPILING)
         board/usb_listen.c
         board/usb_report.c
         board/usb_session.c
-        logic/fat_delete.c
         ${PROJECT_SOURCE_DIR}/src/app/library_rescan_job.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
@@ -355,7 +354,6 @@ add_executable(echo_usb_overlay
     board/time_file_take.c
     board/usb_port.c
     board/usb_session.c
-    logic/fat_delete.c
 )
 if(NOT ECHO_RELEASE)
     target_sources(echo_usb_overlay PRIVATE board/debug_report_file.c board/debug_script_file.c)
