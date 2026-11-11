@@ -4217,6 +4217,25 @@ static void peek_poke_and_gpio_lines_ask_the_board_and_keep_what_it_answers(void
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[3]);
 }
 
+static void rtc_read_lines_keep_the_registers_and_a_bus_error_fails_the_line(void)
+{
+    start_app();
+    fake_hal_set_rtc_answer((HalRtcRead){HAL_RTC_OK, {0x00, 0x00, 0x05, 0x00, 0x12, 0x03}});
+    const DebugScriptRun *run = run_script("build any\nrtc read\nwait 20\n", 200);
+    CHECK_EQUAL(1, fake_hal_rtc_read_count());
+    CHECK_EQUAL(1, run->rtc_count);
+    CHECK_EQUAL(2, run->rtc[0].line);
+    CHECK_EQUAL(HAL_RTC_OK, run->rtc[0].status);
+    CHECK_EQUAL(0x12, run->rtc[0].registers[4]);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
+    fake_hal_set_rtc_answer((HalRtcRead){.status = HAL_RTC_TIMEOUT});
+    run = run_script("build any\nrtc read\nrtc read\nrtc read\nrtc read\nrtc read\n", 200);
+    CHECK_EQUAL(4, run->rtc_count);
+    CHECK_EQUAL(HAL_RTC_TIMEOUT, run->rtc[3].status);
+    CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[1]);
+    CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[5]);
+}
+
 static void a_probe_the_board_refuses_is_reported_and_leaves_no_record(void)
 {
     start_app();
@@ -5109,6 +5128,7 @@ int main(void)
         TEST_CASE(usb_sense_commands_switch_the_experiment_without_hands),
         TEST_CASE(peek_poke_and_gpio_lines_ask_the_board_and_keep_what_it_answers),
         TEST_CASE(a_probe_the_board_refuses_is_reported_and_leaves_no_record),
+        TEST_CASE(rtc_read_lines_keep_the_registers_and_a_bus_error_fails_the_line),
         TEST_CASE(a_script_keeps_sixteen_probes_and_does_not_make_a_seventeenth),
         TEST_CASE(supply_off_holds_the_usb_supply_off_until_supply_on),
         TEST_CASE(the_supply_comes_back_when_a_script_ends_without_saying_so),

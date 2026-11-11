@@ -1203,6 +1203,44 @@ class EchoImageTest(unittest.TestCase):
         for probe in probes:
             print("  %s" % probe)
 
+    def i2c1_state(self, machine):
+        return (machine.grf.regs.get(0x44, 0) >> 8 & 0xF, machine.grf.regs.get(0xBC, 0) >> 2 & 3,
+                machine.cru.regs.get(0xA0, 0) >> 4 & 1, machine.cru.regs.get(0xC4, 0) >> 11 & 1)
+
+    def test_an_rtc_read_opens_i2c1_only_for_its_line_reads_without_writing_and_restores_the_bus(self):
+        script = ("build %s\nrtc read\nreconnect\n" % self.build_tag()).encode("ascii")
+        session, machine = self.ejecting_session(self.debug_volume(run_txt=script))
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(machine.rtc_bus.frames, [])
+        before = self.i2c1_state(machine)
+        self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        read = self.read_report(session)["script"]["rtc"]
+        self.assertEqual(read, [{"line": 2, "ms": read[0]["ms"], "status": "ok",
+                                 "registers": list(machine.rtc_bus.registers), "vl": 0,
+                                 "time": "2026-01-03T12:00:05", "weekday": 6, "century": 0}])
+        self.assertEqual(machine.rtc_bus.frames, [("write", bytes([0xA2, 0x00])), ("read", 0xA3, 16)])
+        self.assertEqual(self.i2c1_state(machine), before)
+        self.assertIn(("grf", 0xBC, 0x000C0008), machine.register_log)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def test_an_rtc_read_without_an_answer_reports_no_ack_and_restores_the_bus(self):
+        script = ("build %s\nrtc read\nreconnect\n" % self.build_tag()).encode("ascii")
+        session, machine = self.ejecting_session(self.debug_volume(run_txt=script))
+        machine.rtc_bus.present = False
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        before = self.i2c1_state(machine)
+        self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        report = self.read_report(session)
+        self.assertEqual([(read["status"], read["registers"]) for read in report["script"]["rtc"]],
+                         [("no_ack", None)])
+        self.assertEqual(report["script"]["lines"][1]["status"], "failed")
+        self.assertEqual(machine.rtc_bus.frames, [("write", bytes([0xA2, 0x00]))])
+        self.assertEqual(self.i2c1_state(machine), before)
+        self.assert_healthy(session)
+
     def test_without_a_script_an_ejected_session_changes_nothing_and_does_not_reconnect(self):
         session, machine = self.ejecting_session(self.debug_volume())
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
@@ -1221,7 +1259,8 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(report["values"]["script.state"], "none")
         self.assertEqual(report["values"]["usb.last_end"], "ejected")
         self.assertEqual(report["script"],
-                         {"lines": [], "measures": [], "screenshots": [], "probes": [], "soaks": []})
+                         {"lines": [], "measures": [], "screenshots": [], "probes": [], "soaks": [],
+                          "rtc": []})
         self.assertEqual(session.fat().list("/" + DEBUG_FOLDER), ["report0.txt"])
         self.assertEqual(machine.reached["debug_script_take"], 2)
         self.assert_only_the_user_volume_changed(session)

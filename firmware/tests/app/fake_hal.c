@@ -127,6 +127,8 @@ typedef struct FakeHal {
     bool supply_held_off;
     int probe_count;
     FakeProbeCall probe_calls[PROBE_CALL_CAPACITY];
+    HalRtcRead rtc_answer;
+    int rtc_reads;
     HalUsbSense usb_sense;
     uint32_t saved_reports[FILE_CAPACITY];
     int saved_report_count;
@@ -842,6 +844,22 @@ int fake_hal_probe_count(void)
 FakeProbeCall fake_hal_probe_call(int index)
 {
     return fake.probe_calls[index];
+}
+
+HalRtcRead hal_system_rtc_read(void)
+{
+    fake.rtc_reads++;
+    return fake.rtc_answer;
+}
+
+void fake_hal_set_rtc_answer(HalRtcRead answer)
+{
+    fake.rtc_answer = answer;
+}
+
+int fake_hal_rtc_read_count(void)
+{
+    return fake.rtc_reads;
 }
 
 void hal_system_save_report(uint32_t reason)

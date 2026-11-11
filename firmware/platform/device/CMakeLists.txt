@@ -265,6 +265,7 @@ if(CMAKE_CROSSCOMPILING)
         board/debug_module.c
         board/debug_poke.c
         board/debug_report_file.c
+        board/debug_rtc.c
         board/debug_script_file.c
         board/debug_session.c
         board/glyphs.c

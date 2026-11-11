@@ -239,6 +239,18 @@ static void a_scripts_soaks_add_their_minutes_to_its_time_limit(void)
     CHECK_EQUAL(0, load("build 7777777\nsoak 30\n")->soak_ms);
 }
 
+static void rtc_read_lines_become_steps_and_other_actions_are_refused(void)
+{
+    const DebugScriptRun *loaded = load("build any\nrtc read\nrtc write\nrtc\n");
+    CHECK_EQUAL(DEBUG_SCRIPT_PENDING, loaded->state);
+    CHECK_EQUAL(1, loaded->op_count);
+    CHECK_EQUAL(DEBUG_OP_RTC, loaded->ops[0].kind);
+    CHECK_EQUAL(2, loaded->ops[0].line);
+    CHECK_EQUAL(0, loaded->rtc_count);
+    CHECK_EQUAL(DEBUG_LINE_BAD_ARGUMENT, loaded->status[2]);
+    CHECK_EQUAL(DEBUG_LINE_BAD_ARGUMENT, loaded->status[3]);
+}
+
 static void probe_lines_keep_their_words_beside_the_steps(void)
 {
     const DebugScriptRun *loaded =
@@ -430,6 +442,7 @@ int main(void)
         TEST_CASE(soak_takes_one_to_180_minutes),
         TEST_CASE(a_scripts_soaks_add_their_minutes_to_its_time_limit),
         TEST_CASE(probe_lines_keep_their_words_beside_the_steps),
+        TEST_CASE(rtc_read_lines_become_steps_and_other_actions_are_refused),
         TEST_CASE(a_script_with_more_words_than_it_can_keep_is_refused),
         TEST_CASE(reconnect_takes_nothing),
         TEST_CASE(build_names_one_tag_or_any),
