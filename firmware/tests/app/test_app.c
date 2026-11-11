@@ -4700,6 +4700,24 @@ static void battery_percentage_choice_shows_the_level_beside_the_battery_and_sur
     CHECK(chosen.battery_percent);
 }
 
+static void the_status_bar_shows_the_set_time_and_nothing_without_one(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery((HalBattery){.known = true, .percent = HALF_BATTERY});
+    Color ink = expected_theme()->colors.header_text;
+    StatusBarState state = {
+        .battery_known = true, .battery_percent = HALF_BATTERY, .clock = "09:41"};
+    Rect clock = status_bar_clock_area(expected_theme(), state);
+    wait_ms(500);
+    CHECK(!area_has_color(clock, ink));
+    fake_hal_set_wall(1794390060u, 0);
+    wait_ms(500);
+    CHECK(area_has_color(clock, ink));
+    fake_hal_set_wall(0, 0);
+    wait_ms(500);
+    CHECK(!area_has_color(clock, ink));
+}
+
 static void normalization_choices_apply_and_survive_restart(void)
 {
     start_app_with_library();
@@ -4886,6 +4904,7 @@ int main(void)
         TEST_CASE(clipping_preview_is_discarded_by_back_shutdown_and_unrelated_saves),
         TEST_CASE(
             battery_percentage_choice_shows_the_level_beside_the_battery_and_survives_restart),
+        TEST_CASE(the_status_bar_shows_the_set_time_and_nothing_without_one),
         TEST_CASE(brightness_is_applied_and_saved),
         TEST_CASE(brightness_previews_without_saving_and_back_restores_it),
         TEST_CASE(leaving_or_stopping_a_brightness_preview_restores_the_saved_level),

@@ -10,6 +10,7 @@
 #include "screens/calendar_screen.h"
 #include "screens/clock_screen.h"
 #include "text_spy.h"
+#include "ui/status_bar.h"
 #include "wall_time.h"
 
 enum {
@@ -217,6 +218,21 @@ static void capture(const char *name, Screen *screen, int variant)
     screen_snapshot_write(&canvas, name, variant);
 }
 
+static void capture_with_status(const char *name, const char *percent, int variant)
+{
+    Canvas canvas = draw(&clock.screen);
+    StatusBarState state = {.playback = STATUS_PLAYBACK_PLAYING,
+                            .bluetooth = STATUS_BLUETOOTH_CONNECTED,
+                            .battery_known = true,
+                            .battery_percent = 64,
+                            .percent = percent,
+                            .clock = "09:41"};
+    if (status_bar_clock_fits(&theme, state)) {
+        status_bar_draw(&canvas, &theme, state);
+    }
+    screen_snapshot_write(&canvas, name, variant);
+}
+
 static void every_size_and_orientation_is_captured(void)
 {
     for (int orientation = 0; orientation < 2; orientation++) {
@@ -228,6 +244,8 @@ static void every_size_and_orientation_is_captured(void)
             calendar.screen.enter(&calendar, 0);
             capture("clock", &clock.screen, variant);
             capture("calendar", &calendar.screen, variant);
+            capture_with_status("status-clock", NULL, variant);
+            capture_with_status("status-clock-percent", "64%", variant);
             fake_hal_set_wall(0, 0);
             capture("clock-unknown", &clock.screen, variant);
             capture("calendar-unknown", &calendar.screen, variant);

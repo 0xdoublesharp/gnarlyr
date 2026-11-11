@@ -315,7 +315,7 @@ Home → Mixtapes saves a queue as a named list. Save queue captures the current
 
 Gnarlyr sets its clock from your Mac. Every companion command that ejects the player (`python3 tools/echo_debug.py set-time` does only that) leaves the Mac's time on the drive, and the player sets its clock as the drive is ejected. The clock then keeps going while the player is on. When the player has been switched off or restarted, the time is unknown until the next sync.
 
-Home → Clock shows the time, the weekday and the date in 24-hour time. Press ▶ for Calendar: the current month from Monday with today marked. The volume buttons move a month at a time, ▶ goes back to the current month and Back returns to Clock. Without a set time both say so and how to set it.
+While the time is set it also shows in the status bar, left of the battery; in landscape it steps aside for a long screen title. Home → Clock shows the time, the weekday and the date in 24-hour time. Press ▶ for Calendar: the current month from Monday with today marked. The volume buttons move a month at a time, ▶ goes back to the current month and Back returns to Clock. Without a set time both say so and how to set it.
 
 ## Listening and lyrics
 
