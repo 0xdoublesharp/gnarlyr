@@ -82,4 +82,5 @@ target_compile_definitions(fuzz_play_queue PRIVATE
 )
 echo_add_fuzzer(mp3_probe LIBRARIES echo_device_logic)
 echo_add_fuzzer(opus_decode LIBRARIES echo_device_logic)
+echo_add_fuzzer(audio_engine LIBRARIES echo_device_logic)
 echo_add_fuzzer(fat_volume LIBRARIES echo_device_logic)

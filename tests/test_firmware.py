@@ -143,8 +143,11 @@ class FuzzCommandTests(unittest.TestCase):
 
     def test_library_builder_target_is_bounded_and_seeded(self):
         self.assertEqual(firmware.FUZZ_TARGETS["library_builder"], 512)
-        self.assertEqual(len(firmware.FUZZ_SEEDS["library_builder"]), 3)
-        self.assertTrue(all(len(seed) <= 512 for seed in firmware.FUZZ_SEEDS["library_builder"]))
+        seeds = firmware.FUZZ_SEEDS["library_builder"]
+        self.assertEqual(len(seeds), 3 + 9 * 255)
+        self.assertTrue(all(len(seed) <= 512 for seed in seeds))
+        self.assertTrue(any(seed[0] == 1 for seed in seeds[3:]))
+        self.assertTrue(any(seed[3] == 255 and seed[6] == 8 for seed in seeds[3:]))
 
     def test_cover_image_target_has_canonical_png_fixtures(self):
         self.assertEqual(firmware.FUZZ_TARGETS["cover_image"], 1048576)
@@ -153,7 +156,7 @@ class FuzzCommandTests(unittest.TestCase):
         self.assertEqual(len(firmware.COVER_IMAGE_JPEG_FIXTURES), 3)
 
     def test_ui_and_queue_targets_are_bounded_and_seeded(self):
-        for name in ("placeholder_art", "play_queue"):
+        for name in ("placeholder_art", "play_queue", "audio_engine"):
             self.assertEqual(firmware.FUZZ_TARGETS[name], 256)
             self.assertTrue(firmware.FUZZ_SEEDS[name])
             self.assertTrue(all(len(seed) <= 256 for seed in firmware.FUZZ_SEEDS[name]))

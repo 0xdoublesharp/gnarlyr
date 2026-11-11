@@ -39,8 +39,25 @@ FUZZ_TARGETS = {
     "play_queue": 256,
     "mp3_probe": 262144,
     "opus_decode": 2048,
+    "audio_engine": 256,
     "fat_volume": 400000,
 }
+
+
+def library_builder_fault_seeds():
+    tracks = bytes(range(248)) * 2
+    seeds = []
+    for field in range(6):
+        playlist_modes = (0, 8) if field >= 3 else (0,)
+        for playlist in playlist_modes:
+            for value in range(1, 256):
+                controls = bytearray(8)
+                controls[field] = value
+                controls[6] = playlist
+                seeds.append(bytes(controls) + tracks)
+    return seeds
+
+
 FUZZ_SEEDS = {
     "track_tags": [b"\0"],
     "playlist_reader": [
@@ -96,6 +113,7 @@ FUZZ_SEEDS = {
         bytes(range(128)),
         b"\0\1\2\3\4\5\6\7" * 32,
         b"\xff\x80\x40\x20\x10\x08\x04\x02" * 32,
+        *library_builder_fault_seeds(),
     ],
     "cover_image": [b"\0", b"\xff\xd8\xff\xd9", b"\x89PNG\r\n\x1a\n"],
     "placeholder_art": [
@@ -111,6 +129,7 @@ FUZZ_SEEDS = {
         bytes([2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255]) + b"\x48\0\0",
         bytes(range(64)),
     ],
+    "audio_engine": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32],
     "fat_volume": [b"\0", b"DSSP" + bytes(8)],
 }
 FUZZ_FIXTURES = {
