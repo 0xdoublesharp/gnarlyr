@@ -12,6 +12,7 @@ from pathlib import Path
 BUILD = re.compile(r"[0-9a-fA-F]{7,40}")
 CODE = re.compile(r"[A-Za-z0-9-]{1,5}")
 PACK_LIMIT = 16384
+FLAG_MASKS = (0xF8, 0xF0, 0xC0)
 DIRECTORY_LIMIT = 256
 ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
 
@@ -75,14 +76,16 @@ class Snapshot:
         declaration = re.search(r"typedef\s+enum\s+ReplayGainMode\s*\{([^}]+)\}", modes)
         names = [name.strip() for name in declaration.group(1).split(",")] if declaration else []
         compact = re.sub(r"\s+", "", source)
+        masks = [mask for mask in FLAG_MASKS
+                 if f"(flags&0x{mask:02X}u)==0&&(flags&3u)<REPLAY_GAIN_MODE_COUNT" in compact]
         if (constant(source, "REPLAY_GAIN_VERSION") != 14 or
                 names != ["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
-                          "REPLAY_GAIN_MODE_COUNT"] or
-                "(flags&0xF8u)==0&&(flags&3u)<REPLAY_GAIN_MODE_COUNT" not in compact):
+                          "REPLAY_GAIN_MODE_COUNT"] or len(masks) != 1):
             raise ValueError("the installed ReplayGain settings layout is unsupported")
+        self.reserved_flags = masks[0]
 
     def settings_flags_valid(self, version, flags):
-        return flags == 0 if version < 14 else flags & 0xF8 == 0 and flags & 3 < 3
+        return flags == 0 if version < 14 else flags & self.reserved_flags == 0 and flags & 3 < 3
 
     def settings_checksum_field(self, version):
         return 38 if version < 15 else 54

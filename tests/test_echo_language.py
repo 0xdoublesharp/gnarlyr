@@ -347,6 +347,18 @@ class LanguageCommands(VolumeCase):
                 self.assertEqual(host.ejected, [])
                 self.assertFalse((self.debug / "run.txt").exists())
 
+    def test_a_layout_with_battery_percent_accepts_bit_3_and_still_rejects_higher_bits(self):
+        for flags, accepted in ((8, True), (13, True), (16, False), (128, False)):
+            with self.subTest(flags=flags), self.replay_gain_snapshot(mask="0xF0u"):
+                (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(settings("en", 14, flags))
+                tool, host = self.live_tool("en", version=14, flags=flags)
+                if accepted:
+                    self.assertEqual(tool.language_list()["selected"], "en")
+                else:
+                    with self.assertRaises(echo_debug.DebugError) as raised:
+                        tool.language_list()
+                    self.assertEqual(raised.exception.code, "language_settings_invalid")
+
     def test_older_language_settings_require_the_reserved_byte_to_stay_zero(self):
         for version in (12, 13):
             for flags in (0, 1, 4, 255):
@@ -397,7 +409,7 @@ class LanguageCommands(VolumeCase):
                 self.assertEqual(host.ejected, [])
 
     def test_future_or_changed_replay_gain_layouts_fail_closed(self):
-        for options in ({"source_version": 15}, {"mask": "0xF0u"}, {"extra_mode": True}):
+        for options in ({"source_version": 16}, {"mask": "0xE0u"}, {"extra_mode": True}):
             with self.subTest(options=options), self.replay_gain_snapshot(**options):
                 tool, host = self.live_tool()
                 with self.assertRaises(echo_debug.DebugError) as raised:
