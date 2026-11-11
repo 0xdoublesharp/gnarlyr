@@ -48,6 +48,10 @@ static void a_long_combination_toggles_only_once(void)
     CHECK(key_lock_update(&lock, 1100));
     CHECK(!key_lock_update(&lock, 3000));
     CHECK(lock.locked);
+    CHECK_EQUAL(KEY_LOCK_SWALLOW, key_lock_transition(&lock, KEY_PLAY, false, 3100));
+    CHECK_EQUAL(KEY_LOCK_SWALLOW, key_lock_transition(&lock, KEY_PLAY, true, 3200));
+    CHECK(!key_lock_update(&lock, 5000));
+    CHECK(lock.locked);
 }
 
 static void locked_keys_are_refused_on_press_and_swallowed_on_release(void)
@@ -96,6 +100,20 @@ static void releasing_one_combo_key_requires_both_keys_to_be_released(void)
     CHECK_EQUAL(KEY_LOCK_COMBO_STARTED, key_lock_transition(&lock, KEY_POWER, true, 7));
 }
 
+static void a_released_and_repressed_key_must_be_held_for_the_full_interval(void)
+{
+    KeyLock lock = {0};
+    key_lock_transition(&lock, KEY_PLAY, true, 0);
+    key_lock_transition(&lock, KEY_POWER, true, 0);
+    key_lock_transition(&lock, KEY_PLAY, false, 500);
+    key_lock_transition(&lock, KEY_PLAY, true, 900);
+    CHECK(!key_lock_update(&lock, KEY_LOCK_HOLD_MS));
+    CHECK(!lock.locked);
+    CHECK(!key_lock_update(&lock, 900 + KEY_LOCK_HOLD_MS - 1));
+    CHECK(key_lock_update(&lock, 900 + KEY_LOCK_HOLD_MS));
+    CHECK(lock.locked);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -107,6 +125,7 @@ int main(void)
         TEST_CASE(power_keeps_working_while_locked),
         TEST_CASE(a_hold_crossing_the_clock_wrap_toggles_at_the_deadline),
         TEST_CASE(releasing_one_combo_key_requires_both_keys_to_be_released),
+        TEST_CASE(a_released_and_repressed_key_must_be_held_for_the_full_interval),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
