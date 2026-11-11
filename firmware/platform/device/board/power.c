@@ -91,7 +91,7 @@ static bool charge_status_high(void)
 
 HalBattery hal_power_battery(void)
 {
-    bool usb_power = usb_vbus_present();
+    bool usb_power = usb_vbus_present() && !board_debug_usb_supply_held_off();
     if (usb_seen && usb_power != usb_before) {
         board_battery_restart();
     }

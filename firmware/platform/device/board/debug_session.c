@@ -55,6 +55,8 @@ static bool usb_powered;
 static bool usb_kept_on;
 static bool usb_supply_held_off;
 static uint32_t grf_start[DEBUG_REPORT_GRF_WORDS];
+static uint32_t trace_count;
+static uint32_t trace_idle_us;
 
 void board_debug_usb_powered(bool powered)
 {
@@ -116,6 +118,10 @@ uint32_t hal_system_power_samples(void)
 
 void hal_system_hold_usb_supply_off(bool held)
 {
+    if (held && !usb_supply_held_off) {
+        trace_count = 0;
+        trace_idle_us = hal_system_idle_microseconds();
+    }
     usb_supply_held_off = held;
 }
 
@@ -130,6 +136,32 @@ static uint8_t power_levels(BoardChargePin pin)
                      (pin.high ? POWER_SAMPLE_CHARGE_PIN : 0));
 }
 
+static void trace_sample(uint32_t now_ms, PowerSample sample)
+{
+    if (!usb_supply_held_off || trace_count >= 2048) {
+        return;
+    }
+    uint32_t idle_us = hal_system_idle_microseconds();
+    uint32_t select = register_read(CRU_BASE + 0x14u);
+    uint32_t mhz = hal_system_clock_mhz();
+    uint32_t words[] = {
+        now_ms,
+        idle_us - trace_idle_us,
+        mhz / ((select & 7u) + 1u) |
+            (board_core1_streaming() ? (mhz / ((select >> 12 & 7u) + 1u)) << 16 : 0u),
+        sample.millivolts | (uint32_t)sample.percent << 16 | (uint32_t)sample.flags << 24,
+        trace_count + 1u,
+        0x44534254u};
+    for (uint32_t index = 0; index < 5; index++) {
+        words[5] ^= words[index];
+    }
+    if (hal_internal_file_write_at("/" FIRMWARE_DATA_DIRECTORY "/debug/battery.bin",
+                                   trace_count * sizeof words, words, sizeof words)) {
+        trace_count++;
+        trace_idle_us = idle_us;
+    }
+}
+
 static void take_sample(uint32_t now_ms)
 {
     BatteryGauge gauge = board_battery_gauge();
@@ -140,11 +172,12 @@ static void take_sample(uint32_t now_ms)
     uint8_t playing = (uint8_t)((debug_loop_playing() ? POWER_SAMPLE_PLAYING : 0) |
                                 (usb_powered ? POWER_SAMPLE_USB_POWERED : 0) |
                                 (usb_kept_on ? POWER_SAMPLE_USB_KEPT_ON : 0));
-    power_history_record(&history,
-                         (PowerSample){.minute = (uint16_t)(now_ms / MILLISECONDS_PER_MINUTE),
-                                       .millivolts = (uint16_t)battery_gauge_millivolts(&gauge),
-                                       .percent = shown.shown,
-                                       .flags = (uint8_t)(watch.levels | playing)});
+    PowerSample sample = {.minute = (uint16_t)(now_ms / MILLISECONDS_PER_MINUTE),
+                          .millivolts = (uint16_t)battery_gauge_millivolts(&gauge),
+                          .percent = shown.shown,
+                          .flags = (uint8_t)(watch.levels | playing)};
+    power_history_record(&history, sample);
+    trace_sample(now_ms, sample);
     watch.sampled = true;
     watch.sampled_ms = now_ms;
 }

@@ -140,6 +140,7 @@ typedef struct FakeHal {
     uint32_t rtc_written_s;
     HalWallTime wall;
     uint32_t wall_set_ms;
+    uint32_t wall_reads;
     int rtc_reads;
     HalUsbSense usb_sense;
     uint32_t saved_reports[FILE_CAPACITY];
@@ -518,11 +519,17 @@ void fake_hal_set_wall(uint32_t utc_s, int16_t offset_minutes)
 
 HalWallTime hal_clock_wall(void)
 {
+    fake.wall_reads++;
     HalWallTime time = fake.wall;
     if (time.source != HAL_WALL_UNKNOWN) {
         time.utc_s += (hal_clock_milliseconds() - fake.wall_set_ms) / 1000;
     }
     return time;
+}
+
+uint32_t fake_hal_wall_reads(void)
+{
+    return fake.wall_reads;
 }
 
 uint32_t hal_clock_milliseconds(void)
