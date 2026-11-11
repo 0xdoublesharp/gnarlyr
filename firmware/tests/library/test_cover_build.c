@@ -553,6 +553,36 @@ static void an_album_without_art_loses_its_cover(void)
     CHECK_EQUAL(0u, cover_pixel("Beta"));
 }
 
+static void folder_art_names_are_case_insensitive_and_follow_documented_priority(void)
+{
+    CoverStats stats;
+    reset();
+    add_album("Alpha", RED);
+    uint8_t *blue = card.pngs[card.png_count++];
+    uint8_t *green = card.pngs[card.png_count++];
+    add_file("/Alpha/COVER.PNG", blue, make_png(blue, BLUE));
+    add_file("/Alpha/folder.png", green, make_png(green, GREEN));
+    add_album("Beta", GREEN);
+    CardFile *beta = find_file("/Beta/cover.png");
+    CHECK(beta != NULL);
+    snprintf(beta->path, sizeof beta->path, "/Beta/FoLdEr.PnG");
+    add_album("Gamma", BLUE);
+    CardFile *gamma = find_file("/Gamma/cover.png");
+    CHECK(gamma != NULL);
+    snprintf(gamma->path, sizeof gamma->path, "/Gamma/FRONT.png");
+    add_album("Delta", WHITE);
+    CardFile *delta = find_file("/Delta/cover.png");
+    CHECK(delta != NULL);
+    snprintf(delta->path, sizeof delta->path, "/Delta/AlbumArt.PNG");
+    CHECK_EQUAL(SCAN_OK, rescan(false, &stats));
+    CHECK_EQUAL(4u, stats.covers);
+    CHECK_EQUAL(0u, stats.missing);
+    CHECK_EQUAL(BLUE.pixel, cover_pixel("Alpha"));
+    CHECK_EQUAL(GREEN.pixel, cover_pixel("Beta"));
+    CHECK_EQUAL(BLUE.pixel, cover_pixel("Gamma"));
+    CHECK_EQUAL(WHITE.pixel, cover_pixel("Delta"));
+}
+
 static void a_file_without_stamps_is_built_again(void)
 {
     CoverStats stats;
@@ -890,6 +920,7 @@ int main(void)
         TEST_CASE(an_album_without_art_loses_its_cover),
         TEST_CASE(limited_cover_space_preserves_what_fits_and_reports_the_rest),
         TEST_CASE(a_file_without_stamps_is_built_again),
+        TEST_CASE(folder_art_names_are_case_insensitive_and_follow_documented_priority),
         TEST_CASE(a_damaged_index_is_ignored),
         TEST_CASE(invalid_or_duplicate_record_offsets_discard_the_previous_index),
         TEST_CASE(without_a_previous_file_everything_is_decoded),
