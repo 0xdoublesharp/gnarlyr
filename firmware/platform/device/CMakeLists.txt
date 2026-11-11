@@ -471,9 +471,10 @@ add_custom_target(echo_device_image ALL
         ${ECHO_MODULE_IMAGE_ARGUMENTS}
         --output ${ECHO_DEVICE_IMAGE}
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/size_report.py
-        --build ${CMAKE_BINARY_DIR} --summary ${ECHO_LANGUAGE_PACK_ARGUMENTS}
+        --build ${CMAKE_BINARY_DIR} --summary --output ${CMAKE_BINARY_DIR}/size-summary.txt
+        ${ECHO_LANGUAGE_PACK_ARGUMENTS}
         ${ECHO_MODULE_MAP_ARGUMENTS}
-    BYPRODUCTS ${ECHO_DEVICE_IMAGE}
+    BYPRODUCTS ${ECHO_DEVICE_IMAGE} ${CMAKE_BINARY_DIR}/size-summary.txt
     DEPENDS echo_device echo_rescan_overlay echo_usb_overlay ${ECHO_MODULE_TARGETS}
         ${ECHO_CORE1_MP3_BINARY}
         ${ECHO_CORE1_BINARY}

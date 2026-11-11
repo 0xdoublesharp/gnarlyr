@@ -432,6 +432,7 @@ def parse_arguments(argv):
     parser.add_argument("--top", type=int, default=25, help="how many symbols to list")
     parser.add_argument("--objects", type=int, default=40, help="how many objects to list")
     parser.add_argument("--summary", action="store_true", help="only the lines against the limits")
+    parser.add_argument("--output", type=Path, help="also save the report as UTF-8 text")
     arguments = parser.parse_args(argv)
     if arguments.build is not None:
         directory = arguments.build / "platform" / "device"
@@ -474,11 +475,14 @@ def main(argv=None):
     modules = read_modules(arguments.module_map)
     problems = module_problems(device_map, modules)
     if arguments.summary:
-        print("\n".join(summary(device_map, overlay_map, usb_overlay_map, packs, modules)))
+        text = "\n".join(summary(device_map, overlay_map, usb_overlay_map, packs, modules))
     else:
         nm_text = run_nm(arguments.elf, arguments.nm)
-        print(report(device_map, overlay_map, nm_text, arguments.top, arguments.objects,
-                     usb_overlay_map, packs, modules))
+        text = report(device_map, overlay_map, nm_text, arguments.top, arguments.objects,
+                      usb_overlay_map, packs, modules)
+    print(text)
+    if arguments.output is not None:
+        arguments.output.write_text(text + "\n", encoding="utf-8")
     for problem in problems:
         print("error: " + problem, file=sys.stderr)
     return 1 if problems else 0
