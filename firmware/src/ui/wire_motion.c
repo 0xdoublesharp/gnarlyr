@@ -1,4 +1,5 @@
 #include "ui/wire_motion.h"
+#include "core/seam.h"
 
 enum {
     PART_FIXED,
@@ -157,7 +158,7 @@ bool wire_motion_shown(const WireMotion *motion, const void *owner)
     return motion->running && motion->ticked && motion->owner == owner;
 }
 
-bool wire_motion_due(const WireMotion *motion, uint32_t now_ms)
+CORE_SEAM bool wire_motion_due(const WireMotion *motion, uint32_t now_ms)
 {
     if (!motion->running || now_ms - motion->started_ms < WIRE_MOTION_DELAY_MS) {
         return false;

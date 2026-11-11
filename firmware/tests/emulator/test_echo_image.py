@@ -44,6 +44,14 @@ LOADER_FLAG_REGISTER = 0x4C
 LOADER_SELECT_REGISTER = 0xC4
 LOADER_SELECT_VALUE = 0x01000000
 PWM_PERIOD = 0x04
+MOTION_MAX_SIDE = 104
+MOTION_FRAME_MS = 72
+MOTION_SETTLE_MS = 1000
+MOTION_MEASURE_MS = 3000
+MOTION_LOAD_LIMIT_PERCENT = 25
+STORE_WORKING = 1
+HOME_LISTENING_ROW = 5
+LISTENING_EXPORT_ROW = 4
 PWM_CONTROL = 0x0C
 PWM_RUN = 0x10003
 GPIO_DATA = 0x00
@@ -1981,6 +1989,77 @@ class EchoImageTest(unittest.TestCase):
         for frame in range(boundary - 144, boundary + 144):
             self.assertEqual(samples[480 + frame % 48], samples[frame], frame)
         self.assert_healthy(rig.session)
+
+    def idle_counter(self, machine):
+        idle = [0]
+
+        def rest(machine):
+            before = machine.microseconds()
+            machine.idle_until_interrupt()
+            idle[0] += machine.microseconds() - before
+
+        machine.stub_symbol("board_profile_wait", rest)
+        return idle
+
+    def busy_percent(self, rig, idle, milliseconds):
+        machine = rig.machine
+        started_us, idle_before = machine.microseconds(), idle[0]
+        rig.run_for(milliseconds)
+        elapsed = machine.microseconds() - started_us
+        return 100.0 * (1 - (idle[0] - idle_before) / elapsed)
+
+    def motion_windows(self, machine, since):
+        return [window for window in machine.panel.windows
+                if window.cycles >= since and window.width <= MOTION_MAX_SIDE
+                and window.width == window.height]
+
+    def open_endless_export(self, rig):
+        machine = rig.machine
+        machine.stub_symbol("listening_export_step", lambda machine: STORE_WORKING)
+        machine.note("listening_export_step")
+        rig.press("back", hold=1300)
+        rig.press_many("next", HOME_LISTENING_ROW)
+        rig.press("play")
+        rig.press_many("next", LISTENING_EXPORT_ROW)
+        rig.press("play")
+        rig.run_for(MOTION_SETTLE_MS)
+        self.assertGreater(machine.reached.get("listening_export_step", 0), 0)
+
+    def measure_motion_load(self, rig, label):
+        machine = rig.machine
+        idle = self.idle_counter(machine)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.open_endless_export(rig)
+        since = machine.cycles()
+        animated = self.busy_percent(rig, idle, MOTION_MEASURE_MS)
+        windows = self.motion_windows(machine, since)
+        self.assertGreaterEqual(len(windows), MOTION_MEASURE_MS * 12 // 1000)
+        self.assertLessEqual(len(windows), MOTION_MEASURE_MS * 15 // 1000 + 1)
+        machine.stub_symbol("wire_motion_due", lambda machine: 0)
+        rig.run_for(MOTION_FRAME_MS * 2)
+        since = machine.cycles()
+        still = self.busy_percent(rig, idle, MOTION_MEASURE_MS)
+        self.assertEqual([], self.motion_windows(machine, since))
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assert_healthy(rig.session)
+        print("\n[%s] core 0 busy with the motion %.1f %%, without it %.1f %%, rate %d Hz, "
+              "%d motion frames in %d ms" % (label, animated, still, rig.audio.rate, len(windows),
+                                              MOTION_MEASURE_MS))
+        return animated, still
+
+    def test_export_motion_leaves_core_0_room_while_44_khz_music_plays(self):
+        from echo_emulator.playback import Rig
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  module_elfs=self.module_elfs)
+        animated, still = self.measure_motion_load(rig, "export motion, 44.1 kHz FLAC")
+        self.assertLess(animated - still, MOTION_LOAD_LIMIT_PERCENT)
+
+    def test_export_motion_leaves_core_0_room_while_converted_music_plays(self):
+        rig = self.speech_rig(22050)
+        animated, still = self.measure_motion_load(rig, "export motion, 22.05 kHz WAV")
+        self.assertLess(animated - still, MOTION_LOAD_LIMIT_PERCENT)
 
     def test_speech_plays_through_the_independent_audio_module_while_a_menu_module_changes(self):
         rig = self.speech_rig()

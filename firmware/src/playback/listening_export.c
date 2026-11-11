@@ -1,4 +1,5 @@
 #include "playback/listening_export.h"
+#include "core/seam.h"
 
 #include <stddef.h>
 
@@ -171,7 +172,7 @@ bool listening_export_write(ListeningExport *job, StoreFile file)
     return true;
 }
 
-StoreResult listening_export_step(ListeningExport *job)
+CORE_SEAM StoreResult listening_export_step(ListeningExport *job)
 {
     if (job->result != STORE_WORKING) {
         return job->result;
