@@ -71,6 +71,31 @@ static void power_keeps_working_while_locked(void)
     CHECK(!lock.locked);
 }
 
+static void a_hold_crossing_the_clock_wrap_toggles_at_the_deadline(void)
+{
+    KeyLock lock = {0};
+    uint32_t start = UINT32_MAX - 100;
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_PLAY, true, start));
+    CHECK_EQUAL(KEY_LOCK_COMBO_STARTED, key_lock_transition(&lock, KEY_POWER, true, start));
+    CHECK(!key_lock_update(&lock, start + KEY_LOCK_HOLD_MS - 1));
+    CHECK(!lock.locked);
+    CHECK(key_lock_update(&lock, start + KEY_LOCK_HOLD_MS));
+    CHECK(lock.locked);
+    CHECK(!key_lock_update(&lock, start + KEY_LOCK_HOLD_MS + 1));
+}
+
+static void releasing_one_combo_key_requires_both_keys_to_be_released(void)
+{
+    KeyLock lock = {0};
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_PLAY, true, 0));
+    CHECK_EQUAL(KEY_LOCK_COMBO_STARTED, key_lock_transition(&lock, KEY_POWER, true, 1));
+    CHECK_EQUAL(KEY_LOCK_SWALLOW, key_lock_transition(&lock, KEY_PLAY, false, 2));
+    CHECK(!key_lock_update(&lock, KEY_LOCK_HOLD_MS + 3));
+    CHECK_EQUAL(KEY_LOCK_SWALLOW, key_lock_transition(&lock, KEY_POWER, false, 5));
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_PLAY, true, 6));
+    CHECK_EQUAL(KEY_LOCK_COMBO_STARTED, key_lock_transition(&lock, KEY_POWER, true, 7));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -80,6 +105,8 @@ int main(void)
         TEST_CASE(a_long_combination_toggles_only_once),
         TEST_CASE(locked_keys_are_refused_on_press_and_swallowed_on_release),
         TEST_CASE(power_keeps_working_while_locked),
+        TEST_CASE(a_hold_crossing_the_clock_wrap_toggles_at_the_deadline),
+        TEST_CASE(releasing_one_combo_key_requires_both_keys_to_be_released),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
