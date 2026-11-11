@@ -14,8 +14,7 @@ bool core1_open_dsd(void *context, const char *path, uint32_t start_ms, AudioTra
     source->file_open = true;
     AudioTrackInfo candidate;
     if (!dsd_stream_start(source->dsd, source->input, start_ms, &candidate) ||
-        source->dsd->track.rate > 5644800 ||
-        (source->dsd->track.rate == 5644800 && source->dsd->track.channels != 1)) {
+        (source->dsd->track.rate == 11289600 && source->dsd->track.channels != 1)) {
         core1_source_stop(source);
         return false;
     }

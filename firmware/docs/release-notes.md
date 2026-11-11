@@ -6,9 +6,11 @@ Gnarlyr builds on Podium 4.5.9 and EchoPod with their GPL credits preserved. The
 
 - Added a dedicated DSF/DFF decoder, 88.2 kHz PCM conversion, seeking, queued
   transitions, ID3 artwork and DFF DIIN artist/title fallback in both scanners.
-- The existing 100 MHz core-1 clock admits mono/stereo DSD64 and mono DSD128
-  under the instruction screen. Stereo DSD128 and all DSD256 exceed that floor
-  and are refused. DST and multichannel DSD remain unsupported.
+- Core 1 requests 200 MHz for stereo DSD64, DSD128 and mono DSD256, and for
+  Vorbis above 96 kHz. Idle work and other streams retain 100 MHz. Stereo
+  DSD256 is refused with a 20% instruction reserve; DST and multichannel DSD
+  remain unsupported. Stock/hardware clock limits and software transitions
+  are documented in [the clock reference](core1-clock.md).
 - Generated native reference tests, filter-response checks and ARM decoder
   comparisons cover software behavior. Physical playback and real-time margin
   have not been checked on the player.

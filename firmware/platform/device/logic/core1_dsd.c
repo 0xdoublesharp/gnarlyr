@@ -88,6 +88,7 @@ static Core1DecodeResult configure(Core1Dsd *dsd)
                                           : DSD_SECOND_4;
     dsd->cic = dsd->ratio == 1 ? DSD_CIC_1 : dsd->ratio == 2 ? DSD_CIC_2 : DSD_CIC_4;
     dsd->rows = 10 * dsd->ratio;
+    core1_stream_clock(dsd->region, dsd->ratio == 1 && dsd->channels == 1 ? 100 : 200);
     tables(dsd);
     dsd->position = DSD_HEADER_BYTES;
     dsd->configured = true;

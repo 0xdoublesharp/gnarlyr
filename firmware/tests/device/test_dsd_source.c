@@ -368,12 +368,12 @@ static AudioFrameResult next_audio(AudioSource audio, AudioFrame *frame)
 
 static void containers_play_seek_and_reopen_through_the_shared_ring(void)
 {
-    for (uint32_t ratio = 1; ratio <= 2; ratio *= 2) {
+    for (uint32_t ratio = 1; ratio <= 4; ratio *= 2) {
         uint32_t frames = 2000 / ratio;
         make_signal(2822400 * ratio, 0, 64000);
         reference_stages(ratio, 64000, frames);
         for (uint32_t layout = 0; layout < 3; layout++) {
-            container(ratio, layout, ratio == 1 ? 2u : 1u);
+            container(ratio, layout, ratio < 4 ? 2u : 1u);
             control = (StreamControl){0};
             StreamRegion region = {
                 .control = &control, .samples = output, .ring = ring, .ring_bytes = sizeof ring};
@@ -408,7 +408,7 @@ static void containers_play_seek_and_reopen_through_the_shared_ring(void)
                     CHECK_EQUAL(done, frame.first_sample);
                     for (uint32_t at = 0; at < frame.samples; at++) {
                         CHECK(abs(frame.left[at] - reference(done + at, 0)) <= 32);
-                        CHECK(abs(frame.right[at] - reference(done + at, ratio == 1 ? 1u : 0u)) <=
+                        CHECK(abs(frame.right[at] - reference(done + at, ratio < 4 ? 1u : 0u)) <=
                               32);
                     }
                     done += frame.samples;
@@ -464,9 +464,9 @@ static void failed_dsd_opens_and_reads_release_the_source(void)
 
 static void rates_above_the_core1_instruction_floor_are_refused_before_streaming(void)
 {
-    static const uint32_t RATES[] = {5644800, 11289600, 11289600};
-    static const uint32_t CHANNELS[] = {2, 1, 2};
-    for (uint32_t index = 0; index < 3; index++) {
+    static const uint32_t RATES[] = {11289600};
+    static const uint32_t CHANNELS[] = {2};
+    for (uint32_t index = 0; index < 1; index++) {
         dsf(RATES[index], CHANNELS[index], 64000);
         control = (StreamControl){0};
         StreamRegion region = {

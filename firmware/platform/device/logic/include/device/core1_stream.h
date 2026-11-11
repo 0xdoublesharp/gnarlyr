@@ -50,6 +50,7 @@ typedef struct StreamRegion {
     int32_t (*samples)[FLAC_MAX_CHANNELS][FLAC_MAX_BLOCK];
     volatile uint8_t *ring;
     uint32_t ring_bytes;
+    void (*request_clock)(uint32_t mhz);
 } StreamRegion;
 
 typedef enum Core1DecodeResult {
@@ -93,6 +94,7 @@ typedef struct Core1Stream {
 } Core1Stream;
 
 void core1_stream_init(Core1Stream *stream, StreamRegion region, Core1Decoder decoder);
+void core1_stream_clock(StreamRegion region, uint32_t mhz);
 bool core1_stream_step(Core1Stream *stream);
 
 typedef enum Core1Format {

@@ -15,10 +15,10 @@ class EchoImageTest(EchoImageHarness):
         from echo_emulator.playback import Rig
         volume = Fat32Volume()
         frames = 8820
-        data, _ = signal(2822400, frames)
-        volume.add_file("A.dsf", dsf(data, 2822400))
-        data, _ = signal(2822400, frames)
-        volume.add_file("B.dff", dff(data, 2822400))
+        data, _ = signal(5644800, frames)
+        volume.add_file("A.dsf", dsf(data, 5644800))
+        data, _ = signal(5644800, frames)
+        volume.add_file("B.dff", dff(data, 5644800))
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
         bridge = Core1Bridge(rig.audio, {CORE1_DSD: self.elf.with_name("core1_dsd.bin").read_bytes()})
@@ -43,16 +43,16 @@ class EchoImageTest(EchoImageHarness):
                 self.assertAlmostEqual(expected, actual, delta=0.005)
         self.assert_healthy(rig.session)
 
-    def test_dsd128_mono_seeks_to_the_saved_pcm_position(self):
+    def test_dsd256_mono_seeks_to_the_saved_pcm_position(self):
         from dsd_fixture import signal, dsf
         from echo_emulator.core1_bridge import CORE1_DSD, Core1Bridge
         from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.playback import Rig
         from unicorn.arm_const import UC_ARM_REG_R1
         frames, start = 13230, 7056
-        data, _ = signal(5644800, frames, channels=1)
+        data, _ = signal(11289600, frames, channels=1)
         volume = Fat32Volume()
-        volume.add_file("Saved.dsf", dsf(data, 5644800))
+        volume.add_file("Saved.dsf", dsf(data, 11289600))
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
         bridge = Core1Bridge(rig.audio, {CORE1_DSD: self.elf.with_name("core1_dsd.bin").read_bytes()})
@@ -71,14 +71,14 @@ class EchoImageTest(EchoImageHarness):
             self.assertAlmostEqual(expected, signed / 2 ** 31, delta=0.005)
         self.assert_healthy(rig.session)
 
-    def test_dsd128_stereo_is_refused_before_publishing_decoder_input(self):
+    def test_dsd256_stereo_is_refused_before_publishing_decoder_input(self):
         from dsd_fixture import signal, dff
         from echo_emulator.core1_bridge import CORE1_DSD, Core1Bridge
         from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.playback import Rig
-        data, _ = signal(5644800, frames=3000)
+        data, _ = signal(11289600, frames=3000)
         volume = Fat32Volume()
-        volume.add_file("Fast.dff", dff(data, 5644800))
+        volume.add_file("Fast.dff", dff(data, 11289600))
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
         bridge = Core1Bridge(rig.audio, {CORE1_DSD: self.elf.with_name("core1_dsd.bin").read_bytes()})

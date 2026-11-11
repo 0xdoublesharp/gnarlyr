@@ -21,6 +21,7 @@ void core1_main(void)
         return;
     }
     StreamRegion region = core1_region();
+    region.request_clock = core1_request_clock;
     region.ring_bytes = DSD_RING_BYTES;
     core1_stream_init(&stream, region, core1_dsd_decoder(&dsd, region));
     core1_idle_start();

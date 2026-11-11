@@ -2,15 +2,14 @@
 
 The dedicated core-1 DSD program converts uncompressed DSF and DSDIFF to 88.2 kHz
 signed 24-bit PCM. DoP is not implemented. The file adapter accepts mono/stereo
-DSD64 and mono DSD128 for playback. Stereo DSD128, DSD256, other rates, more than
+DSD64/DSD128 and mono DSD256 for playback. Stereo DSD256, other rates, more than
 two channels, DST compression and files beyond the 32-bit file interface are
 refused. Container recognition and the host/reference decoder also handle
-DSD256 so its cost can be measured without enabling it on the player.
+stereo DSD256 so its cost can be measured without admitting it for playback.
 
 These are software results. No DSD or AIFF image from this change was installed
 on a player. Listening, physical CPU margin, storage contention and power use
-remain unchecked. Stereo DSD64 has very little ideal instruction margin; the
-instruction counts do not establish that it keeps real time on the hardware.
+remain unchecked. Instruction counts do not establish physical real-time playback.
 
 ## Containers and metadata
 
@@ -97,16 +96,27 @@ and modules are allocated after that bank. Other core-1 offsets are unchanged.
 
 ## Instruction limit
 
-The actual loader's `core1_divider_for` caps core 1 at 100 MHz: a 200 MHz PLL
-selects divider 2. A 20 ms interval therefore has two million cycles. Older
-Vorbis/Opus documentation's 200 MHz core-1 assumption is not used here.
+Core 1 starts at 100 MHz and requests 200 MHz for all accepted DSD except mono
+DSD64. The [clock reference](core1-clock.md) records the hardware/stock basis,
+independent calculation divider and idle clock reduction. A 20 ms interval has
+two million cycles at 100 MHz or four million at 200 MHz.
 
-`core1_dsd_decodes_in_emulator` generates DSF and DFF, compares all ARM PCM with
-the native decoder, and records steady instruction counts for mono and stereo
-at all three rates. Stereo DSD128 and both DSD256 channel counts exceed even
-the one-cycle-per-instruction floor and are refused before transport startup.
-Mono/stereo DSD64 and mono DSD128 fit the mean instruction floor; memory,
-multiply, branch and storage cycle costs still need measurement on the player.
-The isolated 512-frame block peaks include channel-block snapshot bursts; the
-shared PCM slots buffer those bursts. This policy establishes an instruction
-screen, not measured physical real-time support.
+`core1_dsd_decodes_in_emulator` compares generated DSF/DFF PCM with the native
+reference and measures all three DSD rates. The following are the larger DSF/DFF
+steady means and normalized full 512-frame block peaks, excluding setup and the
+partial final block:
+
+| Stream | MHz | Mean instructions / 20 ms | Peak / 20 ms | Peak ideal budget used | Playback |
+|---|---:|---:|---:|---:|---|
+| DSD64 mono | 100 | 1,294,994 | 1,347,117 | 67.4% | Accepted |
+| DSD64 stereo | 200 | 1,922,817 | 2,025,844 | 50.6% | Accepted |
+| DSD128 mono | 200 | 1,683,174 | 1,695,094 | 42.4% | Accepted |
+| DSD128 stereo | 200 | 2,523,342 | 2,539,195 | 63.5% | Accepted |
+| DSD256 mono | 200 | 2,495,337 | 2,504,742 | 62.6% | Accepted |
+| DSD256 stereo | 200 | 3,756,654 | 3,772,617 | 94.3% | Refused |
+
+Admission requires both mean and full-block peak below 80% of the selected
+ideal instruction budget. Stereo DSD256 is refused before transport startup.
+The shared PCM slots buffer channel-block snapshot bursts. Loads, branches,
+multiplies, memory waits and storage increase actual cycle costs; physical CPU
+margin remains unmeasured.

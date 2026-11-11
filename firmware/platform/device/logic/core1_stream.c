@@ -67,6 +67,13 @@ void core1_stream_init(Core1Stream *stream, StreamRegion region, Core1Decoder de
     *stream = (Core1Stream){.region = region, .decoder = decoder};
 }
 
+void core1_stream_clock(StreamRegion region, uint32_t mhz)
+{
+    if (region.request_clock != NULL) {
+        region.request_clock(mhz);
+    }
+}
+
 static void copy_from_ring(const StreamRegion *region, uint32_t position, uint8_t *out,
                            uint32_t length)
 {
@@ -99,6 +106,7 @@ static bool read_ring(void *context, uint32_t offset, void *buffer, uint32_t len
 
 static void adopt(Core1Stream *stream, uint32_t generation)
 {
+    core1_stream_clock(stream->region, 100);
     volatile StreamControl *control = stream->region.control;
     core1_observe();
     FlacInfo info = {
@@ -170,6 +178,7 @@ bool core1_stream_step(Core1Stream *stream)
     uint32_t generation = control->generation;
     if (generation != stream->generation) {
         if (generation == 0) {
+            core1_stream_clock(stream->region, 100);
             stream->generation = 0;
             return false;
         }

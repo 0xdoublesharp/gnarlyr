@@ -7,6 +7,22 @@
 #define ALL_INTERRUPTS 0xFFFFFFFFu
 #define IDLE_TICKS 100000u
 #define SYSTICK_ENABLE_INTERRUPT_CORE_CLOCK 0x7u
+#define CRU_CLOCK_SELECT 0x40180014u
+
+static uint32_t requested_mhz;
+
+static void clock_mhz(uint32_t mhz)
+{
+    register_write(CRU_CLOCK_SELECT, 0x70000000u | (mhz == 200 ? 0u : 0x1000u));
+    __asm__ volatile("dsb\nisb" ::: "memory");
+    register_write(SYSTICK_RELOAD, mhz * 1000u - 1u);
+}
+
+void core1_request_clock(uint32_t mhz)
+{
+    requested_mhz = mhz == 200 ? 200u : 100u;
+    clock_mhz(requested_mhz);
+}
 
 typedef void (*Handler)(void);
 
@@ -59,7 +75,13 @@ void core1_idle_start(void)
 
 void core1_idle(void)
 {
+    if (requested_mhz == 200) {
+        clock_mhz(100);
+    }
     __asm__ volatile("wfi" ::: "memory");
+    if (requested_mhz == 200) {
+        clock_mhz(200);
+    }
 }
 
 static void zero_bss(void)
