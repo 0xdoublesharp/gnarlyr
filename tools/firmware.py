@@ -24,6 +24,9 @@ FUZZ_TARGETS = {
     "track_tags": 65536,
     "playlist_reader": 32768,
     "session_journal": 4096,
+    "library_database": 65536,
+    "mp4_demux": 262144,
+    "store": 4096,
 }
 FUZZ_SEEDS = {
     "track_tags": [b"\0"],
@@ -33,6 +36,31 @@ FUZZ_SEEDS = {
         b"\x03Bj\xf6rk/J\xf3ga.flac\x85end.flac\n",
     ],
     "session_journal": [b"\0", bytes(range(64)), b"\xff" * 64],
+    "library_database": [b"\0", b"\0" * 128],
+    "mp4_demux": [b"\0"],
+    "store": [
+        b"\0" * 16,
+        bytes(range(32)),
+        b"\xff\x01\xff\x01\0\x02\0\x02" * 4,
+    ],
+}
+FUZZ_FIXTURES = {
+    "library_database": [
+        SOURCE / "tests/fixtures/small_library.db",
+        SOURCE / "tests/fixtures/cue_music.db",
+        SOURCE / "tests/fixtures/builder_random/library.db",
+        SOURCE / "tests/fixtures/builder_random/with_playlists.db",
+    ],
+    "mp4_demux": [
+        SOURCE / "tests/fixtures/tags/aac.m4a",
+        SOURCE / "tests/fixtures/tags/alac.m4a",
+        SOURCE / "tests/fixtures/m4a_music/Aac Artist/Aac Album/01 Lead.m4a",
+        SOURCE / "tests/fixtures/m4a_music/Aac Artist/Aac Album/02 Tail.m4a",
+        SOURCE / "tests/fixtures/m4a_music/Aac Artist/Aac Album/03 Mono.m4a",
+        SOURCE / "tests/fixtures/m4a_music/Alac Artist/Alac Album/01 Lossless.m4a",
+        SOURCE / "tests/fixtures/m4a_music/Alac Artist/Alac Album/02 Deep.m4a",
+        SOURCE / "tests/fixtures/m4a_music/Alac Artist/Alac Album/03 Single.m4a",
+    ],
 }
 
 
@@ -175,6 +203,8 @@ def prepare_fuzz_corpus(name):
     corpus.mkdir(parents=True, exist_ok=True)
     for index, seed in enumerate(FUZZ_SEEDS[name]):
         write_seed(corpus / f"seed-{index}", seed)
+    for fixture in FUZZ_FIXTURES.get(name, ()):
+        write_seed(corpus / f"fixture-{fixture.name}", fixture.read_bytes()[:FUZZ_TARGETS[name]])
     if name == "track_tags":
         fixtures = SOURCE / "tests/fixtures/tags"
         for fixture in sorted(fixtures.iterdir()):

@@ -180,6 +180,45 @@ static void seeking_lands_on_the_same_sample_as_walking(void)
     m4a_file_free(&file);
 }
 
+static uint32_t find_type(const M4aFile *file, const char *type)
+{
+    uint32_t at = 0;
+    while (at + 12 <= file->size && memcmp(file->bytes + at, type, 4) != 0) {
+        at++;
+    }
+    return at;
+}
+
+static void oversized_sample_sizes_stop_at_the_file_boundary(void)
+{
+    M4aFile file = m4a_file_load(ALAC_ALBUM "01 Lossless.m4a");
+    uint32_t at = find_type(&file, "stsz");
+    CHECK(at + 12 <= file.size);
+    memset(file.bytes + at + 8, 0, 4);
+    file.bytes[at + 9] = 1;
+    Mp4Track track;
+    FlacInput input = m4a_file_input(&file);
+    CHECK(mp4_probe(input, &track));
+    Mp4Cursor cursor;
+    CHECK(mp4_cursor_seek(&cursor, input, &track, 0));
+    uint32_t offset;
+    uint32_t size;
+    uint32_t count = 0;
+    while (mp4_cursor_next(&cursor, input, &track, &offset, &size)) {
+        CHECK(offset <= file.size);
+        if (offset > file.size) {
+            break;
+        }
+        CHECK(size <= file.size - offset);
+        if (size > file.size - offset) {
+            break;
+        }
+        count++;
+    }
+    CHECK(count < track.sample_count);
+    m4a_file_free(&file);
+}
+
 typedef struct Builder {
     uint8_t bytes[MAX_BOX_BYTES];
     uint32_t length;
@@ -1338,6 +1377,7 @@ int main(void)
         TEST_CASE(unsupported_alac_cookies_are_rejected_during_probe),
         TEST_CASE(the_cursor_visits_every_sample_inside_the_media_data),
         TEST_CASE(seeking_lands_on_the_same_sample_as_walking),
+        TEST_CASE(oversized_sample_sizes_stop_at_the_file_boundary),
         TEST_CASE(overflowing_or_truncated_timing_is_refused),
         TEST_CASE(edit_duration_and_start_use_their_own_time_scales),
         TEST_CASE(coarse_media_clocks_keep_the_decoder_frame_boundaries),

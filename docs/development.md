@@ -22,6 +22,9 @@ The host fuzzers use Clang libFuzzer with AddressSanitizer and UndefinedBehavior
 python3 tools/firmware.py fuzz --target track_tags --runs 10000 --seed 1
 python3 tools/firmware.py fuzz --target playlist_reader --runs 10000 --seed 1
 python3 tools/firmware.py fuzz --target session_journal --runs 10000 --seed 1
+python3 tools/firmware.py fuzz --target library_database --runs 10000 --seed 1
+python3 tools/firmware.py fuzz --target mp4_demux --runs 10000 --seed 1
+python3 tools/firmware.py fuzz --target store --runs 10000 --seed 1
 python3 tools/firmware.py fuzz
 ```
 

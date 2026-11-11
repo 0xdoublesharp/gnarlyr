@@ -6,6 +6,7 @@ static bool fuzz_read(void *context, uint32_t offset, void *buffer, uint32_t len
 {
     FuzzSource *source = context;
     if (offset > source->size || length > source->size - offset) {
+        source->invalid_read = true;
         return false;
     }
     if (length > 0) {
