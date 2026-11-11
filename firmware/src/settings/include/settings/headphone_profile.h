@@ -12,6 +12,7 @@ enum {
     HEADPHONE_PROFILE_NAME_BYTES = 24,
     HEADPHONE_PROFILE_TRIM_MAX_HALF_DB = 24,
     HEADPHONE_PROFILE_BALANCE_MAX = 100,
+    HEADPHONE_PROFILE_CROSSFEED_MAX = 3,
     HEADPHONE_PROFILES_FILE_SIZE = 148
 };
 
@@ -20,6 +21,7 @@ typedef struct HeadphoneProfile {
     uint8_t trim_half_db;
     uint8_t volume_ceiling;
     int8_t balance;
+    uint8_t crossfeed;
 } HeadphoneProfile;
 
 typedef struct HeadphoneProfiles {

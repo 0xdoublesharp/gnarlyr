@@ -1152,9 +1152,10 @@ static void the_checksum_covers_the_extension_block(void)
 static void each_invalid_extension_value_is_rejected_without_mutating_the_settings(void)
 {
     static const uint8_t CASES[][2] = {
-        {0, 0x20},  {0, 0x40},  {0, 0x80}, {0, 0x18}, {1, 61},   {2, 4},    {2, 61},   {2, 0},
-        {3, 1},     {4, 0x00},  {4, 0x11}, {6, 0x55}, {8, 0x18}, {8, 0x09}, {9, 0x08}, {9, 0xFF},
-        {10, 0x04}, {10, 0x80}, {11, 1},   {12, 1},   {13, 1},   {14, 1},   {15, 0x80}};
+        {0, 0x20}, {0, 0x40},  {0, 0x80},  {0, 0x18},  {1, 61},   {2, 4},    {2, 61},
+        {2, 0},    {3, 1},     {4, 0x00},  {4, 0x11},  {6, 0x55}, {8, 0x18}, {8, 0x09},
+        {9, 0x08}, {9, 0xFF},  {10, 0x04}, {10, 0x80}, {11, 1},   {12, 1},   {13, 1},
+        {14, 1},   {15, 0x80}, {13, 0x20}, {14, 0x10}, {14, 0x80}};
     for (uint32_t at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
         Settings original = settings_defaults();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1164,6 +1165,28 @@ static void each_invalid_extension_value_is_rejected_without_mutating_the_settin
         Settings before = original;
         CHECK(!settings_decode(bytes, sizeof bytes, &original));
         CHECK(memcmp(&before, &original, sizeof original) == 0);
+    }
+}
+
+static void the_listening_effects_use_their_extension_bits(void)
+{
+    Settings original = settings_defaults();
+    CHECK(!original.skip_silence);
+    CHECK(!original.speech_boost);
+    CHECK_EQUAL(0, original.crossfeed);
+    for (int choice = 0; choice < 8; choice++) {
+        original.skip_silence = (choice & 1) != 0;
+        original.speech_boost = (choice & 2) != 0;
+        original.crossfeed = (uint8_t)(choice % 4);
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&original, bytes);
+        CHECK_EQUAL((choice & 1) << 6 | (choice & 2) << 6, bytes[EXTENSION_FIELD + 13]);
+        CHECK_EQUAL((choice % 4) << 5, bytes[EXTENSION_FIELD + 14]);
+        Settings decoded;
+        CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+        CHECK_EQUAL(original.skip_silence, decoded.skip_silence);
+        CHECK_EQUAL(original.speech_boost, decoded.speech_boost);
+        CHECK_EQUAL(original.crossfeed, decoded.crossfeed);
     }
 }
 
@@ -1329,6 +1352,7 @@ int main(void)
         TEST_CASE(a_version_fifteen_file_needs_all_fifty_eight_bytes),
         TEST_CASE(the_checksum_covers_the_extension_block),
         TEST_CASE(each_invalid_extension_value_is_rejected_without_mutating_the_settings),
+        TEST_CASE(the_listening_effects_use_their_extension_bits),
         TEST_CASE(every_item_but_settings_may_be_hidden),
         TEST_CASE(a_saved_home_order_and_hidden_mask_are_applied_on_load),
         TEST_CASE(an_order_from_a_build_with_more_items_drops_the_unknown_ones),

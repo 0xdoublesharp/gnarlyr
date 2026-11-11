@@ -61,6 +61,12 @@ enum {
     HOME_ORDER_BYTE = 4,
     HOME_HIDDEN_BYTE = 9,
     RESERVED_BYTE = 11,
+    SPOKEN_BYTE = 13,
+    CROSSFEED_BYTE = 14,
+    SKIP_SILENCE_BIT = 0x40,
+    SPEECH_BOOST_BIT = 0x80,
+    CROSSFEED_SHIFT = 5,
+    CROSSFEED_MASK = 3,
     RESERVED_COUNT = 5,
     EXTENSION_SIZE = 16,
     REWIND_BIT = 1,
@@ -92,6 +98,9 @@ static const uint8_t DEFAULT_EXTENSION[EXTENSION_SIZE] = {
     0x54,
     0x76,
     0x98};
+static const uint8_t RESERVED_USED[RESERVED_COUNT] = {
+    [SPOKEN_BYTE - RESERVED_BYTE] = SKIP_SILENCE_BIT | SPEECH_BOOST_BIT,
+    [CROSSFEED_BYTE - RESERVED_BYTE] = CROSSFEED_MASK << CROSSFEED_SHIFT};
 static const uint16_t TIMEOUT_SECONDS[SCREEN_TIMEOUT_OPTION_COUNT] = {10, 20, 30, 60, 120, 300, 0};
 static const uint8_t SLEEP_MINUTES[SLEEP_TIMER_OPTION_COUNT] = {0, 15, 30, 45, 60, 90, 120};
 static const uint8_t AUTO_OFF_MINUTES[AUTO_OFF_OPTION_COUNT] = {0, 1, 5, 10};
@@ -158,6 +167,9 @@ static void read_extension(const uint8_t *extension, Settings *settings)
     settings->transition_tenths = extension[TRANSITION_BYTE];
     settings_home_unpack(extension + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT,
                          settings->home_order, &settings->home_hidden);
+    settings->skip_silence = (extension[SPOKEN_BYTE] & SKIP_SILENCE_BIT) != 0;
+    settings->speech_boost = (extension[SPOKEN_BYTE] & SPEECH_BOOST_BIT) != 0;
+    settings->crossfeed = (extension[CROSSFEED_BYTE] >> CROSSFEED_SHIFT) & CROSSFEED_MASK;
 }
 
 Settings settings_defaults(void)
@@ -287,6 +299,10 @@ static void encode_extension(const Settings *settings, uint8_t *extension)
     }
     extension[HOME_HIDDEN_BYTE] = (uint8_t)settings->home_hidden;
     extension[HOME_HIDDEN_BYTE + 1] = (uint8_t)(settings->home_hidden >> 8);
+    extension[SPOKEN_BYTE] |= (uint8_t)((settings->skip_silence ? SKIP_SILENCE_BIT : 0) |
+                                        (settings->speech_boost ? SPEECH_BOOST_BIT : 0));
+    extension[CROSSFEED_BYTE] |=
+        (uint8_t)((settings->crossfeed & CROSSFEED_MASK) << CROSSFEED_SHIFT);
 }
 
 void settings_encode(const Settings *settings, uint8_t *bytes)
@@ -431,7 +447,7 @@ static bool reserved_clear(const uint8_t *extension)
 {
     uint8_t any = extension[TRANSITION_BYTE + 1];
     for (int index = 0; index < RESERVED_COUNT; index++) {
-        any |= extension[RESERVED_BYTE + index];
+        any |= extension[RESERVED_BYTE + index] & (uint8_t)~RESERVED_USED[index];
     }
     return any == 0;
 }

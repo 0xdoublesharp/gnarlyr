@@ -191,6 +191,9 @@ typedef struct Settings {
     uint8_t transition_tenths;
     uint8_t home_order[SETTINGS_HOME_ITEM_COUNT];
     uint16_t home_hidden;
+    uint8_t crossfeed;
+    bool skip_silence;
+    bool speech_boost;
 } Settings;
 
 typedef struct SettingsEqualizerCurve {
