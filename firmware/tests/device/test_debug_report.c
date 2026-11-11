@@ -70,6 +70,28 @@ static void the_schema_version_is_the_first_line(void)
     CHECK_EQUAL(0, strncmp(text, "debug_report: 1\n", 16));
 }
 
+static void missing_boot_markers_are_reported_as_unknown(void)
+{
+    DebugReportInput input = plain_input();
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("boot.clock_us: unknown"));
+    CHECK(has_line("boot.interactive_us: unknown"));
+    CHECK(has_line("boot.audio_us: unknown"));
+}
+
+static void boot_markers_keep_zero_and_completed_phases_separate_from_unknown(void)
+{
+    uint32_t times[DEBUG_BOOT_COUNT] = {
+        [DEBUG_BOOT_CLOCK] = 1, [DEBUG_BOOT_FRAME] = 400001, [DEBUG_BOOT_INTERACTIVE] = 1500001};
+    DebugReportInput input = plain_input();
+    input.boot_us = times;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("boot.clock_us: 0"));
+    CHECK(has_line("boot.frame_us: 400000"));
+    CHECK(has_line("boot.interactive_us: 1500000"));
+    CHECK(has_line("boot.audio_us: unknown"));
+}
+
 static DebugReportInput plugged_in_at_97_percent(void)
 {
     DebugReportInput input = plain_input();
@@ -1193,6 +1215,8 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_schema_version_is_the_first_line),
+        TEST_CASE(missing_boot_markers_are_reported_as_unknown),
+        TEST_CASE(boot_markers_keep_zero_and_completed_phases_separate_from_unknown),
         TEST_CASE(the_report_says_which_one_it_is_and_what_wrote_it),
         TEST_CASE(a_report_in_the_first_seconds_of_a_cold_start_says_so),
         TEST_CASE(before_the_gauge_has_a_reading_the_start_up_sample_stands_in_and_is_labelled),

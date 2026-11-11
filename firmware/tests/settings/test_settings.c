@@ -1154,7 +1154,7 @@ static void each_invalid_extension_value_is_rejected_without_mutating_the_settin
     static const uint8_t CASES[][2] = {
         {0, 0x20},  {0, 0x40},  {0, 0x80}, {0, 0x18}, {1, 61},   {2, 4},    {2, 61},   {2, 0},
         {3, 1},     {4, 0x00},  {4, 0x11}, {6, 0x55}, {8, 0x18}, {8, 0x09}, {9, 0x08}, {9, 0xFF},
-        {10, 0x04}, {10, 0x80}, {11, 1},   {12, 1},   {13, 1},   {14, 1},   {15, 0x80}};
+        {10, 0x04}, {10, 0x80}, {11, 1},   {12, 1},   {14, 1},   {15, 0x80}};
     for (uint32_t at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
         Settings original = settings_defaults();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1164,6 +1164,21 @@ static void each_invalid_extension_value_is_rejected_without_mutating_the_settin
         Settings before = original;
         CHECK(!settings_decode(bytes, sizeof bytes, &original));
         CHECK(memcmp(&before, &original, sizeof original) == 0);
+    }
+}
+
+static void power_on_preserves_every_other_bit_in_extension_thirteen(void)
+{
+    for (unsigned flags = 0; flags < 256; flags++) {
+        Settings settings = settings_defaults();
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&settings, bytes);
+        CHECK_EQUAL(0, bytes[EXTENSION_FIELD + 13]);
+        bytes[EXTENSION_FIELD + 13] = (uint8_t)flags;
+        rewrite_checksum(bytes);
+        CHECK(settings_decode(bytes, sizeof bytes, &settings));
+        settings_encode(&settings, bytes);
+        CHECK_EQUAL(flags, bytes[EXTENSION_FIELD + 13]);
     }
 }
 
@@ -1329,6 +1344,7 @@ int main(void)
         TEST_CASE(a_version_fifteen_file_needs_all_fifty_eight_bytes),
         TEST_CASE(the_checksum_covers_the_extension_block),
         TEST_CASE(each_invalid_extension_value_is_rejected_without_mutating_the_settings),
+        TEST_CASE(power_on_preserves_every_other_bit_in_extension_thirteen),
         TEST_CASE(every_item_but_settings_may_be_hidden),
         TEST_CASE(a_saved_home_order_and_hidden_mask_are_applied_on_load),
         TEST_CASE(an_order_from_a_build_with_more_items_drops_the_unknown_ones),

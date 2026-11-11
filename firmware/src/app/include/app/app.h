@@ -42,6 +42,7 @@ void app_remember_dac_volume(uint8_t level);
 void app_request_rescan(void);
 void app_request_rescan_if_music_changed(void);
 void app_show_splash(void);
+void app_draw_start(void);
 bool app_charging(void);
 uint32_t app_pass_interval_ms(void);
 bool app_preparing(void);

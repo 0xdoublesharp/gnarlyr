@@ -2,6 +2,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "app/debug_loop.h"
+
 #include "audio_dsp.h"
 #include "audio_process.h"
 #include "board.h"
@@ -420,6 +422,7 @@ static bool start_transfer(uint32_t words, bool audible)
         return false;
     }
     dac_path_start_transfer();
+    debug_loop_boot(DEBUG_BOOT_AUDIO);
     (void)dac_path_take_underrun();
     transferring = true;
     dac_path_set_fade_service(serve_fade);

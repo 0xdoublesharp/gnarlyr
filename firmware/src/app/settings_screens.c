@@ -35,6 +35,7 @@ static const StringId TIMEOUT_OPTIONS[SCREEN_TIMEOUT_OPTION_COUNT] = {
     STR_SECONDS_10, STR_SECONDS_20, STR_SECONDS_30, STR_MINUTES_1,
     STR_MINUTES_2,  STR_MINUTES_5,  STR_NEVER};
 static const StringId CLOCK_FORMAT_OPTIONS[] = {STR_CLOCK_12H, STR_CLOCK_24H};
+static const StringId POWER_ON_OPTIONS[] = {STR_POWER_ON_HOLD, STR_POWER_ON_PRESS};
 static const char *const BRIGHTNESS_OPTIONS[BRIGHTNESS_LEVEL_COUNT] = {"1", "2", "3", "4", "5",
                                                                        "6", "7", "8", "9", "10"};
 static const StringId ACCENT_OPTIONS[ACCENT_COLOR_COUNT] = {
@@ -81,6 +82,11 @@ static Settings *editable_settings(void *context)
     return &settings->store->settings;
 }
 
+static int current_power_on(const void *context)
+{
+    return (settings_of(context)->power_on_flags >> 4) & 1;
+}
+
 static void save(SettingsContext *context)
 {
     settings_store_capture(context->store, player_status(context->player));
@@ -92,6 +98,13 @@ static void save(SettingsContext *context)
 static void apply_and_save(SettingsContext *context)
 {
     settings_store_apply_hardware(&context->store->settings);
+    save(context);
+}
+
+static void choose_power_on(void *context, int index)
+{
+    Settings *settings = editable_settings(context);
+    settings->power_on_flags = (uint8_t)((settings->power_on_flags & ~0x10u) | (index ? 0x10u : 0));
     save(context);
 }
 
@@ -707,6 +720,7 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      current_transition_length, choose_transition_length, NULL, NULL},
     {STR_USB_ANSWER, USB_ANSWER_OPTIONS, USB_CONNECT_COUNT, current_usb_answer, choose_usb_answer,
      NULL, NULL},
+    {STR_POWER_ON, POWER_ON_OPTIONS, 2, current_power_on, choose_power_on, NULL, NULL},
 };
 
 static Screen *choice_view(SettingsScreens *screens, const SettingChoice *choice,

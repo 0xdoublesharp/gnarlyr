@@ -167,6 +167,7 @@ typedef struct AppState {
     HalAudioJack listener_jack;
     bool listener_bluetooth;
     bool volume_lowered;
+    bool startup_pending;
     uint8_t lowered_volume;
 } AppState;
 
@@ -281,6 +282,7 @@ static void light_after_first_frame(void)
     if (app.light_after_frame) {
         app.light_after_frame = false;
         hal_display_set_power(true);
+        debug_loop_boot(DEBUG_BOOT_FRAME);
     }
 }
 
@@ -1386,6 +1388,7 @@ static void start_app(bool power_on)
     app.splash = (Fade){.active = false};
     app.now_ms = now_ms;
     app.prepare_pending = true;
+    app.startup_pending = power_on;
     app.prepare_index = 0;
     app.prepare_report = (CardFilesReport){.library_created = false, .card_full = false};
     settings_store_load(&app.settings);
@@ -1397,7 +1400,9 @@ static void start_app(bool power_on)
     follow_appearance();
     start_playback();
     start_hardware(now_ms);
-    bluetooth_link_resume(&app.bluetooth, &app.toast, now_ms);
+    if (!power_on) {
+        bluetooth_link_resume(&app.bluetooth, &app.toast, now_ms);
+    }
     start_screens(now_ms);
     note_listeners();
     app.volume_lowered = false;
@@ -1606,7 +1611,9 @@ static void follow_charge_keys(uint32_t now_ms)
 {
     KeyEvent event;
     while (app.charging && key_tracker_next_event(&app.keys, &event)) {
-        if (event.key == KEY_POWER && event.gesture == KEY_GESTURE_LONG_PRESS) {
+        if (event.key == KEY_POWER && (event.gesture == KEY_GESTURE_LONG_PRESS ||
+                                       ((app.settings.settings.power_on_flags & 0x10u) != 0 &&
+                                        event.gesture == KEY_GESTURE_PRESS))) {
             stop_charging(now_ms);
         } else if (event.key == KEY_MENU && event.gesture == KEY_GESTURE_PRESS) {
             app_open_usb_modes();
@@ -1817,6 +1824,12 @@ CORE_SEAM void app_step(void)
     if (app.powered_off) {
         return;
     }
+    if (app.startup_pending) {
+        app.startup_pending = false;
+        if (!app.charging) {
+            bluetooth_link_resume(&app.bluetooth, &app.toast, hal_clock_milliseconds());
+        }
+    }
     follow_compact_theme();
     if (app.prepare_pending && prepare_step()) {
         return;
@@ -1874,6 +1887,7 @@ CORE_SEAM void app_step(void)
     if (fade_running()) {
         drain_key_events();
     } else {
+        debug_loop_boot(DEBUG_BOOT_INTERACTIVE);
         dispatch_key_events(now_ms);
     }
     if (app.storage_formatted) {
@@ -2014,6 +2028,15 @@ void app_show_splash(void)
 {
     app.now_ms = hal_clock_milliseconds();
     fade_start(&app.splash, app.now_ms, SPLASH_TIMING);
+}
+
+void app_draw_start(void)
+{
+    if (app.charging) {
+        charge_step(hal_clock_milliseconds());
+    } else {
+        render_when_due(hal_clock_milliseconds(), hal_clock_microseconds());
+    }
 }
 
 void app_wake(void)

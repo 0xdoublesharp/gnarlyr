@@ -25,6 +25,18 @@ typedef enum DebugEventKind {
     DEBUG_EVENT_KIND_COUNT
 } DebugEventKind;
 
+typedef enum DebugBootStep {
+    DEBUG_BOOT_CLOCK,
+    DEBUG_BOOT_DISPLAY,
+    DEBUG_BOOT_GLYPHS,
+    DEBUG_BOOT_APP,
+    DEBUG_BOOT_FRAME,
+    DEBUG_BOOT_EXTENSION,
+    DEBUG_BOOT_INTERACTIVE,
+    DEBUG_BOOT_AUDIO,
+    DEBUG_BOOT_COUNT
+} DebugBootStep;
+
 typedef enum DebugReportReason {
     DEBUG_REPORT_NONE,
     DEBUG_REPORT_USB_SESSION,

@@ -71,10 +71,7 @@ void wire_motion_draw(WireMotion *motion, Canvas *canvas, const Theme *theme, Re
 void home_art_init(HomeArt *art, CoverCache *covers, const LibraryStore *store, Player *player,
                    const Theme *theme)
 {
-    const ExtensionModuleEntry *code = extension();
-    if (code != NULL) {
-        code->art_init(art, covers, store, player, theme);
-    }
+    *art = (HomeArt){.covers = covers, .store = store, .player = player, .theme = theme};
 }
 
 void home_art_update(void *context, uint32_t now_ms)

@@ -187,6 +187,7 @@ typedef struct Settings {
     bool safe_start_volume;
     uint8_t safe_start_volume_level;
     bool clock_24h;
+    uint8_t power_on_flags;
     TrackTransition track_transition;
     uint8_t transition_tenths;
     uint8_t home_order[SETTINGS_HOME_ITEM_COUNT];

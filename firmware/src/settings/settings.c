@@ -63,6 +63,7 @@ enum {
     RESERVED_BYTE = 11,
     RESERVED_COUNT = 5,
     EXTENSION_SIZE = 16,
+    POWER_ON_BYTE = 13,
     REWIND_BIT = 1,
     SAFE_START_BIT = 2,
     CLOCK_24H_BIT = 4,
@@ -153,6 +154,7 @@ static void read_extension(const uint8_t *extension, Settings *settings)
     settings->rewind_on_resume = (comfort & REWIND_BIT) != 0;
     settings->safe_start_volume = (comfort & SAFE_START_BIT) != 0;
     settings->clock_24h = (comfort & CLOCK_24H_BIT) != 0;
+    settings->power_on_flags = extension[POWER_ON_BYTE];
     settings->track_transition = (TrackTransition)(comfort >> TRANSITION_SHIFT);
     settings->safe_start_volume_level = extension[SAFE_LEVEL_BYTE];
     settings->transition_tenths = extension[TRANSITION_BYTE];
@@ -275,6 +277,7 @@ static uint32_t checksum_of(const uint8_t *bytes, int field)
 
 static void encode_extension(const Settings *settings, uint8_t *extension)
 {
+    extension[POWER_ON_BYTE] = settings->power_on_flags;
     extension[COMFORT_BYTE] = (uint8_t)((settings->rewind_on_resume ? REWIND_BIT : 0) |
                                         (settings->safe_start_volume ? SAFE_START_BIT : 0) |
                                         (settings->clock_24h ? CLOCK_24H_BIT : 0) |
@@ -431,7 +434,9 @@ static bool reserved_clear(const uint8_t *extension)
 {
     uint8_t any = extension[TRANSITION_BYTE + 1];
     for (int index = 0; index < RESERVED_COUNT; index++) {
-        any |= extension[RESERVED_BYTE + index];
+        if (RESERVED_BYTE + index != POWER_ON_BYTE) {
+            any |= extension[RESERVED_BYTE + index];
+        }
     }
     return any == 0;
 }
