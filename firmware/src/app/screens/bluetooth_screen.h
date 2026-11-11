@@ -6,6 +6,7 @@
 #include "bluetooth_link.h"
 #include "hal/bluetooth.h"
 #include "ui/list_view.h"
+#include "ui/navigation.h"
 #include "ui/screen.h"
 #include "ui/theme.h"
 
@@ -34,8 +35,19 @@ typedef struct BluetoothScreen {
 } BluetoothScreen;
 
 Screen *bluetooth_screen_init(BluetoothScreen *bluetooth, BluetoothLink *link, const Theme *theme);
-ScreenAction bluetooth_screen_open(void *bluetooth);
-ScreenAction bluetooth_screen_open_details(void *bluetooth);
+static inline ScreenAction bluetooth_screen_open(void *bluetooth)
+{
+    BluetoothScreen *screen = bluetooth;
+    screen->details = false;
+    return screen_action_push(&screen->screen);
+}
+
+static inline ScreenAction bluetooth_screen_open_details(void *bluetooth)
+{
+    BluetoothScreen *screen = bluetooth;
+    screen->details = true;
+    return screen_action_push(&screen->screen);
+}
 const char *bluetooth_screen_summary(const void *bluetooth);
 int bluetooth_screen_row_count(const BluetoothScreen *bluetooth);
 const char *bluetooth_screen_row(const BluetoothScreen *bluetooth, int index);

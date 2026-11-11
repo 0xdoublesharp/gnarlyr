@@ -3,6 +3,7 @@
 #include "check.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
+#include "hal/clock.h"
 #include "listening_fixture.h"
 #include "listening_store.h"
 
@@ -69,6 +70,25 @@ static void a_play_started_with_the_clock_set_carries_its_utc_time_and_offset(vo
     CHECK_EQUAL(1, seen.count);
     CHECK_EQUAL(1794482460, seen.first.play.clock_s);
     CHECK_EQUAL(-480, seen.first.play.offset_minutes);
+}
+
+static void setting_the_clock_dates_new_plays_without_rewriting_earlier_timestamps(void)
+{
+    reset();
+    fake_hal_set_wall(0, 0);
+    listening_store_follow(&store, observed(21, 0, PLAYER_PLAYING), 1000);
+    fake_hal_set_rtc_answer((HalRtcRead){.status = HAL_RTC_OK});
+    CHECK(hal_clock_set_wall((HalWallTime){1794390060u, -480, HAL_WALL_PLAYER}));
+    listening_store_flush(&store, observed(21, 1000, PLAYER_PAUSED), 2000);
+    listening_store_follow(&store, observed(22, 0, PLAYER_PLAYING), 3000);
+    listening_store_flush(&store, observed(22, 1000, PLAYER_PAUSED), 4000);
+    ListeningSeen seen;
+    CHECK_EQUAL(0, listening_fixture_read_all(&store.log, &seen));
+    CHECK_EQUAL(2, seen.count);
+    CHECK_EQUAL(0, seen.first.play.clock_s);
+    CHECK_EQUAL(1794390060u, seen.last.play.clock_s);
+    CHECK_EQUAL(-480, seen.last.play.offset_minutes);
+    fake_hal_set_wall(0, 0);
 }
 
 static void repeating_the_same_track_starts_a_distinct_play_without_a_skip(void)
@@ -339,6 +359,7 @@ int main(void)
         TEST_CASE(an_unknown_duration_does_not_discard_elapsed_time_on_a_track_change),
         TEST_CASE(paused_time_and_seek_distance_are_never_counted_as_listening),
         TEST_CASE(a_play_started_with_the_clock_set_carries_its_utc_time_and_offset),
+        TEST_CASE(setting_the_clock_dates_new_plays_without_rewriting_earlier_timestamps),
         TEST_CASE(repeating_the_same_track_starts_a_distinct_play_without_a_skip),
         TEST_CASE(the_last_song_finishing_is_not_reported_as_stopped),
         TEST_CASE(a_failed_write_is_retried_once_without_duplicate_counts),

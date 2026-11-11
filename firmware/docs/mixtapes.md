@@ -21,7 +21,9 @@ An entry is not a track index, since a rescan renumbers tracks. It is the track'
 | 70 | `u8` | which of the slot's two tape files holds it: 0 = `a`, 1 = `b` |
 | 71 | `u8` | 1 = in use |
 | 72 | `u32` | payload bytes of the tape |
-| 76 | `u32` | 0 |
+| 76 | `u16` | Side A entry count; zero for an ordinary mixtape |
+| 78 | `u8` | minutes per cassette side: 0 for ordinary mixtapes, 30 for C60, 45 for C90 |
+| 79 | `u8` | 0 |
 
 A slot that is not in use has an empty name, no entries, no bytes and tape file 0, and keeps its tape generation so the next tape of the slot gets a new one. For a slot in use the payload bytes are between 11 and 268 per entry.
 
@@ -82,3 +84,19 @@ The lent memory holds the table and one `u16` per tape entry: 393,214 bytes for 
 ## Tests
 
 `test_mix_catalog` (restart, a failed write at each of the 7 writes, an unreadable publication, cancelling at every step, stale generations, a damaged newest bank, both banks damaged, all 32 slots, invalid names and sizes), `test_mix_tape` (paths, CUE boundaries and repeats; a full tape of the longest paths; damage; entries that do not parse under a matching checksum; an empty tape; a source that changes after measuring; one read per payload block; file names; invalid identities), `test_mix_resolve` (reordered tracks, missing entries, changed boundaries, ambiguous identities, and a full library and tape inside the scratch size).
+
+## Saved moments
+
+Listening → Moments keeps up to 64 marked positions, newest first. Save moment captures the audible track identity and its position relative to that track or chapter. The label contains the title and formatted time. A full list refuses another save until an entry is deleted. Selecting a moment resolves its whole path and CUE/chapter boundaries against the current library; missing or ambiguous identities remain saved and do not start another song.
+
+`playback/moments` stores `/.gnarlyr/moments.bin` independently of library generations. Its two 22,016-byte banks each contain a 512-byte `DSMO` version-1 header followed by up to 64 fixed 336-byte entries. The header count is the number of entries; payload bytes equal count × 336 and binding is zero. Each entry contains a `MixIdentity` encoding in bytes 0–267, padded with zeros, a little-endian relative position at 268–271 and a terminated 64-byte label at 272–335. Positions cannot exceed an explicitly bounded part. Unused payload beyond the header's byte count is ignored.
+
+Saves and deletes copy the list to the spare bank through `StoreWrite`: invalidate, write, read back, publish and compare. Publication uncertainty requires reopening before another edit. Opening verifies checksums, counts and every entry, and can recover the older valid bank. Unsupported versions, unreadable banks and two corrupt banks refuse edits. New-file preparation clears and reads back the second header because its offset lies beyond the file allocator's initial zeroed region. Resident screens hold no pointers into the listening module's private work buffer.
+
+## Two-sided tapes
+
+New two-sided tape creates a named C60 or C90 cassette in the same 32-slot catalogue. Each side holds at most 64 tracks and at most 30 or 45 minutes respectively. Hold Play on a song in a Music list, choose Add to tape, select the cassette and choose Side A or Side B. Additions keep their order on the selected side; a Side A addition is inserted before Side B. Both sides need a song before playback. Adding requires every existing identity to resolve uniquely and every track to have a known, positive duration that fits its side. Failure leaves the published tape unchanged.
+
+Cassette tapes keep the version-1 `DSMT` format: Side A entries followed by Side B entries, with the split and duration budget in the catalogue entry. Ordinary single-sided entries have zero cassette fields. Existing ordinary mixtapes retain their save, replace, edit, rename and delete actions. Cassette actions are Resume tape, Play Side A, Play Side B, Rename and Delete.
+
+The player publishes the resolved order and cassette state in one session-journal record. The cassette state records its catalogue slot and tape generation, total count, Side A split, current side and whether that side has finished. Prefetch and skips stay within the current side regardless of repeat. At the end of Side A, playback stops and a cassette screen offers to flip to Side B; Play starts Side B. At the end of Side B, Play rewinds to Side A. Back dismisses the prompt while keeping playback stopped. Restart preserves the exact side, entry and relative millisecond position, including a pending flip; the normal cold-resume rewind is omitted for cassette playback. Resume tape continues the active cassette when its generation still matches. Queue editing is unavailable during cassette playback; playing another list exits cassette mode.

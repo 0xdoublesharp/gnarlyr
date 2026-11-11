@@ -1,4 +1,6 @@
 if(ECHO_BUILD_SIM)
+    target_link_libraries(test_usb_screen PRIVATE echo_sim_glyphs)
+    target_compile_definitions(test_usb_screen PRIVATE ECHO_TEST_GLYPHS)
     echo_add_unit_test(NAME test_sim_options
         SOURCES sim/test_sim_options.c
         LIBRARIES echo_sim_options

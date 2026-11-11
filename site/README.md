@@ -8,7 +8,7 @@ The Docs screenshots are product assets under `site/assets/screens/`, generated 
 
 DoublePaaS hosting uses the [deployment contract](../docs/deployment.md). Publish the eight HTML pages, shared CSS and JavaScript, language catalogue and builder script, favicon, robots file and sitemap together. The publisher allows those fifteen root files and optional image assets; this README and `deploy/` stay outside the served release.
 
-Firmware feature references cover main through `7f3782a7`. Features and Docs describe the implemented Smart Lists, Home editor, clock/calendar, USB prompt, comfort settings, headphone profiles and card-formatting menu. The Features page uses screenshot highlights, capability counts and task icons alongside the detailed reference. The 29 screenshots are regenerated from this baseline with configurable routes, including six Settings views and four language examples. Keep plans and validation work in the firmware documentation and ignored notes; simulator captures show the interface, not physical-device validation.
+Firmware feature references cover main through `6ef1ef38`. The latest tooling adds asset regeneration, memory-budget reports and frozen-candidate developer upgrades; the player interface and screenshots are unchanged. Features and Docs describe the implemented Smart Lists, Home editor, clock/calendar, USB prompt, comfort settings, headphone profiles and card-formatting menu. The Features page uses screenshot highlights, capability counts and task icons alongside the detailed reference. The 29 screenshots use configurable routes, including six Settings views and four language examples. Keep plans and validation work in the firmware documentation and ignored notes; simulator captures show the interface, not physical-device validation.
 
 Ogg playback, playback-speed work and unverified converter performance stay outside public playback claims. Features keeps the practical recommendation to convert speech below 32 kHz before copying it. Developers covers source builds, USB tools, clock sync, file validation, CUE parsing and ReplayGain. Hardware ratings link to FiiO and Cirrus. Keep unrelated firmware and generated language-catalogue edits outside a website-only publication.
 
@@ -66,3 +66,19 @@ Each page includes one short Amazon Associate disclosure beside its main purchas
 Homepage screenshots reuse the original simulator PNGs under `site/assets/screens/`. The surrounding player shapes are CSS illustrations. All visible features describe completed capabilities; plans and unfinished integrations stay outside the public feature copy.
 
 When changing the product or affiliate ID, update every placement and verify the destination model on Amazon.
+
+
+## Awin purchase links
+
+Doublesharp’s Awin publisher ID is `3152908`. Network account activation and advertiser-program approval are separate. Add a retailer to the public site after its program appears under Joined and the product’s eligibility is confirmed.
+
+| Advertiser | Awin merchant ID | Full-size ECHO destination |
+| --- | --- | --- |
+| Advanced MP3 Players / AMP3 | `361` | `https://www.advancedmp3players.co.uk/products/fiio-snowsky-echo-portable-hi-res-lossless-music-player` |
+| AliExpress US | `6378` | `https://www.aliexpress.us/item/3256811599037316.html` |
+
+FiiO’s ECHO launch announcement links to the AliExpress destination above. Confirm that regional destination and the exact item in Awin’s Link Builder before publishing an AliExpress link.
+
+Awin deep links use `https://www.awin1.com/cread.php` with `awinmid` for the merchant, `awinaffid=3152908`, an optional placement-specific `clickref`, and a URL-encoded product destination in `ued`. Use the approved advertiser’s Link Builder output for the final public link. Keep links labelled by retailer, use `rel="sponsored nofollow"`, and retain one concise disclosure per page covering all purchase links.
+
+References: [Awin deep-link format](https://success.awin.com/articles/en_US/Knowledge/What-is-deep-linking-and-why-should-I-use-this), [advertiser enrollment](https://success.awin.com/s/article/How-do-I-join-an-advertiser-programme?language=en_US), [AMP3 program](https://ui.awin.com/merchant-profile/361), [AliExpress US program](https://ui.awin.com/merchant-profile/6378), [FiiO ECHO listing](https://www.fiio.com/newsinfo/1120734.html).

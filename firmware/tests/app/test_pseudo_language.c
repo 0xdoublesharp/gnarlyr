@@ -26,14 +26,14 @@ enum {
     MUSIC_SMART_LISTS_ROW = 10,
     MUSIC_ALBUMS_ROW = 4,
     MUSIC_ALL_SONGS_ROW = 7,
-    SETTINGS_ROWS = 29,
+    SETTINGS_ROWS = 30,
     SETTINGS_BLUETOOTH_ROW = 3,
     SETTINGS_SLEEP_ROW = 4,
-    SETTINGS_OUTPUT_ROW = 15,
-    SETTINGS_EQUALIZER_ROW = 16,
-    SETTINGS_CUSTOM_EQ_ROW = 17,
-    SETTINGS_RESCAN_ROW = 21,
-    SETTINGS_USB_MODE_ROW = 22,
+    SETTINGS_OUTPUT_ROW = 16,
+    SETTINGS_EQUALIZER_ROW = 17,
+    SETTINGS_CUSTOM_EQ_ROW = 18,
+    SETTINGS_RESCAN_ROW = 22,
+    SETTINGS_USB_MODE_ROW = 23,
     ABOUT_ROWS = 14,
     HOME_EDITOR_PODCASTS_ROW = 2,
     EQUALIZER_SAVE_ROW = 10,
@@ -405,6 +405,7 @@ static void walk_settings_choices(void)
                                                    STR_AUTO_OFF,
                                                    STR_SCREEN_TIMEOUT,
                                                    STR_CLOCK_FORMAT,
+                                                   STR_SET_CLOCK,
                                                    STR_BRIGHTNESS,
                                                    STR_COLOR,
                                                    STR_TEXT_SIZE,
@@ -661,6 +662,10 @@ static void walk_listening(void)
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     show_titled("Listening", STR_LISTENING);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    show_titled("Moments", STR_MOMENTS);
+    tap(KEY_BACK);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     CHECK(strcmp(i18n_text(STR_EXPORT_PLAYS), app_screen_title()) == 0);

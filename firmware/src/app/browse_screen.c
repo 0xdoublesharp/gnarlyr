@@ -434,6 +434,13 @@ static ScreenAction add_song_to_favorites(void *context)
     return screen_action_pop();
 }
 
+static ScreenAction add_to_tape(void *context)
+{
+    BrowsePool *pool = context;
+    Screen *screen = pool->config.tape(pool->config.tools_context, pool->song_actions.track);
+    return screen != NULL ? screen_action_push(screen) : screen_action_none();
+}
+
 static ScreenAction open_track_info(void *context)
 {
     BrowsePool *pool = context;
@@ -473,6 +480,12 @@ Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, const char *n
     if (pool->config.tags != NULL) {
         actions->items[count++] = (MenuItem){.label = i18n_text(STR_PERSONAL_TAGS),
                                              .select = open_track_tags,
+                                             .context = pool,
+                                             .opens = true};
+    }
+    if (pool->config.tape != NULL) {
+        actions->items[count++] = (MenuItem){.label = i18n_text(STR_ADD_TO_TAPE),
+                                             .select = add_to_tape,
                                              .context = pool,
                                              .opens = true};
     }

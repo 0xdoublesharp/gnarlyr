@@ -23,6 +23,8 @@ typedef struct MixEntry {
     uint16_t count;
     uint8_t file_bank;
     bool active;
+    uint16_t side_a_count;
+    uint8_t side_minutes;
 } MixEntry;
 
 typedef struct MixCatalog {

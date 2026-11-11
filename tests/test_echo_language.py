@@ -97,7 +97,9 @@ class LanguageCommands(VolumeCase):
             text = (self.debug / "run.txt").read_text()
             self.sent.append(text)
             if selected is not None:
-                (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(settings(selected, version, flags))
+                path = self.root / echo_debug.DATA_DIRECTORY / "settings.bin"
+                kept = path.read_bytes()[38:54] if version >= 15 and path.exists() else None
+                path.write_bytes(settings(selected, version, flags, kept if kept and len(kept) == 16 else None))
             self.write_report(script_report(text, build=BUILD, screenshots=()))
         host = PlayerHost(self, act=act)
         clock = Clock()
@@ -401,13 +403,14 @@ class LanguageCommands(VolumeCase):
         extension = bytes([0x12, 60, 60, 0, 0x78, 0x56, 0x34, 0x12, 0x00, 0xF7, 0x01])
         path = self.root / echo_debug.DATA_DIRECTORY / "settings.bin"
         with self.current_snapshot():
-            path.write_bytes(settings("fr", 15, 5, extension + bytes(5)))
+            path.write_bytes(settings("fr", 15, 5, extension + struct.pack("<h", -480) + bytes(3)))
             tool, host = self.live_tool("en", version=15, flags=5)
             self.assertEqual(tool.language_list()["selected"], "fr")
             self.assertEqual(tool.language_select("en")["selected"], "en")
             self.assertEqual(host.ejected, [str(self.root), str(self.card)])
             data = path.read_bytes()
             self.assertEqual((data[4], data[5]), (15, 5))
+            self.assertEqual(struct.unpack_from("<h", data, 49)[0], -480)
 
     def home_extension(self, order, hidden=0):
         nibbles = bytearray(5)

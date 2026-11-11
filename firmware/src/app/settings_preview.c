@@ -77,7 +77,7 @@ const Settings *settings_preview_shown(SettingsScreens *screens, bool active)
 {
     static Settings shown;
     SettingsPreview next = {.choice = STRING_COUNT};
-    if (active && screens->choice.list.selected >= 0 &&
+    if (active && screens->choice_preview != STRING_COUNT && screens->choice.list.selected >= 0 &&
         screens->choice.list.selected < screens->choice.config.option_count) {
         next = (SettingsPreview){screens->choice_preview, screens->choice.list.selected};
     }

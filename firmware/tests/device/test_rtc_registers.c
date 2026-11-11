@@ -126,6 +126,38 @@ static void a_day_past_the_end_of_its_month_has_no_utc_time(void)
     CHECK(rtc_time_utc(registers, &utc));
 }
 
+static void startup_trust_needs_a_valid_recent_time_and_a_clear_voltage_flag(void)
+{
+    uint8_t registers[RTC_TIME_REGISTERS];
+    for (int byte = 0; byte < RTC_TIME_REGISTERS; byte++) {
+        registers[byte] = STOCK_DEFAULT[byte];
+    }
+    uint32_t utc = 0;
+    CHECK(rtc_time_trusted(registers, &utc));
+    registers[RTC_REGISTER_SECONDS] |= 0x80;
+    CHECK(!rtc_time_trusted(registers, &utc));
+    registers[RTC_REGISTER_SECONDS] &= 0x7F;
+    registers[RTC_REGISTER_MINUTES] = 0x1A;
+    CHECK(!rtc_time_trusted(registers, &utc));
+    registers[RTC_REGISTER_MINUTES] = 0;
+    registers[RTC_REGISTER_YEARS] = 0x23;
+    CHECK(!rtc_time_trusted(registers, &utc));
+    registers[RTC_REGISTER_YEARS] = 0x24;
+    CHECK(rtc_time_trusted(registers, &utc));
+    registers[RTC_REGISTER_YEARS] = 0x99;
+    CHECK(rtc_time_trusted(registers, &utc));
+    registers[RTC_REGISTER_YEARS] = 0xA0;
+    CHECK(!rtc_time_trusted(registers, &utc));
+    registers[RTC_REGISTER_YEARS] = 0x25;
+    registers[RTC_REGISTER_MONTHS] = 0x02;
+    registers[RTC_REGISTER_DAYS] = 0x29;
+    CHECK(!rtc_time_trusted(registers, &utc));
+    registers[RTC_REGISTER_YEARS] = 0x24;
+    CHECK(rtc_time_trusted(registers, &utc));
+    registers[RTC_REGISTER_WEEKDAYS] = 7;
+    CHECK(!rtc_time_trusted(registers, &utc));
+}
+
 static void the_player_reading_decodes_whatever_its_unused_bits_hold(void)
 {
     static const uint8_t FIRST[16] = {0x00, 0x00, 0x06, 0x41, 0x22, 0x20, 0x00, 0x05,
@@ -154,6 +186,7 @@ int main(void)
         TEST_CASE(a_time_the_chip_cannot_hold_is_not_encoded),
         TEST_CASE(utc_seconds_go_to_the_chip_and_back_unchanged),
         TEST_CASE(a_day_past_the_end_of_its_month_has_no_utc_time),
+        TEST_CASE(startup_trust_needs_a_valid_recent_time_and_a_clear_voltage_flag),
         TEST_CASE(the_player_reading_decodes_whatever_its_unused_bits_hold),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

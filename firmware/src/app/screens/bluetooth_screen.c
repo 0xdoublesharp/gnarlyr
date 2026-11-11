@@ -436,20 +436,6 @@ Screen *bluetooth_screen_init(BluetoothScreen *bluetooth, BluetoothLink *link, c
     return &bluetooth->screen;
 }
 
-ScreenAction bluetooth_screen_open(void *bluetooth)
-{
-    BluetoothScreen *screen = bluetooth;
-    screen->details = false;
-    return screen_action_push(&screen->screen);
-}
-
-ScreenAction bluetooth_screen_open_details(void *bluetooth)
-{
-    BluetoothScreen *screen = bluetooth;
-    screen->details = true;
-    return screen_action_push(&screen->screen);
-}
-
 int bluetooth_screen_row_count(const BluetoothScreen *bluetooth)
 {
     return row_count(bluetooth);

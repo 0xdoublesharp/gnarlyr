@@ -19,6 +19,8 @@ typedef struct MixtapeChange {
     uint16_t slot;
     const char *name;
     MixSource source;
+    uint16_t side_a_count;
+    uint8_t side_minutes;
 } MixtapeChange;
 
 typedef struct MixtapeStore {

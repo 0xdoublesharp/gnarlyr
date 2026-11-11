@@ -262,18 +262,18 @@ static void refusals_explain_themselves(void)
     char text[48];
     player_refusal_text((HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_RATE, .sample_rate = 192000},
                         text, sizeof text);
-    CHECK(path_is(text, "192 kHz isn't supported yet"));
+    CHECK(path_is(text, "192 kHz isn't supported"));
     player_refusal_text((HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_RATE, .sample_rate = 384000},
                         text, sizeof text);
-    CHECK(path_is(text, "384 kHz isn't supported yet"));
+    CHECK(path_is(text, "384 kHz isn't supported"));
     player_refusal_text((HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_FORMAT}, text, sizeof text);
-    CHECK(path_is(text, "This file type isn't supported yet"));
+    CHECK(path_is(text, "File type not supported"));
     player_refusal_text((HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_AAC_ONLY}, text,
                         sizeof text);
     CHECK(path_is(text, "Only AAC-LC and ALAC M4A play"));
     player_refusal_text((HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_UNREADABLE}, text,
                         sizeof text);
-    CHECK(path_is(text, "Couldn't read the track"));
+    CHECK(path_is(text, "Couldn't read track"));
 }
 
 static void pulling_the_headphones_out_pauses_playback(void)

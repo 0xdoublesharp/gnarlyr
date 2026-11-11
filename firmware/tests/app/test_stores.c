@@ -45,6 +45,25 @@ static void saved_settings_are_loaded_again(void)
     CHECK_EQUAL(GAIN_HIGH, settings.settings.gain);
 }
 
+static void clock_offsets_survive_reload_without_losing_other_settings(void)
+{
+    fake_hal_reset();
+    settings_store_load(&settings);
+    settings.settings.brightness = BRIGHT;
+    CHECK(settings_store_set_clock_offset(&settings, -480));
+    settings_store_load(&settings);
+    CHECK_EQUAL(-480, settings.settings.clock_offset_minutes);
+    CHECK_EQUAL(BRIGHT, settings.settings.brightness);
+    CHECK(settings_store_set_clock_offset(&settings, 345));
+    settings_store_load(&settings);
+    CHECK_EQUAL(345, settings.settings.clock_offset_minutes);
+    fake_hal_fail_file_writes(SETTINGS_STORE_PATH);
+    CHECK(!settings_store_set_clock_offset(&settings, -60));
+    CHECK_EQUAL(345, settings.settings.clock_offset_minutes);
+    settings_store_load(&settings);
+    CHECK_EQUAL(345, settings.settings.clock_offset_minutes);
+}
+
 static void unchanged_settings_are_not_written_again(void)
 {
     fake_hal_reset();
@@ -436,6 +455,7 @@ int main(void)
         TEST_CASE(a_corrupt_button_map_keeps_other_settings_and_safe_controls),
         TEST_CASE(the_equalizer_curve_reaches_the_hal),
         TEST_CASE(the_equalizer_is_saved_and_loaded_again),
+        TEST_CASE(clock_offsets_survive_reload_without_losing_other_settings),
         TEST_CASE(unchanged_settings_are_not_written_again),
         TEST_CASE(settings_survive_a_change_of_music_volume),
         TEST_CASE(settings_from_the_music_volume_move_to_internal_storage),

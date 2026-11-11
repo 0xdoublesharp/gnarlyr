@@ -24,33 +24,57 @@ static void name_copy(char *to, const char *from)
 static int row_count(const void *context)
 {
     const MixtapeUi *ui = context;
-    return ui->mode == MIXTAPE_ACTIONS ? 5 : ui->mode == MIXTAPE_CONFIRM_DELETE ? 2 : ui->count + 2;
+    if (ui->mode == MIXTAPE_LENGTH || ui->mode == MIXTAPE_SIDE ||
+        ui->mode == MIXTAPE_CONFIRM_DELETE) {
+        return 2;
+    }
+    return ui->mode == MIXTAPE_ACTIONS ? 5 : ui->count + (ui->mode == MIXTAPE_PICK ? 1 : 3);
 }
 
 static const char *row_label(const void *context, int index)
 {
     const MixtapeUi *ui = context;
+    if (ui->mode == MIXTAPE_LENGTH) {
+        return i18n_text(index == 0 ? STR_TAPE_C60 : STR_TAPE_C90);
+    }
+    if (ui->mode == MIXTAPE_SIDE) {
+        return i18n_text(index == 0 ? STR_SIDE_A : STR_SIDE_B);
+    }
     if (ui->mode == MIXTAPE_ACTIONS) {
+        if (ui->side_minutes != 0 && index < 3) {
+            static const StringId actions[] = {STR_RESUME_TAPE, STR_PLAY_SIDE_A, STR_PLAY_SIDE_B};
+            return i18n_text(actions[index]);
+        }
         return i18n_text(ACTIONS[index]);
     }
     if (ui->mode == MIXTAPE_CONFIRM_DELETE) {
         return index == 0 ? i18n_text(STR_KEEP_MIXTAPE) : i18n_text(STR_DELETE_MIXTAPE);
     }
-    if (index < 2) {
+    int prefix = ui->mode == MIXTAPE_PICK ? 0 : 2;
+    if (index == ui->count + prefix) {
+        return i18n_text(STR_NEW_CASSETTE);
+    }
+    if (index < prefix) {
         return index == 0 ? i18n_text(STR_SAVE_QUEUE) : i18n_text(STR_NEW_MIXTAPE);
     }
     int row = index - ui->rows_first;
     return row >= 0 && row < MIXTAPE_VISIBLE_ROWS ? ui->labels[row] : "";
 }
 
+static const char *row_detail(const void *context, int index)
+{
+    const MixtapeUi *ui = context;
+    return ui->mode == MIXTAPE_LENGTH ? i18n_text(index == 0 ? STR_TAPE_30 : STR_TAPE_45) : NULL;
+}
+
 static void refresh_labels(MixtapeUi *ui)
 {
-    if (ui->mode != MIXTAPE_LIST || ui->rows_first == ui->list.top) {
+    if ((ui->mode != MIXTAPE_LIST && ui->mode != MIXTAPE_PICK) || ui->rows_first == ui->list.top) {
         return;
     }
     ui->rows_first = ui->list.top;
     for (int row = 0; row < MIXTAPE_VISIBLE_ROWS; row++) {
-        int index = ui->rows_first + row - 2;
+        int index = ui->rows_first + row - (ui->mode == MIXTAPE_PICK ? 0 : 2);
         ui->labels[row][0] = 0;
         MixEntry entry;
         if (index >= 0 && index < ui->count &&
@@ -66,12 +90,14 @@ void mixtape_ui_refresh(MixtapeUi *ui)
     ui->count = 0;
     for (uint16_t slot = 0; slot < MIX_CATALOG_SLOTS; slot++) {
         MixEntry entry;
-        if (mixtape_store_read(&ui->store, slot, &entry) && entry.active) {
+        if (mixtape_store_read(&ui->store, slot, &entry) && entry.active &&
+            (!ui->adding || entry.side_minutes != 0)) {
             ui->slots[ui->count++] = (uint8_t)slot;
         }
     }
     ui->rows_first = -1;
-    ui->screen.title = ui->mode == MIXTAPE_LIST   ? i18n_text(STR_MIXTAPES)
+    ui->screen.title = (ui->mode == MIXTAPE_LIST || ui->mode == MIXTAPE_PICK)
+                           ? i18n_text(STR_MIXTAPES)
                        : ui->mode == MIXTAPE_NAME ? i18n_text(STR_MIXTAPE_NAME)
                                                   : ui->name;
     list_view_select(&ui->list, ui->list.selected, ui->now_ms);
@@ -83,7 +109,8 @@ static void enter_mode(MixtapeUi *ui, uint8_t mode)
     ui->parent_mode =
         mode == MIXTAPE_NAME || mode == MIXTAPE_CONFIRM_DELETE ? ui->mode : MIXTAPE_LIST;
     ui->mode = mode;
-    ui->screen.title = mode == MIXTAPE_LIST   ? i18n_text(STR_MIXTAPES)
+    ui->screen.title = mode == MIXTAPE_LENGTH                           ? i18n_text(STR_TAPE_LENGTH)
+                       : (mode == MIXTAPE_LIST || mode == MIXTAPE_PICK) ? i18n_text(STR_MIXTAPES)
                        : mode == MIXTAPE_NAME ? i18n_text(STR_MIXTAPE_NAME)
                                               : ui->name;
     ui->rows_first = -1;
@@ -123,6 +150,22 @@ static bool start_save(MixtapeUi *ui)
 
 static ScreenAction select_action(MixtapeUi *ui, int index)
 {
+    if (ui->side_minutes != 0 && index < 3) {
+        Player *player = ui->config.player;
+        if (index == 0 && player->cassette.active && player->cassette.slot == ui->slot &&
+            player->cassette.generation == ui->store.entry.generation) {
+            if (player->state != PLAYER_PLAYING) {
+                player_toggle_pause(player);
+            }
+            return screen_action_push(ui->config.now_playing);
+        }
+        ui->selected_side = index == 2 ? 1 : 0;
+        ui->loading = true;
+        if (!mixtape_ui_load(ui)) {
+            mixtape_ui_message(ui, i18n_text(STR_MIXTAPE_OPEN_FAILED));
+        }
+        return screen_action_none();
+    }
     if (index == 0 || index == 1) {
         ui->loading = index == 0;
         if (mixtape_ui_load(ui)) {
@@ -148,6 +191,28 @@ static ScreenAction select_row(void *context, int index)
     if (ui->mode == MIXTAPE_ACTIONS) {
         return select_action(ui, index);
     }
+    if (ui->mode == MIXTAPE_LENGTH) {
+        ui->side_minutes = index == 0 ? 30 : 45;
+        ui->side_a_count = 0;
+        ui->save_queue = false;
+        ui->renaming = false;
+        enter_mode(ui, MIXTAPE_NAME);
+        return screen_action_none();
+    }
+    if (ui->mode == MIXTAPE_SIDE) {
+        ui->selected_side = (uint8_t)index;
+        if (!mixtape_ui_load(ui)) {
+            mixtape_ui_message(ui, i18n_text(STR_TAPE_ADD_FAILED));
+        }
+        return screen_action_none();
+    }
+    int prefix = ui->mode == MIXTAPE_PICK ? 0 : 2;
+    if ((ui->mode == MIXTAPE_PICK || ui->mode == MIXTAPE_LIST) && index == ui->count + prefix) {
+        if (new_slot(ui)) {
+            enter_mode(ui, MIXTAPE_LENGTH);
+        }
+        return screen_action_none();
+    }
     if (ui->mode == MIXTAPE_CONFIRM_DELETE) {
         if (index == 0) {
             enter_mode(ui, MIXTAPE_ACTIONS);
@@ -159,20 +224,27 @@ static ScreenAction select_row(void *context, int index)
         }
         return screen_action_none();
     }
-    if (index < 2) {
+    if (index < prefix) {
         if (index == 0 && !ui->config.player->has_track) {
             mixtape_ui_message(ui, i18n_text(STR_NOTHING_IS_PLAYING));
         } else if (new_slot(ui)) {
             ui->save_queue = index == 0;
+            ui->side_minutes = 0;
+            ui->side_a_count = 0;
+            ui->selected_side = 0;
             ui->renaming = false;
             enter_mode(ui, MIXTAPE_NAME);
         }
-    } else if (index < ui->count + 2) {
+    } else if (index < ui->count + prefix) {
         MixEntry entry;
-        ui->slot = ui->slots[index - 2];
+        ui->slot = ui->slots[index - prefix];
         if (mixtape_store_read(&ui->store, ui->slot, &entry)) {
+            ui->store.entry = entry;
             name_copy(ui->name, entry.name);
-            enter_mode(ui, MIXTAPE_ACTIONS);
+            ui->side_minutes = entry.side_minutes;
+            ui->side_a_count = entry.side_a_count;
+            ui->selected_side = 0;
+            enter_mode(ui, ui->adding ? MIXTAPE_SIDE : MIXTAPE_ACTIONS);
         }
     }
     return screen_action_none();
@@ -218,7 +290,7 @@ static void back_to_parent(MixtapeUi *ui)
             mixtape_ui_message(ui, i18n_text(STR_MIXTAPES_READ_FAILED));
         }
     }
-    enter_mode(ui, parent);
+    enter_mode(ui, ui->adding && parent == MIXTAPE_LIST ? MIXTAPE_PICK : parent);
 }
 
 static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
@@ -230,6 +302,10 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
             mixtape_ui_cancel(ui);
         }
         return screen_action_none();
+    }
+    if (event.key == KEY_BACK && event.gesture == KEY_GESTURE_PRESS && ui->mode == MIXTAPE_PICK) {
+        ui->adding = false;
+        return screen_action_pop();
     }
     if (event.key == KEY_BACK && event.gesture == KEY_GESTURE_PRESS && ui->mode != MIXTAPE_LIST) {
         back_to_parent(ui);
@@ -250,7 +326,9 @@ static void enter(void *context, uint32_t now_ms)
     MixtapeUi *ui = context;
     ui->now_ms = now_ms;
     if (!mixtape_ui_busy(ui)) {
-        enter_mode(ui, MIXTAPE_LIST);
+        ui->adding = ui->add_requested;
+        ui->add_requested = false;
+        enter_mode(ui, ui->adding ? MIXTAPE_PICK : MIXTAPE_LIST);
         mixtape_ui_refresh(ui);
     }
 }
@@ -341,7 +419,11 @@ Screen *mixtape_ui_init(MixtapeUi *ui, MixtapeUiConfig config)
                           .handle_key = handle_key,
                           .update = update,
                           .draw = draw};
-    ui->model = (ListModel){.context = ui, .count = row_count, .label = row_label};
+    ui->model = (ListModel){.context = ui,
+                            .count = row_count,
+                            .label = row_label,
+                            .detail = row_detail,
+                            .detail_max_width = 0};
     list_view_init(&ui->list, &ui->model, config.theme, 0);
     mixtape_ui_refresh(ui);
     return &ui->screen;

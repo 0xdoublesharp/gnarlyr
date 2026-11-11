@@ -49,6 +49,7 @@ add_library(echo_library_scan STATIC
     tags_picture.c
     tags_vorbis.c
     track_fields.c
+    tag_duration.c
     track_tags.c
 )
 target_include_directories(echo_library_scan PUBLIC include)
@@ -67,6 +68,7 @@ if(CMAKE_CROSSCOMPILING)
         mp4_chapters.c
         playlist_reader.c
         replay_gain.c
+        tag_duration.c
         tags_ape.c
         tags_asf.c
         tags_genres.c

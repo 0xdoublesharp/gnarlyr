@@ -8,6 +8,7 @@
 #include "listening_store.h"
 #include "playback/listening_export.h"
 #include "playback/listening_stats.h"
+#include "playback/moments.h"
 #include "screens/smart_list_work.h"
 
 enum {
@@ -38,12 +39,23 @@ typedef struct LyricsWork {
     bool ready;
 } LyricsWork;
 
+typedef struct MomentsWork {
+    Moments moments;
+    MomentsJob job;
+    Moment moment;
+    MomentResolve resolve;
+    char labels[THEME_MAX_ROWS][MOMENT_LABEL_BYTES];
+    int first;
+    StoreLoad load;
+} MomentsWork;
+
 typedef struct ListeningModuleWork {
     const void *owner;
     union {
         ListeningWork listening;
         SmartListWork smart;
         LyricsWork lyrics;
+        MomentsWork moments;
     } as;
 } ListeningModuleWork;
 

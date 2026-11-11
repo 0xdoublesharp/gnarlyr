@@ -6,6 +6,10 @@ static void bind(AppScreens *screens)
     listening_screen_init(
         &screens->modules.listening.listening,
         (ListeningScreenConfig){context->listening, context->theme, context->motion});
+    screens->modules.listening.listening.moments =
+        moments_screen_init(&screens->modules.listening.moments,
+                            (MomentsScreenConfig){context->player, context->theme, context->toast,
+                                                  &screens->now_playing.screen, context->motion});
     lyrics_screen_init(
         &screens->modules.listening.lyrics,
         (LyricsScreenConfig){context->player, &context->store->library, context->theme});
