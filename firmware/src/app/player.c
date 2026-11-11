@@ -96,6 +96,12 @@ static bool current_track(const Player *player, uint16_t *track)
 
 static bool upcoming_track(Player *player, PlayQueueCursor *cursor, uint16_t *track)
 {
+    if (player->cassette.active) {
+        player->next_source = PLAYER_NEXT_FROM_QUEUE;
+        return !player->cassette.flip && play_queue_upcoming(&player->queue, REPEAT_OFF, cursor) &&
+               cassette_contains(&player->cassette, cursor->position) &&
+               play_queue_track_at(&player->queue, *cursor, track);
+    }
     if (player->repeat == REPEAT_ONE && player->from_up_next) {
         player->next_source = PLAYER_NEXT_SAME_SONG;
         *track = player->track;
@@ -250,7 +256,9 @@ static bool start_playable(Player *player, uint32_t start_ms, int direction, boo
     }
     for (uint16_t tries = 1; tries < player->queue.count; tries++) {
         PlayQueueCursor target;
-        if (!play_queue_neighbor(&player->queue, direction, wrap, &target)) {
+        if (!play_queue_neighbor(&player->queue, direction, wrap && !player->cassette.active,
+                                 &target) ||
+            !cassette_contains(&player->cassette, target.position)) {
             break;
         }
         play_queue_move_to(&player->queue, target);
@@ -281,7 +289,8 @@ static bool start_up_next(Player *player)
 
 static bool move_and_start(Player *player, int direction, bool wrap)
 {
-    if (direction > 0 && player->up_next.count > 0 && start_up_next(player)) {
+    if (!player->cassette.active && direction > 0 && player->up_next.count > 0 &&
+        start_up_next(player)) {
         return true;
     }
     if (direction < 0 && player->from_up_next) {
@@ -289,7 +298,9 @@ static bool move_and_start(Player *player, int direction, bool wrap)
         return start_playable(player, 0, direction, wrap);
     }
     PlayQueueCursor target;
-    if (!play_queue_neighbor(&player->queue, direction, wrap, &target)) {
+    if (!play_queue_neighbor(&player->queue, direction, wrap && !player->cassette.active,
+                             &target) ||
+        !cassette_contains(&player->cassette, target.position)) {
         return false;
     }
     player->from_up_next = false;
@@ -308,57 +319,6 @@ void player_init(Player *player, const Library *library)
     player->prevent_clipping = true;
     player->jack = hal_audio_jack();
     hal_audio_set_volume(player->volume);
-}
-
-bool player_use_order(Player *player, const TrackOrder *order, uint16_t position)
-{
-    uint16_t track;
-    MixIdentity identity;
-    PlayQueue queue;
-    if (order == NULL || position >= order->count ||
-        !track_order_read(order, position, 1, &track) ||
-        mix_identity_read(player->library, track, &identity) != STORE_READY) {
-        return false;
-    }
-    PlayQueuePlan plan = {.source = browse_root_query(BROWSE_ALL_SONGS),
-                          .anchor_track = track,
-                          .shuffle = player->shuffle};
-    if (!play_queue_use_order(&queue, player->library, order, plan)) {
-        return false;
-    }
-    PlayQueueCursor cursor = {.position = position};
-    play_queue_move_to(&queue, cursor);
-    SessionState state = player_session_state(player, &player->up_next);
-    state.queue_kind = SESSION_QUEUE_STORED;
-    state.order_generation = order->generation;
-    state.resume.plan = plan;
-    state.resume.cursor = cursor;
-    state.resume.track = track;
-    state.resume.position_ms = 0;
-    state.resume.from_up_next = false;
-    up_next_clear(&state.up_next);
-    if (!player_store_session(player, &state)) {
-        return false;
-    }
-    player_queue_cancel(player);
-    hal_audio_release();
-    player->storage.order = *order;
-    queue.stored_order = &player->storage.order;
-    player->queue = queue;
-    up_next_clear(&player->up_next);
-    player->from_up_next = false;
-    player->has_track = true;
-    player->loaded = false;
-    player->has_next = false;
-    player->pause_timing = false;
-    player->track = track;
-    player->start_ms = identity.start_ms;
-    player->paused_position_ms = 0;
-    player->rewind_pause = RESUME_REWIND_NONE;
-    player->spoken = spoken_kind_of(identity.path) != SPOKEN_NONE;
-    player->state = PLAYER_PAUSED;
-    player->up_next_revision++;
-    return true;
 }
 
 void player_set_resume(Player *player, PlayerResume resume)
@@ -386,6 +346,7 @@ bool player_play_from(Player *player, PlayerListStart start)
         return false;
     }
     player_queue_cancel(player);
+    player->cassette = (CassetteState){0};
     player->from_up_next = false;
     PlayQueuePlan plan = {.source = start.source,
                           .anchor_track = item.index,
@@ -402,6 +363,17 @@ bool player_play_from(Player *player, PlayerListStart start)
 void player_toggle_pause(Player *player)
 {
     player_queue_cancel(player);
+    if (player->cassette.active && player->cassette.flip) {
+        player->cassette.side = (uint8_t)(1 - player->cassette.side);
+        player->cassette.flip = false;
+        PlayQueueCursor cursor = {.position =
+                                      player->cassette.side == 0 ? 0 : player->cassette.split};
+        play_queue_move_to(&player->queue, cursor);
+        player->rewind_pause = RESUME_REWIND_NONE;
+        (void)start_current(player, 0);
+        (void)player_save(player);
+        return;
+    }
     switch (player->state) {
     case PLAYER_PLAYING:
         hal_audio_pause();
@@ -568,7 +540,16 @@ static void finish_track(Player *player, bool failed)
     if (failed && move_and_start(player, 1, player->repeat != REPEAT_OFF)) {
         return;
     }
-    become_idle(player);
+    if (player->cassette.active) {
+        player->paused_position_ms = current_position(player);
+        player->cassette.flip = true;
+        player->state = PLAYER_PAUSED;
+        player->loaded = false;
+        player->has_next = false;
+        player->rewind_pause = RESUME_REWIND_NONE;
+    } else {
+        become_idle(player);
+    }
     player_save(player);
 }
 
@@ -677,6 +658,10 @@ bool player_jump_to_up_next(Player *player, uint16_t index)
 
 bool player_jump_to_queue(Player *player, PlayQueueCursor cursor)
 {
+    if (!cassette_contains(&player->cassette, cursor.position)) {
+        return false;
+    }
+    player->cassette.flip = false;
     player_queue_cancel(player);
     up_next_clear(&player->up_next);
     save_up_next(player);
@@ -776,7 +761,8 @@ SessionState player_session_state(const Player *player, const UpNext *up_next)
                                      .track = player->track,
                                      .position_ms = current_position(player),
                                      .from_up_next = player->from_up_next},
-                          .up_next = *up_next};
+                          .up_next = *up_next,
+                          .cassette = player->cassette};
     if (player->queue.stored_order != NULL) {
         state.queue_kind = SESSION_QUEUE_STORED;
         state.order_generation = player->queue.stored_generation;
@@ -888,9 +874,16 @@ bool player_restore(Player *player)
     if (result == STORE_READY) {
         for (int attempt = 0; attempt < 2; attempt++) {
             if (restore_session_queue(player, &session)) {
+                if (session.cassette.active && session.cassette.count != player->queue.count) {
+                    return false;
+                }
                 player->up_next = session.up_next;
                 player->up_next_revision++;
                 restore_position(player, &session.resume);
+                player->cassette = session.cassette;
+                if (player->cassette.active) {
+                    player->rewind_pause = RESUME_REWIND_NONE;
+                }
                 return true;
             }
             if (session_journal_previous(&player->storage.journal, &session) != STORE_READY) {

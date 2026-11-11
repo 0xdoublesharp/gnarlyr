@@ -137,7 +137,8 @@ static void fit_rows(MomentsScreen *screen)
     const Theme *theme = screen->config.theme;
     int hint = 2 * font_line_height(theme->fonts.small) + theme->metrics.padding;
     int height = theme_content_area(theme).height - hint;
-    list_view_fit_rows(&screen->list, height / theme->metrics.row_height);
+    int rows = height / theme->metrics.row_height;
+    list_view_fit_rows(&screen->list, rows < THEME_MAX_ROWS ? rows : THEME_MAX_ROWS);
 }
 
 static void show_list(MomentsScreen *screen)

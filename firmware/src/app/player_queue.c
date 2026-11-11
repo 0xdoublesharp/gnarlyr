@@ -29,7 +29,8 @@ void player_queue_cancel(Player *player)
 
 static PlayerQueueEditResult begin(Player *player)
 {
-    if (player_queue_busy(player) || !player->has_track || !player_queue_is_current(player)) {
+    if (player->cassette.active || player_queue_busy(player) || !player->has_track ||
+        !player_queue_is_current(player)) {
         return PLAYER_QUEUE_EDIT_STALE;
     }
     bool resume = player->loaded && player->state == PLAYER_PLAYING;

@@ -174,12 +174,12 @@ static void future_versions_are_preserved_and_invalid_ids_never_write(void)
     CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
     state = sample();
     CHECK_EQUAL(STORE_DONE, session_journal_save(&journal, &state));
-    disk[VERSION_FIELD] = 2;
+    disk[VERSION_FIELD] = 3;
     rehash(disk);
     SessionState restored;
     CHECK_EQUAL(STORE_UNSUPPORTED, session_journal_open(&journal, configuration(), &restored));
     CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
-    CHECK_EQUAL(2, disk[VERSION_FIELD]);
+    CHECK_EQUAL(3, disk[VERSION_FIELD]);
 }
 
 static void stored_generation_zero_and_serial_wrap_are_supported(void)
@@ -252,7 +252,7 @@ static void a_record_is_one_block_with_its_payload_inside(void)
     SessionState state = sample();
     CHECK_EQUAL(STORE_DONE, session_journal_save(&journal, &state));
     CHECK(memcmp(disk, "DSSJ", 4) == 0);
-    CHECK_EQUAL(1, disk[VERSION_FIELD]);
+    CHECK_EQUAL(2, disk[VERSION_FIELD]);
     CHECK_EQUAL(0x78, disk[BINDING_FIELD]);
     for (int index = RECORD_BYTES_USED; index < SESSION_FILE_BYTES; index++) {
         CHECK_EQUAL(0, disk[index]);

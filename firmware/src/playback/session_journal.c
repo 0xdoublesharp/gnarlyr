@@ -5,12 +5,15 @@
 enum {
     ORDER_FIELD = RESUME_STATE_SIZE + UP_NEXT_STATE_SIZE,
     KIND_FIELD = ORDER_FIELD + 4,
-    PAYLOAD_BYTES = ORDER_FIELD + 8
+    LEGACY_PAYLOAD_BYTES = ORDER_FIELD + 8,
+    CASSETTE_FIELD = LEGACY_PAYLOAD_BYTES,
+    PAYLOAD_BYTES = CASSETTE_FIELD + 12
 };
 
 const char SESSION_JOURNAL_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/session.bin";
 
-static const StoreKind KIND = {.magic = {'D', 'S', 'S', 'J'}, .version = 1, .inline_payload = true};
+static const StoreKind KIND = {
+    .magic = {'D', 'S', 'S', 'J'}, .version = 2, .inline_payload = true, .oldest_version = 1};
 
 typedef struct Reader {
     const SessionJournalConfig *config;
@@ -57,8 +60,45 @@ static bool kind_valid(const SessionState *state)
     return false;
 }
 
+static bool cassette_valid(const SessionState *state)
+{
+    const CassetteState *tape = &state->cassette;
+    if (!tape->active) {
+        return tape->generation == 0 && tape->count == 0 && tape->split == 0 && tape->slot == 0 &&
+               tape->side == 0 && !tape->flip;
+    }
+    return state->queue_kind == SESSION_QUEUE_STORED && tape->slot < 32 && tape->side < 2 &&
+           tape->split > 0 && tape->split < tape->count && tape->split <= CASSETTE_SIDE_CAPACITY &&
+           tape->count - tape->split <= CASSETTE_SIDE_CAPACITY &&
+           cassette_contains(tape, state->resume.cursor.position) &&
+           (!tape->flip ||
+            state->resume.cursor.position + 1u == (tape->side == 0 ? tape->split : tape->count));
+}
+
+static bool decode_cassette(const uint8_t *bytes, CassetteState *tape)
+{
+    *tape = (CassetteState){.generation = store_get32(bytes),
+                            .count = store_get16(bytes + 4),
+                            .split = store_get16(bytes + 6),
+                            .slot = bytes[8],
+                            .side = bytes[9],
+                            .active = (bytes[10] & 1) != 0,
+                            .flip = (bytes[10] & 2) != 0};
+    return bytes[10] <= 3 && bytes[11] == 0;
+}
+
+static void encode_cassette(const CassetteState *tape, uint8_t *bytes)
+{
+    store_put32(bytes, tape->generation);
+    store_put16(bytes + 4, tape->count);
+    store_put16(bytes + 6, tape->split);
+    bytes[8] = tape->slot;
+    bytes[9] = tape->side;
+    bytes[10] = (uint8_t)((tape->active ? 1 : 0) | (tape->flip ? 2 : 0));
+}
+
 static bool decode_payload(const SessionJournalConfig *config, const uint8_t *bytes,
-                           SessionState *state)
+                           SessionState *state, uint16_t version)
 {
     *state = (SessionState){.order_generation = store_get32(bytes + ORDER_FIELD),
                             .queue_kind = (SessionQueueKind)bytes[KIND_FIELD]};
@@ -66,7 +106,9 @@ static bool decode_payload(const SessionJournalConfig *config, const uint8_t *by
            state->resume.library_fingerprint == config->fingerprint &&
            up_next_decode(bytes + RESUME_STATE_SIZE, UP_NEXT_STATE_SIZE, config->fingerprint,
                           &state->up_next) &&
-           ids_valid(config, state) && kind_valid(state);
+           ids_valid(config, state) && kind_valid(state) &&
+           (version == 1 || decode_cassette(bytes + CASSETTE_FIELD, &state->cassette)) &&
+           cassette_valid(state);
 }
 
 static bool wanted(const Reader *reader, const StoreHeader *header)
@@ -89,8 +131,10 @@ static StoreLoad check_record(void *context, uint8_t bank, const StoreHeader *he
     if (load != STORE_READY) {
         return load;
     }
-    bool decoded = again.generation == header->generation && again.bytes == PAYLOAD_BYTES &&
-                   decode_payload(reader->config, block + STORE_FIELD_BYTES, &reader->state);
+    bool decoded =
+        again.generation == header->generation &&
+        again.bytes == (again.version == 1 ? LEGACY_PAYLOAD_BYTES : PAYLOAD_BYTES) &&
+        decode_payload(reader->config, block + STORE_FIELD_BYTES, &reader->state, again.version);
     return decoded ? STORE_READY : STORE_CORRUPT;
 }
 
@@ -152,6 +196,7 @@ static void make_record(const SessionJournal *journal, const SessionState *state
     up_next_encode(&state->up_next, journal->config.fingerprint, payload + RESUME_STATE_SIZE);
     store_put32(payload + ORDER_FIELD, state->order_generation);
     payload[KIND_FIELD] = (uint8_t)state->queue_kind;
+    encode_cassette(&state->cassette, payload + CASSETTE_FIELD);
     StoreHeader header = {.generation = next_generation(journal),
                           .bytes = PAYLOAD_BYTES,
                           .binding = journal->config.fingerprint};
@@ -162,7 +207,7 @@ static bool saveable(const SessionJournal *journal, const SessionState *state)
 {
     return !journal->needs_reload && config_valid(&journal->config) &&
            journal->config.file.write != NULL && ids_valid(&journal->config, state) &&
-           kind_valid(state);
+           kind_valid(state) && cassette_valid(state);
 }
 
 StoreResult session_journal_save(SessionJournal *journal, const SessionState *state)
@@ -173,7 +218,7 @@ StoreResult session_journal_save(SessionJournal *journal, const SessionState *st
         return STORE_FAILED;
     }
     make_record(journal, state, block);
-    if (!decode_payload(&journal->config, block + STORE_FIELD_BYTES, &check)) {
+    if (!decode_payload(&journal->config, block + STORE_FIELD_BYTES, &check, 2)) {
         return STORE_FAILED;
     }
     uint8_t bank = journal->valid ? (uint8_t)(1 - journal->bank) : 0;

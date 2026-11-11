@@ -1,5 +1,6 @@
 add_library(echo_playback STATIC
     bookmarks.c
+    cassette_budget.c
     listening_export.c
     listening_log.c
     listening_stats.c

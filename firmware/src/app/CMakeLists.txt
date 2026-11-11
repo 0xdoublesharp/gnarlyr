@@ -12,12 +12,14 @@ add_library(echo_app STATIC
     discovery_preferences.c
     discovery_playback.c
     order_publish.c
+    order_adopt.c
     personal_tags.c
     player_storage.c
     player_queue.c
     queue_edits.c
     mixtape_store.c
     mixtape_ui.c
+    cassette_ui.c
     mixtape_screen.c
     button_settings.c
     home_editor.c
@@ -61,6 +63,7 @@ add_library(echo_app STATIC
     wall_time.c
     screens/bluetooth_screen.c
     screens/calendar_screen.c
+    screens/cassette_flip_screen.c
     screens/clock_screen.c
     screens/charge_screen.c
     screens/charge_art.c

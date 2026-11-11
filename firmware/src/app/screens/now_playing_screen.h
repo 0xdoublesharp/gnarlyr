@@ -72,12 +72,15 @@ typedef struct NowPlayingConfig {
     CoverCache *covers;
     Screen *up_next;
     Screen *lyrics;
+    Screen *flip;
 } NowPlayingConfig;
 
 typedef struct NowPlayingScreen {
     Screen screen;
     NowPlayingConfig config;
     PlayerStatus status;
+    Screen *destination;
+    bool flip_prompted;
     bool scrubbing;
     uint32_t scrub_position_ms;
     bool has_text;

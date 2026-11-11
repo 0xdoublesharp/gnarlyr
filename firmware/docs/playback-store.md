@@ -5,9 +5,10 @@ The files Gnarlyr keeps for an edited queue, the playback session and saved mixt
 | File | Kind | Magic | Version | Bound to the library | Payload |
 |---|---|---|---|---|---|
 | `/.gnarlyr/order.bin` | stored track order, two banks | `DSTO` | 1 | yes | after the header block |
-| `/.gnarlyr/session.bin` | session journal, two records | `DSSJ` | 1 | yes | inside the header block |
-| `/.gnarlyr/mixes.bin` | mixtape catalogue, two banks | `DSMC` | 1 | no | after the header block |
+| `/.gnarlyr/session.bin` | session journal, two records | `DSSJ` | 2 (reads 1) | yes | inside the header block |
+| `/.gnarlyr/mixes.bin` | mixtape catalogue, two banks | `DSMC` | 2 (reads 1) | no | after the header block |
 | `/.gnarlyr/mix00a.bin` … `mix31b.bin` | mixtape tapes, one per file | `DSMT` | 1 | no | after the header block |
+| `/.gnarlyr/moments.bin` | saved moments, two banks | `DSMO` | 1 | no | after the header block |
 | `/.gnarlyr/track_keys.bin` | track keys for the smart lists, two banks | `DSTK` | 1 | yes | after the header block |
 
 The folder is the data folder of `identity.json`. The four-byte markers that start with `DS`, here and in the other files the player keeps, are format tags named for the maker, Doublesharp, and do not follow the firmware's name. Byte order is little-endian.

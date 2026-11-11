@@ -21,7 +21,7 @@ enum {
     BROWSE_LABEL_CAPACITY = 128,
     BROWSE_DETAIL_CAPACITY = 32,
     BROWSE_TITLE_CAPACITY = 96,
-    SONG_ACTION_COUNT = 5
+    SONG_ACTION_COUNT = 6
 };
 
 typedef struct BrowseRows {
@@ -64,6 +64,7 @@ typedef struct BrowsePoolConfig {
     Screen *(*tags)(void *context, uint16_t track);
     Screen *(*play_group)(void *context, BrowseScreen *browse);
     void *tools_context;
+    Screen *(*tape)(void *context, uint16_t track);
 } BrowsePoolConfig;
 
 typedef struct SongActions {

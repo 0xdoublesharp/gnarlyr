@@ -79,7 +79,7 @@ target_compile_definitions(echo_library_fixtures PRIVATE
 )
 target_link_libraries(echo_library_fixtures PUBLIC echo_library echo_library_scan PRIVATE echo_options)
 
-foreach(playback_test play_queue resume_rewind resume_state up_next bookmarks spoken store track_order track_transition session_journal moments mix_catalog mix_tape mix_resolve store_roots)
+foreach(playback_test play_queue resume_rewind resume_state up_next bookmarks spoken store track_order track_transition session_journal moments cassette_catalog cassette_session mix_catalog mix_tape mix_resolve store_roots)
     echo_add_unit_test(NAME test_${playback_test}
         SOURCES playback/test_${playback_test}.c
         LIBRARIES echo_playback echo_library_fixtures
@@ -897,7 +897,7 @@ echo_add_unit_test(NAME test_theme_palette
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 
-foreach(feature_test mixtape_store mixtape_ui personal_tags discovery_screen discovery_preferences)
+foreach(feature_test cassette_ui mixtape_store mixtape_ui personal_tags discovery_screen discovery_preferences)
     echo_add_unit_test(NAME test_${feature_test}
         SOURCES app/test_${feature_test}.c app/fake_hal.c
         LIBRARIES echo_app echo_library_fixtures
@@ -978,4 +978,16 @@ echo_add_unit_test(NAME test_moments_screen
     SOURCES app/test_moments_screen.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
+echo_add_unit_test(NAME test_player_cassette
+    SOURCES app/test_player_cassette.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
+echo_add_unit_test(NAME test_cassette_flip
+    SOURCES app/test_cassette_flip.c app/fake_hal.c support/text_spy.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
 )

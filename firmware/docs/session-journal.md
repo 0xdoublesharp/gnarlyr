@@ -4,7 +4,7 @@
 
 ## File
 
-`/.gnarlyr/session.bin` holds two 512-byte records, at offset 0 and 512. A file the player creates reads as zero in its first 4 KB, so a new file is two empty records. A record is one header block (magic `DSSJ`, version 1, count 0, binding = the library's content fingerprint) with 268 bytes of payload inside it:
+`/.gnarlyr/session.bin` holds two 512-byte records, at offset 0 and 512. A file the player creates reads as zero in its first 4 KB, so a new file is two empty records. A record is one header block (magic `DSSJ`, version 2, count 0, binding = the library's content fingerprint) with 280 bytes of payload inside it:
 
 | Offset in the record | Bytes | Content |
 |---|---|---|
@@ -13,6 +13,13 @@
 | 288 | 4 | generation of the stored order the queue plays |
 | 292 | 1 | queue kind |
 | 293 | 3 | 0 |
+| 296 | 4 | active cassette tape generation |
+| 300 | 2 | resolved cassette entry count |
+| 302 | 2 | Side A entry count (the Side B start) |
+| 304 | 1 | catalogue slot |
+| 305 | 1 | side: 0 = A, 1 = B |
+| 306 | 1 | bit 0 cassette active; bit 1 side finished; other bits 0 |
+| 307 | 1 | 0 |
 
 | Queue kind | Queue | Requires |
 |---|---|---|
@@ -54,3 +61,7 @@ The journal is what makes a new bank of the stored order the queue, in the order
 ## Tests
 
 `test_session_journal`: the round trip, a write cut after every byte count from 0 to 512, an unreadable read-back, a refused write, the previous record and a damaged newest one, another library's record, invalid indices, an unsupported version, generation wrap, and the record's layout.
+
+## Cassette sessions
+
+Version 1 records with 268-byte payloads still load, with cassette mode off. Version 2 keeps all existing fields at their original offsets and adds the 12-byte cassette state. Ordinary sessions encode that state as zeros. An active cassette requires a stored queue, two nonempty sides of at most 64 entries, a slot below 32, a side of A or B and a cursor within that side. A finished-side flag requires the last entry of that side. The player also checks that the stored order has the cassette's recorded count. Side, cursor, position and pending flip are published together; a torn flip save therefore reopens a whole earlier or newer session. Unknown future versions remain protected from writes.

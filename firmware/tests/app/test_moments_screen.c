@@ -103,12 +103,29 @@ static void saving_without_a_track_gives_feedback_and_creates_no_file(void)
     CHECK_EQUAL(0, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/moments.bin"));
 }
 
+static void every_visible_moment_has_a_label_in_small_portrait(void)
+{
+    reset();
+    default_theme_set_text_size(&theme, TEXT_SIZE_SMALL);
+    default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
+    CHECK(player_play_list(&player, browse_root_query(BROWSE_ALL_SONGS), 0, 0));
+    open_screen();
+    for (int index = 0; index < 16; index++) {
+        choose(0, KEY_GESTURE_PRESS);
+        finish();
+    }
+    for (int row = moments.list.top; row < moments.list.top + moments.list.visible_rows; row++) {
+        CHECK(moments.model.label(&moments, row)[0] != 0);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_saved_moment_plays_its_exact_position_after_restart_and_rescan),
         TEST_CASE(hold_delete_removes_only_the_chosen_moment_after_confirmation),
         TEST_CASE(saving_without_a_track_gives_feedback_and_creates_no_file),
+        TEST_CASE(every_visible_moment_has_a_label_in_small_portrait),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

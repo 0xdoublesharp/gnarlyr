@@ -8,7 +8,7 @@ Gnarlyr 1.0.0 is not released. The repository and device rules are in `../AGENTS
 
 `identity.json` is the single source for `name` ("Gnarlyr": the USB product name and the start-up splash), `short_name` ("Gnarlyr" too: the Home title, and the splash where the name is too wide), `manufacturer` ("Doublesharp": the USB manufacturer name), `id` ("GNARLYR": the image brand, padded with zero bytes to its 8 bytes, and the USB storage vendor, padded with spaces to its 8 characters), the version, `data_directory` (`.gnarlyr`), `update_file` (`GNARLYR.IMG`) and `playlist_start_directive` (`GNARLYR-START`). The build, the C code and the tools read it. Never write a name, the identifier or the version anywhere else in code or tests; change the file. C reads the `FIRMWARE_*` definitions, the firmware's Python tools read `tools/identity.py`, and the root tools read `echo_debug.IDENTITY`. The `no_identity_literals` test (`tools/check_identity_literals.py`) and the root test `tests/test_identity_literals.py` fail when a source file spells one of these names, or a former identifier listed in `former_ids`, outside `identity.json` and the generated fixtures. In documents, write Gnarlyr.
 
-The four-byte file markers beginning with `DS` remain maker format tags; the binary settings, library and mixtape layouts are unchanged. The canonical identifier, data folder, update filename and playlist directive now follow the Gnarlyr identity. Moving an installed developer build to these identifiers requires the prepared update/data transition; preserve its settings and saved music state before the first canonical boot.
+The four-byte file markers beginning with `DS` remain maker format tags. Settings and library layouts are unchanged; versioned cassette catalogue and session extensions are described in `docs/mixtapes.md` and `docs/session-journal.md`. The canonical identifier, data folder, update filename and playlist directive now follow the Gnarlyr identity. Moving an installed developer build to these identifiers requires the prepared update/data transition; preserve its settings and saved music state before the first canonical boot.
 
 ## Layout
 
@@ -72,22 +72,22 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 150,264 | 157,292 | 7,028 |
-| Code window, `device` preset | 154,584 | 157,292 | 2,708 |
-| Static RAM | 267,044 | 278,528 | 11,484 |
+| Code window | 151,104 | 157,292 | 6,188 |
+| Code window, `device` preset | 155,440 | 157,292 | 1,852 |
+| Static RAM | 267,588 | 278,528 | 10,940 |
 | Rescan overlay (code + BSS) | 95,128 | 98,304 | 3,176 |
 | USB overlay code | 12,012 | 65,536 | 53,524 |
-| Module views (code + BSS) | 25,328 | 44,032 | 18,704 |
+| Module views (code + BSS) | 27,736 | 44,032 | 16,296 |
 | Module settings (code + BSS) | 22,100 | 44,032 | 21,932 |
-| Module library (code + BSS) | 39,544 | 44,032 | 4,488 |
-| Module listening (code + BSS) | 32,400 | 44,032 | 11,632 |
+| Module library (code + BSS) | 39,936 | 44,032 | 4,096 |
+| Module listening (code + BSS) | 32,836 | 44,032 | 11,196 |
 | Audio processing module (code, no BSS) | 2,752 | 12,288 | 9,536 |
 | Audio DSP module (code, no BSS) | 5,928 | 8,192 | 2,264 |
 | Ogg file module, Vorbis and Opus (code, no BSS) | 6,656 | 8,192 | 1,536 |
 | Extension module (code, no BSS) | 3,524 | 8,192 | 4,668 |
 | Extension module, `device` preset | 7,552 | 8,192 | 640 |
 | Decoder workspace | 41,648 | 41,984 | 336 |
-| Language pack (English) | 8,977 | 16,384 | 7,407 |
+| Language pack (English) | 9,364 | 16,384 | 7,020 |
 | Vorbis program image bank | 64,840 | 130,048 | 65,208 |
 | Vorbis core-1 static state | 32,952 | 36,864 | 3,912 |
 | Opus program image bank | 98,928 | 131,072 | 32,144 |

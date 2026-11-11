@@ -1718,6 +1718,18 @@ static void run_debug_script(uint32_t now_ms)
     }
 }
 
+static void follow_destination(Screen **pending, uint32_t now_ms)
+{
+    Screen *destination = *pending;
+    if (destination != NULL) {
+        *pending = NULL;
+        if (apply_action(screen_action_push(destination), now_ms)) {
+            screen_changed();
+            app.render_urgent = true;
+        }
+    }
+}
+
 static void service_discovery(uint32_t now_ms)
 {
     if (!discovery_is_top()) {
@@ -1880,21 +1892,14 @@ CORE_SEAM void app_step(void)
     MixtapeUi *mixtapes = &app.screens.modules.views.mixtapes;
     if ((app.screens.bound_modules & (1u << SCREEN_MODULE_VIEWS)) != 0 &&
         mixtapes->destination != NULL) {
-        Screen *destination = mixtapes->destination;
-        mixtapes->destination = NULL;
-        if (apply_action(screen_action_push(destination), now_ms)) {
-            screen_changed();
-            app.render_urgent = true;
-        }
+        follow_destination(&mixtapes->destination, now_ms);
     }
     MomentsScreen *moments = &app.screens.modules.listening.moments;
     if (top_screen() == &moments->screen && moments->destination != NULL) {
-        Screen *destination = moments->destination;
-        moments->destination = NULL;
-        if (apply_action(screen_action_push(destination), now_ms)) {
-            screen_changed();
-            app.render_urgent = true;
-        }
+        follow_destination(&moments->destination, now_ms);
+    }
+    if (top_screen() == &app.screens.now_playing.screen) {
+        follow_destination(&app.screens.now_playing.destination, now_ms);
     }
     render_when_due(now_ms, started_us);
     wire_motion_end(&app.motion, &app.notice);
