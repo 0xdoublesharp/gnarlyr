@@ -1997,6 +1997,7 @@ class EchoImageTest(unittest.TestCase):
             before = machine.microseconds()
             machine.idle_until_interrupt()
             idle[0] += machine.microseconds() - before
+            machine.uc.emu_stop()
 
         machine.stub_symbol("board_profile_wait", rest)
         return idle

@@ -168,9 +168,10 @@ CORE_SEAM bool wire_motion_due(const WireMotion *motion, uint32_t now_ms)
 
 void wire_motion_tick(WireMotion *motion, uint32_t now_ms)
 {
-    motion->turn = (uint8_t)((now_ms - motion->started_ms) / WIRE_MOTION_TURN_MS);
+    uint32_t since = now_ms - motion->started_ms;
+    motion->turn = (uint8_t)(since / WIRE_MOTION_TURN_MS);
     motion->ticked = true;
-    motion->ticked_ms = now_ms;
+    motion->ticked_ms = now_ms - (since - WIRE_MOTION_DELAY_MS) % WIRE_MOTION_FRAME_MS;
 }
 
 Rect wire_motion_fit(Rect space)

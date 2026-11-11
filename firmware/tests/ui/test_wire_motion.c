@@ -109,6 +109,15 @@ static void frames_come_no_faster_than_the_frame_interval(void)
     CHECK(1000 / WIRE_MOTION_FRAME_MS >= 12);
 }
 
+static void late_frames_keep_the_frame_grid(void)
+{
+    WireMotion motion = shown(WIRE_SHAPE_DISC, 0);
+    uint32_t first = motion.ticked_ms;
+    wire_motion_tick(&motion, first + WIRE_MOTION_FRAME_MS + 20);
+    CHECK_EQUAL(first + WIRE_MOTION_FRAME_MS, motion.ticked_ms);
+    CHECK(wire_motion_due(&motion, first + 2 * WIRE_MOTION_FRAME_MS));
+}
+
 static void the_turn_follows_the_clock_not_the_frame_count(void)
 {
     WireMotion motion = shown(WIRE_SHAPE_ICOSAHEDRON, 0);
@@ -243,6 +252,7 @@ int main(void)
         TEST_CASE(every_model_joins_distinct_used_vertices_inside_the_unit_sphere),
         TEST_CASE(a_motion_waits_before_its_first_frame),
         TEST_CASE(frames_come_no_faster_than_the_frame_interval),
+        TEST_CASE(late_frames_keep_the_frame_grid),
         TEST_CASE(the_turn_follows_the_clock_not_the_frame_count),
         TEST_CASE(running_again_for_the_same_owner_and_shape_keeps_the_clock),
         TEST_CASE(only_the_owner_ends_a_motion),
