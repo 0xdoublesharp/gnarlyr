@@ -52,7 +52,6 @@ static void bind(AppScreens *screens)
         .language_requested = context->language_requested,
         .bluetooth = &own->bluetooth,
         .theme = context->styled_theme,
-        .sleep_option = 0,
     };
     bluetooth_screen_init(&own->bluetooth, context->bluetooth, context->theme);
     settings_screens_init(&own->settings, settings, context->theme);

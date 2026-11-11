@@ -718,3 +718,9 @@ In headless mode the simulator uses a virtual clock (16 ms per frame), so runs a
 ```sh
 build/dev/platform/sim/echo_sim --headless --frames 120 --keys down,down,down,play --screenshot shot.bmp
 ```
+
+## Sleep endings
+
+The existing Sleep timer picker adds two runtime end choices without persistent bytes. Both stop after the current library track, including a CUE range, M4B chapter or podcast episode. `player_set_stop_after_track` removes the queued successor, including Repeat One and Up Next; cancellation requeues it. The app fires the sleep policy after the player becomes idle. Manual skips move the ending to the newly selected track. Timed sleep counts wall uptime through pauses; end sleep waits while paused.
+
+The app passes the remaining time through `hal_audio_set_sleep_remaining`; UINT32_MAX cancels. The engine predicts the deadline on the output clock and applies a separate 60-second smoothstep ramp in `shape_block`, after the transition ramps and before EQ, through the existing processing module. Neither ReplayGain nor the saved volume changes. The simulator applies the same curve to its PCM gain. Buffered audio retains its existing shape when a timer is cancelled.

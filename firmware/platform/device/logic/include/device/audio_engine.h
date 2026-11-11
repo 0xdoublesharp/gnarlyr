@@ -146,6 +146,8 @@ typedef struct AudioEngine {
     uint32_t next_gain;
     uint32_t next_fade_ms;
     uint32_t decode_fade_ms;
+    uint32_t sleep_end_at;
+    bool sleep_fading;
     AudioFadeRamp fade_in;
     AudioFadeRamp fade_out;
     uint32_t output_gain;
@@ -183,3 +185,5 @@ AudioEngineStatus audio_engine_status(const AudioEngine *engine);
 AudioRefusal audio_engine_refusal(const AudioEngine *engine);
 
 void audio_engine_set_replay_gain(AudioEngine *engine, uint32_t token, uint32_t gain);
+
+void audio_engine_set_sleep_remaining(AudioEngine *engine, uint32_t remaining_ms);

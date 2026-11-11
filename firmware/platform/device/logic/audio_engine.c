@@ -511,6 +511,10 @@ static void shape_block(AudioEngine *engine, uint32_t first, bool tail)
              : fading_out(engine) && remaining_output(engine, &remaining)) {
         audio_fade_out(block, &engine->fade_out, remaining);
     }
+    if (engine->sleep_fading) {
+        AudioFadeRamp sleep = fade_ramp(engine, 60000, 0);
+        audio_fade_out(block, &sleep, (int32_t)(engine->sleep_end_at - engine->produced));
+    }
 }
 
 static void process_block(AudioEngine *engine, uint32_t first, bool tail)
@@ -860,4 +864,11 @@ CORE_COLD void audio_engine_set_replay_gain(AudioEngine *engine, uint32_t token,
     if (engine->has_next && engine->next_token == token) {
         engine->next_gain = gain;
     }
+}
+
+void audio_engine_set_sleep_remaining(AudioEngine *engine, uint32_t remaining_ms)
+{
+    engine->sleep_fading = remaining_ms <= 60000;
+    engine->sleep_end_at = engine->consumed + frame_limit(remaining_ms <= 60000 ? remaining_ms : 0,
+                                                          engine->output_rate);
 }

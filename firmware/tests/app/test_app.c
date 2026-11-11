@@ -106,6 +106,8 @@ static const char SHOOTS_PATH[] = "/acloudyskye/This Won't Be The Last Time/01 -
 
 static uint32_t now_ms;
 
+static const DebugScriptRun *run_script(const char *text, uint32_t duration_ms);
+
 static const Theme *expected_theme(void)
 {
     static Theme theme;
@@ -2424,6 +2426,39 @@ static void the_sleep_timer_silences_the_music_before_cutting_power(void)
     wait_ms(GOODBYE_MS);
     CHECK_EQUAL(1, fake_hal_power_off_count());
     CHECK_EQUAL(HAL_AUDIO_PAUSED, fake_hal_audio_state_at_power_off());
+}
+
+static void sleep_fade_tracks_the_deadline_and_off_cancels_it(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    hold_back();
+    open_setting(SETTINGS_SLEEP_INDEX);
+    move_down(1);
+    tap(KEY_PLAY);
+    wait_ms(FIFTEEN_MINUTES_MS - 30000);
+    CHECK(fake_hal_audio_sleep_remaining() <= 30000);
+    CHECK(fake_hal_audio_sleep_remaining() > 29000);
+    CHECK_EQUAL(0, fake_hal_power_off_count());
+    const DebugScriptRun *run = run_script("build any\nset Sleep timer=Off\n", 100);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
+    CHECK_EQUAL(UINT32_MAX, fake_hal_audio_sleep_remaining());
+    CHECK(fake_hal_audio_queued_path() != NULL);
+}
+
+static void end_of_track_sleep_does_not_start_the_queued_song(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    hold_back();
+    open_setting(SETTINGS_SLEEP_INDEX);
+    move_down(7);
+    tap(KEY_PLAY);
+    CHECK(fake_hal_audio_queued_path() == NULL);
+    fake_hal_audio_finish_track();
+    step();
+    wait_ms(GOODBYE_MS);
+    CHECK_EQUAL(1, fake_hal_power_off_count());
 }
 
 static void a_one_second_power_hold_only_turns_the_screen_off(void)
@@ -5412,6 +5447,8 @@ int main(void)
         TEST_CASE(holding_power_saves_and_turns_the_player_off),
         TEST_CASE(turning_off_while_playing_silences_the_music_before_cutting_power),
         TEST_CASE(the_sleep_timer_silences_the_music_before_cutting_power),
+        TEST_CASE(end_of_track_sleep_does_not_start_the_queued_song),
+        TEST_CASE(sleep_fade_tracks_the_deadline_and_off_cancels_it),
         TEST_CASE(a_one_second_power_hold_only_turns_the_screen_off),
         TEST_CASE(a_slightly_long_press_wakes_the_screen_without_switching_off),
         TEST_CASE(a_volume_hold_under_a_second_changes_the_volume),

@@ -129,8 +129,8 @@ static bool prepare_next(Player *player, TrackAudio *audio)
 {
     PlayQueueCursor upcoming = player->queue.cursor;
     uint16_t track = 0;
-    player->has_next =
-        upcoming_track(player, &upcoming, &track) && track_audio(player, track, audio);
+    player->has_next = !player->stop_after_track && upcoming_track(player, &upcoming, &track) &&
+                       track_audio(player, track, audio);
     if (!player->has_next) {
         return false;
     }
@@ -565,7 +565,8 @@ static void advance_to_next(Player *player)
 
 static void finish_track(Player *player, bool failed)
 {
-    if (failed && move_and_start(player, 1, player->repeat != REPEAT_OFF)) {
+    if (failed && !player->stop_after_track &&
+        move_and_start(player, 1, player->repeat != REPEAT_OFF)) {
         return;
     }
     become_idle(player);
@@ -993,4 +994,12 @@ void player_set_transitions(Player *player, bool fade, uint8_t tenths)
     player->fade_transitions = fade;
     player->transition_tenths = tenths;
     player_requeue(player);
+}
+
+void player_set_stop_after_track(Player *player, bool stop)
+{
+    if (player->stop_after_track != stop) {
+        player->stop_after_track = stop;
+        player_requeue(player);
+    }
 }

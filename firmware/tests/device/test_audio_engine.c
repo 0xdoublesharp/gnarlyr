@@ -1449,9 +1449,25 @@ static void headphones_compose_before_clipping_at_native_and_converted_rates(voi
     }
 }
 
+static void sleep_fades_in_the_pcm_stage_and_cancel_restores_unity(void)
+{
+    start_scripted_engine(0, 1);
+    CHECK(play_file("first", 0, 1));
+    audio_engine_set_sleep_remaining(&engine, 30000);
+    audio_engine_pump(&engine, 0);
+    int32_t half = (int32_t)ring[30] >> 8;
+    CHECK(half >= 2032 && half <= 2048);
+    CHECK(play_file("first", 0, 1));
+    scripted.frames_left = 1;
+    audio_engine_set_sleep_remaining(&engine, UINT32_MAX);
+    audio_engine_pump(&engine, 0);
+    CHECK_EQUAL(16, sixteen_bit_left(15));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(sleep_fades_in_the_pcm_stage_and_cancel_restores_unity),
         TEST_CASE(headphones_compose_before_clipping_at_native_and_converted_rates),
         TEST_CASE(replacing_a_buffered_next_song_keeps_the_current_position),
         TEST_CASE(clearing_a_buffered_next_song_leaves_only_the_current_tail),

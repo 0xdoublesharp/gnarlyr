@@ -46,6 +46,7 @@ typedef struct FakeAudio {
     uint32_t queued_replay_gain;
     uint32_t queued_fade_ms;
     uint32_t play_fade_ms;
+    uint32_t sleep_remaining_ms;
     int seek_count;
     uint32_t last_seek_ms;
     uint8_t volume;
@@ -1937,4 +1938,14 @@ uint32_t fake_hal_audio_queued_fade_ms(void)
 uint32_t fake_hal_audio_play_fade_ms(void)
 {
     return fake.audio.play_fade_ms;
+}
+
+void hal_audio_set_sleep_remaining(uint32_t remaining_ms)
+{
+    fake.audio.sleep_remaining_ms = remaining_ms;
+}
+
+uint32_t fake_hal_audio_sleep_remaining(void)
+{
+    return fake.audio.sleep_remaining_ms;
 }

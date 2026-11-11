@@ -27,8 +27,8 @@ static const StringId SHUFFLE_OPTIONS[SHUFFLE_MODE_COUNT] = {STR_OFF, STR_SHUFFL
 static const StringId REPEAT_OPTIONS[REPEAT_MODE_COUNT] = {STR_OFF, STR_REPEAT_MODE_ONE,
                                                            STR_REPEAT_MODE_ALL};
 static const StringId SLEEP_OPTIONS[SLEEP_TIMER_OPTION_COUNT] = {
-    STR_OFF,        STR_MINUTES_15, STR_MINUTES_30, STR_MINUTES_45,
-    STR_MINUTES_60, STR_MINUTES_90, STR_MINUTES_120};
+    STR_OFF,        STR_MINUTES_15,  STR_MINUTES_30,      STR_MINUTES_45,       STR_MINUTES_60,
+    STR_MINUTES_90, STR_MINUTES_120, STR_SLEEP_END_TRACK, STR_SLEEP_END_CHAPTER};
 static const StringId AUTO_OFF_OPTIONS[AUTO_OFF_OPTION_COUNT] = {STR_OFF, STR_MINUTES_1,
                                                                  STR_MINUTES_5, STR_MINUTES_10};
 static const StringId TIMEOUT_OPTIONS[SCREEN_TIMEOUT_OPTION_COUNT] = {
@@ -124,7 +124,7 @@ static void choose_repeat(void *context, int index)
 static int current_sleep(const void *context)
 {
     const SettingsContext *settings = context;
-    return settings->power->sleep_timer_active ? settings->sleep_option : 0;
+    return settings->power->sleep_timer_active ? settings->power->sleep_option : 0;
 }
 
 static void choose_sleep(void *context, int index)
@@ -132,17 +132,20 @@ static void choose_sleep(void *context, int index)
     SettingsContext *settings = context;
     uint32_t now_ms = hal_clock_milliseconds();
     uint32_t minutes = settings_sleep_option_minutes(index);
-    settings->sleep_option = index;
-    if (minutes == 0) {
+    settings->power->sleep_option = (uint8_t)index;
+    if (index == 0) {
         power_policy_cancel_sleep_timer(settings->power);
     } else {
         power_policy_start_sleep_timer(settings->power, minutes * MILLISECONDS_PER_MINUTE, now_ms);
     }
+    settings->power->sleep_track_end = index >= SLEEP_END_TRACK;
+    player_set_stop_after_track(settings->player, index >= SLEEP_END_TRACK);
     StringBuilder message = string_builder_make(settings->message, sizeof settings->message);
-    if (minutes == 0) {
+    if (index == 0) {
         string_builder_append(&message, i18n_text(STR_SLEEP_OFF));
     } else {
-        i18n_format_text(&message, STR_SLEEP_IN, i18n_text(SLEEP_OPTIONS[index]));
+        i18n_format_text(&message, index >= SLEEP_END_TRACK ? STR_SLEEP_AT : STR_SLEEP_IN,
+                         i18n_text(SLEEP_OPTIONS[index]));
     }
     toast_show(settings->toast, settings->message, now_ms);
 }

@@ -1000,3 +1000,8 @@ bool board_audio_workspace_lent(void)
 {
     return !workspace_loan_claimable(&workspace_loan);
 }
+
+CORE_SEAM void hal_audio_set_sleep_remaining(uint32_t remaining_ms)
+{
+    audio_engine_set_sleep_remaining(&engine, remaining_ms);
+}

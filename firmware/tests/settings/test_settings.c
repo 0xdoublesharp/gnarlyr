@@ -812,7 +812,7 @@ static void sleep_options_start_with_off(void)
 {
     CHECK_EQUAL(0, settings_sleep_option_minutes(0));
     CHECK_EQUAL(15, settings_sleep_option_minutes(1));
-    CHECK_EQUAL(120, settings_sleep_option_minutes(SLEEP_TIMER_OPTION_COUNT - 1));
+    CHECK_EQUAL(120, settings_sleep_option_minutes(SLEEP_END_TRACK - 1));
 }
 
 static void settings_survive_a_round_trip(void)

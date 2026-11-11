@@ -38,6 +38,7 @@ typedef struct SimAudio {
     HalAudioState state;
     bool failed;
     float gain;
+    float sleep_gain;
     HalAudioGain analog_gain;
     HalAudioOutput output;
     HalAudioEqualizer equalizer;
@@ -148,7 +149,7 @@ static bool decode_chunk(void)
     if (frames == 0) {
         return switch_to_next();
     }
-    float gain = audio.gain * track->replay_gain;
+    float gain = audio.gain * track->replay_gain * audio.sleep_gain;
     for (uint64_t sample = 0; sample < frames * STEREO; sample++) {
         uint32_t channel = sample % STEREO == 0 ? audio.headphones.left : audio.headphones.right;
         float value = chunk[sample] * gain * ((float)channel / REPLAY_GAIN_UNITY);
@@ -204,6 +205,7 @@ bool sim_audio_start(bool virtual_output)
     SDL_memset(&audio, 0, sizeof audio);
     audio.virtual_output = virtual_output;
     audio.gain = 1.0f;
+    audio.sleep_gain = 1.0f;
     audio.volume = HAL_AUDIO_VOLUME_MAX;
     audio.headphones = headphone_audio_defaults();
     audio.state = HAL_AUDIO_STOPPED;
@@ -447,5 +449,13 @@ void hal_audio_set_replay_gain(uint32_t token, uint32_t gain)
             audio.slots[index].replay_gain = (float)(gain != 0 ? gain : 65536) / 65536;
         }
     }
+    unlock();
+}
+
+void hal_audio_set_sleep_remaining(uint32_t remaining_ms)
+{
+    float x = remaining_ms < 60000 ? (float)remaining_ms / 60000 : 1.0f;
+    lock();
+    audio.sleep_gain = x * x * (3.0f - 2.0f * x);
     unlock();
 }

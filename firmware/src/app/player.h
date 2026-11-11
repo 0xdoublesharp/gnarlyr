@@ -113,6 +113,7 @@ typedef struct Player {
     uint8_t replay_gain_mode;
     bool prevent_clipping;
     bool fade_transitions;
+    bool stop_after_track;
     uint8_t transition_tenths;
     PlayerState state;
     bool has_track;
@@ -180,3 +181,5 @@ PlayerStatus player_status(const Player *player);
 
 void player_set_replay_gain(Player *player, ReplayGainMode mode, bool prevent_clipping);
 void player_set_transitions(Player *player, bool fade, uint8_t tenths);
+
+void player_set_stop_after_track(Player *player, bool stop);
