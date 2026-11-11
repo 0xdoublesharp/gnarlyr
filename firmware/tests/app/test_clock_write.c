@@ -1,5 +1,6 @@
 #include "check.h"
 #include "extension_entry.h"
+#include "hal/audio.h"
 #include "hal/clock.h"
 #include "hal/system.h"
 
@@ -23,6 +24,11 @@ static bool restore_clock(int16_t offset)
 }
 
 static const ExtensionModuleEntry code = {.clock_set = set_clock, .clock_restore = restore_clock};
+
+void hal_audio_set_headphones(HeadphoneAudio profile)
+{
+    (void)profile;
+}
 
 const void *hal_system_extension_code(void)
 {
