@@ -149,8 +149,8 @@ static void read_extension(const uint8_t *extension, Settings *settings)
     settings->track_transition = (TrackTransition)(comfort >> TRANSITION_SHIFT);
     settings->safe_start_volume_level = extension[SAFE_LEVEL_BYTE];
     settings->transition_tenths = extension[TRANSITION_BYTE];
-    settings_home_unpack(extension + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT, settings->home_order,
-                         &settings->home_hidden);
+    settings_home_unpack(extension + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT,
+                         settings->home_order, &settings->home_hidden);
 }
 
 Settings settings_defaults(void)
