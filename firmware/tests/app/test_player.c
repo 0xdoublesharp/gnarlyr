@@ -272,7 +272,7 @@ static void refusals_explain_themselves(void)
                         sizeof text);
     CHECK(path_is(text, "Only AAC-LC and ALAC M4A play"));
     player_refusal_text((HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_APE}, text, sizeof text);
-    CHECK(path_is(text, "APE: Fast/Normal, or High up to 96 kHz"));
+    CHECK(path_is(text, "APE rate or compression isn't supported"));
     player_refusal_text((HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_WMA}, text, sizeof text);
     CHECK(path_is(text, "Only WMA Standard (v1/v2) plays"));
     player_refusal_text((HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_UNREADABLE}, text,

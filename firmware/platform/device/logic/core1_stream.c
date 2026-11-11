@@ -198,8 +198,10 @@ bool core1_stream_step(Core1Stream *stream)
 void core1_source_init(Core1Source *source, StreamRegion region, FlacFileOpener files,
                        FlacDecoder *decoder, uint32_t fill_budget)
 {
-    *source = (Core1Source){
-        .region = region, .fill_budget = fill_budget, .ring_capacity = region.ring_bytes};
+    *source = (Core1Source){.region = region,
+                            .fill_budget = fill_budget,
+                            .ring_capacity = region.ring_bytes,
+                            .clock_mhz = APE_LIMIT_BASE_MHZ};
     flac_source_init(&source->flac, files, decoder);
 }
 

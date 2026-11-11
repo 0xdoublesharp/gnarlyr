@@ -464,7 +464,7 @@ endforeach()
 foreach(module IN LISTS ECHO_SCREEN_MODULES)
     if(module STREQUAL "process")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_process.ld)
-    elseif(module STREQUAL "dsp" OR module STREQUAL "ogg" OR module STREQUAL "ape" OR module STREQUAL "wma")
+    elseif(module STREQUAL "dsp" OR module STREQUAL "ogg" OR module STREQUAL "ape_wma")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_dsp.ld)
     elseif(module STREQUAL "extension")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/extension_module.ld)
@@ -519,18 +519,13 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             wire_motion_tick=extension_wire_motion_tick
         )
     endif()
-    if(module STREQUAL "wma")
+    if(module STREQUAL "ape_wma")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)
         target_compile_definitions(${module_target}_objects PRIVATE
-            core1_open_wma=audio_wma_open
-            asf_stream_read=audio_wma_read
-        )
-    endif()
-    if(module STREQUAL "ape")
-        target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)
-        target_compile_definitions(${module_target}_objects PRIVATE
-            core1_open_ape=audio_ape_open
-            ape_stream_read=audio_ape_read
+            core1_open_ape=audio_files_open_ape
+            core1_open_wma=audio_files_open_wma
+            ape_stream_read=audio_files_read_ape
+            asf_stream_read=audio_files_read_wma
         )
     endif()
     if(module STREQUAL "ogg")

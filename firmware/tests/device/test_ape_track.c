@@ -96,9 +96,39 @@ static void accepts_supported_depths_channels_and_rates(void)
     }
 }
 
+static void playback_limits_follow_the_actual_core_clock_and_channel_cost(void)
+{
+    static const struct {
+        uint16_t level;
+        uint16_t channels;
+        uint32_t accepted;
+        uint32_t refused;
+    } limits[] = {{1000, 1, 192000, 0},     {1000, 2, 96000, 176400}, {2000, 1, 192000, 0},
+                  {2000, 2, 96000, 176400}, {3000, 1, 96000, 176400}, {3000, 2, 48000, 88200}};
+    for (uint32_t index = 0; index < sizeof limits / sizeof limits[0]; index++) {
+        ApeTrack track = {.level = limits[index].level,
+                          .channels = limits[index].channels,
+                          .bits = 24,
+                          .rate = limits[index].accepted};
+        CHECK(ape_track_realtime(&track, 100));
+        CHECK(!ape_track_realtime(&track, 0));
+        if (limits[index].refused != 0) {
+            track.rate = limits[index].refused;
+            CHECK(!ape_track_realtime(&track, 100));
+            CHECK(ape_track_realtime(&track, 200));
+        }
+    }
+    ApeTrack extra = {.level = 4000, .channels = 1, .bits = 16, .rate = 8000};
+    CHECK(!ape_track_realtime(&extra, 100));
+    CHECK(!ape_track_realtime(&extra, 200));
+    extra.level = 5000;
+    CHECK(!ape_track_realtime(&extra, 200));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(playback_limits_follow_the_actual_core_clock_and_channel_cost),
         TEST_CASE(probes_modern_headers_and_uses_word_aligned_seek_entries),
         TEST_CASE(refuses_damaged_bounds_without_replacing_the_result),
         TEST_CASE(accepts_supported_depths_channels_and_rates),

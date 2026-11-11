@@ -121,6 +121,7 @@ typedef struct Core1Source {
     uint32_t play_end;
     uint32_t fill_budget;
     uint32_t ring_capacity;
+    uint32_t clock_mhz;
     M4aStream *m4a;
     ApeStream *ape;
     AsfStream *asf;

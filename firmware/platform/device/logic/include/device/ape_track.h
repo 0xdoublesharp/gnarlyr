@@ -5,6 +5,7 @@
 #include "codec/flac.h"
 
 enum {
+    APE_LIMIT_BASE_MHZ = 100,
     APE_CONFIG_BYTES = 24,
     APE_RECORD_BYTES = 16,
     APE_VIRTUAL_END = 0x7FFFFFFF,
@@ -44,3 +45,5 @@ static inline bool ape_track_allowed(const ApeTrack *track)
            track->channels >= 1 && track->channels <= 2 && track->rate >= 8000 &&
            track->rate <= 192000;
 }
+
+bool ape_track_realtime(const ApeTrack *track, uint32_t clock_mhz);

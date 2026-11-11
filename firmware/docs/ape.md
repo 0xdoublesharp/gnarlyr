@@ -4,7 +4,7 @@ APE decoding uses a separate core-1 program built from the GPL-2.0-or-later Rock
 
 The checked file reader accepts APE versions 3.97–3.99, 16/24-bit mono/stereo and 8–192 kHz header rates. It reads seek-table entries from the file, validates their bounds and increasing order, and starts decoding at the frame containing a requested sample. The existing audio source trims decoded output to that exact sample. APE has an exact sample count and no encoder delay or padding; the source exposes that count for gapless queueing. Device listening remains untested.
 
-Audio module 9 contains the probe, seek and file adapter together with the shared resampling entry. It occupies the same 8 KiB audio bank as MP4 and Ogg, with zero BSS and caller-owned state in the existing decoder workspace. Resident code only selects the program and dispatches the module's open/read calls. Audio-bank resampler preparation preserves a loaded APE module, and read dispatch checks its identity before calling into it.
+Audio module 13 contains the APE probe, seek and file adapter together with ASF/WMA file operations and the shared resampling entry. Module numbers 9–12 are reserved for other features. It occupies the same 8 KiB audio bank as MP4 and Ogg, with zero BSS and caller-owned state in the existing decoder workspace. Resident code only selects the program and dispatches the module's open/read calls. Audio-bank resampler preparation preserves a loaded APE module, and read dispatch checks its identity before calling into it.
 
 The stream begins with six little-endian words: version, level, bits, channels, rate and reserved zero. Each frame has four little-endian words: compressed byte count, sample count, leading alignment bytes to skip and first sample. The compressed bytes include the preceding partial word and one look-ahead word. The final frame can use zero-filled look-ahead beyond EOF. A zero byte count ends the stream; fill requests beyond that marker receive zeros. Failed storage reads are sticky errors, never clean end markers.
 
@@ -16,7 +16,16 @@ Native tests compare every decoded sample with deterministic input independently
 
 ## Instruction budget and admitted streams
 
-At 200 MHz, 20 ms has four million cycles. The opener accepts Fast and Normal through 192 kHz and High through 96 kHz. It refuses Extra High and Insane, and refuses High above 96 kHz before publishing a stream generation. The decoder test harness can exercise the refused levels to measure their cost.
+Core 1 runs at 100 MHz: `core1_divider_for` divides the 200 MHz PLL by two, so 20 ms has 2,000,000 cycles. The opener reads the actual PLL/divider clock and applies the table below before publishing a stream generation. Both 16-bit and 24-bit files use these bounds.
+
+| Compression | Mono at 100 MHz | Stereo at 100 MHz |
+| --- | ---: | ---: |
+| Fast | 192 kHz | 96 kHz |
+| Normal | 192 kHz | 96 kHz |
+| High | 96 kHz | 48 kHz |
+| Extra High / Insane | Refused | Refused |
+
+`ape_track_realtime` stores the rate table against a 100 MHz baseline and scales it with the actual core clock, capped by the existing 192 kHz stream limit. A later approved 200 MHz clock therefore permits Fast/Normal stereo through 192 kHz, High stereo through 96 kHz and High mono through 192 kHz. Tests cover both budgets. Extra High and Insane remain refused until explicitly admitted by a measured profile. The decoder harness can still exercise refused rates and levels for measurement.
 
 | Fixture | Core-1 instructions per 20 ms |
 | --- | ---: |
@@ -29,5 +38,8 @@ At 200 MHz, 20 ms has four million cycles. The opener accepts Fast and Normal th
 | Normal, 24-bit stereo, 192 kHz | 3,671,875 |
 | High, 24-bit stereo, 96 kHz | 3,218,750 |
 | Normal, 24-bit mono, 192 kHz | 1,530,625 |
+| Fast, 24-bit stereo, 96 kHz | 1,153,750 |
+| Normal, 24-bit stereo, 96 kHz | 1,835,938 |
+| High, 24-bit mono, 96 kHz | 1,406,250 |
 
-Counts include CRC, copying and transport. They are measured on deterministic fixtures, not a bound for every recording. Extra High and Insane exceed even an ideal one-cycle-per-instruction budget at 48 kHz; High at 192 kHz would need about twice its 96 kHz count. Admitted high-rate streams still need player cycle/load and listening checks: loads, multiplies, branches, memory waits and storage contention consume additional cycles. The owner has not authorized player testing for this change.
+Counts include CRC, copying and transport. They are measured on deterministic fixtures, not a bound for every recording. Extra High and Insane exceed even an ideal one-cycle-per-instruction budget at 48 kHz. Fast/Normal 24-bit stereo at 192 kHz and High stereo at 96 kHz also exceed the 100 MHz budget and are refused. Admitted high-rate streams still need player cycle/load and listening checks: loads, multiplies, branches, memory waits and storage contention consume additional cycles. Player testing is outside this change.

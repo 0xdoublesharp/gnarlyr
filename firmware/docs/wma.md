@@ -4,7 +4,7 @@ WMA v1/v2 (`0x0160` and `0x0161`) decode in a separate core-1 program. The fixed
 
 ## ASF and source positions
 
-Audio module 10 contains the checked ASF object walk, packet parser, object reassembly, source opener and common resampling entry. It has zero BSS and shares the existing 8 KiB audio bank with MP4, Ogg and APE. Its caller-owned state fits the existing decoder workspace. Resident code selects the program and dispatches open/read calls; it keeps no file-adapter function pointer into an evicted module.
+Audio module 13 contains the checked ASF object walk, packet parser, object reassembly and WMA source opener together with APE file operations and the common resampling entry. It has zero BSS and shares the existing 8 KiB audio bank with MP4, Ogg and APE. Its caller-owned state fits the existing decoder workspace. Resident code selects the program and dispatches open/read calls; it keeps no file-adapter function pointer into an evicted module.
 
 The parser validates object sizes and 64-bit bounds before narrowing offsets, file/data packet counts, stream identity, subtype and configuration. It accepts fixed-size ASF packets up to 16 KiB, media objects up to 16 KiB, and codec packets up to 4 KiB. It handles multiple payloads, fragmented objects and compressed subpayloads; an incomplete object or storage failure is a sticky error. Other stream payloads are skipped. ASF metadata and `WM/Picture` covers continue through the existing library tag reader.
 
@@ -31,4 +31,4 @@ Native and Cortex-M3 tests compare against independent ffmpeg decoding: exact le
 | WMA v2 stereo, 44.1 kHz, 96 kbit/s | 306,523 |
 | Same stereo fixture after seeking | 318,496 |
 
-Counts include setup, transport and copying. They measure instructions, not hardware cycles. Playback on both outputs, cycle margin, busy-card behavior and gapless listening still need checks on the owner’s player.
+Core 1 runs at 100 MHz, with 2,000,000 cycles per 20 ms. Counts include setup, transport and copying. They measure instructions, not hardware cycles. Playback on both outputs, cycle margin, busy-card behavior and gapless listening still need checks on the owner’s player.

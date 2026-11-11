@@ -32,7 +32,7 @@ bool core1_open_ape(void *context, const char *path, uint32_t start_ms, AudioTra
     source->file_open = true;
     ApeTrack ape;
     if (source->ring_capacity < APE_RING_BYTES || !ape_track_probe(source->input, &ape) ||
-        ape.level > 3000 || (ape.level == 3000 && ape.rate > 96000)) {
+        !ape_track_realtime(&ape, source->clock_mhz)) {
         core1_source_stop(source);
         return false;
     }

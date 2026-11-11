@@ -510,6 +510,20 @@ class ModuleTest(unittest.TestCase):
         self.assertEqual(offset, self.rows(second)[0][0])
         self.assertNotEqual(word(first, offset + 12), word(second, offset + 12))
 
+    def test_reserved_module_numbers_stay_empty_before_audio_module_13(self):
+        modules = [module_blob(number) for number in range(1, 9)] + [module_blob(13)]
+        image = build(modules=modules)
+        rows = self.rows(image)
+        self.assertEqual(13, len(rows))
+        self.assertEqual([(0, 0)] * 4, rows[8:12])
+        offset, size = rows[12]
+        self.assertEqual(b"DSM\x0d", image[offset:offset + 4])
+        self.assertEqual(len(modules[-1]), size)
+        self.assertEqual((make_image.AUDIO_MODULE_BASE, make_image.AUDIO_MODULE_CAPACITY),
+                         make_image.module_window(13))
+        with self.assertRaises(make_image.ImageError):
+            build(modules=[module_blob(13), module_blob(13)])
+
     def test_modules_given_out_of_order_are_refused(self):
         with self.assertRaises(make_image.ImageError):
             build(modules=[module_blob(2), module_blob(1)])

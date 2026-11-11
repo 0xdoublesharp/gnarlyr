@@ -526,7 +526,7 @@ STR_CODEC_OPUS = Opus
 STR_CODEC_WMA = WMA
 STR_WMA_UNSUPPORTED = Only WMA Standard (v1/v2) plays
 STR_CODEC_APE = APE
-STR_APE_UNSUPPORTED = APE: Fast/Normal, or High up to 96 kHz
+STR_APE_UNSUPPORTED = APE rate or compression isn't supported
 
 STR_REPLAY_GAIN = ReplayGain
 STR_REPLAY_GAIN_TRACK = Track

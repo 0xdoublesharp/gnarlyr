@@ -79,9 +79,10 @@ static void reference(const char *name, uint32_t first_frame)
 
 static void all_levels_match_the_independent_reference_sample_for_sample(void)
 {
-    static const char *const names[] = {"fast16",       "normal24",       "high16",
-                                        "extra16",      "insane16",       "normal16",
-                                        "fast24stereo", "normal24stereo", "high24stereo"};
+    static const char *const names[] = {"fast16",         "normal24",         "high16",
+                                        "extra16",        "insane16",         "normal16",
+                                        "fast24stereo",   "normal24stereo",   "high24stereo",
+                                        "fast24stereo96", "normal24stereo96", "high24mono96"};
     for (uint32_t index = 0; index < sizeof names / sizeof names[0]; index++) {
         reference(names[index], 0);
     }

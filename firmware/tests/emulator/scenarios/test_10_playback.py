@@ -183,7 +183,7 @@ class EchoImageTest(EchoImageHarness):
             until_ms=machine.milliseconds() + 3000))
         self.assertIsNotNone(rig.first_audio_after(started))
         self.assertEqual([CORE1_WMA], bridge.started)
-        _, wma = self.module(machine, "wma")
+        _, wma = self.module(machine, "ape_wma")
         self.assertTrue(wma.loaded(machine))
         control = struct.unpack("<31I", machine.read_memory(0x01020100, 124))
         self.assertEqual((44100, 2, 29, 88064), (control[1], control[2], control[3], control[6]))
@@ -209,7 +209,7 @@ class EchoImageTest(EchoImageHarness):
             until_ms=machine.milliseconds() + 3000))
         self.assertIsNotNone(rig.first_audio_after(started))
         self.assertEqual([CORE1_APE], bridge.started)
-        _, ape = self.module(machine, "ape")
+        _, ape = self.module(machine, "ape_wma")
         self.assertTrue(ape.loaded(machine))
         control = struct.unpack("<31I", machine.read_memory(0x01020100, 124))
         self.assertEqual((8000, 1, 16, 295936, 294912),

@@ -57,11 +57,10 @@ target_compile_definitions(echo_faad PRIVATE
 target_compile_options(echo_faad PRIVATE -w)
 
 add_library(echo_device_logic STATIC
-    audio_ape_entry.c
     core1_ape_source.c
     ape_stream.c
     core1_ape.c
-    audio_wma_entry.c
+    audio_ape_wma_entry.c
     core1_wma_source.c
     core1_wma.c
     asf_stream.c

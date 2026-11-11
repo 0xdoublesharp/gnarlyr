@@ -30,7 +30,7 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Playback fixes
 
-- APE: dedicated core-1 decoding, 16/24-bit mono/stereo, Fast/Normal through 192 kHz and High through 96 kHz, exact seek-table starts and sample lengths. Extra High/Insane are refused.
+- APE: dedicated core-1 decoding, 16/24-bit mono/stereo, Fast/Normal through 192 kHz mono or 96 kHz stereo, High through 96 kHz mono or 48 kHz stereo at the actual 100 MHz core clock, exact seek-table starts and sample lengths. Extra High/Insane are refused.
 - WMA Standard v1/v2: fixed-point core-1 decoding with checked ASF demuxing, tags/covers, timestamp-guided seeks, priming trim and final-overlap drain. Pro, Lossless, Voice and encrypted files are refused. Encoder padding remains when it is not described by the file.
 - Both codecs have native/reference and ARM decoder/player checks. Physical playback and cycle margins remain untested.
 

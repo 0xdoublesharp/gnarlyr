@@ -119,7 +119,7 @@ def module_overlay(image, offset, module_elfs):
 def module_overlays(image, module_elfs):
     """The image's modules in the order of their numbers, each with the ELF it was built from."""
     return [module_overlay(image, offset, module_elfs)
-            for offset, _ in make_image.modules_in(image)]
+            for offset, size in make_image.modules_in(image) if size != 0]
 
 
 class Machine:

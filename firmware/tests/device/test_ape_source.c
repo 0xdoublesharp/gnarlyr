@@ -152,9 +152,28 @@ static void queued_tracks_add_no_gap_or_extra_output_frames(void)
     m4a_file_free(&file);
 }
 
+static void opener_admission_changes_with_the_reported_core_clock(void)
+{
+    file = m4a_file_load("ape/high24stereo.ape");
+    CHECK(file.size > 0);
+    setup();
+    AudioSource audio = core1_source_interface(&source, CORE1_FORMAT_APE);
+    AudioTrackInfo track;
+    CHECK(!audio.open(audio.context, "high96.ape", 0, &track));
+    CHECK_EQUAL(0, control.generation);
+    source.clock_mhz = 200;
+    CHECK(audio.open(audio.context, "high96.ape", 0, &track));
+    CHECK_EQUAL(96000, track.stream.sample_rate);
+    CHECK(control.generation != 0);
+    audio.close(audio.context);
+    CHECK_EQUAL(2, closes);
+    m4a_file_free(&file);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(opener_admission_changes_with_the_reported_core_clock),
         TEST_CASE(queued_tracks_add_no_gap_or_extra_output_frames),
         TEST_CASE(real_ring_streaming_has_exact_length_and_sample_precise_seeks),
         TEST_CASE(invalid_files_close_without_publishing_a_generation),

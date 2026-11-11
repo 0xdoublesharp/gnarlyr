@@ -30,7 +30,7 @@ On the first start with a microSD card in the player, Gnarlyr builds its library
 
 - Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Settings → About → Music shows which one is in use. Settings are kept on internal storage either way, so they stay the same when you insert or remove the card.
 - Gnarlyr plays FLAC, MP3 and WAV, up to 192 kHz, and `.m4a` and `.m4b` files with AAC-LC or Apple Lossless audio. Speech recordings at 8, 11.025, 12, 16, 22.05 and 24 kHz are converted to 32, 44.1 or 48 kHz for playback; 32 kHz plays at its original rate. Speed and pitch stay the same. It lists the other formats FiiO lists, and says when it can't play one.
-- APE accepts 16/24-bit mono or stereo: Fast/Normal through 192 kHz or High through 96 kHz. WMA Standard v1/v2 accepts mono or stereo through 48 kHz; Pro, Lossless, Voice and encrypted WMA are refused. Tags and embedded covers appear in the library.
+- APE accepts 16/24-bit mono or stereo: Fast/Normal through 192 kHz mono or 96 kHz stereo; High through 96 kHz mono or 48 kHz stereo. WMA Standard v1/v2 accepts mono or stereo through 48 kHz; Pro, Lossless, Voice and encrypted WMA are refused. Tags and embedded covers appear in the library.
 - Ogg Vorbis (`.ogg`) accepts mono or stereo at 8–192 kHz within the decoder limits; Ogg Opus (`.opus`) accepts mono or stereo with channel mapping family 0. Chained Vorbis files play the first stream only. Large picture comments and separate interleaved streams are skipped during decoding. Both formats play in the desktop simulator; player listening and high-rate playback still need checking. See [format limits](ogg-vorbis.md).
 - Music → Folders shows the card as it is: folders, then each audio file by its full name with its extension (`01 Intro.mp3`). The other lists show titles from the tags. Hold ▶ on a folder there to play everything under it, subfolders included, in the order Folders shows it (a CUE album plays once, as its songs); the queue follows the shuffle setting and has no length limit beyond the library's 65,535 tracks.
 - A `.cue` file next to a single FLAC, WAV or MP3 album image splits it into one track per CUE track (see "CUE sheets" below). Album covers come from art inside each album's first track, or from a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks.
@@ -400,7 +400,7 @@ Place a timed `.lrc` file beside a song, with the same filename stem. Hold Menu 
 
 ## Monkey's Audio files
 
-APE files accept 16/24-bit mono or stereo. Use Fast or Normal compression through 192 kHz, or High through 96 kHz. Extra High and Insane compression are refused. APEv2 tags and embedded covers appear in the library.
+APE files accept 16/24-bit mono or stereo. Use Fast or Normal through 192 kHz for mono or 96 kHz for stereo. High accepts up to 96 kHz mono or 48 kHz stereo. Extra High and Insane compression are refused. APEv2 tags and embedded covers appear in the library.
 
 ## WMA files
 

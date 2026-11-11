@@ -268,6 +268,8 @@ static bool open_chosen(void *context, const char *path, uint32_t start_ms, Audi
     }
     if (source_kind != SOURCE_WAV) {
         using_core1 = board_core1_start_stream((Core1Program)source_kind);
+        uint32_t pll = hal_system_clock_mhz();
+        core1_source.clock_mhz = pll / core1_divider_for(pll);
         if (!using_core1 && source_kind != SOURCE_FLAC) {
             return false;
         }

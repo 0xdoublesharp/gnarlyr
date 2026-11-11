@@ -951,9 +951,9 @@ class EchoImageHarness(unittest.TestCase):
         return animated, still
 
     def module(self, machine, name):
-        for number, overlay in enumerate(machine.modules, 1):
+        for overlay in machine.modules:
             if overlay.name == MODULE_PREFIX + name:
-                return number, overlay
+                return overlay.header[3], overlay
         self.fail("the image has no module named " + name)
 
     def collect_toasts(self, machine):

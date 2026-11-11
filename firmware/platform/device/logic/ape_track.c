@@ -140,3 +140,30 @@ bool ape_track_frame(FlacInput input, const ApeTrack *track, uint32_t frame, Ape
                           frame + 1 == track->frames ? track->final_samples : track->frame_samples};
     return true;
 }
+
+typedef struct ApePlaybackLimit {
+    uint16_t level;
+    uint32_t mono_rate;
+    uint32_t stereo_rate;
+} ApePlaybackLimit;
+
+bool ape_track_realtime(const ApeTrack *track, uint32_t clock_mhz)
+{
+    static const ApePlaybackLimit LIMITS[] = {
+        {1000, 192000, 96000},
+        {2000, 192000, 96000},
+        {3000, 96000, 48000},
+    };
+    if (!ape_track_allowed(track) || clock_mhz == 0) {
+        return false;
+    }
+    for (uint32_t index = 0; index < sizeof LIMITS / sizeof LIMITS[0]; index++) {
+        if (track->level == LIMITS[index].level) {
+            uint32_t rate =
+                track->channels == 1 ? LIMITS[index].mono_rate : LIMITS[index].stereo_rate;
+            uint64_t maximum = (uint64_t)rate * clock_mhz / APE_LIMIT_BASE_MHZ;
+            return track->rate <= maximum;
+        }
+    }
+    return false;
+}

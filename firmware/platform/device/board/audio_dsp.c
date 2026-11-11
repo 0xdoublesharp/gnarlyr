@@ -1,10 +1,9 @@
 #include "audio_dsp.h"
 
 #include "core/seam.h"
-#include "device/audio_ape.h"
+#include "device/audio_ape_wma.h"
 #include "device/audio_dsp.h"
 #include "device/audio_ogg.h"
-#include "device/audio_wma.h"
 #include "device/core1_source_private.h"
 #include "overlay.h"
 
@@ -25,11 +24,8 @@ static bool load(uint32_t number, uint32_t magic)
 
 bool board_audio_dsp_prepare(void)
 {
-    if (entry()->magic == AUDIO_WMA_MAGIC) {
-        return load(AUDIO_WMA_NUMBER, AUDIO_WMA_MAGIC);
-    }
-    if (entry()->magic == AUDIO_APE_MAGIC) {
-        return load(AUDIO_APE_NUMBER, AUDIO_APE_MAGIC);
+    if (entry()->magic == AUDIO_APE_WMA_MAGIC) {
+        return load(AUDIO_APE_WMA_NUMBER, AUDIO_APE_WMA_MAGIC);
     }
     return entry()->magic == AUDIO_OGG_MAGIC ? load(AUDIO_OGG_NUMBER, AUDIO_OGG_MAGIC)
                                              : load(AUDIO_DSP_NUMBER, AUDIO_DSP_MAGIC);
@@ -73,8 +69,8 @@ CORE_SEAM bool core1_open_ogg(void *context, const char *path, uint32_t start_ms
 CORE_SEAM bool ogg_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
     const AudioOggEntry *ogg = (const AudioOggEntry *)entry();
-    if (entry()->magic == AUDIO_APE_MAGIC) {
-        return load(AUDIO_APE_NUMBER, AUDIO_APE_MAGIC);
+    if (entry()->magic == AUDIO_APE_WMA_MAGIC) {
+        return load(AUDIO_APE_WMA_NUMBER, AUDIO_APE_WMA_MAGIC);
     }
     return entry()->magic == AUDIO_OGG_MAGIC && ogg->read(context, offset, buffer, length);
 }
@@ -82,25 +78,27 @@ CORE_SEAM bool ogg_stream_read(void *context, uint32_t offset, void *buffer, uin
 CORE_SEAM bool core1_open_ape(void *context, const char *path, uint32_t start_ms,
                               AudioTrackInfo *track)
 {
-    const AudioApeEntry *ape = (const AudioApeEntry *)entry();
-    return load(AUDIO_APE_NUMBER, AUDIO_APE_MAGIC) && ape->open(context, path, start_ms, track);
+    const AudioApeWmaEntry *ape = (const AudioApeWmaEntry *)entry();
+    return load(AUDIO_APE_WMA_NUMBER, AUDIO_APE_WMA_MAGIC) &&
+           ape->open_ape(context, path, start_ms, track);
 }
 
 CORE_SEAM bool ape_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
-    const AudioApeEntry *ape = (const AudioApeEntry *)entry();
-    return entry()->magic == AUDIO_APE_MAGIC && ape->read(context, offset, buffer, length);
+    const AudioApeWmaEntry *ape = (const AudioApeWmaEntry *)entry();
+    return entry()->magic == AUDIO_APE_WMA_MAGIC && ape->read_ape(context, offset, buffer, length);
 }
 
 CORE_SEAM bool core1_open_wma(void *context, const char *path, uint32_t start_ms,
                               AudioTrackInfo *track)
 {
-    const AudioWmaEntry *wma = (const AudioWmaEntry *)entry();
-    return load(AUDIO_WMA_NUMBER, AUDIO_WMA_MAGIC) && wma->open(context, path, start_ms, track);
+    const AudioApeWmaEntry *wma = (const AudioApeWmaEntry *)entry();
+    return load(AUDIO_APE_WMA_NUMBER, AUDIO_APE_WMA_MAGIC) &&
+           wma->open_wma(context, path, start_ms, track);
 }
 
 CORE_SEAM bool asf_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
-    const AudioWmaEntry *wma = (const AudioWmaEntry *)entry();
-    return entry()->magic == AUDIO_WMA_MAGIC && wma->read(context, offset, buffer, length);
+    const AudioApeWmaEntry *wma = (const AudioApeWmaEntry *)entry();
+    return entry()->magic == AUDIO_APE_WMA_MAGIC && wma->read_wma(context, offset, buffer, length);
 }

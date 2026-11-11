@@ -41,7 +41,7 @@ def main():
     parser.add_argument("--fixtures", type=Path, required=True)
     args = parser.parse_args()
     program = args.program.read_bytes()
-    for name in ("fast16", "normal24", "high16", "extra16", "insane16", "normal16", "fast24stereo", "normal24stereo", "high24stereo", "seek16"):
+    for name in ("fast16", "normal24", "high16", "extra16", "insane16", "normal16", "fast24stereo", "normal24stereo", "high24stereo", "fast24stereo96", "normal24stereo96", "high24mono96", "seek16"):
         check(program, args.tool, args.fixtures / f"{name}.ape", 0)
     check(program, args.tool, args.fixtures / "seek16.ape", 1)
 

@@ -33,7 +33,7 @@ PROCESS_MODULE_NUMBER = 7
 PROCESS_MODULE_BASE = 0x0308F000
 PROCESS_MODULE_CAPACITY = 0x3000
 AUDIO_MODULE_NUMBER = 5
-AUDIO_MODULE_NUMBERS = (5, 6, 9, 10)
+AUDIO_MODULE_NUMBERS = (5, 6, 13)
 AUDIO_MODULE_BASE = 0x03048000
 AUDIO_MODULE_CAPACITY = 0x2000
 EXTENSION_MODULE_NUMBER = 8
@@ -376,18 +376,28 @@ def module_window(number):
     return MODULE_BASE, MODULE_CAPACITY
 
 
+def module_number(module):
+    if len(module) < OVERLAY_HEADER_SIZE + 4 or module[16:19] != MODULE_MAGIC:
+        raise ImageError("a module entry table must start with its numbered magic")
+    number = module[19]
+    if not 1 <= number <= MODULE_LIMIT:
+        raise ImageError(f"module number {number} is outside the table")
+    return number
+
+
 def check_modules(modules):
     if len(modules) > MODULE_LIMIT:
         raise ImageError(f"the module table holds at most {MODULE_LIMIT} modules")
-    for number, module in enumerate(modules, 1):
+    previous = 0
+    for module in modules:
+        number = module_number(module)
         _, capacity = module_window(number)
         if not OVERLAY_HEADER_SIZE < len(module) <= capacity:
             raise ImageError(f"module {number} must be more than {OVERLAY_HEADER_SIZE} and at "
                              f"most {capacity:#x} bytes")
-        named = module[OVERLAY_HEADER_SIZE:OVERLAY_HEADER_SIZE + len(MODULE_MAGIC) + 1]
-        if named != module_magic(number):
-            raise ImageError(f"module {number}'s entry table does not start with its number: "
-                             "the modules must be given in the order of their numbers")
+        if number <= previous:
+            raise ImageError("the modules must be given in the order of their numbers without duplicates")
+        previous = number
 
 
 def place_modules(image, parts):
@@ -401,12 +411,13 @@ def place_modules(image, parts):
                            [len(pack) for pack in parts.language_packs],
                            [len(module) for module in modules])[2]
     table = bytearray(MODULE_TABLE_SIZE)
-    struct.pack_into("<4sI", table, 0, MODULE_TABLE_MAGIC, len(modules))
-    for index, (module, offset) in enumerate(zip(modules, offsets)):
+    struct.pack_into("<4sI", table, 0, MODULE_TABLE_MAGIC, module_number(modules[-1]))
+    for module, offset in zip(modules, offsets):
+        number = module_number(module)
         body = module[OVERLAY_HEADER_SIZE:]
-        header = module_magic(index + 1) + struct.pack("<III", len(module), crc32(body),
+        header = module_magic(number) + struct.pack("<III", len(module), crc32(body),
                                                        code_crc(parts))
-        struct.pack_into("<II", table, 8 + 8 * index, offset, len(module))
+        struct.pack_into("<II", table, 8 + 8 * (number - 1), offset, len(module))
         image[offset:offset + len(module)] = header + body
     image[MODULE_TABLE_OFFSET:MODULE_TABLE_OFFSET + MODULE_TABLE_SIZE] = table
 
@@ -665,8 +676,12 @@ def check_overlay_copies(main_elf, overlay_elf, label, remedy="add them to ECHO_
 
 def modules_from_elfs(main_elf, paths):
     modules = []
-    for number, path in enumerate(paths, 1):
+    for path in paths:
         elf = path.read_bytes()
+        section = elf_sections(elf).get(".overlay")
+        if section is None:
+            raise ImageError("a module needs an overlay section")
+        number = module_number(section.content)
         check_overlay_copies(main_elf, elf, f"module {number} ({path.stem})",
                              "a source file belongs to the main program or to modules, not both")
         modules.append(module_from_elf(elf, number))
