@@ -13,6 +13,7 @@ extern const char BLUETOOTH_STORE_PATH[];
 
 typedef struct BluetoothSaved {
     bool enabled;
+    bool on_bluetooth;
     uint8_t count;
     HalBluetoothDevice devices[BLUETOOTH_STORE_DEVICES];
 } BluetoothSaved;

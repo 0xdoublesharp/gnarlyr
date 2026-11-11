@@ -18,7 +18,8 @@ enum {
     ENABLED_AT = HEADER_SIZE,
     COUNT_AT = ENABLED_AT + 1,
     DEVICES_AT = COUNT_AT + 1,
-    RECORD_SIZE = DEVICES_AT + BLUETOOTH_STORE_DEVICES * DEVICE_SIZE
+    OUTPUT_AT = DEVICES_AT + BLUETOOTH_STORE_DEVICES * DEVICE_SIZE,
+    RECORD_SIZE = OUTPUT_AT + 1
 };
 
 static bool has_address(const HalBluetoothDevice *device)
@@ -79,10 +80,11 @@ static void load_old(const uint8_t *record, uint32_t size, BluetoothSaved *saved
 
 static void load_list(const uint8_t *record, uint32_t size, BluetoothSaved *saved)
 {
-    if (size < RECORD_SIZE) {
+    if (size < OUTPUT_AT) {
         return;
     }
     saved->enabled = record[ENABLED_AT] == 1;
+    saved->on_bluetooth = size > OUTPUT_AT && record[OUTPUT_AT] == 1;
     uint8_t count = record[COUNT_AT];
     for (uint8_t index = 0; index < count && index < BLUETOOTH_STORE_DEVICES; index++) {
         HalBluetoothDevice *device = &saved->devices[saved->count];
@@ -119,6 +121,7 @@ void bluetooth_store_save(const BluetoothSaved *saved)
     record[VERSION_AT] = VERSION;
     record[ENABLED_AT] = saved->enabled ? 1 : 0;
     record[COUNT_AT] = saved->count;
+    record[OUTPUT_AT] = saved->on_bluetooth ? 1 : 0;
     for (uint8_t index = 0; index < saved->count && index < BLUETOOTH_STORE_DEVICES; index++) {
         write_device(&saved->devices[index], record + DEVICES_AT + index * DEVICE_SIZE);
     }

@@ -568,7 +568,7 @@ static void an_unused_module_switches_itself_off(void)
     CHECK(summary_is("Not connected"));
 }
 
-static void browsing_wakes_a_dozing_module(void)
+static void browsing_leaves_a_dozing_module_off_until_asked(void)
 {
     fresh();
     save(true, &BUDS);
@@ -576,7 +576,10 @@ static void browsing_wakes_a_dozing_module(void)
     step(START_MS + BLUETOOTH_LINK_IDLE_OFF_MS);
     CHECK(!fake_hal_bluetooth_powered());
     bluetooth_link_browse(&link, true, START_MS + BLUETOOTH_LINK_IDLE_OFF_MS + 100);
+    CHECK(!fake_hal_bluetooth_powered());
+    CHECK(bluetooth_link_reconnect(&link, START_MS + BLUETOOTH_LINK_IDLE_OFF_MS + 200));
     CHECK(fake_hal_bluetooth_powered());
+    CHECK(!bluetooth_link_reconnect(&link, START_MS + BLUETOOTH_LINK_IDLE_OFF_MS + 300));
     step(START_MS + 3 * BLUETOOTH_LINK_IDLE_OFF_MS);
     CHECK(fake_hal_bluetooth_powered());
 }
@@ -971,6 +974,210 @@ static void forgetting_disconnects_and_clears_the_device(void)
     CHECK(summary_is("On"));
 }
 
+static void save_on_bluetooth(const HalBluetoothDevice *device)
+{
+    BluetoothSaved saved = {
+        .enabled = true, .count = 1, .on_bluetooth = true, .devices = {*device}};
+    bluetooth_store_save(&saved);
+}
+
+static void play_after_bluetooth_switched_itself_off_reconnects_and_then_plays(void)
+{
+    fresh();
+    save_on_bluetooth(&BUDS);
+    start();
+    ready();
+    uint32_t dozed_ms = START_MS + BLUETOOTH_LINK_IDLE_OFF_MS;
+    step(dozed_ms);
+    CHECK(!fake_hal_bluetooth_powered());
+    int tries = fake_hal_bluetooth_connect_count();
+    play();
+    step(dozed_ms + 100);
+    CHECK_EQUAL(PLAYER_PAUSED, player.state);
+    CHECK(fake_hal_bluetooth_powered());
+    CHECK(toast_is("Connecting to Buds…"));
+    ready();
+    step(dozed_ms + 200);
+    CHECK_EQUAL(tries + 1, fake_hal_bluetooth_connect_count());
+    CHECK(strcmp("Buds", fake_hal_bluetooth_connect_target()->name) == 0);
+    connect_to(&BUDS);
+    step(dozed_ms + 3000);
+    CHECK_EQUAL(PLAYER_PLAYING, player.state);
+    CHECK(fake_hal_bluetooth()->streaming);
+}
+
+static void play_right_after_power_on_waits_for_the_last_headphones(void)
+{
+    fresh();
+    save_on_bluetooth(&BUDS);
+    start();
+    play();
+    step(START_MS + 100);
+    CHECK_EQUAL(PLAYER_PAUSED, player.state);
+    CHECK(toast_is("Connecting to Buds…"));
+    connect_to(&BUDS);
+    step(START_MS + 2000);
+    CHECK_EQUAL(PLAYER_PLAYING, player.state);
+    CHECK(fake_hal_bluetooth()->streaming);
+}
+
+static void headphones_that_stay_away_leave_the_player_paused(void)
+{
+    fresh();
+    save_on_bluetooth(&BUDS);
+    start();
+    play();
+    step(START_MS + 100);
+    ready();
+    step(START_MS + 100 + BLUETOOTH_LINK_AWAIT_MS - 1);
+    CHECK(toast_is("Connecting to Buds…"));
+    step(START_MS + 100 + BLUETOOTH_LINK_AWAIT_MS);
+    CHECK_EQUAL(PLAYER_PAUSED, player.state);
+    CHECK(toast_is("Buds didn't connect · Play tries again"));
+    connect_to(&BUDS);
+    step(START_MS + 200 + BLUETOOTH_LINK_AWAIT_MS);
+    CHECK_EQUAL(PLAYER_PAUSED, player.state);
+    CHECK(!fake_hal_bluetooth()->streaming);
+}
+
+static void play_during_the_wait_waits_again(void)
+{
+    fresh();
+    save_on_bluetooth(&BUDS);
+    start();
+    play();
+    step(START_MS + 100);
+    player_toggle_pause(&player);
+    step(START_MS + 100 + BLUETOOTH_LINK_AWAIT_MS - 100);
+    CHECK_EQUAL(PLAYER_PAUSED, player.state);
+    step(START_MS + 100 + BLUETOOTH_LINK_AWAIT_MS);
+    CHECK(toast_is("Connecting to Buds…"));
+    connect_to(&BUDS);
+    step(START_MS + 200 + BLUETOOTH_LINK_AWAIT_MS);
+    CHECK_EQUAL(PLAYER_PLAYING, player.state);
+}
+
+static void wired_headphones_play_at_once_instead_of_waiting(void)
+{
+    fresh();
+    save_on_bluetooth(&BUDS);
+    start();
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_SINGLE_ENDED);
+    play();
+    step(START_MS + 100);
+    CHECK_EQUAL(PLAYER_PLAYING, player.state);
+    CHECK(!toast.visible);
+    CHECK(!stored().on_bluetooth);
+}
+
+static void plugging_in_while_waiting_plays_on_the_wired_headphones(void)
+{
+    fresh();
+    save_on_bluetooth(&BUDS);
+    start();
+    play();
+    step(START_MS + 100);
+    CHECK_EQUAL(PLAYER_PAUSED, player.state);
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_BALANCED);
+    step(START_MS + 200);
+    CHECK_EQUAL(PLAYER_PLAYING, player.state);
+    CHECK(!fake_hal_bluetooth()->streaming);
+}
+
+static void music_last_played_on_the_jack_starts_without_waiting(void)
+{
+    fresh();
+    save(true, &BUDS);
+    start();
+    play();
+    step(START_MS + 100);
+    CHECK_EQUAL(PLAYER_PLAYING, player.state);
+    CHECK(!toast.visible);
+}
+
+static void the_output_music_last_used_is_remembered(void)
+{
+    fresh();
+    save(true, &BUDS);
+    start();
+    connect_to(&BUDS);
+    play();
+    step(START_MS + 100);
+    CHECK(stored().on_bluetooth);
+    player_toggle_pause(&player);
+    step(START_MS + 200);
+    CHECK(stored().on_bluetooth);
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_SINGLE_ENDED);
+    player_toggle_pause(&player);
+    step(START_MS + 300);
+    CHECK(!stored().on_bluetooth);
+    CHECK(stored().enabled);
+    CHECK_EQUAL(1, stored().count);
+}
+
+static void headphones_disconnected_on_purpose_are_not_waited_for(void)
+{
+    fresh();
+    save_on_bluetooth(&BUDS);
+    start();
+    connect_to(&BUDS);
+    step(START_MS + 100);
+    bluetooth_link_choose(&link, 0, START_MS + 200);
+    ready();
+    step(START_MS + 300);
+    play();
+    step(START_MS + 400);
+    CHECK_EQUAL(PLAYER_PLAYING, player.state);
+}
+
+static void headphones_back_in_range_reconnect_without_playing(void)
+{
+    fresh();
+    save(true, &BUDS);
+    start();
+    connect_to(&BUDS);
+    play();
+    step(START_MS + 100);
+    ready();
+    step(START_MS + 200);
+    CHECK_EQUAL(PLAYER_PAUSED, player.state);
+    step(START_MS + 200 + BLUETOOTH_LINK_RETRY_MS);
+    CHECK_EQUAL(1, fake_hal_bluetooth_connect_count());
+    connect_to(&BUDS);
+    step(START_MS + 300 + BLUETOOTH_LINK_RETRY_MS);
+    CHECK(link.connected);
+    CHECK_EQUAL(PLAYER_PAUSED, player.state);
+    CHECK(!link.streamed);
+    CHECK(toast_is("Connected to Buds"));
+    player_toggle_pause(&player);
+    step(START_MS + 400 + BLUETOOTH_LINK_RETRY_MS);
+    CHECK(fake_hal_bluetooth()->streaming);
+}
+
+static void a_wait_keeps_the_module_awake(void)
+{
+    fresh();
+    save_on_bluetooth(&BUDS);
+    start();
+    ready();
+    step(START_MS + BLUETOOTH_LINK_IDLE_OFF_MS - 100);
+    play();
+    step(START_MS + BLUETOOTH_LINK_IDLE_OFF_MS - 50);
+    step(START_MS + BLUETOOTH_LINK_IDLE_OFF_MS + 100);
+    CHECK(fake_hal_bluetooth_powered());
+}
+
+static void a_store_without_the_output_byte_loads_as_wired(void)
+{
+    fresh();
+    uint8_t record[3 + 1 + 1 + 6 * 38] = {'B', 'T', 2, 1, 1, 1, 2, 3, 4, 5, 6, 'B', 'u', 'd', 's'};
+    fake_hal_add_file(BLUETOOTH_STORE_PATH, record, sizeof record);
+    BluetoothSaved saved = stored();
+    CHECK(saved.enabled);
+    CHECK_EQUAL(1, saved.count);
+    CHECK(!saved.on_bluetooth);
+}
+
 int main(void)
 {
     const TestCase cases[] = {
@@ -1004,7 +1211,7 @@ int main(void)
         TEST_CASE(presses_from_before_the_connection_are_ignored),
         TEST_CASE(losing_the_buds_pauses_playback),
         TEST_CASE(an_unused_module_switches_itself_off),
-        TEST_CASE(browsing_wakes_a_dozing_module),
+        TEST_CASE(browsing_leaves_a_dozing_module_off_until_asked),
         TEST_CASE(browsing_searches_for_devices),
         TEST_CASE(pairing_connects_the_chosen_device),
         TEST_CASE(a_search_that_finds_remembered_headphones_connects_them),
@@ -1028,6 +1235,18 @@ int main(void)
         TEST_CASE(a_remembered_device_updates_its_name_when_it_reconnects),
         TEST_CASE(forgetting_the_first_device_preserves_and_retries_the_next_one),
         TEST_CASE(connecting_without_a_toast_still_remembers_the_device),
+        TEST_CASE(play_after_bluetooth_switched_itself_off_reconnects_and_then_plays),
+        TEST_CASE(play_right_after_power_on_waits_for_the_last_headphones),
+        TEST_CASE(headphones_that_stay_away_leave_the_player_paused),
+        TEST_CASE(play_during_the_wait_waits_again),
+        TEST_CASE(wired_headphones_play_at_once_instead_of_waiting),
+        TEST_CASE(plugging_in_while_waiting_plays_on_the_wired_headphones),
+        TEST_CASE(music_last_played_on_the_jack_starts_without_waiting),
+        TEST_CASE(the_output_music_last_used_is_remembered),
+        TEST_CASE(headphones_disconnected_on_purpose_are_not_waited_for),
+        TEST_CASE(headphones_back_in_range_reconnect_without_playing),
+        TEST_CASE(a_wait_keeps_the_module_awake),
+        TEST_CASE(a_store_without_the_output_byte_loads_as_wired),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

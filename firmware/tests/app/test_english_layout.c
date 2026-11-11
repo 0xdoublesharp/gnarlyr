@@ -164,6 +164,8 @@ static const Pattern TOAST_PATTERNS[] = {
     {STR_LIBRARY_COVERS, {"Library: 65535 tracks", "2673"}},
     {STR_LIBRARY_NO_COVERS, {"Library: 65535 tracks"}},
     {STR_VOLUME_LOWERED, {"60"}},
+    {STR_BT_RECONNECTING, {"A device name of 31 characters!"}},
+    {STR_BT_NOT_BACK, {"A device name of 31 characters!"}},
 };
 
 static const Pattern EXPORT_HEADLINES[] = {
@@ -185,8 +187,9 @@ static const Pattern EXPORT_DETAILS[] = {
 };
 
 static const StringId BLUETOOTH_HINTS[] = {
-    STR_BT_HINT_DISCONNECT, STR_BT_HINT_CONNECTING, STR_BT_HINT_CONNECT, STR_BT_HINT_TURN_OFF,
-    STR_BT_HINT_TURN_ON,    STR_BT_HINT_SEARCHING,  STR_BT_HINT_SEARCH,  STR_BT_HINT_PAIR,
+    STR_BT_HINT_DISCONNECT, STR_BT_HINT_CONNECTING, STR_BT_HINT_CONNECT,
+    STR_BT_HINT_TURN_OFF,   STR_BT_HINT_TURN_ON,    STR_BT_HINT_SEARCHING,
+    STR_BT_HINT_SEARCH,     STR_BT_HINT_PAIR,       STR_BT_HINT_DOZING,
 };
 
 static const char *pattern_text(Pattern pattern)

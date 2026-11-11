@@ -375,6 +375,54 @@ static void a_damaged_store_is_ignored(void)
     CHECK_EQUAL(0, saved.count);
 }
 
+static Screen *open_dozing_screen(uint32_t now_ms)
+{
+    fake_hal_reset();
+    BluetoothSaved stored = {.enabled = true, .count = 1, .devices = {BUDS}};
+    bluetooth_store_save(&stored);
+    toast = (Toast){0};
+    bluetooth_link_start(&link, &toast, START_MS);
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_READY;
+    step_link(START_MS + BLUETOOTH_LINK_IDLE_OFF_MS);
+    CHECK(!fake_hal_bluetooth_powered());
+    Screen *screen = bluetooth_screen_init(&bluetooth, &link, &BOARD_THEME);
+    bluetooth_screen_open(&bluetooth);
+    screen->enter(screen->context, now_ms);
+    screen->update(screen->context, now_ms);
+    return screen;
+}
+
+static void bluetooth_switched_off_to_save_battery_says_so_until_play(void)
+{
+    uint32_t now_ms = START_MS + BLUETOOTH_LINK_IDLE_OFF_MS + 100;
+    Screen *screen = open_dozing_screen(now_ms);
+    CHECK(!fake_hal_bluetooth_powered());
+    CHECK(row_is(0, "Bluetooth", "On"));
+    CHECK(line_is(BLUETOOTH_SCREEN_HINT_LINE, "Turned off to save battery · Play reconnects"));
+    tap(screen, KEY_VOLUME_UP, now_ms + 50);
+    CHECK(line_is(BLUETOOTH_SCREEN_HINT_LINE, "Turned off to save battery · Play reconnects"));
+    tap(screen, KEY_VOLUME_DOWN, now_ms + 60);
+    int tries = fake_hal_bluetooth_connect_count();
+    tap(screen, KEY_PLAY, now_ms + 100);
+    CHECK(fake_hal_bluetooth_powered());
+    CHECK(link.saved.enabled);
+    CHECK(row_is(0, "Bluetooth", "On"));
+    CHECK(line_is(BLUETOOTH_SCREEN_HINT_LINE, "Play turns Bluetooth off"));
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_READY;
+    step_link(now_ms + 200);
+    CHECK_EQUAL(tries + 1, fake_hal_bluetooth_connect_count());
+}
+
+static void play_on_saved_headphones_while_switched_off_wakes_and_connects_them(void)
+{
+    uint32_t now_ms = START_MS + BLUETOOTH_LINK_IDLE_OFF_MS + 100;
+    Screen *screen = open_dozing_screen(now_ms);
+    tap(screen, KEY_VOLUME_UP, now_ms + 50);
+    tap(screen, KEY_PLAY, now_ms + 100);
+    CHECK(fake_hal_bluetooth_powered());
+    CHECK(row_is(1, "OnePlus Buds 3", "Connecting…"));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -394,6 +442,8 @@ int main(void)
         TEST_CASE(the_settings_row_summarises_the_link),
         TEST_CASE(a_connection_is_saved_once),
         TEST_CASE(a_damaged_store_is_ignored),
+        TEST_CASE(bluetooth_switched_off_to_save_battery_says_so_until_play),
+        TEST_CASE(play_on_saved_headphones_while_switched_off_wakes_and_connects_them),
         TEST_CASE(the_hint_is_one_whole_line_in_landscape),
         TEST_CASE(in_portrait_the_hint_gets_the_lines_its_longest_text_needs),
     };
