@@ -139,7 +139,7 @@ USB_PHY_TUNING = [("grf", 0x88, 0x0C000C00), ("grf", 0x84, 0xE01F0003), ("grf", 
 USB_POWER_UP = [("cru", 0x80, 0x00800000), ("cru", 0x98, 0x04000000), ("cru", 0xC0, 0x00020000),
                 ("cru", 0xC0, 0x00040000), ("cru", 0xC0, 0x00010000)]
 PROFILED_MS = 1500
-LANGUAGE_RAM = 0x0309B000
+LANGUAGE_RAM = 0x0309A800
 MISSING_TEXT = "Text is missing: reinstall the update"
 MODULE_LOAD_LIMIT_MS = 60
 MODULE_REUSE_LIMIT_US = 100

@@ -223,7 +223,7 @@ static void the_compact_glyph_arena_keeps_the_same_slot_count(void)
     static uint32_t board_memory[(0x9000 - 1024) / 4];
     build_pack();
     CHECK_EQUAL(64, font_pack_attach(READER, board_memory, sizeof board_memory));
-    CHECK_EQUAL(64, font_pack_attach(READER, board_memory, 0x7000 - 1024));
+    CHECK_EQUAL(64, font_pack_attach(READER, board_memory, 0x6800 - 1024));
 }
 
 static void a_font_falls_back_to_its_pack(void)

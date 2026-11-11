@@ -91,7 +91,7 @@ Each scenario in `tests/emulator/scenarios/test_*.py` is its own test, named `de
 | Processing module | 20,480 bytes including BSS |
 | Audio DSP, Ogg file and extension modules | 8,192 code bytes each, zero BSS |
 | Decoder workspace | 41,984 bytes |
-| Language pack | 16,384 bytes |
+| Language pack | 18,432 bytes |
 | Vorbis / Opus program image banks | 130,048 / 131,072 bytes |
 | Vorbis / Opus core-1 static state | 36,864 bytes each, with a 16 KiB stack reserve |
 

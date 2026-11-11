@@ -654,7 +654,7 @@ class ModuleTest(unittest.TestCase):
                          make_image.PROCESS_MODULE_BASE + make_image.PROCESS_MODULE_CAPACITY)
         self.assertEqual(0x03094000,
                          make_image.EFFECTS_MODULE_BASE + make_image.EFFECTS_MODULE_CAPACITY)
-        self.assertEqual(0x0309B000, 0x03094000 + 0x7000)
+        self.assertEqual(0x0309A800, 0x03094000 + 0x6800)
 
     def test_the_player_and_the_linker_scripts_use_the_builders_slot_and_table(self):
         device = TOOLS_DIRECTORY.parent / "platform" / "device"
@@ -675,8 +675,8 @@ class ModuleTest(unittest.TestCase):
         self.assertIn(f"AUDIO_PROCESS_BYTES 0x{make_image.PROCESS_MODULE_CAPACITY:X}u", process)
         self.assertIn(f"AUDIO_PROCESS_NUMBER {make_image.PROCESS_MODULE_NUMBER}u", process)
         self.assertIn("GLYPH_WINDOW_BASE 0x03094000u", header)
-        self.assertIn("GLYPH_WINDOW_BYTES 0x7000u", header)
-        self.assertIn("GLYPH_RAM (rw) : ORIGIN = 0x03094000, LENGTH = 0x7000",
+        self.assertIn("GLYPH_WINDOW_BYTES 0x6800u", header)
+        self.assertIn("GLYPH_RAM (rw) : ORIGIN = 0x03094000, LENGTH = 0x6800",
                       (device / "board" / "echo_device.ld").read_text())
         processing = (device / "overlay" / "audio_process.ld").read_text()
         for name, access in (("MODULE_RAM", "rx"), ("MODULE_ZEROED", "rw")):
