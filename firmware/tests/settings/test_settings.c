@@ -1025,6 +1025,7 @@ static void check_extension_defaults(const Settings *settings)
         CHECK_EQUAL(index, settings->home_order[index]);
     }
     CHECK_EQUAL(0, settings->home_hidden);
+    CHECK_EQUAL(NOW_PLAYING_COVER, settings_now_playing_style(settings));
 }
 
 static void the_extension_defaults_keep_todays_behaviour(void)
@@ -1333,9 +1334,30 @@ static void cassette_style_and_other_e13_flags_survive_saving(void)
     CHECK_EQUAL(0xB5, bytes[EXTENSION_FIELD + 13]);
 }
 
+static void all_four_styles_use_only_their_two_allocated_bits(void)
+{
+    for (int style = 0; style < 4; style++) {
+        Settings settings = settings_defaults();
+        settings.display_flags = 0x95;
+        settings_set_now_playing_style(&settings, (NowPlayingStyle)style);
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&settings, bytes);
+        CHECK_EQUAL(0x95 | ((style & 1) << 5), bytes[EXTENSION_FIELD + 13]);
+        CHECK_EQUAL((style >> 1) << 7, bytes[EXTENSION_FIELD + 14]);
+        Settings decoded;
+        CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+        CHECK_EQUAL(style, settings_now_playing_style(&decoded));
+        settings_set_now_playing_style(&decoded, NOW_PLAYING_COVER);
+        settings_encode(&decoded, bytes);
+        CHECK_EQUAL(0x95, bytes[EXTENSION_FIELD + 13]);
+        CHECK_EQUAL(0, bytes[EXTENSION_FIELD + 14]);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(all_four_styles_use_only_their_two_allocated_bits),
         TEST_CASE(cassette_style_and_other_e13_flags_survive_saving),
         TEST_CASE(defaults_are_comfortable),
         TEST_CASE(the_extension_defaults_keep_todays_behaviour),

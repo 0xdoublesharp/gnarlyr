@@ -8,7 +8,9 @@
 
 typedef enum NowPlayingStyle {
     NOW_PLAYING_COVER,
-    NOW_PLAYING_CASSETTE
+    NOW_PLAYING_CASSETTE,
+    NOW_PLAYING_VU,
+    NOW_PLAYING_SPECTRUM
 } NowPlayingStyle;
 
 typedef enum GainLevel {
@@ -197,6 +199,7 @@ typedef struct Settings {
     uint8_t home_order[SETTINGS_HOME_ITEM_COUNT];
     uint16_t home_hidden;
     uint8_t display_flags;
+    uint8_t style_flags;
 } Settings;
 
 typedef struct SettingsEqualizerCurve {

@@ -53,6 +53,7 @@ class Snapshot:
         self.format = pack_tools(api.ROOT)
         self.flags_reserved = 0xF8
         self.display_flags_byte = None
+        self.style_flags_byte = None
         try:
             self.commit = git(api.ROOT, "rev-parse", "--verify", build + "^{commit}").strip()
             self.build = build
@@ -81,6 +82,10 @@ class Snapshot:
                     self.display_flags_byte = constant(source, "DISPLAY_FLAGS_BYTE")
                     if self.display_flags_byte != 13:
                         raise ValueError("the installed display flags layout is unsupported")
+                if re.search(r"\bSTYLE_FLAGS_BYTE\s*=", source):
+                    self.style_flags_byte = constant(source, "STYLE_FLAGS_BYTE")
+                    if self.style_flags_byte != 14 or not re.search(r"\bSTYLE_HIGH_BIT\s*=\s*1\s*<<\s*7\b", source):
+                        raise ValueError("the installed style flags layout is unsupported")
         except (ValueError, KeyError, OSError, self.format.PackError) as error:
             raise api.DebugError("language_build_unknown", str(error)) from error
 
@@ -134,7 +139,8 @@ class Snapshot:
             return True
         block = data[38:54]
         return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and block[3] == 0 and
-                self.home_valid(block) and not any(block[index] for index in range(11, 16)
+                self.home_valid(block) and not any(block[index] & (0x7F if index == self.style_flags_byte else 0xFF)
+                                                  for index in range(11, 16)
                                                   if index != self.display_flags_byte))
 
     def show(self, path):

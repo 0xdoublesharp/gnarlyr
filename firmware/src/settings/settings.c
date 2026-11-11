@@ -62,6 +62,8 @@ enum {
     HOME_HIDDEN_BYTE = 9,
     DISPLAY_FLAGS_BYTE = 13,
     CASSETTE_BIT = 1 << 5,
+    STYLE_FLAGS_BYTE = 14,
+    STYLE_HIGH_BIT = 1 << 7,
     RESERVED_BYTE = 11,
     RESERVED_COUNT = 5,
     EXTENSION_SIZE = 16,
@@ -159,6 +161,7 @@ static void read_extension(const uint8_t *extension, Settings *settings)
     settings->safe_start_volume_level = extension[SAFE_LEVEL_BYTE];
     settings->transition_tenths = extension[TRANSITION_BYTE];
     settings->display_flags = extension[DISPLAY_FLAGS_BYTE];
+    settings->style_flags = extension[STYLE_FLAGS_BYTE];
     settings_home_unpack(extension + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT,
                          settings->home_order, &settings->home_hidden);
 }
@@ -285,6 +288,7 @@ static void encode_extension(const Settings *settings, uint8_t *extension)
     extension[SAFE_LEVEL_BYTE] = settings->safe_start_volume_level;
     extension[TRANSITION_BYTE] = settings->transition_tenths;
     extension[DISPLAY_FLAGS_BYTE] = settings->display_flags;
+    extension[STYLE_FLAGS_BYTE] = settings->style_flags & STYLE_HIGH_BIT;
     for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
         extension[HOME_ORDER_BYTE + index / 2] |=
             (uint8_t)(settings->home_order[index] << (NIBBLE_BITS * (index & 1)));
@@ -436,7 +440,8 @@ static bool reserved_clear(const uint8_t *extension)
     uint8_t any = extension[TRANSITION_BYTE + 1];
     for (int index = 0; index < RESERVED_COUNT; index++) {
         if (RESERVED_BYTE + index != DISPLAY_FLAGS_BYTE) {
-            any |= extension[RESERVED_BYTE + index];
+            any |= RESERVED_BYTE + index == STYLE_FLAGS_BYTE ? extension[STYLE_FLAGS_BYTE] & 0x7F
+                                                             : extension[RESERVED_BYTE + index];
         }
     }
     return any == 0;
@@ -620,11 +625,14 @@ bool settings_buttons_decode(const uint8_t *bytes, uint32_t length, Settings *se
 
 NowPlayingStyle settings_now_playing_style(const Settings *settings)
 {
-    return (settings->display_flags & CASSETTE_BIT) != 0 ? NOW_PLAYING_CASSETTE : NOW_PLAYING_COVER;
+    return (NowPlayingStyle)(((settings->display_flags & CASSETTE_BIT) >> 5) |
+                             ((settings->style_flags & STYLE_HIGH_BIT) >> 6));
 }
 
 void settings_set_now_playing_style(Settings *settings, NowPlayingStyle style)
 {
-    settings->display_flags = (uint8_t)((settings->display_flags & ~CASSETTE_BIT) |
-                                        (style == NOW_PLAYING_CASSETTE ? CASSETTE_BIT : 0));
+    unsigned value = (unsigned)style <= NOW_PLAYING_SPECTRUM ? (unsigned)style : 0;
+    settings->display_flags =
+        (uint8_t)((settings->display_flags & (uint8_t)~CASSETTE_BIT) | ((value & 1) << 5));
+    settings->style_flags = (uint8_t)((value >> 1) << 7);
 }
