@@ -1711,6 +1711,96 @@ class EchoImageTest(unittest.TestCase):
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                    volume=volume, module_elfs=self.module_elfs)
 
+    def replay_gain_rig(self, mode, clipping=True):
+        from echo_emulator.playback import Rig
+        from echo_emulator.fat_volume import Fat32Volume
+        pattern = (0, 14142, 20000, 14142, 0, -14142, -20000, -14142)
+        pcm = struct.pack("<8h", *pattern) * (44100 * 30 // 8)
+        frames = bytearray()
+        values = {"REPLAYGAIN_TRACK_GAIN": "+6.00 dB", "REPLAYGAIN_ALBUM_GAIN": "-12.00 dB",
+                  "REPLAYGAIN_TRACK_PEAK": "1", "REPLAYGAIN_ALBUM_PEAK": "1"}
+        for key, value in values.items():
+            payload = b"\x00" + key.encode() + b"\x00" + value.encode()
+            frames += b"TXXX" + struct.pack(">I", len(payload)) + b"\x00\x00" + payload
+        size = len(frames)
+        tag = b"ID3\x03\x00\x00" + bytes((size >> shift & 127 for shift in (21, 14, 7, 0))) + frames
+        body = (b"WAVEfmt " + struct.pack("<IHHIIHH", 16, 1, 1, 44100, 88200, 2, 16)
+                + b"data" + struct.pack("<I", len(pcm)) + pcm
+                + b"id3 " + struct.pack("<I", len(tag)) + tag + bytes(len(tag) % 2))
+        volume = Fat32Volume()
+        volume.add_file("Speech.wav", b"RIFF" + struct.pack("<I", len(body)) + body)
+        volume.add_directory(IDENTITY.data_directory)
+        settings = bytearray(42)
+        settings[:6] = b"DSST" + bytes((14, mode | (4 if clipping else 0)))
+        settings[6:9] = bytes((7, 2, 0))
+        settings[13], settings[14], settings[16] = 60, 2, 35
+        settings[24], settings[27] = 1, 1
+        settings[28:38] = bytes((20,) * 10)
+        checksum = FNV_START
+        for value in settings[:38]:
+            checksum = (checksum ^ value) * FNV_PRIME & 0xFFFFFFFF
+        settings[38:] = struct.pack("<I", checksum)
+        volume.add_file("settings.bin", bytes(settings), directory=IDENTITY.data_directory)
+        return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                   volume=volume, module_elfs=self.module_elfs), pattern
+
+    def assert_normalized_pcm(self, rig, pattern, gain):
+        from echo_emulator.audio import PRODUCED_OFFSET, RING_BYTES
+        produced = struct.unpack("<I", rig.machine.read_memory(
+            rig.audio.engine + PRODUCED_OFFSET, 4))[0]
+        self.assertGreater(produced, 128)
+        for frame in range(produced - 128, produced):
+            value = (pattern[frame % len(pattern)] * 256 * gain + 32768) >> 16
+            value = max(-8388608, min(8388607, value))
+            expected = value << 8 & 0xFFFFFFFF
+            offset = rig.audio.ring + frame % (RING_BYTES // 8) * 8
+            self.assertEqual((expected, expected), struct.unpack(
+                "<II", rig.machine.read_memory(offset, 8)), frame)
+
+    def test_replay_gain_uses_saved_peak_limits_and_live_changes_without_restarting_dma(self):
+        import replay_gain
+        rig, pattern = self.replay_gain_rig(1)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assert_normalized_pcm(rig, pattern, 65536)
+        plays = len(rig.audio.plays)
+        rig.press("back", hold=1300)
+        rig.press("next")
+        rig.press("play")
+        rig.press_many("next", 17)
+        rig.press("play")
+        rig.press("previous")
+        rig.press("play")
+        rig.run_for(400)
+        self.assertEqual(plays, len(rig.audio.plays))
+        self.assert_normalized_pcm(rig, pattern, replay_gain.amplitude(600))
+        node = next(child for child in rig.session.volume.directory(
+            IDENTITY.data_directory).children if child.name == "settings.bin")
+        sector = (rig.session.layout["volume_start"] + rig.session.volume.data_start
+                  + (node.first - 2) * rig.session.volume.sectors_per_cluster)
+        saved = rig.session.disk.read(sector, 1)[:42]
+        self.assertEqual(14, saved[4])
+        self.assertEqual(1, saved[5])
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assertEqual(0, rig.audio.output_underruns())
+        self.assert_healthy(rig.session)
+
+    def test_replay_gain_album_mode_reaches_real_pcm_across_pause_and_resume(self):
+        import replay_gain
+        rig, pattern = self.replay_gain_rig(2)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assert_normalized_pcm(rig, pattern, replay_gain.amplitude(-1200))
+        rig.press("play")
+        self.assertGreater(rig.audio.suspend_depth, 0)
+        rig.press("play")
+        rig.run_for(400)
+        self.assertEqual(0, rig.audio.suspend_depth)
+        self.assert_normalized_pcm(rig, pattern, replay_gain.amplitude(-1200))
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assertEqual(0, rig.audio.output_underruns())
+        self.assert_healthy(rig.session)
+
     def vorbis_rig(self, mixed=False):
         from echo_emulator.core1_bridge import Core1Bridge
         from echo_emulator.fat_volume import Fat32Volume

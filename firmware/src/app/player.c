@@ -7,6 +7,7 @@
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "hal/storage.h"
+#include "library/library_gain.h"
 #include "playback/mix_identity.h"
 #include "playback/resume_state.h"
 #include "playback/spoken.h"
@@ -46,8 +47,14 @@ static bool track_audio(const Player *player, uint16_t track, TrackAudio *audio)
     StringBuilder builder = string_builder_make(audio->path, sizeof audio->path);
     string_builder_append_char(&builder, '/');
     string_builder_append(&builder, relative);
-    audio->track = (HalAudioTrack){
-        .path = audio->path, .start_ms = record.start_ms, .end_ms = record.end_ms, .token = 0};
+    audio->track =
+        (HalAudioTrack){.path = audio->path,
+                        .start_ms = record.start_ms,
+                        .end_ms = record.end_ms,
+                        .token = 0,
+                        .replay_gain = library_replay_gain_for(
+                            player->library, track, (ReplayGainMode)player->replay_gain_mode,
+                            player->prevent_clipping)};
     return !builder.overflowed;
 }
 
@@ -111,6 +118,7 @@ static bool prepare_next(Player *player, TrackAudio *audio)
         return false;
     }
     player->next_cursor = upcoming;
+    player->next_track = track;
     player->next_token = new_token(player);
     player->next_start_ms = audio->track.start_ms;
     audio->track.token = player->next_token;
@@ -241,6 +249,7 @@ void player_init(Player *player, const Library *library)
     player->fingerprint = library_fingerprint(library);
     player->queue.library = library;
     player->volume = PLAYER_DEFAULT_VOLUME;
+    player->prevent_clipping = true;
     player->jack = hal_audio_jack();
     hal_audio_set_volume(player->volume);
 }
@@ -882,4 +891,25 @@ void player_refusal_text(HalAudioRefusal refusal, char *text, size_t capacity)
         break;
     }
     string_builder_append(&builder, i18n_text(STR_TRACK_UNREADABLE));
+}
+
+void player_set_replay_gain(Player *player, ReplayGainMode mode, bool prevent_clipping)
+{
+    mode = (uint32_t)mode < REPLAY_GAIN_MODE_COUNT ? mode : REPLAY_GAIN_OFF;
+    if (player->replay_gain_mode == (uint8_t)mode && player->prevent_clipping == prevent_clipping) {
+        return;
+    }
+    player->replay_gain_mode = (uint8_t)mode;
+    player->prevent_clipping = prevent_clipping;
+    if (!player->loaded) {
+        return;
+    }
+    hal_audio_set_replay_gain(
+        player->current_token,
+        library_replay_gain_for(player->library, player->track, mode, prevent_clipping));
+    if (player->has_next) {
+        hal_audio_set_replay_gain(
+            player->next_token,
+            library_replay_gain_for(player->library, player->next_track, mode, prevent_clipping));
+    }
 }

@@ -125,6 +125,7 @@ typedef struct HalAudioTrack {
     uint32_t start_ms;
     uint32_t end_ms;
     uint32_t token;
+    uint32_t replay_gain;
 } HalAudioTrack;
 
 typedef struct HalAudioEqualizer {
@@ -157,3 +158,5 @@ HalDmaToneStatus hal_audio_dma_tone_status(void);
 HalJackPins hal_audio_jack_pins(void);
 HalAudioJack hal_audio_jack(void);
 HalAudioRefusal hal_audio_refusal(void);
+
+void hal_audio_set_replay_gain(uint32_t token, uint32_t gain);

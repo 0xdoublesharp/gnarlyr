@@ -115,6 +115,7 @@ typedef struct ScriptedSource {
     int closes;
     uint32_t rate;
     uint32_t next_rate;
+    uint8_t bits;
 } ScriptedSource;
 
 static ScriptedSource scripted;
@@ -131,7 +132,10 @@ static bool scripted_open(void *context, const char *path, uint32_t start_ms, Au
         rate = source_state->next_rate;
     }
     *track = (AudioTrackInfo){
-        .stream = {.sample_rate = rate, .channels = 2, .bits_per_sample = 16, .max_block = 16}};
+        .stream = {.sample_rate = rate,
+                   .channels = 2,
+                   .bits_per_sample = source_state->bits == 0 ? 16 : source_state->bits,
+                   .max_block = 16}};
     return true;
 }
 
@@ -150,7 +154,7 @@ static AudioFrameResult scripted_next(void *context, AudioFrame *frame)
                           .right = source_state->right,
                           .first_sample = 0,
                           .samples = 16,
-                          .bits = 16};
+                          .bits = source_state->bits == 0 ? 16 : source_state->bits};
     return AUDIO_FRAME_READY;
 }
 
@@ -1163,6 +1167,203 @@ static void adding_after_the_decoder_ended_replaces_buffered_silence(void)
     CHECK_EQUAL(5u, audio_engine_status(&engine).token);
 }
 
+static uint32_t gained_word(uint32_t word, uint32_t gain)
+{
+    int64_t value = (int64_t)((int32_t)word / 256) * gain + 32768;
+    value = value >= 0 ? value / 65536 : -((-value + 65535) / 65536);
+    value = value > 8388607 ? 8388607 : value < -8388608 ? -8388608 : value;
+    return (uint32_t)value << 8;
+}
+
+static void replay_gain_scales_pcm_and_unity_matches_the_existing_output_exactly(void)
+{
+    static uint32_t reference[RING_WORDS];
+    start_engine();
+    CHECK(play_file("lpc_16_44k_stereo", 0, 1));
+    pump_until_full(0);
+    memcpy(reference, ring, sizeof reference);
+    static const uint32_t GAINS[] = {0, 65536, 32768, 131072};
+    for (uint32_t at = 0; at < sizeof GAINS / sizeof GAINS[0]; at++) {
+        start_engine();
+        AudioEngineTrack track = {
+            .path = "lpc_16_44k_stereo", .token = 1, .replay_gain = GAINS[at]};
+        CHECK(audio_engine_play(&engine, &track, 0));
+        pump_until_full(0);
+        uint32_t gain = GAINS[at] == 0 ? 65536 : GAINS[at];
+        for (uint32_t sample = 0; sample < RING_WORDS; sample++) {
+            uint32_t expected = gained_word(reference[sample], gain);
+            CHECK_EQUAL(expected, ring[sample]);
+            if (expected != ring[sample]) {
+                break;
+            }
+        }
+    }
+}
+
+static void contiguous_chapters_change_gain_without_reopening_the_file(void)
+{
+    static uint32_t reference[176];
+    start_engine();
+    CHECK(play_range("lpc_16_44k_stereo", 0, 2, 1));
+    pump_until_full(0);
+    memcpy(reference, ring, sizeof reference);
+    start_engine();
+    AudioEngineTrack first = {
+        .path = "lpc_16_44k_stereo", .end_ms = 1, .token = 1, .replay_gain = 65536};
+    AudioEngineTrack next = {
+        .path = "lpc_16_44k_stereo", .start_ms = 1, .end_ms = 2, .token = 2, .replay_gain = 32768};
+    CHECK(audio_engine_play(&engine, &first, 0));
+    audio_engine_queue_next(&engine, &next);
+    pump_until_full(0);
+    CHECK_EQUAL(1, opens);
+    CHECK_EQUAL(88, engine.end_at);
+    for (uint32_t sample = 0; sample < 176; sample++) {
+        CHECK_EQUAL(gained_word(reference[sample], sample < 88 ? 65536 : 32768), ring[sample]);
+    }
+}
+
+static void live_gain_updates_future_samples_without_restarting_and_survives_seek(void)
+{
+    start_engine();
+    engine.config.ring_words = 2048;
+    CHECK(play_file("lpc_16_44k_stereo", 0, 5));
+    pump_until_full(0);
+    audio_engine_set_replay_gain(&engine, 999, 131072);
+    audio_engine_set_replay_gain(&engine, 5, 32768);
+    pump_until_full(128);
+    CHECK_EQUAL(1, opens);
+    Fixture pcm = load("lpc_16_44k_stereo", "pcm");
+    CHECK(pcm.size >= 2 * (1024 + 128) * sizeof(int32_t));
+    for (uint32_t frame = 0; frame < 128; frame++) {
+        uint32_t pcm_index = 2 * (1024 + frame);
+        CHECK_EQUAL(gained_word(word_of(expected_at(&pcm, pcm_index), 16), 32768), ring[2 * frame]);
+    }
+    CHECK(audio_engine_seek(&engine, 0));
+    pump_until_full(0);
+    CHECK_EQUAL(gained_word(word_of(expected_at(&pcm, 1000), 16), 32768), ring[1000]);
+    free(pcm.bytes);
+}
+
+static void boosted_extreme_samples_saturate_safely_at_every_admitted_bit_depth(void)
+{
+    static const uint8_t BITS[] = {4, 8, 16, 24, 32};
+    for (uint32_t at = 0; at < sizeof BITS / sizeof BITS[0]; at++) {
+        start_scripted_engine(0, 1);
+        scripted.bits = BITS[at];
+        for (uint32_t frame = 0; frame < 16; frame++) {
+            scripted.left[frame] = INT32_MAX;
+            scripted.right[frame] = INT32_MIN;
+        }
+        AudioEngineTrack track = {.path = "samples", .token = 1, .replay_gain = UINT32_MAX};
+        CHECK(audio_engine_play(&engine, &track, 0));
+        pump_until_full(0);
+        CHECK_EQUAL(UINT32_C(0x7FFFFF00), ring[0]);
+        CHECK_EQUAL(UINT32_C(0x80000000), ring[1]);
+        audio_engine_set_volume(&engine, 0);
+        CHECK(audio_engine_seek(&engine, 0));
+        scripted.frames_left = 1;
+        pump_until_full(0);
+        CHECK_EQUAL(0, ring[0]);
+        CHECK_EQUAL(0, ring[1]);
+    }
+}
+
+static void normalization_composes_with_volume_before_saturation(void)
+{
+    start_scripted_engine(0, 1);
+    for (uint32_t frame = 0; frame < 16; frame++) {
+        scripted.left[frame] = 20000;
+        scripted.right[frame] = -20000;
+    }
+    audio_engine_set_volume(&engine, 48);
+    CHECK(engine.gain > 16000 && engine.gain < 17000);
+    uint32_t combined = engine.gain * 4;
+    AudioEngineTrack track = {.path = "samples", .token = 1, .replay_gain = 4 * 65536};
+    CHECK(audio_engine_play(&engine, &track, 0));
+    pump_until_full(0);
+    CHECK_EQUAL(gained_word(word_of(20000, 16), combined), ring[0]);
+    CHECK_EQUAL(gained_word(word_of(-20000, 16), combined), ring[1]);
+}
+
+static void converted_files_apply_their_gain_before_sharing_filter_history(void)
+{
+    start_scripted_engine(0, 1);
+    scripted.rate = 8000;
+    scripted.frames_per_open = 1;
+    static uint32_t words[512];
+    ResampledReference reference = {.words = words};
+    AudioResample resample;
+    audio_resample_start(&resample, 8000);
+    for (uint32_t file = 0; file < 2; file++) {
+        for (uint32_t frame = 0; frame < 16; frame++) {
+            int32_t scale = file == 0 ? 256 : 128;
+            CHECK(audio_resample_push(&resample, scripted.left[frame] * scale,
+                                      scripted.right[frame] * scale));
+            reference_take(&resample, &reference);
+        }
+    }
+    audio_resample_finish(&resample);
+    reference_take(&resample, &reference);
+    AudioEngineTrack first = {.path = "first", .token = 1, .replay_gain = 65536};
+    AudioEngineTrack next = {.path = "second", .token = 2, .replay_gain = 32768};
+    CHECK(audio_engine_play(&engine, &first, 0));
+    audio_engine_queue_next(&engine, &next);
+    pump_until_full(0);
+    CHECK_EQUAL(192, reference.frames);
+    CHECK_EQUAL(reference.frames, engine.end_at);
+    CHECK(memcmp(words, ring, reference.frames * 2 * sizeof(uint32_t)) == 0);
+}
+
+static void a_live_gain_for_a_prefetched_track_is_preserved_when_seeking_into_it(void)
+{
+    start_engine();
+    AudioEngineTrack first = {.path = "lpc_16_44k_stereo", .end_ms = 1, .token = 1};
+    AudioEngineTrack next = {.path = "lpc_16_44k_stereo", .token = 2};
+    CHECK(audio_engine_play(&engine, &first, 0));
+    audio_engine_queue_next(&engine, &next);
+    pump_until_full(0);
+    CHECK_EQUAL(2, opens);
+    audio_engine_set_replay_gain(&engine, 1, 131072);
+    audio_engine_set_replay_gain(&engine, 2, 32768);
+    CHECK_EQUAL(2, opens);
+    audio_engine_observe(&engine, 44);
+    CHECK_EQUAL(2, audio_engine_status(&engine).token);
+    CHECK(audio_engine_seek(&engine, 0));
+    pump_until_full(0);
+    Fixture pcm = load("lpc_16_44k_stereo", "pcm");
+    CHECK_EQUAL(gained_word(word_of(expected_at(&pcm, 1000), 16), 32768), ring[1000]);
+    free(pcm.bytes);
+}
+
+static void live_normalization_targets_the_decoder_while_a_new_output_clock_waits(void)
+{
+    start_engine();
+    AudioEngineTrack first = {.path = "odd_blocks_16", .token = 1, .replay_gain = 65536};
+    AudioEngineTrack next = {.path = "lpc_24_96k_stereo", .token = 2, .replay_gain = 32768};
+    CHECK(audio_engine_play(&engine, &first, 0));
+    audio_engine_queue_next(&engine, &next);
+    pump_until_full(0);
+    CHECK(engine.rate_pending);
+    CHECK_EQUAL(1, audio_engine_status(&engine).token);
+    audio_engine_set_replay_gain(&engine, 1, 131072);
+    audio_engine_set_replay_gain(&engine, 2, 16384);
+    audio_engine_pump(&engine, 3001);
+    uint32_t rate = 0;
+    CHECK(audio_engine_wants_rate(&engine, &rate));
+    CHECK_EQUAL(96000, rate);
+    audio_engine_restart(&engine);
+    pump_until_full(0);
+    Fixture pcm = load("lpc_24_96k_stereo", "pcm");
+    for (uint32_t sample = 0; sample < 200; sample++) {
+        uint32_t expected = gained_word(word_of(expected_at(&pcm, sample), 24), 16384);
+        CHECK_EQUAL(expected, ring[sample]);
+        if (expected != ring[sample]) {
+            break;
+        }
+    }
+    free(pcm.bytes);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -1203,6 +1404,14 @@ int main(void)
         TEST_CASE(starting_part_way_skips_to_that_sample),
         TEST_CASE(seeking_restarts_the_ring_at_the_new_place),
         TEST_CASE(volume_scales_the_samples),
+        TEST_CASE(replay_gain_scales_pcm_and_unity_matches_the_existing_output_exactly),
+        TEST_CASE(contiguous_chapters_change_gain_without_reopening_the_file),
+        TEST_CASE(live_gain_updates_future_samples_without_restarting_and_survives_seek),
+        TEST_CASE(boosted_extreme_samples_saturate_safely_at_every_admitted_bit_depth),
+        TEST_CASE(normalization_composes_with_volume_before_saturation),
+        TEST_CASE(converted_files_apply_their_gain_before_sharing_filter_history),
+        TEST_CASE(a_live_gain_for_a_prefetched_track_is_preserved_when_seeking_into_it),
+        TEST_CASE(live_normalization_targets_the_decoder_while_a_new_output_clock_waits),
         TEST_CASE(mono_plays_on_both_channels),
         TEST_CASE(a_real_low_rate_flac_keeps_every_sample_and_its_exact_duration),
         TEST_CASE(low_rate_seeking_and_end_ranges_use_the_decoded_clock),

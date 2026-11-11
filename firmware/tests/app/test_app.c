@@ -60,9 +60,9 @@ enum {
     SETTINGS_GAIN_INDEX = 12,
     SETTINGS_EQUALIZER_INDEX = 14,
     SETTINGS_CUSTOM_EQ_INDEX = 15,
-    SETTINGS_START_INDEX = 16,
-    SETTINGS_RESCAN_INDEX = 17,
-    SETTINGS_THEME_INDEX = 19,
+    SETTINGS_START_INDEX = 18,
+    SETTINGS_RESCAN_INDEX = 19,
+    SETTINGS_THEME_INDEX = 21,
     MUSIC_COVER_FLOW_INDEX = 1,
     MUSIC_PLAYLISTS_INDEX = 8,
     SETTLE_STEPS = 30,
@@ -4314,6 +4314,32 @@ static void menu_does_nothing_while_nothing_plays(void)
     CHECK(title_is(FIRMWARE_SHORT_NAME));
 }
 
+static void normalization_choices_apply_and_survive_restart(void)
+{
+    start_app_with_library();
+    open_setting(16);
+    CHECK(title_is("ReplayGain"));
+    move_down(2);
+    tap(KEY_PLAY);
+    CHECK(title_is("Settings"));
+    Settings chosen;
+    CHECK(saved_settings(&chosen));
+    CHECK_EQUAL(REPLAY_GAIN_ALBUM, chosen.replay_gain_mode);
+    CHECK(chosen.prevent_clipping);
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Prevent clipping"));
+    move_up(1);
+    tap(KEY_PLAY);
+    CHECK(saved_settings(&chosen));
+    CHECK_EQUAL(REPLAY_GAIN_ALBUM, chosen.replay_gain_mode);
+    CHECK(!chosen.prevent_clipping);
+    restart_app();
+    CHECK(saved_settings(&chosen));
+    CHECK_EQUAL(REPLAY_GAIN_ALBUM, chosen.replay_gain_mode);
+    CHECK(!chosen.prevent_clipping);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -4381,6 +4407,7 @@ int main(void)
         TEST_CASE(home_art_moves_on_and_skips_albums_without_a_cover),
         TEST_CASE(home_art_keeps_the_playing_album),
         TEST_CASE(settings_choose_shuffle_and_repeat),
+        TEST_CASE(normalization_choices_apply_and_survive_restart),
         TEST_CASE(brightness_is_applied_and_saved),
         TEST_CASE(gain_is_applied),
         TEST_CASE(an_equalizer_preset_reaches_the_audio_and_survives_a_restart),

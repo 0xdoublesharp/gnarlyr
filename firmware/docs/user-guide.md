@@ -200,6 +200,14 @@ Lines starting with `#` are comments. The points can be in any order and at any 
 
 The graph is a calculated 44.1 kHz filter response with a labeled decibel scale, not an audio spectrum or a measurement of the output. It shows the tone-shaping response before the separately displayed computed preamp value. That value comes from the same linear gain used by the equalizer. Custom calculates preamp compensation from the combined filter response, including overlapping boosts and cuts. A change is heard after about a third of a second. The equalizer works on music up to 96 kHz (higher rates play unchanged) and not in USB DAC mode. Bands at or above a quarter of the music's sample rate do nothing (the 16 kHz band is idle at 44.1 and 48 kHz).
 
+## ReplayGain
+
+Settings → ReplayGain offers Off, Track and Album. Track uses each song's prepared gain; Album uses the album gain to keep the level relationships within an album. If one kind of gain is missing, the player uses the other. Songs without gain tags keep their normal level. Off is the default.
+
+Leave Settings → Prevent clipping on to limit normalization using the file's peak tags. Without peak tags, it retains attenuation and limits boosts to unity. Turning it off allows the full tagged gain. Changes apply to newly buffered audio while the current and next songs keep playing.
+
+The player reads existing ReplayGain tags. Rescan the library, or rebuild it with the desktop indexer, to add gain data to an older library. Your music files are unchanged.
+
 ## Bluetooth headphones
 
 Settings → Bluetooth shows whether Bluetooth is on and which headphones are connected. Open it to turn Bluetooth on or off, connect, switch or pair headphones. The screen lists your headphones (the player remembers up to six, most recent first) with their state, a **Pair new device** row, and a hint for the selected row at the bottom.

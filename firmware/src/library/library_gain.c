@@ -73,3 +73,18 @@ bool library_read_replay_gain(const Library *library, uint32_t index, ReplayGain
     return read_bytes(library, offset, header, sizeof header) &&
            valid_header(library, header, offset) && read_gain_record(library, offset, index, gain);
 }
+
+uint32_t library_replay_gain_for(const Library *library, uint32_t index, ReplayGainMode mode,
+                                 bool prevent_clipping)
+{
+    ReplayGain gain;
+    if (mode <= REPLAY_GAIN_OFF || mode >= REPLAY_GAIN_MODE_COUNT ||
+        !library_read_replay_gain(library, index, &gain)) {
+        return REPLAY_GAIN_UNITY;
+    }
+    uint32_t track = prevent_clipping ? gain.track_safe : gain.track;
+    uint32_t album = prevent_clipping ? gain.album_safe : gain.album;
+    uint32_t preferred = mode == REPLAY_GAIN_ALBUM ? album : track;
+    uint32_t fallback = mode == REPLAY_GAIN_ALBUM ? track : album;
+    return preferred != 0 ? preferred : fallback != 0 ? fallback : REPLAY_GAIN_UNITY;
+}

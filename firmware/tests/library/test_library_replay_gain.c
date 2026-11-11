@@ -330,6 +330,28 @@ static void removing_gain_from_reserved_storage_erases_the_previous_extension(vo
     check_gain(1, (ReplayGain){0});
 }
 
+static void playback_selection_uses_requested_gain_peak_limit_and_missing_tag_fallbacks(void)
+{
+    base_image();
+    append_gains();
+    open_image();
+    CHECK_EQUAL(REPLAY_GAIN_UNITY, library_replay_gain_for(&library, 0, REPLAY_GAIN_OFF, true));
+    CHECK_EQUAL(0, image.bytes_read);
+    CHECK_EQUAL(100000, library_replay_gain_for(&library, 0, REPLAY_GAIN_TRACK, false));
+    CHECK_EQUAL(50000, library_replay_gain_for(&library, 0, REPLAY_GAIN_TRACK, true));
+    CHECK_EQUAL(80000, library_replay_gain_for(&library, 0, REPLAY_GAIN_ALBUM, false));
+    CHECK_EQUAL(40000, library_replay_gain_for(&library, 0, REPLAY_GAIN_ALBUM, true));
+    put32(image.bytes + base_size + HEADER_SIZE + 4, 0);
+    put32(image.bytes + base_size + HEADER_SIZE + 12, 0);
+    record_checksum(0);
+    CHECK_EQUAL(50000, library_replay_gain_for(&library, 0, REPLAY_GAIN_ALBUM, true));
+    image.fail_read = base_size;
+    CHECK_EQUAL(REPLAY_GAIN_UNITY, library_replay_gain_for(&library, 0, REPLAY_GAIN_TRACK, false));
+    image.fail_read = UINT32_MAX;
+    CHECK_EQUAL(REPLAY_GAIN_UNITY,
+                library_replay_gain_for(&library, 0, REPLAY_GAIN_MODE_COUNT, false));
+}
+
 static int write_library(const char *path)
 {
     image = (Image){.fail_read = UINT32_MAX, .fail_write = UINT32_MAX};
@@ -388,6 +410,7 @@ int main(int argc, char **argv)
         TEST_CASE(builder_keeps_gain_with_sorted_tracks_and_omits_an_empty_extension),
         TEST_CASE(insufficient_extension_capacity_and_failed_writes_do_not_publish),
         TEST_CASE(removing_gain_from_reserved_storage_erases_the_previous_extension),
+        TEST_CASE(playback_selection_uses_requested_gain_peak_limit_and_missing_tag_fallbacks),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

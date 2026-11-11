@@ -107,7 +107,7 @@ The canonical `GNARLYR` identity has been installed through the two-hop file-cop
 
 ## Not there yet
 
-- No ReplayGain or playback speed control.
+- Playback speed control remains unavailable. ReplayGain reads prepared track/album metadata from a rescanned or rebuilt library; physical listening and headroom checks remain open.
 - **Timed sidecar lyrics are implemented.** The missing-sidecar notice was checked on the player; timing and text from a real sidecar still need a device check.
 - **The equalizer** leaves music above 96 kHz (176.4 and 192 kHz) unchanged, isn't applied in USB DAC mode or in the simulator, and a change is heard after the audio already buffered (about 0.3 s at 44.1 kHz).
 - **Bluetooth and the jacks:** while music goes to Bluetooth the player can't read the headphone jack: pause, plug wired headphones in and press Play to switch.

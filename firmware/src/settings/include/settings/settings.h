@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/replay_gain.h"
 #include "playback/play_queue.h"
 
 typedef enum GainLevel {
@@ -154,6 +155,8 @@ typedef struct Settings {
     SkipGesture skip_gesture;
     Orientation orientation;
     char language[SETTINGS_LANGUAGE_CAPACITY];
+    uint8_t replay_gain_mode;
+    bool prevent_clipping;
 } Settings;
 
 typedef struct SettingsEqualizerCurve {

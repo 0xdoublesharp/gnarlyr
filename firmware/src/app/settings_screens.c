@@ -52,6 +52,10 @@ static const StringId USB_MODE_OPTIONS[USB_MODE_COUNT] = {STR_USB_STORAGE, STR_U
 static const StringId USB_MODE_MESSAGES[USB_MODE_COUNT] = {STR_USB_SHOWS_DRIVES,
                                                            STR_USB_PLAYS_SOUND};
 
+static const StringId REPLAY_GAIN_OPTIONS[REPLAY_GAIN_MODE_COUNT] = {STR_OFF, STR_REPLAY_GAIN_TRACK,
+                                                                     STR_REPLAY_GAIN_ALBUM};
+static const StringId CLIPPING_OPTIONS[] = {STR_OFF, STR_ON};
+
 static const Settings *settings_of(const void *context)
 {
     const SettingsContext *settings = context;
@@ -465,6 +469,36 @@ static void choose_usb_mode(void *context, int index)
     toast_show(settings->toast, i18n_text(USB_MODE_MESSAGES[index]), hal_clock_milliseconds());
 }
 
+static int current_replay_gain(const void *context)
+{
+    return settings_of(context)->replay_gain_mode;
+}
+
+static int current_prevent_clipping(const void *context)
+{
+    return settings_of(context)->prevent_clipping ? 1 : 0;
+}
+
+static void apply_replay_gain(SettingsContext *context)
+{
+    const Settings *settings = &context->store->settings;
+    player_set_replay_gain(context->player, (ReplayGainMode)settings->replay_gain_mode,
+                           settings->prevent_clipping);
+    save(context);
+}
+
+static void choose_replay_gain(void *context, int index)
+{
+    editable_settings(context)->replay_gain_mode = (uint8_t)index;
+    apply_replay_gain(context);
+}
+
+static void choose_prevent_clipping(void *context, int index)
+{
+    editable_settings(context)->prevent_clipping = index != 0;
+    apply_replay_gain(context);
+}
+
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_SHUFFLE, SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, current_shuffle, choose_shuffle, NULL, NULL},
     {STR_REPEAT, REPEAT_OPTIONS, REPEAT_MODE_COUNT, current_repeat, choose_repeat, NULL, NULL},
@@ -489,6 +523,10 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      NULL},
     {STR_EQUALIZER, EQUALIZER_PRESET_NAMES, EQUALIZER_PRESET_COUNT, current_equalizer,
      choose_equalizer, describe_equalizer, extend_equalizer},
+    {STR_REPLAY_GAIN, REPLAY_GAIN_OPTIONS, REPLAY_GAIN_MODE_COUNT, current_replay_gain,
+     choose_replay_gain, NULL, NULL},
+    {STR_PREVENT_CLIPPING, CLIPPING_OPTIONS, 2, current_prevent_clipping, choose_prevent_clipping,
+     NULL, NULL},
     {STR_START_SCREEN, START_OPTIONS, START_SCREEN_COUNT, current_start, choose_start, NULL, NULL},
     {STR_USB_MODE, USB_MODE_OPTIONS, USB_MODE_COUNT, current_usb_mode, choose_usb_mode, NULL, NULL},
     {STR_THEME, THEME_OPTIONS, APPEARANCE_THEME_COUNT, current_appearance, choose_appearance, NULL,

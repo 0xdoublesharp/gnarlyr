@@ -1,6 +1,18 @@
-# ReplayGain metadata
+# ReplayGain
 
-The portable tag reader returns track and album gain, with a peak-limited value for each, in `TrackTags.replay_gain`. The device scanner and desktop indexer store these values in an optional library extension. Playback does not apply normalization yet.
+Settings → ReplayGain selects Off, Track or Album normalization for local playback. Off is the default and preserves the existing PCM output. Prevent clipping is on by default. The portable tag reader and both indexers prepare gain values for the shared device playback engine and the simulator.
+
+## Playback and settings
+
+Track mode selects the track gain; Album mode selects the album gain to retain the prepared level relationship between songs on an album. When the selected gain is missing, the other gain is used. When both are missing, or the cache is unreadable or invalid, playback uses unity. Off returns unity without reading gain metadata.
+
+Prevent clipping selects the matching peak-limited value. Turning it off selects the raw gain. Gain and the engine's digital volume are combined once when the track gain or volume changes, before sample conversion and saturation. PCM multiplication uses the existing Q16 conversion step; no tag parsing runs in the sample loop. Converted tracks receive gain before interpolation and retain the converter history across compatible files. EQ retains its separate processing and headroom policy after conversion.
+
+Each current and queued track carries its own gain. Segment gains survive seek, pause/resume and clock changes. The decoder retains its own token while a new output clock waits for the audible ring to drain, so live gain changes target the decoded source independently of the audible segment. Settings changes update matching playback tokens without reopening a file or restarting DMA; already buffered samples keep their previous level until they play. The simulator updates its current and next slots under the audio lock. USB DAC input follows its separate stream path.
+
+Settings version 14 keeps the existing 42-byte record. Byte 4 is the version; byte 5 contains the mode in bits 0–1 (`0` Off, `1` Track, `2` Album) and Prevent clipping in bit 2. Mode 3 and all higher bits are rejected. Versions 1–13 retain their prior validation and migrate to Off with clipping prevention enabled. The record checksum covers the new flags. The mode and clipping choice are restored before playback resumes.
+
+Audio setup and control functions carry `CORE_COLD`, allowing the compiler to favor compact code there. PCM copying, interpolation and output conversion keep their existing optimization level.
 
 ## Tag mapping
 
@@ -65,3 +77,5 @@ python tools/replay_gain_table.py --output src/library/replay_gain_table.h --sty
 ```
 
 `replay_gain_table_up_to_date` checks that the committed table matches the generator. Numeric parsing and conversion are part of the library scan target, outside the playback loop. Peak conversion uses all supplied decimal digits; tests cover exact Q24 boundaries and values immediately above them. `test_library_replay_gain` checks legacy files, identity preservation, sorted gain association, corrupt or truncated data, failed writes and removal of a previous reserved-file extension. `replay_gain_cache_matches_desktop` compares independently written extension bytes and reads both database variants through the C reader, then compares real tagged-file and CUE scans between the device and desktop indexers.
+
+Playback checks cover sample-identical unity, attenuation and saturation, gain/volume composition before clipping, contiguous chapters, converted-file history, live current/queued updates and seek restoration. Full-image ARM scenarios scan tagged WAV files, verify normalized PCM, change clipping through Settings without a DMA restart and preserve album gain across pause/resume. English and pseudo-language checks cover the new controls at all text sizes and both orientations.

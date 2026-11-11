@@ -467,7 +467,8 @@ static AudioEngineTrack engine_track(const HalAudioTrack *track)
     return (AudioEngineTrack){.path = track->path,
                               .start_ms = track->start_ms,
                               .end_ms = track->end_ms,
-                              .token = track->token};
+                              .token = track->token,
+                              .replay_gain = track->replay_gain};
 }
 
 CORE_SEAM bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms,
@@ -931,4 +932,10 @@ void board_audio_stream_close(void)
 {
     stream_service = NULL;
     board_audio_shut_down();
+}
+
+CORE_SEAM void hal_audio_set_replay_gain(uint32_t token, uint32_t gain)
+{
+    ensure_engine();
+    audio_engine_set_replay_gain(&engine, token, gain);
 }
