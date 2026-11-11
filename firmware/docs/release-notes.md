@@ -17,6 +17,8 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Library and navigation
 
+- Home defaults to Music, Mixtapes, Stats, USB Mode, Clock and Settings. A loaded track adds Now playing at the top, including while paused; the artwork caption shows the track title when space allows. Audiobooks and Podcasts are reachable from Music when their shelves exist; they and Up Next can be shown through Settings → Home screen. The editor has nine items; Now playing is automatic. Existing untouched Home defaults migrate on load, while customised orders and hidden masks are kept. The settings v15 layout is unchanged.
+
 - Settings → Format card adds a quick FAT32/exFAT format with capacity and erase warnings, a separate confirmation with Cancel selected, playback/USB/battery guards, progress and removal recovery. Formatting clears the card's library and saved playback state. Native sparse images pass macOS fsck and read/write checks; ARM scenarios cover copied WAV playback and removal/retry. Physical card acceptance remains open.
 
 - Search metadata and paths, combine sorting and filters, inspect track information and assign personal mood/activity labels.

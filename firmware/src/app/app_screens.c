@@ -198,6 +198,30 @@ static MenuItem music_item(AppScreens *screens, const LibraryStore *store, int i
                       .opens = true};
 }
 
+static bool shelf_present(const void *context)
+{
+    const BrowseEntry *entry = context;
+    return entry->present;
+}
+
+static MenuItem shelf_item(AppScreens *screens, AppScreensContext context, SpokenKind shelf)
+{
+    BrowseEntry *entry = &screens->shelf_entries[shelf == SPOKEN_PODCAST ? 1 : 0];
+    *entry = (BrowseEntry){
+        .pool = &screens->browse,
+        .store = context.store,
+        .unavailable = &screens->no_library.screen,
+        .shelf = shelf,
+        .present = context.store->available && spoken_shelf_present(&context.store->library, shelf),
+    };
+    return (MenuItem){.label = i18n_text(shelf == SPOKEN_PODCAST ? STR_PODCASTS : STR_AUDIOBOOKS),
+                      .select = open_browse,
+                      .context = entry,
+                      .opens = true,
+                      .shown = shelf_present,
+                      .shown_context = entry};
+}
+
 static void build_music(AppScreens *screens, AppScreensContext context)
 {
     BrowsePoolConfig browse = {
@@ -223,32 +247,12 @@ static void build_music(AppScreens *screens, AppScreensContext context)
         screens->music_items[index] = music_item(screens, context.store, index);
         screens->music_items[index].icon = icons[index];
     }
-    app_screens_build_menu(&screens->music, STR_MUSIC, screens->music_items, MUSIC_ITEM_COUNT,
+    screens->music_items[MUSIC_ITEM_COUNT] = shelf_item(screens, context, SPOKEN_AUDIOBOOK);
+    screens->music_items[MUSIC_ITEM_COUNT].icon = ICON_AUDIOBOOK;
+    screens->music_items[MUSIC_ITEM_COUNT + 1] = shelf_item(screens, context, SPOKEN_PODCAST);
+    screens->music_items[MUSIC_ITEM_COUNT + 1].icon = ICON_PODCAST;
+    app_screens_build_menu(&screens->music, STR_MUSIC, screens->music_items, MUSIC_MENU_ITEM_COUNT,
                            context.theme);
-}
-
-static bool shelf_present(const void *context)
-{
-    const BrowseEntry *entry = context;
-    return entry->present;
-}
-
-static MenuItem shelf_item(AppScreens *screens, AppScreensContext context, SpokenKind shelf)
-{
-    BrowseEntry *entry = &screens->shelf_entries[shelf == SPOKEN_PODCAST ? 1 : 0];
-    *entry = (BrowseEntry){
-        .pool = &screens->browse,
-        .store = context.store,
-        .unavailable = &screens->no_library.screen,
-        .shelf = shelf,
-        .present = context.store->available && spoken_shelf_present(&context.store->library, shelf),
-    };
-    return (MenuItem){.label = i18n_text(shelf == SPOKEN_PODCAST ? STR_PODCASTS : STR_AUDIOBOOKS),
-                      .select = open_browse,
-                      .context = entry,
-                      .opens = true,
-                      .shown = shelf_present,
-                      .shown_context = entry};
 }
 
 Screen *app_screens_usb_modes(AppScreens *screens, bool prompt)
@@ -271,7 +275,7 @@ const HomeItem APP_HOME_ITEMS[HOME_ITEM_COUNT] = {{STR_MUSIC, ICON_MUSIC},
                                                   {STR_NOW_PLAYING, ICON_NOW_PLAYING},
                                                   {STR_UP_NEXT, ICON_QUEUE},
                                                   {STR_MIXTAPES, ICON_MIXTAPE},
-                                                  {STR_LISTENING, ICON_DIAGNOSTICS},
+                                                  {STR_LISTENING_STATS, ICON_DIAGNOSTICS},
                                                   {STR_USB_MODE, ICON_USB},
                                                   {STR_CLOCK, ICON_TIMEOUT}};
 
@@ -310,10 +314,11 @@ static int arrange_home(AppScreens *screens)
     home_catalog(screens, items);
     const Settings *settings = &screens->context.settings->settings;
     unsigned hidden = settings->home_hidden & ~(1u << SETTINGS_HOME_SETTINGS_ITEM);
-    int count = 0;
+    int count = 1;
+    screens->home_items[0] = items[SETTINGS_HOME_NOW_PLAYING_ITEM];
     for (int index = 0; index < HOME_ITEM_COUNT; index++) {
         int item = settings->home_order[index];
-        if (((hidden >> item) & 1u) == 0) {
+        if (item != SETTINGS_HOME_NOW_PLAYING_ITEM && ((hidden >> item) & 1u) == 0) {
             screens->home_items[count++] = items[item];
         }
     }

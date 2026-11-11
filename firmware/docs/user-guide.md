@@ -26,6 +26,12 @@ Installing by copying a file under FiiO's firmware is not verified. FiiO's updat
 
 On the first start with a microSD card in the player, Gnarlyr builds its library and album covers. Wait for it to finish before you plug the player into a computer.
 
+## Home
+
+Home starts with **Music**, **Mixtapes**, **Stats**, **USB Mode**, **Clock** and **Settings**, in that order. While a track is loaded, playing or paused, **Now playing** appears above Music; the row disappears when no track is loaded. The artwork caption shows the track title when space allows. Press Play there to return to Now Playing; Menu on Now Playing opens Up Next.
+
+Audiobooks, Podcasts and Up Next are hidden on Home by default. Audiobooks and Podcasts are available at the end of Music when their shelves exist. Settings → Home screen can show them on Home too.
+
 ## Your music
 
 - Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Settings → About → Music shows which one is in use. Settings are kept on internal storage either way, so they stay the same when you insert or remove the card.
@@ -325,7 +331,7 @@ If a speaker or headphones stay silent when they connect while music is playing,
 
 ## Audiobooks and podcasts
 
-Put audiobooks in a folder called `Audiobooks` and podcasts in a folder called `Podcasts`, at the top of the card (any capitalisation; `Audiobook` and `Podcast` work too). Home then shows **Audiobooks** and **Podcasts**; they stay hidden while those folders don't exist. Books and episodes stay out of Music (Cover Flow, Albums, Artists, Genres, Songs and shuffle), so they never turn up between your albums.
+Put audiobooks in a folder called `Audiobooks` and podcasts in a folder called `Podcasts`, at the top of the card (any capitalisation; `Audiobook` and `Podcast` work too). Music then shows **Audiobooks** and **Podcasts** after the library views; they stay hidden while those folders don't exist. You can also show them on Home through Settings → Home screen. Books and episodes stay out of Music (Cover Flow, Albums, Artists, Genres, Songs and shuffle), so they never turn up between your albums.
 
 ```
 Audiobooks/
@@ -395,7 +401,9 @@ Settings → Theme offers Neon Noir, Graphite, Sunset, Sea Glass and Classic. Th
 When something takes more than a moment, its screen says what is happening and a small wireframe turns under the message: a cassette while saving (Export plays, mixtapes, tags), a disc while working through your music (library scan, finding covers, search, preparing a queue, listening history) and a solid while loading tags. Where the player knows how far it has got, the cassette's tape winds from the left reel to the right, the disc's rim fills in, or the solid's edges light up. Only the wireframe is redrawn, and it stops as soon as the work ends or the screen turns off.
 ## Customising Home
 
-Settings → Home screen lists every Home item in Home order, each marked Shown or Hidden; Settings is marked Always shown and stays on Home. Press Play on an item for **Hide from Home** (or **Show on Home**) and **Move**. Move picks the item up, and so does holding Play on it: the title reads Move: vol ±, the volume buttons move the item up and down the list, Play places it and Back puts it back where it was. **Reset to default** restores the original order with every item shown. Each change is saved at once and Home follows it straight away, keeping your place on the item you had selected. Hiding only ever removes an item: Now Playing and Up Next still appear only while something is loaded, and Audiobooks and Podcasts only when their folders exist.
+Settings → Home screen lists the nine editable Home items in their saved order, each marked Shown or Hidden; Settings is marked Always shown and stays on Home. Now playing appears automatically at the top when a track is loaded and has no editor row. Press Play on an item for **Hide from Home** (or **Show on Home**) and **Move**. Move picks the item up, and so does holding Play on it: the title reads Move: vol ±, the volume buttons move the item up and down the list, Play places it and Back puts it back where it was. **Reset to default** restores Music, Mixtapes, Stats, USB Mode, Clock and Settings, with Audiobooks, Podcasts and Up Next hidden. Each change is saved at once and Home follows it straight away, keeping your place on the item you had selected. A shown Up Next needs a loaded track, and shown Audiobooks and Podcasts need their shelves.
+
+An existing settings file adopts this default if its saved Home order and hidden mask still match the old built-in default: items in their original order with nothing hidden. A customised order or hidden mask is kept; Now playing uses the automatic top row in either case.
 
 ## Editing a queue
 
@@ -437,13 +445,13 @@ The set time also shows in the status bar, left of the battery; in landscape it 
 
 ## Saved moments
 
-Open Home → Listening → Moments while listening and choose **Save moment**. Each row shows the song title and saved time, newest first. Select one to play from that exact place. Hold Play on a saved row and choose Delete to remove it, or Keep moment to cancel. You can keep 64 moments; delete one when the list is full.
+Open Home → Stats → Moments while listening and choose **Save moment**. Each row shows the song title and saved time, newest first. Select one to play from that exact place. Hold Play on a saved row and choose Delete to remove it, or Keep moment to cancel. You can keep 64 moments; delete one when the list is full.
 
 Moments survive restarts and library rescans. They follow the song's path and exact CUE or chapter boundaries. If a file is moved or its chapter boundaries change, its moment stays in the list and says the song or chapter is unavailable until that identity returns.
 
 ## Listening and lyrics
 
-Home → Listening shows total listening time, plays, skips, and top songs, albums and artists. It records time while music is playing. Totals and ranked lists work without a calendar clock.
+Home → Stats shows total listening time, plays, skips, and top songs, albums and artists. It records time while music is playing. Totals and ranked lists work without a calendar clock.
 
 Export plays saves your plays to `/.scrobbler.log` at the top of the player's drive, in the Rockbox scrobbler format that import tools read; your history stays as it is. It starts as soon as you choose it and shows how far it has got; Back cancels it. When it finishes it shows how many plays it saved. Each export replaces the previous file. With nothing to export it says so and leaves the file alone. Plays of songs no longer in the library are left out. Times are saved in UTC. A new play gets its time from the current clock, whether set in Settings or by your Mac (see Clock and calendar). Changing the clock leaves earlier plays and the start time of a play already in progress unchanged; a play made while the clock was not set is saved with the time 0.
 

@@ -645,4 +645,5 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_QUICK_SETTINGS] = "Quick Settings",
     [STR_QUICK_SETTINGS_HINT] = "Play: change · Back: close",
     [STR_PLAYBACK_SPEED] = "Playback speed",
+    [STR_LISTENING_STATS] = "Stats",
 };

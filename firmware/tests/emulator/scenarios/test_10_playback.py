@@ -366,7 +366,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(dsp.loaded(rig.machine))
         self.assertTrue(rig.session.module_reads("slot_1", number))
         rig.press("back", hold=1300)
-        rig.press("next")
+        rig.press("previous")
         rig.press("play")
         _, settings = self.module(rig.machine, "settings")
         self.assertTrue(settings.loaded(rig.machine),

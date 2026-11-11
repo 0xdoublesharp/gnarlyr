@@ -191,7 +191,7 @@ static void reset_buttons_restores_the_live_controls_and_saved_defaults(void)
     settings.button_actions[PLAYBACK_PLAY_TAP] = BUTTON_ACTION_VOLUME_UP;
     start_with(settings);
     hold(KEY_BACK, 1000);
-    tap(KEY_VOLUME_UP);
+    tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     CHECK(strcmp(app_screen_title(), "Settings") == 0);
     tap(KEY_VOLUME_DOWN);

@@ -27,7 +27,7 @@ enum {
     SETTINGS_DEPTH = 2,
     COVER_FLOW_DEPTH = 3,
     ALBUM_DEPTH = 4,
-    HOME_SETTINGS_ROW = 1,
+    HOME_SETTINGS_ROW = 5,
     SETTINGS_SHUFFLE_ROW = 1,
     SETTINGS_BLUETOOTH_ROW = 3,
     SCRIPT_STEP_MS = 8,
@@ -408,7 +408,7 @@ static void a_screen_of_another_module_takes_the_slot(void)
     CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
     CHECK_EQUAL(2, fake_hal_module_loads());
     tap(KEY_BACK);
-    tap(KEY_VOLUME_DOWN);
+    tap(KEY_VOLUME_UP);
     tap(KEY_PLAY);
     tap(KEY_PLAY);
     CHECK(title_is("Cover Flow"));
@@ -464,7 +464,7 @@ static void settings_that_cannot_load_leave_home_usable(void)
     open_settings();
     CHECK(title_is(HOME));
     CHECK(toast_is(MISSING));
-    tap(KEY_VOLUME_DOWN);
+    tap(KEY_VOLUME_UP);
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
 }
