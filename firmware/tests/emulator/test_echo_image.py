@@ -1982,6 +1982,71 @@ class EchoImageTest(unittest.TestCase):
             self.assertEqual(samples[480 + frame % 48], samples[frame], frame)
         self.assert_healthy(rig.session)
 
+    def converted_reference(self, channels, factor, count):
+        import audio_resample_table
+        rows = [audio_resample_table.coefficients(12 * phase // factor) for phase in range(factor)]
+        frames = []
+        for frame in range(count):
+            cursor, phase = divmod(frame, factor)
+            first = cursor - audio_resample_table.LEFT
+            pair = []
+            for samples in channels:
+                total = sum(coefficient * samples[first + tap]
+                            for tap, coefficient in enumerate(rows[phase])
+                            if 0 <= first + tap < len(samples))
+                pair.append(max(-8388608, min(8388607, (total + (1 << 29)) >> 30)))
+            frames.append(tuple(pair))
+        return frames
+
+    def test_converted_stereo_matches_the_filter_and_leaves_core_0_mostly_idle(self):
+        from echo_emulator.audio import PRODUCED_OFFSET, RING_BYTES
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        from unicorn import UC_HOOK_MEM_WRITE
+        rate, total = 16000, 14400
+        left = [index * 7919 % 20000 - 10000 for index in range(rate * 3)]
+        right = [index * 104729 % 16000 - 8000 for index in range(rate * 3)]
+        pcm = b"".join(struct.pack("<hh", *pair) for pair in zip(left, right))
+        wav = struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ",
+                          16, 1, 2, rate, rate * 4, 4, 16, b"data", len(pcm)) + pcm
+        volume = Fat32Volume()
+        volume.add_file("Speech.wav", wav)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        machine, ring, samples = rig.machine, rig.audio.ring, {}
+
+        def capture(uc, access, address, size, value, user):
+            produced = struct.unpack("<I", machine.read_memory(
+                rig.audio.engine + PRODUCED_OFFSET, 4))[0]
+            at = ring + (produced % (RING_BYTES // 8)) * 8
+            if produced >= total or size not in (4, 8) or address not in (at, at + 4):
+                return
+            pair = samples.setdefault(produced, [None, None])
+            pair[(address - at) // 4] = value & 0xFFFFFFFF
+            if size == 8:
+                pair[1] = (value >> 32) & 0xFFFFFFFF
+
+        def busy_us():
+            return struct.unpack("<12I", machine.read_memory(machine.symbols["stats"], 48))[10]
+
+        machine.uc.hook_add(UC_HOOK_MEM_WRITE, capture, None, ring, ring + RING_BYTES - 1)
+        rig.open_songs()
+        started = rig.play_song(1)
+        machine.run(until=lambda: None not in samples.get(total - 1, [None]),
+                    until_ms=machine.milliseconds() + 3000)
+        busy, since = busy_us(), machine.microseconds()
+        rig.run_for(1000)
+        share = (busy_us() - busy) / (machine.microseconds() - since)
+        self.assertEqual(48000, rig.audio.rate)
+        self.assertEqual([], rig.audio.underruns(started))
+        got = [tuple((word - (word >> 31 << 32)) >> 8 for word in samples[frame])
+               for frame in range(total)]
+        wanted = self.converted_reference(([value << 8 for value in left],
+                                           [value << 8 for value in right]), 3, total)
+        self.assertEqual(wanted, got)
+        self.assertLess(share, 0.2)
+        self.assert_healthy(rig.session)
+
     def test_speech_plays_through_the_independent_audio_module_while_a_menu_module_changes(self):
         rig = self.speech_rig()
         number, dsp = self.module(rig.machine, "dsp")
