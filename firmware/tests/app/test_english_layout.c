@@ -59,6 +59,7 @@ static const Pattern NOTICE_PATTERNS[] = {
 };
 
 static const StringId SCREEN_TITLES[] = {
+    STR_CLEAR_HISTORY,
     STR_MUSIC,
     STR_AUDIOBOOKS,
     STR_PODCASTS,

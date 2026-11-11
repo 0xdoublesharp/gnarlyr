@@ -129,6 +129,7 @@ typedef struct ListeningVisitor {
 StoreLoad listening_log_open(ListeningLog *log, ListeningLogConfig config);
 void listening_log_enable(ListeningLog *log, bool enabled);
 StoreResult listening_log_append(ListeningLog *log, const ListeningPlay *play);
+StoreResult listening_log_clear(ListeningLog *log);
 StoreResult listening_log_note(ListeningLog *log, ListeningEvent event);
 
 ListeningFormat listening_format_class(bool lossless, uint32_t sample_rate, uint8_t bits);

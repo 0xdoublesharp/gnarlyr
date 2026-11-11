@@ -1086,7 +1086,7 @@ static void draw_editor(const DiscoveryScreen *screen, Canvas *canvas, Rect area
     draw_line(canvas, theme, area, selected, false);
     area.y += area.height;
     area.height = font_line_height(theme->fonts.small) + 2;
-    const StringId hints[] = {STR_QUERY_CHOOSE_HINT, STR_QUERY_ADD_HINT, STR_QUERY_ERASE_HINT,
+    const StringId hints[] = {STR_NAME_CHOOSE_HINT, STR_NAME_ADD_HINT, STR_NAME_ERASE_HINT,
                               screen->edit_kind == EDIT_QUERY ? STR_QUERY_SEARCH_HINT
                                                               : STR_SAVE_HINT};
     for (unsigned index = 0; index < sizeof hints / sizeof *hints; index++) {

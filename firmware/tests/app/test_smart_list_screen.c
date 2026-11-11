@@ -424,9 +424,30 @@ static void lists_render_at_every_size_and_orientation(void)
     }
 }
 
+static void clearing_history_rebuilds_cached_most_and_recently_played_lists(void)
+{
+    start();
+    add_play(0);
+    add_play(4);
+    show(SMART_LIST_MOST_PLAYED);
+    CHECK_EQUAL(2, rows());
+    show(SMART_LIST_RECENTLY_PLAYED);
+    CHECK_EQUAL(2, rows());
+    uint32_t generation = store.log.generation;
+    CHECK_EQUAL(STORE_DONE, listening_store_clear(&store));
+    CHECK(store.log.generation != generation);
+    show(SMART_LIST_MOST_PLAYED);
+    CHECK_EQUAL(0, rows());
+    CHECK_EQUAL(store.log.generation, smart.caches[SMART_LIST_MOST_PLAYED].stamp.log);
+    show(SMART_LIST_RECENTLY_PLAYED);
+    CHECK_EQUAL(0, rows());
+    CHECK_EQUAL(store.log.generation, smart.caches[SMART_LIST_RECENTLY_PLAYED].stamp.log);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(clearing_history_rebuilds_cached_most_and_recently_played_lists),
         TEST_CASE(recently_played_shows_songs_newest_first_with_their_artist),
         TEST_CASE(each_list_has_its_own_empty_state),
         TEST_CASE(the_first_list_checks_the_library_and_says_so),

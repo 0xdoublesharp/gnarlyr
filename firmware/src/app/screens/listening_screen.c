@@ -20,6 +20,8 @@ enum {
     MODE_TOP,
     MODE_TOTALS,
     MODE_EXPORT,
+    MODE_OPTIONS,
+    MODE_CONFIRM,
     MENU_ROWS = 5,
     STAT_GAP = 8,
     EXPORT_MEASURE,
@@ -41,6 +43,8 @@ typedef struct ExportStatus {
 } ExportStatus;
 
 static ListeningWork *const work = &listening_module_work.as.listening;
+static Toast *toast;
+static const bool *scanning;
 
 static const StringId MENU[MENU_ROWS] = {
     STR_TOP_ARTISTS, STR_TOP_ALBUMS, STR_TOP_SONGS, STR_LISTENING_TOTALS, STR_EXPORT_PLAYS,
@@ -52,6 +56,9 @@ static StringId title_id(const ListeningScreen *screen)
         return screen->group == LISTENING_BY_ARTIST  ? STR_TOP_ARTISTS
                : screen->group == LISTENING_BY_ALBUM ? STR_TOP_ALBUMS
                                                      : STR_TOP_SONGS;
+    }
+    if (screen->mode == MODE_OPTIONS || screen->mode == MODE_CONFIRM) {
+        return screen->mode == MODE_CONFIRM ? STR_CLEAR_HISTORY : STR_VIEW_OPTIONS;
     }
     return screen->mode == MODE_TOTALS   ? STR_LISTENING_TOTALS
            : screen->mode == MODE_EXPORT ? STR_EXPORT_PLAYS
@@ -69,12 +76,22 @@ static void format_time(char *text, size_t capacity, uint64_t millis)
 static int row_count(const void *context)
 {
     const ListeningScreen *screen = context;
+    if (screen->mode == MODE_OPTIONS || screen->mode == MODE_CONFIRM) {
+        return screen->mode == MODE_OPTIONS ? 1 : 3;
+    }
     return screen->mode == MODE_MENU ? MENU_ROWS + (screen->moments != NULL) : work->top.count;
 }
 
 static const char *row_label(const void *context, int index)
 {
     const ListeningScreen *screen = context;
+    if (screen->mode == MODE_OPTIONS) {
+        return i18n_text(STR_CLEAR_HISTORY);
+    }
+    if (screen->mode == MODE_CONFIRM) {
+        static const StringId CHOICES[] = {STR_EXPORT_FIRST, STR_CLEAR, STR_CARD_FORMAT_CANCEL};
+        return i18n_text(CHOICES[index]);
+    }
     return screen->mode == MODE_MENU ? i18n_text(index == MENU_ROWS ? STR_MOMENTS : MENU[index])
                                      : work->names[index];
 }
@@ -97,11 +114,11 @@ static void begin_job(ListeningScreen *screen)
     *work = (ListeningWork){0};
     listening_module_work.owner = screen;
     if (screen->mode == MODE_TOP) {
-        listening_top_begin(&work->top, &screen->config.store->log, screen->group,
+        listening_top_begin(&work->top, &screen->store->log, screen->group,
                             (ListeningScratch){work->tallies, LISTENING_TALLY_CAPACITY});
     } else if (screen->mode == MODE_EXPORT) {
-        ListeningLookup lookup = {listening_store_text, screen->config.store};
-        listening_export_begin(&work->export_job, &screen->config.store->log, lookup);
+        ListeningLookup lookup = {listening_store_text, screen->store};
+        listening_export_begin(&work->export_job, &screen->store->log, lookup);
         work->export_stage = EXPORT_MEASURE;
     }
 }
@@ -109,10 +126,15 @@ static void begin_job(ListeningScreen *screen)
 static void show_mode(ListeningScreen *screen, uint8_t mode)
 {
     screen->mode = mode;
+    if (mode != MODE_EXPORT) {
+        screen->clearing_export = false;
+    }
     screen->screen.title = i18n_text(title_id(screen));
     begin_job(screen);
-    list_view_init(&screen->list, &screen->model, screen->config.theme, screen->now_ms);
-    if (mode == MODE_MENU) {
+    list_view_init(&screen->list, &screen->model, screen->theme, screen->now_ms);
+    if (mode == MODE_CONFIRM) {
+        list_view_select(&screen->list, 2, screen->now_ms);
+    } else if (mode == MODE_MENU) {
         list_view_select(&screen->list, screen->selected, screen->now_ms);
     }
 }
@@ -139,6 +161,55 @@ static void cancel_export(const ListeningScreen *screen)
     }
 }
 
+static void notify(const ListeningScreen *screen, StringId message)
+{
+    if (toast != NULL) {
+        toast_show(toast, i18n_text(message), screen->now_ms);
+    }
+}
+
+static bool clear_allowed(const ListeningScreen *screen)
+{
+    if (scanning != NULL && *scanning) {
+        notify(screen, STR_SCANNING);
+        return false;
+    }
+    if (screen->mode == MODE_EXPORT && work->export_stage <= EXPORT_WRITE) {
+        notify(screen, STR_EXPORT_WORKING);
+        return false;
+    }
+    return true;
+}
+
+static void clear_history(ListeningScreen *screen)
+{
+    if (!clear_allowed(screen)) {
+        return;
+    }
+    StoreResult result = listening_store_clear(screen->store);
+    if (result == STORE_DONE) {
+        show_mode(screen, MODE_MENU);
+        notify(screen, STR_HISTORY_CLEARED);
+    } else {
+        screen->clearing_export = false;
+        notify(screen, STR_HISTORY_UNAVAILABLE);
+    }
+}
+
+static void confirm_clear(ListeningScreen *screen)
+{
+    if (screen->list.selected == 2) {
+        show_mode(screen, MODE_MENU);
+    } else if (clear_allowed(screen)) {
+        if (screen->list.selected == 0) {
+            show_mode(screen, MODE_EXPORT);
+            screen->clearing_export = true;
+        } else {
+            clear_history(screen);
+        }
+    }
+}
+
 static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     ListeningScreen *screen = context;
@@ -154,7 +225,15 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
         if (screen->mode == MODE_MENU) {
             return screen_action_pop();
         }
-        show_mode(screen, MODE_MENU);
+        show_mode(screen, screen->mode == MODE_CONFIRM ? MODE_OPTIONS : MODE_MENU);
+    } else if (navigation.intent == NAVIGATION_OPTIONS) {
+        if (clear_allowed(screen)) {
+            show_mode(screen, MODE_OPTIONS);
+        }
+    } else if (navigation.intent == NAVIGATION_SELECT && screen->mode == MODE_OPTIONS) {
+        show_mode(screen, MODE_CONFIRM);
+    } else if (navigation.intent == NAVIGATION_SELECT && screen->mode == MODE_CONFIRM) {
+        confirm_clear(screen);
     } else if (navigation.intent == NAVIGATION_NEXT || navigation.intent == NAVIGATION_PREVIOUS) {
         list_view_move(&screen->list, navigation.intent == NAVIGATION_NEXT ? 1 : -1, true, now_ms);
     } else if (navigation.intent == NAVIGATION_SELECT && screen->mode == MODE_MENU) {
@@ -182,7 +261,7 @@ static void name_top(ListeningScreen *screen)
     for (uint8_t index = 0; index < work->top.count; index++) {
         ListeningText text;
         const ListeningRanked *rank = &work->top.top[index];
-        bool found = listening_store_text(screen->config.store, &rank->track, &text);
+        bool found = listening_store_text(screen->store, &rank->track, &text);
         const char *name = !found ? i18n_text(STR_HISTORY_UNAVAILABLE)
                            : screen->group == LISTENING_BY_ARTIST ? text.artist
                            : screen->group == LISTENING_BY_ALBUM  ? text.album
@@ -285,7 +364,7 @@ static uint32_t export_percent(void)
 
 static void follow_motion(ListeningScreen *screen, uint32_t now_ms)
 {
-    WireMotion *motion = screen->config.motion;
+    WireMotion *motion = screen->motion;
     bool exporting = screen->mode == MODE_EXPORT && work->export_stage <= EXPORT_WRITE;
     bool ranking = screen->mode == MODE_TOP && !work->named && work->top.result != STORE_FAILED;
     if (!exporting && !ranking) {
@@ -309,6 +388,10 @@ static void update(void *context, uint32_t now_ms)
         name_top(screen);
     } else if (screen->mode == MODE_EXPORT) {
         update_export();
+        if (screen->clearing_export &&
+            (work->export_stage == EXPORT_DONE || work->export_stage == EXPORT_EMPTY)) {
+            clear_history(screen);
+        }
     }
     follow_motion(screen, now_ms);
     hal_audio_service();
@@ -324,8 +407,8 @@ static void draw_label(Canvas *canvas, const Theme *theme, Rect area, const char
 
 static void draw_totals(ListeningScreen *screen, Canvas *canvas, Rect area)
 {
-    const Theme *theme = screen->config.theme;
-    ListeningTotals totals = listening_store_totals(screen->config.store);
+    const Theme *theme = screen->theme;
+    ListeningTotals totals = listening_store_totals(screen->store);
     int padding = theme->metrics.padding;
     int height = (area.height - 4 * STAT_GAP) / 3;
     char value[LISTENING_VALUE_BYTES];
@@ -349,10 +432,67 @@ static void draw_totals(ListeningScreen *screen, Canvas *canvas, Rect area)
     }
 }
 
+static void history_detail(char *text, size_t capacity)
+{
+    static const StringId RESETS[] = {STR_LISTENING_TOTALS, STR_TOP_SONGS,   STR_TOP_ALBUMS,
+                                      STR_TOP_ARTISTS,      STR_SMART_LISTS, STR_MOST_PLAYED,
+                                      STR_RECENTLY_PLAYED,  STR_EXPORT_PLAYS};
+    char resets[384];
+    char keeps[128];
+    StringBuilder builder = string_builder_make(resets, sizeof resets);
+    for (size_t index = 0; index < sizeof RESETS / sizeof RESETS[0]; index++) {
+        if (index != 0) {
+            string_builder_append_char(&builder, index == 4 || index == 7 ? '\n' : '/');
+        }
+        string_builder_append(&builder, i18n_text(RESETS[index]));
+    }
+    builder = string_builder_make(keeps, sizeof keeps);
+    string_builder_append(&builder, i18n_text(STR_MOMENTS));
+    string_builder_append_char(&builder, '/');
+    string_builder_append(&builder, i18n_text(STR_FAVORITES));
+    const char *arguments[] = {resets, keeps};
+    builder = string_builder_make(text, capacity);
+    i18n_format(&builder, STR_HISTORY_RESET, arguments, 2);
+}
+
+static void draw_confirmation(ListeningScreen *screen, Canvas *canvas, Rect area)
+{
+    const Theme *theme = screen->theme;
+    int padding = theme->metrics.padding;
+    char text[640];
+    history_detail(text, sizeof text);
+    Theme choices = *theme;
+    choices.fonts.body = theme->fonts.small;
+    Rect rows = area;
+    Rect detail = {area.x + padding, area.y + padding, area.width - 2 * padding,
+                   area.height - 2 * padding};
+    if (theme_is_portrait(theme)) {
+        rows.height = 3 * theme->metrics.row_height;
+        rows.y = area.y + area.height - rows.height;
+        detail.height = rows.y - detail.y - padding;
+    } else {
+        rows.width = area.width * 9 / 20;
+        rows.x = area.x + area.width - rows.width;
+        detail.width = rows.x - detail.x - padding;
+    }
+    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+                       (Label){detail, text});
+    screen->list.theme = &choices;
+    list_view_fit_rows(&screen->list, rows.height / choices.metrics.row_height);
+    list_view_draw(&screen->list, canvas, rows, screen->now_ms);
+    screen->list.theme = theme;
+}
+
 static void draw_menu(ListeningScreen *screen, Canvas *canvas, Rect content)
 {
-    const Theme *theme = screen->config.theme;
+    const Theme *theme = screen->theme;
     bool portrait = theme_is_portrait(theme);
+    int hint = font_line_height(theme->fonts.small);
+    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+               (Label){{content.x + theme->metrics.padding, content.y + content.height - hint,
+                        content.width - 2 * theme->metrics.padding, hint},
+                       i18n_text(STR_LISTENING_OPTIONS_HINT)});
+    content.height -= hint;
     Rect rows = content;
     rows.height = portrait ? theme->metrics.row_height * (MENU_ROWS + (screen->moments != NULL))
                            : content.height;
@@ -437,7 +577,7 @@ static void draw_status(const Theme *theme, Canvas *canvas, Rect area, ExportSta
 
 static void draw_export(const ListeningScreen *screen, Canvas *canvas, Rect area)
 {
-    const Theme *theme = screen->config.theme;
+    const Theme *theme = screen->theme;
     static const StringId HEADLINES[] = {STR_EXPORT_WORKING, STR_EXPORT_WORKING, STR_EXPORT_DONE,
                                          STR_EXPORT_NONE, STR_EXPORT_FAILED};
     char detail[DETAIL_BYTES];
@@ -448,17 +588,21 @@ static void draw_export(const ListeningScreen *screen, Canvas *canvas, Rect area
     draw_status(theme, canvas, area,
                 (ExportStatus){i18n_text(HEADLINES[stage - EXPORT_MEASURE]), detail,
                                working ? i18n_text(STR_BACK_CANCELS) : NULL,
-                               working ? screen->config.motion : NULL});
+                               working ? screen->motion : NULL});
 }
 
 static void draw(void *context, Canvas *canvas)
 {
     ListeningScreen *screen = context;
-    const Theme *theme = screen->config.theme;
+    const Theme *theme = screen->theme;
     Rect content = theme_content_area(theme);
     canvas_fill_rect(canvas, content, theme->colors.background);
     header_draw(canvas, theme, screen->screen.title);
-    if (screen->mode == MODE_MENU) {
+    if (screen->mode == MODE_CONFIRM) {
+        draw_confirmation(screen, canvas, content);
+    } else if (screen->mode == MODE_OPTIONS) {
+        list_view_draw(&screen->list, canvas, content, screen->now_ms);
+    } else if (screen->mode == MODE_MENU) {
         draw_menu(screen, canvas, content);
     } else if (screen->mode == MODE_TOTALS) {
         draw_totals(screen, canvas, content);
@@ -467,9 +611,8 @@ static void draw(void *context, Canvas *canvas)
     } else if (work->top.result == STORE_FAILED) {
         message_draw(canvas, theme, content, i18n_text(STR_HISTORY_UNAVAILABLE));
     } else if (!work->named) {
-        MessageConfig working = {.message = i18n_text(STR_LISTENING_WORKING),
-                                 .theme = theme,
-                                 .motion = screen->config.motion};
+        MessageConfig working = {
+            .message = i18n_text(STR_LISTENING_WORKING), .theme = theme, .motion = screen->motion};
         message_draw_working(canvas, content, &working);
     } else if (work->top.count == 0) {
         message_draw(canvas, theme, content, i18n_text(STR_LISTENING_EMPTY));
@@ -487,7 +630,10 @@ static void enter(void *context, uint32_t now_ms)
 
 Screen *listening_screen_init(ListeningScreen *screen, ListeningScreenConfig config)
 {
-    *screen = (ListeningScreen){.config = config};
+    *screen =
+        (ListeningScreen){.store = config.store, .theme = config.theme, .motion = config.motion};
+    toast = config.toast;
+    scanning = config.scanning;
     screen->model = (ListModel){.context = screen,
                                 .count = row_count,
                                 .label = row_label,

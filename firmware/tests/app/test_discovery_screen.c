@@ -430,8 +430,8 @@ static void native_layouts_keep_editor_hints_and_rows_inside_every_orientation(v
                          2 * theme.metrics.row_height +
                          4 * (font_line_height(theme.fonts.small) + 2);
             CHECK(bottom <= theme.metrics.screen_height);
-            const StringId hints[] = {STR_QUERY_CHOOSE_HINT, STR_QUERY_ADD_HINT,
-                                      STR_QUERY_ERASE_HINT, STR_QUERY_SEARCH_HINT};
+            const StringId hints[] = {STR_NAME_CHOOSE_HINT, STR_NAME_ADD_HINT, STR_NAME_ERASE_HINT,
+                                      STR_QUERY_SEARCH_HINT};
             for (unsigned index = 0; index < sizeof hints / sizeof *hints; index++) {
                 CHECK(text_width(theme.fonts.small, i18n_text(hints[index])) <=
                       theme.metrics.screen_width - 2 * theme.metrics.padding);
