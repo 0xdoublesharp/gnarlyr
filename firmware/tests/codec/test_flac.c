@@ -694,6 +694,59 @@ static void fixed_frame_numbers_use_maximum_block_size_and_reject_sample_overflo
     }
 }
 
+static void a_frame_ending_at_the_sample_position_limit_decodes_and_seeks(void)
+{
+    uint8_t bytes[32] = {0xff, 0xf8, 0x79, 0x08, 0xf3, 0xa3, 0xa3, 0xa3, 0x09, 0xfe};
+    uint32_t at = 10;
+    bytes[at] = frame_crc8(bytes, at);
+    at++;
+    bytes[at++] = 0;
+    bytes[at++] = 0;
+    bytes[at++] = 1;
+    uint16_t crc = frame_crc16(bytes, at);
+    bytes[at++] = (uint8_t)(crc >> 8);
+    bytes[at++] = (uint8_t)crc;
+    Buffer input = {bytes, at};
+    FlacInfo info = {.sample_rate = 44100,
+                     .channels = 1,
+                     .bits_per_sample = 16,
+                     .min_block = 16,
+                     .max_block = 4608};
+    flac_start(&decoder, input_of(&input), info);
+    CHECK_EQUAL(FLAC_OK, flac_seek(&decoder, UINT32_MAX - 1));
+    CHECK_EQUAL(FLAC_OK, flac_decode_frame(&decoder));
+    CHECK_EQUAL(UINT32_C(0xfffff600), decoder.frame_first_sample);
+    CHECK_EQUAL(2559u, decoder.block_samples);
+    CHECK_EQUAL(1, flac_channel(&decoder, 0)[2558]);
+    CHECK_EQUAL(UINT32_MAX, decoder.decoded_samples);
+    CHECK_EQUAL(FLAC_END, flac_decode_frame(&decoder));
+}
+
+static void a_frame_crossing_the_sample_position_limit_is_rejected(void)
+{
+    uint8_t bytes[32] = {0xff, 0xf8, 0x59, 0x08, 0xf3, 0xa3, 0xa3, 0xa3};
+    uint32_t at = 8;
+    bytes[at] = frame_crc8(bytes, at);
+    at++;
+    bytes[at++] = 0;
+    bytes[at++] = 0;
+    bytes[at++] = 1;
+    uint16_t crc = frame_crc16(bytes, at);
+    bytes[at++] = (uint8_t)(crc >> 8);
+    bytes[at++] = (uint8_t)crc;
+    Buffer input = {bytes, at};
+    FlacInfo info = {.sample_rate = 44100,
+                     .channels = 1,
+                     .bits_per_sample = 16,
+                     .min_block = 4608,
+                     .max_block = 4608};
+    flac_start(&decoder, input_of(&input), info);
+    CHECK_EQUAL(FLAC_ERROR, flac_decode_frame(&decoder));
+    CHECK_EQUAL(0u, decoder.block_samples);
+    flac_start(&decoder, input_of(&input), info);
+    CHECK_EQUAL(FLAC_ERROR, flac_seek(&decoder, UINT32_MAX - 100));
+}
+
 static void rfc_9639_partitioned_lpc_decodes_the_specified_samples(void)
 {
     static uint8_t bytes[] = {
@@ -1089,6 +1142,8 @@ int main(void)
         TEST_CASE(invalid_frame_headers_never_publish_samples),
         TEST_CASE(malformed_subframes_and_residuals_never_publish_samples),
         TEST_CASE(fixed_frame_numbers_use_maximum_block_size_and_reject_sample_overflow),
+        TEST_CASE(a_frame_crossing_the_sample_position_limit_is_rejected),
+        TEST_CASE(a_frame_ending_at_the_sample_position_limit_decodes_and_seeks),
         TEST_CASE(blocks_larger_than_the_buffer_are_refused),
         TEST_CASE(unsupported_streaminfo_limits_are_rejected),
         TEST_CASE(a_file_that_is_not_flac_is_refused),

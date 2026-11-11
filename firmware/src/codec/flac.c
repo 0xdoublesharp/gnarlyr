@@ -234,7 +234,8 @@ static bool read_frame_header(FlacDecoder *decoder, FrameHeader *header)
     header->channels =
         header->channel_assignment < CHANNEL_LEFT_SIDE ? header->channel_assignment + 1 : 2;
     return header->block_size > 0 && header->block_size <= FLAC_MAX_BLOCK &&
-           header->bits_per_sample > 0 && header->bits_per_sample <= FLAC_MAX_BITS &&
+           header->block_size <= UINT32_MAX - header->first_sample && header->bits_per_sample > 0 &&
+           header->bits_per_sample <= FLAC_MAX_BITS &&
            header->channel_assignment <= CHANNEL_MID_SIDE &&
            header->channels == decoder->info.channels;
 }
