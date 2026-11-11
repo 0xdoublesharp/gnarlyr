@@ -66,7 +66,7 @@
 <h2 id="foundation-title">Playback, formats and gapless albums.</h2>
 <p class="intro">Gapless playback joins tracks without adding a pause, so a live album or continuous mix keeps flowing. Compatible tracks need the same sample rate. Gnarlyr builds on playback support from Podium and EchoPod.</p>
 <ul class="detail-list">
-<li id="gapless"><strong>Gapless playback.</strong> Play compatible, same-sample-rate tracks continuously. Gnarlyr’s decoder improvements also handle MP3 end trimming after seeking or resuming, and AAC startup trimming and track timing. <a href="#playback-fixes">Read about the playback improvements below.</a></li>
+<li id="gapless"><strong>Gapless playback.</strong> Play compatible, same-sample-rate tracks continuously. MP3 files need gapless information, such as a LAME tag, to trim the encoder’s extra samples. Gnarlyr’s decoder improvements also handle MP3 end trimming after seeking or resuming, and AAC startup trimming and track timing. <a href="#playback-fixes">Read about the playback improvements below.</a></li>
 <li><strong>Supported audio.</strong> Play FLAC, MP3 and WAV, with rates up to 192 kHz for compatible files, plus M4A and M4B containing AAC-LC or Apple Lossless.</li>
 <li><strong>Playlists and album images.</strong> M3U/M3U8 playlists, album favorites, a Favorite Tracks playlist, and CUE sheets that split a single FLAC, WAV or MP3 album into separate tracks.
 </li>
@@ -114,11 +114,11 @@
 <li><strong>Choose a chapter or carry on.</strong> Select a book to resume its saved chapter and position, even inside nested folders. Hold Play to browse chapter titles and lengths without starting playback.</li>
 <li><strong>Whole books remember their place too.</strong> An M4B without readable chapter information plays as one book with its own saved position. Keep its filename and location to retain the bookmark.</li>
 <li><strong>The player and computer keep the same chapters.</strong> On-device scanning and desktop <code>echo-sync</code> both preserve M4B chapters, without adding a duplicate whole-book track.</li>
-<li><strong>Speech recordings play at their natural speed.</strong> Speech recordings often use lower sample rates. Gnarlyr converts supported recordings for output while keeping their duration, speed and pitch unchanged.</li>
+<li><strong>Prepare lower-rate speech recordings.</strong> For audio below 32 kHz, convert the recording to 44.1 or 48 kHz on your computer before copying it to the player.</li>
 </ul>
 <details><summary>Supported audiobook audio and sample rates</summary><div class="answer">
 <p>Use M4A or M4B files containing AAC-LC or Apple Lossless (ALAC) audio. HE-AAC and xHE-AAC are not supported; the filename alone does not identify the audio inside.</p>
-<p>Speech recordings at 8, 11.025, 12, 16, 22.05 and 24 kHz convert to 44.1 or 48 kHz for output. Recordings at 32 kHz use their original rate.</p>
+<p>For speech recordings, use 32, 44.1 or 48 kHz files. Convert lower-rate recordings before copying them; the <a href="build.html#processing">developer audio guide</a> explains the conversion path.</p>
 <p>Chapter indexing reads Nero chapter lists and QuickTime chapter tracks, with up to 255 chapters per book. A book without readable chapter information remains a whole-book track.</p>
 </div></details>
 <p>Rescan on the player or run <code>echo-sync</code> after adding books or changing chapter information. A rescan also applies audiobook recognition to an existing library.</p>
