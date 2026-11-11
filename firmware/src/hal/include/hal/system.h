@@ -162,6 +162,7 @@ bool hal_system_restart_pending(void);
 const void *hal_system_load_rescan_code(void);
 const void *hal_system_load_module(uint32_t module);
 const void *hal_system_load_debug_code(void);
+const void *hal_system_extension_code(void);
 void *hal_system_borrow_scratch(uint32_t *size);
 void *hal_system_borrow_listing(uint32_t *size);
 void hal_system_return_scratch(void);

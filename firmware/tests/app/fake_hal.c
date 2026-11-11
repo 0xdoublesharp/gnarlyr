@@ -1,9 +1,11 @@
 #include "fake_hal.h"
 #include "app/debug_loop.h"
+#include "app/extension.h"
 #include "app/linked_modules.h"
 
 #include "hal/system.h"
 
+#include "app/rescan_module.h"
 #include "core/i18n.h"
 #include "hal/audio.h"
 #include "hal/bluetooth.h"
@@ -13,7 +15,6 @@
 #include "hal/language.h"
 #include "hal/power.h"
 #include "hal/storage.h"
-#include "library/library_scan.h"
 #include "playback/track_keys.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -1644,7 +1645,7 @@ bool hal_system_restart_pending(void)
 
 const void *hal_system_load_rescan_code(void)
 {
-    return &LIBRARY_SCAN_ENTRY;
+    return &RESCAN_MODULE_ENTRY;
 }
 
 const void *hal_system_load_module(uint32_t module)
@@ -1663,7 +1664,7 @@ const void *hal_system_load_module(uint32_t module)
 
 const void *hal_system_load_debug_code(void)
 {
-    if ((fake.broken_modules & 1u << DEBUG_MODULE_NUMBER) != 0) {
+    if ((fake.broken_modules & 1u << EXTENSION_MODULE_NUMBER) != 0) {
         fake.module_refusals++;
         return NULL;
     }

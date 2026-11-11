@@ -535,15 +535,15 @@ class Machine:
                 return overlay.names
         return self.names
 
-    def count_window_code(self):
+    def count_window_code(self, first=make_image.OVERLAY_BASE,
+                          capacity=make_image.OVERLAY_CAPACITY):
         counter = [0]
 
         def hook(uc, where, size, user):
             counter[0] += 1
 
-        first = make_image.OVERLAY_BASE
-        self.uc.hook_add(UC_HOOK_CODE, hook, None, first, first + make_image.OVERLAY_CAPACITY - 1)
-        self.uc.ctl_remove_cache(first, first + make_image.OVERLAY_CAPACITY)
+        self.uc.hook_add(UC_HOOK_CODE, hook, None, first, first + capacity - 1)
+        self.uc.ctl_remove_cache(first, first + capacity)
         return counter
 
     def collect_notices(self):

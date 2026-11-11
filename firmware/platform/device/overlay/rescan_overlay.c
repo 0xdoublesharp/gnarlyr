@@ -1,8 +1,8 @@
-#include "library/library_scan.h"
+#include "app/rescan_module.h"
 
-const LibraryScanEntry *rescan_overlay_entry(void);
+const RescanModuleEntry *rescan_overlay_entry(void);
 
-const LibraryScanEntry *rescan_overlay_entry(void)
+const RescanModuleEntry *rescan_overlay_entry(void)
 {
-    return &LIBRARY_SCAN_ENTRY;
+    return &RESCAN_MODULE_ENTRY;
 }

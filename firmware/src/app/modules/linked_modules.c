@@ -19,7 +19,7 @@ const void *app_linked_module(uint32_t module)
 const void *app_linked_debug_code(void)
 {
 #ifdef ECHO_DEBUG_LOOP
-    return &DEBUG_MODULE_ENTRY;
+    return &DEBUG_CODE_ENTRY;
 #else
     return NULL;
 #endif

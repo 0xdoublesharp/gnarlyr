@@ -6,8 +6,6 @@
 #include "core/debug_log.h"
 #include "core/debug_script.h"
 
-#define DEBUG_MODULE_NUMBER 8u
-
 enum {
     DEBUG_STORAGE_FULL = 1,
     DEBUG_STORAGE_SCAN_FAILED = 0x100

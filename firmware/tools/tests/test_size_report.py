@@ -192,7 +192,7 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(lines[0], "code window: 4,096 of 157,292 bytes, 153,196 free")
         self.assertEqual(lines[1], "static RAM (.data + .bss + .noinit): 131,128 of 294,912 bytes, "
                                    "163,784 free")
-        self.assertEqual(lines[2], "rescan overlay: 81,920 of 98,304 bytes, 16,384 free")
+        self.assertEqual(lines[2], "rescan overlay code + .bss: 81,920 of 98,304 bytes, 16,384 free")
 
     def test_static_ram_is_measured_against_the_boot_rom_limit_when_the_script_names_it(self):
         limited = MAP + "                0x0304a240                        device_data_limit = 0x304a240\n"
@@ -203,7 +203,14 @@ class ReportTest(unittest.TestCase):
     def test_limits_come_from_the_memory_regions_of_each_map(self):
         smaller = OVERLAY_MAP.replace("0x00018000", "0x00015000")
         self.assertEqual(size_report.summary(MAP, smaller)[2],
-                         "rescan overlay: 81,920 of 86,016 bytes, 4,096 free")
+                         "rescan overlay code + .bss: 81,920 of 86,016 bytes, 4,096 free")
+
+    def test_rescan_overlay_counts_zeroed_state_against_its_window(self):
+        zeroed = OVERLAY_MAP + "\n.bss            0x0308e000     0x400\n"
+        self.assertEqual(size_report.summary(MAP, zeroed)[2],
+                         "rescan overlay code + .bss: 82,944 of 98,304 bytes, 15,360 free")
+        over = zeroed.replace("0x400", "0x4004")
+        self.assertIn("OVER BY 4", size_report.summary(MAP, over)[2])
 
     def test_summary_measures_the_usb_overlay_in_the_image_and_with_its_zeroed_memory(self):
         lines = size_report.summary(MAP, OVERLAY_MAP, USB_OVERLAY_MAP)
@@ -297,20 +304,20 @@ Linker script and memory map
         self.assertIn("the audio module must keep all state in its caller",
                       size_report.module_problems(device, [("process", stateful)]))
 
-    def test_the_debug_module_uses_its_own_window_and_keeps_state_in_the_main_program(self):
+    def test_the_extension_module_uses_its_own_window_and_keeps_state_in_the_main_program(self):
         device = FENCED_MAP.replace(SLOT_REGION, SLOT_REGION +
-                                    "DEBUG_RAM        0x0304a000         0x00002000         rx\n")
-        debug = MODULE_MAP.replace("0x03084400", "0x0304a000").replace(
+                                    "EXTENSION_RAM    0x0304a000         0x00002000         rx\n")
+        extension = MODULE_MAP.replace("0x03084400", "0x0304a000").replace(
             "0x0000dc00", "0x00002000").replace("0x03086400", "0x0304b000")
-        debug = debug.replace(".bss            0x0304b000      0x200",
-                              ".bss            0x0304b000      0x0")
-        self.assertEqual([], size_report.module_problems(device, [("debug", debug)]))
-        self.assertTrue(size_report.module_problems(device, [("settings", debug)]))
-        self.assertTrue(size_report.module_problems(FENCED_MAP, [("debug", debug)]))
-        stateful = debug.replace(".bss            0x0304b000      0x0",
-                                 ".bss            0x0304b000      0x4")
-        self.assertIn("the debug module must keep all state in the main program",
-                      size_report.module_problems(device, [("debug", stateful)]))
+        extension = extension.replace(".bss            0x0304b000      0x200",
+                                      ".bss            0x0304b000      0x0")
+        self.assertEqual([], size_report.module_problems(device, [("extension", extension)]))
+        self.assertTrue(size_report.module_problems(device, [("settings", extension)]))
+        self.assertTrue(size_report.module_problems(FENCED_MAP, [("extension", extension)]))
+        stateful = extension.replace(".bss            0x0304b000      0x0",
+                                     ".bss            0x0304b000      0x4")
+        self.assertIn("the extension module must keep all state in the main program",
+                      size_report.module_problems(device, [("extension", stateful)]))
 
     def test_a_module_larger_than_the_slot_is_a_problem(self):
         grown = MODULE_MAP.replace(".bss            0x03086400      0x200",

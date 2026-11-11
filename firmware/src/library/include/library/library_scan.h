@@ -65,17 +65,4 @@ typedef struct ScanJob {
     ScanProgress progress;
 } ScanJob;
 
-#define LIBRARY_SCAN_MAGIC 0x4E414353u
-
-struct CoverJob;
-struct CoverStats;
-
-typedef struct LibraryScanEntry {
-    uint32_t magic;
-    ScanResult (*scan)(const ScanJob *job, ScanStats *stats);
-    ScanResult (*covers)(const struct CoverJob *job, struct CoverStats *stats);
-} LibraryScanEntry;
-
-extern const LibraryScanEntry LIBRARY_SCAN_ENTRY;
-
 ScanResult library_scan(const ScanJob *job, ScanStats *stats);

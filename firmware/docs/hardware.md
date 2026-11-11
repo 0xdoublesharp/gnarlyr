@@ -7,7 +7,7 @@ What this project checked on a player: on the owner's Echo (4 GB), an earlier bu
 ## Chip and memory
 
 - Rockchip RKnano with two Cortex-M3 cores. Core 0 runs the firmware; core 1 runs a decoder program (FLAC, MP3 or M4A) loaded on demand.
-- Core 0 data RAM: `0x03004000`–`0x0304C000`; the boot ROM still uses its top while loading the image, so the firmware's data must end below `0x0304A240`. Above the independent audio bank, the `device` preset loads its debug module into `0x0304A000`–`0x0304BFFF` at run time. Code runs from `0x03050000` (about 157 KB).
+- Core 0 data RAM: `0x03004000`–`0x0304C000`; the boot ROM still uses its top while loading the image, so the firmware's data must end below `0x0304A240`. Above the independent audio bank, the firmware loads its extension module into `0x0304A000`–`0x0304BFFF` at start-up. Code runs from `0x03050000` (about 157 KB).
 - High RAM: `0x0307A000`–`0x0309EFFF` (148 KB). The library rescan code and the USB session code are loaded here when they run.
 - Core 1 RAM: `0x01000000`–`0x0105FFFF` (384 KB). It also serves as scratch memory for the rescan while playback is stopped.
 - The boot ROM starts the cores at 24 MHz. The firmware switches the PLL to 96 or 200 MHz.

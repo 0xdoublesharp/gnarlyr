@@ -1,8 +1,7 @@
+#include "debug_runner.h"
 #include "debug_steps.h"
-#include "screen_modules.h"
 
-const DebugModuleEntry DEBUG_MODULE_ENTRY = {
-    .magic = SCREEN_MODULE_MAGIC(DEBUG_MODULE_NUMBER),
+const DebugCodeEntry DEBUG_CODE_ENTRY = {
     .step = debug_steps_step,
     .stop = debug_steps_stop,
     .frame = debug_steps_frame,

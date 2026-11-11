@@ -10,7 +10,7 @@ SECTIONS
     {
         LONG(0) LONG(0) LONG(0) LONG(0)
         module_entry = .;
-        KEEP(*(.rodata.*_MODULE_ENTRY))
+        KEEP(*(.rodata.EXTENSION_MODULE_ENTRY))
         module_entry_end = .;
         *(.text .text.*)
         *(.rodata .rodata.*)
@@ -37,8 +37,8 @@ SECTIONS
 
 ASSERT(ADDR(.overlay) == 0x0304A000, "a module must start at 0x0304A000")
 ASSERT(module_entry == 0x0304A010, "the entry table must follow the 16-byte header")
-ASSERT(module_entry_end - module_entry >= 8, "a module needs one entry table named <NAME>_MODULE_ENTRY")
+ASSERT(module_entry_end - module_entry >= 8, "the extension module needs its entry table EXTENSION_MODULE_ENTRY")
 ASSERT(SIZEOF(.data) == 0, "a module may not hold initialised data: make it const")
 ASSERT(ADDR(.bss) >= ADDR(.overlay) + SIZEOF(.overlay), "a module's .bss must follow its code")
 
-ASSERT(SIZEOF(.bss) == 0, "the debug module must keep all state in the main program")
+ASSERT(SIZEOF(.bss) == 0, "the extension module must keep all state in the main program")

@@ -11,6 +11,7 @@ add_executable(echo_device
     board/dmac.c
     board/display.c
     board/emmc.c
+    board/extension.c
     board/glyphs.c
     board/gpio.c
     board/jack.c
@@ -40,7 +41,7 @@ add_executable(echo_device
 )
 target_sources(echo_device PRIVATE board/panel_vop.c)
 if(NOT ECHO_RELEASE)
-    target_sources(echo_device PRIVATE board/debug_module.c board/debug_session.c board/profiler.c)
+    target_sources(echo_device PRIVATE board/debug_session.c board/profiler.c)
     set(ECHO_PROFILE_BUCKET_SHIFT 7)
 endif()
 set(ECHO_CORE1_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1.ld)
@@ -173,6 +174,10 @@ add_custom_command(
 )
 
 set(ECHO_OVERLAY_IMPORTS
+    COVER_CACHE_PATH
+    LIBRARY_SCRATCH_PATH
+    LIBRARY_STORE_PATH
+    RESCAN_TIMES_PATH
     app_remember_dac_volume
     app_show_notice
     app_show_usb_status
@@ -197,6 +202,18 @@ set(ECHO_OVERLAY_IMPORTS
     hal_audio_service
     hal_audio_set_volume
     hal_clock_milliseconds
+    hal_clock_microseconds
+    hal_dir_close
+    hal_dir_next
+    hal_dir_open
+    hal_file_close
+    hal_file_open
+    hal_file_read
+    hal_file_write
+    hal_file_write_at
+    hal_system_borrow_listing
+    hal_system_borrow_scratch
+    hal_system_keep_alive
     hal_input_next_transition
     hal_power_battery
     hal_power_off
@@ -240,7 +257,6 @@ if(NOT ECHO_RELEASE)
         debug_loop_log
         debug_runner_begin
         debug_runner_script
-        hal_clock_microseconds
         hal_internal_file_read
         hal_internal_file_reserve
         hal_internal_file_write
@@ -264,17 +280,22 @@ if(CMAKE_CROSSCOMPILING)
         board/bluetooth.c
         board/core1.c
         board/dac.c
-        board/debug_module.c
         board/debug_poke.c
         board/debug_report_file.c
         board/debug_rtc.c
         board/debug_script_file.c
         board/debug_session.c
+        board/extension.c
         board/glyphs.c
         board/high_ram.c
+        board/internal_volume.c
+        board/jack.c
         board/language.c
+        board/loader_reboot.c
+        board/main.c
         board/overlay.c
         board/panic.c
+        board/power.c
         board/profiler.c
         board/start_info.c
         board/system.c
@@ -284,6 +305,8 @@ if(CMAKE_CROSSCOMPILING)
         board/usb_listen.c
         board/usb_report.c
         board/usb_session.c
+        logic/fat_delete.c
+        ${PROJECT_SOURCE_DIR}/src/app/library_rescan_job.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
 endif()
@@ -302,7 +325,14 @@ target_link_options(echo_device PRIVATE
 )
 
 set(ECHO_OVERLAY_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/rescan_overlay.ld)
-add_executable(echo_rescan_overlay overlay/rescan_overlay.c)
+add_executable(echo_rescan_overlay
+    overlay/rescan_overlay.c
+    ${PROJECT_SOURCE_DIR}/src/app/library_rescan_job.c
+)
+target_include_directories(echo_rescan_overlay PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/app
+    $<TARGET_PROPERTY:echo_app,INTERFACE_INCLUDE_DIRECTORIES>
+)
 set_target_properties(echo_rescan_overlay PROPERTIES
     SUFFIX .elf
     LINK_DEPENDS "${ECHO_OVERLAY_LINKER_SCRIPT};$<TARGET_FILE:echo_device>"
@@ -325,6 +355,7 @@ add_executable(echo_usb_overlay
     board/time_file_take.c
     board/usb_port.c
     board/usb_session.c
+    logic/fat_delete.c
 )
 if(NOT ECHO_RELEASE)
     target_sources(echo_usb_overlay PRIVATE board/debug_report_file.c board/debug_script_file.c)
@@ -336,6 +367,7 @@ set_target_properties(echo_usb_overlay PROPERTIES
 add_dependencies(echo_usb_overlay echo_device)
 target_include_directories(echo_usb_overlay PRIVATE
     board
+    logic
     $<TARGET_PROPERTY:echo_app,INTERFACE_INCLUDE_DIRECTORIES>
     $<TARGET_PROPERTY:echo_settings,INTERFACE_INCLUDE_DIRECTORIES>
 )
@@ -365,8 +397,8 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_process.ld)
     elseif(module STREQUAL "dsp" OR module STREQUAL "ogg")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_dsp.ld)
-    elseif(module STREQUAL "debug")
-        set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/debug_module.ld)
+    elseif(module STREQUAL "extension")
+        set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/extension_module.ld)
     else()
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/screen_module.ld)
     endif()
@@ -399,9 +431,24 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             audio_fade_out=audio_process_fade_out
         )
     endif()
-    if(module STREQUAL "debug")
+    if(module STREQUAL "extension")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
         target_include_directories(${module_target}_objects PRIVATE board)
+        target_compile_definitions(${module_target}_objects PRIVATE
+            home_art_draw=extension_home_art_draw
+            home_art_draw_backdrop=extension_home_art_draw_backdrop
+            home_art_init=extension_home_art_init
+            hal_file_remove=extension_hal_file_remove
+            home_art_update=extension_home_art_update
+            wire_motion_draw=extension_wire_motion_draw
+            wire_motion_due=extension_wire_motion_due
+            wire_motion_end=extension_wire_motion_end
+            wire_motion_fit=extension_wire_motion_fit
+            wire_motion_progress=extension_wire_motion_progress
+            wire_motion_run=extension_wire_motion_run
+            wire_motion_shown=extension_wire_motion_shown
+            wire_motion_tick=extension_wire_motion_tick
+        )
     endif()
     if(module STREQUAL "ogg")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)

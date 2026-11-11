@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "app/debug_loop.h"
@@ -37,17 +38,18 @@ typedef struct DebugFrameSources {
     const FrameStats *send;
 } DebugFrameSources;
 
-typedef struct DebugModuleEntry {
-    uint32_t magic;
+typedef struct DebugCodeEntry {
     DebugRequest (*step)(uint32_t now_ms, DebugRunnerView view);
     void (*stop)(uint32_t now_ms, DebugScriptState state);
     void (*frame)(DebugFrameSources sources);
     bool (*screenshot)(const DebugScreenshot *shot);
-} DebugModuleEntry;
+} DebugCodeEntry;
 
 #ifdef ECHO_DEBUG_LOOP
 
-extern const DebugModuleEntry DEBUG_MODULE_ENTRY;
+extern const DebugCodeEntry DEBUG_CODE_ENTRY;
+
+#define DEBUG_CODE (&DEBUG_CODE_ENTRY)
 
 bool debug_runner_active(void);
 DebugRequest debug_runner_step(uint32_t now_ms, DebugRunnerView view);
@@ -58,6 +60,8 @@ void debug_runner_frame(DebugFrameSources sources);
 bool debug_runner_screenshot(const DebugScreenshot *shot);
 
 #else
+
+#define DEBUG_CODE NULL
 
 static inline bool debug_runner_active(void)
 {
