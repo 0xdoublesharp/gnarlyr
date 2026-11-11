@@ -125,6 +125,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/playback/smart_list.c
     src/playback/track_keys.c
     src/playback/listening_export.c
+    src/playback/listening_clear.c
+    src/app/listening_clear.c
     src/library/lyrics.c
 )
 if(ECHO_RELEASE)

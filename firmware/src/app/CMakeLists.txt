@@ -26,6 +26,7 @@ add_library(echo_app STATIC
     home_editor.c
     theme_palette.c
     listening_store.c
+    listening_clear.c
     card_files.c
     app_screens.c
     bluetooth_link.c

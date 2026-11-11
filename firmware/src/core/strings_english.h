@@ -632,4 +632,10 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_SET_CLOCK_HINT] = "Vol: change · Menu: next · Play: save · Back: cancel",
     [STR_SET_CLOCK_SAVED] = "Time saved",
     [STR_SET_CLOCK_FAILED] = "Couldn't set clock",
+    [STR_CLEAR_HISTORY] = "Clear history",
+    [STR_EXPORT_FIRST] = "Export plays first",
+    [STR_CLEAR] = "Clear",
+    [STR_HISTORY_CLEARED] = "History cleared",
+    [STR_HISTORY_RESET] = "Resets:\n{0}\nKeeps: {1}",
+    [STR_LISTENING_OPTIONS_HINT] = "Hold Play: options",
 };

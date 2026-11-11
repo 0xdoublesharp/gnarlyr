@@ -44,5 +44,6 @@ void listening_store_follow(ListeningStore *store, ListeningObservation observat
                             uint32_t now_ms);
 void listening_store_flush(ListeningStore *store, ListeningObservation observation,
                            uint32_t now_ms);
+StoreResult listening_store_clear(ListeningStore *store);
 ListeningTotals listening_store_totals(const ListeningStore *store);
 bool listening_store_text(void *context, const ListeningTrack *track, ListeningText *text);
