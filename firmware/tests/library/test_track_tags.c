@@ -880,11 +880,51 @@ static void mp4_duration_requires_a_complete_versioned_header(void)
     CHECK_EQUAL(2000, tags.duration_ms);
 }
 
+static void mp4_text_genre_takes_priority_over_the_legacy_genre(void)
+{
+    Mp4TagFixture file = {0};
+    uint32_t moov = mp4_open_atom(&file, "moov");
+    uint32_t udta = mp4_open_atom(&file, "udta");
+    uint32_t meta = mp4_open_atom(&file, "meta");
+    file.length += 4;
+    uint32_t ilst = mp4_open_atom(&file, "ilst");
+    static const uint8_t legacy[] = {0, 18};
+    static const uint8_t genre[] = "Electronic";
+    static const uint8_t short_number[] = {0, 0, 0};
+    mp4_item(&file, "gnre", legacy, sizeof legacy);
+    mp4_item(&file, "\xa9gen", genre, sizeof genre - 1);
+    mp4_item(&file, "trkn", short_number, sizeof short_number);
+    mp4_item(&file, "covr", short_number, 0);
+    mp4_close_atom(&file, ilst);
+    mp4_close_atom(&file, meta);
+    mp4_close_atom(&file, udta);
+    mp4_close_atom(&file, moov);
+    TrackTags tags;
+    CHECK(mp4_tags(&file, &tags));
+    CHECK_EQUAL(0, strcmp("Electronic", tags.text[TAG_GENRE]));
+    CHECK_EQUAL(0, strcmp("", tags.text[TAG_TRACK]));
+    CHECK_EQUAL(TAG_PICTURE_NONE, tags.picture.kind);
+}
+
+static void mp4_duration_ignores_unknown_versions_and_zero_timescales(void)
+{
+    TrackTags tags;
+    Mp4TagFixture unknown = mp4_duration_file(2, 32);
+    CHECK(mp4_tags(&unknown, &tags));
+    CHECK_EQUAL(0, tags.duration_ms);
+    Mp4TagFixture zero_scale = mp4_duration_file(0, 20);
+    mp4_put32(zero_scale.bytes + zero_scale.length - 8, 0);
+    CHECK(mp4_tags(&zero_scale, &tags));
+    CHECK_EQUAL(0, tags.duration_ms);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(mp4_tags_read_numeric_tracks_genre_fallback_and_art),
         TEST_CASE(mp4_duration_requires_a_complete_versioned_header),
+        TEST_CASE(mp4_text_genre_takes_priority_over_the_legacy_genre),
+        TEST_CASE(mp4_duration_ignores_unknown_versions_and_zero_timescales),
         TEST_CASE(every_tagged_format_reads_its_fields_duration_and_cover),
         TEST_CASE(an_mp3_with_only_id3v1_and_no_xing_header_still_reads),
         TEST_CASE(an_untagged_flac_has_empty_fields_and_its_duration),
