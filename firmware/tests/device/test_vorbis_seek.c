@@ -14,6 +14,8 @@ static uint32_t file_size;
 static uint32_t fail_at;
 static bool failing;
 static uint64_t read_bytes;
+static VorbisModes captured_modes;
+static OggPackets audio_cursor;
 static VorbisStream stream;
 static Core1Vorbis vorbis;
 static StreamControl control;
@@ -107,11 +109,56 @@ static void compare_frame(FILE *reference, const Core1Block *block, uint32_t fro
     }
 }
 
+static bool normalize_track(VorbisTrack *track)
+{
+    static uint8_t packet[VORBIS_PACKET_BYTES];
+    VorbisDecoder decoder;
+    if (!vorbis_decoder_init(&decoder, ring + VORBIS_RING_BYTES, VORBIS_WORKSPACE_BYTES)) {
+        CHECK(false);
+        return false;
+    }
+    OggPackets reader;
+    ogg_packets_init(&reader, input());
+    for (uint32_t index = 0; index < 3; index++) {
+        OggPacket packet_info;
+        if (ogg_packets_next(&reader, packet, sizeof packet, &packet_info) != OGG_PACKET_READY) {
+            CHECK(false);
+            return false;
+        }
+        VorbisPacket header = {.span = {{packet, packet_info.bytes}, {NULL, 0}},
+                               .granule = packet_info.granule,
+                               .first = packet_info.first};
+        if (!vorbis_decoder_header(&decoder, header)) {
+            CHECK(false);
+            return false;
+        }
+    }
+    VorbisModes modes;
+    if (!vorbis_decoder_modes(&decoder, &modes)) {
+        CHECK(false);
+        return false;
+    }
+    captured_modes = modes;
+    audio_cursor = reader;
+    CHECK(modes.count >= 1 && modes.count <= 64);
+    CHECK_EQUAL(track->max_block, modes.long_block);
+    OggPackets before = reader;
+    if (!vorbis_track_origin(&reader, &modes, track)) {
+        CHECK(false);
+        return false;
+    }
+    CHECK(memcmp(&before, &reader, sizeof reader) == 0);
+    return true;
+}
+
 static void compare_loaded_seek(const char *name, uint32_t target)
 {
     VorbisTrack track;
     if (!vorbis_track_probe(input(), &track)) {
         CHECK(false);
+        return;
+    }
+    if (!normalize_track(&track)) {
         return;
     }
     uint32_t clamped = target < track.samples ? target : track.samples;
@@ -145,9 +192,18 @@ static void compare_loaded_seek(const char *name, uint32_t target)
         }
         uint32_t from = block.first_sample < clamped ? clamped - block.first_sample : 0;
         CHECK_EQUAL(next_sample, block.first_sample + from);
+        if (next_sample != block.first_sample + from) {
+            break;
+        }
         compare_frame(reference, &block, from, track.channels);
         next_sample += block.samples - from;
     }
+    CHECK_EQUAL(1, control.vorbis_config_generation);
+    CHECK_EQUAL(captured_modes.count, control.vorbis_modes.count);
+    CHECK_EQUAL(captured_modes.short_block, control.vorbis_modes.short_block);
+    CHECK_EQUAL(captured_modes.long_block, control.vorbis_modes.long_block);
+    CHECK_EQUAL(captured_modes.long_modes[0], control.vorbis_modes.long_modes[0]);
+    CHECK_EQUAL(captured_modes.long_modes[1], control.vorbis_modes.long_modes[1]);
     CHECK_EQUAL(CORE1_FINISHED, result);
     CHECK_EQUAL(track.samples, next_sample);
     CHECK_EQUAL(EOF, fgetc(reference));
@@ -324,9 +380,105 @@ static void an_empty_timestamp_page_does_not_replace_the_decodable_seek_anchor(v
     compare_loaded_seek("seek44", 60000);
 }
 
+static void shift_origin(uint32_t delta)
+{
+    OggPage page;
+    uint32_t offset = 0;
+    while (offset < file_size) {
+        CHECK_EQUAL(OGG_PACKET_READY, ogg_page_read(input(), offset, &page));
+        if (page.granule > 0 && page.granule != UINT64_MAX) {
+            uint64_t granule = page.granule + delta;
+            put32(data + offset + 6, (uint32_t)granule);
+            put32(data + offset + 10, (uint32_t)(granule >> 32));
+            repair(&page);
+        }
+        offset = page.next;
+    }
+}
+
+static void nonzero_origins_keep_duration_samples_and_seek_positions_on_the_same_timeline(void)
+{
+    static const uint32_t TARGETS[] = {0, 1, 47808, 60000, 100000, 143324, 143325};
+    for (uint32_t index = 0; index < sizeof TARGETS / sizeof TARGETS[0]; index++) {
+        CHECK(load("seek44"));
+        shift_origin(500);
+        VorbisTrack track;
+        CHECK(vorbis_track_probe(input(), &track));
+        CHECK_EQUAL(143825, track.samples);
+        if (!normalize_track(&track)) {
+            return;
+        }
+        CHECK_EQUAL(500, track.origin);
+        CHECK_EQUAL(143325, track.samples);
+        CHECK_EQUAL(143825, track.end_granule);
+        compare_loaded_seek("seek44", TARGETS[index]);
+    }
+}
+
+static void mode_snapshots_require_a_ready_decoder_and_preserve_the_output_on_failure(void)
+{
+    VorbisDecoder decoder = {0};
+    VorbisModes modes = {.count = 99};
+    VorbisModes before = modes;
+    CHECK(!vorbis_decoder_modes(&decoder, &modes));
+    CHECK(memcmp(&before, &modes, sizeof modes) == 0);
+    CHECK(!vorbis_decoder_modes(&decoder, NULL));
+}
+
+static void header_only_prefill_stops_before_audio_and_origin_failure_keeps_the_track_intact(void)
+{
+    CHECK(load("seek44"));
+    VorbisTrack track;
+    CHECK(vorbis_track_probe(input(), &track));
+    CHECK(normalize_track(&track));
+    CHECK(vorbis_stream_start(&stream, input()));
+    uint8_t head[64];
+    for (uint32_t position = 0; position < track.header_bytes;) {
+        uint32_t count = track.header_bytes - position;
+        count = count < sizeof head ? count : (uint32_t)sizeof head;
+        CHECK(vorbis_stream_read(&stream, position, head, count));
+        position += count;
+    }
+    CHECK_EQUAL(3, stream.headers);
+    CHECK_EQUAL(track.data_offset, stream.packets.body);
+    CHECK_EQUAL(track.header_bytes, stream.position);
+    VorbisTrack before = track;
+    VorbisModes bad = captured_modes;
+    bad.count = 65;
+    CHECK(!vorbis_track_origin(&audio_cursor, &bad, &track));
+    CHECK(memcmp(&before, &track, sizeof track) == 0);
+    bad = captured_modes;
+    bad.short_block++;
+    CHECK(!vorbis_track_origin(&audio_cursor, &bad, &track));
+    CHECK(memcmp(&before, &track, sizeof track) == 0);
+    failing = true;
+    fail_at = 8525;
+    CHECK(!vorbis_track_origin(&audio_cursor, &captured_modes, &track));
+    CHECK(memcmp(&before, &track, sizeof track) == 0);
+    failing = false;
+    OggPage page;
+    CHECK_EQUAL(OGG_PACKET_READY, ogg_page_read(input(), 4311, &page));
+    data[page.body] |= 1;
+    repair(&page);
+    CHECK(!vorbis_track_origin(&audio_cursor, &captured_modes, &track));
+    CHECK(memcmp(&before, &track, sizeof track) == 0);
+}
+
+static void cropped_first_pages_match_the_independent_reference_before_and_after_seeking(void)
+{
+    static const uint32_t TARGETS[] = {0, 1, 47308, 60000, 142824, 142825};
+    for (uint32_t index = 0; index < sizeof TARGETS / sizeof TARGETS[0]; index++) {
+        compare_seek("cropped44", TARGETS[index]);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(cropped_first_pages_match_the_independent_reference_before_and_after_seeking),
+        TEST_CASE(header_only_prefill_stops_before_audio_and_origin_failure_keeps_the_track_intact),
+        TEST_CASE(nonzero_origins_keep_duration_samples_and_seek_positions_on_the_same_timeline),
+        TEST_CASE(mode_snapshots_require_a_ready_decoder_and_preserve_the_output_on_failure),
         TEST_CASE(an_empty_timestamp_page_does_not_replace_the_decodable_seek_anchor),
         TEST_CASE(distant_seeks_read_a_bounded_fraction_of_a_large_file),
         TEST_CASE(the_probe_reports_decoded_format_and_exact_final_sample_count),

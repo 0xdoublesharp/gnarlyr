@@ -21,6 +21,26 @@ def signal(channels, rate, long=False):
     return struct.pack(f"<{len(values)}h", *values)
 
 
+def offset_granules(encoded, delta):
+    data = bytearray(encoded)
+    offset = 0
+    while offset < len(data):
+        count = data[offset + 26]
+        size = 27 + count + sum(data[offset + 27:offset + 27 + count])
+        granule = struct.unpack_from("<Q", data, offset + 6)[0]
+        if 0 < granule < (1 << 64) - 1:
+            struct.pack_into("<Q", data, offset + 6, granule + delta)
+            data[offset + 22:offset + 26] = bytes(4)
+            crc = 0
+            for byte in data[offset:offset + size]:
+                crc ^= byte << 24
+                for _ in range(8):
+                    crc = ((crc << 1) ^ (0x04C11DB7 if crc & 0x80000000 else 0)) & 0xffffffff
+            struct.pack_into("<I", data, offset + 22, crc)
+        offset += size
+    return bytes(data)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate independent Xiph Vorbis decoder fixtures")
     parser.add_argument("--prefix", type=Path, required=True)
@@ -46,6 +66,16 @@ def main():
                                  check=True, env=env).stdout
         (args.output / f"{name}.ogg").write_bytes(encoded)
         (args.output / f"{name}.pcm").write_bytes(decoded)
+    original = (args.output / "seek44.ogg").read_bytes()
+    cropped = offset_granules(original, -500)
+    decoded = subprocess.run([str(codec), "decode"], input=cropped, capture_output=True,
+                             check=True, env=env).stdout
+    (args.output / "cropped44.ogg").write_bytes(cropped)
+    (args.output / "cropped44.pcm").write_bytes(decoded)
+    shifted = subprocess.run([str(codec), "decode"], input=offset_granules(original, 500),
+                             capture_output=True, check=True, env=env).stdout
+    if shifted != (args.output / "seek44.pcm").read_bytes():
+        raise ValueError("the shifted-origin reference differs from the original PCM")
     return 0
 
 

@@ -20,6 +20,10 @@ static void start_vorbis(void *context, FlacInput input, FlacInfo info, uint32_t
     vorbis->position = 0;
     vorbis->next_sample = 0;
     vorbis->slot = 0;
+    vorbis->origin = 0;
+    vorbis->origin_set = false;
+    vorbis->region.control->vorbis_config_generation = 0;
+    vorbis->audio_started = false;
     vorbis->generation = vorbis->region.control->generation;
     vorbis->anchored = first_sample == 0;
     void *workspace = (void *)(uintptr_t)(vorbis->region.ring + vorbis->region.ring_bytes);
@@ -38,7 +42,8 @@ static Core1DecodeResult fetch_packet(Core1Vorbis *vorbis, VorbisPacket *packet)
     }
     uint32_t bytes = little32(header);
     uint32_t flags = little32(header + 4);
-    if ((flags & ~(uint32_t)(VORBIS_RECORD_FIRST | VORBIS_RECORD_LAST | VORBIS_RECORD_END)) != 0 ||
+    if ((flags & ~(uint32_t)(VORBIS_RECORD_FIRST | VORBIS_RECORD_LAST | VORBIS_RECORD_END |
+                             VORBIS_RECORD_ORIGIN)) != 0 ||
         bytes > VORBIS_PACKET_BYTES ||
         bytes > vorbis->input.size - vorbis->position - sizeof header) {
         return CORE1_FAILED;
@@ -46,6 +51,15 @@ static Core1DecodeResult fetch_packet(Core1Vorbis *vorbis, VorbisPacket *packet)
     if ((flags & VORBIS_RECORD_END) != 0) {
         return bytes == 0 && flags == VORBIS_RECORD_END && vorbis->decoder.ready ? CORE1_FINISHED
                                                                                  : CORE1_FAILED;
+    }
+    vorbis->record_flags = flags;
+    if ((flags & VORBIS_RECORD_ORIGIN) != 0) {
+        if (flags != VORBIS_RECORD_ORIGIN || bytes != 0 || !vorbis->decoder.ready ||
+            vorbis->audio_started || vorbis->origin_set || little32(header + 12) != 0) {
+            return CORE1_FAILED;
+        }
+        *packet = (VorbisPacket){.granule = little32(header + 8)};
+        return CORE1_DECODED;
     }
     uint32_t body = vorbis->position + sizeof header;
     if (bytes == 0) {
@@ -73,12 +87,33 @@ static void release_packet(Core1Vorbis *vorbis, const VorbisPacket *packet)
 
 static bool configure(Core1Vorbis *vorbis, const VorbisPacket *packet)
 {
-    return vorbis_decoder_header(&vorbis->decoder, *packet);
+    if (!vorbis_decoder_header(&vorbis->decoder, *packet)) {
+        return false;
+    }
+    if (vorbis->decoder.ready) {
+        VorbisModes modes;
+        if (!vorbis_decoder_modes(&vorbis->decoder, &modes)) {
+            return false;
+        }
+        vorbis->region.control->vorbis_modes = modes;
+        core1_publish();
+        vorbis->region.control->vorbis_config_generation = vorbis->generation;
+    }
+    return true;
 }
 
 static bool decode_audio(Core1Vorbis *vorbis, const VorbisPacket *packet, Core1Block *block)
 {
     int32_t (*channels)[FLAC_MAX_BLOCK] = vorbis->region.samples[vorbis->slot];
+    VorbisPacket normalized = *packet;
+    if (normalized.granule != UINT64_MAX) {
+        if (normalized.granule < vorbis->origin) {
+            return false;
+        }
+        normalized.granule -= vorbis->origin;
+    }
+    packet = &normalized;
+    vorbis->audio_started = true;
     VorbisPcm pcm = {.channels = {channels[0], channels[1]}, .capacity = FLAC_MAX_BLOCK};
     if (!vorbis_decoder_decode(&vorbis->decoder, *packet, &pcm)) {
         return false;
@@ -122,6 +157,12 @@ static Core1DecodeResult decode_vorbis(void *context, Core1Block *block)
             if (!configure(vorbis, &packet)) {
                 return CORE1_FAILED;
             }
+            release_packet(vorbis, &packet);
+            continue;
+        }
+        if (vorbis->record_flags == VORBIS_RECORD_ORIGIN) {
+            vorbis->origin = (uint32_t)packet.granule;
+            vorbis->origin_set = true;
             release_packet(vorbis, &packet);
             continue;
         }

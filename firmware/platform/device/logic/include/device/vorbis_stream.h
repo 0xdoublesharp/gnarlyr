@@ -15,6 +15,8 @@ typedef struct VorbisStream {
     uint32_t record_size;
     uint32_t seek_offset;
     uint32_t serial;
+    uint32_t origin;
+    bool origin_sent;
     uint8_t headers;
     bool ended;
     bool failed;

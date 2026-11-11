@@ -13,3 +13,5 @@ python3 tools/vorbis_fixture.py --prefix /Volumes/Scratch/SnowskyEcho/tmp/vorbis
 The generator builds its small reference helper on Scratch; normal firmware tests use the checked-in fixtures and need no reference library installation. Xiph's BSD license and source credits are in `third_party/tremor/COPYING` and `CREDITS.md`.
 
 `seek44` and `seek8` are 3.25-second chirps at 44.1 kHz stereo and 8 kHz mono, with 143,325 and 26,000 frames respectively. Their frequency increases by 43 Hz/second on the left and 73 Hz/second on the right, avoiding a repeating one-second signal that could hide a seek error. The stereo stream has multiple marked audio pages; the speech stream has one. Original quarter-second fixtures retain their exact waveform arithmetic and bytes.
+
+`cropped44` subtracts 500 samples from each known audio-page granule in `seek44`, repairs each Ogg page checksum, and is decoded independently by Xiph for its reference PCM. Its final length is 142,825 frames. The generator also checks that adding a 500-sample PCM origin to `seek44` leaves Xiph reference PCM unchanged.

@@ -51,8 +51,9 @@ class Core1VorbisTest(unittest.TestCase):
     def setUpClass(cls):
         cls.program = Path(ARGUMENTS["program"]).read_bytes()
 
-    def check_reference(self, name, channels, start=0):
-        machine, blocks = decode(self.program, packets(name), channels, start)
+    def check_reference(self, name, channels, start=0, transport=None):
+        stream = packets(name) if transport is None else transport
+        machine, blocks = decode(self.program, stream, channels, start)
         self.assertEqual(core1.RESULT_END, blocks[-1][0])
         raw = (FIXTURES / f"{name}.pcm").read_bytes()
         reference = struct.unpack(f"<{len(raw) // 2}h", raw)
@@ -71,7 +72,59 @@ class Core1VorbisTest(unittest.TestCase):
         self.assertEqual(len(reference) // channels, count)
         self.assertTrue(fractional)
         self.assertEqual(bytes(machine.uc.mem_read(0x0102A000, 64)), b"\xa5" * 64)
+        self.assertEqual(1, machine.word(core1.CONTROL + 116))
+        self.assertTrue(1 <= machine.word(core1.CONTROL + 104) <= 64)
+        identification = (FIXTURES / f"{name}.ogg").read_bytes()
+        self.assertEqual(1 << (identification[56] & 15), machine.word(core1.CONTROL + 96))
+        self.assertEqual(1 << (identification[56] >> 4), machine.word(core1.CONTROL + 100))
         return machine, blocks
+
+    def test_nonzero_pcm_origin_keeps_every_timestamp_and_reference_sample_contiguous(self):
+        stream = bytearray(packets("seek44"))
+        offset = 0
+        first_audio = None
+        index = 0
+        while offset < len(stream):
+            size, flags, granule = struct.unpack_from("<IIQ", stream, offset)
+            if index >= 3:
+                if first_audio is None:
+                    first_audio = offset
+                if granule != (1 << 64) - 1:
+                    struct.pack_into("<Q", stream, offset + 8, granule + 500)
+            offset += 16 + size
+            index += 1
+        origin = struct.pack("<IIQ", 0, 8, 500)
+        stream = stream[:first_audio] + origin + stream[first_audio:]
+        self.check_reference("seek44", 2, transport=bytes(stream))
+
+    def test_invalid_or_repeated_origin_records_leave_through_the_failure_path(self):
+        stream = packets("stereo44")
+        offset = 0
+        boundaries = []
+        while offset < len(stream):
+            boundaries.append(offset)
+            offset += 16 + struct.unpack_from("<I", stream, offset)[0]
+        before = stream[:boundaries[3]]
+        after = stream[boundaries[3]:]
+        origin = struct.pack("<IIQ", 0, 8, 500)
+        variants = {
+            "before_configuration": origin + stream,
+            "duplicate": before + origin + origin + after,
+            "mixed_flags": before + struct.pack("<IIQ", 0, 9, 500) + after,
+            "payload": before + struct.pack("<IIQ", 1, 8, 500) + b"x" + after,
+            "overflow": before + struct.pack("<IIQ", 0, 8, 1 << 32) + after,
+            "after_audio": stream[:boundaries[4]] + origin + stream[boundaries[4]:],
+        }
+        for name, malformed in variants.items():
+            with self.subTest(name=name):
+                machine, blocks = decode(self.program, malformed, 2)
+                self.assertEqual(3, blocks[-1][0])
+                self.assertEqual(0, machine.word(0xE000ED28))
+                self.assertEqual(0, machine.word(0xE000ED2C))
+                self.assertEqual(bytes(machine.uc.mem_read(0x0102A000, 64)), bytes([0xa5]) * 64)
+
+    def test_cropped_first_page_matches_independent_reference_samples_and_positions(self):
+        self.check_reference("cropped44", 2)
 
     def test_mono_speech_matches_the_reference_and_final_granule(self):
         self.check_reference("mono8", 1)
