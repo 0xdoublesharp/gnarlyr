@@ -9,6 +9,7 @@ import base64
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 
 
@@ -49,6 +50,19 @@ def public_files():
         if total > 64 * 1024 * 1024:
             raise SystemExit("Public site exceeds the 64 MiB publication limit")
         files[relative.as_posix()] = data
+    assets = {name.encode(): name.encode() + b"?v=" + hashlib.sha256(data).hexdigest()[:12].encode()
+              for name, data in files.items() if not name.endswith(".html")}
+    def version_link(match):
+        target, separator, fragment = match[2].partition(b"#")
+        path = target.split(b"?", 1)[0]
+        if path not in assets:
+            return match[0]
+        return match[1] + assets[path] + separator + fragment + match[3]
+    for name, data in files.items():
+        if name.endswith(".html"):
+            files[name] = re.sub(rb"""((?:href|src)=["'])([^"']+)(["'])""", version_link, data)
+    if sum(map(len, files.values())) > 64 * 1024 * 1024:
+        raise SystemExit("Public site exceeds the 64 MiB publication limit")
     return files
 
 
