@@ -900,11 +900,16 @@ static void aac_configurations_report_supported_rates_channels_and_frame_lengths
                 builder.bytes[at + 1] =
                     (uint8_t)((index << 7) | (channels << 3) | (short_frame << 2));
                 Mp4Track track;
-                CHECK(mp4_probe((FlacInput){read_builder, &builder, builder.length}, &track));
+                bool accepted =
+                    mp4_probe((FlacInput){read_builder, &builder, builder.length}, &track);
+                CHECK_EQUAL(short_frame == 0, accepted);
+                if (short_frame != 0 || !accepted) {
+                    continue;
+                }
                 CHECK_EQUAL(MP4_CODEC_AAC, track.codec);
                 CHECK_EQUAL(rates[index], track.sample_rate);
                 CHECK_EQUAL(channels, track.channels);
-                CHECK_EQUAL(short_frame ? 960u : 1024u, track.frame_samples);
+                CHECK_EQUAL(1024u, track.frame_samples);
                 CHECK_EQUAL(2u, track.config_size);
             }
         }

@@ -230,7 +230,7 @@ static bool has_sbr(const uint8_t *asc, uint32_t size)
 static bool decode_aac_config(Mp4Track *track)
 {
     const uint8_t *asc = track->config;
-    if (track->config_size < 2 || asc[0] >> 3 != AAC_LC) {
+    if (track->config_size < 2 || asc[0] >> 3 != AAC_LC || (asc[1] & 4u) != 0) {
         return false;
     }
     uint32_t index = (uint32_t)(asc[0] & 7) << 1 | asc[1] >> 7;
@@ -240,7 +240,7 @@ static bool decode_aac_config(Mp4Track *track)
     }
     track->config_size = AAC_PLAIN_CONFIG;
     track->sample_rate = AAC_RATES[index];
-    track->frame_samples = (asc[1] & 4u) != 0 ? 960 : 1024;
+    track->frame_samples = 1024;
     track->channels = (uint8_t)channels;
     track->bits = 0;
     return true;

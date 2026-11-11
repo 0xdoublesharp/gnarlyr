@@ -317,9 +317,21 @@ static void consecutive_m4a_tracks_play_without_a_gap(void)
     CHECK(ok);
 }
 
+static void the_aac_decoder_rejects_short_frames(void)
+{
+    static AacDecoder decoder;
+    static const uint8_t standard[] = {0x12, 0x10};
+    static const uint8_t short_frame[] = {0x12, 0x14};
+    core1_heap_init(heap, sizeof heap);
+    CHECK(aac_decoder_start(&decoder, standard, sizeof standard));
+    core1_heap_init(heap, sizeof heap);
+    CHECK(!aac_decoder_start(&decoder, short_frame, sizeof short_frame));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(the_aac_decoder_rejects_short_frames),
         TEST_CASE(an_aac_file_streams_through_core_1_like_the_reference_decoder),
         TEST_CASE(an_alac_file_streams_through_core_1_bit_exactly),
         TEST_CASE(a_slow_feed_starves_core_1_without_losing_samples),
