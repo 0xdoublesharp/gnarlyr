@@ -1,10 +1,15 @@
 set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension)
+set(ECHO_SCREEN_MODULE_SHARED_SOURCES src/codec/flac.c src/codec/flac_bits.c)
 set(ECHO_SCREEN_MODULE_SOURCES_process
+    platform/device/logic/core1_open_flac.c
+    platform/device/logic/flac_source_open.c
     platform/device/logic/audio_fade.c
     platform/device/logic/audio_process_entry.c
     platform/device/logic/audio_trig.c
     platform/device/logic/equalizer_design.c
     platform/device/logic/equalizer.c
+    src/codec/flac.c
+    src/codec/flac_bits.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_dsp
     platform/device/logic/audio_interpolate.c
@@ -151,7 +156,7 @@ function(echo_take_module_sources)
     foreach(module IN LISTS ECHO_SCREEN_MODULES)
         foreach(source IN LISTS ECHO_SCREEN_MODULE_SOURCES_${module})
             echo_screen_module_owner(${source} owner name)
-            if(owner STREQUAL "echo_device")
+            if(owner STREQUAL "echo_device" OR source IN_LIST ECHO_SCREEN_MODULE_SHARED_SOURCES)
                 continue()
             endif()
             get_target_property(sources ${owner} SOURCES)

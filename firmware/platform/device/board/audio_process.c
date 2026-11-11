@@ -2,6 +2,7 @@
 
 #include "core/seam.h"
 #include "device/audio_process.h"
+#include "device/core1_source_private.h"
 #include "overlay.h"
 
 static bool ready;
@@ -61,6 +62,11 @@ void audio_fade_out(AudioFadeBlock block, AudioFadeRamp *ramp, int64_t remaining
     if (ready) {
         entry()->fade_out(block, ramp, remaining);
     }
+}
+
+bool core1_open_flac(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track)
+{
+    return ready && entry()->open_flac(context, path, start_ms, track);
 }
 
 #ifdef ECHO_DEBUG_LOOP

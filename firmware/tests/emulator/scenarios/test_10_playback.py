@@ -446,6 +446,43 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(starts, [])
         self.assert_healthy(rig.session)
 
+    def test_flac_header_and_seek_use_the_processing_bank_with_slot_fallback(self):
+        from unicorn.arm_const import UC_ARM_REG_R1
+        rig = self.playback_rig()
+        machine = rig.machine
+        self.assertNotIn("flac_read_header", machine.symbols)
+        self.assertNotIn("flac_seek", machine.symbols)
+        number, process = self.module(machine, "process")
+        rig.session.change_module("slot_1", number, 600, lambda byte: byte ^ 0xFF)
+        headers, seeks = [], []
+        machine.hook_symbol("flac_read_header", lambda: headers.append(process.loaded(machine)))
+        machine.hook_symbol("flac_seek", lambda: seeks.append(process.loaded(machine)))
+        machine.hook_symbol("hal_audio_play", lambda: machine.uc.reg_write(UC_ARM_REG_R1, 1000))
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertTrue(headers)
+        self.assertTrue(seeks)
+        self.assertTrue(all(headers + seeks))
+        for slot in ("slot_1", "slot_2"):
+            self.assertTrue(rig.session.module_reads(slot, number))
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assert_healthy(rig.session)
+
+    def test_flac_refuses_missing_processing_banks_without_starting_output(self):
+        rig = self.playback_rig()
+        number, process = self.module(rig.machine, "process")
+        for slot in ("slot_1", "slot_2"):
+            rig.session.change_module(slot, number, 600, lambda byte: byte ^ 0xFF)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNone(rig.first_audio_after(started))
+        self.assertFalse(process.loaded(rig.machine))
+        self.assertEqual([], rig.audio.audible)
+        for slot in ("slot_1", "slot_2"):
+            self.assertTrue(rig.session.module_reads(slot, number))
+        self.assert_healthy(rig.session)
+
     def damage_flac_program(self, session, slot):
         lba = session.layout[slot] + image_tests.make_image.CORE1_FLAC_OFFSET // 512 + 1
         sector = bytearray(session.disk.read(lba, 1))

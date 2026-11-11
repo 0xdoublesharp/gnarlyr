@@ -1,5 +1,6 @@
 #pragma once
 
+#include "device/audio_engine.h"
 #include "device/audio_fade.h"
 #include "device/equalizer.h"
 
@@ -15,6 +16,7 @@ typedef struct AudioProcessEntry {
     void (*run)(Equalizer *equalizer, uint32_t *words, uint32_t frames);
     void (*fade_in)(AudioFadeBlock block, AudioFadeRamp *ramp);
     void (*fade_out)(AudioFadeBlock block, AudioFadeRamp *ramp, int64_t remaining);
+    bool (*open_flac)(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track);
 #ifdef ECHO_DEBUG_LOOP
     const void *debug;
 #endif
