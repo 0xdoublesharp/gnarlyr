@@ -6,6 +6,7 @@
 #include "check.h"
 #include "device/equalizer.h"
 #include "settings/settings.h"
+#include "settings/sound_shaping.h"
 
 enum {
     RATE_COUNT = 3,
@@ -475,6 +476,36 @@ static void parametric_preamp_works_without_filters_and_nyquist_filters_are_inac
     CHECK(!equalizer_design(&equalizer, &hal, 192000));
 }
 
+static void sound_shaping_extremes_do_not_clip_full_scale_music_or_transients(void)
+{
+    static const uint32_t rates[] = {32000, 44100, 48000, 88200, 96000};
+    for (int mask = 0; mask < 128; mask += 127) {
+        SoundShaping shape = {.active = true};
+        for (int slider = 0; slider < SOUND_SHAPING_COUNT; slider++) {
+            shape.positions[slider] = (int8_t)((mask >> slider & 1) != 0 ? 5 : -5);
+        }
+        ParametricEq base = {0};
+        HalAudioEqualizer hal = {.is_parametric = true};
+        CHECK(sound_shaping_build(&hal.parametric, &base, &shape));
+        for (unsigned rate = 0; rate < sizeof rates / sizeof rates[0]; rate++) {
+            CHECK(square_stays_below_full_scale(&hal, rates[rate], 90));
+            CHECK(stays_below_full_scale(&hal, rates[rate], 300));
+            CHECK(stays_below_full_scale(&hal, rates[rate], 12000));
+            CHECK(equalizer_design(&equalizer, &hal, rates[rate]));
+            for (uint32_t frame = 0; frame < 4096; frame++) {
+                int32_t sample = frame == 0 || frame == 2048 ? FULL_SCALE : -FULL_SCALE;
+                words[2 * frame] = (uint32_t)sample << 8;
+                words[2 * frame + 1] = words[2 * frame];
+            }
+            equalizer_run(&equalizer, words, 4096);
+            for (uint32_t frame = 0; frame < 4096; frame++) {
+                CHECK(abs(sample_at(frame, 0)) < FULL_SCALE);
+                CHECK(abs(sample_at(frame, 1)) < FULL_SCALE);
+            }
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -495,6 +526,7 @@ int main(void)
         TEST_CASE(a_full_scale_kick_through_cuts_does_not_clip),
         TEST_CASE(a_gain_change_keeps_the_filter_history_and_does_not_click),
         TEST_CASE(equalizer_off_leaves_the_samples_alone),
+        TEST_CASE(sound_shaping_extremes_do_not_clip_full_scale_music_or_transients),
         TEST_CASE(parametric_boosts_cuts_shelves_and_transients_stay_below_the_clamp),
         TEST_CASE(parametric_preamp_works_without_filters_and_nyquist_filters_are_inactive),
     };

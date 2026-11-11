@@ -260,9 +260,18 @@ def browser_source(catalogue, drawable):
         info, sort_keys=True, ensure_ascii=True, separators=(",", ":")) + ";\n"
 
 
+def pseudo_word(match):
+    word = match.group()
+    for index, character in enumerate(word):
+        accented = character.translate(ACCENTS)
+        if accented != character:
+            return word[:index] + accented + word[index + 1:]
+    return word
+
+
 def pseudo_text(text):
     """An accented, longer, bracketed stand-in that keeps the placeholders."""
-    pieces = [piece if PLACEHOLDER.fullmatch(piece) else piece.translate(ACCENTS)
+    pieces = [piece if PLACEHOLDER.fullmatch(piece) else re.sub(r"[A-Za-z]+", pseudo_word, piece)
               for piece in PIECE.findall(text)]
     letters = sum(1 for character in PLACEHOLDER.sub("", text) if character.isalpha())
     return "[" + "".join(pieces) + "!" * ((letters + 2) // 3) + "]"

@@ -143,9 +143,37 @@ static void shaping_positions_survive_custom_and_slots_and_old_payloads_still_lo
     CHECK(!parametric_bank_decode(bytes, &restored));
 }
 
+static void an_old_durable_bank_loads_without_shaping_and_upgrades_on_save(void)
+{
+    memset(disk, 0, sizeof disk);
+    no_read = false;
+    fail_write = 0;
+    false_write_result = false;
+    ParametricBank bank = sample();
+    uint8_t bytes[PARAMETRIC_PAYLOAD_BYTES];
+    CHECK(parametric_bank_encode(&bank, bytes));
+    bytes[1] = 0;
+    memcpy(disk + STORE_BLOCK_BYTES, bytes, PARAMETRIC_LEGACY_BYTES);
+    StoreKind kind = {.magic = {'P', 'E', 'Q', 'F'}, .version = 1};
+    StoreHeader header = {.generation = 42,
+                          .bytes = PARAMETRIC_LEGACY_BYTES,
+                          .hash = hash_update(HASH_START, bytes, PARAMETRIC_LEGACY_BYTES)};
+    store_encode(&kind, &header, disk);
+    ParametricFile owner;
+    CHECK_EQUAL(STORE_READY, parametric_file_open(&owner, file(), &bank));
+    CHECK_EQUAL(42, owner.generation);
+    CHECK_EQUAL(-62, bank.custom.preamp);
+    CHECK(!bank.shaping[0].active);
+    CHECK_EQUAL(STORE_DONE, parametric_file_save(&owner, &bank));
+    CHECK_EQUAL(STORE_READY, parametric_file_open(&owner, file(), &bank));
+    CHECK_EQUAL(43, owner.generation);
+    CHECK_EQUAL(-62, bank.custom.preamp);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(an_old_durable_bank_loads_without_shaping_and_upgrades_on_save),
         TEST_CASE(bank_round_trips_and_a_torn_write_keeps_the_previous_copy),
         TEST_CASE(canonical_encoding_rejects_invalid_filters_and_padding),
         TEST_CASE(shaping_positions_survive_custom_and_slots_and_old_payloads_still_load),

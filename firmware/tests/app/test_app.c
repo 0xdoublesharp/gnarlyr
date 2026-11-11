@@ -1068,6 +1068,25 @@ static void gain_and_output_preview_without_saving_and_cancel_without_restarting
     CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
 }
 
+static void shaping_is_reachable_from_equalizer_and_cancels_when_leaving_the_module(void)
+{
+    start_app_with_library();
+    open_setting(SETTINGS_EQUALIZER_INDEX);
+    tap(KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    CHECK(title_is("Sound shaping"));
+    tap(KEY_PLAY);
+    tap(KEY_VOLUME_UP);
+    CHECK(fake_hal_audio_equalizer().is_parametric);
+    CHECK_EQUAL(10, fake_hal_audio_equalizer().parametric.filters[0].gain);
+    hold(KEY_BACK);
+    CHECK_EQUAL(0, fake_hal_audio_equalizer().band_count);
+    CHECK(!fake_hal_audio_equalizer().is_parametric);
+    SettingsStore store;
+    settings_store_load(&store);
+    CHECK_EQUAL(EQUALIZER_OFF, store.settings.equalizer);
+}
+
 static void an_equalizer_preset_reaches_the_audio_and_survives_a_restart(void)
 {
     start_app_with_library();
@@ -5423,6 +5442,7 @@ int main(void)
         TEST_CASE(leaving_or_stopping_a_brightness_preview_restores_the_saved_level),
         TEST_CASE(gain_and_output_preview_without_saving_and_cancel_without_restarting_music),
         TEST_CASE(gain_is_applied),
+        TEST_CASE(shaping_is_reachable_from_equalizer_and_cancels_when_leaving_the_module),
         TEST_CASE(an_equalizer_preset_reaches_the_audio_and_survives_a_restart),
         TEST_CASE(browsing_equalizer_presets_previews_audio_but_saves_only_on_play),
         TEST_CASE(stopping_during_an_equalizer_preview_keeps_the_committed_curve),

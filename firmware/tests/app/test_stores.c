@@ -14,6 +14,7 @@
 #include "hal/storage.h"
 #include "hal/system.h"
 #include "library/playlist_reader.h"
+#include "settings_screens.h"
 #include "settings_store.h"
 #include "spoken_library.h"
 
@@ -489,9 +490,55 @@ static void matching_graphic_and_parametric_slots_survive_restart(void)
     CHECK_EQUAL(EQUALIZER_OFF, store.settings.equalizer);
 }
 
+static void shaping_words_and_positions_survive_restart_and_plain_edits_clear_them(void)
+{
+    fake_hal_reset();
+    CHECK_EQUAL(HAL_RESERVE_CREATED, hal_internal_file_reserve(PARAMETRIC_STORE_PATH, 4096));
+    SettingsStore store = {.settings = settings_defaults()};
+    ParametricStore file = {0};
+    parametric_store_read(&file, NULL);
+    SoundShaping shape = {.positions = {2, 1}, .active = true};
+    ParametricEq base = {0};
+    ParametricBank bank = {.used = 1};
+    CHECK(sound_shaping_build(&bank.custom, &base, &shape));
+    bank.shaping[0] = shape;
+    bank.slots[0] = bank.custom;
+    bank.shaping[1] = shape;
+    CHECK(parametric_store_save(&file, &bank));
+    store.settings.equalizer = EQUALIZER_PARAMETRIC;
+    store.settings.parametric = bank.custom;
+    CHECK(settings_store_save(&store));
+    settings_store_load(&store);
+    CHECK(strcmp(store.parametric.description, "Warm · Bright") == 0);
+    CHECK_EQUAL(2, parametric_store_bank()->shaping[0].positions[0]);
+    SettingsScreens screens;
+    Player row_player = {0};
+    Toast row_toast = {0};
+    PowerPolicy power = {0};
+    SettingsContext context = {
+        .store = &store, .player = &row_player, .toast = &row_toast, .power = &power};
+    settings_screens_init(&screens, context, &BOARD_THEME);
+    const MenuItem *row = &screens.items[SETTINGS_CUSTOM_EQ_ITEM - 1];
+    CHECK(strcmp(row->value(row->context), "Warm · Bright") == 0);
+
+    EqualizerUi ui;
+    Player player = {0};
+    Toast toast = {0};
+    equalizer_ui_init(&ui, &store, &player, &toast, &BOARD_THEME);
+    ui.parametric.screen.enter(&ui.parametric, 0);
+    CHECK(!ui.parametric.shaping_mode);
+    ParametricEq eq = store.settings.parametric;
+    eq.filters[0].gain++;
+    CHECK(ui.parametric.config.commit(&ui, &eq, -1));
+    CHECK(!parametric_store_bank()->shaping[0].active);
+    CHECK_EQUAL(0, store.parametric.description[0]);
+    CHECK(parametric_store_bank()->shaping[1].active);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(shaping_words_and_positions_survive_restart_and_plain_edits_clear_them),
         TEST_CASE(matching_graphic_and_parametric_slots_survive_restart),
         TEST_CASE(without_a_file_the_defaults_are_used),
         TEST_CASE(saved_settings_are_loaded_again),

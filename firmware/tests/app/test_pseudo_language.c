@@ -513,6 +513,33 @@ static void walk_parametric(void)
     tap(KEY_BACK);
 }
 
+static void walk_sound_shaping(void)
+{
+    open_settings_row(SETTINGS_EQUALIZER_ROW);
+    tap(KEY_PLAY);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    show_titled("Sound shaping", STR_SOUND_SHAPING);
+    for (int slider = 0; slider < 7; slider++) {
+        show("a shaping slider");
+        tap(KEY_PLAY);
+        down(1);
+        show("a shaping adjustment");
+        tap(KEY_BACK);
+        down(1);
+    }
+    show("Reset shaping");
+    down(1);
+    tap(KEY_PLAY);
+    show("a shaping destination");
+    tap(KEY_BACK);
+    down(1);
+    tap(KEY_PLAY);
+    down(1);
+    show("a missing shaping correction");
+    tap(KEY_BACK);
+}
+
 static void find_devices(void)
 {
     HalBluetoothStatus *status = fake_hal_bluetooth();
@@ -736,6 +763,7 @@ static void walk_everything(void)
     walk_settings_toasts();
     walk_equalizer();
     walk_parametric();
+    walk_sound_shaping();
     walk_bluetooth();
     walk_home_editor();
     walk_headphones();

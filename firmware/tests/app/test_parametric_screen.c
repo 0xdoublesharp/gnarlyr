@@ -221,9 +221,79 @@ static void shaping_previews_cancels_saves_resets_and_refuses_an_overfull_stack(
     CHECK_EQUAL(10, settings.parametric.count);
 }
 
+static void shaping_sliders_and_preamp_fit_both_themes_in_all_native_layouts(void)
+{
+    for (int appearance = 0; appearance < 2; appearance++) {
+        for (int orientation = 0; orientation < 2; orientation++) {
+            for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+                start();
+                Theme theme = BOARD_THEME;
+                default_theme_set_appearance(&theme, (AppearanceTheme)appearance);
+                default_theme_set_orientation(&theme, (Orientation)orientation);
+                default_theme_set_text_size(&theme, (TextSize)size);
+                editor.config.theme = &theme;
+                editor.list.theme = &theme;
+                editor.shaping_requested = true;
+                editor.screen.enter(&editor, 0);
+                key(KEY_PLAY);
+                key(orientation == 0 ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+                Canvas canvas = canvas_make(
+                    pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+                editor.screen.draw(&editor, &canvas);
+                CHECK(editor.list.visible_rows > 0);
+                CHECK(editor.response.range_tenth_db >= 100);
+                EqualizerPlotLayout layout =
+                    equalizer_plot_layout(&theme, i18n_text(STR_SHAPE_EDIT_HINT), true);
+                Rect graph = sound_shaping_screen_slider(&editor, &canvas, layout.plot);
+                CHECK(graph.height > font_line_height(theme.fonts.small));
+                CHECK(graph.y + graph.height <= layout.preamp.y);
+            }
+        }
+    }
+}
+
+static void rejected_base_choices_remain_uncommitted_and_do_not_block_later_slots(void)
+{
+    start();
+    ParametricBank bank = {.used = 3};
+    bank.slots[0].count = 10;
+    bank.slots[1].count = 1;
+    for (int index = 0; index < 10; index++) {
+        bank.slots[0].filters[index] = (ParametricFilter){1000, 70, -10, PARAMETRIC_PEAK, true};
+    }
+    bank.slots[1].filters[0] = bank.slots[0].filters[0];
+    editor.config.bank = &bank;
+    editor.config.shape_commit = shape_commit;
+    editor.shaping_requested = true;
+    editor.screen.enter(&editor, 0);
+    key(KEY_PLAY);
+    key(KEY_VOLUME_UP);
+    key(KEY_PLAY);
+    for (int index = 0; index < 9; index++) {
+        key(KEY_VOLUME_UP);
+    }
+    key(KEY_PLAY);
+    key(KEY_VOLUME_UP);
+    CHECK_EQUAL(STR_SHAPE_LIMIT, editor.notice);
+    key(KEY_VOLUME_UP);
+    CHECK_EQUAL(1, editor.base_slot);
+    CHECK_EQUAL(2, editor.working.count);
+    key(KEY_VOLUME_UP);
+    CHECK_EQUAL(STR_SHAPE_BASE_INVALID, editor.notice);
+    int before = committed;
+    key(KEY_MENU);
+    key(KEY_PLAY);
+    CHECK_EQUAL(before, committed);
+    CHECK(editor.adjusting);
+    key(KEY_BACK);
+    CHECK_EQUAL(1, editor.working.count);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(shaping_sliders_and_preamp_fit_both_themes_in_all_native_layouts),
+        TEST_CASE(rejected_base_choices_remain_uncommitted_and_do_not_block_later_slots),
         TEST_CASE(shaping_previews_cancels_saves_resets_and_refuses_an_overfull_stack),
         TEST_CASE(add_edit_cancel_keep_and_remove_work_with_buttons),
         TEST_CASE(failed_publication_keeps_the_saved_curve_and_slot_selection_works),

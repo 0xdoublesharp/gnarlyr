@@ -97,6 +97,7 @@ void sound_shaping_screen_enter(ParametricScreen *editor)
     editor->kept_shaping = editor->shaping;
     editor->kept_base_slot = editor->base_slot;
     editor->notice = STRING_COUNT;
+    editor->base_error = STRING_COUNT;
     response(editor, false);
 }
 
@@ -107,6 +108,7 @@ static void restore(ParametricScreen *editor)
     editor->base = editor->kept;
     editor->base.count = editor->shaping.base_count;
     editor->base_slot = editor->kept_base_slot;
+    editor->base_error = STRING_COUNT;
     editor->adjusting = false;
     response(editor, false);
     if (editor->previewing && editor->config.preview != NULL) {
@@ -138,9 +140,11 @@ static void change_base(ParametricScreen *editor, int step)
         return;
     }
     const ParametricBank *bank = editor->config.bank;
+    editor->base_slot = slot;
+    editor->base_error = STRING_COUNT;
     if (slot >= 0 && (bank == NULL || (bank->used >> slot & 1) == 0)) {
-        editor->base_slot = slot;
-        editor->notice = STR_SHAPE_BASE_INVALID;
+        editor->base_error = STR_SHAPE_BASE_INVALID;
+        editor->notice = editor->base_error;
         sound_shaping_screen_texts(editor);
         return;
     }
@@ -149,7 +153,9 @@ static void change_base(ParametricScreen *editor, int step)
     shape.base_count = base.count;
     ParametricEq next;
     if (!sound_shaping_build(&next, &base, &shape)) {
-        editor->notice = STR_SHAPE_LIMIT;
+        editor->base_error = STR_SHAPE_LIMIT;
+        editor->notice = editor->base_error;
+        sound_shaping_screen_texts(editor);
         return;
     }
     editor->base_slot = slot;
@@ -192,7 +198,8 @@ static void select(ParametricScreen *editor)
 {
     int row = editor->list.selected;
     if (editor->adjusting) {
-        if (row == BASE_ROW && editor->notice != STRING_COUNT) {
+        if (row == BASE_ROW && editor->base_error != STRING_COUNT) {
+            editor->notice = editor->base_error;
             return;
         }
         commit(editor, row == SAVE_ROW ? editor->slot : -1);
@@ -210,7 +217,6 @@ static void select(ParametricScreen *editor)
 
 ScreenAction sound_shaping_screen_key(ParametricScreen *editor, NavigationIntent intent)
 {
-    StringId previous = editor->notice;
     editor->notice = STRING_COUNT;
     if (intent == NAVIGATION_NEXT || intent == NAVIGATION_PREVIOUS) {
         int step = intent == NAVIGATION_NEXT ? 1 : -1;
@@ -220,9 +226,6 @@ ScreenAction sound_shaping_screen_key(ParametricScreen *editor, NavigationIntent
             list_view_move(&editor->list, step, false, editor->now_ms);
         }
     } else if (intent == NAVIGATION_SELECT) {
-        if (editor->adjusting && editor->list.selected == BASE_ROW && previous != STRING_COUNT) {
-            editor->notice = previous;
-        }
         select(editor);
     } else if (intent == NAVIGATION_BACK || intent == NAVIGATION_HOME) {
         bool adjusting = editor->adjusting;

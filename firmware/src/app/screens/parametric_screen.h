@@ -37,6 +37,7 @@ typedef struct ParametricScreen {
     int base_slot;
     int kept_base_slot;
     StringId notice;
+    StringId base_error;
     bool shaping_mode;
     bool shaping_requested;
 } ParametricScreen;

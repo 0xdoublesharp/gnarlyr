@@ -60,6 +60,7 @@ static const Pattern NOTICE_PATTERNS[] = {
 
 static const StringId SCREEN_TITLES[] = {
     STR_PEQ,
+    STR_SOUND_SHAPING,
     STR_MUSIC,
     STR_AUDIOBOOKS,
     STR_PODCASTS,
