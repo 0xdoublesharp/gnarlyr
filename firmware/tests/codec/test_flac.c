@@ -240,6 +240,30 @@ static void blocks_larger_than_the_buffer_are_refused(void)
     free(flac.bytes);
 }
 
+static void unsupported_streaminfo_limits_are_rejected(void)
+{
+    Buffer flac = load("fixed_16_mono", "flac");
+    CHECK(flac.size >= 42);
+    uint8_t original[42];
+    memcpy(original, flac.bytes, sizeof original);
+    flac.bytes[10] = 0x12;
+    flac.bytes[11] = 0x01;
+    CHECK_EQUAL(FLAC_UNSUPPORTED, flac_open(&decoder, input_of(&flac)));
+    flac.bytes[11] = 0x00;
+    CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input_of(&flac)));
+    memcpy(flac.bytes, original, sizeof original);
+    flac.bytes[20] = (uint8_t)((flac.bytes[20] & 0xf1u) | 0x04u);
+    CHECK_EQUAL(FLAC_UNSUPPORTED, flac_open(&decoder, input_of(&flac)));
+    memcpy(flac.bytes, original, sizeof original);
+    flac.bytes[20] |= 1;
+    flac.bytes[21] = (uint8_t)((flac.bytes[21] & 0x0fu) | 0x80u);
+    CHECK_EQUAL(FLAC_UNSUPPORTED, flac_open(&decoder, input_of(&flac)));
+    memcpy(flac.bytes, original, sizeof original);
+    flac.bytes[21] |= 1;
+    CHECK_EQUAL(FLAC_UNSUPPORTED, flac_open(&decoder, input_of(&flac)));
+    free(flac.bytes);
+}
+
 static void a_file_that_is_not_flac_is_refused(void)
 {
     Buffer pcm = load("fixed_16_mono", "pcm");
@@ -512,6 +536,7 @@ int main(void)
         TEST_CASE(rfc_9639_example_one_decodes_the_specified_samples),
         TEST_CASE(rfc_9639_partitioned_lpc_decodes_the_specified_samples),
         TEST_CASE(blocks_larger_than_the_buffer_are_refused),
+        TEST_CASE(unsupported_streaminfo_limits_are_rejected),
         TEST_CASE(a_file_that_is_not_flac_is_refused),
         TEST_CASE(an_id3_prefix_with_footer_preserves_decoded_audio),
         TEST_CASE(a_truncated_file_ends_with_an_error),
