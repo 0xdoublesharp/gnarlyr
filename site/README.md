@@ -8,7 +8,7 @@ The Docs screenshots are product assets under `site/assets/screens/`, generated 
 
 DoublePaaS hosting uses the [deployment contract](../docs/deployment.md). Publish the eight HTML pages, shared CSS and JavaScript, language catalogue and builder script, favicon, robots file and sitemap together. The publisher allows those fifteen root files and optional image assets; this README and `deploy/` stay outside the served release.
 
-Firmware feature references cover main through `6ef1ef38`. The latest tooling adds asset regeneration, memory-budget reports and frozen-candidate developer upgrades; the player interface and screenshots are unchanged. Features and Docs describe the implemented Smart Lists, Home editor, clock/calendar, USB prompt, comfort settings, headphone profiles and card-formatting menu. The Features page uses screenshot highlights, capability counts and task icons alongside the detailed reference. The 29 screenshots use configurable routes, including six Settings views and four language examples. Keep plans and validation work in the firmware documentation and ignored notes; simulator captures show the interface, not physical-device validation.
+Firmware feature references cover main through `01fca499`. Features and Docs include saved Moments, C60/C90 two-sided tapes, on-player date/time editing and clock restoration, and the redesigned USB transfer/DAC views and controls. The 32 screenshots use configurable routes, including six Settings views, four language examples and the new Moments, tape-length and date editor views. Screenshot routes follow the added Date & time setting. Keep plans and validation work in firmware documentation and ignored notes; simulator captures show the interface, not physical-device validation.
 
 Ogg playback, playback-speed work and unverified converter performance stay outside public playback claims. Features keeps the practical recommendation to convert speech below 32 kHz before copying it. Developers covers source builds, USB tools, clock sync, file validation, CUE parsing and ReplayGain. Hardware ratings link to FiiO and Cirrus. Keep unrelated firmware and generated language-catalogue edits outside a website-only publication.
 
@@ -57,15 +57,15 @@ python3 tools/site_social.py
 The renderer needs `rsvg-convert` from librsvg and Scratch mounted. Final images go under `site/assets/social/`; their filenames include a content hash so changed cards get a fresh URL. The script updates absolute `https://gnarlyr.com/` image URLs in all eight pages, keeps canonical page URLs intact and removes superseded generated cards for the configured names. Publish the site normally afterward.
 
 
-## Amazon purchase links
+## Purchase links
 
-Product links point directly to the full-size ECHO listing at `https://www.amazon.com/dp/B0GK61Y1FD?tag=doublesharp-20`. The listing’s model is ECHO with a 2.39-inch display; keep the purchase link specific to that model. Home features a purchase section with a stylized player frame, interface screenshot, hardware highlights and the main shopping button. Other pages use the shared footer shopping button, with contextual links beside hardware references.
+Product links point directly to the full-size ECHO listing at `https://www.amazon.com/dp/B0GK61Y1FD?tag=doublesharp-20`. The listing’s model is ECHO with a 2.39-inch display; keep the purchase link specific to that model. Home features a purchase section with a stylized player frame, interface screenshot, hardware highlights and retailer purchase buttons. Other pages use the shared footer retailer buttons, with contextual links beside hardware references. AliExpress appears beside Amazon in the main shopping section and every footer. PandaG Store is the main AliExpress destination. Hardware groups all three supplied AliExpress listings beside Amazon and labels their capacity options.
 
-Each page includes one short Amazon Associate disclosure beside its main purchase button. The interface avoids repeated affiliate labels. Links retain `rel="sponsored nofollow"`, and the copy explains that firmware is installed separately. There are no redirect scripts, embedded Amazon widgets, copied Amazon images or prices; pricing and availability stay on Amazon.
+Each page includes one short disclosure covering Amazon and AliExpress beside its purchase buttons. The interface avoids repeated affiliate labels. Links retain `rel="sponsored nofollow"`, and the copy explains that firmware is installed separately. There are no redirect scripts, embedded retailer widgets, copied retailer images or prices; pricing and availability stay on the retailers’ pages.
 
 Homepage screenshots reuse the original simulator PNGs under `site/assets/screens/`. The surrounding player shapes are CSS illustrations. All visible features describe completed capabilities; plans and unfinished integrations stay outside the public feature copy.
 
-When changing the product or affiliate ID, update every placement and verify the destination model on Amazon.
+When changing a product or affiliate link, update every placement and verify the destination model and capacity.
 
 
 ## Awin purchase links
@@ -82,3 +82,16 @@ FiiO’s ECHO launch announcement links to the AliExpress destination above. Con
 Awin deep links use `https://www.awin1.com/cread.php` with `awinmid` for the merchant, `awinaffid=3152908`, an optional placement-specific `clickref`, and a URL-encoded product destination in `ued`. Use the approved advertiser’s Link Builder output for the final public link. Keep links labelled by retailer, use `rel="sponsored nofollow"`, and retain one concise disclosure per page covering all purchase links.
 
 References: [Awin deep-link format](https://success.awin.com/articles/en_US/Knowledge/What-is-deep-linking-and-why-should-I-use-this), [advertiser enrollment](https://success.awin.com/s/article/How-do-I-join-an-advertiser-programme?language=en_US), [AMP3 program](https://ui.awin.com/merchant-profile/361), [AliExpress US program](https://ui.awin.com/merchant-profile/6378), [FiiO ECHO listing](https://www.fiio.com/newsinfo/1120734.html).
+
+
+## AliExpress Portals links
+
+The site uses direct AliExpress Portals promotion links generated by the owner with Tracking ID `default`. These are separate from Awin and do not use the Awin publisher ID.
+
+| Seller and capacity options | Product page | Promotion link |
+| --- | --- | --- |
+| PandaG Store · 4/8 GB | `https://www.aliexpress.us/item/3256812433216354.html` | `https://s.click.aliexpress.com/e/_c3RytQbH` |
+| Stone Digital Store · 4/8 GB | `https://www.aliexpress.us/item/3256811570830050.html` | `https://s.click.aliexpress.com/e/_c3l6aw9p` |
+| Stars 3c Store · 8 GB | `https://www.aliexpress.us/item/3256811620516629.html` | `https://s.click.aliexpress.com/e/_c3VNY3EX` |
+
+The supplied product screenshots identify all three as the full-size ECHO. Keep the short promotion links exactly as generated, label capacity where shown, and do not describe the sellers as FiiO’s official store. Product photos, sale prices and commission percentages are not copied into the website.
