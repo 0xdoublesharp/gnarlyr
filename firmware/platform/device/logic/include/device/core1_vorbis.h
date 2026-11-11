@@ -3,8 +3,8 @@
 #include <stddef.h>
 
 #include "device/core1_stream.h"
+#include "device/ogg_record.h"
 #include "device/vorbis_decoder.h"
-#include "device/vorbis_record.h"
 
 _Static_assert((uint32_t)VORBIS_MAX_FRAMES <= (uint32_t)FLAC_MAX_BLOCK,
                "Vorbis output must fit a shared audio slot");
@@ -24,7 +24,7 @@ typedef struct Core1Vorbis {
     bool positioned;
     bool anchored;
     bool valid;
-    uint8_t packet[VORBIS_PACKET_BYTES];
+    uint8_t packet[OGG_PACKET_BYTES];
 } Core1Vorbis;
 
 Core1Decoder core1_vorbis_decoder(Core1Vorbis *vorbis, StreamRegion region);

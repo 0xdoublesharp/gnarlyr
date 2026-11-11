@@ -1865,7 +1865,7 @@ class EchoImageTest(unittest.TestCase):
         rig, bridge = self.vorbis_rig(mixed=True)
         machine = rig.machine
         _, dsp = self.module(machine, "dsp")
-        number, vorbis = self.module(machine, "vorbis")
+        number, vorbis = self.module(machine, "ogg")
         rig.session.change_module("slot_1", number, 32, lambda byte: byte ^ 1)
         rig.open_songs()
         first = rig.play_song(1)
@@ -1927,7 +1927,7 @@ class EchoImageTest(unittest.TestCase):
 
     def test_vorbis_player_refuses_two_damaged_audio_modules(self):
         rig, bridge = self.vorbis_rig()
-        number, vorbis = self.module(rig.machine, "vorbis")
+        number, vorbis = self.module(rig.machine, "ogg")
         for slot in ("slot_1", "slot_2"):
             rig.session.change_module(slot, number, 32, lambda byte: byte ^ 1)
         rig.open_songs()

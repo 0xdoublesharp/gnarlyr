@@ -62,7 +62,7 @@ add_library(echo_device_logic STATIC
     audio_interpolate.c
     audio_dsp_entry.c
     audio_process_entry.c
-    audio_vorbis_entry.c
+    audio_ogg_entry.c
     backlight.c
     block_read.c
     board_pins.c
@@ -109,6 +109,8 @@ add_library(echo_device_logic STATIC
     mp4_demux.c
     mp4_signature.c
     msc.c
+    ogg_stream.c
+    ogg_track.c
     opus_decode.c
     panel.c
     panic_text.c
@@ -131,7 +133,6 @@ add_library(echo_device_logic STATIC
     usb_plug.c
     vorbis_decoder.c
     vorbis_memory.c
-    vorbis_stream.c
     vorbis_track.c
     vop.c
     wav_source.c

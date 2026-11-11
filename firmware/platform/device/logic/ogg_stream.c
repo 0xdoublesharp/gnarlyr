@@ -1,4 +1,4 @@
-#include "device/vorbis_stream.h"
+#include "device/ogg_stream.h"
 
 #include <stddef.h>
 
@@ -9,7 +9,7 @@ static void put32(uint8_t *bytes, uint32_t value)
     }
 }
 
-bool vorbis_stream_start(VorbisStream *stream, FlacInput file)
+bool ogg_stream_start(OggStream *stream, FlacInput file)
 {
     ogg_packets_init(&stream->packets, file);
     stream->position = 0;
@@ -26,7 +26,7 @@ bool vorbis_stream_start(VorbisStream *stream, FlacInput file)
     return !stream->failed;
 }
 
-static bool valid_header(const VorbisStream *stream, const OggPacket *packet)
+static bool valid_header(const OggStream *stream, const OggPacket *packet)
 {
     static const uint8_t SIGNATURE[] = {'v', 'o', 'r', 'b', 'i', 's'};
     if (packet->bytes < 7 || packet->last || packet->first != (stream->headers == 0) ||
@@ -41,7 +41,7 @@ static bool valid_header(const VorbisStream *stream, const OggPacket *packet)
     return stream->headers != 1 || packet->bytes >= 16;
 }
 
-static bool make_header(VorbisStream *stream, OggPacket *packet)
+static bool make_header(OggStream *stream, OggPacket *packet)
 {
     if (!valid_header(stream, packet)) {
         return false;
@@ -58,16 +58,16 @@ static bool make_header(VorbisStream *stream, OggPacket *packet)
     return true;
 }
 
-static bool begin_record(VorbisStream *stream)
+static bool begin_record(OggStream *stream)
 {
     if (stream->headers == 3 && stream->origin != 0 && !stream->origin_sent) {
         put32(stream->head, 0);
-        put32(stream->head + 4, VORBIS_RECORD_ORIGIN);
+        put32(stream->head + 4, OGG_RECORD_ORIGIN);
         put32(stream->head + 8, stream->origin);
         put32(stream->head + 12, 0);
         stream->origin_sent = true;
         stream->record_done = 0;
-        stream->record_size = VORBIS_RECORD_BYTES;
+        stream->record_size = OGG_RECORD_BYTES;
         return true;
     }
     if (stream->headers == 3 && stream->seek_offset != 0 && !stream->seeked) {
@@ -87,32 +87,32 @@ static bool begin_record(VorbisStream *stream)
     uint32_t flags = 0;
     if (result == OGG_PACKET_END && stream->headers == 3) {
         stream->ended = true;
-        flags = VORBIS_RECORD_END;
+        flags = OGG_RECORD_END;
     } else {
         if (result != OGG_PACKET_READY || packet.bytes == 0 ||
             (stream->headers < 3 && !make_header(stream, &packet))) {
             stream->failed = true;
             return false;
         }
-        flags = (uint32_t)(packet.first ? VORBIS_RECORD_FIRST : 0) |
-                (uint32_t)(packet.last ? VORBIS_RECORD_LAST : 0);
+        flags = (uint32_t)(packet.first ? OGG_RECORD_FIRST : 0) |
+                (uint32_t)(packet.last ? OGG_RECORD_LAST : 0);
     }
     put32(stream->head, packet.bytes);
     put32(stream->head + 4, flags);
     put32(stream->head + 8, (uint32_t)packet.granule);
     put32(stream->head + 12, (uint32_t)(packet.granule >> 32));
     stream->record_done = 0;
-    stream->record_size = VORBIS_RECORD_BYTES + packet.bytes;
+    stream->record_size = OGG_RECORD_BYTES + packet.bytes;
     return true;
 }
 
-static uint32_t emit(VorbisStream *stream, uint8_t *out, uint32_t length)
+static uint32_t emit(OggStream *stream, uint8_t *out, uint32_t length)
 {
     uint32_t end = stream->record_size;
     const uint8_t *source = stream->body;
-    uint32_t offset = stream->record_done - VORBIS_RECORD_BYTES;
-    if (stream->record_done < VORBIS_RECORD_BYTES) {
-        end = VORBIS_RECORD_BYTES;
+    uint32_t offset = stream->record_done - OGG_RECORD_BYTES;
+    if (stream->record_done < OGG_RECORD_BYTES) {
+        end = OGG_RECORD_BYTES;
         source = stream->head;
         offset = stream->record_done;
     }
@@ -125,12 +125,12 @@ static uint32_t emit(VorbisStream *stream, uint8_t *out, uint32_t length)
     return count;
 }
 
-bool vorbis_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length)
+bool ogg_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
-    VorbisStream *stream = context;
+    OggStream *stream = context;
     uint8_t *out = buffer;
-    if (stream->failed || offset != stream->position || offset > VORBIS_VIRTUAL_END ||
-        length > VORBIS_VIRTUAL_END - offset || (length != 0 && out == NULL)) {
+    if (stream->failed || offset != stream->position || offset > OGG_VIRTUAL_END ||
+        length > OGG_VIRTUAL_END - offset || (length != 0 && out == NULL)) {
         return false;
     }
     while (length > 0) {
@@ -152,11 +152,10 @@ bool vorbis_stream_read(void *context, uint32_t offset, void *buffer, uint32_t l
     return true;
 }
 
-bool vorbis_stream_seek(VorbisStream *stream, FlacInput file, const VorbisTrack *track,
-                        uint32_t sample)
+bool ogg_stream_seek(OggStream *stream, FlacInput file, const OggTrack *track, uint32_t sample)
 {
     uint32_t offset;
-    if (!vorbis_track_seek(file, track, sample, &offset) || !vorbis_stream_start(stream, file)) {
+    if (!ogg_track_seek(file, track, sample, &offset) || !ogg_stream_start(stream, file)) {
         return false;
     }
     stream->seek_offset = offset;
@@ -165,17 +164,17 @@ bool vorbis_stream_seek(VorbisStream *stream, FlacInput file, const VorbisTrack 
     return true;
 }
 
-bool vorbis_stream_prepare(VorbisStream *stream, VorbisTrack *track, const VorbisModes *modes,
-                           uint32_t sample)
+bool ogg_stream_prepare_vorbis(OggStream *stream, OggTrack *track, const VorbisModes *modes,
+                               uint32_t sample)
 {
     if (stream->failed || stream->ended || stream->headers != 3 ||
         stream->position != track->header_bytes || stream->record_done != stream->record_size) {
         return false;
     }
-    VorbisTrack candidate = *track;
+    OggTrack candidate = *track;
     uint32_t offset;
     if (!vorbis_track_origin(&stream->packets, modes, &candidate) ||
-        !vorbis_track_seek(stream->packets.input, &candidate, sample, &offset)) {
+        !ogg_track_seek(stream->packets.input, &candidate, sample, &offset)) {
         return false;
     }
     stream->seek_offset = offset;

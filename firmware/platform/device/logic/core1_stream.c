@@ -337,15 +337,15 @@ AudioSource core1_source_m4a_interface(Core1Source *source, M4aStream *stream)
     return (AudioSource){core1_open_m4a, next_frame, release_frame, close_stream, source};
 }
 
-AudioSource core1_source_vorbis_interface(Core1Source *source, VorbisStream *stream,
-                                          bool (*wait)(Core1Source *source))
+AudioSource core1_source_ogg_interface(Core1Source *source, OggStream *stream,
+                                       bool (*wait)(Core1Source *source))
 {
-    source->vorbis = stream;
+    source->ogg = stream;
     source->wait_vorbis = wait;
-    return (AudioSource){core1_open_vorbis, next_frame, release_frame, close_stream, source};
+    return (AudioSource){core1_open_ogg, next_frame, release_frame, close_stream, source};
 }
 
-bool core1_vorbis_read(void *context, uint32_t offset, void *buffer, uint32_t length)
+bool core1_ogg_read(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
-    return vorbis_stream_read(context, offset, buffer, length);
+    return ogg_stream_read(context, offset, buffer, length);
 }

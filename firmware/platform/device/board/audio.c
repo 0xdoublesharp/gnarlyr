@@ -56,9 +56,9 @@ static union {
     FlacDecoder flac;
     WavBuffers wav;
     M4aStream m4a;
-    VorbisStream vorbis;
+    OggStream ogg;
 } decoding __attribute__((section(".high_ram")));
-_Static_assert(sizeof(VorbisStream) <= sizeof(FlacDecoder),
+_Static_assert(sizeof(OggStream) <= sizeof(FlacDecoder),
                "Vorbis input must fit the existing decoder workspace");
 static Equalizer equalizer __attribute__((section(".high_ram")));
 static uint32_t music_ring[RING_WORDS];
@@ -211,8 +211,7 @@ static AudioSource chosen_source(void)
         return core1_source_mp3_interface(&core1_source);
     }
     if (source_kind == SOURCE_VORBIS) {
-        return core1_source_vorbis_interface(&core1_source, &decoding.vorbis,
-                                             board_audio_vorbis_wait);
+        return core1_source_ogg_interface(&core1_source, &decoding.ogg, board_audio_vorbis_wait);
     }
     if (source_kind == SOURCE_M4A) {
         return core1_source_m4a_interface(&core1_source, &decoding.m4a);

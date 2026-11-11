@@ -2,15 +2,17 @@
 
 #include <stddef.h>
 
+#include "device/vorbis_decoder.h"
+
 static bool failed(Core1Source *source)
 {
     core1_source_stop(source);
     return false;
 }
 
-static void begin(Core1Source *source, const VorbisTrack *track)
+static void begin(Core1Source *source, const OggTrack *track)
 {
-    source->input = (FlacInput){core1_vorbis_read, source->vorbis, VORBIS_VIRTUAL_END};
+    source->input = (FlacInput){core1_ogg_read, source->ogg, OGG_VIRTUAL_END};
     source->start_offset = 0;
     source->end_offset = track->header_bytes;
     source->written = 0;
@@ -32,7 +34,7 @@ static void begin(Core1Source *source, const VorbisTrack *track)
     control->tail_trim = 0;
     control->first_sample = 0;
     control->start_offset = 0;
-    control->end_offset = VORBIS_VIRTUAL_END;
+    control->end_offset = OGG_VIRTUAL_END;
     control->written = 0;
     control->vorbis_config_generation = 0;
     control->vorbis_start_generation = 0;
@@ -41,7 +43,7 @@ static void begin(Core1Source *source, const VorbisTrack *track)
     source->streaming = true;
 }
 
-static bool prepare(Core1Source *source, VorbisTrack *track, uint32_t start_ms)
+static bool prepare(Core1Source *source, OggTrack *track, uint32_t start_ms)
 {
     if (!source->wait_vorbis(source) || source->read_failed ||
         source->region.control->generation != source->generation ||
@@ -52,25 +54,24 @@ static bool prepare(Core1Source *source, VorbisTrack *track, uint32_t start_ms)
     VorbisModes modes = source->region.control->vorbis_modes;
     uint64_t desired = (uint64_t)start_ms * track->rate / 1000;
     uint32_t target = desired < track->samples ? (uint32_t)desired : track->samples;
-    if (!vorbis_stream_prepare(source->vorbis, track, &modes, target)) {
+    if (!ogg_stream_prepare_vorbis(source->ogg, track, &modes, target)) {
         return false;
     }
     source->skip_before = core1_smaller(target, track->samples);
     source->play_end = track->samples;
-    source->region.control->first_sample =
-        source->vorbis->seek_offset == 0 ? 0 : source->skip_before;
+    source->region.control->first_sample = source->ogg->seek_offset == 0 ? 0 : source->skip_before;
     source->region.control->total_samples = track->samples;
     core1_publish();
     source->region.control->vorbis_start_generation = source->generation;
-    source->end_offset = VORBIS_VIRTUAL_END;
+    source->end_offset = OGG_VIRTUAL_END;
     return true;
 }
 
-bool core1_open_vorbis(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track)
+bool core1_open_ogg(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track)
 {
     Core1Source *source = context;
     core1_source_stop(source);
-    if (source->vorbis == NULL || source->wait_vorbis == NULL ||
+    if (source->ogg == NULL || source->wait_vorbis == NULL ||
         source->ring_capacity < VORBIS_RING_BYTES) {
         return false;
     }
@@ -79,9 +80,9 @@ bool core1_open_vorbis(void *context, const char *path, uint32_t start_ms, Audio
         return false;
     }
     source->file_open = true;
-    VorbisTrack vorbis;
+    OggTrack vorbis;
     if (!vorbis_track_probe(source->input, &vorbis) ||
-        !vorbis_stream_start(source->vorbis, source->input)) {
+        !ogg_stream_start(source->ogg, source->input)) {
         return failed(source);
     }
     begin(source, &vorbis);

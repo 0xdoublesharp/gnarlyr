@@ -11,7 +11,7 @@ static FlacDecoder unused_decoder;
 static Core1Vorbis decoder;
 static Core1Stream consumer;
 static Core1Source source;
-static VorbisStream producer;
+static OggStream producer;
 static AudioSource interface;
 static uint8_t bytes[65536];
 static uint32_t file_size;
@@ -145,7 +145,7 @@ static void reset(uint32_t budget)
                       &unused_decoder, budget);
     region.ring_bytes = VORBIS_RING_BYTES;
     core1_stream_init(&consumer, region, core1_vorbis_decoder(&decoder, region));
-    interface = core1_source_vorbis_interface(&source, &producer, wait_config);
+    interface = core1_source_ogg_interface(&source, &producer, wait_config);
 }
 
 static AudioFrameResult next_frame(AudioFrame *frame)
