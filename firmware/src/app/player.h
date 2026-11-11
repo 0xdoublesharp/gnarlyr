@@ -66,7 +66,7 @@ typedef struct PlayerStatus {
     PlayQueuePlace place;
     HalAudioFormat format;
     bool spoken;
-    uint8_t speed;
+    uint16_t speed;
 } PlayerStatus;
 
 typedef struct PlayerResume {
@@ -114,7 +114,7 @@ typedef struct Player {
     uint8_t volume;
     uint8_t replay_gain_mode;
     bool prevent_clipping;
-    uint8_t speed;
+    uint16_t speed;
     bool fade_transitions;
     uint8_t transition_tenths;
     PlayerState state;
@@ -182,5 +182,5 @@ bool player_restore(Player *player);
 PlayerStatus player_status(const Player *player);
 
 void player_set_replay_gain(Player *player, ReplayGainMode mode, bool prevent_clipping);
-void player_set_speed(Player *player, uint8_t speed);
+void player_set_speed(Player *player, uint16_t speed);
 void player_set_transitions(Player *player, bool fade, uint8_t tenths);

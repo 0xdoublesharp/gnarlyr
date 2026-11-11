@@ -18,6 +18,12 @@ echo_add_unit_test(NAME test_listening_store
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${CMAKE_CURRENT_SOURCE_DIR}/playback
 )
 
+echo_add_unit_test(NAME test_playing_options
+    SOURCES app/test_playing_options.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
 echo_add_unit_test(NAME test_configured_controls
     SOURCES app/test_configured_controls.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures

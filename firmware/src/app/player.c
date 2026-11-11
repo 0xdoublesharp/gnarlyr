@@ -987,7 +987,7 @@ void player_set_replay_gain(Player *player, ReplayGainMode mode, bool prevent_cl
     }
 }
 
-void player_set_speed(Player *player, uint8_t speed)
+void player_set_speed(Player *player, uint16_t speed)
 {
     player->speed = speed;
     hal_audio_set_speed(speed);

@@ -683,14 +683,44 @@ static void repeated_lyrics_and_menu_shortcuts_reuse_now_playing_depth(void)
     uint16_t track = app_player_status().track;
     for (int turn = 0; turn < 10; turn++) {
         hold(KEY_MENU);
+        CHECK(title_is("Playing options"));
+        move_down(turn == 0 ? 1 : 0);
+        tap(KEY_PLAY);
         CHECK(title_is("Lyrics"));
-        CHECK_EQUAL(depth + 1, app_screen_depth());
+        CHECK_EQUAL(depth + 2, app_screen_depth());
         tap(KEY_MENU);
         CHECK(title_is("Now Playing"));
         CHECK_EQUAL(depth, app_screen_depth());
     }
     CHECK_EQUAL(plays, fake_hal_audio_play_count());
     CHECK_EQUAL(track, app_player_status().track);
+}
+
+static bool saved_settings(Settings *settings);
+
+static void playback_speed_is_two_presses_from_now_playing_and_is_saved(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    int depth = app_screen_depth();
+    hold(KEY_MENU);
+    CHECK(title_is("Playing options"));
+    CHECK_EQUAL(SCREEN_MODULE_LISTENING, (int)fake_hal_loaded_module());
+    tap(KEY_PLAY);
+    CHECK(title_is("Playback speed"));
+    move_down(2);
+    tap(KEY_PLAY);
+    CHECK(title_is("Playing options"));
+    CHECK_EQUAL(150, fake_hal_audio_speed());
+    CHECK_EQUAL(150, app_player_status().speed);
+    Settings settings;
+    CHECK(saved_settings(&settings));
+    CHECK_EQUAL(4, settings.playback_speed);
+    tap(KEY_BACK);
+    CHECK(title_is("Now Playing"));
+    CHECK_EQUAL(depth, app_screen_depth());
+    restart_app();
+    CHECK_EQUAL(150, fake_hal_audio_speed());
 }
 
 static void queue_actions_and_menu_shortcuts_reuse_now_playing_before_home(void)
@@ -5292,6 +5322,7 @@ int main(void)
         TEST_CASE(holding_menu_on_a_browse_list_opens_its_view_options),
         TEST_CASE(holding_an_artist_publishes_only_that_artists_songs_before_playing),
         TEST_CASE(repeated_lyrics_and_menu_shortcuts_reuse_now_playing_depth),
+        TEST_CASE(playback_speed_is_two_presses_from_now_playing_and_is_saved),
         TEST_CASE(queue_actions_and_menu_shortcuts_reuse_now_playing_before_home),
         TEST_CASE(holding_back_from_mixtape_name_reaches_home),
         TEST_CASE(holding_back_from_a_busy_mixtape_save_reaches_home),

@@ -419,12 +419,12 @@ static void the_safe_volume_row_picks_a_level(void)
 static void the_speed_row_saves_and_applies_a_faster_speed(void)
 {
     open_settings_row(9, "Playback speed");
-    for (int option = 0; option < 3; option++) {
+    for (int option = 0; option < 2; option++) {
         tap(KEY_VOLUME_UP);
     }
     tap(KEY_PLAY);
     CHECK(strcmp(app_screen_title(), "Settings") == 0);
-    CHECK_EQUAL(6, saved_settings().playback_speed);
+    CHECK_EQUAL(4, saved_settings().playback_speed);
     CHECK_EQUAL(150, fake_hal_audio_speed());
     CHECK_EQUAL(150, app_player_status().speed);
 }

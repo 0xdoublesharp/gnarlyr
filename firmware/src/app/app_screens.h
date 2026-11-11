@@ -17,6 +17,7 @@
 #include "listening_store.h"
 #include "mixtape_ui.h"
 #include "player.h"
+#include "playing_options.h"
 #include "screen_modules.h"
 #include "screens/bluetooth_screen.h"
 #include "screens/calendar_screen.h"
@@ -129,6 +130,7 @@ typedef struct ProfileModuleScreens {
     ListeningScreen listening;
     LyricsScreen lyrics;
     SmartListScreen smart_lists;
+    PlayingOptions options;
 } ProfileModuleScreens;
 
 typedef struct LibraryModuleScreens {

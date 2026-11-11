@@ -9,6 +9,10 @@ static void bind(AppScreens *screens)
     lyrics_screen_init(
         &screens->modules.listening.lyrics,
         (LyricsScreenConfig){context->player, &context->store->library, context->theme});
+    playing_options_init(&screens->modules.listening.options,
+                         (PlayingOptionsConfig){context->player, context->settings, context->toast,
+                                                &screens->modules.listening.lyrics.screen,
+                                                context->theme});
     smart_list_screen_init(&screens->modules.listening.smart_lists,
                            (SmartListScreenConfig){context->listening, &screens->browse});
 }

@@ -162,7 +162,7 @@ static void the_seek_target_stays_inside_the_track(void)
 static void menu_opens_up_next(void)
 {
     CHECK_EQUAL(NOW_PLAYING_UP_NEXT, command(KEY_MENU, KEY_GESTURE_PRESS));
-    CHECK_EQUAL(NOW_PLAYING_LYRICS, command(KEY_MENU, KEY_GESTURE_LONG_PRESS));
+    CHECK_EQUAL(NOW_PLAYING_OPTIONS, command(KEY_MENU, KEY_GESTURE_LONG_PRESS));
 }
 
 static void back_leaves_and_a_long_back_goes_home(void)
@@ -272,9 +272,9 @@ static void the_detail_line_leaves_out_what_is_unknown(void)
     CHECK(detail_text_is((PlayerStatus){0}, ""));
 }
 
-static void holding_menu_opens_lyrics_but_does_not_leave_seek_mode(void)
+static void holding_menu_opens_playing_options_but_does_not_leave_seek_mode(void)
 {
-    CHECK_EQUAL(NOW_PLAYING_LYRICS, command(KEY_MENU, KEY_GESTURE_LONG_PRESS));
+    CHECK_EQUAL(NOW_PLAYING_OPTIONS, command(KEY_MENU, KEY_GESTURE_LONG_PRESS));
     CHECK_EQUAL(NOW_PLAYING_NONE, scrub_command(KEY_MENU, KEY_GESTURE_LONG_PRESS));
     CHECK_EQUAL(NOW_PLAYING_UP_NEXT, command(KEY_MENU, KEY_GESTURE_PRESS));
 }
@@ -402,7 +402,7 @@ int main(void)
         TEST_CASE(passive_transport_pixels_stay_stable_within_one_displayed_second),
         TEST_CASE(a_short_track_cannot_promote_passive_transport_to_continuous_fast_frames),
         TEST_CASE(scrubbing_keeps_subsecond_cursor_changes_visible),
-        TEST_CASE(holding_menu_opens_lyrics_but_does_not_leave_seek_mode),
+        TEST_CASE(holding_menu_opens_playing_options_but_does_not_leave_seek_mode),
         TEST_CASE(the_codec_has_a_short_name),
         TEST_CASE(lossless_streams_show_bit_depth_and_rate),
         TEST_CASE(lossy_streams_show_only_the_rate),

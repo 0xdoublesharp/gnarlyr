@@ -616,9 +616,14 @@ bool settings_buttons_decode(const uint8_t *bytes, uint32_t length, Settings *se
     return true;
 }
 
-uint8_t settings_speed_percent(int option)
+uint16_t settings_speed_percent(int option)
 {
-    static const uint8_t PERCENT[SETTINGS_SPEED_COUNT] = {50, 75, 90, 100, 110, 125, 150, 175, 200};
+    static const uint16_t PERCENT[SETTINGS_SPEED_COUNT] = {50,  75,  100, 125, 150,
+                                                           175, 200, 250, 300};
     return option >= 0 && option < SETTINGS_SPEED_COUNT ? PERCENT[option]
                                                         : PERCENT[SETTINGS_SPEED_NORMAL];
 }
+
+const StringId SETTINGS_SPEED_LABELS[SETTINGS_SPEED_COUNT] = {
+    STR_SPEED_050, STR_SPEED_075, STR_SPEED_100, STR_SPEED_125, STR_SPEED_150,
+    STR_SPEED_175, STR_SPEED_200, STR_SPEED_250, STR_SPEED_300};

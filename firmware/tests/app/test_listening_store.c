@@ -342,7 +342,7 @@ static void slower_audio_counts_wall_time_instead_of_source_distance(void)
 
 static void stepped_observations_at_every_speed_keep_the_wall_time(void)
 {
-    static const uint8_t SPEEDS[] = {50, 75, 90, 100, 110, 125, 150, 175, 200};
+    static const uint16_t SPEEDS[] = {50, 75, 90, 100, 110, 125, 150, 175, 200, 250, 300};
     for (uint32_t index = 0; index < sizeof SPEEDS / sizeof SPEEDS[0]; index++) {
         reset();
         ListeningObservation play = observed(10, 0, PLAYER_PLAYING);
@@ -359,7 +359,7 @@ static void stepped_observations_at_every_speed_keep_the_wall_time(void)
 
 static void a_track_change_closes_at_the_source_end_and_counts_wall_time(void)
 {
-    static const uint8_t SPEEDS[] = {50, 200};
+    static const uint16_t SPEEDS[] = {50, 200, 300};
     for (uint32_t index = 0; index < sizeof SPEEDS / sizeof SPEEDS[0]; index++) {
         reset();
         ListeningObservation play = observed(10, 59000, PLAYER_PLAYING);
@@ -369,7 +369,7 @@ static void a_track_change_closes_at_the_source_end_and_counts_wall_time(void)
         ListeningSeen seen;
         CHECK_EQUAL(0, listening_fixture_read_all(&store.log, &seen));
         CHECK_EQUAL(1, seen.count);
-        CHECK_EQUAL(100000u / SPEEDS[index], seen.listened_ms);
+        CHECK_EQUAL((100000u + SPEEDS[index] - 1) / SPEEDS[index], seen.listened_ms);
         CHECK_EQUAL(60000, seen.first.play.end_ms);
         CHECK_EQUAL(LISTENING_FINISHED, seen.first.play.end);
     }

@@ -9,7 +9,6 @@
 enum {
     RETRY_MS = 1000,
     FINISH_TOLERANCE_MS = 2000,
-    CARRY_MS = 2,
     SECOND_MS = 1000
 };
 
@@ -141,7 +140,6 @@ static void begin(ListeningStore *store, ListeningObservation observation, uint3
                                          status->format.bits_per_sample),
     };
     store->following = true;
-    store->speed_remainder = 0;
 }
 
 static bool same_play(ListeningObservation first, ListeningObservation second)
@@ -153,45 +151,33 @@ static bool same_play(ListeningObservation first, ListeningObservation second)
 
 static uint32_t playing_speed(const ListeningStore *store)
 {
-    uint8_t speed = store->previous.status.speed;
+    uint16_t speed = store->previous.status.speed;
     return speed != 0 ? speed : PLAYER_NORMAL_SPEED;
 }
 
-static uint32_t wall_ms(ListeningStore *store, uint32_t source_ms)
-{
-    uint64_t scaled = (uint64_t)source_ms * PLAYER_NORMAL_SPEED + store->speed_remainder;
-    store->speed_remainder = (uint8_t)(scaled % playing_speed(store));
-    uint64_t wall = scaled / playing_speed(store);
-    return wall < UINT32_MAX ? (uint32_t)wall : UINT32_MAX;
-}
-
-static uint32_t continuous_ms(ListeningStore *store, uint32_t moved, uint32_t elapsed)
-{
-    uint32_t available = elapsed + store->wall_carry;
-    uint32_t wall = wall_ms(store, moved);
-    uint32_t used = wall < available ? wall : available;
-    store->wall_carry = (uint8_t)(available - used < CARRY_MS ? available - used : CARRY_MS);
-    return used;
-}
-
-static uint32_t elapsed_audio(ListeningStore *store, ListeningObservation observation,
+static uint32_t elapsed_audio(const ListeningStore *store, ListeningObservation observation,
                               uint32_t now_ms)
 {
+    if (store->previous.status.state != PLAYER_PLAYING) {
+        return 0;
+    }
     uint32_t elapsed = now_ms - store->last_ms;
     uint32_t before = store->previous.status.position_ms;
-    uint32_t after = observation.status.position_ms;
-    bool continuous = store->previous.status.state == PLAYER_PLAYING &&
-                      same_play(store->previous, observation) && after >= before;
-    if (continuous) {
-        return continuous_ms(store, after - before, elapsed);
-    }
-    store->wall_carry = 0;
-    if (store->previous.status.state != PLAYER_PLAYING || same_play(store->previous, observation)) {
-        return store->previous.status.state == PLAYER_PLAYING ? elapsed : 0;
+    if (same_play(store->previous, observation)) {
+        return observation.status.position_ms != before ? elapsed : 0;
     }
     uint32_t length = store->previous.status.duration_ms;
-    uint32_t wall = length > before ? wall_ms(store, length - before) : length != 0 ? 0 : elapsed;
-    return wall < elapsed ? wall : elapsed;
+    uint64_t left = length > before ? length - before : 0;
+    uint64_t wall = (left * PLAYER_NORMAL_SPEED + playing_speed(store) - 1) / playing_speed(store);
+    return length != 0 && wall < elapsed ? (uint32_t)wall : elapsed;
+}
+
+static uint32_t closing_position(const ListeningStore *store, uint32_t elapsed)
+{
+    uint32_t end = store->previous.status.position_ms +
+                   (uint32_t)((uint64_t)elapsed * playing_speed(store) / PLAYER_NORMAL_SPEED);
+    uint32_t length = store->previous.status.duration_ms;
+    return length != 0 && end > length ? length : end;
 }
 
 static ListeningEnd changed_end(const ListeningStore *store)
@@ -221,9 +207,7 @@ void listening_store_follow(ListeningStore *store, ListeningObservation observat
         uint32_t room = UINT32_MAX - store->active.listened_ms;
         store->active.listened_ms += elapsed < room ? elapsed : room;
         store->active.end_ms =
-            same ? observation.status.position_ms
-                 : store->previous.status.position_ms +
-                       (uint32_t)((uint64_t)elapsed * playing_speed(store) / PLAYER_NORMAL_SPEED);
+            same ? observation.status.position_ms : closing_position(store, elapsed);
         if (!same) {
             ListeningEnd end = changed_end(store);
             finish(store,

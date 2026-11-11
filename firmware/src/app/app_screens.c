@@ -375,7 +375,7 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
                                     .theme = context.compact_theme,
                                     .covers = context.covers,
                                     .up_next = &screens->modules.views.up_next.screen,
-                                    .lyrics = &screens->modules.listening.lyrics.screen};
+                                    .options = &screens->modules.listening.options.menu.screen};
     screens->context = context;
     screens->bound_modules = 0;
     message_screen_init(&screens->no_library, no_library);

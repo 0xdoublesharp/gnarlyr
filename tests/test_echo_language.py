@@ -453,7 +453,7 @@ class LanguageCommands(VolumeCase):
 
     def test_version15_settings_with_an_invalid_extension_cannot_be_verified(self):
         valid = bytes([0x07, 24, 15, 0, 0x10, 0x32, 0x54, 0x76, 0x08]) + bytes(7)
-        for offset, value in ((0, 0x18), (1, 61), (2, 4), (3, 6), (3, 0xFC), (4, 0x00), (8, 0x18),
+        for offset, value in ((0, 0x18), (1, 61), (2, 4), (3, 7), (3, 0xFD), (4, 0x00), (8, 0x18),
                               (9, 0x08), (10, 0x02), (15, 1)):
             extension = bytearray(valid)
             extension[offset] = value
@@ -468,7 +468,7 @@ class LanguageCommands(VolumeCase):
 
     def test_version15_settings_with_a_saved_playback_speed_verify(self):
         valid = bytes([0x07, 24, 15, 0, 0x10, 0x32, 0x54, 0x76, 0x08]) + bytes(7)
-        for step in (0xFD, 0xFF, 1, 5):
+        for step in (0xFE, 0xFF, 1, 6):
             extension = bytearray(valid)
             extension[3] = step
             with self.subTest(step=step), self.current_snapshot():

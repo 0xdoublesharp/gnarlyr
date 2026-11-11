@@ -206,7 +206,7 @@ NowPlayingCommand now_playing_command_for(KeyEvent event, NowPlayingKeys keys)
     case KEY_BACK:
         return by_gesture(event.gesture, NOW_PLAYING_LEAVE, NOW_PLAYING_HOME);
     case KEY_MENU:
-        return by_gesture(event.gesture, NOW_PLAYING_UP_NEXT, NOW_PLAYING_LYRICS);
+        return by_gesture(event.gesture, NOW_PLAYING_UP_NEXT, NOW_PLAYING_OPTIONS);
     case KEY_POWER:
         return NOW_PLAYING_NONE;
     }
@@ -353,9 +353,9 @@ static ScreenAction run_command(NowPlayingScreen *now_playing, NowPlayingCommand
     case NOW_PLAYING_UP_NEXT:
         return now_playing->config.up_next != NULL ? screen_action_push(now_playing->config.up_next)
                                                    : screen_action_none();
-    case NOW_PLAYING_LYRICS:
-        return now_playing->config.lyrics != NULL ? screen_action_push(now_playing->config.lyrics)
-                                                  : screen_action_none();
+    case NOW_PLAYING_OPTIONS:
+        return now_playing->config.options != NULL ? screen_action_push(now_playing->config.options)
+                                                   : screen_action_none();
     case NOW_PLAYING_HOME:
         now_playing->scrubbing = false;
         return screen_action_pop_to_root();
@@ -635,12 +635,21 @@ static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas)
     draw_right_aligned(canvas, style, area, remaining);
 }
 
-static void modes_text(const PlayerStatus *status, char *buffer, size_t capacity)
+static void modes_text(const NowPlayingScreen *now_playing, char *buffer, size_t capacity)
 {
+    const PlayerStatus *status = &now_playing->status;
+    const Settings *settings = now_playing->config.settings;
     StringBuilder builder = string_builder_make(buffer, capacity);
     if (status->repeat != REPEAT_OFF) {
         string_builder_append(
             &builder, i18n_text(status->repeat == REPEAT_ONE ? STR_REPEAT_ONE : STR_REPEAT_ALL));
+    }
+    if (settings != NULL && settings->playback_speed != SETTINGS_SPEED_NORMAL &&
+        settings->playback_speed < SETTINGS_SPEED_COUNT) {
+        if (buffer[0] != '\0') {
+            string_builder_append(&builder, SEPARATOR);
+        }
+        string_builder_append(&builder, i18n_text(SETTINGS_SPEED_LABELS[settings->playback_speed]));
     }
 }
 
@@ -676,16 +685,16 @@ static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
                                    layout(now_playing)->small_line_height),
                        detail});
     char modes[STATUS_CAPACITY];
-    modes_text(&now_playing->status, modes, sizeof modes);
+    modes_text(now_playing, modes, sizeof modes);
     if (now_playing->scrubbing) {
         StringBuilder seeking = string_builder_make(modes, sizeof modes);
         string_builder_append(&seeking, i18n_text(STR_SEEKING));
-    } else if (modes[0] == 0 && now_playing->config.lyrics != NULL &&
+    } else if (modes[0] == 0 && now_playing->config.options != NULL &&
                (now_playing->config.settings == NULL ||
                 settings_button_action(now_playing->config.settings, PLAYBACK_MENU_HOLD) ==
                     BUTTON_ACTION_DEFAULT)) {
         StringBuilder hint = string_builder_make(modes, sizeof modes);
-        string_builder_append(&hint, i18n_text(STR_LYRICS_HOLD_HINT));
+        string_builder_append(&hint, i18n_text(STR_PLAYING_OPTIONS_HINT));
     }
     label_draw(canvas, style,
                (Label){column_area(now_playing, layout(now_playing)->modes_top,
