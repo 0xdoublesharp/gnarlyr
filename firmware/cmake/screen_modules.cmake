@@ -1,4 +1,4 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension ape)
+set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension ape wma)
 set(ECHO_SCREEN_MODULE_SOURCES_process
     platform/device/logic/audio_fade.c
     platform/device/logic/audio_process_entry.c
@@ -165,4 +165,12 @@ set(ECHO_SCREEN_MODULE_SOURCES_ape
     platform/device/logic/core1_ape_source.c
     platform/device/logic/ape_track.c
     platform/device/logic/ape_stream.c
+)
+
+set(ECHO_SCREEN_MODULE_SOURCES_wma
+    platform/device/logic/audio_interpolate.c
+    platform/device/logic/audio_wma_entry.c
+    platform/device/logic/core1_wma_source.c
+    platform/device/logic/asf_track.c
+    platform/device/logic/asf_stream.c
 )

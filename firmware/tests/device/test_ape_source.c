@@ -126,9 +126,36 @@ static void expensive_levels_and_high_rate_high_compression_are_refused_before_s
     }
 }
 
+static void queued_tracks_add_no_gap_or_extra_output_frames(void)
+{
+    static uint32_t output_ring[4096];
+    static AudioEngine engine;
+    file = m4a_file_load("ape/fast16.ape");
+    CHECK(file.size > 0);
+    setup();
+    AudioSource audio = core1_source_interface(&source, CORE1_FORMAT_APE);
+    audio_engine_init(
+        &engine, (AudioEngineConfig){.source = audio, .ring = output_ring, .ring_words = 4096});
+    AudioEngineTrack first = {.path = "first", .token = 1};
+    AudioEngineTrack second = {.path = "second", .token = 2};
+    CHECK(audio_engine_play(&engine, &first, 0));
+    audio_engine_queue_next(&engine, &second);
+    uint32_t taken = 0;
+    for (uint32_t step = 0; step < 20000 && engine.state != AUDIO_ENGINE_STOPPED; step++) {
+        (void)core1_stream_step(&stream);
+        audio_engine_pump(&engine, taken);
+        taken = engine.ended ? engine.end_at : engine.produced;
+    }
+    CHECK_EQUAL(AUDIO_ENGINE_STOPPED, engine.state);
+    CHECK_EQUAL(12288, taken);
+    CHECK_EQUAL(2, closes);
+    m4a_file_free(&file);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(queued_tracks_add_no_gap_or_extra_output_frames),
         TEST_CASE(real_ring_streaming_has_exact_length_and_sample_precise_seeks),
         TEST_CASE(invalid_files_close_without_publishing_a_generation),
         TEST_CASE(expensive_levels_and_high_rate_high_compression_are_refused_before_streaming),

@@ -52,6 +52,7 @@ typedef enum SourceKind {
     SOURCE_VORBIS = CORE1_PROGRAM_VORBIS,
     SOURCE_OPUS = CORE1_PROGRAM_OPUS,
     SOURCE_APE = CORE1_PROGRAM_APE,
+    SOURCE_WMA = CORE1_PROGRAM_WMA,
     SOURCE_WAV,
     SOURCE_UNKNOWN
 } SourceKind;
@@ -59,7 +60,9 @@ _Static_assert((int)CORE1_FORMAT_FLAC == (int)SOURCE_FLAC &&
                    (int)CORE1_FORMAT_MP3 == (int)SOURCE_MP3 &&
                    (int)CORE1_FORMAT_M4A == (int)SOURCE_M4A &&
                    (int)CORE1_FORMAT_VORBIS == (int)SOURCE_VORBIS &&
-                   (int)CORE1_FORMAT_OPUS == (int)SOURCE_OPUS,
+                   (int)CORE1_FORMAT_OPUS == (int)SOURCE_OPUS &&
+                   (int)CORE1_FORMAT_APE == (int)SOURCE_APE &&
+                   (int)CORE1_FORMAT_WMA == (int)SOURCE_WMA,
                "each core 1 source kind names its program and its opener");
 
 static union {
@@ -68,6 +71,7 @@ static union {
     M4aStream m4a;
     OggStream ogg;
     ApeStream ape;
+    AsfStream asf;
     CardFormat format;
 } decoding __attribute__((section(".high_ram")));
 _Static_assert(sizeof(OggStream) <= sizeof(FlacDecoder),
@@ -193,6 +197,9 @@ static SourceKind kind_of(const char *path)
     if (tag_is(magic, "OggS")) {
         return tag_is(magic + 28, "Opus") ? SOURCE_OPUS : SOURCE_VORBIS;
     }
+    if (magic[0] == 0x30 && magic[1] == 0x26 && magic[2] == 0xB2 && magic[3] == 0x75) {
+        return SOURCE_WMA;
+    }
     if (tag_is(magic, "MAC ")) {
         return SOURCE_APE;
     }
@@ -306,6 +313,7 @@ static void ensure_engine(void)
     core1_source.m4a = &decoding.m4a;
     core1_source.ogg = &decoding.ogg;
     core1_source.ape = &decoding.ape;
+    core1_source.asf = &decoding.asf;
     core1_source.wait_vorbis = board_audio_vorbis_wait;
     wav_source_init(&wav_source, files, &decoding.wav);
     AudioSource source = {open_chosen, next_chosen, release_chosen, close_chosen, NULL};
@@ -672,6 +680,8 @@ static HalAudioCodec codec_of(AudioCodec codec)
         return HAL_AUDIO_CODEC_ALAC;
     case AUDIO_CODEC_VORBIS:
         return HAL_AUDIO_CODEC_VORBIS;
+    case AUDIO_CODEC_WMA:
+        return HAL_AUDIO_CODEC_WMA;
     case AUDIO_CODEC_APE:
         return HAL_AUDIO_CODEC_APE;
     case AUDIO_CODEC_OPUS:
@@ -686,6 +696,9 @@ static HalAudioProblem unreadable_problem(void)
 {
     if (unknown_format) {
         return HAL_AUDIO_PROBLEM_FORMAT;
+    }
+    if (source_kind == SOURCE_WMA) {
+        return HAL_AUDIO_PROBLEM_WMA;
     }
     if (source_kind == SOURCE_APE) {
         return HAL_AUDIO_PROBLEM_APE;

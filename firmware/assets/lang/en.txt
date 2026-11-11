@@ -523,6 +523,8 @@ STR_POWER_TITLE = Power
 
 STR_CODEC_VORBIS = Vorbis
 STR_CODEC_OPUS = Opus
+STR_CODEC_WMA = WMA
+STR_WMA_UNSUPPORTED = Only WMA Standard (v1/v2) plays
 STR_CODEC_APE = APE
 STR_APE_UNSUPPORTED = APE: Fast/Normal, or High up to 96 kHz
 

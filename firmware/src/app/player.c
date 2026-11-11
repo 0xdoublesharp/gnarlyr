@@ -954,6 +954,9 @@ void player_refusal_text(HalAudioRefusal refusal, char *text, size_t capacity)
     case HAL_AUDIO_PROBLEM_FORMAT:
         string_builder_append(&builder, i18n_text(STR_TYPE_UNSUPPORTED));
         return;
+    case HAL_AUDIO_PROBLEM_WMA:
+        string_builder_append(&builder, i18n_text(STR_WMA_UNSUPPORTED));
+        return;
     case HAL_AUDIO_PROBLEM_APE:
         string_builder_append(&builder, i18n_text(STR_APE_UNSUPPORTED));
         return;

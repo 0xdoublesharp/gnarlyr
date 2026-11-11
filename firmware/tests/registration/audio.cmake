@@ -117,3 +117,36 @@ echo_add_unit_test(NAME test_ape_source
 )
 target_compile_definitions(test_ape_source PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 target_include_directories(test_ape_source PRIVATE device)
+
+echo_add_unit_test(NAME test_asf_track
+    SOURCES device/test_asf_track.c device/m4a_fixture_files.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_asf_track PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+target_include_directories(test_asf_track PRIVATE device)
+add_executable(wma_decode_tool device/wma_decode_tool.c)
+target_link_libraries(wma_decode_tool PRIVATE echo_device_logic echo_options)
+
+add_test(NAME wma_reference
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_core1_wma.py
+        --tool $<TARGET_FILE:wma_decode_tool>
+        --fixtures ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/wma
+)
+echo_add_unit_test(NAME test_wma_source
+    SOURCES device/test_wma_source.c device/m4a_fixture_files.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_wma_source PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+target_include_directories(test_wma_source PRIVATE device)
+echo_add_unit_test(NAME test_wma_decode
+    SOURCES device/test_wma_decode.c device/m4a_fixture_files.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_wma_decode PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+target_include_directories(test_wma_decode PRIVATE device)
+
+add_test(NAME wma_windows_up_to_date
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/wma_tables.py
+        --output ${PROJECT_SOURCE_DIR}/third_party/rockbox_wma/port/wma_windows.h
+        --style ${PROJECT_SOURCE_DIR}/.clang-format --check
+)

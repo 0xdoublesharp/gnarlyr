@@ -15,6 +15,7 @@ def generators(source, python, check=False):
         ("glyph_pack", ["--config", source / "assets/fonts/glyph_pack.json", "--output", source / "src/fonts/packs"]),
         ("fold_table", ["--output", source / "src/library", *style]),
         ("audio_resample_table", ["--output", source / "platform/device/logic/audio_resample_table.h", *style]),
+        ("wma_tables", ["--output", source / "third_party/rockbox_wma/port/wma_windows.h", *style]),
         ("replay_gain_table", ["--output", source / "src/library/replay_gain_table.h", *style]),
     ]
     return [[str(python), str(source / "tools" / f"{name}.py"), *map(str, arguments),

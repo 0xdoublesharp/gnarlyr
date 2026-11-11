@@ -189,6 +189,31 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     VERBATIM
 )
+add_executable(echo_core1_wma
+    core1/wma_main.c
+    core1/startup.c
+    board/libc.c
+)
+set(ECHO_CORE1_WMA_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1_wma.ld)
+set_target_properties(echo_core1_wma PROPERTIES
+    SUFFIX .elf
+    LINK_DEPENDS ${ECHO_CORE1_WMA_LINKER_SCRIPT}
+)
+target_include_directories(echo_core1_wma PRIVATE board)
+target_link_libraries(echo_core1_wma PRIVATE echo_device_logic echo_wma echo_options gcc)
+target_link_options(echo_core1_wma PRIVATE
+    -fno-lto
+    -T${ECHO_CORE1_WMA_LINKER_SCRIPT}
+    -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_core1_wma.map
+)
+set(ECHO_CORE1_WMA_BINARY ${CMAKE_CURRENT_BINARY_DIR}/core1_wma.bin)
+add_custom_command(
+    OUTPUT ${ECHO_CORE1_WMA_BINARY}
+    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:echo_core1_wma> core1_wma.bin
+    DEPENDS echo_core1_wma
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    VERBATIM
+)
 set(ECHO_CORE1_BINARY ${CMAKE_CURRENT_BINARY_DIR}/core1.bin)
 add_custom_command(
     OUTPUT ${ECHO_CORE1_BINARY}
@@ -439,7 +464,7 @@ endforeach()
 foreach(module IN LISTS ECHO_SCREEN_MODULES)
     if(module STREQUAL "process")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_process.ld)
-    elseif(module STREQUAL "dsp" OR module STREQUAL "ogg" OR module STREQUAL "ape")
+    elseif(module STREQUAL "dsp" OR module STREQUAL "ogg" OR module STREQUAL "ape" OR module STREQUAL "wma")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_dsp.ld)
     elseif(module STREQUAL "extension")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/extension_module.ld)
@@ -492,6 +517,13 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             wire_motion_run=extension_wire_motion_run
             wire_motion_shown=extension_wire_motion_shown
             wire_motion_tick=extension_wire_motion_tick
+        )
+    endif()
+    if(module STREQUAL "wma")
+        target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)
+        target_compile_definitions(${module_target}_objects PRIVATE
+            core1_open_wma=audio_wma_open
+            asf_stream_read=audio_wma_read
         )
     endif()
     if(module STREQUAL "ape")
@@ -572,6 +604,7 @@ add_custom_target(echo_device_image ALL
         --elf $<TARGET_FILE:echo_core1_vorbis>
         --elf $<TARGET_FILE:echo_core1_opus>
         --elf $<TARGET_FILE:echo_core1_ape>
+        --elf $<TARGET_FILE:echo_core1_wma>
         ${ECHO_MODULE_IMAGE_ARGUMENTS}
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/make_image.py
         --elf $<TARGET_FILE:echo_device>
@@ -583,6 +616,7 @@ add_custom_target(echo_device_image ALL
         --core1-vorbis ${ECHO_CORE1_VORBIS_BINARY}
         --core1-opus ${ECHO_CORE1_OPUS_BINARY}
         --core1-ape ${ECHO_CORE1_APE_BINARY}
+        --core1-wma ${ECHO_CORE1_WMA_BINARY}
         ${ECHO_GLYPH_FACE_ARGUMENTS}
         ${ECHO_LANGUAGE_PACK_ARGUMENTS}
         ${ECHO_MODULE_IMAGE_ARGUMENTS}
@@ -601,6 +635,7 @@ add_custom_target(echo_device_image ALL
         ${ECHO_CORE1_VORBIS_BINARY}
         ${ECHO_CORE1_OPUS_BINARY}
         ${ECHO_CORE1_APE_BINARY}
+        ${ECHO_CORE1_WMA_BINARY}
         ${ECHO_LANGUAGE_PACK_FILES}
         ${PROJECT_SOURCE_DIR}/tools/make_image.py
         ${PROJECT_SOURCE_DIR}/tools/image_artifacts.py

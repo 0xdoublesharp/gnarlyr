@@ -24,3 +24,7 @@ Snowsky and FiiO are trademarks of their owners, and Echo is their product name.
 ## Monkey's Audio
 
 The core-1 APE decoder uses Dave Chapman's Rockbox libdemac, including Michael Schindler's range decoder, under GPL-2.0-or-later. Pinned source, local changes and complete terms are in `third_party/demac`.
+
+## WMA Standard
+
+The WMA v1/v2 decoder and fixed-point transforms come from Rockbox's FFmpeg-derived libraries, with work by the FFmpeg Project, Michael Niedermayer, Michael Giacomelli, Dave Hooper, Mohamed Tarek and Xiph.Org. GPL-2.0-or-later, LGPL-2.0-or-later, LGPL-2.1-or-later and BSD terms are preserved in `third_party/rockbox_wma`, together with the pinned revision and local changes.

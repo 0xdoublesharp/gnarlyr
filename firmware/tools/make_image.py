@@ -33,7 +33,7 @@ PROCESS_MODULE_NUMBER = 7
 PROCESS_MODULE_BASE = 0x0308F000
 PROCESS_MODULE_CAPACITY = 0x3000
 AUDIO_MODULE_NUMBER = 5
-AUDIO_MODULE_NUMBERS = (5, 6, 9)
+AUDIO_MODULE_NUMBERS = (5, 6, 9, 10)
 AUDIO_MODULE_BASE = 0x03048000
 AUDIO_MODULE_CAPACITY = 0x2000
 EXTENSION_MODULE_NUMBER = 8
@@ -60,6 +60,8 @@ CORE1_OPUS_OFFSET = GLYPH_TABLE_OFFSET + GLYPH_TABLE_SIZE
 CORE1_OPUS_END = CORE1_OPUS_OFFSET + CORE1_MODULE_HEADER_SIZE + CORE1_MODULE_CAPACITY
 CORE1_APE_OFFSET = CORE1_OPUS_END
 CORE1_APE_END = CORE1_APE_OFFSET + CORE1_MODULE_HEADER_SIZE + CORE1_MODULE_CAPACITY
+CORE1_WMA_OFFSET = CORE1_APE_END
+CORE1_WMA_END = CORE1_WMA_OFFSET + CORE1_MODULE_HEADER_SIZE + CORE1_MODULE_CAPACITY
 GLYPH_FACE_TABLE_SIZE = 256
 GLYPH_FACE_LIMIT = (GLYPH_FACE_TABLE_SIZE - 8) // 8
 LANGUAGE_TABLE_OFFSET = GLYPH_TABLE_OFFSET + GLYPH_FACE_TABLE_SIZE
@@ -68,7 +70,7 @@ LANGUAGE_LIMIT = (GLYPH_TABLE_SIZE - GLYPH_FACE_TABLE_SIZE - 8) // 8
 GLYPH_PAYLOAD_LIMIT = 0x30000
 GLYPH_REGIONS = (
     (GLYPH_PAYLOAD_LIMIT, OVERLAY_OFFSET),
-    (CORE1_APE_END, USB_OVERLAY_OFFSET),
+    (CORE1_WMA_END, USB_OVERLAY_OFFSET),
     (MODULE_TABLE_OFFSET + MODULE_TABLE_SIZE, CORE1_MP3_OFFSET),
 )
 TABLE_CAPACITY = 91
@@ -141,6 +143,7 @@ class ImageParts:
     core1_vorbis: bytes = b""
     core1_opus: bytes = b""
     core1_ape: bytes = b""
+    core1_wma: bytes = b""
 
 
 def crc_table():
@@ -238,6 +241,7 @@ def assemble(parts):
     place_core1_module(image, parts.core1_vorbis, CORE1_VORBIS_OFFSET, CORE1_VORBIS_CAPACITY)
     place_core1_module(image, parts.core1_opus, CORE1_OPUS_OFFSET)
     place_core1_module(image, parts.core1_ape, CORE1_APE_OFFSET)
+    place_core1_module(image, parts.core1_wma, CORE1_WMA_OFFSET)
     place_glyph_faces(image, parts)
     place_language_packs(image, parts)
     place_modules(image, parts)
@@ -503,7 +507,7 @@ def generated_header(version):
 
 def build_image(firmware, brand, build_tag, date, overlay=b"", core1_mp3=b"", core1_flac=b"",
                 version=DEFAULT_VERSION, glyph_faces=(), core1_m4a=b"", usb_overlay=b"",
-                language_packs=(), modules=(), core1_vorbis=b"", core1_opus=b"", core1_ape=b""):
+                language_packs=(), modules=(), core1_vorbis=b"", core1_opus=b"", core1_ape=b"", core1_wma=b""):
     check_firmware(firmware)
     code_size, data_size = len(firmware.code), len(firmware.data)
     header = generated_header(version)
@@ -521,7 +525,7 @@ def build_image(firmware, brand, build_tag, date, overlay=b"", core1_mp3=b"", co
     return assemble(ImageParts(bytes(header), tuple(rows), payload, bytes(MARKER_SIZE), overlay,
                                core1_mp3, core1_flac, tuple(glyph_faces), core1_m4a, usb_overlay,
                                tuple(language_packs), tuple(modules), core1_vorbis,
-                               core1_opus, core1_ape))
+                               core1_opus, core1_ape, core1_wma))
 
 
 def validate_image(image):
@@ -720,6 +724,7 @@ def parse_arguments(argv):
     parser.add_argument("--core1-flac", type=Path, help="core 1 FLAC program, a raw binary")
     parser.add_argument("--core1-m4a", type=Path, help="core 1 AAC and ALAC program, a raw binary")
     parser.add_argument("--core1-vorbis", type=Path, help="core 1 Vorbis program, a raw binary")
+    parser.add_argument("--core1-wma", type=Path, help="core 1 WMA program, a raw binary")
     parser.add_argument("--core1-ape", type=Path, help="core 1 APE program, a raw binary")
     parser.add_argument("--core1-opus", type=Path, help="core 1 Opus program, a raw binary")
     parser.add_argument("--glyph-face", type=Path, action="append", default=[],
@@ -754,6 +759,7 @@ def main(argv=None):
         core1_vorbis = arguments.core1_vorbis.read_bytes() if arguments.core1_vorbis else b""
         core1_opus = arguments.core1_opus.read_bytes() if arguments.core1_opus else b""
         core1_ape = arguments.core1_ape.read_bytes() if arguments.core1_ape else b""
+        core1_wma = arguments.core1_wma.read_bytes() if arguments.core1_wma else b""
         glyph_faces = [path.read_bytes() if path.exists() else b""
                        for path in arguments.glyph_face]
         language_packs = [path.read_bytes() for path in arguments.language_pack]
@@ -762,7 +768,7 @@ def main(argv=None):
         modules = modules_from_elfs(main_elf, arguments.module)
         image = build_image(firmware, arguments.brand, build_tag, date, overlay, core1_mp3,
                             core1_flac, arguments.version, glyph_faces, core1_m4a, usb_overlay,
-                            language_packs, modules, core1_vorbis, core1_opus, core1_ape)
+                            language_packs, modules, core1_vorbis, core1_opus, core1_ape, core1_wma)
     except ImageError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
@@ -778,7 +784,7 @@ def main(argv=None):
           f"core 1 MP3 {len(core1_mp3):,} bytes, "
           f"core 1 FLAC {len(core1_flac):,} bytes, core 1 M4A {len(core1_m4a):,} bytes, "
           f"core 1 Vorbis {len(core1_vorbis):,} bytes, core 1 Opus {len(core1_opus):,} bytes, "
-          f"core 1 APE {len(core1_ape):,} bytes, "
+          f"core 1 APE {len(core1_ape):,} bytes, core 1 WMA {len(core1_wma):,} bytes, "
           f"glyph faces {sum(len(face) for face in glyph_faces):,} bytes, "
           f"language packs {sum(len(pack) for pack in language_packs):,} bytes, "
           f"modules {sum(len(module) for module in modules):,} bytes, "

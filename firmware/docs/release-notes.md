@@ -1,8 +1,5 @@
 # Gnarlyr release notes
 
-APE playback is connected through a dedicated core-1 program: 16/24-bit mono/stereo, Fast/Normal through 192 kHz and High through 96 kHz, with exact seek-table starts and sample lengths. Native reference comparisons and ARM tests cover the software path; player playback and physical throughput have not been checked.
-
-
 Gnarlyr builds on Podium 4.5.9 and EchoPod with their GPL credits preserved. The source provenance is recorded in [`../UPSTREAM.md`](../UPSTREAM.md). Version 1.0.0 is not released; hardware checks are recorded in [`known-issues.md`](known-issues.md).
 
 ## Identity and files
@@ -32,6 +29,10 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 - Obsolete Connect USB, USB sense and raw DAC About rows are removed. Hardware identification remains available to the developer HAL.
 
 ## Playback fixes
+
+- APE: dedicated core-1 decoding, 16/24-bit mono/stereo, Fast/Normal through 192 kHz and High through 96 kHz, exact seek-table starts and sample lengths. Extra High/Insane are refused.
+- WMA Standard v1/v2: fixed-point core-1 decoding with checked ASF demuxing, tags/covers, timestamp-guided seeks, priming trim and final-overlap drain. Pro, Lossless, Voice and encrypted files are refused. Encoder padding remains when it is not described by the file.
+- Both codecs have native/reference and ARM decoder/player checks. Physical playback and cycle margins remain untested.
 
 - Opus R128 track and album gain tags now feed ReplayGain normalization with the +5 dB reference conversion. Standard ReplayGain gain tags take precedence, and the decoder keeps applying header gain once.
 
