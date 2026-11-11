@@ -1239,11 +1239,7 @@ class EchoImageTest(unittest.TestCase):
 
     @staticmethod
     def time_file(utc, offset):
-        body = b"DSTM" + struct.pack("<Hhi", 1, offset, utc) + bytes(16)
-        check = 2166136261
-        for byte in body:
-            check = (check ^ byte) * 16777619 & 0xFFFFFFFF
-        return body + struct.pack("<I", check)
+        return echo_debug.time_file_bytes(utc, offset)
 
     def time_session(self, data, written_before_power_on=False):
         """A session whose host leaves a time file: one written during the session unless asked.

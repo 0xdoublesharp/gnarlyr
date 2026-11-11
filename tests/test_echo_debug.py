@@ -480,6 +480,13 @@ class Commands(VolumeCase):
 
 
 class CommandLine(VolumeCase):
+    def test_set_time_writes_this_computers_time_into_a_named_volume(self):
+        status, output = self.run_cli("--volume", str(self.root), "set-time", host=FakeHost(None))
+        self.assertEqual(status, 0)
+        data = (self.root / echo_debug.DATA_DIRECTORY / echo_debug.TIME_FILE).read_bytes()
+        self.assertEqual(data, echo_debug.time_file_bytes(output["utc"], output["offset_minutes"]))
+        self.assertEqual(output["ejected"], [])
+
     def test_status_prints_json(self):
         status, output = self.run_cli("status", host=self.host())
         self.assertEqual(status, 0)

@@ -1,6 +1,7 @@
 import hashlib
 import io
 import json
+import re
 import struct
 import sys
 import unittest
@@ -15,6 +16,8 @@ from test_echo_debug import SYSTEM_LINES, FakeHost, VolumeCase, medium, player, 
 
 IMAGE_BUILD = "abc1234"
 DEBUG = echo_debug.DATA_DIRECTORY + "/debug"
+TIME_PATH = echo_debug.DATA_DIRECTORY + "/" + echo_debug.TIME_FILE
+NOVEMBER_2026 = 1794482460
 SCRIPT = "play,down\nmeasure 2000\nscreenshot home\nreconnect\n"
 RED, GREEN, BLUE, WHITE = 0xF800, 0x07E0, 0x001F, 0xFFFF
 
@@ -137,6 +140,76 @@ class LoopCase(VolumeCase):
         self.assertEqual(raised.exception.code, code)
 
 
+class SendingTheTime(LoopCase):
+    def tool(self, host, **options):
+        return super().tool(host, wall=lambda: (NOVEMBER_2026, -480), **options)
+
+    def test_the_time_file_holds_the_utc_time_and_offset_sealed_like_the_firmware_reads_it(self):
+        data = echo_debug.time_file_bytes(NOVEMBER_2026, -480)
+        self.assertEqual(len(data), 32)
+        self.assertEqual(data[:4], b"DSTM")
+        self.assertEqual(struct.unpack_from("<HhI", data, 4), (1, -480, NOVEMBER_2026))
+        self.assertEqual(data[12:28], bytes(16))
+        self.assertEqual(struct.unpack_from("<I", data, 28)[0], echo_debug.fnv1a(data[:28]))
+
+    def test_the_time_file_matches_the_firmware_format(self):
+        firmware = echo_debug.ROOT / "firmware" / "platform" / "device" / "logic"
+        header = (firmware / "include" / "device" / "time_file.h").read_text(encoding="utf-8")
+        source = (firmware / "time_file.c").read_text(encoding="utf-8")
+        values = dict(re.findall(r"(TIME_FILE_\w+) = (-?\d+)", header))
+        values.update(re.findall(r"#define (TIME_FILE_\w+) UINT32_C\((\d+)\)", header))
+        self.assertEqual(int(values["TIME_FILE_BYTES"]), len(echo_debug.time_file_bytes(NOVEMBER_2026, 0)))
+        self.assertEqual(int(values["TIME_FILE_VERSION"]), echo_debug.TIME_VERSION)
+        self.assertEqual((int(values["TIME_FILE_EARLIEST_UTC"]), int(values["TIME_FILE_LATEST_UTC"])),
+                         (echo_debug.TIME_EARLIEST, echo_debug.TIME_LATEST))
+        self.assertEqual(range(int(values["TIME_FILE_OFFSET_WEST"]), int(values["TIME_FILE_OFFSET_EAST"]) + 1),
+                         echo_debug.TIME_OFFSET_MINUTES)
+        self.assertIn('"/time.bin"', source)
+        self.assertIn("{'D', 'S', 'T', 'M'}", source)
+
+    def test_a_clock_the_player_would_refuse_is_never_written(self):
+        for utc, offset in ((echo_debug.TIME_EARLIEST - 1, 0), (echo_debug.TIME_LATEST + 1, 0),
+                            (NOVEMBER_2026, -721), (NOVEMBER_2026, 841)):
+            with self.subTest(utc=utc, offset=offset):
+                self.assert_refused("clock_out_of_range", lambda: echo_debug.time_file_bytes(utc, offset))
+
+    def test_every_eject_sends_the_time_just_before_it(self):
+        host = PlayerHost(self)
+        result = self.tool(host).install(self.image)
+        self.assertEqual((self.root / TIME_PATH).read_bytes(), echo_debug.time_file_bytes(NOVEMBER_2026, -480))
+        self.assertEqual(host.ejected, [str(self.root), str(self.card)])
+        self.assertTrue(result["ok"])
+
+    def test_set_time_sends_the_time_and_ejects_both_drives(self):
+        host = PlayerHost(self)
+        result = self.tool(host).set_time()
+        self.assertEqual((result["utc"], result["offset_minutes"]), (NOVEMBER_2026, -480))
+        self.assertEqual(result["time_file"], str((self.root / TIME_PATH).resolve()))
+        self.assertEqual(result["ejected"], [str(self.root), str(self.card)])
+        self.assertEqual(self.files(self.root), [DEBUG + "/report0.txt", TIME_PATH])
+
+    def test_set_time_refuses_a_bad_computer_clock_before_writing_or_ejecting(self):
+        host = PlayerHost(self)
+        tool = echo_debug.Tool(host, sleep=self.clock.sleep, clock=self.clock.time, wall=lambda: (0, 0))
+        self.assert_refused("clock_out_of_range", tool.set_time)
+        self.assertFalse((self.root / TIME_PATH).exists())
+        self.assertEqual(host.ejected, [])
+
+    def test_other_commands_go_on_without_the_time_when_the_computer_clock_is_wrong(self):
+        host = PlayerHost(self)
+        tool = echo_debug.Tool(host, sleep=self.clock.sleep, clock=self.clock.time, wall=lambda: (0, 0))
+        self.assertTrue(tool.install(self.image)["ok"])
+        self.assertFalse((self.root / TIME_PATH).exists())
+        self.assertIn("time_skipped", tool.sent_time)
+        self.assertEqual(host.ejected, [str(self.root), str(self.card)])
+
+    def test_with_a_named_volume_set_time_writes_the_file_without_ejecting(self):
+        tool = echo_debug.Tool(volume=self.root, wall=lambda: (NOVEMBER_2026, 60))
+        result = tool.set_time()
+        self.assertEqual(result["ejected"], [])
+        self.assertEqual((self.root / TIME_PATH).read_bytes(), echo_debug.time_file_bytes(NOVEMBER_2026, 60))
+
+
 class Installing(LoopCase):
     def test_the_image_is_copied_as_the_update_file_verified_and_both_drives_ejected(self):
         host = PlayerHost(self)
@@ -152,7 +225,7 @@ class Installing(LoopCase):
     def test_nothing_else_is_written_and_the_card_is_not_touched(self):
         before = self.files(self.card)
         self.tool(PlayerHost(self)).install(self.image)
-        self.assertEqual(self.files(self.root), [DEBUG + "/report0.txt", echo_debug.UPDATE_FILE])
+        self.assertEqual(self.files(self.root), [DEBUG + "/report0.txt", TIME_PATH, echo_debug.UPDATE_FILE])
         self.assertEqual(self.files(self.card), before)
 
     def test_a_file_that_is_not_this_players_image_is_refused_before_anything_is_written(self):

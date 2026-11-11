@@ -432,7 +432,7 @@ class Manager:
         text = self.selection_text(context, code)
         self.recheck(context)
         runner = self.api.Tool(host=self.tool.host, volume_name=self.tool.volume_name,
-                               sleep=self.tool.sleep, clock=self.tool.clock)
+                               sleep=self.tool.sleep, clock=self.tool.clock, wall=self.tool.wall)
         result = runner.run_text(text, self.timeout(timeout))
         newer = self.recheck(context)
         actual = self.selected(newer)

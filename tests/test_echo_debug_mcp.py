@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 
+import echo_debug
 import echo_debug_mcp
 from test_echo_debug import FakeHost, usb_tree
 from test_echo_debug_loop import IMAGE_BUILD, LoopCase, PlayerHost, image
@@ -40,10 +41,19 @@ class McpServer(LoopCase):
         self.assertEqual([tool["name"] for tool in tools],
                          ["echo_status", "echo_report", "echo_profile", "echo_install", "echo_run",
                           "echo_wait", "echo_screenshots", "echo_language_inspect", "echo_language_list",
-                          "echo_language_install", "echo_language_select", "echo_settings_list", "echo_settings_set"])
+                          "echo_language_install", "echo_language_select", "echo_settings_list", "echo_settings_set",
+                          "echo_set_time"])
         for tool in tools:
             self.assertEqual(tool["inputSchema"]["type"], "object")
             self.assertTrue(tool["description"])
+
+    def test_set_time_sends_the_computer_time_and_ejects(self):
+        host = PlayerHost(self)
+        tool = echo_debug.Tool(host, sleep=lambda seconds: None, wall=lambda: (1794482460, 60))
+        result = echo_debug_mcp.call_tool(tool, "echo_set_time", {})["structuredContent"]
+        self.assertEqual((result["utc"], result["offset_minutes"]), (1794482460, 60))
+        self.assertEqual(result["ejected"], host.ejected)
+        self.assertTrue(host.ejected)
 
     def test_a_tool_returns_what_the_command_line_returns(self):
         result = self.call("echo_status")

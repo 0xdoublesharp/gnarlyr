@@ -16,4 +16,16 @@ The stdio MCP server exposes the same operations as `echo_settings_list` and `ec
 
 A missing preferences file or an older saved format requires a normal settings save on the player first. This makes the stored values readable in the installed format. Language-pack inspection, installation and selection use the separate [language commands](language-packs.md).
 
+## Clock
+
+Every command that ejects the player's drives (`install`, `run`, `settings-set` and the language commands) first writes this computer's time, in UTC with the local offset from UTC, as `.gnarlyr/time.bin` on the internal drive. The player sets its clock from that file when the drive is ejected and then deletes it. To set the clock on its own:
+
+```sh
+python3 tools/echo_debug.py set-time
+```
+
+`set-time` writes the file and ejects both drives; it returns the time it sent. The MCP server offers it as `echo_set_time`, with no arguments. A computer clock the player would refuse (before 2025, after 2099, or an offset outside −12 to +14 hours) fails `set-time` without writing or ejecting; the other commands then go on without the time and say so in `time_skipped`. With `--volume PATH`, `set-time` writes the file into that folder and ejects nothing.
+
+The player applies the time when it sees the eject, so the clock runs a few seconds behind this computer's. A file that is still there after a session ended by pulling the cable, or when the player starts, is deleted without being applied, so an old time never sets the clock. The time is kept until the player is switched off or restarts; the plays it logs meanwhile carry it. The file format is in the firmware's architecture notes (Wall clock).
+
 The transport is USB storage on macOS. These commands do not establish a phone Bluetooth data channel.
