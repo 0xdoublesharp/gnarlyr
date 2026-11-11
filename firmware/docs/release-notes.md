@@ -28,7 +28,7 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 - Output-underrun diagnostics exclude intentional muted DMA pauses, clear stale start/resume flags and retain pending playback faults. Unmuted interruptions remain visible.
 
-- Standard speech rates from 8 to 24 kHz are converted to 44.1 or 48 kHz with a fixed-point interpolation filter; 32 kHz uses native output. Seeking and chapter positions stay on the recording clock, with no extra output frames. The filter does about half the multiply work per channel, filters mono once, and core 0 keeps its full clock while converting.
+- Standard speech rates from 8 to 24 kHz are converted with a fixed-point interpolation filter: 8 and 16 kHz to 32 kHz, 11.025 and 22.05 kHz to 44.1 kHz, 12 and 24 kHz to 48 kHz; 32 kHz uses native output. Seeking and chapter positions stay on the recording clock, with no extra output frames. The filter does about half the multiply work per channel, filters mono once, and core 0 keeps its full clock while converting.
 
 - M4B files at any depth appear on Audiobooks and stay out of Music lists. Named roots merge on the shelf; external chaptered files appear once. Whole-file books retain independent positions and play as one book.
 - Audiobook folder selection resumes the saved chapter and position at every folder depth, including author/title layouts and books made of separate files. Hold Play still opens chapters; selecting a paused loaded book continues its stream.

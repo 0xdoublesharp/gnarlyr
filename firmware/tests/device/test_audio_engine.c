@@ -678,7 +678,33 @@ static void different_converted_inputs_at_the_same_output_clock_drain_and_restar
     CHECK_EQUAL(reference.frames, engine.end_at);
     CHECK_EQUAL(boundary, engine.segments[0].start);
     CHECK_EQUAL(2, audio_engine_status(&engine).token);
-    CHECK_EQUAL(48000, audio_engine_rate(&engine));
+    CHECK_EQUAL(32000, audio_engine_rate(&engine));
+    CHECK(engine.ended && !engine.failed && !engine.rate_pending);
+}
+
+static void wideband_speech_and_native_32_khz_files_share_one_output_clock(void)
+{
+    start_scripted_engine(0, 1);
+    scripted.rate = 16000;
+    scripted.next_rate = 32000;
+    scripted.frames_per_open = 1;
+    engine.config.ring_words = 16;
+    CHECK(play_file("first", 0, 1));
+    queue_file("second", 2);
+    uint32_t words[128];
+    ResampledReference reference = {.words = words};
+    append_scripted_reference(&reference, 16000, 16);
+    uint32_t boundary = reference.frames;
+    for (uint32_t at = 0; at < 16; at++) {
+        words[2 * reference.frames] = word_of(scripted.left[at], 16);
+        words[2 * reference.frames + 1] = word_of(scripted.right[at], 16);
+        reference.frames++;
+    }
+    CHECK(reference_reaches_ring(&reference));
+    pump_until_full(reference.frames);
+    CHECK_EQUAL(reference.frames, engine.end_at);
+    CHECK_EQUAL(boundary, engine.segments[0].start);
+    CHECK_EQUAL(32000, audio_engine_rate(&engine));
     CHECK(engine.ended && !engine.failed && !engine.rate_pending);
 }
 
@@ -891,7 +917,7 @@ static bool scripted_rate_plays(uint32_t rate)
 static void speech_rates_use_the_matching_supported_output_clock(void)
 {
     static const uint32_t INPUTS[] = {8000, 11025, 12000, 16000, 22050, 24000, 32000};
-    static const uint32_t OUTPUTS[] = {48000, 44100, 48000, 48000, 44100, 48000, 32000};
+    static const uint32_t OUTPUTS[] = {32000, 44100, 48000, 32000, 44100, 48000, 32000};
     for (size_t index = 0; index < sizeof INPUTS / sizeof INPUTS[0]; index++) {
         CHECK(scripted_rate_plays(INPUTS[index]));
         CHECK_EQUAL(OUTPUTS[index], audio_engine_rate(&engine));
@@ -1309,7 +1335,7 @@ static void converted_files_apply_their_gain_before_sharing_filter_history(void)
     CHECK(audio_engine_play(&engine, &first, 0));
     audio_engine_queue_next(&engine, &next);
     pump_until_full(0);
-    CHECK_EQUAL(192, reference.frames);
+    CHECK_EQUAL(32 * audio_resample_rate(8000) / 8000, reference.frames);
     CHECK_EQUAL(reference.frames, engine.end_at);
     CHECK(memcmp(words, ring, reference.frames * 2 * sizeof(uint32_t)) == 0);
 }
@@ -1419,6 +1445,7 @@ int main(void)
         TEST_CASE(separate_converted_files_match_a_single_continuous_filter),
         TEST_CASE(every_converted_rate_keeps_history_across_short_queued_files),
         TEST_CASE(different_converted_inputs_at_the_same_output_clock_drain_and_restart_exactly),
+        TEST_CASE(wideband_speech_and_native_32_khz_files_share_one_output_clock),
         TEST_CASE(clearing_the_next_file_during_a_filter_drain_rebuilds_the_current_tail),
         TEST_CASE(a_failed_next_open_reloads_evicted_audio_code_before_draining),
         TEST_CASE(unavailable_evicted_audio_code_finishes_with_an_error_without_calling_it),

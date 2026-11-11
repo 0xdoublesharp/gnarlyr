@@ -19,7 +19,7 @@ uint32_t audio_resample_rate(uint32_t input_rate)
 {
     static const uint32_t RATES[] = {8000,  11025, 12000, 16000, 22050,  24000, 32000,
                                      44100, 48000, 88200, 96000, 176400, 192000};
-    static const uint8_t FACTORS[] = {6, 4, 4, 3, 2, 2, 1, 1, 1, 1, 1, 1, 1};
+    static const uint8_t FACTORS[] = {4, 4, 4, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1};
     for (size_t index = 0; index < sizeof RATES / sizeof RATES[0]; index++) {
         if (RATES[index] == input_rate) {
             return input_rate * FACTORS[index];

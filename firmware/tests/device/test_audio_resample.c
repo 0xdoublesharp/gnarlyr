@@ -7,7 +7,8 @@
 
 enum {
     INPUT_CAPACITY = 5000,
-    OUTPUT_CAPACITY = INPUT_CAPACITY * 6
+    OUTPUT_CAPACITY = INPUT_CAPACITY * AUDIO_RESAMPLE_FACTOR_LIMIT,
+    TONE_AMPLITUDE = 1000000
 };
 
 static AudioResample state;
@@ -79,7 +80,7 @@ static uint32_t render(uint32_t rate, uint32_t count, uint32_t cadence)
 static void every_speech_rate_has_an_integer_supported_output(void)
 {
     static const uint32_t RATES[] = {8000, 11025, 12000, 16000, 22050, 24000, 32000};
-    static const uint32_t OUTPUTS[] = {48000, 44100, 48000, 48000, 44100, 48000, 32000};
+    static const uint32_t OUTPUTS[] = {32000, 44100, 48000, 32000, 44100, 48000, 32000};
     for (size_t index = 0; index < sizeof RATES / sizeof RATES[0]; index++) {
         CHECK_EQUAL(OUTPUTS[index], audio_resample_rate(RATES[index]));
     }
@@ -167,7 +168,7 @@ static void wide_input_and_filter_overshoot_are_clipped_without_overflow(void)
         CHECK(right >= -8388608 && right <= 8388607);
         count++;
     }
-    CHECK_EQUAL(240, count);
+    CHECK_EQUAL(40 * audio_resample_rate(8000) / 8000, count);
 }
 
 static void restarting_discards_the_old_streams_history_and_pending_phases(void)
@@ -184,35 +185,48 @@ static void restarting_discards_the_old_streams_history_and_pending_phases(void)
     CHECK(!audio_resample_push(&state, 1, 1));
 }
 
-static void filtered_speech_has_flat_passband_and_rejects_upsampling_images(void)
+typedef struct Tone {
+    uint32_t factor;
+    uint32_t count;
+    double frequency;
+} Tone;
+
+static double tone_gain(const Tone *tone, double frequency, uint32_t edge)
 {
-    static const uint32_t RATES[] = {8000, 11025, 16000, 22050};
-    static const double FREQUENCIES[] = {0.01, 0.1, 0.2, 0.3, 0.4};
     const double turn = 6.2831853071795864769;
-    const double amplitude = 1000000;
+    double sine = 0;
+    double cosine = 0;
+    for (uint32_t index = edge; index < tone->count - edge; index++) {
+        double time = (double)index / tone->factor;
+        sine += output[index] * sin(turn * frequency * time);
+        cosine += output[index] * cos(turn * frequency * time);
+    }
+    return 2 * hypot(sine, cosine) / ((double)TONE_AMPLITUDE * (tone->count - 2 * edge));
+}
+
+static Tone render_tone(uint32_t rate, double frequency)
+{
+    const double turn = 6.2831853071795864769;
+    for (int index = 0; index < INPUT_CAPACITY; index++) {
+        input[index] = (int32_t)lround(TONE_AMPLITUDE * sin(turn * frequency * index));
+    }
+    uint32_t factor = audio_resample_rate(rate) / rate;
+    return (Tone){factor, render(rate, INPUT_CAPACITY, 7), frequency};
+}
+
+static void converted_rates_have_flat_passband_and_reject_every_image(void)
+{
+    static const uint32_t RATES[] = {8000, 11025, 12000, 16000, 22050, 24000};
+    static const double FREQUENCIES[] = {0.01, 0.1, 0.2, 0.3, 0.4};
     for (size_t rate = 0; rate < sizeof RATES / sizeof RATES[0]; rate++) {
-        uint32_t factor = audio_resample_rate(RATES[rate]) / RATES[rate];
-        for (size_t tone = 0; tone < sizeof FREQUENCIES / sizeof FREQUENCIES[0]; tone++) {
-            double frequency = FREQUENCIES[tone];
-            for (int index = 0; index < INPUT_CAPACITY; index++) {
-                input[index] = (int32_t)lround(amplitude * sin(turn * frequency * index));
+        for (size_t index = 0; index < sizeof FREQUENCIES / sizeof FREQUENCIES[0]; index++) {
+            Tone tone = render_tone(RATES[rate], FREQUENCIES[index]);
+            uint32_t edge = 100 * tone.factor;
+            CHECK(fabs(20 * log10(tone_gain(&tone, tone.frequency, edge))) < 0.01);
+            for (uint32_t image = 1; image < tone.factor; image++) {
+                CHECK(tone_gain(&tone, image - tone.frequency, edge) < 0.0001);
+                CHECK(tone_gain(&tone, image + tone.frequency, edge) < 0.0001);
             }
-            uint32_t count = render(RATES[rate], INPUT_CAPACITY, 7);
-            double wanted = 0;
-            double image_sine = 0;
-            double image_cosine = 0;
-            uint32_t edge = 100 * factor;
-            for (uint32_t index = edge; index < count - edge; index++) {
-                double time = (double)index / factor;
-                wanted += output[index] * sin(turn * frequency * time);
-                image_sine += output[index] * sin(turn * (1 - frequency) * time);
-                image_cosine += output[index] * cos(turn * (1 - frequency) * time);
-            }
-            double normalization = 2 / (amplitude * (count - 2 * edge));
-            double gain_db = 20 * log10(wanted * normalization);
-            double image_gain = hypot(image_sine, image_cosine) * normalization;
-            CHECK(fabs(gain_db) < 0.01);
-            CHECK(image_gain < 0.0001);
         }
     }
 }
@@ -228,7 +242,7 @@ int main(void)
         TEST_CASE(constant_samples_keep_unity_gain_in_every_phase),
         TEST_CASE(wide_input_and_filter_overshoot_are_clipped_without_overflow),
         TEST_CASE(restarting_discards_the_old_streams_history_and_pending_phases),
-        TEST_CASE(filtered_speech_has_flat_passband_and_rejects_upsampling_images),
+        TEST_CASE(converted_rates_have_flat_passband_and_reject_every_image),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

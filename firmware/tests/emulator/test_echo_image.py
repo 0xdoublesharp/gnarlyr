@@ -1946,7 +1946,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertTrue(rig.session.module_reads("slot_2", number))
         third = rig.skip("previous")
         self.assertEqual("condition met", machine.run(
-            until=lambda: rig.audio.rate == 48000 and rig.audio.running,
+            until=lambda: rig.audio.rate == 32000 and rig.audio.running,
             until_ms=machine.milliseconds() + 2000))
         self.assertIsNotNone(rig.first_audio_after(third))
         self.assertTrue(vorbis.loaded(machine))
@@ -2015,7 +2015,9 @@ class EchoImageTest(unittest.TestCase):
                   volume=volume, module_elfs=self.module_elfs)
         machine = rig.machine
         samples, starts = {}, []
-        total, boundary = 24000, 12000
+        factor = 4
+        boundary = 2000 * factor
+        total = 2 * boundary
         ring = rig.audio.ring
 
         def capture(uc, access, address, size, value, user):
@@ -2039,8 +2041,9 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(total, len(samples))
         self.assertTrue(all(None not in pair for pair in samples.values()))
         self.assertEqual(1, len(starts), starts)
-        for frame in range(boundary - 144, boundary + 144):
-            self.assertEqual(samples[480 + frame % 48], samples[frame], frame)
+        period = 8 * factor
+        for frame in range(boundary - 3 * period, boundary + 3 * period):
+            self.assertEqual(samples[10 * period + frame % period], samples[frame], frame)
         self.assert_healthy(rig.session)
 
     def converted_reference(self, channels, factor, count):
@@ -2098,12 +2101,12 @@ class EchoImageTest(unittest.TestCase):
         busy, since = busy_us(), machine.microseconds()
         rig.run_for(1000)
         share = (busy_us() - busy) / (machine.microseconds() - since)
-        self.assertEqual(48000, rig.audio.rate)
+        self.assertEqual(32000, rig.audio.rate)
         self.assertEqual([], rig.audio.underruns(started))
         got = [tuple((word - (word >> 31 << 32)) >> 8 for word in samples[frame])
                for frame in range(total)]
         wanted = self.converted_reference(([value << 8 for value in left],
-                                           [value << 8 for value in right]), 3, total)
+                                           [value << 8 for value in right]), 2, total)
         self.assertEqual(wanted, got)
         self.assertLess(share, 0.2)
         self.assert_healthy(rig.session)
@@ -2115,7 +2118,7 @@ class EchoImageTest(unittest.TestCase):
         rig.open_songs()
         started = rig.play_song(1)
         self.assertIsNotNone(rig.first_audio_after(started))
-        self.assertEqual(48000, rig.audio.rate)
+        self.assertEqual(32000, rig.audio.rate)
         self.assertTrue(dsp.loaded(rig.machine))
         self.assertTrue(rig.session.module_reads("slot_1", number))
         rig.press("back", hold=1300)
