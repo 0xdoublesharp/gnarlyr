@@ -451,6 +451,21 @@ class ModuleTest(unittest.TestCase):
             with self.assertRaises(make_image.ImageError):
                 make_image.module_from_elf(binary, number)
 
+    def test_debug_module_has_its_own_window_above_the_audio_bank_without_state(self):
+        base, capacity, number = 0x0304A000, 0x2000, 8
+        self.assertEqual(make_image.AUDIO_MODULE_BASE + make_image.AUDIO_MODULE_CAPACITY, base)
+        content = module_blob(number, bytes(capacity - 20))
+        self.assertEqual(content, make_image.module_from_elf(module_elf(content, base=base), number))
+        modules = [module_blob(index) for index in range(1, number)] + [content]
+        image = build(modules=modules)
+        self.assertEqual(capacity, self.rows(image)[number - 1][1])
+        modules[-1] += b"x"
+        with self.assertRaises(make_image.ImageError):
+            build(modules=modules)
+        for binary in (module_elf(content), module_elf(content, base=base, bss_size=4)):
+            with self.assertRaises(make_image.ImageError):
+                make_image.module_from_elf(binary, number)
+
     def test_vorbis_module_uses_the_same_audio_window_and_capacity_as_the_dsp(self):
         content = module_blob(6, bytes(make_image.AUDIO_MODULE_CAPACITY - 20))
         binary = module_elf(content, base=make_image.AUDIO_MODULE_BASE)

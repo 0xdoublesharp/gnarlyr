@@ -297,6 +297,21 @@ Linker script and memory map
         self.assertIn("the audio module must keep all state in its caller",
                       size_report.module_problems(device, [("process", stateful)]))
 
+    def test_the_debug_module_uses_its_own_window_and_keeps_state_in_the_main_program(self):
+        device = FENCED_MAP.replace(SLOT_REGION, SLOT_REGION +
+                                    "DEBUG_RAM        0x0304a000         0x00002000         rx\n")
+        debug = MODULE_MAP.replace("0x03084400", "0x0304a000").replace(
+            "0x0000dc00", "0x00002000").replace("0x03086400", "0x0304b000")
+        debug = debug.replace(".bss            0x0304b000      0x200",
+                              ".bss            0x0304b000      0x0")
+        self.assertEqual([], size_report.module_problems(device, [("debug", debug)]))
+        self.assertTrue(size_report.module_problems(device, [("settings", debug)]))
+        self.assertTrue(size_report.module_problems(FENCED_MAP, [("debug", debug)]))
+        stateful = debug.replace(".bss            0x0304b000      0x0",
+                                 ".bss            0x0304b000      0x4")
+        self.assertIn("the debug module must keep all state in the main program",
+                      size_report.module_problems(device, [("debug", stateful)]))
+
     def test_a_module_larger_than_the_slot_is_a_problem(self):
         grown = MODULE_MAP.replace(".bss            0x03086400      0x200",
                                    ".bss            0x03086400     0xbd00")

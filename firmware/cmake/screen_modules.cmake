@@ -1,6 +1,7 @@
 set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process)
 set(ECHO_SCREEN_MODULE_SOURCES_process
     platform/device/logic/audio_process_entry.c
+    platform/device/logic/audio_trig.c
     platform/device/logic/equalizer_design.c
     platform/device/logic/equalizer.c
 )
@@ -34,7 +35,9 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/screens/up_next_screen.c
     src/ui/cover_flow.c
     src/ui/placeholder_art.c
+    src/gfx/image_quad.c
 )
+set(ECHO_SCREEN_MODULE_FAST_SOURCES src/gfx/image_quad.c)
 set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/language_list.c
     src/app/modules/settings_module.c
@@ -46,12 +49,14 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
     src/app/screens/bluetooth_screen.c
+    src/app/bluetooth_link_ui.c
     src/app/screens/equalizer_screen.c
     src/app/screens/equalizer_browser.c
     src/app/screens/equalizer_plot.c
     src/settings/equalizer_response.c
     src/core/dac_identity.c
     src/settings/equalizer_slots.c
+    src/settings/equalizer_fit_text.c
     src/ui/choice_screen.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_library
@@ -79,9 +84,21 @@ if(ECHO_RELEASE)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_settings src/app/diagnostics_menu_release.c)
 else()
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_settings src/app/diagnostics_menu.c)
+    list(APPEND ECHO_SCREEN_MODULES debug)
+    set(ECHO_SCREEN_MODULE_SOURCES_debug
+        src/app/modules/debug_module.c
+        src/app/debug_steps.c
+        src/app/debug_screenshot.c
+        platform/device/board/debug_poke.c
+    )
 endif()
 
 function(echo_screen_module_owner source target_variable name_variable)
+    if(source MATCHES "^platform/device/(board/.+)$")
+        set(${target_variable} echo_device PARENT_SCOPE)
+        set(${name_variable} ${CMAKE_MATCH_1} PARENT_SCOPE)
+        return()
+    endif()
     if(source MATCHES "^platform/device/logic/(.+)$")
         set(${target_variable} echo_device_logic PARENT_SCOPE)
         set(${name_variable} ${CMAKE_MATCH_1} PARENT_SCOPE)
@@ -99,6 +116,9 @@ function(echo_take_module_sources)
     foreach(module IN LISTS ECHO_SCREEN_MODULES)
         foreach(source IN LISTS ECHO_SCREEN_MODULE_SOURCES_${module})
             echo_screen_module_owner(${source} owner name)
+            if(owner STREQUAL "echo_device")
+                continue()
+            endif()
             get_target_property(sources ${owner} SOURCES)
             if(name IN_LIST sources)
                 list(REMOVE_ITEM sources ${name})

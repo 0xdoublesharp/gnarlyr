@@ -17,6 +17,8 @@
 #define MODULE_TABLE_ROWS 31u
 #define MODULE_MAGIC 0x004D5344u
 #define MODULE_MAGIC_SHIFT 24
+#define DEBUG_MODULE_BASE 0x0304A000u
+#define DEBUG_MODULE_BYTES 0x2000u
 
 typedef struct BoardOverlay {
     uint32_t image_offset;

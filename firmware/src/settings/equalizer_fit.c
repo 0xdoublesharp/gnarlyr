@@ -1,9 +1,10 @@
 #include "settings/equalizer_fit.h"
 
+#include "equalizer_fit_internal.h"
+
 enum {
     MIN_HZ = 10,
     MAX_HZ = 30000,
-    MAX_WHOLE = 99999,
     GAIN_CAP_HUNDREDTHS = 30000,
     HUNDRED = 100,
     HALF_DB_HUNDREDTHS = 50,
@@ -45,7 +46,7 @@ void equalizer_fit_point(EqualizerFit *fit, uint32_t hz, int32_t hundredths)
     fit->points++;
 }
 
-static void end_number(EqualizerFit *fit)
+void equalizer_fit_end_number(EqualizerFit *fit)
 {
     if (!fit->in_number) {
         return;
@@ -58,68 +59,6 @@ static void end_number(EqualizerFit *fit)
     }
     fit->first = value;
     fit->have_first = !fit->have_first;
-}
-
-static void begin_number(EqualizerFit *fit)
-{
-    fit->in_number = true;
-    fit->in_fraction = false;
-    fit->negative = fit->minus;
-    fit->whole = 0;
-    fit->fraction = 0;
-    fit->fraction_digits = 0;
-}
-
-static void add_digit(EqualizerFit *fit, uint32_t digit)
-{
-    if (!fit->in_number) {
-        begin_number(fit);
-    }
-    if (!fit->in_fraction) {
-        fit->whole = fit->whole * 10 + digit;
-        fit->whole = fit->whole > MAX_WHOLE ? MAX_WHOLE : fit->whole;
-    } else if (fit->fraction_digits < 2) {
-        fit->fraction += digit * (fit->fraction_digits == 0 ? 10 : 1);
-        fit->fraction_digits++;
-    }
-}
-
-static void other_character(EqualizerFit *fit, char character)
-{
-    end_number(fit);
-    fit->minus = character == '-';
-    if (character == '\n') {
-        fit->have_first = false;
-        fit->line_start = true;
-        fit->comment = false;
-    } else if (character == '#' && fit->line_start) {
-        fit->comment = true;
-    } else if (character != ' ' && character != '\t' && character != '\r') {
-        fit->line_start = false;
-    }
-}
-
-static void feed(EqualizerFit *fit, char character)
-{
-    if (fit->comment && character != '\n') {
-        return;
-    }
-    if (character >= '0' && character <= '9') {
-        add_digit(fit, (uint32_t)(character - '0'));
-        fit->line_start = false;
-        fit->minus = false;
-    } else if (character == '.' && fit->in_number && !fit->in_fraction) {
-        fit->in_fraction = true;
-    } else {
-        other_character(fit, character);
-    }
-}
-
-void equalizer_fit_text(EqualizerFit *fit, const char *text, uint32_t length)
-{
-    for (uint32_t index = 0; index < length; index++) {
-        feed(fit, text[index]);
-    }
 }
 
 static uint32_t log2_fixed(uint32_t hz)
@@ -161,7 +100,7 @@ static int8_t half_decibels(int32_t hundredths)
 
 bool equalizer_fit_finish(EqualizerFit *fit, int8_t gains[SETTINGS_EQUALIZER_BANDS])
 {
-    end_number(fit);
+    equalizer_fit_end_number(fit);
     for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
         gains[band] = half_decibels(
             interpolated(fit->below[band], fit->above[band], SETTINGS_EQUALIZER_BAND_HZ[band]));

@@ -21,6 +21,7 @@ add_library(echo_app STATIC
     card_files.c
     app_screens.c
     bluetooth_link.c
+    bluetooth_link_ui.c
     bluetooth_store.c
     board_layout.c
     browse_screen.c
@@ -65,7 +66,7 @@ if(ECHO_RELEASE)
     target_sources(echo_app PRIVATE diagnostics_menu_release.c)
 else()
     target_sources(echo_app PRIVATE diagnostics_menu.c debug_loop.c debug_runner.c
-        debug_screenshot.c)
+        debug_screenshot.c debug_steps.c modules/debug_module.c)
 endif()
 if(NOT ECHO_BUILD_DEVICE)
     target_sources(echo_app PRIVATE modules/linked_modules.c)
