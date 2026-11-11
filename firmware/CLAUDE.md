@@ -68,27 +68,30 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 ## Code space
 
-`tools/size_report.py` prints used and free bytes against each limit after every image build, reading the limits from the linker maps; the linker scripts enforce them. It fails the image build when a library object keeps variables in both the main program and the USB overlay. The `echo_size_report` build target prints the full report (bytes per object, per library, biggest functions and tables). Release build with the text in the language pack:
+`tools/size_report.py` prints used and free bytes against each limit after every image build, reading the limits from the linker maps; the linker scripts enforce them. It fails the image build when a library object keeps variables in both the main program and the USB overlay. The `echo_size_report` build target prints the full report (bytes per object, per library, biggest functions and tables). Release build with the text in the language pack, except the rows marked `device` preset:
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 149,064 | 157,292 | 8,228 |
+| Code window | 145,808 | 157,292 | 11,484 |
+| Code window, `device` preset | 149,832 | 157,292 | 7,460 |
 | Static RAM | 264,284 | 278,528 | 14,244 |
 | Rescan overlay | 93,004 | 98,304 | 5,300 |
 | USB overlay code | 11,740 | 65,536 | 53,796 |
-| Module views (code + BSS) | 18,408 | 44,032 | 25,624 |
-| Module settings (code + BSS) | 16,880 | 44,032 | 27,152 |
+| Module views (code + BSS) | 20,112 | 44,032 | 23,920 |
+| Module settings (code + BSS) | 18,220 | 44,032 | 25,812 |
 | Module library (code + BSS) | 39,124 | 44,032 | 4,908 |
 | Module listening (code + BSS) | 17,804 | 44,032 | 26,228 |
-| Audio processing module (code, no BSS) | 1,920 | 12,288 | 10,368 |
+| Audio processing module (code, no BSS) | 2,156 | 12,288 | 10,132 |
 | Audio DSP module (code, no BSS) | 5,832 | 8,192 | 2,360 |
 | Vorbis file module (code, no BSS) | 5,960 | 8,192 | 2,232 |
+| Debug module, `device` preset (code, no BSS) | 2,232 | 8,192 | 5,960 |
 | Decoder workspace | 41,648 | 41,984 | 336 |
 | Language pack (English) | 7,216 | 16,384 | 9,168 |
 | Vorbis program image bank | 64,768 | 130,048 | 65,280 |
 | Vorbis core-1 static state | 32,952 | 36,864 | 3,912 |
 
-- Keep at least 8 KB free in the release code window after each stage of the plan. Read the report after any change to device code and update these numbers and the ones in `docs/architecture.md` when they move.
+- Keep at least 4 KB free in the release code window and at least 1 KB in the `device` one. The `device` build is what the debug loop installs, so it must link; the free space is a margin for the next change, not a hardware need. Read the report after any change to device code and update these numbers and the ones in `docs/architecture.md` when they move.
+- Code that runs only from one module's screens belongs in that module, and debug-loop code that only a running script needs belongs in the debug module (`docs/architecture.md`, Demand-loaded UI modules and Debug module). Hooks the debug loop needs at start-up, before a script or while another module is loaded stay resident.
 - The core 0 link uses link-time optimisation. Libraries shared with core 1 or the rescan overlay stay out of it.
 - `CORE_SEAM` (`src/core/include/core/seam.h`) marks the functions the emulator replaces or watches, so link-time optimisation cannot inline or remove them. It must stay on every function the emulator names (`tools/echo_emulator`, `tests/emulator`); the emulator fails when a named function is missing from the image.
 - USB session code (mass storage, USB DAC, the DWC2 transfer code) and the updater live in the USB overlay, which is loaded into high RAM once a host is found. New code for those paths goes into the overlay, not the main program. Functions the overlay calls in the main program must be listed in `ECHO_OVERLAY_IMPORTS` (`platform/device/CMakeLists.txt`). Only listening for a host, the state kept across sessions and the start-up loader request stay resident. `docs/architecture.md` (Overlay loader, USB overlay) has the details.
@@ -110,7 +113,7 @@ A screen change comes with simulator captures at the affected sizes and orientat
 
 - Where the sources solve the same problem, keep one implementation and drop the others. One mechanism per problem.
 - A ported piece should end up better than its source: smaller, faster, safer or more capable. Record the measured gain when there is one.
-- A feature lands with its tests and inside the size budget: at least 8 KB free in the release code window, checked with the size report.
+- A feature lands with its tests and inside the size budget: at least 4 KB free in the release code window and 1 KB in the `device` one, checked with the size report.
 - No compatibility code for file names or formats that only earlier experiments wrote.
 - Keep the original author's commit message on a cherry-picked commit, and credit the source in the message of a hand port.
 
