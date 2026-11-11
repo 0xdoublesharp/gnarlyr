@@ -166,11 +166,18 @@ int32_t jpeg_receive_extend(JpegBits *bits, uint32_t size)
 void jpeg_skip_entropy(ImageReader *reader)
 {
     while (image_reader_available(reader, 2)) {
-        uint8_t byte = image_reader_peek(reader, 0);
-        uint8_t following = image_reader_peek(reader, 1);
-        if (byte != BYTE_FF) {
-            reader->cursor++;
-        } else if (following == 0x00 || (following >= RESTART_FIRST && following <= RESTART_LAST)) {
+        const uint8_t *bytes = reader->buffer;
+        uint32_t cursor = reader->cursor;
+        uint32_t last = reader->filled - 1;
+        while (cursor < last && bytes[cursor] != BYTE_FF) {
+            cursor++;
+        }
+        reader->cursor = cursor;
+        if (cursor == last) {
+            continue;
+        }
+        uint8_t following = bytes[cursor + 1];
+        if (following == 0x00 || (following >= RESTART_FIRST && following <= RESTART_LAST)) {
             reader->cursor += 2;
         } else if (following == BYTE_FF) {
             reader->cursor++;

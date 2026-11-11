@@ -380,7 +380,10 @@ static void clear_coefficients(JpegDecoder *decoder)
 static bool decode_whole_block(JpegDecoder *decoder, JpegComponent *component)
 {
     JpegBits *bits = &decoder->bits;
-    clear_coefficients(decoder);
+    bool keep = decoder->outputs > 1;
+    if (keep) {
+        clear_coefficients(decoder);
+    }
     int32_t size = jpeg_decode_symbol(bits, &decoder->dc[component->dc_table]);
     if (size < 0 || size > 16) {
         return false;
@@ -406,7 +409,11 @@ static bool decode_whole_block(JpegDecoder *decoder, JpegComponent *component)
         if (index >= JPEG_BLOCK) {
             return false;
         }
-        decoder->coefficients[JPEG_ZIGZAG[index++]] = jpeg_receive_extend(bits, value_size);
+        int32_t value = jpeg_receive_extend(bits, value_size);
+        if (keep) {
+            decoder->coefficients[JPEG_ZIGZAG[index]] = value;
+        }
+        index++;
     }
     return !bits->failed;
 }
