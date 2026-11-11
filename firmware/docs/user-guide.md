@@ -170,7 +170,7 @@ The computer picks each album's cover the way the player does: the picture insid
 |---|---|---|
 | Volume up / down | Next / previous item; hold to scroll faster | Volume; hold Vol+ for the next track, Vol− for the previous one (in audiobooks and podcasts: 30 s forward, 15 s back) |
 | Play | Select; a song plays the list from that song. Hold on an album for Favorites, hold on a song for Play Next / Add to Up Next / Add to Favorite Playlist, hold on a folder in Folders to play everything under it, subfolders included | Play / pause; hold to seek |
-| Menu | | Opens Up Next (also on Home, below Now Playing) |
+| Menu | | Opens Up Next (also on Home, below Now Playing); hold for Playing options: Playback speed and Lyrics |
 | Back | Back; hold to go home | Back; hold to go home |
 | Power | Screen off or on; hold 2 s to turn off | Same |
 
@@ -285,6 +285,12 @@ Settings → Transitions offers Off and Fade. With Fade, while shuffle is on, th
 
 Fade plays one song after the other. A crossfade, where the next song starts while the current one fades out, would need two decoders running at once; that doesn't fit in the player's memory.
 
+## Playback speed
+
+Playback speed plays faster or slower without changing the pitch: 0.5×, 0.75×, Normal (1×), 1.25×, 1.5×, 1.75×, 2×, 2.5× or 3×. On Now Playing, hold Menu and choose Playback speed; it is also in Settings, above Rewind on resume. The speed applies at once and is saved for the next start. While it isn't Normal, Now Playing shows it under the track. Track times, seeking, bookmarks and resume positions keep using the recording's own time. Listening history counts the time you actually listened.
+
+Recordings above 48 kHz always play at normal speed.
+
 ## Bluetooth headphones
 
 Settings → Bluetooth shows whether Bluetooth is on and which headphones are connected. Open it to turn Bluetooth on or off, connect, switch or pair headphones. The screen lists your headphones (the player remembers up to six, most recent first) with their state, a **Pair new device** row, and a hint for the selected row at the bottom.
@@ -326,7 +332,7 @@ Podcasts/
 - On Now Playing, holding Vol+ jumps 30 s forward and holding Vol− jumps 15 s back. Jumping past the end of a chapter goes to the next one. To pick another chapter, use the book's chapter list.
 - An episode or book counts as finished once it played to its last tenth (at most its last 30 s).
 - These folders still appear under Music (Albums, Artists, Folders and so on), as all tracks on the card do. Give them a genre such as "Audiobook" if you want to find them there.
-- Playback speed can't be changed yet.
+- Change the speed for spoken word on Now Playing: hold Menu, then choose Playback speed (see Playback speed). Positions, bookmarks and chapters still refer to the original recording.
 - **HE-AAC doesn't play.** An `.m4b` or `.m4a` that isn't AAC-LC or Apple Lossless (HE-AAC with SBR or PS, xHE-AAC) is refused with "Only AAC-LC and ALAC M4A play". Libation can download AAC-LC: in Libation's settings, leave "Request xHE-AAC Codec" off (Libation's FAQ says that makes it download AAC-LC); it keeps whatever codec Audible delivers and doesn't re-encode, so the files may still be HE-AAC for some titles. Libation names every non-MP3 file `.m4b`, whatever its codec.
 
 ## Updating Gnarlyr
@@ -395,4 +401,4 @@ Home → Listening shows total listening time, plays, skips, and top songs, albu
 
 Export plays saves your plays to `/.scrobbler.log` at the top of the player's drive, in the Rockbox scrobbler format that import tools read; your history stays as it is. It starts as soon as you choose it and shows how far it has got; Back cancels it. When it finishes it shows how many plays it saved. Each export replaces the previous file. With nothing to export it says so and leaves the file alone. Plays of songs no longer in the library are left out. Times are saved in UTC. A play gets its time only while the player's clock is set (see Clock and calendar); a play made while the clock was not set is saved with the time 0.
 
-Place a timed `.lrc` file beside a song, with the same filename stem. Hold Menu on Now Playing to open Lyrics; tap Menu still opens Up Next. Lyrics follow playback, and the volume buttons move through the lines. Back returns to Now Playing.
+Place a timed `.lrc` file beside a song, with the same filename stem. Hold Menu on Now Playing and choose Lyrics; tap Menu still opens Up Next. Lyrics follow playback, and the volume buttons move through the lines. Back returns to Now Playing.
