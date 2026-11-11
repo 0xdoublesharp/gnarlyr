@@ -13,6 +13,7 @@ enum {
     LEVEL = 16384,
     RATE = 48000,
     LOW_RATE = 16000,
+    LOW_OUTPUT_RATE = 32000,
     CHUNK = 1024,
     CAPTURE_FRAMES = 9 * RATE,
     TRACK_SECONDS = 4,
@@ -91,7 +92,7 @@ static void start_engine(void)
     audio_engine_init(&engine, (AudioEngineConfig){.source = source,
                                                    .ring = ring,
                                                    .ring_words = RING_WORDS,
-                                                   .resample_pull = audio_resample_pull});
+                                                   .resample_render = audio_resample_render});
     audio_engine_set_volume(&engine, FULL_VOLUME);
     consumed = 0;
     captured_frames = 0;
@@ -390,15 +391,15 @@ static void a_converted_low_rate_track_fades_on_the_output_clock(void)
     play("low", 0);
     queue("low2", FADE_MS, 0);
     capture(CAPTURE_FRAMES);
-    CHECK_EQUAL(RATE, audio_engine_rate(&engine));
-    uint32_t length = FADE_MS * RATE / 1000;
-    uint32_t boundary = TRACK_SECONDS * RATE;
-    CHECK(near(1.0, gain_at(boundary - length - RATE / 4), 0.001));
+    CHECK_EQUAL(LOW_OUTPUT_RATE, audio_engine_rate(&engine));
+    uint32_t length = FADE_MS * LOW_OUTPUT_RATE / 1000;
+    uint32_t boundary = TRACK_SECONDS * LOW_OUTPUT_RATE;
+    CHECK(near(1.0, gain_at(boundary - length - LOW_OUTPUT_RATE / 4), 0.001));
     CHECK(near(smooth(0.25), gain_at(boundary - length / 4), 0.002));
     CHECK(near(smooth(0.75), gain_at(boundary - 3 * length / 4), 0.002));
     CHECK(near(smooth(0.5), gain_at(boundary + length / 2), 0.002));
-    CHECK(near(1.0, gain_at(boundary + length + RATE / 4), 0.001));
-    CHECK(largest_gain_step(RATE, 6 * RATE) <= step_limit(length));
+    CHECK(near(1.0, gain_at(boundary + length + LOW_OUTPUT_RATE / 4), 0.001));
+    CHECK(largest_gain_step(LOW_OUTPUT_RATE, 6 * LOW_OUTPUT_RATE) <= step_limit(length));
 }
 
 int main(void)

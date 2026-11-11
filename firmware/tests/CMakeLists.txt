@@ -421,6 +421,10 @@ echo_add_unit_test(NAME test_audio_fade
     SOURCES device/test_audio_fade.c
     LIBRARIES echo_device_logic
 )
+echo_add_unit_test(NAME test_audio_engine_pcm
+    SOURCES device/test_audio_engine_pcm.c
+    LIBRARIES echo_device_logic
+)
 echo_add_unit_test(NAME test_mp3_probe
     SOURCES device/test_mp3_probe.c
     LIBRARIES echo_device_logic

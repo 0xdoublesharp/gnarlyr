@@ -300,7 +300,7 @@ static void ensure_engine(void)
                                                    .ring_words = RING_WORDS,
                                                    .equalizer = &equalizer,
                                                    .prepare_resample = board_audio_dsp_prepare,
-                                                   .resample_pull = board_audio_dsp_pull});
+                                                   .resample_render = board_audio_dsp_render});
     engine_ready = true;
 }
 
@@ -877,7 +877,7 @@ void board_audio_shut_down(void)
 
 bool board_audio_converting(void)
 {
-    return engine_ready && transferring && engine.resample.factor > 1;
+    return engine_ready && transferring && audio_engine_needs_full_clock(&engine);
 }
 
 uint8_t board_audio_volume_level(void)

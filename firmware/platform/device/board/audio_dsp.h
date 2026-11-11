@@ -4,7 +4,7 @@
 #include "device/core1_stream.h"
 
 bool board_audio_dsp_prepare(void);
-bool board_audio_dsp_pull(AudioResample *resample, int32_t *left, int32_t *right);
+uint32_t board_audio_dsp_render(AudioResample *resample, uint32_t *words, uint32_t frames);
 
 bool board_audio_ogg_prepare(void);
 

@@ -2223,7 +2223,7 @@ class EchoImageTest(unittest.TestCase):
         self.assertTrue(rig.session.module_reads("slot_2", number))
         third = rig.skip("previous")
         self.assertEqual("condition met", machine.run(
-            until=lambda: rig.audio.rate == 48000 and rig.audio.running,
+            until=lambda: rig.audio.rate == 32000 and rig.audio.running,
             until_ms=machine.milliseconds() + 2000))
         self.assertIsNotNone(rig.first_audio_after(third))
         self.assertTrue(vorbis.loaded(machine))
@@ -2473,8 +2473,6 @@ class EchoImageTest(unittest.TestCase):
     def test_converted_files_keep_the_waveform_and_dma_continuous_at_the_queue_boundary(self):
         from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.playback import Rig
-        from echo_emulator.audio import PRODUCED_OFFSET, RING_BYTES
-        from unicorn import UC_HOOK_MEM_WRITE
         volume = Fat32Volume()
         pcm = struct.pack("<8h", 0, 2828, 4000, 2828, 0, -2828, -4000, -2828) * 250
         wav = struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ",
@@ -2484,34 +2482,36 @@ class EchoImageTest(unittest.TestCase):
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
         machine = rig.machine
-        samples, starts = {}, []
-        total, boundary = 24000, 12000
-        ring = rig.audio.ring
-
-        def capture(uc, access, address, size, value, user):
-            if len(samples) == total and samples[total - 1][1] is not None:
-                return
-            produced = struct.unpack("<I", machine.read_memory(
-                rig.audio.engine + PRODUCED_OFFSET, 4))[0]
-            at = ring + (produced % (RING_BYTES // 8)) * 8
-            if produced >= total or size not in (4, 8) or address not in (at, at + 4):
-                return
-            pair = samples.setdefault(produced, [None, None])
-            pair[(address - at) // 4] = value & 0xFFFFFFFF
-            if size == 8:
-                pair[1] = (value >> 32) & 0xFFFFFFFF
-
-        machine.uc.hook_add(UC_HOOK_MEM_WRITE, capture, None, ring, ring + RING_BYTES - 1)
+        starts = []
+        factor = 4
+        boundary = 2000 * factor
+        total = 2 * boundary
+        samples = self.capture_output(rig, total)
         machine.hook_symbol("dmac_start_loop", lambda: starts.append(machine.milliseconds()))
         rig.open_songs()
         rig.play_song(1)
         rig.run_for(650)
         self.assertEqual(total, len(samples))
-        self.assertTrue(all(None not in pair for pair in samples.values()))
         self.assertEqual(1, len(starts), starts)
-        for frame in range(boundary - 144, boundary + 144):
-            self.assertEqual(samples[480 + frame % 48], samples[frame], frame)
+        period = 8 * factor
+        for frame in range(boundary - 3 * period, boundary + 3 * period):
+            self.assertEqual(samples[10 * period + frame % period], samples[frame], frame)
         self.assert_healthy(rig.session)
+
+    def capture_output(self, rig, total):
+        from echo_emulator.audio import PRODUCED_OFFSET, RING_BYTES
+        machine, ring, frames = rig.machine, rig.audio.ring, RING_BYTES // 8
+        samples = []
+
+        def capture():
+            produced = struct.unpack("<I", machine.read_memory(
+                rig.audio.engine + PRODUCED_OFFSET, 4))[0]
+            while len(samples) < min(produced, total):
+                slot = len(samples) % frames
+                samples.append(struct.unpack("<II", machine.read_memory(ring + slot * 8, 8)))
+
+        machine.hook_symbol("audio_engine_pump", capture)
+        return samples
 
     def converted_reference(self, channels, factor, count):
         import audio_resample_table
@@ -2530,10 +2530,8 @@ class EchoImageTest(unittest.TestCase):
         return frames
 
     def test_converted_stereo_matches_the_filter_and_leaves_core_0_mostly_idle(self):
-        from echo_emulator.audio import PRODUCED_OFFSET, RING_BYTES
         from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.playback import Rig
-        from unicorn import UC_HOOK_MEM_WRITE
         rate, total = 16000, 14400
         left = [index * 7919 % 20000 - 10000 for index in range(rate * 3)]
         right = [index * 104729 % 16000 - 8000 for index in range(rate * 3)]
@@ -2544,36 +2542,24 @@ class EchoImageTest(unittest.TestCase):
         volume.add_file("Speech.wav", wav)
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
-        machine, ring, samples = rig.machine, rig.audio.ring, {}
-
-        def capture(uc, access, address, size, value, user):
-            produced = struct.unpack("<I", machine.read_memory(
-                rig.audio.engine + PRODUCED_OFFSET, 4))[0]
-            at = ring + (produced % (RING_BYTES // 8)) * 8
-            if produced >= total or size not in (4, 8) or address not in (at, at + 4):
-                return
-            pair = samples.setdefault(produced, [None, None])
-            pair[(address - at) // 4] = value & 0xFFFFFFFF
-            if size == 8:
-                pair[1] = (value >> 32) & 0xFFFFFFFF
+        machine = rig.machine
+        samples = self.capture_output(rig, total)
 
         def busy_us():
             return struct.unpack("<12I", machine.read_memory(machine.symbols["stats"], 48))[10]
 
-        machine.uc.hook_add(UC_HOOK_MEM_WRITE, capture, None, ring, ring + RING_BYTES - 1)
         rig.open_songs()
         started = rig.play_song(1)
-        machine.run(until=lambda: None not in samples.get(total - 1, [None]),
-                    until_ms=machine.milliseconds() + 3000)
+        machine.run(until=lambda: len(samples) >= total, until_ms=machine.milliseconds() + 3000)
         busy, since = busy_us(), machine.microseconds()
         rig.run_for(1000)
         share = (busy_us() - busy) / (machine.microseconds() - since)
-        self.assertEqual(48000, rig.audio.rate)
+        self.assertEqual(32000, rig.audio.rate)
         self.assertEqual([], rig.audio.underruns(started))
         got = [tuple((word - (word >> 31 << 32)) >> 8 for word in samples[frame])
                for frame in range(total)]
         wanted = self.converted_reference(([value << 8 for value in left],
-                                           [value << 8 for value in right]), 3, total)
+                                           [value << 8 for value in right]), 2, total)
         self.assertEqual(wanted, got)
         self.assertLess(share, 0.2)
         self.assert_healthy(rig.session)
@@ -2649,6 +2635,42 @@ class EchoImageTest(unittest.TestCase):
         animated, still = self.measure_motion_load(rig, "export motion, 22.05 kHz WAV")
         self.assertLess(animated - still, MOTION_LOAD_LIMIT_PERCENT)
 
+    def test_mono_speech_at_32_khz_lets_core_0_coast_without_underruns(self):
+        rig = self.speech_rig()
+        machine = rig.machine
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.rate == 32000 and machine.coast_log[-1][1] == 2,
+            until_ms=machine.milliseconds() + 5000))
+        rig.run_for(1500)
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assert_healthy(rig.session)
+
+    def test_stereo_speech_conversion_keeps_core_0_at_full_speed(self):
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        rate = 16000
+        pcm = b"".join(struct.pack("<hh", index % 200 - 100, 100 - index % 300)
+                       for index in range(rate * 4))
+        wav = struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ",
+                          16, 1, 2, rate, rate * 4, 4, 16, b"data", len(pcm)) + pcm
+        volume = Fat32Volume()
+        volume.add_file("Stereo.wav", wav)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        machine = rig.machine
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(500)
+        self.assertEqual(32000, rig.audio.rate)
+        playing_since = machine.milliseconds()
+        rig.run_for(2000)
+        self.assertEqual([], [entry for entry in machine.coast_log
+                              if entry[0] >= playing_since and entry[1] == 2])
+        self.assertEqual(200_000_000, machine.core_hz)
+        self.assert_healthy(rig.session)
+
     def test_speech_plays_through_the_independent_audio_module_while_a_menu_module_changes(self):
         rig = self.speech_rig()
         number, dsp = self.module(rig.machine, "dsp")
@@ -2656,7 +2678,7 @@ class EchoImageTest(unittest.TestCase):
         rig.open_songs()
         started = rig.play_song(1)
         self.assertIsNotNone(rig.first_audio_after(started))
-        self.assertEqual(48000, rig.audio.rate)
+        self.assertEqual(32000, rig.audio.rate)
         self.assertTrue(dsp.loaded(rig.machine))
         self.assertTrue(rig.session.module_reads("slot_1", number))
         rig.press("back", hold=1300)

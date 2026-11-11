@@ -66,7 +66,7 @@ typedef struct AudioEngineConfig {
     uint32_t ring_words;
     Equalizer *equalizer;
     bool (*prepare_resample)(void);
-    bool (*resample_pull)(AudioResample *resample, int32_t *left, int32_t *right);
+    uint32_t (*resample_render)(AudioResample *resample, uint32_t *words, uint32_t frames);
 } AudioEngineConfig;
 
 typedef enum AudioRefusalProblem {
@@ -172,6 +172,7 @@ void audio_engine_pump(AudioEngine *engine, uint32_t consumed);
 AudioEngineStats audio_engine_stats(const AudioEngine *engine);
 bool audio_engine_wants_rate(const AudioEngine *engine, uint32_t *rate);
 void audio_engine_restart(AudioEngine *engine);
+bool audio_engine_needs_full_clock(const AudioEngine *engine);
 uint32_t audio_engine_rate(const AudioEngine *engine);
 uint32_t audio_engine_buffered(const AudioEngine *engine, uint32_t consumed);
 AudioEngineStatus audio_engine_status(const AudioEngine *engine);
