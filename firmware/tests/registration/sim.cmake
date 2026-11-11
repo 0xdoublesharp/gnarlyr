@@ -55,6 +55,14 @@ if(ECHO_BUILD_SIM)
                 --work ${CMAKE_CURRENT_BINARY_DIR}/cover_build
         )
         set_tests_properties(cover_build_matches_reference PROPERTIES TIMEOUT 600)
+        add_test(NAME cover_corpus_player_matches_echo_sync
+            COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
+                ${PROJECT_SOURCE_DIR}/tools/check_cover_corpus.py
+                --tool $<TARGET_FILE:cover_build_tool>
+                --fixtures ${CMAKE_CURRENT_SOURCE_DIR}/fixtures
+                --work ${CMAKE_CURRENT_BINARY_DIR}/cover_corpus
+        )
+        set_tests_properties(cover_corpus_player_matches_echo_sync PROPERTIES TIMEOUT 900)
     endif()
     add_test(NAME sim_headless_smoke
         COMMAND echo_sim --headless --frames 30 --screenshot ${CMAKE_BINARY_DIR}/sim_smoke.bmp

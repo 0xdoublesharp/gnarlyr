@@ -587,7 +587,7 @@ static CoverImageResult read_markers(JpegDecoder *decoder)
     for (;;) {
         uint32_t marker = next_marker(decoder->reader);
         if (marker == 0 || marker == MARKER_EOI) {
-            return decoded_any ? COVER_IMAGE_OK : COVER_IMAGE_CORRUPT;
+            return decoded_any && marker == MARKER_EOI ? COVER_IMAGE_OK : COVER_IMAGE_CORRUPT;
         }
         if (standalone(marker) || marker == MARKER_SOI) {
             continue;

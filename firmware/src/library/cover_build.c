@@ -522,14 +522,6 @@ static bool open_folder_art(CoverState *state, const CoverJob *job, ArtFile *art
     return false;
 }
 
-static bool open_art(CoverState *state, const CoverJob *job, ArtFile *art)
-{
-    if (state->album.track_count == 0) {
-        return false;
-    }
-    return open_embedded(state, job, art) || open_folder_art(state, job, art);
-}
-
 static bool decode_art(CoverState *state, const ArtFile *art)
 {
     ImageSource image = {art->source.read, art->source.context, art->offset, art->length};
@@ -571,8 +563,14 @@ static uint32_t append_entry(CoverState *state, uint32_t slot)
     return position;
 }
 
-static ScanResult place_cover(CoverState *state, const CoverJob *job, const ArtFile *art,
-                              CoverStats *stats)
+typedef enum Placement {
+    PLACED,
+    PLACE_FAILED,
+    PLACE_UNREADABLE
+} Placement;
+
+static Placement place_cover(CoverState *state, const CoverJob *job, const ArtFile *art,
+                             CoverStats *stats)
 {
     uint32_t position = 0;
     uint32_t slot = 0;
@@ -581,32 +579,44 @@ static ScanResult place_cover(CoverState *state, const CoverJob *job, const ArtF
     if (stored != 0 && stored == art->stamp) {
         set_bit(state->claimed, position);
         stats->reused++;
-        return SCAN_OK;
+        return PLACED;
     }
-    if (!record_slot(state, known, position, &slot) || !decode_art(state, art)) {
-        stats->missing++;
-        return SCAN_OK;
+    if (!record_slot(state, known, position, &slot)) {
+        return PLACE_FAILED;
+    }
+    if (!decode_art(state, art)) {
+        return PLACE_UNREADABLE;
     }
     if (!write_record(state, job, state->layout.records_start + slot * COVER_BUILD_RECORD_BYTES)) {
-        stats->missing++;
-        return SCAN_OK;
+        return PLACE_FAILED;
     }
     position = known ? position : append_entry(state, slot);
     state->index[position] = (CoverEntry){state->key, art->stamp};
     set_bit(state->claimed, position);
-    return SCAN_OK;
+    return PLACED;
+}
+
+static Placement place_opened(CoverState *state, const CoverJob *job, const ArtFile *art,
+                              CoverStats *stats)
+{
+    Placement placement = place_cover(state, job, art, stats);
+    job->files.close_file(job->files.context);
+    return placement;
 }
 
 static ScanResult cover_album(CoverState *state, const CoverJob *job, CoverStats *stats)
 {
     ArtFile art;
-    if (!open_art(state, job, &art)) {
-        stats->missing++;
-        return SCAN_OK;
+    Placement placement = PLACE_UNREADABLE;
+    if (state->album.track_count > 0 && open_embedded(state, job, &art)) {
+        placement = place_opened(state, job, &art, stats);
     }
-    ScanResult result = place_cover(state, job, &art, stats);
-    job->files.close_file(job->files.context);
-    return result;
+    if (placement == PLACE_UNREADABLE && state->album.track_count > 0 &&
+        open_folder_art(state, job, &art)) {
+        placement = place_opened(state, job, &art, stats);
+    }
+    stats->missing += placement == PLACED ? 0u : 1u;
+    return SCAN_OK;
 }
 
 static bool already_placed(const CoverState *state, uint32_t key)

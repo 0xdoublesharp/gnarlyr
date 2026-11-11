@@ -1,4 +1,5 @@
 import argparse
+import base64
 import io
 import posixpath
 import struct
@@ -34,6 +35,12 @@ EMBEDDED_ART = 1
 FILE_ART = 2
 WORD_MASK = 0xFFFFFFFF
 UNKNOWN_STAMP = 0
+JPEG_START = b"\xff\xd8"
+PNG_SIGNATURE = b"\x89PNG"
+JPEG_FRAMES = (0xC0, 0xC1, 0xC2)
+JPEG_COMPONENTS = (1, 3, 4)
+JPEG_PRECISION = 8
+OGG_PICTURE_KEY = "metadata_block_picture"
 
 
 @dataclass
@@ -50,6 +57,7 @@ class Art:
     file: Path
     relative: str
     picture_length: int = None
+    image: object = field(default=None, compare=False)
 
 
 @dataclass
@@ -141,10 +149,26 @@ def asf_pictures(tags):
     return pictures
 
 
+def ogg_pictures(tags):
+    from mutagen.flac import Picture
+    pictures = []
+    for text in tags.get(OGG_PICTURE_KEY, []):
+        try:
+            picture = Picture(base64.b64decode(text, validate=True))
+        except Exception:
+            continue
+        pictures.append((picture.type, picture.data))
+    return pictures
+
+
 def tag_pictures(tags):
     from mutagen.apev2 import APEv2
     from mutagen.asf import ASFTags
     from mutagen.mp4 import MP4Tags
+    from mutagen.oggopus import OggOpusVComment
+    from mutagen.oggvorbis import OggVCommentDict
+    if isinstance(tags, (OggVCommentDict, OggOpusVComment)):
+        return ogg_pictures(tags)
     if isinstance(tags, MP4Tags):
         return mp4_pictures(tags)
     if isinstance(tags, APEv2):
@@ -205,14 +229,50 @@ def folder_art(root, relative_paths):
     return None
 
 
+def jpeg_frame_supported(data):
+    cursor = 2
+    while cursor + 4 <= len(data) and data[cursor] == 0xFF:
+        marker = data[cursor + 1]
+        if marker == 0xFF:
+            cursor += 1
+            continue
+        length = struct.unpack_from(">H", data, cursor + 2)[0]
+        if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+            header = data[cursor + 4:cursor + 10]
+            return (marker in JPEG_FRAMES and len(header) == 6 and header[0] == JPEG_PRECISION
+                    and header[5] in JPEG_COMPONENTS)
+        if marker == 0xDA or length < 2:
+            return False
+        cursor += 2 + length
+    return False
+
+
+def player_decodable(data):
+    if data.startswith(PNG_SIGNATURE):
+        return True
+    return data.startswith(JPEG_START) and jpeg_frame_supported(data)
+
+
+def usable(art):
+    if art is None or not player_decodable(art.data):
+        return None
+    try:
+        image = load_image(art.data)
+    except Exception:
+        return None
+    return Art(art.data, art.file, art.relative, art.picture_length, image)
+
+
+def embedded_art(root, first):
+    picture = chosen_picture(embedded_pictures(root / first))
+    return None if picture is None else Art(picture, root / first, first, len(picture))
+
+
 def locate_art(root, relative_paths):
     if not relative_paths:
         return None
-    first = relative_paths[0]
-    picture = chosen_picture(embedded_pictures(root / first))
-    if picture is not None:
-        return Art(picture, root / first, first, len(picture))
-    return folder_art(root, relative_paths)
+    art = usable(embedded_art(root, relative_paths[0]))
+    return art if art is not None else usable(folder_art(root, relative_paths))
 
 
 def find_art(root, relative_paths):
@@ -340,10 +400,10 @@ def encode_stamped(records, stamps, capacity):
 
 
 def load_image(data):
-    from PIL import Image
+    from PIL import Image, ImageOps
     image = Image.open(io.BytesIO(data))
     image.load()
-    return image
+    return ImageOps.exif_transpose(image) if image.format == "JPEG" else image
 
 
 def unchanged(image):
@@ -352,7 +412,7 @@ def unchanged(image):
 
 def converted(art, convert):
     try:
-        return None if art is None else convert(load_image(art.data))
+        return None if art is None else convert(art.image)
     except Exception:
         return None
 
