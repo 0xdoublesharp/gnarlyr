@@ -409,6 +409,7 @@ static void coded_frame_numbers_report_the_correct_sample_and_reject_bad_encodin
         {{0x80}, 1, 0, false},
         {{0xfe}, 1, 0, false},
         {{0xc2, 0x41}, 2, 0, false},
+        {{0xc0, 0x80}, 2, 0, false},
     };
     for (uint32_t index = 0; index < sizeof cases / sizeof cases[0]; index++) {
         uint8_t bytes[32] = {0xff, 0xf9, 0x19, 0x18};
@@ -992,6 +993,35 @@ static void invalid_audio_streaminfo_fields_are_rejected(void)
     free(flac.bytes);
 }
 
+static void streaminfo_frame_size_bounds_must_be_consistent(void)
+{
+    Buffer flac = load("fixed_16_mono", "flac");
+    CHECK(flac.size >= 42);
+    flac.bytes[12] = 0;
+    flac.bytes[13] = 0;
+    flac.bytes[14] = 2;
+    flac.bytes[15] = 0;
+    flac.bytes[16] = 0;
+    flac.bytes[17] = 1;
+    CHECK_EQUAL(FLAC_ERROR, flac_open(&decoder, input_of(&flac)));
+    free(flac.bytes);
+}
+
+static void frames_cannot_run_past_the_declared_sample_count(void)
+{
+    Buffer flac = load("fixed_16_mono", "flac");
+    CHECK(flac.size >= 42);
+    flac.bytes[21] &= 0xf0;
+    flac.bytes[22] = 0;
+    flac.bytes[23] = 0;
+    flac.bytes[24] = 0;
+    flac.bytes[25] = 1;
+    CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input_of(&flac)));
+    CHECK_EQUAL(FLAC_ERROR, flac_decode_frame(&decoder));
+    CHECK_EQUAL(0u, decoder.block_samples);
+    free(flac.bytes);
+}
+
 static void a_file_that_is_not_flac_is_refused(void)
 {
     Buffer pcm = load("fixed_16_mono", "pcm");
@@ -1030,6 +1060,29 @@ static void an_id3_prefix_with_footer_preserves_decoded_audio(void)
     CHECK_EQUAL(block_samples, decoder.block_samples);
     CHECK_EQUAL(first_sample, flac_channel(&decoder, 0)[0]);
     free(bytes);
+    free(flac.bytes);
+}
+
+static void malformed_id3_prefixes_are_rejected(void)
+{
+    Buffer flac = load("fixed_16_mono", "flac");
+    CHECK(flac.size > 0);
+    for (uint32_t variant = 0; variant < 2; variant++) {
+        uint32_t prefix = variant == 0 ? 10 : 20;
+        uint8_t *bytes = calloc(flac.size + prefix, 1);
+        CHECK(bytes != NULL);
+        if (bytes == NULL) {
+            continue;
+        }
+        memcpy(bytes, "ID3", 3);
+        bytes[3] = variant == 0 ? 4 : 3;
+        bytes[5] = variant == 0 ? 0 : 0x10;
+        bytes[6] = variant == 0 ? 0x80 : 0;
+        memcpy(bytes + prefix, flac.bytes, flac.size);
+        Buffer tagged = {bytes, flac.size + prefix};
+        CHECK_EQUAL(FLAC_ERROR, flac_open(&decoder, input_of(&tagged)));
+        free(bytes);
+    }
     free(flac.bytes);
 }
 
@@ -1341,8 +1394,11 @@ int main(void)
         TEST_CASE(metadata_offsets_never_wrap_to_the_start_of_a_large_file),
         TEST_CASE(streaminfo_must_be_first_and_unique),
         TEST_CASE(invalid_audio_streaminfo_fields_are_rejected),
+        TEST_CASE(streaminfo_frame_size_bounds_must_be_consistent),
+        TEST_CASE(frames_cannot_run_past_the_declared_sample_count),
         TEST_CASE(a_file_that_is_not_flac_is_refused),
         TEST_CASE(an_id3_prefix_with_footer_preserves_decoded_audio),
+        TEST_CASE(malformed_id3_prefixes_are_rejected),
         TEST_CASE(a_truncated_file_ends_with_an_error),
         TEST_CASE(a_corrupted_frame_is_caught),
         TEST_CASE(a_storage_failure_never_publishes_a_partial_frame_and_can_recover),
