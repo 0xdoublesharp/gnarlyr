@@ -183,6 +183,8 @@ The player includes English. Add other languages as external packs without reins
 
 ## Text size
 
+Accent Color, Brightness, Text size, Orientation, Gain, Output, ReplayGain and Prevent clipping preview the highlighted value as you scroll. Press ▶ to save it. Back, leaving the picker or switching off restores the saved value. Accent Color changes the Graphite theme's highlights and decorative details.
+
 Settings → Text size picks Small, Medium (the default) or Large for list rows, Now Playing, Cover Flow, toasts and messages. Small shows eight rows per screen, Medium six and Large five (in portrait: 13, 13 and 11). The title bar, the battery and the small details on Now Playing keep their size. The change shows at once; no restart is needed.
 
 ## Equalizer
