@@ -5,6 +5,7 @@
 
 #include "hal/storage.h"
 #include "hal/system.h"
+#include "scan_guard.h"
 
 const char MUSIC_CHECK_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/scan.bin";
 
@@ -28,15 +29,20 @@ static uint32_t get_word(const uint8_t *bytes)
            (uint32_t)bytes[3] << 24;
 }
 
-static bool read_bytes(uint8_t *bytes)
+static bool read_at(uint32_t offset, uint8_t *bytes, uint32_t length)
 {
     HalFile file;
     if (!hal_file_open(&file, MUSIC_CHECK_PATH)) {
         return false;
     }
-    bool read = file.size >= RECORD_BYTES && hal_file_read(file, 0, bytes, RECORD_BYTES);
+    bool read = file.size >= offset + length && hal_file_read(file, offset, bytes, length);
     hal_file_close(&file);
     return read;
+}
+
+static bool read_bytes(uint8_t *bytes)
+{
+    return read_at(0, bytes, RECORD_BYTES);
 }
 
 static bool decode_print(const uint8_t *bytes, MusicFingerprint *print)
@@ -120,4 +126,12 @@ void music_check_note_firmware(void)
         !version_matches(bytes + PRINT_BYTES)) {
         write_record(stored);
     }
+}
+
+uint32_t music_check_interrupted_scans(void)
+{
+    uint8_t bytes[SCAN_GUARD_ATTEMPTS_BYTE + 1];
+    bool running = read_at(SCAN_GUARD_OFFSET, bytes, sizeof bytes) &&
+                   get_word(bytes) == SCAN_GUARD_MAGIC && bytes[SCAN_GUARD_RUNNING_BYTE] != 0;
+    return running ? bytes[SCAN_GUARD_ATTEMPTS_BYTE] : 0;
 }

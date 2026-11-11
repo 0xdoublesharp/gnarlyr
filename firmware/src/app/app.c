@@ -42,6 +42,7 @@
 #include "modules/modules.h"
 #include "music_check.h"
 #include "player.h"
+#include "scan_guard.h"
 #include "screens/charge_screen.h"
 #include "settings/rocker.h"
 #include "settings_store.h"
@@ -120,6 +121,7 @@ typedef struct AppState {
     uint32_t battery_check_ms;
     bool usb_power;
     bool rescan_requested;
+    uint8_t rescan_stops;
     bool language_requested;
     bool music_check_requested;
     bool storage_formatted;
@@ -1346,16 +1348,27 @@ static void change_language(uint32_t now_ms)
     }
 }
 
+static void request_start_scan(bool library_created)
+{
+    uint32_t stopped = music_check_interrupted_scans();
+    bool resume = stopped > 0 && stopped <= SCAN_GUARD_RETRIES;
+    if (library_created || resume) {
+        app.rescan_requested = true;
+        app.rescan_stops = resume ? (uint8_t)stopped : 0;
+    } else if (stopped == 0 && music_check_firmware_is_new()) {
+        app.music_check_requested = true;
+    }
+}
+
 static void report_card_files(CardFilesReport files, uint32_t now_ms)
 {
     if (files.card_full) {
         toast_show(&app.toast, i18n_text(STR_STORAGE_FULL), now_ms);
         debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_FULL);
     }
-    if (files.library_created) {
-        app.rescan_requested = true;
-    } else if (music_check_firmware_is_new()) {
-        app.music_check_requested = true;
+    uint8_t update;
+    if (!hal_internal_file_read("/" FIRMWARE_UPDATE_FILE, &update, sizeof update)) {
+        request_start_scan(files.library_created);
     }
 }
 
@@ -1471,7 +1484,8 @@ static void run_rescan(void)
     flush_listening();
     show_working_notice(STR_SCANNING, i18n_text(STR_SCAN_STARTING), WIRE_SHAPE_DISC);
     RescanProgress progress = {show_rescan_progress, show_cover_progress};
-    RescanOutcome outcome = library_rescan_run(progress);
+    RescanOutcome outcome = library_rescan_run(progress, app.rescan_stops);
+    app.rescan_stops = 0;
     static char message[TOAST_TEXT_CAPACITY];
     const char *text = library_rescan_message(outcome, message, sizeof message);
     if (outcome.result == SCAN_OK) {
@@ -1836,6 +1850,7 @@ CORE_SEAM void app_step(void)
             music_check_note_firmware();
         }
         app.rescan_requested |= changed;
+        app.rescan_stops = changed ? 0 : app.rescan_stops;
     }
     if (app.rescan_requested) {
         app.rescan_requested = false;

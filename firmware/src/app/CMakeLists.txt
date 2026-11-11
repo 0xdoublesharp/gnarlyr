@@ -84,7 +84,7 @@ if(ECHO_BUILD_DEVICE)
     target_sources(echo_app PRIVATE extension_calls.c)
     target_compile_definitions(echo_app PRIVATE ECHO_USB_OVERLAY_RENDERER)
 else()
-    target_sources(echo_app PRIVATE modules/linked_modules.c library_rescan_job.c
+    target_sources(echo_app PRIVATE modules/linked_modules.c library_rescan_job.c scan_guard.c
         screens/usb_screen.c)
 endif()
 target_include_directories(echo_app PUBLIC include PRIVATE .)

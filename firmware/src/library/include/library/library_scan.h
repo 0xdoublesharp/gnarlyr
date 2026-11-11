@@ -66,3 +66,5 @@ typedef struct ScanJob {
 } ScanJob;
 
 ScanResult library_scan(const ScanJob *job, ScanStats *stats);
+bool scan_is_cue_name(const char *name);
+bool scan_is_chaptered_name(const char *name);

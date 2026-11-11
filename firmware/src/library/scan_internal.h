@@ -57,8 +57,6 @@ void scan_truncate_path(ScanState *state, uint32_t length);
 ScanResult scan_builder_result(BuilderResult result);
 void scan_report(const ScanJob *job, const ScanStats *stats);
 bool scan_has_suffix(const char *name, const char *suffix);
-bool scan_is_cue_name(const char *name);
-bool scan_is_chaptered_name(const char *name);
 ScanResult scan_mark_cue_targets(ScanState *state, const ScanFileSystem *files, const Level *level);
 ScanResult scan_add_chapters(ScanState *state, const ScanJob *job, ScanStats *stats);
 ScanResult scan_add_cue(ScanState *state, const ScanJob *job, ScanStats *stats, uint32_t offset);

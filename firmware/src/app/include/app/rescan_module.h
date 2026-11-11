@@ -22,7 +22,8 @@ typedef struct RescanProgress {
 
 typedef struct RescanModuleEntry {
     uint32_t magic;
-    RescanOutcome (*run)(uint32_t capacity, HalFile scratch, RescanProgress progress);
+    RescanOutcome (*run)(uint32_t capacity, HalFile scratch, RescanProgress progress,
+                         uint32_t stops);
 } RescanModuleEntry;
 
 extern const RescanModuleEntry RESCAN_MODULE_ENTRY;
