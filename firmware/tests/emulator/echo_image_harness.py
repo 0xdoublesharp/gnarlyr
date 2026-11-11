@@ -106,8 +106,8 @@ KEY_BACK = 500
 KEY_HOLD_MS = 150
 USB_ANSWER_FILE_TRANSFER = 1
 KEY_MENU = 350
-DAC_PROMPT_KEYS = (KEY_NEXT, KEY_NEXT, KEY_PLAY)
-DAC_MENU_FILE_TRANSFER_ROW = 4
+DAC_PROMPT_KEYS = (KEY_NEXT, KEY_NEXT, KEY_NEXT, KEY_PLAY)
+DAC_MENU_COMPUTER_ROW = 4
 LEAVE_HOLD_MS = 1200
 LEAVE_FORCE_HOLD_MS = 4500
 LEAVE_GRACE_MS = 2000
@@ -123,7 +123,7 @@ USB_PROMPT_MS = 15000
 PROMPT_NOTICED_MS = 1000
 STARTUP_SETTLED_MS = 5000
 CHARGE_LIT_MS = 5000
-FILE_TRANSFER_KEYS = (KEY_NEXT, KEY_PLAY)
+CONNECT_KEYS = (KEY_PLAY,)
 KEY_SETTLE_MS = 350
 BACKLIGHT_PIN = 4
 SOAK_MINUTE_MS = 60000
@@ -523,8 +523,8 @@ class EchoImageHarness(unittest.TestCase):
             self.assertNotIn(name, machine.reached)
         self.assertEqual(self.usb_supply_pins(machine), (1, 1))
 
-    def choose_file_transfer(self, machine):
-        for key in FILE_TRANSFER_KEYS:
+    def choose_connect(self, machine):
+        for key in CONNECT_KEYS:
             self.press(machine, key)
 
     def charging_on_a_charger(self):

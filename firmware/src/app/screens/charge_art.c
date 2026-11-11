@@ -282,27 +282,33 @@ static void draw_charge(const ChargeArt *art, const BatteryShape *shape)
     draw_glow(art, rest, GLOW_STEPS);
 }
 
-static Rect bolt_area(const BatteryShape *shape)
+static IconId sign_of(HalBattery battery)
+{
+    return battery.usb_power && battery.charge_disabled ? ICON_PLUG : ICON_BOLT;
+}
+
+static Rect bolt_area(const BatteryShape *shape, IconId sign)
 {
     int height = shape->inside.height * BOLT_QUARTERS / QUARTERS;
-    int width = icon_width(ICON_BOLT, height);
+    int width = icon_width(sign, height);
     return (Rect){shape->inside.x + (shape->inside.width - width) / 2,
                   shape->inside.y + (shape->inside.height - height) / 2, width, height};
 }
 
-static void draw_bolt_ink(Canvas *canvas, Rect area, Color color)
+static void draw_bolt_ink(Canvas *canvas, IconId sign, Rect area, Color color)
 {
-    icon_draw(canvas, ICON_BOLT, area, (IconInk){color, color});
+    icon_draw(canvas, sign, area, (IconInk){color, color});
 }
 
 static void draw_bolt(const ChargeArt *art, const BatteryShape *shape)
 {
     const ThemeColors *colors = &art->theme->colors;
-    Rect glyph = bolt_area(shape);
+    IconId sign = sign_of(art->battery);
+    Rect glyph = bolt_area(shape, sign);
     Canvas inside = canvas_clipped(art->canvas, shape->inside);
-    if (!flowing(art->battery)) {
+    if (!flowing(art->battery) && sign == ICON_BOLT) {
         if (full(art->battery)) {
-            draw_bolt_ink(&inside, glyph, colors->background);
+            draw_bolt_ink(&inside, sign, glyph, colors->background);
         }
         return;
     }
@@ -310,13 +316,13 @@ static void draw_bolt(const ChargeArt *art, const BatteryShape *shape)
     for (int dy = -halo; dy <= halo; dy += halo) {
         for (int dx = -halo; dx <= halo; dx += halo) {
             Rect shifted = {glyph.x + dx, glyph.y + dy, glyph.width, glyph.height};
-            draw_bolt_ink(&inside, shifted, colors->background);
+            draw_bolt_ink(&inside, sign, shifted, colors->background);
         }
     }
     Color ink = art->battery.known
                     ? colors->text
                     : color_between(colors->text_tertiary, colors->text, art->glow, GLOW_STEPS / 2);
-    draw_bolt_ink(&inside, glyph, ink);
+    draw_bolt_ink(&inside, sign, glyph, ink);
 }
 
 static void draw_battery(const ChargeArt *art)

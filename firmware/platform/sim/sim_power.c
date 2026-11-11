@@ -6,6 +6,7 @@
 typedef struct SimPower {
     HalBattery battery;
     bool off_requested;
+    uint8_t care;
 } SimPower;
 
 enum {
@@ -53,8 +54,19 @@ bool hal_power_take_usb_start(void)
     return false;
 }
 
+uint8_t hal_power_battery_care(void)
+{
+    return power.care;
+}
+
 void hal_power_set_battery_care(uint8_t mode)
 {
+    hal_power_use_battery_care(mode);
+}
+
+void hal_power_use_battery_care(uint8_t mode)
+{
+    power.care = mode;
     HalBattery *battery = &power.battery;
     bool charging =
         battery_care_charge(true, (BatteryCareReading){.mode = mode,

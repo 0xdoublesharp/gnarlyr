@@ -255,6 +255,42 @@ static void a_charging_bolt_is_light_with_a_dark_halo_and_a_charged_one_plain_da
     CHECK(!look.bolt_halo);
 }
 
+static void usb_power_without_charging_shows_a_light_plug_instead_of_the_bolt(void)
+{
+    Theme theme = TEST_THEME;
+    StatusBarState state = battery_at(HALF_BATTERY, true);
+    state.charging_off = true;
+    StatusBatteryLook look = status_bar_battery_look(&theme, state);
+    CHECK_EQUAL(ICON_PLUG, look.sign);
+    CHECK_EQUAL(theme.colors.header_text, look.bolt);
+    CHECK(look.bolt_halo);
+    state.charging_off = false;
+    state.charging = true;
+    CHECK_EQUAL(ICON_BOLT, status_bar_battery_look(&theme, state).sign);
+}
+
+static void the_plug_and_the_bolt_draw_differently(void)
+{
+    Theme theme = panel_theme();
+    StatusBarState plug = battery_at(HALF_BATTERY, true);
+    plug.charging_off = true;
+    StatusBarState bolt = battery_at(HALF_BATTERY, true);
+    bolt.charging = true;
+    Rect inner = inner_of(status_bar_battery_body(&theme));
+    Canvas first = draw_panel(&theme, plug);
+    int differences = 0;
+    Color plugged[PANEL_WIDTH];
+    for (int x = 0; x < inner.width && x < PANEL_WIDTH; x++) {
+        plugged[x] = canvas_pixel_at(&first, inner.x + x, inner.y + inner.height / 4);
+    }
+    Canvas second = draw_panel(&theme, bolt);
+    for (int x = 0; x < inner.width && x < PANEL_WIDTH; x++) {
+        differences +=
+            canvas_pixel_at(&second, inner.x + x, inner.y + inner.height / 4) != plugged[x];
+    }
+    CHECK(differences > 0);
+}
+
 static void a_charging_bolt_reads_over_both_the_fill_and_the_empty_part(void)
 {
     Theme theme = panel_theme();
@@ -459,6 +495,8 @@ int main(void)
         TEST_CASE(a_battery_on_usb_power_fills_in_the_success_color_even_when_low),
         TEST_CASE(state_colors_lean_toward_the_header_text_but_keep_their_hue),
         TEST_CASE(a_charging_bolt_is_light_with_a_dark_halo_and_a_charged_one_plain_dark),
+        TEST_CASE(usb_power_without_charging_shows_a_light_plug_instead_of_the_bolt),
+        TEST_CASE(the_plug_and_the_bolt_draw_differently),
         TEST_CASE(a_charging_bolt_reads_over_both_the_fill_and_the_empty_part),
         TEST_CASE(a_charged_battery_shows_a_dark_bolt_on_its_full_fill),
         TEST_CASE(the_outline_stays_unbroken_around_the_bolt_while_charging_or_charged),

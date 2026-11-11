@@ -42,6 +42,7 @@
 #include "modules/modules.h"
 #include "music_check.h"
 #include "player.h"
+#include "plug_modes.h"
 #include "screens/charge_screen.h"
 #include "settings/rocker.h"
 #include "settings_store.h"
@@ -906,6 +907,13 @@ static void dispatch_key_events(uint32_t now_ms)
     }
 }
 
+static void announce_usb_power(bool usb_power, uint32_t now_ms)
+{
+    if (usb_power && !app.usb_power && app.settings.settings.battery_care == PLUG_CARE_USB) {
+        toast_show(&app.toast, i18n_text(STR_PLUG_USB_POWER), now_ms);
+    }
+}
+
 static bool battery_empty(uint32_t now_ms)
 {
     if (!deadline_reached(now_ms, app.battery_check_ms)) {
@@ -913,6 +921,7 @@ static bool battery_empty(uint32_t now_ms)
     }
     app.battery_check_ms = now_ms + BATTERY_CHECK_MS;
     HalBattery battery = hal_power_battery();
+    announce_usb_power(battery.usb_power, now_ms);
     app.usb_power = battery.usb_power;
     LowBatteryReading reading = {
         .known = battery.known, .millivolts = battery.millivolts, .usb_power = battery.usb_power};
@@ -1168,6 +1177,7 @@ static StatusBarState current_status_bar(void)
         .battery_percent = battery.percent,
         .usb_power = battery.usb_power,
         .charging = battery.charging,
+        .charging_off = battery.charge_disabled,
         .locked = app.lock.locked,
         .shuffle = (StatusShuffle)player_status(&app.player).shuffle,
         .percent = battery_text(battery),
@@ -1651,7 +1661,7 @@ static void follow_usb_chooser(uint32_t now_ms)
     if (app.usb_chooser == NULL) {
         return;
     }
-    const UsbChooser *usb = &app.screens.modules.settings.settings.usb;
+    const PlugChooser *usb = &app.screens.modules.settings.settings.usb;
     bool open = top_screen() == app.usb_chooser;
     bool lapsed =
         open && (usb->timed || app.usb_chooser_charging) && (usb->expired || !app.display_on);

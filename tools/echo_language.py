@@ -53,6 +53,7 @@ class Snapshot:
         self.format = pack_tools(api.ROOT)
         self.flags_reserved = 0xF8
         self.battery_care_supported = False
+        self.usb_answers = 3
         try:
             self.commit = git(api.ROOT, "rev-parse", "--verify", build + "^{commit}").strip()
             self.build = build
@@ -104,6 +105,8 @@ class Snapshot:
             raise ValueError("the installed ReplayGain settings layout is unsupported")
         self.reserved_flags = masks[0]
         self.replay_gain_modes = len(names) - 1
+        header = self.show("firmware/src/settings/include/settings/settings.h")
+        self.usb_answers = 4 if re.search(r"\bUSB_CONNECT_DAC\b", header) else 3
 
     def check_home_layout(self):
         header = self.show("firmware/src/settings/include/settings/settings.h")
@@ -127,7 +130,7 @@ class Snapshot:
             return flags == 0
         answer_open = self.reserved_flags & USB_ANSWER_BITS == 0
         return (flags & self.reserved_flags == 0 and flags & 3 < self.replay_gain_modes and
-                (not answer_open or flags >> 4 & 3 < 3))
+                (not answer_open or flags >> 4 & 3 < self.usb_answers))
 
     def settings_checksum_field(self, version):
         return 38 if version < 15 else 54

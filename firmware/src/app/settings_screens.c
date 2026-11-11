@@ -15,12 +15,12 @@
 enum {
     BRIGHTNESS_LEVEL_COUNT = SETTINGS_BRIGHTNESS_MAX - SETTINGS_BRIGHTNESS_MIN + 1,
     MILLISECONDS_PER_MINUTE = 60000,
-    USB_MODE_SELECT_COUNT = 3,
     SAFE_VOLUME_OPTION_COUNT = 6,
     SAFE_VOLUME_STEP = 6,
     SAFE_VOLUME_TEXT_CAPACITY = 4,
-    USB_PROMPT_MS = 15000,
-    MILLISECONDS_PER_SECOND = 1000
+    MODE_ROW_FIRST = PLUG_MODE_COMPUTER,
+    MODE_ROW_COUNT = PLUG_MODE_COUNT - MODE_ROW_FIRST,
+    ALWAYS_CAPACITY = 64
 };
 
 static const StringId SHUFFLE_OPTIONS[SHUFFLE_MODE_COUNT] = {STR_OFF, STR_SHUFFLE_SONGS,
@@ -35,7 +35,6 @@ static const StringId AUTO_OFF_OPTIONS[AUTO_OFF_OPTION_COUNT] = {STR_OFF, STR_MI
 static const StringId TIMEOUT_OPTIONS[SCREEN_TIMEOUT_OPTION_COUNT] = {
     STR_SECONDS_10, STR_SECONDS_20, STR_SECONDS_30, STR_MINUTES_1,
     STR_MINUTES_2,  STR_MINUTES_5,  STR_NEVER};
-static const StringId BATTERY_CARE_OPTIONS[] = {STR_CHARGE_FULL, STR_RUN_USB};
 static const StringId CLOCK_FORMAT_OPTIONS[] = {STR_CLOCK_12H, STR_CLOCK_24H};
 static const char *const BRIGHTNESS_OPTIONS[BRIGHTNESS_LEVEL_COUNT] = {"1", "2", "3", "4", "5",
                                                                        "6", "7", "8", "9", "10"};
@@ -60,12 +59,9 @@ static const StringId OUTPUT_MESSAGES[OUTPUT_JACK_COUNT] = {STR_OUTPUT_FOLLOWS, 
 static const StringId START_OPTIONS[START_SCREEN_COUNT] = {
     STR_START_MAIN_MENU, STR_NOW_PLAYING, STR_ALBUMS,    STR_ARTISTS,
     STR_FAVORITES,       STR_PLAYLISTS,   STR_COVER_FLOW};
-static const StringId USB_MODE_OPTIONS[USB_MODE_SELECT_COUNT] = {STR_CHARGE_ONLY, STR_FILE_TRANSFER,
-                                                                 STR_USB_DAC_TITLE};
-static const StringId USB_ANSWER_OPTIONS[USB_CONNECT_COUNT] = {STR_ASK, STR_FILE_TRANSFER,
-                                                               STR_CHARGE_ONLY};
-static const StringId USB_MODE_MESSAGES[USB_MODE_COUNT] = {STR_USB_SHOWS_DRIVES,
-                                                           STR_USB_PLAYS_SOUND};
+static const StringId USB_ANSWER_OPTIONS[PLUG_MODE_COUNT] = {
+    STR_PLUG_ASK, STR_PLUG_COMPUTER, STR_PLUG_CHARGE, STR_PLUG_USB_POWER, STR_USB_DAC_TITLE};
+static const StringId *const USB_MODE_OPTIONS = USB_ANSWER_OPTIONS + MODE_ROW_FIRST;
 
 static const StringId REPLAY_GAIN_OPTIONS[REPLAY_GAIN_MODE_COUNT] = {
     STR_OFF, STR_REPLAY_GAIN_TRACK, STR_REPLAY_GAIN_ALBUM, STR_REPLAY_GAIN_AUTO};
@@ -120,20 +116,6 @@ static void choose_repeat(void *context, int index)
 {
     SettingsContext *settings = context;
     player_set_repeat(settings->player, (RepeatMode)index);
-    save(settings);
-}
-
-static int current_battery_care(const void *context)
-{
-    return settings_of(context)->battery_care == 2 ? 1 : 0;
-}
-
-static void choose_battery_care(void *context, int index)
-{
-    SettingsContext *settings = context;
-    uint8_t mode = index == 1 ? 2 : 0;
-    settings->store->settings.battery_care = mode;
-    hal_power_set_battery_care(mode);
     save(settings);
 }
 
@@ -499,35 +481,75 @@ static void choose_start(void *context, int index)
     save(context);
 }
 
+static void plug_settings(SettingsContext *settings, PlugMode mode, bool always)
+{
+    Settings *saved = editable_settings(settings);
+    if (always) {
+        plug_mode_save(saved, mode);
+    }
+    if (mode == PLUG_MODE_COMPUTER || mode == PLUG_MODE_DAC) {
+        saved->usb_mode = mode == PLUG_MODE_DAC ? USB_MODE_DAC : USB_MODE_STORAGE;
+    }
+}
+
+static void announce_always(SettingsContext *settings, PlugMode mode)
+{
+    StringBuilder text = string_builder_make(settings->message, sizeof settings->message);
+    i18n_format_text(&text, STR_PLUG_ALWAYS, i18n_text(plug_mode_name(mode)));
+    toast_show(settings->toast, settings->message, hal_clock_milliseconds());
+}
+
+static void choose_plug_mode(void *context, PlugMode mode, bool always)
+{
+    SettingsContext *settings = context;
+    bool connects = mode == PLUG_MODE_COMPUTER || mode == PLUG_MODE_DAC;
+    plug_settings(settings, mode, always);
+    if (connects || always) {
+        apply_and_save(settings);
+    }
+    if (connects) {
+        hal_system_request_usb_mode(mode == PLUG_MODE_DAC ? HAL_USB_MODE_DAC
+                                                          : HAL_USB_MODE_STORAGE);
+    } else {
+        hal_power_use_battery_care(mode == PLUG_MODE_USB_POWER ? PLUG_CARE_USB : PLUG_CARE_FULL);
+        hal_system_request_usb_mode(HAL_USB_MODE_PLAYER);
+    }
+    if (always) {
+        announce_always(settings, mode);
+    }
+}
+
+static void choose_saved_plug_mode(void *context, PlugMode mode, bool always)
+{
+    (void)always;
+    plug_mode_save(editable_settings(context), mode);
+    apply_and_save(context);
+}
+
 static int current_usb_mode(const void *context)
 {
     (void)context;
-    return 0;
+    if (!hal_power_battery().usb_power) {
+        return -1;
+    }
+    PlugMode mode =
+        hal_power_battery_care() == PLUG_CARE_USB ? PLUG_MODE_USB_POWER : PLUG_MODE_CHARGE;
+    return (int)mode - MODE_ROW_FIRST;
 }
 
 static void choose_usb_mode(void *context, int index)
 {
-    if (index == 0) {
-        hal_system_request_usb_mode(HAL_USB_MODE_PLAYER);
-        return;
-    }
-    SettingsContext *settings = context;
-    editable_settings(context)->usb_mode = (UsbMode)(index - 1);
-    apply_and_save(context);
-    HalUsbMode mode = index == 1 ? HAL_USB_MODE_STORAGE : HAL_USB_MODE_DAC;
-    hal_system_request_usb_mode(mode);
-    toast_show(settings->toast, i18n_text(USB_MODE_MESSAGES[index - 1]), hal_clock_milliseconds());
+    choose_plug_mode(context, (PlugMode)(index + MODE_ROW_FIRST), false);
 }
 
 static int current_usb_answer(const void *context)
 {
-    return (int)settings_of(context)->usb_connect;
+    return (int)plug_mode_saved(settings_of(context));
 }
 
 static void choose_usb_answer(void *context, int index)
 {
-    editable_settings(context)->usb_connect = (UsbConnect)index;
-    apply_and_save(context);
+    choose_saved_plug_mode(context, (PlugMode)index, false);
 }
 
 static int current_replay_gain(const void *context)
@@ -712,8 +734,7 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_PREVENT_CLIPPING, OFF_ON_OPTIONS, 2, current_prevent_clipping, choose_prevent_clipping,
      NULL, NULL},
     {STR_START_SCREEN, START_OPTIONS, START_SCREEN_COUNT, current_start, choose_start, NULL, NULL},
-    {STR_USB_MODE, USB_MODE_OPTIONS, USB_MODE_SELECT_COUNT, current_usb_mode, choose_usb_mode, NULL,
-     NULL},
+    {STR_USB_MODE, USB_MODE_OPTIONS, MODE_ROW_COUNT, current_usb_mode, choose_usb_mode, NULL, NULL},
     {STR_THEME, THEME_OPTIONS, APPEARANCE_THEME_COUNT, current_appearance, choose_appearance, NULL,
      NULL},
     {STR_BATTERY_PERCENTAGE, OFF_ON_OPTIONS, 2, current_battery_percent, choose_battery_percent,
@@ -724,15 +745,37 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_TRANSITIONS, TRANSITION_OPTIONS, 2, current_transition, choose_transition, NULL, NULL},
     {STR_TRANSITION_LENGTH, TRANSITION_LENGTH_OPTIONS, (int)sizeof TRANSITION_TENTHS,
      current_transition_length, choose_transition_length, NULL, NULL},
-    {STR_USB_ANSWER, USB_ANSWER_OPTIONS, USB_CONNECT_COUNT, current_usb_answer, choose_usb_answer,
+    {STR_USB_ANSWER, USB_ANSWER_OPTIONS, PLUG_MODE_COUNT, current_usb_answer, choose_usb_answer,
      NULL, NULL},
-    {STR_BATTERY_CARE, BATTERY_CARE_OPTIONS, 2, current_battery_care, choose_battery_care, NULL,
-     NULL},
 };
+
+static PlugState plug_state(const SettingsScreens *screens, PlugPlace place)
+{
+    return (PlugState){.place = place,
+                       .saved = plug_mode_saved(&screens->context.store->settings),
+                       .care = hal_power_battery_care(),
+                       .battery = hal_power_battery()};
+}
+
+static Screen *saved_plug_view(SettingsScreens *screens)
+{
+    PlugChooserConfig config = {.state = plug_state(screens, PLUG_PLACE_SETTINGS),
+                                .title = i18n_text(STR_USB_ANSWER),
+                                .choose = choose_saved_plug_mode,
+                                .context = &screens->context,
+                                .theme = screens->theme};
+    return plug_chooser_init(&screens->plug, config);
+}
 
 static Screen *choice_view(SettingsScreens *screens, const SettingChoice *choice,
                            ChoiceConfig config)
 {
+    if (choice->title == STR_USB_MODE) {
+        return settings_screens_usb_modes(screens, false);
+    }
+    if (choice->title == STR_USB_ANSWER) {
+        return saved_plug_view(screens);
+    }
     if (choice->title != STR_EQUALIZER) {
         return choice_screen_init(&screens->choice, config);
     }
@@ -766,82 +809,15 @@ static ScreenAction open_choice(void *context)
     return screen_action_push(choice_view(screens, choice, config));
 }
 
-static const char *usb_countdown(const void *context, int index)
-{
-    const SettingsScreens *screens =
-        (const SettingsScreens *)((const char *)context - offsetof(SettingsScreens, context));
-    return index == 0 ? screens->usb.countdown : NULL;
-}
-
-static void usb_count_down(UsbChooser *usb, uint32_t now_ms)
-{
-    usb->expired = usb->timed && deadline_reached(now_ms, usb->until_ms);
-    uint32_t left = usb->expired ? 0
-                                 : (usb->until_ms - now_ms + MILLISECONDS_PER_SECOND - 1) /
-                                       MILLISECONDS_PER_SECOND;
-    if (!usb->timed || left == usb->seconds) {
-        return;
-    }
-    usb->seconds = left;
-    usb->redraw = true;
-    StringBuilder text = string_builder_make(usb->countdown, sizeof usb->countdown);
-    i18n_format_counts(&text, STR_USB_PROMPT_SECONDS, left, 0);
-}
-
-static void usb_enter(void *context, uint32_t now_ms)
-{
-    UsbChooser *usb = context;
-    usb->until_ms = now_ms + USB_PROMPT_MS;
-    usb->seconds = 0;
-    usb->choice.screen.enter(&usb->choice, now_ms);
-    usb_count_down(usb, now_ms);
-}
-
-static ScreenAction usb_key(void *context, KeyEvent event, uint32_t now_ms)
-{
-    UsbChooser *usb = context;
-    usb->until_ms = now_ms + USB_PROMPT_MS;
-    usb_count_down(usb, now_ms);
-    return usb->choice.screen.handle_key(&usb->choice, event, now_ms);
-}
-
-static void usb_update(void *context, uint32_t now_ms)
-{
-    UsbChooser *usb = context;
-    usb->choice.screen.update(&usb->choice, now_ms);
-    usb_count_down(usb, now_ms);
-}
-
-static void usb_draw(void *context, Canvas *canvas)
-{
-    UsbChooser *usb = context;
-    usb->choice.screen.draw(&usb->choice, canvas);
-}
-
 Screen *settings_screens_usb_modes(SettingsScreens *screens, bool prompt)
 {
-    UsbChooser *usb = &screens->usb;
-    const char *title = i18n_text(prompt ? STR_USB_CONNECTED : STR_USB_MODE);
-    ChoiceConfig config = {.title = title,
-                           .option_ids = USB_MODE_OPTIONS,
-                           .option_count = USB_MODE_SELECT_COUNT,
-                           .current = current_usb_mode,
-                           .choose = choose_usb_mode,
-                           .detail = prompt ? usb_countdown : NULL,
-                           .context = &screens->context,
-                           .theme = screens->theme};
-    choice_screen_init(&usb->choice, config);
-    usb->timed = prompt;
-    usb->countdown[0] = '\0';
-    usb->screen = (Screen){.title = title,
-                           .context = usb,
-                           .takes_every_key = true,
-                           .stays_on_wake = true,
-                           .enter = usb_enter,
-                           .handle_key = usb_key,
-                           .update = usb_update,
-                           .draw = usb_draw};
-    return &usb->screen;
+    PlugPlace place = prompt ? PLUG_PLACE_PROMPT : PLUG_PLACE_SWITCH;
+    PlugChooserConfig config = {.state = plug_state(screens, place),
+                                .title = i18n_text(prompt ? STR_PLUG_TITLE : STR_USB_MODE),
+                                .choose = choose_plug_mode,
+                                .context = &screens->context,
+                                .theme = screens->theme};
+    return plug_chooser_init(&screens->usb, config);
 }
 
 static const char *choice_value(const void *context)

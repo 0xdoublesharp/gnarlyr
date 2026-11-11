@@ -42,6 +42,7 @@ typedef enum IconId {
     ICON_DISC,
     ICON_HUB,
     ICON_SEARCH,
+    ICON_COMPUTER,
     ICON_PLAY,
     ICON_PAUSE,
     ICON_NEXT,
@@ -55,6 +56,7 @@ typedef enum IconId {
     ICON_BLUETOOTH_SMALL,
     ICON_LOCK,
     ICON_SONG_SMALL,
+    ICON_PLUG,
     ICON_COUNT
 } IconId;
 

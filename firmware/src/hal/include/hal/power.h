@@ -27,3 +27,5 @@ bool hal_power_take_usb_start(void);
 void hal_power_off(void);
 
 void hal_power_set_battery_care(uint8_t mode);
+void hal_power_use_battery_care(uint8_t mode);
+uint8_t hal_power_battery_care(void);

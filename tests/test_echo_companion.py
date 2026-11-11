@@ -340,16 +340,16 @@ class CompanionSettings(VolumeCase):
         data = self.path.read_bytes()
         self.assertEqual((data[5], data[38:54]), (6, EXTENSION))
 
-    def test_battery_care_preserves_shared_e14_bits_and_reports_the_verified_choice(self):
+    def test_a_saved_usb_dac_answer_and_usb_power_bits_load_while_plugging_in_stays_on_the_player(self):
         self.use_version15()
         data = bytearray(self.path.read_bytes())
-        data[52] = 0x85
+        data[5] |= 0x30
+        data[52] = 0x95
         self.path.write_bytes(checked(data))
-        tool, _ = self.tool(self.change(52, 0x95))
-        result = tool.settings_set("battery_care", "run_from_usb")
-        self.assertEqual(result["value"], "run_from_usb")
-        self.assertEqual(self.path.read_bytes()[52], 0x95)
-        self.assertIn("set Battery care=Run from USB\n", self.sent[0])
+        tool, _ = self.tool()
+        listed = {item["key"] for item in tool.settings_list()["settings"]}
+        self.assertNotIn("battery_care", listed)
+        self.assertIn("text_size", listed)
 
     def test_clock_format_uses_the_extension_bit_and_the_installed_choices(self):
         self.use_version15()

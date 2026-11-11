@@ -13,6 +13,7 @@
 #include "screens/card_format_screen.h"
 #include "screens/equalizer_browser.h"
 #include "screens/equalizer_screen.h"
+#include "screens/plug_chooser.h"
 #include "screens/set_clock_screen.h"
 #include "settings_preview.h"
 #include "settings_store.h"
@@ -22,7 +23,7 @@
 #include "ui/toast.h"
 
 enum {
-    SETTINGS_CHOICE_COUNT = 27,
+    SETTINGS_CHOICE_COUNT = 26,
     SETTINGS_LANGUAGE_CHOICE = 10,
     SETTINGS_USB_MODE_CHOICE = 18,
     SETTINGS_ABOUT_ITEM = 0,
@@ -31,14 +32,13 @@ enum {
     SETTINGS_LANGUAGE_ITEM = 13,
     SETTINGS_CUSTOM_EQ_ITEM = 18,
     SETTINGS_RESCAN_ITEM = 22,
-    SETTINGS_TRANSITION_LENGTH_ITEM = SETTINGS_CHOICE_COUNT + 2,
+    SETTINGS_TRANSITION_LENGTH_ITEM = SETTINGS_CHOICE_COUNT + 3,
     SETTINGS_HEADPHONES_ITEM = SETTINGS_CHOICE_COUNT + 5,
     SETTINGS_FORMAT_ITEM = SETTINGS_CHOICE_COUNT + 6,
     SETTINGS_HOME_ITEM = SETTINGS_CHOICE_COUNT + 7,
     SETTINGS_CONTROLS_ITEM = SETTINGS_CHOICE_COUNT + 8,
     SETTINGS_ITEM_COUNT = SETTINGS_CHOICE_COUNT + 9,
-    SETTINGS_MESSAGE_CAPACITY = 64,
-    SETTINGS_COUNTDOWN_CAPACITY = 16
+    SETTINGS_MESSAGE_CAPACITY = 64
 };
 
 enum {
@@ -81,17 +81,6 @@ typedef struct SettingsEntry {
     SettingsScreens *owner;
 } SettingsEntry;
 
-typedef struct UsbChooser {
-    Screen screen;
-    ChoiceScreen choice;
-    uint32_t until_ms;
-    uint32_t seconds;
-    bool timed;
-    bool expired;
-    bool redraw;
-    char countdown[SETTINGS_COUNTDOWN_CAPACITY];
-} UsbChooser;
-
 struct SettingsScreens {
     SettingsContext context;
     const Theme *theme;
@@ -105,12 +94,13 @@ struct SettingsScreens {
         SetClockScreen clock;
         EqualizerBrowser equalizer_browser;
         EqualizerScreen equalizer;
+        PlugChooser plug;
     };
     ButtonSettings buttons;
     HeadphoneEditor headphones;
     EqualizerPresets presets;
     LanguageList languages;
-    UsbChooser usb;
+    PlugChooser usb;
     CardFormatScreen card_format;
     bool card_needs_format;
     SettingsEntry entries[SETTINGS_CHOICE_COUNT];

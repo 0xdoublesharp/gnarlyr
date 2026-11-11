@@ -156,7 +156,7 @@ static const char *storage_detail(void)
     if (scene.state == USB_SCENE_LEAVING) {
         return i18n_text(STR_USB_LEAVING_HINT);
     }
-    return i18n_text(card_present ? STR_USB_EJECT_DRIVES : STR_USB_EJECT_DRIVE);
+    return i18n_text(STR_USB_EJECT_DRIVE);
 }
 
 static AppUsbStatus storage_status(void)
@@ -362,7 +362,7 @@ static void remember_session(UsbSessionEnd end)
 static UsbSessionEnd run(void)
 {
     app_show_usb_status(
-        (AppUsbStatus){.view = APP_USB_CONNECTING, .detail = i18n_text(STR_USB_STARTING)});
+        (AppUsbStatus){.view = APP_USB_CONNECTING, .detail = i18n_text(STR_PLUG_COMPUTER_LINE)});
     fallback = (UsbFallback){.watching = false};
     forced = (UsbForced){0};
     leave = (UsbLeave){0};

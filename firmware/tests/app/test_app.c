@@ -31,6 +31,7 @@
 #include "library/playlist_reader.h"
 #include "library_rescan.h"
 #include "music_check.h"
+#include "plug_modes.h"
 #include "screen_modules.h"
 #include "screens/charge_screen.h"
 #include "settings/equalizer_slots.h"
@@ -447,9 +448,9 @@ static void the_frame_overlay_splits_the_frame_time(void)
 static void the_frame_overlay_splits_the_drawing(void)
 {
     char text[FRAME_OVERLAY_TEXT_CAPACITY];
-    uint32_t parts[DRAW_PART_COUNT] = {[DRAW_PART_COVERS] = 9400, [DRAW_PART_REFLECTIONS] = 3100,
-                                       [DRAW_PART_TEXT] = 2000,   [DRAW_PART_BACKDROP] = 600,
-                                       [DRAW_PART_HASH] = 1500,   [DRAW_PART_AUDIO] = 0};
+    uint32_t parts[DRAW_PART_COUNT] = {
+        [DRAW_PART_COVERS] = 9400,  [DRAW_PART_REFLECTIONS] = 3100, [DRAW_PART_TEXT] = 2000,
+        [DRAW_PART_BACKDROP] = 600, [DRAW_PART_HASH] = 1500,        [DRAW_PART_AUDIO] = 0};
     frame_overlay_format_parts(parts, text, sizeof text);
     CHECK(strcmp("c9 r3 t2 b1 h2 a0", text) == 0);
 }
@@ -2990,7 +2991,7 @@ static void a_host_found_while_playing_asks_and_playback_goes_on(void)
     play_first_album_track();
     app_ask_usb_mode();
     step();
-    CHECK(title_is("USB connected"));
+    CHECK(title_is("Computer found"));
     CHECK(fake_hal_display_on());
     CHECK_EQUAL(0, fake_hal_usb_mode_requests());
     CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
@@ -3003,7 +3004,7 @@ static void a_quiet_prompt_lapses_to_charge_only_and_playback_goes_on(void)
     const char *before = app_screen_title();
     app_ask_usb_mode();
     wait_ms(USB_PROMPT_MS - 1000);
-    CHECK(title_is("USB connected"));
+    CHECK(title_is("Computer found"));
     wait_ms(1000);
     CHECK(title_is(before));
     CHECK_EQUAL(0, fake_hal_usb_mode_requests());
@@ -3011,14 +3012,13 @@ static void a_quiet_prompt_lapses_to_charge_only_and_playback_goes_on(void)
     CHECK(!app_charging());
 }
 
-static void choosing_file_transfer_in_the_prompt_requests_a_storage_session(void)
+static void one_press_in_the_prompt_connects_to_the_computer(void)
 {
     start_app_with_library();
     app_ask_usb_mode();
     step();
-    move_down(1);
     tap(KEY_PLAY);
-    CHECK(!title_is("USB connected"));
+    CHECK(!title_is("Computer found"));
     CHECK_EQUAL(1, fake_hal_usb_mode_requests());
     CHECK_EQUAL(HAL_USB_MODE_STORAGE, fake_hal_requested_usb_mode());
 }
@@ -3034,11 +3034,11 @@ static void the_prompt_gives_way_to_charge_only_when_the_screen_goes_dark(void)
     wait_ms(SPLASH_MS);
     app_ask_usb_mode();
     step();
-    CHECK(title_is("USB connected"));
+    CHECK(title_is("Computer found"));
     wait_ms(SHORT_TIMEOUT_MS);
     wait_ms(10);
     CHECK(!fake_hal_display_on());
-    CHECK(!title_is("USB connected"));
+    CHECK(!title_is("Computer found"));
     CHECK_EQUAL(0, fake_hal_usb_mode_requests());
 }
 
@@ -3049,7 +3049,7 @@ static void a_host_found_on_the_charge_screen_wakes_it_to_the_prompt(void)
     step();
     CHECK(!app_charging());
     CHECK(fake_hal_display_on());
-    CHECK(title_is("USB connected"));
+    CHECK(title_is("Computer found"));
     CHECK_EQUAL(0, fake_hal_power_off_count());
 }
 
@@ -3075,12 +3075,11 @@ static void back_on_the_charge_screen_prompt_goes_back_to_charging(void)
     CHECK_EQUAL(0, fake_hal_usb_mode_requests());
 }
 
-static void file_transfer_from_the_charge_screen_prompt_connects_and_keeps_charging(void)
+static void connecting_from_the_charge_screen_prompt_keeps_charging(void)
 {
     start_charging_on_usb();
     app_ask_usb_mode();
     step();
-    move_down(1);
     tap(KEY_PLAY);
     CHECK(app_charging());
     CHECK_EQUAL(HAL_USB_MODE_STORAGE, fake_hal_requested_usb_mode());
@@ -3095,12 +3094,12 @@ static void a_host_found_with_usb_mode_open_turns_it_into_the_prompt(void)
     int depth = app_screen_depth();
     app_ask_usb_mode();
     step();
-    CHECK(title_is("USB connected"));
+    CHECK(title_is("Computer found"));
     CHECK_EQUAL(depth, app_screen_depth());
     wait_ms(USB_PROMPT_MS - 1000);
-    CHECK(title_is("USB connected"));
+    CHECK(title_is("Computer found"));
     wait_ms(1000);
-    CHECK(!title_is("USB connected"));
+    CHECK(!title_is("Computer found"));
 }
 
 static void the_plug_in_answer_is_chosen_in_settings_applied_and_saved(void)
@@ -3140,7 +3139,6 @@ static void storage_selection_and_return_keep_the_playback_session(void)
     PlayerStatus before = app_player_status();
     app_open_usb_modes();
     CHECK(title_is("USB mode"));
-    move_down(1);
     tap(KEY_PLAY);
     CHECK_EQUAL(HAL_USB_MODE_STORAGE, fake_hal_requested_usb_mode());
     app_release_audio();
@@ -3152,6 +3150,7 @@ static void storage_selection_and_return_keep_the_playback_session(void)
     int depth = app_screen_depth();
     app_open_usb_modes();
     CHECK_EQUAL(depth, app_screen_depth());
+    move_down(1);
     tap(KEY_PLAY);
     CHECK_EQUAL(HAL_USB_MODE_PLAYER, fake_hal_requested_usb_mode());
     restart_app();
@@ -5370,10 +5369,11 @@ static void a_profile_chosen_in_dac_mode_is_committed_after_the_session(void)
     app_stop();
 }
 
-static void battery_care_can_be_set_and_is_applied_again_after_restart(void)
+static void play_on_usb_power_can_be_saved_and_is_applied_again_after_restart(void)
 {
     start_app_with_library();
-    const DebugScriptRun *run = run_script("build any\nset Battery care=Run from USB\n", 100);
+    const DebugScriptRun *run =
+        run_script("build any\nset When plugged in=Play on USB power\n", 100);
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
     CHECK_EQUAL(2, fake_hal_battery_care_mode());
     Settings settings;
@@ -5381,9 +5381,38 @@ static void battery_care_can_be_set_and_is_applied_again_after_restart(void)
     CHECK_EQUAL(2, settings.battery_care);
     restart_app();
     CHECK_EQUAL(2, fake_hal_battery_care_mode());
-    run = run_script("build any\nset Battery care=Charge to full\n", 100);
+    run = run_script("build any\nset When plugged in=Charge\n", 100);
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
     CHECK_EQUAL(0, fake_hal_battery_care_mode());
+}
+
+static void a_cable_with_play_on_usb_power_saved_says_which_mode_is_on(void)
+{
+    start_app_with_library();
+    run_script("build any\nset When plugged in=Play on USB power\n", 100);
+    wait_ms(2000);
+    fake_hal_set_battery(ON_USB);
+    wait_ms(500);
+    CHECK(toast_is("Play on USB power"));
+    CHECK_EQUAL(PLUG_CARE_USB, fake_hal_battery_care_mode());
+}
+
+static void unplugging_ends_a_one_time_play_on_usb_power(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery(ON_USB);
+    wait_ms(500);
+    app_ask_usb_mode();
+    step();
+    move_down(2);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLUG_CARE_USB, fake_hal_battery_care_mode());
+    HalBattery unplugged = ON_USB;
+    unplugged.usb_power = false;
+    unplugged.charging = false;
+    fake_hal_set_battery(unplugged);
+    wait_ms(500);
+    CHECK_EQUAL(PLUG_CARE_FULL, fake_hal_battery_care_mode());
 }
 
 int main(void)
@@ -5391,7 +5420,9 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(a_profile_chosen_in_dac_mode_is_committed_after_the_session),
         TEST_CASE(dac_choices_made_during_usb_are_saved_with_the_settings),
-        TEST_CASE(battery_care_can_be_set_and_is_applied_again_after_restart),
+        TEST_CASE(play_on_usb_power_can_be_saved_and_is_applied_again_after_restart),
+        TEST_CASE(a_cable_with_play_on_usb_power_saved_says_which_mode_is_on),
+        TEST_CASE(unplugging_ends_a_one_time_play_on_usb_power),
         TEST_CASE(a_notice_is_drawn_at_once_over_the_current_screen),
         TEST_CASE(a_notice_turns_the_display_on),
         TEST_CASE(waking_keeps_the_screen_on_for_a_full_timeout),
@@ -5596,12 +5627,12 @@ int main(void)
         TEST_CASE(menu_on_the_charge_screen_opens_usb_mode_and_charge_only_returns_to_charging),
         TEST_CASE(a_host_found_while_playing_asks_and_playback_goes_on),
         TEST_CASE(a_quiet_prompt_lapses_to_charge_only_and_playback_goes_on),
-        TEST_CASE(choosing_file_transfer_in_the_prompt_requests_a_storage_session),
+        TEST_CASE(one_press_in_the_prompt_connects_to_the_computer),
         TEST_CASE(the_prompt_gives_way_to_charge_only_when_the_screen_goes_dark),
         TEST_CASE(a_host_found_on_the_charge_screen_wakes_it_to_the_prompt),
         TEST_CASE(a_lapsed_prompt_on_the_charge_screen_goes_back_to_dark_charging),
         TEST_CASE(back_on_the_charge_screen_prompt_goes_back_to_charging),
-        TEST_CASE(file_transfer_from_the_charge_screen_prompt_connects_and_keeps_charging),
+        TEST_CASE(connecting_from_the_charge_screen_prompt_keeps_charging),
         TEST_CASE(a_host_found_with_usb_mode_open_turns_it_into_the_prompt),
         TEST_CASE(the_plug_in_answer_is_chosen_in_settings_applied_and_saved),
         TEST_CASE(the_home_menu_opens_the_same_three_mode_selector),

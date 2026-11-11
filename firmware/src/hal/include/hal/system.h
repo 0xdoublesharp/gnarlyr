@@ -57,7 +57,8 @@ typedef enum HalUsbMode {
 typedef enum HalUsbAnswer {
     HAL_USB_ANSWER_ASK,
     HAL_USB_ANSWER_STORAGE,
-    HAL_USB_ANSWER_CHARGE
+    HAL_USB_ANSWER_CHARGE,
+    HAL_USB_ANSWER_DAC
 } HalUsbAnswer;
 
 void hal_system_set_usb_mode(HalUsbMode mode);

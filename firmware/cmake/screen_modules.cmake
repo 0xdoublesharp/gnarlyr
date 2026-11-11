@@ -81,6 +81,10 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/language_list.c
     src/app/modules/settings_module.c
     src/app/settings_screens.c
+    src/app/plug_modes.c
+    src/app/screens/plug_chooser.c
+    src/app/screens/plug_art.c
+    src/gfx/wireframe.c
     src/app/screens/set_clock_screen.c
     src/app/settings_preview.c
     src/app/button_settings.c

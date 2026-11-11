@@ -42,6 +42,8 @@ static bool usb_supply_known;
 static uint8_t usb_supply_on;
 static bool usb_supply_requested;
 static uint8_t battery_care;
+static uint8_t battery_care_saved;
+static bool battery_care_cable;
 static ChargeTracker charge;
 
 static void usb_supply_pins_set(uint8_t flags)
@@ -57,6 +59,10 @@ static void usb_supply_pins_set(uint8_t flags)
 
 void board_power_usb_supply_follow(bool cable)
 {
+    if (cable != battery_care_cable) {
+        battery_care_cable = cable;
+        battery_care = battery_care_saved;
+    }
     usb_supply_requested = cable;
     BatteryGauge gauge = board_battery_gauge();
     bool was_charging = (usb_supply_on & 2u) == 0 || (usb_supply_on & 1u) != 0;
@@ -78,7 +84,18 @@ void board_power_usb_supply_follow(bool cable)
 
 void hal_power_set_battery_care(uint8_t mode)
 {
+    battery_care_saved = mode;
     battery_care = mode;
+}
+
+void hal_power_use_battery_care(uint8_t mode)
+{
+    battery_care = mode;
+}
+
+uint8_t hal_power_battery_care(void)
+{
+    return battery_care;
 }
 
 HalPowerHold hal_power_boot_hold(void)

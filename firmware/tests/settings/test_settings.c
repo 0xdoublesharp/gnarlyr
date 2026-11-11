@@ -278,9 +278,20 @@ static void a_version_thirteen_file_asks(void)
     CHECK_EQUAL(USB_CONNECT_ASK, decoded.usb_connect);
 }
 
-static void the_fourth_plug_in_value_and_the_reserved_bits_are_rejected(void)
+static void the_usb_dac_plug_in_answer_is_kept(void)
 {
-    static const uint8_t FLAGS[] = {0x34, 0x44, 0x84};
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[VERSION_FIELD + 1] = 0x34;
+    rewrite_checksum(bytes);
+    CHECK(settings_decode(bytes, sizeof bytes, &settings));
+    CHECK_EQUAL(USB_CONNECT_DAC, settings.usb_connect);
+}
+
+static void the_reserved_plug_in_bits_are_rejected(void)
+{
+    static const uint8_t FLAGS[] = {0x44, 0x84};
     for (uint32_t at = 0; at < sizeof FLAGS; at++) {
         Settings settings = custom_settings();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -984,7 +995,7 @@ static void battery_percentage_defaults_off_and_round_trips_in_a_spare_flag_bit(
 
 static void invalid_normalization_flags_are_rejected_without_mutating_the_settings(void)
 {
-    static const uint8_t FLAGS[] = {0x30, 64, 128, 255};
+    static const uint8_t FLAGS[] = {64, 128, 255};
     for (uint32_t at = 0; at < sizeof FLAGS / sizeof FLAGS[0]; at++) {
         Settings original = custom_settings();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1175,7 +1186,7 @@ static void each_invalid_extension_value_is_rejected_without_mutating_the_settin
     static const uint8_t CASES[][2] = {
         {0, 0x20},  {0, 0x40},  {0, 0x80},  {0, 0x18},  {1, 61},   {2, 4},    {2, 61},   {2, 0},
         {3, 1},     {4, 0x00},  {4, 0x11},  {6, 0x55},  {8, 0x18}, {8, 0x09}, {9, 0x08}, {9, 0xFF},
-        {10, 0x04}, {10, 0x80}, {12, 0x04}, {12, 0xFC}, {13, 1},   {14, 24},   {15, 0x80}};
+        {10, 0x04}, {10, 0x80}, {12, 0x04}, {12, 0xFC}, {13, 1},   {14, 24},  {15, 0x80}};
     for (uint32_t at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
         Settings original = settings_defaults();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1405,7 +1416,8 @@ int main(void)
         TEST_CASE(plugging_in_asks_by_default),
         TEST_CASE(every_plug_in_answer_round_trips_in_bits_four_and_five_of_the_flags_byte),
         TEST_CASE(a_version_thirteen_file_asks),
-        TEST_CASE(the_fourth_plug_in_value_and_the_reserved_bits_are_rejected),
+        TEST_CASE(the_usb_dac_plug_in_answer_is_kept),
+        TEST_CASE(the_reserved_plug_in_bits_are_rejected),
         TEST_CASE(a_newer_version_is_rejected),
         TEST_CASE(a_version_eight_volume_converts_to_the_sixty_step_scale),
         TEST_CASE(a_version_eight_volume_above_fifty_is_rejected),

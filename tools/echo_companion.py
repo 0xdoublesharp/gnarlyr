@@ -77,7 +77,7 @@ class Layout:
             if echo_language.constant(source, "CLOCK_24H_BIT") != 4:
                 raise ValueError("the installed clock setting encoding has changed")
             self.specs += (CLOCK_SPEC,)
-        if snapshot.battery_care_supported:
+        if snapshot.battery_care_supported and "STR_BATTERY_CARE" in self.title_ids():
             self.specs += (BATTERY_CARE_SPEC,)
         self.title_ids()
         for spec in self.specs:

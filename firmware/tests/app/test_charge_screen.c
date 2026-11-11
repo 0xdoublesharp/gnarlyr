@@ -316,12 +316,46 @@ static void disabled_charging_is_shown_even_when_the_usb_rail_reads_full(void)
     }
 }
 
+static int text_pixels_in(const Canvas *canvas, Rect area, Color color)
+{
+    int count = 0;
+    for (int y = area.y; y < area.y + area.height; y++) {
+        for (int x = area.x; x < area.x + area.width; x++) {
+            count += canvas_pixel_at(canvas, x, y) == color ? 1 : 0;
+        }
+    }
+    return count;
+}
+
+static int sign_pixels(HalBattery battery)
+{
+    Theme theme = BOARD_THEME;
+    Canvas canvas =
+        canvas_make(pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+    charge_screen_draw_at(&canvas, &theme, battery, 0);
+    return text_pixels_in(&canvas, charge_screen_art_layout(&theme).battery, theme.colors.text);
+}
+
+static void play_on_usb_power_shows_a_plug_where_charging_shows_a_bolt(void)
+{
+    HalBattery resting = {.known = true, .usb_power = true, .percent = 70};
+    HalBattery held_off = resting;
+    held_off.charge_disabled = true;
+    HalBattery charging = resting;
+    charging.charging = true;
+    int plain = sign_pixels(resting);
+    CHECK(sign_pixels(held_off) > plain);
+    CHECK(sign_pixels(charging) > plain);
+    CHECK(sign_pixels(held_off) != sign_pixels(charging));
+}
+
 int main(void)
 {
     fake_hal_reset();
     i18n_detach();
     static const TestCase cases[] = {
         TEST_CASE(disabled_charging_is_shown_even_when_the_usb_rail_reads_full),
+        TEST_CASE(play_on_usb_power_shows_a_plug_where_charging_shows_a_bolt),
         TEST_CASE(an_unknown_battery_has_no_invented_percent_or_voltage),
         TEST_CASE(usb_power_does_not_mean_the_battery_is_full),
         TEST_CASE(an_unknown_battery_is_never_reported_full),

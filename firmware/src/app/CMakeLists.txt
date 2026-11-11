@@ -56,6 +56,7 @@ add_library(echo_app STATIC
     modules/settings_module.c
     modules/views_module.c
     player.c
+    plug_modes.c
     screen_modules.c
     settings_preview.c
     settings_screens.c
@@ -80,6 +81,8 @@ add_library(echo_app STATIC
     screens/equalizer_browser.c
     screens/equalizer_plot.c
     screens/now_playing_screen.c
+    screens/plug_chooser.c
+    screens/plug_art.c
     screens/up_next_screen.c
 )
 if(ECHO_RELEASE)
