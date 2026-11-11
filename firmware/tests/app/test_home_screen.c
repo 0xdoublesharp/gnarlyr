@@ -260,7 +260,7 @@ static void open_editor_row(int row)
     taps(KEY_VOLUME_UP, HOME_SETTINGS_ROW);
     tap(KEY_PLAY);
     CHECK(title_is(STR_SETTINGS));
-    tap(KEY_VOLUME_DOWN);
+    taps(KEY_VOLUME_DOWN, 2);
     tap(KEY_PLAY);
     CHECK(title_is(STR_HOME_SCREEN));
     taps(KEY_VOLUME_UP, row);

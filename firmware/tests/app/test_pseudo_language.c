@@ -490,6 +490,7 @@ static void open_home_editor(void)
 {
     open_settings_row(0);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
 }
 
