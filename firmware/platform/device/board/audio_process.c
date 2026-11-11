@@ -62,3 +62,10 @@ void audio_fade_out(AudioFadeBlock block, AudioFadeRamp *ramp, int64_t remaining
         entry()->fade_out(block, ramp, remaining);
     }
 }
+
+#ifdef ECHO_DEBUG_LOOP
+const void *board_audio_process_debug_code(void)
+{
+    return ready || board_audio_process_prepare() ? entry()->debug : NULL;
+}
+#endif

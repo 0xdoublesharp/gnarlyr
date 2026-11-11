@@ -88,7 +88,7 @@ static ScreenAction press(Key key)
 static void confirming_twice_with_cancel_selected_does_not_erase(void)
 {
     open_format();
-    CHECK(strstr(confirmation.message, "Everything") != NULL);
+    CHECK(strstr(confirmation.message, "everything") != NULL);
     CHECK(strstr(confirmation.message, "GB") != NULL);
     CHECK(strstr(confirmation.message, "exFAT") != NULL);
     press(KEY_PLAY);
@@ -169,7 +169,7 @@ static void charger_power_allows_formatting_and_failures_are_reported(void)
     press(KEY_VOLUME_UP);
     press(KEY_PLAY);
     CHECK_EQUAL(1, fake_hal_card_formats());
-    CHECK(strstr(confirmation.message, "format") != NULL);
+    CHECK(strstr(confirmation.message, "Format") != NULL);
 }
 
 static bool captures(const char *directory)

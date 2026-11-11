@@ -1,5 +1,7 @@
 #include "ui/status_bar.h"
 
+#include "core/seam.h"
+
 #include "gfx/text.h"
 #include "ui/icons.h"
 #include "ui/label.h"
@@ -263,7 +265,7 @@ static void draw_left_icons(Canvas *canvas, const Theme *theme, StatusBarState s
     }
 }
 
-void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state)
+CORE_SEAM void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state)
 {
     draw_left_icons(canvas, theme, state);
     if (state.battery_known) {

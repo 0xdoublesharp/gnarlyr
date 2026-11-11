@@ -15,4 +15,7 @@ typedef struct AudioProcessEntry {
     void (*run)(Equalizer *equalizer, uint32_t *words, uint32_t frames);
     void (*fade_in)(AudioFadeBlock block, AudioFadeRamp *ramp);
     void (*fade_out)(AudioFadeBlock block, AudioFadeRamp *ramp, int64_t remaining);
+#ifdef ECHO_DEBUG_LOOP
+    const void *debug;
+#endif
 } AudioProcessEntry;

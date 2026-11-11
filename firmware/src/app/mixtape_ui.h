@@ -28,6 +28,10 @@ typedef struct MixtapeUi {
     MixResolve resolver;
     TrackOrder pending;
     TrackOrderJob writer;
+    MixtapeFile append_file;
+    MixTape append_tape;
+    MixTapeCursor append_cursor;
+    MixIdentity add_identity;
     ListModel model;
     ListView list;
     char labels[MIXTAPE_VISIBLE_ROWS][MIX_NAME_BYTES];
@@ -35,6 +39,10 @@ typedef struct MixtapeUi {
     uint8_t slots[MIX_CATALOG_SLOTS];
     uint32_t now_ms;
     uint16_t slot;
+    uint16_t add_track;
+    uint16_t side_a_count;
+    uint8_t side_minutes;
+    uint8_t selected_side;
     uint8_t count;
     uint8_t mode;
     uint8_t parent_mode;
@@ -46,6 +54,9 @@ typedef struct MixtapeUi {
     bool loading;
     bool save_queue;
     bool renaming;
+    bool adding;
+    bool appending;
+    bool add_requested;
     Screen *destination;
 } MixtapeUi;
 
@@ -54,6 +65,7 @@ typedef struct MixtapeUiApi {
     bool (*busy)(const MixtapeUi *ui);
     void (*step)(MixtapeUi *ui, uint32_t now_ms);
     void (*cancel)(MixtapeUi *ui);
+    Screen *(*add)(MixtapeUi *ui, uint16_t track);
 } MixtapeUiApi;
 
 const MixtapeUiApi *mixtape_ui_api(void);

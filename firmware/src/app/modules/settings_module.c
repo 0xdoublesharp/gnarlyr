@@ -60,9 +60,8 @@ static void bind(AppScreens *screens)
     bluetooth_screen_init(&own->bluetooth, context->bluetooth, context->theme);
     settings_screens_init(&own->settings, settings, context->theme);
     own->settings.items[SETTINGS_ABOUT_ITEM] =
-        app_screens_open_item(STR_ABOUT, &own->diagnostics.screen);
+        app_screens_open_item(STR_ABOUT, &screens->modules.views.diagnostics.screen);
     bind_home_editor(screens);
-    diagnostics_menu_build(screens, context->options, context->theme);
 }
 
 static Screen *language_row(AppScreens *screens)
@@ -96,4 +95,5 @@ const SettingsModuleEntry SETTINGS_MODULE_ENTRY = {
 #ifdef ECHO_DEBUG_LOOP
     .choose = choose,
 #endif
+    .dac_headphones = headphone_store_choose_for_dac,
 };

@@ -48,6 +48,7 @@ add_library(echo_library_scan STATIC
     tags_riff.c
     tags_vorbis.c
     track_fields.c
+    tag_duration.c
     track_tags.c
 )
 target_include_directories(echo_library_scan PUBLIC include)
@@ -55,3 +56,7 @@ target_link_libraries(echo_library_scan
     PUBLIC echo_core echo_image echo_library
     PRIVATE echo_options
 )
+
+if(CMAKE_CROSSCOMPILING)
+    set_source_files_properties(tag_duration.c PROPERTIES COMPILE_OPTIONS -Os)
+endif()

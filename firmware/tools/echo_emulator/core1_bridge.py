@@ -1,9 +1,10 @@
 from .core1 import CONTROL, RING, SAMPLES, Core1
 
 CONTROL_BYTES = 124
+CORE1_FLAC = 0
 CORE1_VORBIS = 3
 CORE1_OPUS = 4
-RING_BYTES = {CORE1_VORBIS: 0x10000, CORE1_OPUS: 40960}
+RING_BYTES = {CORE1_FLAC: 0x20000, CORE1_VORBIS: 0x10000, CORE1_OPUS: 40960}
 SAMPLE_BYTES = RING - SAMPLES
 DECODER_OWNED = ((44, 48), (96, 24))
 
@@ -25,7 +26,8 @@ class Core1Bridge:
         if program not in self.programs:
             return 0
         self.ring_bytes = RING_BYTES[program]
-        self.core = Core1(self.programs[program], self.ring_bytes)
+        self.core = Core1(self.machine.read_memory(0x01000000, len(self.programs[program])),
+                          self.ring_bytes)
         self.active = self.core.boot()
         self.starts += int(self.active)
         if self.active:

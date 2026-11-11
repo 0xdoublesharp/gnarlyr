@@ -1,5 +1,6 @@
 add_library(echo_core STATIC
     calendar.c
+    calendar_view.c
     clock_face.c
     dac_identity.c
     deadline.c

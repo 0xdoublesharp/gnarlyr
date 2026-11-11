@@ -111,7 +111,7 @@ static void read_duration(TagReader *reader, const Mp4Atom *trak)
         length = tag_be64(data + 24);
     }
     if (unit > 0) {
-        tag_set_duration(reader, (double)length / (double)unit);
+        tag_set_duration(reader, length, unit);
     }
 }
 

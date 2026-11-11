@@ -2,6 +2,7 @@
 
 #include "core/seam.h"
 #include "extension_entry.h"
+#include "hal/audio.h"
 #include "hal/storage.h"
 #include "hal/system.h"
 
@@ -105,4 +106,30 @@ bool hal_file_remove(const char *path)
 {
     const ExtensionModuleEntry *code = extension();
     return code != NULL && code->file_remove(path);
+}
+
+void headphone_store_load(HeadphoneStore *store)
+{
+    const ExtensionModuleEntry *code = extension();
+    if (code != NULL) {
+        code->headphones_load(store);
+    } else {
+        *store = (HeadphoneStore){.profiles = {.current = HEADPHONE_PROFILE_NONE},
+                                  .active = {.left = REPLAY_GAIN_UNITY, .right = REPLAY_GAIN_UNITY},
+                                  .load = STORE_UNREADABLE};
+        store->file.needs_reload = true;
+        hal_audio_set_headphones(store->active);
+    }
+}
+
+bool hal_clock_set_wall(HalWallTime time)
+{
+    const ExtensionModuleEntry *code = extension();
+    return code != NULL && code->clock_set(time);
+}
+
+bool hal_clock_restore_wall(int16_t offset_minutes)
+{
+    const ExtensionModuleEntry *code = extension();
+    return code != NULL && code->clock_restore(offset_minutes);
 }

@@ -69,7 +69,7 @@ static void screens_a_module_builds_for_itself_belong_to_it_too(void)
     reset();
     const SettingsModuleScreens *own = &screens.modules.settings;
     const Screen *inside[] = {&own->settings.menu.screen, &own->settings.choice.screen,
-                              &own->bluetooth.screen, &own->diagnostics.screen};
+                              &own->settings.clock.screen, &own->bluetooth.screen};
     for (size_t index = 0; index < sizeof inside / sizeof inside[0]; index++) {
         CHECK_EQUAL(SCREEN_MODULE_SETTINGS, screen_modules_of(&screens, inside[index]));
     }
@@ -107,7 +107,9 @@ static void each_module_builds_its_own_screens(void)
     CHECK(screen_modules_use(&screens, SCREEN_MODULE_SETTINGS) != NULL);
     CHECK(screens.modules.settings.settings.menu.screen.draw != NULL);
     CHECK(screens.modules.settings.bluetooth.screen.draw != NULL);
-    CHECK(screens.modules.settings.diagnostics.screen.draw != NULL);
+    CHECK(screens.modules.views.diagnostics.screen.draw == NULL);
+    CHECK_EQUAL(SCREEN_MODULE_VIEWS,
+                screen_modules_of(&screens, &screens.modules.views.diagnostics.screen));
     CHECK(screens.modules.views.cover_flow.screen.draw == NULL);
     CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
 }
@@ -131,6 +133,7 @@ static void using_a_module_loads_it_and_builds_its_screens(void)
     CHECK_EQUAL(1, fake_hal_module_loads());
     CHECK(screens.modules.views.cover_flow.screen.draw != NULL);
     CHECK(screens.modules.views.up_next.screen.draw != NULL);
+    CHECK(screens.modules.views.diagnostics.screen.draw != NULL);
 }
 
 static void a_module_builds_its_screens_once_until_the_screens_are_built_again(void)

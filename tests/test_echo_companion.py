@@ -343,7 +343,7 @@ class CompanionSettings(VolumeCase):
     def test_version15_extension_values_the_firmware_rejects_are_refused_before_writes(self):
         self.use_version15()
         cases = ((38, 0x18), (38, 0x20), (39, 61), (40, 4), (40, 61), (41, 1), (42, 0x00),
-                 (46, 0x18), (47, 0x08), (48, 0x02), (49, 1), (53, 0x80))
+                 (46, 0x18), (47, 0x08), (48, 0x02), (50, 4), (53, 0x80))
         for offset, value in cases:
             with self.subTest(offset=offset, value=value):
                 data = bytearray(saved_settings(15, 4))
@@ -354,6 +354,15 @@ class CompanionSettings(VolumeCase):
                     tool.settings_set("text_size", "large")
                 self.assertIn(refused.exception.code, ("settings_invalid", "language_settings_invalid"))
                 self.assert_no_write(host)
+
+    def test_clock_offset_is_preserved_when_another_setting_changes(self):
+        self.use_version15()
+        before = bytearray(self.path.read_bytes())
+        struct.pack_into("<h", before, 49, -480)
+        self.path.write_bytes(checked(before))
+        tool, _ = self.tool(self.change(24, 2))
+        self.assertTrue(tool.settings_set("text_size", "large")["verified"])
+        self.assertEqual(struct.unpack_from("<h", self.path.read_bytes(), 49)[0], -480)
 
     def test_version15_checksum_covers_the_extension_block(self):
         self.use_version15()

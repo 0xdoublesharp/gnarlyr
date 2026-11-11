@@ -26,6 +26,13 @@ from echo_image_harness import (
     USB_POWER_UP,
     echo_debug,
     make_image,
+    ACTIVITY_WRITING,
+    COLUMN_BANDS_LIMIT,
+    LEAVE_FORCE_HOLD_MS,
+    LEAVE_GRACE_MS,
+    LEAVE_HOLD_MS,
+    STORAGE_MOTION_FRAME_MS,
+    TRAFFIC_MEASURE_MS,
 )
 
 
@@ -235,6 +242,7 @@ class EchoImageTest(EchoImageHarness):
     def test_the_profiler_row_fills_a_histogram_the_host_tool_symbolises(self):
         session = self.session()
         machine = session.machine
+        machine.stub_symbol("extension_home_art_draw_backdrop", lambda machine: None)
         self.assertEqual(make_image.OVERLAY_BASE, machine.symbols["device_profile_overlay_base"])
         self.assertEqual(make_image.PROCESS_MODULE_BASE + make_image.PROCESS_MODULE_CAPACITY,
                          machine.symbols["device_profile_overlay_base"] +
@@ -277,6 +285,78 @@ class EchoImageTest(EchoImageHarness):
         print("\n[profile] %d samples, %s; top functions: %s" % (
             profile["samples"], shares, ", ".join("%s %.0f ms" % (row["name"], row["ms"])
                                           for row in profile["functions"][:5])))
+
+
+    def test_holding_back_on_a_quiet_host_removes_the_media_and_ends_like_an_eject(self):
+        session, machine, _, applied, removed = self.staying_storage_session(quiet=True)
+        pressed = self.hold_back(machine, LEAVE_HOLD_MS)
+        self.assertEqual(self.session_ended(machine), "condition met")
+        ended = machine.milliseconds()
+        self.assertEqual(len(removed), 1)
+        self.assertGreaterEqual(removed[0] - pressed, 1000 - CLOCK_SLACK_MS)
+        self.assertGreaterEqual(ended - removed[0], LEAVE_GRACE_MS - CLOCK_SLACK_MS)
+        self.assertEqual(applied, [1])
+        self.assertNotIn("board_wait_for_key", machine.reached)
+        self.assert_healthy(session)
+        print("\n[player-side disconnect] media removed %d ms after Back, session ended %d ms "
+              "later" % (removed[0] - pressed, ended - removed[0]))
+
+    def test_a_disconnect_while_the_computer_writes_waits_for_it_to_finish(self):
+        session, machine, state, applied, removed = self.staying_storage_session(quiet=False)
+        self.hold_back(machine, LEAVE_HOLD_MS)
+        machine.run(until_ms=machine.milliseconds() + 3000)
+        self.assertEqual(removed, [])
+        self.assertNotIn("usb_session_storage_changed", machine.reached)
+        quiet_at = machine.milliseconds()
+        state["quiet"] = True
+        self.assertEqual(self.session_ended(machine), "condition met")
+        self.assertEqual(len(removed), 1)
+        self.assertLess(removed[0] - quiet_at, 50)
+        self.assertEqual(applied, [1])
+        self.assertNotIn("board_wait_for_key", machine.reached)
+        self.assert_healthy(session)
+
+    def test_keeping_back_held_while_the_computer_writes_ends_like_an_unplug(self):
+        session, machine, _, applied, removed = self.staying_storage_session(quiet=False)
+        machine.answer_waits_for_key(4)
+        pressed = self.hold_back(machine, LEAVE_FORCE_HOLD_MS)
+        self.assertEqual(self.session_ended(machine), "condition met")
+        self.assertEqual(removed, [])
+        self.assertEqual(applied, [0])
+        self.assertIn("board_wait_for_key", machine.reached)
+        self.assertGreaterEqual(machine.milliseconds() - pressed, 4000 - CLOCK_SLACK_MS)
+        self.assert_healthy(session)
+
+    def test_storage_motion_leaves_the_usb_loop_room_while_the_host_writes(self):
+        session, machine, _, _, _ = self.staying_storage_session(quiet=True)
+        if "usb_activity_now" not in machine.overlays[0].symbols:
+            rate, gap = self.poll_rate(machine, TRAFFIC_MEASURE_MS)
+            print("\n[storage before] usb_poll %.0f/s, longest gap %.2f ms" % (rate, gap / 1000))
+            return
+        traffic = {"kind": 0, "kib": 0}
+        machine.stub_symbol("usb_activity_now", lambda machine: traffic["kind"])
+
+        def copied(machine):
+            traffic["kib"] += 64 if traffic["kind"] else 0
+            return traffic["kib"]
+
+        machine.stub_symbol("usb_activity_written_kib", copied)
+        areas = machine.trace("app_show_usb_area")
+        polls = self.poll_stamps(machine)
+        still_rate, still_gap = self.poll_rate(machine, TRAFFIC_MEASURE_MS, polls)
+        self.assertEqual(areas, [])
+        traffic["kind"] = ACTIVITY_WRITING
+        machine.run(until_ms=machine.milliseconds() + 300)
+        moving_rate, moving_gap = self.poll_rate(machine, TRAFFIC_MEASURE_MS, polls)
+        frames = len(areas)
+        self.assertGreaterEqual(frames, TRAFFIC_MEASURE_MS // STORAGE_MOTION_FRAME_MS)
+        self.assertLessEqual(frames, TRAFFIC_MEASURE_MS // STORAGE_MOTION_FRAME_MS
+                             + (TRAFFIC_MEASURE_MS // 1000 + 1) * COLUMN_BANDS_LIMIT)
+        self.assert_healthy(session)
+        print("\n[storage motion] usb_poll %.0f/s still, %.0f/s with motion (%.1f %% fewer); "
+              "longest gap %.2f ms still, %.2f ms with motion; %d area frames"
+              % (still_rate, moving_rate, 100 * (1 - moving_rate / still_rate), still_gap / 1000,
+                 moving_gap / 1000, frames))
 
 
 if __name__ == "__main__":

@@ -1788,7 +1788,8 @@ bool hal_internal_file_read(const char *path, void *buffer, uint32_t length)
 bool hal_internal_file_write(const char *path, const void *bytes, uint32_t length)
 {
     InternalFile *file = internal_slot(path);
-    if (file == NULL || length > WRITTEN_CAPACITY) {
+    if (file == NULL || length > WRITTEN_CAPACITY ||
+        (fake.fail_file_writes != NULL && strcmp(path, fake.fail_file_writes) == 0)) {
         return false;
     }
     memcpy(file->bytes, bytes, length);
@@ -1937,4 +1938,15 @@ uint32_t fake_hal_audio_queued_fade_ms(void)
 uint32_t fake_hal_audio_play_fade_ms(void)
 {
     return fake.audio.play_fade_ms;
+}
+
+bool hal_clock_set_wall(HalWallTime time)
+{
+    if ((fake.broken_modules & 1u << EXTENSION_MODULE_NUMBER) != 0 ||
+        hal_system_rtc_set(time.utc_s).status != HAL_RTC_OK) {
+        return false;
+    }
+    fake.wall = time;
+    fake.wall_set_ms = hal_clock_milliseconds();
+    return true;
 }

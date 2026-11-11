@@ -1,5 +1,6 @@
 import argparse
 import importlib.util
+import math
 import struct
 import sys
 import tempfile
@@ -104,6 +105,20 @@ KEY_PLAY = 250
 KEY_BACK = 500
 KEY_HOLD_MS = 150
 USB_ANSWER_FILE_TRANSFER = 1
+KEY_MENU = 350
+DAC_PROMPT_KEYS = (KEY_NEXT, KEY_NEXT, KEY_PLAY)
+DAC_MENU_FILE_TRANSFER_ROW = 4
+LEAVE_HOLD_MS = 1200
+LEAVE_FORCE_HOLD_MS = 4500
+LEAVE_GRACE_MS = 2000
+LEAVE_LIMIT_MS = 8000
+ACTIVITY_WRITING = 2
+TRAFFIC_MEASURE_MS = 2000
+STORAGE_MOTION_FRAME_MS = 400
+COLUMN_BANDS_LIMIT = 12
+DAC_PACKET_FRAMES = 48
+DAC_RATE = 48000
+DAC_MEASURE_MS = 2000
 USB_PROMPT_MS = 15000
 PROMPT_NOTICED_MS = 1000
 STARTUP_SETTLED_MS = 5000
@@ -376,6 +391,106 @@ class EchoImageHarness(unittest.TestCase):
 
         machine.hook_symbol(name, reached)
 
+    def staying_storage_session(self, quiet=True):
+        from unicorn.arm_const import UC_ARM_REG_R0
+        session = self.session(vbus=True)
+        machine = session.machine
+        machine.host_stays = True
+        machine.stub_symbol("msc_finished", lambda machine: 0)
+        state = {"quiet": quiet}
+        started = "usb_activity_start" if "usb_activity_start" in machine.overlays[0].symbols \
+            else "usb_wait_for_host"
+        if started == "usb_activity_start":
+            machine.stub_symbol("usb_activity_quiet", lambda machine: int(state["quiet"]))
+        for name in (started, "usb_session_storage_changed", "board_wait_for_key"):
+            machine.note(name)
+        applied = []
+        machine.hook_symbol("time_file_take", lambda: applied.append(machine.reg(UC_ARM_REG_R0)))
+        removed = machine.trace("msc_remove_media") if started == "usb_activity_start" else []
+        session.run_to_first_frame()
+        self.assertEqual(machine.run(until=lambda: started in machine.reached,
+                                     until_ms=self.session_module.FRAME_LIMIT_MS), "condition met")
+        machine.run(until_ms=machine.milliseconds() + 300)
+        return session, machine, state, applied, removed
+
+    def hold_back(self, machine, hold_ms):
+        pressed = machine.milliseconds() + 20
+        machine.press_key(KEY_BACK, delay_ms=20, hold_ms=hold_ms)
+        return pressed
+
+    def session_ended(self, machine):
+        return machine.run(until=lambda: "usb_session_storage_changed" in machine.reached,
+                           until_ms=machine.milliseconds() + LEAVE_LIMIT_MS)
+
+    def poll_stamps(self, machine, name="usb_poll"):
+        stamps = []
+        machine.hook_symbol(name, lambda: stamps.append(machine.microseconds()))
+        return stamps
+
+    def poll_rate(self, machine, milliseconds, polls=None):
+        polls = self.poll_stamps(machine) if polls is None else polls
+        start = machine.microseconds()
+        machine.run(until_ms=machine.milliseconds() + milliseconds)
+        stamps = [stamp for stamp in polls if stamp >= start]
+        gaps = [later - earlier for earlier, later in zip(stamps, stamps[1:])]
+        return len(stamps) * 1000 / milliseconds, max(gaps) if gaps else 0
+
+    def dac_session(self):
+        from echo_emulator.audio import AudioPath
+        session = self.session(usb_answer=None)
+        machine = session.machine
+        machine.host_stays = True
+        path = AudioPath(machine)
+        for name in ("usb_dac_session", "usb_storage_session", "board_audio_stream_open"):
+            machine.note(name)
+        machine.answer_usb_prompt(DAC_PROMPT_KEYS)
+        session.run_to_first_frame()
+        machine.vbus = True
+        self.assertEqual(machine.run(until=lambda: "usb_dac_session" in machine.reached,
+                                     until_ms=machine.milliseconds() + 6000), "condition met")
+        machine.run(until_ms=machine.milliseconds() + 500)
+        return session, machine, path
+
+    def overlay_address(self, machine, name):
+        return machine.overlays[0].symbols[name]
+
+    def stream_into_dac(self, machine):
+        from unicorn.arm_const import UC_ARM_REG_PC, UC_ARM_REG_R0, UC_ARM_REG_R1
+        audio = self.overlay_address(machine, "audio")
+
+        def packet_at(milliseconds):
+            level = 0.1 + 0.9 * abs(math.sin(milliseconds / 400))
+            return b"".join(struct.pack("<hh", int(level * 30000 * math.sin(index / 8)),
+                                        int(level * 15000 * math.sin(index / 8)))
+                            for index in range(DAC_PACKET_FRAMES))
+
+        packet = packet_at(0)
+        buffer = self.overlay_address(machine, "write_buffer")
+        machine.uc.mem_write(buffer, packet)
+        alt_and_changes = bytearray(machine.read_memory(audio + 4, 3))
+        alt_and_changes[0] = 1
+        alt_and_changes[2] |= 1
+        machine.uc.mem_write(audio + 4, bytes(alt_and_changes))
+        machine.uc.mem_write(audio + 12, struct.pack("<I", DAC_RATE))
+        state = {"due": machine.microseconds(), "sent": 0, "late_us": 0}
+        receive = self.overlay_address(machine, "receive_stream")
+
+        def inject():
+            now = machine.microseconds()
+            if now < state["due"]:
+                return
+            state["late_us"] = max(state["late_us"], now - state["due"])
+            state["due"] += 1000
+            state["sent"] += 1
+            if state["sent"] % 20 == 0:
+                machine.uc.mem_write(buffer, packet_at(state["sent"]))
+            machine.uc.reg_write(UC_ARM_REG_R0, buffer)
+            machine.uc.reg_write(UC_ARM_REG_R1, len(packet))
+            machine.uc.reg_write(UC_ARM_REG_PC, receive | 1)
+
+        machine.hook_symbol("usb_poll", inject)
+        return state
+
     def press(self, machine, key):
         start = machine.milliseconds()
         machine.press_key(key, delay_ms=20, hold_ms=KEY_HOLD_MS)
@@ -520,15 +635,18 @@ class EchoImageHarness(unittest.TestCase):
     def time_file(utc, offset):
         return echo_debug.time_file_bytes(utc, offset)
 
-    def time_session(self, data, written_before_power_on=False):
+    def time_session(self, data, written_before_power_on=False, rtc_valid=True):
         """A session whose host leaves a time file: one written during the session unless asked.
 
         The emulated host writes nothing while connected, so a file meant to arrive during the
         session is on the drive from the start and the start-up removal is passed over."""
         volume = self.debug_volume()
         volume.add_file("time.bin", data, None, IDENTITY.data_directory)
-        keep = None if written_before_power_on else (
-            lambda machine: machine.stub_symbol("board_wall_time_forget_file", lambda machine: 0))
+        def keep(machine):
+            if not rtc_valid:
+                machine.rtc_bus.registers[2] |= 0x80
+            if not written_before_power_on:
+                machine.stub_symbol("board_wall_time_forget_file", lambda machine: 0)
         session, machine = self.ejecting_session(volume, before_start=keep)
         from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1
         sets = []
@@ -537,6 +655,7 @@ class EchoImageHarness(unittest.TestCase):
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
         machine.run(until_ms=machine.milliseconds() + QUIET_AFTER_MS)
         return session, machine, sets
+
 
     def hold_power(self, machine):
         machine.power_key_released_at_ms = machine.milliseconds() + POWER_HOLD_MS
@@ -624,10 +743,11 @@ class EchoImageHarness(unittest.TestCase):
         self.assert_healthy(session)
         summary("realistic %d sectors per cluster" % sectors_per_cluster, session)
 
-    def playback_rig(self):
+    def playback_rig(self, prepare=None):
         from echo_emulator.playback import Rig
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
-                   module_elfs=self.module_elfs)
+                   module_elfs=self.module_elfs, prepare=prepare)
+
 
     def speech_rig(self, rate=8000):
         from echo_emulator.playback import Rig

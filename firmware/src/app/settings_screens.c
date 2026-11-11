@@ -773,6 +773,21 @@ static ScreenAction request_rescan(void *context)
     return screen_action_none();
 }
 
+static ScreenAction open_clock(void *context)
+{
+    SettingsScreens *screens = context;
+    screens->choice_preview = STRING_COUNT;
+    SetClockConfig config = {screens->theme, &screens->context.store->settings,
+                             screens->context.toast};
+    return screen_action_push(set_clock_screen_init(&screens->clock, config));
+}
+
+static const char *clock_summary(const void *context)
+{
+    const SettingsScreens *screens = context;
+    return set_clock_screen_summary(&screens->context.store->settings);
+}
+
 static const char *format_status(const void *context)
 {
     const SettingsScreens *screens = context;
@@ -844,6 +859,11 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                                         .select = menu_open_screen,
                                                         .context = controls,
                                                         .opens = true};
+    screens->items[SETTINGS_DATE_TIME_ITEM] = (MenuItem){.label = i18n_text(STR_SET_CLOCK),
+                                                         .select = open_clock,
+                                                         .context = screens,
+                                                         .value = clock_summary,
+                                                         .opens = true};
     screens->items[SETTINGS_RESCAN_ITEM] = (MenuItem){.label = i18n_text(STR_RESCAN_LIBRARY),
                                                       .select = request_rescan,
                                                       .context = &screens->context};
@@ -864,6 +884,7 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
         screens->entries[index] = (SettingsEntry){.choice = &CHOICES[index], .owner = screens};
         int item = index + 1;
         item = item < SETTINGS_BLUETOOTH_ITEM ? item : item + 1;
+        item = item < SETTINGS_DATE_TIME_ITEM ? item : item + 1;
         item = item < SETTINGS_CUSTOM_EQ_ITEM ? item : item + 1;
         item = item < SETTINGS_RESCAN_ITEM ? item : item + 1;
         screens->items[item] = (MenuItem){.label = i18n_text(CHOICES[index].title),

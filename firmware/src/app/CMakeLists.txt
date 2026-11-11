@@ -3,6 +3,7 @@ add_library(echo_app STATIC
     cassette_art.c
     modules/listening_module.c
     screens/listening_screen.c
+    screens/moments_screen.c
     screens/lyrics_screen.c
     screens/listening_work.c
     screens/smart_list_screen.c
@@ -11,12 +12,15 @@ add_library(echo_app STATIC
     discovery_preferences.c
     discovery_playback.c
     order_publish.c
+    order_adopt.c
     personal_tags.c
     player_storage.c
     player_queue.c
     queue_edits.c
+    queue_actions.c
     mixtape_store.c
     mixtape_ui.c
+    cassette_ui.c
     mixtape_screen.c
     button_settings.c
     home_editor.c
@@ -57,11 +61,14 @@ add_library(echo_app STATIC
     screen_modules.c
     settings_preview.c
     settings_screens.c
+    screens/set_clock_screen.c
     settings_store.c
     parametric_calls.c
     parametric_store.c
     parametric_store_save.c
     headphone_store.c
+    headphone_parameters.c
+    headphone_store_path.c
     headphone_store_edit.c
     headphone_editor.c
     spoken_store.c
@@ -69,6 +76,7 @@ add_library(echo_app STATIC
     screens/bluetooth_screen.c
     screens/card_format_screen.c
     screens/calendar_screen.c
+    screens/cassette_flip_screen.c
     screens/clock_screen.c
     screens/charge_screen.c
     screens/charge_art.c
@@ -92,7 +100,8 @@ if(ECHO_BUILD_DEVICE)
     target_compile_definitions(echo_app PRIVATE ECHO_USB_OVERLAY_RENDERER)
 else()
     target_sources(echo_app PRIVATE modules/linked_modules.c library_rescan_job.c
-        screens/usb_screen.c)
+        screens/usb_dac_menu.c screens/usb_screen.c
+        screens/usb_screen_dac.c)
 endif()
 target_include_directories(echo_app PUBLIC include PRIVATE .)
 target_link_libraries(echo_app

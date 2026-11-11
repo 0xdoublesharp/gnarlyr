@@ -1,4 +1,4 @@
-foreach(playback_test play_queue resume_rewind resume_state up_next bookmarks spoken store track_order track_transition session_journal mix_catalog mix_tape mix_resolve store_roots)
+foreach(playback_test play_queue resume_rewind resume_state up_next bookmarks spoken store track_order track_transition session_journal moments cassette_catalog cassette_session mix_catalog mix_tape mix_resolve store_roots)
     echo_add_unit_test(NAME test_${playback_test}
         SOURCES playback/test_${playback_test}.c
         LIBRARIES echo_playback echo_library_fixtures
