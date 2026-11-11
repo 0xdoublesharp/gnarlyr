@@ -76,6 +76,50 @@ static bool band_tangents(const SettingsEqualizerCurve *curve, uint32_t *tangent
 
 bool equalizer_response_make(EqualizerResponse *response, const SettingsEqualizerCurve *curve)
 {
+    if (curve->is_parametric) {
+        *response = (EqualizerResponse){.range_tenth_db = MIN_RANGE_TENTH_DB};
+        ParametricSection sections[PARAMETRIC_FILTERS];
+        int count = 0;
+        for (int index = 0; index < curve->parametric.count && index < PARAMETRIC_FILTERS;
+             index++) {
+            if (parametric_design(&sections[count], &curve->parametric.filters[index],
+                                  REFERENCE_RATE)) {
+                count++;
+            }
+        }
+        uint64_t frequency = UINT64_C(20) << 16;
+        for (int point = 0; point < EQUALIZER_RESPONSE_POINTS; point++) {
+            response->frequency_hz[point] = point < 68 ? (uint16_t)(frequency >> 16)
+                                            : point - 68 < curve->parametric.count
+                                                ? curve->parametric.filters[point - 68].hz
+                                                : 20000;
+            frequency = frequency * 72653 >> 16;
+        }
+        response->frequency_hz[67] = 20000;
+        for (int point = 1; point < EQUALIZER_RESPONSE_POINTS; point++) {
+            uint16_t hz = response->frequency_hz[point];
+            int before = point;
+            while (before > 0 && hz < response->frequency_hz[before - 1]) {
+                response->frequency_hz[before] = response->frequency_hz[before - 1];
+                before--;
+            }
+            response->frequency_hz[before] = hz;
+        }
+        for (int point = 0; point < EQUALIZER_RESPONSE_POINTS; point++) {
+            int16_t db = (int16_t)parametric_cascade_response(
+                sections, count, response->frequency_hz[point], REFERENCE_RATE);
+            response->gain_tenth_db[point] = db;
+            int magnitude = db < 0 ? -db : db;
+            int range =
+                (magnitude + RANGE_STEP_TENTH_DB - 1) / RANGE_STEP_TENTH_DB * RANGE_STEP_TENTH_DB;
+            response->range_tenth_db =
+                range > response->range_tenth_db ? (int16_t)range : response->range_tenth_db;
+        }
+        uint64_t gain = parametric_pre_gain(&curve->parametric, REFERENCE_RATE);
+        response->preamp_tenth_db = parametric_decibels(gain * gain >> 10);
+        response->muted = gain == 0;
+        return true;
+    }
     uint32_t tangents[SETTINGS_EQUALIZER_BANDS];
     if (!band_tangents(curve, tangents)) {
         return false;

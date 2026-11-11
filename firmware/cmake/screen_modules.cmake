@@ -1,5 +1,7 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension)
+set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension equalizer)
 set(ECHO_SCREEN_MODULE_SOURCES_process
+    src/core/parametric.c
+    src/core/parametric_curve.c
     platform/device/logic/audio_fade.c
     platform/device/logic/audio_process_entry.c
     platform/device/logic/audio_trig.c
@@ -29,6 +31,26 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/app/home_art.c
     src/gfx/wireframe.c
     src/ui/wire_motion.c
+)
+set(ECHO_SCREEN_MODULE_SOURCES_equalizer
+    src/app/parametric_store.c
+    src/settings/parametric_file.c
+    src/ui/choice_screen.c
+    src/app/equalizer_ui.c
+    src/core/parametric.c
+    src/core/parametric_curve.c
+    src/app/parametric_store_save.c
+    src/settings/parametric_file_save.c
+    src/settings/parametric_import.c
+    src/app/equalizer_presets.c
+    src/app/screens/equalizer_screen.c
+    src/app/screens/parametric_screen.c
+    src/app/screens/equalizer_browser.c
+    src/app/screens/equalizer_plot.c
+    src/settings/equalizer_response.c
+    src/settings/equalizer_slots.c
+    src/settings/equalizer_fit_text.c
+    src/app/modules/equalizer_module.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
@@ -65,18 +87,11 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/settings_preview.c
     src/app/button_settings.c
     src/app/home_editor.c
-    src/app/equalizer_presets.c
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
     src/app/screens/bluetooth_screen.c
     src/app/bluetooth_link_ui.c
-    src/app/screens/equalizer_screen.c
-    src/app/screens/equalizer_browser.c
-    src/app/screens/equalizer_plot.c
-    src/settings/equalizer_response.c
     src/core/dac_identity.c
-    src/settings/equalizer_slots.c
-    src/settings/equalizer_fit_text.c
     src/ui/choice_screen.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_library

@@ -18,6 +18,9 @@ add_library(echo_core STATIC
     key_tracker.c
     low_battery.c
     permutation.c
+    parametric_model.c
+    parametric.c
+    parametric_curve.c
     power_policy.c
     random.c
     string_builder.c

@@ -641,7 +641,7 @@ class EchoImageHarness(unittest.TestCase):
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                    volume=volume, module_elfs=self.module_elfs)
 
-    def replay_gain_rig(self, mode, clipping=True, equalizer=0):
+    def replay_gain_rig(self, mode, clipping=True, equalizer=0, gains=None, extra_files=()):
         from echo_emulator.playback import Rig
         from echo_emulator.fat_volume import Fat32Volume
         pattern = (0, 14142, 20000, 14142, 0, -14142, -20000, -14142)
@@ -666,12 +666,14 @@ class EchoImageHarness(unittest.TestCase):
         settings[13], settings[14], settings[16] = 60, 2, 35
         settings[18] = equalizer
         settings[24], settings[27] = 1, 1
-        settings[28:38] = bytes((20,) * 10)
+        settings[28:38] = bytes((20,) * 10) if gains is None else bytes(20 + gain for gain in gains)
         checksum = FNV_START
         for value in settings[:38]:
             checksum = (checksum ^ value) * FNV_PRIME & 0xFFFFFFFF
         settings[38:42] = struct.pack("<I", checksum)
         volume.add_file("settings.bin", bytes(settings), directory=IDENTITY.data_directory)
+        for name, data in extra_files:
+            volume.add_file(name, data, directory=IDENTITY.data_directory)
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                    volume=volume, module_elfs=self.module_elfs), pattern
 
@@ -779,7 +781,7 @@ class EchoImageHarness(unittest.TestCase):
         settings[6:9] = bytes((7, 2, 0))
         settings[11], settings[13], settings[14], settings[16] = shuffle, 60, 2, 35
         settings[24], settings[27] = 1, 1
-        settings[28:38] = bytes((20,) * 10)
+        settings[28:38] = bytes((20,) * 10) if gains is None else bytes(20 + gain for gain in gains)
         settings[38:43] = bytes((comfort, 13, tenths, 0, 0x10))
         settings[43:47] = bytes((0x32, 0x54, 0x76, 0x08))
         checksum = FNV_START

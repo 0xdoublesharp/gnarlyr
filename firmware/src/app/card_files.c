@@ -14,12 +14,14 @@
 #include "library_store.h"
 #include "listening_store.h"
 #include "music_check.h"
+#include "parametric_store.h"
 #include "playback/mix_catalog.h"
 #include "playback/track_keys.h"
 #include "player.h"
 #include "settings_store.h"
 #include "spoken_store.h"
 
+const char PARAMETRIC_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/parametric.bin";
 const char EQUALIZER_SLOTS_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/eq_slots.bin";
 
 enum {
@@ -47,6 +49,7 @@ static const CardFile CARD_FILES[] = {
     {MIX_CATALOG_PATH, MIX_CATALOG_BYTES, false},
     {LISTENING_LOG_PATH, LISTENING_LOG_FILE_BYTES, false},
     {EQUALIZER_SLOTS_PATH, SMALL_FILE_BYTES, true},
+    {PARAMETRIC_STORE_PATH, SMALL_FILE_BYTES, true},
     {PLAYER_RESUME_PATH, SMALL_FILE_BYTES, false},
     {FAVORITES_STORE_PATH, SMALL_FILE_BYTES, false},
     {MUSIC_CHECK_PATH, SMALL_FILE_BYTES, false},

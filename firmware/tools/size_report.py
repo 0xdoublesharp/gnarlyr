@@ -354,7 +354,7 @@ class Budget:
 
 BUDGET_PRESETS = ("release", "device")
 RESIDENT_CODE_FLOORS = {"release": 4096, "device": 1024}
-BUDGET_MODULES = {"views", "settings", "library", "listening", "dsp", "ogg", "process", "extension"}
+BUDGET_MODULES = {"views", "settings", "library", "listening", "dsp", "ogg", "process", "extension", "equalizer"}
 BUDGET_MAPS = {"echo_usb_overlay.map", "echo_rescan_overlay.map", "echo_core1.map", "echo_core1_mp3.map",
                "echo_core1_m4a.map", "echo_core1_vorbis.map", "echo_core1_opus.map"}
 CORE1_SCRIPTS = Path(__file__).resolve().parents[1] / "platform/device/core1"

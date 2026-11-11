@@ -5,6 +5,7 @@
 
 #include "core/dac_identity.h"
 #include "core/headphone_audio.h"
+#include "core/parametric.h"
 
 enum {
     HAL_AUDIO_VOLUME_MAX = 60,
@@ -136,6 +137,8 @@ typedef struct HalAudioEqualizer {
     int8_t gain_half_db[HAL_AUDIO_EQUALIZER_BANDS];
     uint8_t band_count;
     uint16_t pre_gain;
+    bool is_parametric;
+    ParametricEq parametric;
 } HalAudioEqualizer;
 
 bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next);

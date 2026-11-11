@@ -3,6 +3,7 @@
 #include "core/string_builder.h"
 #include "hal/storage.h"
 #include "settings/equalizer_fit.h"
+#include "settings/parametric_import.h"
 
 enum {
     PATH_CAPACITY = EQUALIZER_PRESET_NAME_CAPACITY + 8,
@@ -11,9 +12,6 @@ enum {
 };
 
 static const char FOLDER[] = "/EQ";
-const StringId EQUALIZER_PRESET_NAMES[EQUALIZER_PRESET_COUNT] = {
-    STR_OFF,    STR_EQ_RETRO, STR_EQ_BASS,   STR_EQ_HEAVY,
-    STR_EQ_POP, STR_EQ_JAZZ,  STR_EQ_UNIQUE, STR_EQ_CUSTOM};
 static const StringId SLOT_LABELS[EQUALIZER_SLOT_COUNT] = {
     STR_EQ_SLOT_1, STR_EQ_SLOT_2, STR_EQ_SLOT_3, STR_EQ_SLOT_4,
     STR_EQ_SLOT_5, STR_EQ_SLOT_6, STR_EQ_SLOT_7, STR_EQ_SLOT_8};
@@ -38,7 +36,15 @@ bool equalizer_presets_save_slot(EqualizerPresets *presets, int slot, const int8
     equalizer_presets_read_slots(presets);
     equalizer_slots_put(&presets->slots, slot, gains);
     equalizer_slots_encode(&presets->slots, bytes);
-    return hal_internal_file_write(EQUALIZER_SLOTS_PATH, bytes, sizeof bytes);
+    if (!hal_internal_file_write(EQUALIZER_SLOTS_PATH, bytes, sizeof bytes)) {
+        return false;
+    }
+    if (presets->parametric != NULL && (parametric_store_bank()->used >> slot & 1) != 0) {
+        ParametricBank bank = *parametric_store_bank();
+        bank.used &= (uint8_t)~(1u << slot);
+        return parametric_store_save(presets->parametric, &bank);
+    }
+    return true;
 }
 
 static bool name_fits(const HalDirEntry *entry)
@@ -85,44 +91,12 @@ void equalizer_presets_scan(EqualizerPresets *presets)
         presets->options[presets->option_count++] = i18n_text(EQUALIZER_PRESET_NAMES[index]);
     }
     for (int slot = 0; slot < EQUALIZER_SLOT_COUNT; slot++) {
-        if (equalizer_slots_used(&presets->slots, slot)) {
+        if (equalizer_presets_slot_used(presets, slot)) {
             presets->slot_at[presets->slot_count++] = (uint8_t)slot;
             presets->options[presets->option_count++] = equalizer_presets_slot_label(slot);
         }
     }
     scan_files(presets);
-}
-
-static bool feed_file(HalFile file, EqualizerFit *fit)
-{
-    char chunk[CHUNK_BYTES];
-    uint32_t size = file.size < MAX_FILE_BYTES ? file.size : MAX_FILE_BYTES;
-    for (uint32_t offset = 0; offset < size; offset += CHUNK_BYTES) {
-        uint32_t length = size - offset < CHUNK_BYTES ? size - offset : CHUNK_BYTES;
-        if (!hal_file_read(file, offset, chunk, length)) {
-            return false;
-        }
-        equalizer_fit_text(fit, chunk, length);
-    }
-    return true;
-}
-
-static bool load_file(const char *name, int8_t *gains)
-{
-    char path[PATH_CAPACITY];
-    StringBuilder builder = string_builder_make(path, sizeof path);
-    string_builder_append(&builder, FOLDER);
-    string_builder_append_char(&builder, '/');
-    string_builder_append(&builder, name);
-    HalFile file;
-    EqualizerFit fit;
-    if (builder.overflowed || !hal_file_open(&file, path)) {
-        return false;
-    }
-    equalizer_fit_start(&fit);
-    bool read = feed_file(file, &fit);
-    hal_file_close(&file);
-    return equalizer_fit_finish(&fit, gains) && read;
 }
 
 int equalizer_presets_matching_slot(const EqualizerPresets *presets, const int8_t *gains)
@@ -132,7 +106,8 @@ int equalizer_presets_matching_slot(const EqualizerPresets *presets, const int8_
         while (band < SETTINGS_EQUALIZER_BANDS && presets->slots.gains[slot][band] == gains[band]) {
             band++;
         }
-        if (band == SETTINGS_EQUALIZER_BANDS && equalizer_slots_used(&presets->slots, slot)) {
+        if (band == SETTINGS_EQUALIZER_BANDS && equalizer_slots_used(&presets->slots, slot) &&
+            !(presets->parametric != NULL && (parametric_store_bank()->used >> slot & 1) != 0)) {
             return slot;
         }
     }
@@ -143,7 +118,7 @@ int equalizer_presets_slot_option(const EqualizerPresets *presets, int slot)
 {
     int option = EQUALIZER_PRESET_COUNT;
     for (int below = 0; below < slot; below++) {
-        option += equalizer_slots_used(&presets->slots, below);
+        option += equalizer_presets_slot_used(presets, below);
     }
     return option;
 }
@@ -156,16 +131,85 @@ int equalizer_presets_option_slot(const EqualizerPresets *presets, int option)
 
 bool equalizer_presets_load(EqualizerPresets *presets, int option, int8_t *gains)
 {
-    int index = option - EQUALIZER_PRESET_COUNT;
-    if (index < 0 || option >= presets->option_count) {
+    Settings settings = settings_defaults();
+    if (!equalizer_presets_choose(presets, option, &settings) ||
+        settings.equalizer != EQUALIZER_CUSTOM) {
         return false;
     }
-    if (index < presets->slot_count) {
-        int slot = presets->slot_at[index];
-        for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
-            gains[band] = presets->slots.gains[slot][band];
-        }
+    for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
+        gains[band] = settings.equalizer_gains[band];
+    }
+    return true;
+}
+
+bool equalizer_presets_slot_used(const EqualizerPresets *presets, int slot)
+{
+    return slot >= 0 && slot < EQUALIZER_SLOT_COUNT &&
+           (equalizer_slots_used(&presets->slots, slot) ||
+            (presets->parametric != NULL && (parametric_store_bank()->used >> slot & 1) != 0));
+}
+
+bool equalizer_presets_choose(EqualizerPresets *presets, int option, Settings *settings)
+{
+    presets->trimmed = false;
+    if (option < EQUALIZER_PRESET_COUNT) {
+        settings->equalizer = (EqualizerPreset)option;
         return true;
     }
-    return load_file(presets->files[index - presets->slot_count], gains);
+    int slot = equalizer_presets_option_slot(presets, option);
+    if (slot >= 0 && presets->parametric != NULL &&
+        (parametric_store_bank()->used >> slot & 1) != 0) {
+        settings->parametric = parametric_store_bank()->slots[slot];
+        settings->equalizer = EQUALIZER_PARAMETRIC;
+        return true;
+    }
+    int file_index = option - EQUALIZER_PRESET_COUNT - presets->slot_count;
+    if (slot < 0 && file_index >= 0 && file_index < presets->file_count) {
+        char path[PATH_CAPACITY];
+        StringBuilder builder = string_builder_make(path, sizeof path);
+        string_builder_append(&builder, FOLDER);
+        string_builder_append_char(&builder, '/');
+        string_builder_append(&builder, presets->files[file_index]);
+        HalFile file;
+        if (builder.overflowed || !hal_file_open(&file, path)) {
+            return false;
+        }
+        ParametricImport parser;
+        EqualizerFit fit;
+        equalizer_fit_start(&fit);
+        parametric_import_start(&parser);
+        char chunk[CHUNK_BYTES];
+        bool valid = file.size <= MAX_FILE_BYTES;
+        for (uint32_t offset = 0; valid && offset < file.size; offset += CHUNK_BYTES) {
+            uint32_t length = file.size - offset < CHUNK_BYTES ? file.size - offset : CHUNK_BYTES;
+            valid = hal_file_read(file, offset, chunk, length);
+            if (valid) {
+                parametric_import_text(&parser, chunk, length);
+                equalizer_fit_text(&fit, chunk, length);
+            }
+        }
+        hal_file_close(&file);
+        ParametricEq eq;
+        bool parsed = parametric_import_finish(&parser, &eq);
+        if (!valid || (parser.has_filters && !parsed)) {
+            return false;
+        }
+        if (parsed) {
+            settings->parametric = eq;
+            settings->equalizer = EQUALIZER_PARAMETRIC;
+            presets->trimmed = parser.total > PARAMETRIC_FILTERS;
+            return true;
+        }
+        if (!equalizer_fit_finish(&fit, settings->equalizer_gains)) {
+            return false;
+        }
+    } else if (slot >= 0) {
+        for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
+            settings->equalizer_gains[band] = presets->slots.gains[slot][band];
+        }
+    } else {
+        return false;
+    }
+    settings->equalizer = EQUALIZER_CUSTOM;
+    return true;
 }

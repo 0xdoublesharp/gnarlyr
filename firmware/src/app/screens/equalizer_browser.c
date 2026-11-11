@@ -19,13 +19,8 @@ static bool selected_curve(EqualizerBrowser *browser, SettingsEqualizerCurve *cu
 {
     Settings selected = *browser->config.settings;
     int option = browser->choice.list.selected;
-    if (option < EQUALIZER_PRESET_COUNT) {
-        selected.equalizer = (EqualizerPreset)option;
-    } else {
-        if (!equalizer_presets_load(browser->config.presets, option, selected.equalizer_gains)) {
-            return false;
-        }
-        selected.equalizer = EQUALIZER_CUSTOM;
+    if (!equalizer_presets_choose(browser->config.presets, option, &selected)) {
+        return false;
     }
     *curve = settings_equalizer_curve(&selected);
     return equalizer_response_make(&browser->response, curve);

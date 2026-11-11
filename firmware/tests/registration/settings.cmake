@@ -4,4 +4,7 @@ echo_add_unit_test(NAME test_headphone_file SOURCES settings/test_headphone_file
 echo_add_unit_test(NAME test_rocker SOURCES settings/test_rocker.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_equalizer_response SOURCES settings/test_equalizer_response.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_equalizer_fit SOURCES settings/test_equalizer_fit.c LIBRARIES echo_settings)
+echo_add_unit_test(NAME test_parametric SOURCES settings/test_parametric.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_equalizer_slots SOURCES settings/test_equalizer_slots.c LIBRARIES echo_settings)
+
+echo_add_unit_test(NAME test_parametric_file SOURCES settings/test_parametric_file.c LIBRARIES echo_settings)

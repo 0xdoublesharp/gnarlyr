@@ -1303,7 +1303,7 @@ static void a_saved_slot_is_listed_after_the_presets_and_restores_its_curve(void
     move_up(1);
     tap(KEY_PLAY);
     CHECK(title_is("Equalizer"));
-    move_down(1);
+    move_down(2);
     tap(KEY_PLAY);
     CHECK(title_is("Custom EQ"));
     CHECK(saved_settings(&settings));
@@ -2519,7 +2519,7 @@ static void formatting_a_paused_card_clears_the_library_and_saved_playback_state
     hold_back();
     move_down(HOME_SETTINGS_INDEX);
     tap(KEY_PLAY);
-    move_up(3);
+    move_up(4);
     tap(KEY_PLAY);
     CHECK(title_is("Format card"));
     tap(KEY_PLAY);

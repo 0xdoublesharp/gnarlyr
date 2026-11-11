@@ -249,6 +249,12 @@ static void custom_curve(const Settings *settings, SettingsEqualizerCurve *curve
 SettingsEqualizerCurve settings_equalizer_curve(const Settings *settings)
 {
     SettingsEqualizerCurve curve = {0};
+    if (settings->equalizer == EQUALIZER_PARAMETRIC) {
+        curve.is_parametric = true;
+        curve.parametric = settings->parametric;
+        curve.pre_gain = SETTINGS_UNITY_PRE_GAIN;
+        return curve;
+    }
     if (settings->equalizer == EQUALIZER_CUSTOM) {
         custom_curve(settings, &curve);
         return curve;

@@ -649,7 +649,11 @@ static Screen *next_top(ScreenAction action)
 static bool apply_action(ScreenAction action, uint32_t now_ms)
 {
     Screen *next = next_top(action);
-    if (top_screen() == &app.screens.modules.settings.settings.choice.screen &&
+    EqualizerUi *equalizer = &app.screens.modules.equalizer;
+    bool eq_screen = top_screen() == &equalizer->browser.choice.screen ||
+                     top_screen() == &equalizer->graphic.screen ||
+                     top_screen() == &equalizer->parametric.screen;
+    if ((top_screen() == &app.screens.modules.settings.settings.choice.screen || eq_screen) &&
         (action.type == SCREEN_ACTION_POP || action.type == SCREEN_ACTION_POP_TO_ROOT ||
          (next != NULL && next != top_screen()))) {
         screen_modules_cancel_previews(&app.screens);

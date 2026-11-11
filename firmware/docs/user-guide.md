@@ -269,7 +269,37 @@ Settings → Custom EQ edits ten bands: 31, 62, 125, 250 and 500 Hz, and 1, 2, 4
 
 Lines starting with `#` are comments. The points can be in any order and at any frequencies: each of the ten bands gets the gain interpolated between its two nearest points (by octave distance), or the nearest point's gain beyond the ends. Gains are rounded to 0.5 dB and limited to ±10 dB. A file without a usable frequency and gain says "Could not read the EQ file" and changes nothing.
 
-The graph is a calculated 44.1 kHz filter response with a labeled decibel scale, not an audio spectrum or a measurement of the output. It shows the tone-shaping response before the separately displayed computed preamp value. That value comes from the same linear gain used by the equalizer. Custom calculates preamp compensation from the combined filter response, including overlapping boosts and cuts. A change is heard after about a third of a second. The equalizer works on music up to 96 kHz (higher rates play unchanged) and not in USB DAC mode. Bands at or above a quarter of the music's sample rate do nothing (the 16 kHz band is idle at 44.1 and 48 kHz).
+The graph is a calculated 44.1 kHz filter response with a labeled decibel scale, not an audio spectrum or a measurement of the output. It shows the tone-shaping response before the separately displayed computed preamp value. That value comes from the same linear gain used by the equalizer. Custom calculates preamp compensation from the combined filter response, including overlapping boosts and cuts. A change is heard after about a third of a second. The equalizer works on music up to 96 kHz (higher rates play unchanged) and not in USB DAC mode. Graphic bands at or above a quarter of the music's sample rate do nothing (the 16 kHz band is idle at 44.1 and 48 kHz).
+
+### Parametric EQ
+
+Settings → Parametric EQ keeps a separate parametric Custom sound. The graphic Custom EQ editor stays available. A parametric sound has up to ten enabled or disabled filters: Peak, Low shelf or High shelf. Select a filter with the volume keys and press ▶ to see Enabled, Type, Frequency, Gain, Q and Remove filter. Select a field with ▶, change it with the volume keys, and press ▶ to keep it; Back cancels that adjustment. Back from the fields returns to the filter list. Add filter creates an enabled, flat 1 kHz Peak filter. Remove filter removes the selected filter.
+
+Frequency covers 20 Hz to 20 kHz in roughly 1/24-octave steps, rounded to whole Hz. Gain covers −12.0 to +12.0 dB in 0.1 dB steps, so imported correction values keep their precision. Q covers 0.30 to 10.00 in 0.01 steps. The selected filter's frequency, gain and Q appear above the response graph in landscape; its fields show those values in portrait. Enabled turns a filter off without removing its settings.
+
+Requested preamp adjusts the global level from −60.0 to +12.0 dB. The separately displayed computed preamp includes automatic headroom and can be lower than the requested value. Headroom covers overlapping boosts, resonant shelves and transient overshoot; it can reduce the level substantially for complex curves. A positive requested value cannot override that protection. Extremely demanding curves can require more attenuation than the fixed-point preamp can represent and become silent. Lower the boosts or disable filters to recover level.
+
+Save to slot stores the parametric sound in any of the same eight slots. A slot holds either a graphic or a parametric sound; saving replaces its previous kind. Settings → Equalizer offers Custom for the graphic sound, Custom (parametric), saved slots, and files. Choosing a parametric slot opens its editor. Music above 96 kHz and USB DAC output remain unchanged. Parametric filters at or above half the actual output rate are inactive; converted speech uses its converted output rate.
+
+### AutoEQ parametric files
+
+1. Export **ParametricEQ.txt** from AutoEQ, using at most ten Peak or shelf filters when possible. Copy it into `/EQ` on the active music volume. File names must fit the existing 27-byte limit.
+2. Open Settings → Equalizer and highlight the file to preview it. Press ▶ to keep it and open Parametric EQ.
+3. Review the filters and computed preamp, then use Save to slot to keep a named slot number. The imported Custom sound is also saved across restarts.
+
+Equalizer APO syntax works directly:
+
+```text
+Preamp: -6.2 dB
+Filter 1: ON PK Fc 105 Hz Gain -2.3 dB Q 0.70
+Filter 2: ON LSC Fc 100 Hz Gain 3.4 dB Q 0.71
+Filter 3: ON HS Fc 9000 Hz Gain -1.1 dB
+Filter 4: OFF PK Fc 400 Hz Gain 2 dB Q 1.00
+```
+
+PK and PEQ mean Peak; LS/LSC and HS/HSC mean Low shelf and High shelf. Names are case insensitive, and CRLF or LF line endings work. Peak needs Q; a shelf without Q uses 0.71, approximately the cookbook's default unity slope. OFF filters are ignored. Exported Squiglink files using this syntax work too; Wavelet GraphicEQ exports continue to use the existing graphic fitter.
+
+If more than ten ON filters are supplied, the ten largest absolute gains are kept and the player reports that reduction. Malformed or out-of-range filter lines reject the whole import, leaving the kept sound unchanged. Files over 16 KiB are refused. GraphicEQ files still fit to the graphic bands; their Preamp lines remain ignored. Parametric imports retain their requested preamp, subject to automatic headroom.
 
 ## ReplayGain
 

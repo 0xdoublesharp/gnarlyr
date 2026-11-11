@@ -40,3 +40,5 @@ typedef struct LibraryModuleEntry {
 } LibraryModuleEntry;
 
 extern const LibraryModuleEntry LIBRARY_MODULE_ENTRY;
+
+extern const ParametricModuleEntry EQUALIZER_MODULE_ENTRY;
