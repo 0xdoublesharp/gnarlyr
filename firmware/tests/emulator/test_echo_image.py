@@ -2439,11 +2439,12 @@ class EchoImageTest(unittest.TestCase):
             return struct.unpack("<12I", machine.read_memory(machine.symbols["stats"], 48))[10]
 
         def capture(uc, access, address, size, value, user):
-            produced = struct.unpack("<I", machine.read_memory(
-                rig.audio.engine + PRODUCED_OFFSET, 4))[0]
+            produced, consumed = struct.unpack("<II", machine.read_memory(
+                rig.audio.engine + PRODUCED_OFFSET, 8))
             slot = (address - ring) // 8
-            frame = produced if slot == produced % slots else (
-                produced - 1 - (produced - 1 - slot) % slots)
+            ahead = (slot - produced) % slots
+            free = slots - (produced - consumed)
+            frame = produced + ahead if ahead < free else produced - (slots - ahead)
             if frame >= 2 * boundary or size not in (4, 8):
                 return
             pair = watch["frames"].setdefault(frame, [None, None])
@@ -2485,21 +2486,21 @@ class EchoImageTest(unittest.TestCase):
 
     def test_shuffle_fades_out_one_album_and_fades_in_the_next_on_the_output_clock(self):
         from echo_emulator.playback import Rig
-        rate, tenths, level = 16000, 6, 12000
+        rate, output, tenths, level = 16000, 32000, 6, 12000
         volume = self.transition_volume(
             [("A.wav", self.tagged_wav("A", "Album A", rate, 24, level)),
              ("B.wav", self.tagged_wav("B", "Album B", rate, 24, level))], tenths)
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
         machine = rig.machine
-        boundary, length = 48000 * 24 // 10, 48000 * tenths // 10
+        boundary, length = output * 24 // 10, output * tenths // 10
         watch = self.watch_transition(rig, boundary, length)
         frames = watch["frames"]
         rig.open_songs()
         started = rig.play_song(1)
         machine.run(until=lambda: None not in frames.get(2 * boundary - 1, [None]),
                     until_ms=machine.milliseconds() + 8000)
-        self.assertEqual(48000, rig.audio.rate)
+        self.assertEqual(output, rig.audio.rate)
         self.assertEqual([], rig.audio.underruns(started))
 
         def gain(frame):
@@ -2516,7 +2517,7 @@ class EchoImageTest(unittest.TestCase):
                                    delta=0.002, msg=position)
             self.assertAlmostEqual(smooth(position / length), gain(boundary + position),
                                    delta=0.002, msg=position)
-        self.assertAlmostEqual(1.0, gain(boundary + length + 4800), delta=0.001)
+        self.assertAlmostEqual(1.0, gain(boundary + length + output // 10), delta=0.001)
         steps = [abs(gain(frame) - gain(frame - 1))
                  for frame in range(boundary - length, boundary + length)]
         self.assertLess(max(steps), 1.5 / length + 4 / 32768)
