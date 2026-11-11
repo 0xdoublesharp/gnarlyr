@@ -303,6 +303,10 @@ Follow [`device-recovery.md`](device-recovery.md). It writes FiiO's image into b
 
 Settings → Theme offers Neon Noir, Graphite, Sunset, Sea Glass and Classic. Theme changes keep the text size and orientation you selected. Settings → Controls assigns tap and hold actions independently for Volume+, Volume−, Play and Menu during playback. Default keeps the normal skip gesture; Off ignores that action. Reset buttons restores the normal controls. List navigation stays consistent.
 
+## Customising Home
+
+Settings → Home screen lists every Home item in Home order, each marked Shown or Hidden; Settings is marked Always shown and stays on Home. Press Play on an item for **Hide from Home** (or **Show on Home**) and **Move**. Move picks the item up, and so does holding Play on it: the title reads Move: vol ±, the volume buttons move the item up and down the list, Play places it and Back puts it back where it was. **Reset to default** restores the original order with every item shown. Each change is saved at once and Home follows it straight away, keeping your place on the item you had selected. Hiding only ever removes an item: Now Playing and Up Next still appear only while something is loaded, and Audiobooks and Podcasts only when their folders exist.
+
 ## Editing a queue
 
 Open Up Next and hold Play on a song for its actions. Move it earlier or later, play it next, or remove it. The playing song offers Edit full queue and Keep current. Clear added removes manually queued songs while keeping the underlying list. Back cancels unfinished queue preparation. The exact edited order and playback position are saved together.
