@@ -623,6 +623,29 @@ static void invalid_frame_headers_never_publish_samples(void)
     }
 }
 
+static void frames_cannot_exceed_the_stream_block_limit(void)
+{
+    uint8_t bytes[32] = {0xff, 0xf8, 0x19, 0x08, 0};
+    uint32_t at = 5;
+    bytes[at] = frame_crc8(bytes, at);
+    at++;
+    bytes[at++] = 0;
+    bytes[at++] = 0x12;
+    bytes[at++] = 0x34;
+    uint16_t crc = frame_crc16(bytes, at);
+    bytes[at++] = (uint8_t)(crc >> 8);
+    bytes[at++] = (uint8_t)crc;
+    Buffer input = {bytes, at};
+    FlacInfo info = {.sample_rate = 44100,
+                     .channels = 1,
+                     .bits_per_sample = 16,
+                     .min_block = 16,
+                     .max_block = 16};
+    flac_start(&decoder, input_of(&input), info);
+    CHECK_EQUAL(FLAC_ERROR, flac_decode_frame(&decoder));
+    CHECK_EQUAL(0u, decoder.block_samples);
+}
+
 static void malformed_subframes_and_residuals_never_publish_samples(void)
 {
     for (uint32_t variant = 0; variant < 9; variant++) {
@@ -1308,6 +1331,7 @@ int main(void)
         TEST_CASE(sample_size_header_codes_preserve_signed_values),
         TEST_CASE(stereo_channel_assignments_reconstruct_signed_samples_exactly),
         TEST_CASE(invalid_frame_headers_never_publish_samples),
+        TEST_CASE(frames_cannot_exceed_the_stream_block_limit),
         TEST_CASE(malformed_subframes_and_residuals_never_publish_samples),
         TEST_CASE(fixed_frame_numbers_use_maximum_block_size_and_reject_sample_overflow),
         TEST_CASE(a_frame_crossing_the_sample_position_limit_is_rejected),
