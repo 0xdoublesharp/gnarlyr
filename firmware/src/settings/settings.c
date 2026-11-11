@@ -67,8 +67,7 @@ enum {
     SAFE_START_BIT = 2,
     CLOCK_24H_BIT = 4,
     TRANSITION_SHIFT = 3,
-    HOME_ALL_ITEMS = (1 << SETTINGS_HOME_ITEM_COUNT) - 1,
-    HOME_HIDEABLE = HOME_ALL_ITEMS & ~(1 << SETTINGS_HOME_SETTINGS_ITEM),
+    HOME_HIDDEN_PACKED = HOME_HIDDEN_BYTE - HOME_ORDER_BYTE,
     NIBBLE_BITS = 4,
     NIBBLE_MASK = 0xF,
     CHECKSUM_SIZE = 4,
@@ -105,14 +104,40 @@ static const int8_t PRESET_GAINS[EQUALIZER_PRESET_COUNT][CURVE_FREQUENCIES] = {
 static const uint16_t PRESET_PRE_GAINS[EQUALIZER_PRESET_COUNT] = {
     SETTINGS_UNITY_PRE_GAIN, 21504, 14336, 20480, 20480, 14336, 14336, 12288};
 
-static uint8_t home_item(const uint8_t *extension, int index)
+static uint8_t home_item(const uint8_t *packed, int index)
 {
-    return (extension[HOME_ORDER_BYTE + index / 2] >> (NIBBLE_BITS * (index & 1))) & NIBBLE_MASK;
+    return (packed[index / 2] >> (NIBBLE_BITS * (index & 1))) & NIBBLE_MASK;
 }
 
-static uint16_t home_hidden(const uint8_t *extension)
+static int home_stored_count(const uint8_t *packed)
 {
-    return (uint16_t)(extension[HOME_HIDDEN_BYTE] | extension[HOME_HIDDEN_BYTE + 1] << 8);
+    unsigned seen = 0;
+    int count = 0;
+    for (int index = 0; index < SETTINGS_HOME_ORDER_SLOTS; index++) {
+        seen |= 1u << home_item(packed, index);
+        count = seen == (2u << index) - 1 ? index + 1 : count;
+    }
+    for (int index = count; index < SETTINGS_HOME_ORDER_SLOTS; index++) {
+        if (home_item(packed, index) != 0) {
+            return 0;
+        }
+    }
+    return count;
+}
+
+bool settings_home_unpack(const uint8_t *packed, int item_count, uint8_t *order, uint16_t *hidden)
+{
+    int stored = home_stored_count(packed);
+    unsigned mask = packed[HOME_HIDDEN_PACKED] | (unsigned)packed[HOME_HIDDEN_PACKED + 1] << 8;
+    unsigned hideable = ((1u << stored) - 1) & ~(1u << SETTINGS_HOME_SETTINGS_ITEM);
+    if (stored < SETTINGS_HOME_FIRST_ITEM_COUNT || stored > item_count || (mask & ~hideable) != 0) {
+        return false;
+    }
+    for (int index = 0; index < item_count; index++) {
+        order[index] = (uint8_t)(index < stored ? home_item(packed, index) : index);
+    }
+    *hidden = (uint16_t)mask;
+    return true;
 }
 
 static void read_extension(const uint8_t *extension, Settings *settings)
@@ -124,10 +149,8 @@ static void read_extension(const uint8_t *extension, Settings *settings)
     settings->track_transition = (TrackTransition)(comfort >> TRANSITION_SHIFT);
     settings->safe_start_volume_level = extension[SAFE_LEVEL_BYTE];
     settings->transition_tenths = extension[TRANSITION_BYTE];
-    for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
-        settings->home_order[index] = home_item(extension, index);
-    }
-    settings->home_hidden = home_hidden(extension);
+    settings_home_unpack(extension + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT, settings->home_order,
+                         &settings->home_hidden);
 }
 
 Settings settings_defaults(void)
@@ -382,12 +405,10 @@ static void decode_language(const uint8_t *bytes, Settings *settings)
 
 static bool home_valid(const uint8_t *extension)
 {
-    unsigned seen = 0;
-    for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
-        seen |= 1u << home_item(extension, index);
-    }
-    return seen == HOME_ALL_ITEMS && home_item(extension, SETTINGS_HOME_ITEM_COUNT) == 0 &&
-           (home_hidden(extension) & ~HOME_HIDEABLE) == 0;
+    uint8_t order[SETTINGS_HOME_ITEM_COUNT];
+    uint16_t hidden;
+    return settings_home_unpack(extension + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT, order,
+                                &hidden);
 }
 
 static bool reserved_clear(const uint8_t *extension)

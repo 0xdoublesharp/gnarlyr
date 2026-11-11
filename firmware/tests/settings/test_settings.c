@@ -1103,6 +1103,95 @@ static void every_item_but_settings_may_be_hidden(void)
     }
 }
 
+static void pack_home(uint8_t *packed, const uint8_t *order, int count, uint16_t hidden)
+{
+    memset(packed, 0, SETTINGS_HOME_PACKED_SIZE);
+    for (int index = 0; index < count; index++) {
+        packed[index / 2] |= (uint8_t)(order[index] << (4 * (index & 1)));
+    }
+    packed[5] = (uint8_t)hidden;
+    packed[6] = (uint8_t)(hidden >> 8);
+}
+
+static void a_saved_home_order_and_hidden_mask_are_applied_on_load(void)
+{
+    static const uint8_t ORDER[] = {4, 3, 0, 8, 7, 6, 5, 2, 1};
+    Settings original = settings_defaults();
+    memcpy(original.home_order, ORDER, sizeof ORDER);
+    original.home_hidden = 1u << 2 | 1u << 8;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&original, bytes);
+    Settings decoded = settings_defaults();
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK(memcmp(ORDER, decoded.home_order, sizeof ORDER) == 0);
+    CHECK_EQUAL(1u << 2 | 1u << 8, decoded.home_hidden);
+}
+
+static void a_home_order_from_a_build_with_more_items_is_rejected(void)
+{
+    static const uint8_t ORDER[] = {9, 0, 1, 2, 3, 4, 5, 6, 7, 8};
+    uint8_t packed[SETTINGS_HOME_PACKED_SIZE];
+    pack_home(packed, ORDER, 10, 0);
+    uint8_t order[SETTINGS_HOME_ORDER_SLOTS];
+    uint16_t hidden = 0;
+    CHECK(!settings_home_unpack(packed, SETTINGS_HOME_ITEM_COUNT, order, &hidden));
+    CHECK(settings_home_unpack(packed, 10, order, &hidden));
+    CHECK(memcmp(ORDER, order, sizeof ORDER) == 0);
+}
+
+static void an_order_saved_with_fewer_items_gains_the_new_ones_at_the_end_visible(void)
+{
+    static const uint8_t ORDER[] = {8, 7, 6, 5, 4, 3, 2, 1, 0};
+    static const uint8_t MIGRATED[] = {8, 7, 6, 5, 4, 3, 2, 1, 0, 9};
+    uint8_t packed[SETTINGS_HOME_PACKED_SIZE];
+    pack_home(packed, ORDER, 9, 1u << 2);
+    uint8_t order[SETTINGS_HOME_ORDER_SLOTS];
+    uint16_t hidden = 0;
+    CHECK(settings_home_unpack(packed, 10, order, &hidden));
+    CHECK(memcmp(MIGRATED, order, sizeof MIGRATED) == 0);
+    CHECK_EQUAL(1u << 2, hidden);
+}
+
+static void a_ten_item_build_may_hide_its_tenth_item_but_never_settings(void)
+{
+    static const uint8_t ORDER[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    uint8_t packed[SETTINGS_HOME_PACKED_SIZE];
+    uint8_t order[SETTINGS_HOME_ORDER_SLOTS];
+    uint16_t hidden = 0;
+    pack_home(packed, ORDER, 10, 1u << 9);
+    CHECK(settings_home_unpack(packed, 10, order, &hidden));
+    CHECK_EQUAL(1u << 9, hidden);
+    pack_home(packed, ORDER, 10, 1u << SETTINGS_HOME_SETTINGS_ITEM);
+    CHECK(!settings_home_unpack(packed, 10, order, &hidden));
+}
+
+static void a_hidden_item_the_saving_build_did_not_have_is_rejected(void)
+{
+    static const uint8_t ORDER[] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
+    uint8_t packed[SETTINGS_HOME_PACKED_SIZE];
+    pack_home(packed, ORDER, 9, 1u << 9);
+    uint8_t order[SETTINGS_HOME_ORDER_SLOTS];
+    uint16_t hidden = 0;
+    CHECK(!settings_home_unpack(packed, 10, order, &hidden));
+}
+
+static void orders_that_are_not_a_permutation_of_the_first_items_are_rejected(void)
+{
+    static const uint8_t SHORT[] = {0, 1, 2, 3, 4, 5, 6, 7};
+    static const uint8_t REPEATED[] = {0, 1, 2, 3, 4, 5, 6, 7, 7};
+    static const uint8_t GAP[] = {0, 1, 2, 3, 4, 5, 6, 7, 9};
+    static const uint8_t TRAILING[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 1};
+    const uint8_t *cases[] = {SHORT, REPEATED, GAP, TRAILING};
+    const int counts[] = {8, 9, 9, 10};
+    for (int at = 0; at < 4; at++) {
+        uint8_t packed[SETTINGS_HOME_PACKED_SIZE];
+        pack_home(packed, cases[at], counts[at], 0);
+        uint8_t order[SETTINGS_HOME_ORDER_SLOTS];
+        uint16_t hidden = 0;
+        CHECK(!settings_home_unpack(packed, 10, order, &hidden));
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -1117,6 +1206,12 @@ int main(void)
         TEST_CASE(the_checksum_covers_the_extension_block),
         TEST_CASE(each_invalid_extension_value_is_rejected_without_mutating_the_settings),
         TEST_CASE(every_item_but_settings_may_be_hidden),
+        TEST_CASE(a_saved_home_order_and_hidden_mask_are_applied_on_load),
+        TEST_CASE(a_home_order_from_a_build_with_more_items_is_rejected),
+        TEST_CASE(an_order_saved_with_fewer_items_gains_the_new_ones_at_the_end_visible),
+        TEST_CASE(a_ten_item_build_may_hide_its_tenth_item_but_never_settings),
+        TEST_CASE(a_hidden_item_the_saving_build_did_not_have_is_rejected),
+        TEST_CASE(orders_that_are_not_a_permutation_of_the_first_items_are_rejected),
         TEST_CASE(normalization_defaults_off_with_peak_protection_and_migrates_version_thirteen),
         TEST_CASE(normalization_modes_and_peak_protection_round_trip_in_the_flags_byte),
         TEST_CASE(invalid_normalization_flags_are_rejected_without_mutating_the_settings),
