@@ -110,12 +110,12 @@ typedef struct AppScreensContext {
     WireMotion *motion;
 } AppScreensContext;
 
-typedef struct ViewsModuleScreens {
+typedef struct PlayingModuleScreens {
     CoverFlowScreen cover_flow;
     UpNextScreen up_next;
-} ViewsModuleScreens;
+} PlayingModuleScreens;
 
-typedef struct UtilitiesModuleScreens {
+typedef struct ViewsModuleScreens {
     MixtapeUi mixtapes;
     CassetteFlipScreen cassette_flip;
     ClockScreen clock;
@@ -123,7 +123,7 @@ typedef struct UtilitiesModuleScreens {
     MenuScreen diagnostics;
     ClockOption diagnostic_clock;
     MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
-} UtilitiesModuleScreens;
+} ViewsModuleScreens;
 
 typedef struct SettingsModuleScreens {
     SettingsScreens settings;
@@ -143,8 +143,8 @@ typedef struct LibraryModuleScreens {
 } LibraryModuleScreens;
 
 typedef struct AppModuleScreens {
+    PlayingModuleScreens playing;
     ViewsModuleScreens views;
-    UtilitiesModuleScreens utilities;
     SettingsModuleScreens settings;
     ProfileModuleScreens listening;
     LibraryModuleScreens library;

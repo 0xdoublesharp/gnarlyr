@@ -57,7 +57,7 @@ static void bind(AppScreens *screens)
     bluetooth_screen_init(&own->bluetooth, context->bluetooth, context->theme);
     settings_screens_init(&own->settings, settings, context->theme);
     own->settings.items[SETTINGS_ABOUT_ITEM] =
-        app_screens_open_item(STR_ABOUT, &screens->modules.utilities.diagnostics.screen);
+        app_screens_open_item(STR_ABOUT, &screens->modules.views.diagnostics.screen);
     bind_home_editor(screens);
 }
 

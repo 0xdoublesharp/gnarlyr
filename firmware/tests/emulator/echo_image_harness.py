@@ -915,9 +915,9 @@ class EchoImageHarness(unittest.TestCase):
         watch = {"frames": {}, "instructions": 0,
                  "marks": {boundary - 2 * length: None, boundary - length: None,
                            boundary + length: None}}
-        _, process = self.module(machine, "process")
-        fade = sorted(address for name, address in process.symbols.items() if "fade" in name)
-        after = min(address for address in process.symbols.values() if address > fade[-1])
+        _, effects = self.module(machine, "effects")
+        fade = sorted(address for name, address in effects.symbols.items() if "fade" in name)
+        after = min(address for address in effects.symbols.values() if address > fade[-1])
 
         def busy_us():
             return struct.unpack("<12I", machine.read_memory(machine.symbols["stats"], 48))[10]
@@ -1071,9 +1071,9 @@ class EchoImageHarness(unittest.TestCase):
         return animated, still
 
     def module(self, machine, name):
-        for number, overlay in enumerate(machine.modules, 1):
+        for overlay in machine.modules:
             if overlay.name == MODULE_PREFIX + name:
-                return number, overlay
+                return overlay.number, overlay
         self.fail("the image has no module named " + name)
 
     def collect_toasts(self, machine):

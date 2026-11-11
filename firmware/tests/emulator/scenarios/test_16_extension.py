@@ -36,7 +36,7 @@ def headphone_bank(generation, trim, ceiling):
 
 
 class EchoImageTest(EchoImageHarness):
-    damaged_process_slots = ()
+    damaged_effects_slots = ()
     damaged_extension_slots = ()
 
     def test_a_damaged_extension_module_in_slot_1_is_replaced_by_the_copy_in_slot_2(self):
@@ -73,15 +73,15 @@ class EchoImageTest(EchoImageHarness):
 
     def session(self, *args, **kwargs):
         session = super().session(*args, **kwargs)
-        for slot in self.damaged_process_slots:
-            session.change_module(slot, 7, 600, lambda byte: byte ^ 0xFF)
+        for slot in self.damaged_effects_slots:
+            session.change_module(slot, 12, 600, lambda byte: byte ^ 0xFF)
         for slot in self.damaged_extension_slots:
             session.change_module(slot, 8, 600, lambda byte: byte ^ 0xFF)
         self.latest_session = session
         return session
 
     def test_debug_code_uses_the_second_processing_bank_after_a_bad_first_copy(self):
-        self.damaged_process_slots = ("slot_1",)
+        self.damaged_effects_slots = ("slot_1",)
         script = ("build %s\nrtc read\nreconnect\n" % self.build_tag()).encode("ascii")
         session, machine = self.ejecting_session(self.debug_volume(run_txt=script))
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
@@ -89,18 +89,19 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
         self.assertEqual(self.read_report(session)["script"]["rtc"][0]["status"], "ok")
         self.assert_healthy(session)
-        self.assertTrue(self.latest_session.module_reads("slot_1", 7))
-        self.assertTrue(self.latest_session.module_reads("slot_2", 7))
+        self.assertTrue(self.latest_session.module_reads("slot_1", 12))
+        self.assertTrue(self.latest_session.module_reads("slot_2", 12))
 
     def test_without_processing_banks_a_script_aborts_and_reconnects_without_running_them(self):
-        self.damaged_process_slots = ("slot_1", "slot_2")
+        self.damaged_effects_slots = ("slot_1", "slot_2")
         script = ("build %s\nrtc read\nreconnect\n" % self.build_tag()).encode("ascii")
         session, machine = self.ejecting_session(
             self.debug_volume(run_txt=script),
             before_start=lambda machine: machine.stub_symbol(
                 "extension_hal_clock_restore_wall", lambda machine: 0))
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
-        executed = machine.count_window_code(0x0308F000, 0x3000)
+        executed = machine.count_window_code(make_image.EFFECTS_MODULE_BASE,
+                                             make_image.EFFECTS_MODULE_CAPACITY)
         self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
         self.assertEqual(executed[0], 0)
         self.assertEqual(machine.rtc_bus.frames, [])

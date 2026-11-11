@@ -73,7 +73,7 @@ class EchoImageTest(EchoImageHarness):
             ramp = struct.unpack("<I", machine.read_memory(machine.reg(UC_ARM_REG_SP), 4))[0]
             starts.append(struct.unpack("<I", machine.read_memory(ramp, 4))[0])
 
-        machine.hook_symbol("audio_process_fade_in", fade_in_start)
+        machine.hook_symbol("audio_effects_fade_in", fade_in_start)
         rig.open_songs()
         rig.play_song(1)
         machine.run(until=lambda: starts and max(frames, default=0) >= starts[0] + 3 * length,

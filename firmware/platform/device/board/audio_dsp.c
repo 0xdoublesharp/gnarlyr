@@ -3,6 +3,7 @@
 #include "core/seam.h"
 #include "device/audio_dsp.h"
 #include "device/audio_ogg.h"
+#include "device/audio_source.h"
 #include "device/core1_source_private.h"
 #include "overlay.h"
 
@@ -66,4 +67,12 @@ CORE_SEAM bool ogg_stream_read(void *context, uint32_t offset, void *buffer, uin
 {
     const AudioOggEntry *ogg = (const AudioOggEntry *)entry();
     return entry()->magic == AUDIO_OGG_MAGIC && ogg->read(context, offset, buffer, length);
+}
+
+CORE_SEAM bool core1_open_flac(void *context, const char *path, uint32_t start_ms,
+                               AudioTrackInfo *track)
+{
+    const AudioSourceEntry *source = (const AudioSourceEntry *)entry();
+    return load(AUDIO_SOURCE_NUMBER, AUDIO_SOURCE_MAGIC) &&
+           source->open_flac(context, path, start_ms, track);
 }

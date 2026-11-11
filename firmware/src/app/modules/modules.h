@@ -9,20 +9,20 @@
 #include "library/music_fingerprint.h"
 #include "screen_modules.h"
 
-typedef struct ViewsModuleEntry {
+typedef struct PlayingModuleEntry {
     ScreenModuleEntry module;
     void (*charge_draw)(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms);
-} ViewsModuleEntry;
+} PlayingModuleEntry;
 
-typedef struct UtilitiesModuleEntry {
+typedef struct ViewsModuleEntry {
     ScreenModuleEntry module;
     void (*cancel)(MixtapeUi *ui);
     void (*step)(MixtapeUi *ui, uint32_t now_ms);
     Screen *(*add)(MixtapeUi *ui, uint16_t track);
-} UtilitiesModuleEntry;
+} ViewsModuleEntry;
 
+extern const PlayingModuleEntry PLAYING_MODULE_ENTRY;
 extern const ViewsModuleEntry VIEWS_MODULE_ENTRY;
-extern const UtilitiesModuleEntry UTILITIES_MODULE_ENTRY;
 extern const ScreenModuleEntry LISTENING_MODULE_ENTRY;
 
 typedef struct SettingsModuleEntry {

@@ -1,6 +1,7 @@
 add_executable(echo_device
     board/audio.c
     board/audio_dsp.c
+    board/audio_effects.c
     board/audio_process.c
     board/bluetooth.c
     board/clock.c
@@ -449,7 +450,9 @@ endforeach()
 foreach(module IN LISTS ECHO_SCREEN_MODULES)
     if(module STREQUAL "process")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_process.ld)
-    elseif(module STREQUAL "dsp" OR module STREQUAL "ogg")
+    elseif(module STREQUAL "effects")
+        set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_effects.ld)
+    elseif(module STREQUAL "dsp" OR module STREQUAL "ogg" OR module STREQUAL "source")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_dsp.ld)
     elseif(module STREQUAL "extension")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/extension_module.ld)
@@ -483,13 +486,6 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             equalizer_design=audio_process_equalizer_design
             equalizer_retune=audio_process_equalizer_retune
             equalizer_run=audio_process_equalizer_run
-            audio_fade_in=audio_process_fade_in
-            audio_fade_out=audio_process_fade_out
-            core1_open_flac=audio_process_open_flac
-            hal_system_rtc_read=audio_process_rtc_read
-            hal_system_rtc_set=audio_process_rtc_set
-            hal_clock_set_wall=audio_process_clock_set_wall
-            hal_clock_restore_wall=audio_process_clock_restore_wall
         )
     endif()
     if(module STREQUAL "extension")
@@ -514,6 +510,24 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             wire_motion_tick=extension_wire_motion_tick
         )
     endif()
+    if(module STREQUAL "effects")
+        target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
+        target_include_directories(${module_target}_objects PRIVATE board)
+        target_compile_definitions(${module_target}_objects PRIVATE
+            audio_fade_in=audio_effects_fade_in
+            audio_fade_out=audio_effects_fade_out
+            hal_system_rtc_read=audio_effects_rtc_read
+            hal_system_rtc_set=audio_effects_rtc_set
+            hal_clock_set_wall=audio_effects_clock_set_wall
+            hal_clock_restore_wall=audio_effects_clock_restore_wall
+        )
+    endif()
+    if(module STREQUAL "source")
+        target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)
+        target_compile_definitions(${module_target}_objects PRIVATE
+            core1_open_flac=audio_source_open_flac
+        )
+    endif()
     if(module STREQUAL "ogg")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)
         target_compile_definitions(${module_target}_objects PRIVATE
@@ -523,7 +537,7 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
     endif()
     target_include_directories(${module_target}_objects PRIVATE ${module_includes})
     target_link_libraries(${module_target}_objects PRIVATE echo_app echo_options)
-    if(NOT module STREQUAL "process")
+    if(NOT module STREQUAL "process" AND NOT module STREQUAL "effects")
         target_link_libraries(${module_target}_objects PRIVATE echo_compact)
     endif()
     add_executable(${module_target} $<TARGET_OBJECTS:${module_target}_objects>)

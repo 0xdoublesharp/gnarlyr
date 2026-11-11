@@ -322,8 +322,8 @@ static void flush_listening(void)
 
 static bool mixtape_busy(void)
 {
-    return (app.screens.bound_modules & (1u << SCREEN_MODULE_UTILITIES)) != 0 &&
-           app.screens.modules.utilities.mixtapes.stage != 0;
+    return (app.screens.bound_modules & (1u << SCREEN_MODULE_VIEWS)) != 0 &&
+           app.screens.modules.views.mixtapes.stage != 0;
 }
 
 static bool discovery_is_top(void)
@@ -361,10 +361,10 @@ static void cancel_edits(void)
     screen_modules_cancel_previews(&app.screens);
     cancel_discovery();
     if (mixtape_busy()) {
-        const UtilitiesModuleEntry *module =
-            (const UtilitiesModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_UTILITIES);
+        const ViewsModuleEntry *module =
+            (const ViewsModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS);
         if (module != NULL && module->cancel != NULL) {
-            module->cancel(&app.screens.modules.utilities.mixtapes);
+            module->cancel(&app.screens.modules.views.mixtapes);
         }
     }
     player_queue_cancel(&app.player);
@@ -372,11 +372,11 @@ static void cancel_edits(void)
 
 static void continue_mixtape(uint32_t now_ms)
 {
-    if (mixtape_busy() && top_screen() != &app.screens.modules.utilities.mixtapes.screen) {
-        const UtilitiesModuleEntry *module =
-            (const UtilitiesModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_UTILITIES);
+    if (mixtape_busy() && top_screen() != &app.screens.modules.views.mixtapes.screen) {
+        const ViewsModuleEntry *module =
+            (const ViewsModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS);
         if (module != NULL && module->step != NULL) {
-            module->step(&app.screens.modules.utilities.mixtapes, now_ms);
+            module->step(&app.screens.modules.views.mixtapes, now_ms);
         }
     }
 }
@@ -563,7 +563,7 @@ static bool opens_now_playing(KeyEvent event)
 
 static ScreenAction now_playing_action(void)
 {
-    return top_screen() == &app.screens.modules.views.up_next.screen
+    return top_screen() == &app.screens.modules.playing.up_next.screen
                ? screen_action_pop()
                : screen_action_push(&app.screens.now_playing.screen);
 }
@@ -657,8 +657,7 @@ static bool apply_action(ScreenAction action, uint32_t now_ms)
     }
     ScreenModule next_module =
         next != NULL ? screen_modules_of(&app.screens, next) : SCREEN_MODULE_NONE;
-    if (mixtape_busy() && next_module != SCREEN_MODULE_NONE &&
-        next_module != SCREEN_MODULE_UTILITIES) {
+    if (mixtape_busy() && next_module != SCREEN_MODULE_NONE && next_module != SCREEN_MODULE_VIEWS) {
         cancel_edits();
     }
     if (discovery_is_top() &&
@@ -819,8 +818,9 @@ static void mapped_navigation(ButtonAction action, uint32_t now_ms)
         go_home(now_ms);
     } else if (player_status(&app.player).has_track) {
         app_wake();
-        Screen *screen = action == BUTTON_ACTION_UP_NEXT ? &app.screens.modules.views.up_next.screen
-                                                         : &app.screens.now_playing.screen;
+        Screen *screen = action == BUTTON_ACTION_UP_NEXT
+                             ? &app.screens.modules.playing.up_next.screen
+                             : &app.screens.now_playing.screen;
         if (top_screen() != screen && apply_action(screen_action_push(screen), now_ms)) {
             screen_changed();
         }
@@ -1566,13 +1566,13 @@ void app_request_rescan_if_music_changed(void)
 }
 
 typedef struct ChargeFrame {
-    const ViewsModuleEntry *entry;
+    const PlayingModuleEntry *entry;
 } ChargeFrame;
 
 static void draw_charge(void *context, Canvas *canvas)
 {
     const ChargeFrame *frame = context;
-    const ViewsModuleEntry *entry = frame->entry;
+    const PlayingModuleEntry *entry = frame->entry;
     if (entry != NULL) {
         entry->charge_draw(canvas, board_theme(), app.charge_battery, app.now_ms);
     } else {
@@ -1689,8 +1689,8 @@ static void charge_step(uint32_t now_ms)
     bool moving = app.charge_battery.usb_power && app.charge_battery.charging;
     bool due = deadline_reached(now_ms, app.pacer.last_ms + CHARGE_SCREEN_FRAME_MS);
     if (app.display_on && (app.render_wanted || (moving && due))) {
-        ChargeFrame frame = {.entry = (const ViewsModuleEntry *)screen_modules_use(
-                                 &app.screens, SCREEN_MODULE_VIEWS)};
+        ChargeFrame frame = {.entry = (const PlayingModuleEntry *)screen_modules_use(
+                                 &app.screens, SCREEN_MODULE_PLAYING)};
         app.render_wanted = false;
         app.pacer.last_ms = now_ms;
         render((FrameDrawer){.draw = draw_charge, .context = &frame}, true);
@@ -1975,8 +1975,8 @@ CORE_SEAM void app_step(void)
     follow_usb_chooser(now_ms);
     commit_dac_headphones();
     service_discovery(now_ms);
-    MixtapeUi *mixtapes = &app.screens.modules.utilities.mixtapes;
-    if ((app.screens.bound_modules & (1u << SCREEN_MODULE_UTILITIES)) != 0 &&
+    MixtapeUi *mixtapes = &app.screens.modules.views.mixtapes;
+    if ((app.screens.bound_modules & (1u << SCREEN_MODULE_VIEWS)) != 0 &&
         mixtapes->destination != NULL) {
         follow_destination(&mixtapes->destination, now_ms);
     }
@@ -2150,9 +2150,9 @@ const char *app_toast_text(void)
 
 const char *app_diagnostics_value(int index)
 {
-    if (screen_modules_use(&app.screens, SCREEN_MODULE_UTILITIES) == NULL) {
+    if (screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS) == NULL) {
         return NULL;
     }
-    const MenuItem *item = &app.screens.modules.utilities.diagnostics_items[index];
+    const MenuItem *item = &app.screens.modules.views.diagnostics_items[index];
     return item->value != NULL ? item->value(item->context) : NULL;
 }

@@ -150,9 +150,9 @@ static Screen *browse_play_group(void *context, BrowseScreen *browse)
 static Screen *track_tape(void *context, uint16_t track)
 {
     AppScreens *screens = context;
-    const UtilitiesModuleEntry *entry =
-        (const UtilitiesModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_UTILITIES);
-    return entry != NULL ? entry->add(&screens->modules.utilities.mixtapes, track) : NULL;
+    const ViewsModuleEntry *entry =
+        (const ViewsModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_VIEWS);
+    return entry != NULL ? entry->add(&screens->modules.views.mixtapes, track) : NULL;
 }
 
 static Screen *track_info(void *context, uint16_t track)
@@ -187,7 +187,7 @@ static MenuItem music_item(AppScreens *screens, const LibraryStore *store, int i
         .query = browse_root_query(entry->kind),
         .favorites = entry->source == MUSIC_FAVORITES,
         .fixed =
-            entry->source == MUSIC_COVER_FLOW ? &screens->modules.views.cover_flow.screen : NULL,
+            entry->source == MUSIC_COVER_FLOW ? &screens->modules.playing.cover_flow.screen : NULL,
         .shelf = SPOKEN_NONE,
         .present = true,
     };
@@ -283,11 +283,11 @@ static void home_catalog(AppScreens *screens, MenuItem *items)
                                         NULL,
                                         &screens->modules.settings.settings.menu.screen,
                                         &screens->now_playing.screen,
-                                        &screens->modules.views.up_next.screen,
-                                        &screens->modules.utilities.mixtapes.screen,
+                                        &screens->modules.playing.up_next.screen,
+                                        &screens->modules.views.mixtapes.screen,
                                         &screens->modules.listening.listening.screen,
                                         NULL,
-                                        &screens->modules.utilities.clock.screen};
+                                        &screens->modules.views.clock.screen};
     for (int index = 0; index < HOME_ITEM_COUNT; index++) {
         items[index] = app_screens_open_item(APP_HOME_ITEMS[index].label, targets[index]);
     }
@@ -383,9 +383,9 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
                                     .library = &context.store->library,
                                     .theme = context.compact_theme,
                                     .covers = context.covers,
-                                    .up_next = &screens->modules.views.up_next.screen,
+                                    .up_next = &screens->modules.playing.up_next.screen,
                                     .lyrics = &screens->modules.listening.lyrics.screen,
-                                    .flip = &screens->modules.utilities.cassette_flip.screen};
+                                    .flip = &screens->modules.views.cassette_flip.screen};
     screens->context = context;
     screens->bound_modules = 0;
     message_screen_init(&screens->no_library, no_library);

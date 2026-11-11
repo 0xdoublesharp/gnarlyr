@@ -7,6 +7,7 @@
 #include "audio_process.h"
 #include "board.h"
 #include "core/seam.h"
+#include "device/audio_effects_module.h"
 #include "device/audio_process.h"
 #include "device/image_crc.h"
 #include "emmc.h"
@@ -24,8 +25,10 @@ _Static_assert(OVERLAY_WINDOW_BYTES % SECTOR_BYTES == 0, "whole sectors fit the 
 _Static_assert(MODULE_SLOT_BYTES % SECTOR_BYTES == 0, "whole sectors fit the module slot");
 _Static_assert(MODULE_SLOT_BASE + MODULE_SLOT_BYTES == AUDIO_PROCESS_BASE,
                "the UI slot ends where audio processing starts");
-_Static_assert(AUDIO_PROCESS_BASE + AUDIO_PROCESS_BYTES == GLYPH_WINDOW_BASE,
-               "audio processing ends where the glyph cache starts");
+_Static_assert(AUDIO_PROCESS_BASE + AUDIO_PROCESS_BYTES == AUDIO_EFFECTS_BASE,
+               "the processing banks are adjacent");
+_Static_assert(AUDIO_EFFECTS_BASE + AUDIO_EFFECTS_BYTES == GLYPH_WINDOW_BASE,
+               "audio effects end where the glyph cache starts");
 
 static const BoardImageTable MODULE_TABLE = {MODULE_TABLE_OFFSET, MODULE_TABLE_MAGIC,
                                              MODULE_TABLE_ROWS};

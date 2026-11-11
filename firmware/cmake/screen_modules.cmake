@@ -1,13 +1,19 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension utilities)
+set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source)
 set(ECHO_SCREEN_MODULE_SHARED_SOURCES src/codec/flac.c src/codec/flac_bits.c)
 set(ECHO_SCREEN_MODULE_SOURCES_process
-    platform/device/logic/core1_open_flac.c
-    platform/device/logic/flac_source_open.c
-    platform/device/logic/audio_fade.c
     platform/device/logic/audio_process_entry.c
     platform/device/logic/audio_trig.c
     platform/device/logic/equalizer_design.c
     platform/device/logic/equalizer.c
+)
+set(ECHO_SCREEN_MODULE_SOURCES_effects
+    platform/device/logic/audio_effects_entry.c
+    platform/device/logic/audio_fade.c
+)
+set(ECHO_SCREEN_MODULE_SOURCES_source
+    platform/device/logic/audio_source_entry.c
+    platform/device/logic/core1_open_flac.c
+    platform/device/logic/flac_source_open.c
     src/codec/flac.c
     src/codec/flac_bits.c
 )
@@ -43,8 +49,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/ui/wire_figure.c
     src/ui/wire_motion.c
 )
-set(ECHO_SCREEN_MODULE_SOURCES_views
-    src/app/modules/views_module.c
+set(ECHO_SCREEN_MODULE_SOURCES_playing
+    src/app/modules/playing_module.c
     src/app/screens/cover_flow_screen.c
     src/app/cover_placeholders.c
     src/app/screens/up_next_screen.c
@@ -55,8 +61,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/ui/placeholder_art.c
     src/gfx/image_quad.c
 )
-set(ECHO_SCREEN_MODULE_SOURCES_utilities
-    src/app/modules/utilities_module.c
+set(ECHO_SCREEN_MODULE_SOURCES_views
+    src/app/modules/views_module.c
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
     src/app/mixtape_store.c
@@ -138,10 +144,10 @@ set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/library/lyrics.c
 )
 if(ECHO_RELEASE)
-    list(APPEND ECHO_SCREEN_MODULE_SOURCES_utilities src/app/diagnostics_menu_release.c)
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu_release.c)
 else()
-    list(APPEND ECHO_SCREEN_MODULE_SOURCES_utilities src/app/diagnostics_menu.c)
-    list(APPEND ECHO_SCREEN_MODULE_SOURCES_process
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu.c)
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_effects
         src/app/modules/debug_module.c
         src/app/debug_steps.c
         src/app/debug_screenshot.c

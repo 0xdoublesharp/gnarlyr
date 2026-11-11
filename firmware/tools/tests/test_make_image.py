@@ -438,7 +438,7 @@ class ModuleTest(unittest.TestCase):
         return make_image.modules_in(image)
 
     def test_processing_module_has_an_independent_bounded_window_with_private_state(self):
-        base, capacity, number = 0x0308F000, 0x5000, 7
+        base, capacity, number = 0x0308F000, 0x3000, 7
         content = module_blob(number, bytes(capacity - 20))
         self.assertEqual(content, make_image.module_from_elf(module_elf(content, base=base), number))
         modules = [module_blob(index) for index in range(1, number)] + [content]
@@ -459,6 +459,41 @@ class ModuleTest(unittest.TestCase):
         invalid = module_elf(content, base=base, bss_size=capacity - len(content) + 1)
         with self.assertRaises(make_image.ImageError):
             make_image.module_from_elf(invalid, make_image.PROCESS_MODULE_NUMBER)
+
+    def test_effects_module_has_an_independent_window_and_bounded_private_state(self):
+        number = make_image.EFFECTS_MODULE_NUMBER
+        base, capacity = make_image.module_window(number)
+        self.assertEqual((0x03092000, 0x2000), (base, capacity))
+        content = module_blob(number)
+        valid = module_elf(content, base=base, bss_size=1024)
+        self.assertEqual(content, make_image.module_from_elf(valid, number))
+        invalid = module_elf(content, base=base, bss_size=capacity - len(content) + 1)
+        with self.assertRaises(make_image.ImageError):
+            make_image.module_from_elf(invalid, number)
+
+    def test_numbered_module_elfs_leave_reserved_rows_empty(self):
+        main_elf = elf_file([])
+        with tempfile.TemporaryDirectory() as directory:
+            paths = []
+            for number in (14, 11):
+                path = Path(directory) / f"module{number}.elf"
+                base, _ = make_image.module_window(number)
+                path.write_bytes(module_elf(module_blob(number), base=base))
+                paths.append(path)
+            modules = make_image.modules_from_elfs(main_elf, paths)
+            self.assertEqual(14, len(modules))
+            self.assertEqual(module_blob(11), modules[10])
+            self.assertEqual(module_blob(14), modules[13])
+            image = build(modules=modules)
+            rows = self.rows(image)
+            for number in (9, 10, 12, 13):
+                self.assertEqual((0, 0), rows[number - 1])
+            for number in (11, 14):
+                offset, size = rows[number - 1]
+                self.assertEqual(make_image.module_magic(number), image[offset:offset + 4])
+                self.assertEqual(len(modules[number - 1]), size)
+            with self.assertRaises(make_image.ImageError):
+                make_image.modules_from_elfs(main_elf, [paths[0], paths[0]])
 
     def test_extension_module_has_its_own_window_above_the_audio_bank_without_state(self):
         base, capacity, number = 0x0304A000, 0x2000, 8
@@ -615,8 +650,10 @@ class ModuleTest(unittest.TestCase):
     def test_ui_and_processing_slots_end_where_the_compact_glyph_arena_starts(self):
         self.assertEqual(make_image.PROCESS_MODULE_BASE,
                          make_image.MODULE_BASE + make_image.MODULE_CAPACITY)
-        self.assertEqual(0x03094000,
+        self.assertEqual(make_image.EFFECTS_MODULE_BASE,
                          make_image.PROCESS_MODULE_BASE + make_image.PROCESS_MODULE_CAPACITY)
+        self.assertEqual(0x03094000,
+                         make_image.EFFECTS_MODULE_BASE + make_image.EFFECTS_MODULE_CAPACITY)
         self.assertEqual(0x0309B000, 0x03094000 + 0x7000)
 
     def test_the_player_and_the_linker_scripts_use_the_builders_slot_and_table(self):
@@ -788,7 +825,11 @@ class OverlayLayoutTest(unittest.TestCase):
         slot_base, slot = self.region("board/echo_device.ld", "MODULE_RAM")
         process_base, process = self.region("board/echo_device.ld", "PROCESS_RAM")
         glyph_base, _ = self.region("board/echo_device.ld", "GLYPH_RAM")
-        self.assertEqual(glyph_base, base + workspace + slot + process)
+        effects_base, effects = self.region("board/echo_device.ld", "EFFECTS_RAM")
+        self.assertEqual(glyph_base, base + workspace + slot + process + effects)
+        self.assertEqual(process_base + process, effects_base)
+        self.assertEqual((effects_base, effects),
+                         self.region("overlay/audio_effects.ld", "MODULE_RAM"))
         self.assertEqual(0x2000, glyph_base - (window[0] + window[1]))
         self.assertEqual(base + workspace, slot_base)
         self.assertEqual(slot_base + slot, process_base)

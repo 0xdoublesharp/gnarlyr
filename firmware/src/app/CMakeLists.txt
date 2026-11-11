@@ -55,7 +55,7 @@ add_library(echo_app STATIC
     modules/library_module.c
     modules/settings_module.c
     modules/views_module.c
-    modules/utilities_module.c
+    modules/playing_module.c
     player.c
     screen_modules.c
     settings_preview.c

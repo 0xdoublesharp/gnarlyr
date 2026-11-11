@@ -12,11 +12,21 @@ from echo_image_harness import (
 
 class EchoImageTest(EchoImageHarness):
     def test_processing_capacity_grows_while_the_glyph_cache_keeps_64_slots(self):
-        self.assertEqual(0x5000, make_image.PROCESS_MODULE_CAPACITY)
-        session, machine = self.started_session()
+        self.assertEqual(0x3000, make_image.PROCESS_MODULE_CAPACITY)
+        self.assertEqual(0x2000, make_image.EFFECTS_MODULE_CAPACITY)
+        self.assertEqual(make_image.PROCESS_MODULE_BASE + make_image.PROCESS_MODULE_CAPACITY,
+                         make_image.EFFECTS_MODULE_BASE)
+        rig = self.speech_rig(22050)
+        rig.open_songs()
+        started = rig.play_song(1)
+        machine = rig.machine
+        for name in ("process", "effects", "dsp"):
+            _, module = self.module(machine, name)
+            self.assertTrue(module.loaded(machine), name)
         slots = int.from_bytes(machine.read_memory(machine.symbols["slot_count"], 4), "little")
         self.assertEqual(64, slots)
-        self.assert_healthy(session)
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assert_healthy(rig.session)
 
     def test_paused_i2s_flags_do_not_count_but_active_flags_still_do(self):
         rig = self.speech_rig(44100)

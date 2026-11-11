@@ -31,9 +31,12 @@ MODULE_BASE = 0x03084400
 MODULE_CAPACITY = 0xAC00
 PROCESS_MODULE_NUMBER = 7
 PROCESS_MODULE_BASE = 0x0308F000
-PROCESS_MODULE_CAPACITY = 0x5000
+PROCESS_MODULE_CAPACITY = 0x3000
+EFFECTS_MODULE_NUMBER = 12
+EFFECTS_MODULE_BASE = 0x03092000
+EFFECTS_MODULE_CAPACITY = 0x2000
 AUDIO_MODULE_NUMBER = 5
-AUDIO_MODULE_NUMBERS = (5, 6)
+AUDIO_MODULE_NUMBERS = (5, 6, 10, 14)
 AUDIO_MODULE_BASE = 0x03048000
 AUDIO_MODULE_CAPACITY = 0x2000
 EXTENSION_MODULE_NUMBER = 8
@@ -295,7 +298,7 @@ def blob_offsets(face_sizes, pack_sizes=(), module_sizes=()):
     packs = [first_fit(free, size) for size in pack_sizes]
     if None in packs:
         raise ImageError(f"language pack {packs.index(None) + 1} doesn't fit the image")
-    modules = [first_fit(free, size) for size in module_sizes]
+    modules = [first_fit(free, size) if size else 0 for size in module_sizes]
     if None in modules:
         raise ImageError(f"module {modules.index(None) + 1} doesn't fit the image")
     return faces, packs, modules
@@ -363,6 +366,8 @@ def module_window(number):
         return AUDIO_MODULE_BASE, AUDIO_MODULE_CAPACITY
     if number == PROCESS_MODULE_NUMBER:
         return PROCESS_MODULE_BASE, PROCESS_MODULE_CAPACITY
+    if number == EFFECTS_MODULE_NUMBER:
+        return EFFECTS_MODULE_BASE, EFFECTS_MODULE_CAPACITY
     if number == EXTENSION_MODULE_NUMBER:
         return EXTENSION_MODULE_BASE, EXTENSION_MODULE_CAPACITY
     return MODULE_BASE, MODULE_CAPACITY
@@ -372,6 +377,8 @@ def check_modules(modules):
     if len(modules) > MODULE_LIMIT:
         raise ImageError(f"the module table holds at most {MODULE_LIMIT} modules")
     for number, module in enumerate(modules, 1):
+        if not module:
+            continue
         _, capacity = module_window(number)
         if not OVERLAY_HEADER_SIZE < len(module) <= capacity:
             raise ImageError(f"module {number} must be more than {OVERLAY_HEADER_SIZE} and at "
@@ -395,6 +402,8 @@ def place_modules(image, parts):
     table = bytearray(MODULE_TABLE_SIZE)
     struct.pack_into("<4sI", table, 0, MODULE_TABLE_MAGIC, len(modules))
     for index, (module, offset) in enumerate(zip(modules, offsets)):
+        if not module:
+            continue
         body = module[OVERLAY_HEADER_SIZE:]
         header = module_magic(index + 1) + struct.pack("<III", len(module), crc32(body),
                                                        code_crc(parts))
@@ -656,13 +665,20 @@ def check_overlay_copies(main_elf, overlay_elf, label, remedy="add them to ECHO_
 
 
 def modules_from_elfs(main_elf, paths):
-    modules = []
-    for number, path in enumerate(paths, 1):
+    modules = {}
+    for path in paths:
         elf = path.read_bytes()
+        content = elf_sections(elf).get(".overlay")
+        head = content.content[OVERLAY_HEADER_SIZE:OVERLAY_HEADER_SIZE + 4] if content else b""
+        if len(head) != 4 or head[:3] != MODULE_MAGIC or not 1 <= head[3] <= MODULE_LIMIT:
+            raise ImageError(f"module {path.stem} has no valid numbered entry")
+        number = head[3]
+        if number in modules:
+            raise ImageError(f"module {number} is supplied twice")
         check_overlay_copies(main_elf, elf, f"module {number} ({path.stem})",
                              "a source file belongs to the main program or to modules, not both")
-        modules.append(module_from_elf(elf, number))
-    return modules
+        modules[number] = module_from_elf(elf, number)
+    return [modules.get(number, b"") for number in range(1, max(modules, default=0) + 1)]
 
 
 def git_output(directory, *arguments):
