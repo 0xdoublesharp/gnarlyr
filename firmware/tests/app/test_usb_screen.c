@@ -171,6 +171,8 @@ static void layout_holds_together(const Theme *theme, AppUsbStatus status)
     UsbScreenLayout layout = usb_screen_layout(theme, status);
     rect_fits(layout.header, theme);
     rect_fits(layout.art, theme);
+    rect_fits(layout.figure, theme);
+    CHECK(rect_is_empty(rect_intersection(layout.figure, layout.state)));
     rect_fits(layout.meter, theme);
     rect_fits(layout.state, theme);
     rect_fits(layout.lines, theme);
@@ -313,7 +315,7 @@ static void storage_motion_redraws_only_the_cassette_square(void)
         AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
         draw_twice(&theme, status, &scene, turn_reels);
         CHECK(changed(&theme));
-        CHECK(changes_stay_inside(&theme, usb_screen_layout(&theme, status).art));
+        CHECK(changes_stay_inside(&theme, usb_screen_layout(&theme, status).figure));
     }
 }
 

@@ -16,6 +16,9 @@ enum {
     ART_TALL_PARTS = 5,
     ART_WIDE_PARTS = 8,
     FLOOR_QUARTERS = 3,
+    SPAN_QUARTERS = 5,
+    FIGURE_WIDE_TENTHS = 12,
+    FIGURE_TALL_TENTHS = 8,
     QUARTERS = 4,
     BATTERY_WIDTH = 24,
     BATTERY_HEIGHT = 12,
@@ -65,6 +68,15 @@ static Rect meter_in(const Theme *theme, Rect region)
     return (Rect){region.x, region.y + (region.height - height) / 2, region.width, height};
 }
 
+static Rect figure_in(Rect art)
+{
+    int span = smaller(art.width, art.height * SPAN_QUARTERS / QUARTERS);
+    int width = smaller(art.width, span * FIGURE_WIDE_TENTHS / TENTHS);
+    int height = smaller(art.height, span * FIGURE_TALL_TENTHS / TENTHS);
+    return (Rect){art.x + (art.width - width) / 2, art.y + (art.height - height) / 2, width,
+                  height};
+}
+
 static UsbScreenLayout portrait_layout(const Theme *theme, UsbScreenLayout layout)
 {
     int pad = theme->metrics.padding;
@@ -73,6 +85,7 @@ static UsbScreenLayout portrait_layout(const Theme *theme, UsbScreenLayout layou
     int bottom = layout.detail.y - pad;
     Rect art = {layout.header.x, top, layout.header.width, height};
     layout.art = art;
+    layout.figure = figure_in(art);
     layout.meter = meter_in(theme, art);
     int below = top + height + pad;
     int state = STATE_LINES * font_line_height(theme->fonts.title);
@@ -89,6 +102,7 @@ static UsbScreenLayout landscape_layout(const Theme *theme, UsbScreenLayout layo
     int bottom = layout.detail.y - pad;
     int column = layout.header.width * ART_COLUMN_FIFTHS / FIFTHS;
     layout.art = (Rect){layout.header.x, top, column, bottom - top};
+    layout.figure = figure_in(layout.art);
     layout.meter = meter_in(theme, layout.art);
     int right = layout.header.x + column + pad;
     int width = layout.header.x + layout.header.width - right;
@@ -249,7 +263,8 @@ static void draw_cassette(const UsbPainter *painter)
         ink.colors.accent = ink.colors.danger;
     }
     WireFigureFrame frame = {WIRE_SHAPE_CASSETTE, painter->scene->turn, WIRE_FIGURE_ENDLESS};
-    wire_figure_draw(painter->canvas, &ink, painter->layout.art, frame);
+    Canvas figure = canvas_clipped(painter->canvas, painter->layout.figure);
+    wire_figure_draw(&figure, &ink, painter->layout.art, frame);
 }
 
 static StringId state_text(const UsbScene *scene)
@@ -365,22 +380,53 @@ static void draw_storage_lines(const UsbPainter *painter, Rect area)
     }
 }
 
+bool usb_screen_touches(const UsbPainter *painter, Rect area)
+{
+    Rect clip = painter->canvas->clip;
+    return area.width > 0 && area.height > 0 && clip.x < area.x + area.width &&
+           area.x < clip.x + clip.width && clip.y < area.y + area.height &&
+           area.y < clip.y + clip.height;
+}
+
+void usb_screen_show_in_bands(AppUsbStatus status, Rect area)
+{
+    for (int top = area.y; top < area.y + area.height; top += USB_SCREEN_BAND_HEIGHT) {
+        int height = area.y + area.height - top;
+        height = height < USB_SCREEN_BAND_HEIGHT ? height : USB_SCREEN_BAND_HEIGHT;
+        app_show_usb_area(status, (Rect){area.x, top, area.width, height});
+    }
+}
+
+Rect usb_screen_column(const UsbScreenLayout *layout)
+{
+    return (Rect){layout->lines.x, layout->state.y, layout->lines.width,
+                  layout->lines.y + layout->lines.height - layout->state.y};
+}
+
 void usb_screen_draw_frame(const UsbPainter *painter, const char *title)
 {
     draw_stage(painter);
-    draw_header(painter, title);
     const Theme *theme = painter->theme;
-    label_draw_wrapped(painter->canvas,
-                       (TextStyle){theme->fonts.small, theme->colors.text_secondary},
-                       (Label){painter->layout.detail, painter->status.detail});
+    if (usb_screen_touches(painter, painter->layout.header)) {
+        draw_header(painter, title);
+    }
+    if (usb_screen_touches(painter, painter->layout.detail)) {
+        label_draw_wrapped(painter->canvas,
+                           (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+                           (Label){painter->layout.detail, painter->status.detail});
+    }
 }
 
 static void draw_storage(const UsbPainter *painter)
 {
     usb_screen_draw_frame(painter, charge_screen_usb_title(painter->status.view));
-    draw_cassette(painter);
-    int below = usb_screen_draw_state(painter, i18n_text(state_text(painter->scene)));
-    draw_storage_lines(painter, usb_screen_lines_below(painter, below));
+    if (usb_screen_touches(painter, painter->layout.figure)) {
+        draw_cassette(painter);
+    }
+    if (usb_screen_touches(painter, usb_screen_column(&painter->layout))) {
+        int below = usb_screen_draw_state(painter, i18n_text(state_text(painter->scene)));
+        draw_storage_lines(painter, usb_screen_lines_below(painter, below));
+    }
 }
 
 Rect usb_screen_lines_below(const UsbPainter *painter, int below)

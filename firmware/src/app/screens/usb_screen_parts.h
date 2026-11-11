@@ -28,5 +28,6 @@ int usb_screen_draw_state(const UsbPainter *painter, const char *text);
 void usb_screen_append_tenths(StringBuilder *builder, uint32_t tenths);
 void usb_screen_draw_frame(const UsbPainter *painter, const char *title);
 Rect usb_screen_lines_below(const UsbPainter *painter, int below);
+bool usb_screen_touches(const UsbPainter *painter, Rect area);
 void usb_screen_draw_dac(const UsbPainter *painter);
 void usb_screen_draw_power(const UsbPainter *painter);

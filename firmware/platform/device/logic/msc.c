@@ -166,7 +166,7 @@ static bool refused(const Msc *msc, uint8_t lun)
     return ((msc->ejected | msc->removed) & (1u << lun)) != 0;
 }
 
-void msc_remove_media(Msc *msc)
+CORE_SEAM void msc_remove_media(Msc *msc)
 {
     for (uint8_t index = 0; index < msc->lun_count; index++) {
         if (msc->luns[index].present) {

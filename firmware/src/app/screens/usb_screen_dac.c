@@ -50,20 +50,29 @@ static void draw_bar(const UsbPainter *painter, Rect bar, uint8_t level)
     }
 }
 
+Rect usb_screen_meter_bar(const Theme *theme, const UsbScreenLayout *layout, int side)
+{
+    Rect meter = layout->meter;
+    int gap = theme->metrics.padding / 2;
+    int bar = (meter.height - gap) / 2;
+    return (Rect){meter.x, meter.y + side * (bar + gap), meter.width, bar};
+}
+
 static void draw_meter(const UsbPainter *painter)
 {
     const Theme *theme = painter->theme;
     const Font *font = theme->fonts.small;
-    Rect meter = painter->layout.meter;
     int gap = theme->metrics.padding / 2;
-    int bar = (meter.height - gap) / 2;
     static const StringId SIDES[USB_SCENE_CHANNELS] = {STR_USB_DAC_LEFT, STR_USB_DAC_RIGHT};
     int label = text_width(font, i18n_text(STR_USB_DAC_LEFT));
     label = label > text_width(font, i18n_text(STR_USB_DAC_RIGHT))
                 ? label
                 : text_width(font, i18n_text(STR_USB_DAC_RIGHT));
     for (int side = 0; side < USB_SCENE_CHANNELS; side++) {
-        Rect row = {meter.x, meter.y + side * (bar + gap), meter.width, bar};
+        Rect row = usb_screen_meter_bar(theme, &painter->layout, side);
+        if (!usb_screen_touches(painter, row)) {
+            continue;
+        }
         Rect name = label_centered_area(font, (Rect){row.x, row.y, label, row.height},
                                         i18n_text(SIDES[side]));
         usb_screen_text(painter, name, (TextStyle){font, theme->colors.text_secondary},
@@ -239,7 +248,12 @@ void usb_screen_draw_dac(const UsbPainter *painter)
         draw_menu(painter);
         return;
     }
-    draw_meter(painter);
+    if (usb_screen_touches(painter, painter->layout.meter)) {
+        draw_meter(painter);
+    }
+    if (!usb_screen_touches(painter, usb_screen_column(&painter->layout))) {
+        return;
+    }
     const char *state = i18n_text(dac_state_text(painter->scene));
     char named[USB_SCREEN_TEXT_CAPACITY];
     if (painter->scene->state == USB_SCENE_DAC_CHOOSE) {

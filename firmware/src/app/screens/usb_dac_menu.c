@@ -158,7 +158,7 @@ UsbDacAction usb_dac_menu_key(UsbDacMenu *menu, Key key, uint32_t now_ms)
     switch (key) {
     case KEY_VOLUME_UP:
     case KEY_VOLUME_DOWN:
-        list_view_move(&menu->view, key == KEY_VOLUME_UP ? -1 : 1, true, now_ms);
+        list_view_move(&menu->view, key == KEY_VOLUME_UP ? 1 : -1, true, now_ms);
         return USB_DAC_ACTION_REDRAW;
     case KEY_PLAY:
         return choose(menu);

@@ -1,5 +1,6 @@
 import argparse
 import importlib.util
+import math
 import struct
 import sys
 import tempfile
@@ -103,6 +104,20 @@ KEY_PLAY = 250
 KEY_BACK = 500
 KEY_HOLD_MS = 150
 USB_ANSWER_FILE_TRANSFER = 1
+KEY_MENU = 350
+DAC_PROMPT_KEYS = (KEY_NEXT, KEY_NEXT, KEY_PLAY)
+DAC_MENU_FILE_TRANSFER_ROW = 4
+LEAVE_HOLD_MS = 1200
+LEAVE_FORCE_HOLD_MS = 4500
+LEAVE_GRACE_MS = 2000
+LEAVE_LIMIT_MS = 8000
+ACTIVITY_WRITING = 2
+TRAFFIC_MEASURE_MS = 2000
+STORAGE_MOTION_FRAME_MS = 400
+COLUMN_BANDS_LIMIT = 12
+DAC_PACKET_FRAMES = 48
+DAC_RATE = 48000
+DAC_MEASURE_MS = 2000
 USB_PROMPT_MS = 15000
 PROMPT_NOTICED_MS = 1000
 STARTUP_SETTLED_MS = 5000
@@ -1858,6 +1873,218 @@ class EchoImageTest(unittest.TestCase):
         return session.machine.run(
             until=lambda: reached.get("usb_session_storage_changed", 0) >= count,
             until_ms=session.machine.milliseconds() + self.session_module.FRAME_LIMIT_MS)
+
+    def staying_storage_session(self, quiet=True):
+        from unicorn.arm_const import UC_ARM_REG_R0
+        session = self.session(vbus=True)
+        machine = session.machine
+        machine.host_stays = True
+        machine.stub_symbol("msc_finished", lambda machine: 0)
+        state = {"quiet": quiet}
+        started = "usb_activity_start" if "usb_activity_start" in machine.overlays[0].symbols \
+            else "usb_wait_for_host"
+        if started == "usb_activity_start":
+            machine.stub_symbol("usb_activity_quiet", lambda machine: int(state["quiet"]))
+        for name in (started, "usb_session_storage_changed", "board_wait_for_key"):
+            machine.note(name)
+        applied = []
+        machine.hook_symbol("time_file_take", lambda: applied.append(machine.reg(UC_ARM_REG_R0)))
+        removed = machine.trace("msc_remove_media") if started == "usb_activity_start" else []
+        session.run_to_first_frame()
+        self.assertEqual(machine.run(until=lambda: started in machine.reached,
+                                     until_ms=self.session_module.FRAME_LIMIT_MS), "condition met")
+        machine.run(until_ms=machine.milliseconds() + 300)
+        return session, machine, state, applied, removed
+
+    def hold_back(self, machine, hold_ms):
+        pressed = machine.milliseconds() + 20
+        machine.press_key(KEY_BACK, delay_ms=20, hold_ms=hold_ms)
+        return pressed
+
+    def session_ended(self, machine):
+        return machine.run(until=lambda: "usb_session_storage_changed" in machine.reached,
+                           until_ms=machine.milliseconds() + LEAVE_LIMIT_MS)
+
+    def test_holding_back_on_a_quiet_host_removes_the_media_and_ends_like_an_eject(self):
+        session, machine, _, applied, removed = self.staying_storage_session(quiet=True)
+        pressed = self.hold_back(machine, LEAVE_HOLD_MS)
+        self.assertEqual(self.session_ended(machine), "condition met")
+        ended = machine.milliseconds()
+        self.assertEqual(len(removed), 1)
+        self.assertGreaterEqual(removed[0] - pressed, 1000 - CLOCK_SLACK_MS)
+        self.assertGreaterEqual(ended - removed[0], LEAVE_GRACE_MS - CLOCK_SLACK_MS)
+        self.assertEqual(applied, [1])
+        self.assertNotIn("board_wait_for_key", machine.reached)
+        self.assert_healthy(session)
+        print("\n[player-side disconnect] media removed %d ms after Back, session ended %d ms "
+              "later" % (removed[0] - pressed, ended - removed[0]))
+
+    def test_a_disconnect_while_the_computer_writes_waits_for_it_to_finish(self):
+        session, machine, state, applied, removed = self.staying_storage_session(quiet=False)
+        self.hold_back(machine, LEAVE_HOLD_MS)
+        machine.run(until_ms=machine.milliseconds() + 3000)
+        self.assertEqual(removed, [])
+        self.assertNotIn("usb_session_storage_changed", machine.reached)
+        quiet_at = machine.milliseconds()
+        state["quiet"] = True
+        self.assertEqual(self.session_ended(machine), "condition met")
+        self.assertEqual(len(removed), 1)
+        self.assertLess(removed[0] - quiet_at, 50)
+        self.assertEqual(applied, [1])
+        self.assertNotIn("board_wait_for_key", machine.reached)
+        self.assert_healthy(session)
+
+    def test_keeping_back_held_while_the_computer_writes_ends_like_an_unplug(self):
+        session, machine, _, applied, removed = self.staying_storage_session(quiet=False)
+        machine.answer_waits_for_key(4)
+        pressed = self.hold_back(machine, LEAVE_FORCE_HOLD_MS)
+        self.assertEqual(self.session_ended(machine), "condition met")
+        self.assertEqual(removed, [])
+        self.assertEqual(applied, [0])
+        self.assertIn("board_wait_for_key", machine.reached)
+        self.assertGreaterEqual(machine.milliseconds() - pressed, 4000 - CLOCK_SLACK_MS)
+        self.assert_healthy(session)
+
+    def poll_stamps(self, machine, name="usb_poll"):
+        stamps = []
+        machine.hook_symbol(name, lambda: stamps.append(machine.microseconds()))
+        return stamps
+
+    def poll_rate(self, machine, milliseconds, polls=None):
+        polls = self.poll_stamps(machine) if polls is None else polls
+        start = machine.microseconds()
+        machine.run(until_ms=machine.milliseconds() + milliseconds)
+        stamps = [stamp for stamp in polls if stamp >= start]
+        gaps = [later - earlier for earlier, later in zip(stamps, stamps[1:])]
+        return len(stamps) * 1000 / milliseconds, max(gaps) if gaps else 0
+
+    def test_storage_motion_leaves_the_usb_loop_room_while_the_host_writes(self):
+        session, machine, _, _, _ = self.staying_storage_session(quiet=True)
+        if "usb_activity_now" not in machine.overlays[0].symbols:
+            rate, gap = self.poll_rate(machine, TRAFFIC_MEASURE_MS)
+            print("\n[storage before] usb_poll %.0f/s, longest gap %.2f ms" % (rate, gap / 1000))
+            return
+        traffic = {"kind": 0, "kib": 0}
+        machine.stub_symbol("usb_activity_now", lambda machine: traffic["kind"])
+
+        def copied(machine):
+            traffic["kib"] += 64 if traffic["kind"] else 0
+            return traffic["kib"]
+
+        machine.stub_symbol("usb_activity_written_kib", copied)
+        areas = machine.trace("app_show_usb_area")
+        polls = self.poll_stamps(machine)
+        still_rate, still_gap = self.poll_rate(machine, TRAFFIC_MEASURE_MS, polls)
+        self.assertEqual(areas, [])
+        traffic["kind"] = ACTIVITY_WRITING
+        machine.run(until_ms=machine.milliseconds() + 300)
+        moving_rate, moving_gap = self.poll_rate(machine, TRAFFIC_MEASURE_MS, polls)
+        frames = len(areas)
+        self.assertGreaterEqual(frames, TRAFFIC_MEASURE_MS // STORAGE_MOTION_FRAME_MS)
+        self.assertLessEqual(frames, TRAFFIC_MEASURE_MS // STORAGE_MOTION_FRAME_MS
+                             + (TRAFFIC_MEASURE_MS // 1000 + 1) * COLUMN_BANDS_LIMIT)
+        self.assert_healthy(session)
+        print("\n[storage motion] usb_poll %.0f/s still, %.0f/s with motion (%.1f %% fewer); "
+              "longest gap %.2f ms still, %.2f ms with motion; %d area frames"
+              % (still_rate, moving_rate, 100 * (1 - moving_rate / still_rate), still_gap / 1000,
+                 moving_gap / 1000, frames))
+
+    def dac_session(self):
+        from echo_emulator.audio import AudioPath
+        session = self.session(usb_answer=None)
+        machine = session.machine
+        machine.host_stays = True
+        path = AudioPath(machine)
+        for name in ("usb_dac_session", "usb_storage_session", "board_audio_stream_open"):
+            machine.note(name)
+        machine.answer_usb_prompt(DAC_PROMPT_KEYS)
+        session.run_to_first_frame()
+        machine.vbus = True
+        self.assertEqual(machine.run(until=lambda: "usb_dac_session" in machine.reached,
+                                     until_ms=machine.milliseconds() + 6000), "condition met")
+        machine.run(until_ms=machine.milliseconds() + 500)
+        return session, machine, path
+
+    def overlay_address(self, machine, name):
+        return machine.overlays[0].symbols[name]
+
+    def stream_into_dac(self, machine):
+        from unicorn.arm_const import UC_ARM_REG_PC, UC_ARM_REG_R0, UC_ARM_REG_R1
+        audio = self.overlay_address(machine, "audio")
+
+        def packet_at(milliseconds):
+            level = 0.1 + 0.9 * abs(math.sin(milliseconds / 400))
+            return b"".join(struct.pack("<hh", int(level * 30000 * math.sin(index / 8)),
+                                        int(level * 15000 * math.sin(index / 8)))
+                            for index in range(DAC_PACKET_FRAMES))
+
+        packet = packet_at(0)
+        buffer = self.overlay_address(machine, "write_buffer")
+        machine.uc.mem_write(buffer, packet)
+        alt_and_changes = bytearray(machine.read_memory(audio + 4, 3))
+        alt_and_changes[0] = 1
+        alt_and_changes[2] |= 1
+        machine.uc.mem_write(audio + 4, bytes(alt_and_changes))
+        machine.uc.mem_write(audio + 12, struct.pack("<I", DAC_RATE))
+        state = {"due": machine.microseconds(), "sent": 0, "late_us": 0}
+        receive = self.overlay_address(machine, "receive_stream")
+
+        def inject():
+            now = machine.microseconds()
+            if now < state["due"]:
+                return
+            state["late_us"] = max(state["late_us"], now - state["due"])
+            state["due"] += 1000
+            state["sent"] += 1
+            if state["sent"] % 20 == 0:
+                machine.uc.mem_write(buffer, packet_at(state["sent"]))
+            machine.uc.reg_write(UC_ARM_REG_R0, buffer)
+            machine.uc.reg_write(UC_ARM_REG_R1, len(packet))
+            machine.uc.reg_write(UC_ARM_REG_PC, receive | 1)
+
+        machine.hook_symbol("usb_poll", inject)
+        return state
+
+    def test_holding_back_in_dac_mode_still_returns_to_the_mode_selector(self):
+        session, machine, _ = self.dac_session()
+        self.hold_back(machine, LEAVE_HOLD_MS)
+        machine.note("usb_dac_menu_open")
+        machine.note("usb_modes")
+        machine.run(until_ms=machine.milliseconds() + LEAVE_HOLD_MS + 1000)
+        self.assertEqual(machine.usb_log[-1][1], "soft disconnect")
+        self.assertNotIn("usb_storage_session", machine.reached)
+        self.assertNotIn("usb_dac_menu_open", machine.reached)
+        self.assertEqual(machine.reached.get("usb_modes"), 1)
+        self.assert_healthy(session)
+
+    def test_the_dac_menu_switches_to_file_transfer_without_unplugging(self):
+        session, machine, _ = self.dac_session()
+        for key in (KEY_MENU,) + (KEY_NEXT,) * DAC_MENU_FILE_TRANSFER_ROW + (KEY_PLAY,):
+            self.press(machine, key)
+        machine.answer_waits_for_key(4)
+        self.assertEqual(machine.run(until=lambda: "usb_storage_session" in machine.reached,
+                                     until_ms=machine.milliseconds() + 6000), "condition met")
+        self.assert_healthy(session)
+
+    def test_the_dac_level_meter_keeps_the_usb_audio_loop_fed(self):
+        session, machine, path = self.dac_session()
+        polls = self.poll_stamps(machine)
+        areas = machine.trace("app_show_usb_area") if "app_show_usb_area" in machine.symbols else []
+        state = self.stream_into_dac(machine)
+        machine.run(until_ms=machine.milliseconds() + 500)
+        self.assertIn("board_audio_stream_open", machine.reached)
+        self.assertEqual(path.rate, DAC_RATE)
+        start_areas, start_sent = len(areas), state["sent"]
+        state["late_us"] = 0
+        rate, gap = self.poll_rate(machine, DAC_MEASURE_MS, polls)
+        sent = state["sent"] - start_sent
+        frames = len(areas) - start_areas
+        self.assertGreaterEqual(sent, DAC_MEASURE_MS - 5)
+        self.assertLess(state["late_us"], 2000)
+        self.assert_healthy(session)
+        print("\n[dac stream] %d packets in %d ms, usb_poll %.0f/s, longest poll gap %.2f ms, "
+              "latest packet %.2f ms behind, %d meter and info frames"
+              % (sent, DAC_MEASURE_MS, rate, gap / 1000, state["late_us"] / 1000, frames))
 
     def test_a_second_usb_session_reuses_the_usb_overlay_still_in_memory(self):
         session = self.session()

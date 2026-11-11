@@ -21,7 +21,7 @@ static void open_menu(AppDacSettings settings)
 static void select_row(int row)
 {
     for (int index = 0; index < row; index++) {
-        usb_dac_menu_key(&menu, KEY_VOLUME_DOWN, 0);
+        usb_dac_menu_key(&menu, KEY_VOLUME_UP, 0);
     }
 }
 
@@ -50,7 +50,7 @@ static void play_on_volume_adjusts_it_with_the_volume_keys_until_play(void)
     CHECK(strcmp(menu.model.detail(&menu, USB_DAC_ROW_VOLUME), "36") == 0);
     CHECK_EQUAL(USB_DAC_ACTION_REDRAW, usb_dac_menu_key(&menu, KEY_PLAY, 0));
     CHECK(!menu.adjusting);
-    CHECK_EQUAL(USB_DAC_ACTION_REDRAW, usb_dac_menu_key(&menu, KEY_VOLUME_DOWN, 0));
+    CHECK_EQUAL(USB_DAC_ACTION_REDRAW, usb_dac_menu_key(&menu, KEY_VOLUME_UP, 0));
     CHECK_EQUAL(USB_DAC_ROW_GAIN, menu.view.selected);
 }
 
@@ -121,7 +121,7 @@ static void the_mode_rows_ask_to_switch(void)
 static void back_or_menu_closes_and_moving_wraps(void)
 {
     open_menu((AppDacSettings){35, GAIN_LOW, OUTPUT_AUTO, HEADPHONE_PROFILE_NONE});
-    usb_dac_menu_key(&menu, KEY_VOLUME_UP, 0);
+    usb_dac_menu_key(&menu, KEY_VOLUME_DOWN, 0);
     CHECK_EQUAL(USB_DAC_ROW_CHARGE_ONLY, menu.view.selected);
     CHECK_EQUAL(USB_DAC_ACTION_CLOSE, usb_dac_menu_key(&menu, KEY_BACK, 0));
     CHECK_EQUAL(USB_DAC_ACTION_CLOSE, usb_dac_menu_key(&menu, KEY_MENU, 0));

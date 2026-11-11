@@ -32,8 +32,9 @@ enum {
     LUN_COUNT = 2,
     WRITE_BUFFER_SECTORS = 64,
     WORKING_COMMANDS = 2,
-    MOTION_FRAME_MS = 100,
-    MOTION_STEP = 3
+    MOTION_FRAME_MS = 400,
+    FOLLOW_MS = 10,
+    MOTION_STEP = 12
 };
 
 static UsbShared *shared;
@@ -133,7 +134,7 @@ static bool stats_changed(MscStats now, MscStats shown)
 
 static bool session_works(void)
 {
-    return port.configured && msc_stats(&msc).commands >= WORKING_COMMANDS;
+    return port.configured && msc.stats.commands >= WORKING_COMMANDS;
 }
 
 static void fall_back_to_full_speed(void)
@@ -224,7 +225,7 @@ static void step_motion(uint32_t now_ms)
     motion_ms = now_ms;
     scene.turn = (uint8_t)(scene.turn + MOTION_STEP);
     AppUsbStatus status = storage_status();
-    app_show_usb_area(status, usb_screen_layout(app_theme(), status).art);
+    app_show_usb_area(status, usb_screen_layout(app_theme(), status).figure);
 }
 
 static void follow_keys(void)
@@ -269,9 +270,14 @@ static void refresh(MscStats *shown, HalBattery *shown_battery)
     uint32_t written = usb_activity_written_kib(&activity);
     if (stats_changed(stats, *shown)) {
         show_counters(stats);
-    } else if (app_usb_battery_changed(*shown_battery, battery) || written != scene.written_kib) {
+    } else if (app_usb_battery_changed(*shown_battery, battery)) {
         scene.written_kib = written;
         show_storage_state();
+    } else if (written != scene.written_kib) {
+        scene.written_kib = written;
+        AppUsbStatus status = storage_status();
+        UsbScreenLayout layout = usb_screen_layout(app_theme(), status);
+        app_show_usb_area(status, usb_screen_column(&layout));
     }
     *shown = stats;
     *shown_battery = battery;
@@ -289,28 +295,44 @@ static UsbSessionEnd ended(UsbLeaveState state)
     return USB_SESSION_NO_HOST;
 }
 
+typedef struct SessionWatch {
+    MscStats shown;
+    HalBattery battery;
+    uint32_t refreshed;
+    uint32_t followed;
+    UsbLeaveState state;
+} SessionWatch;
+
+static void watch_session(SessionWatch *watch, uint32_t now)
+{
+    watch->followed = now;
+    watch->state = follow_leave(now);
+    if (scene_follow(watch->state, now)) {
+        show_storage_state();
+    }
+    if (now - watch->refreshed >= COUNTER_REFRESH_MS) {
+        refresh(&watch->shown, &watch->battery);
+        watch->refreshed = hal_clock_milliseconds();
+    }
+    step_motion(now);
+}
+
 static UsbSessionEnd serve(void)
 {
-    MscStats shown = msc_stats(&msc);
-    HalBattery shown_battery = hal_power_battery();
-    uint32_t refreshed = hal_clock_milliseconds();
-    while (usb_session_present(shared, &forced, msc_stats(&msc).commands)) {
+    uint32_t start = hal_clock_milliseconds();
+    SessionWatch watch = {msc_stats(&msc), hal_power_battery(), start, start - FOLLOW_MS,
+                          USB_LEAVE_SERVING};
+    while (usb_session_present(shared, &forced, msc.stats.commands)) {
         uint32_t now = hal_clock_milliseconds();
-        UsbLeaveState state = follow_leave(now);
-        if (scene_follow(state, now)) {
-            show_storage_state();
+        if (now - watch.followed >= FOLLOW_MS) {
+            watch_session(&watch, now);
         }
-        if (now - refreshed >= COUNTER_REFRESH_MS) {
-            refresh(&shown, &shown_battery);
-            refreshed = hal_clock_milliseconds();
-        }
-        step_motion(now);
         usb_poll(&port);
         board_display_service();
-        if (usb_fallback_due(&fallback, session_works(), hal_clock_milliseconds())) {
+        if (usb_fallback_due(&fallback, session_works(), now)) {
             fall_back_to_full_speed();
         }
-        UsbSessionEnd end = ended(state);
+        UsbSessionEnd end = ended(watch.state);
         if (end != USB_SESSION_NO_HOST) {
             return end;
         }

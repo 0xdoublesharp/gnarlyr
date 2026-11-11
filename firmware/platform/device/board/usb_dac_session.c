@@ -146,15 +146,15 @@ static void show_state(void)
     app_show_usb_status(dac_status());
 }
 
-static bool follow_levels(uint32_t now_ms)
+static uint8_t follow_levels(uint32_t now_ms)
 {
     uint16_t peaks[USB_SCENE_CHANNELS];
     usb_audio_sink_take_peaks(&sink, peaks);
-    bool changed = false;
+    uint8_t changed = 0;
     for (int side = 0; side < USB_SCENE_CHANNELS; side++) {
         uint8_t now = playing ? usb_level_of(peaks[side]) : 0;
         uint8_t level = usb_level_follow(scene.dac.level[side], now, now_ms - meter_ms);
-        changed |= level != scene.dac.level[side];
+        changed |= (uint8_t)(level != scene.dac.level[side] ? 1u << side : 0u);
         scene.dac.level[side] = level;
     }
     return changed;
@@ -165,11 +165,15 @@ static void step_meter(uint32_t now_ms)
     if (menu_open || now_ms - meter_ms < METER_FRAME_MS) {
         return;
     }
-    bool changed = follow_levels(now_ms);
+    uint8_t changed = follow_levels(now_ms);
     meter_ms = now_ms;
-    if (changed) {
-        AppUsbStatus status = dac_status();
-        app_show_usb_area(status, usb_screen_layout(app_theme(), status).meter);
+    AppUsbStatus status = dac_status();
+    const Theme *theme = app_theme();
+    UsbScreenLayout layout = usb_screen_layout(theme, status);
+    for (int side = 0; side < USB_SCENE_CHANNELS; side++) {
+        if ((changed & (1u << side)) != 0) {
+            app_show_usb_area(status, usb_screen_meter_bar(theme, &layout, side));
+        }
     }
 }
 
@@ -360,10 +364,19 @@ static void follow_keys(void)
 
 static void refresh(uint32_t now_ms, uint32_t *refreshed)
 {
-    if (now_ms - *refreshed >= INFO_REFRESH_MS && !menu_open) {
-        show_state();
-        *refreshed = now_ms;
+    if (now_ms - *refreshed < INFO_REFRESH_MS || menu_open) {
+        return;
     }
+    *refreshed = now_ms;
+    uint8_t shown = scene.state;
+    follow_info(now_ms);
+    AppUsbStatus status = dac_status();
+    if (scene.state != shown) {
+        app_show_usb_status(status);
+        return;
+    }
+    UsbScreenLayout layout = usb_screen_layout(app_theme(), status);
+    usb_screen_show_in_bands(status, usb_screen_column(&layout));
 }
 
 static void serve(void)

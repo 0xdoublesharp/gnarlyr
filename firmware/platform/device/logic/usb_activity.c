@@ -1,10 +1,11 @@
 #include "device/usb_activity.h"
+#include "core/seam.h"
 
 enum {
     SECTORS_PER_KIB = 1024 / MSC_SECTOR_SIZE
 };
 
-void usb_activity_start(UsbActivity *activity, uint32_t now_ms)
+CORE_SEAM void usb_activity_start(UsbActivity *activity, uint32_t now_ms)
 {
     *activity = (UsbActivity){.read_ms = now_ms, .written_ms = now_ms};
 }
@@ -29,7 +30,7 @@ static bool recent(bool happened, uint32_t at_ms, uint32_t now_ms, uint32_t span
     return happened && now_ms - at_ms < span_ms;
 }
 
-UsbActivityKind usb_activity_now(const UsbActivity *activity, uint32_t now_ms)
+CORE_SEAM UsbActivityKind usb_activity_now(const UsbActivity *activity, uint32_t now_ms)
 {
     if (recent(activity->has_written, activity->written_ms, now_ms, USB_ACTIVITY_SHOW_MS)) {
         return USB_ACTIVITY_WRITING;
@@ -40,12 +41,12 @@ UsbActivityKind usb_activity_now(const UsbActivity *activity, uint32_t now_ms)
     return USB_ACTIVITY_IDLE;
 }
 
-bool usb_activity_quiet(const UsbActivity *activity, uint32_t now_ms)
+CORE_SEAM bool usb_activity_quiet(const UsbActivity *activity, uint32_t now_ms)
 {
     return !recent(activity->has_written, activity->written_ms, now_ms, USB_ACTIVITY_QUIET_MS);
 }
 
-uint32_t usb_activity_written_kib(const UsbActivity *activity)
+CORE_SEAM uint32_t usb_activity_written_kib(const UsbActivity *activity)
 {
     return activity->written / SECTORS_PER_KIB;
 }
