@@ -14,7 +14,7 @@ typedef struct EqualizerBrowserConfig {
 typedef struct EqualizerBrowser {
     ChoiceScreen choice;
     EqualizerBrowserConfig config;
-    EqualizerResponse response;
+    EqualizerResponse *response;
     SettingsEqualizerCurve committed;
     ScreenAction (*choose_key)(void *context, KeyEvent event, uint32_t now_ms);
     void (*choice_enter)(void *context, uint32_t now_ms);

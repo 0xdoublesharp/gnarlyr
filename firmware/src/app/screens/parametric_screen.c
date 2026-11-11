@@ -17,6 +17,8 @@ enum {
     FIELD_COUNT
 };
 
+static EqualizerResponse response_buffer;
+
 static char labels[PARAMETRIC_FILTERS + 3][48];
 static char details[PARAMETRIC_FILTERS + 3][48];
 
@@ -106,7 +108,7 @@ static void texts(ParametricScreen *editor)
 static void response(ParametricScreen *editor)
 {
     SettingsEqualizerCurve curve = {.is_parametric = true, .parametric = editor->working};
-    equalizer_response_make(&editor->response, &curve);
+    equalizer_response_make(editor->response, &curve);
     texts(editor);
 }
 
@@ -347,11 +349,11 @@ static void draw(void *context, Canvas *canvas)
                            (Label){layout.plot, i18n_text(editor->notice)});
     } else {
         equalizer_plot_draw(canvas, theme, layout.plot,
-                            (EqualizerPlotView){.response = &editor->response,
+                            (EqualizerPlotView){.response = editor->response,
                                                 .selected_band = -1,
                                                 .adjusting = editor->adjusting});
     }
-    equalizer_plot_caption(canvas, theme, layout.preamp, &editor->response);
+    equalizer_plot_caption(canvas, theme, layout.preamp, editor->response);
     label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary},
                (Label){layout.reference, i18n_text(STR_EQ_REFERENCE)});
     label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
@@ -381,6 +383,7 @@ static void enter(void *context, uint32_t now_ms)
 Screen *parametric_screen_init(ParametricScreen *editor, ParametricScreenConfig config)
 {
     *editor = (ParametricScreen){.config = config,
+                                 .response = &response_buffer,
                                  .working = config.settings->parametric,
                                  .kept = config.settings->parametric,
                                  .filter = -1,

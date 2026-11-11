@@ -21,7 +21,7 @@ typedef struct ParametricScreen {
     ParametricScreenConfig config;
     ParametricEq working;
     ParametricEq kept;
-    EqualizerResponse response;
+    EqualizerResponse *response;
     ListModel model;
     ListView list;
     char (*labels)[48];

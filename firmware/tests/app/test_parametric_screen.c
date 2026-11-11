@@ -152,7 +152,7 @@ static void adjusting_keeps_the_full_preamp_caption_visible_in_every_layout(void
             }
             Canvas expected = canvas_make(expected_pixels, actual.bounds);
             canvas_clear(&expected, theme.colors.background);
-            equalizer_plot_caption(&expected, &theme, layout.preamp, &editor.response);
+            equalizer_plot_caption(&expected, &theme, layout.preamp, editor.response);
             for (int y = layout.preamp.y; y < layout.preamp.y + layout.preamp.height; y++) {
                 for (int x = layout.preamp.x; x < layout.preamp.x + layout.preamp.width; x++) {
                     CHECK_EQUAL(canvas_pixel_at(&expected, x, y), canvas_pixel_at(&actual, x, y));
@@ -241,7 +241,7 @@ static void shaping_sliders_and_preamp_fit_both_themes_in_all_native_layouts(voi
                     pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
                 editor.screen.draw(&editor, &canvas);
                 CHECK(editor.list.visible_rows > 0);
-                CHECK(editor.response.range_tenth_db >= 100);
+                CHECK(editor.response->range_tenth_db >= 100);
                 EqualizerPlotLayout layout =
                     equalizer_plot_layout(&theme, i18n_text(STR_SHAPE_EDIT_HINT), true);
                 Rect graph = sound_shaping_screen_slider(&editor, &canvas, layout.plot);

@@ -72,7 +72,7 @@ void sound_shaping_screen_texts(ParametricScreen *editor)
 static void response(ParametricScreen *editor, bool audition)
 {
     SettingsEqualizerCurve curve = {.is_parametric = true, .parametric = editor->working};
-    equalizer_response_make(&editor->response, &curve);
+    equalizer_response_make(editor->response, &curve);
     sound_shaping_screen_texts(editor);
     if (audition && editor->config.preview != NULL) {
         editor->config.preview(editor->config.context, &curve);
