@@ -128,6 +128,22 @@ void music_check_note_firmware(void)
     }
 }
 
+bool music_check_settled(void)
+{
+    uint8_t bytes[SCAN_GUARD_ATTEMPTS_BYTE + 1];
+    bool recorded =
+        read_at(SCAN_GUARD_OFFSET, bytes, sizeof bytes) && get_word(bytes) == SCAN_GUARD_MAGIC;
+    return !recorded ||
+           (bytes[SCAN_GUARD_RUNNING_BYTE] == 0 && bytes[SCAN_GUARD_ATTEMPTS_BYTE] <= 1);
+}
+
+bool music_check_covers_pending(void)
+{
+    uint8_t bytes[SCAN_GUARD_COVERS_BYTE + 1];
+    return read_at(SCAN_GUARD_OFFSET, bytes, sizeof bytes) && get_word(bytes) == SCAN_GUARD_MAGIC &&
+           bytes[SCAN_GUARD_COVERS_BYTE] != 0;
+}
+
 uint32_t music_check_interrupted_scans(void)
 {
     uint8_t bytes[SCAN_GUARD_ATTEMPTS_BYTE + 1];

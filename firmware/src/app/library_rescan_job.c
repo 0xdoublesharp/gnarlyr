@@ -5,6 +5,7 @@
 #include "app/debug_loop.h"
 #include "cover_cache.h"
 #include "hal/clock.h"
+#include "hal/input.h"
 #include "hal/storage.h"
 #include "hal/system.h"
 #include "library_store.h"
@@ -42,7 +43,10 @@ typedef struct RescanFiles {
     HalFile scratch;
     HalDirEntry entry;
     RescanProgress progress;
+    uint32_t first_album;
 } RescanFiles;
+
+static RescanFiles rescan_files;
 
 static bool open_dir(void *context, const char *path)
 {
@@ -82,12 +86,17 @@ static void save_guard(void)
     (void)hal_file_write_open(guard_file, SCAN_GUARD_OFFSET, &guard, SCAN_GUARD_BYTES);
 }
 
-static void start_guard(uint32_t stops)
+static void read_guard(void)
 {
     guard = (ScanGuard){.magic = 0};
     if (hal_file_open(&guard_file, MUSIC_CHECK_PATH)) {
         (void)hal_file_read(guard_file, SCAN_GUARD_OFFSET, &guard, SCAN_GUARD_BYTES);
     }
+}
+
+static void start_guard(uint32_t stops)
+{
+    read_guard();
     scan_guard_begin(&guard, stops);
     save_guard();
 }
@@ -144,10 +153,12 @@ static void close_file(void *context)
     hal_file_close(&files->file);
 }
 
-static bool timed_write(const char *path, uint32_t offset, const void *bytes, uint32_t length)
+static bool write_handle(void *context, uint32_t offset, const void *bytes, uint32_t length)
 {
+    const HalFile *file = context;
+    hal_system_keep_alive();
     uint32_t since = hal_clock_microseconds();
-    bool written = hal_file_write_at(path, offset, bytes, length);
+    bool written = hal_file_write_open(*file, offset, bytes, length);
     spend(TIME_WRITE, since);
     return written;
 }
@@ -156,14 +167,10 @@ static bool write_library(void *context, uint32_t offset, const void *bytes, uin
 {
     (void)context;
     hal_system_keep_alive();
-    return timed_write(LIBRARY_STORE_PATH, offset, bytes, length);
-}
-
-static bool write_scratch(void *context, uint32_t offset, const void *bytes, uint32_t length)
-{
-    (void)context;
-    hal_system_keep_alive();
-    return timed_write(LIBRARY_SCRATCH_PATH, offset, bytes, length);
+    uint32_t since = hal_clock_microseconds();
+    bool written = hal_file_write_at(LIBRARY_STORE_PATH, offset, bytes, length);
+    spend(TIME_WRITE, since);
+    return written;
 }
 
 static void report(void *context, uint32_t files, uint32_t tracks)
@@ -173,18 +180,12 @@ static void report(void *context, uint32_t files, uint32_t tracks)
     rescan->progress.tracks(files, tracks);
 }
 
-static bool write_covers(void *context, uint32_t offset, const void *bytes, uint32_t length)
+static bool cable_at_start;
+
+static bool covers_interrupted(void *context)
 {
     (void)context;
-    hal_system_keep_alive();
-    return timed_write(COVER_CACHE_PATH, offset, bytes, length);
-}
-
-static void report_covers(void *context, uint32_t done, uint32_t total)
-{
-    RescanFiles *rescan = context;
-    hal_system_keep_alive();
-    rescan->progress.covers(done, total);
+    return hal_input_waiting() || (!cable_at_start && hal_system_usb_sense().cable);
 }
 
 static ScanResult build_into(const ScanJob *scan, RescanFiles *files, CoverStats *stats)
@@ -196,12 +197,13 @@ static ScanResult build_into(const ScanJob *scan, RescanFiles *files, CoverStats
         .files = scan->files,
         .library = {read_handle, &files->library},
         .library_size = files->library.size,
-        .sink = {write_covers, NULL},
+        .sink = {write_handle, &files->covers},
         .previous = {read_handle, &files->covers},
         .capacity = files->covers.size,
         .memory = scan->memory,
         .size = scan->size,
-        .progress = {report_covers, files},
+        .stop = {covers_interrupted, NULL},
+        .first_album = files->first_album,
     };
     ScanResult result = cover_build(&job, stats);
     hal_file_close(&files->library);
@@ -229,46 +231,65 @@ static void run_passes(const ScanJob *job, RescanOutcome *outcome)
     uint32_t since = hal_clock_microseconds();
     outcome->result = job->memory != NULL ? library_scan(job, &outcome->stats) : SCAN_NO_SCRATCH;
     spend(TIME_TOTAL, since);
-    if (outcome->result == SCAN_OK) {
-        pass = 1;
-        since = hal_clock_microseconds();
-        outcome->cover_result =
-            scan_guard_covers_allowed(&guard) ? build_covers(job, &outcome->covers) : SCAN_NO_ROOM;
-        spend(TIME_TOTAL, since);
-    }
+    guard.covers_pending = outcome->result == SCAN_OK ? 1 : guard.covers_pending;
     (void)hal_file_write(RESCAN_TIMES_PATH, spent, sizeof spent);
 }
 
 static RescanOutcome rescan_run(uint32_t capacity, HalFile scratch, RescanProgress progress,
                                 uint32_t stops)
 {
-    static RescanFiles files;
     RescanOutcome outcome = {.result = SCAN_NO_MUSIC_ROOT, .cover_result = SCAN_OK};
     start_guard(stops);
-    files.scratch = scratch;
-    files.progress = progress;
+    rescan_files.scratch = scratch;
+    rescan_files.progress = progress;
     uint32_t size = 0;
     void *memory = hal_system_borrow_scratch(&size);
     uint32_t listing_size = 0;
     void *listing = memory != NULL ? hal_system_borrow_listing(&listing_size) : NULL;
     ScanJob job = {
-        .files = {open_dir, next_entry, close_dir, open_file, close_file, &files},
+        .files = {open_dir, next_entry, close_dir, open_file, close_file, &rescan_files},
         .memory = memory,
         .size = size,
         .listing = listing,
         .listing_size = listing_size,
-        .scratch = {read_handle, write_scratch, &files.scratch, files.scratch.size},
+        .scratch = {read_handle, write_handle, &rescan_files.scratch, rescan_files.scratch.size},
         .sink = {write_library, NULL},
         .capacity = capacity,
-        .progress = {report, &files},
+        .progress = {report, &rescan_files},
     };
     run_passes(&job, &outcome);
     end_guard();
-    hal_file_close(&files.scratch);
+    hal_file_close(&rescan_files.scratch);
+    return outcome;
+}
+
+static RescanOutcome covers_run(uint32_t stops, uint32_t first_album)
+{
+    RescanOutcome outcome = {.result = SCAN_OK, .cover_result = SCAN_NO_SCRATCH};
+    read_guard();
+    bool known = guard.magic == SCAN_GUARD_MAGIC && guard.attempts > 0;
+    scan_guard_begin(&guard, known ? guard.attempts - 1u : stops);
+    save_guard();
+    rescan_files.first_album = first_album;
+    cable_at_start = hal_system_usb_sense().cable;
+    uint32_t size = 0;
+    ScanJob job = {
+        .files = {open_dir, next_entry, close_dir, open_file, close_file, &rescan_files},
+        .memory = hal_system_borrow_scratch(&size),
+    };
+    job.size = size;
+    pass = 1;
+    if (job.memory != NULL) {
+        outcome.cover_result =
+            scan_guard_covers_allowed(&guard) ? build_covers(&job, &outcome.covers) : SCAN_NO_ROOM;
+    }
+    guard.covers_pending = outcome.cover_result == SCAN_STOPPED ? 1 : 0;
+    end_guard();
     return outcome;
 }
 
 const RescanModuleEntry RESCAN_MODULE_ENTRY = {
     .magic = RESCAN_MODULE_MAGIC,
     .run = rescan_run,
+    .covers = covers_run,
 };

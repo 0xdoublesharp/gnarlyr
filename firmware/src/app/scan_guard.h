@@ -9,6 +9,7 @@ enum {
     SCAN_GUARD_MAGIC = 0x47535344,
     SCAN_GUARD_RUNNING_BYTE = 4,
     SCAN_GUARD_ATTEMPTS_BYTE = 5,
+    SCAN_GUARD_COVERS_BYTE = 7,
     SCAN_GUARD_SKIPS = 4,
     SCAN_GUARD_BATCH = 8,
     SCAN_GUARD_RETRIES = 3,
@@ -35,7 +36,7 @@ typedef struct ScanGuard {
     uint8_t running;
     uint8_t attempts;
     uint8_t next_skip;
-    uint8_t unused;
+    uint8_t covers_pending;
     uint32_t mark;
     uint32_t careful;
     uint32_t skips[SCAN_GUARD_SKIPS];
@@ -50,6 +51,7 @@ enum {
 
 _Static_assert(offsetof(ScanGuard, running) == SCAN_GUARD_RUNNING_BYTE, "running byte");
 _Static_assert(offsetof(ScanGuard, attempts) == SCAN_GUARD_ATTEMPTS_BYTE, "attempts byte");
+_Static_assert(offsetof(ScanGuard, covers_pending) == SCAN_GUARD_COVERS_BYTE, "covers byte");
 _Static_assert(SCAN_GUARD_BYTES == 32, "record layout");
 
 void scan_guard_begin(ScanGuard *guard, uint32_t stops);

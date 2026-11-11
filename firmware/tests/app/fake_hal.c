@@ -497,6 +497,11 @@ HalHeadsetReading hal_input_headset_reading(void)
     return (HalHeadsetReading){.known = true, .level = 812, .button = HAL_HEADSET_BUTTON_NONE};
 }
 
+bool hal_input_waiting(void)
+{
+    return fake.next_transition != fake.transition_count;
+}
+
 bool hal_input_next_transition(HalKeyTransition *transition)
 {
     if (fake.next_transition == fake.transition_count) {

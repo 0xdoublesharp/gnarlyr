@@ -61,8 +61,7 @@ typedef struct CoverState {
     uint32_t key;
     char path[SCAN_PATH_CAPACITY + 2];
     CoverMatch matches[STEM_COUNT];
-    uint16_t full[COVER_FULL_PIXELS];
-    uint16_t half[COVER_HALF_PIXELS];
+    uint16_t record[COVER_FULL_PIXELS + COVER_HALF_PIXELS];
     uint16_t folders[MAX_FOLDERS];
     uint32_t folder_count;
     uint32_t listed_folder;
@@ -71,6 +70,7 @@ typedef struct CoverState {
     CoverEntry *index;
     uint16_t *slots;
     uint8_t *claimed;
+    uint8_t *placed;
     uint8_t *used_slots;
     uint32_t capacity;
     uint32_t count;
@@ -78,6 +78,8 @@ typedef struct CoverState {
     uint32_t next_slot;
     uint8_t *decode_memory;
     uint32_t decode_size;
+    const CoverJob *job;
+    ImageSource art;
 } CoverState;
 
 static uint8_t *take(uint8_t **cursor, uint8_t *end, uint32_t bytes)
@@ -138,15 +140,19 @@ static CoverState *prepare(const CoverJob *job, uint32_t albums, CoverLayout lay
     CoverEntry *index = (CoverEntry *)take(&cursor, end, capacity * sizeof(CoverEntry) + 1);
     uint16_t *slots = (uint16_t *)take(&cursor, end, capacity * sizeof(uint16_t) + 1);
     uint8_t *claimed = take(&cursor, end, bit_bytes(capacity) + 1);
+    uint8_t *placed = take(&cursor, end, bit_bytes(capacity) + 1);
     uint8_t *used_slots = take(&cursor, end, bit_bytes(layout.slots) + 1);
-    if (state == NULL || index == NULL || slots == NULL || claimed == NULL || used_slots == NULL) {
+    if (state == NULL || index == NULL || slots == NULL || claimed == NULL || placed == NULL ||
+        used_slots == NULL) {
         return NULL;
     }
+    clear(placed, bit_bytes(capacity));
     clear(used_slots, bit_bytes(layout.slots));
     state->layout = layout;
     state->index = index;
     state->slots = slots;
     state->claimed = claimed;
+    state->placed = placed;
     state->used_slots = used_slots;
     state->capacity = capacity;
     state->count = 0;
@@ -331,6 +337,16 @@ static void keep_present(CoverState *state, uint32_t albums)
     state->kept = state->count;
     for (uint32_t index = 0; index < state->count; index++) {
         set_bit(state->used_slots, state->slots[index]);
+        set_bit(state->claimed, index);
+    }
+}
+
+static void unclaim(CoverState *state, uint32_t key)
+{
+    uint32_t position = 0;
+    if (find_kept(state, key, &position)) {
+        state->claimed[position / BITS_PER_BYTE] &= (uint8_t)~(1u << (position % BITS_PER_BYTE));
+        set_bit(state->placed, position);
     }
 }
 
@@ -520,10 +536,24 @@ static bool open_folder_art(CoverState *state, const CoverJob *job, ArtFile *art
     return false;
 }
 
+static bool stop_requested(const CoverJob *job)
+{
+    return job->stop.requested != NULL && job->stop.requested(job->stop.context);
+}
+
+static bool read_unless_stopped(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    const CoverState *state = context;
+    return !stop_requested(state->job) &&
+           state->art.read(state->art.context, offset, buffer, length);
+}
+
 static bool decode_art(CoverState *state, const ArtFile *art)
 {
-    return cover_image_decode(art->image, state->decode_memory, state->decode_size, state->full,
-                              state->half) == COVER_IMAGE_OK;
+    state->art = art->image;
+    ImageSource image = {read_unless_stopped, state, art->image.offset, art->image.length};
+    return cover_image_decode(image, state->decode_memory, state->decode_size, state->record,
+                              state->record + COVER_FULL_PIXELS) == COVER_IMAGE_OK;
 }
 
 static void pack_pixels(uint16_t *pixels, uint32_t count)
@@ -537,10 +567,8 @@ static void pack_pixels(uint16_t *pixels, uint32_t count)
 
 static bool write_record(CoverState *state, const CoverJob *job, uint32_t offset)
 {
-    pack_pixels(state->full, COVER_FULL_PIXELS);
-    pack_pixels(state->half, COVER_HALF_PIXELS);
-    return write_bytes(job, offset, state->full, FULL_BYTES) &&
-           write_bytes(job, offset + FULL_BYTES, state->half, HALF_BYTES);
+    pack_pixels(state->record, COVER_FULL_PIXELS + COVER_HALF_PIXELS);
+    return write_bytes(job, offset, state->record, COVER_BUILD_RECORD_BYTES);
 }
 
 static bool record_slot(CoverState *state, bool known, uint32_t position, uint32_t *slot)
@@ -574,7 +602,7 @@ static Placement place_cover(CoverState *state, const CoverJob *job, const ArtFi
     bool known = find_kept(state, state->key, &position);
     uint32_t stored = known ? state->index[position].stamp : 0;
     if (stored != 0 && stored == art->stamp) {
-        set_bit(state->claimed, position);
+        set_bit(state->placed, position);
         stats->reused++;
         return PLACED;
     }
@@ -590,6 +618,7 @@ static Placement place_cover(CoverState *state, const CoverJob *job, const ArtFi
     position = known ? position : append_entry(state, slot);
     state->index[position] = (CoverEntry){state->key, art->stamp};
     set_bit(state->claimed, position);
+    set_bit(state->placed, position);
     return PLACED;
 }
 
@@ -612,6 +641,9 @@ static ScanResult cover_album(CoverState *state, const CoverJob *job, CoverStats
         open_folder_art(state, job, &art)) {
         placement = place_opened(state, job, &art, stats);
     }
+    if (placement != PLACED && !stop_requested(job)) {
+        unclaim(state, state->key);
+    }
     stats->missing += placement == PLACED ? 0u : 1u;
     return SCAN_OK;
 }
@@ -620,7 +652,7 @@ static bool already_placed(const CoverState *state, uint32_t key)
 {
     uint32_t position = 0;
     if (find_kept(state, key, &position)) {
-        return bit_set(state->claimed, position);
+        return bit_set(state->placed, position);
     }
     for (uint32_t index = state->kept; index < state->count; index++) {
         if (state->index[index].key == key) {
@@ -698,8 +730,12 @@ static void report(const CoverJob *job, uint32_t done, uint32_t total)
 
 static ScanResult build_albums(CoverState *state, const CoverJob *job, CoverStats *stats)
 {
-    for (uint32_t album_index = 0; album_index < stats->albums; album_index++) {
+    for (uint32_t album_index = job->first_album; album_index < stats->albums; album_index++) {
         report(job, album_index, stats->albums);
+        stats->next_album = album_index;
+        if (stop_requested(job)) {
+            return SCAN_STOPPED;
+        }
         state->key = library_album_key(&state->library, album_index);
         if (!library_read_album(&state->library, album_index, &state->album) ||
             already_placed(state, state->key)) {
@@ -711,6 +747,7 @@ static ScanResult build_albums(CoverState *state, const CoverJob *job, CoverStat
         }
     }
     report(job, stats->albums, stats->albums);
+    stats->next_album = stats->albums;
     return SCAN_OK;
 }
 
@@ -720,8 +757,9 @@ static ScanResult finish(CoverState *state, const CoverJob *job, CoverStats *sta
     drop_unclaimed(state);
     sort_index(state);
     stats->covers = state->count;
-    if (result == SCAN_OK && (!clear_header(job) || !write_table(state, job, false) ||
-                              !write_table(state, job, true) || !write_header(state, job))) {
+    bool keep = result == SCAN_OK || result == SCAN_STOPPED;
+    if (keep && (!clear_header(job) || !write_table(state, job, false) ||
+                 !write_table(state, job, true) || !write_header(state, job))) {
         result = SCAN_WRITE_FAILED;
     }
     return result;
@@ -743,7 +781,7 @@ static CoverState *start(const CoverJob *job, uint32_t albums, CoverLayout layou
 
 ScanResult cover_build(const CoverJob *job, CoverStats *stats)
 {
-    *stats = (CoverStats){.albums = 0, .covers = 0, .reused = 0, .missing = 0};
+    *stats = (CoverStats){.albums = 0, .covers = 0, .reused = 0, .missing = 0, .next_album = 0};
     Library probe;
     if (library_open(&probe, job->library, job->library_size) != LIBRARY_OK) {
         return SCAN_NO_MUSIC_ROOT;
@@ -758,6 +796,7 @@ ScanResult cover_build(const CoverJob *job, CoverStats *stats)
         return SCAN_NO_ROOM;
     }
     state->library = probe;
+    state->job = job;
     keep_present(state, stats->albums);
     return finish(state, job, stats, build_albums(state, job, stats));
 }

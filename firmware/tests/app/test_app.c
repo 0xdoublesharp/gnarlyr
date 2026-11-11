@@ -2763,6 +2763,75 @@ static void a_scan_cut_short_runs_again_at_the_next_start(void)
     CHECK(toast_is("Library: 0 tracks"));
 }
 
+static void a_requested_rescan_of_unchanged_music_says_the_library_is_up_to_date(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+    app_request_rescan();
+    step();
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+    CHECK(toast_is("Library is up to date"));
+}
+
+static void a_requested_rescan_after_a_cut_short_scan_rebuilds_the_library(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    mark_scan_stopped(2);
+    app_request_rescan();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK(toast_is("Library: 0 tracks"));
+}
+
+static void a_requested_rescan_after_a_firmware_update_rebuilds_the_library(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    fake_hal_set_version("newer");
+    app_request_rescan();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+}
+
+static void background_covers_wait_while_music_plays(void)
+{
+    start_app_with_library();
+    const uint8_t pending[8] = {'D', 'S', 'S', 'G', 0, 1, 0, 1};
+    CHECK(hal_file_write_at(MUSIC_CHECK_PATH, SCAN_GUARD_OFFSET, pending, sizeof pending));
+    restart_app();
+    step();
+    play_first_album_track();
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    int covers = fake_hal_covers_writes();
+    now_ms += 3000;
+    step();
+    CHECK_EQUAL(covers, fake_hal_covers_writes());
+    CHECK_EQUAL(1, saved_guard_byte(SCAN_GUARD_COVERS_BYTE));
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    now_ms += 3000;
+    step();
+    CHECK(fake_hal_covers_writes() > covers);
+    CHECK_EQUAL(0, saved_guard_byte(SCAN_GUARD_COVERS_BYTE));
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+}
+
+static void covers_left_pending_resume_after_a_restart(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    CHECK_EQUAL(1, saved_guard_byte(SCAN_GUARD_COVERS_BYTE));
+    restart_app();
+    step();
+    int covers = fake_hal_covers_writes();
+    now_ms += 3000;
+    step();
+    CHECK(fake_hal_covers_writes() > covers);
+    CHECK_EQUAL(0, saved_guard_byte(SCAN_GUARD_COVERS_BYTE));
+}
+
 static void after_three_scans_cut_short_the_next_start_scans_without_covers(void)
 {
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
@@ -2772,8 +2841,10 @@ static void after_three_scans_cut_short_the_next_start_scans_without_covers(void
     restart_app();
     step();
     CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK(toast_is("Library: 0 tracks"));
+    now_ms += 3000;
+    step();
     CHECK_EQUAL(covers, fake_hal_covers_writes());
-    CHECK(toast_is("Library: 0 tracks, no covers"));
 }
 
 static void a_start_after_the_coverless_scan_was_cut_short_scans_nothing(void)
@@ -2800,8 +2871,10 @@ static void a_requested_rescan_after_scans_were_given_up_reads_covers(void)
     app_request_rescan();
     step();
     CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
-    CHECK(fake_hal_covers_writes() > covers);
     CHECK(toast_is("Library: 0 tracks"));
+    now_ms += 3000;
+    step();
+    CHECK(fake_hal_covers_writes() > covers);
 }
 
 static void changed_music_after_scans_were_given_up_is_scanned_with_covers(void)
@@ -2911,14 +2984,17 @@ static void a_rescan_borrows_the_idle_audio_buffer_for_its_listing(void)
     CHECK_EQUAL(1, fake_hal_listing_borrow_count());
 }
 
-static void a_rescan_rebuilds_the_covers_file(void)
+static void a_rescan_rebuilds_the_covers_file_once_the_player_is_idle(void)
 {
     start_app_with_library();
     fake_hal_set_empty_card(true);
     app_request_rescan();
     step();
-    CHECK(fake_hal_covers_writes() > 0);
+    CHECK_EQUAL(0, fake_hal_covers_writes());
     CHECK(toast_is("Library: 0 tracks"));
+    now_ms += 3000;
+    step();
+    CHECK(fake_hal_covers_writes() > 0);
 }
 
 static void a_rescan_keeps_the_stall_watch_fed(void)
@@ -5543,7 +5619,12 @@ int main(void)
         TEST_CASE(rescanning_without_a_card_says_so),
         TEST_CASE(a_rescan_of_an_empty_card_writes_an_empty_library),
         TEST_CASE(a_rescan_keeps_the_stall_watch_fed),
-        TEST_CASE(a_rescan_rebuilds_the_covers_file),
+        TEST_CASE(a_rescan_rebuilds_the_covers_file_once_the_player_is_idle),
+        TEST_CASE(background_covers_wait_while_music_plays),
+        TEST_CASE(a_requested_rescan_of_unchanged_music_says_the_library_is_up_to_date),
+        TEST_CASE(a_requested_rescan_after_a_cut_short_scan_rebuilds_the_library),
+        TEST_CASE(a_requested_rescan_after_a_firmware_update_rebuilds_the_library),
+        TEST_CASE(covers_left_pending_resume_after_a_restart),
         TEST_CASE(a_rescan_after_an_installed_update_asks_for_a_restart),
         TEST_CASE(after_an_installed_update_screens_use_the_resident_font),
         TEST_CASE(a_rescan_without_scratch_memory_says_so),

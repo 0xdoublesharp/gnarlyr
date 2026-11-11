@@ -130,6 +130,13 @@ class EchoImageTest(EchoImageHarness):
         reason = session.machine.run(until_ms=self.session_module.FRAME_LIMIT_MS)
         self.assertEqual(reason, "reached hal_system_return_scratch")
 
+    def covers_to_the_end(self, session):
+        machine = session.machine
+        machine.continue_past_stop()
+        machine.stop_at("hal_system_return_scratch")
+        reason = machine.run(until_ms=machine.milliseconds() + self.session_module.FRAME_LIMIT_MS)
+        self.assertEqual(reason, "reached hal_system_return_scratch")
+
     def guard(self, session):
         return session.fat().read(SCAN_PATH)
 
@@ -174,8 +181,9 @@ class EchoImageTest(EchoImageHarness):
         events = self.storage_events(second.machine)
         self.scan_to_the_end(second)
         self.assertEqual(self.built_library_tracks(second), 3)
-        self.assertEqual(self.guard(second)[GUARD_RUNNING], 0)
         self.assertIn(mark, self.skips(second))
+        self.covers_to_the_end(second)
+        self.assertEqual(self.guard(second)[GUARD_RUNNING], 0)
         self.assertIn(mark, events)
         second.machine.continue_past_stop()
         report = self.report_after_usb(second)
@@ -239,13 +247,15 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(waiting.slot_image("slot_1"), newer[:self.session_module.SLOT_BYTES])
 
     def scan_time_us(self, stub_guard):
-        from unicorn.arm_const import UC_ARM_REG_PC, UC_ARM_REG_R0
+        from unicorn.arm_const import UC_ARM_REG_PC, UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2
         from echo_emulator.machine import STUB_RETURN
         session = self.session(volume=music_volume(COST_ALBUMS, COST_TRACKS))
         machine = session.machine
         writes = []
 
         def written():
+            if machine.reg(UC_ARM_REG_R2) != GUARD_OFFSET or machine.reg(UC_ARM_REG_R1) != SECTOR * 8:
+                return
             writes.append(machine.microseconds())
             if stub_guard:
                 machine.uc.reg_write(UC_ARM_REG_R0, 1)

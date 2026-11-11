@@ -20,7 +20,7 @@ enum {
     COVERS_CAPACITY = 1024 * 1024,
     SCRATCH_SIZE = 16 * 1024 * 1024,
     RECORD_SLOT = 8 + 4 + COVER_BUILD_RECORD_BYTES,
-    COVER_FULL_BYTES = 112 * 112 * 2
+    COVER_RECORD_BYTES = (112 * 112 + 56 * 56) * 2
 };
 
 typedef struct Color {
@@ -73,6 +73,10 @@ static uint32_t failing_write_call;
 static uint32_t previous_read_calls;
 static uint32_t failing_previous_read;
 static void (*on_progress)(uint32_t done);
+static uint32_t stop_after_checks;
+static uint32_t stop_checks;
+static bool stop_now;
+static uint32_t first_album;
 
 static bool child_of(const char *dir, const char *path, char *name, bool *directory)
 {
@@ -196,10 +200,16 @@ static bool covers_write(void *context, uint32_t offset, const void *bytes, uint
 {
     write_calls++;
     if (write_calls == failing_write_call ||
-        (length == COVER_FULL_BYTES && ++record_writes == failing_record)) {
+        (length == COVER_RECORD_BYTES && ++record_writes == failing_record)) {
         return false;
     }
     return buffer_write(context, offset, bytes, length);
+}
+
+static bool stop_requested(void *context)
+{
+    (void)context;
+    return stop_now || (stop_after_checks != 0 && ++stop_checks >= stop_after_checks);
 }
 
 static void progress_report(void *context, uint32_t done, uint32_t total)
@@ -360,6 +370,10 @@ static void reset(void)
     covers_capacity = COVERS_CAPACITY;
     cover_memory_size = MEMORY_SIZE;
     record_writes = 0;
+    stop_after_checks = 0;
+    stop_checks = 0;
+    stop_now = false;
+    first_album = 0;
     failing_record = 0;
     write_calls = 0;
     failing_write_call = 0;
@@ -393,7 +407,9 @@ static ScanResult rescan(bool keep, CoverStats *stats)
                     .capacity = covers_capacity,
                     .memory = memory,
                     .size = cover_memory_size,
-                    .progress = {progress_report, NULL}};
+                    .progress = {progress_report, NULL},
+                    .stop = {stop_requested, NULL},
+                    .first_album = first_album};
     return cover_build(&job, stats);
 }
 
@@ -909,6 +925,63 @@ static void albums_sharing_a_folder_list_it_once(void)
     CHECK_EQUAL(1u, dir_opens);
 }
 
+static void stop_at_the_second_album(uint32_t done)
+{
+    stop_now = stop_now || done == 1;
+}
+
+static void a_stopped_pass_keeps_its_finished_covers_for_the_next_pass(void)
+{
+    CoverStats stats;
+    three_albums();
+    on_progress = stop_at_the_second_album;
+    CHECK_EQUAL(SCAN_STOPPED, rescan(true, &stats));
+    CHECK_EQUAL(1u, stats.covers);
+    CHECK_EQUAL(RED.pixel, cover_pixel("Alpha"));
+    on_progress = NULL;
+    stop_now = false;
+    CHECK_EQUAL(SCAN_OK, rescan(true, &stats));
+    CHECK_EQUAL(3u, stats.covers);
+    CHECK_EQUAL(1u, stats.reused);
+    CHECK_EQUAL(BLUE.pixel, cover_pixel("Gamma"));
+}
+
+static void a_resumed_pass_starts_at_the_album_it_stopped_at(void)
+{
+    CoverStats stats;
+    three_albums();
+    on_progress = stop_at_the_second_album;
+    CHECK_EQUAL(SCAN_STOPPED, rescan(true, &stats));
+    CHECK_EQUAL(1u, stats.next_album);
+    on_progress = NULL;
+    stop_now = false;
+    first_album = stats.next_album;
+    CHECK_EQUAL(SCAN_OK, rescan(true, &stats));
+    CHECK_EQUAL(3u, stats.covers);
+    CHECK_EQUAL(0u, stats.reused);
+    CHECK_EQUAL(3u, stats.next_album);
+    CHECK_EQUAL(RED.pixel, cover_pixel("Alpha"));
+    CHECK_EQUAL(GREEN.pixel, cover_pixel("Beta"));
+}
+
+static void a_pass_stopped_inside_a_decode_leaves_old_covers_in_place(void)
+{
+    CoverStats stats;
+    three_albums();
+    CHECK_EQUAL(SCAN_OK, rescan(true, &stats));
+    replace_cover("Alpha", WHITE);
+    stop_after_checks = 3;
+    stop_checks = 0;
+    CHECK_EQUAL(SCAN_STOPPED, rescan(true, &stats));
+    CHECK_EQUAL(3u, stats.covers);
+    CHECK_EQUAL(RED.pixel, cover_pixel("Alpha"));
+    CHECK_EQUAL(GREEN.pixel, cover_pixel("Beta"));
+    stop_after_checks = 0;
+    CHECK_EQUAL(SCAN_OK, rescan(true, &stats));
+    CHECK_EQUAL(WHITE.pixel, cover_pixel("Alpha"));
+    CHECK_EQUAL(2u, stats.reused);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -931,6 +1004,9 @@ int main(void)
         TEST_CASE(failed_previous_index_reads_rebuild_the_same_cover_art),
         TEST_CASE(a_failed_rewrite_drops_only_the_damaged_record),
         TEST_CASE(the_previous_covers_stay_readable_until_the_pass_ends),
+        TEST_CASE(a_stopped_pass_keeps_its_finished_covers_for_the_next_pass),
+        TEST_CASE(a_pass_stopped_inside_a_decode_leaves_old_covers_in_place),
+        TEST_CASE(a_resumed_pass_starts_at_the_album_it_stopped_at),
         TEST_CASE(an_album_spread_over_many_folders_lists_a_bounded_number_of_them),
         TEST_CASE(albums_sharing_a_folder_list_it_once),
     };

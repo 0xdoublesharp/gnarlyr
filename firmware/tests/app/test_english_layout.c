@@ -161,8 +161,6 @@ static const Pattern TOAST_PATTERNS[] = {
     {STR_SLEEP_IN, {"120 min"}},
     {STR_EQ_SAVED, {"8"}},
     {STR_RATE_UNSUPPORTED, {"352.8 kHz"}},
-    {STR_LIBRARY_COVERS, {"Library: 65535 tracks", "2673"}},
-    {STR_LIBRARY_NO_COVERS, {"Library: 65535 tracks"}},
     {STR_VOLUME_LOWERED, {"60"}},
 };
 
