@@ -72,10 +72,10 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 146,072 | 157,292 | 11,220 |
-| Code window, `device` preset | 149,848 | 157,292 | 7,444 |
-| Static RAM | 265,044 | 278,528 | 13,484 |
-| Rescan overlay | 93,124 | 98,304 | 5,180 |
+| Code window | 145,064 | 157,292 | 12,228 |
+| Code window, `device` preset | 148,824 | 157,292 | 8,468 |
+| Static RAM | 264,124 | 278,528 | 14,404 |
+| Rescan overlay (code + BSS) | 95,040 | 98,304 | 3,264 |
 | USB overlay code | 12,504 | 65,536 | 53,032 |
 | Module views (code + BSS) | 21,984 | 44,032 | 22,048 |
 | Module settings (code + BSS) | 18,816 | 44,032 | 25,216 |
@@ -95,6 +95,8 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 - Keep at least 4 KB free in the release code window and at least 1 KB in the `device` one. The `device` build is what the debug loop installs, so it must link; the free space is a margin for the next change, not a hardware need. Read the report after any change to device code and update these numbers and the ones in `docs/architecture.md` when they move.
 - Code that runs only from one module's screens belongs in that module, debug-loop code that only a running script needs belongs in the extension module, and so does code that must stay callable beside every UI module but that start-up, USB sessions and the audio path never use, behind wrappers that do nothing when the module is missing (`docs/architecture.md`, Demand-loaded UI modules and Extension module). Hooks the debug loop needs at start-up, before a script or while another module is loaded stay resident.
+- The extension module occupies the 8 KiB window at `0x0304A000` in both presets. It contains wait motion, Home artwork and file removal; the `device` build uses the same module and window for debug steps, probes, RTC reads and screenshots. It loads after `board_power_hold()` through CRC and running-code checks with slot fallback. If both copies fail, resident wrappers omit optional drawing, refuse file removal and abort debug scripts while startup, playback and USB remain available.
+- The rescan overlay owns the scan callbacks, cover pass, timing and temporary file state. Its private BSS follows its code and is cleared by the overlay loader; both must fit its window. Resident code keeps preflight checks, loading and result messages.
 - The core 0 link uses link-time optimisation. Libraries shared with core 1 or the rescan overlay stay out of it.
 - `CORE_SEAM` (`src/core/include/core/seam.h`) marks the functions the emulator replaces or watches, so link-time optimisation cannot inline or remove them. It must stay on every function the emulator names (`tools/echo_emulator`, `tests/emulator`); the emulator fails when a named function is missing from the image.
 - USB session code (mass storage, USB DAC, the DWC2 transfer code) and the updater live in the USB overlay, which is loaded into high RAM once a host is found. New code for those paths goes into the overlay, not the main program. Functions the overlay calls in the main program must be listed in `ECHO_OVERLAY_IMPORTS` (`platform/device/CMakeLists.txt`). Only listening for a host, the state kept across sessions and the start-up loader request stay resident. `docs/architecture.md` (Overlay loader, USB overlay) has the details.
