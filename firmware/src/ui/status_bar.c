@@ -13,7 +13,8 @@ enum {
     TENTHS = 10,
     FULL_PERCENT = 100,
     DIGIT_SAMPLE = '0',
-    TINT_STEPS = 3
+    TINT_STEPS = 3,
+    FILL_MIN_WIDTH = 3
 };
 
 static int band_top(const Theme *theme, int height)
@@ -91,7 +92,7 @@ int status_bar_battery_fill_width(uint8_t percent, int inner_width)
 {
     int clamped = percent < FULL_PERCENT ? percent : FULL_PERCENT;
     int width = clamped * inner_width / FULL_PERCENT;
-    return clamped > 0 && width == 0 ? 1 : width;
+    return width < FILL_MIN_WIDTH ? 0 : width;
 }
 
 void status_bar_percent_text(uint8_t percent, char *text, size_t capacity)

@@ -131,11 +131,17 @@ static void the_battery_body_is_two_icons_wide_and_frames_the_icon_height(void)
 static void the_fill_follows_the_charge(void)
 {
     CHECK_EQUAL(0, status_bar_battery_fill_width(0, 16));
-    CHECK_EQUAL(1, status_bar_battery_fill_width(1, 16));
     CHECK_EQUAL(8, status_bar_battery_fill_width(HALF_BATTERY, 16));
     CHECK_EQUAL(15, status_bar_battery_fill_width(99, 16));
     CHECK_EQUAL(16, status_bar_battery_fill_width(100, 16));
     CHECK_EQUAL(16, status_bar_battery_fill_width(250, 16));
+}
+
+static void a_fill_too_thin_to_read_as_a_bar_is_left_out(void)
+{
+    CHECK_EQUAL(0, status_bar_battery_fill_width(1, 28));
+    CHECK_EQUAL(0, status_bar_battery_fill_width(10, 28));
+    CHECK_EQUAL(3, status_bar_battery_fill_width(11, 28));
 }
 
 static void the_percentage_is_the_number_alone_capped_at_one_hundred(void)
@@ -313,6 +319,7 @@ int main(void)
         TEST_CASE(the_battery_ends_at_the_right_padding_on_and_off_usb_power),
         TEST_CASE(the_battery_body_is_two_icons_wide_and_frames_the_icon_height),
         TEST_CASE(the_fill_follows_the_charge),
+        TEST_CASE(a_fill_too_thin_to_read_as_a_bar_is_left_out),
         TEST_CASE(the_percentage_is_the_number_alone_capped_at_one_hundred),
         TEST_CASE(a_panel_sized_battery_fits_three_digits_inside_its_body),
         TEST_CASE(the_number_takes_contrasting_ink_on_each_side_of_the_fill),
