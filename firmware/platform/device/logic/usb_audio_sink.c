@@ -11,7 +11,8 @@ enum {
 
 void usb_audio_sink_init(UsbAudioSink *sink, uint32_t *ring, uint32_t ring_frames)
 {
-    *sink = (UsbAudioSink){.ring = ring, .ring_frames = ring_frames};
+    *sink = (UsbAudioSink){
+        .ring = ring, .ring_frames = ring_frames, .headphones = headphone_audio_defaults()};
 }
 
 void usb_audio_sink_start(UsbAudioSink *sink, uint32_t rate, uint8_t sample_bytes)
@@ -30,6 +31,11 @@ void usb_audio_sink_start(UsbAudioSink *sink, uint32_t rate, uint8_t sample_byte
 void usb_audio_sink_set_playing(UsbAudioSink *sink, bool playing)
 {
     sink->playing = playing;
+}
+
+void usb_audio_sink_set_headphones(UsbAudioSink *sink, HeadphoneAudio profile)
+{
+    sink->headphones = profile;
 }
 
 bool usb_audio_sink_primed(const UsbAudioSink *sink)
@@ -100,8 +106,11 @@ static void write_frames(UsbAudioSink *sink, const uint8_t *bytes, uint32_t fram
     uint32_t total = adjust > 0 ? kept + 1 : kept;
     for (uint32_t index = 0; index < total; index++) {
         const uint8_t *frame = bytes + (index < kept ? index : kept - 1) * frame_bytes;
-        put_frame(sink, sink->written++, sample_word(frame, sink->sample_bytes),
-                  sample_word(frame + sink->sample_bytes, sink->sample_bytes));
+        put_frame(
+            sink, sink->written++,
+            headphone_audio_word(sample_word(frame, sink->sample_bytes), sink->headphones.left),
+            headphone_audio_word(sample_word(frame + sink->sample_bytes, sink->sample_bytes),
+                                 sink->headphones.right));
     }
 }
 

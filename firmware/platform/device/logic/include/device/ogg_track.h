@@ -11,6 +11,7 @@ typedef struct OggTrack {
     uint32_t serial;
     uint32_t data_offset;
     uint32_t file_bytes;
+    uint32_t stream_end;
     uint16_t min_block;
     uint16_t max_block;
     uint16_t pre_skip;

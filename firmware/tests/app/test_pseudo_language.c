@@ -26,14 +26,14 @@ enum {
     MUSIC_SMART_LISTS_ROW = 10,
     MUSIC_ALBUMS_ROW = 4,
     MUSIC_ALL_SONGS_ROW = 7,
-    SETTINGS_ROWS = 28,
+    SETTINGS_ROWS = 29,
     SETTINGS_BLUETOOTH_ROW = 3,
     SETTINGS_SLEEP_ROW = 4,
-    SETTINGS_OUTPUT_ROW = 14,
-    SETTINGS_EQUALIZER_ROW = 15,
-    SETTINGS_CUSTOM_EQ_ROW = 16,
-    SETTINGS_RESCAN_ROW = 20,
-    SETTINGS_USB_MODE_ROW = 21,
+    SETTINGS_OUTPUT_ROW = 15,
+    SETTINGS_EQUALIZER_ROW = 16,
+    SETTINGS_CUSTOM_EQ_ROW = 17,
+    SETTINGS_RESCAN_ROW = 21,
+    SETTINGS_USB_MODE_ROW = 22,
     ABOUT_ROWS = 14,
     HOME_EDITOR_PODCASTS_ROW = 2,
     EQUALIZER_SAVE_ROW = 10,
@@ -68,6 +68,7 @@ static bool portrait;
 static bool engineering_values;
 static TextSize variant_size;
 static Orientation variant_orientation;
+static bool variant_clock_24h = true;
 
 static void add_player_files(bool with_library)
 {
@@ -91,6 +92,7 @@ static void start(TextSize size, Orientation orientation, bool with_library)
     Settings settings = settings_defaults();
     settings.text_size = size;
     settings.orientation = orientation;
+    settings.clock_24h = variant_clock_24h;
     settings_encode(&settings, saved);
     fake_hal_reset();
     i18n_detach();
@@ -402,6 +404,7 @@ static void walk_settings_choices(void)
                                                    STR_SLEEP_TIMER,
                                                    STR_AUTO_OFF,
                                                    STR_SCREEN_TIMEOUT,
+                                                   STR_CLOCK_FORMAT,
                                                    STR_BRIGHTNESS,
                                                    STR_COLOR,
                                                    STR_TEXT_SIZE,
@@ -522,6 +525,24 @@ static void walk_bluetooth(void)
     CHECK(show("Home with Bluetooth on") >= 2);
 }
 
+static void walk_card_format(void)
+{
+    open_settings_row(0);
+    fake_hal_set_card(
+        (HalCardInfo){.present = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1}, true);
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 80});
+    for (int row = 0; row < 3; row++) {
+        tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    }
+    tap(KEY_PLAY);
+    show_titled("the card format warning", STR_CARD_FORMAT);
+    tap(KEY_PLAY);
+    show_titled("the final card format confirmation", STR_CARD_FORMAT_CONFIRM);
+    down(1);
+    show("the erase card choice");
+    tap(KEY_BACK);
+}
+
 static void open_home_editor(void)
 {
     open_settings_row(0);
@@ -604,13 +625,21 @@ static void walk_clock(void)
     show_titled("Clock without a time", STR_CLOCK);
     tap(KEY_PLAY);
     show_titled("Calendar without a time", STR_CALENDAR);
-    begin();
-    fake_hal_set_wall(1794390060u, 60);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
-    tap(KEY_PLAY);
-    show_titled("Clock", STR_CLOCK);
-    tap(KEY_PLAY);
-    show_titled("Calendar", STR_CALENDAR);
+    for (int format = 0; format < 2; format++) {
+        variant_clock_24h = format != 0;
+        begin();
+        fake_hal_set_wall(1794390060u, 60);
+        tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+        tap(KEY_PLAY);
+        show_titled("Clock", STR_CLOCK);
+        tap(KEY_PLAY);
+        show_titled("Calendar", STR_CALENDAR);
+        fake_hal_set_wall(1794439800u, 0);
+        show_titled("Calendar at night", STR_CALENDAR);
+        tap(KEY_BACK);
+        show_titled("Clock at night", STR_CLOCK);
+    }
+    variant_clock_24h = true;
     fake_hal_set_wall(0, 0);
 }
 
@@ -642,6 +671,34 @@ static void walk_listening(void)
     CHECK(show("Export plays") >= 3);
 }
 
+static void walk_headphones(void)
+{
+    static const StringId FIELDS[] = {STR_HEADPHONE_NAME, STR_HEADPHONE_TRIM, STR_HEADPHONE_BALANCE,
+                                      STR_HEADPHONE_CEILING};
+    open_settings_row(0);
+    for (int row = 0; row < 4; row++) {
+        tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    }
+    tap(KEY_PLAY);
+    show_titled("Headphones", STR_HEADPHONES);
+    tap(KEY_PLAY);
+    show_titled("the active headphone choices", STR_HEADPHONE_ACTIVE);
+    down(1);
+    show("another headphone choice");
+    back(1);
+    down(1);
+    tap(KEY_PLAY);
+    show("a headphone profile");
+    for (int field = 0; field < 4; field++) {
+        down(1);
+        tap(KEY_PLAY);
+        show_titled("a headphone value", FIELDS[field]);
+        down(1);
+        show("another headphone value");
+        back(1);
+    }
+}
+
 static void walk_everything(void)
 {
     begin();
@@ -652,11 +709,13 @@ static void walk_everything(void)
     walk_smart_lists();
     walk_cover_flow();
     walk_settings_rows();
+    walk_card_format();
     walk_settings_choices();
     walk_settings_toasts();
     walk_equalizer();
     walk_bluetooth();
     walk_home_editor();
+    walk_headphones();
     walk_about();
     walk_song_actions();
     walk_now_playing();

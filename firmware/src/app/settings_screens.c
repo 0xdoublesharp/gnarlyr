@@ -1,4 +1,5 @@
 #include "settings_screens.h"
+#include "app/app.h"
 
 #include <stddef.h>
 
@@ -33,6 +34,7 @@ static const StringId AUTO_OFF_OPTIONS[AUTO_OFF_OPTION_COUNT] = {STR_OFF, STR_MI
 static const StringId TIMEOUT_OPTIONS[SCREEN_TIMEOUT_OPTION_COUNT] = {
     STR_SECONDS_10, STR_SECONDS_20, STR_SECONDS_30, STR_MINUTES_1,
     STR_MINUTES_2,  STR_MINUTES_5,  STR_NEVER};
+static const StringId CLOCK_FORMAT_OPTIONS[] = {STR_CLOCK_12H, STR_CLOCK_24H};
 static const char *const BRIGHTNESS_OPTIONS[BRIGHTNESS_LEVEL_COUNT] = {"1", "2", "3", "4", "5",
                                                                        "6", "7", "8", "9", "10"};
 static const StringId ACCENT_OPTIONS[ACCENT_COLOR_COUNT] = {
@@ -161,6 +163,17 @@ static void choose_timeout(void *context, int index)
 static int current_auto_off(const void *context)
 {
     return settings_of(context)->auto_off;
+}
+
+static int current_clock_format(const void *context)
+{
+    return settings_of(context)->clock_24h ? 1 : 0;
+}
+
+static void choose_clock_format(void *context, int index)
+{
+    editable_settings(context)->clock_24h = index != 0;
+    save(context);
 }
 
 static void choose_auto_off(void *context, int index)
@@ -658,6 +671,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      NULL},
     {STR_SCREEN_TIMEOUT, TIMEOUT_OPTIONS, SCREEN_TIMEOUT_OPTION_COUNT, current_timeout,
      choose_timeout, NULL, NULL},
+    {STR_CLOCK_FORMAT, CLOCK_FORMAT_OPTIONS, 2, current_clock_format, choose_clock_format, NULL,
+     NULL},
     {STR_BRIGHTNESS, NULL, BRIGHTNESS_LEVEL_COUNT, current_brightness, choose_brightness,
      describe_brightness, extend_brightness},
     {STR_COLOR, ACCENT_OPTIONS, ACCENT_COLOR_COUNT, current_accent, choose_accent, NULL, NULL},
@@ -864,14 +879,61 @@ static ScreenAction request_rescan(void *context)
     return screen_action_none();
 }
 
+static const char *format_status(const void *context)
+{
+    const SettingsScreens *screens = context;
+    return screens->card_needs_format ? i18n_text(STR_CARD_FORMAT_NEEDED) : NULL;
+}
+
+static ScreenAction open_format(void *context)
+{
+    SettingsScreens *screens = context;
+    CardFormatConfig config = {.player = screens->context.player,
+                               .theme = screens->theme,
+                               .notice =
+                                   screens->context.format_prepare != NULL ? app_show_notice : NULL,
+                               .prepare = screens->context.format_prepare,
+                               .finished = screens->context.format_finished};
+    return screen_action_push(card_format_screen_init(&screens->card_format, config));
+}
+
 static void buttons_changed(void *context)
 {
     save(context);
 }
 
+static bool headphones_shown(const void *context)
+{
+    const SettingsScreens *screens = context;
+    return screens->context.headphones != NULL;
+}
+
+static void bind_headphones(SettingsScreens *screens)
+{
+    SettingsContext *context = &screens->context;
+    Screen *target = NULL;
+    if (context->headphones != NULL) {
+        HeadphoneEditorConfig config = {context->headphones, context->player, context->store,
+                                        screens->theme, context->toast};
+        target = headphone_editor_init(&screens->headphones, config);
+    }
+    screens->items[SETTINGS_HEADPHONES_ITEM] = (MenuItem){.label = i18n_text(STR_HEADPHONES),
+                                                          .select = menu_open_screen,
+                                                          .context = target,
+                                                          .opens = true,
+                                                          .shown = headphones_shown,
+                                                          .shown_context = screens};
+}
+
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context, const Theme *theme)
 {
     screens->context = context;
+    screens->card_needs_format = hal_card_info().needs_format;
+    screens->items[SETTINGS_FORMAT_ITEM] = (MenuItem){.label = i18n_text(STR_CARD_FORMAT),
+                                                      .select = open_format,
+                                                      .value = format_status,
+                                                      .context = screens,
+                                                      .opens = true};
     screens->context.presets = &screens->presets;
     screens->context.languages = &screens->languages;
     screens->theme = theme;
@@ -886,6 +948,7 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                     .changed = buttons_changed,
                                     .context = &screens->context};
     Screen *controls = button_settings_init(&screens->buttons, buttons);
+    bind_headphones(screens);
     screens->items[SETTINGS_CONTROLS_ITEM] = (MenuItem){.label = i18n_text(STR_CONTROLS),
                                                         .select = menu_open_screen,
                                                         .context = controls,

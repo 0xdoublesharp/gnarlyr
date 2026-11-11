@@ -33,6 +33,8 @@ SPECS = (
     ("prevent_clipping", "STR_PREVENT_CLIPPING", "CLIPPING_OPTIONS", ("off", "on"),
      ("STR_OFF", "STR_ON"), 5, 4, 2, 0),
 )
+CLOCK_SPEC = ("clock_24h", "STR_CLOCK_FORMAT", "CLOCK_FORMAT_OPTIONS", ("12h", "24h"),
+              ("STR_CLOCK_12H", "STR_CLOCK_24H"), 38, 4, 2, 0)
 
 
 def array_source(source, name):
@@ -62,9 +64,16 @@ class Layout:
             if members != expected:
                 raise ValueError("the installed display setting encoding has changed")
         self.specs = SPECS[:4] if snapshot.settings_version == 13 else SPECS
+        if snapshot.settings_version >= 15 and "STR_CLOCK_FORMAT" in self.title_ids():
+            if echo_language.constant(source, "CLOCK_24H_BIT") != 4:
+                raise ValueError("the installed clock setting encoding has changed")
+            self.specs += (CLOCK_SPEC,)
         self.title_ids()
         for spec in self.specs:
-            body = array_source(self.ui, spec[2])
+            options = spec[2]
+            if spec[0] == "prevent_clipping" and "CLIPPING_OPTIONS" not in self.ui:
+                options = "OFF_ON_OPTIONS"
+            body = array_source(self.ui, options)
             actual = tuple(re.findall(r"\bSTR_[A-Z0-9_]+\b", body)) if spec[4] else tuple(re.findall(r'"([0-9]+)"', body))
             if actual != (spec[4] or spec[3]) or not re.search(r"\{\s*" + spec[1] + r"\s*,", self.ui):
                 raise ValueError("the installed settings choices have changed")

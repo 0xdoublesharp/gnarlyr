@@ -465,7 +465,7 @@ void player_change_volume(Player *player, int delta)
     if (level > HAL_AUDIO_VOLUME_MAX) {
         level = HAL_AUDIO_VOLUME_MAX;
     }
-    player->volume = (uint8_t)level;
+    player->volume = headphone_audio_limit(hal_audio_headphones(), (uint8_t)level);
     hal_audio_set_volume(player->volume);
 }
 
@@ -581,7 +581,7 @@ static PlayerQueueEditResult store_candidate(Player *player, const UpNext *candi
     return PLAYER_QUEUE_EDITED;
 }
 
-static PlayerQueueEditResult commit_up_next(Player *player, const UpNext *candidate)
+PlayerQueueEditResult player_commit_up_next(Player *player, const UpNext *candidate)
 {
     bool resume = player->loaded && player->state == PLAYER_PLAYING;
     if (resume) {
@@ -592,20 +592,6 @@ static PlayerQueueEditResult commit_up_next(Player *player, const UpNext *candid
         hal_audio_resume();
     }
     return result;
-}
-
-PlayerQueueEditResult player_edit_up_next(Player *player, uint32_t revision, uint16_t index,
-                                          UpNextEdit edit)
-{
-    if (player_queue_busy(player) || revision != player->up_next_revision ||
-        !player_queue_is_current(player)) {
-        return PLAYER_QUEUE_EDIT_STALE;
-    }
-    UpNext candidate = player->up_next;
-    if (!up_next_edit(&candidate, index, edit)) {
-        return PLAYER_QUEUE_EDIT_INVALID;
-    }
-    return commit_up_next(player, &candidate);
 }
 
 static PlayerUpNextResult enqueue(Player *player, uint16_t track, bool next)
@@ -630,7 +616,7 @@ static PlayerUpNextResult enqueue(Player *player, uint16_t track, bool next)
     if (!added) {
         return PLAYER_UP_NEXT_FULL;
     }
-    PlayerQueueEditResult result = commit_up_next(player, &candidate);
+    PlayerQueueEditResult result = player_commit_up_next(player, &candidate);
     if (result == PLAYER_QUEUE_EDIT_STALE) {
         return PLAYER_UP_NEXT_CHANGED;
     }

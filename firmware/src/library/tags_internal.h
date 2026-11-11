@@ -19,6 +19,7 @@ typedef struct TagReader {
     TrackTags *tags;
     bool present[TAG_FIELD_COUNT];
     ReplayGainTags replay_gain;
+    bool opus;
 } TagReader;
 
 typedef struct Mp4Atom {

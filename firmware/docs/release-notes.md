@@ -10,6 +10,8 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Library and navigation
 
+- Settings → Format card adds a quick FAT32/exFAT format with capacity and erase warnings, a separate confirmation with Cancel selected, playback/USB/battery guards, progress and removal recovery. Formatting clears the card's library and saved playback state. Native sparse images pass macOS fsck and read/write checks; ARM scenarios cover copied WAV playback and removal/retry. Physical card acceptance remains open.
+
 - Search metadata and paths, combine sorting and filters, inspect track information and assign personal mood/activity labels.
 - Scoped Play All and selected-result playback preserve the displayed order.
 - Waking the player keeps the screen on even when a fresh wake timestamp is newer than the current app step. Screen timeout and auto off also remain correct across clock wraparound.
@@ -20,6 +22,8 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Interface and sound controls
 
+- Settings → Clock format selects 12-hour time with AM/PM or 24-hour time for Clock and the status bar, including Calendar. The choice survives restarts.
+- Four named headphone profiles apply attenuation-only trim, left/right balance and a volume ceiling to music and USB DAC output. Settings → Headphones selects and edits them; verified alternating-bank saves keep profiles on internal storage without changing settings v15. Switching to less attenuation lowers the saved mode volumes first. Analog Gain is unchanged; physical output checks remain pending.
 - Five themes with live preview, configurable playback tap/hold actions, shared icons and cassette artwork.
 - Flat retro-future headers and focus accents, clearer Listen and charging layouts, a larger battery readout and an honest distinction between USB power, charging and full.
 - Theme and EQ browsing preview without saving. Custom EQ has a response curve and staged audible editing; leaving a preview restores the saved choice.
@@ -28,7 +32,13 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Playback fixes
 
+- Opus R128 track and album gain tags now feed ReplayGain normalization with the +5 dB reference conversion. Standard ReplayGain gain tags take precedence, and the decoder keeps applying header gain once.
+
 - Shuffle can fade between songs (Settings → Transitions, 0.5 to 6 s). Album-order neighbours, parts of one file and spoken word stay gapless. Not yet heard on a player.
+
+- Ogg Vorbis compatibility is checked against independently built Xiph and aoTuV encoders and ffmpeg-native output, across VBR qualities −1 to 10, speech rates, 192 kHz stereo and managed 500 kbit/s. Large artwork comments are skipped during decode. Chained files stop at their first link with its correct duration; multiplexed files ignore other checked serials when Vorbis is first.
+
+- The desktop simulator plays Vorbis and Opus with the firmware decoders, including seeking, mono output, Opus gain and end trimming. Core-1 emulation measures about 0.81/1.34/2.31 million instructions per 20 ms for q10 stereo at 48/96/192 kHz. These are software checks; neither codec has been listened to on the player, and actual real-time margin remains unmeasured.
 
 - Output-underrun diagnostics exclude intentional muted DMA pauses, clear stale start/resume flags and retain pending playback faults. Unmuted interruptions remain visible.
 
@@ -45,6 +55,8 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 - The DAC power-up wait is 12 ms, matching the observed stock sequence. Earlier owner listening checks reported quiet playback; no analog noise specification is claimed.
 
 ## Architecture and validation
+
+- USB status drawing now loads with the verified USB overlay. Connecting and charging without the settings artwork keep a resident text fallback. The renderer is cleared before the overlay memory is reused.
 
 Demand-loaded screen modules, an independent audio module for interpolation and M4A demuxing, a shared overlay loader, USB storage/DAC/update code in an on-demand overlay, and per-image size checks keep the device memory limits explicit. The developer loop provides reports, scripts, screenshots, profiling and file-copy updates.
 

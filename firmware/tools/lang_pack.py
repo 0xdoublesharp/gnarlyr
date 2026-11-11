@@ -336,6 +336,8 @@ def write_sources(arguments):
             path.write_text(content, encoding="utf-8")
     for path in stale:
         print(f"out of date: {path}", file=sys.stderr)
+    if stale:
+        print("Regenerate with python3 tools/firmware.py regen from the repository root", file=sys.stderr)
     return 1 if stale else 0
 
 
@@ -353,6 +355,7 @@ def write_catalogue(arguments):
     if arguments.check:
         if not path.exists() or path.read_text(encoding="utf-8") != source:
             print(f"out of date: {path}", file=sys.stderr)
+            print("Regenerate with python3 tools/firmware.py regen from the repository root", file=sys.stderr)
             return 1
     else:
         path.parent.mkdir(parents=True, exist_ok=True)

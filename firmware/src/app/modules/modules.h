@@ -13,6 +13,7 @@ typedef struct ViewsModuleEntry {
     void (*cancel)(MixtapeUi *ui);
     void (*step)(MixtapeUi *ui, uint32_t now_ms);
     Screen *(*add)(MixtapeUi *ui, uint16_t track);
+    void (*charge_draw)(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms);
 } ViewsModuleEntry;
 
 extern const ViewsModuleEntry VIEWS_MODULE_ENTRY;
@@ -22,7 +23,6 @@ typedef struct SettingsModuleEntry {
     ScreenModuleEntry module;
     Screen *(*language_row)(AppScreens *screens);
     Screen *(*usb_modes)(AppScreens *screens, bool prompt);
-    void (*charge_draw)(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms);
     bool (*choose)(AppScreens *screens, DebugSpan title, DebugSpan option);
 } SettingsModuleEntry;
 

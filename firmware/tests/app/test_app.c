@@ -56,22 +56,22 @@ enum {
     SETTINGS_REPEAT_INDEX = 2,
     SETTINGS_SLEEP_INDEX = 4,
     SETTINGS_TIMEOUT_INDEX = 6,
-    SETTINGS_BRIGHTNESS_INDEX = 7,
-    SETTINGS_COLOR_INDEX = 8,
-    SETTINGS_TEXT_SIZE_INDEX = 9,
-    SETTINGS_ORIENTATION_INDEX = 10,
-    SETTINGS_SKIP_INDEX = 11,
-    SETTINGS_GAIN_INDEX = 12,
-    SETTINGS_EQUALIZER_INDEX = 14,
-    SETTINGS_CUSTOM_EQ_INDEX = 15,
-    SETTINGS_REPLAY_GAIN_INDEX = 16,
-    SETTINGS_CLIPPING_INDEX = 17,
-    SETTINGS_START_INDEX = 18,
-    SETTINGS_RESCAN_INDEX = 19,
-    SETTINGS_USB_MODE_INDEX = 20,
-    SETTINGS_THEME_INDEX = 21,
-    SETTINGS_BATTERY_PERCENT_INDEX = 22,
-    SETTINGS_USB_ANSWER_INDEX = 26,
+    SETTINGS_BRIGHTNESS_INDEX = 8,
+    SETTINGS_COLOR_INDEX = 9,
+    SETTINGS_TEXT_SIZE_INDEX = 10,
+    SETTINGS_ORIENTATION_INDEX = 11,
+    SETTINGS_SKIP_INDEX = 12,
+    SETTINGS_GAIN_INDEX = 13,
+    SETTINGS_EQUALIZER_INDEX = 15,
+    SETTINGS_CUSTOM_EQ_INDEX = 16,
+    SETTINGS_REPLAY_GAIN_INDEX = 17,
+    SETTINGS_CLIPPING_INDEX = 18,
+    SETTINGS_START_INDEX = 19,
+    SETTINGS_RESCAN_INDEX = 20,
+    SETTINGS_USB_MODE_INDEX = 21,
+    SETTINGS_THEME_INDEX = 22,
+    SETTINGS_BATTERY_PERCENT_INDEX = 23,
+    SETTINGS_USB_ANSWER_INDEX = 27,
     USB_PROMPT_MS = 15000,
     CHARGE_LIT_MS = 5000,
     MUSIC_COVER_FLOW_INDEX = 1,
@@ -2503,6 +2503,38 @@ static void a_refused_track_says_why_it_was_skipped(void)
     play_first_album_track();
     CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
     CHECK(toast_is("192 kHz isn't supported yet"));
+}
+
+static void formatting_a_paused_card_clears_the_library_and_saved_playback_state(void)
+{
+    start_app_with_library();
+    fake_hal_set_card(
+        (HalCardInfo){.present = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1}, true);
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 80});
+    static const uint8_t stale[16] = {1};
+    fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/mixes.bin", stale, sizeof stale);
+    play_first_album_track();
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    hold_back();
+    move_down(HOME_SETTINGS_INDEX);
+    tap(KEY_PLAY);
+    move_up(3);
+    tap(KEY_PLAY);
+    CHECK(title_is("Format card"));
+    tap(KEY_PLAY);
+    tap(KEY_VOLUME_UP);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(1, fake_hal_card_formats());
+    CHECK(!app_player_status().has_track);
+    CHECK_EQUAL(PLAYER_IDLE, app_player_status().state);
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(toast_is("Card formatted. The library is empty."));
+    app_start();
+    CHECK(!app_player_status().has_track);
+    uint32_t size = 0;
+    CHECK(fake_hal_file_bytes("/" FIRMWARE_DATA_DIRECTORY "/session.bin", &size) == NULL);
+    CHECK(fake_hal_file_bytes("/" FIRMWARE_DATA_DIRECTORY "/mixes.bin", &size) == NULL);
 }
 
 static void rescanning_without_a_card_says_so(void)
@@ -5031,10 +5063,86 @@ static void the_status_bar_shows_the_set_time_and_nothing_without_one(void)
     CHECK(!area_has_color(clock, ink));
 }
 
+static void check_status_clock(const char *text)
+{
+    static Color pixels[FULL_FRAME_PIXELS];
+    const Theme *theme = expected_theme();
+    Canvas canvas = canvas_make(pixels, (Rect){0, 0, HAL_DISPLAY_WIDTH, HAL_DISPLAY_HEIGHT});
+    StatusBarState state = {.battery_known = true, .battery_percent = HALF_BATTERY, .clock = text};
+    header_draw(&canvas, theme, app_screen_title());
+    status_bar_draw(&canvas, theme, state);
+    Rect area = status_bar_clock_area(theme, state);
+    CHECK(status_bar_clock_fits(theme, state));
+    for (int y = area.y; y < area.y + area.height; y++) {
+        for (int x = area.x; x < area.x + area.width; x++) {
+            CHECK_EQUAL(canvas_pixel_at(&canvas, x, y), fake_hal_pixel(x, y));
+        }
+    }
+}
+
+static void the_clock_format_choice_is_saved_and_controls_stays_last(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery((HalBattery){.known = true, .percent = HALF_BATTERY});
+    fake_hal_set_wall(1794390060u, 0);
+    open_setting(7);
+    CHECK(title_is("Clock format"));
+    move_up(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Settings"));
+    Settings chosen;
+    CHECK(saved_settings(&chosen));
+    CHECK(!chosen.clock_24h);
+    wait_ms(500);
+    check_status_clock("9:41 AM");
+    fake_hal_set_wall(1794439800u, 0);
+    wait_ms(500);
+    check_status_clock("11:30 PM");
+    restart_app();
+    CHECK(saved_settings(&chosen));
+    CHECK(!chosen.clock_24h);
+    open_setting(0);
+    tap(KEY_BACK);
+    move_up(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Controls"));
+}
+
+static void a_calendar_month_title_keeps_its_room_before_the_status_clock(void)
+{
+    start_app_with_library();
+    SettingsStore chosen;
+    settings_store_load(&chosen);
+    chosen.settings.clock_24h = false;
+    chosen.settings.battery_percent = true;
+    CHECK(settings_store_save(&chosen));
+    fake_hal_set_wall(1794390060u, 0);
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 64});
+    restart_app();
+    tap(KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    CHECK(title_is("Clock"));
+    tap(KEY_PLAY);
+    CHECK(title_is("Calendar"));
+    wait_ms(500);
+    static Color pixels[FULL_FRAME_PIXELS];
+    const Theme *theme = expected_theme();
+    Canvas canvas = canvas_make(pixels, (Rect){0, 0, HAL_DISPLAY_WIDTH, HAL_DISPLAY_HEIGHT});
+    header_draw(&canvas, theme, "November 2026");
+    status_bar_draw(
+        &canvas, theme,
+        (StatusBarState){.battery_known = true, .battery_percent = 64, .percent = "64%"});
+    for (int y = 0; y < theme->metrics.header_height; y++) {
+        for (int x = 0; x < theme->metrics.screen_width; x++) {
+            CHECK_EQUAL(canvas_pixel_at(&canvas, x, y), fake_hal_pixel(x, y));
+        }
+    }
+}
+
 static void normalization_choices_apply_and_survive_restart(void)
 {
     start_app_with_library();
-    open_setting(16);
+    open_setting(SETTINGS_REPLAY_GAIN_INDEX);
     CHECK(title_is("ReplayGain"));
     move_down(2);
     tap(KEY_PLAY);
@@ -5220,6 +5328,8 @@ int main(void)
         TEST_CASE(
             battery_percentage_choice_shows_the_level_beside_the_battery_and_survives_restart),
         TEST_CASE(the_status_bar_shows_the_set_time_and_nothing_without_one),
+        TEST_CASE(the_clock_format_choice_is_saved_and_controls_stays_last),
+        TEST_CASE(a_calendar_month_title_keeps_its_room_before_the_status_clock),
         TEST_CASE(brightness_is_applied_and_saved),
         TEST_CASE(brightness_previews_without_saving_and_back_restores_it),
         TEST_CASE(leaving_or_stopping_a_brightness_preview_restores_the_saved_level),
@@ -5310,6 +5420,7 @@ int main(void)
         TEST_CASE(the_splash_draws_over_the_home_screen),
         TEST_CASE(the_sleep_timer_turns_the_player_off),
         TEST_CASE(a_refused_track_says_why_it_was_skipped),
+        TEST_CASE(formatting_a_paused_card_clears_the_library_and_saved_playback_state),
         TEST_CASE(rescanning_without_a_card_says_so),
         TEST_CASE(a_rescan_of_an_empty_card_writes_an_empty_library),
         TEST_CASE(a_rescan_keeps_the_stall_watch_fed),

@@ -15,6 +15,5 @@ WallNow wall_time_now(void)
 
 bool wall_time_24h(const Settings *settings)
 {
-    (void)settings;
-    return true;
+    return settings->clock_24h;
 }

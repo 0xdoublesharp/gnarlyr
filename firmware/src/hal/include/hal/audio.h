@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "core/dac_identity.h"
+#include "core/headphone_audio.h"
 
 enum {
     HAL_AUDIO_VOLUME_MAX = 60,
@@ -144,6 +145,8 @@ void hal_audio_resume(void);
 void hal_audio_release(void);
 void hal_audio_seek(uint32_t position_ms);
 void hal_audio_set_volume(uint8_t level);
+void hal_audio_set_headphones(HeadphoneAudio profile);
+HeadphoneAudio hal_audio_headphones(void);
 void hal_audio_set_gain(HalAudioGain gain);
 void hal_audio_set_output(HalAudioOutput output);
 void hal_audio_set_equalizer(const HalAudioEqualizer *equalizer);

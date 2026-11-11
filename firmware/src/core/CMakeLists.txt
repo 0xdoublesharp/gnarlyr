@@ -9,6 +9,9 @@ add_library(echo_core STATIC
     frame_pacer.c
     frame_stats.c
     hash.c
+    headphone_audio.c
+    headphone_word.c
+    headphone_audio_switch.c
     i18n.c
     key_lock.c
     key_script.c
