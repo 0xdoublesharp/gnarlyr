@@ -69,11 +69,23 @@ static void screens_a_module_builds_for_itself_belong_to_it_too(void)
     reset();
     const SettingsModuleScreens *own = &screens.modules.settings;
     const Screen *inside[] = {&own->settings.menu.screen, &own->settings.choice.screen,
-                              &own->settings.equalizer.screen, &own->bluetooth.screen,
-                              &own->diagnostics.screen};
+                              &own->bluetooth.screen, &own->diagnostics.screen};
     for (size_t index = 0; index < sizeof inside / sizeof inside[0]; index++) {
         CHECK_EQUAL(SCREEN_MODULE_SETTINGS, screen_modules_of(&screens, inside[index]));
     }
+}
+
+static void equalizer_screens_belong_to_their_dedicated_module(void)
+{
+    reset();
+    const EqualizerUi *ui = &screens.modules.equalizer;
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, screen_modules_of(&screens, &ui->browser.choice.screen));
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, screen_modules_of(&screens, &ui->graphic.screen));
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, screen_modules_of(&screens, &ui->parametric.screen));
+    CHECK(screen_modules_use(&screens, SCREEN_MODULE_EQUALIZER) != NULL);
+    CHECK(screens.modules.equalizer.parametric.screen.draw != NULL);
+    CHECK(screens.modules.views.cover_flow.screen.draw == NULL);
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
 }
 
 static void every_module_has_its_own_memory(void)
@@ -152,6 +164,7 @@ int main(void)
         TEST_CASE(a_screen_belongs_to_the_module_whose_memory_holds_it),
         TEST_CASE(screens_a_module_builds_for_itself_belong_to_it_too),
         TEST_CASE(every_module_has_its_own_memory),
+        TEST_CASE(equalizer_screens_belong_to_their_dedicated_module),
         TEST_CASE(each_module_builds_its_own_screens),
         TEST_CASE(the_first_and_the_last_byte_of_a_modules_memory_are_inside_it),
         TEST_CASE(using_a_module_loads_it_and_builds_its_screens),

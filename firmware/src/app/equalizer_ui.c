@@ -184,7 +184,7 @@ void equalizer_ui_init(EqualizerUi *ui, SettingsStore *store, Player *player, To
     *ui = (EqualizerUi){
         .store = store, .player = player, .toast = toast, .theme = theme, .presets = &presets};
     ui->presets->parametric = &store->parametric;
-    parametric_store_read(&store->parametric, NULL);
+    parametric_store_read(&store->parametric, &store->settings.parametric);
     equalizer_presets_scan(ui->presets);
     ChoiceConfig choice = {.title = i18n_text(STR_EQUALIZER),
                            .options = ui->presets->options,

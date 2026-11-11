@@ -3,7 +3,9 @@
 
 #include "check.h"
 #include "core/hash.h"
+#include "default_theme.h"
 #include "equalizer_presets.h"
+#include "equalizer_ui.h"
 #include "fake_hal.h"
 #include "favorite_playlist.h"
 #include "favorites_store.h"
@@ -457,6 +459,15 @@ static void matching_graphic_and_parametric_slots_survive_restart(void)
     settings_store_load(&store);
     CHECK_EQUAL(0, store.equalizer_slot);
     CHECK(parametric_same(&eq, &store.settings.parametric));
+    store.settings.equalizer = EQUALIZER_OFF;
+    CHECK(settings_store_save(&store));
+    settings_store_load(&store);
+    EqualizerUi ui;
+    Player player = {0};
+    Toast toast = {0};
+    equalizer_ui_init(&ui, &store, &player, &toast, &BOARD_THEME);
+    CHECK(parametric_same(&eq, &store.settings.parametric));
+    CHECK_EQUAL(EQUALIZER_OFF, store.settings.equalizer);
 }
 
 int main(void)

@@ -75,8 +75,13 @@ void settings_store_load(SettingsStore *store)
     } else if (!read_valid(bytes, &store->settings, false)) {
         store->settings = settings_defaults();
     }
-    parametric_store_load(&store->parametric, &store->settings.parametric);
-    store->equalizer_slot = (int8_t)parametric_store_matching(&store->settings);
+    store->parametric = (ParametricStore){0};
+    store->equalizer_slot = -1;
+    if (store->settings.equalizer == EQUALIZER_CUSTOM ||
+        store->settings.equalizer == EQUALIZER_PARAMETRIC) {
+        parametric_store_load(&store->parametric, &store->settings.parametric);
+        store->equalizer_slot = (int8_t)parametric_store_matching(&store->settings);
+    }
     uint8_t buttons[SETTINGS_BUTTONS_FILE_SIZE];
     if (hal_internal_file_read(SETTINGS_BUTTONS_PATH, buttons, sizeof buttons) &&
         settings_buttons_decode(buttons, sizeof buttons, &store->settings)) {
