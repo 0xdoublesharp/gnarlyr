@@ -15,7 +15,8 @@ enum {
     PANEL_WIDTH = 120,
     PANEL_HEIGHT = 30,
     PANEL_PADDING = 12,
-    PANEL_ICON_SIZE = 14
+    PANEL_ICON_SIZE = 14,
+    PORTRAIT_STATUS_HEIGHT = 20
 };
 
 static Theme status_theme(void)
@@ -94,9 +95,15 @@ static Canvas draw_panel(const Theme *theme, StatusBarState state)
     return canvas;
 }
 
+static int border_of(Rect body)
+{
+    return body.height / 8;
+}
+
 static Rect inner_of(Rect body)
 {
-    return (Rect){body.x + 2, body.y + 2, body.width - 4, body.height - 4};
+    int inset = border_of(body) + 1;
+    return (Rect){body.x + inset, body.y + inset, body.width - 2 * inset, body.height - 2 * inset};
 }
 
 static Rect filled_part(Rect body, uint8_t percent)
@@ -126,21 +133,48 @@ static Color tinted(const Theme *theme, Color color)
     return color_between(color, theme->colors.header_text, 1, 3);
 }
 
-static void the_battery_ends_at_the_right_padding_in_about_two_dozen_pixels(void)
+static void the_battery_ends_at_the_right_padding_and_fits_the_narrowest_status_band(void)
 {
     Theme theme = panel_theme();
     Rect area = status_bar_battery_area(&theme);
     CHECK_EQUAL(PANEL_WIDTH - PANEL_PADDING, area.x + area.width);
-    CHECK(area.width <= 24);
+    CHECK(area.width <= 30);
     CHECK(area.y >= 0 && area.y + area.height <= PANEL_HEIGHT);
+    theme.metrics.status_height = PORTRAIT_STATUS_HEIGHT;
+    area = status_bar_battery_area(&theme);
+    CHECK(area.y >= 1 && area.y + area.height <= PORTRAIT_STATUS_HEIGHT - 1);
 }
 
-static void the_battery_body_is_a_little_wider_than_the_icon_size_and_two_pixels_shorter(void)
+static void the_battery_shares_its_vertical_centre_with_the_play_icon(void)
+{
+    Theme theme = panel_theme();
+    for (int band = 0; band < 2; band++) {
+        theme.metrics.status_height = band == 0 ? 0 : PORTRAIT_STATUS_HEIGHT;
+        Rect body = status_bar_battery_body(&theme);
+        Rect play = status_bar_playback_area(&theme);
+        CHECK_EQUAL(2 * play.y + play.height, 2 * body.y + body.height);
+    }
+}
+
+static void the_battery_body_frames_the_icon_size_and_is_thirteen_eighths_as_wide(void)
 {
     Theme theme = panel_theme();
     Rect body = status_bar_battery_body(&theme);
-    CHECK_EQUAL(PANEL_ICON_SIZE - 2, body.height);
-    CHECK_EQUAL(body.height * 8 / 5, body.width);
+    CHECK_EQUAL(PANEL_ICON_SIZE + 2, body.height);
+    CHECK_EQUAL(body.height * 13 / 8, body.width);
+}
+
+static void a_full_battery_keeps_a_two_pixel_outline_and_a_one_pixel_gap_before_the_fill(void)
+{
+    Theme theme = panel_theme();
+    Canvas canvas = draw_panel(&theme, battery_at(100, false));
+    Rect body = status_bar_battery_body(&theme);
+    CHECK_EQUAL(2, border_of(body));
+    Rect outline = {body.x, body.y + body.height / 2, 2, 1};
+    Rect gap = {body.x + 2, body.y + 2, 1, body.height - 4};
+    CHECK(ui_test_area_has_only(&canvas, outline, theme.colors.header_text));
+    CHECK(ui_test_area_has_only(&canvas, gap, theme.colors.header_background));
+    CHECK(ui_test_area_has_only(&canvas, inner_of(body), theme.colors.header_text));
 }
 
 static void the_fill_follows_the_charge(void)
@@ -351,8 +385,10 @@ int main(void)
         TEST_CASE(an_idle_player_without_a_battery_reading_draws_nothing),
         TEST_CASE(a_playing_player_shows_the_play_icon_at_the_left),
         TEST_CASE(a_paused_player_shows_two_bars),
-        TEST_CASE(the_battery_ends_at_the_right_padding_in_about_two_dozen_pixels),
-        TEST_CASE(the_battery_body_is_a_little_wider_than_the_icon_size_and_two_pixels_shorter),
+        TEST_CASE(the_battery_ends_at_the_right_padding_and_fits_the_narrowest_status_band),
+        TEST_CASE(the_battery_shares_its_vertical_centre_with_the_play_icon),
+        TEST_CASE(the_battery_body_frames_the_icon_size_and_is_thirteen_eighths_as_wide),
+        TEST_CASE(a_full_battery_keeps_a_two_pixel_outline_and_a_one_pixel_gap_before_the_fill),
         TEST_CASE(the_fill_follows_the_charge),
         TEST_CASE(a_fill_too_thin_to_read_as_a_bar_grows_to_the_narrowest_readable_bar),
         TEST_CASE(a_mid_charge_battery_is_drawn_in_the_header_text_color),
