@@ -1,0 +1,435 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from echo_image_harness import (
+    EchoImageHarness,
+    main,
+    IDENTITY,
+    PROJECT,
+    make_image,
+    struct,
+)
+
+
+class EchoImageTest(EchoImageHarness):
+    def test_m4b_files_outside_named_folders_are_on_the_audiobook_shelf(self):
+        from echo_emulator.playback import Rig
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.fat_reader import FatReader
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_R0, UC_ARM_REG_R2, UC_ARM_REG_R3
+        volume = Fat32Volume()
+        volume.add_directory("Downloads")
+        volume.add_directory("Writer", directory="Downloads")
+        volume.add_directory("Other")
+        fixtures = PROJECT / "tests/fixtures/m4b_music/Audiobooks"
+        volume.add_file("Chapters.m4b", (fixtures / "Chpl Book.m4b").read_bytes(),
+                        directory="Downloads/Writer")
+        volume.add_file("Whole.m4b", (fixtures / "Plain Book.m4b").read_bytes(), directory="Other")
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        machine = rig.machine
+        counts, items = [], []
+
+        def count_entry():
+            machine.add_address_hook(machine.reg(UC_ARM_REG_LR) & ~1,
+                                     lambda: counts.append(machine.reg(UC_ARM_REG_R0)))
+
+        def item_entry():
+            position, address = machine.reg(UC_ARM_REG_R2), machine.reg(UC_ARM_REG_R3)
+
+            pending = [True]
+
+            def returned():
+                if pending[0] and machine.reg(UC_ARM_REG_R0):
+                    kind, _, index = struct.unpack("<BBH", machine.read_memory(address, 4))
+                    items.append((position, kind, index))
+                pending[0] = False
+            machine.add_address_hook(machine.reg(UC_ARM_REG_LR) & ~1, returned)
+
+        machine.hook_symbol("spoken_shelf_count", count_entry)
+        machine.hook_symbol("spoken_shelf_item", item_entry)
+        rig.press("next")
+        rig.press("play")
+        self.assertEqual([2], counts)
+        unique = {position: (kind, index) for position, kind, index in items}
+        self.assertEqual({0, 1}, set(unique))
+        reader = FatReader(rig.session.disk, rig.session.layout["volume_start"])
+        database = reader.read(f"/{IDENTITY.data_directory}/library.db")
+        sections = [struct.unpack_from("<IIHH", database, 8 + 12 * index) for index in range(10)]
+        strings = sections[9][0]
+
+        def text(offset):
+            begin = strings + offset
+            return database[begin:database.index(b"\x00", begin)].decode("utf-8")
+
+        labels = set()
+        for kind, index in unique.values():
+            if kind == 3:
+                offset = struct.unpack_from("<I", database, sections[5][0] + 16 * index)[0]
+            else:
+                self.assertEqual(2, kind)
+                offset = struct.unpack_from("<I", database, sections[0][0] + 32 * index + 4)[0]
+            labels.add(text(offset))
+        self.assertEqual({"Chapters", "Other/Whole.m4b"}, labels)
+        self.assertEqual(0, sections[0][3])
+        self.assert_healthy(rig.session)
+
+
+    def test_replay_gain_uses_saved_peak_limits_and_live_changes_without_restarting_dma(self):
+        import replay_gain
+        rig, pattern = self.replay_gain_rig(1)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assert_normalized_pcm(rig, pattern, 65536)
+        plays = len(rig.audio.plays)
+        rig.press("back", hold=1300)
+        rig.press("next")
+        rig.press("play")
+        rig.press_many("next", 17)
+        rig.press("play")
+        rig.press("previous")
+        rig.press("play")
+        rig.run_for(400)
+        self.assertEqual(plays, len(rig.audio.plays))
+        self.assert_normalized_pcm(rig, pattern, replay_gain.amplitude(600))
+        node = next(child for child in rig.session.volume.directory(
+            IDENTITY.data_directory).children if child.name == "settings.bin")
+        sector = (rig.session.layout["volume_start"] + rig.session.volume.data_start
+                  + (node.first - 2) * rig.session.volume.sectors_per_cluster)
+        saved = rig.session.disk.read(sector, 1)[:42]
+        self.assertEqual(14, saved[4])
+        self.assertEqual(1, saved[5])
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assertEqual(0, rig.audio.output_underruns())
+        self.assert_healthy(rig.session)
+
+
+    def test_replay_gain_album_mode_reaches_real_pcm_across_pause_and_resume(self):
+        import replay_gain
+        rig, pattern = self.replay_gain_rig(2)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assert_normalized_pcm(rig, pattern, replay_gain.amplitude(-1200))
+        rig.press("play")
+        self.assertGreater(rig.audio.suspend_depth, 0)
+        rig.press("play")
+        rig.run_for(400)
+        self.assertEqual(0, rig.audio.suspend_depth)
+        self.assert_normalized_pcm(rig, pattern, replay_gain.amplitude(-1200))
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assertEqual(0, rig.audio.output_underruns())
+        self.assert_healthy(rig.session)
+
+
+    def test_opus_player_seeks_on_the_core1_opus_program_and_pauses_without_restarting(self):
+        from echo_emulator.core1_bridge import CORE1_OPUS
+        from unicorn.arm_const import UC_ARM_REG_R1
+        rig, bridge = self.opus_rig()
+        machine = rig.machine
+        machine.hook_symbol("hal_audio_play", lambda: machine.uc.reg_write(UC_ARM_REG_R1, 1000))
+        _, ogg = self.module(machine, "ogg")
+        rig.open_songs()
+        started = rig.play_song(2)
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.rate == 48000 and rig.audio.running,
+            until_ms=machine.milliseconds() + 3000))
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertEqual([CORE1_OPUS], bridge.started)
+        self.assertTrue(ogg.loaded(machine))
+        control = struct.unpack("<31I", machine.read_memory(0x01020100, 124))
+        self.assertEqual((48000, 2, 24, 96000, 48000), (control[1], control[2], control[3],
+                                                         control[6], control[7]))
+        rig.press("play")
+        self.assertGreater(rig.audio.suspend_depth, 0)
+        rig.press("play")
+        self.assertEqual(0, rig.audio.suspend_depth)
+        self.assertEqual([CORE1_OPUS], bridge.started)
+        self.assert_healthy(rig.session)
+
+
+    def test_ogg_player_switches_between_the_vorbis_and_opus_programs(self):
+        from echo_emulator.core1_bridge import CORE1_OPUS, CORE1_VORBIS
+        rig, bridge = self.opus_rig()
+        machine = rig.machine
+        rig.open_songs()
+        first = rig.play_song(1)
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.rate == 44100 and rig.audio.running,
+            until_ms=machine.milliseconds() + 3000))
+        self.assertIsNotNone(rig.first_audio_after(first))
+        second = rig.skip("next")
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.rate == 48000 and rig.audio.running,
+            until_ms=machine.milliseconds() + 3000))
+        self.assertIsNotNone(rig.first_audio_after(second))
+        third = rig.skip("previous")
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.rate == 44100 and rig.audio.running,
+            until_ms=machine.milliseconds() + 3000))
+        self.assertIsNotNone(rig.first_audio_after(third))
+        self.assertEqual([CORE1_VORBIS, CORE1_OPUS, CORE1_VORBIS], bridge.started[:3])
+        self.assert_healthy(rig.session)
+
+
+    def test_vorbis_player_runs_both_arm_cores_and_switches_audio_modules(self):
+        rig, bridge = self.vorbis_rig(mixed=True)
+        machine = rig.machine
+        _, dsp = self.module(machine, "dsp")
+        number, vorbis = self.module(machine, "ogg")
+        rig.session.change_module("slot_1", number, 32, lambda byte: byte ^ 1)
+        rig.open_songs()
+        first = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(first))
+        self.assertTrue(dsp.loaded(machine))
+        second = rig.skip("next")
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.rate == 44100 and rig.audio.running,
+            until_ms=machine.milliseconds() + 2000), {
+                "active": bridge.active, "instructions": bridge.core.instructions,
+                "pc": hex(machine.current_pc()),
+                "control": struct.unpack("<31I", machine.read_memory(0x01020100, 124)),
+                "core1": struct.unpack("<31I", bridge.core.uc.mem_read(0x01020100, 124))})
+        self.assertIsNotNone(rig.first_audio_after(second))
+        self.assertGreater(bridge.starts, 0)
+        self.assertTrue(vorbis.loaded(machine))
+        self.assertTrue(rig.session.module_reads("slot_2", number))
+        third = rig.skip("previous")
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.rate == 48000 and rig.audio.running,
+            until_ms=machine.milliseconds() + 2000))
+        self.assertIsNotNone(rig.first_audio_after(third))
+        self.assertTrue(vorbis.loaded(machine))
+        self.assert_healthy(rig.session)
+
+
+    def test_vorbis_player_opens_at_a_saved_position_and_pauses_without_reconfiguration(self):
+        from unicorn.arm_const import UC_ARM_REG_R1
+        rig, bridge = self.vorbis_rig()
+        machine = rig.machine
+        machine.hook_symbol("hal_audio_play", lambda: machine.uc.reg_write(UC_ARM_REG_R1, 1400))
+        from unicorn import UC_HOOK_MEM_READ
+        from unicorn.arm_const import UC_ARM_REG_PC
+        waiting = machine.symbols["board_audio_vorbis_wait"]
+        end = min(address for address in machine.symbols.values() if address > waiting)
+        injected = []
+
+        def late_old_slot(uc, access, address, size, value, user):
+            pc = uc.reg_read(UC_ARM_REG_PC)
+            if not injected and waiting <= pc < end:
+                uc.mem_write(0x01020134, struct.pack("<5I", 1, 0, 0, 0, 64))
+                injected.append(True)
+
+        machine.uc.hook_add(UC_HOOK_MEM_READ, late_old_slot, None, 0x01020134, 0x01020137)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.running,
+            until_ms=machine.milliseconds() + 2000))
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertEqual(44100, rig.audio.rate)
+        self.assertEqual(1, bridge.starts)
+        self.assertEqual([True], injected)
+        rig.press("play")
+        self.assertGreater(rig.audio.suspend_depth, 0)
+        rig.press("play")
+        self.assertEqual(0, rig.audio.suspend_depth)
+        self.assertEqual(1, bridge.starts)
+        self.assert_healthy(rig.session)
+
+
+    def test_vorbis_player_refuses_two_damaged_audio_modules(self):
+        rig, bridge = self.vorbis_rig()
+        number, vorbis = self.module(rig.machine, "ogg")
+        for slot in ("slot_1", "slot_2"):
+            rig.session.change_module(slot, number, 32, lambda byte: byte ^ 1)
+        rig.open_songs()
+        rig.play_song(1)
+        self.assertGreater(bridge.starts, 0)
+        self.assertEqual([], rig.audio.audible)
+        self.assertFalse(vorbis.loaded(rig.machine))
+        for slot in ("slot_1", "slot_2"):
+            self.assertTrue(rig.session.module_reads(slot, number))
+        self.assert_healthy(rig.session)
+
+
+    def test_converted_files_keep_the_waveform_and_dma_continuous_at_the_queue_boundary(self):
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        from echo_emulator.audio import PRODUCED_OFFSET, RING_BYTES
+        from unicorn import UC_HOOK_MEM_WRITE
+        volume = Fat32Volume()
+        pcm = struct.pack("<8h", 0, 2828, 4000, 2828, 0, -2828, -4000, -2828) * 250
+        wav = struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ",
+                          16, 1, 1, 8000, 16000, 2, 16, b"data", len(pcm)) + pcm
+        volume.add_file("A.wav", wav)
+        volume.add_file("B.wav", wav)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        machine = rig.machine
+        samples, starts = {}, []
+        total, boundary = 24000, 12000
+        ring = rig.audio.ring
+
+        def capture(uc, access, address, size, value, user):
+            if len(samples) == total and samples[total - 1][1] is not None:
+                return
+            produced = struct.unpack("<I", machine.read_memory(
+                rig.audio.engine + PRODUCED_OFFSET, 4))[0]
+            at = ring + (produced % (RING_BYTES // 8)) * 8
+            if produced >= total or size not in (4, 8) or address not in (at, at + 4):
+                return
+            pair = samples.setdefault(produced, [None, None])
+            pair[(address - at) // 4] = value & 0xFFFFFFFF
+            if size == 8:
+                pair[1] = (value >> 32) & 0xFFFFFFFF
+
+        machine.uc.hook_add(UC_HOOK_MEM_WRITE, capture, None, ring, ring + RING_BYTES - 1)
+        machine.hook_symbol("dmac_start_loop", lambda: starts.append(machine.milliseconds()))
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(650)
+        self.assertEqual(total, len(samples))
+        self.assertTrue(all(None not in pair for pair in samples.values()))
+        self.assertEqual(1, len(starts), starts)
+        for frame in range(boundary - 144, boundary + 144):
+            self.assertEqual(samples[480 + frame % 48], samples[frame], frame)
+        self.assert_healthy(rig.session)
+
+
+    def test_converted_stereo_matches_the_filter_and_leaves_core_0_mostly_idle(self):
+        from echo_emulator.audio import PRODUCED_OFFSET, RING_BYTES
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        from unicorn import UC_HOOK_MEM_WRITE
+        rate, total = 16000, 14400
+        left = [index * 7919 % 20000 - 10000 for index in range(rate * 3)]
+        right = [index * 104729 % 16000 - 8000 for index in range(rate * 3)]
+        pcm = b"".join(struct.pack("<hh", *pair) for pair in zip(left, right))
+        wav = struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ",
+                          16, 1, 2, rate, rate * 4, 4, 16, b"data", len(pcm)) + pcm
+        volume = Fat32Volume()
+        volume.add_file("Speech.wav", wav)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        machine, ring, samples = rig.machine, rig.audio.ring, {}
+
+        def capture(uc, access, address, size, value, user):
+            produced = struct.unpack("<I", machine.read_memory(
+                rig.audio.engine + PRODUCED_OFFSET, 4))[0]
+            at = ring + (produced % (RING_BYTES // 8)) * 8
+            if produced >= total or size not in (4, 8) or address not in (at, at + 4):
+                return
+            pair = samples.setdefault(produced, [None, None])
+            pair[(address - at) // 4] = value & 0xFFFFFFFF
+            if size == 8:
+                pair[1] = (value >> 32) & 0xFFFFFFFF
+
+        def busy_us():
+            return struct.unpack("<12I", machine.read_memory(machine.symbols["stats"], 48))[10]
+
+        machine.uc.hook_add(UC_HOOK_MEM_WRITE, capture, None, ring, ring + RING_BYTES - 1)
+        rig.open_songs()
+        started = rig.play_song(1)
+        machine.run(until=lambda: None not in samples.get(total - 1, [None]),
+                    until_ms=machine.milliseconds() + 3000)
+        busy, since = busy_us(), machine.microseconds()
+        rig.run_for(1000)
+        share = (busy_us() - busy) / (machine.microseconds() - since)
+        self.assertEqual(48000, rig.audio.rate)
+        self.assertEqual([], rig.audio.underruns(started))
+        got = [tuple((word - (word >> 31 << 32)) >> 8 for word in samples[frame])
+               for frame in range(total)]
+        wanted = self.converted_reference(([value << 8 for value in left],
+                                           [value << 8 for value in right]), 3, total)
+        self.assertEqual(wanted, got)
+        self.assertLess(share, 0.2)
+        self.assert_healthy(rig.session)
+
+
+    def test_speech_plays_through_the_independent_audio_module_while_a_menu_module_changes(self):
+        rig = self.speech_rig()
+        number, dsp = self.module(rig.machine, "dsp")
+        self.assertEqual(number, make_image.AUDIO_MODULE_NUMBER)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertEqual(48000, rig.audio.rate)
+        self.assertTrue(dsp.loaded(rig.machine))
+        self.assertTrue(rig.session.module_reads("slot_1", number))
+        rig.press("back", hold=1300)
+        rig.press("next")
+        rig.press("play")
+        _, settings = self.module(rig.machine, "settings")
+        self.assertTrue(settings.loaded(rig.machine),
+                        {overlay.name: overlay.loaded(rig.machine)
+                         for overlay in rig.machine.modules})
+        self.assertTrue(dsp.loaded(rig.machine))
+        _, process = self.module(rig.machine, "process")
+        self.assertTrue(process.loaded(rig.machine))
+        rig.run_for(200)
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assert_healthy(rig.session)
+
+
+    def test_the_independent_audio_module_parses_and_seeks_real_aac_packets(self):
+        from echo_emulator.machine import TRAMPOLINE, STUB_RETURN, PAGE
+        from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_SP
+        session = self.session()
+        session.run_to_first_frame()
+        session.run_to_home_screen()
+        machine = session.machine
+        raw = (PROJECT / "tests/fixtures/m4a_music/Aac Artist/Aac Album/02 Tail.m4a").read_bytes()
+        scratch = TRAMPOLINE + PAGE
+        machine.uc.mem_map(scratch, PAGE)
+        callback, returned = TRAMPOLINE + 0x900, TRAMPOLINE + 0x904
+        registers = (UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3)
+
+        def read_input():
+            offset, destination, size = (machine.reg(register) for register in registers[1:])
+            valid = offset <= len(raw) and size <= len(raw) - offset
+            if valid:
+                machine.uc.mem_write(destination, raw[offset:offset + size])
+            machine.uc.reg_write(UC_ARM_REG_R0, int(valid))
+            machine.uc.reg_write(UC_ARM_REG_PC, STUB_RETURN | 1)
+
+        machine.add_address_hook(callback, read_input)
+        machine.add_address_hook(returned, lambda: machine.stop("audio API returned"))
+
+        def call(name, arguments):
+            stack = machine.reg(UC_ARM_REG_SP)
+            extra = arguments[4:]
+            room = (len(extra) * 4 + 7) // 8 * 8
+            if extra:
+                machine.uc.mem_write(stack - room, struct.pack("<" + "I" * len(extra), *extra))
+            machine.uc.reg_write(UC_ARM_REG_SP, stack - room)
+            for register, value in zip(registers, arguments):
+                machine.uc.reg_write(register, value)
+            machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
+            machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols[name] | 1)
+            reason = machine.run(until_ms=machine.milliseconds() + 1000)
+            self.assertEqual("audio API returned", reason)
+            result = machine.reg(UC_ARM_REG_R0)
+            machine.uc.reg_write(UC_ARM_REG_SP, stack)
+            return result
+
+        track, cursor, offset_at, size_at = scratch, scratch + 256, scratch + 768, scratch + 772
+        self.assertEqual(1, call("mp4_probe", [callback | 1, 0, len(raw), track]))
+        self.assertEqual((44100, 1024, 45124, 1024, 44100),
+                         struct.unpack("<5I", machine.read_memory(track + 36, 20)))
+        self.assertEqual(1, call("mp4_cursor_seek", [cursor, callback | 1, 0, len(raw), track, 0]))
+        self.assertEqual(1, call("mp4_cursor_next", [cursor, callback | 1, 0, len(raw), track,
+                                                    offset_at, size_at]))
+        offset, size = struct.unpack("<2I", machine.read_memory(offset_at, 8))
+        self.assertGreater(size, 0)
+        self.assertLessEqual(offset + size, len(raw))
+        _, dsp = self.module(machine, "dsp")
+        self.assertTrue(dsp.loaded(machine))
+        self.assert_healthy(session)
+
+
+
+if __name__ == "__main__":
+    sys.exit(main(EchoImageTest))

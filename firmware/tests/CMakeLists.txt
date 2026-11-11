@@ -661,27 +661,31 @@ if(ARM_GCC)
         SKIP_RETURN_CODE 77
     )
     if(EXISTS ${PROJECT_SOURCE_DIR}/.venv/bin/python)
-        set(echo_image_tests ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_echo_image.py)
-        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${echo_image_tests})
-        file(STRINGS ${echo_image_tests} echo_image_cases REGEX "^    def test_")
-        foreach(case_line IN LISTS echo_image_cases)
-            string(REGEX REPLACE "^    def (test_[A-Za-z0-9_]+).*" "\\1" case_name "${case_line}")
-            set(test_name device_image_boot_${case_name})
-            add_test(NAME ${test_name}
-                COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python ${echo_image_tests}
-                    --image ${PROJECT_SOURCE_DIR}/build/device/${FIRMWARE_UPDATE_FILE}
-                    --elf ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_device.elf
-                    --usb-overlay-elf
-                    ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_usb_overlay.elf
-                    EchoImageTest.${case_name}
-            )
-            set_tests_properties(${test_name} PROPERTIES
-                FIXTURES_REQUIRED device_image
-                SKIP_RETURN_CODE 77
-                LABELS echo_image
-                PROCESSORS 2
-                TIMEOUT 900
-            )
+        file(GLOB echo_image_scenarios CONFIGURE_DEPENDS
+            ${CMAKE_CURRENT_SOURCE_DIR}/emulator/scenarios/test_*.py)
+        list(SORT echo_image_scenarios)
+        foreach(echo_image_tests IN LISTS echo_image_scenarios)
+            set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${echo_image_tests})
+            file(STRINGS ${echo_image_tests} echo_image_cases REGEX "^    def test_")
+            foreach(case_line IN LISTS echo_image_cases)
+                string(REGEX REPLACE "^    def (test_[A-Za-z0-9_]+).*" "\\1" case_name "${case_line}")
+                set(test_name device_image_boot_${case_name})
+                add_test(NAME ${test_name}
+                    COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python ${echo_image_tests}
+                        --image ${PROJECT_SOURCE_DIR}/build/device/${FIRMWARE_UPDATE_FILE}
+                        --elf ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_device.elf
+                        --usb-overlay-elf
+                        ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_usb_overlay.elf
+                        EchoImageTest.${case_name}
+                )
+                set_tests_properties(${test_name} PROPERTIES
+                    FIXTURES_REQUIRED device_image
+                    SKIP_RETURN_CODE 77
+                    LABELS echo_image
+                    PROCESSORS 2
+                    TIMEOUT 900
+                )
+            endforeach()
         endforeach()
         add_test(NAME core1_mp3_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
