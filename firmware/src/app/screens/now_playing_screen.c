@@ -50,6 +50,8 @@ const char *now_playing_codec_name(HalAudioCodec codec)
         return "ALAC";
     case HAL_AUDIO_CODEC_VORBIS:
         return i18n_text(STR_CODEC_VORBIS);
+    case HAL_AUDIO_CODEC_APE:
+        return i18n_text(STR_CODEC_APE);
     case HAL_AUDIO_CODEC_OPUS:
         return i18n_text(STR_CODEC_OPUS);
     case HAL_AUDIO_CODEC_UNKNOWN:

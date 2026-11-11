@@ -51,6 +51,7 @@ typedef enum SourceKind {
     SOURCE_M4A = CORE1_PROGRAM_M4A,
     SOURCE_VORBIS = CORE1_PROGRAM_VORBIS,
     SOURCE_OPUS = CORE1_PROGRAM_OPUS,
+    SOURCE_APE = CORE1_PROGRAM_APE,
     SOURCE_WAV,
     SOURCE_UNKNOWN
 } SourceKind;
@@ -66,6 +67,7 @@ static union {
     WavBuffers wav;
     M4aStream m4a;
     OggStream ogg;
+    ApeStream ape;
     CardFormat format;
 } decoding __attribute__((section(".high_ram")));
 _Static_assert(sizeof(OggStream) <= sizeof(FlacDecoder),
@@ -191,6 +193,9 @@ static SourceKind kind_of(const char *path)
     if (tag_is(magic, "OggS")) {
         return tag_is(magic + 28, "Opus") ? SOURCE_OPUS : SOURCE_VORBIS;
     }
+    if (tag_is(magic, "MAC ")) {
+        return SOURCE_APE;
+    }
     if (mp4_signature(magic)) {
         return SOURCE_M4A;
     }
@@ -300,6 +305,7 @@ static void ensure_engine(void)
     core1_source_init(&core1_source, core1_region(), files, &decoding.flac, FILL_BUDGET_BYTES);
     core1_source.m4a = &decoding.m4a;
     core1_source.ogg = &decoding.ogg;
+    core1_source.ape = &decoding.ape;
     core1_source.wait_vorbis = board_audio_vorbis_wait;
     wav_source_init(&wav_source, files, &decoding.wav);
     AudioSource source = {open_chosen, next_chosen, release_chosen, close_chosen, NULL};
@@ -666,6 +672,8 @@ static HalAudioCodec codec_of(AudioCodec codec)
         return HAL_AUDIO_CODEC_ALAC;
     case AUDIO_CODEC_VORBIS:
         return HAL_AUDIO_CODEC_VORBIS;
+    case AUDIO_CODEC_APE:
+        return HAL_AUDIO_CODEC_APE;
     case AUDIO_CODEC_OPUS:
         return HAL_AUDIO_CODEC_OPUS;
     case AUDIO_CODEC_FLAC:
@@ -678,6 +686,9 @@ static HalAudioProblem unreadable_problem(void)
 {
     if (unknown_format) {
         return HAL_AUDIO_PROBLEM_FORMAT;
+    }
+    if (source_kind == SOURCE_APE) {
+        return HAL_AUDIO_PROBLEM_APE;
     }
     return source_kind == SOURCE_M4A ? HAL_AUDIO_PROBLEM_AAC_ONLY : HAL_AUDIO_PROBLEM_UNREADABLE;
 }

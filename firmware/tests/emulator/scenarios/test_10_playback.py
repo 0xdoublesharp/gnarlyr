@@ -164,6 +164,32 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(0, rig.audio.output_underruns())
         self.assert_healthy(rig.session)
 
+    def test_ape_player_runs_both_arm_cores_and_resumes_at_the_saved_sample(self):
+        from echo_emulator.core1_bridge import CORE1_APE, Core1Bridge
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        from unicorn.arm_const import UC_ARM_REG_R1
+        volume = Fat32Volume()
+        volume.add_file("A.ape", (PROJECT / "tests/fixtures/ape/seek16.ape").read_bytes())
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        bridge = Core1Bridge(rig.audio, {CORE1_APE: self.elf.with_name("core1_ape.bin").read_bytes()})
+        machine = rig.machine
+        machine.hook_symbol("hal_audio_play", lambda: machine.uc.reg_write(UC_ARM_REG_R1, 36900))
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.rate == 32000 and rig.audio.running,
+            until_ms=machine.milliseconds() + 3000))
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertEqual([CORE1_APE], bridge.started)
+        _, ape = self.module(machine, "ape")
+        self.assertTrue(ape.loaded(machine))
+        control = struct.unpack("<31I", machine.read_memory(0x01020100, 124))
+        self.assertEqual((8000, 1, 16, 295936, 294912),
+                         (control[1], control[2], control[3], control[6], control[7]))
+        self.assert_healthy(rig.session)
+
     def test_opus_player_seeks_on_the_core1_opus_program_and_pauses_without_restarting(self):
         from echo_emulator.core1_bridge import CORE1_OPUS
         from unicorn.arm_const import UC_ARM_REG_R1

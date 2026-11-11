@@ -271,6 +271,8 @@ static void refusals_explain_themselves(void)
     player_refusal_text((HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_AAC_ONLY}, text,
                         sizeof text);
     CHECK(path_is(text, "Only AAC-LC and ALAC M4A play"));
+    player_refusal_text((HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_APE}, text, sizeof text);
+    CHECK(path_is(text, "APE: Fast/Normal, or High up to 96 kHz"));
     player_refusal_text((HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_UNREADABLE}, text,
                         sizeof text);
     CHECK(path_is(text, "Couldn't read the track"));

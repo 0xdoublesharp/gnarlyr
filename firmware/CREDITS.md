@@ -20,3 +20,7 @@ Gnarlyr is made by doublesharp and licensed under GPL-3.0-or-later (`LICENSE`). 
 - Built with **[Claude Code](https://claude.com/claude-code)** by Anthropic.
 
 Snowsky and FiiO are trademarks of their owners, and Echo is their product name. Gnarlyr is not made, endorsed or supported by FiiO.
+
+## Monkey's Audio
+
+The core-1 APE decoder uses Dave Chapman's Rockbox libdemac, including Michael Schindler's range decoder, under GPL-2.0-or-later. Pinned source, local changes and complete terms are in `third_party/demac`.

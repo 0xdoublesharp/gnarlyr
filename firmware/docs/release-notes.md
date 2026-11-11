@@ -1,5 +1,8 @@
 # Gnarlyr release notes
 
+APE playback is connected through a dedicated core-1 program: 16/24-bit mono/stereo, Fast/Normal through 192 kHz and High through 96 kHz, with exact seek-table starts and sample lengths. Native reference comparisons and ARM tests cover the software path; player playback and physical throughput have not been checked.
+
+
 Gnarlyr builds on Podium 4.5.9 and EchoPod with their GPL credits preserved. The source provenance is recorded in [`../UPSTREAM.md`](../UPSTREAM.md). Version 1.0.0 is not released; hardware checks are recorded in [`known-issues.md`](known-issues.md).
 
 ## Identity and files

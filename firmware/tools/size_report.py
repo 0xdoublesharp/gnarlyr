@@ -20,7 +20,7 @@ OVERLAY_REGION = "HIGH_RAM"
 WORKSPACE_REGION = "HIGH_RAM"
 WORKSPACE_SECTION = ".high_ram"
 MODULE_REGION = "MODULE_RAM"
-MODULE_WINDOWS = {"dsp": "DSP_RAM", "ogg": "DSP_RAM", "process": "PROCESS_RAM",
+MODULE_WINDOWS = {"dsp": "DSP_RAM", "ogg": "DSP_RAM", "ape": "DSP_RAM", "process": "PROCESS_RAM",
                   "extension": "EXTENSION_RAM"}
 USB_IMAGE_REGION = "USB_IMAGE"
 LANGUAGE_REGION = "LANGUAGE_RAM"
@@ -293,7 +293,7 @@ def module_problems(device_map, modules):
             problems.append(f"module {name} is not linked for the main program's module slot")
             continue
         code, zeroed = module_extent(module_map)
-        if name in ("dsp", "ogg", "process") and zeroed:
+        if name in ("dsp", "ogg", "ape", "process") and zeroed:
             problems.append("the audio module must keep all state in its caller")
         if name == "extension" and zeroed:
             problems.append("the extension module must keep all state in the main program")
@@ -354,9 +354,9 @@ class Budget:
 
 BUDGET_PRESETS = ("release", "device")
 RESIDENT_CODE_FLOORS = {"release": 4096, "device": 1024}
-BUDGET_MODULES = {"views", "settings", "library", "listening", "dsp", "ogg", "process", "extension"}
+BUDGET_MODULES = {"views", "settings", "library", "listening", "dsp", "ogg", "process", "extension", "ape"}
 BUDGET_MAPS = {"echo_usb_overlay.map", "echo_rescan_overlay.map", "echo_core1.map", "echo_core1_mp3.map",
-               "echo_core1_m4a.map", "echo_core1_vorbis.map", "echo_core1_opus.map"}
+               "echo_core1_m4a.map", "echo_core1_vorbis.map", "echo_core1_opus.map", "echo_core1_ape.map"}
 CORE1_SCRIPTS = Path(__file__).resolve().parents[1] / "platform/device/core1"
 BUDGET_HEADERS = ("Preset", "Region / slot", "Used", "Limit", "Free", "Floor", "Result")
 

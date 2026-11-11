@@ -98,3 +98,22 @@ echo_add_unit_test(NAME test_core1_stream
     LIBRARIES echo_device_logic
 )
 target_compile_definitions(test_core1_stream PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+
+echo_add_unit_test(NAME test_ape_track
+    SOURCES device/test_ape_track.c
+    LIBRARIES echo_device_logic
+)
+echo_add_unit_test(NAME test_ape_decode
+    SOURCES device/test_ape_decode.c device/m4a_fixture_files.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_ape_decode PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+target_include_directories(test_ape_decode PRIVATE device)
+add_executable(ape_stream_tool device/ape_stream_tool.c)
+target_link_libraries(ape_stream_tool PRIVATE echo_device_logic echo_options)
+echo_add_unit_test(NAME test_ape_source
+    SOURCES device/test_ape_source.c device/m4a_fixture_files.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_ape_source PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+target_include_directories(test_ape_source PRIVATE device)

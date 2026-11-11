@@ -1,4 +1,4 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension)
+set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension ape)
 set(ECHO_SCREEN_MODULE_SOURCES_process
     platform/device/logic/audio_fade.c
     platform/device/logic/audio_process_entry.c
@@ -158,3 +158,11 @@ function(echo_take_module_sources)
         endforeach()
     endforeach()
 endfunction()
+
+set(ECHO_SCREEN_MODULE_SOURCES_ape
+    platform/device/logic/audio_interpolate.c
+    platform/device/logic/audio_ape_entry.c
+    platform/device/logic/core1_ape_source.c
+    platform/device/logic/ape_track.c
+    platform/device/logic/ape_stream.c
+)

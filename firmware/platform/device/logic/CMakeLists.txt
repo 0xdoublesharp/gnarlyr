@@ -1,5 +1,6 @@
 include(tremor.cmake)
 include(opus.cmake)
+include(demac.cmake)
 
 set(ECHO_LIBMAD_DIR ${PROJECT_SOURCE_DIR}/third_party/libmad)
 set(FPM_64BIT ON)
@@ -55,6 +56,11 @@ target_compile_definitions(echo_faad PRIVATE
 target_compile_options(echo_faad PRIVATE -w)
 
 add_library(echo_device_logic STATIC
+    audio_ape_entry.c
+    core1_ape_source.c
+    ape_stream.c
+    core1_ape.c
+    ape_track.c
     aac_decoder.c
     audio_engine.c
     audio_fade.c
@@ -196,6 +202,6 @@ if(CMAKE_CROSSCOMPILING)
 endif()
 target_include_directories(echo_device_logic PUBLIC include)
 target_link_libraries(echo_device_logic
-    PUBLIC echo_core echo_hal echo_codec echo_libmad echo_faad echo_tremor echo_opus
+    PUBLIC echo_demac echo_core echo_hal echo_codec echo_libmad echo_faad echo_tremor echo_opus
     PRIVATE echo_options
 )
