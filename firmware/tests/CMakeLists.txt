@@ -93,6 +93,14 @@ echo_add_unit_test(NAME test_listening_track
     SOURCES playback/test_listening_track.c
     LIBRARIES echo_playback echo_library_fixtures
 )
+echo_add_unit_test(NAME test_track_keys
+    SOURCES playback/test_track_keys.c playback/keys_disk.c
+    LIBRARIES echo_playback echo_library_fixtures
+)
+echo_add_unit_test(NAME test_smart_list
+    SOURCES playback/test_smart_list.c playback/keys_disk.c playback/listening_fixture.c
+    LIBRARIES echo_playback
+)
 
 echo_add_unit_test(NAME test_settings SOURCES settings/test_settings.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_rocker SOURCES settings/test_rocker.c LIBRARIES echo_settings)

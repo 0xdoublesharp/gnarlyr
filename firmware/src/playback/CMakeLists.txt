@@ -12,9 +12,11 @@ add_library(echo_playback STATIC
     play_queue.c
     resume_state.c
     session_journal.c
+    smart_list.c
     spoken.c
     spoken_shelf.c
     store.c
+    track_keys.c
     track_order.c
     up_next.c
 )
