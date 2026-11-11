@@ -71,7 +71,7 @@ static uint32_t staged(uint32_t frames, uint32_t push_chunk, uint32_t pull_chunk
 static void block_handoff_matches_the_frame_kernel_at_every_supported_rate(void)
 {
     static const uint32_t RATES[] = {8000, 16000, 22050, 44100, 48000};
-    static const uint16_t SPEEDS[] = {50, 75, 90, 110, 125, 150, 175, 200};
+    static const uint16_t SPEEDS[] = {50, 75, 90, 110, 125, 150, 175, 200, 250, 300};
     for (size_t rate = 0; rate < sizeof RATES / sizeof RATES[0]; rate++) {
         fill_input(RATES[rate]);
         for (size_t speed = 0; speed < sizeof SPEEDS / sizeof SPEEDS[0]; speed++) {
@@ -88,7 +88,7 @@ static void block_handoff_matches_the_frame_kernel_at_every_supported_rate(void)
 static void pending_counts_buffered_and_future_input_at_the_requested_speed(void)
 {
     fill_input(16000);
-    static const uint16_t SPEEDS[] = {50, 150, 200};
+    static const uint16_t SPEEDS[] = {50, 150, 200, 300};
     for (size_t speed = 0; speed < sizeof SPEEDS / sizeof SPEEDS[0]; speed++) {
         uint32_t total = reference(16000, SPEEDS[speed], 16000);
         CHECK(audio_tempo_stage_start(tail, RING_TAIL_FRAMES, 16000, SPEEDS[speed]));
@@ -134,7 +134,8 @@ static void the_spare_span_completes_the_ring_tail_only_up_to_48_khz(void)
     CHECK(audio_tempo_stage_start(tail, RING_TAIL_FRAMES - 1, 44100, 200));
     CHECK(!audio_tempo_stage_start(tail, RING_TAIL_FRAMES, 88200, 150));
     CHECK(!audio_tempo_stage_start(tail, RING_TAIL_FRAMES, 48000, 49));
-    CHECK(!audio_tempo_stage_start(tail, RING_TAIL_FRAMES, 48000, 201));
+    CHECK(audio_tempo_stage_start(tail, RING_TAIL_FRAMES, 48000, 300));
+    CHECK(!audio_tempo_stage_start(tail, RING_TAIL_FRAMES, 48000, 301));
 }
 
 static void a_full_stage_refuses_input_until_it_is_pulled(void)

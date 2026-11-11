@@ -43,7 +43,7 @@ CORE_SEAM bool audio_tempo_start(AudioTempo *tempo, AudioTempoConfig config)
     uint32_t frames = (uint32_t)config.buffer.first_frames + config.buffer.second_frames;
     uint32_t needed = audio_tempo_buffer_frames(config.rate);
     if (needed == 0 || frames < needed || frames > UINT16_MAX || config.speed < 50 ||
-        config.speed > 200 || !spans_valid(config.buffer, tempo)) {
+        config.speed > AUDIO_TEMPO_FASTEST || !spans_valid(config.buffer, tempo)) {
         return false;
     }
     *tempo = (AudioTempo){.config = config, .capacity = (uint16_t)frames};
@@ -236,6 +236,15 @@ static void copy_after(AudioTempo *tempo)
     tempo->remainder = numerator % divisor;
 }
 
+static void shorten_skip(AudioTempo *tempo)
+{
+    uint32_t divisor = tempo->config.speed - UNITY_SPEED;
+    uint32_t numerator = tempo->period * UNITY_SPEED + tempo->remainder;
+    tempo->length = (uint16_t)(numerator / divisor);
+    tempo->remainder = numerator % divisor;
+    tempo->copy_frames = 0;
+}
+
 static bool begin_job(AudioTempo *tempo)
 {
     if (!tempo->finished && tempo->available < audio_tempo_buffer_frames(tempo->config.rate) - 2) {
@@ -246,10 +255,15 @@ static bool begin_job(AudioTempo *tempo)
         return false;
     }
     tempo->period = period;
-    tempo->mix_step = (uint32_t)(((UINT64_C(1) << 32) + period / 2) / period);
+    tempo->length = period;
     tempo->job_index = 0;
     tempo->job = tempo->config.speed > UNITY_SPEED ? JOB_SKIP : JOB_INSERT;
-    copy_after(tempo);
+    if (tempo->config.speed > 2 * UNITY_SPEED) {
+        shorten_skip(tempo);
+    } else {
+        copy_after(tempo);
+    }
+    tempo->mix_step = (uint32_t)(((UINT64_C(1) << 32) + tempo->length / 2) / tempo->length);
     return true;
 }
 
@@ -278,8 +292,9 @@ static TempoFrame job_frame(AudioTempo *tempo)
     TempoFrame result = tempo->job == JOB_INSERT ? first
                         : tempo->job == JOB_SKIP ? blend(first, second, index, tempo->mix_step)
                                                  : blend(second, first, index, tempo->mix_step);
-    if (tempo->job_index == tempo->period) {
-        uint16_t consumed = tempo->job == JOB_SKIP ? (uint16_t)(2 * tempo->period) : tempo->period;
+    if (tempo->job_index == tempo->length) {
+        uint16_t consumed =
+            tempo->job == JOB_SKIP ? (uint16_t)(tempo->period + tempo->length) : tempo->period;
         if (tempo->job != JOB_INSERT) {
             consume(tempo, consumed);
         }

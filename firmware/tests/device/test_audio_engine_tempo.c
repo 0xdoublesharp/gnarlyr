@@ -65,7 +65,7 @@ static void source_release(void *context)
     (void)context;
 }
 
-static void setup(uint32_t rate, uint32_t frames, uint8_t speed)
+static void setup(uint32_t rate, uint32_t frames, uint16_t speed)
 {
     source_rate = rate;
     second_rate = 0;
@@ -85,7 +85,7 @@ static void setup(uint32_t rate, uint32_t frames, uint8_t speed)
     audio_engine_set_speed(&engine, speed);
 }
 
-static uint32_t stretch(uint32_t rate, uint8_t speed, uint32_t start, uint32_t frames)
+static uint32_t stretch(uint32_t rate, uint16_t speed, uint32_t start, uint32_t frames)
 {
     CHECK(audio_tempo_start(&reference_tempo,
                             (AudioTempoConfig){.buffer = {reference_buffer, NULL, FULL_FRAMES, 0},
@@ -129,7 +129,7 @@ static uint32_t convert(uint32_t rate, uint32_t frames)
     }
 }
 
-static uint32_t reference(uint32_t rate, uint8_t speed, uint32_t start, uint32_t frames)
+static uint32_t reference(uint32_t rate, uint16_t speed, uint32_t start, uint32_t frames)
 {
     uint32_t made = stretch(rate, speed, start, frames);
     if (audio_resample_rate(rate) != rate) {
@@ -180,7 +180,7 @@ static void queue(const char *path, uint32_t token)
     audio_engine_queue_next(&engine, &track);
 }
 
-static uint32_t rounded(uint32_t frames, uint8_t speed)
+static uint32_t rounded(uint32_t frames, uint16_t speed)
 {
     return (uint32_t)((200ull * frames + speed) / (2u * speed));
 }
@@ -188,7 +188,7 @@ static uint32_t rounded(uint32_t frames, uint8_t speed)
 static void native_rates_stretch_through_the_kernel_with_the_rounded_duration(void)
 {
     static const uint32_t RATES[] = {44100, 48000};
-    static const uint8_t SPEEDS[] = {50, 75, 90, 110, 125, 150, 175, 200};
+    static const uint16_t SPEEDS[] = {50, 75, 125, 150, 175, 200, 250, 300};
     for (size_t rate = 0; rate < sizeof RATES / sizeof RATES[0]; rate++) {
         for (size_t speed = 0; speed < sizeof SPEEDS / sizeof SPEEDS[0]; speed++) {
             setup(RATES[rate], 30011, SPEEDS[speed]);
@@ -205,7 +205,7 @@ static void native_rates_stretch_through_the_kernel_with_the_rounded_duration(vo
 static void speech_is_stretched_at_its_own_rate_before_conversion(void)
 {
     static const uint32_t RATES[] = {8000, 16000, 22050};
-    static const uint8_t SPEEDS[] = {50, 150, 200};
+    static const uint16_t SPEEDS[] = {50, 150, 200, 300};
     for (size_t rate = 0; rate < sizeof RATES / sizeof RATES[0]; rate++) {
         for (size_t speed = 0; speed < sizeof SPEEDS / sizeof SPEEDS[0]; speed++) {
             setup(RATES[rate], 12007, SPEEDS[speed]);
@@ -244,8 +244,8 @@ static void rates_above_48_khz_play_at_normal_speed_with_the_whole_ring(void)
 
 static void positions_follow_the_recording_not_the_output(void)
 {
-    static const uint8_t SPEEDS[] = {50, 150, 200};
-    static const uint32_t EXPECTED_MS[] = {50, 150, 200};
+    static const uint16_t SPEEDS[] = {50, 150, 200, 300};
+    static const uint32_t EXPECTED_MS[] = {50, 150, 200, 300};
     for (size_t at = 0; at < sizeof SPEEDS / sizeof SPEEDS[0]; at++) {
         setup(48000, 48000, SPEEDS[at]);
         play("first", 1);

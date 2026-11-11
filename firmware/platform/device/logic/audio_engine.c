@@ -843,7 +843,7 @@ CORE_COLD void audio_engine_set_replay_gain(AudioEngine *engine, uint32_t token,
     }
 }
 
-CORE_COLD void audio_engine_set_speed(AudioEngine *engine, uint8_t speed)
+CORE_COLD void audio_engine_set_speed(AudioEngine *engine, uint16_t speed)
 {
     engine->speed = speed;
 }

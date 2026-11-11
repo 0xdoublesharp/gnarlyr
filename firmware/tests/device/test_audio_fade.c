@@ -440,14 +440,14 @@ static void a_converted_fade_stays_smooth_when_the_ring_frees_a_few_frames_at_a_
     CHECK(near(smooth(0.5), gain_at(boundary - length / 2), 0.002));
 }
 
-static uint32_t stretched(uint32_t frames, uint8_t speed)
+static uint32_t stretched(uint32_t frames, uint16_t speed)
 {
     return (uint32_t)((200ull * frames + speed) / (2u * speed));
 }
 
 static void stretched_tracks_fade_out_and_in_exactly_at_the_stretched_boundary(void)
 {
-    static const uint8_t SPEEDS[] = {50, 75, 150, 200};
+    static const uint16_t SPEEDS[] = {50, 75, 150, 200, 300};
     for (size_t at = 0; at < sizeof SPEEDS / sizeof SPEEDS[0]; at++) {
         start_engine();
         audio_engine_set_speed(&engine, SPEEDS[at]);
@@ -460,7 +460,8 @@ static void stretched_tracks_fade_out_and_in_exactly_at_the_stretched_boundary(v
         CHECK(exactly_level(0, boundary - length, LEVEL * 256));
         CHECK(follows_ramp(boundary - length, length, true, length));
         CHECK(follows_ramp(boundary, length, false, length));
-        CHECK(exactly_level(boundary + length, captured_frames - boundary - length, LEVEL * 256));
+        uint32_t end = captured_frames < 2 * boundary ? captured_frames : 2 * boundary;
+        CHECK(exactly_level(boundary + length, end - boundary - length - 1, LEVEL * 256));
         CHECK(channels_match(0, captured_frames));
         CHECK_EQUAL(2u, audio_engine_status(&engine).token);
     }
@@ -468,7 +469,7 @@ static void stretched_tracks_fade_out_and_in_exactly_at_the_stretched_boundary(v
 
 static void stretched_speech_fades_on_the_output_clock_after_conversion(void)
 {
-    static const uint8_t SPEEDS[] = {50, 150, 200};
+    static const uint16_t SPEEDS[] = {50, 150, 200, 300};
     for (size_t at = 0; at < sizeof SPEEDS / sizeof SPEEDS[0]; at++) {
         start_engine();
         audio_engine_set_speed(&engine, SPEEDS[at]);

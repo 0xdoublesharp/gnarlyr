@@ -100,7 +100,7 @@ typedef struct AudioSegment {
     uint32_t replay_gain;
     AudioTrackInfo track;
     char path[AUDIO_ENGINE_PATH_CAPACITY];
-    uint8_t speed;
+    uint16_t speed;
 } AudioSegment;
 
 typedef struct AudioEngineStatus {
@@ -161,7 +161,7 @@ typedef struct AudioEngine {
     uint32_t left_gain;
     uint32_t right_gain;
     uint32_t ring_capacity;
-    uint8_t speed;
+    uint16_t speed;
     bool stretching;
     bool draining;
 } AudioEngine;
@@ -190,4 +190,4 @@ AudioEngineStatus audio_engine_status(const AudioEngine *engine);
 AudioRefusal audio_engine_refusal(const AudioEngine *engine);
 
 void audio_engine_set_replay_gain(AudioEngine *engine, uint32_t token, uint32_t gain);
-void audio_engine_set_speed(AudioEngine *engine, uint8_t speed);
+void audio_engine_set_speed(AudioEngine *engine, uint16_t speed);

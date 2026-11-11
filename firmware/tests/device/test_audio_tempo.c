@@ -72,7 +72,7 @@ static void unity_preserves_every_signed_24_bit_sample_and_stereo_channel(void)
 
 static void slower_and_faster_streams_have_the_requested_duration(void)
 {
-    static const uint16_t SPEEDS[] = {50, 75, 90, 110, 125, 150, 175, 200};
+    static const uint16_t SPEEDS[] = {50, 75, 90, 110, 125, 150, 175, 200, 250, 300};
     memset(input, 0, sizeof input);
     for (size_t index = 0; index < sizeof SPEEDS / sizeof SPEEDS[0]; index++) {
         uint16_t speed = SPEEDS[index];
@@ -111,7 +111,7 @@ static double frequency(uint32_t rate, uint32_t frames)
 static void changing_duration_preserves_pitch_and_stereo_phase(void)
 {
     static const uint32_t RATES[] = {8000, 16000, 44100, 48000};
-    static const uint16_t SPEEDS[] = {50, 75, 125, 150, 200};
+    static const uint16_t SPEEDS[] = {50, 75, 125, 150, 200, 250, 300};
     static const double TONES[] = {20, 30, 40, 55, 110, 220, 440, 1000};
     double worst = 0, worst_tone = 0;
     uint32_t worst_rate = 0;
@@ -136,7 +136,9 @@ static void changing_duration_preserves_pitch_and_stereo_phase(void)
             }
         }
     }
-    printf("pitch matrix: 160 cases, maximum error %.5f%% at %u Hz, %.1f Hz tone, speed %u\n",
+    printf("pitch matrix: %zu cases, maximum error %.5f%% at %u Hz, %.1f Hz tone, speed %u\n",
+           sizeof RATES / sizeof RATES[0] * (sizeof TONES / sizeof TONES[0]) *
+               (sizeof SPEEDS / sizeof SPEEDS[0]),
            100 * worst, worst_rate, worst_tone, worst_speed);
 }
 
@@ -153,7 +155,7 @@ static void input_batches_and_output_backpressure_do_not_change_pcm(void)
 
 static void empty_and_subperiod_streams_end_at_the_rounded_duration(void)
 {
-    for (uint16_t speed = 50; speed <= 200; speed += 25) {
+    for (uint16_t speed = 50; speed <= 300; speed += 25) {
         for (uint32_t count = 0; count < 41; count++) {
             for (uint32_t index = 0; index < count; index++) {
                 input[index][0] = 1234567;
@@ -185,7 +187,7 @@ static void invalid_configuration_preserves_the_existing_stream(void)
     CHECK(memcmp(&before, &state, sizeof state) == 0);
     bad = config(48000, 49);
     CHECK(!audio_tempo_start(&state, bad));
-    bad = config(48000, 201);
+    bad = config(48000, 301);
     CHECK(!audio_tempo_start(&state, bad));
     bad = config(192000, 75);
     CHECK(!audio_tempo_start(&state, bad));
@@ -244,7 +246,7 @@ static void every_integer_speed_keeps_constant_pcm_and_exact_duration(void)
         input[index][0] = 8388607;
         input[index][1] = -8388608;
     }
-    for (uint16_t speed = 50; speed <= 200; speed++) {
+    for (uint16_t speed = 50; speed <= 300; speed++) {
         uint32_t frames = render(8000, speed, 1501, 319);
         CHECK_EQUAL((150100u + speed / 2) / speed, frames);
         for (uint32_t index = 0; index < frames; index++) {
@@ -269,7 +271,7 @@ static void an_unstarted_stream_can_be_drained_and_finished(void)
 
 static void pitch_changes_follow_the_source_without_changing_speed(void)
 {
-    static const uint16_t SPEEDS[] = {75, 150, 200};
+    static const uint16_t SPEEDS[] = {75, 150, 200, 300};
     for (uint32_t index = 0; index < 32000; index++) {
         double hz = index < 16000 ? 220 : 440;
         int32_t sample = (int32_t)lround(2000000 * sin(6.283185307179586 * hz * index / 16000));
@@ -316,7 +318,7 @@ static double spectral_peak(uint32_t rate, uint32_t frames, double hz)
 
 static void mixed_music_tones_keep_both_spectral_peaks(void)
 {
-    static const uint16_t SPEEDS[] = {50, 150, 200};
+    static const uint16_t SPEEDS[] = {50, 150, 200, 300};
     for (uint32_t index = 0; index < 32000; index++) {
         double phase = 6.283185307179586 * index / 16000;
         int32_t sample = (int32_t)lround(900000 * (sin(220 * phase) + sin(311 * phase)));

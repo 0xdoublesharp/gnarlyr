@@ -579,7 +579,7 @@ void hal_audio_seek(uint32_t position_ms)
     seek_to(position_ms, audio_engine_status(&engine).state == AUDIO_ENGINE_PAUSED);
 }
 
-CORE_SEAM CORE_COLD void hal_audio_set_speed(uint8_t speed)
+CORE_SEAM CORE_COLD void hal_audio_set_speed(uint16_t speed)
 {
     ensure_engine();
     if (speed == engine.speed) {

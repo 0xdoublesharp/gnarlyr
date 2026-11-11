@@ -5,7 +5,8 @@
 
 enum {
     AUDIO_TEMPO_CHANNEL_BYTES = 3,
-    AUDIO_TEMPO_FRAME_BYTES = 6
+    AUDIO_TEMPO_FRAME_BYTES = 6,
+    AUDIO_TEMPO_FASTEST = 300
 };
 
 typedef struct AudioTempoBuffer {
@@ -40,6 +41,7 @@ typedef struct AudioTempo {
     uint16_t available;
     uint16_t capacity;
     uint16_t period;
+    uint16_t length;
     uint16_t job_index;
     uint8_t job;
     bool finished;

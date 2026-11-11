@@ -50,7 +50,7 @@ typedef struct SimAudio {
     HalAudioEqualizer equalizer;
     HeadphoneAudio headphones;
     uint8_t volume;
-    uint8_t speed;
+    uint16_t speed;
     bool stretching;
     AudioTempo tempo;
 } SimAudio;
@@ -519,7 +519,7 @@ HalAudioStatus hal_audio_status(void)
     return status;
 }
 
-void hal_audio_set_speed(uint8_t speed)
+void hal_audio_set_speed(uint16_t speed)
 {
     lock();
     audio.speed = speed;
