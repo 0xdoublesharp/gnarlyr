@@ -515,6 +515,47 @@ static void too_little_memory_says_so(void)
     CHECK_EQUAL(BUILDER_OUT_OF_MEMORY, result);
 }
 
+static void intermediate_memory_limits_are_bounded_and_never_publish_partial_databases(void)
+{
+    static uint8_t memory[PLAYER_MEMORY + 2 * GUARD_BYTES];
+    Scratch *scratch = scratch_of_size(SCRATCH_SIZE);
+    uint32_t successes = 0;
+    uint32_t exhausted = 0;
+    for (uint32_t size = 2048; size <= PLAYER_MEMORY; size += 2048) {
+        memset(memory, 0xa5, sizeof memory);
+        LibraryBuilder builder;
+        library_builder_init(&builder, memory + GUARD_BYTES, size, scratch_io(scratch));
+        BuilderTrack added =
+            track("Artist/Album/01.flac", "One", "Artist", "Artist", "Album", "Rock", 2000, 1);
+        BuilderResult result = library_builder_add_track(&builder, &added);
+        if (result == BUILDER_OK) {
+            Built built;
+            finish(&builder, &built);
+            result = built.result;
+            if (result == BUILDER_OK) {
+                MemorySource source = {.bytes = built.output.bytes, .size = built.length};
+                Library library;
+                CHECK_EQUAL(LIBRARY_OK,
+                            library_open(&library, memory_source(&source), built.length));
+                CHECK_EQUAL(1u, library_count(&library, LIBRARY_TRACKS));
+            } else {
+                CHECK_EQUAL(0u, built.length);
+                CHECK(memcmp(built.output.bytes, "DSDB", 4) != 0);
+            }
+            free(built.output.bytes);
+        }
+        CHECK(result == BUILDER_OK || result == BUILDER_OUT_OF_MEMORY);
+        successes += result == BUILDER_OK;
+        exhausted += result == BUILDER_OUT_OF_MEMORY;
+        for (uint32_t index = 0; index < GUARD_BYTES; index++) {
+            CHECK_EQUAL(0xa5, memory[index]);
+            CHECK_EQUAL(0xa5, memory[GUARD_BYTES + size + index]);
+        }
+    }
+    CHECK(successes > 0);
+    CHECK(exhausted > 0);
+}
+
 static void the_65536th_track_is_too_many(void)
 {
     LibraryBuilder builder;
@@ -985,6 +1026,7 @@ int main(void)
         TEST_CASE(the_builder_stays_inside_its_memory),
         TEST_CASE(a_scratch_file_too_small_says_there_is_no_room),
         TEST_CASE(too_little_memory_says_so),
+        TEST_CASE(intermediate_memory_limits_are_bounded_and_never_publish_partial_databases),
         TEST_CASE(the_65536th_track_is_too_many),
         TEST_CASE(a_library_bigger_than_its_room_writes_nothing),
         TEST_CASE(an_empty_library_still_writes_a_valid_header),
