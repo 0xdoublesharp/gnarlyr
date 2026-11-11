@@ -30,10 +30,19 @@ static uint32_t pair_at(const Color *row)
     return pair;
 }
 
+static void forget_rows(FrameDiff *diff, Rect area)
+{
+    int bottom = area.y + area.height < diff->rows ? area.y + area.height : diff->rows;
+    for (int row = area.y < 0 ? 0 : area.y; row < bottom; row++) {
+        diff->hashes[row] = UNKNOWN;
+    }
+}
+
 void frame_diff_mask(FrameDiff *diff, Rect area)
 {
+    forget_rows(diff, diff->masked);
+    forget_rows(diff, area);
     diff->masked = area;
-    frame_diff_forget(diff);
 }
 
 static uint32_t span_hash(uint32_t hash, const Color *row, int width)

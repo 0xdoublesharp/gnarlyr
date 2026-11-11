@@ -148,7 +148,7 @@ static void a_change_inside_the_masked_area_is_not_sent(void)
     CHECK_EQUAL(0, changed.y);
 }
 
-static void masking_or_unmasking_sends_every_row_again(void)
+static void masking_or_unmasking_sends_the_covered_rows_again(void)
 {
     FrameDiff diff = fresh();
     Rect changed;
@@ -156,11 +156,13 @@ static void masking_or_unmasking_sends_every_row_again(void)
     frame_diff_changed(&diff, strip_at(0), pixels, &changed);
     frame_diff_mask(&diff, (Rect){2, 1, 3, 2});
     CHECK(frame_diff_changed(&diff, strip_at(0), pixels, &changed));
-    CHECK_EQUAL(STRIP, changed.height);
+    CHECK_EQUAL(1, changed.y);
+    CHECK_EQUAL(2, changed.height);
     CHECK(!frame_diff_changed(&diff, strip_at(0), pixels, &changed));
     frame_diff_mask(&diff, (Rect){0, 0, 0, 0});
     CHECK(frame_diff_changed(&diff, strip_at(0), pixels, &changed));
-    CHECK_EQUAL(STRIP, changed.height);
+    CHECK_EQUAL(1, changed.y);
+    CHECK_EQUAL(2, changed.height);
 }
 
 int main(void)
@@ -175,7 +177,7 @@ int main(void)
         TEST_CASE(forgetting_sends_everything_again),
         TEST_CASE(a_strip_past_the_tracked_rows_is_always_sent),
         TEST_CASE(a_change_inside_the_masked_area_is_not_sent),
-        TEST_CASE(masking_or_unmasking_sends_every_row_again),
+        TEST_CASE(masking_or_unmasking_sends_the_covered_rows_again),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
