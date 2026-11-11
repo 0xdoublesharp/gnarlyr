@@ -507,3 +507,16 @@ STR_REPLAY_GAIN = ReplayGain
 STR_REPLAY_GAIN_TRACK = Track
 STR_REPLAY_GAIN_ALBUM = Album
 STR_PREVENT_CLIPPING = Prevent clipping
+
+# Track transitions. STR_TRANSITIONS_IN_SHUFFLE is the toast after choosing Fade.
+STR_TRANSITIONS = Transitions
+STR_TRANSITION_LENGTH = Transition length
+STR_TRANSITION_FADE = Fade
+STR_TRANSITIONS_IN_SHUFFLE = Fades between songs in shuffle
+STR_SECONDS_0_5 = 0.5 s
+STR_SECONDS_1 = 1 s
+STR_SECONDS_1_5 = 1.5 s
+STR_SECONDS_2 = 2 s
+STR_SECONDS_3 = 3 s
+STR_SECONDS_4 = 4 s
+STR_SECONDS_6 = 6 s

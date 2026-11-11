@@ -509,6 +509,58 @@ static void choose_prevent_clipping(void *context, int index)
     apply_replay_gain(context);
 }
 
+static const StringId TRANSITION_OPTIONS[] = {STR_OFF, STR_TRANSITION_FADE};
+static const StringId TRANSITION_LENGTH_OPTIONS[] = {
+    STR_SECONDS_0_5, STR_SECONDS_1, STR_SECONDS_1_5, STR_SECONDS_2,
+    STR_SECONDS_3,   STR_SECONDS_4, STR_SECONDS_6};
+static const uint8_t TRANSITION_TENTHS[] = {5, 10, 15, 20, 30, 40, 60};
+
+static void apply_transitions(SettingsContext *context)
+{
+    const Settings *settings = &context->store->settings;
+    player_set_transitions(context->player, settings->track_transition != TRACK_TRANSITION_OFF,
+                           settings->transition_tenths);
+    save(context);
+}
+
+static int current_transition(const void *context)
+{
+    return settings_of(context)->track_transition != TRACK_TRANSITION_OFF ? 1 : 0;
+}
+
+static void choose_transition(void *context, int index)
+{
+    SettingsContext *settings = context;
+    editable_settings(context)->track_transition =
+        index != 0 ? TRACK_TRANSITION_FADE : TRACK_TRANSITION_OFF;
+    apply_transitions(settings);
+    if (index != 0) {
+        toast_show(settings->toast, i18n_text(STR_TRANSITIONS_IN_SHUFFLE),
+                   hal_clock_milliseconds());
+    }
+}
+
+static int current_transition_length(const void *context)
+{
+    uint8_t tenths = settings_of(context)->transition_tenths;
+    int chosen = 0;
+    for (int index = 1; index < (int)sizeof TRANSITION_TENTHS; index++) {
+        chosen = TRANSITION_TENTHS[index] <= tenths ? index : chosen;
+    }
+    return chosen;
+}
+
+static void choose_transition_length(void *context, int index)
+{
+    editable_settings(context)->transition_tenths = TRANSITION_TENTHS[index];
+    apply_transitions(context);
+}
+
+static bool transition_length_shown(const void *context)
+{
+    return current_transition(context) != 0;
+}
+
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_SHUFFLE, SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, current_shuffle, choose_shuffle, NULL, NULL},
     {STR_REPEAT, REPEAT_OPTIONS, REPEAT_MODE_COUNT, current_repeat, choose_repeat, NULL, NULL},
@@ -542,6 +594,9 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      NULL},
     {STR_THEME, THEME_OPTIONS, APPEARANCE_THEME_COUNT, current_appearance, choose_appearance, NULL,
      NULL},
+    {STR_TRANSITIONS, TRANSITION_OPTIONS, 2, current_transition, choose_transition, NULL, NULL},
+    {STR_TRANSITION_LENGTH, TRANSITION_LENGTH_OPTIONS, (int)sizeof TRANSITION_TENTHS,
+     current_transition_length, choose_transition_length, NULL, NULL},
 };
 
 static Screen *choice_view(SettingsScreens *screens, const SettingChoice *choice,
@@ -685,6 +740,7 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
         item = item < SETTINGS_BLUETOOTH_ITEM ? item : item + 1;
         item = item < SETTINGS_CUSTOM_EQ_ITEM ? item : item + 1;
         item = item < SETTINGS_RESCAN_ITEM ? item : item + 1;
+        item = item < SETTINGS_CONTROLS_ITEM ? item : item + 1;
         screens->items[item] = (MenuItem){.label = i18n_text(CHOICES[index].title),
                                           .select = open_choice,
                                           .context = &screens->entries[index],
@@ -693,6 +749,8 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
     }
     screens->items[SETTINGS_LANGUAGE_ITEM].shown = language_shown;
     screens->items[SETTINGS_LANGUAGE_ITEM].shown_context = &screens->languages;
+    screens->items[SETTINGS_TRANSITION_LENGTH_ITEM].shown = transition_length_shown;
+    screens->items[SETTINGS_TRANSITION_LENGTH_ITEM].shown_context = &screens->context;
     MenuConfig menu = {.title = i18n_text(STR_SETTINGS),
                        .items = screens->items,
                        .item_count = SETTINGS_ITEM_COUNT,
