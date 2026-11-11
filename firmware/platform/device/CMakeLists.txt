@@ -283,6 +283,7 @@ if(CMAKE_CROSSCOMPILING)
         board/usb_listen.c
         board/usb_report.c
         board/usb_session.c
+        logic/fat_delete.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
 endif()
@@ -323,6 +324,7 @@ add_executable(echo_usb_overlay
     board/usb_dac_session.c
     board/usb_port.c
     board/usb_session.c
+    logic/fat_delete.c
 )
 if(NOT ECHO_RELEASE)
     target_sources(echo_usb_overlay PRIVATE board/debug_report_file.c board/debug_script_file.c)
@@ -334,6 +336,7 @@ set_target_properties(echo_usb_overlay PROPERTIES
 add_dependencies(echo_usb_overlay echo_device)
 target_include_directories(echo_usb_overlay PRIVATE
     board
+    logic
     $<TARGET_PROPERTY:echo_app,INTERFACE_INCLUDE_DIRECTORIES>
     $<TARGET_PROPERTY:echo_settings,INTERFACE_INCLUDE_DIRECTORIES>
 )
@@ -402,6 +405,7 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             home_art_draw=extension_home_art_draw
             home_art_draw_backdrop=extension_home_art_draw_backdrop
             home_art_init=extension_home_art_init
+            hal_file_remove=extension_hal_file_remove
             home_art_update=extension_home_art_update
             wire_motion_draw=extension_wire_motion_draw
             wire_motion_due=extension_wire_motion_due

@@ -2,6 +2,7 @@
 
 #include "core/seam.h"
 #include "extension_entry.h"
+#include "hal/storage.h"
 #include "hal/system.h"
 
 static const ExtensionModuleEntry *extension(void)
@@ -98,4 +99,10 @@ void home_art_draw_backdrop(Canvas *canvas, Rect area, const Theme *theme)
     if (code != NULL) {
         code->art_backdrop(canvas, area, theme);
     }
+}
+
+bool hal_file_remove(const char *path)
+{
+    const ExtensionModuleEntry *code = extension();
+    return code != NULL && code->file_remove(path);
 }

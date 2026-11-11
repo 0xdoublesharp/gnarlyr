@@ -1,5 +1,6 @@
 #include "debug_runner.h"
 #include "extension_entry.h"
+#include "hal/storage.h"
 #include "screen_modules.h"
 
 const ExtensionModuleEntry EXTENSION_MODULE_ENTRY = {
@@ -16,4 +17,5 @@ const ExtensionModuleEntry EXTENSION_MODULE_ENTRY = {
     .art_update = home_art_update,
     .art_draw = home_art_draw,
     .art_backdrop = home_art_draw_backdrop,
+    .file_remove = hal_file_remove,
 };
