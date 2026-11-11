@@ -64,9 +64,12 @@ static Buffer library_file;
 static Buffer covers_file;
 static Buffer scratch_file;
 static uint32_t covers_capacity = COVERS_CAPACITY;
+static uint32_t cover_memory_size = MEMORY_SIZE;
 static uint32_t dir_opens;
 static uint32_t record_writes;
 static uint32_t failing_record;
+static uint32_t write_calls;
+static uint32_t failing_write_call;
 static void (*on_progress)(uint32_t done);
 
 static bool child_of(const char *dir, const char *path, char *name, bool *directory)
@@ -182,7 +185,9 @@ static bool buffer_write(void *context, uint32_t offset, const void *bytes, uint
 
 static bool covers_write(void *context, uint32_t offset, const void *bytes, uint32_t length)
 {
-    if (length == COVER_FULL_BYTES && ++record_writes == failing_record) {
+    write_calls++;
+    if (write_calls == failing_write_call ||
+        (length == COVER_FULL_BYTES && ++record_writes == failing_record)) {
         return false;
     }
     return buffer_write(context, offset, bytes, length);
@@ -344,8 +349,11 @@ static void reset(void)
     card.count = 0;
     card.png_count = 0;
     covers_capacity = COVERS_CAPACITY;
+    cover_memory_size = MEMORY_SIZE;
     record_writes = 0;
     failing_record = 0;
+    write_calls = 0;
+    failing_write_call = 0;
     on_progress = NULL;
     memset(covers_file.bytes, 0, COVERS_CAPACITY);
 }
@@ -373,7 +381,7 @@ static ScanResult rescan(bool keep, CoverStats *stats)
                     .previous = {keep ? buffer_read : NULL, &covers_file},
                     .capacity = covers_capacity,
                     .memory = memory,
-                    .size = sizeof memory,
+                    .size = cover_memory_size,
                     .progress = {progress_report, NULL}};
     return cover_build(&job, stats);
 }
@@ -655,6 +663,56 @@ static void a_broken_cover_costs_only_its_own_album(void)
     CHECK_EQUAL(0u, cover_pixel("Bad0"));
 }
 
+static void insufficient_working_memory_is_reported_and_a_retry_succeeds(void)
+{
+    static const uint32_t sizes[] = {0, 1, 64, 1024};
+    for (uint32_t index = 0; index < sizeof sizes / sizeof sizes[0]; index++) {
+        CoverStats stats;
+        three_albums();
+        cover_memory_size = sizes[index];
+        CHECK_EQUAL(SCAN_OUT_OF_MEMORY, rescan(false, &stats));
+        CHECK_EQUAL(3u, stats.albums);
+        cover_memory_size = MEMORY_SIZE;
+        CHECK_EQUAL(SCAN_OK, rescan(false, &stats));
+        CHECK_EQUAL(3u, stats.covers);
+        CHECK_EQUAL(0u, stats.missing);
+        CHECK_EQUAL(RED.pixel, cover_pixel("Alpha"));
+    }
+}
+
+static void each_cover_write_failure_can_be_followed_by_a_clean_rebuild(void)
+{
+    CoverStats stats;
+    three_albums();
+    CHECK_EQUAL(SCAN_OK, rescan(false, &stats));
+    uint32_t writes = write_calls;
+    CHECK(writes > 4);
+    uint32_t failed_builds = 0;
+    uint32_t partial_builds = 0;
+    for (uint32_t call = 1; call <= writes; call++) {
+        three_albums();
+        failing_write_call = call;
+        ScanResult result = rescan(false, &stats);
+        CHECK_EQUAL(call <= write_calls, true);
+        CHECK(result == SCAN_OK || result == SCAN_WRITE_FAILED);
+        if (result == SCAN_WRITE_FAILED) {
+            failed_builds++;
+        } else {
+            partial_builds++;
+            CHECK(stats.missing > 0);
+        }
+        failing_write_call = 0;
+        CHECK_EQUAL(SCAN_OK, rescan(false, &stats));
+        CHECK_EQUAL(3u, stats.covers);
+        CHECK_EQUAL(0u, stats.missing);
+        CHECK_EQUAL(RED.pixel, cover_pixel("Alpha"));
+        CHECK_EQUAL(GREEN.pixel, cover_pixel("Beta"));
+        CHECK_EQUAL(BLUE.pixel, cover_pixel("Gamma"));
+    }
+    CHECK(failed_builds >= 4);
+    CHECK(partial_builds >= 3);
+}
+
 static void a_failed_record_write_costs_only_its_own_album(void)
 {
     CoverStats stats;
@@ -771,6 +829,8 @@ int main(void)
         TEST_CASE(without_a_previous_file_everything_is_decoded),
         TEST_CASE(a_broken_cover_costs_only_its_own_album),
         TEST_CASE(a_failed_record_write_costs_only_its_own_album),
+        TEST_CASE(each_cover_write_failure_can_be_followed_by_a_clean_rebuild),
+        TEST_CASE(insufficient_working_memory_is_reported_and_a_retry_succeeds),
         TEST_CASE(a_failed_rewrite_drops_only_the_damaged_record),
         TEST_CASE(the_previous_covers_stay_readable_until_the_pass_ends),
         TEST_CASE(an_album_spread_over_many_folders_lists_a_bounded_number_of_them),
