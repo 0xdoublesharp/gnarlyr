@@ -109,6 +109,7 @@ typedef struct AppState {
     bool listening_loaded;
     SettingsStore settings;
     HeadphoneStore headphones;
+    uint8_t headphones_chosen;
     Theme theme;
     Orientation shown_orientation;
     bool rocker_swapped[KEY_COUNT];
@@ -965,6 +966,11 @@ static const Theme *board_theme(void)
     return hal_system_restart_pending() ? &notice_theme : &app.theme;
 }
 
+const Theme *app_theme(void)
+{
+    return board_theme();
+}
+
 static void draw_fade(Canvas *canvas, const Fade *fade, const char *text)
 {
     const Theme *theme = board_theme();
@@ -1408,6 +1414,21 @@ static void start_app(bool power_on)
     }
 }
 
+int16_t app_clock_offset(void)
+{
+    return app.settings.settings.clock_offset_minutes;
+}
+
+CORE_COLD bool app_store_clock_offset(int16_t offset)
+{
+    settings_store_capture(&app.settings, player_status(&app.player));
+    bool saved = settings_store_set_clock_offset(&app.settings, offset);
+    if (!saved) {
+        toast_show(&app.toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
+    }
+    return saved;
+}
+
 void app_start(void)
 {
     start_app(true);
@@ -1499,10 +1520,37 @@ void app_storage_formatted(bool success)
     app.listening_loaded = false;
 }
 
-void app_remember_dac_volume(uint8_t level)
+AppDacSettings app_dac_settings(void)
 {
-    app.settings.settings.dac_volume = level;
+    const Settings *settings = &app.settings.settings;
+    return (AppDacSettings){settings->dac_volume, (uint8_t)settings->gain,
+                            (uint8_t)settings->output, app.headphones.profiles.current};
+}
+
+const HeadphoneProfiles *app_headphone_profiles(void)
+{
+    return &app.headphones.profiles;
+}
+
+void app_remember_dac(AppDacSettings settings)
+{
+    app.settings.settings.dac_volume = settings.volume;
+    app.settings.settings.gain = (GainLevel)settings.gain;
+    app.settings.settings.output = (OutputJack)settings.output;
     settings_store_save(&app.settings);
+    if (settings.headphones != app.headphones.profiles.current) {
+        app.headphones_chosen = (uint8_t)(settings.headphones + 1);
+    }
+}
+
+static void commit_dac_headphones(void)
+{
+    const SettingsModuleEntry *entry = app.headphones_chosen != 0 ? settings_module() : NULL;
+    if (entry != NULL) {
+        entry->dac_headphones(&app.headphones, (uint8_t)(app.headphones_chosen - 1), &app.player,
+                              &app.settings);
+    }
+    app.headphones_chosen = 0;
 }
 
 void app_request_rescan(void)
@@ -1744,6 +1792,18 @@ static void run_debug_script(uint32_t now_ms)
     }
 }
 
+static void follow_destination(Screen **pending, uint32_t now_ms)
+{
+    Screen *destination = *pending;
+    if (destination != NULL) {
+        *pending = NULL;
+        if (apply_action(screen_action_push(destination), now_ms)) {
+            screen_changed();
+            app.render_urgent = true;
+        }
+    }
+}
+
 static void service_discovery(uint32_t now_ms)
 {
     if (!discovery_is_top()) {
@@ -1912,16 +1972,19 @@ CORE_SEAM void app_step(void)
     follow_appearance();
     update_screen(now_ms);
     follow_usb_chooser(now_ms);
+    commit_dac_headphones();
     service_discovery(now_ms);
     MixtapeUi *mixtapes = &app.screens.modules.views.mixtapes;
     if ((app.screens.bound_modules & (1u << SCREEN_MODULE_VIEWS)) != 0 &&
         mixtapes->destination != NULL) {
-        Screen *destination = mixtapes->destination;
-        mixtapes->destination = NULL;
-        if (apply_action(screen_action_push(destination), now_ms)) {
-            screen_changed();
-            app.render_urgent = true;
-        }
+        follow_destination(&mixtapes->destination, now_ms);
+    }
+    MomentsScreen *moments = &app.screens.modules.listening.moments;
+    if (top_screen() == &moments->screen && moments->destination != NULL) {
+        follow_destination(&moments->destination, now_ms);
+    }
+    if (top_screen() == &app.screens.now_playing.screen) {
+        follow_destination(&app.screens.now_playing.destination, now_ms);
     }
     render_when_due(now_ms, started_us);
     wire_motion_end(&app.motion, &app.notice);
@@ -1974,7 +2037,7 @@ static void draw_usb_status(void *context, Canvas *canvas)
 {
     const UsbStatusFrame *frame = context;
     AppUsbRenderer draw = app.usb_renderer;
-    if (draw == NULL || frame->status.view == APP_USB_CONNECTING) {
+    if (draw == NULL) {
         draw = usb_screen_draw_fallback;
     }
     draw(canvas, board_theme(), frame->battery, frame->status);
@@ -1993,6 +2056,17 @@ CORE_SEAM void app_show_usb_status(AppUsbStatus status)
     }
     render((FrameDrawer){.draw = draw_usb_status, .context = &frame}, false);
     light_after_first_frame();
+}
+
+CORE_SEAM void app_show_usb_area(AppUsbStatus status, Rect area)
+{
+    UsbStatusFrame frame = {.status = status, .battery = hal_power_battery()};
+    StripRenderer renderer = frame_renderer(area, false);
+    strip_renderer_render(&renderer, (FrameDrawer){.draw = draw_usb_status, .context = &frame},
+                          (FrameSink){.write = send_motion, .context = NULL});
+    hal_display_present();
+    frame_diff_mask(&app.frame_diff, area);
+    frame_diff_mask(&app.frame_diff, (Rect){0, 0, 0, 0});
 }
 
 CORE_SEAM void app_show_notice(const char *title, const char *message)

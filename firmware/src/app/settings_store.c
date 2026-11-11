@@ -97,7 +97,7 @@ static bool save_buttons(SettingsStore *store)
     return true;
 }
 
-bool settings_store_save(SettingsStore *store)
+static bool save_values(SettingsStore *store)
 {
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&store->settings, bytes);
@@ -107,7 +107,26 @@ bool settings_store_save(SettingsStore *store)
         }
         remember(store, bytes);
     }
-    return save_buttons(store);
+    return true;
+}
+
+bool settings_store_save(SettingsStore *store)
+{
+    return save_values(store) && save_buttons(store);
+}
+
+bool settings_store_set_clock_offset(SettingsStore *store, int16_t offset)
+{
+    if (offset < -720 || offset > 840) {
+        return false;
+    }
+    int16_t previous = store->settings.clock_offset_minutes;
+    store->settings.clock_offset_minutes = offset;
+    if (!save_values(store)) {
+        store->settings.clock_offset_minutes = previous;
+        return false;
+    }
+    return true;
 }
 
 void settings_store_capture(SettingsStore *store, PlayerStatus playback)

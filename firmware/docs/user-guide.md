@@ -91,12 +91,18 @@ Depeche Mode/Violator/
 
 ## Copying music over USB
 
-The USB screen shows the connection mode and charging state. While connecting, or if charging artwork is unavailable, a plain text screen keeps the state and instructions visible.
-
 1. Connect the player and choose **File transfer** when it asks (see [When you plug in](#when-you-plug-in)). Two drives appear: internal storage and the SD card.
 2. Copy music to the SD card, or to internal storage when no card is in the player.
-3. **Eject both drives before you unplug.** If you unplug first, recent changes may be lost, and the player warns you ("Unplugged too soon").
+3. Leave File transfer in one of two ways:
+   - **Eject on the computer.** Eject both drives (Finder's eject button, or `diskutil eject`). The player shows the mode selector.
+   - **Hold Back on the player** for a second. If the computer hasn't written anything for 3 seconds, the player tells it the drives are gone, shows "Disconnecting..." for 2 seconds and then the mode selector, just as after an eject. If the computer is still writing, the player shows "Computer is still writing..." and disconnects as soon as it stops. To disconnect at once anyway, keep holding Back for 3 more seconds; recent changes may be lost, and the player says so ("Disconnected too soon").
 4. When music changed, the player rebuilds its library by itself. Copying other files doesn't trigger a rebuild. Settings → Rescan library rebuilds it on demand.
+
+If you unplug the cable before either, recent changes may be lost, and the player warns you ("Unplugged too soon").
+
+After a disconnect from the player, the computer sees the drives disappear rather than being ejected. A Mac may then show its "Disk Not Ejected Properly" notice; when the player had waited for the computer to finish writing, your files are already on the player.
+
+**The USB screen** shows a cassette in your theme's colours whose reels turn while the computer reads or writes, a light beside the state (Connected to computer, Reading..., Copying..., Computer is still writing..., Disconnecting...), how much has been copied, each drive's size or "Ejected", the USB speed, the battery and how to leave. It works in both orientations and every text size.
 
 ## When you plug in
 
@@ -110,7 +116,7 @@ Settings → When plugged in changes this: **Ask** (the default), **File transfe
 
 Open **USB mode** from Home or Settings, or press Menu on the charging screen. Choose **Charge only**, **File transfer** or **USB DAC**. The player keeps charging while you use it, and you can change modes with the cable connected. Charge only ends a connection and leaves the player to charge; from the charging screen, leaving the selector in any way returns to the charging screen.
 
-Before leaving File transfer, eject both drives on the computer and wait for the mode selector. The player keeps the track, position and queue for your return. From USB DAC, hold Back for a second and release it to return to the selector.
+To leave File transfer, eject both drives on the computer or hold Back on the player (see [Copying music over USB](#copying-music-over-usb)), then wait for the mode selector. The player keeps the track, position and queue for your return. From USB DAC, hold Back for a second and release it to return to the selector, or use the DAC menu.
 
 ## Using the player as a USB DAC
 
@@ -118,9 +124,13 @@ Before leaving File transfer, eject both drives on the computer and wait for the
 
 1. Plug in the USB cable and choose **USB DAC** when the player asks (or, with the cable in, Home → USB mode → USB DAC).
 2. The player shows "USB DAC". It is a standard USB Audio Class 1.0 device, which Windows 10 and later, macOS, Linux, Android and iOS support without a driver (phones need a USB-C or Lightning adapter that passes data).
-3. On the computer, choose Gnarlyr as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output). The player shows the format and its volume, for example "48 kHz 24-bit · Volume 35".
-4. Use the computer's volume, the player's volume keys, or both. DAC mode has its own volume, separate from music: it starts at 35 of 60, the screen shows it ("48 kHz 24-bit · Volume 35"), holding Vol± changes it quickly, and the player remembers it for next time. Start low.
+3. On the computer, choose Gnarlyr as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output).
+4. Use the computer's volume, the player's volume keys, or both. DAC mode has its own volume, separate from music: it starts at 35 of 60, holding Vol± changes it quickly, and the player remembers it for next time. Start low.
 5. Hold Back for a second and let go to open the mode selector, then choose Charge only or File transfer. The player keeps charging.
+
+**The DAC screen** shows whether sound is playing, the format (for example "48 kHz · 24-bit"), a level meter for the left and right channels, the player's volume, the computer's volume (or Muted), the headphone jack in use, the buffer, the clock correction in ppm, underruns since you connected, the time connected and the USB speed. With a headphone profile on, its name sits beside the format.
+
+**The DAC menu** (press Menu) changes, without leaving DAC mode: **Volume** (press Play, then Vol±), **Gain**, **Output** (which jack's volume levels to use), **Headphones** (Off or one of your profiles) and switches to **File transfer** or **Charge only**. Vol± moves, Play changes the highlighted row, Back or Menu closes the menu. Your choices are kept for next time. The equalizer and ReplayGain don't apply in DAC mode; the sound reaches the DAC as the computer sends it, with only volume, gain and the headphone profile's trim, balance and ceiling.
 
 The player accepts 16 or 24-bit at 44.1 and 48 kHz; the computer picks one (on Windows: Sound settings → Gnarlyr → Properties → Advanced). Music on the player stops while it's a DAC. Choose File transfer from the mode selector to copy music without removing the cable. A charger works the same in both modes.
 
@@ -383,16 +393,36 @@ Open Up Next and hold Play on a song for its actions. Move it earlier or later, 
 
 Home → Mixtapes saves a queue as a named list. Save queue captures the current sequence; New mixtape starts an empty one. While naming, the volume buttons choose a character, Play adds it, Menu erases it and holding Play saves the name. A mixtape's actions play it, load it into Up Next for editing, replace its contents, rename it or delete it. Songs are matched by their paths and cue boundaries after a rescan.
 
+## Side A/B tapes
+
+Home → Mixtapes → New two-sided tape makes a C60 or C90 cassette: 30 or 45 minutes per side, with up to 64 songs on each side. Choose a length and name it with the usual naming controls.
+
+Hold Play on a song in a Music list, choose **Add to tape**, choose your cassette and then **Side A** or **Side B**. Songs join the end of that side. Add at least one song to each side before playing. A side that is full refuses another song and keeps what you already saved.
+
+Open the tape for **Resume tape**, **Play Side A** or **Play Side B**. It plays in the saved order. Side A stops at its end and shows a cassette with **Flip to Side B**; press Play to flip, or Back to stay stopped. Side B stops at its end too; Play rewinds the tape to Side A. Repeat does not cross a side boundary. The player remembers the side, song and exact position across restarts, including a side waiting to be flipped.
+
+Rename and Delete work as for other mixtapes. To play a different queue, select another song or mixtape. Ordinary single-sided mixtapes keep their existing actions.
+
 ## Clock and calendar
 
-Gnarlyr sets its clock from your Mac. Every companion command that ejects the player (`python3 tools/echo_debug.py set-time` does only that) leaves the Mac's time on the drive, and the player sets its clock as the drive is ejected. The clock then keeps going while the player is on. When the player has been switched off or restarted, the time is unknown until the next sync.
+Settings → Date & time, beside Clock format, shows the current date and time, or Not set. Open it to edit the year (2024–2099), month, day, hour, minute and UTC offset. Vol+ and Vol− change the focused value; hold to repeat. Menu moves to the next field, holding Menu moves to the previous one, ▶ saves and Back cancels. The day follows the month length, including leap years. The hour follows Clock format, with AM/PM in 12-hour time. Saving sets seconds to zero and updates the status bar, Clock and Calendar at once. If saving fails, the editor stays open and the running clock keeps its previous time.
+
+Enter your local date and time. UTC offset is the difference between your local time and UTC, for example −08:00 for Pacific standard time and −07:00 for Pacific daylight time. It changes in 15-minute steps, from −12:00 to +14:00. The offset from your last Settings save or Mac sync is kept across restarts; a player with no saved offset starts at +00:00. Change the offset yourself when daylight saving time changes. The clock chip and listening timestamps use UTC.
+
+Your Mac can also set the clock. Every companion command that ejects the player (`python3 tools/echo_debug.py set-time` does only that) leaves the Mac's time and offset on the drive, and the player applies them as the drive is ejected. A later Mac sync replaces a time set in Settings; a later successful Settings save replaces the last sync. The clock then keeps going while the player is on. Saving on the player keeps UTC in the clock chip and the offset in Settings. After switching off or restarting, Gnarlyr reads the chip once, a couple of seconds after startup, and restores local time with the saved offset. If audio is already active, recovery waits until it stops. If the chip cannot supply a valid, trusted date and time, the clock stays Not set; set it in Settings or sync with your Mac.
 
 While the time is set it also shows in the status bar, left of the battery; in landscape it steps aside for a long screen title. Settings → Clock format chooses 12-hour time with AM/PM or 24-hour time (the default). The status bar follows the same choice, including in Calendar. Home → Clock shows the time, the weekday and the date. Press ▶ for Calendar: the current month from Monday with today marked. The volume buttons move a month at a time, ▶ goes back to the current month and Back returns to Clock. Without a set time both say so and how to set it.
+
+## Saved moments
+
+Open Home → Listening → Moments while listening and choose **Save current moment**. Each row shows the song title and saved time, newest first. Select one to play from that exact place. Hold Play on a saved row and choose Delete to remove it, or Keep moment to cancel. You can keep 64 moments; delete one when the list is full.
+
+Moments survive restarts and library rescans. They follow the song's path and exact CUE or chapter boundaries. If a file is moved or its chapter boundaries change, its moment stays in the list and says the song or chapter is unavailable until that identity returns.
 
 ## Listening and lyrics
 
 Home → Listening shows total listening time, plays, skips, and top songs, albums and artists. It records time while music is playing. Totals and ranked lists work without a calendar clock.
 
-Export plays saves your plays to `/.scrobbler.log` at the top of the player's drive, in the Rockbox scrobbler format that import tools read; your history stays as it is. It starts as soon as you choose it and shows how far it has got; Back cancels it. When it finishes it shows how many plays it saved. Each export replaces the previous file. With nothing to export it says so and leaves the file alone. Plays of songs no longer in the library are left out. Times are saved in UTC. A play gets its time only while the player's clock is set (see Clock and calendar); a play made while the clock was not set is saved with the time 0.
+Export plays saves your plays to `/.scrobbler.log` at the top of the player's drive, in the Rockbox scrobbler format that import tools read; your history stays as it is. It starts as soon as you choose it and shows how far it has got; Back cancels it. When it finishes it shows how many plays it saved. Each export replaces the previous file. With nothing to export it says so and leaves the file alone. Plays of songs no longer in the library are left out. Times are saved in UTC. A new play gets its time from the current clock, whether set in Settings or by your Mac (see Clock and calendar). Changing the clock leaves earlier plays and the start time of a play already in progress unchanged; a play made while the clock was not set is saved with the time 0.
 
 Place a timed `.lrc` file beside a song, with the same filename stem. Hold Menu on Now Playing to open Lyrics; tap Menu still opens Up Next. Lyrics follow playback, and the volume buttons move through the lines. Back returns to Now Playing.

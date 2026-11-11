@@ -95,7 +95,10 @@ class EchoImageTest(EchoImageHarness):
     def test_without_processing_banks_a_script_aborts_and_reconnects_without_running_them(self):
         self.damaged_process_slots = ("slot_1", "slot_2")
         script = ("build %s\nrtc read\nreconnect\n" % self.build_tag()).encode("ascii")
-        session, machine = self.ejecting_session(self.debug_volume(run_txt=script))
+        session, machine = self.ejecting_session(
+            self.debug_volume(run_txt=script),
+            before_start=lambda machine: machine.stub_symbol(
+                "extension_hal_clock_restore_wall", lambda machine: 0))
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
         executed = machine.count_window_code(0x0308F000, 0x3000)
         self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
@@ -121,7 +124,8 @@ class EchoImageTest(EchoImageHarness):
     def test_a_stale_time_file_is_removed_using_the_second_extension_copy(self):
         self.damaged_extension_slots = ("slot_1",)
         session, machine, sets = self.time_session(
-            self.time_file(image_tests.NOVEMBER_2026, 0), written_before_power_on=True)
+            self.time_file(image_tests.NOVEMBER_2026, 0), written_before_power_on=True,
+            rtc_valid=False)
         self.assertEqual(sets, [])
         self.assertFalse(session.fat().exists(image_tests.TIME_PATH))
         self.assert_healthy(session)

@@ -77,6 +77,8 @@ typedef struct PlayerListStart {
     uint32_t position;
     uint32_t seed;
     bool in_order;
+    bool exact_position;
+    uint32_t position_ms;
 } PlayerListStart;
 
 typedef struct PlayerQueueJob {
@@ -103,6 +105,7 @@ typedef struct Player {
     uint32_t fingerprint;
     PlayQueue queue;
     PlayerStorage storage;
+    CassetteState cassette;
     PlayerQueueJob editing;
     UpNext up_next;
     uint32_t up_next_revision;
@@ -149,6 +152,8 @@ void player_init(Player *player, const Library *library);
 bool player_play_list(Player *player, BrowseQuery source, uint32_t position, uint32_t seed);
 bool player_play_from(Player *player, PlayerListStart start);
 bool player_use_order(Player *player, const TrackOrder *order, uint16_t position);
+bool player_use_tape(Player *player, const TrackOrder *order, uint16_t position,
+                     const CassetteState *cassette);
 void player_set_resume(Player *player, PlayerResume resume);
 void player_set_rewind(Player *player, bool on);
 void player_jump(Player *player, int32_t delta_ms);

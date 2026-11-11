@@ -69,13 +69,14 @@ static void format_time(char *text, size_t capacity, uint64_t millis)
 static int row_count(const void *context)
 {
     const ListeningScreen *screen = context;
-    return screen->mode == MODE_MENU ? MENU_ROWS : work->top.count;
+    return screen->mode == MODE_MENU ? MENU_ROWS + (screen->moments != NULL) : work->top.count;
 }
 
 static const char *row_label(const void *context, int index)
 {
     const ListeningScreen *screen = context;
-    return screen->mode == MODE_MENU ? i18n_text(MENU[index]) : work->names[index];
+    return screen->mode == MODE_MENU ? i18n_text(index == MENU_ROWS ? STR_MOMENTS : MENU[index])
+                                     : work->names[index];
 }
 
 static const char *row_detail(const void *context, int index)
@@ -157,6 +158,10 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
     } else if (navigation.intent == NAVIGATION_NEXT || navigation.intent == NAVIGATION_PREVIOUS) {
         list_view_move(&screen->list, navigation.intent == NAVIGATION_NEXT ? 1 : -1, true, now_ms);
     } else if (navigation.intent == NAVIGATION_SELECT && screen->mode == MODE_MENU) {
+        if (screen->list.selected == MENU_ROWS && screen->moments != NULL) {
+            screen->selected = MENU_ROWS;
+            return screen_action_push(screen->moments);
+        }
         choose(screen);
     }
     return screen_action_none();
@@ -349,7 +354,8 @@ static void draw_menu(ListeningScreen *screen, Canvas *canvas, Rect content)
     const Theme *theme = screen->config.theme;
     bool portrait = theme_is_portrait(theme);
     Rect rows = content;
-    rows.height = portrait ? theme->metrics.row_height * MENU_ROWS : content.height;
+    rows.height = portrait ? theme->metrics.row_height * (MENU_ROWS + (screen->moments != NULL))
+                           : content.height;
     rows.width = portrait ? content.width : content.width * 3 / 5;
     Rect panel =
         portrait

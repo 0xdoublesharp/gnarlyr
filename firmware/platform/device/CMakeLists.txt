@@ -179,9 +179,13 @@ set(ECHO_OVERLAY_IMPORTS
     LIBRARY_SCRATCH_PATH
     LIBRARY_STORE_PATH
     RESCAN_TIMES_PATH
-    app_remember_dac_volume
+    app_store_clock_offset
+    app_dac_settings
+    app_remember_dac
     app_show_notice
+    app_show_usb_area
     app_show_usb_status
+    app_theme
     charge_screen_text
     charge_screen_level_text
     charge_screen_usb_title
@@ -254,6 +258,27 @@ set(ECHO_OVERLAY_IMPORTS
     usb_session_stop_listening
     usb_silence_audio
     usb_vbus_present
+    canvas_blend_pixel
+    color_between
+    font_line_height
+    hal_audio_jack
+    hal_audio_set_gain
+    hal_audio_set_output
+    hal_audio_stats
+    hal_system_request_usb_mode
+    label_draw_paragraph
+    list_view_draw
+    list_view_fit_rows
+    list_view_init
+    list_view_move
+    rect_is_empty
+    theme_is_portrait
+    app_headphone_profiles
+    hal_audio_set_headphones
+    string_builder_append
+    string_builder_append_char
+    string_builder_append_unsigned
+    string_builder_make
 )
 if(NOT ECHO_RELEASE)
     list(APPEND ECHO_OVERLAY_IMPORTS
@@ -321,6 +346,7 @@ if(CMAKE_CROSSCOMPILING)
         board/system.c
         board/update.c
         board/update_request.c
+        board/wall_time.c
         board/usb_dac_session.c
         board/usb_listen.c
         board/usb_report.c
@@ -370,6 +396,13 @@ set(ECHO_USB_OVERLAY_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/usb_overl
 add_executable(echo_usb_overlay
     overlay/usb_overlay.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen.c
+    ${PROJECT_SOURCE_DIR}/src/app/screens/usb_dac_menu.c
+    ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_dac.c
+    ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
+    ${PROJECT_SOURCE_DIR}/src/ui/wire_figure.c
+    ${PROJECT_SOURCE_DIR}/src/core/headphone_audio_switch.c
+    ${PROJECT_SOURCE_DIR}/src/app/headphone_parameters.c
+    ${PROJECT_SOURCE_DIR}/src/settings/headphone_profile.c
     board/update.c
     board/usb_dac_session.c
     board/time_file_take.c
@@ -455,12 +488,16 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             core1_open_flac=audio_process_open_flac
             hal_system_rtc_read=audio_process_rtc_read
             hal_system_rtc_set=audio_process_rtc_set
+            hal_clock_set_wall=audio_process_clock_set_wall
+            hal_clock_restore_wall=audio_process_clock_restore_wall
         )
     endif()
     if(module STREQUAL "extension")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
         target_include_directories(${module_target}_objects PRIVATE board)
         target_compile_definitions(${module_target}_objects PRIVATE
+            hal_clock_set_wall=extension_hal_clock_set_wall
+            hal_clock_restore_wall=extension_hal_clock_restore_wall
             home_art_draw=extension_home_art_draw
             home_art_draw_backdrop=extension_home_art_draw_backdrop
             home_art_init=extension_home_art_init

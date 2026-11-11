@@ -1,9 +1,11 @@
 add_library(echo_playback STATIC
     bookmarks.c
+    cassette_budget.c
     listening_export.c
     listening_log.c
     listening_stats.c
     listening_track.c
+    moments.c
     mix_catalog.c
     mix_catalog_path.c
     mix_identity.c

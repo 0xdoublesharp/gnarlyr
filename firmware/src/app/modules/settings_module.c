@@ -92,4 +92,5 @@ const SettingsModuleEntry SETTINGS_MODULE_ENTRY = {
 #ifdef ECHO_DEBUG_LOOP
     .choose = choose,
 #endif
+    .dac_headphones = headphone_store_choose_for_dac,
 };

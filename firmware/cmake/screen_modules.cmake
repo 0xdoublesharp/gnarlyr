@@ -36,8 +36,11 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/settings/headphone_profile.c
     platform/device/board/file_remove.c
     platform/device/logic/fat_delete.c
+    platform/device/board/debug_rtc.c
+    platform/device/logic/rtc_time.c
     src/app/home_art.c
     src/gfx/wireframe.c
+    src/ui/wire_figure.c
     src/ui/wire_motion.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views
@@ -45,7 +48,10 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
     src/app/mixtape_store.c
+    src/app/order_adopt.c
     src/app/mixtape_ui.c
+    src/app/cassette_ui.c
+    src/playback/cassette_budget.c
     src/app/mixtape_screen.c
     src/playback/mix_catalog.c
     src/playback/mix_resolve.c
@@ -53,10 +59,13 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/screens/cover_flow_screen.c
     src/app/cover_placeholders.c
     src/app/screens/up_next_screen.c
+    src/app/queue_actions.c
+    src/app/queue_edits.c
     src/app/screens/calendar_screen.c
+    src/core/calendar_view.c
+    src/app/screens/cassette_flip_screen.c
     src/app/screens/clock_screen.c
     src/app/screens/charge_art.c
-    src/core/calendar.c
     src/ui/cover_flow.c
     src/ui/placeholder_art.c
     src/gfx/image_quad.c
@@ -76,6 +85,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/language_list.c
     src/app/modules/settings_module.c
     src/app/settings_screens.c
+    src/app/screens/set_clock_screen.c
     src/app/settings_preview.c
     src/app/button_settings.c
     src/app/home_editor.c
@@ -99,6 +109,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_library
     src/app/discovery_preferences.c
     src/app/discovery_playback.c
     src/app/order_publish.c
+    src/app/order_adopt.c
     src/app/personal_tags.c
     src/library/music_fingerprint.c
     src/library/library_view.c
@@ -108,10 +119,13 @@ set(ECHO_SCREEN_MODULE_SOURCES_library
 set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/app/modules/listening_module.c
     src/app/screens/listening_screen.c
+    src/app/screens/moments_screen.c
+    src/playback/moments.c
     src/app/screens/lyrics_screen.c
     src/app/screens/listening_work.c
     src/app/screens/smart_list_screen.c
     src/app/order_publish.c
+    src/app/order_adopt.c
     src/playback/listening_stats.c
     src/playback/smart_list.c
     src/playback/track_keys.c
@@ -129,7 +143,6 @@ else()
         platform/device/board/debug_poke.c
         platform/device/board/debug_rtc.c
         platform/device/logic/rtc_time.c
-        src/core/calendar.c
     )
 endif()
 

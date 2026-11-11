@@ -17,3 +17,5 @@ HeadphoneAudio headphone_store_parameters(const HeadphoneProfiles *profiles);
 void headphone_store_load(HeadphoneStore *store);
 bool headphone_store_commit(HeadphoneStore *store, const HeadphoneProfiles *profiles,
                             Player *player, SettingsStore *settings);
+void headphone_store_choose_for_dac(HeadphoneStore *store, uint8_t chosen, Player *player,
+                                    SettingsStore *settings);
