@@ -63,6 +63,8 @@ COLD_REPORT_MS = 10000
 POWER_HOLD_MS = 2600
 DEBUG_FOLDER = IDENTITY.data_directory + "/debug"
 RUN_PATH = "/" + DEBUG_FOLDER + "/run.txt"
+TIME_PATH = "/" + IDENTITY.data_directory + "/time.bin"
+NOVEMBER_2026 = 1794482460
 RESTART_PATH = "/" + DEBUG_FOLDER + "/restart.req"
 RESTART_REQUEST = b"RESTART AFTER INSTALL\n"
 RESTART_ANSWER = b"CONNECT AFTER RESTART\n"
@@ -945,9 +947,11 @@ class EchoImageTest(unittest.TestCase):
             volume.add_file(name.replace("_", "."), data, None, DEBUG_FOLDER)
         return volume
 
-    def ejecting_session(self, volume, notes=()):
+    def ejecting_session(self, volume, notes=(), before_start=None):
         session = self.session(volume=volume)
         machine = session.machine
+        if before_start is not None:
+            before_start(machine)
         for name in ("usb_session_storage_changed", "debug_script_take", "hal_system_usb_reconnect",
                      "debug_restart_after_install", "board_restart", "updater_install",
                      "board_wait_for_power_hold", *notes):
@@ -1231,6 +1235,56 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(report["script"]["lines"][1]["status"], "failed")
         self.assertEqual(machine.rtc_bus.frames, [("write", bytes([0xA2, 0x00]))])
         self.assertEqual(self.i2c1_state(machine), before)
+        self.assert_healthy(session)
+
+    @staticmethod
+    def time_file(utc, offset):
+        body = b"DSTM" + struct.pack("<Hhi", 1, offset, utc) + bytes(16)
+        check = 2166136261
+        for byte in body:
+            check = (check ^ byte) * 16777619 & 0xFFFFFFFF
+        return body + struct.pack("<I", check)
+
+    def time_session(self, data, written_before_power_on=False):
+        """A session whose host leaves a time file: one written during the session unless asked.
+
+        The emulated host writes nothing while connected, so a file meant to arrive during the
+        session is on the drive from the start and the start-up removal is passed over."""
+        volume = self.debug_volume()
+        volume.add_file("time.bin", data, None, IDENTITY.data_directory)
+        keep = None if written_before_power_on else (
+            lambda machine: machine.stub_symbol("board_wall_time_forget_file", lambda machine: 0))
+        session, machine = self.ejecting_session(volume, before_start=keep)
+        from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1
+        sets = []
+        machine.hook_symbol("board_wall_time_set", lambda: sets.append(
+            (machine.reg(UC_ARM_REG_R0), machine.reg(UC_ARM_REG_R1))))
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        machine.run(until_ms=machine.milliseconds() + QUIET_AFTER_MS)
+        return session, machine, sets
+
+    def test_an_ejected_session_with_a_time_file_sets_the_clock_and_removes_the_file(self):
+        session, machine, sets = self.time_session(self.time_file(NOVEMBER_2026, -480))
+        self.assertEqual(len(sets), 1)
+        utc, packed = sets[0]
+        self.assertEqual(utc, NOVEMBER_2026)
+        self.assertEqual(struct.unpack("<hBx", struct.pack("<I", packed)), (-480, 1))
+        self.assertFalse(session.fat().exists(TIME_PATH))
+        self.assert_healthy(session)
+
+    def test_a_damaged_time_file_is_removed_without_setting_the_clock(self):
+        damaged = bytearray(self.time_file(NOVEMBER_2026, 60))
+        damaged[9] ^= 1
+        session, machine, sets = self.time_session(bytes(damaged))
+        self.assertEqual(sets, [])
+        self.assertFalse(session.fat().exists(TIME_PATH))
+        self.assert_healthy(session)
+
+    def test_a_time_file_already_there_at_power_on_is_removed_and_never_applied(self):
+        session, machine, sets = self.time_session(self.time_file(NOVEMBER_2026, 0),
+                                                   written_before_power_on=True)
+        self.assertEqual(sets, [])
+        self.assertFalse(session.fat().exists(TIME_PATH))
         self.assert_healthy(session)
 
     def test_without_a_script_an_ejected_session_changes_nothing_and_does_not_reconnect(self):

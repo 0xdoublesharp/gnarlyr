@@ -36,6 +36,7 @@ add_executable(echo_device
     board/usb.c
     board/usb_listen.c
     board/usb_report.c
+    board/wall_time.c
 )
 target_sources(echo_device PRIVATE board/panel_vop.c)
 if(NOT ECHO_RELEASE)
@@ -187,6 +188,7 @@ set(ECHO_OVERLAY_IMPORTS
     board_display_service
     board_wait_for_key
     board_wait_for_power_hold
+    board_wall_time_set
     emmc_read
     emmc_start
     emmc_volume_read
@@ -320,6 +322,7 @@ add_executable(echo_usb_overlay
     overlay/usb_overlay.c
     board/update.c
     board/usb_dac_session.c
+    board/time_file_take.c
     board/usb_port.c
     board/usb_session.c
 )

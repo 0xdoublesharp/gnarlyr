@@ -72,11 +72,11 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 145,788 | 157,292 | 11,504 |
-| Code window, `device` preset | 149,908 | 157,292 | 7,384 |
-| Static RAM | 264,868 | 278,528 | 13,660 |
+| Code window | 146,112 | 157,292 | 11,180 |
+| Code window, `device` preset | 150,208 | 157,292 | 7,084 |
+| Static RAM | 264,884 | 278,528 | 13,644 |
 | Rescan overlay | 93,124 | 98,304 | 5,180 |
-| USB overlay code | 11,740 | 65,536 | 53,796 |
+| USB overlay code | 12,004 | 65,536 | 53,532 |
 | Module views (code + BSS) | 21,932 | 44,032 | 22,100 |
 | Module settings (code + BSS) | 18,748 | 44,032 | 25,284 |
 | Module library (code + BSS) | 39,136 | 44,032 | 4,896 |

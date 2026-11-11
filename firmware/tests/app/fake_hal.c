@@ -127,6 +127,8 @@ typedef struct FakeHal {
     int probe_count;
     FakeProbeCall probe_calls[PROBE_CALL_CAPACITY];
     HalRtcRead rtc_answer;
+    HalWallTime wall;
+    uint32_t wall_set_ms;
     int rtc_reads;
     HalUsbSense usb_sense;
     uint32_t saved_reports[FILE_CAPACITY];
@@ -427,6 +429,23 @@ bool hal_input_next_transition(HalKeyTransition *transition)
     }
     *transition = fake.transitions[fake.next_transition++];
     return true;
+}
+
+void fake_hal_set_wall(uint32_t utc_s, int16_t offset_minutes)
+{
+    fake.wall = (HalWallTime){.utc_s = utc_s,
+                              .offset_minutes = offset_minutes,
+                              .source = utc_s != 0 ? HAL_WALL_COMPUTER : HAL_WALL_UNKNOWN};
+    fake.wall_set_ms = hal_clock_milliseconds();
+}
+
+HalWallTime hal_clock_wall(void)
+{
+    HalWallTime time = fake.wall;
+    if (time.source != HAL_WALL_UNKNOWN) {
+        time.utc_s += (hal_clock_milliseconds() - fake.wall_set_ms) / 1000;
+    }
+    return time;
 }
 
 uint32_t hal_clock_milliseconds(void)

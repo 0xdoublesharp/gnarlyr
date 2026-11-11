@@ -5,6 +5,7 @@
 
 #include "device/battery_gauge.h"
 #include "device/board_pins.h"
+#include "hal/clock.h"
 #include "hal/system.h"
 
 void board_clock_start(void);
@@ -49,6 +50,9 @@ BatteryDisplay board_power_shown(void);
 void board_systick_handler(const uint32_t *frame);
 void device_systick_entry(void);
 void board_stall_beat(void);
+void board_wall_time_set(HalWallTime time);
+void board_wall_time_keep(void);
+void board_wall_time_forget_file(void);
 void board_stall_pause(bool paused);
 void board_panic_stall(uint32_t pc, uint32_t lr);
 void board_panic_fault(const uint32_t *frame, uint32_t status);

@@ -40,6 +40,39 @@ static void the_battery_level_and_charging_are_read(void)
     CHECK(options.battery_charging);
 }
 
+static void the_clock_is_unset_unless_asked_for(void)
+{
+    SimOptions options;
+    CHECK(parse(NULL, 0, &options));
+    CHECK_EQUAL(SIM_CLOCK_UNSET, options.clock_mode);
+}
+
+static void the_clock_reads_now_or_utc_seconds_with_an_offset(void)
+{
+    char *now[] = {"--clock", "now"};
+    char *fixed[] = {"--clock", "1794482460", "--utc-offset", "-480"};
+    SimOptions options;
+    CHECK(parse(now, 2, &options));
+    CHECK_EQUAL(SIM_CLOCK_NOW, options.clock_mode);
+    CHECK(parse(fixed, 4, &options));
+    CHECK_EQUAL(SIM_CLOCK_FIXED, options.clock_mode);
+    CHECK_EQUAL(1794482460u, options.clock_utc_s);
+    CHECK_EQUAL(-480, options.clock_offset_minutes);
+}
+
+static void an_offset_needs_a_fixed_clock_and_stays_within_a_day(void)
+{
+    char *alone[] = {"--utc-offset", "60"};
+    char *with_now[] = {"--clock", "now", "--utc-offset", "60"};
+    char *too_far[] = {"--clock", "1794482460", "--utc-offset", "841"};
+    char *not_a_time[] = {"--clock", "soon"};
+    SimOptions options;
+    CHECK(!parse(alone, 2, &options));
+    CHECK(!parse(with_now, 4, &options));
+    CHECK(!parse(too_far, 4, &options));
+    CHECK(!parse(not_a_time, 2, &options));
+}
+
 static void a_notice_is_read_as_a_title_and_its_text(void)
 {
     char *given[] = {"--notice", "USB DAC", "--notice-text", "Choose the player"};
@@ -140,6 +173,9 @@ int main(void)
         TEST_CASE(a_key_script_is_read),
         TEST_CASE(storage_directories_are_read),
         TEST_CASE(the_battery_level_and_charging_are_read),
+        TEST_CASE(the_clock_is_unset_unless_asked_for),
+        TEST_CASE(the_clock_reads_now_or_utc_seconds_with_an_offset),
+        TEST_CASE(an_offset_needs_a_fixed_clock_and_stays_within_a_day),
         TEST_CASE(a_notice_is_read_as_a_title_and_its_text),
         TEST_CASE(a_notice_needs_both_its_title_and_its_text),
         TEST_CASE(a_battery_level_above_full_is_rejected),

@@ -2,5 +2,17 @@
 
 #include <stdint.h>
 
+typedef enum HalWallSource {
+    HAL_WALL_UNKNOWN,
+    HAL_WALL_COMPUTER
+} HalWallSource;
+
+typedef struct HalWallTime {
+    uint32_t utc_s;
+    int16_t offset_minutes;
+    uint8_t source;
+} HalWallTime;
+
 uint32_t hal_clock_milliseconds(void);
 uint32_t hal_clock_microseconds(void);
+HalWallTime hal_clock_wall(void);
