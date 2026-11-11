@@ -353,6 +353,22 @@ Linker script and memory map
                                                      "--module-map", f"settings={paths[name]}"]))
         self.assertEqual([0, 1], results)
 
+    def test_the_command_saves_the_printed_summary(self):
+        import contextlib
+        import io
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "device.map"
+            output = Path(directory) / "size-summary.txt"
+            source.write_text(MAP)
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                result = size_report.main(["--map", str(source), "--summary",
+                                           "--output", str(output)])
+            self.assertEqual(result, 0)
+            self.assertEqual(output.read_text(), printed.getvalue())
+            self.assertIn("code window: 4,096 of 157,292 bytes", output.read_text())
+
     def test_the_report_lists_what_fills_each_module(self):
         text = size_report.report(FENCED_MAP, modules=[("settings", MODULE_MAP)])
         lines = text.splitlines()
