@@ -1,6 +1,6 @@
 # Vorbis playback and decoder program
 
-The image contains a separate core-1 Vorbis program built from pinned Xiph Tremor lowmem source. The player selects the Vorbis source for Ogg input. File opening, configuration, normalized duration, cropped starts and seeking have native reference tests and integrated Cortex-M3 player scenarios. Physical decode headroom and listening on the owner’s player remain to be measured. Source and BSD notices are in `third_party/tremor`; Gnarlyr remains GPL-3.0-or-later.
+The image contains a separate core-1 Vorbis program built from pinned Xiph Tremor lowmem source. The player selects the Vorbis source for Ogg input. File opening, configuration, normalized duration, cropped starts and seeking have native reference tests and integrated Cortex-M3 player scenarios. Independent encoder output and emulated instruction headroom are checked below. Physical decode headroom and listening on the owner’s player remain to be measured. Source and BSD notices are in `third_party/tremor`; Gnarlyr remains GPL-3.0-or-later.
 
 `device/vorbis_decoder` accepts three configuration packets, then audio packets. Input may have two spans, allowing a compressed packet to wrap in the shared ring without a copy. PCM goes into caller-owned planar signed 32-bit arrays at 24-bit scale. Mono and stereo, 8–192 kHz header rates and up to 4,096 output frames are bounded before output. A caller must provide capacity for the configured long block. Actual hardware throughput across those rates remains to be measured.
 
@@ -24,7 +24,7 @@ Native and Cortex-M3 tests decode independent Xiph fixtures at 8 kHz mono and 44
 
 Native file-adapter tests decode all four reference fixtures through fragmented records and a stream with a valid 70,000-byte comment. They compare PCM to Xiph reference output, check bulk ring-fill requests against independently assembled records, and distinguish failed storage or malformed input from a clean end. Packet-prefix and file-adapter tests pass with AddressSanitizer and UndefinedBehaviorSanitizer. The source opener supplies the configuration handshake, file seek and start trim described below.
 
-`device/vorbis_track` probes the identification/configuration signatures through the checked packet reader, checks channel/rate/block limits and the setup-packet transport cap, then finds a checked final granule near the file end. A missing final granule is refused rather than replaced with an earlier page position. The current sample-position protocol uses 32-bit positions; larger endpoints are refused. Failed probes preserve the caller's track metadata.
+`device/vorbis_track` probes the identification/configuration signatures through the checked packet reader, checks channel/rate/block limits and the setup-packet transport cap, then walks checked pages to the selected serial’s first end-of-stream page. This scan is linear in the first link’s byte length; it does not infer duration from a later chained link. A missing final granule is refused rather than replaced with an earlier page position. The current sample-position protocol uses 32-bit positions; larger endpoints are refused. Failed probes preserve the caller's track metadata.
 
 Seeking bisects byte ranges and searches at most one maximum Ogg page length from each midpoint. It selects a non-EOS marked page at or before the target; this leaves a preceding granule for Tremor to judge the final packet. Unknown-granule continuations are followed with serial and sequence checks. `ogg_stream_seek` replays the configuration headers before resuming that page. Early targets and single-audio-page files start from the original stream start; core 1 must receive first-sample zero for that case, with the source/engine applying the requested target trim. Other starts wait for their first known granule. Failed seeks preserve the output offset.
 
@@ -44,3 +44,41 @@ The source discards every complete preroll block before the requested sample and
 The file adapter and source opener reside in audio module 6, the Ogg module, together with the Opus probe and opener, sharing the 8 KiB audio bank with module 5. Their mutable state lives in the existing decoder union and resident source; module 6 has no BSS. The resident dispatcher checks the loaded entry before reads. Both modules include the same resampling kernel, allowing a converted-rate track to keep the current kernel after the file adapter closes. The full engine drains pending output before a new file operation replaces that bank.
 
 Native source tests decode reference files through actual opening and refill calls, including 7-byte refill budgets, mono speech, cropped starts, origin shifts, seeks and endpoint clamps. ASan and UBSan cover the source, seek controller, file records, decoder and shared-stream consumer. Integrated ARM tests connect the main player and the real Vorbis core-1 program with cooperative shared-memory scheduling. They exercise converted WAV → Vorbis → WAV, slot fallback, saved-position startup, pause/resume and refusal of two damaged file modules. This scheduling model establishes functional behavior, not real-time hardware performance.
+
+## Encoder compatibility
+
+`tools/vorbis_corpus.py` generates a Scratch-only corpus and invokes `vorbis_corpus_tool`, which uses the real probe, normalized origin, file-record stream and `Core1Vorbis` decoder. Thirty cases cover Xiph libvorbis 1.3.7/libogg 1.3.6 (built independently), aoTuV beta 6.03 (official source revision `ef858ad4635cea99aad47918e31e9c10550c25bf`) and ffmpeg's experimental native encoder. Input includes a deterministic multitone/chirp/noise/transient signal and system-synthesized mono speech. The corpus checks real encoder output from generated signals.
+
+The checked matrix is Xiph qualities −1, 0, 3, 5, 8 and 10 at 44.1/48 kHz stereo; speech at 8/16/22.05 kHz; q10 stereo at 88.2/96/192 kHz; managed 128/500 kbit/s CBR and 192 kbit/s ABR at 48 kHz; native ffmpeg stereo at 44.1/48 kHz; and aoTuV qualities −1, 3 and 10 at 48 kHz. A valid 600×600 PNG embedded as `METADATA_BLOCK_PICTURE` produces a 1,449,575-byte comment packet with 300 additional comments. Decoder transport replaces it with the minimal comment packet, so the 32 KiB limit still applies only to identification, setup and audio packets. The native workspace peak stays at or below 41,520 bytes, including decode scratch, within the existing 64 KiB arena. Host pointers are wider than the player's pointers; these are native measurements.
+
+Every accepted file matches independent Xiph PCM within two 16-bit LSB, with exact length, from the beginning and at five additional targets (one sample, one-third, two-thirds, the final sample and the endpoint). FLAC-in-Ogg is refused at probe. Concatenated Vorbis links play only the first link and report only its duration, even when later links reuse the serial. Library metadata uses the same first-serial comment filtering and first-EOS duration policy. Other checked logical streams interleaved with a first Vorbis stream are ignored. Selected-stream holes, bad continuations and damaged pages still fail. A non-Vorbis first stream is refused; searching for a later Vorbis BOS is not implemented. Compact chained and multiplexed fixtures are regenerated by `tools/vorbis_fixture.py`.
+
+To reproduce after installing the independent libraries on Scratch:
+
+```sh
+python3 ../tools/firmware.py build --jobs 3 --target vorbis_corpus_tool --target ogg_packet_tool
+python3 tools/vorbis_corpus.py --prefix /Volumes/Scratch/SnowskyEcho/tmp/vorbis-finish/reference --aotuv /Volumes/Scratch/SnowskyEcho/tmp/vorbis-finish/aotuv --output /Volumes/Scratch/SnowskyEcho/data/vorbis-finish --harness build/dev/tests/vorbis_corpus_tool
+```
+
+The generator requires macOS `say` for speech and ffmpeg for native Vorbis and FLAC-in-Ogg. The independent helper supports VBR, managed CBR/ABR and picture comments. Normal tests use checked-in fixtures and require no encoder builds.
+
+## Emulated core-1 headroom
+
+`tools/vorbis_benchmark.py` runs the actual Cortex-M3 program with continuously available input and output slots, checks every sample against independent PCM (maximum two LSB and exact lengths), and keeps a stack-boundary guard. These 3.25-second corpus signals include higher-complexity content than the older sine/chirp-only fixtures. Counts are whole-file instructions divided by output duration, including setup and short idle intervals, in 1,000-instruction emulator slices.
+
+| Stream | Instructions / 20 ms | Audio after setup / 20 ms | Ideal 200 MHz budget used | Ideal margin | Break-even cycles / instruction |
+|---|---:|---:|---:|---:|---:|
+| q10 stereo 48 kHz | 810,554 | 795,674 | 20.3% | 79.7% | 4.93 |
+| q10 stereo 96 kHz | 1,337,637 | 1,322,801 | 33.4% | 66.6% | 2.99 |
+| q10 stereo 192 kHz | 2,314,382 | 2,299,549 | 57.9% | 42.1% | 1.73 |
+| CBR 500 kbit/s stereo 48 kHz | 771,557 | 756,627 | 19.3% | 80.7% | 5.18 |
+
+At core 1's documented 200 MHz, each 20 ms has four million cycles at every sample rate. Assuming one cycle per instruction gives the ideal margins above. Loads, branches, multiplies, memory waits and storage contention increase cost; at two cycles per instruction the 192 kHz case would exceed the budget. Instruction counts do not establish the actual cycles per instruction. None of these cases exceeds the ideal budget, so these measurements alone do not justify a new rate refusal. The accepted range remains mono/stereo 8–192 kHz within workspace and packet bounds; 192 kHz especially needs a hardware load check before claiming real-time support.
+
+```sh
+.venv/bin/python tools/vorbis_benchmark.py --corpus /Volumes/Scratch/SnowskyEcho/data/vorbis-finish --program build/device/platform/device/core1_vorbis.bin --tool build/dev/tests/ogg_packet_tool
+```
+
+## Desktop simulator
+
+The simulator plays `.ogg` and `.opus` through `sim_ogg`, using the same probe, record stream, page seeking and native builds of `Core1Vorbis`/`Core1Opus`. It adds no external decoder library. Each queued decoder owns its workspace and buffered PCM. Native simulator tests compare Vorbis PCM, mono duplication, cropped starts, chains and multiplexing; Opus tests cover CELT, SILK, 120 ms packets, gain, origins, exact trimming and seeks with the existing settling allowance. A queue test alternates two independent Ogg decoders. Physical playback remains a separate check.

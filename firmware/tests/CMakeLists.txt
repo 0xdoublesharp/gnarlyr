@@ -470,6 +470,9 @@ echo_add_unit_test(NAME test_vorbis_stream
     LIBRARIES echo_device_logic
 )
 target_compile_definitions(test_vorbis_stream PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_executable(vorbis_corpus_tool device/vorbis_corpus_tool.c)
+target_link_libraries(vorbis_corpus_tool PRIVATE echo_device_logic echo_options)
+
 echo_add_unit_test(NAME test_vorbis_memory
     SOURCES device/test_vorbis_memory.c
     LIBRARIES echo_device_logic

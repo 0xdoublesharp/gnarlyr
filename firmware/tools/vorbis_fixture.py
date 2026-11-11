@@ -45,6 +45,37 @@ def offset_granules(encoded, delta):
     return bytes(data)
 
 
+def other_page(sequence, flags):
+    data = bytearray(b"OggS" + bytes([0, flags]) + struct.pack("<QIII", 0, 77, sequence, 0) + bytes([1, 5]) + b"other")
+    repair_page(data, 0, len(data))
+    return bytes(data)
+
+
+def logical_fixtures(output):
+    first = (output / "stereo44.ogg").read_bytes()
+    second = bytearray((output / "mono8.ogg").read_bytes())
+    offset = 0
+    while offset < len(second):
+        count = second[offset + 26]
+        size = 27 + count + sum(second[offset + 27:offset + 27 + count])
+        struct.pack_into("<I", second, offset + 14, 43)
+        repair_page(second, offset, size)
+        offset += size
+    (output / "chained44.ogg").write_bytes(first + second)
+    audio = (output / "seek44.ogg").read_bytes()
+    multiplexed = bytearray()
+    offset = 0
+    sequence = 0
+    while offset < len(audio):
+        count = audio[offset + 26]
+        size = 27 + count + sum(audio[offset + 27:offset + 27 + count])
+        multiplexed += audio[offset:offset + size]
+        multiplexed += other_page(sequence, 2 if sequence == 0 else (4 if offset + size == len(audio) else 0))
+        sequence += 1
+        offset += size
+    (output / "multiplexed44.ogg").write_bytes(multiplexed)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate independent Xiph Vorbis decoder fixtures")
     parser.add_argument("--prefix", type=Path, required=True)
@@ -80,6 +111,7 @@ def main():
                              capture_output=True, check=True, env=env).stdout
     if shifted != (args.output / "seek44.pcm").read_bytes():
         raise ValueError("the shifted-origin reference differs from the original PCM")
+    logical_fixtures(args.output)
     return 0
 
 

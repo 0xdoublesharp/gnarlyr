@@ -144,7 +144,15 @@ static void adopt_page(OggPackets *reader, const OggPage *page)
 static OggPacketResult load_page(OggPackets *reader, bool continued)
 {
     OggPage page;
-    OggPacketResult result = ogg_page_read(reader->input, reader->next_page, &page);
+    OggPacketResult result;
+    uint32_t offset = reader->next_page;
+    do {
+        result = ogg_page_read(reader->input, offset, &page);
+        if (result != OGG_PACKET_READY) {
+            return result;
+        }
+        offset = page.next;
+    } while (reader->multiplexed && reader->started && page.serial != reader->serial);
     if (result != OGG_PACKET_READY || !valid_sequence(reader, &page, continued)) {
         return result != OGG_PACKET_READY ? result : OGG_PACKET_INVALID;
     }
@@ -222,6 +230,12 @@ static OggPacketResult assemble_packet(OggPackets *reader, PacketOutput output, 
 void ogg_packets_init(OggPackets *reader, FlacInput input)
 {
     *reader = (OggPackets){.input = input};
+}
+
+void ogg_packets_init_first(OggPackets *reader, FlacInput input)
+{
+    ogg_packets_init(reader, input);
+    reader->multiplexed = true;
 }
 
 static OggPacketResult read_packet(OggPackets *reader, PacketOutput output, OggPacket *packet)
@@ -304,7 +318,7 @@ OggPacketResult ogg_packets_resume(OggPackets *reader, FlacInput input, uint32_t
     if (result != OGG_PACKET_READY || page.serial != serial || (page.flags & OGG_FIRST) != 0) {
         return result != OGG_PACKET_READY ? result : OGG_PACKET_INVALID;
     }
-    OggPackets candidate = {.input = input, .emitted = true};
+    OggPackets candidate = {.input = input, .emitted = true, .multiplexed = true};
     adopt_page(&candidate, &page);
     if ((page.flags & OGG_CONTINUED) != 0) {
         result = skip_orphan(&candidate);
