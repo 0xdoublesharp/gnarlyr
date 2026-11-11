@@ -458,6 +458,36 @@ static void a_seek_reads_little_of_the_file(void)
     free(flac.bytes);
 }
 
+static void a_seek_read_failure_never_reports_the_wrong_frame(void)
+{
+    Buffer flac = load("lpc_24_96k_stereo", "flac");
+    FailingInput source = {.buffer = &flac};
+    FlacInput input = {.read = read_failing_input, .context = &source, .size = flac.size};
+    const uint32_t target = 4500;
+    CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input));
+    source.calls = 0;
+    CHECK_EQUAL(FLAC_OK, flac_seek(&decoder, target));
+    uint32_t reads = source.calls;
+    CHECK(reads > 1);
+    for (uint32_t at = 1; at <= reads; at++) {
+        source.fail_at = 0;
+        CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input));
+        source.calls = 0;
+        source.fail_at = at;
+        FlacResult result = flac_seek(&decoder, target);
+        CHECK(source.calls >= at);
+        source.fail_at = 0;
+        if (result == FLAC_OK) {
+            CHECK_EQUAL(FLAC_OK, flac_decode_frame(&decoder));
+            CHECK(decoder.frame_first_sample <= target);
+            CHECK(target - decoder.frame_first_sample < decoder.block_samples);
+        } else {
+            CHECK_EQUAL(FLAC_ERROR, result);
+        }
+    }
+    free(flac.bytes);
+}
+
 static FlacBits header_bits;
 
 static void the_header_alone_gives_the_stream_info_and_audio_offset(void)
@@ -580,6 +610,7 @@ int main(void)
         TEST_CASE(decoding_carries_on_after_a_seek),
         TEST_CASE(seeking_past_the_end_is_refused),
         TEST_CASE(a_seek_reads_little_of_the_file),
+        TEST_CASE(a_seek_read_failure_never_reports_the_wrong_frame),
         TEST_CASE(the_header_alone_gives_the_stream_info_and_audio_offset),
         TEST_CASE(a_header_that_is_not_flac_is_refused),
         TEST_CASE(truncated_streaminfo_headers_are_rejected),
