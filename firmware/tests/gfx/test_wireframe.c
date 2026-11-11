@@ -39,7 +39,7 @@ static WirePoint at(int x, int y)
 static void the_sine_table_matches_the_sine_at_every_angle(void)
 {
     for (int angle = 0; angle < WIREFRAME_TURN; angle++) {
-        double radians = (double)angle * 2.0 * M_PI / (double)WIREFRAME_TURN;
+        double radians = (double)angle * 2.0 * acos(-1.0) / (double)WIREFRAME_TURN;
         double expected = sin(radians) * (double)WIREFRAME_ONE;
         CHECK(fabs(wireframe_sin((uint8_t)angle) - expected) <= 0.5);
     }
