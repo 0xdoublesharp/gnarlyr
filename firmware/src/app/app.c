@@ -1434,6 +1434,11 @@ void app_start(void)
     start_app(true);
 }
 
+void app_reset_for_test(void)
+{
+    app = (AppState){0};
+}
+
 static void show_rescan_progress(uint32_t files, uint32_t tracks)
 {
     static uint32_t shown_ms;

@@ -86,6 +86,7 @@ static void apply_environment(uint8_t value)
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
+    app_reset_for_test();
     fake_hal_reset();
     add_library_files(size > 0 ? data[0] : 0);
     uint32_t now_ms = 1000;
