@@ -79,34 +79,6 @@ static CORE_COLD void design_equalizer(AudioEngine *engine)
         equalizer_design(engine->config.equalizer, &engine->equalizer_curve, engine->output_rate);
 }
 
-static bool same_curve(const HalAudioEqualizer *first, const HalAudioEqualizer *second)
-{
-    bool same = first->band_count == second->band_count && first->pre_gain == second->pre_gain;
-    for (int band = 0; same && band < first->band_count && band < HAL_AUDIO_EQUALIZER_BANDS;
-         band++) {
-        same = first->band_hz[band] == second->band_hz[band] &&
-               first->gain_half_db[band] == second->gain_half_db[band];
-    }
-    return same;
-}
-
-CORE_COLD void audio_engine_set_equalizer(AudioEngine *engine, const HalAudioEqualizer *curve)
-{
-    if (same_curve(&engine->equalizer_curve, curve)) {
-        return;
-    }
-    HalAudioEqualizer before = engine->equalizer_curve;
-    engine->equalizer_curve = *curve;
-    if (engine->equalizing && engine->config.equalizer != NULL) {
-        engine->equalizing = equalizer_retune(
-            engine->config.equalizer,
-            (EqualizerChange){.before = &before, .after = &engine->equalizer_curve},
-            engine->output_rate);
-    } else {
-        design_equalizer(engine);
-    }
-}
-
 static void release_frame(AudioEngine *engine)
 {
     if (engine->holding_frame) {
@@ -177,6 +149,9 @@ static AudioFadeRamp fade_ramp(const AudioEngine *engine, uint32_t fade_ms, uint
 static CORE_COLD void push_segment(AudioEngine *engine, const char *path, uint32_t token,
                                    uint32_t start, uint32_t base_ms)
 {
+    if (engine->repeat_state == 2 && engine->segment_count > 0) {
+        return;
+    }
     engine->fade_out = (AudioFadeRamp){0};
     engine->fade_in = fade_ramp(engine, engine->decode_fade_ms, start);
     engine->decode_fade_ms = 0;
@@ -190,6 +165,7 @@ static CORE_COLD void push_segment(AudioEngine *engine, const char *path, uint32
     segment->token = token;
     segment->start = start;
     segment->base_ms = base_ms;
+    segment->base_sample = frame_limit(base_ms, engine->decode_rate);
     segment->end_ms = engine->decode_end_ms;
     segment->rate = audio_resample_rate(engine->decode_rate);
     segment->replay_gain = engine->track_gain;
@@ -235,6 +211,7 @@ static CORE_COLD bool start_track(AudioEngine *engine, const AudioEngineTrack *t
 CORE_COLD bool audio_engine_play(AudioEngine *engine, const AudioEngineTrack *track,
                                  uint32_t offset_ms)
 {
+    engine->repeat_state = 0;
     return start_track(engine, track, track->start_ms + offset_ms);
 }
 
@@ -277,7 +254,17 @@ CORE_COLD bool audio_engine_seek(AudioEngine *engine, uint32_t position_ms)
                               .end_ms = playing.end_ms,
                               .token = playing.token,
                               .replay_gain = playing.replay_gain};
+    uint32_t sample = frame_limit(position_ms, playing.track.stream.sample_rate);
+    if (engine->repeat_state == 2 && (sample < engine->repeat_a || sample >= engine->repeat_b)) {
+        sample = engine->repeat_a;
+        position_ms = (uint32_t)((uint64_t)sample * 1000 / playing.track.stream.sample_rate);
+    }
     bool started = start_track(engine, &track, position_ms);
+    if (started && engine->repeat_state == 2) {
+        engine->skip_frames = sample;
+        engine->decode_limit = engine->repeat_b;
+        engine->segments[0].base_sample = sample;
+    }
     if (started && state == AUDIO_ENGINE_PAUSED) {
         engine->state = AUDIO_ENGINE_PAUSED;
     }
@@ -304,98 +291,6 @@ void audio_engine_stop(AudioEngine *engine)
     engine->state = AUDIO_ENGINE_STOPPED;
     engine->ended = true;
     engine->end_at = engine->produced;
-}
-
-static int32_t saturate(int32_t sample)
-{
-    return sample > SAMPLE_MAX ? SAMPLE_MAX : sample < SAMPLE_MIN ? SAMPLE_MIN : sample;
-}
-
-static int32_t unity_16(int32_t sample)
-{
-    return sample > INT16_MAX   ? SAMPLE_MAX
-           : sample < INT16_MIN ? SAMPLE_MIN
-                                : sample * (1 << (OUTPUT_BITS - SIXTEEN_BITS));
-}
-
-typedef struct PcmSpan {
-    uint32_t *words;
-    const int32_t *left;
-    const int32_t *right;
-    uint32_t frames;
-    int shift;
-} PcmSpan;
-
-static void convert_16(const PcmSpan *span)
-{
-    uint32_t *words = span->words;
-    const int32_t *left = span->left;
-    const int32_t *right = span->right;
-    const int32_t *end = left + span->frames;
-    int shift = span->shift;
-    if (left == right) {
-        for (; left != end; left++, words += WORDS_PER_FRAME) {
-            uint32_t word = (uint32_t)unity_16(*left) << shift;
-            words[0] = word;
-            words[1] = word;
-        }
-        return;
-    }
-    for (; left != end; left++, right++, words += WORDS_PER_FRAME) {
-        words[0] = (uint32_t)unity_16(*left) << shift;
-        words[1] = (uint32_t)unity_16(*right) << shift;
-    }
-}
-
-static void convert_24(const PcmSpan *span)
-{
-    uint32_t *words = span->words;
-    const int32_t *left = span->left;
-    const int32_t *right = span->right;
-    const int32_t *end = left + span->frames;
-    int shift = span->shift;
-    if (left == right) {
-        for (; left != end; left++, words += WORDS_PER_FRAME) {
-            uint32_t word = (uint32_t)saturate(*left) << shift;
-            words[0] = word;
-            words[1] = word;
-        }
-        return;
-    }
-    for (; left != end; left++, right++, words += WORDS_PER_FRAME) {
-        words[0] = (uint32_t)saturate(*left) << shift;
-        words[1] = (uint32_t)saturate(*right) << shift;
-    }
-}
-
-static void convert_scaled(const PcmSpan *span, int bits, const AudioEngine *engine)
-{
-    uint32_t *words = span->words;
-    bool mono = span->left == span->right && engine->left_gain == engine->right_gain;
-    for (uint32_t index = 0; index < span->frames; index++, words += WORDS_PER_FRAME) {
-        words[0] =
-            (uint32_t)headphone_audio_sample(span->left[index], (uint8_t)bits, engine->left_gain)
-            << span->shift;
-        words[1] = mono ? words[0]
-                        : (uint32_t)headphone_audio_sample(span->right[index], (uint8_t)bits,
-                                                           engine->right_gain)
-                              << span->shift;
-    }
-}
-
-static void convert_pending(const AudioEngine *engine, uint32_t *words, uint32_t frames, int shift)
-{
-    uint32_t at = engine->pending_offset;
-    PcmSpan span = {words, engine->frame.left + at, engine->frame.right + at, frames, shift};
-    int bits = engine->frame.bits;
-    if (engine->left_gain != UNITY_GAIN || engine->right_gain != UNITY_GAIN ||
-        (bits != SIXTEEN_BITS && bits != OUTPUT_BITS)) {
-        convert_scaled(&span, bits, engine);
-    } else if (bits == SIXTEEN_BITS) {
-        convert_16(&span);
-    } else {
-        convert_24(&span);
-    }
 }
 
 static uint32_t ring_frames(const AudioEngine *engine)
@@ -468,54 +363,9 @@ static bool same_text(const char *left, const char *right)
     return left[index] == right[index];
 }
 
-static bool fading_out(AudioEngine *engine)
-{
-    if (engine->fade_out.begun) {
-        return true;
-    }
-    bool wanted = engine->has_next && engine->next_fade_ms != 0 && engine->segment_count > 0 &&
-                  !same_text(engine->segments[engine->segment_count - 1].path, engine->next_path);
-    engine->fade_out =
-        wanted ? fade_ramp(engine, engine->next_fade_ms, 0) : (AudioFadeRamp){.active = false};
-    return engine->fade_out.active;
-}
-
-static bool remaining_output(const AudioEngine *engine, int64_t *remaining)
-{
-    uint32_t end = engine->decode_limit != 0 ? engine->decode_limit
-                                             : engine->decode_track.stream.total_samples;
-    if (end == 0) {
-        return false;
-    }
-    int64_t input = (int64_t)end - engine->frame.first_sample - engine->pending_offset;
-    uint32_t factor = engine->resample.factor > 1 ? engine->resample.factor : 1;
-    *remaining = input * factor + audio_resample_pending(&engine->resample);
-    return true;
-}
-
-static void shape_block(AudioEngine *engine, uint32_t first, bool tail)
-{
-    uint32_t frames = engine->produced - first;
-    if (frames == 0) {
-        return;
-    }
-    AudioFadeBlock block = {.ring = engine->config.ring,
-                            .ring_frames = ring_frames(engine),
-                            .first = first,
-                            .frames = frames};
-    if (engine->fade_in.active) {
-        audio_fade_in(block, &engine->fade_in);
-    }
-    int64_t remaining = audio_resample_pending(&engine->resample);
-    if (tail ? engine->fade_out.active
-             : fading_out(engine) && remaining_output(engine, &remaining)) {
-        audio_fade_out(block, &engine->fade_out, remaining);
-    }
-}
-
 static void process_block(AudioEngine *engine, uint32_t first, bool tail)
 {
-    shape_block(engine, first, tail);
+    audio_shape_block(engine, first, tail);
     equalize(engine, first);
 }
 
@@ -541,7 +391,7 @@ static void interpolate_pending(AudioEngine *engine)
             return;
         }
         int32_t stage[WORDS_PER_FRAME * STAGE_FRAMES];
-        convert_pending(engine, (uint32_t *)stage, frames, 0);
+        audio_convert_pending(engine, (uint32_t *)stage, frames, 0);
         consume_input(engine, audio_resample_push(&engine->resample, stage, frames));
         render_resampled(engine);
     }
@@ -558,7 +408,7 @@ static void copy_until_limit(AudioEngine *engine)
     uint32_t *words = NULL;
     uint32_t frames = 0;
     while ((frames = smaller(input_available(engine), ring_span(engine, &words))) > 0) {
-        convert_pending(engine, words, frames, WORD_SHIFT);
+        audio_convert_pending(engine, words, frames, WORD_SHIFT);
         engine->produced += frames;
         consume_input(engine, frames);
     }
@@ -625,6 +475,17 @@ static void end_output(AudioEngine *engine)
 static bool open_following(AudioEngine *engine)
 {
     close_file(engine);
+    if (engine->repeat_state == 2) {
+        AudioSegment *playing = &engine->segments[0];
+        uint32_t ms = (uint32_t)((uint64_t)engine->repeat_a * 1000 / engine->decode_rate);
+        if (!open_track(engine, playing->path, ms, playing->end_ms)) {
+            engine->failed = true;
+            return false;
+        }
+        engine->skip_frames = engine->repeat_a;
+        engine->decode_limit = engine->repeat_b;
+        return true;
+    }
     if (!engine->has_next) {
         return false;
     }
@@ -723,7 +584,9 @@ static void decode_one(AudioEngine *engine)
     }
     engine->frame = frame;
     engine->holding_frame = true;
-    engine->skip_frames = 0;
+    if (skip < frame.samples) {
+        engine->skip_frames = 0;
+    }
     engine->pending_offset = skip;
     engine->pending_frames = frame.samples - skip;
     engine->stats.frames++;
@@ -755,6 +618,9 @@ void audio_engine_observe(AudioEngine *engine, uint32_t consumed)
         engine->produced = engine->consumed;
     }
     drop_finished_segments(engine);
+    if (engine->segment_count > 0 && engine->segments[0].token != engine->repeat_token) {
+        engine->repeat_state = 0;
+    }
     if (engine->ended && (int32_t)(engine->consumed - engine->end_at) >= 0) {
         engine->state = AUDIO_ENGINE_STOPPED;
     }
@@ -826,13 +692,23 @@ AudioEngineStatus audio_engine_status(const AudioEngine *engine)
     }
     const AudioSegment *segment = &engine->segments[0];
     uint32_t played = engine->consumed - segment->start;
+    uint32_t rate = segment->track.stream.sample_rate;
+    uint32_t sample =
+        segment->base_sample +
+        (segment->rate == 0 ? 0 : (uint32_t)((uint64_t)played * rate / segment->rate));
+    if (engine->repeat_state == 2 && sample >= engine->repeat_a) {
+        sample =
+            engine->repeat_a + (sample - engine->repeat_a) % (engine->repeat_b - engine->repeat_a);
+    }
     uint32_t position =
-        segment->rate == 0 ? segment->base_ms
-                           : segment->base_ms + (uint32_t)((uint64_t)played *
-                                                           MILLISECONDS_PER_SECOND / segment->rate);
+        engine->repeat_state == 2
+            ? (rate == 0 ? 0 : (uint32_t)((uint64_t)sample * 1000 / rate))
+            : segment->base_ms +
+                  (segment->rate == 0 ? 0 : (uint32_t)((uint64_t)played * 1000 / segment->rate));
     return (AudioEngineStatus){.state = engine->state,
                                .token = segment->token,
                                .position_ms = position,
+                               .position_samples = sample,
                                .failed = engine->failed,
                                .track = segment->track};
 }

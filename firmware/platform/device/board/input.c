@@ -133,7 +133,7 @@ void board_battery_restart(void)
     irq_restore(primask);
 }
 
-BatteryGauge board_battery_gauge(void)
+CORE_SEAM BatteryGauge board_battery_gauge(void)
 {
     uint32_t primask = irq_save();
     BatteryGauge copy = gauge;

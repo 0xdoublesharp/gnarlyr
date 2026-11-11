@@ -935,6 +935,26 @@ static void update_power(uint32_t now_ms)
         return;
     }
     keep_awake_while_busy(now_ms);
+    uint32_t remaining = UINT32_MAX;
+    if (app.power.sleep_timer_active) {
+        if (app.power.sleep_track_end) {
+            PlayerStatus status = player_status(&app.player);
+            if (status.state == PLAYER_IDLE) {
+                power_policy_start_sleep_timer(&app.power, 0, now_ms);
+            } else if (status.state == PLAYER_PLAYING && status.duration_ms != 0) {
+                remaining = status.position_ms < status.duration_ms
+                                ? status.duration_ms - status.position_ms
+                                : 0;
+            }
+        } else {
+            remaining = deadline_reached(now_ms, app.power.sleep_deadline_ms)
+                            ? 0
+                            : app.power.sleep_deadline_ms - now_ms;
+        }
+    }
+    if (!app.saying_goodbye) {
+        hal_audio_set_sleep_remaining(remaining);
+    }
     bool sleep_timer = app.power.sleep_timer_active;
     if (power_policy_update(&app.power, now_ms)) {
         bool slept = sleep_timer && !app.power.sleep_timer_active;
@@ -1845,11 +1865,13 @@ static uint32_t view_stamp(void)
     stamp = stamp_add(stamp, status.volume);
     stamp = stamp_add(stamp, (uint32_t)status.shuffle);
     stamp = stamp_add(stamp, (uint32_t)status.repeat);
+    stamp = stamp_add(stamp, status.ab_repeat);
     stamp = stamp_add(stamp, status.place.number);
     stamp = stamp_add(stamp, status.place.total);
     stamp = stamp_add(stamp, battery.known);
     stamp = stamp_add(stamp, battery.percent);
     stamp = stamp_add(stamp, battery.charging);
+    stamp = stamp_add(stamp, battery.charge_disabled);
     stamp = stamp_add(stamp, battery.usb_power);
     stamp = stamp_add(stamp, (uint32_t)bluetooth_of(&app.bluetooth));
     stamp = stamp_add(stamp, app.lock.locked);

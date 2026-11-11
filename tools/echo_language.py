@@ -52,6 +52,7 @@ class Snapshot:
             raise api.DebugError(code, "language operations require an exact clean installed firmware build")
         self.format = pack_tools(api.ROOT)
         self.flags_reserved = 0xF8
+        self.battery_care_supported = False
         try:
             self.commit = git(api.ROOT, "rev-parse", "--verify", build + "^{commit}").strip()
             self.build = build
@@ -80,6 +81,11 @@ class Snapshot:
                 raise ValueError("the installed clock offset layout is unsupported")
             if self.settings_version >= 15:
                 self.check_home_layout()
+                if "BATTERY_CARE_BYTE" in source:
+                    if tuple(constant(source, key) for key in
+                             ("BATTERY_CARE_BYTE", "BATTERY_CARE_SHIFT", "BATTERY_CARE_MASK")) != (14, 3, 24):
+                        raise ValueError("the installed battery care layout is unsupported")
+                    self.battery_care_supported = True
         except (ValueError, KeyError, OSError, self.format.PackError) as error:
             raise api.DebugError("language_build_unknown", str(error)) from error
 
@@ -91,10 +97,13 @@ class Snapshot:
         masks = [mask for mask in FLAG_MASKS
                  if f"(flags&0x{mask:02X}u)==0&&(flags&3u)<REPLAY_GAIN_MODE_COUNT" in compact]
         if (constant(source, "REPLAY_GAIN_VERSION") != 14 or
-                names != ["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
-                          "REPLAY_GAIN_MODE_COUNT"] or len(masks) != 1):
+                names not in (["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
+                               "REPLAY_GAIN_MODE_COUNT"],
+                              ["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
+                               "REPLAY_GAIN_AUTO", "REPLAY_GAIN_MODE_COUNT"]) or len(masks) != 1):
             raise ValueError("the installed ReplayGain settings layout is unsupported")
         self.reserved_flags = masks[0]
+        self.replay_gain_modes = len(names) - 1
 
     def check_home_layout(self):
         header = self.show("firmware/src/settings/include/settings/settings.h")
@@ -117,7 +126,7 @@ class Snapshot:
         if version < 14:
             return flags == 0
         answer_open = self.reserved_flags & USB_ANSWER_BITS == 0
-        return (flags & self.reserved_flags == 0 and flags & 3 < 3 and
+        return (flags & self.reserved_flags == 0 and flags & 3 < self.replay_gain_modes and
                 (not answer_open or flags >> 4 & 3 < 3))
 
     def settings_checksum_field(self, version):
@@ -133,9 +142,11 @@ class Snapshot:
             return True
         block = data[38:54]
         offset = int.from_bytes(block[11:13], "little", signed=True) if self.clock_offset_byte else 0
-        reserved = 13 if self.clock_offset_byte else 11
+        first = 13 if self.clock_offset_byte else 11
+        reserved = block[first:14] + block[15:] if self.battery_care_supported else block[first:]
+        care_valid = not self.battery_care_supported or block[14] >> 3 & 3 < 3
         return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and block[3] == 0 and
-                -720 <= offset <= 840 and self.home_valid(block) and not any(block[reserved:]))
+                -720 <= offset <= 840 and self.home_valid(block) and not any(reserved) and care_valid)
 
     def show(self, path):
         return git(self.api.ROOT, "show", self.commit + ":" + path)

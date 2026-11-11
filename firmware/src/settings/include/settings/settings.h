@@ -140,7 +140,9 @@ enum {
     SETTINGS_VOLUME_MAX = 60,
     SETTINGS_DEFAULT_DAC_VOLUME = 35,
     SCREEN_TIMEOUT_OPTION_COUNT = 7,
-    SLEEP_TIMER_OPTION_COUNT = 7,
+    SLEEP_END_TRACK = 7,
+    SLEEP_END_CHAPTER = 8,
+    SLEEP_TIMER_OPTION_COUNT = 9,
     AUTO_OFF_OPTION_COUNT = 4,
     SETTINGS_DEFAULT_SAFE_START_VOLUME = 24,
     SETTINGS_TRANSITION_TENTHS_MIN = 5,
@@ -183,6 +185,8 @@ typedef struct Settings {
     uint8_t replay_gain_mode;
     bool prevent_clipping;
     bool battery_percent;
+    uint8_t battery_care;
+    uint8_t shared_e14;
     bool rewind_on_resume;
     bool safe_start_volume;
     uint8_t safe_start_volume_level;

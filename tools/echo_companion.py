@@ -33,6 +33,13 @@ SPECS = (
     ("prevent_clipping", "STR_PREVENT_CLIPPING", "CLIPPING_OPTIONS", ("off", "on"),
      ("STR_OFF", "STR_ON"), 5, 4, 2, 0),
 )
+AUTO_GAIN_SPEC = ("replay_gain", "STR_REPLAY_GAIN", "REPLAY_GAIN_OPTIONS",
+                  ("off", "track", "album", "auto"),
+                  ("STR_OFF", "STR_REPLAY_GAIN_TRACK", "STR_REPLAY_GAIN_ALBUM", "STR_REPLAY_GAIN_AUTO"),
+                  5, 3, 0, 0)
+BATTERY_CARE_SPEC = ("battery_care", "STR_BATTERY_CARE", "BATTERY_CARE_OPTIONS",
+                     ("charge_to_full", "run_from_usb"), ("STR_CHARGE_FULL", "STR_RUN_USB"),
+                     52, 24, 4, 0)
 CLOCK_SPEC = ("clock_24h", "STR_CLOCK_FORMAT", "CLOCK_FORMAT_OPTIONS", ("12h", "24h"),
               ("STR_CLOCK_12H", "STR_CLOCK_24H"), 38, 4, 2, 0)
 
@@ -64,10 +71,14 @@ class Layout:
             if members != expected:
                 raise ValueError("the installed display setting encoding has changed")
         self.specs = SPECS[:4] if snapshot.settings_version == 13 else SPECS
+        if snapshot.settings_version >= 14 and snapshot.replay_gain_modes == 4:
+            self.specs = tuple(AUTO_GAIN_SPEC if spec[0] == "replay_gain" else spec for spec in self.specs)
         if snapshot.settings_version >= 15 and "STR_CLOCK_FORMAT" in self.title_ids():
             if echo_language.constant(source, "CLOCK_24H_BIT") != 4:
                 raise ValueError("the installed clock setting encoding has changed")
             self.specs += (CLOCK_SPEC,)
+        if snapshot.battery_care_supported:
+            self.specs += (BATTERY_CARE_SPEC,)
         self.title_ids()
         for spec in self.specs:
             options = spec[2]

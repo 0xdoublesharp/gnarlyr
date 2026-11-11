@@ -174,3 +174,14 @@ ChargeState charge_tracker_update(ChargeTracker *tracker, ChargeReading reading)
     tracker->full = true;
     return CHARGE_FULL;
 }
+
+bool battery_care_charge(bool charging, BatteryCareReading reading)
+{
+    if (!reading.usb_power) {
+        return false;
+    }
+    if (reading.mode != 2 || !reading.known || reading.millivolts < 3600) {
+        return true;
+    }
+    return reading.millivolts >= 3800 ? false : charging;
+}

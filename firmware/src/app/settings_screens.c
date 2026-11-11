@@ -9,6 +9,7 @@
 #include "default_theme.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
+#include "hal/power.h"
 #include "hal/system.h"
 
 enum {
@@ -27,13 +28,14 @@ static const StringId SHUFFLE_OPTIONS[SHUFFLE_MODE_COUNT] = {STR_OFF, STR_SHUFFL
 static const StringId REPEAT_OPTIONS[REPEAT_MODE_COUNT] = {STR_OFF, STR_REPEAT_MODE_ONE,
                                                            STR_REPEAT_MODE_ALL};
 static const StringId SLEEP_OPTIONS[SLEEP_TIMER_OPTION_COUNT] = {
-    STR_OFF,        STR_MINUTES_15, STR_MINUTES_30, STR_MINUTES_45,
-    STR_MINUTES_60, STR_MINUTES_90, STR_MINUTES_120};
+    STR_OFF,        STR_MINUTES_15,  STR_MINUTES_30,      STR_MINUTES_45,       STR_MINUTES_60,
+    STR_MINUTES_90, STR_MINUTES_120, STR_SLEEP_END_TRACK, STR_SLEEP_END_CHAPTER};
 static const StringId AUTO_OFF_OPTIONS[AUTO_OFF_OPTION_COUNT] = {STR_OFF, STR_MINUTES_1,
                                                                  STR_MINUTES_5, STR_MINUTES_10};
 static const StringId TIMEOUT_OPTIONS[SCREEN_TIMEOUT_OPTION_COUNT] = {
     STR_SECONDS_10, STR_SECONDS_20, STR_SECONDS_30, STR_MINUTES_1,
     STR_MINUTES_2,  STR_MINUTES_5,  STR_NEVER};
+static const StringId BATTERY_CARE_OPTIONS[] = {STR_CHARGE_FULL, STR_RUN_USB};
 static const StringId CLOCK_FORMAT_OPTIONS[] = {STR_CLOCK_12H, STR_CLOCK_24H};
 static const char *const BRIGHTNESS_OPTIONS[BRIGHTNESS_LEVEL_COUNT] = {"1", "2", "3", "4", "5",
                                                                        "6", "7", "8", "9", "10"};
@@ -65,8 +67,8 @@ static const StringId USB_ANSWER_OPTIONS[USB_CONNECT_COUNT] = {STR_ASK, STR_FILE
 static const StringId USB_MODE_MESSAGES[USB_MODE_COUNT] = {STR_USB_SHOWS_DRIVES,
                                                            STR_USB_PLAYS_SOUND};
 
-static const StringId REPLAY_GAIN_OPTIONS[REPLAY_GAIN_MODE_COUNT] = {STR_OFF, STR_REPLAY_GAIN_TRACK,
-                                                                     STR_REPLAY_GAIN_ALBUM};
+static const StringId REPLAY_GAIN_OPTIONS[REPLAY_GAIN_MODE_COUNT] = {
+    STR_OFF, STR_REPLAY_GAIN_TRACK, STR_REPLAY_GAIN_ALBUM, STR_REPLAY_GAIN_AUTO};
 static const StringId OFF_ON_OPTIONS[] = {STR_OFF, STR_ON};
 
 static const Settings *settings_of(const void *context)
@@ -121,10 +123,24 @@ static void choose_repeat(void *context, int index)
     save(settings);
 }
 
+static int current_battery_care(const void *context)
+{
+    return settings_of(context)->battery_care == 2 ? 1 : 0;
+}
+
+static void choose_battery_care(void *context, int index)
+{
+    SettingsContext *settings = context;
+    uint8_t mode = index == 1 ? 2 : 0;
+    settings->store->settings.battery_care = mode;
+    hal_power_set_battery_care(mode);
+    save(settings);
+}
+
 static int current_sleep(const void *context)
 {
     const SettingsContext *settings = context;
-    return settings->power->sleep_timer_active ? settings->sleep_option : 0;
+    return settings->power->sleep_timer_active ? settings->power->sleep_option : 0;
 }
 
 static void choose_sleep(void *context, int index)
@@ -132,17 +148,20 @@ static void choose_sleep(void *context, int index)
     SettingsContext *settings = context;
     uint32_t now_ms = hal_clock_milliseconds();
     uint32_t minutes = settings_sleep_option_minutes(index);
-    settings->sleep_option = index;
-    if (minutes == 0) {
+    settings->power->sleep_option = (uint8_t)index;
+    if (index == 0) {
         power_policy_cancel_sleep_timer(settings->power);
     } else {
         power_policy_start_sleep_timer(settings->power, minutes * MILLISECONDS_PER_MINUTE, now_ms);
     }
+    settings->power->sleep_track_end = index >= SLEEP_END_TRACK;
+    player_set_stop_after_track(settings->player, index >= SLEEP_END_TRACK);
     StringBuilder message = string_builder_make(settings->message, sizeof settings->message);
-    if (minutes == 0) {
+    if (index == 0) {
         string_builder_append(&message, i18n_text(STR_SLEEP_OFF));
     } else {
-        i18n_format_text(&message, STR_SLEEP_IN, i18n_text(SLEEP_OPTIONS[index]));
+        i18n_format_text(&message, index >= SLEEP_END_TRACK ? STR_SLEEP_AT : STR_SLEEP_IN,
+                         i18n_text(SLEEP_OPTIONS[index]));
     }
     toast_show(settings->toast, settings->message, now_ms);
 }
@@ -707,6 +726,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      current_transition_length, choose_transition_length, NULL, NULL},
     {STR_USB_ANSWER, USB_ANSWER_OPTIONS, USB_CONNECT_COUNT, current_usb_answer, choose_usb_answer,
      NULL, NULL},
+    {STR_BATTERY_CARE, BATTERY_CARE_OPTIONS, 2, current_battery_care, choose_battery_care, NULL,
+     NULL},
 };
 
 static Screen *choice_view(SettingsScreens *screens, const SettingChoice *choice,

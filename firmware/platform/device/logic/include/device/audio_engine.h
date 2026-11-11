@@ -93,6 +93,7 @@ typedef struct AudioSegment {
     uint32_t token;
     uint32_t start;
     uint32_t base_ms;
+    uint32_t base_sample;
     uint32_t end_ms;
     uint32_t rate;
     uint32_t replay_gain;
@@ -104,6 +105,7 @@ typedef struct AudioEngineStatus {
     AudioEngineState state;
     uint32_t token;
     uint32_t position_ms;
+    uint32_t position_samples;
     bool failed;
     AudioTrackInfo track;
 } AudioEngineStatus;
@@ -146,6 +148,13 @@ typedef struct AudioEngine {
     uint32_t next_gain;
     uint32_t next_fade_ms;
     uint32_t decode_fade_ms;
+    uint32_t repeat_a;
+    uint32_t repeat_b;
+    uint32_t repeat_token;
+    uint8_t repeat_state;
+    uint32_t sleep_end_at;
+    uint32_t sleep_fade_ms;
+    bool sleep_fading;
     AudioFadeRamp fade_in;
     AudioFadeRamp fade_out;
     uint32_t output_gain;
@@ -183,3 +192,11 @@ AudioEngineStatus audio_engine_status(const AudioEngine *engine);
 AudioRefusal audio_engine_refusal(const AudioEngine *engine);
 
 void audio_engine_set_replay_gain(AudioEngine *engine, uint32_t token, uint32_t gain);
+
+void audio_engine_set_sleep_remaining(AudioEngine *engine, uint32_t remaining_ms);
+
+uint8_t audio_engine_repeat_mark(AudioEngine *engine, bool clear);
+
+void audio_shape_block(AudioEngine *engine, uint32_t first, bool tail);
+
+void audio_convert_pending(const AudioEngine *engine, uint32_t *words, uint32_t frames, int shift);

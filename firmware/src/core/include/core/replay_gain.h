@@ -6,6 +6,7 @@ typedef enum ReplayGainMode {
     REPLAY_GAIN_OFF,
     REPLAY_GAIN_TRACK,
     REPLAY_GAIN_ALBUM,
+    REPLAY_GAIN_AUTO,
     REPLAY_GAIN_MODE_COUNT
 } ReplayGainMode;
 

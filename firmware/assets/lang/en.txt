@@ -79,7 +79,7 @@ STR_REPEAT_ALL = Repeat All
 STR_BIT_DEPTH = {0}-bit
 STR_PLACE = {0} of {1}
 STR_VOLUME = Volume
-STR_SEEKING = Seeking · Play to jump
+STR_SEEKING = Menu: A-B, Play: seek
 STR_RATE_UNSUPPORTED = {0} isn't supported
 STR_TYPE_UNSUPPORTED = File type not supported
 STR_M4A_UNSUPPORTED = Only AAC-LC and ALAC M4A play
@@ -717,3 +717,18 @@ STR_SET_CLOCK_NOT_SET = Not set
 STR_SET_CLOCK_HINT = Vol: change · Menu: next · Play: save · Back: cancel
 STR_SET_CLOCK_SAVED = Time saved
 STR_SET_CLOCK_FAILED = Couldn't set clock
+
+STR_SLEEP_END_TRACK = End of track
+STR_SLEEP_END_CHAPTER = End of chapter/episode
+STR_SLEEP_AT = Turning off: {0}
+
+STR_REPLAY_GAIN_AUTO = Auto
+
+STR_AB_OFF = A-B off
+STR_AB_A = A set, B next
+STR_AB_LOOP = A-B repeat
+
+STR_BATTERY_CARE = Battery care
+STR_CHARGE_FULL = Charge to full
+STR_RUN_USB = Run from USB
+STR_CHARGE_DISABLED = Charging off

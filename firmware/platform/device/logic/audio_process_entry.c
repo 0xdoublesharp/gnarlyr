@@ -13,4 +13,9 @@ const AudioProcessEntry AUDIO_PROCESS_MODULE_ENTRY = {
 #if defined(ECHO_DEBUG_LOOP) && defined(ECHO_DEVICE_MODULE)
     .debug = &DEBUG_CODE_ENTRY,
 #endif
+    .set_equalizer = audio_engine_set_equalizer,
+    .convert = audio_convert_pending,
+    .shape = audio_shape_block,
+    .sleep = audio_engine_set_sleep_remaining,
+    .repeat_mark = audio_engine_repeat_mark,
 };

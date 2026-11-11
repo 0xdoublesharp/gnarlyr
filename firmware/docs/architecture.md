@@ -92,7 +92,7 @@ The CMake targets enforce these rules. Each module exposes only its own `include
   | 38–53 | extension block, below | 15 |
   | 54–57 | FNV-1a checksum of bytes 0–53 | 15 |
 
-  Version 15 inserts a 16-byte extension block before the checksum and grows the file from 42 to 58 bytes. `settings_store` tries 58 bytes, then 42, then 32. Files of versions 1–14 load with the extension defaults, and the next save writes version 15. A version 15 file with any invalid extension value is rejected like any other invalid field. In byte 5, bit 3 is reserved for the battery percent and bits 4–5 for the USB connect mode; version 15 still requires bits 3–7 to be zero. The block's offsets count from byte 38:
+  Version 15 inserts a 16-byte extension block before the checksum and grows the file from 42 to 58 bytes. `settings_store` tries 58 bytes, then 42, then 32. Files of versions 1–14 load with the extension defaults, and the next save writes version 15. A version 15 file with any invalid extension value is rejected like any other invalid field. In byte 5, bit 3 stores battery percent and bits 4–5 store the USB connect mode; bits 6–7 remain zero. ReplayGain uses bits 0–1, including value 3 for Auto. The block's offsets count from byte 38:
 
   | Byte | Field | Default | Valid |
   |---|---|---|---|
@@ -103,7 +103,8 @@ The CMake targets enforce these rules. Each module exposes only its own `include
   | E4–E8 | `home_order`: up to ten 4-bit Home item indices in display order, low nibble first | 0 to 9, the built-in order | see the Home order rule below |
   | E9–E10 | `home_hidden`: little-endian mask, bit n hides Home item n | 0 | only bits of stored items; bit 3 (Settings) zero |
   | E11–E12 | `clock_offset_minutes`, signed little-endian UTC offset | 0 | −720 to +840 |
-  | E13–E15 | reserved | 0 | 0 |
+  | E13, E15 | reserved | 0 | 0 |
+  | E14 | bits 3–4 battery care: 0 charge to full, 1 reserved 80% mode (currently charge to full), 2 run from USB | 0 | below 3; all other bits preserved |
 
   The Home item indices are those of `APP_HOME_ITEMS` (`app/app_screens.c`): 0 Music, 1 Audiobooks, 2 Podcasts, 3 Settings (`SETTINGS_HOME_SETTINGS_ITEM`), 4 Now playing, 5 Up next, 6 Mixtapes, 7 Listening, 8 USB mode, 9 Clock. Settings can never be hidden, so Home always keeps an item. `rewind_on_resume` drives Rewind on resume (see Playback) and `safe_start_volume` with its level drives Safe start volume (see Settings and favorites); `track_transition` and `transition_tenths` drive Transitions (see Playback); `clock_24h` drives Clock format through `wall_time_24h` for Clock and status-bar time (see Wall clock).
 
@@ -739,3 +740,29 @@ In headless mode the simulator uses a virtual clock (16 ms per frame), so runs a
 ```sh
 build/dev/platform/sim/echo_sim --headless --frames 120 --keys down,down,down,play --screenshot shot.bmp
 ```
+
+## Sleep endings
+
+The existing Sleep timer picker adds two runtime end choices without persistent bytes. Both stop after the current library track, including a CUE range, M4B chapter or podcast episode. `player_set_stop_after_track` removes the queued successor, including Repeat One and Up Next; cancellation requeues it. The app fires the sleep policy after the player becomes idle. Manual skips move the ending to the newly selected track. Timed sleep counts wall uptime through pauses; end sleep waits while paused.
+
+The app passes the remaining time through `hal_audio_set_sleep_remaining`; UINT32_MAX cancels. The engine predicts the deadline on the output clock and applies a separate smoothstep ramp of up to 60 seconds in `shape_block`, after the transition ramps and before EQ, through the existing processing module. Neither ReplayGain nor the saved volume changes. The simulator applies the same curve to its PCM gain. Buffered audio retains its existing shape when a timer is cancelled.
+
+## Automatic ReplayGain
+
+ReplayGain Auto is value 3 of byte 5 bits 0–1, with no new settings byte. The player resolves it separately for each current and prepared token: song shuffle uses track gain; otherwise a consecutive album-order neighbour uses album gain (the next numbered song, first song of the next disc, or an unnumbered album). The first song uses lookahead, and the last uses its predecessor. Up Next uses the actual preceding track. Live shuffle and gain changes refresh token gains without reopening buffered sources. Missing metadata keeps the existing gain fallback and clipping protection. The companion recognises both the original three-mode layout and the declared Auto layout, and offers Auto only on a build that declares it.
+
+## Sample-bounded A–B repeat
+
+While the Now Playing seek cursor is open, Menu cycles A, B and clear at the audible source-sample position. `Player.ab_repeat` holds the display state; the engine owns the source-sample A/B limits and token. B cuts the decoded range at its exclusive sample boundary, reopens at A, and discards decoded samples before the exact A offset, including complete skipped decoder frames. A single segment maps consumed output frames modulo the loop length; repeated loops do not exhaust the segment ring. Existing chapter millisecond bases remain separate from sample bases so fractional-sample chapter boundaries keep their established UI time. Conversion retains the interpolation history across loop joins.
+
+Activation and clearing rebuild buffered audio once; subsequent loops use the existing source-handoff path. Next-track preparation is suppressed while looping. A track token change clears pending A; manual playback clears both marks. Pauses with marks retain the output so standby does not discard them. USB handoff clears marks. End sleep clears marks before suppressing the queue. Exact PCM tests cover FLAC marks between millisecond ticks, across a FLAC block and inside a CUE-style range; MP3 retains its source’s approximate seek contract.
+
+The processing module now owns PCM span conversion, transition/sleep shaping, live EQ retuning and mark changes through `AudioProcessEntry`; the resident engine retains source lifecycle and loop boundary enforcement. The module has no BSS, the fixed engine and player state stay with their owners, and the source-open path requires the checked module before PCM processing. A missing module refuses playback as before. No extension-module code or settings bytes are added.
+
+## USB power without charging
+
+Battery care owns only E14 bits 3–4 in settings v15. `shared_e14` preserves all other E14 bits through saves; no other extension allocation changes. Value 1 is reserved for an 80% limiter and safely charges to full in this build; the picker exposes only values 0 and 2. The companion uses the same masked field and preserves the shared bits. Controls remains the final Settings row.
+
+`board_power_usb_supply_follow` remains the sole owner of GPIO2.0 and GPIO0.14. Its two-bit cached output separates USB supply (GPIO2.0 high whenever cable power is requested) from charging (GPIO0.14 high). Stock's UAC Computer mode at module 9 `0x030815a2`–`0x030816f2` uses that high/low combination for “Power only, no charging”; Normal keeps both high. Pin order comes from `board_power_pair`, and power-off drives both low. No extension code is added.
+
+`battery_care_charge` keeps charging enabled for unknown readings and below 3,600 mV; once enabled it stays on until 3,800 mV. The board requires eight readings before allowing charging off, starts each plug-in with charging enabled, and checks the policy from both the main USB follower and battery reads in USB and charge-screen loops. Charger-tracker state resets when output bits change; disabled charging cannot be reported as active or charged. The charge screen explicitly says Charging off. USB supply remains enabled throughout this override. The ADC reads the supply rail, so percentage limiting is not implemented and physical charger/load checks remain required.

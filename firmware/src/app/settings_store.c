@@ -2,6 +2,7 @@
 
 #include "hal/audio.h"
 #include "hal/display.h"
+#include "hal/power.h"
 #include "hal/storage.h"
 #include "hal/system.h"
 
@@ -162,6 +163,7 @@ void settings_store_apply_equalizer(const Settings *settings)
 
 void settings_store_apply_hardware(const Settings *settings)
 {
+    hal_power_set_battery_care(settings->battery_care);
     hal_display_set_brightness(settings->brightness);
     hal_audio_set_gain(HAL_GAINS[settings->gain]);
     hal_audio_set_output(HAL_OUTPUTS[settings->output]);

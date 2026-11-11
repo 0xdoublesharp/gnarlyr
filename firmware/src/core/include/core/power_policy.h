@@ -8,6 +8,8 @@
 typedef struct PowerPolicy {
     bool display_on;
     bool sleep_timer_active;
+    bool sleep_track_end;
+    uint8_t sleep_option;
     uint32_t last_activity_ms;
     uint32_t timeout_ms;
     uint32_t sleep_deadline_ms;

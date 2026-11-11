@@ -106,7 +106,7 @@ After a disconnect from the player, the computer sees the drives disappear rathe
 
 ## When you plug in
 
-The player charges whenever a cable is in. Plugged into a computer, it doesn't connect by itself: it shows **USB connected** with **Charge only**, **File transfer** and **USB DAC**, and nothing appears on the computer until you choose. Charge only is highlighted, and its row counts down from 15 seconds; pressing any button starts the count again. Back, the end of the count, or the screen going dark all mean Charge only: music and menus carry on, and the player stays charging. The player asks once per plug-in; unplug and plug in again to be asked again, or open **USB mode** from Home to connect later without unplugging. A wall charger never brings up the question.
+The player normally charges whenever a cable is in; Battery care can keep USB power on while charging is off. Plugged into a computer, it doesn't connect by itself: it shows **USB connected** with **Charge only**, **File transfer** and **USB DAC**, and nothing appears on the computer until you choose. Charge only is highlighted, and its row counts down from 15 seconds; pressing any button starts the count again. Back, the end of the count, or the screen going dark all mean Charge only: music and menus carry on, and the player stays charging. The player asks once per plug-in; unplug and plug in again to be asked again, or open **USB mode** from Home to connect later without unplugging. A wall charger never brings up the question.
 
 On the charge screen (the player switched off on a cable) a computer wakes the screen with the same question. Charge only, Back or the countdown return to the dark charge screen; File transfer and USB DAC connect, and the charge screen comes back when you're done.
 
@@ -196,7 +196,7 @@ In Cover Flow (Music → Cover Flow), the tile before the first album, with a sh
 
 ## Charging
 
-The player charges whenever it's plugged in, on or off. Turning it off while it's plugged in (or plugging a charger into a switched-off player) shows the charge screen: a large battery in your theme's colours with the percentage beneath or beside it. While the player charges, the empty part of the battery gently pulses. "Charging" means the charger is active; "Charged" means a known full battery. "USB power" means the cable supplies power while charging is inactive. Before a battery reading is available, the screen shows "Reading battery". The screen goes dark after 5 seconds; press any button to see it again. Hold Power for 2 seconds to turn the player on, or unplug it to switch it off completely. Press Menu to open the USB mode selector from the charge screen. Plugging into a computer wakes the screen and asks what the connection is for (see [When you plug in](#when-you-plug-in)).
+The player normally charges whenever it's plugged in, on or off. Turning it off while it's plugged in (or plugging a charger into a switched-off player) shows the charge screen: a large battery in your theme's colours with the percentage beneath or beside it. While the player charges, the empty part of the battery gently pulses. "Charging" means the charger is active; "Charged" means a known full battery. "USB power" means the cable supplies power while charging is inactive. Before a battery reading is available, the screen shows "Reading battery". The screen goes dark after 5 seconds; press any button to see it again. Hold Power for 2 seconds to turn the player on, or unplug it to switch it off completely. Press Menu to open the USB mode selector from the charge screen. Plugging into a computer wakes the screen and asks what the connection is for (see [When you plug in](#when-you-plug-in)).
 
 ## Button lock
 
@@ -283,7 +283,7 @@ The graph is a calculated 44.1 kHz filter response with a labeled decibel scale,
 
 ## ReplayGain
 
-Settings → ReplayGain offers Off, Track and Album. Track uses each song's prepared gain; Album uses the album gain to keep the level relationships within an album. If one kind of gain is missing, the player uses the other. Songs without gain tags keep their normal level. Opus files also use their R128 track or album gain tags, converted to the ReplayGain reference; standard ReplayGain gain tags take precedence when both are present. Off is the default.
+Settings → ReplayGain offers Off, Track, Album and Auto. Auto uses album gain for consecutive songs in album order, including album shuffle, and track gain for song shuffle or isolated songs. Track uses each song's prepared gain; Album uses the album gain to keep the level relationships within an album. If one kind of gain is missing, the player uses the other. Songs without gain tags keep their normal level. Opus files also use their R128 track or album gain tags, converted to the ReplayGain reference; standard ReplayGain gain tags take precedence when both are present. Off is the default.
 
 Leave Settings → Prevent clipping on to limit normalization using the file's peak tags. Without peak tags, it retains attenuation and limits boosts to unity. Turning it off allows the full tagged gain. Changes apply to newly buffered audio while the current and next songs keep playing.
 
@@ -426,3 +426,19 @@ Home → Listening shows total listening time, plays, skips, and top songs, albu
 Export plays saves your plays to `/.scrobbler.log` at the top of the player's drive, in the Rockbox scrobbler format that import tools read; your history stays as it is. It starts as soon as you choose it and shows how far it has got; Back cancels it. When it finishes it shows how many plays it saved. Each export replaces the previous file. With nothing to export it says so and leaves the file alone. Plays of songs no longer in the library are left out. Times are saved in UTC. A new play gets its time from the current clock, whether set in Settings or by your Mac (see Clock and calendar). Changing the clock leaves earlier plays and the start time of a play already in progress unchanged; a play made while the clock was not set is saved with the time 0.
 
 Place a timed `.lrc` file beside a song, with the same filename stem. Hold Menu on Now Playing to open Lyrics; tap Menu still opens Up Next. Lyrics follow playback, and the volume buttons move through the lines. Back returns to Now Playing.
+
+## Sleep timer
+
+Settings → Sleep timer turns the player off after 15–120 minutes, at End of track, or at End of chapter/episode. Chapter/episode uses the current audiobook chapter, podcast episode or CUE track; on ordinary music it ends at the current song. The final minute fades smoothly to silence. If an end timer is armed with less time remaining, its fade starts at the current level and uses that shorter interval. A paused end timer waits for playback to finish; a timed timer continues while paused. Off cancels the timer and restores the normal listening level. A new start leaves the timer off.
+
+## A–B repeat
+
+On Now Playing, hold Play to open seeking, then press Menu to mark A at the sound currently playing. Repeat those two presses later to mark B: the player repeats A through the sample before B. Do it a third time to clear the loop. “A set, B next”, “A-B repeat” and “A-B off” show the result. The seek cursor also shows the Menu hint. Moving the seek cursor does not move an A/B mark; marks use the playing position when Menu is released.
+
+Marks use source samples, including inside CUE tracks and audiobook chapters. A B mark must follow A. A pause keeps the loop and its output ready; seeking outside a loop returns to A. Changing tracks, handing audio to USB or restarting clears it. End-of-track/chapter sleep clears a loop so the track can finish. Timed sleep still fades and switches off during a loop. MP3 seeks retain the decoder’s existing approximate positioning.
+
+## Battery care
+
+Settings → Battery care offers **Charge to full** (the default) and **Run from USB**. Run from USB keeps the USB power path on and turns battery charging off while the battery reading is safe. Unknown readings or voltage below 3.6 V enable charging; it stays enabled until the reading reaches 3.8 V. The charge screen says **Charging off** while charging is disabled, and **Charging** when the low-battery override is active. Unplugging turns both USB supply controls off.
+
+There is no 80% limit: on USB power the ADC measures the supply rail rather than the cell alone, so that reading cannot reliably enforce a cell percentage. The percentage shown on USB power can therefore differ from the battery level. Run from USB needs a charger capable of powering the player; verify it with the intended charger before relying on it for long listening sessions.

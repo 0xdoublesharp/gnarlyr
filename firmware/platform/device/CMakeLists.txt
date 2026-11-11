@@ -489,6 +489,11 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             hal_system_rtc_set=audio_process_rtc_set
             hal_clock_set_wall=audio_process_clock_set_wall
             hal_clock_restore_wall=audio_process_clock_restore_wall
+            audio_engine_set_equalizer=audio_process_set_equalizer
+            audio_convert_pending=audio_process_convert_pending
+            audio_shape_block=audio_process_shape_block
+            audio_engine_set_sleep_remaining=audio_process_set_sleep_remaining
+            audio_engine_repeat_mark=audio_process_repeat_mark
         )
     endif()
     if(module STREQUAL "extension")

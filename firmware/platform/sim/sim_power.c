@@ -1,5 +1,6 @@
 #include "sim_power.h"
 
+#include "device/battery_gauge.h"
 #include "hal/power.h"
 
 typedef struct SimPower {
@@ -50,4 +51,16 @@ HalPowerHold hal_power_boot_hold(void)
 bool hal_power_take_usb_start(void)
 {
     return false;
+}
+
+void hal_power_set_battery_care(uint8_t mode)
+{
+    HalBattery *battery = &power.battery;
+    bool charging =
+        battery_care_charge(true, (BatteryCareReading){.mode = mode,
+                                                       .usb_power = battery->usb_power,
+                                                       .known = battery->known,
+                                                       .millivolts = battery->millivolts});
+    battery->charging = charging;
+    battery->charge_disabled = battery->usb_power && !charging;
 }

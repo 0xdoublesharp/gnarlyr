@@ -23,6 +23,7 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 ## Interface and sound controls
 
 - Settings → Date & time edits the local date, hour, minute and UTC offset, writes the clock chip through the extension module and updates the running wall clock immediately after successful readback. Back cancels; a failed save keeps the running clock unchanged. Date and time set on the player now survive restart and power-off: one deferred RTC read restores trusted UTC with the saved offset, with no read during USB or active audio. Later Mac time syncs still replace the running clock and save their offset. Listening timestamps remain UTC. The simulator supports the same setting path; on-player validation remains pending.
+- Battery care adds Run from USB with charging disabled above a safe voltage, and Charge to full. Low or unknown readings enable charging again; the charge screen shows Charging off. An 80% limit is unavailable because the USB-powered ADC does not reliably measure cell charge. Real charger/load acceptance remains open.
 
 - Settings → Clock format selects 12-hour time with AM/PM or 24-hour time for Clock and the status bar, including Calendar. The choice survives restarts.
 - Four named headphone profiles apply attenuation-only trim, left/right balance and a volume ceiling to music and USB DAC output. Settings → Headphones selects and edits them; verified alternating-bank saves keep profiles on internal storage without changing settings v15. Switching to less attenuation lowers the saved mode volumes first. Analog Gain is unchanged; physical output checks remain pending.
@@ -36,6 +37,12 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 - Obsolete Connect USB, USB sense and raw DAC About rows are removed. Hardware identification remains available to the developer HAL.
 
 ## Playback fixes
+
+- A–B repeat marks source-sample positions from the Now Playing seek cursor’s Menu action and repeats the selected range, including CUE tracks and chapters. Marks clear on track changes and USB handoff. Player listening checks remain pending.
+
+- ReplayGain Auto selects album gain for album-order neighbours and track gain for song shuffle or isolated tracks. The companion supports the existing mode field’s fourth value.
+
+- Sleep timer fades over its final minute and can stop at the end of the current track, chapter or episode. Physical listening and shutdown checks remain pending.
 
 - Opus R128 track and album gain tags now feed ReplayGain normalization with the +5 dB reference conversion. Standard ReplayGain gain tags take precedence, and the decoder keeps applying header gain once.
 

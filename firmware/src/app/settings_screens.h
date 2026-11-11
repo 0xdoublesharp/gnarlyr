@@ -22,7 +22,7 @@
 #include "ui/toast.h"
 
 enum {
-    SETTINGS_CHOICE_COUNT = 26,
+    SETTINGS_CHOICE_COUNT = 27,
     SETTINGS_LANGUAGE_CHOICE = 10,
     SETTINGS_USB_MODE_CHOICE = 18,
     SETTINGS_ABOUT_ITEM = 0,
@@ -31,7 +31,7 @@ enum {
     SETTINGS_LANGUAGE_ITEM = 13,
     SETTINGS_CUSTOM_EQ_ITEM = 18,
     SETTINGS_RESCAN_ITEM = 22,
-    SETTINGS_TRANSITION_LENGTH_ITEM = SETTINGS_CHOICE_COUNT + 3,
+    SETTINGS_TRANSITION_LENGTH_ITEM = SETTINGS_CHOICE_COUNT + 2,
     SETTINGS_HEADPHONES_ITEM = SETTINGS_CHOICE_COUNT + 5,
     SETTINGS_FORMAT_ITEM = SETTINGS_CHOICE_COUNT + 6,
     SETTINGS_HOME_ITEM = SETTINGS_CHOICE_COUNT + 7,
@@ -61,7 +61,6 @@ typedef struct SettingsContext {
     Theme *theme;
     EqualizerPresets *presets;
     const LanguageList *languages;
-    int sleep_option;
     char message[SETTINGS_MESSAGE_CAPACITY];
 } SettingsContext;
 
