@@ -7,6 +7,7 @@
 #include "device/card_write.h"
 #include "device/sd_card.h"
 #include "gpio.h"
+#include "hal/clock.h"
 #include "mmc.h"
 #include "registers.h"
 
@@ -32,6 +33,7 @@ enum {
     RESET_SD = 0x12,
     CMD_SEND_STATUS = 13,
     STATUS_TRIES = 1000,
+    TRANSFER_READY_TIMEOUT_MS = 1000,
     POWER_SETTLE_MS = 1,
     DETECT_SETTLE_MS = 1
 };
@@ -43,6 +45,9 @@ static const MmcHost SD_HOST = {SD_BASE, CRU_SD_IDENTIFY, CRU_SD_TRANSFER, &sd_f
 static SdCard card;
 static bool ready;
 static bool tried;
+static bool detect_started;
+static bool was_present;
+static uint32_t generation;
 
 static bool host_command(void *context, SdCommand command, uint32_t response[4])
 {
@@ -89,6 +94,10 @@ static const SdHost HOST = {host_command, host_set_clock,    host_set_bus_width,
 
 static void start_card_detect(void)
 {
+    if (detect_started) {
+        return;
+    }
+    detect_started = true;
     register_write(GRF_BASE + GRF_DETECT_MUX, GRF_DETECT_MUX_VALUE);
     gpio_input(CARD_DETECT);
     register_write(GRF_BASE + GRF_DETECT_PULL, GRF_DETECT_PULL_VALUE);
@@ -112,7 +121,8 @@ static void power_controller(void)
 bool sd_read(void *context, uint32_t lba, uint32_t count, void *buffer)
 {
     (void)context;
-    if (!ready || count == 0 || lba >= card.sector_count || count > card.sector_count - lba) {
+    if (!sd_present() || !ready || count == 0 || lba >= card.sector_count ||
+        count > card.sector_count - lba) {
         return false;
     }
     return mmc_read_blocks(&SD_HOST, sd_card_address(&card, lba), count,
@@ -131,11 +141,14 @@ static bool start_card(void)
 
 bool sd_start(BlockDevice *device)
 {
+    *device = (BlockDevice){sd_read, NULL, sd_write};
+    if (!sd_present()) {
+        return false;
+    }
     if (!tried) {
         tried = true;
         ready = start_card();
     }
-    *device = (BlockDevice){sd_read, NULL, sd_write};
     return ready;
 }
 
@@ -143,7 +156,11 @@ static bool wait_for_transfer_state(void)
 {
     uint32_t words[4] = {0, 0, 0, 0};
     SdCommand status = {CMD_SEND_STATUS, sd_card_rca_argument(&card), SD_RESPONSE_SHORT, false};
+    uint32_t started_ms = hal_clock_milliseconds();
     for (int attempt = 0; attempt < STATUS_TRIES; attempt++) {
+        if (!sd_present() || hal_clock_milliseconds() - started_ms >= TRANSFER_READY_TIMEOUT_MS) {
+            return false;
+        }
         if (mmc_command(&SD_HOST, status, words) && (words[0] & STATUS_READY_FOR_DATA) != 0 &&
             ((words[0] >> STATUS_STATE_SHIFT) & STATUS_STATE_MASK) == STATE_TRANSFER) {
             return true;
@@ -162,7 +179,7 @@ static bool write_data(void *context, uint8_t command, uint32_t address, uint32_
 static bool stop_writing(void *context)
 {
     (void)context;
-    return mmc_stop(&SD_HOST, sd_card_rca_argument(&card));
+    return sd_present() && mmc_stop(&SD_HOST, sd_card_rca_argument(&card));
 }
 
 static bool wait_until_ready(void *context)
@@ -180,7 +197,7 @@ static const CardWriter WRITER = {write_data, stop_writing, wait_until_ready, NU
 bool sd_write(void *context, uint32_t lba, uint32_t count, const void *buffer)
 {
     (void)context;
-    if (!ready || lba >= card.sector_count || count > card.sector_count - lba) {
+    if (!sd_present() || !ready || lba >= card.sector_count || count > card.sector_count - lba) {
         return false;
     }
     return card_write(&WRITER, sd_card_address(&card, lba), count, buffer);
@@ -189,4 +206,42 @@ bool sd_write(void *context, uint32_t lba, uint32_t count, const void *buffer)
 uint32_t sd_sector_count(void)
 {
     return ready ? card.sector_count : 0;
+}
+
+bool sd_present(void)
+{
+    start_card_detect();
+    bool present = host_card_present(NULL);
+    if (present != was_present) {
+        generation++;
+        was_present = present;
+        ready = false;
+        tried = false;
+    }
+    return present;
+}
+
+uint32_t sd_generation(void)
+{
+    return generation;
+}
+
+void sd_forget(void)
+{
+    ready = false;
+    tried = false;
+}
+
+uint32_t sd_allocation_unit(void)
+{
+    uint32_t response[4];
+    uint32_t status[16];
+    SdCommand app = {55, sd_card_rca_argument(&card), SD_RESPONSE_SHORT, false};
+    if (!ready || !mmc_command(&SD_HOST, app, response) || !mmc_read_sd_status(&SD_HOST, status)) {
+        return card.erase_sectors;
+    }
+    static const uint32_t units[] = {0,    32,   64,    128,   256,   512,   1024,  2048,
+                                     4096, 8192, 16384, 24576, 32768, 49152, 65536, 131072};
+    uint32_t unit = units[((const uint8_t *)status)[10] >> 4];
+    return unit != 0 ? unit : card.erase_sectors;
 }

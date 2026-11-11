@@ -192,6 +192,48 @@ typedef struct FakeHal {
 } FakeHal;
 
 static FakeHal fake;
+static HalCardInfo card_info;
+static bool card_format_result;
+static int card_format_calls;
+
+void fake_hal_set_card(HalCardInfo info, bool result)
+{
+    card_info = info;
+    card_format_result = result;
+    card_format_calls = 0;
+}
+
+int fake_hal_card_formats(void)
+{
+    return card_format_calls;
+}
+
+HalCardInfo hal_card_info(void)
+{
+    HalCardInfo info = card_info;
+    info.usb_busy |= fake.usb_sense.session || fake.usb_sense.connecting;
+    return info;
+}
+
+bool hal_card_format(HalCardInfo expected, HalCardProgress progress, void *context)
+{
+    if (!card_info.present || expected.sectors != card_info.sectors ||
+        expected.generation != card_info.generation) {
+        return false;
+    }
+    card_format_calls++;
+    if (progress != NULL && !progress(context, 0, 100)) {
+        return false;
+    }
+    if (card_format_result) {
+        fake_hal_replace_music_volume();
+        fake.empty_card = true;
+    }
+    if (progress != NULL) {
+        progress(context, 100, 100);
+    }
+    return card_format_result;
+}
 
 void fake_hal_replace_music_volume(void)
 {
@@ -233,6 +275,7 @@ static int language_reads;
 void fake_hal_reset(void)
 {
     fake = (FakeHal){.reserve_result = HAL_RESERVE_CREATED};
+    fake_hal_set_card((HalCardInfo){0}, false);
     eq_count = 0;
     language_file_count = 0;
     language_reads = 0;

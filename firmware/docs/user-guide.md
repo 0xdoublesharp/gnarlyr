@@ -37,6 +37,19 @@ On the first start with a microSD card in the player, Gnarlyr builds its library
 - The library holds up to 65,535 tracks; [`known-issues.md`](known-issues.md) says what has been tested.
 - Gnarlyr keeps its own files in a hidden `/.gnarlyr` folder on the card, about 110 MB of them. Don't delete it unless you want the library rebuilt.
 
+## Format a card
+
+Back up everything you want to keep on the microSD card. Formatting erases its music, library, saved queue, resume positions and mixtapes.
+
+1. Pause playback from the card and finish any USB session. Charge the battery above 30%, or connect a charger.
+2. Open Settings → Format card. Check the card size and the warning that everything on it will be erased.
+3. Press Play to continue. The second confirmation starts on Cancel; choose Erase card with a volume key, then press Play. Back cancels either confirmation.
+4. Keep the card inserted until formatting finishes. The library starts empty; copy music over USB to rebuild it.
+
+Cards through 32 GB use FAT32; larger cards use exFAT. The volume is named ECHO. Internal storage keeps its files. This is a quick format: old file contents can remain recoverable until new files overwrite them.
+
+An interrupted format reports that the card needs formatting. Reinsert the card and choose Format card again before copying music. Physical card formatting still needs the owner checks listed in [known issues](known-issues.md).
+
 ## Search, sorting and personal tags
 
 Music → Search finds songs across their metadata and paths. View options combine sorting, filters and personal tags. See [Search, sorting and personal tags](library-discovery.md) for controls, scopes, limits and saved-view behavior.

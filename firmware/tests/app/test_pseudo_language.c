@@ -522,9 +522,26 @@ static void walk_bluetooth(void)
     CHECK(show("Home with Bluetooth on") >= 2);
 }
 
+static void walk_card_format(void)
+{
+    open_settings_row(0);
+    fake_hal_set_card(
+        (HalCardInfo){.present = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1}, true);
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 80});
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    show_titled("the card format warning", STR_CARD_FORMAT);
+    tap(KEY_PLAY);
+    show_titled("the final card format confirmation", STR_CARD_FORMAT_CONFIRM);
+    down(1);
+    show("the erase card choice");
+    tap(KEY_BACK);
+}
+
 static void open_home_editor(void)
 {
     open_settings_row(0);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
@@ -648,6 +665,7 @@ static void walk_everything(void)
     walk_smart_lists();
     walk_cover_flow();
     walk_settings_rows();
+    walk_card_format();
     walk_settings_choices();
     walk_settings_toasts();
     walk_equalizer();

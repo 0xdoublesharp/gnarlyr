@@ -226,6 +226,10 @@ echo_add_unit_test(NAME test_card_format_ui
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/card_format_captures)
+add_test(NAME card_format_layout_captures
+    COMMAND test_card_format_ui --captures ${CMAKE_CURRENT_BINARY_DIR}/card_format_captures
+)
 echo_add_unit_test(NAME test_home_screen
     SOURCES app/test_home_screen.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures
@@ -527,6 +531,15 @@ echo_add_unit_test(NAME test_stored_queue
 )
 target_compile_definitions(test_stored_queue PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 set_tests_properties(test_stored_queue PROPERTIES TIMEOUT 30)
+echo_add_unit_test(NAME test_card_format
+    SOURCES device/test_card_format.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_card_format PRIVATE
+    ECHO_FORMAT_IMAGE="${CMAKE_CURRENT_BINARY_DIR}/card-format-test.img"
+)
+set_tests_properties(test_card_format PROPERTIES RESOURCE_LOCK card_format_images TIMEOUT 120)
+
 set(ECHO_CREATED_CARDS ${CMAKE_CURRENT_BINARY_DIR}/created_cards)
 file(MAKE_DIRECTORY ${ECHO_CREATED_CARDS})
 echo_add_unit_test(NAME test_fat_create
@@ -623,9 +636,20 @@ endif()
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
+add_test(NAME card_format_table_up_to_date
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/card_format_tables.py
+        --output ${PROJECT_SOURCE_DIR}/platform/device/logic/card_format_upcase.h --check
+)
+
 find_program(FSCK_MSDOS fsck_msdos)
 find_program(FSCK_EXFAT fsck_exfat)
 if(FSCK_MSDOS AND FSCK_EXFAT)
+    add_test(NAME formatted_cards_pass_fsck
+        COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_formatted_cards.py
+            --tool $<TARGET_FILE:test_card_format>
+            --directory ${CMAKE_CURRENT_BINARY_DIR}/formatted_cards
+    )
+    set_tests_properties(formatted_cards_pass_fsck PROPERTIES RESOURCE_LOCK disk_images TIMEOUT 180)
     add_test(NAME created_cards_pass_fsck
         COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_card_images.py
             ${ECHO_CREATED_CARDS} --expect 7

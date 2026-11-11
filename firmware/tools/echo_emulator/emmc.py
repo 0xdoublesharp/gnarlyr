@@ -245,3 +245,27 @@ def synthetic_emmc(machine, image, volume, system_mib=96):
         "volume_sectors": volume.sector_count,
     }
     return EmmcCard(disk, machine), layout
+
+
+class SdCard(EmmcCard):
+    def command(self, index, argument):
+        self.commands.append((self.machine.cycles(), index, argument))
+        if index == 0:
+            return ()
+        if index == 8:
+            return (0x1AA, 0, 0, 0)
+        if index == 41:
+            return (OCR_READY_SECTOR_MODE, 0, 0, 0)
+        if index == 3:
+            return (0x12340000, 0, 0, 0)
+        if index == 9:
+            csd = (1 << 126) | ((self.disk.sector_count // 1024 - 1) << 48) | (9 << 22)
+            return tuple((csd >> (32 * word)) & 0xFFFFFFFF for word in range(4))
+        return (READY_TRANSFER_STATUS, 0, 0, 0)
+
+    def read_blocks(self, index, argument, count):
+        if index == 13:
+            status = bytearray(64)
+            status[10] = 0x90
+            return bytes(status)
+        return super().read_blocks(index, argument, count)
