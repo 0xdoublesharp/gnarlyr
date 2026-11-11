@@ -144,6 +144,8 @@ typedef struct AppState {
     bool display_on;
     bool powered_off;
     bool charging;
+    bool usb_chooser_charging;
+    Screen *usb_chooser;
     uint32_t charge_lit_until_ms;
     bool volume_changed;
     KeyLock lock;
@@ -703,7 +705,7 @@ static void read_headset(void)
 {
     HalHeadsetCommand command;
     while (hal_input_next_headset_command(&command)) {
-        if (!app.powered_off && !app.charging && !fade_running()) {
+        if (!app.powered_off && !app.charging && !app.usb_chooser_charging && !fade_running()) {
             run_player_command(HEADSET_COMMANDS[command]);
         }
     }
@@ -1210,6 +1212,8 @@ void app_start(void)
     app.toast = (Toast){.visible = false};
     app.powered_off = false;
     app.charging = false;
+    app.usb_chooser_charging = false;
+    app.usb_chooser = NULL;
     app.saying_goodbye = false;
     app.goodbye_text = STR_GOODBYE;
     low_battery_init(&app.low_battery);
@@ -1344,25 +1348,72 @@ static void draw_charge(void *context, Canvas *canvas)
     }
 }
 
-void app_open_usb_modes(void)
+static void open_usb_chooser(bool prompt)
 {
-    if (debug_runner_active() || hal_system_restart_pending()) {
+    if (debug_runner_active() || hal_system_restart_pending() || app.saying_goodbye) {
         return;
     }
-    Screen *screen = app_screens_usb_modes(&app.screens);
+    Screen *screen = app_screens_usb_modes(&app.screens, prompt);
     uint32_t now_ms = hal_clock_milliseconds();
     if (screen == NULL) {
         explain_missing_screen(now_ms);
         return;
     }
-    if (app.charging) {
-        app.charging = false;
-        bluetooth_link_start(&app.bluetooth, &app.toast, now_ms);
-    }
+    app.usb_chooser_charging |= app.charging;
+    app.charging = false;
+    app.usb_chooser = screen;
     power_policy_wake(&app.power, now_ms);
     set_display(true);
-    if (top_screen() != screen && apply_action(screen_action_push(screen), now_ms)) {
+    if (top_screen() == screen) {
+        screen->enter(screen->context, now_ms);
+    } else if (apply_action(screen_action_push(screen), now_ms)) {
         screen_changed();
+    }
+}
+
+void app_open_usb_modes(void)
+{
+    open_usb_chooser(false);
+}
+
+CORE_SEAM void app_ask_usb_mode(void)
+{
+    open_usb_chooser(true);
+}
+
+static void resume_charging(uint32_t now_ms, bool lit)
+{
+    app.usb_chooser_charging = false;
+    app.charging = true;
+    app.charge_battery = hal_power_battery();
+    if (lit) {
+        light_charge_screen(now_ms);
+    } else {
+        set_display(false);
+    }
+}
+
+static void follow_usb_chooser(uint32_t now_ms)
+{
+    if (app.usb_chooser == NULL) {
+        return;
+    }
+    const UsbChooser *usb = &app.screens.modules.settings.settings.usb;
+    bool open = top_screen() == app.usb_chooser;
+    bool lapsed =
+        open && (usb->timed || app.usb_chooser_charging) && (usb->expired || !app.display_on);
+    if (lapsed && apply_action(screen_action_pop(), now_ms)) {
+        screen_changed();
+        open = false;
+    }
+    if (open) {
+        app.render_wanted |= usb->redraw;
+        app.screens.modules.settings.settings.usb.redraw = false;
+        return;
+    }
+    app.usb_chooser = NULL;
+    if (app.usb_chooser_charging) {
+        resume_charging(now_ms, !lapsed);
     }
 }
 
@@ -1654,6 +1705,7 @@ CORE_SEAM void app_step(void)
     toast_update(&app.toast, now_ms);
     follow_appearance();
     update_screen(now_ms);
+    follow_usb_chooser(now_ms);
     service_discovery(now_ms);
     MixtapeUi *mixtapes = &app.screens.modules.views.mixtapes;
     if ((app.screens.bound_modules & (1u << SCREEN_MODULE_VIEWS)) != 0 &&

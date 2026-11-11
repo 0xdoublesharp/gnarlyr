@@ -24,7 +24,7 @@ enum {
     MUSIC_ENTRIES = 11,
     MUSIC_ALBUMS_ROW = 4,
     MUSIC_ALL_SONGS_ROW = 7,
-    SETTINGS_ROWS = 22,
+    SETTINGS_ROWS = 23,
     SETTINGS_BLUETOOTH_ROW = 3,
     SETTINGS_SLEEP_ROW = 4,
     SETTINGS_OUTPUT_ROW = 14,
@@ -384,7 +384,7 @@ static void walk_settings_choices(void)
         STR_COLOR,       STR_TEXT_SIZE,   STR_ORIENTATION,      STR_LANGUAGE,
         STR_SKIP_SONGS,  STR_GAIN,        STR_OUTPUT,           STR_EQUALIZER,
         STR_CUSTOM_EQ,   STR_REPLAY_GAIN, STR_PREVENT_CLIPPING, STR_START_SCREEN,
-        STR_SETTINGS,    STR_USB_MODE};
+        STR_SETTINGS,    STR_USB_MODE,    STR_USB_ANSWER};
     for (int row = 1; row < SETTINGS_ROWS; row++) {
         if (row == SETTINGS_RESCAN_ROW) {
             continue;
@@ -515,6 +515,16 @@ static void walk_power(void)
     CHECK(show("the charge screen when charged") >= 2);
 }
 
+static void walk_usb_prompt(void)
+{
+    begin();
+    app_ask_usb_mode();
+    show_titled("the USB prompt", STR_USB_CONNECTED);
+    begin();
+    app_open_usb_modes();
+    show_titled("USB mode opened by hand", STR_USB_MODE);
+}
+
 static void walk_listening(void)
 {
     begin();
@@ -545,6 +555,7 @@ static void walk_everything(void)
     walk_song_actions();
     walk_now_playing();
     walk_listening();
+    walk_usb_prompt();
     walk_power();
 }
 

@@ -54,7 +54,14 @@ typedef enum HalUsbMode {
     HAL_USB_MODE_PLAYER
 } HalUsbMode;
 
+typedef enum HalUsbAnswer {
+    HAL_USB_ANSWER_ASK,
+    HAL_USB_ANSWER_STORAGE,
+    HAL_USB_ANSWER_CHARGE
+} HalUsbAnswer;
+
 void hal_system_set_usb_mode(HalUsbMode mode);
+void hal_system_set_usb_answer(HalUsbAnswer answer);
 void hal_system_request_usb_mode(HalUsbMode mode);
 void hal_system_set_dac_volume(uint8_t level);
 

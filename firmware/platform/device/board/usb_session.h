@@ -56,6 +56,7 @@ typedef struct UsbOverlayEntry {
 void usb_session_request_reconnect(bool on);
 bool usb_session_take_reconnect(void);
 bool usb_session_forced(void);
+bool usb_session_connect_requested(void);
 bool usb_session_reconnect_stopped(void);
 void usb_session_reconnect_started(void);
 void usb_session_reconnect_ended(void);

@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/deadline.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "default_theme.h"
@@ -12,7 +13,9 @@
 enum {
     BRIGHTNESS_LEVEL_COUNT = SETTINGS_BRIGHTNESS_MAX - SETTINGS_BRIGHTNESS_MIN + 1,
     MILLISECONDS_PER_MINUTE = 60000,
-    USB_MODE_SELECT_COUNT = 3
+    USB_MODE_SELECT_COUNT = 3,
+    USB_PROMPT_MS = 15000,
+    MILLISECONDS_PER_SECOND = 1000
 };
 
 static const StringId SHUFFLE_OPTIONS[SHUFFLE_MODE_COUNT] = {STR_OFF, STR_SHUFFLE_SONGS,
@@ -50,8 +53,10 @@ static const StringId OUTPUT_MESSAGES[OUTPUT_JACK_COUNT] = {STR_OUTPUT_FOLLOWS, 
 static const StringId START_OPTIONS[START_SCREEN_COUNT] = {
     STR_START_MAIN_MENU, STR_NOW_PLAYING, STR_ALBUMS,    STR_ARTISTS,
     STR_FAVORITES,       STR_PLAYLISTS,   STR_COVER_FLOW};
-static const StringId USB_MODE_OPTIONS[USB_MODE_SELECT_COUNT] = {STR_PLAYER_MODE, STR_POWER_STORAGE,
+static const StringId USB_MODE_OPTIONS[USB_MODE_SELECT_COUNT] = {STR_CHARGE_ONLY, STR_FILE_TRANSFER,
                                                                  STR_USB_DAC_TITLE};
+static const StringId USB_ANSWER_OPTIONS[USB_CONNECT_COUNT] = {STR_ASK, STR_FILE_TRANSFER,
+                                                               STR_CHARGE_ONLY};
 static const StringId USB_MODE_MESSAGES[USB_MODE_COUNT] = {STR_USB_SHOWS_DRIVES,
                                                            STR_USB_PLAYS_SOUND};
 
@@ -479,6 +484,17 @@ static void choose_usb_mode(void *context, int index)
     toast_show(settings->toast, i18n_text(USB_MODE_MESSAGES[index - 1]), hal_clock_milliseconds());
 }
 
+static int current_usb_answer(const void *context)
+{
+    return (int)settings_of(context)->usb_connect;
+}
+
+static void choose_usb_answer(void *context, int index)
+{
+    editable_settings(context)->usb_connect = (UsbConnect)index;
+    apply_and_save(context);
+}
+
 static int current_replay_gain(const void *context)
 {
     return settings_of(context)->replay_gain_mode;
@@ -540,6 +556,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_START_SCREEN, START_OPTIONS, START_SCREEN_COUNT, current_start, choose_start, NULL, NULL},
     {STR_USB_MODE, USB_MODE_OPTIONS, USB_MODE_SELECT_COUNT, current_usb_mode, choose_usb_mode, NULL,
      NULL},
+    {STR_USB_ANSWER, USB_ANSWER_OPTIONS, USB_CONNECT_COUNT, current_usb_answer, choose_usb_answer,
+     NULL, NULL},
     {STR_THEME, THEME_OPTIONS, APPEARANCE_THEME_COUNT, current_appearance, choose_appearance, NULL,
      NULL},
 };
@@ -580,9 +598,82 @@ static ScreenAction open_choice(void *context)
     return screen_action_push(choice_view(screens, choice, config));
 }
 
-Screen *settings_screens_usb_modes(SettingsScreens *screens)
+static const char *usb_countdown(const void *context, int index)
 {
-    return open_choice(&screens->entries[SETTINGS_USB_MODE_CHOICE]).target;
+    const SettingsScreens *screens =
+        (const SettingsScreens *)((const char *)context - offsetof(SettingsScreens, context));
+    return index == 0 ? screens->usb.countdown : NULL;
+}
+
+static void usb_count_down(UsbChooser *usb, uint32_t now_ms)
+{
+    usb->expired = usb->timed && deadline_reached(now_ms, usb->until_ms);
+    uint32_t left = usb->expired ? 0
+                                 : (usb->until_ms - now_ms + MILLISECONDS_PER_SECOND - 1) /
+                                       MILLISECONDS_PER_SECOND;
+    if (!usb->timed || left == usb->seconds) {
+        return;
+    }
+    usb->seconds = left;
+    usb->redraw = true;
+    StringBuilder text = string_builder_make(usb->countdown, sizeof usb->countdown);
+    i18n_format_counts(&text, STR_USB_PROMPT_SECONDS, left, 0);
+}
+
+static void usb_enter(void *context, uint32_t now_ms)
+{
+    UsbChooser *usb = context;
+    usb->until_ms = now_ms + USB_PROMPT_MS;
+    usb->seconds = 0;
+    usb->choice.screen.enter(&usb->choice, now_ms);
+    usb_count_down(usb, now_ms);
+}
+
+static ScreenAction usb_key(void *context, KeyEvent event, uint32_t now_ms)
+{
+    UsbChooser *usb = context;
+    usb->until_ms = now_ms + USB_PROMPT_MS;
+    usb_count_down(usb, now_ms);
+    return usb->choice.screen.handle_key(&usb->choice, event, now_ms);
+}
+
+static void usb_update(void *context, uint32_t now_ms)
+{
+    UsbChooser *usb = context;
+    usb->choice.screen.update(&usb->choice, now_ms);
+    usb_count_down(usb, now_ms);
+}
+
+static void usb_draw(void *context, Canvas *canvas)
+{
+    UsbChooser *usb = context;
+    usb->choice.screen.draw(&usb->choice, canvas);
+}
+
+Screen *settings_screens_usb_modes(SettingsScreens *screens, bool prompt)
+{
+    UsbChooser *usb = &screens->usb;
+    const char *title = i18n_text(prompt ? STR_USB_CONNECTED : STR_USB_MODE);
+    ChoiceConfig config = {.title = title,
+                           .option_ids = USB_MODE_OPTIONS,
+                           .option_count = USB_MODE_SELECT_COUNT,
+                           .current = current_usb_mode,
+                           .choose = choose_usb_mode,
+                           .detail = prompt ? usb_countdown : NULL,
+                           .context = &screens->context,
+                           .theme = screens->theme};
+    choice_screen_init(&usb->choice, config);
+    usb->timed = prompt;
+    usb->countdown[0] = '\0';
+    usb->screen = (Screen){.title = title,
+                           .context = usb,
+                           .takes_every_key = true,
+                           .stays_on_wake = true,
+                           .enter = usb_enter,
+                           .handle_key = usb_key,
+                           .update = usb_update,
+                           .draw = usb_draw};
+    return &usb->screen;
 }
 
 static const char *choice_value(const void *context)

@@ -66,7 +66,11 @@ enum {
     SETTINGS_CLIPPING_INDEX = 17,
     SETTINGS_START_INDEX = 18,
     SETTINGS_RESCAN_INDEX = 19,
-    SETTINGS_THEME_INDEX = 21,
+    SETTINGS_USB_MODE_INDEX = 20,
+    SETTINGS_USB_ANSWER_INDEX = 21,
+    SETTINGS_THEME_INDEX = 22,
+    USB_PROMPT_MS = 15000,
+    CHARGE_LIT_MS = 5000,
     MUSIC_COVER_FLOW_INDEX = 1,
     MUSIC_PLAYLISTS_INDEX = 8,
     SETTLE_STEPS = 30,
@@ -2809,7 +2813,7 @@ static void a_charged_battery_does_not_keep_redrawing_an_unchanged_screen(void)
     CHECK_EQUAL(first, fake_hal_present_count());
 }
 
-static void menu_opens_mode_selection_from_charging_without_restarting(void)
+static void menu_on_the_charge_screen_opens_usb_mode_and_charge_only_returns_to_charging(void)
 {
     start_app_with_library();
     fake_hal_set_battery(ON_USB);
@@ -2822,9 +2826,156 @@ static void menu_opens_mode_selection_from_charging_without_restarting(void)
     CHECK_EQUAL(0, fake_hal_power_off_count());
     tap(KEY_PLAY);
     CHECK(!title_is("USB mode"));
-    CHECK(!app_charging());
+    CHECK(app_charging());
+    CHECK(fake_hal_display_on());
     CHECK_EQUAL(1, fake_hal_usb_mode_requests());
     CHECK_EQUAL(HAL_USB_MODE_PLAYER, fake_hal_requested_usb_mode());
+}
+
+static void start_charging_on_usb(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery(ON_USB);
+    hold_power();
+    wait_ms(GOODBYE_MS);
+    wait_ms(CHARGE_LIT_MS);
+    CHECK(app_charging());
+    CHECK(!fake_hal_display_on());
+}
+
+static void a_host_found_while_playing_asks_and_playback_goes_on(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    app_ask_usb_mode();
+    step();
+    CHECK(title_is("USB connected"));
+    CHECK(fake_hal_display_on());
+    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+}
+
+static void a_quiet_prompt_lapses_to_charge_only_and_playback_goes_on(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    const char *before = app_screen_title();
+    app_ask_usb_mode();
+    wait_ms(USB_PROMPT_MS - 1000);
+    CHECK(title_is("USB connected"));
+    wait_ms(1000);
+    CHECK(title_is(before));
+    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    CHECK(!app_charging());
+}
+
+static void choosing_file_transfer_in_the_prompt_requests_a_storage_session(void)
+{
+    start_app_with_library();
+    app_ask_usb_mode();
+    step();
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(!title_is("USB connected"));
+    CHECK_EQUAL(1, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(HAL_USB_MODE_STORAGE, fake_hal_requested_usb_mode());
+}
+
+static void the_prompt_gives_way_to_charge_only_when_the_screen_goes_dark(void)
+{
+    start_app_with_library();
+    SettingsStore store;
+    settings_store_load(&store);
+    store.settings.screen_timeout = 0;
+    CHECK(settings_store_save(&store));
+    restart_app();
+    wait_ms(SPLASH_MS);
+    app_ask_usb_mode();
+    step();
+    CHECK(title_is("USB connected"));
+    wait_ms(SHORT_TIMEOUT_MS);
+    wait_ms(10);
+    CHECK(!fake_hal_display_on());
+    CHECK(!title_is("USB connected"));
+    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
+}
+
+static void a_host_found_on_the_charge_screen_wakes_it_to_the_prompt(void)
+{
+    start_charging_on_usb();
+    app_ask_usb_mode();
+    step();
+    CHECK(!app_charging());
+    CHECK(fake_hal_display_on());
+    CHECK(title_is("USB connected"));
+    CHECK_EQUAL(0, fake_hal_power_off_count());
+}
+
+static void a_lapsed_prompt_on_the_charge_screen_goes_back_to_dark_charging(void)
+{
+    start_charging_on_usb();
+    app_ask_usb_mode();
+    step();
+    wait_ms(USB_PROMPT_MS);
+    CHECK(app_charging());
+    CHECK(!fake_hal_display_on());
+    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(0, fake_hal_power_off_count());
+}
+
+static void back_on_the_charge_screen_prompt_goes_back_to_charging(void)
+{
+    start_charging_on_usb();
+    app_ask_usb_mode();
+    step();
+    tap(KEY_BACK);
+    CHECK(app_charging());
+    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
+}
+
+static void file_transfer_from_the_charge_screen_prompt_connects_and_keeps_charging(void)
+{
+    start_charging_on_usb();
+    app_ask_usb_mode();
+    step();
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(app_charging());
+    CHECK_EQUAL(HAL_USB_MODE_STORAGE, fake_hal_requested_usb_mode());
+}
+
+static void a_host_found_with_usb_mode_open_turns_it_into_the_prompt(void)
+{
+    start_app_with_library();
+    app_open_usb_modes();
+    step();
+    wait_ms(USB_PROMPT_MS);
+    int depth = app_screen_depth();
+    app_ask_usb_mode();
+    step();
+    CHECK(title_is("USB connected"));
+    CHECK_EQUAL(depth, app_screen_depth());
+    wait_ms(USB_PROMPT_MS - 1000);
+    CHECK(title_is("USB connected"));
+    wait_ms(1000);
+    CHECK(!title_is("USB connected"));
+}
+
+static void the_plug_in_answer_is_chosen_in_settings_applied_and_saved(void)
+{
+    start_app_with_library();
+    CHECK_EQUAL(HAL_USB_ANSWER_ASK, fake_hal_usb_answer());
+    open_setting(SETTINGS_USB_ANSWER_INDEX);
+    CHECK(title_is("When plugged in"));
+    move_down(2);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(HAL_USB_ANSWER_CHARGE, fake_hal_usb_answer());
+    Settings settings;
+    CHECK(saved_settings(&settings));
+    CHECK_EQUAL(USB_CONNECT_CHARGE, settings.usb_connect);
+    restart_app();
+    CHECK_EQUAL(HAL_USB_ANSWER_CHARGE, fake_hal_usb_answer());
 }
 
 static void the_home_menu_opens_the_same_three_mode_selector(void)
@@ -4940,7 +5091,17 @@ int main(void)
         TEST_CASE(charging_motion_waits_for_its_next_frame_and_stops_in_the_dark),
         TEST_CASE(charging_keeps_its_renderer_loaded_until_the_player_wakes),
         TEST_CASE(a_charged_battery_does_not_keep_redrawing_an_unchanged_screen),
-        TEST_CASE(menu_opens_mode_selection_from_charging_without_restarting),
+        TEST_CASE(menu_on_the_charge_screen_opens_usb_mode_and_charge_only_returns_to_charging),
+        TEST_CASE(a_host_found_while_playing_asks_and_playback_goes_on),
+        TEST_CASE(a_quiet_prompt_lapses_to_charge_only_and_playback_goes_on),
+        TEST_CASE(choosing_file_transfer_in_the_prompt_requests_a_storage_session),
+        TEST_CASE(the_prompt_gives_way_to_charge_only_when_the_screen_goes_dark),
+        TEST_CASE(a_host_found_on_the_charge_screen_wakes_it_to_the_prompt),
+        TEST_CASE(a_lapsed_prompt_on_the_charge_screen_goes_back_to_dark_charging),
+        TEST_CASE(back_on_the_charge_screen_prompt_goes_back_to_charging),
+        TEST_CASE(file_transfer_from_the_charge_screen_prompt_connects_and_keeps_charging),
+        TEST_CASE(a_host_found_with_usb_mode_open_turns_it_into_the_prompt),
+        TEST_CASE(the_plug_in_answer_is_chosen_in_settings_applied_and_saved),
         TEST_CASE(the_home_menu_opens_the_same_three_mode_selector),
         TEST_CASE(storage_selection_and_return_keep_the_playback_session),
         TEST_CASE(holding_power_on_the_charge_screen_turns_the_player_on),

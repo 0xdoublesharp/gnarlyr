@@ -16,6 +16,12 @@ typedef enum UsbPlugAction {
     USB_PLUG_STOP
 } UsbPlugAction;
 
+typedef enum UsbPlugAnswer {
+    USB_PLUG_ASK,
+    USB_PLUG_STORAGE,
+    USB_PLUG_CHARGE
+} UsbPlugAnswer;
+
 enum {
     USB_PLUG_STEADY_MS = 1000
 };
@@ -30,3 +36,5 @@ void usb_plug_started(UsbPlug *plug, bool listening);
 void usb_plug_served(UsbPlug *plug);
 void usb_plug_retry(UsbPlug *plug);
 UsbPlugAction usb_plug_request(UsbPlug *plug, bool connect);
+bool usb_plug_listens(UsbPlugAnswer answer, bool requested);
+bool usb_plug_asks(UsbPlugAnswer answer, bool requested);

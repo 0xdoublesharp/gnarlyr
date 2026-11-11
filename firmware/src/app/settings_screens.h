@@ -19,7 +19,7 @@
 #include "ui/toast.h"
 
 enum {
-    SETTINGS_CHOICE_COUNT = 19,
+    SETTINGS_CHOICE_COUNT = 20,
     SETTINGS_LANGUAGE_CHOICE = 9,
     SETTINGS_USB_MODE_CHOICE = 17,
     SETTINGS_ABOUT_ITEM = 0,
@@ -27,9 +27,10 @@ enum {
     SETTINGS_LANGUAGE_ITEM = 11,
     SETTINGS_CUSTOM_EQ_ITEM = 16,
     SETTINGS_RESCAN_ITEM = 20,
-    SETTINGS_CONTROLS_ITEM = 23,
+    SETTINGS_CONTROLS_ITEM = 24,
     SETTINGS_ITEM_COUNT = SETTINGS_CHOICE_COUNT + 5,
-    SETTINGS_MESSAGE_CAPACITY = 64
+    SETTINGS_MESSAGE_CAPACITY = 64,
+    SETTINGS_COUNTDOWN_CAPACITY = 16
 };
 
 enum {
@@ -70,6 +71,17 @@ typedef struct SettingsEntry {
     SettingsScreens *owner;
 } SettingsEntry;
 
+typedef struct UsbChooser {
+    Screen screen;
+    ChoiceScreen choice;
+    uint32_t until_ms;
+    uint32_t seconds;
+    bool timed;
+    bool expired;
+    bool redraw;
+    char countdown[SETTINGS_COUNTDOWN_CAPACITY];
+} UsbChooser;
+
 struct SettingsScreens {
     SettingsContext context;
     const Theme *theme;
@@ -86,6 +98,7 @@ struct SettingsScreens {
     ButtonSettings buttons;
     EqualizerPresets presets;
     LanguageList languages;
+    UsbChooser usb;
     SettingsEntry entries[SETTINGS_CHOICE_COUNT];
     MenuItem items[SETTINGS_ITEM_COUNT];
 };
@@ -93,4 +106,4 @@ struct SettingsScreens {
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                               const Theme *theme);
 bool settings_screens_choose(SettingsScreens *screens, DebugSpan title, DebugSpan option);
-Screen *settings_screens_usb_modes(SettingsScreens *screens);
+Screen *settings_screens_usb_modes(SettingsScreens *screens, bool prompt);

@@ -105,6 +105,7 @@ STR_CUSTOM_EQ = Custom EQ
 STR_START_SCREEN = Start screen
 STR_USB_MODE = USB mode
 STR_PLAYER_MODE = Player
+STR_USB_ANSWER = When plugged in
 STR_RESCAN_LIBRARY = Rescan library
 STR_ABOUT = About
 
@@ -161,6 +162,9 @@ STR_USB_STORAGE = Storage
 STR_USB_DAC = DAC
 STR_USB_SHOWS_DRIVES = USB shows the player's drives
 STR_USB_PLAYS_SOUND = USB plays the computer's sound
+STR_ASK = Ask
+STR_CHARGE_ONLY = Charge only
+STR_FILE_TRANSFER = File transfer
 STR_SETTINGS_NOT_SAVED = Could not save settings
 STR_LANGUAGE_FAILED = Couldn't load that language
 
@@ -283,6 +287,8 @@ STR_SCREEN_MISSING = Couldn't open this screen: reinstall the update
 # USB. {0} in STR_USB_DAC_CHOOSE is the firmware's name; {0} kHz, {1}-bit and the volume are numbers.
 STR_USB = USB
 STR_USB_STARTING = Computer found. Starting...
+STR_USB_CONNECTED = USB connected
+STR_USB_PROMPT_SECONDS = {0} s
 STR_USB_EJECT_DRIVE = Connected. Eject the drive to finish.
 STR_USB_EJECT_DRIVES = Connected. Eject both drives to finish.
 STR_USB_UNPLUGGED = Unplugged too soon

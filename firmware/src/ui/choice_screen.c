@@ -25,6 +25,9 @@ static const char *option_label(const void *context, int index)
 static const char *option_mark(const void *context, int index)
 {
     const ChoiceScreen *choice = context;
+    if (choice->config.detail != NULL) {
+        return choice->config.detail(choice->config.context, index);
+    }
     return choice->config.current(choice->config.context) == index ? CHECK_MARK : NULL;
 }
 

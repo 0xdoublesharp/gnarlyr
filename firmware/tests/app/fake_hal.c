@@ -171,6 +171,7 @@ typedef struct FakeHal {
     HalBluetoothDevice bluetooth_connected_to;
     int bluetooth_disconnect_count;
     HalUsbMode usb_mode;
+    HalUsbAnswer usb_answer;
     HalUsbMode requested_usb_mode;
     int usb_mode_requests;
     uint8_t dac_volume;
@@ -885,6 +886,16 @@ HalUsbMode fake_hal_requested_usb_mode(void)
 void hal_system_set_usb_mode(HalUsbMode mode)
 {
     fake.usb_mode = mode;
+}
+
+void hal_system_set_usb_answer(HalUsbAnswer answer)
+{
+    fake.usb_answer = answer;
+}
+
+HalUsbAnswer fake_hal_usb_answer(void)
+{
+    return fake.usb_answer;
 }
 
 int fake_hal_usb_mode(void)

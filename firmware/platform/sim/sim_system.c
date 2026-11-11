@@ -44,6 +44,11 @@ void hal_system_set_usb_mode(HalUsbMode mode)
     (void)mode;
 }
 
+void hal_system_set_usb_answer(HalUsbAnswer answer)
+{
+    (void)answer;
+}
+
 uint32_t hal_system_clock_mhz(void)
 {
     return clock_mhz;
