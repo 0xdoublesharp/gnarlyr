@@ -33,6 +33,9 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/screens/cover_flow_screen.c
     src/app/cover_placeholders.c
     src/app/screens/up_next_screen.c
+    src/app/screens/calendar_screen.c
+    src/app/screens/clock_screen.c
+    src/core/calendar.c
     src/ui/cover_flow.c
     src/ui/placeholder_art.c
     src/gfx/image_quad.c

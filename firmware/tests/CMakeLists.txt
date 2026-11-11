@@ -30,6 +30,8 @@ echo_add_unit_test(NAME test_key_lock SOURCES core/test_key_lock.c LIBRARIES ech
 echo_add_unit_test(NAME test_utf8 SOURCES core/test_utf8.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_string_builder SOURCES core/test_string_builder.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_format SOURCES core/test_format.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_calendar SOURCES core/test_calendar.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_clock_face SOURCES core/test_clock_face.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_dac_identity SOURCES core/test_dac_identity.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_random SOURCES core/test_random.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_permutation SOURCES core/test_permutation.c LIBRARIES echo_core)
@@ -898,6 +900,12 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(test_equalizer PRIVATE m)
     target_link_libraries(test_equalizer_response PRIVATE m)
 endif()
+
+echo_add_unit_test(NAME test_clock_screen
+    SOURCES app/test_clock_screen.c app/fake_hal.c support/text_spy.c support/screen_snapshot.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
+)
 
 echo_add_unit_test(NAME test_lyrics_screen
     SOURCES app/test_lyrics_screen.c app/fake_hal.c support/text_spy.c support/screen_snapshot.c

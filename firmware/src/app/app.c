@@ -50,6 +50,7 @@
 #include "ui/slide.h"
 #include "ui/status_bar.h"
 #include "ui/toast.h"
+#include "wall_time.h"
 
 enum {
     PASS_BUSY_MS = 1,
@@ -57,6 +58,7 @@ enum {
     PASS_SCREEN_OFF_MS = 10,
     VIEW_STAMP_CHECK_MS = 50,
     VIEW_STAMP_POSITION_MS = 1000,
+    VIEW_STAMP_MINUTE_S = 60,
     RESCAN_PROGRESS_MS = 250,
     NOTICE_TEXT_CAPACITY = 64,
     TOAST_TEXT_CAPACITY = 64,
@@ -1532,6 +1534,7 @@ static uint32_t view_stamp(void)
 {
     PlayerStatus status = player_status(&app.player);
     HalBattery battery = hal_power_battery();
+    WallNow wall = wall_time_now();
     uint32_t stamp = HASH_START;
     stamp = stamp_add(stamp, (uint32_t)status.state);
     stamp = stamp_add(stamp, status.has_track);
@@ -1551,6 +1554,7 @@ static uint32_t view_stamp(void)
     stamp = stamp_add(stamp, app.lock.locked);
     stamp = stamp_add(stamp, app.toast.visible);
     stamp = stamp_add(stamp, app.toast.until_ms);
+    stamp = stamp_add(stamp, wall.known ? wall.local_s / VIEW_STAMP_MINUTE_S : 0);
     return stamp_add(stamp, (uint32_t)(uintptr_t)app.toast.text);
 }
 
