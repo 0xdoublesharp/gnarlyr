@@ -2181,6 +2181,9 @@ class EchoImageTest(unittest.TestCase):
                              2, STANDBY_RATE, STANDBY_RATE * 4, 4, 16, b"data", len(pcm))
         volume = Fat32Volume()
         volume.add_file("Counter.wav", header + pcm)
+        volume.add_directory(IDENTITY.data_directory)
+        volume.add_file("settings.bin", self.saved_settings(4, 15, shuffle=0),
+                        directory=IDENTITY.data_directory)
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                    volume=volume, module_elfs=self.module_elfs)
 
@@ -2410,13 +2413,16 @@ class EchoImageTest(unittest.TestCase):
         return b"RIFF" + struct.pack("<I", len(body)) + body
 
     def transition_settings(self, tenths):
+        return self.saved_settings(4 | 1 << 3, tenths, shuffle=1)
+
+    def saved_settings(self, comfort, tenths, shuffle):
         settings = bytearray(4096)
         settings[:6] = b"DSST" + bytes((15, 0))
         settings[6:9] = bytes((7, 2, 0))
-        settings[11], settings[13], settings[14], settings[16] = 1, 60, 2, 35
+        settings[11], settings[13], settings[14], settings[16] = shuffle, 60, 2, 35
         settings[24], settings[27] = 1, 1
         settings[28:38] = bytes((20,) * 10)
-        settings[38:43] = bytes((4 | 1 << 3, 13, tenths, 0, 0x10))
+        settings[38:43] = bytes((comfort, 13, tenths, 0, 0x10))
         settings[43:47] = bytes((0x32, 0x54, 0x76, 0x08))
         checksum = FNV_START
         for value in settings[:54]:
