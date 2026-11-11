@@ -372,6 +372,30 @@ static void repeated_play_on_a_listening_leaf_keeps_one_back_to_its_menu(void)
     CHECK(title_is(FIRMWARE_SHORT_NAME));
 }
 
+static void exporting_without_plays_settles_at_once_and_keeps_one_back(void)
+{
+    start_app();
+    move_down(3);
+    tap(KEY_PLAY);
+    move_up(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Export plays"));
+    int depth = app_screen_depth();
+    int reserves = fake_hal_reserve_count();
+    for (int press = 0; press < 4; press++) {
+        tap(KEY_PLAY);
+        wait_ms(FRAME_PACER_ACTIVE_MS);
+    }
+    HalFile file;
+    CHECK(!hal_file_open(&file, "/.scrobbler.log"));
+    CHECK_EQUAL(reserves, fake_hal_reserve_count());
+    CHECK_EQUAL(depth, app_screen_depth());
+    tap(KEY_BACK);
+    CHECK(title_is("Listening"));
+    tap(KEY_BACK);
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+}
+
 static void a_long_back_returns_home_from_deep_screens(void)
 {
     start_app();
@@ -4719,6 +4743,7 @@ int main(void)
         TEST_CASE(selecting_music_opens_the_music_menu),
         TEST_CASE(back_returns_to_the_previous_screen),
         TEST_CASE(repeated_play_on_a_listening_leaf_keeps_one_back_to_its_menu),
+        TEST_CASE(exporting_without_plays_settles_at_once_and_keeps_one_back),
         TEST_CASE(a_long_back_returns_home_from_deep_screens),
         TEST_CASE(the_frame_overlay_is_off_until_enabled_in_diagnostics),
         TEST_CASE(the_frame_overlay_splits_the_frame_time),

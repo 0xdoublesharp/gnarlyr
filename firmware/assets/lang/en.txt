@@ -394,6 +394,13 @@ STR_LISTENING_WORKING = Preparing your history
 STR_EXPORT_WORKING = Exporting plays
 STR_EXPORT_DONE = Plays exported
 STR_EXPORT_FAILED = Could not export plays
+# Export plays. {0} in STR_EXPORT_PROGRESS is a percentage; in the saved texts {0} is the number of plays and {1} the file's name, /.scrobbler.log; in STR_EXPORT_WRITE_FAILED {0} is the file's name.
+STR_EXPORT_PROGRESS = {0}%
+STR_EXPORT_ONE_SAVED = {0} play saved to {1}
+STR_EXPORT_SAVED = {0} plays saved to {1}
+STR_EXPORT_NONE = No plays to export
+STR_EXPORT_UNKNOWN = Played songs aren't in the library
+STR_EXPORT_WRITE_FAILED = Could not write {0}
 STR_HISTORY_UNAVAILABLE = History unavailable
 STR_LISTENING_HOURS = {0} h {1} min
 STR_LYRICS = Lyrics

@@ -105,6 +105,24 @@ static const Pattern TOAST_PATTERNS[] = {
     {STR_LIBRARY_NO_COVERS, {"Library: 65535 tracks"}},
 };
 
+static const Pattern EXPORT_HEADLINES[] = {
+    {STR_EXPORT_WORKING, {""}},
+    {STR_EXPORT_DONE, {""}},
+    {STR_EXPORT_NONE, {""}},
+    {STR_EXPORT_FAILED, {""}},
+};
+
+static const Pattern EXPORT_DETAILS[] = {
+    {STR_EXPORT_PROGRESS, {"100"}},
+    {STR_EXPORT_SAVED, {"4096", "/.scrobbler.log"}},
+    {STR_EXPORT_ONE_SAVED, {"1", "/.scrobbler.log"}},
+    {STR_EXPORT_UNKNOWN, {""}},
+    {STR_LISTENING_HINT, {""}},
+    {STR_EXPORT_WRITE_FAILED, {"/.scrobbler.log"}},
+    {STR_STORAGE_FULL, {""}},
+    {STR_HISTORY_UNAVAILABLE, {""}},
+};
+
 static const StringId BLUETOOTH_HINTS[] = {
     STR_BT_HINT_DISCONNECT, STR_BT_HINT_CONNECTING, STR_BT_HINT_CONNECT, STR_BT_HINT_TURN_OFF,
     STR_BT_HINT_TURN_ON,    STR_BT_HINT_SEARCHING,  STR_BT_HINT_SEARCH,  STR_BT_HINT_PAIR,
@@ -247,6 +265,37 @@ static void every_toast_is_shown_whole_at_every_size_and_orientation(void)
     }
 }
 
+static int export_height(const Theme *theme, const char *headline, const char *detail)
+{
+    int width = theme_content_area(theme).width - 2 * theme->metrics.padding;
+    CHECK(wraps_whole(theme->fonts.title, headline, width, HINT_LINES));
+    CHECK(wraps_whole(theme->fonts.body, detail, width, HINT_LINES));
+    return label_wrap_count(theme->fonts.title, headline, width) *
+               font_line_height(theme->fonts.title) +
+           label_wrap_count(theme->fonts.body, detail, width) * font_line_height(theme->fonts.body);
+}
+
+static void every_export_status_fits_its_screen_at_every_size_and_orientation(void)
+{
+    size_t headlines = sizeof EXPORT_HEADLINES / sizeof EXPORT_HEADLINES[0];
+    size_t details = sizeof EXPORT_DETAILS / sizeof EXPORT_DETAILS[0];
+    for (int variant = 0; variant < 2 * TEXT_SIZE_COUNT; variant++) {
+        Theme theme = themed(variant % TEXT_SIZE_COUNT, variant / TEXT_SIZE_COUNT);
+        Rect content = theme_content_area(&theme);
+        int room = content.height - theme.metrics.padding - font_line_height(theme.fonts.small);
+        int width = content.width - 2 * theme.metrics.padding;
+        CHECK(text_width(theme.fonts.small, i18n_text(STR_BACK_CANCELS)) <= width);
+        for (size_t headline = 0; headline < headlines; headline++) {
+            char shown[TEXT_CAPACITY];
+            memcpy(shown, pattern_text(EXPORT_HEADLINES[headline]), TEXT_CAPACITY);
+            for (size_t detail = 0; detail < details; detail++) {
+                const char *text = pattern_text(EXPORT_DETAILS[detail]);
+                CHECK(export_height(&theme, shown, text) + 8 <= room);
+            }
+        }
+    }
+}
+
 static void a_toast_taller_than_one_line_stays_on_screen(void)
 {
     Theme theme = themed(TEXT_SIZE_LARGE, ORIENTATION_PORTRAIT);
@@ -282,6 +331,7 @@ int main(void)
         TEST_CASE(every_empty_screen_message_wraps_whole_at_every_size_and_orientation),
         TEST_CASE(every_toast_is_shown_whole_at_every_size_and_orientation),
         TEST_CASE(a_toast_taller_than_one_line_stays_on_screen),
+        TEST_CASE(every_export_status_fits_its_screen_at_every_size_and_orientation),
         TEST_CASE(every_bluetooth_hint_fits_three_lines_in_portrait_and_one_in_landscape),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

@@ -6,6 +6,7 @@
 #include "core/string_builder.h"
 #include "core/utf8.h"
 #include "hal/audio.h"
+#include "hal/clock.h"
 #include "hal/storage.h"
 #include "playback/listening_stats.h"
 #include "ui/header.h"
@@ -25,8 +26,20 @@ enum {
     STAT_GAP = 8,
     EXPORT_MEASURE,
     EXPORT_WRITE,
-    EXPORT_FINISHED
+    EXPORT_DONE,
+    EXPORT_EMPTY,
+    EXPORT_FAILED,
+    EXPORT_STEPS = 16,
+    EXPORT_BUDGET_MS = 12,
+    PERCENT = 100,
+    DETAIL_BYTES = 160
 };
+
+typedef struct ExportStatus {
+    const char *headline;
+    const char *detail;
+    const char *hint;
+} ExportStatus;
 
 typedef struct ListeningWork {
     ListeningScreen *owner;
@@ -36,6 +49,7 @@ typedef struct ListeningWork {
     ListeningTally tallies[TALLY_CAPACITY];
     char names[LISTENING_TOP_COUNT][NAME_BYTES];
     char times[LISTENING_TOP_COUNT][VALUE_BYTES];
+    StringId export_reason;
     uint8_t export_stage;
     bool named;
 } ListeningWork;
@@ -128,11 +142,22 @@ static void choose(ListeningScreen *screen)
     }
 }
 
+static void cancel_export(const ListeningScreen *screen)
+{
+    if (screen->mode == MODE_EXPORT && work.owner == screen && work.export_stage == EXPORT_WRITE) {
+        (void)hal_file_remove(LISTENING_EXPORT_PATH);
+        work.export_stage = EXPORT_FAILED;
+    }
+}
+
 static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     ListeningScreen *screen = context;
     screen->now_ms = now_ms;
     Navigation navigation = navigation_from_key(event);
+    if (navigation.intent == NAVIGATION_HOME || navigation.intent == NAVIGATION_BACK) {
+        cancel_export(screen);
+    }
     if (navigation.intent == NAVIGATION_HOME) {
         return screen_action_pop_to_root();
     }
@@ -176,22 +201,85 @@ static void name_top(ListeningScreen *screen)
     list_view_fit(&screen->list);
 }
 
-static void update_export(ListeningScreen *screen)
+static void fail_export(StringId reason)
+{
+    work.export_stage = EXPORT_FAILED;
+    work.export_reason = reason;
+}
+
+static bool export_file_size(uint32_t *size)
+{
+    HalFile file;
+    if (!hal_file_open(&file, LISTENING_EXPORT_PATH)) {
+        return false;
+    }
+    *size = file.size;
+    hal_file_close(&file);
+    return true;
+}
+
+static bool prepare_export_file(uint32_t bytes)
+{
+    uint32_t size = 0;
+    bool exists = export_file_size(&size);
+    if (exists && size != bytes) {
+        exists = !hal_file_remove(LISTENING_EXPORT_PATH);
+    }
+    if (!exists && hal_file_reserve(LISTENING_EXPORT_PATH, bytes) == HAL_RESERVE_NO_SPACE) {
+        fail_export(STR_STORAGE_FULL);
+        return false;
+    }
+    if (!export_file_size(&size) || size != bytes) {
+        fail_export(STR_EXPORT_WRITE_FAILED);
+        return false;
+    }
+    return true;
+}
+
+static void start_export_write(void)
+{
+    ListeningExport *job = &work.export_job;
+    uint32_t bytes =
+        job->bytes < LISTENING_EXPORT_FILE_BYTES ? job->bytes : LISTENING_EXPORT_FILE_BYTES;
+    if (job->plays == 0) {
+        work.export_stage = EXPORT_EMPTY;
+    } else if (prepare_export_file(bytes) &&
+               listening_export_write(
+                   job, listening_store_file(&work.export_file, LISTENING_EXPORT_PATH, bytes))) {
+        work.export_stage = EXPORT_WRITE;
+    } else if (work.export_stage != EXPORT_FAILED) {
+        fail_export(STR_EXPORT_WRITE_FAILED);
+    }
+}
+
+static void advance_export(void)
 {
     StoreResult result = listening_export_step(&work.export_job);
-    if (result != STORE_DONE || work.export_stage != EXPORT_MEASURE) {
+    bool writing = work.export_stage == EXPORT_WRITE;
+    if (result == STORE_WORKING) {
         return;
     }
-    HalReserveResult reserved =
-        hal_file_reserve(LISTENING_EXPORT_PATH, LISTENING_EXPORT_FILE_BYTES);
-    if ((reserved != HAL_RESERVE_CREATED && reserved != HAL_RESERVE_EXISTS) ||
-        !listening_export_write(&work.export_job,
-                                listening_store_file(&work.export_file, LISTENING_EXPORT_PATH,
-                                                     LISTENING_EXPORT_FILE_BYTES))) {
-        work.export_job.result = STORE_FAILED;
+    if (result != STORE_DONE) {
+        if (writing) {
+            (void)hal_file_remove(LISTENING_EXPORT_PATH);
+        }
+        fail_export(writing ? STR_EXPORT_WRITE_FAILED : STR_HISTORY_UNAVAILABLE);
+    } else if (writing) {
+        work.export_stage = EXPORT_DONE;
+    } else {
+        start_export_write();
     }
-    work.export_stage = EXPORT_WRITE;
-    (void)screen;
+}
+
+static void update_export(void)
+{
+    uint32_t started_ms = hal_clock_milliseconds();
+    for (int step = 0; step < EXPORT_STEPS && work.export_stage <= EXPORT_WRITE &&
+                       hal_clock_milliseconds() - started_ms < EXPORT_BUDGET_MS;
+         step++) {
+        advance_export();
+        hal_audio_service();
+    }
 }
 
 static void update(void *context, uint32_t now_ms)
@@ -204,7 +292,7 @@ static void update(void *context, uint32_t now_ms)
     if (screen->mode == MODE_TOP && !work.named && listening_top_step(&work.top) == STORE_DONE) {
         name_top(screen);
     } else if (screen->mode == MODE_EXPORT) {
-        update_export(screen);
+        update_export();
     }
     hal_audio_service();
 }
@@ -260,6 +348,81 @@ static void draw_menu(ListeningScreen *screen, Canvas *canvas, Rect content)
     draw_totals(screen, canvas, panel);
 }
 
+static uint32_t export_percent(void)
+{
+    const ListeningCursor *cursor = &work.export_job.cursor;
+    uint32_t kept = cursor->kept;
+    uint32_t done = cursor->position + (work.export_stage == EXPORT_WRITE ? kept : 0u);
+    return kept == 0 ? 0 : done * PERCENT / (2u * kept);
+}
+
+static void write_saved(StringBuilder *builder)
+{
+    char count[VALUE_BYTES];
+    StringBuilder number = string_builder_make(count, sizeof count);
+    uint16_t exported = work.export_job.exported;
+    string_builder_append_unsigned(&number, exported);
+    const char *arguments[] = {count, LISTENING_EXPORT_PATH};
+    i18n_format(builder, exported == 1 ? STR_EXPORT_ONE_SAVED : STR_EXPORT_SAVED, arguments, 2);
+}
+
+static void write_export_detail(StringBuilder *builder)
+{
+    uint8_t stage = work.export_stage;
+    if (stage <= EXPORT_WRITE) {
+        i18n_format_counts(builder, STR_EXPORT_PROGRESS, export_percent(), 0);
+    } else if (stage == EXPORT_DONE) {
+        write_saved(builder);
+    } else if (stage == EXPORT_EMPTY) {
+        string_builder_append(builder, i18n_text(work.export_job.unknown > 0 ? STR_EXPORT_UNKNOWN
+                                                                             : STR_LISTENING_HINT));
+    } else if (work.export_reason == STR_EXPORT_WRITE_FAILED) {
+        i18n_format_text(builder, STR_EXPORT_WRITE_FAILED, LISTENING_EXPORT_PATH);
+    } else {
+        string_builder_append(builder, i18n_text(work.export_reason));
+    }
+}
+
+static int wrapped_height(const Font *font, const char *text, int width)
+{
+    return label_wrap_count(font, text, width) * font_line_height(font);
+}
+
+static void draw_status(const Theme *theme, Canvas *canvas, Rect area, ExportStatus status)
+{
+    const Font *title = theme->fonts.title;
+    const Font *body = theme->fonts.body;
+    int padding = theme->metrics.padding;
+    Rect inner = {area.x + padding, area.y, area.width - 2 * padding, area.height - padding};
+    int hint = status.hint != NULL ? font_line_height(theme->fonts.small) : 0;
+    int headline = wrapped_height(title, status.headline, inner.width);
+    int detail = wrapped_height(body, status.detail, inner.width);
+    int top = inner.y + (inner.height - hint - headline - STAT_GAP - detail) / 2;
+    label_draw_wrapped(canvas, (TextStyle){title, theme->colors.text},
+                       (Label){{inner.x, top, inner.width, headline}, status.headline});
+    label_draw_wrapped(
+        canvas, (TextStyle){body, theme->colors.text_secondary},
+        (Label){{inner.x, top + headline + STAT_GAP, inner.width, detail}, status.detail});
+    if (status.hint != NULL) {
+        label_draw_wrapped(
+            canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+            (Label){{inner.x, inner.y + inner.height - hint, inner.width, hint}, status.hint});
+    }
+}
+
+static void draw_export(const Theme *theme, Canvas *canvas, Rect area)
+{
+    static const StringId HEADLINES[] = {STR_EXPORT_WORKING, STR_EXPORT_WORKING, STR_EXPORT_DONE,
+                                         STR_EXPORT_NONE, STR_EXPORT_FAILED};
+    char detail[DETAIL_BYTES];
+    StringBuilder builder = string_builder_make(detail, sizeof detail);
+    uint8_t stage = work.export_stage < EXPORT_MEASURE ? EXPORT_MEASURE : work.export_stage;
+    write_export_detail(&builder);
+    draw_status(theme, canvas, area,
+                (ExportStatus){i18n_text(HEADLINES[stage - EXPORT_MEASURE]), detail,
+                               stage <= EXPORT_WRITE ? i18n_text(STR_BACK_CANCELS) : NULL});
+}
+
 static void draw(void *context, Canvas *canvas)
 {
     ListeningScreen *screen = context;
@@ -272,12 +435,7 @@ static void draw(void *context, Canvas *canvas)
     } else if (screen->mode == MODE_TOTALS) {
         draw_totals(screen, canvas, content);
     } else if (screen->mode == MODE_EXPORT) {
-        StoreResult result = work.export_job.result;
-        StringId message =
-            result == STORE_DONE && work.export_stage == EXPORT_WRITE ? STR_EXPORT_DONE
-            : result == STORE_FAILED || result == STORE_UNCERTAIN     ? STR_EXPORT_FAILED
-                                                                      : STR_EXPORT_WORKING;
-        message_draw(canvas, theme, content, i18n_text(message));
+        draw_export(theme, canvas, content);
     } else if (work.top.result == STORE_FAILED) {
         message_draw(canvas, theme, content, i18n_text(STR_HISTORY_UNAVAILABLE));
     } else if (!work.named) {

@@ -27,7 +27,7 @@ add_dependencies(echo_sim_language echo_language_packs)
 
 add_library(echo_sim_storage STATIC sim_storage.c)
 target_include_directories(echo_sim_storage PUBLIC .)
-target_link_libraries(echo_sim_storage PUBLIC echo_hal PRIVATE echo_options)
+target_link_libraries(echo_sim_storage PUBLIC echo_hal PRIVATE echo_playback echo_options)
 
 add_executable(echo_sim
     main.c

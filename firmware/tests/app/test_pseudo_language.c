@@ -515,6 +515,19 @@ static void walk_power(void)
     CHECK(show("the charge screen when charged") >= 2);
 }
 
+static void walk_listening(void)
+{
+    begin();
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    show_titled("Listening", STR_LISTENING);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    CHECK(strcmp(i18n_text(STR_EXPORT_PLAYS), app_screen_title()) == 0);
+    CHECK(show("Export plays") >= 3);
+}
+
 static void walk_everything(void)
 {
     begin();
@@ -531,6 +544,7 @@ static void walk_everything(void)
     walk_about();
     walk_song_actions();
     walk_now_playing();
+    walk_listening();
     walk_power();
 }
 
