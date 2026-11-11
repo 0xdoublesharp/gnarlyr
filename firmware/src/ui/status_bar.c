@@ -127,14 +127,16 @@ static void draw_icon(Canvas *canvas, IconId icon, Rect area, Color color)
 
 static void draw_bolt(Canvas *canvas, const Theme *theme, Rect body, StatusBatteryLook look)
 {
-    Rect bolt = {body.x, body.y + BORDER, body.width, body.height - 2 * BORDER};
+    Rect bolt = {body.x + BORDER, body.y + BORDER, body.width - 2 * BORDER,
+                 body.height - 2 * BORDER};
+    Canvas inside = canvas_clipped(canvas, bolt);
     for (int dy = -HALO; look.bolt_halo && dy <= HALO; dy++) {
         for (int dx = -HALO; dx <= HALO; dx++) {
             Rect shifted = {bolt.x + dx, bolt.y + dy, bolt.width, bolt.height};
-            draw_icon(canvas, ICON_BOLT, shifted, theme->colors.header_background);
+            draw_icon(&inside, ICON_BOLT, shifted, theme->colors.header_background);
         }
     }
-    draw_icon(canvas, ICON_BOLT, bolt, look.bolt);
+    draw_icon(&inside, ICON_BOLT, bolt, look.bolt);
 }
 
 static void draw_battery(Canvas *canvas, const Theme *theme, StatusBarState state)

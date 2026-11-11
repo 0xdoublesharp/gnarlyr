@@ -246,6 +246,24 @@ static void a_charged_battery_shows_a_dark_bolt_on_its_full_fill(void)
     CHECK(!ui_test_area_has_color(&canvas, inner, theme.colors.header_text));
 }
 
+static void the_outline_stays_unbroken_around_the_bolt_while_charging_or_charged(void)
+{
+    Theme theme = panel_theme();
+    Rect body = status_bar_battery_body(&theme);
+    Rect edges[] = {{body.x, body.y, body.width, 1},
+                    {body.x, body.y + body.height - 1, body.width, 1},
+                    {body.x, body.y, 1, body.height},
+                    {body.x + body.width - 1, body.y, 1, body.height}};
+    for (int charging = 0; charging < 2; charging++) {
+        StatusBarState state = battery_at(charging ? HALF_BATTERY : 100, true);
+        state.charging = charging != 0;
+        Canvas canvas = draw_panel(&theme, state);
+        for (int edge = 0; edge < 4; edge++) {
+            CHECK(ui_test_area_has_only(&canvas, edges[edge], theme.colors.header_text));
+        }
+    }
+}
+
 static void the_tip_stays_a_plain_nub_on_usb_power(void)
 {
     Theme theme = panel_theme();
@@ -300,6 +318,7 @@ int main(void)
         TEST_CASE(a_charging_bolt_is_light_with_a_dark_halo_and_a_charged_one_plain_dark),
         TEST_CASE(a_charging_bolt_reads_over_both_the_fill_and_the_empty_part),
         TEST_CASE(a_charged_battery_shows_a_dark_bolt_on_its_full_fill),
+        TEST_CASE(the_outline_stays_unbroken_around_the_bolt_while_charging_or_charged),
         TEST_CASE(the_tip_stays_a_plain_nub_on_usb_power),
         TEST_CASE(an_unknown_battery_draws_no_battery),
     };
