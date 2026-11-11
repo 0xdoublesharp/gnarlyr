@@ -1,4 +1,5 @@
 add_library(echo_library STATIC
+    album_order.c
     block_cache.c
     covers.c
     lyrics.c

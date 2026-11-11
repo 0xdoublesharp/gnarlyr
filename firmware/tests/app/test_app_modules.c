@@ -333,11 +333,11 @@ static void a_slide_ends_at_once_when_the_leaving_screens_module_cannot_come_bac
     open_cover_flow();
     wait_ms(SLIDE_DURATION_MS);
     const char *toast = app_toast_text();
-    tap(KEY_PLAY);
+    tap(KEY_BACK);
     fake_hal_evict_module();
     fake_hal_break_module(SCREEN_MODULE_VIEWS, true);
     wait_ms(SLIDE_DURATION_MS / 2);
-    CHECK_EQUAL(ALBUM_DEPTH, app_screen_depth());
+    CHECK_EQUAL(MUSIC_DEPTH, app_screen_depth());
     CHECK_EQUAL(1, fake_hal_module_loads());
     CHECK(app_toast_text() == toast);
 }

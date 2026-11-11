@@ -32,6 +32,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
+    src/app/browse_sections.c
     src/app/mixtape_store.c
     src/app/mixtape_ui.c
     src/app/mixtape_screen.c
@@ -46,6 +47,9 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/screens/charge_art.c
     src/core/calendar.c
     src/ui/cover_flow.c
+    src/library/sort_key.c
+    src/library/sort_initial.c
+    src/library/sort_fold_table.c
     src/ui/placeholder_art.c
     src/gfx/image_quad.c
 )
@@ -81,6 +85,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
 )
 set(ECHO_SCREEN_MODULE_SOURCES_library
     src/app/modules/library_module.c
+    src/library/album_order.c
+    src/library/sort_initial.c
     src/app/music_walk.c
     src/app/discovery_screen.c
     src/app/discovery_text.c

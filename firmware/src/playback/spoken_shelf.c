@@ -140,6 +140,33 @@ CORE_SEAM uint32_t spoken_shelf_count(const Library *library, SpokenShelf *shelf
     return count;
 }
 
+static void seek_named(const Library *library, SpokenShelf *shelf, uint32_t position)
+{
+    LibraryFolder root;
+    if (shelf->track != 0 || !library_read_folder(library, 0, &root)) {
+        return;
+    }
+    while (shelf->root < root.subfolder_count) {
+        uint16_t index;
+        BrowseQuery query = browse_root_query(BROWSE_FOLDER);
+        if (library_read_index(library, LIBRARY_LINKS, root.first_link + shelf->root, &index) &&
+            root_matches(library, shelf, index)) {
+            query.subject = index;
+            uint32_t remaining = browse_count(library, query) - shelf->child;
+            uint32_t skip = position - shelf->position;
+            if (skip < remaining) {
+                shelf->child += skip;
+                shelf->position = position;
+                return;
+            }
+            shelf->position += remaining;
+        }
+        service(shelf);
+        shelf->root++;
+        shelf->child = 0;
+    }
+}
+
 CORE_SEAM bool spoken_shelf_item(const Library *library, SpokenShelf *shelf, uint32_t position,
                                  BrowseItem *item)
 {
@@ -150,6 +177,7 @@ CORE_SEAM bool spoken_shelf_item(const Library *library, SpokenShelf *shelf, uin
     if (position < shelf->position) {
         spoken_shelf_init(shelf, shelf->kind, shelf->between, shelf->context);
     }
+    seek_named(library, shelf, position);
     while (shelf->position <= position) {
         bool selected = shelf->position == position;
         if (!next(library, shelf, selected ? item : NULL)) {

@@ -427,6 +427,29 @@ static void maximum_click_window_is_not_immediate(void)
     CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
 }
 
+static void slow_consumers_receive_only_the_newest_volume_repeat(void)
+{
+    KeyTracker tracker = make_tracker();
+    key_tracker_key_down(&tracker, KEY_VOLUME_UP, 1000);
+    CHECK_EQUAL(KEY_GESTURE_PRESS, next_gesture(&tracker, KEY_VOLUME_UP));
+    for (int step = 0; step < 20; step++) {
+        key_tracker_update(&tracker, 1400 + (uint32_t)step * REPEAT_INTERVAL_MS);
+    }
+    CHECK_EQUAL(1, tracker.queue_length);
+    CHECK_EQUAL(KEY_GESTURE_REPEAT, next_gesture(&tracker, KEY_VOLUME_UP));
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
+}
+
+static void released_volume_keys_do_not_deliver_stale_repeats(void)
+{
+    KeyTracker tracker = make_tracker();
+    key_tracker_key_down(&tracker, KEY_VOLUME_UP, 1000);
+    CHECK_EQUAL(KEY_GESTURE_PRESS, next_gesture(&tracker, KEY_VOLUME_UP));
+    key_tracker_update(&tracker, 1400);
+    key_tracker_key_up(&tracker, KEY_VOLUME_UP, 1401);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -434,6 +457,8 @@ int main(void)
         TEST_CASE(a_release_before_its_own_long_press_time_is_a_tap),
         TEST_CASE(keys_without_their_own_time_use_the_shared_one),
         TEST_CASE(tap_emits_press_on_release),
+        TEST_CASE(slow_consumers_receive_only_the_newest_volume_repeat),
+        TEST_CASE(released_volume_keys_do_not_deliver_stale_repeats),
         TEST_CASE(holding_past_threshold_emits_one_long_press),
         TEST_CASE(release_after_long_press_emits_nothing),
         TEST_CASE(late_release_without_update_emits_long_press),

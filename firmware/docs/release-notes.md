@@ -10,6 +10,10 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Library and navigation
 
+- Long name-sorted lists share Cover Flow's accelerated holds and letter sections, with sort-key folding for accents and “The”, a theme-coloured badge, and clamped section steps that preserve small sections. Short lists keep their ordinary scrolling. Repeated volume input is coalesced and released holds discard stale repeats.
+- Home avoids walking every album when the cover database is unavailable.
+- Holding Play on an artist or album artist offers Play all and Shuffle albums. Albums follow year/title order or a shuffled album sequence; each album's tracks stay in order. The persistent queue preserves CUE parts, chapters and restart position, up to 65,535 entries.
+
 - Settings → Format card adds a quick FAT32/exFAT format with capacity and erase warnings, a separate confirmation with Cancel selected, playback/USB/battery guards, progress and removal recovery. Formatting clears the card's library and saved playback state. Native sparse images pass macOS fsck and read/write checks; ARM scenarios cover copied WAV playback and removal/retry. Physical card acceptance remains open.
 
 - Search metadata and paths, combine sorting and filters, inspect track information and assign personal mood/activity labels.

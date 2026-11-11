@@ -79,6 +79,10 @@ static void show_next_with_a_cover(HomeArt *art, uint32_t count)
 
 static void cycle(HomeArt *art, uint32_t count, uint32_t now_ms)
 {
+    if (!art->covers->available) {
+        art->album = 0;
+        return;
+    }
     if (!art->cycling) {
         art->cycling = true;
         art->album = (uint16_t)(count - 1);

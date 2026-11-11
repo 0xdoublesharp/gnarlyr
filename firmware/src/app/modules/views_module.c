@@ -1,3 +1,4 @@
+#include "browse_sections.h"
 #include "mixtape_ui_private.h"
 #include "modules/modules.h"
 #include "screens/charge_screen.h"
@@ -38,4 +39,6 @@ const ViewsModuleEntry VIEWS_MODULE_ENTRY = {
     .module = {SCREEN_MODULE_MAGIC(SCREEN_MODULE_VIEWS), bind},
     .cancel = mixtape_ui_cancel,
     .step = mixtape_ui_step,
+    .section = browse_sections_at,
+    .sections = browse_sections_range,
     .charge_draw = charge_art_draw};
