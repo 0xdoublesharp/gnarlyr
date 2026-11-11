@@ -14,6 +14,7 @@ static CoverImageResult decode_any(ImageReader *reader, ImageArena *arena, Cover
     uint8_t first = image_reader_peek(reader, 0);
     uint8_t second = image_reader_peek(reader, 1);
     if (first == JPEG_FIRST && second == JPEG_SECOND) {
+        (void)image_reader_grow(reader, arena, IMAGE_READER_LARGE_BUFFER);
         return jpeg_decode(reader, arena, image);
     }
     if (first == PNG_FIRST && second == PNG_SECOND) {

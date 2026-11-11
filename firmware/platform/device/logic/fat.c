@@ -386,6 +386,48 @@ bool fat_next_entry(FatVolume *volume, FatDirCursor *cursor, FatDirEntry *entry)
     return next_fat_entry(volume, cursor, entry);
 }
 
+static bool direct_transfer(uint32_t offset, const void *buffer, uint32_t length)
+{
+    return offset % FAT_SECTOR_SIZE == 0 && length > FAT_CACHE_SECTORS * FAT_SECTOR_SIZE &&
+           (uintptr_t)buffer % sizeof(uint32_t) == 0;
+}
+
+static void forget_cached(FatVolume *volume, uint32_t lba, uint32_t count)
+{
+    if (lba < volume->cache_lba + volume->cache_count && volume->cache_lba < lba + count) {
+        volume->cache_count = 0;
+    }
+}
+
+static uint32_t run_from(FatVolume *volume, FatFile *file, uint32_t sector_index, uint32_t first,
+                         uint32_t limit)
+{
+    uint32_t length = 1;
+    uint32_t lba = first;
+    while (length < limit && fat_file_sector(volume, file, sector_index + length, &lba) &&
+           lba == first + length) {
+        length++;
+    }
+    return length;
+}
+
+static uint32_t read_direct(FatVolume *volume, FatFile *file, uint32_t offset, uint8_t *out,
+                            uint32_t length)
+{
+    uint32_t sectors = length / FAT_SECTOR_SIZE;
+    uint32_t sector_index = offset / FAT_SECTOR_SIZE;
+    uint32_t lba = 0;
+    if (!fat_file_sector(volume, file, sector_index, &lba)) {
+        return 0;
+    }
+    uint32_t count = run_from(volume, file, sector_index, lba,
+                              sectors < FAT_DIRECT_SECTORS ? sectors : FAT_DIRECT_SECTORS);
+    if (!volume->device.read(volume->device.context, lba, count, out)) {
+        return 0;
+    }
+    return count * FAT_SECTOR_SIZE;
+}
+
 bool fat_read(FatVolume *volume, FatFile *file, uint32_t offset, void *buffer, uint32_t length)
 {
     if (offset > file->size || length > file->size - offset) {
@@ -394,6 +436,16 @@ bool fat_read(FatVolume *volume, FatFile *file, uint32_t offset, void *buffer, u
     uint8_t *out = buffer;
     uint32_t last_sector = (file->size - 1) / FAT_SECTOR_SIZE;
     while (length > 0) {
+        if (direct_transfer(offset, out, length)) {
+            uint32_t moved = read_direct(volume, file, offset, out, length);
+            if (moved == 0) {
+                return false;
+            }
+            out += moved;
+            offset += moved;
+            length -= moved;
+            continue;
+        }
         uint32_t within = offset % FAT_SECTOR_SIZE;
         uint32_t chunk = FAT_SECTOR_SIZE - within < length ? FAT_SECTOR_SIZE - within : length;
         uint32_t sector_index = offset / FAT_SECTOR_SIZE;
@@ -403,6 +455,7 @@ bool fat_read(FatVolume *volume, FatFile *file, uint32_t offset, void *buffer, u
         }
         if (!fat_sector_cached(volume, lba)) {
             uint32_t ahead = last_sector - sector_index + 1;
+            ahead = direct_transfer(offset + chunk, out + chunk, length - chunk) ? 1 : ahead;
             uint32_t run = fat_run_length(volume, file, sector_index,
                                           ahead < FAT_CACHE_SECTORS ? ahead : FAT_CACHE_SECTORS);
             if (run == 0 || !fat_read_run(volume, lba, run)) {
@@ -420,16 +473,31 @@ bool fat_read(FatVolume *volume, FatFile *file, uint32_t offset, void *buffer, u
     return true;
 }
 
+static bool write_run(FatVolume *volume, uint32_t lba, const uint8_t *bytes, uint32_t count,
+                      bool direct)
+{
+    if (!direct) {
+        return fat_write_run(volume, lba, bytes, count);
+    }
+    forget_cached(volume, lba, count);
+    return volume->device.write(volume->device.context, lba, count, bytes);
+}
+
 static uint32_t write_whole_sectors(FatVolume *volume, FatFile *file, uint32_t offset,
                                     const uint8_t *bytes, uint32_t length)
 {
     uint32_t sectors = length / FAT_SECTOR_SIZE;
     uint32_t sector_index = offset / FAT_SECTOR_SIZE;
+    bool direct = direct_transfer(offset, bytes, length);
+    uint32_t limit = direct ? FAT_DIRECT_SECTORS : FAT_CACHE_SECTORS;
     uint32_t lba = 0;
-    uint32_t count = fat_run_length(volume, file, sector_index,
-                                    sectors < FAT_CACHE_SECTORS ? sectors : FAT_CACHE_SECTORS);
-    if (count == 0 || !fat_file_sector(volume, file, sector_index, &lba) ||
-        !fat_write_run(volume, lba, bytes, count)) {
+    if (!fat_file_sector(volume, file, sector_index, &lba)) {
+        return 0;
+    }
+    uint32_t count =
+        direct ? run_from(volume, file, sector_index, lba, sectors < limit ? sectors : limit)
+               : fat_run_length(volume, file, sector_index, sectors < limit ? sectors : limit);
+    if (count == 0 || !write_run(volume, lba, bytes, count, direct)) {
         return 0;
     }
     return count * FAT_SECTOR_SIZE;

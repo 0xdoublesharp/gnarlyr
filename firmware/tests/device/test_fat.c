@@ -401,6 +401,50 @@ static void a_whole_sector_write_takes_one_block_write_and_no_reads(void)
     sparse_card_free(&card->sparse);
 }
 
+static void a_long_aligned_read_goes_straight_into_the_buffer(void)
+{
+    Card *card = mounted("exfat_mbr");
+    FatFile file;
+    static uint32_t words[5000];
+    uint8_t *bytes = (uint8_t *)words;
+    CHECK(fat_open(&card->volume, LONG_NAME_PATH, &file));
+    card->sparse.calls = 0;
+    card->sparse.reads = 0;
+    CHECK(fat_read(&card->volume, &file, 0, bytes, 20000));
+    check_pattern(bytes, 5, 0, 20000);
+    CHECK(card->sparse.calls <= 2);
+    CHECK(card->sparse.reads <= 48);
+    card->sparse.calls = 0;
+    CHECK(fat_read(&card->volume, &file, 300, bytes + 1, 15000));
+    check_pattern(bytes + 1, 5, 300, 15000);
+    CHECK(fat_read(&card->volume, &file, 812, bytes + 4, 15000));
+    check_pattern(bytes + 4, 5, 812, 15000);
+    sparse_card_free(&card->sparse);
+}
+
+static void a_long_aligned_write_takes_one_block_write_and_reads_back(void)
+{
+    Card *card = mounted("exfat_mbr");
+    FatFile file;
+    static uint32_t written_words[4096];
+    static uint8_t bytes[20000];
+    uint8_t *written = (uint8_t *)written_words;
+    fill_written(written, 16384);
+    CHECK(fat_open(&card->volume, LONG_NAME_PATH, &file));
+    CHECK(fat_read(&card->volume, &file, 512, bytes, 100));
+    card->sparse.calls = 0;
+    card->sparse.write_calls = 0;
+    CHECK(fat_write(&card->volume, &file, 512, written, 16384));
+    CHECK_EQUAL(0u, card->sparse.calls);
+    CHECK_EQUAL(1u, card->sparse.write_calls);
+    CHECK(fat_read(&card->volume, &file, 512, bytes, 100));
+    check_written(bytes, 100);
+    CHECK(fat_read(&card->volume, &file, 0, bytes, 20000));
+    check_pattern(bytes, 5, 0, 512);
+    check_written(bytes + 512, 16384);
+    sparse_card_free(&card->sparse);
+}
+
 static uint32_t calls_to_open(Card *card, const char *path)
 {
     FatFile file;
@@ -620,6 +664,8 @@ int main(void)
         TEST_CASE(fat16_writes_land_in_place_across_sectors_and_clusters),
         TEST_CASE(exfat_writes_land_in_place_across_sectors_and_clusters),
         TEST_CASE(a_whole_sector_write_takes_one_block_write_and_no_reads),
+        TEST_CASE(a_long_aligned_read_goes_straight_into_the_buffer),
+        TEST_CASE(a_long_aligned_write_takes_one_block_write_and_reads_back),
         TEST_CASE(a_second_file_in_the_same_folder_skips_the_walk),
         TEST_CASE(files_reserved_in_a_remembered_folder_open),
         TEST_CASE(a_write_past_the_end_fails_and_changes_nothing),
