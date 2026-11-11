@@ -26,14 +26,14 @@ enum {
     MUSIC_SMART_LISTS_ROW = 10,
     MUSIC_ALBUMS_ROW = 4,
     MUSIC_ALL_SONGS_ROW = 7,
-    SETTINGS_ROWS = 28,
+    SETTINGS_ROWS = 29,
     SETTINGS_BLUETOOTH_ROW = 3,
     SETTINGS_SLEEP_ROW = 4,
-    SETTINGS_OUTPUT_ROW = 14,
-    SETTINGS_EQUALIZER_ROW = 15,
-    SETTINGS_CUSTOM_EQ_ROW = 16,
-    SETTINGS_RESCAN_ROW = 20,
-    SETTINGS_USB_MODE_ROW = 21,
+    SETTINGS_OUTPUT_ROW = 15,
+    SETTINGS_EQUALIZER_ROW = 16,
+    SETTINGS_CUSTOM_EQ_ROW = 17,
+    SETTINGS_RESCAN_ROW = 21,
+    SETTINGS_USB_MODE_ROW = 22,
     ABOUT_ROWS = 14,
     HOME_EDITOR_PODCASTS_ROW = 2,
     EQUALIZER_SAVE_ROW = 10,
@@ -68,6 +68,7 @@ static bool portrait;
 static bool engineering_values;
 static TextSize variant_size;
 static Orientation variant_orientation;
+static bool variant_clock_24h = true;
 
 static void add_player_files(bool with_library)
 {
@@ -91,6 +92,7 @@ static void start(TextSize size, Orientation orientation, bool with_library)
     Settings settings = settings_defaults();
     settings.text_size = size;
     settings.orientation = orientation;
+    settings.clock_24h = variant_clock_24h;
     settings_encode(&settings, saved);
     fake_hal_reset();
     i18n_detach();
@@ -402,6 +404,7 @@ static void walk_settings_choices(void)
                                                    STR_SLEEP_TIMER,
                                                    STR_AUTO_OFF,
                                                    STR_SCREEN_TIMEOUT,
+                                                   STR_CLOCK_FORMAT,
                                                    STR_BRIGHTNESS,
                                                    STR_COLOR,
                                                    STR_TEXT_SIZE,
@@ -604,13 +607,21 @@ static void walk_clock(void)
     show_titled("Clock without a time", STR_CLOCK);
     tap(KEY_PLAY);
     show_titled("Calendar without a time", STR_CALENDAR);
-    begin();
-    fake_hal_set_wall(1794390060u, 60);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
-    tap(KEY_PLAY);
-    show_titled("Clock", STR_CLOCK);
-    tap(KEY_PLAY);
-    show_titled("Calendar", STR_CALENDAR);
+    for (int format = 0; format < 2; format++) {
+        variant_clock_24h = format != 0;
+        begin();
+        fake_hal_set_wall(1794390060u, 60);
+        tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+        tap(KEY_PLAY);
+        show_titled("Clock", STR_CLOCK);
+        tap(KEY_PLAY);
+        show_titled("Calendar", STR_CALENDAR);
+        fake_hal_set_wall(1794439800u, 0);
+        show_titled("Calendar at night", STR_CALENDAR);
+        tap(KEY_BACK);
+        show_titled("Clock at night", STR_CLOCK);
+    }
+    variant_clock_24h = true;
     fake_hal_set_wall(0, 0);
 }
 

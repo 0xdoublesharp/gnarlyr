@@ -1021,14 +1021,17 @@ static void draw_slide(Canvas *canvas, Screen *arriving)
     }
 }
 
-static StatusBarState shown_status_bar(const AppState *state, const char *title)
+static StatusBarState shown_status_bar(const AppState *state, const Screen *screen)
 {
     StatusBarState bar = state->status_bar;
     const Theme *theme = board_theme();
+    const char *title = screen->title;
     if (bar.clock == NULL || title == NULL || theme->metrics.status_height > 0) {
         return bar;
     }
-    int title_end = (theme->metrics.screen_width + text_width(theme->fonts.header, title)) / 2;
+    int width = screen->header_title_width != 0 ? screen->header_title_width
+                                                : text_width(theme->fonts.header, title);
+    int title_end = (theme->metrics.screen_width + width) / 2;
     if (status_bar_clock_area(theme, bar).x < title_end + theme->metrics.padding) {
         bar.clock = NULL;
     }
@@ -1048,7 +1051,7 @@ static void draw_frame(void *context, Canvas *canvas)
         screen->draw(screen->context, canvas);
     }
     if (!screen->full_screen) {
-        status_bar_draw(canvas, board_theme(), shown_status_bar(state, screen->title));
+        status_bar_draw(canvas, board_theme(), shown_status_bar(state, screen));
     }
     toast_draw(&state->toast, canvas, board_theme());
     if (state->options.show_frame_time) {

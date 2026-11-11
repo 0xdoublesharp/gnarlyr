@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/clock_face.h"
 #include "core/i18n.h"
 #include "default_theme.h"
 #include "fake_hal.h"
@@ -29,6 +30,7 @@ static void start(uint32_t utc, int16_t offset)
     fake_hal_reset();
     fake_hal_set_wall(utc, offset);
     theme = BOARD_THEME;
+    settings = settings_defaults();
     calendar_screen_init(&calendar, (CalendarScreenConfig){.theme = &theme});
     clock_screen_init(
         &clock,
@@ -171,8 +173,10 @@ static void check_clock_layout(const char *digits, const char *meridiem)
     CHECK(layout.weekday.y + layout.weekday.height <= layout.time.y);
     CHECK(layout.time.y + layout.time.height <= layout.date.y);
     CHECK(layout.date.y + layout.date.height <= layout.hint.y);
-    int width = text_width(theme.fonts.title, digits) * layout.scale +
-                (meridiem != NULL ? text_width(theme.fonts.small, meridiem) : 0);
+    int width =
+        text_width(theme.fonts.title, digits) * layout.scale +
+        (meridiem != NULL ? theme.metrics.padding / 2 + text_width(theme.fonts.small, meridiem)
+                          : 0);
     CHECK(width <= layout.time.width);
     CHECK(layout.scale >= 1 && layout.scale <= CLOCK_SCREEN_MAX_SCALE);
     CHECK(layout.time.height > font_line_height(theme.fonts.body));
@@ -226,7 +230,7 @@ static void capture_with_status(const char *name, const char *percent, int varia
                             .battery_known = true,
                             .battery_percent = 64,
                             .percent = percent,
-                            .clock = "09:41"};
+                            .clock = settings.clock_24h ? "09:41" : "9:41 AM"};
     if (status_bar_clock_fits(&theme, state)) {
         status_bar_draw(&canvas, &theme, state);
     }
@@ -246,6 +250,12 @@ static void every_size_and_orientation_is_captured(void)
             capture("calendar", &calendar.screen, variant);
             capture_with_status("status-clock", NULL, variant);
             capture_with_status("status-clock-percent", "64%", variant);
+            settings.clock_24h = false;
+            capture("clock-12h-am", &clock.screen, variant);
+            capture_with_status("status-clock-12h", NULL, variant);
+            capture_with_status("status-clock-12h-percent", "64%", variant);
+            fake_hal_set_wall(WEDNESDAY_2330_UTC, 0);
+            capture("clock-12h-pm", &clock.screen, variant);
             fake_hal_set_wall(0, 0);
             capture("clock-unknown", &clock.screen, variant);
             capture("calendar-unknown", &calendar.screen, variant);
@@ -253,9 +263,52 @@ static void every_size_and_orientation_is_captured(void)
     }
 }
 
-static void the_clock_reads_twenty_four_hours_until_settings_offer_a_choice(void)
+static void the_wall_clock_honours_the_stored_hour_format(void)
 {
+    start(WEDNESDAY_0941_UTC, 0);
     CHECK(wall_time_24h(&settings));
+    settings.clock_24h = false;
+    CHECK(!wall_time_24h(&settings));
+    settings.clock_24h = true;
+    CHECK(wall_time_24h(&settings));
+}
+
+static void check_twelve_hour_time(uint32_t utc, int16_t offset, const char *expected,
+                                   StringId meridiem)
+{
+    start(utc, offset);
+    settings.clock_24h = false;
+    WallNow now = wall_time_now();
+    char text[32];
+    StringBuilder builder = string_builder_make(text, sizeof text);
+    clock_face_text(&builder, clock_face(now.local_s, wall_time_24h(&settings)));
+    CHECK(strcmp(text, expected) == 0);
+    draw(&clock.screen);
+    CHECK(saw(i18n_text(meridiem)));
+    CHECK(!saw(i18n_text(meridiem == STR_CLOCK_AM ? STR_CLOCK_PM : STR_CLOCK_AM)));
+}
+
+static void twelve_hour_time_shows_midnight_noon_and_the_local_meridiem(void)
+{
+    uint32_t midnight = WEDNESDAY_0941_UTC - (9 * 60 + 41) * 60;
+    check_twelve_hour_time(midnight, 0, "12:00 AM", STR_CLOCK_AM);
+    check_twelve_hour_time(midnight + 12 * 60 * 60, 0, "12:00 PM", STR_CLOCK_PM);
+    check_twelve_hour_time(WEDNESDAY_0941_UTC, 0, "9:41 AM", STR_CLOCK_AM);
+    check_twelve_hour_time(WEDNESDAY_2330_UTC, 0, "11:30 PM", STR_CLOCK_PM);
+    check_twelve_hour_time(WEDNESDAY_2330_UTC, 60, "12:30 AM", STR_CLOCK_AM);
+    CHECK(saw(i18n_text(STR_THURSDAY)));
+}
+
+static void twenty_four_hour_time_has_no_meridiem(void)
+{
+    start(WEDNESDAY_0941_UTC, 0);
+    settings.clock_24h = false;
+    draw(&clock.screen);
+    CHECK(saw(i18n_text(STR_CLOCK_AM)));
+    settings.clock_24h = true;
+    draw(&clock.screen);
+    CHECK(!saw(i18n_text(STR_CLOCK_AM)));
+    CHECK(!saw(i18n_text(STR_CLOCK_PM)));
 }
 
 int main(void)
@@ -269,7 +322,9 @@ int main(void)
         TEST_CASE(only_today_is_highlighted_and_only_in_its_month),
         TEST_CASE(both_screens_fit_every_size_and_orientation),
         TEST_CASE(every_size_and_orientation_is_captured),
-        TEST_CASE(the_clock_reads_twenty_four_hours_until_settings_offer_a_choice),
+        TEST_CASE(the_wall_clock_honours_the_stored_hour_format),
+        TEST_CASE(twelve_hour_time_shows_midnight_noon_and_the_local_meridiem),
+        TEST_CASE(twenty_four_hour_time_has_no_meridiem),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

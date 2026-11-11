@@ -131,17 +131,19 @@ static void draw_month(Canvas *canvas, const CalendarScreen *calendar)
 
 static void draw(void *context, Canvas *canvas)
 {
-    const CalendarScreen *calendar = context;
+    CalendarScreen *calendar = context;
     const Theme *theme = calendar->config.theme;
     Rect content = theme_content_area(theme);
     char title[TITLE_CAPACITY];
     canvas_fill_rect(canvas, content, theme->colors.background);
+    calendar->screen.header_title_width = 0;
     if (!wall_time_now().known) {
         header_draw(canvas, theme, i18n_text(STR_CALENDAR));
         clock_screen_draw_unknown(canvas, theme, content);
         return;
     }
     month_title(calendar->shown, title, sizeof title);
+    calendar->screen.header_title_width = (uint16_t)text_width(theme->fonts.header, title);
     header_draw(canvas, theme, title);
     draw_month(canvas, calendar);
 }

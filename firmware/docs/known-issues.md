@@ -18,6 +18,8 @@ Gnarlyr 1.0.0 is not released. The developer firmware runs on the owner's full-s
 
 ## Not proven on a player
 
+- **12/24-hour clock choice.** Software checks cover the setting, midnight/noon, local-time rollover and layouts. Display and persistence on the player remain to be checked.
+
 These checks remain incomplete on the owner's unit; the observed developer flows above do not replace them.
 
 - **USB compatibility beyond the owner's Mac.** Storage enumeration and automatic reconnect with the overlay have worked on that Mac; broader host compatibility and sustained transfer checks remain.

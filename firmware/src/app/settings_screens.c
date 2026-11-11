@@ -33,6 +33,7 @@ static const StringId AUTO_OFF_OPTIONS[AUTO_OFF_OPTION_COUNT] = {STR_OFF, STR_MI
 static const StringId TIMEOUT_OPTIONS[SCREEN_TIMEOUT_OPTION_COUNT] = {
     STR_SECONDS_10, STR_SECONDS_20, STR_SECONDS_30, STR_MINUTES_1,
     STR_MINUTES_2,  STR_MINUTES_5,  STR_NEVER};
+static const StringId CLOCK_FORMAT_OPTIONS[] = {STR_CLOCK_12H, STR_CLOCK_24H};
 static const char *const BRIGHTNESS_OPTIONS[BRIGHTNESS_LEVEL_COUNT] = {"1", "2", "3", "4", "5",
                                                                        "6", "7", "8", "9", "10"};
 static const StringId ACCENT_OPTIONS[ACCENT_COLOR_COUNT] = {
@@ -161,6 +162,17 @@ static void choose_timeout(void *context, int index)
 static int current_auto_off(const void *context)
 {
     return settings_of(context)->auto_off;
+}
+
+static int current_clock_format(const void *context)
+{
+    return settings_of(context)->clock_24h ? 1 : 0;
+}
+
+static void choose_clock_format(void *context, int index)
+{
+    editable_settings(context)->clock_24h = index != 0;
+    save(context);
 }
 
 static void choose_auto_off(void *context, int index)
@@ -658,6 +670,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      NULL},
     {STR_SCREEN_TIMEOUT, TIMEOUT_OPTIONS, SCREEN_TIMEOUT_OPTION_COUNT, current_timeout,
      choose_timeout, NULL, NULL},
+    {STR_CLOCK_FORMAT, CLOCK_FORMAT_OPTIONS, 2, current_clock_format, choose_clock_format, NULL,
+     NULL},
     {STR_BRIGHTNESS, NULL, BRIGHTNESS_LEVEL_COUNT, current_brightness, choose_brightness,
      describe_brightness, extend_brightness},
     {STR_COLOR, ACCENT_OPTIONS, ACCENT_COLOR_COUNT, current_accent, choose_accent, NULL, NULL},

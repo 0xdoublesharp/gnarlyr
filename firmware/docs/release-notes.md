@@ -18,6 +18,8 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Interface and sound controls
 
+- Settings → Clock format selects 12-hour time with AM/PM or 24-hour time for Clock and the status bar, including Calendar. The choice survives restarts.
+
 - Five themes with live preview, configurable playback tap/hold actions, shared icons and cassette artwork.
 - Flat retro-future headers and focus accents, clearer Listen and charging layouts, a larger battery readout and an honest distinction between USB power, charging and full.
 - Theme and EQ browsing preview without saving. Custom EQ has a response curve and staged audible editing; leaving a preview restores the saved choice.

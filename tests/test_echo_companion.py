@@ -322,6 +322,24 @@ class CompanionSettings(VolumeCase):
         data = self.path.read_bytes()
         self.assertEqual((data[5], data[38:54]), (6, EXTENSION))
 
+    def test_clock_format_uses_the_extension_bit_and_the_installed_choices(self):
+        self.use_version15()
+        original = echo_language.Snapshot.show
+        paths = ("firmware/assets/lang/en.txt", "firmware/src/app/settings_screens.c")
+        def show(snapshot, path):
+            return (echo_debug.ROOT / path).read_text() if path in paths else original(snapshot, path)
+        with mock.patch.object(echo_language.Snapshot, "show", show):
+            before = self.path.read_bytes()
+            tool, _ = self.tool(self.change(38, before[38] | 4))
+            listed = {item["key"]: item for item in tool.settings_list()["settings"]}
+            self.assertIn("clock_24h", listed)
+            self.assertEqual(listed["clock_24h"]["value"], "12h")
+            self.assertEqual(tool.settings_set("clock_24h", "24h")["value"], "24h")
+            expected = bytearray(before)
+            expected[38] |= 4
+            self.assertEqual(self.path.read_bytes(), checked(expected))
+            self.assertIn("set Clock format=24-hour\n", self.sent[0])
+
     def test_version15_extension_values_the_firmware_rejects_are_refused_before_writes(self):
         self.use_version15()
         cases = ((38, 0x18), (38, 0x20), (39, 61), (40, 4), (40, 61), (41, 1), (42, 0x00),
