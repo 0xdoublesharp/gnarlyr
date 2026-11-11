@@ -345,8 +345,19 @@ static const char *describe_output(const void *context, int current)
 
 static void choose_equalizer(void *context, int index)
 {
+    ((SettingsContext *)context)->store->equalizer_slot = -1;
     editable_settings(context)->equalizer = (EqualizerPreset)index;
     apply_and_save(context);
+}
+
+static const char *describe_equalizer(const void *context, int current)
+{
+    static const StringId slots[] = {STR_EQ_SLOT_1, STR_EQ_SLOT_2, STR_EQ_SLOT_3, STR_EQ_SLOT_4,
+                                     STR_EQ_SLOT_5, STR_EQ_SLOT_6, STR_EQ_SLOT_7, STR_EQ_SLOT_8};
+    const SettingsContext *settings = context;
+    int slot = settings->store->equalizer_slot;
+    return slot >= 0 && slot < EQUALIZER_SLOT_COUNT ? i18n_text(slots[slot])
+                                                    : i18n_text(EQUALIZER_PRESET_NAMES[current]);
 }
 
 static int current_equalizer(const void *context)
@@ -572,7 +583,7 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_OUTPUT, OUTPUT_OPTIONS, OUTPUT_JACK_COUNT, current_output, choose_output, describe_output,
      NULL},
     {STR_EQUALIZER, EQUALIZER_PRESET_NAMES, EQUALIZER_PRESET_COUNT, current_equalizer,
-     choose_equalizer, NULL, NULL},
+     choose_equalizer, describe_equalizer, NULL},
     {STR_REPLAY_GAIN, REPLAY_GAIN_OPTIONS, REPLAY_GAIN_MODE_COUNT, current_replay_gain,
      choose_replay_gain, NULL, NULL},
     {STR_PREVENT_CLIPPING, OFF_ON_OPTIONS, 2, current_prevent_clipping, choose_prevent_clipping,

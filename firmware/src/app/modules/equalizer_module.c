@@ -8,4 +8,6 @@ static void bind(AppScreens *screens)
 }
 
 const ParametricModuleEntry EQUALIZER_MODULE_ENTRY = {
-    .module = {SCREEN_MODULE_MAGIC(SCREEN_MODULE_EQUALIZER), bind}, .load = parametric_store_read};
+    .module = {SCREEN_MODULE_MAGIC(SCREEN_MODULE_EQUALIZER), bind},
+    .load = parametric_store_read,
+    .matching = parametric_store_slot};

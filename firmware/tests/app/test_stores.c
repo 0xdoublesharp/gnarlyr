@@ -3,6 +3,7 @@
 
 #include "check.h"
 #include "core/hash.h"
+#include "equalizer_presets.h"
 #include "fake_hal.h"
 #include "favorite_playlist.h"
 #include "favorites_store.h"
@@ -176,6 +177,7 @@ static void the_equalizer_is_saved_and_loaded_again(void)
     settings_store_load(&settings);
     CHECK_EQUAL(EQUALIZER_CUSTOM, settings.settings.equalizer);
     CHECK_EQUAL(-9, settings.settings.equalizer_gains[3]);
+    CHECK_EQUAL(-1, settings.equalizer_slot);
 }
 
 static void toggling_an_album_adds_it_and_saves(void)
@@ -426,9 +428,41 @@ static void normalization_settings_restore_to_the_player_from_a_full_record(void
     CHECK_EQUAL(SETTINGS_FILE_SIZE, size);
 }
 
+static void matching_graphic_and_parametric_slots_survive_restart(void)
+{
+    fake_hal_reset();
+    SettingsStore store = {.settings = settings_defaults()};
+    EqualizerSlots slots = {0};
+    store.settings.equalizer = EQUALIZER_CUSTOM;
+    store.settings.equalizer_gains[5] = 3;
+    equalizer_slots_put(&slots, 2, store.settings.equalizer_gains);
+    uint8_t bytes[EQUALIZER_SLOTS_FILE_SIZE];
+    equalizer_slots_encode(&slots, bytes);
+    CHECK(hal_internal_file_write(EQUALIZER_SLOTS_PATH, bytes, sizeof bytes));
+    CHECK(settings_store_save(&store));
+    settings_store_load(&store);
+    CHECK_EQUAL(2, store.equalizer_slot);
+    CHECK_EQUAL(3, store.settings.equalizer_gains[5]);
+    CHECK_EQUAL(HAL_RESERVE_CREATED, hal_internal_file_reserve(PARAMETRIC_STORE_PATH, 4096));
+    ParametricStore file = {0};
+    parametric_store_read(&file, NULL);
+    ParametricEq eq = {
+        .count = 1, .preamp = -62, .filters = {{105, 70, -23, PARAMETRIC_PEAK, true}}};
+    ParametricBank bank = {.custom = eq, .used = 1};
+    bank.slots[0] = eq;
+    CHECK(parametric_store_save(&file, &bank));
+    store.settings.equalizer = EQUALIZER_PARAMETRIC;
+    store.settings.parametric = eq;
+    CHECK(settings_store_save(&store));
+    settings_store_load(&store);
+    CHECK_EQUAL(0, store.equalizer_slot);
+    CHECK(parametric_same(&eq, &store.settings.parametric));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(matching_graphic_and_parametric_slots_survive_restart),
         TEST_CASE(without_a_file_the_defaults_are_used),
         TEST_CASE(saved_settings_are_loaded_again),
         TEST_CASE(normalization_settings_restore_to_the_player_from_a_full_record),

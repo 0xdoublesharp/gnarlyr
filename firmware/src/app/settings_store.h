@@ -13,6 +13,7 @@ extern const char SETTINGS_BUTTONS_PATH[];
 typedef struct SettingsStore {
     Settings settings;
     ParametricStore parametric;
+    int8_t equalizer_slot;
     uint8_t saved[SETTINGS_FILE_SIZE];
     bool has_saved;
     uint8_t saved_buttons[SETTINGS_BUTTONS_FILE_SIZE];

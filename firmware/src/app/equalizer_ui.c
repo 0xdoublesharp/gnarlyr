@@ -37,6 +37,7 @@ static void message(EqualizerUi *ui, bool saved, int slot)
 
 static void save(EqualizerUi *ui)
 {
+    ui->store->equalizer_slot = (int8_t)active_slot(ui);
     settings_store_capture(ui->store, player_status(ui->player));
     settings_store_apply_equalizer(&ui->store->settings);
     if (!settings_store_save(ui->store)) {
@@ -91,6 +92,7 @@ static void save_graphic(void *context, int slot)
     EqualizerUi *ui = context;
     bool saved =
         equalizer_presets_save_slot(ui->presets, slot, ui->store->settings.equalizer_gains);
+    ui->store->equalizer_slot = (int8_t)active_slot(ui);
     message(ui, saved, slot);
 }
 
