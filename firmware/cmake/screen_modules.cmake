@@ -25,6 +25,10 @@ set(ECHO_SCREEN_MODULE_SOURCES_ogg
 )
 set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/app/modules/extension_module.c
+    src/app/headphone_store.c
+    src/app/headphone_parameters.c
+    src/settings/headphone_file.c
+    src/settings/headphone_profile.c
     platform/device/board/file_remove.c
     platform/device/logic/fat_delete.c
     src/app/home_art.c
@@ -59,6 +63,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/screens/card_format_screen.c
     src/app/headphone_editor.c
     src/app/headphone_store_edit.c
+    src/app/headphone_parameters.c
+    src/settings/headphone_profile.c
     src/settings/headphone_profile_edit.c
     src/settings/headphone_file_save.c
     src/core/headphone_audio_switch.c

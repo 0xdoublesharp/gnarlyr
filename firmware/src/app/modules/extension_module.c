@@ -22,6 +22,7 @@ const ExtensionModuleEntry EXTENSION_MODULE_ENTRY = {
     .art_draw = home_art_draw,
     .art_backdrop = home_art_draw_backdrop,
     .file_remove = hal_file_remove,
+    .headphones_load = headphone_store_load,
 #ifdef ECHO_DEVICE_MODULE
     .forget_time_file = board_wall_time_delete_file,
 #endif

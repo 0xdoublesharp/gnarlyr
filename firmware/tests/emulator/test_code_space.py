@@ -1,7 +1,29 @@
 import sys
+import struct
 import unittest
 
 import test_echo_image as image_tests
+
+
+def hash_bytes(data):
+    value = 2166136261
+    for byte in data:
+        value = ((value ^ byte) * 16777619) & 0xFFFFFFFF
+    return value
+
+
+def headphone_bank(generation, trim, ceiling):
+    profile = bytearray(148)
+    profile[:8] = b"DSHP" + bytes((1, 0, 1, 0))
+    profile[16:23] = b"Example"
+    profile[40:43] = bytes((trim, ceiling, 25))
+    struct.pack_into("<I", profile, 144, hash_bytes(profile[:144]))
+    block = bytearray(512)
+    block[:4] = b"DSHF"
+    struct.pack_into("<HHIIII", block, 4, 1, 0, generation, len(profile), hash_bytes(profile), 0)
+    struct.pack_into("<I", block, 24, hash_bytes(block[:24]))
+    block[28:28 + len(profile)] = profile
+    return bytes(block)
 
 
 class CodeSpaceTest(image_tests.EchoImageTest):
@@ -79,6 +101,43 @@ class CodeSpaceTest(image_tests.EchoImageTest):
         self.press(machine, image_tests.KEY_PLAY)
         _, settings = self.module(machine, "settings")
         self.assertTrue(settings.loaded(machine))
+        self.assert_healthy(session)
+
+
+    def headphone_boot(self):
+        from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2
+        volume = self.debug_volume()
+        good = headphone_bank(1, 12, 18)
+        broken = bytearray(headphone_bank(2, 6, 24))
+        broken[28 + 40] ^= 1
+        data = good + broken
+        volume.add_file("headphones.bin", data, None, image_tests.IDENTITY.data_directory)
+        session = self.session(volume=volume)
+        applied = []
+        machine = session.machine
+        machine.hook_symbol("hal_audio_set_headphones", lambda: applied.append(
+            (machine.reg(UC_ARM_REG_R0), machine.reg(UC_ARM_REG_R1),
+             machine.reg(UC_ARM_REG_R2) & 255)))
+        self.assertEqual(session.run_to_home_screen(), "condition met")
+        return session, applied, data
+
+    def test_headphone_loading_uses_slot_two_and_the_last_intact_profile_bank(self):
+        self.damaged_extension_slots = ("slot_1",)
+        session, applied, data = self.headphone_boot()
+        left, right, ceiling = applied[-1]
+        self.assertTrue(0 < left < right < 65536)
+        self.assertEqual(ceiling, 18)
+        self.assertTrue(session.module_reads("slot_2", 8))
+        path = "/" + image_tests.IDENTITY.data_directory + "/headphones.bin"
+        self.assertEqual(session.fat().read(path), data)
+        self.assert_healthy(session)
+
+    def test_missing_extension_cannot_bypass_a_saved_headphone_volume_ceiling(self):
+        self.damaged_extension_slots = ("slot_1", "slot_2")
+        session, applied, data = self.headphone_boot()
+        self.assertEqual(applied[-1][2], 0)
+        path = "/" + image_tests.IDENTITY.data_directory + "/headphones.bin"
+        self.assertEqual(session.fat().read(path), data)
         self.assert_healthy(session)
 
 

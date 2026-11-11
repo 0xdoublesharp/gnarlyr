@@ -1,5 +1,5 @@
 #include "device/audio_process.h"
-#ifdef ECHO_DEBUG_LOOP
+#if defined(ECHO_DEBUG_LOOP) && defined(ECHO_DEVICE_MODULE)
 #include "debug_runner.h"
 #endif
 
@@ -10,7 +10,7 @@ const AudioProcessEntry AUDIO_PROCESS_MODULE_ENTRY = {
     .run = equalizer_run,
     .fade_in = audio_fade_in,
     .fade_out = audio_fade_out,
-#ifdef ECHO_DEBUG_LOOP
+#if defined(ECHO_DEBUG_LOOP) && defined(ECHO_DEVICE_MODULE)
     .debug = &DEBUG_CODE_ENTRY,
 #endif
 };

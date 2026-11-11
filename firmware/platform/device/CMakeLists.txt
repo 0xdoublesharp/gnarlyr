@@ -463,6 +463,7 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             home_art_draw=extension_home_art_draw
             home_art_draw_backdrop=extension_home_art_draw_backdrop
             home_art_init=extension_home_art_init
+            headphone_store_load=extension_headphone_store_load
             hal_file_remove=extension_hal_file_remove
             home_art_update=extension_home_art_update
             wire_motion_draw=extension_wire_motion_draw
