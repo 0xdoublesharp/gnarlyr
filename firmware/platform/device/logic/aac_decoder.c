@@ -6,6 +6,9 @@
 
 bool aac_decoder_start(AacDecoder *decoder, const uint8_t *config, uint32_t size)
 {
+    if (config == NULL || size < 2 || (config[1] & 2u) != 0) {
+        return false;
+    }
     unsigned long rate = 0;
     unsigned char channels = 0;
     decoder->handle = NeAACDecOpen();

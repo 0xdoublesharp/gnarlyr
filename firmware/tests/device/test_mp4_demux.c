@@ -924,7 +924,7 @@ static void unsupported_aac_configuration_fields_are_rejected(void)
         uint8_t length;
     } cases[] = {
         {0x12, 0x10, 0}, {0x12, 0x10, 1}, {0x17, 0x10, 2}, {0x17, 0x90, 2},
-        {0x12, 0x00, 2}, {0x12, 0x18, 2}, {0x0a, 0x10, 2},
+        {0x12, 0x00, 2}, {0x12, 0x18, 2}, {0x0a, 0x10, 2}, {0x12, 0x12, 2},
     };
     for (uint32_t index = 0; index < sizeof cases / sizeof cases[0]; index++) {
         static Builder builder;
