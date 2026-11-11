@@ -30,5 +30,9 @@ void frame_pacer_done(FramePacer *pacer, uint32_t now_ms, bool changed, bool urg
     }
     pacer->started = true;
     pacer->last_ms = now_ms;
-    pacer->quiet_frames = changed ? 0 : pacer->quiet_frames + 1;
+    if (changed) {
+        pacer->quiet_frames = 0;
+    } else if (pacer->quiet_frames < UINT32_MAX) {
+        pacer->quiet_frames++;
+    }
 }

@@ -70,6 +70,15 @@ static void reset_forgets_everything(void)
     CHECK_EQUAL(0, frame_stats_latest_us(&stats));
 }
 
+static void lifetime_record_count_saturates_instead_of_forgetting_the_window(void)
+{
+    FrameStats stats = stats_with(NULL, 0);
+    stats.recorded = UINT32_MAX;
+    frame_stats_record(&stats, 5000);
+    CHECK_EQUAL(UINT32_MAX, stats.recorded);
+    CHECK_EQUAL(5000, frame_stats_latest_us(&stats));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -80,6 +89,7 @@ int main(void)
         TEST_CASE(window_forgets_durations_older_than_its_size),
         TEST_CASE(achievable_fps_follows_the_average_duration),
         TEST_CASE(reset_forgets_everything),
+        TEST_CASE(lifetime_record_count_saturates_instead_of_forgetting_the_window),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

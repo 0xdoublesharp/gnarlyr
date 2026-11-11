@@ -18,7 +18,9 @@ void frame_stats_record(FrameStats *stats, uint32_t duration_us)
 {
     stats->durations_us[stats->next_slot] = duration_us;
     stats->next_slot = (stats->next_slot + 1) % FRAME_STATS_WINDOW;
-    stats->recorded++;
+    if (stats->recorded < UINT32_MAX) {
+        stats->recorded++;
+    }
 }
 
 uint32_t frame_stats_latest_us(const FrameStats *stats)

@@ -27,6 +27,11 @@ static void milliseconds_round_to_the_nearest_tenth(void)
     CHECK(formats_as(9950, "10.0 ms"));
 }
 
+static void milliseconds_round_without_wrapping_at_the_input_limit(void)
+{
+    CHECK(formats_as(UINT32_MAX, "4294967.3 ms"));
+}
+
 static bool duration_formats_as(uint32_t milliseconds, const char *expected)
 {
     char buffer[CAPACITY];
@@ -100,11 +105,17 @@ static void an_unknown_length_has_no_bitrate(void)
     CHECK_EQUAL(0, average_kbps(2400000, 2646000, 0));
 }
 
+static void average_bitrate_does_not_overflow_for_large_files(void)
+{
+    CHECK_EQUAL(34359738, average_kbps(UINT32_MAX, UINT32_MAX, UINT32_MAX));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(milliseconds_show_one_decimal),
         TEST_CASE(milliseconds_round_to_the_nearest_tenth),
+        TEST_CASE(milliseconds_round_without_wrapping_at_the_input_limit),
         TEST_CASE(durations_show_minutes_and_padded_seconds),
         TEST_CASE(durations_round_down_to_whole_seconds),
         TEST_CASE(long_durations_show_hours),
@@ -112,6 +123,7 @@ int main(void)
         TEST_CASE(bitrates_group_thousands),
         TEST_CASE(the_average_bitrate_comes_from_audio_bytes_and_length),
         TEST_CASE(an_unknown_length_has_no_bitrate),
+        TEST_CASE(average_bitrate_does_not_overflow_for_large_files),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

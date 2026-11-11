@@ -25,7 +25,8 @@ static void append_two_digits(StringBuilder *builder, uint32_t value)
 
 void format_milliseconds(uint32_t microseconds, char *buffer, size_t capacity)
 {
-    uint32_t tenths = (microseconds + MICROSECONDS_PER_TENTH_MS / 2) / MICROSECONDS_PER_TENTH_MS;
+    uint32_t tenths = (uint32_t)(((uint64_t)microseconds + MICROSECONDS_PER_TENTH_MS / 2) /
+                                 MICROSECONDS_PER_TENTH_MS);
     StringBuilder builder = string_builder_make(buffer, capacity);
     string_builder_append_unsigned(&builder, tenths / TENTHS_PER_MS);
     string_builder_append_char(&builder, '.');
@@ -93,7 +94,15 @@ uint32_t average_kbps(uint32_t audio_bytes, uint32_t total_samples, uint32_t sam
     if (total_samples == 0 || sample_rate == 0) {
         return 0;
     }
-    uint64_t bits_per_second_scaled = (uint64_t)audio_bytes * BITS_PER_BYTE * sample_rate;
-    uint64_t divisor = (uint64_t)total_samples * THOUSAND;
-    return (uint32_t)((bits_per_second_scaled + divisor / 2) / divisor);
+    uint64_t bits = (uint64_t)audio_bytes * BITS_PER_BYTE;
+    uint32_t whole_rate = sample_rate / total_samples;
+    uint32_t rate_remainder = sample_rate % total_samples;
+    uint64_t fractional = bits / total_samples * rate_remainder;
+    fractional += bits % total_samples * (uint64_t)rate_remainder / total_samples;
+    uint64_t maximum_scaled = (uint64_t)UINT32_MAX * THOUSAND;
+    if (whole_rate != 0 && bits > (maximum_scaled - fractional) / whole_rate) {
+        return UINT32_MAX;
+    }
+    uint64_t bits_per_second = bits * whole_rate + fractional;
+    return (uint32_t)((bits_per_second + THOUSAND / 2) / THOUSAND);
 }

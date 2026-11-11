@@ -91,6 +91,14 @@ static void clock_wrap_does_not_stall_frames(void)
     CHECK(frame_pacer_due(&pacer, 0xFFFFFFF0u + FRAME_PACER_ACTIVE_MS, false));
 }
 
+static void quiet_frame_count_saturates_without_returning_to_idle_pacing(void)
+{
+    FramePacer pacer = {.quiet_frames = UINT32_MAX, .started = true};
+    frame_pacer_done(&pacer, 1000, false, false);
+    CHECK_EQUAL(UINT32_MAX, pacer.quiet_frames);
+    CHECK(!frame_pacer_due(&pacer, 1000 + FRAME_PACER_IDLE_MS, false));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -103,6 +111,7 @@ int main(void)
         TEST_CASE(after_a_change_one_check_comes_at_the_idle_interval_and_then_the_screen_rests),
         TEST_CASE(an_urgent_request_cuts_the_rest_short),
         TEST_CASE(clock_wrap_does_not_stall_frames),
+        TEST_CASE(quiet_frame_count_saturates_without_returning_to_idle_pacing),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
