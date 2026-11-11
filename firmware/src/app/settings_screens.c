@@ -57,7 +57,7 @@ static const StringId USB_MODE_MESSAGES[USB_MODE_COUNT] = {STR_USB_SHOWS_DRIVES,
 
 static const StringId REPLAY_GAIN_OPTIONS[REPLAY_GAIN_MODE_COUNT] = {STR_OFF, STR_REPLAY_GAIN_TRACK,
                                                                      STR_REPLAY_GAIN_ALBUM};
-static const StringId CLIPPING_OPTIONS[] = {STR_OFF, STR_ON};
+static const StringId OFF_ON_OPTIONS[] = {STR_OFF, STR_ON};
 
 static const Settings *settings_of(const void *context)
 {
@@ -509,6 +509,17 @@ static void choose_prevent_clipping(void *context, int index)
     apply_replay_gain(context);
 }
 
+static int current_battery_percent(const void *context)
+{
+    return settings_of(context)->battery_percent ? 1 : 0;
+}
+
+static void choose_battery_percent(void *context, int index)
+{
+    editable_settings(context)->battery_percent = index != 0;
+    save(context);
+}
+
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_SHUFFLE, SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, current_shuffle, choose_shuffle, NULL, NULL},
     {STR_REPEAT, REPEAT_OPTIONS, REPEAT_MODE_COUNT, current_repeat, choose_repeat, NULL, NULL},
@@ -535,13 +546,15 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      choose_equalizer, describe_equalizer, extend_equalizer},
     {STR_REPLAY_GAIN, REPLAY_GAIN_OPTIONS, REPLAY_GAIN_MODE_COUNT, current_replay_gain,
      choose_replay_gain, NULL, NULL},
-    {STR_PREVENT_CLIPPING, CLIPPING_OPTIONS, 2, current_prevent_clipping, choose_prevent_clipping,
+    {STR_PREVENT_CLIPPING, OFF_ON_OPTIONS, 2, current_prevent_clipping, choose_prevent_clipping,
      NULL, NULL},
     {STR_START_SCREEN, START_OPTIONS, START_SCREEN_COUNT, current_start, choose_start, NULL, NULL},
     {STR_USB_MODE, USB_MODE_OPTIONS, USB_MODE_SELECT_COUNT, current_usb_mode, choose_usb_mode, NULL,
      NULL},
     {STR_THEME, THEME_OPTIONS, APPEARANCE_THEME_COUNT, current_appearance, choose_appearance, NULL,
      NULL},
+    {STR_BATTERY_PERCENTAGE, OFF_ON_OPTIONS, 2, current_battery_percent, choose_battery_percent,
+     NULL, NULL},
 };
 
 static Screen *choice_view(SettingsScreens *screens, const SettingChoice *choice,

@@ -25,7 +25,8 @@ static void bind(AppScreens *screens)
                                              .theme = context->theme,
                                              .toast = context->toast,
                                              .now_playing = &screens->now_playing.screen,
-                                             .up_next = &views->up_next.screen});
+                                             .up_next = &views->up_next.screen,
+                                             .motion = context->motion});
 }
 
 const ViewsModuleEntry VIEWS_MODULE_ENTRY = {

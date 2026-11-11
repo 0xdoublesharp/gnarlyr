@@ -154,7 +154,7 @@ The player charges whenever it's plugged in, on or off. Turning it off while it'
 
 Hold ▶, then press Power while still holding it, and keep both down for about a second to lock the buttons, for example before the player goes into a pocket; do the same to unlock. While locked, a padlock shows in the top bar and every button except Power is ignored; Power still turns the screen on and off. Pressing another button shows "Hold Play+Power" if the screen is on. Locking or unlocking lights the screen to confirm. Wired headset buttons keep working. Restarting the player unlocks it.
 
-The top bar shows, from the left: play or pause, Bluetooth, the padlock, and the shuffle mode (a note with crossed arrows for Shuffle Songs, a disc with crossed arrows for Shuffle Albums); the battery sits on the right. The battery's fill shows how much charge is left. At 15% or less the fill turns red, and at 5% or less the outline turns red too. While the cable supplies power, the fill turns green and a bolt appears inside the battery: a light bolt with a dark edge while charging, a plain dark bolt once it's charged.
+The top bar shows, from the left: play or pause, Bluetooth, the padlock, and the shuffle mode (a note with crossed arrows for Shuffle Songs, a disc with crossed arrows for Shuffle Albums); the battery sits on the right. The battery's fill shows how much charge is left. At 15% or less the fill turns red, and at 5% or less the outline turns red too. While the cable supplies power, the fill turns green and a bolt appears inside the battery: a light bolt with a dark edge while charging, a plain dark bolt once it's charged. To see the level as a number too, turn on Settings → Battery percent: the percentage then shows to the left of the battery, in red when low.
 
 ## Skip songs
 
@@ -302,6 +302,10 @@ Follow [`device-recovery.md`](device-recovery.md). It writes FiiO's image into b
 ## Themes and controls
 
 Settings → Theme offers Neon Noir, Graphite, Sunset, Sea Glass and Classic. Theme changes keep the text size and orientation you selected. Settings → Controls assigns tap and hold actions independently for Volume+, Volume−, Play and Menu during playback. Default keeps the normal skip gesture; Off ignores that action. Reset buttons restores the normal controls. List navigation stays consistent.
+
+## Waiting
+
+When something takes more than a moment, its screen says what is happening and a small wireframe turns under the message: a cassette while saving (Export plays, mixtapes, tags), a disc while working through your music (library scan, finding covers, search, preparing a queue, listening history) and a solid while loading tags. Where the player knows how far it has got, the cassette's tape winds from the left reel to the right, the disc's rim fills in, or the solid's edges light up. Only the wireframe is redrawn, and it stops as soon as the work ends or the screen turns off.
 
 ## Editing a queue
 

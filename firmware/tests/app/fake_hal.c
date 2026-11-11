@@ -86,6 +86,7 @@ typedef struct FakeHal {
     uint16_t panel[HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE];
     HalDisplayRotation rotation;
     long pixels_written;
+    FakeDisplayWrites writes;
     int present_count;
     bool display_on;
     uint8_t brightness;
@@ -126,6 +127,8 @@ typedef struct FakeHal {
     bool supply_held_off;
     int probe_count;
     FakeProbeCall probe_calls[PROBE_CALL_CAPACITY];
+    HalRtcRead rtc_answer;
+    int rtc_reads;
     HalUsbSense usb_sense;
     uint32_t saved_reports[FILE_CAPACITY];
     int saved_report_count;
@@ -327,6 +330,27 @@ void hal_display_write(int x, int y, int width, int height, const uint16_t *pixe
         }
     }
     fake.pixels_written += (long)width * height;
+    FakeDisplayWrites *writes = &fake.writes;
+    FakeArea area = {x, y, width, height};
+    if (writes->count == 0) {
+        writes->first = area;
+        writes->narrowest = width;
+    }
+    writes->narrowest = width < writes->narrowest ? width : writes->narrowest;
+    writes->same &=
+        writes->count == 0 || (writes->first.x == x && writes->first.y == y &&
+                               writes->first.width == width && writes->first.height == height);
+    writes->count++;
+}
+
+void fake_hal_forget_display_writes(void)
+{
+    fake.writes = (FakeDisplayWrites){.same = true};
+}
+
+FakeDisplayWrites fake_hal_display_writes(void)
+{
+    return fake.writes;
 }
 
 void hal_display_present(void)
@@ -820,6 +844,22 @@ int fake_hal_probe_count(void)
 FakeProbeCall fake_hal_probe_call(int index)
 {
     return fake.probe_calls[index];
+}
+
+HalRtcRead hal_system_rtc_read(void)
+{
+    fake.rtc_reads++;
+    return fake.rtc_answer;
+}
+
+void fake_hal_set_rtc_answer(HalRtcRead answer)
+{
+    fake.rtc_answer = answer;
+}
+
+int fake_hal_rtc_read_count(void)
+{
+    return fake.rtc_reads;
 }
 
 void hal_system_save_report(uint32_t reason)

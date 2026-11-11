@@ -46,6 +46,8 @@ typedef struct FakeProbeCall {
 void fake_hal_set_probe_answer(HalProbe answer);
 int fake_hal_probe_count(void);
 FakeProbeCall fake_hal_probe_call(int index);
+void fake_hal_set_rtc_answer(HalRtcRead answer);
+int fake_hal_rtc_read_count(void);
 void fake_hal_set_idle_microseconds(uint32_t idle_us);
 void fake_hal_set_power_levels(uint8_t levels);
 void fake_hal_set_power_samples(uint32_t samples);
@@ -112,6 +114,23 @@ uint32_t fake_hal_audio_last_seek(void);
 uint8_t fake_hal_audio_volume(void);
 int fake_hal_audio_state(void);
 int fake_hal_write_count(void);
+
+typedef struct FakeArea {
+    int x;
+    int y;
+    int width;
+    int height;
+} FakeArea;
+
+typedef struct FakeDisplayWrites {
+    FakeArea first;
+    int count;
+    int narrowest;
+    bool same;
+} FakeDisplayWrites;
+
+void fake_hal_forget_display_writes(void);
+FakeDisplayWrites fake_hal_display_writes(void);
 long fake_hal_pixels_written(void);
 int fake_hal_present_count(void);
 bool fake_hal_display_on(void);

@@ -184,6 +184,77 @@ class Grf(RegisterFile):
             self.machine.usb_powered_down()
 
 
+class RtcBus(RegisterFile):
+    CON = 0x00
+    MRXADDR = 0x08
+    MTXCNT = 0x10
+    MRXCNT = 0x14
+    IPD = 0x1C
+    TXDATA = 0x100
+    RXDATA = 0x200
+    START = 0x08
+    STOP = 0x10
+    TX_DONE = 0x04
+    RX_DONE = 0x08
+    START_DONE = 0x10
+    STOP_DONE = 0x20
+    NAK = 0x40
+    ADDRESS = 0xA2
+    REGISTERS = 16
+
+    def __init__(self, machine):
+        super().__init__()
+        self.machine = machine
+        self.present = True
+        self.registers = bytearray([0x00, 0x00, 0x05, 0x00, 0x12, 0x03, 0x06, 0x01, 0x26,
+                                    0x80, 0x80, 0x80, 0x80, 0x00, 0x00, 0x00])
+        self.pointer = 0
+        self.frames = []
+
+    def pend(self, bits):
+        self.regs[self.IPD] = self.regs.get(self.IPD, 0) | bits
+
+    def sent_bytes(self, count):
+        words = range((count + 3) // 4)
+        return b"".join(self.regs.get(self.TXDATA + 4 * word, 0).to_bytes(4, "little")
+                        for word in words)[:count]
+
+    def transmit(self, count):
+        frame = self.sent_bytes(count)
+        self.frames.append(("write", frame))
+        if not self.present or frame[:1] != bytes([self.ADDRESS]):
+            self.pend(self.NAK)
+            return
+        if count > 1:
+            self.pointer = frame[1] % self.REGISTERS
+        self.pend(self.TX_DONE)
+
+    def receive(self, count):
+        address = self.regs.get(self.MRXADDR, 0) & 0xFF
+        self.frames.append(("read", address, count))
+        if not self.present or address != self.ADDRESS + 1:
+            self.pend(self.NAK)
+            return
+        data = bytes(self.registers[(self.pointer + index) % self.REGISTERS] for index in range(count))
+        for word in range((count + 3) // 4):
+            self.regs[self.RXDATA + 4 * word] = int.from_bytes(data[4 * word:4 * word + 4], "little")
+        self.pend(self.RX_DONE)
+
+    def write_word(self, offset, value):
+        if offset == self.IPD:
+            self.regs[self.IPD] = self.regs.get(self.IPD, 0) & ~value
+            return
+        super().write_word(offset, value)
+        if offset == self.CON and value & self.START:
+            self.pend(self.START_DONE)
+        elif offset == self.CON and value & self.STOP:
+            self.pend(self.STOP_DONE)
+        elif offset == self.MTXCNT:
+            self.transmit(value)
+        elif offset == self.MRXCNT:
+            self.receive(value)
+
+
 class Pmu(RegisterFile):
     def __init__(self, machine):
         super().__init__(masked=True)

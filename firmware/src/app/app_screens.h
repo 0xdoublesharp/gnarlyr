@@ -31,7 +31,7 @@
 #include "ui/toast.h"
 
 enum {
-    HOME_ITEM_COUNT = 9,
+    HOME_ITEM_COUNT = SETTINGS_HOME_ITEM_COUNT,
     SHELF_COUNT = 2,
     MUSIC_ITEM_COUNT = 11,
     DIAGNOSTICS_ITEM_COUNT = 11 + DEBUG_LOOP_ABOUT_ROWS,
@@ -100,6 +100,7 @@ typedef struct AppScreensContext {
     SpokenStore *spoken;
     BluetoothLink *bluetooth;
     ListeningStore *listening;
+    WireMotion *motion;
 } AppScreensContext;
 
 typedef struct ViewsModuleScreens {

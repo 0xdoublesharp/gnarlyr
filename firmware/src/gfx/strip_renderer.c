@@ -18,9 +18,10 @@ static void render_strip(const StripRenderer *renderer, Rect strip, FrameDrawer 
 
 void strip_renderer_render(const StripRenderer *renderer, FrameDrawer drawer, FrameSink sink)
 {
-    for (int top = 0; top < renderer->screen_height; top += renderer->strip_height) {
-        int height = min_of(renderer->strip_height, renderer->screen_height - top);
-        Rect strip = {0, top, renderer->screen_width, height};
+    Rect area = renderer->area;
+    int bottom = area.y + area.height;
+    for (int top = area.y; top < bottom; top += renderer->strip_height) {
+        Rect strip = {area.x, top, area.width, min_of(renderer->strip_height, bottom - top)};
         render_strip(renderer, strip, drawer, sink);
     }
 }

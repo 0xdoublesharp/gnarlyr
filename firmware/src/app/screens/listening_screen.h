@@ -4,10 +4,12 @@
 #include "playback/listening_stats.h"
 #include "ui/list_view.h"
 #include "ui/screen.h"
+#include "ui/wire_motion.h"
 
 typedef struct ListeningScreenConfig {
     ListeningStore *store;
     const Theme *theme;
+    WireMotion *motion;
 } ListeningScreenConfig;
 
 typedef struct ListeningScreen {
