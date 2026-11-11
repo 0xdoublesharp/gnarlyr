@@ -950,6 +950,22 @@ static void malformed_chunk_tables_never_locate_a_sample(void)
     }
 }
 
+static void chunk_runs_must_use_the_selected_sample_description(void)
+{
+    for (uint32_t run = 0; run < 2; run++) {
+        static Builder builder;
+        build_synthetic(&builder, false);
+        uint32_t stsc = find_box_type(&builder, "stsc");
+        CHECK(stsc != 0);
+        builder.bytes[stsc + 23 + 12 * run] = 2;
+        FlacInput input = {.read = read_builder, .context = &builder, .size = builder.length};
+        Mp4Track track;
+        CHECK(mp4_probe(input, &track));
+        Mp4Cursor cursor;
+        CHECK(!mp4_cursor_seek(&cursor, input, &track, run == 0 ? 0 : 6));
+    }
+}
+
 static void a_chunk_run_must_begin_at_the_first_chunk(void)
 {
     static Builder builder;
@@ -1195,6 +1211,7 @@ int main(void)
         TEST_CASE(malformed_chunk_tables_never_locate_a_sample),
         TEST_CASE(overflowing_sample_offsets_are_rejected),
         TEST_CASE(a_sample_ending_at_the_offset_limit_is_not_rejected_early),
+        TEST_CASE(chunk_runs_must_use_the_selected_sample_description),
         TEST_CASE(a_chunk_run_must_begin_at_the_first_chunk),
         TEST_CASE(sample_tables_cannot_extend_into_adjacent_boxes),
         TEST_CASE(overflowing_sample_size_table_indices_are_rejected),

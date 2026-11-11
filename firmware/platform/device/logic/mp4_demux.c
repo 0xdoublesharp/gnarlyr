@@ -554,7 +554,10 @@ static bool read_run(FlacInput input, const Mp4Track *track, uint32_t run, uint3
         return false;
     }
     uint32_t at = track->runs_at + 12 * run;
-    return at <= UINT32_MAX - 4 && read_word(input, at, first) && read_word(input, at + 4, samples);
+    uint32_t description;
+    return at <= UINT32_MAX - 8 && read_word(input, at, first) &&
+           read_word(input, at + 4, samples) && read_word(input, at + 8, &description) &&
+           description == 1;
 }
 
 static bool run_end(FlacInput input, const Mp4Track *track, uint32_t run, uint32_t *end)
