@@ -40,3 +40,16 @@ python3 tools/site_screenshots.py --config /path/to/scenes.json --output /Volume
 Scrolling pages use several real captures rather than a stretched image. Add one recipe per scroll position, with its own filename and key sequence but the same expected title. Keep some overlapping entries between views so the full list is covered. The optional `group` and `view_label` fields describe related captures. Add each new image to the corresponding section in `docs.html`. Settings shows every view by default with explanations beside it; Controls and EQ use expandable galleries.
 
 The player outline is CSS around the image, so regenerated PNGs retain their original pixels and full-size links. During publication, `publish_site.py` appends each referenced asset’s content hash to its URL in the published HTML. Stylesheets, scripts, screenshots and full-size image links therefore get new browser-cache keys when their contents change without editing source pages or changing their local preview paths.
+
+
+## Link preview images
+
+Every public page has its own 1200 × 630 PNG card, Open Graph image metadata and a Twitter/X large-image card. The artwork comes from the homepage’s editable cassette SVG. Titles and descriptions in the HTML remain the source for social text; `tools/site_social.json` controls the words drawn on each image.
+
+Regenerate images and metadata after changing that copy or the cassette artwork:
+
+```sh
+python3 tools/site_social.py
+```
+
+The renderer needs `rsvg-convert` from librsvg and Scratch mounted. Final images go under `site/assets/social/`; their filenames include a content hash so changed cards get a fresh URL. The script updates absolute `https://gnarlyr.com/` image URLs in all eight pages, keeps canonical page URLs intact and removes superseded generated cards for the configured names. Publish the site normally afterward.
