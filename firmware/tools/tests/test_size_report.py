@@ -356,6 +356,49 @@ Linker script and memory map
                                                      "--module-map", f"settings={paths[name]}"]))
         self.assertEqual([0, 1], results)
 
+    def test_the_command_saves_the_printed_summary(self):
+        import contextlib
+        import io
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "device.map"
+            output = Path(directory) / "size-summary.txt"
+            source.write_text(MAP)
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                result = size_report.main(["--map", str(source), "--summary",
+                                           "--output", str(output)])
+            self.assertEqual(result, 0)
+            self.assertEqual(output.read_text(), printed.getvalue())
+            self.assertIn("code window: 4,096 of 157,292 bytes", output.read_text())
+
+    def test_the_budget_table_shows_free_bytes_against_each_floor(self):
+        rows = [size_report.Budget("release", "resident code", 95, 100, 8),
+                size_report.Budget("device", "module views", 60, 100)]
+        table = "\n".join(size_report.budget_table(rows))
+        self.assertRegex(table, r"release\s+resident code\s+95\s+100\s+5\s+8\s+FAIL")
+        self.assertRegex(table, r"device\s+module views\s+60\s+100\s+40\s+0\s+PASS")
+
+    def test_a_build_summary_with_an_incomplete_build_fails(self):
+        import contextlib
+        import io
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            build = Path(directory)
+            maps = build / "platform" / "device"
+            maps.mkdir(parents=True)
+            (maps / "echo_device.map").write_text(FENCED_MAP)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as errors:
+                result = size_report.main(["--build", str(build), "--summary", "--preset", "release"])
+            self.assertEqual(result, 1)
+            self.assertIn("Incomplete size inputs", errors.getvalue())
+
+    def test_the_budget_preset_needs_a_build_summary(self):
+        import contextlib
+        import io
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            size_report.parse_arguments(["--map", "device.map", "--summary", "--preset", "release"])
+
     def test_the_report_lists_what_fills_each_module(self):
         text = size_report.report(FENCED_MAP, modules=[("settings", MODULE_MAP)])
         lines = text.splitlines()

@@ -124,7 +124,8 @@ def module_overlays(image, module_elfs):
 
 class Machine:
     def __init__(self, image, elf_path, card=None, usb_overlay_elf=None, rest_in_waits=True,
-                 module_elfs=()):
+                 module_elfs=(), optional_hooks=()):
+        self.optional_hooks = optional_hooks
         self.image = image
         self.elf_path = elf_path
         self.symbols = load_symbols(elf_path)
@@ -329,7 +330,8 @@ class Machine:
         self.uc.hook_add(UC_HOOK_MEM_READ_UNMAPPED | UC_HOOK_MEM_WRITE_UNMAPPED
                          | UC_HOOK_MEM_FETCH_UNMAPPED, self.unmapped)
         self.add_address_hook(TRAMPOLINE, self.exception_return)
-        self.hook_symbol("hal_system_set_usb_answer", self.override_usb_answer)
+        self.hook_symbol("hal_system_set_usb_answer", self.override_usb_answer,
+                         optional="hal_system_set_usb_answer" in self.optional_hooks)
 
     def override_usb_answer(self):
         """Stand in for the owner's When plugged in setting; None keeps the firmware's own."""
@@ -371,12 +373,14 @@ class Machine:
         self.uc.hook_add(UC_HOOK_BLOCK, hook, None, address, address)
         self.uc.ctl_remove_cache(address, address + 2)
 
-    def hook_symbol(self, name, callback):
+    def hook_symbol(self, name, callback, optional=False):
         if name in self.symbols:
             self.add_address_hook(self.symbols[name], callback)
             return
         overlay = next((item for item in self.overlays if name in item.symbols), None)
         if overlay is None:
+            if optional:
+                return
             raise KeyError(f"{name} is not in the image: mark it CORE_SEAM so the emulator can reach it")
         self.add_address_hook(overlay.symbols[name],
                               lambda: callback() if overlay.loaded(self) else None)
