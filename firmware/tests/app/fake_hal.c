@@ -1296,6 +1296,11 @@ void fake_hal_set_usb_start(bool started)
     usb_start = started;
 }
 
+bool hal_power_cable(void)
+{
+    return false;
+}
+
 bool hal_power_take_usb_start(void)
 {
     bool started = usb_start;

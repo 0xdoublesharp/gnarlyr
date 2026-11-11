@@ -6,6 +6,7 @@
 #include "cover_cache.h"
 #include "hal/clock.h"
 #include "hal/input.h"
+#include "hal/power.h"
 #include "hal/storage.h"
 #include "hal/system.h"
 #include "library_store.h"
@@ -185,7 +186,7 @@ static bool cable_at_start;
 static bool covers_interrupted(void *context)
 {
     (void)context;
-    return hal_input_waiting() || (!cable_at_start && hal_system_usb_sense().cable);
+    return hal_input_waiting() || (!cable_at_start && hal_power_cable());
 }
 
 static ScanResult build_into(const ScanJob *scan, RescanFiles *files, CoverStats *stats)
@@ -271,7 +272,7 @@ static RescanOutcome covers_run(uint32_t stops, uint32_t first_album)
     scan_guard_begin(&guard, known ? guard.attempts - 1u : stops);
     save_guard();
     rescan_files.first_album = first_album;
-    cable_at_start = hal_system_usb_sense().cable;
+    cable_at_start = hal_power_cable();
     uint32_t size = 0;
     ScanJob job = {
         .files = {open_dir, next_entry, close_dir, open_file, close_file, &rescan_files},

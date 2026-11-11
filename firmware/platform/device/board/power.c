@@ -67,6 +67,11 @@ HalPowerHold hal_power_boot_hold(void)
     return boot_hold;
 }
 
+bool hal_power_cable(void)
+{
+    return usb_vbus_present();
+}
+
 bool hal_power_take_usb_start(void)
 {
     bool started = usb_start;

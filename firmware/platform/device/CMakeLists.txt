@@ -242,7 +242,7 @@ set(ECHO_OVERLAY_IMPORTS
     hal_system_keep_alive
     hal_input_next_transition
     hal_input_waiting
-    hal_system_usb_sense
+    hal_power_cable
     hal_power_battery
     hal_power_off
     i18n_format
