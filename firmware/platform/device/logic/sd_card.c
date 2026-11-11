@@ -120,6 +120,10 @@ static bool identify(const SdHost *host, SdCard *card)
         return false;
     }
     card->sector_count = csd_sectors(words);
+    uint32_t write_shift = csd_bits(words, 22, 4);
+    uint32_t erase_blocks = csd_bits(words, 46, 1) != 0 ? 1 : csd_bits(words, 39, 7) + 1;
+    card->erase_sectors =
+        write_shift >= SECTOR_SHIFT ? erase_blocks << (write_shift - SECTOR_SHIFT) : 1;
     return true;
 }
 

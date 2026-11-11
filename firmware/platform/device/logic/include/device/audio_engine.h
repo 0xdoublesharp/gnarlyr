@@ -154,10 +154,14 @@ typedef struct AudioEngine {
     bool equalizing;
     AudioEngineStats stats;
     AudioRefusal refusal;
+    HeadphoneAudio headphones;
+    uint32_t left_gain;
+    uint32_t right_gain;
 } AudioEngine;
 
 void audio_engine_init(AudioEngine *engine, AudioEngineConfig config);
 void audio_engine_set_volume(AudioEngine *engine, uint8_t level);
+void audio_engine_set_headphones(AudioEngine *engine, HeadphoneAudio profile);
 void audio_engine_set_equalizer(AudioEngine *engine, const HalAudioEqualizer *curve);
 bool audio_engine_play(AudioEngine *engine, const AudioEngineTrack *track, uint32_t offset_ms);
 const char *audio_engine_current_path(const AudioEngine *engine);

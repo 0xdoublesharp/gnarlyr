@@ -310,3 +310,16 @@ bool hal_file_remove(const char *path)
     return is_removable(path) && sim_storage_host_path(path, resolved, sizeof resolved) &&
            remove(resolved) == 0;
 }
+
+HalCardInfo hal_card_info(void)
+{
+    return (HalCardInfo){0};
+}
+
+bool hal_card_format(HalCardInfo expected, HalCardProgress progress, void *context)
+{
+    (void)expected;
+    (void)progress;
+    (void)context;
+    return false;
+}

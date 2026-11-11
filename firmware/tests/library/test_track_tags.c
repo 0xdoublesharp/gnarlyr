@@ -760,6 +760,120 @@ typedef struct Mp4TagFixture {
     uint32_t length;
 } Mp4TagFixture;
 
+static uint32_t ogg_page_end(const Fixture *fixture, uint32_t offset)
+{
+    uint32_t count = fixture->bytes[offset + 26];
+    uint32_t end = offset + 27 + count;
+    for (uint32_t index = 0; index < count; index++) {
+        end += fixture->bytes[offset + 27 + index];
+    }
+    return end;
+}
+
+static uint32_t ogg_serial(const Fixture *fixture, uint32_t offset)
+{
+    const uint8_t *bytes = fixture->bytes + offset + 14;
+    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
+           (uint32_t)bytes[3] << 24;
+}
+
+static void ogg_repair_page(Fixture *fixture, uint32_t offset)
+{
+    asf_put_le(fixture->bytes + offset + 22, 0, 4);
+    uint32_t crc = 0;
+    uint32_t end = ogg_page_end(fixture, offset);
+    for (uint32_t index = offset; index < end; index++) {
+        crc ^= (uint32_t)fixture->bytes[index] << 24;
+        for (uint32_t bit = 0; bit < 8; bit++) {
+            crc = crc << 1 ^ ((crc & 0x80000000u) != 0 ? 0x04C11DB7u : 0);
+        }
+    }
+    asf_put_le(fixture->bytes + offset + 22, crc, 4);
+}
+
+static bool ogg_set_title(Fixture *fixture, uint32_t serial, const char *title)
+{
+    for (uint32_t offset = 0; offset < fixture->size; offset = ogg_page_end(fixture, offset)) {
+        uint32_t body = offset + 27 + fixture->bytes[offset + 26];
+        uint8_t *packet = fixture->bytes + body;
+        if (ogg_serial(fixture, offset) != serial || memcmp(packet, "\3vorbis", 7) != 0) {
+            continue;
+        }
+        uint32_t size = fixture->bytes[offset + 27];
+        uint32_t length = (uint32_t)strlen(title) + 6;
+        CHECK(size >= 20 + length);
+        if (size < 20 + length) {
+            return false;
+        }
+        uint32_t vendor = size - 20 - length;
+        memset(packet + 7, 0, size - 7);
+        asf_put_le(packet + 7, vendor, 4);
+        asf_put_le(packet + 11 + vendor, 1, 4);
+        asf_put_le(packet + 15 + vendor, length, 4);
+        memcpy(packet + 19 + vendor, "TITLE=", 6);
+        memcpy(packet + 25 + vendor, title, length - 6);
+        packet[size - 1] = 1;
+        ogg_repair_page(fixture, offset);
+        return true;
+    }
+    return false;
+}
+
+static void ogg_metadata_uses_the_first_serial_and_its_first_eos(void)
+{
+    static const char *const NAMES[] = {"../vorbis/chained44.ogg", "../vorbis/multiplexed44.ogg"};
+    static const uint32_t DURATIONS[] = {250, 3250};
+    for (uint32_t index = 0; index < 3; index++) {
+        Fixture fixture;
+        CHECK(load(&fixture, NAMES[index % 2]));
+        CHECK(ogg_set_title(&fixture, 42, "First stream"));
+        if (index != 1) {
+            CHECK(ogg_set_title(&fixture, 43, "Later stream"));
+        }
+        if (index == 2) {
+            for (uint32_t offset = 0; offset < fixture.size;
+                 offset = ogg_page_end(&fixture, offset)) {
+                if (ogg_serial(&fixture, offset) == 43) {
+                    asf_put_le(fixture.bytes + offset + 14, 42, 4);
+                    ogg_repair_page(&fixture, offset);
+                }
+            }
+        }
+        TrackTags tags;
+        CHECK(track_tags_read(memory_source(&fixture.memory), fixture.size, TAG_FORMAT_OGG, &tags));
+        CHECK_EQUAL(0, strcmp("First stream", tags.text[TAG_TITLE]));
+        CHECK_EQUAL(DURATIONS[index % 2], tags.duration_ms);
+        free(fixture.bytes);
+    }
+}
+
+static void ogg_duration_requires_a_complete_eos_of_the_selected_serial(void)
+{
+    for (uint32_t variant = 0; variant < 3; variant++) {
+        Fixture fixture;
+        CHECK(load(&fixture, "../vorbis/multiplexed44.ogg"));
+        for (uint32_t offset = 0; offset < fixture.size; offset = ogg_page_end(&fixture, offset)) {
+            if (ogg_serial(&fixture, offset) != 42 || (fixture.bytes[offset + 5] & 4) == 0) {
+                continue;
+            }
+            if (variant == 0) {
+                fixture.bytes[offset + 5] &= (uint8_t)~4;
+            } else if (variant == 1) {
+                asf_put_le(fixture.bytes + offset + 6, UINT64_MAX, 8);
+            } else {
+                fixture.memory.size = ogg_page_end(&fixture, offset) - 1;
+            }
+            ogg_repair_page(&fixture, offset);
+            break;
+        }
+        TrackTags tags;
+        CHECK(track_tags_read(memory_source(&fixture.memory), fixture.memory.size, TAG_FORMAT_OGG,
+                              &tags));
+        CHECK_EQUAL(0, tags.duration_ms);
+        free(fixture.bytes);
+    }
+}
+
 static void mp4_put32(uint8_t *bytes, uint32_t value)
 {
     bytes[0] = (uint8_t)(value >> 24);
@@ -926,6 +1040,8 @@ int main(void)
         TEST_CASE(mp4_duration_requires_a_complete_versioned_header),
         TEST_CASE(mp4_text_genre_takes_priority_over_the_legacy_genre),
         TEST_CASE(mp4_duration_ignores_unknown_versions_and_zero_timescales),
+        TEST_CASE(ogg_metadata_uses_the_first_serial_and_its_first_eos),
+        TEST_CASE(ogg_duration_requires_a_complete_eos_of_the_selected_serial),
         TEST_CASE(every_tagged_format_reads_its_fields_duration_and_cover),
         TEST_CASE(an_mp3_with_only_id3v1_and_no_xing_header_still_reads),
         TEST_CASE(an_untagged_flac_has_empty_fields_and_its_duration),

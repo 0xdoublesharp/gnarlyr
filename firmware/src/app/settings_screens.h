@@ -6,9 +6,11 @@
 #include "core/debug_script.h"
 #include "core/power_policy.h"
 #include "equalizer_presets.h"
+#include "headphone_editor.h"
 #include "language.h"
 #include "player.h"
 #include "screens/bluetooth_screen.h"
+#include "screens/card_format_screen.h"
 #include "screens/equalizer_browser.h"
 #include "screens/equalizer_screen.h"
 #include "screens/set_clock_screen.h"
@@ -30,9 +32,11 @@ enum {
     SETTINGS_CUSTOM_EQ_ITEM = 18,
     SETTINGS_RESCAN_ITEM = 22,
     SETTINGS_TRANSITION_LENGTH_ITEM = SETTINGS_CHOICE_COUNT + 3,
-    SETTINGS_HOME_ITEM = SETTINGS_CHOICE_COUNT + 5,
-    SETTINGS_CONTROLS_ITEM = SETTINGS_CHOICE_COUNT + 6,
-    SETTINGS_ITEM_COUNT = SETTINGS_CHOICE_COUNT + 7,
+    SETTINGS_HEADPHONES_ITEM = SETTINGS_CHOICE_COUNT + 5,
+    SETTINGS_FORMAT_ITEM = SETTINGS_CHOICE_COUNT + 6,
+    SETTINGS_HOME_ITEM = SETTINGS_CHOICE_COUNT + 7,
+    SETTINGS_CONTROLS_ITEM = SETTINGS_CHOICE_COUNT + 8,
+    SETTINGS_ITEM_COUNT = SETTINGS_CHOICE_COUNT + 9,
     SETTINGS_MESSAGE_CAPACITY = 64,
     SETTINGS_COUNTDOWN_CAPACITY = 16
 };
@@ -45,9 +49,12 @@ enum {
 
 typedef struct SettingsContext {
     SettingsStore *store;
+    HeadphoneStore *headphones;
     Player *player;
     PowerPolicy *power;
     Toast *toast;
+    void (*format_prepare)(void);
+    void (*format_finished)(bool success);
     bool *rescan_requested;
     bool *language_requested;
     BluetoothScreen *bluetooth;
@@ -101,9 +108,12 @@ struct SettingsScreens {
         EqualizerScreen equalizer;
     };
     ButtonSettings buttons;
+    HeadphoneEditor headphones;
     EqualizerPresets presets;
     LanguageList languages;
     UsbChooser usb;
+    CardFormatScreen card_format;
+    bool card_needs_format;
     SettingsEntry entries[SETTINGS_CHOICE_COUNT];
     MenuItem items[SETTINGS_ITEM_COUNT];
 };

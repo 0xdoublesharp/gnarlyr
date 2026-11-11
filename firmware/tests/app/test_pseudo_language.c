@@ -526,6 +526,24 @@ static void walk_bluetooth(void)
     CHECK(show("Home with Bluetooth on") >= 2);
 }
 
+static void walk_card_format(void)
+{
+    open_settings_row(0);
+    fake_hal_set_card(
+        (HalCardInfo){.present = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1}, true);
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 80});
+    for (int row = 0; row < 3; row++) {
+        tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    }
+    tap(KEY_PLAY);
+    show_titled("the card format warning", STR_CARD_FORMAT);
+    tap(KEY_PLAY);
+    show_titled("the final card format confirmation", STR_CARD_FORMAT_CONFIRM);
+    down(1);
+    show("the erase card choice");
+    tap(KEY_BACK);
+}
+
 static void open_home_editor(void)
 {
     open_settings_row(0);
@@ -650,6 +668,34 @@ static void walk_listening(void)
     CHECK(show("Export plays") >= 3);
 }
 
+static void walk_headphones(void)
+{
+    static const StringId FIELDS[] = {STR_HEADPHONE_NAME, STR_HEADPHONE_TRIM, STR_HEADPHONE_BALANCE,
+                                      STR_HEADPHONE_CEILING};
+    open_settings_row(0);
+    for (int row = 0; row < 4; row++) {
+        tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    }
+    tap(KEY_PLAY);
+    show_titled("Headphones", STR_HEADPHONES);
+    tap(KEY_PLAY);
+    show_titled("the active headphone choices", STR_HEADPHONE_ACTIVE);
+    down(1);
+    show("another headphone choice");
+    back(1);
+    down(1);
+    tap(KEY_PLAY);
+    show("a headphone profile");
+    for (int field = 0; field < 4; field++) {
+        down(1);
+        tap(KEY_PLAY);
+        show_titled("a headphone value", FIELDS[field]);
+        down(1);
+        show("another headphone value");
+        back(1);
+    }
+}
+
 static void walk_everything(void)
 {
     begin();
@@ -660,11 +706,13 @@ static void walk_everything(void)
     walk_smart_lists();
     walk_cover_flow();
     walk_settings_rows();
+    walk_card_format();
     walk_settings_choices();
     walk_settings_toasts();
     walk_equalizer();
     walk_bluetooth();
     walk_home_editor();
+    walk_headphones();
     walk_about();
     walk_song_actions();
     walk_now_playing();

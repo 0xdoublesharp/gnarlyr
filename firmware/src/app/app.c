@@ -35,6 +35,7 @@
 #include "hal/display.h"
 #include "hal/input.h"
 #include "hal/power.h"
+#include "headphone_store.h"
 #include "language.h"
 #include "library_rescan.h"
 #include "library_store.h"
@@ -107,6 +108,7 @@ typedef struct AppState {
     ListeningStore listening;
     bool listening_loaded;
     SettingsStore settings;
+    HeadphoneStore headphones;
     Theme theme;
     Orientation shown_orientation;
     bool rocker_swapped[KEY_COUNT];
@@ -120,6 +122,8 @@ typedef struct AppState {
     bool rescan_requested;
     bool language_requested;
     bool music_check_requested;
+    bool storage_formatted;
+    bool format_success;
     bool prepare_pending;
     size_t prepare_index;
     CardFilesReport prepare_report;
@@ -1298,6 +1302,7 @@ static void build_screens(uint32_t now_ms)
         .player = &app.player,
         .spoken = &app.spoken,
         .settings = &app.settings,
+        .headphones = &app.headphones,
         .favorites = &app.favorites,
         .power = &app.power,
         .toast = &app.toast,
@@ -1385,6 +1390,7 @@ static void start_app(bool power_on)
     app.prepare_report = (CardFilesReport){.library_created = false, .card_full = false};
     settings_store_load(&app.settings);
     language_load(app.settings.settings.language);
+    headphone_store_load(&app.headphones);
     app.theme = BOARD_THEME;
     app.screens.bound_modules = 0;
     apply_orientation(app.settings.settings.orientation);
@@ -1407,7 +1413,7 @@ int16_t app_clock_offset(void)
     return app.settings.settings.clock_offset_minutes;
 }
 
-bool app_store_clock_offset(int16_t offset)
+CORE_COLD bool app_store_clock_offset(int16_t offset)
 {
     settings_store_capture(&app.settings, player_status(&app.player));
     bool saved = settings_store_set_clock_offset(&app.settings, offset);
@@ -1501,6 +1507,13 @@ void app_release_audio(void)
     player_release_output(&app.player);
 }
 
+void app_storage_formatted(bool success)
+{
+    app.storage_formatted = true;
+    app.format_success = success;
+    app.listening_loaded = false;
+}
+
 void app_remember_dac_volume(uint8_t level)
 {
     app.settings.settings.dac_volume = level;
@@ -1519,13 +1532,13 @@ void app_request_rescan_if_music_changed(void)
 }
 
 typedef struct ChargeFrame {
-    const SettingsModuleEntry *entry;
+    const ViewsModuleEntry *entry;
 } ChargeFrame;
 
 static void draw_charge(void *context, Canvas *canvas)
 {
     const ChargeFrame *frame = context;
-    const SettingsModuleEntry *entry = frame->entry;
+    const ViewsModuleEntry *entry = frame->entry;
     if (entry != NULL) {
         entry->charge_draw(canvas, board_theme(), app.charge_battery, app.now_ms);
     } else {
@@ -1642,7 +1655,8 @@ static void charge_step(uint32_t now_ms)
     bool moving = app.charge_battery.usb_power && app.charge_battery.charging;
     bool due = deadline_reached(now_ms, app.pacer.last_ms + CHARGE_SCREEN_FRAME_MS);
     if (app.display_on && (app.render_wanted || (moving && due))) {
-        ChargeFrame frame = {.entry = settings_module()};
+        ChargeFrame frame = {.entry = (const ViewsModuleEntry *)screen_modules_use(
+                                 &app.screens, SCREEN_MODULE_VIEWS)};
         app.render_wanted = false;
         app.pacer.last_ms = now_ms;
         render((FrameDrawer){.draw = draw_charge, .context = &frame}, true);
@@ -1678,6 +1692,9 @@ static bool prepare_step(void)
         }
     }
     app.prepare_pending = false;
+    if (app.headphones.load == STORE_UNREADABLE) {
+        headphone_store_load(&app.headphones);
+    }
     report_card_files(app.prepare_report, hal_clock_milliseconds());
     return false;
 }
@@ -1873,6 +1890,16 @@ CORE_SEAM void app_step(void)
         drain_key_events();
     } else {
         dispatch_key_events(now_ms);
+    }
+    if (app.storage_formatted) {
+        bool success = app.format_success;
+        app.storage_formatted = false;
+        app.rescan_requested = false;
+        app.music_check_requested = false;
+        start_app(false);
+        toast_show(&app.toast, i18n_text(success ? STR_CARD_FORMAT_DONE : STR_CARD_FORMAT_FAILED),
+                   hal_clock_milliseconds());
+        return;
     }
     if (app.saying_goodbye && fade_finished(&app.goodbye, now_ms)) {
         finish_shut_down();

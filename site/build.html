@@ -1,6 +1,19 @@
 <!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#150f25"><meta name="description" content="Build GNARLYR.img, use developer USB updates, explore codec-integration tools, and follow migration and recovery references."><meta property="og:title" content="Build and develop. — Gnarlyr"><meta property="og:description" content="Build GNARLYR.img, use developer USB updates, explore codec-integration tools, and follow migration and recovery references."><meta property="og:type" content="website"><meta property="og:url" content="https://gnarlyr.com/build.html"><link rel="canonical" href="https://gnarlyr.com/build.html"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="stylesheet" href="styles.css"><script src="site.js" defer></script><title>Build and develop. — Gnarlyr</title>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#150f25"><meta name="description" content="Build GNARLYR.img, use developer USB updates, inspect audio-file validation, and follow migration and recovery references."><meta property="og:title" content="Build and develop. — Gnarlyr"><meta property="og:description" content="Build GNARLYR.img, use developer USB updates, inspect audio-file validation, and follow migration and recovery references."><meta property="og:type" content="website"><meta property="og:url" content="https://gnarlyr.com/build.html"><link rel="canonical" href="https://gnarlyr.com/build.html"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="stylesheet" href="styles.css"><script src="site.js" defer></script><title>Build and develop. — Gnarlyr</title>
+<meta property="og:site_name" content="Gnarlyr">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://gnarlyr.com/assets/social/developers-e4e6e91708d5.png">
+<meta property="og:image:secure_url" content="https://gnarlyr.com/assets/social/developers-e4e6e91708d5.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Gnarlyr cassette artwork beside the words “Build it. Make it yours.”">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Build and develop. — Gnarlyr">
+<meta name="twitter:description" content="Build GNARLYR.img, use developer USB updates, inspect audio-file validation, and follow migration and recovery references.">
+<meta name="twitter:image" content="https://gnarlyr.com/assets/social/developers-e4e6e91708d5.png">
+<meta name="twitter:image:alt" content="Gnarlyr cassette artwork beside the words “Build it. Make it yours.”">
 </head>
 <body>
   <svg class="icon-definitions" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -18,11 +31,11 @@
 <nav aria-label="Main navigation"><a href="firmware.html">Features</a><a href="docs.html">Docs</a><a href="install.html">Install</a><a href="languages.html" class="nav-cta">Languages</a></nav>
 </header>
 <main id="main">
-<div class="page-intro wrap"><p class="eyebrow">Source builds · developer tools</p><h1 class="page-title">Build and develop.</h1><p>Build firmware, use the developer USB loop and explore codec tools from a Gnarlyr source checkout. For a ready-made image and player setup, use the <a href="install.html">Install guide</a>.</p></div>
+<div class="page-intro wrap"><p class="eyebrow">Source builds · developer tools</p><h1 class="page-title">Build and develop.</h1><p>Build firmware, use the developer USB loop and inspect audio handling from a Gnarlyr source checkout. For a ready-made image and player setup, use the <a href="install.html">Install guide</a>.</p></div>
 <div class="doc-layout wrap"><nav class="contents" aria-label="On this page"><p class="eyebrow">On this page</p><ol><li><a href="#build">Build from source · macOS</a></li>
 <li><a href="#developer">Developer USB updates</a></li>
-<li><a href="#codecs">Audio source integrations</a></li>
-<li><a href="#processing">ReplayGain &amp; tempo source</a></li>
+<li><a href="#codecs">Audio-file validation</a></li>
+<li><a href="#processing">ReplayGain &amp; speech files</a></li>
 <li><a href="#usb">USB internals</a></li>
 <li><a href="#migration">Older custom builds</a></li>
 <li><a href="#recovery-tools">Recovery tool setup</a></li>
@@ -76,39 +89,31 @@
 <p><a href="install.html#update">Ordinary manual updates</a> use the player’s unplug-and-Power sequence. Automatic restart is a developer-build workflow.
 </p>
 <h3>Language packs over USB</h3>
-<p>Build a pack in the <a href="languages.html">browser builder</a>, then run <code>python3 tools/echo_debug.py language-install /path/to/es.pack --select</code> with a developer player connected in USB storage mode. The helper checks the pack against the installed build, verifies the copied file and selects the language after reconnecting. Use <code>language-select en</code> to return to English.</p>
+<p>Build a pack in the <a href="languages.html">browser builder</a>, then run <code>python3 tools/echo_debug.py language-install /path/to/es.pack --select</code> with a developer player connected in File transfer mode. The helper checks the pack against the installed build, verifies the copied file and selects the language after reconnecting. Use <code>language-select en</code> to return to English.</p>
 <p>List installed languages with <code>language-list</code>. Check a pack without installing it with <code>language-inspect /path/to/es.pack</code>. The matching <code>echo_language_*</code> MCP tools expose the same operations. Listing ignores macOS <code>._</code> metadata files, and selection resolves the current language’s setting label. Managed installation validates the installed catalogue and same-player music volume, keeping writes limited to language-pack paths. Full usage is in <code>docs/language-packs.md</code>.</p>
 <h3>Reversible display and audio previews</h3>
 <p>The settings source previews the highlighted Accent Color, Brightness, Text size, Orientation, Gain, Output, ReplayGain or Prevent clipping value while you browse. Play saves the choice; Back, leaving the picker or switching off restores the saved value. Accent Color affects Graphite’s highlights and decorative details.</p>
 <h3>Button-lock input handling</h3>
-<p>The key-lock source requires an uninterrupted Play+Power hold. Releasing and pressing either key again before completion resets the timer; after a successful toggle, both keys must be released before another hold can toggle it. This corrects interrupted presses being counted as one continuous hold.</p>
+<p>The key-lock source requires an uninterrupted Play+Power hold. Releasing and pressing either key again before completion resets the timer; after a successful toggle, both keys must be released before another hold can toggle it. This corrects interrupted presses being counted as one continuous hold. Hold, repeat and multiple-click delays are capped at the clock-comparison limit before use.</p>
 <h3>Audio processing and diagnostics</h3>
-<p>Audio processing remains available as interface modules change. A separate 8 KiB code bank holds sample-rate conversion and M4A/M4B parsing. Diagnostic counts exclude intentionally muted DMA pauses, so a normal pause is not reported as missing audio. Frame counters stop at their maximum instead of wrapping, and large duration and bitrate calculations use checked arithmetic.</p>
+<p>Audio processing remains available as interface modules change. A separate 8 KiB code bank holds sample-rate conversion and M4A/M4B parsing. Diagnostic counts exclude intentionally muted DMA pauses, so a normal pause is not reported as missing audio. Frame counters stop at their maximum instead of wrapping, and large duration and bitrate calculations use checked arithmetic. The debug event ring keeps its write position separately from its event count, preserving record order when the counter reaches its limit.</p>
+<h3>Matching CUE parsing on the player and computer</h3>
+<p>A CUE sheet splits one audio file into track ranges. Both parsers accept track numbers 1–99, require seconds below 60 and frame positions below 75, and reject extra text after a timestamp. Track starts must increase; invalid entries are dropped while valid neighbors remain. FLAC checks also validate ID3 headers, frame numbering and ranges against the declared total sample count.</p>
 </section>
 <section class="doc-section" id="codecs" aria-labelledby="codecs-title">
-<h2 id="codecs-title">Vorbis, Opus and the audio pipeline.</h2>
-<p class="intro">An Ogg file wraps compressed audio in packets; a decoder turns them into samples. Current source connects both Vorbis and Opus to the player’s file opening, duration, seeking and saved-position startup.</p>
+<h2 id="codecs-title">Check files before decoding.</h2>
+<p class="intro">Audio files contain both sound and instructions for reading it. The readers check those instructions before using them to locate samples, choose a decoder or calculate a position.</p>
 <ul class="detail-list">
-<li><strong>Checked Ogg input.</strong> The packet reader validates pages, CRC, sequence and continuation before forwarding audio. Large comments and embedded artwork stay out of the decoder workspace; the original file stays unchanged.</li>
-<li><strong>Bounded Vorbis decoding.</strong> A separate core-1 program uses pinned Xiph Tremor source, a 64 KiB workspace and a 32 KiB compressed-packet limit. The source handles mono/stereo configuration, refuses oversized setups and keeps duration and seek positions on the same sample timeline.</li>
-<li><strong>Safe track changes.</strong> Setup finishes before audio is released. Refills discard output from older track generations, and late setup results cannot abort a newer track.</li>
-<li><strong>Continuous conversion across queued files.</strong> Files with the same decoded input rate retain converter history and output boundaries. A rate change drains and restarts the filter. Initial current/next publication precedes DAC prefill; clearing an already-empty queue preserves prepared audio and position.</li>
-<li><strong>Metadata and decoder bounds.</strong> FLAC metadata and frames must agree on rate, bit depth and block limits. M4A tables stay within their boxes; timing clocks, chunk descriptions and AAC/ALAC configurations are validated. Truncated virtual records fail instead of supplying incomplete audio.</li>
+<li><strong>FLAC framing.</strong> Tag headers, metadata order and frame numbering are validated. Frames must match the declared sample rate, bit depth and block limits, and stay inside a known total sample count.</li>
+<li><strong>M4A and M4B boundaries.</strong> Sample tables stay within their boxes. Media clocks, chunk descriptions and AAC/ALAC configuration are checked; truncated records fail instead of supplying incomplete audio.</li>
+<li><strong>Metadata bounds.</strong> MP3 APE footer lengths and WMA field lengths are checked before locating data. Unicode text keeps its original characters during whitespace trimming.</li>
+<li><strong>CUE track ranges.</strong> The player and desktop indexer use the same track-number and timestamp rules, dropping invalid entries while preserving valid neighbors.</li>
 </ul>
-<p>Vorbis is connected to the playback source. Listening, processing headroom and converted-file transitions still need checks on the ECHO.</p>
-<h3>Integrated Opus playback</h3>
-<p>Opus is another audio format carried in Ogg files. The player source now opens <code>.opus</code> files and uses a fixed-point libopus 1.6.1 decoder in a separate core-1 program. Both library indexers recognize Opus and read its comments.</p>
-<ul class="detail-list">
-<li><strong>Bounded decoding.</strong> Mono and stereo streams with channel mapping family 0 decode at 48 kHz. SILK, CELT and hybrid packets are handled, including packets up to 120 ms. Multichannel streams and packets above 32 KiB are refused.</li>
-<li><strong>Seeking and resume.</strong> Initial and final extra samples are trimmed on the same timeline as duration and saved position. Seeking decodes an 80 ms lead-in before the target so the decoder can settle. Header gain sets the output level; long packets are split to fit the output buffers.</li>
-<li><strong>Shared packet transport.</strong> Vorbis and Opus use the same checked record reader. The image builder reserves the Opus bank separately from glyphs, language packs and other modules.</li>
-</ul>
-<p>Native and ARM emulator checks cover Opus decoding, seeking, resume and switching between Vorbis and Opus. Opus has not yet been heard on the ECHO; listening, real-time processing headroom and gapless transitions remain player checks. The simulator does not play Opus. See <code>firmware/docs/opus.md</code> in your checkout.</p>
-<p>The host test utility <code>ogg_packet_tool</code> exports checked packets for decoder comparisons. See <code>firmware/docs/ogg-packets.md</code> and <code>firmware/docs/ogg-vorbis.md</code> in the matching audio source checkout.</p>
+<p>See <code>firmware/docs/architecture.md</code> and <code>firmware/docs/library-format.md</code> in your checkout for reader formats and storage boundaries.</p>
 </section>
 <section class="doc-section" id="processing" aria-labelledby="processing-title">
-<h2 id="processing-title">Loudness and tempo processing in source.</h2>
-<p class="intro">ReplayGain uses stored loudness information to adjust a song’s level. Tempo processing changes pace while preserving pitch. The audio branch connects both to the playback engine; normal speed remains the default.</p>
+<h2 id="processing-title">ReplayGain and speech files.</h2>
+<p class="intro">ReplayGain uses loudness tags already in your music to balance listening levels. Rescanning prepares those values for playback without rewriting the audio files.</p>
 <h3>ReplayGain controls and metadata</h3>
 <ul class="detail-list">
 <li><strong>Off, Track and Album.</strong> Off is the default. Track uses each song’s gain; Album retains the tagged level relationships within an album. Missing preferred gain falls back to the other kind; untagged or unreadable gain data uses the normal level.</li>
@@ -116,21 +121,11 @@
 <li><strong>Saved controls and continuous playback.</strong> Mode and clipping choices are persistent. Changes affect newly buffered audio without reopening the current track or restarting DMA, and each current/queued track carries its own gain.</li>
 <li><strong>Checked library data.</strong> Rescanning or desktop indexing prepares gain records without rewriting music files or changing the base library fingerprint used by queues and labels. Peak values round conservatively; removed tags clear stale gain data, and invalid caches do not supply unchecked amplification.</li>
 </ul>
-<h3>Pitch-preserving tempo in the device engine</h3>
-<p>The fixed-memory kernel accepts signed 24-bit stereo samples at 8–48 kHz and integer speeds from 50 to 200 percent. At 100 percent it copies samples unchanged. Caller-owned storage bounds the working memory.</p>
-<ul class="detail-list">
-<li><strong>Stretch before conversion.</strong> The device engine applies track gain and volume, adjusts tempo at the decoded rate, converts lower-rate speech for output, then applies EQ.</li>
-<li><strong>Positions stay tied to the recording.</strong> Seeking and speed changes use the audible source position, preserve pause state and restore the prepared next track with its gain.</li>
-<li><strong>Continuous chapter and queue boundaries.</strong> Same-rate queued files and adjacent chapters keep processing history. Rate changes drain the pending audio before restarting the relevant stage.</li>
-<li><strong>Fixed working memory.</strong> Non-unity tempo reuses part of the audio ring and private processing storage. It accepts supported decoded rates up to 48 kHz; normal-speed rate support is unchanged.</li>
-</ul>
-<p>Persistent speed controls and simulator integration are separate work. The engine connection does not yet provide a player speed setting. ReplayGain listening/headroom and tempo quality and throughput require ECHO checks.</p>
-<h3>Preparing lower-rate speech</h3>
-<p>The converter handles 8, 11.025, 12, 16, 22.05 and 24 kHz input. The updated filter reuses matching calculations, filters mono once and keeps the main processor at full clock during conversion. This cuts the filter’s multiply work roughly in half while preserving the output samples.</p>
-<p>An earlier converter produced dropouts on the player; the revised path still needs a player measurement. For listening, convert recordings below 32 kHz to 44.1 or 48 kHz on your computer before copying them.</p>
-<p>See <code>firmware/docs/replay-gain.md</code> and <code>firmware/docs/audio-tempo.md</code> in the audio source checkout.</p>
+<h3>Preparing speech recordings</h3>
+<p>Use 32, 44.1 or 48 kHz recordings for listening. Convert files below 32 kHz to 44.1 or 48 kHz on your computer before copying them. For M4A or M4B, use AAC-LC or Apple Lossless audio.</p>
+<p>See <code>firmware/docs/replay-gain.md</code> in your checkout for tag formats, gain limits and library storage.</p>
 </section>
-<section class="doc-section" id="usb" aria-labelledby="usb-title">
+<section class="doc-section" id="clock" aria-labelledby="clock-title"><h2 id="clock-title">Set the player’s time.</h2><p class="intro">The companion can leave your Mac’s time on the drive before ejecting it. Gnarlyr reads that time when the USB session ends.</p><p>With a developer player connected in File transfer mode, run <code>python3 tools/echo_debug.py set-time</code>. Home → Clock then shows the time and date; Play opens Calendar. Settings → Clock format chooses 12-hour or 24-hour time. Sync again after switching off or restarting. Listening exports include UTC timestamps for plays made while the time is set.</p></section><section class="doc-section" id="usb" aria-labelledby="usb-title">
 <h2 id="usb-title">How USB hands storage back to the player.
 </h2>
 <p class="intro">Eject completes host writes and returns storage to the player, allowing Gnarlyr to inspect the image and start installation.
@@ -147,7 +142,7 @@
 </ul>
 <p>For everyday music copying, eject every drive before unplugging too. Gnarlyr then checks whether the music changed and rescans when needed.
 </p>
-<p>The cable-connected mode chooser is opened from Home, Settings or Menu on the charging screen. Eject storage volumes before switching back to Player; choosing storage again re-enumerates the drives without a physical unplug. The charging lifecycle gates callbacks while the interface module is inactive.</p>
+<p>The cable-connected mode chooser is opened from Home, Settings or Menu on the charging screen. Eject storage volumes before switching back to Charge only; choosing File transfer again re-enumerates the drives without a physical unplug. The charging lifecycle gates callbacks while the interface module is inactive.</p>
 </section>
 <section class="doc-section" id="migration" aria-labelledby="migration-title">
 <h2 id="migration-title">Migrate an older firmware identity.</h2>
@@ -185,6 +180,9 @@
 </p></div>
 <footer class="wrap">
 <nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html">Features &amp; improvements</a><a href="docs.html">Docs</a><a href="install.html">Install &amp; update</a><a href="languages.html">Languages</a><a href="build.html" aria-current="page">Developers</a></nav>
+<div class="footer-hardware" id="hardware"><p><strong>Full-size Snowsky ECHO</strong> · <a href="hardware.html">Hardware guide</a></p>
+<a class="button amazon-cta" id="buy-echo" href="https://www.amazon.com/dp/B0GK61Y1FD?tag=doublesharp-20" rel="sponsored nofollow" aria-describedby="affiliate-disclosure">Shop the ECHO on Amazon ↗</a>
+<p class="affiliate-disclosure" id="affiliate-disclosure">As an Amazon Associate I earn from qualifying purchases. Gnarlyr is installed separately.</p></div>
 <div class="footer-row"><span>GNARLYR.COM / Open-source ECHO firmware</span><div class="footer-links"><a href="https://podium-echo.online">Podium ↗</a><a href="https://github.com/BasilSkyWalk/echopod">EchoPod ↗</a><a href="https://github.com/brnomt/ReChord">ReChord ↗</a><a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0-or-later ↗</a></div></div>
 <p>Gnarlyr by doublesharp. Built on Podium and EchoPod, with hardware research from ReChord.
 </p>

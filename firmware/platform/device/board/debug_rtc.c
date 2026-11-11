@@ -225,7 +225,7 @@ static HalRtcRead read_registers(void)
     return read;
 }
 
-HalRtcRead hal_system_rtc_read(void)
+CORE_SEAM HalRtcRead hal_system_rtc_read(void)
 {
     BusState state = save_bus();
     open_bus();

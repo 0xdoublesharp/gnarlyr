@@ -1413,9 +1413,46 @@ static void live_normalization_targets_the_decoder_while_a_new_output_clock_wait
     free(pcm.bytes);
 }
 
+static void headphones_compose_before_clipping_at_native_and_converted_rates(void)
+{
+    const uint32_t rates[] = {8000, 16000, 44100, 96000, 192000};
+    uint32_t reference[4096];
+    for (unsigned rate = 0; rate < sizeof rates / sizeof rates[0]; rate++) {
+        for (int pass = 0; pass < 2; pass++) {
+            start_scripted_engine(0, 1);
+            scripted.rate = rates[rate];
+            scripted.bits = 24;
+            for (int frame = 0; frame < 16; frame++) {
+                scripted.left[frame] = 7000000;
+                scripted.right[frame] = -7000000;
+            }
+            if (pass == 1) {
+                audio_engine_set_headphones(&engine, (HeadphoneAudio){16384, 8192, 60});
+            }
+            AudioEngineTrack track = {
+                .path = "first", .token = 1, .replay_gain = pass == 0 ? 32768 : 131072};
+            CHECK(audio_engine_play(&engine, &track, 0));
+            pump_until_full(0);
+            CHECK(engine.end_at > 0 && engine.end_at * 2 <= 4096);
+            for (uint32_t frame = 0; frame < engine.end_at; frame++) {
+                if (pass == 0) {
+                    reference[2 * frame] = ring[2 * frame];
+                    reference[2 * frame + 1] = ring[2 * frame + 1];
+                } else {
+                    CHECK_EQUAL(reference[2 * frame], ring[2 * frame]);
+                    int32_t right = (int32_t)ring[2 * frame + 1] / 256;
+                    int32_t expected = (int32_t)reference[2 * frame + 1] / 512;
+                    CHECK(right >= expected - 1 && right <= expected + 1);
+                }
+            }
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(headphones_compose_before_clipping_at_native_and_converted_rates),
         TEST_CASE(replacing_a_buffered_next_song_keeps_the_current_position),
         TEST_CASE(clearing_a_buffered_next_song_leaves_only_the_current_tail),
         TEST_CASE(replacing_a_pending_rate_change_restarts_at_the_current_rate),

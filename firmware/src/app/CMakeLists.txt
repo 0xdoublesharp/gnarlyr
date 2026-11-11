@@ -57,9 +57,13 @@ add_library(echo_app STATIC
     settings_screens.c
     screens/set_clock_screen.c
     settings_store.c
+    headphone_store.c
+    headphone_store_edit.c
+    headphone_editor.c
     spoken_store.c
     wall_time.c
     screens/bluetooth_screen.c
+    screens/card_format_screen.c
     screens/calendar_screen.c
     screens/clock_screen.c
     screens/charge_screen.c

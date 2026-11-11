@@ -52,6 +52,7 @@ typedef struct FakeAudio {
     HalAudioGain gain;
     HalAudioOutput output;
     HalAudioEqualizer equalizer;
+    HeadphoneAudio headphones;
     int refused_plays;
     HalAudioJack jack;
     HalAudioRefusal refusal;
@@ -192,6 +193,48 @@ typedef struct FakeHal {
 } FakeHal;
 
 static FakeHal fake;
+static HalCardInfo card_info;
+static bool card_format_result;
+static int card_format_calls;
+
+void fake_hal_set_card(HalCardInfo info, bool result)
+{
+    card_info = info;
+    card_format_result = result;
+    card_format_calls = 0;
+}
+
+int fake_hal_card_formats(void)
+{
+    return card_format_calls;
+}
+
+HalCardInfo hal_card_info(void)
+{
+    HalCardInfo info = card_info;
+    info.usb_busy |= fake.usb_sense.session || fake.usb_sense.connecting;
+    return info;
+}
+
+bool hal_card_format(HalCardInfo expected, HalCardProgress progress, void *context)
+{
+    if (!card_info.present || expected.sectors != card_info.sectors ||
+        expected.generation != card_info.generation) {
+        return false;
+    }
+    card_format_calls++;
+    if (progress != NULL && !progress(context, 0, 100)) {
+        return false;
+    }
+    if (card_format_result) {
+        fake_hal_replace_music_volume();
+        fake.empty_card = true;
+    }
+    if (progress != NULL) {
+        progress(context, 100, 100);
+    }
+    return card_format_result;
+}
 
 void fake_hal_replace_music_volume(void)
 {
@@ -233,6 +276,8 @@ static int language_reads;
 void fake_hal_reset(void)
 {
     fake = (FakeHal){.reserve_result = HAL_RESERVE_CREATED};
+    fake_hal_set_card((HalCardInfo){0}, false);
+    fake.audio.headphones = headphone_audio_defaults();
     eq_count = 0;
     language_file_count = 0;
     language_reads = 0;
@@ -717,7 +762,18 @@ void hal_audio_seek(uint32_t position_ms)
 
 void hal_audio_set_volume(uint8_t level)
 {
-    fake.audio.volume = level;
+    fake.audio.volume = headphone_audio_limit(fake.audio.headphones, level);
+}
+
+void hal_audio_set_headphones(HeadphoneAudio profile)
+{
+    fake.audio.volume = headphone_audio_limit(profile, fake.audio.volume);
+    fake.audio.headphones = profile;
+}
+
+HeadphoneAudio hal_audio_headphones(void)
+{
+    return fake.audio.headphones;
 }
 
 void hal_audio_set_gain(HalAudioGain gain)
@@ -1766,6 +1822,13 @@ static HalReserveResult reserve_screenshot(const char *path, uint32_t size)
 bool hal_internal_file_write_at(const char *path, uint32_t offset, const void *bytes,
                                 uint32_t length)
 {
+    InternalFile *file = internal_file(path);
+    if (file != NULL && offset <= file->size && length <= file->size - offset &&
+        offset + length <= sizeof file->bytes) {
+        memcpy(file->bytes + offset, bytes, length);
+        fake.write_count++;
+        return true;
+    }
     if (strcmp(fake.screenshot_path, path) != 0 || offset > fake.screenshot_size ||
         length > fake.screenshot_size - offset) {
         return false;

@@ -159,9 +159,38 @@ static void writing_wraps_around_the_end_of_the_ring(void)
     CHECK_EQUAL(0x30300000u, ring[2 * ((sink.written - 1) % RING_FRAMES)]);
 }
 
+static void headphones_trim_both_usb_formats_and_survive_rate_restarts(void)
+{
+    for (uint8_t width = 2; width <= 3; width++) {
+        UsbAudioSink sink = started_sink(width);
+        HeadphoneAudio profile = {
+            .left = REPLAY_GAIN_UNITY / 4, .right = REPLAY_GAIN_UNITY / 2, .ceiling = 25};
+        usb_audio_sink_set_headphones(&sink, profile);
+        uint8_t bytes[] = {0xFF, 0x7F, 0x00, 0x80, 0, 0};
+        if (width == 3) {
+            const uint8_t wide[] = {0xFF, 0xFF, 0x7F, 0, 0, 0x80};
+            for (int index = 0; index < 6; index++) {
+                bytes[index] = wide[index];
+            }
+        }
+        for (int rate = 44100; rate <= 48000; rate += 3900) {
+            usb_audio_sink_start(&sink, (uint32_t)rate, width);
+            usb_audio_sink_write(&sink, bytes, 2u * width, 0);
+            CHECK_EQUAL(headphone_audio_word(width == 2 ? 0x7FFF0000u : 0x7FFFFF00u, profile.left),
+                        ring[0]);
+            CHECK_EQUAL(0xC0000000u, ring[1]);
+        }
+        usb_audio_sink_set_headphones(&sink, headphone_audio_defaults());
+        uint32_t next = sink.written;
+        usb_audio_sink_write(&sink, bytes, 2u * width, 0);
+        CHECK_EQUAL(width == 2 ? 0x7FFF0000u : 0x7FFFFF00u, ring[2 * next]);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(headphones_trim_both_usb_formats_and_survive_rate_restarts),
         TEST_CASE(sixteen_bit_samples_go_to_the_top_of_each_word),
         TEST_CASE(twenty_four_bit_samples_are_left_justified),
         TEST_CASE(a_partial_frame_at_the_end_of_a_packet_is_ignored),

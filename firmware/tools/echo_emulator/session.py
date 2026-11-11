@@ -52,7 +52,7 @@ def with_brand(image, brand):
 class Session:
     def __init__(self, image, elf_path, files=(), vbus_after_first_frame=False, volume=None,
                  vbus_at_start=False, reuse=None, usb_overlay_elf=None, rest_in_waits=True,
-                 module_elfs=(), usb_answer=USB_ANSWER_FILE_TRANSFER):
+                 module_elfs=(), usb_answer=USB_ANSWER_FILE_TRANSFER, optional_hooks=()):
         self.image = image
         self.elf_path = elf_path
         self.usb_overlay_elf = usb_overlay_elf
@@ -69,7 +69,7 @@ class Session:
         self.card = card
         self.disk = card.disk
         self.machine = Machine(self.image, elf_path, card, usb_overlay_elf, rest_in_waits,
-                               module_elfs)
+                               module_elfs, optional_hooks)
         if reuse is not None:
             self.machine.rtc_bus.registers[:] = reuse.machine.rtc_bus.registers
             self.machine.rtc_bus.present = reuse.machine.rtc_bus.present

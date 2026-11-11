@@ -35,6 +35,14 @@ static CORE_COLD void set_track_gain(AudioEngine *engine, uint32_t gain)
     engine->track_gain = gain != 0 ? gain : UNITY_GAIN;
     engine->output_gain =
         (uint32_t)(((uint64_t)engine->gain * engine->track_gain + UNITY_GAIN / 2) >> GAIN_SHIFT);
+    engine->left_gain = headphone_audio_gain(engine->headphones.left, engine->output_gain);
+    engine->right_gain = headphone_audio_gain(engine->headphones.right, engine->output_gain);
+}
+
+CORE_COLD void audio_engine_set_headphones(AudioEngine *engine, HeadphoneAudio profile)
+{
+    engine->headphones = profile;
+    set_track_gain(engine, engine->track_gain);
 }
 
 CORE_COLD void audio_engine_init(AudioEngine *engine, AudioEngineConfig config)
@@ -43,7 +51,10 @@ CORE_COLD void audio_engine_init(AudioEngine *engine, AudioEngineConfig config)
                             .state = AUDIO_ENGINE_STOPPED,
                             .gain = UNITY_GAIN,
                             .track_gain = UNITY_GAIN,
-                            .output_gain = UNITY_GAIN};
+                            .output_gain = UNITY_GAIN,
+                            .headphones = headphone_audio_defaults(),
+                            .left_gain = UNITY_GAIN,
+                            .right_gain = UNITY_GAIN};
 }
 
 CORE_COLD void audio_engine_set_volume(AudioEngine *engine, uint8_t level)
@@ -295,27 +306,6 @@ void audio_engine_stop(AudioEngine *engine)
     engine->end_at = engine->produced;
 }
 
-static int64_t floor_shift(int64_t value, int shift)
-{
-    return value >= 0 ? value >> shift : -((-value - 1) >> shift) - 1;
-}
-
-__attribute__((noinline)) static int32_t to_output(int32_t sample, int bits, uint32_t gain)
-{
-    int64_t value = (int64_t)sample * gain;
-    int shift = GAIN_SHIFT + bits - OUTPUT_BITS;
-    if (shift > 0) {
-        value = floor_shift(value + (INT64_C(1) << (shift - 1)), shift);
-    } else if (shift < 0) {
-        int64_t factor = INT64_C(1) << -shift;
-        if (value > SAMPLE_MAX / factor || value < SAMPLE_MIN / factor) {
-            return value < 0 ? SAMPLE_MIN : SAMPLE_MAX;
-        }
-        value *= factor;
-    }
-    return value > SAMPLE_MAX ? SAMPLE_MAX : value < SAMPLE_MIN ? SAMPLE_MIN : (int32_t)value;
-}
-
 static int32_t saturate(int32_t sample)
 {
     return sample > SAMPLE_MAX ? SAMPLE_MAX : sample < SAMPLE_MIN ? SAMPLE_MIN : sample;
@@ -378,14 +368,18 @@ static void convert_24(const PcmSpan *span)
     }
 }
 
-static void convert_scaled(const PcmSpan *span, int bits, uint32_t gain)
+static void convert_scaled(const PcmSpan *span, int bits, const AudioEngine *engine)
 {
     uint32_t *words = span->words;
-    bool mono = span->left == span->right;
+    bool mono = span->left == span->right && engine->left_gain == engine->right_gain;
     for (uint32_t index = 0; index < span->frames; index++, words += WORDS_PER_FRAME) {
-        words[0] = (uint32_t)to_output(span->left[index], bits, gain) << span->shift;
-        words[1] =
-            mono ? words[0] : (uint32_t)to_output(span->right[index], bits, gain) << span->shift;
+        words[0] =
+            (uint32_t)headphone_audio_sample(span->left[index], (uint8_t)bits, engine->left_gain)
+            << span->shift;
+        words[1] = mono ? words[0]
+                        : (uint32_t)headphone_audio_sample(span->right[index], (uint8_t)bits,
+                                                           engine->right_gain)
+                              << span->shift;
     }
 }
 
@@ -394,8 +388,9 @@ static void convert_pending(const AudioEngine *engine, uint32_t *words, uint32_t
     uint32_t at = engine->pending_offset;
     PcmSpan span = {words, engine->frame.left + at, engine->frame.right + at, frames, shift};
     int bits = engine->frame.bits;
-    if (engine->output_gain != UNITY_GAIN || (bits != SIXTEEN_BITS && bits != OUTPUT_BITS)) {
-        convert_scaled(&span, bits, engine->output_gain);
+    if (engine->left_gain != UNITY_GAIN || engine->right_gain != UNITY_GAIN ||
+        (bits != SIXTEEN_BITS && bits != OUTPUT_BITS)) {
+        convert_scaled(&span, bits, engine);
     } else if (bits == SIXTEEN_BITS) {
         convert_16(&span);
     } else {
@@ -489,7 +484,7 @@ static bool remaining_output(const AudioEngine *engine, int64_t *remaining)
 {
     uint32_t end = engine->decode_limit != 0 ? engine->decode_limit
                                              : engine->decode_track.stream.total_samples;
-    if (end == 0 || !engine->holding_frame) {
+    if (end == 0) {
         return false;
     }
     int64_t input = (int64_t)end - engine->frame.first_sample - engine->pending_offset;

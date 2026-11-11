@@ -339,6 +339,108 @@ def summary(device_map, overlay_map=None, usb_overlay_map=None, packs=(), module
     return lines
 
 
+@dataclass(frozen=True)
+class Budget:
+    preset: str
+    name: str
+    used: int
+    limit: int
+    floor: int = 0
+
+    @property
+    def ok(self):
+        return self.limit - self.used >= self.floor
+
+
+BUDGET_PRESETS = ("release", "device")
+RESIDENT_CODE_FLOORS = {"release": 4096, "device": 1024}
+BUDGET_MODULES = {"views", "settings", "library", "listening", "dsp", "ogg", "process", "extension"}
+BUDGET_MAPS = {"echo_usb_overlay.map", "echo_rescan_overlay.map", "echo_core1.map", "echo_core1_mp3.map",
+               "echo_core1_m4a.map", "echo_core1_vorbis.map", "echo_core1_opus.map"}
+CORE1_SCRIPTS = Path(__file__).resolve().parents[1] / "platform/device/core1"
+BUDGET_HEADERS = ("Preset", "Region / slot", "Used", "Limit", "Free", "Floor", "Result")
+
+
+def resident_rows(device, preset):
+    regions = memory_regions(device)
+    sizes = output_sizes(device)
+    symbols = linker_symbols(device)
+    origin, capacity = regions[DATA_REGION]
+    return [Budget(preset, "resident code", sizes[".code"], regions[CODE_REGION][1],
+                   RESIDENT_CODE_FLOORS[preset]),
+            Budget(preset, "static RAM", symbols[DATA_END_SYMBOL] - origin,
+                   symbols.get(DATA_LIMIT_SYMBOL, origin + capacity) - origin),
+            Budget(preset, "decoder workspace", sizes[WORKSPACE_SECTION], regions[WORKSPACE_REGION][1])]
+
+
+def overlay_rows(path, text, preset):
+    memory = memory_regions(text)
+    rows = [Budget(preset, path.stem.removeprefix("echo_"), sum(module_extent(text)),
+                   memory[OVERLAY_REGION][1])]
+    if USB_IMAGE_REGION in memory:
+        rows.append(Budget(preset, "USB image slot", output_sizes(text)[".overlay"],
+                           memory[USB_IMAGE_REGION][1]))
+    return rows
+
+
+def core1_rows(path, text, preset):
+    import make_image
+
+    name = path.stem.removeprefix("echo_")
+    script = CORE1_SCRIPTS / f"{name}.ld"
+    match = re.search(r"ASSERT\(core1_bss_end <= (0x[0-9A-Fa-f]+)", script.read_text())
+    if match is None:
+        raise ValueError(f"Missing core 1 stack boundary: {script}")
+    sections = output_sizes(text)
+    static_limit = int(match[1], 16) - memory_regions(text)["CORE1_DATA"][0]
+    code_limit = {"core1_vorbis": make_image.CORE1_VORBIS_CAPACITY,
+                  "core1_m4a": make_image.CORE1_M4A_CAPACITY}.get(name, make_image.CORE1_MODULE_CAPACITY)
+    return [Budget(preset, f"{name} image bank", sections[".text"], code_limit),
+            Budget(preset, f"{name} static RAM", sections.get(".bss", 0) + sections.get(".data", 0),
+                   static_limit)]
+
+
+def check_budget_inputs(directory, device, modules):
+    present = {path.name for path in directory.glob("*.map")}
+    if {name for name, _ in modules} != BUDGET_MODULES or not BUDGET_MAPS <= present:
+        raise ValueError(f"Incomplete size inputs in {directory}; rebuild both presets")
+    if any(split_state(device, text) for _, text in modules):
+        raise ValueError("Split module state")
+    problems = module_problems(device, modules)
+    if problems:
+        raise ValueError("; ".join(problems))
+
+
+def budget_rows(build, preset):
+    directory = build / "platform/device"
+    device = (directory / "echo_device.map").read_text()
+    rows = resident_rows(device, preset)
+    modules = []
+    for path in sorted(directory.glob("*.map")):
+        text = path.read_text()
+        if path.stem.startswith("echo_module_"):
+            name = path.stem.removeprefix("echo_module_")
+            modules.append((name, text))
+            rows.append(Budget(preset, f"module {name}", sum(module_extent(text)),
+                               memory_regions(text)[MODULE_REGION][1]))
+        elif path.stem in ("echo_rescan_overlay", "echo_usb_overlay"):
+            rows += overlay_rows(path, text, preset)
+        elif path.stem.startswith("echo_core1"):
+            rows += core1_rows(path, text, preset)
+    check_budget_inputs(directory, device, modules)
+    packs = sorted((build / "lang").glob("*.pack"))
+    if not packs:
+        raise ValueError(f"Missing language packs in {build}")
+    language = memory_regions(device)[LANGUAGE_REGION][1]
+    return rows + [Budget(preset, f"language {path.stem}", path.stat().st_size, language) for path in packs]
+
+
+def budget_table(rows):
+    table = [(row.preset, row.name, f"{row.used:,}", f"{row.limit:,}", f"{row.limit - row.used:,}",
+              f"{row.floor:,}", "PASS" if row.ok else "FAIL") for row in rows]
+    return format_table(table, BUDGET_HEADERS)
+
+
 def module_report(name, module_map):
     """What fills one module, by object."""
     by_object = defaultdict(lambda: [0, 0])
@@ -433,6 +535,9 @@ def parse_arguments(argv):
     parser.add_argument("--top", type=int, default=25, help="how many symbols to list")
     parser.add_argument("--objects", type=int, default=40, help="how many objects to list")
     parser.add_argument("--summary", action="store_true", help="only the lines against the limits")
+    parser.add_argument("--output", type=Path, help="also save the report as UTF-8 text")
+    parser.add_argument("--preset", choices=BUDGET_PRESETS,
+                        help="with --build and --summary, print the budget table of tools/firmware.py sizes")
     arguments = parser.parse_args(argv)
     if arguments.build is not None:
         directory = arguments.build / "platform" / "device"
@@ -446,6 +551,8 @@ def parse_arguments(argv):
             arguments.usb_overlay_map = usb_overlay
     if arguments.map is None:
         parser.error("give --build or --map")
+    if arguments.preset is not None and (arguments.build is None or not arguments.summary):
+        parser.error("--preset needs --build and --summary")
     return arguments
 
 
@@ -474,12 +581,21 @@ def main(argv=None):
     packs = [(path.stem, path.stat().st_size) for path in arguments.language_pack]
     modules = read_modules(arguments.module_map)
     problems = module_problems(device_map, modules)
-    if arguments.summary:
-        print("\n".join(summary(device_map, overlay_map, usb_overlay_map, packs, modules)))
+    if arguments.summary and arguments.preset is not None:
+        try:
+            text = "\n".join(budget_table(budget_rows(arguments.build, arguments.preset)))
+        except ValueError as error:
+            print("error: " + str(error), file=sys.stderr)
+            return 1
+    elif arguments.summary:
+        text = "\n".join(summary(device_map, overlay_map, usb_overlay_map, packs, modules))
     else:
         nm_text = run_nm(arguments.elf, arguments.nm)
-        print(report(device_map, overlay_map, nm_text, arguments.top, arguments.objects,
-                     usb_overlay_map, packs, modules))
+        text = report(device_map, overlay_map, nm_text, arguments.top, arguments.objects,
+                      usb_overlay_map, packs, modules)
+    print(text)
+    if arguments.output is not None:
+        arguments.output.write_text(text + "\n", encoding="utf-8")
     for problem in problems:
         print("error: " + problem, file=sys.stderr)
     return 1 if problems else 0

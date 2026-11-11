@@ -1,5 +1,5 @@
+#include "app/app.h"
 #include "modules/modules.h"
-#include "screens/charge_screen.h"
 
 #include <stddef.h>
 
@@ -42,6 +42,9 @@ static void bind(AppScreens *screens)
     SettingsModuleScreens *own = &screens->modules.settings;
     SettingsContext settings = {
         .store = context->settings,
+        .format_prepare = app_release_audio,
+        .format_finished = app_storage_formatted,
+        .headphones = context->headphones,
         .player = context->player,
         .power = context->power,
         .toast = context->toast,
@@ -87,7 +90,6 @@ const SettingsModuleEntry SETTINGS_MODULE_ENTRY = {
     .module = {SCREEN_MODULE_MAGIC(SCREEN_MODULE_SETTINGS), bind},
     .language_row = language_row,
     .usb_modes = usb_modes,
-    .charge_draw = charge_art_draw,
 #ifdef ECHO_DEBUG_LOOP
     .choose = choose,
 #endif

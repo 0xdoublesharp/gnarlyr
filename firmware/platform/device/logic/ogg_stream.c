@@ -11,7 +11,7 @@ static void put32(uint8_t *bytes, uint32_t value)
 
 bool ogg_stream_start(OggStream *stream, FlacInput file)
 {
-    ogg_packets_init(&stream->packets, file);
+    ogg_packets_init_first(&stream->packets, file);
     stream->position = 0;
     stream->record_done = 0;
     stream->record_size = 0;

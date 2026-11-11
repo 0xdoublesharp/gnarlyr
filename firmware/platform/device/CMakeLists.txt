@@ -216,6 +216,10 @@ set(ECHO_OVERLAY_IMPORTS
     emmc_volume_write
     emmc_write
     hal_audio_service
+    hal_audio_headphones
+    headphone_audio_limit
+    headphone_audio_defaults
+    headphone_audio_sample
     hal_audio_set_volume
     hal_clock_milliseconds
     hal_clock_microseconds
@@ -317,6 +321,7 @@ if(CMAKE_CROSSCOMPILING)
         board/system.c
         board/update.c
         board/update_request.c
+        board/wall_time.c
         board/usb_dac_session.c
         board/usb_listen.c
         board/usb_report.c
@@ -528,6 +533,17 @@ foreach(pack_file ${ECHO_LANGUAGE_PACK_FILES})
 endforeach()
 
 add_custom_target(echo_device_image ALL
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/image_artifacts.py
+        --build ${CMAKE_BINARY_DIR}
+        --elf $<TARGET_FILE:echo_device>
+        --elf $<TARGET_FILE:echo_rescan_overlay>
+        --elf $<TARGET_FILE:echo_usb_overlay>
+        --elf $<TARGET_FILE:echo_core1>
+        --elf $<TARGET_FILE:echo_core1_mp3>
+        --elf $<TARGET_FILE:echo_core1_m4a>
+        --elf $<TARGET_FILE:echo_core1_vorbis>
+        --elf $<TARGET_FILE:echo_core1_opus>
+        ${ECHO_MODULE_IMAGE_ARGUMENTS}
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/make_image.py
         --elf $<TARGET_FILE:echo_device>
         --overlay $<TARGET_FILE:echo_rescan_overlay>
@@ -542,9 +558,12 @@ add_custom_target(echo_device_image ALL
         ${ECHO_MODULE_IMAGE_ARGUMENTS}
         --output ${ECHO_DEVICE_IMAGE}
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/size_report.py
-        --build ${CMAKE_BINARY_DIR} --summary ${ECHO_LANGUAGE_PACK_ARGUMENTS}
+        --build ${CMAKE_BINARY_DIR} --summary --preset $<IF:$<BOOL:${ECHO_RELEASE}>,release,device>
+        --output ${CMAKE_BINARY_DIR}/size-summary.txt
+        ${ECHO_LANGUAGE_PACK_ARGUMENTS}
         ${ECHO_MODULE_MAP_ARGUMENTS}
-    BYPRODUCTS ${ECHO_DEVICE_IMAGE}
+    BYPRODUCTS ${ECHO_DEVICE_IMAGE} ${CMAKE_BINARY_DIR}/size-summary.txt
+        ${CMAKE_BINARY_DIR}/image-artifacts.json
     DEPENDS echo_device echo_rescan_overlay echo_usb_overlay ${ECHO_MODULE_TARGETS}
         ${ECHO_CORE1_MP3_BINARY}
         ${ECHO_CORE1_BINARY}
@@ -553,6 +572,7 @@ add_custom_target(echo_device_image ALL
         ${ECHO_CORE1_OPUS_BINARY}
         ${ECHO_LANGUAGE_PACK_FILES}
         ${PROJECT_SOURCE_DIR}/tools/make_image.py
+        ${PROJECT_SOURCE_DIR}/tools/image_artifacts.py
         ${PROJECT_SOURCE_DIR}/tools/identity.py
         ${FIRMWARE_IDENTITY_FILE}
     VERBATIM
