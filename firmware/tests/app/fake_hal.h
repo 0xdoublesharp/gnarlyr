@@ -146,6 +146,7 @@ void fake_hal_set_usb_start(bool started);
 int fake_hal_audio_gain(void);
 int fake_hal_audio_output(void);
 HalAudioEqualizer fake_hal_audio_equalizer(void);
+HalAudioEffects fake_hal_audio_effects(void);
 int fake_hal_usb_mode(void);
 HalUsbAnswer fake_hal_usb_answer(void);
 int fake_hal_usb_mode_requests(void);

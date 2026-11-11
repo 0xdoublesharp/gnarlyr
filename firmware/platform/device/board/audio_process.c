@@ -56,6 +56,28 @@ void audio_fade_in(AudioFadeBlock block, AudioFadeRamp *ramp)
     }
 }
 
+void audio_effects_design(AudioEffects *effects, uint32_t rate)
+{
+    if (ready) {
+        entry()->effects_design(effects, rate);
+    } else {
+        effects->skip.marks = 0;
+    }
+}
+
+uint32_t audio_effects_run(AudioEffects *effects, const AudioEffectsBlock *block)
+{
+    return ready ? entry()->effects_run(effects, block) : block->frames;
+}
+
+void audio_effects_settle(AudioEffects *effects, AudioSegment *segments, int count,
+                          uint32_t consumed)
+{
+    if (ready) {
+        entry()->effects_settle(effects, segments, count, consumed);
+    }
+}
+
 void audio_fade_out(AudioFadeBlock block, AudioFadeRamp *ramp, int64_t remaining)
 {
     if (ready) {

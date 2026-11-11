@@ -448,6 +448,9 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             equalizer_run=audio_process_equalizer_run
             audio_fade_in=audio_process_fade_in
             audio_fade_out=audio_process_fade_out
+            audio_effects_design=audio_process_effects_design
+            audio_effects_run=audio_process_effects_run
+            audio_effects_settle=audio_process_effects_settle
         )
     endif()
     if(module STREQUAL "extension")

@@ -98,3 +98,10 @@ echo_add_unit_test(NAME test_core1_stream
     LIBRARIES echo_device_logic
 )
 target_compile_definitions(test_core1_stream PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+echo_add_unit_test(NAME test_audio_effects
+    SOURCES device/test_audio_effects.c
+    LIBRARIES echo_device_logic
+)
+if(UNIX)
+    target_link_libraries(test_audio_effects PRIVATE m)
+endif()

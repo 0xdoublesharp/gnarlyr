@@ -1,5 +1,6 @@
 #pragma once
 
+#include "device/audio_effects.h"
 #include "device/audio_fade.h"
 #include "device/equalizer.h"
 
@@ -15,4 +16,8 @@ typedef struct AudioProcessEntry {
     void (*run)(Equalizer *equalizer, uint32_t *words, uint32_t frames);
     void (*fade_in)(AudioFadeBlock block, AudioFadeRamp *ramp);
     void (*fade_out)(AudioFadeBlock block, AudioFadeRamp *ramp, int64_t remaining);
+    void (*effects_design)(AudioEffects *effects, uint32_t rate);
+    uint32_t (*effects_run)(AudioEffects *effects, const AudioEffectsBlock *block);
+    void (*effects_settle)(AudioEffects *effects, AudioSegment *segments, int count,
+                           uint32_t consumed);
 } AudioProcessEntry;

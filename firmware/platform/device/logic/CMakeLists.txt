@@ -56,6 +56,9 @@ target_compile_options(echo_faad PRIVATE -w)
 
 add_library(echo_device_logic STATIC
     aac_decoder.c
+    audio_boost.c
+    audio_crossfeed.c
+    audio_effects.c
     audio_engine.c
     audio_fade.c
     audio_math.c
@@ -64,6 +67,7 @@ add_library(echo_device_logic STATIC
     audio_interpolate.c
     audio_dsp_entry.c
     audio_process_entry.c
+    audio_skip.c
     audio_ogg_entry.c
     backlight.c
     block_read.c
