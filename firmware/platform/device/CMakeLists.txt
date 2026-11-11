@@ -442,12 +442,15 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
     endif()
     if(module STREQUAL "process")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
+        target_include_directories(${module_target}_objects PRIVATE board)
         target_compile_definitions(${module_target}_objects PRIVATE
             equalizer_design=audio_process_equalizer_design
             equalizer_retune=audio_process_equalizer_retune
             equalizer_run=audio_process_equalizer_run
             audio_fade_in=audio_process_fade_in
             audio_fade_out=audio_process_fade_out
+            hal_system_rtc_read=audio_process_rtc_read
+            hal_system_rtc_set=audio_process_rtc_set
         )
     endif()
     if(module STREQUAL "extension")

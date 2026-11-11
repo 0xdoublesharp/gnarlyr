@@ -764,6 +764,14 @@ if(ARM_GCC)
                 TIMEOUT 900
             )
         endforeach()
+        add_test(NAME device_code_space
+            COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
+                ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_code_space.py
+        )
+        set_tests_properties(device_code_space PROPERTIES
+            FIXTURES_REQUIRED device_image SKIP_RETURN_CODE 77 LABELS echo_image
+            PROCESSORS 2 TIMEOUT 900
+        )
         add_test(NAME core1_mp3_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
                 ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_core1_mp3.py

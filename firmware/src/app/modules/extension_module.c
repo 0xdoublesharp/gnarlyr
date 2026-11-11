@@ -4,7 +4,7 @@
 #include "screen_modules.h"
 
 const ExtensionModuleEntry EXTENSION_MODULE_ENTRY = {
-    .head = {.magic = SCREEN_MODULE_MAGIC(EXTENSION_MODULE_NUMBER), .debug = DEBUG_CODE},
+    .head = {.magic = SCREEN_MODULE_MAGIC(EXTENSION_MODULE_NUMBER)},
     .motion_run = wire_motion_run,
     .motion_progress = wire_motion_progress,
     .motion_end = wire_motion_end,

@@ -110,7 +110,7 @@ if(ECHO_RELEASE)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_settings src/app/diagnostics_menu_release.c)
 else()
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_settings src/app/diagnostics_menu.c)
-    list(APPEND ECHO_SCREEN_MODULE_SOURCES_extension
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_process
         src/app/modules/debug_module.c
         src/app/debug_steps.c
         src/app/debug_screenshot.c
