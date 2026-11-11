@@ -65,8 +65,8 @@ static const StringId USB_ANSWER_OPTIONS[USB_CONNECT_COUNT] = {STR_ASK, STR_FILE
 static const StringId USB_MODE_MESSAGES[USB_MODE_COUNT] = {STR_USB_SHOWS_DRIVES,
                                                            STR_USB_PLAYS_SOUND};
 
-static const StringId REPLAY_GAIN_OPTIONS[REPLAY_GAIN_MODE_COUNT] = {STR_OFF, STR_REPLAY_GAIN_TRACK,
-                                                                     STR_REPLAY_GAIN_ALBUM};
+static const StringId REPLAY_GAIN_OPTIONS[REPLAY_GAIN_MODE_COUNT] = {
+    STR_OFF, STR_REPLAY_GAIN_TRACK, STR_REPLAY_GAIN_ALBUM, STR_REPLAY_GAIN_AUTO};
 static const StringId OFF_ON_OPTIONS[] = {STR_OFF, STR_ON};
 
 static const Settings *settings_of(const void *context)

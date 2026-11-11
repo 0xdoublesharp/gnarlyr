@@ -573,4 +573,5 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_SLEEP_END_TRACK] = "End of track",
     [STR_SLEEP_END_CHAPTER] = "End of chapter/episode",
     [STR_SLEEP_AT] = "Turning off: {0}",
+    [STR_REPLAY_GAIN_AUTO] = "Auto",
 };

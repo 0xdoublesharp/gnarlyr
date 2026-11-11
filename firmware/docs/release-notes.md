@@ -30,6 +30,8 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Playback fixes
 
+- ReplayGain Auto selects album gain for album-order neighbours and track gain for song shuffle or isolated tracks. The companion supports the existing mode field’s fourth value.
+
 - Sleep timer fades over its final minute and can stop at the end of the current track, chapter or episode. Physical listening and shutdown checks remain pending.
 
 - Opus R128 track and album gain tags now feed ReplayGain normalization with the +5 dB reference conversion. Standard ReplayGain gain tags take precedence, and the decoder keeps applying header gain once.

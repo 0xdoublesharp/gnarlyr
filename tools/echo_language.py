@@ -87,10 +87,13 @@ class Snapshot:
         masks = [mask for mask in FLAG_MASKS
                  if f"(flags&0x{mask:02X}u)==0&&(flags&3u)<REPLAY_GAIN_MODE_COUNT" in compact]
         if (constant(source, "REPLAY_GAIN_VERSION") != 14 or
-                names != ["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
-                          "REPLAY_GAIN_MODE_COUNT"] or len(masks) != 1):
+                names not in (["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
+                               "REPLAY_GAIN_MODE_COUNT"],
+                              ["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
+                               "REPLAY_GAIN_AUTO", "REPLAY_GAIN_MODE_COUNT"]) or len(masks) != 1):
             raise ValueError("the installed ReplayGain settings layout is unsupported")
         self.reserved_flags = masks[0]
+        self.replay_gain_modes = len(names) - 1
 
     def check_home_layout(self):
         header = self.show("firmware/src/settings/include/settings/settings.h")
@@ -113,7 +116,7 @@ class Snapshot:
         if version < 14:
             return flags == 0
         answer_open = self.reserved_flags & USB_ANSWER_BITS == 0
-        return (flags & self.reserved_flags == 0 and flags & 3 < 3 and
+        return (flags & self.reserved_flags == 0 and flags & 3 < self.replay_gain_modes and
                 (not answer_open or flags >> 4 & 3 < 3))
 
     def settings_checksum_field(self, version):

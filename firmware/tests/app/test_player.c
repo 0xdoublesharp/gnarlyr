@@ -1318,6 +1318,46 @@ static void normalization_keeps_pause_state_and_damaged_metadata_falls_back_to_u
     CHECK_EQUAL(plays, fake_hal_audio_play_count());
 }
 
+static void auto_gain_uses_album_neighbors_and_track_gain_for_song_shuffle(void)
+{
+    Player *started = tagged_player();
+    player_set_replay_gain(started, (ReplayGainMode)3, false);
+    CHECK(player_play_list(started, back_in_black(), 0, SEED));
+    CHECK_EQUAL(65536, fake_hal_audio_replay_gain());
+    CHECK_EQUAL(64536, fake_hal_audio_queued_replay_gain());
+    fake_hal_audio_finish_track();
+    player_update(started, 1);
+    CHECK_EQUAL(64536, fake_hal_audio_replay_gain());
+    player_set_shuffle(started, SHUFFLE_SONGS, SEED);
+    CHECK_EQUAL(85536, fake_hal_audio_replay_gain());
+    player_set_shuffle(started, SHUFFLE_ALBUMS, SEED);
+    CHECK_EQUAL(64536, fake_hal_audio_replay_gain());
+}
+
+static void auto_gain_does_not_treat_a_foreign_up_next_track_as_an_album_neighbor(void)
+{
+    Player *started = tagged_player();
+    player_set_replay_gain(started, (ReplayGainMode)3, false);
+    CHECK(player_play_list(started, back_in_black(), 0, SEED));
+    CHECK_EQUAL(PLAYER_UP_NEXT_ADDED, player_play_next(started, HELP));
+    CHECK_EQUAL(95536, fake_hal_audio_queued_replay_gain());
+}
+
+static void auto_gain_keeps_separated_album_tracks_at_track_gain(void)
+{
+    Player *started = tagged_player();
+    CHECK(player_play_list(started, back_in_black(), 0, SEED));
+    TrackOrder order = imported_order(started);
+    player_set_replay_gain(started, REPLAY_GAIN_AUTO, false);
+    CHECK(player_use_order(started, &order, 0));
+    player_toggle_pause(started);
+    CHECK_EQUAL(95536, fake_hal_audio_replay_gain());
+    CHECK_EQUAL(75536, fake_hal_audio_queued_replay_gain());
+    fake_hal_audio_finish_track();
+    player_update(started, 1);
+    CHECK_EQUAL(75536, fake_hal_audio_replay_gain());
+}
+
 static Player *paused_with_rewind(uint32_t position_ms, uint32_t paused_at_ms)
 {
     Player *started = playing(1);
@@ -1531,6 +1571,9 @@ static void seeking_in_standby_moves_the_resume_point_without_powering_up(void)
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(auto_gain_uses_album_neighbors_and_track_gain_for_song_shuffle),
+        TEST_CASE(auto_gain_keeps_separated_album_tracks_at_track_gain),
+        TEST_CASE(auto_gain_does_not_treat_a_foreign_up_next_track_as_an_album_neighbor),
         TEST_CASE(a_result_order_starts_the_selected_original_track_and_keeps_its_neighbors),
         TEST_CASE(a_failed_result_order_publication_keeps_the_old_playback),
         TEST_CASE(a_result_order_survives_restart_at_the_selected_row),

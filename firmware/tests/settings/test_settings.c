@@ -984,7 +984,7 @@ static void battery_percentage_defaults_off_and_round_trips_in_a_spare_flag_bit(
 
 static void invalid_normalization_flags_are_rejected_without_mutating_the_settings(void)
 {
-    static const uint8_t FLAGS[] = {3, 7, 0x30, 64, 128, 255};
+    static const uint8_t FLAGS[] = {0x30, 64, 128, 255};
     for (uint32_t at = 0; at < sizeof FLAGS / sizeof FLAGS[0]; at++) {
         Settings original = custom_settings();
         uint8_t bytes[SETTINGS_FILE_SIZE];
