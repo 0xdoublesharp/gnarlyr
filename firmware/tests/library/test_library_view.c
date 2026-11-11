@@ -10,6 +10,8 @@ typedef struct Work {
     bool fail_write;
     uint32_t reads;
     uint32_t writes;
+    uint32_t fail_read_at;
+    uint32_t fail_write_at;
 } Work;
 
 static FixtureLibrary fixture;
@@ -20,7 +22,8 @@ static bool read_work(void *context, uint32_t offset, void *bytes, uint32_t leng
 {
     Work *file = context;
     file->reads++;
-    if (file->fail_read || offset > sizeof file->bytes || length > sizeof file->bytes - offset) {
+    if (file->fail_read || file->reads == file->fail_read_at || offset > sizeof file->bytes ||
+        length > sizeof file->bytes - offset) {
         return false;
     }
     memcpy(bytes, file->bytes + offset, length);
@@ -31,7 +34,8 @@ static bool write_work(void *context, uint32_t offset, const void *bytes, uint32
 {
     Work *file = context;
     file->writes++;
-    if (file->fail_write || offset > sizeof file->bytes || length > sizeof file->bytes - offset) {
+    if (file->fail_write || file->writes == file->fail_write_at || offset > sizeof file->bytes ||
+        length > sizeof file->bytes - offset) {
         return false;
     }
     memcpy(file->bytes + offset, bytes, length);
@@ -173,6 +177,52 @@ static void storage_and_library_read_errors_are_not_empty_search_results(void)
     }
     work.fail_read = true;
     CHECK_EQUAL(LIBRARY_VIEW_READ_FAILED, finish());
+}
+
+static LibraryViewConfig failure_test_config(bool tree)
+{
+    LibraryViewConfig config = begin_fixture();
+    if (tree) {
+        fixture_cue_library_open(&fixture);
+        config.source = browse_root_query(BROWSE_FOLDER_TREE);
+    }
+    config.sort = LIBRARY_VIEW_SORT_TITLE;
+    return config;
+}
+
+static void each_work_file_failure_stops_the_view_and_a_retry_succeeds(void)
+{
+    bool saw_reads = false;
+    for (uint32_t scenario = 0; scenario < 2; scenario++) {
+        LibraryViewConfig config = failure_test_config(scenario != 0);
+        library_view_begin(&view, &fixture.library, &config, scratch());
+        CHECK_EQUAL(LIBRARY_VIEW_READY, finish());
+        uint16_t expected_count = view.count;
+        uint32_t counts[] = {work.reads, work.writes};
+        saw_reads = saw_reads || counts[0] > 0;
+        CHECK(counts[1] > 0);
+        for (uint32_t writing = 0; writing < 2; writing++) {
+            for (uint32_t operation = 1; operation <= counts[writing]; operation++) {
+                config = failure_test_config(scenario != 0);
+                if (writing) {
+                    work.fail_write_at = operation;
+                } else {
+                    work.fail_read_at = operation;
+                }
+                library_view_begin(&view, &fixture.library, &config, scratch());
+                CHECK_EQUAL(writing ? LIBRARY_VIEW_WRITE_FAILED : LIBRARY_VIEW_READ_FAILED,
+                            finish());
+                uint16_t track;
+                CHECK(!library_view_read(&view, 0, 1, &track));
+                work.fail_read_at = 0;
+                work.fail_write_at = 0;
+                library_view_begin(&view, &fixture.library, &config, scratch());
+                CHECK_EQUAL(LIBRARY_VIEW_READY, finish());
+                CHECK_EQUAL(expected_count, view.count);
+            }
+        }
+    }
+    CHECK(saw_reads);
 }
 
 static void invalid_search_configuration_is_rejected_before_scanning(void)
@@ -530,6 +580,7 @@ int main(void)
         TEST_CASE(original_direction_and_duration_ties_do_not_renumber_tracks),
         TEST_CASE(cancellation_and_content_changes_make_results_unavailable),
         TEST_CASE(storage_and_library_read_errors_are_not_empty_search_results),
+        TEST_CASE(each_work_file_failure_stops_the_view_and_a_retry_succeeds),
         TEST_CASE(invalid_search_configuration_is_rejected_before_scanning),
         TEST_CASE(invalid_work_storage_and_result_ranges_are_rejected),
         TEST_CASE(invalid_scopes_do_not_produce_results),
