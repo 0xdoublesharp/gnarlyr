@@ -20,7 +20,7 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Interface and sound controls
 
-- Settings → Now Playing style adds a theme-coloured cassette with title, artist and album on its label, tape packs that follow track position and turning hubs during playback. Cover remains the default and the choice persists. Simulator and emulator checks cover the interface and playback load; player acceptance remains open.
+- Settings → Now Playing style adds Cassette, VU meters and Spectrum beside Cover. The cassette uses neon wireframe artwork with turning spokes; VU has separate left/right needles and peak lights; Spectrum has sixteen theme-coloured bars and peak caps over the perspective floor. The saved choice survives a restart. Native, simulator and emulator checks cover the interface, analysis and playback load; player acceptance remains open.
 
 - Settings → Clock format selects 12-hour time with AM/PM or 24-hour time for Clock and the status bar, including Calendar. The choice survives restarts.
 - Four named headphone profiles apply attenuation-only trim, left/right balance and a volume ceiling to music and USB DAC output. Settings → Headphones selects and edits them; verified alternating-bank saves keep profiles on internal storage without changing settings v15. Switching to less attenuation lowers the saved mode volumes first. Analog Gain is unchanged; physical output checks remain pending.

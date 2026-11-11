@@ -1000,3 +1000,12 @@ bool board_audio_workspace_lent(void)
 {
     return !workspace_loan_claimable(&workspace_loan);
 }
+
+AudioVisualBuffer hal_audio_visual_buffer(void)
+{
+    if (!engine_ready || !transferring || tone_active || engine.state != AUDIO_ENGINE_PLAYING) {
+        return (AudioVisualBuffer){0};
+    }
+    return (AudioVisualBuffer){music_ring, RING_FRAMES, engine.consumed % RING_FRAMES,
+                               engine.produced - engine.consumed, audio_engine_rate(&engine)};
+}

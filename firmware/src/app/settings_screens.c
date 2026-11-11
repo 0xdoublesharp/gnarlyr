@@ -40,7 +40,8 @@ static const char *const BRIGHTNESS_OPTIONS[BRIGHTNESS_LEVEL_COUNT] = {"1", "2",
 static const StringId ACCENT_OPTIONS[ACCENT_COLOR_COUNT] = {
     STR_COLOR_BLUE, STR_COLOR_RED,    STR_COLOR_ORANGE, STR_COLOR_GREEN,
     STR_COLOR_TEAL, STR_COLOR_PURPLE, STR_COLOR_PINK,   STR_COLOR_GRAPHITE};
-static const StringId NOW_PLAYING_OPTIONS[] = {STR_NOW_PLAYING_COVER, STR_NOW_PLAYING_CASSETTE};
+static const StringId NOW_PLAYING_OPTIONS[] = {STR_NOW_PLAYING_COVER, STR_NOW_PLAYING_CASSETTE,
+                                               STR_NOW_PLAYING_VU, STR_NOW_PLAYING_SPECTRUM};
 static const StringId THEME_OPTIONS[APPEARANCE_THEME_COUNT] = {
     STR_THEME_GRAPHITE,  STR_THEME_NEON_NOIR, STR_THEME_SUNSET,
     STR_THEME_SEA_GLASS, STR_THEME_CLASSIC,
@@ -719,7 +720,7 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      current_transition_length, choose_transition_length, NULL, NULL},
     {STR_USB_ANSWER, USB_ANSWER_OPTIONS, USB_CONNECT_COUNT, current_usb_answer, choose_usb_answer,
      NULL, NULL},
-    {STR_NOW_PLAYING_STYLE, NOW_PLAYING_OPTIONS, 2, current_now_playing, choose_now_playing, NULL,
+    {STR_NOW_PLAYING_STYLE, NOW_PLAYING_OPTIONS, 4, current_now_playing, choose_now_playing, NULL,
      NULL},
 };
 

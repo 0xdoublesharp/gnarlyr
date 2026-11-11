@@ -6,6 +6,8 @@
 #include "hal/audio.h"
 #include "hal/bluetooth.h"
 #include "hal/display.h"
+#include "home_art.h"
+#include "neon_art.h"
 #include "ui/icons.h"
 #include "ui/label.h"
 
@@ -79,20 +81,34 @@ static uint32_t tape_position(const NowPlayingScreen *screen)
                                                   : screen->status.position_ms;
 }
 
+static void ring(Canvas *canvas, Rect area, const Theme *theme, Color color)
+{
+    int radius = area.width / 2 - 2;
+    Point center = {area.x + area.width / 2, area.y + area.height / 2};
+    for (int step = 0; step < PHASE_STEPS; step++) {
+        int next = (step + 1) % PHASE_STEPS;
+        Point from = {center.x + SINE[step] * radius / SINE_SCALE,
+                      center.y + SINE[(step + 4) % PHASE_STEPS] * radius / SINE_SCALE};
+        Point to = {center.x + SINE[next] * radius / SINE_SCALE,
+                    center.y + SINE[(next + 4) % PHASE_STEPS] * radius / SINE_SCALE};
+        neon_art_line(canvas, from, to, neon_art_ink(theme, color));
+    }
+}
+
 static void hub(Canvas *canvas, Rect reel, const NowPlayingScreen *screen)
 {
     const Theme *theme = screen->config.theme;
     int cx = reel.x + reel.width / 2;
     int cy = reel.y + reel.height / 2;
     int phase = (int)(tape_position(screen) / 60 % PHASE_STEPS);
-    disc(canvas, (Rect){cx - 8, cy - 8, 16, 16}, theme->colors.accent);
     for (int spoke = 0; spoke < SPOKES; spoke++) {
         int angle = (phase + spoke * PHASE_STEPS / SPOKES) % PHASE_STEPS;
-        int x = cx + SINE[angle] * 5 / SINE_SCALE;
-        int y = cy + SINE[(angle + PHASE_STEPS / 4) % PHASE_STEPS] * 5 / SINE_SCALE;
-        disc(canvas, (Rect){x - 2, y - 2, 4, 4}, theme->colors.background);
+        int radius = reel.width / 2 - 5;
+        Point end = {cx + SINE[angle] * radius / SINE_SCALE,
+                     cy + SINE[(angle + PHASE_STEPS / 4) % PHASE_STEPS] * radius / SINE_SCALE};
+        neon_art_line(canvas, (Point){cx, cy}, end, neon_art_ink(theme, theme->colors.accent));
     }
-    disc(canvas, (Rect){cx - 2, cy - 2, 4, 4}, theme->colors.background);
+    disc(canvas, (Rect){cx - 2, cy - 2, 4, 4}, theme->colors.text);
 }
 
 static void draw_reels(const NowPlayingScreen *screen, Canvas *canvas)
@@ -110,12 +126,13 @@ static void draw_reels(const NowPlayingScreen *screen, Canvas *canvas)
             continue;
         }
         Canvas clipped = canvas_clipped(canvas, reel);
-        canvas_fill_rect(&clipped, reel, theme->colors.background);
+        canvas_fill_rect(&clipped, reel, theme->colors.backdrop_top);
         int radius = cassette_now_playing_radius(index == 0 ? duration - position : position,
                                                  duration, reel.width / 2);
         Rect pack = {reel.x + reel.width / 2 - radius, reel.y + reel.height / 2 - radius,
                      radius * 2, radius * 2};
-        disc(&clipped, pack, theme->colors.text_tertiary);
+        ring(&clipped, reel, theme, theme->colors.accent_alt);
+        ring(&clipped, pack, theme, theme->colors.text_tertiary);
         hub(&clipped, reel, screen);
     }
 }
@@ -128,25 +145,26 @@ static void label_line(Canvas *canvas, const Theme *theme, Label label, const Fo
 static void draw_shell(Canvas *canvas, CassetteNowPlayingLayout layout, const Theme *theme)
 {
     Rect body = layout.body;
-    canvas_fill_rect(canvas, body, theme->colors.accent);
-    Rect inside = {body.x + 2, body.y + 2, body.width - 4, body.height - 4};
-    canvas_fill_rect(canvas, inside, theme->colors.header_background);
-    Rect label = {body.x + 8, body.y + 4, body.width - 16, layout.reels[0].y - body.y - 10};
-    canvas_fill_rect(canvas, label, theme->colors.backdrop_top);
-    canvas_fill_rect(canvas, (Rect){label.x, label.y + label.height - 3, label.width, 3},
-                     theme->colors.accent_alt);
-    canvas_fill_rect(canvas, layout.window, theme->colors.divider);
-    Rect window = layout.window;
-    canvas_fill_rect(canvas,
-                     (Rect){window.x + 2, window.y + 2, window.width - 4, window.height - 4},
-                     theme->colors.background);
+    home_art_draw_backdrop(canvas, body, theme);
+    Rect rim = {body.x + 2, body.y + 2, body.width - 4, body.height - 4};
+    neon_art_frame(canvas, rim, neon_art_ink(theme, theme->colors.accent_alt));
+    int label_bottom = layout.reels[0].y - 10;
+    neon_art_line(canvas, (Point){body.x + 10, label_bottom},
+                  (Point){body.x + body.width - 10, label_bottom},
+                  neon_art_ink(theme, theme->colors.accent));
+    canvas_fill_rect(canvas, layout.window, theme->colors.backdrop_top);
+    neon_art_frame(canvas, layout.window, neon_art_ink(theme, theme->colors.accent));
     int y = body.y + body.height - 18;
-    canvas_fill_rect(canvas, (Rect){body.x + body.width / 4, y, body.width / 2, 16},
-                     theme->colors.divider);
+    Point left = {body.x + body.width / 4, y};
+    Point right = {body.x + body.width * 3 / 4, y};
+    NeonInk ink = neon_art_ink(theme, theme->colors.accent_alt);
+    neon_art_line(canvas, left, right, ink);
+    neon_art_line(canvas, left, (Point){left.x - 8, y + 14}, ink);
+    neon_art_line(canvas, right, (Point){right.x + 8, y + 14}, ink);
     for (int corner = 0; corner < 4; corner++) {
         int x = body.x + ((corner & 1) != 0 ? body.width - 8 : 4);
         int sy = body.y + ((corner & 2) != 0 ? body.height - 8 : 4);
-        disc(canvas, (Rect){x, sy, 4, 4}, theme->colors.text_tertiary);
+        disc(canvas, (Rect){x, sy, 4, 4}, theme->colors.accent_alt);
     }
 }
 
@@ -162,7 +180,7 @@ void cassette_now_playing_draw(const NowPlayingScreen *screen, Canvas *canvas)
     label_line(canvas, theme, (Label){layout.label[1], screen->artist}, theme->fonts.body);
     label_line(canvas, theme, (Label){layout.label[2], screen->album}, theme->fonts.small);
     int y = layout.body.y + layout.body.height - 20;
-    TextStyle footer = {.font = theme->fonts.small, .color = theme->colors.header_text};
+    TextStyle footer = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
     label_draw(canvas, footer,
                (Label){{layout.body.x + 12, y, 40, 18}, i18n_text(STR_CASSETTE_C60)});
     if (screen->tape_side == 1 || screen->tape_side == 2) {

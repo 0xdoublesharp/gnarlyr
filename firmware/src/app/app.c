@@ -1202,7 +1202,7 @@ static void animate(FrameDrawer drawer, const void *owner, bool visible, uint32_
 {
     NowPlayingScreen *playing = &app.screens.now_playing;
     if (owner == &playing->screen &&
-        settings_now_playing_style(&app.settings.settings) == NOW_PLAYING_CASSETTE &&
+        settings_now_playing_style(&app.settings.settings) != NOW_PLAYING_COVER &&
         playing->config.cassette_animate != NULL) {
         app.render_wanted |= playing->config.cassette_animate(playing, &app.frame_diff, visible);
         return;

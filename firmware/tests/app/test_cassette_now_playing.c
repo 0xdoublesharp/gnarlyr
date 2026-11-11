@@ -157,7 +157,7 @@ static void paused_reels_ignore_elapsed_wall_time(void)
     CHECK(memcmp(before, pixels, sizeof pixels) == 0);
 }
 
-static void classic_footer_uses_the_shells_contrasting_header_ink(void)
+static void classic_footer_uses_the_themes_legible_secondary_ink(void)
 {
     Canvas canvas = start_view(0, TEXT_SIZE_MEDIUM);
     default_theme_set_appearance(&theme, APPEARANCE_CLASSIC);
@@ -166,7 +166,7 @@ static void classic_footer_uses_the_shells_contrasting_header_ink(void)
     int ink = 0;
     for (int y = body.y + body.height - 20; y < body.y + body.height - 2; y++) {
         for (int x = body.x + 12; x < body.x + 52; x++) {
-            ink += canvas_pixel_at(&canvas, x, y) == theme.colors.header_text ? 1 : 0;
+            ink += canvas_pixel_at(&canvas, x, y) == theme.colors.text_secondary ? 1 : 0;
         }
     }
     CHECK(ink > 10);
@@ -175,7 +175,7 @@ static void classic_footer_uses_the_shells_contrasting_header_ink(void)
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(classic_footer_uses_the_shells_contrasting_header_ink),
+        TEST_CASE(classic_footer_uses_the_themes_legible_secondary_ink),
         TEST_CASE(reel_frames_change_only_the_two_reel_rectangles),
         TEST_CASE(long_labels_truncate_at_a_complete_character_with_an_ellipsis),
         TEST_CASE(motion_is_capped_and_stops_when_paused_hidden_or_seeking),

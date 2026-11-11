@@ -22,7 +22,7 @@ static const ModuleSpan SPANS[SCREEN_MODULE_COUNT] = {
 ScreenModule screen_modules_of(const AppScreens *screens, const Screen *screen)
 {
     if (screen == &screens->now_playing.screen && screens->now_playing.config.settings != NULL &&
-        settings_now_playing_style(screens->now_playing.config.settings) == NOW_PLAYING_CASSETTE) {
+        settings_now_playing_style(screens->now_playing.config.settings) != NOW_PLAYING_COVER) {
         return SCREEN_MODULE_VIEWS;
     }
     uintptr_t at = (uintptr_t)screen - (uintptr_t)screens;

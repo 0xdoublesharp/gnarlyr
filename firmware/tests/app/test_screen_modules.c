@@ -162,9 +162,20 @@ static void cassette_now_playing_requires_views_and_rebinds_after_other_modules(
     CHECK_EQUAL(SCREEN_MODULE_NONE, screen_modules_of(&screens, &screens.now_playing.screen));
 }
 
+static void every_alternate_now_playing_style_requires_its_drawing_module(void)
+{
+    reset();
+    screens.now_playing.config.settings = &settings.settings;
+    for (int style = 1; style <= 3; style++) {
+        settings_set_now_playing_style(&settings.settings, (NowPlayingStyle)style);
+        CHECK_EQUAL(SCREEN_MODULE_VIEWS, screen_modules_of(&screens, &screens.now_playing.screen));
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(every_alternate_now_playing_style_requires_its_drawing_module),
         TEST_CASE(cassette_now_playing_requires_views_and_rebinds_after_other_modules),
         TEST_CASE(screens_outside_every_module_belong_to_none),
         TEST_CASE(a_screen_belongs_to_the_module_whose_memory_holds_it),

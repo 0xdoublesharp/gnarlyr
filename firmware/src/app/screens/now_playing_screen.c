@@ -750,10 +750,9 @@ static void draw(void *context, Canvas *canvas)
         draw_nothing_playing(theme, canvas);
         return;
     }
-    bool cassette =
-        now_playing->config.settings != NULL &&
-        settings_now_playing_style(now_playing->config.settings) == NOW_PLAYING_CASSETTE &&
-        now_playing->config.cassette_draw != NULL;
+    bool cassette = now_playing->config.settings != NULL &&
+                    settings_now_playing_style(now_playing->config.settings) != NOW_PLAYING_COVER &&
+                    now_playing->config.cassette_draw != NULL;
     if (cassette) {
         now_playing->config.cassette_draw(now_playing, canvas);
     } else {

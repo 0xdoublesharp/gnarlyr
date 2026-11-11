@@ -576,4 +576,9 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_CASSETTE_C60] = "C60",
     [STR_CASSETTE_SIDE_A] = "A",
     [STR_CASSETTE_SIDE_B] = "B",
+    [STR_NOW_PLAYING_VU] = "VU meters",
+    [STR_NOW_PLAYING_SPECTRUM] = "Spectrum",
+    [STR_METER_LEFT] = "L",
+    [STR_METER_RIGHT] = "R",
+    [STR_METER_PEAK] = "PEAK",
 };
