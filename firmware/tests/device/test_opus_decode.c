@@ -198,6 +198,20 @@ static void malformed_packets_and_mode_transitions_keep_a_32k_arena_bounded(void
     CHECK(peak > 0);
 }
 
+static void header_gain_requires_a_ready_decoder_and_a_signed_16_bit_value(void)
+{
+    OpusDecode idle = {0};
+    CHECK_EQUAL(OPUS_DECODE_INVALID, opus_decode_set_gain(&idle, 0));
+    CHECK_EQUAL(OPUS_DECODE_INVALID, opus_decode_set_gain(NULL, 0));
+    CHECK(start(48000, 2, OPUS_DECODE_SCRATCH_BYTES));
+    CHECK_EQUAL(OPUS_DECODE_INVALID, opus_decode_set_gain(&decoder, 32768));
+    CHECK_EQUAL(OPUS_DECODE_INVALID, opus_decode_set_gain(&decoder, -32769));
+    CHECK_EQUAL(OPUS_DECODE_OK, opus_decode_set_gain(&decoder, -32768));
+    CHECK_EQUAL(OPUS_DECODE_OK, opus_decode_set_gain(&decoder, 32767));
+    CHECK(decoder.ready);
+    canaries();
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -209,6 +223,7 @@ int main(void)
         TEST_CASE(invalid_layouts_never_become_ready),
         TEST_CASE(metadata_and_output_cannot_alias_decoder_storage),
         TEST_CASE(malformed_packets_and_mode_transitions_keep_a_32k_arena_bounded),
+        TEST_CASE(header_gain_requires_a_ready_decoder_and_a_signed_16_bit_value),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

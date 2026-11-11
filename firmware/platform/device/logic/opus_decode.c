@@ -170,6 +170,18 @@ OpusDecodeResult opus_decode_init(OpusDecode *decoder, void *state, uint32_t sta
     return release(decoder, OPUS_DECODE_OK);
 }
 
+OpusDecodeResult opus_decode_set_gain(OpusDecode *decoder, int32_t gain)
+{
+    if (active != NULL) {
+        return OPUS_DECODE_BUSY;
+    }
+    if (decoder == NULL || !decoder->ready || gain < -32768 || gain > 32767) {
+        return OPUS_DECODE_INVALID;
+    }
+    return opus_decoder_ctl(decoder->state, OPUS_SET_GAIN(gain)) == OPUS_OK ? OPUS_DECODE_OK
+                                                                            : OPUS_DECODE_INVALID;
+}
+
 static bool touches_decoder(const OpusDecode *decoder, const void *pointer, uint32_t bytes)
 {
     return overlap(pointer, bytes, decoder->state, decoder->state_bytes) ||

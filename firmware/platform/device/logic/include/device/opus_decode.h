@@ -68,4 +68,5 @@ uint32_t opus_decode_state_bytes(uint32_t channels);
 OpusDecodeResult opus_decode_init(OpusDecode *decoder, void *state, uint32_t state_bytes,
                                   void *scratch, uint32_t scratch_bytes, uint32_t rate,
                                   uint32_t channels);
+OpusDecodeResult opus_decode_set_gain(OpusDecode *decoder, int32_t gain);
 OpusDecodeResult opus_decode_packet(OpusDecode *decoder, OpusDecodeInput input, OpusDecodePcm *pcm);

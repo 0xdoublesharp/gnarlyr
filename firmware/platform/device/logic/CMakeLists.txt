@@ -75,6 +75,8 @@ add_library(echo_device_logic STATIC
     core1_m4a.c
     core1_open.c
     core1_mp3.c
+    core1_ogg.c
+    core1_opus.c
     core1_stream.c
     core1_vorbis.c
     core1_vorbis_source.c

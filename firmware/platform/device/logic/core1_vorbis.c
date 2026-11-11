@@ -2,13 +2,8 @@
 
 #include <stddef.h>
 
+#include "device/core1_ogg.h"
 #include "device/core1_source_private.h"
-
-static uint32_t little32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
 
 static void start_vorbis(void *context, FlacInput input, FlacInfo info, uint32_t first_sample,
                          const bool *starved)
@@ -33,45 +28,36 @@ static void start_vorbis(void *context, FlacInput input, FlacInfo info, uint32_t
 
 static Core1DecodeResult fetch_packet(Core1Vorbis *vorbis, VorbisPacket *packet)
 {
-    uint8_t header[OGG_RECORD_BYTES];
-    if (vorbis->position > vorbis->input.size ||
-        sizeof header > vorbis->input.size - vorbis->position) {
-        return CORE1_FAILED;
+    OggRecord record;
+    Core1DecodeResult result =
+        core1_ogg_fetch(vorbis->input, vorbis->position, vorbis->packet, &record);
+    if (result != CORE1_DECODED) {
+        return result;
     }
-    if (!vorbis->input.read(vorbis->input.context, vorbis->position, header, sizeof header)) {
+    if (vorbis->region.control->generation != vorbis->generation) {
         return CORE1_STARVED;
     }
-    uint32_t bytes = little32(header);
-    uint32_t flags = little32(header + 4);
-    if ((flags & ~(uint32_t)(OGG_RECORD_FIRST | OGG_RECORD_LAST | OGG_RECORD_END |
-                             OGG_RECORD_ORIGIN)) != 0 ||
-        bytes > OGG_PACKET_BYTES || bytes > vorbis->input.size - vorbis->position - sizeof header) {
-        return CORE1_FAILED;
-    }
+    uint32_t flags = record.flags;
     if ((flags & OGG_RECORD_END) != 0) {
-        return bytes == 0 && flags == OGG_RECORD_END && vorbis->decoder.ready ? CORE1_FINISHED
-                                                                              : CORE1_FAILED;
+        return record.bytes == 0 && flags == OGG_RECORD_END && vorbis->decoder.ready
+                   ? CORE1_FINISHED
+                   : CORE1_FAILED;
     }
     vorbis->record_flags = flags;
     if ((flags & OGG_RECORD_ORIGIN) != 0) {
-        if (flags != OGG_RECORD_ORIGIN || bytes != 0 || !vorbis->decoder.ready ||
-            vorbis->audio_started || vorbis->origin_set || little32(header + 12) != 0) {
+        if (flags != OGG_RECORD_ORIGIN || record.bytes != 0 || !vorbis->decoder.ready ||
+            vorbis->audio_started || vorbis->origin_set || record.granule > UINT32_MAX) {
             return CORE1_FAILED;
         }
-        *packet = (VorbisPacket){.granule = little32(header + 8)};
+        *packet = (VorbisPacket){.granule = record.granule};
         return CORE1_DECODED;
     }
-    uint32_t body = vorbis->position + sizeof header;
-    if (bytes == 0) {
+    if (record.bytes == 0) {
         return CORE1_FAILED;
     }
-    if (!vorbis->input.read(vorbis->input.context, body, vorbis->packet, bytes) ||
-        vorbis->region.control->generation != vorbis->generation) {
-        return CORE1_STARVED;
-    }
     *packet = (VorbisPacket){
-        .span = {{vorbis->packet, bytes}, {NULL, 0}},
-        .granule = (uint64_t)little32(header + 8) | (uint64_t)little32(header + 12) << 32,
+        .span = {{vorbis->packet, record.bytes}, {NULL, 0}},
+        .granule = record.granule,
         .first = (flags & OGG_RECORD_FIRST) != 0,
         .last = (flags & OGG_RECORD_LAST) != 0,
     };
