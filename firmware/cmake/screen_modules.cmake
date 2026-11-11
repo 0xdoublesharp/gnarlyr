@@ -53,6 +53,11 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     platform/device/board/card_format.c
     platform/device/logic/card_format.c
     src/app/screens/card_format_screen.c
+    src/app/headphone_editor.c
+    src/app/headphone_store_edit.c
+    src/settings/headphone_profile_edit.c
+    src/settings/headphone_file_save.c
+    src/core/headphone_audio_switch.c
     src/app/language_list.c
     src/app/modules/settings_module.c
     src/app/screens/charge_art.c

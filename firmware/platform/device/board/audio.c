@@ -95,6 +95,8 @@ static bool tone_active;
 static char last_path[AUDIO_ENGINE_PATH_CAPACITY];
 static uint8_t volume_level;
 static uint8_t extra_attenuation;
+static HeadphoneAudio headphones;
+static bool headphones_set;
 static void (*stream_service)(void);
 static bool volume_set;
 static HalAudioOutput output_setting;
@@ -583,15 +585,32 @@ static DacCurve output_curve(void)
 static void apply_volume(void)
 {
     if (volume_set) {
-        uint32_t value = dac_volume_value(volume_level, output_curve()) + extra_attenuation;
+        uint8_t level = headphone_audio_limit(hal_audio_headphones(), volume_level);
+        uint32_t value = dac_volume_value(level, output_curve()) + extra_attenuation;
         dac_path_set_volume(value < DAC_VOLUME_MUTED ? (uint8_t)value : DAC_VOLUME_MUTED);
     }
 }
 
 void hal_audio_set_volume(uint8_t level)
 {
-    volume_level = level;
+    volume_level = headphone_audio_limit(hal_audio_headphones(), level);
     volume_set = true;
+    apply_volume();
+}
+
+CORE_COLD HeadphoneAudio hal_audio_headphones(void)
+{
+    return headphones_set ? headphones : headphone_audio_defaults();
+}
+
+CORE_SEAM CORE_COLD void hal_audio_set_headphones(HeadphoneAudio profile)
+{
+    volume_level = headphone_audio_limit(profile, volume_level);
+    apply_volume();
+    headphones = profile;
+    headphones_set = true;
+    ensure_engine();
+    audio_engine_set_headphones(&engine, profile);
     apply_volume();
 }
 

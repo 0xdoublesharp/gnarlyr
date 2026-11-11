@@ -6,6 +6,7 @@
 #include "core/debug_script.h"
 #include "core/power_policy.h"
 #include "equalizer_presets.h"
+#include "headphone_editor.h"
 #include "language.h"
 #include "player.h"
 #include "screens/bluetooth_screen.h"
@@ -29,10 +30,11 @@ enum {
     SETTINGS_CUSTOM_EQ_ITEM = 17,
     SETTINGS_RESCAN_ITEM = 21,
     SETTINGS_TRANSITION_LENGTH_ITEM = SETTINGS_CHOICE_COUNT + 2,
-    SETTINGS_FORMAT_ITEM = SETTINGS_CHOICE_COUNT + 4,
-    SETTINGS_HOME_ITEM = SETTINGS_CHOICE_COUNT + 5,
-    SETTINGS_CONTROLS_ITEM = SETTINGS_CHOICE_COUNT + 6,
-    SETTINGS_ITEM_COUNT = SETTINGS_CHOICE_COUNT + 7,
+    SETTINGS_HEADPHONES_ITEM = SETTINGS_CHOICE_COUNT + 4,
+    SETTINGS_FORMAT_ITEM = SETTINGS_CHOICE_COUNT + 5,
+    SETTINGS_HOME_ITEM = SETTINGS_CHOICE_COUNT + 6,
+    SETTINGS_CONTROLS_ITEM = SETTINGS_CHOICE_COUNT + 7,
+    SETTINGS_ITEM_COUNT = SETTINGS_CHOICE_COUNT + 8,
     SETTINGS_MESSAGE_CAPACITY = 64,
     SETTINGS_COUNTDOWN_CAPACITY = 16
 };
@@ -45,6 +47,7 @@ enum {
 
 typedef struct SettingsContext {
     SettingsStore *store;
+    HeadphoneStore *headphones;
     Player *player;
     PowerPolicy *power;
     Toast *toast;
@@ -102,6 +105,7 @@ struct SettingsScreens {
         EqualizerScreen equalizer;
     };
     ButtonSettings buttons;
+    HeadphoneEditor headphones;
     EqualizerPresets presets;
     LanguageList languages;
     UsbChooser usb;

@@ -23,6 +23,10 @@ function(echo_add_unit_test)
 endfunction()
 
 echo_add_unit_test(NAME test_deadline SOURCES core/test_deadline.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_headphone_audio SOURCES core/test_headphone_audio.c LIBRARIES echo_core)
+if(UNIX)
+    target_link_libraries(test_headphone_audio PRIVATE m)
+endif()
 echo_add_unit_test(NAME test_frame_pacer SOURCES core/test_frame_pacer.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_frame_stats SOURCES core/test_frame_stats.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_key_tracker SOURCES core/test_key_tracker.c LIBRARIES echo_core)
@@ -106,6 +110,8 @@ echo_add_unit_test(NAME test_smart_list
 )
 
 echo_add_unit_test(NAME test_settings SOURCES settings/test_settings.c LIBRARIES echo_settings)
+echo_add_unit_test(NAME test_headphone_profile SOURCES settings/test_headphone_profile.c LIBRARIES echo_settings)
+echo_add_unit_test(NAME test_headphone_file SOURCES settings/test_headphone_file.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_rocker SOURCES settings/test_rocker.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_equalizer_response SOURCES settings/test_equalizer_response.c LIBRARIES echo_settings)
 echo_add_unit_test(NAME test_equalizer_fit SOURCES settings/test_equalizer_fit.c LIBRARIES echo_settings)
@@ -318,6 +324,16 @@ echo_add_unit_test(NAME test_stores
     SOURCES app/test_stores.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+echo_add_unit_test(NAME test_headphone_store
+    SOURCES app/test_headphone_store.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+echo_add_unit_test(NAME test_headphone_editor
+    SOURCES app/test_headphone_editor.c app/fake_hal.c support/text_spy.c support/screen_snapshot.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
 )
 echo_add_unit_test(NAME test_browse_screen
     SOURCES app/test_browse_screen.c app/fake_hal.c

@@ -45,6 +45,7 @@ static void bind(AppScreens *screens)
         .store = context->settings,
         .format_prepare = app_release_audio,
         .format_finished = app_storage_formatted,
+        .headphones = context->headphones,
         .player = context->player,
         .power = context->power,
         .toast = context->toast,

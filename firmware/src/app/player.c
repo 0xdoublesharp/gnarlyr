@@ -490,7 +490,7 @@ void player_change_volume(Player *player, int delta)
     if (level > HAL_AUDIO_VOLUME_MAX) {
         level = HAL_AUDIO_VOLUME_MAX;
     }
-    player->volume = (uint8_t)level;
+    player->volume = headphone_audio_limit(hal_audio_headphones(), (uint8_t)level);
     hal_audio_set_volume(player->volume);
 }
 

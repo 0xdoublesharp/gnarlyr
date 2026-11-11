@@ -902,6 +902,29 @@ static void buttons_changed(void *context)
     save(context);
 }
 
+static bool headphones_shown(const void *context)
+{
+    const SettingsScreens *screens = context;
+    return screens->context.headphones != NULL;
+}
+
+static void bind_headphones(SettingsScreens *screens)
+{
+    SettingsContext *context = &screens->context;
+    Screen *target = NULL;
+    if (context->headphones != NULL) {
+        HeadphoneEditorConfig config = {context->headphones, context->player, context->store,
+                                        screens->theme, context->toast};
+        target = headphone_editor_init(&screens->headphones, config);
+    }
+    screens->items[SETTINGS_HEADPHONES_ITEM] = (MenuItem){.label = i18n_text(STR_HEADPHONES),
+                                                          .select = menu_open_screen,
+                                                          .context = target,
+                                                          .opens = true,
+                                                          .shown = headphones_shown,
+                                                          .shown_context = screens};
+}
+
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context, const Theme *theme)
 {
     screens->context = context;
@@ -925,6 +948,7 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                     .changed = buttons_changed,
                                     .context = &screens->context};
     Screen *controls = button_settings_init(&screens->buttons, buttons);
+    bind_headphones(screens);
     screens->items[SETTINGS_CONTROLS_ITEM] = (MenuItem){.label = i18n_text(STR_CONTROLS),
                                                         .select = menu_open_screen,
                                                         .context = controls,
