@@ -889,13 +889,14 @@ static void buds_controls_are_counted_without_sending_anything(void)
     BtModuleFrame frame;
     connected_for(START_MS + 400);
     bt_module_set_stream(&module, true, START_MS + 500, &frame);
-    receive_text("CP", START_MS + 600);
-    CHECK(!poll(START_MS + 600 + BT_MODULE_SILENCE_MS, &frame));
-    receive_text("CC", START_MS + 700);
-    receive_text("CA", START_MS + 700);
-    receive_text("CB", START_MS + 700);
-    receive_text("CB", START_MS + 700);
-    CHECK(!poll(START_MS + 700 + BT_MODULE_SILENCE_MS, &frame));
+    uint32_t settled_ms = START_MS + 500 + BT_MODULE_STREAM_SETTLE_MS;
+    receive_text("CP", settled_ms);
+    CHECK(!poll(settled_ms + BT_MODULE_SILENCE_MS, &frame));
+    receive_text("CC", settled_ms + 100);
+    receive_text("CA", settled_ms + 100);
+    receive_text("CB", settled_ms + 100);
+    receive_text("CB", settled_ms + 100);
+    CHECK(!poll(settled_ms + 100 + BT_MODULE_SILENCE_MS, &frame));
     CHECK_EQUAL(1, module.status.remote.pauses);
     CHECK_EQUAL(1, module.status.remote.plays);
     CHECK_EQUAL(1, module.status.remote.previouses);
@@ -940,6 +941,60 @@ static void a_dropped_link_ends_the_stream(void)
     receive_text("CQI", START_MS + 800);
     settle(START_MS + 800);
     CHECK(!module.status.streaming);
+}
+
+static void a_pause_report_right_after_the_stream_starts_restarts_it_once(void)
+{
+    BtModuleFrame frame;
+    connected_for(START_MS + 400);
+    bt_module_set_stream(&module, true, START_MS + 500, &frame);
+    receive_text("CP", START_MS + 700);
+    CHECK(poll(START_MS + 700 + BT_MODULE_SILENCE_MS, &frame));
+    CHECK(frame_bytes_are(&frame, PLAY_NOTICE, sizeof PLAY_NOTICE));
+    CHECK(module.status.streaming);
+    uint32_t noticed_ms = START_MS + 700 + BT_MODULE_SILENCE_MS;
+    CHECK(!poll(noticed_ms + BT_MODULE_PLAY_NOTICE_DELAY_MS - 1, &frame));
+    CHECK(poll(noticed_ms + BT_MODULE_PLAY_NOTICE_DELAY_MS, &frame));
+    CHECK(frame_bytes_are(&frame, STREAM_ON, sizeof STREAM_ON));
+    receive_text("CP", START_MS + 1000);
+    CHECK(!poll(START_MS + 1000 + BT_MODULE_SILENCE_MS, &frame));
+    CHECK_EQUAL(2, module.status.remote.pauses);
+}
+
+static void a_pause_report_after_a_new_stream_start_restarts_it_again(void)
+{
+    BtModuleFrame frame;
+    connected_for(START_MS + 400);
+    bt_module_set_stream(&module, true, START_MS + 500, &frame);
+    receive_text("CP", START_MS + 600);
+    poll(START_MS + 602, &frame);
+    poll(START_MS + 702, &frame);
+    bt_module_set_stream(&module, false, START_MS + 4000, &frame);
+    bt_module_set_stream(&module, true, START_MS + 4500, &frame);
+    poll(START_MS + 4600, &frame);
+    receive_text("CP", START_MS + 4700);
+    CHECK(poll(START_MS + 4700 + BT_MODULE_SILENCE_MS, &frame));
+    CHECK(frame_bytes_are(&frame, PLAY_NOTICE, sizeof PLAY_NOTICE));
+}
+
+static void a_pause_report_once_the_stream_has_settled_is_left_to_the_player(void)
+{
+    BtModuleFrame frame;
+    connected_for(START_MS + 400);
+    bt_module_set_stream(&module, true, START_MS + 500, &frame);
+    receive_text("CP", START_MS + 500 + BT_MODULE_STREAM_SETTLE_MS);
+    CHECK(!poll(START_MS + 500 + BT_MODULE_STREAM_SETTLE_MS + BT_MODULE_SILENCE_MS, &frame));
+    CHECK_EQUAL(1, module.status.remote.pauses);
+}
+
+static void a_pause_report_while_the_stream_is_off_is_not_answered(void)
+{
+    BtModuleFrame frame;
+    connected_for(START_MS + 400);
+    bt_module_set_stream(&module, true, START_MS + 500, &frame);
+    bt_module_set_stream(&module, false, START_MS + 600, &frame);
+    receive_text("CP", START_MS + 700);
+    CHECK(!poll(START_MS + 700 + BT_MODULE_SILENCE_MS, &frame));
 }
 
 int main(void)
@@ -1012,6 +1067,10 @@ int main(void)
         TEST_CASE(a_stop_after_the_module_reported_playing_sends_the_pause_notice_first),
         TEST_CASE(streaming_needs_a_connection),
         TEST_CASE(a_dropped_link_ends_the_stream),
+        TEST_CASE(a_pause_report_right_after_the_stream_starts_restarts_it_once),
+        TEST_CASE(a_pause_report_after_a_new_stream_start_restarts_it_again),
+        TEST_CASE(a_pause_report_once_the_stream_has_settled_is_left_to_the_player),
+        TEST_CASE(a_pause_report_while_the_stream_is_off_is_not_answered),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

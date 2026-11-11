@@ -15,6 +15,7 @@ enum {
     BLUETOOTH_LINK_RESTART_MS = 500,
     BLUETOOTH_LINK_ECHO_MS = 3000,
     BLUETOOTH_LINK_IDLE_OFF_MS = 300000,
+    BLUETOOTH_LINK_AWAIT_MS = 10000,
     BLUETOOTH_LINK_TOAST_CAPACITY = 96
 };
 
@@ -45,6 +46,7 @@ typedef struct BluetoothLink {
     uint8_t player_state;
     bool fresh;
     bool restarting;
+    bool awaiting;
     HalBluetoothDevice target;
     HalBluetoothDevice linked;
     uint32_t retried_ms;
@@ -52,6 +54,7 @@ typedef struct BluetoothLink {
     uint32_t paired_ms;
     uint32_t unlinked_ms;
     uint32_t changed_ms;
+    uint32_t await_ms;
     HalBluetoothRemote seen;
     char toast_text[BLUETOOTH_LINK_TOAST_CAPACITY];
 } BluetoothLink;
@@ -65,6 +68,7 @@ void bluetooth_link_pair(BluetoothLink *link, const HalBluetoothDevice *device, 
 void bluetooth_link_search(BluetoothLink *link, uint32_t now_ms);
 void bluetooth_link_forget(BluetoothLink *link, int index);
 void bluetooth_link_sleep(BluetoothLink *link);
+bool bluetooth_link_reconnect(BluetoothLink *link, uint32_t now_ms);
 void bluetooth_link_step(BluetoothLink *link, Player *player, uint32_t now_ms);
 BluetoothDeviceState bluetooth_link_device_state(const BluetoothLink *link, int index);
 bool bluetooth_link_knows(const BluetoothLink *link, const HalBluetoothDevice *device);

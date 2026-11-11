@@ -201,6 +201,8 @@ STR_BT_NOT_RESPONDING = Not responding
 STR_BT_CONNECTED_TO = Connected to {0}
 STR_BT_DISCONNECTED_FROM = Disconnected from {0}
 STR_BT_PAUSED_BY = Paused by {0}
+STR_BT_RECONNECTING = Connecting to {0}…
+STR_BT_NOT_BACK = {0} didn't connect · Play: retry
 STR_BT_HINT_DISCONNECT = Play disconnects · hold Play forgets
 STR_BT_HINT_CONNECTING = Connecting… hold Play to forget
 STR_BT_HINT_CONNECT = Play connects · hold Play forgets
@@ -209,6 +211,7 @@ STR_BT_HINT_TURN_ON = Play turns Bluetooth on
 STR_BT_HINT_SEARCHING = Searching… pair your headphones
 STR_BT_HINT_SEARCH = Play searches for headphones
 STR_BT_HINT_PAIR = Play pairs with this device
+STR_BT_HINT_DOZING = Off to save battery · Play: reconnect
 
 # About.
 STR_ABOUT_FIRMWARE = Firmware
@@ -283,7 +286,7 @@ STR_USB_EJECT_DRIVE = Eject to finish · Hold Back: leave
 STR_USB_EJECT_DRIVES = Eject drives · Hold Back: leave
 STR_USB_UNPLUGGED = Unplugged too soon
 STR_USB_UNPLUGGED_HINT = Changes may be lost: eject first
-STR_USB_CODE_MISSING = USB code missing: reinstall the update
+STR_USB_CODE_MISSING = USB missing: reinstall update
 STR_USB_DAC_TITLE = USB DAC
 STR_USB_DAC_FAILED = Output didn't start
 
@@ -323,7 +326,6 @@ STR_USB_DAC_TIME = Time
 STR_USB_DAC_LEFT = L
 STR_USB_DAC_RIGHT = R
 STR_USB_DAC_HINT = Menu: settings · Hold Back: leave
-STR_USB_DAC_MENU_HINT = Play: change · Back: close
 STR_USB_DAC_ADJUST_HINT = Vol: change · Play: done
 
 # Updates. {0} in STR_UPDATE_CHECKING and STR_UPDATE_REFUSED is the file's name; {0}% is the progress.
@@ -446,7 +448,7 @@ STR_NEVER_PLAYED = Never Played
 STR_FORGOTTEN_FAVORITES = Old Favorites
 STR_SMART_CHECKING = Checking library... {0}%
 STR_SMART_FINDING = Finding songs... {0}%
-STR_SMART_NONE_ADDED = New songs show up after a rescan
+STR_SMART_NONE_ADDED = Rescan to see new songs
 STR_SMART_NONE_PLAYED = Nothing played yet
 STR_SMART_NONE_LISTENED = Songs you play show up here
 STR_SMART_ALL_PLAYED = You've played every song
@@ -675,8 +677,8 @@ STR_CARD_FORMAT_NEXT = Play: continue\nBack: cancel
 STR_CARD_FORMAT_ERASE = Erase card
 STR_CARD_FORMAT_CONFIRM = Erase this card?
 STR_CARD_FORMAT_INSERT = Insert a card first
-STR_CARD_FORMAT_PLAYING = Stop playback before formatting
-STR_CARD_FORMAT_USB = Disconnect USB before formatting
+STR_CARD_FORMAT_PLAYING = Stop playback first
+STR_CARD_FORMAT_USB = Disconnect USB first
 STR_CARD_FORMAT_BATTERY = Charge above 30% first
 STR_CARD_FORMAT_CHANGED = Card changed. Start again.
 STR_CARD_FORMAT_PROGRESS = Formatting card: {0}%

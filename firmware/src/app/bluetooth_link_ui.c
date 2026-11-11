@@ -26,9 +26,15 @@ void bluetooth_link_browse(BluetoothLink *link, bool browsing, uint32_t now_ms)
     link->searched = true;
     link->search_now = link->search_now && browsing;
     link->unlinked_ms = now_ms;
-    if (browsing && link->saved.enabled && link->dozing) {
-        bluetooth_link_wake(link, now_ms);
+}
+
+bool bluetooth_link_reconnect(BluetoothLink *link, uint32_t now_ms)
+{
+    if (!link->saved.enabled || !link->dozing) {
+        return false;
     }
+    bluetooth_link_wake(link, now_ms);
+    return true;
 }
 
 static bool busy(void)

@@ -19,7 +19,8 @@ enum {
     BT_MODULE_CONNECT_RETRY_MS = 4000,
     BT_MODULE_CONNECT_LIMIT_MS = 30000,
     BT_MODULE_PLAY_NOTICE_DELAY_MS = 100,
-    BT_MODULE_QUERY_PAUSE_MS = 50000
+    BT_MODULE_QUERY_PAUSE_MS = 50000,
+    BT_MODULE_STREAM_SETTLE_MS = 3000
 };
 
 typedef struct BtModuleFrame {
@@ -42,6 +43,8 @@ typedef struct BtModule {
     bool query_paused;
     bool resend_stream;
     bool resend_on;
+    bool restart_stream;
+    bool stream_restarted;
     uint32_t query_paused_ms;
     uint32_t stream_changed_ms;
     uint32_t last_event_ms;

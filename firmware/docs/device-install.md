@@ -119,5 +119,5 @@ An installed updater accepts the filename and image brand of its own identity. A
 | Black screen and nothing over USB | Maskrom ([`device-recovery.md`](device-recovery.md)): write FiiO's firmware back, or a fixed build as above |
 | "Update not installed" | The file isn't a valid image for this player; rebuild it and copy it again |
 | "Update failed" | Copy the file again and retry before turning the player off |
-| "USB code missing: reinstall the update" | The USB code could not be loaded from either slot; install again through maskrom |
+| "USB missing: reinstall update" | The USB code could not be loaded from either slot; install again through maskrom |
 | A STALL or FAULT screen | Note the values shown, then hold Power for 2 s |

@@ -164,6 +164,9 @@ static StringId known_hint(const BluetoothScreen *bluetooth, int index)
 static StringId hint_id(const BluetoothScreen *bluetooth)
 {
     int selected = bluetooth->list.selected;
+    if (enabled(bluetooth) && bluetooth->link->dozing) {
+        return STR_BT_HINT_DOZING;
+    }
     switch (row_kind(bluetooth, selected)) {
     case ROW_POWER:
         return enabled(bluetooth) ? STR_BT_HINT_TURN_OFF : STR_BT_HINT_TURN_ON;
@@ -189,8 +192,9 @@ static int hint_width(const BluetoothScreen *bluetooth)
 static uint8_t widest_hint_lines(const BluetoothScreen *bluetooth)
 {
     static const StringId HINTS[] = {
-        STR_BT_HINT_DISCONNECT, STR_BT_HINT_CONNECTING, STR_BT_HINT_CONNECT, STR_BT_HINT_TURN_OFF,
-        STR_BT_HINT_TURN_ON,    STR_BT_HINT_SEARCHING,  STR_BT_HINT_SEARCH,  STR_BT_HINT_PAIR};
+        STR_BT_HINT_DISCONNECT, STR_BT_HINT_CONNECTING, STR_BT_HINT_CONNECT,
+        STR_BT_HINT_TURN_OFF,   STR_BT_HINT_TURN_ON,    STR_BT_HINT_SEARCHING,
+        STR_BT_HINT_SEARCH,     STR_BT_HINT_PAIR,       STR_BT_HINT_DOZING};
     int lines = 1;
     for (size_t index = 0; index < sizeof HINTS / sizeof HINTS[0]; index++) {
         int needed = label_wrap_count(bluetooth->theme->fonts.small, i18n_text(HINTS[index]),
@@ -333,10 +337,13 @@ static ScreenAction choose(void *context, int index)
     BluetoothScreen *bluetooth = context;
     BluetoothLink *link = bluetooth->link;
     uint32_t now_ms = bluetooth->now_ms;
+    bool woke = bluetooth_link_reconnect(link, now_ms);
     switch (row_kind(bluetooth, index)) {
     case ROW_POWER:
         bluetooth->pairing = false;
-        bluetooth_link_set_enabled(link, !enabled(bluetooth), now_ms);
+        if (!woke) {
+            bluetooth_link_set_enabled(link, !enabled(bluetooth), now_ms);
+        }
         break;
     case ROW_KNOWN:
         bluetooth->pairing = false;

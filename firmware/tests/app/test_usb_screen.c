@@ -145,7 +145,7 @@ static int variants(Variant *list)
                                   DAC[index].name};
     }
     list[count] = list[count - 2];
-    list[count].status.detail = i18n_text(STR_USB_DAC_MENU_HINT);
+    list[count].status.detail = i18n_text(STR_QUICK_SETTINGS_HINT);
     list[count].scene.menu = &menu.view;
     list[count++].name = "dac-menu";
     return count;

@@ -134,7 +134,7 @@ static AppUsbStatus dac_status(void)
 {
     StringId hint = STR_USB_DAC_HINT;
     if (menu_open) {
-        hint = menu.adjusting ? STR_USB_DAC_ADJUST_HINT : STR_USB_DAC_MENU_HINT;
+        hint = menu.adjusting ? STR_USB_DAC_ADJUST_HINT : STR_QUICK_SETTINGS_HINT;
     }
     scene.menu = menu_open ? &menu.view : NULL;
     return (AppUsbStatus){.view = APP_USB_DAC, .detail = i18n_text(hint), .scene = &scene};
