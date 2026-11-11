@@ -718,6 +718,111 @@ static void an_old_single_device_store_still_loads(void)
     CHECK_EQUAL(6, saved.devices[0].address[5]);
 }
 
+static void invalid_saved_device_indices_leave_the_connection_and_store_alone(void)
+{
+    fresh();
+    BluetoothSaved two = {.enabled = true, .count = 2, .devices = {BUDS, SPEAKER}};
+    bluetooth_store_save(&two);
+    start();
+    connect_to(&BUDS);
+    step(START_MS + 100);
+    const int invalid[] = {-1, 2, 100};
+    for (uint32_t index = 0; index < sizeof invalid / sizeof invalid[0]; index++) {
+        bluetooth_link_choose(&link, invalid[index], START_MS + 200);
+        bluetooth_link_forget(&link, invalid[index]);
+        CHECK_EQUAL(BLUETOOTH_DEVICE_IDLE, bluetooth_link_device_state(&link, invalid[index]));
+        CHECK(!bluetooth_link_nearby(&link, invalid[index]));
+    }
+    BluetoothSaved saved = stored();
+    CHECK_EQUAL(2, saved.count);
+    CHECK(strcmp("Buds", saved.devices[0].name) == 0);
+    CHECK(strcmp("Speaker", saved.devices[1].name) == 0);
+    CHECK_EQUAL(0, fake_hal_bluetooth_disconnect_count());
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTED, bluetooth_link_device_state(&link, 0));
+}
+
+static void forgetting_a_pending_connection_cancels_it_without_retrying(void)
+{
+    fresh();
+    save(true, &BUDS);
+    start();
+    ready();
+    step(START_MS + 100);
+    CHECK_EQUAL(1, fake_hal_bluetooth_connect_count());
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTING;
+    bluetooth_link_forget(&link, 0);
+    CHECK_EQUAL(1, fake_hal_bluetooth_disconnect_count());
+    CHECK_EQUAL(0, stored().count);
+    ready();
+    step(START_MS + 200 + 2 * BLUETOOTH_LINK_RETRY_MS);
+    CHECK_EQUAL(1, fake_hal_bluetooth_connect_count());
+    CHECK_EQUAL(0, stored().count);
+}
+
+static void forgetting_an_unconnected_device_keeps_the_other_connection(void)
+{
+    fresh();
+    BluetoothSaved two = {.enabled = true, .count = 2, .devices = {BUDS, SPEAKER}};
+    bluetooth_store_save(&two);
+    start();
+    connect_to(&SPEAKER);
+    step(START_MS + 100);
+    bluetooth_link_forget(&link, 1);
+    BluetoothSaved saved = stored();
+    CHECK_EQUAL(1, saved.count);
+    CHECK(strcmp("Speaker", saved.devices[0].name) == 0);
+    CHECK_EQUAL(0, fake_hal_bluetooth_disconnect_count());
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTED, bluetooth_link_device_state(&link, 0));
+}
+
+static void forgetting_the_first_device_preserves_and_retries_the_next_one(void)
+{
+    fresh();
+    BluetoothSaved two = {.enabled = true, .count = 2, .devices = {BUDS, SPEAKER}};
+    bluetooth_store_save(&two);
+    start();
+    ready();
+    step(START_MS + 100);
+    CHECK_EQUAL(1, fake_hal_bluetooth_connect_count());
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTING;
+    bluetooth_link_forget(&link, 0);
+    BluetoothSaved saved = stored();
+    CHECK_EQUAL(1, saved.count);
+    CHECK(strcmp("Speaker", saved.devices[0].name) == 0);
+    CHECK_EQUAL(1, fake_hal_bluetooth_disconnect_count());
+    ready();
+    step(START_MS + 200 + 2 * BLUETOOTH_LINK_RETRY_MS);
+    CHECK_EQUAL(2, fake_hal_bluetooth_connect_count());
+    CHECK(strcmp("Speaker", fake_hal_bluetooth_connect_target()->name) == 0);
+}
+
+static void connecting_without_a_toast_still_remembers_the_device(void)
+{
+    fresh();
+    save(true, NULL);
+    bluetooth_link_start(&link, NULL, START_MS);
+    connect_to(&BUDS);
+    step(START_MS + 100);
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTED, bluetooth_link_device_state(&link, 0));
+    CHECK_EQUAL(1, stored().count);
+    CHECK(bluetooth_link_knows(&link, &BUDS));
+}
+
+static void a_remembered_device_updates_its_name_when_it_reconnects(void)
+{
+    fresh();
+    save(true, &BUDS);
+    start();
+    HalBluetoothDevice renamed = BUDS;
+    memcpy(renamed.name, "New name", sizeof "New name");
+    connect_to(&renamed);
+    step(START_MS + 100);
+    BluetoothSaved saved = stored();
+    CHECK_EQUAL(1, saved.count);
+    CHECK(strcmp("New name", saved.devices[0].name) == 0);
+    CHECK(bluetooth_link_knows(&link, &BUDS));
+}
+
 static void forgetting_disconnects_and_clears_the_device(void)
 {
     fresh();
@@ -778,6 +883,12 @@ int main(void)
         TEST_CASE(searching_disconnects_and_scans_without_reconnecting),
         TEST_CASE(an_old_single_device_store_still_loads),
         TEST_CASE(forgetting_disconnects_and_clears_the_device),
+        TEST_CASE(invalid_saved_device_indices_leave_the_connection_and_store_alone),
+        TEST_CASE(forgetting_a_pending_connection_cancels_it_without_retrying),
+        TEST_CASE(forgetting_an_unconnected_device_keeps_the_other_connection),
+        TEST_CASE(a_remembered_device_updates_its_name_when_it_reconnects),
+        TEST_CASE(forgetting_the_first_device_preserves_and_retries_the_next_one),
+        TEST_CASE(connecting_without_a_toast_still_remembers_the_device),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
