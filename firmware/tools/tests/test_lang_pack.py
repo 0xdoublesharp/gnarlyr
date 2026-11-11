@@ -472,7 +472,8 @@ class CatalogueExportTest(unittest.TestCase):
         destination = ROOT.parent / "site/language-catalog.js"
         self.assertEqual(lang_pack.browser_source(lang_pack.read_catalogue(),
                                                   lang_pack.drawable_characters()),
-                         destination.read_text(encoding="utf-8"))
+                         destination.read_text(encoding="utf-8"),
+                         "Regenerate with python3 tools/firmware.py regen from the repository root")
 
 
 class NativeNameValidationTest(unittest.TestCase):

@@ -270,7 +270,8 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_USB_STATE_WAITING] = "Computer is still writing...",
     [STR_USB_STATE_LEAVING] = "Disconnecting...",
     [STR_USB_STOPPED] = "Disconnected too soon",
-    [STR_USB_WAITING_HINT] = "Disconnects when the computer finishes. Hold Back 3 s to disconnect now.",
+    [STR_USB_WAITING_HINT] =
+        "Disconnects when the computer finishes. Hold Back 3 s to disconnect now.",
     [STR_USB_KEEP_HOLDING] = "Keep holding Back to disconnect now. Recent changes may be lost.",
     [STR_USB_LEAVING_HINT] = "Removing the drives from the computer. Keep the cable in.",
     [STR_USB_STOPPED_HINT] = "The computer was still writing. Recent changes may be lost.",
@@ -510,7 +511,8 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_CLOCK_DATE] = "{1} {0}, {2}",
     [STR_CALENDAR_MONTH] = "{0} {1}",
     [STR_TIME_UNKNOWN] = "Time not set",
-    [STR_TIME_UNKNOWN_HINT] = "Connect to your computer and sync with the companion to set the clock",
+    [STR_TIME_UNKNOWN_HINT] =
+        "Connect to your computer and sync with the companion to set the clock",
     [STR_CLOCK_HINT] = "Play: calendar",
     [STR_CALENDAR_HINT] = "Vol: month | Play: today",
     [STR_MONDAY] = "Monday",

@@ -1,6 +1,25 @@
 # Firmware development workflow
 
-Start firmware work from the current `main` branch. Each worktree gets its own build directory, temporary directory and simulator state under `/Volumes/Scratch/SnowskyEcho`. The wrapper stops if Scratch is not mounted and keeps the shared compiler cache separate.
+Start each feature branch from the latest integration head agreed with the integration owner. Each worktree gets its own build directory, temporary directory and simulator state under `/Volumes/Scratch/SnowskyEcho`. The wrapper stops if Scratch is not mounted and keeps the shared compiler cache separate.
+
+## Feature to player loop
+
+1. Branch from the latest integration head and agree on files before editing. Keep Controls as the last Settings row.
+2. Regenerate source and assets only through `python3 tools/firmware.py regen --jobs 2`. This uses the build environment, including Homebrew LLVM's `clang-format` and Python 3.14. It runs the string headers, browser language catalogue, fonts, glyph packs, Unicode folds, resampler and replay-gain table generators. Fixture builders retain their separate fixture-specific commands.
+3. Run focused checks with `python3 tools/firmware.py test --jobs 2 --regex EXPRESSION`. Check generated freshness with `python3 tools/firmware.py regen --check --jobs 2`; this reads the committed outputs without rewriting them and fails on any stale generator.
+4. Run `python3 tools/firmware.py sizes --jobs 2` and paste its table into the feature report. New Settings rows and modules must report their module bytes. The table builds both image presets, reports resident code, static RAM, overlays, all modules, core-1 banks and state, workspace and language slots, and fails on a slot overflow or a resident reserve below 4 KiB for release or 1 KiB for device. `sizes --existing --jobs 2` reads existing builds; rebuild after source changes before using that result for a candidate.
+5. Hand the committed feature and focused results to the integration batch. The integration owner runs one complete suite on the combined batch with `python3 tools/firmware.py test --jobs 6` (up to `--jobs 10` when the machine is otherwise idle), then integrates the passing batch into `main`. Only one full suite may run on the machine at a time. Feature workers never run the full suite.
+6. From clean `main`, prepare a device window with `python3 tools/firmware.py install-device --dry-run --jobs 2`. After owner approval for that exact install and review of the full-size Echo recovery route, run `python3 tools/firmware.py install-device --owner-approved --jobs 2`.
+
+`install-device` reads status and the newest report through the existing `echo_debug.Tool` operations. It resolves the installed clean build tag to Git, refuses an already installed candidate, rebuilds the device image at clean HEAD, checks its embedded build tag, and freezes the image with the ELF and map files it was built from, with checksums, under `/Volumes/Scratch/SnowskyEcho/reports/candidate-<full-sha>/`. Every device image build records those files in `image-artifacts.json` and removes `echo_*.elf` and `echo_*.map` files that no current target produced, so the freeze, the upgrade proof and the emulator scenarios load only the image's own modules. A frozen image is immutable; a different image for the same commit is refused. Preserve the frozen installed candidate across development sessions.
+
+If the installed candidate is missing, the command creates a disposable detached checkout of that exact commit under Scratch, builds with two jobs, freezes it, and removes the checkout. This historical build checkout is the sole exception to keeping active worktrees on backed-up storage; it contains no work in progress. Historical commits must have the wrapper's device-image target and the local toolchain prerequisites. Missing history, incompatible historical tooling or a proof failure stops the install for the integration owner to resolve.
+
+The exact-image proof runs the installed updater with its own resident/USB/module ELFs, offers the unmodified new image, verifies slot 2 completes before slot 1, headers are invalidated first and committed last, every firmware write is immediately read back, both slots match, and writes stay inside the two slots and user volume. It boots the resulting slots using the new candidate's ELFs. Only the historical proof may omit the version-specific `hal_system_set_usb_answer` hook; ordinary emulator scenarios require it. The proof is also available as `firmware/.venv/bin/python firmware/tools/prove_upgrade.py --old CANDIDATE --new CANDIDATE`.
+
+Before installing, the command copies persistent state from the connected player's internal data directory into `.local/device-backups/user-state/<UTC>/`, verifying each source and copy with SHA-256. It excludes `library.db`, `covers.bin`, `build.tmp`, `view.tmp`, `debug/` and AppleDouble `._*` files and refuses symlinks. The backup is private, persistent recovery data, not disposable build output. A dry run performs this backup and the proof, then stops before copying anything to the player or ejecting it.
+
+The live step uses `echo_debug.Tool.install(image, restart=True)`, which checks the copied image, ejects and waits for reconnect. A new report must name the candidate build, contain zero fault registers and zero output underruns, and be complete. `install.json` and `summary.txt` in the candidate directory record the outcome, including failure after an attempted write; the command prints a one-line summary. It never appends to `notes/`. These checks establish only the named software and reconnect behavior; follow `AGENTS.md` for the owner's physical acceptance checks.
 
 ## Concurrent feature, coverage and fuzz work
 
@@ -35,8 +54,8 @@ Without `--target`, the wrapper builds and runs every target for 10,000 executio
 ## Edit and check one component
 
 ```sh
-python3 tools/firmware.py test --regex '^test_player$'
-python3 tools/firmware.py test --regex '^(test_settings|test_configured_controls)$'
+python3 tools/firmware.py test --jobs 2 --regex '^test_player$'
+python3 tools/firmware.py test --jobs 2 --regex '^(test_settings|test_configured_controls)$'
 ```
 
 The wrapper configures CMake, asks CTest for the selection and its fixtures, and uses CMake's file API to find executable dependencies. It builds the selected native executables and helpers passed to Python checks. CMake builds their libraries and generated-file dependencies normally. Script-only checks need no host build.
@@ -64,7 +83,7 @@ python3 tools/firmware.py test --group smoke --list
 Run focused checks while editing, the smoke group before combining changes, and the complete suite once after the final integration edits. Keep passing results for untouched code. The smoke group complements the full suite and physical-device checks.
 
 ```sh
-python3 tools/firmware.py test --group smoke --build-jobs 4 --test-jobs 6
+python3 tools/firmware.py test --group smoke --jobs 2
 python3 tools/firmware.py test --jobs 6
 ```
 

@@ -41,6 +41,32 @@ class FocusedBuildTests(unittest.TestCase):
             firmware.build_targets([], self.artifacts)
 
 
+class CompilerCacheTests(unittest.TestCase):
+    def launcher(self, setting, installed):
+        env = {"PATH": "/toolchain/bin"}
+        if setting is not None:
+            env["ECHO_COMPILER_CACHE"] = setting
+        with mock.patch.object(firmware.shutil, "which", return_value=installed):
+            with mock.patch.object(firmware, "run") as run:
+                firmware.configure("release", env, Path("/python"))
+        return run.call_args.args[0][-1]
+
+    def test_cache_is_enabled_by_default_when_installed(self):
+        self.assertEqual(self.launcher(None, "/bin/sccache"),
+                         "-DCMAKE_C_COMPILER_LAUNCHER=/bin/sccache")
+
+    def test_cache_can_be_explicitly_disabled(self):
+        self.assertEqual(self.launcher("0", "/bin/sccache"),
+                         "-DCMAKE_C_COMPILER_LAUNCHER=")
+
+    def test_cache_can_be_explicitly_enabled(self):
+        self.assertEqual(self.launcher("1", "/bin/sccache"),
+                         "-DCMAKE_C_COMPILER_LAUNCHER=/bin/sccache")
+
+    def test_missing_cache_does_not_prevent_building(self):
+        self.assertEqual(self.launcher(None, None), "-DCMAKE_C_COMPILER_LAUNCHER=")
+
+
 class SelectionTests(unittest.TestCase):
     def test_ctest_fixture_setup_is_kept_in_the_selected_plan(self):
         payload = '{"tests": [{"name": "device_build"}, {"name": "boot", "command": ["/usr/bin/python3", "boot.py"]}]}'
