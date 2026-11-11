@@ -1,6 +1,7 @@
 set(ECHO_SCREEN_MODULES views settings library listening dsp vorbis process)
 set(ECHO_SCREEN_MODULE_SOURCES_process
     platform/device/logic/audio_process_entry.c
+    platform/device/logic/audio_trig.c
     platform/device/logic/equalizer_design.c
     platform/device/logic/equalizer.c
 )
