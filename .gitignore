@@ -15,3 +15,4 @@ container-map.json
 .DS_Store
 .local/
 notes/
+log/

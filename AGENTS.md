@@ -14,3 +14,7 @@ Gnarlyr.com is hosted on DoublePaaS. Use the `deploy-doublepaas` skill and read
 [the deployment contract](docs/deployment.md) before changing hosting or publishing
 the static site. Firmware builds and device installation remain separate from
 website publication.
+
+## Translation checks
+
+- When language-pack translation checks fail, local Ollama with `translategemma:27b` can suggest revised text. Preserve placeholders and pack validation, and review translations and display fit before release. Keep generated drafts on Scratch.
