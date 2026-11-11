@@ -52,7 +52,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     if (size > UINT32_MAX) {
         return 0;
     }
-    for (int format = TAG_FORMAT_FLAC; format <= TAG_FORMAT_DFF; format++) {
+    for (int format = TAG_FORMAT_FLAC; format <= TAG_FORMAT_AIFF; format++) {
         check_format(data, (uint32_t)size, (TagFormat)format);
     }
     return 0;

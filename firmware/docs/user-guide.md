@@ -396,3 +396,10 @@ Home → Listening shows total listening time, plays, skips, and top songs, albu
 Export plays saves your plays to `/.scrobbler.log` at the top of the player's drive, in the Rockbox scrobbler format that import tools read; your history stays as it is. It starts as soon as you choose it and shows how far it has got; Back cancels it. When it finishes it shows how many plays it saved. Each export replaces the previous file. With nothing to export it says so and leaves the file alone. Plays of songs no longer in the library are left out. Times are saved in UTC. A play gets its time only while the player's clock is set (see Clock and calendar); a play made while the clock was not set is saved with the time 0.
 
 Place a timed `.lrc` file beside a song, with the same filename stem. Hold Menu on Now Playing to open Lyrics; tap Menu still opens Up Next. Lyrics follow playback, and the volume buttons move through the lines. Back returns to Now Playing.
+
+### AIFF files
+
+AIFF (`.aiff`, `.aif`) and uncompressed AIFF-C (`.aifc`, `NONE` or `sowt`) accept
+mono or stereo 16/24-bit music at standard rates from 8 to 192 kHz. Seeking and
+queued transitions follow the WAV rules. ID3 tags and embedded album art appear
+in the library. Compressed AIFF-C and floating point files cannot play.

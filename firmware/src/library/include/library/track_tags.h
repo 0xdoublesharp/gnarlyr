@@ -20,7 +20,8 @@ typedef enum TagFormat {
     TAG_FORMAT_WMA,
     TAG_FORMAT_APE,
     TAG_FORMAT_DSF,
-    TAG_FORMAT_DFF
+    TAG_FORMAT_DFF,
+    TAG_FORMAT_AIFF
 } TagFormat;
 
 typedef enum TagField {

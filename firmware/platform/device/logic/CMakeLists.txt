@@ -55,6 +55,7 @@ target_compile_definitions(echo_faad PRIVATE
 target_compile_options(echo_faad PRIVATE -w)
 
 add_library(echo_device_logic STATIC
+    aiff_format.c
     aac_decoder.c
     audio_engine.c
     audio_fade.c

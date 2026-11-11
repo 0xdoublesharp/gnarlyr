@@ -718,3 +718,16 @@ In headless mode the simulator uses a virtual clock (16 ms per frame), so runs a
 ```sh
 build/dev/platform/sim/echo_sim --headless --frames 120 --keys down,down,down,play --screenshot shot.bmp
 ```
+
+## AIFF PCM input
+
+AIFF (`.aiff`, `.aif`) and AIFF-C (`.aifc`, `NONE` and `sowt`) use the core-0 WAV
+source, its fixed PCM buffers, and the existing rate conversion, seek and queue
+rules. AIFF and `NONE` samples are signed big-endian; `sowt` samples are signed
+little-endian. Mono and stereo 16/24-bit input accepts the standard 8–192 kHz
+rates. The DSP module owns `aiff_probe`; resident code retains source dispatch
+and sample conversion. FORM/chunk bounds, padding, duplicate mandatory chunks,
+SSND offsets, declared frame counts and integral extended-precision rates are
+checked before playback. COMM may follow SSND. Compressed AIFF-C and floating
+point samples are refused. The library and cover builder read the ID3 chunk,
+including APIC; echo-sync and cover-export use Mutagen's AIFF reader.

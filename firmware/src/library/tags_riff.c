@@ -135,3 +135,56 @@ bool tags_read_dff(TagReader *reader)
     }
     return true;
 }
+
+static uint32_t aiff_rate(const uint8_t *bytes)
+{
+    uint32_t exponent = tag_be16(bytes);
+    if (exponent < 16395 || exponent > 16400 || (bytes[2] & 0x80u) == 0 ||
+        tag_be32(bytes + 6) != 0) {
+        return 0;
+    }
+    uint32_t mantissa = tag_be32(bytes + 2);
+    uint32_t shift = 16414 - exponent;
+    uint32_t rate = mantissa >> shift;
+    return (rate << shift) == mantissa && rate >= 8000 && rate <= 192000 ? rate : 0;
+}
+
+bool tags_read_aiff(TagReader *reader)
+{
+    uint8_t bytes[18];
+    if (!tag_read(reader, 0, bytes, 12) || !same(bytes, "FORM") ||
+        (!same(bytes + 8, "AIFF") && !same(bytes + 8, "AIFC"))) {
+        return false;
+    }
+    uint32_t size = tag_be32(bytes + 4);
+    if (size < 4 || size > reader->size - 8) {
+        return false;
+    }
+    uint32_t end = size + 8;
+    bool common = false;
+    for (uint32_t cursor = 12; end - cursor >= 8;) {
+        if (!tag_read(reader, cursor, bytes, 8)) {
+            return false;
+        }
+        uint32_t length = tag_be32(bytes + 4);
+        uint32_t body = cursor + 8;
+        if (length > end - body || (length & 1u) > end - body - length) {
+            return false;
+        }
+        if (same(bytes, "COMM") && length >= 18 && tag_read(reader, body, bytes, 18)) {
+            uint32_t rate = aiff_rate(bytes + 8);
+            if (rate == 0) {
+                return false;
+            }
+            tag_set_duration(reader, (double)tag_be32(bytes + 2) / rate);
+            common = true;
+        } else if (same(bytes, "ID3 ")) {
+            uint32_t tag_size = 0;
+            TagReader chunk = *reader;
+            chunk.size = body + length;
+            tags_read_id3v2(&chunk, body, &tag_size);
+        }
+        cursor = body + length + (length & 1u);
+    }
+    return common;
+}

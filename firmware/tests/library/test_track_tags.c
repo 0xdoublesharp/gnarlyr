@@ -1033,9 +1033,48 @@ static void mp4_duration_ignores_unknown_versions_and_zero_timescales(void)
     CHECK_EQUAL(0, tags.duration_ms);
 }
 
+static void aiff_id3_metadata_and_art_are_read(void)
+{
+    Fixture original;
+    CHECK(load(&original, "tagged.dsf"));
+    uint32_t id3 = (uint32_t)original.bytes[20] | (uint32_t)original.bytes[21] << 8 |
+                   (uint32_t)original.bytes[22] << 16 | (uint32_t)original.bytes[23] << 24;
+    uint32_t length = original.size - id3;
+    uint32_t size = 46 + length + (length & 1u);
+    uint8_t *bytes = calloc(size, 1);
+    memcpy(bytes, "FORM", 4);
+    mp4_put32(bytes + 4, size - 8);
+    memcpy(bytes + 8, "AIFFCOMM", 8);
+    mp4_put32(bytes + 16, 18);
+    bytes[21] = 2;
+    mp4_put32(bytes + 22, 44100);
+    bytes[27] = 24;
+    static const uint8_t RATE[] = {0x40, 0x0e, 0xac, 0x44, 0, 0, 0, 0, 0, 0};
+    memcpy(bytes + 28, RATE, sizeof RATE);
+    memcpy(bytes + 38, "ID3 ", 4);
+    mp4_put32(bytes + 42, length);
+    memcpy(bytes + 46, original.bytes + id3, length);
+    MemorySource memory = {.bytes = bytes, .size = size};
+    TrackTags tags;
+    CHECK(track_tags_format_for_name("Song.AIFF") != TAG_FORMAT_UNKNOWN);
+    CHECK(track_tags_format_for_name("Song.aif") != TAG_FORMAT_UNKNOWN);
+    CHECK(track_tags_format_for_name("Song.aifc") != TAG_FORMAT_UNKNOWN);
+    CHECK(track_tags_read(memory_source(&memory), size, track_tags_format_for_name("Song.aiff"),
+                          &tags));
+    CHECK_EQUAL(1000, tags.duration_ms);
+    CHECK_EQUAL(0, strcmp(TITLE, tags.text[TAG_TITLE]));
+    CHECK_EQUAL(TAG_PICTURE_RAW, tags.picture.kind);
+    CHECK(tags.picture.front);
+    CHECK(tags.picture.offset + tags.picture.length <= size);
+    CHECK(bytes[tags.picture.offset] == 0xff && bytes[tags.picture.offset + 1] == 0xd8);
+    free(bytes);
+    free(original.bytes);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(aiff_id3_metadata_and_art_are_read),
         TEST_CASE(mp4_tags_read_numeric_tracks_genre_fallback_and_art),
         TEST_CASE(mp4_duration_requires_a_complete_versioned_header),
         TEST_CASE(mp4_text_genre_takes_priority_over_the_legacy_genre),

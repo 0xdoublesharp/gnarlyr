@@ -35,6 +35,32 @@ def add_picture(path, data, picture_type):
     audio.save()
 
 
+class AiffMetadataTest(unittest.TestCase):
+    def test_aiff_is_indexed_with_id3_tags_and_embedded_art(self):
+        from mutagen.aiff import AIFF
+        from mutagen.id3 import TIT2, TPE1, TALB, APIC
+        from pcm_fixture import aiff
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "Song.aiff"
+            path.write_bytes(aiff(bytes(44100 * 4)))
+            audio = AIFF(path)
+            audio.add_tags()
+            audio.tags.add(TIT2(encoding=3, text=["AIFF title"]))
+            audio.tags.add(TPE1(encoding=3, text=["Artist"]))
+            audio.tags.add(TALB(encoding=3, text=["Album"]))
+            art = image_bytes((20, 40, 60))
+            audio.tags.add(APIC(encoding=3, mime="image/png", type=3, data=art))
+            audio.save()
+            track = library_index.read_track(root, path)
+            self.assertEqual(("AIFF title", "Artist", "Album", 1000),
+                             (track.title, track.artist, track.album, track.duration_ms))
+            self.assertEqual([(3, art)], cover_export.embedded_pictures(path))
+            self.assertIn(".aiff", library_index.AUDIO_SUFFIXES)
+            self.assertIn(".aif", library_index.AUDIO_SUFFIXES)
+            self.assertIn(".aifc", library_index.AUDIO_SUFFIXES)
+
+
 class AlbumKeyTest(unittest.TestCase):
     def test_keys_hash_the_album_artist_a_separator_and_the_title(self):
         expected = cover_export.fnv1a(b"\x1fB", cover_export.fnv1a(b"A"))

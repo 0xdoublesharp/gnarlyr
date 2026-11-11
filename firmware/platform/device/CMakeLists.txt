@@ -435,6 +435,7 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
     if(module STREQUAL "dsp")
         target_link_libraries(${module_target}_objects PRIVATE echo_codec)
         target_compile_definitions(${module_target}_objects PRIVATE
+            aiff_probe=audio_dsp_aiff
             mp4_probe=audio_dsp_probe
             mp4_cursor_seek=audio_dsp_seek
             mp4_cursor_next=audio_dsp_next

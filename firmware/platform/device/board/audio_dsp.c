@@ -67,3 +67,9 @@ CORE_SEAM bool ogg_stream_read(void *context, uint32_t offset, void *buffer, uin
     const AudioOggEntry *ogg = (const AudioOggEntry *)entry();
     return entry()->magic == AUDIO_OGG_MAGIC && ogg->read(context, offset, buffer, length);
 }
+
+CORE_SEAM bool aiff_probe(FlacInput input, WavFormat *format)
+{
+    const AudioDspEntry *dsp = (const AudioDspEntry *)entry();
+    return load(AUDIO_DSP_NUMBER, AUDIO_DSP_MAGIC) && dsp->aiff(input, format);
+}

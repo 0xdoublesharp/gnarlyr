@@ -1,5 +1,14 @@
 # Gnarlyr release notes
 
+## Unreleased: AIFF playback
+
+- Added AIFF and AIFF-C `NONE`/`sowt` through the WAV PCM path, with seeking,
+  library ID3 tags and embedded artwork. Mono/stereo 16/24-bit files accept the
+  standard 8–192 kHz rates. Compressed and float AIFF-C remain unsupported.
+- Generated native fixtures cover playback, seeks, endpoints, tags and artwork.
+  This addition has not been checked on the player.
+
+
 Gnarlyr builds on Podium 4.5.9 and EchoPod with their GPL credits preserved. The source provenance is recorded in [`../UPSTREAM.md`](../UPSTREAM.md). Version 1.0.0 is not released; hardware checks are recorded in [`known-issues.md`](known-issues.md).
 
 ## Identity and files

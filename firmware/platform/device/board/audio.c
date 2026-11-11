@@ -185,7 +185,8 @@ static SourceKind kind_of(const char *path)
     if (!read || tag_is(magic, "fLaC")) {
         return SOURCE_FLAC;
     }
-    if (tag_is(magic, "RIFF") && tag_is(magic + 8, "WAVE")) {
+    if ((tag_is(magic, "RIFF") && tag_is(magic + 8, "WAVE")) ||
+        (tag_is(magic, "FORM") && (tag_is(magic + 8, "AIFF") || tag_is(magic + 8, "AIFC")))) {
         return SOURCE_WAV;
     }
     if (tag_is(magic, "OggS")) {

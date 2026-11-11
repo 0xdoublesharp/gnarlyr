@@ -25,6 +25,8 @@ typedef struct WavFormat {
     uint16_t frame_bytes;
     uint32_t data_offset;
     uint32_t frames;
+    bool big_endian;
+    bool aifc;
 } WavFormat;
 
 typedef struct WavSource {
@@ -38,3 +40,5 @@ typedef struct WavSource {
 
 void wav_source_init(WavSource *source, FlacFileOpener files, WavBuffers *buffers);
 AudioSource wav_source_interface(WavSource *source);
+
+bool aiff_probe(FlacInput input, WavFormat *format);

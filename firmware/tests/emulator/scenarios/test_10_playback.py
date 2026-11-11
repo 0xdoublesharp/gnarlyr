@@ -290,6 +290,31 @@ class EchoImageTest(EchoImageHarness):
             self.assertTrue(rig.session.module_reads(slot, number))
         self.assert_healthy(rig.session)
 
+    def test_aiff_and_aifc_keep_pcm_and_dma_continuous_at_the_queue_boundary(self):
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        from pcm_fixture import aiff
+        volume = Fat32Volume()
+        pattern = [0, 2828, 4000, 2828, 0, -2828, -4000, -2828] * 1400
+        volume.add_file("A.aiff", aiff(struct.pack(">" + "h" * len(pattern), *pattern),
+                                         channels=1))
+        volume.add_file("B.aifc", aiff(struct.pack("<" + "h" * len(pattern), *pattern),
+                                         channels=1, compression=b"sowt"))
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        starts = []
+        samples = self.capture_output(rig, 2 * len(pattern))
+        rig.machine.hook_symbol("dmac_start_loop", lambda: starts.append(True))
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(650)
+        self.assertEqual(1, len(starts))
+        self.assertEqual(2 * len(pattern), len(samples))
+        for index, sample in enumerate(samples):
+            value = (pattern[index % len(pattern)] << 16) & 0xffffffff
+            self.assertEqual((value, value), sample, index)
+        self.assert_healthy(rig.session)
+
     def test_converted_files_keep_the_waveform_and_dma_continuous_at_the_queue_boundary(self):
         from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.playback import Rig
