@@ -73,6 +73,22 @@ class SelectionTests(unittest.TestCase):
 
 
 class FuzzCommandTests(unittest.TestCase):
+    def test_high_value_parser_and_store_targets_are_registered(self):
+        self.assertEqual(firmware.FUZZ_TARGETS["library_database"], 65536)
+        self.assertEqual(firmware.FUZZ_TARGETS["mp4_demux"], 262144)
+        self.assertEqual(firmware.FUZZ_TARGETS["store"], 4096)
+
+    def test_binary_parser_targets_have_canonical_fixture_seeds(self):
+        library = {path.name for path in firmware.FUZZ_FIXTURES["library_database"]}
+        mp4 = {path.name for path in firmware.FUZZ_FIXTURES["mp4_demux"]}
+        self.assertEqual(
+            library,
+            {"small_library.db", "cue_music.db", "library.db", "with_playlists.db"},
+        )
+        self.assertIn("01 Lead.m4a", mp4)
+        self.assertIn("02 Tail.m4a", mp4)
+        self.assertIn("02 Deep.m4a", mp4)
+
     def test_fuzz_cli_selects_a_bounded_reproducible_campaign(self):
         with mock.patch.object(
             sys,
