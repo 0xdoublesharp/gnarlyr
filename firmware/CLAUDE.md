@@ -78,7 +78,7 @@ Each scenario in `tests/emulator/scenarios/test_*.py` is its own test, named `de
 
 ## Code space
 
-`tools/size_report.py` reads limits from the linker maps and fails an image build when a library object keeps variables in both the main program and the USB overlay. Every `python3 tools/firmware.py build --preset release` or `--preset device` prints current usage and saves it to `build/<preset>/size-summary.txt` on Scratch. For the full breakdown by object, library, function and table, run `python3 tools/firmware.py build --preset release --target echo_size_report` from the repository root.
+`tools/size_report.py` reads limits from the linker maps and fails an image build when a library object keeps variables in both the main program and the USB overlay. `python3 tools/firmware.py sizes` builds both presets, prints used, free and floor for every region and slot, and fails on an overflow or a code floor below the budget. Every `python3 tools/firmware.py build --preset release` or `--preset device` prints the same table for its preset and saves it to `build/<preset>/size-summary.txt` on Scratch. For the full breakdown by object, library, function and table, run `python3 tools/firmware.py build --preset release --target echo_size_report` from the repository root.
 
 | Budget | Limit |
 |---|---|
@@ -95,7 +95,7 @@ Each scenario in `tests/emulator/scenarios/test_*.py` is its own test, named `de
 | Vorbis / Opus program image banks | 130,048 / 131,072 bytes |
 | Vorbis / Opus core-1 static state | 36,864 bytes each, with a 16 KiB stack reserve |
 
-- Read the size summary after any change to device code. Report used/free figures and relevant deltas in the commit or handoff; keep current usage out of these reference docs. The free-code floors leave room for the next change, and both presets must link.
+- Run `python3 tools/firmware.py sizes` after any change to device code. Report used/free figures and relevant deltas in the commit or handoff; keep current usage out of these reference docs. The free-code floors leave room for the next change, and both presets must link.
 - Code that runs only from one module's screens belongs in that module, debug-loop code that only a running script needs belongs in the extension module, and so does code that must stay callable beside every UI module but that start-up, USB sessions and the audio path never use, behind wrappers that do nothing when the module is missing (`docs/architecture.md`, Demand-loaded UI modules and Extension module). Hooks the debug loop needs at start-up, before a script or while another module is loaded stay resident.
 - The extension module occupies the 8 KiB window at `0x0304A000` in both presets. It contains wait motion, Home artwork and file removal; the `device` build uses the same module and window for debug steps, probes, RTC reads and writes and screenshots. It loads after `board_power_hold()` through CRC and running-code checks with slot fallback. If both copies fail, resident wrappers omit optional drawing, refuse file removal and abort debug scripts while startup, playback and USB remain available.
 - The rescan overlay owns the scan callbacks, cover pass, timing and temporary file state. Its private BSS follows its code and is cleared by the overlay loader; both must fit its window. Resident code keeps preflight checks, loading and result messages.
