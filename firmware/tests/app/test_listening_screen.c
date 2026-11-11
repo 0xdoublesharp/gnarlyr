@@ -558,6 +558,7 @@ static void show_export_state(int state)
     choose(4);
     if (state == 0) {
         tick();
+        wire_motion_tick(&motion, motion.started_ms + WIRE_MOTION_DELAY_MS + 400);
     } else {
         finish_export();
     }
@@ -577,11 +578,19 @@ static void export_states_render_whole_at_every_size_and_orientation(void)
             CHECK(saw_whole(i18n_text(HEADLINES[state])));
             CHECK(!saw("\xE2\x80\xA6"));
             CHECK(state != 0 || saw(i18n_text(STR_BACK_CANCELS)));
+            CHECK_EQUAL(state == 0, wire_motion_shown(&motion, &screen));
+            CHECK(state != 0 || motion.area.width >= WIRE_MOTION_MIN_SIDE);
             char name[32];
             StringBuilder builder = string_builder_make(name, sizeof name);
             string_builder_append(&builder, "listening-export-");
             string_builder_append(&builder, NAMES[state]);
             screen_snapshot_write(&canvas, name, variant);
+            if (state == 0) {
+                default_theme_set_appearance(&theme, APPEARANCE_SUNSET);
+                canvas = draw();
+                CHECK(saw_whole(i18n_text(HEADLINES[state])));
+                screen_snapshot_write(&canvas, name, variant + 2 * TEXT_SIZE_COUNT);
+            }
         }
     }
 }
