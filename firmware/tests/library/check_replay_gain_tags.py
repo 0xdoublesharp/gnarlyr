@@ -15,12 +15,14 @@ from mutagen.mp4 import MP4
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 import library_index
+import opus_fixture
+import replay_gain
 
 READER = None
 FIXTURES = None
 VALUES = {"REPLAYGAIN_TRACK_GAIN": "+6.00 dB", "REPLAYGAIN_ALBUM_GAIN": "-3.00 dB",
           "REPLAYGAIN_TRACK_PEAK": "1.25", "REPLAYGAIN_ALBUM_PEAK": "0.5"}
-FORMATS = ("tagged.flac", "tagged.ogg", "id3v24.mp3", "aac.m4a", "alac.m4a",
+FORMATS = ("tagged.flac", "tagged.ogg", "tagged.opus", "id3v24.mp3", "aac.m4a", "alac.m4a",
            "tagged.wav", "tagged.wma", "tagged.ape", "tagged.dsf")
 
 
@@ -46,6 +48,13 @@ def read_gains(path):
     return tuple(int(value) for value in output.split())
 
 
+def write_opus_comments(path, comments):
+    audio = mutagen.File(path)
+    audio.tags.clear()
+    audio.tags.extend(comments)
+    audio.save()
+
+
 class ReplayGainFormatsTest(unittest.TestCase):
     def assert_normalization(self, gains):
         self.assertEqual(4, len(gains))
@@ -67,6 +76,74 @@ class ReplayGainFormatsTest(unittest.TestCase):
                     write_tags(path, VALUES)
                     self.assert_normalization(read_gains(path))
                     self.assert_desktop_agrees(path)
+
+    def test_opus_r128_uses_replay_gain_reference_and_keeps_header_gain_separate(self):
+        with tempfile.TemporaryDirectory(prefix="r128-tags-") as directory:
+            path = Path(directory) / "track.opus"
+            shutil.copyfile(FIXTURES / "tagged.opus", path)
+            write_tags(path, {"R128_TRACK_GAIN": "256", "r128_album_gain": "-2048",
+                              "REPLAYGAIN_TRACK_PEAK": "1.25", "REPLAYGAIN_ALBUM_PEAK": "0.5"})
+            self.assert_normalization(read_gains(path))
+            self.assert_desktop_agrees(path)
+            before = read_gains(path)
+            path.write_bytes(opus_fixture.with_gain(path.read_bytes(), 3 * 256))
+            self.assertEqual(read_gains(path), before)
+            self.assert_desktop_agrees(path)
+
+    def test_opus_replay_gain_precedes_r128_in_either_comment_order(self):
+        with tempfile.TemporaryDirectory(prefix="r128-order-") as directory:
+            path = Path(directory) / "track.opus"
+            shutil.copyfile(FIXTURES / "tagged.opus", path)
+            r128 = [("R128_TRACK_GAIN", "256"), ("R128_ALBUM_GAIN", "-2048")]
+            standard = [("REPLAYGAIN_TRACK_GAIN", "0 dB"), ("REPLAYGAIN_ALBUM_GAIN", "-6 dB")]
+            for comments in (r128 + standard, standard + r128):
+                write_opus_comments(path, comments)
+                gains = read_gains(path)
+                self.assertEqual(gains[0], 65536)
+                self.assertEqual(gains[1], replay_gain.amplitude(-600))
+                self.assert_desktop_agrees(path)
+            write_opus_comments(path, r128 + [("REPLAYGAIN_TRACK_GAIN", "bad")])
+            self.assertEqual(read_gains(path)[0], replay_gain.amplitude(600))
+            self.assert_desktop_agrees(path)
+
+    def test_opus_r128_requires_a_bounded_ascii_integer(self):
+        invalid = ("", "+", "-", " 0", "0 ", "1.0", "1e2", "256 dB", "32768", "-32769",
+                   "0000000", "--1", "é", "1\x00")
+        with tempfile.TemporaryDirectory(prefix="r128-invalid-") as directory:
+            path = Path(directory) / "track.opus"
+            shutil.copyfile(FIXTURES / "tagged.opus", path)
+            for value in invalid:
+                with self.subTest(value=value):
+                    write_opus_comments(path, [("R128_TRACK_GAIN", value)])
+                    self.assertEqual(read_gains(path), (0, 0, 0, 0))
+                    self.assert_desktop_agrees(path)
+            write_opus_comments(path, [("R128_TRACK_GAIN", "bad"), ("r128_track_gain", "+00256"),
+                                       ("R128_TRACK_GAIN", "0")])
+            self.assertEqual(read_gains(path)[0], replay_gain.amplitude(600))
+            self.assert_desktop_agrees(path)
+
+    def test_opus_r128_rounds_after_the_reference_offset_and_obeys_gain_limits(self):
+        cases = (("0", 500), ("-1280", 0), ("32", 513), ("-32", 488), ("-1312", -13),
+                 ("-1248", 13), ("-25856", -9600), ("23296", 9600), ("-32768", None),
+                 ("32767", None))
+        with tempfile.TemporaryDirectory(prefix="r128-round-") as directory:
+            path = Path(directory) / "track.opus"
+            shutil.copyfile(FIXTURES / "tagged.opus", path)
+            for value, centi_db in cases:
+                with self.subTest(value=value):
+                    write_opus_comments(path, [("R128_TRACK_GAIN", value)])
+                    expected = 0 if centi_db is None else replay_gain.amplitude(centi_db)
+                    self.assertEqual(read_gains(path)[0], expected)
+                    self.assert_desktop_agrees(path)
+
+    def test_r128_comments_are_specific_to_opus(self):
+        with tempfile.TemporaryDirectory(prefix="r128-containers-") as directory:
+            for name in ("tagged.ogg", "tagged.flac"):
+                path = Path(directory) / name
+                shutil.copyfile(FIXTURES / name, path)
+                write_tags(path, {"R128_TRACK_GAIN": "256", "R128_ALBUM_GAIN": "-2048"})
+                self.assertEqual(read_gains(path), (0, 0, 0, 0))
+                self.assert_desktop_agrees(path)
 
     def test_id3_text_encodings_and_versions(self):
         with tempfile.TemporaryDirectory(prefix="replaygain-id3-") as directory:

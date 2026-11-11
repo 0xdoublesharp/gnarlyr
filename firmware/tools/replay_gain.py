@@ -65,6 +65,17 @@ def from_tags(tags):
     return tuple(gains + safe)
 
 
+def parse_r128(text):
+    if not isinstance(text, str) or re.fullmatch(r"[+-]?[0-9]{1,6}", text) is None or len(text) > 6:
+        return None
+    value = int(text)
+    if not -32768 <= value <= 32767:
+        return None
+    scaled = (value + 5 * 256) * 100
+    fixed = (abs(scaled) + 128) // 256 * (-1 if scaled < 0 else 1)
+    return fixed if -9600 <= fixed <= 9600 else None
+
+
 def hash_bytes(data, seed=2166136261):
     for value in data:
         seed = ((seed ^ value) * 16777619) & MAXIMUM
@@ -88,6 +99,7 @@ def tag_values(tags):
     from mutagen.asf import ASFTags
     from mutagen.id3 import ID3
     from mutagen.mp4 import MP4Tags
+    from mutagen.oggopus import OggOpusVComment
     values = {}
     if isinstance(tags, ID3):
         items = ((frame.desc, list(frame.text[:1])) for frame in tags.getall("TXXX"))
@@ -107,4 +119,11 @@ def tag_values(tags):
     for key, data in items:
         if key.isascii() and key.lower() in KEYS:
             values.setdefault(key.lower(), []).extend(data)
+    if isinstance(tags, OggOpusVComment):
+        for index, key in enumerate(("r128_track_gain", "r128_album_gain")):
+            fixed = next((gain for value in tags.get(key, [])
+                          if (gain := parse_r128(value)) is not None), None)
+            if fixed is not None:
+                text = f"{'-' if fixed < 0 else ''}{abs(fixed) // 100}.{abs(fixed) % 100:02d}"
+                values.setdefault(KEYS[index], []).append(text)
     return values
