@@ -76,6 +76,27 @@ static void a_fresh_builder_holds_an_empty_string(void)
     CHECK_EQUAL(0, builder.length);
 }
 
+static void an_empty_buffer_reports_overflow_without_dereferencing_it(void)
+{
+    StringBuilder builder = string_builder_make(NULL, 0);
+    string_builder_append(&builder, "hello");
+    string_builder_append_unsigned(&builder, 42);
+    CHECK(builder.overflowed);
+    CHECK_EQUAL(0, builder.length);
+}
+
+static void a_one_byte_buffer_remains_terminated_after_overflow(void)
+{
+    char buffer[2] = {'x', 'y'};
+    StringBuilder builder = string_builder_make(buffer, 1);
+    string_builder_append_char(&builder, 'a');
+    string_builder_append(&builder, "\xc3\xa9");
+    CHECK(builder.overflowed);
+    CHECK_EQUAL(0, builder.length);
+    CHECK_EQUAL('\0', buffer[0]);
+    CHECK_EQUAL('y', buffer[1]);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -85,6 +106,8 @@ int main(void)
         TEST_CASE(overflow_never_leaves_part_of_a_character),
         TEST_CASE(a_number_that_does_not_fit_is_cut_like_text),
         TEST_CASE(a_fresh_builder_holds_an_empty_string),
+        TEST_CASE(an_empty_buffer_reports_overflow_without_dereferencing_it),
+        TEST_CASE(a_one_byte_buffer_remains_terminated_after_overflow),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
