@@ -156,7 +156,7 @@ class FuzzCommandTests(unittest.TestCase):
         self.assertEqual(len(firmware.COVER_IMAGE_JPEG_FIXTURES), 3)
 
     def test_ui_and_queue_targets_are_bounded_and_seeded(self):
-        for name in ("placeholder_art", "play_queue", "audio_engine"):
+        for name in ("placeholder_art", "play_queue", "audio_engine", "playback_views"):
             self.assertEqual(firmware.FUZZ_TARGETS[name], 256)
             self.assertTrue(firmware.FUZZ_SEEDS[name])
             self.assertTrue(all(len(seed) <= 256 for seed in firmware.FUZZ_SEEDS[name]))

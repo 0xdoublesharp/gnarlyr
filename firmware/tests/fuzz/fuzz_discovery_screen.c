@@ -8,10 +8,13 @@
 #include "fake_hal.h"
 #include "fixture_library.h"
 #include "fuzz_source.h"
+#include "gfx/canvas.h"
+#include "hal/display.h"
 
 enum {
     ACTION_LIMIT = 96,
-    ROOT_COUNT = BROWSE_ALL_SONGS + 1
+    ROOT_COUNT = BROWSE_ALL_SONGS + 1,
+    CONTROL_BYTES = 4
 };
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
@@ -94,6 +97,14 @@ static void apply_action(DiscoveryScreen *screen, Scratch *scratch, uint8_t valu
     }
 }
 
+static void draw_screen(DiscoveryScreen *screen, const Theme *theme)
+{
+    static Color pixels[HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT];
+    Canvas canvas = canvas_make(
+        pixels, (Rect){0, 0, theme->metrics.screen_width, theme->metrics.screen_height});
+    screen->screen.draw(screen, &canvas);
+}
+
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
     if (size == 0) {
@@ -106,17 +117,22 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     Scratch scratch = {0};
     Theme theme = BOARD_THEME;
     fake_hal_reset();
+    if (size > 2 && (data[2] & 2u) != 0) {
+        fake_hal_set_reserve_result(HAL_RESERVE_NO_SPACE);
+    }
     fixture_library_open(&fixture);
     player_init(&player, &fixture.library);
-    discovery_screen_init(&screen,
-                          (DiscoveryScreenConfig){.library = &fixture.library,
-                                                  .player = &player,
-                                                  .theme = &theme,
-                                                  .motion = &motion,
-                                                  .scratch = {scratch_read, scratch_write, &scratch,
-                                                              sizeof scratch.bytes}});
+    BuilderScratch provided = {scratch_read, scratch_write, &scratch, sizeof scratch.bytes};
+    if (size > 2 && (data[2] & 1u) != 0) {
+        provided = (BuilderScratch){0};
+    }
+    discovery_screen_init(&screen, (DiscoveryScreenConfig){.library = &fixture.library,
+                                                           .player = &player,
+                                                           .theme = &theme,
+                                                           .motion = &motion,
+                                                           .scratch = provided});
     BrowseQuery query = browse_root_query((BrowseKind)(data[0] % ROOT_COUNT));
-    switch ((size > 1 ? data[1] : data[0]) % 4) {
+    switch ((size > 1 ? data[1] : data[0]) % 5) {
     case 0:
         discovery_screen_open(&screen, query, false);
         break;
@@ -126,13 +142,21 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     case 2:
         discovery_screen_options(&screen, query);
         break;
-    default:
+    case 3:
         discovery_screen_info(&screen, data[0] % library_count(&fixture.library, LIBRARY_TRACKS));
         break;
+    default:
+        discovery_screen_tags(&screen, data[0] % library_count(&fixture.library, LIBRARY_TRACKS));
+        break;
     }
+    screen.screen.enter(&screen, 0);
+    draw_screen(&screen, &theme);
     size_t limit = size < ACTION_LIMIT ? size : ACTION_LIMIT;
-    for (size_t index = 2; index < limit; index++) {
+    for (size_t index = CONTROL_BYTES; index < limit; index++) {
         apply_action(&screen, &scratch, data[index], (uint32_t)index * 251u);
+        if ((data[index] & 7u) == 0) {
+            draw_screen(&screen, &theme);
+        }
         check_screen(&screen, &fixture);
     }
     return 0;

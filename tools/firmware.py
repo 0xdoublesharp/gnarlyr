@@ -41,6 +41,7 @@ FUZZ_TARGETS = {
     "opus_decode": 2048,
     "audio_engine": 256,
     "card_format": 64,
+    "playback_views": 256,
     "fat_volume": 400000,
 }
 
@@ -132,6 +133,7 @@ FUZZ_SEEDS = {
     ],
     "audio_engine": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32],
     "card_format": [b"\0" * 16, bytes(range(16)), b"\xff\0\0\0" * 4],
+    "playback_views": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32],
     "fat_volume": [b"\0", b"DSSP" + bytes(8)],
 }
 FUZZ_FIXTURES = {

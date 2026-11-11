@@ -7,6 +7,8 @@
 #include "fake_hal.h"
 #include "fixture_library.h"
 #include "fuzz_source.h"
+#include "gfx/canvas.h"
+#include "hal/display.h"
 
 enum {
     ACTION_LIMIT = 96,
@@ -35,6 +37,17 @@ static void check_browse(BrowseScreen *browse)
     }
 }
 
+static void draw_screen(Screen *screen, const Theme *theme)
+{
+    if (screen->draw == NULL) {
+        return;
+    }
+    static Color pixels[HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT];
+    Canvas canvas = canvas_make(
+        pixels, (Rect){0, 0, theme->metrics.screen_width, theme->metrics.screen_height});
+    screen->draw(screen->context, &canvas);
+}
+
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
     if (size == 0) {
@@ -59,6 +72,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         browse_pool_open(&pool, 0, browse_root_query((BrowseKind)(data[0] % ROOT_COUNT)));
     fuzz_require(active != NULL);
     active->enter(active->context, 0);
+    draw_screen(active, &BOARD_THEME);
     size_t limit = size < ACTION_LIMIT ? size : ACTION_LIMIT;
     for (size_t index = 1; index < limit; index++) {
         uint8_t value = data[index];
@@ -84,6 +98,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         if (active->context >= (void *)&pool.screens[0] &&
             active->context <= (void *)&pool.screens[BROWSE_DEPTH - 1]) {
             check_browse(active->context);
+        }
+        if ((value & 7u) == 0) {
+            draw_screen(active, &BOARD_THEME);
         }
         player_update(&player, (uint32_t)index * 271u);
     }
