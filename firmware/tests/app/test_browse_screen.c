@@ -78,12 +78,21 @@ static void an_appended_favorite_playlist_has_its_own_sorted_run(void)
     CHECK_EQUAL(stored, browse_sections_range(playlists, (int)stored).first);
 }
 
+static void numbered_files_do_not_become_single_item_letter_runs(void)
+{
+    BrowseQuery query = browse_root_query(BROWSE_FOLDER);
+    query.subject = 2;
+    BrowseScreen *files = opened(query);
+    CHECK_EQUAL(0, browse_sections_range(files, 0).end);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(albums_are_lettered_by_their_sort_key),
         TEST_CASE(folder_names_offer_sections_without_reordering_tracks),
         TEST_CASE(an_appended_favorite_playlist_has_its_own_sorted_run),
+        TEST_CASE(numbered_files_do_not_become_single_item_letter_runs),
         TEST_CASE(lettered_lists_never_go_backwards),
         TEST_CASE(album_tracks_have_no_letters),
     };

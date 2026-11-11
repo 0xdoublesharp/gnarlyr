@@ -53,8 +53,9 @@ static ListSections folder_range(const Library *library, uint16_t subject, int f
         return (ListSections){0, 0};
     }
     uint32_t key = track_sort(library, folder, index - tracks);
-    return (ListSections){tracks + track_bound(library, folder, key),
+    ListSections range = {tracks + track_bound(library, folder, key),
                           tracks + track_bound(library, folder, key + 1)};
+    return range.end - range.first > 1 ? range : (ListSections){0, 0};
 }
 
 static ListSections shelf_range(const BrowseScreen *browse, int position)

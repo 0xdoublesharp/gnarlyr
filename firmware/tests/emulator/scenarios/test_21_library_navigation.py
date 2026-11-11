@@ -65,7 +65,7 @@ class EchoImageTest(EchoImageHarness):
 
     def navigation_watch(self, machine):
         from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1
-        watch = {"view": None, "frames": {}, "events": [], "selections": [], "probes": 0, "titles": []}
+        watch = {"view": None, "frames": {}, "events": [], "selections": [], "probes": 0, "titles": [], "steps": []}
 
         def event():
             watch["view"] = machine.reg(UC_ARM_REG_R0)
@@ -81,6 +81,7 @@ class EchoImageTest(EchoImageHarness):
                 (machine.microseconds(), machine.reg(UC_ARM_REG_R1)))
 
         def selection():
+            watch["steps"].append(machine.microseconds())
             if watch["view"] is not None:
                 selected = struct.unpack("<i", machine.read_memory(watch["view"] + 12, 4))[0]
                 if not watch["selections"] or selected != watch["selections"][-1][1]:
@@ -156,7 +157,9 @@ class EchoImageTest(EchoImageHarness):
             rig.run_for(500)
             self.assertEqual(stopped, watch["selections"][-1][1])
         frames = watch["frames"][min(watch["frames"])]
-        durations = [value for _, value in frames]
+        durations = [stamp - max(begin for begin in watch["steps"] if begin <= stamp)
+                     for stamp, _ in frames]
+        self.assertGreater(max(durations), 0)
         pixels = [window.cycles for window in machine.panel.windows[windows:]]
         self.assertTrue(pixels)
         completions = [stamp for stamp, _ in frames]
