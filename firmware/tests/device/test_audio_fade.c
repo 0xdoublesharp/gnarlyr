@@ -142,7 +142,7 @@ static double smooth(double x)
 
 static double gain_at(uint32_t frame)
 {
-    return (double)captured[frame][0] / (LEVEL * 256.0);
+    return (double)captured[frame][0] / ((double)LEVEL * 256.0);
 }
 
 static bool near(double expected, double actual, double tolerance)
@@ -174,7 +174,7 @@ static bool follows_ramp(uint32_t first, uint32_t count, bool falling, double le
 
 static double step_limit(uint32_t length)
 {
-    return 1.5 / length + 4.0 / AUDIO_FADE_UNITY;
+    return 1.5 / length + 4.0 / (double)AUDIO_FADE_UNITY;
 }
 
 static double largest_gain_step(uint32_t first, uint32_t count)

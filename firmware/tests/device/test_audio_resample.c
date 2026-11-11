@@ -225,7 +225,7 @@ static Tone render_tone(uint32_t rate, double frequency)
 {
     const double turn = 6.2831853071795864769;
     for (int index = 0; index < INPUT_CAPACITY; index++) {
-        input[index] = (int32_t)lround(TONE_AMPLITUDE * sin(turn * frequency * index));
+        input[index] = (int32_t)lround((double)TONE_AMPLITUDE * sin(turn * frequency * index));
     }
     uint32_t factor = audio_resample_rate(rate) / rate;
     return (Tone){factor, render(rate, INPUT_CAPACITY, 7), frequency};
