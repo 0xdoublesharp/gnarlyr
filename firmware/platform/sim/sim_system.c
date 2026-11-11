@@ -201,6 +201,12 @@ HalRtcRead hal_system_rtc_read(void)
     return (HalRtcRead){.status = HAL_RTC_NO_ACK};
 }
 
+HalRtcRead hal_system_rtc_set(uint32_t utc_s)
+{
+    (void)utc_s;
+    return (HalRtcRead){.status = HAL_RTC_NO_ACK};
+}
+
 void hal_system_save_report(uint32_t reason)
 {
     (void)reason;

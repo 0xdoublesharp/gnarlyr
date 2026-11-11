@@ -227,6 +227,8 @@ class RtcBus(RegisterFile):
             return
         if count > 1:
             self.pointer = frame[1] % self.REGISTERS
+        for offset, byte in enumerate(frame[2:]):
+            self.registers[(self.pointer + offset) % self.REGISTERS] = byte
         self.pend(self.TX_DONE)
 
     def receive(self, count):

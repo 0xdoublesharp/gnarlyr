@@ -4169,6 +4169,24 @@ static void rtc_read_lines_keep_the_registers_and_a_bus_error_fails_the_line(voi
     CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[5]);
 }
 
+static void rtc_set_writes_the_synced_time_and_refuses_without_one(void)
+{
+    start_app();
+    fake_hal_set_rtc_answer((HalRtcRead){.status = HAL_RTC_OK});
+    const DebugScriptRun *run = run_script("build any\nrtc set\nwait 20\n", 200);
+    CHECK_EQUAL(HAL_RTC_NO_TIME, run->rtc[0].status);
+    CHECK_EQUAL(DEBUG_RTC_SET, run->rtc[0].action);
+    CHECK_EQUAL(0, fake_hal_rtc_read_count());
+    CHECK_EQUAL(DEBUG_LINE_FAILED, run->status[1]);
+    fake_hal_set_wall(1794390060u, 60);
+    run = run_script("build any\nrtc set\nwait 20\n", 200);
+    CHECK_EQUAL(HAL_RTC_OK, run->rtc[0].status);
+    CHECK(fake_hal_rtc_written() - 1794390060u <= 1);
+    CHECK_EQUAL(fake_hal_rtc_written(), run->rtc[0].written_s);
+    CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
+    fake_hal_set_wall(0, 0);
+}
+
 static void a_probe_the_board_refuses_is_reported_and_leaves_no_record(void)
 {
     start_app();
@@ -5032,6 +5050,7 @@ int main(void)
         TEST_CASE(peek_poke_and_gpio_lines_ask_the_board_and_keep_what_it_answers),
         TEST_CASE(a_probe_the_board_refuses_is_reported_and_leaves_no_record),
         TEST_CASE(rtc_read_lines_keep_the_registers_and_a_bus_error_fails_the_line),
+        TEST_CASE(rtc_set_writes_the_synced_time_and_refuses_without_one),
         TEST_CASE(a_script_keeps_sixteen_probes_and_does_not_make_a_seventeenth),
         TEST_CASE(supply_off_holds_the_usb_supply_off_until_supply_on),
         TEST_CASE(the_supply_comes_back_when_a_script_ends_without_saying_so),

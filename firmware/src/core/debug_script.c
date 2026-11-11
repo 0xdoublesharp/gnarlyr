@@ -38,7 +38,7 @@ static const char *const PROFILE_ACTIONS[] = {
     [DEBUG_PROFILE_OFF] = "off", [DEBUG_PROFILE_ON] = "on", [DEBUG_PROFILE_RESET] = "reset"};
 static const char *const SENSE_MODES[] = {"normal", "kept_on"};
 static const char *const SWITCH_STATES[] = {"off", "on"};
-static const char *const RTC_ACTIONS[] = {"read"};
+static const char *const RTC_ACTIONS[] = {[DEBUG_RTC_READ] = "read", [DEBUG_RTC_SET] = "set"};
 static const char *const PIN_ACTIONS[] = {[DEBUG_PIN_READ] = "read",
                                           [DEBUG_PIN_LOW] = "low",
                                           [DEBUG_PIN_HIGH] = "high",

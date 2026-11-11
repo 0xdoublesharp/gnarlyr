@@ -372,22 +372,23 @@ class Running(LoopCase):
         self.assertEqual((script["probes"][1]["cable"], script["probes"][1]["charge_pin"]), (0, 1))
 
     def test_clock_reads_come_back_with_every_register_the_decoded_time_and_the_trust_flag(self):
-        self.script.write_text("build any\nrtc read\nrtc read\nrtc read\n", encoding="utf-8")
-        reads = ["script.rtc: line=2 ms=5120 status=ok registers=00000500120306012680808080000000 vl=0 "
-                 "time=2026-01-03T12:00:05 weekday=6 century=0",
-                 "script.rtc: line=3 ms=5200 status=ok registers=0800ffffffffffffffffffffffffffff vl=1 "
-                 "time=invalid weekday=7 century=1",
-                 "script.rtc: line=4 ms=5300 status=no_ack registers=unknown vl=unknown time=unknown "
-                 "weekday=unknown century=unknown"]
+        self.script.write_text("build any\nrtc read\nrtc read\nrtc set\n", encoding="utf-8")
+        reads = ["script.rtc: line=2 ms=5120 action=read written_s=unknown status=ok "
+                 "registers=00000500120306012680808080000000 vl=0 time=2026-01-03T12:00:05 weekday=6 century=0",
+                 "script.rtc: line=3 ms=5300 action=read written_s=unknown status=no_ack registers=unknown "
+                 "vl=unknown time=unknown weekday=unknown century=unknown",
+                 "script.rtc: line=4 ms=5400 action=set written_s=1794390060 status=ok "
+                 "registers=00000041091103112600000000000000 vl=0 time=2026-11-11T09:41:00 weekday=3 century=0"]
         script = self.tool(self.player_runs(soaks=reads)).run(self.script)["script"]
         self.assertEqual(script["rtc"][0],
-                         {"line": 2, "ms": 5120, "status": "ok",
+                         {"line": 2, "ms": 5120, "action": "read", "written_s": None, "status": "ok",
                           "registers": [0, 0, 5, 0, 0x12, 3, 6, 1, 0x26, 0x80, 0x80, 0x80, 0x80, 0, 0, 0],
                           "vl": 0, "time": "2026-01-03T12:00:05", "weekday": 6, "century": 0})
-        self.assertEqual((script["rtc"][1]["vl"], script["rtc"][1]["time"]), (1, "invalid"))
-        self.assertEqual(script["rtc"][2],
-                         {"line": 4, "ms": 5300, "status": "no_ack", "registers": None, "vl": None,
-                          "time": None, "weekday": None, "century": None})
+        self.assertEqual(script["rtc"][1],
+                         {"line": 3, "ms": 5300, "action": "read", "written_s": None, "status": "no_ack",
+                          "registers": None, "vl": None, "time": None, "weekday": None, "century": None})
+        self.assertEqual((script["rtc"][2]["action"], script["rtc"][2]["written_s"], script["rtc"][2]["time"]),
+                         ("set", 1794390060, "2026-11-11T09:41:00"))
 
     def test_a_clock_read_with_damaged_registers_is_a_bad_report(self):
         with self.assertRaises(echo_debug.DebugError) as raised:

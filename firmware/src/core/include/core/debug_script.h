@@ -126,10 +126,17 @@ typedef struct DebugProbe {
     uint32_t after;
 } DebugProbe;
 
+typedef enum DebugRtcAction {
+    DEBUG_RTC_READ,
+    DEBUG_RTC_SET
+} DebugRtcAction;
+
 typedef struct DebugRtcRead {
     uint8_t line;
     uint8_t status;
+    uint8_t action;
     uint32_t time_ms;
+    uint32_t written_s;
     uint8_t registers[DEBUG_RTC_REGISTERS];
 } DebugRtcRead;
 

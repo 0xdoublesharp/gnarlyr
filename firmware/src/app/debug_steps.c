@@ -227,17 +227,35 @@ static void probe(const DebugOp *op, uint32_t now_ms)
 _Static_assert((int)DEBUG_RTC_REGISTERS == (int)HAL_RTC_REGISTERS,
                "a read keeps every register the board gives");
 
-static void read_rtc(uint32_t now_ms)
+static HalRtcRead rtc_action(DebugRtcAction action, uint32_t *written_s)
+{
+    HalWallTime wall = hal_clock_wall();
+    *written_s = 0;
+    if (action == DEBUG_RTC_READ) {
+        return hal_system_rtc_read();
+    }
+    if (wall.source == HAL_WALL_UNKNOWN) {
+        return (HalRtcRead){.status = HAL_RTC_NO_TIME};
+    }
+    *written_s = wall.utc_s;
+    return hal_system_rtc_set(wall.utc_s);
+}
+
+static void use_rtc(const DebugOp *op, uint32_t now_ms)
 {
     DebugScriptRun *run = &debug_runner.run;
     if (run->rtc_count == DEBUG_SCRIPT_RTC_READS) {
         debug_runner_set_status(DEBUG_LINE_FAILED);
         return;
     }
-    HalRtcRead result = hal_system_rtc_read();
+    uint32_t written_s = 0;
+    HalRtcRead result = rtc_action((DebugRtcAction)op->first, &written_s);
     DebugRtcRead *read = &run->rtc[run->rtc_count++];
-    *read = (DebugRtcRead){
-        .line = debug_runner.line, .status = (uint8_t)result.status, .time_ms = now_ms};
+    *read = (DebugRtcRead){.line = debug_runner.line,
+                           .status = (uint8_t)result.status,
+                           .action = (uint8_t)op->first,
+                           .time_ms = now_ms,
+                           .written_s = written_s};
     for (uint32_t index = 0; index < DEBUG_RTC_REGISTERS; index++) {
         read->registers[index] = result.registers[index];
     }
@@ -287,7 +305,7 @@ static DebugRequest run_op(const DebugOp *op, uint32_t now_ms)
         begin_soak(now_ms, op->first);
         break;
     case DEBUG_OP_RTC:
-        read_rtc(now_ms);
+        use_rtc(op, now_ms);
         break;
     default:
         probe(op, now_ms);

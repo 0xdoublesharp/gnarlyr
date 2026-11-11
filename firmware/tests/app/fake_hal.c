@@ -127,6 +127,7 @@ typedef struct FakeHal {
     int probe_count;
     FakeProbeCall probe_calls[PROBE_CALL_CAPACITY];
     HalRtcRead rtc_answer;
+    uint32_t rtc_written_s;
     HalWallTime wall;
     uint32_t wall_set_ms;
     int rtc_reads;
@@ -847,6 +848,18 @@ HalRtcRead hal_system_rtc_read(void)
 {
     fake.rtc_reads++;
     return fake.rtc_answer;
+}
+
+HalRtcRead hal_system_rtc_set(uint32_t utc_s)
+{
+    fake.rtc_reads++;
+    fake.rtc_written_s = utc_s;
+    return fake.rtc_answer;
+}
+
+uint32_t fake_hal_rtc_written(void)
+{
+    return fake.rtc_written_s;
 }
 
 void fake_hal_set_rtc_answer(HalRtcRead answer)

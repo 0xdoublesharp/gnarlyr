@@ -49,6 +49,7 @@ FakeProbeCall fake_hal_probe_call(int index);
 void fake_hal_set_rtc_answer(HalRtcRead answer);
 void fake_hal_set_wall(uint32_t utc_s, int16_t offset_minutes);
 int fake_hal_rtc_read_count(void);
+uint32_t fake_hal_rtc_written(void);
 void fake_hal_set_idle_microseconds(uint32_t idle_us);
 void fake_hal_set_power_levels(uint8_t levels);
 void fake_hal_set_power_samples(uint32_t samples);

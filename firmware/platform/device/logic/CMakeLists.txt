@@ -124,6 +124,7 @@ add_library(echo_device_logic STATIC
     pll.c
     power_history.c
     rtc_registers.c
+    rtc_time.c
     start_record.c
     sd_card.c
     stall_watch.c

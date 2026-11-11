@@ -1212,13 +1212,37 @@ class EchoImageTest(unittest.TestCase):
         self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
         self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
         read = self.read_report(session)["script"]["rtc"]
-        self.assertEqual(read, [{"line": 2, "ms": read[0]["ms"], "status": "ok",
-                                 "registers": list(machine.rtc_bus.registers), "vl": 0,
+        self.assertEqual(read, [{"line": 2, "ms": read[0]["ms"], "action": "read", "written_s": None,
+                                 "status": "ok", "registers": list(machine.rtc_bus.registers), "vl": 0,
                                  "time": "2026-01-03T12:00:05", "weekday": 6, "century": 0}])
         self.assertEqual(machine.rtc_bus.frames, [("write", bytes([0xA2, 0x00])), ("read", 0xA3, 16)])
         self.assertEqual(self.i2c1_state(machine), before)
         self.assertIn(("grf", 0xBC, 0x000C0008), machine.register_log)
         self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def test_an_rtc_set_writes_the_synced_utc_time_clears_the_trust_flag_and_reads_it_back(self):
+        script = ("build %s\nrtc set\nrtc read\nreconnect\n" % self.build_tag()).encode("ascii")
+        volume = self.debug_volume(run_txt=script)
+        volume.add_file("time.bin", self.time_file(NOVEMBER_2026, -480), None, IDENTITY.data_directory)
+        session, machine = self.ejecting_session(volume, before_start=lambda machine: machine.stub_symbol(
+            "board_wall_time_forget_file", lambda machine: 0))
+        machine.rtc_bus.registers[2] |= 0x80
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        before = self.i2c1_state(machine)
+        self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        written, read = self.read_report(session)["script"]["rtc"]
+        self.assertEqual((written["action"], written["status"], written["vl"]), ("set", "ok", 0))
+        self.assertTrue(NOVEMBER_2026 <= written["written_s"] <= NOVEMBER_2026 + 5, written)
+        self.assertEqual((read["action"], read["status"], read["vl"]), ("read", "ok", 0))
+        frame = machine.rtc_bus.frames[0]
+        self.assertEqual((frame[0], frame[1][:2], len(frame[1])), ("write", bytes([0xA2, 0x02]), 9))
+        self.assertEqual(frame[1][2] & 0x80, 0)
+        self.assertNotIn(0x00, [entry[1][1] for entry in machine.rtc_bus.frames
+                                if entry[0] == "write" and len(entry[1]) > 2])
+        self.assertTrue(read["time"].startswith("2026-11-12T11:21"), read)
+        self.assertEqual(self.i2c1_state(machine), before)
         self.assert_healthy(session)
 
     def test_an_rtc_read_without_an_answer_reports_no_ack_and_restores_the_bus(self):
