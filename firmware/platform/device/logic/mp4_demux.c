@@ -194,17 +194,23 @@ static bool descriptor_header(FlacInput input, uint32_t *at, uint32_t *tag, uint
 static bool read_config(FlacInput input, const Mp4Box *esds, Mp4Track *track)
 {
     uint32_t at = esds->body + FULL_BOX;
+    uint32_t limit = esds->end;
     uint32_t tag;
     uint32_t length;
-    while (descriptor_header(input, &at, &tag, &length) && at < esds->end) {
-        if (tag == TAG_ES) {
-            at += ESDS_SKIP_ES;
-        } else if (tag == TAG_DECODER) {
-            at += ESDS_SKIP_DECODER;
+    while (at < limit && descriptor_header(input, &at, &tag, &length)) {
+        if (at > limit || length > limit - at) {
+            return false;
+        }
+        if (tag == TAG_ES || tag == TAG_DECODER) {
+            uint32_t skip = tag == TAG_ES ? ESDS_SKIP_ES : ESDS_SKIP_DECODER;
+            if (length < skip) {
+                return false;
+            }
+            limit = at + length;
+            at += skip;
         } else if (tag == TAG_CONFIG) {
             track->config_size = (uint8_t)(length < MP4_CONFIG_BYTES ? length : MP4_CONFIG_BYTES);
-            return length <= esds->end - at &&
-                   read_bytes(input, at, track->config, track->config_size);
+            return read_bytes(input, at, track->config, track->config_size);
         } else {
             return false;
         }

@@ -871,6 +871,20 @@ static uint32_t synthetic_aac_config(const Builder *builder)
     return 0;
 }
 
+static void aac_configuration_must_fit_inside_its_parent_descriptors(void)
+{
+    for (uint32_t variant = 0; variant < 2; variant++) {
+        static Builder builder;
+        build_synthetic(&builder, false);
+        uint32_t esds = find_box_type(&builder, "esds");
+        CHECK(esds != 0);
+        builder.bytes[esds + (variant == 0 ? 9 : 14)] = (uint8_t)(variant == 0 ? 3 : 13);
+        FlacInput input = {.read = read_builder, .context = &builder, .size = builder.length};
+        Mp4Track track;
+        CHECK(!mp4_probe(input, &track));
+    }
+}
+
 static void aac_configurations_report_supported_rates_channels_and_frame_lengths(void)
 {
     static const uint32_t rates[] = {96000, 88200, 64000, 48000, 44100, 32000, 24000,
@@ -938,10 +952,32 @@ static void aac_sync_extensions_are_interpreted_only_within_their_descriptor(voi
         build_synthetic(&builder, false);
         uint32_t at = synthetic_aac_config(&builder);
         CHECK(at != 0);
+        uint32_t extra = cases[index].length <= 5 ? cases[index].length - 2 : 0;
+        static const char *const boxes[] = {"moov", "trak", "mdia", "minf",
+                                            "stbl", "stsd", "mp4a", "esds"};
+        for (uint32_t box = 0; box < sizeof boxes / sizeof boxes[0]; box++) {
+            uint32_t type = find_box_type(&builder, boxes[box]);
+            CHECK(type >= 4);
+            uint32_t size = (uint32_t)builder.bytes[type - 4] << 24 |
+                            (uint32_t)builder.bytes[type - 3] << 16 |
+                            (uint32_t)builder.bytes[type - 2] << 8 | builder.bytes[type - 1];
+            size += extra;
+            builder.bytes[type - 4] = (uint8_t)(size >> 24);
+            builder.bytes[type - 3] = (uint8_t)(size >> 16);
+            builder.bytes[type - 2] = (uint8_t)(size >> 8);
+            builder.bytes[type - 1] = (uint8_t)size;
+        }
+        uint32_t esds = find_box_type(&builder, "esds");
+        builder.bytes[esds + 9] += (uint8_t)extra;
+        builder.bytes[esds + 14] += (uint8_t)extra;
+        memmove(builder.bytes + at + 2 + extra, builder.bytes + at + 2, builder.length - at - 2);
+        builder.length += extra;
         builder.bytes[at - 1] = cases[index].length;
         builder.bytes[at + 2] = cases[index].sync;
         builder.bytes[at + 3] = cases[index].extension;
-        builder.bytes[at + 4] = cases[index].flags;
+        if (extra >= 3) {
+            builder.bytes[at + 4] = cases[index].flags;
+        }
         Mp4Track track;
         bool accepted = mp4_probe((FlacInput){read_builder, &builder, builder.length}, &track);
         CHECK_EQUAL(cases[index].accepted, accepted);
@@ -1269,6 +1305,7 @@ int main(void)
         TEST_CASE(sample_tables_cannot_extend_into_adjacent_boxes),
         TEST_CASE(overflowing_sample_size_table_indices_are_rejected),
         TEST_CASE(overflowing_chunk_table_indices_are_rejected),
+        TEST_CASE(aac_configuration_must_fit_inside_its_parent_descriptors),
         TEST_CASE(aac_configurations_report_supported_rates_channels_and_frame_lengths),
         TEST_CASE(unsupported_aac_configuration_fields_are_rejected),
         TEST_CASE(aac_sync_extensions_are_interpreted_only_within_their_descriptor),
