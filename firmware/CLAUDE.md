@@ -72,22 +72,21 @@ Each scenario in `tests/emulator/test_echo_image.py` is its own test, named `dev
 
 | Limit | Used | Of | Free |
 |---|---|---|---|
-| Code window | 145,064 | 157,292 | 12,228 |
-| Code window, `device` preset | 148,824 | 157,292 | 8,468 |
-| Static RAM | 264,124 | 278,528 | 14,404 |
-| Rescan overlay (code + BSS) | 95,040 | 98,304 | 3,264 |
-| USB overlay code | 12,504 | 65,536 | 53,032 |
-| Module views (code + BSS) | 21,984 | 44,032 | 22,048 |
-| Module settings (code + BSS) | 18,816 | 44,032 | 25,216 |
-| Module library (code + BSS) | 39,416 | 44,032 | 4,616 |
-| Module listening (code + BSS) | 18,892 | 44,032 | 25,140 |
-| Audio processing module (code, no BSS) | 2,156 | 12,288 | 10,132 |
-| Audio DSP module (code, no BSS) | 6,348 | 8,192 | 1,844 |
-| Ogg file module, Vorbis and Opus (code, no BSS) | 7,076 | 8,192 | 1,116 |
-| Extension module (code, no BSS) | 4,288 | 8,192 | 3,904 |
-| Extension module, `device` preset | 7,200 | 8,192 | 992 |
+| Code window | 148,696 | 157,292 | 8,596 |
+| Code window, `device` preset | 153,000 | 157,292 | 4,292 |
+| Static RAM | 266,948 | 278,528 | 11,580 |
+| Rescan overlay | 95,128 | 98,304 | 3,176 |
+| USB overlay code | 13,976 | 65,536 | 51,560 |
+| Module views (code + BSS) | 25,328 | 44,032 | 18,704 |
+| Module settings (code + BSS) | 22,160 | 44,032 | 21,872 |
+| Module library (code + BSS) | 39,544 | 44,032 | 4,488 |
+| Module listening (code + BSS) | 28,984 | 44,032 | 15,048 |
+| Audio processing module (code, no BSS) | 2,752 | 12,288 | 9,536 |
+| Audio DSP module (code, no BSS) | 5,928 | 8,192 | 2,264 |
+| Ogg file module, Vorbis and Opus (code, no BSS) | 6,656 | 8,192 | 1,536 |
+| Extension module, `device` preset (code, no BSS) | 7,552 | 8,192 | 640 |
 | Decoder workspace | 41,648 | 41,984 | 336 |
-| Language pack (English) | 7,795 | 16,384 | 8,589 |
+| Language pack (English) | 8,650 | 16,384 | 7,734 |
 | Vorbis program image bank | 64,840 | 130,048 | 65,208 |
 | Vorbis core-1 static state | 32,952 | 36,864 | 3,912 |
 | Opus program image bank | 98,928 | 131,072 | 32,144 |

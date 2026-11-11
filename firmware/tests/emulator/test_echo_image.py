@@ -677,12 +677,20 @@ class EchoImageTest(unittest.TestCase):
             self.assert_only_the_user_volume_changed(session)
 
     def test_the_usb_session_and_the_update_check_run_from_the_usb_overlay(self):
+        from unicorn.arm_const import UC_ARM_REG_R0
         session = self.session(files=[(IDENTITY.update_file, self.image, None)], vbus=True)
         machine = session.machine
+        renderers = []
+        machine.hook_symbol("app_set_usb_renderer",
+                            lambda: renderers.append(machine.reg(UC_ARM_REG_R0)))
+        self.assertIn("usb_screen_draw", machine.overlays[0].symbols)
+        self.assertNotIn("usb_screen_draw", machine.symbols)
+        machine.note("usb_screen_draw")
         machine.note("updater_check")
         machine.note("usb_storage_session")
         session.run_to_first_frame()
         self.assertFalse(machine.overlays[0].loaded(machine))
+        self.assertFalse(any(renderers))
         self.assertEqual(session.run_through_update_check(),
                          "reached usb_session_storage_changed")
         self.assertTrue(machine.overlays[0].loaded(machine))
@@ -690,8 +698,13 @@ class EchoImageTest(unittest.TestCase):
         self.assertIn(machine.current_pc(), window)
         self.assertEqual(machine.reached["usb_storage_session"], 1)
         self.assertEqual(machine.reached["updater_check"], 1)
+        self.assertGreater(machine.reached.get("usb_screen_draw", 0), 0)
         self.assertTrue(session.usb_overlay_reads("slot_1"))
         self.assertEqual(session.usb_overlay_reads("slot_2"), [])
+        self.assertEqual(renderers[-1] & ~1, machine.overlays[0].symbols["usb_screen_draw"])
+        machine.continue_past_stop()
+        self.assertEqual(machine.run(until=lambda: renderers[-1] == 0,
+                                     until_ms=machine.milliseconds() + 2000), "condition met")
         self.assert_healthy(session)
 
     def reports(self, session):
@@ -951,6 +964,38 @@ class EchoImageTest(unittest.TestCase):
         self.assertTrue(dark)
         self.assertEqual(asked, [])
         return session, machine, asked, charge_frames, dark
+
+    def test_charging_without_the_settings_module_uses_no_usb_overlay(self):
+        session = self.session(vbus_at_start=True)
+        machine = session.machine
+        machine.power_key_released_at_ms = 0
+        machine.host_absent = True
+        number, _ = self.module(machine, "settings")
+        for slot in ("slot_1", "slot_2"):
+            session.change_module(slot, number, 600, lambda byte: byte ^ 0xFF)
+        frames = machine.trace("usb_screen_draw_fallback")
+        self.assertEqual(machine.run(until=lambda: frames,
+                                     until_ms=self.session_module.FRAME_LIMIT_MS), "condition met")
+        self.assertEqual(session.usb_overlay_reads("slot_1"), [])
+        self.assertEqual(session.usb_overlay_reads("slot_2"), [])
+        self.assertTrue(session.module_reads("slot_1", number))
+        self.assertTrue(session.module_reads("slot_2", number))
+        self.assert_healthy(session)
+
+    def test_listening_for_a_host_while_playing_keeps_the_usb_overlay_unloaded(self):
+        rig = self.playback_rig()
+        machine = rig.machine
+        rig.open_songs()
+        rig.play_song(1)
+        self.assertTrue(rig.audio.running)
+        machine.host_absent = True
+        machine.vbus = True
+        rig.run_for(CABLE_STEADY_MS + 500)
+        self.assertEqual(rig.session.usb_overlay_reads("slot_1"), [])
+        self.assertEqual(rig.session.usb_overlay_reads("slot_2"), [])
+        self.assertFalse(machine.overlays[0].loaded(machine))
+        self.assertTrue(rig.audio.running)
+        self.assert_healthy(rig.session)
 
     def test_on_the_charge_screen_only_a_host_wakes_the_prompt_and_silence_keeps_charging(self):
         session, machine, asked, charge_frames, dark = self.charging_on_a_charger()

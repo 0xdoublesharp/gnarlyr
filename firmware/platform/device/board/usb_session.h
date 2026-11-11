@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "app/app.h"
 #include "device/usb_forced.h"
 #include "emmc.h"
 #include "hal/system.h"
@@ -48,6 +49,7 @@ typedef struct UsbOverlayEntry {
     uint32_t magic;
     bool (*storage)(UsbShared *shared);
     void (*dac)(UsbShared *shared);
+    AppUsbRenderer draw;
 #ifdef ECHO_DEBUG_LOOP
     void (*report)(const UsbShared *shared, uint32_t reason);
 #endif

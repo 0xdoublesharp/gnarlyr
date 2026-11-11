@@ -22,6 +22,7 @@ Gnarlyr 1.0.0 is not released. The developer firmware runs on the owner's full-s
 
 These checks remain incomplete on the owner's unit; the observed developer flows above do not replace them.
 
+- **USB status rendering from the overlay.** Native checks cover the renderer and resident fallback at every text size and orientation; ARM scenarios cover registration, session return, damaged copies, charger detection and the connect prompt. The changed rendering path still needs a player check.
 - **USB compatibility beyond the owner's Mac.** Storage enumeration and automatic reconnect with the overlay have worked on that Mac; broader host compatibility and sustained transfer checks remain.
 - **USB DAC mode,** which now also runs from the overlay.
 - **Lower-rate speech playback and the independent audio module.** Native tests cover conversion, duration, seeking and chapter boundaries; ARM scenarios cover WAV playback during menu changes, module corruption/fallback and actual AAC packet parsing/seeking through the module. On the player the earlier, unfolded kernel underran with 16 kHz AAC and 8 kHz WAV (core 0 73 to 91 % busy). The folded kernel with full clock during conversion has not yet been measured on the player; that, DAC clocks and both outputs still need player checks.

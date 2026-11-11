@@ -181,6 +181,21 @@ set(ECHO_OVERLAY_IMPORTS
     app_remember_dac_volume
     app_show_notice
     app_show_usb_status
+    charge_screen_text
+    charge_screen_level_text
+    charge_screen_usb_title
+    canvas_fill_rect
+    canvas_fill_gradient
+    canvas_clipped
+    font_find_glyph
+    home_art_draw_backdrop
+    label_draw
+    label_draw_wrapped
+    label_centered_area
+    label_wrap_count
+    text_width
+    text_draw_glyph_scaled
+    utf8_next
     app_usb_battery_changed
     board_audio_set_attenuation
     board_audio_stream_close
@@ -349,6 +364,7 @@ target_link_options(echo_rescan_overlay PRIVATE
 set(ECHO_USB_OVERLAY_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/usb_overlay.ld)
 add_executable(echo_usb_overlay
     overlay/usb_overlay.c
+    ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen.c
     board/update.c
     board/usb_dac_session.c
     board/time_file_take.c
@@ -366,6 +382,7 @@ add_dependencies(echo_usb_overlay echo_device)
 target_include_directories(echo_usb_overlay PRIVATE
     board
     logic
+    ${PROJECT_SOURCE_DIR}/src/app
     $<TARGET_PROPERTY:echo_app,INTERFACE_INCLUDE_DIRECTORIES>
     $<TARGET_PROPERTY:echo_settings,INTERFACE_INCLUDE_DIRECTORIES>
 )
