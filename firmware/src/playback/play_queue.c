@@ -92,8 +92,12 @@ static bool build_album_queue(PlayQueue *queue)
     LibraryTrack anchor;
     LibraryAlbum album;
     uint32_t albums = library_music_count(queue->library, LIBRARY_ALBUMS);
+    uint32_t tracks = library_count(queue->library, LIBRARY_TRACKS);
     if (!library_read_track(queue->library, queue->plan.anchor_track, &anchor) ||
-        !library_read_album(queue->library, anchor.album, &album) || anchor.album >= albums) {
+        !library_read_album(queue->library, anchor.album, &album) || anchor.album >= albums ||
+        queue->plan.anchor_track < album.first_track ||
+        queue->plan.anchor_track >= (uint32_t)album.first_track + album.track_count ||
+        (uint32_t)album.first_track + album.track_count > tracks) {
         return false;
     }
     queue->base_count = (uint16_t)(albums < MOST_ENTRIES ? albums : MOST_ENTRIES);
@@ -168,17 +172,39 @@ static bool album_at(const PlayQueue *queue, uint16_t position, LibraryAlbum *al
     return entry_at(queue, position, &index) && library_read_album(queue->library, index, album);
 }
 
-bool play_queue_track_at(const PlayQueue *queue, PlayQueueCursor cursor, uint16_t *track)
+static bool album_cursor(const PlayQueue *queue, PlayQueueCursor cursor, LibraryAlbum *album)
 {
-    if (queue->stored_order != NULL) {
-        return cursor.album_track == 0 && stored_current(queue) &&
-               track_order_read(queue->stored_order, cursor.position, 1, track);
-    }
+    return cursor.position < queue->count && album_at(queue, cursor.position, album) &&
+           cursor.album_track < album->track_count &&
+           (uint32_t)album->first_track + cursor.album_track <
+               library_count(queue->library, LIBRARY_TRACKS);
+}
+
+static bool cursor_valid(const PlayQueue *queue, PlayQueueCursor cursor)
+{
     if (!shuffles_albums(queue)) {
-        return entry_at(queue, cursor.position, track);
+        return cursor.position < queue->count && cursor.album_track == 0;
     }
     LibraryAlbum album;
-    if (!album_at(queue, cursor.position, &album) || cursor.album_track >= album.track_count) {
+    return album_cursor(queue, cursor, &album);
+}
+
+bool play_queue_track_at(const PlayQueue *queue, PlayQueueCursor cursor, uint16_t *track)
+{
+    if (!stored_current(queue)) {
+        return false;
+    }
+    if (queue->stored_order != NULL) {
+        if (!cursor_valid(queue, cursor)) {
+            return false;
+        }
+        return track_order_read(queue->stored_order, cursor.position, 1, track);
+    }
+    if (!shuffles_albums(queue)) {
+        return cursor_valid(queue, cursor) && entry_at(queue, cursor.position, track);
+    }
+    LibraryAlbum album;
+    if (!album_cursor(queue, cursor, &album)) {
         return false;
     }
     *track = (uint16_t)(album.first_track + cursor.album_track);
@@ -209,7 +235,7 @@ static bool album_neighbor(const PlayQueue *queue, PlayQueueCursor from, int dir
                            PlayQueueCursor *result)
 {
     LibraryAlbum album;
-    if (!album_at(queue, from.position, &album)) {
+    if (!album_cursor(queue, from, &album)) {
         return false;
     }
     int track = from.album_track + direction;
@@ -223,20 +249,25 @@ static bool album_neighbor(const PlayQueue *queue, PlayQueueCursor from, int dir
         return false;
     }
     uint16_t last_track = album.track_count > 0 ? (uint16_t)(album.track_count - 1) : 0;
-    *result = (PlayQueueCursor){position, direction > 0 ? 0 : last_track};
+    PlayQueueCursor next = {position, direction > 0 ? 0 : last_track};
+    if (!album_cursor(queue, next, &album)) {
+        return false;
+    }
+    *result = next;
     return true;
 }
 
 bool play_queue_step(const PlayQueue *queue, PlayQueueCursor from, int direction, bool wrap,
                      PlayQueueCursor *result)
 {
-    bool stored = queue->stored_order != NULL;
-    if (!stored_current(queue) ||
-        (stored && (from.album_track != 0 || from.position >= queue->count))) {
+    if (!stored_current(queue)) {
         return false;
     }
     if (shuffles_albums(queue)) {
         return album_neighbor(queue, from, direction, wrap, result);
+    }
+    if (!cursor_valid(queue, from)) {
+        return false;
     }
     uint16_t position = 0;
     if (!neighbor_position(queue, from.position, direction, wrap, &position)) {
@@ -257,6 +288,9 @@ bool play_queue_upcoming(const PlayQueue *queue, RepeatMode repeat, PlayQueueCur
         return false;
     }
     if (repeat == REPEAT_ONE) {
+        if (!cursor_valid(queue, queue->cursor)) {
+            return false;
+        }
         *result = queue->cursor;
         return queue->count > 0;
     }
@@ -274,13 +308,13 @@ PlayQueuePlace play_queue_place(const PlayQueue *queue)
         return (PlayQueuePlace){0, 0};
     }
     if (!shuffles_albums(queue)) {
-        if (queue->cursor.position >= queue->count) {
+        if (!cursor_valid(queue, queue->cursor)) {
             return (PlayQueuePlace){0, 0};
         }
         return (PlayQueuePlace){(uint16_t)(queue->cursor.position + 1), queue->count};
     }
     LibraryAlbum album;
-    if (!album_at(queue, queue->cursor.position, &album)) {
+    if (!album_cursor(queue, queue->cursor, &album)) {
         return (PlayQueuePlace){0, 0};
     }
     return (PlayQueuePlace){(uint16_t)(queue->cursor.album_track + 1), album.track_count};
@@ -289,7 +323,7 @@ PlayQueuePlace play_queue_place(const PlayQueue *queue)
 void play_queue_stream_init(PlayQueueStream *stream, const PlayQueue *queue)
 {
     bool usable =
-        stored_current(queue) && (queue->count == 0 || queue->cursor.position < queue->count);
+        stored_current(queue) && (queue->count == 0 || cursor_valid(queue, queue->cursor));
     *stream = (PlayQueueStream){.queue = *queue,
                                 .count = queue->count,
                                 .current = queue->cursor.position,
