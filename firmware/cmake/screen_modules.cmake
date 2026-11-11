@@ -26,8 +26,10 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/playback/mix_resolve.c
     src/playback/mix_tape.c
     src/app/screens/cover_flow_screen.c
+    src/app/cover_placeholders.c
     src/app/screens/up_next_screen.c
     src/ui/cover_flow.c
+    src/ui/placeholder_art.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/language_list.c

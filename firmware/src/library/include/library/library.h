@@ -6,6 +6,9 @@
 
 #include "library/byte_source.h"
 
+#define LIBRARY_UNKNOWN_ARTIST "Unknown Artist"
+#define LIBRARY_UNKNOWN_ALBUM "Unknown Album"
+
 typedef enum LibrarySection {
     LIBRARY_TRACKS,
     LIBRARY_ALBUMS,

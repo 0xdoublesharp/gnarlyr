@@ -3,9 +3,11 @@
 #include <stddef.h>
 
 #include "board_layout.h"
+#include "core/hash.h"
 #include "core/i18n.h"
 #include "core/random.h"
 #include "core/string_builder.h"
+#include "cover_placeholders.h"
 #include "draw_profile.h"
 #include "hal/clock.h"
 #include "library/sort_key.h"
@@ -377,6 +379,16 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
     return screen_action_none();
 }
 
+static void repaint_placeholders(CoverFlowScreen *flow)
+{
+    const Theme *theme = flow->config.theme;
+    uint32_t palette = hash_update(HASH_START, &theme->colors, sizeof theme->colors);
+    if (flow->art_palette != palette) {
+        cover_placeholders_paint(flow->config.covers, theme, COVER_PLACEHOLDER);
+        flow->art_palette = palette;
+    }
+}
+
 static void enter(void *context, uint32_t now_ms)
 {
     CoverFlowScreen *flow = context;
@@ -393,6 +405,7 @@ static void enter(void *context, uint32_t now_ms)
     flow->last_ms = now_ms;
     flow->now_ms = now_ms;
     refresh_text(flow, true);
+    repaint_placeholders(flow);
 }
 
 static void update(void *context, uint32_t now_ms)
@@ -403,7 +416,13 @@ static void update(void *context, uint32_t now_ms)
     flow->last_ms = now_ms;
     flow->now_ms = now_ms;
     load_covers(flow);
+    cover_placeholders_paint(flow->config.covers, flow->config.theme, COVER_MISSING);
     refresh_text(flow, false);
+}
+
+static bool shown(CoverState state)
+{
+    return state == COVER_LOADED || state == COVER_PLACEHOLDER;
 }
 
 static bool cover_image(const CoverFlowScreen *flow, int position, Image *image)
@@ -413,8 +432,8 @@ static bool cover_image(const CoverFlowScreen *flow, int position, Image *image)
         return true;
     }
     uint16_t album = album_of(flow, position);
-    return cover_cache_full(flow->config.covers, album, image) == COVER_LOADED ||
-           cover_cache_half(flow->config.covers, position, album, image) == COVER_LOADED;
+    return shown(cover_cache_full(flow->config.covers, album, image)) ||
+           shown(cover_cache_half(flow->config.covers, position, album, image));
 }
 
 static void draw_cover(const CoverFlowScreen *flow, Canvas *canvas, int position)
@@ -547,6 +566,7 @@ Screen *cover_flow_screen_init(CoverFlowScreen *flow, CoverFlowConfig config)
     flow->position = 0;
     flow->positioned = false;
     flow->text_position = NO_POSITION;
+    flow->art_palette = 0;
     flow->scroll_started_ms = 0;
     flow->section_shown_until_ms = 0;
     flow->title[0] = '\0';

@@ -64,7 +64,7 @@ static bool cover_missing(const HomeArt *art, uint16_t album)
 {
     Image ignored;
     cover_cache_load_full(art->covers, album);
-    return cover_cache_full(art->covers, album, &ignored) == COVER_MISSING;
+    return cover_cache_full(art->covers, album, &ignored) != COVER_LOADED;
 }
 
 static void show_next_with_a_cover(HomeArt *art, uint32_t count)

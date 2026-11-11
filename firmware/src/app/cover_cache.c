@@ -39,7 +39,7 @@ static int slot_of(int position)
 
 static CoverState state_of(CoverState state, Image *image, Image loaded)
 {
-    if (state == COVER_LOADED) {
+    if (state != COVER_MISSING) {
         *image = loaded;
     }
     return state;

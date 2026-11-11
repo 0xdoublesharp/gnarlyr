@@ -16,7 +16,8 @@ enum {
 typedef enum CoverState {
     COVER_EMPTY,
     COVER_LOADED,
-    COVER_MISSING
+    COVER_MISSING,
+    COVER_PLACEHOLDER
 } CoverState;
 
 typedef struct CoverSlot {
