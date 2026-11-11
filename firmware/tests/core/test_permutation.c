@@ -83,6 +83,16 @@ static void neighbours_rarely_stay_neighbours(void)
     CHECK(kept < ORDER_LENGTH);
 }
 
+static void empty_and_out_of_range_indices_are_returned_unchanged(void)
+{
+    Permutation empty = permutation_make(0, 0);
+    CHECK_EQUAL(0u, permutation_at(&empty, 0));
+    CHECK_EQUAL(UINT32_MAX, permutation_at(&empty, UINT32_MAX));
+    Permutation items = permutation_make(17, 7);
+    CHECK_EQUAL(17u, permutation_at(&items, 17));
+    CHECK_EQUAL(UINT32_MAX, permutation_at(&items, UINT32_MAX));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -92,6 +102,7 @@ int main(void)
         TEST_CASE(different_seeds_give_different_orders),
         TEST_CASE(the_order_is_not_the_list_order),
         TEST_CASE(neighbours_rarely_stay_neighbours),
+        TEST_CASE(empty_and_out_of_range_indices_are_returned_unchanged),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
