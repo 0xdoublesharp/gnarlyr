@@ -138,7 +138,7 @@ def configure(preset, env, python):
         if compiler is None:
             raise SystemExit("Missing prerequisite: clang; see README.md")
         command.append(f"-DCMAKE_C_COMPILER={compiler}")
-    launcher = shutil.which("sccache", path=env["PATH"]) if env.get("ECHO_COMPILER_CACHE", "0") == "1" else None
+    launcher = shutil.which("sccache", path=env["PATH"]) if env.get("ECHO_COMPILER_CACHE", "1") != "0" else None
     command.append(f"-DCMAKE_C_COMPILER_LAUNCHER={launcher or ''}")
     run(command, env)
 
