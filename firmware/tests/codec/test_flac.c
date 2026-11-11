@@ -439,6 +439,77 @@ static void put_frame_bits(uint8_t *bytes, uint32_t *position, uint32_t value, u
     }
 }
 
+static void sample_size_header_codes_preserve_signed_values(void)
+{
+    static const struct {
+        uint8_t code;
+        uint8_t bits;
+    } cases[] = {{0, 16}, {1, 8}, {2, 12}, {4, 16}, {5, 20}, {6, 24}};
+    for (uint32_t index = 0; index < sizeof cases / sizeof cases[0]; index++) {
+        uint8_t bytes[64] = {0xff, 0xf8, 0x69, 0, 0, 15};
+        bytes[3] = (uint8_t)(cases[index].code << 1);
+        uint32_t at = 6;
+        bytes[at] = frame_crc8(bytes, at);
+        at++;
+        bytes[at++] = 0;
+        uint32_t bit = at * 8;
+        put_frame_bits(bytes, &bit, (1u << cases[index].bits) - 3, cases[index].bits);
+        at = (bit + 7) / 8;
+        uint16_t crc = frame_crc16(bytes, at);
+        bytes[at++] = (uint8_t)(crc >> 8);
+        bytes[at++] = (uint8_t)crc;
+        Buffer input = {bytes, at};
+        FlacInfo info = {.sample_rate = 44100,
+                         .channels = 1,
+                         .bits_per_sample = cases[index].bits,
+                         .min_block = 16,
+                         .max_block = 16,
+                         .total_samples = 16};
+        flac_start(&decoder, input_of(&input), info);
+        CHECK_EQUAL(FLAC_OK, flac_decode_frame(&decoder));
+        CHECK_EQUAL(16u, decoder.block_samples);
+        for (uint32_t sample = 0; sample < 16; sample++) {
+            CHECK_EQUAL(-3, flac_channel(&decoder, 0)[sample]);
+        }
+        CHECK_EQUAL(FLAC_END, flac_decode_frame(&decoder));
+    }
+}
+
+static void invalid_frame_headers_never_publish_samples(void)
+{
+    static const struct {
+        uint8_t sync;
+        uint8_t block_rate;
+        uint8_t channel_size;
+        bool bad_crc;
+    } cases[] = {
+        {0xfa, 0x69, 0x08, false}, {0xf8, 0x6f, 0x08, false}, {0xf8, 0x09, 0x08, false},
+        {0xf8, 0xd9, 0x08, false}, {0xf8, 0x69, 0x06, false}, {0xf8, 0x69, 0x0e, false},
+        {0xf8, 0x69, 0xb8, false}, {0xf8, 0x69, 0x18, false}, {0xf8, 0x69, 0x08, true},
+    };
+    for (uint32_t index = 0; index < sizeof cases / sizeof cases[0]; index++) {
+        uint8_t bytes[32] = {0xff, cases[index].sync, cases[index].block_rate,
+                             cases[index].channel_size, 0};
+        uint32_t at = 5;
+        if ((cases[index].block_rate >> 4) == 6) {
+            bytes[at++] = 15;
+        }
+        bytes[at] = (uint8_t)(frame_crc8(bytes, at) ^ (cases[index].bad_crc ? 1 : 0));
+        at++;
+        at += 8;
+        Buffer input = {bytes, at};
+        FlacInfo info = {.sample_rate = 44100,
+                         .channels = 1,
+                         .bits_per_sample = 16,
+                         .min_block = 16,
+                         .max_block = 16,
+                         .total_samples = 16};
+        flac_start(&decoder, input_of(&input), info);
+        CHECK_EQUAL(FLAC_ERROR, flac_decode_frame(&decoder));
+        CHECK_EQUAL(0u, decoder.block_samples);
+    }
+}
+
 static void escaped_residuals_decode_signed_samples_with_both_rice_methods(void)
 {
     for (uint32_t method = 0; method <= 1; method++) {
@@ -867,6 +938,8 @@ int main(void)
         TEST_CASE(rfc_9639_partitioned_lpc_decodes_the_specified_samples),
         TEST_CASE(all_fixed_predictor_orders_restore_their_expected_samples),
         TEST_CASE(escaped_residuals_decode_signed_samples_with_both_rice_methods),
+        TEST_CASE(sample_size_header_codes_preserve_signed_values),
+        TEST_CASE(invalid_frame_headers_never_publish_samples),
         TEST_CASE(blocks_larger_than_the_buffer_are_refused),
         TEST_CASE(unsupported_streaminfo_limits_are_rejected),
         TEST_CASE(a_file_that_is_not_flac_is_refused),
