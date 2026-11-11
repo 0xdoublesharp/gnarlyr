@@ -603,7 +603,7 @@ static bool find_run(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track, 
         uint32_t samples;
         uint32_t end;
         if (!read_run(input, track, run, &first, &samples) || !run_end(input, track, run, &end) ||
-            samples == 0 || end <= first) {
+            (run == 0 && first != 1) || samples == 0 || end <= first) {
             return false;
         }
         uint64_t span = (uint64_t)(end - first) * samples;
