@@ -44,6 +44,7 @@
 <p class="intro">Browse albums, search for a song or narrow a long list. Personal labels help organize music without editing the files.</p>
 <ul class="detail-list">
 <li><strong>Browse your music.</strong> Explore albums, artists, album artists, genres, folders and songs, with embedded or folder artwork, Cover Flow and random-album playback.</li>
+<li><strong>Covers for every album.</strong> Albums without artwork get a colored cover with initials in Cover Flow. The colors follow your theme, and your music files stay unchanged.</li>
 <li><strong>Browse Cover Flow by letter.</strong> Hold a volume button to scroll faster; keep holding to jump between initials. A temporary letter badge shows your place. Play opens the selected album and holding Play favorites it.</li>
 <li><strong>Search the whole collection.</strong> Search titles, artists, albums, album artists, genres and file paths. Matching ignores case and accents; names keep their original spelling on screen.
 </li>
@@ -68,6 +69,7 @@
 <ul class="detail-list">
 <li id="gapless"><strong>Gapless playback.</strong> Play compatible, same-sample-rate tracks continuously. MP3 files need gapless information, such as a LAME tag, to trim the encoder’s extra samples. Gnarlyr’s decoder improvements also handle MP3 end trimming after seeking or resuming, and AAC startup trimming and track timing. <a href="#playback-fixes">Read about the playback improvements below.</a></li>
 <li><strong>Supported audio.</strong> Play FLAC, MP3 and WAV, with rates up to 192 kHz for compatible files, plus M4A and M4B containing AAC-LC or Apple Lossless.</li>
+<li><strong>Ogg audio in development.</strong> The current source connects Vorbis and Opus to file opening, seeking and resume. <a href="build.html#codecs">See the audio guide for format limits and player checks.</a></li>
 <li><strong>Playlists and album images.</strong> M3U/M3U8 playlists, album favorites, a Favorite Tracks playlist, and CUE sheets that split a single FLAC, WAV or MP3 album into separate tracks.
 </li>
 <li><strong>Shuffle, repeat and resume.</strong> Shuffle songs or whole albums, repeat your selection, seek within a track and resume playback. Audiobooks and podcasts keep their own bookmarks.</li>
@@ -95,13 +97,14 @@
 <ul class="detail-list">
 <li><strong>Sound controls.</strong> Gain and headphone volume-scale settings, software EQ presets, saved custom curves and EQ-file imports.
 </li>
+<li><strong>Consistent listening levels.</strong> ReplayGain reads loudness tags already in your music. Track balances individual songs; Album preserves the differences within an album. Prevent clipping limits boosts that could distort the sound.</li>
 <li><strong>Audible preset previews.</strong> Hear EQ presets as you browse their curves. Play keeps a preset; Back or leaving the preview restores your saved sound.
 </li>
 <li><strong>Custom EQ editing.</strong> Adjust each band with numeric feedback and hear the draft as you work. Play keeps an adjustment; Back cancels it.
 </li>
 <li><strong>Timed lyrics.</strong> Keep a matching LRC lyrics file beside the song. Hold Menu on Now Playing to follow the words as it plays.
 </li>
-<li><strong>Listening totals and exports.</strong> See time listened, plays, skips and your top artists, albums and songs. Export an Audioscrobbler-compatible <code>.scrobbler.log</code> for other listening tools.
+<li><strong>Listening totals and exports.</strong> See time listened, plays, skips and your top artists, albums and songs. Export an Audioscrobbler-compatible <code>.scrobbler.log</code> for other listening tools. See progress while it saves, cancel with Back and read the number of plays exported.
 </li>
 </ul>
 
@@ -133,7 +136,7 @@
 </li>
 <li><strong>Controls that fit your hands.</strong> Set a tap and a hold action for Volume+, Volume−, Play and Menu: eight playback shortcuts. Choose volume, seeking, playback, Home or Up Next actions. Audio shortcuts work with the screen off; list navigation keeps its usual controls.
 </li>
-<li><strong>A cassette-inspired interface.</strong> Album artwork, cassette art and clear playback indicators connect Home, Music and Now Playing. Refined shuffle, repeat, favorite, album, gain and speaker icons make controls easier to recognize; Cover Flow’s Random album tile uses smoother artwork sampling. Audio &amp; connections groups sound and connection controls together.
+<li><strong>A cassette-inspired interface.</strong> Album artwork, cassette art and clear playback indicators connect Home, Music and Now Playing. Refined shuffle, repeat, favorite, album, gain and speaker icons make controls easier to recognize; Cover Flow’s Random album tile uses smoother artwork sampling. A compact battery icon shows remaining charge, with an internal bolt for USB power and red warnings when charge runs low.
 </li>
 <li><strong>Language packs.</strong> English is built in. Use the <a href="languages.html">language-pack builder</a> to create, inspect or edit a pack in your browser, then install it over USB and choose Settings → Language. Version-matched packs change interface text without reinstalling firmware; English remains available.
 </li>
@@ -163,8 +166,15 @@
 <h3>Playback and listening records</h3>
 <ul class="detail-list">
 <li><strong>Listening totals stop with the track.</strong> Idle playback closes the listening record, and time accounting stops at a known track endpoint. Top-list calculations report unavailable history when required records cannot be read.</li>
+<li><strong>Play-log exports finish cleanly.</strong> Exports replace the file at its exact text length, removing old padding and leftover records. Empty history leaves an existing export alone; cancellation removes a partial export, and storage failures show a result.</li>
 <li><strong>Pauses do not inflate diagnostic counts.</strong> Intentionally muted, paused output is excluded from false output-underrun reports.</li>
 <li><strong>DAC startup matches stock timing.</strong> The output power-up wait is 12 ms, correcting the inherited 10 ms wait.</li>
+</ul>
+<h3>Audio-file checks</h3>
+<p>Files can contain damaged or contradictory information. These checks reject invalid data before it is used to locate or decode audio.</p>
+<ul class="detail-list">
+<li><strong>FLAC headers agree with the audio.</strong> Metadata order, lengths and sample ranges are checked. Frame sample rates, bit depths and block sizes must match the stream’s declared limits.</li>
+<li><strong>M4A and M4B stay within their file boundaries.</strong> Sample tables, chunk descriptions, timing and AAC/ALAC configuration are checked. Truncated records and unsupported decoder configurations are rejected.</li>
 </ul>
 <h3>Library and navigation</h3>
 <ul class="detail-list">
@@ -181,7 +191,7 @@
 <ul class="detail-list">
 <li><strong>USB-C detection follows the cable.</strong> USB power control uses the correct supply settings as the cable connects and disconnects.</li>
 <li><strong>Continuous button-lock hold in source.</strong> If either Play or Power is released and pressed again before the combination completes, the hold timer restarts. A completed hold toggles the lock only once until both keys are released.</li>
-<li><strong>New activity resets wake timers.</strong> A recent wake event no longer makes the screen timeout or automatic power-off timer expire immediately.</li>
+<li><strong>Power timers stay within their range.</strong> New activity resets wake timers without expiring screen timeout or auto off immediately. Screen, sleep and auto-off delays are bounded so large values cannot break clock comparisons.</li>
 <li><strong>Charging views keep the right code active.</strong> The charging screen no longer continues updating an interface module that has been replaced.</li>
 <li><strong>Power states stay distinct.</strong> The USB screen shows Storage or DAC mode, a battery estimate and the relevant drive, eject, audio-format or volume details. Charging, charged and USB-powered states stay separate; a USB supply reading is not shown as battery voltage.</li>
 <li><strong>The interface does less unnecessary work.</strong> Bounded progress redraws, idle sleeping, frame pacing and clock coasting reduce processor work.</li>
