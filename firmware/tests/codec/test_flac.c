@@ -441,13 +441,16 @@ static void put_frame_bits(uint8_t *bytes, uint32_t *position, uint32_t value, u
 
 static void stereo_channel_assignments_reconstruct_signed_samples_exactly(void)
 {
-    static const int32_t pairs[][2] = {{1000, -5}, {-7, 11}};
+    static const int32_t pairs[][2] = {
+        {1000, -5}, {-7, 11}, {-8, 3}, {32767, -32768}, {-32768, 32767}};
     for (uint32_t assignment = 8; assignment <= 10; assignment++) {
         for (uint32_t index = 0; index < sizeof pairs / sizeof pairs[0]; index++) {
             int32_t left = pairs[index][0];
             int32_t right = pairs[index][1];
             int32_t side = left - right;
-            int32_t first = assignment == 8 ? left : assignment == 9 ? side : (left + right) / 2;
+            int32_t sum = left + right;
+            int32_t mid = sum / 2 - (sum < 0 && sum % 2 != 0);
+            int32_t first = assignment == 8 ? left : assignment == 9 ? side : mid;
             int32_t second = assignment == 9 ? right : side;
             uint32_t first_width = assignment == 9 ? 17 : 16;
             uint32_t second_width = assignment == 9 ? 16 : 17;
