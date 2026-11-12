@@ -359,8 +359,7 @@ static ScanResult add_read_file(ScanState *state, const ScanJob *job, ScanStats 
         mp4_chapters_open(&state->chapters, source, size, state->tags.duration_ms)) {
         return scan_add_chapters(state, job, stats);
     }
-    ScanResult result =
-        scan_builder_result(library_builder_add_track(&state->builder, &state->fields.track));
+    ScanResult result = scan_add_track(state, &state->fields.track);
     stats->tracks += result == SCAN_OK;
     return result;
 }
@@ -579,6 +578,15 @@ static ScanResult read_playlists(ScanState *state, const ScanJob *job)
     return result;
 }
 
+ScanResult scan_add_track(ScanState *state, const BuilderTrack *track)
+{
+    if (state->filter.hidden != NULL && state->filter.hidden(state->filter.context, track)) {
+        state->hidden++;
+        return SCAN_OK;
+    }
+    return scan_builder_result(library_builder_add_track(&state->builder, track));
+}
+
 ScanResult library_scan(const ScanJob *job, ScanStats *stats)
 {
     *stats = (ScanStats){.files = 0, .tracks = 0, .skipped = 0, .length = 0};
@@ -587,8 +595,11 @@ ScanResult library_scan(const ScanJob *job, ScanStats *stats)
         return SCAN_OUT_OF_MEMORY;
     }
     state->path[0] = '/';
+    state->filter = job->filter;
+    state->hidden = 0;
     scan_truncate_path(state, 1);
     ScanResult result = walk(state, job, stats);
+    stats->tracks -= state->hidden;
     if (result == SCAN_OK) {
         result = read_playlists(state, job);
     }

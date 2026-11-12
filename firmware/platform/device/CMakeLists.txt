@@ -358,6 +358,7 @@ if(CMAKE_CROSSCOMPILING)
         board/usb_report.c
         board/usb_session.c
         ${PROJECT_SOURCE_DIR}/src/app/library_rescan_job.c
+        ${PROJECT_SOURCE_DIR}/src/app/hidden_scan.c
         ${PROJECT_SOURCE_DIR}/src/app/scan_guard.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
@@ -380,6 +381,7 @@ set(ECHO_OVERLAY_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/rescan_overla
 add_executable(echo_rescan_overlay
     overlay/rescan_overlay.c
     ${PROJECT_SOURCE_DIR}/src/app/library_rescan_job.c
+    ${PROJECT_SOURCE_DIR}/src/app/hidden_scan.c
     ${PROJECT_SOURCE_DIR}/src/app/scan_guard.c
 )
 target_include_directories(echo_rescan_overlay PRIVATE

@@ -18,6 +18,9 @@ add_library(echo_app STATIC
     player_queue.c
     queue_edits.c
     queue_actions.c
+    track_removal.c
+    hidden_tracks.c
+    hidden_choice.c
     mixtape_store.c
     mixtape_ui.c
     cassette_ui.c
@@ -98,7 +101,7 @@ if(ECHO_BUILD_DEVICE)
     target_sources(echo_app PRIVATE extension_calls.c)
     target_compile_definitions(echo_app PRIVATE ECHO_USB_OVERLAY_RENDERER)
 else()
-    target_sources(echo_app PRIVATE modules/linked_modules.c library_rescan_job.c scan_guard.c
+    target_sources(echo_app PRIVATE modules/linked_modules.c library_rescan_job.c hidden_scan.c scan_guard.c
         screens/usb_dac_menu.c screens/usb_screen.c
         screens/usb_screen_dac.c)
 endif()

@@ -147,12 +147,12 @@ static Screen *browse_play_group(void *context, BrowseScreen *browse)
     return entry != NULL ? entry->browse(screens, browse, true) : NULL;
 }
 
-static Screen *track_tape(void *context, uint16_t track)
+static Screen *track_manage(void *context, uint16_t track, SongManage manage)
 {
     AppScreens *screens = context;
     const ViewsModuleEntry *entry =
         (const ViewsModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_VIEWS);
-    return entry != NULL ? entry->add(&screens->modules.views.mixtapes, track) : NULL;
+    return entry != NULL ? entry->manage(screens, track, manage) : NULL;
 }
 
 static Screen *track_info(void *context, uint16_t track)
@@ -235,7 +235,7 @@ static void build_music(AppScreens *screens, AppScreensContext context)
         .options = browse_options,
         .info = track_info,
         .tags = track_tags,
-        .tape = track_tape,
+        .manage = track_manage,
         .play_group = browse_play_group,
         .tools_context = screens,
     };

@@ -878,7 +878,7 @@ static void bind_status_bar(SettingsScreens *screens)
                          .theme = screens->theme,
                          .detail_below = true};
     Screen *menu = menu_screen_init(&screens->status_menu, config);
-    screens->items[SETTINGS_STATUS_CHOICE + 5] = (MenuItem){.label = i18n_text(STR_STATUS_BAR),
+    screens->items[SETTINGS_STATUS_CHOICE + 6] = (MenuItem){.label = i18n_text(STR_STATUS_BAR),
                                                             .select = menu_open_screen,
                                                             .context = menu,
                                                             .opens = true};
@@ -920,6 +920,7 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
     screens->items[SETTINGS_RESCAN_ITEM] = (MenuItem){.label = i18n_text(STR_RESCAN_LIBRARY),
                                                       .select = request_rescan,
                                                       .context = &screens->context};
+    screens->items[SETTINGS_HIDDEN_ITEM] = hidden_choice_item(screens);
     screens->items[SETTINGS_BLUETOOTH_ITEM] = (MenuItem){.label = i18n_text(STR_BLUETOOTH),
                                                          .select = bluetooth_screen_open,
                                                          .context = context.bluetooth,
@@ -939,6 +940,7 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
         item = item < SETTINGS_DATE_TIME_ITEM ? item : item + 1;
         item = item < SETTINGS_CUSTOM_EQ_ITEM ? item : item + 1;
         item = item < SETTINGS_RESCAN_ITEM ? item : item + 1;
+        item = item < SETTINGS_HIDDEN_ITEM ? item : item + 1;
         screens->items[item] = (MenuItem){.label = i18n_text(CHOICES[index].title),
                                           .select = open_choice,
                                           .context = &screens->entries[index],

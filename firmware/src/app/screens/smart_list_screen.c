@@ -168,7 +168,8 @@ static void begin_rank(SmartListScreen *screen)
                               .log = &screen->config.listening->log,
                               .keys = &work->keys,
                               .favorites = gather_favorites(screen),
-                              .scratch = {work->scratch.tallies, SMART_LIST_TALLIES}};
+                              .scratch = {work->scratch.tallies, SMART_LIST_TALLIES},
+                              .library = library_of(screen)};
     if (!smart_list_begin(&ranking->list, config)) {
         fail(screen);
         return;

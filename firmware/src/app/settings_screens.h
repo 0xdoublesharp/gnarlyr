@@ -7,6 +7,7 @@
 #include "core/power_policy.h"
 #include "equalizer_presets.h"
 #include "headphone_editor.h"
+#include "hidden_tracks.h"
 #include "language.h"
 #include "player.h"
 #include "screens/bluetooth_screen.h"
@@ -34,12 +35,13 @@ enum {
     SETTINGS_LANGUAGE_ITEM = 13,
     SETTINGS_CUSTOM_EQ_ITEM = 18,
     SETTINGS_RESCAN_ITEM = 22,
-    SETTINGS_TRANSITION_LENGTH_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 3,
-    SETTINGS_HEADPHONES_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 5,
-    SETTINGS_FORMAT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 6,
-    SETTINGS_HOME_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 7,
-    SETTINGS_CONTROLS_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 8,
-    SETTINGS_ITEM_COUNT = SETTINGS_MAIN_CHOICE_COUNT + 9,
+    SETTINGS_HIDDEN_ITEM = 23,
+    SETTINGS_TRANSITION_LENGTH_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 4,
+    SETTINGS_HEADPHONES_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 6,
+    SETTINGS_FORMAT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 7,
+    SETTINGS_HOME_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 8,
+    SETTINGS_CONTROLS_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 9,
+    SETTINGS_ITEM_COUNT = SETTINGS_MAIN_CHOICE_COUNT + 10,
     SETTINGS_MESSAGE_CAPACITY = 64,
     SETTINGS_COUNTDOWN_CAPACITY = 16
 };
@@ -60,6 +62,7 @@ typedef struct SettingsContext {
     void (*format_finished)(bool success);
     bool *rescan_requested;
     bool *language_requested;
+    LibraryStore *library;
     BluetoothScreen *bluetooth;
     Theme *theme;
     EqualizerPresets *presets;
@@ -110,6 +113,7 @@ struct SettingsScreens {
         SetClockScreen clock;
         EqualizerBrowser equalizer_browser;
         EqualizerScreen equalizer;
+        HiddenTracksChoice hidden;
     };
     ButtonSettings buttons;
     HeadphoneEditor headphones;
@@ -125,3 +129,4 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                               const Theme *theme);
 bool settings_screens_choose(SettingsScreens *screens, DebugSpan title, DebugSpan option);
 Screen *settings_screens_usb_modes(SettingsScreens *screens, bool prompt);
+MenuItem hidden_choice_item(SettingsScreens *screens);
