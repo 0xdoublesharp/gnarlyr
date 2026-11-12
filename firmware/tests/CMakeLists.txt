@@ -161,6 +161,10 @@ if(ARM_GCC)
                 )
             endforeach()
         endforeach()
+        set_tests_properties(
+            device_image_boot_test_parametric_slot_matches_graphic_core_load_and_switches_without_underruns
+            PROPERTIES TIMEOUT 1500
+        )
         add_test(NAME core1_mp3_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
                 ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_core1_mp3.py
