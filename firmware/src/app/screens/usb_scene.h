@@ -104,7 +104,6 @@ typedef struct UsbScene {
     const ListView *menu;
     void (*service)(void);
     uint8_t page;
-    uint8_t phase;
     UsbMeter meter;
     UsbSceneLink link;
     UsbSceneUsage usage[USB_SCENE_DRIVES];

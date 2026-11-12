@@ -12,7 +12,8 @@ enum {
     TERRAIN_HEADROOM_SHARE = 5,
     TERRAIN_FADE_STEP = 2,
     TERRAIN_FLOOR_ALPHA = 96,
-    TERRAIN_DIM_STEPS = 5
+    TERRAIN_DIM_STEPS = 5,
+    TERRAIN_ROW_DEPTH = 2
 };
 
 static const uint8_t HUMP[TERRAIN_COLUMNS] = {0, 3, 4, 3, 0, 3, 4, 3, 0};
@@ -83,21 +84,37 @@ static void draw_floor(const Terrain *terrain, int far)
     }
 }
 
-static void draw_row(const Terrain *terrain, int age, int depth)
+typedef struct TerrainPoint {
+    WirePoint at;
+    int height;
+} TerrainPoint;
+
+static TerrainPoint terrain_point(const Terrain *terrain, int column, int age)
 {
-    Canvas *canvas = terrain->painter->canvas;
-    uint8_t alpha = (uint8_t)(UINT8_MAX - depth * TERRAIN_FADE_STEP);
-    WirePoint left = project(terrain, 0, depth, column_height(terrain, age, 0));
+    int height = column_height(terrain, age, column);
+    return (TerrainPoint){project(terrain, column, age * TERRAIN_ROW_DEPTH, height), height};
+}
+
+static void draw_segment(const Terrain *terrain, TerrainPoint from, TerrainPoint to,
+                         WireStroke stroke)
+{
+    if (from.height == 0 && to.height == 0) {
+        stroke = (WireStroke){terrain->painter->theme->colors.text_tertiary, TERRAIN_FLOOR_ALPHA};
+    }
+    wireframe_line(terrain->painter->canvas, from.at, to.at, stroke);
+}
+
+static void draw_row(const Terrain *terrain, int age)
+{
+    uint8_t alpha = (uint8_t)(UINT8_MAX - age * TERRAIN_ROW_DEPTH * TERRAIN_FADE_STEP);
+    TerrainPoint left = terrain_point(terrain, 0, age);
     for (int column = 1; column < TERRAIN_COLUMNS; column++) {
-        WirePoint right = project(terrain, column, depth, column_height(terrain, age, column));
+        TerrainPoint right = terrain_point(terrain, column, age);
         WireStroke stroke = {terrain_color(terrain, column - (column > TERRAIN_MIDDLE ? 0 : 1)),
                              alpha};
-        wireframe_line(canvas, left, right, stroke);
+        draw_segment(terrain, left, right, stroke);
         if (age + 1 < USB_METER_SAMPLES) {
-            int back = depth + USB_METER_PHASES;
-            WirePoint behind =
-                project(terrain, column, back, column_height(terrain, age + 1, column));
-            wireframe_line(canvas, right, behind, stroke);
+            draw_segment(terrain, right, terrain_point(terrain, column, age + 1), stroke);
         }
         left = right;
     }
@@ -114,10 +131,12 @@ void usb_screen_draw_graph(const UsbPainter *painter)
                        .lively = scene->busy};
     terrain.peak =
         (area.y + area.height - terrain.horizon) * (TERRAIN_PEAK_SHARE - 1) / TERRAIN_PEAK_SHARE;
-    int far = (USB_METER_SAMPLES - 1) * USB_METER_PHASES + scene->phase;
-    draw_floor(&terrain, far);
+    Rect clip = painter->canvas->clip;
+    painter->canvas->clip = rect_intersection(clip, area);
+    draw_floor(&terrain, (USB_METER_SAMPLES - 1) * TERRAIN_ROW_DEPTH);
     for (int age = USB_METER_SAMPLES - 1; age >= 0; age--) {
-        draw_row(&terrain, age, age * USB_METER_PHASES + scene->phase);
+        draw_row(&terrain, age);
         usb_screen_service(scene);
     }
+    painter->canvas->clip = clip;
 }

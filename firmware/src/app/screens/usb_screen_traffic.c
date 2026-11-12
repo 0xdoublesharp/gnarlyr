@@ -169,8 +169,8 @@ static void draw_hero(const UsbPainter *painter, const TrafficLayout *layout)
     draw_arrow(painter, row.up, false, arrow_color(theme, reading, false));
     draw_arrow(painter, row.down, true, arrow_color(theme, writing, true));
     char number[USB_SCREEN_NUMBER_CAPACITY];
-    usb_screen_rate_text(number, reading || writing ? scene->rate : 0);
-    Color ink = reading || writing ? theme->colors.text : theme->colors.text_tertiary;
+    usb_screen_rate_text(number, scene->busy ? scene->rate : 0);
+    Color ink = scene->busy ? theme->colors.text : theme->colors.text_tertiary;
     TextStyle style = {theme->fonts.title, ink};
     Rect box = row.number;
     box.x += box.width - text_width(style.font, number) * layout->scale;

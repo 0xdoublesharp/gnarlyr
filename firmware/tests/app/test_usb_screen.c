@@ -795,6 +795,89 @@ static void a_drive_light_stays_lit_while_the_host_uses_the_drive_and_never_flas
     }
 }
 
+static Color fresh[HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE];
+
+static void flatten(UsbScene *scene)
+{
+    uint32_t totals[USB_METER_DIRECTIONS] = {scene->meter.sectors[USB_METER_READ],
+                                             scene->meter.sectors[USB_METER_WRITE]};
+    usb_meter_start(&scene->meter, 0);
+    scene->meter.sectors[USB_METER_READ] = totals[USB_METER_READ];
+    scene->meter.sectors[USB_METER_WRITE] = totals[USB_METER_WRITE];
+    for (uint32_t sample = 1; sample <= USB_METER_SAMPLES; sample++) {
+        usb_meter_sample(&scene->meter, totals, sample * USB_METER_PERIOD_MS);
+    }
+}
+
+static void graph_redraw_leaves_nothing_of_the_frame_before(const Theme *theme)
+{
+    HalBattery battery = {.known = true, .percent = 64};
+    UsbScene scene = storage_scene(USB_SCENE_READING);
+    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+    status.scene = &scene;
+    Canvas canvas = canvas_for(theme);
+    usb_screen_draw(&canvas, theme, battery, status);
+    flatten(&scene);
+    UsbScreenLayout layout = usb_screen_layout(theme, status);
+    canvas.clip = usb_screen_graph(theme, &layout);
+    usb_screen_draw(&canvas, theme, battery, status);
+    memcpy(before, pixels, sizeof pixels);
+    canvas = canvas_for(theme);
+    usb_screen_draw(&canvas, theme, battery, status);
+    memcpy(fresh, pixels, sizeof pixels);
+    int count = theme->metrics.screen_width * theme->metrics.screen_height;
+    CHECK_EQUAL(0, memcmp(before, fresh, (size_t)count * sizeof pixels[0]));
+}
+
+static void a_low_graph_frame_leaves_no_line_of_a_high_one(void)
+{
+    for (int appearance = 0; appearance < THEMES; appearance++) {
+        for (int orientation = 0; orientation < 2; orientation++) {
+            for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+                Theme theme = theme_for(appearance, orientation, size);
+                graph_redraw_leaves_nothing_of_the_frame_before(&theme);
+            }
+        }
+    }
+}
+
+static void flat_rows_lie_on_the_floor_instead_of_drawing_ridge_lines(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        Theme theme = medium(orientation);
+        UsbScene scene = storage_scene(USB_SCENE_WRITING);
+        flatten(&scene);
+        AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+        status.scene = &scene;
+        draw_text_of(&theme, status, &scene);
+        UsbScreenLayout layout = usb_screen_layout(&theme, status);
+        Rect graph = usb_screen_graph(&theme, &layout);
+        CHECK_EQUAL(0, pixels_of(&theme, graph, theme.colors.accent));
+        CHECK_EQUAL(0, pixels_of(&theme, graph, theme.colors.success));
+    }
+}
+
+static int rate_ink(const Theme *theme, UsbScene *scene)
+{
+    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+    status.scene = scene;
+    draw_text_of(theme, status, scene);
+    return pixels_of(theme, usb_screen_activity(theme, status), theme->colors.text);
+}
+
+static void the_rate_keeps_its_colour_between_commands_and_dims_only_when_the_session_rests(void)
+{
+    Theme theme = medium(ORIENTATION_LANDSCAPE);
+    UsbScene scene = storage_scene(USB_SCENE_WRITING);
+    int lit = rate_ink(&theme, &scene);
+    CHECK(lit > 0);
+    scene.lit[USB_METER_WRITE] = false;
+    CHECK_EQUAL(lit, rate_ink(&theme, &scene));
+    scene.busy = false;
+    scene.lit[USB_METER_WRITE] = true;
+    CHECK_EQUAL(0, rate_ink(&theme, &scene));
+}
+
 static void a_page_past_the_last_shows_the_overview(void)
 {
     UsbScene scene = storage_scene(USB_SCENE_WRITING);
@@ -919,6 +1002,9 @@ int main(void)
         TEST_CASE(a_copy_keeps_its_words_still_while_the_lights_and_rates_move),
         TEST_CASE(warnings_and_waits_have_no_details),
         TEST_CASE(a_new_sample_changes_only_the_graph),
+        TEST_CASE(a_low_graph_frame_leaves_no_line_of_a_high_one),
+        TEST_CASE(flat_rows_lie_on_the_floor_instead_of_drawing_ridge_lines),
+        TEST_CASE(the_rate_keeps_its_colour_between_commands_and_dims_only_when_the_session_rests),
         TEST_CASE(lit_arrows_and_the_rate_change_only_the_activity_row),
         TEST_CASE(a_resting_row_dims_both_arrows_and_a_lit_one_takes_its_colour),
         TEST_CASE(a_drive_light_stays_lit_while_the_host_uses_the_drive_and_never_flashes),
