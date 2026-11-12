@@ -43,6 +43,7 @@ typedef struct FlacBits {
     uint32_t bits;
     uint16_t crc16;
     uint8_t crc8;
+    bool crc8_read;
     bool failed;
 } FlacBits;
 

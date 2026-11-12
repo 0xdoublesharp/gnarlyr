@@ -52,17 +52,26 @@ enum {
     FAILED_BYTE = 0xFF
 };
 
-static void fold_crc(FlacBits *bits, uint32_t end)
+static void fold_crc16(FlacBits *bits, uint32_t end)
 {
-    uint32_t crc8 = bits->crc8;
     uint32_t crc16 = bits->crc16;
     for (uint32_t index = bits->crc_index; index < end; index++) {
         uint32_t value = bits->buffer[index];
-        crc8 = CRC8_TABLE[crc8 ^ value];
         crc16 = (crc16 << BITS_PER_BYTE ^ CRC16_TABLE[(crc16 >> BITS_PER_BYTE) ^ value]) & 0xFFFFu;
     }
-    bits->crc8 = (uint8_t)crc8;
     bits->crc16 = (uint16_t)crc16;
+}
+
+static void fold_crc(FlacBits *bits, uint32_t end)
+{
+    if (!bits->crc8_read) {
+        uint32_t crc8 = bits->crc8;
+        for (uint32_t index = bits->crc_index; index < end; index++) {
+            crc8 = CRC8_TABLE[crc8 ^ bits->buffer[index]];
+        }
+        bits->crc8 = (uint8_t)crc8;
+    }
+    fold_crc16(bits, end);
     bits->crc_index = end;
 }
 
@@ -105,6 +114,7 @@ void flac_bits_start(FlacBits *bits, FlacInput input, uint32_t offset)
     bits->bits = 0;
     bits->crc8 = 0;
     bits->crc16 = 0;
+    bits->crc8_read = false;
     bits->failed = false;
 }
 
@@ -183,6 +193,67 @@ static bool read_rice_wide(FlacBits *bits, int32_t *out, uint32_t count, uint32_
     return !bits->failed;
 }
 
+static inline __attribute__((always_inline)) uint32_t load_big_endian(const uint8_t *bytes)
+{
+    uint32_t value;
+    __builtin_memcpy(&value, bytes, sizeof value);
+    return __builtin_bswap32(value);
+}
+
+static inline __attribute__((always_inline)) void prefetch(FlacBits *bits, uint32_t *word,
+                                                           uint32_t *available)
+{
+    uint32_t have = *available;
+    if (have > FETCH_LIMIT || bits->index + sizeof(uint32_t) > bits->buffer_length) {
+        return;
+    }
+    uint32_t count = (WORD_BITS - have) / BITS_PER_BYTE;
+    uint32_t kept = count * BITS_PER_BYTE;
+    uint32_t value = load_big_endian(&bits->buffer[bits->index]);
+    value = kept == WORD_BITS ? value : value & ~(0xFFFFFFFFu >> kept);
+    *word |= value >> have;
+    bits->index += count;
+    *available = have + kept;
+}
+
+static inline __attribute__((always_inline)) uint32_t read_quotient(FlacBits *bits, uint32_t *word,
+                                                                    uint32_t *available)
+{
+    uint32_t quotient = 0;
+    prefetch(bits, word, available);
+    while (*word == 0) {
+        quotient += *available;
+        *available = 0;
+        prefetch(bits, word, available);
+        if (*available == 0) {
+            *word = next_byte(bits) << FETCH_LIMIT;
+            *available = BITS_PER_BYTE;
+        }
+    }
+    uint32_t zeros = (uint32_t)__builtin_clz(*word);
+    *word <<= zeros;
+    *word <<= 1;
+    *available -= zeros + 1;
+    return quotient + zeros;
+}
+
+static inline __attribute__((always_inline)) uint32_t read_remainder(FlacBits *bits, uint32_t *word,
+                                                                     uint32_t *available,
+                                                                     uint32_t parameter)
+{
+    if (*available < parameter) {
+        prefetch(bits, word, available);
+        while (*available < parameter) {
+            *word |= next_byte(bits) << (FETCH_LIMIT - *available);
+            *available += BITS_PER_BYTE;
+        }
+    }
+    uint32_t low = *word >> (WORD_BITS - parameter);
+    *word <<= parameter;
+    *available -= parameter;
+    return low;
+}
+
 bool flac_bits_read_rice(FlacBits *bits, int32_t *out, uint32_t count, uint32_t parameter)
 {
     if (parameter > FETCH_LIMIT) {
@@ -191,27 +262,8 @@ bool flac_bits_read_rice(FlacBits *bits, int32_t *out, uint32_t count, uint32_t 
     uint32_t word = bits->word;
     uint32_t available = bits->bits;
     for (uint32_t index = 0; index < count; index++) {
-        uint32_t quotient = 0;
-        while (word == 0) {
-            quotient += available;
-            word = next_byte(bits) << FETCH_LIMIT;
-            available = BITS_PER_BYTE;
-        }
-        uint32_t zeros = (uint32_t)__builtin_clz(word);
-        quotient += zeros;
-        word <<= zeros;
-        word <<= 1;
-        available -= zeros + 1;
-        uint32_t low = 0;
-        if (parameter > 0) {
-            while (available < parameter) {
-                word |= next_byte(bits) << (FETCH_LIMIT - available);
-                available += BITS_PER_BYTE;
-            }
-            low = word >> (WORD_BITS - parameter);
-            word <<= parameter;
-            available -= parameter;
-        }
+        uint32_t quotient = read_quotient(bits, &word, &available);
+        uint32_t low = parameter > 0 ? read_remainder(bits, &word, &available, parameter) : 0;
         out[index] = unfold(quotient << parameter | low);
     }
     bits->word = word;
@@ -236,11 +288,13 @@ void flac_bits_reset_crc(FlacBits *bits)
     bits->crc_index = consumed_index(bits);
     bits->crc8 = 0;
     bits->crc16 = 0;
+    bits->crc8_read = false;
 }
 
 uint8_t flac_bits_crc8(FlacBits *bits)
 {
     fold_crc(bits, consumed_index(bits));
+    bits->crc8_read = true;
     return bits->crc8;
 }
 

@@ -333,37 +333,189 @@ static bool read_residual(FlacDecoder *decoder, int32_t *residual, uint32_t bloc
 
 static void restore_fixed(int32_t *samples, uint32_t block_size, uint32_t order)
 {
-    for (uint32_t index = order; index < block_size; index++) {
-        int32_t *s = &samples[index];
-        switch (order) {
-        case 1:
-            s[0] += s[-1];
-            break;
-        case 2:
-            s[0] += 2 * s[-1] - s[-2];
-            break;
-        case 3:
-            s[0] += 3 * s[-1] - 3 * s[-2] + s[-3];
-            break;
-        case 4:
-            s[0] += 4 * s[-1] - 6 * s[-2] + 4 * s[-3] - s[-4];
-            break;
-        default:
-            break;
+    int32_t *s = samples;
+    switch (order) {
+    case 1:
+        for (uint32_t index = 1; index < block_size; index++) {
+            s[index] += s[index - 1];
         }
+        break;
+    case 2:
+        for (uint32_t index = 2; index < block_size; index++) {
+            s[index] += 2 * s[index - 1] - s[index - 2];
+        }
+        break;
+    case 3:
+        for (uint32_t index = 3; index < block_size; index++) {
+            s[index] += 3 * (s[index - 1] - s[index - 2]) + s[index - 3];
+        }
+        break;
+    case 4:
+        for (uint32_t index = 4; index < block_size; index++) {
+            s[index] += 4 * (s[index - 1] + s[index - 3]) - 6 * s[index - 2] - s[index - 4];
+        }
+        break;
+    default:
+        break;
     }
 }
 
-static void restore_lpc(int32_t *samples, uint32_t block_size, const int32_t *coefficients,
-                        uint32_t order, uint32_t shift)
+static uint32_t order_bits(uint32_t order)
 {
-    for (uint32_t index = order; index < block_size; index++) {
-        int64_t sum = 0;
+    uint32_t bits = 0;
+    while ((1u << bits) < order) {
+        bits++;
+    }
+    return bits;
+}
+
+static bool fits_32_bits(const FlacLpcJob *job)
+{
+    return job->width + job->precision + order_bits(job->order) <= 32;
+}
+
+static inline __attribute__((always_inline)) void
+restore_narrow_order(int32_t *samples, const FlacLpcJob *job, uint32_t order)
+{
+    const int32_t *coefficients = job->coefficients;
+    for (uint32_t index = order; index < job->block_size; index++) {
+        const int32_t *history = &samples[index - 1];
+        uint32_t sum = 0;
+#pragma GCC unroll 32
         for (uint32_t tap = 0; tap < order; tap++) {
-            sum += (int64_t)coefficients[tap] * samples[index - 1 - tap];
+            sum += (uint32_t)coefficients[tap] * (uint32_t)history[-(int32_t)tap];
         }
-        int64_t predicted = sum >= 0 ? sum >> shift : -((-sum - 1) >> shift) - 1;
-        samples[index] += (int32_t)predicted;
+        samples[index] =
+            (int32_t)((uint32_t)samples[index] + (uint32_t)((int32_t)sum >> job->shift));
+    }
+}
+
+#define FLAC_NARROW_ORDER(order)                                                                   \
+    static void restore_narrow_##order(int32_t *samples, const FlacLpcJob *job)                    \
+    {                                                                                              \
+        restore_narrow_order(samples, job, order);                                                 \
+    }
+
+FLAC_NARROW_ORDER(1)
+FLAC_NARROW_ORDER(2)
+FLAC_NARROW_ORDER(3)
+FLAC_NARROW_ORDER(4)
+FLAC_NARROW_ORDER(5)
+FLAC_NARROW_ORDER(6)
+FLAC_NARROW_ORDER(7)
+FLAC_NARROW_ORDER(8)
+FLAC_NARROW_ORDER(9)
+FLAC_NARROW_ORDER(10)
+FLAC_NARROW_ORDER(11)
+FLAC_NARROW_ORDER(12)
+
+static void (*const NARROW_ORDERS[])(int32_t *samples, const FlacLpcJob *job) = {
+    NULL,
+    restore_narrow_1,
+    restore_narrow_2,
+    restore_narrow_3,
+    restore_narrow_4,
+    restore_narrow_5,
+    restore_narrow_6,
+    restore_narrow_7,
+    restore_narrow_8,
+    restore_narrow_9,
+    restore_narrow_10,
+    restore_narrow_11,
+    restore_narrow_12,
+};
+
+static void restore_lpc_narrow(int32_t *samples, const FlacLpcJob *job)
+{
+    if (job->order < sizeof NARROW_ORDERS / sizeof NARROW_ORDERS[0]) {
+        NARROW_ORDERS[job->order](samples, job);
+        return;
+    }
+    const int32_t *coefficients = job->coefficients;
+    for (uint32_t index = job->order; index < job->block_size; index++) {
+        const int32_t *history = &samples[index - 1];
+        uint32_t sum = 0;
+        for (uint32_t tap = 0; tap < job->order; tap++) {
+            sum += (uint32_t)coefficients[tap] * (uint32_t)history[-(int32_t)tap];
+        }
+        samples[index] =
+            (int32_t)((uint32_t)samples[index] + (uint32_t)((int32_t)sum >> job->shift));
+    }
+}
+
+static inline __attribute__((always_inline)) void
+restore_wide_order(int32_t *samples, const FlacLpcJob *job, uint32_t order)
+{
+    const int32_t *coefficients = job->coefficients;
+    for (uint32_t index = order; index < job->block_size; index++) {
+        const int32_t *history = &samples[index - 1];
+        int64_t sum = 0;
+#pragma GCC unroll 32
+        for (uint32_t tap = 0; tap < order; tap++) {
+            sum += (int64_t)coefficients[tap] * history[-(int32_t)tap];
+        }
+        samples[index] = (int32_t)((uint32_t)samples[index] + (uint32_t)(sum >> job->shift));
+    }
+}
+
+#define FLAC_WIDE_ORDER(order)                                                                     \
+    static void restore_wide_##order(int32_t *samples, const FlacLpcJob *job)                      \
+    {                                                                                              \
+        restore_wide_order(samples, job, order);                                                   \
+    }
+
+FLAC_WIDE_ORDER(1)
+FLAC_WIDE_ORDER(2)
+FLAC_WIDE_ORDER(3)
+FLAC_WIDE_ORDER(4)
+FLAC_WIDE_ORDER(5)
+FLAC_WIDE_ORDER(6)
+FLAC_WIDE_ORDER(7)
+FLAC_WIDE_ORDER(8)
+FLAC_WIDE_ORDER(9)
+FLAC_WIDE_ORDER(10)
+FLAC_WIDE_ORDER(11)
+FLAC_WIDE_ORDER(12)
+
+static void (*const WIDE_ORDERS[])(int32_t *samples, const FlacLpcJob *job) = {
+    NULL,
+    restore_wide_1,
+    restore_wide_2,
+    restore_wide_3,
+    restore_wide_4,
+    restore_wide_5,
+    restore_wide_6,
+    restore_wide_7,
+    restore_wide_8,
+    restore_wide_9,
+    restore_wide_10,
+    restore_wide_11,
+    restore_wide_12,
+};
+
+static void restore_lpc_wide(int32_t *samples, const FlacLpcJob *job)
+{
+    if (job->order < sizeof WIDE_ORDERS / sizeof WIDE_ORDERS[0]) {
+        WIDE_ORDERS[job->order](samples, job);
+        return;
+    }
+    const int32_t *coefficients = job->coefficients;
+    for (uint32_t index = job->order; index < job->block_size; index++) {
+        const int32_t *history = &samples[index - 1];
+        int64_t sum = 0;
+        for (uint32_t tap = 0; tap < job->order; tap++) {
+            sum += (int64_t)coefficients[tap] * history[-(int32_t)tap];
+        }
+        samples[index] = (int32_t)((uint32_t)samples[index] + (uint32_t)(sum >> job->shift));
+    }
+}
+
+static void restore_lpc(int32_t *samples, const FlacLpcJob *job)
+{
+    if (fits_32_bits(job)) {
+        restore_lpc_narrow(samples, job);
+    } else {
+        restore_lpc_wide(samples, job);
     }
 }
 
@@ -401,7 +553,7 @@ static bool read_lpc(FlacDecoder *decoder, int32_t *samples, uint32_t block_size
                       .width = width,
                       .precision = precision};
     if (hook.restore == NULL || !hook.restore(hook.context, samples, job)) {
-        restore_lpc(samples, block_size, coefficients, order, (uint32_t)shift);
+        restore_lpc(samples, &job);
     }
     return true;
 }
@@ -463,33 +615,37 @@ static uint32_t channel_width(const FrameHeader *header, int channel)
     return header->bits_per_sample + (side ? 1u : 0u);
 }
 
-static int32_t floor_half(int32_t value)
+static void undo_mid_side(int32_t *first, int32_t *second, uint32_t block_size)
 {
-    return value >= 0 ? value / 2 : -((-value - 1) / 2) - 1;
+    for (uint32_t index = 0; index < block_size; index++) {
+        int32_t side = second[index];
+        int32_t mid = (int32_t)((uint32_t)first[index] << 1) | (side & 1);
+        first[index] = (mid + side) >> 1;
+        second[index] = (mid - side) >> 1;
+    }
 }
 
 static void decorrelate(FlacDecoder *decoder, const FrameHeader *header)
 {
     int32_t *first = decoder->samples[0];
     int32_t *second = decoder->samples[1];
-    for (uint32_t index = 0; index < header->block_size; index++) {
-        switch (header->channel_assignment) {
-        case CHANNEL_LEFT_SIDE:
+    uint32_t block_size = header->block_size;
+    switch (header->channel_assignment) {
+    case CHANNEL_LEFT_SIDE:
+        for (uint32_t index = 0; index < block_size; index++) {
             second[index] = first[index] - second[index];
-            break;
-        case CHANNEL_SIDE_RIGHT:
+        }
+        break;
+    case CHANNEL_SIDE_RIGHT:
+        for (uint32_t index = 0; index < block_size; index++) {
             first[index] += second[index];
-            break;
-        case CHANNEL_MID_SIDE: {
-            int32_t side = second[index];
-            int32_t mid = (int32_t)((uint32_t)first[index] << 1) | (side & 1);
-            first[index] = floor_half(mid + side);
-            second[index] = floor_half(mid - side);
-            break;
         }
-        default:
-            break;
-        }
+        break;
+    case CHANNEL_MID_SIDE:
+        undo_mid_side(first, second, block_size);
+        break;
+    default:
+        break;
     }
 }
 

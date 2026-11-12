@@ -37,7 +37,8 @@ FLAC_BLOCKS = 0x30
 FLAC_RESULT = 0x3C
 DEFAULT_MEDIA = Path("/Volumes/Scratch/SnowskyEcho/tmp/decoders/media")
 CASES = {
-    "flac": [("media", "flac16.flac", None), ("media", "flac24.flac", None)],
+    "flac": [("media", "flac16.flac", None), ("media", "flac16_p12.flac", None),
+             ("media", "flac16_fixed.flac", None), ("media", "flac24.flac", None)],
     "mp3": [("media", "mp3_128.mp3", None), ("media", "mp3_320.mp3", None)],
     "aac": [("media", "aac.m4a", None)],
     "alac": [("media", "alac.m4a", None)],
@@ -46,6 +47,10 @@ CASES = {
 }
 MEDIA_COMMANDS = {
     "flac16.flac": ["-t", "1.5", "-c:a", "flac", "-compression_level", "5", "-frame_size", "4096"],
+    "flac16_p12.flac": ["-t", "1.5", "-c:a", "flac", "-compression_level", "5", "-frame_size", "4096",
+                        "-lpc_coeff_precision", "12"],
+    "flac16_fixed.flac": ["-t", "1.5", "-c:a", "flac", "-compression_level", "0", "-frame_size",
+                          "4096"],
     "flac24.flac": ["-t", "0.5", "-ar", "96000", "-c:a", "flac", "-sample_fmt", "s32",
                     "-bits_per_raw_sample", "24", "-compression_level", "5",
                     "-frame_size", "4096"],
