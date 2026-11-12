@@ -2,25 +2,43 @@
 
 #include <stddef.h>
 
-static const ThemeAsset *find_asset(const ThemeRuntime *runtime, ThemeArtRequest request)
+static int find_key(const ThemeRuntime *runtime, ThemeArtRequest request)
 {
-    const ThemeAsset *best = NULL;
+    int best = -1;
     int score = -1;
     for (unsigned at = 0; at < runtime->pack.asset_count; at++) {
-        const ThemeAsset *asset = &runtime->pack.assets[at];
-        if (asset->slot != request.slot ||
-            (asset->orientation != 2 && asset->orientation != request.orientation) ||
-            (asset->text_size != THEME_PACK_ANY && asset->text_size != request.text_size)) {
+        const ThemeAssetKey *key = &runtime->pack.assets[at];
+        if (key->slot != request.slot ||
+            (key->orientation != 2 && key->orientation != request.orientation) ||
+            (key->text_size != THEME_PACK_ANY && key->text_size != request.text_size)) {
             continue;
         }
-        int next = (asset->orientation == request.orientation ? 2 : 0) +
-                   (asset->text_size == request.text_size ? 1 : 0);
+        int next = (key->orientation == request.orientation ? 2 : 0) +
+                   (key->text_size == request.text_size ? 1 : 0);
         if (next > score) {
-            best = asset;
+            best = (int)at;
             score = next;
         }
     }
     return best;
+}
+
+static uint32_t key_bytes(const ThemeAssetKey *key)
+{
+    return (uint32_t)key->width * key->height * 2;
+}
+
+static ThemeAsset asset_at(const ThemeRuntime *runtime, unsigned index)
+{
+    const ThemeAssetKey *keys = runtime->pack.assets;
+    uint32_t offset =
+        THEME_PACK_HEADER_BYTES + (uint32_t)runtime->pack.asset_count * THEME_PACK_ASSET_BYTES;
+    for (unsigned at = 0; at < index; at++) {
+        offset += key_bytes(&keys[at]);
+    }
+    const ThemeAssetKey *key = &keys[index];
+    return (ThemeAsset){key->slot,   key->orientation, key->text_size, key->width,
+                        key->height, offset,           key_bytes(key)};
 }
 
 static Rect clip_of(Rect first, Rect second)
@@ -72,10 +90,12 @@ static bool read_row(ThemeRuntime *runtime, const ThemeBlit *blit, int y)
 bool theme_runtime_draw(void *context, Canvas *canvas, ThemeArtRequest request)
 {
     ThemeRuntime *runtime = context;
-    const ThemeAsset *asset = runtime->active ? find_asset(runtime, request) : NULL;
-    if (asset == NULL) {
+    int index = runtime->active ? find_key(runtime, request) : -1;
+    if (index < 0) {
         return false;
     }
+    ThemeAsset found = asset_at(runtime, (unsigned)index);
+    const ThemeAsset *asset = &found;
     if (asset->bytes <= sizeof runtime->tile &&
         (!runtime->tile_valid || runtime->tile_offset != asset->offset)) {
         if (!hal_file_read(runtime->file, asset->offset, runtime->tile, asset->bytes)) {

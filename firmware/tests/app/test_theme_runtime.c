@@ -205,6 +205,56 @@ static void full_images_stream_in_both_orientations_and_missing_art_uses_the_bas
     }
 }
 
+static void put_tile(uint8_t *bytes, int index, uint16_t side, uint32_t offset)
+{
+    uint8_t *descriptor = bytes + 512 + index * 16;
+    store_put16(descriptor, THEME_ART_LIST);
+    descriptor[2] = (uint8_t)index;
+    descriptor[3] = 255;
+    store_put16(descriptor + 4, side);
+    store_put16(descriptor + 6, side);
+    store_put32(descriptor + 8, offset);
+    store_put32(descriptor + 12, (uint32_t)side * side * 2);
+    for (uint32_t at = 0; at < (uint32_t)side * side; at++) {
+        store_put16(bytes + offset + at * 2, (uint16_t)(1000u * (uint32_t)(index + 1) + at));
+    }
+}
+
+static Color tile_pixel(ThemeRuntime *runtime, uint8_t orientation, int x, int y)
+{
+    static Color pixels[10 * 10];
+    Canvas canvas = canvas_make(pixels, (Rect){0, 0, 10, 10});
+    canvas_clear(&canvas, 0);
+    ThemeArtRequest request = {
+        .area = {0, 0, 10, 10}, .slot = THEME_ART_LIST, .orientation = orientation};
+    return theme_runtime_draw(runtime, &canvas, request) ? pixels[y * 10 + x] : 0;
+}
+
+static void each_asset_of_a_pack_draws_its_own_pixels(void)
+{
+    static uint8_t pack[560 + 2 * 2 * 2 + 4 * 4 * 2 + 3 * 3 * 2];
+    reset();
+    memcpy(pack, first, 512);
+    store_put32(pack + 8, sizeof pack);
+    pack[19] = 3;
+    put_tile(pack, 0, 2, 560);
+    put_tile(pack, 1, 4, 568);
+    put_tile(pack, 2, 3, 600);
+    uint32_t crc = theme_pack_crc(UINT32_MAX, pack, 12);
+    store_put32(pack + 12, ~theme_pack_crc(crc, pack + 16, sizeof pack - 16));
+    static const char path[] = "/" FIRMWARE_DATA_DIRECTORY "/themes/three.gtheme";
+    fake_hal_add_file(path, pack, sizeof pack);
+    ThemeRuntime runtime = {0};
+    CHECK(theme_runtime_load(&runtime, "three.gtheme"));
+    CHECK_EQUAL(3000, tile_pixel(&runtime, 2, 0, 0));
+    CHECK_EQUAL(3004, tile_pixel(&runtime, 2, 1, 1));
+    CHECK_EQUAL(2005, tile_pixel(&runtime, 1, 1, 1));
+    CHECK_EQUAL(2015, tile_pixel(&runtime, 1, 3, 3));
+    CHECK_EQUAL(1000, tile_pixel(&runtime, 0, 0, 0));
+    CHECK_EQUAL(1003, tile_pixel(&runtime, 0, 1, 1));
+    theme_runtime_close(&runtime);
+}
+
 static void damaged_packs_stay_listed_and_duplicate_ids_choose_the_newest_version(void)
 {
     reset();
@@ -342,6 +392,7 @@ int main(void)
         TEST_CASE(pack_art_draws_only_through_the_loaded_ui_module),
         TEST_CASE(strips_and_clipped_rectangles_match_a_full_render),
         TEST_CASE(full_images_stream_in_both_orientations_and_missing_art_uses_the_base),
+        TEST_CASE(each_asset_of_a_pack_draws_its_own_pixels),
         TEST_CASE(damaged_packs_stay_listed_and_duplicate_ids_choose_the_newest_version),
         TEST_CASE(every_torn_selection_write_keeps_a_whole_old_or_new_choice),
         TEST_CASE(cancelling_a_preview_restores_the_saved_pack_and_builtin_choices_clear_it),
