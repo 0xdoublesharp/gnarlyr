@@ -1,5 +1,6 @@
 #include "listening_screen.h"
 #include "listening_work.h"
+#include "recap_cards.h"
 
 #include <stddef.h>
 
@@ -22,7 +23,10 @@ enum {
     MODE_EXPORT,
     MODE_OPTIONS,
     MODE_CONFIRM,
-    MENU_ROWS = 5,
+    MODE_PERIODS,
+    MODE_RECAP,
+    MENU_ROWS = 6,
+    RECAP_ROW = 5,
     STAT_GAP = 8,
     EXPORT_MEASURE,
     EXPORT_WRITE,
@@ -35,20 +39,17 @@ enum {
     DETAIL_BYTES = 160
 };
 
-typedef struct ExportStatus {
-    const char *headline;
-    const char *detail;
-    const char *hint;
-    WireMotion *motion;
-} ExportStatus;
-
 static ListeningWork *const work = &listening_module_work.as.listening;
 static Toast *toast;
 static const bool *scanning;
 
 static const StringId MENU[MENU_ROWS] = {
-    STR_TOP_ARTISTS, STR_TOP_ALBUMS, STR_TOP_SONGS, STR_LISTENING_TOTALS, STR_EXPORT_PLAYS,
+    STR_TOP_ARTISTS,      STR_TOP_ALBUMS,   STR_TOP_SONGS,
+    STR_LISTENING_TOTALS, STR_EXPORT_PLAYS, STR_RECAP,
 };
+
+static const StringId PERIODS[LISTENING_PERIOD_COUNT] = {STR_RECAP_THIS_MONTH, STR_RECAP_LAST_MONTH,
+                                                         STR_RECAP_THIS_YEAR, STR_RECAP_ALL_TIME};
 
 static StringId title_id(const ListeningScreen *screen)
 {
@@ -60,12 +61,15 @@ static StringId title_id(const ListeningScreen *screen)
     if (screen->mode == MODE_OPTIONS || screen->mode == MODE_CONFIRM) {
         return screen->mode == MODE_CONFIRM ? STR_CLEAR_HISTORY : STR_VIEW_OPTIONS;
     }
+    if (screen->mode == MODE_PERIODS || screen->mode == MODE_RECAP) {
+        return screen->mode == MODE_RECAP ? recap_cards_title(screen) : STR_RECAP;
+    }
     return screen->mode == MODE_TOTALS   ? STR_LISTENING_TOTALS
            : screen->mode == MODE_EXPORT ? STR_EXPORT_PLAYS
                                          : STR_LISTENING;
 }
 
-static void format_time(char *text, size_t capacity, uint64_t millis)
+void listening_screen_format_time(char *text, size_t capacity, uint64_t millis)
 {
     uint64_t minutes = millis / 60000;
     uint32_t hours = minutes / 60 > UINT32_MAX ? UINT32_MAX : (uint32_t)(minutes / 60);
@@ -79,6 +83,9 @@ static int row_count(const void *context)
     if (screen->mode == MODE_OPTIONS || screen->mode == MODE_CONFIRM) {
         return screen->mode == MODE_OPTIONS ? 1 : 3;
     }
+    if (screen->mode == MODE_PERIODS || screen->mode == MODE_RECAP) {
+        return screen->mode == MODE_PERIODS ? LISTENING_PERIOD_COUNT : 0;
+    }
     return screen->mode == MODE_MENU ? MENU_ROWS + (screen->moments != NULL) : work->top.count;
 }
 
@@ -91,6 +98,9 @@ static const char *row_label(const void *context, int index)
     if (screen->mode == MODE_CONFIRM) {
         static const StringId CHOICES[] = {STR_EXPORT_FIRST, STR_CLEAR, STR_CARD_FORMAT_CANCEL};
         return i18n_text(CHOICES[index]);
+    }
+    if (screen->mode == MODE_PERIODS) {
+        return i18n_text(PERIODS[index]);
     }
     return screen->mode == MODE_MENU ? i18n_text(index == MENU_ROWS ? STR_MOMENTS : MENU[index])
                                      : work->names[index];
@@ -106,11 +116,15 @@ static bool row_opens(const void *context, int index)
 {
     const ListeningScreen *screen = context;
     (void)index;
-    return screen->mode == MODE_MENU;
+    return screen->mode == MODE_MENU || screen->mode == MODE_PERIODS;
 }
 
 static void begin_job(ListeningScreen *screen)
 {
+    if (screen->mode == MODE_RECAP) {
+        recap_cards_open(screen, screen->now_ms);
+        return;
+    }
     *work = (ListeningWork){0};
     listening_module_work.owner = screen;
     if (screen->mode == MODE_TOP) {
@@ -134,8 +148,16 @@ static void show_mode(ListeningScreen *screen, uint8_t mode)
     list_view_init(&screen->list, &screen->model, screen->theme, screen->now_ms);
     if (mode == MODE_CONFIRM) {
         list_view_select(&screen->list, 2, screen->now_ms);
-    } else if (mode == MODE_MENU) {
-        list_view_select(&screen->list, screen->selected, screen->now_ms);
+    } else if (mode == MODE_MENU || mode == MODE_PERIODS) {
+        list_view_select(&screen->list, mode == MODE_MENU ? screen->selected : screen->period,
+                         screen->now_ms);
+    }
+}
+
+static void show_card(ListeningScreen *screen, int step)
+{
+    if (recap_cards_turn(screen, step)) {
+        screen->screen.title = i18n_text(title_id(screen));
     }
 }
 
@@ -147,6 +169,8 @@ static void choose(ListeningScreen *screen)
                         : screen->selected == 1 ? LISTENING_BY_ALBUM
                                                 : LISTENING_BY_TRACK;
         show_mode(screen, MODE_TOP);
+    } else if (screen->selected == RECAP_ROW) {
+        show_mode(screen, MODE_PERIODS);
     } else {
         show_mode(screen, screen->selected == 3 ? MODE_TOTALS : MODE_EXPORT);
     }
@@ -210,6 +234,54 @@ static void confirm_clear(ListeningScreen *screen)
     }
 }
 
+static ScreenAction go_back(ListeningScreen *screen)
+{
+    if (screen->mode == MODE_MENU) {
+        return screen_action_pop();
+    }
+    uint8_t previous = screen->mode == MODE_CONFIRM ? MODE_OPTIONS
+                       : screen->mode == MODE_RECAP ? MODE_PERIODS
+                                                    : MODE_MENU;
+    show_mode(screen, previous);
+    return screen_action_none();
+}
+
+static void open_period(ListeningScreen *screen)
+{
+    screen->period = (uint8_t)screen->list.selected;
+    screen->card = 0;
+    show_mode(screen, MODE_RECAP);
+}
+
+static void move(ListeningScreen *screen, int step, uint32_t now_ms)
+{
+    if (screen->mode == MODE_RECAP) {
+        show_card(screen, step);
+    } else {
+        list_view_move(&screen->list, step, true, now_ms);
+    }
+}
+
+static ScreenAction select_row(ListeningScreen *screen)
+{
+    if (screen->mode == MODE_OPTIONS) {
+        show_mode(screen, MODE_CONFIRM);
+    } else if (screen->mode == MODE_CONFIRM) {
+        confirm_clear(screen);
+    } else if (screen->mode == MODE_PERIODS) {
+        open_period(screen);
+    } else if (screen->mode == MODE_RECAP) {
+        show_card(screen, 1);
+    } else if (screen->mode == MODE_MENU) {
+        if (screen->list.selected == MENU_ROWS && screen->moments != NULL) {
+            screen->selected = MENU_ROWS;
+            return screen_action_push(screen->moments);
+        }
+        choose(screen);
+    }
+    return screen_action_none();
+}
+
 static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     ListeningScreen *screen = context;
@@ -222,26 +294,16 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
         return screen_action_pop_to_root();
     }
     if (navigation.intent == NAVIGATION_BACK) {
-        if (screen->mode == MODE_MENU) {
-            return screen_action_pop();
-        }
-        show_mode(screen, screen->mode == MODE_CONFIRM ? MODE_OPTIONS : MODE_MENU);
-    } else if (navigation.intent == NAVIGATION_OPTIONS) {
+        return go_back(screen);
+    }
+    if (navigation.intent == NAVIGATION_OPTIONS) {
         if (clear_allowed(screen)) {
             show_mode(screen, MODE_OPTIONS);
         }
-    } else if (navigation.intent == NAVIGATION_SELECT && screen->mode == MODE_OPTIONS) {
-        show_mode(screen, MODE_CONFIRM);
-    } else if (navigation.intent == NAVIGATION_SELECT && screen->mode == MODE_CONFIRM) {
-        confirm_clear(screen);
     } else if (navigation.intent == NAVIGATION_NEXT || navigation.intent == NAVIGATION_PREVIOUS) {
-        list_view_move(&screen->list, navigation.intent == NAVIGATION_NEXT ? 1 : -1, true, now_ms);
-    } else if (navigation.intent == NAVIGATION_SELECT && screen->mode == MODE_MENU) {
-        if (screen->list.selected == MENU_ROWS && screen->moments != NULL) {
-            screen->selected = MENU_ROWS;
-            return screen_action_push(screen->moments);
-        }
-        choose(screen);
+        move(screen, navigation.intent == NAVIGATION_NEXT ? 1 : -1, now_ms);
+    } else if (navigation.intent == NAVIGATION_SELECT) {
+        return select_row(screen);
     }
     return screen_action_none();
 }
@@ -267,7 +329,8 @@ static void name_top(ListeningScreen *screen)
                            : screen->group == LISTENING_BY_ALBUM  ? text.album
                                                                   : text.title;
         copy_name(work->names[index], name);
-        format_time(work->times[index], LISTENING_VALUE_BYTES, rank->tally.listened_ms);
+        listening_screen_format_time(work->times[index], LISTENING_VALUE_BYTES,
+                                     rank->tally.listened_ms);
     }
     work->named = true;
     list_view_fit(&screen->list);
@@ -364,6 +427,10 @@ static uint32_t export_percent(void)
 
 static void follow_motion(ListeningScreen *screen, uint32_t now_ms)
 {
+    if (screen->mode == MODE_RECAP) {
+        recap_cards_motion(screen, now_ms);
+        return;
+    }
     WireMotion *motion = screen->motion;
     bool exporting = screen->mode == MODE_EXPORT && work->export_stage <= EXPORT_WRITE;
     bool ranking = screen->mode == MODE_TOP && !work->named && work->top.result != STORE_FAILED;
@@ -384,7 +451,11 @@ static void update(void *context, uint32_t now_ms)
     if (listening_module_work.owner != screen) {
         begin_job(screen);
     }
-    if (screen->mode == MODE_TOP && !work->named && listening_top_step(&work->top) == STORE_DONE) {
+    if (screen->mode == MODE_RECAP) {
+        recap_cards_update(screen, now_ms);
+        screen->screen.title = i18n_text(title_id(screen));
+    } else if (screen->mode == MODE_TOP && !work->named &&
+               listening_top_step(&work->top) == STORE_DONE) {
         name_top(screen);
     } else if (screen->mode == MODE_EXPORT) {
         update_export();
@@ -421,7 +492,7 @@ static void draw_totals(ListeningScreen *screen, Canvas *canvas, Rect area)
                    (Rect){card.x + STAT_GAP, card.y + 3, card.width - 2 * STAT_GAP, 20},
                    i18n_text(labels[index]), false);
         if (index == 0) {
-            format_time(value, sizeof value, totals.listened_ms);
+            listening_screen_format_time(value, sizeof value, totals.listened_ms);
         } else {
             StringBuilder builder = string_builder_make(value, sizeof value);
             string_builder_append_unsigned(&builder, index == 1 ? totals.plays : totals.skips);
@@ -551,7 +622,8 @@ static int draw_motion_above(Canvas *canvas, const Theme *theme, Rect column, Wi
     return top;
 }
 
-static void draw_status(const Theme *theme, Canvas *canvas, Rect area, ExportStatus status)
+void listening_screen_draw_status(const Theme *theme, Canvas *canvas, Rect area,
+                                  ExportStatus status)
 {
     const Font *title = theme->fonts.title;
     const Font *body = theme->fonts.body;
@@ -585,10 +657,11 @@ static void draw_export(const ListeningScreen *screen, Canvas *canvas, Rect area
     uint8_t stage = work->export_stage < EXPORT_MEASURE ? EXPORT_MEASURE : work->export_stage;
     write_export_detail(&builder);
     bool working = stage <= EXPORT_WRITE;
-    draw_status(theme, canvas, area,
-                (ExportStatus){i18n_text(HEADLINES[stage - EXPORT_MEASURE]), detail,
-                               working ? i18n_text(STR_BACK_CANCELS) : NULL,
-                               working ? screen->motion : NULL});
+    listening_screen_draw_status(theme, canvas, area,
+                                 (ExportStatus){i18n_text(HEADLINES[stage - EXPORT_MEASURE]),
+                                                detail,
+                                                working ? i18n_text(STR_BACK_CANCELS) : NULL,
+                                                working ? screen->motion : NULL});
 }
 
 static void draw(void *context, Canvas *canvas)
@@ -600,8 +673,10 @@ static void draw(void *context, Canvas *canvas)
     header_draw(canvas, theme, screen->screen.title);
     if (screen->mode == MODE_CONFIRM) {
         draw_confirmation(screen, canvas, content);
-    } else if (screen->mode == MODE_OPTIONS) {
+    } else if (screen->mode == MODE_OPTIONS || screen->mode == MODE_PERIODS) {
         list_view_draw(&screen->list, canvas, content, screen->now_ms);
+    } else if (screen->mode == MODE_RECAP) {
+        recap_cards_draw(screen, canvas, content);
     } else if (screen->mode == MODE_MENU) {
         draw_menu(screen, canvas, content);
     } else if (screen->mode == MODE_TOTALS) {
@@ -634,6 +709,7 @@ Screen *listening_screen_init(ListeningScreen *screen, ListeningScreenConfig con
         (ListeningScreen){.store = config.store, .theme = config.theme, .motion = config.motion};
     toast = config.toast;
     scanning = config.scanning;
+    recap_cards_bind(config.covers, config.settings);
     screen->model = (ListModel){.context = screen,
                                 .count = row_count,
                                 .label = row_label,

@@ -735,6 +735,16 @@ static void walk_listening(void)
     tap(KEY_BACK);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
+    show_titled("Recap periods", STR_RECAP);
+    tap(KEY_PLAY);
+    show_titled("Recap without a clock", STR_RECAP);
+    tap(KEY_BACK);
+    down(3);
+    tap(KEY_PLAY);
+    show_titled("Recap without history", STR_RECAP);
+    back(2);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
     CHECK(strcmp(i18n_text(STR_EXPORT_PLAYS), app_screen_title()) == 0);
     CHECK(show("Export plays") >= 3);
 }

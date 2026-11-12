@@ -5,7 +5,7 @@ foreach(playback_test play_queue resume_rewind resume_state up_next bookmarks sp
     )
 endforeach()
 
-foreach(listening_test listening_log listening_stats listening_export)
+foreach(listening_test listening_log listening_stats listening_export listening_recap)
     echo_add_unit_test(NAME test_${listening_test}
         SOURCES playback/test_${listening_test}.c playback/listening_fixture.c
         LIBRARIES echo_playback

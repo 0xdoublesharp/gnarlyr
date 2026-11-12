@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from echo_image_harness import EchoImageHarness, HOME_LISTENING_ROW, IDENTITY, main
+from echo_image_harness import EchoImageHarness, HOME_LISTENING_ROW, STATS_MOMENTS_ROW, IDENTITY, main
 
 
 class EchoImageTest(EchoImageHarness):
@@ -119,7 +119,7 @@ class EchoImageTest(EchoImageHarness):
         rig.press("back", hold=1300)
         rig.press_many("next", HOME_LISTENING_ROW)
         rig.press("play")
-        rig.press_many("next", 5)
+        rig.press_many("next", STATS_MOMENTS_ROW)
         rig.press("play")
         rig.press("play")
         reader = FatReader(rig.session.disk, rig.session.layout["volume_start"])
@@ -139,7 +139,7 @@ class EchoImageTest(EchoImageHarness):
         resumed.settle(1000)
         resumed.press_many("next", HOME_LISTENING_ROW)
         resumed.press("play")
-        resumed.press_many("next", 5)
+        resumed.press_many("next", STATS_MOMENTS_ROW)
         resumed.press("play")
         starts = []
         again.machine.hook_symbol("hal_audio_play", lambda: starts.append(
