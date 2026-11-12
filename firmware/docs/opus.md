@@ -67,7 +67,7 @@ The Cortex-M3 emulator counts instructions for whole fixtures (core-1 idle time 
 | Vorbis stereo 44.1 kHz, 3.25 s chirp (`seek44`) | 282,572 |
 | AAC-LC stereo 44.1 kHz, 123 kbit/s | 539,421 |
 
-Stereo Opus at typical bitrates needs about 41–50 million instructions per second, roughly 1.7 times AAC and 3.3 times Vorbis. At one cycle per instruction that is a quarter of core 1's 200 MHz. Cortex-M3 multiplies, loads and branches take more than one cycle, so the real share is higher. Cycle counts, memory wait states and input starvation behaviour can only be measured on the player.
+Stereo Opus at typical bitrates needs about 41–50 million instructions per second, roughly 1.7 times AAC and 3.3 times Vorbis. Core 1 runs Opus at 100 MHz, giving two million cycles per 20 ms. At one cycle per instruction, the measured stereo cases use 41–50% of that budget, leaving 50–59% ideal margin. The earlier 200 MHz assumption was incorrect; Opus does not request the optional 200 MHz decode clock ([clock policy](core1-clock.md)). Cortex-M3 multiplies, loads and branches take more than one cycle, so the real share is higher. Cycle counts, memory wait states and input starvation behaviour can only be measured on the player.
 
 ## Not yet checked on a player
 

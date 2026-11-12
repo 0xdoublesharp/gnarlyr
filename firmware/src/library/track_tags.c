@@ -10,10 +10,11 @@ typedef struct FormatName {
 } FormatName;
 
 static const FormatName FORMATS[] = {
-    {"flac", TAG_FORMAT_FLAC}, {"ogg", TAG_FORMAT_OGG},  {"mp3", TAG_FORMAT_MP3},
-    {"m4a", TAG_FORMAT_MP4},   {"m4b", TAG_FORMAT_MP4},  {"wav", TAG_FORMAT_WAV},
-    {"wma", TAG_FORMAT_WMA},   {"ape", TAG_FORMAT_APE},  {"dsf", TAG_FORMAT_DSF},
-    {"dff", TAG_FORMAT_DFF},   {"opus", TAG_FORMAT_OGG},
+    {"flac", TAG_FORMAT_FLAC}, {"ogg", TAG_FORMAT_OGG},   {"mp3", TAG_FORMAT_MP3},
+    {"m4a", TAG_FORMAT_MP4},   {"m4b", TAG_FORMAT_MP4},   {"wav", TAG_FORMAT_WAV},
+    {"wma", TAG_FORMAT_WMA},   {"ape", TAG_FORMAT_APE},   {"dsf", TAG_FORMAT_DSF},
+    {"dff", TAG_FORMAT_DFF},   {"opus", TAG_FORMAT_OGG},  {"aiff", TAG_FORMAT_AIFF},
+    {"aif", TAG_FORMAT_AIFF},  {"aifc", TAG_FORMAT_AIFF},
 };
 
 static char lower(char character)
@@ -263,6 +264,8 @@ static bool read_format(TagReader *reader, TagFormat format)
         return tags_read_mp3(reader);
     case TAG_FORMAT_MP4:
         return tags_read_mp4(reader);
+    case TAG_FORMAT_AIFF:
+        return tags_read_aiff(reader);
     case TAG_FORMAT_WAV:
         return tags_read_wav(reader);
     case TAG_FORMAT_WMA:

@@ -50,6 +50,7 @@ typedef struct StreamRegion {
     int32_t (*samples)[FLAC_MAX_CHANNELS][FLAC_MAX_BLOCK];
     volatile uint8_t *ring;
     uint32_t ring_bytes;
+    void (*request_clock)(uint32_t mhz);
 } StreamRegion;
 
 typedef enum Core1DecodeResult {
@@ -93,6 +94,7 @@ typedef struct Core1Stream {
 } Core1Stream;
 
 void core1_stream_init(Core1Stream *stream, StreamRegion region, Core1Decoder decoder);
+void core1_stream_clock(StreamRegion region, uint32_t mhz);
 bool core1_stream_step(Core1Stream *stream);
 
 typedef enum Core1Format {
@@ -100,7 +102,8 @@ typedef enum Core1Format {
     CORE1_FORMAT_MP3,
     CORE1_FORMAT_M4A,
     CORE1_FORMAT_VORBIS,
-    CORE1_FORMAT_OPUS
+    CORE1_FORMAT_OPUS,
+    CORE1_FORMAT_DSD
 } Core1Format;
 
 typedef struct Core1Source {
@@ -119,6 +122,7 @@ typedef struct Core1Source {
     uint32_t ring_capacity;
     M4aStream *m4a;
     OggStream *ogg;
+    struct DsdStream *dsd;
     bool (*wait_vorbis)(struct Core1Source *source);
     uint8_t bits_per_sample;
     uint8_t channels;

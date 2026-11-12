@@ -14,6 +14,7 @@ def generators(source, python, check=False):
         ("font_build", ["--config", source / "assets/fonts/fonts.json", "--output", source / "src/fonts", *style]),
         ("glyph_pack", ["--config", source / "assets/fonts/glyph_pack.json", "--output", source / "src/fonts/packs"]),
         ("fold_table", ["--output", source / "src/library", *style]),
+        ("dsd_filter", ["--output", source / "platform/device/logic/dsd_filter_table.h", *style]),
         ("audio_resample_table", ["--output", source / "platform/device/logic/audio_resample_table.h", *style]),
         ("replay_gain_table", ["--output", source / "src/library/replay_gain_table.h", *style]),
     ]

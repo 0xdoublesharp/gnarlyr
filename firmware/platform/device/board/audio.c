@@ -16,6 +16,7 @@
 #include "device/card_format.h"
 #include "device/dac_sequence.h"
 #include "device/dma_loop.h"
+#include "device/dsd_stream.h"
 #include "device/equalizer.h"
 #include "device/flac_source.h"
 #include "device/m4a_stream.h"
@@ -53,6 +54,7 @@ typedef enum SourceKind {
     SOURCE_M4A = CORE1_PROGRAM_M4A,
     SOURCE_VORBIS = CORE1_PROGRAM_VORBIS,
     SOURCE_OPUS = CORE1_PROGRAM_OPUS,
+    SOURCE_DSD = CORE1_PROGRAM_DSD,
     SOURCE_WAV,
     SOURCE_UNKNOWN
 } SourceKind;
@@ -60,7 +62,8 @@ _Static_assert((int)CORE1_FORMAT_FLAC == (int)SOURCE_FLAC &&
                    (int)CORE1_FORMAT_MP3 == (int)SOURCE_MP3 &&
                    (int)CORE1_FORMAT_M4A == (int)SOURCE_M4A &&
                    (int)CORE1_FORMAT_VORBIS == (int)SOURCE_VORBIS &&
-                   (int)CORE1_FORMAT_OPUS == (int)SOURCE_OPUS,
+                   (int)CORE1_FORMAT_OPUS == (int)SOURCE_OPUS &&
+                   (int)CORE1_FORMAT_DSD == (int)SOURCE_DSD,
                "each core 1 source kind names its program and its opener");
 
 static union {
@@ -78,6 +81,7 @@ static WorkspaceLoan workspace_loan;
 static Equalizer equalizer __attribute__((section(".high_ram")));
 static uint32_t music_ring[RING_WORDS];
 static WavSource wav_source;
+static DsdStream dsd_stream;
 static SourceKind source_kind;
 static bool unknown_format;
 static Core1Source core1_source;
@@ -186,8 +190,12 @@ static SourceKind kind_of(const char *path)
     if (!read || tag_is(magic, "fLaC")) {
         return SOURCE_FLAC;
     }
-    if (tag_is(magic, "RIFF") && tag_is(magic + 8, "WAVE")) {
+    if ((tag_is(magic, "RIFF") && tag_is(magic + 8, "WAVE")) ||
+        (tag_is(magic, "FORM") && (tag_is(magic + 8, "AIFF") || tag_is(magic + 8, "AIFC")))) {
         return SOURCE_WAV;
+    }
+    if (tag_is(magic, "DSD ") || tag_is(magic, "FRM8")) {
+        return SOURCE_DSD;
     }
     if (tag_is(magic, "OggS")) {
         return tag_is(magic + 28, "Opus") ? SOURCE_OPUS : SOURCE_VORBIS;
@@ -298,6 +306,7 @@ static void ensure_engine(void)
     core1_source.m4a = &decoding.m4a;
     core1_source.ogg = &decoding.ogg;
     core1_source.wait_vorbis = board_audio_vorbis_wait;
+    core1_source.dsd = &dsd_stream;
     wav_source_init(&wav_source, files, &decoding.wav);
     AudioSource source = {open_chosen, next_chosen, release_chosen, close_chosen, NULL};
     audio_engine_init(&engine, (AudioEngineConfig){.source = source,
@@ -667,6 +676,10 @@ static HalAudioCodec codec_of(AudioCodec codec)
         return HAL_AUDIO_CODEC_ALAC;
     case AUDIO_CODEC_VORBIS:
         return HAL_AUDIO_CODEC_VORBIS;
+    case AUDIO_CODEC_AIFF:
+        return HAL_AUDIO_CODEC_AIFF;
+    case AUDIO_CODEC_DSD:
+        return HAL_AUDIO_CODEC_DSD;
     case AUDIO_CODEC_OPUS:
         return HAL_AUDIO_CODEC_OPUS;
     case AUDIO_CODEC_FLAC:

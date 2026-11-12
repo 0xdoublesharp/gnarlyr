@@ -437,6 +437,34 @@ class ModuleTest(unittest.TestCase):
     def rows(self, image):
         return make_image.modules_in(image)
 
+    def test_dsd_uses_module_ten_and_leaves_nine_unallocated(self):
+        content = module_blob(10, bytes(100))
+        binary = module_elf(content, base=make_image.AUDIO_MODULE_BASE)
+        self.assertEqual(content, make_image.module_from_elf(binary, 10))
+        modules = [module_blob(number) for number in range(1, 9)] + [b"", content]
+        image = build(modules=modules)
+        self.assertEqual((0, 0), self.rows(image)[8])
+        offset, size = self.rows(image)[9]
+        self.assertEqual(make_image.module_magic(10), image[offset:offset + 4])
+        self.assertEqual(len(content), size)
+
+    def test_module_elf_numbers_preserve_reserved_table_slots(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = []
+            for number in (1, 10):
+                path = root / f"module-{number}.elf"
+                base = make_image.AUDIO_MODULE_BASE if number == 10 else make_image.MODULE_BASE
+                path.write_bytes(module_elf(module_blob(number), base=base))
+                paths.append(path)
+            modules = make_image.modules_from_elfs(paths[0].read_bytes(), paths)
+            self.assertEqual(10, len(modules))
+            self.assertEqual([b""] * 8, modules[1:9])
+            self.assertEqual(module_blob(10), modules[9])
+            self.assertEqual(modules,
+                             make_image.modules_from_elfs(paths[0].read_bytes(), list(reversed(paths))))
+
     def test_processing_module_has_an_independent_bounded_window_with_private_state(self):
         base, capacity, number = 0x0308F000, 0x3000, 7
         content = module_blob(number, bytes(capacity - 20))
@@ -758,7 +786,7 @@ class OverlayTest(unittest.TestCase):
         end = make_image.USB_OVERLAY_OFFSET + make_image.USB_OVERLAY_CAPACITY
         self.assertEqual(make_image.FW_SIZE, end)
         self.assertEqual(0, make_image.USB_OVERLAY_OFFSET % 512)
-        self.assertIn((make_image.CORE1_OPUS_END, make_image.USB_OVERLAY_OFFSET),
+        self.assertIn((make_image.CORE1_DSD_END, make_image.USB_OVERLAY_OFFSET),
                       make_image.GLYPH_REGIONS)
 
     def test_the_trailer_crc_covers_the_usb_overlay(self):
@@ -979,6 +1007,23 @@ class Core1ModuleTest(unittest.TestCase):
                          make_image.CORE1_MODULE_CAPACITY)
         with self.assertRaises(make_image.ImageError):
             build(core1_opus=bytes(make_image.CORE1_MODULE_CAPACITY + 1))
+
+    def test_dsd_program_follows_opus_with_checked_crc_and_a_bounded_bank(self):
+        program = bytes(range(256)) * 7
+        image = build(core1_dsd=program, core1_opus=b"\x55" * 512)
+        offset = make_image.CORE1_DSD_OFFSET
+        self.assertEqual(make_image.CORE1_OPUS_END, offset)
+        self.assertEqual(b"EC1M", image[offset:offset + 4])
+        self.assertEqual(len(program), word(image, offset + 4))
+        self.assertEqual(make_image.crc32(program), word(image, offset + 8))
+        start = offset + make_image.CORE1_MODULE_HEADER_SIZE
+        self.assertEqual(program, image[start:start + len(program)])
+        self.assertEqual([], make_image.validate_image(image))
+        self.assertEqual((make_image.CORE1_DSD_END, make_image.USB_OVERLAY_OFFSET),
+                         make_image.GLYPH_REGIONS[1])
+        build(core1_dsd=bytes(make_image.CORE1_MODULE_CAPACITY))
+        with self.assertRaises(make_image.ImageError):
+            build(core1_dsd=bytes(make_image.CORE1_MODULE_CAPACITY + 1))
 
     def test_no_program_leaves_the_space_empty(self):
         offset = make_image.CORE1_MP3_OFFSET

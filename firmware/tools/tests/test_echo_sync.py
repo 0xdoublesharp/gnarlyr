@@ -91,9 +91,9 @@ class PlayerFingerprintTest(unittest.TestCase):
 
     def test_the_counted_names_are_the_players(self):
         counted = ["a.flac", "a.ogg", "a.opus", "a.mp3", "a.m4a", "a.m4b", "a.wav", "a.wma", "a.ape", "a.dsf",
-                   "a.dff", "A.FLAC", "b.m3u", "b.M3U8", "c.cue", "C.CUE", "Folder.JPG", "front.png",
+                   "a.dff", "a.aiff", "a.aif", "a.aifc", "A.FLAC", "b.m3u", "b.M3U8", "c.cue", "C.CUE", "Folder.JPG", "front.png",
                    "albumart.jpeg", "cover.png"]
-        ignored = ["x.aac", "x.txt", "x.aiff", "x.mp4", "x.flac.txt", "scan 01.jpg",
+        ignored = ["x.aac", "x.txt", "x.mp4", "x.flac.txt", "scan 01.jpg",
                    "covers.jpg", "folder.gif"]
         for name in counted:
             self.assertTrue(echo_sync.fingerprint_counts(name.encode(), False), name)

@@ -8,6 +8,27 @@ Gnarlyr builds on Podium 4.5.9 and EchoPod with their GPL credits preserved. The
 - Now Playing uses the header palette for its top band, keeping status icons and numbers readable in Classic.
 - Queue position is centred in portrait and appears in landscape when the title is hidden. Items fit by priority at every text size; the battery and screen title keep their places.
 - Native checks cover fitting, battery levels and thresholds, settings migration and layout; the focused ARM scenario follows volume and queue changes. Simulator captures cover Neon Noir, Graphite and Classic in both orientations and all text sizes. Player acceptance remains with the integration owner.
+## Unreleased: DSD PCM conversion
+
+- Added a dedicated DSF/DFF decoder, 88.2 kHz PCM conversion, seeking, queued
+  transitions, ID3 artwork and DFF DIIN artist/title fallback in both scanners.
+- Core 1 requests 200 MHz for stereo DSD64, DSD128 and mono DSD256, and for
+  Vorbis above 96 kHz. Idle work and other streams retain 100 MHz. Stereo
+  DSD256 is refused with a 20% instruction reserve; DST and multichannel DSD
+  remain unsupported. Stock/hardware clock limits and software transitions
+  are documented in [the clock reference](core1-clock.md).
+- Generated native reference tests, filter-response checks and ARM decoder
+  comparisons cover software behavior. Physical playback and real-time margin
+  have not been checked on the player.
+
+## Unreleased: AIFF playback
+
+- Added AIFF and AIFF-C `NONE`/`sowt` through the WAV PCM path, with seeking,
+  library ID3 tags and embedded artwork. Mono/stereo 16/24-bit files accept the
+  standard 8–192 kHz rates. Compressed and float AIFF-C remain unsupported.
+- Generated native fixtures cover playback, seeks, endpoints, tags and artwork.
+  This addition has not been checked on the player.
+
 
 ## Identity and files
 

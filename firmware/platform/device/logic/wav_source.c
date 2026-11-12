@@ -126,7 +126,7 @@ static bool open_source(void *context, const char *path, uint32_t start_ms, Audi
     }
     source->open = true;
     WavFormat format = {0};
-    if (!parse(source->input, &format)) {
+    if (!parse(source->input, &format) && !aiff_probe(source->input, &format)) {
         close_source(source);
         return false;
     }
@@ -138,11 +138,12 @@ static bool open_source(void *context, const char *path, uint32_t start_ms, Audi
                                          .bits_per_sample = format.bits,
                                          .total_samples = format.frames},
                               .audio_bytes = format.frames * format.frame_bytes,
-                              .codec = AUDIO_CODEC_WAV};
+                              .codec = format.big_endian || format.aifc ? AUDIO_CODEC_AIFF
+                                                                        : AUDIO_CODEC_WAV};
     return true;
 }
 
-static int32_t sample_from(const uint8_t *bytes, uint32_t bits)
+static int32_t sample_from_little(const uint8_t *bytes, uint32_t bits)
 {
     switch (bits) {
     case 8:
@@ -156,6 +157,19 @@ static int32_t sample_from(const uint8_t *bytes, uint32_t bits)
     default:
         return (int32_t)read_u32(bytes);
     }
+}
+
+static int32_t sample_from(const uint8_t *bytes, uint32_t bits, bool big_endian)
+{
+    if (big_endian) {
+        uint32_t value = (uint32_t)bytes[0] << 8 | bytes[1];
+        if (bits == 24) {
+            value = value << 8 | bytes[2];
+        }
+        uint32_t sign = 1u << (bits - 1);
+        return (int32_t)(value ^ sign) - (int32_t)sign;
+    }
+    return sample_from_little(bytes, bits);
 }
 
 static bool read_block(WavSource *source, uint32_t first, uint32_t frames)
@@ -173,9 +187,10 @@ static bool read_block(WavSource *source, uint32_t first, uint32_t frames)
         }
         for (uint32_t index = 0; index < count; index++) {
             const uint8_t *frame = buffers->raw + index * format.frame_bytes;
-            buffers->left[done + index] = sample_from(frame, format.bits);
+            buffers->left[done + index] = sample_from(frame, format.bits, format.big_endian);
             if (format.channels > 1) {
-                buffers->right[done + index] = sample_from(frame + sample_bytes, format.bits);
+                buffers->right[done + index] =
+                    sample_from(frame + sample_bytes, format.bits, format.big_endian);
             }
         }
         done += count;
