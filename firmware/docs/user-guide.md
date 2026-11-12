@@ -518,7 +518,15 @@ Follow [`device-recovery.md`](device-recovery.md). It writes FiiO's image into b
 
 ## Themes and controls
 
-Settings → Theme offers Neon Noir, Graphite, Sunset, Sea Glass and Classic. Theme changes keep the text size and orientation you selected. Settings → Controls assigns tap and hold actions independently for Volume+, Volume−, Play and Menu during playback. Default keeps the normal skip gesture; Off ignores that action. Reset buttons restores the normal controls. List navigation stays consistent.
+Settings → Theme offers Neon Noir, Graphite, Sunset, Sea Glass and Classic, followed by installed theme packs. Move with the volume buttons to preview a theme's colours and background. Press Play to keep it; Back restores the saved theme. Theme changes keep your text size, orientation and navigation.
+
+To install a pack, create `.gnarlyr/themes` on the SD card, copy its `.gtheme` file there and eject normally. Without a card, use the same folder on internal storage. The list shows the pack's name and author. Damaged packs stay visible but cannot be applied. A low-contrast warning means the palette may make text hard to read. Verified, when present, identifies a signature from a trusted gallery key; unsigned packs work normally too.
+
+Theme selection survives a restart and firmware updates that support the same pack format. An absent or damaged active pack uses the built-in default, so you can always choose another theme. To update a pack, replace its file with the newer version using the same pack ID. You can return to a built-in at any time, then remove unwanted pack files on a computer.
+
+To make your own, start with the original designs in [`examples/themes`](../../examples/themes), edit the manifest and PNGs, and build with `python3 tools/theme_pack.py FOLDER --output FILE.gtheme`. Check a download with `python3 tools/theme_pack.py --check FILE.gtheme`. The [community format guide](../../docs/theme-format.md) explains dimensions, palette roles, licences and optional signing. Packs contain only data and never require a firmware reflash.
+
+ Settings → Controls assigns tap and hold actions independently for Volume+, Volume−, Play and Menu during playback. Default keeps the normal skip gesture; Off ignores that action. Reset buttons restores the normal controls. List navigation stays consistent.
 
 ## Waiting
 

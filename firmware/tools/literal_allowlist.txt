@@ -284,11 +284,6 @@ src/app/diagnostics_values.c: "ms "
 src/app/diagnostics_values.c: "watchdog test"
 
 src/app/mixtape_screen.c: " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.!&()"
-src/app/default_theme.c: "/themes/classic.bin"
-src/app/default_theme.c: "/themes/glass.bin"
-src/app/default_theme.c: "/themes/graphite.bin"
-src/app/default_theme.c: "/themes/neon.bin"
-src/app/default_theme.c: "/themes/sunset.bin"
 src/app/mixtape_store.c: "/mixes.bin"
 src/app/player_storage.c: "/order.bin"
 src/app/player_storage.c: "/session.bin"
@@ -321,3 +316,7 @@ src/app/screens/moments_screen.c: "/moments.bin"
 
 # The internal volume label older builds wrote; mounting renames it to the firmware name.
 platform/device/board/internal_volume.c: "ECHO"
+
+src/app/theme_catalog.c: ".gtheme"
+src/app/theme_runtime.c: "/themes"
+src/app/theme_render.c: "/theme.bin"

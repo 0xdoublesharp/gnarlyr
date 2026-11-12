@@ -190,6 +190,12 @@ static bool load_module(uint32_t module, uint8_t *base)
     return board_overlay_load(&overlay);
 }
 
+const void *hal_system_loaded_module(void)
+{
+    return loaded_module != 0 ? (const uint8_t *)(uintptr_t)MODULE_SLOT_BASE + OVERLAY_HEADER_BYTES
+                              : NULL;
+}
+
 CORE_SEAM const void *hal_system_load_module(uint32_t module)
 {
     uint8_t *base = (uint8_t *)(uintptr_t)MODULE_SLOT_BASE;

@@ -62,6 +62,12 @@ static void bind(AppScreens *screens)
     settings_screens_init(&own->settings, settings, context->theme);
     own->settings.items[SETTINGS_ABOUT_ITEM] =
         app_screens_open_item(STR_ABOUT, &screens->modules.views.diagnostics.screen);
+    for (int at = 0; at < SETTINGS_ITEM_COUNT; at++) {
+        if (own->settings.items[at].label == i18n_text(STR_THEME)) {
+            own->settings.items[at] =
+                app_screens_open_item(STR_THEME, &screens->modules.listening.themes.screen);
+        }
+    }
     bind_home_editor(screens);
 }
 

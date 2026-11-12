@@ -31,6 +31,15 @@ add_library(echo_app STATIC
     home_editor.c
     theme_palette.c
     listening_effects.c
+    theme_pack.c
+    theme_runtime.c
+    theme_render.c
+    theme_art.c
+    theme_catalog.c
+    theme_picker.c
+    theme_signature.c
+    theme_crypto_curve.c
+    theme_crypto_sha512.c
     listening_store.c
     listening_store_view.c
     listening_clear.c
@@ -133,3 +142,7 @@ target_link_libraries(echo_app
     PUBLIC echo_core echo_gfx echo_ui echo_fonts echo_library echo_playback echo_settings echo_hal
     PRIVATE echo_options echo_compact echo_lto
 )
+
+target_include_directories(echo_app PRIVATE ${PROJECT_SOURCE_DIR}/third_party/monocypher)
+
+set_source_files_properties(theme_crypto_curve.c theme_crypto_sha512.c PROPERTIES COMPILE_OPTIONS -w)
