@@ -249,6 +249,7 @@ class EchoImageHarness(unittest.TestCase):
         machine = session.machine
         self.assertEqual(machine.faults, [])
         self.assertEqual(machine.panics, [])
+        self.assertEqual(machine.usb.fifo_faults, [])
 
     def assert_only_the_user_volume_changed(self, session):
         layout = session.layout

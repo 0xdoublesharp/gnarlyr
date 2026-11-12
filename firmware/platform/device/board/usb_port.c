@@ -1,6 +1,7 @@
 #include <stddef.h>
 
 #include "core/seam.h"
+#include "device/usb_fifo.h"
 #include "hal/clock.h"
 #include "usb.h"
 #include "usb_registers.h"
@@ -146,12 +147,18 @@ static void activate_bulk_endpoints(const UsbPort *port)
     arm_bulk_out(port);
 }
 
+static UsbFifoLayout audio_fifos(void)
+{
+    return usb_fifo_audio(read_register(GHWCFG3) >> HWCFG3_DEPTH_SHIFT);
+}
+
 static void activate_audio_endpoints(const UsbPort *port)
 {
-    write_register(GRXFSIZ, 0x120);
-    write_register(GNPTXFSIZ, 0x00200120);
-    write_register(DIEPTXF1, 0x00100140);
-    write_register(DIEPTXF2, 0x00100150);
+    UsbFifoLayout layout = audio_fifos();
+    write_register(GRXFSIZ, layout.rx);
+    write_register(GNPTXFSIZ, layout.nptx);
+    write_register(DIEPTXF1, layout.tx1);
+    write_register(DIEPTXF2, layout.tx2);
     write_register(out_control(1), USB_AUDIO_MAX_PACKET | EP_ISO_ACTIVE);
     write_register(in_control(1), 4 | EP_ISO_ACTIVE | (1u << EP_TX_FIFO_SHIFT));
     write_register(in_control(2), 2 | EP_INTERRUPT_ACTIVE | (2u << EP_TX_FIFO_SHIFT));
@@ -235,7 +242,7 @@ static void apply_action(UsbPort *port, UsbReply reply)
 static void finish_setup(UsbPort *port, UsbSetup setup, UsbReply reply)
 {
     if (port->audio != NULL && reply.action == USB_ACTION_CONFIGURE && reply.value == 1 &&
-        (read_register(GHWCFG3) >> HWCFG3_DEPTH_SHIFT) < 0x160) {
+        !audio_fifos().fits) {
         port->device.configuration = 0;
         reply = (UsbReply){.kind = USB_REPLY_STALL};
     }
