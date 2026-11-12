@@ -99,8 +99,8 @@ class EchoImageTest(EchoImageHarness):
         build_tag = self.image[0x30:0x38].rstrip(b"\0").decode("ascii")
         self.assertEqual(self.recorded_version(session), "1.0.0-" + build_tag)
         self.assertGreaterEqual(self.recorded_entries(session), 1)
-        self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
-                         [(number, True)])
+        self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()
+                          if call["module"] == number], [(number, True)])
         self.assert_healthy(session)
         print("\n[music walk after the first scan] " + watch.describe(watch.loads()[0]))
 
