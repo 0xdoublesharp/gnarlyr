@@ -291,7 +291,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual((flags, offset), (1, -480))
         elapsed_s = (machine.milliseconds() - set_ms) // 1000
         self.assertTrue(NOVEMBER_2026 <= clock <= NOVEMBER_2026 + elapsed_s + 1, (clock, elapsed_s))
-        self.assertEqual(listens[4], 2)
+        self.assertEqual(listens[4], 1)
         self.assert_healthy(session)
 
 

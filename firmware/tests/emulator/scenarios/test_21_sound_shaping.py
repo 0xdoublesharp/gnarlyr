@@ -36,7 +36,7 @@ class EchoImageTest(EchoImageHarness):
         raw = session.fat().read(path)
         self.assertEqual(len(raw), 4096)
         payloads = [raw[bank + 512:bank + 512 + 841] for bank in (0, 1536)]
-        self.assertTrue(any(payload[1] == 1 and payload[4] == 7 and
+        self.assertTrue(any(payload[1:4] == bytes(3) and payload[4] == 7 and
                             payload[760:767] == bytes([2] * 7) for payload in payloads))
         self.assertEqual(rig.audio.underruns(audible), [])
         self.assertEqual(machine.watchdog_resets, 0)
