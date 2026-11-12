@@ -1,0 +1,13 @@
+build any
+set Standby when switched off=On
+set Power off after=2 h
+rtc read
+power
+wait 2000
+measure 5000
+soak 60
+power
+wait 2000
+rtc read
+supply on
+reconnect

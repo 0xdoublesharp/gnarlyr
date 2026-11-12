@@ -106,3 +106,19 @@ bool app_menu_hold(struct AppScreens *screens, KeyEvent event)
     const ExtensionModuleEntry *code = extension();
     return code != NULL && code->menu_hold(screens, event);
 }
+
+void standby_follow(Standby *standby, PowerPolicy *power, const Settings *settings)
+{
+    const ExtensionModuleEntry *code = extension();
+    if (code != NULL) {
+        code->standby_follow(standby, power, settings);
+    }
+}
+
+void standby_frame(Standby *standby)
+{
+    const ExtensionModuleEntry *code = extension();
+    if (code != NULL) {
+        code->standby_frame(standby);
+    }
+}

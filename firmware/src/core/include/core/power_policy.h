@@ -6,6 +6,10 @@
 #include "core/key_tracker.h"
 
 typedef struct PowerPolicy {
+    bool standby_enabled;
+    bool standby_active;
+    uint32_t standby_duration_ms;
+    uint32_t standby_started_ms;
     bool display_on;
     bool sleep_timer_active;
     uint32_t last_activity_ms;
