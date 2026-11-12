@@ -393,7 +393,7 @@ static void exporting_without_plays_settles_at_once_and_keeps_one_back(void)
     start_app();
     move_down(2);
     tap(KEY_PLAY);
-    move_up(2);
+    move_up(3);
     tap(KEY_PLAY);
     CHECK(title_is("Export plays"));
     int depth = app_screen_depth();
