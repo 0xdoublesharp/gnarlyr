@@ -1495,11 +1495,12 @@ static void explain_refusals(uint32_t now_ms)
     }
 }
 
-static MusicFingerprint walk_music(void)
+static MusicFingerprint walk_music(bool progress)
 {
     const LibraryModuleEntry *module =
         (const LibraryModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_LIBRARY);
-    return module != NULL ? module->music_fingerprint() : (MusicFingerprint){.complete = false};
+    return module != NULL ? module->music_fingerprint(progress)
+                          : (MusicFingerprint){.complete = false};
 }
 
 static void continue_covers(uint32_t now_ms)
@@ -1534,7 +1535,7 @@ static void run_rescan(void)
     static char message[TOAST_TEXT_CAPACITY];
     const char *text = library_rescan_message(outcome, message, sizeof message);
     if (outcome.result == SCAN_OK) {
-        music_check_remember(walk_music());
+        music_check_remember(walk_music(false));
         start_app(false);
         app.covers_pending = true;
         app.covers_album = 0;
@@ -1933,14 +1934,17 @@ CORE_SEAM void app_step(void)
             hal_system_restart_pending() ||
             (app.rescan_manual && (music_check_firmware_is_new() || !music_check_settled()));
         if (!changed) {
-            app_show_notice(i18n_text(STR_MUSIC), i18n_text(STR_CHECKING_MUSIC));
-            changed = !music_check_unchanged(walk_music()) || !library_store_open(&app.library);
+            show_working_notice(STR_MUSIC, i18n_text(STR_CHECKING_MUSIC), WIRE_SHAPE_DISC);
+            changed = !music_check_unchanged(walk_music(true)) || !library_store_open(&app.library);
         }
         if (!changed) {
             music_check_note_firmware();
         }
         if (!changed && app.rescan_manual) {
             toast_show(&app.toast, i18n_text(STR_LIBRARY_UP_TO_DATE), hal_clock_milliseconds());
+        }
+        if (changed) {
+            app_show_notice(i18n_text(STR_MUSIC), i18n_text(STR_CHECK_CHANGED));
         }
         app.rescan_manual = false;
         app.rescan_requested |= changed;
@@ -2123,6 +2127,9 @@ CORE_SEAM void app_show_usb_area(AppUsbStatus status, Rect area)
 CORE_SEAM void app_show_notice(const char *title, const char *message)
 {
     bool working = app.motion.running && app.motion.owner == &app.notice;
+    if (working) {
+        wire_motion_tick(&app.motion, hal_clock_milliseconds());
+    }
     MessageConfig config = {.title = title,
                             .message = message,
                             .theme = &notice_theme,
