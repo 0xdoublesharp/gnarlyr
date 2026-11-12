@@ -14,3 +14,8 @@ echo_add_unit_test(NAME test_storage_mount
     LIBRARIES echo_device_logic
 )
 target_compile_definitions(test_storage_mount PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+
+echo_add_unit_test(NAME test_wide_divide
+    SOURCES device/test_wide_divide.c
+    LIBRARIES echo_device_logic
+)

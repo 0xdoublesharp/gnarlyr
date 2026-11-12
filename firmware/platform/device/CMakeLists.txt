@@ -39,6 +39,7 @@ add_executable(echo_device
     board/usb_listen.c
     board/usb_report.c
     board/wall_time.c
+    board/wide_divide.c
 )
 target_sources(echo_device PRIVATE board/panel_vop.c)
 target_include_directories(echo_device PRIVATE ${PROJECT_SOURCE_DIR}/src/app)
@@ -407,7 +408,7 @@ set_target_properties(echo_device PROPERTIES
     SUFFIX .elf
     LINK_DEPENDS ${ECHO_DEVICE_LINKER_SCRIPT}
 )
-set_source_files_properties(board/libc.c board/startup.c PROPERTIES
+set_source_files_properties(board/libc.c board/startup.c board/wide_divide.c PROPERTIES
     COMPILE_OPTIONS "-fno-builtin;-fno-tree-loop-distribute-patterns;-fno-lto"
 )
 if(CMAKE_CROSSCOMPILING)

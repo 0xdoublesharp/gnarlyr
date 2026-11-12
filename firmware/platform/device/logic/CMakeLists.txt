@@ -182,6 +182,7 @@ add_library(echo_device_logic STATIC
     vop.c
     wall_clock.c
     wav_source.c
+    wide_divide.c
 )
 if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(
@@ -229,6 +230,7 @@ if(CMAKE_CROSSCOMPILING)
         usb_fallback.c
         usb_leave.c
         usb_level.c
+        wide_divide.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
 endif()
