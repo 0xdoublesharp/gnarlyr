@@ -61,9 +61,29 @@ static void the_sine_rises_then_falls(void)
     }
 }
 
+static void usb_rates_have_documented_dac_codes_and_bounded_clock_error(void)
+{
+    static const uint32_t rates[] = {44100, 48000, 88200, 96000, 176400, 192000};
+    static const uint32_t divisors[] = {4, 4, 2, 4, 2, 2};
+    for (unsigned index = 0; index < sizeof rates / sizeof rates[0]; index++) {
+        const AudioRate *rate = audio_clock_rate(rates[index]);
+        CHECK(rate != NULL);
+        CHECK_EQUAL(index + 1, rate->dac_byte);
+        uint32_t divisor = i2s_divider_rounded(rate->mclk, rate->rate) + 1;
+        CHECK_EQUAL(divisors[index], divisor);
+        uint32_t nominal = rate->rate * 64 * divisor;
+        CHECK(rate->mclk <= nominal);
+        CHECK((uint64_t)(nominal - rate->mclk) * 1000000 <= (uint64_t)nominal * 70);
+        if (rate->rate % 48000 == 0) {
+            CHECK_EQUAL(nominal, rate->mclk);
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(usb_rates_have_documented_dac_codes_and_bounded_clock_error),
         TEST_CASE(the_i2c_divider_matches_the_boot_clock_value),
         TEST_CASE(the_i2c_divider_follows_pclk),
         TEST_CASE(the_i2s_divider_truncates_or_rounds),

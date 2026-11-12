@@ -129,16 +129,21 @@ To leave File transfer, eject both drives on the computer or hold Back on the pl
 **Not run on a player by this project** (see [`known-issues.md`](known-issues.md)). In this mode the player is a sound card for your computer or phone: their audio plays through the player's headphone outputs.
 
 1. Plug in the USB cable and choose **USB DAC** when the player asks (or, with the cable in, Home → USB mode → USB DAC).
-2. The player shows "USB DAC". It is a standard USB Audio Class 1.0 device, which Windows 10 and later, macOS, Linux, Android and iOS support without a driver (phones need a USB-C or Lightning adapter that passes data).
-3. On the computer, choose Gnarlyr as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output).
-4. Use the computer's volume, the player's volume keys, or both. DAC mode has its own volume, separate from music: it starts at 35 of 60, holding Vol± changes it quickly, and the player remembers it for next time. Start low.
+2. The player shows "USB DAC". It offers USB Audio Class 2.0 over a high-speed connection and Class 1.0 over full speed. Select Gnarlyr in the host’s audio settings; phones need an adapter that passes USB data. Host compatibility still needs the checks listed in known issues.
+3. On the computer, choose Gnarlyr as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output). The player shows the format and its volume, for example "48 kHz 24-bit · Volume 35".
+4. Use the computer's volume, the player's volume keys, or both. DAC mode has its own volume, separate from music: it starts at 35 of 60, the screen shows it ("48 kHz 24-bit · Volume 35"), tap Vol± to change it on release, and the player remembers it for next time. Start low. Press ▶ to send play/pause to the computer. Hold Vol+ for 400 ms to send next track, or Vol− for previous; each hold sends one command. The computer’s media app decides how to handle these keys.
 5. Hold Back for a second and let go to open the mode selector, then choose Charge only or File transfer. The player keeps charging.
 
-**The DAC screen** shows whether sound is playing, the format (for example "48 kHz · 24-bit"), a level meter for the left and right channels, the player's volume, the computer's volume (or Muted), the headphone jack in use, the buffer, the clock correction in ppm, underruns since you connected, the time connected and the USB speed. With a headphone profile on, its name sits beside the format.
+Press Menu in DAC mode to adjust Volume, Gain, Output jack and Headphones, or choose File transfer or Charge only. Volume and headphone changes apply to the live stream. The DAC screen shows the negotiated format, buffer delay, clock drift, underruns and stereo levels after headphone trim.
 
-**The DAC menu** (press Menu) changes, without leaving DAC mode: **Volume** (press Play, then Vol±), **Gain**, **Output** (which jack's volume levels to use), **Headphones** (Off or one of your profiles) and switches to **File transfer** or **Charge only**. Vol± moves, Play changes the highlighted row, Back or Menu closes the menu. Your choices are kept for next time. The equalizer and ReplayGain don't apply in DAC mode; the sound reaches the DAC as the computer sends it, with only volume, gain and the headphone profile's trim, balance and ceiling.
+The computer picks the format (macOS: Audio MIDI Setup; Windows: Sound settings → Gnarlyr → Properties → Advanced).
 
-The player accepts 16 or 24-bit at 44.1 and 48 kHz; the computer picks one (on Windows: Sound settings → Gnarlyr → Properties → Advanced). Music on the player stops while it's a DAC. Choose File transfer from the mode selector to copy music without removing the cable. A charger works the same in both modes.
+| Connection | Stereo PCM depth | Rates in kHz |
+| --- | --- | --- |
+| High speed, UAC2 | 16, 24 or 32-bit | 44.1, 48, 88.2, 96, 176.4, 192 |
+| Full speed, UAC1 | 16 or 24-bit | 44.1, 48 |
+
+High-speed mode uses asynchronous feedback to follow the player’s audio clock, with a 5 ms device buffer target. Full-speed mode retains a 20 ms target and sample correction. Host buffering adds delay. To preserve PCM sample words, turn headphone profiles Off and use an exclusive/direct host output at the file’s own format with host processing disabled. Player and host volume still affect the analog result. Music on the player stops while it's a DAC. Choose File transfer from the mode selector to copy music without removing the cable. A charger works the same in both modes.
 
 ## Build the library on a computer
 

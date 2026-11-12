@@ -197,6 +197,7 @@ set(ECHO_OVERLAY_IMPORTS
     font_find_glyph
     label_draw
     label_draw_wrapped
+    label_draw_wrapped_serviced
     label_centered_area
     label_wrap_count
     text_width
@@ -205,6 +206,7 @@ set(ECHO_OVERLAY_IMPORTS
     utf8_next
     app_usb_battery_changed
     board_audio_set_attenuation
+    board_audio_stream_buffer
     board_audio_stream_close
     board_audio_stream_consumed
     board_audio_stream_open

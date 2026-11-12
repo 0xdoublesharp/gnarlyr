@@ -399,9 +399,31 @@ static void dac_details_show_what_the_session_measured(void)
     CHECK(saw("1:02:05"));
 }
 
+static void count_service(void)
+{
+    registered_draws++;
+}
+
+static void rendering_service_preserves_the_complete_dac_frame(void)
+{
+    Theme theme = theme_for(APPEARANCE_GRAPHITE, ORIENTATION_LANDSCAPE, TEXT_SIZE_MEDIUM);
+    UsbScene scene = dac_scene(USB_SCENE_DAC_PLAYING);
+    AppUsbStatus status = {
+        .view = APP_USB_DAC, .detail = i18n_text(STR_USB_DAC_HINT), .scene = &scene};
+    Canvas canvas = canvas_for(&theme);
+    usb_screen_draw(&canvas, &theme, (HalBattery){.known = true, .percent = 64}, status);
+    memcpy(before, pixels, sizeof pixels);
+    registered_draws = 0;
+    scene.service = count_service;
+    usb_screen_draw(&canvas, &theme, (HalBattery){.known = true, .percent = 64}, status);
+    CHECK(registered_draws > 8);
+    CHECK_EQUAL(0, memcmp(before, pixels, sizeof pixels));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(rendering_service_preserves_the_complete_dac_frame),
         TEST_CASE(every_usb_state_fits_every_theme_size_and_orientation),
         TEST_CASE(connecting_uses_the_overlay_and_a_cleared_renderer_the_resident_fallback),
         TEST_CASE(storage_motion_redraws_only_the_cassette_square),

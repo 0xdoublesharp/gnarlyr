@@ -9,6 +9,13 @@ Gnarlyr builds on Podium 4.5.9 and EchoPod with their GPL credits preserved. The
 - Queue position is centred in portrait and appears in landscape when the title is hidden. Items fit by priority at every text size; the battery and screen title keep their places.
 - Native checks cover fitting, battery levels and thresholds, settings migration and layout; the focused ARM scenario follows volume and queue changes. Simulator captures cover Neon Noir, Graphite and Classic in both orientations and all text sizes. Player acceptance remains with the integration owner.
 
+## USB DAC
+
+- High-speed UAC2 adds stereo 16/24/32-bit PCM at 44.1, 48, 88.2, 96, 176.4 and 192 kHz. Full-speed UAC1 retains 16/24-bit at 44.1/48 kHz.
+- Explicit feedback follows the player’s clock without dropping or repeating samples in UAC2. The USB overlay ring targets 5 ms of device buffering (17,600 bytes in device, 24,000 in release); headphone trim/balance and DAC volume remain available. An empty USB stream is cleared and muted before it reprimes.
+- ▶ sends host play/pause; 400 ms Vol+ and Vol− holds send next and previous. Volume taps change the local DAC volume.
+- Native descriptor, clock-drift and PCM tests and ARM streaming scenarios cover software behavior. Physical host compatibility, clock accuracy, both outputs, remote keys and hardware CPU margin remain open in the [host acceptance checks](known-issues.md#usb-dac-host-acceptance).
+
 ## Identity and files
 
 The canonical firmware name is **Gnarlyr**, made by **doublesharp**. The image identifier and USB storage vendor are `GNARLYR`; the update file is `GNARLYR.IMG`, the data directory is `/.gnarlyr`, and exported CUE playlist entries use `#GNARLYR-START:`. `identity.json` supplies the build, simulator and host tools.

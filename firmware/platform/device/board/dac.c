@@ -136,6 +136,7 @@ static bool wait_pending(uint32_t bits, I2cStage stage)
 {
     uint32_t start = hal_clock_milliseconds();
     while ((register_read(I2C_IPD) & bits) == 0) {
+        board_audio_stream_service();
         if (hal_clock_milliseconds() - start >= I2C_TIMEOUT_MS) {
             note_failure(stage);
             return false;
@@ -540,6 +541,13 @@ void dac_path_set_muted(bool mute)
     }
     dac_set_muted(&BUS, false, applied_volume);
     fade_to(target);
+}
+
+void dac_path_stream_quiet(void)
+{
+    muted = true;
+    applied_volume = DAC_VOLUME_MUTED;
+    dac_set_muted(&BUS, true, DAC_VOLUME_MUTED);
 }
 
 void dac_path_fade_out(void)

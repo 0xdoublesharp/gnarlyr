@@ -37,7 +37,7 @@ CORE_SEAM bool usb_session_listen(void)
 
 bool usb_dac_session_listen(void)
 {
-    shared.link = (UsbLink){.high_speed_allowed = false};
+    shared.link = (UsbLink){.high_speed_allowed = true};
     usb_power_up();
     if (usb_connect(&shared.link)) {
         return true;

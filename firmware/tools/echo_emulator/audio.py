@@ -22,6 +22,7 @@ class AudioPath:
         self.core1 = None
         self.rate = 44100
         self.ring = machine.symbols["music_ring"]
+        self.dma_ring = self.ring
         self.running = False
         self.suspend_depth = 0
         self.paused_us = 0
@@ -93,6 +94,7 @@ class AudioPath:
 
     def start_loop(self, machine):
         self.items = machine.reg(UC_ARM_REG_R0)
+        self.dma_ring = struct.unpack("<I", machine.read_memory(self.items, 4))[0]
         self.started_us = machine.microseconds()
         self.running = True
         self.suspend_depth = 0
@@ -153,7 +155,7 @@ class AudioPath:
             return 0
         elapsed = self.elapsed_us(machine)
         words = elapsed * self.rate * WORDS_PER_FRAME // 1000000
-        return self.ring + (words % self.ring_words()) * WORD_BYTES
+        return self.dma_ring + (words % self.ring_words()) * WORD_BYTES
 
     def sample_level(self):
         if not self.running or self.suspend_depth:

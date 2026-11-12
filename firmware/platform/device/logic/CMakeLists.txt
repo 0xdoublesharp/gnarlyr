@@ -143,6 +143,8 @@ add_library(echo_device_logic STATIC
     updater.c
     usb_activity.c
     usb_audio.c
+    usb_audio_descriptors.c
+    usb_audio_hid.c
     usb_audio_sink.c
     usb_device.c
     usb_fallback.c

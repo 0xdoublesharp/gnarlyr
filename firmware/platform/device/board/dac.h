@@ -10,6 +10,7 @@ void dac_path_stop(void);
 void dac_path_set_fade_service(void (*service)(void));
 void dac_path_output_on(void);
 void dac_path_set_muted(bool mute);
+void dac_path_stream_quiet(void);
 void dac_path_fade_out(void);
 void dac_path_set_volume(uint8_t value);
 void dac_path_set_gain(bool high);
