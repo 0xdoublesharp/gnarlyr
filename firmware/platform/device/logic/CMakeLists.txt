@@ -218,3 +218,8 @@ target_link_libraries(echo_device_logic
     PUBLIC echo_core echo_hal echo_codec echo_libmad echo_faad echo_tremor echo_opus
     PRIVATE echo_options
 )
+if(CMAKE_CROSSCOMPILING)
+    target_compile_options(echo_libmad PRIVATE -O3)
+    target_compile_options(echo_faad PRIVATE -O3 -flto -ffat-lto-objects)
+    target_compile_options(echo_opus PRIVATE -flto -ffat-lto-objects)
+endif()
