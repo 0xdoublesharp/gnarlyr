@@ -1,5 +1,7 @@
 include(tremor.cmake)
 include(opus.cmake)
+include(demac.cmake)
+include(rockbox_wma.cmake)
 
 set(ECHO_LIBMAD_DIR ${PROJECT_SOURCE_DIR}/third_party/libmad)
 set(FPM_64BIT ON)
@@ -60,6 +62,15 @@ add_library(echo_device_logic STATIC
     dsd_stream.c
     core1_dsd_source.c
     aiff_format.c
+    core1_ape_source.c
+    ape_stream.c
+    core1_ape.c
+    audio_ape_wma_entry.c
+    core1_wma_source.c
+    core1_wma.c
+    asf_stream.c
+    asf_track.c
+    ape_track.c
     aac_decoder.c
     audio_boost.c
     audio_crossfeed.c
@@ -241,6 +252,6 @@ if(CMAKE_CROSSCOMPILING)
 endif()
 target_include_directories(echo_device_logic PUBLIC include)
 target_link_libraries(echo_device_logic
-    PUBLIC echo_core echo_hal echo_codec echo_libmad echo_faad echo_tremor echo_opus
+    PUBLIC echo_wma echo_demac echo_core echo_hal echo_codec echo_libmad echo_faad echo_tremor echo_opus
     PRIVATE echo_options
 )

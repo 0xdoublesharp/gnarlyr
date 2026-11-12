@@ -81,7 +81,9 @@ typedef enum Core1Program {
     CORE1_PROGRAM_M4A,
     CORE1_PROGRAM_VORBIS,
     CORE1_PROGRAM_OPUS,
-    CORE1_PROGRAM_DSD
+    CORE1_PROGRAM_DSD,
+    CORE1_PROGRAM_APE,
+    CORE1_PROGRAM_WMA
 } Core1Program;
 
 bool board_core1_start_stream(Core1Program program);
