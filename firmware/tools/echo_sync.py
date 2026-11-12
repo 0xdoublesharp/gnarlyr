@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import cover_export
+from fnv import FNV_OFFSET, fnv1a
 import library_index
 from identity import IDENTITY
 
@@ -23,7 +24,7 @@ SCAN_MAGIC = b"DSSC"
 SCAN_RECORD = struct.Struct("<4sIII16s")
 SCAN_PRINT_BYTES = 16
 WORD_MASK = 0xFFFFFFFF
-SECOND_SEED = cover_export.FNV_OFFSET ^ 0x5BD1E995
+SECOND_SEED = FNV_OFFSET ^ 0x5BD1E995
 PATH_CAPACITY = 1024
 MAX_DEPTH = 32
 EXFAT_SIZE_LIMIT = 1 << 32
@@ -105,13 +106,13 @@ class SyncError(Exception):
 
 class FingerprintHash:
     def __init__(self):
-        self.first = cover_export.FNV_OFFSET
+        self.first = FNV_OFFSET
         self.second = SECOND_SEED
         self.entries = 0
 
     def mix(self, data):
-        self.first = cover_export.fnv1a(data, self.first)
-        self.second = cover_export.fnv1a(data, self.second)
+        self.first = fnv1a(data, self.first)
+        self.second = fnv1a(data, self.second)
 
     def mix_entry(self, folder, entry):
         self.mix(folder + b"/" + entry.name + struct.pack(

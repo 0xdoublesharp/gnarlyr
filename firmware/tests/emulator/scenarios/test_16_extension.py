@@ -8,16 +8,10 @@ import echo_image_harness as image_tests
 
 from echo_image_harness import (
     EchoImageHarness,
+    fnv1a,
     main,
     make_image,
 )
-
-
-def hash_bytes(data):
-    value = 2166136261
-    for byte in data:
-        value = ((value ^ byte) * 16777619) & 0xFFFFFFFF
-    return value
 
 
 def headphone_bank(generation, trim, ceiling):
@@ -25,11 +19,11 @@ def headphone_bank(generation, trim, ceiling):
     profile[:8] = b"DSHP" + bytes((1, 0, 1, 0))
     profile[16:23] = b"Example"
     profile[40:43] = bytes((trim, ceiling, 25))
-    struct.pack_into("<I", profile, 144, hash_bytes(profile[:144]))
+    struct.pack_into("<I", profile, 144, fnv1a(profile[:144]))
     block = bytearray(512)
     block[:4] = b"DSHF"
-    struct.pack_into("<HHIIII", block, 4, 1, 0, generation, len(profile), hash_bytes(profile), 0)
-    struct.pack_into("<I", block, 24, hash_bytes(block[:24]))
+    struct.pack_into("<HHIIII", block, 4, 1, 0, generation, len(profile), fnv1a(profile), 0)
+    struct.pack_into("<I", block, 24, fnv1a(block[:24]))
     block[28:28 + len(profile)] = profile
     return bytes(block)
 

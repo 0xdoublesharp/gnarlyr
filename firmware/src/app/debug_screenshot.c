@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/bytes.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
 #include "hal/storage.h"
@@ -18,12 +19,6 @@ typedef struct Capture {
     bool written;
 } Capture;
 
-static void put16(uint8_t *bytes, uint32_t value)
-{
-    bytes[0] = (uint8_t)value;
-    bytes[1] = (uint8_t)(value >> 8);
-}
-
 static void fill_header(const DebugScreenshot *shot, uint8_t *header)
 {
     uint32_t now_ms = hal_clock_milliseconds();
@@ -33,11 +28,11 @@ static void fill_header(const DebugScreenshot *shot, uint8_t *header)
     header[3] = 'H';
     header[4] = DEBUG_SCREENSHOT_VERSION;
     header[5] = DEBUG_SCREENSHOT_RGB565;
-    put16(header + 6, (uint32_t)shot->renderer.area.width);
-    put16(header + 8, (uint32_t)shot->renderer.area.height);
-    put16(header + 10, DEBUG_SCREENSHOT_HEADER_BYTES);
-    put16(header + 12, now_ms);
-    put16(header + 14, now_ms >> 16);
+    bytes_put_le16(header + 6, (uint32_t)shot->renderer.area.width);
+    bytes_put_le16(header + 8, (uint32_t)shot->renderer.area.height);
+    bytes_put_le16(header + 10, DEBUG_SCREENSHOT_HEADER_BYTES);
+    bytes_put_le16(header + 12, now_ms);
+    bytes_put_le16(header + 14, now_ms >> 16);
     for (size_t index = 0; index < shot->name.length && index < DEBUG_SCRIPT_NAME_BYTES; index++) {
         header[NAME_OFFSET + index] = (uint8_t)shot->name.text[index];
     }

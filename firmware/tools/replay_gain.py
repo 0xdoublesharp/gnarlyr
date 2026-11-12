@@ -3,6 +3,8 @@ import re
 import struct
 from functools import cache
 
+from fnv import fnv1a
+
 KEYS = ("replaygain_track_gain", "replaygain_album_gain",
         "replaygain_track_peak", "replaygain_album_peak")
 SPACE = " \t\n\r\v\f"
@@ -76,21 +78,15 @@ def parse_r128(text):
     return fixed if -9600 <= fixed <= 9600 else None
 
 
-def hash_bytes(data, seed=2166136261):
-    for value in data:
-        seed = ((seed ^ value) * 16777619) & MAXIMUM
-    return seed
-
-
 def encode_extension(gains, fingerprint):
     if not any(track or album for track, album, _, _ in gains):
         return b""
     header = struct.pack("<4sHHII", b"DSRG", 1, 20, len(gains), fingerprint)
-    result = bytearray(header + struct.pack("<I", hash_bytes(header)))
+    result = bytearray(header + struct.pack("<I", fnv1a(header)))
     for index, gain in enumerate(gains):
         record = struct.pack("<IIII", *gain)
-        seed = hash_bytes(struct.pack("<II", fingerprint, index))
-        result += record + struct.pack("<I", hash_bytes(record, seed))
+        seed = fnv1a(struct.pack("<II", fingerprint, index))
+        result += record + struct.pack("<I", fnv1a(record, seed))
     return bytes(result)
 
 

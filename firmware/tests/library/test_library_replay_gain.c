@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/bytes.h"
 #include "fixture_library.h"
 #include "library/library_builder.h"
 #include "library/library_gain.h"
@@ -33,13 +34,6 @@ static uint32_t digest(uint32_t hash, const uint8_t *bytes, uint32_t size)
         hash = (hash ^ bytes[at]) * UINT32_C(16777619);
     }
     return hash;
-}
-
-static void put32(uint8_t *bytes, uint32_t value)
-{
-    for (uint32_t at = 0; at < 4; at++) {
-        bytes[at] = (uint8_t)(value >> (at * 8));
-    }
 }
 
 static bool image_read(void *context, uint32_t offset, void *out, uint32_t length)
@@ -92,11 +86,11 @@ static ReplayGain expected_gain(uint32_t index)
 static void record_checksum(uint32_t index)
 {
     uint8_t prefix[8];
-    put32(prefix, library_fingerprint(&library));
-    put32(prefix + 4, index);
+    bytes_put_le32(prefix, library_fingerprint(&library));
+    bytes_put_le32(prefix + 4, index);
     uint8_t *record = image.bytes + base_size + HEADER_SIZE + index * RECORD_SIZE;
     uint32_t hash = digest(digest(UINT32_C(2166136261), prefix, sizeof prefix), record, 16);
-    put32(record + 16, hash);
+    bytes_put_le32(record + 16, hash);
 }
 
 static void append_gains(void)
@@ -106,16 +100,16 @@ static void append_gains(void)
     memcpy(header, "DSRG", 4);
     header[4] = 1;
     header[6] = RECORD_SIZE;
-    put32(header + 8, count);
-    put32(header + 12, library_fingerprint(&library));
-    put32(header + 16, digest(UINT32_C(2166136261), header, 16));
+    bytes_put_le32(header + 8, count);
+    bytes_put_le32(header + 12, library_fingerprint(&library));
+    bytes_put_le32(header + 16, digest(UINT32_C(2166136261), header, 16));
     for (uint32_t index = 0; index < count; index++) {
         ReplayGain gain = expected_gain(index);
         uint8_t *record = header + HEADER_SIZE + index * RECORD_SIZE;
-        put32(record, gain.track);
-        put32(record + 4, gain.album);
-        put32(record + 8, gain.track_safe);
-        put32(record + 12, gain.album_safe);
+        bytes_put_le32(record, gain.track);
+        bytes_put_le32(record + 4, gain.album);
+        bytes_put_le32(record + 8, gain.track_safe);
+        bytes_put_le32(record + 12, gain.album_safe);
         record_checksum(index);
     }
     image.size = base_size + HEADER_SIZE + count * RECORD_SIZE;
@@ -166,8 +160,8 @@ static void corrupt_headers_and_truncated_extensions_are_rejected_without_gains(
         append_gains();
         image.bytes[base_size + offset] ^= 1;
         if (offset < 16) {
-            put32(image.bytes + base_size + 16,
-                  digest(UINT32_C(2166136261), image.bytes + base_size, 16));
+            bytes_put_le32(image.bytes + base_size + 16,
+                           digest(UINT32_C(2166136261), image.bytes + base_size, 16));
         }
         open_image();
         ReplayGain gain = {1, 2, 3, 4};
@@ -224,11 +218,11 @@ static void read_failures_and_invalid_safe_amplitudes_do_not_escape(void)
     CHECK(!library_read_replay_gain(&library, 0, &gain));
     CHECK_EQUAL(0, gain.album);
     image.fail_read = UINT32_MAX;
-    put32(image.bytes + base_size + HEADER_SIZE + 8, UINT32_MAX);
+    bytes_put_le32(image.bytes + base_size + HEADER_SIZE + 8, UINT32_MAX);
     record_checksum(0);
     CHECK(!library_read_replay_gain(&library, 0, &gain));
     CHECK_EQUAL(0, gain.track_safe);
-    put32(image.bytes + base_size + HEADER_SIZE + 8, 0);
+    bytes_put_le32(image.bytes + base_size + HEADER_SIZE + 8, 0);
     record_checksum(0);
     CHECK(!library_read_replay_gain(&library, 0, &gain));
     CHECK_EQUAL(0, gain.album_safe);
@@ -341,8 +335,8 @@ static void playback_selection_uses_requested_gain_peak_limit_and_missing_tag_fa
     CHECK_EQUAL(50000, library_replay_gain_for(&library, 0, REPLAY_GAIN_TRACK, true));
     CHECK_EQUAL(80000, library_replay_gain_for(&library, 0, REPLAY_GAIN_ALBUM, false));
     CHECK_EQUAL(40000, library_replay_gain_for(&library, 0, REPLAY_GAIN_ALBUM, true));
-    put32(image.bytes + base_size + HEADER_SIZE + 4, 0);
-    put32(image.bytes + base_size + HEADER_SIZE + 12, 0);
+    bytes_put_le32(image.bytes + base_size + HEADER_SIZE + 4, 0);
+    bytes_put_le32(image.bytes + base_size + HEADER_SIZE + 12, 0);
     record_checksum(0);
     CHECK_EQUAL(50000, library_replay_gain_for(&library, 0, REPLAY_GAIN_ALBUM, true));
     image.fail_read = base_size;

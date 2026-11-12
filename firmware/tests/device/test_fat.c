@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/bytes.h"
 #include "device/fat.h"
 #include "sparse_card.h"
 
@@ -184,12 +185,6 @@ static void a_blank_device_does_not_mount(void)
     CHECK(!fat_mount(&volume, sparse_card_device(&sparse)));
 }
 
-static void put16(uint8_t *bytes, uint16_t value)
-{
-    bytes[0] = (uint8_t)value;
-    bytes[1] = (uint8_t)(value >> 8);
-}
-
 static uint8_t *looped_volume(SparseCard *sparse)
 {
     enum {
@@ -199,21 +194,21 @@ static uint8_t *looped_volume(SparseCard *sparse)
     };
     uint8_t *bytes = calloc(SECTORS, 512);
     bytes[0] = 0xEB;
-    put16(bytes + 11, 512);
+    bytes_put_le16(bytes + 11, 512);
     bytes[13] = 1;
-    put16(bytes + 14, 1);
+    bytes_put_le16(bytes + 14, 1);
     bytes[16] = 1;
-    put16(bytes + 17, 16);
-    put16(bytes + 19, SECTORS);
-    put16(bytes + 22, FAT_SECTORS);
+    bytes_put_le16(bytes + 17, 16);
+    bytes_put_le16(bytes + 19, SECTORS);
+    bytes_put_le16(bytes + 22, FAT_SECTORS);
     bytes[510] = 0x55;
     bytes[511] = 0xAA;
     uint8_t *fat = bytes + 512;
-    put16(fat + 2 * 2, 2);
+    bytes_put_le16(fat + 2 * 2, 2);
     uint8_t *root = bytes + 512 * (1 + FAT_SECTORS);
     memcpy(root, "LOOP       ", 11);
     root[11] = 0x10;
-    put16(root + 26, 2);
+    bytes_put_le16(root + 26, 2);
     uint8_t *cluster = bytes + 512 * (1 + FAT_SECTORS + ROOT_SECTORS);
     for (int entry = 0; entry < 16; entry++) {
         cluster[entry * 32] = 0xE5;

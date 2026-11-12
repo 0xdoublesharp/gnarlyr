@@ -1,5 +1,6 @@
 #include "fat_create.h"
 
+#include "core/bytes.h"
 #include "fat_layout.h"
 
 #define FAT32_ENTRY_MASK 0x0FFFFFFFu
@@ -41,18 +42,6 @@ typedef struct ShortName {
     uint8_t case_flags;
     bool needs_long_name;
 } ShortName;
-
-static void put16(uint8_t *bytes, uint32_t value)
-{
-    bytes[0] = (uint8_t)value;
-    bytes[1] = (uint8_t)(value >> 8);
-}
-
-static void put32(uint8_t *bytes, uint32_t value)
-{
-    put16(bytes, value);
-    put16(bytes + 2, value >> 16);
-}
 
 static uint32_t entries_per_fat_sector(const FatVolume *volume)
 {
@@ -119,11 +108,11 @@ static uint32_t chain_value(const FatVolume *volume, uint32_t cluster, uint32_t 
 static void set_entry(const FatVolume *volume, uint8_t *sector, uint32_t within, uint32_t value)
 {
     if (volume->type == FAT_TYPE_16) {
-        put16(sector + within * 2, value);
+        bytes_put_le16(sector + within * 2, value);
         return;
     }
     uint32_t kept = fat_le32(sector + within * 4) & ~FAT32_ENTRY_MASK;
-    put32(sector + within * 4, kept | value);
+    bytes_put_le32(sector + within * 4, kept | value);
 }
 
 static bool write_chain_copy(FatVolume *volume, uint32_t copy_start, uint32_t first, uint32_t count)
@@ -387,7 +376,7 @@ static void fill_long_entry(uint8_t *out, const FatNewEntry *entry, uint32_t ord
         uint32_t unit = position < entry->length    ? (uint8_t)entry->name[position]
                         : position == entry->length ? 0x0000
                                                     : 0xFFFF;
-        put16(out + LONG_NAME_OFFSETS[slot], unit);
+        bytes_put_le16(out + LONG_NAME_OFFSETS[slot], unit);
     }
 }
 
@@ -400,12 +389,12 @@ static void fill_short_entry(uint8_t *out, const uint8_t *name, uint8_t case_fla
     }
     out[ATTRIBUTES] = file->directory ? ATTRIBUTE_DIRECTORY : ATTRIBUTE_ARCHIVE;
     out[CASE_FLAGS] = case_flags;
-    put16(out + 16, new_date());
-    put16(out + 18, new_date());
-    put16(out + 20, file->first_cluster >> 16);
-    put16(out + 24, new_date());
-    put16(out + 26, file->first_cluster);
-    put32(out + 28, file->directory ? 0 : file->size);
+    bytes_put_le16(out + 16, new_date());
+    bytes_put_le16(out + 18, new_date());
+    bytes_put_le16(out + 20, file->first_cluster >> 16);
+    bytes_put_le16(out + 24, new_date());
+    bytes_put_le16(out + 26, file->first_cluster);
+    bytes_put_le32(out + 28, file->directory ? 0 : file->size);
 }
 
 static bool write_entry(FatVolume *volume, FatFile *parent, uint32_t index, const uint8_t *entry)

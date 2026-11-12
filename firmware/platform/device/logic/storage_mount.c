@@ -2,6 +2,8 @@
 
 #include <stddef.h>
 
+#include "device/card_format.h"
+
 static bool mount_from(FatVolume *volume, StorageStart start)
 {
     BlockDevice device;
@@ -11,12 +13,8 @@ static bool mount_from(FatVolume *volume, StorageStart start)
 StorageKind storage_mount(FatVolume *volume, StorageStart card, StorageStart internal)
 {
     if (mount_from(volume, card)) {
-        fat_fix_label(volume, "GnarlySD", NULL);
+        fat_fix_label(volume, CARD_FORMAT_LABEL, NULL);
         return STORAGE_CARD;
     }
-    if (mount_from(volume, internal)) {
-        fat_fix_label(volume, FIRMWARE_NAME, "ECHO");
-        return STORAGE_INTERNAL;
-    }
-    return STORAGE_NONE;
+    return mount_from(volume, internal) ? STORAGE_INTERNAL : STORAGE_NONE;
 }

@@ -15,6 +15,7 @@ import echo_debug
 import image_artifacts
 import lang_pack
 import make_image
+from fnv import FNV_PRIME, fnv1a
 from identity import IDENTITY
 
 SKIP_EXIT_CODE = 77
@@ -161,8 +162,6 @@ SETTINGS_REPEAT_ROW = 2
 HOME_MIXTAPES_BEFORE_SETTINGS = 4
 STEP_GAP_WITH_A_MODULE_MS = 250
 STEPS_AFTER_NOTICE = 20
-FNV_START = 2166136261
-FNV_PRIME = 16777619
 
 GAMMA_POSITIVE = (0xF0, 0x0B, 0x12, 0x09, 0x0A, 0x26, 0x39, 0x54, 0x4E, 0x38, 0x13, 0x13, 0x2E,
                   0x34)
@@ -197,9 +196,7 @@ def settings_file(orientation):
     data[19:24] = bytes((10,) * 5)
     data[24] = 1
     data[SETTINGS_ORIENTATION_FIELD] = orientation
-    checksum = FNV_START
-    for byte in data[:SETTINGS_CHECKSUM_FIELD]:
-        checksum = (checksum ^ byte) * FNV_PRIME & 0xFFFFFFFF
+    checksum = fnv1a(data[:SETTINGS_CHECKSUM_FIELD])
     data[SETTINGS_CHECKSUM_FIELD:] = checksum.to_bytes(4, "little")
     return bytes(data)
 
@@ -819,9 +816,7 @@ class EchoImageHarness(unittest.TestCase):
         settings[18] = equalizer
         settings[24], settings[27] = 1, 1
         settings[28:38] = bytes((20,) * 10) if gains is None else bytes(20 + gain for gain in gains)
-        checksum = FNV_START
-        for value in settings[:38]:
-            checksum = (checksum ^ value) * FNV_PRIME & 0xFFFFFFFF
+        checksum = fnv1a(settings[:38])
         settings[38:42] = struct.pack("<I", checksum)
         volume.add_file("settings.bin", bytes(settings), directory=IDENTITY.data_directory)
         for name, data in extra_files:
@@ -936,9 +931,7 @@ class EchoImageHarness(unittest.TestCase):
         settings[28:38] = bytes((20,) * 10)
         settings[38:43] = bytes((comfort, 13, tenths, speed_step & 0xFF, 0x10))
         settings[43:47] = bytes((0x32, 0x54, 0x76, 0x08))
-        checksum = FNV_START
-        for value in settings[:54]:
-            checksum = (checksum ^ value) * FNV_PRIME & 0xFFFFFFFF
+        checksum = fnv1a(settings[:54])
         settings[54:58] = struct.pack("<I", checksum)
         return bytes(settings)
 

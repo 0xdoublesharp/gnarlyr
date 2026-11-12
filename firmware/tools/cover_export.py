@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import library_index
+from fnv import fnv1a
 
 MAGIC = b"DSCV"
 VERSION = 1
@@ -15,8 +16,6 @@ FULL_SIZE = 112
 HALF_SIZE = 56
 HEADER = struct.Struct("<4sHHHHI")
 ENTRY = struct.Struct("<II")
-FNV_OFFSET = 2166136261
-FNV_PRIME = 16777619
 KEY_SEPARATOR = b"\x1f"
 KEY_NAME_LIMIT = 255
 FRONT_COVER = 3
@@ -65,13 +64,6 @@ class CoverSet:
     records: dict = field(default_factory=dict)
     stamps: dict = field(default_factory=dict)
     missing: list = field(default_factory=list)
-
-
-def fnv1a(data, start=FNV_OFFSET):
-    value = start
-    for byte in data:
-        value = ((value ^ byte) * FNV_PRIME) & 0xFFFFFFFF
-    return value
 
 
 def album_key(album_artist, title):

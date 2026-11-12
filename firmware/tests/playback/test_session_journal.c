@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/bytes.h"
 #include "core/hash.h"
 #include "playback/session_journal.h"
 
@@ -93,16 +94,9 @@ static void reset(void)
     CHECK_EQUAL(STORE_EMPTY, session_journal_open(&journal, configuration(), &restored));
 }
 
-static void put32(uint8_t *bytes, uint32_t value)
-{
-    for (int index = 0; index < 4; index++) {
-        bytes[index] = (uint8_t)(value >> (8 * index));
-    }
-}
-
 static void rehash(uint8_t *bytes)
 {
-    put32(bytes + CHECK_FIELD, hash_update(HASH_START, bytes, CHECK_FIELD));
+    bytes_put_le32(bytes + CHECK_FIELD, hash_update(HASH_START, bytes, CHECK_FIELD));
 }
 
 static void torn_writes_preserve_a_complete_session(void)
@@ -190,7 +184,7 @@ static void stored_generation_zero_and_serial_wrap_are_supported(void)
     up_next_clear(&state.up_next);
     state.order_generation = 0;
     CHECK_EQUAL(STORE_DONE, session_journal_save(&journal, &state));
-    put32(disk + GENERATION_FIELD, UINT32_MAX);
+    bytes_put_le32(disk + GENERATION_FIELD, UINT32_MAX);
     rehash(disk);
     SessionState restored;
     CHECK_EQUAL(STORE_READY, session_journal_open(&journal, configuration(), &restored));

@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from echo_image_harness import EchoImageHarness, main, struct, IDENTITY, FNV_START, FNV_PRIME
+from echo_image_harness import EchoImageHarness, main, struct, IDENTITY, fnv1a
 from echo_emulator.flac_image import FlacImage, BLOCK_SAMPLES
 
 VU_CONVERTED_BUDGET_AFTER_USB_DAC_STATS = 3.5
@@ -36,9 +36,7 @@ class EchoImageTest(EchoImageHarness):
         settings[7] = 6
         settings[51] = (style & 1) << 5
         settings[52] = (style >> 1) << 7
-        checksum = FNV_START
-        for value in settings[:54]:
-            checksum = (checksum ^ value) * FNV_PRIME & 0xFFFFFFFF
+        checksum = fnv1a(settings[:54])
         settings[54:58] = struct.pack("<I", checksum)
         if converted:
             rate = 16000

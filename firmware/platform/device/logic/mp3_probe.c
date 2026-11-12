@@ -1,4 +1,5 @@
 #include "device/mp3_probe.h"
+#include "core/bytes.h"
 
 enum {
     TAG_HEADER_BYTES = 10,
@@ -55,12 +56,6 @@ static uint32_t big_endian(const uint8_t *bytes)
 {
     return (uint32_t)bytes[0] << 24 | (uint32_t)bytes[1] << 16 | (uint32_t)bytes[2] << 8 |
            (uint32_t)bytes[3];
-}
-
-static uint32_t little_endian(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
 }
 
 static bool same_tag(const uint8_t *bytes, const char *tag, uint32_t length)
@@ -137,7 +132,7 @@ static uint32_t audio_end(FlacInput input, uint32_t start)
     if (end - start >= APE_FOOTER_BYTES &&
         input.read(input.context, end - APE_FOOTER_BYTES, bytes, sizeof bytes) &&
         same_tag(bytes, "APETAGEX", 8)) {
-        uint32_t size = little_endian(bytes + 12);
+        uint32_t size = bytes_le32(bytes + 12);
         uint64_t whole =
             (uint64_t)size + ((bytes[23] & APE_HEADER_FLAG) != 0 ? APE_FOOTER_BYTES : 0);
         if (size >= APE_FOOTER_BYTES && whole <= end - start) {

@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "card_format_upcase.h"
+#include "core/bytes.h"
 
 static uint32_t rounded(uint32_t value, uint32_t alignment)
 {
@@ -67,18 +68,6 @@ static void clear(CardFormat *format)
     }
 }
 
-static void put16(uint8_t *bytes, uint32_t value)
-{
-    bytes[0] = (uint8_t)value;
-    bytes[1] = (uint8_t)(value >> 8);
-}
-
-static void put32(uint8_t *bytes, uint32_t value)
-{
-    put16(bytes, value);
-    put16(bytes + 2, value >> 16);
-}
-
 static void copy_text(uint8_t *bytes, const char *text, uint32_t length)
 {
     for (uint32_t index = 0; index < length; index++) {
@@ -123,25 +112,25 @@ static void fat32_boot(CardFormat *format)
     bytes[1] = 0x58;
     bytes[2] = 0x90;
     copy_text(bytes + 3, "MSDOS5.0", 8);
-    put16(bytes + 11, 512);
+    bytes_put_le16(bytes + 11, 512);
     bytes[13] = (uint8_t)(1u << plan->cluster_shift);
-    put16(bytes + 14, plan->fat - plan->start);
+    bytes_put_le16(bytes + 14, plan->fat - plan->start);
     bytes[16] = 2;
     bytes[21] = 0xF8;
-    put16(bytes + 24, 63);
-    put16(bytes + 26, 255);
-    put32(bytes + 28, plan->start);
-    put32(bytes + 32, plan->sectors - plan->start);
-    put32(bytes + 36, plan->fat_sectors);
-    put32(bytes + 44, 2);
-    put16(bytes + 48, 1);
-    put16(bytes + 50, 6);
+    bytes_put_le16(bytes + 24, 63);
+    bytes_put_le16(bytes + 26, 255);
+    bytes_put_le32(bytes + 28, plan->start);
+    bytes_put_le32(bytes + 32, plan->sectors - plan->start);
+    bytes_put_le32(bytes + 36, plan->fat_sectors);
+    bytes_put_le32(bytes + 44, 2);
+    bytes_put_le16(bytes + 48, 1);
+    bytes_put_le16(bytes + 50, 6);
     bytes[64] = 0x80;
     bytes[66] = 0x29;
-    put32(bytes + 67, 0x4543484Fu ^ plan->sectors);
-    copy_text(bytes + 71, "GnarlySD   ", 11);
+    bytes_put_le32(bytes + 67, 0x4543484Fu ^ plan->sectors);
+    copy_text(bytes + 71, CARD_FORMAT_LABEL_PADDED, 11);
     copy_text(bytes + 82, "FAT32   ", 8);
-    put16(bytes + 510, 0xAA55);
+    bytes_put_le16(bytes + 510, 0xAA55);
 }
 
 static bool fat32_system(CardFormat *format)
@@ -157,24 +146,24 @@ static bool fat32_system(CardFormat *format)
     }
     clear(format);
     uint8_t *bytes = buffer(format);
-    put32(bytes, 0x41615252);
-    put32(bytes + 484, 0x61417272);
-    put32(bytes + 488, plan->clusters - 1);
-    put32(bytes + 492, 3);
-    put32(bytes + 508, 0xAA550000);
+    bytes_put_le32(bytes, 0x41615252);
+    bytes_put_le32(bytes + 484, 0x61417272);
+    bytes_put_le32(bytes + 488, plan->clusters - 1);
+    bytes_put_le32(bytes + 492, 3);
+    bytes_put_le32(bytes + 508, 0xAA550000);
     if (!write_buffer(format, plan->start + 1, 1) || !write_buffer(format, plan->start + 7, 1)) {
         return false;
     }
     clear(format);
-    put32(bytes, 0x0FFFFFF8);
-    put32(bytes + 4, 0xFFFFFFFF);
-    put32(bytes + 8, 0x0FFFFFFF);
+    bytes_put_le32(bytes, 0x0FFFFFF8);
+    bytes_put_le32(bytes + 4, 0xFFFFFFFF);
+    bytes_put_le32(bytes + 8, 0x0FFFFFFF);
     if (!write_buffer(format, plan->fat, 1) ||
         !write_buffer(format, plan->fat + plan->fat_sectors, 1)) {
         return false;
     }
     clear(format);
-    copy_text(bytes, "GnarlySD   ", 11);
+    copy_text(bytes, CARD_FORMAT_LABEL_PADDED, 11);
     bytes[11] = 8;
     return write_buffer(format, plan->data, 1);
 }
@@ -196,20 +185,20 @@ static void exfat_boot(CardFormat *format)
     bytes[1] = 0x76;
     bytes[2] = 0x90;
     copy_text(bytes + 3, "EXFAT   ", 8);
-    put32(bytes + 64, plan->start);
-    put32(bytes + 72, plan->sectors - plan->start);
-    put32(bytes + 80, plan->fat - plan->start);
-    put32(bytes + 84, plan->fat_sectors);
-    put32(bytes + 88, plan->data - plan->start);
-    put32(bytes + 92, plan->clusters);
-    put32(bytes + 96, plan->root_cluster);
-    put32(bytes + 100, 0x4543484Fu ^ plan->sectors);
-    put16(bytes + 104, 0x100);
+    bytes_put_le32(bytes + 64, plan->start);
+    bytes_put_le32(bytes + 72, plan->sectors - plan->start);
+    bytes_put_le32(bytes + 80, plan->fat - plan->start);
+    bytes_put_le32(bytes + 84, plan->fat_sectors);
+    bytes_put_le32(bytes + 88, plan->data - plan->start);
+    bytes_put_le32(bytes + 92, plan->clusters);
+    bytes_put_le32(bytes + 96, plan->root_cluster);
+    bytes_put_le32(bytes + 100, 0x4543484Fu ^ plan->sectors);
+    bytes_put_le16(bytes + 104, 0x100);
     bytes[108] = 9;
     bytes[109] = plan->cluster_shift;
     bytes[110] = 1;
     bytes[111] = 0x80;
-    put16(bytes + 510, 0xAA55);
+    bytes_put_le16(bytes + 510, 0xAA55);
 }
 
 static bool exfat_boot_region(CardFormat *format, uint32_t start)
@@ -228,7 +217,7 @@ static bool exfat_boot_region(CardFormat *format, uint32_t start)
     for (uint32_t index = 1; index <= 10; index++) {
         clear(format);
         if (index <= 8) {
-            put32(bytes + 508, 0xAA550000);
+            bytes_put_le32(bytes + 508, 0xAA550000);
         }
         checksum = checksum_bytes(checksum, bytes, 512);
         if (!write_buffer(format, start + index, 1)) {
@@ -236,7 +225,7 @@ static bool exfat_boot_region(CardFormat *format, uint32_t start)
         }
     }
     for (uint32_t index = 0; index < 512; index += 4) {
-        put32(bytes + index, checksum);
+        bytes_put_le32(bytes + index, checksum);
     }
     return write_buffer(format, start + 11, 1);
 }
@@ -249,10 +238,11 @@ static bool exfat_fat(CardFormat *format)
     }
     clear(format);
     uint8_t *bytes = buffer(format);
-    put32(bytes, 0xFFFFFFF8);
-    put32(bytes + 4, 0xFFFFFFFF);
+    bytes_put_le32(bytes, 0xFFFFFFF8);
+    bytes_put_le32(bytes + 4, 0xFFFFFFFF);
     for (uint32_t cluster = 2; cluster <= plan->root_cluster; cluster++) {
-        put32(bytes + 4 * cluster, cluster < plan->bitmap_clusters + 1 ? cluster + 1 : 0xFFFFFFFF);
+        bytes_put_le32(bytes + 4 * cluster,
+                       cluster < plan->bitmap_clusters + 1 ? cluster + 1 : 0xFFFFFFFF);
     }
     return write_buffer(format, plan->fat, 1);
 }
@@ -297,15 +287,15 @@ static bool exfat_root(CardFormat *format)
     bytes[0] = 0x83;
     bytes[1] = 8;
     for (uint32_t index = 0; index < 8; index++) {
-        put16(bytes + 2 + 2 * index, (uint8_t)"GnarlySD"[index]);
+        bytes_put_le16(bytes + 2 + 2 * index, (uint8_t)CARD_FORMAT_LABEL[index]);
     }
     bytes[32] = 0x81;
-    put32(bytes + 32 + 20, 2);
-    put32(bytes + 32 + 24, (plan->clusters + 7) / 8);
+    bytes_put_le32(bytes + 32 + 20, 2);
+    bytes_put_le32(bytes + 32 + 24, (plan->clusters + 7) / 8);
     bytes[64] = 0x82;
-    put32(bytes + 64 + 4, 0xE619D30D);
-    put32(bytes + 64 + 20, 2 + plan->bitmap_clusters);
-    put32(bytes + 64 + 24, sizeof CARD_FORMAT_UPCASE);
+    bytes_put_le32(bytes + 64 + 4, 0xE619D30D);
+    bytes_put_le32(bytes + 64 + 20, 2 + plan->bitmap_clusters);
+    bytes_put_le32(bytes + 64 + 24, sizeof CARD_FORMAT_UPCASE);
     return write_buffer(format, plan->data + ((plan->root_cluster - 2) << plan->cluster_shift), 1);
 }
 
@@ -329,9 +319,9 @@ static bool publish_partition(CardFormat *format)
     entry[5] = 0xFE;
     entry[6] = 0xFF;
     entry[7] = 0xFF;
-    put32(entry + 8, plan->start);
-    put32(entry + 12, plan->sectors - plan->start);
-    put16(bytes + 510, 0xAA55);
+    bytes_put_le32(entry + 8, plan->start);
+    bytes_put_le32(entry + 12, plan->sectors - plan->start);
+    bytes_put_le16(bytes + 510, 0xAA55);
     return write_buffer(format, 0, 1);
 }
 

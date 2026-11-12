@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/bytes.h"
 #include "device/core1_vorbis.h"
 
 static StreamControl control;
@@ -35,13 +36,6 @@ static bool read_file(void *context, uint32_t offset, void *out, uint32_t count)
     return true;
 }
 
-static void put32(uint8_t *out, uint32_t value)
-{
-    for (uint32_t index = 0; index < 4; index++) {
-        out[index] = (uint8_t)(value >> (8 * index));
-    }
-}
-
 static void shift_granules(void)
 {
     OggPage page;
@@ -51,9 +45,9 @@ static void shift_granules(void)
                     ogg_page_read((FlacInput){read_file, NULL, file_size}, offset, &page));
         if (page.granule > 0 && page.granule != UINT64_MAX) {
             uint64_t granule = page.granule + origin_shift;
-            put32(bytes + offset + 6, (uint32_t)granule);
-            put32(bytes + offset + 10, (uint32_t)(granule >> 32));
-            put32(bytes + offset + 22, 0);
+            bytes_put_le32(bytes + offset + 6, (uint32_t)granule);
+            bytes_put_le32(bytes + offset + 10, (uint32_t)(granule >> 32));
+            bytes_put_le32(bytes + offset + 22, 0);
             uint32_t crc = 0;
             for (uint32_t index = offset; index < page.next; index++) {
                 crc ^= (uint32_t)bytes[index] << 24;
@@ -61,7 +55,7 @@ static void shift_granules(void)
                     crc = (crc << 1) ^ ((crc & 0x80000000u) != 0 ? 0x04C11DB7u : 0);
                 }
             }
-            put32(bytes + offset + 22, crc);
+            bytes_put_le32(bytes + offset + 22, crc);
         }
         offset = page.next;
     }

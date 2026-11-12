@@ -3,6 +3,7 @@
 
 #include "check.h"
 #include "codec/ogg_packet.h"
+#include "core/bytes.h"
 
 enum {
     FILE_CAPACITY = 131072,
@@ -32,16 +33,9 @@ static uint32_t checksum(const uint8_t *bytes, uint32_t length)
     return crc;
 }
 
-static void put32(uint8_t *out, uint32_t value)
-{
-    for (uint32_t index = 0; index < 4; index++) {
-        out[index] = (uint8_t)(value >> (8 * index));
-    }
-}
-
 static void repair(uint32_t offset, uint32_t size)
 {
-    put32(file.data + offset + 22, checksum(file.data + offset, size));
+    bytes_put_le32(file.data + offset + 22, checksum(file.data + offset, size));
 }
 
 static uint32_t page(uint8_t flags, uint32_t sequence, const uint8_t *laces, uint32_t count)
@@ -52,8 +46,8 @@ static uint32_t page(uint8_t flags, uint32_t sequence, const uint8_t *laces, uin
     bytes[4] = 0;
     bytes[5] = flags;
     memset(bytes + 6, 0xFF, 8);
-    put32(bytes + 14, 29);
-    put32(bytes + 18, sequence);
+    bytes_put_le32(bytes + 14, 29);
+    bytes_put_le32(bytes + 18, sequence);
     bytes[26] = (uint8_t)count;
     if (count > 0) {
         memcpy(bytes + 27, laces, count);
@@ -143,7 +137,7 @@ static void a_complete_stream_reports_packet_boundaries_and_the_final_granule(vo
     static const uint8_t LACES[] = {3, 0, 5};
     page(6, 0, LACES, sizeof LACES);
     memset(file.data + 6, 0, 8);
-    put32(file.data + 6, 12345);
+    bytes_put_le32(file.data + 6, 12345);
     repair(0, file.size);
     OggPackets stream = reader();
     OggPacket packet = {0};
@@ -203,7 +197,7 @@ static void only_the_last_completed_packet_owns_the_page_granule(void)
     static const uint8_t END[] = {2};
     page(2, 0, LACES, 2);
     memset(file.data + 6, 0, 8);
-    put32(file.data + 6, 77);
+    bytes_put_le32(file.data + 6, 77);
     repair(0, file.size);
     page(5, 1, END, 1);
     OggPackets stream = reader();
@@ -474,7 +468,7 @@ static void checked_pages_can_be_probed_without_sequential_packet_state(void)
     page(2, 0, LACES, 2);
     uint32_t at = page(4, 1, LACES, 2);
     memset(file.data + at + 6, 0, 8);
-    put32(file.data + at + 6, 12345);
+    bytes_put_le32(file.data + at + 6, 12345);
     repair(at, file.size - at);
     OggPage checked = {0};
     CHECK_EQUAL(OGG_PACKET_READY, ogg_page_read(reader().input, at, &checked));

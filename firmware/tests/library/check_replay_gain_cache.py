@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 import library_index
 import replay_gain
+from fnv import fnv1a
 from check_replay_gain_tags import FORMATS, VALUES, write_tags
 
 BUILDER = None
@@ -35,9 +36,9 @@ class ReplayGainCacheTest(unittest.TestCase):
             data = device.read_bytes()
             sections = [struct.unpack_from("<IIHH", data, 8 + 12 * index) for index in range(10)]
             end = max(offset + count * size for offset, count, size, _ in sections)
-            fingerprint = replay_gain.hash_bytes(data[:128])
+            fingerprint = fnv1a(data[:128])
             for offset, count, size, _ in sections:
-                fingerprint = replay_gain.hash_bytes(data[offset:offset + count * size], fingerprint)
+                fingerprint = fnv1a(data[offset:offset + count * size], fingerprint)
             ordered = [track.replay_gain for track in reversed(tracks)]
             self.assertEqual(replay_gain.encode_extension(ordered, fingerprint), data[end:])
             desktop.write_bytes(expected)

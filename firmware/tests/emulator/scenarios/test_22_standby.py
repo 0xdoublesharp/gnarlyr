@@ -5,8 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import (
     EchoImageHarness,
-    FNV_PRIME,
-    FNV_START,
+    fnv1a,
     IDENTITY,
     STARTUP_WORK_MS,
     main,
@@ -21,9 +20,7 @@ class EchoImageTest(EchoImageHarness):
         settings = bytearray(self.saved_settings(4, 15, shuffle=0))
         settings[4], settings[53], settings[58] = 16, 16, 6
         for first, end, target in ((0, 54, 54), (58, 74, 74)):
-            checksum = FNV_START
-            for value in settings[first:end]:
-                checksum = (checksum ^ value) * FNV_PRIME & 0xFFFFFFFF
+            checksum = fnv1a(settings[first:end])
             settings[target:target + 4] = struct.pack("<I", checksum)
         volume = self.debug_volume()
         volume.add_file("settings.bin", bytes(settings), directory=IDENTITY.data_directory)

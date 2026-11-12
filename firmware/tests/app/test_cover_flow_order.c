@@ -5,6 +5,7 @@
 #include "big_library.h"
 #include "board_layout.h"
 #include "check.h"
+#include "core/bytes.h"
 #include "default_theme.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
@@ -119,18 +120,12 @@ static void put_u32(uint8_t *bytes, uint32_t value)
     }
 }
 
-static uint32_t get_u32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
-
 static void swap_first_two_album_artists(Library *library)
 {
     LibrarySectionInfo info = library->sections[LIBRARY_ALBUM_ARTISTS];
     uint8_t *first = fixture.bytes + info.offset;
     uint8_t *second = first + info.record_size;
-    uint32_t first_link = get_u32(first + GROUP_FIRST_LINK);
+    uint32_t first_link = bytes_le32(first + GROUP_FIRST_LINK);
     uint32_t first_count = first[GROUP_LINK_COUNT] | (uint32_t)first[GROUP_LINK_COUNT + 1] << 8;
     uint32_t second_count = second[GROUP_LINK_COUNT] | (uint32_t)second[GROUP_LINK_COUNT + 1] << 8;
     put_u32(first + GROUP_FIRST_LINK, first_link + second_count);

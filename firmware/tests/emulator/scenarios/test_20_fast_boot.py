@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from echo_image_harness import EchoImageHarness, IDENTITY, main, settings_file
+from echo_image_harness import EchoImageHarness, IDENTITY, fnv1a, main, settings_file
 
 
 def power_settings(press):
@@ -14,9 +14,7 @@ def power_settings(press):
     data[38:41] = bytes((7, 24, 15))
     data[42:47] = bytes.fromhex('10 32 54 76 98')
     data[51] = 0x10 if press else 0
-    checksum = 2166136261
-    for byte in data[:54]:
-        checksum = (checksum ^ byte) * 16777619 & 0xFFFFFFFF
+    checksum = fnv1a(data[:54])
     data[54:] = checksum.to_bytes(4, 'little')
     return bytes(data)
 

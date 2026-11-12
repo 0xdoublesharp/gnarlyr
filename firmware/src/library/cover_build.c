@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/bytes.h"
 #include "core/hash.h"
 #include "image/cover_image.h"
 #include "library/covers.h"
@@ -169,24 +170,6 @@ static bool write_bytes(const CoverJob *job, uint32_t offset, const void *bytes,
     return job->sink.write(job->sink.context, offset, bytes, length);
 }
 
-static void put16(uint8_t *bytes, uint32_t value)
-{
-    bytes[0] = (uint8_t)value;
-    bytes[1] = (uint8_t)(value >> 8);
-}
-
-static void put32(uint8_t *bytes, uint32_t value)
-{
-    put16(bytes, value);
-    put16(bytes + 2, value >> 16);
-}
-
-static uint32_t get32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
-
 static uint32_t text_length(const char *text)
 {
     uint32_t length = 0;
@@ -199,9 +182,9 @@ static uint32_t text_length(const char *text)
 static uint32_t art_stamp(const char *path, uint32_t first, uint32_t second, uint32_t third)
 {
     uint8_t numbers[STAMP_NUMBERS * 4];
-    put32(numbers, first);
-    put32(numbers + 4, second);
-    put32(numbers + 8, third);
+    bytes_put_le32(numbers, first);
+    bytes_put_le32(numbers + 4, second);
+    bytes_put_le32(numbers + 8, third);
     uint32_t hash = hash_update(HASH_START, path, text_length(path));
     return hash_update(hash, numbers, sizeof numbers);
 }
@@ -245,7 +228,7 @@ static uint32_t previous_count(const CoverJob *job, CoverLayout layout)
         !job->previous.read(job->previous.context, 0, header, sizeof header)) {
         return 0;
     }
-    bool stamped = get32(header + STAMP_FIELD) == layout.stamps_start;
+    bool stamped = bytes_le32(header + STAMP_FIELD) == layout.stamps_start;
     return stamped && covers.count <= layout.slots ? covers.count : 0;
 }
 
@@ -275,8 +258,8 @@ static bool load_chunk(CoverState *state, const CoverJob *job, uint32_t first, u
     }
     for (uint32_t index = 0; index < count; index++) {
         const uint8_t *entry = entries + index * COVERS_ENTRY_SIZE;
-        CoverEntry loaded = {get32(entry), get32(stamps + index * STAMP_BYTES)};
-        if (!accept_entry(state, loaded, get32(entry + 4))) {
+        CoverEntry loaded = {bytes_le32(entry), bytes_le32(stamps + index * STAMP_BYTES)};
+        if (!accept_entry(state, loaded, bytes_le32(entry + 4))) {
             return false;
         }
     }
@@ -561,7 +544,7 @@ static void pack_pixels(uint16_t *pixels, uint32_t count)
     uint8_t *bytes = (uint8_t *)pixels;
     for (uint32_t index = 0; index < count; index++) {
         uint16_t value = pixels[index];
-        put16(bytes + index * 2, value);
+        bytes_put_le16(bytes + index * 2, value);
     }
 }
 
@@ -680,11 +663,11 @@ static void sort_index(CoverState *state)
 static void pack_entry(const CoverState *state, uint32_t position, uint8_t *bytes, bool stamps)
 {
     if (stamps) {
-        put32(bytes, state->index[position].stamp);
+        bytes_put_le32(bytes, state->index[position].stamp);
         return;
     }
-    put32(bytes, state->index[position].key);
-    put32(bytes + 4, offset_of(state, position));
+    bytes_put_le32(bytes, state->index[position].key);
+    bytes_put_le32(bytes + 4, offset_of(state, position));
 }
 
 static bool write_table(const CoverState *state, const CoverJob *job, bool stamps)
@@ -713,11 +696,11 @@ static bool clear_header(const CoverJob *job)
 static bool write_header(const CoverState *state, const CoverJob *job)
 {
     uint8_t header[COVERS_HEADER_SIZE] = {'D', 'S', 'C', 'V'};
-    put16(header + 4, COVERS_VERSION);
-    put16(header + 6, state->count);
-    put16(header + 8, COVER_FULL_SIZE);
-    put16(header + 10, COVER_HALF_SIZE);
-    put32(header + STAMP_FIELD, state->layout.stamps_start);
+    bytes_put_le16(header + 4, COVERS_VERSION);
+    bytes_put_le16(header + 6, state->count);
+    bytes_put_le16(header + 8, COVER_FULL_SIZE);
+    bytes_put_le16(header + 10, COVER_HALF_SIZE);
+    bytes_put_le32(header + STAMP_FIELD, state->layout.stamps_start);
     return write_bytes(job, 0, header, sizeof header);
 }
 

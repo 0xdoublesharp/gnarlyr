@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/bytes.h"
 #include "core/i18n.h"
 #include "gfx/font_pack.h"
 #include "test_pack.h"
@@ -30,18 +31,6 @@ typedef struct FakePack {
 static FakePack pack;
 static uint32_t memory[MEMORY_BYTES / 4];
 
-static void put16(uint8_t *bytes, uint32_t value)
-{
-    bytes[0] = (uint8_t)value;
-    bytes[1] = (uint8_t)(value >> 8);
-}
-
-static void put32(uint8_t *bytes, uint32_t value)
-{
-    put16(bytes, value);
-    put16(bytes + 2, value >> 16);
-}
-
 static uint32_t codepoint_of(uint32_t glyph)
 {
     return FIRST_CODEPOINT + 2 * glyph;
@@ -54,27 +43,27 @@ static void build_pack(void)
     memcpy(header, "EGLF", 4);
     header[4] = FONT_PACK_VERSION;
     header[5] = FONT_PACK_ENTRY_BYTES;
-    put16(header + 6, FONT_PACK_ENTRIES_PER_SECTOR);
-    put32(header + 8, GLYPHS);
-    put32(header + 12, DIRECTORY_OFFSET);
-    put32(header + 16, INDEX_OFFSET);
-    put32(header + 20, DATA_OFFSET);
-    put32(header + 24, PACK_BYTES);
+    bytes_put_le16(header + 6, FONT_PACK_ENTRIES_PER_SECTOR);
+    bytes_put_le32(header + 8, GLYPHS);
+    bytes_put_le32(header + 12, DIRECTORY_OFFSET);
+    bytes_put_le32(header + 16, INDEX_OFFSET);
+    bytes_put_le32(header + 20, DATA_OFFSET);
+    bytes_put_le32(header + 24, PACK_BYTES);
     for (uint32_t glyph = 0; glyph < GLYPHS; glyph++) {
         uint32_t sector = glyph / FONT_PACK_ENTRIES_PER_SECTOR;
         uint32_t within = glyph % FONT_PACK_ENTRIES_PER_SECTOR;
         if (within == 0) {
-            put16(pack.bytes + DIRECTORY_OFFSET + 2 * sector, codepoint_of(glyph));
+            bytes_put_le16(pack.bytes + DIRECTORY_OFFSET + 2 * sector, codepoint_of(glyph));
         }
         uint8_t *entry = pack.bytes + INDEX_OFFSET + sector * FONT_PACK_SECTOR_BYTES +
                          within * FONT_PACK_ENTRY_BYTES;
-        put16(entry, codepoint_of(glyph));
+        bytes_put_le16(entry, codepoint_of(glyph));
         entry[2] = GLYPH_WIDTH;
         entry[3] = GLYPH_HEIGHT;
         entry[4] = 1;
         entry[5] = (uint8_t)-2;
         entry[6] = 9;
-        put32(entry + 8, DATA_OFFSET + glyph * GLYPH_BYTES);
+        bytes_put_le32(entry + 8, DATA_OFFSET + glyph * GLYPH_BYTES);
         uint8_t *bitmap = pack.bytes + DATA_OFFSET + glyph * GLYPH_BYTES;
         bitmap[0] = (uint8_t)((glyph % 16) << 4 | 15);
     }

@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "firmware/tools"))
+from identity import IDENTITY
 from library_index import TrackInfo, build_library, encode_library
 
 SPEC = importlib.util.spec_from_file_location("theme_pack", ROOT / "tools/theme_pack.py")
@@ -69,8 +70,7 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     card = output / "card"
     library = music(card)
-    identity = json.loads((ROOT / "firmware/identity.json").read_text()) if (ROOT / "firmware/identity.json").exists() else json.loads((ROOT / "identity.json").read_text())
-    themes = card / identity["data_directory"] / "themes"
+    themes = card / IDENTITY.data_directory / "themes"
     themes.mkdir(parents=True, exist_ok=True)
     packs = {}
     for source in sorted((ROOT / "examples/themes").iterdir()):
@@ -95,7 +95,7 @@ def main():
                     mapped = ",".join({"up": "down", "down": "up"}.get(key, key)
                                       for key in keys.split(",")) if orientation == 1 else keys
                     log = run_sim(args, card, state, mapped, bmp, max(280, 110 + len(keys.split(',')) * 10))
-                    expected = {"home": identity["short_name"], "list": "Music", "now-playing": "Now Playing",
+                    expected = {"home": IDENTITY.short_name, "list": "Music", "now-playing": "Now Playing",
                                 "settings": "Settings", "theme-picker": "Theme"}[view]
                     if not log.startswith(expected + ":"):
                         raise ValueError(f"{stem}: expected {expected}, saw {log}")

@@ -10,12 +10,12 @@ import struct
 import subprocess
 import sys
 import tempfile
-import zlib
+
+from echo_debug import IDENTITY, png_bytes
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRATCH = Path("/Volumes/Scratch/SnowskyEcho")
 DEFAULT_CONFIG = ROOT / "tools/site_screenshots.json"
-IDENTITY = json.loads((ROOT / "firmware/identity.json").read_text())
 KEY = re.compile(r"(?:up|down|play|menu|back|power)(?::(?:long|held))?\Z")
 NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 
@@ -68,15 +68,6 @@ def load_config(path):
         if not isinstance(case.get("expected_title"), str) or not case["expected_title"].strip():
             raise ValueError(f"Expected screen title is required for {name}")
     return config
-
-
-def png_bytes(width, height, rgb):
-    def chunk(kind, data):
-        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xffffffff)
-    stride = width * 3
-    rows = b"".join(b"\0" + rgb[row:row + stride] for row in range(0, len(rgb), stride))
-    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
-    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(rows, 9)) + chunk(b"IEND", b"")
 
 
 def ppm_to_png(data):
