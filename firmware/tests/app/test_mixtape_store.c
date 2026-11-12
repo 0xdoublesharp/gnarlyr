@@ -323,6 +323,56 @@ static void a_missing_or_unreadable_current_bank_recovers_the_previous_mix(void)
     }
 }
 
+static void cassette_side_limits_and_public_state_guards_fail_closed(void)
+{
+    reset();
+    MixtapeChange change = save("Split", 2);
+    change.side_minutes = 1;
+    CHECK(!mixtape_store_change(&store, change));
+    change.side_minutes = 30;
+    change.side_a_count = 3;
+    CHECK(!mixtape_store_change(&store, change));
+    change.source.count = 65;
+    change.side_a_count = 65;
+    CHECK(!mixtape_store_change(&store, change));
+    change.source.count = 130;
+    change.side_a_count = 64;
+    CHECK(!mixtape_store_change(&store, change));
+    change = save("Split", 2);
+    change.side_minutes = 30;
+    change.side_a_count = 1;
+    CHECK(mixtape_store_change(&store, change));
+    finish();
+    CHECK_EQUAL(STORE_DONE, store.result);
+
+    MixEntry entry = {.active = true};
+    MixtapeStore state = {.load = STORE_UNREADABLE};
+    CHECK(!mixtape_store_read(&state, 0, &entry));
+    CHECK(entry.active);
+    state.load = STORE_EMPTY;
+    CHECK(!mixtape_store_read(&state, MIX_CATALOG_SLOTS, &entry));
+    CHECK(mixtape_store_read(&state, 0, &entry));
+    CHECK(!entry.active);
+
+    state.result = STORE_WORKING;
+    CHECK(!mixtape_store_change(&state, save("Busy", 0)));
+    CHECK(!mixtape_store_open(&state, 0));
+    state.result = STORE_IDLE;
+    CHECK_EQUAL(STORE_IDLE, mixtape_store_step(&state));
+    mixtape_store_cancel(&state);
+    CHECK_EQUAL(STORE_IDLE, state.result);
+
+    state = (MixtapeStore){.result = STORE_WORKING, .stage = UINT8_MAX};
+    CHECK_EQUAL(STORE_FAILED, mixtape_store_step(&state));
+
+    static const uint8_t CANCEL_STAGES[] = {1, 2, 4, 5, 7};
+    for (uint32_t index = 0; index < sizeof CANCEL_STAGES; index++) {
+        state = (MixtapeStore){.result = STORE_WORKING, .stage = CANCEL_STAGES[index]};
+        mixtape_store_cancel(&state);
+        CHECK_EQUAL(STORE_FAILED, state.result);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -337,6 +387,7 @@ int main(void)
         TEST_CASE(replacement_allocation_and_write_failures_preserve_the_published_mix),
         TEST_CASE(a_failed_catalog_checkpoint_preserves_the_published_mix),
         TEST_CASE(a_missing_or_unreadable_current_bank_recovers_the_previous_mix),
+        TEST_CASE(cassette_side_limits_and_public_state_guards_fail_closed),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -1189,6 +1189,48 @@ static void a_buffer_too_small_for_the_end_lines_gets_nothing(void)
     CHECK_EQUAL('#', text[0]);
 }
 
+static void unknown_enum_values_are_reported_without_indexing_past_their_names(void)
+{
+    DebugReportInput input = plain_input();
+    input.reason = (DebugReportReason)UINT32_MAX;
+    input.start.warm = true;
+    input.start.last_step = (HalStartStep)UINT32_MAX;
+    input.usb.end = (HalUsbEnd)UINT32_MAX;
+    input.loop.last_connect = UINT8_MAX;
+    input.audio.state = (HalAudioState)UINT32_MAX;
+    load_script("build any\nrtc read\nsoak 1\n");
+    script.state = UINT8_MAX;
+    script.status[0] = UINT8_MAX;
+    script.soak_count = 1;
+    script.soaks[0].end = UINT8_MAX;
+    script.rtc_count = 1;
+    script.rtc[0].action = UINT8_MAX;
+    script.rtc[0].status = UINT8_MAX;
+    record(DEBUG_EVENT_KEY, KEY_PLAY | UINT32_C(0xff) << 8, NULL);
+    record(DEBUG_EVENT_PLAYER, UINT32_C(0xff), NULL);
+    record(DEBUG_EVENT_USB_END, UINT32_MAX, NULL);
+    record(DEBUG_EVENT_SCRIPT, DEBUG_SCRIPT_EVENT_STATE + UINT32_C(0xff), NULL);
+    record(DEBUG_EVENT_USB_CONNECT, UINT32_MAX, NULL);
+
+    format(&input, DEBUG_REPORT_BYTES);
+
+    CHECK(has_line("report.reason: unknown"));
+    CHECK(has_line("start.last_step: unknown"));
+    CHECK(has_line("usb.last_end: unknown"));
+    CHECK(has_line("loop.last_connect: unknown"));
+    CHECK(has_line("audio.state: unknown"));
+    CHECK(has_line("script.state: unknown"));
+    CHECK(has_line("script.line: 1 unknown build any"));
+    CHECK(strstr(text, " end=unknown ") != NULL);
+    CHECK(strstr(text, " action=unknown ") != NULL);
+    CHECK(strstr(text, " status=unknown ") != NULL);
+    CHECK(has_line("event: 1000 key play unknown"));
+    CHECK(has_line("event: 1001 player unknown 0"));
+    CHECK(has_line("event: 1002 usb_end unknown"));
+    CHECK(has_line("event: 1003 script unknown"));
+    CHECK(has_line("event: 1004 usb_connect unknown"));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -1257,6 +1299,7 @@ int main(void)
         TEST_CASE(the_fullest_report_is_cut_inside_the_histogram_which_comes_last),
         TEST_CASE(a_small_buffer_cuts_at_a_line_and_says_so),
         TEST_CASE(a_buffer_too_small_for_the_end_lines_gets_nothing),
+        TEST_CASE(unknown_enum_values_are_reported_without_indexing_past_their_names),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

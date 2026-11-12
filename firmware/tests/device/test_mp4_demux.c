@@ -1366,6 +1366,60 @@ static void the_signature_is_the_ftyp_box(void)
     m4a_file_free(&file);
 }
 
+static void cursor_table_addresses_are_checked_before_they_are_read(void)
+{
+    static Builder builder;
+    build_synthetic(&builder, false);
+    FlacInput input = {.read = read_builder, .context = &builder, .size = builder.length};
+    Mp4Track original;
+    CHECK(mp4_probe(input, &original));
+    Mp4Cursor cursor;
+
+    Mp4Track track = original;
+    track.chunk_count = 0;
+    CHECK(!mp4_cursor_seek(&cursor, input, &track, 0));
+
+    track = original;
+    track.chunks_at = UINT32_MAX;
+    CHECK(!mp4_cursor_seek(&cursor, input, &track, 3));
+
+    track = original;
+    track.wide_offsets = true;
+    track.chunks_at = UINT32_MAX - 3;
+    CHECK(!mp4_cursor_seek(&cursor, input, &track, 0));
+
+    track = original;
+    track.runs_at = UINT32_MAX - 7;
+    CHECK(!mp4_cursor_seek(&cursor, input, &track, 0));
+
+    uint32_t offset = 0;
+    uint32_t size = 0;
+    track = original;
+    track.fixed_size = 1;
+    track.sample_count = 2;
+    track.run_count = 2;
+    track.runs_at = UINT32_MAX - 11;
+    cursor = (Mp4Cursor){.chunk = 1, .chunk_samples = 1, .run_end = 2};
+    CHECK(mp4_cursor_next(&cursor, input, &track, &offset, &size));
+    CHECK(cursor.failed);
+    CHECK(!mp4_cursor_next(&cursor, input, &track, &offset, &size));
+
+    track = original;
+    track.sample_count = 1;
+    track.sizes_at = input.size + 1;
+    cursor = (Mp4Cursor){0};
+    CHECK(!mp4_cursor_next(&cursor, input, &track, &offset, &size));
+
+    track.sizes_at = input.size - 1;
+    cursor = (Mp4Cursor){0};
+    CHECK(!mp4_cursor_next(&cursor, input, &track, &offset, &size));
+
+    track.fixed_size = UINT32_MAX;
+    track.audio_bytes = 0;
+    cursor = (Mp4Cursor){.offset = 1};
+    CHECK(!mp4_cursor_next(&cursor, input, &track, &offset, &size));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -1415,6 +1469,7 @@ int main(void)
         TEST_CASE(an_sbr_signal_is_refused_only_when_sbr_is_present),
         TEST_CASE(files_that_are_not_mp4_or_are_cut_short_are_refused),
         TEST_CASE(the_signature_is_the_ftyp_box),
+        TEST_CASE(cursor_table_addresses_are_checked_before_they_are_read),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
