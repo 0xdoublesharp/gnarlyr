@@ -57,6 +57,24 @@ static bool has_line(const char *line)
     return strstr(text, wanted) != NULL;
 }
 
+static void dac_diagnostics_report_cached_reads_and_sequence_durations(void)
+{
+    DebugReportInput input = plain_input();
+    input.dac = (DacDiagnostics){.up = false,
+                                 .valid = 1,
+                                 .power = {0xB6, 0},
+                                 .start_us = 12345,
+                                 .stop_us = 150123,
+                                 .gain_us = 162123};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("dac.up: 0"));
+    CHECK(has_line("dac.power_left: 182"));
+    CHECK(has_line("dac.power_right: unknown"));
+    CHECK(has_line("dac.start_us: 12345"));
+    CHECK(has_line("dac.stop_us: 150123"));
+    CHECK(has_line("dac.gain_us: 162123"));
+}
+
 static void record(DebugEventKind kind, uint32_t value, const char *label)
 {
     DebugEvent event = debug_event_make(1000 + events.recorded, kind, value, label);
@@ -1247,6 +1265,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(bluetooth_timeline_is_reported_in_milliseconds),
+        TEST_CASE(dac_diagnostics_report_cached_reads_and_sequence_durations),
         TEST_CASE(the_schema_version_is_the_first_line),
         TEST_CASE(missing_boot_markers_are_reported_as_unknown),
         TEST_CASE(boot_markers_keep_zero_and_completed_phases_separate_from_unknown),

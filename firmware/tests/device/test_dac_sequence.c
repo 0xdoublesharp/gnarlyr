@@ -70,8 +70,11 @@ static bool fake_write(void *context, uint8_t address, uint32_t map, uint8_t val
     }
     record((Op){OP_WRITE, address, map, value});
     if (map == 0x020000) {
-        fake.power_control[chip_of(address)] = value;
-        fake.powered_down_us[chip_of(address)] = fake.elapsed_us;
+        int chip = chip_of(address);
+        if ((value & 0x10) != (fake.power_control[chip] & 0x10)) {
+            fake.powered_down_us[chip] = fake.elapsed_us;
+        }
+        fake.power_control[chip] = value;
     }
     return true;
 }
@@ -390,7 +393,7 @@ static void the_register_sequence_follows_the_facts(void)
     CHECK(next_mono_table());
     CHECK(next_both(0x0B0000, 0x1F));
     CHECK(next_delay_ms(80));
-    CHECK(next_both(0x080000, 0x10));
+    CHECK(next_both(0x080000, 0x20));
     CHECK(next_both(0x0D0000, 0x04));
     CHECK(next_both(0x0D0001, 0x00));
     CHECK(next_both(0x0F0010, 0x87));
@@ -400,17 +403,16 @@ static void the_register_sequence_follows_the_facts(void)
     CHECK(next_both(0x010010, 0x99));
     CHECK(next_both(0x180000, 0x45));
     CHECK(next_both(0x010010, 0x00));
-    CHECK(next_release(LEFT, 0xF6, 0x40));
-    CHECK(next_release(RIGHT, 0xF6, 0x40));
     CHECK(next_both(0x010010, 0x99));
     CHECK(next_both(0x080032, 0x20));
+    CHECK(next_release(LEFT, 0xF6, 0x40));
+    CHECK(next_release(RIGHT, 0xF6, 0x40));
     CHECK(next_release(LEFT, 0xB6, 0x10));
     CHECK(next_release(RIGHT, 0xB6, 0x10));
     CHECK(next_delay_ms(12));
     CHECK(next_both(0x080032, 0x00));
     CHECK(next_both(0x010010, 0x00));
     CHECK(next_both(0x01000B, 0x01));
-    CHECK(next_delay_ms(10));
     CHECK_EQUAL(cursor, fake.count);
     CHECK_EQUAL(0xA6, fake.power_control[0]);
     CHECK_EQUAL(0xA6, fake.power_control[1]);
@@ -445,13 +447,14 @@ static void output_on_unmutes_and_restores_the_channel_values(void)
     cursor = 0;
     dac_output_on(&bus, 0x5E);
     CHECK(next_pin(DAC_PIN_ENABLE_A, true));
-    CHECK(next_pin(DAC_PIN_MUTE, false));
+    CHECK(next_pin(DAC_PIN_MUTE, true));
     CHECK(next_pin(DAC_PIN_AMP, true));
     CHECK(next_one(LEFT, 0x05000A, 0x07) && next_one(LEFT, 0x05000B, 0x07));
     CHECK(next_one(RIGHT, 0x05000A, 0x0F) && next_one(RIGHT, 0x05000B, 0x0F));
     CHECK(next_both(0x090001, 0x5E));
     CHECK(next_both(0x090002, 0x5E));
     CHECK(next_delay_ms(10));
+    CHECK(next_pin(DAC_PIN_MUTE, false));
     CHECK_EQUAL(cursor, fake.count);
 }
 
@@ -494,12 +497,18 @@ static void output_off_mutes_then_powers_the_outputs_down_before_the_serial_port
     DacBus bus = playing_bus(0, 0);
     dac_output_off(&bus);
     CHECK(next_muted_output());
+    CHECK(next_both(0x010010, 0x99));
+    CHECK(next_both(0x080046, 0x21));
+    CHECK(next_both(0x090003, 0xEF));
+    CHECK(next_delay_ms(150));
     CHECK(next_status_read(LEFT) && next_status_read(RIGHT));
+    CHECK(next_both(0x0F0010, 0x86));
     CHECK(next_power_down(LEFT, 0xA6, 0x10));
     CHECK(next_power_down(RIGHT, 0xA6, 0x10));
     CHECK(next_status_read(LEFT) && next_status_read(RIGHT));
     CHECK(next_power_down(LEFT, 0xB6, 0x40));
     CHECK(next_power_down(RIGHT, 0xB6, 0x40));
+    CHECK(next_both(0x080046, 0x20));
     CHECK(next_supplies_off());
     CHECK_EQUAL(cursor, fake.count);
     CHECK_EQUAL(0xF6, fake.power_control[0]);
@@ -530,7 +539,7 @@ static void a_chip_that_never_reports_its_ramp_done_is_given_up_after_150_ms(voi
         waits += fake.ops[index].kind == OP_DELAY && fake.ops[index].value == 1000 ? 1 : 0;
     }
     CHECK_EQUAL(150, waits);
-    CHECK_EQUAL(0xF6, fake.power_control[1]);
+    CHECK_EQUAL(0xB6, fake.power_control[1]);
     CHECK_EQUAL(OP_PIN, fake.ops[fake.count - 1].kind);
     CHECK_EQUAL(DAC_PIN_ENABLE_B, fake.ops[fake.count - 1].map);
 }
@@ -580,6 +589,17 @@ static bool counting_write(void *context, uint8_t address, uint32_t map, uint8_t
     return fake_write(context, address, map, value);
 }
 
+static bool guarded_gain_write(void *context, uint8_t address, uint32_t map, uint8_t value)
+{
+    if (map == 0x080000) {
+        for (int chip = 0; chip < 2; chip++) {
+            CHECK((fake.power_control[chip] & 0x50) == 0x50);
+            CHECK((read_status_register(chip) & 1) != 0);
+        }
+    }
+    return fake_write(context, address, map, value);
+}
+
 static DacBus counting_bus(void)
 {
     DacBus bus = fresh_bus();
@@ -613,7 +633,7 @@ static void start_up_writes_the_chosen_gain_and_filter_with_the_outputs_powered_
             for (int chip = 0; chip < 2; chip++) {
                 uint8_t address = chip == 0 ? LEFT : RIGHT;
                 CHECK_EQUAL(FILTER_VALUES[filter], last_write(address, 0x090000));
-                CHECK_EQUAL(high ? 0x31 : 0x10, last_write(address, 0x080000));
+                CHECK_EQUAL(high ? 0x31 : 0x20, last_write(address, 0x080000));
             }
         }
     }
@@ -657,11 +677,15 @@ static void a_gain_change_powers_the_outputs_down_around_the_register_write(void
     CHECK(next_read_modify_write(LEFT, 0xB6));
     CHECK(next_read_modify_write(RIGHT, 0xB6));
     CHECK(next_status_read(LEFT) && next_status_read(RIGHT));
+    CHECK(next_read_modify_write(LEFT, 0xF6));
+    CHECK(next_read_modify_write(RIGHT, 0xF6));
+    CHECK(next_both(0x080046, 0x20));
     CHECK(next_both(0x080000, 0x31));
     CHECK(next_both(0x090000, 0x42));
-    CHECK(next_both(0x080046, 0x20));
     CHECK(next_both(0x010010, 0x99));
     CHECK(next_both(0x080032, 0x20));
+    CHECK(next_read_modify_write(LEFT, 0xB6));
+    CHECK(next_read_modify_write(RIGHT, 0xB6));
     CHECK(next_read_modify_write(LEFT, 0xA6));
     CHECK(next_read_modify_write(RIGHT, 0xA6));
     CHECK(next_delay_ms(12));
@@ -670,6 +694,24 @@ static void a_gain_change_powers_the_outputs_down_around_the_register_write(void
     CHECK(next_both(0x0F0010, 0x87));
     CHECK(next_pcm_unmuted());
     CHECK_EQUAL(cursor, fake.count);
+    CHECK_EQUAL(0xA6, fake.power_control[0]);
+    CHECK_EQUAL(0xA6, fake.power_control[1]);
+}
+
+static void the_gain_setting_writes_the_headphone_gain_register(void)
+{
+    DacBus bus = playing_bus(3, 5);
+    bus.write = guarded_gain_write;
+    CHECK(dac_sequence_gain(&bus, false));
+    int gain_writes = 0;
+    for (int index = 0; index < fake.count; index++) {
+        Op op = fake.ops[index];
+        if (op.kind == OP_WRITE && op.map == 0x080000) {
+            CHECK_EQUAL(0x20, op.value);
+            gain_writes++;
+        }
+    }
+    CHECK_EQUAL(2, gain_writes);
     CHECK_EQUAL(0xA6, fake.power_control[0]);
     CHECK_EQUAL(0xA6, fake.power_control[1]);
 }
@@ -693,8 +735,8 @@ static void gain_registers_are_written_only_after_both_chips_report_power_down_d
     }
     CHECK(gain_at > 0);
     CHECK_EQUAL(7, waits);
-    CHECK_EQUAL(0x10, last_write(LEFT, 0x080000));
-    CHECK_EQUAL(0x10, last_write(RIGHT, 0x080000));
+    CHECK_EQUAL(0x20, last_write(LEFT, 0x080000));
+    CHECK_EQUAL(0x20, last_write(RIGHT, 0x080000));
 }
 
 static void a_filter_change_mutes_the_pcm_path_without_powering_down(void)
@@ -733,6 +775,17 @@ static void a_silent_bus_fails_a_gain_change(void)
     fake.silent = true;
     CHECK(!dac_apply_analog(&bus, (DacAnalog){.gain_high = false}, (DacAnalog){.gain_high = true}));
     CHECK(!dac_apply_analog(&bus, (DacAnalog){.filter = 0}, (DacAnalog){.filter = 4}));
+}
+
+static void a_gain_timeout_never_writes_gain_or_releases_the_outputs(void)
+{
+    DacBus bus = playing_bus(255, 255);
+    CHECK(!dac_sequence_gain(&bus, true));
+    for (int index = 0; index < fake.count; index++) {
+        CHECK(fake.ops[index].kind != OP_WRITE || fake.ops[index].map != 0x080000);
+    }
+    CHECK_EQUAL(0xB6, fake.power_control[0]);
+    CHECK_EQUAL(0xB6, fake.power_control[1]);
 }
 
 static void volume_levels_map_onto_the_pcm_volume_scale(void)
@@ -793,6 +846,8 @@ int main(void)
         TEST_CASE(an_unchanged_setting_touches_no_register),
         TEST_CASE(an_unknown_filter_is_refused_without_touching_a_register),
         TEST_CASE(a_silent_bus_fails_a_gain_change),
+        TEST_CASE(a_gain_timeout_never_writes_gain_or_releases_the_outputs),
+        TEST_CASE(the_gain_setting_writes_the_headphone_gain_register),
         TEST_CASE(volume_levels_map_onto_the_pcm_volume_scale),
         TEST_CASE(the_balanced_curve_sits_ten_units_lower),
         TEST_CASE(a_volume_ramp_moves_six_units_a_step_and_lands_on_the_target),

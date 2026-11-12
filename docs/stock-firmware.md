@@ -65,6 +65,8 @@ The display code is in module 4: file offset `0x59b18`, loads at `0x0307e48c`, 1
 - Gain, digital filter and volume writes, with their addresses, defaults and the data sheet's reading of each value, are in [`firmware/docs/hardware.md`](../firmware/docs/hardware.md) (Audio). Stock writes gain `0x080000` and filter `0x090000` during start-up with the outputs powered down, and again directly, without muting or powering down, when Settings changes them during playback (`0x030611c8`, `0x03061206`). The analysis exported modules 0+1, 0+32 and 0+27 and scanned every module's code for calls to the register writer and for loads and stores of the two setting bytes.
 - The digital filters, the volume curve, the gain values and the power-down order are compared in [stock-hardware-notes.md](stock-hardware-notes.md).
 
+The analog-click fix chooses Low `0x20` from the CS43198 DS1156F2 OUT_FS table (section 7.5.1): `10` is 1.41 Vrms, while the inherited `0x10` selects reserved `01`. High `0x31` selects `11` with +1dB_EN, yielding 2 Vrms when HV_EN is enabled, as in the configured Class H `0x1f`. The expected difference is about 3.04 dB. This establishes a documented operating point, not stock gain equivalence; no stock Low/High register capture is established in this record.
+
 ## Limits of this record
 
 - REA sometimes reports a function as several separate pieces joined by a branch to shared code. A numeric address range is not proof that everything inside it belongs to one function.

@@ -21,6 +21,72 @@ from echo_image_harness import (
 
 
 class EchoImageTest(EchoImageHarness):
+    def test_analog_seek_clears_old_pcm_and_output_changes_fade(self):
+        from echo_emulator.machine import TRAMPOLINE
+        from echo_emulator.audio import RING_BYTES, PRODUCED_OFFSET
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_R0, UC_ARM_REG_R2
+        rig = self.standby_rig()
+        rig.open_songs()
+        rig.play_song(1)
+        machine = rig.machine
+        target = rig.audio.volumes[-1][1]
+        returned = TRAMPOLINE + 0x904
+        machine.add_address_hook(returned, lambda: machine.stop("analog API returned"))
+
+        def call(name, value):
+            context = machine.uc.context_save()
+            machine.uc.reg_write(UC_ARM_REG_R0, value)
+            machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
+            machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols[name] | 1)
+            self.assertEqual("analog API returned", machine.run(
+                until_ms=machine.milliseconds() + 3000))
+            result = machine.reg(UC_ARM_REG_R0)
+            machine.uc.context_restore(context)
+            return result
+
+        starts = []
+
+        def check_ring():
+            produced = struct.unpack("<I", machine.read_memory(
+                rig.audio.engine + PRODUCED_OFFSET, 4))[0]
+            starts.append(self.counter_frame(rig, 0))
+            if produced * 8 < RING_BYTES:
+                tail = machine.read_memory(rig.audio.ring + produced * 8, RING_BYTES - produced * 8)
+                self.assertEqual(bytes(len(tail)), tail)
+
+        machine.hook_symbol("dac_path_start_transfer", check_ring)
+        before = len(rig.audio.volumes)
+        call("hal_audio_seek", 5000)
+        self.assertEqual([5 * STANDBY_RATE], starts)
+        values = [value for _, value in rig.audio.volumes[before:]]
+        self.assertIn(DAC_MUTED, values)
+        self.assertEqual(target, values[-1])
+        for output in (1, 2, 0):
+            before = len(rig.audio.volumes)
+            call("hal_audio_set_output", output)
+            values = [value for _, value in rig.audio.volumes[before:]]
+            self.assertIn(DAC_MUTED, values)
+            self.assertLess(values[-1], DAC_MUTED)
+        machine.uc.mem_write(machine.symbols["dac_up"], b"\x01")
+        machine.stub_symbol("dac_set_muted", lambda current: rig.audio.volumes.append(
+            (current.milliseconds(), current.reg(UC_ARM_REG_R2))))
+        call("dac_path_guard", 1)
+        self.assertEqual(DAC_MUTED, rig.audio.volumes[-1][1])
+        call("dac_path_guard", 0)
+        self.assertLess(rig.audio.volumes[-1][1], DAC_MUTED)
+        for plugged in (True, False):
+            machine.balanced_plugged = plugged
+            self.assertEqual(0, call("board_jack_poll", 0))
+            self.assertEqual(1, call("board_jack_settling", 0))
+            self.assertEqual(DAC_MUTED, rig.audio.volumes[-1][1])
+            for sample in range(6):
+                self.assertEqual(int(sample == 5), call("board_jack_poll", 0))
+                self.assertEqual(DAC_MUTED, rig.audio.volumes[-1][1])
+            self.assertEqual(0, call("board_jack_settling", 0))
+            if plugged:
+                call("dac_path_guard", 0)
+                self.assertLess(rig.audio.volumes[-1][1], DAC_MUTED)
+
     def test_m4b_files_outside_named_folders_are_on_the_audiobook_shelf(self):
         from echo_emulator.playback import Rig
         from echo_emulator.fat_volume import Fat32Volume

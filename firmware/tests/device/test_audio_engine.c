@@ -435,6 +435,20 @@ static void starting_part_way_skips_to_that_sample(void)
     CHECK_EQUAL(100u, audio_engine_status(&engine).position_ms);
 }
 
+static void replacing_a_track_discards_every_old_ring_word(void)
+{
+    start_engine();
+    CHECK(play_file("lpc_16_44k_stereo", 0, 5));
+    pump_until_full(0);
+    CHECK(play_file("lpc_16_44k_stereo", 50, 6));
+    for (uint32_t index = 0; index < engine.config.ring_words; index++) {
+        CHECK_EQUAL(0, engine.config.ring[index]);
+    }
+    pump_until_full(0);
+    CHECK(ring_holds("lpc_16_44k_stereo", 2205, 0, 1000, 16));
+    CHECK_EQUAL(6u, audio_engine_status(&engine).token);
+}
+
 static void seeking_restarts_the_ring_at_the_new_place(void)
 {
     start_engine();
@@ -442,6 +456,9 @@ static void seeking_restarts_the_ring_at_the_new_place(void)
     pump_until_full(0);
     audio_engine_pump(&engine, 1000);
     CHECK(audio_engine_seek(&engine, 50));
+    for (uint32_t index = 0; index < engine.config.ring_words; index++) {
+        CHECK_EQUAL(0, engine.config.ring[index]);
+    }
     pump_until_full(0);
     CHECK(ring_holds("lpc_16_44k_stereo", 2205, 0, 1000, 16));
     CHECK_EQUAL(50u, audio_engine_status(&engine).position_ms);
@@ -1489,6 +1506,7 @@ int main(void)
         TEST_CASE(a_next_track_at_another_rate_waits_for_the_ring_to_drain),
         TEST_CASE(starting_part_way_skips_to_that_sample),
         TEST_CASE(seeking_restarts_the_ring_at_the_new_place),
+        TEST_CASE(replacing_a_track_discards_every_old_ring_word),
         TEST_CASE(volume_scales_the_samples),
         TEST_CASE(replay_gain_scales_pcm_and_unity_matches_the_existing_output_exactly),
         TEST_CASE(contiguous_chapters_change_gain_without_reopening_the_file),

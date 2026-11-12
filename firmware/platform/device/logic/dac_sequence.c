@@ -14,26 +14,24 @@ enum {
     HEADPHONE_BIT = 0x10,
     OUTPUT_POWER_UP_MS = 12,
     RELEASE_WAIT_US = 100,
-    PCM_MUTE_WAIT_MS = 150,
     MONO_GROUPS = 4,
-    MONO_ITEMS = 6,
-    VALUE_BITS = 8,
-    VALUE_MASK = 0xFF
+    MONO_ITEMS = 6
 };
 
-#define WRITE(map, value) ((uint32_t)(map) << VALUE_BITS | (value))
+#define WRITE(map, value) ((uint32_t)(map) << 8 | (value))
 
 #define PCM_VOLUME_B 0x090001u
 #define PCM_VOLUME_A 0x090002u
 #define HEADPHONE_GAIN 0x080000u
 #define PCM_FILTER 0x090000u
+#define PCM_MUTE 0x090003u
 
 enum {
     BALANCED_ATTENUATION_VALUE = 10,
     VOLUME_UNITS_PER_STEP = 2,
     RAMP_STEP = 6,
     GAIN_HIGH_VALUE = 0x31,
-    GAIN_LOW_VALUE = 0x10
+    GAIN_LOW_VALUE = 0x20
 };
 
 static const uint8_t CHIPS[CHIP_COUNT] = {DAC_LEFT_ADDRESS, DAC_RIGHT_ADDRESS};
@@ -66,22 +64,10 @@ static const uint8_t MONO_VALUES[MONO_GROUPS][MONO_ITEMS] = {
 };
 
 static const uint32_t AFTER_MONO[] = {
-    WRITE(0x0D0000, 0x04), WRITE(0x0D0001, 0x00), WRITE(0x0F0010, 0x87),
-    WRITE(0x0F0011, 0x07), WRITE(0x010006, 0x04), WRITE(0x01000D, 0x02),
-    WRITE(0x010010, 0x99), WRITE(0x180000, 0x45), WRITE(0x010010, 0x00),
+    WRITE(0x0D0000, 0x04), WRITE(0x0D0001, 0x00), WRITE(0x0F0010, 0x87), WRITE(0x0F0011, 0x07),
+    WRITE(0x010006, 0x04), WRITE(0x01000D, 0x02), WRITE(0x010010, 0x99), WRITE(0x180000, 0x45),
+    WRITE(0x010010, 0x00),
 };
-
-static const uint32_t POWER_UP_START[] = {WRITE(0x010010, 0x99), WRITE(0x080032, 0x20)};
-static const uint32_t POWER_UP_END[] = {WRITE(0x080032, 0x00), WRITE(0x010010, 0x00)};
-static const uint32_t HOLD_FOR_POWER_DOWN[] = {WRITE(0x010010, 0x99), WRITE(0x080046, 0x21),
-                                               WRITE(0x090003, 0xEF)};
-static const uint32_t UNMASK_POWER_DOWN_DONE[] = {WRITE(0x0F0010, 0x86)};
-static const uint32_t END_POWER_DOWN[] = {WRITE(0x080046, 0x20)};
-static const uint32_t MUTE_PCM[] = {WRITE(0x090003, 0xEF)};
-static const uint32_t RESUME_PCM[] = {WRITE(0x0F0010, 0x87), WRITE(0x090003, 0xEC)};
-static const uint32_t UNMUTE_PCM[] = {WRITE(0x090003, 0xEC)};
-
-#define COUNT(table) (sizeof(table) / sizeof((table)[0]))
 
 static void wait_ms(const DacBus *bus, uint32_t milliseconds)
 {
@@ -106,7 +92,7 @@ static bool write_both(const DacBus *bus, uint32_t map, uint8_t value)
 static bool write_all(const DacBus *bus, const uint32_t *writes, size_t count)
 {
     for (size_t index = 0; index < count; index++) {
-        if (!write_both(bus, writes[index] >> VALUE_BITS, (uint8_t)(writes[index] & VALUE_MASK))) {
+        if (!write_both(bus, writes[index] >> 8, (uint8_t)writes[index])) {
             return false;
         }
     }
@@ -230,35 +216,30 @@ static uint8_t gain_value(bool high)
 
 static bool set_up_blocks(const DacBus *bus, DacAnalog analog)
 {
-    if (!write_all(bus, AFTER_STATUS, COUNT(AFTER_STATUS)) || !write_channel_values(bus) ||
-        !write_both(bus, PCM_FILTER, filter_value(analog.filter)) ||
-        !write_all(bus, BEFORE_MONO, COUNT(BEFORE_MONO)) || !write_mono_table(bus) ||
-        !write_both(bus, 0x0B0000, 0x1F)) {
+    if (!write_all(bus, AFTER_STATUS, sizeof AFTER_STATUS / sizeof AFTER_STATUS[0]) ||
+        !write_channel_values(bus) || !write_both(bus, PCM_FILTER, filter_value(analog.filter)) ||
+        !write_all(bus, BEFORE_MONO, sizeof BEFORE_MONO / sizeof BEFORE_MONO[0]) ||
+        !write_mono_table(bus) || !write_both(bus, 0x0B0000, 0x1F)) {
         return false;
     }
     wait_ms(bus, 80);
     return write_both(bus, HEADPHONE_GAIN, gain_value(analog.gain_high)) &&
-           write_all(bus, AFTER_MONO, COUNT(AFTER_MONO));
+           write_all(bus, AFTER_MONO, sizeof AFTER_MONO / sizeof AFTER_MONO[0]);
 }
 
-static bool power_up_headphone_output(const DacBus *bus)
+bool dac_sequence_power_up(const DacBus *bus)
 {
-    if (!write_all(bus, POWER_UP_START, COUNT(POWER_UP_START)) ||
-        !release_power_bit(bus, HEADPHONE_BIT)) {
+    if (!write_both(bus, 0x010010, 0x99) || !write_both(bus, 0x080032, 0x20) ||
+        !release_power_bit(bus, SERIAL_PORT_BIT) || !release_power_bit(bus, HEADPHONE_BIT)) {
         return false;
     }
     wait_ms(bus, OUTPUT_POWER_UP_MS);
-    return write_all(bus, POWER_UP_END, COUNT(POWER_UP_END));
+    return write_both(bus, 0x080032, 0x00) && write_both(bus, 0x010010, 0x00);
 }
 
 static bool release_outputs(const DacBus *bus, uint8_t rate_byte)
 {
-    if (!release_power_bit(bus, SERIAL_PORT_BIT) || !power_up_headphone_output(bus) ||
-        !write_both(bus, 0x01000B, rate_byte)) {
-        return false;
-    }
-    wait_ms(bus, 10);
-    return true;
+    return dac_sequence_power_up(bus) && write_both(bus, 0x01000B, rate_byte);
 }
 
 DacResult dac_configure(const DacBus *bus, uint8_t rate_byte, DacAnalog analog)
@@ -279,6 +260,42 @@ void dac_set_volume(const DacBus *bus, uint8_t volume)
     write_both(bus, PCM_VOLUME_A, volume);
 }
 
+static bool change_analog(const DacBus *bus, DacAnalog after)
+{
+    return dac_sequence_power_down(bus) &&
+           write_both(bus, HEADPHONE_GAIN, gain_value(after.gain_high)) &&
+           write_both(bus, PCM_FILTER, filter_value(after.filter)) && dac_sequence_power_up(bus) &&
+           write_both(bus, 0x0F0010, 0x87) && write_both(bus, PCM_MUTE, 0xEC);
+}
+
+bool dac_sequence_gain(const DacBus *bus, bool high)
+{
+    return dac_sequence_power_down(bus) && write_both(bus, HEADPHONE_GAIN, gain_value(high)) &&
+           dac_sequence_power_up(bus) && write_both(bus, 0x0F0010, 0x87) &&
+           write_both(bus, PCM_MUTE, 0xEC);
+}
+
+static bool change_filter(const DacBus *bus, uint8_t filter)
+{
+    if (!write_both(bus, PCM_MUTE, 0xEF)) {
+        return false;
+    }
+    wait_ms(bus, 150);
+    bool written = write_both(bus, PCM_FILTER, filter_value(filter));
+    return write_both(bus, PCM_MUTE, 0xEC) && written;
+}
+
+bool dac_apply_analog(const DacBus *bus, DacAnalog before, DacAnalog after)
+{
+    if (after.filter >= DAC_ANALOG_FILTERS) {
+        return false;
+    }
+    if (before.gain_high != after.gain_high) {
+        return change_analog(bus, after);
+    }
+    return before.filter == after.filter || change_filter(bus, after.filter);
+}
+
 uint8_t dac_volume_value(uint8_t level, DacCurve curve)
 {
     if (level == 0) {
@@ -292,34 +309,46 @@ uint8_t dac_volume_value(uint8_t level, DacCurve curve)
 void dac_output_on(const DacBus *bus, uint8_t volume)
 {
     set_pin(bus, DAC_PIN_ENABLE_A, true);
-    set_pin(bus, DAC_PIN_MUTE, false);
+    set_pin(bus, DAC_PIN_MUTE, true);
     set_pin(bus, DAC_PIN_AMP, true);
     write_channel_values(bus);
     dac_set_volume(bus, volume);
     wait_ms(bus, 10);
+    set_pin(bus, DAC_PIN_MUTE, false);
 }
 
-static void wait_for_power_down(const DacBus *bus)
+static bool wait_for_power_down(const DacBus *bus)
 {
     uint32_t waited_ms = 0;
     for (int chip = 0; chip < CHIP_COUNT; chip++) {
         uint8_t status = 0;
-        while (bus->read(bus->context, CHIPS[chip], STATUS_MAP, &status) &&
-               (status & STATUS_POWER_DOWN_DONE) == 0 && waited_ms < POWER_DOWN_LIMIT_MS) {
+        do {
+            if (!bus->read(bus->context, CHIPS[chip], STATUS_MAP, &status)) {
+                return false;
+            }
+            if ((status & STATUS_POWER_DOWN_DONE) != 0) {
+                break;
+            }
+            if (waited_ms == POWER_DOWN_LIMIT_MS) {
+                return false;
+            }
             wait_ms(bus, 1);
             waited_ms++;
-        }
+        } while (true);
     }
+    return true;
 }
 
-static void power_down_outputs(const DacBus *bus)
+bool dac_sequence_power_down(const DacBus *bus)
 {
-    (void)read_status(bus);
-    if (!change_power_bit(bus, HEADPHONE_BIT, true)) {
-        return;
+    if (!write_both(bus, 0x010010, 0x99) || !write_both(bus, 0x080046, 0x21) ||
+        !write_both(bus, 0x090003, 0xEF)) {
+        return false;
     }
-    wait_for_power_down(bus);
-    change_power_bit(bus, SERIAL_PORT_BIT, true);
+    wait_ms(bus, 150);
+    return read_status(bus) != DAC_NO_REPLY && write_both(bus, 0x0F0010, 0x86) &&
+           change_power_bit(bus, HEADPHONE_BIT, true) && wait_for_power_down(bus) &&
+           change_power_bit(bus, SERIAL_PORT_BIT, true) && write_both(bus, 0x080046, 0x20);
 }
 
 void dac_output_off(const DacBus *bus)
@@ -327,7 +356,7 @@ void dac_output_off(const DacBus *bus)
     set_pin(bus, DAC_PIN_MUTE, true);
     set_pin(bus, DAC_PIN_ENABLE_A, true);
     dac_set_volume(bus, DAC_VOLUME_MUTED);
-    power_down_outputs(bus);
+    (void)dac_sequence_power_down(bus);
     write_both(bus, 0x0B0000, 0x00);
     wait_ms(bus, 10);
     set_pin(bus, DAC_PIN_AMP, false);
@@ -352,57 +381,4 @@ uint8_t dac_ramp_next(uint8_t current, uint8_t target)
         return target - current > RAMP_STEP ? (uint8_t)(current + RAMP_STEP) : target;
     }
     return current - target > RAMP_STEP ? (uint8_t)(current - RAMP_STEP) : target;
-}
-
-static bool mute_pcm_path(const DacBus *bus, const uint32_t *writes, size_t count)
-{
-    if (!write_all(bus, writes, count)) {
-        return false;
-    }
-    wait_ms(bus, PCM_MUTE_WAIT_MS);
-    return true;
-}
-
-static bool power_down_headphone_output(const DacBus *bus)
-{
-    if (!mute_pcm_path(bus, HOLD_FOR_POWER_DOWN, COUNT(HOLD_FOR_POWER_DOWN)) ||
-        read_status(bus) == DAC_NO_REPLY ||
-        !write_all(bus, UNMASK_POWER_DOWN_DONE, COUNT(UNMASK_POWER_DOWN_DONE)) ||
-        !change_power_bit(bus, HEADPHONE_BIT, true)) {
-        return false;
-    }
-    wait_for_power_down(bus);
-    return true;
-}
-
-static bool write_analog(const DacBus *bus, DacAnalog analog)
-{
-    return write_both(bus, HEADPHONE_GAIN, gain_value(analog.gain_high)) &&
-           write_both(bus, PCM_FILTER, filter_value(analog.filter));
-}
-
-static bool change_gain(const DacBus *bus, DacAnalog after)
-{
-    bool written = power_down_headphone_output(bus) && write_analog(bus, after);
-    bool restored =
-        write_all(bus, END_POWER_DOWN, COUNT(END_POWER_DOWN)) && power_up_headphone_output(bus);
-    return write_all(bus, RESUME_PCM, COUNT(RESUME_PCM)) && written && restored;
-}
-
-static bool change_filter(const DacBus *bus, uint8_t filter)
-{
-    bool written = mute_pcm_path(bus, MUTE_PCM, COUNT(MUTE_PCM)) &&
-                   write_both(bus, PCM_FILTER, filter_value(filter));
-    return write_all(bus, UNMUTE_PCM, COUNT(UNMUTE_PCM)) && written;
-}
-
-bool dac_apply_analog(const DacBus *bus, DacAnalog before, DacAnalog after)
-{
-    if (after.filter >= DAC_ANALOG_FILTERS) {
-        return false;
-    }
-    if (before.gain_high != after.gain_high) {
-        return change_gain(bus, after);
-    }
-    return before.filter == after.filter || change_filter(bus, after.filter);
 }

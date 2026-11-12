@@ -3,6 +3,7 @@
 #include "app/debug_loop.h"
 #include "board.h"
 #include "core/seam.h"
+#include "dac.h"
 #include "debug_probe.h"
 #include "hal/clock.h"
 #include "hal/power.h"
@@ -96,6 +97,7 @@ static DebugReportInput gather(const UsbShared *shared, uint32_t reason)
                               .usb_words = usb_words_now(),
                               .audio = *board_debug_audio(),
                               .bluetooth = &hal_bluetooth_status()->link,
+                              .dac = dac_path_diagnostics(),
                               .frames = app_debug_frames(),
                               .loop = board_debug_loop(),
                               .script = debug_runner_script(),

@@ -5,6 +5,7 @@
 
 #include "core/debug_log.h"
 #include "core/debug_script.h"
+#include "device/dac_sequence.h"
 #include "device/pc_profile.h"
 #include "device/power_history.h"
 #include "hal/audio.h"
@@ -105,6 +106,7 @@ typedef struct DebugReportInput {
     DebugReportUsbWords usb_words;
     DebugReportAudio audio;
     const HalBluetoothLink *bluetooth;
+    DacDiagnostics dac;
     DebugFrames frames;
     DebugReportLoop loop;
     const DebugScriptRun *script;
