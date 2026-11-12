@@ -152,7 +152,8 @@ enum {
     SETTINGS_HOME_FIRST_ITEM_COUNT = 9,
     SETTINGS_HOME_ORDER_SLOTS = 10,
     SETTINGS_HOME_PACKED_SIZE = 7,
-    SETTINGS_FILE_SIZE = 58,
+    SETTINGS_FILE_SIZE = 78,
+    SETTINGS_V15_FILE_SIZE = 58,
     SETTINGS_V14_FILE_SIZE = 42,
     SETTINGS_LANGUAGE_LENGTH = 5,
     SETTINGS_LANGUAGE_CAPACITY = SETTINGS_LANGUAGE_LENGTH + 1,
@@ -201,6 +202,10 @@ typedef struct Settings {
     uint8_t transition_tenths;
     uint8_t home_order[SETTINGS_HOME_ITEM_COUNT];
     uint16_t home_hidden;
+    bool status_bar_compact;
+    bool standby_enabled;
+    uint8_t standby_power_off_option;
+    uint8_t long_press_action;
 } Settings;
 
 typedef struct SettingsEqualizerCurve {
