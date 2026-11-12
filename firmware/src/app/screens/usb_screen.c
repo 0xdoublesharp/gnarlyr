@@ -208,7 +208,61 @@ static int draw_battery(const UsbPainter *painter, Rect row)
     return left - row.x;
 }
 
-static void draw_header(const UsbPainter *painter, const char *title)
+typedef struct SpeedTag {
+    const char *text;
+    Color ink;
+    int width;
+} SpeedTag;
+
+static bool linked(const UsbPainter *painter)
+{
+    const UsbScene *scene = painter->scene;
+    if (painter->status.scene == NULL) {
+        return false;
+    }
+    if (painter->status.view == APP_USB_DAC) {
+        return scene->state == USB_SCENE_DAC_READY || scene->state == USB_SCENE_DAC_PLAYING;
+    }
+    return painter->status.view == APP_USB_STORAGE && usb_screen_shows_traffic(scene);
+}
+
+static int widest_tag(const Font *font)
+{
+    static const StringId TAGS[] = {STR_USB_TAG_HIGH, STR_USB_TAG_FULL, STR_USB_TAG_FALLBACK};
+    int widest = 0;
+    for (size_t index = 0; index < sizeof TAGS / sizeof TAGS[0]; index++) {
+        int width = text_width(font, i18n_text(TAGS[index]));
+        widest = width > widest ? width : widest;
+    }
+    return widest;
+}
+
+static SpeedTag speed_tag(const UsbPainter *painter)
+{
+    const Theme *theme = painter->theme;
+    int widest = widest_tag(theme->fonts.small);
+    const UsbScene *scene = painter->scene;
+    if (!linked(painter)) {
+        return (SpeedTag){NULL, theme->colors.text_secondary, 0};
+    }
+    StringId id = scene->high_speed  ? STR_USB_TAG_HIGH
+                  : scene->fell_back ? STR_USB_TAG_FALLBACK
+                                     : STR_USB_TAG_FULL;
+    Color ink = id == STR_USB_TAG_FALLBACK ? theme->colors.danger : theme->colors.text_secondary;
+    return (SpeedTag){i18n_text(id), ink, widest + theme->metrics.padding / 2};
+}
+
+static void draw_tag(const UsbPainter *painter, Rect row, int after, SpeedTag tag)
+{
+    if (tag.text == NULL) {
+        return;
+    }
+    int left = after + painter->theme->metrics.padding / 2;
+    usb_screen_text(painter, (Rect){left, row.y, row.x + row.width - left, row.height},
+                    (TextStyle){painter->theme->fonts.small, tag.ink}, tag.text);
+}
+
+static Rect header_band(const UsbPainter *painter)
 {
     const Theme *theme = painter->theme;
     Rect band = {0, 0, theme->metrics.screen_width, theme->metrics.header_height};
@@ -217,6 +271,13 @@ static void draw_header(const UsbPainter *painter, const char *title)
                      theme->header_rule ? theme->colors.accent : theme->colors.divider);
     Rect row = painter->layout.header;
     row.height -= 1;
+    return row;
+}
+
+static void draw_header(const UsbPainter *painter, const char *title)
+{
+    const Theme *theme = painter->theme;
+    Rect row = header_band(painter);
     Rect second = row;
     if (theme_is_portrait(theme)) {
         row.height = font_line_height(theme->fonts.header);
@@ -228,16 +289,20 @@ static void draw_header(const UsbPainter *painter, const char *title)
     TextStyle name = {theme->fonts.header, ink};
     TextStyle mode = {theme->fonts.small, usb_screen_tint(theme->colors.accent, ink)};
     int title_width = text_width(theme->fonts.small, title);
+    SpeedTag tag = speed_tag(painter);
     if (theme_is_portrait(theme)) {
         usb_screen_text(painter, (Rect){row.x, row.y, room, row.height}, name, FIRMWARE_SHORT_NAME);
         usb_screen_text(painter, second, mode, title);
+        draw_tag(painter, second, second.x + title_width, tag);
         return;
     }
     int gap = theme->metrics.padding;
-    int title_x = row.x + room - gap - title_width;
+    int title_x = row.x + room - gap - title_width - tag.width;
     usb_screen_text(painter, (Rect){row.x, row.y, title_x - gap - row.x, row.height}, name,
                     FIRMWARE_SHORT_NAME);
     usb_screen_text(painter, (Rect){title_x, row.y, title_width, row.height}, mode, title);
+    draw_tag(painter, (Rect){row.x, row.y, row.x + room - row.x, row.height}, title_x + title_width,
+             tag);
 }
 
 static void draw_floor(const UsbPainter *painter, int rule)

@@ -98,6 +98,7 @@ typedef struct UsbScene {
     uint8_t turn;
     bool holding;
     bool high_speed;
+    bool fell_back;
     uint32_t written_kib;
     UsbSceneDrive drives[USB_SCENE_DRIVES];
     UsbSceneDac dac;
