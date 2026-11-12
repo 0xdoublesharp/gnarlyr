@@ -117,6 +117,8 @@ typedef struct DebugMeasure {
     uint32_t audio_elapsed_us;
     uint32_t clock_us;
     uint32_t idle_us;
+    uint32_t core1_cycles;
+    uint32_t core1_idle_cycles;
 } DebugMeasure;
 
 typedef struct DebugProbe {

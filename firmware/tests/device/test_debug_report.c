@@ -521,7 +521,8 @@ static void a_measure_is_one_line_of_named_figures(void)
                        "frame_worst_us=44000 update_avg_us=3000 draw_avg_us=12000 "
                        "send_avg_us=6000 audio=1 buffered_ms=148 underruns=2 output_underruns=1 "
                        "blocks=40 handoff_avg_us=5000 handoff_max_us=9100 read_avg_us=1200 "
-                       "read_max_us=4200 audio_busy_percent=15 core0_busy_percent=60\n") != NULL);
+                       "read_max_us=4200 audio_busy_percent=15 core0_busy_percent=60 "
+                       "core1_busy_percent=unknown core1_busy_permille=unknown\n") != NULL);
 }
 
 static void a_measure_without_frames_or_audio_reports_them_as_unknown(void)
@@ -537,7 +538,38 @@ static void a_measure_without_frames_or_audio_reports_them_as_unknown(void)
                        "send_avg_us=unknown audio=0 buffered_ms=unknown underruns=unknown "
                        "output_underruns=0 blocks=0 handoff_avg_us=unknown handoff_max_us=unknown "
                        "read_avg_us=unknown read_max_us=unknown audio_busy_percent=unknown "
-                       "core0_busy_percent=100\n") != NULL);
+                       "core0_busy_percent=100 core1_busy_percent=unknown "
+                       "core1_busy_permille=unknown\n") != NULL);
+}
+
+static void a_measure_reports_core_1_load_from_its_idle_cycles(void)
+{
+    DebugReportInput input = plain_input();
+    load_script("build any\nmeasure 100\n");
+    script.state = DEBUG_SCRIPT_FINISHED;
+    script.measure_count = 1;
+    script.measures[0] = (DebugMeasure){.line = 2,
+                                        .duration_ms = 100,
+                                        .clock_us = 100000,
+                                        .core1_cycles = 10000000,
+                                        .core1_idle_cycles = 7654321};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, " core1_busy_percent=23 core1_busy_permille=234\n") != NULL);
+}
+
+static void a_measure_with_more_core_1_idle_than_elapsed_reports_unknown_load(void)
+{
+    DebugReportInput input = plain_input();
+    load_script("build any\nmeasure 100\n");
+    script.state = DEBUG_SCRIPT_FINISHED;
+    script.measure_count = 1;
+    script.measures[0] = (DebugMeasure){.line = 2,
+                                        .duration_ms = 100,
+                                        .clock_us = 100000,
+                                        .core1_cycles = 5000,
+                                        .core1_idle_cycles = 6000};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, " core1_busy_percent=unknown core1_busy_permille=unknown\n") != NULL);
 }
 
 static void screenshots_are_listed_by_slot_with_their_names(void)
@@ -1223,6 +1255,8 @@ int main(void)
         TEST_CASE(rtc_reads_list_every_register_the_decoded_time_and_the_trust_flag),
         TEST_CASE(a_measure_is_one_line_of_named_figures),
         TEST_CASE(a_measure_without_frames_or_audio_reports_them_as_unknown),
+        TEST_CASE(a_measure_reports_core_1_load_from_its_idle_cycles),
+        TEST_CASE(a_measure_with_more_core_1_idle_than_elapsed_reports_unknown_load),
         TEST_CASE(screenshots_are_listed_by_slot_with_their_names),
         TEST_CASE(probes_are_listed_with_both_words_the_time_and_the_two_levels),
         TEST_CASE(a_soak_is_reported_with_its_voltage_slope_its_load_and_both_ends),

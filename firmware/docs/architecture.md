@@ -698,7 +698,7 @@ A developer aid for checking a build on the player without pressing buttons and 
   |---|---|
   | `up`, `down`, `play`, `menu`, `back`, `power`, each optionally `:long` or `:held`, several on a line with commas | key presses, in the simulator's `--keys` grammar and timing (`core/key_script`) |
   | `wait MS` | waits 1 to 60,000 ms |
-  | `measure MS` | waits like `wait` and reports the frames, audio counters and core 0 load of that window (`script.measure`); four to a script |
+  | `measure MS` | waits like `wait` and reports the frames, audio counters and core 0 and core 1 load of that window (`script.measure`); four to a script. Core 1 load (`core1_busy_percent`, `core1_busy_permille`) comes from two words each core 1 program keeps while it streams: its SysTick count (`CORE1_SHARED_TICKS`, one per 100,000 core 1 cycles) and the cycles it spent in `wfi` (`CORE1_SHARED_IDLE_CYCLES`). It is `unknown` when core 1 is not streaming or restarted during the window, and in the emulator, whose core 1 has no SysTick |
   | `profile on\|off\|reset` | switches or clears the profiler |
   | `set NAME=OPTION` | chooses a Settings option by the text on screen, as the Settings screen would |
   | `screenshot NAME` | renders the current frame into `/.gnarlyr/debug/shotN.565` (RGB565 with a 32-byte header); four to a script, names of up to 12 lower-case letters, digits, `_` and `-` |

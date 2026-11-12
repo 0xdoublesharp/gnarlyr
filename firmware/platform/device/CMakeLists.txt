@@ -312,6 +312,7 @@ if(NOT ECHO_RELEASE)
         hal_internal_file_reserve
         hal_internal_file_write
         hal_system_clock_mhz
+        hal_system_core1_load
         hal_system_idle_microseconds
         hal_system_restart_pending
         hal_system_start_info

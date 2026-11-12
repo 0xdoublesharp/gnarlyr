@@ -122,6 +122,11 @@ uint32_t hal_system_idle_microseconds(void)
     return 0;
 }
 
+HalCore1Load hal_system_core1_load(void)
+{
+    return (HalCore1Load){0};
+}
+
 HalLoopCycles hal_system_loop_cycles(void)
 {
     return (HalLoopCycles){0};

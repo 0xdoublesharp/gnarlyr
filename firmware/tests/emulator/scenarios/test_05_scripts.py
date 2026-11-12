@@ -80,6 +80,8 @@ class EchoImageTest(EchoImageHarness):
         self.assertGreater(measure["buffered_ms"], 0)
         self.assertGreater(measure["handoff_avg_us"], 0)
         self.assertTrue(0 <= measure["core0_busy_percent"] <= 100)
+        self.assertIn("core1_busy_percent", measure)
+        self.assertIn("core1_busy_permille", measure)
         self.assertEqual(ran["screenshots"], [{"slot": 0, "name": "home"}])
         details = [event["kind"] + " " + event["detail"] for event in report["events"]]
         self.assertIn("script finished", details)

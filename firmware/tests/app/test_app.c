@@ -4569,6 +4569,19 @@ static void measure_resets_the_counters_and_records_the_window(void)
     CHECK(measure->clock_us > 0);
 }
 
+static void measure_records_the_core_1_cycles_of_its_window(void)
+{
+    start_app();
+    fake_hal_set_core1_load(4000000000u, 3900000000u);
+    load_script("build any\nmeasure 400\n");
+    run_script_for(4 * SCRIPT_STEP_MS);
+    fake_hal_set_core1_load(40000000u, 15000000u);
+    run_script_for(420);
+    const DebugMeasure *measure = &debug_runner_script()->measures[0];
+    CHECK_EQUAL(40000000u - 4000000000u, measure->core1_cycles);
+    CHECK_EQUAL(15000000u - 3900000000u, measure->core1_idle_cycles);
+}
+
 static void a_fifth_measure_is_reported_as_failed(void)
 {
     start_app();
@@ -5859,6 +5872,7 @@ int main(void)
         TEST_CASE(an_unknown_line_is_reported_and_the_script_goes_on),
         TEST_CASE(wait_holds_the_script_for_its_time),
         TEST_CASE(measure_resets_the_counters_and_records_the_window),
+        TEST_CASE(measure_records_the_core_1_cycles_of_its_window),
         TEST_CASE(a_fifth_measure_is_reported_as_failed),
         TEST_CASE(profile_commands_switch_and_clear_the_profiler),
         TEST_CASE(usb_sense_commands_switch_the_experiment_without_hands),
