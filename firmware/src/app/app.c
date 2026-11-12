@@ -1299,6 +1299,7 @@ static void follow_appearance(void)
     notice_theme.horizon = app.theme.horizon;
     notice_theme.header_rule = app.theme.header_rule;
     default_theme_set_text_size(&app.theme, shown->text_size);
+    default_theme_set_status_bar(&app.theme, shown->status_bar_compact);
 }
 
 static void start_hardware(uint32_t now_ms)

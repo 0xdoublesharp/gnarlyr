@@ -149,3 +149,13 @@ void default_theme_set_orientation(Theme *theme, Orientation orientation)
     metrics->header_height = LANDSCAPE_HEADER_HEIGHT + metrics->status_height;
     metrics->header_inset = portrait ? metrics->padding : LANDSCAPE_HEADER_INSET;
 }
+
+void default_theme_set_status_bar(Theme *theme, bool compact)
+{
+    bool portrait = theme_is_portrait(theme);
+    theme->status_bar_compact = compact;
+    theme->metrics.status_icon_size = compact ? 10 : 14;
+    theme->metrics.status_height = portrait ? (compact ? 18 : PORTRAIT_STATUS_HEIGHT) : 0;
+    theme->metrics.header_height =
+        (compact ? 22 : LANDSCAPE_HEADER_HEIGHT) + theme->metrics.status_height;
+}

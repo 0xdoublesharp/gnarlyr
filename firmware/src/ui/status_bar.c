@@ -67,8 +67,8 @@ Rect status_bar_bluetooth_area(const Theme *theme)
 
 Rect status_bar_battery_body(const Theme *theme)
 {
-    int height = theme->metrics.status_icon_size + 2 * FRAME;
-    int width = height * BODY_EIGHTHS / EIGHTHS;
+    int height = theme->status_bar_compact ? 18 : theme->metrics.status_icon_size + 2 * FRAME;
+    int width = theme->status_bar_compact ? 64 : height * BODY_EIGHTHS / EIGHTHS;
     int right = theme->metrics.screen_width - theme->metrics.padding - nub_width(height);
     return (Rect){right - width, band_top(theme, height), width, height};
 }
@@ -157,8 +157,35 @@ static void draw_bolt(Canvas *canvas, const Theme *theme, Rect body, StatusBatte
     draw_icon(&inside, ICON_BOLT, bolt, look.bolt);
 }
 
+static void draw_compact_battery(Canvas *canvas, const Theme *theme, const StatusBarState *state)
+{
+    Rect body = status_bar_battery_body(theme);
+    StatusBatteryLook look = status_bar_battery_look(theme, *state);
+    draw_outline(canvas, body, look.outline);
+    Rect bar = {body.x + 2, body.y + body.height - 3, body.width - 4, 2};
+    int width = status_bar_battery_fill_width(state->battery_percent, bar.width);
+    for (int x = 0; x < width; x++) {
+        if (!state->segmented || x % 12 != 11) {
+            canvas_fill_rect(canvas, (Rect){bar.x + x, bar.y, 1, bar.height}, look.fill);
+        }
+    }
+    char text[STATUS_BAR_PERCENT_CAPACITY];
+    StringBuilder builder = string_builder_make(text, sizeof text);
+    i18n_format_counts(&builder, STR_POWER_PERCENT, state->battery_percent, 0);
+    Rect label = {body.x + 3, body.y, body.width - 17, body.height - 2};
+    label_draw(canvas, (TextStyle){theme->fonts.small, look.outline}, (Label){label, text});
+    if (state->usb_power) {
+        draw_icon(canvas, ICON_BOLT, (Rect){body.x + body.width - 13, body.y + 2, 10, 12},
+                  look.outline);
+    }
+}
+
 static void draw_battery(Canvas *canvas, const Theme *theme, const StatusBarState *state)
 {
+    if (theme->status_bar_compact) {
+        draw_compact_battery(canvas, theme, state);
+        return;
+    }
     StatusBatteryLook look = status_bar_battery_look(theme, *state);
     Rect body = status_bar_battery_body(theme);
     Rect fill = inset(body, border_of(body) + FILL_GAP);
@@ -261,6 +288,9 @@ static void draw_left_icons(Canvas *canvas, const Theme *theme, const StatusBarS
 
 static int item_width(const Theme *theme, const StatusBarState *state, uint8_t item)
 {
+    if (theme->status_bar_compact && item == STATUS_BAR_PERCENT) {
+        return 0;
+    }
     const char *text = item == STATUS_BAR_VOLUME     ? state->volume
                        : item == STATUS_BAR_POSITION ? state->position
                        : item == STATUS_BAR_CLOCK    ? state->clock

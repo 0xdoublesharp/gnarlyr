@@ -8,7 +8,7 @@
 #include "ui/theme.h"
 
 enum {
-    CHARGE_SCREEN_FRAME_MS = 200,
+    CHARGE_SCREEN_FRAME_MS = 1000,
     CHARGE_SCREEN_PHASES = 8
 };
 

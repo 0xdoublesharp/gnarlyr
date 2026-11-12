@@ -2,6 +2,7 @@
 
 #include "core/i18n.h"
 #include "core/utf8.h"
+#include "gfx/wireframe.h"
 #include "home_art.h"
 #include "ui/icons.h"
 #include "ui/label.h"
@@ -249,7 +250,7 @@ static Color fill_color(const ChargeArt *art)
 static void draw_body(const ChargeArt *art, const BatteryShape *shape)
 {
     const Theme *theme = art->theme;
-    Color outline = theme->colors.text;
+    Color outline = theme->colors.accent;
     int third = shape->body.height / 3;
     Rect nub = {shape->body.x + shape->body.width, shape->body.y + third,
                 art->layout.battery.width - shape->body.width, shape->body.height - 2 * third};
@@ -319,11 +320,32 @@ static void draw_bolt(const ChargeArt *art, const BatteryShape *shape)
     draw_bolt_ink(&inside, glyph, ink);
 }
 
+static void draw_wire_grid(const ChargeArt *art, const BatteryShape *shape)
+{
+    Canvas inside = canvas_clipped(art->canvas, inset(shape->inside, 1));
+    Color ink = color_between(art->theme->colors.accent_alt, art->theme->colors.text, art->glow,
+                              GLOW_STEPS);
+    int step = larger(6, shape->inside.height / 4);
+    int left = shape->inside.x;
+    int top = shape->inside.y;
+    int right = left + shape->inside.width;
+    int bottom = top + shape->inside.height;
+    for (int x = left; x <= right; x += step) {
+        wireframe_line(&inside, (WirePoint){x, top, 0}, (WirePoint){x - step, bottom, 0},
+                       (WireStroke){ink, 120});
+    }
+    for (int y = top; y < bottom; y += step) {
+        wireframe_line(&inside, (WirePoint){left, y, 0}, (WirePoint){right, y, 0},
+                       (WireStroke){ink, 120});
+    }
+}
+
 static void draw_battery(const ChargeArt *art)
 {
     BatteryShape shape = battery_shape(art);
     draw_body(art, &shape);
     draw_charge(art, &shape);
+    draw_wire_grid(art, &shape);
     draw_bolt(art, &shape);
 }
 

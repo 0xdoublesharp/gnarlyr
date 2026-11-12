@@ -3,6 +3,8 @@
 #include "check.h"
 #include "default_theme.h"
 #include "gfx/text.h"
+#include "screen_snapshot.h"
+#include "ui/header.h"
 #include "ui/status_bar.h"
 
 static StatusBarState all_items(void)
@@ -98,9 +100,46 @@ static void queue_formatting_accepts_a_future_side_prefix_and_an_empty_queue(voi
     CHECK(strcmp(text, "") == 0);
 }
 
+static void compact_reclaims_space_and_keeps_the_combined_battery(void)
+{
+    static Color pixels[480 * 480];
+    for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = BOARD_THEME;
+            default_theme_set_orientation(&theme, (Orientation)orientation);
+            default_theme_set_text_size(&theme, (TextSize)size);
+            int rows = theme_visible_rows(&theme);
+            int height = theme.metrics.header_height;
+            default_theme_set_status_bar(&theme, true);
+            CHECK(theme.metrics.header_height < height);
+            CHECK(theme_visible_rows(&theme) >= rows);
+            CHECK(theme.metrics.status_icon_size < 14);
+            StatusBarState state = all_items();
+            state.charging = true;
+            state.usb_power = true;
+            state.locked = true;
+            state.bluetooth = STATUS_BLUETOOTH_CONNECTED;
+            state.shuffle = STATUS_SHUFFLE_ALBUMS;
+            Rect battery = status_bar_battery_body(&theme);
+            CHECK(battery.y >= 0);
+            CHECK(battery.y + battery.height <= theme.metrics.header_height);
+            CHECK((status_bar_items(&theme, &state) & STATUS_BAR_PERCENT) == 0);
+            Canvas canvas = canvas_make(
+                pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+            canvas_fill_rect(&canvas, canvas.bounds, theme.colors.background);
+            header_draw(&canvas, &theme, "");
+            status_bar_draw(&canvas, &theme, state);
+            screen_snapshot_write(&canvas, "compact", orientation * 3 + size);
+            default_theme_set_status_bar(&theme, false);
+            CHECK_EQUAL(height, theme.metrics.header_height);
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(compact_reclaims_space_and_keeps_the_combined_battery),
         TEST_CASE(every_orientation_and_text_size_respects_fitting_priority),
         TEST_CASE(portrait_centres_the_position_and_landscape_protects_the_title),
         TEST_CASE(queue_formatting_accepts_a_future_side_prefix_and_an_empty_queue),

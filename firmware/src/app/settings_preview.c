@@ -7,6 +7,9 @@
 void settings_preview_apply(Settings *settings, SettingsPreview preview)
 {
     switch (preview.choice) {
+    case STR_STATUS_LAYOUT:
+        settings->status_bar_compact = preview.index != 0;
+        break;
     case STR_THEME:
         settings->appearance = (AppearanceTheme)preview.index;
         break;

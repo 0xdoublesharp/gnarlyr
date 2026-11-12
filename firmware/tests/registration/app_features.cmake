@@ -97,7 +97,7 @@ echo_add_unit_test(NAME test_cassette_flip
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
 )
 echo_add_unit_test(NAME test_status_bar_items
-    SOURCES app/test_status_bar_items.c
+    SOURCES app/test_status_bar_items.c support/screen_snapshot.c
     LIBRARIES echo_app
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
