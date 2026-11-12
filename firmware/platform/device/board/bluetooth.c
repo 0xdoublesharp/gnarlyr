@@ -1,7 +1,9 @@
 #include "hal/bluetooth.h"
 #include "board.h"
 #include "cru.h"
+#include "dac.h"
 #include "device/bt_module.h"
+#include "dmac.h"
 #include "gpio.h"
 #include "hal/clock.h"
 #include "registers.h"
@@ -157,6 +159,7 @@ static void route_to_module(bool to_module)
         rerouted_ms = hal_clock_milliseconds();
     }
     routed = to_module;
+    board_audio_output_changed();
 }
 
 bool board_bluetooth_pin(bool mute_pin, bool level)
@@ -204,12 +207,28 @@ void hal_bluetooth_set_power(bool on)
 
 static void send(const BtModuleFrame *frame)
 {
+    bool starting = frame->bytes[1] == 'Y' && frame->bytes[3] != 0;
+    if (starting) {
+        route_to_module(true);
+        if (!board_audio_bluetooth_start()) {
+            module.status.streaming = false;
+            route_to_module(false);
+            return;
+        }
+        dmac_suspend();
+        module.status.link.timeline.stream_ms = hal_clock_milliseconds();
+    }
     for (uint8_t index = 0; index < frame->length; index++) {
         uint32_t polls = 0;
         while ((uart_read(UART_STATUS) & STATUS_TX_NOT_FULL) == 0 && polls < TX_WAIT_POLLS) {
             polls++;
         }
         uart_write(UART_DATA, frame->bytes[index]);
+    }
+    if (starting) {
+        dmac_resume();
+        module.status.link.timeline.first_audio_ms = hal_clock_milliseconds();
+        dac_path_set_muted(false);
     }
 }
 
@@ -294,6 +313,9 @@ void hal_bluetooth_set_stream(bool on)
 {
     BtModuleFrame frame;
     if (powered && bt_module_set_stream(&module, on, hal_clock_milliseconds(), &frame)) {
+        if (on) {
+            dac_path_set_muted(true);
+        }
         send(&frame);
     }
 }

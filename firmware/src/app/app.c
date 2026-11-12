@@ -443,14 +443,15 @@ static void lower_start_volume(void)
 static void note_listeners(void)
 {
     app.listener_jack = hal_audio_jack();
-    app.listener_bluetooth = app.bluetooth.connected;
+    app.listener_bluetooth = hal_bluetooth_status()->state == HAL_BLUETOOTH_CONNECTED;
 }
 
 static void follow_listeners(void)
 {
     HalAudioJack jack = hal_audio_jack();
     bool plugged = jack != HAL_AUDIO_JACK_NONE && jack != app.listener_jack;
-    bool linked = app.bluetooth.connected && !app.listener_bluetooth;
+    bool linked =
+        hal_bluetooth_status()->state == HAL_BLUETOOTH_CONNECTED && !app.listener_bluetooth;
     note_listeners();
     if (plugged || linked) {
         lower_start_volume();
@@ -2002,8 +2003,8 @@ CORE_SEAM void app_step(void)
         if (app.listening_loaded) {
             listening_store_follow(&app.listening, listening_observation(), now_ms);
         }
-        bluetooth_link_step(&app.bluetooth, &app.player, now_ms);
         follow_listeners();
+        bluetooth_link_step(&app.bluetooth, &app.player, now_ms);
         spoken_store_follow(&app.spoken, player_status(&app.player), now_ms);
         explain_refusals(now_ms);
         debug_loop_follow(now_ms, &app.player);

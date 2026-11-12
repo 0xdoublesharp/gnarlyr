@@ -1189,9 +1189,25 @@ static void a_buffer_too_small_for_the_end_lines_gets_nothing(void)
     CHECK_EQUAL('#', text[0]);
 }
 
+static void bluetooth_timeline_is_reported_in_milliseconds(void)
+{
+    DebugReportInput input = plain_input();
+    HalBluetoothLink link = {.timeline = {.module_on_ms = 100,
+                                          .init_done_ms = 402,
+                                          .connect_ms = 403,
+                                          .connected_ms = 1903,
+                                          .stream_ms = 1905,
+                                          .first_audio_ms = 1906}};
+    input.bluetooth = &link;
+    debug_report_format(&input, text, sizeof text);
+    CHECK(strstr(text, "bluetooth.module_on_ms: 100\n") != NULL);
+    CHECK(strstr(text, "bluetooth.first_audio_ms: 1906\n") != NULL);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(bluetooth_timeline_is_reported_in_milliseconds),
         TEST_CASE(the_schema_version_is_the_first_line),
         TEST_CASE(the_report_says_which_one_it_is_and_what_wrote_it),
         TEST_CASE(a_report_in_the_first_seconds_of_a_cold_start_says_so),

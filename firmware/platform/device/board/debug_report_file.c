@@ -95,6 +95,7 @@ static DebugReportInput gather(const UsbShared *shared, uint32_t reason)
                               .usb = shared->last_session,
                               .usb_words = usb_words_now(),
                               .audio = *board_debug_audio(),
+                              .bluetooth = &hal_bluetooth_status()->link,
                               .frames = app_debug_frames(),
                               .loop = board_debug_loop(),
                               .script = debug_runner_script(),
