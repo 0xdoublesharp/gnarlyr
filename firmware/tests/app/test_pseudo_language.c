@@ -783,7 +783,7 @@ static void walk_listening_effects(void)
     static const StringId TITLES[] = {STR_CROSSFEED, STR_SPEECH_BOOST, STR_SKIP_SILENCE};
     for (int row = 0; row < 3; row++) {
         open_settings_row(0);
-        for (int step = 0; step < 7 + row; step++) {
+        for (int step = 0; step < 8 + row; step++) {
             tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
         }
         tap(KEY_PLAY);

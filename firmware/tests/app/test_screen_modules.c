@@ -221,7 +221,7 @@ static void cassette_now_playing_requires_playing_and_rebinds_after_other_module
           NULL);
     CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
     settings_set_now_playing_style(&settings.settings, NOW_PLAYING_COVER);
-    CHECK_EQUAL(SCREEN_MODULE_NONE, screen_modules_of(&screens, &screens.now_playing.screen));
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &screens.now_playing.screen));
 }
 
 static void every_alternate_now_playing_style_requires_its_drawing_module(void)

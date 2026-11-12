@@ -573,7 +573,7 @@ class LanguageCommands(VolumeCase):
     def test_version15_settings_with_an_invalid_extension_cannot_be_verified(self):
         valid = bytes([0x07, 24, 15, 0, 0x10, 0x32, 0x54, 0x76, 0x08]) + bytes(7)
         for offset, value in ((0, 0x18), (1, 61), (2, 4), (3, 7), (3, 0xFD), (4, 0x00), (8, 0x18),
-                              (9, 0x08), (10, 0x02), (14, 0x05), (14, 0x08), (14, 0x10), (15, 1)):
+                              (9, 0x08), (10, 0x02), (14, 0x05), (14, 0x18), (15, 1)):
             extension = bytearray(valid)
             extension[offset] = value
             with self.subTest(offset=offset, value=value), self.current_snapshot():

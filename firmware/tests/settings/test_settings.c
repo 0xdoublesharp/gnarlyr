@@ -1684,6 +1684,7 @@ static void all_four_styles_use_only_their_two_allocated_bits(void)
         Settings settings = settings_defaults();
         settings.status_items = 0x95;
         settings.power_on_flags = 0x10;
+        settings.speech_boost = true;
         settings_set_now_playing_style(&settings, (NowPlayingStyle)style);
         uint8_t bytes[SETTINGS_FILE_SIZE];
         settings_encode(&settings, bytes);
