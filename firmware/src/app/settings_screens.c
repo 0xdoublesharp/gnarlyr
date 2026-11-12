@@ -832,6 +832,35 @@ static ScreenAction open_format(void *context)
     return screen_action_push(card_format_screen_init(&screens->card_format, config));
 }
 
+static bool card_mounted(const void *context)
+{
+    (void)context;
+    HalCardInfo card = hal_card_info();
+    return card.mounted && !card.usb_busy;
+}
+
+static bool card_ejected(const void *context)
+{
+    (void)context;
+    HalCardInfo card = hal_card_info();
+    return card.ejected && card.present && !card.usb_busy;
+}
+
+static ScreenAction change_card(void *context)
+{
+    SettingsScreens *screens = context;
+    bool eject = hal_card_info().mounted;
+    if (screens->context.player->state == PLAYER_PLAYING) {
+        player_toggle_pause(screens->context.player);
+    }
+    if (screens->context.format_prepare != NULL) {
+        screens->context.format_prepare();
+    }
+    hal_audio_release();
+    hal_card_eject(eject);
+    return screen_action_none();
+}
+
 static void buttons_changed(void *context)
 {
     settings_action_save(context);
@@ -887,6 +916,14 @@ static void bind_status_bar(SettingsScreens *screens)
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context, const Theme *theme)
 {
     screens->context = context;
+    screens->items[SETTINGS_EJECT_ITEM] = (MenuItem){.label = i18n_text(STR_CARD_EJECT),
+                                                     .select = change_card,
+                                                     .context = screens,
+                                                     .shown = card_mounted};
+    screens->items[SETTINGS_MOUNT_ITEM] = (MenuItem){.label = i18n_text(STR_CARD_MOUNT),
+                                                     .select = change_card,
+                                                     .context = screens,
+                                                     .shown = card_ejected};
     screens->card_needs_format = hal_card_info().needs_format;
     screens->items[SETTINGS_FORMAT_ITEM] = (MenuItem){.label = i18n_text(STR_CARD_FORMAT),
                                                       .select = open_format,

@@ -761,3 +761,25 @@ In headless mode the simulator uses a virtual clock (16 ms per frame), so runs a
 ```sh
 build/dev/platform/sim/echo_sim --headless --frames 120 --keys down,down,down,play --screenshot shot.bmp
 ```
+
+### SD card changes
+
+The resident main loop polls GPIO0.11 through a 30 ms candidate/stable filter.
+A raw absence immediately refuses SD I/O; a stable transition increments the
+storage generation. At the next main-loop boundary the app releases playback,
+invalidates file and directory handles, mounts the preferred volume and restarts
+its library check. FAT writes are synchronous; invalidating a removed volume
+never flushes dirty data to a replacement card.
+
+Settings places Eject card and Mount card beside Format card. Eject pauses through
+the existing DAC fade, saves playback and listening state, cancels edit jobs and
+releases audio before disabling SD I/O. The main loop then invalidates all volume
+handles and loads the internal library. Scans and cover passes run synchronously,
+so a menu action follows their completion. An ejected card remains inhibited
+until Mount card is selected or a debounced removal completes.
+
+The USB overlay always advertises two removable LUNs. Between SCSI commands it
+rechecks SD initialization and capacity. A media transition queues UNIT ATTENTION
+(6/28/00); subsequent readiness checks report absent media as 2/3A/00. INQUIRY and
+REQUEST SENSE remain available throughout. Play on the USB screen requests card
+eject at a command boundary; Back retains its existing session-exit behavior.

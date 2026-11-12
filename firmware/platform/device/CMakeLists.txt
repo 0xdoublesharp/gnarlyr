@@ -252,6 +252,7 @@ set(ECHO_OVERLAY_IMPORTS
     i18n_text
     image_crc_update
     internal_volume_remount
+    sd_eject
     sd_read
     sd_sector_count
     sd_start

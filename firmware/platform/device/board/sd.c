@@ -4,6 +4,7 @@
 
 #include "board.h"
 #include "cru.h"
+#include "device/card_presence.h"
 #include "device/card_write.h"
 #include "device/sd_card.h"
 #include "gpio.h"
@@ -46,7 +47,7 @@ static SdCard card;
 static bool ready;
 static bool tried;
 static bool detect_started;
-static bool was_present;
+static CardPresence presence;
 static uint32_t generation;
 
 static bool host_command(void *context, SdCommand command, uint32_t response[4])
@@ -102,6 +103,9 @@ static void start_card_detect(void)
     gpio_input(CARD_DETECT);
     register_write(GRF_BASE + GRF_DETECT_PULL, GRF_DETECT_PULL_VALUE);
     board_delay_ms(DETECT_SETTLE_MS);
+    presence.candidate = host_card_present(NULL);
+    presence.since_ms = hal_clock_milliseconds();
+    board_delay_ms(CARD_PRESENCE_STEADY_MS);
 }
 
 static void power_controller(void)
@@ -121,7 +125,7 @@ static void power_controller(void)
 bool sd_read(void *context, uint32_t lba, uint32_t count, void *buffer)
 {
     (void)context;
-    if (!sd_present() || !ready || count == 0 || lba >= card.sector_count ||
+    if (!sd_present() || presence.ejected || !ready || count == 0 || lba >= card.sector_count ||
         count > card.sector_count - lba) {
         return false;
     }
@@ -142,7 +146,7 @@ static bool start_card(void)
 bool sd_start(BlockDevice *device)
 {
     *device = (BlockDevice){sd_read, NULL, sd_write};
-    if (!sd_present()) {
+    if (!sd_present() || presence.ejected) {
         return false;
     }
     if (!tried) {
@@ -197,7 +201,8 @@ static const CardWriter WRITER = {write_data, stop_writing, wait_until_ready, NU
 bool sd_write(void *context, uint32_t lba, uint32_t count, const void *buffer)
 {
     (void)context;
-    if (!sd_present() || !ready || lba >= card.sector_count || count > card.sector_count - lba) {
+    if (!sd_present() || presence.ejected || !ready || lba >= card.sector_count ||
+        count > card.sector_count - lba) {
         return false;
     }
     return card_write(&WRITER, sd_card_address(&card, lba), count, buffer);
@@ -211,14 +216,30 @@ uint32_t sd_sector_count(void)
 bool sd_present(void)
 {
     start_card_detect();
-    bool present = host_card_present(NULL);
-    if (present != was_present) {
+    bool raw = host_card_present(NULL);
+    bool before = presence.present;
+    bool present = card_presence_update(&presence, raw, hal_clock_milliseconds());
+    if (present != before) {
         generation++;
-        was_present = present;
         ready = false;
         tried = false;
+        if (!present) {
+            presence.ejected = false;
+        }
     }
-    return present;
+    return present && raw;
+}
+
+bool sd_ejected(void)
+{
+    return presence.ejected;
+}
+
+void sd_eject(bool eject)
+{
+    presence.ejected = eject;
+    sd_forget();
+    generation++;
 }
 
 uint32_t sd_generation(void)

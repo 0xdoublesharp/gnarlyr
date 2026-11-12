@@ -247,7 +247,7 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_USB_CONNECTED] = "USB connected",
     [STR_USB_PROMPT_SECONDS] = "{0} s",
     [STR_USB_EJECT_DRIVE] = "Eject to finish · Hold Back: leave",
-    [STR_USB_EJECT_DRIVES] = "Eject drives · Hold Back: leave",
+    [STR_USB_EJECT_DRIVES] = "Play: eject card · Hold Back: leave",
     [STR_USB_UNPLUGGED] = "Unplugged too soon",
     [STR_USB_UNPLUGGED_HINT] = "Changes may be lost: eject first",
     [STR_USB_CODE_MISSING] = "USB missing: reinstall update",
@@ -647,4 +647,7 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_HISTORY_CLEARED] = "History cleared",
     [STR_HISTORY_RESET] = "Resets:\n{0}\nKeeps: {1}",
     [STR_LISTENING_OPTIONS_HINT] = "Hold Play: options",
+    [STR_CARD_EJECT] = "Eject card",
+    [STR_CARD_MOUNT] = "Mount card",
+    [STR_CARD_SAFE] = "Safe to remove card",
 };

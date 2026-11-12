@@ -215,9 +215,42 @@ static bool captures(const char *directory)
     return true;
 }
 
+static void mounted_card_offers_eject_and_ejected_card_offers_mount(void)
+{
+    open_settings(TEXT_SIZE_MEDIUM, ORIENTATION_LANDSCAPE);
+    fake_hal_set_card((HalCardInfo){.present = true, .mounted = true, .sectors = 4096}, true);
+    const MenuItem *eject = &screens.items[SETTINGS_EJECT_ITEM];
+    const MenuItem *mount = &screens.items[SETTINGS_MOUNT_ITEM];
+    CHECK(eject->shown(NULL));
+    CHECK(!mount->shown(NULL));
+    eject->select(eject->context);
+    CHECK(!hal_card_info().mounted);
+    CHECK(hal_card_info().ejected);
+    CHECK(!eject->shown(NULL));
+    CHECK(mount->shown(NULL));
+    mount->select(mount->context);
+    CHECK(hal_card_info().mounted);
+    CHECK(!hal_card_info().ejected);
+}
+
+static void eject_pauses_playback_and_releases_audio_before_unmount(void)
+{
+    open_settings(TEXT_SIZE_MEDIUM, ORIENTATION_LANDSCAPE);
+    fake_hal_set_card((HalCardInfo){.present = true, .mounted = true, .sectors = 4096}, true);
+    player.state = PLAYER_PLAYING;
+    player.loaded = true;
+    const MenuItem *eject = &screens.items[SETTINGS_EJECT_ITEM];
+    eject->select(eject->context);
+    CHECK_EQUAL(PLAYER_PAUSED, player.state);
+    CHECK_EQUAL(1, fake_hal_audio_release_count());
+    CHECK(hal_card_info().ejected);
+}
+
 int main(int argc, char **argv)
 {
     static const TestCase cases[] = {
+        TEST_CASE(eject_pauses_playback_and_releases_audio_before_unmount),
+        TEST_CASE(mounted_card_offers_eject_and_ejected_card_offers_mount),
         TEST_CASE(settings_offers_card_formatting_beside_the_other_card_actions),
         TEST_CASE(confirming_twice_with_cancel_selected_does_not_erase),
         TEST_CASE(formatting_requires_the_second_confirmation_and_an_explicit_erase_choice),

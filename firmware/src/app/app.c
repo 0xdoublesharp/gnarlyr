@@ -1458,7 +1458,7 @@ CORE_COLD bool app_store_clock_offset(int16_t offset)
     return saved;
 }
 
-void app_start(void)
+CORE_SEAM void app_start(void)
 {
     start_app(true);
 }

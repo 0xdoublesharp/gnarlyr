@@ -217,6 +217,17 @@ HalCardInfo hal_card_info(void)
     return info;
 }
 
+bool hal_card_eject(bool eject)
+{
+    if (!card_info.present || card_info.usb_busy) {
+        return false;
+    }
+    card_info.ejected = eject;
+    card_info.mounted = !eject;
+    card_info.generation++;
+    return true;
+}
+
 bool hal_card_format(HalCardInfo expected, HalCardProgress progress, void *context)
 {
     if (!card_info.present || expected.sectors != card_info.sectors ||

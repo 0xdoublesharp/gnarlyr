@@ -996,9 +996,48 @@ static void synchronize_cache_is_counted_as_a_flush(void)
     CHECK_EQUAL(1, msc_stats(msc).flushes);
 }
 
+static void insertion_announces_change_then_removal_reports_no_medium(void)
+{
+    static const uint8_t ready[6] = {0};
+    static const uint8_t inquiry[6] = {0x12, 0, 0, 0, 36};
+    Msc *msc = started();
+    msc_set_media(msc, 1, false, 0);
+    send_command(msc, 0, false, 1, ready, 6);
+    check_csw(collect(msc), 1, 0);
+    CHECK_EQUAL(6, sense(msc, 1)->data[2]);
+    send_command(msc, 0, false, 1, ready, 6);
+    check_csw(collect(msc), 1, 0);
+    CHECK_EQUAL(0x3A, sense(msc, 1)->data[12]);
+    msc_set_media(msc, 1, true, 128);
+    send_command(msc, 36, true, 1, inquiry, 6);
+    CHECK_EQUAL(0x80, collect(msc)->data[1]);
+    send_command(msc, 0, false, 1, ready, 6);
+    check_csw(collect(msc), 1, 0);
+    Exchange *reply = sense(msc, 1);
+    CHECK_EQUAL(6, reply->data[2]);
+    CHECK_EQUAL(0x28, reply->data[12]);
+    CHECK_EQUAL(0, reply->data[13]);
+    send_command(msc, 0, false, 1, ready, 6);
+    check_csw(collect(msc), 0, 0);
+    CHECK_EQUAL(128, msc->luns[1].sector_count);
+    msc_set_media(msc, 1, false, 0);
+    send_command(msc, 0, false, 1, ready, 6);
+    check_csw(collect(msc), 1, 0);
+    reply = sense(msc, 1);
+    CHECK_EQUAL(6, reply->data[2]);
+    CHECK_EQUAL(0x28, reply->data[12]);
+    send_command(msc, 0, false, 1, ready, 6);
+    check_csw(collect(msc), 1, 0);
+    reply = sense(msc, 1);
+    CHECK_EQUAL(2, reply->data[2]);
+    CHECK_EQUAL(0x3A, reply->data[12]);
+    CHECK_EQUAL(0, reply->data[13]);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(insertion_announces_change_then_removal_reports_no_medium),
         TEST_CASE(inquiry_names_the_vendor_and_the_lun),
         TEST_CASE(inquiry_gives_the_major_and_minor_version_as_the_revision),
         TEST_CASE(a_longer_request_is_padded_and_reports_the_residue),
