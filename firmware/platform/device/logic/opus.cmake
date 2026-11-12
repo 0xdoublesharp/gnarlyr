@@ -145,5 +145,8 @@ target_compile_definitions(echo_opus PRIVATE
     ENABLE_HARDENING
     PACKAGE_VERSION="1.6.1"
 )
+if(CMAKE_CROSSCOMPILING)
+    target_compile_definitions(echo_opus PRIVATE OPUS_ARM_INLINE_ASM)
+endif()
 target_compile_options(echo_opus PRIVATE -w -fno-strict-aliasing -include ${ECHO_OPUS_DIR}/port/opus_support.h)
 target_link_libraries(echo_opus PRIVATE echo_options)
