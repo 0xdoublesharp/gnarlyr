@@ -5,7 +5,7 @@
 #include "settings/equalizer_fit.h"
 
 enum {
-    VERSION = 15,
+    VERSION = 16,
     EXTENSION_VERSION = 15,
     REPLAY_GAIN_VERSION = 14,
     APPEARANCE_VERSION = 13,
@@ -63,7 +63,7 @@ enum {
     CLOCK_OFFSET_BYTE = 11,
     STATUS_ITEMS_BYTE = 13,
     RESERVED_BYTE = 14,
-    RESERVED_COUNT = 2,
+    RESERVED_COUNT = 1,
     EXTENSION_SIZE = 16,
     REWIND_BIT = 1,
     SAFE_START_BIT = 2,
@@ -208,6 +208,7 @@ Settings settings_defaults(void)
         .replay_gain_mode = REPLAY_GAIN_OFF,
         .prevent_clipping = true,
     };
+    settings.standby_power_off_option = 1;
     read_extension(DEFAULT_EXTENSION, &settings);
     return settings;
 }
@@ -352,7 +353,12 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
         bytes[LANGUAGE_FIELD + index] = (uint8_t)settings->language[index];
     }
     encode_extension(settings, bytes + EXTENSION_FIELD);
+    bytes[53] = 16;
     hash_store(bytes + EXTENSION_CHECKSUM_FIELD, checksum_of(bytes, EXTENSION_CHECKSUM_FIELD));
+    bytes[58] = (uint8_t)(settings->status_bar_compact | settings->standby_enabled << 1 |
+                          settings->standby_power_off_option << 2);
+    bytes[59] = settings->long_press_action & 7u;
+    hash_store(bytes + 74, hash_update(HASH_START, bytes + 58, 16));
 }
 
 static bool replay_gain_flags_valid(const uint8_t *bytes)
@@ -476,7 +482,8 @@ static bool extension_valid(const uint8_t *bytes)
     return comfort >> TRANSITION_SHIFT < TRACK_TRANSITION_COUNT &&
            extension[SAFE_LEVEL_BYTE] <= SETTINGS_VOLUME_MAX &&
            tenths >= SETTINGS_TRANSITION_TENTHS_MIN && tenths <= SETTINGS_TRANSITION_TENTHS_MAX &&
-           offset >= -720 && offset <= 840 && home_valid(extension) && reserved_clear(extension);
+           offset >= -720 && offset <= 840 && home_valid(extension) && reserved_clear(extension) &&
+           extension[15] == (bytes[VERSION_FIELD] >= 16 ? 16 : 0);
 }
 
 static void decode_extension(const uint8_t *bytes, Settings *settings)
@@ -591,6 +598,15 @@ bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
     settings->battery_percent = (bytes[VERSION_FIELD + 1] & 8u) != 0;
     settings->usb_connect = (UsbConnect)(bytes[VERSION_FIELD + 1] >> 4u & 3u);
     decode_extension(bytes, settings);
+    settings->standby_power_off_option = 1;
+    if (bytes[VERSION_FIELD] >= 16 && length >= SETTINGS_FILE_SIZE &&
+        hash_load(bytes + 74) == hash_update(HASH_START, bytes + 58, 16) &&
+        (bytes[58] & 0xF0u) == 0 && (bytes[58] >> 2) < 3 && (bytes[59] & 0xF8u) == 0) {
+        settings->status_bar_compact = (bytes[58] & 1u) != 0;
+        settings->standby_enabled = (bytes[58] & 2u) != 0;
+        settings->standby_power_off_option = bytes[58] >> 2;
+        settings->long_press_action = bytes[59];
+    }
     return true;
 }
 
