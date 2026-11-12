@@ -23,10 +23,14 @@ static void append_two_digits(StringBuilder *builder, uint32_t value)
     string_builder_append_unsigned(builder, value);
 }
 
+static uint32_t rounded_units(uint32_t value, uint32_t unit)
+{
+    return value / unit + (value % unit >= unit - unit / 2);
+}
+
 void format_milliseconds(uint32_t microseconds, char *buffer, size_t capacity)
 {
-    uint32_t tenths = (uint32_t)(((uint64_t)microseconds + MICROSECONDS_PER_TENTH_MS / 2) /
-                                 MICROSECONDS_PER_TENTH_MS);
+    uint32_t tenths = rounded_units(microseconds, MICROSECONDS_PER_TENTH_MS);
     StringBuilder builder = string_builder_make(buffer, capacity);
     string_builder_append_unsigned(&builder, tenths / TENTHS_PER_MS);
     string_builder_append_char(&builder, '.');
@@ -53,7 +57,7 @@ void format_duration(uint32_t milliseconds, char *buffer, size_t capacity)
 
 void format_sample_rate(uint32_t hertz, char *buffer, size_t capacity)
 {
-    uint32_t tenths = (uint32_t)(((uint64_t)hertz + HERTZ_PER_TENTH_KHZ / 2) / HERTZ_PER_TENTH_KHZ);
+    uint32_t tenths = rounded_units(hertz, HERTZ_PER_TENTH_KHZ);
     StringBuilder builder = string_builder_make(buffer, capacity);
     string_builder_append_unsigned(&builder, tenths / TENTHS_PER_KHZ);
     if (tenths % TENTHS_PER_KHZ != 0) {
