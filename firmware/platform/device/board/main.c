@@ -253,6 +253,11 @@ static void sleep_until_interrupt(void)
 static void sleep_until_next_pass(void)
 {
     uint32_t interval_ms = app_pass_interval_ms();
+    bool slow_tick = interval_ms >= 10 && usb_plug.state != USB_PLUG_LISTENING;
+#ifdef ECHO_DEBUG_LOOP
+    slow_tick = slow_tick && hal_system_profile_state() != HAL_PROFILE_ON;
+#endif
+    board_clock_sleep(slow_tick);
     hal_system_coast(interval_ms > 1 && !board_audio_converting());
     uint32_t due_ms = hal_clock_milliseconds() + interval_ms;
     do {

@@ -9,6 +9,7 @@
 #include "hal/system.h"
 
 void board_clock_start(void);
+void board_clock_sleep(bool sleep);
 void board_clock_record_boot(void);
 uint32_t board_boot_ticks_per_microsecond(void);
 void board_clock_set_rate(uint32_t ticks_per_microsecond);

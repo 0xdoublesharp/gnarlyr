@@ -2362,6 +2362,28 @@ static void with_the_screen_off_the_cpu_drops_to_96_mhz_once_audio_is_down(void)
     CHECK_EQUAL(200, hal_system_clock_mhz());
 }
 
+static void screen_off_playback_uses_ten_millisecond_passes(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    tap(KEY_POWER);
+    wait_ms(1000);
+    CHECK_EQUAL(10, app_pass_interval_ms());
+}
+
+static void screen_off_skips_status_clock_work_and_waking_refreshes_it(void)
+{
+    start_app();
+    tap(KEY_POWER);
+    wait_ms(1000);
+    uint32_t reads = fake_hal_wall_reads();
+    wait_ms(1000);
+    CHECK_EQUAL(reads, fake_hal_wall_reads());
+    tap(KEY_POWER);
+    wait_ms(100);
+    CHECK(fake_hal_wall_reads() > reads);
+}
+
 static void the_player_turns_itself_off_after_five_idle_minutes_on_battery(void)
 {
     start_app_with_library();
@@ -5142,19 +5164,22 @@ static void a_key_the_script_pressed_before_a_soak_does_not_end_it(void)
     CHECK(title_is("Music"));
 }
 
-static void a_battery_under_3600_millivolts_for_a_minute_ends_a_soak(void)
+static void a_soak_keeps_a_fallback_at_the_normal_battery_cutoff(void)
 {
     start_app();
     load_script("build any\nsupply off\nsoak 30\n");
     fake_hal_set_battery((HalBattery){.known = true, .percent = 40, .millivolts = 3700});
     run_script_minutes(2);
-    fake_hal_set_battery((HalBattery){.known = true, .percent = 20, .millivolts = 3599});
+    fake_hal_set_battery(
+        (HalBattery){.known = true, .percent = 20, .millivolts = 3439, .usb_power = true});
     run_script_for(40000);
-    fake_hal_set_battery((HalBattery){.known = true, .percent = 21, .millivolts = 3600});
+    fake_hal_set_battery(
+        (HalBattery){.known = true, .percent = 21, .millivolts = 3440, .usb_power = true});
     run_script_for(40000);
     const DebugScriptRun *run = debug_runner_script();
     CHECK_EQUAL(0, run->soak_count);
-    fake_hal_set_battery((HalBattery){.known = true, .percent = 20, .millivolts = 3599});
+    fake_hal_set_battery(
+        (HalBattery){.known = true, .percent = 20, .millivolts = 3439, .usb_power = true});
     run_script_for(55000);
     CHECK_EQUAL(0, run->soak_count);
     run_script_for(30000);
@@ -5884,6 +5909,8 @@ int main(void)
         TEST_CASE(waking_draws_a_frame_before_the_backlight_comes_on),
         TEST_CASE(the_clock_never_changes_with_the_screen_while_audio_is_up),
         TEST_CASE(with_the_screen_off_the_cpu_drops_to_96_mhz_once_audio_is_down),
+        TEST_CASE(screen_off_playback_uses_ten_millisecond_passes),
+        TEST_CASE(screen_off_skips_status_clock_work_and_waking_refreshes_it),
         TEST_CASE(the_player_turns_itself_off_after_five_idle_minutes_on_battery),
         TEST_CASE(playing_or_usb_power_keeps_the_player_on),
         TEST_CASE(the_screen_turns_off_after_the_timeout),
@@ -6051,7 +6078,7 @@ int main(void)
         TEST_CASE(the_sleep_timer_runs_out_on_time_while_the_player_rests_in_standby),
         TEST_CASE(a_key_press_ends_a_soak_early_and_gives_the_supply_back),
         TEST_CASE(a_key_the_script_pressed_before_a_soak_does_not_end_it),
-        TEST_CASE(a_battery_under_3600_millivolts_for_a_minute_ends_a_soak),
+        TEST_CASE(a_soak_keeps_a_fallback_at_the_normal_battery_cutoff),
         TEST_CASE(a_usb_session_stops_a_soak_and_the_record_says_stopped),
         TEST_CASE(a_script_keeps_two_soaks_and_does_not_start_a_third),
         TEST_CASE(set_chooses_a_settings_option_as_the_screen_does),

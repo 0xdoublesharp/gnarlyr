@@ -2131,9 +2131,12 @@ CORE_SEAM void app_step(void)
 
 static void render_when_due(uint32_t now_ms, uint32_t started_us)
 {
+    if (!app.display_on) {
+        return;
+    }
     app.render_wanted |= view_changed(now_ms);
     bool urgent = app.render_urgent || app.light_after_frame || fade_running() || slide_running();
-    if (!app.display_on || !frame_pacer_due(&app.pacer, now_ms, urgent || app.render_wanted)) {
+    if (!frame_pacer_due(&app.pacer, now_ms, urgent || app.render_wanted)) {
         return;
     }
     app.render_urgent = false;
@@ -2155,15 +2158,15 @@ bool app_charging(void)
 
 uint32_t app_pass_interval_ms(void)
 {
-    bool busy = app.bluetooth.saved.enabled || app.pacer.fast_frames > 0 || app.render_urgent ||
-                app.render_wanted || fade_running() || slide_running() || app.charging ||
+    bool visual = app.display_on && (app.pacer.fast_frames > 0 || app.render_urgent ||
+                                     app.render_wanted || app.charging);
+    bool busy = app.bluetooth.saved.enabled || visual || fade_running() || slide_running() ||
                 app.prepare_pending || app.rescan_requested || app.music_check_requested ||
                 app.rescan_manual;
     if (busy) {
         return PASS_BUSY_MS;
     }
-    bool playing = player_status(&app.player).state == PLAYER_PLAYING;
-    return app.display_on || playing ? PASS_SCREEN_ON_MS : PASS_SCREEN_OFF_MS;
+    return app.display_on ? PASS_SCREEN_ON_MS : PASS_SCREEN_OFF_MS;
 }
 
 typedef struct UsbStatusFrame {

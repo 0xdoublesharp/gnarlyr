@@ -506,9 +506,37 @@ static void a_file_that_is_not_mp3_is_refused(void)
     CHECK_EQUAL(1, close_count);
 }
 
+static void a_full_input_ring_waits_for_half_a_ring_then_refills_in_bounded_bursts(void)
+{
+    start(BIG_RING_BYTES);
+    free(opened.bytes);
+    opened = (Fixture){.bytes = calloc(BIG_RING_BYTES * 2, 1), .size = BIG_RING_BYTES * 2};
+    CHECK(opened.bytes != NULL);
+    source.input = (FlacInput){read_fixture, &opened, BIG_RING_BYTES * 2};
+    source.streaming = true;
+    source.generation = control.acked_generation = 1;
+    source.written = control.written = BIG_RING_BYTES;
+    source.end_offset = BIG_RING_BYTES * 2;
+    control.released = 1024;
+    core1_source_fill(&source);
+    CHECK_EQUAL(BIG_RING_BYTES, source.written);
+    control.released = BIG_RING_BYTES / 2;
+    source.end_offset = BIG_RING_BYTES;
+    source.written = control.written = BIG_RING_BYTES / 2;
+    control.released = 0;
+    core1_source_fill(&source);
+    CHECK_EQUAL(BIG_RING_BYTES / 2 + FILL_BUDGET, source.written);
+    core1_source_fill(&source);
+    CHECK_EQUAL(BIG_RING_BYTES / 2 + FILL_BUDGET * 2, source.written);
+    source.streaming = false;
+    free(opened.bytes);
+    opened = (Fixture){0};
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_full_input_ring_waits_for_half_a_ring_then_refills_in_bounded_bursts),
         TEST_CASE(a_24_bit_96k_track_streams_through_core_1_exactly),
         TEST_CASE(a_16_bit_track_streams_through_core_1_exactly),
         TEST_CASE(a_mono_track_plays_its_channel_on_both_sides),

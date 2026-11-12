@@ -212,6 +212,10 @@ endif()
 
 set(ECHO_TOOLS_PYTHON ${PROJECT_SOURCE_DIR}/.venv/bin/python)
 if(EXISTS ${ECHO_TOOLS_PYTHON})
+    add_test(NAME battery_tool_tests
+        COMMAND ${ECHO_TOOLS_PYTHON} -m unittest discover -s ${PROJECT_SOURCE_DIR}/tools/tests
+            -p test_battery.py
+    )
     add_test(NAME tools_unit_tests
         COMMAND ${ECHO_TOOLS_PYTHON} -m unittest discover -s ${PROJECT_SOURCE_DIR}/tools/tests
     )

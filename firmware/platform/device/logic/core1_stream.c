@@ -205,6 +205,7 @@ void core1_source_init(Core1Source *source, StreamRegion region, FlacFileOpener 
 
 void core1_source_stop(Core1Source *source)
 {
+    source->refilling = false;
     if (source->streaming) {
         source->region.control->generation = 0;
         source->streaming = false;
@@ -246,6 +247,10 @@ CORE_SEAM void core1_source_fill(Core1Source *source)
     uint32_t released =
         control->acked_generation == source->generation ? control->released : source->start_offset;
     core1_observe();
+    if (!source->refilling && control->acked_generation == source->generation &&
+        source->written - released > source->region.ring_bytes / 2) {
+        return;
+    }
     uint32_t target = core1_smaller(released + source->region.ring_bytes, source->end_offset);
     uint32_t budget = source->fill_budget;
     while (source->written < target && budget > 0) {
@@ -262,6 +267,7 @@ CORE_SEAM void core1_source_fill(Core1Source *source)
         core1_publish();
         control->written = source->written;
     }
+    source->refilling = source->written < target;
 }
 
 static void advance_slot(Core1Source *source)

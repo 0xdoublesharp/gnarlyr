@@ -5,7 +5,7 @@
 
 #define CORE1_STACK_TOP 0x0102E000u
 #define ALL_INTERRUPTS 0xFFFFFFFFu
-#define IDLE_TICKS 100000u
+#define IDLE_TICKS 500000u
 #define SYSTICK_ENABLE_INTERRUPT_CORE_CLOCK 0x7u
 
 typedef void (*Handler)(void);
