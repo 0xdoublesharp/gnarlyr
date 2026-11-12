@@ -41,10 +41,6 @@ struct UpNextScreen {
     ListView list;
     int count;
     int added;
-    int rows_first;
-    int rows_count;
-    char labels[UP_NEXT_ROWS][UP_NEXT_LABEL_CAPACITY];
-    char details[UP_NEXT_ROWS][UP_NEXT_DETAIL_CAPACITY];
     uint32_t now_ms;
     MenuScreen actions;
     MenuItem items[UP_NEXT_ACTION_COUNT];
