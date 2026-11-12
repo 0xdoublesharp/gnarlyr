@@ -85,8 +85,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/app/screens/up_next_screen.c
     src/app/queue_actions.c
     src/app/queue_edits.c
-    src/app/screens/charge_rate.c
-    src/app/screens/charge_art.c
     src/ui/cover_flow.c
     src/ui/placeholder_art.c
     src/gfx/image_quad.c
@@ -142,6 +140,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     platform/device/board/headset_reading.c
     platform/device/logic/headset_dips_view.c
     platform/device/logic/headset_monitor_reading.c
+    src/app/screens/charge_rate.c
+    src/app/screens/charge_art.c
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
     src/app/mixtape_store.c
