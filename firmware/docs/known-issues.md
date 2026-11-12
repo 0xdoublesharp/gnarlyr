@@ -59,6 +59,7 @@ Also unchecked on a player by this project: trial updates (install into slot 1 o
 - **A trial build that is never confirmed** stays unconfirmed: slot 2 keeps the previous build until a USB session with the new one ends with an eject. A player used without the computer is not rolled back, because starts that run 20 s are not counted.
 - **A trial update dated before slot 2's build** may never run if the boot ROM prefers the newer slot; the backup build then counts the starts and rolls the update back.
 - **Audio module damaged in both slots.** Lower-rate conversion and M4A demuxing require this module. If both copies fail validation, those tracks are refused; native-rate FLAC, MP3 and WAV remain available. A healthy copy in either slot is enough.
+- **Extension module damaged in both slots.** The updater's slot writing lives in the extension module, so with no intact copy an update copied over USB is refused ("Update failed") and recovery is through maskrom.
 - **USB code damaged in both slots.** The USB overlay is stored in both firmware slots. If it were damaged in both while the main code stayed intact, USB storage would be unavailable ("USB missing: reinstall update") and recovery would be through maskrom only.
 - **Language packs are bounded to 16 KB.** The glyph cache keeps 64 packed glyphs; built-in ASCII bypasses it. Additional script coverage still depends on the selected fonts.
 

@@ -7,12 +7,10 @@ enum {
     VERSION_AT = 7,
     VERSION = 1,
     CHECK_SEED = 0x5A,
-    MOST_ATTEMPTS = 0xFF,
-    BOTH_LENGTH = 10
+    MOST_ATTEMPTS = 0xFF
 };
 
 static const uint8_t MAGIC[STATE_AT] = {'D', 'S', 'U', 'T'};
-static const uint8_t BOTH_TEXT[BOTH_LENGTH] = {'B', 'O', 'T', 'H', ' ', 'S', 'L', 'O', 'T', 'S'};
 
 static bool starts_with(const uint8_t *bytes, const uint8_t *text, uint32_t length)
 {
@@ -79,9 +77,4 @@ bool update_trial_settle(UpdateTrial *trial)
     }
     trial->attempts--;
     return true;
-}
-
-bool update_trial_both_slots_requested(const uint8_t *bytes, uint32_t length)
-{
-    return length >= BOTH_LENGTH && starts_with(bytes, BOTH_TEXT, BOTH_LENGTH);
 }

@@ -18,6 +18,7 @@ from echo_image_harness import (
     summary,
 )
 from echo_emulator.machine import VOLUME_UP_KEY_ADC
+import prove_upgrade
 
 HANG = b"\xfe\xe7"
 SETTLE_MS = 20000
@@ -46,15 +47,14 @@ class EchoImageTest(EchoImageHarness):
         session = self.session(files=[(IDENTITY.update_file, update, None)], vbus=True)
         session.machine.note("updater_install")
         self.assertEqual(self.boot_until_waiting_for_key(session), "reached board_wait_for_power_hold")
-        self.assertEqual(session.machine.reached["updater_install_trial"], 1)
+        self.assertEqual(session.machine.reached["trial_module_install"], 1)
         self.assertNotIn("updater_install", session.machine.reached)
         self.assert_healthy(session)
         return session
 
     def start(self, previous, image, vbus=False):
         session = previous.reboot(image=image, vbus_after_first_frame=vbus)
-        session.machine.note("update_trial_start")
-        session.machine.note("updater_copy_slot")
+        session.machine.note("trial_boot_module_start")
         return session
 
     def test_an_update_goes_into_slot_1_on_trial_and_slot_2_keeps_the_running_build(self):
@@ -81,17 +81,16 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(trial.run_to_first_frame(), "condition met")
         self.assertEqual(self.trial_record(trial), (TRIAL_RUNNING, 1))
         self.assertEqual(trial.run_through_update_check(), "reached usb_session_storage_changed")
+        self.assertTrue(prove_upgrade.run_until_promoted(trial))
         self.assert_healthy(trial)
-        self.assertEqual(machine.reached["updater_copy_slot"], 1)
         self.assertIn(english("STR_UPDATE_BACKUP"), [title for title, _ in notices])
-        self.assertIsNone(self.trial_record(trial))
         self.assertEqual(self.firmware_writes(trial, "slot_1"), [])
         self.assert_written_header_last(trial, "slot_2", newer)
         self.assertEqual(trial.slot_image("slot_1"), self.slot_bytes(newer))
         self.assertEqual(trial.slot_image("slot_2"), self.slot_bytes(newer))
         again = self.start(trial, newer)
         self.assertEqual(again.run_to_first_frame(), "condition met")
-        self.assertNotIn("update_trial_start", again.machine.reached)
+        self.assertNotIn("trial_boot_module_start", again.machine.reached)
         self.assertEqual(again.written_ranges(), [])
         summary("trial confirmed", trial)
 
@@ -100,7 +99,6 @@ class EchoImageTest(EchoImageHarness):
         trial = self.start(self.install_on_trial(newer), newer, vbus=True)
         self.assertEqual(trial.run_to_first_frame(), "condition met")
         self.assertEqual(trial.run_through_update_check(), "reached usb_session_storage_changed")
-        self.assertNotIn("updater_copy_slot", trial.machine.reached)
         self.assertEqual(self.trial_record(trial), (TRIAL_RUNNING, 2))
         self.assertEqual(trial.slot_image("slot_2"), self.slot_bytes(self.image))
 
@@ -123,7 +121,7 @@ class EchoImageTest(EchoImageHarness):
         rolling = self.start(session, newer)
         self.assertEqual(rolling.run_until_reset(), "system reset requested")
         self.assert_healthy(rolling)
-        self.assertEqual(rolling.machine.reached["updater_copy_slot"], 1)
+        self.assertEqual(rolling.machine.reached["trial_boot_module_start"], 1)
         self.assertEqual(self.firmware_writes(rolling, "slot_2"), [])
         self.assert_written_header_last(rolling, "slot_1", self.image)
         self.assertEqual(rolling.slot_image("slot_1"), self.slot_bytes(self.image))
@@ -143,7 +141,7 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(restored)
         restored_again = self.start(restored, self.image)
         self.assertEqual(restored_again.run_to_first_frame(), "condition met")
-        self.assertNotIn("update_trial_start", restored_again.machine.reached)
+        self.assertNotIn("trial_boot_module_start", restored_again.machine.reached)
 
     def test_a_non_enumerating_build_is_reset_by_power_and_rolled_back(self):
         newer = self.newer_image()

@@ -88,11 +88,12 @@ static void the_charge_stops_at_its_largest_value(void)
     CHECK_EQUAL(0xFF, trial.attempts);
 }
 
-static void the_both_slots_request_needs_its_text(void)
+static void the_started_record_constant_is_running_with_no_attempts(void)
 {
-    CHECK(update_trial_both_slots_requested((const uint8_t *)"BOTH SLOTS\n", 11));
-    CHECK(!update_trial_both_slots_requested((const uint8_t *)"BOTH SLOT", 9));
-    CHECK(!update_trial_both_slots_requested((const uint8_t *)"both slots", 10));
+    static const uint8_t STARTED[UPDATE_TRIAL_BYTES] = UPDATE_TRIAL_STARTED;
+    uint8_t bytes[UPDATE_TRIAL_BYTES];
+    update_trial_encode((UpdateTrial){UPDATE_TRIAL_RUNNING, 0}, bytes);
+    CHECK(memcmp(STARTED, bytes, sizeof bytes) == 0);
 }
 
 int main(void)
@@ -106,7 +107,7 @@ int main(void)
         TEST_CASE(a_rollback_is_reported_once),
         TEST_CASE(without_a_running_trial_nothing_is_charged),
         TEST_CASE(the_charge_stops_at_its_largest_value),
-        TEST_CASE(the_both_slots_request_needs_its_text),
+        TEST_CASE(the_started_record_constant_is_running_with_no_attempts),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

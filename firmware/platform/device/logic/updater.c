@@ -31,8 +31,7 @@ enum {
     ECHO_STOCK_FW_SIZE = 0x025CC000,
     CRC_BYTES = 4,
     MARKER_LENGTH = 11,
-    MARKER_CARRY = MARKER_LENGTH - 1,
-    PASSES = 2
+    MARKER_CARRY = MARKER_LENGTH - 1
 };
 
 #define CODE_BASE 0x03050000u
@@ -72,17 +71,6 @@ void updater_use_scratch(uint32_t *words)
     target_chunk = words != NULL ? words + CHUNK_WORDS : NULL;
     prefix = words != NULL ? words + 2 * CHUNK_WORDS : NULL;
 }
-
-typedef struct SlotCopy {
-    const UpdateFile *file;
-    const UpdateStorage *storage;
-    uint32_t source_slot;
-    uint32_t target_slot;
-    UpdateProgress progress;
-    uint32_t pass;
-    uint32_t passes;
-    uint32_t chunks;
-} SlotCopy;
 
 static uint32_t le32(const uint8_t *bytes)
 {
@@ -319,115 +307,6 @@ CORE_SEAM UpdateCheck updater_check(const UpdateFile *file, const UpdateStorage 
         return UPDATE_ALREADY_INSTALLED;
     }
     return crc_is_valid(file, FW_END, NULL) ? UPDATE_VALID : UPDATE_INVALID;
-}
-
-static bool read_source(const SlotCopy *copy, uint32_t chunk)
-{
-    if (copy->file != NULL) {
-        return read_file_chunk(copy->file, chunk, source_chunk);
-    }
-    return read_slot_chunk(copy->storage, copy->source_slot, chunk, source_chunk);
-}
-
-static bool write_verified(const SlotCopy *copy, uint32_t chunk, const uint32_t *words)
-{
-    uint32_t lba = copy->target_slot + chunk * CHUNK_SECTORS;
-    return copy->storage->write(copy->storage->context, lba, CHUNK_SECTORS, words) &&
-           read_slot_chunk(copy->storage, copy->target_slot, chunk, target_chunk) &&
-           same_bytes(words, target_chunk, CHUNK_WORDS);
-}
-
-static bool copy_chunk(const SlotCopy *copy, uint32_t chunk)
-{
-    if (!read_source(copy, chunk) ||
-        !read_slot_chunk(copy->storage, copy->target_slot, chunk, target_chunk)) {
-        return false;
-    }
-    if (same_bytes(source_chunk, target_chunk, CHUNK_WORDS)) {
-        return true;
-    }
-    return write_verified(copy, chunk, source_chunk);
-}
-
-static bool invalidate_slot(const SlotCopy *copy)
-{
-    for (uint32_t index = 0; index < CHUNK_WORDS; index++) {
-        source_chunk[index] = 0xFFFFFFFFu;
-    }
-    return write_verified(copy, 0, source_chunk);
-}
-
-static void report(const SlotCopy *copy, uint32_t chunk)
-{
-    if (copy->progress.report != NULL) {
-        copy->progress.report(copy->progress.context, copy->pass * copy->chunks + chunk,
-                              copy->passes * copy->chunks);
-    }
-}
-
-static bool copy_slot(const SlotCopy *copy)
-{
-    if (!invalidate_slot(copy)) {
-        return false;
-    }
-    for (uint32_t chunk = 1; chunk < copy->chunks; chunk++) {
-        if (!copy_chunk(copy, chunk)) {
-            return false;
-        }
-        report(copy, chunk);
-    }
-    if (!copy_chunk(copy, 0)) {
-        return false;
-    }
-    report(copy, copy->chunks);
-    return true;
-}
-
-CORE_SEAM bool updater_install(const UpdateFile *file, const UpdateStorage *storage,
-                               UpdateProgress progress)
-{
-    if (source_chunk == NULL) {
-        return false;
-    }
-    uint32_t chunks = (file->size - CRC_BYTES) / UPDATER_CHUNK_BYTES;
-    SlotCopy second = {file, storage, 0, storage->slot_2, progress, 0, PASSES, chunks};
-    SlotCopy first = {NULL, storage, storage->slot_2, storage->slot_1, progress, 1, PASSES, chunks};
-    return copy_slot(&second) && copy_slot(&first);
-}
-
-CORE_SEAM bool updater_install_trial(const UpdateFile *file, const UpdateStorage *storage,
-                                     UpdateProgress progress)
-{
-    if (source_chunk == NULL) {
-        return false;
-    }
-    uint32_t chunks = (file->size - CRC_BYTES) / UPDATER_CHUNK_BYTES;
-    SlotCopy first = {file, storage, 0, storage->slot_1, progress, 0, 1, chunks};
-    return copy_slot(&first);
-}
-
-CORE_SEAM bool updater_copy_slot(const UpdateStorage *storage, uint32_t from, uint32_t to,
-                                 UpdateProgress progress)
-{
-    if (source_chunk == NULL || !updater_slot_is_valid(storage, from)) {
-        return false;
-    }
-    SlotCopy copy = {NULL, storage, from, to, progress, 0, 1, FW_END / UPDATER_CHUNK_BYTES};
-    return copy_slot(&copy);
-}
-
-bool updater_slot_is_valid(const UpdateStorage *storage, uint32_t slot)
-{
-    uint32_t *header = target_chunk;
-    uint32_t *copy = target_chunk + HEADER_BYTES / 4;
-    const uint8_t *bytes = (const uint8_t *)header;
-    if (header == NULL || !storage->read(storage->context, slot, 1, header) ||
-        !has_text(bytes + MAGIC_OFFSET, MAGIC, sizeof MAGIC) ||
-        le32(bytes + FW_SIZE_OFFSET) != FW_SIZE) {
-        return false;
-    }
-    return storage->read(storage->context, slot + FW_SIZE / SECTOR_BYTES, 1, copy) &&
-           same_bytes(header, copy, HEADER_BYTES / 4);
 }
 
 bool updater_should_remove_file(UpdateCheck check, bool installed)

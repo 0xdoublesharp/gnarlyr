@@ -147,6 +147,7 @@ add_library(echo_device_logic STATIC
     rtc_time.c
     start_record.c
     sd_card.c
+    slot_copy.c
     stall_watch.c
     storage_mount.c
     workspace_loan.c
@@ -156,6 +157,7 @@ add_library(echo_device_logic STATIC
     update_names.c
     update_trial.c
     updater.c
+    updater_install.c
     usb_activity.c
     usb_audio.c
     usb_audio_descriptors.c
@@ -213,11 +215,13 @@ if(CMAKE_CROSSCOMPILING)
         panic_text.c
         pll.c
         sd_card.c
+        slot_copy.c
         start_record.c
         storage_mount.c
         update_names.c
         update_trial.c
         updater.c
+        updater_install.c
         usb_activity.c
         usb_audio.c
         usb_device.c

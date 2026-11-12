@@ -32,6 +32,7 @@ typedef struct ExtensionModuleEntry {
     bool (*clock_set)(HalWallTime time);
     bool (*clock_restore)(int16_t offset_minutes);
     FavoritePlaylistResult (*favorite_add)(const Library *library, uint16_t track);
+    const void *trial;
 } ExtensionModuleEntry;
 
 extern const ExtensionModuleEntry EXTENSION_MODULE_ENTRY;

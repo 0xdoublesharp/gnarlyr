@@ -110,10 +110,21 @@ def trial_record(session):
     return data[4], data[5]
 
 
-def has_trial(directory):
+INSTALLS = ("updater_install", "updater_install_trial", "trial_module_install")
+
+
+def trial_install_name(directory):
     from echo_emulator.machine import load_symbols
 
-    return "updater_install_trial" in load_symbols(directory / "platform/device/echo_usb_overlay.elf")
+    extension = directory / "platform/device/echo_module_extension.elf"
+    if extension.is_file() and "trial_module_install" in load_symbols(extension):
+        return "trial_module_install"
+    overlay = directory / "platform/device/echo_usb_overlay.elf"
+    return "updater_install_trial" if "updater_install_trial" in load_symbols(overlay) else None
+
+
+def has_trial(directory):
+    return trial_install_name(directory) is not None
 
 
 def forked(session):
@@ -143,7 +154,7 @@ def candidate_session(directory, files=(), reuse=None, historical=False, vbus=No
 
 def install(old, newer):
     session = candidate_session(old, files=[(IDENTITY.update_file, newer, None)], historical=True)
-    for name in ("updater_install", "updater_install_trial"):
+    for name in INSTALLS:
         session.machine.note(name, optional=True)
     require(session.run_to_first_frame() == "condition met", "Old image did not boot")
     session.machine.stop_at("board_wait_for_power_hold")
@@ -154,6 +165,17 @@ def install(old, newer):
     return session
 
 
+def run_until_promoted(session, step_ms=500, limit_ms=30000):
+    machine = session.machine
+    machine.continue_past_stop()
+    end = machine.milliseconds() + limit_ms
+    while machine.milliseconds() < end:
+        machine.run(until_ms=machine.milliseconds() + step_ms)
+        if machine.faults or machine.panics or trial_record(session) is None:
+            break
+    return trial_record(session) is None
+
+
 def prove_confirm(state, new, newer):
     session = candidate_session(new, reuse=forked(state), vbus=True)
     session.machine.host_ejects()
@@ -161,8 +183,8 @@ def prove_confirm(state, new, newer):
     require(trial_record(session) == (TRIAL_RUNNING, 1), "Trial start was not counted")
     require(session.run_through_update_check() == "reached usb_session_storage_changed",
             "Trial USB session did not finish")
+    require(run_until_promoted(session), "Confirmed trial left its record")
     healthy(session)
-    require(trial_record(session) is None, "Confirmed trial left its record")
     return verify_single_slot(session, "slot_2", "slot_1", newer, newer)
 
 
@@ -191,12 +213,14 @@ def prove(old, new):
     older = (old / IDENTITY.update_file).read_bytes()
     require(older != newer, "Upgrade images are identical")
     session = install(old, newer)
-    trial = has_trial(old)
+    name = trial_install_name(old)
+    trial = name is not None
     reached = session.machine.reached
-    name = "updater_install_trial" if trial else "updater_install"
-    require(reached.get(name) == 1 and len([key for key in ("updater_install", "updater_install_trial")
-                                            if key in reached]) == 1,
-            "Expected exactly one installation")
+    if trial:
+        require(reached.get(name) == 1 and "updater_install" not in reached,
+                "Expected exactly one trial installation")
+    else:
+        require(reached.get("updater_install") == 1, "Expected exactly one installation")
     result = {"ok": True, "mode": "trial" if trial else "both_slots", "readbacks": True,
               "headers_last": True}
     if trial:

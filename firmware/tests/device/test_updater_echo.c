@@ -4,6 +4,7 @@
 
 #include "check.h"
 #include "device/image_crc.h"
+#include "device/slot_copy.h"
 #include "device/updater.h"
 
 enum {
@@ -26,6 +27,8 @@ enum {
 };
 
 #define RESET_HANDLER 0x03050101u
+
+static uint32_t install_buffer[SLOT_COPY_BUFFER_WORDS];
 
 static uint8_t *sectors;
 static uint8_t *bytes;
@@ -278,7 +281,7 @@ static void installing_a_stock_echo_image_fills_both_slots_with_every_byte_slot_
     load(image, STOCK_SIZE);
     UpdateStorage storage = {storage_read, storage_write, NULL, SLOT_1, SLOT_2, SLOT_SECTORS};
     UpdateFile file = {file_read, size, NULL};
-    CHECK(updater_install(&file, &storage, (UpdateProgress){report, NULL}));
+    CHECK(updater_install(&file, &storage, (UpdateProgress){report, NULL}, install_buffer));
     CHECK(memcmp(sectors + (size_t)SLOT_2 * 512, image, STOCK_LENGTH) == 0);
     CHECK(memcmp(sectors + (size_t)SLOT_1 * 512, image, STOCK_LENGTH) == 0);
     CHECK_EQUAL(0, writes_below_slot_1);
@@ -292,7 +295,7 @@ static void installing_an_image_with_our_brand_fills_both_slots(void)
     load(image, IMAGE_SIZE);
     UpdateStorage storage = {storage_read, storage_write, NULL, SLOT_1, SLOT_2, SLOT_SECTORS};
     UpdateFile file = {file_read, size, NULL};
-    CHECK(updater_install(&file, &storage, (UpdateProgress){report, NULL}));
+    CHECK(updater_install(&file, &storage, (UpdateProgress){report, NULL}, install_buffer));
     CHECK(memcmp(sectors + (size_t)SLOT_2 * 512, image, FW_END) == 0);
     CHECK(memcmp(sectors + (size_t)SLOT_1 * 512, image, FW_END) == 0);
     CHECK_EQUAL(UPDATE_ALREADY_INSTALLED, updater_check(&file, &storage));

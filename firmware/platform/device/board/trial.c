@@ -7,11 +7,15 @@
 #include "core/i18n.h"
 #include "device/fat.h"
 #include "device/key_ladder.h"
+#include "device/slot_copy.h"
 #include "device/update_trial.h"
 #include "emmc.h"
+#include "extension_entry.h"
 #include "hal/clock.h"
+#include "hal/system.h"
 #include "internal_volume.h"
 #include "overlay.h"
+#include "trial_module.h"
 #include "usb.h"
 #include "usb_session.h"
 
@@ -41,16 +45,35 @@ void board_trial_escape_check(void)
     board_loader_reboot();
 }
 
-void board_trial_boot(void)
+const TrialCalls *board_trial_calls(void)
+{
+    const ExtensionModuleEntry *code = hal_system_extension_code();
+    return code != NULL ? code->trial : NULL;
+}
+
+static uint32_t *copy_buffer(void)
+{
+    return (uint32_t *)(uintptr_t)(OVERLAY_WINDOW_BASE + OVERLAY_WINDOW_BYTES -
+                                   SLOT_COPY_BUFFER_WORDS * 4);
+}
+
+static const TrialBootModuleEntry *boot_module(void)
+{
+    return hal_system_load_module(TRIAL_BOOT_MODULE_NUMBER);
+}
+
+static const TrialBootModuleEntry *module_for_record(void)
 {
     FatFile record;
     FatVolume *volume = internal_volume_mount();
-    if (volume == NULL || !fat_open(volume, UPDATE_TRIAL_PATH, &record)) {
-        return;
-    }
-    const UsbOverlayEntry *usb = board_usb_overlay_load();
-    if (usb != NULL && usb->magic == USB_OVERLAY_MAGIC) {
-        usb->trial_start(usb_session_shared());
+    return volume != NULL && fat_open(volume, UPDATE_TRIAL_PATH, &record) ? boot_module() : NULL;
+}
+
+void board_trial_boot(void)
+{
+    const TrialBootModuleEntry *entry = module_for_record();
+    if (entry != NULL) {
+        entry->start(usb_session_shared(), copy_buffer());
     }
 }
 
@@ -76,7 +99,19 @@ void board_trial_settle(void)
 
 void board_trial_session_starting(void)
 {
+    const TrialBootModuleEntry *entry = module_for_record();
     usb_session_shared()->trial.charged = false;
+    if (entry != NULL) {
+        entry->session_start();
+    }
+}
+
+void board_trial_session_ended(void)
+{
+    const TrialBootModuleEntry *entry = module_for_record();
+    if (entry != NULL) {
+        entry->session_end(usb_session_shared(), copy_buffer());
+    }
 }
 
 void board_trial_poll_power(uint32_t now_ms)
