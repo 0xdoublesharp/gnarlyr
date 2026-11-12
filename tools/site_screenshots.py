@@ -34,6 +34,8 @@ def load_config(path):
     defaults = config.get("defaults", {})
     bounded(defaults.get("frames", 900), 100, 20000, "frames")
     bounded(defaults.get("battery", 80), 0, 100, "battery")
+    if config.get("demo", {}).get("audio_source", "silence") not in ("silence", "tone"):
+        raise ValueError("Demo audio_source must be silence or tone")
     names, files = set(), set()
     for case in config["screens"]:
         name, filename = case.get("name", ""), case.get("file", "")
@@ -44,8 +46,14 @@ def load_config(path):
         names.add(name)
         files.add(filename)
         keys = case.get("keys", [])
-        if not isinstance(keys, list) or len(keys) > 100 or any(not isinstance(k, str) or not KEY.fullmatch(k) for k in keys):
+        if not isinstance(keys, list) or len(keys) > 64 or any(not isinstance(k, str) or not KEY.fullmatch(k) for k in keys):
             raise ValueError(f"Invalid key sequence for {name}")
+        native = case.get("native_snapshot")
+        if native is not None and (not isinstance(native, str) or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*-[0-9]+\.ppm", native)):
+            raise ValueError("Native snapshots must name one generated PPM file")
+        theme = case.get("theme_example")
+        if theme is not None and (not isinstance(theme, str) or not NAME.fullmatch(theme)):
+            raise ValueError("Theme examples must name a source example folder")
         language = case.get("language")
         if language is not None:
             if not isinstance(language, dict) or not isinstance(language.get("code"), str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]{0,4}", language["code"]):
@@ -69,6 +77,17 @@ def png_bytes(width, height, rgb):
     rows = b"".join(b"\0" + rgb[row:row + stride] for row in range(0, len(rgb), stride))
     header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(rows, 9)) + chunk(b"IEND", b"")
+
+
+def ppm_to_png(data):
+    header = re.match(rb"P6\n([0-9]+) ([0-9]+)\n255\n", data)
+    if header is None:
+        raise ValueError("Expected an RGB PPM capture")
+    width, height = map(int, header.groups())
+    rgb = data[header.end():]
+    if not 1 <= width <= 1600 or not 1 <= height <= 1600 or len(rgb) != width * height * 3:
+        raise ValueError("Native screenshot dimensions or pixel data are invalid")
+    return png_bytes(width, height, rgb)
 
 
 def bmp_to_png(data):
@@ -115,7 +134,10 @@ def create_demo(config, work, env, source_root=ROOT):
         folder.mkdir(exist_ok=True)
         audio = folder / f"{index + 1:02d}.flac"
         duration = bounded(track.get("seconds", 30), 5, 120, "demo duration")
-        command = ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", str(duration), "-c:a", "flac"]
+        signal = "anullsrc=r=44100:cl=stereo"
+        if demo.get("audio_source") == "tone":
+            signal = "aevalsrc=0.18*sin(2*PI*220*t)+0.08*sin(2*PI*880*t)|0.16*sin(2*PI*330*t)+0.07*sin(2*PI*1320*t):s=44100"
+        command = ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", signal, "-t", str(duration), "-c:a", "flac"]
         for field in ("title", "artist", "album"):
             command += ["-metadata", field + "=" + track.get(field, "Demo")]
         run(command + [audio], work / f"track-{index}.log", env)
@@ -163,14 +185,32 @@ def prepare_language(case, system, work, env, source_root=ROOT):
 
 def render_case(case, context):
     work, env = context["work"], context["env"]
+    if case.get("native_snapshot"):
+        data = ppm_to_png((context["native"] / case["native_snapshot"]).read_bytes())
+        if list(struct.unpack_from(">II", data, 16)) != case.get("size", [480, 222]):
+            raise ValueError("Native screenshot dimensions do not match the scene")
+        return data
     system = work / (case["name"] + "-system")
     system.mkdir()
     shutil.copyfile(context["library"], system / "library.db")
     source_root = context.get("source_root", ROOT)
     prepare_language(case, system, work, env, source_root)
+    card = context["card"]
+    if case.get("theme_example"):
+        examples = (source_root / "examples/themes").resolve()
+        example = (examples / case["theme_example"]).resolve()
+        if not example.is_relative_to(examples) or not (example / "theme.json").is_file():
+            raise ValueError("Theme source example is unavailable")
+        card = work / (case["name"] + "-card")
+        shutil.copytree(context["card"], card)
+        packs = card / IDENTITY["data_directory"] / "themes"
+        packs.mkdir(parents=True, exist_ok=True)
+        run([source_root / "firmware/.venv/bin/python", source_root / "tools/theme_pack.py",
+             example, "--output", packs / (case["theme_example"] + ".gtheme")],
+            work / (case["name"] + "-theme.log"), env)
     bmp = work / (case["name"] + ".bmp")
     command = [context["simulator"], "--headless", "--frames", str(case.get("frames", context["defaults"].get("frames", 900))),
-               "--battery", str(context["defaults"].get("battery", 80)), "--card", context["card"], "--system-dir", system, "--screenshot", bmp]
+               "--battery", str(context["defaults"].get("battery", 80)), "--card", card, "--system-dir", system, "--screenshot", bmp]
     if case.get("keys"):
         command += ["--keys", ",".join(case["keys"])]
     result = run(command, work / (case["name"] + ".log"), env)
@@ -242,10 +282,17 @@ def main():
         env = {**os.environ, "TMPDIR": str(work), "PYTHONDONTWRITEBYTECODE": "1"}
         if not args.no_build:
             run([sys.executable, source_root / "tools/firmware.py", "build", "--preset", "dev", "--target", "echo_sim", "--jobs", "4"], work / "build.log", env)
+        native = work / "native-screens"
+        if any(case.get("native_snapshot") for case in screens):
+            if not args.no_build:
+                run([sys.executable, source_root / "tools/firmware.py", "build", "--preset", "dev", "--target", "test_usb_screen", "--jobs", "4"], work / "native-build.log", env)
+            native.mkdir()
+            run([source_root / "firmware/build/dev/tests/test_usb_screen"], work / "native-render.log",
+                {**env, "ECHO_TEST_SCREENSHOTS": str(native)})
         if not simulator.is_file():
             raise ValueError("Build the simulator first, or pass --simulator")
         card, library = create_demo(config, work, env, source_root)
-        context = {"work": work, "env": env, "source_root": source_root, "simulator": simulator.resolve(), "card": card, "library": library, "defaults": config.get("defaults", {})}
+        context = {"work": work, "env": env, "source_root": source_root, "simulator": simulator.resolve(), "card": card, "library": library, "defaults": config.get("defaults", {}), "native": native}
         rendered = {case["file"]: render_case(case, context) for case in screens}
         publish_screens(rendered, args.output)
         print(json.dumps({"output": str(args.output.resolve()), "screens": [{"file": name, "sha256": hashlib.sha256(data).hexdigest()} for name, data in rendered.items()], "work": str(work) if args.keep_work else None}))

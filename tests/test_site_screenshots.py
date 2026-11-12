@@ -51,9 +51,17 @@ class ScreenshotConfigTests(unittest.TestCase):
             self.config([{"name": "home", "file": "home.png", "expected_title": "Home", "keys": []}] * 2)
 
     def test_capture_timing_and_buttons_are_bounded(self):
-        for keys, frames in ((["shell"], 400), (["play;whoami"], 400), ([], 0), ([], 20001)):
+        for keys, frames in ((["shell"], 400), (["play;whoami"], 400), (["up"] * 65, 400), ([], 0), ([], 20001)):
             with self.subTest(keys=keys, frames=frames), self.assertRaises(ValueError):
                 self.config([{"name": "home", "file": "home.png", "expected_title": "Home", "keys": keys, "frames": frames}])
+
+    def test_native_and_theme_sources_cannot_escape_the_capture_inputs(self):
+        for field, value in (("native_snapshot", "../outside.ppm"),
+                             ("native_snapshot", "/outside.ppm"),
+                             ("theme_example", "../outside")):
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                self.config([{"name": "home", "file": "home.png", "expected_title": "Home",
+                              field: value}])
 
     def test_language_scenes_reject_unsafe_codes_and_missing_translations(self):
         for language in ({"code": "../es", "strings": {"STR_MUSIC": "Música"}},
@@ -72,6 +80,13 @@ class ScreenshotPixelTests(unittest.TestCase):
                 png = shots.bmp_to_png(bitmap(height))
                 self.assertTrue(png.startswith(b"\x89PNG\r\n\x1a\n"))
                 self.assertEqual(scanlines(png), expected)
+
+    def test_native_ppm_captures_preserve_pixels_and_reject_truncation(self):
+        ppm = b"P6\n2 1\n255\n" + b"\xff\x00\x00\x00\xff\x00"
+        self.assertEqual(scanlines(shots.ppm_to_png(ppm)), b"\0\xff\0\0\0\xff\0")
+        for data in (ppm[:-1], b"P6\n99999 1\n255\n", b"P3\n2 1\n255\n"):
+            with self.subTest(data=data), self.assertRaises(ValueError):
+                shots.ppm_to_png(data)
 
     def test_bad_or_truncated_screenshots_are_rejected(self):
         for data in (b"", bitmap()[:-1], bitmap().replace(b"BM", b"ZZ", 1)):

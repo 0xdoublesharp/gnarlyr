@@ -66,6 +66,7 @@
 </li>
 <li><strong>Sorting and combined filters.</strong> Sort up to 65,535 songs by title, artist, album, year or duration, ascending or descending, or keep the original order. Combine artist, album, genre, year, length and personal-label filters.
 </li>
+<li><strong>Hide a song or delete its file.</strong> Hold Play on a song for Hide track or Delete file. Hiding leaves the file intact; Settings → Hidden tracks can show it again. Deleting asks for confirmation and cannot remove one chapter or CUE track from a shared audio file. <a href="docs.html#track-actions">Understand the actions →</a></li>
 <li><strong>Personal tags.</strong> Create up to 32 mood or activity labels, rename or delete them, and assign several to a song. Labels leave audio-file metadata unchanged. File paths and CUE track positions keep them attached after a rescan; CUE positions identify where a song starts and ends inside a shared album file.
 </li>
 <li><strong>Track information.</strong> See title, artist, album artist, album, genre, year, disc and track number, duration and file path from a song’s action menu.
@@ -87,6 +88,7 @@
 <ul class="detail-list">
 <li id="gapless"><strong>Gapless playback.</strong> Play compatible, same-sample-rate tracks continuously. MP3 files need gapless information, such as a LAME tag, to trim the encoder’s extra samples. Gnarlyr’s decoder improvements also handle MP3 end trimming after seeking or resuming, and AAC startup trimming and track timing. <a href="#playback-fixes">Read about the playback improvements below.</a></li>
 <li><strong>Supported audio.</strong> Play FLAC, MP3 and WAV, with rates up to 192 kHz for compatible files, plus M4A and M4B containing AAC-LC or Apple Lossless.</li>
+<li><strong>Additional decoder paths.</strong> The integrated firmware adds APE and WMA Standard decoding, tags and artwork, alongside AIFF and DSD-to-PCM conversion. Compression, channel and rate limits vary by format. <a href="build.html#more-formats">Format limits and player checks →</a></li>
 <li><strong>Playlists and album images.</strong> M3U/M3U8 playlists, album favorites, a Favorite Tracks playlist, and CUE sheets that split a single FLAC, WAV or MP3 album into separate tracks.
 </li>
 <li><strong>Optional shuffle fades.</strong> Settings → Transitions can fade out one shuffled song and fade in the next, with a choice of 0.5–6 seconds. Consecutive album tracks, CUE tracks, audiobook chapters and podcasts keep their normal transitions. Each song fades separately, without overlapping the next.</li>
@@ -114,6 +116,7 @@
 <h2 class="feature-heading" id="listening-title"><svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#icon-feature-headphones"/></svg><span>Sound, lyrics and listening stats.</span></h2>
 <p class="intro">Adjust the sound while music plays, follow the lyrics and see what you listen to most.</p>
 <ul class="detail-list">
+<li><strong>Crossfeed for headphones.</strong> Blend a little of each stereo channel into the other for a gentler left/right separation. Choose Off, Low, Medium or High globally or per headphone profile. Music and spoken word use it; USB audio bypasses it. <a href="docs.html#crossfeed">Choose crossfeed →</a></li>
 <li><strong>Four headphone profiles.</strong> Save a name, level reduction, left/right balance and volume ceiling for each pair. Choose a profile in Settings → Headphones; the same profile applies to music and USB audio.</li>
 <li><strong>Quick Settings while you listen.</strong> Tap Menu on Now Playing to change Shuffle, Repeat, EQ, headphone profile, Playback speed, Sleep timer, Transitions or ReplayGain. Open Lyrics and Up Next from the same panel. <a href="docs.html#quick-settings">See the shortcuts →</a></li>
 <li><strong>Shape the sound in familiar words.</strong> Adjust Warmth, Brightness, Bass, Punch, Vocals, Air and Clarity from −5 to +5. Save the result in an EQ slot, or layer it over a saved parametric headphone correction. <a href="docs.html#sound-shaping">Try Sound shaping →</a></li>
@@ -145,6 +148,7 @@
 <li><strong>Choose a chapter or carry on.</strong> Select a book to resume its saved chapter and position, even inside nested folders. Hold Play to browse chapter titles and lengths without starting playback.</li>
 <li><strong>Whole books remember their place too.</strong> An M4B without readable chapter information plays as one book with its own saved position. Keep its filename and location to retain the bookmark.</li>
 <li><strong>The player and computer keep the same chapters.</strong> On-device scanning and desktop <code>echo-sync</code> both preserve M4B chapters, without adding a duplicate whole-book track.</li>
+<li><strong>Skip silence and balance speech.</strong> Skip silence shortens long audiobook and podcast pauses to a quarter-second. Speech boost raises quiet voices and reduces loud passages. Music is left alone, and bookmarks keep the recording’s original time. <a href="docs.html#speech-tools">Set up spoken-word listening →</a></li>
 <li><strong>Playback speed without the pitch shift.</strong> Choose 0.5× to 3× in Settings or Quick Settings. Bookmarks and the displayed position stay tied to the original recording. Audio above 48 kHz plays at normal speed. <a href="docs.html#playback-speed">Change the speed →</a></li>
 <li><strong>Prepare lower-rate speech recordings.</strong> For audio below 32 kHz, convert the recording to 44.1 or 48 kHz on your computer before copying it to the player.</li>
 </ul>
@@ -164,6 +168,8 @@
 <li><strong>Choose your status-bar details.</strong> Show volume, repeat mode, queue position or battery percentage, and choose a solid or segmented battery. Your choices survive restarts; the bar fits optional details around the screen title and main indicators.</li>
 <li><strong>Themes and readable layouts.</strong> Choose from five themes and three text sizes, with landscape, portrait or flipped portrait layouts. Preview themes as you browse: Play keeps the choice and Back restores your saved look. Palette files let you customize the built-in themes.
 </li>
+<li><strong>Four Now Playing styles.</strong> Keep album artwork in Cover, watch a cassette’s reels fill and turn, follow separate left/right VU needles, or choose a sixteen-bar Spectrum. All retain the playback controls and progress. <a href="docs.html#playing-styles">See the styles →</a></li>
+<li><strong>Installable theme packs.</strong> Add a .gtheme file for new palettes and artwork, then preview it in Settings → Theme. Selection survives restarts; built-in themes remain available. <a href="docs.html#theme-packs">Install a theme →</a></li>
 <li><strong>Compact status bar.</strong> Smaller indicators and tighter spacing make room for more list entries. The battery includes its percentage; optional volume, queue and repeat details fit around the title. <a href="docs.html#status-bar">Choose the layout →</a></li>
 <li><strong>Power and Menu shortcuts.</strong> Hold Power, then press a volume button to skip tracks, including while locked. Assign a Menu hold to Quick Settings, Up Next, Add to tape, Shuffle or Sleep timer.</li>
 <li><strong>Your own Home screen.</strong> Home puts Music, Mixtapes, Stats, Clock, USB mode and Settings together. Now Playing appears automatically at the top when a track is loaded. Reorder or hide the other items, or show Audiobooks, Podcasts and Up Next, in Settings → Home screen. Settings stays available; Reset to default restores this layout.</li>
@@ -172,7 +178,7 @@
 </li>
 <li><strong>A cassette-inspired interface.</strong> Album artwork, cassette art and clear playback indicators connect Home, Music and Now Playing. Refined shuffle, repeat, favorite, album, gain and speaker icons make controls easier to recognize; Cover Flow’s Random album tile uses smoother artwork sampling. A larger battery icon shows remaining charge, with an optional percentage, a bolt for USB power and red warnings when charge runs low. The charging screen follows your theme. Small animated wireframes accompany scans, saves and other longer tasks.
 </li>
-<li><strong>Language packs.</strong> English is built in. Use the <a href="languages.html">language-pack builder</a> to create, inspect or edit a pack in your browser, then install it over USB and choose Settings → Language. Version-matched packs change interface text without reinstalling firmware; English remains available.
+<li><strong>Language packs.</strong> English is built in. Use the <a href="languages.html">language-pack builder</a> to create, inspect or edit a pack in your browser, then install it over USB and choose Settings → Language. Current version 2 packs load the text needed by each part of the interface within the language-memory budget. Rebuild earlier packs from their translation text; English remains available.
 </li>
 </ul>
 </section>
@@ -184,8 +190,8 @@
 <li><strong>Choose a USB mode.</strong> Open USB mode from Home or Settings. Choose Connect to computer, Charge &amp; play, Run from USB power or USB audio (DAC). Each choice explains what the cable will do; Run from USB power appears while connected.</li>
 <li><strong>Return to the player without unplugging.</strong> Eject both drives on the computer, or hold Back on the player to leave Connect to computer. The player waits for writes to stop before disconnecting. Your track, position and queue stay available; rechoose Connect to computer on the same cable. <a href="docs.html#usb">USB guide →</a></li>
 <li><strong>Choose what happens when you plug in.</strong> Ask highlights Connect to computer for a quick Play press. Leaving the prompt alone for 15 seconds chooses Charge &amp; play. Hold Play on a choice to save it for future connections, or choose it in Settings → When plugged in.</li>
-<li><strong>See file-transfer activity.</strong> A themed cassette turns while the computer reads or writes. The screen shows connection state, copied data, drive sizes or eject status, USB speed and battery level.</li>
-<li><strong>Control USB audio.</strong> View stereo level meters, audio format, volume and the active headphone profile. Press Menu to adjust volume, gain, output scale or profile, or switch USB modes. High-speed USB offers Class 2.0 PCM up to 192 kHz at 16/24/32-bit, with a Class 1.0 full-speed fallback at 44.1/48 kHz. Play sends play/pause to the computer; a volume-button hold sends next or previous. DAC and music volumes stay separate. <a href="build.html#usb-audio">See formats and host checks →</a></li>
+<li><strong>See file-transfer activity.</strong> The overview shows transfer rate, a ten-second graph, read/write totals, drive activity and free space recorded at connection. Tap Back for per-drive and link details. Waiting and disconnecting states use the cassette view. <a href="docs.html#usb-statistics">Read the USB screens →</a></li>
+<li><strong>Control USB audio.</strong> View stereo meters, audio format, volumes and the buffer. Tap Back for stream, clock, buffer and session statistics. Press Menu to adjust volume, gain, output scale or profile, or switch USB modes. High-speed USB offers Class 2.0 PCM up to 192 kHz at 16/24/32-bit, with a Class 1.0 full-speed fallback at 44.1/48 kHz. Play sends play/pause to the computer; a volume-button hold sends next or previous. DAC and music volumes stay separate. <a href="build.html#usb-audio">See formats and host checks →</a></li>
 <li><strong>Listen from USB power.</strong> Run from USB power keeps the cable supplying power with battery charging off. Low or unknown battery readings enable charging first. This is a power mode, not an 80% charge limit.</li>
 <li><strong>Separate Bluetooth volume.</strong> Wired and Bluetooth listening remember their own levels. When Bluetooth is the active output, the volume buttons and on-screen level control it. Headphone-profile trim and ceilings apply to the wired outputs, not Bluetooth.</li>
 <li><strong>Bluetooth reconnect on Play.</strong> When music last used Bluetooth, Play wakes the radio and reconnects the most recent headphones after its idle switch-off or startup. It waits up to ten seconds, then stays paused if they are unavailable. Headphones returning after a lost connection reconnect without starting music unexpectedly.</li>
@@ -215,6 +221,7 @@
 <li><strong>DAC startup matches stock timing.</strong> The output power-up wait is 12 ms, correcting the inherited 10 ms wait.</li>
 </ul>
 <h3>Audio-file checks</h3>
+<ul class="detail-list"><li><strong>More efficient decoding.</strong> Decoder paths use targeted ARM arithmetic and optimized FLAC and ALAC loops to reduce processor work. Player runtime and listening comparisons remain measurement tasks.</li><li><strong>Artwork decoding does less repeated work.</strong> JPEG transforms and column weights are reused where possible; PNG rows are unfiltered directly from the input window.</li></ul>
 <p>Files can contain damaged or contradictory information. These checks reject invalid data before it is used to locate or decode audio.</p>
 <ul class="detail-list">
 <li><strong>FLAC headers agree with the audio.</strong> Metadata order, lengths and sample ranges are checked, including tag headers and frame numbering. Frames must match the declared rate, bit depth and block limits, and stay within the file’s declared sample count.</li>

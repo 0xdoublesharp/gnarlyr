@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 from pathlib import Path
 import shutil
 import struct
@@ -8,7 +9,8 @@ import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "firmware" / "tools"))
+SOURCE_ROOT = Path(os.environ.get("GNARLYR_SITE_SOURCE_ROOT", ROOT)).resolve()
+sys.path.insert(0, str(SOURCE_ROOT / "firmware" / "tools"))
 import lang_pack
 
 NODE = shutil.which("node")
@@ -44,7 +46,8 @@ class LanguageBrowserTests(unittest.TestCase):
     def setUpClass(cls):
         cls.catalogue = lang_pack.read_catalogue()
         cls.drawable = lang_pack.drawable_characters()
-        cls.metadata = lang_pack.catalogue_info(cls.catalogue, cls.drawable)
+        cls.segments = lang_pack.string_segments(cls.catalogue) if hasattr(lang_pack, "string_segments") else None
+        cls.metadata = lang_pack.catalogue_info(cls.catalogue, cls.drawable, *([cls.segments] if cls.segments else []))
 
     def browser(self, operation, **values):
         payload = {"operation": operation, "catalogue": self.metadata, **values}
@@ -58,10 +61,22 @@ class LanguageBrowserTests(unittest.TestCase):
 
     def pack(self, **translations):
         return lang_pack.build_pack("es", self.catalogue,
-                                    {"STR_LANGUAGE_NAME": "Español", **translations})
+                                    {"STR_LANGUAGE_NAME": "Español", **translations}, *([self.segments] if self.segments else []))
+
+    def validate(self, data):
+        return lang_pack.validate_pack(data, self.catalogue, self.drawable, *([self.segments] if self.segments else []))
 
     def seal(self, data):
-        struct.pack_into("<I", data, 16, lang_pack.fnv(data[20:], lang_pack.fnv(data[:16])))
+        if not self.segments:
+            struct.pack_into("<I", data, 16, lang_pack.fnv(data[20:], lang_pack.fnv(data[:16])))
+            return data
+        total = struct.unpack_from("<H", data, 56)[0]
+        for index in range(min(total, len(self.segments))):
+            row = 60 + 16 * index
+            start, size = struct.unpack_from("<II", data, row + 4)
+            struct.pack_into("<I", data, row + 12, lang_pack.fnv(data[start:start + size]))
+        end = lang_pack.index_size(total)
+        struct.pack_into("<I", data, 16, lang_pack.fnv(data[20:end], lang_pack.fnv(data[:16])))
         return data
 
     def test_builder_matches_python_byte_for_byte_and_fills_missing_english(self):
@@ -71,7 +86,7 @@ class LanguageBrowserTests(unittest.TestCase):
         expected = self.pack(STR_SETTINGS="Ajustes", STR_PLACE="{1} de {0}")
         self.assertEqual(base64.b64decode(result["result"]["pack"]), expected)
         self.assertEqual(result["result"]["info"],
-                         lang_pack.validate_pack(expected, self.catalogue, self.drawable))
+                         self.validate(expected))
 
     def test_native_name_is_added_when_the_translation_omits_it(self):
         result = self.browser("build", code="es", name="Español", text="STR_SETTINGS = Ajustes")
@@ -84,7 +99,7 @@ class LanguageBrowserTests(unittest.TestCase):
                               text="STR_PLACE = {1} / {0} / {0}")
         self.assertTrue(result["ok"], result)
         pack = base64.b64decode(result["result"]["pack"])
-        self.assertEqual(lang_pack.validate_pack(pack, self.catalogue, self.drawable)["texts"]
+        self.assertEqual(self.validate(pack)["texts"]
                          ["STR_PLACE"], "{1} / {0} / {0}")
 
     def test_translation_errors_are_rejected_before_a_pack_is_created(self):
@@ -116,31 +131,35 @@ class LanguageBrowserTests(unittest.TestCase):
         result = self.inspect(pack)
         self.assertTrue(result["ok"], result)
         self.assertEqual(result["result"],
-                         lang_pack.validate_pack(pack, self.catalogue, self.drawable))
+                         self.validate(pack))
 
     def test_shared_string_offsets_remain_compatible(self):
         pack = bytearray(self.pack())
-        names = [name for name, _ in self.catalogue]
+        names = self.segments[0][1] if self.segments else [name for name, _ in self.catalogue]
         settings = names.index("STR_SETTINGS")
-        language = names.index("STR_LANGUAGE")
-        pack[56 + 2 * language:58 + 2 * language] = pack[56 + 2 * settings:58 + 2 * settings]
+        other = settings + 1
+        table = lang_pack.index_size(len(self.segments)) if self.segments else 56
+        pack[table + 2 * other:table + 2 + 2 * other] = pack[table + 2 * settings:table + 2 + 2 * settings]
         self.seal(pack)
-        expected = lang_pack.validate_pack(pack, self.catalogue, self.drawable)
+        expected = self.validate(pack)
         self.assertEqual(self.inspect(pack), {"ok": True, "result": expected})
 
     def test_corrupt_incompatible_and_semantically_invalid_packs_match_python_rejection(self):
         valid = self.pack()
         cases = [valid[:10], valid[:-1], valid + b"x"]
-        for offset in (0, 4, 6, 8, 12, 16, 55):
+        for offset in (0, 4, 6, 8, 12, 16, 55, 57, 60, 64, len(valid) - 2):
             changed = bytearray(valid)
             changed[offset] ^= 1
             cases.append(bytes(changed))
-        names = [name for name, _ in self.catalogue]
-        body = 56 + 2 * len(names)
-        for value in (1, len(valid)):
+        body = lang_pack.index_size(len(self.segments)) + 2 * len(self.segments[0][1]) if self.segments else 56 + 2 * len(self.catalogue)
+        fields = ((56, 1), (56, len(self.segments) + 1), (58, 1), (60, 3), (62, 1), (76, 9)) if self.segments else ((56, 1), (56, len(valid)))
+        for field, value in fields:
             changed = bytearray(valid)
-            struct.pack_into("<H", changed, 56, value)
+            struct.pack_into("<H", changed, field, value)
             cases.append(bytes(self.seal(changed)))
+        if self.segments:
+            legacy = lang_pack.build_legacy_pack("es", self.catalogue, {"STR_LANGUAGE_NAME": "Español"})
+            cases.append(legacy)
         for offset, value in ((body, 255), (len(valid) - 1, 65), (20, 47), (23, 65)):
             changed = bytearray(valid)
             changed[offset] = value
@@ -152,7 +171,7 @@ class LanguageBrowserTests(unittest.TestCase):
         for index, data in enumerate(cases):
             with self.subTest(case=index):
                 with self.assertRaises(lang_pack.PackError):
-                    lang_pack.validate_pack(data, self.catalogue, self.drawable)
+                    self.validate(data)
                 self.assertFalse(self.inspect(data)["ok"])
 
     def test_downloadable_template_preserves_the_exact_catalogue_order_and_text(self):
