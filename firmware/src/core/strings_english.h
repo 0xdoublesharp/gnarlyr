@@ -647,4 +647,9 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_HISTORY_CLEARED] = "History cleared",
     [STR_HISTORY_RESET] = "Resets:\n{0}\nKeeps: {1}",
     [STR_LISTENING_OPTIONS_HINT] = "Hold Play: options",
+    [STR_STANDBY_POWER] = "Power",
+    [STR_STANDBY_ENABLED] = "Standby when switched off",
+    [STR_STANDBY_TIMEOUT] = "Power off after",
+    [STR_STANDBY_HOURS_2] = "2 h",
+    [STR_STANDBY_HOURS_8] = "8 h",
 };

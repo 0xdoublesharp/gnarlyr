@@ -10,6 +10,8 @@
 
 const ExtensionModuleEntry EXTENSION_MODULE_ENTRY = {
     .head = {.magic = SCREEN_MODULE_MAGIC(EXTENSION_MODULE_NUMBER)},
+    .standby_follow = standby_follow,
+    .standby_frame = standby_frame,
     .motion_run = wire_motion_run,
     .motion_progress = wire_motion_progress,
     .motion_end = wire_motion_end,

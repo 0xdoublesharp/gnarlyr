@@ -22,7 +22,7 @@
 #include "ui/toast.h"
 
 enum {
-    SETTINGS_CHOICE_COUNT = 30,
+    SETTINGS_CHOICE_COUNT = 32,
     SETTINGS_MAIN_CHOICE_COUNT = 26,
     SETTINGS_STATUS_CHOICE = 20,
     SETTINGS_STATUS_COUNT = 5,
@@ -38,8 +38,9 @@ enum {
     SETTINGS_HEADPHONES_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 5,
     SETTINGS_FORMAT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 6,
     SETTINGS_HOME_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 7,
-    SETTINGS_CONTROLS_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 8,
-    SETTINGS_ITEM_COUNT = SETTINGS_MAIN_CHOICE_COUNT + 9,
+    SETTINGS_CONTROLS_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 9,
+    SETTINGS_POWER_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 8,
+    SETTINGS_ITEM_COUNT = SETTINGS_MAIN_CHOICE_COUNT + 10,
     SETTINGS_MESSAGE_CAPACITY = 64,
     SETTINGS_COUNTDOWN_CAPACITY = 16
 };
@@ -103,8 +104,14 @@ struct SettingsScreens {
     const Settings *(*preview_settings)(SettingsScreens *screens, bool active);
     uint8_t equalizer_preview;
     MenuScreen menu;
-    MenuScreen status_menu;
-    MenuItem status_items[SETTINGS_STATUS_COUNT];
+    union {
+        MenuScreen status_menu;
+        MenuScreen power_menu;
+    };
+    union {
+        MenuItem status_items[SETTINGS_STATUS_COUNT];
+        MenuItem power_items[2];
+    };
     union {
         ChoiceScreen choice;
         SetClockScreen clock;

@@ -1,5 +1,6 @@
 add_library(echo_app STATIC
     app.c
+    standby.c
     cassette_art.c
     modules/listening_module.c
     screens/listening_screen.c

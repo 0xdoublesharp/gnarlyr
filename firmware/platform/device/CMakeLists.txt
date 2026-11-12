@@ -176,6 +176,8 @@ add_custom_command(
 )
 
 set(ECHO_OVERLAY_IMPORTS
+    app_standby
+    app_release_audio
     COVER_CACHE_PATH
     LIBRARY_SCRATCH_PATH
     LIBRARY_STORE_PATH
@@ -510,6 +512,8 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             hal_clock_restore_wall=extension_hal_clock_restore_wall
             headphone_store_load=extension_headphone_store_load
             hal_file_remove=extension_hal_file_remove
+            standby_follow=extension_standby_follow
+            standby_frame=extension_standby_frame
             wire_motion_draw=extension_wire_motion_draw
             wire_motion_due=extension_wire_motion_due
             wire_motion_end=extension_wire_motion_end

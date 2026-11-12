@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include "app/app.h"
 #include "app/debug_loop.h"
 #include "board.h"
 #include "core/seam.h"
@@ -86,6 +87,7 @@ static DebugReportInput gather(const UsbShared *shared, uint32_t reason)
                               .name = FIRMWARE_NAME,
                               .version = hal_system_version(),
                               .uptime_ms = hal_clock_milliseconds(),
+                              .standby = *app_standby(),
                               .clock_mhz = hal_system_clock_mhz(),
                               .clock_us = hal_clock_microseconds(),
                               .idle_us = hal_system_idle_microseconds(),

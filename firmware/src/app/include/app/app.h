@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "core/frame_stats.h"
+#include "core/standby.h"
 #include "gfx/rect.h"
 #include "hal/power.h"
 
@@ -66,3 +67,5 @@ uint32_t app_pass_interval_ms(void);
 bool app_preparing(void);
 
 void app_storage_formatted(bool success);
+
+const Standby *app_standby(void);

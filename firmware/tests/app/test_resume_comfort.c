@@ -362,7 +362,7 @@ static void open_settings_row(int from_bottom, const char *title)
     tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     CHECK(strcmp(app_screen_title(), "Settings") == 0);
-    for (int row = 0; row < from_bottom; row++) {
+    for (int row = 0; row < from_bottom + 1; row++) {
         tap(KEY_VOLUME_DOWN);
     }
     tap(KEY_PLAY);

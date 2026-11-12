@@ -783,3 +783,44 @@ Downgrade to v15 rejects version 16 even when reading only its 58-byte prefix;
 it also rejects nonzero E15. The old store falls back to defaults, and saving
 with old firmware replaces the file, losing v16 settings. Preserve a copy
 before downgrade. No older firmware interprets F as existing settings.
+
+## Instant-on standby
+
+Settings → Power offers Standby when switched off (Off by default) and Power off after
+(30 min, 2 h by default, or 8 h). The v16 settings fields are `standby_enabled` and
+`standby_power_off_option`. With standby enabled, a short Power press or auto-off enters
+standby. Screen timeout still only blanks the display; a long Power press and the sleep
+timer still request shutdown. Standby expires at its own deadline, independently of
+activity and USB power. Existing low-battery protection requests shutdown below 3450 mV
+for 2 seconds when on battery.
+
+Standby releases the track output through the existing pause-standby path, retaining the
+queue and saved position. It powers down the DACs and core 1, switches Bluetooth off,
+turns the panel and backlight off, and selects the existing 24 MHz crystal clock path.
+The main loop rests in WFI between 20 ms passes. SysTick remains enabled: the existing
+interrupt path feeds the watchdog, advances uptime and samples the Power key and battery.
+GPIO2.5 has no configured wake interrupt in this base. Interrupt-only Power/VBUS wake,
+clock gating beyond the existing crystal path, and a paused watchdog require hardware
+validation before replacing this polling fallback. Standby remains Off by default.
+Power wakes the display; playback stays paused at the saved position until Play.
+
+The debug report adds `standby.entries`, `standby.wakes`, `standby.entry_ms`,
+`standby.wake_ms`, `standby.entry_mv`, `standby.wake_mv` and `standby.wake_latency_ms`.
+The voltage fields are unknown before a known reading. Latency runs from processing the
+wake transition to presenting the first frame and requesting the backlight; the existing
+backlight ramp adds 200 ms. Entry and wake timestamps are uptime milliseconds and wrap
+at 2^32; subtract modulo 2^32 for a drain window.
+
+Run `python3 tools/echo_debug.py run tools/debug-scripts/instant-standby.txt` only with
+owner approval for debug-loop access. The script enables standby, records RTC reads,
+measures a short idle window, rests for an hour, wakes with Power and reconnects.
+Read the fields afterwards with `python3 tools/echo_debug.py report`.
+Use an entry/wake voltage pair only when the entry and wake counts match.
+For battery drain, unplug USB during the soak and reconnect after the wake; a powered
+USB cable can charge the battery. The debug loop's reconnect timeout can leave its report
+on disk until the next connection. Compare the entry/wake voltages and elapsed time,
+confirm no watchdog reset, compare RTC and uptime intervals, and measure visible Power
+to UI latency on the player. Check panel/backlight, both output rails, core 1 and Bluetooth
+are off; test physical Power and VBUS wake separately. Check queue and exact paused
+position before Play, then both outputs after Play, plus the three shutdown deadlines and
+low-battery cutoff. Emulator and host checks do not establish physical wake or drain.

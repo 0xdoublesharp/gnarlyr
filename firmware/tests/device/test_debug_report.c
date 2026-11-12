@@ -1189,9 +1189,29 @@ static void a_buffer_too_small_for_the_end_lines_gets_nothing(void)
     CHECK_EQUAL('#', text[0]);
 }
 
+static void standby_reports_the_drain_window_and_wake_latency(void)
+{
+    DebugReportInput input = plain_input();
+    input.standby = (Standby){.entries = 3,
+                              .wakes = 2,
+                              .entry_ms = 1000,
+                              .wake_ms = 3601000,
+                              .entry_mv = 4000,
+                              .wake_mv = 3990,
+                              .latency_ms = 125};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, "standby.entries: 3\n") != NULL);
+    CHECK(strstr(text, "standby.wakes: 2\n") != NULL);
+    CHECK(strstr(text, "standby.wake_latency_ms: 125\n") != NULL);
+    CHECK(strstr(text, "standby.entry_mv: 4000\n") != NULL);
+    CHECK(strstr(text, "standby.wake_mv: 3990\n") != NULL);
+    CHECK(strstr(text, "standby.wake_ms: 3601000\n") != NULL);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(standby_reports_the_drain_window_and_wake_latency),
         TEST_CASE(the_schema_version_is_the_first_line),
         TEST_CASE(the_report_says_which_one_it_is_and_what_wrote_it),
         TEST_CASE(a_report_in_the_first_seconds_of_a_cold_start_says_so),

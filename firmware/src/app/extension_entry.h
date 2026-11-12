@@ -6,10 +6,13 @@
 #include "app/extension.h"
 #include "hal/clock.h"
 #include "headphone_store.h"
+#include "standby.h"
 #include "ui/wire_motion.h"
 
 typedef struct ExtensionModuleEntry {
     ExtensionModuleHead head;
+    void (*standby_follow)(Standby *, PowerPolicy *, const Settings *);
+    void (*standby_frame)(Standby *);
     void (*motion_run)(WireMotion *motion, const void *owner, WireShape shape, uint32_t now_ms);
     void (*motion_progress)(WireMotion *motion, uint32_t done, uint32_t total);
     void (*motion_end)(WireMotion *motion, const void *owner);

@@ -533,7 +533,7 @@ static void walk_card_format(void)
     fake_hal_set_card(
         (HalCardInfo){.present = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1}, true);
     fake_hal_set_battery((HalBattery){.known = true, .percent = 80});
-    for (int row = 0; row < 3; row++) {
+    for (int row = 0; row < 4; row++) {
         tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     }
     tap(KEY_PLAY);
@@ -548,6 +548,7 @@ static void walk_card_format(void)
 static void open_home_editor(void)
 {
     open_settings_row(0);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
@@ -676,7 +677,7 @@ static void walk_headphones(void)
     static const StringId FIELDS[] = {STR_HEADPHONE_NAME, STR_HEADPHONE_TRIM, STR_HEADPHONE_BALANCE,
                                       STR_HEADPHONE_CEILING};
     open_settings_row(0);
-    for (int row = 0; row < 4; row++) {
+    for (int row = 0; row < 5; row++) {
         tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     }
     tap(KEY_PLAY);
@@ -699,6 +700,26 @@ static void walk_headphones(void)
     }
 }
 
+static void walk_standby_settings(void)
+{
+    open_settings_row(0);
+    for (int row = 0; row < 2; row++) {
+        tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    }
+    tap(KEY_PLAY);
+    show_titled("Power settings", STR_STANDBY_POWER);
+    tap(KEY_PLAY);
+    show_titled("Standby options", STR_STANDBY_ENABLED);
+    down(1);
+    show("Standby on option");
+    tap(KEY_BACK);
+    down(1);
+    tap(KEY_PLAY);
+    show_titled("Standby deadline", STR_STANDBY_TIMEOUT);
+    down(1);
+    show("Standby deadline choices");
+}
+
 static void walk_everything(void)
 {
     begin();
@@ -709,6 +730,7 @@ static void walk_everything(void)
     walk_smart_lists();
     walk_cover_flow();
     walk_settings_rows();
+    walk_standby_settings();
     walk_card_format();
     walk_settings_choices();
     walk_settings_toasts();
