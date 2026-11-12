@@ -1178,15 +1178,7 @@ def parse_arguments(argv):
     return parser.parse_args(argv)
 
 
-def scenario_cases(suite):
-    for item in suite:
-        if isinstance(item, unittest.TestSuite):
-            yield from scenario_cases(item)
-        else:
-            yield item
-
-
-def main(test_case=None, argv=None):
+def main(test_case, argv=None):
     arguments = parse_arguments(argv)
     CONFIG["image"] = arguments.image
     CONFIG["elf"] = arguments.elf
@@ -1195,18 +1187,10 @@ def main(test_case=None, argv=None):
     if reason:
         print("SKIP: " + reason)
         return SKIP_EXIT_CODE
-    if test_case is None:
-        suite = unittest.defaultTestLoader.discover(str(Path(__file__).with_name("scenarios")))
-        if arguments.tests:
-            wanted = {name.rsplit(".", 1)[-1] for name in arguments.tests}
-            cases = list(scenario_cases(suite))
-            missing = wanted - {case._testMethodName for case in cases}
-            if missing:
-                raise SystemExit("Unknown scenarios: " + ", ".join(sorted(missing)))
-            suite = unittest.TestSuite(case for case in cases if case._testMethodName in wanted)
+    loader = unittest.defaultTestLoader
+    if arguments.tests:
+        suite = loader.loadTestsFromNames(arguments.tests, sys.modules[test_case.__module__])
     else:
-        suite = unittest.defaultTestLoader.loadTestsFromNames(
-            arguments.tests, sys.modules[test_case.__module__]) if arguments.tests else (
-            unittest.defaultTestLoader.loadTestsFromTestCase(test_case))
+        suite = loader.loadTestsFromTestCase(test_case)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1

@@ -53,9 +53,9 @@ python3 tools/firmware.py sim --card /path/to/music
 Each scenario in `tests/emulator/scenarios/test_*.py` is its own test, named `device_image_boot_<test_name>`, so they run side by side. Use them this way:
 
 - While editing, run only the scenarios the change touches: `python3 tools/firmware.py test --jobs 6 --regex 'device_image_boot_test_usb'`.
-- Use the full-suite gate described under Integration after the last edit. Never run `test_echo_image.py` whole in one process: that is the slow, serial path.
+- Use the full-suite gate described under Integration after the last edit.
 - A branch must contain `perf(emulator): enter hooked functions through block hooks` and `perf(emulator): rest one slice at each idle key poll`. Start new work from the current `main` tip; if a branch is older, bring those commits in before running scenarios.
-- Add new scenarios to the relevant area file under `tests/emulator/scenarios/`, or start a new `test_*.py` there; CMake discovers them automatically. Shared fixtures and helpers live in `tests/emulator/echo_image_harness.py`. The old `test_echo_image.py` command remains a compatibility runner.
+- Add new scenarios to the relevant area file under `tests/emulator/scenarios/`, or start a new `test_*.py` there; CMake discovers them automatically. Shared fixtures and helpers live in `tests/emulator/echo_image_harness.py`.
 - A new scenario waits on events (a hooked function, a watched write, a drawn frame), not on a count of emulated instructions, and replaces any function it only needs to get past through a `CORE_SEAM`.
 
 ## Integration

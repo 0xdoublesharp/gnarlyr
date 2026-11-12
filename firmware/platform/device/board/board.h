@@ -30,7 +30,6 @@ void board_display_after_clock_change(void);
 void board_display_service(void);
 void board_backlight_off(void);
 void board_backlight_full(void);
-bool board_display_lit(void);
 void board_display_clear(void);
 void board_input_start(void);
 uint8_t board_input_held(void);
@@ -74,7 +73,6 @@ void board_watchdog_kick(void);
 void board_watchdog_after_clock_change(void);
 uint16_t board_battery_boot_reading(void);
 const char *board_audio_current_path(void);
-const char *board_audio_last_path(void);
 typedef enum Core1Program {
     CORE1_PROGRAM_FLAC,
     CORE1_PROGRAM_MP3,

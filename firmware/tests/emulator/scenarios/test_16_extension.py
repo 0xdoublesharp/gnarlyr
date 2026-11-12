@@ -45,7 +45,7 @@ class EchoImageTest(EchoImageHarness):
         machine = session.machine
         draws = []
         for module in machine.modules:
-            address = module.symbols.get("home_art_draw", module.symbols.get("extension_home_art_draw"))
+            address = module.symbols.get("home_art_draw")
             if address is not None:
                 def drew(uc, at, size, user, code=module):
                     if machine.read_memory(code.base, len(code.header)) == code.header:

@@ -3,12 +3,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifndef PANEL_ECHO_MADCTL
-#define PANEL_ECHO_MADCTL 0x28
-#endif
-
 enum {
     PANEL_FIRST_VISIBLE_ROW = 49,
+    PANEL_ECHO_MADCTL = 0x28,
     PANEL_MADCTL_SWAP = 0x20,
     PANEL_MADCTL_MIRROR_X = 0x40,
     PANEL_MADCTL_MIRROR_Y = 0x80
