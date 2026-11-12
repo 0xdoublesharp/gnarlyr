@@ -9,6 +9,7 @@ from echo_image_harness import (
     main,
     BACKLIGHT_PIN,
     BOOT_FLAG_CLEAR,
+    CABLE_STEADY_MS,
     COLD_REPORT_MS,
     DEBUG_FOLDER,
     CONNECT_KEYS,
@@ -17,6 +18,7 @@ from echo_image_harness import (
     IDENTITY,
     KEY_HOLD_MS,
     KEY_PLAY,
+    LOADER_FLAG_VALUE,
     LOADER_SELECT_REGISTER,
     LOADER_SELECT_VALUE,
     QUIET_AFTER_MS,
@@ -30,9 +32,15 @@ from echo_image_harness import (
     SOAK_MINUTE_MS,
     WIDTH,
     echo_debug,
+    settings_file,
     struct,
     tempfile,
 )
+
+MASKROM_REQUEST = b"MASKROM REQ\n"
+APPLE_DOUBLE = b"\x00\x05\x16\x07\x00\x02\x00\x00Mac OS X        ".ljust(4096, b"\0")
+USB_CONNECT_STORAGE_FLAGS = 0x14
+SLOW_EMMC_STARTS = 6
 
 
 class EchoImageTest(EchoImageHarness):
@@ -348,6 +356,73 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(second)
         self.print_usb_log("restart after install", machine)
         self.print_usb_log("after the restart", restarted)
+
+    def test_a_maskrom_request_a_mac_wrote_before_an_install_restart_starts_the_loader(self):
+        self.check_maskrom_request_after_an_install_restart(0)
+
+    def test_a_maskrom_request_is_kept_for_later_when_the_emmc_is_slow_after_a_restart(self):
+        self.check_maskrom_request_after_an_install_restart(SLOW_EMMC_STARTS)
+
+    def check_maskrom_request_after_an_install_restart(self, failed_starts):
+        newer = self.newer_image()
+        volume = self.debug_volume(root=[(IDENTITY.update_file, newer)], restart_req=RESTART_REQUEST)
+        volume.add_file("MASKROM.REQ", MASKROM_REQUEST, long_name=True)
+        volume.add_file("._MASKROM.REQ", APPLE_DOUBLE)
+        first, machine = self.ejecting_session(volume, before_start=lambda machine: machine.stub_symbol(
+            "update_check_loader_request", lambda machine: None))
+        self.assertEqual(machine.run(until_ms=self.session_module.FRAME_LIMIT_MS),
+                         "system reset requested")
+        self.assertEqual(machine.reached["board_restart"], 1)
+        self.assertEqual(first.read_file("MASKROM.REQ", 12), MASKROM_REQUEST)
+        second = first.reboot(image=first.slot_image("slot_1") + newer[-4:], usb_answer=None)
+        restarted = second.machine
+        second.card.failed_starts = failed_starts
+        restarted.vbus = True
+        self.assertEqual(second.run_until_reset(), "system reset requested")
+        self.assertEqual(second.read_file("MASKROM.REQ", 12), bytes(11) + b"\n")
+        self.assertEqual([value for _, value in restarted.pmu_flag_writes], [LOADER_FLAG_VALUE])
+        self.assertEqual([value for _, offset, value in restarted.grf_log
+                          if offset == LOADER_SELECT_REGISTER][-1], LOADER_SELECT_VALUE)
+        self.assertEqual(restarted.panics, [])
+
+    def insert_music_card(self, machine):
+        from echo_emulator.emmc import SdCard, SparseDisk
+        from echo_emulator.fat_volume import Fat32Volume
+        disk = SparseDisk(1024 * 1024)
+        Fat32Volume().write_to(disk, 0)
+        machine.sd_controller.card = SdCard(disk, machine)
+        machine.card_present = True
+
+    def test_a_saved_connect_to_computer_answer_outlasts_an_install_restart_with_a_slow_emmc(self):
+        newer = self.newer_image()
+        volume = self.debug_volume(root=[(IDENTITY.update_file, newer)], restart_req=RESTART_REQUEST)
+        volume.add_file("settings.bin", settings_file(0, b5=USB_CONNECT_STORAGE_FLAGS), None,
+                        IDENTITY.data_directory)
+        asked = []
+        first, machine = self.ejecting_session(
+            volume, usb_answer=None,
+            before_start=lambda machine: asked.append(machine.trace("app_ask_usb_mode")))
+        self.assertEqual(machine.run(until_ms=self.session_module.FRAME_LIMIT_MS),
+                         "system reset requested")
+        self.assertEqual(machine.reached["trial_module_install"], 1)
+        second = first.reboot(image=first.slot_image("slot_1") + newer[-4:], usb_answer=None)
+        second.card.failed_starts = SLOW_EMMC_STARTS
+        restarted = second.machine
+        self.insert_music_card(restarted)
+        asked.append(restarted.trace("app_ask_usb_mode"))
+        restarted.note("usb_session_storage_changed")
+        restarted.host_ejects()
+        restarted.vbus = True
+        self.assertEqual(self.run_usb_sessions(second, 1), "condition met")
+        restarted.vbus = False
+        restarted.run(until_ms=restarted.milliseconds() + CABLE_STEADY_MS * 2)
+        restarted.vbus = True
+        self.assertEqual(self.run_usb_sessions(second, 2), "condition met")
+        self.assertEqual(asked, [[], []])
+        self.assertEqual(restarted.usb_connect_count, 2)
+        settings = second.fat().read("/" + IDENTITY.data_directory + "/settings.bin")
+        self.assertEqual(settings[5] & 0x30, USB_CONNECT_STORAGE_FLAGS & 0x30)
+        self.assert_healthy(second)
 
     def test_a_user_mode_request_reconnects_after_the_cable_bit_dies(self):
         script = ("build %s\nset USB mode=Connect to computer\nwait 10000\n"

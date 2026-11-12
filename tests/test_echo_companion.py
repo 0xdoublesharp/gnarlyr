@@ -18,7 +18,8 @@ BUILD = subprocess.check_output(["git", "rev-parse", "--short=7", "HEAD"], cwd=e
 EXTENSION = bytes([0x02, 30, 40, 0, 0x01, 0x23, 0x45, 0x67, 0x08, 0x11, 0x01, 0, 0, 0, 0, 0])
 F_BLOCK = bytes([0x07, 0x05, 50]) + bytes(13)
 KEYS = ["text_size", "orientation", "brightness", "screen_timeout", "replay_gain", "prevent_clipping",
-        "clock_24h", "status_volume", "status_repeat", "status_position", "battery_style", "battery_percent"]
+        "clock_24h", "status_volume", "status_repeat", "status_position", "battery_style", "battery_percent",
+        "when_plugged_in"]
 
 
 def working_tree_show(snapshot, path):
@@ -279,15 +280,37 @@ class CompanionSettings(VolumeCase):
         self.assertEqual(changed[54:], checked(changed)[54:])
         self.assertEqual(changed[58:], before[58:])
 
-    def test_a_saved_usb_dac_answer_and_usb_power_bits_load_while_plugging_in_stays_on_the_player(self):
-        data = bytearray(self.path.read_bytes())
-        data[5] |= 0x30
-        data[52] = 0x10
-        self.path.write_bytes(checked(data))
-        tool, _ = self.tool()
-        listed = {item["key"] for item in tool.settings_list()["settings"]}
-        self.assertNotIn("battery_care", listed)
-        self.assertIn("text_size", listed)
+    def test_when_plugged_in_reads_the_saved_answer_and_usb_power(self):
+        for flags, care, expected in ((0x04, 0, "ask"), (0x14, 0, "computer"), (0x24, 0, "charge"),
+                                      (0x24, 0x10, "run_from_usb"), (0x34, 0, "dac")):
+            with self.subTest(expected=expected):
+                data = bytearray(self.path.read_bytes())
+                data[5], data[52] = flags, care
+                self.path.write_bytes(checked(data))
+                tool, _ = self.tool()
+                listed = {item["key"]: item for item in tool.settings_list()["settings"]}
+                self.assertNotIn("battery_care", listed)
+                self.assertEqual(listed["when_plugged_in"]["value"], expected)
+                self.assertEqual([option["label"] for option in listed["when_plugged_in"]["options"]],
+                                 ["Ask", "Connect to computer", "Charge & play", "Run from USB power",
+                                  "USB audio (DAC)"])
+
+    def test_when_plugged_in_set_to_computer_sends_the_settings_row_and_verifies_the_answer(self):
+        tool, _ = self.tool(self.change(5, 0x14))
+        result = tool.settings_set("when_plugged_in", "computer")
+        self.assertTrue(result["verified"] and result["changed"])
+        self.assertEqual((result["before"], result["value"]), ("ask", "computer"))
+        self.assertIn("set When plugged in=Connect to computer\n", self.sent[0])
+
+    def test_when_plugged_in_run_from_usb_expects_the_charge_answer_and_usb_power(self):
+        def mutate(data):
+            data[5], data[52] = 0x24, 0x10
+            return data
+        tool, _ = self.tool(mutate)
+        result = tool.settings_set("when_plugged_in", "run_from_usb")
+        self.assertTrue(result["verified"])
+        self.assertIn("set When plugged in=Run from USB power\n", self.sent[0])
+        self.assertEqual(self.path.read_bytes()[52], 0x10)
 
     def test_clock_offset_is_preserved_when_another_setting_changes(self):
         before = bytearray(self.path.read_bytes())

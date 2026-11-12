@@ -276,6 +276,11 @@ bool emmc_start(EmmcInfo *info)
     return started;
 }
 
+bool emmc_ready(void)
+{
+    return started;
+}
+
 void emmc_reset_controller(void)
 {
     cru_reset(RESET_EMMC, true);

@@ -317,6 +317,7 @@ void board_main(void)
     board_jack_poll();
     switch_off_when_empty(boot_millivolts);
     app_start();
+    update_check_loader_request();
     debug_loop_boot(DEBUG_BOOT_APP);
     explain_missing_text();
     board_trial_report();

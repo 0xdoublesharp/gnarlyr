@@ -12,7 +12,7 @@ static bool mounted;
 
 FatVolume *internal_volume_mount(void)
 {
-    if (!tried) {
+    if (!mounted && (!tried || emmc_ready())) {
         tried = true;
         BlockDevice device;
         mounted = emmc_volume_start(&device) && fat_mount(&volume, device);

@@ -28,6 +28,16 @@ SPECS = (
 BATTERY_CARE_SPEC = ("battery_care", "STR_BATTERY_CARE", "BATTERY_CARE_OPTIONS",
                      ("charge_to_full", "run_from_usb"), ("STR_CHARGE_FULL", "STR_RUN_USB"),
                      52, 24, 4, 0)
+PLUG_SPEC = ("when_plugged_in", "STR_USB_ANSWER", "USB_ANSWER_OPTIONS",
+             ("ask", "computer", "charge", "run_from_usb", "dac"),
+             ("STR_PLUG_ASK", "STR_PLUG_COMPUTER", "STR_PLUG_CHARGE_PLAY", "STR_PLUG_RUN_USB",
+              "STR_PLUG_DAC"), 5, 0x30, 4, 0)
+PLUG_ANSWERS = (0, 1, 2, 2, 3)
+PLUG_SAVED = ("ask", "computer", "charge", "dac")
+PLUG_CARE_BYTE = 52
+PLUG_CARE_MASK = 0x18
+PLUG_CARE_SHIFT = 3
+PLUG_CARE_USB = 2
 CLOCK_SPEC = ("clock_24h", "STR_CLOCK_FORMAT", "CLOCK_FORMAT_OPTIONS", ("12h", "24h"),
               ("STR_CLOCK_12H", "STR_CLOCK_24H"), 38, 4, 2, 0)
 
@@ -64,7 +74,7 @@ class Layout:
             if members != expected:
                 raise ValueError("the installed display setting encoding has changed")
         titles = self.title_ids()
-        self.specs = SPECS + tuple(spec for spec in (CLOCK_SPEC, *STATUS_SPECS, BATTERY_CARE_SPEC)
+        self.specs = SPECS + tuple(spec for spec in (CLOCK_SPEC, *STATUS_SPECS, BATTERY_CARE_SPEC, PLUG_SPEC)
                                    if spec[1] in titles)
         for spec in self.specs:
             body = array_source(self.ui, spec[2])
@@ -76,13 +86,22 @@ class Layout:
         return self.snapshot.setting_title_ids()
 
     def value(self, spec, data):
+        if spec is PLUG_SPEC:
+            if (data[PLUG_CARE_BYTE] & PLUG_CARE_MASK) >> PLUG_CARE_SHIFT == PLUG_CARE_USB:
+                return "run_from_usb"
+            return PLUG_SAVED[(data[spec[5]] & spec[6]) >> spec[7]]
         index = ((data[spec[5]] & spec[6]) >> spec[7]) - spec[8]
         return spec[3][index]
 
     def changed(self, spec, value, data):
         changed = bytearray(data)
-        raw = (spec[3].index(value) + spec[8]) << spec[7]
+        index = spec[3].index(value)
+        raw = (PLUG_ANSWERS[index] if spec is PLUG_SPEC else index + spec[8]) << spec[7]
         changed[spec[5]] = changed[spec[5]] & (255 ^ spec[6]) | raw
+        if spec is PLUG_SPEC:
+            care = PLUG_CARE_USB if value == "run_from_usb" else 0
+            changed[PLUG_CARE_BYTE] = (changed[PLUG_CARE_BYTE] & (255 ^ PLUG_CARE_MASK) |
+                                       care << PLUG_CARE_SHIFT)
         return self.snapshot.settings_checksums(changed)
 
 
