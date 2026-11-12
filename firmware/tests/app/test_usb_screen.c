@@ -765,6 +765,36 @@ static void a_resting_row_dims_both_arrows_and_a_lit_one_takes_its_colour(void)
     CHECK(pixels_of(&theme, row, theme.colors.accent) > 0);
 }
 
+static Color drive_led(const Theme *theme, UsbScene *scene, int lun)
+{
+    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+    status.scene = scene;
+    draw_text_of(theme, status, scene);
+    Rect lights = usb_screen_drive_lights(theme, status, lun);
+    return pixels[(lights.y + lights.height / 2) * theme->metrics.screen_width + lights.x + 1];
+}
+
+static void a_drive_light_stays_lit_while_the_host_uses_the_drive_and_never_flashes(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        Theme theme = medium(orientation);
+        UsbScene scene = storage_scene(USB_SCENE_WRITING);
+        scene.usage[0].write_glow = 0;
+        scene.usage[0].read_glow = 0;
+        CHECK_EQUAL(theme.colors.success, drive_led(&theme, &scene, 0));
+        scene.usage[0].write_glow = 255;
+        CHECK_EQUAL(theme.colors.success, drive_led(&theme, &scene, 0));
+        scene.usage[0].reads = 0;
+        scene.usage[0].writes = 0;
+        CHECK(drive_led(&theme, &scene, 0) != theme.colors.success);
+        scene = storage_scene(USB_SCENE_WRITING);
+        scene.drives[1].state = USB_SCENE_DRIVE_EJECTED;
+        CHECK(drive_led(&theme, &scene, 1) != theme.colors.success);
+        scene.drives[1] = (UsbSceneDrive){.state = USB_SCENE_DRIVE_ABSENT};
+        CHECK(drive_led(&theme, &scene, 1) != theme.colors.success);
+    }
+}
+
 static void a_page_past_the_last_shows_the_overview(void)
 {
     UsbScene scene = storage_scene(USB_SCENE_WRITING);
@@ -891,6 +921,7 @@ int main(void)
         TEST_CASE(a_new_sample_changes_only_the_graph),
         TEST_CASE(lit_arrows_and_the_rate_change_only_the_activity_row),
         TEST_CASE(a_resting_row_dims_both_arrows_and_a_lit_one_takes_its_colour),
+        TEST_CASE(a_drive_light_stays_lit_while_the_host_uses_the_drive_and_never_flashes),
         TEST_CASE(dac_overview_shows_format_output_and_host),
         TEST_CASE(dac_details_show_what_the_session_measured),
     };
