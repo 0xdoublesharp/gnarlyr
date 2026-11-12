@@ -48,7 +48,8 @@ static bool open_dir(void *context, uint32_t level, const char *path)
     hal_system_keep_alive();
     state->folders++;
     show_progress(state);
-    return hal_dir_open(&state->dirs[level], path);
+    return (level > 0 && hal_dir_open(&state->dirs[level], NULL)) ||
+           hal_dir_open(&state->dirs[level], path);
 }
 
 static bool next_entry(void *context, uint32_t level, FingerprintEntry *entry)

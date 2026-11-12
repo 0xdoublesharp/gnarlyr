@@ -537,6 +537,50 @@ static Listing list(Card *card, const char *path, const char *wanted)
     return listing;
 }
 
+static uint32_t names_hash(Card *card, FatDirCursor *cursor, const char *wanted, FatFile *match)
+{
+    static FatDirEntry entry;
+    uint32_t hash = 2166136261u;
+    while (fat_next_entry(&card->volume, cursor, &entry)) {
+        for (const char *letter = entry.name; *letter != '\0'; letter++) {
+            hash = (hash ^ (uint8_t)*letter) * 16777619u;
+        }
+        hash = (hash ^ entry.file.directory) * 16777619u;
+        if (wanted != NULL && strcmp(entry.name, wanted) == 0) {
+            *match = entry.file;
+        }
+    }
+    return hash;
+}
+
+static void check_folders_open_from_their_listing(const char *name)
+{
+    static const char *const STEPS[] = {"Music", "Sigur R\xc3\xb3s", "\xc3\x81g\xc3\xa6tis byrjun"};
+    static const char *const PATHS[] = {"/Music", "/Music/Sigur R\xc3\xb3s",
+                                        "/Music/Sigur R\xc3\xb3s/\xc3\x81g\xc3\xa6tis byrjun"};
+    Card *card = mounted(name);
+    FatDirCursor cursor;
+    CHECK(fat_open_directory(&card->volume, "/", &cursor));
+    for (int step = 0; step < 3; step++) {
+        FatFile listed = {.directory = false};
+        names_hash(card, &cursor, STEPS[step], &listed);
+        CHECK(listed.directory);
+        FatDirCursor by_path;
+        CHECK(fat_open_directory(&card->volume, PATHS[step], &by_path));
+        cursor = (FatDirCursor){.directory = listed};
+        FatDirCursor again = cursor;
+        FatFile none;
+        CHECK_EQUAL(names_hash(card, &by_path, NULL, &none), names_hash(card, &again, NULL, &none));
+    }
+    sparse_card_free(&card->sparse);
+}
+
+static void a_folder_opened_from_its_listing_lists_what_its_path_lists(void)
+{
+    check_folders_open_from_their_listing("fat32_mbr");
+    check_folders_open_from_their_listing("exfat_mbr");
+}
+
 static void check_written_in_2026(const char *name, uint32_t modified)
 {
     if (strcmp(name, "exfat_mbr") == 0) {
@@ -748,6 +792,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_fat32_card_mounts_from_its_mbr_partition),
+        TEST_CASE(a_folder_opened_from_its_listing_lists_what_its_path_lists),
         TEST_CASE(fat32_files_read_back_their_bytes),
         TEST_CASE(a_folder_spanning_many_clusters_is_searched_to_its_end),
         TEST_CASE(reads_at_offsets_cross_sector_and_cluster_boundaries),
