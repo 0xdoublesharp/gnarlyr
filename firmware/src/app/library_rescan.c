@@ -12,11 +12,6 @@ static const char MUSIC_ROOT[] = "/";
 const char LIBRARY_SCRATCH_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/build.tmp";
 const char RESCAN_TIMES_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/rescan_times.bin";
 
-enum {
-    MESSAGE_PART_CAPACITY = 48,
-    COUNT_CAPACITY = 12
-};
-
 static uint32_t reserved_size_of(const char *path)
 {
     HalFile file;
@@ -38,7 +33,13 @@ static bool music_root_exists(void)
     return true;
 }
 
-RescanOutcome library_rescan_run(RescanProgress progress)
+static const RescanModuleEntry *rescan_code(void)
+{
+    const RescanModuleEntry *entry = hal_system_load_rescan_code();
+    return entry != NULL && entry->magic == RESCAN_MODULE_MAGIC ? entry : NULL;
+}
+
+RescanOutcome library_rescan_run(RescanProgress progress, uint32_t stops)
 {
     HalFile scratch;
     RescanOutcome outcome = {.result = SCAN_NO_MUSIC_ROOT, .cover_result = SCAN_OK};
@@ -54,14 +55,25 @@ RescanOutcome library_rescan_run(RescanProgress progress)
         outcome.result = SCAN_NO_ROOM;
         return outcome;
     }
-    const RescanModuleEntry *entry = hal_system_load_rescan_code();
-    if (entry == NULL || entry->magic != RESCAN_MODULE_MAGIC) {
+    const RescanModuleEntry *entry = rescan_code();
+    if (entry == NULL) {
         hal_file_close(&scratch);
         outcome.result = SCAN_NO_CODE;
         return outcome;
     }
-    outcome = entry->run(capacity, scratch, progress);
+    outcome = entry->run(capacity, scratch, progress, stops);
     hal_system_return_scratch();
+    return outcome;
+}
+
+RescanOutcome library_rescan_covers(uint32_t first_album)
+{
+    RescanOutcome outcome = {.result = SCAN_OK, .cover_result = SCAN_NO_CODE};
+    const RescanModuleEntry *entry = hal_system_restart_pending() ? NULL : rescan_code();
+    if (entry != NULL) {
+        outcome = entry->covers(0, first_album);
+        hal_system_return_scratch();
+    }
     return outcome;
 }
 
@@ -89,24 +101,9 @@ const char *library_rescan_message(RescanOutcome outcome, char *text, uint32_t c
     if (outcome.result != SCAN_OK) {
         return error_text(outcome.result);
     }
-    char tracks[MESSAGE_PART_CAPACITY];
-    char covers[COUNT_CAPACITY];
-    StringBuilder builder = string_builder_make(tracks, sizeof tracks);
+    StringBuilder builder = string_builder_make(text, capacity);
     i18n_format_counts(&builder,
                        outcome.stats.tracks == 1 ? STR_LIBRARY_ONE_TRACK : STR_LIBRARY_TRACKS,
                        outcome.stats.tracks, 0);
-    builder = string_builder_make(covers, sizeof covers);
-    string_builder_append_unsigned(&builder, outcome.covers.covers);
-    const char *arguments[] = {tracks, covers};
-    builder = string_builder_make(text, capacity);
-    if (outcome.cover_result != SCAN_OK) {
-        i18n_format(&builder, STR_LIBRARY_NO_COVERS, arguments, 2);
-    } else if (outcome.covers.albums > 0) {
-        i18n_format(&builder,
-                    outcome.covers.covers == 1 ? STR_LIBRARY_ONE_COVER : STR_LIBRARY_COVERS,
-                    arguments, 2);
-    } else {
-        string_builder_append(&builder, tracks);
-    }
     return text;
 }

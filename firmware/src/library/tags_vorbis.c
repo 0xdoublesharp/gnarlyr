@@ -55,7 +55,7 @@ static int field_for_key(const uint8_t *key, uint32_t length)
     return -1;
 }
 
-static int base64_value(uint8_t character)
+int tags_base64_value(uint8_t character)
 {
     if (character >= 'A' && character <= 'Z') {
         return character - 'A';
@@ -76,7 +76,7 @@ static bool base64_picture_is_front(const uint8_t *text, uint32_t length)
     }
     uint32_t bits = 0;
     for (int index = 0; index < 6; index++) {
-        int value = base64_value(text[index]);
+        int value = tags_base64_value(text[index]);
         if (value < 0) {
             return false;
         }
@@ -110,11 +110,12 @@ static void offer_entry(TagReader *reader, ByteSource source, uint32_t offset, u
     uint32_t value_length = length - key - 1;
     if (tag_same_text_folded((const char *)value, key, PICTURE_KEY)) {
         uint32_t head = value_length < 8 ? value_length : 8;
-        if (source_read(source, value_offset, value, head)) {
+        if (reader->comment_pictures && source_read(source, value_offset, value, head)) {
             tag_offer_picture(reader, (TagPicture){.kind = TAG_PICTURE_BASE64_FLAC_BLOCK,
                                                    .front = base64_picture_is_front(value, head),
                                                    .offset = value_offset,
-                                                   .length = value_length});
+                                                   .length = value_length,
+                                                   .base = reader->comment_page});
         }
         return;
     }
@@ -265,15 +266,6 @@ bool tags_read_flac(TagReader *reader)
     return found_info;
 }
 
-typedef struct OggPage {
-    uint32_t offset;
-    uint32_t header_length;
-    uint32_t body_length;
-    uint32_t serial;
-    uint64_t granule;
-    uint8_t flags;
-} OggPage;
-
 static bool read_page(const TagReader *reader, uint32_t offset, OggPage *page)
 {
     uint8_t header[OGG_HEADER_SIZE];
@@ -325,13 +317,6 @@ static bool read_serial_page(const TagReader *reader, uint32_t offset, uint32_t 
     return false;
 }
 
-typedef struct OggStream {
-    TagReader *reader;
-    OggPage page;
-    uint32_t page_start;
-    uint32_t serial;
-} OggStream;
-
 static bool stream_seek(OggStream *stream, uint32_t offset)
 {
     while (offset >= stream->page_start + stream->page.body_length) {
@@ -348,7 +333,18 @@ static bool stream_seek(OggStream *stream, uint32_t offset)
     return true;
 }
 
-static bool read_stream_bytes(void *context, uint32_t offset, void *buffer, uint32_t length)
+bool tags_ogg_stream_open(OggStream *stream, TagReader *reader, uint32_t offset)
+{
+    stream->reader = reader;
+    stream->page_start = 0;
+    if (!read_page(reader, offset, &stream->page)) {
+        return false;
+    }
+    stream->serial = stream->page.serial;
+    return true;
+}
+
+bool tags_ogg_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
     OggStream *stream = context;
     uint8_t *out = buffer;
@@ -426,7 +422,9 @@ bool tags_read_ogg(TagReader *reader)
         (stream.page.flags & 2) != 0) {
         return false;
     }
-    ByteSource source = {.read = read_stream_bytes, .context = &stream};
+    ByteSource source = {.read = tags_ogg_stream_read, .context = &stream};
+    reader->comment_pictures = true;
+    reader->comment_page = stream.page.offset;
     uint8_t prefix[OPUS_PACKET_PREFIX];
     if (source_read(source, 0, prefix, codec.prefix) &&
         tag_same_text((const char *)prefix, codec.prefix, codec.comment)) {

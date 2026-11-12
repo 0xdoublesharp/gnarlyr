@@ -26,7 +26,7 @@ enum {
     PROBE_CALL_CAPACITY = 32,
     WRITTEN_CAPACITY = 1100,
     PATH_CAPACITY = 260,
-    INTERNAL_CAPACITY = 4,
+    INTERNAL_CAPACITY = 6,
     SCREENSHOT_CAPACITY = 32 + HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE * 2
 };
 
@@ -496,6 +496,11 @@ bool hal_input_next_headset_command(HalHeadsetCommand *command)
 HalHeadsetReading hal_input_headset_reading(void)
 {
     return (HalHeadsetReading){.known = true, .level = 812, .button = HAL_HEADSET_BUTTON_NONE};
+}
+
+bool hal_input_waiting(void)
+{
+    return fake.next_transition != fake.transition_count;
 }
 
 bool hal_input_next_transition(HalKeyTransition *transition)
@@ -1292,6 +1297,11 @@ void fake_hal_set_usb_start(bool started)
     usb_start = started;
 }
 
+bool hal_power_cable(void)
+{
+    return false;
+}
+
 bool hal_power_take_usb_start(void)
 {
     bool started = usb_start;
@@ -1641,6 +1651,14 @@ bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes, uin
     fake.library_writes += strcmp(path, "/" FIRMWARE_DATA_DIRECTORY "/library.db") == 0;
     fake.covers_writes += strcmp(path, "/" FIRMWARE_DATA_DIRECTORY "/covers.bin") == 0;
     return true;
+}
+
+bool hal_file_write_open(HalFile file, uint32_t offset, const void *bytes, uint32_t length)
+{
+    if (file.handle < 0 || file.handle >= fake.file_count) {
+        return false;
+    }
+    return hal_file_write_at(fake.files[file.handle].path, offset, bytes, length);
 }
 
 HalHighRamTest hal_system_high_ram_test(void)

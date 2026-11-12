@@ -17,6 +17,11 @@ typedef struct CoverProgress {
     void *context;
 } CoverProgress;
 
+typedef struct CoverStop {
+    bool (*requested)(void *context);
+    void *context;
+} CoverStop;
+
 typedef struct CoverJob {
     ScanFileSystem files;
     ByteSource library;
@@ -27,6 +32,8 @@ typedef struct CoverJob {
     void *memory;
     uint32_t size;
     CoverProgress progress;
+    CoverStop stop;
+    uint32_t first_album;
 } CoverJob;
 
 typedef struct CoverStats {
@@ -34,6 +41,7 @@ typedef struct CoverStats {
     uint32_t covers;
     uint32_t reused;
     uint32_t missing;
+    uint32_t next_album;
 } CoverStats;
 
 ScanResult cover_build(const CoverJob *job, CoverStats *stats);

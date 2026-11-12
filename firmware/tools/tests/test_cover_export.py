@@ -113,6 +113,20 @@ class ArtSearchTest(unittest.TestCase):
             self.skipTest("the file system folds case")
         self.assertEqual("Folder.png", cover_export.folder_image(self.album).name)
 
+    def test_a_folder_image_replaces_embedded_art_that_does_not_decode(self):
+        add_picture(self.track, image_bytes((0, 255, 0))[:30], 3)
+        (self.album / "cover.png").write_bytes(image_bytes((0, 0, 255)))
+        self.assertEqual((0, 0, 255), self.found_color())
+
+    def test_embedded_art_the_player_cannot_decode_falls_back_too(self):
+        add_picture(self.track, image_bytes((0, 255, 0), image_format="GIF"), 3)
+        (self.album / "cover.png").write_bytes(image_bytes((0, 0, 255)))
+        self.assertEqual((0, 0, 255), self.found_color())
+
+    def test_unusable_art_without_a_folder_image_is_no_art(self):
+        add_picture(self.track, b"not an image", 3)
+        self.assertIsNone(self.found_color())
+
     def test_a_missing_track_counts_as_no_art(self):
         (self.album / "Folder.JPG").write_bytes(image_bytes((0, 0, 255), image_format="JPEG"))
         data = cover_export.find_art(self.root, ["Artist/Album/missing.flac"])
@@ -129,8 +143,15 @@ class FormatPictureTest(unittest.TestCase):
                 pictures = cover_export.embedded_pictures(self.TAGS / name)
                 self.assertEqual([(cover_export.FRONT_COVER, cover_jpeg())], pictures)
 
-    def test_ogg_pictures_are_left_out_as_on_the_player(self):
-        self.assertEqual([], cover_export.embedded_pictures(self.TAGS / "tagged.ogg"))
+    def test_ogg_and_opus_pictures_are_read_from_their_comments(self):
+        from tag_fixture import cover_jpeg
+        for name in ("tagged.ogg", "tagged.opus"):
+            with self.subTest(name=name):
+                pictures = cover_export.embedded_pictures(self.TAGS / name)
+                self.assertEqual([(cover_export.FRONT_COVER, cover_jpeg())], pictures)
+
+    def test_ogg_pictures_that_are_not_base64_are_skipped(self):
+        self.assertEqual([], cover_export.ogg_pictures({"metadata_block_picture": ["%%%"]}))
 
     def test_an_ape_back_cover_is_not_a_front_cover(self):
         self.assertEqual((cover_export.OTHER_PICTURE, b"jpeg"),
@@ -143,6 +164,38 @@ class FormatPictureTest(unittest.TestCase):
         data = struct.pack("<BI", 4, 3) + mime + description + b"png"
         self.assertEqual((4, b"png"), cover_export.asf_picture(data))
         self.assertIsNone(cover_export.asf_picture(struct.pack("<BI", 3, 99) + mime + b"\x00\x00"))
+
+
+class DecodableTest(unittest.TestCase):
+    def jpeg_with_frame(self, marker, precision=8, components=3):
+        frame = bytes([precision, 0, 8, 0, 8, components])
+        return b"\xff\xd8\xff\xe0\x00\x04ab\xff" + bytes([marker]) + b"\x00\x0b" + frame
+
+    def test_baseline_extended_and_progressive_jpeg_and_png_are_decodable(self):
+        for marker in (0xC0, 0xC1, 0xC2):
+            self.assertTrue(cover_export.player_decodable(self.jpeg_with_frame(marker)))
+        self.assertTrue(cover_export.player_decodable(image_bytes((1, 2, 3))))
+        self.assertTrue(cover_export.player_decodable(self.jpeg_with_frame(0xC0, components=4)))
+
+    def test_lossless_arithmetic_and_twelve_bit_jpeg_are_not(self):
+        for marker in (0xC3, 0xC9, 0xCA):
+            self.assertFalse(cover_export.player_decodable(self.jpeg_with_frame(marker)))
+        self.assertFalse(cover_export.player_decodable(self.jpeg_with_frame(0xC0, precision=12)))
+        self.assertFalse(cover_export.player_decodable(self.jpeg_with_frame(0xC0, components=2)))
+
+    def test_other_formats_are_not(self):
+        self.assertFalse(cover_export.player_decodable(image_bytes((1, 2, 3), image_format="GIF")))
+        self.assertFalse(cover_export.player_decodable(b""))
+
+
+class OrientationTest(unittest.TestCase):
+    def test_jpeg_exif_orientation_is_applied(self):
+        image = Image.new("RGB", (40, 20), (255, 0, 0))
+        exif = Image.Exif()
+        exif[0x0112] = 6
+        buffer = io.BytesIO()
+        image.save(buffer, "JPEG", exif=exif.tobytes())
+        self.assertEqual((20, 40), cover_export.load_image(buffer.getvalue()).size)
 
 
 class EncodeCoversTest(unittest.TestCase):

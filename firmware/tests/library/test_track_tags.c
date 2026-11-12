@@ -5,6 +5,7 @@
 #include "check.h"
 #include "library/track_tags.h"
 #include "memory_source.h"
+#include "tags_internal.h"
 
 static const char TITLE[] = "Svefn-g-englar \xe2\x9c\x93";
 static const char ARTIST[] = "Sigur R\xc3\xb3s";
@@ -350,7 +351,7 @@ static void id3_picture_frames_accept_old_and_new_cover_layouts(void)
     CHECK(!tags.picture.front);
     CHECK_EQUAL(2, tags.picture.length);
     CHECK(read_id3_frame(4, 0x02, "APIC", modern, sizeof modern, &tags));
-    CHECK_EQUAL(TAG_PICTURE_NONE, tags.picture.kind);
+    CHECK_EQUAL(TAG_PICTURE_UNSYNC, tags.picture.kind);
     static const uint8_t no_description[] = {0, 'i', 0, 3, 'x'};
     CHECK(read_id3_frame(4, 0, "APIC", no_description, sizeof no_description, &tags));
     CHECK_EQUAL(TAG_PICTURE_NONE, tags.picture.kind);
@@ -716,7 +717,7 @@ static bool flac_comments_read(FlacComments *file, TrackTags *tags)
     return track_tags_read(memory_source(&source), file->cursor, TAG_FORMAT_FLAC, tags);
 }
 
-static void vorbis_comments_read_case_insensitive_fields_and_front_art(void)
+static void vorbis_comments_read_case_insensitive_fields_and_leave_pictures_to_ogg(void)
 {
     FlacComments file;
     flac_comments_start(&file);
@@ -738,8 +739,7 @@ static void vorbis_comments_read_case_insensitive_fields_and_front_art(void)
     CHECK_EQUAL(0, strcmp("Ambient", tags.text[TAG_GENRE]));
     CHECK_EQUAL(0, strcmp("2", tags.text[TAG_DISC]));
     CHECK_EQUAL(0, strcmp("4", tags.text[TAG_TRACK]));
-    CHECK_EQUAL(TAG_PICTURE_BASE64_FLAC_BLOCK, tags.picture.kind);
-    CHECK(tags.picture.front);
+    CHECK_EQUAL(TAG_PICTURE_NONE, tags.picture.kind);
 }
 
 static void malformed_vorbis_entries_do_not_read_the_next_block(void)
@@ -753,6 +753,67 @@ static void malformed_vorbis_entries_do_not_read_the_next_block(void)
     CHECK(flac_comments_read(&file, &tags));
     CHECK_EQUAL(0, strcmp("Valid", tags.text[TAG_TITLE]));
     CHECK_EQUAL(0, strcmp("", tags.text[TAG_ARTIST]));
+}
+
+static bool id3_picture_bytes(uint8_t version, uint8_t flags, uint8_t tag_flags,
+                              const uint8_t *data, uint32_t length, uint8_t *out)
+{
+    Fixture audio;
+    static TrackTags tags;
+    static uint8_t bytes[65536];
+    CHECK(load(&audio, "id3v1_no_xing.mp3"));
+    uint32_t total = 20 + length + audio.size;
+    CHECK(total <= sizeof bytes);
+    memset(bytes, 0, 20);
+    memcpy(bytes, "ID3", 3);
+    bytes[3] = version;
+    bytes[5] = tag_flags;
+    bytes[9] = (uint8_t)(10 + length);
+    memcpy(bytes + 10, "APIC", 4);
+    bytes[17] = (uint8_t)length;
+    bytes[19] = flags;
+    memcpy(bytes + 20, data, length);
+    memcpy(bytes + 20 + length, audio.bytes, audio.size);
+    free(audio.bytes);
+    MemorySource memory = {.bytes = bytes, .size = total};
+    ByteSource source = memory_source(&memory);
+    TagPictureReader reader;
+    ImageSource image;
+    return track_tags_read(source, total, TAG_FORMAT_MP3, &tags) &&
+           tags.picture.kind == TAG_PICTURE_UNSYNC && tags.picture.front &&
+           tag_picture_open(&reader, source, total, &tags.picture, &image) &&
+           image.read(image.context, image.offset, out, 5);
+}
+
+static void unsynchronised_id3_pictures_read_back_without_escape_bytes(void)
+{
+    static const uint8_t data[] = {0, 'i', 0, 3, 0, 0xff, 0x00, 0xe0, 0x12, 0xff, 0xd9};
+    static const uint8_t expected[] = {0xff, 0xe0, 0x12, 0xff, 0xd9};
+    uint8_t out[5];
+    CHECK(id3_picture_bytes(4, 0x02, 0, data, sizeof data, out));
+    CHECK_EQUAL(0, memcmp(expected, out, sizeof out));
+    CHECK(id3_picture_bytes(3, 0, 0x80, data, sizeof data, out));
+    CHECK_EQUAL(0, memcmp(expected, out, sizeof out));
+}
+
+static void ogg_pictures_read_back_as_the_embedded_image(void)
+{
+    Fixture fixture;
+    static TrackTags tags;
+    CHECK(load(&fixture, "tagged.ogg"));
+    ByteSource source = memory_source(&fixture.memory);
+    CHECK(track_tags_read(source, fixture.size, TAG_FORMAT_OGG, &tags));
+    TagPictureReader reader;
+    ImageSource image;
+    CHECK(tag_picture_open(&reader, source, fixture.size, &tags.picture, &image));
+    uint8_t head[2];
+    uint8_t tail[2];
+    CHECK(image.read(image.context, image.offset, head, 2));
+    CHECK(image.read(image.context, image.offset + image.length - 2, tail, 2));
+    CHECK(head[0] == 0xFF && head[1] == 0xD8 && tail[0] == 0xFF && tail[1] == 0xD9);
+    CHECK(image.read(image.context, image.offset, head, 2));
+    CHECK(head[0] == 0xFF && head[1] == 0xD8);
+    free(fixture.bytes);
 }
 
 typedef struct Mp4TagFixture {
@@ -1064,7 +1125,9 @@ int main(void)
         TEST_CASE(metadata_read_failures_leave_terminated_fields_and_bounded_pictures),
         TEST_CASE(wma_incomplete_numeric_attributes_and_picture_data_are_ignored),
         TEST_CASE(wma_content_header_shorter_than_its_lengths_is_ignored),
-        TEST_CASE(vorbis_comments_read_case_insensitive_fields_and_front_art),
+        TEST_CASE(vorbis_comments_read_case_insensitive_fields_and_leave_pictures_to_ogg),
+        TEST_CASE(unsynchronised_id3_pictures_read_back_without_escape_bytes),
+        TEST_CASE(ogg_pictures_read_back_as_the_embedded_image),
         TEST_CASE(malformed_vorbis_entries_do_not_read_the_next_block),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

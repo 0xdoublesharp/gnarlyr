@@ -88,17 +88,22 @@ void hal_file_close(HalFile *file)
     file->handle = -1;
 }
 
+__attribute__((noinline)) static bool write_open_file(FatVolume *target, FatFile *file,
+                                                      uint32_t offset, const void *bytes,
+                                                      uint32_t length)
+{
+    board_start_record_step(HAL_START_STEP_CARD_WRITE);
+    bool written = fat_write(target, file, offset, bytes, length);
+    board_start_record_step_done();
+    return written;
+}
+
 static bool write_in(FatVolume *target, const char *path, uint32_t offset, const void *bytes,
                      uint32_t length)
 {
     FatFile file;
-    if (target == NULL || !fat_open(target, path, &file)) {
-        return false;
-    }
-    board_start_record_step(HAL_START_STEP_CARD_WRITE);
-    bool written = fat_write(target, &file, offset, bytes, length);
-    board_start_record_step_done();
-    return written;
+    return target != NULL && fat_open(target, path, &file) &&
+           write_open_file(target, &file, offset, bytes, length);
 }
 
 bool hal_file_write(const char *path, const void *bytes, uint32_t length)
@@ -109,6 +114,12 @@ bool hal_file_write(const char *path, const void *bytes, uint32_t length)
 bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes, uint32_t length)
 {
     return write_in(mounted() ? &volume : NULL, path, offset, bytes, length);
+}
+
+bool hal_file_write_open(HalFile file, uint32_t offset, const void *bytes, uint32_t length)
+{
+    FatFile *open = file_of(file);
+    return open != NULL && write_open_file(&volume, open, offset, bytes, length);
 }
 
 static BlockDevice card_device;

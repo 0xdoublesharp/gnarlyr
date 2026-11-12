@@ -6,7 +6,7 @@
 #include "image/cover_image.h"
 
 enum {
-    JPEG_MAX_COMPONENTS = 3,
+    JPEG_MAX_COMPONENTS = 4,
     JPEG_TABLES = 4,
     JPEG_BLOCK = 64,
     JPEG_FAST_BITS = 9,
@@ -15,6 +15,7 @@ enum {
 
 typedef struct JpegHuffman {
     uint16_t fast[1 << JPEG_FAST_BITS];
+    int16_t fast_ac[1 << JPEG_FAST_BITS];
     int32_t max_code[JPEG_MAX_CODE_BITS + 2];
     int32_t offset[JPEG_MAX_CODE_BITS + 1];
     uint8_t values[256];
@@ -60,6 +61,7 @@ typedef enum JpegBlockKind {
 
 typedef struct JpegDecoder {
     ImageReader *reader;
+    ImageArena *arena;
     CoverGrid *grid;
     JpegBits bits;
     JpegHuffman dc[JPEG_TABLES];
@@ -80,7 +82,9 @@ typedef struct JpegDecoder {
     int32_t kernel[8][8];
     bool progressive;
     bool frame_seen;
-    bool adobe_rgb;
+    bool adobe;
+    uint32_t transform;
+    uint32_t orientation;
     uint32_t scanned;
     int32_t eob_run;
     int32_t coefficients[JPEG_BLOCK];
@@ -93,6 +97,7 @@ bool jpeg_build_huffman(JpegHuffman *table, const uint8_t *counts, const uint8_t
 void jpeg_bits_reset(JpegBits *bits, ImageReader *reader);
 int32_t jpeg_decode_symbol(JpegBits *bits, const JpegHuffman *table);
 int32_t jpeg_receive_extend(JpegBits *bits, uint32_t size);
+bool jpeg_decode_ac(JpegBits *bits, const JpegHuffman *table, int32_t *coefficients);
 uint32_t jpeg_read_bits(JpegBits *bits, uint32_t count);
 void jpeg_skip_entropy(ImageReader *reader);
 void jpeg_restart(JpegBits *bits);

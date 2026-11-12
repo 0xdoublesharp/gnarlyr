@@ -51,3 +51,8 @@ bool hal_power_take_usb_start(void)
 {
     return false;
 }
+
+bool hal_power_cable(void)
+{
+    return false;
+}

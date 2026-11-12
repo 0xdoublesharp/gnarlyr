@@ -38,7 +38,8 @@ typedef enum TagField {
 typedef enum TagPictureKind {
     TAG_PICTURE_NONE,
     TAG_PICTURE_RAW,
-    TAG_PICTURE_BASE64_FLAC_BLOCK
+    TAG_PICTURE_BASE64_FLAC_BLOCK,
+    TAG_PICTURE_UNSYNC
 } TagPictureKind;
 
 typedef struct TagPicture {
@@ -46,6 +47,8 @@ typedef struct TagPicture {
     bool front;
     uint32_t offset;
     uint32_t length;
+    uint32_t base;
+    uint32_t end;
 } TagPicture;
 
 typedef struct TrackTags {

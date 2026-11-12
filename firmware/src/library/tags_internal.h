@@ -3,8 +3,18 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "image/image_reader.h"
 #include "library/replay_gain.h"
 #include "library/track_tags.h"
+
+typedef struct TagUnsync {
+    ByteSource source;
+    uint32_t base;
+    uint32_t end;
+    uint32_t raw;
+    uint32_t decoded;
+    bool after_ff;
+} TagUnsync;
 
 typedef enum TagEncoding {
     TAG_LATIN1,
@@ -20,7 +30,35 @@ typedef struct TagReader {
     bool present[TAG_FIELD_COUNT];
     ReplayGainTags replay_gain;
     bool opus;
+    bool comment_pictures;
+    uint32_t comment_page;
+    const TagUnsync *unsync;
 } TagReader;
+
+typedef struct OggPage {
+    uint32_t offset;
+    uint32_t header_length;
+    uint32_t body_length;
+    uint32_t serial;
+    uint64_t granule;
+    uint8_t flags;
+} OggPage;
+
+typedef struct OggStream {
+    TagReader *reader;
+    OggPage page;
+    uint32_t page_start;
+    uint32_t serial;
+} OggStream;
+
+typedef struct TagPictureReader {
+    TagReader file;
+    TagUnsync unsync;
+    OggStream ogg;
+    uint32_t first_page;
+    uint32_t text;
+    uint32_t text_length;
+} TagPictureReader;
 
 typedef struct Mp4Atom {
     uint32_t offset;
@@ -50,6 +88,14 @@ void tag_set_duration(TagReader *reader, uint64_t units, uint64_t rate);
 void tag_set_divided_duration(TagReader *reader, uint64_t units, uint32_t alignment, uint32_t rate);
 void tag_set_bit_duration(TagReader *reader, uint64_t bytes, uint32_t channels, uint32_t rate);
 void tag_set_preroll_duration(TagReader *reader, uint64_t ticks, uint64_t preroll_ms);
+
+void tag_unsync_start(TagUnsync *view, ByteSource source, uint32_t base, uint32_t end);
+bool tag_unsync_read(void *context, uint32_t offset, void *buffer, uint32_t length);
+int tags_base64_value(uint8_t character);
+bool tags_ogg_stream_open(OggStream *stream, TagReader *reader, uint32_t offset);
+bool tags_ogg_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length);
+bool tag_picture_open(TagPictureReader *reader, ByteSource source, uint32_t size,
+                      const TagPicture *picture, ImageSource *image);
 
 bool tags_read_flac(TagReader *reader);
 bool tags_read_ogg(TagReader *reader);

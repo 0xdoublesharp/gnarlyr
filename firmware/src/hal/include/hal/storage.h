@@ -22,6 +22,7 @@ void hal_file_close(HalFile *file);
 bool hal_file_remove(const char *path);
 bool hal_file_write(const char *path, const void *bytes, uint32_t length);
 bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes, uint32_t length);
+bool hal_file_write_open(HalFile file, uint32_t offset, const void *bytes, uint32_t length);
 
 enum {
     HAL_RESERVE_CLEARED_BYTES = 4096

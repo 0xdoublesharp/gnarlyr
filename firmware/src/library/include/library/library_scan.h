@@ -43,7 +43,8 @@ typedef enum ScanResult {
     SCAN_NO_ROOM,
     SCAN_NO_CODE,
     SCAN_RESTART_NEEDED,
-    SCAN_NO_SCRATCH
+    SCAN_NO_SCRATCH,
+    SCAN_STOPPED
 } ScanResult;
 
 typedef struct ScanStats {
@@ -66,3 +67,5 @@ typedef struct ScanJob {
 } ScanJob;
 
 ScanResult library_scan(const ScanJob *job, ScanStats *stats);
+bool scan_is_cue_name(const char *name);
+bool scan_is_chaptered_name(const char *name);

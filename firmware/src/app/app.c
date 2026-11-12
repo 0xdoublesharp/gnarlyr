@@ -42,6 +42,7 @@
 #include "modules/modules.h"
 #include "music_check.h"
 #include "player.h"
+#include "scan_guard.h"
 #include "screens/charge_screen.h"
 #include "settings/rocker.h"
 #include "settings_store.h"
@@ -64,6 +65,8 @@ enum {
     VIEW_STAMP_POSITION_MS = 1000,
     VIEW_STAMP_MINUTE_S = 60,
     RESCAN_PROGRESS_MS = 250,
+    COVERS_IDLE_MS = 3000,
+    COVERS_PAUSED_MS = 60000,
     NOTICE_TEXT_CAPACITY = 64,
     TOAST_TEXT_CAPACITY = 64,
     BATTERY_CHECK_MS = 250,
@@ -121,6 +124,10 @@ typedef struct AppState {
     uint32_t battery_check_ms;
     bool usb_power;
     bool rescan_requested;
+    uint8_t rescan_stops;
+    bool covers_pending;
+    bool rescan_manual;
+    uint16_t covers_album;
     bool language_requested;
     bool music_check_requested;
     bool storage_formatted;
@@ -1323,7 +1330,7 @@ static void build_screens(uint32_t now_ms)
         .power = &app.power,
         .toast = &app.toast,
         .covers = &app.covers,
-        .rescan_requested = &app.rescan_requested,
+        .rescan_requested = &app.rescan_manual,
         .language_requested = &app.language_requested,
         .bluetooth = &app.bluetooth,
         .listening = &app.listening,
@@ -1362,16 +1369,28 @@ static void change_language(uint32_t now_ms)
     }
 }
 
+static void request_start_scan(bool library_created)
+{
+    app.covers_pending = music_check_covers_pending();
+    uint32_t stopped = music_check_interrupted_scans();
+    bool resume = stopped > 0 && stopped <= SCAN_GUARD_RETRIES;
+    if (library_created || resume) {
+        app.rescan_requested = true;
+        app.rescan_stops = resume ? (uint8_t)stopped : 0;
+    } else if (stopped == 0 && music_check_firmware_is_new()) {
+        app.music_check_requested = true;
+    }
+}
+
 static void report_card_files(CardFilesReport files, uint32_t now_ms)
 {
     if (files.card_full) {
         toast_show(&app.toast, i18n_text(STR_STORAGE_FULL), now_ms);
         debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_FULL);
     }
-    if (files.library_created) {
-        app.rescan_requested = true;
-    } else if (music_check_firmware_is_new()) {
-        app.music_check_requested = true;
+    uint8_t update;
+    if (!hal_internal_file_read("/" FIRMWARE_UPDATE_FILE, &update, sizeof update)) {
+        request_start_scan(files.library_created);
     }
 }
 
@@ -1460,23 +1479,6 @@ static void show_rescan_progress(uint32_t files, uint32_t tracks)
     app_show_notice(i18n_text(STR_SCANNING), text);
 }
 
-static void show_cover_progress(uint32_t done, uint32_t total)
-{
-    static uint32_t shown_ms;
-    uint32_t now_ms = hal_clock_milliseconds();
-    hal_bluetooth_service();
-    wire_motion_progress(&app.motion, done, total);
-    if (done > 0 && done < total && now_ms - shown_ms < RESCAN_PROGRESS_MS) {
-        animate_notice();
-        return;
-    }
-    shown_ms = now_ms;
-    char text[NOTICE_TEXT_CAPACITY];
-    StringBuilder builder = string_builder_make(text, sizeof text);
-    i18n_format_counts(&builder, STR_COVERS_DONE, done, total);
-    app_show_notice(i18n_text(STR_FINDING_COVERS), text);
-}
-
 static void explain_refusals(uint32_t now_ms)
 {
     static char text[TOAST_TEXT_CAPACITY];
@@ -1496,18 +1498,41 @@ static MusicFingerprint walk_music(void)
     return module != NULL ? module->music_fingerprint() : (MusicFingerprint){.complete = false};
 }
 
+static void continue_covers(uint32_t now_ms)
+{
+    bool idle = now_ms - app.power.last_activity_ms >= COVERS_IDLE_MS;
+    bool rested = !app.player.loaded || (app.player.state == PLAYER_PAUSED &&
+                                         now_ms - app.player.paused_since_ms >= COVERS_PAUSED_MS);
+    if (!app.covers_pending || !idle || !rested || debug_runner_active() || hal_input_waiting()) {
+        return;
+    }
+    if (app.player.loaded) {
+        app_release_audio();
+    }
+    hal_system_set_clock_mhz(SCREEN_ON_CLOCK_MHZ);
+    RescanOutcome outcome = library_rescan_covers(app.covers_album);
+    use_wanted_clock();
+    app.covers_album = (uint16_t)outcome.covers.next_album;
+    app.covers_pending = outcome.cover_result == SCAN_STOPPED;
+    cover_cache_open(&app.covers, &app.library.library);
+    app.render_wanted = true;
+}
+
 static void run_rescan(void)
 {
     cancel_edits();
     flush_listening();
     show_working_notice(STR_SCANNING, i18n_text(STR_SCAN_STARTING), WIRE_SHAPE_DISC);
-    RescanProgress progress = {show_rescan_progress, show_cover_progress};
-    RescanOutcome outcome = library_rescan_run(progress);
+    RescanProgress progress = {show_rescan_progress};
+    RescanOutcome outcome = library_rescan_run(progress, app.rescan_stops);
+    app.rescan_stops = 0;
     static char message[TOAST_TEXT_CAPACITY];
     const char *text = library_rescan_message(outcome, message, sizeof message);
     if (outcome.result == SCAN_OK) {
         music_check_remember(walk_music());
         start_app(false);
+        app.covers_pending = true;
+        app.covers_album = 0;
     } else {
         debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_SCAN_FAILED + (uint32_t)outcome.result);
     }
@@ -1565,7 +1590,7 @@ static void commit_dac_headphones(void)
 
 void app_request_rescan(void)
 {
-    app.rescan_requested = true;
+    app.rescan_manual = true;
 }
 
 void app_request_rescan_if_music_changed(void)
@@ -1897,9 +1922,11 @@ CORE_SEAM void app_step(void)
         listening_store_load(&app.listening, &app.library.library);
         app.listening_loaded = true;
     }
-    if (app.music_check_requested) {
+    if (app.music_check_requested || app.rescan_manual) {
         app.music_check_requested = false;
-        bool changed = hal_system_restart_pending();
+        bool changed =
+            hal_system_restart_pending() ||
+            (app.rescan_manual && (music_check_firmware_is_new() || !music_check_settled()));
         if (!changed) {
             app_show_notice(i18n_text(STR_MUSIC), i18n_text(STR_CHECKING_MUSIC));
             changed = !music_check_unchanged(walk_music()) || !library_store_open(&app.library);
@@ -1907,7 +1934,12 @@ CORE_SEAM void app_step(void)
         if (!changed) {
             music_check_note_firmware();
         }
+        if (!changed && app.rescan_manual) {
+            toast_show(&app.toast, i18n_text(STR_LIBRARY_UP_TO_DATE), hal_clock_milliseconds());
+        }
+        app.rescan_manual = false;
         app.rescan_requested |= changed;
+        app.rescan_stops = changed ? 0 : app.rescan_stops;
     }
     if (app.rescan_requested) {
         app.rescan_requested = false;
@@ -1986,6 +2018,7 @@ CORE_SEAM void app_step(void)
     follow_usb_chooser(now_ms);
     commit_dac_headphones();
     service_discovery(now_ms);
+    continue_covers(now_ms);
     MixtapeUi *mixtapes = &app.screens.modules.views.mixtapes;
     if ((app.screens.bound_modules & (1u << SCREEN_MODULE_VIEWS)) != 0 &&
         mixtapes->destination != NULL) {
@@ -2032,7 +2065,8 @@ uint32_t app_pass_interval_ms(void)
 {
     bool busy = app.bluetooth.saved.enabled || app.pacer.fast_frames > 0 || app.render_urgent ||
                 app.render_wanted || fade_running() || slide_running() || app.charging ||
-                app.prepare_pending || app.rescan_requested || app.music_check_requested;
+                app.prepare_pending || app.rescan_requested || app.music_check_requested ||
+                app.rescan_manual;
     if (busy) {
         return PASS_BUSY_MS;
     }

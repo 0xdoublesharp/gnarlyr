@@ -178,6 +178,7 @@ set(ECHO_OVERLAY_IMPORTS
     COVER_CACHE_PATH
     LIBRARY_SCRATCH_PATH
     LIBRARY_STORE_PATH
+    MUSIC_CHECK_PATH
     RESCAN_TIMES_PATH
     app_store_clock_offset
     app_dac_settings
@@ -236,10 +237,13 @@ set(ECHO_OVERLAY_IMPORTS
     hal_file_read
     hal_file_write
     hal_file_write_at
+    hal_file_write_open
     hal_system_borrow_listing
     hal_system_borrow_scratch
     hal_system_keep_alive
     hal_input_next_transition
+    hal_input_waiting
+    hal_power_cable
     hal_power_battery
     hal_power_off
     i18n_format
@@ -300,6 +304,7 @@ if(NOT ECHO_RELEASE)
         board_profile
         board_profile_hold
         board_restart
+        debug_loop_event
         debug_loop_log
         debug_runner_begin
         debug_runner_script
@@ -353,6 +358,7 @@ if(CMAKE_CROSSCOMPILING)
         board/usb_report.c
         board/usb_session.c
         ${PROJECT_SOURCE_DIR}/src/app/library_rescan_job.c
+        ${PROJECT_SOURCE_DIR}/src/app/scan_guard.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
 endif()
@@ -374,6 +380,7 @@ set(ECHO_OVERLAY_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/rescan_overla
 add_executable(echo_rescan_overlay
     overlay/rescan_overlay.c
     ${PROJECT_SOURCE_DIR}/src/app/library_rescan_job.c
+    ${PROJECT_SOURCE_DIR}/src/app/scan_guard.c
 )
 target_include_directories(echo_rescan_overlay PRIVATE
     ${PROJECT_SOURCE_DIR}/src/app

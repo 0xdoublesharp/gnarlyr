@@ -149,6 +149,11 @@ bool hal_input_next_transition(HalKeyTransition *transition)
     return found;
 }
 
+bool hal_input_waiting(void)
+{
+    return scanner.count != 0;
+}
+
 bool hal_input_next_headset_command(HalHeadsetCommand *command)
 {
     uint32_t primask = irq_save();

@@ -1,3 +1,5 @@
+#include <stddef.h>
+
 #include "jpeg_internal.h"
 
 enum {
@@ -9,7 +11,12 @@ enum {
     FAST_LENGTH_SHIFT = 8,
     FAST_SYMBOL_MASK = 0xFF,
     MAX_VALUE_BITS = 16,
-    PADDING_LIMIT = 8
+    PADDING_LIMIT = 8,
+    END_OF_BAND_RUN = 15,
+    FAST_VALUE_MIN = -128,
+    FAST_VALUE_MAX = 127,
+    FAST_VALUE_SCALE = 256,
+    ZERO_RUN_LENGTH = 16
 };
 
 const uint8_t JPEG_ZIGZAG[JPEG_BLOCK] = {
@@ -23,6 +30,28 @@ static void fill_fast(JpegHuffman *table, uint32_t code, uint32_t length, uint8_
     uint32_t count = 1u << (JPEG_FAST_BITS - length);
     for (uint32_t entry = first; entry < first + count; entry++) {
         table->fast[entry] = (uint16_t)(length << FAST_LENGTH_SHIFT | symbol);
+    }
+}
+
+static void build_fast_ac(JpegHuffman *table)
+{
+    for (uint32_t entry = 0; entry < (1u << JPEG_FAST_BITS); entry++) {
+        uint32_t fast = table->fast[entry];
+        uint32_t length = fast >> FAST_LENGTH_SHIFT;
+        uint32_t size = fast & 0x0F;
+        uint32_t used = length + size;
+        table->fast_ac[entry] = 0;
+        if (fast == 0 || size == 0 || used > JPEG_FAST_BITS) {
+            continue;
+        }
+        int32_t value =
+            (int32_t)((entry << length) & ((1u << JPEG_FAST_BITS) - 1u)) >> (JPEG_FAST_BITS - size);
+        value = value < (1 << (size - 1)) ? value - (1 << size) + 1 : value;
+        if (value >= FAST_VALUE_MIN && value <= FAST_VALUE_MAX) {
+            uint32_t run = (fast & FAST_SYMBOL_MASK) >> 4;
+            table->fast_ac[entry] =
+                (int16_t)(value * FAST_VALUE_SCALE + (int32_t)(run << 4 | used));
+        }
     }
 }
 
@@ -53,6 +82,7 @@ bool jpeg_build_huffman(JpegHuffman *table, const uint8_t *counts, const uint8_t
         code <<= 1;
     }
     table->max_code[JPEG_MAX_CODE_BITS + 1] = INT32_MAX;
+    build_fast_ac(table);
     table->present = true;
     return true;
 }
@@ -105,11 +135,31 @@ static uint32_t next_byte(JpegBits *bits)
     return next_byte_slow(bits);
 }
 
-static void fill(JpegBits *bits)
+static void fill_slow(JpegBits *bits)
 {
     while (bits->count <= FILL_LIMIT) {
         bits->buffer |= next_byte(bits) << (FILL_LIMIT - bits->count);
         bits->count += BITS_PER_BYTE;
+    }
+}
+
+static void fill(JpegBits *bits)
+{
+    ImageReader *reader = bits->reader;
+    const uint8_t *bytes = reader->buffer;
+    uint32_t cursor = reader->cursor;
+    uint32_t end = bits->marker || reader->failed ? cursor : reader->filled;
+    uint32_t buffer = bits->buffer;
+    int32_t count = bits->count;
+    while (count <= FILL_LIMIT && cursor < end && bytes[cursor] != BYTE_FF) {
+        buffer |= (uint32_t)bytes[cursor++] << (FILL_LIMIT - count);
+        count += BITS_PER_BYTE;
+    }
+    reader->cursor = cursor;
+    bits->buffer = buffer;
+    bits->count = count;
+    if (count <= FILL_LIMIT) {
+        fill_slow(bits);
     }
 }
 
@@ -130,9 +180,8 @@ uint32_t jpeg_read_bits(JpegBits *bits, uint32_t count)
     return value;
 }
 
-int32_t jpeg_decode_symbol(JpegBits *bits, const JpegHuffman *table)
+static int32_t symbol_from(JpegBits *bits, const JpegHuffman *table)
 {
-    fill(bits);
     uint16_t entry = table->fast[bits->buffer >> (32 - JPEG_FAST_BITS)];
     if (entry != 0) {
         consume(bits, entry >> FAST_LENGTH_SHIFT);
@@ -148,6 +197,60 @@ int32_t jpeg_decode_symbol(JpegBits *bits, const JpegHuffman *table)
     }
     bits->failed = true;
     return -1;
+}
+
+int32_t jpeg_decode_symbol(JpegBits *bits, const JpegHuffman *table)
+{
+    fill(bits);
+    return symbol_from(bits, table);
+}
+
+static int32_t extend(JpegBits *bits, uint32_t size)
+{
+    if (bits->count < (int32_t)size) {
+        fill(bits);
+    }
+    int32_t value = (int32_t)(bits->buffer >> (32 - size));
+    consume(bits, size);
+    return value < (1 << (size - 1)) ? value - (1 << size) + 1 : value;
+}
+
+bool jpeg_decode_ac(JpegBits *bits, const JpegHuffman *table, int32_t *coefficients)
+{
+    for (uint32_t index = 1; index < JPEG_BLOCK;) {
+        if (bits->count <= FILL_LIMIT) {
+            fill(bits);
+        }
+        int32_t fast = table->fast_ac[bits->buffer >> (32 - JPEG_FAST_BITS)];
+        if (fast != 0) {
+            index += (uint32_t)(fast >> 4) & 0x0F;
+            if (index >= JPEG_BLOCK) {
+                return false;
+            }
+            consume(bits, (uint32_t)fast & 0x0F);
+            if (coefficients != NULL) {
+                coefficients[JPEG_ZIGZAG[index]] = fast >> 8;
+            }
+            index++;
+            continue;
+        }
+        int32_t symbol = symbol_from(bits, table);
+        uint32_t run = (uint32_t)symbol >> 4;
+        uint32_t size = (uint32_t)symbol & 0x0F;
+        if (symbol < 0 || (size != 0 && index + run >= JPEG_BLOCK)) {
+            return false;
+        }
+        if (size == 0 && run != END_OF_BAND_RUN) {
+            break;
+        }
+        index += size == 0 ? ZERO_RUN_LENGTH : run;
+        int32_t value = size == 0 ? 0 : extend(bits, size);
+        if (size != 0 && coefficients != NULL) {
+            coefficients[JPEG_ZIGZAG[index]] = value;
+        }
+        index += size != 0 ? 1u : 0u;
+    }
+    return !bits->failed;
 }
 
 int32_t jpeg_receive_extend(JpegBits *bits, uint32_t size)
@@ -166,11 +269,18 @@ int32_t jpeg_receive_extend(JpegBits *bits, uint32_t size)
 void jpeg_skip_entropy(ImageReader *reader)
 {
     while (image_reader_available(reader, 2)) {
-        uint8_t byte = image_reader_peek(reader, 0);
-        uint8_t following = image_reader_peek(reader, 1);
-        if (byte != BYTE_FF) {
-            reader->cursor++;
-        } else if (following == 0x00 || (following >= RESTART_FIRST && following <= RESTART_LAST)) {
+        const uint8_t *bytes = reader->buffer;
+        uint32_t cursor = reader->cursor;
+        uint32_t last = reader->filled - 1;
+        while (cursor < last && bytes[cursor] != BYTE_FF) {
+            cursor++;
+        }
+        reader->cursor = cursor;
+        if (cursor == last) {
+            continue;
+        }
+        uint8_t following = bytes[cursor + 1];
+        if (following == 0x00 || (following >= RESTART_FIRST && following <= RESTART_LAST)) {
             reader->cursor += 2;
         } else if (following == BYTE_FF) {
             reader->cursor++;

@@ -31,6 +31,7 @@
 #include "library/playlist_reader.h"
 #include "library_rescan.h"
 #include "music_check.h"
+#include "scan_guard.h"
 #include "screen_modules.h"
 #include "screens/charge_screen.h"
 #include "settings/equalizer_slots.h"
@@ -2740,6 +2741,210 @@ static void a_card_that_cannot_be_walked_is_rescanned_after_usb(void)
     CHECK(toast_is("No music found"));
 }
 
+static void mark_scan_stopped(uint8_t attempts)
+{
+    const uint8_t bytes[8] = {'D', 'S', 'S', 'G', 1, attempts, 0, 0};
+    CHECK(hal_file_write_at(MUSIC_CHECK_PATH, SCAN_GUARD_OFFSET, bytes, sizeof bytes));
+}
+
+static uint8_t saved_guard_byte(uint32_t index)
+{
+    HalFile file;
+    uint8_t byte = 0xFF;
+    CHECK(hal_file_open(&file, MUSIC_CHECK_PATH));
+    CHECK(hal_file_read(file, SCAN_GUARD_OFFSET + index, &byte, 1));
+    hal_file_close(&file);
+    return byte;
+}
+
+static void wait_with_an_update(void)
+{
+    static const uint8_t IMAGE[16] = {1};
+    CHECK(hal_internal_file_write("/" FIRMWARE_UPDATE_FILE, IMAGE, sizeof IMAGE));
+}
+
+static void a_scan_cut_short_runs_again_at_the_next_start(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    CHECK_EQUAL(0, saved_guard_byte(SCAN_GUARD_RUNNING_BYTE));
+    mark_scan_stopped(1);
+    restart_app();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(0, saved_guard_byte(SCAN_GUARD_RUNNING_BYTE));
+    CHECK(toast_is("Library: 0 tracks"));
+}
+
+static void a_requested_rescan_of_unchanged_music_says_the_library_is_up_to_date(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+    app_request_rescan();
+    step();
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+    CHECK(toast_is("Library is up to date"));
+}
+
+static void the_rescan_row_of_unchanged_music_says_the_library_is_up_to_date(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    open_setting(SETTINGS_RESCAN_INDEX);
+    step();
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+    CHECK(toast_is("Library is up to date"));
+}
+
+static void a_requested_rescan_after_a_cut_short_scan_rebuilds_the_library(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    mark_scan_stopped(2);
+    app_request_rescan();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK(toast_is("Library: 0 tracks"));
+}
+
+static void a_requested_rescan_after_a_firmware_update_rebuilds_the_library(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    fake_hal_set_version("newer");
+    app_request_rescan();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+}
+
+static void background_covers_wait_while_music_plays_or_is_briefly_paused(void)
+{
+    start_app_with_library();
+    const uint8_t pending[8] = {'D', 'S', 'S', 'G', 0, 1, 0, 1};
+    CHECK(hal_file_write_at(MUSIC_CHECK_PATH, SCAN_GUARD_OFFSET, pending, sizeof pending));
+    restart_app();
+    step();
+    play_first_album_track();
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    int covers = fake_hal_covers_writes();
+    now_ms += 3000;
+    step();
+    CHECK_EQUAL(covers, fake_hal_covers_writes());
+    CHECK_EQUAL(1, saved_guard_byte(SCAN_GUARD_COVERS_BYTE));
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    now_ms += 3000;
+    step();
+    CHECK_EQUAL(covers, fake_hal_covers_writes());
+    now_ms += 60000;
+    step();
+    CHECK(fake_hal_covers_writes() > covers);
+    CHECK_EQUAL(0, saved_guard_byte(SCAN_GUARD_COVERS_BYTE));
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+}
+
+static void covers_left_pending_resume_after_a_restart(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    CHECK_EQUAL(1, saved_guard_byte(SCAN_GUARD_COVERS_BYTE));
+    restart_app();
+    step();
+    int covers = fake_hal_covers_writes();
+    now_ms += 3000;
+    step();
+    CHECK(fake_hal_covers_writes() > covers);
+    CHECK_EQUAL(0, saved_guard_byte(SCAN_GUARD_COVERS_BYTE));
+}
+
+static void after_three_scans_cut_short_the_next_start_scans_without_covers(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    int covers = fake_hal_covers_writes();
+    mark_scan_stopped(SCAN_GUARD_RETRIES);
+    restart_app();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK(toast_is("Library: 0 tracks"));
+    now_ms += 3000;
+    step();
+    CHECK_EQUAL(covers, fake_hal_covers_writes());
+}
+
+static void a_start_after_the_coverless_scan_was_cut_short_scans_nothing(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    mark_scan_stopped(SCAN_GUARD_RETRIES + 1);
+    fake_hal_set_version("newer");
+    int walks = fake_hal_dir_open_count();
+    restart_app();
+    step();
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(walks, fake_hal_dir_open_count());
+}
+
+static void a_requested_rescan_after_scans_were_given_up_reads_covers(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    mark_scan_stopped(SCAN_GUARD_RETRIES + 1);
+    restart_app();
+    step();
+    int covers = fake_hal_covers_writes();
+    app_request_rescan();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK(toast_is("Library: 0 tracks"));
+    now_ms += 3000;
+    step();
+    CHECK(fake_hal_covers_writes() > covers);
+}
+
+static void changed_music_after_scans_were_given_up_is_scanned_with_covers(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    static const uint8_t BLANK[16] = {0};
+    CHECK(hal_file_write_at(MUSIC_CHECK_PATH, 0, BLANK, sizeof BLANK));
+    mark_scan_stopped(SCAN_GUARD_RETRIES + 1);
+    restart_app();
+    step();
+    app_request_rescan_if_music_changed();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK(toast_is("Library: 0 tracks"));
+}
+
+static void a_waiting_update_comes_before_the_first_scan(void)
+{
+    fake_hal_reset();
+    fake_hal_set_empty_card(true);
+    wait_with_an_update();
+    now_ms = START_MS;
+    fake_hal_set_milliseconds(now_ms);
+    app_start();
+    while (app_preparing()) {
+        step();
+    }
+    step();
+    CHECK_EQUAL(0, fake_hal_scratch_borrow_count());
+}
+
+static void a_waiting_update_comes_before_a_scan_cut_short(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    mark_scan_stopped(1);
+    fake_hal_set_version("newer");
+    wait_with_an_update();
+    restart_app();
+    step();
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+}
+
 static void a_full_card_says_it_is_full(void)
 {
     start_on_a_fresh_card(HAL_RESERVE_NO_SPACE);
@@ -2805,14 +3010,17 @@ static void a_rescan_borrows_the_idle_audio_buffer_for_its_listing(void)
     CHECK_EQUAL(1, fake_hal_listing_borrow_count());
 }
 
-static void a_rescan_rebuilds_the_covers_file(void)
+static void a_rescan_rebuilds_the_covers_file_once_the_player_is_idle(void)
 {
     start_app_with_library();
     fake_hal_set_empty_card(true);
     app_request_rescan();
     step();
-    CHECK(fake_hal_covers_writes() > 0);
+    CHECK_EQUAL(0, fake_hal_covers_writes());
     CHECK(toast_is("Library: 0 tracks"));
+    now_ms += 3000;
+    step();
+    CHECK(fake_hal_covers_writes() > 0);
 }
 
 static void a_rescan_keeps_the_stall_watch_fed(void)
@@ -5534,7 +5742,13 @@ int main(void)
         TEST_CASE(rescanning_without_a_card_says_so),
         TEST_CASE(a_rescan_of_an_empty_card_writes_an_empty_library),
         TEST_CASE(a_rescan_keeps_the_stall_watch_fed),
-        TEST_CASE(a_rescan_rebuilds_the_covers_file),
+        TEST_CASE(a_rescan_rebuilds_the_covers_file_once_the_player_is_idle),
+        TEST_CASE(background_covers_wait_while_music_plays_or_is_briefly_paused),
+        TEST_CASE(a_requested_rescan_of_unchanged_music_says_the_library_is_up_to_date),
+        TEST_CASE(a_requested_rescan_after_a_cut_short_scan_rebuilds_the_library),
+        TEST_CASE(the_rescan_row_of_unchanged_music_says_the_library_is_up_to_date),
+        TEST_CASE(a_requested_rescan_after_a_firmware_update_rebuilds_the_library),
+        TEST_CASE(covers_left_pending_resume_after_a_restart),
         TEST_CASE(a_rescan_after_an_installed_update_asks_for_a_restart),
         TEST_CASE(after_an_installed_update_screens_use_the_resident_font),
         TEST_CASE(a_rescan_without_scratch_memory_says_so),
@@ -5553,6 +5767,13 @@ int main(void)
         TEST_CASE(a_new_firmware_rescans_music_that_changed),
         TEST_CASE(a_new_firmware_rebuilds_a_library_it_cannot_read),
         TEST_CASE(a_card_that_cannot_be_walked_is_rescanned_after_usb),
+        TEST_CASE(a_scan_cut_short_runs_again_at_the_next_start),
+        TEST_CASE(after_three_scans_cut_short_the_next_start_scans_without_covers),
+        TEST_CASE(a_start_after_the_coverless_scan_was_cut_short_scans_nothing),
+        TEST_CASE(a_requested_rescan_after_scans_were_given_up_reads_covers),
+        TEST_CASE(changed_music_after_scans_were_given_up_is_scanned_with_covers),
+        TEST_CASE(a_waiting_update_comes_before_the_first_scan),
+        TEST_CASE(a_waiting_update_comes_before_a_scan_cut_short),
         TEST_CASE(a_full_card_says_it_is_full),
         TEST_CASE(an_empty_battery_saves_and_turns_the_player_off),
         TEST_CASE(an_empty_battery_on_usb_power_keeps_playing),

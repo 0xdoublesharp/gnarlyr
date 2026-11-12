@@ -12,14 +12,23 @@ enum {
     CB_TO_G = 22554,
     CR_TO_G = 46802,
     CB_TO_B = 116130,
-    COEFFICIENT_SHIFT = 16
+    COEFFICIENT_SHIFT = 16,
+    INK_FULL_Q8 = BYTE_MAX * Q8_ONE,
+    SWAP = 1,
+    FLIP_X = 2,
+    FLIP_Y = 4,
+    ORIENTATION_COUNT = 9
 };
 
-typedef struct CoverSpan {
-    uint32_t first;
-    uint32_t count;
-    uint16_t weights[CELLS];
-} CoverSpan;
+static const uint8_t ORIENTATIONS[ORIENTATION_COUNT] = {0,
+                                                        0,
+                                                        FLIP_X,
+                                                        FLIP_X | FLIP_Y,
+                                                        FLIP_Y,
+                                                        SWAP,
+                                                        SWAP | FLIP_Y,
+                                                        SWAP | FLIP_X | FLIP_Y,
+                                                        SWAP | FLIP_X};
 
 bool cover_grid_init(CoverGrid *grid, uint32_t width, uint32_t height)
 {
@@ -29,6 +38,9 @@ bool cover_grid_init(CoverGrid *grid, uint32_t width, uint32_t height)
     grid->span = width < height ? width : height;
     grid->start_x = (width - grid->span) / 2;
     grid->start_y = (height - grid->span) / 2;
+    grid->black = NULL;
+    grid->orientation = 1;
+    grid->cached_height = 0;
     for (uint32_t channel = 0; channel < COVER_GRID_CHANNELS; channel++) {
         grid->sample_width[channel] = 1;
         grid->sample_height[channel] = 1;
@@ -36,6 +48,18 @@ bool cover_grid_init(CoverGrid *grid, uint32_t width, uint32_t height)
             grid->sums[channel][cell] = 0;
         }
     }
+    return true;
+}
+
+bool cover_grid_attach_black(CoverGrid *grid, int32_t *plane)
+{
+    if (plane == NULL) {
+        return false;
+    }
+    for (uint32_t cell = 0; cell < COVER_GRID_CELLS; cell++) {
+        plane[cell] = 0;
+    }
+    grid->black = plane;
     return true;
 }
 
@@ -81,7 +105,8 @@ static void add_spans(CoverGrid *grid, uint32_t channel, const CoverSpan *x, con
                       int32_t value)
 {
     for (uint32_t row = 0; row < y->count; row++) {
-        int32_t *sums = grid->sums[channel] + (y->first + row) * CELLS + x->first;
+        int32_t *plane = channel == COVER_GRID_BLACK ? grid->black : grid->sums[channel];
+        int32_t *sums = plane + (y->first + row) * CELLS + x->first;
         int32_t row_value = value * (int32_t)y->weights[row];
         for (uint32_t column = 0; column < x->count; column++) {
             int32_t product = row_value * (int32_t)x->weights[column];
@@ -90,29 +115,54 @@ static void add_spans(CoverGrid *grid, uint32_t channel, const CoverSpan *x, con
     }
 }
 
+static const CoverSpan *rows_of(CoverGrid *grid, uint32_t y, uint32_t height)
+{
+    if (grid->cached_height != height || grid->cached_y != y) {
+        axis_span(grid->start_y, grid->span, y, height, &grid->cached_rows);
+        grid->cached_y = y;
+        grid->cached_height = height;
+    }
+    return &grid->cached_rows;
+}
+
 void cover_grid_add(CoverGrid *grid, uint32_t channel, CoverRect rect, int32_t value)
 {
     CoverSpan x;
-    CoverSpan y;
-    axis_span(grid->start_y, grid->span, rect.y, rect.height, &y);
-    if (y.count == 0) {
+    const CoverSpan *y = rows_of(grid, rect.y, rect.height);
+    if (y->count == 0) {
         return;
     }
     axis_span(grid->start_x, grid->span, rect.x, rect.width, &x);
-    add_spans(grid, channel, &x, &y, value);
+    add_spans(grid, channel, &x, y, value);
+}
+
+void cover_grid_add_block(CoverGrid *grid, uint32_t channel, CoverRect block,
+                          const int32_t *samples, uint32_t outputs)
+{
+    CoverSpan across[COVER_GRID_BLOCK_OUTPUTS];
+    uint32_t width = block.width / outputs;
+    uint32_t height = block.height / outputs;
+    for (uint32_t x = 0; x < outputs; x++) {
+        axis_span(grid->start_x, grid->span, block.x + x * width, width, &across[x]);
+    }
+    for (uint32_t y = 0; y < outputs; y++) {
+        const CoverSpan *down = rows_of(grid, block.y + y * height, height);
+        for (uint32_t x = 0; x < outputs && down->count > 0; x++) {
+            add_spans(grid, channel, &across[x], down, samples[y * outputs + x]);
+        }
+    }
 }
 
 void cover_grid_add_color(CoverGrid *grid, CoverRect rect, const int32_t *values, uint32_t channels)
 {
     CoverSpan x;
-    CoverSpan y;
-    axis_span(grid->start_y, grid->span, rect.y, rect.height, &y);
-    if (y.count == 0) {
+    const CoverSpan *y = rows_of(grid, rect.y, rect.height);
+    if (y->count == 0) {
         return;
     }
     axis_span(grid->start_x, grid->span, rect.x, rect.width, &x);
     for (uint32_t channel = 0; channel < channels; channel++) {
-        add_spans(grid, channel, &x, &y, values[channel]);
+        add_spans(grid, channel, &x, y, values[channel]);
     }
 }
 
@@ -223,36 +273,81 @@ static uint16_t rgb565(uint8_t red, uint8_t green, uint8_t blue)
     return (uint16_t)((red >> 3) << 11 | (green >> 2) << 5 | (blue >> 3));
 }
 
+static int32_t ink_level(int32_t q8)
+{
+    return q8 < 0 ? 0 : q8 > INK_FULL_Q8 ? INK_FULL_Q8 : q8;
+}
+
+static void apply_black(CoverColor color, int32_t *rgb, int32_t black)
+{
+    int32_t keep = ink_level(color == COVER_COLOR_CMYK ? INK_FULL_Q8 - black : black);
+    for (uint32_t channel = 0; channel < COVER_GRID_CHANNELS; channel++) {
+        int32_t light =
+            color == COVER_COLOR_CMYK_INVERTED ? rgb[channel] : INK_FULL_Q8 - rgb[channel];
+        rgb[channel] = (int32_t)((int64_t)ink_level(light) * keep / INK_FULL_Q8);
+    }
+}
+
+static void ycbcr_to_rgb(const int32_t *q8, int32_t *rgb)
+{
+    int32_t cb = q8[1] - CHROMA_CENTER_Q8;
+    int32_t cr = q8[2] - CHROMA_CENTER_Q8;
+    rgb[0] = q8[0] + scaled(cr, CR_TO_R);
+    rgb[1] = q8[0] - scaled(cb, CB_TO_G) - scaled(cr, CR_TO_G);
+    rgb[2] = q8[0] + scaled(cb, CB_TO_B);
+}
+
 static uint16_t pixel(CoverColor color, const int32_t *q8)
 {
     if (color == COVER_COLOR_GRAY) {
         uint8_t gray = to_byte(q8[0]);
         return rgb565(gray, gray, gray);
     }
-    if (color == COVER_COLOR_RGB) {
-        return rgb565(to_byte(q8[0]), to_byte(q8[1]), to_byte(q8[2]));
+    int32_t rgb[COVER_GRID_CHANNELS] = {q8[0], q8[1], q8[2]};
+    if (color == COVER_COLOR_YCBCR || color == COVER_COLOR_YCCK) {
+        ycbcr_to_rgb(q8, rgb);
     }
-    int32_t cb = q8[1] - CHROMA_CENTER_Q8;
-    int32_t cr = q8[2] - CHROMA_CENTER_Q8;
-    int32_t red = q8[0] + scaled(cr, CR_TO_R);
-    int32_t green = q8[0] - scaled(cb, CB_TO_G) - scaled(cr, CR_TO_G);
-    int32_t blue = q8[0] + scaled(cb, CB_TO_B);
-    return rgb565(to_byte(red), to_byte(green), to_byte(blue));
+    if (color >= COVER_COLOR_CMYK) {
+        apply_black(color, rgb, q8[COVER_GRID_BLACK]);
+    }
+    return rgb565(to_byte(rgb[0]), to_byte(rgb[1]), to_byte(rgb[2]));
 }
 
-static uint32_t used_channels(CoverColor color)
+static uint32_t used_planes(CoverColor color)
 {
-    return color == COVER_COLOR_GRAY ? 1 : COVER_GRID_CHANNELS;
+    return color == COVER_COLOR_GRAY ? 1 : color >= COVER_COLOR_CMYK ? 4 : COVER_GRID_CHANNELS;
+}
+
+static uint32_t totals_of(uint32_t plane)
+{
+    return plane == COVER_GRID_BLACK ? 0 : plane;
+}
+
+static const int32_t *plane_of(const CoverGrid *grid, uint32_t plane)
+{
+    return plane == COVER_GRID_BLACK ? grid->black : grid->sums[plane];
+}
+
+static uint32_t oriented(const CoverGrid *grid, uint32_t x, uint32_t y, uint32_t size)
+{
+    uint32_t mode = grid->orientation < ORIENTATION_COUNT ? ORIENTATIONS[grid->orientation] : 0;
+    uint32_t across = (mode & SWAP) != 0 ? y : x;
+    uint32_t down = (mode & SWAP) != 0 ? x : y;
+    across = (mode & FLIP_X) != 0 ? size - 1 - across : across;
+    down = (mode & FLIP_Y) != 0 ? size - 1 - down : down;
+    return down * size + across;
 }
 
 static void render_full(const CoverGrid *grid, CoverColor color, uint16_t *full)
 {
-    int32_t q8[COVER_GRID_CHANNELS] = {0, 0, 0};
+    int32_t q8[COVER_GRID_BLACK + 1] = {0, 0, 0, 0};
     for (uint32_t cell = 0; cell < COVER_GRID_CELLS; cell++) {
-        for (uint32_t channel = 0; channel < used_channels(color); channel++) {
-            uint64_t weight = (uint64_t)grid->totals_x[channel][cell % CELLS] *
-                              grid->totals_y[channel][cell / CELLS];
-            q8[channel] = mean_q8(grid->sums[channel][cell], weight);
+        uint32_t source = oriented(grid, cell % CELLS, cell / CELLS, CELLS);
+        for (uint32_t plane = 0; plane < used_planes(color); plane++) {
+            uint32_t totals = totals_of(plane);
+            uint64_t weight = (uint64_t)grid->totals_x[totals][source % CELLS] *
+                              grid->totals_y[totals][source / CELLS];
+            q8[plane] = mean_q8(plane_of(grid, plane)[source], weight);
         }
         full[cell] = pixel(color, q8);
     }
@@ -273,21 +368,22 @@ static uint64_t half_weight(const CoverGrid *grid, uint32_t channel, uint32_t x,
 
 static void render_half(const CoverGrid *grid, CoverColor color, uint16_t *half)
 {
-    int32_t q8[COVER_GRID_CHANNELS] = {0, 0, 0};
-    for (uint32_t y = 0; y < HALF; y++) {
-        for (uint32_t x = 0; x < HALF; x++) {
-            for (uint32_t channel = 0; channel < used_channels(color); channel++) {
-                q8[channel] =
-                    mean_q8(half_sum(grid->sums[channel], x, y), half_weight(grid, channel, x, y));
-            }
-            half[y * HALF + x] = pixel(color, q8);
+    int32_t q8[COVER_GRID_BLACK + 1] = {0, 0, 0, 0};
+    for (uint32_t cell = 0; cell < COVER_GRID_HALF_CELLS; cell++) {
+        uint32_t source = oriented(grid, cell % HALF, cell / HALF, HALF);
+        uint32_t x = source % HALF;
+        uint32_t y = source / HALF;
+        for (uint32_t plane = 0; plane < used_planes(color); plane++) {
+            q8[plane] = mean_q8(half_sum(plane_of(grid, plane), x, y),
+                                half_weight(grid, totals_of(plane), x, y));
         }
+        half[cell] = pixel(color, q8);
     }
 }
 
 void cover_grid_render(CoverGrid *grid, CoverColor color, uint16_t *full, uint16_t *half)
 {
-    for (uint32_t channel = 0; channel < used_channels(color); channel++) {
+    for (uint32_t channel = 0; channel < COVER_GRID_CHANNELS; channel++) {
         axis_totals(grid->start_x, grid->span, grid->sample_width[channel],
                     grid->totals_x[channel]);
         axis_totals(grid->start_y, grid->span, grid->sample_height[channel],
