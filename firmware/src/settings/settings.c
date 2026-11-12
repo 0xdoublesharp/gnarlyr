@@ -76,7 +76,7 @@ enum {
     EXTENSION_SIZE = 16,
     POWER_ON_BYTE = STATUS_ITEMS_BYTE,
     POWER_ON_BITS = 0x10,
-    STATUS_ITEMS_BITS = 0x2F,
+    STATUS_ITEMS_BITS = 0xFF & ~(POWER_ON_BITS | SKIP_SILENCE_BIT | SPEECH_BOOST_BIT),
     REWIND_BIT = 1,
     SAFE_START_BIT = 2,
     CLOCK_24H_BIT = 4,
@@ -171,13 +171,13 @@ static int16_t clock_offset(const uint8_t *extension)
 
 static void read_extension(const uint8_t *extension, Settings *settings)
 {
-    settings->status_items = extension[STATUS_ITEMS_BYTE] & STATUS_ITEMS_BITS;
+    settings->status_items = extension[STATUS_ITEMS_BYTE];
     uint8_t comfort = extension[COMFORT_BYTE];
     settings->rewind_on_resume = (comfort & REWIND_BIT) != 0;
     settings->safe_start_volume = (comfort & SAFE_START_BIT) != 0;
     settings->clock_24h = (comfort & CLOCK_24H_BIT) != 0;
     settings->clock_offset_minutes = clock_offset(extension);
-    settings->power_on_flags = extension[POWER_ON_BYTE] & POWER_ON_BITS;
+    settings->power_on_flags = extension[POWER_ON_BYTE];
     settings->track_transition = (TrackTransition)(comfort >> TRANSITION_SHIFT);
     settings->safe_start_volume_level = extension[SAFE_LEVEL_BYTE];
     settings->transition_tenths = extension[TRANSITION_BYTE];

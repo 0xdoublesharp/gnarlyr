@@ -1259,6 +1259,24 @@ static void the_listening_effects_use_their_extension_bits(void)
     }
 }
 
+static void turning_the_listening_effects_off_clears_their_bits_after_a_reload(void)
+{
+    Settings settings = settings_defaults();
+    settings.skip_silence = true;
+    settings.speech_boost = true;
+    settings.status_items = 0x23;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK(settings_decode(bytes, sizeof bytes, &settings));
+    settings.skip_silence = false;
+    settings.speech_boost = false;
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(0x23, bytes[EXTENSION_FIELD + 13]);
+    CHECK(settings_decode(bytes, sizeof bytes, &settings));
+    CHECK(!settings.skip_silence);
+    CHECK(!settings.speech_boost);
+}
+
 static void every_item_but_settings_may_be_hidden(void)
 {
     for (int item = 0; item < SETTINGS_HOME_ITEM_COUNT; item++) {
@@ -1630,6 +1648,7 @@ int main(void)
         TEST_CASE(each_invalid_extension_value_is_rejected_without_mutating_the_settings),
         TEST_CASE(power_on_preserves_every_other_bit_in_extension_thirteen),
         TEST_CASE(the_listening_effects_use_their_extension_bits),
+        TEST_CASE(turning_the_listening_effects_off_clears_their_bits_after_a_reload),
         TEST_CASE(every_item_but_settings_may_be_hidden),
         TEST_CASE(the_old_untouched_home_defaults_adopt_the_new_defaults),
         TEST_CASE(the_previous_saved_default_adopts_the_new_order),
