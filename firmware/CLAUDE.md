@@ -149,7 +149,7 @@ Exact commands are in `docs/architecture.md`, Generated code. Python 3.14 reprod
 Only after the owner approved it for this session.
 
 - The owner enters maskrom (every key except Power held, then the USB cable plugged in). Ask, then wait.
-- `rkdeveloptool-echo` talks to maskrom (USB `2207:262d`): upstream rkdeveloptool patched by `tools/patch_rkdeveloptool.py`. `docs/device-recovery.md` gives the build (the CMake project in `../tools/recovery`, output on Scratch). Two seconds after `ld` lists the device, `td` must print `Test Device OK.` before any `rl` or `wl`; `rd` restarts the player.
+- `rkdeveloptool-echo` talks to maskrom (USB `2207:262d`): upstream rkdeveloptool patched by `../tools/recovery/patch_rkdeveloptool.py`. `docs/device-recovery.md` gives the build (the CMake project in `../tools/recovery`, output on Scratch). Two seconds after `ld` lists the device, `td` must print `Test Device OK.` before any `rl` or `wl`; `rd` restarts the player.
 - Firmware slots on the full-size Echo: sector 0 and 81920, 10240 sectors (the image's first 5 MiB) each. Write slot 2 first, read every write back and compare before the next write:
 
   ```sh

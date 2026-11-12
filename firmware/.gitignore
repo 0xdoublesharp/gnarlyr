@@ -6,6 +6,5 @@ __pycache__/
 .DS_Store
 .venv/
 log/
-.wrangler/
 build
 .venv
