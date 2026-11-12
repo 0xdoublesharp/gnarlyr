@@ -20,11 +20,14 @@ enum {
     TRIM,
     BALANCE,
     CEILING,
+    CROSSFEED,
     FIELD_COUNT
 };
 
-static const StringId FIELDS[] = {STR_HEADPHONE_USE, STR_HEADPHONE_NAME, STR_HEADPHONE_TRIM,
-                                  STR_HEADPHONE_BALANCE, STR_HEADPHONE_CEILING};
+static const StringId FIELDS[] = {STR_HEADPHONE_USE,     STR_HEADPHONE_NAME,    STR_HEADPHONE_TRIM,
+                                  STR_HEADPHONE_BALANCE, STR_HEADPHONE_CEILING, STR_CROSSFEED};
+static const StringId CROSSFEEDS[] = {STR_OFF, STR_CROSSFEED_LOW, STR_CROSSFEED_MEDIUM,
+                                      STR_CROSSFEED_HIGH};
 static const StringId NAMES[] = {STR_HEADPHONE_IN_EAR, STR_HEADPHONE_OVER_EAR,
                                  STR_HEADPHONE_ON_EAR, STR_HEADPHONE_EARBUDS,
                                  STR_HEADPHONE_STUDIO, STR_HEADPHONE_TRAVEL};
@@ -38,7 +41,7 @@ static int count(const void *context)
 {
     const HeadphoneEditor *editor = context;
     if (editor->mode != VALUE) {
-        return FIELD_COUNT;
+        return editor->mode == ROOT ? HEADPHONE_PROFILE_LIMIT + 1 : FIELD_COUNT;
     }
     switch (editor->field) {
     case ACTIVE:
@@ -51,6 +54,8 @@ static int count(const void *context)
         return 2 * HEADPHONE_PROFILE_BALANCE_MAX + 1;
     case CEILING:
         return SETTINGS_VOLUME_MAX + 1;
+    case CROSSFEED:
+        return HEADPHONE_PROFILE_CROSSFEED_MAX + 1;
     }
     return 0;
 }
@@ -58,7 +63,9 @@ static int count(const void *context)
 static const char *value_text(const HeadphoneEditor *editor, int field, int value, char *buffer)
 {
     StringBuilder text = string_builder_make(buffer, sizeof editor->label);
-    if (field == TRIM) {
+    if (field == CROSSFEED) {
+        string_builder_append(&text, i18n_text(CROSSFEEDS[value]));
+    } else if (field == TRIM) {
         i18n_format_counts(&text, STR_HEADPHONE_TRIM_VALUE, (uint32_t)value / 2,
                            (uint32_t)(value % 2) * 5);
     } else if (field == BALANCE && value != 0) {
@@ -123,6 +130,8 @@ static int current(const HeadphoneEditor *editor)
         return profile->balance + HEADPHONE_PROFILE_BALANCE_MAX;
     case CEILING:
         return profile->volume_ceiling;
+    case CROSSFEED:
+        return profile->crossfeed;
     }
     return -1;
 }
@@ -149,9 +158,10 @@ static const char *row_detail(const void *context, int index)
     if (index == NAME) {
         return profile->name;
     }
-    int value = index == TRIM      ? profile->trim_half_db
-                : index == BALANCE ? profile->balance
-                                   : profile->volume_ceiling;
+    int value = index == TRIM        ? profile->trim_half_db
+                : index == BALANCE   ? profile->balance
+                : index == CROSSFEED ? profile->crossfeed
+                                     : profile->volume_ceiling;
     return value_text(editor, index, value, editor->detail_text);
 }
 
@@ -211,6 +221,9 @@ static void choose_value(HeadphoneEditor *editor, int index)
         break;
     case CEILING:
         profile->volume_ceiling = (uint8_t)index;
+        break;
+    case CROSSFEED:
+        profile->crossfeed = (uint8_t)index;
         break;
     }
     if (save(editor, &candidate)) {
@@ -274,7 +287,7 @@ static void draw(void *context, Canvas *canvas)
 Screen *headphone_editor_init(HeadphoneEditor *editor, HeadphoneEditorConfig config)
 {
     *editor = (HeadphoneEditor){.config = config};
-    headphone_store_fill_slots(&config.store->profiles);
+    headphone_store_fill_slots(&config.store->profiles, config.settings->settings.crossfeed);
     editor->label_text = editor->label;
     editor->detail_text = editor->detail;
     editor->model = (ListModel){.context = editor,

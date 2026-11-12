@@ -66,8 +66,17 @@ enum {
     RESERVED_COUNT = 1,
     DAC_FILTER_BYTE = 14,
     DAC_FILTER_MASK = 0x07,
+    SPOKEN_BYTE = 13,
+    SKIP_SILENCE_BIT = 0x40,
+    SPEECH_BOOST_BIT = 0x80,
+    CROSSFEED_BYTE = 14,
+    CROSSFEED_SHIFT = 5,
+    CROSSFEED_MASK = 3,
+    CROSSFEED_BITS = CROSSFEED_MASK << CROSSFEED_SHIFT,
     EXTENSION_SIZE = 16,
     POWER_ON_BYTE = STATUS_ITEMS_BYTE,
+    POWER_ON_BITS = 0x10,
+    STATUS_ITEMS_BITS = 0x2F,
     REWIND_BIT = 1,
     SAFE_START_BIT = 2,
     CLOCK_24H_BIT = 4,
@@ -162,13 +171,13 @@ static int16_t clock_offset(const uint8_t *extension)
 
 static void read_extension(const uint8_t *extension, Settings *settings)
 {
-    settings->status_items = extension[STATUS_ITEMS_BYTE];
+    settings->status_items = extension[STATUS_ITEMS_BYTE] & STATUS_ITEMS_BITS;
     uint8_t comfort = extension[COMFORT_BYTE];
     settings->rewind_on_resume = (comfort & REWIND_BIT) != 0;
     settings->safe_start_volume = (comfort & SAFE_START_BIT) != 0;
     settings->clock_24h = (comfort & CLOCK_24H_BIT) != 0;
     settings->clock_offset_minutes = clock_offset(extension);
-    settings->power_on_flags = extension[POWER_ON_BYTE];
+    settings->power_on_flags = extension[POWER_ON_BYTE] & POWER_ON_BITS;
     settings->track_transition = (TrackTransition)(comfort >> TRANSITION_SHIFT);
     settings->safe_start_volume_level = extension[SAFE_LEVEL_BYTE];
     settings->transition_tenths = extension[TRANSITION_BYTE];
@@ -188,6 +197,9 @@ static void read_extension(const uint8_t *extension, Settings *settings)
                              settings->home_order, &settings->home_hidden);
     }
     settings->dac_filter = extension[DAC_FILTER_BYTE] & DAC_FILTER_MASK;
+    settings->skip_silence = (extension[SPOKEN_BYTE] & SKIP_SILENCE_BIT) != 0;
+    settings->speech_boost = (extension[SPOKEN_BYTE] & SPEECH_BOOST_BIT) != 0;
+    settings->crossfeed = (extension[CROSSFEED_BYTE] >> CROSSFEED_SHIFT) & CROSSFEED_MASK;
 }
 
 Settings settings_defaults(void)
@@ -323,8 +335,8 @@ static void encode_extension(const Settings *settings, uint8_t *extension)
                                         (settings->safe_start_volume ? SAFE_START_BIT : 0) |
                                         (settings->clock_24h ? CLOCK_24H_BIT : 0) |
                                         ((unsigned)settings->track_transition << TRANSITION_SHIFT));
-    extension[STATUS_ITEMS_BYTE] =
-        (uint8_t)((settings->status_items & ~0x10u) | (settings->power_on_flags & 0x10u));
+    extension[STATUS_ITEMS_BYTE] = (uint8_t)((settings->status_items & STATUS_ITEMS_BITS) |
+                                             (settings->power_on_flags & POWER_ON_BITS));
     extension[SAFE_LEVEL_BYTE] = settings->safe_start_volume_level;
     extension[TRANSITION_BYTE] = settings->transition_tenths;
     extension[CLOCK_OFFSET_BYTE] = (uint8_t)settings->clock_offset_minutes;
@@ -336,6 +348,10 @@ static void encode_extension(const Settings *settings, uint8_t *extension)
     extension[HOME_HIDDEN_BYTE] = (uint8_t)settings->home_hidden;
     extension[HOME_HIDDEN_BYTE + 1] = (uint8_t)(settings->home_hidden >> 8);
     extension[DAC_FILTER_BYTE] |= (uint8_t)(settings->dac_filter & DAC_FILTER_MASK);
+    extension[SPOKEN_BYTE] |= (uint8_t)((settings->skip_silence ? SKIP_SILENCE_BIT : 0) |
+                                        (settings->speech_boost ? SPEECH_BOOST_BIT : 0));
+    extension[CROSSFEED_BYTE] |=
+        (uint8_t)((settings->crossfeed & CROSSFEED_MASK) << CROSSFEED_SHIFT);
 }
 
 void settings_encode(const Settings *settings, uint8_t *bytes)
@@ -489,7 +505,8 @@ static bool reserved_clear(const uint8_t *extension)
 {
     uint8_t any = extension[TRANSITION_BYTE + 1];
     for (int index = RESERVED_BYTE; index < RESERVED_BYTE + RESERVED_COUNT; index++) {
-        uint8_t reserved = index == DAC_FILTER_BYTE ? (uint8_t)~DAC_FILTER_MASK : 0xFF;
+        uint8_t reserved =
+            index == DAC_FILTER_BYTE ? (uint8_t)~(DAC_FILTER_MASK | CROSSFEED_BITS) : 0xFF;
         any |= extension[index] & reserved;
     }
     return any == 0 && (extension[DAC_FILTER_BYTE] & DAC_FILTER_MASK) < DAC_FILTER_COUNT;

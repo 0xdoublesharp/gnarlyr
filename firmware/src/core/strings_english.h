@@ -731,4 +731,10 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_STANDBY_TIMEOUT] = "Power off after",
     [STR_STANDBY_HOURS_2] = "2 h",
     [STR_STANDBY_HOURS_8] = "8 h",
+    [STR_CROSSFEED] = "Crossfeed",
+    [STR_CROSSFEED_LOW] = "Low",
+    [STR_CROSSFEED_MEDIUM] = "Medium",
+    [STR_CROSSFEED_HIGH] = "High",
+    [STR_SKIP_SILENCE] = "Skip silence",
+    [STR_SPEECH_BOOST] = "Speech boost",
 };

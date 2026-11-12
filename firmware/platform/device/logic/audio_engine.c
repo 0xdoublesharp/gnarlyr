@@ -74,6 +74,7 @@ CORE_COLD void audio_engine_set_volume(AudioEngine *engine, uint8_t level)
 
 static CORE_COLD void design_equalizer(AudioEngine *engine)
 {
+    audio_effects_design(&engine->effects, engine->output_rate);
     engine->equalizing =
         engine->config.equalizer != NULL &&
         equalizer_design(engine->config.equalizer, &engine->equalizer_curve, engine->output_rate);
@@ -92,6 +93,11 @@ static bool same_curve(const HalAudioEqualizer *first, const HalAudioEqualizer *
                first->gain_half_db[band] == second->gain_half_db[band];
     }
     return same;
+}
+
+CORE_COLD void audio_engine_set_effects(AudioEngine *engine, HalAudioEffects effects)
+{
+    engine->effects.settings = effects;
 }
 
 CORE_COLD void audio_engine_set_equalizer(AudioEngine *engine, const HalAudioEqualizer *curve)
@@ -197,6 +203,7 @@ static CORE_COLD void push_segment(AudioEngine *engine, const char *path, uint32
     segment->end_ms = engine->decode_end_ms;
     segment->rate = audio_resample_rate(engine->decode_rate);
     segment->replay_gain = engine->track_gain;
+    segment->skipped = 0;
     segment->track = engine->decode_track;
     copy_path(segment->path, path);
 }
@@ -520,10 +527,25 @@ static void shape_block(AudioEngine *engine, uint32_t first, bool tail)
     }
 }
 
+static void refine_block(AudioEngine *engine, uint32_t first)
+{
+    uint32_t start = engine->segments[engine->segment_count - 1].start;
+    AudioEffectsBlock block = {.ring = engine->config.ring,
+                               .ring_frames = ring_frames(engine),
+                               .first = first,
+                               .frames = engine->produced - first,
+                               .buffered = first - engine->consumed,
+                               .stereo = engine->decode_track.stream.channels > 1,
+                               .may_skip = !engine->fade_in.active && !engine->fade_out.active &&
+                                           (int32_t)(first - start) > 0};
+    engine->produced = first + audio_effects_run(&engine->effects, &block);
+}
+
 static void process_block(AudioEngine *engine, uint32_t first, bool tail)
 {
     shape_block(engine, first, tail);
     equalize(engine, first);
+    refine_block(engine, first);
 }
 
 static void render_resampled(AudioEngine *engine)
@@ -761,6 +783,7 @@ void audio_engine_observe(AudioEngine *engine, uint32_t consumed)
         }
         engine->produced = engine->consumed;
     }
+    audio_effects_settle(&engine->effects, engine->segments, engine->segment_count, consumed);
     drop_finished_segments(engine);
     if (engine->ended && (int32_t)(engine->consumed - engine->end_at) >= 0) {
         engine->state = AUDIO_ENGINE_STOPPED;
@@ -832,7 +855,7 @@ AudioEngineStatus audio_engine_status(const AudioEngine *engine)
         return (AudioEngineStatus){.state = engine->state, .failed = engine->failed};
     }
     const AudioSegment *segment = &engine->segments[0];
-    uint32_t played = engine->consumed - segment->start;
+    uint32_t played = engine->consumed - segment->start + segment->skipped;
     uint32_t position =
         segment->rate == 0 ? segment->base_ms
                            : segment->base_ms + (uint32_t)((uint64_t)played *

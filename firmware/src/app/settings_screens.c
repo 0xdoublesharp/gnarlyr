@@ -560,6 +560,42 @@ static void choose_status_style(void *context, int index)
     settings_action_save(context);
 }
 
+static const StringId CROSSFEED_OPTIONS[] = {STR_OFF, STR_CROSSFEED_LOW, STR_CROSSFEED_MEDIUM,
+                                             STR_CROSSFEED_HIGH};
+
+static int current_skip_silence(const void *context)
+{
+    return settings_of(context)->skip_silence ? 1 : 0;
+}
+
+static void choose_skip_silence(void *context, int index)
+{
+    editable_settings(context)->skip_silence = index != 0;
+    settings_action_save(context);
+}
+
+static int current_speech_boost(const void *context)
+{
+    return settings_of(context)->speech_boost ? 1 : 0;
+}
+
+static void choose_speech_boost(void *context, int index)
+{
+    editable_settings(context)->speech_boost = index != 0;
+    settings_action_save(context);
+}
+
+static int current_crossfeed(const void *context)
+{
+    return settings_of(context)->crossfeed;
+}
+
+static void choose_crossfeed(void *context, int index)
+{
+    editable_settings(context)->crossfeed = (uint8_t)index;
+    settings_action_save(context);
+}
+
 static int current_standby(const void *context)
 {
     return settings_of(context)->standby_enabled;
@@ -635,6 +671,10 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_USB_ANSWER, USB_ANSWER_OPTIONS, USB_CONNECT_COUNT, current_usb_answer, choose_usb_answer,
      NULL, NULL},
     {STR_POWER_ON, POWER_ON_OPTIONS, 2, current_power_on, choose_power_on, NULL, NULL},
+    {STR_SKIP_SILENCE, OFF_ON_OPTIONS, 2, current_skip_silence, choose_skip_silence, NULL, NULL},
+    {STR_SPEECH_BOOST, OFF_ON_OPTIONS, 2, current_speech_boost, choose_speech_boost, NULL, NULL},
+    {STR_CROSSFEED, CROSSFEED_OPTIONS, HAL_AUDIO_CROSSFEED_LEVELS, current_crossfeed,
+     choose_crossfeed, NULL, NULL},
     {STR_STATUS_VOLUME, OFF_ON_OPTIONS, 2, current_status_volume, choose_status_volume, NULL, NULL},
     {STR_STATUS_REPEAT, OFF_ON_OPTIONS, 2, current_status_repeat, choose_status_repeat, NULL, NULL},
     {STR_STATUS_POSITION, OFF_ON_OPTIONS, 2, current_status_position, choose_status_position, NULL,
