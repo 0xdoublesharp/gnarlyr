@@ -4,32 +4,8 @@
 
 #include "core/hash.h"
 
+#include "listening_record.h"
 #include "listening_root.h"
-
-enum {
-    RECORD_SEQUENCE = 0,
-    RECORD_TRACK = 4,
-    RECORD_ALBUM = 8,
-    RECORD_ARTIST = 12,
-    RECORD_LENGTH = 16,
-    RECORD_LISTENED = 20,
-    RECORD_START = 24,
-    RECORD_END = 28,
-    RECORD_UPTIME = 32,
-    RECORD_CLOCK = 36,
-    RECORD_BOOT = 40,
-    RECORD_INDEX = 44,
-    RECORD_ENDED = 46,
-    RECORD_OUTPUT = 47,
-    RECORD_FORMAT = 48,
-    RECORD_CLOCK_FLAGS = 49,
-    RECORD_OFFSET = 50,
-    RECORD_CHECK = 60
-};
-
-enum {
-    CLOCK_UTC = 0x01
-};
 
 enum {
     HIRES_RATE = 48000,
@@ -98,54 +74,6 @@ static void encode_record(const ListeningRecord *record, uint8_t *bytes)
     store_put32(bytes + RECORD_CHECK, hash_update(HASH_START, bytes, RECORD_CHECK));
 }
 
-static bool kinds_valid(uint8_t end, uint8_t output, uint8_t format)
-{
-    return end < LISTENING_END_COUNT && output < LISTENING_OUTPUT_COUNT &&
-           format < LISTENING_FORMAT_COUNT;
-}
-
-static bool record_kinds_valid(const uint8_t *bytes)
-{
-    return kinds_valid(bytes[RECORD_ENDED], bytes[RECORD_OUTPUT], bytes[RECORD_FORMAT]) &&
-           (bytes[RECORD_CLOCK_FLAGS] & ~CLOCK_UTC) == 0;
-}
-
-static void decode_play(const uint8_t *bytes, ListeningPlay *play)
-{
-    play->track = (ListeningTrack){.key = store_get32(bytes + RECORD_TRACK),
-                                   .album = store_get32(bytes + RECORD_ALBUM),
-                                   .artist = store_get32(bytes + RECORD_ARTIST),
-                                   .index = store_get16(bytes + RECORD_INDEX)};
-    play->length_ms = store_get32(bytes + RECORD_LENGTH);
-    play->listened_ms = store_get32(bytes + RECORD_LISTENED);
-    play->start_ms = store_get32(bytes + RECORD_START);
-    play->end_ms = store_get32(bytes + RECORD_END);
-    play->uptime_s = store_get32(bytes + RECORD_UPTIME);
-    bool timed = (bytes[RECORD_CLOCK_FLAGS] & CLOCK_UTC) != 0;
-    play->clock_s = timed ? store_get32(bytes + RECORD_CLOCK) : 0;
-    play->offset_minutes = timed ? (int16_t)store_get16(bytes + RECORD_OFFSET) : 0;
-    play->end = (ListeningEnd)bytes[RECORD_ENDED];
-    play->output = (ListeningOutput)bytes[RECORD_OUTPUT];
-    play->format = (ListeningFormat)bytes[RECORD_FORMAT];
-}
-
-static bool decode_record(const uint8_t *bytes, ListeningRecord *record)
-{
-    if (store_get32(bytes + RECORD_CHECK) != hash_update(HASH_START, bytes, RECORD_CHECK) ||
-        !record_kinds_valid(bytes)) {
-        return false;
-    }
-    record->sequence = store_get32(bytes + RECORD_SEQUENCE);
-    record->boot = store_get32(bytes + RECORD_BOOT);
-    decode_play(bytes, &record->play);
-    return true;
-}
-
-static uint32_t record_offset(uint32_t sequence)
-{
-    return LISTENING_RING_OFFSET + sequence % LISTENING_LOG_CAPACITY * LISTENING_RECORD_BYTES;
-}
-
 StoreLoad listening_log_open(ListeningLog *log, ListeningLogConfig config)
 {
     *log = (ListeningLog){.file = config.file, .root = {.next = 1}, .enabled = config.enabled};
@@ -187,7 +115,7 @@ static bool write_record(const ListeningLog *log, const ListeningRecord *record)
 {
     uint8_t wanted[LISTENING_RECORD_BYTES];
     uint8_t found[LISTENING_RECORD_BYTES];
-    uint32_t offset = record_offset(record->sequence);
+    uint32_t offset = listening_record_offset(record->sequence);
     encode_record(record, wanted);
     (void)store_file_write(&log->file, offset, wanted, sizeof wanted);
     if (!store_file_read(&log->file, offset, found, sizeof found)) {
@@ -223,7 +151,7 @@ StoreResult listening_log_append(ListeningLog *log, const ListeningPlay *play)
         return STORE_IDLE;
     }
     if (!writable(log) ||
-        !kinds_valid((uint8_t)play->end, (uint8_t)play->output, (uint8_t)play->format)) {
+        !listening_kinds_valid((uint8_t)play->end, (uint8_t)play->output, (uint8_t)play->format)) {
         return STORE_FAILED;
     }
     ListeningRoot root = log->root;
@@ -271,14 +199,6 @@ ListeningFormat listening_format_class(bool lossless, uint32_t sample_rate, uint
                                                          : LISTENING_FORMAT_LOSSLESS;
 }
 
-bool listening_play_listened(const ListeningPlay *play)
-{
-    if (play->length_ms == 0) {
-        return play->end == LISTENING_FINISHED;
-    }
-    return play->listened_ms >= play->length_ms - play->length_ms / 2;
-}
-
 uint16_t listening_skip_permille(const ListeningTotals *totals)
 {
     uint32_t plays = totals->plays;
@@ -288,65 +208,4 @@ uint16_t listening_skip_permille(const ListeningTotals *totals)
         skips >>= 1;
     }
     return plays == 0 ? 0 : (uint16_t)(skips * PERMILLE / plays);
-}
-
-void listening_cursor_begin(ListeningCursor *cursor, const ListeningLog *log, uint8_t run)
-{
-    *cursor = (ListeningCursor){
-        .file = &log->file, .next = log->root.next, .kept = log->root.kept, .run = run};
-}
-
-void listening_cursor_rewind(ListeningCursor *cursor)
-{
-    cursor->position = 0;
-    cursor->damaged = 0;
-}
-
-static uint32_t sequence_at(const ListeningCursor *cursor, uint16_t position)
-{
-    return cursor->next - cursor->kept + position;
-}
-
-static uint16_t run_length(const ListeningCursor *cursor)
-{
-    uint32_t slot = sequence_at(cursor, cursor->position) % LISTENING_LOG_CAPACITY;
-    uint16_t count = (uint16_t)(LISTENING_SECTOR_RECORDS - slot % LISTENING_SECTOR_RECORDS);
-    uint16_t left = (uint16_t)(cursor->kept - cursor->position);
-    count = count < cursor->run ? count : cursor->run;
-    return count < left ? count : left;
-}
-
-StoreResult listening_cursor_step(ListeningCursor *cursor, ListeningVisitor visitor)
-{
-    uint8_t block[STORE_BLOCK_BYTES];
-    ListeningRecord record;
-    if (cursor->position >= cursor->kept) {
-        return STORE_DONE;
-    }
-    uint32_t sequence = sequence_at(cursor, cursor->position);
-    uint16_t count = run_length(cursor);
-    if (count == 0 || !store_file_read(cursor->file, record_offset(sequence), block,
-                                       (uint32_t)count * LISTENING_RECORD_BYTES)) {
-        return STORE_FAILED;
-    }
-    for (uint16_t index = 0; index < count; index++) {
-        if (decode_record(block + index * LISTENING_RECORD_BYTES, &record) &&
-            record.sequence == sequence + index) {
-            visitor.visit(visitor.context, &record);
-        } else {
-            cursor->damaged++;
-        }
-    }
-    cursor->position = (uint16_t)(cursor->position + count);
-    return cursor->position >= cursor->kept ? STORE_DONE : STORE_WORKING;
-}
-
-bool listening_cursor_fetch(const ListeningCursor *cursor, uint16_t position,
-                            ListeningRecord *record)
-{
-    uint8_t bytes[LISTENING_RECORD_BYTES];
-    uint32_t sequence = sequence_at(cursor, position);
-    return position < cursor->kept &&
-           store_file_read(cursor->file, record_offset(sequence), bytes, sizeof bytes) &&
-           decode_record(bytes, record) && record->sequence == sequence;
 }
