@@ -598,6 +598,31 @@ static void choose_status_style(void *context, int index)
     settings_action_save(context);
 }
 
+static int current_standby(const void *context)
+{
+    return settings_of(context)->standby_enabled;
+}
+
+static void choose_standby(void *context, int index)
+{
+    editable_settings(context)->standby_enabled = index != 0;
+    settings_action_save(context);
+}
+
+static int current_standby_timeout(const void *context)
+{
+    return settings_of(context)->standby_power_off_option;
+}
+
+static void choose_standby_timeout(void *context, int index)
+{
+    editable_settings(context)->standby_power_off_option = (uint8_t)index;
+    settings_action_save(context);
+}
+
+static const StringId STANDBY_OPTIONS[] = {STR_MINUTES_30, STR_STANDBY_HOURS_2,
+                                           STR_STANDBY_HOURS_8};
+
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_SHUFFLE, SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, settings_action_current_shuffle,
      settings_action_choose_shuffle, NULL, NULL},
@@ -655,6 +680,9 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      NULL},
     {STR_STATUS_LAYOUT, STATUS_LAYOUT_OPTIONS, 2, current_status_layout, choose_status_layout, NULL,
      NULL},
+    {STR_STANDBY_ENABLED, OFF_ON_OPTIONS, 2, current_standby, choose_standby, NULL, NULL},
+    {STR_STANDBY_TIMEOUT, STANDBY_OPTIONS, 3, current_standby_timeout, choose_standby_timeout, NULL,
+     NULL},
 };
 
 static PlugState plug_state(const SettingsScreens *screens, PlugPlace place)
@@ -709,6 +737,27 @@ static ScreenAction open_choice(void *context)
         choice->extend(screens, &config);
     }
     return screen_action_push(choice_view(screens, choice, config));
+}
+
+static const char *choice_value(const void *context);
+
+static ScreenAction open_power(void *context)
+{
+    SettingsScreens *screens = context;
+    for (int index = 0; index < 2; index++) {
+        screens->power_items[index] =
+            (MenuItem){.label = i18n_text(CHOICES[SETTINGS_STANDBY_CHOICE + index].title),
+                       .select = open_choice,
+                       .context = &screens->entries[SETTINGS_STANDBY_CHOICE + index],
+                       .value = choice_value,
+                       .opens = true};
+    }
+    MenuConfig config = {.title = i18n_text(STR_STANDBY_POWER),
+                         .items = screens->power_items,
+                         .item_count = 2,
+                         .theme = screens->theme,
+                         .detail_below = true};
+    return screen_action_push(menu_screen_init(&screens->power_menu, config));
 }
 
 Screen *settings_screens_usb_modes(SettingsScreens *screens, bool prompt)
@@ -868,11 +917,13 @@ static void bind_headphones(SettingsScreens *screens)
                                                           .shown_context = screens};
 }
 
+static ScreenAction open_status_bar(void *context);
+
 static void bind_status_bar(SettingsScreens *screens)
 {
     for (int index = 0; index < SETTINGS_STATUS_COUNT; index++) {
         int choice = index == 3   ? SETTINGS_STATUS_CHOICE
-                     : index >= 4 ? SETTINGS_CHOICE_COUNT - 2 + index - 4
+                     : index >= 4 ? SETTINGS_MAIN_CHOICE_COUNT + 3 + index - 4
                                   : SETTINGS_MAIN_CHOICE_COUNT + index;
         screens->status_items[index] = (MenuItem){.label = i18n_text(CHOICES[choice].title),
                                                   .select = open_choice,
@@ -885,11 +936,18 @@ static void bind_status_bar(SettingsScreens *screens)
                          .item_count = SETTINGS_STATUS_COUNT,
                          .theme = screens->theme,
                          .detail_below = true};
-    Screen *menu = menu_screen_init(&screens->status_menu, config);
+    menu_screen_init(&screens->status_menu, config);
     screens->items[SETTINGS_STATUS_CHOICE + 5] = (MenuItem){.label = i18n_text(STR_STATUS_BAR),
-                                                            .select = menu_open_screen,
-                                                            .context = menu,
+                                                            .select = open_status_bar,
+                                                            .context = screens,
                                                             .opens = true};
+}
+
+static ScreenAction open_status_bar(void *context)
+{
+    SettingsScreens *screens = context;
+    bind_status_bar(screens);
+    return screen_action_push(&screens->status_menu.screen);
 }
 
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context, const Theme *theme)
@@ -962,6 +1020,10 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                           .value = choice_value,
                                           .opens = true};
     }
+    screens->items[SETTINGS_POWER_ITEM] = (MenuItem){.label = i18n_text(STR_STANDBY_POWER),
+                                                     .select = open_power,
+                                                     .context = screens,
+                                                     .opens = true};
     bind_status_bar(screens);
     screens->items[SETTINGS_LANGUAGE_ITEM].shown = language_shown;
     screens->items[SETTINGS_LANGUAGE_ITEM].shown_context = &screens->languages;

@@ -17,11 +17,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  firmware:
-    name: Firmware and public tools
+  preflight:
+    name: Tools, generated assets, and image budgets
     env:
       CC: clang
-    runs-on: blacksmith-16vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -31,12 +31,12 @@ jobs:
       - uses: ./.github/actions/setup-firmware
       - name: Check public host tools and website
         run: python3 -m unittest discover -s tests
-      - name: Check firmware and emulator
-        run: python3 tools/firmware.py test --jobs 10
+      - name: Check firmware host tools before ARM scenarios
+        run: python3 tools/firmware.py test --jobs 4 --regex '^tools_unit_tests$'
       - name: Check generated assets
         run: python3 tools/firmware.py regen --check --jobs 2
       - name: Check both firmware size budgets
-        run: python3 tools/firmware.py sizes --jobs 10
+        run: python3 tools/firmware.py sizes --jobs 4
       - name: Package firmware and source
         env:
           SOURCE_SHA: ${{ github.sha }}
@@ -65,14 +65,47 @@ jobs:
         if: always()
         run: sccache --show-stats
 
+  firmware:
+    name: Firmware shard ${{ matrix.shard }}/6
+    needs: preflight
+    env:
+      CC: clang
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: true
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-firmware
+      - name: Run this shard and its required fixtures
+        run: python3 tools/ci_firmware.py --shard "${{ matrix.shard }}" --shards 6 --jobs 4
+      - name: Compiler cache statistics
+        if: always()
+        run: sccache --show-stats
+
   mac-filesystems:
     name: macOS card compatibility
-    runs-on: blacksmith-6vcpu-macos-26
+    if: >-
+      github.repository == '0xdoublesharp/gnarlyr' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: macos-15
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup-firmware
+      - name: Require a commit from trusted main before image mounts
+        run: git merge-base --is-ancestor HEAD refs/remotes/origin/main
       - name: Check native FAT and exFAT mount, read, and write
-        run: python3 tools/firmware.py test --jobs 4 --regex '^(formatted_cards_pass_fsck|created_cards_pass_fsck)$'
+        run: |
+          sudo -E env "PATH=$PATH" \
+            GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory "GIT_CONFIG_VALUE_0=$GITHUB_WORKSPACE" \
+            "$(command -v python3)" tools/firmware.py test --jobs 4 --regex '^(formatted_cards_pass_fsck|created_cards_pass_fsck)$'

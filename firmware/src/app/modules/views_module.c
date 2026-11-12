@@ -1,4 +1,3 @@
-#include "browse_sections.h"
 #include "mixtape_ui_private.h"
 #include "modules/modules.h"
 
@@ -26,6 +25,4 @@ const ViewsModuleEntry VIEWS_MODULE_ENTRY = {
     .cancel = mixtape_ui_cancel,
     .step = mixtape_ui_step,
     .add = mixtape_ui_add,
-    .section = browse_sections_at,
-    .sections = browse_sections_range,
 };

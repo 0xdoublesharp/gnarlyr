@@ -111,7 +111,7 @@ static void settings_from_the_music_volume_move_to_internal_storage(void)
     CHECK_EQUAL(BRIGHT, settings.settings.brightness);
 }
 
-static void a_version_fourteen_file_loads_and_is_saved_as_version_fifteen(void)
+static void a_version_fourteen_file_loads_and_is_saved_as_the_current_version(void)
 {
     uint8_t old[SETTINGS_FILE_SIZE];
     Settings written = settings_defaults();
@@ -129,7 +129,7 @@ static void a_version_fourteen_file_loads_and_is_saved_as_version_fifteen(void)
     uint32_t size = 0;
     const uint8_t *saved = fake_hal_internal_file_bytes(SETTINGS_STORE_PATH, &size);
     CHECK_EQUAL(SETTINGS_FILE_SIZE, size);
-    CHECK_EQUAL(15, saved[4]);
+    CHECK_EQUAL(16, saved[4]);
 }
 
 static void internal_settings_win_over_the_music_volume_copy(void)
@@ -551,7 +551,7 @@ int main(void)
         TEST_CASE(unchanged_settings_are_not_written_again),
         TEST_CASE(settings_survive_a_change_of_music_volume),
         TEST_CASE(settings_from_the_music_volume_move_to_internal_storage),
-        TEST_CASE(a_version_fourteen_file_loads_and_is_saved_as_version_fifteen),
+        TEST_CASE(a_version_fourteen_file_loads_and_is_saved_as_the_current_version),
         TEST_CASE(internal_settings_win_over_the_music_volume_copy),
         TEST_CASE(a_corrupted_settings_file_falls_back_to_the_defaults),
         TEST_CASE(hardware_settings_reach_the_hal),

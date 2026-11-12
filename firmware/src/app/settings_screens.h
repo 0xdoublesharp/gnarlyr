@@ -24,10 +24,11 @@
 #include "ui/toast.h"
 
 enum {
-    SETTINGS_CHOICE_COUNT = 33,
+    SETTINGS_CHOICE_COUNT = 35,
     SETTINGS_MAIN_CHOICE_COUNT = 28,
     SETTINGS_STATUS_CHOICE = 21,
     SETTINGS_STATUS_COUNT = 6,
+    SETTINGS_STANDBY_CHOICE = SETTINGS_MAIN_CHOICE_COUNT + 5,
     SETTINGS_LANGUAGE_CHOICE = 10,
     SETTINGS_USB_MODE_CHOICE = 19,
     SETTINGS_ABOUT_ITEM = 0,
@@ -41,10 +42,11 @@ enum {
     SETTINGS_FORMAT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 8,
     SETTINGS_HOME_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 9,
     SETTINGS_PARAMETRIC_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 10,
-    SETTINGS_CONTROLS_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 11,
+    SETTINGS_POWER_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 11,
+    SETTINGS_CONTROLS_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 12,
     SETTINGS_EJECT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 6,
     SETTINGS_MOUNT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 7,
-    SETTINGS_ITEM_COUNT = SETTINGS_MAIN_CHOICE_COUNT + 12,
+    SETTINGS_ITEM_COUNT = SETTINGS_MAIN_CHOICE_COUNT + 13,
     SETTINGS_MESSAGE_CAPACITY = 64
 };
 
@@ -92,8 +94,14 @@ struct SettingsScreens {
     SettingsPreview preview;
     const Settings *(*preview_settings)(SettingsScreens *screens, bool active);
     MenuScreen menu;
-    MenuScreen status_menu;
-    MenuItem status_items[SETTINGS_STATUS_COUNT];
+    union {
+        MenuScreen status_menu;
+        MenuScreen power_menu;
+    };
+    union {
+        MenuItem status_items[SETTINGS_STATUS_COUNT];
+        MenuItem power_items[2];
+    };
     union {
         ChoiceScreen choice;
         SetClockScreen clock;

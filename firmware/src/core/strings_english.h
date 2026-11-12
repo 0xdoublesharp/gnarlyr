@@ -739,4 +739,9 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_PLUG_COUNTDOWN] = "Charging in {0} s",
     [STR_PLUG_ALWAYS_HINT] = "Hold Play: always do this",
     [STR_PLUG_ALWAYS] = "Always: {0}",
+    [STR_STANDBY_POWER] = "Power",
+    [STR_STANDBY_ENABLED] = "Standby when switched off",
+    [STR_STANDBY_TIMEOUT] = "Power off after",
+    [STR_STANDBY_HOURS_2] = "2 h",
+    [STR_STANDBY_HOURS_8] = "8 h",
 };
