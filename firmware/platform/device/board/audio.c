@@ -1003,6 +1003,12 @@ bool board_audio_converting(void)
     return engine_ready && transferring && audio_engine_needs_full_clock(&engine);
 }
 
+bool board_audio_running_low(void)
+{
+    return engine_ready && transferring && !tone_active &&
+           audio_engine_buffered(&engine, consumed) < RING_FRAMES / 2;
+}
+
 uint8_t board_audio_volume_level(void)
 {
     return volume_level;

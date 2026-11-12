@@ -325,7 +325,9 @@ static void set_display(bool on)
 {
     app.display_on = on;
     app.light_after_frame = on;
-    if (!on) {
+    if (on) {
+        hal_system_coast(false);
+    } else {
         hal_display_set_power(false);
     }
     use_wanted_clock();
