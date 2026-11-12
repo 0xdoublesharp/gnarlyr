@@ -279,6 +279,7 @@ class Machine:
         self.usb = devices.UsbCore(self)
         self.pmu = devices.Pmu(self)
         self.vop = devices.Vop(self)
+        self.dmac = devices.Dmac(self)
         from .emmc import DwMmc
         self.watchdog = devices.Watchdog(self)
         self.emmc_controller = DwMmc(self, self.card)
@@ -291,7 +292,7 @@ class Machine:
             (self.pmu, 0x50020000, PAGE), (self.cru, 0x40180000, PAGE),
             (devices.Pwm(self), 0x400F0000, PAGE), (devices.SarAdc(self), 0x400D0000, PAGE),
             (self.watchdog, 0x40120000, PAGE), (self.systick, 0xE000E000, PAGE),
-            (self.vop, 0x60070000, PAGE), (devices.Dmac(), 0x60000000, PAGE),
+            (self.vop, 0x60070000, PAGE), (self.dmac, 0x60000000, PAGE),
             (self.usb, 0x60080000, 0x10000), (self.emmc_controller, 0x60030000, PAGE),
             (self.sd_controller, 0x60020000, PAGE), (self.rtc_bus, 0x40050000, PAGE),
         ]
