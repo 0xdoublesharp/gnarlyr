@@ -215,6 +215,31 @@ static void a_separate_listing_leaves_the_memory_to_the_builder(void)
     free(expected);
 }
 
+static void a_listing_at_an_odd_address_is_used_from_its_next_aligned_byte(void)
+{
+    static uint8_t memory[128 * 1024];
+    static uint32_t words[4 * 1024 + 1];
+    static HostFiles files;
+    static Output output;
+    sim_storage_configure(ECHO_FIXTURE_DIR "/scan_music", NULL);
+    output.length = 0;
+    ScanJob job = {
+        .files = {open_dir, next_entry, close_dir, open_file, close_file, &files},
+        .memory = memory,
+        .size = sizeof memory,
+        .listing = (uint8_t *)words + 1,
+        .listing_size = 16 * 1024 + 3,
+        .scratch = SCRATCH,
+        .sink = {write_output, &output},
+    };
+    ScanStats stats;
+    CHECK_EQUAL(SCAN_OK, library_scan(&job, &stats));
+    uint32_t expected_size = 0;
+    uint8_t *expected = read_fixture("scan_music.db", &expected_size);
+    CHECK(library_compare(expected, expected_size, output.bytes, stats.length));
+    free(expected);
+}
+
 static void a_missing_music_root_says_so(void)
 {
     static Output output;
@@ -823,6 +848,7 @@ int main(int argc, char **argv)
     }
     static const TestCase cases[] = {
         TEST_CASE(scanning_the_tag_fixtures_matches_the_pc_indexer),
+        TEST_CASE(a_listing_at_an_odd_address_is_used_from_its_next_aligned_byte),
         TEST_CASE(scanning_folders_and_playlists_matches_the_pc_indexer),
         TEST_CASE(scanning_cue_sheets_matches_the_pc_indexer),
         TEST_CASE(scanning_m4a_files_matches_the_pc_indexer),
