@@ -2,4 +2,4 @@
 
 #include "library/music_fingerprint.h"
 
-MusicFingerprint music_walk_fingerprint(void);
+MusicFingerprint music_walk_fingerprint(bool progress);

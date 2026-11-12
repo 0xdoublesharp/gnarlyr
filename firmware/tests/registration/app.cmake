@@ -215,3 +215,15 @@ echo_add_unit_test(NAME test_charge_lifecycle
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
 )
+
+echo_add_unit_test(NAME test_check_progress
+    SOURCES app/test_check_progress.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
+echo_add_unit_test(NAME test_music_walk_progress
+    SOURCES app/test_music_walk_progress.c ${PROJECT_SOURCE_DIR}/src/app/music_walk.c
+    LIBRARIES echo_core echo_library_scan echo_hal echo_gfx
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/app/include
+)

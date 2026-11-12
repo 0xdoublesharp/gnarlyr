@@ -42,7 +42,7 @@ extern const SettingsModuleEntry SETTINGS_MODULE_ENTRY;
 
 typedef struct LibraryModuleEntry {
     ScreenModuleEntry module;
-    MusicFingerprint (*music_fingerprint)(void);
+    MusicFingerprint (*music_fingerprint)(bool progress);
     Screen *(*open)(AppScreens *screens, BrowseQuery source, bool edit_search);
     Screen *(*options)(AppScreens *screens, BrowseQuery source);
     Screen *(*info)(AppScreens *screens, uint16_t track);
