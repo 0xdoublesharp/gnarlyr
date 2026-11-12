@@ -988,6 +988,20 @@ static void the_last_usb_session_is_reported_once_there_was_one(void)
     CHECK(has_line("usb.last_end: ejected"));
     CHECK(has_line("usb.internal_sectors_written: 96"));
     CHECK(has_line("usb.card_sectors_written: 0"));
+    CHECK(strstr(text, "usb.speed_fallback") == NULL);
+}
+
+static void a_full_speed_fallback_reports_why_it_fired(void)
+{
+    DebugReportInput input = plain_input();
+    input.usb =
+        (HalUsbLast){.end = HAL_USB_END_EJECTED, .speed_fallback = 2, .fallback_commands = 1};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("usb.speed_fallback: few_commands commands=1"));
+    input.usb.speed_fallback = 1;
+    input.usb.fallback_commands = 0;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("usb.speed_fallback: not_configured commands=0"));
 }
 
 static void stopped_audio_reports_its_running_figures_as_unknown(void)
@@ -1427,6 +1441,7 @@ int main(void)
         TEST_CASE(the_usb_words_read_at_start_up_and_at_the_report_are_printed_whole),
         TEST_CASE(the_cores_session_bit_is_reported_only_while_the_controller_can_be_read),
         TEST_CASE(the_last_usb_session_is_reported_once_there_was_one),
+        TEST_CASE(a_full_speed_fallback_reports_why_it_fired),
         TEST_CASE(stopped_audio_reports_its_running_figures_as_unknown),
         TEST_CASE(running_audio_reports_averages_worst_times_and_the_busy_share),
         TEST_CASE(frame_figures_are_unknown_until_a_frame_was_drawn),

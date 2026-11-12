@@ -41,6 +41,8 @@ typedef enum HalUsbEnd {
 typedef struct HalUsbLast {
     HalUsbEnd end;
     uint8_t left_mounted;
+    uint8_t speed_fallback;
+    uint8_t fallback_commands;
     uint32_t internal_written;
     uint32_t card_written;
     uint32_t writes_after_eject;

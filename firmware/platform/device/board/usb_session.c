@@ -32,7 +32,6 @@ enum {
     CARD_LUN = 1,
     LUN_COUNT = 2,
     WRITE_BUFFER_SECTORS = 64,
-    WORKING_COMMANDS = 2,
     MOTION_FRAME_MS = 400,
     FOLLOW_MS = 10,
     MOTION_STEP = 12,
@@ -209,11 +208,6 @@ static bool stats_changed(MscStats now, MscStats shown)
     return now.write_failures != shown.write_failures || now.read_failures != shown.read_failures;
 }
 
-static bool session_works(void)
-{
-    return port.configured && msc.stats.commands >= WORKING_COMMANDS;
-}
-
 static void fall_back_to_full_speed(void)
 {
     shared->high_speed_failed = true;
@@ -223,6 +217,17 @@ static void fall_back_to_full_speed(void)
     usb_device_allow_high_speed(&port.device, false);
     msc_reset(&msc);
     usb_port_connect(&port);
+}
+
+static void watch_speed(uint32_t now)
+{
+    if (port.enumerated) {
+        usb_fallback_enumerated(&fallback, now);
+    }
+    UsbFallbackSigns signs = {port.configured, msc.stats.commands};
+    if (usb_fallback_due(&fallback, signs, now)) {
+        fall_back_to_full_speed();
+    }
 }
 
 static StringId back_action(int pages)
@@ -613,9 +618,7 @@ static UsbSessionEnd serve(void)
         }
         usb_poll(&port);
         board_display_service();
-        if (usb_fallback_due(&fallback, session_works(), now)) {
-            fall_back_to_full_speed();
-        }
+        watch_speed(now);
         UsbSessionEnd end = ended(watch.state);
         if (end != USB_SESSION_NO_HOST) {
             return end;
@@ -636,11 +639,15 @@ static HalUsbEnd hal_end(UsbSessionEnd end)
 static void remember_session(UsbSessionEnd end)
 {
     MscStats stats = msc_stats(&msc);
-    shared->last_session = (HalUsbLast){.end = hal_end(end),
-                                        .left_mounted = msc_left_mounted(&msc),
-                                        .internal_written = stats.lun_sectors_written[INTERNAL_LUN],
-                                        .card_written = stats.lun_sectors_written[CARD_LUN],
-                                        .writes_after_eject = stats.writes_after_eject};
+    shared->last_session =
+        (HalUsbLast){.end = hal_end(end),
+                     .left_mounted = msc_left_mounted(&msc),
+                     .internal_written = stats.lun_sectors_written[INTERNAL_LUN],
+                     .card_written = stats.lun_sectors_written[CARD_LUN],
+                     .writes_after_eject = stats.writes_after_eject,
+                     .speed_fallback = (uint8_t)fallback.cause,
+                     .fallback_commands =
+                         fallback.commands < UINT8_MAX ? (uint8_t)fallback.commands : UINT8_MAX};
 }
 
 static UsbSessionEnd run(void)
@@ -660,7 +667,7 @@ static UsbSessionEnd run(void)
     usb_silence_audio();
     UsbSessionEnd end = USB_SESSION_NO_HOST;
     if (usb_wait_for_host(&port, HOST_TIMEOUT_MS)) {
-        usb_fallback_start(&fallback, port.link.high_speed_allowed, hal_clock_milliseconds());
+        usb_fallback_start(&fallback, port.link.high_speed_allowed);
         usb_activity_start(&activity, hal_clock_milliseconds());
         session_clock.started_ms = hal_clock_milliseconds();
         usb_meter_start(&scene.meter, session_clock.started_ms);
