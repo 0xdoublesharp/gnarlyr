@@ -11,7 +11,8 @@ from echo_image_harness import EchoImageHarness, main, IDENTITY
 from echo_emulator.emmc import SdCard, SparseDisk
 from echo_emulator.fat_volume import Fat32Volume
 from echo_emulator.playback import Rig
-from echo_emulator.power import BluetoothRadio, DecoderLoad, PowerMeter
+from echo_emulator.bluetooth import Headphones
+from echo_emulator.power import DecoderLoad, PowerMeter
 
 
 class EchoImageTest(EchoImageHarness):
@@ -87,8 +88,8 @@ class EchoImageTest(EchoImageHarness):
             machine.card_present = True
             meters.append(PowerMeter(machine))
             if output == 0:
-                radios.append(BluetoothRadio(machine))
-                machine.map_device(radios[0], 0x400B0000, 0x1000)
+                machine.bluetooth.headphones = Headphones(bytes(range(1, 7)), "Radio")
+                radios.append(machine.bluetooth)
             original = machine.external_pin_levels
             def pins(port):
                 value = original(port)
@@ -108,14 +109,14 @@ class EchoImageTest(EchoImageHarness):
         rig.run_for(500)
         self.assertIsNotNone(rig.first_audio_after(started),
                              (codec, output, rig.audio.plays, rig.machine.faults,
-                              rig.machine.panics, rig.audio.core1.instructions if rig.audio.core1 else 0))
+                              rig.machine.panics, getattr(rig.audio.core1, "instructions", 0)))
         rig.machine.power_key_released_at_ms = rig.machine.milliseconds() + 150
         rig.run_for(1000)
         result = meters[0].measure(rig, inserted[0], 4000)
         result.update(codec=codec, output=output)
         if radios:
-            result["bluetooth_commands"] = [item.hex() for item in radios[0].commands]
-            self.assertTrue(any(b"\x1e" in item for item in radios[0].commands), result)
+            result["bluetooth_commands"] = [item.hex() for _, item in radios[0].commands]
+            self.assertTrue(radios[0].streaming, result)
         self.assertEqual(0, result["underruns"], result)
         self.assertEqual(0, result["output_underruns"], result)
         self.assertTrue(result["panel_asleep"], result)

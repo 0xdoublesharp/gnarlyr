@@ -1,5 +1,5 @@
 import struct
-from collections import Counter, deque
+from collections import Counter
 
 from unicorn import UC_HOOK_BLOCK, UC_HOOK_MEM_WRITE
 from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC
@@ -7,47 +7,6 @@ from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC
 from .core1 import CONTROL, RING, SAMPLES, Core1
 from .core1_bridge import CONTROL_BYTES, DECODER_OWNED, SAMPLE_BYTES
 from .machine import load_symbols
-from .devices import RegisterFile
-
-
-class BluetoothRadio(RegisterFile):
-    def __init__(self, machine):
-        super().__init__()
-        self.machine = machine
-        self.rx = deque()
-        self.tx = bytearray()
-        self.powered = False
-        self.commands = []
-
-    def read_word(self, offset):
-        powered = bool(self.machine.gpio[2].regs.get(0, 0) & (1 << 7))
-        if powered and not self.powered:
-            self.rx.extend(b"CV15")
-        self.powered = powered
-        if offset == 0x14:
-            return int(bool(self.rx))
-        if offset == 0x7C:
-            return 2
-        if offset == 0x84:
-            return len(self.rx)
-        if offset == 0:
-            return self.rx.popleft() if self.rx else 0
-        return super().read_word(offset)
-
-    def write_word(self, offset, value):
-        super().write_word(offset, value)
-        if offset != 0 or self.regs.get(0x0C, 0) & 0x80:
-            return
-        if value:
-            self.tx.append(value & 255)
-        else:
-            command = bytes(self.tx)
-            self.commands.append(command)
-            self.tx.clear()
-            if command.startswith(b"CL06"):
-                self.rx.extend(b"CLOK")
-            if command == b"CQ00":
-                self.rx.extend(b"CQO06" + bytes(range(1, 7)))
 
 
 def thumb_instructions(data):
@@ -168,6 +127,7 @@ class PowerMeter:
 
     def measure(self, rig, card, duration_ms):
         machine, decoder = self.machine, rig.audio.core1
+        decoder = decoder if isinstance(decoder, DecoderLoad) else None
         first, idle, wakes = machine.microseconds(), self.idle_us, self.wakes
         instructions = decoder.instructions if decoder else 0
         clock_first, clock_index = machine.core_hz, len(machine.clock_log)
