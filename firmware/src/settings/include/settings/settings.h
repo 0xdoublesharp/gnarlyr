@@ -201,8 +201,6 @@ typedef struct Settings {
     uint8_t transition_tenths;
     uint8_t home_order[SETTINGS_HOME_ITEM_COUNT];
     uint16_t home_hidden;
-    bool standby_enabled;
-    uint8_t standby_power_off_option;
 } Settings;
 
 typedef struct SettingsEqualizerCurve {
