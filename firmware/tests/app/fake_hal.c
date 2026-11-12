@@ -99,6 +99,8 @@ typedef struct LargeStore {
 static LargeStore large_stores[2];
 
 typedef struct FakeHal {
+    AudioVisualBuffer visual_buffer;
+    int visual_reads;
     uint8_t battery_care_mode;
     uint8_t battery_care_saved;
     const char *version;
@@ -2094,6 +2096,22 @@ uint32_t fake_hal_audio_queued_fade_ms(void)
 uint32_t fake_hal_audio_play_fade_ms(void)
 {
     return fake.audio.play_fade_ms;
+}
+
+void fake_hal_set_visual_buffer(AudioVisualBuffer buffer)
+{
+    fake.visual_buffer = buffer;
+}
+
+int fake_hal_visual_reads(void)
+{
+    return fake.visual_reads;
+}
+
+AudioVisualBuffer hal_audio_visual_buffer(void)
+{
+    fake.visual_reads++;
+    return fake.visual_buffer;
 }
 
 bool hal_clock_set_wall(HalWallTime time)

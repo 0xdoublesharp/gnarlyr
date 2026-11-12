@@ -58,6 +58,7 @@ typedef struct SimAudio {
     uint16_t speed;
     bool stretching;
     AudioTempo tempo;
+    uint32_t visual_frames;
     uint8_t repeat_state;
     uint64_t repeat_a;
     uint64_t repeat_b;
@@ -243,6 +244,7 @@ static bool decode_chunk(void)
         float value = chunk[sample] * gain * ((float)channel / (float)REPLAY_GAIN_UNITY);
         chunk[sample] = value > 1 ? 1 : value < -1 ? -1 : value;
     }
+    audio.visual_frames = (uint32_t)frames;
     put_audio(frames);
     return true;
 }
@@ -574,6 +576,38 @@ void hal_audio_set_replay_gain(uint32_t token, uint32_t gain)
         }
     }
     unlock();
+}
+
+AudioVisualBuffer hal_audio_visual_buffer(void)
+{
+    static uint32_t words[CHUNK_FRAMES * STEREO];
+    lock();
+    SimTrack *track = current_track();
+    if (!track->open || audio.state != HAL_AUDIO_PLAYING) {
+        unlock();
+        return (AudioVisualBuffer){0};
+    }
+    uint32_t count = audio.visual_frames;
+    if (audio.virtual_output) {
+        uint64_t frame = track->decoder.frame;
+        bool sought = sim_decoder_seek(&track->decoder, frame);
+        count =
+            sought ? (uint32_t)sim_decoder_read_stereo(&track->decoder, chunk, CHUNK_FRAMES) : 0;
+        sim_decoder_seek(&track->decoder, frame);
+    }
+    for (uint32_t sample = 0; sample < count * STEREO; sample++) {
+        float value = chunk[sample];
+        if (audio.virtual_output) {
+            uint32_t channel =
+                sample % STEREO == 0 ? audio.headphones.left : audio.headphones.right;
+            value *= audio.gain * track->replay_gain * ((float)channel / REPLAY_GAIN_UNITY);
+        }
+        value = value > 1 ? 1 : value < -1 ? -1 : value;
+        words[sample] = (uint32_t)(int32_t)(value * 32767) << 16;
+    }
+    uint32_t rate = track->decoder.sample_rate;
+    unlock();
+    return (AudioVisualBuffer){words, CHUNK_FRAMES, 0, count, rate};
 }
 
 void hal_audio_set_sleep_remaining(uint32_t remaining_ms)

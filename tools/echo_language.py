@@ -240,7 +240,7 @@ class Snapshot:
         reserved = list(block[11:15])
         if self.clock_offset_byte:
             reserved[0:2] = [0, 0]
-        if self.status_items_supported:
+        if self.status_items_supported or self.display_flags_byte == 13:
             reserved[2] = 0
         reserved[3] &= ~self.e14_bits[0] & 0xFF
         if self.battery_care_supported:

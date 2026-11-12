@@ -89,6 +89,11 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/app/screens/now_playing_screen.c
     src/app/cassette_art.c
     src/app/modules/playing_module.c
+    src/app/screens/cassette_now_playing.c
+    src/app/screens/meter_now_playing.c
+    src/app/screens/neon_art.c
+    src/app/screens/playing_work.c
+    src/core/audio_visual.c
     src/app/screens/cover_flow_screen.c
     src/app/board_cover_layout.c
     src/app/cover_cache_half.c

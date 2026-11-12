@@ -44,6 +44,8 @@ static const char *const BRIGHTNESS_OPTIONS[BRIGHTNESS_LEVEL_COUNT] = {"1", "2",
 static const StringId ACCENT_OPTIONS[ACCENT_COLOR_COUNT] = {
     STR_COLOR_BLUE, STR_COLOR_RED,    STR_COLOR_ORANGE, STR_COLOR_GREEN,
     STR_COLOR_TEAL, STR_COLOR_PURPLE, STR_COLOR_PINK,   STR_COLOR_GRAPHITE};
+static const StringId NOW_PLAYING_OPTIONS[] = {STR_NOW_PLAYING_COVER, STR_NOW_PLAYING_CASSETTE,
+                                               STR_NOW_PLAYING_VU, STR_NOW_PLAYING_SPECTRUM};
 static const StringId THEME_OPTIONS[APPEARANCE_THEME_COUNT] = {
     STR_THEME_GRAPHITE,  STR_THEME_NEON_NOIR, STR_THEME_SUNSET,
     STR_THEME_SEA_GLASS, STR_THEME_CLASSIC,
@@ -663,6 +665,17 @@ static void choose_standby_timeout(void *context, int index)
 static const StringId STANDBY_OPTIONS[] = {STR_MINUTES_30, STR_STANDBY_HOURS_2,
                                            STR_STANDBY_HOURS_8};
 
+static int current_now_playing(const void *context)
+{
+    return (int)settings_now_playing_style(settings_of(context));
+}
+
+static void choose_now_playing(void *context, int index)
+{
+    settings_set_now_playing_style(editable_settings(context), (NowPlayingStyle)index);
+    settings_action_save(context);
+}
+
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_SHUFFLE, SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, settings_action_current_shuffle,
      settings_action_choose_shuffle, NULL, NULL},
@@ -729,6 +742,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_STANDBY_ENABLED, OFF_ON_OPTIONS, 2, current_standby, choose_standby, NULL, NULL},
     {STR_STANDBY_TIMEOUT, STANDBY_OPTIONS, 3, current_standby_timeout, choose_standby_timeout, NULL,
      NULL},
+    [SETTINGS_NOW_PLAYING_CHOICE] = {STR_NOW_PLAYING_STYLE, NOW_PLAYING_OPTIONS, 4,
+                                     current_now_playing, choose_now_playing, NULL, NULL},
 };
 
 static PlugState plug_state(const SettingsScreens *screens, PlugPlace place)
@@ -1073,6 +1088,12 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                                      .context = screens,
                                                      .opens = true};
     bind_status_bar(screens);
+    screens->items[SETTINGS_NOW_PLAYING_ITEM] =
+        (MenuItem){.label = i18n_text(STR_NOW_PLAYING_STYLE),
+                   .select = open_choice,
+                   .context = &screens->entries[SETTINGS_NOW_PLAYING_CHOICE],
+                   .value = choice_value,
+                   .opens = true};
     screens->items[SETTINGS_LANGUAGE_ITEM].shown = language_shown;
     screens->items[SETTINGS_LANGUAGE_ITEM].shown_context = &screens->languages;
     screens->items[SETTINGS_TRANSITION_LENGTH_ITEM].shown = transition_length_shown;

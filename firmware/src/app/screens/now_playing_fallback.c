@@ -76,6 +76,9 @@ void now_playing_screen_setup(NowPlayingScreen *now_playing, NowPlayingConfig co
     now_playing->has_text = false;
     now_playing->scrubbing = false;
     now_playing->scrub_position_ms = 0;
+    now_playing->reel_frame = UINT32_MAX;
+    now_playing->reel_position_ms = 0;
+    now_playing->tape_side = 0;
     now_playing->repeat_feedback_ms = 0;
     now_playing->feedback = NOW_PLAYING_FEEDBACK_NONE;
     now_playing->feedback_started_ms = 0;

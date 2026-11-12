@@ -253,6 +253,18 @@ Folders stay before files. Files keep disc and track-number order, with letter j
 
 Hold ▶ on an artist or album artist to open **Play all** and **Shuffle albums**. Play all starts with the earliest album, then follows year and album title, with each album's tracks in disc and track order. Shuffle albums changes the album sequence and keeps each album's tracks together in order. Both include whole albums, including guest artists and CUE tracks or chapters, and replace Up Next. Back cancels preparation. The exact queue and your position are kept across restarts; the queue can contain up to 65,535 tracks.
 
+## Now Playing style
+
+Settings → Now Playing style offers **Cover**, **Cassette**, **VU meters** and **Spectrum**. Cover is the default, and your choice stays after a restart.
+
+Cassette puts the title, artist and album inside a neon wireframe shell above the theme's perspective floor. The left reel empties and the right reel fills as the track advances; the spokes turn during playback and stop when paused.
+
+VU meters shows separate left and right neon dials. The bright needles follow the music with a gentle lag and a trailing echo; a small peak light marks a loud signal. Spectrum shows sixteen coloured frequency bars rising from the floor, with caps that briefly hold each peak. Both keep the title, artist, time and progress visible. Long labels end with an ellipsis.
+
+The artwork uses your theme's colours in either orientation and at every text size. Pausing lets the needles and bars settle. Turning the screen off stops their updates.
+
+Both styles use the same time, progress bar and playback buttons. Hold Play to seek, use the volume buttons to move the target, then press Play to keep it or Back to cancel. Menu opens Quick Settings and holding Menu opens Lyrics, with the default button assignments.
+
 ## Charging
 
 The player normally charges whenever it's plugged in, on or off. Turning it off while it's plugged in (or plugging a charger into a switched-off player) shows the charge screen: a large battery in your theme's colours with the percentage beneath or beside it. While the player charges, the empty part of the battery gently pulses. "Charging" means the charger is active; "Charged" means a known full battery. "USB power" means the cable supplies power while charging is inactive. Before a battery reading is available, the screen shows "Reading battery". The screen goes dark after 5 seconds; press any button to see it again. Hold Power for 2 seconds to turn the player on (or tap it with Power on set to Press), or unplug it to switch it off completely. Press Menu to open USB mode from the charge screen. A plug instead of the bolt means the player is playing on USB power and not charging. Plugging into a computer wakes the screen and asks what the connection is for (see [When you plug in](#when-you-plug-in)).

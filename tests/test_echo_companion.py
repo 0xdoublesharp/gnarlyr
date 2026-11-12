@@ -371,6 +371,16 @@ class CompanionSettings(VolumeCase):
         self.assertEqual(after[78:], before[78:])
         self.assertNotEqual(after[54:58], before[54:58])
 
+    def test_other_settings_changes_preserve_cassette_and_other_e13_bits(self):
+        self.use_current_layout()
+        before = bytearray(self.path.read_bytes())
+        before[51] = 0xB5
+        self.path.write_bytes(checked(before))
+        tool, _ = self.tool(self.change(24, 2))
+        result = tool.settings_set("text_size", "large")
+        self.assertTrue(result["verified"])
+        self.assertEqual(self.path.read_bytes()[51], 0xB5)
+
     def test_a_companion_change_recomputes_only_the_base_checksum(self):
         self.use_current_layout()
         before = self.path.read_bytes()

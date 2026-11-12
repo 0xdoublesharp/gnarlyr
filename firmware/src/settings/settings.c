@@ -61,6 +61,9 @@ enum {
     SPEED_BYTE = 3,
     HOME_ORDER_BYTE = 4,
     HOME_HIDDEN_BYTE = 9,
+    CASSETTE_BIT = 1 << 5,
+    STYLE_FLAGS_BYTE = 14,
+    STYLE_HIGH_BIT = 1 << 7,
     CLOCK_OFFSET_BYTE = 11,
     STATUS_ITEMS_BYTE = 13,
     RESERVED_BYTE = 14,
@@ -188,6 +191,7 @@ static void read_extension(const uint8_t *extension, Settings *settings)
     settings->safe_start_volume_level = extension[SAFE_LEVEL_BYTE];
     settings->transition_tenths = extension[TRANSITION_BYTE];
     settings->playback_speed = (uint8_t)(SETTINGS_SPEED_NORMAL + (int8_t)extension[SPEED_BYTE]);
+    settings->style_flags = extension[STYLE_FLAGS_BYTE] & STYLE_HIGH_BIT;
     settings_home_unpack(extension + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT,
                          settings->home_order, &settings->home_hidden);
     bool untouched = settings->home_hidden == 0;
@@ -360,6 +364,7 @@ static void encode_extension(const Settings *settings, uint8_t *extension)
                                         (settings->speech_boost ? SPEECH_BOOST_BIT : 0));
     extension[CROSSFEED_BYTE] |=
         (uint8_t)((settings->crossfeed & CROSSFEED_MASK) << CROSSFEED_SHIFT);
+    extension[STYLE_FLAGS_BYTE] |= (uint8_t)(settings->style_flags & STYLE_HIGH_BIT);
     extension[BATTERY_CARE_BYTE] |=
         (uint8_t)((settings->battery_care << BATTERY_CARE_SHIFT) & BATTERY_CARE_MASK);
 }
@@ -515,9 +520,10 @@ static bool reserved_clear(const uint8_t *extension)
 {
     uint8_t any = 0;
     for (int index = RESERVED_BYTE; index < RESERVED_BYTE + RESERVED_COUNT; index++) {
-        uint8_t reserved = index == DAC_FILTER_BYTE
-                               ? (uint8_t)~(DAC_FILTER_MASK | CROSSFEED_BITS | BATTERY_CARE_MASK)
-                               : 0xFF;
+        uint8_t reserved =
+            index == DAC_FILTER_BYTE
+                ? (uint8_t)~(DAC_FILTER_MASK | CROSSFEED_BITS | STYLE_HIGH_BIT | BATTERY_CARE_MASK)
+                : 0xFF;
         any |= extension[index] & reserved;
     }
     return any == 0 && (extension[DAC_FILTER_BYTE] & DAC_FILTER_MASK) < DAC_FILTER_COUNT;
@@ -727,3 +733,17 @@ uint16_t settings_speed_percent(int option)
 const StringId SETTINGS_SPEED_LABELS[SETTINGS_SPEED_COUNT] = {
     STR_SPEED_050, STR_SPEED_075, STR_SPEED_100, STR_SPEED_125, STR_SPEED_150,
     STR_SPEED_175, STR_SPEED_200, STR_SPEED_250, STR_SPEED_300};
+
+NowPlayingStyle settings_now_playing_style(const Settings *settings)
+{
+    return (NowPlayingStyle)(((settings->status_items & CASSETTE_BIT) >> 5) |
+                             ((settings->style_flags & STYLE_HIGH_BIT) >> 6));
+}
+
+void settings_set_now_playing_style(Settings *settings, NowPlayingStyle style)
+{
+    unsigned value = (unsigned)style <= NOW_PLAYING_SPECTRUM ? (unsigned)style : 0;
+    settings->status_items =
+        (uint8_t)((settings->status_items & (uint8_t)~CASSETTE_BIT) | ((value & 1) << 5));
+    settings->style_flags = (uint8_t)((value >> 1) << 7);
+}

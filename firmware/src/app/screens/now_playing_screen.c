@@ -662,12 +662,21 @@ static void draw(void *context, Canvas *canvas)
         draw_nothing_playing(theme, canvas);
         return;
     }
-    draw_cover(now_playing, canvas);
+    bool cassette = now_playing->config.settings != NULL &&
+                    settings_now_playing_style(now_playing->config.settings) != NOW_PLAYING_COVER &&
+                    now_playing->config.cassette_draw != NULL;
+    if (cassette) {
+        now_playing->config.cassette_draw(now_playing, canvas);
+    } else {
+        draw_cover(now_playing, canvas);
+        draw_track_text(now_playing, canvas);
+    }
     draw_badge(now_playing, canvas);
-    draw_track_text(now_playing, canvas);
     draw_progress(now_playing, canvas);
-    draw_format(now_playing, canvas);
-    draw_details(now_playing, canvas);
+    if (!cassette || theme_is_portrait(theme)) {
+        draw_format(now_playing, canvas);
+        draw_details(now_playing, canvas);
+    }
     draw_times(now_playing, canvas);
 }
 
