@@ -23,10 +23,6 @@ static const ModuleSpan SPANS[SCREEN_MODULE_COUNT] = {
 
 ScreenModule screen_modules_of(const AppScreens *screens, const Screen *screen)
 {
-    if (screen == &screens->now_playing.screen && screens->now_playing.config.settings != NULL &&
-        settings_now_playing_style(screens->now_playing.config.settings) != NOW_PLAYING_COVER) {
-        return SCREEN_MODULE_PLAYING;
-    }
     uintptr_t at = (uintptr_t)screen - (uintptr_t)screens;
     if (at - offsetof(AppScreens, browse) < sizeof(BrowsePool)) {
         return SCREEN_MODULE_PLAYING;

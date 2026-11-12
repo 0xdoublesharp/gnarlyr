@@ -480,26 +480,6 @@ class LanguageCommands(VolumeCase):
                 tool, _ = self.live_tool()
                 self.assertEqual(tool.language_list()["selected"], "en")
 
-    def test_cassette_style_and_other_e13_bits_allow_language_reads(self):
-        extension = bytearray(self.home_extension(list(range(10))))
-        extension[13] = 0xB5
-        with self.current_snapshot():
-            (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(
-                settings("en", 16, 0, extension))
-            tool, _ = self.live_tool()
-            self.assertEqual(tool.language_list()["selected"], "en")
-
-    def test_spectrum_style_allows_language_reads_and_preserves_its_bits(self):
-        extension = bytearray(self.home_extension(list(range(10))))
-        extension[13] = 0xB5
-        extension[14] = 0x80
-        with self.current_snapshot():
-            path = self.root / echo_debug.DATA_DIRECTORY / "settings.bin"
-            path.write_bytes(settings("en", 16, 0, extension))
-            tool, _ = self.live_tool()
-            self.assertEqual(tool.language_list()["selected"], "en")
-            self.assertEqual(path.read_bytes()[51:53], bytes([0xB5, 0x80]))
-
     def home_extension(self, order, hidden=0):
         nibbles = bytearray(5)
         for index, item in enumerate(order):
@@ -548,7 +528,7 @@ class LanguageCommands(VolumeCase):
     def test_version15_settings_with_an_invalid_extension_cannot_be_verified(self):
         valid = bytes([0x07, 24, 15, 0, 0x10, 0x32, 0x54, 0x76, 0x08]) + bytes(7)
         for offset, value in ((0, 0x18), (1, 61), (2, 4), (3, 7), (3, 0xFD), (4, 0x00), (8, 0x18),
-                              (9, 0x08), (10, 0x02), (14, 0x05), (14, 0x08), (14, 0x10), (15, 1)):
+                              (9, 0x08), (10, 0x02), (15, 1)):
             extension = bytearray(valid)
             extension[offset] = value
             with self.subTest(offset=offset, value=value), self.current_snapshot():
@@ -631,9 +611,9 @@ class LanguageCommands(VolumeCase):
                 tool, host = self.live_tool("en", version=15)
                 self.assertIn("languages", tool.language_list())
 
-    def test_version15_settings_with_a_dac_filter_and_style_verify(self):
+    def test_version15_settings_with_a_dac_filter_and_battery_care_verify(self):
         valid = bytes([0x07, 24, 15, 0, 0x10, 0x32, 0x54, 0x76, 0x08]) + bytes(7)
-        for value in (0x01, 0x04, 0x80, 0x83):
+        for value in (0x01, 0x04, 0x08, 0x14):
             extension = bytearray(valid)
             extension[14] = value
             with self.subTest(value=value), self.current_snapshot():

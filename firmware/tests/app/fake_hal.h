@@ -179,9 +179,6 @@ void fake_hal_fail_internal_writes(const char *path);
 
 void fake_hal_set_charging_host(bool host);
 
-void fake_hal_set_visual_buffer(AudioVisualBuffer buffer);
-int fake_hal_visual_reads(void);
-
 uint32_t fake_hal_audio_sleep_remaining(void);
 
 uint8_t fake_hal_battery_care_mode(void);

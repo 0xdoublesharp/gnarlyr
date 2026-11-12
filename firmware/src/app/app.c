@@ -1310,13 +1310,6 @@ static void mask_motion(const void *owner)
 
 static void animate(FrameDrawer drawer, const void *owner, bool visible, uint32_t now_ms)
 {
-    NowPlayingScreen *playing = &app.screens.now_playing;
-    if (owner == &playing->screen &&
-        settings_now_playing_style(&app.settings.settings) != NOW_PLAYING_COVER &&
-        playing->config.cassette_animate != NULL) {
-        app.render_wanted |= playing->config.cassette_animate(playing, &app.frame_diff, visible);
-        return;
-    }
     bool due = visible && app.motion.owner == owner && wire_motion_due(&app.motion, now_ms);
     if (due) {
         wire_motion_tick(&app.motion, now_ms);

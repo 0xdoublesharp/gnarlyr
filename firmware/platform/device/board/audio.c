@@ -1152,15 +1152,6 @@ void board_audio_output_changed(void)
     apply_volume();
 }
 
-AudioVisualBuffer hal_audio_visual_buffer(void)
-{
-    if (!engine_ready || !transferring || tone_active || engine.state != AUDIO_ENGINE_PLAYING) {
-        return (AudioVisualBuffer){0};
-    }
-    return (AudioVisualBuffer){music_ring, RING_FRAMES, engine.consumed % RING_FRAMES,
-                               engine.produced - engine.consumed, audio_engine_rate(&engine)};
-}
-
 CORE_SEAM void hal_audio_set_sleep_remaining(uint32_t remaining_ms)
 {
     audio_engine_set_sleep_remaining(&engine, remaining_ms);

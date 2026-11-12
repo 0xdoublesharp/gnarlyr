@@ -12,7 +12,6 @@
 #include "hal/clock.h"
 #include "library/library_browse.h"
 #include "library/sort_key.h"
-#include "playing_work.h"
 #include "ui/cover_flow.h"
 #include "ui/label.h"
 #include "ui/marquee.h"
@@ -27,7 +26,7 @@ enum {
     DETAIL_ALPHA = 176,
     RANDOM_POSITION = 0,
     RANDOM_SLOTS = 1,
-    SHUFFLE_SIZE = PLAYING_SHUFFLE_SIZE,
+    SHUFFLE_SIZE = 48,
     SHUFFLE_STROKE = 4
 };
 
@@ -36,6 +35,9 @@ static const Color BACKDROP = COLOR_RGB(0, 0, 0);
 static const char STAR_PREFIX[] = "\xE2\x98\x85 ";
 static const Color SHUFFLE_BACKGROUND = COLOR_RGB(44, 46, 58);
 static const Color SHUFFLE_MARK = COLOR_RGB(255, 255, 255);
+
+static Color shuffle_pixels[SHUFFLE_SIZE * SHUFFLE_SIZE];
+static bool shuffle_drawn;
 
 static int min_of(int first, int second)
 {
@@ -132,7 +134,7 @@ static void plot(int x, int y)
     for (int row = y - SHUFFLE_STROKE / 2; row < y + SHUFFLE_STROKE / 2; row++) {
         for (int column = x - SHUFFLE_STROKE / 2; column < x + SHUFFLE_STROKE / 2; column++) {
             if (row >= 0 && row < SHUFFLE_SIZE && column >= 0 && column < SHUFFLE_SIZE) {
-                playing_module_work.as.shuffle[row * SHUFFLE_SIZE + column] = SHUFFLE_MARK;
+                shuffle_pixels[row * SHUFFLE_SIZE + column] = SHUFFLE_MARK;
             }
         }
     }
@@ -151,7 +153,7 @@ static void stroke(int from_x, int from_y, int to_x, int to_y)
 static void draw_shuffle_mark(void)
 {
     for (int index = 0; index < SHUFFLE_SIZE * SHUFFLE_SIZE; index++) {
-        playing_module_work.as.shuffle[index] = SHUFFLE_BACKGROUND;
+        shuffle_pixels[index] = SHUFFLE_BACKGROUND;
     }
     static const int16_t LINES[][4] = {
         {9, 34, 16, 34},  {16, 34, 30, 14}, {30, 14, 39, 14}, {39, 14, 34, 9},
@@ -161,15 +163,15 @@ static void draw_shuffle_mark(void)
     for (size_t index = 0; index < sizeof LINES / sizeof LINES[0]; index++) {
         stroke(LINES[index][0], LINES[index][1], LINES[index][2], LINES[index][3]);
     }
+    shuffle_drawn = true;
 }
 
 static Image shuffle_image(void)
 {
-    if (playing_work_claim_shuffle()) {
+    if (!shuffle_drawn) {
         draw_shuffle_mark();
     }
-    return (Image){
-        .pixels = playing_module_work.as.shuffle, .width = SHUFFLE_SIZE, .height = SHUFFLE_SIZE};
+    return (Image){.pixels = shuffle_pixels, .width = SHUFFLE_SIZE, .height = SHUFFLE_SIZE};
 }
 
 static int center_of(const CoverFlowScreen *flow)
