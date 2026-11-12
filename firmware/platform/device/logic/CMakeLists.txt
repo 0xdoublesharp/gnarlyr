@@ -103,6 +103,7 @@ add_library(echo_device_logic STATIC
     core1_heap.c
     core1_m4a.c
     core1_open.c
+    core1_open_mp3.c
     core1_open_flac.c
     core1_mp3.c
     core1_ogg.c
@@ -143,6 +144,7 @@ add_library(echo_device_logic STATIC
     m4a_stream.c
     mp3_decoder.c
     mp3_probe.c
+    mp3_signature.c
     mp4_demux.c
     mp4_signature.c
     msc.c
@@ -193,6 +195,7 @@ if(CMAKE_CROSSCOMPILING)
         bt_module.c
         core1_control.c
         core1_open.c
+        core1_open_mp3.c
         core1_open_flac.c
         dac_sequence.c
         debug_report.c
@@ -215,6 +218,7 @@ if(CMAKE_CROSSCOMPILING)
         loader_request.c
         m4a_stream.c
         mp3_probe.c
+        mp3_signature.c
         mp4_demux.c
     mp4_signature.c
         msc.c

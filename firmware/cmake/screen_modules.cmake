@@ -23,6 +23,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_effects
 set(ECHO_SCREEN_MODULE_SOURCES_source
     platform/device/logic/audio_source_entry.c
     platform/device/logic/core1_open_flac.c
+    platform/device/logic/core1_open_mp3.c
+    platform/device/logic/mp3_probe.c
     platform/device/logic/flac_source_open.c
     src/codec/flac.c
     src/codec/flac_bits.c

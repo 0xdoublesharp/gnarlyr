@@ -85,6 +85,14 @@ CORE_SEAM CORE_COLD bool core1_open_flac(void *context, const char *path, uint32
            source->open_flac(context, path, start_ms, track);
 }
 
+CORE_SEAM CORE_COLD bool core1_open_mp3(void *context, const char *path, uint32_t start_ms,
+                                        AudioTrackInfo *track)
+{
+    const AudioSourceEntry *source = (const AudioSourceEntry *)entry();
+    return load(AUDIO_SOURCE_NUMBER, AUDIO_SOURCE_MAGIC) &&
+           source->open_mp3(context, path, start_ms, track);
+}
+
 CORE_SEAM bool aiff_probe(FlacInput input, WavFormat *format)
 {
     const AudioDspEntry *dsp = (const AudioDspEntry *)entry();

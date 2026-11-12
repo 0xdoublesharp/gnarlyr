@@ -652,6 +652,7 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)
         target_compile_definitions(${module_target}_objects PRIVATE
             core1_open_flac=audio_source_open_flac
+            core1_open_mp3=audio_source_open_mp3
         )
     endif()
     if(module STREQUAL "ogg")
