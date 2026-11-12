@@ -62,10 +62,10 @@ The display code is in module 4: file offset `0x59b18`, loads at `0x0307e48c`, 1
 - The register writer (`0x03060f00`) sends three address bytes, an auto-increment byte and the value to bus addresses `0x60` and `0x66` (7-bit `0x30` and `0x33`). It sets the channel map registers `0x05000a` and `0x05000b` to 7 and 15, and applies balance to the volume registers `0x090001` and `0x090002`.
 - The reader is `0x0306101c`, using the same addressing for both chips.
 - The parts are two CS43198, as FiiO lists. On the owner's ECHO (4 GB) both chips report ID `43 19 80`, revision `A1`, subrevision `06` (Doublesharp Echo 1.0.0, Settings → About, read 2026-11-09). Some inherited code names still say CS43131; the register sequence is stock's either way.
-- Not compared with stock yet: the default digital filter, the volume curve, the gain values and the power-down order.
+- The digital filters, the volume curve, the gain values and the power-down order are compared in [stock-hardware-notes.md](stock-hardware-notes.md).
 
 ## Limits of this record
 
 - REA sometimes reports a function as several separate pieces joined by a branch to shared code. A numeric address range is not proof that everything inside it belongs to one function.
 - Pin roles, battery calibration and left/right channel identity are read from code and still need a check on the player.
-- Only modules 0, 1 and 4 have been examined.
+- Modules 0, 1 and 4 are examined here; clocks, power, Bluetooth, input and the audio overlays are in [stock-hardware-notes.md](stock-hardware-notes.md).
