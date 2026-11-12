@@ -106,7 +106,7 @@ static bool selected_home_item_is(int item)
 
 static void the_default_home_has_six_rows_and_a_track_adds_the_first_row(void)
 {
-    static const int EXPECTED[] = {MUSIC, MIXTAPES, LISTENING, USB_MODE, CLOCK, SETTINGS};
+    static const int EXPECTED[] = {MUSIC, MIXTAPES, LISTENING, CLOCK, USB_MODE, SETTINGS};
     settings.settings = settings_defaults();
     build();
     CHECK_EQUAL(6, home_rows());
@@ -395,8 +395,8 @@ static void a_hidden_item_offers_show_and_comes_back(void)
 
 static void holding_play_picks_an_item_up_and_volume_moves_it(void)
 {
-    static const uint8_t EXPECTED[] = {SETTINGS, MUSIC,      MIXTAPES, LISTENING, USB_MODE,
-                                       CLOCK,    AUDIOBOOKS, PODCASTS, UP_NEXT,   NOW_PLAYING};
+    static const uint8_t EXPECTED[] = {SETTINGS, MUSIC,      MIXTAPES, LISTENING, CLOCK,
+                                       USB_MODE, AUDIOBOOKS, PODCASTS, UP_NEXT,   NOW_PLAYING};
     start_app();
     open_editor_row(SETTINGS);
     press(KEY_PLAY, LONG_HOLD_MS);
