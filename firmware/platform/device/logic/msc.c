@@ -138,6 +138,13 @@ MscStats msc_stats(const Msc *msc)
     return msc->stats;
 }
 
+CORE_SEAM bool msc_write_proven(const MscStats *stats, uint8_t lun)
+{
+    return lun < MSC_MAX_LUNS && stats->traffic[lun].writes > 0 &&
+           stats->lun_sectors_written[lun] > 0 && stats->write_failures == 0 &&
+           stats->failed_writes == 0 && stats->writes_after_eject == 0;
+}
+
 CORE_SEAM uint32_t msc_sectors_moved(const Msc *msc, bool written)
 {
     uint32_t total = 0;
@@ -638,6 +645,9 @@ static void count_failure(Msc *msc)
         return;
     }
     msc->stats.failed_commands++;
+    if (msc->opcode == SCSI_WRITE_10) {
+        msc->stats.failed_writes++;
+    }
     msc->stats.last_sense_key = msc->sense_key[lun];
     msc->stats.last_sense_code = msc->sense_code[lun];
 }

@@ -500,7 +500,7 @@ An install through the updater has only run in the emulator so far ([`known-issu
 2. Eject both drives. The player shows "Checking GNARLYR.IMG", then "Installing update" with a percentage. Don't unplug or turn it off.
 3. At "Update installed", unplug USB and hold Power. The player turns off.
 4. Hold Power to start the new version.
-5. Connect the player to the computer once more and eject both drives. The player shows "Saving this version as the backup" while it copies; from then on it keeps the new version.
+5. Connect the player to the computer once more, copy any small file onto internal storage (or delete one), and eject both drives. The player shows "Saving this version as the backup" while it copies; from then on it keeps the new version. It only does this when the computer could write to internal storage during that connection, so a version whose drives open read-only stays on trial.
 
 The new version starts on trial: the previous version stays on the player as a backup until step 5. If the new version starts without its text, or doesn't start properly three times in a row (a start counts unless the player then runs for 20 seconds), or its USB connection fails, the player puts the previous version back and says "Update rolled back". If the player hangs while it is connected, hold Power for 10 seconds to restart it.
 
