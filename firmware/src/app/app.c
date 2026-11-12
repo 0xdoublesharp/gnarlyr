@@ -2354,7 +2354,7 @@ CORE_SEAM void app_show_notice(const char *title, const char *message)
     light_after_first_frame();
 }
 
-void app_show_splash(void)
+CORE_SEAM void app_show_splash(void)
 {
     app.now_ms = hal_clock_milliseconds();
     fade_start(&app.splash, app.now_ms, SPLASH_TIMING);
