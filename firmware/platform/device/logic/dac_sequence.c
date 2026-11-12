@@ -30,9 +30,7 @@ typedef struct Write {
 enum {
     BALANCED_ATTENUATION_VALUE = 10,
     VOLUME_UNITS_PER_STEP = 2,
-    RAMP_STEP = 6,
-    GAIN_HIGH_VALUE = 0x31,
-    GAIN_LOW_VALUE = 0x10
+    RAMP_STEP = 6
 };
 
 static const uint8_t CHIPS[CHIP_COUNT] = {DAC_LEFT_ADDRESS, DAC_RIGHT_ADDRESS};
@@ -249,7 +247,7 @@ void dac_set_volume(const DacBus *bus, uint8_t volume)
 
 void dac_set_gain(const DacBus *bus, bool high)
 {
-    write_both(bus, HEADPHONE_GAIN, high ? GAIN_HIGH_VALUE : GAIN_LOW_VALUE);
+    write_both(bus, HEADPHONE_GAIN, high ? DAC_GAIN_HIGH_VALUE : DAC_GAIN_LOW_VALUE);
 }
 
 uint8_t dac_volume_value(uint8_t level, DacCurve curve)

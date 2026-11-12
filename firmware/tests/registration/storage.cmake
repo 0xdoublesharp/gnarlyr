@@ -50,3 +50,8 @@ target_compile_definitions(test_fat_delete PRIVATE
     ECHO_CREATED_DIR="${ECHO_CREATED_CARDS}"
 )
 set_tests_properties(test_fat_delete PROPERTIES TIMEOUT 30 FIXTURES_SETUP created_cards)
+echo_add_unit_test(NAME test_volume_space
+    SOURCES device/test_volume_space.c device/sparse_card.c
+    LIBRARIES echo_device_logic
+)
+target_compile_definitions(test_volume_space PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")

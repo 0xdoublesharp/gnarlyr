@@ -60,6 +60,11 @@ echo_add_unit_test(NAME test_usb_screen
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
 )
+echo_add_unit_test(NAME test_usb_meter
+    SOURCES app/test_usb_meter.c
+    LIBRARIES echo_app
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
 echo_add_unit_test(NAME test_usb_dac_menu
     SOURCES app/test_usb_dac_menu.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures

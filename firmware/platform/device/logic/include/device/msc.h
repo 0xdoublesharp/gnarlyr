@@ -35,6 +35,13 @@ typedef enum MscSource {
     MSC_SOURCE_NONE
 } MscSource;
 
+typedef struct MscTraffic {
+    uint32_t sectors_read;
+    uint32_t sectors_written;
+    uint32_t reads;
+    uint32_t writes;
+} MscTraffic;
+
 typedef struct MscStats {
     uint32_t commands;
     uint32_t sectors_read;
@@ -46,6 +53,10 @@ typedef struct MscStats {
     uint32_t last_written_lba[MSC_MAX_LUNS];
     uint32_t writes_after_eject;
     uint32_t flushes;
+    MscTraffic traffic[MSC_MAX_LUNS];
+    uint32_t failed_commands;
+    uint8_t last_sense_key;
+    uint8_t last_sense_code;
 } MscStats;
 
 typedef struct MscHistoryEntry {
@@ -104,4 +115,6 @@ void msc_remove_media(Msc *msc);
 bool msc_finished(const Msc *msc);
 uint8_t msc_left_mounted(const Msc *msc);
 MscStats msc_stats(const Msc *msc);
+uint32_t msc_sectors_moved(const Msc *msc, bool written);
+uint32_t msc_lun_commands(const Msc *msc, uint8_t lun, bool written);
 MscHistory msc_history(const Msc *msc);

@@ -9,6 +9,13 @@ Gnarlyr builds on Podium 4.5.9 and EchoPod with their GPL credits preserved. The
 - Queue position is centred in portrait and appears in landscape when the title is hidden. Items fit by priority at every text size; the battery and screen title keep their places.
 - Native checks cover fitting, battery levels and thresholds, settings migration and layout; the focused ARM scenario follows volume and queue changes. Simulator captures cover Neon Noir, Graphite and Classic in both orientations and all text sizes. Player acceptance remains with the integration owner.
 
+## USB screens
+
+- File transfer shows the live rate in MB/s with its direction, a 10-second graph, what was read and written, and a gauge per drive with free space at connect and a light with write and read arrows that fade over 300 ms. Activity no longer flashes status words; "Idle" and the rate's direction hold for at least a second.
+- Tap Back on the File transfer or USB DAC screen for details: per-drive data, commands, command size, peak and average rate, drive busy time, errors with the last sense code, link and session time; for the DAC, the exact format, interface, buffer range, clock correction and feedback, underruns and overruns, gain register, host volume and data rate. The chosen page is kept until restart.
+- The DAC ring now shares the idle mass-storage buffer, which leaves 9 KB of the USB overlay free in developer builds.
+- Native rendering, rate, sparkline, free-space and counter tests and ARM scenarios cover software behaviour. Player checks are listed in [known issues](known-issues.md).
+
 ## USB DAC
 
 - High-speed UAC2 adds stereo 16/24/32-bit PCM at 44.1, 48, 88.2, 96, 176.4 and 192 kHz. Full-speed UAC1 retains 16/24-bit at 44.1/48 kHz.

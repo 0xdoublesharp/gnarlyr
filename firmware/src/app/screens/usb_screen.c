@@ -28,7 +28,11 @@ enum {
     BYTES_PER_TENTH_MB = 100000,
     MB_PER_GB = 1000,
     TENTHS = 10,
-    WHOLE_FROM = 1000
+    WHOLE_FROM = 1000,
+    KB_PER_TENTH_MB = 100,
+    MEMO_PRIME = 31,
+    SECONDS_PER_MINUTE = 60,
+    SECONDS_PER_HOUR = 3600
 };
 
 static int smaller(int first, int second)
@@ -58,11 +62,41 @@ void usb_screen_service(const UsbScene *scene)
     }
 }
 
+typedef struct DetailMemo {
+    const Theme *theme;
+    const char *text;
+    uint32_t sum;
+    int width;
+    int lines;
+} DetailMemo;
+
+static DetailMemo detail_memo;
+
+static uint32_t text_sum(const char *text)
+{
+    uint32_t sum = 0;
+    for (const char *cursor = text; *cursor != '\0'; cursor++) {
+        sum = sum * MEMO_PRIME + (uint8_t)*cursor;
+    }
+    return sum;
+}
+
+static int detail_lines(const Theme *theme, const char *detail, int width)
+{
+    uint32_t sum = text_sum(detail);
+    DetailMemo *memo = &detail_memo;
+    if (memo->theme != theme || memo->text != detail || memo->sum != sum || memo->width != width) {
+        *memo = (DetailMemo){theme, detail, sum, width,
+                             label_wrap_count(theme->fonts.small, detail, width)};
+    }
+    return memo->lines;
+}
+
 static Rect detail_area(const Theme *theme, const char *detail)
 {
     int pad = theme->metrics.padding;
     int width = theme->metrics.screen_width - 2 * pad;
-    int lines = detail == NULL ? 0 : label_wrap_count(theme->fonts.small, detail, width);
+    int lines = detail == NULL ? 0 : detail_lines(theme, detail, width);
     int height = lines * font_line_height(theme->fonts.small);
     return (Rect){pad, theme->metrics.screen_height - pad - height, width, height};
 }
@@ -231,7 +265,7 @@ static void draw_stage(const UsbPainter *painter)
     int width = theme->metrics.screen_width;
     canvas_fill_gradient(painter->canvas, (Rect){0, top, width, rule - top}, colors->backdrop_top,
                          colors->backdrop_bottom);
-    if (painter->status.view != APP_USB_DAC) {
+    if (painter->status.view != APP_USB_DAC && !painter->details) {
         draw_floor(painter, rule);
     }
     canvas_fill_rect(painter->canvas, (Rect){0, rule, width, theme->metrics.screen_height - rule},
@@ -326,14 +360,55 @@ static void amount_text(char *text, uint32_t tenths_mb)
     StringBuilder digits = string_builder_make(number, sizeof number);
     bool gigabytes = tenths_mb >= TENTHS * MB_PER_GB;
     usb_screen_append_tenths(&digits, gigabytes ? tenths_mb / MB_PER_GB : tenths_mb);
-    StringBuilder builder = string_builder_make(text, USB_SCREEN_TEXT_CAPACITY);
-    const char *arguments[] = {number};
-    i18n_format(&builder, gigabytes ? STR_USB_GB : STR_USB_MB, arguments, 1);
+    usb_screen_format_one(text, gigabytes ? STR_USB_GB : STR_USB_MB, number);
 }
 
-static void size_text(char *text, uint32_t sectors)
+void usb_screen_size_text(char *text, uint32_t sectors)
 {
     amount_text(text, (uint32_t)((uint64_t)sectors * MSC_BYTES_PER_SECTOR / BYTES_PER_TENTH_MB));
+}
+
+void usb_screen_number_text(char *text, uint32_t value)
+{
+    StringBuilder builder = string_builder_make(text, USB_SCREEN_NUMBER_CAPACITY);
+    string_builder_append_unsigned(&builder, value);
+}
+
+void usb_screen_format_one(char *text, StringId id, const char *argument)
+{
+    StringBuilder builder = string_builder_make(text, USB_SCREEN_TEXT_CAPACITY);
+    i18n_format_text(&builder, id, argument);
+}
+
+void usb_screen_rate_text(char *text, uint32_t kilobytes_per_second)
+{
+    StringBuilder builder = string_builder_make(text, USB_SCREEN_NUMBER_CAPACITY);
+    uint32_t tenths = (kilobytes_per_second + KB_PER_TENTH_MB / 2) / KB_PER_TENTH_MB;
+    string_builder_append_unsigned(&builder, tenths / TENTHS);
+    string_builder_append_char(&builder, '.');
+    string_builder_append_unsigned(&builder, tenths % TENTHS);
+}
+
+static void append_two_digits(StringBuilder *builder, uint32_t value)
+{
+    string_builder_append_char(builder, (char)('0' + value / TENTHS));
+    string_builder_append_char(builder, (char)('0' + value % TENTHS));
+}
+
+void usb_screen_time_text(char *text, uint32_t seconds)
+{
+    StringBuilder builder = string_builder_make(text, USB_SCREEN_TEXT_CAPACITY);
+    uint32_t hours = seconds / SECONDS_PER_HOUR;
+    uint32_t minutes = seconds / SECONDS_PER_MINUTE % SECONDS_PER_MINUTE;
+    if (hours > 0) {
+        string_builder_append_unsigned(&builder, hours);
+        string_builder_append_char(&builder, ':');
+        append_two_digits(&builder, minutes);
+    } else {
+        string_builder_append_unsigned(&builder, minutes);
+    }
+    string_builder_append_char(&builder, ':');
+    append_two_digits(&builder, seconds % SECONDS_PER_MINUTE);
 }
 
 void usb_screen_row(const UsbPainter *painter, Rect row, const char *name, const char *value)
@@ -354,7 +429,7 @@ static void draw_drive(const UsbPainter *painter, Rect row, StringId name, UsbSc
         usb_screen_row(painter, row, i18n_text(name), i18n_text(STR_USB_EJECTED));
         return;
     }
-    size_text(size, drive.sectors);
+    usb_screen_size_text(size, drive.sectors);
     usb_screen_row(painter, row, i18n_text(name), size);
 }
 
@@ -409,6 +484,35 @@ void usb_screen_show_in_bands(AppUsbStatus status, Rect area)
     }
 }
 
+Rect usb_screen_graph(const Theme *theme, const UsbScreenLayout *layout)
+{
+    int inset = theme->metrics.padding / 2;
+    Rect art = layout->art;
+    return (Rect){art.x, art.y + inset, art.width, art.height - 2 * inset};
+}
+
+Rect usb_screen_content(const Theme *theme, const UsbScreenLayout *layout)
+{
+    int top = layout->header.y + layout->header.height + theme->metrics.padding;
+    int bottom = layout->detail.y - theme->metrics.padding - theme->metrics.padding / 2;
+    return (Rect){layout->header.x, top, layout->header.width, bottom - top};
+}
+
+int usb_screen_pages(const Theme *theme, AppUsbStatus status)
+{
+    const UsbScene *scene = usb_screen_scene(status);
+    bool storage = status.view == APP_USB_STORAGE && usb_screen_shows_traffic(scene);
+    bool dac = status.view == APP_USB_DAC && scene->menu == NULL;
+    if (status.scene == NULL || !(storage || dac)) {
+        return 1;
+    }
+    UsbPainter painter = {.theme = theme,
+                          .status = status,
+                          .scene = scene,
+                          .layout = usb_screen_layout(theme, status)};
+    return 1 + usb_screen_stats_pages(&painter);
+}
+
 Rect usb_screen_column(const UsbScreenLayout *layout)
 {
     return (Rect){layout->lines.x, layout->state.y, layout->lines.width,
@@ -430,8 +534,19 @@ void usb_screen_draw_frame(const UsbPainter *painter, const char *title)
     }
 }
 
+bool usb_screen_shows_traffic(const UsbScene *scene)
+{
+    return scene->state == USB_SCENE_CONNECTED || scene->state == USB_SCENE_READING ||
+           scene->state == USB_SCENE_WRITING;
+}
+
 static void draw_storage(const UsbPainter *painter)
 {
+    if (painter->status.view == APP_USB_STORAGE && usb_screen_shows_traffic(painter->scene) &&
+        painter->status.scene != NULL) {
+        usb_screen_draw_traffic(painter);
+        return;
+    }
     usb_screen_draw_frame(painter, charge_screen_usb_title(painter->status.view));
     if (usb_screen_touches(painter, painter->layout.figure)) {
         draw_cassette(painter);
@@ -472,6 +587,9 @@ void usb_screen_draw(Canvas *canvas, const Theme *theme, HalBattery battery, App
                           .status = status,
                           .scene = usb_screen_scene(status),
                           .layout = usb_screen_layout(theme, status)};
+    usb_screen_service(painter.scene);
+    painter.details = painter.scene->page != USB_SCENE_OVERVIEW &&
+                      painter.scene->page < usb_screen_pages(theme, status);
     usb_screen_service(painter.scene);
     if (status.view == APP_USB_DAC) {
         usb_screen_draw_dac(&painter);

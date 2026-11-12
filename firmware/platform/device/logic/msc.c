@@ -118,6 +118,24 @@ MscStats msc_stats(const Msc *msc)
     return msc->stats;
 }
 
+CORE_SEAM uint32_t msc_sectors_moved(const Msc *msc, bool written)
+{
+    uint32_t total = 0;
+    for (int lun = 0; lun < MSC_MAX_LUNS; lun++) {
+        const MscTraffic *traffic = &msc->stats.traffic[lun];
+        total += written ? traffic->sectors_written : traffic->sectors_read;
+    }
+    return total;
+}
+
+CORE_SEAM uint32_t msc_lun_commands(const Msc *msc, uint8_t lun, bool written)
+{
+    if (lun >= MSC_MAX_LUNS) {
+        return 0;
+    }
+    return written ? msc->stats.traffic[lun].writes : msc->stats.traffic[lun].reads;
+}
+
 MscHistory msc_history(const Msc *msc)
 {
     MscHistory history = {.count = msc->history_count};
@@ -590,6 +608,37 @@ static uint32_t residue(const Msc *msc)
     return msc->expected - used;
 }
 
+static void count_failure(Msc *msc)
+{
+    uint8_t lun = msc->lun < MSC_MAX_LUNS ? msc->lun : 0;
+    if (msc->sense_key[lun] == SENSE_NOT_READY) {
+        return;
+    }
+    msc->stats.failed_commands++;
+    msc->stats.last_sense_key = msc->sense_key[lun];
+    msc->stats.last_sense_code = msc->sense_code[lun];
+}
+
+static void count_command(Msc *msc)
+{
+    if (msc->status == STATUS_FAILED) {
+        count_failure(msc);
+        return;
+    }
+    if (msc->lun >= MSC_MAX_LUNS) {
+        return;
+    }
+    MscTraffic *traffic = &msc->stats.traffic[msc->lun];
+    uint32_t bytes = msc->transferred < msc->valid_bytes ? msc->transferred : msc->valid_bytes;
+    if (msc->opcode == SCSI_READ_10) {
+        traffic->reads++;
+        traffic->sectors_read += bytes / MSC_SECTOR_SIZE;
+    } else if (msc->opcode == SCSI_WRITE_10) {
+        traffic->writes++;
+        traffic->sectors_written += bytes / MSC_SECTOR_SIZE;
+    }
+}
+
 static void status_packet(Msc *msc, uint8_t *packet, uint32_t *length)
 {
     packet[0] = 'U';
@@ -600,6 +649,7 @@ static void status_packet(Msc *msc, uint8_t *packet, uint32_t *length)
     put_le32(packet + 8, residue(msc));
     packet[12] = msc->status;
     *length = CSW_LENGTH;
+    count_command(msc);
     remember(msc);
     msc->phase = MSC_PHASE_COMMAND;
 }

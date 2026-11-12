@@ -12,6 +12,7 @@
 #include "device/usb_activity.h"
 #include "device/usb_fallback.h"
 #include "device/usb_leave.h"
+#include "device/volume_space.h"
 #include "emmc.h"
 #include "hal/clock.h"
 #include "hal/input.h"
@@ -34,8 +35,44 @@ enum {
     WORKING_COMMANDS = 2,
     MOTION_FRAME_MS = 400,
     FOLLOW_MS = 10,
-    MOTION_STEP = 12
+    MOTION_STEP = 12,
+    HINT_CAPACITY = 96,
+    CAPTURE_STORAGE_SLOT = 0,
+    MS_PER_SECOND = 1000,
+    US_PER_PERCENT_MS = 10,
+    FULL_PERCENT = 100,
+    LIGHT_FRAME_MS = 40,
+    GLOW_STEP = 32
 };
+
+typedef struct TimedDrive {
+    bool (*read)(void *context, uint32_t lba, uint32_t count, void *buffer);
+    bool (*write)(void *context, uint32_t lba, uint32_t count, const void *buffer);
+} TimedDrive;
+
+typedef struct DriveLight {
+    uint32_t commands[2];
+    uint32_t seen_ms[2];
+    bool seen[2];
+} DriveLight;
+
+typedef struct SessionClock {
+    DriveLight lights[2];
+    UsbSteady busy;
+    UsbSteady writing;
+    uint32_t traffic_ms;
+    uint32_t lit_ms;
+    bool traffic_seen;
+    uint32_t started_ms;
+    uint32_t media_us;
+    uint32_t media_seen_us;
+    uint64_t busy_us;
+    uint32_t back_pressed_ms;
+    bool moving;
+} SessionClock;
+
+static const char CAPTURE_STORAGE[] = "storage";
+static const TimedDrive DRIVES[] = {{emmc_volume_read, emmc_volume_write}, {sd_read, sd_write}};
 
 static UsbShared *shared;
 static bool card_present;
@@ -44,6 +81,11 @@ static Msc msc;
 static UsbFallback fallback;
 static UsbForced forced;
 static uint32_t write_buffer[WRITE_BUFFER_SECTORS * MSC_SECTOR_SIZE / 4];
+static SessionClock session_clock;
+static char hint[HINT_CAPACITY];
+
+_Static_assert(sizeof write_buffer == USB_SESSION_BUFFER_BYTES,
+               "the session buffer size is shared");
 static UsbActivity activity;
 static UsbLeave leave;
 static UsbScene scene;
@@ -73,18 +115,51 @@ static void prepare_port(void)
     usb_device_allow_high_speed(&port.device, port.link.high_speed_allowed);
 }
 
+static bool timed_read(void *context, uint32_t lba, uint32_t count, void *buffer)
+{
+    uint32_t start = hal_clock_microseconds();
+    bool read = DRIVES[(uintptr_t)context].read(NULL, lba, count, buffer);
+    session_clock.media_us += hal_clock_microseconds() - start;
+    return read;
+}
+
+static bool timed_write(void *context, uint32_t lba, uint32_t count, const void *buffer)
+{
+    uint32_t start = hal_clock_microseconds();
+    bool written = DRIVES[(uintptr_t)context].write(NULL, lba, count, buffer);
+    session_clock.media_us += hal_clock_microseconds() - start;
+    return written;
+}
+
+static uint32_t free_at_connect(bool ready, uint8_t lun)
+{
+    BlockDevice device = {DRIVES[lun].read, NULL, NULL};
+    VolumeSpaceBuffer buffer = {write_buffer, WRITE_BUFFER_SECTORS};
+    return ready ? volume_space_free_sectors(device, buffer) : USB_SCENE_FREE_UNKNOWN;
+}
+
 static void prepare_luns(void)
 {
     BlockDevice card;
     bool card_ready = sd_start(&card);
+    void *internal = (void *)(uintptr_t)INTERNAL_LUN;
+    void *sd = (void *)(uintptr_t)CARD_LUN;
     MscLun luns[LUN_COUNT] = {
-        {emmc_volume_read, emmc_volume_write, NULL, shared->internal.layout.volume_sectors, true,
+        {timed_read, timed_write, internal, shared->internal.layout.volume_sectors, true,
          shared->report.internal_ready, "Internal storage"},
-        {sd_read, sd_write, NULL, sd_sector_count(), true, card_ready, "SD card"},
+        {timed_read, timed_write, sd, sd_sector_count(), true, card_ready, "SD card"},
     };
+    scene.usage[INTERNAL_LUN].free_sectors =
+        free_at_connect(shared->report.internal_ready, INTERNAL_LUN);
+    scene.usage[CARD_LUN].free_sectors = free_at_connect(card_ready, CARD_LUN);
     card_present = card_ready;
     msc_init(&msc, luns, LUN_COUNT);
     msc_use_write_buffer(&msc, write_buffer, WRITE_BUFFER_SECTORS);
+}
+
+static void serve_while_drawing(void)
+{
+    usb_poll(&port);
 }
 
 static void finish_last_reply(void)
@@ -148,6 +223,30 @@ static void fall_back_to_full_speed(void)
     usb_port_connect(&port);
 }
 
+static StringId back_action(int pages)
+{
+    if (scene.page + 1 >= pages) {
+        return STR_USB_BACK_OVERVIEW;
+    }
+    return scene.page == USB_SCENE_OVERVIEW ? STR_USB_BACK_DETAILS : STR_USB_BACK_MORE;
+}
+
+static const char *paged_hint(void)
+{
+    AppUsbStatus probe = {.view = APP_USB_STORAGE, .scene = &scene};
+    StringId frame = card_present ? STR_USB_DRIVES_HINT : STR_USB_DRIVE_HINT;
+    StringBuilder builder = string_builder_make(hint, sizeof hint);
+    i18n_format_text(&builder, frame, i18n_text(STR_USB_BACK_OVERVIEW));
+    probe.detail = hint;
+    int pages = usb_screen_pages(app_theme(), probe);
+    if (pages <= 1) {
+        return i18n_text(card_present ? STR_USB_EJECT_DRIVES : STR_USB_EJECT_DRIVE);
+    }
+    builder = string_builder_make(hint, sizeof hint);
+    i18n_format_text(&builder, frame, i18n_text(back_action(pages)));
+    return hint;
+}
+
 static const char *storage_detail(void)
 {
     if (scene.state == USB_SCENE_WAITING) {
@@ -156,7 +255,7 @@ static const char *storage_detail(void)
     if (scene.state == USB_SCENE_LEAVING) {
         return i18n_text(STR_USB_LEAVING_HINT);
     }
-    return i18n_text(card_present ? STR_USB_EJECT_DRIVES : STR_USB_EJECT_DRIVE);
+    return paged_hint();
 }
 
 static AppUsbStatus storage_status(void)
@@ -196,6 +295,16 @@ static uint8_t traffic_state(UsbLeaveState state, uint32_t now_ms)
     return kind == USB_ACTIVITY_READING ? USB_SCENE_READING : USB_SCENE_CONNECTED;
 }
 
+static bool traffic(uint8_t state)
+{
+    return state == USB_SCENE_CONNECTED || state == USB_SCENE_READING || state == USB_SCENE_WRITING;
+}
+
+static bool same_layout(uint8_t before, uint8_t after)
+{
+    return before == after || (traffic(before) && traffic(after));
+}
+
 static bool scene_follow(UsbLeaveState state, uint32_t now_ms)
 {
     UsbScene before = scene;
@@ -203,9 +312,11 @@ static bool scene_follow(UsbLeaveState state, uint32_t now_ms)
     scene.holding = usb_leave_holding(&leave);
     scene.high_speed = port.device.speed == USB_SPEED_HIGH;
     for (uint8_t lun = 0; lun < USB_SCENE_DRIVES; lun++) {
-        scene.drives[lun] = (UsbSceneDrive){msc.luns[lun].sector_count, drive_state(lun)};
+        scene.drives[lun].sectors = msc.luns[lun].sector_count;
+        scene.drives[lun].state = drive_state(lun);
     }
-    return before.state != scene.state || before.holding != scene.holding ||
+    return !same_layout(before.state, scene.state) ||
+           (before.holding != scene.holding && scene.state == USB_SCENE_WAITING) ||
            before.high_speed != scene.high_speed ||
            before.drives[0].state != scene.drives[0].state ||
            before.drives[1].state != scene.drives[1].state;
@@ -213,8 +324,7 @@ static bool scene_follow(UsbLeaveState state, uint32_t now_ms)
 
 static bool moving(void)
 {
-    return scene.state == USB_SCENE_READING || scene.state == USB_SCENE_WRITING ||
-           scene.state == USB_SCENE_WAITING;
+    return scene.state == USB_SCENE_WAITING;
 }
 
 static void step_motion(uint32_t now_ms)
@@ -228,12 +338,33 @@ static void step_motion(uint32_t now_ms)
     app_show_usb_area(status, usb_screen_layout(app_theme(), status).figure);
 }
 
+static void next_page(void)
+{
+    AppUsbStatus status = storage_status();
+    int pages = usb_screen_pages(app_theme(), status);
+    scene.page = (uint8_t)((scene.page + 1) % pages);
+    shared->usb_page = scene.page;
+    show_storage_state();
+}
+
+static void follow_back(HalKeyTransition key)
+{
+    bool tapped = !key.pressed && leave.state == USB_LEAVE_SERVING &&
+                  key.time_ms - session_clock.back_pressed_ms < USB_LEAVE_HOLD_MS;
+    usb_leave_key(&leave, key.pressed, key.time_ms);
+    if (key.pressed) {
+        session_clock.back_pressed_ms = key.time_ms;
+    } else if (tapped && traffic(scene.state)) {
+        next_page();
+    }
+}
+
 static void follow_keys(void)
 {
     HalKeyTransition key;
     while (hal_input_next_transition(&key)) {
         if (key.key == KEY_BACK) {
-            usb_leave_key(&leave, key.pressed, key.time_ms);
+            follow_back(key);
         }
     }
 }
@@ -273,11 +404,8 @@ static void refresh(MscStats *shown, HalBattery *shown_battery)
     } else if (app_usb_battery_changed(*shown_battery, battery)) {
         scene.written_kib = written;
         show_storage_state();
-    } else if (written != scene.written_kib) {
+    } else {
         scene.written_kib = written;
-        AppUsbStatus status = storage_status();
-        UsbScreenLayout layout = usb_screen_layout(app_theme(), status);
-        app_show_usb_area(status, usb_screen_column(&layout));
     }
     *shown = stats;
     *shown_battery = battery;
@@ -293,6 +421,131 @@ static UsbSessionEnd ended(UsbLeaveState state)
         return USB_SESSION_EJECTED;
     }
     return USB_SESSION_NO_HOST;
+}
+
+static bool drives_changed(const MscStats *stats)
+{
+    bool changed = false;
+    for (int lun = 0; lun < USB_SCENE_DRIVES; lun++) {
+        MscTraffic traffic = stats->traffic[lun];
+        UsbSceneUsage *drive = &scene.usage[lun];
+        bool active = traffic.reads + traffic.writes != drive->reads + drive->writes;
+        changed = changed || active || drive->active;
+        drive->active = active;
+        drive->read_sectors = traffic.sectors_read;
+        drive->written_sectors = traffic.sectors_written;
+        drive->reads = traffic.reads;
+        drive->writes = traffic.writes;
+    }
+    return changed;
+}
+
+static void follow_link(const MscStats *stats, uint32_t now_ms)
+{
+    UsbSceneLink *link = &scene.link;
+    session_clock.busy_us += session_clock.media_us - session_clock.media_seen_us;
+    session_clock.media_seen_us = session_clock.media_us;
+    uint32_t active_ms = scene.meter.active_ms;
+    uint64_t percent =
+        active_ms == 0 ? 0 : session_clock.busy_us / ((uint64_t)active_ms * US_PER_PERCENT_MS);
+    link->busy_percent = (uint8_t)(percent < FULL_PERCENT ? percent : FULL_PERCENT);
+    link->errors = stats->failed_commands;
+    link->sense_key = stats->last_sense_key;
+    link->sense_code = stats->last_sense_code;
+    link->packet = usb_device_bulk_packet_size(&port.device);
+    link->seconds = (now_ms - session_clock.started_ms) / MS_PER_SECOND;
+}
+
+static bool follow_light(DriveLight *light, uint8_t lun, uint32_t now_ms)
+{
+    UsbSceneUsage *usage = &scene.usage[lun];
+    uint8_t shown[2] = {usage->read_glow, usage->write_glow};
+    uint8_t glow[2];
+    bool changed = false;
+    for (int written = 0; written < 2; written++) {
+        uint32_t commands = msc_lun_commands(&msc, lun, written != 0);
+        if (commands != light->commands[written]) {
+            light->commands[written] = commands;
+            light->seen_ms[written] = now_ms;
+            light->seen[written] = true;
+            session_clock.traffic_ms = now_ms;
+            session_clock.traffic_seen = true;
+        }
+        glow[written] = usb_meter_glow(light->seen[written], now_ms - light->seen_ms[written]);
+        changed = changed || glow[written] / GLOW_STEP != shown[written] / GLOW_STEP ||
+                  (glow[written] == 0) != (shown[written] == 0);
+    }
+    if (changed) {
+        usage->read_glow = glow[0];
+        usage->write_glow = glow[1];
+    }
+    return changed;
+}
+
+static void follow_lights(uint32_t now_ms)
+{
+    if (!traffic(scene.state) || now_ms - session_clock.lit_ms < LIGHT_FRAME_MS) {
+        return;
+    }
+    bool overview = scene.page == USB_SCENE_OVERVIEW;
+    for (uint8_t lun = 0; lun < USB_SCENE_DRIVES; lun++) {
+        if (follow_light(&session_clock.lights[lun], lun, now_ms) && overview) {
+            AppUsbStatus status = storage_status();
+            app_show_usb_area(status, usb_screen_drive_lights(app_theme(), status, lun));
+            session_clock.lit_ms = now_ms;
+        }
+    }
+}
+
+static bool follow_steady(uint32_t now_ms)
+{
+    bool recent =
+        session_clock.traffic_seen && now_ms - session_clock.traffic_ms < USB_METER_QUIET_MS;
+    bool changed = usb_steady_follow(&session_clock.busy, recent, now_ms);
+    uint32_t written = usb_meter_rate(&scene.meter, USB_METER_WRITE, 0) +
+                       usb_meter_rate(&scene.meter, USB_METER_WRITE, 1);
+    uint32_t read = usb_meter_rate(&scene.meter, USB_METER_READ, 0) +
+                    usb_meter_rate(&scene.meter, USB_METER_READ, 1);
+    uint8_t direction = written == read ? session_clock.writing.shown : written > read;
+    changed = usb_steady_follow(&session_clock.writing, direction, now_ms) || changed;
+    scene.busy = session_clock.busy.shown != 0;
+    scene.writing = session_clock.writing.shown != 0;
+    return changed;
+}
+
+static void show_sample(bool changed, bool ticked)
+{
+    AppUsbStatus status = storage_status();
+    const Theme *theme = app_theme();
+    UsbScreenLayout layout = usb_screen_layout(theme, status);
+    if (scene.page != USB_SCENE_OVERVIEW && scene.page < usb_screen_pages(theme, status)) {
+        if (changed || ticked) {
+            app_show_usb_area(status, usb_screen_content(theme, &layout));
+        }
+        return;
+    }
+    if (changed) {
+        app_show_usb_area(status, layout.art);
+        app_show_usb_area(status, usb_screen_column(&layout));
+    }
+}
+
+static void sample_traffic(uint32_t now_ms)
+{
+    if (!usb_meter_due(&scene.meter, now_ms) || !traffic(scene.state)) {
+        return;
+    }
+    MscStats stats = msc_stats(&msc);
+    bool changed = drives_changed(&stats);
+    uint32_t totals[USB_METER_DIRECTIONS] = {msc_sectors_moved(&msc, false),
+                                             msc_sectors_moved(&msc, true)};
+    usb_meter_sample(&scene.meter, totals, now_ms);
+    uint32_t seconds = scene.link.seconds;
+    follow_link(&stats, now_ms);
+    bool moving_now = usb_meter_moving(&scene.meter);
+    changed = follow_steady(now_ms) || changed || moving_now || session_clock.moving;
+    session_clock.moving = moving_now;
+    show_sample(changed, seconds != scene.link.seconds);
 }
 
 typedef struct SessionWatch {
@@ -314,6 +567,8 @@ static void watch_session(SessionWatch *watch, uint32_t now)
         refresh(&watch->shown, &watch->battery);
         watch->refreshed = hal_clock_milliseconds();
     }
+    follow_lights(now);
+    sample_traffic(now);
     step_motion(now);
 }
 
@@ -366,7 +621,9 @@ static UsbSessionEnd run(void)
     fallback = (UsbFallback){.watching = false};
     forced = (UsbForced){0};
     leave = (UsbLeave){0};
-    scene = (UsbScene){.state = USB_SCENE_CONNECTED};
+    scene = (UsbScene){
+        .state = USB_SCENE_CONNECTED, .page = shared->usb_page, .service = serve_while_drawing};
+    session_clock = (SessionClock){0};
     refused_before = 0;
     debug_report_write(shared, DEBUG_REPORT_USB_SESSION);
     prepare_port();
@@ -376,11 +633,19 @@ static UsbSessionEnd run(void)
     if (usb_wait_for_host(&port, HOST_TIMEOUT_MS)) {
         usb_fallback_start(&fallback, port.link.high_speed_allowed, hal_clock_milliseconds());
         usb_activity_start(&activity, hal_clock_milliseconds());
+        session_clock.started_ms = hal_clock_milliseconds();
+        usb_meter_start(&scene.meter, session_clock.started_ms);
+        usb_steady_start(&session_clock.busy, 0, session_clock.started_ms);
+        usb_steady_start(&session_clock.writing, 1, session_clock.started_ms);
+        session_clock.lit_ms = session_clock.started_ms;
         scene_follow(USB_LEAVE_SERVING, hal_clock_milliseconds());
         show_storage_state();
         end = serve();
     }
     usb_session_stop_listening();
+    if (end == USB_SESSION_EJECTED && traffic(scene.state)) {
+        usb_screen_capture(storage_status(), &scene, CAPTURE_STORAGE, CAPTURE_STORAGE_SLOT);
+    }
     remember_session(end);
     shared->show_modes = end == USB_SESSION_EJECTED || end == USB_SESSION_STOPPED;
     return end;
@@ -392,12 +657,13 @@ CORE_SEAM bool usb_session_storage_changed(void)
     return stats.lun_sectors_written[INTERNAL_LUN] > 0 || stats.lun_sectors_written[CARD_LUN] > 0;
 }
 
-static void warn(uint8_t state, StringId hint)
+static void warn(uint8_t state, StringId advice)
 {
     scene.state = state;
+    scene.service = NULL;
     app_show_usb_status((AppUsbStatus){.view = APP_USB_STORAGE,
                                        .information = i18n_text(STR_USB_UNPLUGGED),
-                                       .detail = i18n_text(hint),
+                                       .detail = i18n_text(advice),
                                        .scene = &scene});
     board_wait_for_key();
 }

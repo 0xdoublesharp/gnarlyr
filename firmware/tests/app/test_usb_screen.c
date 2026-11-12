@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "check.h"
@@ -10,6 +11,7 @@
 #include "screens/charge_screen.h"
 #include "screens/usb_dac_menu.h"
 #include "screens/usb_scene.h"
+#include "screens/usb_screen_parts.h"
 #include "text_spy.h"
 #include "ui/label.h"
 #include "ui/wire_motion.h"
@@ -20,7 +22,10 @@
 enum {
     THEMES = APPEARANCE_CLASSIC + 1,
     GIB_SECTORS = 2097152,
-    DAC_RATE = 44100
+    DAC_RATE = 44100,
+    STORAGE_DETAIL_PAGES = 2,
+    DAC_DETAIL_PAGES = 2,
+    VARIANTS = 24
 };
 
 typedef struct Variant {
@@ -28,6 +33,29 @@ typedef struct Variant {
     UsbScene scene;
     const char *name;
 } Variant;
+
+static char paged_hint[96];
+
+static AppUsbStatus with_page_hint(const Theme *theme, AppUsbStatus status)
+{
+    StringId frame = status.view == APP_USB_DAC ? STR_USB_DAC_PAGE_HINT : STR_USB_DRIVES_HINT;
+    StringBuilder builder = string_builder_make(paged_hint, sizeof paged_hint);
+    i18n_format_text(&builder, frame, i18n_text(STR_USB_BACK_OVERVIEW));
+    AppUsbStatus probe = status;
+    probe.detail = paged_hint;
+    int pages = usb_screen_pages(theme, probe);
+    uint8_t page = usb_screen_scene(status)->page;
+    if (pages <= 1 || usb_screen_scene(status)->menu != NULL) {
+        return status;
+    }
+    StringId action = page + 1 >= pages ? STR_USB_BACK_OVERVIEW
+                      : page == 0       ? STR_USB_BACK_DETAILS
+                                        : STR_USB_BACK_MORE;
+    builder = string_builder_make(paged_hint, sizeof paged_hint);
+    i18n_format_text(&builder, frame, i18n_text(action));
+    status.detail = paged_hint;
+    return status;
+}
 
 static Color pixels[HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE];
 static Color before[HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE];
@@ -70,13 +98,50 @@ static Canvas canvas_for(const Theme *theme)
                        (Rect){0, 0, theme->metrics.screen_width, theme->metrics.screen_height});
 }
 
+static const uint16_t WRITE_RATES[USB_METER_SAMPLES] = {
+    0,     0,     1200,  8500,  21000, 30500, 34800, 36100, 35200, 36900,
+    37400, 36000, 35800, 37200, 36500, 38200, 37000, 36400, 37900, 38400};
+static const uint16_t READ_RATES[USB_METER_SAMPLES] = {0, 0, 2600, 900, 0, 0, 0, 300, 0,   0,
+                                                       0, 0, 0,    450, 0, 0, 0, 0,   120, 0};
+
+static void fill_meter(UsbMeter *meter, bool busy, bool reading)
+{
+    uint32_t totals[USB_METER_DIRECTIONS] = {0, 0};
+    const uint16_t *read = reading ? WRITE_RATES : READ_RATES;
+    const uint16_t *written = reading ? READ_RATES : WRITE_RATES;
+    usb_meter_start(meter, 0);
+    for (uint32_t index = 0; index < USB_METER_SAMPLES; index++) {
+        bool quiet = !busy && index + 1 == USB_METER_SAMPLES;
+        totals[USB_METER_READ] += quiet ? 0 : read[index] * 1000u / 1024u;
+        totals[USB_METER_WRITE] += quiet ? 0 : written[index] * 1000u / 1024u;
+        usb_meter_sample(meter, totals, (index + 1) * USB_METER_PERIOD_MS);
+    }
+}
+
 static UsbScene storage_scene(uint8_t state)
 {
-    return (UsbScene){.state = state,
-                      .high_speed = true,
-                      .written_kib = 12700,
-                      .drives = {{4 * GIB_SECTORS, USB_SCENE_DRIVE_MOUNTED},
-                                 {60 * GIB_SECTORS, USB_SCENE_DRIVE_MOUNTED}}};
+    UsbScene scene = {
+        .state = state,
+        .high_speed = true,
+        .written_kib = 12700,
+        .link = {.seconds = 754, .packet = 512, .busy_percent = 62},
+        .drives = {{4 * GIB_SECTORS, USB_SCENE_DRIVE_MOUNTED},
+                   {60 * GIB_SECTORS, USB_SCENE_DRIVE_MOUNTED}},
+        .usage = {
+            {.free_sectors = GIB_SECTORS + GIB_SECTORS / 8,
+             .read_sectors = 4750,
+             .written_sectors = 25400,
+             .reads = 812,
+             .writes = 164,
+             .active = true},
+            {.free_sectors = 38 * GIB_SECTORS + GIB_SECTORS / 3, .read_sectors = 96, .reads = 12}}};
+    bool busy = state == USB_SCENE_WRITING || state == USB_SCENE_READING;
+    fill_meter(&scene.meter, busy, state == USB_SCENE_READING);
+    scene.busy = busy;
+    scene.writing = state != USB_SCENE_READING;
+    scene.usage[0].write_glow = state == USB_SCENE_WRITING ? 255 : 0;
+    scene.usage[0].read_glow = state == USB_SCENE_READING ? 255 : 40;
+    return scene;
 }
 
 static UsbScene dac_scene(uint8_t state)
@@ -93,7 +158,16 @@ static UsbScene dac_scene(uint8_t state)
                                   .buffer_ms = 20,
                                   .drift_ppm = 12,
                                   .seconds = 754,
-                                  .level = {200, 150}};
+                                  .level = {200, 150},
+                                  .channels = 2,
+                                  .alt = 2,
+                                  .gain_register = 0x10,
+                                  .asynchronous = true,
+                                  .buffer_low_ms = 17,
+                                  .buffer_high_ms = 23,
+                                  .buffer_average_ms = 20,
+                                  .feedback = 362005,
+                                  .data_rate = 265};
     }
     return scene;
 }
@@ -132,6 +206,19 @@ static int variants(Variant *list)
     list[count] = list[1];
     list[count].scene.drives[1].state = USB_SCENE_DRIVE_EJECTED;
     list[count++].name = "storage-card-ejected";
+    list[count] = list[1];
+    list[count].scene.drives[1] = (UsbSceneDrive){.state = USB_SCENE_DRIVE_ABSENT};
+    list[count].scene.usage[1] = (UsbSceneUsage){0};
+    list[count++].name = "storage-no-card";
+    list[count] = list[1];
+    usb_meter_start(&list[count].scene.meter, 0);
+    list[count].scene.usage[0].active = false;
+    list[count++].name = "storage-resting";
+    for (uint8_t page = 1; page <= STORAGE_DETAIL_PAGES; page++) {
+        list[count] = list[3];
+        list[count].scene.page = page;
+        list[count++].name = page == 1 ? "storage-details" : "storage-details-2";
+    }
     static const struct {
         uint8_t state;
         const char *name;
@@ -148,6 +235,11 @@ static int variants(Variant *list)
     list[count].status.detail = i18n_text(STR_QUICK_SETTINGS_HINT);
     list[count].scene.menu = &menu.view;
     list[count++].name = "dac-menu";
+    for (uint8_t page = 1; page <= DAC_DETAIL_PAGES; page++) {
+        list[count] = list[count - 3 - (page - 1)];
+        list[count].scene.page = page;
+        list[count++].name = page == 1 ? "dac-details" : "dac-details-2";
+    }
     return count;
 }
 
@@ -187,17 +279,22 @@ static void layout_holds_together(const Theme *theme, AppUsbStatus status)
     CHECK(layout.lines.height >= font_line_height(theme->fonts.small));
 }
 
-static void check_texts(const Variant *variant)
+static void check_texts(const Variant *variant, AppUsbStatus status)
 {
     CHECK(saw(charge_screen_usb_title(variant->status.view)));
-    CHECK(saw_start(variant->status.detail));
-    if (variant->status.view == APP_USB_STORAGE && variant->scene.state <= USB_SCENE_LEAVING) {
-        CHECK(saw(i18n_text(STR_POWER_INTERNAL)));
+    CHECK(saw_start(status.detail));
+    bool overview = variant->scene.page == USB_SCENE_OVERVIEW;
+    bool storage = variant->status.view == APP_USB_STORAGE;
+    if (storage && variant->scene.state <= USB_SCENE_LEAVING && variant->scene.state > 0) {
+        bool traffic = usb_screen_shows_traffic(&variant->scene);
+        if (overview || !traffic) {
+            CHECK(saw(i18n_text(traffic ? STR_USB_STAT_INTERNAL : STR_POWER_INTERNAL)));
+        }
     }
-    if (variant->scene.state == USB_SCENE_DAC_PLAYING && variant->scene.menu == NULL) {
+    if (variant->scene.state == USB_SCENE_DAC_PLAYING && variant->scene.menu == NULL && overview) {
         CHECK(saw(i18n_text(STR_PLAYING)));
-        CHECK(saw(i18n_text(STR_VOLUME)));
-        CHECK(saw("35"));
+        CHECK(saw("44.1 kHz · 24-bit"));
+        CHECK(saw(i18n_text(STR_USB_DAC_HOST)));
     }
 }
 
@@ -206,8 +303,9 @@ static void every_usb_state_fits_every_theme_size_and_orientation(void)
 #ifdef ECHO_TEST_GLYPHS
     sim_glyphs_attach();
 #endif
-    Variant list[16];
+    Variant list[VARIANTS];
     int count = variants(list);
+    CHECK(count <= VARIANTS);
     int shot = 0;
     for (int appearance = 0; appearance < THEMES; appearance++) {
         for (int orientation = 0; orientation < 2; orientation++) {
@@ -222,6 +320,10 @@ static void every_usb_state_fits_every_theme_size_and_orientation(void)
                 for (int index = 0; index < count; index++) {
                     AppUsbStatus status = list[index].status;
                     status.scene = &list[index].scene;
+                    if (list[index].scene.page >= usb_screen_pages(&theme, status)) {
+                        continue;
+                    }
+                    status = with_page_hint(&theme, status);
                     layout_holds_together(&theme, status);
                     text_spy_reset();
                     usb_screen_draw(
@@ -229,7 +331,7 @@ static void every_usb_state_fits_every_theme_size_and_orientation(void)
                         (HalBattery){
                             .known = true, .percent = 64, .usb_power = true, .charging = true},
                         status);
-                    check_texts(&list[index]);
+                    check_texts(&list[index], status);
                     screen_snapshot_write(&canvas, list[index].name, shot + index);
                 }
                 shot += 100;
@@ -311,8 +413,8 @@ static void storage_motion_redraws_only_the_cassette_square(void)
 {
     for (int orientation = 0; orientation < 2; orientation++) {
         Theme theme = medium(orientation);
-        UsbScene scene = storage_scene(USB_SCENE_WRITING);
-        AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+        UsbScene scene = storage_scene(USB_SCENE_WAITING);
+        AppUsbStatus status = storage_status(STR_USB_WAITING_HINT);
         draw_twice(&theme, status, &scene, turn_reels);
         CHECK(changed(&theme));
         CHECK(changes_stay_inside(&theme, usb_screen_layout(&theme, status).figure));
@@ -357,23 +459,231 @@ static void a_still_scene_does_not_follow_the_clock(void)
     CHECK(!changed(&theme));
 }
 
-static void drive_sizes_copies_and_ejected_drives_are_shown(void)
+static void rates_read_in_tenths_of_a_megabyte(void)
+{
+    char text[USB_SCREEN_NUMBER_CAPACITY];
+    usb_screen_rate_text(text, 38400);
+    CHECK(strcmp(text, "38.4") == 0);
+    usb_screen_rate_text(text, 49);
+    CHECK(strcmp(text, "0.0") == 0);
+    usb_screen_rate_text(text, 950);
+    CHECK(strcmp(text, "1.0") == 0);
+}
+
+static void draw_text_of(const Theme *theme, AppUsbStatus status, UsbScene *scene)
+{
+    status.scene = scene;
+    Canvas canvas = canvas_for(theme);
+    text_spy_reset();
+    usb_screen_draw(&canvas, theme, (HalBattery){.known = true, .percent = 64}, status);
+}
+
+static void the_overview_shows_the_rate_drives_and_their_free_space(void)
 {
     Theme theme = medium(ORIENTATION_LANDSCAPE);
     UsbScene scene = storage_scene(USB_SCENE_WRITING);
     scene.drives[1].state = USB_SCENE_DRIVE_EJECTED;
+    draw_text_of(&theme, storage_status(STR_USB_EJECT_DRIVES), &scene);
+    CHECK(saw(i18n_text(STR_USB_RATE_UNIT)));
+    CHECK(!saw(i18n_text(STR_USB_STATE_WRITING)));
+    CHECK(saw("Read 2.4 MB · Written 13.0 MB"));
+    CHECK(saw(i18n_text(STR_USB_STAT_INTERNAL)));
+    CHECK(saw("1.2 GB free"));
+    CHECK(saw(i18n_text(STR_USB_EJECTED)));
+    CHECK(saw("64%"));
+}
+
+static void an_idle_overview_shows_the_session_totals(void)
+{
+    Theme theme = medium(ORIENTATION_PORTRAIT);
+    UsbScene scene = storage_scene(USB_SCENE_CONNECTED);
+    scene.drives[1] = (UsbSceneDrive){.state = USB_SCENE_DRIVE_ABSENT};
+    scene.usage[1] = (UsbSceneUsage){0};
+    scene.usage[0].free_sectors = USB_SCENE_FREE_UNKNOWN;
+    draw_text_of(&theme, storage_status(STR_USB_EJECT_DRIVE), &scene);
+    CHECK(!saw(i18n_text(STR_USB_RATE_UNIT)));
+    CHECK(saw(i18n_text(STR_USB_STAT_READ)));
+    CHECK(saw("2.4 MB"));
+    CHECK(saw("13.0 MB"));
+    CHECK(saw(i18n_text(STR_USB_NO_CARD)));
+    CHECK(saw("4.2 GB total"));
+}
+
+static void storage_details_show_each_drive_and_the_link(void)
+{
+    UsbScene scene = storage_scene(USB_SCENE_WRITING);
+    scene.link.errors = 2;
+    scene.link.sense_key = 0x05;
+    scene.link.sense_code = 0x20;
+    Theme theme = medium(ORIENTATION_PORTRAIT);
     AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
     status.scene = &scene;
-    Canvas canvas = canvas_for(&theme);
-    text_spy_reset();
-    usb_screen_draw(&canvas, &theme, (HalBattery){.known = true, .percent = 64}, status);
-    CHECK(saw(i18n_text(STR_USB_STATE_WRITING)));
-    CHECK(saw("4.2 GB"));
-    CHECK(saw(i18n_text(STR_USB_COPIED)));
+    CHECK_EQUAL(1 + STORAGE_DETAIL_PAGES, usb_screen_pages(&theme, status));
+    scene.page = 1;
+    draw_text_of(&theme, status, &scene);
     CHECK(saw("13.0 MB"));
-    CHECK(saw(i18n_text(STR_USB_EJECTED)));
-    CHECK(saw(i18n_text(STR_USB_HIGH_SPEED)));
-    CHECK(saw("64%"));
+    CHECK(saw("812 / 164"));
+    CHECK(saw("16 KB"));
+    CHECK(saw("1.2 GB"));
+    CHECK(saw("41.1 GB"));
+    scene.page = 2;
+    draw_text_of(&theme, status, &scene);
+    CHECK(saw("38.4 MB/s"));
+    CHECK(saw("62%"));
+    CHECK(saw("2 · last 05/20"));
+    CHECK(saw("480 Mbit/s · 512 B"));
+    CHECK(saw("12:34"));
+}
+
+static void landscape_details_put_the_drives_side_by_side(void)
+{
+    UsbScene scene = storage_scene(USB_SCENE_WRITING);
+    Theme theme = medium(ORIENTATION_LANDSCAPE);
+    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+    status.scene = &scene;
+    CHECK_EQUAL(1 + STORAGE_DETAIL_PAGES, usb_screen_pages(&theme, status));
+    scene.page = 1;
+    draw_text_of(&theme, status, &scene);
+    CHECK(saw(i18n_text(STR_USB_STAT_INTERNAL)));
+    CHECK(saw(i18n_text(STR_USB_STAT_CARD)));
+    CHECK(!saw(i18n_text(STR_USB_STAT_PEAK)));
+    scene.page = 2;
+    draw_text_of(&theme, status, &scene);
+    CHECK(saw(i18n_text(STR_USB_STAT_PEAK)));
+}
+
+static void a_missing_card_drops_its_rows(void)
+{
+    UsbScene scene = storage_scene(USB_SCENE_WRITING);
+    scene.drives[1] = (UsbSceneDrive){.state = USB_SCENE_DRIVE_ABSENT};
+    scene.usage[1] = (UsbSceneUsage){0};
+    Theme theme = medium(ORIENTATION_PORTRAIT);
+    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVE);
+    status.scene = &scene;
+    CHECK_EQUAL(2, usb_screen_pages(&theme, status));
+    scene.page = 1;
+    draw_text_of(&theme, status, &scene);
+    CHECK(saw(i18n_text(STR_USB_NO_CARD)));
+    CHECK(saw(i18n_text(STR_USB_STAT_PEAK)));
+}
+
+static bool has_digit(const char *text)
+{
+    for (; *text != '\0'; text++) {
+        if (*text >= '0' && *text <= '9') {
+            return true;
+        }
+    }
+    return false;
+}
+
+static int words_of(char words[][64], int capacity)
+{
+    int count = 0;
+    for (int index = 0; index < text_spy_count() && count < capacity; index++) {
+        const char *shown = text_spy_entry(index)->shown;
+        if (!has_digit(shown)) {
+            snprintf(words[count++], 64, "%s", shown);
+        }
+    }
+    return count;
+}
+
+static void copy_frame(UsbScene *scene, int frame)
+{
+    static const uint8_t WRITE_GLOWS[] = {255, 96, 224};
+    static const uint8_t CARD_GLOWS[] = {0, 160, 32};
+    uint32_t totals[USB_METER_DIRECTIONS] = {scene->meter.sectors[USB_METER_READ],
+                                             scene->meter.sectors[USB_METER_WRITE] +
+                                                 (uint32_t)(36000 + 2500 * frame)};
+    usb_meter_sample(&scene->meter, totals, scene->meter.sampled_ms + USB_METER_PERIOD_MS);
+    scene->usage[0].write_glow = WRITE_GLOWS[frame];
+    scene->usage[1].write_glow = CARD_GLOWS[frame];
+    scene->usage[0].written_sectors += 36000;
+}
+
+static void a_copy_keeps_its_words_still_while_the_lights_and_rates_move(void)
+{
+    static char first[24][64];
+    static char later[24][64];
+    for (int orientation = 0; orientation < 2; orientation++) {
+        Theme theme = theme_for(APPEARANCE_NEON_NOIR, orientation, TEXT_SIZE_MEDIUM);
+        UsbScene scene = storage_scene(USB_SCENE_WRITING);
+        AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+        status.scene = &scene;
+        status = with_page_hint(&theme, status);
+        Canvas canvas = canvas_for(&theme);
+        int words = 0;
+        for (int frame = 0; frame < 3; frame++) {
+            copy_frame(&scene, frame);
+            text_spy_reset();
+            usb_screen_draw(&canvas, &theme, (HalBattery){.known = true, .percent = 64}, status);
+            screen_snapshot_write(&canvas, "copy-frame", orientation * 10 + frame + 1);
+            int count = words_of(frame == 0 ? first : later, 24);
+            words = frame == 0 ? count : words;
+            CHECK_EQUAL(words, count);
+            for (int index = 0; frame > 0 && index < count; index++) {
+                CHECK(strcmp(first[index], later[index]) == 0);
+            }
+        }
+    }
+}
+
+static void a_page_past_the_last_shows_the_overview(void)
+{
+    UsbScene scene = storage_scene(USB_SCENE_WRITING);
+    Theme theme = medium(ORIENTATION_PORTRAIT);
+    scene.page = 9;
+    draw_text_of(&theme, storage_status(STR_USB_EJECT_DRIVES), &scene);
+    CHECK(saw(i18n_text(STR_USB_RATE_UNIT)));
+}
+
+static void warnings_and_waits_have_no_details(void)
+{
+    Theme theme = medium(ORIENTATION_LANDSCAPE);
+    UsbScene scene = storage_scene(USB_SCENE_WAITING);
+    AppUsbStatus status = storage_status(STR_USB_WAITING_HINT);
+    status.scene = &scene;
+    CHECK_EQUAL(1, usb_screen_pages(&theme, status));
+    scene = dac_scene(USB_SCENE_DAC_PLAYING);
+    scene.menu = &menu.view;
+    status.view = APP_USB_DAC;
+    CHECK_EQUAL(1, usb_screen_pages(&theme, status));
+}
+
+static void age_an_old_sample(UsbScene *scene)
+{
+    scene->meter.history[USB_METER_WRITE][(scene->meter.newest + 15) % USB_METER_SAMPLES] = 9000;
+}
+
+static void a_new_sample_changes_only_the_graph(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        Theme theme = medium(orientation);
+        UsbScene scene = storage_scene(USB_SCENE_WRITING);
+        AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+        draw_twice(&theme, status, &scene, age_an_old_sample);
+        CHECK(changed(&theme));
+        status.scene = &scene;
+        UsbScreenLayout layout = usb_screen_layout(&theme, status);
+        CHECK(changes_stay_inside(&theme, usb_screen_graph(&theme, &layout)));
+    }
+}
+
+static void dac_overview_shows_format_output_and_host(void)
+{
+    Theme theme = theme_for(APPEARANCE_GRAPHITE, ORIENTATION_PORTRAIT, TEXT_SIZE_MEDIUM);
+    UsbScene scene = dac_scene(USB_SCENE_DAC_PLAYING);
+    AppUsbStatus status = {.view = APP_USB_DAC, .detail = i18n_text(STR_USB_DAC_HINT)};
+    draw_text_of(&theme, status, &scene);
+    CHECK(saw("44.1 kHz · 24-bit"));
+    CHECK(saw("-12 dB"));
+    CHECK(saw(i18n_text(STR_JACK_35)));
+    CHECK(saw("35"));
+    CHECK(saw("20 ms"));
+    scene.dac.host_muted = true;
+    draw_text_of(&theme, status, &scene);
+    CHECK(saw(i18n_text(STR_USB_DAC_MUTED_VALUE)));
 }
 
 static void dac_details_show_what_the_session_measured(void)
@@ -382,20 +692,21 @@ static void dac_details_show_what_the_session_measured(void)
     UsbScene scene = dac_scene(USB_SCENE_DAC_PLAYING);
     AppUsbStatus status = {.view = APP_USB_DAC, .detail = i18n_text(STR_USB_DAC_HINT)};
     status.scene = &scene;
-    Canvas canvas = canvas_for(&theme);
-    text_spy_reset();
-    usb_screen_draw(&canvas, &theme, (HalBattery){.known = true, .percent = 64}, status);
-    CHECK(saw("44.1 kHz · 24-bit"));
-    CHECK(saw("-12 dB"));
-    CHECK(saw(i18n_text(STR_JACK_35)));
-    CHECK(saw("20 ms"));
+    CHECK_EQUAL(2, usb_screen_pages(&theme, status));
+    scene.page = 1;
+    scene.dac.host_volume = -12 * 256 - 128;
+    draw_text_of(&theme, status, &scene);
+    CHECK(saw("44100 Hz · 24-bit"));
+    CHECK(saw("UAC2 alt 2 · 2 ch"));
+    CHECK(saw("20 ms (17-23)"));
     CHECK(saw("+12 ppm"));
+    CHECK(saw("5.5237"));
+    CHECK(saw("Low · reg 0x10"));
+    CHECK(saw("-12.5 dB"));
+    CHECK(saw("265 kB/s"));
     CHECK(saw("12:34"));
-    scene.dac.host_muted = true;
     scene.dac.seconds = 3725;
-    text_spy_reset();
-    usb_screen_draw(&canvas, &theme, (HalBattery){.known = true, .percent = 64}, status);
-    CHECK(saw(i18n_text(STR_USB_DAC_MUTED_VALUE)));
+    draw_text_of(&theme, status, &scene);
     CHECK(saw("1:02:05"));
 }
 
@@ -429,7 +740,17 @@ int main(void)
         TEST_CASE(storage_motion_redraws_only_the_cassette_square),
         TEST_CASE(the_level_meter_redraws_only_its_own_area),
         TEST_CASE(a_still_scene_does_not_follow_the_clock),
-        TEST_CASE(drive_sizes_copies_and_ejected_drives_are_shown),
+        TEST_CASE(rates_read_in_tenths_of_a_megabyte),
+        TEST_CASE(the_overview_shows_the_rate_drives_and_their_free_space),
+        TEST_CASE(an_idle_overview_shows_the_session_totals),
+        TEST_CASE(storage_details_show_each_drive_and_the_link),
+        TEST_CASE(landscape_details_put_the_drives_side_by_side),
+        TEST_CASE(a_missing_card_drops_its_rows),
+        TEST_CASE(a_page_past_the_last_shows_the_overview),
+        TEST_CASE(a_copy_keeps_its_words_still_while_the_lights_and_rates_move),
+        TEST_CASE(warnings_and_waits_have_no_details),
+        TEST_CASE(a_new_sample_changes_only_the_graph),
+        TEST_CASE(dac_overview_shows_format_output_and_host),
         TEST_CASE(dac_details_show_what_the_session_measured),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

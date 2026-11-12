@@ -307,6 +307,42 @@ STR_USB_EJECTED = Ejected
 STR_USB_HIGH_SPEED = High speed
 STR_USB_FULL_SPEED = Full speed
 
+# USB storage overview and details. {0} in STR_USB_FREE, STR_USB_TOTAL, STR_USB_KB, STR_USB_MB_S and
+# STR_USB_KB_S is a number or a size; {0} and {1} in STR_USB_TOTALS are sizes. {0} in the
+# STR_USB_*_HINT lines is one of the STR_USB_BACK_* actions. STR_USB_RATE_UNIT follows a
+# large transfer rate. In STR_USB_ERRORS_VALUE {0} is a count and {1} the last SCSI sense
+# key and code; in STR_USB_LINK_HIGH and STR_USB_LINK_FULL {0} is the packet size in bytes.
+STR_USB_IDLE = Idle
+STR_USB_RATE_UNIT = MB/s
+STR_USB_FREE = {0} free
+STR_USB_TOTAL = {0} total
+STR_USB_NO_CARD = No card
+STR_USB_UNKNOWN = Unknown
+STR_USB_TOTALS = Read {0} · Written {1}
+STR_USB_BACK_DETAILS = Back: details
+STR_USB_BACK_MORE = Back: more
+STR_USB_BACK_OVERVIEW = Back: overview
+STR_USB_DRIVES_HINT = Eject drives · {0} · Hold Back: leave
+STR_USB_DRIVE_HINT = Eject to finish · {0} · Hold Back: leave
+STR_USB_STAT_INTERNAL = Internal
+STR_USB_STAT_CARD = microSD
+STR_USB_STAT_READ = Read
+STR_USB_STAT_WRITTEN = Written
+STR_USB_STAT_COMMANDS = Commands
+STR_USB_STAT_PER_COMMAND = Per command
+STR_USB_STAT_FREE = Free at connect
+STR_USB_STAT_PEAK = Peak
+STR_USB_STAT_AVERAGE = Average
+STR_USB_STAT_BUSY = Drive busy
+STR_USB_STAT_ERRORS = Errors
+STR_USB_STAT_LINK = Link
+STR_USB_KB = {0} KB
+STR_USB_MB_S = {0} MB/s
+STR_USB_KB_S = {0} kB/s
+STR_USB_ERRORS_VALUE = {0} · last {1}
+STR_USB_LINK_HIGH = 480 Mbit/s · {0} B
+STR_USB_LINK_FULL = 12 Mbit/s · {0} B
+
 # USB DAC screen. {0} in STR_USB_DAC_PICK is the firmware's name; {0} kHz and {1}-bit in
 # STR_USB_DAC_RATE, and {0} in STR_USB_DAC_MS and STR_USB_DAC_PPM, are numbers.
 # STR_USB_DAC_LEFT and STR_USB_DAC_RIGHT label the left and right level bars.
@@ -325,6 +361,23 @@ STR_USB_DAC_LEFT = L
 STR_USB_DAC_RIGHT = R
 STR_USB_DAC_HINT = Menu: settings · Hold Back: leave
 STR_USB_DAC_ADJUST_HINT = Vol: change · Play: done
+
+# USB DAC details. In STR_USB_DAC_EXACT {0} is the sample rate in Hz and {1} the bits; in
+# STR_USB_DAC_UAC2 and STR_USB_DAC_UAC1 {0} is the interface's alternate setting and {1} the
+# channels; STR_USB_DAC_ADAPTIVE replaces the feedback value when the host sets the pace; in STR_USB_DAC_BUFFER_RANGE {0} is the average and {1} to {2} the range in ms;
+# in STR_USB_DAC_GAIN_VALUE {0} is the gain and {1} the DAC register value.
+STR_USB_DAC_PAGE_HINT = Menu: settings · {0} · Hold Back: leave
+STR_USB_DAC_FORMAT = Format
+STR_USB_DAC_EXACT = {0} Hz · {1}-bit
+STR_USB_DAC_INTERFACE = Interface
+STR_USB_DAC_UAC2 = UAC2 alt {0} · {1} ch
+STR_USB_DAC_UAC1 = UAC1 alt {0} · {1} ch
+STR_USB_DAC_BUFFER_RANGE = {0} ms ({1}-{2})
+STR_USB_DAC_FEEDBACK = Feedback
+STR_USB_DAC_ADAPTIVE = Adaptive
+STR_USB_DAC_OVERRUNS = Overruns
+STR_USB_DAC_GAIN_VALUE = {0} · reg {1}
+STR_USB_DAC_DATA = Data
 
 # Updates. {0} in STR_UPDATE_CHECKING and STR_UPDATE_REFUSED is the file's name; {0}% is the progress.
 STR_UPDATE = Update

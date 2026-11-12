@@ -7,13 +7,17 @@
 #include "gfx/canvas.h"
 #include "ui/list_view.h"
 #include "ui/theme.h"
+#include "usb_meter.h"
 
 enum {
     USB_SCENE_DRIVES = 2,
     USB_SCENE_CHANNELS = 2,
     USB_SCENE_LEVEL_FULL = 255,
-    USB_SCREEN_BAND_HEIGHT = 20
+    USB_SCREEN_BAND_HEIGHT = 20,
+    USB_SCENE_OVERVIEW = 0
 };
+
+#define USB_SCENE_FREE_UNKNOWN 0xFFFFFFFFu
 
 typedef enum UsbSceneState {
     USB_SCENE_STARTING,
@@ -41,6 +45,26 @@ typedef struct UsbSceneDrive {
     uint8_t state;
 } UsbSceneDrive;
 
+typedef struct UsbSceneUsage {
+    uint32_t free_sectors;
+    uint32_t read_sectors;
+    uint32_t written_sectors;
+    uint32_t reads;
+    uint32_t writes;
+    bool active;
+    uint8_t read_glow;
+    uint8_t write_glow;
+} UsbSceneUsage;
+
+typedef struct UsbSceneLink {
+    uint32_t seconds;
+    uint32_t errors;
+    uint16_t packet;
+    uint8_t busy_percent;
+    uint8_t sense_key;
+    uint8_t sense_code;
+} UsbSceneLink;
+
 typedef struct UsbSceneDac {
     const char *headphones;
     uint32_t rate;
@@ -55,6 +79,17 @@ typedef struct UsbSceneDac {
     bool host_volume_known;
     bool host_muted;
     uint8_t level[USB_SCENE_CHANNELS];
+    uint8_t channels;
+    uint8_t alt;
+    uint8_t gain_register;
+    bool gain_high;
+    bool asynchronous;
+    uint16_t buffer_low_ms;
+    uint16_t buffer_high_ms;
+    uint16_t buffer_average_ms;
+    uint32_t overruns;
+    uint32_t feedback;
+    uint32_t data_rate;
 } UsbSceneDac;
 
 typedef struct UsbScene {
@@ -67,6 +102,12 @@ typedef struct UsbScene {
     UsbSceneDac dac;
     const ListView *menu;
     void (*service)(void);
+    uint8_t page;
+    UsbMeter meter;
+    UsbSceneLink link;
+    UsbSceneUsage usage[USB_SCENE_DRIVES];
+    bool busy;
+    bool writing;
 } UsbScene;
 
 typedef struct UsbScreenLayout {
@@ -83,3 +124,7 @@ UsbScreenLayout usb_screen_layout(const Theme *theme, AppUsbStatus status);
 Rect usb_screen_column(const UsbScreenLayout *layout);
 void usb_screen_show_in_bands(AppUsbStatus status, Rect area);
 Rect usb_screen_meter_bar(const Theme *theme, const UsbScreenLayout *layout, int side);
+int usb_screen_pages(const Theme *theme, AppUsbStatus status);
+Rect usb_screen_graph(const Theme *theme, const UsbScreenLayout *layout);
+Rect usb_screen_content(const Theme *theme, const UsbScreenLayout *layout);
+Rect usb_screen_drive_lights(const Theme *theme, AppUsbStatus status, int lun);
