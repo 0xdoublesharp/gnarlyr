@@ -1992,8 +1992,8 @@ static void open_debug_screen(uint32_t target, uint32_t now_ms)
 
 static void run_debug_script(uint32_t now_ms)
 {
-    DebugRequest request =
-        debug_runner_step(now_ms, (DebugRunnerView){fade_running(), app.display_on});
+    DebugRequest request = debug_runner_step(
+        now_ms, (DebugRunnerView){fade_running(), app.display_on, app.keys.states[KEY_POWER].held});
 
     if (request.kind == DEBUG_REQUEST_START) {
         start_debug_script(now_ms);
