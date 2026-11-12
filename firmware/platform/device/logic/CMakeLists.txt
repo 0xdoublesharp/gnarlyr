@@ -194,6 +194,7 @@ add_library(echo_device_logic STATIC
     usb_leave.c
     usb_level.c
     usb_plug.c
+    volume_space.c
     vorbis_decoder.c
     vorbis_memory.c
     vorbis_track.c
@@ -254,6 +255,7 @@ if(CMAKE_CROSSCOMPILING)
         usb_leave.c
         usb_level.c
         wide_divide.c
+        volume_space.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
 endif()

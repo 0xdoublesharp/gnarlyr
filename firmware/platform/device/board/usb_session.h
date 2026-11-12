@@ -55,6 +55,7 @@ typedef struct UsbShared {
     bool flash_rewritten;
     bool dac_volume_known;
     uint8_t dac_volume;
+    uint8_t usb_page;
 } UsbShared;
 
 typedef struct UsbOverlayEntry {
@@ -84,6 +85,10 @@ UsbShared *usb_session_shared(void);
 
 bool usb_storage_session(UsbShared *shared);
 bool usb_session_storage_changed(void);
+enum {
+    USB_SESSION_BUFFER_BYTES = 64 * 512
+};
+
 uint32_t *usb_session_buffer(void);
 void usb_dac_session(UsbShared *shared);
 void update_after_usb(UsbShared *shared);

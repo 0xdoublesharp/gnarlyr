@@ -1,3 +1,5 @@
+import os
+import struct
 import sys
 from pathlib import Path
 
@@ -27,14 +29,18 @@ from echo_image_harness import (
     USB_POWER_UP,
     echo_debug,
     make_image,
-    ACTIVITY_WRITING,
-    COLUMN_BANDS_LIMIT,
     LEAVE_FORCE_HOLD_MS,
     LEAVE_GRACE_MS,
     LEAVE_HOLD_MS,
-    STORAGE_MOTION_FRAME_MS,
     TRAFFIC_MEASURE_MS,
 )
+
+TRAFFIC_SAMPLE_MS = 500
+COMMAND_GAPS_MS = (35, 180, 60, 250, 20, 140, 90, 210)
+CAPTURE_GAP_MS = TRAFFIC_SAMPLE_MS
+LIGHT_FRAMES_PER_S = 25
+HOST_SECTORS_PER_MS = 40
+BACK_TAP_MS = 150
 
 
 class EchoImageTest(EchoImageHarness):
@@ -331,36 +337,83 @@ class EchoImageTest(EchoImageHarness):
         self.assertGreaterEqual(machine.milliseconds() - pressed, 4000 - CLOCK_SLACK_MS)
         self.assert_healthy(session)
 
-    def test_storage_motion_leaves_the_usb_loop_room_while_the_host_writes(self):
+    def test_the_traffic_graph_redraws_twice_a_second_and_leaves_the_usb_loop_room(self):
+        from unicorn.arm_const import UC_ARM_REG_R1, UC_ARM_REG_R2
         session, machine, _, _, _ = self.staying_storage_session(quiet=True)
-        if "usb_activity_now" not in machine.overlays[0].symbols:
+        if "msc_sectors_moved" not in machine.overlays[0].symbols:
             rate, gap = self.poll_rate(machine, TRAFFIC_MEASURE_MS)
             print("\n[storage before] usb_poll %.0f/s, longest gap %.2f ms" % (rate, gap / 1000))
             return
-        traffic = {"kind": 0, "kib": 0}
-        machine.stub_symbol("usb_activity_now", lambda machine: traffic["kind"])
+        host = {"from_ms": None}
 
-        def copied(machine):
-            traffic["kib"] += 64 if traffic["kind"] else 0
-            return traffic["kib"]
+        def moved(machine):
+            if host["from_ms"] is None or not machine.reg(UC_ARM_REG_R1):
+                return 0
+            return (machine.milliseconds() - host["from_ms"]) * HOST_SECTORS_PER_MS
 
-        machine.stub_symbol("usb_activity_written_kib", copied)
+        def commands(machine):
+            if host["from_ms"] is None or machine.reg(UC_ARM_REG_R1) != 0 or not machine.reg(UC_ARM_REG_R2):
+                return 0
+            elapsed, count = machine.milliseconds() - host["from_ms"], 0
+            while elapsed >= COMMAND_GAPS_MS[count % len(COMMAND_GAPS_MS)]:
+                elapsed -= COMMAND_GAPS_MS[count % len(COMMAND_GAPS_MS)]
+                count += 1
+            return count
+
+        machine.stub_symbol("msc_sectors_moved", moved)
+        if "msc_lun_commands" in machine.overlays[0].symbols:
+            machine.stub_symbol("msc_lun_commands", commands)
+        statuses = machine.trace("app_show_usb_status")
         areas = machine.trace("app_show_usb_area")
         polls = self.poll_stamps(machine)
         still_rate, still_gap = self.poll_rate(machine, TRAFFIC_MEASURE_MS, polls)
         self.assertEqual(areas, [])
-        traffic["kind"] = ACTIVITY_WRITING
-        machine.run(until_ms=machine.milliseconds() + 300)
+        host["from_ms"] = machine.milliseconds()
+        machine.run(until_ms=machine.milliseconds() + TRAFFIC_SAMPLE_MS + 100)
+        areas.clear()
         moving_rate, moving_gap = self.poll_rate(machine, TRAFFIC_MEASURE_MS, polls)
-        frames = len(areas)
-        self.assertGreaterEqual(frames, TRAFFIC_MEASURE_MS // STORAGE_MOTION_FRAME_MS)
-        self.assertLessEqual(frames, TRAFFIC_MEASURE_MS // STORAGE_MOTION_FRAME_MS
-                             + (TRAFFIC_MEASURE_MS // 1000 + 1) * COLUMN_BANDS_LIMIT)
+        samples = TRAFFIC_MEASURE_MS // TRAFFIC_SAMPLE_MS
+        lights = LIGHT_FRAMES_PER_S * TRAFFIC_MEASURE_MS // 1000
+        self.assertGreaterEqual(len(areas), 2 * samples - 2)
+        self.assertLessEqual(len(areas), 2 * samples + 2 + lights)
+        self.assertEqual(statuses, [])
+        self.capture_frames(machine)
+        self.assertEqual(statuses, [])
         self.assert_healthy(session)
-        print("\n[storage motion] usb_poll %.0f/s still, %.0f/s with motion (%.1f %% fewer); "
-              "longest gap %.2f ms still, %.2f ms with motion; %d area frames"
+        print("\n[traffic graph] usb_poll %.0f/s still, %.0f/s while redrawing (%.1f %% fewer); "
+              "longest gap %.2f ms still, %.2f ms while redrawing; %d area frames"
               % (still_rate, moving_rate, 100 * (1 - moving_rate / still_rate), still_gap / 1000,
-                 moving_gap / 1000, frames))
+                 moving_gap / 1000, len(areas)))
+
+    def capture_frames(self, machine):
+        directory = os.environ.get("ECHO_USB_CAPTURES")
+        for frame in range(3):
+            machine.run(until_ms=machine.milliseconds() + CAPTURE_GAP_MS)
+            if directory:
+                pixels = struct.pack("<%dH" % len(machine.panel.frame), *machine.panel.frame)
+                count = len(machine.panel.frame)
+                png = echo_debug.png_bytes(480, count // 480, echo_debug.rgb888(pixels, count))
+                Path(directory, "copy-frame-%d.png" % (frame + 1)).write_bytes(png)
+
+    def test_a_back_tap_shows_the_details_without_leaving(self):
+        session, machine, _, applied, removed = self.staying_storage_session(quiet=True)
+        if "usb_meter_sample" not in machine.overlays[0].symbols:
+            return
+        statuses = machine.trace("app_show_usb_status")
+        areas = machine.trace("app_show_usb_area")
+        machine.run(until_ms=machine.milliseconds() + 2000)
+        self.assertEqual(areas, [])
+        self.hold_back(machine, BACK_TAP_MS)
+        machine.run(until_ms=machine.milliseconds() + BACK_TAP_MS + 200)
+        self.assertEqual(len(statuses), 1)
+        areas.clear()
+        machine.run(until_ms=machine.milliseconds() + 3000)
+        self.assertGreaterEqual(len(areas), 2)
+        self.assertLessEqual(len(areas), 4)
+        self.assertEqual(removed, [])
+        self.assertEqual(applied, [])
+        self.assertNotIn("usb_session_storage_changed", machine.reached)
+        self.assert_healthy(session)
 
 
 if __name__ == "__main__":

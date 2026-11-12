@@ -410,6 +410,8 @@ if(NOT ECHO_RELEASE)
         hal_internal_file_read
         hal_internal_file_reserve
         hal_internal_file_write
+        hal_internal_file_write_at
+        strip_renderer_render
         hal_system_clock_mhz
         hal_system_core1_load
         hal_system_idle_microseconds
@@ -514,9 +516,12 @@ set(ECHO_USB_OVERLAY_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/usb_overl
 add_executable(echo_usb_overlay
     overlay/usb_overlay.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen.c
+    ${PROJECT_SOURCE_DIR}/src/app/screens/usb_meter.c
     ${PROJECT_SOURCE_DIR}/src/app/home_art_backdrop.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_dac_menu.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_dac.c
+    ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_stats.c
+    ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_traffic.c
     ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
     ${PROJECT_SOURCE_DIR}/src/ui/wire_figure.c
     ${PROJECT_SOURCE_DIR}/src/core/headphone_audio_switch.c
@@ -530,7 +535,8 @@ add_executable(echo_usb_overlay
     board/usb_session.c
 )
 if(NOT ECHO_RELEASE)
-    target_sources(echo_usb_overlay PRIVATE board/debug_report_file.c board/debug_script_file.c)
+    target_sources(echo_usb_overlay PRIVATE board/debug_report_file.c board/debug_script_file.c
+        board/usb_screen_capture.c)
 endif()
 set_target_properties(echo_usb_overlay PROPERTIES
     SUFFIX .elf
