@@ -91,6 +91,7 @@ typedef struct HalUsbSense {
 HalUsbSense hal_system_usb_sense(void);
 void hal_system_keep_usb_on(bool kept_on);
 void hal_system_usb_reconnect(void);
+bool hal_system_usb_connect_pending(void);
 void hal_system_usb_connect(bool on);
 typedef enum HalProbeKind {
     HAL_PROBE_PEEK,

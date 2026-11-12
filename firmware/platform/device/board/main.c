@@ -47,6 +47,11 @@ bool board_usb_listening(void)
     return usb_plug.state == USB_PLUG_LISTENING;
 }
 
+bool hal_system_usb_connect_pending(void)
+{
+    return board_usb_listening() || usb_session_connect_requested();
+}
+
 static void raise_clock_for_usb(void)
 {
     if (hal_system_clock_mhz() < START_CLOCK_MHZ) {

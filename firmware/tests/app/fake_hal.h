@@ -62,6 +62,8 @@ const uint8_t *fake_hal_screenshot(const char **path, uint32_t *size);
 void fake_hal_fill_profile(void);
 int fake_hal_profile_reset_count(void);
 void fake_hal_set_restart_pending(bool pending);
+void fake_hal_set_usb_connect_pending(bool pending);
+int fake_hal_rescan_loads(void);
 void fake_hal_break_module(uint32_t module, bool broken);
 void fake_hal_evict_module(void);
 uint32_t fake_hal_loaded_module(void);

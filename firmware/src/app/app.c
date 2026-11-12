@@ -1548,7 +1548,8 @@ static void continue_covers(uint32_t now_ms)
     bool idle = now_ms - app.power.last_activity_ms >= COVERS_IDLE_MS;
     bool rested = !app.player.loaded || (app.player.state == PLAYER_PAUSED &&
                                          now_ms - app.player.paused_since_ms >= COVERS_PAUSED_MS);
-    if (!app.covers_pending || !idle || !rested || debug_runner_active() || hal_input_waiting()) {
+    if (!app.covers_pending || !idle || !rested || debug_runner_active() || hal_input_waiting() ||
+        hal_system_usb_connect_pending()) {
         return;
     }
     if (app.player.loaded) {

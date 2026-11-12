@@ -157,6 +157,8 @@ typedef struct FakeHal {
     int profile_resets;
     HalAudioStats audio_stats;
     bool restart_pending;
+    bool usb_connect_pending;
+    int rescan_loads;
     uint32_t loaded_module;
     uint32_t broken_modules;
     int module_loads;
@@ -1761,9 +1763,25 @@ bool hal_system_restart_pending(void)
     return fake.restart_pending;
 }
 
+void fake_hal_set_usb_connect_pending(bool pending)
+{
+    fake.usb_connect_pending = pending;
+}
+
+bool hal_system_usb_connect_pending(void)
+{
+    return fake.usb_connect_pending;
+}
+
+int fake_hal_rescan_loads(void)
+{
+    return fake.rescan_loads;
+}
+
 const void *hal_system_load_rescan_code(void)
 {
     fake.loaded_module = 0;
+    fake.rescan_loads++;
     return &RESCAN_MODULE_ENTRY;
 }
 
