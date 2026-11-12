@@ -44,6 +44,22 @@ static void the_last_string_of_the_catalogue_is_reachable(void)
     i18n_detach();
 }
 
+static void a_version_one_pack_can_use_more_than_sixteen_kibibytes(void)
+{
+    build_bracketed();
+    uint32_t end = 17 * 1024;
+    memset(pack + pack_size - 1, 'X', end - pack_size);
+    pack_size = end;
+    pack[pack_size - 1] = 0;
+    hash_store(pack + TEST_PACK_SIZE_FIELD, pack_size);
+    test_pack_seal(pack, pack_size);
+    CHECK_EQUAL(1, pack[TEST_PACK_VERSION_FIELD]);
+    CHECK(i18n_attach(pack, pack_size));
+    const char *last = i18n_text((StringId)(STRING_COUNT - 1));
+    CHECK(last + strlen(last) + 1 == (const char *)pack + pack_size);
+    i18n_detach();
+}
+
 static void a_pack_names_its_language_and_code(void)
 {
     build_bracketed();
@@ -237,6 +253,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(a_sound_pack_is_attached_and_gives_its_text),
         TEST_CASE(the_last_string_of_the_catalogue_is_reachable),
+        TEST_CASE(a_version_one_pack_can_use_more_than_sixteen_kibibytes),
         TEST_CASE(a_pack_names_its_language_and_code),
         TEST_CASE(a_header_shorter_than_the_format_is_refused),
         TEST_CASE(another_magic_version_or_count_is_refused),

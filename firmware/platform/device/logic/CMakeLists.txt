@@ -64,6 +64,8 @@ add_library(echo_device_logic STATIC
     audio_interpolate.c
     audio_dsp_entry.c
     audio_process_entry.c
+    audio_effects_entry.c
+    audio_source_entry.c
     audio_ogg_entry.c
     backlight.c
     block_read.c
@@ -77,6 +79,7 @@ add_library(echo_device_logic STATIC
     core1_heap.c
     core1_m4a.c
     core1_open.c
+    core1_open_flac.c
     core1_mp3.c
     core1_ogg.c
     core1_ogg_source.c
@@ -88,6 +91,7 @@ add_library(echo_device_logic STATIC
     dac_sequence.c
     debug_report.c
     flac_source.c
+    flac_source_open.c
     dma_loop.c
     emmc_layout.c
     equalizer.c
@@ -160,6 +164,7 @@ if(CMAKE_CROSSCOMPILING)
         bt_module.c
         core1_control.c
         core1_open.c
+        core1_open_flac.c
         dac_sequence.c
         debug_report.c
         emmc_layout.c
@@ -171,6 +176,7 @@ if(CMAKE_CROSSCOMPILING)
         fat_names.c
         fat_reserve.c
         flac_source.c
+        flac_source_open.c
         headset_dips.c
         headset_monitor.c
         headset_remote.c

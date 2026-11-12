@@ -1,10 +1,21 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension)
+set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source)
+set(ECHO_SCREEN_MODULE_SHARED_SOURCES src/codec/flac.c src/codec/flac_bits.c)
 set(ECHO_SCREEN_MODULE_SOURCES_process
-    platform/device/logic/audio_fade.c
     platform/device/logic/audio_process_entry.c
     platform/device/logic/audio_trig.c
     platform/device/logic/equalizer_design.c
     platform/device/logic/equalizer.c
+)
+set(ECHO_SCREEN_MODULE_SOURCES_effects
+    platform/device/logic/audio_effects_entry.c
+    platform/device/logic/audio_fade.c
+)
+set(ECHO_SCREEN_MODULE_SOURCES_source
+    platform/device/logic/audio_source_entry.c
+    platform/device/logic/core1_open_flac.c
+    platform/device/logic/flac_source_open.c
+    src/codec/flac.c
+    src/codec/flac_bits.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_dsp
     platform/device/logic/audio_interpolate.c
@@ -38,10 +49,17 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/ui/wire_figure.c
     src/ui/wire_motion.c
 )
-set(ECHO_SCREEN_MODULE_SOURCES_views
-    src/app/modules/views_module.c
-    src/app/diagnostics_rows.c
-    src/app/diagnostics_values.c
+set(ECHO_SCREEN_MODULE_SOURCES_playing
+    src/app/modules/playing_module.c
+    src/app/screens/cover_flow_screen.c
+    src/app/cover_placeholders.c
+    src/app/screens/up_next_screen.c
+    src/app/queue_actions.c
+    src/app/queue_edits.c
+    src/app/screens/charge_art.c
+    src/ui/cover_flow.c
+    src/ui/placeholder_art.c
+    src/gfx/image_quad.c
     src/app/screens/quick_settings_screen.c
     src/app/settings_actions.c
     src/app/equalizer_presets.c
@@ -53,6 +71,11 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/settings/headphone_profile_edit.c
     src/settings/headphone_file_save.c
     src/core/headphone_audio_switch.c
+)
+set(ECHO_SCREEN_MODULE_SOURCES_views
+    src/app/modules/views_module.c
+    src/app/diagnostics_rows.c
+    src/app/diagnostics_values.c
     src/app/mixtape_store.c
     src/app/order_adopt.c
     src/app/mixtape_ui.c
@@ -62,19 +85,12 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/playback/mix_catalog.c
     src/playback/mix_resolve.c
     src/playback/mix_tape.c
-    src/app/screens/cover_flow_screen.c
-    src/app/cover_placeholders.c
-    src/app/screens/up_next_screen.c
-    src/app/queue_actions.c
-    src/app/queue_edits.c
     src/app/screens/calendar_screen.c
     src/core/calendar_view.c
     src/app/screens/cassette_flip_screen.c
     src/app/screens/clock_screen.c
-    src/app/screens/charge_art.c
-    src/ui/cover_flow.c
-    src/ui/placeholder_art.c
-    src/gfx/image_quad.c
+    src/app/queue_actions.c
+    src/app/queue_edits.c
 )
 set(ECHO_SCREEN_MODULE_FAST_SOURCES src/gfx/image_quad.c)
 set(ECHO_SCREEN_MODULE_SOURCES_settings
@@ -145,7 +161,7 @@ if(ECHO_RELEASE)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu_release.c)
 else()
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu.c)
-    list(APPEND ECHO_SCREEN_MODULE_SOURCES_process
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_effects
         src/app/modules/debug_module.c
         src/app/debug_steps.c
         src/app/debug_screenshot.c
@@ -178,7 +194,7 @@ function(echo_take_module_sources)
     foreach(module IN LISTS ECHO_SCREEN_MODULES)
         foreach(source IN LISTS ECHO_SCREEN_MODULE_SOURCES_${module})
             echo_screen_module_owner(${source} owner name)
-            if(owner STREQUAL "echo_device")
+            if(owner STREQUAL "echo_device" OR source IN_LIST ECHO_SCREEN_MODULE_SHARED_SOURCES)
                 continue()
             endif()
             get_target_property(sources ${owner} SOURCES)

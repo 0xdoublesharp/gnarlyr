@@ -1,5 +1,7 @@
 #include "audio_process.h"
 
+#include "audio_effects.h"
+
 #include "core/seam.h"
 #include "device/audio_process.h"
 #include "overlay.h"
@@ -11,7 +13,7 @@ static const AudioProcessEntry *entry(void)
     return (const AudioProcessEntry *)(uintptr_t)(AUDIO_PROCESS_BASE + OVERLAY_HEADER_BYTES);
 }
 
-CORE_SEAM bool board_audio_process_prepare(void)
+CORE_SEAM CORE_COLD bool board_audio_process_prepare(void)
 {
     const BoardOverlay overlay = {.image_offset = 0,
                                   .magic = AUDIO_PROCESS_MAGIC,
@@ -19,12 +21,13 @@ CORE_SEAM bool board_audio_process_prepare(void)
                                   .capacity = AUDIO_PROCESS_BYTES,
                                   .module = AUDIO_PROCESS_NUMBER};
     ready = board_overlay_load(&overlay) && entry()->magic == AUDIO_PROCESS_MAGIC;
-    return ready;
+    return ready && board_audio_effects_prepare();
 }
 
 void board_audio_process_forget(void)
 {
     ready = false;
+    board_audio_effects_forget();
 }
 
 bool equalizer_design(Equalizer *equalizer, const HalAudioEqualizer *curve, uint32_t rate)
@@ -48,24 +51,3 @@ void equalizer_run(Equalizer *equalizer, uint32_t *words, uint32_t frames)
         entry()->run(equalizer, words, frames);
     }
 }
-
-void audio_fade_in(AudioFadeBlock block, AudioFadeRamp *ramp)
-{
-    if (ready) {
-        entry()->fade_in(block, ramp);
-    }
-}
-
-void audio_fade_out(AudioFadeBlock block, AudioFadeRamp *ramp, int64_t remaining)
-{
-    if (ready) {
-        entry()->fade_out(block, ramp, remaining);
-    }
-}
-
-#ifdef ECHO_DEBUG_LOOP
-const void *board_audio_process_debug_code(void)
-{
-    return ready || board_audio_process_prepare() ? entry()->debug : NULL;
-}
-#endif

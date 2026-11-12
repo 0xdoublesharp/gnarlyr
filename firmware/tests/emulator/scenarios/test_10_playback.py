@@ -447,12 +447,155 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(starts, [])
         self.assert_healthy(rig.session)
 
+    def test_flac_header_and_seek_use_the_source_bank_with_slot_fallback(self):
+        from unicorn.arm_const import UC_ARM_REG_R1
+        rig = self.playback_rig()
+        machine = rig.machine
+        self.assertNotIn("flac_read_header", machine.symbols)
+        self.assertNotIn("flac_seek", machine.symbols)
+        number, source = self.module(machine, "source")
+        rig.session.change_module("slot_1", number, 600, lambda byte: byte ^ 0xFF)
+        headers, seeks = [], []
+        machine.hook_symbol("flac_read_header", lambda: headers.append(source.loaded(machine)))
+        machine.hook_symbol("flac_seek", lambda: seeks.append(source.loaded(machine)))
+        machine.hook_symbol("hal_audio_play", lambda: machine.uc.reg_write(UC_ARM_REG_R1, 1000))
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertTrue(headers)
+        self.assertTrue(seeks)
+        self.assertTrue(all(headers + seeks))
+        for slot in ("slot_1", "slot_2"):
+            self.assertTrue(rig.session.module_reads(slot, number))
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assert_healthy(rig.session)
+
+    def test_flac_refuses_missing_processing_banks_without_starting_output(self):
+        rig = self.playback_rig()
+        number, process = self.module(rig.machine, "process")
+        for slot in ("slot_1", "slot_2"):
+            rig.session.change_module(slot, number, 600, lambda byte: byte ^ 0xFF)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNone(rig.first_audio_after(started))
+        self.assertFalse(process.loaded(rig.machine))
+        self.assertEqual([], rig.audio.audible)
+        for slot in ("slot_1", "slot_2"):
+            self.assertTrue(rig.session.module_reads(slot, number))
+        self.assert_healthy(rig.session)
+
+    def test_flac_refuses_missing_source_banks_without_starting_output(self):
+        rig = self.playback_rig()
+        number, source = self.module(rig.machine, "source")
+        for slot in ("slot_1", "slot_2"):
+            rig.session.change_module(slot, number, 600, lambda byte: byte ^ 0xFF)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNone(rig.first_audio_after(started))
+        self.assertFalse(source.loaded(rig.machine))
+        self.assertEqual([], rig.audio.audible)
+        for slot in ("slot_1", "slot_2"):
+            self.assertTrue(rig.session.module_reads(slot, number))
+        self.assert_healthy(rig.session)
+
+    def test_converted_wav_to_flac_replaces_the_source_bank_and_keeps_pcm_continuous(self):
+        import subprocess
+        import tempfile
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        rate, factor = 22050, 2
+        pcm = struct.pack("<8h", 0, 2828, 4000, 2828, 0, -2828, -4000, -2828) * 1654
+        wav = struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ",
+                          16, 1, 1, rate, rate * 2, 2, 16, b"data", len(pcm)) + pcm
+        with tempfile.TemporaryDirectory() as directory:
+            encoded = Path(directory) / "B.flac"
+            subprocess.run(["ffmpeg", "-v", "error", "-f", "wav", "-i", "pipe:0", "-c:a",
+                            "flac", "-compression_level", "0", "-threads", "1", str(encoded)],
+                           input=wav, check=True)
+            flac = encoded.read_bytes()
+        volume = Fat32Volume()
+        volume.add_file("A.wav", wav)
+        volume.add_file("B.flac", flac)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        machine = rig.machine
+        number, source = self.module(machine, "source")
+        dsp_number, dsp = self.module(machine, "dsp")
+        headers, starts = [], []
+        machine.hook_symbol("flac_read_header", lambda: headers.append(source.loaded(machine)))
+        machine.hook_symbol("dmac_start_loop", lambda: starts.append(machine.milliseconds()))
+        boundary = len(pcm) // 2 * factor
+        samples = self.capture_output(rig, 2 * boundary)
+        rig.open_songs()
+        started = rig.play_song(1)
+        rig.run_for(1500)
+        self.assertEqual(2 * boundary, len(samples))
+        self.assertEqual([True], headers)
+        self.assertTrue(dsp.loaded(machine))
+        self.assertTrue(rig.session.module_reads("slot_1", number))
+        first = rig.session.module_span("slot_1", dsp_number)[0]
+        self.assertGreaterEqual(rig.session.module_reads("slot_1", dsp_number).count((first, 1)), 2)
+        self.assertEqual(1, len(starts))
+        period = 8 * factor
+        for frame in range(boundary - 3 * period, boundary + 3 * period):
+            self.assertEqual(samples[10 * period + frame % period], samples[frame], frame)
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assert_healthy(rig.session)
+
     def damage_flac_program(self, session, slot):
         lba = session.layout[slot] + image_tests.make_image.CORE1_FLAC_OFFSET // 512 + 1
         sector = bytearray(session.disk.read(lba, 1))
         sector[40] ^= 0xFF
         session.disk.write(lba, bytes(sector))
         session.before = session.disk.snapshot()
+
+    def test_ogg_to_flac_queue_reuses_the_audio_bank_only_after_ogg_is_finished(self):
+        import subprocess
+        import tempfile
+        from echo_emulator.core1_bridge import CORE1_FLAC, CORE1_VORBIS, Core1Bridge
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        vorbis = (PROJECT / "tests/fixtures/vorbis/seek44.ogg").read_bytes()
+        page = vorbis.rfind(b"OggS")
+        boundary = struct.unpack_from("<Q", vorbis, page + 6)[0]
+        level = 9000
+        wav = self.tagged_wav("B", "Next", 44100, 20, level)
+        with tempfile.TemporaryDirectory() as directory:
+            encoded = Path(directory) / "B.flac"
+            subprocess.run(["ffmpeg", "-v", "error", "-f", "wav", "-i", "pipe:0", "-c:a",
+                            "flac", "-threads", "1", str(encoded)], input=wav, check=True)
+            flac = encoded.read_bytes()
+        volume = Fat32Volume()
+        volume.add_file("A.ogg", vorbis)
+        volume.add_file("B.flac", flac)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        programs = {CORE1_FLAC: self.elf.with_name("core1.bin").read_bytes(),
+                    CORE1_VORBIS: self.elf.with_name("core1_vorbis.bin").read_bytes()}
+        bridge = Core1Bridge(rig.audio, programs)
+        machine = rig.machine
+        _, ogg = self.module(machine, "ogg")
+        _, source = self.module(machine, "source")
+        reads, headers, starts = [], [], []
+        machine.hook_symbol("ogg_stream_read", lambda: reads.append(ogg.loaded(machine)))
+        machine.hook_symbol("flac_read_header", lambda: headers.append(source.loaded(machine)))
+        machine.hook_symbol("dmac_start_loop", lambda: starts.append(machine.milliseconds()))
+        samples = self.capture_output(rig, boundary + 4410)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertEqual("condition met", machine.run(
+            until=lambda: len(samples) == boundary + 4410,
+            until_ms=machine.milliseconds() + 7000))
+        self.assertEqual([CORE1_VORBIS, CORE1_FLAC], bridge.started)
+        self.assertTrue(reads)
+        self.assertTrue(all(reads))
+        self.assertEqual([True], headers)
+        self.assertEqual(1, len(starts))
+        expected = (level << 8, -(level << 8))
+        for frame in range(boundary + 1000, boundary + 4410, 97):
+            self.assertEqual(expected, tuple(self.sample_value(word) for word in samples[frame]))
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assert_healthy(rig.session)
 
     def test_flac_plays_from_the_second_core_program_copy_after_a_bad_crc(self):
         rig = self.playback_rig()

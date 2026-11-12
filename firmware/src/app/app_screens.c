@@ -187,7 +187,7 @@ static MenuItem music_item(AppScreens *screens, const LibraryStore *store, int i
         .query = browse_root_query(entry->kind),
         .favorites = entry->source == MUSIC_FAVORITES,
         .fixed =
-            entry->source == MUSIC_COVER_FLOW ? &screens->modules.views.cover_flow.screen : NULL,
+            entry->source == MUSIC_COVER_FLOW ? &screens->modules.playing.cover_flow.screen : NULL,
         .shelf = SPOKEN_NONE,
         .present = true,
     };
@@ -287,7 +287,7 @@ static void home_catalog(AppScreens *screens, MenuItem *items)
                                         NULL,
                                         &screens->modules.settings.settings.menu.screen,
                                         &screens->now_playing.screen,
-                                        &screens->modules.views.up_next.screen,
+                                        &screens->modules.playing.up_next.screen,
                                         &screens->modules.views.mixtapes.screen,
                                         &screens->modules.listening.listening.screen,
                                         NULL,
@@ -388,7 +388,7 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
                                     .library = &context.store->library,
                                     .theme = context.compact_theme,
                                     .covers = context.covers,
-                                    .quick_settings = &screens->modules.views.quick_settings.screen,
+                                    .quick_settings = &screens->modules.playing.quick_settings.screen,
                                     .lyrics = &screens->modules.listening.lyrics.screen,
                                     .flip = &screens->modules.views.cassette_flip.screen};
     screens->context = context;

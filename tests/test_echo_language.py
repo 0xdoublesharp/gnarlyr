@@ -61,6 +61,34 @@ class LanguageCommands(VolumeCase):
         self.assertEqual(result["pack"]["code"], "fr")
         self.assertEqual(result["firmware_build"], BUILD)
 
+    def with_pack_capacity(self, capacity):
+        original = echo_language.Snapshot.show
+        def show(snapshot, path):
+            source = original(snapshot, path)
+            return (re.sub(r"I18N_PACK_CAPACITY\s*=\s*\d+", f"I18N_PACK_CAPACITY = {capacity}", source)
+                    if path == "firmware/src/core/include/core/i18n.h" else source)
+        return mock.patch.object(echo_language.Snapshot, "show", show)
+
+    def test_an_extended_pack_is_refused_before_writing_to_a_sixteen_kibibyte_build(self):
+        self.pack.write_bytes(pack(STR_BACK_CANCELS="x" * 8000))
+        self.assertGreater(self.pack.stat().st_size, 16384)
+        with self.with_pack_capacity(16384):
+            status, result = self.run_cli("language-install", str(self.pack), host=self.host())
+        self.assertEqual(status, 1)
+        self.assertEqual(result["error"]["code"], "language_pack_invalid")
+        self.assertEqual(list(self.lang.iterdir()), [])
+
+    def test_an_extended_version_one_pack_installs_on_an_eighteen_kibibyte_build(self):
+        data = pack(STR_BACK_CANCELS="x" * 8000)
+        self.pack.write_bytes(data)
+        self.assertEqual(1, PACK.HEADER.unpack_from(data)[1])
+        tool, _ = self.live_tool()
+        with self.with_pack_capacity(18432):
+            result = tool.language_install(self.pack)
+        self.assertTrue(result["ok"])
+        self.assertEqual(18432, result["pack_capacity"])
+        self.assertEqual(data, (self.lang / "fr.pack").read_bytes())
+
     def test_list_prefers_the_card_from_the_same_player(self):
         (self.lang / "fr.pack").write_bytes(pack())
         status, result = self.run_cli("language-list", host=self.host())

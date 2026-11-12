@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 #include "app/extension.h"
-#include "audio_process.h"
+#include "audio_effects.h"
 #include "board.h"
 #include "hal/system.h"
 #include "overlay.h"
@@ -31,6 +31,6 @@ const void *hal_system_extension_code(void)
 #ifdef ECHO_DEBUG_LOOP
 const void *hal_system_load_debug_code(void)
 {
-    return extension != NULL ? board_audio_process_debug_code() : NULL;
+    return extension != NULL ? board_audio_effects_debug_code() : NULL;
 }
 #endif

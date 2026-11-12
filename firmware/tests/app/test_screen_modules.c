@@ -59,10 +59,10 @@ static void screens_outside_every_module_belong_to_none(void)
 static void a_screen_belongs_to_the_module_whose_memory_holds_it(void)
 {
     reset();
-    const ViewsModuleScreens *views = &screens.modules.views;
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS, screen_modules_of(&screens, &views->cover_flow.screen));
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS, screen_modules_of(&screens, &views->up_next.screen));
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS, screen_modules_of(&screens, &views->quick_settings.screen));
+    const PlayingModuleScreens *views = &screens.modules.playing;
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &views->cover_flow.screen));
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &views->up_next.screen));
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &views->quick_settings.screen));
 }
 
 static void screens_a_module_builds_for_itself_belong_to_it_too(void)
@@ -79,7 +79,7 @@ static void screens_a_module_builds_for_itself_belong_to_it_too(void)
 static void every_module_has_its_own_memory(void)
 {
     reset();
-    for (int module = SCREEN_MODULE_VIEWS; module <= SCREEN_MODULE_SETTINGS; module++) {
+    for (int module = SCREEN_MODULE_PLAYING; module <= SCREEN_MODULE_SETTINGS; module++) {
         int held = 0;
         for (size_t at = 0; at < sizeof screens; at += sizeof(void *)) {
             const Screen *screen = (const Screen *)((const char *)&screens + at);
@@ -98,54 +98,67 @@ static void each_module_builds_its_own_screens(void)
     CHECK(screens.modules.views.diagnostics.screen.draw == NULL);
     CHECK_EQUAL(SCREEN_MODULE_VIEWS,
                 screen_modules_of(&screens, &screens.modules.views.diagnostics.screen));
-    CHECK(screens.modules.views.cover_flow.screen.draw == NULL);
+    CHECK(screens.modules.playing.cover_flow.screen.draw == NULL);
     CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
 }
 
 static void the_first_and_the_last_byte_of_a_modules_memory_are_inside_it(void)
 {
     reset();
-    const char *first = (const char *)&screens.modules.views;
-    const char *last = first + sizeof screens.modules.views - 1;
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS, screen_modules_of(&screens, (const Screen *)first));
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS, screen_modules_of(&screens, (const Screen *)last));
-    CHECK(screen_modules_of(&screens, (const Screen *)(first - 1)) != SCREEN_MODULE_VIEWS);
-    CHECK(screen_modules_of(&screens, (const Screen *)(last + 1)) != SCREEN_MODULE_VIEWS);
+    const char *first = (const char *)&screens.modules.playing;
+    const char *last = first + sizeof screens.modules.playing - 1;
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, (const Screen *)first));
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, (const Screen *)last));
+    CHECK(screen_modules_of(&screens, (const Screen *)(first - 1)) != SCREEN_MODULE_PLAYING);
+    CHECK(screen_modules_of(&screens, (const Screen *)(last + 1)) != SCREEN_MODULE_PLAYING);
 }
 
 static void using_a_module_loads_it_and_builds_its_screens(void)
 {
     reset();
-    CHECK(screens.modules.views.cover_flow.screen.draw == NULL);
-    CHECK(screen_modules_use(&screens, SCREEN_MODULE_VIEWS) != NULL);
+    CHECK(screens.modules.playing.cover_flow.screen.draw == NULL);
+    CHECK(screen_modules_use(&screens, SCREEN_MODULE_PLAYING) != NULL);
     CHECK_EQUAL(1, fake_hal_module_loads());
-    CHECK(screens.modules.views.cover_flow.screen.draw != NULL);
-    CHECK(screens.modules.views.up_next.screen.draw != NULL);
-    CHECK(screens.modules.views.diagnostics.screen.draw != NULL);
+    CHECK(screens.modules.playing.cover_flow.screen.draw != NULL);
+    CHECK(screens.modules.playing.up_next.screen.draw != NULL);
+    CHECK(screens.modules.views.diagnostics.screen.draw == NULL);
 }
 
 static void a_module_builds_its_screens_once_until_the_screens_are_built_again(void)
 {
     reset();
-    screen_modules_use(&screens, SCREEN_MODULE_VIEWS);
-    screens.modules.views.cover_flow.target = 3;
-    screen_modules_use(&screens, SCREEN_MODULE_VIEWS);
-    CHECK_EQUAL(3, screens.modules.views.cover_flow.target);
+    screen_modules_use(&screens, SCREEN_MODULE_PLAYING);
+    screens.modules.playing.cover_flow.target = 3;
+    screen_modules_use(&screens, SCREEN_MODULE_PLAYING);
+    CHECK_EQUAL(3, screens.modules.playing.cover_flow.target);
     screens.bound_modules = 0;
-    screen_modules_use(&screens, SCREEN_MODULE_VIEWS);
-    CHECK_EQUAL(0, screens.modules.views.cover_flow.target);
+    screen_modules_use(&screens, SCREEN_MODULE_PLAYING);
+    CHECK_EQUAL(0, screens.modules.playing.cover_flow.target);
     CHECK_EQUAL(1, fake_hal_module_loads());
 }
 
 static void a_module_that_cannot_load_is_not_used_and_builds_nothing(void)
 {
     reset();
-    fake_hal_break_module(SCREEN_MODULE_VIEWS, true);
-    CHECK(screen_modules_use(&screens, SCREEN_MODULE_VIEWS) == NULL);
-    CHECK(screens.modules.views.cover_flow.screen.draw == NULL);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
+    CHECK(screen_modules_use(&screens, SCREEN_MODULE_PLAYING) == NULL);
+    CHECK(screens.modules.playing.cover_flow.screen.draw == NULL);
     CHECK_EQUAL(0, (int)screens.bound_modules);
-    fake_hal_break_module(SCREEN_MODULE_VIEWS, false);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, false);
+    CHECK(screen_modules_use(&screens, SCREEN_MODULE_PLAYING) != NULL);
+}
+
+static void the_eleventh_module_loads_independently_of_views(void)
+{
+    reset();
+    CHECK_EQUAL(11, (int)SCREEN_MODULE_PLAYING);
+    CHECK(screen_modules_use(&screens, SCREEN_MODULE_PLAYING) != NULL);
+    CHECK_EQUAL(11, (int)fake_hal_loaded_module());
+    CHECK(screens.modules.views.diagnostics.screen.draw == NULL);
+    CHECK(screens.modules.playing.cover_flow.screen.draw != NULL);
     CHECK(screen_modules_use(&screens, SCREEN_MODULE_VIEWS) != NULL);
+    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+    CHECK(screens.modules.views.diagnostics.screen.draw != NULL);
 }
 
 int main(void)
@@ -160,6 +173,7 @@ int main(void)
         TEST_CASE(using_a_module_loads_it_and_builds_its_screens),
         TEST_CASE(a_module_builds_its_screens_once_until_the_screens_are_built_again),
         TEST_CASE(a_module_that_cannot_load_is_not_used_and_builds_nothing),
+        TEST_CASE(the_eleventh_module_loads_independently_of_views),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

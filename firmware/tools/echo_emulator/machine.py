@@ -112,7 +112,9 @@ def module_overlay(image, offset, module_elfs):
     base, capacity = make_image.module_window(number)
     for elf_path in module_elfs:
         try:
-            return Overlay(image, elf_path, offset, base, capacity)
+            overlay = Overlay(image, elf_path, offset, base, capacity)
+            overlay.number = number
+            return overlay
         except ValueError:
             continue
     raise ValueError("none of the module ELFs belongs to the module at %#x of the image" % offset)
@@ -121,7 +123,7 @@ def module_overlay(image, offset, module_elfs):
 def module_overlays(image, module_elfs):
     """The image's modules in the order of their numbers, each with the ELF it was built from."""
     return [module_overlay(image, offset, module_elfs)
-            for offset, _ in make_image.modules_in(image)]
+            for offset, size in make_image.modules_in(image) if size]
 
 
 class Machine:

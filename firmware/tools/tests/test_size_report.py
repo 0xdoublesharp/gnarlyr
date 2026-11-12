@@ -290,7 +290,7 @@ Linker script and memory map
         self.assertIn("module dsp is 4 bytes too large for the module slot",
                       size_report.module_problems(device, [("dsp", grown)]))
 
-    def test_processing_uses_its_own_window_and_keeps_state_with_the_caller(self):
+    def test_processing_uses_its_own_window_and_accepts_bounded_private_state(self):
         device = FENCED_MAP.replace(SLOT_REGION, SLOT_REGION +
                                     "PROCESS_RAM      0x0308f000         0x00003000         rx\n")
         process = MODULE_MAP.replace("0x03084400", "0x0308f000").replace(
@@ -301,8 +301,10 @@ Linker script and memory map
         self.assertTrue(size_report.module_problems(device, [("settings", process)]))
         stateful = process.replace(".bss            0x03091000      0x0",
                                    ".bss            0x03091000      0x4")
-        self.assertIn("the audio module must keep all state in its caller",
-                      size_report.module_problems(device, [("process", stateful)]))
+        self.assertEqual([], size_report.module_problems(device, [("process", stateful)]))
+        over = stateful.replace("0x03091000      0x4", "0x03091000   0x1004")
+        self.assertIn("module process is 4 bytes too large for the module slot",
+                      size_report.module_problems(device, [("process", over)]))
 
     def test_the_extension_module_uses_its_own_window_and_keeps_state_in_the_main_program(self):
         device = FENCED_MAP.replace(SLOT_REGION, SLOT_REGION +

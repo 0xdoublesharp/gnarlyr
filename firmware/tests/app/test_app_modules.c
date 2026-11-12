@@ -208,7 +208,7 @@ static void a_module_screen_loads_its_module_when_it_opens(void)
     CHECK(title_is("Cover Flow"));
     CHECK_EQUAL(COVER_FLOW_DEPTH, app_screen_depth());
     CHECK_EQUAL(1, fake_hal_module_loads());
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
 }
 
 static void a_module_in_the_slot_is_not_loaded_again(void)
@@ -239,13 +239,13 @@ static void a_module_that_cannot_load_keeps_the_screen_before_it_and_says_so(voi
 {
     start_app();
     open_music();
-    fake_hal_break_module(SCREEN_MODULE_VIEWS, true);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
     CHECK_EQUAL(MUSIC_DEPTH, app_screen_depth());
     CHECK(toast_is(MISSING));
     CHECK_EQUAL(0, fake_hal_module_loads());
-    fake_hal_break_module(SCREEN_MODULE_VIEWS, false);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, false);
     tap(KEY_PLAY);
     CHECK(title_is("Cover Flow"));
 }
@@ -280,7 +280,7 @@ static void a_module_lost_under_its_screen_is_loaded_again_before_the_screen_run
     wait_ms(20);
     CHECK(title_is("Cover Flow"));
     CHECK_EQUAL(2, fake_hal_module_loads());
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
     CHECK(app_toast_text() == toast);
 }
 
@@ -290,7 +290,7 @@ static void a_screen_whose_module_is_gone_for_good_gives_way_to_home(void)
     open_cover_flow();
     wait_ms(SLIDE_DURATION_MS);
     fake_hal_evict_module();
-    fake_hal_break_module(SCREEN_MODULE_VIEWS, true);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
     wait_ms(20);
     CHECK(title_is(HOME));
     CHECK_EQUAL(HOME_DEPTH, app_screen_depth());
@@ -308,7 +308,7 @@ static void going_back_to_a_module_screen_that_cannot_load_goes_home(void)
     wait_ms(SLIDE_DURATION_MS);
     CHECK_EQUAL(ALBUM_DEPTH, app_screen_depth());
     fake_hal_evict_module();
-    fake_hal_break_module(SCREEN_MODULE_VIEWS, true);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
     tap(KEY_BACK);
     CHECK(title_is(HOME));
     CHECK_EQUAL(HOME_DEPTH, app_screen_depth());
@@ -335,7 +335,7 @@ static void a_slide_ends_at_once_when_the_leaving_screens_module_cannot_come_bac
     const char *toast = app_toast_text();
     tap(KEY_PLAY);
     fake_hal_evict_module();
-    fake_hal_break_module(SCREEN_MODULE_VIEWS, true);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
     wait_ms(SLIDE_DURATION_MS / 2);
     CHECK_EQUAL(ALBUM_DEPTH, app_screen_depth());
     CHECK_EQUAL(1, fake_hal_module_loads());
@@ -363,7 +363,7 @@ static void a_start_screen_in_a_module_that_cannot_load_starts_on_the_screen_bef
     open_cover_flow();
     CHECK(title_is("Cover Flow"));
     fake_hal_evict_module();
-    fake_hal_break_module(SCREEN_MODULE_VIEWS, true);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
     Settings settings = settings_defaults();
     settings.start_screen = START_COVER_FLOW;
     uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -372,7 +372,7 @@ static void a_start_screen_in_a_module_that_cannot_load_starts_on_the_screen_bef
     app_start();
     CHECK(title_is("Music"));
     CHECK(toast_is(MISSING));
-    fake_hal_break_module(SCREEN_MODULE_VIEWS, false);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, false);
     app_start();
     CHECK(title_is("Cover Flow"));
 }
@@ -412,7 +412,7 @@ static void a_screen_of_another_module_takes_the_slot(void)
     tap(KEY_PLAY);
     tap(KEY_PLAY);
     CHECK(title_is("Cover Flow"));
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
     CHECK_EQUAL(3, fake_hal_module_loads());
 }
 
@@ -429,7 +429,7 @@ static void a_module_that_cannot_load_does_not_cost_the_screen_under_it_its_own(
     fake_hal_break_module(SCREEN_MODULE_SETTINGS, true);
     run_script("build any\nset Repeat=All\n");
     CHECK(title_is("Cover Flow"));
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
     CHECK_EQUAL(DEBUG_LINE_FAILED, debug_runner_script()->status[1]);
 }
 
@@ -442,7 +442,7 @@ static void a_setting_changed_by_a_script_gives_the_slot_back_to_the_screen_on_t
     CHECK_EQUAL(DEBUG_LINE_OK, debug_runner_script()->status[1]);
     CHECK_EQUAL(REPEAT_ALL, app_player_status().repeat);
     CHECK(title_is("Cover Flow"));
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
     CHECK_EQUAL(3, fake_hal_module_loads());
 }
 

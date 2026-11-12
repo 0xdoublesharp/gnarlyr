@@ -92,6 +92,13 @@ class CatalogueTest(unittest.TestCase):
 
 
 class PackTest(unittest.TestCase):
+    def test_version_one_offsets_and_validation_support_an_eighteen_kibibyte_window(self):
+        pack = lang_pack.build_pack("en", CATALOGUE, {"STR_HELLO": "x" * 17000})
+        self.assertGreater(len(pack), 16384)
+        self.assertLessEqual(len(pack), 18432)
+        self.assertEqual(1, lang_pack.HEADER.unpack_from(pack)[1])
+        self.assertEqual("en", lang_pack.validate_pack(pack, CATALOGUE, DRAWABLE)["code"])
+
     def test_the_header_names_the_format_the_catalogue_and_the_language(self):
         pack = lang_pack.build_pack("en", CATALOGUE, {})
         magic, version, count, size, catalogue, _, code, name = lang_pack.HEADER.unpack_from(pack)
@@ -443,7 +450,7 @@ class CatalogueExportTest(unittest.TestCase):
 
     def test_catalogue_info_is_json_ready_with_ordered_entries_and_sorted_glyphs(self):
         info = lang_pack.catalogue_info(CATALOGUE, DRAWABLE)
-        self.assertEqual({"version": 1, "magic": "DSLP", "pack_limit": 16384,
+        self.assertEqual({"version": 1, "magic": "DSLP", "pack_limit": 18432,
                           "code_limit": 5, "code_bytes": 8, "name_bytes": 28,
                           "name_id": "STR_LANGUAGE_NAME",
                           "catalogue_hash": lang_pack.catalogue_hash(CATALOGUE),

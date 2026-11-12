@@ -218,6 +218,14 @@ static void the_memory_holds_whole_sets_of_slots(void)
     CHECK_EQUAL(0, sets & (sets - 1));
 }
 
+static void the_compact_glyph_arena_keeps_the_same_slot_count(void)
+{
+    static uint32_t board_memory[(0x9000 - 1024) / 4];
+    build_pack();
+    CHECK_EQUAL(64, font_pack_attach(READER, board_memory, sizeof board_memory));
+    CHECK_EQUAL(64, font_pack_attach(READER, board_memory, 0x6800 - 1024));
+}
+
 static void a_font_falls_back_to_its_pack(void)
 {
     attach();
@@ -294,6 +302,7 @@ int main(void)
         TEST_CASE(a_failed_read_finds_nothing),
         TEST_CASE(too_little_memory_keeps_packs_off),
         TEST_CASE(the_memory_holds_whole_sets_of_slots),
+        TEST_CASE(the_compact_glyph_arena_keeps_the_same_slot_count),
         TEST_CASE(a_font_falls_back_to_its_pack),
         TEST_CASE(a_character_in_neither_falls_back_to_the_question_mark),
         TEST_CASE(without_packs_a_font_uses_the_question_mark),

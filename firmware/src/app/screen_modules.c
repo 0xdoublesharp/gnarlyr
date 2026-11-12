@@ -15,6 +15,7 @@ static const ModuleSpan SPANS[SCREEN_MODULE_COUNT] = {
     [SCREEN_MODULE_LISTENING] = {offsetof(AppScreens, modules.listening),
                                  sizeof(ProfileModuleScreens)},
     [SCREEN_MODULE_VIEWS] = {offsetof(AppScreens, modules.views), sizeof(ViewsModuleScreens)},
+    [SCREEN_MODULE_PLAYING] = {offsetof(AppScreens, modules.playing), sizeof(PlayingModuleScreens)},
     [SCREEN_MODULE_SETTINGS] = {offsetof(AppScreens, modules.settings),
                                 sizeof(SettingsModuleScreens)},
 };

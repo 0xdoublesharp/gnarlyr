@@ -11,7 +11,7 @@ from pathlib import Path
 
 BUILD = re.compile(r"[0-9a-fA-F]{7,40}")
 CODE = re.compile(r"[A-Za-z0-9-]{1,5}")
-PACK_LIMIT = 16384
+PACK_LIMIT = 18432
 FLAG_MASKS = (0xF8, 0xF0, 0xC8, 0xC0)
 USB_ANSWER_BITS = 0x30
 DIRECTORY_LIMIT = 256
@@ -56,6 +56,10 @@ class Snapshot:
         try:
             self.commit = git(api.ROOT, "rev-parse", "--verify", build + "^{commit}").strip()
             self.build = build
+            self.pack_limit = constant(self.show("firmware/src/core/include/core/i18n.h"),
+                                       "I18N_PACK_CAPACITY")
+            if not 0 < self.pack_limit <= PACK_LIMIT:
+                raise ValueError("the installed language capacity is unsupported")
             self.catalogue = self.format.read_catalogue_text(self.show("firmware/assets/lang/en.txt"))
             self.drawable = self.format.drawable_from_config(
                 json.loads(self.show("firmware/assets/fonts/fonts.json")),
@@ -150,19 +154,24 @@ class Snapshot:
 
     def validate(self, data):
         try:
+            if len(data) > self.pack_limit:
+                raise self.format.PackError(
+                    f"the installed firmware accepts at most {self.pack_limit:,} language bytes")
             return self.format.validate_pack(data, self.catalogue, self.drawable)
         except self.format.PackError as error:
             raise self.api.DebugError("language_pack_invalid", str(error)) from error
 
     def file_info(self, data, repairing=False):
         try:
+            if len(data) > self.pack_limit:
+                raise self.format.PackError("the pack exceeds the installed language capacity")
             return self.format.pack_info(data)
         except self.format.PackError as error:
             if repairing and len(data) >= self.format.HEADER.size:
                 fields = self.format.HEADER.unpack(data[:self.format.HEADER.size])
                 magic, version, count, size, catalogue, _, code, name = fields
                 if (magic == self.format.MAGIC and version == self.format.VERSION and count > 0 and
-                        size == len(data) and size <= PACK_LIMIT and
+                        size == len(data) and size <= self.pack_limit and
                         size > self.format.HEADER.size + 2 * count):
                     try:
                         code = self.format.metadata_text(code, "language code")
@@ -194,7 +203,7 @@ class Snapshot:
     def metadata(self):
         return {"firmware_build": self.build, "firmware_commit": self.commit,
                 "catalogue_hash": self.format.catalogue_hash(self.catalogue),
-                "catalogue_count": len(self.catalogue)}
+                "catalogue_count": len(self.catalogue), "pack_capacity": self.pack_limit}
 
 
 @contextmanager

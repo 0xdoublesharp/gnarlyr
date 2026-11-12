@@ -3,6 +3,7 @@
 #include "core/seam.h"
 #include "device/audio_dsp.h"
 #include "device/audio_ogg.h"
+#include "device/audio_source.h"
 #include "device/core1_source_private.h"
 #include "overlay.h"
 
@@ -11,7 +12,7 @@ static const AudioModuleEntry *entry(void)
     return (const AudioModuleEntry *)(uintptr_t)(AUDIO_DSP_BASE + OVERLAY_HEADER_BYTES);
 }
 
-static bool load(uint32_t number, uint32_t magic)
+static CORE_COLD bool load(uint32_t number, uint32_t magic)
 {
     const BoardOverlay overlay = {.image_offset = 0,
                                   .magic = magic,
@@ -21,13 +22,13 @@ static bool load(uint32_t number, uint32_t magic)
     return board_overlay_load(&overlay);
 }
 
-bool board_audio_dsp_prepare(void)
+CORE_COLD bool board_audio_dsp_prepare(void)
 {
     return entry()->magic == AUDIO_OGG_MAGIC ? load(AUDIO_OGG_NUMBER, AUDIO_OGG_MAGIC)
                                              : load(AUDIO_DSP_NUMBER, AUDIO_DSP_MAGIC);
 }
 
-CORE_SEAM bool board_audio_ogg_prepare(void)
+CORE_SEAM CORE_COLD bool board_audio_ogg_prepare(void)
 {
     return load(AUDIO_OGG_NUMBER, AUDIO_OGG_MAGIC);
 }
@@ -37,7 +38,7 @@ uint32_t board_audio_dsp_render(AudioResample *resample, uint32_t *words, uint32
     return entry()->render(resample, words, frames);
 }
 
-CORE_SEAM bool mp4_probe(FlacInput input, Mp4Track *track)
+CORE_SEAM CORE_COLD bool mp4_probe(FlacInput input, Mp4Track *track)
 {
     const AudioDspEntry *dsp = (const AudioDspEntry *)entry();
     return load(AUDIO_DSP_NUMBER, AUDIO_DSP_MAGIC) && dsp->probe(input, track);
@@ -66,4 +67,12 @@ CORE_SEAM bool ogg_stream_read(void *context, uint32_t offset, void *buffer, uin
 {
     const AudioOggEntry *ogg = (const AudioOggEntry *)entry();
     return entry()->magic == AUDIO_OGG_MAGIC && ogg->read(context, offset, buffer, length);
+}
+
+CORE_SEAM CORE_COLD bool core1_open_flac(void *context, const char *path, uint32_t start_ms,
+                                         AudioTrackInfo *track)
+{
+    const AudioSourceEntry *source = (const AudioSourceEntry *)entry();
+    return load(AUDIO_SOURCE_NUMBER, AUDIO_SOURCE_MAGIC) &&
+           source->open_flac(context, path, start_ms, track);
 }
