@@ -197,6 +197,7 @@ Settings settings_defaults(void)
         .repeat = REPEAT_OFF,
         .volume = DEFAULT_VOLUME,
         .auto_off = DEFAULT_AUTO_OFF_OPTION,
+        .standby_power_off_option = 1,
         .usb_mode = USB_MODE_STORAGE,
         .dac_volume = SETTINGS_DEFAULT_DAC_VOLUME,
         .accent = ACCENT_BLUE,
@@ -591,6 +592,7 @@ bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
     settings->battery_percent = (bytes[VERSION_FIELD + 1] & 8u) != 0;
     settings->usb_connect = (UsbConnect)(bytes[VERSION_FIELD + 1] >> 4u & 3u);
     decode_extension(bytes, settings);
+    settings->standby_power_off_option = 1;
     return true;
 }
 
