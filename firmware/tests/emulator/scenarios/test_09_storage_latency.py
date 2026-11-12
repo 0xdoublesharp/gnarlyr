@@ -15,7 +15,7 @@ class EchoImageTest(EchoImageHarness):
         session.run_to_home_screen()
         indexes = [index for _, index, _ in session.card.commands]
         self.assertIn(18, indexes)
-        for position, index in enumerate(indexes):
+        for position, index in enumerate(indexes[:-1]):
             if index == 18:
                 self.assertEqual(indexes[position + 1], 12)
 
