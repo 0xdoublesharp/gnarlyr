@@ -82,6 +82,10 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/ui/wire_motion.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_playing
+    platform/device/board/storage_list.c
+    platform/device/logic/fat_list.c
+    platform/device/logic/exfat_list.c
+    platform/device/logic/fat_utf8.c
     src/app/modules/playing_module.c
     src/app/screens/cover_flow_screen.c
     src/app/board_cover_layout.c
@@ -119,6 +123,10 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/app/browse_sections.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_equalizer
+    platform/device/board/storage_list.c
+    platform/device/logic/fat_list.c
+    platform/device/logic/exfat_list.c
+    platform/device/logic/fat_utf8.c
     src/settings/sound_shaping.c
     src/app/parametric_store.c
     src/settings/parametric_file.c
@@ -150,6 +158,10 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/theme_signature.c
     src/app/theme_crypto_curve.c
     src/app/theme_crypto_sha512.c
+    platform/device/board/storage_list.c
+    platform/device/logic/fat_list.c
+    platform/device/logic/exfat_list.c
+    platform/device/logic/fat_utf8.c
     src/app/music_walk.c
     src/library/music_fingerprint.c
     src/app/modules/views_module.c
@@ -187,6 +199,10 @@ set(ECHO_SCREEN_MODULE_UI_SOURCES src/app/home_art.c src/app/home_art_backdrop.c
 list(APPEND ECHO_SCREEN_MODULE_SOURCES_playing ${ECHO_SCREEN_MODULE_UI_SOURCES})
 set(ECHO_SCREEN_MODULE_FAST_SOURCES src/gfx/image_quad.c)
 set(ECHO_SCREEN_MODULE_SOURCES_settings
+    platform/device/board/storage_list.c
+    platform/device/logic/fat_list.c
+    platform/device/logic/exfat_list.c
+    platform/device/logic/fat_utf8.c
     platform/device/board/card_eject.c
     platform/device/board/sd_allocation.c
     src/app/app_screens_home.c
