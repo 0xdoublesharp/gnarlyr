@@ -33,8 +33,25 @@ What this project checked on a player: on the owner's Echo (4 GB), an earlier bu
 
 ## USB
 
-- DesignWare USB 2.0 OTG controller, high speed. The firmware presents both drives as a mass-storage device, or, in USB DAC mode, a full-speed USB Audio Class 1.0 sound card (not run on a player by this project). The core's FIFO RAM is small: at reset, RX 147 words and TX FIFO 0 128 words.
+- DesignWare USB 2.0 OTG controller, high speed. The firmware presents both drives as a mass-storage device, or, in USB DAC mode, a high-speed USB Audio Class 2.0 sound card with a full-speed Class 1.0 fallback (USB audio has not run on a player by this project). The core's FIFO RAM is small: at reset, RX 147 words and TX FIFO 0 128 words.
 - With the buttons held at power-up, the boot ROM's maskrom mode appears as `2207:262d` (`docs/device-recovery.md`).
+
+### USB audio clocks
+
+The USB sink uses the existing native-playback clock tree: ACODEC generates MCLK, I2S1 divides it into 64 clocks per stereo frame, and CS43198 ASP_SPRATE selects the corresponding sample-rate code. ACODEC rows below are M4/M5/M6/M7-high-nibble values from `audio_math.c`, inherited from the native audio driver. The MCLK figures are the driver's documented values; physical frequency measurements remain open.
+
+| Nominal Hz | MCLK Hz | ACODEC row | MCLK / LRCK | I2S divider register field | ASP_SPRATE |
+| --- | --- | --- | --- | --- | --- |
+| 44,100 | 11,288,960 | 06 24 19 03 | 256 | 3 | 1 |
+| 48,000 | 12,288,000 | 00 30 19 0A | 256 | 3 | 2 |
+| 88,200 | 11,288,960 | 06 24 19 03 | 128 | 1 | 3 |
+| 96,000 | 24,576,000 | 00 30 19 09 | 256 | 3 | 4 |
+| 176,400 | 22,577,664 | 04 49 19 03 | 128 | 1 | 5 |
+| 192,000 | 24,576,000 | 00 30 19 09 | 128 | 1 | 6 |
+
+The ratios identify nominal clock families. The 48 kHz family divides exactly. The documented 44.1/88.2 kHz MCLK is 56.69 ppm below the nominal family, and 176.4 kHz is 68.03 ppm below; these rates are retained with their explicit clock settings. UAC2 feedback follows DMA consumption against USB SOF, so a host can follow the actual device rate without changing PCM samples. Exact nominal-frequency production for these inherited fractional settings has not been established.
+
+The [CS43198 data sheet](https://statics.cirrus.com/pubs/proDatasheet/CS43198_DS1156F2.pdf), register 0x1000B, documents all six rate codes. Registers 0x5000A/B bits 1:0 = 3 select 32-bit ASP receive samples; the driver's existing 0x07/0x0F channel values already enable them. I2S1 uses two 32-bit slots at every USB width. USB Audio packet bandwidth is independent of these clock dividers.
 
 ## Other
 

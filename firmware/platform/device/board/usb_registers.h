@@ -25,6 +25,7 @@
 #define GHWCFG3 0x04Cu
 #define GHWCFG4 0x050u
 #define DIEPTXF1 0x104u
+#define DIEPTXF2 0x108u
 #define DCFG 0x800u
 #define DCTL 0x804u
 #define DSTS 0x808u
@@ -46,6 +47,7 @@
 #define GINT_ENUMERATION_DONE (1u << 13)
 #define GINT_IN_ENDPOINT (1u << 18)
 #define GINT_OUT_ENDPOINT (1u << 19)
+#define GINT_INCOMPLETE_ISO_IN (1u << 20)
 #define GINT_INCOMPLETE_ISO_OUT (1u << 21)
 #define GINTMSK_VALUE 0xC00C3C10u
 #define DCFG_CLEARED_BITS 0x7F3u
@@ -60,12 +62,15 @@
 #define DCTL_SOFT_DISCONNECT (1u << 1)
 #define DCTL_CLEAR_GLOBAL_IN_NAK (1u << 8)
 #define EP_ENABLE (1u << 31)
+#define EP_DISABLE (1u << 30)
 #define EP_CLEAR_NAK (1u << 26)
+#define EP_SET_NAK (1u << 27)
 #define EP_SET_DATA0 (1u << 28)
 #define EP_SET_EVEN_FRAME (1u << 28)
 #define EP_SET_ODD_FRAME (1u << 29)
 #define EP_ODD_FRAME (1u << 16)
 #define EP_ISO_ACTIVE 0x00048000u
+#define EP_INTERRUPT_ACTIVE 0x000C8000u
 #define EP_MAX_PACKET_MASK 0x7FFu
 #define EP_STALL (1u << 21)
 #define EP_TX_FIFO_SHIFT 22

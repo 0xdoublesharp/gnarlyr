@@ -25,9 +25,7 @@ enum {
     BACK_HOLD_MS = 1000,
     POLLS_PER_SERVICE = 4,
     MS_PER_SECOND = 1000,
-    PPM = 1000000,
-    VOLUME_REPEAT_DELAY_MS = 400,
-    VOLUME_REPEAT_MS = 80
+    PPM = 1000000
 };
 
 typedef enum DacNext {
@@ -41,13 +39,24 @@ static UsbShared *shared;
 static UsbPort port;
 static UsbAudio audio;
 static UsbAudioSink sink;
+#ifdef ECHO_DEBUG_LOOP
+#define USB_DAC_RING_FRAMES 2200u
+#else
+#define USB_DAC_RING_FRAMES 3000u
+#endif
+
+_Static_assert(USB_DAC_RING_FRAMES > 192000 / 200 + 192000 / 1000 + 25,
+               "the high-speed ring holds priming, a packet and silence");
+_Static_assert(USB_DAC_RING_FRAMES > 48000 / 50 + 48000 / 250 + 49 + 48000 / 50,
+               "the full-speed ring holds adaptive drift and silence");
+
+static uint32_t stream_ring[2 * USB_DAC_RING_FRAMES];
 static UsbScene scene;
 static UsbDacMenu menu;
 static AppDacSettings settings;
 static uint32_t open_rate;
 static uint32_t last_packet_ms;
 static uint32_t received_packets;
-static uint32_t played_packets;
 static uint32_t connected_ms;
 static uint32_t meter_ms;
 static uint32_t underruns_before;
@@ -57,10 +66,17 @@ static bool back_armed;
 static bool menu_open;
 static bool receiving;
 static bool playing;
-static bool holding_volume;
-static int held_step;
-static uint32_t next_repeat_ms;
 static DacNext next;
+
+static void start_output(void)
+{
+    if (!playing && receiving && usb_audio_sink_primed(&sink)) {
+        playing = true;
+        usb_audio_sink_set_playing(&sink, true);
+        playing = board_audio_stream_play();
+        usb_audio_sink_set_playing(&sink, playing);
+    }
+}
 
 static void receive_stream(const uint8_t *bytes, uint32_t length)
 {
@@ -68,8 +84,15 @@ static void receive_stream(const uint8_t *bytes, uint32_t length)
     if (receiving) {
         last_packet_ms = hal_clock_milliseconds();
         usb_audio_sink_write(&sink, bytes, length, board_audio_stream_consumed());
-        played_packets += playing ? 1u : 0u;
     }
+}
+
+static uint32_t feedback(uint16_t tick)
+{
+    if (!playing || sink.rate != audio.rate) {
+        return (uint32_t)(((uint64_t)audio.rate << 16) / 8000);
+    }
+    return usb_audio_sink_feedback(&sink, board_audio_stream_consumed(), tick);
 }
 
 static void serve_usb(void)
@@ -77,6 +100,21 @@ static void serve_usb(void)
     for (int poll = 0; poll < POLLS_PER_SERVICE; poll++) {
         usb_poll(&port);
     }
+}
+
+static void serve_audio_usb(void)
+{
+    for (int poll = 0; poll < POLLS_PER_SERVICE; poll++) {
+        usb_poll_audio(&port);
+    }
+}
+
+static void keep_stream(void);
+
+static void serve_drawing_usb(void)
+{
+    serve_audio_usb();
+    keep_stream();
 }
 
 static uint8_t stream_state(void)
@@ -93,7 +131,12 @@ static uint8_t stream_state(void)
 static int32_t drift_ppm(void)
 {
     UsbAudioSinkStats stats = sink.stats;
-    uint64_t frames = (uint64_t)played_packets * audio.rate / MS_PER_SECOND;
+    if (sink.asynchronous && sink.feedback_started) {
+        uint32_t nominal = (uint32_t)(((uint64_t)audio.rate << 16) / 8000);
+        return (int32_t)(((int64_t)sink.feedback_rate - nominal) * PPM / nominal);
+    }
+    uint64_t frames = sink.stats.packets * (uint64_t)audio.rate /
+                      (usb_audio_asynchronous(&audio) ? 8000 : MS_PER_SECOND);
     if (frames == 0) {
         return 0;
     }
@@ -123,7 +166,7 @@ static void follow_info(uint32_t now_ms)
     dac->jack = (uint8_t)hal_audio_jack();
     dac->drift_ppm = drift_ppm();
     dac->buffer_ms = buffer_ms();
-    dac->underruns = hal_audio_stats().output_underruns - underruns_before;
+    dac->underruns = hal_audio_stats().output_underruns - underruns_before + sink.stats.underruns;
     dac->seconds = (now_ms - connected_ms) / MS_PER_SECOND;
     const HeadphoneProfiles *profiles = app_headphone_profiles();
     dac->headphones =
@@ -143,7 +186,14 @@ static AppUsbStatus dac_status(void)
 static void show_state(void)
 {
     follow_info(hal_clock_milliseconds());
-    app_show_usb_status(dac_status());
+    AppUsbStatus status = dac_status();
+    if (playing && usb_audio_asynchronous(&audio)) {
+        const Theme *theme = app_theme();
+        usb_screen_show_in_bands(
+            status, (Rect){0, 0, theme->metrics.screen_width, theme->metrics.screen_height});
+    } else {
+        app_show_usb_status(status);
+    }
 }
 
 static uint8_t follow_levels(uint32_t now_ms)
@@ -172,7 +222,7 @@ static void step_meter(uint32_t now_ms)
     UsbScreenLayout layout = usb_screen_layout(theme, status);
     for (int side = 0; side < USB_SCENE_CHANNELS; side++) {
         if ((changed & (1u << side)) != 0) {
-            app_show_usb_area(status, usb_screen_meter_bar(theme, &layout, side));
+            usb_screen_show_in_bands(status, usb_screen_meter_bar(theme, &layout, side));
         }
     }
 }
@@ -183,6 +233,7 @@ static void stop_output(void)
         board_audio_stream_pause();
         playing = false;
     }
+    usb_audio_sink_set_asynchronous(&sink, usb_audio_asynchronous(&audio));
     usb_audio_sink_start(&sink, audio.rate, usb_audio_sample_bytes(&audio));
 }
 
@@ -191,7 +242,7 @@ static void follow_format(void)
     receiving = false;
     stop_output();
     if (usb_audio_sample_bytes(&audio) != 0 && audio.rate != open_rate) {
-        open_rate = board_audio_stream_open(audio.rate, serve_usb) ? audio.rate : 0;
+        open_rate = board_audio_stream_open(audio.rate, serve_audio_usb) ? audio.rate : 0;
     }
     receiving = open_rate != 0 && usb_audio_sample_bytes(&audio) != 0;
     show_state();
@@ -211,17 +262,25 @@ static void follow_host(void)
     }
 }
 
+static void keep_stream(void)
+{
+    bool empty = playing && sink.asynchronous &&
+                 (int32_t)(sink.written - board_audio_stream_consumed()) <= 0;
+    if (playing && (empty || hal_clock_milliseconds() - last_packet_ms > STREAM_IDLE_MS)) {
+        stop_output();
+    } else {
+        start_output();
+    }
+}
+
 static void keep_output(void)
 {
-    bool was = playing;
-    if (playing && hal_clock_milliseconds() - last_packet_ms > STREAM_IDLE_MS) {
-        stop_output();
-    } else if (!playing && receiving && usb_audio_sink_primed(&sink)) {
-        playing = board_audio_stream_play();
-        usb_audio_sink_set_playing(&sink, playing);
-    }
-    if (was != playing) {
-        show_state();
+    keep_stream();
+    if (scene.state != stream_state()) {
+        follow_info(hal_clock_milliseconds());
+        AppUsbStatus status = dac_status();
+        UsbScreenLayout layout = usb_screen_layout(app_theme(), status);
+        usb_screen_show_in_bands(status, usb_screen_column(&layout));
     }
 }
 
@@ -252,33 +311,6 @@ static void step_volume(int step)
     }
     set_volume((uint8_t)level);
     show_state();
-}
-
-static void start_holding(int step, uint32_t now_ms)
-{
-    step_volume(step);
-    holding_volume = true;
-    held_step = step;
-    next_repeat_ms = now_ms + VOLUME_REPEAT_DELAY_MS;
-}
-
-static void repeat_volume(void)
-{
-    uint32_t now_ms = hal_clock_milliseconds();
-    if (holding_volume && (int32_t)(now_ms - next_repeat_ms) >= 0) {
-        step_volume(held_step);
-        next_repeat_ms = now_ms + VOLUME_REPEAT_MS;
-    }
-}
-
-static void follow_volume_key(HalKeyTransition key)
-{
-    int step = key.key == KEY_VOLUME_UP ? 1 : -1;
-    if (key.pressed) {
-        start_holding(step, key.time_ms);
-    } else if (holding_volume && held_step == step) {
-        holding_volume = false;
-    }
 }
 
 static void apply_choice(UsbDacAction action)
@@ -322,7 +354,8 @@ static void open_menu(uint32_t now_ms)
     usb_dac_menu_open(&menu, (UsbDacMenuConfig){app_theme(), settings, app_headphone_profiles()},
                       now_ms);
     menu_open = true;
-    holding_volume = false;
+    port.hid.held = 0;
+    port.hid.skipped = 0;
     show_state();
 }
 
@@ -347,10 +380,13 @@ static void follow_key(HalKeyTransition key)
         if (key.pressed) {
             follow_menu(usb_dac_menu_key(&menu, (Key)key.key, key.time_ms));
         }
-    } else if (key.key == KEY_VOLUME_UP || key.key == KEY_VOLUME_DOWN) {
-        follow_volume_key(key);
     } else if (key.key == KEY_MENU && key.pressed) {
         open_menu(key.time_ms);
+    } else {
+        int step = usb_audio_hid_key(&port.hid, key.key, key.pressed, key.time_ms);
+        if (step != 0) {
+            step_volume(step);
+        }
     }
 }
 
@@ -390,7 +426,9 @@ static void serve(void)
         board_display_service();
         follow_host();
         keep_output();
-        repeat_volume();
+        if (!menu_open) {
+            usb_audio_hid_tick(&port.hid, hal_clock_milliseconds());
+        }
         uint32_t now = hal_clock_milliseconds();
         step_meter(now);
         refresh(now, &refreshed);
@@ -399,24 +437,27 @@ static void serve(void)
 
 static void start_session(void)
 {
+    board_audio_stream_buffer(stream_ring, sizeof stream_ring / (2 * sizeof stream_ring[0]));
     uint32_t frames = 0;
     uint32_t *ring = board_audio_stream_ring(&frames);
     usb_audio_sink_init(&sink, ring, frames);
     usb_audio_sink_set_headphones(&sink, hal_audio_headphones());
     open_rate = 0;
     received_packets = 0;
-    played_packets = 0;
     forced = (UsbForced){0};
-    scene = (UsbScene){.state = USB_SCENE_DAC_CHOOSE};
+    scene = (UsbScene){.state = USB_SCENE_DAC_CHOOSE, .service = serve_drawing_usb};
     receiving = false;
     playing = false;
-    holding_volume = false;
+    port.hid.held = 0;
+    port.hid.skipped = 0;
     menu_open = false;
     next = DAC_NEXT_STAY;
     settings = app_dac_settings();
     port = (UsbPort){.link = shared->link,
                      .bulk_packet = USB_PACKET_SIZE,
                      .audio = &audio,
+                     .feedback = feedback,
+                     .format_changed = follow_host,
                      .receive_stream = receive_stream};
     usb_audio_init(&audio, &port.device);
     if (!shared->dac_volume_known) {

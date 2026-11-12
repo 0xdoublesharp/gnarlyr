@@ -51,6 +51,13 @@ const UsbScene *usb_screen_scene(AppUsbStatus status)
     return status.view == APP_USB_CONNECTING ? &STARTING : &PLAIN;
 }
 
+void usb_screen_service(const UsbScene *scene)
+{
+    if (scene->service != NULL) {
+        scene->service();
+    }
+}
+
 static Rect detail_area(const Theme *theme, const char *detail)
 {
     int pad = theme->metrics.padding;
@@ -129,7 +136,9 @@ Color usb_screen_tint(Color color, Color toward)
 
 void usb_screen_text(const UsbPainter *painter, Rect area, TextStyle style, const char *text)
 {
+    usb_screen_service(painter->scene);
     label_draw(painter->canvas, style, (Label){area, text});
+    usb_screen_service(painter->scene);
 }
 
 static void draw_battery_icon(const UsbPainter *painter, Rect body)
@@ -390,9 +399,12 @@ bool usb_screen_touches(const UsbPainter *painter, Rect area)
 
 void usb_screen_show_in_bands(AppUsbStatus status, Rect area)
 {
-    for (int top = area.y; top < area.y + area.height; top += USB_SCREEN_BAND_HEIGHT) {
+    int band = status.view == APP_USB_DAC && usb_screen_scene(status)->high_speed
+                   ? 1
+                   : USB_SCREEN_BAND_HEIGHT;
+    for (int top = area.y; top < area.y + area.height; top += band) {
         int height = area.y + area.height - top;
-        height = height < USB_SCREEN_BAND_HEIGHT ? height : USB_SCREEN_BAND_HEIGHT;
+        height = height < band ? height : band;
         app_show_usb_area(status, (Rect){area.x, top, area.width, height});
     }
 }
@@ -406,14 +418,15 @@ Rect usb_screen_column(const UsbScreenLayout *layout)
 void usb_screen_draw_frame(const UsbPainter *painter, const char *title)
 {
     draw_stage(painter);
+    usb_screen_service(painter->scene);
     const Theme *theme = painter->theme;
     if (usb_screen_touches(painter, painter->layout.header)) {
         draw_header(painter, title);
     }
     if (usb_screen_touches(painter, painter->layout.detail)) {
-        label_draw_wrapped(painter->canvas,
-                           (TextStyle){theme->fonts.small, theme->colors.text_secondary},
-                           (Label){painter->layout.detail, painter->status.detail});
+        label_draw_wrapped_serviced(
+            painter->canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+            (Label){painter->layout.detail, painter->status.detail}, painter->scene->service);
     }
 }
 
@@ -452,12 +465,14 @@ void usb_screen_draw_power(const UsbPainter *painter)
 
 void usb_screen_draw(Canvas *canvas, const Theme *theme, HalBattery battery, AppUsbStatus status)
 {
+    usb_screen_service(usb_screen_scene(status));
     UsbPainter painter = {.canvas = canvas,
                           .theme = theme,
                           .battery = battery,
                           .status = status,
                           .scene = usb_screen_scene(status),
                           .layout = usb_screen_layout(theme, status)};
+    usb_screen_service(painter.scene);
     if (status.view == APP_USB_DAC) {
         usb_screen_draw_dac(&painter);
     } else if (status.view == APP_USB_POWER) {

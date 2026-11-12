@@ -11,6 +11,8 @@ typedef struct UsbAudioSinkStats {
     uint32_t dropped;
     uint32_t repeated;
     uint32_t realigned;
+    uint32_t underruns;
+    uint32_t overflows;
 } UsbAudioSinkStats;
 
 typedef struct UsbAudioSink {
@@ -20,11 +22,17 @@ typedef struct UsbAudioSink {
     uint32_t cleared;
     uint32_t target;
     uint32_t guard;
+    UsbAudioSinkStats stats;
     uint8_t sample_bytes;
     bool playing;
+    bool asynchronous;
+    uint32_t rate;
+    uint32_t feedback_rate;
+    uint32_t feedback_consumed;
+    uint16_t feedback_tick;
+    bool feedback_started;
     uint16_t peaks[2];
     StreamDrift drift;
-    UsbAudioSinkStats stats;
     HeadphoneAudio headphones;
 } UsbAudioSink;
 
@@ -35,4 +43,6 @@ void usb_audio_sink_set_headphones(UsbAudioSink *sink, HeadphoneAudio profile);
 void usb_audio_sink_write(UsbAudioSink *sink, const uint8_t *bytes, uint32_t length,
                           uint32_t consumed);
 bool usb_audio_sink_primed(const UsbAudioSink *sink);
+void usb_audio_sink_set_asynchronous(UsbAudioSink *sink, bool asynchronous);
+uint32_t usb_audio_sink_feedback(UsbAudioSink *sink, uint32_t consumed, uint16_t tick);
 void usb_audio_sink_take_peaks(UsbAudioSink *sink, uint16_t *peaks);

@@ -158,25 +158,35 @@ static StringId jack_text(uint8_t jack)
     return jack == HAL_AUDIO_JACK_SINGLE_ENDED ? STR_JACK_35 : STR_ABOUT_NONE;
 }
 
-static void fill_cells(const UsbSceneDac *dac, bool high_speed, DacCell *cells)
+static void fill_cells(const UsbPainter *painter, DacCell *cells)
 {
+    const UsbSceneDac *dac = &painter->scene->dac;
+    bool high_speed = painter->scene->high_speed;
     char number[USB_SCREEN_NUMBER_CAPACITY];
+    usb_screen_service(painter->scene);
     cells[0].name = STR_VOLUME;
     number_text(cells[0].value, dac->volume);
+    usb_screen_service(painter->scene);
     cells[1].name = STR_USB_DAC_HOST;
     host_volume_text(cells[1].value, dac);
+    usb_screen_service(painter->scene);
     cells[2].name = STR_OUTPUT;
     format_one(cells[2].value, jack_text(dac->jack), "");
+    usb_screen_service(painter->scene);
     cells[3].name = STR_USB_DAC_BUFFER;
     number_text(number, dac->buffer_ms);
     format_one(cells[3].value, STR_USB_DAC_MS, number);
+    usb_screen_service(painter->scene);
     cells[4].name = STR_USB_DAC_CLOCK;
     signed_text(number, dac->drift_ppm);
     format_one(cells[4].value, STR_USB_DAC_PPM, number);
+    usb_screen_service(painter->scene);
     cells[5].name = STR_USB_DAC_UNDERRUNS;
     number_text(cells[5].value, dac->underruns);
+    usb_screen_service(painter->scene);
     cells[6].name = STR_USB_DAC_TIME;
     time_text(cells[6].value, dac->seconds);
+    usb_screen_service(painter->scene);
     cells[7].name = STR_USB;
     format_one(cells[7].value, high_speed ? STR_USB_HIGH_SPEED : STR_USB_FULL_SPEED, "");
 }
@@ -244,6 +254,7 @@ static void draw_menu(const UsbPainter *painter)
 void usb_screen_draw_dac(const UsbPainter *painter)
 {
     usb_screen_draw_frame(painter, charge_screen_usb_title(painter->status.view));
+    usb_screen_service(painter->scene);
     if (painter->scene->menu != NULL) {
         draw_menu(painter);
         return;
@@ -254,6 +265,7 @@ void usb_screen_draw_dac(const UsbPainter *painter)
     if (!usb_screen_touches(painter, usb_screen_column(&painter->layout))) {
         return;
     }
+    usb_screen_service(painter->scene);
     const char *state = i18n_text(dac_state_text(painter->scene));
     char named[USB_SCREEN_TEXT_CAPACITY];
     if (painter->scene->state == USB_SCENE_DAC_CHOOSE) {
@@ -266,6 +278,6 @@ void usb_screen_draw_dac(const UsbPainter *painter)
     lines.y += line;
     lines.height -= line;
     DacCell cells[8];
-    fill_cells(&painter->scene->dac, painter->scene->high_speed, cells);
+    fill_cells(painter, cells);
     draw_cells(painter, lines, cells, (int)(sizeof cells / sizeof cells[0]));
 }

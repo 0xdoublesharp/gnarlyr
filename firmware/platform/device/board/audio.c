@@ -109,6 +109,8 @@ static uint8_t extra_attenuation;
 static HeadphoneAudio headphones;
 static bool headphones_set;
 static void (*stream_service)(void);
+static uint32_t *stream_buffer;
+static uint32_t stream_frames;
 static bool volume_set;
 static HalAudioOutput output_setting;
 static uint32_t last_jack_poll_ms;
@@ -327,7 +329,8 @@ void *hal_system_borrow_listing(uint32_t *size)
 
 static uint32_t ring_address(void)
 {
-    return (uint32_t)(uintptr_t)music_ring;
+    return (uint32_t)(uintptr_t)(stream_service != NULL && stream_buffer != NULL ? stream_buffer
+                                                                                 : music_ring);
 }
 
 static void update_consumed(void)
@@ -420,8 +423,9 @@ static bool start_transfer(uint32_t words, bool audible)
     ring_words = words;
     consumed = 0;
     last_position = 0;
-    uint32_t blocks = words / BLOCK_WORDS;
-    if (!dma_ring_items(items, blocks, ring_address(), BLOCK_WORDS, (uint32_t)(uintptr_t)items) ||
+    uint32_t blocks = (words + BLOCK_WORDS - 1) / BLOCK_WORDS;
+    if (!dma_ring_items(items, blocks, ring_address(), words / blocks,
+                        (uint32_t)(uintptr_t)items) ||
         !dmac_start_loop(&items[0])) {
         return false;
     }
@@ -937,8 +941,10 @@ void board_audio_set_attenuation(uint8_t steps)
 
 static void clear_ring(void)
 {
-    for (uint32_t index = 0; index < RING_WORDS; index++) {
-        music_ring[index] = 0;
+    uint32_t frames;
+    uint32_t *buffer = board_audio_stream_ring(&frames);
+    for (uint32_t index = 0; index < frames * WORDS_PER_FRAME; index++) {
+        buffer[index] = 0;
     }
 }
 
@@ -950,26 +956,36 @@ bool board_audio_stream_open(uint32_t rate, void (*service)(void))
     ensure_engine();
     ensure_audio_clock();
     board_audio_shut_down();
-    clear_ring();
     stream_service = service;
+    clear_ring();
     return ensure_path(rate);
 }
 
 uint32_t *board_audio_stream_ring(uint32_t *frames)
 {
-    *frames = RING_FRAMES;
-    return music_ring;
+    *frames = stream_buffer != NULL ? stream_frames : RING_FRAMES;
+    return stream_buffer != NULL ? stream_buffer : music_ring;
+}
+
+void board_audio_stream_buffer(uint32_t *buffer, uint32_t frames)
+{
+    stream_buffer = buffer;
+    stream_frames = frames;
 }
 
 bool board_audio_stream_play(void)
 {
-    return start_transfer(RING_WORDS, true);
+    return start_transfer(stream_buffer != NULL ? stream_frames * WORDS_PER_FRAME : RING_WORDS,
+                          true);
 }
 
 void board_audio_stream_pause(void)
 {
     clear_ring();
-    stop_transfer();
+    dac_path_stream_quiet();
+    dac_path_stop_transfer();
+    dmac_stop();
+    transferring = false;
 }
 
 uint32_t board_audio_stream_consumed(void)
@@ -978,10 +994,19 @@ uint32_t board_audio_stream_consumed(void)
     return transferring ? consumed : 0;
 }
 
+void board_audio_stream_service(void)
+{
+    if (stream_service != NULL) {
+        stream_service();
+    }
+}
+
 void board_audio_stream_close(void)
 {
-    stream_service = NULL;
     board_audio_shut_down();
+    stream_service = NULL;
+    stream_buffer = NULL;
+    stream_frames = 0;
 }
 
 CORE_SEAM void hal_audio_set_replay_gain(uint32_t token, uint32_t gain)

@@ -66,6 +66,7 @@ typedef struct UsbScene {
     UsbSceneDrive drives[USB_SCENE_DRIVES];
     UsbSceneDac dac;
     const ListView *menu;
+    void (*service)(void);
 } UsbScene;
 
 typedef struct UsbScreenLayout {

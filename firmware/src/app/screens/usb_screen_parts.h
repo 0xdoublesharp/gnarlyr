@@ -20,6 +20,7 @@ typedef struct UsbPainter {
 } UsbPainter;
 
 const UsbScene *usb_screen_scene(AppUsbStatus status);
+void usb_screen_service(const UsbScene *scene);
 Color usb_screen_tint(Color color, Color toward);
 Color usb_screen_lamp_color(const Theme *theme, const UsbScene *scene);
 void usb_screen_text(const UsbPainter *painter, Rect area, TextStyle style, const char *text);
