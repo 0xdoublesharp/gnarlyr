@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   validate:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     outputs:
       sha: ${{ steps.tag.outputs.sha }}
     steps:
@@ -48,7 +48,7 @@ jobs:
     uses: ./.github/workflows/ci.yml
   publish:
     needs: [validate, checks]
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: write

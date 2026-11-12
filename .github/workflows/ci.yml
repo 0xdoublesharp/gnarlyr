@@ -21,7 +21,7 @@ jobs:
     name: Firmware and public tools
     env:
       CC: clang
-    runs-on: blacksmith-16vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -32,11 +32,11 @@ jobs:
       - name: Check public host tools and website
         run: python3 -m unittest discover -s tests
       - name: Check firmware and emulator
-        run: python3 tools/firmware.py test --jobs 10
+        run: python3 tools/firmware.py test --jobs 4
       - name: Check generated assets
         run: python3 tools/firmware.py regen --check --jobs 2
       - name: Check both firmware size budgets
-        run: python3 tools/firmware.py sizes --jobs 10
+        run: python3 tools/firmware.py sizes --jobs 4
       - name: Package firmware and source
         env:
           SOURCE_SHA: ${{ github.sha }}
