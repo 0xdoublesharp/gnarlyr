@@ -2,6 +2,8 @@
 
 Use the macOS developer helper to inspect and change supported player settings. Plug in the ECHO, choose Connect to computer and leave the cable connected. Each change runs through the normal player setting command, ejects the drive and waits for USB to reconnect.
 
+For a window instead of commands, use the [desktop companion](companion-app.md).
+
 ```sh
 python3 tools/echo_debug.py settings-list
 python3 tools/echo_debug.py settings-set text_size large
