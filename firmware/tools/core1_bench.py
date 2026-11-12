@@ -41,7 +41,7 @@ CASES = {
              ("media", "flac16_fixed.flac", None), ("media", "flac24.flac", None)],
     "mp3": [("media", "mp3_128.mp3", None), ("media", "mp3_320.mp3", None)],
     "aac": [("media", "aac.m4a", None)],
-    "alac": [("media", "alac.m4a", None)],
+    "alac": [("media", "alac.m4a", None), ("media", "alac_apple.m4a", None)],
     "vorbis": [("fixtures", "vorbis/seek44.ogg", 2), ("fixtures", "vorbis/stereo48.ogg", 2)],
     "opus": [("media", "opus.opus", 2), ("fixtures", "opus/speech16.opus", 1)],
 }
@@ -58,6 +58,7 @@ MEDIA_COMMANDS = {
     "mp3_320.mp3": ["-c:a", "libmp3lame", "-b:a", "320k", "-id3v2_version", "0", "-write_xing", "0"],
     "aac.m4a": ["-c:a", "aac", "-b:a", "192k"],
     "alac.m4a": ["-t", "4", "-c:a", "alac"],
+    "alac_apple.m4a": ["-t", "4", "-c:a", "alac_at"],
     "opus.opus": ["-ar", "48000", "-c:a", "libopus", "-b:a", "128k", "-frame_duration", "20"],
 }
 
