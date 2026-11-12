@@ -64,6 +64,8 @@ The display code is in module 4: file offset `0x59b18`, loads at `0x0307e48c`, 1
 - The parts are two CS43198, as FiiO lists. On the owner's ECHO (4 GB) both chips report ID `43 19 80`, revision `A1`, subrevision `06` (Doublesharp Echo 1.0.0, Settings → About, read 2026-11-09). Some inherited code names still say CS43131; the register sequence is stock's either way.
 - Not compared with stock yet: the default digital filter, the volume curve, the gain values and the power-down order.
 
+The analog-click fix chooses Low `0x20` from the CS43198 DS1156F2 OUT_FS table (section 7.5.1): `10` is 1.41 Vrms, while the inherited `0x10` selects reserved `01`. High `0x31` selects `11` with +1dB_EN, yielding 2 Vrms when HV_EN is enabled, as in the configured Class H `0x1f`. The expected difference is about 3.04 dB. This establishes a documented operating point, not stock gain equivalence; no stock Low/High register capture is established in this record.
+
 ## Limits of this record
 
 - REA sometimes reports a function as several separate pieces joined by a branch to shared code. A numeric address range is not proof that everything inside it belongs to one function.

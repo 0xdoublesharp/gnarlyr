@@ -21,4 +21,18 @@ On each jack, start at low volume and compare silence and a quiet continuous tra
 5. Switch outputs and plug/unplug; check for clicks and stale audio bursts.
 6. Power off while playing, then cold start again.
 
-Track, seek, output-switch and jack detection behavior is unchanged by this sequencing patch. This patch adds no new hardware validation claim.
+## Level evidence
+
+[CS43198 DS1156F2](https://statics.cirrus.com/pubs/proDatasheet/CS43198_DS1156F2.pdf), section 7.5.1, defines OUT_FS `00` and `01` as reserved, `10` as 1.41 Vrms and `11` as 1.73 Vrms. Thus `0x20` is the lowest documented valid OUT_FS code. `0x31` selects `11` plus +1dB_EN, which gives 2 Vrms with HV_EN set. The configured Class H value `0x1f` at `0x0b0000` sets HV_EN (bit 1). The expected High/Low voltage ratio is `2 / 1.41 = 1.418`, approximately `20 log10(2 / 1.41) = 3.04 dB`, before downstream amplification and identical digital attenuation. This is a datasheet expectation, not a measurement at either jack.
+
+The [stock record](../../docs/stock-firmware.md) establishes the register bus, start-up sequence and 12 ms settling delay, but explicitly lists gain values as not compared. It does not prove that stock uses `0x20` for Low. This patch chooses `0x20` from the fitted part's documented valid codes; a stock gain trace remains needed to claim equivalence.
+
+## Transition checks and diagnostics
+
+Track restarts and seeks fade out before DMA stops; DMA descriptors start again from the ring origin after prefill, before fade-in. Resetting engine positions now clears the entire ring so a short prefill cannot leave earlier track samples in unused space. Seamless same-rate queue transitions retain their existing contiguous PCM behavior. Output selection fades to mute before applying its volume curve and fades back afterward.
+
+At the first sampled raw jack change, the DAC guard asserts external mute and clears its applied-volume state. It holds across the seven-sample debounce and releases after the stable output curve has been applied, or after contact bounce returns to the original connected state. With neither jack detected, the guard remains asserted until a jack settles connected. Logical pause mute remains independent. Detection is polled, so contact motion before the first sample cannot be protected by software.
+
+Debug reports include `dac.up`, `dac.power_left`, `dac.power_right`, `dac.start_us`, `dac.stop_us` and `dac.gain_us`. Power values are the last successful reads of 0x020000 for each chip, not live reads after reset or rail removal. A failed receive marks that chip unknown; earlier bus failures leave the last cached read intact. Start duration is the last successful cold start; stop and gain durations cover their latest attempts, in microseconds. These timings exclude the board gain fade around the register sequence.
+
+Native checks cover ring clearing after seek, register order/timeouts and report fields. The ARM scenario checks the sample at seek restart, unused ring space, output-switch ramps and the mute guard. Physical transient levels and jack timing still require the owner checks above.
