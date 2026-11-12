@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "ui/screen.h"
+#include "ui/theme.h"
 
 struct AppScreens;
 
@@ -24,10 +25,11 @@ typedef struct ScreenModuleEntry {
     void (*bind)(struct AppScreens *screens);
     void (*art_update)(void *context, uint32_t now_ms);
     void (*art_draw)(void *context, Canvas *canvas, Rect area);
+    bool (*theme_draw)(const Theme *theme, Canvas *canvas, int slot, Rect area);
 } ScreenModuleEntry;
 
 #define SCREEN_MODULE_ENTRY(number, bind_fn)                                                       \
-    {SCREEN_MODULE_MAGIC(number), (bind_fn), home_art_update, home_art_draw}
+    {SCREEN_MODULE_MAGIC(number), (bind_fn), home_art_update, home_art_draw, theme_art_module_draw}
 
 void screen_modules_prepare_home(struct AppScreens *screens);
 void screen_modules_cancel_previews(struct AppScreens *screens);

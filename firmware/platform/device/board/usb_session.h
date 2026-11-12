@@ -36,8 +36,12 @@ typedef struct UsbReconnect {
 typedef struct UsbTrial {
     uint32_t record_lba;
     uint32_t settled[2];
+    uint32_t boot[2];
+    uint32_t next[2];
     bool charged;
+    bool session_due;
     bool running;
+    bool promoting;
     bool rolled_back;
 } UsbTrial;
 

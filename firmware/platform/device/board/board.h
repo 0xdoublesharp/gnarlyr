@@ -8,6 +8,12 @@
 #include "hal/clock.h"
 #include "hal/system.h"
 
+enum {
+    BOARD_SCRATCH_WORDS = 1024
+};
+
+extern uint32_t board_scratch[BOARD_SCRATCH_WORDS];
+
 void board_clock_start(void);
 void board_clock_sleep(bool sleep);
 void board_clock_record_boot(void);

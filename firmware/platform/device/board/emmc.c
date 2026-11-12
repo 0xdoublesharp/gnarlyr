@@ -136,11 +136,10 @@ static bool wait_for_transfer_state(void)
 
 static bool read_sector_count(void)
 {
-    static uint32_t ext_csd[BLOCK_LENGTH / 4];
-    if (!mmc_read_block(&EMMC_HOST, CMD_SEND_EXT_CSD, 0, ext_csd)) {
+    if (!mmc_read_block(&EMMC_HOST, CMD_SEND_EXT_CSD, 0, board_scratch)) {
         return false;
     }
-    emmc.sector_count = ext_csd[EXT_CSD_SECTOR_COUNT / 4];
+    emmc.sector_count = board_scratch[EXT_CSD_SECTOR_COUNT / 4];
     return emmc.sector_count != 0;
 }
 
@@ -244,7 +243,8 @@ static uint32_t start_once(void)
     }
     started = true;
     BlockDevice device = emmc_device();
-    started = emmc_layout_read_with(&emmc.layout, &device, emmc.sector_count, EMMC_SLOT_2_SEARCH);
+    started = emmc_layout_read_with(&emmc.layout, &device, emmc.sector_count,
+                                    (EmmcLayoutRead){EMMC_SLOT_2_SEARCH, board_scratch});
     return started ? 0u : 3u;
 }
 

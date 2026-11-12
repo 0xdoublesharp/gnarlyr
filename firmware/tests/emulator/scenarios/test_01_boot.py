@@ -200,6 +200,30 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(session.read_file("MASKROM.REQ", 12), b"MASKROM RES\n")
         self.assert_only_the_user_volume_changed(session)
 
+    def test_systick_pends_its_interrupt_when_the_counter_reaches_zero(self):
+        from echo_emulator import devices
+
+        class Clock:
+            now = 0
+
+            def cycles(self):
+                return self.now
+
+            def poll_jump(self, cycles):
+                pass
+
+        clock = Clock()
+        systick = devices.Systick(clock)
+        systick.write_word(devices.SYSTICK_RELOAD, 99)
+        systick.write_word(devices.SYSTICK_CTRL, 1 | devices.SYSTICK_TICKINT)
+        readings = []
+        for clock.now in (0, 98, 99, 100):
+            pending = systick.read_word(devices.SCB_ICSR) == devices.ICSR_PENDSTSET
+            readings.append((systick.read_word(devices.SYSTICK_CURRENT), pending))
+        self.assertEqual(readings, [(99, False), (1, False), (0, True), (99, True)])
+        systick.write_word(devices.SCB_ICSR, devices.ICSR_PENDSTCLR)
+        self.assertFalse(systick.pending())
+
 
 if __name__ == "__main__":
     sys.exit(main(EchoImageTest))

@@ -13,6 +13,8 @@
 #include "playback/moments.h"
 #include "screens/smart_list_work.h"
 #include "ui/wire_motion.h"
+#include "theme_picker.h"
+#include "ui/wire_motion.h"
 
 enum {
     LISTENING_NAME_BYTES = 128,

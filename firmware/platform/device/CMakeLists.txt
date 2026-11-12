@@ -28,6 +28,7 @@ add_executable(echo_device
     board/overlay.c
     board/panic.c
     board/power.c
+    board/scratch.c
     board/sd.c
     board/start_info.c
     board/watchdog.c
@@ -535,6 +536,9 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         list(REMOVE_DUPLICATES module_sources)
     endif()
     list(REMOVE_DUPLICATES module_includes)
+    foreach(crypto_source theme_crypto_curve.c theme_crypto_sha512.c)
+        set_source_files_properties(${PROJECT_SOURCE_DIR}/src/app/${crypto_source} PROPERTIES COMPILE_OPTIONS -w)
+    endforeach()
     add_library(${module_target}_objects OBJECT ${module_sources})
     target_compile_definitions(${module_target}_objects PRIVATE ECHO_DEVICE_MODULE)
     if(module STREQUAL "dsp")

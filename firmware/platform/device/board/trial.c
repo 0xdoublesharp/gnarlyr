@@ -87,30 +87,38 @@ void board_trial_report(void)
     }
 }
 
+static void write_record(const UsbTrial *trial, const uint32_t *words)
+{
+    uint32_t sector[SECTOR_WORDS] = {words[0], words[1]};
+    emmc_volume_write(NULL, trial->record_lba, 1, sector);
+}
+
 void board_trial_settle(void)
 {
     UsbTrial *trial = &usb_session_shared()->trial;
     if (trial->charged && hal_clock_milliseconds() >= UPDATE_TRIAL_SETTLE_MS) {
-        uint32_t sector[SECTOR_WORDS] = {trial->settled[0], trial->settled[1]};
         trial->charged = false;
-        emmc_volume_write(NULL, trial->record_lba, 1, sector);
+        write_record(trial, trial->settled);
     }
 }
 
 void board_trial_session_starting(void)
 {
-    const TrialBootModuleEntry *entry = module_for_record();
-    usb_session_shared()->trial.charged = false;
-    if (entry != NULL) {
-        entry->session_start();
+    UsbTrial *trial = &usb_session_shared()->trial;
+    if (trial->session_due) {
+        trial->session_due = false;
+        write_record(trial, trial->charged ? trial->next : trial->boot);
     }
+    trial->charged = false;
 }
 
 void board_trial_session_ended(void)
 {
-    const TrialBootModuleEntry *entry = module_for_record();
+    UsbShared *shared = usb_session_shared();
+    bool confirmed = shared->trial.running && shared->last_session.end == HAL_USB_END_EJECTED;
+    const TrialBootModuleEntry *entry = confirmed || shared->trial.promoting ? boot_module() : NULL;
     if (entry != NULL) {
-        entry->session_end(usb_session_shared(), copy_buffer());
+        entry->session_end(shared, copy_buffer());
     }
 }
 

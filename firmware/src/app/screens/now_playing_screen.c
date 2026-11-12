@@ -786,7 +786,7 @@ static void draw(void *context, Canvas *canvas)
 {
     const NowPlayingScreen *now_playing = context;
     const Theme *theme = now_playing->config.theme;
-    canvas_fill_rect(canvas, theme_content_area(theme), theme->colors.background);
+    theme_background_draw(theme, canvas, THEME_ART_NOW_PLAYING, theme_content_area(theme));
     Rect header = theme_header_area(theme);
     canvas_fill_rect(canvas, header, theme->colors.header_background);
     canvas_fill_rect(canvas, (Rect){0, header.height - 1, header.width, 1}, theme->colors.divider);
