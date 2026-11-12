@@ -365,7 +365,8 @@ static void amount_text(char *text, uint32_t tenths_mb)
 
 void usb_screen_size_text(char *text, uint32_t sectors)
 {
-    amount_text(text, (uint32_t)((uint64_t)sectors * MSC_BYTES_PER_SECTOR / BYTES_PER_TENTH_MB));
+    uint32_t tenths = (uint32_t)((uint64_t)sectors * MSC_BYTES_PER_SECTOR / BYTES_PER_TENTH_MB);
+    amount_text(text, tenths == 0 && sectors != 0 ? 1 : tenths);
 }
 
 void usb_screen_number_text(char *text, uint32_t value)

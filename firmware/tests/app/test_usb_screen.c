@@ -486,7 +486,7 @@ static void the_overview_shows_the_rate_drives_and_their_free_space(void)
     draw_text_of(&theme, storage_status(STR_USB_EJECT_DRIVES), &scene);
     CHECK(saw(i18n_text(STR_USB_RATE_UNIT)));
     CHECK(!saw(i18n_text(STR_USB_STATE_WRITING)));
-    CHECK(saw("Read 2.4 MB · Written 13.0 MB"));
+    CHECK(saw("Read 2.1 MB · Written 287 MB"));
     CHECK(saw(i18n_text(STR_USB_STAT_INTERNAL)));
     CHECK(saw("1.2 GB free"));
     CHECK(saw(i18n_text(STR_USB_EJECTED)));
@@ -503,8 +503,8 @@ static void an_idle_overview_shows_the_session_totals(void)
     draw_text_of(&theme, storage_status(STR_USB_EJECT_DRIVE), &scene);
     CHECK(!saw(i18n_text(STR_USB_RATE_UNIT)));
     CHECK(saw(i18n_text(STR_USB_STAT_READ)));
-    CHECK(saw("2.4 MB"));
-    CHECK(saw("13.0 MB"));
+    CHECK(saw("2.1 MB"));
+    CHECK(saw("268 MB"));
     CHECK(saw(i18n_text(STR_USB_NO_CARD)));
     CHECK(saw("4.2 GB total"));
 }
@@ -629,6 +629,37 @@ static void a_copy_keeps_its_words_still_while_the_lights_and_rates_move(void)
     }
 }
 
+static void the_totals_move_with_the_rate_from_the_same_counters(void)
+{
+    Theme theme = medium(ORIENTATION_LANDSCAPE);
+    UsbScene scene = storage_scene(USB_SCENE_WRITING);
+    scene.usage[0] = (UsbSceneUsage){0};
+    scene.usage[1] = (UsbSceneUsage){0};
+    usb_meter_start(&scene.meter, 0);
+    uint32_t totals[USB_METER_DIRECTIONS] = {0, 0};
+    for (uint32_t sample = 1; sample <= 3; sample++) {
+        totals[USB_METER_WRITE] += 2048;
+        usb_meter_sample(&scene.meter, totals, sample * USB_METER_PERIOD_MS);
+        draw_text_of(&theme, storage_status(STR_USB_EJECT_DRIVES), &scene);
+        char expected[USB_SCREEN_TEXT_CAPACITY];
+        snprintf(expected, sizeof expected, "Read 0.0 MB · Written %u.%u MB",
+                 (unsigned)(sample * 10486 / 10000), (unsigned)(sample * 10486 / 1000 % 10));
+        CHECK(saw(expected));
+        CHECK(usb_meter_total(&scene.meter, 0) > 0);
+    }
+}
+
+static void a_total_that_moved_never_reads_zero(void)
+{
+    char text[USB_SCREEN_TEXT_CAPACITY];
+    usb_screen_size_text(text, 0);
+    CHECK(strcmp(text, "0.0 MB") == 0);
+    usb_screen_size_text(text, 1);
+    CHECK(strcmp(text, "0.1 MB") == 0);
+    usb_screen_size_text(text, 196);
+    CHECK(strcmp(text, "0.1 MB") == 0);
+}
+
 static void a_page_past_the_last_shows_the_overview(void)
 {
     UsbScene scene = storage_scene(USB_SCENE_WRITING);
@@ -747,6 +778,8 @@ int main(void)
         TEST_CASE(landscape_details_put_the_drives_side_by_side),
         TEST_CASE(a_missing_card_drops_its_rows),
         TEST_CASE(a_page_past_the_last_shows_the_overview),
+        TEST_CASE(the_totals_move_with_the_rate_from_the_same_counters),
+        TEST_CASE(a_total_that_moved_never_reads_zero),
         TEST_CASE(a_copy_keeps_its_words_still_while_the_lights_and_rates_move),
         TEST_CASE(warnings_and_waits_have_no_details),
         TEST_CASE(a_new_sample_changes_only_the_graph),

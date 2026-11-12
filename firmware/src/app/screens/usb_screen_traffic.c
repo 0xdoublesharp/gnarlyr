@@ -139,23 +139,14 @@ static void draw_hero(const UsbPainter *painter, const TrafficLayout *layout)
     usb_screen_text(painter, area, (TextStyle){small, theme->colors.text_secondary}, unit);
 }
 
-static uint32_t sum_sectors(const UsbScene *scene, bool written)
-{
-    uint32_t total = 0;
-    for (int lun = 0; lun < USB_SCENE_DRIVES; lun++) {
-        total += written ? scene->usage[lun].written_sectors : scene->usage[lun].read_sectors;
-    }
-    return total;
-}
-
 static void draw_caption(const UsbPainter *painter, Rect area, bool split)
 {
     const Theme *theme = painter->theme;
     const UsbScene *scene = painter->scene;
     char read[USB_SCREEN_TEXT_CAPACITY];
     char written[USB_SCREEN_TEXT_CAPACITY];
-    usb_screen_size_text(read, sum_sectors(scene, false));
-    usb_screen_size_text(written, sum_sectors(scene, true));
+    usb_screen_size_text(read, scene->meter.sectors[USB_METER_READ]);
+    usb_screen_size_text(written, scene->meter.sectors[USB_METER_WRITE]);
     if (split) {
         Rect row = {area.x, area.y, area.width, area.height / 2};
         usb_screen_row(painter, row, i18n_text(STR_USB_STAT_READ), read);
