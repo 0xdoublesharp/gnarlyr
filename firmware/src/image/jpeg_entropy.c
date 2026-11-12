@@ -174,7 +174,9 @@ uint32_t jpeg_read_bits(JpegBits *bits, uint32_t count)
     if (count == 0) {
         return 0;
     }
-    fill(bits);
+    if (bits->count <= FILL_LIMIT) {
+        fill(bits);
+    }
     uint32_t value = bits->buffer >> (32 - count);
     consume(bits, count);
     return value;
@@ -201,7 +203,9 @@ static int32_t symbol_from(JpegBits *bits, const JpegHuffman *table)
 
 int32_t jpeg_decode_symbol(JpegBits *bits, const JpegHuffman *table)
 {
-    fill(bits);
+    if (bits->count <= FILL_LIMIT) {
+        fill(bits);
+    }
     return symbol_from(bits, table);
 }
 
@@ -215,42 +219,126 @@ static int32_t extend(JpegBits *bits, uint32_t size)
     return value < (1 << (size - 1)) ? value - (1 << size) + 1 : value;
 }
 
+typedef struct BitCursor {
+    uint32_t buffer;
+    int32_t count;
+    const uint8_t *bytes;
+    uint32_t cursor;
+    uint32_t end;
+} BitCursor;
+
+typedef enum {
+    AC_NEXT,
+    AC_END,
+    AC_FAILED
+} AcStep;
+
+static BitCursor cursor_open(const JpegBits *bits)
+{
+    const ImageReader *reader = bits->reader;
+    uint32_t cursor = reader->cursor;
+    uint32_t end = bits->marker || reader->failed ? cursor : reader->filled;
+    return (BitCursor){bits->buffer, bits->count, reader->buffer, cursor, end};
+}
+
+static void cursor_close(const BitCursor *local, JpegBits *bits)
+{
+    bits->buffer = local->buffer;
+    bits->count = local->count;
+    bits->reader->cursor = local->cursor;
+}
+
+static bool cursor_fill(BitCursor *local)
+{
+    while (local->count <= FILL_LIMIT && local->cursor < local->end &&
+           local->bytes[local->cursor] != BYTE_FF) {
+        local->buffer |= (uint32_t)local->bytes[local->cursor++] << (FILL_LIMIT - local->count);
+        local->count += BITS_PER_BYTE;
+    }
+    return local->count > FILL_LIMIT;
+}
+
+static AcStep decode_ac_slow(JpegBits *bits, const JpegHuffman *table, int32_t *coefficients,
+                             uint32_t *index)
+{
+    int32_t symbol = symbol_from(bits, table);
+    uint32_t run = (uint32_t)symbol >> 4;
+    uint32_t size = (uint32_t)symbol & 0x0F;
+    if (symbol < 0 || (size != 0 && *index + run >= JPEG_BLOCK)) {
+        return AC_FAILED;
+    }
+    if (size == 0 && run != END_OF_BAND_RUN) {
+        return AC_END;
+    }
+    *index += size == 0 ? ZERO_RUN_LENGTH : run;
+    int32_t value = size == 0 ? 0 : extend(bits, size);
+    if (size != 0 && coefficients != NULL) {
+        coefficients[JPEG_ZIGZAG[*index]] = value;
+    }
+    *index += size != 0 ? 1u : 0u;
+    return AC_NEXT;
+}
+
+static bool end_of_block(BitCursor *local, const JpegHuffman *table)
+{
+    if (local->count <= FILL_LIMIT) {
+        return false;
+    }
+    uint32_t entry = table->fast[local->buffer >> (32 - JPEG_FAST_BITS)];
+    if (entry == 0 || (entry & FAST_SYMBOL_MASK) != 0) {
+        return false;
+    }
+    local->buffer <<= entry >> FAST_LENGTH_SHIFT;
+    local->count -= (int32_t)(entry >> FAST_LENGTH_SHIFT);
+    return true;
+}
+
+static AcStep decode_ac_step(JpegBits *bits, BitCursor *local, const JpegHuffman *table,
+                             int32_t *coefficients, uint32_t *index)
+{
+    cursor_close(local, bits);
+    if (local->count <= FILL_LIMIT) {
+        fill(bits);
+    }
+    AcStep step = decode_ac_slow(bits, table, coefficients, index);
+    *local = cursor_open(bits);
+    return step;
+}
+
+static AcStep fast_coefficient(BitCursor *local, int32_t fast, int32_t *coefficients,
+                               uint32_t *index)
+{
+    uint32_t at = *index + ((uint32_t)(fast >> 4) & 0x0F);
+    if (at >= JPEG_BLOCK) {
+        return AC_FAILED;
+    }
+    local->buffer <<= (uint32_t)fast & 0x0F;
+    local->count -= fast & 0x0F;
+    if (coefficients != NULL) {
+        coefficients[JPEG_ZIGZAG[at]] = fast >> 8;
+    }
+    *index = at + 1;
+    return AC_NEXT;
+}
+
 bool jpeg_decode_ac(JpegBits *bits, const JpegHuffman *table, int32_t *coefficients)
 {
-    for (uint32_t index = 1; index < JPEG_BLOCK;) {
-        if (bits->count <= FILL_LIMIT) {
-            fill(bits);
-        }
-        int32_t fast = table->fast_ac[bits->buffer >> (32 - JPEG_FAST_BITS)];
-        if (fast != 0) {
-            index += (uint32_t)(fast >> 4) & 0x0F;
-            if (index >= JPEG_BLOCK) {
-                return false;
-            }
-            consume(bits, (uint32_t)fast & 0x0F);
-            if (coefficients != NULL) {
-                coefficients[JPEG_ZIGZAG[index]] = fast >> 8;
-            }
-            index++;
+    BitCursor local = cursor_open(bits);
+    AcStep step = AC_NEXT;
+    for (uint32_t index = 1; index < JPEG_BLOCK && step == AC_NEXT;) {
+        int32_t fast = local.count <= FILL_LIMIT && !cursor_fill(&local)
+                           ? 0
+                           : table->fast_ac[local.buffer >> (32 - JPEG_FAST_BITS)];
+        if (fast == 0) {
+            step = end_of_block(&local, table)
+                       ? AC_END
+                       : decode_ac_step(bits, &local, table, coefficients, &index);
             continue;
         }
-        int32_t symbol = symbol_from(bits, table);
-        uint32_t run = (uint32_t)symbol >> 4;
-        uint32_t size = (uint32_t)symbol & 0x0F;
-        if (symbol < 0 || (size != 0 && index + run >= JPEG_BLOCK)) {
-            return false;
-        }
-        if (size == 0 && run != END_OF_BAND_RUN) {
-            break;
-        }
-        index += size == 0 ? ZERO_RUN_LENGTH : run;
-        int32_t value = size == 0 ? 0 : extend(bits, size);
-        if (size != 0 && coefficients != NULL) {
-            coefficients[JPEG_ZIGZAG[index]] = value;
-        }
-        index += size != 0 ? 1u : 0u;
+        step = fast_coefficient(&local, fast, coefficients, &index);
     }
-    return !bits->failed;
+    cursor_close(&local, bits);
+    return step != AC_FAILED && !bits->failed;
 }
 
 int32_t jpeg_receive_extend(JpegBits *bits, uint32_t size)
