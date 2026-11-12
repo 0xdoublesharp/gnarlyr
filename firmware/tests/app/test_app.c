@@ -605,6 +605,90 @@ static void an_artist_leads_to_their_albums(void)
     CHECK(title_is("Homogenic"));
 }
 
+static void play_first_album_track(void);
+static bool toast_is(const char *expected);
+
+static void an_artist_strip_opens_their_album_with_only_their_songs(void)
+{
+    start_app_with_library();
+    open_music_entry(MUSIC_ARTISTS_INDEX);
+    move_down(BJORK_POSITION);
+    tap(KEY_PLAY);
+    CHECK(title_is("Björk"));
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    CHECK(toast_is("Hold Play: play all"));
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("The Best of Something"));
+    tap(KEY_PLAY);
+    CHECK(strcmp("/Various Artists/The Best of Something/02 - Army of Me.flac",
+                 fake_hal_audio_playing_path()) == 0);
+    CHECK_EQUAL(1u, app_player_status().place.total);
+    tap(KEY_BACK);
+    tap(KEY_BACK);
+    CHECK(title_is("Björk"));
+    tap(KEY_BACK);
+    CHECK(title_is("Artists"));
+}
+
+static void an_artist_with_one_album_opens_that_album(void)
+{
+    start_app_with_library();
+    open_music_entry(MUSIC_ARTISTS_INDEX);
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("This Won't Be The Last Time"));
+    tap(KEY_BACK);
+    CHECK(title_is("Artists"));
+}
+
+static void holding_play_on_an_artist_strip_plays_all_their_albums(void)
+{
+    start_app_with_library();
+    open_music_entry(MUSIC_ARTISTS_INDEX);
+    move_down(BJORK_POSITION);
+    tap(KEY_PLAY);
+    hold(KEY_PLAY);
+    CHECK(!title_is("Now Playing"));
+    CHECK_EQUAL(SCREEN_MODULE_LIBRARY, (int)fake_hal_loaded_module());
+    tap(KEY_PLAY);
+    for (int pass = 0; pass < 3000 && !title_is("Now Playing"); pass++) {
+        wait_ms(4);
+    }
+    CHECK(title_is("Now Playing"));
+    static FixtureLibrary reference;
+    fixture_library_open(&reference);
+    BrowseItem bjork;
+    CHECK(
+        browse_item(&reference.library, browse_root_query(BROWSE_ARTISTS), BJORK_POSITION, &bjork));
+    PlayerStatus status = app_player_status();
+    LibraryTrack current;
+    CHECK(library_read_track(&reference.library, status.track, &current));
+    CHECK_EQUAL(bjork.index, current.artist);
+    CHECK_EQUAL(4u, status.place.total);
+    CHECK_EQUAL(PLAYER_PLAYING, status.state);
+}
+
+static void an_artist_strip_starts_at_the_playing_album(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    hold_back();
+    move_down(1);
+    tap(KEY_PLAY);
+    move_up(MUSIC_ALBUMS_INDEX - MUSIC_ARTISTS_INDEX);
+    tap(KEY_PLAY);
+    CHECK(title_is("Artists"));
+    tap(KEY_PLAY);
+    CHECK(title_is("AC/DC"));
+    tap(KEY_PLAY);
+    CHECK(title_is("Back In Black"));
+    tap(KEY_BACK);
+    move_up(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("High Voltage"));
+}
+
 static void back_returns_to_the_previous_list(void)
 {
     start_app_with_library();
@@ -5996,6 +6080,10 @@ int main(void)
         TEST_CASE(a_cue_sheet_in_folders_opens_its_songs_and_plays_from_the_chosen_one),
         TEST_CASE(album_rows_show_a_chevron_and_track_rows_do_not),
         TEST_CASE(an_artist_leads_to_their_albums),
+        TEST_CASE(an_artist_strip_opens_their_album_with_only_their_songs),
+        TEST_CASE(an_artist_with_one_album_opens_that_album),
+        TEST_CASE(holding_play_on_an_artist_strip_plays_all_their_albums),
+        TEST_CASE(an_artist_strip_starts_at_the_playing_album),
         TEST_CASE(back_returns_to_the_previous_list),
         TEST_CASE(folders_can_be_browsed_down_to_an_album),
         TEST_CASE(without_a_library_the_lists_explain_what_is_missing),

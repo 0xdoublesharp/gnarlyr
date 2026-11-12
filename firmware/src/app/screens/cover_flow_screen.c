@@ -10,6 +10,7 @@
 #include "cover_placeholders.h"
 #include "draw_profile.h"
 #include "hal/clock.h"
+#include "library/library_browse.h"
 #include "library/sort_key.h"
 #include "ui/cover_flow.h"
 #include "ui/label.h"
@@ -22,7 +23,9 @@ enum {
     REFLECTION_LIGHT = 80,
     FLOOR_LEVEL = 16,
     FLOOR_GAP = 6,
+    DETAIL_ALPHA = 176,
     RANDOM_POSITION = 0,
+    RANDOM_SLOTS = 1,
     SHUFFLE_SIZE = 48,
     SHUFFLE_STROKE = 4
 };
@@ -105,11 +108,22 @@ bool cover_flow_order_find(const Library *library, CoverFlowOrder order, uint16_
     return false;
 }
 
+static bool is_artist(const CoverFlowScreen *flow)
+{
+    return flow->config.artist_keys != NULL;
+}
+
+static bool is_random(const CoverFlowScreen *flow, int position)
+{
+    return position >= RANDOM_POSITION && position < flow->first;
+}
+
 static uint16_t album_of(const CoverFlowScreen *flow, int position)
 {
     uint16_t album = LIBRARY_NONE;
-    if (position <= RANDOM_POSITION || !cover_flow_order_album(flow->config.library, flow->order,
-                                                               (uint32_t)position - 1, &album)) {
+    if (position < flow->first ||
+        !cover_flow_order_album(flow->config.library, flow->order,
+                                (uint32_t)(position - flow->first), &album)) {
         return LIBRARY_NONE;
     }
     return album;
@@ -165,6 +179,14 @@ static int center_of(const CoverFlowScreen *flow)
     return (int)((flow->position + COVER_FLOW_ONE / 2) / COVER_FLOW_ONE);
 }
 
+static void load_year(CoverFlowScreen *flow, uint16_t year)
+{
+    StringBuilder builder = string_builder_make(flow->year, sizeof flow->year);
+    if (year > 0) {
+        string_builder_append_unsigned(&builder, year);
+    }
+}
+
 static void load_text(CoverFlowScreen *flow, uint16_t album_index)
 {
     const Library *library = flow->config.library;
@@ -172,7 +194,8 @@ static void load_text(CoverFlowScreen *flow, uint16_t album_index)
     LibraryGroup artist;
     char title[COVER_FLOW_TEXT_CAPACITY];
     flow->title[0] = '\0';
-    flow->artist[0] = '\0';
+    flow->year[0] = '\0';
+    flow->artist[0] = is_artist(flow) ? flow->artist[0] : '\0';
     if (!library_read_album(library, album_index, &album) ||
         !library_read_string(library, album.title, title, sizeof title)) {
         return;
@@ -182,7 +205,9 @@ static void load_text(CoverFlowScreen *flow, uint16_t album_index)
         string_builder_append(&builder, STAR_PREFIX);
     }
     string_builder_append(&builder, title);
-    if (library_read_group(library, LIBRARY_ALBUM_ARTISTS, album.album_artist, &artist)) {
+    if (is_artist(flow)) {
+        load_year(flow, album.year);
+    } else if (library_read_group(library, LIBRARY_ALBUM_ARTISTS, album.album_artist, &artist)) {
         library_read_string(library, artist.name, flow->artist, sizeof flow->artist);
     }
 }
@@ -193,7 +218,7 @@ static void refresh_text(CoverFlowScreen *flow, bool force)
     if (flow->count == 0 || (!force && center == flow->text_position)) {
         return;
     }
-    if (center == RANDOM_POSITION) {
+    if (is_random(flow, center)) {
         StringBuilder title = string_builder_make(flow->title, sizeof flow->title);
         string_builder_append(&title, i18n_text(STR_RANDOM_ALBUM));
         StringBuilder hint = string_builder_make(flow->artist, sizeof flow->artist);
@@ -207,7 +232,7 @@ static void refresh_text(CoverFlowScreen *flow, bool force)
 
 static bool load_half_at(CoverFlowScreen *flow, int position)
 {
-    return position > RANDOM_POSITION && position < flow->count &&
+    return position >= flow->first && position < flow->count &&
            cover_cache_load_half(flow->config.covers, position, album_of(flow, position));
 }
 
@@ -232,10 +257,20 @@ static void load_covers(CoverFlowScreen *flow)
     if (flow->count == 0 || load_nearest_half(flow)) {
         return;
     }
-    if (flow->target != RANDOM_POSITION &&
+    if (!is_random(flow, flow->target) &&
         flow->position == (int32_t)flow->target * COVER_FLOW_ONE) {
         cover_cache_load_full(flow->config.covers, album_of(flow, flow->target));
     }
+}
+
+static int artist_position(const CoverFlowScreen *flow, uint16_t album)
+{
+    for (int position = 0; position < flow->count; position++) {
+        if (album_of(flow, position) == album) {
+            return position;
+        }
+    }
+    return NO_POSITION;
 }
 
 static int playing_position(const CoverFlowScreen *flow)
@@ -245,11 +280,14 @@ static int playing_position(const CoverFlowScreen *flow)
     if (!status.has_track || !library_read_track(flow->config.library, status.track, &track)) {
         return NO_POSITION;
     }
+    if (is_artist(flow)) {
+        return artist_position(flow, track.album);
+    }
     uint32_t position = 0;
     if (!cover_flow_order_find(flow->config.library, flow->order, track.album, &position)) {
         return NO_POSITION;
     }
-    return (int)position + 1;
+    return (int)position + flow->first;
 }
 
 static int scroll_count(const void *context)
@@ -287,7 +325,8 @@ static void move_target(CoverFlowScreen *flow, Navigation navigation)
     if (flow->count == 0) {
         return;
     }
-    ListModel model = {.context = flow, .count = scroll_count, .section = scroll_section};
+    ListModel model = {
+        .context = flow, .count = scroll_count, .section = is_artist(flow) ? NULL : scroll_section};
     ListView scroll = {.model = &model,
                        .selected = flow->target,
                        .visible_rows = 1,
@@ -324,22 +363,25 @@ static ScreenAction play_random(CoverFlowScreen *flow)
     if (!player_play_from(flow->config.player, start)) {
         return screen_action_none();
     }
-    flow->target = (int)pick + 1;
+    flow->target = (int)pick + flow->first;
     return screen_action_push(flow->config.browse->config.now_playing);
 }
 
 static ScreenAction open_album(CoverFlowScreen *flow)
 {
-    if (flow->count > 0 && flow->target == RANDOM_POSITION) {
+    if (flow->count > 0 && is_random(flow, flow->target)) {
         return play_random(flow);
     }
+    bool artist = is_artist(flow);
+    BrowseQuery parent = artist ? flow->albums : browse_root_query(BROWSE_ALBUMS);
     BrowseQuery child;
     BrowseItem item = {
         .kind = BROWSE_ITEM_ALBUM, .group = LIBRARY_ALBUMS, .index = album_of(flow, flow->target)};
-    if (flow->count == 0 || !browse_child(browse_root_query(BROWSE_ALBUMS), item, &child)) {
+    if (flow->count == 0 || !browse_child(parent, item, &child)) {
         return screen_action_none();
     }
-    Screen *album = browse_pool_open(flow->config.browse, 0, child);
+    int level = artist ? flow->parent->level + 1 : 0;
+    Screen *album = browse_pool_open(flow->config.browse, level, child);
     return album != NULL ? screen_action_push(album) : screen_action_none();
 }
 
@@ -389,19 +431,51 @@ static void repaint_placeholders(CoverFlowScreen *flow)
     }
 }
 
+static void choose_albums(CoverFlowScreen *flow)
+{
+    const Library *library = flow->config.library;
+    LibraryGroup group;
+    flow->order = (CoverFlowOrder){.first_link = 0, .count = 0, .linked = true};
+    if (library_read_group(library, flow->albums.group, flow->albums.subject, &group)) {
+        flow->order.first_link = group.first_link;
+        flow->order.count = group.link_count;
+    }
+    flow->count = (int)flow->order.count;
+    flow->artist[0] = '\0';
+    browse_title(library, flow->albums, flow->artist, sizeof flow->artist);
+}
+
+static void choose_all_albums(CoverFlowScreen *flow)
+{
+    flow->first = RANDOM_SLOTS;
+    flow->order = cover_flow_order_make(flow->config.library);
+    flow->count = flow->order.count > 0 ? (int)flow->order.count + flow->first : 0;
+}
+
+static void show_hint(CoverFlowScreen *flow, uint32_t now_ms)
+{
+    if (flow->hinted || flow->count == 0 || flow->config.toast == NULL) {
+        return;
+    }
+    StringId hint = is_artist(flow) ? STR_ARTIST_ALBUMS_HINT : STR_COVER_FLOW_HINT;
+    toast_show(flow->config.toast, i18n_text(hint), now_ms);
+    flow->hinted = true;
+}
+
 static void enter(void *context, uint32_t now_ms)
 {
     CoverFlowScreen *flow = context;
     if (!flow->positioned) {
-        flow->order = cover_flow_order_make(flow->config.library);
-        flow->count = flow->order.count > 0 ? (int)flow->order.count + 1 : 0;
-        flow->screen.fast_list = flow->count > 1;
-        int playing = playing_position(flow);
-        flow->target = playing != NO_POSITION ? playing : min_of(1, flow->count - 1);
-        flow->positioned = true;
-        if (flow->count > 0 && flow->config.toast != NULL) {
-            toast_show(flow->config.toast, i18n_text(STR_COVER_FLOW_HINT), now_ms);
+        if (is_artist(flow)) {
+            choose_albums(flow);
+        } else {
+            choose_all_albums(flow);
         }
+        int playing = playing_position(flow);
+        flow->target = playing != NO_POSITION ? playing : min_of(flow->first, flow->count - 1);
+        flow->positioned = true;
+        flow->screen.fast_list = flow->count > 1;
+        show_hint(flow, now_ms);
     }
     flow->section_shown_until_ms = 0;
     flow->position = (int32_t)flow->target * COVER_FLOW_ONE;
@@ -430,7 +504,7 @@ static bool shown(CoverState state)
 
 static bool cover_image(const CoverFlowScreen *flow, int position, Image *image)
 {
-    if (position == RANDOM_POSITION) {
+    if (is_random(flow, position)) {
         *image = shuffle_image();
         return true;
     }
@@ -455,7 +529,7 @@ static void draw_cover(const CoverFlowScreen *flow, Canvas *canvas, int position
     Image image;
     if (cover_image(flow, position, &image)) {
         uint32_t started_us = hal_clock_microseconds();
-        if (position == RANDOM_POSITION) {
+        if (is_random(flow, position)) {
             image_draw_quad_smooth(canvas, image, quad, light);
         } else {
             image_draw_quad_lit(canvas, image, quad, light);
@@ -495,12 +569,15 @@ static void draw_text(const CoverFlowScreen *flow, Canvas *canvas)
     const CoverFlowTextLayout *layout = board_cover_flow_text_layout(theme);
     int padding = theme->metrics.padding;
     int width = theme->metrics.screen_width - 2 * padding;
-    TextStyle title = {.font = theme->fonts.title, .color = theme->colors.text};
-    TextStyle artist = {.font = theme->fonts.body, .color = theme->colors.text_secondary};
+    Color ink = theme->colors.header_text;
+    TextStyle title = {.font = theme->fonts.title, .color = ink};
+    TextStyle artist = {.font = theme->fonts.body,
+                        .color = color_blend(BACKDROP, ink, DETAIL_ALPHA)};
     Rect title_area = {padding, layout->title_top, width, layout->line_height};
     Rect artist_area = {padding, layout->artist_top, width, layout->line_height};
     draw_line(flow, canvas, (Label){title_area, flow->title}, title);
-    draw_line(flow, canvas, (Label){artist_area, flow->artist}, artist);
+    const char *detail = is_artist(flow) ? flow->year : flow->artist;
+    draw_line(flow, canvas, (Label){artist_area, detail}, artist);
 }
 
 static void draw_section(const CoverFlowScreen *flow, Canvas *canvas)
@@ -562,26 +639,31 @@ static void draw(void *context, Canvas *canvas)
 
 Screen *cover_flow_screen_init(CoverFlowScreen *flow, CoverFlowConfig config)
 {
+    bool artist = config.artist_keys != NULL;
     flow->config = config;
     flow->order = (CoverFlowOrder){0};
+    flow->first = 0;
     flow->count = 0;
+    flow->keys = handle_key;
     flow->target = 0;
     flow->position = 0;
     flow->positioned = false;
+    flow->hinted = false;
     flow->text_position = NO_POSITION;
     flow->art_palette = 0;
     flow->scroll_started_ms = 0;
     flow->section_shown_until_ms = 0;
     flow->title[0] = '\0';
     flow->artist[0] = '\0';
+    flow->year[0] = '\0';
     flow->screen = (Screen){
-        .title = i18n_text(STR_COVER_FLOW),
+        .title = artist ? flow->artist : i18n_text(STR_COVER_FLOW),
         .context = flow,
         .full_screen = true,
         .fast_list = flow->count > 1,
         .paints_every_pixel = true,
         .enter = enter,
-        .handle_key = handle_key,
+        .handle_key = artist ? config.artist_keys : handle_key,
         .update = update,
         .draw = draw,
     };

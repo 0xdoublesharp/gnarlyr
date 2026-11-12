@@ -22,6 +22,9 @@ static void bind(AppScreens *screens)
         .player = context->player,
     };
     up_next_screen_init(&views->up_next, up_next);
+    CoverFlowConfig artist_albums = cover_flow;
+    artist_albums.artist_keys = app_screens_artist_keys;
+    cover_flow_screen_init(&views->artist_albums, artist_albums);
     QuickSettingsConfig quick = {.settings = {.store = context->settings,
                                               .headphones = context->headphones,
                                               .player = context->player,
