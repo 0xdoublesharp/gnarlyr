@@ -28,6 +28,7 @@ add_executable(echo_device
     board/overlay.c
     board/panic.c
     board/power.c
+    board/scratch.c
     board/sd.c
     board/start_info.c
     board/watchdog.c

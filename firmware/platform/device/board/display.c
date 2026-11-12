@@ -44,7 +44,10 @@ static void wake_panel(void)
 
 void board_display_clear(void)
 {
-    static uint16_t black[HAL_DISPLAY_WIDTH * CLEAR_ROWS];
+    uint16_t *black = (uint16_t *)board_scratch;
+    for (int index = 0; index < HAL_DISPLAY_WIDTH * CLEAR_ROWS; index++) {
+        black[index] = 0;
+    }
     for (int y = 0; y < HAL_DISPLAY_HEIGHT; y += CLEAR_ROWS) {
         int rows = HAL_DISPLAY_HEIGHT - y < CLEAR_ROWS ? HAL_DISPLAY_HEIGHT - y : CLEAR_ROWS;
         hal_display_write(0, y, HAL_DISPLAY_WIDTH, rows, black);
