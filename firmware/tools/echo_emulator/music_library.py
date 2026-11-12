@@ -17,7 +17,7 @@ from pathlib import Path
 from .fat_volume import Fat32Volume
 from .flac_image import BLOCK_SAMPLES, FlacImage, SAMPLE_RATE, locate, streaminfo
 
-GENERATOR_VERSION = 2
+GENERATOR_VERSION = 3
 SCRATCH = Path("/Volumes/Scratch/SnowskyEcho/data/scan-bench")
 SECTOR = 512
 SECTORS_PER_CLUSTER = 64
