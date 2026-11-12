@@ -274,9 +274,16 @@ static Rect header_band(const UsbPainter *painter)
     return row;
 }
 
-static void draw_header(const UsbPainter *painter, const char *title)
+static const char *header_title(const UsbPainter *painter, const char *title)
+{
+    bool storage = painter->status.view == APP_USB_STORAGE;
+    return storage && linked(painter) ? i18n_text(STR_USB_STATE_CONNECTED) : title;
+}
+
+static void draw_header(const UsbPainter *painter, const char *mode_title)
 {
     const Theme *theme = painter->theme;
+    const char *title = header_title(painter, mode_title);
     Rect row = header_band(painter);
     Rect second = row;
     if (theme_is_portrait(theme)) {
