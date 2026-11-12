@@ -359,7 +359,7 @@ static void open_settings_row(int from_bottom, const char *title)
     boot_with(settings_defaults(), false);
     start_playing();
     hold(KEY_BACK, 1000);
-    tap(KEY_VOLUME_UP);
+    tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     CHECK(strcmp(app_screen_title(), "Settings") == 0);
     for (int row = 0; row < from_bottom; row++) {
