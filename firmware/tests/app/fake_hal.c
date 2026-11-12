@@ -142,6 +142,7 @@ typedef struct FakeHal {
     int listing_borrows;
     int keep_alive_count;
     uint32_t idle_us;
+    HalCore1Load core1_load;
     int audio_stats_resets;
     int usb_reconnects;
     HalProbe probe_answer;
@@ -1299,6 +1300,16 @@ uint32_t hal_system_idle_microseconds(void)
 void fake_hal_set_idle_microseconds(uint32_t idle_us)
 {
     fake.idle_us = idle_us;
+}
+
+HalCore1Load hal_system_core1_load(void)
+{
+    return fake.core1_load;
+}
+
+void fake_hal_set_core1_load(uint32_t elapsed_cycles, uint32_t idle_cycles)
+{
+    fake.core1_load = (HalCore1Load){.elapsed_cycles = elapsed_cycles, .idle_cycles = idle_cycles};
 }
 
 HalProfileState hal_system_profile_state(void)

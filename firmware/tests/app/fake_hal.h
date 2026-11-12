@@ -52,6 +52,7 @@ uint32_t fake_hal_wall_reads(void);
 int fake_hal_rtc_read_count(void);
 uint32_t fake_hal_rtc_written(void);
 void fake_hal_set_idle_microseconds(uint32_t idle_us);
+void fake_hal_set_core1_load(uint32_t elapsed_cycles, uint32_t idle_cycles);
 void fake_hal_set_power_levels(uint8_t levels);
 void fake_hal_set_power_samples(uint32_t samples);
 bool fake_hal_supply_held_off(void);

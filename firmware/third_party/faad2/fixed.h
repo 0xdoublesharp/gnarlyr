@@ -165,7 +165,7 @@ static INLINE real_t arm_mul(real_t x, real_t y, unsigned int SCALEBITS)
     uint32_t __lo;
     uint32_t __result;
 
-    asm("smull  %0, %1, %3, %4\n\t"
+    __asm__("smull  %0, %1, %3, %4\n\t"
         "movs   %0, %0, lsr %5\n\t"
         "adc    %2, %0, %1, lsl %6"
         : "=&r" (__lo), "=&r" (__hi), "=r" (__result)
@@ -204,7 +204,7 @@ static INLINE real_t _MulHigh(real_t x, real_t y)
 {
     uint32_t __lo;
     uint32_t __hi;
-    asm("smull\t%0, %1, %2, %3"
+    __asm__("smull\t%0, %1, %2, %3"
         : "=&r"(__lo),"=&r"(__hi)
         : "%r"(x),"r"(y)
         : "cc");
@@ -221,7 +221,7 @@ static INLINE void ComplexMult(real_t *y1, real_t *y2,
     real_t x1, real_t x2, real_t c1, real_t c2)
 {
     int32_t tmp, yt1, yt2;
-    asm("smull %0, %1, %4, %6\n\t"
+    __asm__("smull %0, %1, %4, %6\n\t"
         "smlal %0, %1, %5, %7\n\t"
         "rsb   %3, %4, #0\n\t"
         "smull %0, %2, %5, %6\n\t"

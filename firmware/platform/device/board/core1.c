@@ -207,6 +207,15 @@ CORE_SEAM bool board_core1_streaming(void)
     return streaming;
 }
 
+HalCore1Load hal_system_core1_load(void)
+{
+    if (!streaming) {
+        return (HalCore1Load){0};
+    }
+    return (HalCore1Load){.elapsed_cycles = register_read(CORE1_SHARED_CYCLES),
+                          .idle_cycles = register_read(CORE1_SHARED_IDLE_CYCLES)};
+}
+
 HalCore1Test hal_system_core1_test(void)
 {
     if (streaming) {

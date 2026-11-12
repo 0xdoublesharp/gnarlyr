@@ -40,6 +40,10 @@
 #include "os_support.h"
 #include "mathops.h"
 #include "stack_alloc.h"
+#ifdef OPUS_PFA
+#include "pfa.h"
+#include "pfa_tables.h"
+#endif
 
 #ifndef M_PI
 #define M_PI 3.141592653
@@ -611,6 +615,72 @@ void opus_fft_impl(const kiss_fft_state *st,kiss_fft_cpx *fout ARG_FIXED(int dow
     }
     fft_downshift(fout, st->nfft, &downshift, downshift);
 }
+
+#ifdef OPUS_PFA
+/* Gnarlyr: Rockbox's prime factor driver (Copyright (c) 2026 Michael
+   Giacomelli, kiss_fft terms), ported to libopus 1.6.1's fixed-point FFT,
+   which takes the pre-rotation's headroom back out stage by stage
+   (fft_downshift).  The fifteen-point pass gets the five bits kiss_fft gives
+   its radix-3 and radix-5 stages, each radix-4 or radix-2 pass what kiss_fft
+   gives it, and the rest is removed at the end, as opus_fft_impl does.
+
+   kf_bfly4 reads nothing from the state but the twiddle table, and the prime
+   factor sub-transforms want their own: one 32-entry table serves all four
+   sizes, read with a stride. */
+static const kiss_fft_state pfa_st32 = { 0, 0,
+#ifdef FIXED_POINT
+   0,
+#endif
+   0, {0}, 0, pfa_tw32, 0 };
+
+void opus_pfa_impl(kiss_fft_cpx *fin, kiss_fft_cpx *fout, int nfft ARG_FIXED(int downshift))
+{
+   const opus_int16 *brev;
+   int M = nfft/15;
+   int n2;
+
+   switch (nfft)
+   {
+      case  60: brev = pfa_brev_4;  break;
+      case 120: brev = pfa_brev_8;  break;
+      case 240: brev = pfa_brev_16; break;
+      default:  brev = pfa_brev_32; break;
+   }
+
+   fft_downshift(fin, nfft, &downshift, 5);
+   for (n2=0;n2<M;n2++)
+      PFA_FFT15(fin + 15*n2, fout + brev[n2], M);
+
+   switch (M)
+   {
+   case 4:
+      fft_downshift(fout, nfft, &downshift, 2);
+      kf_bfly4(fout, 1, &pfa_st32, 1, 15, 4);
+      break;
+   case 8:
+      fft_downshift(fout, nfft, &downshift, 2);
+      kf_bfly4(fout, 1, &pfa_st32, 1, 2*15, 4);
+      fft_downshift(fout, nfft, &downshift, 1);
+      kf_bfly2(fout, 4, 15);
+      break;
+   case 16:
+      fft_downshift(fout, nfft, &downshift, 2);
+      kf_bfly4(fout, 1, &pfa_st32, 1, 4*15, 4);
+      fft_downshift(fout, nfft, &downshift, 2);
+      kf_bfly4(fout, 2, &pfa_st32, 4, 15, 16);
+      break;
+   default:
+      fft_downshift(fout, nfft, &downshift, 2);
+      kf_bfly4(fout, 1, &pfa_st32, 1, 8*15, 4);
+      fft_downshift(fout, nfft, &downshift, 1);
+      kf_bfly2(fout, 4, 4*15);
+      fft_downshift(fout, nfft, &downshift, 2);
+      kf_bfly4(fout, 1, &pfa_st32, 8, 15, 32);
+      break;
+   }
+   fft_downshift(fout, nfft, &downshift, downshift);
+}
+#endif /* OPUS_PFA */
 
 void opus_fft_c(const kiss_fft_state *st,const kiss_fft_cpx *fin,kiss_fft_cpx *fout)
 {

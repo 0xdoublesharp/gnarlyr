@@ -107,7 +107,7 @@ set_target_properties(echo_core1_m4a PROPERTIES
 target_include_directories(echo_core1_m4a PRIVATE board)
 target_link_libraries(echo_core1_m4a PRIVATE echo_device_logic echo_faad echo_codec echo_options gcc)
 target_link_options(echo_core1_m4a PRIVATE
-    -fno-lto
+    -flto -O2
     -T${ECHO_CORE1_M4A_LINKER_SCRIPT}
     -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_core1_m4a.map
 )
@@ -157,7 +157,7 @@ set_target_properties(echo_core1_opus PROPERTIES
 target_include_directories(echo_core1_opus PRIVATE board)
 target_link_libraries(echo_core1_opus PRIVATE echo_device_logic echo_opus echo_options gcc)
 target_link_options(echo_core1_opus PRIVATE
-    -fno-lto
+    -flto -O2
     -T${ECHO_CORE1_OPUS_LINKER_SCRIPT}
     -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_core1_opus.map
 )
@@ -411,6 +411,7 @@ if(NOT ECHO_RELEASE)
         hal_internal_file_reserve
         hal_internal_file_write
         hal_system_clock_mhz
+        hal_system_core1_load
         hal_system_idle_microseconds
         hal_system_restart_pending
         hal_system_start_info

@@ -146,6 +146,13 @@ void hal_system_stall_test(void);
 void hal_system_watchdog_test(void);
 void hal_system_keep_alive(void);
 uint32_t hal_system_idle_microseconds(void);
+
+typedef struct HalCore1Load {
+    uint32_t elapsed_cycles;
+    uint32_t idle_cycles;
+} HalCore1Load;
+
+HalCore1Load hal_system_core1_load(void);
 typedef enum HalHighRamStatus {
     HAL_HIGH_RAM_OK,
     HAL_HIGH_RAM_UNAVAILABLE,

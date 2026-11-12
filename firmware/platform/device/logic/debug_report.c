@@ -11,6 +11,7 @@
 enum {
     HEX_DIGITS = 8,
     PERCENT = 100,
+    PERMILLE = 1000,
     WRAP_FREE_UPTIME_MS = 4294967,
     KEY_MASK = 0xFF,
     GESTURE_SHIFT = 8,
@@ -531,6 +532,12 @@ static void append_share(StringBuilder *text, const char *name, uint32_t part, u
     append_field(text, name, known, known ? share_percent(part, whole) : 0);
 }
 
+static void append_permille(StringBuilder *text, const char *name, uint32_t part, uint32_t whole)
+{
+    bool known = whole >= PERMILLE && part <= whole;
+    append_field(text, name, known, known ? part / (whole / PERMILLE) : 0);
+}
+
 static void append_measured_frames(StringBuilder *text, const DebugMeasure *measure)
 {
     append_field(text, "frames", true, measure->frames);
@@ -568,6 +575,8 @@ static void put_measure(Writer *writer, const DebugMeasure *measure)
     append_measured_audio(&writer->text, measure);
     append_share(&writer->text, "core0_busy_percent", measure->clock_us - measure->idle_us,
                  measure->clock_us);
+    uint32_t core1_busy = measure->core1_cycles - measure->core1_idle_cycles;
+    append_permille(&writer->text, "core1_busy_permille", core1_busy, measure->core1_cycles);
     finish(writer);
 }
 

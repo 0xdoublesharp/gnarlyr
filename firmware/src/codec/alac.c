@@ -277,40 +277,87 @@ static void lpc_simple(int32_t *samples, uint32_t count, uint32_t shift)
     }
 }
 
-static uint32_t lpc_sum(const int32_t *taps, int32_t anchor, const AlacLpc *lpc)
+typedef struct AlacRun {
+    int32_t *samples;
+    uint32_t count;
+    uint32_t shift;
+} AlacRun;
+
+static inline __attribute__((always_inline)) uint32_t lpc_sum(const int32_t *taps, int32_t anchor,
+                                                              const int32_t *coefs, uint32_t order)
 {
     uint32_t sum = 0;
-    for (uint32_t tap = 0; tap < lpc->order; tap++) {
-        sum += ((uint32_t)taps[tap] - (uint32_t)anchor) * (uint32_t)(int32_t)lpc->coefs[tap];
+#pragma GCC unroll 32
+    for (uint32_t tap = 0; tap < order; tap++) {
+        sum += ((uint32_t)taps[tap] - (uint32_t)anchor) * (uint32_t)coefs[tap];
     }
     return sum;
 }
 
-static void lpc_adapt(AlacLpc *lpc, const int32_t *taps, int32_t anchor, int32_t error)
+static inline __attribute__((always_inline)) void lpc_adapt(int32_t *coefs, const int32_t *taps,
+                                                            int32_t error, const AlacLpc *lpc)
 {
+    int32_t anchor = taps[-1];
     int32_t direction = sign_of(error);
+#pragma GCC unroll 32
     for (uint32_t tap = 0; tap < lpc->order && error * direction > 0; tap++) {
         int32_t difference = anchor - taps[tap];
         int32_t sign = sign_of(difference) * direction;
-        lpc->coefs[tap] = (int16_t)(lpc->coefs[tap] - sign);
+        coefs[tap] = (int16_t)(coefs[tap] - sign);
         error -= ((difference * sign) >> lpc->shift) * (int32_t)(tap + 1);
     }
 }
 
+static inline __attribute__((always_inline)) void lpc_filter_order(AlacRun run, AlacLpc *lpc,
+                                                                   uint32_t order)
+{
+    int32_t coefs[ALAC_MAX_ORDER];
+    AlacLpc fixed = *lpc;
+    fixed.order = (uint8_t)order;
+    for (uint32_t tap = 0; tap < order; tap++) {
+        coefs[tap] = lpc->coefs[tap];
+    }
+    uint32_t round = lpc->shift != 0 ? 1u << (lpc->shift - 1u) : 0u;
+    for (uint32_t index = order + 1; index < run.count; index++) {
+        const int32_t *taps = run.samples + index - order;
+        int32_t anchor = taps[-1];
+        int32_t error = run.samples[index];
+        int32_t predicted = (int32_t)(lpc_sum(taps, anchor, coefs, order) + round) >> lpc->shift;
+        run.samples[index] =
+            extend_sign((uint32_t)predicted + (uint32_t)anchor + (uint32_t)error, run.shift);
+        if (error != 0) {
+            lpc_adapt(coefs, taps, error, &fixed);
+        }
+    }
+    for (uint32_t tap = 0; tap < order; tap++) {
+        lpc->coefs[tap] = (int16_t)coefs[tap];
+    }
+}
+
+static void lpc_filter_4(AlacRun run, AlacLpc *lpc)
+{
+    lpc_filter_order(run, lpc, 4);
+}
+
+static void lpc_filter_8(AlacRun run, AlacLpc *lpc)
+{
+    lpc_filter_order(run, lpc, 8);
+}
+
+static void lpc_filter_any(AlacRun run, AlacLpc *lpc)
+{
+    lpc_filter_order(run, lpc, lpc->order);
+}
+
 static void lpc_filter(int32_t *samples, uint32_t count, AlacLpc *lpc, uint32_t shift)
 {
-    uint32_t order = lpc->order;
-    uint32_t round = lpc->shift != 0 ? 1u << (lpc->shift - 1u) : 0u;
-    for (uint32_t index = order + 1; index < count; index++) {
-        const int32_t *taps = samples + index - order;
-        int32_t anchor = taps[-1];
-        int32_t error = samples[index];
-        int32_t predicted = (int32_t)(lpc_sum(taps, anchor, lpc) + round) >> lpc->shift;
-        samples[index] =
-            extend_sign((uint32_t)predicted + (uint32_t)anchor + (uint32_t)error, shift);
-        if (error != 0) {
-            lpc_adapt(lpc, taps, anchor, error);
-        }
+    AlacRun run = {.samples = samples, .count = count, .shift = shift};
+    if (lpc->order == 4) {
+        lpc_filter_4(run, lpc);
+    } else if (lpc->order == 8) {
+        lpc_filter_8(run, lpc);
+    } else {
+        lpc_filter_any(run, lpc);
     }
 }
 

@@ -4,7 +4,11 @@ include(demac.cmake)
 include(rockbox_wma.cmake)
 
 set(ECHO_LIBMAD_DIR ${PROJECT_SOURCE_DIR}/third_party/libmad)
-set(FPM_64BIT ON)
+if(CMAKE_CROSSCOMPILING)
+    set(FPM_ARM ON)
+else()
+    set(FPM_64BIT ON)
+endif()
 set(SIZEOF_INT 4)
 configure_file(${ECHO_LIBMAD_DIR}/mad.h.in ${CMAKE_CURRENT_BINARY_DIR}/libmad/mad.h @ONLY)
 add_library(echo_libmad STATIC
@@ -52,8 +56,11 @@ add_library(echo_faad STATIC
 )
 target_include_directories(echo_faad SYSTEM PUBLIC ${ECHO_FAAD_DIR})
 target_compile_definitions(echo_faad PRIVATE
-    FIXED_POINT LC_ONLY_DECODER DISABLE_SBR FAAD_NO_ARM_ASM NDEBUG HAVE_STDINT_H HAVE_STRING_H
+    FIXED_POINT LC_ONLY_DECODER DISABLE_SBR NDEBUG HAVE_STDINT_H HAVE_STRING_H
     PACKAGE_VERSION="2.11.4")
+if(NOT CMAKE_CROSSCOMPILING)
+    target_compile_definitions(echo_faad PRIVATE FAAD_NO_ARM_ASM)
+endif()
 target_compile_options(echo_faad PRIVATE -w)
 
 add_library(echo_device_logic STATIC
@@ -255,3 +262,8 @@ target_link_libraries(echo_device_logic
     PUBLIC echo_wma echo_demac echo_core echo_hal echo_codec echo_libmad echo_faad echo_tremor echo_opus
     PRIVATE echo_options
 )
+if(CMAKE_CROSSCOMPILING)
+    target_compile_options(echo_libmad PRIVATE -O3)
+    target_compile_options(echo_faad PRIVATE -O3 -flto -ffat-lto-objects)
+    target_compile_options(echo_opus PRIVATE -flto -ffat-lto-objects)
+endif()
