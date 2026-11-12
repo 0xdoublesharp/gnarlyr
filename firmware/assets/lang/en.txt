@@ -310,11 +310,6 @@ STR_USB_CARD = microSD card
 STR_USB_EJECTED = Ejected
 STR_USB_HIGH_SPEED = High speed
 STR_USB_FULL_SPEED = Full speed
-# A tiny tag after the USB screen title: the link speed (HS 480 Mbit/s, FS 12 Mbit/s); the
-# "!" marks Full Speed taken after High Speed failed.
-STR_USB_TAG_HIGH = HS
-STR_USB_TAG_FULL = FS
-STR_USB_TAG_FALLBACK = FS!
 
 # USB storage overview and details. {0} in STR_USB_FREE, STR_USB_TOTAL, STR_USB_KB, STR_USB_MB_S and
 # STR_USB_KB_S is a number or a size; {0} and {1} in STR_USB_TOTALS are sizes. {0} in the

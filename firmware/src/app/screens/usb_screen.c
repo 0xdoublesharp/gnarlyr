@@ -2,6 +2,7 @@
 
 #include "core/i18n.h"
 #include "home_art.h"
+#include "ui/icons.h"
 #include "ui/label.h"
 #include "ui/wire_figure.h"
 
@@ -23,6 +24,7 @@ enum {
     BATTERY_WIDTH = 24,
     BATTERY_HEIGHT = 12,
     BATTERY_NUB = 2,
+    TAG_LUMA_GAP = 64,
     MSC_BYTES_PER_SECTOR = 512,
     BYTES_PER_KIB = 1024,
     BYTES_PER_TENTH_MB = 100000,
@@ -209,8 +211,10 @@ static int draw_battery(const UsbPainter *painter, Rect row)
 }
 
 typedef struct SpeedTag {
-    const char *text;
+    bool shown;
+    bool bolt;
     Color ink;
+    int height;
     int width;
 } SpeedTag;
 
@@ -226,40 +230,50 @@ static bool linked(const UsbPainter *painter)
     return painter->status.view == APP_USB_STORAGE && usb_screen_shows_traffic(scene);
 }
 
-static int widest_tag(const Font *font)
+static int color_luma(Color color)
 {
-    static const StringId TAGS[] = {STR_USB_TAG_HIGH, STR_USB_TAG_FULL, STR_USB_TAG_FALLBACK};
-    int widest = 0;
-    for (size_t index = 0; index < sizeof TAGS / sizeof TAGS[0]; index++) {
-        int width = text_width(font, i18n_text(TAGS[index]));
-        widest = width > widest ? width : widest;
-    }
-    return widest;
+    int red = (color >> 11) * 255 / 31;
+    int green = (color >> 5 & 63) * 255 / 63;
+    int blue = (color & 31) * 255 / 31;
+    return (54 * red + 183 * green + 19 * blue) >> 8;
+}
+
+static Color warning_ink(const ThemeColors *colors)
+{
+    int gap = color_luma(colors->danger) - color_luma(colors->header_background);
+    gap = gap < 0 ? -gap : gap;
+    return gap >= TAG_LUMA_GAP ? colors->danger
+                               : color_between(colors->danger, colors->header_text, 1, 2);
 }
 
 static SpeedTag speed_tag(const UsbPainter *painter)
 {
     const Theme *theme = painter->theme;
-    int widest = widest_tag(theme->fonts.small);
-    const UsbScene *scene = painter->scene;
+    int height = theme->fonts.small->ascent;
+    int width = icon_width(ICON_USB, height) + icon_width(ICON_BOLT, height);
     if (!linked(painter)) {
-        return (SpeedTag){NULL, theme->colors.text_secondary, 0};
+        return (SpeedTag){.shown = false};
     }
-    StringId id = scene->high_speed  ? STR_USB_TAG_HIGH
-                  : scene->fell_back ? STR_USB_TAG_FALLBACK
-                                     : STR_USB_TAG_FULL;
-    Color ink = id == STR_USB_TAG_FALLBACK ? theme->colors.danger : theme->colors.text_secondary;
-    return (SpeedTag){i18n_text(id), ink, widest + theme->metrics.padding / 2};
+    const UsbScene *scene = painter->scene;
+    bool warn = !scene->high_speed && scene->fell_back;
+    Color ink = warn ? warning_ink(&theme->colors) : theme->colors.header_text;
+    return (SpeedTag){true, scene->high_speed, ink, height, width + theme->metrics.padding / 2};
 }
 
 static void draw_tag(const UsbPainter *painter, Rect row, int after, SpeedTag tag)
 {
-    if (tag.text == NULL) {
+    if (!tag.shown) {
         return;
     }
     int left = after + painter->theme->metrics.padding / 2;
-    usb_screen_text(painter, (Rect){left, row.y, row.x + row.width - left, row.height},
-                    (TextStyle){painter->theme->fonts.small, tag.ink}, tag.text);
+    int top = row.y + (row.height - tag.height) / 2;
+    Rect usb = {left, top, icon_width(ICON_USB, tag.height), tag.height};
+    IconInk ink = {tag.ink, tag.ink};
+    icon_draw(painter->canvas, ICON_USB, usb, ink);
+    if (tag.bolt) {
+        Rect bolt = {usb.x + usb.width, top, icon_width(ICON_BOLT, tag.height), tag.height};
+        icon_draw(painter->canvas, ICON_BOLT, bolt, ink);
+    }
 }
 
 static Rect header_band(const UsbPainter *painter)
