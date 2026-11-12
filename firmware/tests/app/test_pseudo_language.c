@@ -502,6 +502,7 @@ static void walk_parametric(void)
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     show_titled("Parametric EQ", STR_PEQ);
     tap(KEY_PLAY);
@@ -583,7 +584,7 @@ static void walk_card_format(void)
     fake_hal_set_card(
         (HalCardInfo){.present = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1}, true);
     fake_hal_set_battery((HalBattery){.known = true, .percent = 80});
-    for (int row = 0; row < 5; row++) {
+    for (int row = 0; row < 6; row++) {
         tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     }
     tap(KEY_PLAY);
@@ -598,6 +599,7 @@ static void walk_card_format(void)
 static void open_home_editor(void)
 {
     open_settings_row(0);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
@@ -728,7 +730,7 @@ static void walk_headphones(void)
     static const StringId FIELDS[] = {STR_HEADPHONE_NAME, STR_HEADPHONE_TRIM, STR_HEADPHONE_BALANCE,
                                       STR_HEADPHONE_CEILING};
     open_settings_row(0);
-    for (int row = 0; row < 6; row++) {
+    for (int row = 0; row < 7; row++) {
         tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     }
     tap(KEY_PLAY);
@@ -754,7 +756,7 @@ static void walk_headphones(void)
 static void walk_standby_settings(void)
 {
     open_settings_row(0);
-    for (int row = 0; row < 2; row++) {
+    for (int row = 0; row < 3; row++) {
         tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     }
     tap(KEY_PLAY);

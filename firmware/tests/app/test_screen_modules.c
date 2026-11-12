@@ -201,7 +201,8 @@ static void every_alternate_now_playing_style_requires_its_drawing_module(void)
     screens.now_playing.config.settings = &settings.settings;
     for (int style = 1; style <= 3; style++) {
         settings_set_now_playing_style(&settings.settings, (NowPlayingStyle)style);
-        CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &screens.now_playing.screen));
+        CHECK_EQUAL(SCREEN_MODULE_PLAYING,
+                    screen_modules_of(&screens, &screens.now_playing.screen));
     }
 }
 
