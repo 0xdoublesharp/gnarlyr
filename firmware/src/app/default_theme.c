@@ -115,6 +115,21 @@ static const ThemePalette PALETTES[APPEARANCE_THEME_COUNT] = {
      .horizon = false,
      .header_rule = false}};
 
+static const char *const PALETTE_PATHS[APPEARANCE_THEME_COUNT] = {
+    "/" FIRMWARE_DATA_DIRECTORY "/themes/graphite.bin",
+    "/" FIRMWARE_DATA_DIRECTORY "/themes/neon.bin",
+    "/" FIRMWARE_DATA_DIRECTORY "/themes/sunset.bin",
+    "/" FIRMWARE_DATA_DIRECTORY "/themes/glass.bin",
+    "/" FIRMWARE_DATA_DIRECTORY "/themes/classic.bin",
+};
+
+static bool read_palette(AppearanceTheme appearance, ThemePalette *palette)
+{
+    uint8_t bytes[THEME_PALETTE_BYTES];
+    return hal_internal_file_read(PALETTE_PATHS[appearance], bytes, sizeof bytes) &&
+           theme_palette_decode(bytes, sizeof bytes, palette);
+}
+
 void default_theme_set_appearance(Theme *theme, AppearanceTheme appearance)
 {
     if ((unsigned)appearance >= APPEARANCE_THEME_COUNT) {
@@ -124,6 +139,7 @@ void default_theme_set_appearance(Theme *theme, AppearanceTheme appearance)
         return;
     }
     ThemePalette palette = PALETTES[appearance];
+    read_palette(appearance, &palette);
     theme->colors = palette.colors;
     theme->horizon = palette.horizon;
     theme->header_rule = palette.header_rule;

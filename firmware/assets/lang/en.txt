@@ -933,7 +933,3 @@ STR_RESCAN_FIRST = Rescan the library first
 STR_FILE_DELETED = File deleted
 STR_DELETE_FILE_FAILED = Couldn't delete file
 STR_DELETE_PART_REFUSED = Part of a larger file; not deleted
-STR_THEME_DAMAGED = Damaged
-STR_THEME_VERIFIED = Verified
-STR_THEME_LOW_CONTRAST = Low contrast
-STR_THEME_CREDIT = {0} · {1}

@@ -3,9 +3,7 @@
 #include <stddef.h>
 
 #include "app_screens.h"
-#include "default_theme.h"
 #include "hal/system.h"
-#include "modules/modules.h"
 
 typedef struct ModuleSpan {
     uint32_t offset;
@@ -66,33 +64,19 @@ static void cancel_equalizer_previews(AppScreens *screens)
     }
 }
 
-static void cancel_theme_preview(AppScreens *screens)
-{
-    if (screens->context.themes != NULL && screens->context.themes->previewing) {
-        const ListeningModuleEntry *entry = hal_system_load_module(SCREEN_MODULE_LISTENING);
-        if (entry != NULL) {
-            entry->theme_restore(screens->context.themes);
-            default_theme_invalidate(screens->context.styled_theme);
-        }
-    }
-}
-
 void screen_modules_cancel_previews(AppScreens *screens)
 {
-    cancel_theme_preview(screens);
     cancel_settings_previews(screens);
     cancel_equalizer_previews(screens);
 }
 
 const ScreenModuleEntry *screen_modules_use(AppScreens *screens, ScreenModule module)
 {
-    if (screens->context.themes == NULL || !screens->context.themes->previewing) {
-        if (module != SCREEN_MODULE_SETTINGS) {
-            cancel_settings_previews(screens);
-        }
-        if (module != SCREEN_MODULE_EQUALIZER) {
-            cancel_equalizer_previews(screens);
-        }
+    if (module != SCREEN_MODULE_SETTINGS) {
+        cancel_settings_previews(screens);
+    }
+    if (module != SCREEN_MODULE_EQUALIZER) {
+        cancel_equalizer_previews(screens);
     }
     const ScreenModuleEntry *entry = hal_system_load_module((uint32_t)module);
     if (entry == NULL || entry->magic != SCREEN_MODULE_MAGIC(module)) {

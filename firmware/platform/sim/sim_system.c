@@ -76,17 +76,9 @@ const void *hal_system_load_rescan_code(void)
     return &RESCAN_MODULE_ENTRY;
 }
 
-static uint32_t loaded_module;
-
 const void *hal_system_load_module(uint32_t module)
 {
-    loaded_module = module;
     return app_linked_module(module);
-}
-
-const void *hal_system_loaded_module(void)
-{
-    return app_linked_module(loaded_module);
 }
 
 const void *hal_system_load_debug_code(void)

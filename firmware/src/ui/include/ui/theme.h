@@ -2,28 +2,14 @@
 
 #include <stdbool.h>
 
-#include "gfx/canvas.h"
 #include "gfx/color.h"
 #include "gfx/font.h"
 #include "gfx/rect.h"
 #include "ui/marquee.h"
 
 enum {
-    THEME_MAX_ROWS = 13,
-    THEME_ART_HOME = 1,
-    THEME_ART_NOW_PLAYING = 2,
-    THEME_ART_LIST = 3,
-    THEME_ART_SPLASH = 4,
-    THEME_ART_CASSETTE_LABEL = 5,
-    THEME_ART_ICON = 256
+    THEME_MAX_ROWS = 13
 };
-
-typedef struct ThemeArtRequest {
-    Rect area;
-    uint16_t slot;
-    uint8_t orientation;
-    uint8_t text_size;
-} ThemeArtRequest;
 
 typedef struct ThemeColors {
     Color background;
@@ -79,8 +65,6 @@ typedef struct Theme {
     bool status_bar_compact;
     bool horizon;
     bool header_rule;
-    void *art_context;
-    bool (*draw_art)(const struct Theme *theme, Canvas *canvas, int slot, Rect area);
 } Theme;
 
 Rect theme_header_area(const Theme *theme);
@@ -88,5 +72,3 @@ Rect theme_content_area(const Theme *theme);
 int theme_visible_rows(const Theme *theme);
 bool theme_is_portrait(const Theme *theme);
 Rect theme_title_area(const Theme *theme);
-bool theme_art_draw(const Theme *theme, Canvas *canvas, int slot, Rect area);
-void theme_background_draw(const Theme *theme, Canvas *canvas, int slot, Rect area);

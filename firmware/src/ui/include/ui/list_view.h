@@ -48,7 +48,6 @@ typedef struct ListView {
     uint32_t selection_changed_ms;
     uint32_t scroll_started_ms;
     uint32_t section_shown_until_ms;
-    uint8_t background;
 } ListView;
 
 void list_view_init(ListView *view, const ListModel *model, const Theme *theme, uint32_t now_ms);
