@@ -661,6 +661,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      NULL},
     {STR_BATTERY_PERCENTAGE, OFF_ON_OPTIONS, 2, current_battery_percent, choose_battery_percent,
      NULL, NULL},
+    {STR_PLAYBACK_SPEED, SETTINGS_SPEED_LABELS, SETTINGS_SPEED_COUNT, settings_action_current_speed,
+     settings_action_choose_speed, NULL, NULL},
     {STR_REWIND_ON_RESUME, OFF_ON_OPTIONS, 2, current_rewind, choose_rewind, NULL, NULL},
     {STR_SAFE_START_VOLUME, NULL, SAFE_VOLUME_OPTION_COUNT, current_safe_volume, choose_safe_volume,
      describe_safe_volume, extend_safe_volume},

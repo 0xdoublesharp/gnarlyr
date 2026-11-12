@@ -29,9 +29,16 @@ add_library(echo_sim_storage STATIC sim_storage.c)
 target_include_directories(echo_sim_storage PUBLIC .)
 target_link_libraries(echo_sim_storage PUBLIC echo_hal PRIVATE echo_playback echo_options)
 
+add_library(echo_sim_audio STATIC sim_audio.c)
+target_include_directories(echo_sim_audio PUBLIC .)
+target_link_libraries(echo_sim_audio PUBLIC echo_sim_decoder echo_sim_storage
+    PRIVATE echo_device_logic echo_options SDL2::SDL2)
+if(UNIX)
+    target_link_libraries(echo_sim_audio PRIVATE m)
+endif()
+
 add_executable(echo_sim
     main.c
-    sim_audio.c
     sim_bluetooth.c
     sim_clock.c
     sim_display.c
@@ -40,4 +47,4 @@ add_executable(echo_sim
     sim_system.c
 )
 target_compile_definitions(echo_sim PRIVATE SDL_MAIN_HANDLED)
-target_link_libraries(echo_sim PRIVATE echo_app echo_device_logic echo_sim_glyphs echo_sim_language echo_library_scan echo_sim_options echo_sim_decoder echo_sim_storage echo_options SDL2::SDL2)
+target_link_libraries(echo_sim PRIVATE echo_sim_audio echo_app echo_device_logic echo_sim_glyphs echo_sim_language echo_library_scan echo_sim_options echo_sim_decoder echo_sim_storage echo_options SDL2::SDL2)

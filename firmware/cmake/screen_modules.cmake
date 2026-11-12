@@ -4,8 +4,11 @@ set(ECHO_SCREEN_MODULE_SOURCES_process
     src/core/parametric.c
     src/core/parametric_curve.c
     src/core/parametric_bound.c
+    platform/device/logic/audio_engine_stage.c
     platform/device/logic/audio_process_entry.c
     platform/device/logic/audio_trig.c
+    platform/device/logic/audio_tempo.c
+    platform/device/logic/audio_tempo_stage.c
     platform/device/logic/equalizer_design.c
     platform/device/logic/equalizer.c
 )

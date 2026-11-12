@@ -6,6 +6,7 @@
 #include "core/parametric.h"
 
 #include "core/replay_gain.h"
+#include "core/strings.h"
 #include "playback/play_queue.h"
 
 typedef enum GainLevel {
@@ -160,6 +161,8 @@ enum {
     SETTINGS_TRANSITION_TENTHS_MIN = 5,
     SETTINGS_TRANSITION_TENTHS_MAX = 60,
     SETTINGS_DEFAULT_TRANSITION_TENTHS = 15,
+    SETTINGS_SPEED_COUNT = 9,
+    SETTINGS_SPEED_NORMAL = 2,
     SETTINGS_HOME_ITEM_COUNT = 10,
     SETTINGS_HOME_NOW_PLAYING_ITEM = 4,
     SETTINGS_HOME_SETTINGS_ITEM = 3,
@@ -227,6 +230,7 @@ typedef struct Settings {
     uint8_t crossfeed;
     bool skip_silence;
     bool speech_boost;
+    uint8_t playback_speed;
 } Settings;
 
 typedef struct SettingsEqualizerCurve {
@@ -252,6 +256,9 @@ SettingsEqualizerCurve settings_equalizer_curve(const Settings *settings);
 void settings_encode(const Settings *settings, uint8_t *bytes);
 bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings);
 bool settings_home_unpack(const uint8_t *packed, int item_count, uint8_t *order, uint16_t *hidden);
+uint16_t settings_speed_percent(int option);
+
+extern const StringId SETTINGS_SPEED_LABELS[SETTINGS_SPEED_COUNT];
 
 ButtonAction settings_default_button_action(PlaybackButton button);
 ButtonAction settings_button_action(const Settings *settings, PlaybackButton button);

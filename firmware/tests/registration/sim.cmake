@@ -16,6 +16,13 @@ if(ECHO_BUILD_SIM)
     target_compile_definitions(test_sim_decoder PRIVATE
         ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
     )
+    echo_add_unit_test(NAME test_sim_audio
+        SOURCES sim/test_sim_audio.c
+        LIBRARIES echo_sim_audio
+    )
+    target_compile_definitions(test_sim_audio PRIVATE
+        ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+    )
     echo_add_unit_test(NAME test_sim_storage
         SOURCES sim/test_sim_storage.c
         LIBRARIES echo_sim_storage echo_playback

@@ -1,6 +1,7 @@
 #include "browse_sections.h"
 #include "modules/modules.h"
 #include "screens/charge_screen.h"
+#include "settings_actions.h"
 
 static void bind(AppScreens *screens)
 {
@@ -28,7 +29,11 @@ static void bind(AppScreens *screens)
                                               .toast = context->toast},
                                  .theme = context->theme,
                                  .lyrics = &screens->modules.listening.lyrics.screen,
-                                 .up_next = &views->up_next.screen};
+                                 .up_next = &views->up_next.screen,
+                                 .speed = {.context = &views->quick_settings.config.settings,
+                                           .available = settings_action_speed_available,
+                                           .value = settings_action_speed_text,
+                                           .cycle = settings_action_cycle_speed}};
     quick_settings_screen_init(&views->quick_settings, quick);
     cover_flow_screen_init(&views->cover_flow, cover_flow);
 }

@@ -137,3 +137,34 @@ void settings_action_choose_transition(void *context, int index)
                    hal_clock_milliseconds());
     }
 }
+
+int settings_action_current_speed(const void *context)
+{
+    uint8_t speed = settings_of(context)->playback_speed;
+    return speed < SETTINGS_SPEED_COUNT ? speed : SETTINGS_SPEED_NORMAL;
+}
+
+void settings_action_choose_speed(void *context, int index)
+{
+    SettingsContext *settings = context;
+    editable_settings(context)->playback_speed = (uint8_t)index;
+    player_set_speed(settings->player, settings_speed_percent(index));
+    settings_action_save(settings);
+}
+
+bool settings_action_speed_available(const void *context)
+{
+    const SettingsContext *settings = context;
+    return settings->store != NULL && settings->player != NULL;
+}
+
+const char *settings_action_speed_text(const void *context)
+{
+    return i18n_text(SETTINGS_SPEED_LABELS[settings_action_current_speed(context)]);
+}
+
+void settings_action_cycle_speed(void *context)
+{
+    settings_action_choose_speed(context, (settings_action_current_speed(context) + 1) %
+                                              SETTINGS_SPEED_COUNT);
+}

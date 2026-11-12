@@ -7,6 +7,7 @@
 #include "device/audio_effects.h"
 #include "device/audio_fade.h"
 #include "device/audio_resample.h"
+#include "device/audio_tempo.h"
 #include "device/equalizer.h"
 #include "hal/audio.h"
 
@@ -69,6 +70,7 @@ typedef struct AudioEngineConfig {
     AudioSource source;
     uint32_t *ring;
     uint32_t ring_words;
+    uint32_t stretch_words;
     Equalizer *equalizer;
     bool (*prepare_resample)(void);
     uint32_t (*resample_render)(AudioResample *resample, uint32_t *words, uint32_t frames);
@@ -104,6 +106,7 @@ typedef struct AudioSegment {
     uint32_t skipped;
     AudioTrackInfo track;
     char path[AUDIO_ENGINE_PATH_CAPACITY];
+    uint16_t speed;
 } AudioSegment;
 
 typedef struct AudioEngineStatus {
@@ -164,6 +167,10 @@ typedef struct AudioEngine {
     uint32_t left_gain;
     uint32_t right_gain;
     AudioEffects effects;
+    uint32_t ring_capacity;
+    uint16_t speed;
+    bool stretching;
+    bool draining;
 } AudioEngine;
 
 void audio_engine_init(AudioEngine *engine, AudioEngineConfig config);
@@ -191,3 +198,4 @@ AudioEngineStatus audio_engine_status(const AudioEngine *engine);
 AudioRefusal audio_engine_refusal(const AudioEngine *engine);
 
 void audio_engine_set_replay_gain(AudioEngine *engine, uint32_t token, uint32_t gain);
+void audio_engine_set_speed(AudioEngine *engine, uint16_t speed);

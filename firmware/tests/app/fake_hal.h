@@ -112,6 +112,7 @@ void fake_hal_audio_set_dac_identity(int chip, DacIdentity identity);
 uint32_t fake_hal_dma_tone_rate(void);
 void fake_hal_audio_set_refusal(HalAudioRefusal refusal);
 void fake_hal_audio_set_position(uint32_t position_ms);
+uint16_t fake_hal_audio_speed(void);
 void fake_hal_audio_set_format(HalAudioFormat format);
 void fake_hal_audio_set_token(uint32_t token);
 int fake_hal_audio_seek_count(void);

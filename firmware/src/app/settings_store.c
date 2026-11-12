@@ -161,6 +161,7 @@ void settings_store_restore_playback(const SettingsStore *store, Player *player,
     player_set_rewind(player, settings->rewind_on_resume);
     player_set_transitions(player, settings->track_transition != TRACK_TRANSITION_OFF,
                            settings->transition_tenths);
+    player_set_speed(player, settings_speed_percent(settings->playback_speed));
 }
 
 void settings_store_apply_equalizer(const Settings *settings)

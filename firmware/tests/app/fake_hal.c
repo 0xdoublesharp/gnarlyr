@@ -44,6 +44,7 @@ typedef struct FakeAudio {
     uint32_t queued_token;
     uint32_t replay_gain;
     uint32_t queued_replay_gain;
+    uint16_t speed;
     uint32_t queued_fade_ms;
     uint32_t play_fade_ms;
     int seek_count;
@@ -2026,6 +2027,16 @@ void hal_audio_set_replay_gain(uint32_t token, uint32_t gain)
     if (fake.audio.has_queued && fake.audio.queued_token == token) {
         fake.audio.queued_replay_gain = gain != 0 ? gain : 65536;
     }
+}
+
+void hal_audio_set_speed(uint16_t speed)
+{
+    fake.audio.speed = speed;
+}
+
+uint16_t fake_hal_audio_speed(void)
+{
+    return fake.audio.speed;
 }
 
 uint32_t fake_hal_audio_replay_gain(void)

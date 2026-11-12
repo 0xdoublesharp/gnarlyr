@@ -161,7 +161,7 @@ static void replay_gain_and_transitions_reuse_saved_settings(void)
 {
     start_with(settings_defaults());
     open_panel();
-    select_row(5);
+    select_row(6);
     tap(KEY_PLAY);
     CHECK_EQUAL(TRACK_TRANSITION_FADE, saved().track_transition);
     tap(KEY_VOLUME_UP);
@@ -173,11 +173,29 @@ static void replay_gain_and_transitions_reuse_saved_settings(void)
     CHECK_EQUAL(REPLAY_GAIN_OFF, saved().replay_gain_mode);
 }
 
+static void playback_speed_steps_applies_and_wraps_to_the_slowest(void)
+{
+    start_with(settings_defaults());
+    int plays = fake_hal_audio_play_count();
+    open_panel();
+    select_row(4);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(SETTINGS_SPEED_NORMAL + 1, saved().playback_speed);
+    CHECK_EQUAL(125, fake_hal_audio_speed());
+    for (int step = SETTINGS_SPEED_NORMAL + 1; step < SETTINGS_SPEED_COUNT; step++) {
+        tap(KEY_PLAY);
+    }
+    CHECK_EQUAL(0, saved().playback_speed);
+    CHECK_EQUAL(50, fake_hal_audio_speed());
+    CHECK_EQUAL(plays, fake_hal_audio_play_count());
+    CHECK(strcmp(app_screen_title(), "Quick Settings") == 0);
+}
+
 static void lyrics_and_up_next_open_and_back_returns_to_the_panel(void)
 {
     start_with(settings_defaults());
     open_panel();
-    select_row(7);
+    select_row(8);
     tap(KEY_PLAY);
     CHECK(strcmp(app_screen_title(), "Lyrics") == 0);
     tap(KEY_BACK);
@@ -215,6 +233,7 @@ int main(void)
         TEST_CASE(shuffle_and_repeat_cycle_and_survive_reload),
         TEST_CASE(equalizer_changes_immediately_and_saves_without_reopening_the_track),
         TEST_CASE(replay_gain_and_transitions_reuse_saved_settings),
+        TEST_CASE(playback_speed_steps_applies_and_wraps_to_the_slowest),
         TEST_CASE(lyrics_and_up_next_open_and_back_returns_to_the_panel),
         TEST_CASE(the_panel_owns_volume_and_play_even_with_playback_remaps),
     };
