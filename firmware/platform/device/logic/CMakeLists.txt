@@ -135,7 +135,9 @@ add_library(echo_device_logic STATIC
     loader_request.c
     key_ladder.c
     headset_dips.c
+    headset_dips_view.c
     headset_monitor.c
+    headset_monitor_reading.c
     headset_remote.c
     key_scanner.c
     m4a_stream.c

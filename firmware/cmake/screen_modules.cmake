@@ -139,6 +139,9 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
+    platform/device/board/headset_reading.c
+    platform/device/logic/headset_dips_view.c
+    platform/device/logic/headset_monitor_reading.c
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
     src/app/mixtape_store.c

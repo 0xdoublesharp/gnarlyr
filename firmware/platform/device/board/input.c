@@ -170,16 +170,6 @@ bool hal_input_next_headset_command(HalHeadsetCommand *command)
     return found;
 }
 
-HalHeadsetReading hal_input_headset_reading(void)
-{
-    uint32_t now_ms = hal_clock_milliseconds();
-    uint32_t primask = irq_save();
-    watched_scans = WATCHED_SCANS;
-    HalHeadsetReading reading = headset_monitor_reading(&headset, now_ms);
-    irq_restore(primask);
-    return reading;
-}
-
 CORE_SEAM void board_wait_for_power_hold(uint32_t hold_ms)
 {
     uint32_t pressed_at_ms = hal_clock_milliseconds();
@@ -215,4 +205,10 @@ CORE_SEAM void board_wait_for_key(void)
             return;
         }
     }
+}
+
+const HeadsetMonitor *board_input_watch_headset(void)
+{
+    watched_scans = WATCHED_SCANS;
+    return &headset;
 }

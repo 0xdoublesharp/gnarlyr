@@ -98,6 +98,8 @@ uint32_t board_audio_stream_consumed(void);
 void board_audio_stream_close(void);
 void board_audio_stream_service(void);
 struct CardFormat *board_audio_lend_format(void);
+struct HeadsetMonitor;
+const struct HeadsetMonitor *board_input_watch_headset(void);
 void board_audio_return_format(void);
 bool board_audio_workspace_lent(void);
 bool board_input_take_key_press(void);
