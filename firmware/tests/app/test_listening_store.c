@@ -346,9 +346,108 @@ static void an_unknown_duration_does_not_discard_elapsed_time_on_a_track_change(
     CHECK_EQUAL(1500, seen.listened_ms);
 }
 
+static void slower_audio_counts_wall_time_instead_of_source_distance(void)
+{
+    reset();
+    ListeningObservation play = observed(10, 0, PLAYER_PLAYING);
+    play.status.speed = 50;
+    listening_store_follow(&store, play, 0);
+    play.status.position_ms = 500;
+    listening_store_follow(&store, play, 1000);
+    play.status.position_ms = 1000;
+    play.status.state = PLAYER_PAUSED;
+    listening_store_flush(&store, play, 2000);
+    CHECK_EQUAL(2000, store.log.root.counters.totals.listened_ms);
+}
+
+static void stepped_observations_at_every_speed_keep_the_wall_time(void)
+{
+    static const uint16_t SPEEDS[] = {50, 75, 90, 100, 110, 125, 150, 175, 200, 250, 300};
+    for (uint32_t index = 0; index < sizeof SPEEDS / sizeof SPEEDS[0]; index++) {
+        reset();
+        ListeningObservation play = observed(10, 0, PLAYER_PLAYING);
+        play.status.speed = SPEEDS[index];
+        listening_store_follow(&store, play, 0);
+        for (uint32_t now = 17; now <= 1700; now += 17) {
+            play.status.position_ms = now * SPEEDS[index] / 100;
+            listening_store_follow(&store, play, now);
+        }
+        CHECK_EQUAL(1700, store.active.listened_ms);
+        CHECK_EQUAL(1700 * SPEEDS[index] / 100, store.active.end_ms);
+    }
+}
+
+static void a_track_change_closes_at_the_source_end_and_counts_wall_time(void)
+{
+    static const uint16_t SPEEDS[] = {50, 200, 300};
+    for (uint32_t index = 0; index < sizeof SPEEDS / sizeof SPEEDS[0]; index++) {
+        reset();
+        ListeningObservation play = observed(10, 59000, PLAYER_PLAYING);
+        play.status.speed = SPEEDS[index];
+        listening_store_follow(&store, play, 0);
+        listening_store_follow(&store, (ListeningObservation){0}, 3000);
+        ListeningSeen seen;
+        CHECK_EQUAL(0, listening_fixture_read_all(&store.log, &seen));
+        CHECK_EQUAL(1, seen.count);
+        CHECK_EQUAL((100000u + SPEEDS[index] - 1) / SPEEDS[index], seen.listened_ms);
+        CHECK_EQUAL(60000, seen.first.play.end_ms);
+        CHECK_EQUAL(LISTENING_FINISHED, seen.first.play.end);
+    }
+}
+
+static void the_player_reports_the_speed_it_asked_the_audio_to_use(void)
+{
+    start_real_playback();
+    CHECK_EQUAL(100, player_status(&player).speed);
+    player_set_speed(&player, 150);
+    CHECK_EQUAL(150, player_status(&player).speed);
+    CHECK_EQUAL(150, fake_hal_audio_speed());
+}
+
+static void incomplete_or_idle_observations_do_not_start_history(void)
+{
+    reset();
+    ListeningObservation observation = observed(1, 0, PLAYER_PLAYING);
+    observation.status.has_track = false;
+    listening_store_follow(&store, observation, 0);
+    CHECK(!store.following);
+
+    observation = observed(2, 0, PLAYER_IDLE);
+    listening_store_follow(&store, observation, 1);
+    CHECK(!store.following);
+
+    observation = observed(3, 0, PLAYER_PLAYING);
+    observation.status.track = UINT16_MAX;
+    listening_store_follow(&store, observation, 2);
+    CHECK(!store.following);
+
+    store.library = NULL;
+    observation = observed(4, 0, PLAYER_PLAYING);
+    listening_store_follow(&store, observation, 3);
+    CHECK(!store.following);
+}
+
+static void every_lossless_codec_is_classified_as_lossless(void)
+{
+    static const HalAudioCodec codecs[] = {HAL_AUDIO_CODEC_FLAC, HAL_AUDIO_CODEC_WAV,
+                                           HAL_AUDIO_CODEC_ALAC, HAL_AUDIO_CODEC_AAC};
+    for (uint32_t index = 0; index < sizeof codecs / sizeof codecs[0]; index++) {
+        reset();
+        ListeningObservation observation = observed(index + 1, 0, PLAYER_PLAYING);
+        observation.status.format.codec = codecs[index];
+        listening_store_follow(&store, observation, 0);
+        CHECK(store.following);
+        CHECK_EQUAL(listening_format_class(index < 3, 44100, 16), store.active.format);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(slower_audio_counts_wall_time_instead_of_source_distance),
+        TEST_CASE(stepped_observations_at_every_speed_keep_the_wall_time),
+        TEST_CASE(a_track_change_closes_at_the_source_end_and_counts_wall_time),
+        TEST_CASE(the_player_reports_the_speed_it_asked_the_audio_to_use),
         TEST_CASE(the_real_last_track_is_recorded_finished_when_the_player_becomes_idle),
         TEST_CASE(an_idle_remembered_track_does_not_start_a_new_history_play),
         TEST_CASE(time_after_the_audio_endpoint_is_not_counted_as_listening),
@@ -365,6 +464,8 @@ int main(void)
         TEST_CASE(a_failed_write_is_retried_once_without_duplicate_counts),
         TEST_CASE(an_uncertain_commit_is_reloaded_before_a_retry),
         TEST_CASE(export_lookup_rejects_an_identity_that_now_names_another_track),
+        TEST_CASE(incomplete_or_idle_observations_do_not_start_history),
+        TEST_CASE(every_lossless_codec_is_classified_as_lossless),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -401,6 +401,37 @@ static void a_marquee_cannot_scroll_text_through_the_icon(void)
     }
 }
 
+static int text_mask(const Canvas *canvas, Rect row, Color ink, bool *mask)
+{
+    int count = 0;
+    for (int y = 0; y < row.height; y++) {
+        for (int x = 0; x < row.width; x++) {
+            mask[y * row.width + x] = canvas_pixel_at(canvas, row.x + x, row.y + y) == ink;
+            count += mask[y * row.width + x] ? 1 : 0;
+        }
+    }
+    return count;
+}
+
+static void a_selected_label_at_rest_is_cut_with_an_ellipsis_like_the_others(void)
+{
+    ListView view = list_of(2);
+    model.label = long_label;
+    Canvas canvas = ui_test_canvas();
+    Rect row = {0, row_rect(0).y, TEST_SCREEN_WIDTH, TEST_ROW_HEIGHT};
+    bool selected[TEST_SCREEN_WIDTH * TEST_ROW_HEIGHT];
+    bool plain[TEST_SCREEN_WIDTH * TEST_ROW_HEIGHT];
+    list_view_draw(&view, &canvas, theme_content_area(&TEST_THEME), 0);
+    int inked = text_mask(&canvas, row, TEST_THEME.colors.selection_text, selected);
+    list_view_select(&view, 1, 0);
+    list_view_draw(&view, &canvas, theme_content_area(&TEST_THEME), 0);
+    text_mask(&canvas, row, TEST_THEME.colors.text, plain);
+    CHECK(inked > 0);
+    for (int at = 0; at < TEST_SCREEN_WIDTH * TEST_ROW_HEIGHT; at++) {
+        CHECK_EQUAL(plain[at], selected[at]);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -409,6 +440,7 @@ int main(void)
         TEST_CASE(selected_icons_use_only_the_selected_text_ink),
         TEST_CASE(a_long_detail_cannot_paint_over_the_icon),
         TEST_CASE(a_marquee_cannot_scroll_text_through_the_icon),
+        TEST_CASE(a_selected_label_at_rest_is_cut_with_an_ellipsis_like_the_others),
         TEST_CASE(fitting_taller_rows_keeps_the_selection_on_screen),
         TEST_CASE(fitting_shorter_rows_fills_the_screen_to_the_last_item),
         TEST_CASE(moving_within_the_page_keeps_the_top),

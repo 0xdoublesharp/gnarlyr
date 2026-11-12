@@ -1054,9 +1054,81 @@ static void a_failed_order_write_keeps_the_current_track_playing(void)
     CHECK_EQUAL(PLAYER_PLAYING, after.state);
 }
 
+static void name_sorted_results_and_pickers_offer_sections(void)
+{
+    start();
+    discovery.query.sort = LIBRARY_VIEW_SORT_TITLE;
+    explore();
+    CHECK(discovery.model.section != NULL);
+    if (discovery.model.section != NULL) {
+        CHECK_EQUAL(LIST_SECTION_FIRST_LETTER, discovery.model.section(&discovery, 0));
+    }
+    CHECK(discovery.model.sections != NULL);
+    if (discovery.model.sections != NULL) {
+        CHECK_EQUAL(8, discovery.model.sections(&discovery, 0).end);
+    }
+}
+
+static void play_all_stores_album_order_and_restores_the_same_queue(void)
+{
+    start();
+    fake_hal_add_file(PLAYER_SESSION_PATH, NULL, 4096);
+    player_init(&playback_player, &fixture.library);
+    player_restore(&playback_player);
+    player_set_shuffle(&playback_player, SHUFFLE_SONGS, 17);
+    discovery.config.player = &playback_player;
+    BrowseQuery source = browse_root_query(BROWSE_GROUP_ALBUMS);
+    source.subject = 3;
+    discovery_screen_albums(&discovery, source);
+    CHECK_EQUAL(2, discovery.model.count(&discovery));
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_REQUEST_ALBUMS, discovery.request);
+    for (uint32_t step = 0; step < 1000 && discovery.request != DISCOVERY_REQUEST_NONE; step++) {
+        discovery_playback_step(&discovery, step);
+    }
+    CHECK_EQUAL(DISCOVERY_REQUEST_NONE, discovery.request);
+    CHECK_EQUAL(PLAYER_PLAYING, player_status(&playback_player).state);
+    CHECK_EQUAL(5, player_status(&playback_player).track);
+    CHECK(player_save(&playback_player));
+    player_init(&playback_player, &fixture.library);
+    CHECK(player_restore(&playback_player));
+    CHECK_EQUAL(5, player_status(&playback_player).track);
+    uint16_t tracks[4] = {0};
+    CHECK(track_order_read(&playback_player.storage.order, 0, 4, tracks));
+    static const uint16_t EXPECTED[] = {5, 6, 2, 3};
+    for (int index = 0; index < 4; index++) {
+        CHECK_EQUAL(EXPECTED[index], tracks[index]);
+    }
+}
+
+static void cancelling_album_preparation_keeps_the_current_queue(void)
+{
+    start();
+    fake_hal_add_file(PLAYER_SESSION_PATH, NULL, 4096);
+    player_init(&playback_player, &fixture.library);
+    player_restore(&playback_player);
+    CHECK(player_play_list(&playback_player, browse_root_query(BROWSE_ALL_SONGS), 0, 7));
+    PlayerStatus before = player_status(&playback_player);
+    discovery.config.player = &playback_player;
+    BrowseQuery source = browse_root_query(BROWSE_GROUP_ALBUMS);
+    source.subject = 3;
+    discovery_screen_albums(&discovery, source);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK(discovery.shuffle_albums);
+    discovery_playback_step(&discovery, 0);
+    CHECK_EQUAL(SCREEN_ACTION_POP, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+    discovery_playback_cancel(&discovery);
+    CHECK_EQUAL(before.track, player_status(&playback_player).track);
+    CHECK_EQUAL(PLAYER_PLAYING, player_status(&playback_player).state);
+}
+
 int main(void)
 {
     const TestCase cases[] = {
+        TEST_CASE(name_sorted_results_and_pickers_offer_sections),
+        TEST_CASE(play_all_stores_album_order_and_restores_the_same_queue),
+        TEST_CASE(cancelling_album_preparation_keeps_the_current_queue),
         TEST_CASE(every_active_constraint_is_visible_in_the_results_summary),
         TEST_CASE(a_search_with_no_matches_displays_an_empty_state),
         TEST_CASE(playback_without_a_player_fails_without_losing_search_results),

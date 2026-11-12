@@ -183,6 +183,34 @@ static void generation_wrap_and_false_write_results_use_readback(void)
     CHECK_EQUAL(3, profiles.current);
 }
 
+static void malformed_record_fields_are_rejected_independently(void)
+{
+    HeadphoneFile owner = reset();
+    HeadphoneProfiles profiles = sample();
+    CHECK_EQUAL(STORE_DONE, headphone_file_save(&owner, &profiles));
+    uint8_t valid[HEADPHONE_FILE_BYTES];
+    memcpy(valid, disk, sizeof valid);
+
+    store_put32(disk + 20, 1);
+    hash_store(disk + 24, hash_update(HASH_START, disk, 24));
+    CHECK_EQUAL(STORE_CORRUPT, headphone_file_open(&owner, file(), &profiles));
+    memcpy(disk, valid, sizeof disk);
+    store_put16(disk + 6, 1);
+    hash_store(disk + 24, hash_update(HASH_START, disk, 24));
+    CHECK_EQUAL(STORE_CORRUPT, headphone_file_open(&owner, file(), &profiles));
+    memcpy(disk, valid, sizeof disk);
+    store_put32(disk + 12, HEADPHONE_PROFILES_FILE_SIZE - 1);
+    hash_store(disk + 24, hash_update(HASH_START, disk, 24));
+    CHECK_EQUAL(STORE_CORRUPT, headphone_file_open(&owner, file(), &profiles));
+    memcpy(disk, valid, sizeof disk);
+    disk[STORE_FIELD_BYTES] = UINT8_MAX;
+    hash_store(disk + 16,
+               hash_update(HASH_START, disk + STORE_FIELD_BYTES, HEADPHONE_PROFILES_FILE_SIZE));
+    hash_store(disk + 24, hash_update(HASH_START, disk, 24));
+    CHECK_EQUAL(STORE_CORRUPT, headphone_file_open(&owner, file(), &profiles));
+    CHECK_EQUAL(STORE_UNREADABLE, headphone_file_open(&owner, file(), NULL));
+}
+
 int main(void)
 {
     const TestCase cases[] = {
@@ -192,6 +220,7 @@ int main(void)
         TEST_CASE(damaged_newest_falls_back_and_future_formats_are_preserved),
         TEST_CASE(short_and_unreadable_files_and_invalid_models_never_write),
         TEST_CASE(generation_wrap_and_false_write_results_use_readback),
+        TEST_CASE(malformed_record_fields_are_rejected_independently),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

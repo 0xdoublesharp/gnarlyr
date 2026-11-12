@@ -39,6 +39,7 @@ enum {
 
 static UsbShared *shared;
 static bool card_present;
+static bool eject_card;
 static UsbPort port;
 static Msc msc;
 static UsbFallback fallback;
@@ -83,6 +84,7 @@ static void prepare_luns(void)
         {sd_read, sd_write, NULL, sd_sector_count(), true, card_ready, "SD card"},
     };
     card_present = card_ready;
+    eject_card = false;
     msc_init(&msc, luns, LUN_COUNT);
     msc_use_write_buffer(&msc, write_buffer, WRITE_BUFFER_SECTORS);
 }
@@ -161,11 +163,13 @@ static const char *storage_detail(void)
 
 static AppUsbStatus storage_status(void)
 {
-    return (AppUsbStatus){
-        .view = APP_USB_STORAGE,
-        .information = i18n_text(card_present ? STR_POWER_INTERNAL_CARD : STR_POWER_INTERNAL),
-        .detail = storage_detail(),
-        .scene = &scene};
+    return (AppUsbStatus){.view = APP_USB_STORAGE,
+                          .information = i18n_text(!shared->report.internal_ready
+                                                       ? STR_POWER_INTERNAL_UNAVAILABLE
+                                                   : card_present ? STR_POWER_INTERNAL_CARD
+                                                                  : STR_POWER_INTERNAL),
+                          .detail = storage_detail(),
+                          .scene = &scene};
 }
 
 static void show_storage_state(void)
@@ -232,6 +236,9 @@ static void follow_keys(void)
 {
     HalKeyTransition key;
     while (hal_input_next_transition(&key)) {
+        if (key.key == KEY_PLAY && key.pressed && card_present) {
+            eject_card = true;
+        }
         if (key.key == KEY_BACK) {
             usb_leave_key(&leave, key.pressed, key.time_ms);
         }
@@ -303,9 +310,31 @@ typedef struct SessionWatch {
     UsbLeaveState state;
 } SessionWatch;
 
+static void follow_card(void)
+{
+    if (msc.phase != MSC_PHASE_COMMAND) {
+        return;
+    }
+    if (eject_card) {
+        sd_eject(true);
+        eject_card = false;
+    }
+    BlockDevice device;
+    bool ready = sd_start(&device);
+    bool changed = ready != card_present;
+    if (changed) {
+        msc_set_media(&msc, CARD_LUN, ready, ready ? sd_sector_count() : 0);
+    }
+    card_present = ready;
+    if (changed) {
+        show_storage_state();
+    }
+}
+
 static void watch_session(SessionWatch *watch, uint32_t now)
 {
     watch->followed = now;
+    follow_card();
     watch->state = follow_leave(now);
     if (scene_follow(watch->state, now)) {
         show_storage_state();
@@ -362,7 +391,7 @@ static void remember_session(UsbSessionEnd end)
 static UsbSessionEnd run(void)
 {
     app_show_usb_status(
-        (AppUsbStatus){.view = APP_USB_CONNECTING, .detail = i18n_text(STR_USB_STARTING)});
+        (AppUsbStatus){.view = APP_USB_CONNECTING, .detail = i18n_text(STR_PLUG_COMPUTER_LINE)});
     fallback = (UsbFallback){.watching = false};
     forced = (UsbForced){0};
     leave = (UsbLeave){0};

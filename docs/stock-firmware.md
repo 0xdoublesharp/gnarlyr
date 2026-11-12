@@ -62,10 +62,13 @@ The display code is in module 4: file offset `0x59b18`, loads at `0x0307e48c`, 1
 - The register writer (`0x03060f00`) sends three address bytes, an auto-increment byte and the value to bus addresses `0x60` and `0x66` (7-bit `0x30` and `0x33`). It sets the channel map registers `0x05000a` and `0x05000b` to 7 and 15, and applies balance to the volume registers `0x090001` and `0x090002`.
 - The reader is `0x0306101c`, using the same addressing for both chips.
 - The parts are two CS43198, as FiiO lists. On the owner's ECHO (4 GB) both chips report ID `43 19 80`, revision `A1`, subrevision `06` (Doublesharp Echo 1.0.0, Settings → About, read 2026-11-09). Some inherited code names still say CS43131; the register sequence is stock's either way.
-- Not compared with stock yet: the default digital filter, the volume curve, the gain values and the power-down order.
+- Gain, digital filter and volume writes, with their addresses, defaults and the data sheet's reading of each value, are in [`firmware/docs/hardware.md`](../firmware/docs/hardware.md) (Audio). Stock writes gain `0x080000` and filter `0x090000` during start-up with the outputs powered down, and again directly, without muting or powering down, when Settings changes them during playback (`0x030611c8`, `0x03061206`). The analysis exported modules 0+1, 0+32 and 0+27 and scanned every module's code for calls to the register writer and for loads and stores of the two setting bytes.
+- The digital filters, the volume curve, the gain values and the power-down order are compared in [stock-hardware-notes.md](stock-hardware-notes.md).
+
+The analog-click fix chooses Low `0x20` from the CS43198 DS1156F2 OUT_FS table (section 7.5.1): `10` is 1.41 Vrms, while the inherited `0x10` selects reserved `01`. High `0x31` selects `11` with +1dB_EN, yielding 2 Vrms when HV_EN is enabled, as in the configured Class H `0x1f`. The expected difference is about 3.04 dB. This establishes a documented operating point, not stock gain equivalence; no stock Low/High register capture is established in this record.
 
 ## Limits of this record
 
 - REA sometimes reports a function as several separate pieces joined by a branch to shared code. A numeric address range is not proof that everything inside it belongs to one function.
 - Pin roles, battery calibration and left/right channel identity are read from code and still need a check on the player.
-- Only modules 0, 1 and 4 have been examined.
+- Modules 0, 1 and 4 are examined here; clocks, power, Bluetooth, input and the audio overlays are in [stock-hardware-notes.md](stock-hardware-notes.md).

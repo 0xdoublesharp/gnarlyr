@@ -23,6 +23,7 @@ enum {
     M4A_PROGRAM_OFFSET = 0x2A0200,
     VORBIS_PROGRAM_OFFSET = 0x260200,
     OPUS_PROGRAM_OFFSET = 0x2C0200,
+    DSD_PROGRAM_OFFSET = 0x2E0400,
     PROGRAM_MAGIC = 0x4D314345,
     STAGING_SECTORS = STAGING_WORDS * WORD_BYTES / SECTOR_BYTES
 };
@@ -108,7 +109,7 @@ static uint32_t program_offset(Core1Program program)
     static const uint32_t OFFSETS[] = {
         [CORE1_PROGRAM_FLAC] = FLAC_PROGRAM_OFFSET, [CORE1_PROGRAM_MP3] = MP3_PROGRAM_OFFSET,
         [CORE1_PROGRAM_M4A] = M4A_PROGRAM_OFFSET,   [CORE1_PROGRAM_VORBIS] = VORBIS_PROGRAM_OFFSET,
-        [CORE1_PROGRAM_OPUS] = OPUS_PROGRAM_OFFSET,
+        [CORE1_PROGRAM_OPUS] = OPUS_PROGRAM_OFFSET, [CORE1_PROGRAM_DSD] = DSD_PROGRAM_OFFSET,
     };
     return OFFSETS[program];
 }
@@ -194,6 +195,11 @@ CORE_SEAM void board_core1_stop(void)
     }
 }
 
+uint32_t board_core1_program(void)
+{
+    return board_core1_streaming() ? (uint32_t)streaming_program + 1u : 0u;
+}
+
 CORE_SEAM bool board_core1_streaming(void)
 {
     return streaming;
@@ -204,7 +210,7 @@ HalCore1Load hal_system_core1_load(void)
     if (!streaming) {
         return (HalCore1Load){0};
     }
-    return (HalCore1Load){.elapsed_cycles = register_read(CORE1_SHARED_TICKS) * CORE1_TICK_CYCLES,
+    return (HalCore1Load){.elapsed_cycles = register_read(CORE1_SHARED_CYCLES),
                           .idle_cycles = register_read(CORE1_SHARED_IDLE_CYCLES)};
 }
 

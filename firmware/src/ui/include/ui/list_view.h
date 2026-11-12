@@ -8,15 +8,22 @@
 #include "ui/theme.h"
 
 enum {
-    LIST_FAST_SCROLL_AFTER_MS = 1500,
-    LIST_SECTION_JUMP_AFTER_MS = 3000,
+    LIST_FAST_SCROLL_AFTER_MS = 400,
+    LIST_SECTION_JUMP_AFTER_MS = 600,
     LIST_FAST_SCROLL_ROWS = 4,
     LIST_FASTEST_SCROLL_ROWS = 12,
     LIST_SECTION_SHOWN_MS = 600,
+    LIST_REPEAT_DELAY_MS = 240,
+    LIST_REPEAT_INTERVAL_MS = 80,
     LIST_SECTION_BEFORE_LETTERS = 0,
     LIST_SECTION_FIRST_LETTER = 1,
     LIST_SECTION_AFTER_LETTERS = 27
 };
+
+typedef struct ListSections {
+    int first;
+    int end;
+} ListSections;
 
 typedef struct ListModel {
     const void *context;
@@ -28,6 +35,8 @@ typedef struct ListModel {
     int (*section)(const void *context, int index);
     IconId (*icon)(const void *context, int index);
     bool detail_below;
+    ListSections (*sections)(const void *context, int index);
+    bool section_reverse;
 } ListModel;
 
 typedef struct ListView {

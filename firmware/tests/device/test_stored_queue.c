@@ -277,6 +277,28 @@ static void rebuilding_a_generated_queue_releases_the_stored_binding(void)
     sparse_card_free(&stored.card);
 }
 
+static void a_stored_stream_snapshot_rejects_order_changes(void)
+{
+    start("fat32_mbr");
+    copy_tracks();
+    PlayQueue queue = bound_queue();
+    PlayQueueStream stream;
+    play_queue_stream_init(&stream, &queue);
+    TrackOrderSource tracks = play_queue_stream_source(&stream);
+    uint16_t track = UINT16_MAX;
+    CHECK(tracks.read(tracks.context, 0, 1, &track));
+    CHECK_EQUAL(STORE_DONE, save(track_order_source(&stored.order),
+                                 (TrackOrderEdit){TRACK_ORDER_MOVE, 2, 0, 0}));
+    CHECK(!tracks.read(tracks.context, 0, 1, &track));
+
+    queue = bound_queue();
+    play_queue_stream_init(&stream, &queue);
+    tracks = play_queue_stream_source(&stream);
+    stored.order.valid = false;
+    CHECK(!tracks.read(tracks.context, 0, 1, &track));
+    sparse_card_free(&stored.card);
+}
+
 static void failed_fat_writes_preserve_the_previous_committed_sequence(void)
 {
     start("fat32_mbr");
@@ -354,6 +376,7 @@ int main(void)
         TEST_CASE(read_failures_and_invalid_cursors_do_not_return_invented_tracks),
         TEST_CASE(another_library_is_rejected_without_replacing_the_current_queue),
         TEST_CASE(rebuilding_a_generated_queue_releases_the_stored_binding),
+        TEST_CASE(a_stored_stream_snapshot_rejects_order_changes),
         TEST_CASE(a_library_without_a_content_fingerprint_cannot_bind_a_stored_order),
         TEST_CASE(a_flattened_generated_queue_is_stored_and_played_in_the_same_order),
         TEST_CASE(failed_fat_writes_preserve_the_previous_committed_sequence),

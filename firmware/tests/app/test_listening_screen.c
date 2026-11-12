@@ -54,8 +54,8 @@ static void start(bool populated)
     clock_ms = 0;
     toast = (Toast){0};
     scanning = false;
-    listening_screen_init(&screen,
-                          (ListeningScreenConfig){&store, &theme, &motion, &toast, &scanning});
+    listening_screen_init(
+        &screen, (ListeningScreenConfig){&store, &theme, &motion, &toast, &scanning, NULL, NULL});
     screen.screen.enter(&screen, clock_ms);
 }
 
@@ -511,8 +511,8 @@ static void an_export_restarted_after_its_buffer_was_reused_still_writes_a_whole
     choose(4);
     tick_until_writing();
     ListeningScreen other;
-    listening_screen_init(&other,
-                          (ListeningScreenConfig){&store, &theme, &motion, &toast, &scanning});
+    listening_screen_init(
+        &other, (ListeningScreenConfig){&store, &theme, &motion, &toast, &scanning, NULL, NULL});
     other.screen.enter(&other, 0);
     finish_export();
     CHECK(saw(i18n_text(STR_EXPORT_DONE)));
@@ -526,8 +526,8 @@ static void a_job_rebuilds_after_another_screen_reuses_the_cold_work_buffer(void
     finish_top();
     int count = screen.model.count(&screen);
     ListeningScreen other;
-    listening_screen_init(&other,
-                          (ListeningScreenConfig){&store, &theme, &motion, &toast, &scanning});
+    listening_screen_init(
+        &other, (ListeningScreenConfig){&store, &theme, &motion, &toast, &scanning, NULL, NULL});
     other.screen.enter(&other, 0);
     finish_top();
     CHECK_EQUAL(count, screen.model.count(&screen));

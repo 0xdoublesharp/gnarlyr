@@ -1,9 +1,15 @@
 #include "settings_store.h"
 
+#include "equalizer_presets.h"
 #include "hal/audio.h"
 #include "hal/display.h"
+#include "hal/power.h"
 #include "hal/storage.h"
 #include "hal/system.h"
+
+const StringId EQUALIZER_PRESET_NAMES[EQUALIZER_PRESET_COUNT] = {
+    STR_OFF,     STR_EQ_RETRO,  STR_EQ_BASS,   STR_EQ_HEAVY,  STR_EQ_POP,
+    STR_EQ_JAZZ, STR_EQ_UNIQUE, STR_EQ_CUSTOM, STR_PEQ_CUSTOM};
 
 const char SETTINGS_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/settings.bin";
 const char SETTINGS_BUTTONS_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/buttons.bin";
@@ -13,10 +19,10 @@ static const HalAudioOutput HAL_OUTPUTS[OUTPUT_JACK_COUNT] = {
     HAL_AUDIO_OUTPUT_AUTO, HAL_AUDIO_OUTPUT_SINGLE_ENDED, HAL_AUDIO_OUTPUT_BALANCED};
 static const HalUsbMode HAL_USB_MODES[USB_MODE_COUNT] = {HAL_USB_MODE_STORAGE, HAL_USB_MODE_DAC};
 static const HalUsbAnswer HAL_USB_ANSWERS[USB_CONNECT_COUNT] = {
-    HAL_USB_ANSWER_ASK, HAL_USB_ANSWER_STORAGE, HAL_USB_ANSWER_CHARGE};
+    HAL_USB_ANSWER_ASK, HAL_USB_ANSWER_STORAGE, HAL_USB_ANSWER_CHARGE, HAL_USB_ANSWER_DAC};
 
-static const uint32_t FILE_SIZES[] = {SETTINGS_FILE_SIZE, SETTINGS_V14_FILE_SIZE,
-                                      SETTINGS_PREVIOUS_FILE_SIZE};
+static const uint32_t FILE_SIZES[] = {SETTINGS_FILE_SIZE, SETTINGS_V15_FILE_SIZE,
+                                      SETTINGS_V14_FILE_SIZE, SETTINGS_PREVIOUS_FILE_SIZE};
 
 static bool read_music_volume(uint8_t *bytes, uint32_t length)
 {
@@ -69,6 +75,13 @@ void settings_store_load(SettingsStore *store)
         remember(store, bytes);
     } else if (!read_valid(bytes, &store->settings, false)) {
         store->settings = settings_defaults();
+    }
+    store->parametric = (ParametricStore){0};
+    store->equalizer_slot = -1;
+    if (store->settings.equalizer == EQUALIZER_CUSTOM ||
+        store->settings.equalizer == EQUALIZER_PARAMETRIC) {
+        parametric_store_load(&store->parametric, &store->settings.parametric);
+        store->equalizer_slot = (int8_t)parametric_store_matching(&store->settings);
     }
     uint8_t buttons[SETTINGS_BUTTONS_FILE_SIZE];
     if (hal_internal_file_read(SETTINGS_BUTTONS_PATH, buttons, sizeof buttons) &&
@@ -131,7 +144,8 @@ bool settings_store_set_clock_offset(SettingsStore *store, int16_t offset)
 
 void settings_store_capture(SettingsStore *store, PlayerStatus playback)
 {
-    store->settings.volume = playback.volume;
+    store->settings.volume = playback.wired_volume;
+    store->settings.bluetooth_volume = playback.bluetooth_volume;
     store->settings.shuffle = playback.shuffle;
     store->settings.repeat = playback.repeat;
 }
@@ -139,7 +153,8 @@ void settings_store_capture(SettingsStore *store, PlayerStatus playback)
 void settings_store_restore_playback(const SettingsStore *store, Player *player, uint32_t seed)
 {
     const Settings *settings = &store->settings;
-    player_change_volume(player, (int)settings->volume - (int)player_status(player).volume);
+    player_set_volume(player, PLAYER_OUTPUT_WIRED, settings->volume);
+    player_set_volume(player, PLAYER_OUTPUT_BLUETOOTH, settings->bluetooth_volume);
     player_set_shuffle(player, settings->shuffle, seed);
     player_set_repeat(player, settings->repeat);
     player_set_replay_gain(player, (ReplayGainMode)settings->replay_gain_mode,
@@ -147,12 +162,16 @@ void settings_store_restore_playback(const SettingsStore *store, Player *player,
     player_set_rewind(player, settings->rewind_on_resume);
     player_set_transitions(player, settings->track_transition != TRACK_TRANSITION_OFF,
                            settings->transition_tenths);
+    player_set_speed(player, settings_speed_percent(settings->playback_speed));
 }
 
 void settings_store_apply_equalizer(const Settings *settings)
 {
     SettingsEqualizerCurve curve = settings_equalizer_curve(settings);
-    HalAudioEqualizer equalizer = {.band_count = curve.band_count, .pre_gain = curve.pre_gain};
+    HalAudioEqualizer equalizer = {.band_count = curve.band_count,
+                                   .pre_gain = curve.pre_gain,
+                                   .is_parametric = curve.is_parametric,
+                                   .parametric = curve.parametric};
     for (int band = 0; band < curve.band_count; band++) {
         equalizer.band_hz[band] = curve.band_hz[band];
         equalizer.gain_half_db[band] = curve.gain_half_db[band];
@@ -162,8 +181,10 @@ void settings_store_apply_equalizer(const Settings *settings)
 
 void settings_store_apply_hardware(const Settings *settings)
 {
+    hal_power_set_battery_care(settings->battery_care);
     hal_display_set_brightness(settings->brightness);
     hal_audio_set_gain(HAL_GAINS[settings->gain]);
+    hal_audio_set_filter((HalAudioFilter)settings->dac_filter);
     hal_audio_set_output(HAL_OUTPUTS[settings->output]);
     hal_system_set_usb_mode(HAL_USB_MODES[settings->usb_mode]);
     hal_system_set_usb_answer(HAL_USB_ANSWERS[settings->usb_connect]);

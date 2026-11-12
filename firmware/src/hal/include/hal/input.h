@@ -41,3 +41,5 @@ bool hal_input_next_transition(HalKeyTransition *transition);
 bool hal_input_waiting(void);
 bool hal_input_next_headset_command(HalHeadsetCommand *command);
 HalHeadsetReading hal_input_headset_reading(void);
+
+uint16_t hal_input_key_adc(void);

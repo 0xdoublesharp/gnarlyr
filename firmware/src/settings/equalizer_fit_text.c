@@ -47,6 +47,9 @@ static void other_character(EqualizerFit *fit, char character)
 
 static void feed(EqualizerFit *fit, char character)
 {
+    if (fit->line_start && (character == 'F' || character == 'f')) {
+        fit->comment = true;
+    }
     if (fit->comment && character != '\n') {
         return;
     }

@@ -82,6 +82,7 @@ static bool configure(Core1Vorbis *vorbis, const VorbisPacket *packet)
             return false;
         }
         vorbis->region.control->vorbis_modes = modes;
+        core1_stream_clock(vorbis->region, vorbis->decoder.rate > 96000 ? 200 : 100);
         core1_publish();
         vorbis->region.control->vorbis_config_generation = vorbis->generation;
     }

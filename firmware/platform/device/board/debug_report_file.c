@@ -1,8 +1,10 @@
 #include <stdint.h>
 
+#include "app/app.h"
 #include "app/debug_loop.h"
 #include "board.h"
 #include "core/seam.h"
+#include "dac.h"
 #include "debug_probe.h"
 #include "hal/clock.h"
 #include "hal/power.h"
@@ -86,6 +88,7 @@ static DebugReportInput gather(const UsbShared *shared, uint32_t reason)
                               .name = FIRMWARE_NAME,
                               .version = hal_system_version(),
                               .uptime_ms = hal_clock_milliseconds(),
+                              .standby = *app_standby(),
                               .clock_mhz = hal_system_clock_mhz(),
                               .clock_us = hal_clock_microseconds(),
                               .idle_us = hal_system_idle_microseconds(),
@@ -95,11 +98,14 @@ static DebugReportInput gather(const UsbShared *shared, uint32_t reason)
                               .usb = shared->last_session,
                               .usb_words = usb_words_now(),
                               .audio = *board_debug_audio(),
+                              .bluetooth = &hal_bluetooth_status()->link,
+                              .dac = dac_path_diagnostics(),
                               .frames = app_debug_frames(),
                               .loop = board_debug_loop(),
                               .script = debug_runner_script(),
                               .interrupted_line = board_debug_interrupted_line(),
                               .log = debug_loop_log(),
+                              .boot_us = debug_loop_boot_times(),
                               .profile = board_profile()};
 }
 

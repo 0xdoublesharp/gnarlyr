@@ -97,6 +97,26 @@ void msc_init(Msc *msc, const MscLun *luns, uint8_t count)
     }
 }
 
+void msc_set_media(Msc *msc, uint8_t lun, bool present, uint32_t sectors)
+{
+    if (lun >= msc->lun_count || msc->luns[lun].present == present) {
+        return;
+    }
+    uint8_t bit = (uint8_t)(1u << lun);
+    msc->luns[lun].present = present;
+    msc->luns[lun].sector_count = sectors;
+    if (present) {
+        msc->changed |= bit;
+        msc->ejected &= (uint8_t)~bit;
+        msc->removed &= (uint8_t)~bit;
+        msc->present_at_start |= bit;
+    } else {
+        msc->changed |= bit;
+        msc->removed |= bit;
+        msc->present_at_start &= (uint8_t)~bit;
+    }
+}
+
 void msc_use_write_buffer(Msc *msc, uint32_t *words, uint32_t sectors)
 {
     bool usable = words != NULL && sectors > 0;
@@ -360,6 +380,9 @@ static void execute(Msc *msc, const uint8_t *block)
         request_sense(msc);
     } else if (block[0] == SCSI_START_STOP_UNIT) {
         start_stop(msc, block);
+    } else if ((msc->changed & (1u << msc->lun)) != 0) {
+        msc->changed &= (uint8_t)~(1u << msc->lun);
+        set_sense(msc, 6, 0x28);
     } else if (!lun->present) {
         if (block[0] == SCSI_WRITE_10 && refused(msc, msc->lun)) {
             msc->stats.writes_after_eject++;

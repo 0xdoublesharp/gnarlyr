@@ -1,3 +1,5 @@
+import struct
+
 GPIO_DATA = 0x00
 GPIO_DIRECTION = 0x04
 GPIO_INPUT_LEVEL = 0x50
@@ -352,11 +354,32 @@ class Vop(RegisterFile):
 
 class Dmac(RegisterFile):
     COMP_TYPE = 0x3F8
+    CHANNEL_ENABLE = 0x3A0
+    PUSH_BIT = 0x01
+
+    def __init__(self, machine=None):
+        super().__init__()
+        self.machine = machine
+        self.pushed_pixels = 0
 
     def read_word(self, offset):
         if offset == self.COMP_TYPE:
             return 0x44571110
         return super().read_word(offset)
+
+    def write_word(self, offset, value):
+        super().write_word(offset, value)
+        if offset == self.CHANNEL_ENABLE and value & (self.PUSH_BIT << 8) and value & self.PUSH_BIT:
+            super().write_word(offset, value & ~self.PUSH_BIT)
+            self.push()
+
+    def push(self):
+        item = super().read_word(0x10)
+        while item:
+            source, _, item, _, words = struct.unpack("<5I", self.machine.read_memory(item, 20))
+            for pixel in struct.unpack("<%dH" % (2 * words), self.machine.read_memory(source, 4 * words)):
+                self.machine.panel.pixel(pixel)
+            self.pushed_pixels += 2 * words
 
 
 class Systick(RegisterFile):

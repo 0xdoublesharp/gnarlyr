@@ -149,6 +149,12 @@ static bool same_play(ListeningObservation first, ListeningObservation second)
            first.status.track == second.status.track;
 }
 
+static uint32_t playing_speed(const ListeningStore *store)
+{
+    uint16_t speed = store->previous.status.speed;
+    return speed != 0 ? speed : PLAYER_NORMAL_SPEED;
+}
+
 static uint32_t elapsed_audio(const ListeningStore *store, ListeningObservation observation,
                               uint32_t now_ms)
 {
@@ -157,14 +163,21 @@ static uint32_t elapsed_audio(const ListeningStore *store, ListeningObservation 
     }
     uint32_t elapsed = now_ms - store->last_ms;
     uint32_t before = store->previous.status.position_ms;
-    uint32_t after = observation.status.position_ms;
     if (same_play(store->previous, observation)) {
-        uint32_t moved = after >= before ? after - before : elapsed;
-        return moved < elapsed ? moved : elapsed;
+        return observation.status.position_ms != before ? elapsed : 0;
     }
     uint32_t length = store->previous.status.duration_ms;
-    uint32_t left = length > before ? length - before : 0;
-    return length != 0 && left < elapsed ? left : elapsed;
+    uint64_t left = length > before ? length - before : 0;
+    uint64_t wall = (left * PLAYER_NORMAL_SPEED + playing_speed(store) - 1) / playing_speed(store);
+    return length != 0 && wall < elapsed ? (uint32_t)wall : elapsed;
+}
+
+static uint32_t closing_position(const ListeningStore *store, uint32_t elapsed)
+{
+    uint32_t end = store->previous.status.position_ms +
+                   (uint32_t)((uint64_t)elapsed * playing_speed(store) / PLAYER_NORMAL_SPEED);
+    uint32_t length = store->previous.status.duration_ms;
+    return length != 0 && end > length ? length : end;
 }
 
 static ListeningEnd changed_end(const ListeningStore *store)
@@ -194,7 +207,7 @@ void listening_store_follow(ListeningStore *store, ListeningObservation observat
         uint32_t room = UINT32_MAX - store->active.listened_ms;
         store->active.listened_ms += elapsed < room ? elapsed : room;
         store->active.end_ms =
-            same ? observation.status.position_ms : store->previous.status.position_ms + elapsed;
+            same ? observation.status.position_ms : closing_position(store, elapsed);
         if (!same) {
             ListeningEnd end = changed_end(store);
             finish(store,
@@ -219,35 +232,4 @@ void listening_store_flush(ListeningStore *store, ListeningObservation observati
     finish(store, LISTENING_STOPPED, now_ms);
     save_pending(store, now_ms);
     store->observed = false;
-}
-
-ListeningTotals listening_store_totals(const ListeningStore *store)
-{
-    ListeningTotals totals = store->log.root.counters.totals;
-    totals.listened_ms += store->following ? store->active.listened_ms : 0;
-    totals.listened_ms += store->waiting ? store->pending.listened_ms : 0;
-    return totals;
-}
-
-bool listening_store_text(void *context, const ListeningTrack *track, ListeningText *text)
-{
-    const ListeningStore *store = context;
-    ListeningTrack current;
-    LibraryTrack record;
-    LibraryAlbum album;
-    LibraryGroup artist;
-    *text = (ListeningText){0};
-    if (listening_track_read(store->library, track->index, &current) != STORE_READY ||
-        current.key != track->key || !library_read_track(store->library, track->index, &record)) {
-        return false;
-    }
-    bool read = library_read_string(store->library, record.title, text->title, sizeof text->title);
-    if (library_read_album(store->library, record.album, &album)) {
-        read &= library_read_string(store->library, album.title, text->album, sizeof text->album);
-    }
-    if (library_read_group(store->library, LIBRARY_ARTISTS, record.artist, &artist)) {
-        read &= library_read_string(store->library, artist.name, text->artist, sizeof text->artist);
-    }
-    text->number = record.number;
-    return read;
 }

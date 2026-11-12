@@ -125,27 +125,47 @@ typedef struct WrappedLine {
     const char *text;
     const char *end;
     bool centered;
+    void (*service)(void);
 } WrappedLine;
+
+typedef struct WrappedLabel {
+    Label label;
+    bool centered;
+    void (*service)(void);
+} WrappedLabel;
+
+static void serve(void (*service)(void))
+{
+    if (service != NULL) {
+        service();
+    }
+}
 
 static void draw_line(Canvas *canvas, TextStyle style, WrappedLine line)
 {
     LabelFit fit = fit_until(style.font, line.text, line.end, line.row.width);
+    serve(line.service);
     int width = width_until(style.font, line.text, line.text + fit.byte_count) +
                 (fit.ellipsis ? advance_of(style.font, ELLIPSIS_CODEPOINT) : 0);
+    serve(line.service);
     int indent = line.centered ? (line.row.width - width) / 2 : 0;
     Point pen = {line.row.x + indent, line.row.y + style.font->ascent};
     pen.x = text_draw_span(canvas, style, pen, (TextSpan){line.text, fit.byte_count});
+    serve(line.service);
     if (fit.ellipsis) {
         text_draw(canvas, style, pen, ELLIPSIS_TEXT);
     }
 }
 
-static void draw_wrapped(Canvas *canvas, TextStyle style, Label label, bool centered)
+static void draw_wrapped(Canvas *canvas, TextStyle style, WrappedLabel wrapped)
 {
+    Label label = wrapped.label;
+    bool centered = wrapped.centered;
     Canvas clipped = canvas_clipped(canvas, label.area);
     int line_height = font_line_height(style.font);
     int room = label.area.height / line_height;
     int lines = label_wrap_count(style.font, label.text, label.area.width);
+    serve(wrapped.service);
     lines = lines > room ? room : lines;
     lines = lines < 1 ? 1 : lines;
     int top = centered ? (label.area.height - lines * line_height) / 2 : 0;
@@ -153,20 +173,29 @@ static void draw_wrapped(Canvas *canvas, TextStyle style, Label label, bool cent
     const char *cursor = label.text;
     for (int line = 1; line <= lines; line++, row.y += line_height) {
         size_t bytes = label_wrap_line(style.font, cursor, label.area.width);
+        serve(wrapped.service);
         const char *end = line < lines ? cursor + bytes : NULL;
-        draw_line(&clipped, style, (WrappedLine){row, cursor, end, centered});
+        draw_line(&clipped, style, (WrappedLine){row, cursor, end, centered, wrapped.service});
+        serve(wrapped.service);
         cursor = next_line(style.font, cursor, label.area.width);
+        serve(wrapped.service);
     }
 }
 
 void label_draw_wrapped(Canvas *canvas, TextStyle style, Label label)
 {
-    draw_wrapped(canvas, style, label, true);
+    draw_wrapped(canvas, style, (WrappedLabel){label, true, NULL});
+}
+
+void label_draw_wrapped_serviced(Canvas *canvas, TextStyle style, Label label,
+                                 void (*service)(void))
+{
+    draw_wrapped(canvas, style, (WrappedLabel){label, true, service});
 }
 
 void label_draw_paragraph(Canvas *canvas, TextStyle style, Label label)
 {
-    draw_wrapped(canvas, style, label, false);
+    draw_wrapped(canvas, style, (WrappedLabel){label, false, NULL});
 }
 
 void label_draw_scrolling(Canvas *canvas, TextStyle style, Label label, Marquee marquee)

@@ -11,7 +11,8 @@
 
 typedef struct PlayingModuleEntry {
     ScreenModuleEntry module;
-    void (*charge_draw)(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms);
+    int (*section)(const BrowseScreen *browse, int index);
+    ListSections (*sections)(const BrowseScreen *browse, int index);
 } PlayingModuleEntry;
 
 typedef struct ViewsModuleEntry {
@@ -19,6 +20,8 @@ typedef struct ViewsModuleEntry {
     void (*cancel)(MixtapeUi *ui);
     void (*step)(MixtapeUi *ui, uint32_t now_ms);
     Screen *(*add)(MixtapeUi *ui, uint16_t track);
+    void (*charge_observe)(HalBattery battery, uint32_t now_ms);
+    void (*charge_draw)(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms);
 } ViewsModuleEntry;
 
 extern const PlayingModuleEntry PLAYING_MODULE_ENTRY;
@@ -27,6 +30,7 @@ extern const ScreenModuleEntry LISTENING_MODULE_ENTRY;
 
 typedef struct SettingsModuleEntry {
     ScreenModuleEntry module;
+    ScreenAction (*menu_hold)(AppScreens *screens, uint8_t action);
     Screen *(*language_row)(AppScreens *screens);
     Screen *(*usb_modes)(AppScreens *screens, bool prompt);
     bool (*choose)(AppScreens *screens, DebugSpan title, DebugSpan option);
@@ -38,7 +42,7 @@ extern const SettingsModuleEntry SETTINGS_MODULE_ENTRY;
 
 typedef struct LibraryModuleEntry {
     ScreenModuleEntry module;
-    MusicFingerprint (*music_fingerprint)(void);
+    MusicFingerprint (*music_fingerprint)(bool progress);
     Screen *(*open)(AppScreens *screens, BrowseQuery source, bool edit_search);
     Screen *(*options)(AppScreens *screens, BrowseQuery source);
     Screen *(*info)(AppScreens *screens, uint16_t track);
@@ -49,3 +53,5 @@ typedef struct LibraryModuleEntry {
 } LibraryModuleEntry;
 
 extern const LibraryModuleEntry LIBRARY_MODULE_ENTRY;
+
+extern const ParametricModuleEntry EQUALIZER_MODULE_ENTRY;

@@ -6,6 +6,7 @@
 #include "codec/flac.h"
 #include "device/audio_fade.h"
 #include "device/audio_resample.h"
+#include "device/audio_tempo.h"
 #include "device/equalizer.h"
 #include "hal/audio.h"
 
@@ -43,7 +44,9 @@ typedef enum AudioCodec {
     AUDIO_CODEC_AAC,
     AUDIO_CODEC_ALAC,
     AUDIO_CODEC_VORBIS,
-    AUDIO_CODEC_OPUS
+    AUDIO_CODEC_OPUS,
+    AUDIO_CODEC_DSD,
+    AUDIO_CODEC_AIFF
 } AudioCodec;
 
 typedef struct AudioTrackInfo {
@@ -64,6 +67,7 @@ typedef struct AudioEngineConfig {
     AudioSource source;
     uint32_t *ring;
     uint32_t ring_words;
+    uint32_t stretch_words;
     Equalizer *equalizer;
     bool (*prepare_resample)(void);
     uint32_t (*resample_render)(AudioResample *resample, uint32_t *words, uint32_t frames);
@@ -93,17 +97,20 @@ typedef struct AudioSegment {
     uint32_t token;
     uint32_t start;
     uint32_t base_ms;
+    uint32_t base_sample;
     uint32_t end_ms;
     uint32_t rate;
     uint32_t replay_gain;
     AudioTrackInfo track;
     char path[AUDIO_ENGINE_PATH_CAPACITY];
+    uint16_t speed;
 } AudioSegment;
 
 typedef struct AudioEngineStatus {
     AudioEngineState state;
     uint32_t token;
     uint32_t position_ms;
+    uint32_t position_samples;
     bool failed;
     AudioTrackInfo track;
 } AudioEngineStatus;
@@ -146,6 +153,13 @@ typedef struct AudioEngine {
     uint32_t next_gain;
     uint32_t next_fade_ms;
     uint32_t decode_fade_ms;
+    uint32_t repeat_a;
+    uint32_t repeat_b;
+    uint32_t repeat_token;
+    uint8_t repeat_state;
+    uint32_t sleep_end_at;
+    uint32_t sleep_fade_ms;
+    bool sleep_fading;
     AudioFadeRamp fade_in;
     AudioFadeRamp fade_out;
     uint32_t output_gain;
@@ -157,6 +171,10 @@ typedef struct AudioEngine {
     HeadphoneAudio headphones;
     uint32_t left_gain;
     uint32_t right_gain;
+    uint32_t ring_capacity;
+    uint16_t speed;
+    bool stretching;
+    bool draining;
 } AudioEngine;
 
 void audio_engine_init(AudioEngine *engine, AudioEngineConfig config);
@@ -183,3 +201,8 @@ AudioEngineStatus audio_engine_status(const AudioEngine *engine);
 AudioRefusal audio_engine_refusal(const AudioEngine *engine);
 
 void audio_engine_set_replay_gain(AudioEngine *engine, uint32_t token, uint32_t gain);
+void audio_engine_set_speed(AudioEngine *engine, uint16_t speed);
+
+void audio_engine_set_sleep_remaining(AudioEngine *engine, uint32_t remaining_ms);
+
+uint8_t audio_engine_repeat_mark(AudioEngine *engine, bool clear);

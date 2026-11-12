@@ -5,14 +5,14 @@ import make_image
 from unicorn import UC_HOOK_MEM_WRITE
 from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1
 
-PRODUCED_OFFSET = 44
+PRODUCED_OFFSET = 48
 ITEM_BYTES = 24
 ITEM_NEXT = 8
 ITEM_WORDS = 16
 WORD_BYTES = 4
 WORDS_PER_FRAME = 2
 RING_BYTES = 7 * 4000 * WORD_BYTES
-SILENT_RETURNS = ("dac_set_muted", "dac_output_on", "dac_set_gain", "dac_path_start_transfer",
+SILENT_RETURNS = ("dac_set_muted", "dac_output_on", "dac_apply_analog", "dac_path_start_transfer",
                   "dac_path_stop_transfer", "dac_path_stop")
 
 
@@ -22,6 +22,7 @@ class AudioPath:
         self.core1 = None
         self.rate = 44100
         self.ring = machine.symbols["music_ring"]
+        self.dma_ring = self.ring
         self.running = False
         self.suspend_depth = 0
         self.paused_us = 0
@@ -93,6 +94,7 @@ class AudioPath:
 
     def start_loop(self, machine):
         self.items = machine.reg(UC_ARM_REG_R0)
+        self.dma_ring = struct.unpack("<I", machine.read_memory(self.items, 4))[0]
         self.started_us = machine.microseconds()
         self.running = True
         self.suspend_depth = 0
@@ -153,7 +155,7 @@ class AudioPath:
             return 0
         elapsed = self.elapsed_us(machine)
         words = elapsed * self.rate * WORDS_PER_FRAME // 1000000
-        return self.ring + (words % self.ring_words()) * WORD_BYTES
+        return self.dma_ring + (words % self.ring_words()) * WORD_BYTES
 
     def sample_level(self):
         if not self.running or self.suspend_depth:
@@ -170,6 +172,8 @@ class AudioPath:
 
     def ring_write(self, uc, access, address, size, value, user):
         if not value or not self.plays:
+            return
+        if self.running and address >= self.ring + self.ring_words() * WORD_BYTES:
             return
         if not self.audible or self.audible[-1] < self.plays[-1]:
             self.audible.append(self.machine.milliseconds())

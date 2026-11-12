@@ -1,13 +1,17 @@
 #pragma once
 
+#include "core/standby.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
 #include "core/debug_log.h"
 #include "core/debug_script.h"
+#include "device/dac_sequence.h"
 #include "device/pc_profile.h"
 #include "device/power_history.h"
 #include "hal/audio.h"
+#include "hal/bluetooth.h"
 #include "hal/power.h"
 #include "hal/system.h"
 
@@ -96,12 +100,16 @@ typedef struct DebugReportInput {
     uint32_t clock_mhz;
     uint32_t clock_us;
     uint32_t idle_us;
+    const uint32_t *boot_us;
+    Standby standby;
     HalBattery battery;
     DebugReportPower power;
     HalStartInfo start;
     HalUsbLast usb;
     DebugReportUsbWords usb_words;
     DebugReportAudio audio;
+    const HalBluetoothLink *bluetooth;
+    DacDiagnostics dac;
     DebugFrames frames;
     DebugReportLoop loop;
     const DebugScriptRun *script;

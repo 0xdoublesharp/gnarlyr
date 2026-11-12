@@ -324,7 +324,8 @@ class EchoImageTest(EchoImageHarness):
         rig.run_for(1500)
         audible = rig.first_audio_after(mark)
         self.assertIsNotNone(audible)
-        self.assertEqual(watch.loads(), [])
+        self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
+                         [(number, True)])
         resident_writes = watch.other_writes
         rig.run_for(1500)
         rig.press("back")

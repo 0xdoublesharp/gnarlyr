@@ -134,14 +134,14 @@ static void now_playing_leaves_a_text_column_beside_the_cover(void)
 
 static void the_centre_cover_is_centred_on_screen(void)
 {
-    const CoverFlowLayout *layout = &BOARD_LAYOUT.cover_flow;
+    const CoverFlowLayout *layout = &BOARD_COVER_LAYOUT.cover_flow;
     CHECK_EQUAL(HAL_DISPLAY_WIDTH / 2, layout->center_x);
     CHECK(layout->center_top + layout->center_size <= HAL_DISPLAY_HEIGHT);
 }
 
 static void visible_side_covers_stay_on_screen(void)
 {
-    const CoverFlowLayout *layout = &BOARD_LAYOUT.cover_flow;
+    const CoverFlowLayout *layout = &BOARD_COVER_LAYOUT.cover_flow;
     int edge = layout->center_x + layout->side_offset + layout->side_spacing * 3 / 2 +
                layout->side_width / 2;
     CHECK(edge <= HAL_DISPLAY_WIDTH);
@@ -149,7 +149,7 @@ static void visible_side_covers_stay_on_screen(void)
 
 static void cover_flow_text_sits_below_the_cover_and_on_screen(void)
 {
-    const CoverFlowLayout *flow = &BOARD_LAYOUT.cover_flow;
+    const CoverFlowLayout *flow = &BOARD_COVER_LAYOUT.cover_flow;
     for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
         Theme theme = theme_of_size(size);
         const CoverFlowTextLayout *text = board_cover_flow_text_layout(&theme);
@@ -177,7 +177,7 @@ static void the_home_art_panel_holds_a_cover_and_leaves_room_for_the_list(void)
 
 static void up_next_details_leave_room_for_the_label(void)
 {
-    CHECK(BOARD_LAYOUT.up_next_detail_max_width <= HAL_DISPLAY_WIDTH / 2);
+    CHECK(BOARD_COVER_LAYOUT.up_next_detail_max_width <= HAL_DISPLAY_WIDTH / 2);
 }
 
 static void a_strip_buffer_stays_small_and_strips_cover_the_screen(void)
@@ -269,7 +269,7 @@ static void portrait_now_playing_lines_follow_each_other_on_screen(void)
 
 static void the_portrait_cover_stack_stays_on_screen_above_the_text(void)
 {
-    const CoverStackLayout *stack = &BOARD_LAYOUT.cover_stack;
+    const CoverStackLayout *stack = &BOARD_COVER_LAYOUT.cover_stack;
     CHECK_EQUAL(HAL_DISPLAY_SHORT_SIDE / 2, stack->center_x);
     CHECK(stack->center_x + stack->side_width / 2 <= HAL_DISPLAY_SHORT_SIDE);
     int reach = stack->side_offset + stack->side_spacing * 3 / 2 + stack->side_height / 2;

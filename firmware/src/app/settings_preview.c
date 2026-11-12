@@ -7,6 +7,9 @@
 void settings_preview_apply(Settings *settings, SettingsPreview preview)
 {
     switch (preview.choice) {
+    case STR_STATUS_LAYOUT:
+        settings->status_bar_compact = preview.index != 0;
+        break;
     case STR_THEME:
         settings->appearance = (AppearanceTheme)preview.index;
         break;
@@ -21,9 +24,6 @@ void settings_preview_apply(Settings *settings, SettingsPreview preview)
         break;
     case STR_ORIENTATION:
         settings->orientation = (Orientation)preview.index;
-        break;
-    case STR_GAIN:
-        settings->gain = (GainLevel)preview.index;
         break;
     case STR_OUTPUT:
         settings->output = (OutputJack)preview.index;
@@ -43,9 +43,6 @@ static void apply_changes(const Settings *before, const Settings *after, Player 
 {
     if (before->brightness != after->brightness) {
         hal_display_set_brightness(after->brightness);
-    }
-    if (before->gain != after->gain) {
-        hal_audio_set_gain(after->gain == GAIN_HIGH ? HAL_AUDIO_GAIN_HIGH : HAL_AUDIO_GAIN_LOW);
     }
     if (before->output != after->output) {
         static const HalAudioOutput OUTPUTS[OUTPUT_JACK_COUNT] = {

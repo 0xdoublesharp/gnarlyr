@@ -62,18 +62,28 @@ endif()
 target_compile_options(echo_faad PRIVATE -w)
 
 add_library(echo_device_logic STATIC
+    core1_dsd.c
+    dsd_track.c
+    dsd_stream.c
+    core1_dsd_source.c
+    aiff_format.c
     aac_decoder.c
     audio_engine.c
+    audio_engine_stage.c
+    audio_shape.c
     audio_fade.c
     audio_math.c
     audio_trig.c
     audio_resample.c
+    audio_tempo.c
+    audio_tempo_stage.c
     audio_interpolate.c
     audio_dsp_entry.c
     audio_process_entry.c
     audio_effects_entry.c
     audio_source_entry.c
     audio_ogg_entry.c
+    audio_dsd_entry.c
     backlight.c
     block_read.c
     board_pins.c
@@ -86,6 +96,7 @@ add_library(echo_device_logic STATIC
     core1_heap.c
     core1_m4a.c
     core1_open.c
+    core1_open_mp3.c
     core1_open_flac.c
     core1_mp3.c
     core1_ogg.c
@@ -118,12 +129,15 @@ add_library(echo_device_logic STATIC
     loader_request.c
     key_ladder.c
     headset_dips.c
+    headset_dips_view.c
     headset_monitor.c
+    headset_monitor_reading.c
     headset_remote.c
     key_scanner.c
     m4a_stream.c
     mp3_decoder.c
     mp3_probe.c
+    mp3_signature.c
     mp4_demux.c
     mp4_signature.c
     msc.c
@@ -140,6 +154,7 @@ add_library(echo_device_logic STATIC
     rtc_time.c
     start_record.c
     sd_card.c
+    slot_copy.c
     stall_watch.c
     storage_mount.c
     workspace_loan.c
@@ -147,9 +162,13 @@ add_library(echo_device_logic STATIC
     tick_clock.c
     time_file.c
     update_names.c
+    update_trial.c
     updater.c
+    updater_install.c
     usb_activity.c
     usb_audio.c
+    usb_audio_descriptors.c
+    usb_audio_hid.c
     usb_audio_sink.c
     usb_device.c
     usb_fallback.c
@@ -163,6 +182,7 @@ add_library(echo_device_logic STATIC
     vop.c
     wall_clock.c
     wav_source.c
+    wide_divide.c
 )
 if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(
@@ -171,6 +191,7 @@ if(CMAKE_CROSSCOMPILING)
         bt_module.c
         core1_control.c
         core1_open.c
+        core1_open_mp3.c
         core1_open_flac.c
         dac_sequence.c
         debug_report.c
@@ -193,6 +214,7 @@ if(CMAKE_CROSSCOMPILING)
         loader_request.c
         m4a_stream.c
         mp3_probe.c
+        mp3_signature.c
         mp4_demux.c
     mp4_signature.c
         msc.c
@@ -200,16 +222,20 @@ if(CMAKE_CROSSCOMPILING)
         panic_text.c
         pll.c
         sd_card.c
+        slot_copy.c
         start_record.c
         storage_mount.c
         update_names.c
+        update_trial.c
         updater.c
+        updater_install.c
         usb_activity.c
         usb_audio.c
         usb_device.c
         usb_fallback.c
         usb_leave.c
         usb_level.c
+        wide_divide.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
 endif()

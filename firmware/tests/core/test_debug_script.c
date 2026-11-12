@@ -155,6 +155,17 @@ static void peek_takes_one_word_in_hex_or_decimal(void)
     CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("peek grf").kind);
 }
 
+static void dac_takes_one_register_map_of_the_cirrus_chips(void)
+{
+    CHECK_EQUAL(DEBUG_COMMAND_DAC, parse("dac 0x080000").kind);
+    CHECK_EQUAL(0x080000u, parse("dac 0x080000").number);
+    CHECK_EQUAL(0xFFFFFFu, parse("dac 0xFFFFFF").number);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("dac").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("dac 0x1000000").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("dac gain").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("dac 0x080000 1").kind);
+}
+
 static void poke_takes_an_address_and_a_value(void)
 {
     DebugCommand command = parse("poke 0x500100B4 0x000E0002");
@@ -213,6 +224,25 @@ static void supply_and_screen_take_off_or_on(void)
     CHECK_EQUAL(1, loaded->ops[3].first);
 }
 
+static void rescan_checks_or_rebuilds_and_open_names_a_screen(void)
+{
+    CHECK_EQUAL(DEBUG_COMMAND_RESCAN, parse("rescan check").kind);
+    CHECK_EQUAL(0, parse("rescan check").number);
+    CHECK_EQUAL(1, parse("rescan full").number);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("rescan").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_OPEN, parse("open coverflow").kind);
+    CHECK_EQUAL(0, parse("open home").number);
+    CHECK_EQUAL(1, parse("open coverflow").number);
+    CHECK_EQUAL(2, parse("open nowplaying").number);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("open settings").kind);
+    const DebugScriptRun *loaded = load("build any\nrescan full\nopen nowplaying\n");
+    CHECK_EQUAL(2, loaded->op_count);
+    CHECK_EQUAL(DEBUG_OP_RESCAN, loaded->ops[0].kind);
+    CHECK_EQUAL(1, loaded->ops[0].first);
+    CHECK_EQUAL(DEBUG_OP_OPEN, loaded->ops[1].kind);
+    CHECK_EQUAL(2, loaded->ops[1].first);
+}
+
 static void standby_takes_off_or_on(void)
 {
     CHECK_EQUAL(DEBUG_COMMAND_STANDBY, parse("standby off").kind);
@@ -227,7 +257,7 @@ static void standby_takes_off_or_on(void)
     CHECK_EQUAL(1, loaded->ops[1].first);
 }
 
-static void soak_takes_one_to_180_minutes(void)
+static void soak_takes_one_to_1440_minutes(void)
 {
     CHECK_EQUAL(DEBUG_COMMAND_SOAK, parse("soak 30").kind);
     CHECK_EQUAL(30, parse("soak 30").number);
@@ -235,7 +265,9 @@ static void soak_takes_one_to_180_minutes(void)
     CHECK_EQUAL(180, parse("soak 180").number);
     CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("soak").kind);
     CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("soak 0").kind);
-    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("soak 181").kind);
+    CHECK_EQUAL(1440, parse("soak 1440").number);
+    CHECK_EQUAL(DEBUG_COMMAND_SOAK, parse("soak 1440").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("soak 1441").kind);
     CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("soak 30 minutes").kind);
     CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("soak long").kind);
 }
@@ -272,10 +304,11 @@ static void rtc_read_lines_become_steps_and_other_actions_are_refused(void)
 static void probe_lines_keep_their_words_beside_the_steps(void)
 {
     const DebugScriptRun *loaded =
-        load("build any\npeek 0x500100E8\npoke 0x500100B4 0x000E0002\ngpio 0.14 function 1\n");
+        load("build any\npeek 0x500100E8\npoke 0x500100B4 0x000E0002\ngpio 0.14 function 1\n"
+             "dac 0x090000\n");
     CHECK_EQUAL(DEBUG_SCRIPT_PENDING, loaded->state);
-    CHECK_EQUAL(3, loaded->op_count);
-    CHECK_EQUAL(3, loaded->word_count);
+    CHECK_EQUAL(4, loaded->op_count);
+    CHECK_EQUAL(4, loaded->word_count);
     CHECK_EQUAL(0, loaded->probe_count);
     CHECK_EQUAL(DEBUG_OP_PEEK, loaded->ops[0].kind);
     CHECK_EQUAL(0x500100E8u, loaded->words[loaded->ops[0].first]);
@@ -286,6 +319,9 @@ static void probe_lines_keep_their_words_beside_the_steps(void)
     CHECK_EQUAL(14, loaded->ops[2].first);
     CHECK_EQUAL(DEBUG_PIN_FUNCTION | 1u << DEBUG_PIN_FUNCTION_SHIFT, loaded->ops[2].second);
     CHECK_EQUAL(4, loaded->ops[2].line);
+    CHECK_EQUAL(DEBUG_OP_DAC, loaded->ops[3].kind);
+    CHECK_EQUAL(0x090000u, loaded->words[loaded->ops[3].first]);
+    CHECK_EQUAL(5, loaded->ops[3].line);
 }
 
 static void a_script_with_more_words_than_it_can_keep_is_refused(void)
@@ -454,11 +490,13 @@ int main(void)
         TEST_CASE(set_splits_the_setting_from_its_option_at_the_equals_sign),
         TEST_CASE(a_screenshot_name_is_short_lower_case_and_plain),
         TEST_CASE(peek_takes_one_word_in_hex_or_decimal),
+        TEST_CASE(dac_takes_one_register_map_of_the_cirrus_chips),
         TEST_CASE(poke_takes_an_address_and_a_value),
         TEST_CASE(gpio_names_a_pin_and_what_to_do_with_it),
         TEST_CASE(supply_and_screen_take_off_or_on),
         TEST_CASE(standby_takes_off_or_on),
-        TEST_CASE(soak_takes_one_to_180_minutes),
+        TEST_CASE(rescan_checks_or_rebuilds_and_open_names_a_screen),
+        TEST_CASE(soak_takes_one_to_1440_minutes),
         TEST_CASE(a_scripts_soaks_add_their_minutes_to_its_time_limit),
         TEST_CASE(probe_lines_keep_their_words_beside_the_steps),
         TEST_CASE(rtc_read_lines_become_steps_and_other_actions_are_refused),

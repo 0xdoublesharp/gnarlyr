@@ -6,6 +6,7 @@
 #include "check.h"
 #include "device/equalizer.h"
 #include "settings/settings.h"
+#include "settings/sound_shaping.h"
 
 enum {
     RATE_COUNT = 3,
@@ -424,6 +425,136 @@ static void equalizer_off_leaves_the_samples_alone(void)
     CHECK(!equalizer_design(&equalizer, &off, 44100));
 }
 
+static void parametric_boosts_cuts_shelves_and_transients_stay_below_the_clamp(void)
+{
+    static const uint32_t rates[] = {32000, 44100, 48000, 88200, 96000};
+    static const ParametricEq curves[] = {
+        {.count = 3,
+         .filters = {{20, 1000, 120, PARAMETRIC_PEAK, true},
+                     {105, 30, -120, PARAMETRIC_LOW_SHELF, true},
+                     {8000, 1000, 120, PARAMETRIC_HIGH_SHELF, true}}},
+        {.count = 3,
+         .filters = {{105, 70, -120, PARAMETRIC_PEAK, true},
+                     {105, 70, -120, PARAMETRIC_LOW_SHELF, true},
+                     {1000, 70, -120, PARAMETRIC_HIGH_SHELF, true}}},
+    };
+    for (size_t rate = 0; rate < sizeof rates / sizeof rates[0]; rate++) {
+        for (size_t curve = 0; curve < sizeof curves / sizeof curves[0]; curve++) {
+            HalAudioEqualizer hal = {.is_parametric = true, .parametric = curves[curve]};
+            CHECK(square_stays_below_full_scale(&hal, rates[rate], 105));
+            CHECK(stays_below_full_scale(&hal, rates[rate], 20));
+            CHECK(stays_below_full_scale(&hal, rates[rate], 8000));
+            for (int prefix = 1; prefix <= 3; prefix++) {
+                CHECK(equalizer_design(&equalizer, &hal, rates[rate]));
+                equalizer.section_count = prefix;
+                uint32_t random = 17;
+                uint32_t frames = rates[rate] / 5;
+                for (uint32_t frame = 0; frame < frames; frame++) {
+                    random = random * 1664525u + 1013904223u;
+                    int32_t sample = random >> 31 ? FULL_SCALE : -FULL_SCALE;
+                    words[2 * frame] = (uint32_t)sample << 8;
+                    words[2 * frame + 1] = words[2 * frame];
+                }
+                equalizer_run(&equalizer, words, frames);
+                for (uint32_t frame = 0; frame < frames; frame++) {
+                    CHECK(abs(sample_at(frame, 0)) < FULL_SCALE);
+                }
+            }
+        }
+    }
+}
+
+static void parametric_preamp_works_without_filters_and_nyquist_filters_are_inactive(void)
+{
+    HalAudioEqualizer hal = {.is_parametric = true, .parametric = {.preamp = -62}};
+    CHECK(equalizer_design(&equalizer, &hal, 32000));
+    CHECK(close_to(-6.2, measured_gain_db(1000, 32000), 0.01));
+    hal.parametric =
+        (ParametricEq){.count = 1, .filters = {{20000, 70, 120, PARAMETRIC_PEAK, true}}};
+    CHECK(!equalizer_design(&equalizer, &hal, 32000));
+    CHECK(equalizer_design(&equalizer, &hal, 96000));
+    CHECK(!equalizer_design(&equalizer, &hal, 192000));
+}
+
+static void sound_shaping_extremes_do_not_clip_full_scale_music_or_transients(void)
+{
+    static const uint32_t rates[] = {32000, 44100, 48000, 88200, 96000};
+    for (int mask = 0; mask < 128; mask += 127) {
+        SoundShaping shape = {.active = true};
+        for (int slider = 0; slider < SOUND_SHAPING_COUNT; slider++) {
+            shape.positions[slider] = (int8_t)((mask >> slider & 1) != 0 ? 5 : -5);
+        }
+        ParametricEq base = {0};
+        HalAudioEqualizer hal = {.is_parametric = true};
+        CHECK(sound_shaping_build(&hal.parametric, &base, &shape));
+        for (unsigned rate = 0; rate < sizeof rates / sizeof rates[0]; rate++) {
+            CHECK(square_stays_below_full_scale(&hal, rates[rate], 90));
+            CHECK(stays_below_full_scale(&hal, rates[rate], 300));
+            CHECK(stays_below_full_scale(&hal, rates[rate], 12000));
+            CHECK(equalizer_design(&equalizer, &hal, rates[rate]));
+            for (uint32_t frame = 0; frame < 4096; frame++) {
+                int32_t sample = frame == 0 || frame == 2048 ? FULL_SCALE : -FULL_SCALE;
+                words[2 * frame] = (uint32_t)sample << 8;
+                words[2 * frame + 1] = words[2 * frame];
+            }
+            equalizer_run(&equalizer, words, 4096);
+            for (uint32_t frame = 0; frame < 4096; frame++) {
+                CHECK(abs(sample_at(frame, 0)) < FULL_SCALE);
+                CHECK(abs(sample_at(frame, 1)) < FULL_SCALE);
+            }
+        }
+    }
+}
+
+static void tight_headroom_survives_the_worst_sign_pattern_of_each_cascade_prefix(void)
+{
+    static double impulse[4096];
+    static const uint32_t rates[] = {32000, 44100, 48000, 88200, 96000};
+    for (int bright = 0; bright < 2; bright++) {
+        SoundShaping shape = {.positions = {2}, .active = true};
+        shape.positions[1] = (int8_t)bright;
+        ParametricEq base = {0};
+        HalAudioEqualizer curve = {.is_parametric = true};
+        CHECK(sound_shaping_build(&curve.parametric, &base, &shape));
+        for (unsigned rate = 0; rate < sizeof rates / sizeof rates[0]; rate++) {
+            for (int prefix = 1; prefix <= 1 + bright; prefix++) {
+                CHECK(equalizer_design(&equalizer, &curve, rates[rate]));
+                double history[PARAMETRIC_FILTERS][4] = {0};
+                for (int frame = 0; frame < 4096; frame++) {
+                    double value = frame == 0 ? 1.0 : 0.0;
+                    for (int index = 0; index < prefix; index++) {
+                        EqualizerSection k = equalizer.sections[index];
+                        double *h = history[index];
+                        double next =
+                            (k.b0 * value + k.b1 * h[0] + k.b2 * h[1] + k.a1 * h[2] + k.a2 * h[3]) /
+                            (double)(1 << PARAMETRIC_BITS);
+                        h[1] = h[0];
+                        h[0] = value;
+                        h[3] = h[2];
+                        h[2] = next;
+                        value = next;
+                    }
+                    impulse[frame] = value;
+                }
+                for (int frame = 0; frame < 4096; frame++) {
+                    int32_t sample = impulse[4095 - frame] < 0 ? -FULL_SCALE : FULL_SCALE;
+                    words[2 * frame] = (uint32_t)sample << 8;
+                    words[2 * frame + 1] = (uint32_t)-sample << 8;
+                }
+                equalizer.section_count = prefix;
+                equalizer_run(&equalizer, words, 4096);
+                for (int frame = 0; frame < 4096; frame++) {
+                    CHECK(abs(sample_at((uint32_t)frame, 0)) < FULL_SCALE);
+                    CHECK(abs(sample_at((uint32_t)frame, 1)) < FULL_SCALE);
+                }
+                if (bright == 0) {
+                    CHECK(abs(sample_at(4095, 0)) > FULL_SCALE * 9 / 10);
+                }
+            }
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -444,6 +575,10 @@ int main(void)
         TEST_CASE(a_full_scale_kick_through_cuts_does_not_clip),
         TEST_CASE(a_gain_change_keeps_the_filter_history_and_does_not_click),
         TEST_CASE(equalizer_off_leaves_the_samples_alone),
+        TEST_CASE(sound_shaping_extremes_do_not_clip_full_scale_music_or_transients),
+        TEST_CASE(tight_headroom_survives_the_worst_sign_pattern_of_each_cascade_prefix),
+        TEST_CASE(parametric_boosts_cuts_shelves_and_transients_stay_below_the_clamp),
+        TEST_CASE(parametric_preamp_works_without_filters_and_nyquist_filters_are_inactive),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

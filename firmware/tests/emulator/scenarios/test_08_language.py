@@ -18,8 +18,12 @@ from echo_image_harness import (
 class EchoImageTest(EchoImageHarness):
     def test_a_version_one_card_pack_over_sixteen_kibibytes_loads_with_64_glyph_slots(self):
         from echo_emulator.fat_volume import Fat32Volume
-        pack = lang_pack.build_pack("fr", lang_pack.read_catalogue(),
-                                   {"STR_LANGUAGE_NAME": "Francais", "STR_BACK_CANCELS": "x" * 8000})
+        catalogue = lang_pack.read_catalogue()
+        base = lang_pack.build_pack("fr", catalogue, {"STR_LANGUAGE_NAME": "Francais",
+                                                      "STR_BACK_CANCELS": "x"})
+        padding = 16384 + 512 - len(base)
+        pack = lang_pack.build_pack("fr", catalogue, {"STR_LANGUAGE_NAME": "Francais",
+                                                      "STR_BACK_CANCELS": "x" * (1 + padding)})
         self.assertGreater(len(pack), 16384)
         self.assertEqual(1, lang_pack.HEADER.unpack_from(pack)[1])
         volume = Fat32Volume()

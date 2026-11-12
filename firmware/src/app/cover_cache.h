@@ -45,3 +45,4 @@ CoverState cover_cache_half(const CoverCache *cache, int position, uint16_t albu
 CoverState cover_cache_full(const CoverCache *cache, uint16_t album, Image *image);
 bool cover_cache_load_half(CoverCache *cache, int position, uint16_t album);
 bool cover_cache_load_full(CoverCache *cache, uint16_t album);
+CoverState cover_cache_read(const CoverCache *cache, uint16_t album, CoverSize size, Color *pixels);

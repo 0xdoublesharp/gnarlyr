@@ -289,9 +289,134 @@ static void closing_closes_the_file(void)
     CHECK_EQUAL(1, closes);
 }
 
+static void put_be(uint32_t value, uint32_t bytes)
+{
+    for (uint32_t count = bytes; count > 0; count--) {
+        uint8_t byte = (uint8_t)(value >> ((count - 1) * 8));
+        put_bytes(&byte, 1);
+    }
+}
+
+static void build_aiff(int channels, int bits, const char *compression, uint32_t frames)
+{
+    file.size = 0;
+    put_bytes("FORM", 4);
+    put_be(0, 4);
+    put_bytes(compression == NULL ? "AIFF" : "AIFC", 4);
+    put_bytes("JUNK", 4);
+    put_be(1, 4);
+    put_bytes("x\0", 2);
+    put_bytes("COMM", 4);
+    put_be(compression == NULL ? 18 : 24, 4);
+    put_be((uint32_t)channels, 2);
+    put_be(frames, 4);
+    put_be((uint32_t)bits, 2);
+    static const uint8_t RATE[] = {0x40, 0x0e, 0xac, 0x44, 0, 0, 0, 0, 0, 0};
+    put_bytes(RATE, sizeof RATE);
+    if (compression != NULL) {
+        put_bytes(compression, 4);
+        put_bytes("\0\0", 2);
+    }
+    put_bytes("SSND", 4);
+    put_be(10 + frames * (uint32_t)(channels * bits / 8), 4);
+    put_be(2, 4);
+    put_be(0, 4);
+    put_bytes("xx", 2);
+    for (uint32_t frame = 0; frame < frames; frame++) {
+        for (int channel = 0; channel < channels; channel++) {
+            int32_t value = sample_at(frame, channel, bits);
+            if (compression != NULL && memcmp(compression, "sowt", 4) == 0) {
+                put_sample(value, bits);
+            } else {
+                put_be((uint32_t)value, (uint32_t)bits / 8);
+            }
+        }
+    }
+    uint32_t size = file.size - 8;
+    for (uint32_t index = 0; index < 4; index++) {
+        file.bytes[4 + index] = (uint8_t)(size >> (24 - index * 8));
+    }
+}
+
+static void aiff_pcm_and_aifc_play_and_seek(void)
+{
+    static const char *const COMPRESSION[] = {NULL, "NONE", "sowt"};
+    for (uint32_t kind = 0; kind < 3; kind++) {
+        for (int channels = 1; channels <= 2; channels++) {
+            for (int bits = 16; bits <= 24; bits += 8) {
+                build_aiff(channels, bits, COMPRESSION[kind], 5000);
+                AudioSource audio = fresh_source();
+                AudioTrackInfo track;
+                CHECK(audio.open(audio.context, "a.aiff", 0, &track));
+                CHECK_EQUAL(AUDIO_CODEC_AIFF, track.codec);
+                CHECK_EQUAL(44100u, track.stream.sample_rate);
+                CHECK_EQUAL(5000u, track.stream.total_samples);
+                CHECK(plays_through(audio, channels, bits, 5000));
+                CHECK(audio.open(audio.context, "a.aiff", 100, &track));
+                AudioFrame frame;
+                CHECK_EQUAL(AUDIO_FRAME_READY, audio.next(audio.context, &frame));
+                CHECK_EQUAL(4410u, frame.first_sample);
+                CHECK(frames_match(frame, channels, bits));
+                CHECK(audio.open(audio.context, "a.aiff", 60000, &track));
+                CHECK_EQUAL(AUDIO_FRAME_END, audio.next(audio.context, &frame));
+            }
+        }
+    }
+}
+
+static void aiff_accepts_the_standard_rates_and_sound_before_common(void)
+{
+    static const uint32_t RATES[] = {8000,  11025, 12000, 16000, 22050,  24000, 32000,
+                                     44100, 48000, 88200, 96000, 176400, 192000};
+    for (uint32_t index = 0; index < sizeof RATES / sizeof RATES[0]; index++) {
+        build_aiff(2, 24, NULL, 100);
+        uint32_t exponent = 0;
+        while ((RATES[index] >> exponent) > 1) {
+            exponent++;
+        }
+        uint32_t mantissa = RATES[index] << (31 - exponent);
+        file.bytes[38] = (uint8_t)((16383 + exponent) >> 8);
+        file.bytes[39] = (uint8_t)(16383 + exponent);
+        for (uint32_t byte = 0; byte < 4; byte++) {
+            file.bytes[40 + byte] = (uint8_t)(mantissa >> (24 - byte * 8));
+        }
+        if ((index & 1u) != 0) {
+            uint8_t common[26];
+            memcpy(common, file.bytes + 22, sizeof common);
+            memmove(file.bytes + 22, file.bytes + 48, file.size - 48);
+            memcpy(file.bytes + file.size - 26, common, sizeof common);
+        }
+        AudioSource audio = fresh_source();
+        AudioTrackInfo track;
+        CHECK(audio.open(audio.context, "a.aiff", 0, &track));
+        CHECK_EQUAL(RATES[index], track.stream.sample_rate);
+        CHECK(plays_through(audio, 2, 24, 100));
+    }
+}
+
+static void malformed_aiff_is_refused(void)
+{
+    AudioTrackInfo track;
+    AudioSource audio = fresh_source();
+    build_aiff(2, 16, "ima4", 10);
+    CHECK(!audio.open(audio.context, "a.aifc", 0, &track));
+    build_aiff(2, 16, NULL, 10);
+    file.size--;
+    CHECK(!audio.open(audio.context, "a.aiff", 0, &track));
+    build_aiff(2, 16, NULL, 10);
+    file.bytes[38] = 0xff;
+    CHECK(!audio.open(audio.context, "a.aiff", 0, &track));
+    build_aiff(2, 16, NULL, 10);
+    file.bytes[56] = 0x7f;
+    CHECK(!audio.open(audio.context, "a.aiff", 0, &track));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(aiff_pcm_and_aifc_play_and_seek),
+        TEST_CASE(malformed_aiff_is_refused),
+        TEST_CASE(aiff_accepts_the_standard_rates_and_sound_before_common),
         TEST_CASE(sixteen_bit_stereo_plays_every_frame),
         TEST_CASE(blocks_are_as_long_as_the_buffers_allow),
         TEST_CASE(twenty_four_bit_samples_keep_their_sign),

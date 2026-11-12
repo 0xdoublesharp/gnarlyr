@@ -242,7 +242,7 @@ class EchoImageTest(EchoImageHarness):
         waiting = self.session(volume=volume, vbus=True)
         waiting.machine.note("hal_system_borrow_scratch")
         self.assertEqual(self.boot_until_waiting_for_key(waiting), "reached board_wait_for_power_hold")
-        self.assertEqual(waiting.machine.reached["updater_install"], 1)
+        self.assertEqual(waiting.machine.reached["trial_module_install"], 1)
         self.assertNotIn("hal_system_borrow_scratch", waiting.machine.reached)
         self.assertEqual(waiting.slot_image("slot_1"), newer[:self.session_module.SLOT_BYTES])
 

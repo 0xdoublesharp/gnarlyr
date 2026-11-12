@@ -406,7 +406,7 @@ Screen *up_next_screen_init(UpNextScreen *up_next, UpNextConfig config)
                                  .count = row_count,
                                  .label = row_label,
                                  .detail = row_detail,
-                                 .detail_max_width = BOARD_LAYOUT.up_next_detail_max_width};
+                                 .detail_max_width = BOARD_COVER_LAYOUT.up_next_detail_max_width};
     list_view_init(&up_next->list, &up_next->model, config.theme, 0);
     up_next->screen = (Screen){
         .title = i18n_text(STR_UP_NEXT),

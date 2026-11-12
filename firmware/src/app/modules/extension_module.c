@@ -6,10 +6,14 @@
 
 #ifdef ECHO_DEVICE_MODULE
 #include "board.h"
+#include "trial_module.h"
 #endif
 
 const ExtensionModuleEntry EXTENSION_MODULE_ENTRY = {
+    .menu_hold = app_menu_hold,
     .head = {.magic = SCREEN_MODULE_MAGIC(EXTENSION_MODULE_NUMBER)},
+    .standby_follow = standby_follow,
+    .standby_frame = standby_frame,
     .motion_run = wire_motion_run,
     .motion_progress = wire_motion_progress,
     .motion_end = wire_motion_end,
@@ -22,7 +26,9 @@ const ExtensionModuleEntry EXTENSION_MODULE_ENTRY = {
     .headphones_load = headphone_store_load,
     .clock_set = hal_clock_set_wall,
     .clock_restore = hal_clock_restore_wall,
+    .favorite_add = favorite_playlist_add,
 #ifdef ECHO_DEVICE_MODULE
     .forget_time_file = board_wall_time_delete_file,
+    .trial = &TRIAL_CALLS,
 #endif
 };

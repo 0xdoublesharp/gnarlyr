@@ -110,6 +110,12 @@ static void lines_without_a_pair_are_ignored(void)
     CHECK(!fit_text("no numbers at all\n", gains));
 }
 
+static void parametric_filter_numbers_are_not_graphic_points(void)
+{
+    int8_t gains[SETTINGS_EQUALIZER_BANDS];
+    CHECK(!fit_text("Filter 10: ON PK Fc 105 Hz Gain -2.3 dB Q 0.70\n", gains));
+}
+
 static void frequencies_outside_the_audio_range_are_ignored(void)
 {
     int8_t gains[SETTINGS_EQUALIZER_BANDS];
@@ -168,6 +174,7 @@ int main(void)
         TEST_CASE(points_may_come_in_any_order),
         TEST_CASE(separators_line_endings_and_comments_are_tolerated),
         TEST_CASE(lines_without_a_pair_are_ignored),
+        TEST_CASE(parametric_filter_numbers_are_not_graphic_points),
         TEST_CASE(frequencies_outside_the_audio_range_are_ignored),
         TEST_CASE(text_fed_in_pieces_gives_the_same_curve),
         TEST_CASE(a_dense_autoeq_line_follows_a_slope),

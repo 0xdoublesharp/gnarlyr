@@ -2,7 +2,9 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/i18n.h"
 #include "gfx/font_pack.h"
+#include "test_pack.h"
 #include "tiny_font.h"
 
 enum {
@@ -287,6 +289,40 @@ static void a_missing_glyph_is_read_from_the_cjk_fallback_face(void)
     CHECK(glyph != NULL && glyph->codepoint == codepoint_of(2));
 }
 
+static uint32_t first_fallback_face;
+
+static bool read_either_cjk_fallback(void *context, uint32_t face, uint32_t offset, void *buffer,
+                                     uint32_t length)
+{
+    if (face >= 7 && first_fallback_face == UINT32_MAX) {
+        first_fallback_face = face;
+    }
+    return (face == 7 || face == 14) && read_pack(context, 0, offset, buffer, length);
+}
+
+static void japanese_language_codes_try_the_japanese_face_before_chinese(void)
+{
+    static const struct {
+        const char *code;
+        uint32_t face;
+    } cases[] = {{"en", 7}, {"jx", 7}, {"jax", 7}, {"ja", 14}, {"ja-JP", 14}};
+    static uint8_t language[TEST_PACK_CAPACITY];
+    for (uint32_t index = 0; index < sizeof cases / sizeof cases[0]; index++) {
+        uint32_t size =
+            test_pack_build(language, (TestPackLanguage){cases[index].code, "Test language", NULL});
+        CHECK(i18n_attach(language, size));
+        build_pack();
+        font_pack_attach((FontPackReader){read_either_cjk_fallback, NULL}, memory, sizeof memory);
+        PACKED_FONT = TINY_FONT;
+        PACKED_FONT.pack_face = 1;
+        first_fallback_face = UINT32_MAX;
+        const Glyph *glyph = font_find_glyph(&PACKED_FONT, codepoint_of(2));
+        CHECK(glyph != NULL && glyph->codepoint == codepoint_of(2));
+        CHECK_EQUAL(cases[index].face, first_fallback_face);
+    }
+    i18n_detach();
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -309,6 +345,7 @@ int main(void)
         TEST_CASE(a_font_reads_the_face_it_names),
         TEST_CASE(a_font_without_a_pack_face_ignores_packs),
         TEST_CASE(a_missing_glyph_is_read_from_the_cjk_fallback_face),
+        TEST_CASE(japanese_language_codes_try_the_japanese_face_before_chinese),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -70,6 +70,15 @@ static void a_toast_never_grows_past_three_lines(void)
                 toast_area(&toast, &TEST_THEME).height);
 }
 
+static void a_toast_is_clipped_to_an_extremely_short_screen(void)
+{
+    Toast toast = {0};
+    toast_show(&toast, "AB", NOW_MS);
+    Theme theme = TEST_THEME;
+    theme.metrics.screen_height = 1;
+    CHECK_EQUAL(1, toast_area(&toast, &theme).height);
+}
+
 static void a_toast_wider_than_the_screen_stays_on_screen(void)
 {
     Toast toast = {0};
@@ -100,6 +109,7 @@ int main(void)
         TEST_CASE(a_hidden_toast_paints_nothing),
         TEST_CASE(a_toast_too_long_for_one_line_wraps_and_grows_by_a_line),
         TEST_CASE(a_toast_never_grows_past_three_lines),
+        TEST_CASE(a_toast_is_clipped_to_an_extremely_short_screen),
         TEST_CASE(a_toast_wider_than_the_screen_stays_on_screen),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

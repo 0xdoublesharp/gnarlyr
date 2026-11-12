@@ -9,7 +9,7 @@
 #ifdef ECHO_DEBUG_LOOP
 
 enum {
-    DEBUG_LOOP_ABOUT_ROWS = 3
+    DEBUG_LOOP_ABOUT_ROWS = 4
 };
 
 void debug_loop_key(KeyEvent event);

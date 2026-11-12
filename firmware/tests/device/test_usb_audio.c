@@ -4,7 +4,7 @@
 #include "device/usb_audio.h"
 
 enum {
-    CONFIGURATION_LENGTH = 159,
+    CONFIGURATION_LENGTH = 184,
     FORMAT_LENGTH = 14,
     RATE_COUNT = 2
 };
@@ -57,8 +57,8 @@ static void the_device_is_a_full_speed_composite_of_audio_interfaces(void)
     UsbAudio audio = ready_audio();
     UsbReply reply = usb_audio_setup(&audio, setup(0x80, 6, 0x0100, 0, 64));
     CHECK_EQUAL(18, reply.length);
-    CHECK_EQUAL(0x10, reply.data[2]);
-    CHECK_EQUAL(0x01, reply.data[3]);
+    CHECK_EQUAL(0x00, reply.data[2]);
+    CHECK_EQUAL(0x02, reply.data[3]);
     CHECK_EQUAL(0, reply.data[4]);
     CHECK_EQUAL(0x02, reply.data[10]);
     CHECK_EQUAL(0, reply.data[16]);
@@ -253,19 +253,148 @@ static void requests_for_other_units_or_channels_stall(void)
     CHECK_EQUAL(USB_REPLY_STALL, usb_audio_setup(&audio, setup(0xA1, 0xFE, 0, 0, 1)).kind);
 }
 
+static void invalid_endpoint_controls_and_empty_writes_stall(void)
+{
+    UsbAudio audio = ready_audio();
+    CHECK_EQUAL(USB_REPLY_STALL, usb_audio_setup(&audio, setup(0xA2, 0x81, 0x0100, 0x02, 3)).kind);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_audio_setup(&audio, setup(0xA2, 0x81, 0x0200, 0x01, 3)).kind);
+    static const uint8_t value[] = {1, 0, 0};
+    CHECK_EQUAL(USB_REPLY_STALL,
+                usb_audio_receive(&audio, setup(0x20, 0x01, 0x0100, 0x0200, 1), value, 1).kind);
+    CHECK_EQUAL(USB_REPLY_STALL,
+                usb_audio_setup(&audio, setup(0x21, 0x01, 0x0100, 0x0200, 0)).kind);
+    CHECK_EQUAL(USB_REPLY_STALL,
+                usb_audio_setup(&audio, setup(0x21, 0x02, 0x0100, 0x0200, 1)).kind);
+}
+
 static void standard_requests_reach_the_usb_device(void)
 {
     UsbAudio audio = ready_audio();
     UsbReply address = usb_audio_setup(&audio, setup(0x00, 5, 7, 0, 0));
     CHECK_EQUAL(USB_ACTION_SET_ADDRESS, address.action);
     CHECK_EQUAL(7, address.value);
-    CHECK_EQUAL(USB_REPLY_STALL, usb_audio_setup(&audio, setup(0x80, 6, 0x0600, 0, 10)).kind);
+    CHECK_EQUAL(USB_REPLY_DATA, usb_audio_setup(&audio, setup(0x80, 6, 0x0600, 0, 10)).kind);
     CHECK_EQUAL(USB_REPLY_DATA, usb_audio_setup(&audio, setup(0x80, 6, 0x0302, 0, 64)).kind);
+}
+
+static void high_speed_offers_three_asynchronous_formats_and_a_clock_source(void)
+{
+    UsbAudio audio = ready_audio();
+    usb_device_set_speed(&device, USB_SPEED_HIGH);
+    UsbReply reply = usb_audio_setup(&audio, setup(0x80, 6, 0x0200, 0, 1024));
+    CHECK_EQUAL(3, reply.data[4]);
+    CHECK_EQUAL(reply.length, reply.data[2] | reply.data[3] << 8);
+    int formats = 0;
+    int feedbacks = 0;
+    int clocks = 0;
+    for (uint16_t offset = 0; offset < reply.length;) {
+        const uint8_t *part = reply.data + offset;
+        CHECK(part[0] >= 2 && offset + part[0] <= reply.length);
+        if (part[1] == 0x24 && part[2] == 0x0A) {
+            clocks++;
+            CHECK_EQUAL(4, part[3]);
+            CHECK_EQUAL(7, part[5]);
+        }
+        if (part[1] == 0x24 && part[2] == 2 && part[0] == 6) {
+            CHECK_EQUAL(formats + 2, part[4]);
+            CHECK_EQUAL((formats + 2) * 8, part[5]);
+            formats++;
+        }
+        if (part[1] == 5 && part[2] == 0x01) {
+            CHECK_EQUAL(0x05, part[3]);
+            CHECK_EQUAL(1, part[6]);
+            CHECK_EQUAL(25 * 2 * (formats + 1), part[4] | part[5] << 8);
+        }
+        if (part[1] == 5 && part[3] == 0x11) {
+            feedbacks++;
+            CHECK_EQUAL(4, part[4]);
+        }
+        offset += part[0];
+    }
+    CHECK_EQUAL(3, formats);
+    CHECK_EQUAL(3, feedbacks);
+    CHECK_EQUAL(1, clocks);
+}
+
+static void the_high_speed_clock_lists_and_accepts_all_six_rates(void)
+{
+    static const uint32_t rates[] = {44100, 48000, 88200, 96000, 176400, 192000};
+    UsbAudio audio = ready_audio();
+    usb_device_set_speed(&device, USB_SPEED_HIGH);
+    UsbReply reply = usb_audio_setup(&audio, setup(0xA1, 2, 0x0100, 0x0400, 255));
+    CHECK_EQUAL(USB_REPLY_DATA, reply.kind);
+    CHECK_EQUAL(74, reply.length);
+    if (reply.kind != USB_REPLY_DATA || reply.length != 74) {
+        return;
+    }
+    CHECK_EQUAL(6, reply.data[0]);
+    for (int index = 0; index < 6; index++) {
+        CHECK_EQUAL(rates[index], rate_at(reply.data + 2 + index * 12));
+        CHECK_EQUAL(rates[index], rate_at(reply.data + 6 + index * 12));
+        CHECK_EQUAL(0, rate_at(reply.data + 10 + index * 12));
+    }
+    for (int index = 0; index < 6; index++) {
+        uint8_t bytes[] = {(uint8_t)rates[index], (uint8_t)(rates[index] >> 8),
+                           (uint8_t)(rates[index] >> 16), 0};
+        set_cur(&audio, setup(0x21, 1, 0x0100, 0x0400, 4), bytes, 4);
+        CHECK_EQUAL(rates[index], audio.rate);
+    }
+    CHECK_EQUAL(USB_REPLY_STATUS, usb_audio_setup(&audio, setup(0x01, 11, 3, 1, 0)).kind);
+    CHECK_EQUAL(4, usb_audio_sample_bytes(&audio));
+}
+
+static void other_speed_descriptors_and_clock_controls_do_not_cross_protocols(void)
+{
+    UsbAudio audio = ready_audio();
+    UsbReply reply = usb_audio_setup(&audio, setup(0x80, 6, 0x0700, 0, 1024));
+    CHECK_EQUAL(7, reply.data[1]);
+    CHECK_EQUAL(283, reply.length);
+    usb_device_set_speed(&device, USB_SPEED_HIGH);
+    reply = usb_audio_setup(&audio, setup(0x80, 6, 0x0700, 0, 1024));
+    CHECK_EQUAL(184, reply.length);
+    CHECK_EQUAL(7, reply.data[1]);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_audio_setup(&audio, setup(0xA2, 0x81, 0x0100, 1, 3)).kind);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_audio_setup(&audio, setup(0x21, 1, 0x0101, 0x0400, 4)).kind);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_audio_setup(&audio, setup(0x21, 1, 0x0100, 0x0400, 3)).kind);
+    const uint8_t rate[] = {0x80, 0xBB, 0, 0};
+    CHECK_EQUAL(USB_REPLY_STALL,
+                usb_audio_receive(&audio, setup(0x21, 2, 0x0100, 0x0400, 4), rate, 4).kind);
+    CHECK_EQUAL(USB_REPLY_STALL,
+                usb_audio_receive(&audio, setup(0x21, 1, 0x0100, 0x0400, 4), rate, 3).kind);
+    reply = usb_audio_setup(&audio, setup(0xA1, 2, 0x0100, 0x0400, 2));
+    CHECK_EQUAL(2, reply.length);
+    CHECK_EQUAL(6, reply.data[0]);
+    reply = usb_audio_setup(&audio, setup(0xA1, 1, 0x0200, 0x0400, 1));
+    CHECK_EQUAL(1, reply.data[0]);
+    reply = usb_audio_setup(&audio, setup(0xA1, 2, 0x0200, 0x0200, 8));
+    CHECK_EQUAL(8, reply.length);
+    CHECK_EQUAL(1, reply.data[0]);
+    CHECK_EQUAL(0xC0, reply.data[3]);
+    CHECK_EQUAL(0x80, reply.data[6]);
+}
+
+static void hid_enumeration_and_idle_requests_use_the_consumer_interface(void)
+{
+    UsbAudio audio = ready_audio();
+    UsbReply reply = usb_audio_setup(&audio, setup(0x81, 6, 0x2200, 2, 255));
+    CHECK_EQUAL(USB_REPLY_DATA, reply.kind);
+    CHECK_EQUAL(23, reply.length);
+    CHECK_EQUAL(0x0C, reply.data[1]);
+    CHECK_EQUAL(USB_REPLY_STATUS, usb_audio_setup(&audio, setup(0x21, 10, 0x0500, 2, 0)).kind);
+    reply = usb_audio_setup(&audio, setup(0xA1, 2, 0, 2, 1));
+    CHECK_EQUAL(5, reply.data[0]);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_audio_setup(&audio, setup(0x21, 10, 1, 2, 0)).kind);
+    usb_audio_reset(&audio);
+    CHECK_EQUAL(0, audio.hid_idle);
 }
 
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(other_speed_descriptors_and_clock_controls_do_not_cross_protocols),
+        TEST_CASE(hid_enumeration_and_idle_requests_use_the_consumer_interface),
+        TEST_CASE(high_speed_offers_three_asynchronous_formats_and_a_clock_source),
+        TEST_CASE(the_high_speed_clock_lists_and_accepts_all_six_rates),
         TEST_CASE(the_device_is_a_full_speed_composite_of_audio_interfaces),
         TEST_CASE(the_configuration_walks_to_its_declared_length),
         TEST_CASE(the_control_header_covers_its_units),
@@ -282,6 +411,7 @@ int main(void)
         TEST_CASE(volume_below_the_range_is_clamped),
         TEST_CASE(mute_overrides_the_volume),
         TEST_CASE(requests_for_other_units_or_channels_stall),
+        TEST_CASE(invalid_endpoint_controls_and_empty_writes_stall),
         TEST_CASE(standard_requests_reach_the_usb_device),
 
     };

@@ -74,8 +74,9 @@ def load_symbols(elf_path, first=0, last=0xFFFFFFFF):
                 "<IIIBBH", elf, section[4] + position * 16)
             start = names[4] + name
             label = elf[start:elf.index(b"\x00", start)].decode("ascii")
-            if label and (info & 0xF) in (0, 1, 2) and first <= value < last:
-                symbols[label] = value & ~1
+            kind = info & 0xF
+            if label and kind in (0, 1, 2) and first <= value < last:
+                symbols[label] = value if kind == 1 else value & ~1
     return symbols
 
 
@@ -153,6 +154,7 @@ class Machine:
         self.vbus = False
         self.adc_key_value = ADC_NO_KEY
         self.adc_battery_value = ADC_BATTERY_4000_MV
+        self.power_key_pressed_at_ms = 0
         self.power_key_released_at_ms = 300
         self.card_present = False
         self.balanced_plugged = False
@@ -228,7 +230,7 @@ class Machine:
         levels = 0
         if port == CHARGE_PORT:
             levels |= 1 << CHARGE_PIN
-            if self.milliseconds() < self.power_key_released_at_ms:
+            if self.power_key_pressed_at_ms <= self.milliseconds() < self.power_key_released_at_ms:
                 levels |= 1 << POWER_KEY_PIN
         if port == CARD_DETECT_PORT and not self.card_present:
             levels |= 1 << CARD_DETECT_PIN
@@ -277,6 +279,7 @@ class Machine:
         self.usb = devices.UsbCore(self)
         self.pmu = devices.Pmu(self)
         self.vop = devices.Vop(self)
+        self.dmac = devices.Dmac(self)
         from .emmc import DwMmc
         self.watchdog = devices.Watchdog(self)
         self.emmc_controller = DwMmc(self, self.card)
@@ -289,7 +292,7 @@ class Machine:
             (self.pmu, 0x50020000, PAGE), (self.cru, 0x40180000, PAGE),
             (devices.Pwm(self), 0x400F0000, PAGE), (devices.SarAdc(self), 0x400D0000, PAGE),
             (self.watchdog, 0x40120000, PAGE), (self.systick, 0xE000E000, PAGE),
-            (self.vop, 0x60070000, PAGE), (devices.Dmac(), 0x60000000, PAGE),
+            (self.vop, 0x60070000, PAGE), (self.dmac, 0x60000000, PAGE),
             (self.usb, 0x60080000, 0x10000), (self.emmc_controller, 0x60030000, PAGE),
             (self.sd_controller, 0x60020000, PAGE), (self.rtc_bus, 0x40050000, PAGE),
         ]
@@ -506,6 +509,10 @@ class Machine:
 
         self.hook_symbol(name, reached)
 
+    def hold_power(self, from_ms, hold_ms):
+        self.power_key_pressed_at_ms = from_ms
+        self.power_key_released_at_ms = from_ms + hold_ms
+
     def press_key(self, adc_value, delay_ms=20, hold_ms=300):
         start = self.milliseconds() + delay_ms
         self.at_ms(start, lambda: setattr(self, "adc_key_value", adc_value))
@@ -537,11 +544,11 @@ class Machine:
         self.hook_symbol(name, lambda: stamps.append(self.milliseconds()))
         return stamps
 
-    def note(self, name):
+    def note(self, name, optional=False):
         def reached():
             self.reached[name] = self.reached.get(name, 0) + 1
 
-        self.hook_symbol(name, reached)
+        self.hook_symbol(name, reached, optional=optional)
 
     def names_at(self, address):
         for overlay in self.overlays:

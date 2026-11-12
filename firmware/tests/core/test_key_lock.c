@@ -114,9 +114,42 @@ static void a_released_and_repressed_key_must_be_held_for_the_full_interval(void
     CHECK(lock.locked);
 }
 
+static void power_rocker_is_available_while_locked(void)
+{
+    KeyLock lock = {.locked = true};
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_POWER, true, 0));
+    CHECK_EQUAL(KEY_LOCK_SHORTCUT, key_lock_transition(&lock, KEY_VOLUME_UP, true, 20));
+    CHECK_EQUAL(KEY_LOCK_SWALLOW, key_lock_transition(&lock, KEY_VOLUME_UP, false, 30));
+    CHECK_EQUAL(KEY_LOCK_SWALLOW, key_lock_transition(&lock, KEY_POWER, false, 40));
+    CHECK(lock.locked);
+}
+
+static void shortcuts_fire_once_and_drain_both_release_orders(void)
+{
+    const Key keys[] = {KEY_VOLUME_UP, KEY_VOLUME_DOWN, KEY_MENU};
+    const KeyLockVerdict verdicts[] = {KEY_LOCK_SHORTCUT, KEY_LOCK_SHORTCUT, KEY_LOCK_SHORTCUT};
+    for (int index = 0; index < 3; index++) {
+        for (int order = 0; order < 2; order++) {
+            KeyLock lock = {0};
+            key_lock_transition(&lock, KEY_POWER, true, 0);
+            CHECK_EQUAL(verdicts[index], key_lock_transition(&lock, keys[index], true, 10));
+            CHECK_EQUAL(KEY_LOCK_SWALLOW, key_lock_transition(&lock, keys[index], true, 20));
+            CHECK(!key_lock_update(&lock, 5000));
+            Key first = order == 0 ? KEY_POWER : keys[index];
+            Key second = order == 0 ? keys[index] : KEY_POWER;
+            CHECK_EQUAL(KEY_LOCK_SWALLOW, key_lock_transition(&lock, first, false, 5010));
+            CHECK_EQUAL(KEY_LOCK_SWALLOW, key_lock_transition(&lock, second, false, 5020));
+            CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_POWER, true, 5030));
+            CHECK(!lock.locked);
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(shortcuts_fire_once_and_drain_both_release_orders),
+        TEST_CASE(power_rocker_is_available_while_locked),
         TEST_CASE(holding_play_and_power_locks_and_unlocks),
         TEST_CASE(the_combination_starts_on_the_second_key_and_swallows_both),
         TEST_CASE(a_short_combination_changes_nothing),

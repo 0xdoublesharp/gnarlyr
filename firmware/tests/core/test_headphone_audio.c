@@ -32,6 +32,20 @@ static void balance_and_ceiling_changes_cannot_raise_either_channel(void)
     CHECK_EQUAL(0, headphone_audio_switch_volume(muted, headphone_audio_defaults(), 60));
 }
 
+static void a_gain_rise_lowers_the_audible_level_by_the_rise_within_the_ceiling(void)
+{
+    HeadphoneAudio open = headphone_audio_defaults();
+    HeadphoneAudio capped = {.left = REPLAY_GAIN_UNITY, .right = REPLAY_GAIN_UNITY, .ceiling = 20};
+    CHECK_EQUAL(24, headphone_audio_rise_volume(open, 30, 6));
+    CHECK_EQUAL(54, headphone_audio_rise_volume(open, 60, 6));
+    CHECK_EQUAL(14, headphone_audio_rise_volume(capped, 40, 6));
+    CHECK_EQUAL(14, headphone_audio_rise_volume(capped, 20, 6));
+    CHECK_EQUAL(0, headphone_audio_rise_volume(open, 6, 6));
+    CHECK_EQUAL(0, headphone_audio_rise_volume(open, 2, 6));
+    CHECK_EQUAL(0, headphone_audio_rise_volume(open, 0, 6));
+    CHECK_EQUAL(30, headphone_audio_rise_volume(open, 30, 0));
+}
+
 static void clipping_never_occurs_before_combined_attenuation(void)
 {
     CHECK_EQUAL(2 * REPLAY_GAIN_UNITY,
@@ -65,13 +79,23 @@ static void low_bit_scaling_matches_wide_division_at_both_clipping_boundaries(vo
     }
 }
 
+static void a_right_channel_increase_alone_requires_attenuation(void)
+{
+    HeadphoneAudio before = {.left = 65536, .right = 32768, .ceiling = 60};
+    HeadphoneAudio after = {.left = 32768, .right = 65536, .ceiling = 60};
+    uint8_t level = headphone_audio_switch_volume(before, after, 60);
+    CHECK(level > 0 && level < 60);
+}
+
 int main(void)
 {
     const TestCase cases[] = {
         TEST_CASE(switching_to_less_trim_lowers_volume_before_the_gain_changes),
         TEST_CASE(balance_and_ceiling_changes_cannot_raise_either_channel),
+        TEST_CASE(a_gain_rise_lowers_the_audible_level_by_the_rise_within_the_ceiling),
         TEST_CASE(clipping_never_occurs_before_combined_attenuation),
         TEST_CASE(low_bit_scaling_matches_wide_division_at_both_clipping_boundaries),
+        TEST_CASE(a_right_channel_increase_alone_requires_attenuation),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

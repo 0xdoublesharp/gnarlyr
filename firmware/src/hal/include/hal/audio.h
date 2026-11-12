@@ -5,6 +5,7 @@
 
 #include "core/dac_identity.h"
 #include "core/headphone_audio.h"
+#include "core/parametric.h"
 
 enum {
     HAL_AUDIO_VOLUME_MAX = 60,
@@ -22,6 +23,14 @@ typedef enum HalAudioGain {
     HAL_AUDIO_GAIN_LOW,
     HAL_AUDIO_GAIN_HIGH
 } HalAudioGain;
+
+typedef enum HalAudioFilter {
+    HAL_AUDIO_FILTER_FAST_LOW_LATENCY,
+    HAL_AUDIO_FILTER_FAST_PHASE_COMPENSATED,
+    HAL_AUDIO_FILTER_SLOW_LOW_LATENCY,
+    HAL_AUDIO_FILTER_SLOW_PHASE_COMPENSATED,
+    HAL_AUDIO_FILTER_NON_OVERSAMPLING
+} HalAudioFilter;
 
 typedef enum HalAudioOutput {
     HAL_AUDIO_OUTPUT_AUTO,
@@ -56,7 +65,9 @@ typedef enum HalAudioCodec {
     HAL_AUDIO_CODEC_AAC,
     HAL_AUDIO_CODEC_ALAC,
     HAL_AUDIO_CODEC_VORBIS,
-    HAL_AUDIO_CODEC_OPUS
+    HAL_AUDIO_CODEC_OPUS,
+    HAL_AUDIO_CODEC_DSD,
+    HAL_AUDIO_CODEC_AIFF
 } HalAudioCodec;
 
 typedef struct HalAudioFormat {
@@ -136,6 +147,8 @@ typedef struct HalAudioEqualizer {
     int8_t gain_half_db[HAL_AUDIO_EQUALIZER_BANDS];
     uint8_t band_count;
     uint16_t pre_gain;
+    bool is_parametric;
+    ParametricEq parametric;
 } HalAudioEqualizer;
 
 bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next);
@@ -145,9 +158,11 @@ void hal_audio_resume(void);
 void hal_audio_release(void);
 void hal_audio_seek(uint32_t position_ms);
 void hal_audio_set_volume(uint8_t level);
+void hal_audio_set_bluetooth_volume(uint8_t level);
 void hal_audio_set_headphones(HeadphoneAudio profile);
 HeadphoneAudio hal_audio_headphones(void);
 void hal_audio_set_gain(HalAudioGain gain);
+void hal_audio_set_filter(HalAudioFilter filter);
 void hal_audio_set_output(HalAudioOutput output);
 void hal_audio_set_equalizer(const HalAudioEqualizer *equalizer);
 HalAudioStatus hal_audio_status(void);
@@ -165,3 +180,8 @@ HalAudioJack hal_audio_jack(void);
 HalAudioRefusal hal_audio_refusal(void);
 
 void hal_audio_set_replay_gain(uint32_t token, uint32_t gain);
+void hal_audio_set_speed(uint16_t speed);
+
+void hal_audio_set_sleep_remaining(uint32_t remaining_ms);
+
+uint8_t hal_audio_repeat_mark(bool clear);

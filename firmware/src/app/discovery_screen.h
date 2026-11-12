@@ -11,6 +11,7 @@
 typedef enum DiscoveryRequest {
     DISCOVERY_REQUEST_NONE,
     DISCOVERY_REQUEST_PLAY,
+    DISCOVERY_REQUEST_ALBUMS,
     DISCOVERY_REQUEST_CANCEL_PLAY
 } DiscoveryRequest;
 
@@ -27,7 +28,8 @@ typedef enum DiscoveryMode {
     DISCOVERY_TAG_DELETE,
     DISCOVERY_TAG_FILTER,
     DISCOVERY_ACTIONS,
-    DISCOVERY_NOTICE
+    DISCOVERY_NOTICE,
+    DISCOVERY_GROUP_ACTIONS
 } DiscoveryMode;
 
 typedef struct DiscoveryScreenConfig {
@@ -69,6 +71,7 @@ typedef struct DiscoveryScreen {
     char scope_title_text[96];
     bool scope_favorites;
     bool auto_play;
+    bool shuffle_albums;
     bool initialized;
     bool info_external;
     bool editor_external;
@@ -77,6 +80,7 @@ typedef struct DiscoveryScreen {
 Screen *discovery_screen_init(DiscoveryScreen *screen, DiscoveryScreenConfig config);
 Screen *discovery_screen_open(DiscoveryScreen *screen, BrowseQuery source, bool edit_search);
 Screen *discovery_screen_options(DiscoveryScreen *screen, BrowseQuery source);
+Screen *discovery_screen_albums(DiscoveryScreen *screen, BrowseQuery source);
 Screen *discovery_screen_info(DiscoveryScreen *screen, uint16_t track);
 Screen *discovery_screen_tags(DiscoveryScreen *screen, uint16_t track);
 TrackOrderSource discovery_screen_order(DiscoveryScreen *screen);

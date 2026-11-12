@@ -49,6 +49,19 @@ static const char *const EVENT_NAMES[DEBUG_EVENT_KIND_COUNT] = {
     [DEBUG_EVENT_SCRIPT] = "script",
     [DEBUG_EVENT_POWER] = "power",
     [DEBUG_EVENT_USB_CONNECT] = "usb_connect",
+    [DEBUG_EVENT_SCAN] = "scan",
+    [DEBUG_EVENT_COVER] = "cover",
+};
+static const char *const SCAN_PHASES[DEBUG_SCAN_PHASE_COUNT] = {
+    [DEBUG_SCAN_START] = "start",
+    [DEBUG_SCAN_LIBRARY] = "library",
+    [DEBUG_SCAN_COVERS] = "covers",
+    [DEBUG_SCAN_COVERS_DONE] = "covers_done",
+    [DEBUG_SCAN_COVERS_STOPPED] = "covers_stopped",
+    [DEBUG_SCAN_UP_TO_DATE] = "up_to_date",
+    [DEBUG_SCAN_EMMC_OK] = "emmc_ok",
+    [DEBUG_SCAN_EMMC_FAILED] = "emmc_failed",
+    [DEBUG_SCAN_EMMC_FLAG_LOST] = "emmc_flag_lost",
 };
 static const char *const SCRIPT_STATES[DEBUG_SCRIPT_STATE_COUNT] = {
     [DEBUG_SCRIPT_NONE] = "none",
@@ -208,6 +221,21 @@ bool debug_report_cold_start(const HalStartInfo *start, uint32_t uptime_ms)
     return !start->warm && uptime_ms < DEBUG_REPORT_COLD_MS;
 }
 
+static void put_standby(Writer *writer, const Standby *standby)
+{
+    put_unsigned(writer, "standby.entries", standby->entries);
+    put_unsigned(writer, "standby.wakes", standby->wakes);
+    if (standby->entries == 0) {
+        return;
+    }
+    put_known(writer, "standby.wake_latency_ms", standby->wakes != 0 && !standby->waking,
+              standby->latency_ms);
+    put_unsigned(writer, "standby.entry_ms", standby->entry_ms);
+    put_unsigned(writer, "standby.wake_ms", standby->wake_ms);
+    put_known(writer, "standby.entry_mv", standby->entry_mv != 0, standby->entry_mv);
+    put_known(writer, "standby.wake_mv", standby->wake_mv != 0, standby->wake_mv);
+}
+
 static void put_system(Writer *writer, const DebugReportInput *input)
 {
     put_unsigned(writer, SCHEMA_KEY, DEBUG_REPORT_SCHEMA);
@@ -218,6 +246,7 @@ static void put_system(Writer *writer, const DebugReportInput *input)
     put_build(writer, input->version);
     put_unsigned(writer, "uptime_ms", input->uptime_ms);
     put_unsigned(writer, "clock_mhz", input->clock_mhz);
+    put_standby(writer, &input->standby);
     put_unsigned(writer, "core0.clock_us", input->clock_us);
     put_unsigned(writer, "core0.idle_us", input->idle_us);
     bool unwrapped = input->uptime_ms < WRAP_FREE_UPTIME_MS;
@@ -394,6 +423,27 @@ static void put_average(Writer *writer, const char *key, uint32_t total, uint32_
     put_known(writer, key, count != 0, count != 0 ? total / count : 0);
 }
 
+static void put_bluetooth(Writer *writer, const HalBluetoothLink *link)
+{
+    if (link == NULL) {
+        return;
+    }
+    const HalBluetoothTimeline *time = &link->timeline;
+    put_unsigned(writer, "bluetooth.module_on_ms", time->module_on_ms);
+    put_unsigned(writer, "bluetooth.init_done_ms", time->init_done_ms);
+    put_unsigned(writer, "bluetooth.connect_ms", time->connect_ms);
+    put_unsigned(writer, "bluetooth.connected_ms", time->connected_ms);
+    put_unsigned(writer, "bluetooth.stream_ms", time->stream_ms);
+    put_unsigned(writer, "bluetooth.first_audio_ms", time->first_audio_ms);
+    begin(writer, "bluetooth.reports");
+    for (uint32_t index = 0; index < link->event_count; index++) {
+        string_builder_append_char(&writer->text, link->events[index][0]);
+        string_builder_append_char(&writer->text, link->events[index][1]);
+        string_builder_append_char(&writer->text, ' ');
+    }
+    finish(writer);
+}
+
 static void put_audio(Writer *writer, const DebugReportAudio *audio)
 {
     const HalAudioStats *stats = &audio->stats;
@@ -526,7 +576,6 @@ static void put_measure(Writer *writer, const DebugMeasure *measure)
     append_share(&writer->text, "core0_busy_percent", measure->clock_us - measure->idle_us,
                  measure->clock_us);
     uint32_t core1_busy = measure->core1_cycles - measure->core1_idle_cycles;
-    append_share(&writer->text, "core1_busy_percent", core1_busy, measure->core1_cycles);
     append_permille(&writer->text, "core1_busy_permille", core1_busy, measure->core1_cycles);
     finish(writer);
 }
@@ -821,13 +870,22 @@ static void append_event_value(StringBuilder *text, const DebugEvent *event)
     if (event->kind == DEBUG_EVENT_KEY) {
         string_builder_append(text, key_script_key_name((Key)(value & KEY_MASK)));
         string_builder_append_char(text, ' ');
-        string_builder_append(text, NAME_IN(GESTURE_NAMES, value >> GESTURE_SHIFT));
+        string_builder_append(text, NAME_IN(GESTURE_NAMES, (value >> GESTURE_SHIFT) & 0xFFu));
+        string_builder_append_char(text, ' ');
+        string_builder_append_unsigned(text, value >> 16);
     } else if (event->kind == DEBUG_EVENT_PLAYER) {
         append_named_pair(text, NAME_IN(PLAYER_NAMES, value & STATE_MASK), value >> TRACK_SHIFT);
     } else if (event->kind == DEBUG_EVENT_USB_END) {
         string_builder_append(text, NAME_IN(USB_END_NAMES, value));
     } else if (event->kind == DEBUG_EVENT_SCRIPT && value >= DEBUG_SCRIPT_EVENT_STATE) {
         string_builder_append(text, NAME_IN(SCRIPT_STATES, value - DEBUG_SCRIPT_EVENT_STATE));
+    } else if (event->kind == DEBUG_EVENT_SCAN) {
+        append_named_pair(text, NAME_IN(SCAN_PHASES, value >> DEBUG_SCAN_PHASE_SHIFT),
+                          value & DEBUG_SCAN_NUMBER_MASK);
+    } else if (event->kind == DEBUG_EVENT_COVER) {
+        append_named_pair(text, (value & DEBUG_COVER_FULL) != 0 ? "full" : "half",
+                          value & DEBUG_COVER_ALBUM_MASK);
+        string_builder_append(text, (value & DEBUG_COVER_FOUND) != 0 ? " found" : " missing");
     } else if (event->kind == DEBUG_EVENT_USB_CONNECT) {
         string_builder_append(text, NAME_IN(CONNECT_NAMES, value));
     } else if (event->kind == DEBUG_EVENT_POWER) {
@@ -933,6 +991,17 @@ static uint32_t put_tail(Writer *writer, uint32_t capacity)
     return (uint32_t)writer->text.length;
 }
 
+static void put_boot(Writer *writer, const uint32_t *times)
+{
+    static const char *const KEYS[DEBUG_BOOT_COUNT] = {
+        "boot.clock_us", "boot.display_us",   "boot.glyphs_us",      "boot.app_us",
+        "boot.frame_us", "boot.extension_us", "boot.interactive_us", "boot.audio_us"};
+    for (int index = 0; index < DEBUG_BOOT_COUNT; index++) {
+        uint32_t value = times != NULL ? times[index] : 0;
+        put_known(writer, KEYS[index], value != 0, value - 1);
+    }
+}
+
 uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t capacity)
 {
     if (capacity <= DEBUG_REPORT_TAIL_BYTES) {
@@ -943,10 +1012,18 @@ uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t
     put_battery(&writer, input);
     put_power(&writer, input);
     put_start(&writer, &input->start);
+    put_boot(&writer, input->boot_us);
     put_usb(&writer, input->usb, input->power.usb_kept_on);
     put_usb_words(&writer, &input->usb_words);
     put_loop(&writer, input);
     put_audio(&writer, &input->audio);
+    put_bluetooth(&writer, input->bluetooth);
+    put_unsigned(&writer, "dac.up", input->dac.up);
+    put_known(&writer, "dac.power_left", (input->dac.valid & 1) != 0, input->dac.power[0]);
+    put_known(&writer, "dac.power_right", (input->dac.valid & 2) != 0, input->dac.power[1]);
+    put_unsigned(&writer, "dac.start_us", input->dac.start_us);
+    put_unsigned(&writer, "dac.stop_us", input->dac.stop_us);
+    put_unsigned(&writer, "dac.gain_us", input->dac.gain_us);
     put_frames(&writer, &input->frames);
     put_script(&writer, input);
     put_events(&writer, input->log);

@@ -1,5 +1,6 @@
 #include "settings_screens.h"
 #include "app/app.h"
+#include "audio_settings.h"
 #include "settings_actions.h"
 
 #include <stddef.h>
@@ -10,34 +11,34 @@
 #include "default_theme.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
+#include "hal/power.h"
 #include "hal/system.h"
 
 enum {
     BRIGHTNESS_LEVEL_COUNT = SETTINGS_BRIGHTNESS_MAX - SETTINGS_BRIGHTNESS_MIN + 1,
     MILLISECONDS_PER_MINUTE = 60000,
-    USB_MODE_SELECT_COUNT = 3,
     SAFE_VOLUME_OPTION_COUNT = 6,
     SAFE_VOLUME_STEP = 6,
     SAFE_VOLUME_TEXT_CAPACITY = 4,
-    USB_PROMPT_MS = 15000,
-    MILLISECONDS_PER_SECOND = 1000
+    MODE_ROW_FIRST = PLUG_MODE_COMPUTER,
+    MODE_ROW_COUNT = PLUG_MODE_COUNT - MODE_ROW_FIRST,
+    ALWAYS_CAPACITY = 64
 };
-
-static EqualizerPresets presets;
 
 static const StringId SHUFFLE_OPTIONS[SHUFFLE_MODE_COUNT] = {STR_OFF, STR_SHUFFLE_SONGS,
                                                              STR_SHUFFLE_ALBUMS};
 static const StringId REPEAT_OPTIONS[REPEAT_MODE_COUNT] = {STR_OFF, STR_REPEAT_MODE_ONE,
                                                            STR_REPEAT_MODE_ALL};
 static const StringId SLEEP_OPTIONS[SLEEP_TIMER_OPTION_COUNT] = {
-    STR_OFF,        STR_MINUTES_15, STR_MINUTES_30, STR_MINUTES_45,
-    STR_MINUTES_60, STR_MINUTES_90, STR_MINUTES_120};
+    STR_OFF,        STR_MINUTES_15,  STR_MINUTES_30,      STR_MINUTES_45,       STR_MINUTES_60,
+    STR_MINUTES_90, STR_MINUTES_120, STR_SLEEP_END_TRACK, STR_SLEEP_END_CHAPTER};
 static const StringId AUTO_OFF_OPTIONS[AUTO_OFF_OPTION_COUNT] = {STR_OFF, STR_MINUTES_1,
                                                                  STR_MINUTES_5, STR_MINUTES_10};
 static const StringId TIMEOUT_OPTIONS[SCREEN_TIMEOUT_OPTION_COUNT] = {
     STR_SECONDS_10, STR_SECONDS_20, STR_SECONDS_30, STR_MINUTES_1,
     STR_MINUTES_2,  STR_MINUTES_5,  STR_NEVER};
 static const StringId CLOCK_FORMAT_OPTIONS[] = {STR_CLOCK_12H, STR_CLOCK_24H};
+static const StringId POWER_ON_OPTIONS[] = {STR_POWER_ON_HOLD, STR_POWER_ON_PRESS};
 static const char *const BRIGHTNESS_OPTIONS[BRIGHTNESS_LEVEL_COUNT] = {"1", "2", "3", "4", "5",
                                                                        "6", "7", "8", "9", "10"};
 static const StringId ACCENT_OPTIONS[ACCENT_COLOR_COUNT] = {
@@ -54,6 +55,9 @@ static const StringId ORIENTATION_OPTIONS[ORIENTATION_COUNT] = {STR_LANDSCAPE, S
 static const StringId SKIP_OPTIONS[SKIP_GESTURE_COUNT] = {STR_SKIP_HOLD, STR_SKIP_DOUBLE,
                                                           STR_SKIP_PLAY};
 static const StringId GAIN_OPTIONS[GAIN_LEVEL_COUNT] = {STR_GAIN_LOW, STR_GAIN_HIGH};
+static const StringId FILTER_OPTIONS[DAC_FILTER_COUNT] = {
+    STR_FILTER_FAST_LOW_LATENCY, STR_FILTER_FAST_PHASE_COMPENSATED, STR_FILTER_SLOW_LOW_LATENCY,
+    STR_FILTER_SLOW_PHASE_COMPENSATED, STR_FILTER_NON_OVERSAMPLING};
 static const StringId OUTPUT_OPTIONS[OUTPUT_JACK_COUNT] = {STR_OUTPUT_AUTO, STR_JACK_35,
                                                            STR_JACK_44};
 static const StringId OUTPUT_MESSAGES[OUTPUT_JACK_COUNT] = {STR_OUTPUT_FOLLOWS, STR_OUTPUT_USING_35,
@@ -61,16 +65,15 @@ static const StringId OUTPUT_MESSAGES[OUTPUT_JACK_COUNT] = {STR_OUTPUT_FOLLOWS, 
 static const StringId START_OPTIONS[START_SCREEN_COUNT] = {
     STR_START_MAIN_MENU, STR_NOW_PLAYING, STR_ALBUMS,    STR_ARTISTS,
     STR_FAVORITES,       STR_PLAYLISTS,   STR_COVER_FLOW};
-static const StringId USB_MODE_OPTIONS[USB_MODE_SELECT_COUNT] = {STR_CHARGE_ONLY, STR_FILE_TRANSFER,
-                                                                 STR_USB_DAC_TITLE};
-static const StringId USB_ANSWER_OPTIONS[USB_CONNECT_COUNT] = {STR_ASK, STR_FILE_TRANSFER,
-                                                               STR_CHARGE_ONLY};
-static const StringId USB_MODE_MESSAGES[USB_MODE_COUNT] = {STR_USB_SHOWS_DRIVES,
-                                                           STR_USB_PLAYS_SOUND};
+static const StringId USB_ANSWER_OPTIONS[PLUG_MODE_COUNT] = {
+    STR_PLUG_ASK, STR_PLUG_COMPUTER, STR_PLUG_CHARGE_PLAY, STR_PLUG_RUN_USB, STR_PLUG_DAC};
+static const StringId *const USB_MODE_OPTIONS = USB_ANSWER_OPTIONS + MODE_ROW_FIRST;
 
-static const StringId REPLAY_GAIN_OPTIONS[REPLAY_GAIN_MODE_COUNT] = {STR_OFF, STR_REPLAY_GAIN_TRACK,
-                                                                     STR_REPLAY_GAIN_ALBUM};
+static const StringId REPLAY_GAIN_OPTIONS[REPLAY_GAIN_MODE_COUNT] = {
+    STR_OFF, STR_REPLAY_GAIN_TRACK, STR_REPLAY_GAIN_ALBUM, STR_REPLAY_GAIN_AUTO};
 static const StringId OFF_ON_OPTIONS[] = {STR_OFF, STR_ON};
+static const StringId STATUS_LAYOUT_OPTIONS[] = {STR_STATUS_STANDARD, STR_STATUS_COMPACT};
+
 static const StringId BATTERY_STYLE_OPTIONS[] = {STR_BATTERY_SOLID, STR_BATTERY_SEGMENTED};
 
 static const Settings *settings_of(const void *context)
@@ -83,6 +86,25 @@ static Settings *editable_settings(void *context)
 {
     SettingsContext *settings = context;
     return &settings->store->settings;
+}
+
+static void report_unsaved(SettingsContext *context, bool saved)
+{
+    if (!saved) {
+        toast_show(context->toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
+    }
+}
+
+static int current_power_on(const void *context)
+{
+    return (settings_of(context)->power_on_flags >> 4) & 1;
+}
+
+static void choose_power_on(void *context, int index)
+{
+    Settings *settings = editable_settings(context);
+    settings->power_on_flags = (uint8_t)((settings->power_on_flags & ~0x10u) | (index ? 0x10u : 0));
+    settings_action_save(context);
 }
 
 static int current_timeout(const void *context)
@@ -254,8 +276,21 @@ static int current_gain(const void *context)
 
 static void choose_gain(void *context, int index)
 {
-    editable_settings(context)->gain = (GainLevel)index;
-    settings_action_apply_and_save(context);
+    SettingsContext *settings = context;
+    report_unsaved(settings,
+                   audio_settings_set_gain(settings->store, settings->player, (GainLevel)index));
+}
+
+static int current_filter(const void *context)
+{
+    return (int)settings_of(context)->dac_filter;
+}
+
+static void choose_filter(void *context, int index)
+{
+    SettingsContext *settings = context;
+    report_unsaved(settings,
+                   audio_settings_set_filter(settings->store, settings->player, (DacFilter)index));
 }
 
 static int current_output(const void *context)
@@ -281,88 +316,29 @@ static const char *describe_output(const void *context, int current)
     return i18n_text(jack == HAL_AUDIO_JACK_BALANCED ? STR_OUTPUT_AUTO_44 : STR_OUTPUT_AUTO_35);
 }
 
-static void equalizer_changed(void *context, bool finished)
+static void choose_equalizer(void *context, int index)
 {
-    SettingsContext *settings = context;
-    settings_store_apply_hardware(&settings->store->settings);
-    if (finished) {
-        settings_action_save(settings);
-    }
+    ((SettingsContext *)context)->store->equalizer_slot = -1;
+    editable_settings(context)->equalizer = (EqualizerPreset)index;
+    settings_action_apply_and_save(context);
 }
 
-static bool slot_used(const void *context, int slot)
+static const char *describe_equalizer(const void *context, int current)
 {
+    static const StringId slots[] = {STR_EQ_SLOT_1, STR_EQ_SLOT_2, STR_EQ_SLOT_3, STR_EQ_SLOT_4,
+                                     STR_EQ_SLOT_5, STR_EQ_SLOT_6, STR_EQ_SLOT_7, STR_EQ_SLOT_8};
     const SettingsContext *settings = context;
-    return equalizer_slots_used(&settings->presets->slots, slot);
-}
-
-static void save_slot(void *context, int slot)
-{
-    SettingsContext *settings = context;
-    bool saved = equalizer_presets_save_slot(settings->presets, slot,
-                                             settings->store->settings.equalizer_gains);
-    StringBuilder message = string_builder_make(settings->message, sizeof settings->message);
-    if (saved) {
-        i18n_format_counts(&message, STR_EQ_SAVED, (uint32_t)slot + 1, 0);
-    } else {
-        string_builder_append(&message, i18n_text(STR_EQ_SLOT_NOT_SAVED));
+    int slot = settings->store->equalizer_slot;
+    if (current == EQUALIZER_PARAMETRIC && settings->store->parametric.description[0] != '\0') {
+        return settings->store->parametric.description;
     }
-    toast_show(settings->toast, settings->message, hal_clock_milliseconds());
+    return slot >= 0 && slot < EQUALIZER_SLOT_COUNT ? i18n_text(slots[slot])
+                                                    : i18n_text(EQUALIZER_PRESET_NAMES[current]);
 }
 
-static void preview_equalizer(void *context, const SettingsEqualizerCurve *curve)
+static int current_equalizer(const void *context)
 {
-    (void)context;
-    HalAudioEqualizer equalizer = {.band_count = curve->band_count, .pre_gain = curve->pre_gain};
-    for (int band = 0; band < curve->band_count; band++) {
-        equalizer.band_hz[band] = curve->band_hz[band];
-        equalizer.gain_half_db[band] = curve->gain_half_db[band];
-    }
-    hal_audio_set_equalizer(&equalizer);
-}
-
-static Screen *equalizer_editor(SettingsScreens *screens, int slot)
-{
-    screens->choice_preview = STRING_COUNT;
-    screens->equalizer_preview = SETTINGS_EQ_PREVIEW_EDITOR;
-    EqualizerScreenConfig config = {.settings = &screens->context.store->settings,
-                                    .changed = equalizer_changed,
-                                    .preview = preview_equalizer,
-                                    .slot_used = slot_used,
-                                    .save_slot = save_slot,
-                                    .context = &screens->context,
-                                    .theme = screens->theme,
-                                    .slot = slot < 0 ? 0 : slot};
-    return equalizer_screen_init(&screens->equalizer, config);
-}
-
-static ScreenAction open_custom_equalizer(void *context)
-{
-    SettingsScreens *screens = context;
-    equalizer_presets_read_slots(&presets);
-    return screen_action_push(
-        equalizer_editor(screens, settings_action_active_slot(&screens->context)));
-}
-
-static Screen *open_chosen_equalizer(void *context, int index)
-{
-    SettingsScreens *screens =
-        (SettingsScreens *)((char *)context - offsetof(SettingsScreens, context));
-    int slot = equalizer_presets_option_slot(&presets, index);
-    bool editable = slot >= 0 || index == EQUALIZER_CUSTOM;
-    return editable && screens->context.store->settings.equalizer == EQUALIZER_CUSTOM
-               ? equalizer_editor(screens, slot)
-               : NULL;
-}
-
-static void extend_equalizer(SettingsScreens *screens, ChoiceConfig *config)
-{
-    (void)screens;
-    equalizer_presets_scan(&presets);
-    config->options = presets.options;
-    config->option_ids = NULL;
-    config->option_count = presets.option_count;
-    config->open = open_chosen_equalizer;
+    return (int)settings_of(context)->equalizer;
 }
 
 static int current_start(const void *context)
@@ -376,35 +352,75 @@ static void choose_start(void *context, int index)
     settings_action_save(context);
 }
 
+static void plug_settings(SettingsContext *settings, PlugMode mode, bool always)
+{
+    Settings *saved = editable_settings(settings);
+    if (always) {
+        plug_mode_save(saved, mode);
+    }
+    if (mode == PLUG_MODE_COMPUTER || mode == PLUG_MODE_DAC) {
+        saved->usb_mode = mode == PLUG_MODE_DAC ? USB_MODE_DAC : USB_MODE_STORAGE;
+    }
+}
+
+static void announce_always(SettingsContext *settings, PlugMode mode)
+{
+    StringBuilder text = string_builder_make(settings->message, sizeof settings->message);
+    i18n_format_text(&text, STR_PLUG_ALWAYS, i18n_text(plug_mode_name(mode)));
+    toast_show(settings->toast, settings->message, hal_clock_milliseconds());
+}
+
+static void choose_plug_mode(void *context, PlugMode mode, bool always)
+{
+    SettingsContext *settings = context;
+    bool connects = mode == PLUG_MODE_COMPUTER || mode == PLUG_MODE_DAC;
+    plug_settings(settings, mode, always);
+    if (connects || always) {
+        settings_action_apply_and_save(settings);
+    }
+    if (connects) {
+        hal_system_request_usb_mode(mode == PLUG_MODE_DAC ? HAL_USB_MODE_DAC
+                                                          : HAL_USB_MODE_STORAGE);
+    } else {
+        hal_power_use_battery_care(mode == PLUG_MODE_USB_POWER ? PLUG_CARE_USB : PLUG_CARE_FULL);
+        hal_system_request_usb_mode(HAL_USB_MODE_PLAYER);
+    }
+    if (always) {
+        announce_always(settings, mode);
+    }
+}
+
+static void choose_saved_plug_mode(void *context, PlugMode mode, bool always)
+{
+    (void)always;
+    plug_mode_save(editable_settings(context), mode);
+    settings_action_apply_and_save(context);
+}
+
 static int current_usb_mode(const void *context)
 {
     (void)context;
-    return 0;
+    if (!hal_power_battery().usb_power) {
+        return -1;
+    }
+    PlugMode mode =
+        hal_power_battery_care() == PLUG_CARE_USB ? PLUG_MODE_USB_POWER : PLUG_MODE_CHARGE;
+    return (int)mode - MODE_ROW_FIRST;
 }
 
 static void choose_usb_mode(void *context, int index)
 {
-    if (index == 0) {
-        hal_system_request_usb_mode(HAL_USB_MODE_PLAYER);
-        return;
-    }
-    SettingsContext *settings = context;
-    editable_settings(context)->usb_mode = (UsbMode)(index - 1);
-    settings_action_apply_and_save(context);
-    HalUsbMode mode = index == 1 ? HAL_USB_MODE_STORAGE : HAL_USB_MODE_DAC;
-    hal_system_request_usb_mode(mode);
-    toast_show(settings->toast, i18n_text(USB_MODE_MESSAGES[index - 1]), hal_clock_milliseconds());
+    choose_plug_mode(context, (PlugMode)(index + MODE_ROW_FIRST), false);
 }
 
 static int current_usb_answer(const void *context)
 {
-    return (int)settings_of(context)->usb_connect;
+    return (int)plug_mode_saved(settings_of(context));
 }
 
 static void choose_usb_answer(void *context, int index)
 {
-    editable_settings(context)->usb_connect = (UsbConnect)index;
-    settings_action_apply_and_save(context);
+    choose_saved_plug_mode(context, (PlugMode)index, false);
 }
 
 static int current_replay_gain(const void *context)
@@ -519,6 +535,17 @@ static bool transition_length_shown(const void *context)
     return settings_action_current_transition(context) != 0;
 }
 
+static int current_status_layout(const void *context)
+{
+    return settings_of(context)->status_bar_compact;
+}
+
+static void choose_status_layout(void *context, int index)
+{
+    editable_settings(context)->status_bar_compact = index != 0;
+    settings_action_save(context);
+}
+
 static int current_status_volume(const void *context)
 {
     return (settings_of(context)->status_items & SETTINGS_STATUS_VOLUME) != 0;
@@ -571,6 +598,31 @@ static void choose_status_style(void *context, int index)
     settings_action_save(context);
 }
 
+static int current_standby(const void *context)
+{
+    return settings_of(context)->standby_enabled;
+}
+
+static void choose_standby(void *context, int index)
+{
+    editable_settings(context)->standby_enabled = index != 0;
+    settings_action_save(context);
+}
+
+static int current_standby_timeout(const void *context)
+{
+    return settings_of(context)->standby_power_off_option;
+}
+
+static void choose_standby_timeout(void *context, int index)
+{
+    editable_settings(context)->standby_power_off_option = (uint8_t)index;
+    settings_action_save(context);
+}
+
+static const StringId STANDBY_OPTIONS[] = {STR_MINUTES_30, STR_STANDBY_HOURS_2,
+                                           STR_STANDBY_HOURS_8};
+
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_SHUFFLE, SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, settings_action_current_shuffle,
      settings_action_choose_shuffle, NULL, NULL},
@@ -595,22 +647,23 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
                                   describe_language, extend_language},
     {STR_SKIP_SONGS, SKIP_OPTIONS, SKIP_GESTURE_COUNT, current_skip, choose_skip, NULL, NULL},
     {STR_GAIN, GAIN_OPTIONS, GAIN_LEVEL_COUNT, current_gain, choose_gain, NULL, NULL},
+    {STR_DAC_FILTER, FILTER_OPTIONS, DAC_FILTER_COUNT, current_filter, choose_filter, NULL, NULL},
     {STR_OUTPUT, OUTPUT_OPTIONS, OUTPUT_JACK_COUNT, current_output, choose_output, describe_output,
      NULL},
-    {STR_EQUALIZER, EQUALIZER_PRESET_NAMES, EQUALIZER_PRESET_COUNT,
-     settings_action_current_equalizer, settings_action_choose_equalizer,
-     settings_action_describe_equalizer, extend_equalizer},
+    {STR_EQUALIZER, EQUALIZER_PRESET_NAMES, EQUALIZER_PRESET_COUNT, current_equalizer,
+     choose_equalizer, describe_equalizer, NULL},
     {STR_REPLAY_GAIN, REPLAY_GAIN_OPTIONS, REPLAY_GAIN_MODE_COUNT, current_replay_gain,
      settings_action_choose_replay_gain, NULL, NULL},
     {STR_PREVENT_CLIPPING, OFF_ON_OPTIONS, 2, current_prevent_clipping, choose_prevent_clipping,
      NULL, NULL},
     {STR_START_SCREEN, START_OPTIONS, START_SCREEN_COUNT, current_start, choose_start, NULL, NULL},
-    {STR_USB_MODE, USB_MODE_OPTIONS, USB_MODE_SELECT_COUNT, current_usb_mode, choose_usb_mode, NULL,
-     NULL},
+    {STR_USB_MODE, USB_MODE_OPTIONS, MODE_ROW_COUNT, current_usb_mode, choose_usb_mode, NULL, NULL},
     {STR_THEME, THEME_OPTIONS, APPEARANCE_THEME_COUNT, current_appearance, choose_appearance, NULL,
      NULL},
     {STR_BATTERY_PERCENTAGE, OFF_ON_OPTIONS, 2, current_battery_percent, choose_battery_percent,
      NULL, NULL},
+    {STR_PLAYBACK_SPEED, SETTINGS_SPEED_LABELS, SETTINGS_SPEED_COUNT, settings_action_current_speed,
+     settings_action_choose_speed, NULL, NULL},
     {STR_REWIND_ON_RESUME, OFF_ON_OPTIONS, 2, current_rewind, choose_rewind, NULL, NULL},
     {STR_SAFE_START_VOLUME, NULL, SAFE_VOLUME_OPTION_COUNT, current_safe_volume, choose_safe_volume,
      describe_safe_volume, extend_safe_volume},
@@ -618,27 +671,50 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      settings_action_choose_transition, NULL, NULL},
     {STR_TRANSITION_LENGTH, TRANSITION_LENGTH_OPTIONS, (int)sizeof TRANSITION_TENTHS,
      current_transition_length, choose_transition_length, NULL, NULL},
-    {STR_USB_ANSWER, USB_ANSWER_OPTIONS, USB_CONNECT_COUNT, current_usb_answer, choose_usb_answer,
+    {STR_USB_ANSWER, USB_ANSWER_OPTIONS, PLUG_MODE_COUNT, current_usb_answer, choose_usb_answer,
      NULL, NULL},
+    {STR_POWER_ON, POWER_ON_OPTIONS, 2, current_power_on, choose_power_on, NULL, NULL},
     {STR_STATUS_VOLUME, OFF_ON_OPTIONS, 2, current_status_volume, choose_status_volume, NULL, NULL},
     {STR_STATUS_REPEAT, OFF_ON_OPTIONS, 2, current_status_repeat, choose_status_repeat, NULL, NULL},
     {STR_STATUS_POSITION, OFF_ON_OPTIONS, 2, current_status_position, choose_status_position, NULL,
      NULL},
     {STR_BATTERY_STYLE, BATTERY_STYLE_OPTIONS, 2, current_status_style, choose_status_style, NULL,
      NULL},
+    {STR_STATUS_LAYOUT, STATUS_LAYOUT_OPTIONS, 2, current_status_layout, choose_status_layout, NULL,
+     NULL},
+    {STR_STANDBY_ENABLED, OFF_ON_OPTIONS, 2, current_standby, choose_standby, NULL, NULL},
+    {STR_STANDBY_TIMEOUT, STANDBY_OPTIONS, 3, current_standby_timeout, choose_standby_timeout, NULL,
+     NULL},
 };
+
+static PlugState plug_state(const SettingsScreens *screens, PlugPlace place)
+{
+    return (PlugState){.place = place,
+                       .saved = plug_mode_saved(&screens->context.store->settings),
+                       .care = hal_power_battery_care(),
+                       .battery = hal_power_battery()};
+}
+
+static Screen *saved_plug_view(SettingsScreens *screens)
+{
+    PlugChooserConfig config = {.state = plug_state(screens, PLUG_PLACE_SETTINGS),
+                                .title = i18n_text(STR_USB_ANSWER),
+                                .choose = choose_saved_plug_mode,
+                                .context = &screens->context,
+                                .theme = screens->theme};
+    return plug_chooser_init(&screens->plug, config);
+}
 
 static Screen *choice_view(SettingsScreens *screens, const SettingChoice *choice,
                            ChoiceConfig config)
 {
-    if (choice->title != STR_EQUALIZER) {
-        return choice_screen_init(&screens->choice, config);
+    if (choice->title == STR_USB_MODE) {
+        return settings_screens_usb_modes(screens, false);
     }
-    EqualizerBrowserConfig browser = {.choice = config,
-                                      .settings = &screens->context.store->settings,
-                                      .presets = &presets,
-                                      .preview = preview_equalizer};
-    return equalizer_browser_init(&screens->equalizer_browser, browser);
+    if (choice->title == STR_USB_ANSWER) {
+        return saved_plug_view(screens);
+    }
+    return choice_screen_init(&screens->choice, config);
 }
 
 static ScreenAction open_choice(void *context)
@@ -646,9 +722,10 @@ static ScreenAction open_choice(void *context)
     SettingsEntry *entry = context;
     SettingsScreens *screens = entry->owner;
     const SettingChoice *choice = entry->choice;
+    if (choice->title == STR_EQUALIZER) {
+        return screen_action_push(screens->context.equalizer);
+    }
     screens->choice_preview = choice->title;
-    screens->equalizer_preview =
-        choice->title == STR_EQUALIZER ? SETTINGS_EQ_PREVIEW_BROWSER : SETTINGS_EQ_PREVIEW_NONE;
     ChoiceConfig config = {
         .title = i18n_text(choice->title),
         .option_ids = choice->options,
@@ -664,82 +741,36 @@ static ScreenAction open_choice(void *context)
     return screen_action_push(choice_view(screens, choice, config));
 }
 
-static const char *usb_countdown(const void *context, int index)
-{
-    const SettingsScreens *screens =
-        (const SettingsScreens *)((const char *)context - offsetof(SettingsScreens, context));
-    return index == 0 ? screens->usb.countdown : NULL;
-}
+static const char *choice_value(const void *context);
 
-static void usb_count_down(UsbChooser *usb, uint32_t now_ms)
+static ScreenAction open_power(void *context)
 {
-    usb->expired = usb->timed && deadline_reached(now_ms, usb->until_ms);
-    uint32_t left = usb->expired ? 0
-                                 : (usb->until_ms - now_ms + MILLISECONDS_PER_SECOND - 1) /
-                                       MILLISECONDS_PER_SECOND;
-    if (!usb->timed || left == usb->seconds) {
-        return;
+    SettingsScreens *screens = context;
+    for (int index = 0; index < 2; index++) {
+        screens->power_items[index] =
+            (MenuItem){.label = i18n_text(CHOICES[SETTINGS_STANDBY_CHOICE + index].title),
+                       .select = open_choice,
+                       .context = &screens->entries[SETTINGS_STANDBY_CHOICE + index],
+                       .value = choice_value,
+                       .opens = true};
     }
-    usb->seconds = left;
-    usb->redraw = true;
-    StringBuilder text = string_builder_make(usb->countdown, sizeof usb->countdown);
-    i18n_format_counts(&text, STR_USB_PROMPT_SECONDS, left, 0);
-}
-
-static void usb_enter(void *context, uint32_t now_ms)
-{
-    UsbChooser *usb = context;
-    usb->until_ms = now_ms + USB_PROMPT_MS;
-    usb->seconds = 0;
-    usb->choice.screen.enter(&usb->choice, now_ms);
-    usb_count_down(usb, now_ms);
-}
-
-static ScreenAction usb_key(void *context, KeyEvent event, uint32_t now_ms)
-{
-    UsbChooser *usb = context;
-    usb->until_ms = now_ms + USB_PROMPT_MS;
-    usb_count_down(usb, now_ms);
-    return usb->choice.screen.handle_key(&usb->choice, event, now_ms);
-}
-
-static void usb_update(void *context, uint32_t now_ms)
-{
-    UsbChooser *usb = context;
-    usb->choice.screen.update(&usb->choice, now_ms);
-    usb_count_down(usb, now_ms);
-}
-
-static void usb_draw(void *context, Canvas *canvas)
-{
-    UsbChooser *usb = context;
-    usb->choice.screen.draw(&usb->choice, canvas);
+    MenuConfig config = {.title = i18n_text(STR_STANDBY_POWER),
+                         .items = screens->power_items,
+                         .item_count = 2,
+                         .theme = screens->theme,
+                         .detail_below = true};
+    return screen_action_push(menu_screen_init(&screens->power_menu, config));
 }
 
 Screen *settings_screens_usb_modes(SettingsScreens *screens, bool prompt)
 {
-    UsbChooser *usb = &screens->usb;
-    const char *title = i18n_text(prompt ? STR_USB_CONNECTED : STR_USB_MODE);
-    ChoiceConfig config = {.title = title,
-                           .option_ids = USB_MODE_OPTIONS,
-                           .option_count = USB_MODE_SELECT_COUNT,
-                           .current = current_usb_mode,
-                           .choose = choose_usb_mode,
-                           .detail = prompt ? usb_countdown : NULL,
-                           .context = &screens->context,
-                           .theme = screens->theme};
-    choice_screen_init(&usb->choice, config);
-    usb->timed = prompt;
-    usb->countdown[0] = '\0';
-    usb->screen = (Screen){.title = title,
-                           .context = usb,
-                           .takes_every_key = true,
-                           .stays_on_wake = true,
-                           .enter = usb_enter,
-                           .handle_key = usb_key,
-                           .update = usb_update,
-                           .draw = usb_draw};
-    return &usb->screen;
+    PlugPlace place = prompt ? PLUG_PLACE_PROMPT : PLUG_PLACE_SWITCH;
+    PlugChooserConfig config = {.state = plug_state(screens, place),
+                                .title = i18n_text(prompt ? STR_PLUG_TITLE : STR_USB_MODE),
+                                .choose = choose_plug_mode,
+                                .context = &screens->context,
+                                .theme = screens->theme};
+    return plug_chooser_init(&screens->usb, config);
 }
 
 static const char *choice_value(const void *context)
@@ -802,7 +833,6 @@ static ScreenAction open_clock(void *context)
 {
     SettingsScreens *screens = context;
     screens->choice_preview = STRING_COUNT;
-    screens->equalizer_preview = SETTINGS_EQ_PREVIEW_NONE;
     SetClockConfig config = {screens->theme, &screens->context.store->settings,
                              screens->context.toast};
     return screen_action_push(set_clock_screen_init(&screens->clock, config));
@@ -830,6 +860,35 @@ static ScreenAction open_format(void *context)
                                .prepare = screens->context.format_prepare,
                                .finished = screens->context.format_finished};
     return screen_action_push(card_format_screen_init(&screens->card_format, config));
+}
+
+static bool card_mounted(const void *context)
+{
+    (void)context;
+    HalCardInfo card = hal_card_info();
+    return card.mounted && !card.usb_busy;
+}
+
+static bool card_ejected(const void *context)
+{
+    (void)context;
+    HalCardInfo card = hal_card_info();
+    return card.ejected && card.present && !card.usb_busy;
+}
+
+static ScreenAction change_card(void *context)
+{
+    SettingsScreens *screens = context;
+    bool eject = hal_card_info().mounted;
+    if (screens->context.player->state == PLAYER_PLAYING) {
+        player_toggle_pause(screens->context.player);
+    }
+    if (screens->context.format_prepare != NULL) {
+        screens->context.format_prepare();
+    }
+    hal_audio_release();
+    hal_card_eject(eject);
+    return screen_action_none();
 }
 
 static void buttons_changed(void *context)
@@ -860,11 +919,13 @@ static void bind_headphones(SettingsScreens *screens)
                                                           .shown_context = screens};
 }
 
+static ScreenAction open_status_bar(void *context);
+
 static void bind_status_bar(SettingsScreens *screens)
 {
     for (int index = 0; index < SETTINGS_STATUS_COUNT; index++) {
         int choice = index == 3   ? SETTINGS_STATUS_CHOICE
-                     : index == 4 ? SETTINGS_CHOICE_COUNT - 1
+                     : index >= 4 ? SETTINGS_MAIN_CHOICE_COUNT + 3 + index - 4
                                   : SETTINGS_MAIN_CHOICE_COUNT + index;
         screens->status_items[index] = (MenuItem){.label = i18n_text(CHOICES[choice].title),
                                                   .select = open_choice,
@@ -877,30 +938,42 @@ static void bind_status_bar(SettingsScreens *screens)
                          .item_count = SETTINGS_STATUS_COUNT,
                          .theme = screens->theme,
                          .detail_below = true};
-    Screen *menu = menu_screen_init(&screens->status_menu, config);
+    menu_screen_init(&screens->status_menu, config);
     screens->items[SETTINGS_STATUS_CHOICE + 5] = (MenuItem){.label = i18n_text(STR_STATUS_BAR),
-                                                            .select = menu_open_screen,
-                                                            .context = menu,
+                                                            .select = open_status_bar,
+                                                            .context = screens,
                                                             .opens = true};
+}
+
+static ScreenAction open_status_bar(void *context)
+{
+    SettingsScreens *screens = context;
+    bind_status_bar(screens);
+    return screen_action_push(&screens->status_menu.screen);
 }
 
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context, const Theme *theme)
 {
     screens->context = context;
+    screens->items[SETTINGS_EJECT_ITEM] = (MenuItem){.label = i18n_text(STR_CARD_EJECT),
+                                                     .select = change_card,
+                                                     .context = screens,
+                                                     .shown = card_mounted};
+    screens->items[SETTINGS_MOUNT_ITEM] = (MenuItem){.label = i18n_text(STR_CARD_MOUNT),
+                                                     .select = change_card,
+                                                     .context = screens,
+                                                     .shown = card_ejected};
     screens->card_needs_format = hal_card_info().needs_format;
     screens->items[SETTINGS_FORMAT_ITEM] = (MenuItem){.label = i18n_text(STR_CARD_FORMAT),
                                                       .select = open_format,
                                                       .value = format_status,
                                                       .context = screens,
                                                       .opens = true};
-    screens->context.presets = &presets;
     screens->context.languages = &screens->languages;
     screens->theme = theme;
     screens->choice_preview = STRING_COUNT;
-    screens->equalizer_preview = SETTINGS_EQ_PREVIEW_NONE;
     screens->preview = (SettingsPreview){.choice = STRING_COUNT};
     screens->preview_settings = settings_preview_shown;
-    equalizer_presets_read_slots(&presets);
     language_list(&screens->languages);
     ButtonSettingsConfig buttons = {.settings = &screens->context.store->settings,
                                     .theme = theme,
@@ -926,9 +999,13 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                                          .value = bluetooth_screen_summary,
                                                          .opens = true};
     screens->items[SETTINGS_CUSTOM_EQ_ITEM] = (MenuItem){.label = i18n_text(STR_CUSTOM_EQ),
-                                                         .select = open_custom_equalizer,
-                                                         .context = screens,
+                                                         .select = menu_open_screen,
+                                                         .context = context.graphic,
                                                          .opens = true};
+    screens->items[SETTINGS_PARAMETRIC_ITEM] = (MenuItem){.label = i18n_text(STR_PEQ),
+                                                          .select = menu_open_screen,
+                                                          .context = context.parametric,
+                                                          .opens = true};
     for (int index = 0; index < SETTINGS_CHOICE_COUNT; index++) {
         screens->entries[index] = (SettingsEntry){.choice = &CHOICES[index], .owner = screens};
         if (index >= SETTINGS_MAIN_CHOICE_COUNT) {
@@ -945,6 +1022,10 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                           .value = choice_value,
                                           .opens = true};
     }
+    screens->items[SETTINGS_POWER_ITEM] = (MenuItem){.label = i18n_text(STR_STANDBY_POWER),
+                                                     .select = open_power,
+                                                     .context = screens,
+                                                     .opens = true};
     bind_status_bar(screens);
     screens->items[SETTINGS_LANGUAGE_ITEM].shown = language_shown;
     screens->items[SETTINGS_LANGUAGE_ITEM].shown_context = &screens->languages;
@@ -956,4 +1037,9 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                        .theme = theme,
                        .detail_below = true};
     return menu_screen_init(&screens->menu, menu);
+}
+
+ScreenAction settings_screens_sleep(SettingsScreens *screens)
+{
+    return open_choice(&screens->entries[2]);
 }

@@ -67,13 +67,14 @@ static uint32_t next_frame_parity(void)
     return (read_register(DSTS) & DSTS_ODD_FRAME) != 0 ? EP_SET_EVEN_FRAME : EP_SET_ODD_FRAME;
 }
 
-static void arm_iso_out(void)
+static void arm_iso_out(const UsbPort *port)
 {
-    uint32_t packet = USB_AUDIO_MAX_PACKET;
+    uint32_t packet = usb_audio_packet_size(port->audio);
     uint32_t control = read_register(out_control(BULK_ENDPOINT)) & ~EP_MAX_PACKET_MASK;
     write_register(out_control(BULK_ENDPOINT) + 0x10u, ONE_PACKET | packet);
-    write_register(out_control(BULK_ENDPOINT),
-                   control | packet | EP_ENABLE | EP_CLEAR_NAK | next_frame_parity());
+    write_register(out_control(BULK_ENDPOINT), (control & ~(EP_SET_EVEN_FRAME | EP_SET_ODD_FRAME)) |
+                                                   packet | EP_ENABLE | EP_CLEAR_NAK |
+                                                   next_frame_parity());
 }
 
 static bool streaming(const UsbPort *port)
@@ -84,7 +85,7 @@ static bool streaming(const UsbPort *port)
 static void start_stream(const UsbPort *port)
 {
     if (streaming(port) && (read_register(out_control(BULK_ENDPOINT)) & EP_ENABLE) == 0) {
-        arm_iso_out();
+        arm_iso_out(port);
     }
 }
 
@@ -94,7 +95,8 @@ static void handle_incomplete_iso(void)
     bool odd_now = (read_register(DSTS) & DSTS_ODD_FRAME) != 0;
     bool armed_for_now = ((control & EP_ODD_FRAME) != 0) == odd_now;
     if ((control & EP_ENABLE) != 0 && armed_for_now) {
-        write_register(out_control(BULK_ENDPOINT), control | next_frame_parity());
+        write_register(out_control(BULK_ENDPOINT),
+                       (control & ~(EP_SET_EVEN_FRAME | EP_SET_ODD_FRAME)) | next_frame_parity());
     }
     write_register(GINTSTS, GINT_INCOMPLETE_ISO_OUT);
 }
@@ -121,6 +123,9 @@ static void handle_reset(UsbPort *port)
     port->configured = false;
     port->in_busy = false;
     port->control_out_pending = false;
+    port->control_data_pending = false;
+    port->setup_pending = false;
+    port->hid = (UsbAudioHid){0};
     if (port->msc != NULL) {
         msc_reset(port->msc);
     }
@@ -141,15 +146,51 @@ static void activate_bulk_endpoints(const UsbPort *port)
     arm_bulk_out(port);
 }
 
+static void activate_audio_endpoints(const UsbPort *port)
+{
+    write_register(GRXFSIZ, 0x120);
+    write_register(GNPTXFSIZ, 0x00200120);
+    write_register(DIEPTXF1, 0x00100140);
+    write_register(DIEPTXF2, 0x00100150);
+    write_register(out_control(1), USB_AUDIO_MAX_PACKET | EP_ISO_ACTIVE);
+    write_register(in_control(1), 4 | EP_ISO_ACTIVE | (1u << EP_TX_FIFO_SHIFT));
+    write_register(in_control(2), 2 | EP_INTERRUPT_ACTIVE | (2u << EP_TX_FIFO_SHIFT));
+    set_bits(DAINTMSK, DAINT_EP1 | (1u << 2));
+    set_bits(GINTMSK, GINT_INCOMPLETE_ISO_OUT | GINT_INCOMPLETE_ISO_IN);
+    set_bits(DCTL, DCTL_CLEAR_GLOBAL_IN_NAK);
+    (void)port;
+}
+
 static void activate_endpoints(const UsbPort *port)
 {
     if (port->audio == NULL) {
         activate_bulk_endpoints(port);
-        return;
+    } else {
+        activate_audio_endpoints(port);
     }
-    write_register(out_control(BULK_ENDPOINT), USB_AUDIO_MAX_PACKET | EP_ISO_ACTIVE);
-    set_bits(DAINTMSK, DAINT_EP1);
-    set_bits(GINTMSK, GINT_INCOMPLETE_ISO_OUT);
+}
+
+static void disable_audio_endpoint(uint32_t control)
+{
+    uint32_t value = read_register(control);
+    if ((value & EP_ENABLE) != 0) {
+        write_register(control, value | EP_DISABLE | EP_SET_NAK);
+        (void)wait_clear(control, EP_ENABLE, 1);
+    }
+}
+
+static void reset_feedback(void)
+{
+    disable_audio_endpoint(in_control(1));
+    write_register(GRSTCTL, GRSTCTL_TX_FLUSH | (1u << 6));
+    (void)wait_clear(GRSTCTL, GRSTCTL_TX_FLUSH, 1);
+}
+
+static void change_stream(const UsbPort *port)
+{
+    disable_audio_endpoint(out_control(1));
+    reset_feedback();
+    start_stream(port);
 }
 
 static void clear_halt(uint16_t endpoint)
@@ -170,10 +211,14 @@ static void apply_action(UsbPort *port, UsbReply reply)
         port->configured = reply.value == 1;
         if (port->configured) {
             activate_endpoints(port);
+        } else if (port->audio != NULL) {
+            disable_audio_endpoint(out_control(1));
+            disable_audio_endpoint(in_control(1));
+            disable_audio_endpoint(in_control(2));
         }
         break;
     case USB_ACTION_STREAM:
-        start_stream(port);
+        change_stream(port);
         break;
     case USB_ACTION_CLEAR_HALT:
         clear_halt(reply.value);
@@ -189,6 +234,15 @@ static void apply_action(UsbPort *port, UsbReply reply)
 
 static void finish_setup(UsbPort *port, UsbSetup setup, UsbReply reply)
 {
+    if (port->audio != NULL && reply.action == USB_ACTION_CONFIGURE && reply.value == 1 &&
+        (read_register(GHWCFG3) >> HWCFG3_DEPTH_SHIFT) < 0x160) {
+        port->device.configuration = 0;
+        reply = (UsbReply){.kind = USB_REPLY_STALL};
+    }
+    if (reply.kind != USB_REPLY_STALL && port->audio != NULL &&
+        (port->audio->changes & USB_AUDIO_CHANGED_FORMAT) != 0 && port->format_changed != NULL) {
+        port->format_changed();
+    }
     apply_action(port, reply);
     if (reply.kind == USB_REPLY_STALL) {
         set_bits(in_control(0), EP_STALL);
@@ -214,19 +268,25 @@ static void process_setup(UsbPort *port)
     finish_setup(port, setup, reply);
 }
 
-static void finish_control_out(UsbPort *port, uint32_t length)
+static void finish_control_out(UsbPort *port, uint32_t length, const uint8_t *bytes)
 {
     port->control_out_pending = false;
-    UsbReply reply = usb_audio_receive(port->audio, port->control_out,
-                                       (const uint8_t *)port->out_packet, (uint16_t)length);
+    UsbReply reply = usb_audio_receive(port->audio, port->control_out, bytes, (uint16_t)length);
     finish_setup(port, port->control_out, reply);
 }
 
 static void deliver(UsbPort *port, uint32_t endpoint, uint32_t length)
 {
     const uint8_t *bytes = (const uint8_t *)port->out_packet;
-    if (endpoint == 0 && port->control_out_pending) {
-        finish_control_out(port, length);
+    if (endpoint == 0 && port->defer_control &&
+        (port->control_out_pending || port->setup_pending)) {
+        for (uint32_t index = 0; index < length && index < sizeof port->control_data; index++) {
+            port->control_data[index] = bytes[index];
+        }
+        port->control_data_pending = true;
+        port->control_data_length = (uint16_t)length;
+    } else if (endpoint == 0 && port->control_out_pending) {
+        finish_control_out(port, length, bytes);
     } else if (endpoint == BULK_ENDPOINT && port->audio == NULL) {
         msc_receive(port->msc, bytes, length);
     } else if (endpoint == BULK_ENDPOINT && port->receive_stream != NULL) {
@@ -251,6 +311,8 @@ static void handle_receive(UsbPort *port)
     uint32_t count = (status >> RX_STATUS_COUNT_SHIFT) & RX_STATUS_COUNT_MASK;
     uint32_t type = (status >> RX_STATUS_TYPE_SHIFT) & RX_STATUS_TYPE_MASK;
     if (type == PACKET_SETUP_DATA) {
+        port->control_data_pending = false;
+        port->control_out_pending = false;
         read_fifo(port->setup, sizeof port->setup / 4, count);
         port->setup_pending = true;
     } else if (type == PACKET_OUT_DATA) {
@@ -266,7 +328,7 @@ static void handle_out_endpoints(UsbPort *port)
     if ((pending & (1u << 16)) != 0) {
         uint32_t events = read_register(out_control(0) + 0x08u);
         write_register(out_control(0) + 0x08u, events);
-        if ((events & EP_INT_SETUP) != 0 && port->setup_pending) {
+        if ((events & EP_INT_SETUP) != 0 && port->setup_pending && !port->defer_control) {
             process_setup(port);
         }
         arm_setup();
@@ -277,7 +339,7 @@ static void handle_out_endpoints(UsbPort *port)
         if ((events & EP_INT_TRANSFER_DONE) != 0 && port->audio == NULL) {
             arm_bulk_out(port);
         } else if ((events & EP_INT_TRANSFER_DONE) != 0 && streaming(port)) {
-            arm_iso_out();
+            arm_iso_out(port);
         }
     }
 }
@@ -287,6 +349,9 @@ static void handle_in_endpoints(UsbPort *port)
     uint32_t pending = read_register(DAINT);
     if ((pending & 1u) != 0) {
         write_register(in_control(0) + 0x08u, read_register(in_control(0) + 0x08u));
+    }
+    if (port->audio != NULL && (pending & (1u << 2)) != 0) {
+        write_register(in_control(2) + 0x08u, read_register(in_control(2) + 0x08u));
     }
     if ((pending & (1u << BULK_ENDPOINT)) != 0) {
         uint32_t events = read_register(in_control(BULK_ENDPOINT) + 0x08u);
@@ -344,6 +409,43 @@ static void pump_bulk_in(UsbPort *port)
     }
 }
 
+static bool send_periodic(uint32_t endpoint, uint32_t word, uint32_t length, bool iso)
+{
+    uint32_t control = read_register(in_control(endpoint));
+    if ((control & EP_ENABLE) != 0) {
+        return false;
+    }
+    uint32_t parity = iso ? next_frame_parity() : 0;
+    write_register(in_control(endpoint) + 0x10u, ONE_PACKET | length | (iso ? 1u << 29 : 0));
+    write_register(in_control(endpoint), (control & ~(EP_SET_EVEN_FRAME | EP_SET_ODD_FRAME)) |
+                                             EP_ENABLE | EP_CLEAR_NAK | parity);
+    write_register(fifo(endpoint), word);
+    return true;
+}
+
+static void pump_audio_in(UsbPort *port)
+{
+    if (!port->configured || port->audio == NULL) {
+        return;
+    }
+    uint16_t tick = (uint16_t)((read_register(DSTS) >> 8) & 0x3FFF);
+    if (streaming(port) && usb_audio_asynchronous(port->audio) && port->feedback != NULL &&
+        (read_register(in_control(1)) & EP_ENABLE) == 0) {
+        send_periodic(1, port->feedback(tick), 4, true);
+    }
+    uint16_t usage = 0;
+    uint32_t now = hal_clock_milliseconds();
+    bool pending = usb_audio_hid_report(&port->hid, &usage);
+    bool idle = port->audio->hid_idle != 0 && now - port->hid_sent_ms >= 4u * port->audio->hid_idle;
+    if ((pending || idle) && send_periodic(2, usage, 2, false)) {
+        port->audio->hid_usage = usage;
+        port->hid_sent_ms = now;
+        if (pending) {
+            usb_audio_hid_sent(&port->hid);
+        }
+    }
+}
+
 bool usb_wait_for_host(UsbPort *port, uint32_t timeout_ms)
 {
     uint32_t start = hal_clock_milliseconds();
@@ -375,6 +477,13 @@ CORE_SEAM void usb_poll(UsbPort *port)
         arm_setup();
         write_register(GINTSTS, GINT_ENUMERATION_DONE);
     }
+    if (!port->defer_control && port->setup_pending) {
+        process_setup(port);
+    }
+    if (!port->defer_control && port->control_data_pending) {
+        port->control_data_pending = false;
+        finish_control_out(port, port->control_data_length, port->control_data);
+    }
     if ((events & GINT_RX_LEVEL) != 0) {
         handle_receive(port);
     }
@@ -387,7 +496,20 @@ CORE_SEAM void usb_poll(UsbPort *port)
     if ((events & GINT_INCOMPLETE_ISO_OUT) != 0 && port->audio != NULL) {
         handle_incomplete_iso();
     }
+    if ((events & GINT_INCOMPLETE_ISO_IN) != 0 && port->audio != NULL) {
+        reset_feedback();
+        write_register(GINTSTS, GINT_INCOMPLETE_ISO_IN);
+    }
     pump_bulk_in(port);
+    pump_audio_in(port);
+}
+
+void usb_poll_audio(UsbPort *port)
+{
+    bool deferred = port->defer_control;
+    port->defer_control = true;
+    usb_poll(port);
+    port->defer_control = deferred;
 }
 
 bool usb_reply_pending(const UsbPort *port)

@@ -172,7 +172,7 @@ echo_add_unit_test(NAME test_board_layout
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 echo_add_unit_test(NAME test_now_playing_screen
-    SOURCES app/test_now_playing_screen.c app/fake_hal.c
+    SOURCES app/test_now_playing_screen.c app/fake_hal.c support/screen_snapshot.c
     LIBRARIES echo_app echo_library_scan
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
@@ -202,4 +202,28 @@ echo_add_unit_test(NAME test_quick_settings_screen
     SOURCES app/test_quick_settings_screen.c app/fake_hal.c support/text_spy.c
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
+)
+
+echo_add_unit_test(NAME test_parametric_screen
+    SOURCES app/test_parametric_screen.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_scan
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
+echo_add_unit_test(NAME test_charge_lifecycle
+    SOURCES app/test_charge_lifecycle.c app/fake_hal.c support/text_spy.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
+)
+
+echo_add_unit_test(NAME test_check_progress
+    SOURCES app/test_check_progress.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
+echo_add_unit_test(NAME test_music_walk_progress
+    SOURCES app/test_music_walk_progress.c ${PROJECT_SOURCE_DIR}/src/app/music_walk.c
+    LIBRARIES echo_core echo_library_scan echo_hal echo_gfx
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/app/include
 )

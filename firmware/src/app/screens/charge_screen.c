@@ -22,6 +22,9 @@ static StringId power_state(HalBattery battery)
     if (!battery.usb_power) {
         return STR_POWER_BATTERY;
     }
+    if (battery.charge_disabled) {
+        return STR_CHARGE_DISABLED;
+    }
     if (battery.charging) {
         return STR_CHARGING;
     }
@@ -47,7 +50,7 @@ void charge_screen_level_text(HalBattery battery, char *text, size_t capacity)
 bool app_usb_battery_changed(HalBattery before, HalBattery after)
 {
     return before.known != after.known || before.charging != after.charging ||
-           before.usb_power != after.usb_power ||
+           before.usb_power != after.usb_power || before.charge_disabled != after.charge_disabled ||
            (after.known && (shown_percent(before) != shown_percent(after) ||
                             (!after.usb_power && before.millivolts != after.millivolts)));
 }
@@ -58,9 +61,9 @@ static StringId usb_title(AppUsbView view)
         return STR_POWER_CONNECTING;
     }
     if (view == APP_USB_STORAGE) {
-        return STR_POWER_STORAGE;
+        return STR_PLUG_COMPUTER;
     }
-    return view == APP_USB_DAC ? STR_USB_DAC_TITLE : STR_POWER_TITLE;
+    return view == APP_USB_DAC ? STR_PLUG_DAC : STR_POWER_TITLE;
 }
 
 const char *charge_screen_usb_title(AppUsbView view)

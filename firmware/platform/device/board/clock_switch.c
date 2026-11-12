@@ -41,7 +41,9 @@ enum {
     DIVIDER_SETTLE_US = 10,
     USB_LOWEST_MHZ = 96,
     COAST_FROM_MHZ = 200,
-    COAST_DIVIDER = 2
+    COAST_DIVIDER = 2,
+    IDLE_FROM_MHZ = 96,
+    IDLE_DIVIDER = 4
 };
 
 static uint32_t current_mhz;
@@ -182,11 +184,12 @@ static bool switch_clock(uint32_t mhz)
 
 void hal_system_coast(bool coast)
 {
-    bool wanted = coast && current_mhz == COAST_FROM_MHZ && !board_usb_listening();
+    bool wanted = coast && (current_mhz == COAST_FROM_MHZ || current_mhz == IDLE_FROM_MHZ) &&
+                  !board_usb_listening();
     if (wanted == coasting) {
         return;
     }
-    uint32_t divider = wanted ? COAST_DIVIDER : 1;
+    uint32_t divider = wanted ? (current_mhz == IDLE_FROM_MHZ ? IDLE_DIVIDER : COAST_DIVIDER) : 1;
     uint32_t primask = irq_save();
     register_write(CRU_CLOCK_SELECT, CORE_DIVIDER_FIELD | (divider - 1u));
     board_clock_set_rate(current_mhz / divider);

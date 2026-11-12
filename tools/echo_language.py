@@ -16,6 +16,24 @@ FLAG_MASKS = (0xF8, 0xF0, 0xC8, 0xC0)
 USB_ANSWER_BITS = 0x30
 DIRECTORY_LIMIT = 256
 ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+F_VERSION = 16
+F_MARKER_FIELD = 53
+F_FIELD = 58
+F_SIZE = 16
+F_CHECKSUM_FIELD = 74
+F_FILE_SIZE = 78
+F2_VOLUME = "bytes[60]=(uint8_t)((settings->bluetooth_volume<SETTINGS_VOLUME_MAX?"
+F2_LIMIT = 61
+F_LAYOUT = (
+    "bytes[53]=16;hash_store(bytes+EXTENSION_CHECKSUM_FIELD,checksum_of(bytes,EXTENSION_CHECKSUM_FIELD));",
+    "bytes[58]=(uint8_t)(settings->status_bar_compact|settings->standby_enabled<<1|"
+    "settings->standby_power_off_option<<2);bytes[59]=settings->long_press_action&7u;",
+    "hash_store(bytes+74,hash_update(HASH_START,bytes+58,16));",
+    "extension[15]==(bytes[VERSION_FIELD]>=16?16:0);",
+    "bytes[VERSION_FIELD]>=16&&length>=SETTINGS_FILE_SIZE&&"
+    "hash_load(bytes+74)==hash_update(HASH_START,bytes+58,16)&&"
+    "(bytes[58]&0xF0u)==0&&(bytes[58]>>2)<3&&(bytes[59]&0xF8u)==0",
+)
 
 
 @lru_cache(maxsize=1)
@@ -53,6 +71,12 @@ class Snapshot:
         self.format = pack_tools(api.ROOT)
         self.flags_reserved = 0xF8
         self.status_items_supported = False
+        self.f2_volume = False
+        self.display_flags_byte = None
+        self.style_flags_byte = None
+        self.e14_bits = (0, 0)
+        self.battery_care_supported = False
+        self.usb_answers = 3
         try:
             self.commit = git(api.ROOT, "rev-parse", "--verify", build + "^{commit}").strip()
             self.build = build
@@ -69,7 +93,7 @@ class Snapshot:
                 raise ValueError("the installed firmware identity differs from this tool")
             source = self.show("firmware/src/settings/settings.c")
             self.settings_version = constant(source, "VERSION")
-            if (self.settings_version not in (12, 13, 14, 15) or
+            if (self.settings_version not in (12, 13, 14, 15, F_VERSION) or
                     (constant(source, "LANGUAGE_VERSION"), constant(source, "LANGUAGE_FIELD"),
                      constant(source, "HALF_DB_CHECKSUM_FIELD")) != (12, 19, 38)):
                 raise ValueError("the installed settings layout is unsupported")
@@ -79,6 +103,8 @@ class Snapshot:
                     constant(source, "EXTENSION_VERSION"), constant(source, "EXTENSION_FIELD"),
                     constant(source, "EXTENSION_CHECKSUM_FIELD")) != (15, 38, 54):
                 raise ValueError("the installed settings extension layout is unsupported")
+            if self.settings_version >= F_VERSION:
+                self.check_f_layout(source)
             self.clock_offset_byte = (constant(source, "CLOCK_OFFSET_BYTE")
                                       if re.search(r"\bCLOCK_OFFSET_BYTE\s*=", source) else None)
             if self.clock_offset_byte not in (None, 11):
@@ -88,6 +114,21 @@ class Snapshot:
                 self.status_items_supported = "STATUS_ITEMS_BYTE" in source
                 if self.status_items_supported and constant(source, "STATUS_ITEMS_BYTE") != 13:
                     raise ValueError("the installed status bar settings layout is unsupported")
+                self.check_speed_layout(source)
+                if re.search(r"\bDISPLAY_FLAGS_BYTE\s*=", source):
+                    self.display_flags_byte = constant(source, "DISPLAY_FLAGS_BYTE")
+                    if self.display_flags_byte != 13:
+                        raise ValueError("the installed display flags layout is unsupported")
+                if re.search(r"\bSTYLE_FLAGS_BYTE\s*=", source):
+                    self.style_flags_byte = constant(source, "STYLE_FLAGS_BYTE")
+                    if self.style_flags_byte != 14 or not re.search(r"\bSTYLE_HIGH_BIT\s*=\s*1\s*<<\s*7\b", source):
+                        raise ValueError("the installed style flags layout is unsupported")
+                self.check_e14_layout(source)
+                if "BATTERY_CARE_BYTE" in source:
+                    if tuple(constant(source, key) for key in
+                             ("BATTERY_CARE_BYTE", "BATTERY_CARE_SHIFT", "BATTERY_CARE_MASK")) != (14, 3, 24):
+                        raise ValueError("the installed battery care layout is unsupported")
+                    self.battery_care_supported = True
         except (ValueError, KeyError, OSError, self.format.PackError) as error:
             raise api.DebugError("language_build_unknown", str(error)) from error
 
@@ -99,10 +140,24 @@ class Snapshot:
         masks = [mask for mask in FLAG_MASKS
                  if f"(flags&0x{mask:02X}u)==0&&(flags&3u)<REPLAY_GAIN_MODE_COUNT" in compact]
         if (constant(source, "REPLAY_GAIN_VERSION") != 14 or
-                names != ["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
-                          "REPLAY_GAIN_MODE_COUNT"] or len(masks) != 1):
+                names not in (["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
+                               "REPLAY_GAIN_MODE_COUNT"],
+                              ["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
+                               "REPLAY_GAIN_AUTO", "REPLAY_GAIN_MODE_COUNT"]) or len(masks) != 1):
             raise ValueError("the installed ReplayGain settings layout is unsupported")
         self.reserved_flags = masks[0]
+        self.replay_gain_modes = len(names) - 1
+        header = self.show("firmware/src/settings/include/settings/settings.h")
+        self.usb_answers = 4 if re.search(r"\bUSB_CONNECT_DAC\b", header) else 3
+
+    def check_f_layout(self, source):
+        header = self.show("firmware/src/settings/include/settings/settings.h")
+        compact = re.sub(r"\s+", "", source)
+        if (constant(header, "SETTINGS_FILE_SIZE") != F_FILE_SIZE or
+                (constant(source, "EXTENSION_SIZE"), constant(source, "CHECKSUM_SIZE")) != (F_SIZE, 4) or
+                not all(fragment in compact for fragment in F_LAYOUT)):
+            raise ValueError("the installed version 16 settings layout is unsupported")
+        self.f2_volume = F2_VOLUME in compact
 
     def check_home_layout(self):
         header = self.show("firmware/src/settings/include/settings/settings.h")
@@ -112,6 +167,38 @@ class Snapshot:
                 != (HOME_FIRST_ITEMS, HOME_SLOTS) or not HOME_FIRST_ITEMS <= self.home_items <= HOME_SLOTS or
                 self.home_settings_item >= HOME_FIRST_ITEMS):
             raise ValueError("the installed Home layout is unsupported")
+
+    def check_e14_layout(self, source):
+        mask, filters = 0, 0
+        if re.search(r"\bDAC_FILTER_BYTE\s*=", source):
+            header = self.show("firmware/src/settings/include/settings/settings.h")
+            declaration = re.search(r"typedef\s+enum\s+DacFilter\s*\{([^}]+)\}", header)
+            filters = len([name for name in declaration.group(1).split(",") if name.strip()]) if declaration else 0
+            if constant(source, "DAC_FILTER_BYTE") != 14 or not re.search(r"\bDAC_FILTER_MASK\s*=\s*0x07\b", source) or not 0 < filters <= 8:
+                raise ValueError("the installed DAC filter layout is unsupported")
+            mask |= 0x07
+        if re.search(r"\bCROSSFEED_BYTE\s*=", source):
+            if (constant(source, "CROSSFEED_BYTE"), constant(source, "CROSSFEED_SHIFT"),
+                    constant(source, "CROSSFEED_MASK")) != (14, 5, 3):
+                raise ValueError("the installed crossfeed layout is unsupported")
+            mask |= 0x60
+        if self.style_flags_byte == 14:
+            mask |= 0x80
+        self.e14_bits = (mask, filters)
+
+    def check_speed_layout(self, source):
+        self.speed_steps = (0, 0)
+        if re.search(r"\bSPEED_BYTE\s*=", source) is None:
+            return
+        header = self.show("firmware/src/settings/include/settings/settings.h")
+        count, normal = constant(header, "SETTINGS_SPEED_COUNT"), constant(header, "SETTINGS_SPEED_NORMAL")
+        if constant(source, "SPEED_BYTE") != 3 or not 0 <= normal < count <= 128:
+            raise ValueError("the installed playback speed layout is unsupported")
+        self.speed_steps = (-normal, count - 1 - normal)
+
+    def speed_valid(self, value):
+        step = value - 256 if value > 127 else value
+        return self.speed_steps[0] <= step <= self.speed_steps[1]
 
     def home_valid(self, block):
         order = [block[4 + index // 2] >> 4 * (index % 2) & 15 for index in range(HOME_SLOTS)]
@@ -125,8 +212,8 @@ class Snapshot:
         if version < 14:
             return flags == 0
         answer_open = self.reserved_flags & USB_ANSWER_BITS == 0
-        return (flags & self.reserved_flags == 0 and flags & 3 < 3 and
-                (not answer_open or flags >> 4 & 3 < 3))
+        return (flags & self.reserved_flags == 0 and flags & 3 < self.replay_gain_modes and
+                (not answer_open or flags >> 4 & 3 < self.usb_answers))
 
     def settings_checksum_field(self, version):
         return 38 if version < 15 else 54
@@ -141,13 +228,30 @@ class Snapshot:
             return True
         block = data[38:54]
         offset = int.from_bytes(block[11:13], "little", signed=True) if self.clock_offset_byte else 0
-        reserved = list(block[11:])
+        reserved = list(block[11:15])
         if self.clock_offset_byte:
             reserved[0:2] = [0, 0]
         if self.status_items_supported:
             reserved[2] = 0
-        return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and block[3] == 0 and
-                -720 <= offset <= 840 and self.home_valid(block) and not any(reserved))
+        reserved[3] &= ~self.e14_bits[0] & 0xFF
+        if self.battery_care_supported:
+            reserved[3] &= 0xE7
+        filter_valid = self.e14_bits[1] == 0 or block[14] & 0x07 < self.e14_bits[1]
+        marker = F_VERSION if data[4] >= F_VERSION else 0
+        return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and self.speed_valid(block[3]) and
+                -720 <= offset <= 840 and self.home_valid(block) and not any(reserved) and filter_valid and
+                block[14] >> 3 & 3 < 3 and
+                data[F_MARKER_FIELD] == marker and self.f_valid(data))
+
+    def f_valid(self, data):
+        if data[4] < F_VERSION:
+            return True
+        block = data[F_FIELD:F_FIELD + F_SIZE]
+        stored = int.from_bytes(data[F_CHECKSUM_FIELD:F_CHECKSUM_FIELD + 4], "little")
+        return (self.settings_version >= F_VERSION and len(data) >= F_FILE_SIZE and
+                self.format.fnv(block) == stored and block[0] & 0xF0 == 0 and block[0] >> 2 < 3 and
+                block[1] & 0xF8 == 0 and block[2] <= (F2_LIMIT if self.f2_volume else 0) and
+                not any(block[3:]))
 
     def show(self, path):
         return git(self.api.ROOT, "show", self.commit + ":" + path)

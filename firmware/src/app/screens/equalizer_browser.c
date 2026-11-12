@@ -7,6 +7,8 @@
 #include "ui/label.h"
 #include "ui/navigation.h"
 
+static EqualizerResponse response_buffer;
+
 void equalizer_browser_leave(EqualizerBrowser *browser)
 {
     if (browser->previewing && browser->config.preview != NULL) {
@@ -19,16 +21,11 @@ static bool selected_curve(EqualizerBrowser *browser, SettingsEqualizerCurve *cu
 {
     Settings selected = *browser->config.settings;
     int option = browser->choice.list.selected;
-    if (option < EQUALIZER_PRESET_COUNT) {
-        selected.equalizer = (EqualizerPreset)option;
-    } else {
-        if (!equalizer_presets_load(browser->config.presets, option, selected.equalizer_gains)) {
-            return false;
-        }
-        selected.equalizer = EQUALIZER_CUSTOM;
+    if (!equalizer_presets_choose(browser->config.presets, option, &selected)) {
+        return false;
     }
     *curve = settings_equalizer_curve(&selected);
-    return equalizer_response_make(&browser->response, curve);
+    return equalizer_response_make(browser->response, curve);
 }
 
 static void refresh(EqualizerBrowser *browser)
@@ -136,8 +133,8 @@ static void draw(void *context, Canvas *canvas)
     if (browser->valid) {
         equalizer_plot_draw(
             canvas, theme, layout.plot,
-            (EqualizerPlotView){.response = &browser->response, .selected_band = -1});
-        equalizer_plot_caption(canvas, theme, layout.preamp, &browser->response);
+            (EqualizerPlotView){.response = browser->response, .selected_band = -1});
+        equalizer_plot_caption(canvas, theme, layout.preamp, browser->response);
         label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary},
                    (Label){layout.reference, i18n_text(STR_EQ_REFERENCE)});
     } else {
@@ -151,6 +148,7 @@ static void draw(void *context, Canvas *canvas)
 Screen *equalizer_browser_init(EqualizerBrowser *browser, EqualizerBrowserConfig config)
 {
     browser->config = config;
+    browser->response = &response_buffer;
     Screen *screen = choice_screen_init(&browser->choice, config.choice);
     browser->choose_key = screen->handle_key;
     browser->choice_enter = screen->enter;

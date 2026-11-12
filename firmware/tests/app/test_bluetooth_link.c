@@ -449,6 +449,31 @@ static void the_buds_resume_a_pause_that_went_to_standby_at_its_place(void)
     CHECK(fake_hal_bluetooth()->streaming);
 }
 
+static void the_buds_resume_a_player_pause_from_standby(void)
+{
+    fresh();
+    save(true, &BUDS);
+    start();
+    connect_to(&BUDS);
+    play();
+    step(START_MS + 100);
+    fake_hal_audio_set_position(42000);
+    player_toggle_pause(&player);
+    step(START_MS + 100 + BLUETOOTH_LINK_ECHO_MS);
+    CHECK_EQUAL(PLAYER_PAUSED, player.state);
+    uint32_t paused_ms = START_MS + 1000;
+    player_update(&player, paused_ms);
+    player_update(&player, paused_ms + PLAYER_PAUSE_RELEASE_MS);
+    CHECK(player_in_standby(&player));
+    step(paused_ms + PLAYER_PAUSE_RELEASE_MS);
+    CHECK(link.connected);
+    fake_hal_bluetooth()->remote.plays++;
+    step(paused_ms + PLAYER_PAUSE_RELEASE_MS + BLUETOOTH_LINK_ECHO_MS);
+    CHECK_EQUAL(PLAYER_PLAYING, player.state);
+    CHECK_EQUAL(42000, fake_hal_audio_play_start());
+    CHECK(fake_hal_bluetooth()->streaming);
+}
+
 static void a_pause_report_right_after_play_is_ignored(void)
 {
     fresh();
@@ -495,7 +520,7 @@ static void reports_right_after_the_stream_starts_are_ignored(void)
     CHECK(fake_hal_bluetooth()->streaming);
 }
 
-static void a_play_report_does_not_resume_what_the_player_paused(void)
+static void a_settled_play_report_resumes_what_the_player_paused(void)
 {
     fresh();
     save(true, &BUDS);
@@ -507,7 +532,7 @@ static void a_play_report_does_not_resume_what_the_player_paused(void)
     step(START_MS + 200);
     fake_hal_bluetooth()->remote.plays++;
     step(START_MS + 200 + BLUETOOTH_LINK_ECHO_MS);
-    CHECK_EQUAL(PLAYER_PAUSED, player.state);
+    CHECK_EQUAL(PLAYER_PLAYING, player.state);
 }
 
 static void the_buds_skip_tracks(void)
@@ -1178,6 +1203,42 @@ static void a_store_without_the_output_byte_loads_as_wired(void)
     CHECK(!saved.on_bluetooth);
 }
 
+static void device_state_classifies_each_transient_condition(void)
+{
+    fresh();
+    link = (BluetoothLink){.saved = {.enabled = false, .count = 1, .devices = {BUDS}}};
+    CHECK_EQUAL(BLUETOOTH_DEVICE_IDLE, bluetooth_link_device_state(&link, 0));
+    link.saved.enabled = true;
+    link.dozing = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_IDLE, bluetooth_link_device_state(&link, 0));
+    link.dozing = false;
+    link.connected = true;
+    link.linked = BUDS;
+    link.streamed = false;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTED, bluetooth_link_device_state(&link, 0));
+    link.streamed = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_PLAYING, bluetooth_link_device_state(&link, 0));
+    link.connected = false;
+    link.streamed = false;
+    link.target = BUDS;
+    link.attempting = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTING, bluetooth_link_device_state(&link, 0));
+    link.attempting = false;
+    link.paired_seen = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTING, bluetooth_link_device_state(&link, 0));
+    link.paired_seen = false;
+    link.has_target = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTING, bluetooth_link_device_state(&link, 0));
+    link.has_target = false;
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_STARTING;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTING, bluetooth_link_device_state(&link, 0));
+    link.held = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_IDLE, bluetooth_link_device_state(&link, 0));
+    link.held = false;
+    link.search_now = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_IDLE, bluetooth_link_device_state(&link, 0));
+}
+
 int main(void)
 {
     const TestCase cases[] = {
@@ -1203,10 +1264,11 @@ int main(void)
         TEST_CASE(the_buds_wait_for_the_next_play_after_headphones),
         TEST_CASE(the_buds_pause_and_resume_playback),
         TEST_CASE(the_buds_resume_a_pause_that_went_to_standby_at_its_place),
+        TEST_CASE(the_buds_resume_a_player_pause_from_standby),
         TEST_CASE(reports_right_after_the_stream_starts_are_ignored),
         TEST_CASE(a_pause_report_right_after_play_is_ignored),
         TEST_CASE(a_pause_from_the_buds_says_so),
-        TEST_CASE(a_play_report_does_not_resume_what_the_player_paused),
+        TEST_CASE(a_settled_play_report_resumes_what_the_player_paused),
         TEST_CASE(the_buds_skip_tracks),
         TEST_CASE(presses_from_before_the_connection_are_ignored),
         TEST_CASE(losing_the_buds_pauses_playback),
@@ -1247,6 +1309,7 @@ int main(void)
         TEST_CASE(headphones_back_in_range_reconnect_without_playing),
         TEST_CASE(a_wait_keeps_the_module_awake),
         TEST_CASE(a_store_without_the_output_byte_loads_as_wired),
+        TEST_CASE(device_state_classifies_each_transient_condition),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

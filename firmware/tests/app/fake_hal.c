@@ -24,9 +24,9 @@ enum {
     TRANSITION_CAPACITY = 16,
     FILE_CAPACITY = 64,
     PROBE_CALL_CAPACITY = 32,
-    WRITTEN_CAPACITY = 1100,
+    WRITTEN_CAPACITY = 4096,
     PATH_CAPACITY = 260,
-    INTERNAL_CAPACITY = 6,
+    INTERNAL_CAPACITY = 7,
     SCREENSHOT_CAPACITY = 32 + HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE * 2
 };
 
@@ -44,12 +44,19 @@ typedef struct FakeAudio {
     uint32_t queued_token;
     uint32_t replay_gain;
     uint32_t queued_replay_gain;
+    uint16_t speed;
     uint32_t queued_fade_ms;
     uint32_t play_fade_ms;
+    uint32_t sleep_remaining_ms;
+    uint8_t repeat_state;
     int seek_count;
     uint32_t last_seek_ms;
     uint8_t volume;
+    uint8_t bluetooth_volume;
     HalAudioGain gain;
+    HalAudioFilter filter;
+    uint8_t volume_at_gain;
+    uint8_t dac_volume_at_gain;
     HalAudioOutput output;
     HalAudioEqualizer equalizer;
     HeadphoneAudio headphones;
@@ -91,6 +98,8 @@ typedef struct LargeStore {
 static LargeStore large_stores[2];
 
 typedef struct FakeHal {
+    uint8_t battery_care_mode;
+    uint8_t battery_care_saved;
     const char *version;
     uint16_t panel[HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE];
     HalDisplayRotation rotation;
@@ -100,6 +109,7 @@ typedef struct FakeHal {
     bool display_on;
     uint8_t brightness;
     HalBattery battery;
+    bool charging_host;
     int power_off_count;
     HalAudioState audio_state_at_power_off;
     uint32_t now_ms;
@@ -142,6 +152,7 @@ typedef struct FakeHal {
     uint32_t rtc_written_s;
     HalWallTime wall;
     uint32_t wall_set_ms;
+    uint32_t wall_reads;
     int rtc_reads;
     HalUsbSense usb_sense;
     uint32_t saved_reports[FILE_CAPACITY];
@@ -154,6 +165,8 @@ typedef struct FakeHal {
     int profile_resets;
     HalAudioStats audio_stats;
     bool restart_pending;
+    bool usb_connect_pending;
+    int rescan_loads;
     uint32_t loaded_module;
     uint32_t broken_modules;
     int module_loads;
@@ -216,6 +229,17 @@ HalCardInfo hal_card_info(void)
     HalCardInfo info = card_info;
     info.usb_busy |= fake.usb_sense.session || fake.usb_sense.connecting;
     return info;
+}
+
+bool hal_card_eject(bool eject)
+{
+    if (!card_info.present || card_info.usb_busy) {
+        return false;
+    }
+    card_info.ejected = eject;
+    card_info.mounted = !eject;
+    card_info.generation++;
+    return true;
 }
 
 bool hal_card_format(HalCardInfo expected, HalCardProgress progress, void *context)
@@ -447,6 +471,9 @@ uint8_t fake_hal_display_brightness(void)
 
 void fake_hal_set_battery(HalBattery battery)
 {
+    if (battery.usb_power != fake.battery.usb_power) {
+        fake.battery_care_mode = fake.battery_care_saved;
+    }
     fake.battery = battery;
 }
 
@@ -525,11 +552,17 @@ void fake_hal_set_wall(uint32_t utc_s, int16_t offset_minutes)
 
 HalWallTime hal_clock_wall(void)
 {
+    fake.wall_reads++;
     HalWallTime time = fake.wall;
     if (time.source != HAL_WALL_UNKNOWN) {
         time.utc_s += (hal_clock_milliseconds() - fake.wall_set_ms) / 1000;
     }
     return time;
+}
+
+uint32_t fake_hal_wall_reads(void)
+{
+    return fake.wall_reads;
 }
 
 uint32_t hal_clock_milliseconds(void)
@@ -695,6 +728,11 @@ uint8_t fake_hal_audio_volume(void)
     return fake.audio.volume;
 }
 
+uint8_t fake_hal_audio_bluetooth_volume(void)
+{
+    return fake.audio.bluetooth_volume;
+}
+
 int fake_hal_audio_state(void)
 {
     return (int)fake.audio.status.state;
@@ -707,6 +745,7 @@ int fake_hal_write_count(void)
 
 bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next)
 {
+    fake.audio.repeat_state = 0;
     uint32_t start_ms = track->start_ms + offset_ms;
     uint32_t token = track->token;
     fake.audio.play_count++;
@@ -772,6 +811,11 @@ void hal_audio_set_volume(uint8_t level)
     fake.audio.volume = headphone_audio_limit(fake.audio.headphones, level);
 }
 
+void hal_audio_set_bluetooth_volume(uint8_t level)
+{
+    fake.audio.bluetooth_volume = level;
+}
+
 void hal_audio_set_headphones(HeadphoneAudio profile)
 {
     fake.audio.volume = headphone_audio_limit(profile, fake.audio.volume);
@@ -786,6 +830,28 @@ HeadphoneAudio hal_audio_headphones(void)
 void hal_audio_set_gain(HalAudioGain gain)
 {
     fake.audio.gain = gain;
+    fake.audio.volume_at_gain = fake.audio.volume;
+    fake.audio.dac_volume_at_gain = fake.dac_volume;
+}
+
+void hal_audio_set_filter(HalAudioFilter filter)
+{
+    fake.audio.filter = filter;
+}
+
+int fake_hal_audio_filter(void)
+{
+    return (int)fake.audio.filter;
+}
+
+uint8_t fake_hal_volume_at_gain(void)
+{
+    return fake.audio.volume_at_gain;
+}
+
+uint8_t fake_hal_dac_volume_at_gain(void)
+{
+    return fake.audio.dac_volume_at_gain;
 }
 
 void hal_audio_set_output(HalAudioOutput output)
@@ -1477,6 +1543,10 @@ bool hal_language_read(HalLanguagePack pack, uint32_t offset, void *buffer, uint
 
 bool hal_dir_open(HalDir *dir, const char *path)
 {
+    if (path == NULL) {
+        dir->handle = -1;
+        return false;
+    }
     if (strcmp(path, "/EQ") == 0) {
         dir->handle = EQ_LISTING_HANDLE;
         eq_next = 0;
@@ -1729,9 +1799,25 @@ bool hal_system_restart_pending(void)
     return fake.restart_pending;
 }
 
+void fake_hal_set_usb_connect_pending(bool pending)
+{
+    fake.usb_connect_pending = pending;
+}
+
+bool hal_system_usb_connect_pending(void)
+{
+    return fake.usb_connect_pending;
+}
+
+int fake_hal_rescan_loads(void)
+{
+    return fake.rescan_loads;
+}
+
 const void *hal_system_load_rescan_code(void)
 {
     fake.loaded_module = 0;
+    fake.rescan_loads++;
     return &RESCAN_MODULE_ENTRY;
 }
 
@@ -1955,6 +2041,16 @@ void hal_audio_set_replay_gain(uint32_t token, uint32_t gain)
     }
 }
 
+void hal_audio_set_speed(uint16_t speed)
+{
+    fake.audio.speed = speed;
+}
+
+uint16_t fake_hal_audio_speed(void)
+{
+    return fake.audio.speed;
+}
+
 uint32_t fake_hal_audio_replay_gain(void)
 {
     return fake.audio.replay_gain;
@@ -1989,4 +2085,56 @@ bool hal_clock_set_wall(HalWallTime time)
 void fake_hal_fail_internal_writes(const char *path)
 {
     fake.fail_internal_writes = path;
+}
+
+uint16_t hal_input_key_adc(void)
+{
+    return 1023;
+}
+
+bool hal_power_usb_host(void)
+{
+    return fake.charging_host;
+}
+
+void fake_hal_set_charging_host(bool host)
+{
+    fake.charging_host = host;
+}
+
+void hal_audio_set_sleep_remaining(uint32_t remaining_ms)
+{
+    fake.audio.sleep_remaining_ms = remaining_ms;
+}
+
+uint32_t fake_hal_audio_sleep_remaining(void)
+{
+    return fake.audio.sleep_remaining_ms;
+}
+
+uint8_t hal_audio_repeat_mark(bool clear)
+{
+    fake.audio.repeat_state = clear ? 0 : (uint8_t)((fake.audio.repeat_state + 1) % 3);
+    return fake.audio.repeat_state;
+}
+
+void hal_power_set_battery_care(uint8_t mode)
+{
+    fake.battery_care_saved = mode;
+    fake.battery_care_mode = mode;
+}
+
+void hal_power_use_battery_care(uint8_t mode)
+{
+    fake.battery_care_mode = mode;
+}
+
+uint8_t fake_hal_battery_care_mode(void)
+{
+    return fake.battery_care_mode;
+}
+
+uint8_t hal_power_battery_care(void)
+{
+    return fake.battery_care_mode;
 }

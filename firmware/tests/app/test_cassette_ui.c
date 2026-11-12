@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include "cassette_art.h"
 #include "check.h"
 #include "core/i18n.h"
 #include "default_theme.h"
@@ -181,6 +182,8 @@ static void cassette_budgets_accept_the_limit_and_reject_overflow_and_unknown_le
     CHECK(cassette_budget(45, 2699000, 1000));
     CHECK(!cassette_budget(45, UINT32_MAX, 1000));
     CHECK(!cassette_budget(30, 0, 0));
+    CHECK(!cassette_budget(60, 0, 1000));
+    CHECK_EQUAL(cassette_art_pack_size(0, 1), cassette_art_pack_size(0, 0));
 }
 
 int main(void)

@@ -179,6 +179,11 @@ void hal_system_usb_reconnect(void)
 {
 }
 
+bool hal_system_usb_connect_pending(void)
+{
+    return false;
+}
+
 void hal_system_usb_connect(bool on)
 {
     (void)on;

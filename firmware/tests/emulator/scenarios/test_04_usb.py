@@ -8,6 +8,7 @@ from echo_image_harness import (
     main,
     CABLE_NOTICED_LIMIT_MS,
     CABLE_STEADY_MS,
+    STARTUP_WORK_MS,
     CHARGER_MS,
     CLOCK_SLACK_MS,
     CLOCK_TICK_MS,
@@ -113,7 +114,10 @@ class EchoImageTest(EchoImageHarness):
         self.assertIsNone(values["audio.underruns"])
         self.assertEqual(values["frame.count"] == 0, values["frame.total_avg_us"] is None)
         kinds = [event["kind"] for event in report["events"]]
-        self.assertEqual(kinds[0], "screen")
+        details = [event["kind"] + " " + event["detail"].split()[0] for event in report["events"]]
+        self.assertEqual(details[0], "scan emmc_ok")
+        self.assertEqual(kinds[1], "screen")
+        self.assertEqual(details.count("scan emmc_ok"), 1)
         self.assertEqual(kinds[-1], "usb_start")
         self.assertEqual(values["events.recorded"], len(kinds))
         self.assertEqual(values["profile.state"], "off")
@@ -175,7 +179,7 @@ class EchoImageTest(EchoImageHarness):
         machine = session.machine
         listens = machine.trace("usb_session_listen")
         session.run_to_home_screen()
-        machine.run(until_ms=machine.milliseconds() + 300)
+        machine.run(until_ms=machine.milliseconds() + STARTUP_WORK_MS)
         machine.vbus = True
         machine.run(until_ms=machine.milliseconds() + 700)
         machine.vbus = False

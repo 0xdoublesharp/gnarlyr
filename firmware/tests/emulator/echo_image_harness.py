@@ -48,6 +48,11 @@ SLOT_SECTORS = 0x2800
 CHUNK_SECTORS = 16
 BACKLIGHT_HZ = 25000
 MINI_STOCK_SIZE = 0x2000004
+BOTH_SLOTS_REQUEST = "BOTHSLOT.REQ"
+TRIAL_PATH = "/" + IDENTITY.data_directory + "/trial.bin"
+TRIAL_RUNNING = 1
+TRIAL_PROMOTING = 2
+TRIAL_ROLLED_BACK = 3
 LOADER_FLAG_VALUE = 0xFFFF18AF
 LOADER_FLAG_REGISTER = 0x4C
 LOADER_SELECT_REGISTER = 0xC4
@@ -60,6 +65,7 @@ MOTION_MEASURE_MS = 3000
 MOTION_LOAD_LIMIT_PERCENT = 8
 STORE_WORKING = 1
 HOME_LISTENING_ROW = 3
+STATS_MOMENTS_ROW = 6
 LISTENING_EXPORT_ROW = 4
 PWM_CONTROL = 0x0C
 PWM_RUN = 0x10003
@@ -93,6 +99,7 @@ QUIET_AFTER_MS = 4000
 BOOT_FLAG_CLEAR = 0xFFFF0000
 REPORT_START_LIMIT_MS = 250
 CABLE_STEADY_MS = 1000
+STARTUP_WORK_MS = 2500
 CLOCK_TICK_MS = 1
 GRF_WORDS = ("e8", "84", "b4", "b8", "98")
 GRF_WORDS_POWERED = [2, 3, 2, 0, 4]
@@ -107,8 +114,8 @@ KEY_BACK = 500
 KEY_HOLD_MS = 150
 USB_ANSWER_FILE_TRANSFER = 1
 KEY_MENU = 350
-DAC_PROMPT_KEYS = (KEY_NEXT, KEY_NEXT, KEY_PLAY)
-DAC_MENU_FILE_TRANSFER_ROW = 4
+DAC_PROMPT_KEYS = (KEY_NEXT, KEY_NEXT, KEY_NEXT, KEY_PLAY)
+DAC_MENU_COMPUTER_ROW = 4
 LEAVE_HOLD_MS = 1200
 LEAVE_FORCE_HOLD_MS = 4500
 LEAVE_GRACE_MS = 2000
@@ -124,7 +131,7 @@ USB_PROMPT_MS = 15000
 PROMPT_NOTICED_MS = 1000
 STARTUP_SETTLED_MS = 5000
 CHARGE_LIT_MS = 5000
-FILE_TRANSFER_KEYS = (KEY_NEXT, KEY_PLAY)
+CONNECT_KEYS = (KEY_PLAY,)
 KEY_SETTLE_MS = 350
 BACKLIGHT_PIN = 4
 SOAK_MINUTE_MS = 60000
@@ -330,18 +337,28 @@ class EchoImageHarness(unittest.TestCase):
                 covered.extend(range(later[1], later[1] + later[2]))
             self.assertEqual(covered[:count], list(range(lba, lba + count)))
 
+    def trial_record(self, session):
+        reader = session.fat()
+        if not reader.exists(TRIAL_PATH):
+            return None
+        data = reader.read(TRIAL_PATH)
+        self.assertEqual(data[:4], b"DSUT")
+        self.assertEqual(data[7], 1)
+        self.assertEqual(data[6], data[4] ^ data[5] ^ 0x5A)
+        return data[4], data[5]
+
     def newer_image(self):
         return self.session_module.with_date(self.image, (2099, 1, 1))
 
     def assert_update_refused(self, update):
         session = self.session(files=[update], vbus=True)
-        session.machine.note("updater_install")
+        session.machine.note("trial_module_install")
         session.machine.note("updater_check")
         session.run_to_first_frame()
         self.assertEqual(session.run_until_waiting_for_key(presses=1),
                          "reached board_wait_for_key")
         self.assertEqual(session.machine.reached["updater_check"], 1)
-        self.assertNotIn("updater_install", session.machine.reached)
+        self.assertNotIn("trial_module_install", session.machine.reached)
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
         summary("refused " + update[0], session)
@@ -359,7 +376,7 @@ class EchoImageHarness(unittest.TestCase):
         return session, polls
 
     def boot_until_waiting_for_key(self, session):
-        session.machine.note("updater_install")
+        session.machine.note("trial_module_install")
         session.machine.note("updater_check")
         session.run_to_first_frame()
         session.machine.answer_waits_for_key(2)
@@ -525,8 +542,8 @@ class EchoImageHarness(unittest.TestCase):
             self.assertNotIn(name, machine.reached)
         self.assertEqual(self.usb_supply_pins(machine), (1, 1))
 
-    def choose_file_transfer(self, machine):
-        for key in FILE_TRANSFER_KEYS:
+    def choose_connect(self, machine):
+        for key in CONNECT_KEYS:
             self.press(machine, key)
 
     def charging_on_a_charger(self):
@@ -578,7 +595,7 @@ class EchoImageHarness(unittest.TestCase):
         if before_start is not None:
             before_start(machine)
         for name in ("usb_session_storage_changed", "debug_script_take", "hal_system_usb_reconnect",
-                     "debug_restart_after_install", "board_restart", "updater_install",
+                     "debug_restart_after_install", "board_restart", "trial_module_install",
                      "board_wait_for_power_hold", *notes):
             machine.note(name)
         machine.host_ejects()
@@ -734,11 +751,13 @@ class EchoImageHarness(unittest.TestCase):
         self.assertEqual(session.run_to_first_frame(), "condition met")
         self.assertLess(machine.milliseconds(), FIRST_FRAME_LIMIT_MS)
         self.assertEqual(session.run_to_home_screen(), "condition met")
+        machine.run(until=lambda: listens, until_ms=usb_ms)
         self.assertTrue(listens)
         self.assertGreaterEqual(listens[0], CABLE_STEADY_MS)
         self.assertLess(listens[0], usb_ms)
         self.assertLess(machine.milliseconds(), 20000)
-        gaps = [later - earlier for earlier, later in zip(steps, steps[1:])]
+        points = list(steps) + [machine.milliseconds()]
+        gaps = [later - earlier for earlier, later in zip(points, points[1:])]
         self.assertLess(max(gaps), gap_ms)
         self.assertEqual(machine.watchdog_resets, 0)
         self.assertGreater(machine.watchdog_kicks, 0)
@@ -763,7 +782,7 @@ class EchoImageHarness(unittest.TestCase):
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                    volume=volume, module_elfs=self.module_elfs)
 
-    def replay_gain_rig(self, mode, clipping=True, equalizer=0):
+    def replay_gain_rig(self, mode, clipping=True, equalizer=0, gains=None, extra_files=()):
         from echo_emulator.playback import Rig
         from echo_emulator.fat_volume import Fat32Volume
         pattern = (0, 14142, 20000, 14142, 0, -14142, -20000, -14142)
@@ -788,12 +807,14 @@ class EchoImageHarness(unittest.TestCase):
         settings[13], settings[14], settings[16] = 60, 2, 35
         settings[18] = equalizer
         settings[24], settings[27] = 1, 1
-        settings[28:38] = bytes((20,) * 10)
+        settings[28:38] = bytes((20,) * 10) if gains is None else bytes(20 + gain for gain in gains)
         checksum = FNV_START
         for value in settings[:38]:
             checksum = (checksum ^ value) * FNV_PRIME & 0xFFFFFFFF
         settings[38:42] = struct.pack("<I", checksum)
         volume.add_file("settings.bin", bytes(settings), directory=IDENTITY.data_directory)
+        for name, data in extra_files:
+            volume.add_file(name, data, directory=IDENTITY.data_directory)
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                    volume=volume, module_elfs=self.module_elfs), pattern
 
@@ -895,14 +916,14 @@ class EchoImageHarness(unittest.TestCase):
     def transition_settings(self, tenths):
         return self.saved_settings(4 | 1 << 3, tenths, shuffle=1)
 
-    def saved_settings(self, comfort, tenths, shuffle):
+    def saved_settings(self, comfort, tenths, shuffle, speed_step=0):
         settings = bytearray(4096)
         settings[:6] = b"DSST" + bytes((15, 0))
         settings[6:9] = bytes((7, 2, 0))
         settings[11], settings[13], settings[14], settings[16] = shuffle, 60, 2, 35
         settings[24], settings[27] = 1, 1
         settings[28:38] = bytes((20,) * 10)
-        settings[38:43] = bytes((comfort, 13, tenths, 0, 0x10))
+        settings[38:43] = bytes((comfort, 13, tenths, speed_step & 0xFF, 0x10))
         settings[43:47] = bytes((0x32, 0x54, 0x76, 0x08))
         checksum = FNV_START
         for value in settings[:54]:

@@ -189,6 +189,17 @@ static void status_bar_choices_fit_every_size_and_orientation_and_save_independe
             option.length = strlen(option.text);
             CHECK(settings_screens_choose(&screens, title, option));
             CHECK_EQUAL(0xD0 | SETTINGS_STATUS_VOLUME, store.settings.status_items);
+            title = (DebugSpan){i18n_text(STR_STATUS_LAYOUT), 0};
+            title.length = strlen(title.text);
+            option = (DebugSpan){i18n_text(STR_STATUS_COMPACT), 0};
+            option.length = strlen(option.text);
+            CHECK(settings_screens_choose(&screens, title, option));
+            CHECK(store.settings.status_bar_compact);
+            CHECK_EQUAL(0xD0 | SETTINGS_STATUS_VOLUME, store.settings.status_items);
+            option = (DebugSpan){i18n_text(STR_STATUS_STANDARD), 0};
+            option.length = strlen(option.text);
+            CHECK(settings_screens_choose(&screens, title, option));
+            CHECK(!store.settings.status_bar_compact);
         }
     }
 }

@@ -109,6 +109,7 @@ bool tags_read_mp4(TagReader *reader);
 bool tags_mp4_read_atom(const TagReader *reader, uint32_t offset, uint32_t limit, Mp4Atom *atom);
 bool tags_mp4_find_child(const TagReader *reader, const Mp4Atom *parent, uint32_t skip,
                          const char *type, Mp4Atom *found);
+bool tags_read_aiff(TagReader *reader);
 bool tags_read_wav(TagReader *reader);
 bool tags_read_dsf(TagReader *reader);
 bool tags_read_dff(TagReader *reader);

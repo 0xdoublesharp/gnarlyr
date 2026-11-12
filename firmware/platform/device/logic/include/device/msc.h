@@ -76,6 +76,7 @@ typedef struct Msc {
     uint32_t read_count;
     uint8_t sense_key[MSC_MAX_LUNS];
     uint8_t sense_code[MSC_MAX_LUNS];
+    uint8_t changed;
     uint8_t ejected;
     uint8_t removed;
     uint8_t present_at_start;
@@ -96,6 +97,7 @@ typedef struct Msc {
 void msc_init(Msc *msc, const MscLun *luns, uint8_t count);
 void msc_use_write_buffer(Msc *msc, uint32_t *words, uint32_t sectors);
 void msc_reset(Msc *msc);
+void msc_set_media(Msc *msc, uint8_t lun, bool present, uint32_t sectors);
 void msc_receive(Msc *msc, const uint8_t *packet, uint32_t length);
 bool msc_next_in(Msc *msc, uint8_t *buffer, uint32_t capacity, uint32_t *length);
 void msc_prefetch(Msc *msc);

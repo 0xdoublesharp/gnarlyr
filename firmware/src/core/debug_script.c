@@ -28,11 +28,14 @@ static const Word WORDS[] = {
     {"peek", DEBUG_COMMAND_PEEK},
     {"poke", DEBUG_COMMAND_POKE},
     {"gpio", DEBUG_COMMAND_GPIO},
+    {"dac", DEBUG_COMMAND_DAC},
     {"supply", DEBUG_COMMAND_SUPPLY},
     {"screen", DEBUG_COMMAND_SCREEN},
     {"soak", DEBUG_COMMAND_SOAK},
     {"rtc", DEBUG_COMMAND_RTC},
     {"standby", DEBUG_COMMAND_STANDBY},
+    {"rescan", DEBUG_COMMAND_RESCAN},
+    {"open", DEBUG_COMMAND_OPEN},
 };
 
 static const char *const PROFILE_ACTIONS[] = {
@@ -40,6 +43,8 @@ static const char *const PROFILE_ACTIONS[] = {
 static const char *const SENSE_MODES[] = {"normal", "kept_on"};
 static const char *const SWITCH_STATES[] = {"off", "on"};
 static const char *const RTC_ACTIONS[] = {[DEBUG_RTC_READ] = "read", [DEBUG_RTC_SET] = "set"};
+static const char *const RESCAN_ACTIONS[] = {"check", "full"};
+static const char *const OPEN_TARGETS[] = {"home", "coverflow", "nowplaying"};
 static const char *const PIN_ACTIONS[] = {[DEBUG_PIN_READ] = "read",
                                           [DEBUG_PIN_LOW] = "low",
                                           [DEBUG_PIN_HIGH] = "high",
@@ -287,6 +292,8 @@ static bool arguments_fit(DebugCommand *command)
         return parse_words(command, 2);
     case DEBUG_COMMAND_GPIO:
         return parse_gpio(command);
+    case DEBUG_COMMAND_DAC:
+        return parse_words(command, 1) && command->number <= DEBUG_DAC_MAP_MAX;
     case DEBUG_COMMAND_SUPPLY:
     case DEBUG_COMMAND_SCREEN:
     case DEBUG_COMMAND_STANDBY:
@@ -295,6 +302,12 @@ static bool arguments_fit(DebugCommand *command)
     case DEBUG_COMMAND_RTC:
         return parse_choice(command->argument, RTC_ACTIONS,
                             sizeof RTC_ACTIONS / sizeof RTC_ACTIONS[0], &command->number);
+    case DEBUG_COMMAND_RESCAN:
+        return parse_choice(command->argument, RESCAN_ACTIONS,
+                            sizeof RESCAN_ACTIONS / sizeof RESCAN_ACTIONS[0], &command->number);
+    case DEBUG_COMMAND_OPEN:
+        return parse_choice(command->argument, OPEN_TARGETS,
+                            sizeof OPEN_TARGETS / sizeof OPEN_TARGETS[0], &command->number);
     case DEBUG_COMMAND_SOAK:
         return parse_word(command->argument, &command->number) && command->number >= 1 &&
                command->number <= DEBUG_SOAK_MAX_MINUTES;
@@ -416,6 +429,9 @@ static bool add_probe(DebugScriptRun *run, const DebugCommand *command, uint32_t
         op->first = add_word(run, command->number);
         op->second = add_word(run, command->second);
         return true;
+    case DEBUG_COMMAND_DAC:
+        new_op(run, DEBUG_OP_DAC, line)->first = add_word(run, command->number);
+        return true;
     case DEBUG_COMMAND_GPIO:
         op = new_op(run, DEBUG_OP_PIN, line);
         op->first = (uint16_t)command->number;
@@ -438,7 +454,9 @@ static bool add_numbered(DebugScriptRun *run, const DebugCommand *command, uint3
         [DEBUG_COMMAND_SCREEN] = 1 + DEBUG_OP_SCREEN,
         [DEBUG_COMMAND_SOAK] = 1 + DEBUG_OP_SOAK,
         [DEBUG_COMMAND_RTC] = 1 + DEBUG_OP_RTC,
-        [DEBUG_COMMAND_STANDBY] = 1 + DEBUG_OP_STANDBY};
+        [DEBUG_COMMAND_STANDBY] = 1 + DEBUG_OP_STANDBY,
+        [DEBUG_COMMAND_RESCAN] = 1 + DEBUG_OP_RESCAN,
+        [DEBUG_COMMAND_OPEN] = 1 + DEBUG_OP_OPEN};
     if (command->kind >= DEBUG_COMMAND_UNKNOWN || OPS[command->kind] == 0) {
         return false;
     }

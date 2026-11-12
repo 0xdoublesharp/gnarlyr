@@ -13,7 +13,7 @@ from echo_image_harness import (
     PROMPT_NOTICED_MS,
     USB_PROMPT_MS,
     DAC_MEASURE_MS,
-    DAC_MENU_FILE_TRANSFER_ROW,
+    DAC_MENU_COMPUTER_ROW,
     DAC_RATE,
     KEY_MENU,
     KEY_NEXT,
@@ -37,20 +37,43 @@ class EchoImageTest(EchoImageHarness):
         machine.run(until_ms=machine.milliseconds() + CHARGER_MS)
         self.assert_asked_without_enumerating(session, asked, 1)
         self.assertEqual(machine.usb_connect_count, 1)
-        self.choose_file_transfer(machine)
+        self.choose_connect(machine)
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
         self.assertEqual(machine.usb_connect_count, 2)
         self.assertEqual(len(asked), 1)
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
-        self.print_usb_log("asked, then file transfer", machine)
+        self.print_usb_log("asked, then connect to computer", machine)
 
-    def test_charging_without_the_playing_module_uses_no_usb_overlay(self):
+    def test_charging_source_forgets_a_host_before_a_later_wall_charger(self):
+        session, machine, asked = self.asked_session()
+        session.run_to_home_screen()
+        machine.stub_symbol("app_step", lambda machine: None)
+        source = machine.symbols["charging_host"]
+        host_seen = lambda: bool(machine.uc.mem_read(source, 1)[0])
+        machine.vbus = True
+        self.assertEqual(machine.run(until=lambda: asked,
+                                     until_ms=machine.milliseconds() + CABLE_STEADY_MS + 2000),
+                         "condition met")
+        self.assertTrue(host_seen())
+        machine.vbus = False
+        self.assertEqual(machine.run(until=lambda: not host_seen(),
+                                     until_ms=machine.milliseconds() + 1000), "condition met")
+        machine.run(until_ms=machine.milliseconds() + CABLE_STEADY_MS + 50)
+        machine.host_absent = True
+        machine.vbus = True
+        connections = machine.usb_connect_count
+        machine.run(until_ms=machine.milliseconds() + CHARGER_MS)
+        self.assertFalse(host_seen())
+        self.assertEqual(machine.usb_connect_count, connections + 1)
+        self.assert_healthy(session)
+
+    def test_charging_without_the_views_module_uses_no_usb_overlay(self):
         session = self.session(vbus_at_start=True)
         machine = session.machine
         machine.power_key_released_at_ms = 0
         machine.host_absent = True
-        number, _ = self.module(machine, "playing")
+        number, _ = self.module(machine, "views")
         for slot in ("slot_1", "slot_2"):
             session.change_module(slot, number, 600, lambda byte: byte ^ 0xFF)
         frames = machine.trace("usb_screen_draw_fallback")
@@ -102,7 +125,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(machine.panics, ["hal_power_off"])
         self.print_usb_log("charge screen, host, quiet prompt", machine)
 
-    def test_on_the_charge_screen_file_transfer_in_the_prompt_starts_the_session(self):
+    def test_on_the_charge_screen_connect_to_computer_in_the_prompt_starts_the_session(self):
         session, machine, asked, charge_frames, dark = self.charging_on_a_charger()
         machine.host_arrives()
         self.assertEqual(machine.run(until=lambda: asked,
@@ -110,13 +133,13 @@ class EchoImageTest(EchoImageHarness):
                          "condition met")
         machine.run(until_ms=machine.milliseconds() + PROMPT_NOTICED_MS)
         self.assert_asked_without_enumerating(session, asked, 1)
-        self.choose_file_transfer(machine)
+        self.choose_connect(machine)
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
         self.assertEqual(machine.usb_connect_count, 2)
         self.assertEqual(len(asked), 1)
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
-        self.print_usb_log("charge screen, file transfer", machine)
+        self.print_usb_log("charge screen, connect to computer", machine)
 
 
     def test_holding_back_in_dac_mode_still_returns_to_the_mode_selector(self):
@@ -131,9 +154,9 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(machine.reached.get("usb_modes"), 1)
         self.assert_healthy(session)
 
-    def test_the_dac_menu_switches_to_file_transfer_without_unplugging(self):
+    def test_the_dac_menu_switches_to_connect_to_computer_without_unplugging(self):
         session, machine, _ = self.dac_session()
-        for key in (KEY_MENU,) + (KEY_NEXT,) * DAC_MENU_FILE_TRANSFER_ROW + (KEY_PLAY,):
+        for key in (KEY_MENU,) + (KEY_NEXT,) * DAC_MENU_COMPUTER_ROW + (KEY_PLAY,):
             self.press(machine, key)
         machine.answer_waits_for_key(4)
         self.assertEqual(machine.run(until=lambda: "usb_storage_session" in machine.reached,

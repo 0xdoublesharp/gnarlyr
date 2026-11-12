@@ -1,4 +1,6 @@
 #include "board.h"
+#include "core/seam.h"
+#include "dac.h"
 #include "device/jack_sense.h"
 #include "gpio.h"
 #include "hal/audio.h"
@@ -49,14 +51,17 @@ HalJackPins hal_audio_jack_pins(void)
     return pins;
 }
 
-bool board_jack_poll(void)
+CORE_SEAM bool board_jack_poll(void)
 {
     prepare_pins();
     if (board_bluetooth_routed() || board_bluetooth_settling()) {
         return false;
     }
-    return jack_sense_sample(
-        &sense, board_jack_kind(gpio_read(SINGLE_ENDED_SENSE), gpio_read(BALANCED_SENSE)));
+    JackKind reading = board_jack_kind(gpio_read(SINGLE_ENDED_SENSE), gpio_read(BALANCED_SENSE));
+    if (sense.started && reading != sense.stable) {
+        dac_path_guard(true);
+    }
+    return jack_sense_sample(&sense, reading);
 }
 
 bool board_jack_headset_ready(void)
@@ -79,4 +84,9 @@ HalAudioJack hal_audio_jack(void)
         break;
     }
     return HAL_AUDIO_JACK_NONE;
+}
+
+CORE_SEAM bool board_jack_settling(void)
+{
+    return sense.matches != 0;
 }

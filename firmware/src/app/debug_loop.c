@@ -5,6 +5,7 @@
 #include "debug_loop_internal.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
+#include "hal/input.h"
 #include "hal/system.h"
 
 enum {
@@ -25,6 +26,19 @@ typedef struct DebugLoop {
 } DebugLoop;
 
 static DebugLoop loop;
+static uint32_t boot_us[DEBUG_BOOT_COUNT];
+
+void debug_loop_boot(DebugBootStep step)
+{
+    if (boot_us[step] == 0) {
+        boot_us[step] = hal_clock_microseconds() + 1;
+    }
+}
+
+const uint32_t *debug_loop_boot_times(void)
+{
+    return boot_us;
+}
 
 static void record(DebugEventKind kind, uint32_t value, const char *text)
 {
@@ -41,7 +55,7 @@ void debug_loop_key(KeyEvent event)
 {
     if (event.gesture != KEY_GESTURE_REPEAT) {
         uint32_t value = (uint32_t)event.key | (uint32_t)event.gesture << GESTURE_SHIFT;
-        record(DEBUG_EVENT_KEY, value, NULL);
+        record(DEBUG_EVENT_KEY, value | (uint32_t)hal_input_key_adc() << 16, NULL);
     }
 }
 

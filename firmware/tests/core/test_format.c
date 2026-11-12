@@ -113,6 +113,7 @@ static void an_unknown_length_has_no_bitrate(void)
 static void average_bitrate_does_not_overflow_for_large_files(void)
 {
     CHECK_EQUAL(34359738, average_kbps(UINT32_MAX, UINT32_MAX, UINT32_MAX));
+    CHECK_EQUAL(UINT32_MAX, average_kbps(UINT32_MAX, 1, UINT32_MAX));
 }
 
 int main(void)

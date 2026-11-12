@@ -61,6 +61,13 @@ static void a_fade_survives_the_clock_wrapping(void)
     CHECK(!fade_finished(&fade, 10));
 }
 
+static void a_zero_duration_fade_is_immediately_opaque(void)
+{
+    Fade fade;
+    fade_start(&fade, START_MS, (FadeTiming){0, 0, true});
+    CHECK_EQUAL(FADE_OPAQUE, fade_alpha(&fade, START_MS));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -69,6 +76,7 @@ int main(void)
         TEST_CASE(a_falling_fade_holds_first_then_clears),
         TEST_CASE(a_fade_that_was_never_started_is_finished),
         TEST_CASE(a_fade_survives_the_clock_wrapping),
+        TEST_CASE(a_zero_duration_fade_is_immediately_opaque),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -4,13 +4,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import (
+    TRIAL_RUNNING,
     EchoImageHarness,
     main,
     BACKLIGHT_PIN,
     BOOT_FLAG_CLEAR,
     COLD_REPORT_MS,
     DEBUG_FOLDER,
-    FILE_TRANSFER_KEYS,
+    CONNECT_KEYS,
     GPIO_DATA,
     HEIGHT,
     IDENTITY,
@@ -80,7 +81,6 @@ class EchoImageTest(EchoImageHarness):
         self.assertGreater(measure["buffered_ms"], 0)
         self.assertGreater(measure["handoff_avg_us"], 0)
         self.assertTrue(0 <= measure["core0_busy_percent"] <= 100)
-        self.assertIn("core1_busy_percent", measure)
         self.assertIn("core1_busy_permille", measure)
         self.assertEqual(ran["screenshots"], [{"slot": 0, "name": "home"}])
         details = [event["kind"] + " " + event["detail"] for event in report["events"]]
@@ -109,7 +109,7 @@ class EchoImageTest(EchoImageHarness):
     def test_a_script_for_another_build_is_removed_unrun_and_the_player_still_reconnects(self):
         volume = self.debug_volume(run_txt=b"build 0000000\nplay\nreconnect\n")
         session, machine = self.ejecting_session(volume, usb_answer=None)
-        machine.answer_usb_prompt(FILE_TRANSFER_KEYS, times=2)
+        machine.answer_usb_prompt(CONNECT_KEYS, times=2)
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
         self.assertEqual(machine.reached["app_ask_usb_mode"], 1)
         self.assertFalse(session.fat().exists(RUN_PATH))
@@ -119,8 +119,8 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(report["values"]["script.state"], "refused_build")
         self.assertEqual(machine.reached["app_ask_usb_mode"], 1)
         self.assertEqual([line["status"] for line in report["script"]["lines"]], ["not_run"] * 3)
-        self.assertEqual([event["detail"] for event in report["events"] if event["kind"] == "key"],
-                         ["down press", "play press"])
+        self.assertEqual([" ".join(event["detail"].split()[:2]) for event in report["events"]
+                          if event["kind"] == "key"], ["play press"])
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 
@@ -145,7 +145,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual((soak["screen_start"], soak["screen_end"]), (0, 0))
         self.assertEqual((soak["cable_start"], soak["cable_end"]), (1, 1))
         self.assertEqual((soak["audio_start"], soak["audio_end"]), (0, 0))
-        self.assertEqual((soak["clock_mhz_start"], soak["clock_mhz_end"]), (96, 96))
+        self.assertEqual((soak["clock_mhz_start"], soak["clock_mhz_end"]), (24, 24))
         self.assertIn(soak["samples"], (0, 1))
         self.assertIsNone(soak["mv_per_hour"])
         self.assertTrue(0 <= soak["busy_percent"] <= 100)
@@ -268,7 +268,7 @@ class EchoImageTest(EchoImageHarness):
         machine.stop_at("board_wait_for_power_hold")
         self.assertEqual(machine.run(until_ms=self.session_module.FRAME_LIMIT_MS),
                          "reached board_wait_for_power_hold")
-        self.assertEqual(machine.reached["updater_install"], 1)
+        self.assertEqual(machine.reached["trial_module_install"], 1)
         self.assertNotIn("debug_script_take", machine.reached)
         self.assertNotIn("board_restart", machine.reached)
         self.assertIsNone(machine.reset_requested)
@@ -278,7 +278,7 @@ class EchoImageTest(EchoImageHarness):
         second = first.reboot(image=first.slot_image("slot_1") + newer[-4:])
         restarted = second.machine
         for name in ("usb_session_storage_changed", "debug_script_take", "hal_system_usb_reconnect",
-                     "updater_install"):
+                     "trial_module_install"):
             restarted.note(name)
         restarted.host_ejects()
         restarted.vbus = True
@@ -289,7 +289,7 @@ class EchoImageTest(EchoImageHarness):
         report = self.read_report(second)
         self.assertEqual(report["values"]["script.state"], "finished")
         self.assertEqual([line["status"] for line in report["script"]["lines"]], ["ok"] * 3)
-        self.assertNotIn("updater_install", restarted.reached)
+        self.assertNotIn("trial_module_install", restarted.reached)
         self.assert_healthy(second)
 
     def test_a_restart_request_ends_a_successful_install_in_a_restart_into_the_new_image(self):
@@ -298,13 +298,14 @@ class EchoImageTest(EchoImageHarness):
         first, machine = self.ejecting_session(volume)
         self.assertEqual(machine.run(until_ms=self.session_module.FRAME_LIMIT_MS),
                          "system reset requested")
-        self.assertEqual(machine.reached["updater_install"], 1)
+        self.assertEqual(machine.reached["trial_module_install"], 1)
         self.assertEqual(machine.reached["board_restart"], 1)
         self.assertNotIn("board_wait_for_power_hold", machine.reached)
         self.assertEqual(first.fat().read(RESTART_PATH), RESTART_ANSWER)
         self.assertFalse(first.fat().exists("/" + IDENTITY.update_file))
         self.assertEqual(first.slot_image("slot_1"), newer[:self.session_module.SLOT_BYTES])
-        self.assertEqual(first.slot_image("slot_2"), newer[:self.session_module.SLOT_BYTES])
+        self.assertEqual(first.slot_image("slot_2"), self.image[:self.session_module.SLOT_BYTES])
+        self.assertEqual(self.trial_record(first), (TRIAL_RUNNING, 0))
         self.assertEqual([value for _, value in machine.pmu_flag_writes], [BOOT_FLAG_CLEAR])
         self.assertNotIn(LOADER_SELECT_VALUE,
                          [value for _, offset, value in machine.grf_log
@@ -314,7 +315,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(self.read_report(first)["values"]["report.reason"], "restart")
         second = first.reboot(image=first.slot_image("slot_1") + newer[-4:], usb_answer=None)
         restarted = second.machine
-        for name in ("usb_session_storage_changed", "updater_install", "board_restart",
+        for name in ("usb_session_storage_changed", "trial_module_install", "board_restart",
                      "app_ask_usb_mode"):
             restarted.note(name)
         restarted.host_ejects()
@@ -333,7 +334,7 @@ class EchoImageTest(EchoImageHarness):
         restarted.run(until_ms=restarted.milliseconds() + 1000)
         self.assertFalse(second.fat().exists(RESTART_PATH))
         self.assertEqual(restarted.usb_connect_count, 1)
-        self.assertNotIn("updater_install", restarted.reached)
+        self.assertNotIn("trial_module_install", restarted.reached)
         self.assertNotIn("board_restart", restarted.reached)
         self.assertNotIn("app_ask_usb_mode", restarted.reached)
         self.assert_healthy(second)
@@ -341,7 +342,7 @@ class EchoImageTest(EchoImageHarness):
         self.print_usb_log("after the restart", restarted)
 
     def test_a_user_mode_request_reconnects_after_the_cable_bit_dies(self):
-        script = ("build %s\nset USB mode=File transfer\nwait 10000\n"
+        script = ("build %s\nset USB mode=Connect to computer\nwait 10000\n"
                   % self.build_tag()).encode("ascii")
         session, machine = self.ejecting_session(self.debug_volume(run_txt=script),
                                                  notes=("hal_system_request_usb_mode",))
@@ -417,13 +418,13 @@ class EchoImageTest(EchoImageHarness):
                                        restart_req=RESTART_REQUEST)
             session, machine = self.ejecting_session(volume)
             if fail:
-                machine.stub_symbol("updater_install", lambda machine: 0)
+                machine.stub_symbol("trial_module_install", lambda machine: 0)
             self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
             machine.run(until_ms=machine.milliseconds() + 1000)
             self.assertIsNone(machine.reset_requested)
             self.assertNotIn("board_restart", machine.reached)
             self.assertNotIn("debug_restart_after_install", machine.reached)
-            self.assertEqual("updater_install" in machine.reached, fail)
+            self.assertEqual("trial_module_install" in machine.reached, fail)
             self.assertFalse(session.fat().exists(RESTART_PATH))
             self.assertEqual(session.fat().exists("/" + IDENTITY.update_file), fail)
             self.assertEqual(session.slot_image("slot_1"), self.image[:self.session_module.SLOT_BYTES])

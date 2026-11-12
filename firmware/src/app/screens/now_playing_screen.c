@@ -50,6 +50,10 @@ const char *now_playing_codec_name(HalAudioCodec codec)
         return "ALAC";
     case HAL_AUDIO_CODEC_VORBIS:
         return i18n_text(STR_CODEC_VORBIS);
+    case HAL_AUDIO_CODEC_AIFF:
+        return i18n_text(STR_CODEC_AIFF);
+    case HAL_AUDIO_CODEC_DSD:
+        return i18n_text(STR_CODEC_DSD);
     case HAL_AUDIO_CODEC_OPUS:
         return i18n_text(STR_CODEC_OPUS);
     case HAL_AUDIO_CODEC_UNKNOWN:
@@ -175,6 +179,7 @@ static NowPlayingCommand scrub_command_for(KeyEvent event)
     case KEY_BACK:
         return by_gesture(event.gesture, NOW_PLAYING_SCRUB_CANCEL, NOW_PLAYING_HOME);
     case KEY_MENU:
+        return by_gesture(event.gesture, NOW_PLAYING_REPEAT_MARK, NOW_PLAYING_NONE);
     case KEY_POWER:
         return NOW_PLAYING_NONE;
     }
@@ -321,6 +326,11 @@ static ScreenAction run_command(NowPlayingScreen *now_playing, NowPlayingCommand
 {
     Player *player = now_playing->config.player;
     switch (command) {
+    case NOW_PLAYING_REPEAT_MARK:
+        player_repeat_mark(player);
+        now_playing->scrubbing = false;
+        now_playing->repeat_feedback_ms = now_playing->now_ms;
+        break;
     case NOW_PLAYING_TOGGLE_PAUSE:
         player_toggle_pause(player);
         break;
@@ -643,12 +653,21 @@ static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas)
     draw_right_aligned(canvas, style, area, remaining);
 }
 
-static void modes_text(const PlayerStatus *status, char *buffer, size_t capacity)
+static void modes_text(const NowPlayingScreen *now_playing, char *buffer, size_t capacity)
 {
+    const PlayerStatus *status = &now_playing->status;
+    const Settings *settings = now_playing->config.settings;
     StringBuilder builder = string_builder_make(buffer, capacity);
     if (status->repeat != REPEAT_OFF) {
         string_builder_append(
             &builder, i18n_text(status->repeat == REPEAT_ONE ? STR_REPEAT_ONE : STR_REPEAT_ALL));
+    }
+    if (settings != NULL && settings->playback_speed != SETTINGS_SPEED_NORMAL &&
+        settings->playback_speed < SETTINGS_SPEED_COUNT) {
+        if (buffer[0] != '\0') {
+            string_builder_append(&builder, SEPARATOR);
+        }
+        string_builder_append(&builder, i18n_text(SETTINGS_SPEED_LABELS[settings->playback_speed]));
     }
 }
 
@@ -684,7 +703,7 @@ static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
                                    layout(now_playing)->small_line_height),
                        detail});
     char modes[STATUS_CAPACITY];
-    modes_text(&now_playing->status, modes, sizeof modes);
+    modes_text(now_playing, modes, sizeof modes);
     const CassetteState *tape =
         now_playing->config.player != NULL ? &now_playing->config.player->cassette : NULL;
     if (tape != NULL && tape->active) {
@@ -703,6 +722,12 @@ static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
     if (now_playing->scrubbing) {
         StringBuilder seeking = string_builder_make(modes, sizeof modes);
         string_builder_append(&seeking, i18n_text(STR_SEEKING));
+    } else if (now_playing->status.ab_repeat != 0 ||
+               (now_playing->repeat_feedback_ms != 0 &&
+                now_playing->now_ms - now_playing->repeat_feedback_ms < NOW_PLAYING_BADGE_MS)) {
+        static const StringId states[] = {STR_AB_OFF, STR_AB_A, STR_AB_LOOP};
+        StringBuilder repeat = string_builder_make(modes, sizeof modes);
+        string_builder_append(&repeat, i18n_text(states[now_playing->status.ab_repeat]));
     } else if (modes[0] == 0 && now_playing->config.lyrics != NULL &&
                (now_playing->config.settings == NULL ||
                 settings_button_action(now_playing->config.settings, PLAYBACK_MENU_HOLD) ==
@@ -790,6 +815,7 @@ Screen *now_playing_screen_init(NowPlayingScreen *now_playing, NowPlayingConfig 
     now_playing->has_text = false;
     now_playing->scrubbing = false;
     now_playing->scrub_position_ms = 0;
+    now_playing->repeat_feedback_ms = 0;
     now_playing->feedback = NOW_PLAYING_FEEDBACK_NONE;
     now_playing->feedback_started_ms = 0;
     now_playing->status = (PlayerStatus){.state = PLAYER_IDLE};

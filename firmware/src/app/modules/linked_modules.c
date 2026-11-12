@@ -8,6 +8,7 @@
 const void *app_linked_module(uint32_t module)
 {
     static const void *const ENTRIES[SCREEN_MODULE_COUNT] = {
+        [SCREEN_MODULE_EQUALIZER] = &EQUALIZER_MODULE_ENTRY,
         [SCREEN_MODULE_VIEWS] = &VIEWS_MODULE_ENTRY,
         [SCREEN_MODULE_PLAYING] = &PLAYING_MODULE_ENTRY,
         [SCREEN_MODULE_SETTINGS] = &SETTINGS_MODULE_ENTRY,

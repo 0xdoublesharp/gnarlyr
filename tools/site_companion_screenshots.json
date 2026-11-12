@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "viewport": {
+    "width": 1280,
+    "height": 900
+  },
+  "screens": [
+    "library-dark",
+    "library-light",
+    "sync-preview",
+    "player-settings",
+    "firmware-review",
+    "languages"
+  ],
+  "albums": [
+    {
+      "artist": "Cedar & Sky",
+      "title": "Long Way Home",
+      "tracks": [
+        "First Light",
+        "The Long Way"
+      ]
+    },
+    {
+      "artist": "The Night Shift",
+      "title": "After Hours",
+      "tracks": [
+        "Night Drive",
+        "Last Train"
+      ]
+    },
+    {
+      "artist": "Mira Sol",
+      "title": "Slow Mornings",
+      "tracks": [
+        "Soft Focus",
+        "Open Window"
+      ]
+    },
+    {
+      "artist": "Studio North",
+      "title": "Side Streets",
+      "tracks": [
+        "Around the Corner",
+        "City Lights"
+      ]
+    },
+    {
+      "artist": "June Atlas",
+      "title": "Open Water",
+      "tracks": [
+        "Tide Lines",
+        "Far Shore"
+      ]
+    },
+    {
+      "artist": "Paper Planes",
+      "title": "Weekend Tapes",
+      "tracks": [
+        "Saturday",
+        "One More Song"
+      ]
+    },
+    {
+      "artist": "Luma Field",
+      "title": "Static Bloom",
+      "tracks": [
+        "Signals",
+        "Soft Edges"
+      ]
+    },
+    {
+      "artist": "Coastline",
+      "title": "Quiet Hours",
+      "tracks": [
+        "The Harbor",
+        "Dusk"
+      ]
+    },
+    {
+      "artist": "Violet Arc",
+      "title": "Neon Weather",
+      "tracks": [
+        "Rain Lines",
+        "Streetlight"
+      ]
+    },
+    {
+      "artist": "Low Tide",
+      "title": "Sunday Radio",
+      "tracks": [
+        "Slow Signal",
+        "Stay a While"
+      ]
+    }
+  ]
+}

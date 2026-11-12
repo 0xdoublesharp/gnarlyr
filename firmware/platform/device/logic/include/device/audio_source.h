@@ -9,4 +9,5 @@
 typedef struct AudioSourceEntry {
     uint32_t magic;
     bool (*open_flac)(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track);
+    bool (*open_mp3)(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track);
 } AudioSourceEntry;

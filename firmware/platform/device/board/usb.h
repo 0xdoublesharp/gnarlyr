@@ -5,6 +5,7 @@
 
 #include "device/msc.h"
 #include "device/usb_audio.h"
+#include "device/usb_audio_hid.h"
 #include "device/usb_device.h"
 
 enum {
@@ -42,6 +43,10 @@ typedef struct UsbPort {
     bool configured;
     bool in_busy;
     bool setup_pending;
+    bool defer_control;
+    bool control_data_pending;
+    uint16_t control_data_length;
+    uint8_t control_data[4];
     uint16_t bulk_packet;
     uint32_t setup[2];
     bool control_out_pending;
@@ -50,6 +55,10 @@ typedef struct UsbPort {
     UsbDevice device;
     Msc *msc;
     UsbAudio *audio;
+    UsbAudioHid hid;
+    uint32_t hid_sent_ms;
+    uint32_t (*feedback)(uint16_t tick);
+    void (*format_changed)(void);
     void (*receive_stream)(const uint8_t *bytes, uint32_t length);
 } UsbPort;
 
@@ -64,4 +73,5 @@ UsbProbe usb_probe(void);
 bool usb_port_connect(UsbPort *port);
 bool usb_wait_for_host(UsbPort *port, uint32_t timeout_ms);
 void usb_poll(UsbPort *port);
+void usb_poll_audio(UsbPort *port);
 bool usb_reply_pending(const UsbPort *port);

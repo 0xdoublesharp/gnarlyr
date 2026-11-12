@@ -66,14 +66,27 @@ The generator requires macOS `say` for speech and ffmpeg for native Vorbis and F
 
 `tools/vorbis_benchmark.py` runs the actual Cortex-M3 program with continuously available input and output slots, checks every sample against independent PCM (maximum two LSB and exact lengths), and keeps a stack-boundary guard. These 3.25-second corpus signals include higher-complexity content than the older sine/chirp-only fixtures. Counts are whole-file instructions divided by output duration, including setup and short idle intervals, in 1,000-instruction emulator slices.
 
-| Stream | Instructions / 20 ms | Audio after setup / 20 ms | Ideal 200 MHz budget used | Ideal margin | Break-even cycles / instruction |
-|---|---:|---:|---:|---:|---:|
-| q10 stereo 48 kHz | 810,554 | 795,674 | 20.3% | 79.7% | 4.93 |
-| q10 stereo 96 kHz | 1,337,637 | 1,322,801 | 33.4% | 66.6% | 2.99 |
-| q10 stereo 192 kHz | 2,314,382 | 2,299,549 | 57.9% | 42.1% | 1.73 |
-| CBR 500 kbit/s stereo 48 kHz | 771,557 | 756,627 | 19.3% | 80.7% | 5.18 |
+| Stream | Instructions / 20 ms | Audio after setup / 20 ms | Decode MHz | Ideal budget used | Ideal margin | Break-even cycles / instruction |
+|---|---:|---:|---:|---:|---:|---:|
+| q10 stereo 48 kHz | 810,554 | 795,674 | 100 | 40.5% | 59.5% | 2.47 |
+| q10 stereo 96 kHz | 1,337,637 | 1,322,801 | 100 | 66.9% | 33.1% | 1.50 |
+| q10 stereo 192 kHz | 2,314,382 | 2,299,549 | 200 | 57.9% | 42.1% | 1.73 |
+| CBR 500 kbit/s stereo 48 kHz | 771,563 | 756,633 | 100 | 38.6% | 61.4% | 2.59 |
 
-At core 1's documented 200 MHz, each 20 ms has four million cycles at every sample rate. Assuming one cycle per instruction gives the ideal margins above. Loads, branches, multiplies, memory waits and storage contention increase cost; at two cycles per instruction the 192 kHz case would exceed the budget. Instruction counts do not establish the actual cycles per instruction. None of these cases exceeds the ideal budget, so these measurements alone do not justify a new rate refusal. The accepted range remains mono/stereo 8–192 kHz within workspace and packet bounds; 192 kHz especially needs a hardware load check before claiming real-time support.
+The loader normally selects 100 MHz, providing two million cycles per 20 ms.
+The earlier assumption that every Vorbis stream ran at 200 MHz was incorrect:
+q10 stereo 192 kHz exceeds the normal ideal budget. The Vorbis program now
+requests 200 MHz after validated setup when its sample rate exceeds 96 kHz,
+providing four million cycles per 20 ms; it returns to 100 MHz while idle and
+when changing to a lower-rate stream. See [the stock and hardware clock
+reference](core1-clock.md). Accepted mono/stereo 8–192 kHz streams retain their
+workspace and packet bounds.
+
+The table gives the selected clock's ideal margin. Loads, branches, multiplies,
+memory waits and storage contention increase cost. At two cycles per instruction
+the 96 kHz case at 100 MHz and the 192 kHz case at 200 MHz would exceed their
+budgets. Instruction counts do not establish actual cycles per instruction;
+hardware load and listening remain unmeasured.
 
 ```sh
 .venv/bin/python tools/vorbis_benchmark.py --corpus /Volumes/Scratch/SnowskyEcho/data/vorbis-finish --program build/device/platform/device/core1_vorbis.bin --tool build/dev/tests/ogg_packet_tool

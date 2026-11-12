@@ -29,10 +29,17 @@ typedef struct DacBus {
 
 typedef enum DacCurve {
     DAC_CURVE_SINGLE_ENDED,
-    DAC_CURVE_BALANCED
+    DAC_CURVE_BALANCED,
+    DAC_CURVE_BLUETOOTH
 } DacCurve;
 
+typedef struct DacAnalog {
+    bool gain_high;
+    uint8_t filter;
+} DacAnalog;
+
 enum {
+    DAC_ANALOG_FILTERS = 5,
     DAC_LEFT_ADDRESS = 0x60,
     DAC_RIGHT_ADDRESS = 0x66,
     DAC_VOLUME_LEVELS = 60,
@@ -42,11 +49,24 @@ enum {
 void dac_power_pins(const DacBus *bus);
 void dac_read_identity(const DacBus *bus, DacIdentity *chips);
 bool dac_probe(const DacBus *bus);
-DacResult dac_configure(const DacBus *bus, uint8_t rate_byte);
+DacResult dac_configure(const DacBus *bus, uint8_t rate_byte, DacAnalog analog);
+bool dac_apply_analog(const DacBus *bus, DacAnalog before, DacAnalog after);
 void dac_output_on(const DacBus *bus, uint8_t volume);
 void dac_output_off(const DacBus *bus);
 void dac_set_muted(const DacBus *bus, bool muted, uint8_t volume);
 void dac_set_volume(const DacBus *bus, uint8_t volume);
-void dac_set_gain(const DacBus *bus, bool high);
 uint8_t dac_volume_value(uint8_t level, DacCurve curve);
 uint8_t dac_ramp_next(uint8_t current, uint8_t target);
+
+bool dac_sequence_power_down(const DacBus *bus);
+bool dac_sequence_power_up(const DacBus *bus);
+bool dac_sequence_gain(const DacBus *bus, bool high);
+
+typedef struct DacDiagnostics {
+    uint32_t start_us;
+    uint32_t stop_us;
+    uint32_t gain_us;
+    uint8_t power[2];
+    uint8_t valid;
+    bool up;
+} DacDiagnostics;

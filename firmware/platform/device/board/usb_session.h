@@ -33,12 +33,21 @@ typedef struct UsbReconnect {
     uint32_t forced_ms;
 } UsbReconnect;
 
+typedef struct UsbTrial {
+    uint32_t record_lba;
+    uint32_t settled[2];
+    bool charged;
+    bool running;
+    bool rolled_back;
+} UsbTrial;
+
 typedef struct UsbShared {
     UsbLink link;
     UsbReport report;
     EmmcInfo internal;
     HalUsbLast last_session;
     UsbReconnect reconnect;
+    UsbTrial trial;
     bool show_modes;
     bool high_speed_failed;
     bool flash_rewritten;

@@ -26,6 +26,9 @@ typedef struct SimStorage {
     char file_paths[OPEN_FILE_CAPACITY][PATH_CAPACITY];
     DIR *dirs[OPEN_DIR_CAPACITY];
     char dir_paths[OPEN_DIR_CAPACITY][PATH_CAPACITY];
+    char listed_names[OPEN_DIR_CAPACITY][PATH_CAPACITY];
+    bool listed_directories[OPEN_DIR_CAPACITY];
+    int listed_slot;
 } SimStorage;
 
 static SimStorage storage;
@@ -250,12 +253,24 @@ static int free_dir_slot(void)
     return -1;
 }
 
+static bool listed_path(char *resolved)
+{
+    int parent = storage.listed_slot;
+    if (parent < 0 || storage.dirs[parent] == NULL || !storage.listed_directories[parent]) {
+        return false;
+    }
+    int written = snprintf(resolved, PATH_CAPACITY, "%s/%s", storage.dir_paths[parent],
+                           storage.listed_names[parent]);
+    return written > 0 && written < PATH_CAPACITY;
+}
+
 bool hal_dir_open(HalDir *dir, const char *path)
 {
     dir->handle = -1;
     int slot = free_dir_slot();
     char *resolved = slot >= 0 ? storage.dir_paths[slot] : NULL;
-    if (slot < 0 || !sim_storage_host_path(path, resolved, PATH_CAPACITY)) {
+    if (slot < 0 || !(path == NULL ? listed_path(resolved)
+                                   : sim_storage_host_path(path, resolved, PATH_CAPACITY))) {
         return false;
     }
     storage.dirs[slot] = opendir(resolved);
@@ -286,6 +301,9 @@ static bool describe(int slot, const char *name, HalDirEntry *entry)
         entry->directory || (uint64_t)status.st_size > UINT32_MAX ? 0 : (uint32_t)status.st_size;
     entry->modified = (uint32_t)status.st_mtime;
     strcpy(entry->name, name);
+    strcpy(storage.listed_names[slot], name);
+    storage.listed_directories[slot] = entry->directory;
+    storage.listed_slot = slot;
     return true;
 }
 
@@ -295,6 +313,7 @@ bool hal_dir_next(HalDir *dir, HalDirEntry *entry)
         return false;
     }
     struct dirent *found = NULL;
+    storage.listed_directories[dir->handle] = false;
     while ((found = readdir(storage.dirs[dir->handle])) != NULL) {
         if (!is_dot_name(found->d_name) && describe(dir->handle, found->d_name, entry)) {
             return true;
@@ -322,6 +341,12 @@ bool hal_file_remove(const char *path)
 HalCardInfo hal_card_info(void)
 {
     return (HalCardInfo){0};
+}
+
+bool hal_card_eject(bool eject)
+{
+    (void)eject;
+    return false;
 }
 
 bool hal_card_format(HalCardInfo expected, HalCardProgress progress, void *context)

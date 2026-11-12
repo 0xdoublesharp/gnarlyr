@@ -29,6 +29,11 @@ typedef struct SmartListRanking {
     SmartListStamp stamp;
 } SmartListRanking;
 
+typedef struct SmartListRows {
+    char labels[THEME_MAX_ROWS][SMART_LIST_LABEL_BYTES];
+    char details[THEME_MAX_ROWS][SMART_LIST_DETAIL_BYTES];
+} SmartListRows;
+
 typedef struct SmartListWork {
     TrackKeys keys;
     ListeningFile file;
@@ -41,9 +46,8 @@ typedef struct SmartListWork {
         TrackKey entries[SMART_LIST_WORK_ENTRIES];
         SmartTally tallies[SMART_LIST_TALLIES];
         uint16_t albums[FAVORITES_CAPACITY];
+        SmartListRows rows;
     } scratch;
-    char labels[THEME_MAX_ROWS][SMART_LIST_LABEL_BYTES];
-    char details[THEME_MAX_ROWS][SMART_LIST_DETAIL_BYTES];
     int first;
     uint8_t stage;
     bool rows_ready;

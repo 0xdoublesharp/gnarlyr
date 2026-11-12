@@ -1,11 +1,13 @@
 add_library(echo_app STATIC
     app.c
+    standby.c
     cassette_art.c
     modules/listening_module.c
     screens/listening_screen.c
     screens/moments_screen.c
     screens/lyrics_screen.c
     screens/listening_work.c
+    screens/recap_cards.c
     screens/smart_list_screen.c
     discovery_screen.c
     discovery_text.c
@@ -26,24 +28,31 @@ add_library(echo_app STATIC
     home_editor.c
     theme_palette.c
     listening_store.c
+    listening_store_view.c
     listening_clear.c
     card_files.c
     app_screens.c
+    app_screens_home.c
     bluetooth_link.c
     bluetooth_link_ui.c
     bluetooth_store.c
     board_layout.c
+    board_cover_layout.c
     browse_screen.c
+    browse_sections.c
     cover_cache.c
+    cover_cache_half.c
     cover_placeholders.c
     default_theme.c
     default_theme_metrics.c
     favorite_playlist.c
+    favorite_playlist_add.c
     favorites_store.c
     diagnostics_values.c
     diagnostics_rows.c
     draw_profile.c
     equalizer_presets.c
+    equalizer_ui.c
     frame_overlay.c
     home_art.c
     home_art_init.c
@@ -55,18 +64,26 @@ add_library(echo_app STATIC
     music_walk.c
     library_store.c
     modules/extension_module.c
+    menu_hold.c
     modules/library_module.c
     modules/settings_module.c
+    modules/equalizer_module.c
     modules/views_module.c
     modules/playing_module.c
     player.c
+    plug_modes.c
     screen_modules.c
     settings_preview.c
     settings_screens.c
     screens/set_clock_screen.c
     settings_actions.c
+    settings_actions_equalizer.c
     screens/quick_settings_screen.c
     settings_store.c
+    audio_settings.c
+    parametric_calls.c
+    parametric_store.c
+    parametric_store_save.c
     headphone_store.c
     headphone_parameters.c
     headphone_store_path.c
@@ -80,12 +97,17 @@ add_library(echo_app STATIC
     screens/cassette_flip_screen.c
     screens/clock_screen.c
     screens/charge_screen.c
+    screens/charge_rate.c
     screens/charge_art.c
     screens/cover_flow_screen.c
     screens/equalizer_screen.c
+    screens/parametric_screen.c
+    screens/sound_shaping_screen.c
     screens/equalizer_browser.c
     screens/equalizer_plot.c
     screens/now_playing_screen.c
+    screens/plug_chooser.c
+    screens/plug_art.c
     screens/up_next_screen.c
 )
 if(ECHO_RELEASE)

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+
 struct SettingsContext;
 
 void settings_action_save(struct SettingsContext *context);
@@ -19,3 +21,8 @@ void settings_action_choose_replay_gain(void *context, int index);
 void settings_action_apply_transitions(struct SettingsContext *context);
 int settings_action_current_transition(const void *context);
 void settings_action_choose_transition(void *context, int index);
+int settings_action_current_speed(const void *context);
+void settings_action_choose_speed(void *context, int index);
+bool settings_action_speed_available(const void *context);
+const char *settings_action_speed_text(const void *context);
+void settings_action_cycle_speed(void *context);

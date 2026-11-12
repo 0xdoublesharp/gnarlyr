@@ -57,7 +57,7 @@ class CatalogueTest(unittest.TestCase):
         self.assertIn(b"one\ntwo\0", pack)
         lang_pack.check_glyphs("en", catalogue, DRAWABLE)
         self.assertIn('[STR_TWO] = "one\\ntwo",', lang_pack.english_source(catalogue))
-        self.assertEqual("[óné\ntwó!!]", lang_pack.pseudo_text("one\ntwo"))
+        self.assertEqual("[óne\ntwó!!]", lang_pack.pseudo_text("one\ntwo"))
 
     def test_a_line_that_is_not_a_string_is_refused(self):
         for line in ("Hello", "str_lower = x", "NAME = x", "STR_A: x"):
@@ -225,8 +225,11 @@ class GlyphCoverageTest(unittest.TestCase):
 
 
 class PseudoTest(unittest.TestCase):
+    def test_long_words_keep_expansion_with_one_accented_vowel_per_word(self):
+        self.assertEqual("[Équalizer préamp!!!!!]", lang_pack.pseudo_text("Equalizer preamp"))
+
     def test_every_string_is_bracketed_accented_and_longer(self):
-        self.assertEqual("[Séttíngs!!!]", lang_pack.pseudo_text("Settings"))
+        self.assertEqual("[Séttings!!!]", lang_pack.pseudo_text("Settings"))
         self.assertEqual("[Ón!]", lang_pack.pseudo_text("On"))
 
     def test_placeholders_survive_untouched(self):

@@ -26,7 +26,7 @@ class EchoImageTest(EchoImageHarness):
         def prepare(machine):
             def drawn():
                 state = machine.reg(UC_ARM_REG_R1)
-                volume_text, position = struct.unpack("<II", machine.read_memory(state + 16, 8))
+                volume_text, position = struct.unpack("<II", machine.read_memory(state + 20, 8))
                 seen.append((machine.read_cstring(volume_text).decode("ascii") if volume_text else None,
                              machine.read_cstring(position).decode("ascii") if position else None))
             machine.hook_symbol("status_bar_layout", drawn)

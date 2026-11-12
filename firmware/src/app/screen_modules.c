@@ -11,6 +11,7 @@ typedef struct ModuleSpan {
 } ModuleSpan;
 
 static const ModuleSpan SPANS[SCREEN_MODULE_COUNT] = {
+    [SCREEN_MODULE_EQUALIZER] = {offsetof(AppScreens, modules.equalizer), sizeof(EqualizerUi)},
     [SCREEN_MODULE_LIBRARY] = {offsetof(AppScreens, modules.library), sizeof(LibraryModuleScreens)},
     [SCREEN_MODULE_LISTENING] = {offsetof(AppScreens, modules.listening),
                                  sizeof(ProfileModuleScreens)},
@@ -23,6 +24,9 @@ static const ModuleSpan SPANS[SCREEN_MODULE_COUNT] = {
 ScreenModule screen_modules_of(const AppScreens *screens, const Screen *screen)
 {
     uintptr_t at = (uintptr_t)screen - (uintptr_t)screens;
+    if (at - offsetof(AppScreens, browse) < sizeof(BrowsePool)) {
+        return SCREEN_MODULE_PLAYING;
+    }
     for (int module = SCREEN_MODULE_NONE + 1; module < SCREEN_MODULE_COUNT; module++) {
         if (at - SPANS[module].offset < SPANS[module].size) {
             return (ScreenModule)module;
@@ -31,32 +35,44 @@ ScreenModule screen_modules_of(const AppScreens *screens, const Screen *screen)
     return SCREEN_MODULE_NONE;
 }
 
-void screen_modules_cancel_previews(AppScreens *screens)
+static void cancel_settings_previews(AppScreens *screens)
 {
-    if ((screens->bound_modules & (1u << SCREEN_MODULE_SETTINGS)) == 0 ||
-        screens->context.settings == NULL) {
+    if ((screens->bound_modules & (1u << SCREEN_MODULE_SETTINGS)) != 0) {
+        SettingsScreens *settings = &screens->modules.settings.settings;
+        if (settings->preview.choice != STRING_COUNT) {
+            settings->preview_settings(settings, false);
+        }
+    }
+}
+
+static void cancel_equalizer_previews(AppScreens *screens)
+{
+    if ((screens->bound_modules & (1u << SCREEN_MODULE_EQUALIZER)) == 0) {
         return;
     }
-    SettingsScreens *settings = &screens->modules.settings.settings;
-    if (settings->preview.choice != STRING_COUNT) {
-        settings->preview_settings(settings, false);
-    }
-    bool *previewing = NULL;
-    if (settings->equalizer_preview == SETTINGS_EQ_PREVIEW_BROWSER) {
-        previewing = &settings->equalizer_browser.previewing;
-    } else if (settings->equalizer_preview == SETTINGS_EQ_PREVIEW_EDITOR) {
-        previewing = &settings->equalizer.previewing;
-    }
-    if (previewing != NULL && *previewing) {
-        *previewing = false;
+    EqualizerUi *ui = &screens->modules.equalizer;
+    bool previewing = ui->browser.previewing || ui->graphic.previewing || ui->parametric.previewing;
+    ui->browser.previewing = false;
+    ui->graphic.previewing = false;
+    ui->parametric.previewing = false;
+    if (previewing) {
         settings_store_apply_equalizer(&screens->context.settings->settings);
     }
+}
+
+void screen_modules_cancel_previews(AppScreens *screens)
+{
+    cancel_settings_previews(screens);
+    cancel_equalizer_previews(screens);
 }
 
 const ScreenModuleEntry *screen_modules_use(AppScreens *screens, ScreenModule module)
 {
     if (module != SCREEN_MODULE_SETTINGS) {
-        screen_modules_cancel_previews(screens);
+        cancel_settings_previews(screens);
+    }
+    if (module != SCREEN_MODULE_EQUALIZER) {
+        cancel_equalizer_previews(screens);
     }
     const ScreenModuleEntry *entry = hal_system_load_module((uint32_t)module);
     if (entry == NULL || entry->magic != SCREEN_MODULE_MAGIC(module)) {

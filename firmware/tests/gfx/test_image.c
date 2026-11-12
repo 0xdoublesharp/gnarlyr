@@ -16,11 +16,27 @@ static Color pixels[WIDTH * HEIGHT];
 static const Color CHECKER[4] = {0x1000, 0x2000, 0x3000, 0x4000};
 static const Image TWO_BY_TWO = {.pixels = CHECKER, .width = 2, .height = 2};
 
+static Quad flat(int x, int y, int width, int height);
+
 static Canvas make_canvas(Rect bounds)
 {
     Canvas canvas = canvas_make(pixels, bounds);
     canvas_clear(&canvas, BACKGROUND);
     return canvas;
+}
+
+static void images_with_an_empty_dimension_draw_nothing(void)
+{
+    Canvas canvas = make_canvas((Rect){0, 0, WIDTH, HEIGHT});
+    Image image = TWO_BY_TWO;
+    image.width = 0;
+    image_draw_quad(&canvas, image, flat(0, 0, WIDTH, HEIGHT));
+    image = TWO_BY_TWO;
+    image.height = 0;
+    image_draw_quad(&canvas, image, flat(0, 0, WIDTH, HEIGHT));
+    for (int index = 0; index < WIDTH * HEIGHT; index++) {
+        CHECK_EQUAL(BACKGROUND, pixels[index]);
+    }
 }
 
 static Quad flat(int x, int y, int width, int height)
@@ -377,6 +393,7 @@ static void a_reflection_stays_inside_the_clip(void)
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(images_with_an_empty_dimension_draw_nothing),
         TEST_CASE(an_image_at_its_own_size_is_copied),
         TEST_CASE(a_larger_quad_scales_the_image_up),
         TEST_CASE(a_slanted_quad_shrinks_toward_its_far_edge),

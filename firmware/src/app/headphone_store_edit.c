@@ -11,7 +11,7 @@ static bool lower_volumes(HeadphoneStore *store, HeadphoneAudio next, Player *pl
     uint8_t music = headphone_audio_switch_volume(store->active, next, player->volume);
     uint8_t usb = headphone_audio_switch_volume(store->active, next, settings->settings.dac_volume);
     bool changed = player->volume != music;
-    player_change_volume(player, (int)music - player->volume);
+    player_set_volume(player, PLAYER_OUTPUT_WIRED, music);
     settings->settings.dac_volume = usb;
     settings_store_capture(settings, player_status(player));
     hal_system_set_dac_volume(usb);

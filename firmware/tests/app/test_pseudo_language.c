@@ -25,19 +25,21 @@ enum {
     MUSIC_ENTRIES = 12,
     MUSIC_SMART_LISTS_ROW = 10,
     MUSIC_ALBUMS_ROW = 4,
+    MUSIC_ARTISTS_ROW = 2,
+    BJORK_ROW = 3,
     MUSIC_ALL_SONGS_ROW = 7,
-    SETTINGS_ROWS = 30,
+    SETTINGS_ROWS = 33,
     SETTINGS_BLUETOOTH_ROW = 3,
     SETTINGS_SLEEP_ROW = 4,
-    SETTINGS_OUTPUT_ROW = 16,
-    SETTINGS_EQUALIZER_ROW = 17,
-    SETTINGS_CUSTOM_EQ_ROW = 18,
-    SETTINGS_RESCAN_ROW = 22,
-    SETTINGS_USB_MODE_ROW = 23,
+    SETTINGS_OUTPUT_ROW = 17,
+    SETTINGS_EQUALIZER_ROW = 18,
+    SETTINGS_CUSTOM_EQ_ROW = 19,
+    SETTINGS_RESCAN_ROW = 23,
+    SETTINGS_USB_MODE_ROW = 24,
     ABOUT_ROWS = 14,
     HOME_EDITOR_PODCASTS_ROW = 6,
     EQUALIZER_SAVE_ROW = 10,
-    EQUALIZER_SLOT_OPTION = 8,
+    EQUALIZER_SLOT_OPTION = 9,
     MINIMUM_PACK_TEXTS = 400,
     WORD_CAPACITY = 64
 };
@@ -348,6 +350,17 @@ static void walk_cover_flow(void)
     show_toast("Cover Flow after a favorite is removed", STR_FAVORITE_REMOVED);
 }
 
+static void walk_artist_albums(void)
+{
+    open_music_row(MUSIC_ARTISTS_ROW);
+    tap(KEY_PLAY);
+    down(BJORK_ROW);
+    tap(KEY_PLAY);
+    show_toast("an artist's albums", STR_ARTIST_ALBUMS_HINT);
+    down(1);
+    show("an artist's second album");
+}
+
 static void walk_song_actions(void)
 {
     static const StringId TOASTS[3] = {STR_PLAYING_NEXT, STR_ADDED_TO_UP_NEXT, STRING_COUNT};
@@ -414,6 +427,7 @@ static void walk_settings_choices(void)
                                                    STR_LANGUAGE,
                                                    STR_SKIP_SONGS,
                                                    STR_GAIN,
+                                                   STR_DAC_FILTER,
                                                    STR_OUTPUT,
                                                    STR_EQUALIZER,
                                                    STR_CUSTOM_EQ,
@@ -424,10 +438,12 @@ static void walk_settings_choices(void)
                                                    STR_USB_MODE,
                                                    STR_THEME,
                                                    STR_STATUS_BAR,
+                                                   STR_PLAYBACK_SPEED,
                                                    STR_REWIND_ON_RESUME,
                                                    STR_SAFE_START_VOLUME,
                                                    STR_TRANSITIONS,
-                                                   STR_USB_ANSWER};
+                                                   STR_USB_ANSWER,
+                                                   STR_POWER_ON};
     for (int row = 1; row < SETTINGS_ROWS; row++) {
         if (row == SETTINGS_RESCAN_ROW) {
             continue;
@@ -462,8 +478,6 @@ static void walk_settings_toasts(void)
     show_toast("the output toast", STR_OUTPUT_FOLLOWS);
     choose_option(SETTINGS_OUTPUT_ROW, 1);
     show_toast("the 3.5 mm output toast", STR_OUTPUT_USING_35);
-    choose_option(SETTINGS_USB_MODE_ROW, 2);
-    show_toast("the USB mode toast", STR_USB_PLAYS_SOUND);
     open_settings_row(SETTINGS_RESCAN_ROW);
     text_spy_reset();
     tap(KEY_PLAY);
@@ -492,6 +506,54 @@ static void walk_equalizer(void)
     tap(KEY_PLAY);
     down(EQUALIZER_SLOT_OPTION);
     show_titled("the equalizer choices with a saved slot", STR_EQUALIZER);
+}
+
+static void walk_parametric(void)
+{
+    open_settings_row(0);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    show_titled("Parametric EQ", STR_PEQ);
+    tap(KEY_PLAY);
+    show_titled("a parametric filter", STR_PEQ);
+    for (int field = 0; field < 5; field++) {
+        show("a parametric field");
+        tap(KEY_PLAY);
+        down(1);
+        show("a parametric adjustment");
+        tap(KEY_BACK);
+        down(1);
+    }
+    tap(KEY_BACK);
+}
+
+static void walk_sound_shaping(void)
+{
+    open_settings_row(SETTINGS_EQUALIZER_ROW);
+    tap(KEY_PLAY);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    show_titled("Sound shaping", STR_SOUND_SHAPING);
+    for (int slider = 0; slider < 7; slider++) {
+        show("a shaping slider");
+        tap(KEY_PLAY);
+        down(1);
+        show("a shaping adjustment");
+        tap(KEY_BACK);
+        down(1);
+    }
+    show("Reset shaping");
+    down(1);
+    tap(KEY_PLAY);
+    show("a shaping destination");
+    tap(KEY_BACK);
+    down(1);
+    tap(KEY_PLAY);
+    down(1);
+    show("a missing shaping correction");
+    tap(KEY_BACK);
 }
 
 static void find_devices(void)
@@ -533,7 +595,7 @@ static void walk_card_format(void)
     fake_hal_set_card(
         (HalCardInfo){.present = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1}, true);
     fake_hal_set_battery((HalBattery){.known = true, .percent = 80});
-    for (int row = 0; row < 3; row++) {
+    for (int row = 0; row < 5; row++) {
         tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     }
     tap(KEY_PLAY);
@@ -548,6 +610,8 @@ static void walk_card_format(void)
 static void open_home_editor(void)
 {
     open_settings_row(0);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
@@ -649,7 +713,10 @@ static void walk_usb_prompt(void)
 {
     begin();
     app_ask_usb_mode();
-    show_titled("the USB prompt", STR_USB_CONNECTED);
+    show_titled("the USB prompt", STR_PLUG_TITLE);
+    tap(KEY_VOLUME_DOWN);
+    hold(KEY_PLAY, 700);
+    show_toast("the always toast", STRING_COUNT);
     begin();
     app_open_usb_modes();
     show_titled("USB mode opened by hand", STR_USB_MODE);
@@ -667,6 +734,16 @@ static void walk_listening(void)
     tap(KEY_BACK);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
+    show_titled("Recap periods", STR_RECAP);
+    tap(KEY_PLAY);
+    show_titled("Recap without a clock", STR_RECAP);
+    tap(KEY_BACK);
+    down(3);
+    tap(KEY_PLAY);
+    show_titled("Recap without history", STR_RECAP);
+    back(2);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
     CHECK(strcmp(i18n_text(STR_EXPORT_PLAYS), app_screen_title()) == 0);
     CHECK(show("Export plays") >= 3);
 }
@@ -676,7 +753,7 @@ static void walk_headphones(void)
     static const StringId FIELDS[] = {STR_HEADPHONE_NAME, STR_HEADPHONE_TRIM, STR_HEADPHONE_BALANCE,
                                       STR_HEADPHONE_CEILING};
     open_settings_row(0);
-    for (int row = 0; row < 4; row++) {
+    for (int row = 0; row < 6; row++) {
         tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     }
     tap(KEY_PLAY);
@@ -699,6 +776,26 @@ static void walk_headphones(void)
     }
 }
 
+static void walk_standby_settings(void)
+{
+    open_settings_row(0);
+    for (int row = 0; row < 2; row++) {
+        tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    }
+    tap(KEY_PLAY);
+    show_titled("Power settings", STR_STANDBY_POWER);
+    tap(KEY_PLAY);
+    show_titled("Standby options", STR_STANDBY_ENABLED);
+    down(1);
+    show("Standby on option");
+    tap(KEY_BACK);
+    down(1);
+    tap(KEY_PLAY);
+    show_titled("Standby deadline", STR_STANDBY_TIMEOUT);
+    down(1);
+    show("Standby deadline choices");
+}
+
 static void walk_everything(void)
 {
     begin();
@@ -708,11 +805,15 @@ static void walk_everything(void)
     walk_music();
     walk_smart_lists();
     walk_cover_flow();
+    walk_artist_albums();
     walk_settings_rows();
+    walk_standby_settings();
     walk_card_format();
     walk_settings_choices();
     walk_settings_toasts();
     walk_equalizer();
+    walk_parametric();
+    walk_sound_shaping();
     walk_bluetooth();
     walk_home_editor();
     walk_headphones();

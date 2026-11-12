@@ -2,6 +2,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "app/debug_loop.h"
+
 #include "audio_dsp.h"
 #include "audio_process.h"
 #include "board.h"
@@ -11,9 +13,11 @@
 #include "dac.h"
 #include "device/audio_engine.h"
 #include "device/audio_math.h"
+#include "device/audio_tempo.h"
 #include "device/card_format.h"
 #include "device/dac_sequence.h"
 #include "device/dma_loop.h"
+#include "device/dsd_stream.h"
 #include "device/equalizer.h"
 #include "device/flac_source.h"
 #include "device/m4a_stream.h"
@@ -33,6 +37,12 @@ enum {
     RING_WORDS = RING_BLOCKS * BLOCK_WORDS,
     WORDS_PER_FRAME = 2,
     RING_FRAMES = RING_WORDS / WORDS_PER_FRAME,
+    STRETCH_BLOCKS = 5,
+    TEMPO_WORDS = (AUDIO_TEMPO_LARGEST_BUFFER_FRAMES * AUDIO_TEMPO_FRAME_BYTES +
+                   (int)sizeof(uint32_t) - 1) /
+        (int)sizeof(uint32_t),
+    STRETCH_STEP = STRETCH_BLOCKS * WORDS_PER_FRAME,
+    STRETCH_WORDS = (RING_WORDS - TEMPO_WORDS) / STRETCH_STEP * STRETCH_STEP,
     PREFILL_DIVISOR = 10,
     PREFILL_TIMEOUT_MS = 1000,
     FILL_BUDGET_BYTES = 8192,
@@ -51,6 +61,7 @@ typedef enum SourceKind {
     SOURCE_M4A = CORE1_PROGRAM_M4A,
     SOURCE_VORBIS = CORE1_PROGRAM_VORBIS,
     SOURCE_OPUS = CORE1_PROGRAM_OPUS,
+    SOURCE_DSD = CORE1_PROGRAM_DSD,
     SOURCE_WAV,
     SOURCE_UNKNOWN
 } SourceKind;
@@ -58,7 +69,8 @@ _Static_assert((int)CORE1_FORMAT_FLAC == (int)SOURCE_FLAC &&
                    (int)CORE1_FORMAT_MP3 == (int)SOURCE_MP3 &&
                    (int)CORE1_FORMAT_M4A == (int)SOURCE_M4A &&
                    (int)CORE1_FORMAT_VORBIS == (int)SOURCE_VORBIS &&
-                   (int)CORE1_FORMAT_OPUS == (int)SOURCE_OPUS,
+                   (int)CORE1_FORMAT_OPUS == (int)SOURCE_OPUS &&
+                   (int)CORE1_FORMAT_DSD == (int)SOURCE_DSD,
                "each core 1 source kind names its program and its opener");
 
 static union {
@@ -76,6 +88,7 @@ static WorkspaceLoan workspace_loan;
 static Equalizer equalizer __attribute__((section(".high_ram")));
 static uint32_t music_ring[RING_WORDS];
 static WavSource wav_source;
+static DsdStream dsd_stream;
 static SourceKind source_kind;
 static bool unknown_format;
 static Core1Source core1_source;
@@ -84,7 +97,13 @@ static bool resume_after_clock_change;
 static bool paused_before_clock_change;
 static uint32_t position_before_clock_change;
 static AudioEngine engine;
-_Static_assert(offsetof(AudioEngine, produced) == 44, "the emulator follows the audio ring cursor");
+_Static_assert(offsetof(AudioEngine, produced) == 48, "the emulator follows the audio ring cursor");
+_Static_assert((STRETCH_WORDS + BLOCK_WORDS - 1) / BLOCK_WORDS == STRETCH_BLOCKS,
+               "the stretched ring keeps its five DMA items");
+_Static_assert((RING_WORDS - STRETCH_WORDS) * sizeof(uint32_t) / AUDIO_TEMPO_FRAME_BYTES >=
+                   AUDIO_TEMPO_LARGEST_BUFFER_FRAMES,
+               "the ring tail holds the whole tempo window up to 48 kHz");
+
 static DmaItem items[RING_BLOCKS];
 static HalFile file;
 static bool engine_ready;
@@ -99,10 +118,13 @@ static uint32_t stopped_since_ms;
 static bool tone_active;
 static char last_path[AUDIO_ENGINE_PATH_CAPACITY];
 static uint8_t volume_level;
+static uint8_t bluetooth_level;
 static uint8_t extra_attenuation;
 static HeadphoneAudio headphones;
 static bool headphones_set;
 static void (*stream_service)(void);
+static uint32_t *stream_buffer;
+static uint32_t stream_frames;
 static bool volume_set;
 static HalAudioOutput output_setting;
 static uint32_t last_jack_poll_ms;
@@ -184,8 +206,12 @@ static SourceKind kind_of(const char *path)
     if (!read || tag_is(magic, "fLaC")) {
         return SOURCE_FLAC;
     }
-    if (tag_is(magic, "RIFF") && tag_is(magic + 8, "WAVE")) {
+    if ((tag_is(magic, "RIFF") && tag_is(magic + 8, "WAVE")) ||
+        (tag_is(magic, "FORM") && (tag_is(magic + 8, "AIFF") || tag_is(magic + 8, "AIFC")))) {
         return SOURCE_WAV;
+    }
+    if (tag_is(magic, "DSD ") || tag_is(magic, "FRM8")) {
+        return SOURCE_DSD;
     }
     if (tag_is(magic, "OggS")) {
         return tag_is(magic + 28, "Opus") ? SOURCE_OPUS : SOURCE_VORBIS;
@@ -296,11 +322,13 @@ static void ensure_engine(void)
     core1_source.m4a = &decoding.m4a;
     core1_source.ogg = &decoding.ogg;
     core1_source.wait_vorbis = board_audio_vorbis_wait;
+    core1_source.dsd = &dsd_stream;
     wav_source_init(&wav_source, files, &decoding.wav);
     AudioSource source = {open_chosen, next_chosen, release_chosen, close_chosen, NULL};
     audio_engine_init(&engine, (AudioEngineConfig){.source = source,
                                                    .ring = ring(),
                                                    .ring_words = RING_WORDS,
+                                                   .stretch_words = STRETCH_WORDS,
                                                    .equalizer = &equalizer,
                                                    .prepare_resample = board_audio_dsp_prepare,
                                                    .resample_render = board_audio_dsp_render});
@@ -316,7 +344,8 @@ void *hal_system_borrow_listing(uint32_t *size)
 
 static uint32_t ring_address(void)
 {
-    return (uint32_t)(uintptr_t)music_ring;
+    return (uint32_t)(uintptr_t)(stream_service != NULL && stream_buffer != NULL ? stream_buffer
+                                                                                 : music_ring);
 }
 
 static void update_consumed(void)
@@ -409,12 +438,14 @@ static bool start_transfer(uint32_t words, bool audible)
     ring_words = words;
     consumed = 0;
     last_position = 0;
-    uint32_t blocks = words / BLOCK_WORDS;
-    if (!dma_ring_items(items, blocks, ring_address(), BLOCK_WORDS, (uint32_t)(uintptr_t)items) ||
+    uint32_t blocks = (words + BLOCK_WORDS - 1) / BLOCK_WORDS;
+    if (!dma_ring_items(items, blocks, ring_address(), words / blocks,
+                        (uint32_t)(uintptr_t)items) ||
         !dmac_start_loop(&items[0])) {
         return false;
     }
     dac_path_start_transfer();
+    debug_loop_boot(DEBUG_BOOT_AUDIO);
     (void)dac_path_take_underrun();
     transferring = true;
     dac_path_set_fade_service(serve_fade);
@@ -439,7 +470,7 @@ static bool start_output(bool audible)
     stats = (HalAudioStats){0};
     output_started_us = hal_clock_microseconds();
     stopped_waiting = false;
-    return start_transfer(RING_WORDS, audible);
+    return start_transfer(engine.config.ring_words, audible);
 }
 
 static void stop_tone(void)
@@ -566,14 +597,29 @@ static void seek_to(uint32_t position_ms, bool paused)
     }
 }
 
-void hal_audio_seek(uint32_t position_ms)
+CORE_SEAM void hal_audio_seek(uint32_t position_ms)
 {
     ensure_engine();
     seek_to(position_ms, audio_engine_status(&engine).state == AUDIO_ENGINE_PAUSED);
 }
 
+CORE_SEAM CORE_COLD void hal_audio_set_speed(uint16_t speed)
+{
+    ensure_engine();
+    if (speed == engine.speed) {
+        return;
+    }
+    audio_engine_set_speed(&engine, speed);
+    if (engine.state != AUDIO_ENGINE_STOPPED) {
+        hal_audio_seek(audio_engine_status(&engine).position_ms);
+    }
+}
+
 static DacCurve output_curve(void)
 {
+    if (board_bluetooth_routed()) {
+        return DAC_CURVE_BLUETOOTH;
+    }
     switch (output_setting) {
     case HAL_AUDIO_OUTPUT_SINGLE_ENDED:
         return DAC_CURVE_SINGLE_ENDED;
@@ -586,11 +632,18 @@ static DacCurve output_curve(void)
                                                        : DAC_CURVE_SINGLE_ENDED;
 }
 
+static uint8_t routed_level(void)
+{
+    if (board_bluetooth_routed()) {
+        return bluetooth_level;
+    }
+    return headphone_audio_limit(hal_audio_headphones(), volume_level);
+}
+
 static void apply_volume(void)
 {
     if (volume_set) {
-        uint8_t level = headphone_audio_limit(hal_audio_headphones(), volume_level);
-        uint32_t value = dac_volume_value(level, output_curve()) + extra_attenuation;
+        uint32_t value = dac_volume_value(routed_level(), output_curve()) + extra_attenuation;
         dac_path_set_volume(value < DAC_VOLUME_MUTED ? (uint8_t)value : DAC_VOLUME_MUTED);
     }
 }
@@ -600,6 +653,17 @@ void hal_audio_set_volume(uint8_t level)
     volume_level = headphone_audio_limit(hal_audio_headphones(), level);
     volume_set = true;
     apply_volume();
+}
+
+void hal_audio_set_bluetooth_volume(uint8_t level)
+{
+    bluetooth_level = level < HAL_AUDIO_VOLUME_MAX ? level : HAL_AUDIO_VOLUME_MAX;
+    apply_volume();
+}
+
+static HeadphoneAudio engine_headphones(void)
+{
+    return board_bluetooth_routed() ? headphone_audio_defaults() : hal_audio_headphones();
 }
 
 CORE_COLD HeadphoneAudio hal_audio_headphones(void)
@@ -614,19 +678,31 @@ CORE_SEAM CORE_COLD void hal_audio_set_headphones(HeadphoneAudio profile)
     headphones = profile;
     headphones_set = true;
     ensure_engine();
-    audio_engine_set_headphones(&engine, profile);
+    audio_engine_set_headphones(&engine, engine_headphones());
     apply_volume();
 }
 
-void hal_audio_set_gain(HalAudioGain gain)
+CORE_SEAM void hal_audio_set_gain(HalAudioGain gain)
 {
     dac_path_set_gain(gain == HAL_AUDIO_GAIN_HIGH);
 }
 
-void hal_audio_set_output(HalAudioOutput output)
+CORE_SEAM void hal_audio_set_filter(HalAudioFilter filter)
 {
+    dac_path_set_filter((uint8_t)filter);
+}
+
+CORE_SEAM void hal_audio_set_output(HalAudioOutput output)
+{
+    bool restore = path_up && !dac_path_is_muted();
+    if (restore) {
+        dac_path_set_muted(true);
+    }
     output_setting = output;
     apply_volume();
+    if (restore) {
+        dac_path_set_muted(false);
+    }
 }
 
 void hal_audio_set_equalizer(const HalAudioEqualizer *curve)
@@ -661,6 +737,10 @@ static HalAudioCodec codec_of(AudioCodec codec)
         return HAL_AUDIO_CODEC_ALAC;
     case AUDIO_CODEC_VORBIS:
         return HAL_AUDIO_CODEC_VORBIS;
+    case AUDIO_CODEC_AIFF:
+        return HAL_AUDIO_CODEC_AIFF;
+    case AUDIO_CODEC_DSD:
+        return HAL_AUDIO_CODEC_DSD;
     case AUDIO_CODEC_OPUS:
         return HAL_AUDIO_CODEC_OPUS;
     case AUDIO_CODEC_FLAC:
@@ -769,6 +849,9 @@ static void poll_jack(void)
     last_jack_poll_ms = now_ms;
     if (board_jack_poll() && output_setting == HAL_AUDIO_OUTPUT_AUTO) {
         apply_volume();
+    }
+    if (!board_jack_settling() && hal_audio_jack() != HAL_AUDIO_JACK_NONE) {
+        dac_path_guard(false);
     }
 }
 
@@ -918,8 +1001,10 @@ void board_audio_set_attenuation(uint8_t steps)
 
 static void clear_ring(void)
 {
-    for (uint32_t index = 0; index < RING_WORDS; index++) {
-        music_ring[index] = 0;
+    uint32_t frames;
+    uint32_t *buffer = board_audio_stream_ring(&frames);
+    for (uint32_t index = 0; index < frames * WORDS_PER_FRAME; index++) {
+        buffer[index] = 0;
     }
 }
 
@@ -931,26 +1016,36 @@ bool board_audio_stream_open(uint32_t rate, void (*service)(void))
     ensure_engine();
     ensure_audio_clock();
     board_audio_shut_down();
-    clear_ring();
     stream_service = service;
+    clear_ring();
     return ensure_path(rate);
 }
 
 uint32_t *board_audio_stream_ring(uint32_t *frames)
 {
-    *frames = RING_FRAMES;
-    return music_ring;
+    *frames = stream_buffer != NULL ? stream_frames : RING_FRAMES;
+    return stream_buffer != NULL ? stream_buffer : music_ring;
+}
+
+void board_audio_stream_buffer(uint32_t *buffer, uint32_t frames)
+{
+    stream_buffer = buffer;
+    stream_frames = frames;
 }
 
 bool board_audio_stream_play(void)
 {
-    return start_transfer(RING_WORDS, true);
+    return start_transfer(stream_buffer != NULL ? stream_frames * WORDS_PER_FRAME : RING_WORDS,
+                          true);
 }
 
 void board_audio_stream_pause(void)
 {
     clear_ring();
-    stop_transfer();
+    dac_path_stream_quiet();
+    dac_path_stop_transfer();
+    dmac_stop();
+    transferring = false;
 }
 
 uint32_t board_audio_stream_consumed(void)
@@ -959,10 +1054,19 @@ uint32_t board_audio_stream_consumed(void)
     return transferring ? consumed : 0;
 }
 
+void board_audio_stream_service(void)
+{
+    if (stream_service != NULL) {
+        stream_service();
+    }
+}
+
 void board_audio_stream_close(void)
 {
-    stream_service = NULL;
     board_audio_shut_down();
+    stream_service = NULL;
+    stream_buffer = NULL;
+    stream_frames = 0;
 }
 
 CORE_SEAM void hal_audio_set_replay_gain(uint32_t token, uint32_t gain)
@@ -994,4 +1098,59 @@ void board_audio_return_format(void)
 bool board_audio_workspace_lent(void)
 {
     return !workspace_loan_claimable(&workspace_loan);
+}
+
+CORE_SEAM bool board_audio_bluetooth_start(void)
+{
+    if (!engine_ready || !transferring || tone_active || stream_service != NULL) {
+        return false;
+    }
+    uint32_t position = hal_audio_status().position_ms;
+    restart_transfer();
+    clear_ring();
+    if (!audio_engine_seek(&engine, position)) {
+        return false;
+    }
+    uint32_t length = audio_engine_rate(&engine) * 30u / 1000u;
+    engine.fade_in = (AudioFadeRamp){.length = length,
+                                     .reciprocal = length == 0 ? 0 : UINT32_MAX / length,
+                                     .active = length != 0};
+    apply_volume();
+    return start_output(false);
+}
+
+void board_audio_output_changed(void)
+{
+    if (engine_ready) {
+        audio_engine_set_headphones(&engine, engine_headphones());
+    }
+    apply_volume();
+}
+
+CORE_SEAM void hal_audio_set_sleep_remaining(uint32_t remaining_ms)
+{
+    audio_engine_set_sleep_remaining(&engine, remaining_ms);
+}
+
+CORE_SEAM uint8_t hal_audio_repeat_mark(bool clear)
+{
+    ensure_engine();
+    update_consumed();
+    audio_engine_observe(&engine, consumed);
+    bool restart = engine.repeat_state != 0 || clear;
+    bool paused = engine.state == AUDIO_ENGINE_PAUSED;
+    if (restart) {
+        stop_transfer();
+    }
+    uint8_t state = audio_engine_repeat_mark(&engine, clear);
+    if (restart && !start_output(!paused)) {
+        audio_engine_stop(&engine);
+        return 0;
+    }
+    if (paused) {
+        audio_engine_pause(&engine);
+        dac_path_set_muted(true);
+        dmac_suspend();
+    }
+    return state;
 }

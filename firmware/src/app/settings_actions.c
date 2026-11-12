@@ -10,8 +10,8 @@ enum {
 };
 
 static const StringId SLEEP_OPTIONS[SLEEP_TIMER_OPTION_COUNT] = {
-    STR_OFF,        STR_MINUTES_15, STR_MINUTES_30, STR_MINUTES_45,
-    STR_MINUTES_60, STR_MINUTES_90, STR_MINUTES_120};
+    STR_OFF,        STR_MINUTES_15,  STR_MINUTES_30,      STR_MINUTES_45,       STR_MINUTES_60,
+    STR_MINUTES_90, STR_MINUTES_120, STR_SLEEP_END_TRACK, STR_SLEEP_END_CHAPTER};
 
 static const Settings *settings_of(const void *context)
 {
@@ -68,16 +68,7 @@ void settings_action_choose_repeat(void *context, int index)
 int settings_action_current_sleep(const void *context)
 {
     const SettingsContext *settings = context;
-    if (!settings->power->sleep_timer_active) {
-        return 0;
-    }
-    for (int index = 1; index < SLEEP_TIMER_OPTION_COUNT; index++) {
-        if (settings_sleep_option_minutes(index) * MILLISECONDS_PER_MINUTE ==
-            settings->power->sleep_duration_ms) {
-            return index;
-        }
-    }
-    return 0;
+    return settings->power->sleep_timer_active ? settings->power->sleep_option : 0;
 }
 
 void settings_action_choose_sleep(void *context, int index)
@@ -85,62 +76,22 @@ void settings_action_choose_sleep(void *context, int index)
     SettingsContext *settings = context;
     uint32_t now_ms = hal_clock_milliseconds();
     uint32_t minutes = settings_sleep_option_minutes(index);
-    if (minutes == 0) {
+    settings->power->sleep_option = (uint8_t)index;
+    if (index == 0) {
         power_policy_cancel_sleep_timer(settings->power);
     } else {
         power_policy_start_sleep_timer(settings->power, minutes * MILLISECONDS_PER_MINUTE, now_ms);
     }
+    settings->power->sleep_track_end = index >= SLEEP_END_TRACK;
+    player_set_stop_after_track(settings->player, index >= SLEEP_END_TRACK);
     StringBuilder message = string_builder_make(settings->message, sizeof settings->message);
-    if (minutes == 0) {
+    if (index == 0) {
         string_builder_append(&message, i18n_text(STR_SLEEP_OFF));
     } else {
-        i18n_format_text(&message, STR_SLEEP_IN, i18n_text(SLEEP_OPTIONS[index]));
+        i18n_format_text(&message, index >= SLEEP_END_TRACK ? STR_SLEEP_AT : STR_SLEEP_IN,
+                         i18n_text(SLEEP_OPTIONS[index]));
     }
     toast_show(settings->toast, settings->message, now_ms);
-}
-
-int settings_action_active_slot(const void *context)
-{
-    const SettingsContext *settings = context;
-    const Settings *chosen = settings_of(context);
-    return chosen->equalizer == EQUALIZER_CUSTOM
-               ? equalizer_presets_matching_slot(settings->presets, chosen->equalizer_gains)
-               : -1;
-}
-
-int settings_action_current_equalizer(const void *context)
-{
-    const SettingsContext *settings = context;
-    int slot = settings_action_active_slot(context);
-    return slot < 0 ? (int)settings_of(context)->equalizer
-                    : equalizer_presets_slot_option(settings->presets, slot);
-}
-
-const char *settings_action_describe_equalizer(const void *context, int current)
-{
-    int slot = settings_action_active_slot(context);
-    return slot < 0 ? i18n_text(EQUALIZER_PRESET_NAMES[current])
-                    : equalizer_presets_slot_label(slot);
-}
-
-void settings_action_choose_equalizer(void *context, int index)
-{
-    SettingsContext *settings = context;
-    Settings *chosen = editable_settings(context);
-    int8_t gains[SETTINGS_EQUALIZER_BANDS];
-    if (index >= EQUALIZER_PRESET_COUNT) {
-        if (!equalizer_presets_load(settings->presets, index, gains)) {
-            toast_show(settings->toast, i18n_text(STR_EQ_FILE_UNREADABLE),
-                       hal_clock_milliseconds());
-            return;
-        }
-        for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
-            chosen->equalizer_gains[band] = gains[band];
-        }
-        index = EQUALIZER_CUSTOM;
-    }
-    chosen->equalizer = (EqualizerPreset)index;
-    settings_action_apply_and_save(context);
 }
 
 void settings_action_apply_replay_gain(SettingsContext *context)
@@ -180,4 +131,35 @@ void settings_action_choose_transition(void *context, int index)
         toast_show(settings->toast, i18n_text(STR_TRANSITIONS_IN_SHUFFLE),
                    hal_clock_milliseconds());
     }
+}
+
+int settings_action_current_speed(const void *context)
+{
+    uint8_t speed = settings_of(context)->playback_speed;
+    return speed < SETTINGS_SPEED_COUNT ? speed : SETTINGS_SPEED_NORMAL;
+}
+
+void settings_action_choose_speed(void *context, int index)
+{
+    SettingsContext *settings = context;
+    editable_settings(context)->playback_speed = (uint8_t)index;
+    player_set_speed(settings->player, settings_speed_percent(index));
+    settings_action_save(settings);
+}
+
+bool settings_action_speed_available(const void *context)
+{
+    const SettingsContext *settings = context;
+    return settings->store != NULL && settings->player != NULL;
+}
+
+const char *settings_action_speed_text(const void *context)
+{
+    return i18n_text(SETTINGS_SPEED_LABELS[settings_action_current_speed(context)]);
+}
+
+void settings_action_cycle_speed(void *context)
+{
+    settings_action_choose_speed(context, (settings_action_current_speed(context) + 1) %
+                                              SETTINGS_SPEED_COUNT);
 }

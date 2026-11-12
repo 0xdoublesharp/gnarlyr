@@ -147,12 +147,38 @@ static Screen *browse_play_group(void *context, BrowseScreen *browse)
     return entry != NULL ? entry->browse(screens, browse, true) : NULL;
 }
 
+ScreenAction app_screens_artist_keys(void *context, KeyEvent event, uint32_t now_ms)
+{
+    CoverFlowScreen *strip = context;
+    if (event.key != KEY_PLAY || event.gesture != KEY_GESTURE_LONG_PRESS) {
+        return strip->keys(context, event, now_ms);
+    }
+    Screen *screen = browse_play_group(strip->config.browse->config.tools_context, strip->parent);
+    return screen != NULL ? screen_action_push(screen) : screen_action_none();
+}
+
 static Screen *track_tape(void *context, uint16_t track)
 {
     AppScreens *screens = context;
     const ViewsModuleEntry *entry =
         (const ViewsModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_VIEWS);
     return entry != NULL ? entry->add(&screens->modules.views.mixtapes, track) : NULL;
+}
+
+static int browse_section(const BrowseScreen *browse, int index)
+{
+    AppScreens *screens = browse->pool->config.tools_context;
+    const PlayingModuleEntry *entry =
+        (const PlayingModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_PLAYING);
+    return entry != NULL ? entry->section(browse, index) : LIST_SECTION_BEFORE_LETTERS;
+}
+
+static ListSections browse_sections(const BrowseScreen *browse, int index)
+{
+    AppScreens *screens = browse->pool->config.tools_context;
+    const PlayingModuleEntry *entry =
+        (const PlayingModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_PLAYING);
+    return entry != NULL ? entry->sections(browse, index) : (ListSections){0, 0};
 }
 
 static Screen *track_info(void *context, uint16_t track)
@@ -237,6 +263,8 @@ static void build_music(AppScreens *screens, AppScreensContext context)
         .tags = track_tags,
         .tape = track_tape,
         .play_group = browse_play_group,
+        .section = browse_section,
+        .sections = browse_sections,
         .tools_context = screens,
     };
     browse_pool_init(&screens->browse, browse);
@@ -308,7 +336,7 @@ static void home_catalog(AppScreens *screens, MenuItem *items)
     }
 }
 
-static int arrange_home(AppScreens *screens)
+int app_screens_arrange_home_items(AppScreens *screens)
 {
     MenuItem items[HOME_ITEM_COUNT];
     home_catalog(screens, items);
@@ -330,19 +358,7 @@ static bool home_shown(const MenuItem *item)
     return item->shown == NULL || item->shown(item->shown_context);
 }
 
-static const void *home_selected(const AppScreens *screens)
-{
-    int remaining = screens->home.list.selected;
-    for (int index = 0; index < screens->home.config.item_count; index++) {
-        const MenuItem *item = &screens->home_items[index];
-        if (home_shown(item) && remaining-- == 0) {
-            return item->context;
-        }
-    }
-    return NULL;
-}
-
-static int home_position(const AppScreens *screens, const void *context)
+int app_screens_home_position(const AppScreens *screens, const void *context)
 {
     int position = 0;
     for (int index = 0; index < screens->home.config.item_count; index++) {
@@ -355,19 +371,12 @@ static int home_position(const AppScreens *screens, const void *context)
     return 0;
 }
 
-void app_screens_arrange_home(AppScreens *screens)
-{
-    const void *selected = home_selected(screens);
-    screens->home.config.item_count = arrange_home(screens);
-    list_view_select(&screens->home.list, home_position(screens, selected), 0);
-}
-
 static void build_home(AppScreens *screens, AppScreensContext context)
 {
     home_art_init(&screens->home_art, context.covers, context.store, context.player, context.theme);
     MenuConfig home = {.title = FIRMWARE_SHORT_NAME,
                        .items = screens->home_items,
-                       .item_count = arrange_home(screens),
+                       .item_count = app_screens_arrange_home_items(screens),
                        .theme = context.theme,
                        .panel = {.width = BOARD_LAYOUT.home_art_width,
                                  .min_height = BOARD_LAYOUT.home_art_min_height,
@@ -378,6 +387,7 @@ static void build_home(AppScreens *screens, AppScreensContext context)
 
 Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
 {
+    screens->shortcut_destination = NULL;
     const Theme *theme = context.theme;
     MessageConfig no_library = {.title = i18n_text(STR_NO_LIBRARY),
                                 .message = i18n_text(STR_NO_LIBRARY_HINT),
@@ -389,7 +399,7 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
                                     .covers = context.covers,
                                     .quick_settings =
                                         &screens->modules.playing.quick_settings.screen,
-                                    .lyrics = &screens->modules.listening.lyrics.screen,
+                                    .lyrics = &screens->modules.views.lyrics.screen,
                                     .flip = &screens->modules.views.cassette_flip.screen};
     screens->context = context;
     screens->bound_modules = 0;
@@ -420,7 +430,7 @@ int app_screens_start_path(AppScreens *screens, StartScreen start, Screen **path
     case START_NOW_PLAYING:
         list_view_select(&screens->home.list,
                          player_status(screens->context.player).has_track
-                             ? home_position(screens, &screens->now_playing.screen)
+                             ? app_screens_home_position(screens, &screens->now_playing.screen)
                              : 0,
                          0);
         path[0] = &screens->now_playing.screen;

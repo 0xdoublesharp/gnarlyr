@@ -57,6 +57,24 @@ static bool has_line(const char *line)
     return strstr(text, wanted) != NULL;
 }
 
+static void dac_diagnostics_report_cached_reads_and_sequence_durations(void)
+{
+    DebugReportInput input = plain_input();
+    input.dac = (DacDiagnostics){.up = false,
+                                 .valid = 1,
+                                 .power = {0xB6, 0},
+                                 .start_us = 12345,
+                                 .stop_us = 150123,
+                                 .gain_us = 162123};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("dac.up: 0"));
+    CHECK(has_line("dac.power_left: 182"));
+    CHECK(has_line("dac.power_right: unknown"));
+    CHECK(has_line("dac.start_us: 12345"));
+    CHECK(has_line("dac.stop_us: 150123"));
+    CHECK(has_line("dac.gain_us: 162123"));
+}
+
 static void record(DebugEventKind kind, uint32_t value, const char *label)
 {
     DebugEvent event = debug_event_make(1000 + events.recorded, kind, value, label);
@@ -68,6 +86,28 @@ static void the_schema_version_is_the_first_line(void)
     DebugReportInput input = plain_input();
     format(&input, DEBUG_REPORT_BYTES);
     CHECK_EQUAL(0, strncmp(text, "debug_report: 1\n", 16));
+}
+
+static void missing_boot_markers_are_reported_as_unknown(void)
+{
+    DebugReportInput input = plain_input();
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("boot.clock_us: unknown"));
+    CHECK(has_line("boot.interactive_us: unknown"));
+    CHECK(has_line("boot.audio_us: unknown"));
+}
+
+static void boot_markers_keep_zero_and_completed_phases_separate_from_unknown(void)
+{
+    uint32_t times[DEBUG_BOOT_COUNT] = {
+        [DEBUG_BOOT_CLOCK] = 1, [DEBUG_BOOT_FRAME] = 400001, [DEBUG_BOOT_INTERACTIVE] = 1500001};
+    DebugReportInput input = plain_input();
+    input.boot_us = times;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("boot.clock_us: 0"));
+    CHECK(has_line("boot.frame_us: 400000"));
+    CHECK(has_line("boot.interactive_us: 1500000"));
+    CHECK(has_line("boot.audio_us: unknown"));
 }
 
 static DebugReportInput plugged_in_at_97_percent(void)
@@ -379,7 +419,7 @@ static void the_power_history_lists_a_sample_per_minute_oldest_first(void)
     power_history_record(&history, (PowerSample){13, 4170, 97, POWER_SAMPLE_PLAYING});
     format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("power.samples: 2"));
-    CHECK(has_line("power.sample_interval_s: 90"));
+    CHECK(has_line("power.sample_interval_s: 60"));
     CHECK(has_line("power.sample: 12 4176 97 11000; 13 4170 97 00100"));
     for (uint16_t minute = 14; minute < 17; minute++) {
         power_history_record(
@@ -522,7 +562,7 @@ static void a_measure_is_one_line_of_named_figures(void)
                        "send_avg_us=6000 audio=1 buffered_ms=148 underruns=2 output_underruns=1 "
                        "blocks=40 handoff_avg_us=5000 handoff_max_us=9100 read_avg_us=1200 "
                        "read_max_us=4200 audio_busy_percent=15 core0_busy_percent=60 "
-                       "core1_busy_percent=unknown core1_busy_permille=unknown\n") != NULL);
+                       "core1_busy_permille=unknown\n") != NULL);
 }
 
 static void a_measure_without_frames_or_audio_reports_them_as_unknown(void)
@@ -538,8 +578,7 @@ static void a_measure_without_frames_or_audio_reports_them_as_unknown(void)
                        "send_avg_us=unknown audio=0 buffered_ms=unknown underruns=unknown "
                        "output_underruns=0 blocks=0 handoff_avg_us=unknown handoff_max_us=unknown "
                        "read_avg_us=unknown read_max_us=unknown audio_busy_percent=unknown "
-                       "core0_busy_percent=100 core1_busy_percent=unknown "
-                       "core1_busy_permille=unknown\n") != NULL);
+                       "core0_busy_percent=100 core1_busy_permille=unknown\n") != NULL);
 }
 
 static void a_measure_reports_core_1_load_from_its_idle_cycles(void)
@@ -554,7 +593,7 @@ static void a_measure_reports_core_1_load_from_its_idle_cycles(void)
                                         .core1_cycles = 10000000,
                                         .core1_idle_cycles = 7654321};
     format(&input, DEBUG_REPORT_BYTES);
-    CHECK(strstr(text, " core1_busy_percent=23 core1_busy_permille=234\n") != NULL);
+    CHECK(strstr(text, " core1_busy_permille=234\n") != NULL);
 }
 
 static void a_measure_with_more_core_1_idle_than_elapsed_reports_unknown_load(void)
@@ -569,7 +608,7 @@ static void a_measure_with_more_core_1_idle_than_elapsed_reports_unknown_load(vo
                                         .core1_cycles = 5000,
                                         .core1_idle_cycles = 6000};
     format(&input, DEBUG_REPORT_BYTES);
-    CHECK(strstr(text, " core1_busy_percent=unknown core1_busy_permille=unknown\n") != NULL);
+    CHECK(strstr(text, " core1_busy_permille=unknown\n") != NULL);
 }
 
 static void screenshots_are_listed_by_slot_with_their_names(void)
@@ -825,6 +864,37 @@ static void connect_events_say_what_became_of_the_attempt(void)
     CHECK(has_line("event: 1002 usb_connect answered"));
 }
 
+static void scan_and_cover_events_name_their_phase_and_size(void)
+{
+    DebugReportInput input = plain_input();
+    record(DEBUG_EVENT_SCAN, DEBUG_SCAN_START << DEBUG_SCAN_PHASE_SHIFT, NULL);
+    record(DEBUG_EVENT_SCAN, (uint32_t)DEBUG_SCAN_LIBRARY << DEBUG_SCAN_PHASE_SHIFT | 4003, NULL);
+    record(DEBUG_EVENT_SCAN, (uint32_t)DEBUG_SCAN_COVERS_STOPPED << DEBUG_SCAN_PHASE_SHIFT | 12,
+           NULL);
+    record(DEBUG_EVENT_COVER, 7 | DEBUG_COVER_FULL | DEBUG_COVER_FOUND, NULL);
+    record(DEBUG_EVENT_COVER, 9, NULL);
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("event: 1000 scan start 0"));
+    CHECK(has_line("event: 1001 scan library 4003"));
+    CHECK(has_line("event: 1002 scan covers_stopped 12"));
+    CHECK(has_line("event: 1003 cover full 7 found"));
+    CHECK(has_line("event: 1004 cover half 9 missing"));
+}
+
+static void emmc_starts_and_a_lost_start_flag_name_their_phase(void)
+{
+    DebugReportInput input = plain_input();
+    record(DEBUG_EVENT_SCAN, (uint32_t)DEBUG_SCAN_EMMC_OK << DEBUG_SCAN_PHASE_SHIFT | 31, NULL);
+    record(DEBUG_EVENT_SCAN, (uint32_t)DEBUG_SCAN_EMMC_FAILED << DEBUG_SCAN_PHASE_SHIFT | 0x231000,
+           NULL);
+    record(DEBUG_EVENT_SCAN, (uint32_t)DEBUG_SCAN_EMMC_FLAG_LOST << DEBUG_SCAN_PHASE_SHIFT | 0x301,
+           NULL);
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("event: 1000 scan emmc_ok 31"));
+    CHECK(has_line("event: 1001 scan emmc_failed 2297856"));
+    CHECK(has_line("event: 1002 scan emmc_flag_lost 769"));
+}
+
 static void a_cold_start_has_no_previous_run_to_report(void)
 {
     DebugReportInput input = plain_input();
@@ -986,7 +1056,7 @@ static void frame_figures_are_unknown_until_a_frame_was_drawn(void)
 static void events_are_listed_oldest_first_with_names(void)
 {
     DebugReportInput input = plain_input();
-    record(DEBUG_EVENT_KEY, KEY_PLAY | KEY_GESTURE_LONG_PRESS << 8, NULL);
+    record(DEBUG_EVENT_KEY, KEY_PLAY | KEY_GESTURE_LONG_PRESS << 8 | 377u << 16, NULL);
     record(DEBUG_EVENT_SCREEN, 2, "Now Playing");
     record(DEBUG_EVENT_PLAYER, 1 | 17 << 8, NULL);
     record(DEBUG_EVENT_UNDERRUN, 3, NULL);
@@ -994,7 +1064,7 @@ static void events_are_listed_oldest_first_with_names(void)
     format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("events.recorded: 5"));
     CHECK(has_line("events.dropped: 0"));
-    CHECK(has_line("event: 1000 key play long"));
+    CHECK(has_line("event: 1000 key play long 377"));
     CHECK(has_line("event: 1001 screen 2 Now Pla"));
     CHECK(has_line("event: 1002 player playing 17"));
     CHECK(has_line("event: 1003 underrun 3"));
@@ -1221,10 +1291,91 @@ static void a_buffer_too_small_for_the_end_lines_gets_nothing(void)
     CHECK_EQUAL('#', text[0]);
 }
 
+static void bluetooth_timeline_is_reported_in_milliseconds(void)
+{
+    DebugReportInput input = plain_input();
+    HalBluetoothLink link = {.timeline = {.module_on_ms = 100,
+                                          .init_done_ms = 402,
+                                          .connect_ms = 403,
+                                          .connected_ms = 1903,
+                                          .stream_ms = 1905,
+                                          .first_audio_ms = 1906}};
+    input.bluetooth = &link;
+    debug_report_format(&input, text, sizeof text);
+    CHECK(strstr(text, "bluetooth.module_on_ms: 100\n") != NULL);
+    CHECK(strstr(text, "bluetooth.first_audio_ms: 1906\n") != NULL);
+}
+
+static void standby_reports_the_drain_window_and_wake_latency(void)
+{
+    DebugReportInput input = plain_input();
+    input.standby = (Standby){.entries = 3,
+                              .wakes = 2,
+                              .entry_ms = 1000,
+                              .wake_ms = 3601000,
+                              .entry_mv = 4000,
+                              .wake_mv = 3990,
+                              .latency_ms = 125};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, "standby.entries: 3\n") != NULL);
+    CHECK(strstr(text, "standby.wakes: 2\n") != NULL);
+    CHECK(strstr(text, "standby.wake_latency_ms: 125\n") != NULL);
+    CHECK(strstr(text, "standby.entry_mv: 4000\n") != NULL);
+    CHECK(strstr(text, "standby.wake_mv: 3990\n") != NULL);
+    CHECK(strstr(text, "standby.wake_ms: 3601000\n") != NULL);
+}
+
+static void unknown_enum_values_are_reported_without_indexing_past_their_names(void)
+{
+    DebugReportInput input = plain_input();
+    input.reason = (DebugReportReason)UINT32_MAX;
+    input.start.warm = true;
+    input.start.last_step = (HalStartStep)UINT32_MAX;
+    input.usb.end = (HalUsbEnd)UINT32_MAX;
+    input.loop.last_connect = UINT8_MAX;
+    input.audio.state = (HalAudioState)UINT32_MAX;
+    load_script("build any\nrtc read\nsoak 1\n");
+    script.state = UINT8_MAX;
+    script.status[0] = UINT8_MAX;
+    script.soak_count = 1;
+    script.soaks[0].end = UINT8_MAX;
+    script.rtc_count = 1;
+    script.rtc[0].action = UINT8_MAX;
+    script.rtc[0].status = UINT8_MAX;
+    record(DEBUG_EVENT_KEY, KEY_PLAY | UINT32_C(0xff) << 8, NULL);
+    record(DEBUG_EVENT_PLAYER, UINT32_C(0xff), NULL);
+    record(DEBUG_EVENT_USB_END, UINT32_MAX, NULL);
+    record(DEBUG_EVENT_SCRIPT, DEBUG_SCRIPT_EVENT_STATE + UINT32_C(0xff), NULL);
+    record(DEBUG_EVENT_USB_CONNECT, UINT32_MAX, NULL);
+
+    format(&input, DEBUG_REPORT_BYTES);
+
+    CHECK(has_line("report.reason: unknown"));
+    CHECK(has_line("start.last_step: unknown"));
+    CHECK(has_line("usb.last_end: unknown"));
+    CHECK(has_line("loop.last_connect: unknown"));
+    CHECK(has_line("audio.state: unknown"));
+    CHECK(has_line("script.state: unknown"));
+    CHECK(has_line("script.line: 1 unknown build any"));
+    CHECK(strstr(text, " end=unknown ") != NULL);
+    CHECK(strstr(text, " action=unknown ") != NULL);
+    CHECK(strstr(text, " status=unknown ") != NULL);
+    CHECK(has_line("event: 1000 key play unknown 0"));
+    CHECK(has_line("event: 1001 player unknown 0"));
+    CHECK(has_line("event: 1002 usb_end unknown"));
+    CHECK(has_line("event: 1003 script unknown"));
+    CHECK(has_line("event: 1004 usb_connect unknown"));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(bluetooth_timeline_is_reported_in_milliseconds),
+        TEST_CASE(dac_diagnostics_report_cached_reads_and_sequence_durations),
+        TEST_CASE(standby_reports_the_drain_window_and_wake_latency),
         TEST_CASE(the_schema_version_is_the_first_line),
+        TEST_CASE(missing_boot_markers_are_reported_as_unknown),
+        TEST_CASE(boot_markers_keep_zero_and_completed_phases_separate_from_unknown),
         TEST_CASE(the_report_says_which_one_it_is_and_what_wrote_it),
         TEST_CASE(a_report_in_the_first_seconds_of_a_cold_start_says_so),
         TEST_CASE(before_the_gauge_has_a_reading_the_start_up_sample_stands_in_and_is_labelled),
@@ -1269,6 +1420,8 @@ int main(void)
         TEST_CASE(the_loop_section_says_how_this_run_started),
         TEST_CASE(the_loop_section_counts_sessions_tried_without_the_cable_bit),
         TEST_CASE(connect_events_say_what_became_of_the_attempt),
+        TEST_CASE(scan_and_cover_events_name_their_phase_and_size),
+        TEST_CASE(emmc_starts_and_a_lost_start_flag_name_their_phase),
         TEST_CASE(a_cold_start_has_no_previous_run_to_report),
         TEST_CASE(a_warm_start_reports_the_previous_run_and_its_fault),
         TEST_CASE(the_usb_words_read_at_start_up_and_at_the_report_are_printed_whole),
@@ -1291,6 +1444,7 @@ int main(void)
         TEST_CASE(the_fullest_report_is_cut_inside_the_histogram_which_comes_last),
         TEST_CASE(a_small_buffer_cuts_at_a_line_and_says_so),
         TEST_CASE(a_buffer_too_small_for_the_end_lines_gets_nothing),
+        TEST_CASE(unknown_enum_values_are_reported_without_indexing_past_their_names),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

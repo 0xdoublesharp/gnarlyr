@@ -2,9 +2,12 @@
 
 #include "check.h"
 #include "core/frame_pacer.h"
+#include "core/i18n.h"
 #include "default_theme.h"
 #include "fake_hal.h"
+#include "gfx/text.h"
 #include "hal/display.h"
+#include "screen_snapshot.h"
 #include "screens/now_playing_screen.h"
 
 enum {
@@ -149,7 +152,7 @@ static void while_seeking_play_commits_and_back_cancels(void)
     CHECK_EQUAL(NOW_PLAYING_SCRUB_COMMIT, scrub_command(KEY_PLAY, KEY_GESTURE_PRESS));
     CHECK_EQUAL(NOW_PLAYING_SCRUB_CANCEL, scrub_command(KEY_BACK, KEY_GESTURE_PRESS));
     CHECK_EQUAL(NOW_PLAYING_HOME, scrub_command(KEY_BACK, KEY_GESTURE_LONG_PRESS));
-    CHECK_EQUAL(NOW_PLAYING_NONE, scrub_command(KEY_MENU, KEY_GESTURE_PRESS));
+    CHECK_EQUAL(NOW_PLAYING_REPEAT_MARK, scrub_command(KEY_MENU, KEY_GESTURE_PRESS));
 }
 
 static void the_seek_target_stays_inside_the_track(void)
@@ -403,10 +406,39 @@ static void now_playing_keeps_the_status_band_on_its_header_palette(void)
     CHECK_EQUAL(playback_theme.colors.header_background, playback_pixels[0]);
 }
 
+static void ab_hints_fit_every_text_size_and_orientation(void)
+{
+    static const StringId hints[] = {STR_AB_OFF, STR_AB_A, STR_AB_LOOP, STR_SEEKING};
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            for (int state = 0; state < 4; state++) {
+                start_passive_view();
+                default_theme_set_text_size(&playback_theme, (TextSize)size);
+                default_theme_set_orientation(&playback_theme, (Orientation)orientation);
+                playback_view.status.ab_repeat = state < 3 ? (uint8_t)state : 0;
+                playback_view.scrubbing = state == 3;
+                playback_view.repeat_feedback_ms = 1000;
+                playback_view.now_ms = 1000;
+                strcpy(playback_view.title, "Night Transmission");
+                strcpy(playback_view.artist, "The Reviewers");
+                Canvas canvas =
+                    canvas_make(playback_pixels, (Rect){0, 0, playback_theme.metrics.screen_width,
+                                                        playback_theme.metrics.screen_height});
+                CHECK(text_width(playback_theme.fonts.small, i18n_text(hints[state])) <=
+                      HAL_DISPLAY_SHORT_SIDE - 2 * playback_theme.metrics.padding);
+                playback_view.screen.draw(&playback_view, &canvas);
+                screen_snapshot_write(&canvas, "ab-repeat",
+                                      (orientation * TEXT_SIZE_COUNT + size) * 4 + state);
+            }
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(now_playing_keeps_the_status_band_on_its_header_palette),
+        TEST_CASE(ab_hints_fit_every_text_size_and_orientation),
         TEST_CASE(artwork_has_a_larger_primary_surface_in_every_text_size_and_orientation),
         TEST_CASE(portrait_titles_that_fit_two_lines_stay_readable_without_scrolling),
         TEST_CASE(passive_transport_pixels_stay_stable_within_one_displayed_second),

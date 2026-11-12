@@ -18,6 +18,7 @@ enum {
     LOUD = 50,
     QUIET = 10,
     BELOW_SAFE = 20,
+    LOUD_BLUETOOTH = 58,
     START_MS = 1000
 };
 
@@ -240,39 +241,102 @@ static void headphones_already_plugged_in_at_power_on_are_not_a_second_plug(void
     CHECK_EQUAL(BELOW_SAFE + 20, fake_hal_audio_volume());
 }
 
-static void bluetooth_headphones_connecting_lower_a_loud_volume(void)
+static void boot_with_loud_bluetooth(void)
 {
-    boot_with(with_volume(BELOW_SAFE), true);
+    Settings settings = with_volume(BELOW_SAFE);
+    settings.bluetooth_volume = LOUD_BLUETOOTH;
+    boot_with(settings, true);
     start_playing();
     raise_volume(20);
+}
+
+static void connect_buds(void)
+{
     fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
     fake_hal_bluetooth()->connected = BUDS;
     step();
+}
+
+static void bluetooth_headphones_connecting_lower_a_loud_volume(void)
+{
+    boot_with_loud_bluetooth();
+    connect_buds();
+    CHECK_EQUAL(SETTINGS_BLUETOOTH_SAFE_START_VOLUME, fake_hal_audio_bluetooth_volume());
+    CHECK_EQUAL(SETTINGS_BLUETOOTH_SAFE_START_VOLUME, app_player_status().volume);
+    CHECK_EQUAL(BELOW_SAFE + 20, fake_hal_audio_volume());
+}
+
+static void the_default_bluetooth_level_is_kept_on_connect(void)
+{
+    boot_with(with_volume(BELOW_SAFE), true);
+    start_playing();
+    connect_buds();
+    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME, fake_hal_audio_bluetooth_volume());
+    CHECK(!toast_shown_within("Volume lowered to 50", 2 * TOAST_DURATION_MS + 100));
+}
+
+static void a_quiet_bluetooth_level_is_kept_on_connect(void)
+{
+    Settings settings = with_volume(BELOW_SAFE);
+    settings.bluetooth_volume = BELOW_SAFE;
+    boot_with(settings, true);
+    start_playing();
+    connect_buds();
+    CHECK_EQUAL(BELOW_SAFE, fake_hal_audio_bluetooth_volume());
+}
+
+static void safe_start_off_keeps_a_loud_bluetooth_level(void)
+{
+    Settings settings = with_volume(BELOW_SAFE);
+    settings.bluetooth_volume = LOUD_BLUETOOTH;
+    settings.safe_start_volume = false;
+    boot_with(settings, true);
+    start_playing();
+    connect_buds();
+    CHECK_EQUAL(LOUD_BLUETOOTH, fake_hal_audio_bluetooth_volume());
+}
+
+static void plugging_in_headphones_while_on_bluetooth_lowers_only_the_wired_level(void)
+{
+    playing_with_a_loud_volume();
+    connect_buds();
+    raise_volume(5);
+    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME + 5, fake_hal_audio_bluetooth_volume());
+    CHECK_EQUAL(BELOW_SAFE + 20, fake_hal_audio_volume());
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_SINGLE_ENDED);
+    step();
     CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME, fake_hal_audio_volume());
+    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME + 5, fake_hal_audio_bluetooth_volume());
+}
+
+static void bluetooth_streaming_with_the_screen_off_rests_between_passes(void)
+{
+    boot_with(with_volume(QUIET), true);
+    start_playing();
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
+    fake_hal_bluetooth()->connected = BUDS;
+    step();
+    tap(KEY_POWER);
+    wait_ms(1000);
+    CHECK(fake_hal_bluetooth_powered());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    CHECK_EQUAL(10, (int)app_pass_interval_ms());
 }
 
 static void the_volume_toast_follows_the_bluetooth_toast(void)
 {
-    boot_with(with_volume(BELOW_SAFE), true);
-    start_playing();
-    raise_volume(20);
-    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
-    fake_hal_bluetooth()->connected = BUDS;
-    step();
+    boot_with_loud_bluetooth();
+    connect_buds();
     CHECK(toast_is("Connected to Buds"));
     wait_ms(TOAST_DURATION_MS + 50);
     wait_ms(10);
-    CHECK(toast_is("Volume lowered to 24"));
+    CHECK(toast_is("Volume lowered to 50"));
 }
 
 static void the_volume_toast_is_dropped_once_the_volume_changed(void)
 {
-    boot_with(with_volume(BELOW_SAFE), true);
-    start_playing();
-    raise_volume(20);
-    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
-    fake_hal_bluetooth()->connected = BUDS;
-    step();
+    boot_with_loud_bluetooth();
+    connect_buds();
     tap(KEY_VOLUME_UP);
     wait_ms(TOAST_DURATION_MS + 50);
     wait_ms(10);
@@ -362,7 +426,7 @@ static void open_settings_row(int from_bottom, const char *title)
     tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     CHECK(strcmp(app_screen_title(), "Settings") == 0);
-    for (int row = 0; row < from_bottom; row++) {
+    for (int row = 0; row < from_bottom + 1; row++) {
         tap(KEY_VOLUME_DOWN);
     }
     tap(KEY_PLAY);
@@ -378,7 +442,7 @@ static Settings saved_settings(void)
 
 static void the_rewind_row_turns_rewinding_off(void)
 {
-    open_settings_row(8, "Rewind on resume");
+    open_settings_row(10, "Rewind on resume");
     tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     CHECK(strcmp(app_screen_title(), "Settings") == 0);
@@ -395,7 +459,7 @@ static void the_rewind_row_turns_rewinding_off(void)
 
 static void the_safe_volume_row_turns_the_cap_off(void)
 {
-    open_settings_row(7, "Safe start volume");
+    open_settings_row(9, "Safe start volume");
     for (int option = 0; option < 3; option++) {
         tap(KEY_VOLUME_DOWN);
     }
@@ -407,13 +471,35 @@ static void the_safe_volume_row_turns_the_cap_off(void)
 
 static void the_safe_volume_row_picks_a_level(void)
 {
-    open_settings_row(7, "Safe start volume");
+    open_settings_row(9, "Safe start volume");
     tap(KEY_VOLUME_UP);
     tap(KEY_VOLUME_UP);
     tap(KEY_PLAY);
     Settings saved = saved_settings();
     CHECK(saved.safe_start_volume);
     CHECK_EQUAL(36, saved.safe_start_volume_level);
+}
+
+static void the_speed_row_saves_and_applies_a_faster_speed(void)
+{
+    open_settings_row(11, "Playback speed");
+    for (int option = 0; option < 2; option++) {
+        tap(KEY_VOLUME_UP);
+    }
+    tap(KEY_PLAY);
+    CHECK(strcmp(app_screen_title(), "Settings") == 0);
+    CHECK_EQUAL(4, saved_settings().playback_speed);
+    CHECK_EQUAL(150, fake_hal_audio_speed());
+    CHECK_EQUAL(150, app_player_status().speed);
+}
+
+static void a_saved_speed_is_applied_at_power_on(void)
+{
+    Settings settings = settings_defaults();
+    settings.playback_speed = 1;
+    boot_with(settings, false);
+    CHECK_EQUAL(75, fake_hal_audio_speed());
+    CHECK_EQUAL(75, app_player_status().speed);
 }
 
 int main(void)
@@ -430,6 +516,11 @@ int main(void)
         TEST_CASE(unplugging_headphones_leaves_the_volume),
         TEST_CASE(headphones_already_plugged_in_at_power_on_are_not_a_second_plug),
         TEST_CASE(bluetooth_headphones_connecting_lower_a_loud_volume),
+        TEST_CASE(bluetooth_streaming_with_the_screen_off_rests_between_passes),
+        TEST_CASE(the_default_bluetooth_level_is_kept_on_connect),
+        TEST_CASE(a_quiet_bluetooth_level_is_kept_on_connect),
+        TEST_CASE(safe_start_off_keeps_a_loud_bluetooth_level),
+        TEST_CASE(plugging_in_headphones_while_on_bluetooth_lowers_only_the_wired_level),
         TEST_CASE(the_volume_toast_follows_the_bluetooth_toast),
         TEST_CASE(the_volume_toast_is_dropped_once_the_volume_changed),
         TEST_CASE(turning_on_from_the_charging_screen_lowers_a_loud_volume),
@@ -439,6 +530,8 @@ int main(void)
         TEST_CASE(the_rewind_row_turns_rewinding_off),
         TEST_CASE(the_safe_volume_row_turns_the_cap_off),
         TEST_CASE(the_safe_volume_row_picks_a_level),
+        TEST_CASE(the_speed_row_saves_and_applies_a_faster_speed),
+        TEST_CASE(a_saved_speed_is_applied_at_power_on),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

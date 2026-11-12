@@ -161,9 +161,15 @@ static void a_plain_cable_asks_once_a_host_is_found_and_charge_only_never_listen
     CHECK(!usb_plug_asks(USB_PLUG_STORAGE, false));
 }
 
+static void a_saved_usb_dac_answer_listens_without_asking(void)
+{
+    CHECK(usb_plug_listens(USB_PLUG_DAC, false));
+    CHECK(!usb_plug_asks(USB_PLUG_DAC, false));
+}
+
 static void a_requested_connection_never_asks_and_always_listens(void)
 {
-    for (int answer = USB_PLUG_ASK; answer <= USB_PLUG_CHARGE; answer++) {
+    for (int answer = USB_PLUG_ASK; answer <= USB_PLUG_DAC; answer++) {
         CHECK(usb_plug_listens((UsbPlugAnswer)answer, true));
         CHECK(!usb_plug_asks((UsbPlugAnswer)answer, true));
     }
@@ -208,6 +214,7 @@ int main(void)
         TEST_CASE(a_mode_change_stops_the_old_listener_before_starting_another),
         TEST_CASE(an_unplugged_mode_request_does_not_start_a_session),
         TEST_CASE(a_plain_cable_asks_once_a_host_is_found_and_charge_only_never_listens),
+        TEST_CASE(a_saved_usb_dac_answer_listens_without_asking),
         TEST_CASE(a_requested_connection_never_asks_and_always_listens),
         TEST_CASE(an_asked_insertion_is_not_asked_again_until_the_cable_is_replugged),
         TEST_CASE(choosing_file_transfer_after_asking_listens_again_on_the_same_cable),

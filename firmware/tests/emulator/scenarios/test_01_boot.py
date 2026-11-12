@@ -4,6 +4,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import (
+    STARTUP_WORK_MS,
     EchoImageHarness,
     main,
     BACKLIGHT_HZ,
@@ -109,6 +110,7 @@ class EchoImageTest(EchoImageHarness):
         session = self.session()
         machine = session.machine
         session.run_to_home_screen()
+        machine.run(until_ms=machine.milliseconds() + STARTUP_WORK_MS)
         self.assertEqual(self.usb_supply_pins(machine), (0, 0))
         machine.vbus = True
         machine.run(until_ms=machine.milliseconds() + 200)

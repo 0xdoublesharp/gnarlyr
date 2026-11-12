@@ -1,5 +1,6 @@
 #include "app/app.h"
 #include "modules/modules.h"
+#include "settings_actions.h"
 
 #include <stddef.h>
 
@@ -42,6 +43,9 @@ static void bind(AppScreens *screens)
     SettingsModuleScreens *own = &screens->modules.settings;
     SettingsContext settings = {
         .store = context->settings,
+        .equalizer = &screens->modules.equalizer.browser.choice.screen,
+        .graphic = &screens->modules.equalizer.graphic.screen,
+        .parametric = &screens->modules.equalizer.parametric.screen,
         .format_prepare = app_release_audio,
         .format_finished = app_storage_formatted,
         .headphones = context->headphones,
@@ -84,8 +88,25 @@ static bool choose(AppScreens *screens, DebugSpan title, DebugSpan option)
 }
 #endif
 
+static ScreenAction menu_hold(AppScreens *screens, uint8_t action)
+{
+    SettingsScreens *settings = &screens->modules.settings.settings;
+    if (action == 4) {
+        int shuffle = settings_action_current_shuffle(&settings->context);
+        settings_action_choose_shuffle(&settings->context, shuffle == 0 ? 1 : 0);
+        return screen_action_pop_to_root();
+    }
+    if (action == 5) {
+        return settings_screens_sleep(settings);
+    }
+    Screen *screen = action == 2 ? &screens->modules.playing.up_next.screen
+                                 : &screens->modules.playing.quick_settings.screen;
+    return screen_action_push(screen);
+}
+
 const SettingsModuleEntry SETTINGS_MODULE_ENTRY = {
     .module = SCREEN_MODULE_ENTRY(SCREEN_MODULE_SETTINGS, bind),
+    .menu_hold = menu_hold,
     .language_row = language_row,
     .usb_modes = usb_modes,
 #ifdef ECHO_DEBUG_LOOP

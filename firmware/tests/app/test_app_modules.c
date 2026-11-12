@@ -297,8 +297,23 @@ static void a_background_cover_pass_gives_the_screen_its_module_back_before_draw
     int loads = fake_hal_module_loads();
     wait_ms(3000);
     CHECK(title_is("Cover Flow"));
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
     CHECK(fake_hal_module_loads() > loads);
+}
+
+static void a_background_cover_pass_waits_while_a_usb_connection_is_pending(void)
+{
+    start_app();
+    const uint8_t pending[8] = {'D', 'S', 'S', 'G', 0, 1, 0, 1};
+    CHECK(hal_file_write_at(MUSIC_CHECK_PATH, 512, pending, sizeof pending));
+    app_start();
+    fake_hal_set_usb_connect_pending(true);
+    int loads = fake_hal_rescan_loads();
+    wait_ms(3000);
+    CHECK_EQUAL(loads, fake_hal_rescan_loads());
+    fake_hal_set_usb_connect_pending(false);
+    wait_ms(3000);
+    CHECK(fake_hal_rescan_loads() > loads);
 }
 
 static void a_screen_whose_module_is_gone_for_good_gives_way_to_home(void)
@@ -350,11 +365,11 @@ static void a_slide_ends_at_once_when_the_leaving_screens_module_cannot_come_bac
     open_cover_flow();
     wait_ms(SLIDE_DURATION_MS);
     const char *toast = app_toast_text();
-    tap(KEY_PLAY);
+    tap(KEY_BACK);
     fake_hal_evict_module();
     fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
     wait_ms(SLIDE_DURATION_MS / 2);
-    CHECK_EQUAL(ALBUM_DEPTH, app_screen_depth());
+    CHECK_EQUAL(MUSIC_DEPTH, app_screen_depth());
     CHECK_EQUAL(1, fake_hal_module_loads());
     CHECK(app_toast_text() == toast);
 }
@@ -552,7 +567,7 @@ static void about_omits_the_old_usb_controls_and_raw_dac_rows(void)
     AppOptions options = {0};
     diagnostics_menu_build(&screens, &options, &BOARD_THEME);
     const MenuConfig *menu = &screens.modules.views.diagnostics.config;
-    CHECK_EQUAL(14, menu->item_count);
+    CHECK_EQUAL(15, menu->item_count);
     for (int index = 0; index < menu->item_count; index++) {
         const char *label = menu->items[index].label;
         CHECK(strcmp(label, "Connect USB") != 0);
@@ -578,6 +593,7 @@ int main(void)
         TEST_CASE(a_module_still_in_the_slot_serves_its_screens_after_an_installed_update),
         TEST_CASE(a_module_lost_under_its_screen_is_loaded_again_before_the_screen_runs),
         TEST_CASE(a_background_cover_pass_gives_the_screen_its_module_back_before_drawing),
+        TEST_CASE(a_background_cover_pass_waits_while_a_usb_connection_is_pending),
         TEST_CASE(a_screen_whose_module_is_gone_for_good_gives_way_to_home),
         TEST_CASE(going_back_to_a_module_screen_that_cannot_load_goes_home),
         TEST_CASE(a_slide_away_from_a_module_screen_survives_the_loss_of_the_module),

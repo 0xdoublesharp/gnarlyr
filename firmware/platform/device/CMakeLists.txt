@@ -34,16 +34,18 @@ add_executable(echo_device
     board/startup.c
     board/storage.c
     board/system.c
+    board/trial.c
     board/update_request.c
     board/usb.c
     board/usb_listen.c
     board/usb_report.c
     board/wall_time.c
+    board/wide_divide.c
 )
 target_sources(echo_device PRIVATE board/panel_vop.c)
 target_include_directories(echo_device PRIVATE ${PROJECT_SOURCE_DIR}/src/app)
 if(NOT ECHO_RELEASE)
-    target_sources(echo_device PRIVATE board/debug_session.c board/profiler.c)
+    target_sources(echo_device PRIVATE board/debug_session.c board/profiler.c logic/rtc_registers.c)
     set(ECHO_PROFILE_BUCKET_SHIFT 7)
 endif()
 set(ECHO_CORE1_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1.ld)
@@ -166,6 +168,31 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     VERBATIM
 )
+add_executable(echo_core1_dsd
+    core1/dsd_main.c
+    core1/startup.c
+    board/libc.c
+)
+set(ECHO_CORE1_DSD_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1_dsd.ld)
+set_target_properties(echo_core1_dsd PROPERTIES
+    SUFFIX .elf
+    LINK_DEPENDS ${ECHO_CORE1_DSD_LINKER_SCRIPT}
+)
+target_include_directories(echo_core1_dsd PRIVATE board)
+target_link_libraries(echo_core1_dsd PRIVATE echo_device_logic echo_options gcc)
+target_link_options(echo_core1_dsd PRIVATE
+    -fno-lto
+    -T${ECHO_CORE1_DSD_LINKER_SCRIPT}
+    -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_core1_dsd.map
+)
+set(ECHO_CORE1_DSD_BINARY ${CMAKE_CURRENT_BINARY_DIR}/core1_dsd.bin)
+add_custom_command(
+    OUTPUT ${ECHO_CORE1_DSD_BINARY}
+    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:echo_core1_dsd> core1_dsd.bin
+    DEPENDS echo_core1_dsd
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    VERBATIM
+)
 set(ECHO_CORE1_BINARY ${CMAKE_CURRENT_BINARY_DIR}/core1.bin)
 add_custom_command(
     OUTPUT ${ECHO_CORE1_BINARY}
@@ -176,6 +203,9 @@ add_custom_command(
 )
 
 set(ECHO_OVERLAY_IMPORTS
+    hal_bluetooth_status
+    app_standby
+    app_release_audio
     COVER_CACHE_PATH
     LIBRARY_SCRATCH_PATH
     LIBRARY_STORE_PATH
@@ -197,6 +227,7 @@ set(ECHO_OVERLAY_IMPORTS
     font_find_glyph
     label_draw
     label_draw_wrapped
+    label_draw_wrapped_serviced
     label_centered_area
     label_wrap_count
     text_width
@@ -205,6 +236,7 @@ set(ECHO_OVERLAY_IMPORTS
     utf8_next
     app_usb_battery_changed
     board_audio_set_attenuation
+    board_audio_stream_buffer
     board_audio_stream_close
     board_audio_stream_consumed
     board_audio_stream_open
@@ -213,6 +245,7 @@ set(ECHO_OVERLAY_IMPORTS
     board_audio_stream_ring
     board_audio_volume_level
     board_display_service
+    board_trial_calls
     board_wait_for_key
     board_wait_for_power_hold
     board_wall_time_set
@@ -245,6 +278,7 @@ set(ECHO_OVERLAY_IMPORTS
     hal_input_waiting
     hal_power_cable
     hal_power_battery
+    hal_power_usb_host
     hal_power_off
     i18n_format
     i18n_format_counts
@@ -252,6 +286,7 @@ set(ECHO_OVERLAY_IMPORTS
     i18n_text
     image_crc_update
     internal_volume_remount
+    sd_eject
     sd_read
     sd_sector_count
     sd_start
@@ -288,8 +323,10 @@ set(ECHO_OVERLAY_IMPORTS
 if(NOT ECHO_RELEASE)
     list(APPEND ECHO_OVERLAY_IMPORTS
         app_debug_frames
+        rtc_registers_decode
         board_battery_gauge
         board_debug_audio
+        dac_path_diagnostics
         board_debug_battery_raw
         board_debug_grf_start
         board_debug_read_grf
@@ -306,6 +343,7 @@ if(NOT ECHO_RELEASE)
         board_restart
         debug_loop_event
         debug_loop_log
+        debug_loop_boot_times
         debug_runner_begin
         debug_runner_script
         hal_internal_file_read
@@ -324,7 +362,7 @@ set_target_properties(echo_device PROPERTIES
     SUFFIX .elf
     LINK_DEPENDS ${ECHO_DEVICE_LINKER_SCRIPT}
 )
-set_source_files_properties(board/libc.c board/startup.c PROPERTIES
+set_source_files_properties(board/libc.c board/startup.c board/wide_divide.c PROPERTIES
     COMPILE_OPTIONS "-fno-builtin;-fno-tree-loop-distribute-patterns;-fno-lto"
 )
 if(CMAKE_CROSSCOMPILING)
@@ -351,6 +389,7 @@ if(CMAKE_CROSSCOMPILING)
         board/profiler.c
         board/start_info.c
         board/system.c
+        board/trial.c
         board/update.c
         board/update_request.c
         board/wall_time.c
@@ -456,12 +495,23 @@ set(ECHO_MODULE_MAP_ARGUMENTS "")
 foreach(source IN LISTS ECHO_SCREEN_MODULE_FAST_SOURCES)
     set_source_files_properties(${PROJECT_SOURCE_DIR}/${source} PROPERTIES COMPILE_OPTIONS -O2)
 endforeach()
+set_source_files_properties(
+    ${PROJECT_SOURCE_DIR}/src/core/parametric.c
+    ${PROJECT_SOURCE_DIR}/src/core/parametric_curve.c
+    ${PROJECT_SOURCE_DIR}/src/core/parametric_bound.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/logic/audio_shape.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/logic/audio_trig.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/logic/equalizer_design.c
+    ${PROJECT_SOURCE_DIR}/src/app/debug_steps.c
+    ${PROJECT_SOURCE_DIR}/src/app/debug_screenshot.c
+    PROPERTIES COMPILE_OPTIONS -Os
+)
 foreach(module IN LISTS ECHO_SCREEN_MODULES)
     if(module STREQUAL "process")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_process.ld)
     elseif(module STREQUAL "effects")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_effects.ld)
-    elseif(module STREQUAL "dsp" OR module STREQUAL "ogg" OR module STREQUAL "source")
+    elseif(module STREQUAL "dsp" OR module STREQUAL "ogg" OR module STREQUAL "source" OR module STREQUAL "dsd")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_dsp.ld)
     elseif(module STREQUAL "extension")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/extension_module.ld)
@@ -477,7 +527,8 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         list(APPEND module_sources ${PROJECT_SOURCE_DIR}/${source})
         list(APPEND module_includes ${owner_directory} ${owner_directory}/include)
     endforeach()
-    if(ECHO_MODULE_LINKER_SCRIPT STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/overlay/screen_module.ld")
+    if(ECHO_MODULE_LINKER_SCRIPT STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/overlay/screen_module.ld"
+       AND NOT module STREQUAL "trial")
         foreach(source IN LISTS ECHO_SCREEN_MODULE_UI_SOURCES)
             list(APPEND module_sources ${PROJECT_SOURCE_DIR}/${source})
         endforeach()
@@ -489,6 +540,7 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
     if(module STREQUAL "dsp")
         target_link_libraries(${module_target}_objects PRIVATE echo_codec)
         target_compile_definitions(${module_target}_objects PRIVATE
+            aiff_probe=audio_dsp_aiff
             mp4_probe=audio_dsp_probe
             mp4_cursor_seek=audio_dsp_seek
             mp4_cursor_next=audio_dsp_next
@@ -501,7 +553,21 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             equalizer_design=audio_process_equalizer_design
             equalizer_retune=audio_process_equalizer_retune
             equalizer_run=audio_process_equalizer_run
+            audio_engine_stage_shape=audio_process_shape
+            audio_engine_stage_stretch=audio_process_stretch
+            audio_tempo_stage_start=audio_process_tempo_start
+            audio_tempo_stage_push=audio_process_tempo_push
+            audio_tempo_stage_pull=audio_process_tempo_pull
+            audio_tempo_stage_finish=audio_process_tempo_finish
+            audio_tempo_stage_pending=audio_process_tempo_pending
+            audio_engine_set_sleep_remaining=audio_process_set_sleep_remaining
+            audio_engine_repeat_mark=audio_process_repeat_mark
         )
+    endif()
+    if(module STREQUAL "trial")
+        target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
+        target_include_directories(${module_target}_objects PRIVATE board
+            ${PROJECT_SOURCE_DIR}/src/app)
     endif()
     if(module STREQUAL "extension")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
@@ -511,6 +577,9 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             hal_clock_restore_wall=extension_hal_clock_restore_wall
             headphone_store_load=extension_headphone_store_load
             hal_file_remove=extension_hal_file_remove
+            favorite_playlist_add=extension_favorite_playlist_add
+            standby_follow=extension_standby_follow
+            standby_frame=extension_standby_frame
             wire_motion_draw=extension_wire_motion_draw
             wire_motion_due=extension_wire_motion_due
             wire_motion_end=extension_wire_motion_end
@@ -537,6 +606,7 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)
         target_compile_definitions(${module_target}_objects PRIVATE
             core1_open_flac=audio_source_open_flac
+            core1_open_mp3=audio_source_open_mp3
         )
     endif()
     if(module STREQUAL "ogg")
@@ -544,6 +614,13 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         target_compile_definitions(${module_target}_objects PRIVATE
             core1_open_ogg=audio_ogg_open
             ogg_stream_read=audio_ogg_read
+        )
+    endif()
+    if(module STREQUAL "dsd")
+        target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)
+        target_compile_definitions(${module_target}_objects PRIVATE
+            core1_open_dsd=audio_dsd_open
+            dsd_stream_read=audio_dsd_read
         )
     endif()
     target_include_directories(${module_target}_objects PRIVATE ${module_includes})
@@ -609,6 +686,7 @@ add_custom_target(echo_device_image ALL
         --elf $<TARGET_FILE:echo_core1_m4a>
         --elf $<TARGET_FILE:echo_core1_vorbis>
         --elf $<TARGET_FILE:echo_core1_opus>
+        --elf $<TARGET_FILE:echo_core1_dsd>
         ${ECHO_MODULE_IMAGE_ARGUMENTS}
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/make_image.py
         --elf $<TARGET_FILE:echo_device>
@@ -619,6 +697,7 @@ add_custom_target(echo_device_image ALL
         --core1-m4a ${ECHO_CORE1_M4A_BINARY}
         --core1-vorbis ${ECHO_CORE1_VORBIS_BINARY}
         --core1-opus ${ECHO_CORE1_OPUS_BINARY}
+        --core1-dsd ${ECHO_CORE1_DSD_BINARY}
         ${ECHO_GLYPH_FACE_ARGUMENTS}
         ${ECHO_LANGUAGE_PACK_ARGUMENTS}
         ${ECHO_MODULE_IMAGE_ARGUMENTS}
@@ -636,6 +715,7 @@ add_custom_target(echo_device_image ALL
         ${ECHO_CORE1_M4A_BINARY}
         ${ECHO_CORE1_VORBIS_BINARY}
         ${ECHO_CORE1_OPUS_BINARY}
+        ${ECHO_CORE1_DSD_BINARY}
         ${ECHO_LANGUAGE_PACK_FILES}
         ${PROJECT_SOURCE_DIR}/tools/make_image.py
         ${PROJECT_SOURCE_DIR}/tools/image_artifacts.py

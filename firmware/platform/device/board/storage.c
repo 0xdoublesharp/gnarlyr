@@ -222,7 +222,12 @@ bool hal_dir_open(HalDir *dir, const char *path)
 {
     dir->handle = -1;
     int slot = free_dir_slot();
-    if (slot < 0 || !mounted() || !fat_open_directory(&volume, path, &dirs[slot])) {
+    if (slot < 0 || !mounted()) {
+        return false;
+    }
+    if (path == NULL && listed.file.directory) {
+        dirs[slot] = (FatDirCursor){.directory = listed.file};
+    } else if (path == NULL || !fat_open_directory(&volume, path, &dirs[slot])) {
         return false;
     }
     dir_in_use[slot] = true;

@@ -2,11 +2,16 @@
 
 #include <stddef.h>
 
+#include "hal/audio.h"
+#include "hal/clock.h"
+#include "library/album_order.h"
 #include "order_publish.h"
 
 typedef struct DiscoveryPlayback {
     DiscoveryScreen *owner;
     OrderPublish publish;
+    AlbumOrder albums;
+    bool counting;
 } DiscoveryPlayback;
 
 static DiscoveryPlayback work;
@@ -25,6 +30,7 @@ void discovery_playback_cancel(DiscoveryScreen *screen)
     if (work.owner == screen) {
         order_publish_cancel(&work.publish);
     }
+    work.counting = false;
     screen->auto_play = false;
     if (screen->request != DISCOVERY_REQUEST_NONE) {
         screen->request = DISCOVERY_REQUEST_CANCEL_PLAY;
@@ -57,6 +63,35 @@ static void auto_play(DiscoveryScreen *screen)
     }
 }
 
+static bool prepare_albums(DiscoveryScreen *screen)
+{
+    if (!work.counting) {
+        work.owner = screen;
+        uint32_t seed = screen->shuffle_albums ? hal_clock_microseconds() | 1u : 0;
+        if (!album_order_begin(&work.albums, screen->config.library, screen->query.source, seed)) {
+            return false;
+        }
+        work.counting = true;
+    }
+    uint32_t started = hal_clock_microseconds();
+    for (int step = 0; step < 8; step++) {
+        if (!album_order_step(&work.albums)) {
+            return false;
+        }
+        if (work.albums.ready) {
+            TrackOrderSource source = {album_order_read, &work.albums, (uint16_t)work.albums.count};
+            work.counting = false;
+            screen->request = DISCOVERY_REQUEST_PLAY;
+            return order_publish_begin(&work.publish, screen->config.player, source, 0);
+        }
+        hal_audio_service();
+        if (hal_clock_microseconds() - started >= 2000) {
+            break;
+        }
+    }
+    return true;
+}
+
 void discovery_playback_step(DiscoveryScreen *screen, uint32_t now_ms)
 {
     (void)now_ms;
@@ -65,6 +100,13 @@ void discovery_playback_step(DiscoveryScreen *screen, uint32_t now_ms)
     if (screen->request == DISCOVERY_REQUEST_CANCEL_PLAY ||
         (active && screen->request != DISCOVERY_REQUEST_PLAY)) {
         discovery_playback_cancel(screen);
+        return;
+    }
+    if (screen->request == DISCOVERY_REQUEST_ALBUMS) {
+        if (!prepare_albums(screen)) {
+            work.counting = false;
+            finish(screen, false);
+        }
         return;
     }
     if (screen->request != DISCOVERY_REQUEST_PLAY) {

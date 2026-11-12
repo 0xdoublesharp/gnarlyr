@@ -18,6 +18,9 @@ STORE_BYTES = 4096
 LINK_POLL_MS = 3000
 RETRY_MS = 5000
 WAIT_MS = 10000
+IDLE_OFF_MS = 300000
+SLOW_TICK_HZ = 200
+CORE0_RESTING_HZ = 24000000
 
 
 def bluetooth_store(on_bluetooth):
@@ -65,6 +68,50 @@ class EchoImageTest(EchoImageHarness):
     def stored_on_bluetooth(self, rig):
         raw = rig.session.fat().read("/" + IDENTITY.data_directory + "/bluetooth.bin")
         return raw[5 + DEVICE_BYTES * DEVICE_COUNT]
+
+    def test_headphones_resume_a_pause_from_the_player(self):
+        rig, module, toasts = self.bluetooth_rig(on_bluetooth=True)
+        rig.open_songs()
+        rig.play_song(1)
+        self.run_until(rig, lambda: module.streaming, WAIT_MS)
+        rig.press("play")
+        self.run_until(rig, lambda: not module.streaming, WAIT_MS)
+        rig.run_for(3100)
+        module.rx.extend(b"CC")
+        self.run_until(rig, lambda: module.streaming, WAIT_MS)
+        module.rx.extend(b"CP")
+        rig.run_for(3100)
+        module.rx.extend(b"CP")
+        self.run_until(rig, lambda: not module.streaming, WAIT_MS)
+
+    def test_every_stream_start_prefills_a_silent_first_frame(self):
+        import struct
+        rig, module, toasts = self.bluetooth_rig(on_bluetooth=True)
+        starts = []
+        rig.machine.uc.mem_write(rig.machine.symbols["output_setting"], bytes([2]))
+        original = module.follow_stream
+
+        def observe(on):
+            if on:
+                first = rig.machine.read_memory(rig.audio.ring, 8)
+                starts.append(struct.unpack("<II", first))
+                level = rig.machine.read_memory(rig.machine.symbols["bluetooth_level"], 1)[0]
+                target = rig.machine.read_memory(rig.machine.symbols["volume_value"], 1)[0]
+                self.assertEqual(level, 50)
+                self.assertEqual(target, 10 + 2 * (60 - level))
+                wired = rig.machine.read_memory(rig.machine.symbols["volume_level"], 1)[0]
+                self.assertNotEqual(level, wired)
+            original(on)
+
+        module.follow_stream = observe
+        rig.open_songs()
+        rig.play_song(1)
+        self.run_until(rig, lambda: len(starts) == 1, WAIT_MS)
+        rig.press("play")
+        rig.press("play")
+        self.run_until(rig, lambda: len(starts) == 2, WAIT_MS)
+        self.assertEqual(starts, [(0, 0), (0, 0)])
+        self.assertFalse(any(command[1:2] == b"S" for command in module.sent()))
 
     def test_play_before_the_last_headphones_connect_waits_and_then_streams(self):
         rig, module, toasts = self.bluetooth_rig(on_bluetooth=True, in_range=False)
@@ -135,6 +182,27 @@ class EchoImageTest(EchoImageHarness):
         rig.press("play")
         self.run_until(rig, lambda: module.streaming, 1000)
         self.assertEqual(module.stream_frames(mark).count("on"), 2)
+        self.assert_healthy(rig.session)
+
+    def test_bluetooth_on_rests_the_idle_loop_and_more_once_the_module_dozes(self):
+        import json
+        from echo_emulator.power import PowerMeter
+        rig, module, toasts = self.bluetooth_rig(in_range=False)
+        meter = PowerMeter(rig.machine)
+        rig.open_songs()
+        rig.machine.power_key_released_at_ms = rig.machine.milliseconds() + 150
+        rig.run_for(1000)
+        awake = meter.measure(rig, rig.session.card, 2000)
+        powered_while_awake = module.powered
+        self.run_until(rig, lambda: module.power_downs, IDLE_OFF_MS)
+        rig.run_for(500)
+        dozed = meter.measure(rig, rig.session.card, 2000)
+        print(json.dumps({"awake": awake, "dozed": dozed}, indent=2))
+        self.assertTrue(powered_while_awake)
+        self.assertEqual([str(CORE0_RESTING_HZ)], list(awake["core0_clock_ms"]), awake)
+        self.assertEqual([str(CORE0_RESTING_HZ)], list(dozed["core0_clock_ms"]), dozed)
+        self.assertLessEqual(dozed["core0_wfi_wakes_per_s"], SLOW_TICK_HZ + 10, dozed)
+        self.assertLess(dozed["core0_busy_percent"], awake["core0_busy_percent"], (awake, dozed))
         self.assert_healthy(rig.session)
 
 

@@ -1094,9 +1094,113 @@ static void mp4_duration_ignores_unknown_versions_and_zero_timescales(void)
     CHECK_EQUAL(0, tags.duration_ms);
 }
 
+static void aiff_id3_metadata_and_art_are_read(void)
+{
+    Fixture original;
+    CHECK(load(&original, "tagged.dsf"));
+    uint32_t id3 = (uint32_t)original.bytes[20] | (uint32_t)original.bytes[21] << 8 |
+                   (uint32_t)original.bytes[22] << 16 | (uint32_t)original.bytes[23] << 24;
+    uint32_t length = original.size - id3;
+    uint32_t size = 46 + length + (length & 1u);
+    uint8_t *bytes = calloc(size, 1);
+    memcpy(bytes, "FORM", 4);
+    mp4_put32(bytes + 4, size - 8);
+    memcpy(bytes + 8, "AIFFCOMM", 8);
+    mp4_put32(bytes + 16, 18);
+    bytes[21] = 2;
+    mp4_put32(bytes + 22, 44100);
+    bytes[27] = 24;
+    static const uint8_t RATE[] = {0x40, 0x0e, 0xac, 0x44, 0, 0, 0, 0, 0, 0};
+    memcpy(bytes + 28, RATE, sizeof RATE);
+    memcpy(bytes + 38, "ID3 ", 4);
+    mp4_put32(bytes + 42, length);
+    memcpy(bytes + 46, original.bytes + id3, length);
+    MemorySource memory = {.bytes = bytes, .size = size};
+    TrackTags tags;
+    CHECK(track_tags_format_for_name("Song.AIFF") != TAG_FORMAT_UNKNOWN);
+    CHECK(track_tags_format_for_name("Song.aif") != TAG_FORMAT_UNKNOWN);
+    CHECK(track_tags_format_for_name("Song.aifc") != TAG_FORMAT_UNKNOWN);
+    CHECK(track_tags_read(memory_source(&memory), size, track_tags_format_for_name("Song.aiff"),
+                          &tags));
+    CHECK_EQUAL(1000, tags.duration_ms);
+    CHECK_EQUAL(0, strcmp(TITLE, tags.text[TAG_TITLE]));
+    CHECK_EQUAL(TAG_PICTURE_RAW, tags.picture.kind);
+    CHECK(tags.picture.front);
+    CHECK(tags.picture.offset + tags.picture.length <= size);
+    CHECK(bytes[tags.picture.offset] == 0xff && bytes[tags.picture.offset + 1] == 0xd8);
+    free(bytes);
+    free(original.bytes);
+}
+
+static void dff_diin_artist_and_title_are_read_with_chunk_bounds(void)
+{
+    uint8_t bytes[72] = {0};
+    memcpy(bytes, "FRM8", 4);
+    mp4_put32(bytes + 8, sizeof bytes - 12);
+    memcpy(bytes + 12, "DSD DIIN", 8);
+    mp4_put32(bytes + 24, 44);
+    memcpy(bytes + 28, "DIAR", 4);
+    mp4_put32(bytes + 36, 10);
+    mp4_put32(bytes + 40, 6);
+    memcpy(bytes + 44, "Artist", 6);
+    memcpy(bytes + 50, "DITI", 4);
+    mp4_put32(bytes + 58, 9);
+    mp4_put32(bytes + 62, 5);
+    memcpy(bytes + 66, "Title", 5);
+    MemorySource source = {.bytes = bytes, .size = sizeof bytes};
+    TrackTags tags;
+    CHECK(track_tags_read(memory_source(&source), sizeof bytes, TAG_FORMAT_DFF, &tags));
+    CHECK_EQUAL(0, strcmp("Artist", tags.text[TAG_ARTIST]));
+    CHECK_EQUAL(0, strcmp("Title", tags.text[TAG_TITLE]));
+    mp4_put32(bytes + 62, 100);
+    CHECK(track_tags_read(memory_source(&source), sizeof bytes, TAG_FORMAT_DFF, &tags));
+    CHECK_EQUAL(0, strcmp("Artist", tags.text[TAG_ARTIST]));
+    CHECK_EQUAL(0, strcmp("", tags.text[TAG_TITLE]));
+}
+
+static void replay_gain_text_decoding_handles_every_encoding_boundary(void)
+{
+    char out[REPLAY_GAIN_TEXT_CAPACITY];
+    static const uint8_t latin[] = {'-', '6', ' ', 'd', 'B'};
+    CHECK(tag_decode_gain_text(out, latin, sizeof latin, TAG_LATIN1));
+    CHECK_EQUAL(0, strcmp("-6 dB", out));
+    static const uint8_t little[] = {'1', 0, '.', 0, '5', 0};
+    CHECK(tag_decode_gain_text(out, little, sizeof little, TAG_UTF16LE));
+    CHECK_EQUAL(0, strcmp("1.5", out));
+    static const uint8_t big[] = {0, '1', 0, '.', 0, '5'};
+    CHECK(tag_decode_gain_text(out, big, sizeof big, TAG_UTF16BE));
+    CHECK_EQUAL(0, strcmp("1.5", out));
+    static const uint8_t big_bom[] = {0xfe, 0xff, 0, '2'};
+    CHECK(tag_decode_gain_text(out, big_bom, sizeof big_bom, TAG_UTF16LE));
+    CHECK_EQUAL(0, strcmp("2", out));
+    static const uint8_t little_bom[] = {0xff, 0xfe, '3', 0};
+    CHECK(tag_decode_gain_text(out, little_bom, sizeof little_bom, TAG_UTF16BE));
+    CHECK_EQUAL(0, strcmp("3", out));
+
+    static const uint8_t odd[] = {'1', 0, '2'};
+    CHECK(!tag_decode_gain_text(out, odd, sizeof odd, TAG_UTF16LE));
+    static const uint8_t nul_tail[] = {'1', 0, 0, 0};
+    CHECK(tag_decode_gain_text(out, nul_tail, sizeof nul_tail, TAG_UTF16LE));
+    static const uint8_t bad_tail[] = {'1', 0, 0, 0, '2', 0};
+    CHECK(!tag_decode_gain_text(out, bad_tail, sizeof bad_tail, TAG_UTF16LE));
+    static const uint8_t high[] = {0x80};
+    CHECK(!tag_decode_gain_text(out, high, sizeof high, TAG_LATIN1));
+    static const uint8_t controls[] = {8, 9, 13, 14};
+    CHECK(!tag_decode_gain_text(out, controls, 1, TAG_LATIN1));
+    CHECK(tag_decode_gain_text(out, controls + 1, 2, TAG_LATIN1));
+    CHECK(!tag_decode_gain_text(out, controls + 3, 1, TAG_LATIN1));
+    uint8_t full[REPLAY_GAIN_TEXT_CAPACITY];
+    memset(full, '1', sizeof full);
+    CHECK(!tag_decode_gain_text(out, full, sizeof full, TAG_UTF8));
+    CHECK(tag_decode_gain_text(out, full, 0, TAG_UTF8));
+    CHECK_EQUAL(0, strcmp("", out));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(aiff_id3_metadata_and_art_are_read),
+        TEST_CASE(dff_diin_artist_and_title_are_read_with_chunk_bounds),
         TEST_CASE(mp4_tags_read_numeric_tracks_genre_fallback_and_art),
         TEST_CASE(mp4_duration_requires_a_complete_versioned_header),
         TEST_CASE(mp4_text_genre_takes_priority_over_the_legacy_genre),
@@ -1129,6 +1233,7 @@ int main(void)
         TEST_CASE(unsynchronised_id3_pictures_read_back_without_escape_bytes),
         TEST_CASE(ogg_pictures_read_back_as_the_embedded_image),
         TEST_CASE(malformed_vorbis_entries_do_not_read_the_next_block),
+        TEST_CASE(replay_gain_text_decoding_handles_every_encoding_boundary),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -300,6 +300,30 @@ static void the_fixture_playlist_resolves_like_the_pc_indexer(void)
     check_means_fixture(&built, "small_library.db");
 }
 
+static void unresolved_playlist_paths_cover_every_leading_slash_form(void)
+{
+    LibraryBuilder builder;
+    start(&builder);
+    add_fixture_tracks(&builder);
+    CHECK_EQUAL(BUILDER_OK, library_builder_begin_playlist(&builder, "Odd paths", "Playlists"));
+    static const char *entries[] = {
+        "", "/", "//", "//missing.flac", "///missing.flac", "missing.flac"};
+    for (uint32_t index = 0; index < sizeof entries / sizeof entries[0]; index++) {
+        CHECK_EQUAL(BUILDER_OK,
+                    library_builder_playlist_entry(&builder, entries[index], BUILDER_ANY_START));
+    }
+    Built built;
+    finish(&builder, &built);
+    CHECK_EQUAL(BUILDER_OK, built.result);
+    MemorySource memory = {.bytes = built.output.bytes, .size = built.length};
+    Library library;
+    CHECK_EQUAL(LIBRARY_OK, library_open(&library, memory_source(&memory), built.length));
+    LibraryGroup playlist;
+    CHECK(library_read_group(&library, LIBRARY_PLAYLISTS, 0, &playlist));
+    CHECK_EQUAL(0, playlist.link_count);
+    free(built.output.bytes);
+}
+
 static BuilderTrack part_of(const char *title, uint8_t number, uint32_t start, uint32_t end)
 {
     BuilderTrack part =
@@ -1019,6 +1043,7 @@ int main(void)
         TEST_CASE(the_fixture_tracks_mean_the_same_as_the_pc_indexer),
         TEST_CASE(random_tracks_mean_the_same_as_the_pc_indexer),
         TEST_CASE(the_fixture_playlist_resolves_like_the_pc_indexer),
+        TEST_CASE(unresolved_playlist_paths_cover_every_leading_slash_form),
         TEST_CASE(random_playlists_resolve_like_the_pc_indexer),
         TEST_CASE(a_start_in_a_playlist_entry_picks_the_cue_part),
         TEST_CASE(random_libraries_match_the_reference_builder),

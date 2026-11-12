@@ -3,13 +3,24 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/parametric.h"
+
 #include "core/replay_gain.h"
+#include "core/strings.h"
 #include "playback/play_queue.h"
 
 typedef enum GainLevel {
     GAIN_LOW,
     GAIN_HIGH
 } GainLevel;
+
+typedef enum DacFilter {
+    DAC_FILTER_FAST_LOW_LATENCY,
+    DAC_FILTER_FAST_PHASE_COMPENSATED,
+    DAC_FILTER_SLOW_LOW_LATENCY,
+    DAC_FILTER_SLOW_PHASE_COMPENSATED,
+    DAC_FILTER_NON_OVERSAMPLING
+} DacFilter;
 
 typedef enum OutputJack {
     OUTPUT_AUTO,
@@ -35,7 +46,8 @@ typedef enum UsbMode {
 typedef enum UsbConnect {
     USB_CONNECT_ASK,
     USB_CONNECT_STORAGE,
-    USB_CONNECT_CHARGE
+    USB_CONNECT_CHARGE,
+    USB_CONNECT_DAC
 } UsbConnect;
 
 typedef enum AccentColor {
@@ -89,7 +101,8 @@ typedef enum EqualizerPreset {
     EQUALIZER_POP,
     EQUALIZER_JAZZ,
     EQUALIZER_UNIQUE,
-    EQUALIZER_CUSTOM
+    EQUALIZER_CUSTOM,
+    EQUALIZER_PARAMETRIC
 } EqualizerPreset;
 
 typedef enum TextSize {
@@ -118,6 +131,7 @@ typedef enum TrackTransition {
 
 enum {
     GAIN_LEVEL_COUNT = GAIN_HIGH + 1,
+    DAC_FILTER_COUNT = DAC_FILTER_NON_OVERSAMPLING + 1,
     APPEARANCE_THEME_COUNT = APPEARANCE_CLASSIC + 1,
     BUTTON_ACTION_COUNT = BUTTON_ACTION_HOME + 1,
     PLAYBACK_BUTTON_COUNT = PLAYBACK_MENU_HOLD + 1,
@@ -125,9 +139,9 @@ enum {
     OUTPUT_JACK_COUNT = OUTPUT_BALANCED + 1,
     START_SCREEN_COUNT = START_COVER_FLOW + 1,
     USB_MODE_COUNT = USB_MODE_DAC + 1,
-    USB_CONNECT_COUNT = USB_CONNECT_CHARGE + 1,
+    USB_CONNECT_COUNT = USB_CONNECT_DAC + 1,
     ACCENT_COLOR_COUNT = ACCENT_GRAPHITE + 1,
-    EQUALIZER_PRESET_COUNT = EQUALIZER_CUSTOM + 1,
+    EQUALIZER_PRESET_COUNT = EQUALIZER_PARAMETRIC + 1,
     TEXT_SIZE_COUNT = TEXT_SIZE_LARGE + 1,
     SKIP_GESTURE_COUNT = SKIP_GESTURE_PLAY_CLICKS + 1,
     ORIENTATION_COUNT = ORIENTATION_PORTRAIT_FLIPPED + 1,
@@ -139,20 +153,27 @@ enum {
     SETTINGS_BRIGHTNESS_MAX = 10,
     SETTINGS_VOLUME_MAX = 60,
     SETTINGS_DEFAULT_DAC_VOLUME = 35,
+    SETTINGS_DEFAULT_BLUETOOTH_VOLUME = 50,
+    SETTINGS_BLUETOOTH_SAFE_START_VOLUME = 50,
     SCREEN_TIMEOUT_OPTION_COUNT = 7,
-    SLEEP_TIMER_OPTION_COUNT = 7,
+    SLEEP_END_TRACK = 7,
+    SLEEP_END_CHAPTER = 8,
+    SLEEP_TIMER_OPTION_COUNT = 9,
     AUTO_OFF_OPTION_COUNT = 4,
     SETTINGS_DEFAULT_SAFE_START_VOLUME = 24,
     SETTINGS_TRANSITION_TENTHS_MIN = 5,
     SETTINGS_TRANSITION_TENTHS_MAX = 60,
     SETTINGS_DEFAULT_TRANSITION_TENTHS = 15,
+    SETTINGS_SPEED_COUNT = 9,
+    SETTINGS_SPEED_NORMAL = 2,
     SETTINGS_HOME_ITEM_COUNT = 10,
     SETTINGS_HOME_NOW_PLAYING_ITEM = 4,
     SETTINGS_HOME_SETTINGS_ITEM = 3,
     SETTINGS_HOME_FIRST_ITEM_COUNT = 9,
     SETTINGS_HOME_ORDER_SLOTS = 10,
     SETTINGS_HOME_PACKED_SIZE = 7,
-    SETTINGS_FILE_SIZE = 58,
+    SETTINGS_FILE_SIZE = 78,
+    SETTINGS_V15_FILE_SIZE = 58,
     SETTINGS_V14_FILE_SIZE = 42,
     SETTINGS_LANGUAGE_LENGTH = 5,
     SETTINGS_LANGUAGE_CAPACITY = SETTINGS_LANGUAGE_LENGTH + 1,
@@ -179,11 +200,13 @@ typedef struct Settings {
     UsbMode usb_mode;
     UsbConnect usb_connect;
     uint8_t dac_volume;
+    uint8_t bluetooth_volume;
     AccentColor accent;
     AppearanceTheme appearance;
     uint8_t button_actions[PLAYBACK_BUTTON_COUNT];
     EqualizerPreset equalizer;
     int8_t equalizer_gains[SETTINGS_EQUALIZER_BANDS];
+    ParametricEq parametric;
     TextSize text_size;
     SkipGesture skip_gesture;
     Orientation orientation;
@@ -192,15 +215,23 @@ typedef struct Settings {
     bool prevent_clipping;
     bool battery_percent;
     uint8_t status_items;
+    uint8_t battery_care;
     bool rewind_on_resume;
     bool safe_start_volume;
     uint8_t safe_start_volume_level;
     bool clock_24h;
     int16_t clock_offset_minutes;
+    uint8_t power_on_flags;
     TrackTransition track_transition;
     uint8_t transition_tenths;
+    uint8_t dac_filter;
     uint8_t home_order[SETTINGS_HOME_ITEM_COUNT];
     uint16_t home_hidden;
+    bool status_bar_compact;
+    bool standby_enabled;
+    uint8_t standby_power_off_option;
+    uint8_t long_press_action;
+    uint8_t playback_speed;
 } Settings;
 
 typedef struct SettingsEqualizerCurve {
@@ -208,6 +239,8 @@ typedef struct SettingsEqualizerCurve {
     int8_t gain_half_db[SETTINGS_EQUALIZER_BANDS];
     uint8_t band_count;
     uint16_t pre_gain;
+    bool is_parametric;
+    ParametricEq parametric;
 } SettingsEqualizerCurve;
 
 extern const uint16_t SETTINGS_EQUALIZER_BAND_HZ[SETTINGS_EQUALIZER_BANDS];
@@ -219,10 +252,14 @@ uint32_t settings_screen_timeout_ms(const Settings *settings);
 uint32_t settings_auto_off_option_minutes(int option);
 uint32_t settings_auto_off_ms(const Settings *settings);
 uint8_t settings_safe_start_volume(const Settings *settings, uint8_t volume);
+uint8_t settings_safe_start_bluetooth_volume(const Settings *settings, uint8_t volume);
 SettingsEqualizerCurve settings_equalizer_curve(const Settings *settings);
 void settings_encode(const Settings *settings, uint8_t *bytes);
 bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings);
 bool settings_home_unpack(const uint8_t *packed, int item_count, uint8_t *order, uint16_t *hidden);
+uint16_t settings_speed_percent(int option);
+
+extern const StringId SETTINGS_SPEED_LABELS[SETTINGS_SPEED_COUNT];
 
 ButtonAction settings_default_button_action(PlaybackButton button);
 ButtonAction settings_button_action(const Settings *settings, PlaybackButton button);

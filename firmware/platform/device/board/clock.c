@@ -7,11 +7,13 @@
 #include "irq.h"
 #include "loop_bench.h"
 #include "registers.h"
+#include "trial.h"
 
 #define SYSTICK_ENABLE_INTERRUPT_CORE_CLOCK 0x7u
 
 enum {
     MICROSECONDS_PER_PERIOD = 1000,
+    SLEEP_MICROSECONDS_PER_PERIOD = 5000,
     PERIODS_PER_KEY_SCAN = 5,
     STACKED_LR_WORD = 5,
     STACKED_PC_WORD = 6
@@ -19,11 +21,13 @@ enum {
 
 static TickClock clock;
 static uint32_t periods_since_scan;
+static bool sleeping;
 static StallWatch stall_watch;
 
 static uint32_t period_of(uint32_t ticks_per_microsecond)
 {
-    return ticks_per_microsecond * MICROSECONDS_PER_PERIOD;
+    return ticks_per_microsecond *
+           (sleeping ? SLEEP_MICROSECONDS_PER_PERIOD : MICROSECONDS_PER_PERIOD);
 }
 
 static bool reload_pending(void)
@@ -66,6 +70,16 @@ void board_clock_set_rate(uint32_t ticks_per_microsecond)
     irq_restore(primask);
 }
 
+void board_clock_sleep(bool sleep)
+{
+    if (sleeping != sleep) {
+        uint32_t primask = irq_save();
+        sleeping = sleep;
+        board_clock_set_rate(clock.ticks_per_microsecond);
+        irq_restore(primask);
+    }
+}
+
 __attribute__((naked)) void device_systick_entry(void)
 {
     __asm__ volatile("mrs r0, msp\n\tb board_systick_handler");
@@ -75,14 +89,16 @@ __attribute__((used)) void board_systick_handler(const uint32_t *frame)
 {
     tick_clock_reload(&clock);
     board_profile_sample(frame[STACKED_PC_WORD]);
-    periods_since_scan++;
+    board_bluetooth_drain();
+    periods_since_scan += sleeping ? SLEEP_MICROSECONDS_PER_PERIOD / MICROSECONDS_PER_PERIOD : 1;
     if (periods_since_scan < PERIODS_PER_KEY_SCAN) {
         return;
     }
-    periods_since_scan = 0;
+    periods_since_scan -= PERIODS_PER_KEY_SCAN;
     board_watchdog_kick();
     uint32_t now_ms = tick_clock_milliseconds(&clock, read_counter());
     board_input_sample(now_ms);
+    board_trial_poll_power(now_ms);
     board_start_record_tick(now_ms);
     board_debug_power_tick(now_ms);
     if (stall_watch_check(&stall_watch, now_ms)) {

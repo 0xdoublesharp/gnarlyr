@@ -52,7 +52,7 @@ class EchoImageTest(EchoImageHarness):
                         draws.append(code.number)
                 machine.uc.hook_add(UC_HOOK_CODE, drew, begin=address, end=address)
         self.assertEqual(session.run_to_home_screen(), "condition met")
-        self.assertTrue(draws)
+        self.assertEqual(machine.run(until=lambda: draws, until_ms=machine.milliseconds() + image_tests.STARTUP_WORK_MS + 1000), "condition met")
         self.assertEqual({11}, set(draws))
         self.open_settings(machine)
         self.assertIn(2, draws)
@@ -207,6 +207,7 @@ class EchoImageTest(EchoImageHarness):
             (machine.reg(UC_ARM_REG_R0), machine.reg(UC_ARM_REG_R1),
              machine.reg(UC_ARM_REG_R2) & 255)))
         self.assertEqual(session.run_to_home_screen(), "condition met")
+        machine.run(until_ms=machine.milliseconds() + image_tests.STARTUP_WORK_MS)
         return session, applied, data
 
     def test_headphone_loading_uses_slot_two_and_the_last_intact_profile_bank(self):

@@ -67,6 +67,23 @@ static void unnumbered_tracks_of_one_album_play_gapless(void)
     CHECK_EQUAL(0, track_transition_fade_ms(&request));
 }
 
+static void an_unnumbered_destination_in_the_same_album_plays_gapless(void)
+{
+    TransitionRequest request = shuffled();
+    request.to.record.album = request.from.record.album;
+    request.to.record.number = 0;
+    CHECK_EQUAL(0, track_transition_fade_ms(&request));
+}
+
+static void a_nonfirst_track_on_the_next_disc_is_not_sequential(void)
+{
+    TransitionRequest request = shuffled();
+    request.to.record.album = request.from.record.album;
+    request.to.record.disc = request.from.record.disc + 1;
+    request.to.record.number = 2;
+    CHECK_EQUAL(1500, track_transition_fade_ms(&request));
+}
+
 static void a_shuffled_jump_within_an_album_fades(void)
 {
     TransitionRequest request = shuffled();
@@ -124,6 +141,8 @@ int main(void)
         TEST_CASE(the_next_track_of_the_same_album_plays_gapless),
         TEST_CASE(the_first_track_of_the_next_disc_plays_gapless),
         TEST_CASE(unnumbered_tracks_of_one_album_play_gapless),
+        TEST_CASE(an_unnumbered_destination_in_the_same_album_plays_gapless),
+        TEST_CASE(a_nonfirst_track_on_the_next_disc_is_not_sequential),
         TEST_CASE(a_shuffled_jump_within_an_album_fades),
         TEST_CASE(parts_of_one_file_never_fade),
         TEST_CASE(spoken_word_never_fades),

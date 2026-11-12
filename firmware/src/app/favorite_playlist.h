@@ -16,4 +16,5 @@ typedef enum FavoritePlaylistResult {
 
 void favorite_playlist_attach(Library *library);
 FavoritePlaylistResult favorite_playlist_add(const Library *library, uint16_t track);
+void favorite_playlist_remember(const Library *library, uint16_t track);
 const char *favorite_playlist_message(FavoritePlaylistResult result);

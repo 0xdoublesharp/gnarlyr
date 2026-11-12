@@ -9,6 +9,7 @@
 #include "debug_loop_internal.h"
 #include "diagnostics_values.h"
 #include "discovery_screen.h"
+#include "equalizer_ui.h"
 #include "favorites_store.h"
 #include "hal/audio.h"
 #include "home_art.h"
@@ -114,6 +115,7 @@ typedef struct AppScreensContext {
 
 typedef struct PlayingModuleScreens {
     CoverFlowScreen cover_flow;
+    CoverFlowScreen artist_albums;
     UpNextScreen up_next;
     QuickSettingsScreen quick_settings;
 } PlayingModuleScreens;
@@ -126,6 +128,7 @@ typedef struct ViewsModuleScreens {
     MenuScreen diagnostics;
     ClockOption diagnostic_clock;
     MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
+    LyricsScreen lyrics;
 } ViewsModuleScreens;
 
 typedef struct SettingsModuleScreens {
@@ -137,7 +140,6 @@ typedef struct SettingsModuleScreens {
 typedef struct ProfileModuleScreens {
     ListeningScreen listening;
     MomentsScreen moments;
-    LyricsScreen lyrics;
     SmartListScreen smart_lists;
 } ProfileModuleScreens;
 
@@ -147,6 +149,7 @@ typedef struct LibraryModuleScreens {
 
 typedef struct AppModuleScreens {
     PlayingModuleScreens playing;
+    EqualizerUi equalizer;
     ViewsModuleScreens views;
     SettingsModuleScreens settings;
     ProfileModuleScreens listening;
@@ -172,15 +175,19 @@ typedef struct AppScreens {
     MenuItem music_items[MUSIC_MENU_ITEM_COUNT];
     HighRamOption high_ram;
     AppModuleScreens modules;
+    Screen *shortcut_destination;
 } AppScreens;
 
 extern const HomeItem APP_HOME_ITEMS[HOME_ITEM_COUNT];
 
 Screen *app_screens_init(AppScreens *screens, AppScreensContext context);
 void app_screens_arrange_home(AppScreens *screens);
+int app_screens_arrange_home_items(AppScreens *screens);
+int app_screens_home_position(const AppScreens *screens, const void *context);
 Screen *app_screens_usb_modes(AppScreens *screens, bool prompt);
 MenuItem app_screens_open_item(StringId label, Screen *target);
 Screen *app_screens_build_menu(MenuScreen *menu, StringId title, const MenuItem *items, int count,
                                const Theme *theme);
 void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Theme *theme);
 int app_screens_start_path(AppScreens *screens, StartScreen start, Screen **path);
+ScreenAction app_screens_artist_keys(void *context, KeyEvent event, uint32_t now_ms);

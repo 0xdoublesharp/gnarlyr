@@ -293,10 +293,11 @@ static void refresh_rows(SmartListScreen *screen)
     work->rows_ready = true;
     for (int row = 0; row < THEME_MAX_ROWS; row++) {
         int index = work->first + row;
-        work->labels[row][0] = '\0';
-        work->details[row][0] = '\0';
+        work->scratch.rows.labels[row][0] = '\0';
+        work->scratch.rows.details[row][0] = '\0';
         if (index < cache->count) {
-            describe(screen, cache->tracks[index], work->labels[row], work->details[row]);
+            describe(screen, cache->tracks[index], work->scratch.rows.labels[row],
+                     work->scratch.rows.details[row]);
         }
     }
 }
@@ -316,13 +317,14 @@ static int row_count(const void *context)
 static const char *row_label(const void *context, int index)
 {
     int row = cached_row(context, index);
-    return row >= 0 ? work->labels[row] : "";
+    return row >= 0 ? work->scratch.rows.labels[row] : "";
 }
 
 static const char *row_detail(const void *context, int index)
 {
     int row = cached_row(context, index);
-    return row >= 0 && work->details[row][0] != '\0' ? work->details[row] : NULL;
+    return row >= 0 && work->scratch.rows.details[row][0] != '\0' ? work->scratch.rows.details[row]
+                                                                  : NULL;
 }
 
 static bool read_tracks(void *context, uint16_t first, uint16_t count, uint16_t *tracks)

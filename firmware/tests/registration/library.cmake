@@ -1,4 +1,4 @@
-foreach(library_test block_cache library library_content library_browse library_view favorites covers sort_key track_fields playlist_reader cue_sheet music_fingerprint lyrics)
+foreach(library_test album_order block_cache library library_content library_browse library_view favorites covers sort_key track_fields playlist_reader cue_sheet music_fingerprint lyrics)
     echo_add_unit_test(NAME test_${library_test}
         SOURCES library/test_${library_test}.c
         LIBRARIES echo_library_fixtures

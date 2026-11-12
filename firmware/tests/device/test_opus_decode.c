@@ -127,6 +127,78 @@ static void invalid_layouts_never_become_ready(void)
     CHECK(!decoder.ready);
 }
 
+static void initialization_rejects_null_overlapping_and_unaligned_storage(void)
+{
+    uint32_t needed = opus_decode_state_bytes(2);
+    CHECK_EQUAL(OPUS_DECODE_INVALID,
+                opus_decode_init(NULL, state, sizeof state, scratch, sizeof scratch, 48000, 2));
+    CHECK_EQUAL(OPUS_DECODE_INVALID,
+                opus_decode_init(&decoder, NULL, needed, scratch, sizeof scratch, 48000, 2));
+    CHECK_EQUAL(OPUS_DECODE_INVALID,
+                opus_decode_init(&decoder, state, sizeof state, NULL, sizeof scratch, 48000, 2));
+    CHECK_EQUAL(OPUS_DECODE_INVALID, opus_decode_init(&decoder, state, sizeof state, scratch + 1,
+                                                      sizeof scratch - 1, 48000, 2));
+    CHECK_EQUAL(OPUS_DECODE_INVALID, opus_decode_init(&decoder, &decoder, sizeof decoder, scratch,
+                                                      sizeof scratch, 48000, 2));
+    CHECK_EQUAL(OPUS_DECODE_INVALID, opus_decode_init(&decoder, state, sizeof state, &decoder,
+                                                      sizeof decoder, 48000, 2));
+    CHECK_EQUAL(OPUS_DECODE_INVALID, opus_decode_init(&decoder, state, sizeof state, state + 8,
+                                                      sizeof state - 8, 48000, 2));
+    CHECK_EQUAL(OPUS_DECODE_INVALID,
+                opus_decode_init(&decoder, state, sizeof state, scratch, 7, 48000, 2));
+}
+
+static void packet_layout_and_duration_validation_rejects_every_bad_boundary(void)
+{
+    static uint8_t packet[] = {0xF8, 0xFF, 0xFE};
+    static uint8_t malformed[] = {0x03};
+    CHECK(start(48000, 2, OPUS_DECODE_SCRATCH_BYTES));
+    OpusDecodePcm pcm = {.samples = samples, .capacity = OPUS_DECODE_MAX_FRAMES};
+    OpusDecode idle = {0};
+    CHECK_EQUAL(OPUS_DECODE_INVALID,
+                opus_decode_packet(NULL, (OpusDecodeInput){packet, sizeof packet, 0, false}, &pcm));
+    CHECK_EQUAL(
+        OPUS_DECODE_INVALID,
+        opus_decode_packet(&decoder, (OpusDecodeInput){packet, sizeof packet, 0, false}, NULL));
+    CHECK_EQUAL(OPUS_DECODE_INVALID,
+                opus_decode_packet(&decoder, (OpusDecodeInput){packet, sizeof packet, 0, false},
+                                   (OpusDecodePcm *)(UINTPTR_MAX - 3)));
+    CHECK_EQUAL(
+        OPUS_DECODE_FAILED,
+        opus_decode_packet(&idle, (OpusDecodeInput){packet, sizeof packet, 0, false}, &pcm));
+
+    CHECK_EQUAL(OPUS_DECODE_INVALID, decode(NULL, 1, 960, false, &pcm));
+    CHECK_EQUAL(OPUS_DECODE_INVALID, decode(NULL, 0, 960, true, &pcm));
+    CHECK_EQUAL(OPUS_DECODE_INVALID, decode(NULL, 0, 1, false, &pcm));
+    CHECK_EQUAL(OPUS_DECODE_INVALID, decode(NULL, 0, 960 * 7, false, &pcm));
+    CHECK_EQUAL(OPUS_DECODE_INVALID, decode(packet, 0, 0, false, &pcm));
+    CHECK_EQUAL(OPUS_DECODE_INVALID,
+                decode(packet, OPUS_DECODE_MAX_PACKET_BYTES + 1, 0, false, &pcm));
+    CHECK_EQUAL(OPUS_DECODE_INVALID, decode((const uint8_t *)(UINTPTR_MAX - 3), 8, 0, false, &pcm));
+    CHECK_EQUAL(OPUS_DECODE_INVALID, decode(state, 8, 0, false, &pcm));
+    CHECK_EQUAL(OPUS_DECODE_INVALID, decode(packet, sizeof packet, 960, false, &pcm));
+    CHECK_EQUAL(OPUS_DECODE_INVALID, decode(malformed, sizeof malformed, 0, false, &pcm));
+
+    pcm.samples = NULL;
+    CHECK_EQUAL(OPUS_DECODE_INVALID, decode(packet, sizeof packet, 0, false, &pcm));
+    pcm.samples = (int16_t *)(void *)(scratch + 1);
+    CHECK_EQUAL(OPUS_DECODE_INVALID, decode(packet, sizeof packet, 0, false, &pcm));
+    pcm.samples = (int16_t *)(void *)scratch;
+    CHECK_EQUAL(OPUS_DECODE_INVALID, decode(packet, sizeof packet, 0, false, &pcm));
+    pcm.samples = (int16_t *)(void *)packet;
+    CHECK_EQUAL(OPUS_DECODE_INVALID, decode(packet, sizeof packet, 0, false, &pcm));
+
+    union {
+        OpusDecodePcm pcm;
+        uint8_t bytes[sizeof(OpusDecodePcm) + 8];
+    } aliased = {0};
+    aliased.pcm.samples = samples;
+    aliased.pcm.capacity = OPUS_DECODE_MAX_FRAMES;
+    CHECK_EQUAL(OPUS_DECODE_INVALID,
+                opus_decode_packet(&decoder, (OpusDecodeInput){aliased.bytes + 1, 3, 0, false},
+                                   &aliased.pcm));
+}
+
 static void metadata_and_output_cannot_alias_decoder_storage(void)
 {
     static const uint8_t packet[] = {0xF8, 0xFF, 0xFE};
@@ -221,6 +293,8 @@ int main(void)
         TEST_CASE(short_output_is_refused_before_state_or_samples_change),
         TEST_CASE(exhausted_scratch_returns_an_error_and_can_be_reinitialized),
         TEST_CASE(invalid_layouts_never_become_ready),
+        TEST_CASE(initialization_rejects_null_overlapping_and_unaligned_storage),
+        TEST_CASE(packet_layout_and_duration_validation_rejects_every_bad_boundary),
         TEST_CASE(metadata_and_output_cannot_alias_decoder_storage),
         TEST_CASE(malformed_packets_and_mode_transitions_keep_a_32k_arena_bounded),
         TEST_CASE(header_gain_requires_a_ready_decoder_and_a_signed_16_bit_value),

@@ -21,7 +21,7 @@ enum {
     HALF_DB_GAINS_FIELD = 28,
     HALF_DB_CHECKSUM_FIELD = 38,
     HALF_DB_VERSION = 11,
-    CURRENT_VERSION = 15,
+    CURRENT_VERSION = 16,
     EXTENSION_VERSION = 15,
     EXTENSION_FIELD = 38,
     EXTENSION_CHECKSUM_FIELD = 54,
@@ -278,9 +278,20 @@ static void a_version_thirteen_file_asks(void)
     CHECK_EQUAL(USB_CONNECT_ASK, decoded.usb_connect);
 }
 
-static void the_fourth_plug_in_value_and_the_reserved_bits_are_rejected(void)
+static void the_usb_dac_plug_in_answer_is_kept(void)
 {
-    static const uint8_t FLAGS[] = {0x34, 0x44, 0x84};
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[VERSION_FIELD + 1] = 0x34;
+    rewrite_checksum(bytes);
+    CHECK(settings_decode(bytes, sizeof bytes, &settings));
+    CHECK_EQUAL(USB_CONNECT_DAC, settings.usb_connect);
+}
+
+static void the_reserved_plug_in_bits_are_rejected(void)
+{
+    static const uint8_t FLAGS[] = {0x44, 0x84};
     for (uint32_t at = 0; at < sizeof FLAGS; at++) {
         Settings settings = custom_settings();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -812,7 +823,7 @@ static void sleep_options_start_with_off(void)
 {
     CHECK_EQUAL(0, settings_sleep_option_minutes(0));
     CHECK_EQUAL(15, settings_sleep_option_minutes(1));
-    CHECK_EQUAL(120, settings_sleep_option_minutes(SLEEP_TIMER_OPTION_COUNT - 1));
+    CHECK_EQUAL(120, settings_sleep_option_minutes(SLEEP_END_TRACK - 1));
 }
 
 static void settings_survive_a_round_trip(void)
@@ -969,8 +980,8 @@ static void battery_percentage_defaults_off_and_round_trips_in_a_spare_flag_bit(
     chosen.prevent_clipping = false;
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&chosen, bytes);
-    CHECK_EQUAL(15, bytes[4]);
-    CHECK_EQUAL(58, sizeof bytes);
+    CHECK_EQUAL(16, bytes[4]);
+    CHECK_EQUAL(78, sizeof bytes);
     Settings restored;
     CHECK(settings_decode(bytes, sizeof bytes, &restored));
     CHECK(restored.battery_percent);
@@ -984,7 +995,7 @@ static void battery_percentage_defaults_off_and_round_trips_in_a_spare_flag_bit(
 
 static void invalid_normalization_flags_are_rejected_without_mutating_the_settings(void)
 {
-    static const uint8_t FLAGS[] = {3, 7, 0x30, 64, 128, 255};
+    static const uint8_t FLAGS[] = {64, 128, 255};
     for (uint32_t at = 0; at < sizeof FLAGS / sizeof FLAGS[0]; at++) {
         Settings original = custom_settings();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1010,6 +1021,8 @@ static Settings extension_settings(void)
         settings.home_order[index] = (uint8_t)(SETTINGS_HOME_ITEM_COUNT - 1 - index);
     }
     settings.home_hidden = 0x3F7;
+    settings.dac_filter = DAC_FILTER_SLOW_PHASE_COMPENSATED;
+    settings.playback_speed = SETTINGS_SPEED_COUNT - 1;
     return settings;
 }
 
@@ -1025,6 +1038,8 @@ static void check_extension_defaults(const Settings *settings)
     CHECK(memcmp(ORDER, settings->home_order, sizeof ORDER) == 0);
     CHECK_EQUAL(1u << 1 | 1u << 2 | 1u << 5, settings->home_hidden);
     CHECK_EQUAL(0, settings->status_items);
+    CHECK_EQUAL(DAC_FILTER_FAST_LOW_LATENCY, settings->dac_filter);
+    CHECK_EQUAL(SETTINGS_SPEED_NORMAL, settings->playback_speed);
 }
 
 static void the_extension_defaults_keep_todays_behaviour(void)
@@ -1036,12 +1051,13 @@ static void the_extension_defaults_keep_todays_behaviour(void)
 
 static void the_extension_block_sits_between_the_language_and_the_checksum(void)
 {
-    static const uint8_t EXPECTED[16] = {0x07, 24, 15, 0, 0x60, 0x97, 0x18, 0x52, 0x43, 0x26};
+    static const uint8_t EXPECTED[16] = {0x07, 24,   15, 0, 0x60, 0x97, 0x18, 0x52,
+                                         0x43, 0x26, 0,  0, 0,    0,    0,    16};
     Settings settings = settings_defaults();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
-    CHECK_EQUAL(58, sizeof bytes);
-    CHECK_EQUAL(15, bytes[VERSION_FIELD]);
+    CHECK_EQUAL(78, sizeof bytes);
+    CHECK_EQUAL(16, bytes[VERSION_FIELD]);
     CHECK(memcmp(bytes + EXTENSION_FIELD, EXPECTED, sizeof EXPECTED) == 0);
     CHECK_EQUAL(hash_update(HASH_START, bytes, EXTENSION_CHECKSUM_FIELD),
                 hash_load(bytes + EXTENSION_CHECKSUM_FIELD));
@@ -1049,7 +1065,8 @@ static void the_extension_block_sits_between_the_language_and_the_checksum(void)
 
 static void every_extension_field_survives_a_round_trip(void)
 {
-    static const uint8_t EXPECTED[16] = {0x10, 60, 60, 0, 0x89, 0x67, 0x45, 0x23, 0x01, 0xF7, 0x03};
+    static const uint8_t EXPECTED[16] = {0x10, 60,   60,   6, 0x89, 0x67, 0x45, 0x23,
+                                         0x01, 0xF7, 0x03, 0, 0,    0,    0x03, 16};
     Settings original = extension_settings();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&original, bytes);
@@ -1064,7 +1081,36 @@ static void every_extension_field_survives_a_round_trip(void)
     CHECK_EQUAL(SETTINGS_TRANSITION_TENTHS_MAX, decoded.transition_tenths);
     CHECK(memcmp(original.home_order, decoded.home_order, sizeof decoded.home_order) == 0);
     CHECK_EQUAL(0x3F7, decoded.home_hidden);
+    CHECK_EQUAL(DAC_FILTER_SLOW_PHASE_COMPENSATED, decoded.dac_filter);
     CHECK_EQUAL(original.volume, decoded.volume);
+}
+
+static void the_gain_default_is_unchanged_and_the_filter_defaults_to_stocks_fast_low_latency(void)
+{
+    Settings settings = settings_defaults();
+    CHECK_EQUAL(GAIN_LOW, settings.gain);
+    CHECK_EQUAL(DAC_FILTER_FAST_LOW_LATENCY, settings.dac_filter);
+    CHECK_EQUAL(5, DAC_FILTER_COUNT);
+}
+
+static void each_dac_filter_round_trips_alone_in_the_low_bits_of_extension_byte_fourteen(void)
+{
+    for (int filter = 0; filter < DAC_FILTER_COUNT; filter++) {
+        Settings original = settings_defaults();
+        uint8_t plain[SETTINGS_FILE_SIZE];
+        settings_encode(&original, plain);
+        original.dac_filter = (uint8_t)filter;
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&original, bytes);
+        CHECK_EQUAL(filter, bytes[EXTENSION_FIELD + 14]);
+        for (int offset = EXTENSION_FIELD; offset < EXTENSION_CHECKSUM_FIELD; offset++) {
+            CHECK(offset == EXTENSION_FIELD + 14 || bytes[offset] == plain[offset]);
+        }
+        Settings decoded;
+        CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+        CHECK_EQUAL(filter, decoded.dac_filter);
+        CHECK_EQUAL(GAIN_LOW, decoded.gain);
+    }
 }
 
 static void each_comfort_flag_and_the_fade_round_trip_alone(void)
@@ -1106,7 +1152,7 @@ static void a_version_fourteen_file_loads_with_the_extension_defaults_and_saves_
     CHECK_EQUAL(original.volume, decoded.volume);
     CHECK_EQUAL(original.orientation, decoded.orientation);
     settings_encode(&decoded, bytes);
-    CHECK_EQUAL(15, bytes[VERSION_FIELD]);
+    CHECK_EQUAL(16, bytes[VERSION_FIELD]);
     CHECK(settings_decode(bytes, sizeof bytes, &decoded));
     check_extension_defaults(&decoded);
 }
@@ -1156,7 +1202,7 @@ static void a_version_fifteen_file_needs_all_fifty_eight_bytes(void)
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
     CHECK(!settings_decode(bytes, SETTINGS_V14_FILE_SIZE, &settings));
-    CHECK(!settings_decode(bytes, SETTINGS_FILE_SIZE - 1, &settings));
+    CHECK(settings_decode(bytes, SETTINGS_FILE_SIZE - 1, &settings));
 }
 
 static void the_checksum_covers_the_extension_block(void)
@@ -1173,9 +1219,10 @@ static void the_checksum_covers_the_extension_block(void)
 static void each_invalid_extension_value_is_rejected_without_mutating_the_settings(void)
 {
     static const uint8_t CASES[][2] = {
-        {0, 0x20},  {0, 0x40},  {0, 0x80},  {0, 0x18},  {1, 61},   {2, 4},    {2, 61},   {2, 0},
-        {3, 1},     {4, 0x00},  {4, 0x11},  {6, 0x55},  {8, 0x18}, {8, 0x09}, {9, 0x08}, {9, 0xFF},
-        {10, 0x04}, {10, 0x80}, {12, 0x04}, {12, 0xFC}, {14, 1},   {15, 0x80}};
+        {0, 0x20},  {0, 0x40}, {0, 0x80}, {0, 0x18},  {1, 61},    {2, 4},     {2, 61},
+        {2, 0},     {3, 7},    {3, 0xFD}, {3, 0x80},  {4, 0x00},  {4, 0x11},  {6, 0x55},
+        {8, 0x18},  {8, 0x09}, {9, 0x08}, {9, 0xFF},  {10, 0x04}, {10, 0x80}, {12, 0x04},
+        {12, 0xFC}, {14, 5},   {14, 7},   {14, 0x18}, {14, 0x80}, {15, 0x80}};
     for (uint32_t at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
         Settings original = settings_defaults();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1186,6 +1233,40 @@ static void each_invalid_extension_value_is_rejected_without_mutating_the_settin
         CHECK(!settings_decode(bytes, sizeof bytes, &original));
         CHECK(memcmp(&before, &original, sizeof original) == 0);
     }
+}
+
+static void power_on_preserves_every_other_bit_in_extension_thirteen(void)
+{
+    for (unsigned flags = 0; flags < 256; flags++) {
+        Settings settings = settings_defaults();
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&settings, bytes);
+        CHECK_EQUAL(0, bytes[EXTENSION_FIELD + 13]);
+        bytes[EXTENSION_FIELD + 13] = (uint8_t)flags;
+        rewrite_checksum(bytes);
+        CHECK(settings_decode(bytes, sizeof bytes, &settings));
+        settings_encode(&settings, bytes);
+        CHECK_EQUAL(flags, bytes[EXTENSION_FIELD + 13]);
+    }
+}
+
+static void playback_speed_is_a_signed_step_from_normal_in_the_fourth_extension_byte(void)
+{
+    static const uint16_t PERCENT[SETTINGS_SPEED_COUNT] = {50,  75,  100, 125, 150,
+                                                           175, 200, 250, 300};
+    for (int option = 0; option < SETTINGS_SPEED_COUNT; option++) {
+        Settings original = settings_defaults();
+        original.playback_speed = (uint8_t)option;
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&original, bytes);
+        CHECK_EQUAL((uint8_t)(option - SETTINGS_SPEED_NORMAL), bytes[EXTENSION_FIELD + 3]);
+        Settings decoded;
+        CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+        CHECK_EQUAL(option, decoded.playback_speed);
+        CHECK_EQUAL(PERCENT[option], settings_speed_percent(option));
+    }
+    CHECK_EQUAL(100, settings_speed_percent(SETTINGS_SPEED_NORMAL));
+    CHECK_EQUAL(100, settings_speed_percent(SETTINGS_SPEED_COUNT));
 }
 
 static void every_item_but_settings_may_be_hidden(void)
@@ -1389,6 +1470,20 @@ static void safe_start_volume_off_keeps_the_volume(void)
     CHECK_EQUAL(SETTINGS_VOLUME_MAX, settings_safe_start_volume(&settings, SETTINGS_VOLUME_MAX));
 }
 
+static void bluetooth_safe_start_caps_only_above_stocks_default_level(void)
+{
+    Settings settings = settings_defaults();
+    settings.safe_start_volume_level = 12;
+    CHECK_EQUAL(50, SETTINGS_BLUETOOTH_SAFE_START_VOLUME);
+    CHECK_EQUAL(50, settings_safe_start_bluetooth_volume(&settings, SETTINGS_VOLUME_MAX));
+    CHECK_EQUAL(50, settings_safe_start_bluetooth_volume(&settings, 51));
+    CHECK_EQUAL(50, settings_safe_start_bluetooth_volume(&settings, 50));
+    CHECK_EQUAL(30, settings_safe_start_bluetooth_volume(&settings, 30));
+    settings.safe_start_volume = false;
+    CHECK_EQUAL(SETTINGS_VOLUME_MAX,
+                settings_safe_start_bluetooth_volume(&settings, SETTINGS_VOLUME_MAX));
+}
+
 static void status_bar_choices_round_trip_in_e13_without_using_other_extensions(void)
 {
     Settings settings = settings_defaults();
@@ -1402,7 +1497,7 @@ static void status_bar_choices_round_trip_in_e13_without_using_other_extensions(
     CHECK_EQUAL(0, bytes[49]);
     CHECK_EQUAL(0, bytes[50]);
     CHECK_EQUAL(0, bytes[52]);
-    CHECK_EQUAL(0, bytes[53]);
+    CHECK_EQUAL(16, bytes[53]);
 }
 
 static void all_status_choices_and_legacy_percent_files_keep_their_values(void)
@@ -1424,6 +1519,7 @@ static void all_status_choices_and_legacy_percent_files_keep_their_values(void)
         uint8_t bytes[SETTINGS_FILE_SIZE];
         settings_encode(&settings, bytes);
         bytes[4] = (uint8_t)version;
+        bytes[53] = 0;
         bytes[5] |= 8;
         rewrite_checksum(bytes);
         CHECK(settings_decode(bytes, sizeof bytes, &settings));
@@ -1432,13 +1528,128 @@ static void all_status_choices_and_legacy_percent_files_keep_their_values(void)
     }
 }
 
+static void second_extension_round_trip_and_recovery(void)
+{
+    Settings original = custom_settings();
+    original.status_bar_compact = true;
+    original.standby_enabled = true;
+    original.standby_power_off_option = 2;
+    original.long_press_action = 7;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&original, bytes);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK(decoded.status_bar_compact);
+    CHECK(decoded.standby_enabled);
+    CHECK_EQUAL(2, decoded.standby_power_off_option);
+    CHECK_EQUAL(7, decoded.long_press_action);
+    bytes[74] ^= 1;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(original.volume, decoded.volume);
+    CHECK(!decoded.status_bar_compact);
+    CHECK(!decoded.standby_enabled);
+    CHECK_EQUAL(1, decoded.standby_power_off_option);
+    CHECK_EQUAL(0, decoded.long_press_action);
+    bytes[4] = 15;
+    bytes[53] = 0;
+    rewrite_checksum(bytes);
+    CHECK(settings_decode(bytes, SETTINGS_V15_FILE_SIZE, &decoded));
+    CHECK_EQUAL(original.volume, decoded.volume);
+    CHECK_EQUAL(1, decoded.standby_power_off_option);
+}
+
+static void downgrade_rejects_the_v16_prefix(void)
+{
+    Settings settings = settings_defaults();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK(bytes[4] > 15);
+    CHECK(bytes[53] != 0);
+    CHECK_EQUAL(hash_update(HASH_START, bytes, 54), hash_load(bytes + 54));
+    bytes[4] = 15;
+    rewrite_checksum(bytes);
+    CHECK(!settings_decode(bytes, SETTINGS_V15_FILE_SIZE, &settings));
+}
+
+static void store_second_extension(uint8_t *bytes)
+{
+    hash_store(bytes + 74, hash_update(HASH_START, bytes + 58, 16));
+}
+
+static void the_bluetooth_level_lives_in_f2_and_defaults_to_stocks_minus_fifteen_db(void)
+{
+    Settings settings = settings_defaults();
+    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME, settings.bluetooth_volume);
+    CHECK_EQUAL(50, SETTINGS_DEFAULT_BLUETOOTH_VOLUME);
+    settings.bluetooth_volume = 33;
+    settings.status_bar_compact = true;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(34, bytes[60]);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(33, decoded.bluetooth_volume);
+    CHECK_EQUAL(settings.volume, decoded.volume);
+    settings.bluetooth_volume = 0;
+    settings_encode(&settings, bytes);
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(0, decoded.bluetooth_volume);
+    bytes[60] = 0;
+    store_second_extension(bytes);
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME, decoded.bluetooth_volume);
+    CHECK(decoded.status_bar_compact);
+    bytes[60] = SETTINGS_VOLUME_MAX + 2;
+    store_second_extension(bytes);
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME, decoded.bluetooth_volume);
+    CHECK(!decoded.status_bar_compact);
+}
+
+static void an_older_file_gets_the_default_bluetooth_level(void)
+{
+    Settings settings = settings_defaults();
+    settings.bluetooth_volume = 12;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[4] = 15;
+    bytes[53] = 0;
+    rewrite_checksum(bytes);
+    Settings decoded;
+    CHECK(settings_decode(bytes, SETTINGS_V15_FILE_SIZE, &decoded));
+    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME, decoded.bluetooth_volume);
+}
+
+static void battery_care_owns_only_e14_bits_three_and_four(void)
+{
+    for (int filter = 0; filter < DAC_FILTER_COUNT; filter++) {
+        Settings settings = settings_defaults();
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&settings, bytes);
+        bytes[52] = (uint8_t)(filter | 16);
+        rewrite_checksum(bytes);
+        CHECK(settings_decode(bytes, sizeof bytes, &settings));
+        settings.volume = 7;
+        settings_encode(&settings, bytes);
+        CHECK_EQUAL(filter | 16, bytes[52]);
+        CHECK_EQUAL(2, settings.battery_care);
+        CHECK_EQUAL(filter, settings.dac_filter);
+        settings.battery_care = 0;
+        settings_encode(&settings, bytes);
+        CHECK_EQUAL(filter, bytes[52]);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(battery_care_owns_only_e14_bits_three_and_four),
         TEST_CASE(all_status_choices_and_legacy_percent_files_keep_their_values),
         TEST_CASE(status_bar_choices_round_trip_in_e13_without_using_other_extensions),
         TEST_CASE(defaults_are_comfortable),
         TEST_CASE(the_extension_defaults_keep_todays_behaviour),
+        TEST_CASE(the_gain_default_is_unchanged_and_the_filter_defaults_to_stocks_fast_low_latency),
+        TEST_CASE(each_dac_filter_round_trips_alone_in_the_low_bits_of_extension_byte_fourteen),
         TEST_CASE(the_extension_block_sits_between_the_language_and_the_checksum),
         TEST_CASE(every_extension_field_survives_a_round_trip),
         TEST_CASE(each_comfort_flag_and_the_fade_round_trip_alone),
@@ -1448,6 +1659,8 @@ int main(void)
         TEST_CASE(a_version_fifteen_file_needs_all_fifty_eight_bytes),
         TEST_CASE(the_checksum_covers_the_extension_block),
         TEST_CASE(each_invalid_extension_value_is_rejected_without_mutating_the_settings),
+        TEST_CASE(power_on_preserves_every_other_bit_in_extension_thirteen),
+        TEST_CASE(playback_speed_is_a_signed_step_from_normal_in_the_fourth_extension_byte),
         TEST_CASE(every_item_but_settings_may_be_hidden),
         TEST_CASE(the_old_untouched_home_defaults_adopt_the_new_defaults),
         TEST_CASE(the_previous_saved_default_adopts_the_new_order),
@@ -1467,6 +1680,11 @@ int main(void)
         TEST_CASE(a_theme_survives_saving_without_moving_existing_settings),
         TEST_CASE(a_previous_version_uses_the_default_theme),
         TEST_CASE(button_maps_survive_a_separate_bounded_record),
+        TEST_CASE(downgrade_rejects_the_v16_prefix),
+        TEST_CASE(second_extension_round_trip_and_recovery),
+        TEST_CASE(the_bluetooth_level_lives_in_f2_and_defaults_to_stocks_minus_fifteen_db),
+        TEST_CASE(bluetooth_safe_start_caps_only_above_stocks_default_level),
+        TEST_CASE(an_older_file_gets_the_default_bluetooth_level),
         TEST_CASE(timeout_options_end_with_never),
         TEST_CASE(sleep_options_start_with_off),
         TEST_CASE(settings_survive_a_round_trip),
@@ -1482,7 +1700,8 @@ int main(void)
         TEST_CASE(plugging_in_asks_by_default),
         TEST_CASE(every_plug_in_answer_round_trips_in_bits_four_and_five_of_the_flags_byte),
         TEST_CASE(a_version_thirteen_file_asks),
-        TEST_CASE(the_fourth_plug_in_value_and_the_reserved_bits_are_rejected),
+        TEST_CASE(the_usb_dac_plug_in_answer_is_kept),
+        TEST_CASE(the_reserved_plug_in_bits_are_rejected),
         TEST_CASE(a_newer_version_is_rejected),
         TEST_CASE(a_version_eight_volume_converts_to_the_sixty_step_scale),
         TEST_CASE(a_version_eight_volume_above_fifty_is_rejected),

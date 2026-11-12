@@ -15,7 +15,7 @@ Start each feature branch from the latest integration head agreed with the integ
 
 If the installed candidate is missing, the command creates a disposable detached checkout of that exact commit under Scratch, builds with two jobs, freezes it, and removes the checkout. This historical build checkout is the sole exception to keeping active worktrees on backed-up storage; it contains no work in progress. Historical commits must have the wrapper's device-image target and the local toolchain prerequisites. Missing history, incompatible historical tooling or a proof failure stops the install for the integration owner to resolve.
 
-The exact-image proof runs the installed updater with its own resident/USB/module ELFs, offers the unmodified new image, verifies slot 2 completes before slot 1, headers are invalidated first and committed last, every firmware write is immediately read back, both slots match, and writes stay inside the two slots and user volume. It boots the resulting slots using the new candidate's ELFs. Only the historical proof may omit the version-specific `hal_system_set_usb_answer` hook; ordinary emulator scenarios require it. The proof is also available as `firmware/.venv/bin/python firmware/tools/prove_upgrade.py --old CANDIDATE --new CANDIDATE`.
+The exact-image proof runs the installed updater with its own resident/USB/module ELFs, offers the unmodified new image, verifies slot 2 completes before slot 1, headers are invalidated first and committed last, every firmware write is immediately read back, both slots match, and writes stay inside the two slots and user volume. It boots the resulting slots using the new candidate's ELFs. Only the historical proof may omit the version-specific `hal_system_set_usb_answer` hook; ordinary emulator scenarios require it. The proof is also available as `firmware/.venv/bin/python firmware/tools/prove_upgrade.py --old CANDIDATE --new CANDIDATE`. When the installed updater has trial updates the proof instead requires the new image in slot 1 only, slot 2 unchanged and the trial record running; when the new candidate has them too it also proves confirmation (an ejected session copies slot 1 into slot 2, header last) and rollback (three unsettled starts, then slot 2 copied back into slot 1, the restored candidate reporting it once) on copies of the installed disk. The output's `mode` says which proof ran.
 
 Before installing, the command copies persistent state from the connected player's internal data directory into `.local/device-backups/user-state/<UTC>/`, verifying each source and copy with SHA-256. It excludes `library.db`, `covers.bin`, `build.tmp`, `view.tmp`, `debug/` and AppleDouble `._*` files and refuses symlinks. The backup is private, persistent recovery data, not disposable build output. A dry run performs this backup and the proof, then stops before copying anything to the player or ejecting it.
 
@@ -112,3 +112,13 @@ The [browser builder and USB CLI/MCP workflow](language-packs.md) add and select
 Before adding device behavior, choose its resident or module location and budget. Keep the release code reserve required by `firmware/CLAUDE.md`. Define caller-owned state, imported functions, cancellation and module-eviction behavior before connecting a new screen or codec.
 
 Build a concrete candidate and complete the relevant software checks before a device window. Batch related player checks through the existing debug loop, record the running build, and follow the device-access rules in `AGENTS.md`. Build and test commands in this document do not access the player.
+
+## Public CI
+
+Public workflows use standard GitHub-hosted runners. A preflight runs the root tests, firmware tool tests, generated-file freshness, and both image budget checks. Six Linux jobs then partition the remaining CTest registry in a deterministic order. Each job uses the existing wrapper, so its native build targets and CTest fixture dependencies are retained. The reusable release gate waits for preflight, every shard, and the trusted-ref macOS filesystem job before publication.
+
+Inspect one shard without compiling or executing tests:
+
+```sh
+python3 tools/ci_firmware.py --shard 1 --shards 6 --jobs 2 --list
+```

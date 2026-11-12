@@ -1,7 +1,9 @@
 #include "hal/bluetooth.h"
 #include "board.h"
 #include "cru.h"
+#include "dac.h"
 #include "device/bt_module.h"
+#include "dmac.h"
 #include "gpio.h"
 #include "hal/clock.h"
 #include "registers.h"
@@ -42,7 +44,8 @@ enum {
     FIFO_MODE_SHIFT = 16,
     FIFO_MODE_UNIT = 16,
     TX_WAIT_POLLS = 100000,
-    RX_BYTES_PER_SERVICE = 256,
+    RX_BYTES_PER_DRAIN = 64,
+    RX_RING_BYTES = 256,
     ROUTE_SETTLE_MS = 500
 };
 
@@ -52,7 +55,10 @@ static const GpioPin UART_PIN_B = {2, 17};
 static const GpioPin WIRED_OUTPUT = {2, 14};
 
 static BtModule module;
-static bool powered;
+static volatile bool powered;
+static uint8_t rx_ring[RX_RING_BYTES];
+static volatile uint8_t rx_head;
+static volatile uint8_t rx_tail;
 static bool routed;
 static uint32_t rerouted_ms;
 static bool matched_stock;
@@ -131,6 +137,7 @@ static void power_on(void)
     gpio_output(MODULE_POWER, true);
     bt_module_power_on(&module, hal_clock_milliseconds());
     module.status.link.fifo_depth = fifo_depth();
+    rx_tail = rx_head;
     powered = true;
 }
 
@@ -157,6 +164,7 @@ static void route_to_module(bool to_module)
         rerouted_ms = hal_clock_milliseconds();
     }
     routed = to_module;
+    board_audio_output_changed();
 }
 
 bool board_bluetooth_pin(bool mute_pin, bool level)
@@ -204,12 +212,28 @@ void hal_bluetooth_set_power(bool on)
 
 static void send(const BtModuleFrame *frame)
 {
+    bool starting = frame->bytes[1] == 'Y' && frame->bytes[3] != 0;
+    if (starting) {
+        route_to_module(true);
+        if (!board_audio_bluetooth_start()) {
+            module.status.streaming = false;
+            route_to_module(false);
+            return;
+        }
+        dmac_suspend();
+        module.status.link.timeline.stream_ms = hal_clock_milliseconds();
+    }
     for (uint8_t index = 0; index < frame->length; index++) {
         uint32_t polls = 0;
         while ((uart_read(UART_STATUS) & STATUS_TX_NOT_FULL) == 0 && polls < TX_WAIT_POLLS) {
             polls++;
         }
         uart_write(UART_DATA, frame->bytes[index]);
+    }
+    if (starting) {
+        dmac_resume();
+        module.status.link.timeline.first_audio_ms = hal_clock_milliseconds();
+        dac_path_set_muted(false);
     }
 }
 
@@ -253,18 +277,38 @@ static void note_fifo_level(void)
     }
 }
 
-static void receive(uint32_t now_ms)
+bool board_bluetooth_powered(void)
 {
+    return powered;
+}
+
+void board_bluetooth_drain(void)
+{
+    if (!powered) {
+        return;
+    }
     note_fifo_level();
-    for (int count = 0; count < RX_BYTES_PER_SERVICE; count++) {
+    for (int count = 0; count < RX_BYTES_PER_DRAIN; count++) {
         uint32_t line = uart_read(UART_LINE_STATUS);
-        if ((line & LINE_OVERRUN) != 0) {
-            module.status.link.overruns++;
-        }
         if ((line & LINE_DATA_READY) == 0) {
             return;
         }
-        bt_module_receive(&module, (uint8_t)uart_read(UART_DATA), now_ms);
+        uint8_t byte = (uint8_t)uart_read(UART_DATA);
+        if ((line & LINE_OVERRUN) != 0 || (uint8_t)(rx_head + 1u) == rx_tail) {
+            module.status.link.overruns++;
+        }
+        if ((uint8_t)(rx_head + 1u) != rx_tail) {
+            rx_ring[rx_head] = byte;
+            rx_head++;
+        }
+    }
+}
+
+static void receive(uint32_t now_ms)
+{
+    while (rx_tail != rx_head) {
+        bt_module_receive(&module, rx_ring[rx_tail], now_ms);
+        rx_tail++;
     }
 }
 
@@ -294,6 +338,9 @@ void hal_bluetooth_set_stream(bool on)
 {
     BtModuleFrame frame;
     if (powered && bt_module_set_stream(&module, on, hal_clock_milliseconds(), &frame)) {
+        if (on) {
+            dac_path_set_muted(true);
+        }
         send(&frame);
     }
 }

@@ -8,13 +8,13 @@ Open [the language-pack builder](../site/languages.html). It runs locally, inclu
 
 The builder checks the catalogue, supported characters and pack size before offering a download. It can also inspect an existing `.pack` file. Its catalogue belongs to the matching source checkout; use the USB tools below to check compatibility with the firmware actually installed on a developer player.
 
-To install manually, select USB storage on the player. Create `.gnarlyr/lang` on the active music drive if needed and copy the downloaded language-code filename there, for example `es.pack`. Keep a copy of a pack before replacing it. Eject every ECHO drive, then open Settings → Language and choose the language by its native name. If there is only one available language, the Language row is hidden.
+To install manually, choose Connect to computer on the player. Create `.gnarlyr/lang` on the active music drive if needed and copy the downloaded language-code filename there, for example `es.pack`. Keep a copy of a pack before replacing it. Eject every ECHO drive, then open Settings → Language and choose the language by its native name. If there is only one available language, the Language row is hidden.
 
 ## Checked USB workflow
 
 The macOS debug helper and its MCP server share the language operations. They identify the player's music volume and read the installed build's catalogue and font configuration from local Git history. Keep that build's commit available. Unknown or modified build identifiers are refused for managed installation and selection.
 
-Connect in USB storage mode, then run from the source checkout:
+Choose Connect to computer on the player, then run from the source checkout:
 
 ```sh
 python3 tools/echo_debug.py language-list

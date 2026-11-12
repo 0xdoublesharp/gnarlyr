@@ -1,6 +1,7 @@
 #include "audio_dsp.h"
 
 #include "core/seam.h"
+#include "device/audio_dsd.h"
 #include "device/audio_dsp.h"
 #include "device/audio_ogg.h"
 #include "device/audio_source.h"
@@ -24,6 +25,9 @@ static CORE_COLD bool load(uint32_t number, uint32_t magic)
 
 CORE_COLD bool board_audio_dsp_prepare(void)
 {
+    if (entry()->magic == AUDIO_DSD_MAGIC) {
+        return load(AUDIO_DSD_NUMBER, AUDIO_DSD_MAGIC);
+    }
     return entry()->magic == AUDIO_OGG_MAGIC ? load(AUDIO_OGG_NUMBER, AUDIO_OGG_MAGIC)
                                              : load(AUDIO_DSP_NUMBER, AUDIO_DSP_MAGIC);
 }
@@ -75,4 +79,31 @@ CORE_SEAM CORE_COLD bool core1_open_flac(void *context, const char *path, uint32
     const AudioSourceEntry *source = (const AudioSourceEntry *)entry();
     return load(AUDIO_SOURCE_NUMBER, AUDIO_SOURCE_MAGIC) &&
            source->open_flac(context, path, start_ms, track);
+}
+
+CORE_SEAM CORE_COLD bool core1_open_mp3(void *context, const char *path, uint32_t start_ms,
+                                        AudioTrackInfo *track)
+{
+    const AudioSourceEntry *source = (const AudioSourceEntry *)entry();
+    return load(AUDIO_SOURCE_NUMBER, AUDIO_SOURCE_MAGIC) &&
+           source->open_mp3(context, path, start_ms, track);
+}
+
+CORE_SEAM bool aiff_probe(FlacInput input, WavFormat *format)
+{
+    const AudioDspEntry *dsp = (const AudioDspEntry *)entry();
+    return load(AUDIO_DSP_NUMBER, AUDIO_DSP_MAGIC) && dsp->aiff(input, format);
+}
+
+CORE_SEAM bool core1_open_dsd(void *context, const char *path, uint32_t start_ms,
+                              AudioTrackInfo *track)
+{
+    const AudioDsdEntry *dsd = (const AudioDsdEntry *)entry();
+    return load(AUDIO_DSD_NUMBER, AUDIO_DSD_MAGIC) && dsd->open(context, path, start_ms, track);
+}
+
+CORE_SEAM bool dsd_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    const AudioDsdEntry *dsd = (const AudioDsdEntry *)entry();
+    return entry()->magic == AUDIO_DSD_MAGIC && dsd->read(context, offset, buffer, length);
 }

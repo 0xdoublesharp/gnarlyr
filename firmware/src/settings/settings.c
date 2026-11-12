@@ -5,7 +5,7 @@
 #include "settings/equalizer_fit.h"
 
 enum {
-    VERSION = 15,
+    VERSION = 16,
     EXTENSION_VERSION = 15,
     REPLAY_GAIN_VERSION = 14,
     APPEARANCE_VERSION = 13,
@@ -58,13 +58,22 @@ enum {
     COMFORT_BYTE = 0,
     SAFE_LEVEL_BYTE = 1,
     TRANSITION_BYTE = 2,
+    SPEED_BYTE = 3,
     HOME_ORDER_BYTE = 4,
     HOME_HIDDEN_BYTE = 9,
     CLOCK_OFFSET_BYTE = 11,
     STATUS_ITEMS_BYTE = 13,
     RESERVED_BYTE = 14,
-    RESERVED_COUNT = 2,
+    RESERVED_COUNT = 1,
+    DAC_FILTER_BYTE = 14,
+    DAC_FILTER_MASK = 0x07,
+    BATTERY_CARE_BYTE = 14,
+    BATTERY_CARE_SHIFT = 3,
+    BATTERY_CARE_MASK = 24,
     EXTENSION_SIZE = 16,
+    POWER_ON_BYTE = STATUS_ITEMS_BYTE,
+    POWER_ON_BITS = 0x10,
+    STATUS_ITEMS_BITS = 0xFF & ~POWER_ON_BITS,
     REWIND_BIT = 1,
     SAFE_START_BIT = 2,
     CLOCK_24H_BIT = 4,
@@ -160,14 +169,18 @@ static int16_t clock_offset(const uint8_t *extension)
 static void read_extension(const uint8_t *extension, Settings *settings)
 {
     settings->status_items = extension[STATUS_ITEMS_BYTE];
+    settings->battery_care =
+        (uint8_t)((extension[BATTERY_CARE_BYTE] & BATTERY_CARE_MASK) >> BATTERY_CARE_SHIFT);
     uint8_t comfort = extension[COMFORT_BYTE];
     settings->rewind_on_resume = (comfort & REWIND_BIT) != 0;
     settings->safe_start_volume = (comfort & SAFE_START_BIT) != 0;
     settings->clock_24h = (comfort & CLOCK_24H_BIT) != 0;
     settings->clock_offset_minutes = clock_offset(extension);
+    settings->power_on_flags = extension[POWER_ON_BYTE];
     settings->track_transition = (TrackTransition)(comfort >> TRANSITION_SHIFT);
     settings->safe_start_volume_level = extension[SAFE_LEVEL_BYTE];
     settings->transition_tenths = extension[TRANSITION_BYTE];
+    settings->playback_speed = (uint8_t)(SETTINGS_SPEED_NORMAL + (int8_t)extension[SPEED_BYTE]);
     settings_home_unpack(extension + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT,
                          settings->home_order, &settings->home_hidden);
     bool untouched = settings->home_hidden == 0;
@@ -183,6 +196,7 @@ static void read_extension(const uint8_t *extension, Settings *settings)
         settings_home_unpack(DEFAULT_EXTENSION + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT,
                              settings->home_order, &settings->home_hidden);
     }
+    settings->dac_filter = extension[DAC_FILTER_BYTE] & DAC_FILTER_MASK;
 }
 
 Settings settings_defaults(void)
@@ -199,6 +213,7 @@ Settings settings_defaults(void)
         .auto_off = DEFAULT_AUTO_OFF_OPTION,
         .usb_mode = USB_MODE_STORAGE,
         .dac_volume = SETTINGS_DEFAULT_DAC_VOLUME,
+        .bluetooth_volume = SETTINGS_DEFAULT_BLUETOOTH_VOLUME,
         .accent = ACCENT_BLUE,
         .appearance = APPEARANCE_NEON_NOIR,
         .equalizer = EQUALIZER_OFF,
@@ -208,6 +223,7 @@ Settings settings_defaults(void)
         .replay_gain_mode = REPLAY_GAIN_OFF,
         .prevent_clipping = true,
     };
+    settings.standby_power_off_option = 1;
     read_extension(DEFAULT_EXTENSION, &settings);
     return settings;
 }
@@ -243,6 +259,12 @@ uint8_t settings_safe_start_volume(const Settings *settings, uint8_t volume)
     return capped ? settings->safe_start_volume_level : volume;
 }
 
+uint8_t settings_safe_start_bluetooth_volume(const Settings *settings, uint8_t volume)
+{
+    bool capped = settings->safe_start_volume && volume > SETTINGS_BLUETOOTH_SAFE_START_VOLUME;
+    return capped ? (uint8_t)SETTINGS_BLUETOOTH_SAFE_START_VOLUME : volume;
+}
+
 static void add_band(SettingsEqualizerCurve *curve, uint16_t hz, int gain)
 {
     if (gain != 0) {
@@ -274,6 +296,12 @@ static void custom_curve(const Settings *settings, SettingsEqualizerCurve *curve
 SettingsEqualizerCurve settings_equalizer_curve(const Settings *settings)
 {
     SettingsEqualizerCurve curve = {0};
+    if (settings->equalizer == EQUALIZER_PARAMETRIC) {
+        curve.is_parametric = true;
+        curve.parametric = settings->parametric;
+        curve.pre_gain = SETTINGS_UNITY_PRE_GAIN;
+        return curve;
+    }
     if (settings->equalizer == EQUALIZER_CUSTOM) {
         custom_curve(settings, &curve);
         return curve;
@@ -304,9 +332,11 @@ static void encode_extension(const Settings *settings, uint8_t *extension)
                                         (settings->safe_start_volume ? SAFE_START_BIT : 0) |
                                         (settings->clock_24h ? CLOCK_24H_BIT : 0) |
                                         ((unsigned)settings->track_transition << TRANSITION_SHIFT));
-    extension[STATUS_ITEMS_BYTE] = settings->status_items;
+    extension[STATUS_ITEMS_BYTE] =
+        (uint8_t)((settings->status_items & ~0x10u) | (settings->power_on_flags & 0x10u));
     extension[SAFE_LEVEL_BYTE] = settings->safe_start_volume_level;
     extension[TRANSITION_BYTE] = settings->transition_tenths;
+    extension[SPEED_BYTE] = (uint8_t)(settings->playback_speed - SETTINGS_SPEED_NORMAL);
     extension[CLOCK_OFFSET_BYTE] = (uint8_t)settings->clock_offset_minutes;
     extension[CLOCK_OFFSET_BYTE + 1] = (uint8_t)((uint16_t)settings->clock_offset_minutes >> 8);
     for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
@@ -315,6 +345,9 @@ static void encode_extension(const Settings *settings, uint8_t *extension)
     }
     extension[HOME_HIDDEN_BYTE] = (uint8_t)settings->home_hidden;
     extension[HOME_HIDDEN_BYTE + 1] = (uint8_t)(settings->home_hidden >> 8);
+    extension[DAC_FILTER_BYTE] |= (uint8_t)(settings->dac_filter & DAC_FILTER_MASK);
+    extension[BATTERY_CARE_BYTE] |=
+        (uint8_t)((settings->battery_care << BATTERY_CARE_SHIFT) & BATTERY_CARE_MASK);
 }
 
 void settings_encode(const Settings *settings, uint8_t *bytes)
@@ -352,7 +385,16 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
         bytes[LANGUAGE_FIELD + index] = (uint8_t)settings->language[index];
     }
     encode_extension(settings, bytes + EXTENSION_FIELD);
+    bytes[53] = 16;
     hash_store(bytes + EXTENSION_CHECKSUM_FIELD, checksum_of(bytes, EXTENSION_CHECKSUM_FIELD));
+    bytes[58] = (uint8_t)(settings->status_bar_compact | settings->standby_enabled << 1 |
+                          settings->standby_power_off_option << 2);
+    bytes[59] = settings->long_press_action & 7u;
+    bytes[60] =
+        (uint8_t)((settings->bluetooth_volume < SETTINGS_VOLUME_MAX ? settings->bluetooth_volume
+                                                                    : SETTINGS_VOLUME_MAX) +
+                  1u);
+    hash_store(bytes + 74, hash_update(HASH_START, bytes + 58, 16));
 }
 
 static bool replay_gain_flags_valid(const uint8_t *bytes)
@@ -457,11 +499,13 @@ static bool home_valid(const uint8_t *extension)
 
 static bool reserved_clear(const uint8_t *extension)
 {
-    uint8_t any = extension[TRANSITION_BYTE + 1];
-    for (int index = 0; index < RESERVED_COUNT; index++) {
-        any |= extension[RESERVED_BYTE + index];
+    uint8_t any = 0;
+    for (int index = RESERVED_BYTE; index < RESERVED_BYTE + RESERVED_COUNT; index++) {
+        uint8_t reserved =
+            index == DAC_FILTER_BYTE ? (uint8_t)~(DAC_FILTER_MASK | BATTERY_CARE_MASK) : 0xFF;
+        any |= extension[index] & reserved;
     }
-    return any == 0;
+    return any == 0 && (extension[DAC_FILTER_BYTE] & DAC_FILTER_MASK) < DAC_FILTER_COUNT;
 }
 
 static bool extension_valid(const uint8_t *bytes)
@@ -473,10 +517,13 @@ static bool extension_valid(const uint8_t *bytes)
     uint8_t comfort = extension[COMFORT_BYTE];
     uint8_t tenths = extension[TRANSITION_BYTE];
     int16_t offset = clock_offset(extension);
-    return comfort >> TRANSITION_SHIFT < TRACK_TRANSITION_COUNT &&
+    uint8_t speed = (uint8_t)(extension[SPEED_BYTE] + SETTINGS_SPEED_NORMAL);
+    return comfort >> TRANSITION_SHIFT < TRACK_TRANSITION_COUNT && speed < SETTINGS_SPEED_COUNT &&
            extension[SAFE_LEVEL_BYTE] <= SETTINGS_VOLUME_MAX &&
            tenths >= SETTINGS_TRANSITION_TENTHS_MIN && tenths <= SETTINGS_TRANSITION_TENTHS_MAX &&
-           offset >= -720 && offset <= 840 && home_valid(extension) && reserved_clear(extension);
+           offset >= -720 && offset <= 840 && home_valid(extension) && reserved_clear(extension) &&
+           ((extension[BATTERY_CARE_BYTE] & BATTERY_CARE_MASK) >> BATTERY_CARE_SHIFT) < 3 &&
+           extension[15] == (bytes[VERSION_FIELD] >= 16 ? 16 : 0);
 }
 
 static void decode_extension(const uint8_t *bytes, Settings *settings)
@@ -591,6 +638,19 @@ bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
     settings->battery_percent = (bytes[VERSION_FIELD + 1] & 8u) != 0;
     settings->usb_connect = (UsbConnect)(bytes[VERSION_FIELD + 1] >> 4u & 3u);
     decode_extension(bytes, settings);
+    settings->standby_power_off_option = 1;
+    settings->bluetooth_volume = SETTINGS_DEFAULT_BLUETOOTH_VOLUME;
+    if (bytes[VERSION_FIELD] >= 16 && length >= SETTINGS_FILE_SIZE &&
+        hash_load(bytes + 74) == hash_update(HASH_START, bytes + 58, 16) &&
+        (bytes[58] & 0xF0u) == 0 && (bytes[58] >> 2) < 3 && (bytes[59] & 0xF8u) == 0 &&
+        bytes[60] <= SETTINGS_VOLUME_MAX + 1) {
+        settings->status_bar_compact = (bytes[58] & 1u) != 0;
+        settings->standby_enabled = (bytes[58] & 2u) != 0;
+        settings->standby_power_off_option = bytes[58] >> 2;
+        settings->long_press_action = bytes[59];
+        settings->bluetooth_volume =
+            bytes[60] == 0 ? (uint8_t)SETTINGS_DEFAULT_BLUETOOTH_VOLUME : (uint8_t)(bytes[60] - 1u);
+    }
     return true;
 }
 
@@ -640,3 +700,15 @@ bool settings_buttons_decode(const uint8_t *bytes, uint32_t length, Settings *se
     }
     return true;
 }
+
+uint16_t settings_speed_percent(int option)
+{
+    static const uint16_t PERCENT[SETTINGS_SPEED_COUNT] = {50,  75,  100, 125, 150,
+                                                           175, 200, 250, 300};
+    return option >= 0 && option < SETTINGS_SPEED_COUNT ? PERCENT[option]
+                                                        : PERCENT[SETTINGS_SPEED_NORMAL];
+}
+
+const StringId SETTINGS_SPEED_LABELS[SETTINGS_SPEED_COUNT] = {
+    STR_SPEED_050, STR_SPEED_075, STR_SPEED_100, STR_SPEED_125, STR_SPEED_150,
+    STR_SPEED_175, STR_SPEED_200, STR_SPEED_250, STR_SPEED_300};

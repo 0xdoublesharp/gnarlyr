@@ -109,6 +109,40 @@ static void an_mbr_or_exfat_volume_is_also_accepted(void)
     CHECK_EQUAL(0x25000, layout.volume_start);
 }
 
+static void partial_boot_signatures_are_not_mistaken_for_a_volume(void)
+{
+    static FakeDisk disk;
+    fake_disk_init(&disk, TOTAL_SECTORS);
+    write_idb(&disk, 0, RECHORD_SYSTEM_MIB);
+    uint32_t lba = 0x24000;
+    uint8_t *sector = fake_disk_sector(&disk, lba);
+    sector[510] = 0x55;
+    sector[511] = 0xAA;
+    sector[0] = 0xEB;
+    sector = fake_disk_sector(&disk, lba + 0x800);
+    sector[510] = 0x55;
+    sector[511] = 0xAA;
+    sector[0x1BE] = 0x7F;
+    sector[0x1C2] = 0x0C;
+    sector[0x1C6] = 1;
+    sector = fake_disk_sector(&disk, lba + 0x1000);
+    sector[510] = 0x55;
+    sector[511] = 0xAA;
+    sector[0x1BE] = 0x80;
+    sector[0x1C2] = 0;
+    sector[0x1C6] = 1;
+    sector = fake_disk_sector(&disk, lba + 0x1800);
+    sector[510] = 0x55;
+    sector[511] = 0xAA;
+    sector[0x1BE] = 0x00;
+    sector[0x1C2] = 0x0C;
+    write_fat_boot_sector(&disk, lba + 0x2000);
+    fake_disk_sector(&disk, lba + 0x2000)[0] = 0xE9;
+    EmmcLayout layout;
+    CHECK(read_layout(&disk, &layout));
+    CHECK_EQUAL(lba + 0x2000, layout.volume_start);
+}
+
 static void the_first_valid_idb_copy_is_used(void)
 {
     static FakeDisk disk;
@@ -351,6 +385,7 @@ int main(void)
         TEST_CASE(the_volume_right_after_the_firmware_is_found),
         TEST_CASE(a_volume_moved_past_a_save_block_is_found_by_scanning),
         TEST_CASE(an_mbr_or_exfat_volume_is_also_accepted),
+        TEST_CASE(partial_boot_signatures_are_not_mistaken_for_a_volume),
         TEST_CASE(the_first_valid_idb_copy_is_used),
         TEST_CASE(an_idb_without_the_nano_tag_is_ignored),
         TEST_CASE(a_corrupt_system_size_is_rejected),

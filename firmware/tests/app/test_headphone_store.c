@@ -91,7 +91,7 @@ static void switching_off_attenuation_lowers_both_saved_mode_volumes(void)
     CHECK_EQUAL(REPLAY_GAIN_UNITY, store.active.left);
 }
 
-static void rejected_edits_preserve_audio_and_settings_version_fifteen(void)
+static void rejected_edits_preserve_audio_and_the_current_settings_version(void)
 {
     reset();
     HeadphoneProfiles candidate = named_profiles();
@@ -106,7 +106,7 @@ static void rejected_edits_preserve_audio_and_settings_version_fifteen(void)
     uint32_t size;
     const uint8_t *bytes = fake_hal_internal_file_bytes(SETTINGS_STORE_PATH, &size);
     CHECK_EQUAL(SETTINGS_FILE_SIZE, size);
-    CHECK_EQUAL(15, bytes[4]);
+    CHECK_EQUAL(16, bytes[4]);
     CHECK_EQUAL(0, bytes[41]);
     Settings decoded;
     CHECK(settings_decode(bytes, SETTINGS_FILE_SIZE, &decoded));
@@ -118,7 +118,7 @@ int main(void)
         TEST_CASE(missing_profiles_keep_neutral_sound_without_editor_state),
         TEST_CASE(a_profile_caps_music_usb_and_restored_levels_before_hardware_volume),
         TEST_CASE(switching_off_attenuation_lowers_both_saved_mode_volumes),
-        TEST_CASE(rejected_edits_preserve_audio_and_settings_version_fifteen),
+        TEST_CASE(rejected_edits_preserve_audio_and_the_current_settings_version),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

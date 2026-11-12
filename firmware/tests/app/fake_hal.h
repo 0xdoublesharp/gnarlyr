@@ -48,6 +48,7 @@ int fake_hal_probe_count(void);
 FakeProbeCall fake_hal_probe_call(int index);
 void fake_hal_set_rtc_answer(HalRtcRead answer);
 void fake_hal_set_wall(uint32_t utc_s, int16_t offset_minutes);
+uint32_t fake_hal_wall_reads(void);
 int fake_hal_rtc_read_count(void);
 uint32_t fake_hal_rtc_written(void);
 void fake_hal_set_idle_microseconds(uint32_t idle_us);
@@ -62,6 +63,8 @@ const uint8_t *fake_hal_screenshot(const char **path, uint32_t *size);
 void fake_hal_fill_profile(void);
 int fake_hal_profile_reset_count(void);
 void fake_hal_set_restart_pending(bool pending);
+void fake_hal_set_usb_connect_pending(bool pending);
+int fake_hal_rescan_loads(void);
 void fake_hal_break_module(uint32_t module, bool broken);
 void fake_hal_evict_module(void);
 uint32_t fake_hal_loaded_module(void);
@@ -110,11 +113,13 @@ void fake_hal_audio_set_dac_identity(int chip, DacIdentity identity);
 uint32_t fake_hal_dma_tone_rate(void);
 void fake_hal_audio_set_refusal(HalAudioRefusal refusal);
 void fake_hal_audio_set_position(uint32_t position_ms);
+uint16_t fake_hal_audio_speed(void);
 void fake_hal_audio_set_format(HalAudioFormat format);
 void fake_hal_audio_set_token(uint32_t token);
 int fake_hal_audio_seek_count(void);
 uint32_t fake_hal_audio_last_seek(void);
 uint8_t fake_hal_audio_volume(void);
+uint8_t fake_hal_audio_bluetooth_volume(void);
 int fake_hal_audio_state(void);
 int fake_hal_write_count(void);
 
@@ -145,6 +150,9 @@ int fake_hal_power_off_count(void);
 int fake_hal_audio_state_at_power_off(void);
 void fake_hal_set_usb_start(bool started);
 int fake_hal_audio_gain(void);
+int fake_hal_audio_filter(void);
+uint8_t fake_hal_volume_at_gain(void);
+uint8_t fake_hal_dac_volume_at_gain(void);
 int fake_hal_audio_output(void);
 HalAudioEqualizer fake_hal_audio_equalizer(void);
 int fake_hal_usb_mode(void);
@@ -169,3 +177,9 @@ void fake_hal_set_card(HalCardInfo info, bool result);
 int fake_hal_card_formats(void);
 
 void fake_hal_fail_internal_writes(const char *path);
+
+void fake_hal_set_charging_host(bool host);
+
+uint32_t fake_hal_audio_sleep_remaining(void);
+
+uint8_t fake_hal_battery_care_mode(void);

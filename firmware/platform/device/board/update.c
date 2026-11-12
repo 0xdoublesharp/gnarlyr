@@ -9,16 +9,19 @@
 #include "debug_probe.h"
 #include "device/fat.h"
 #include "device/update_names.h"
+#include "device/update_trial.h"
 #include "device/updater.h"
 #include "emmc.h"
 #include "hal/power.h"
 #include "internal_volume.h"
+#include "trial_module.h"
 
 enum {
     MESSAGE_CAPACITY = 96,
     PERCENT_STEP = 5,
     PERCENT = 100,
-    RESTART_HOLD_MS = 2000
+    RESTART_HOLD_MS = 2000,
+    BOTH_SLOTS_TEXT_BYTES = 10
 };
 
 static char update_path[UPDATE_NAME_CAPACITY];
@@ -89,14 +92,45 @@ static bool open_update(UpdateStorage *storage)
     return true;
 }
 
-static void install(const UpdateFile *update, const UpdateStorage *storage, UpdateCheck check)
+static bool both_slots_requested(void)
+{
+    static const char TEXT[BOTH_SLOTS_TEXT_BYTES] = {'B', 'O', 'T', 'H', ' ',
+                                                     'S', 'L', 'O', 'T', 'S'};
+    char bytes[BOTH_SLOTS_TEXT_BYTES];
+    FatFile request;
+    if (!fat_open(volume, UPDATE_BOTH_SLOTS_PATH, &request) ||
+        request.size < BOTH_SLOTS_TEXT_BYTES ||
+        !fat_read(volume, &request, 0, bytes, sizeof bytes)) {
+        return false;
+    }
+    for (uint32_t index = 0; index < BOTH_SLOTS_TEXT_BYTES; index++) {
+        if (bytes[index] != TEXT[index]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool write_slots(const UpdateFile *update, bool stock)
+{
+    const TrialCalls *trial = board_trial_calls();
+    bool both = stock || both_slots_requested();
+    bool installed = trial != NULL && trial->install(update, usb_session_buffer(),
+                                                     (UpdateProgress){report, NULL}, both);
+    if (installed && both) {
+        fat_delete(volume, UPDATE_BOTH_SLOTS_PATH);
+    }
+    return installed;
+}
+
+static void install(const UpdateFile *update, UpdateCheck check)
 {
     bool stock = check == UPDATE_STOCK;
     install_title = stock ? STR_UPDATE_INSTALLING_STOCK : STR_UPDATE_INSTALLING;
     last_percent = 0;
     show_percent(0);
     shared->flash_rewritten = true;
-    bool installed = updater_install(update, storage, (UpdateProgress){report, NULL});
+    bool installed = write_slots(update, stock);
     if (updater_should_remove_file(check, installed)) {
         remove_update_file();
     }
@@ -143,7 +177,7 @@ void update_after_usb(UsbShared *state)
     app_show_notice(i18n_text(STR_UPDATE), text);
     UpdateCheck check = updater_check(&update, &storage);
     if (check == UPDATE_VALID || check == UPDATE_STOCK) {
-        install(&update, &storage, check);
+        install(&update, check);
         return;
     }
     if (updater_should_remove_file(check, false)) {

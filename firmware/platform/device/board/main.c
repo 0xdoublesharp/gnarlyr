@@ -1,6 +1,7 @@
 #include <stdbool.h>
 
 #include "app/app.h"
+#include "app/debug_loop.h"
 #include "board.h"
 #include "core/deadline.h"
 #include "core/i18n.h"
@@ -9,11 +10,14 @@
 #include "debug_probe.h"
 #include "device/battery_gauge.h"
 #include "device/usb_plug.h"
+#include "hal/audio.h"
 #include "hal/clock.h"
 #include "hal/power.h"
 #include "hal/system.h"
 #include "overlay.h"
+#include "sd.h"
 #include "storage_reset.h"
+#include "trial.h"
 #include "update.h"
 #include "usb.h"
 #include "usb_report.h"
@@ -44,6 +48,11 @@ bool board_usb_listening(void)
     return usb_plug.state == USB_PLUG_LISTENING;
 }
 
+bool hal_system_usb_connect_pending(void)
+{
+    return board_usb_listening() || usb_session_connect_requested();
+}
+
 static void raise_clock_for_usb(void)
 {
     if (hal_system_clock_mhz() < START_CLOCK_MHZ) {
@@ -71,9 +80,13 @@ static void run_usb_session(void)
 {
     board_stall_pause(true);
     raise_clock_for_usb();
+    board_trial_session_starting();
     const UsbOverlayEntry *usb = load_usb_code();
     bool storage_changed = usb != NULL && usb->storage(usb_session_shared());
     app_set_usb_renderer(NULL);
+    if (usb != NULL) {
+        board_trial_session_ended();
+    }
     if (storage_changed || hal_system_restart_pending()) {
         storage_reset();
         app_start();
@@ -136,8 +149,8 @@ static void start_listening(void)
         usb_plug_served(&usb_plug);
         return;
     }
-    if (!requested && usb_answer == USB_PLUG_STORAGE) {
-        usb_mode = HAL_USB_MODE_STORAGE;
+    if (!requested && usb_answer != USB_PLUG_ASK) {
+        usb_mode = usb_answer == USB_PLUG_DAC ? HAL_USB_MODE_DAC : HAL_USB_MODE_STORAGE;
     }
     raise_clock_for_usb();
     dac_session = usb_mode == HAL_USB_MODE_DAC;
@@ -180,6 +193,9 @@ static void check_usb(void)
         usb_plug_retry(&usb_plug);
     }
     bool cable_power = usb_vbus_present();
+    if (!cable_power) {
+        (void)hal_power_usb_host();
+    }
     board_power_usb_supply_follow(cable_power && !board_debug_usb_supply_held_off());
     bool cable = cable_power || board_debug_usb_forced();
     switch (usb_plug_update(&usb_plug, cable, hal_clock_milliseconds())) {
@@ -250,6 +266,12 @@ static void sleep_until_interrupt(void)
 static void sleep_until_next_pass(void)
 {
     uint32_t interval_ms = app_pass_interval_ms();
+    bool slow_tick =
+        interval_ms >= 4 && usb_plug.state != USB_PLUG_LISTENING && !board_bluetooth_powered();
+#ifdef ECHO_DEBUG_LOOP
+    slow_tick = slow_tick && hal_system_profile_state() != HAL_PROFILE_ON;
+#endif
+    board_clock_sleep(slow_tick);
     hal_system_coast(interval_ms > 1 && !board_audio_converting());
     uint32_t due_ms = hal_clock_milliseconds() + interval_ms;
     do {
@@ -258,16 +280,37 @@ static void sleep_until_next_pass(void)
              !deadline_reached(hal_clock_milliseconds(), due_ms));
 }
 
+static void follow_card(uint32_t *generation)
+{
+    sd_present();
+    if (*generation == sd_generation()) {
+        return;
+    }
+    *generation = sd_generation();
+    if (!sd_ejected()) {
+        app_release_audio();
+    }
+    hal_audio_release();
+    storage_reset();
+    app_start();
+    app_request_rescan_if_music_changed();
+    if (sd_ejected()) {
+        app_show_notice(i18n_text(STR_CARD_EJECT), i18n_text(STR_CARD_SAFE));
+        board_wait_for_key();
+    }
+}
+
 void board_main(void)
 {
+    board_power_hold();
     board_start_record_boot();
     board_debug_boot();
     board_loader_flag_clear();
-    board_power_hold();
     board_power_usb_supply_follow(usb_vbus_present());
     board_bluetooth_off();
     board_clock_record_boot();
     board_clock_start();
+    debug_loop_boot(DEBUG_BOOT_CLOCK);
     usb_plug_update(&usb_plug, usb_vbus_present(), hal_clock_milliseconds());
     board_stall_pause(true);
     hal_system_set_clock_mhz(START_CLOCK_MHZ);
@@ -276,32 +319,44 @@ void board_main(void)
     board_debug_battery_reading(boot_reading);
     uint32_t boot_millivolts = battery_millivolts(boot_reading);
     board_input_start();
+    board_trial_escape_check();
     board_display_start();
+    debug_loop_boot(DEBUG_BOOT_DISPLAY);
     boot_step("display");
     board_glyphs_start();
+    debug_loop_boot(DEBUG_BOOT_GLYPHS);
     boot_step("glyphs");
     update_check_loader_request();
+    board_trial_boot();
     boot_step("loader request");
     board_jack_poll();
     boot_step("jack");
     switch_off_when_empty(boot_millivolts);
     boot_step("app start");
-    board_extension_start();
     app_start();
-    board_wall_time_forget_file();
+    debug_loop_boot(DEBUG_BOOT_APP);
     explain_missing_text();
+    board_trial_report();
     boot_step("splash");
     app_show_splash();
+    app_draw_start();
+    board_display_service();
+    board_extension_start();
+    debug_loop_boot(DEBUG_BOOT_EXTENSION);
+    board_wall_time_forget_file();
     board_core1_park();
     cru_stop_unused_clocks();
     boot_step("main loop");
     board_debug_after_start();
     board_stall_pause(false);
     board_wall_time_start();
+    uint32_t card_generation = sd_generation();
     for (;;) {
         board_stall_beat();
+        follow_card(&card_generation);
         board_wall_time_keep();
         app_step();
+        board_trial_settle();
         board_display_service();
         check_usb();
         sleep_until_next_pass();

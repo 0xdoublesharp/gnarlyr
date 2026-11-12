@@ -32,6 +32,13 @@ enum {
     BOOT_READING_WAIT_MS = 2
 };
 
+static uint16_t key_adc;
+
+uint16_t hal_input_key_adc(void)
+{
+    return key_adc;
+}
+
 static KeyScanner scanner;
 static BatteryGauge gauge;
 static HeadsetMonitor headset;
@@ -69,6 +76,11 @@ uint16_t board_battery_boot_reading(void)
     return (uint16_t)(register_read(ADC_RESULT) & ADC_RESULT_MASK);
 }
 
+uint8_t board_input_held(void)
+{
+    return scanner.stable;
+}
+
 void board_input_start(void)
 {
     gpio_mux(POWER_KEY, GPIO_FUNCTION_GPIO);
@@ -98,6 +110,7 @@ static void take_reading(uint16_t reading, uint32_t now_ms)
         take_headset_reading(reading, now_ms);
         break;
     default:
+        key_adc = reading;
         key_scanner_sample(&scanner, pressed_keys(reading), now_ms);
         break;
     }
@@ -133,7 +146,7 @@ void board_battery_restart(void)
     irq_restore(primask);
 }
 
-BatteryGauge board_battery_gauge(void)
+CORE_SEAM BatteryGauge board_battery_gauge(void)
 {
     uint32_t primask = irq_save();
     BatteryGauge copy = gauge;
@@ -160,16 +173,6 @@ bool hal_input_next_headset_command(HalHeadsetCommand *command)
     bool found = headset_remote_next(&headset.remote, command);
     irq_restore(primask);
     return found;
-}
-
-HalHeadsetReading hal_input_headset_reading(void)
-{
-    uint32_t now_ms = hal_clock_milliseconds();
-    uint32_t primask = irq_save();
-    watched_scans = WATCHED_SCANS;
-    HalHeadsetReading reading = headset_monitor_reading(&headset, now_ms);
-    irq_restore(primask);
-    return reading;
 }
 
 CORE_SEAM void board_wait_for_power_hold(uint32_t hold_ms)
@@ -207,4 +210,10 @@ CORE_SEAM void board_wait_for_key(void)
             return;
         }
     }
+}
+
+const HeadsetMonitor *board_input_watch_headset(void)
+{
+    watched_scans = WATCHED_SCANS;
+    return &headset;
 }

@@ -402,6 +402,27 @@ static void a_cue_backed_file_plays_from_the_start_of_its_sheet(void)
     CHECK_EQUAL(1, position);
 }
 
+static void cue_play_source_read_failures_keep_the_original_listing(void)
+{
+    Library *library = fixture_cue_library_open(&cue_fixture);
+    FaultSource fault = {.source = library->source};
+    library->source = (ByteSource){read_with_fault, &fault};
+    BrowseQuery album = folder_query(CUE_ALBUM_FOLDER);
+    uint32_t position = 1;
+    BrowseQuery source = browse_play_source(library, album, &position);
+    CHECK_EQUAL(CUE_SHEET_FOLDER, source.subject);
+    uint32_t reads = fault.calls;
+    CHECK(reads > 0);
+    for (uint32_t call = 1; call <= reads; call++) {
+        fault.calls = 0;
+        fault.fail_at = call;
+        position = 1;
+        source = browse_play_source(library, album, &position);
+        CHECK_EQUAL(CUE_ALBUM_FOLDER, source.subject);
+        CHECK_EQUAL(1, position);
+    }
+}
+
 static void other_tracks_play_from_where_they_are_listed(void)
 {
     Library *library = open_fixture();
@@ -483,6 +504,7 @@ int main(void)
         TEST_CASE(a_cue_sheet_lists_its_tracks_by_title),
         TEST_CASE(a_cue_backed_file_shows_the_length_of_the_whole_file),
         TEST_CASE(a_cue_backed_file_plays_from_the_start_of_its_sheet),
+        TEST_CASE(cue_play_source_read_failures_keep_the_original_listing),
         TEST_CASE(other_tracks_play_from_where_they_are_listed),
         TEST_CASE(albums_and_songs_keep_every_cue_track),
         TEST_CASE(positions_past_the_end_are_refused),

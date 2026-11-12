@@ -135,6 +135,19 @@ class Core1VorbisTest(unittest.TestCase):
     def test_high_quality_stereo_fits_and_matches_the_reference(self):
         self.check_reference("stereo48", 2)
 
+    def test_only_high_rate_vorbis_requests_the_200_mhz_clock(self):
+        for rate in (48000, 96000, 176400, 192000):
+            stream = bytearray(packets("stereo48"))
+            struct.pack_into("<I", stream, 16 + 12, rate)
+            machine, blocks = decode(self.program, bytes(stream), 2)
+            self.assertEqual(core1.RESULT_END, blocks[-1][0])
+            expected = {0x70001000} if rate <= 96000 else {0x70001000, 0x70000000}
+            self.assertEqual(expected, set(machine.clock_writes))
+            machine.set_control("generation", 0)
+            for _ in range(10):
+                machine.run_slice()
+            self.assertEqual(0x70001000, machine.clock_writes[-1])
+
     def test_low_quality_stereo_fits_and_matches_the_reference(self):
         self.check_reference("low48", 2)
 

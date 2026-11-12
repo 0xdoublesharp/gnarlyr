@@ -1,6 +1,6 @@
 #include "playback/track_transition.h"
 
-static bool in_album_order(const LibraryTrack *from, const LibraryTrack *to)
+bool track_transition_album_order(const LibraryTrack *from, const LibraryTrack *to)
 {
     if (from->album != to->album) {
         return false;
@@ -18,7 +18,7 @@ static bool excluded(const TransitionRequest *request)
     const LibraryTrack *from = &request->from.record;
     const LibraryTrack *to = &request->to.record;
     return !request->fade || request->shuffle == SHUFFLE_OFF || request->from.spoken ||
-           request->to.spoken || from->path == to->path || in_album_order(from, to);
+           request->to.spoken || from->path == to->path || track_transition_album_order(from, to);
 }
 
 uint32_t track_transition_fade_ms(const TransitionRequest *request)

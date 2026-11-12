@@ -84,6 +84,27 @@ static void bands_the_reference_rate_cannot_run_do_not_appear_in_its_response(vo
     }
 }
 
+static void malformed_curves_are_rejected_before_filter_evaluation(void)
+{
+    EqualizerResponse response;
+    SettingsEqualizerCurve curve = {.band_hz = {1000},
+                                    .gain_half_db = {0},
+                                    .band_count = SETTINGS_EQUALIZER_BANDS + 1,
+                                    .pre_gain = SETTINGS_UNITY_PRE_GAIN};
+    CHECK(!equalizer_response_make(&response, &curve));
+    curve.band_count = 1;
+    curve.pre_gain = 0;
+    CHECK(!equalizer_response_make(&response, &curve));
+    curve.pre_gain = SETTINGS_UNITY_PRE_GAIN;
+    curve.band_hz[0] = 999;
+    CHECK(!equalizer_response_make(&response, &curve));
+    curve.band_hz[0] = 1000;
+    curve.gain_half_db[0] = -SETTINGS_EQUALIZER_GAIN_MAX - 1;
+    CHECK(!equalizer_response_make(&response, &curve));
+    curve.gain_half_db[0] = SETTINGS_EQUALIZER_GAIN_MAX + 1;
+    CHECK(!equalizer_response_make(&response, &curve));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -92,6 +113,7 @@ int main(void)
         TEST_CASE(factory_curves_match_the_reference_peaking_filters),
         TEST_CASE(the_ten_band_curve_matches_the_same_filter_model),
         TEST_CASE(preamp_is_converted_from_the_actual_linear_gain),
+        TEST_CASE(malformed_curves_are_rejected_before_filter_evaluation),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

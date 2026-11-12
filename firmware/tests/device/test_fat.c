@@ -537,6 +537,50 @@ static Listing list(Card *card, const char *path, const char *wanted)
     return listing;
 }
 
+static uint32_t names_hash(Card *card, FatDirCursor *cursor, const char *wanted, FatFile *match)
+{
+    static FatDirEntry entry;
+    uint32_t hash = 2166136261u;
+    while (fat_next_entry(&card->volume, cursor, &entry)) {
+        for (const char *letter = entry.name; *letter != '\0'; letter++) {
+            hash = (hash ^ (uint8_t)*letter) * 16777619u;
+        }
+        hash = (hash ^ entry.file.directory) * 16777619u;
+        if (wanted != NULL && strcmp(entry.name, wanted) == 0) {
+            *match = entry.file;
+        }
+    }
+    return hash;
+}
+
+static void check_folders_open_from_their_listing(const char *name)
+{
+    static const char *const STEPS[] = {"Music", "Sigur R\xc3\xb3s", "\xc3\x81g\xc3\xa6tis byrjun"};
+    static const char *const PATHS[] = {"/Music", "/Music/Sigur R\xc3\xb3s",
+                                        "/Music/Sigur R\xc3\xb3s/\xc3\x81g\xc3\xa6tis byrjun"};
+    Card *card = mounted(name);
+    FatDirCursor cursor;
+    CHECK(fat_open_directory(&card->volume, "/", &cursor));
+    for (int step = 0; step < 3; step++) {
+        FatFile listed = {.directory = false};
+        names_hash(card, &cursor, STEPS[step], &listed);
+        CHECK(listed.directory);
+        FatDirCursor by_path;
+        CHECK(fat_open_directory(&card->volume, PATHS[step], &by_path));
+        cursor = (FatDirCursor){.directory = listed};
+        FatDirCursor again = cursor;
+        FatFile none;
+        CHECK_EQUAL(names_hash(card, &by_path, NULL, &none), names_hash(card, &again, NULL, &none));
+    }
+    sparse_card_free(&card->sparse);
+}
+
+static void a_folder_opened_from_its_listing_lists_what_its_path_lists(void)
+{
+    check_folders_open_from_their_listing("fat32_mbr");
+    check_folders_open_from_their_listing("exfat_mbr");
+}
+
 static void check_written_in_2026(const char *name, uint32_t modified)
 {
     if (strcmp(name, "exfat_mbr") == 0) {
@@ -637,10 +681,118 @@ static void exfat_times_become_utc_half_seconds_from_their_offset(void)
     CHECK_EQUAL(2051222399u, fat_exfat_utc_stamp(0xEF9FBF7Du, 0x00));
 }
 
+static const char MAC_LABEL[] = "ECHOCARD   ";
+static const char MIXED_NAME[] = "EchoCard";
+static const char MIXED_LABEL[] = "EchoCard   ";
+
+static uint8_t *card_sector(Card *card, uint32_t lba)
+{
+    return card->sparse.bytes + (size_t)lba * 512;
+}
+
+static uint32_t cluster_sector(const FatVolume *volume, uint32_t cluster)
+{
+    return volume->data_start + ((cluster - 2) << volume->cluster_shift);
+}
+
+static uint8_t *fat32_root_label(Card *card)
+{
+    return card_sector(card, cluster_sector(&card->volume, card->volume.root_cluster));
+}
+
+static void check_label(const uint8_t *label, const char *expected)
+{
+    CHECK_EQUAL(0, memcmp(label, expected, 11));
+}
+
+static void check_fat32_boot_labels(Card *card, const char *primary, const char *backup)
+{
+    check_label(card_sector(card, card->volume.volume_start) + 71, primary);
+    check_label(card_sector(card, card->volume.volume_start + 6) + 71, backup);
+}
+
+static void a_mac_label_with_the_archive_bit_takes_the_mixed_case_name(void)
+{
+    Card *card = mounted("fat32_mbr");
+    uint8_t *label = fat32_root_label(card);
+    CHECK_EQUAL(0x28, label[11]);
+    check_label(label, MAC_LABEL);
+    CHECK(fat_fix_label(&card->volume, MIXED_NAME, NULL));
+    check_label(label, MIXED_LABEL);
+    CHECK_EQUAL(0x28, label[11]);
+    check_fat32_boot_labels(card, MIXED_LABEL, MIXED_LABEL);
+    uint32_t writes = card->sparse.writes;
+    CHECK(fat_fix_label(&card->volume, MIXED_NAME, NULL));
+    CHECK_EQUAL(writes, card->sparse.writes);
+    sparse_card_free(&card->sparse);
+}
+
+static void a_backup_boot_label_naming_another_volume_is_kept(void)
+{
+    Card *card = mounted("fat32_mbr");
+    memcpy(card_sector(card, card->volume.volume_start + 6) + 71, "NO NAME    ", 11);
+    CHECK(fat_fix_label(&card->volume, MIXED_NAME, NULL));
+    check_label(fat32_root_label(card), MIXED_LABEL);
+    check_fat32_boot_labels(card, MIXED_LABEL, "NO NAME    ");
+    sparse_card_free(&card->sparse);
+}
+
+static void a_root_without_a_label_entry_fixes_the_boot_labels(void)
+{
+    Card *card = mounted("fat32_mbr");
+    fat32_root_label(card)[0] = 0xE5;
+    CHECK(fat_fix_label(&card->volume, MIXED_NAME, NULL));
+    check_fat32_boot_labels(card, MIXED_LABEL, MIXED_LABEL);
+    sparse_card_free(&card->sparse);
+}
+
+static uint32_t next_cluster(Card *card, uint32_t cluster)
+{
+    const uint8_t *entry = card_sector(card, card->volume.fat_start) + cluster * 4;
+    return (uint32_t)(entry[0] | entry[1] << 8 | entry[2] << 16 | entry[3] << 24) & 0x0FFFFFFF;
+}
+
+static uint8_t *first_free_entry(uint8_t *sector)
+{
+    while (sector[0] != 0) {
+        sector += 32;
+    }
+    return sector;
+}
+
+static void a_label_after_long_names_in_a_later_root_cluster_is_found(void)
+{
+    Card *card = mounted("fat32_mbr");
+    uint32_t second = next_cluster(card, card->volume.root_cluster);
+    CHECK(second != card->volume.root_cluster + 1);
+    uint8_t *moved = first_free_entry(card_sector(card, cluster_sector(&card->volume, second)));
+    uint8_t *label = fat32_root_label(card);
+    memcpy(moved, label, 32);
+    label[0] = 0xE5;
+    CHECK_EQUAL(0x0F, label[32 + 11]);
+    CHECK(fat_fix_label(&card->volume, MIXED_NAME, NULL));
+    check_label(moved, MIXED_LABEL);
+    CHECK_EQUAL(0x28, moved[11]);
+    check_fat32_boot_labels(card, MIXED_LABEL, MIXED_LABEL);
+    sparse_card_free(&card->sparse);
+}
+
+static void a_fat16_label_and_its_boot_label_take_the_mixed_case_name(void)
+{
+    Card *card = mounted("fat16_superfloppy");
+    uint8_t *label = card_sector(card, card->volume.root_start);
+    CHECK_EQUAL(0x28, label[11]);
+    CHECK(fat_fix_label(&card->volume, MIXED_NAME, NULL));
+    check_label(label, MIXED_LABEL);
+    check_label(card_sector(card, 0) + 43, MIXED_LABEL);
+    sparse_card_free(&card->sparse);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_fat32_card_mounts_from_its_mbr_partition),
+        TEST_CASE(a_folder_opened_from_its_listing_lists_what_its_path_lists),
         TEST_CASE(fat32_files_read_back_their_bytes),
         TEST_CASE(a_folder_spanning_many_clusters_is_searched_to_its_end),
         TEST_CASE(reads_at_offsets_cross_sector_and_cluster_boundaries),
@@ -678,6 +830,11 @@ int main(void)
         TEST_CASE(exfat_folders_list_long_unicode_names),
         TEST_CASE(a_listed_file_opens_and_reads),
         TEST_CASE(a_file_is_not_a_directory_to_list),
+        TEST_CASE(a_mac_label_with_the_archive_bit_takes_the_mixed_case_name),
+        TEST_CASE(a_backup_boot_label_naming_another_volume_is_kept),
+        TEST_CASE(a_root_without_a_label_entry_fixes_the_boot_labels),
+        TEST_CASE(a_label_after_long_names_in_a_later_root_cluster_is_found),
+        TEST_CASE(a_fat16_label_and_its_boot_label_take_the_mixed_case_name),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

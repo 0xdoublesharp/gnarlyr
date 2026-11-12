@@ -40,4 +40,5 @@ typedef struct UpdateProgress {
 void updater_use_scratch(uint32_t *words);
 UpdateCheck updater_check(const UpdateFile *file, const UpdateStorage *storage);
 bool updater_should_remove_file(UpdateCheck check, bool installed);
-bool updater_install(const UpdateFile *file, const UpdateStorage *storage, UpdateProgress progress);
+bool updater_install(const UpdateFile *file, const UpdateStorage *storage, UpdateProgress progress,
+                     uint32_t *buffer);

@@ -67,8 +67,8 @@ Rect status_bar_bluetooth_area(const Theme *theme)
 
 Rect status_bar_battery_body(const Theme *theme)
 {
-    int height = theme->metrics.status_icon_size + 2 * FRAME;
-    int width = height * BODY_EIGHTHS / EIGHTHS;
+    int height = theme->status_bar_compact ? 18 : theme->metrics.status_icon_size + 2 * FRAME;
+    int width = theme->status_bar_compact ? 68 : height * BODY_EIGHTHS / EIGHTHS;
     int right = theme->metrics.screen_width - theme->metrics.padding - nub_width(height);
     return (Rect){right - width, band_top(theme, height), width, height};
 }
@@ -119,13 +119,15 @@ StatusBatteryLook status_bar_battery_look(const Theme *theme, StatusBarState sta
     Color danger = tint(theme, theme->colors.danger);
     bool low = !state.usb_power && state.battery_percent <= STATUS_BAR_LOW_BATTERY_PERCENT;
     bool critical = low && state.battery_percent <= STATUS_BAR_CRITICAL_BATTERY_PERCENT;
+    bool lit = state.charging || state.charging_off;
     return (StatusBatteryLook){.outline = critical ? danger : text,
                                .fill = state.usb_power   ? tint(theme, theme->colors.success)
                                        : low             ? danger
                                        : state.segmented ? tint(theme, theme->colors.success)
                                                          : text,
-                               .bolt = state.charging ? text : theme->colors.header_background,
-                               .bolt_halo = state.charging};
+                               .bolt = lit ? text : theme->colors.header_background,
+                               .bolt_halo = lit,
+                               .sign = state.charging_off ? ICON_PLUG : ICON_BOLT};
 }
 
 static void draw_outline(Canvas *canvas, Rect body, Color color)
@@ -151,10 +153,10 @@ static void draw_bolt(Canvas *canvas, const Theme *theme, Rect body, StatusBatte
     for (int dy = -HALO; look.bolt_halo && dy <= HALO; dy++) {
         for (int dx = -HALO; dx <= HALO; dx++) {
             Rect shifted = {bolt.x + dx, bolt.y + dy, bolt.width, bolt.height};
-            draw_icon(&inside, ICON_BOLT, shifted, theme->colors.header_background);
+            draw_icon(&inside, look.sign, shifted, theme->colors.header_background);
         }
     }
-    draw_icon(&inside, ICON_BOLT, bolt, look.bolt);
+    draw_icon(&inside, look.sign, bolt, look.bolt);
 }
 
 static void draw_battery(Canvas *canvas, const Theme *theme, const StatusBarState *state)
@@ -162,6 +164,10 @@ static void draw_battery(Canvas *canvas, const Theme *theme, const StatusBarStat
     StatusBatteryLook look = status_bar_battery_look(theme, *state);
     Rect body = status_bar_battery_body(theme);
     Rect fill = inset(body, border_of(body) + FILL_GAP);
+    if (theme->status_bar_compact) {
+        fill.y = body.y + body.height - 3;
+        fill.height = 2;
+    }
     int step = fill.width / SEGMENTS;
     int bars = (state->battery_percent > FULL_PERCENT ? FULL_PERCENT : state->battery_percent);
     bars = (bars + FULL_PERCENT / SEGMENTS - 1) / (FULL_PERCENT / SEGMENTS);
@@ -176,10 +182,20 @@ static void draw_battery(Canvas *canvas, const Theme *theme, const StatusBarStat
     } else {
         canvas_fill_rect(canvas, fill, look.fill);
     }
+    int terminal_height = theme->status_bar_compact ? 6 : body.height / 2;
     canvas_fill_rect(canvas,
-                     (Rect){body.x + body.width, body.y + body.height / 4, nub_width(body.height),
-                            body.height / 2},
+                     (Rect){body.x + body.width, body.y + (body.height - terminal_height) / 2,
+                            nub_width(body.height), terminal_height},
                      look.outline);
+    if (theme->status_bar_compact) {
+        char text[STATUS_BAR_PERCENT_CAPACITY];
+        StringBuilder builder = string_builder_make(text, sizeof text);
+        i18n_format_counts(&builder, STR_POWER_PERCENT, state->battery_percent, 0);
+        label_draw(canvas, (TextStyle){theme->fonts.small, look.outline},
+                   (Label){{body.x + 5, body.y, body.width - 21, body.height - 2}, text});
+        body.x += body.width - 14;
+        body.width = 12;
+    }
     if (state->usb_power) {
         draw_bolt(canvas, theme, body, look);
     }
@@ -261,6 +277,9 @@ static void draw_left_icons(Canvas *canvas, const Theme *theme, const StatusBarS
 
 static int item_width(const Theme *theme, const StatusBarState *state, uint8_t item)
 {
+    if (theme->status_bar_compact && item == STATUS_BAR_PERCENT) {
+        return 0;
+    }
     const char *text = item == STATUS_BAR_VOLUME     ? state->volume
                        : item == STATUS_BAR_POSITION ? state->position
                        : item == STATUS_BAR_CLOCK    ? state->clock

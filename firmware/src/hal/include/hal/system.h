@@ -57,7 +57,8 @@ typedef enum HalUsbMode {
 typedef enum HalUsbAnswer {
     HAL_USB_ANSWER_ASK,
     HAL_USB_ANSWER_STORAGE,
-    HAL_USB_ANSWER_CHARGE
+    HAL_USB_ANSWER_CHARGE,
+    HAL_USB_ANSWER_DAC
 } HalUsbAnswer;
 
 void hal_system_set_usb_mode(HalUsbMode mode);
@@ -91,11 +92,13 @@ typedef struct HalUsbSense {
 HalUsbSense hal_system_usb_sense(void);
 void hal_system_keep_usb_on(bool kept_on);
 void hal_system_usb_reconnect(void);
+bool hal_system_usb_connect_pending(void);
 void hal_system_usb_connect(bool on);
 typedef enum HalProbeKind {
     HAL_PROBE_PEEK,
     HAL_PROBE_POKE,
-    HAL_PROBE_PIN
+    HAL_PROBE_PIN,
+    HAL_PROBE_DAC
 } HalProbeKind;
 
 enum {

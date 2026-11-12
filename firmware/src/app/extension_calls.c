@@ -75,6 +75,12 @@ bool hal_file_remove(const char *path)
     return code != NULL && code->file_remove(path);
 }
 
+FavoritePlaylistResult favorite_playlist_add(const Library *library, uint16_t track)
+{
+    const ExtensionModuleEntry *code = extension();
+    return code != NULL ? code->favorite_add(library, track) : FAVORITE_PLAYLIST_FAILED;
+}
+
 void headphone_store_load(HeadphoneStore *store)
 {
     const ExtensionModuleEntry *code = extension();
@@ -99,4 +105,26 @@ bool hal_clock_restore_wall(int16_t offset_minutes)
 {
     const ExtensionModuleEntry *code = extension();
     return code != NULL && code->clock_restore(offset_minutes);
+}
+
+bool app_menu_hold(struct AppScreens *screens, KeyEvent event)
+{
+    const ExtensionModuleEntry *code = extension();
+    return code != NULL && code->menu_hold(screens, event);
+}
+
+void standby_follow(Standby *standby, PowerPolicy *power, const Settings *settings)
+{
+    const ExtensionModuleEntry *code = extension();
+    if (code != NULL) {
+        code->standby_follow(standby, power, settings);
+    }
+}
+
+void standby_frame(Standby *standby)
+{
+    const ExtensionModuleEntry *code = extension();
+    if (code != NULL) {
+        code->standby_frame(standby);
+    }
 }

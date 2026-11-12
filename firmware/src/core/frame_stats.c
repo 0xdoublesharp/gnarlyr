@@ -1,4 +1,5 @@
 #include "core/frame_stats.h"
+#include "core/seam.h"
 
 enum {
     MICROSECONDS_PER_SECOND = 1000000
@@ -14,7 +15,7 @@ void frame_stats_reset(FrameStats *stats)
     *stats = (FrameStats){0};
 }
 
-void frame_stats_record(FrameStats *stats, uint32_t duration_us)
+CORE_SEAM void frame_stats_record(FrameStats *stats, uint32_t duration_us)
 {
     stats->durations_us[stats->next_slot] = duration_us;
     stats->next_slot = (stats->next_slot + 1) % FRAME_STATS_WINDOW;

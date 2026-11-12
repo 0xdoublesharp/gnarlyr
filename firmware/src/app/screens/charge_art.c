@@ -1,3 +1,4 @@
+#include "charge_rate.h"
 #include "charge_screen.h"
 
 #include "core/i18n.h"
@@ -15,13 +16,16 @@ enum {
     NUB_DIVISOR = 8,
     STROKE_DIVISOR = 14,
     MIN_STROKE = 2,
-    EDGE_DIVISOR = 10,
-    BOLT_QUARTERS = 3,
-    QUARTERS = 4,
     TINT_STEPS = 3,
-    GLOW_STEPS = CHARGE_SCREEN_PHASES,
-    GLOW_SPREAD = 3
+    GLOW_STEPS = CHARGE_SCREEN_PHASES
 };
+
+static ChargeRate charging_rate;
+
+void charge_art_observe(HalBattery battery, uint32_t now_ms)
+{
+    charge_rate_update(&charging_rate, battery, now_ms, hal_power_usb_host());
+}
 
 typedef struct ChargeArt {
     Canvas *canvas;
@@ -128,7 +132,9 @@ ChargeScreenLayout charge_screen_art_layout(const Theme *theme)
     int width = theme->metrics.screen_width - 2 * pad;
     int small = font_line_height(theme->fonts.small);
     const char *hint = i18n_text(STR_CHARGE_MODE_HINT);
-    int detail = label_wrap_count(theme->fonts.small, hint, width) * small;
+    int hint_width = theme_is_portrait(theme) ? width : (width - pad) / 2;
+    int detail = label_wrap_count(theme->fonts.small, hint, hint_width) * small;
+    detail = theme_is_portrait(theme) ? detail + 2 * small : larger(detail, 2 * small);
     ChargeScreenLayout layout = {
         .header = {pad, 0, width, theme->metrics.header_height},
         .detail = {pad, theme->metrics.screen_height - pad - detail, width, detail}};
@@ -218,15 +224,6 @@ static void fill_rounded(Canvas *canvas, Rect area, int corner, Color color)
                      color);
 }
 
-static int fill_width(HalBattery battery, int inner, int least)
-{
-    if (!battery.known) {
-        return 0;
-    }
-    int width = inner * shown_percent(battery) / FULL_PERCENT;
-    return shown_percent(battery) > 0 && width < least ? smaller(least, inner) : width;
-}
-
 static BatteryShape battery_shape(const ChargeArt *art)
 {
     Rect area = art->layout.battery;
@@ -236,7 +233,8 @@ static BatteryShape battery_shape(const ChargeArt *art)
                           .stroke = stroke};
     shape.inside = inset(shape.body, stroke);
     shape.fill = inset(shape.inside, stroke);
-    shape.fill.width = fill_width(art->battery, shape.fill.width, 2 * stroke);
+    shape.fill.width =
+        art->battery.known ? shape.fill.width * shown_percent(art->battery) / FULL_PERCENT : 0;
     return shape;
 }
 
@@ -249,7 +247,7 @@ static Color fill_color(const ChargeArt *art)
 static void draw_body(const ChargeArt *art, const BatteryShape *shape)
 {
     const Theme *theme = art->theme;
-    Color outline = theme->colors.text;
+    Color outline = theme->colors.accent;
     int third = shape->body.height / 3;
     Rect nub = {shape->body.x + shape->body.width, shape->body.y + third,
                 art->layout.battery.width - shape->body.width, shape->body.height - 2 * third};
@@ -259,64 +257,33 @@ static void draw_body(const ChargeArt *art, const BatteryShape *shape)
                  theme->colors.background);
 }
 
-static void draw_glow(const ChargeArt *art, Rect area, int steps)
-{
-    Color ink = fill_color(art);
-    Color empty = art->theme->colors.background;
-    canvas_fill_gradient(art->canvas, area, color_between(empty, ink, art->glow, steps),
-                         color_between(empty, tint(ink, empty), art->glow, steps));
-}
-
 static void draw_charge(const ChargeArt *art, const BatteryShape *shape)
 {
-    Color ink = fill_color(art);
+    Color ink = color_between(fill_color(art), art->theme->colors.text, art->glow, GLOW_STEPS);
     canvas_fill_gradient(art->canvas, shape->fill, ink, tint(ink, art->theme->colors.background));
-    if (!art->battery.known || art->glow == 0) {
-        return;
-    }
-    Rect room = inset(shape->inside, shape->stroke);
-    int left = shape->fill.x + shape->fill.width;
-    Rect rest = {left, room.y, room.x + room.width - left, room.height};
-    draw_glow(art, rest, GLOW_STEPS * GLOW_SPREAD);
-    rest.width = smaller(rest.width, larger(2 * shape->stroke, room.width / EDGE_DIVISOR));
-    draw_glow(art, rest, GLOW_STEPS);
 }
 
-static Rect bolt_area(const BatteryShape *shape)
+static void draw_wire_grid(const ChargeArt *art, const BatteryShape *shape)
 {
-    int height = shape->inside.height * BOLT_QUARTERS / QUARTERS;
-    int width = icon_width(ICON_BOLT, height);
-    return (Rect){shape->inside.x + (shape->inside.width - width) / 2,
-                  shape->inside.y + (shape->inside.height - height) / 2, width, height};
+    Canvas inside = canvas_clipped(art->canvas, inset(shape->inside, 1));
+    Color ink = color_between(art->theme->colors.accent_alt, art->theme->colors.text, art->glow,
+                              GLOW_STEPS);
+    int step = larger(6, shape->inside.height / 4);
+    int left = shape->inside.x;
+    int top = shape->inside.y;
+    int right = left + shape->inside.width;
+    int bottom = top + shape->inside.height;
+    for (int x = left; x <= right; x += step) {
+        canvas_fill_rect(&inside, (Rect){x, top, 1, bottom - top}, ink);
+    }
+    for (int y = top; y < bottom; y += step) {
+        canvas_fill_rect(&inside, (Rect){left, y, right - left, 1}, ink);
+    }
 }
 
-static void draw_bolt_ink(Canvas *canvas, Rect area, Color color)
+static IconId sign_of(HalBattery battery)
 {
-    icon_draw(canvas, ICON_BOLT, area, (IconInk){color, color});
-}
-
-static void draw_bolt(const ChargeArt *art, const BatteryShape *shape)
-{
-    const ThemeColors *colors = &art->theme->colors;
-    Rect glyph = bolt_area(shape);
-    Canvas inside = canvas_clipped(art->canvas, shape->inside);
-    if (!flowing(art->battery)) {
-        if (full(art->battery)) {
-            draw_bolt_ink(&inside, glyph, colors->background);
-        }
-        return;
-    }
-    int halo = shape->stroke;
-    for (int dy = -halo; dy <= halo; dy += halo) {
-        for (int dx = -halo; dx <= halo; dx += halo) {
-            Rect shifted = {glyph.x + dx, glyph.y + dy, glyph.width, glyph.height};
-            draw_bolt_ink(&inside, shifted, colors->background);
-        }
-    }
-    Color ink = art->battery.known
-                    ? colors->text
-                    : color_between(colors->text_tertiary, colors->text, art->glow, GLOW_STEPS / 2);
-    draw_bolt_ink(&inside, glyph, ink);
+    return battery.usb_power && battery.charge_disabled ? ICON_PLUG : ICON_BOLT;
 }
 
 static void draw_battery(const ChargeArt *art)
@@ -324,7 +291,7 @@ static void draw_battery(const ChargeArt *art)
     BatteryShape shape = battery_shape(art);
     draw_body(art, &shape);
     draw_charge(art, &shape);
-    draw_bolt(art, &shape);
+    draw_wire_grid(art, &shape);
 }
 
 static void draw_scaled(const ChargeArt *art, Rect area, const char *text)
@@ -372,12 +339,101 @@ static void draw_state(const ChargeArt *art)
 {
     char text[TEXT_CAPACITY];
     charge_screen_text(art->battery, text, sizeof text);
-    draw_label(art, art->layout.status, (TextStyle){art->theme->fonts.title, state_color(art)},
-               text);
+    const Font *font = art->theme->fonts.title;
+    if (text_width(font, text) > art->layout.status.width) {
+        font = art->theme->fonts.small;
+    }
+    draw_label(art, art->layout.status, (TextStyle){font, state_color(art)}, text);
+    IconId sign = sign_of(art->battery);
+    if (flowing(art->battery) || sign == ICON_PLUG) {
+        Rect area = art->layout.status;
+        int height = font_line_height(art->theme->fonts.small);
+        area.x += (area.width + text_width(font, text)) / 2 + art->theme->metrics.padding / 2;
+        area.y += (area.height - height) / 2;
+        area.width = icon_width(sign, height);
+        area.height = height;
+        icon_draw(art->canvas, sign, area,
+                  (IconInk){art->theme->colors.accent, art->theme->colors.accent});
+    }
+}
+
+static void draw_speed(const ChargeArt *art, Rect area)
+{
+    if (charging_rate.rate == 0) {
+        return;
+    }
+    int count = charging_rate.rate >= 45 ? 3 : charging_rate.rate >= 24 ? 2 : 1;
+    for (int glyph = 0; glyph < count; glyph++) {
+        for (int row = 0; row < 7; row++) {
+            int dx = row <= 3 ? row : 6 - row;
+            canvas_fill_rect(art->canvas,
+                             (Rect){area.x + area.width - 24 + glyph * 8 + dx,
+                                    area.y + (area.height - 7) / 2 + row, 2, 1},
+                             art->theme->colors.accent);
+        }
+    }
+}
+
+static void draw_trend(const ChargeArt *art)
+{
+    Rect area = art->layout.detail;
+    int pad = art->theme->metrics.padding;
+    int line = font_line_height(art->theme->fonts.small);
+    bool portrait = theme_is_portrait(art->theme);
+    Rect hint = area;
+    if (portrait) {
+        hint.y += 2 * line;
+        hint.height -= 2 * line;
+    } else {
+        area.width = (area.width - pad) / 2;
+        hint.x += area.width + pad;
+        hint.width = area.width;
+    }
+    area.height = line;
+    char rate[TEXT_CAPACITY];
+    StringBuilder value = string_builder_make(rate, sizeof rate);
+    if (flowing(art->battery)) {
+        if (charging_rate.rate != 0) {
+            i18n_format_counts(&value, STR_CHARGE_RATE, charging_rate.rate, 0);
+        } else {
+            string_builder_append(&value, i18n_text(STR_CHARGE_MEASURING));
+        }
+    }
+    char summary[TEXT_CAPACITY];
+    StringBuilder text = string_builder_make(summary, sizeof summary);
+    StringId source = !art->battery.usb_power  ? STR_POWER_BATTERY
+                      : charging_rate.computer ? STR_CHARGE_COMPUTER
+                                               : STR_CHARGE_CHARGER;
+    const char *arguments[] = {i18n_text(source), rate};
+    i18n_format(&text, STR_CHARGE_SUMMARY, arguments, 2);
+    TextStyle style = {art->theme->fonts.small, art->theme->colors.text_secondary};
+    Rect label = area;
+    label.width -= charging_rate.rate != 0 ? 26 : 0;
+    label_draw(art->canvas, style, (Label){label, summary});
+    draw_speed(art, area);
+    area.y += line;
+    if (charging_rate.minutes != 0 && flowing(art->battery)) {
+        text = string_builder_make(summary, sizeof summary);
+        StringId pattern =
+            charging_rate.minutes >= 60 ? STR_CHARGE_FULL_IN : STR_CHARGE_FULL_MINUTES;
+        i18n_format_counts(&text, pattern,
+                           charging_rate.minutes >= 60 ? charging_rate.minutes / 60
+                                                       : charging_rate.minutes,
+                           charging_rate.minutes % 60);
+        label_draw(art->canvas, style, (Label){area, summary});
+    }
+    label_draw_wrapped(art->canvas, style, (Label){hint, i18n_text(STR_CHARGE_MODE_HINT)});
 }
 
 void charge_art_draw(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms)
 {
+    charge_art_observe(battery, now_ms);
+    Theme charging = *theme;
+    charging.metrics.header_height = font_line_height(theme->fonts.header) + 2;
+    if (theme_is_portrait(theme)) {
+        charging.metrics.header_height += font_line_height(theme->fonts.small);
+    }
+    theme = &charging;
     ChargeArt art = {.canvas = canvas,
                      .theme = theme,
                      .battery = battery,
@@ -388,6 +444,5 @@ void charge_art_draw(Canvas *canvas, const Theme *theme, HalBattery battery, uin
     draw_battery(&art);
     draw_percent(&art);
     draw_state(&art);
-    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
-                       (Label){art.layout.detail, i18n_text(STR_CHARGE_MODE_HINT)});
+    draw_trend(&art);
 }

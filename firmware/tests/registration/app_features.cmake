@@ -30,10 +30,16 @@ echo_add_unit_test(NAME test_resume_comfort
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 
-echo_add_unit_test(NAME test_usb_chooser
-    SOURCES app/test_usb_chooser.c app/fake_hal.c
+echo_add_unit_test(NAME test_plug_modes
+    SOURCES app/test_plug_modes.c
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
+echo_add_unit_test(NAME test_usb_chooser
+    SOURCES app/test_usb_chooser.c app/fake_hal.c support/screen_snapshot.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${CMAKE_CURRENT_SOURCE_DIR}/support
 )
 
 echo_add_unit_test(NAME test_portrait_settings_layout
@@ -75,6 +81,14 @@ echo_add_unit_test(NAME test_listening_screen
         ${CMAKE_CURRENT_SOURCE_DIR}/playback
 )
 
+echo_add_unit_test(NAME test_recap_cards
+    SOURCES app/test_recap_cards.c app/fake_hal.c playback/listening_fixture.c
+        support/text_spy.c support/screen_snapshot.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
+        ${CMAKE_CURRENT_SOURCE_DIR}/playback
+)
+
 echo_add_unit_test(NAME test_working_motion
     SOURCES app/test_working_motion.c app/fake_hal.c support/text_spy.c support/screen_snapshot.c
     LIBRARIES echo_app echo_library_fixtures
@@ -97,7 +111,7 @@ echo_add_unit_test(NAME test_cassette_flip
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
 )
 echo_add_unit_test(NAME test_status_bar_items
-    SOURCES app/test_status_bar_items.c
+    SOURCES app/test_status_bar_items.c support/screen_snapshot.c
     LIBRARIES echo_app
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )

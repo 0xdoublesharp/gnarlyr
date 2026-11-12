@@ -62,6 +62,7 @@ typedef struct Theme {
     ThemeMetrics metrics;
     MarqueeTiming marquee;
     uint8_t appearance;
+    bool status_bar_compact;
     bool horizon;
     bool header_rule;
 } Theme;

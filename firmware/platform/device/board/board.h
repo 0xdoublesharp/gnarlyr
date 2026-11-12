@@ -9,12 +9,14 @@
 #include "hal/system.h"
 
 void board_clock_start(void);
+void board_clock_sleep(bool sleep);
 void board_clock_record_boot(void);
 uint32_t board_boot_ticks_per_microsecond(void);
 void board_clock_set_rate(uint32_t ticks_per_microsecond);
 uint32_t board_pclk_hz(void);
 void board_delay_ms(uint32_t milliseconds);
 bool board_jack_poll(void);
+bool board_jack_settling(void);
 bool board_jack_headset_ready(void);
 void board_delay_us(uint32_t microseconds);
 void board_display_start(void);
@@ -25,6 +27,7 @@ void board_backlight_full(void);
 bool board_display_lit(void);
 void board_display_clear(void);
 void board_input_start(void);
+uint8_t board_input_held(void);
 void board_glyphs_start(void);
 void board_extension_start(void);
 void board_wall_time_delete_file(void);
@@ -71,13 +74,15 @@ typedef enum Core1Program {
     CORE1_PROGRAM_MP3,
     CORE1_PROGRAM_M4A,
     CORE1_PROGRAM_VORBIS,
-    CORE1_PROGRAM_OPUS
+    CORE1_PROGRAM_OPUS,
+    CORE1_PROGRAM_DSD
 } Core1Program;
 
 bool board_core1_start_stream(Core1Program program);
 void board_core1_park(void);
 void board_core1_stop(void);
 bool board_core1_streaming(void);
+uint32_t board_core1_program(void);
 void board_audio_before_clock_change(void);
 void board_audio_after_clock_change(void);
 void board_audio_shut_down(void);
@@ -86,11 +91,15 @@ bool board_audio_converting(void);
 void board_audio_set_attenuation(uint8_t steps);
 bool board_audio_stream_open(uint32_t rate, void (*service)(void));
 uint32_t *board_audio_stream_ring(uint32_t *frames);
+void board_audio_stream_buffer(uint32_t *buffer, uint32_t frames);
 bool board_audio_stream_play(void);
 void board_audio_stream_pause(void);
 uint32_t board_audio_stream_consumed(void);
 void board_audio_stream_close(void);
+void board_audio_stream_service(void);
 struct CardFormat *board_audio_lend_format(void);
+struct HeadsetMonitor;
+const struct HeadsetMonitor *board_input_watch_headset(void);
 void board_audio_return_format(void);
 bool board_audio_workspace_lent(void);
 bool board_input_take_key_press(void);
@@ -107,6 +116,8 @@ void board_power_cut(void);
 bool board_power_key_down(void);
 void board_panic_poll_power(uint32_t now_ms);
 void board_bluetooth_off(void);
+bool board_bluetooth_powered(void);
+void board_bluetooth_drain(void);
 bool board_bluetooth_routed(void);
 bool board_bluetooth_settling(void);
 bool board_bluetooth_pin(bool mute_pin, bool level);
@@ -127,3 +138,7 @@ typedef struct BoardRunSnapshot {
 BoardRunSnapshot board_start_record_snapshot(void);
 void device_fault_handler(const uint32_t *frame);
 void device_fault_entry(void);
+
+bool board_audio_bluetooth_start(void);
+
+void board_audio_output_changed(void);

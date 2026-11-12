@@ -1,6 +1,6 @@
 # USB companion controls
 
-Use the macOS developer helper to inspect and change supported player settings. Connect the ECHO in USB storage mode and leave the cable connected. Each change runs through the normal player setting command, ejects the drive and waits for USB to reconnect.
+Use the macOS developer helper to inspect and change supported player settings. Plug in the ECHO, choose Connect to computer and leave the cable connected. Each change runs through the normal player setting command, ejects the drive and waits for USB to reconnect.
 
 ```sh
 python3 tools/echo_debug.py settings-list
