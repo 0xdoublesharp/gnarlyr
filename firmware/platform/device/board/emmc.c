@@ -76,6 +76,8 @@ static void power_controller(void)
 {
     cru_gate(GATE_EMMC_BUS, true);
     cru_gate(GATE_EMMC_CARD_CLOCK, true);
+    cru_reset(RESET_EMMC, true);
+    board_delay_us(MUX_SETTLE_US);
     cru_reset(RESET_EMMC, false);
     cru_write(CRU_MMC_DIVIDERS, CRU_EMMC_IDENTIFY);
     register_write(GRF_BASE + GRF_EMMC_MUX_0, GRF_EMMC_MUX_0_VALUE);
@@ -111,6 +113,7 @@ static bool identify(void)
 {
     uint32_t words[4] = {0, 0, 0, 0};
     uint32_t none[4] = {0, 0, 0, 0};
+    mmc_wait_not_busy(&EMMC_HOST);
     mmc_command(&EMMC_HOST, (SdCommand){CMD_GO_IDLE, 0, SD_RESPONSE_NONE, true}, none);
     board_delay_us(IDLE_SETTLE_US);
     if (!wait_for_ocr() || !command(CMD_ALL_SEND_CID, 0, SD_RESPONSE_LONG, words)) {
@@ -278,6 +281,12 @@ bool emmc_start(EmmcInfo *info)
     }
     *info = emmc;
     return started;
+}
+
+void emmc_quiesce(void)
+{
+    uint32_t none[4] = {0, 0, 0, 0};
+    mmc_command(&EMMC_HOST, (SdCommand){CMD_GO_IDLE, 0, SD_RESPONSE_NONE, false}, none);
 }
 
 bool emmc_volume_start(BlockDevice *device)

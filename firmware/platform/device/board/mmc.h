@@ -45,5 +45,6 @@ void mmc_set_bus_width(const MmcHost *host, uint8_t bits);
 void mmc_stop_clock(const MmcHost *host);
 void mmc_note_failure(const MmcHost *host, MmcStep step);
 MmcFailure mmc_last_failure(void);
+bool mmc_wait_not_busy(const MmcHost *host);
 
 bool mmc_read_sd_status(const MmcHost *host, uint32_t words[16]);

@@ -117,6 +117,7 @@ void board_power_hold(void);
 void board_power_usb_supply_follow(bool cable);
 void board_loader_reboot(void);
 void board_restart(void);
+void board_restart_clean(void);
 void board_loader_flag_clear(void);
 void board_power_cut(void);
 bool board_power_key_down(void);

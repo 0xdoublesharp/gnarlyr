@@ -106,6 +106,8 @@ The new build is on trial until a USB session with it ends with every drive ejec
 - The rollback is done by the firmware copying slot 2; it doesn't depend on how the boot ROM chooses a slot. A build that crashes before its start-up code reaches the trial check can't count its starts; that still needs maskrom.
 - A new update installed during a trial replaces the trial build in slot 1; slot 2 is untouched.
 
+After a rollback, `/.gnarlyr/trial_diag.bin` on internal storage holds the failed build's last trial record with its USB and eMMC diagnostics; read it with `xxd` (layout: `docs/architecture.md`, Trial diagnostics). To keep the snapshot of a session that broke storage, restart the stuck build by holding Power for 10 s rather than letting the battery or a power cut end it: the snapshot survives a warm restart, not a power cut.
+
 `docs/architecture.md` (Firmware slots and the boot ROM, Trial updates) has the details and the evidence about the boot ROM.
 
 ### Both slots at once (developer option)
