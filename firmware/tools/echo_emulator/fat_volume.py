@@ -67,6 +67,7 @@ class Node:
         self.first = 0
         self.clusters = 0
         self.alias_counts = {}
+        self.aliases = set()
 
 
 class Fat32Volume:
@@ -166,11 +167,20 @@ class Fat32Volume:
     def alias(self, parent, name):
         stem = "".join(character for character in name.upper()
                        if character.isascii() and character.isalnum())[:6] or "X"
-        count = parent.alias_counts.get(stem, 0) + 1
+        count = parent.alias_counts.get(stem, 0)
+        while True:
+            count += 1
+            tail = "~" + str(count)
+            raw = (stem[:8 - len(tail)] + tail).ljust(8).encode("ascii") + b"   "
+            if raw not in parent.aliases:
+                break
         parent.alias_counts[stem] = count
-        return (stem + "~" + str(count)).ljust(8).encode("ascii") + b"   "
+        parent.aliases.add(raw)
+        return raw
 
     def entry_bytes(self, raw, attribute, first, length):
+        if len(raw) != 11:
+            raise ValueError("a short name takes 11 bytes, not %d" % len(raw))
         entry = bytearray(ENTRY_BYTES)
         entry[0:11] = raw
         entry[11] = attribute

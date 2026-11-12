@@ -1532,6 +1532,10 @@ bool hal_language_read(HalLanguagePack pack, uint32_t offset, void *buffer, uint
 
 bool hal_dir_open(HalDir *dir, const char *path)
 {
+    if (path == NULL) {
+        dir->handle = -1;
+        return false;
+    }
     if (strcmp(path, "/EQ") == 0) {
         dir->handle = EQ_LISTING_HANDLE;
         eq_next = 0;

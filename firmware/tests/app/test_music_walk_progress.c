@@ -26,7 +26,7 @@ void hal_system_keep_alive(void)
 bool hal_dir_open(HalDir *dir, const char *path)
 {
     (void)dir;
-    CHECK(strcmp(path, "/") == 0);
+    CHECK(path != NULL && strcmp(path, "/") == 0);
     return true;
 }
 
