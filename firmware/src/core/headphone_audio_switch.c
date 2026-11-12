@@ -19,3 +19,9 @@ uint8_t headphone_audio_switch_volume(HeadphoneAudio before, HeadphoneAudio afte
     }
     return 0;
 }
+
+uint8_t headphone_audio_rise_volume(HeadphoneAudio active, uint8_t level, uint8_t rise_db)
+{
+    uint8_t audible = headphone_audio_limit(active, level);
+    return audible > rise_db ? (uint8_t)(audible - rise_db) : 0;
+}

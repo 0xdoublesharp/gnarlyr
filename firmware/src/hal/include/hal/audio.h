@@ -23,6 +23,14 @@ typedef enum HalAudioGain {
     HAL_AUDIO_GAIN_HIGH
 } HalAudioGain;
 
+typedef enum HalAudioFilter {
+    HAL_AUDIO_FILTER_FAST_LOW_LATENCY,
+    HAL_AUDIO_FILTER_FAST_PHASE_COMPENSATED,
+    HAL_AUDIO_FILTER_SLOW_LOW_LATENCY,
+    HAL_AUDIO_FILTER_SLOW_PHASE_COMPENSATED,
+    HAL_AUDIO_FILTER_NON_OVERSAMPLING
+} HalAudioFilter;
+
 typedef enum HalAudioOutput {
     HAL_AUDIO_OUTPUT_AUTO,
     HAL_AUDIO_OUTPUT_SINGLE_ENDED,
@@ -150,6 +158,7 @@ void hal_audio_set_volume(uint8_t level);
 void hal_audio_set_headphones(HeadphoneAudio profile);
 HeadphoneAudio hal_audio_headphones(void);
 void hal_audio_set_gain(HalAudioGain gain);
+void hal_audio_set_filter(HalAudioFilter filter);
 void hal_audio_set_output(HalAudioOutput output);
 void hal_audio_set_equalizer(const HalAudioEqualizer *equalizer);
 HalAudioStatus hal_audio_status(void);

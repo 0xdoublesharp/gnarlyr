@@ -3,6 +3,7 @@
 
 #include "board.h"
 #include "core/debug_script.h"
+#include "dac.h"
 #include "debug_probe.h"
 #include "gpio.h"
 #include "hal/system.h"
@@ -82,11 +83,22 @@ uint8_t hal_system_power_levels(void)
                      (board_debug_usb_supply_held_off() ? HAL_PROBE_SUPPLY_OFF : 0));
 }
 
+static void probe_dac(HalProbe *probe, uint32_t map)
+{
+    uint8_t left = 0;
+    uint8_t right = 0;
+    probe->allowed = dac_path_read_register(map, &left, &right);
+    probe->before = left;
+    probe->after = right;
+}
+
 HalProbe hal_system_probe(HalProbeKind kind, uint32_t first, uint32_t second)
 {
     HalProbe probe = {.allowed = false};
     if (kind == HAL_PROBE_PIN) {
         probe_pin(&probe, first, second);
+    } else if (kind == HAL_PROBE_DAC) {
+        probe_dac(&probe, first);
     } else {
         probe_word(&probe, first, kind == HAL_PROBE_POKE ? &second : NULL);
     }

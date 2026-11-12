@@ -236,6 +236,14 @@ Settings → Skip songs picks how the buttons change the song on Now Playing and
 
 After a pause, ▶ picks up a little before where you stopped, so you don't lose the thread. The longer the pause, the further back: nothing for a pause of 10 seconds or less, 3 seconds after a minute, 10 seconds after ten minutes and 20 seconds after an hour or more. Audiobooks and podcasts go back half as far again (4.5 s, 15 s and 30 s). After the player was switched off, the first ▶ goes back 20 seconds (30 seconds for audiobooks and podcasts), since the player has no clock to tell how long it was off. It never goes back past the start of the song, chapter or CUE track. If you move the position yourself while paused, ▶ plays from exactly there. The time on Now Playing shows the jump. Settings → Rewind on resume turns this off.
 
+## Gain and DAC filter
+
+Settings → Gain picks Low (the default) or High for both jacks. High gives harder-to-drive headphones more level. Choosing High lowers the music and USB DAC volumes by 6 steps first, so the sound never gets suddenly louder; turn it up again if you need to, within your headphone profile's ceiling. Going back to Low leaves the volume where it is.
+
+Settings → DAC filter chooses how the DAC smooths the sound: Fast, low latency (the default, as on FiiO's firmware), Fast, phase compensated, Slow, low latency, Slow, phase compensated, or Non-oversampling. Fast filters keep the treble flat almost to the top of the range and cut sharply above it; slow ones begin to roll off a little earlier and more gently. Low latency filters delay the sound less; phase compensated ones keep every frequency in step. Non-oversampling skips the smoothing and softens the highest treble a little at 44.1 and 48 kHz.
+
+Gain and DAC filter apply when you press ▶, not while you scroll. During playback the sound mutes for a moment while the player changes them. Both are kept across restarts.
+
 ## Headphone profiles
 
 Settings → Headphones keeps four profiles. **Active profile** chooses one, or **Off** to use neutral sound. Open a profile to edit it, then choose **Use profile** to make it active.
@@ -276,7 +284,7 @@ The player includes English. Add other languages as external packs without reins
 
 ## Text size
 
-Accent Color, Brightness, Text size, Orientation, Gain, Output, ReplayGain and Prevent clipping preview the highlighted value as you scroll. Press ▶ to save it. Back, leaving the picker or switching off restores the saved value. Accent Color changes the Graphite theme's highlights and decorative details.
+Accent Color, Brightness, Text size, Orientation, Output, ReplayGain and Prevent clipping preview the highlighted value as you scroll. Press ▶ to save it. Back, leaving the picker or switching off restores the saved value. Accent Color changes the Graphite theme's highlights and decorative details.
 
 Settings → Text size picks Small, Medium (the default) or Large for list rows, Now Playing, Cover Flow, toasts and messages. Small shows eight rows per screen, Medium six and Large five (in portrait: 13, 13 and 11). The title bar, the battery and the small details on Now Playing keep their size. The change shows at once; no restart is needed.
 

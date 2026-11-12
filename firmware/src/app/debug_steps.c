@@ -207,7 +207,8 @@ static void reconnect_now(uint32_t now_ms)
 }
 
 _Static_assert(DEBUG_OP_POKE - DEBUG_OP_PEEK == HAL_PROBE_POKE &&
-                   DEBUG_OP_PIN - DEBUG_OP_PEEK == HAL_PROBE_PIN,
+                   DEBUG_OP_PIN - DEBUG_OP_PEEK == HAL_PROBE_PIN &&
+                   DEBUG_OP_DAC - DEBUG_OP_PEEK == HAL_PROBE_DAC,
                "probe ops are numbered like the probes they ask for");
 
 static void probe(const DebugOp *op, uint32_t now_ms)
@@ -217,7 +218,7 @@ static void probe(const DebugOp *op, uint32_t now_ms)
         debug_runner_set_status(DEBUG_LINE_FAILED);
         return;
     }
-    bool words = op->kind <= DEBUG_OP_POKE;
+    bool words = op->kind != DEBUG_OP_PIN;
     HalProbe result = hal_system_probe((HalProbeKind)(op->kind - DEBUG_OP_PEEK),
                                        words ? run->words[op->first] : op->first,
                                        words ? run->words[op->second] : op->second);

@@ -414,6 +414,7 @@ static void walk_settings_choices(void)
                                                    STR_LANGUAGE,
                                                    STR_SKIP_SONGS,
                                                    STR_GAIN,
+                                                   STR_DAC_FILTER,
                                                    STR_OUTPUT,
                                                    STR_EQUALIZER,
                                                    STR_CUSTOM_EQ,

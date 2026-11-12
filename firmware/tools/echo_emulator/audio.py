@@ -12,7 +12,7 @@ ITEM_WORDS = 16
 WORD_BYTES = 4
 WORDS_PER_FRAME = 2
 RING_BYTES = 7 * 4000 * WORD_BYTES
-SILENT_RETURNS = ("dac_set_muted", "dac_output_on", "dac_set_gain", "dac_path_start_transfer",
+SILENT_RETURNS = ("dac_set_muted", "dac_output_on", "dac_apply_analog", "dac_path_start_transfer",
                   "dac_path_stop_transfer", "dac_path_stop")
 
 

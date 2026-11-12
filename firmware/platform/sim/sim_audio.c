@@ -39,6 +39,7 @@ typedef struct SimAudio {
     bool failed;
     float gain;
     HalAudioGain analog_gain;
+    HalAudioFilter filter;
     HalAudioOutput output;
     HalAudioEqualizer equalizer;
     HeadphoneAudio headphones;
@@ -339,6 +340,13 @@ void hal_audio_set_gain(HalAudioGain gain)
 {
     lock();
     audio.analog_gain = gain;
+    unlock();
+}
+
+void hal_audio_set_filter(HalAudioFilter filter)
+{
+    lock();
+    audio.filter = filter;
     unlock();
 }
 
