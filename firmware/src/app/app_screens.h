@@ -131,6 +131,7 @@ typedef struct ViewsModuleScreens {
     ClockOption diagnostic_clock;
     MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
     LyricsScreen lyrics;
+    ThemePicker themes;
 } ViewsModuleScreens;
 
 typedef struct SettingsModuleScreens {
@@ -140,7 +141,6 @@ typedef struct SettingsModuleScreens {
 } SettingsModuleScreens;
 
 typedef struct ProfileModuleScreens {
-    ThemePicker themes;
     ListeningScreen listening;
     MomentsScreen moments;
     SmartListScreen smart_lists;

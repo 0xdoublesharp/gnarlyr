@@ -6,6 +6,7 @@ static void bind(AppScreens *screens)
 {
     const AppScreensContext *context = &screens->context;
     ViewsModuleScreens *own = &screens->modules.views;
+    theme_picker_init(&own->themes, screens);
     diagnostics_menu_build(screens, context->options, context->theme);
     calendar_screen_init(&own->calendar, (CalendarScreenConfig){.theme = context->theme});
     clock_screen_init(&own->clock, (ClockScreenConfig){.theme = context->theme,
@@ -30,4 +31,6 @@ const ViewsModuleEntry VIEWS_MODULE_ENTRY = {
     .add = mixtape_ui_add,
     .charge_observe = charge_art_observe,
     .charge_draw = charge_art_draw,
+    .theme_boot = theme_runtime_boot,
+    .theme_restore = theme_runtime_restore,
 };

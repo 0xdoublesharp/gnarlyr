@@ -26,6 +26,14 @@ typedef struct ThemeAsset {
     uint32_t bytes;
 } ThemeAsset;
 
+typedef struct ThemeAssetKey {
+    uint16_t slot;
+    uint8_t orientation;
+    uint8_t text_size;
+    uint16_t width;
+    uint16_t height;
+} ThemeAssetKey;
+
 typedef struct ThemePack {
     ThemePalette palette;
     uint8_t id[16];

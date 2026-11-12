@@ -106,7 +106,9 @@ bool theme_runtime_load(ThemeRuntime *runtime, const char *name)
         runtime->pack.id[at] = pack->id[at];
     }
     for (unsigned at = 0; at < pack->asset_count; at++) {
-        runtime->pack.assets[at] = pack->assets[at];
+        const ThemeAsset *asset = &pack->assets[at];
+        runtime->pack.assets[at] = (ThemeAssetKey){asset->slot, asset->orientation,
+                                                   asset->text_size, asset->width, asset->height};
     }
     runtime->file = file;
     runtime->active = true;

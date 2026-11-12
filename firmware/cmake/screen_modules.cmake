@@ -142,6 +142,14 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     src/app/modules/equalizer_module.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views
+    src/app/theme_pack.c
+    src/app/theme_runtime.c
+    src/app/theme_catalog.c
+    src/app/theme_picker.c
+    src/app/theme_palette.c
+    src/app/theme_signature.c
+    src/app/theme_crypto_curve.c
+    src/app/theme_crypto_sha512.c
     src/app/modules/views_module.c
     platform/device/board/headset_reading.c
     platform/device/logic/headset_dips_view.c
@@ -227,14 +235,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_library
     src/library/sort_fold_table.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_listening
-    src/app/theme_pack.c
-    src/app/theme_runtime.c
-    src/app/theme_catalog.c
-    src/app/theme_picker.c
-    src/app/theme_palette.c
-    src/app/theme_signature.c
-    src/app/theme_crypto_curve.c
-    src/app/theme_crypto_sha512.c
     src/app/modules/listening_module.c
     src/core/calendar.c
     src/app/listening_store_view.c
