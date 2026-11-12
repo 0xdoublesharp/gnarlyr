@@ -354,11 +354,12 @@ static bool write_rows(void *context, const uint8_t *bytes, uint32_t length)
         if (rows->done) {
             return false;
         }
-        if (rows->filled == 0 && length - index >= rows->row_bytes + 1) {
+        uint32_t whole = rows->row_bytes + 1;
+        if (rows->filled == 0 && length - index >= whole) {
             if (!finish_row(rows, bytes + index)) {
                 return false;
             }
-            index += rows->row_bytes + 1;
+            index += whole;
             continue;
         }
         uint32_t wanted = rows->row_bytes + 1 - rows->filled;
