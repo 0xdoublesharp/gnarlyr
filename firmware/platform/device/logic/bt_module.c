@@ -22,6 +22,7 @@ enum {
 static void set_state(BtModule *module, HalBluetoothState state, uint32_t now_ms)
 {
     if (state == HAL_BLUETOOTH_CONNECTED && module->status.state != HAL_BLUETOOTH_CONNECTED) {
+        module->status.link.timeline.connected_ms = now_ms;
         module->resend_stream = true;
         module->resend_on = false;
     }
@@ -59,6 +60,7 @@ static void restart(BtModule *module, HalBluetoothState state, uint32_t now_ms)
 void bt_module_power_on(BtModule *module, uint32_t now_ms)
 {
     restart(module, HAL_BLUETOOTH_STARTING, now_ms);
+    module->status.link.timeline = (HalBluetoothTimeline){.module_on_ms = now_ms};
 }
 
 void bt_module_power_off(BtModule *module)
@@ -210,6 +212,7 @@ static void handle_ready(BtModule *module, uint8_t version, uint32_t now_ms)
 {
     module->status.version = (char)version;
     if (module->status.state == HAL_BLUETOOTH_STARTING) {
+        module->status.link.timeline.init_done_ms = now_ms;
         set_state(module, HAL_BLUETOOTH_READY, now_ms);
     }
 }
@@ -251,6 +254,7 @@ static void handle_link(BtModule *module, const uint8_t *bytes, uint32_t size, u
         mark_connected(module, now_ms);
     } else if (word_is(bytes + 2, 'O', 'K')) {
         finish_connect(module, HAL_BLUETOOTH_PAIRED, now_ms);
+        module->last_query_ms = now_ms - BT_MODULE_LINK_QUERY_MS;
     }
 }
 
@@ -482,6 +486,10 @@ bool bt_module_connect(BtModule *module, const HalBluetoothDevice *device, uint3
     if (state != HAL_BLUETOOTH_READY && state != HAL_BLUETOOTH_SCANNING) {
         return false;
     }
+    module->status.link.timeline.connect_ms = now_ms;
+    module->status.link.timeline.connected_ms = 0;
+    module->status.link.timeline.stream_ms = 0;
+    module->status.link.timeline.first_audio_ms = 0;
     module->target = *device;
     module->status.pairing = HAL_BLUETOOTH_PAIRING_NONE;
     start_waiting(module, HAL_BLUETOOTH_CONNECTING, now_ms);
@@ -569,6 +577,9 @@ static bool answer_play_report(BtModule *module, uint32_t now_ms, BtModuleFrame 
 
 static void stream_frame(BtModule *module, bool on, uint32_t now_ms, BtModuleFrame *frame)
 {
+    if (on) {
+        module->status.link.timeline.stream_ms = now_ms;
+    }
     add_event(module, '>', on ? 'Y' : 'N', now_ms);
     *frame = (BtModuleFrame){.bytes = {'C', 'Y', '0', on ? STREAM_ON_LEVEL : 0, 0},
                              .length = COMMAND_SIZE};

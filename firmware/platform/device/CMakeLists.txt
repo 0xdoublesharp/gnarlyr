@@ -175,6 +175,7 @@ add_custom_command(
 )
 
 set(ECHO_OVERLAY_IMPORTS
+    hal_bluetooth_status
     COVER_CACHE_PATH
     LIBRARY_SCRATCH_PATH
     LIBRARY_STORE_PATH

@@ -393,6 +393,27 @@ static void put_average(Writer *writer, const char *key, uint32_t total, uint32_
     put_known(writer, key, count != 0, count != 0 ? total / count : 0);
 }
 
+static void put_bluetooth(Writer *writer, const HalBluetoothLink *link)
+{
+    if (link == NULL) {
+        return;
+    }
+    const HalBluetoothTimeline *time = &link->timeline;
+    put_unsigned(writer, "bluetooth.module_on_ms", time->module_on_ms);
+    put_unsigned(writer, "bluetooth.init_done_ms", time->init_done_ms);
+    put_unsigned(writer, "bluetooth.connect_ms", time->connect_ms);
+    put_unsigned(writer, "bluetooth.connected_ms", time->connected_ms);
+    put_unsigned(writer, "bluetooth.stream_ms", time->stream_ms);
+    put_unsigned(writer, "bluetooth.first_audio_ms", time->first_audio_ms);
+    begin(writer, "bluetooth.reports");
+    for (uint32_t index = 0; index < link->event_count; index++) {
+        string_builder_append_char(&writer->text, link->events[index][0]);
+        string_builder_append_char(&writer->text, link->events[index][1]);
+        string_builder_append_char(&writer->text, ' ');
+    }
+    finish(writer);
+}
+
 static void put_audio(Writer *writer, const DebugReportAudio *audio)
 {
     const HalAudioStats *stats = &audio->stats;
@@ -937,6 +958,7 @@ uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t
     put_usb_words(&writer, &input->usb_words);
     put_loop(&writer, input);
     put_audio(&writer, &input->audio);
+    put_bluetooth(&writer, input->bluetooth);
     put_frames(&writer, &input->frames);
     put_script(&writer, input);
     put_events(&writer, input->log);

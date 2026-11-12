@@ -8,6 +8,7 @@
 #include "device/pc_profile.h"
 #include "device/power_history.h"
 #include "hal/audio.h"
+#include "hal/bluetooth.h"
 #include "hal/power.h"
 #include "hal/system.h"
 
@@ -102,6 +103,7 @@ typedef struct DebugReportInput {
     HalUsbLast usb;
     DebugReportUsbWords usb_words;
     DebugReportAudio audio;
+    const HalBluetoothLink *bluetooth;
     DebugFrames frames;
     DebugReportLoop loop;
     const DebugScriptRun *script;
