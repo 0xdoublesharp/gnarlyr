@@ -163,11 +163,13 @@ static const char *storage_detail(void)
 
 static AppUsbStatus storage_status(void)
 {
-    return (AppUsbStatus){
-        .view = APP_USB_STORAGE,
-        .information = i18n_text(card_present ? STR_POWER_INTERNAL_CARD : STR_POWER_INTERNAL),
-        .detail = storage_detail(),
-        .scene = &scene};
+    return (AppUsbStatus){.view = APP_USB_STORAGE,
+                          .information = i18n_text(!shared->report.internal_ready
+                                                       ? STR_POWER_INTERNAL_UNAVAILABLE
+                                                   : card_present ? STR_POWER_INTERNAL_CARD
+                                                                  : STR_POWER_INTERNAL),
+                          .detail = storage_detail(),
+                          .scene = &scene};
 }
 
 static void show_storage_state(void)

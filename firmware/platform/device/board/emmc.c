@@ -2,10 +2,13 @@
 
 #include <stddef.h>
 
+#include "app/debug_loop.h"
 #include "board.h"
 #include "cru.h"
 #include "device/block_read.h"
 #include "device/card_write.h"
+#include "dmac.h"
+#include "hal/clock.h"
 #include "mmc.h"
 #include "registers.h"
 
@@ -44,6 +47,12 @@ enum {
     CMD_SET_BLOCK_LENGTH = 16,
     CMD_READ_SINGLE_BLOCK = 17,
     OCR_TRIES = 8000,
+    OCR_WAIT_MS = 1000,
+    START_TRIES = 3,
+    STARTED_MAGIC = 0x454D4D43,
+    SPENT_MASK = 0xFFFF,
+    STEP_SHIFT = 16,
+    MMC_STEP_SHIFT = 20,
     STATUS_TRIES = 1000,
     EXT_CSD_SECTOR_COUNT = 212,
     MUX_SETTLE_US = 10,
@@ -56,6 +65,7 @@ static const MmcHost EMMC_HOST = {EMMC_BASE, CRU_EMMC_IDENTIFY, CRU_EMMC_TRANSFE
                                   &emmc_fifo_depth};
 static EmmcInfo emmc;
 static bool started;
+static uint32_t started_magic;
 
 static bool command(uint8_t index, uint32_t argument, SdResponse response, uint32_t words[4])
 {
@@ -80,7 +90,9 @@ static void power_controller(void)
 static bool wait_for_ocr(void)
 {
     uint32_t words[4] = {0, 0, 0, 0};
-    for (int attempt = 0; attempt < OCR_TRIES; attempt++) {
+    uint32_t since = hal_clock_milliseconds();
+    for (int attempt = 0; attempt < OCR_TRIES && hal_clock_milliseconds() - since < OCR_WAIT_MS;
+         attempt++) {
         if (command(CMD_SEND_OP_COND, OCR_ARGUMENT, SD_RESPONSE_SHORT_NO_CRC, words) &&
             (words[0] & OCR_READY) != 0) {
             return (words[0] & OCR_SECTOR_MODE) != 0;
@@ -221,14 +233,48 @@ bool emmc_volume_write(void *context, uint32_t lba, uint32_t count, const void *
            emmc_write(context, emmc.layout.volume_start + lba, count, buffer);
 }
 
+static uint32_t start_once(void)
+{
+    power_controller();
+    if (!identify()) {
+        return 1;
+    }
+    if (!select_and_widen()) {
+        return 2;
+    }
+    started = true;
+    BlockDevice device = emmc_device();
+    started = emmc_layout_read_with(&emmc.layout, &device, emmc.sector_count, EMMC_SLOT_2_SEARCH);
+    return started ? 0u : 3u;
+}
+
+static void note(DebugScanPhase phase, uint32_t number)
+{
+    debug_loop_event(DEBUG_EVENT_SCAN,
+                     (uint32_t)phase << DEBUG_SCAN_PHASE_SHIFT | (number & DEBUG_SCAN_NUMBER_MASK));
+}
+
+static void start_with_retries(void)
+{
+    uint32_t since = hal_clock_milliseconds();
+    uint32_t step = 0;
+    for (int attempt = 0; attempt < START_TRIES && !started; attempt++) {
+        step = start_once();
+    }
+    uint32_t spent = hal_clock_milliseconds() - since;
+    spent = spent < SPENT_MASK ? spent : SPENT_MASK;
+    started_magic = started ? STARTED_MAGIC : 0u;
+    uint32_t why = step << STEP_SHIFT | (uint32_t)mmc_last_failure().step << MMC_STEP_SHIFT;
+    note(started ? DEBUG_SCAN_EMMC_OK : DEBUG_SCAN_EMMC_FAILED, started ? spent : spent | why);
+}
+
 bool emmc_start(EmmcInfo *info)
 {
+    if (!started && started_magic == STARTED_MAGIC) {
+        note(DEBUG_SCAN_EMMC_FLAG_LOST, board_core1_program() << 8 | (dmac_running() ? 1u : 0u));
+    }
     if (!started) {
-        power_controller();
-        started = identify() && select_and_widen();
-        BlockDevice device = emmc_device();
-        started = started && emmc_layout_read_with(&emmc.layout, &device, emmc.sector_count,
-                                                   EMMC_SLOT_2_SEARCH);
+        start_with_retries();
     }
     *info = emmc;
     return started;

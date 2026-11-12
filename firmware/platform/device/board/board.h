@@ -82,6 +82,7 @@ bool board_core1_start_stream(Core1Program program);
 void board_core1_park(void);
 void board_core1_stop(void);
 bool board_core1_streaming(void);
+uint32_t board_core1_program(void);
 void board_audio_before_clock_change(void);
 void board_audio_after_clock_change(void);
 void board_audio_shut_down(void);

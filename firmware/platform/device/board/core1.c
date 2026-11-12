@@ -195,6 +195,11 @@ CORE_SEAM void board_core1_stop(void)
     }
 }
 
+uint32_t board_core1_program(void)
+{
+    return board_core1_streaming() ? (uint32_t)streaming_program + 1u : 0u;
+}
+
 CORE_SEAM bool board_core1_streaming(void)
 {
     return streaming;

@@ -114,7 +114,10 @@ class EchoImageTest(EchoImageHarness):
         self.assertIsNone(values["audio.underruns"])
         self.assertEqual(values["frame.count"] == 0, values["frame.total_avg_us"] is None)
         kinds = [event["kind"] for event in report["events"]]
-        self.assertEqual(kinds[0], "screen")
+        details = [event["kind"] + " " + event["detail"].split()[0] for event in report["events"]]
+        self.assertEqual(details[0], "scan emmc_ok")
+        self.assertEqual(kinds[1], "screen")
+        self.assertEqual(details.count("scan emmc_ok"), 1)
         self.assertEqual(kinds[-1], "usb_start")
         self.assertEqual(values["events.recorded"], len(kinds))
         self.assertEqual(values["profile.state"], "off")
