@@ -128,80 +128,8 @@
     return block;
   }
 
-  function buildPackV1(code, name, text, value) {
-    const info = catalogue(value);
-    checkCode(code, info);
-    checkName(name, info);
-    const translations = parseTranslation(text, info);
-    if (translations[info.name_id] && translations[info.name_id] !== name) {
-      fail(`The native name must match ${info.name_id} in your translation.`);
-    }
-    translations[info.name_id] = name;
-    const texts = Object.fromEntries(info.entries.map(entry => [entry.id, translations[entry.id] || entry.english]));
-    checkTexts(texts, info);
-    const strings = info.entries.map(entry => encode(texts[entry.id], entry.id));
-    const tableEnd = headerBytes + info.entries.length * 2;
-    const size = tableEnd + strings.reduce((total, item) => total + item.length + 1, 0);
-    if (size > info.pack_limit) fail(`This pack is ${size.toLocaleString()} bytes. Shorten the text to fit ${info.pack_limit.toLocaleString()} bytes.`);
-    const bytes = new Uint8Array(size);
-    const view = new DataView(bytes.buffer);
-    bytes.set(encode(info.magic, "Pack format"));
-    view.setUint16(4, info.version, true);
-    view.setUint16(6, info.entries.length, true);
-    view.setUint32(8, size, true);
-    view.setUint32(12, info.catalogue_hash, true);
-    bytes.set(encode(code, "Language code"), 20);
-    bytes.set(encode(name, "Language name"), 20 + info.code_bytes);
-    let cursor = tableEnd;
-    strings.forEach((item, index) => {
-      view.setUint16(headerBytes + index * 2, cursor - tableEnd, true);
-      bytes.set(item, cursor);
-      cursor += item.length + 1;
-    });
-    view.setUint32(16, checksum(bytes), true);
-    return bytes;
-  }
-
-  function inspectPackV1(data, value) {
-    const info = catalogue(value);
-    const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : Uint8Array.from(data);
-    if (bytes.length < headerBytes) fail("This file is shorter than a language-pack header.");
-    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    const count = view.getUint16(6, true);
-    const size = view.getUint32(8, true);
-    if (decode(bytes.subarray(0, 4), "Pack format") !== info.magic || view.getUint16(4, true) !== info.version) {
-      fail("This is not a supported language pack.");
-    }
-    if (size !== bytes.length || size > info.pack_limit || size <= headerBytes + count * 2) {
-      fail("This language pack has an invalid size or is incomplete.");
-    }
-    if (view.getUint32(16, true) !== checksum(bytes)) fail("This language pack's checksum does not match. Copy or build it again.");
-    if (count !== info.entries.length || view.getUint32(12, true) !== info.catalogue_hash) {
-      fail("This pack belongs to a different firmware template. Rebuild it with the current template.");
-    }
-    const code = metadata(bytes.subarray(20, 20 + info.code_bytes), "Language code");
-    const name = metadata(bytes.subarray(20 + info.code_bytes, headerBytes), "Language name");
-    checkCode(code, info);
-    checkName(name, info);
-    const body = bytes.subarray(headerBytes + count * 2);
-    if (body[body.length - 1] !== 0) fail("This language pack's text is incomplete.");
-    decode(body, "Pack text");
-    const texts = Object.create(null);
-    info.entries.forEach((entry, index) => {
-      const offset = view.getUint16(headerBytes + index * 2, true);
-      if (offset >= body.length || (offset > 0 && body[offset - 1] !== 0)) fail(`${entry.id} has an invalid text offset.`);
-      const end = body.indexOf(0, offset);
-      if (end < 0) fail(`${entry.id} is incomplete.`);
-      texts[entry.id] = decode(body.subarray(offset, end), entry.id);
-    });
-    if (texts[info.name_id] !== name) fail("The pack's native name does not match its language-name text.");
-    checkTexts(texts, info);
-    return {code, name, count, size, catalogue_hash: info.catalogue_hash, texts};
-  }
-
   function buildPack(code, name, text, value) {
     const info = catalogue(value);
-    if (info.version === 1) return buildPackV1(code, name, text, info);
     checkCode(code, info);
     checkName(name, info);
     const translations = parseTranslation(text, info);
@@ -269,14 +197,13 @@
 
   function inspectPack(data, value) {
     const info = catalogue(value);
-    if (info.version === 1) return inspectPackV1(data, info);
     const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : Uint8Array.from(data);
     if (bytes.length < headerBytes + indexBytes) fail("This file is shorter than a language-pack header.");
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const count = view.getUint16(6, true);
     const size = view.getUint32(8, true);
     if (decode(bytes.subarray(0, 4), "Pack format") !== info.magic || view.getUint16(4, true) !== info.version) {
-      fail("This is not a supported language pack. Packs for older firmware must be built again.");
+      fail(`This is not a version ${info.version} language pack. Build it again with the current template.`);
     }
     const segments = view.getUint16(headerBytes, true);
     const start = indexEnd(segments);

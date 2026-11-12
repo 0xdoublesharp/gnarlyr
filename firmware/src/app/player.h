@@ -161,9 +161,6 @@ typedef struct Player {
     PlayerResume resume;
 } Player;
 
-extern const char PLAYER_RESUME_PATH[];
-extern const char PLAYER_UP_NEXT_PATH[];
-
 void player_init(Player *player, const Library *library);
 bool player_play_list(Player *player, BrowseQuery source, uint32_t position, uint32_t seed);
 bool player_play_from(Player *player, PlayerListStart start);

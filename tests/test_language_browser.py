@@ -46,8 +46,8 @@ class LanguageBrowserTests(unittest.TestCase):
     def setUpClass(cls):
         cls.catalogue = lang_pack.read_catalogue()
         cls.drawable = lang_pack.drawable_characters()
-        cls.segments = lang_pack.string_segments(cls.catalogue) if hasattr(lang_pack, "string_segments") else None
-        cls.metadata = lang_pack.catalogue_info(cls.catalogue, cls.drawable, *([cls.segments] if cls.segments else []))
+        cls.segments = lang_pack.string_segments(cls.catalogue)
+        cls.metadata = lang_pack.catalogue_info(cls.catalogue, cls.drawable, cls.segments)
 
     def browser(self, operation, **values):
         payload = {"operation": operation, "catalogue": self.metadata, **values}
@@ -61,15 +61,12 @@ class LanguageBrowserTests(unittest.TestCase):
 
     def pack(self, **translations):
         return lang_pack.build_pack("es", self.catalogue,
-                                    {"STR_LANGUAGE_NAME": "Español", **translations}, *([self.segments] if self.segments else []))
+                                    {"STR_LANGUAGE_NAME": "Español", **translations}, self.segments)
 
     def validate(self, data):
-        return lang_pack.validate_pack(data, self.catalogue, self.drawable, *([self.segments] if self.segments else []))
+        return lang_pack.validate_pack(data, self.catalogue, self.drawable, self.segments)
 
     def seal(self, data):
-        if not self.segments:
-            struct.pack_into("<I", data, 16, lang_pack.fnv(data[20:], lang_pack.fnv(data[:16])))
-            return data
         total = struct.unpack_from("<H", data, 56)[0]
         for index in range(min(total, len(self.segments))):
             row = 60 + 16 * index
@@ -135,10 +132,10 @@ class LanguageBrowserTests(unittest.TestCase):
 
     def test_shared_string_offsets_remain_compatible(self):
         pack = bytearray(self.pack())
-        names = self.segments[0][1] if self.segments else [name for name, _ in self.catalogue]
+        names = self.segments[0][1]
         settings = names.index("STR_SETTINGS")
         other = settings + 1
-        table = lang_pack.index_size(len(self.segments)) if self.segments else 56
+        table = lang_pack.index_size(len(self.segments))
         pack[table + 2 * other:table + 2 + 2 * other] = pack[table + 2 * settings:table + 2 + 2 * settings]
         self.seal(pack)
         expected = self.validate(pack)
@@ -151,15 +148,12 @@ class LanguageBrowserTests(unittest.TestCase):
             changed = bytearray(valid)
             changed[offset] ^= 1
             cases.append(bytes(changed))
-        body = lang_pack.index_size(len(self.segments)) + 2 * len(self.segments[0][1]) if self.segments else 56 + 2 * len(self.catalogue)
-        fields = ((56, 1), (56, len(self.segments) + 1), (58, 1), (60, 3), (62, 1), (76, 9)) if self.segments else ((56, 1), (56, len(valid)))
+        body = lang_pack.index_size(len(self.segments)) + 2 * len(self.segments[0][1])
+        fields = ((4, 0), (4, 2), (56, 1), (56, len(self.segments) + 1), (58, 1), (60, 3), (62, 1), (76, 9))
         for field, value in fields:
             changed = bytearray(valid)
             struct.pack_into("<H", changed, field, value)
             cases.append(bytes(self.seal(changed)))
-        if self.segments:
-            legacy = lang_pack.build_legacy_pack("es", self.catalogue, {"STR_LANGUAGE_NAME": "Español"})
-            cases.append(legacy)
         for offset, value in ((body, 255), (len(valid) - 1, 65), (20, 47), (23, 65)):
             changed = bytearray(valid)
             changed[offset] = value

@@ -16,8 +16,7 @@ enum {
     ROOT_BYTES = ROOT_FULL + 4
 };
 
-static const StoreKind KIND = {
-    .magic = {'D', 'S', 'L', 'L'}, .version = 2, .inline_payload = true, .oldest_version = 1};
+static const StoreKind KIND = {.magic = {'D', 'S', 'L', 'L'}, .version = 1, .inline_payload = true};
 
 typedef struct Reader {
     const StoreFile *file;

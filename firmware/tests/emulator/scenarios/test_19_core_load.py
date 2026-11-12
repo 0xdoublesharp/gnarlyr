@@ -34,7 +34,7 @@ class EchoImageTest(EchoImageHarness):
         for index, hz in enumerate((31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000)):
             struct.pack_into("<HHhBB", record, 4 + 8 * index, hz, 71, 15,
                              index % 3, 1)
-        payload = bytes((1, 0, 0, 0)) + record + record + bytes(7 * 84)
+        payload = bytes((1, 0, 0, 0)) + record + record + bytes(7 * 84) + bytes(9 * 9)
         header = struct.pack("<4sHHIIII", b"PEQF", 1, 0, 1, len(payload), checksum(payload), 0)
         header += struct.pack("<I", checksum(header))
         return header + bytes(512 - len(header)) + payload + bytes(3072 - 512 - len(payload))

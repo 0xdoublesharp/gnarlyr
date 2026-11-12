@@ -7,6 +7,7 @@
 #include "check.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
+#include "hal/storage.h"
 #include "home_editor.h"
 #include "settings/settings.h"
 #include "settings_store.h"
@@ -100,7 +101,7 @@ static void start(TextSize size, Orientation orientation, bool with_library)
     i18n_detach();
     fake_hal_add_language_pack(0, pseudo, pseudo_size);
     fake_hal_add_language_pack(0, english, english_size);
-    fake_hal_add_file(SETTINGS_STORE_PATH, saved, sizeof saved);
+    (void)hal_internal_file_write(SETTINGS_STORE_PATH, saved, sizeof saved);
     add_player_files(with_library);
     now_ms = START_MS;
     portrait = orientation != ORIENTATION_LANDSCAPE;

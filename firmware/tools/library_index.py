@@ -17,7 +17,7 @@ from replay_gain import hash_bytes as gain_hash_bytes
 from replay_gain import tag_values as replay_gain_tag_values
 
 MAGIC = b"DSDB"
-VERSION = 6
+VERSION = 1
 HEADER_SIZE = 128
 SECTION_ALIGNMENT = 4
 NONE = 0xFFFF

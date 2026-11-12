@@ -68,7 +68,7 @@ static void four_utf8_profiles_round_trip_to_exact_bytes(void)
     memset(bytes, 0xA5, sizeof bytes);
     CHECK(headphone_profiles_encode(&profiles, bytes, sizeof bytes));
     CHECK_EQUAL(0xA5, bytes[HEADPHONE_PROFILES_FILE_SIZE]);
-    CHECK(memcmp(bytes, "DSHP\2\0\4\2", 8) == 0);
+    CHECK(memcmp(bytes, "DSHP\1\0\4\2", 8) == 0);
     CHECK_EQUAL(8, bytes[HEADER_BYTES + 2 * RECORD_BYTES + 24]);
     CHECK_EQUAL(50, bytes[HEADER_BYTES + 2 * RECORD_BYTES + 25]);
     CHECK_EQUAL(10, bytes[HEADER_BYTES + 2 * RECORD_BYTES + 26]);
@@ -139,25 +139,17 @@ static void semantic_errors_are_rejected_even_with_a_valid_checksum(void)
     }
 }
 
-static void a_version_one_file_loads_with_crossfeed_off(void)
+static void every_version_but_one_is_refused(void)
 {
     HeadphoneProfiles profiles = named_profiles();
     uint8_t bytes[HEADPHONE_PROFILES_FILE_SIZE];
-    CHECK(headphone_profiles_encode(&profiles, bytes, sizeof bytes));
-    bytes[4] = 1;
-    for (int slot = 0; slot < HEADPHONE_PROFILE_LIMIT; slot++) {
-        bytes[HEADER_BYTES + slot * RECORD_BYTES + 27] = 0;
+    for (int version = 0; version < 256; version++) {
+        CHECK(headphone_profiles_encode(&profiles, bytes, sizeof bytes));
+        bytes[4] = (uint8_t)version;
+        checksum(bytes);
+        HeadphoneProfiles decoded = headphone_profiles_defaults();
+        CHECK_EQUAL(version == 1, headphone_profiles_decode(bytes, sizeof bytes, &decoded));
     }
-    checksum(bytes);
-    HeadphoneProfiles decoded = headphone_profiles_defaults();
-    CHECK(headphone_profiles_decode(bytes, sizeof bytes, &decoded));
-    for (int slot = 0; slot < HEADPHONE_PROFILE_LIMIT; slot++) {
-        CHECK_EQUAL(0, decoded.slots[slot].crossfeed);
-        CHECK_EQUAL(profiles.slots[slot].trim_half_db, decoded.slots[slot].trim_half_db);
-    }
-    bytes[HEADER_BYTES + 27] = 1;
-    checksum(bytes);
-    rejects_unchanged(bytes, sizeof bytes);
 }
 
 static void trimmed_and_balanced_gains_compose_with_replay_gain(void)
@@ -453,7 +445,7 @@ int main(void)
         TEST_CASE(four_utf8_profiles_round_trip_to_exact_bytes),
         TEST_CASE(every_truncation_and_corruption_preserves_old_state),
         TEST_CASE(semantic_errors_are_rejected_even_with_a_valid_checksum),
-        TEST_CASE(a_version_one_file_loads_with_crossfeed_off),
+        TEST_CASE(every_version_but_one_is_refused),
         TEST_CASE(trimmed_and_balanced_gains_compose_with_replay_gain),
         TEST_CASE(volume_ceiling_is_independent_of_requested_mode_volume),
         TEST_CASE(pcm_unity_preserves_bits_and_rounding_matches_existing_engine),

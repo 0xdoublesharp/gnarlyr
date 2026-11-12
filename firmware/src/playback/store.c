@@ -127,12 +127,9 @@ StoreLoad store_decode(const StoreKind *kind, const uint8_t *block, StoreHeader 
     if (!sealed(kind, block)) {
         return blank(block) ? STORE_EMPTY : STORE_CORRUPT;
     }
-    uint16_t version = store_get16(block + VERSION_FIELD);
-    uint16_t oldest = kind->oldest_version != 0 ? kind->oldest_version : kind->version;
-    if (version < oldest || version > kind->version) {
+    if (store_get16(block + VERSION_FIELD) != kind->version) {
         return STORE_UNSUPPORTED;
     }
-    header->version = version;
     header->generation = store_get32(block + GENERATION_FIELD);
     header->bytes = store_get32(block + BYTES_FIELD);
     header->hash = store_get32(block + HASH_FIELD);

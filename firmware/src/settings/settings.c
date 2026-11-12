@@ -2,32 +2,11 @@
 
 #include "core/hash.h"
 #include "equalizer_peak.h"
-#include "settings/equalizer_fit.h"
 
 enum {
-    VERSION = 16,
-    EXTENSION_VERSION = 15,
-    REPLAY_GAIN_VERSION = 14,
-    APPEARANCE_VERSION = 13,
-    LANGUAGE_VERSION = 12,
-    HALF_DB_VERSION = 11,
-    ORIENTATION_VERSION = 10,
-    VOLUME_SCALE_VERSION = 9,
-    OLD_VOLUME_MAX = 50,
-    VOLUME_SCALE_TENTHS = 12,
-    VOLUME_SCALE_OFFSET_TENTHS = 5,
-    TENTHS = 10,
-    SKIP_GESTURE_VERSION = 8,
-    TEXT_SIZE_VERSION = 7,
-    EQUALIZER_VERSION = 6,
-    ACCENT_VERSION = 5,
-    FIRST_VERSION = 1,
-    AUTO_OFF_VERSION = 2,
-    USB_MODE_VERSION = 3,
-    DAC_VOLUME_VERSION = 4,
+    VERSION = 1,
     MAGIC_SIZE = 4,
     VERSION_FIELD = 4,
-    HEADER_SIZE = 6,
     BRIGHTNESS_FIELD = 6,
     TIMEOUT_FIELD = 7,
     GAIN_FIELD = 8,
@@ -41,14 +20,8 @@ enum {
     DAC_VOLUME_FIELD = 16,
     ACCENT_FIELD = 17,
     EQUALIZER_FIELD = 18,
-    EQUALIZER_GAINS_FIELD = 19,
     LANGUAGE_FIELD = 19,
-    OLD_CHECKSUM_FIELD = 20,
-    OLD_BANDS = 5,
-    OLD_GAIN_MAX = 10,
     HALF_DB_GAINS_FIELD = 28,
-    HALF_DB_CHECKSUM_FIELD = 38,
-    PREVIOUS_CHECKSUM_FIELD = 28,
     TEXT_SIZE_FIELD = 24,
     SKIP_GESTURE_FIELD = 25,
     ORIENTATION_FIELD = 26,
@@ -67,7 +40,7 @@ enum {
     CLOCK_OFFSET_BYTE = 11,
     STATUS_ITEMS_BYTE = 13,
     RESERVED_BYTE = 14,
-    RESERVED_COUNT = 1,
+    RESERVED_COUNT = 2,
     DAC_FILTER_BYTE = 14,
     DAC_FILTER_MASK = 0x07,
     SPOKEN_BYTE = 13,
@@ -81,6 +54,14 @@ enum {
     BATTERY_CARE_SHIFT = 3,
     BATTERY_CARE_MASK = 24,
     EXTENSION_SIZE = 16,
+    SECOND_FIELD = 58,
+    SECOND_CHECKSUM_FIELD = 74,
+    PANEL_BYTE = 0,
+    PANEL_RESERVED = 0xF0,
+    LONG_PRESS_BYTE = 1,
+    LONG_PRESS_MASK = 7,
+    BLUETOOTH_VOLUME_BYTE = 2,
+    SECOND_RESERVED_BYTE = 3,
     POWER_ON_BYTE = STATUS_ITEMS_BYTE,
     POWER_ON_BITS = 0x10,
     STATUS_ITEMS_BITS = 0xFF & ~(POWER_ON_BITS | SKIP_SILENCE_BIT | SPEECH_BOOST_BIT),
@@ -93,7 +74,6 @@ enum {
     NIBBLE_MASK = 0xF,
     CHECKSUM_SIZE = 4,
     CURVE_FREQUENCIES = 7,
-    HUNDRED = 100,
     DEFAULT_BRIGHTNESS = 7,
     DEFAULT_TIMEOUT_OPTION = 2,
     DEFAULT_VOLUME = 13,
@@ -118,7 +98,6 @@ static const uint16_t TIMEOUT_SECONDS[SCREEN_TIMEOUT_OPTION_COUNT] = {10, 20, 30
 static const uint8_t SLEEP_MINUTES[SLEEP_TIMER_OPTION_COUNT] = {0, 15, 30, 45, 60, 90, 120};
 static const uint8_t AUTO_OFF_MINUTES[AUTO_OFF_OPTION_COUNT] = {0, 1, 5, 10};
 static const uint16_t CURVE_HZ[CURVE_FREQUENCIES] = {63, 100, 125, 315, 1000, 3150, 10000};
-static const uint16_t OLD_BAND_HZ[OLD_BANDS] = {100, 315, 1000, 3150, 10000};
 static const int8_t PRESET_GAINS[EQUALIZER_PRESET_COUNT][CURVE_FREQUENCIES] = {
     [EQUALIZER_RETRO] = {0, 1, 0, 1, 1, 0, -6}, [EQUALIZER_BASS] = {5, 0, 3, 0, 0, 0, 0},
     [EQUALIZER_HEAVY] = {0, 0, 0, 3, 3, -3, 0}, [EQUALIZER_POP] = {0, 4, 0, 0, 0, -3, 3},
@@ -194,19 +173,6 @@ static void read_extension(const uint8_t *extension, Settings *settings)
     settings->style_flags = extension[STYLE_FLAGS_BYTE] & STYLE_HIGH_BIT;
     settings_home_unpack(extension + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT,
                          settings->home_order, &settings->home_hidden);
-    bool untouched = settings->home_hidden == 0;
-    for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
-        untouched = untouched && settings->home_order[index] == index;
-    }
-    static const uint8_t PREVIOUS[] = {0, 6, 7, 8, 9, 1, 2, 5, 3, 4};
-    bool previous = settings->home_hidden == 0x26;
-    for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
-        previous = previous && settings->home_order[index] == PREVIOUS[index];
-    }
-    if (untouched || previous) {
-        settings_home_unpack(DEFAULT_EXTENSION + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT,
-                             settings->home_order, &settings->home_hidden);
-    }
     settings->dac_filter = extension[DAC_FILTER_BYTE] & DAC_FILTER_MASK;
     settings->skip_silence = (extension[SPOKEN_BYTE] & SKIP_SILENCE_BIT) != 0;
     settings->speech_boost = (extension[SPOKEN_BYTE] & SPEECH_BOOST_BIT) != 0;
@@ -327,14 +293,6 @@ SettingsEqualizerCurve settings_equalizer_curve(const Settings *settings)
     return curve;
 }
 
-static int checksum_field(uint8_t version)
-{
-    return version < EQUALIZER_VERSION   ? OLD_CHECKSUM_FIELD
-           : version < HALF_DB_VERSION   ? PREVIOUS_CHECKSUM_FIELD
-           : version < EXTENSION_VERSION ? HALF_DB_CHECKSUM_FIELD
-                                         : EXTENSION_CHECKSUM_FIELD;
-}
-
 static uint32_t checksum_of(const uint8_t *bytes, int field)
 {
     return hash_update(HASH_START, bytes, (uint32_t)field);
@@ -369,11 +327,18 @@ static void encode_extension(const Settings *settings, uint8_t *extension)
         (uint8_t)((settings->battery_care << BATTERY_CARE_SHIFT) & BATTERY_CARE_MASK);
 }
 
-void settings_encode(const Settings *settings, uint8_t *bytes)
+static void encode_second(const Settings *settings, uint8_t *second)
 {
-    for (int index = 0; index < SETTINGS_FILE_SIZE; index++) {
-        bytes[index] = index < MAGIC_SIZE ? MAGIC[index] : 0;
-    }
+    second[PANEL_BYTE] = (uint8_t)(settings->status_bar_compact | settings->standby_enabled << 1 |
+                                   settings->standby_power_off_option << 2);
+    second[LONG_PRESS_BYTE] = settings->long_press_action & LONG_PRESS_MASK;
+    second[BLUETOOTH_VOLUME_BYTE] = settings->bluetooth_volume < SETTINGS_VOLUME_MAX
+                                        ? settings->bluetooth_volume
+                                        : (uint8_t)SETTINGS_VOLUME_MAX;
+}
+
+static void encode_values(const Settings *settings, uint8_t *bytes)
+{
     bytes[VERSION_FIELD] = VERSION;
     bytes[VERSION_FIELD + 1] = settings->replay_gain_mode | (settings->prevent_clipping ? 4u : 0u) |
                                (settings->battery_percent ? 8u : 0u) |
@@ -391,92 +356,57 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
     bytes[DAC_VOLUME_FIELD] = settings->dac_volume;
     bytes[ACCENT_FIELD] = (uint8_t)settings->accent;
     bytes[EQUALIZER_FIELD] = (uint8_t)settings->equalizer;
-    for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
-        bytes[HALF_DB_GAINS_FIELD + band] =
-            (uint8_t)(settings->equalizer_gains[band] + SETTINGS_EQUALIZER_GAIN_MAX);
-    }
     bytes[TEXT_SIZE_FIELD] = (uint8_t)settings->text_size;
     bytes[SKIP_GESTURE_FIELD] = (uint8_t)settings->skip_gesture;
     bytes[ORIENTATION_FIELD] = (uint8_t)settings->orientation;
     bytes[APPEARANCE_FIELD] = (uint8_t)settings->appearance;
+}
+
+void settings_encode(const Settings *settings, uint8_t *bytes)
+{
+    for (int index = 0; index < SETTINGS_FILE_SIZE; index++) {
+        bytes[index] = index < MAGIC_SIZE ? MAGIC[index] : 0;
+    }
+    encode_values(settings, bytes);
+    for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
+        bytes[HALF_DB_GAINS_FIELD + band] =
+            (uint8_t)(settings->equalizer_gains[band] + SETTINGS_EQUALIZER_GAIN_MAX);
+    }
     for (int index = 0; index < SETTINGS_LANGUAGE_LENGTH && settings->language[index] != '\0';
          index++) {
         bytes[LANGUAGE_FIELD + index] = (uint8_t)settings->language[index];
     }
     encode_extension(settings, bytes + EXTENSION_FIELD);
-    bytes[53] = 16;
     hash_store(bytes + EXTENSION_CHECKSUM_FIELD, checksum_of(bytes, EXTENSION_CHECKSUM_FIELD));
-    bytes[58] = (uint8_t)(settings->status_bar_compact | settings->standby_enabled << 1 |
-                          settings->standby_power_off_option << 2);
-    bytes[59] = settings->long_press_action & 7u;
-    bytes[60] =
-        (uint8_t)((settings->bluetooth_volume < SETTINGS_VOLUME_MAX ? settings->bluetooth_volume
-                                                                    : SETTINGS_VOLUME_MAX) +
-                  1u);
-    hash_store(bytes + 74, hash_update(HASH_START, bytes + 58, 16));
+    encode_second(settings, bytes + SECOND_FIELD);
+    hash_store(bytes + SECOND_CHECKSUM_FIELD,
+               hash_update(HASH_START, bytes + SECOND_FIELD, EXTENSION_SIZE));
 }
 
-static bool replay_gain_flags_valid(const uint8_t *bytes)
-{
-    uint8_t flags = bytes[VERSION_FIELD + 1];
-    return bytes[VERSION_FIELD] < REPLAY_GAIN_VERSION
-               ? flags == 0
-               : (flags & 0xC0u) == 0 && (flags & 3u) < REPLAY_GAIN_MODE_COUNT &&
-                     (flags >> 4u & 3u) < USB_CONNECT_COUNT;
-}
-
-static bool header_valid(const uint8_t *bytes, uint32_t length)
+static bool header_valid(const uint8_t *bytes)
 {
     for (int index = 0; index < MAGIC_SIZE; index++) {
         if (bytes[index] != MAGIC[index]) {
             return false;
         }
     }
-    uint8_t version = bytes[VERSION_FIELD];
-    int field = checksum_field(version);
-    return version >= FIRST_VERSION && version <= VERSION && replay_gain_flags_valid(bytes) &&
-           length >= (uint32_t)(field + CHECKSUM_SIZE) &&
-           hash_load(bytes + field) == checksum_of(bytes, field);
+    uint8_t flags = bytes[VERSION_FIELD + 1];
+    return bytes[VERSION_FIELD] == VERSION && (flags & 0xC0u) == 0 &&
+           (flags & 3u) < REPLAY_GAIN_MODE_COUNT && (flags >> 4u & 3u) < USB_CONNECT_COUNT &&
+           hash_load(bytes + EXTENSION_CHECKSUM_FIELD) ==
+               checksum_of(bytes, EXTENSION_CHECKSUM_FIELD) &&
+           hash_load(bytes + SECOND_CHECKSUM_FIELD) ==
+               hash_update(HASH_START, bytes + SECOND_FIELD, EXTENSION_SIZE);
 }
 
-static bool gains_valid(const uint8_t *bytes, int first, int count, int max)
+static bool gains_valid(const uint8_t *bytes)
 {
-    for (int band = 0; band < count; band++) {
-        if (bytes[first + band] > 2 * max) {
+    for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
+        if (bytes[HALF_DB_GAINS_FIELD + band] > 2 * SETTINGS_EQUALIZER_GAIN_MAX) {
             return false;
         }
     }
     return true;
-}
-
-static bool equalizer_valid(const uint8_t *bytes)
-{
-    uint8_t version = bytes[VERSION_FIELD];
-    if (version < EQUALIZER_VERSION) {
-        return true;
-    }
-    bool gains = version < HALF_DB_VERSION
-                     ? gains_valid(bytes, EQUALIZER_GAINS_FIELD, OLD_BANDS, OLD_GAIN_MAX)
-                     : gains_valid(bytes, HALF_DB_GAINS_FIELD, SETTINGS_EQUALIZER_BANDS,
-                                   SETTINGS_EQUALIZER_GAIN_MAX);
-    return gains && bytes[EQUALIZER_FIELD] < EQUALIZER_PRESET_COUNT;
-}
-
-static bool text_size_valid(const uint8_t *bytes)
-{
-    return bytes[VERSION_FIELD] < TEXT_SIZE_VERSION || bytes[TEXT_SIZE_FIELD] < TEXT_SIZE_COUNT;
-}
-
-static bool skip_gesture_valid(const uint8_t *bytes)
-{
-    return bytes[VERSION_FIELD] < SKIP_GESTURE_VERSION ||
-           bytes[SKIP_GESTURE_FIELD] < SKIP_GESTURE_COUNT;
-}
-
-static bool orientation_valid(const uint8_t *bytes)
-{
-    return bytes[VERSION_FIELD] < ORIENTATION_VERSION ||
-           bytes[ORIENTATION_FIELD] < ORIENTATION_COUNT;
 }
 
 static bool is_code_character(uint8_t byte)
@@ -496,16 +426,6 @@ static bool language_valid(const uint8_t *bytes)
         ended = byte == 0;
     }
     return true;
-}
-
-static void decode_language(const uint8_t *bytes, Settings *settings)
-{
-    if (bytes[VERSION_FIELD] < LANGUAGE_VERSION) {
-        return;
-    }
-    for (int index = 0; index < SETTINGS_LANGUAGE_LENGTH; index++) {
-        settings->language[index] = (char)bytes[LANGUAGE_FIELD + index];
-    }
 }
 
 static bool home_valid(const uint8_t *extension)
@@ -529,12 +449,8 @@ static bool reserved_clear(const uint8_t *extension)
     return any == 0 && (extension[DAC_FILTER_BYTE] & DAC_FILTER_MASK) < DAC_FILTER_COUNT;
 }
 
-static bool extension_valid(const uint8_t *bytes)
+static bool extension_valid(const uint8_t *extension)
 {
-    if (bytes[VERSION_FIELD] < EXTENSION_VERSION) {
-        return true;
-    }
-    const uint8_t *extension = bytes + EXTENSION_FIELD;
     uint8_t comfort = extension[COMFORT_BYTE];
     uint8_t tenths = extension[TRANSITION_BYTE];
     int16_t offset = clock_offset(extension);
@@ -543,56 +459,18 @@ static bool extension_valid(const uint8_t *bytes)
            extension[SAFE_LEVEL_BYTE] <= SETTINGS_VOLUME_MAX &&
            tenths >= SETTINGS_TRANSITION_TENTHS_MIN && tenths <= SETTINGS_TRANSITION_TENTHS_MAX &&
            offset >= -720 && offset <= 840 && home_valid(extension) && reserved_clear(extension) &&
-           ((extension[BATTERY_CARE_BYTE] & BATTERY_CARE_MASK) >> BATTERY_CARE_SHIFT) < 3 &&
-           extension[15] == (bytes[VERSION_FIELD] >= 16 ? 16 : 0);
+           ((extension[BATTERY_CARE_BYTE] & BATTERY_CARE_MASK) >> BATTERY_CARE_SHIFT) < 3;
 }
 
-static void decode_extension(const uint8_t *bytes, Settings *settings)
+static bool second_valid(const uint8_t *second)
 {
-    read_extension(bytes[VERSION_FIELD] < EXTENSION_VERSION ? DEFAULT_EXTENSION
-                                                            : bytes + EXTENSION_FIELD,
-                   settings);
-}
-
-static void migrate_gains(const uint8_t *bytes, int8_t *gains)
-{
-    EqualizerFit fit;
-    equalizer_fit_start(&fit);
-    for (int band = 0; band < OLD_BANDS; band++) {
-        int gain = bytes[EQUALIZER_GAINS_FIELD + band] - OLD_GAIN_MAX;
-        equalizer_fit_point(&fit, OLD_BAND_HZ[band], HUNDRED * gain);
+    uint8_t reserved = 0;
+    for (int index = SECOND_RESERVED_BYTE; index < EXTENSION_SIZE; index++) {
+        reserved |= second[index];
     }
-    equalizer_fit_finish(&fit, gains);
-}
-
-static void decode_equalizer(const uint8_t *bytes, Settings *settings)
-{
-    uint8_t version = bytes[VERSION_FIELD];
-    settings->equalizer =
-        version >= EQUALIZER_VERSION ? (EqualizerPreset)bytes[EQUALIZER_FIELD] : EQUALIZER_OFF;
-    if (version >= HALF_DB_VERSION) {
-        for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
-            settings->equalizer_gains[band] =
-                (int8_t)(bytes[HALF_DB_GAINS_FIELD + band] - SETTINGS_EQUALIZER_GAIN_MAX);
-        }
-    } else if (version >= EQUALIZER_VERSION) {
-        migrate_gains(bytes, settings->equalizer_gains);
-    }
-}
-
-static uint8_t volume_max(const uint8_t *bytes)
-{
-    return bytes[VERSION_FIELD] < VOLUME_SCALE_VERSION ? OLD_VOLUME_MAX : SETTINGS_VOLUME_MAX;
-}
-
-static uint8_t saved_volume(const uint8_t *bytes, int field)
-{
-    uint32_t level = bytes[field];
-    if (bytes[VERSION_FIELD] >= VOLUME_SCALE_VERSION || level == 0) {
-        return (uint8_t)level;
-    }
-    level = (VOLUME_SCALE_TENTHS * level - VOLUME_SCALE_OFFSET_TENTHS) / TENTHS;
-    return (uint8_t)(level > 0 ? level : 1);
+    return reserved == 0 && (second[PANEL_BYTE] & PANEL_RESERVED) == 0 &&
+           (second[PANEL_BYTE] >> 2) < 3 && (second[LONG_PRESS_BYTE] & ~LONG_PRESS_MASK) == 0 &&
+           second[BLUETOOTH_VOLUME_BYTE] <= SETTINGS_VOLUME_MAX;
 }
 
 static bool values_valid(const uint8_t *bytes)
@@ -602,22 +480,21 @@ static bool values_valid(const uint8_t *bytes)
            bytes[TIMEOUT_FIELD] < SCREEN_TIMEOUT_OPTION_COUNT &&
            bytes[GAIN_FIELD] < GAIN_LEVEL_COUNT && bytes[OUTPUT_FIELD] < OUTPUT_JACK_COUNT &&
            bytes[START_FIELD] < START_SCREEN_COUNT && bytes[SHUFFLE_FIELD] < SHUFFLE_MODE_COUNT &&
-           bytes[REPEAT_FIELD] < REPEAT_MODE_COUNT && bytes[VOLUME_FIELD] <= volume_max(bytes) &&
+           bytes[REPEAT_FIELD] < REPEAT_MODE_COUNT && bytes[VOLUME_FIELD] <= SETTINGS_VOLUME_MAX &&
            bytes[AUTO_OFF_FIELD] < AUTO_OFF_OPTION_COUNT &&
-           bytes[USB_MODE_FIELD] < USB_MODE_COUNT && bytes[DAC_VOLUME_FIELD] <= volume_max(bytes) &&
-           bytes[ACCENT_FIELD] < ACCENT_COLOR_COUNT;
+           bytes[USB_MODE_FIELD] < USB_MODE_COUNT &&
+           bytes[DAC_VOLUME_FIELD] <= SETTINGS_VOLUME_MAX &&
+           bytes[ACCENT_FIELD] < ACCENT_COLOR_COUNT &&
+           bytes[EQUALIZER_FIELD] < EQUALIZER_PRESET_COUNT &&
+           bytes[TEXT_SIZE_FIELD] < TEXT_SIZE_COUNT &&
+           bytes[SKIP_GESTURE_FIELD] < SKIP_GESTURE_COUNT &&
+           bytes[ORIENTATION_FIELD] < ORIENTATION_COUNT &&
+           bytes[APPEARANCE_FIELD] < APPEARANCE_THEME_COUNT;
 }
 
-bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
+static void decode_values(const uint8_t *bytes, Settings *settings)
 {
-    if (length < HEADER_SIZE || !header_valid(bytes, length) || !values_valid(bytes) ||
-        !equalizer_valid(bytes) || !text_size_valid(bytes) || !skip_gesture_valid(bytes) ||
-        !orientation_valid(bytes) || !extension_valid(bytes) ||
-        (bytes[VERSION_FIELD] >= APPEARANCE_VERSION &&
-         bytes[APPEARANCE_FIELD] >= APPEARANCE_THEME_COUNT) ||
-        (bytes[VERSION_FIELD] >= LANGUAGE_VERSION && !language_valid(bytes))) {
-        return false;
-    }
+    uint8_t flags = bytes[VERSION_FIELD + 1];
     *settings = (Settings){
         .brightness = bytes[BRIGHTNESS_FIELD],
         .screen_timeout = bytes[TIMEOUT_FIELD],
@@ -626,52 +503,49 @@ bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
         .start_screen = (StartScreen)bytes[START_FIELD],
         .shuffle = (ShuffleMode)bytes[SHUFFLE_FIELD],
         .repeat = (RepeatMode)bytes[REPEAT_FIELD],
-        .volume = saved_volume(bytes, VOLUME_FIELD),
-        .auto_off = bytes[VERSION_FIELD] < AUTO_OFF_VERSION ? (uint8_t)DEFAULT_AUTO_OFF_OPTION
-                                                            : bytes[AUTO_OFF_FIELD],
-        .usb_mode = bytes[VERSION_FIELD] < USB_MODE_VERSION ? USB_MODE_STORAGE
-                                                            : (UsbMode)bytes[USB_MODE_FIELD],
-        .dac_volume = bytes[VERSION_FIELD] < DAC_VOLUME_VERSION
-                          ? (uint8_t)SETTINGS_DEFAULT_DAC_VOLUME
-                          : saved_volume(bytes, DAC_VOLUME_FIELD),
-        .accent =
-            bytes[VERSION_FIELD] < ACCENT_VERSION ? ACCENT_BLUE : (AccentColor)bytes[ACCENT_FIELD],
+        .volume = bytes[VOLUME_FIELD],
+        .auto_off = bytes[AUTO_OFF_FIELD],
+        .usb_mode = (UsbMode)bytes[USB_MODE_FIELD],
+        .dac_volume = bytes[DAC_VOLUME_FIELD],
+        .accent = (AccentColor)bytes[ACCENT_FIELD],
+        .equalizer = (EqualizerPreset)bytes[EQUALIZER_FIELD],
+        .text_size = (TextSize)bytes[TEXT_SIZE_FIELD],
+        .skip_gesture = (SkipGesture)bytes[SKIP_GESTURE_FIELD],
+        .orientation = (Orientation)bytes[ORIENTATION_FIELD],
+        .appearance = (AppearanceTheme)bytes[APPEARANCE_FIELD],
+        .replay_gain_mode = (uint8_t)(flags & 3u),
+        .prevent_clipping = (flags & 4u) != 0,
+        .battery_percent = (flags & 8u) != 0,
+        .usb_connect = (UsbConnect)(flags >> 4u & 3u),
     };
-    decode_equalizer(bytes, settings);
-    settings->text_size = bytes[VERSION_FIELD] < TEXT_SIZE_VERSION
-                              ? TEXT_SIZE_MEDIUM
-                              : (TextSize)bytes[TEXT_SIZE_FIELD];
-    settings->skip_gesture = bytes[VERSION_FIELD] < SKIP_GESTURE_VERSION
-                                 ? SKIP_GESTURE_HOLD
-                                 : (SkipGesture)bytes[SKIP_GESTURE_FIELD];
-    settings->orientation = bytes[VERSION_FIELD] < ORIENTATION_VERSION
-                                ? ORIENTATION_LANDSCAPE
-                                : (Orientation)bytes[ORIENTATION_FIELD];
-    settings->appearance = bytes[VERSION_FIELD] < APPEARANCE_VERSION
-                               ? APPEARANCE_NEON_NOIR
-                               : (AppearanceTheme)bytes[APPEARANCE_FIELD];
-    decode_language(bytes, settings);
-    settings->replay_gain_mode = bytes[VERSION_FIELD] < REPLAY_GAIN_VERSION
-                                     ? REPLAY_GAIN_OFF
-                                     : (uint8_t)(bytes[VERSION_FIELD + 1] & 3u);
-    settings->prevent_clipping =
-        bytes[VERSION_FIELD] < REPLAY_GAIN_VERSION || (bytes[VERSION_FIELD + 1] & 4u) != 0;
-    settings->battery_percent = (bytes[VERSION_FIELD + 1] & 8u) != 0;
-    settings->usb_connect = (UsbConnect)(bytes[VERSION_FIELD + 1] >> 4u & 3u);
-    decode_extension(bytes, settings);
-    settings->standby_power_off_option = 1;
-    settings->bluetooth_volume = SETTINGS_DEFAULT_BLUETOOTH_VOLUME;
-    if (bytes[VERSION_FIELD] >= 16 && length >= SETTINGS_FILE_SIZE &&
-        hash_load(bytes + 74) == hash_update(HASH_START, bytes + 58, 16) &&
-        (bytes[58] & 0xF0u) == 0 && (bytes[58] >> 2) < 3 && (bytes[59] & 0xF8u) == 0 &&
-        bytes[60] <= SETTINGS_VOLUME_MAX + 1) {
-        settings->status_bar_compact = (bytes[58] & 1u) != 0;
-        settings->standby_enabled = (bytes[58] & 2u) != 0;
-        settings->standby_power_off_option = bytes[58] >> 2;
-        settings->long_press_action = bytes[59];
-        settings->bluetooth_volume =
-            bytes[60] == 0 ? (uint8_t)SETTINGS_DEFAULT_BLUETOOTH_VOLUME : (uint8_t)(bytes[60] - 1u);
+}
+
+static void read_second(const uint8_t *second, Settings *settings)
+{
+    settings->status_bar_compact = (second[PANEL_BYTE] & 1u) != 0;
+    settings->standby_enabled = (second[PANEL_BYTE] & 2u) != 0;
+    settings->standby_power_off_option = second[PANEL_BYTE] >> 2;
+    settings->long_press_action = second[LONG_PRESS_BYTE];
+    settings->bluetooth_volume = second[BLUETOOTH_VOLUME_BYTE];
+}
+
+bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
+{
+    if (length < SETTINGS_FILE_SIZE || !header_valid(bytes) || !values_valid(bytes) ||
+        !gains_valid(bytes) || !language_valid(bytes) ||
+        !extension_valid(bytes + EXTENSION_FIELD) || !second_valid(bytes + SECOND_FIELD)) {
+        return false;
     }
+    decode_values(bytes, settings);
+    for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
+        settings->equalizer_gains[band] =
+            (int8_t)(bytes[HALF_DB_GAINS_FIELD + band] - SETTINGS_EQUALIZER_GAIN_MAX);
+    }
+    for (int index = 0; index < SETTINGS_LANGUAGE_LENGTH; index++) {
+        settings->language[index] = (char)bytes[LANGUAGE_FIELD + index];
+    }
+    read_extension(bytes + EXTENSION_FIELD, settings);
+    read_second(bytes + SECOND_FIELD, settings);
     return true;
 }
 

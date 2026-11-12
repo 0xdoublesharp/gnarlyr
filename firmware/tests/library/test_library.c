@@ -59,10 +59,11 @@ static void a_wrong_magic_is_rejected(void)
     CHECK_EQUAL(LIBRARY_BAD_MAGIC, open_modified(0, 'X', fixture_size()));
 }
 
-static void a_newer_version_is_rejected(void)
+static void every_version_but_one_is_rejected(void)
 {
-    CHECK_EQUAL(LIBRARY_BAD_VERSION, open_modified(VERSION_OFFSET, 7, fixture_size()));
-    CHECK_EQUAL(LIBRARY_BAD_VERSION, open_modified(VERSION_OFFSET, 4, fixture_size()));
+    CHECK_EQUAL(LIBRARY_BAD_VERSION, open_modified(VERSION_OFFSET, 0, fixture_size()));
+    CHECK_EQUAL(LIBRARY_BAD_VERSION, open_modified(VERSION_OFFSET, 2, fixture_size()));
+    CHECK_EQUAL(LIBRARY_BAD_VERSION, open_modified(VERSION_OFFSET, 6, fixture_size()));
 }
 
 static void a_truncated_file_is_rejected(void)
@@ -310,7 +311,7 @@ int main(void)
 
         TEST_CASE(the_fixture_opens_with_its_counts),
         TEST_CASE(a_wrong_magic_is_rejected),
-        TEST_CASE(a_newer_version_is_rejected),
+        TEST_CASE(every_version_but_one_is_rejected),
         TEST_CASE(a_truncated_file_is_rejected),
         TEST_CASE(a_section_inside_the_header_is_rejected),
         TEST_CASE(an_unreadable_source_is_reported),

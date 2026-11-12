@@ -5,12 +5,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import (
     EchoImageHarness,
-    FNV_PRIME,
-    FNV_START,
     IDENTITY,
     STARTUP_WORK_MS,
     main,
-    struct,
+    seal_settings,
 )
 
 
@@ -19,12 +17,8 @@ class EchoImageTest(EchoImageHarness):
         from unicorn.arm_const import UC_ARM_REG_R0
 
         settings = bytearray(self.saved_settings(4, 15, shuffle=0))
-        settings[4], settings[53], settings[58] = 16, 16, 6
-        for first, end, target in ((0, 54, 54), (58, 74, 74)):
-            checksum = FNV_START
-            for value in settings[first:end]:
-                checksum = (checksum ^ value) * FNV_PRIME & 0xFFFFFFFF
-            settings[target:target + 4] = struct.pack("<I", checksum)
+        settings[58] = 6
+        settings = seal_settings(settings)
         volume = self.debug_volume()
         volume.add_file("settings.bin", bytes(settings), directory=IDENTITY.data_directory)
         session = self.session(volume=volume)

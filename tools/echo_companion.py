@@ -1,21 +1,13 @@
 import json
 import re
-import struct
 
 import echo_language
 
 ASCII_LOWER = echo_language.ASCII_LOWER
-FIELDS = {"VERSION_FIELD": 4, "BRIGHTNESS_FIELD": 6, "TIMEOUT_FIELD": 7,
-          "TEXT_SIZE_FIELD": 24, "ORIENTATION_FIELD": 26, "HALF_DB_CHECKSUM_FIELD": 38}
 BOUNDS = {6: (1, 10), 7: (0, 6), 8: (0, 1), 9: (0, 2), 10: (0, 6),
           11: (0, 2), 12: (0, 2), 13: (0, 60), 14: (0, 3), 15: (0, 1),
-          16: (0, 60), 17: (0, 7), 18: (0, 7), 24: (0, 2), 25: (0, 2),
+          16: (0, 60), 17: (0, 7), 18: (0, 8), 24: (0, 2), 25: (0, 2),
           26: (0, 2), 27: (0, 4)}
-FLAGS_ENCODING = "bytes[VERSION_FIELD+1]=settings->replay_gain_mode|(settings->prevent_clipping?4u:0u)"
-ENCODINGS = (FLAGS_ENCODING + ";",
-             FLAGS_ENCODING + "|(settings->battery_percent?8u:0u);",
-             FLAGS_ENCODING + "|(uint8_t)(settings->usb_connect<<4u);",
-             FLAGS_ENCODING + "|(settings->battery_percent?8u:0u)|(uint8_t)(settings->usb_connect<<4u);")
 SPECS = (
     ("text_size", "STR_TEXT_SIZE", "TEXT_SIZE_OPTIONS", ("small", "medium", "large"),
      ("STR_SIZE_SMALL", "STR_SIZE_MEDIUM", "STR_SIZE_LARGE"), 24, 255, 0, 0),
@@ -28,15 +20,11 @@ SPECS = (
      ("10s", "20s", "30s", "1m", "2m", "5m", "never"),
      ("STR_SECONDS_10", "STR_SECONDS_20", "STR_SECONDS_30", "STR_MINUTES_1",
       "STR_MINUTES_2", "STR_MINUTES_5", "STR_NEVER"), 7, 255, 0, 0),
-    ("replay_gain", "STR_REPLAY_GAIN", "REPLAY_GAIN_OPTIONS", ("off", "track", "album"),
-     ("STR_OFF", "STR_REPLAY_GAIN_TRACK", "STR_REPLAY_GAIN_ALBUM"), 5, 3, 0, 0),
-    ("prevent_clipping", "STR_PREVENT_CLIPPING", "CLIPPING_OPTIONS", ("off", "on"),
+    ("replay_gain", "STR_REPLAY_GAIN", "REPLAY_GAIN_OPTIONS", ("off", "track", "album", "auto"),
+     ("STR_OFF", "STR_REPLAY_GAIN_TRACK", "STR_REPLAY_GAIN_ALBUM", "STR_REPLAY_GAIN_AUTO"), 5, 3, 0, 0),
+    ("prevent_clipping", "STR_PREVENT_CLIPPING", "OFF_ON_OPTIONS", ("off", "on"),
      ("STR_OFF", "STR_ON"), 5, 4, 2, 0),
 )
-AUTO_GAIN_SPEC = ("replay_gain", "STR_REPLAY_GAIN", "REPLAY_GAIN_OPTIONS",
-                  ("off", "track", "album", "auto"),
-                  ("STR_OFF", "STR_REPLAY_GAIN_TRACK", "STR_REPLAY_GAIN_ALBUM", "STR_REPLAY_GAIN_AUTO"),
-                  5, 3, 0, 0)
 BATTERY_CARE_SPEC = ("battery_care", "STR_BATTERY_CARE", "BATTERY_CARE_OPTIONS",
                      ("charge_to_full", "run_from_usb"), ("STR_CHARGE_FULL", "STR_RUN_USB"),
                      52, 24, 4, 0)
@@ -67,46 +55,22 @@ def array_source(source, name):
 class Layout:
     def __init__(self, snapshot):
         self.snapshot = snapshot
-        source = snapshot.show("firmware/src/settings/settings.c")
         self.ui = snapshot.show("firmware/src/app/settings_screens.c")
-        if snapshot.settings_version not in (13, 14, 15, echo_language.F_VERSION):
-            raise ValueError("only the declared version 13 to 16 settings layouts are supported")
-        if any(echo_language.constant(source, name) != value for name, value in FIELDS.items()):
-            raise ValueError("the installed settings fields have changed")
         header = snapshot.show("firmware/src/settings/include/settings/settings.h")
-        if (echo_language.constant(header, "SETTINGS_BRIGHTNESS_MIN") != 1 or
-                echo_language.constant(header, "SETTINGS_BRIGHTNESS_MAX") != 10):
-            raise ValueError("the installed brightness range has changed")
         for name, expected in (("TextSize", ["TEXT_SIZE_SMALL", "TEXT_SIZE_MEDIUM", "TEXT_SIZE_LARGE"]),
                                ("Orientation", ["ORIENTATION_LANDSCAPE", "ORIENTATION_PORTRAIT", "ORIENTATION_PORTRAIT_FLIPPED"])):
             declaration = re.search(r"typedef\s+enum\s+" + name + r"\s*\{([^}]+)\}", header)
             members = [value.strip() for value in declaration.group(1).split(",")] if declaration else []
             if members != expected:
                 raise ValueError("the installed display setting encoding has changed")
-        self.specs = SPECS[:4] if snapshot.settings_version == 13 else SPECS
-        if snapshot.settings_version >= 14 and snapshot.replay_gain_modes == 4:
-            self.specs = tuple(AUTO_GAIN_SPEC if spec[0] == "replay_gain" else spec for spec in self.specs)
-        if snapshot.settings_version >= 15 and "STR_CLOCK_FORMAT" in self.title_ids():
-            if echo_language.constant(source, "CLOCK_24H_BIT") != 4:
-                raise ValueError("the installed clock setting encoding has changed")
-            self.specs += (CLOCK_SPEC,)
-        if snapshot.status_items_supported and "STR_STATUS_VOLUME" in self.title_ids():
-            self.specs += STATUS_SPECS
-        if snapshot.battery_care_supported and "STR_BATTERY_CARE" in self.title_ids():
-            self.specs += (BATTERY_CARE_SPEC,)
-        self.title_ids()
+        titles = self.title_ids()
+        self.specs = SPECS + tuple(spec for spec in (CLOCK_SPEC, *STATUS_SPECS, BATTERY_CARE_SPEC)
+                                   if spec[1] in titles)
         for spec in self.specs:
-            options = spec[2]
-            if spec[0] == "prevent_clipping" and "CLIPPING_OPTIONS" not in self.ui:
-                options = "OFF_ON_OPTIONS"
-            body = array_source(self.ui, options)
+            body = array_source(self.ui, spec[2])
             actual = tuple(re.findall(r"\bSTR_[A-Z0-9_]+\b", body)) if spec[4] else tuple(re.findall(r'"([0-9]+)"', body))
             if actual != (spec[4] or spec[3]) or not re.search(r"\{\s*" + spec[1] + r"\s*,", self.ui):
                 raise ValueError("the installed settings choices have changed")
-        if snapshot.settings_version >= 14:
-            compact = re.sub(r"\s+", "", source)
-            if not any(encoding in compact for encoding in ENCODINGS):
-                raise ValueError("the installed ReplayGain settings encoding has changed")
 
     def title_ids(self):
         return self.snapshot.setting_title_ids()
@@ -119,9 +83,7 @@ class Layout:
         changed = bytearray(data)
         raw = (spec[3].index(value) + spec[8]) << spec[7]
         changed[spec[5]] = changed[spec[5]] & (255 ^ spec[6]) | raw
-        field = self.snapshot.settings_checksum_field(changed[4])
-        struct.pack_into("<I", changed, field, self.snapshot.format.fnv(changed[:field]))
-        return bytes(changed)
+        return self.snapshot.settings_checksums(changed)
 
 
 class Manager:
@@ -147,12 +109,11 @@ class Manager:
             self.error("settings_missing", "save settings on the player before companion control")
         snapshot = context["snapshot"]
         if not snapshot.settings_checksum_valid(data):
-            self.error("settings_invalid", "the saved settings header or checksum is invalid")
-        if data[4] != snapshot.settings_version:
-            self.error("settings_migration_required", "save settings with the installed firmware before companion control")
-        if (not snapshot.settings_flags_valid(data[4], data[5]) or
+            self.error("settings_invalid", "the saved settings are not a version 1 settings file; "
+                       "save settings on the player before companion control")
+        if (not snapshot.settings_valid(data) or
                 any(not low <= data[offset] <= high for offset, (low, high) in BOUNDS.items()) or
-                any(value > 40 for value in data[28:38]) or not snapshot.settings_extension_valid(data)):
+                any(value > 40 for value in data[28:38])):
             self.error("settings_invalid", "the saved settings contain values the firmware would reject")
         return data
 

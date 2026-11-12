@@ -41,7 +41,6 @@ bool parametric_bank_encode(const ParametricBank *bank, uint8_t *bytes)
         bytes[index] = 0;
     }
     bytes[0] = bank->used;
-    bytes[1] = 1;
     if (!encode_record(&bank->custom, bytes + 4)) {
         return false;
     }
@@ -59,7 +58,7 @@ bool parametric_bank_encode(const ParametricBank *bank, uint8_t *bytes)
             (index > 0 && shape->active && (bank->used >> (index - 1) & 1) == 0)) {
             return false;
         }
-        uint8_t *record = bytes + PARAMETRIC_LEGACY_BYTES + index * SOUND_SHAPING_BYTES;
+        uint8_t *record = bytes + PARAMETRIC_SHAPING_OFFSET + index * SOUND_SHAPING_BYTES;
         for (int slider = 0; slider < SOUND_SHAPING_COUNT; slider++) {
             record[slider] = (uint8_t)shape->positions[slider];
         }
@@ -98,7 +97,7 @@ static bool decode_record(const uint8_t *bytes, ParametricEq *eq)
 bool parametric_bank_decode(const uint8_t *bytes, ParametricBank *bank)
 {
     ParametricBank decoded = {.used = bytes[0]};
-    if (bytes[1] > 1 || !zero(bytes + 2, 2) || !decode_record(bytes + 4, &decoded.custom)) {
+    if (!zero(bytes + 1, 3) || !decode_record(bytes + 4, &decoded.custom)) {
         return false;
     }
     for (int index = 0; index < PARAMETRIC_SLOT_COUNT; index++) {
@@ -108,8 +107,8 @@ bool parametric_bank_decode(const uint8_t *bytes, ParametricBank *bank)
             return false;
         }
     }
-    for (int index = 0; bytes[1] == 1 && index <= PARAMETRIC_SLOT_COUNT; index++) {
-        const uint8_t *record = bytes + PARAMETRIC_LEGACY_BYTES + index * SOUND_SHAPING_BYTES;
+    for (int index = 0; index <= PARAMETRIC_SLOT_COUNT; index++) {
+        const uint8_t *record = bytes + PARAMETRIC_SHAPING_OFFSET + index * SOUND_SHAPING_BYTES;
         SoundShaping *shape = &decoded.shaping[index];
         for (int slider = 0; slider < SOUND_SHAPING_COUNT; slider++) {
             shape->positions[slider] = (int8_t)record[slider];
@@ -135,20 +134,18 @@ static StoreLoad check_record(void *context, uint8_t bank, const StoreHeader *he
 {
     Reader *reader = context;
     uint8_t bytes[PARAMETRIC_PAYLOAD_BYTES] = {0};
-    if ((header->bytes != sizeof bytes && header->bytes != PARAMETRIC_LEGACY_BYTES) ||
-        header->binding != 0 || header->count != 0) {
+    if (header->bytes != sizeof bytes || header->binding != 0 || header->count != 0) {
         return STORE_CORRUPT;
     }
     uint32_t offset = (uint32_t)bank * PARAMETRIC_BANK_BYTES + STORE_BLOCK_BYTES;
-    for (uint32_t at = 0; at < header->bytes; at += STORE_BLOCK_BYTES) {
+    for (uint32_t at = 0; at < sizeof bytes; at += STORE_BLOCK_BYTES) {
         uint32_t length =
-            header->bytes - at < STORE_BLOCK_BYTES ? header->bytes - at : STORE_BLOCK_BYTES;
+            sizeof bytes - at < STORE_BLOCK_BYTES ? sizeof bytes - at : STORE_BLOCK_BYTES;
         if (!store_file_read(&reader->owner->file, offset + at, bytes + at, length)) {
             return STORE_UNREADABLE;
         }
     }
-    return (header->bytes != PARAMETRIC_LEGACY_BYTES || bytes[1] == 0) &&
-                   hash_update(HASH_START, bytes, header->bytes) == header->hash &&
+    return hash_update(HASH_START, bytes, sizeof bytes) == header->hash &&
                    parametric_bank_decode(bytes, reader->bank)
                ? STORE_READY
                : STORE_CORRUPT;

@@ -6,6 +6,7 @@
 #include "check.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
+#include "hal/storage.h"
 #include "music_check.h"
 #include "settings/settings.h"
 #include "settings_store.h"
@@ -250,7 +251,7 @@ static void a_saved_language_whose_file_is_gone_starts_in_the_default(void)
         if (with_file) {
             fake_hal_add_language_file("qps.pack", bracketed, bracketed_size);
         }
-        fake_hal_add_file(SETTINGS_STORE_PATH, settings_bytes, SETTINGS_FILE_SIZE);
+        CHECK(hal_internal_file_write(SETTINGS_STORE_PATH, settings_bytes, SETTINGS_FILE_SIZE));
         add_player_files();
         app_start();
         CHECK(strcmp(with_file ? "qps" : "en", i18n_code()) == 0);

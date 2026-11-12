@@ -3,7 +3,7 @@ from pathlib import Path
 
 from identity import IDENTITY
 
-SAVE_FILES = ("settings.bin", "resume.bin", "favorites.bin")
+SAVE_FILES = ("settings.bin", "session.bin", "favorites.bin")
 SAVE_FILE_SIZE = 4096
 LIBRARY_FILE = "library.db"
 LIBRARY_FILE_SIZE = 4 * 1024 * 1024

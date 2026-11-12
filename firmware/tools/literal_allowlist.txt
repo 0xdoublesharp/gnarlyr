@@ -109,8 +109,6 @@ src/app/library_rescan.c: "/build.tmp"
 src/app/library_rescan.c: "/rescan_times.bin"
 src/app/library_store.c: "/library.db"
 src/app/music_check.c: "/scan.bin"
-src/app/player.c: "/resume.bin"
-src/app/player.c: "/upnext.bin"
 src/app/settings_store.c: "/settings.bin"
 src/app/spoken_store.c: "/bookmarks.bin"
 

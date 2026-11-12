@@ -25,7 +25,7 @@ CORE0_RESTING_HZ = 24000000
 
 def bluetooth_store(on_bluetooth):
     device = BUDS_ADDRESS + BUDS.encode("ascii").ljust(32, b"\0")
-    record = b"BT\x02\x01\x01" + device + bytes(DEVICE_BYTES * (DEVICE_COUNT - 1))
+    record = b"BT\x01\x01\x01" + device + bytes(DEVICE_BYTES * (DEVICE_COUNT - 1))
     record += b"\x01" if on_bluetooth else b"\x00"
     return record.ljust(STORE_BYTES, b"\0")
 

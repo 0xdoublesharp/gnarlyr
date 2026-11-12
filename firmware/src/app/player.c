@@ -15,9 +15,6 @@
 #include "playback/spoken.h"
 #include "playback/track_transition.h"
 
-const char PLAYER_RESUME_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/resume.bin";
-const char PLAYER_UP_NEXT_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/upnext.bin";
-
 typedef struct TrackAudio {
     char path[PLAYER_PATH_CAPACITY];
     HalAudioTrack track;
@@ -859,24 +856,6 @@ bool player_save(Player *player)
     return player_store_session(player, &state);
 }
 
-static bool read_legacy(const char *path, void *bytes, uint32_t length)
-{
-    HalFile file;
-    if (!hal_file_open(&file, path)) {
-        return false;
-    }
-    bool read = file.size >= length && hal_file_read(file, 0, bytes, length);
-    hal_file_close(&file);
-    return read;
-}
-
-static bool read_resume_state(ResumeState *state)
-{
-    uint8_t bytes[RESUME_STATE_SIZE];
-    return read_legacy(PLAYER_RESUME_PATH, bytes, sizeof bytes) &&
-           resume_state_decode(bytes, sizeof bytes, state);
-}
-
 static bool rebuild_queue(Player *player, const ResumeState *state)
 {
     uint16_t track = 0;
@@ -886,17 +865,6 @@ static bool rebuild_queue(Player *player, const ResumeState *state)
     play_queue_move_to(&player->queue, state->cursor);
     return play_queue_current(&player->queue, &track) &&
            (state->from_up_next || track == state->track);
-}
-
-static void load_up_next(Player *player)
-{
-    uint8_t bytes[UP_NEXT_STATE_SIZE];
-    if (read_legacy(PLAYER_UP_NEXT_PATH, bytes, sizeof bytes)) {
-        player->up_next_revision++;
-        if (!up_next_decode(bytes, sizeof bytes, player->fingerprint, &player->up_next)) {
-            up_next_clear(&player->up_next);
-        }
-    }
 }
 
 static bool restore_session_queue(Player *player, const SessionState *session)
@@ -959,19 +927,8 @@ bool player_restore(Player *player)
                 break;
             }
         }
-        return false;
     }
-    if (result != STORE_EMPTY && player->storage.session_file.size != 0) {
-        return false;
-    }
-    ResumeState state;
-    load_up_next(player);
-    if (!read_resume_state(&state) || state.library_fingerprint != player->fingerprint ||
-        !rebuild_queue(player, &state)) {
-        return false;
-    }
-    restore_position(player, &state);
-    return true;
+    return false;
 }
 
 static HalAudioFormat current_format(const Player *player)

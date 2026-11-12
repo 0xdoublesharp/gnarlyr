@@ -21,33 +21,6 @@ static const HalUsbMode HAL_USB_MODES[USB_MODE_COUNT] = {HAL_USB_MODE_STORAGE, H
 static const HalUsbAnswer HAL_USB_ANSWERS[USB_CONNECT_COUNT] = {
     HAL_USB_ANSWER_ASK, HAL_USB_ANSWER_STORAGE, HAL_USB_ANSWER_CHARGE, HAL_USB_ANSWER_DAC};
 
-static const uint32_t FILE_SIZES[] = {SETTINGS_FILE_SIZE, SETTINGS_V15_FILE_SIZE,
-                                      SETTINGS_V14_FILE_SIZE, SETTINGS_PREVIOUS_FILE_SIZE};
-
-static bool read_music_volume(uint8_t *bytes, uint32_t length)
-{
-    HalFile file;
-    if (!hal_file_open(&file, SETTINGS_STORE_PATH)) {
-        return false;
-    }
-    bool read = file.size >= length && hal_file_read(file, 0, bytes, length);
-    hal_file_close(&file);
-    return read;
-}
-
-static bool read_valid(uint8_t *bytes, Settings *settings, bool internal)
-{
-    for (size_t index = 0; index < sizeof FILE_SIZES / sizeof FILE_SIZES[0]; index++) {
-        uint32_t length = FILE_SIZES[index];
-        bool read = internal ? hal_internal_file_read(SETTINGS_STORE_PATH, bytes, length)
-                             : read_music_volume(bytes, length);
-        if (read && settings_decode(bytes, length, settings)) {
-            return true;
-        }
-    }
-    return false;
-}
-
 static bool same_bytes(const uint8_t *first, const uint8_t *second, uint32_t length)
 {
     for (uint32_t index = 0; index < length; index++) {
@@ -71,9 +44,10 @@ void settings_store_load(SettingsStore *store)
     uint8_t bytes[SETTINGS_FILE_SIZE] = {0};
     store->has_saved = false;
     store->has_saved_buttons = false;
-    if (read_valid(bytes, &store->settings, true)) {
+    if (hal_internal_file_read(SETTINGS_STORE_PATH, bytes, sizeof bytes) &&
+        settings_decode(bytes, sizeof bytes, &store->settings)) {
         remember(store, bytes);
-    } else if (!read_valid(bytes, &store->settings, false)) {
+    } else {
         store->settings = settings_defaults();
     }
     store->parametric = (ParametricStore){0};
