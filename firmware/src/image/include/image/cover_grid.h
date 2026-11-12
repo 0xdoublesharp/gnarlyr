@@ -12,7 +12,8 @@ enum {
     COVER_GRID_BLACK = 3,
     COVER_GRID_LIMIT = 16384,
     COVER_GRID_BLOCK_OUTPUTS = 8,
-    COVER_GRID_WEIGHT_ONE = 512
+    COVER_GRID_WEIGHT_ONE = 512,
+    COVER_GRID_COLUMN_LIMIT = 512
 };
 
 typedef enum CoverColor {
@@ -43,6 +44,9 @@ typedef struct CoverGrid {
     uint32_t span;
     uint32_t sample_width[COVER_GRID_CHANNELS];
     uint32_t sample_height[COVER_GRID_CHANNELS];
+    uint32_t column_first[COVER_GRID_CHANNELS];
+    uint32_t column_count[COVER_GRID_CHANNELS];
+    uint32_t columns[COVER_GRID_CHANNELS][COVER_GRID_COLUMN_LIMIT];
     uint32_t totals_x[COVER_GRID_CHANNELS][COVER_GRID_SIZE];
     uint32_t totals_y[COVER_GRID_CHANNELS][COVER_GRID_SIZE];
     int32_t row[COVER_GRID_CHANNELS][COVER_GRID_SIZE];

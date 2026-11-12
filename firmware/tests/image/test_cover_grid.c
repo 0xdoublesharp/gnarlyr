@@ -315,6 +315,52 @@ static void fill_inks(CoverGrid *grid, int32_t *black, const int32_t *inks)
     }
 }
 
+typedef struct Lattice {
+    uint32_t width;
+    uint32_t height;
+    uint32_t sample;
+    uint32_t outputs;
+} Lattice;
+
+static void add_lattice(CoverGrid *grid, const Lattice *lattice, uint32_t seed)
+{
+    uint32_t block = lattice->sample * lattice->outputs;
+    int32_t samples[COVER_GRID_BLOCK_OUTPUTS * COVER_GRID_BLOCK_OUTPUTS];
+    for (uint32_t y = 0; y * block < lattice->height; y++) {
+        for (uint32_t x = 0; x * block < lattice->width; x++) {
+            CoverRect rect = {x * block, y * block, block, block};
+            for (uint32_t index = 0; index < lattice->outputs * lattice->outputs; index++) {
+                seed = seed * 1664525u + 1013904223u;
+                samples[index] = (int32_t)(seed >> 20) - 2048;
+            }
+            if (lattice->outputs == 1) {
+                cover_grid_add(grid, 0, rect, samples[0]);
+            } else {
+                cover_grid_add_block(grid, 0, rect, samples, lattice->outputs);
+            }
+        }
+    }
+}
+
+static void sampled_blocks_sum_the_same_through_the_column_table(void)
+{
+    static const Lattice LATTICES[] = {
+        {1500, 1000, 8, 1}, {640, 480, 2, 4}, {900, 901, 4, 2}, {333, 777, 2, 4},
+        {2400, 2400, 16, 1}, {1000, 1000, 4, 2}, {500, 500, 2, 4}, {4001, 3999, 32, 1},
+    };
+    static CoverGrid table;
+    static CoverGrid plain;
+    for (uint32_t index = 0; index < sizeof LATTICES / sizeof LATTICES[0]; index++) {
+        const Lattice *lattice = &LATTICES[index];
+        CHECK(cover_grid_init(&table, lattice->width, lattice->height));
+        CHECK(cover_grid_init(&plain, lattice->width, lattice->height));
+        cover_grid_set_sampling(&table, 0, lattice->sample, lattice->sample);
+        add_lattice(&table, lattice, index + 1);
+        add_lattice(&plain, lattice, index + 1);
+        CHECK(memcmp(table.sums[0], plain.sums[0], sizeof table.sums[0]) == 0);
+    }
+}
+
 static void adobe_cmyk_multiplies_the_inverted_inks(void)
 {
     static int32_t black[COVER_GRID_CELLS];
@@ -354,6 +400,7 @@ int main(void)
         TEST_CASE(rectangles_outside_the_crop_do_not_touch_it),
         TEST_CASE(exif_orientation_six_turns_the_cover_clockwise),
         TEST_CASE(every_exif_orientation_puts_the_first_quadrant_where_pillow_does),
+        TEST_CASE(sampled_blocks_sum_the_same_through_the_column_table),
         TEST_CASE(adobe_cmyk_multiplies_the_inverted_inks),
         TEST_CASE(ycck_inverts_the_converted_colour_before_black),
     };
