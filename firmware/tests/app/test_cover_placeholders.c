@@ -159,6 +159,7 @@ static void cover_flow_shows_a_placeholder_for_an_album_without_art(void)
     Library *library = open_cache(true);
     Theme theme = theme_in(APPEARANCE_SEA_GLASS);
     Screen *screen = open_flow(library, &theme);
+    screen->enter(screen->context, 0);
     uint32_t position = 0;
     CHECK(cover_flow_order_find(library, flow.order, BARE_ALBUM, &position));
     flow.positioned = true;

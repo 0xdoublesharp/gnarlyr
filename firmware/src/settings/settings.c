@@ -317,7 +317,7 @@ static void encode_extension(const Settings *settings, uint8_t *extension)
                                         (settings->clock_24h ? CLOCK_24H_BIT : 0) |
                                         ((unsigned)settings->track_transition << TRANSITION_SHIFT));
     extension[STATUS_ITEMS_BYTE] =
-        (uint8_t)((settings->status_items & 0x0Fu) | (settings->power_on_flags & 0x10u));
+        (uint8_t)((settings->status_items & ~0x10u) | (settings->power_on_flags & 0x10u));
     extension[SAFE_LEVEL_BYTE] = settings->safe_start_volume_level;
     extension[TRANSITION_BYTE] = settings->transition_tenths;
     extension[CLOCK_OFFSET_BYTE] = (uint8_t)settings->clock_offset_minutes;

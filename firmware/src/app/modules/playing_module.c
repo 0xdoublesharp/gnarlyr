@@ -1,3 +1,4 @@
+#include "browse_sections.h"
 #include "modules/modules.h"
 #include "screens/charge_screen.h"
 
@@ -35,4 +36,6 @@ static void bind(AppScreens *screens)
 const PlayingModuleEntry PLAYING_MODULE_ENTRY = {
     .module = SCREEN_MODULE_ENTRY(SCREEN_MODULE_PLAYING, bind),
     .charge_draw = charge_art_draw,
-    .charge_observe = charge_art_observe};
+    .charge_observe = charge_art_observe,
+    .section = browse_sections_at,
+    .sections = browse_sections_range};

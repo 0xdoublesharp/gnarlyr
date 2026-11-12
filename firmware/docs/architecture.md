@@ -903,8 +903,9 @@ clock gating beyond the existing crystal path, and a paused watchdog require har
 validation before replacing this polling fallback. Standby remains Off by default.
 Power wakes the display; playback stays paused at the saved position until Play.
 
-The debug report adds `standby.entries`, `standby.wakes`, `standby.entry_ms`,
-`standby.wake_ms`, `standby.entry_mv`, `standby.wake_mv` and `standby.wake_latency_ms`.
+The debug report adds `standby.entries` and `standby.wakes`, and once standby has been
+entered also `standby.entry_ms`, `standby.wake_ms`, `standby.entry_mv`, `standby.wake_mv` and
+`standby.wake_latency_ms`, so a full report still fits its 16 KiB file.
 The voltage fields are unknown before a known reading. Latency runs from processing the
 wake transition to presenting the first frame and requesting the backlight; the existing
 backlight ramp adds 200 ms. Entry and wake timestamps are uptime milliseconds and wrap

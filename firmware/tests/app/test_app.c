@@ -2739,7 +2739,7 @@ static void formatting_a_paused_card_clears_the_library_and_saved_playback_state
     hold_back();
     move_down(HOME_SETTINGS_INDEX + (app_player_status().has_track ? 1 : 0));
     tap(KEY_PLAY);
-    move_up(4);
+    move_up(5);
     tap(KEY_PLAY);
     CHECK(title_is("Format card"));
     tap(KEY_PLAY);
@@ -3515,6 +3515,7 @@ static void the_power_on_choice_preserves_its_neighbouring_bits_and_survives_res
     SettingsStore store;
     settings_store_load(&store);
     store.settings.power_on_flags = 0xA3;
+    store.settings.status_items = 0xA3;
     CHECK(settings_store_save(&store));
     restart_app();
     open_setting(SETTINGS_USB_ANSWER_INDEX + 1);

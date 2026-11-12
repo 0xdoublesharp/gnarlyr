@@ -217,6 +217,21 @@ bool debug_report_cold_start(const HalStartInfo *start, uint32_t uptime_ms)
     return !start->warm && uptime_ms < DEBUG_REPORT_COLD_MS;
 }
 
+static void put_standby(Writer *writer, const Standby *standby)
+{
+    put_unsigned(writer, "standby.entries", standby->entries);
+    put_unsigned(writer, "standby.wakes", standby->wakes);
+    if (standby->entries == 0) {
+        return;
+    }
+    put_known(writer, "standby.wake_latency_ms", standby->wakes != 0 && !standby->waking,
+              standby->latency_ms);
+    put_unsigned(writer, "standby.entry_ms", standby->entry_ms);
+    put_unsigned(writer, "standby.wake_ms", standby->wake_ms);
+    put_known(writer, "standby.entry_mv", standby->entry_mv != 0, standby->entry_mv);
+    put_known(writer, "standby.wake_mv", standby->wake_mv != 0, standby->wake_mv);
+}
+
 static void put_system(Writer *writer, const DebugReportInput *input)
 {
     put_unsigned(writer, SCHEMA_KEY, DEBUG_REPORT_SCHEMA);
@@ -227,14 +242,7 @@ static void put_system(Writer *writer, const DebugReportInput *input)
     put_build(writer, input->version);
     put_unsigned(writer, "uptime_ms", input->uptime_ms);
     put_unsigned(writer, "clock_mhz", input->clock_mhz);
-    put_unsigned(writer, "standby.entries", input->standby.entries);
-    put_unsigned(writer, "standby.wakes", input->standby.wakes);
-    put_known(writer, "standby.wake_latency_ms",
-              input->standby.wakes != 0 && !input->standby.waking, input->standby.latency_ms);
-    put_unsigned(writer, "standby.entry_ms", input->standby.entry_ms);
-    put_unsigned(writer, "standby.wake_ms", input->standby.wake_ms);
-    put_known(writer, "standby.entry_mv", input->standby.entry_mv != 0, input->standby.entry_mv);
-    put_known(writer, "standby.wake_mv", input->standby.wake_mv != 0, input->standby.wake_mv);
+    put_standby(writer, &input->standby);
     put_unsigned(writer, "core0.clock_us", input->clock_us);
     put_unsigned(writer, "core0.idle_us", input->idle_us);
     bool unwrapped = input->uptime_ms < WRAP_FREE_UPTIME_MS;

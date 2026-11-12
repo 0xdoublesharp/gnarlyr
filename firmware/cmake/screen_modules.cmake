@@ -95,6 +95,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/settings/parametric_file_save.c
     src/core/parametric.c
     src/settings/sound_shaping.c
+    src/app/browse_sections.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     src/settings/sound_shaping.c
@@ -123,7 +124,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
-    src/app/browse_sections.c
     src/app/mixtape_store.c
     src/app/order_adopt.c
     src/app/mixtape_ui.c

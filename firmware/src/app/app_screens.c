@@ -158,16 +158,16 @@ static Screen *track_tape(void *context, uint16_t track)
 static int browse_section(const BrowseScreen *browse, int index)
 {
     AppScreens *screens = browse->pool->config.tools_context;
-    const ViewsModuleEntry *entry =
-        (const ViewsModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_VIEWS);
+    const PlayingModuleEntry *entry =
+        (const PlayingModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_PLAYING);
     return entry != NULL ? entry->section(browse, index) : LIST_SECTION_BEFORE_LETTERS;
 }
 
 static ListSections browse_sections(const BrowseScreen *browse, int index)
 {
     AppScreens *screens = browse->pool->config.tools_context;
-    const ViewsModuleEntry *entry =
-        (const ViewsModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_VIEWS);
+    const PlayingModuleEntry *entry =
+        (const PlayingModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_PLAYING);
     return entry != NULL ? entry->sections(browse, index) : (ListSections){0, 0};
 }
 
