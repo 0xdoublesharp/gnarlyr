@@ -7,6 +7,7 @@
 #include "hal/clock.h"
 #include "hal/power.h"
 #include "hal/system.h"
+#include "trial.h"
 #include "usb.h"
 #include "usb_session.h"
 
@@ -42,6 +43,7 @@ CORE_SEAM bool usb_session_listen(void)
     if (!connected) {
         usb_power_down();
     }
+    board_trial_snapshot(0);
     return connected;
 }
 

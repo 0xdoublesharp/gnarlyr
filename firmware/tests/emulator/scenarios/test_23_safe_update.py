@@ -23,6 +23,8 @@ import prove_upgrade
 
 HANG = b"\xfe\xe7"
 LUN_PRESENT_OFFSET = 17
+DIAG_MAGIC = 0x47414944
+DIAG_SNAPSHOT_WORDS = 18
 TRIAL_BOOT_MODULE = 15
 SETTLE_MS = 20000
 RESET_HOLD_MS = 10000
@@ -117,8 +119,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(trial.run_through_update_check(), "reached usb_session_storage_changed")
         self.assert_healthy(trial)
         self.assertEqual(offered, [1])
-        self.assertEqual([module for module, _ in loads].count(TRIAL_BOOT_MODULE), 1)
-        self.assertNotIn((TRIAL_BOOT_MODULE, True), loads)
+        self.assertNotIn(TRIAL_BOOT_MODULE, [module for module, _ in loads])
         self.assertEqual(self.trial_record(trial), (TRIAL_RUNNING, 2))
 
     def test_a_trial_session_that_ends_unplugged_does_not_confirm(self):
@@ -128,6 +129,19 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(trial.run_through_update_check(), "reached usb_session_storage_changed")
         self.assertEqual(self.trial_record(trial), (TRIAL_RUNNING, 2))
         self.assertEqual(trial.slot_image("slot_2"), self.slot_bytes(self.image))
+        listen = self.diagnostics(trial.fat().read(self.trial_path()))[0]
+        self.assertGreater(listen[0], 0)
+        self.assertGreaterEqual(listen[1] & 0xFFFF, 24)
+        self.assertEqual(listen[2] & 0xFF, 1)
+
+    def diagnostics(self, record):
+        words = struct.unpack_from("<%dI" % (2 + 1 + 2 * DIAG_SNAPSHOT_WORDS), record)
+        self.assertEqual(words[2], DIAG_MAGIC)
+        first = words[3:3 + DIAG_SNAPSHOT_WORDS]
+        return first, words[3 + DIAG_SNAPSHOT_WORDS:]
+
+    def trial_path(self):
+        return "/" + IDENTITY.data_directory + "/trial.bin"
 
     def test_a_start_that_runs_twenty_seconds_is_not_counted(self):
         newer = self.newer_image()
@@ -154,6 +168,9 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(rolling.slot_image("slot_1"), self.slot_bytes(self.image))
         self.assertEqual(rolling.slot_image("slot_2"), self.slot_bytes(self.image))
         self.assertEqual(self.trial_record(rolling), (TRIAL_ROLLED_BACK, 0))
+        kept = rolling.fat().read("/" + IDENTITY.data_directory + "/trial_diag.bin")
+        self.assertEqual(len(kept), 512)
+        self.assertEqual(kept[:8], struct.pack("<II", 0x54555344, 0x01000001 | 3 << 8 | (0x5B ^ 3) << 16))
         self.assertEqual(rolling.panel.lit_sweeps(), [])
         self.assert_rollback_reported(rolling)
 
@@ -194,6 +211,9 @@ class EchoImageTest(EchoImageHarness):
         rolling = self.start(again, newer)
         self.assertEqual(rolling.run_until_reset(), "system reset requested")
         self.assertEqual(rolling.slot_image("slot_1"), self.slot_bytes(self.image))
+        kept = rolling.fat().read("/" + IDENTITY.data_directory + "/trial_diag.bin")
+        listen = self.diagnostics(kept)[0]
+        self.assertEqual(listen[2] & 0xFF, 1)
         self.assert_rollback_reported(rolling)
         summary("non-enumerating rollback", rolling)
 

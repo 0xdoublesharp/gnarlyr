@@ -14,7 +14,9 @@
 #include "hal/clock.h"
 #include "hal/system.h"
 #include "internal_volume.h"
+#include "mmc.h"
 #include "overlay.h"
+#include "registers.h"
 #include "trial_module.h"
 #include "usb.h"
 #include "usb_session.h"
@@ -24,10 +26,31 @@ enum {
     ESCAPE_LADDER_KEY = 1u << KEY_VOLUME_UP,
     ESCAPE_SETTLE_MS = 40,
     ESCAPE_STEP_MS = 50,
-    ESCAPE_STEPS = 40
+    ESCAPE_STEPS = 40,
+    DIAG_SNAPSHOT_WORDS = 18,
+    DIAG_REPORT_WORDS = 4,
+    DIAG_WORDS = 2 * DIAG_SNAPSHOT_WORDS,
+    DIAG_AT = 2,
+    DIAG_CRU_MMC = 0x30,
+    DIAG_CRU_GATES = 0x80,
+    DIAG_CRU_SETTLE = 0xA0,
+    DIAG_GRF_SPEED = 0xC4,
+    KEEP_ATTEMPTS = 0xFF
 };
 
+#define RECORD_MAGIC 0x54555344u
+#define RECORD_RUNNING 0x01000001u
+#define RECORD_FIXED 0xFF0000FFu
+#define RECORD_CHECK 0x5Bu
+#define DIAG_MAGIC 0x47414944u
+
+typedef struct TrialDiag {
+    uint32_t magic;
+    uint32_t words[DIAG_WORDS];
+} TrialDiag;
+
 static uint32_t power_since_ms;
+__attribute__((section(".noinit"))) static TrialDiag diag;
 
 void board_trial_escape_check(void)
 {
@@ -62,16 +85,62 @@ static const TrialBootModuleEntry *boot_module(void)
     return hal_system_load_module(TRIAL_BOOT_MODULE_NUMBER);
 }
 
-static const TrialBootModuleEntry *module_for_record(void)
+static bool record_locate(UsbTrial *trial)
 {
     FatFile record;
     FatVolume *volume = internal_volume_mount();
-    return volume != NULL && fat_open(volume, UPDATE_TRIAL_PATH, &record) ? boot_module() : NULL;
+    return volume != NULL && fat_open(volume, UPDATE_TRIAL_PATH, &record) &&
+           fat_file_sector(volume, &record, 0, &trial->record_lba);
+}
+
+static void record_image(uint32_t *words, uint32_t attempts)
+{
+    words[0] = RECORD_MAGIC;
+    words[1] = RECORD_RUNNING | attempts << 8 | (RECORD_CHECK ^ attempts) << 16;
+}
+
+static bool record_running(const uint32_t *words)
+{
+    uint32_t attempts = words[1] >> 8 & 0xFFu;
+    return words[0] == RECORD_MAGIC && (words[1] & RECORD_FIXED) == RECORD_RUNNING &&
+           (words[1] >> 16 & 0xFFu) == (RECORD_CHECK ^ attempts);
+}
+
+static void diag_keep(uint32_t *sector)
+{
+    if (diag.magic == DIAG_MAGIC) {
+        sector[DIAG_AT] = DIAG_MAGIC;
+        for (uint32_t index = 0; index < DIAG_WORDS; index++) {
+            sector[DIAG_AT + 1 + index] = diag.words[index];
+        }
+        diag.magic = 0;
+    }
+}
+
+static bool count_start(UsbTrial *trial, uint32_t *sector)
+{
+    uint32_t attempts = sector[1] >> 8 & 0xFFu;
+    if (!record_running(sector) || attempts >= UPDATE_TRIAL_LIMIT) {
+        return false;
+    }
+    trial->attempts = (uint8_t)(attempts + 1);
+    record_image(sector, trial->attempts);
+    diag_keep(sector);
+    trial->running = true;
+    trial->charged = emmc_volume_write(NULL, trial->record_lba, 1, sector);
+    trial->session_due = trial->charged;
+    return true;
 }
 
 void board_trial_boot(void)
 {
-    const TrialBootModuleEntry *entry = module_for_record();
+    UsbTrial *trial = &usb_session_shared()->trial;
+    uint32_t sector[SECTOR_WORDS];
+    if (!record_locate(trial) || !emmc_volume_read(NULL, trial->record_lba, 1, sector) ||
+        count_start(trial, sector)) {
+        return;
+    }
+    const TrialBootModuleEntry *entry = boot_module();
     if (entry != NULL) {
         entry->start(usb_session_shared(), copy_buffer());
     }
@@ -87,10 +156,49 @@ void board_trial_report(void)
     }
 }
 
-static void write_record(const UsbTrial *trial, const uint32_t *words)
+__attribute__((noinline, noclone)) static void write_record(const UsbTrial *trial,
+                                                            uint32_t attempts)
 {
-    uint32_t sector[SECTOR_WORDS] = {words[0], words[1]};
-    emmc_volume_write(NULL, trial->record_lba, 1, sector);
+    uint32_t sector[SECTOR_WORDS];
+    if (trial->record_lba != 0 && emmc_volume_read(NULL, trial->record_lba, 1, sector)) {
+        if (attempts <= UPDATE_TRIAL_LIMIT + 1) {
+            record_image(sector, attempts);
+        }
+        diag_keep(sector);
+        emmc_volume_write(NULL, trial->record_lba, 1, sector);
+    }
+}
+
+static uint32_t *diag_copy(uint32_t *to, const void *from, uint32_t words)
+{
+    const uint32_t *source = from;
+    for (uint32_t index = 0; index < words; index++) {
+        to[index] = source[index];
+    }
+    return to + words;
+}
+
+void board_trial_snapshot(uint32_t kind)
+{
+    static const uint32_t REGISTERS[] = {CRU_BASE + DIAG_CRU_MMC, CRU_BASE + DIAG_CRU_GATES,
+                                         CRU_BASE + DIAG_CRU_SETTLE, GRF_BASE + DIAG_GRF_SPEED};
+    UsbShared *shared = usb_session_shared();
+    uint32_t *words = diag.words + kind * DIAG_SNAPSHOT_WORDS;
+    if (!shared->trial.running) {
+        return;
+    }
+    MmcFailure failure = mmc_last_failure();
+    words[0] = hal_clock_milliseconds();
+    words[1] = hal_system_clock_mhz() | (uint32_t)shared->high_speed_failed << 16;
+    words = diag_copy(words + 2, &shared->report, DIAG_REPORT_WORDS);
+    words = diag_copy(words, &shared->link, sizeof shared->link / 4);
+    words = diag_copy(words, &failure, sizeof failure / 4);
+    *words++ = (uint32_t)shared->last_session.end;
+    for (uint32_t index = 0; index < sizeof REGISTERS / sizeof REGISTERS[0]; index++) {
+        words[index] = register_read(REGISTERS[index]);
+    }
+    diag.magic = DIAG_MAGIC;
+    write_record(&shared->trial, KEEP_ATTEMPTS);
 }
 
 void board_trial_settle(void)
@@ -98,7 +206,7 @@ void board_trial_settle(void)
     UsbTrial *trial = &usb_session_shared()->trial;
     if (trial->charged && hal_clock_milliseconds() >= UPDATE_TRIAL_SETTLE_MS) {
         trial->charged = false;
-        write_record(trial, trial->settled);
+        write_record(trial, trial->attempts - 1u);
     }
 }
 
@@ -107,7 +215,7 @@ void board_trial_session_starting(void)
     UsbTrial *trial = &usb_session_shared()->trial;
     if (trial->session_due) {
         trial->session_due = false;
-        write_record(trial, trial->charged ? trial->next : trial->boot);
+        write_record(trial, trial->charged ? trial->attempts + 1u : trial->attempts);
     }
     trial->charged = false;
 }

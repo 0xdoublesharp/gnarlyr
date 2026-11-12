@@ -84,6 +84,7 @@ static void run_usb_session(void)
     const UsbOverlayEntry *usb = load_usb_code();
     bool storage_changed = usb != NULL && usb->storage(usb_session_shared());
     app_set_usb_renderer(NULL);
+    board_trial_snapshot(1);
     if (usb != NULL) {
         board_trial_session_ended();
     }
