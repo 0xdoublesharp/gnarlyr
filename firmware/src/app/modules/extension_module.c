@@ -9,6 +9,7 @@
 #endif
 
 const ExtensionModuleEntry EXTENSION_MODULE_ENTRY = {
+    .menu_hold = app_menu_hold,
     .head = {.magic = SCREEN_MODULE_MAGIC(EXTENSION_MODULE_NUMBER)},
     .motion_run = wire_motion_run,
     .motion_progress = wire_motion_progress,

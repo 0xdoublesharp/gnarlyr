@@ -460,3 +460,9 @@ To start fresh, hold ▶ on Listening and choose **Clear history**. The confirma
 Clearing resets Most Played and Recently Played; Never Played and Old Favorites rebuild from the empty history. Recently Added still uses library updates. An existing exported file stays on the drive; Export plays first replaces it in the usual way. A failed or cancelled export keeps the history. A scan finishes before clearing becomes available. The reset is saved so an interrupted write recovers either the previous history or the empty one. Music played after the reset starts a new history.
 
 Place a timed `.lrc` file beside a song, with the same filename stem. Hold Menu on Now Playing to open Lyrics; tap Menu opens Quick Settings, which also has Lyrics and Up Next. Lyrics follow playback, and the volume buttons move through the lines. Back returns to the screen you opened Lyrics from.
+
+### Power shortcuts and Menu hold
+
+Hold Power first, then press Up for the next track or Down for the previous track, including while the keys are locked. Release both keys before another shortcut. These shortcuts consume the Power gesture; holding Power alone retains its usual power-off action. Hold Play and Power to toggle the key lock. Developer builds also capture the screen to the debug folder with Power+Menu (`shot0.565`, replacing the previous capture).
+
+Settings → Controls → Hold Menu chooses Default, Quick Settings, Up Next, Add to tape, Shuffle, or Sleep timer. Default keeps the existing screen and playback button mappings. Shuffle toggles between off and songs; Sleep timer opens its duration choices. Text entry keeps its own gestures. Choose Default to restore each screen's Menu hold.

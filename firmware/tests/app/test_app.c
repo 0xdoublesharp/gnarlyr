@@ -2034,6 +2034,98 @@ static void play_and_power_lock_and_unlock_the_buttons(void)
     CHECK(!fake_hal_display_on());
 }
 
+static void power_rocker_skips_while_locked_without_a_power_tap(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    hold_play_and_power();
+    uint16_t track = app_player_status().track;
+    uint8_t volume = fake_hal_audio_volume();
+    fake_hal_queue_transition(KEY_POWER, true, now_ms);
+    step();
+    fake_hal_queue_transition(KEY_VOLUME_UP, true, now_ms + 20);
+    wait_ms(30);
+    CHECK(app_player_status().track != track);
+    fake_hal_queue_transition(KEY_POWER, false, now_ms);
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, now_ms + 20);
+    wait_ms(30);
+    CHECK(fake_hal_display_on());
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    hold_play_and_power();
+}
+
+static void configured_menu_hold_opens_quick_settings(void)
+{
+    start_app_with_library();
+    SettingsStore store;
+    settings_store_load(&store);
+    store.settings.long_press_action = 1;
+    CHECK(settings_store_save(&store));
+    restart_app();
+    wait_ms(SPLASH_MS);
+    hold_play_and_power();
+    hold(KEY_MENU);
+    CHECK(!title_is("Quick Settings"));
+    hold_play_and_power();
+    hold(KEY_MENU);
+    CHECK(title_is("Quick Settings"));
+}
+
+static void configured_menu_hold_selects_the_other_destinations(void)
+{
+    const uint8_t actions[] = {2, 3, 5};
+    const char *titles[] = {"Up Next", "Mixtapes", "Sleep timer"};
+    for (int index = 0; index < 3; index++) {
+        start_app_with_library();
+        SettingsStore store;
+        settings_store_load(&store);
+        store.settings.long_press_action = actions[index];
+        CHECK(settings_store_save(&store));
+        restart_app();
+        wait_ms(SPLASH_MS);
+        play_first_album_track();
+        hold(KEY_MENU);
+        CHECK(title_is(titles[index]));
+    }
+}
+
+static void configured_menu_hold_toggles_shuffle(void)
+{
+    start_app_with_library();
+    SettingsStore store;
+    settings_store_load(&store);
+    store.settings.long_press_action = 4;
+    CHECK(settings_store_save(&store));
+    restart_app();
+    wait_ms(SPLASH_MS);
+    hold(KEY_MENU);
+    CHECK_EQUAL(SHUFFLE_SONGS, app_player_status().shuffle);
+    hold(KEY_MENU);
+    CHECK_EQUAL(SHUFFLE_OFF, app_player_status().shuffle);
+}
+
+static void power_menu_saves_a_screenshot_without_a_debug_script(void)
+{
+    start_app();
+    wait_ms(SPLASH_MS);
+    fake_hal_queue_transition(KEY_POWER, true, now_ms);
+    step();
+    fake_hal_queue_transition(KEY_MENU, true, now_ms + 20);
+    wait_ms(30);
+    const char *path = NULL;
+    uint32_t size = 0;
+    wait_ms(30);
+    const uint8_t *shot = fake_hal_screenshot(&path, &size);
+    CHECK(shot != NULL);
+    CHECK(size > 32);
+    fake_hal_queue_transition(KEY_MENU, false, now_ms);
+    fake_hal_queue_transition(KEY_POWER, false, now_ms + 20);
+    wait_ms(30);
+    CHECK(fake_hal_display_on());
+}
+
 static void the_lock_works_with_the_screen_off(void)
 {
     start_app_with_library();
@@ -4185,10 +4277,11 @@ static void the_profiler_row_switches_sampling_and_restarts_a_full_profile(void)
     CHECK_EQUAL(HAL_PROFILE_ON, hal_system_profile_state());
 }
 
-static void about_wraps_from_profiler_to_frame_time_without_experiment_rows(void)
+static void about_wraps_from_keys_to_frame_time_without_experiment_rows(void)
 {
     start_app();
-    open_diagnostics_row(DIAGNOSTICS_PROFILER_INDEX);
+    open_diagnostics_row(DIAGNOSTICS_PROFILER_INDEX + 1);
+    CHECK(strcmp("1023", app_diagnostics_value(DIAGNOSTICS_PROFILER_INDEX + 1)) == 0);
     CHECK(!overlay_visible());
     tap(KEY_VOLUME_UP);
     tap(KEY_PLAY);
@@ -4227,7 +4320,7 @@ static void a_key_gesture_is_logged_with_its_key_and_time(void)
     tap(KEY_VOLUME_UP);
     CHECK_EQUAL(1, events_of(DEBUG_EVENT_KEY, before));
     CHECK_EQUAL(DEBUG_EVENT_KEY, last_event()->kind);
-    CHECK_EQUAL(KEY_VOLUME_UP | KEY_GESTURE_PRESS << 8, last_event()->value);
+    CHECK_EQUAL(KEY_VOLUME_UP | KEY_GESTURE_PRESS << 8 | 1023u << 16, last_event()->value);
     CHECK_EQUAL(now_ms, last_event()->time_ms);
 }
 
@@ -5034,8 +5127,9 @@ static void a_script_keeps_two_soaks_and_does_not_start_a_third(void)
 static void set_chooses_a_settings_option_as_the_screen_does(void)
 {
     start_app();
-    const DebugScriptRun *run =
-        run_script("build any\nset Brightness=3\nset text size = large\nset Repeat=All\n", 100);
+    const DebugScriptRun *run = run_script("build any\nset Brightness=3\nset text size = "
+                                           "large\nset Repeat=All\nset Hold Menu=Up Next\n",
+                                           100);
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[2]);
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[3]);
@@ -5048,6 +5142,7 @@ static void set_chooses_a_settings_option_as_the_screen_does(void)
     CHECK(bytes != NULL && settings_decode(bytes, size, &saved));
     CHECK_EQUAL(3, saved.brightness);
     CHECK_EQUAL(TEXT_SIZE_LARGE, saved.text_size);
+    CHECK_EQUAL(2, saved.long_press_action);
 }
 
 static void set_refuses_what_settings_does_not_offer(void)
@@ -5690,6 +5785,11 @@ int main(void)
         TEST_CASE(holding_volume_after_a_step_changes_it_with_the_double_volume_setting),
         TEST_CASE(holding_volume_after_a_step_changes_it_with_the_screen_off),
         TEST_CASE(holding_volume_long_after_a_step_skips_again),
+        TEST_CASE(power_rocker_skips_while_locked_without_a_power_tap),
+        TEST_CASE(configured_menu_hold_opens_quick_settings),
+        TEST_CASE(configured_menu_hold_selects_the_other_destinations),
+        TEST_CASE(configured_menu_hold_toggles_shuffle),
+        TEST_CASE(power_menu_saves_a_screenshot_without_a_debug_script),
         TEST_CASE(play_and_power_lock_and_unlock_the_buttons),
         TEST_CASE(the_lock_toasts_fit_a_portrait_screen_in_large_text),
         TEST_CASE(in_portrait_the_volume_keys_keep_their_labels_on_now_playing),
@@ -5832,7 +5932,7 @@ int main(void)
         TEST_CASE(stopping_the_app_saves_the_session),
         TEST_CASE(each_step_records_its_duration),
         TEST_CASE(the_profiler_row_switches_sampling_and_restarts_a_full_profile),
-        TEST_CASE(about_wraps_from_profiler_to_frame_time_without_experiment_rows),
+        TEST_CASE(about_wraps_from_keys_to_frame_time_without_experiment_rows),
         TEST_CASE(the_usb_sense_mode_is_normal_after_every_start),
         TEST_CASE(a_key_gesture_is_logged_with_its_key_and_time),
         TEST_CASE(key_repeats_are_left_out_of_the_log),

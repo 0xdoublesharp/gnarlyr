@@ -13,13 +13,15 @@ typedef enum KeyLockVerdict {
     KEY_LOCK_PASS,
     KEY_LOCK_SWALLOW,
     KEY_LOCK_COMBO_STARTED,
-    KEY_LOCK_REFUSED
+    KEY_LOCK_REFUSED,
+    KEY_LOCK_SHORTCUT
 } KeyLockVerdict;
 
 typedef struct KeyLock {
     bool locked;
     bool combo;
     bool combo_done;
+    uint8_t shortcut;
     uint32_t combo_since_ms;
     bool held[KEY_COUNT];
 } KeyLock;

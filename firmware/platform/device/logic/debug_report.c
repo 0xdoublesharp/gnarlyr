@@ -811,7 +811,9 @@ static void append_event_value(StringBuilder *text, const DebugEvent *event)
     if (event->kind == DEBUG_EVENT_KEY) {
         string_builder_append(text, key_script_key_name((Key)(value & KEY_MASK)));
         string_builder_append_char(text, ' ');
-        string_builder_append(text, NAME_IN(GESTURE_NAMES, value >> GESTURE_SHIFT));
+        string_builder_append(text, NAME_IN(GESTURE_NAMES, (value >> GESTURE_SHIFT) & 0xFFu));
+        string_builder_append_char(text, ' ');
+        string_builder_append_unsigned(text, value >> 16);
     } else if (event->kind == DEBUG_EVENT_PLAYER) {
         append_named_pair(text, NAME_IN(PLAYER_NAMES, value & STATE_MASK), value >> TRACK_SHIFT);
     } else if (event->kind == DEBUG_EVENT_USB_END) {

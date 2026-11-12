@@ -6,10 +6,14 @@
 #include "app/extension.h"
 #include "hal/clock.h"
 #include "headphone_store.h"
+#include "ui/screen.h"
 #include "ui/wire_motion.h"
+
+struct AppScreens;
 
 typedef struct ExtensionModuleEntry {
     ExtensionModuleHead head;
+    bool (*menu_hold)(struct AppScreens *screens, KeyEvent event);
     void (*motion_run)(WireMotion *motion, const void *owner, WireShape shape, uint32_t now_ms);
     void (*motion_progress)(WireMotion *motion, uint32_t done, uint32_t total);
     void (*motion_end)(WireMotion *motion, const void *owner);
@@ -26,3 +30,5 @@ typedef struct ExtensionModuleEntry {
 } ExtensionModuleEntry;
 
 extern const ExtensionModuleEntry EXTENSION_MODULE_ENTRY;
+
+bool app_menu_hold(struct AppScreens *screens, KeyEvent event);

@@ -55,6 +55,7 @@ add_library(echo_app STATIC
     music_walk.c
     library_store.c
     modules/extension_module.c
+    menu_hold.c
     modules/library_module.c
     modules/settings_module.c
     modules/views_module.c

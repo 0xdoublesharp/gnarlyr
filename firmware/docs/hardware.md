@@ -16,7 +16,7 @@ What this project checked on a player: on the owner's Echo (4 GB), an earlier bu
 
 - 480 × 222 landscape ST7796S-class RGB565 panel (native 222 × 480 portrait) with its own image memory, so there is no framebuffer. It sits behind the SoC LCD controller at `0x60070000`, so there is no bit-banging. The window's row axis carries a 49-row offset in landscape (`MADCTL` `0x28`: swap rows and columns, BGR); in portrait the swap bit is cleared, `0x88` (mirrored rows) or `0x48` (mirrored columns) turn the picture the two ways, and the 49-line offset moves to the columns (the visible 222 lines sit 49 from each edge of the 320, so it is the same for both). No panel ID read, a single variant.
 - The backlight runs from a 25 kHz PWM, channel 0 on GPIO2.4.
-- ▶‖, ≡, ↩ and the volume rocker sit on a resistor ladder read through the ADC. Power is a separate input.
+- ▶‖, ≡, ↩ and the volume rocker sit on a resistor ladder read through the ADC. Power is a separate input. The key decoder accepts 10-bit readings 0–69 (Down), 70–183 (Up), 200–319 (Play), 320–409 (Menu), and 450–549 (Back). These single-key bands do not establish the readings of simultaneous ladder presses; ladder-pair gestures remain disabled. Developer builds show the latest channel-1 reading in About → Keys. Debug key report lines append the raw ADC reading after the gesture name.
 
 ## Storage
 

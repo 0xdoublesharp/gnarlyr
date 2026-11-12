@@ -32,6 +32,13 @@ enum {
     BOOT_READING_WAIT_MS = 2
 };
 
+static uint16_t key_adc;
+
+uint16_t hal_input_key_adc(void)
+{
+    return key_adc;
+}
+
 static KeyScanner scanner;
 static BatteryGauge gauge;
 static HeadsetMonitor headset;
@@ -98,6 +105,7 @@ static void take_reading(uint16_t reading, uint32_t now_ms)
         take_headset_reading(reading, now_ms);
         break;
     default:
+        key_adc = reading;
         key_scanner_sample(&scanner, pressed_keys(reading), now_ms);
         break;
     }

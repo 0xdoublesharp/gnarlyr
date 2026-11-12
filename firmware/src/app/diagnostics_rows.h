@@ -8,3 +8,5 @@ const char *diagnostics_row_jack_balanced(const void *context);
 const char *diagnostics_row_headset(const void *context);
 const char *diagnostics_row_cpu_clock(const void *context);
 const char *diagnostics_row_core0_busy(const void *context);
+
+const char *diagnostics_row_keys(const void *context);

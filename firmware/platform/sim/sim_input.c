@@ -96,3 +96,8 @@ HalHeadsetReading hal_input_headset_reading(void)
 {
     return (HalHeadsetReading){.known = false};
 }
+
+uint16_t hal_input_key_adc(void)
+{
+    return 1023;
+}

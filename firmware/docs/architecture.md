@@ -774,7 +774,7 @@ covered by the existing checksum at 54–57. F0–F15 occupy 58–73; 74–77
 hold a little-endian FNV-1a checksum of only those 16 bytes. F0 bit 0 is
 `status_bar_compact` (false), bit 1 is `standby_enabled` (false), and bits
 2–3 are `standby_power_off_option` (0: 30 minutes, 1: 2 hours, default,
-2: 8 hours). F1 bits 0–2 are `long_press_action` (default 0, current behaviour).
+2: 8 hours). F1 bits 0–2 are `long_press_action`: 0 preserves current behaviour, 1 opens Quick Settings, 2 opens Up Next, 3 adds the current track to a tape, 4 toggles shuffle, and 5 opens Sleep timer. Values 6–7 preserve current behaviour.
 Remaining bits and F2–F15 are free and written zero. Older versions migrate
 with F defaults. Missing, corrupt or invalid F data uses F defaults while
 preserving validated base settings. The store also tries the 58-byte v15 size.

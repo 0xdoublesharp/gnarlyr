@@ -537,7 +537,7 @@ static void about_omits_the_old_usb_controls_and_raw_dac_rows(void)
     AppOptions options = {0};
     diagnostics_menu_build(&screens, &options, &BOARD_THEME);
     const MenuConfig *menu = &screens.modules.views.diagnostics.config;
-    CHECK_EQUAL(14, menu->item_count);
+    CHECK_EQUAL(15, menu->item_count);
     for (int index = 0; index < menu->item_count; index++) {
         const char *label = menu->items[index].label;
         CHECK(strcmp(label, "Connect USB") != 0);

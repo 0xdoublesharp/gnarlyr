@@ -23,7 +23,7 @@ struct ButtonSettings {
     ButtonSettingsConfig config;
     MenuScreen menu;
     ChoiceScreen choice;
-    MenuItem items[PLAYBACK_BUTTON_COUNT + 1];
+    MenuItem items[PLAYBACK_BUTTON_COUNT + 2];
     ButtonEntry entries[PLAYBACK_BUTTON_COUNT];
 };
 

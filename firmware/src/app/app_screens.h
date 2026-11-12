@@ -172,6 +172,7 @@ typedef struct AppScreens {
     MenuItem music_items[MUSIC_MENU_ITEM_COUNT];
     HighRamOption high_ram;
     AppModuleScreens modules;
+    Screen *shortcut_destination;
 } AppScreens;
 
 extern const HomeItem APP_HOME_ITEMS[HOME_ITEM_COUNT];

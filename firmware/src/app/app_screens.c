@@ -378,6 +378,7 @@ static void build_home(AppScreens *screens, AppScreensContext context)
 
 Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
 {
+    screens->shortcut_destination = NULL;
     const Theme *theme = context.theme;
     MessageConfig no_library = {.title = i18n_text(STR_NO_LIBRARY),
                                 .message = i18n_text(STR_NO_LIBRARY_HINT),

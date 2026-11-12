@@ -15,6 +15,46 @@ static const StringId BUTTONS[PLAYBACK_BUTTON_COUNT] = {
     STR_BUTTON_MENU_TAP,         STR_BUTTON_MENU_HOLD,
 };
 
+static const StringId LONG_ACTIONS[] = {STR_LONG_CURRENT, STR_QUICK_SETTINGS, STR_UP_NEXT,
+                                        STR_ADD_TO_TAPE,  STR_SHUFFLE,        STR_SLEEP_TIMER};
+
+static int long_current(const void *context)
+{
+    const ButtonSettings *buttons = context;
+    return buttons->config.settings->long_press_action;
+}
+
+static void long_choose(void *context, int action)
+{
+    ButtonSettings *buttons = context;
+    if (action < 0 || action >= 6) {
+        return;
+    }
+    buttons->config.settings->long_press_action = (uint8_t)action;
+    if (buttons->config.changed != NULL) {
+        buttons->config.changed(buttons->config.context);
+    }
+}
+
+static const char *long_value(const void *context)
+{
+    int action = long_current(context);
+    return i18n_text(LONG_ACTIONS[action < 6 ? action : 0]);
+}
+
+static ScreenAction long_open(void *context)
+{
+    ButtonSettings *buttons = context;
+    ChoiceConfig choice = {.title = i18n_text(STR_MENU_LONG_ACTION),
+                           .option_ids = LONG_ACTIONS,
+                           .option_count = 6,
+                           .current = long_current,
+                           .choose = long_choose,
+                           .context = buttons,
+                           .theme = buttons->config.theme};
+    return screen_action_push(choice_screen_init(&buttons->choice, choice));
+}
+
 static int current(const void *context)
 {
     const ButtonEntry *entry = context;
@@ -61,6 +101,7 @@ static ScreenAction reset(void *context)
         buttons->config.settings->button_actions[index] =
             (uint8_t)settings_default_button_action((PlaybackButton)index);
     }
+    buttons->config.settings->long_press_action = 0;
     if (buttons->config.changed != NULL) {
         buttons->config.changed(buttons->config.context);
     }
@@ -80,11 +121,16 @@ Screen *button_settings_init(ButtonSettings *buttons, ButtonSettingsConfig confi
             .opens = true,
         };
     }
-    buttons->items[PLAYBACK_BUTTON_COUNT] =
+    buttons->items[PLAYBACK_BUTTON_COUNT + 1] =
         (MenuItem){.label = i18n_text(STR_RESET_BUTTONS), .select = reset, .context = buttons};
+    buttons->items[PLAYBACK_BUTTON_COUNT] = (MenuItem){.label = i18n_text(STR_MENU_LONG_ACTION),
+                                                       .select = long_open,
+                                                       .context = buttons,
+                                                       .value = long_value,
+                                                       .opens = true};
     MenuConfig menu = {.title = i18n_text(STR_CONTROLS),
                        .items = buttons->items,
-                       .item_count = PLAYBACK_BUTTON_COUNT + 1,
+                       .item_count = PLAYBACK_BUTTON_COUNT + 2,
                        .theme = config.theme,
                        .detail_below = true};
     return menu_screen_init(&buttons->menu, menu);
@@ -92,6 +138,14 @@ Screen *button_settings_init(ButtonSettings *buttons, ButtonSettingsConfig confi
 
 bool button_settings_choose(ButtonSettings *buttons, DebugSpan title, DebugSpan option)
 {
+    if (debug_span_matches(title, i18n_text(STR_MENU_LONG_ACTION))) {
+        for (int action = 0; action < 6; action++) {
+            if (debug_span_matches(option, i18n_text(LONG_ACTIONS[action]))) {
+                long_choose(buttons, action);
+                return true;
+            }
+        }
+    }
     for (int button = 0; button < PLAYBACK_BUTTON_COUNT; button++) {
         if (!debug_span_matches(title, i18n_text(BUTTONS[button]))) {
             continue;
