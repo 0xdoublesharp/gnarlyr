@@ -22,7 +22,7 @@ WORKSPACE_SECTION = ".high_ram"
 MODULE_REGION = "MODULE_RAM"
 MODULE_WINDOWS = {"dsp": "DSP_RAM", "ogg": "DSP_RAM", "process": "PROCESS_RAM",
                   "extension": "EXTENSION_RAM", "source": "DSP_RAM", "effects": "EFFECTS_RAM",
-                  "dsd": "DSP_RAM", "ape_wma": "DSP_RAM"}
+                  "dsd": "DSP_RAM"}
 USB_IMAGE_REGION = "USB_IMAGE"
 LANGUAGE_REGION = "LANGUAGE_RAM"
 STATE_SECTIONS = (".data", ".bss", ".noinit")
@@ -294,7 +294,7 @@ def module_problems(device_map, modules):
             problems.append(f"module {name} is not linked for the main program's module slot")
             continue
         code, zeroed = module_extent(module_map)
-        if name in ("dsp", "ogg", "source", "dsd", "ape_wma") and zeroed:
+        if name in ("dsp", "ogg", "source", "dsd") and zeroed:
             problems.append("the audio module must keep all state in its caller")
         if name == "extension" and zeroed:
             problems.append("the extension module must keep all state in the main program")
@@ -357,10 +357,9 @@ BUDGET_PRESETS = ("release", "device")
 RESIDENT_CODE_FLOORS = {"release": 4096, "device": 1024}
 BUDGET_MODULES = {"views", "settings", "library", "listening", "dsp", "ogg", "process", "extension",
                   "playing", "effects", "source", "dsd",
-                  "equalizer", "ape_wma"}
+                  "equalizer"}
 BUDGET_MAPS = {"echo_usb_overlay.map", "echo_rescan_overlay.map", "echo_core1.map", "echo_core1_mp3.map",
-               "echo_core1_dsd.map", "echo_core1_m4a.map", "echo_core1_vorbis.map", "echo_core1_opus.map",
-               "echo_core1_ape.map", "echo_core1_wma.map"}
+               "echo_core1_dsd.map", "echo_core1_m4a.map", "echo_core1_vorbis.map", "echo_core1_opus.map"}
 CORE1_SCRIPTS = Path(__file__).resolve().parents[1] / "platform/device/core1"
 BUDGET_HEADERS = ("Preset", "Region / slot", "Used", "Limit", "Free", "Floor", "Result")
 
@@ -399,13 +398,9 @@ def core1_rows(path, text, preset):
     static_limit = int(match[1], 16) - memory_regions(text)["CORE1_DATA"][0]
     code_limit = {"core1_vorbis": make_image.CORE1_VORBIS_CAPACITY,
                   "core1_m4a": make_image.CORE1_M4A_CAPACITY}.get(name, make_image.CORE1_MODULE_CAPACITY)
-    rows = [Budget(preset, f"{name} image bank", sections[".text"], code_limit),
+    return [Budget(preset, f"{name} image bank", sections[".text"], code_limit),
             Budget(preset, f"{name} static RAM", sections.get(".bss", 0) + sections.get(".data", 0),
                    static_limit)]
-    if name == "core1_wma":
-        rows.append(Budget(preset, "core1_wma workspace", sections.get(".workspace", 0),
-                           memory_regions(text)["CORE1_WORK"][1]))
-    return rows
 
 
 def check_budget_inputs(directory, device, modules):

@@ -54,10 +54,6 @@ const char *now_playing_codec_name(HalAudioCodec codec)
         return i18n_text(STR_CODEC_AIFF);
     case HAL_AUDIO_CODEC_DSD:
         return i18n_text(STR_CODEC_DSD);
-    case HAL_AUDIO_CODEC_WMA:
-        return i18n_text(STR_CODEC_WMA);
-    case HAL_AUDIO_CODEC_APE:
-        return i18n_text(STR_CODEC_APE);
     case HAL_AUDIO_CODEC_OPUS:
         return i18n_text(STR_CODEC_OPUS);
     case HAL_AUDIO_CODEC_UNKNOWN:

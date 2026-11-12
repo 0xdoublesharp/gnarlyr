@@ -14,7 +14,7 @@ class GenerationTests(unittest.TestCase):
         self.assertEqual(check, [command + ["--check"] for command in write])
         scripts = {Path(command[1]).name for command in write}
         self.assertTrue({"lang_pack.py", "glyph_pack.py", "font_build.py", "fold_table.py",
-                         "audio_resample_table.py", "replay_gain_table.py", "wma_tables.py"} <= scripts)
+                         "audio_resample_table.py", "replay_gain_table.py"} <= scripts)
         self.assertTrue(any("--export-catalogue" in command for command in write))
 
     def test_check_runs_every_generator_and_reports_all_failures(self):

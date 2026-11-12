@@ -2,8 +2,7 @@
 
 Core 1 starts at 100 MHz while audio holds the PLL at 200 MHz. Its programs may
 select PLL / 1 for 200 MHz decode work. DSD64 mono uses 100 MHz; DSD64 stereo,
-DSD128 and mono DSD256 use 200 MHz. Vorbis above 96 kHz uses 200 MHz. APE
-Fast stereo above 96 kHz and Normal stereo above 48 kHz use 200 MHz. Other
+DSD128 and mono DSD256 use 200 MHz. Vorbis above 96 kHz uses 200 MHz. Other
 programs retain 100 MHz. These clocks provide two or four million cycles per
 20 ms, respectively. Instructions are not cycles: the emulator does not model
 Cortex-M3 instruction timing, SRAM waits, storage contention or power draw.
@@ -52,10 +51,10 @@ are outside this implementation.
 
 The audio HAL sets the PLL to 200 MHz before starting a decoder and keeps it
 there until audio/core 1 shut down. `core1_divider_for` still selects /2 for
-startup. Only the DSD, Vorbis and APE programs install `StreamRegion.request_clock`;
+startup. Only the DSD and Vorbis programs install `StreamRegion.request_clock`;
 the stream resets that request to 100 MHz on adoption or cancellation. DSD
 requests after validating its transport header; Vorbis requests after validating
-its setup; APE requests after validating its stream header. Requests never depend on untrusted filename extensions.
+its setup. Requests never depend on untrusted filename extensions.
 
 The core-1 startup helper writes `0x70000000 | divider_field` to CRU `0x40180014`,
 changing only calculation divider bits 14:12 with the hardware write mask.
@@ -80,18 +79,21 @@ it does not establish physical real-time support. Stereo DSD256 peaks at about
 3.77 million instructions per 20 ms and is refused by the file opener before
 publishing a stream generation. DSD and Vorbis measurements are recorded in
 [DSD](dsd.md) and [Vorbis](ogg-vorbis.md); Opus retains its normal clock and its
-[budget](opus.md) is two million cycles per 20 ms.
+[budget](opus.md) is two million cycles per 20 ms. This base has no APE or WMA
+playback program, so no APE compression level or WMA profile is enabled here.
 
-APE and WMA follow the same rule. The WMA program keeps 100 MHz: its highest
-measured fixture costs 464,403 instructions per 20 ms. The APE program installs
-`request_clock` and, after validating its stream header, requests 200 MHz for
-Fast stereo above 96 kHz and Normal stereo above 48 kHz; the opener admits those
-streams only when the PLL allows 200 MHz. Measured 24-bit Normal stereo at
-192 kHz (3,671,875 instructions per 20 ms) and High stereo at 96 kHz
-(3,218,750) exceed 3.2 million and stay refused; Fast stereo at 192 kHz
-(2,307,500) and Normal stereo at 96 kHz (1,835,938) fit the 200 MHz screen.
+The separate `feature/ape-wma` revision `39533a8d` already uses the real 100 MHz
+budget. Its reported WMA maximum is 464,403 instructions per 20 ms, leaving
+76.8% ideal margin at that clock. Its APE table scales rate limits with the
+actual calculation clock, but doubling every limit would not preserve the
+20% reserve used here: measured 24-bit Normal stereo at 192 kHz costs 3,671,875
+instructions per 20 ms, and High stereo at 96 kHz costs 3,218,750. Both exceed
+3.2 million. Fast stereo at 192 kHz costs 2,307,500 and fits that 200 MHz screen;
+Normal stereo at 96 kHz costs 1,835,938 and needs the boost for that reserve.
 Extra High/Insane stereo at 48 kHz exceed even the full 200 MHz ideal budget.
-The table is in [APE playback](ape.md).
+These are that branch's fixture measurements, not new measurements or enabled
+APE/WMA behavior in this branch. Integration must connect its opener's
+admission budget to the program's clock request before admitting higher rates.
 
 Native tests cover accepted/refused DSD opens, reference PCM, seeks and endpoints.
 ARM tests observe the actual masked clock writes for rate/channel changes,

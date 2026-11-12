@@ -46,9 +46,7 @@ typedef enum AudioCodec {
     AUDIO_CODEC_VORBIS,
     AUDIO_CODEC_OPUS,
     AUDIO_CODEC_DSD,
-    AUDIO_CODEC_AIFF,
-    AUDIO_CODEC_APE,
-    AUDIO_CODEC_WMA
+    AUDIO_CODEC_AIFF
 } AudioCodec;
 
 typedef struct AudioTrackInfo {

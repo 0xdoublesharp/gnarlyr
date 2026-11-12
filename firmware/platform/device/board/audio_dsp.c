@@ -1,7 +1,6 @@
 #include "audio_dsp.h"
 
 #include "core/seam.h"
-#include "device/audio_ape_wma.h"
 #include "device/audio_dsd.h"
 #include "device/audio_dsp.h"
 #include "device/audio_ogg.h"
@@ -26,9 +25,6 @@ static CORE_COLD bool load(uint32_t number, uint32_t magic)
 
 CORE_COLD bool board_audio_dsp_prepare(void)
 {
-    if (entry()->magic == AUDIO_APE_WMA_MAGIC) {
-        return load(AUDIO_APE_WMA_NUMBER, AUDIO_APE_WMA_MAGIC);
-    }
     if (entry()->magic == AUDIO_DSD_MAGIC) {
         return load(AUDIO_DSD_NUMBER, AUDIO_DSD_MAGIC);
     }
@@ -110,32 +106,4 @@ CORE_SEAM bool dsd_stream_read(void *context, uint32_t offset, void *buffer, uin
 {
     const AudioDsdEntry *dsd = (const AudioDsdEntry *)entry();
     return entry()->magic == AUDIO_DSD_MAGIC && dsd->read(context, offset, buffer, length);
-}
-
-CORE_SEAM bool core1_open_ape(void *context, const char *path, uint32_t start_ms,
-                              AudioTrackInfo *track)
-{
-    const AudioApeWmaEntry *ape = (const AudioApeWmaEntry *)entry();
-    return load(AUDIO_APE_WMA_NUMBER, AUDIO_APE_WMA_MAGIC) &&
-           ape->open_ape(context, path, start_ms, track);
-}
-
-CORE_SEAM bool ape_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length)
-{
-    const AudioApeWmaEntry *ape = (const AudioApeWmaEntry *)entry();
-    return entry()->magic == AUDIO_APE_WMA_MAGIC && ape->read_ape(context, offset, buffer, length);
-}
-
-CORE_SEAM bool core1_open_wma(void *context, const char *path, uint32_t start_ms,
-                              AudioTrackInfo *track)
-{
-    const AudioApeWmaEntry *wma = (const AudioApeWmaEntry *)entry();
-    return load(AUDIO_APE_WMA_NUMBER, AUDIO_APE_WMA_MAGIC) &&
-           wma->open_wma(context, path, start_ms, track);
-}
-
-CORE_SEAM bool asf_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length)
-{
-    const AudioApeWmaEntry *wma = (const AudioApeWmaEntry *)entry();
-    return entry()->magic == AUDIO_APE_WMA_MAGIC && wma->read_wma(context, offset, buffer, length);
 }

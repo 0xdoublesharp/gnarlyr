@@ -49,9 +49,7 @@ typedef enum HalAudioProblem {
     HAL_AUDIO_PROBLEM_UNREADABLE,
     HAL_AUDIO_PROBLEM_FORMAT,
     HAL_AUDIO_PROBLEM_RATE,
-    HAL_AUDIO_PROBLEM_AAC_ONLY,
-    HAL_AUDIO_PROBLEM_APE,
-    HAL_AUDIO_PROBLEM_WMA
+    HAL_AUDIO_PROBLEM_AAC_ONLY
 } HalAudioProblem;
 
 typedef struct HalAudioRefusal {
@@ -69,9 +67,7 @@ typedef enum HalAudioCodec {
     HAL_AUDIO_CODEC_VORBIS,
     HAL_AUDIO_CODEC_OPUS,
     HAL_AUDIO_CODEC_DSD,
-    HAL_AUDIO_CODEC_AIFF,
-    HAL_AUDIO_CODEC_APE,
-    HAL_AUDIO_CODEC_WMA
+    HAL_AUDIO_CODEC_AIFF
 } HalAudioCodec;
 
 typedef struct HalAudioFormat {
