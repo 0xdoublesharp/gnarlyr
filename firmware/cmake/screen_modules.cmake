@@ -84,10 +84,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
 set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/app/screens/now_playing_screen.c
     src/app/cassette_art.c
-    platform/device/board/storage_list.c
-    platform/device/logic/fat_list.c
-    platform/device/logic/exfat_list.c
-    platform/device/logic/fat_utf8.c
     src/app/modules/playing_module.c
     src/app/screens/cover_flow_screen.c
     src/app/board_cover_layout.c
@@ -100,28 +96,9 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/ui/cover_flow.c
     src/ui/placeholder_art.c
     src/gfx/image_quad.c
-    src/app/screens/quick_settings_screen.c
-    src/app/settings_actions.c
-    src/app/settings_actions_equalizer.c
-    src/app/equalizer_presets.c
-    src/settings/equalizer_slots.c
-    src/settings/equalizer_fit_text.c
-    src/app/headphone_store_edit.c
-    src/app/headphone_parameters.c
-    src/settings/headphone_profile.c
-    src/settings/headphone_profile_edit.c
-    src/settings/headphone_file_save.c
-    src/core/headphone_audio_switch.c
     src/library/sort_initial.c
     src/library/sort_key.c
     src/library/sort_fold_table.c
-    src/app/parametric_store.c
-    src/app/parametric_store_save.c
-    src/settings/parametric_import.c
-    src/settings/parametric_file.c
-    src/settings/parametric_file_save.c
-    src/core/parametric.c
-    src/settings/sound_shaping.c
     src/app/browse_sections.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_equalizer
@@ -150,6 +127,15 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     src/settings/equalizer_slots.c
     src/settings/equalizer_fit_text.c
     src/app/modules/equalizer_module.c
+    src/app/screens/quick_settings_screen.c
+    src/app/settings_actions.c
+    src/app/settings_actions_equalizer.c
+    src/app/headphone_store_edit.c
+    src/app/headphone_parameters.c
+    src/settings/headphone_profile.c
+    src/settings/headphone_profile_edit.c
+    src/settings/headphone_file_save.c
+    src/core/headphone_audio_switch.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/cassette_art.c

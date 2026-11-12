@@ -106,7 +106,7 @@ static ScreenAction menu_hold(AppScreens *screens, uint8_t action)
         return settings_screens_sleep(settings);
     }
     Screen *screen = action == 2 ? &screens->modules.playing.up_next.screen
-                                 : &screens->modules.playing.quick_settings.screen;
+                                 : &screens->modules.equalizer.quick_settings.screen;
     return screen_action_push(screen);
 }
 

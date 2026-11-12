@@ -61,7 +61,6 @@ static void a_screen_belongs_to_the_module_whose_memory_holds_it(void)
     const PlayingModuleScreens *views = &screens.modules.playing;
     CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &views->cover_flow.screen));
     CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &views->up_next.screen));
-    CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &views->quick_settings.screen));
     CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &screens.now_playing.screen));
 }
 

@@ -1,6 +1,5 @@
 #include "browse_sections.h"
 #include "modules/modules.h"
-#include "settings_actions.h"
 
 static Screen *open_artist(void *context, BrowseScreen *browse, BrowseQuery albums)
 {
@@ -45,19 +44,6 @@ static void bind(AppScreens *screens)
     CoverFlowConfig artist_albums = cover_flow;
     artist_albums.artist_keys = app_screens_artist_keys;
     cover_flow_screen_init(&views->artist_albums, artist_albums);
-    QuickSettingsConfig quick = {.settings = {.store = context->settings,
-                                              .headphones = context->headphones,
-                                              .player = context->player,
-                                              .power = context->power,
-                                              .toast = context->toast},
-                                 .theme = context->theme,
-                                 .lyrics = &screens->modules.views.lyrics.screen,
-                                 .up_next = &views->up_next.screen,
-                                 .speed = {.context = &views->quick_settings.config.settings,
-                                           .available = settings_action_speed_available,
-                                           .value = settings_action_speed_text,
-                                           .cycle = settings_action_cycle_speed}};
-    quick_settings_screen_init(&views->quick_settings, quick);
     cover_flow_screen_init(&views->cover_flow, cover_flow);
 }
 

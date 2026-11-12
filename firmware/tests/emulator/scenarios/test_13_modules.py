@@ -200,12 +200,13 @@ class EchoImageTest(EchoImageHarness):
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 
-    def test_now_playing_and_up_next_cross_the_module_seam_without_stalling(self):
+    def test_now_playing_and_quick_settings_cross_the_module_seam_without_stalling(self):
         from echo_emulator.modules import ModuleWatch
         rig = self.cold_playing_rig()
         machine = rig.machine
         watch = ModuleWatch(rig.session)
         number, playing = self.module(machine, "playing")
+        equalizer_number, _ = self.module(machine, "equalizer")
         rig.open_songs()
         started = rig.play_song(1)
         self.assertIsNotNone(rig.first_audio_after(started))
@@ -213,12 +214,13 @@ class EchoImageTest(EchoImageHarness):
                      for key in (KEY_MENU, KEY_BACK, KEY_MENU, KEY_BACK)]
         self.assertLessEqual(max(latencies), MODULE_LOAD_LIMIT_MS)
         self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
-                         [(number, True)])
+                         [(number, True), (equalizer_number, True), (number, True),
+                          (equalizer_number, True), (number, True)])
         self.assertTrue(playing.loaded(machine))
         self.assertEqual([], rig.audio.underruns(started))
         self.assert_module_code_never_written(watch)
         self.assert_healthy(rig.session)
-        print("\n[Now Playing / Up Next] release to first pixels: %s ms" % latencies)
+        print("\n[Now Playing / Quick Settings] release to first pixels: %s ms" % latencies)
         print("[first list load] " + watch.describe(watch.loads()[0]))
 
     def test_modules_change_places_and_a_setting_is_saved_while_a_track_keeps_playing(self):

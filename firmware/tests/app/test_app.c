@@ -802,7 +802,7 @@ static void playback_speed_cycles_in_quick_settings_and_is_saved(void)
     int depth = app_screen_depth();
     tap(KEY_MENU);
     CHECK(title_is("Quick Settings"));
-    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
     move_down(4);
     tap(KEY_PLAY);
     tap(KEY_PLAY);

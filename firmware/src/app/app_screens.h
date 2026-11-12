@@ -119,7 +119,6 @@ typedef struct PlayingModuleScreens {
     CoverFlowScreen cover_flow;
     CoverFlowScreen artist_albums;
     UpNextScreen up_next;
-    QuickSettingsScreen quick_settings;
 } PlayingModuleScreens;
 
 typedef struct ViewsModuleScreens {
