@@ -62,6 +62,38 @@ static void half_light_halves_each_channel(void)
     CHECK_EQUAL(COLOR_RGB(120, 64, 32), color_scale(COLOR_RGB(255, 128, 64), COLOR_LIGHT_FULL / 2));
 }
 
+static unsigned reference_mix(unsigned background, unsigned foreground, unsigned alpha)
+{
+    return (background * (COLOR_ALPHA_OPAQUE - alpha) + foreground * alpha + 7) /
+           COLOR_ALPHA_OPAQUE;
+}
+
+static Color reference_blend(Color background, Color foreground, unsigned alpha)
+{
+    unsigned red = reference_mix(background >> 11, foreground >> 11, alpha);
+    unsigned green = reference_mix(background >> 5 & 0x3F, foreground >> 5 & 0x3F, alpha);
+    unsigned blue = reference_mix(background & 0x1F, foreground & 0x1F, alpha);
+    return (Color)(red << 11 | green << 5 | blue);
+}
+
+static void blending_rounds_each_channel_like_the_per_channel_formula(void)
+{
+    uint32_t seed = 12345;
+    for (unsigned alpha = 0; alpha <= COLOR_ALPHA_OPAQUE; alpha++) {
+        for (int sample = 0; sample < 4096; sample++) {
+            seed = seed * 1664525u + 1013904223u;
+            Color background = (Color)(seed >> 16);
+            Color foreground = (Color)seed;
+            CHECK_EQUAL(reference_blend(background, foreground, alpha),
+                        color_blend(background, foreground, (uint8_t)alpha));
+        }
+        CHECK_EQUAL(reference_blend(0xFFFF, 0x0000, alpha),
+                    color_blend(0xFFFF, 0x0000, (uint8_t)alpha));
+        CHECK_EQUAL(reference_blend(0x0000, 0xFFFF, alpha),
+                    color_blend(0x0000, 0xFFFF, (uint8_t)alpha));
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -76,6 +108,7 @@ int main(void)
         TEST_CASE(opaque_alpha_takes_the_foreground),
         TEST_CASE(partial_alpha_mixes_each_channel),
         TEST_CASE(the_constant_macro_matches_the_function),
+        TEST_CASE(blending_rounds_each_channel_like_the_per_channel_formula),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

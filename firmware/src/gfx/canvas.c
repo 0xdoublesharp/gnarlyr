@@ -1,7 +1,6 @@
 #include "gfx/canvas.h"
 
 enum {
-    PAIRS_PER_ROUND = 4,
     PIXELS_PER_ROUND = 8
 };
 
@@ -42,9 +41,15 @@ Canvas canvas_shifted(const Canvas *canvas, int dx, Rect area)
 static void fill_span(Color *pixels, int count, Color color)
 {
     uint32_t pair = (uint32_t)color | (uint32_t)color << 16;
-    uint32_t round[PAIRS_PER_ROUND] = {pair, pair, pair, pair};
+    if (((uintptr_t)pixels & 2u) != 0 && count > 0) {
+        *pixels++ = color;
+        count--;
+    }
     for (; count >= PIXELS_PER_ROUND; count -= PIXELS_PER_ROUND) {
-        __builtin_memcpy(pixels, round, sizeof round);
+        __builtin_memcpy(pixels, &pair, sizeof pair);
+        __builtin_memcpy(pixels + 2, &pair, sizeof pair);
+        __builtin_memcpy(pixels + 4, &pair, sizeof pair);
+        __builtin_memcpy(pixels + 6, &pair, sizeof pair);
         pixels += PIXELS_PER_ROUND;
     }
     for (; count > 0; count--) {
@@ -61,6 +66,11 @@ void canvas_fill_rect(Canvas *canvas, Rect area, Color color)
 {
     Rect visible = rect_intersection(canvas->clip, area);
     if (rect_is_empty(visible)) {
+        return;
+    }
+    if (visible.x == canvas->bounds.x && visible.width == canvas->bounds.width) {
+        fill_span(pixel_address(canvas, visible.x, visible.y), visible.width * visible.height,
+                  color);
         return;
     }
     for (int y = visible.y; y < visible.y + visible.height; y++) {

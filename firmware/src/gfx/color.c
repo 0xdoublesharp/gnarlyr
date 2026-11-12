@@ -9,7 +9,13 @@ enum {
     RGB_GREEN_SHIFT = 3,
     RGB_BLUE_SHIFT = 3,
     FIVE_BIT_MASK = 0x1F,
-    SIX_BIT_MASK = 0x3F
+    SIX_BIT_MASK = 0x3F,
+    SPREAD_GREEN_SHIFT = 21,
+    SPREAD_LOW_FIELD = 0x7FF,
+    SPREAD_RED_FIELD = 0x3FF,
+    SPREAD_ROUNDING = 7 << 21 | 7 << 11 | 7,
+    FIFTEENTH_MULTIPLIER = 0x8889,
+    FIFTEENTH_SHIFT = 19
 };
 
 typedef struct Channels {
@@ -32,12 +38,6 @@ static Color join(Channels channels)
     return (Color)((channels.red << RED_SHIFT) | (channels.green << GREEN_SHIFT) | channels.blue);
 }
 
-static unsigned mix(unsigned background, unsigned foreground, unsigned alpha)
-{
-    unsigned weighted = background * (COLOR_ALPHA_OPAQUE - alpha) + foreground * alpha;
-    return (weighted + COLOR_ALPHA_OPAQUE / 2) / COLOR_ALPHA_OPAQUE;
-}
-
 Color color_from_rgb(uint8_t red, uint8_t green, uint8_t blue)
 {
     unsigned red_bits = (unsigned)(red & RED_MASK) << RGB_RED_SHIFT;
@@ -46,16 +46,25 @@ Color color_from_rgb(uint8_t red, uint8_t green, uint8_t blue)
     return (Color)(red_bits | green_bits | blue_bits);
 }
 
+static uint32_t spread_of(Color color)
+{
+    return ((uint32_t)color | (uint32_t)color << COLOR_SPREAD_SHIFT) & (uint32_t)COLOR_SPREAD_MASK;
+}
+
+static uint32_t fifteenth(uint32_t value)
+{
+    return value * FIFTEENTH_MULTIPLIER >> FIFTEENTH_SHIFT;
+}
+
 Color color_blend(Color background, Color foreground, uint8_t alpha)
 {
-    unsigned weight = alpha < COLOR_ALPHA_OPAQUE ? alpha : COLOR_ALPHA_OPAQUE;
-    Channels back = split(background);
-    Channels fore = split(foreground);
-    return join((Channels){
-        .red = mix(back.red, fore.red, weight),
-        .green = mix(back.green, fore.green, weight),
-        .blue = mix(back.blue, fore.blue, weight),
-    });
+    uint32_t weight = alpha < COLOR_ALPHA_OPAQUE ? alpha : COLOR_ALPHA_OPAQUE;
+    uint32_t mixed = spread_of(background) * (COLOR_ALPHA_OPAQUE - weight) +
+                     spread_of(foreground) * weight + SPREAD_ROUNDING;
+    uint32_t blue = fifteenth(mixed & SPREAD_LOW_FIELD);
+    uint32_t red = fifteenth(mixed >> RED_SHIFT & SPREAD_RED_FIELD);
+    uint32_t green = fifteenth(mixed >> SPREAD_GREEN_SHIFT & SPREAD_LOW_FIELD);
+    return (Color)(red << RED_SHIFT | green << GREEN_SHIFT | blue);
 }
 
 static unsigned channel_between(unsigned from, unsigned to, int step, int steps)
