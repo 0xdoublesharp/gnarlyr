@@ -57,12 +57,14 @@ static void a_powered_module_waits_for_its_ready_report(void)
 {
     power_on(START_MS);
     CHECK_EQUAL(HAL_BLUETOOTH_STARTING, module.status.state);
+    CHECK_EQUAL(START_MS, module.status.link.timeline.module_on_ms);
     receive_text("CV15", START_MS + 300);
     CHECK_EQUAL(HAL_BLUETOOTH_STARTING, module.status.state);
     BtModuleFrame frame;
     CHECK(!poll(START_MS + 300, &frame));
     CHECK_EQUAL(HAL_BLUETOOTH_READY, module.status.state);
     CHECK_EQUAL('5', module.status.version);
+    CHECK_EQUAL(START_MS + 300, module.status.link.timeline.init_done_ms);
 }
 
 static void a_frame_split_across_reads_waits_for_the_rest(void)
@@ -445,6 +447,17 @@ static void clok_reports_paired(void)
     settle(CONNECT_MS + 1000);
     CHECK_EQUAL(HAL_BLUETOOTH_PAIRED, module.status.pairing);
     CHECK_EQUAL(HAL_BLUETOOTH_READY, module.status.state);
+}
+
+static void a_paired_report_queries_the_link_immediately(void)
+{
+    BtModuleFrame frame;
+    power_on_ready();
+    HalBluetoothDevice device = {0};
+    CHECK(bt_module_connect(&module, &device, CONNECT_MS, &frame));
+    receive_text("CLOK", CONNECT_MS + 100);
+    CHECK(poll(CONNECT_MS + 100, &frame));
+    CHECK(frame_is(&frame, "CQ00"));
 }
 
 static void cler_and_cher_report_a_failed_pairing(void)
@@ -1030,6 +1043,7 @@ int main(void)
         TEST_CASE(a_remembered_device_connects_without_a_scan),
         TEST_CASE(connecting_works_while_still_scanning),
         TEST_CASE(clok_reports_paired),
+        TEST_CASE(a_paired_report_queries_the_link_immediately),
         TEST_CASE(cler_and_cher_report_a_failed_pairing),
         TEST_CASE(an_unanswered_connect_retries_once_with_ch06),
         TEST_CASE(a_status_reply_does_not_cancel_the_connect_retry),

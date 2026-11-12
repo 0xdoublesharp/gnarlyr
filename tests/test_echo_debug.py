@@ -143,6 +143,14 @@ class VolumeCase(unittest.TestCase):
 
 
 class ReportParsing(unittest.TestCase):
+    def test_bluetooth_timeline_fields_are_read_as_milliseconds(self):
+        lines = ["bluetooth.module_on_ms: 100", "bluetooth.init_done_ms: 402",
+                 "bluetooth.first_audio_ms: 1906", "bluetooth.reports: >L LO QO >Y"]
+        values = echo_debug.parse_report(report_text(SYSTEM_LINES + lines))["values"]
+        self.assertEqual(values["bluetooth.module_on_ms"], 100)
+        self.assertEqual(values["bluetooth.first_audio_ms"], 1906)
+        self.assertEqual(values["bluetooth.reports"], ">L LO QO >Y")
+
     def test_keys_become_values_and_unknown_becomes_none(self):
         report = echo_debug.parse_report(report_text())
         values = report["values"]

@@ -32,7 +32,17 @@ typedef struct HalBluetoothDevice {
     char name[HAL_BLUETOOTH_NAME_CAPACITY];
 } HalBluetoothDevice;
 
+typedef struct HalBluetoothTimeline {
+    uint32_t module_on_ms;
+    uint32_t init_done_ms;
+    uint32_t connect_ms;
+    uint32_t connected_ms;
+    uint32_t stream_ms;
+    uint32_t first_audio_ms;
+} HalBluetoothTimeline;
+
 typedef struct HalBluetoothLink {
+    HalBluetoothTimeline timeline;
     uint32_t received;
     uint32_t overruns;
     uint32_t frames;

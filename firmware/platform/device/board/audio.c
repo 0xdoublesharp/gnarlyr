@@ -574,6 +574,9 @@ void hal_audio_seek(uint32_t position_ms)
 
 static DacCurve output_curve(void)
 {
+    if (board_bluetooth_routed()) {
+        return DAC_CURVE_SINGLE_ENDED;
+    }
     switch (output_setting) {
     case HAL_AUDIO_OUTPUT_SINGLE_ENDED:
         return DAC_CURVE_SINGLE_ENDED;
@@ -994,4 +997,28 @@ void board_audio_return_format(void)
 bool board_audio_workspace_lent(void)
 {
     return !workspace_loan_claimable(&workspace_loan);
+}
+
+CORE_SEAM bool board_audio_bluetooth_start(void)
+{
+    if (!engine_ready || !transferring || tone_active || stream_service != NULL) {
+        return false;
+    }
+    uint32_t position = hal_audio_status().position_ms;
+    restart_transfer();
+    clear_ring();
+    if (!audio_engine_seek(&engine, position)) {
+        return false;
+    }
+    uint32_t length = audio_engine_rate(&engine) * 30u / 1000u;
+    engine.fade_in = (AudioFadeRamp){.length = length,
+                                     .reciprocal = length == 0 ? 0 : UINT32_MAX / length,
+                                     .active = length != 0};
+    apply_volume();
+    return start_output(false);
+}
+
+void board_audio_output_changed(void)
+{
+    apply_volume();
 }
