@@ -28,7 +28,8 @@
 
 enum {
     START_CLOCK_MHZ = 96,
-    EMPTY_NOTICE_MS = 2000
+    EMPTY_NOTICE_MS = 2000,
+    DARK_PASS_MS = 10
 };
 
 static UsbPlug usb_plug;
@@ -281,9 +282,18 @@ static void govern_coast(void)
     board_clock_coast_divider(coast_governor.divider);
 }
 
-static void sleep_until_next_pass(void)
+static uint32_t pass_interval_ms(void)
 {
     uint32_t interval_ms = app_pass_interval_ms();
+    bool dark = interval_ms >= DARK_PASS_MS && !board_display_lit() &&
+                usb_plug.state != USB_PLUG_LISTENING && !board_bluetooth_powered();
+    uint32_t rest_ms = board_audio_plan_rest(dark);
+    return rest_ms > interval_ms ? rest_ms : interval_ms;
+}
+
+static void sleep_until_next_pass(void)
+{
+    uint32_t interval_ms = pass_interval_ms();
     bool slow_tick =
         interval_ms >= 4 && usb_plug.state != USB_PLUG_LISTENING && !board_bluetooth_powered();
 #ifdef ECHO_DEBUG_LOOP
@@ -295,7 +305,7 @@ static void sleep_until_next_pass(void)
     uint32_t due_ms = hal_clock_milliseconds() + interval_ms;
     do {
         sleep_until_interrupt();
-    } while (usb_plug.state != USB_PLUG_LISTENING &&
+    } while (usb_plug.state != USB_PLUG_LISTENING && !board_input_pending() &&
              !deadline_reached(hal_clock_milliseconds(), due_ms));
 }
 

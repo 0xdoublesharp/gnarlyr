@@ -112,6 +112,8 @@ class PowerMeter:
         self.machine = machine
         self.idle_us = 0
         self.wakes = 0
+        self.passes = 0
+        machine.hook_symbol("app_step", self.count_pass)
         self.panel_events = []
         self.backlight_events = []
         machine.stub_symbol("board_profile_wait", self.rest)
@@ -121,6 +123,9 @@ class PowerMeter:
             def changed(uc, access, where, size, value, user, events=events, invert=invert):
                 events.append((machine.microseconds(), bool(value) != invert))
             machine.uc.hook_add(UC_HOOK_MEM_WRITE, changed, None, address, address)
+
+    def count_pass(self):
+        self.passes += 1
 
     def rest(self, machine):
         before = machine.microseconds()
@@ -132,7 +137,7 @@ class PowerMeter:
     def measure(self, rig, card, duration_ms):
         machine, decoder = self.machine, rig.audio.core1
         decoder = decoder if isinstance(decoder, DecoderLoad) else None
-        first, idle, wakes = machine.microseconds(), self.idle_us, self.wakes
+        first, idle, wakes, passes = machine.microseconds(), self.idle_us, self.wakes, self.passes
         instructions = decoder.instructions if decoder else 0
         clock_first, clock_index = machine.core_hz, len(machine.clock_log)
         panel_on = not machine.read_memory(machine.symbols["panel_asleep"], 1)[0]
@@ -151,6 +156,7 @@ class PowerMeter:
             "duration_ms": elapsed / 1000,
             "core0_busy_percent": round(100 * (1 - (self.idle_us - idle) / elapsed), 3),
             "core0_wfi_wakes_per_s": round((self.wakes - wakes) * 1000000 / elapsed, 3),
+            "core0_passes_per_s": round((self.passes - passes) * 1000000 / elapsed, 3),
             "core0_clock_ms": {str(rate): round(ms, 3) for rate, ms in sorted(clocks.items())},
             "core1_clock_mhz": 100 if decoder else 0,
             "core1_instructions": cycles,

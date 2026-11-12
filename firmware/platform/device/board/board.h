@@ -50,6 +50,7 @@ typedef struct BoardImageTable {
 bool board_slot_table_row(uint32_t slot, const BoardImageTable *listing, uint32_t index,
                           uint32_t *row);
 void board_input_sample(uint32_t now_ms);
+bool board_input_pending(void);
 BatteryGauge board_battery_gauge(void);
 void board_battery_restart(void);
 
@@ -98,6 +99,7 @@ void board_audio_shut_down(void);
 uint8_t board_audio_volume_level(void);
 bool board_audio_converting(void);
 bool board_audio_running_low(void);
+uint32_t board_audio_plan_rest(bool dark);
 void board_audio_set_attenuation(uint8_t steps);
 bool board_audio_stream_open(uint32_t rate, void (*service)(void));
 uint32_t *board_audio_stream_ring(uint32_t *frames);
