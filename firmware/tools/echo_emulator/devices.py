@@ -399,7 +399,7 @@ class Systick(RegisterFile):
     def wraps(self):
         if not self.enabled or self.reload == 0:
             return 0
-        return self.elapsed() // (self.reload + 1)
+        return (self.elapsed() + 1) // (self.reload + 1)
 
     def pending(self):
         return self.wraps() > self.delivered_wraps

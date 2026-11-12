@@ -140,7 +140,6 @@ The canonical `GNARLYR` identity has been installed through the two-hop file-cop
 - **Bluetooth play while paused:** after the existing three-second stream/link echo guard, a headset play report resumes a player-initiated pause as well as a headset pause, including pause standby. Lock and display sleep do not gate Bluetooth processing. Reports during the guard are ignored because the module also emits them in response to stream changes. Verify this distinction with the owner's headphones before release.
 
 - **USB DAC: a single audio packet may be missed while the DAC menu redraws** (the menu over live meters at high-speed USB). The emulator counts one missed packet in that case; it is fixed in the next build, where the DAC screen draws each row in 160-pixel pieces so USB audio polling stays inside the 125 µs frame.
-- **The developer report on a long Power press** (`device` builds only): holding Power to switch off no longer saves `/.gnarlyr/debug/report*.txt`; the shutdown reserve of the report file fails on the internal volume, although settings saved just before. USB-session and restart reports are still written, and nothing changes for players. This started with the Power shortcuts and configurable Menu hold.
 
 ## USB DAC host acceptance
 

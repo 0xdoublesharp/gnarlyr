@@ -44,7 +44,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertIsNone(values["usb.gotgctl"])
         self.assertIsNone(values["usb.b_session"])
         details = [event["kind"] + " " + event["detail"] for event in self.read_report(session)["events"]]
-        self.assertIn("key power long", details)
+        self.assertIn("key power long 1023", details)
         self.assertEqual(machine.faults, [])
         self.assertEqual(machine.panics, ["hal_power_off", "board_power_cut"])
         self.assert_only_the_user_volume_changed(session)
