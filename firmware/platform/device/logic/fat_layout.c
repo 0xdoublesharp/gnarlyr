@@ -450,3 +450,116 @@ bool fat_info_record(FatVolume *volume, uint32_t next_free, uint32_t count, bool
     put32(sector + INFO_NEXT_OFFSET, next_free);
     return fat_commit_sector(volume, volume->info_sector);
 }
+
+static uint8_t label_fold(uint8_t value)
+{
+    return value >= 'a' && value <= 'z' ? value - ('a' - 'A') : value;
+}
+
+static bool label_matches(const uint8_t *entry, const char *name, bool exfat)
+{
+    unsigned length = 0;
+    while (name[length] != 0) {
+        length++;
+    }
+    if (exfat && entry[1] != length) {
+        return false;
+    }
+    for (unsigned index = 0; index < 11; index++) {
+        uint8_t expected = index < length ? (uint8_t)name[index] : ' ';
+        if (exfat && index >= length) {
+            break;
+        }
+        unsigned offset = exfat ? 2 + index * 2 : index;
+        if (label_fold(entry[offset]) != label_fold(expected) ||
+            (exfat && entry[offset + 1] != 0)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool fat_fix_label(FatVolume *volume, const char *target, const char *legacy)
+{
+    FatFile root = fat_root_directory(volume);
+    bool exfat = volume->type == FAT_TYPE_EXFAT;
+    for (uint32_t index = 0; index < 65536; index++) {
+        const uint8_t *entry = fat_read_entry(volume, &root, index);
+        if (entry == NULL || entry[0] == 0) {
+            return true;
+        }
+        if (exfat ? entry[0] != 0x83 : entry[0] == 0xE5 || entry[11] != 8) {
+            continue;
+        }
+        if (!label_matches(entry, target, exfat) &&
+            (legacy == NULL || !label_matches(entry, legacy, exfat))) {
+            return true;
+        }
+        uint8_t desired[32];
+        for (unsigned byte = 0; byte < 32; byte++) {
+            desired[byte] = entry[byte];
+        }
+        unsigned length = 0;
+        while (target[length] != 0 && length < 11) {
+            length++;
+        }
+        if (exfat) {
+            desired[1] = (uint8_t)length;
+        }
+        bool changed = false;
+        for (unsigned byte = 0; byte < 11; byte++) {
+            unsigned offset = exfat ? 2 + byte * 2 : byte;
+            desired[offset] = byte < length ? (uint8_t)target[byte] : exfat ? 0 : ' ';
+            if (exfat) {
+                desired[offset + 1] = 0;
+            }
+        }
+        for (unsigned byte = 0; byte < 32; byte++) {
+            changed |= desired[byte] != entry[byte];
+        }
+        uint32_t lba;
+        if (changed && (!fat_file_sector(volume, &root, index / 16, &lba) ||
+                        !fat_update_bytes(volume, lba, index % 16 * 32, desired, 32))) {
+            return false;
+        }
+        if (volume->type == FAT_TYPE_32) {
+            if (!fat_read_sector(volume, volume->volume_start)) {
+                return false;
+            }
+            const uint8_t *boot = fat_cached_sector(volume);
+            uint8_t header[71];
+            for (unsigned byte = 0; byte < sizeof header; byte++) {
+                header[byte] = boot[byte];
+            }
+            uint32_t backup = fat_le16(boot + 50);
+            uint32_t reserved = fat_le16(boot + 14);
+            for (unsigned copy = 0; copy < 2; copy++) {
+                if (copy && (backup == 0 || backup >= reserved)) {
+                    break;
+                }
+                lba = volume->volume_start + (copy ? backup : 0);
+                if (!fat_read_sector(volume, lba)) {
+                    return false;
+                }
+                boot = fat_cached_sector(volume);
+                if (fat_le16(boot + 510) != 0xAA55) {
+                    return false;
+                }
+                for (unsigned byte = 0; byte < sizeof header; byte++) {
+                    if (boot[byte] != header[byte]) {
+                        return false;
+                    }
+                }
+                changed = false;
+                for (unsigned byte = 0; byte < 11; byte++) {
+                    changed |= boot[71 + byte] != desired[byte];
+                }
+                if (changed && !fat_update_bytes(volume, lba, 71, desired, 11)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    return false;
+}

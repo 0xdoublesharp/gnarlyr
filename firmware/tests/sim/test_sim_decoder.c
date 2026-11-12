@@ -62,7 +62,7 @@ static void compare_ogg_samples(SimDecoder *decoder, FILE *reference, const OggR
                 int16_t expected = (int16_t)((uint32_t)low | (uint32_t)high << 8);
                 if (!sought || compared + frame >= fixture->seek_settle) {
                     CHECK(fabsf(frames[frame * 2 + channel] * 32768 - expected) <=
-                          fixture->tolerance);
+                          (float)fixture->tolerance);
                 }
             }
             if (decoder->channels == 1) {

@@ -156,7 +156,7 @@ Only after the owner approved it for this session.
   ```
 
 - Slot files, read-backs and logs go under `/Volumes/Scratch/SnowskyEcho`, never in the repo. The original device backup stays under `.local/device-backups` in the main checkout.
-- Internal storage mounts as `/Volumes/ECHO`. An update is copied with `cp -X` (no `._` files) to the drive's top level as `GNARLYR.IMG`, then `diskutil eject /Volumes/ECHO`; the updater runs once the USB session ends. File-copy installs with automatic restart/reconnect are recorded on the owner's player through earlier Gnarlyr developer builds. The canonical identifier transition still needs its own device validation (`docs/known-issues.md`).
+- Internal storage mounts as `/Volumes/Gnarlyr` (older firmware may use `/Volumes/ECHO`). An update is copied with `cp -X` (no `._` files) to the drive's top level as `GNARLYR.IMG`, then `diskutil eject /Volumes/ECHO`; the updater runs once the USB session ends. File-copy installs with automatic restart/reconnect are recorded on the owner's player through earlier Gnarlyr developer builds. The canonical identifier transition still needs its own device validation (`docs/known-issues.md`).
 
 ## Releasing
 

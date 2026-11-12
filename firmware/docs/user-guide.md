@@ -53,7 +53,7 @@ Back up everything you want to keep on the microSD card. Formatting erases its m
 3. Press Play to continue. The second confirmation starts on Cancel; choose Erase card with a volume key, then press Play. Back cancels either confirmation.
 4. Keep the card inserted until formatting finishes. The library starts empty; copy music over USB to rebuild it.
 
-Cards through 32 GB use FAT32; larger cards use exFAT. The volume is named ECHO. Internal storage keeps its files. This is a quick format: old file contents can remain recoverable until new files overwrite them.
+Cards through 32 GB use FAT32; larger cards use exFAT. The volume is named GnarlySD. Internal storage keeps its files. This is a quick format: old file contents can remain recoverable until new files overwrite them.
 
 An interrupted format reports that the card needs formatting. Reinsert the card and choose Format card again before copying music. Physical card formatting still needs the owner checks listed in [known issues](known-issues.md).
 

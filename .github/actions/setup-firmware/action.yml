@@ -1,0 +1,50 @@
+name: Firmware toolchain
+description: Prepare isolated Scratch storage and pinned firmware prerequisites
+runs:
+  using: composite
+  steps:
+    - name: Mount disposable Scratch storage
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ "${{ runner.os }}" = Linux ]; then
+          sudo mkdir -p /Volumes/Scratch
+          sudo mount -t tmpfs -o size=16G tmpfs /Volumes/Scratch
+          sudo chown "$(id -u):$(id -g)" /Volumes/Scratch
+        else
+          hdiutil create -size 40g -fs APFS -volname Scratch -type SPARSE "$RUNNER_TEMP/Scratch.sparseimage"
+          hdiutil attach -nobrowse -mountpoint /Volumes/Scratch "$RUNNER_TEMP/Scratch.sparseimage"
+        fi
+        python3 -c 'import os; assert os.path.ismount("/Volumes/Scratch"), "Scratch is not mounted"'
+        mkdir -p /Volumes/Scratch/SnowskyEcho/{tools,tmp/ci,reports/ci,dist}
+        echo 'TMPDIR=/Volumes/Scratch/SnowskyEcho/tmp/ci' >> "$GITHUB_ENV"
+        echo 'PYTHONDONTWRITEBYTECODE=1' >> "$GITHUB_ENV"
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      id: python
+      with:
+        python-version: '3.14'
+    - name: Install native dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ "${{ runner.os }}" = Linux ]; then
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends cmake libsdl2-dev ffmpeg pkg-config sccache
+        else
+          brew install cmake sdl2 ffmpeg sccache
+        fi
+    - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+      id: tools
+      with:
+        path: |
+          /Volumes/Scratch/SnowskyEcho/tools/arm
+          /Volumes/Scratch/SnowskyEcho/tools/podium-python314
+        key: firmware-tools-v1-${{ runner.os }}-${{ runner.arch }}-arm15.3.rel2-python${{ steps.python.outputs.python-version }}-${{ hashFiles('firmware/tools/requirements.txt') }}
+    - name: Install verified Arm toolchain and Python tools
+      shell: bash
+      run: bash .github/scripts/setup-firmware.sh
+    - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+      with:
+        path: /Volumes/Scratch/sccache
+        key: firmware-compiler-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+        restore-keys: firmware-compiler-v1-${{ runner.os }}-${{ runner.arch }}-

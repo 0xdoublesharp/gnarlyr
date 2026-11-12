@@ -114,3 +114,5 @@ bool fat_write(FatVolume *volume, FatFile *file, uint32_t offset, const void *by
 FatReserveResult fat_reserve(FatVolume *volume, const char *path, uint32_t size);
 bool fat_delete(FatVolume *volume, const char *path);
 bool fat_file_sector(FatVolume *volume, FatFile *file, uint32_t sector_index, uint32_t *lba);
+
+bool fat_fix_label(FatVolume *volume, const char *target, const char *legacy);
