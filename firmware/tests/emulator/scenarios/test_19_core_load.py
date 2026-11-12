@@ -16,7 +16,7 @@ from echo_image_harness import (
 
 SPEED_STEPS = ((100, 0), (150, 2), (200, 4), (300, 6))
 FULL_RING_WORDS = 7 * 4000
-STRETCH_RING_WORDS = 5 * 4000
+STRETCH_RING_WORDS = (FULL_RING_WORDS - (6002 * 6 + 3) // 4) // 10 * 10
 SPEED_SETTLE_MS = 1000
 SPEED_MEASURE_MS = 2000
 CORE1_KEEPUP_SLICES = 128
@@ -61,9 +61,9 @@ class EchoImageTest(EchoImageHarness):
             self.assertEqual([], rig.audio.underruns(mark))
             if parametric:
                 rig.press("back", hold=1300)
-                rig.press("next")
+                rig.press("previous")
                 rig.press("play")
-                rig.press_many("next", 15)
+                rig.press_many("next", 17)
                 rig.press("play")
                 rig.press("play")
                 self.assertEqual(8, rig.session.fat().read(SETTINGS_PATH)[18])

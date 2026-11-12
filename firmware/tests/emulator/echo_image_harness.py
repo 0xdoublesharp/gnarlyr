@@ -751,11 +751,13 @@ class EchoImageHarness(unittest.TestCase):
         self.assertEqual(session.run_to_first_frame(), "condition met")
         self.assertLess(machine.milliseconds(), FIRST_FRAME_LIMIT_MS)
         self.assertEqual(session.run_to_home_screen(), "condition met")
+        machine.run(until=lambda: listens, until_ms=usb_ms)
         self.assertTrue(listens)
         self.assertGreaterEqual(listens[0], CABLE_STEADY_MS)
         self.assertLess(listens[0], usb_ms)
         self.assertLess(machine.milliseconds(), 20000)
-        gaps = [later - earlier for earlier, later in zip(steps, steps[1:])]
+        points = list(steps) + [machine.milliseconds()]
+        gaps = [later - earlier for earlier, later in zip(points, points[1:])]
         self.assertLess(max(gaps), gap_ms)
         self.assertEqual(machine.watchdog_resets, 0)
         self.assertGreater(machine.watchdog_kicks, 0)

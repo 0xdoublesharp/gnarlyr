@@ -31,7 +31,7 @@ class EchoImageTest(EchoImageHarness):
         internal_before = rig.session.disk.snapshot()
         rig.press("previous")
         rig.press("play")
-        for _ in range(3):
+        for _ in range(5):
             rig.press("previous")
         rig.press("play")
         self.assertEqual([], inserted[0].writes)
@@ -91,7 +91,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(wav, reader.read("/COPIED.WAV"))
         rig.press("previous")
         rig.press("play")
-        rig.press_many("next", 21)
+        rig.press_many("next", 22)
         rig.press("play")
         rig.settle(1000)
         rig.open_songs()
@@ -130,7 +130,7 @@ class EchoImageTest(EchoImageHarness):
         def confirm():
             rig.press("previous")
             rig.press("play")
-            for _ in range(3):
+            for _ in range(5):
                 rig.press("previous")
             rig.press("play")
             rig.press("play")

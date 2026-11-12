@@ -160,7 +160,7 @@ class EchoImageTest(EchoImageHarness):
         rig.press("back", hold=1300)
         rig.press("previous")
         rig.press("play")
-        rig.press_many("next", 19)
+        rig.press_many("next", 20)
         rig.press("play")
         rig.press("previous")
         rig.press("play")
@@ -172,7 +172,7 @@ class EchoImageTest(EchoImageHarness):
         sector = (rig.session.layout["volume_start"] + rig.session.volume.data_start
                   + (node.first - 2) * rig.session.volume.sectors_per_cluster)
         saved = rig.session.disk.read(sector, 1)[:58]
-        self.assertEqual(15, saved[4])
+        self.assertEqual(16, saved[4])
         self.assertEqual(1, saved[5])
         self.assertEqual([], rig.audio.underruns(started))
         self.assertEqual(0, rig.audio.output_underruns())

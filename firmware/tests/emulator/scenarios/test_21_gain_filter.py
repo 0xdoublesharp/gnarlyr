@@ -9,7 +9,7 @@ from echo_image_harness import (
     SETTINGS_PATH,
 )
 
-GAIN_ROW_FROM_TOP = 20
+GAIN_ROW_FROM_TOP = 14
 HIGH_GAIN_RISE_LEVELS = 6
 DAC_UNITS_PER_LEVEL = 2
 HIGH_GAIN_RISE_UNITS = HIGH_GAIN_RISE_LEVELS * DAC_UNITS_PER_LEVEL
@@ -41,11 +41,11 @@ class EchoImageTest(EchoImageHarness):
         self.assertIsNotNone(audible)
         before = target_volume()
         rig.press_many("back", 3)
-        rig.press("next")
+        rig.press("previous")
         rig.press("play")
         gains.clear()
         filters.clear()
-        rig.press_many("previous", GAIN_ROW_FROM_TOP)
+        rig.press_many("next", GAIN_ROW_FROM_TOP)
         rig.press("play")
         rig.press("next")
         rig.press("play")

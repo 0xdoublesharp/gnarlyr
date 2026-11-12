@@ -118,8 +118,8 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(report["values"]["script.state"], "refused_build")
         self.assertEqual(machine.reached["app_ask_usb_mode"], 1)
         self.assertEqual([line["status"] for line in report["script"]["lines"]], ["not_run"] * 3)
-        self.assertEqual([event["detail"] for event in report["events"] if event["kind"] == "key"],
-                         ["down press", "play press"])
+        self.assertEqual([" ".join(event["detail"].split()[:2]) for event in report["events"]
+                          if event["kind"] == "key"], ["play press"])
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 

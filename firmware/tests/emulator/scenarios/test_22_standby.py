@@ -3,7 +3,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from echo_image_harness import EchoImageHarness, FNV_START, FNV_PRIME, IDENTITY, main, struct
+from echo_image_harness import (
+    EchoImageHarness,
+    FNV_PRIME,
+    FNV_START,
+    IDENTITY,
+    STARTUP_WORK_MS,
+    main,
+    struct,
+)
 
 
 class EchoImageTest(EchoImageHarness):
@@ -29,6 +37,7 @@ class EchoImageTest(EchoImageHarness):
 
         machine.hook_symbol("extension_standby_follow", following)
         session.run_to_home_screen()
+        machine.run(until_ms=machine.milliseconds() + STARTUP_WORK_MS)
         machine.power_key_released_at_ms = machine.milliseconds() + 150
         self.assertEqual(machine.run(until=lambda: states and states[-1] == 1 and
                                      machine.core_hz == 24000000,

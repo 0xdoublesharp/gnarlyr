@@ -16,7 +16,8 @@ from echo_image_harness import (
 STRIP_ALBUMS = 3
 SCRIPT = ["play", "down,down,play", "wait 600", "play", "wait 900", "screenshot strip",
           "down", "wait 900", "screenshot second", "play", "wait 700", "screenshot album",
-          "back", "wait 700", "play:long", "wait 2500", "screenshot playing", "reconnect"]
+          "back", "wait 700", "play:long", "wait 700", "play", "wait 2500", "screenshot playing",
+          "reconnect"]
 SHOTS = ["strip", "second", "album", "playing"]
 
 
