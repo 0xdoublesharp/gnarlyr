@@ -4,8 +4,7 @@ import subprocess
 import sys
 
 PIN = "304f073752fd25c854e1bcf05d8e7f925b1f4e14"
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "firmware/tools"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import patch_rkdeveloptool
 
 

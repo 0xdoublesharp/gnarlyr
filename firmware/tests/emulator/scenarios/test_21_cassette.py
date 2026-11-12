@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from echo_image_harness import EchoImageHarness, main, struct, IDENTITY, FNV_START, FNV_PRIME
+from echo_image_harness import EchoImageHarness, main, struct, IDENTITY, fnv1a
 
 
 class EchoImageTest(EchoImageHarness):
@@ -11,9 +11,7 @@ class EchoImageTest(EchoImageHarness):
         settings = bytearray(self.saved_settings(4, 15, shuffle=0))
         settings[7] = 6
         settings[38 + 13] = 1 << 5
-        checksum = FNV_START
-        for value in settings[:54]:
-            checksum = (checksum ^ value) * FNV_PRIME & 0xFFFFFFFF
+        checksum = fnv1a(settings[:54])
         settings[54:58] = struct.pack("<I", checksum)
         return bytes(settings)
 

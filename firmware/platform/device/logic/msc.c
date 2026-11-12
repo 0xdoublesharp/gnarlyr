@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+#include "core/bytes.h"
+
 enum {
     CBW_LENGTH = 31,
     CSW_LENGTH = 13,
@@ -55,12 +57,6 @@ _Static_assert(sizeof INQUIRY_VENDOR - 1 <= INQUIRY_VENDOR_BYTES,
                "the firmware id fits the INQUIRY vendor field");
 _Static_assert(sizeof INQUIRY_REVISION - 1 <= INQUIRY_REVISION_BYTES,
                "the firmware's major.minor version fits the INQUIRY revision field");
-
-static uint32_t le32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
 
 static uint32_t be32(const uint8_t *bytes)
 {
@@ -422,8 +418,8 @@ static void begin_command(Msc *msc, const uint8_t *cbw)
 {
     msc->stats.commands++;
     msc->opcode = cbw[CBW_BLOCK];
-    msc->tag = le32(cbw + 4);
-    msc->expected = le32(cbw + 8);
+    msc->tag = bytes_le32(cbw + 4);
+    msc->expected = bytes_le32(cbw + 8);
     msc->lun = cbw[CBW_LUN] & 0x0F;
     msc->transferred = 0;
     msc->valid_bytes = 0;

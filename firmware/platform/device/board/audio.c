@@ -122,7 +122,6 @@ static uint32_t ring_words;
 static bool stopped_waiting;
 static uint32_t stopped_since_ms;
 static bool tone_active;
-static char last_path[AUDIO_ENGINE_PATH_CAPACITY];
 static uint8_t volume_level;
 static uint8_t bluetooth_level;
 static uint8_t extra_attenuation;
@@ -264,25 +263,9 @@ static AudioSource chosen_source(void)
                                   flac ? CORE1_FORMAT_FLAC : (Core1Format)source_kind);
 }
 
-static void remember_path(const char *path)
-{
-    uint32_t index = 0;
-    while (path[index] != '\0' && index + 1 < AUDIO_ENGINE_PATH_CAPACITY) {
-        last_path[index] = path[index];
-        index++;
-    }
-    last_path[index] = '\0';
-}
-
-const char *board_audio_last_path(void)
-{
-    return last_path[0] != '\0' ? last_path : NULL;
-}
-
 static bool open_chosen(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track)
 {
     (void)context;
-    remember_path(path);
     source_kind = kind_of(path);
     unknown_format = source_kind == SOURCE_UNKNOWN;
     if (unknown_format || !board_audio_process_prepare()) {

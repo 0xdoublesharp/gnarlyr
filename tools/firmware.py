@@ -7,12 +7,14 @@ from pathlib import Path
 import shutil
 import subprocess
 
+from echo_debug import IDENTITY
+
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "firmware"
 SCRATCH = Path("/Volumes/Scratch/SnowskyEcho")
 ARM_DEFAULT = SCRATCH / "tools/arm-15.3-expanded/Payload/bin"
-VENV_DEFAULT = SCRATCH / "tools/podium-python314"
-BUILD_NAME = ROOT.name if (ROOT / ".git").is_file() else "custom-firmware"
+VENV_DEFAULT = SCRATCH / "tools" / f"{IDENTITY['name'].lower()}-python314"
+BUILD_NAME = ROOT.name if (ROOT / ".git").is_file() else SCRATCH.name
 GROUPS = {
     "host": "^test_",
     "smoke": "^(test_player|test_settings|test_up_next|test_session_journal|"

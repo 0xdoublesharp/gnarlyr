@@ -2,7 +2,7 @@ set -euo pipefail
 
 tools=/Volumes/Scratch/SnowskyEcho/tools
 arm="$tools/arm"
-venv="$tools/podium-python314"
+venv="$tools/gnarlyr-python314"
 base=https://gitlab.arm.com/api/v4/projects/tooling%2Fgnu-toolchains-for-arm/packages/generic/gnu-toolchain/15.3.rel2
 if [ ! -x "$arm/bin/arm-none-eabi-gcc" ]; then
   if [ "$RUNNER_OS" = Linux ]; then

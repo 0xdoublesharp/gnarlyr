@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/bytes.h"
 #include "core/seam.h"
 
 enum {
@@ -87,12 +88,6 @@ CORE_SEAM bool slot_copy_run(const SlotCopyJob *job)
     return true;
 }
 
-static uint32_t le32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
-
 static bool header_is_ours(const uint8_t *bytes)
 {
     for (uint32_t index = 0; index < sizeof MAGIC; index++) {
@@ -100,7 +95,7 @@ static bool header_is_ours(const uint8_t *bytes)
             return false;
         }
     }
-    return le32(bytes + FW_SIZE_OFFSET) == FW_SIZE;
+    return bytes_le32(bytes + FW_SIZE_OFFSET) == FW_SIZE;
 }
 
 bool slot_copy_is_valid(const UpdateStorage *storage, uint32_t slot, uint32_t *buffer)

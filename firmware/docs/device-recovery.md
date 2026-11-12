@@ -37,7 +37,7 @@ The emulator checks the timing and the restart request. On the player, an earlie
 
 ## 1. Build the patched `rkdeveloptool` (once)
 
-The upstream tool needs four changes for this device: a 5000 ms command timeout, 32 sectors per transfer, maskrom detection for USB ID `2207:262d`, and the chip version read from that device's `bcdDevice`. `tools/patch_rkdeveloptool.py` makes them on upstream revision `304f073752fd25c854e1bcf05d8e7f925b1f4e14`. It prints `ok: Echo changes applied`, and refuses a source it doesn't recognise or one that is already patched.
+The upstream tool needs four changes for this device: a 5000 ms command timeout, 32 sectors per transfer, maskrom detection for USB ID `2207:262d`, and the chip version read from that device's `bcdDevice`. `../../tools/recovery/patch_rkdeveloptool.py` makes them on upstream revision `304f073752fd25c854e1bcf05d8e7f925b1f4e14`. It prints `ok: Echo changes applied`, and refuses a source it doesn't recognise or one that is already patched.
 
 ### This repository, macOS
 
@@ -48,7 +48,7 @@ export TMPDIR=/Volumes/Scratch/SnowskyEcho/tmp/recovery-tool
 mkdir -p "$TMPDIR"
 git clone https://github.com/rockchip-linux/rkdeveloptool.git .local/references/rkdeveloptool
 git -C .local/references/rkdeveloptool checkout --detach 304f073752fd25c854e1bcf05d8e7f925b1f4e14
-python3 firmware/tools/patch_rkdeveloptool.py .local/references/rkdeveloptool
+python3 tools/recovery/patch_rkdeveloptool.py .local/references/rkdeveloptool
 cmake -S tools/recovery -B /Volumes/Scratch/SnowskyEcho/build/recovery-tool \
   -DRKDEVELOPTOOL_SOURCE="$PWD/.local/references/rkdeveloptool" -DCMAKE_BUILD_TYPE=Release
 cmake --build /Volumes/Scratch/SnowskyEcho/build/recovery-tool -j4
@@ -67,7 +67,7 @@ mkdir -p external && cd external
 git clone https://github.com/rockchip-linux/rkdeveloptool.git
 cd rkdeveloptool
 git checkout 304f073752fd25c854e1bcf05d8e7f925b1f4e14
-python ../../tools/patch_rkdeveloptool.py .
+python ../../../tools/recovery/patch_rkdeveloptool.py .
 autoreconf -fi
 mkdir -p build-clang64 && cd build-clang64
 ../configure --prefix=/clang64
@@ -85,7 +85,7 @@ mkdir -p external && cd external
 git clone https://github.com/rockchip-linux/rkdeveloptool.git
 cd rkdeveloptool
 git checkout 304f073752fd25c854e1bcf05d8e7f925b1f4e14
-python3 ../../tools/patch_rkdeveloptool.py .
+python3 ../../../tools/recovery/patch_rkdeveloptool.py .
 ./autogen.sh && ./configure && make CXXFLAGS="-g -O2 -Wno-vla-cxx-extension"
 ./rkdeveloptool -v
 ```

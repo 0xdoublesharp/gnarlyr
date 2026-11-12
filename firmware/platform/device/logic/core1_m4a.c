@@ -2,14 +2,9 @@
 
 #include <stddef.h>
 
+#include "core/bytes.h"
 #include "device/core1_heap.h"
 #include "device/mp4_demux.h"
-
-static uint32_t little_endian(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
 
 static void start_m4a(void *context, FlacInput input, FlacInfo info, uint32_t first_sample,
                       const bool *starved)
@@ -37,7 +32,7 @@ static Core1DecodeResult fetch(Core1M4a *m4a, uint8_t *destination, uint32_t cap
     if (!m4a->source.read(m4a->source.context, m4a->position, header, sizeof header)) {
         return CORE1_STARVED;
     }
-    *size = little_endian(header);
+    *size = bytes_le32(header);
     if (*size == 0) {
         return CORE1_FINISHED;
     }

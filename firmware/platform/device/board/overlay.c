@@ -6,6 +6,7 @@
 #include "app/app.h"
 #include "audio_process.h"
 #include "board.h"
+#include "core/bytes.h"
 #include "core/seam.h"
 #include "device/audio_effects_module.h"
 #include "device/audio_process.h"
@@ -35,12 +36,6 @@ static const BoardImageTable MODULE_TABLE = {MODULE_TABLE_OFFSET, MODULE_TABLE_M
 static uint8_t loaded_module;
 
 extern const uint8_t device_code_end[];
-
-static uint32_t le32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
 
 static uint32_t running_code_crc(void)
 {
@@ -72,9 +67,9 @@ static bool read_rest(const BoardOverlay *overlay, uint32_t first_sector, uint32
 static uint32_t header_size(const BoardOverlay *overlay)
 {
     const uint8_t *base = overlay->base;
-    uint32_t size = le32(base + 4);
-    if (le32(base) != overlay->magic || size < OVERLAY_HEADER_BYTES || size > overlay->capacity ||
-        le32(base + 12) != running_code_crc()) {
+    uint32_t size = bytes_le32(base + 4);
+    if (bytes_le32(base) != overlay->magic || size < OVERLAY_HEADER_BYTES ||
+        size > overlay->capacity || bytes_le32(base + 12) != running_code_crc()) {
         return 0;
     }
     return size;
@@ -84,7 +79,7 @@ static bool body_intact(const BoardOverlay *overlay, uint32_t size)
 {
     const uint8_t *base = overlay->base;
     return image_crc_update(0, base + OVERLAY_HEADER_BYTES, size - OVERLAY_HEADER_BYTES) ==
-           le32(base + 8);
+           bytes_le32(base + 8);
 }
 
 static uint32_t already_loaded(const BoardOverlay *overlay)

@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from echo_image_harness import EchoImageHarness, main, struct, GPIO_DATA, IDENTITY
+from echo_image_harness import EchoImageHarness, main, struct, GPIO_DATA, IDENTITY, fnv1a
 
 
 class EchoImageTest(EchoImageHarness):
@@ -11,9 +11,7 @@ class EchoImageTest(EchoImageHarness):
         from echo_emulator.fat_volume import Fat32Volume
         settings = bytearray(self.saved_settings(4, 5, shuffle=0))
         settings[52] = 16
-        checksum = 2166136261
-        for value in settings[:54]:
-            checksum = (checksum ^ value) * 16777619 & 0xFFFFFFFF
+        checksum = fnv1a(settings[:54])
         struct.pack_into("<I", settings, 54, checksum)
         volume = Fat32Volume()
         volume.add_directory(IDENTITY.data_directory)

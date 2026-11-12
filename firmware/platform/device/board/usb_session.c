@@ -747,11 +747,9 @@ CORE_SEAM bool usb_storage_session(UsbShared *state)
     if (finished) {
         time_file_take(end == USB_SESSION_EJECTED);
     }
-#ifndef ECHO_BOOT_TRACE
     if (finished) {
         update_after_usb(shared);
     }
-#endif
     bool script_taken = end == USB_SESSION_EJECTED && debug_script_take();
     return usb_session_storage_changed() || script_taken;
 }

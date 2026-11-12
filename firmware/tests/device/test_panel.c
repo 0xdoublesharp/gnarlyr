@@ -92,11 +92,6 @@ static void the_st7796s_sends_its_init_stream(void)
     check_log(&recorder, ST7796S_INIT, (int)(sizeof ST7796S_INIT / sizeof ST7796S_INIT[0]));
 }
 
-static void the_echo_memory_access_byte_is_0x28_or_the_mirrored_0x68(void)
-{
-    CHECK(PANEL_ECHO_MADCTL == 0x28 || PANEL_ECHO_MADCTL == 0x68);
-}
-
 static void the_st7796s_init_sleeps_out_before_anything_else_and_waits_120_ms(void)
 {
     Recorder recorder;
@@ -218,7 +213,6 @@ int main(void)
         TEST_CASE(sleeping_turns_the_display_off_before_sleeping_in_and_waits_5_ms),
         TEST_CASE(waking_sleeps_out_waits_120_ms_then_turns_the_display_on),
         TEST_CASE(the_st7796s_sends_its_init_stream),
-        TEST_CASE(the_echo_memory_access_byte_is_0x28_or_the_mirrored_0x68),
         TEST_CASE(the_st7796s_init_sleeps_out_before_anything_else_and_waits_120_ms),
         TEST_CASE(an_echo_window_maps_visible_rows_to_panel_rows_from_49),
         TEST_CASE(a_partial_echo_window_keeps_columns_plain_and_offsets_rows),

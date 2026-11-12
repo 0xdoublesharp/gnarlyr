@@ -53,9 +53,9 @@ python3 tools/firmware.py sim --card /path/to/music
 Each scenario in `tests/emulator/scenarios/test_*.py` is its own test, named `device_image_boot_<test_name>`, so they run side by side. Use them this way:
 
 - While editing, run only the scenarios the change touches: `python3 tools/firmware.py test --jobs 6 --regex 'device_image_boot_test_usb'`.
-- Use the full-suite gate described under Integration after the last edit. Never run `test_echo_image.py` whole in one process: that is the slow, serial path.
+- Use the full-suite gate described under Integration after the last edit.
 - A branch must contain `perf(emulator): enter hooked functions through block hooks` and `perf(emulator): rest one slice at each idle key poll`. Start new work from the current `main` tip; if a branch is older, bring those commits in before running scenarios.
-- Add new scenarios to the relevant area file under `tests/emulator/scenarios/`, or start a new `test_*.py` there; CMake discovers them automatically. Shared fixtures and helpers live in `tests/emulator/echo_image_harness.py`. The old `test_echo_image.py` command remains a compatibility runner.
+- Add new scenarios to the relevant area file under `tests/emulator/scenarios/`, or start a new `test_*.py` there; CMake discovers them automatically. Shared fixtures and helpers live in `tests/emulator/echo_image_harness.py`.
 - A new scenario waits on events (a hooked function, a watched write, a drawn frame), not on a count of emulated instructions, and replaces any function it only needs to get past through a `CORE_SEAM`.
 
 ## Integration
@@ -149,7 +149,7 @@ Exact commands are in `docs/architecture.md`, Generated code. Python 3.14 reprod
 Only after the owner approved it for this session.
 
 - The owner enters maskrom: the RST hole, then every key except Power held while the USB cable goes in. A running Gnarlyr also reboots into maskrom when Power and vol+ are held for 3 s with the cable in a computer, or at the next start when `MASKROM.REQ` is on internal storage (`docs/device-recovery.md`). Ask, then wait.
-- `rkdeveloptool-echo` talks to maskrom (USB `2207:262d`): upstream rkdeveloptool patched by `tools/patch_rkdeveloptool.py`. `docs/device-recovery.md` gives the build (the CMake project in `../tools/recovery`, output on Scratch). Two seconds after `ld` lists the device, `td` must print `Test Device OK.` before any `rl` or `wl`; `rd` restarts the player.
+- `rkdeveloptool-echo` talks to maskrom (USB `2207:262d`): upstream rkdeveloptool patched by `../tools/recovery/patch_rkdeveloptool.py`. `docs/device-recovery.md` gives the build (the CMake project in `../tools/recovery`, output on Scratch). Two seconds after `ld` lists the device, `td` must print `Test Device OK.` before any `rl` or `wl`; `rd` restarts the player.
 - Firmware slots on the full-size Echo: sector 0 and 81920, 10240 sectors (the image's first 5 MiB) each. Write slot 2 first, read every write back and compare before the next write:
 
   ```sh
@@ -158,7 +158,7 @@ Only after the owner approved it for this session.
   ```
 
 - Slot files, read-backs and logs go under `/Volumes/Scratch/SnowskyEcho`, never in the repo. The original device backup stays under `.local/device-backups` in the main checkout.
-- Internal storage mounts as `/Volumes/Gnarlyr` (older firmware may use `/Volumes/ECHO`). An update is copied with `cp -X` (no `._` files) to the drive's top level as `GNARLYR.IMG`, then `diskutil eject /Volumes/Gnarlyr`; the updater runs once the USB session ends and installs the build on trial into slot 1. File-copy installs with automatic restart/reconnect, including the canonical identifier transition, are recorded on the owner's player (`docs/known-issues.md`).
+- Internal storage mounts as `/Volumes/Gnarlyr`. An update is copied with `cp -X` (no `._` files) to the drive's top level as `GNARLYR.IMG`, then `diskutil eject /Volumes/Gnarlyr`; the updater runs once the USB session ends and installs the build on trial into slot 1. File-copy installs with automatic restart/reconnect, including the canonical identifier transition, are recorded on the owner's player (`docs/known-issues.md`).
 
 ## Releasing
 

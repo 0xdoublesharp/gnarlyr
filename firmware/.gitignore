@@ -1,11 +1,5 @@
 build/
 external/
 .cache/
-__pycache__/
-*.pyc
-.DS_Store
-.venv/
-log/
-.wrangler/
 build
 .venv

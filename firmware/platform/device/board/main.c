@@ -235,24 +235,6 @@ static void explain_missing_text(void)
     board_wait_for_key();
 }
 
-#ifdef ECHO_BOOT_TRACE
-enum {
-    BOOT_TRACE_MS = 1500
-};
-
-static void boot_step(const char *step)
-{
-    board_backlight_full();
-    app_show_notice("Boot", step);
-    board_delay_ms(BOOT_TRACE_MS);
-}
-#else
-static void boot_step(const char *step)
-{
-    (void)step;
-}
-#endif
-
 static uint32_t idle_us;
 
 uint32_t hal_system_idle_microseconds(void)
@@ -325,24 +307,18 @@ void board_main(void)
     board_input_start();
     board_display_start();
     debug_loop_boot(DEBUG_BOOT_DISPLAY);
-    boot_step("display");
     emmc_reset_controller();
     sd_reset_controller();
     update_check_loader_request();
     board_trial_boot();
-    boot_step("loader request");
     board_glyphs_start();
     debug_loop_boot(DEBUG_BOOT_GLYPHS);
-    boot_step("glyphs");
     board_jack_poll();
-    boot_step("jack");
     switch_off_when_empty(boot_millivolts);
-    boot_step("app start");
     app_start();
     debug_loop_boot(DEBUG_BOOT_APP);
     explain_missing_text();
     board_trial_report();
-    boot_step("splash");
     app_show_splash();
     app_draw_start();
     board_display_service();
@@ -354,7 +330,6 @@ void board_main(void)
     board_wall_time_forget_file();
     board_core1_park();
     cru_stop_unused_clocks();
-    boot_step("main loop");
     board_debug_after_start();
     board_stall_pause(false);
     board_wall_time_start();

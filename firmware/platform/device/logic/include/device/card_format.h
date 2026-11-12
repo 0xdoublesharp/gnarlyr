@@ -2,6 +2,9 @@
 
 #include "device/block_device.h"
 
+#define CARD_FORMAT_LABEL "GnarlySD"
+#define CARD_FORMAT_LABEL_PADDED CARD_FORMAT_LABEL "   "
+
 enum {
     CARD_FORMAT_SECTOR_BYTES = 512,
     CARD_FORMAT_BUFFER_SECTORS = 8,

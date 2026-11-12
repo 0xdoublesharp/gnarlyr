@@ -12,24 +12,12 @@ import json
 from pathlib import Path
 import struct
 
-POLYNOMIAL = 0x04C10DB7
+from rknano_crc import crc32
+
 FIELDS = ('code_load', 'code_address', 'code_size', 'data_load',
           'data_address', 'data_size', 'bss_address', 'bss_size')
 SECTIONS = {'sysdefault': 0x70, 'font_a': 0x78, 'font_b': 0x80,
             'codepage': 0xCC, 'language': 0xF8, 'images': 0x14C}
-
-
-def rockchip_crc(data: bytes) -> int:
-    table = []
-    for byte in range(256):
-        value = byte << 24
-        for _ in range(8):
-            value = ((value << 1) ^ (POLYNOMIAL if value & 0x80000000 else 0)) & 0xFFFFFFFF
-        table.append(value)
-    value = 0
-    for byte in data:
-        value = ((value << 8) & 0xFFFFFFFF) ^ table[((value >> 24) ^ byte) & 255]
-    return value
 
 
 def u32(data: bytes, offset: int) -> int:
@@ -54,7 +42,7 @@ class Image:
         self.data = data
         self.digest = hashlib.sha256(data).hexdigest()
         self.crc = u32(data, len(data) - 4)
-        if rockchip_crc(data[:-4]) != self.crc:
+        if crc32(data[:-4]) != self.crc:
             raise ValueError('Rockchip trailer CRC mismatch')
         self.load_base, count = struct.unpack_from('<II', data, 0x200)
         if not count or 0x208 + count * 32 > len(data) - 4:

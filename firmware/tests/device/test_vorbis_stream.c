@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/bytes.h"
 #include "device/ogg_stream.h"
 #include "device/vorbis_decoder.h"
 
@@ -64,13 +65,6 @@ static uint32_t number(const uint8_t *bytes)
            (uint32_t)bytes[3] << 24;
 }
 
-static void put32(uint8_t *bytes, uint32_t value)
-{
-    for (uint32_t index = 0; index < 4; index++) {
-        bytes[index] = (uint8_t)(value >> (8 * index));
-    }
-}
-
 static void finish_page(uint32_t start)
 {
     uint32_t crc = 0;
@@ -80,7 +74,7 @@ static void finish_page(uint32_t start)
             crc = (crc << 1) ^ ((crc & 0x80000000u) != 0 ? 0x04C11DB7u : 0);
         }
     }
-    put32(changed.bytes + start + 22, crc);
+    bytes_put_le32(changed.bytes + start + 22, crc);
 }
 
 static void append_packet(const uint8_t *bytes, OggPacket info, uint32_t *sequence)
@@ -97,10 +91,10 @@ static void append_packet(const uint8_t *bytes, OggPacket info, uint32_t *sequen
         page[5] = (uint8_t)((done == 0 && info.first ? 2 : 0) | (done != 0 ? 1 : 0) |
                             (terminal && info.last ? 4 : 0));
         uint64_t granule = terminal ? info.granule : UINT64_MAX;
-        put32(page + 6, (uint32_t)granule);
-        put32(page + 10, (uint32_t)(granule >> 32));
-        put32(page + 14, 42);
-        put32(page + 18, (*sequence)++);
+        bytes_put_le32(page + 6, (uint32_t)granule);
+        bytes_put_le32(page + 10, (uint32_t)(granule >> 32));
+        bytes_put_le32(page + 14, 42);
+        bytes_put_le32(page + 18, (*sequence)++);
         page[26] = (uint8_t)laces;
         for (uint32_t index = 0; index < laces; index++) {
             page[27 + index] = (uint8_t)(terminal && index + 1 == laces ? body % 255 : 255);
@@ -234,8 +228,8 @@ static void large_embedded_metadata_does_not_change_audio_or_consume_decoder_wor
     memset(metadata, 'A', sizeof metadata);
     metadata[0] = 3;
     memcpy(metadata + 1, "vorbis", 6);
-    put32(metadata + 7, sizeof metadata - 16);
-    put32(metadata + sizeof metadata - 5, 0);
+    bytes_put_le32(metadata + 7, sizeof metadata - 16);
+    bytes_put_le32(metadata + sizeof metadata - 5, 0);
     metadata[sizeof metadata - 1] = 1;
     replace_packet(1, sizeof metadata);
     compare_pcm(&changed, "stereo44", 11025, 13);
@@ -359,15 +353,15 @@ static void bulk_reads_cross_packet_boundaries_and_match_independent_record_fram
             info.bytes = sizeof EMPTY;
         }
         uint8_t *head = changed.bytes + changed.size;
-        put32(head, info.bytes);
-        put32(head + 4, (uint32_t)(info.first ? 1 : 0) | (uint32_t)(info.last ? 2 : 0));
-        put32(head + 8, (uint32_t)info.granule);
-        put32(head + 12, (uint32_t)(info.granule >> 32));
+        bytes_put_le32(head, info.bytes);
+        bytes_put_le32(head + 4, (uint32_t)(info.first ? 1 : 0) | (uint32_t)(info.last ? 2 : 0));
+        bytes_put_le32(head + 8, (uint32_t)info.granule);
+        bytes_put_le32(head + 12, (uint32_t)(info.granule >> 32));
         memcpy(head + 16, reference_packet, info.bytes);
         changed.size += 16 + info.bytes;
     }
     uint8_t *end = changed.bytes + changed.size;
-    put32(end + 4, OGG_RECORD_END);
+    bytes_put_le32(end + 4, OGG_RECORD_END);
     changed.size += OGG_RECORD_BYTES;
     static const uint32_t CHUNKS[] = {3, 17, 257, 4096};
     for (uint32_t index = 0; index < sizeof CHUNKS / sizeof CHUNKS[0]; index++) {

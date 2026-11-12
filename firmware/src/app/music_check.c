@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "core/bytes.h"
 #include "hal/storage.h"
 #include "hal/system.h"
 #include "scan_guard.h"
@@ -23,12 +24,6 @@ static void put_word(uint8_t *bytes, uint32_t value)
     }
 }
 
-static uint32_t get_word(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
-
 static bool read_at(uint32_t offset, uint8_t *bytes, uint32_t length)
 {
     HalFile file;
@@ -47,13 +42,13 @@ static bool read_bytes(uint8_t *bytes)
 
 static bool decode_print(const uint8_t *bytes, MusicFingerprint *print)
 {
-    if (get_word(bytes) != RECORD_MAGIC) {
+    if (bytes_le32(bytes) != RECORD_MAGIC) {
         return false;
     }
     *print = (MusicFingerprint){.complete = true,
-                                .first = get_word(bytes + 4),
-                                .second = get_word(bytes + 8),
-                                .entries = get_word(bytes + 12)};
+                                .first = bytes_le32(bytes + 4),
+                                .second = bytes_le32(bytes + 8),
+                                .entries = bytes_le32(bytes + 12)};
     return true;
 }
 
@@ -132,7 +127,7 @@ bool music_check_settled(void)
 {
     uint8_t bytes[SCAN_GUARD_ATTEMPTS_BYTE + 1];
     bool recorded =
-        read_at(SCAN_GUARD_OFFSET, bytes, sizeof bytes) && get_word(bytes) == SCAN_GUARD_MAGIC;
+        read_at(SCAN_GUARD_OFFSET, bytes, sizeof bytes) && bytes_le32(bytes) == SCAN_GUARD_MAGIC;
     return !recorded ||
            (bytes[SCAN_GUARD_RUNNING_BYTE] == 0 && bytes[SCAN_GUARD_ATTEMPTS_BYTE] <= 1);
 }
@@ -140,14 +135,14 @@ bool music_check_settled(void)
 bool music_check_covers_pending(void)
 {
     uint8_t bytes[SCAN_GUARD_COVERS_BYTE + 1];
-    return read_at(SCAN_GUARD_OFFSET, bytes, sizeof bytes) && get_word(bytes) == SCAN_GUARD_MAGIC &&
-           bytes[SCAN_GUARD_COVERS_BYTE] != 0;
+    return read_at(SCAN_GUARD_OFFSET, bytes, sizeof bytes) &&
+           bytes_le32(bytes) == SCAN_GUARD_MAGIC && bytes[SCAN_GUARD_COVERS_BYTE] != 0;
 }
 
 uint32_t music_check_interrupted_scans(void)
 {
     uint8_t bytes[SCAN_GUARD_ATTEMPTS_BYTE + 1];
     bool running = read_at(SCAN_GUARD_OFFSET, bytes, sizeof bytes) &&
-                   get_word(bytes) == SCAN_GUARD_MAGIC && bytes[SCAN_GUARD_RUNNING_BYTE] != 0;
+                   bytes_le32(bytes) == SCAN_GUARD_MAGIC && bytes[SCAN_GUARD_RUNNING_BYTE] != 0;
     return running ? bytes[SCAN_GUARD_ATTEMPTS_BYTE] : 0;
 }

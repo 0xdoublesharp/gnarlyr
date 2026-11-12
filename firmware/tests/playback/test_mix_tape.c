@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/bytes.h"
 #include "core/hash.h"
 #include "fixture_library.h"
 #include "playback/mix_tape.h"
@@ -254,17 +255,11 @@ static StoreResult checked(MixTape *tape, uint32_t generation)
     return check.result;
 }
 
-static void put32(uint8_t *bytes, uint32_t value)
-{
-    for (int index = 0; index < 4; index++) {
-        bytes[index] = (uint8_t)(value >> (8 * index));
-    }
-}
-
 static void reseal(uint32_t payload_bytes)
 {
-    put32(disk + HASH_FIELD, hash_update(HASH_START, disk + STORE_BLOCK_BYTES, payload_bytes));
-    put32(disk + CHECK_FIELD, hash_update(HASH_START, disk, CHECK_FIELD));
+    bytes_put_le32(disk + HASH_FIELD,
+                   hash_update(HASH_START, disk + STORE_BLOCK_BYTES, payload_bytes));
+    bytes_put_le32(disk + CHECK_FIELD, hash_update(HASH_START, disk, CHECK_FIELD));
 }
 
 static void checking_reads_each_payload_block_once_in_bounded_transfers(void)

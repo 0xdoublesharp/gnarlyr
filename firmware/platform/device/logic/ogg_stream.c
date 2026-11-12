@@ -2,12 +2,7 @@
 
 #include <stddef.h>
 
-static void put32(uint8_t *bytes, uint32_t value)
-{
-    for (uint32_t index = 0; index < 4; index++) {
-        bytes[index] = (uint8_t)(value >> (8 * index));
-    }
-}
+#include "core/bytes.h"
 
 bool ogg_stream_start(OggStream *stream, FlacInput file)
 {
@@ -94,10 +89,10 @@ static bool make_header(OggStream *stream, OggPacket *packet)
 static bool begin_record(OggStream *stream)
 {
     if (audio_next(stream) && stream->origin != 0 && !stream->origin_sent) {
-        put32(stream->head, 0);
-        put32(stream->head + 4, OGG_RECORD_ORIGIN);
-        put32(stream->head + 8, stream->origin);
-        put32(stream->head + 12, 0);
+        bytes_put_le32(stream->head, 0);
+        bytes_put_le32(stream->head + 4, OGG_RECORD_ORIGIN);
+        bytes_put_le32(stream->head + 8, stream->origin);
+        bytes_put_le32(stream->head + 12, 0);
         stream->origin_sent = true;
         stream->record_done = 0;
         stream->record_size = OGG_RECORD_BYTES;
@@ -130,10 +125,10 @@ static bool begin_record(OggStream *stream)
         flags = (uint32_t)(packet.first ? OGG_RECORD_FIRST : 0) |
                 (uint32_t)(packet.last ? OGG_RECORD_LAST : 0);
     }
-    put32(stream->head, packet.bytes);
-    put32(stream->head + 4, flags);
-    put32(stream->head + 8, (uint32_t)packet.granule);
-    put32(stream->head + 12, (uint32_t)(packet.granule >> 32));
+    bytes_put_le32(stream->head, packet.bytes);
+    bytes_put_le32(stream->head + 4, flags);
+    bytes_put_le32(stream->head + 8, (uint32_t)packet.granule);
+    bytes_put_le32(stream->head + 12, (uint32_t)(packet.granule >> 32));
     stream->record_done = 0;
     stream->record_size = OGG_RECORD_BYTES + packet.bytes;
     return true;

@@ -13,7 +13,7 @@ from cue_sheet import ascii_fold, parse_cue
 from identity import IDENTITY
 from replay_gain import encode_extension as encode_gain_extension
 from replay_gain import from_tags as replay_gain_from_tags
-from replay_gain import hash_bytes as gain_hash_bytes
+from fnv import fnv1a
 from replay_gain import tag_values as replay_gain_tag_values
 
 MAGIC = b"DSDB"
@@ -693,9 +693,9 @@ def encode_library(model):
     gains = [track.replay_gain for track in model.tracks]
     if not any(track or album for track, album, _, _ in gains):
         return base
-    fingerprint = gain_hash_bytes(header)
+    fingerprint = fnv1a(header)
     for data, *_ in sections:
-        fingerprint = gain_hash_bytes(data, fingerprint)
+        fingerprint = fnv1a(data, fingerprint)
     return base + encode_gain_extension(gains, fingerprint)
 
 

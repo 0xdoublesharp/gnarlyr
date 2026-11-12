@@ -1,4 +1,5 @@
 #include "check.h"
+#include "core/bytes.h"
 #include "core/hash.h"
 #include "device/time_file.h"
 
@@ -6,16 +7,9 @@ enum {
     NOVEMBER_2026 = 1794482460u
 };
 
-static void put32(uint8_t *bytes, uint32_t value)
-{
-    for (int index = 0; index < 4; index++) {
-        bytes[index] = (uint8_t)(value >> (8 * index));
-    }
-}
-
 static void seal(uint8_t *bytes)
 {
-    put32(bytes + 28, hash_update(HASH_START, bytes, 28));
+    bytes_put_le32(bytes + 28, hash_update(HASH_START, bytes, 28));
 }
 
 static void written(uint8_t bytes[TIME_FILE_BYTES], uint32_t utc, int16_t offset)
@@ -30,7 +24,7 @@ static void written(uint8_t bytes[TIME_FILE_BYTES], uint32_t utc, int16_t offset
     bytes[4] = TIME_FILE_VERSION;
     bytes[6] = (uint8_t)offset;
     bytes[7] = (uint8_t)((uint16_t)offset >> 8);
-    put32(bytes + 8, utc);
+    bytes_put_le32(bytes + 8, utc);
     seal(bytes);
 }
 

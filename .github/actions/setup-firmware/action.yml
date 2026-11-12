@@ -40,7 +40,7 @@ runs:
       with:
         path: |
           /Volumes/Scratch/SnowskyEcho/tools/arm
-          /Volumes/Scratch/SnowskyEcho/tools/podium-python314
+          /Volumes/Scratch/SnowskyEcho/tools/gnarlyr-python314
         key: firmware-tools-v1-${{ runner.os }}-${{ runner.arch }}-arm15.3.rel2-python${{ steps.python.outputs.python-version }}-${{ hashFiles('firmware/tools/requirements.txt') }}
     - name: Install verified Arm toolchain and Python tools
       shell: bash
