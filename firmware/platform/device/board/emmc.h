@@ -13,6 +13,7 @@ typedef struct EmmcInfo {
 } EmmcInfo;
 
 bool emmc_start(EmmcInfo *info);
+bool emmc_ready(void);
 void emmc_reset_controller(void);
 void emmc_quiesce(void);
 bool emmc_read(void *context, uint32_t lba, uint32_t count, void *buffer);
