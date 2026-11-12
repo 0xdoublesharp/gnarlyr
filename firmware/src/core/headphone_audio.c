@@ -39,11 +39,11 @@ int32_t headphone_audio_sample(int32_t sample, uint8_t bits, uint32_t gain)
     if (shift > 0) {
         value = floor_shift(value + (INT64_C(1) << (shift - 1)), shift);
     } else if (shift < 0) {
-        int64_t factor = INT64_C(1) << -shift;
-        if (value > SAMPLE_MAX / factor || value < SAMPLE_MIN / factor) {
+        int scale_shift = -shift;
+        if (value > (SAMPLE_MAX >> scale_shift) || value < -((-SAMPLE_MIN) >> scale_shift)) {
             return value < 0 ? SAMPLE_MIN : SAMPLE_MAX;
         }
-        value *= factor;
+        value *= INT64_C(1) << scale_shift;
     }
     return value > SAMPLE_MAX ? SAMPLE_MAX : value < SAMPLE_MIN ? SAMPLE_MIN : (int32_t)value;
 }

@@ -38,12 +38,6 @@ static void update_metadata(HomeArt *art)
     }
 }
 
-void home_art_init(HomeArt *art, CoverCache *covers, const LibraryStore *store, Player *player,
-                   const Theme *theme)
-{
-    *art = (HomeArt){.covers = covers, .store = store, .player = player, .theme = theme};
-}
-
 static uint32_t album_count(const HomeArt *art)
 {
     return art->store->available ? library_music_count(&art->store->library, LIBRARY_ALBUMS) : 0;
@@ -109,33 +103,6 @@ void home_art_update(void *context, uint32_t now_ms)
     }
     cover_cache_load_full(art->covers, art->album);
     update_metadata(art);
-}
-
-static void draw_horizon(Canvas *canvas, Rect area, const Theme *theme)
-{
-    if (!theme->horizon) {
-        return;
-    }
-    int top = area.y + area.height / 2;
-    int height = area.y + area.height - top;
-    Color ink = color_between(theme->colors.divider, theme->colors.accent, 1, 3);
-    for (int line = 0; line < 7; line++) {
-        int y = top + line * line * height / 36;
-        canvas_fill_rect(canvas, (Rect){area.x, y, area.width, 1}, ink);
-    }
-    for (int ray = -5; ray <= 5; ray++) {
-        for (int y = 0; y < height; y++) {
-            int x = area.x + area.width / 2 + ray * (6 + y * area.width / (height * 5));
-            canvas_fill_rect(canvas, (Rect){x, top + y, 1, 1}, ink);
-        }
-    }
-}
-
-void home_art_draw_backdrop(Canvas *canvas, Rect area, const Theme *theme)
-{
-    Canvas clipped = canvas_clipped(canvas, area);
-    canvas_fill_gradient(&clipped, area, theme->colors.backdrop_top, theme->colors.backdrop_bottom);
-    draw_horizon(&clipped, area, theme);
 }
 
 static void draw_caption(const HomeArt *art, Canvas *canvas, Rect area)

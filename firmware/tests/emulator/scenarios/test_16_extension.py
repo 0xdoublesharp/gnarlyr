@@ -39,6 +39,66 @@ class EchoImageTest(EchoImageHarness):
     damaged_effects_slots = ()
     damaged_extension_slots = ()
 
+    def test_home_art_uses_the_active_ui_module_and_survives_a_settings_slide(self):
+        from unicorn import UC_HOOK_CODE
+        session = self.session()
+        machine = session.machine
+        draws = []
+        for module in machine.modules:
+            address = module.symbols.get("home_art_draw", module.symbols.get("extension_home_art_draw"))
+            if address is not None:
+                def drew(uc, at, size, user, code=module):
+                    if machine.read_memory(code.base, len(code.header)) == code.header:
+                        draws.append(code.number)
+                machine.uc.hook_add(UC_HOOK_CODE, drew, begin=address, end=address)
+        self.assertEqual(session.run_to_home_screen(), "condition met")
+        self.assertTrue(draws)
+        self.assertEqual({11}, set(draws))
+        self.open_settings(machine)
+        self.assertIn(2, draws)
+        self.press(machine, image_tests.KEY_BACK)
+        _, settings = self.module(machine, "settings")
+        self.assertTrue(settings.loaded(machine))
+        self.assertEqual(2, draws[-1])
+        self.assert_healthy(session)
+
+    def test_missing_playing_art_keeps_home_usable_without_repeated_failed_reads(self):
+        session = self.session()
+        for slot in ("slot_1", "slot_2"):
+            session.change_module(slot, 11, 600, lambda byte: byte ^ 0xFF)
+        self.assertEqual(session.run_to_home_screen(), "condition met")
+        reads = [session.module_reads(slot, 11) for slot in ("slot_1", "slot_2")]
+        self.assertTrue(all(reads))
+        machine = session.machine
+        machine.run(until_ms=machine.milliseconds() + 1500)
+        self.assertEqual(reads, [session.module_reads(slot, 11) for slot in ("slot_1", "slot_2")])
+        self.open_settings(machine)
+        _, settings = self.module(machine, "settings")
+        self.assertTrue(settings.loaded(machine))
+        self.press(machine, image_tests.KEY_BACK)
+        self.assertTrue(settings.loaded(machine))
+        self.assert_healthy(session)
+
+    def test_usb_draws_its_backdrop_with_playing_art_unavailable(self):
+        session = self.session(vbus=True)
+        for slot in ("slot_1", "slot_2"):
+            session.change_module(slot, 11, 600, lambda byte: byte ^ 0xFF)
+        from unicorn import UC_HOOK_CODE
+        machine = session.machine
+        machine.note("usb_session_storage_changed")
+        overlay = next(code for code in machine.overlays if code.name == "echo_usb_overlay")
+        self.assertIn("home_art_draw_backdrop", overlay.symbols)
+        address = overlay.symbols["home_art_draw_backdrop"]
+        draws = []
+        def drew(uc, at, size, user):
+            draws.append(machine.read_memory(overlay.base, len(overlay.header)) == overlay.header)
+        machine.uc.hook_add(UC_HOOK_CODE, drew, begin=address, end=address)
+        self.assertEqual(session.run_to_first_frame(), "condition met")
+        self.assertEqual(session.run_through_update_check(), "reached usb_session_storage_changed")
+        self.assertTrue(draws)
+        self.assertTrue(all(draws))
+        self.assert_healthy(session)
+
     def test_a_damaged_extension_module_in_slot_1_is_replaced_by_the_copy_in_slot_2(self):
         session = self.session()
         number = make_image.EXTENSION_MODULE_NUMBER

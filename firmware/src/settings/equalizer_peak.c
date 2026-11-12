@@ -140,6 +140,6 @@ static int deepest_cut(const int8_t *gains)
 
 uint16_t equalizer_peak_pre_gain(const int8_t gains[SETTINGS_EQUALIZER_BANDS])
 {
-    uint64_t pre_gain = one(ROOT_TO_PRE_GAIN_BITS) / square_root(peak_power(gains));
+    uint32_t pre_gain = (UINT32_C(1) << ROOT_TO_PRE_GAIN_BITS) / square_root(peak_power(gains));
     return (uint16_t)(pre_gain * HEADROOM[deepest_cut(gains)] >> PRE_GAIN_BITS);
 }

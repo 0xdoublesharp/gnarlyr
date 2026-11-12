@@ -33,4 +33,4 @@ static void bind(AppScreens *screens)
 }
 
 const PlayingModuleEntry PLAYING_MODULE_ENTRY = {
-    .module = {SCREEN_MODULE_MAGIC(SCREEN_MODULE_PLAYING), bind}, .charge_draw = charge_art_draw};
+    .module = SCREEN_MODULE_ENTRY(SCREEN_MODULE_PLAYING, bind), .charge_draw = charge_art_draw};

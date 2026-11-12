@@ -69,39 +69,6 @@ void wire_motion_draw(WireMotion *motion, Canvas *canvas, const Theme *theme, Re
     }
 }
 
-void home_art_init(HomeArt *art, CoverCache *covers, const LibraryStore *store, Player *player,
-                   const Theme *theme)
-{
-    const ExtensionModuleEntry *code = extension();
-    if (code != NULL) {
-        code->art_init(art, covers, store, player, theme);
-    }
-}
-
-void home_art_update(void *context, uint32_t now_ms)
-{
-    const ExtensionModuleEntry *code = extension();
-    if (code != NULL) {
-        code->art_update(context, now_ms);
-    }
-}
-
-void home_art_draw(void *context, Canvas *canvas, Rect area)
-{
-    const ExtensionModuleEntry *code = extension();
-    if (code != NULL) {
-        code->art_draw(context, canvas, area);
-    }
-}
-
-void home_art_draw_backdrop(Canvas *canvas, Rect area, const Theme *theme)
-{
-    const ExtensionModuleEntry *code = extension();
-    if (code != NULL) {
-        code->art_backdrop(canvas, area, theme);
-    }
-}
-
 bool hal_file_remove(const char *path)
 {
     const ExtensionModuleEntry *code = extension();

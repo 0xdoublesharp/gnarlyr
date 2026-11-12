@@ -81,8 +81,13 @@ uint32_t pll_output_hz(uint32_t con0, uint32_t con1)
     if (fbdiv == 0 || postdiv1 == 0 || refdiv == 0 || postdiv2 == 0) {
         return 0;
     }
-    uint64_t hz = (uint64_t)CRYSTAL_HZ * fbdiv / refdiv / postdiv1 / postdiv2;
-    return hz <= UINT32_MAX ? (uint32_t)hz : 0;
+    uint32_t divisor = refdiv * postdiv1 * postdiv2;
+    uint32_t whole = CRYSTAL_HZ / divisor;
+    uint32_t fraction = (CRYSTAL_HZ % divisor) * fbdiv / divisor;
+    if (whole > (UINT32_MAX - fraction) / fbdiv) {
+        return 0;
+    }
+    return whole * fbdiv + fraction;
 }
 
 uint32_t pll_core_hz(uint32_t mode, uint32_t clock_select, uint32_t con0, uint32_t con1)

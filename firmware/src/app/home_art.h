@@ -28,6 +28,8 @@ typedef struct HomeArt {
     bool metadata_track;
     char title[96];
     char artist[96];
+    uint8_t module;
+    bool unavailable;
 } HomeArt;
 
 void home_art_init(HomeArt *art, CoverCache *covers, const LibraryStore *store, Player *player,

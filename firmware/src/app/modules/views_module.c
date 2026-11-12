@@ -21,7 +21,7 @@ static void bind(AppScreens *screens)
 }
 
 const ViewsModuleEntry VIEWS_MODULE_ENTRY = {
-    .module = {SCREEN_MODULE_MAGIC(SCREEN_MODULE_VIEWS), bind},
+    .module = SCREEN_MODULE_ENTRY(SCREEN_MODULE_VIEWS, bind),
     .cancel = mixtape_ui_cancel,
     .step = mixtape_ui_step,
     .add = mixtape_ui_add,

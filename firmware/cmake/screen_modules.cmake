@@ -44,7 +44,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
     platform/device/logic/fat_delete.c
     platform/device/board/debug_rtc.c
     platform/device/logic/rtc_time.c
-    src/app/home_art.c
     src/gfx/wireframe.c
     src/ui/wire_figure.c
     src/ui/wire_motion.c
@@ -92,6 +91,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/queue_actions.c
     src/app/queue_edits.c
 )
+set(ECHO_SCREEN_MODULE_UI_SOURCES src/app/home_art.c src/app/home_art_backdrop.c)
+list(APPEND ECHO_SCREEN_MODULE_SOURCES_playing ${ECHO_SCREEN_MODULE_UI_SOURCES})
 set(ECHO_SCREEN_MODULE_FAST_SOURCES src/gfx/image_quad.c)
 set(ECHO_SCREEN_MODULE_SOURCES_settings
     platform/device/board/card_format.c

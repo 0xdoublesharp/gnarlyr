@@ -1,4 +1,5 @@
 #include <math.h>
+#include <stddef.h>
 
 #include "check.h"
 #include "core/headphone_audio.h"
@@ -39,12 +40,38 @@ static void clipping_never_occurs_before_combined_attenuation(void)
     CHECK_EQUAL(UINT32_MAX, headphone_audio_gain(REPLAY_GAIN_UNITY, UINT32_MAX));
 }
 
+static int32_t low_bit_reference(int32_t sample, uint8_t bits, uint32_t gain)
+{
+    int64_t value = (int64_t)sample * gain;
+    int64_t factor = INT64_C(1) << (8 - bits);
+    if (value > INT64_C(8388607) / factor || value < -INT64_C(8388608) / factor) {
+        return value < 0 ? -8388608 : 8388607;
+    }
+    return (int32_t)(value * factor);
+}
+
+static void low_bit_scaling_matches_wide_division_at_both_clipping_boundaries(void)
+{
+    static const int32_t samples[] = {INT32_MIN, -8388608, -131073, -65537, -65536,  -1,
+                                      0,         1,        65535,   65536,  8388607, INT32_MAX};
+    static const uint32_t gains[] = {0, 1, 65536, UINT32_MAX};
+    for (uint8_t bits = 1; bits < 8; bits++) {
+        for (size_t sample = 0; sample < sizeof samples / sizeof samples[0]; sample++) {
+            for (size_t gain = 0; gain < sizeof gains / sizeof gains[0]; gain++) {
+                CHECK_EQUAL(low_bit_reference(samples[sample], bits, gains[gain]),
+                            headphone_audio_sample(samples[sample], bits, gains[gain]));
+            }
+        }
+    }
+}
+
 int main(void)
 {
     const TestCase cases[] = {
         TEST_CASE(switching_to_less_trim_lowers_volume_before_the_gain_changes),
         TEST_CASE(balance_and_ceiling_changes_cannot_raise_either_channel),
         TEST_CASE(clipping_never_occurs_before_combined_attenuation),
+        TEST_CASE(low_bit_scaling_matches_wide_division_at_both_clipping_boundaries),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

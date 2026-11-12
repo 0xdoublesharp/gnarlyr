@@ -45,6 +45,35 @@ static void the_pll_output_follows_the_register_fields(void)
     CHECK_EQUAL(0u, pll_output_hz(0x0000u, 0x0000u));
 }
 
+static uint32_t wide_output(uint32_t feedback, uint32_t reference, uint32_t first, uint32_t second)
+{
+    if (feedback == 0 || reference == 0 || first == 0 || second == 0) {
+        return 0;
+    }
+    uint64_t value = UINT64_C(24000000) * feedback / reference / first / second;
+    return value <= UINT32_MAX ? (uint32_t)value : 0;
+}
+
+static void every_pll_register_combination_matches_wide_arithmetic(void)
+{
+    for (uint32_t first = 0; first < 8; first++) {
+        for (uint32_t second = 0; second < 8; second++) {
+            for (uint32_t reference = 0; reference < 64; reference++) {
+                for (uint32_t feedback = 0; feedback < 4096; feedback++) {
+                    uint32_t con0 = first << 12 | feedback;
+                    uint32_t con1 = second << 6 | reference;
+                    uint32_t expected = wide_output(feedback, reference, first, second);
+                    uint32_t actual = pll_output_hz(con0, con1);
+                    if (actual != expected) {
+                        CHECK_EQUAL(expected, actual);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+}
+
 static void the_core_clock_comes_from_the_pll_or_the_crystal(void)
 {
     CHECK_EQUAL(96000000u, pll_core_hz(0x0001u, 0x0000u, 0x1078u, 0x1146u));
@@ -81,6 +110,7 @@ int main(void)
         TEST_CASE(the_200_mhz_setting_runs_the_pll_at_200),
         TEST_CASE(other_speeds_are_refused),
         TEST_CASE(the_pll_output_follows_the_register_fields),
+        TEST_CASE(every_pll_register_combination_matches_wide_arithmetic),
         TEST_CASE(the_core_clock_comes_from_the_pll_or_the_crystal),
         TEST_CASE(measured_boot_registers_give_48_mhz),
         TEST_CASE(timekeeping_uses_the_whole_megahertz_of_the_core),

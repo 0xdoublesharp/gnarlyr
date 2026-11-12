@@ -29,10 +29,14 @@ class ModuleWatch:
         self.code_writes = []
         self.other_writes = 0
         self.executed = 0
+        self.count_after = None
         self.machine.hook_symbol(LOADER, self.entered)
         self.machine.uc.hook_add(UC_HOOK_MEM_WRITE, self.slot_written, None, SLOT_FIRST, SLOT_LAST)
 
-    def count_slot_code(self):
+    def count_slot_code(self, after_module=None):
+        if after_module is not None:
+            self.count_after = after_module
+            return
         def hook(uc, where, size, user):
             self.executed += 1
 
@@ -61,6 +65,9 @@ class ModuleWatch:
             size = int.from_bytes(self.machine.read_memory(SLOT_FIRST + 4, 4), "little")
             self.code_end = SLOT_FIRST + size if call["loaded"] else SLOT_FIRST
         self.calls.append(call)
+        if self.count_after == call["module"]:
+            self.count_after = None
+            self.count_slot_code()
 
     def slot_written(self, uc, access, address, size, value, user):
         if self.pending is not None:

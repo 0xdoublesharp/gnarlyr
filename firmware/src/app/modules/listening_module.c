@@ -18,7 +18,4 @@ static void bind(AppScreens *screens)
                            (SmartListScreenConfig){context->listening, &screens->browse});
 }
 
-const ScreenModuleEntry LISTENING_MODULE_ENTRY = {
-    SCREEN_MODULE_MAGIC(SCREEN_MODULE_LISTENING),
-    bind,
-};
+const ScreenModuleEntry LISTENING_MODULE_ENTRY = SCREEN_MODULE_ENTRY(SCREEN_MODULE_LISTENING, bind);

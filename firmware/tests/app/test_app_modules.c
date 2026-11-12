@@ -198,12 +198,12 @@ static void smart_lists_open_from_music_and_play_through_the_listening_module(vo
     CHECK(title_is("Music"));
 }
 
-static void a_module_screen_loads_its_module_when_it_opens(void)
+static void home_art_loads_playing_and_cover_flow_reuses_it(void)
 {
     start_app();
     open_music();
-    CHECK_EQUAL(0, fake_hal_module_loads());
-    CHECK_EQUAL(SCREEN_MODULE_NONE, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(1, fake_hal_module_loads());
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
     tap(KEY_PLAY);
     CHECK(title_is("Cover Flow"));
     CHECK_EQUAL(COVER_FLOW_DEPTH, app_screen_depth());
@@ -239,12 +239,13 @@ static void a_module_that_cannot_load_keeps_the_screen_before_it_and_says_so(voi
 {
     start_app();
     open_music();
+    fake_hal_evict_module();
     fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
     CHECK_EQUAL(MUSIC_DEPTH, app_screen_depth());
     CHECK(toast_is(MISSING));
-    CHECK_EQUAL(0, fake_hal_module_loads());
+    CHECK_EQUAL(1, fake_hal_module_loads());
     fake_hal_break_module(SCREEN_MODULE_PLAYING, false);
     tap(KEY_PLAY);
     CHECK(title_is("Cover Flow"));
@@ -254,6 +255,7 @@ static void after_an_installed_update_a_module_screen_asks_for_a_restart(void)
 {
     start_app();
     open_music();
+    fake_hal_evict_module();
     fake_hal_set_restart_pending(true);
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
@@ -394,7 +396,7 @@ static void settings_returns_from_about_to_its_own_module(void)
     move_down(SETTINGS_BLUETOOTH_ROW - SETTINGS_SHUFFLE_ROW);
     tap(KEY_PLAY);
     CHECK(title_is("Bluetooth"));
-    CHECK_EQUAL(3, fake_hal_module_loads());
+    CHECK_EQUAL(4, fake_hal_module_loads());
 }
 
 static void a_screen_of_another_module_takes_the_slot(void)
@@ -449,7 +451,7 @@ static void a_setting_changed_by_a_script_gives_the_slot_back_to_the_screen_on_t
 static void an_about_value_is_read_through_its_module(void)
 {
     start_app();
-    CHECK_EQUAL(0, fake_hal_module_loads());
+    CHECK_EQUAL(1, fake_hal_module_loads());
     CHECK(app_diagnostics_value(1) != NULL);
     CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
     fake_hal_evict_module();
@@ -553,7 +555,7 @@ int main(void)
         TEST_CASE(search_is_the_first_music_entry_and_loads_the_library_module),
         TEST_CASE(the_personal_tag_manager_opens_from_the_last_music_row),
         TEST_CASE(smart_lists_open_from_music_and_play_through_the_listening_module),
-        TEST_CASE(a_module_screen_loads_its_module_when_it_opens),
+        TEST_CASE(home_art_loads_playing_and_cover_flow_reuses_it),
         TEST_CASE(a_module_in_the_slot_is_not_loaded_again),
         TEST_CASE(a_resident_screen_opened_from_a_module_screen_needs_no_load),
         TEST_CASE(a_module_that_cannot_load_keeps_the_screen_before_it_and_says_so),
