@@ -75,6 +75,12 @@ bool hal_file_remove(const char *path)
     return code != NULL && code->file_remove(path);
 }
 
+FavoritePlaylistResult favorite_playlist_add(const Library *library, uint16_t track)
+{
+    const ExtensionModuleEntry *code = extension();
+    return code != NULL ? code->favorite_add(library, track) : FAVORITE_PLAYLIST_FAILED;
+}
+
 void headphone_store_load(HeadphoneStore *store)
 {
     const ExtensionModuleEntry *code = extension();

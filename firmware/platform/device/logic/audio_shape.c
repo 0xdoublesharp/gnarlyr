@@ -36,8 +36,8 @@ uint8_t audio_engine_repeat_mark(AudioEngine *engine, bool clear)
         sample = engine->repeat_a;
         engine->has_next = false;
     }
-    uint32_t ms =
-        (uint32_t)((uint64_t)sample * AUDIO_ENGINE_MILLISECONDS_PER_SECOND / status.track.stream.sample_rate);
+    uint32_t ms = (uint32_t)((uint64_t)sample * AUDIO_ENGINE_MILLISECONDS_PER_SECOND /
+                             status.track.stream.sample_rate);
     if (!audio_engine_seek(engine, ms)) {
         engine->repeat_state = 0;
         return 0;

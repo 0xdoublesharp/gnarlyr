@@ -46,6 +46,7 @@ add_library(echo_app STATIC
     default_theme.c
     default_theme_metrics.c
     favorite_playlist.c
+    favorite_playlist_add.c
     favorites_store.c
     diagnostics_values.c
     diagnostics_rows.c

@@ -25,6 +25,7 @@ const ExtensionModuleEntry EXTENSION_MODULE_ENTRY = {
     .headphones_load = headphone_store_load,
     .clock_set = hal_clock_set_wall,
     .clock_restore = hal_clock_restore_wall,
+    .favorite_add = favorite_playlist_add,
 #ifdef ECHO_DEVICE_MODULE
     .forget_time_file = board_wall_time_delete_file,
 #endif
