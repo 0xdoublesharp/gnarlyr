@@ -39,7 +39,7 @@ Gnarlyr builds on Podium 4.5.9 and EchoPod with their GPL credits preserved. The
 
 ## USB screens
 
-- Connect to computer shows the live rate in MB/s with its direction, a 10-second graph, what was read and written, and a gauge per drive with free space at connect and a light with write and read arrows that fade over 300 ms. Activity no longer flashes status words; "Idle" and the rate's direction hold for at least a second.
+- Connect to computer shows the live rate in MB/s beside fixed read and write arrows, a 10-second graph, what was read and written, and a gauge per drive with free space at connect and a light with write and read arrows that fade over 300 ms. Nothing in the rate row moves or changes size: an arrow lights while its direction is in use and stays lit 0.4 s after the last transfer, both dim with a dimmed 0.0 when nothing moves, and the rate is averaged over about a second.
 - Tap Back on the Connect to computer or USB DAC screen for details: per-drive data, commands, command size, peak and average rate, drive busy time, errors with the last sense code, link and session time; for the DAC, the exact format, interface, buffer range, clock correction and feedback, underruns and overruns, gain register, host volume and data rate. The chosen page is kept until restart.
 - During high-speed USB DAC streaming the screen now draws each row in 160-pixel pieces, keeping USB audio polling inside the 125 µs frame (148 → 114 µs worst gap), so redraws no longer cost audio packets.
 - The DAC ring now shares the idle mass-storage buffer, which leaves 9 KB of the USB overlay free in developer builds.

@@ -59,7 +59,6 @@ typedef struct DriveLight {
 typedef struct SessionClock {
     DriveLight lights[2];
     UsbSteady busy;
-    UsbSteady writing;
     uint32_t traffic_ms;
     uint32_t lit_ms;
     bool traffic_seen;
@@ -489,18 +488,48 @@ static bool follow_light(DriveLight *light, uint8_t lun, uint32_t now_ms)
     return changed;
 }
 
+static bool lit_now(int written, uint32_t now_ms)
+{
+    bool lit = false;
+    for (int lun = 0; lun < USB_SCENE_DRIVES; lun++) {
+        const DriveLight *light = &session_clock.lights[lun];
+        lit = lit || usb_meter_lit(light->seen[written], now_ms - light->seen_ms[written]);
+    }
+    return lit;
+}
+
+static bool follow_activity(uint32_t now_ms)
+{
+    bool changed = false;
+    for (int written = 0; written < USB_METER_DIRECTIONS; written++) {
+        bool lit = lit_now(written, now_ms);
+        changed = changed || lit != scene.lit[written];
+        scene.lit[written] = lit;
+    }
+    return changed;
+}
+
+static void show_lit(Rect area, uint32_t now_ms)
+{
+    AppUsbStatus status = storage_status();
+    app_show_usb_area(status, area);
+    session_clock.lit_ms = now_ms;
+}
+
 static void follow_lights(uint32_t now_ms)
 {
     if (!traffic(scene.state) || now_ms - session_clock.lit_ms < LIGHT_FRAME_MS) {
         return;
     }
     bool overview = scene.page == USB_SCENE_OVERVIEW;
+    const Theme *theme = app_theme();
     for (uint8_t lun = 0; lun < USB_SCENE_DRIVES; lun++) {
         if (follow_light(&session_clock.lights[lun], lun, now_ms) && overview) {
-            AppUsbStatus status = storage_status();
-            app_show_usb_area(status, usb_screen_drive_lights(app_theme(), status, lun));
-            session_clock.lit_ms = now_ms;
+            show_lit(usb_screen_drive_lights(theme, storage_status(), lun), now_ms);
         }
+    }
+    if (follow_activity(now_ms) && overview) {
+        show_lit(usb_screen_activity(theme, storage_status()), now_ms);
     }
 }
 
@@ -508,15 +537,11 @@ static bool follow_steady(uint32_t now_ms)
 {
     bool recent =
         session_clock.traffic_seen && now_ms - session_clock.traffic_ms < USB_METER_QUIET_MS;
+    bool lit = scene.lit[USB_METER_READ] || scene.lit[USB_METER_WRITE];
+    bool moved = usb_meter_total(&scene.meter, 0) != 0;
+    scene.rate = lit || moved ? usb_meter_smooth(scene.rate, usb_meter_total(&scene.meter, 0)) : 0;
     bool changed = usb_steady_follow(&session_clock.busy, recent, now_ms);
-    uint32_t written = usb_meter_rate(&scene.meter, USB_METER_WRITE, 0) +
-                       usb_meter_rate(&scene.meter, USB_METER_WRITE, 1);
-    uint32_t read = usb_meter_rate(&scene.meter, USB_METER_READ, 0) +
-                    usb_meter_rate(&scene.meter, USB_METER_READ, 1);
-    uint8_t direction = written == read ? session_clock.writing.shown : written > read;
-    changed = usb_steady_follow(&session_clock.writing, direction, now_ms) || changed;
     scene.busy = session_clock.busy.shown != 0;
-    scene.writing = session_clock.writing.shown != 0;
     return changed;
 }
 
@@ -665,7 +690,6 @@ static UsbSessionEnd run(void)
         session_clock.started_ms = hal_clock_milliseconds();
         usb_meter_start(&scene.meter, session_clock.started_ms);
         usb_steady_start(&session_clock.busy, 0, session_clock.started_ms);
-        usb_steady_start(&session_clock.writing, 1, session_clock.started_ms);
         session_clock.lit_ms = session_clock.started_ms;
         scene_follow(USB_LEAVE_SERVING, hal_clock_milliseconds());
         show_storage_state();
