@@ -292,6 +292,7 @@ static void forget_cached(FatVolume *volume, uint32_t lba, uint32_t count)
     if (lba < volume->cache_lba + volume->cache_count && volume->cache_lba < lba + count) {
         volume->cache_count = 0;
     }
+    fat_lend_window(volume, NULL, 0);
 }
 
 static uint32_t run_from(FatVolume *volume, FatFile *file, uint32_t sector_index, uint32_t first,

@@ -270,6 +270,12 @@ static bool listed_path(char *resolved)
     return written > 0 && written < PATH_CAPACITY;
 }
 
+void hal_storage_lend_cache(uint32_t *window, uint32_t sectors)
+{
+    (void)window;
+    (void)sectors;
+}
+
 bool hal_dir_open(HalDir *dir, const char *path)
 {
     dir->handle = -1;

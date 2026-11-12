@@ -581,6 +581,47 @@ static void a_folder_opened_from_its_listing_lists_what_its_path_lists(void)
     check_folders_open_from_their_listing("exfat_mbr");
 }
 
+typedef struct WalkCount {
+    uint32_t reads;
+    uint32_t entries;
+} WalkCount;
+
+static WalkCount walk_like_the_music_check(Card *card, const char *path)
+{
+    static FatDirEntry entry;
+    static FatDirEntry inner;
+    FatDirCursor parent;
+    CHECK(fat_open_directory(&card->volume, path, &parent));
+    WalkCount count = {.reads = card->sparse.reads, .entries = 0};
+    while (fat_next_entry(&card->volume, &parent, &entry)) {
+        count.entries++;
+        if (!entry.file.directory) {
+            continue;
+        }
+        FatDirCursor child = {.directory = entry.file};
+        while (fat_next_entry(&card->volume, &child, &inner)) {
+            count.entries++;
+        }
+    }
+    count.reads = card->sparse.reads - count.reads;
+    return count;
+}
+
+static void a_lent_window_keeps_the_parent_folder_cached_while_children_are_listed(void)
+{
+    static uint32_t window[3 * FAT_SECTOR_SIZE / 4];
+    Card *card = mounted("fat32_mbr");
+    WalkCount alone = walk_like_the_music_check(card, "/Music");
+    sparse_card_free(&card->sparse);
+    card = mounted("fat32_mbr");
+    fat_lend_window(&card->volume, window, 3);
+    WalkCount lent = walk_like_the_music_check(card, "/Music");
+    fat_lend_window(&card->volume, NULL, 0);
+    CHECK_EQUAL(alone.entries, lent.entries);
+    CHECK(lent.reads < alone.reads);
+    sparse_card_free(&card->sparse);
+}
+
 static void check_written_in_2026(const char *name, uint32_t modified)
 {
     if (strcmp(name, "exfat_mbr") == 0) {
@@ -793,6 +834,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(the_fat32_card_mounts_from_its_mbr_partition),
         TEST_CASE(a_folder_opened_from_its_listing_lists_what_its_path_lists),
+        TEST_CASE(a_lent_window_keeps_the_parent_folder_cached_while_children_are_listed),
         TEST_CASE(fat32_files_read_back_their_bytes),
         TEST_CASE(a_folder_spanning_many_clusters_is_searched_to_its_end),
         TEST_CASE(reads_at_offsets_cross_sector_and_cluster_boundaries),

@@ -236,6 +236,11 @@ bool hal_dir_open(HalDir *dir, const char *path)
     return true;
 }
 
+void hal_storage_lend_cache(uint32_t *window, uint32_t sectors)
+{
+    fat_lend_window(&volume, window, sectors);
+}
+
 FatDirEntry *storage_listing_begin(const HalDir *dir, FatVolume **mounted_volume,
                                    FatDirCursor **cursor)
 {

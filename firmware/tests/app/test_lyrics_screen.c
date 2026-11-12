@@ -93,6 +93,23 @@ static void playback_position_updates_the_visible_lyric_window(void)
     CHECK(fake_hal_audio_service_count() > 0);
 }
 
+static void lyrics_read_again_after_their_work_was_lent_to_the_storage_cache(void)
+{
+    start_lyrics();
+    fake_hal_audio_set_position(1200);
+    screen.screen.update(&screen, 10);
+    uint32_t *lent = lyrics_screen_lend_work();
+    for (uint32_t index = 0; index < LYRICS_LENT_SECTORS * 128; index++) {
+        lent[index] = 0xFFFFFFFFu;
+    }
+    lyrics_screen_lend_work();
+    screen.screen.update(&screen, 20);
+    draw();
+    CHECK(saw("Intro"));
+    CHECK(saw("Middle"));
+    CHECK(saw("After"));
+}
+
 static void an_uppercase_sidecar_is_found_and_can_be_read_again(void)
 {
     start(false);
@@ -213,6 +230,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(playback_position_updates_the_visible_lyric_window),
+        TEST_CASE(lyrics_read_again_after_their_work_was_lent_to_the_storage_cache),
         TEST_CASE(an_uppercase_sidecar_is_found_and_can_be_read_again),
         TEST_CASE(cue_lyrics_follow_file_time_rather_than_chapter_time),
         TEST_CASE(scrolling_is_bounded_and_long_play_restores_automatic_follow),

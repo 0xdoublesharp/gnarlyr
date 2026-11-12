@@ -18,9 +18,20 @@ enum {
     LINE_GAP = 6
 };
 
-static LyricsWork lyrics_work;
+static union {
+    LyricsWork lyrics;
+    uint32_t lent[LYRICS_LENT_SECTORS * 128];
+} lyrics_work;
+_Static_assert(sizeof(LyricsWork) >= LYRICS_LENT_SECTORS * 512, "the lent sectors fit the work");
 static const void *lyrics_owner;
-static LyricsWork *const work = &lyrics_work;
+static LyricsWork *const work = &lyrics_work.lyrics;
+
+uint32_t *lyrics_screen_lend_work(void)
+{
+    *work = (LyricsWork){.center = -2};
+    lyrics_owner = NULL;
+    return lyrics_work.lent;
+}
 
 static bool read_lyrics(void *context, uint32_t offset, void *bytes, uint32_t length)
 {

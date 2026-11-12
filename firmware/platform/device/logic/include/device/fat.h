@@ -76,6 +76,11 @@ typedef struct FatVolume {
     uint32_t cache_lba;
     uint32_t cache_count;
     uint32_t cache_index;
+    uint32_t *lent;
+    uint32_t lent_lba;
+    uint32_t lent_count;
+    uint32_t lent_capacity;
+    bool in_lent;
     uint32_t fat_sector_lba;
     bool fat_sector_valid;
     uint32_t cache[FAT_CACHE_SECTORS * FAT_SECTOR_SIZE / 4];
@@ -105,6 +110,7 @@ typedef struct FatDirEntry {
 bool fat_mount(FatVolume *volume, BlockDevice device);
 uint32_t fat_exfat_utc_stamp(uint32_t timestamp, uint8_t utc_offset);
 bool fat_open_directory(FatVolume *volume, const char *path, FatDirCursor *cursor);
+void fat_lend_window(FatVolume *volume, uint32_t *window, uint32_t sectors);
 bool fat_next_entry(FatVolume *volume, FatDirCursor *cursor, FatDirEntry *entry);
 bool fat_open(FatVolume *volume, const char *path, FatFile *file);
 void fat_attach_extents(FatFile *file, FatExtents *extents);

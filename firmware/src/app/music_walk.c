@@ -8,6 +8,7 @@
 #include "hal/clock.h"
 #include "hal/storage.h"
 #include "hal/system.h"
+#include "screens/lyrics_lend.h"
 
 typedef struct MusicWalk {
     HalDir dirs[FINGERPRINT_MAX_DEPTH];
@@ -88,5 +89,9 @@ MusicFingerprint music_walk_fingerprint(bool progress)
     walk.started_ms = hal_clock_milliseconds();
     walk.shown_ms = walk.started_ms;
     FingerprintFiles files = {open_dir, next_entry, close_dir, &walk};
-    return music_fingerprint(&files, &work);
+    hal_storage_lend_cache(lyrics_screen_lend_work(), LYRICS_LENT_SECTORS);
+    MusicFingerprint print = music_fingerprint(&files, &work);
+    hal_storage_lend_cache(NULL, 0);
+    lyrics_screen_lend_work();
+    return print;
 }
