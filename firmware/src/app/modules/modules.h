@@ -26,7 +26,13 @@ typedef struct ViewsModuleEntry {
 
 extern const PlayingModuleEntry PLAYING_MODULE_ENTRY;
 extern const ViewsModuleEntry VIEWS_MODULE_ENTRY;
-extern const ScreenModuleEntry LISTENING_MODULE_ENTRY;
+typedef struct ListeningModuleEntry {
+    ScreenModuleEntry module;
+    void (*theme_boot)(ThemeRuntime *runtime);
+    void (*theme_restore)(ThemeRuntime *runtime);
+} ListeningModuleEntry;
+
+extern const ListeningModuleEntry LISTENING_MODULE_ENTRY;
 
 typedef struct SettingsModuleEntry {
     ScreenModuleEntry module;

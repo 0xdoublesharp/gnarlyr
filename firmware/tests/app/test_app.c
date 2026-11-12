@@ -39,6 +39,7 @@
 #include "settings/headphone_profile.h"
 #include "settings/settings.h"
 #include "settings_store.h"
+#include "theme_runtime.h"
 #include "ui/header.h"
 #include "ui/slide.h"
 #include "ui/status_bar.h"
@@ -1759,15 +1760,25 @@ static void back_from_a_theme_preview_restores_the_saved_palette(void)
     check_theme_header(APPEARANCE_GRAPHITE);
 }
 
+static void check_saved_theme_selection(AppearanceTheme appearance)
+{
+    static const uint8_t NO_PACK[16] = {0};
+    static ThemeRuntime saved;
+    theme_runtime_boot(&saved);
+    CHECK(saved.stored);
+    CHECK_EQUAL(appearance, saved.saved_base);
+    CHECK(memcmp(NO_PACK, saved.saved_id, sizeof NO_PACK) == 0);
+    CHECK(!saved.active);
+    theme_runtime_close(&saved);
+}
+
 static void choosing_a_preview_saves_it_and_keeps_it_after_restart(void)
 {
     open_theme_with_a_saved_graphite_palette();
     move_down(APPEARANCE_SUNSET);
     tap(KEY_PLAY);
     CHECK(title_is("Settings"));
-    Settings settings;
-    CHECK(saved_settings(&settings));
-    CHECK_EQUAL(APPEARANCE_SUNSET, settings.appearance);
+    check_saved_theme_selection(APPEARANCE_SUNSET);
     check_theme_header(APPEARANCE_SUNSET);
     restart_app();
     wait_ms(SPLASH_MS);

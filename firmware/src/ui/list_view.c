@@ -247,7 +247,11 @@ static Row draw_icon(const ListView *view, Canvas *canvas, Row row)
     Color main = row.selected ? view->theme->colors.selection_text : view->theme->colors.text;
     Color accent = row.selected ? main : view->theme->colors.accent;
     Canvas clipped = canvas_clipped(canvas, row.area);
-    icon_draw(&clipped, model->icon(model->context, row.index), box, (IconInk){main, accent});
+    IconId icon = model->icon(model->context, row.index);
+    if (view->background != THEME_ART_HOME ||
+        !theme_art_draw(view->theme, &clipped, THEME_ART_ICON + (int)icon, box)) {
+        icon_draw(&clipped, icon, box, (IconInk){main, accent});
+    }
     int taken = min_of(max_of(0, row.text.width), max_of(0, size + gap));
     row.text.x += taken;
     row.text.width -= taken;
@@ -415,7 +419,8 @@ static void draw_section(const ListView *view, Canvas *canvas, Rect area, uint32
 
 CORE_SEAM void list_view_draw(const ListView *view, Canvas *canvas, Rect area, uint32_t now_ms)
 {
-    canvas_fill_rect(canvas, area, view->theme->colors.background);
+    theme_background_draw(view->theme, canvas,
+                          view->background == 0 ? THEME_ART_LIST : view->background, area);
     Rect rows = area;
     if (item_count(view) > view->visible_rows) {
         rows.width -= view->theme->metrics.scrollbar_width + view->theme->metrics.scrollbar_inset;
