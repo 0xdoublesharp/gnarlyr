@@ -18,9 +18,12 @@ from echo_image_harness import (
     summary,
 )
 from echo_emulator.machine import VOLUME_UP_KEY_ADC
+import make_image
 import prove_upgrade
 
 HANG = b"\xfe\xe7"
+LUN_PRESENT_OFFSET = 17
+TRIAL_BOOT_MODULE = 15
 SETTLE_MS = 20000
 RESET_HOLD_MS = 10000
 SCAN_MS = 5
@@ -93,6 +96,30 @@ class EchoImageTest(EchoImageHarness):
         self.assertNotIn("trial_boot_module_start", again.machine.reached)
         self.assertEqual(again.written_ranges(), [])
         summary("trial confirmed", trial)
+
+    def test_a_trial_session_offers_the_drives_without_loading_a_module_behind_the_app(self):
+        from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1
+        newer = self.newer_image()
+        code_end = make_image.OVERLAY_BASE + struct.unpack_from(
+            "<I", newer, make_image.USB_OVERLAY_OFFSET + 4)[0]
+        self.assertGreater(code_end, make_image.MODULE_BASE)
+        trial = self.start(self.install_on_trial(newer), newer, vbus=True)
+        machine = trial.machine
+        loads = []
+        offered = []
+        machine.hook_symbol("hal_system_load_module",
+                            lambda: loads.append((machine.reg(UC_ARM_REG_R0),
+                                                  "usb_storage_session" in machine.reached)))
+        machine.hook_symbol("msc_init", lambda: offered.append(machine.read_memory(
+            machine.reg(UC_ARM_REG_R1) + LUN_PRESENT_OFFSET, 1)[0]))
+        machine.note("usb_storage_session")
+        self.assertEqual(trial.run_to_first_frame(), "condition met")
+        self.assertEqual(trial.run_through_update_check(), "reached usb_session_storage_changed")
+        self.assert_healthy(trial)
+        self.assertEqual(offered, [1])
+        self.assertEqual([module for module, _ in loads].count(TRIAL_BOOT_MODULE), 1)
+        self.assertNotIn((TRIAL_BOOT_MODULE, True), loads)
+        self.assertEqual(self.trial_record(trial), (TRIAL_RUNNING, 2))
 
     def test_a_trial_session_that_ends_unplugged_does_not_confirm(self):
         newer = self.newer_image()

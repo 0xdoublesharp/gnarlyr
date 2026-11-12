@@ -56,14 +56,19 @@ static void roll_back(const TrialDisk *disk, uint32_t *buffer)
     }
 }
 
-static void remember_settled(FatVolume *volume, UsbShared *shared, UpdateTrial charged)
+static void remember_record(FatVolume *volume, UsbTrial *shared, UpdateTrial charged)
 {
     FatFile record;
     UpdateTrial settled = charged;
+    UpdateTrial next = charged;
     update_trial_settle(&settled);
-    update_trial_encode(settled, (uint8_t *)shared->trial.settled);
-    shared->trial.charged = fat_open(volume, UPDATE_TRIAL_PATH, &record) &&
-                            fat_file_sector(volume, &record, 0, &shared->trial.record_lba);
+    update_trial_charge(&next);
+    update_trial_encode(settled, (uint8_t *)shared->settled);
+    update_trial_encode(charged, (uint8_t *)shared->boot);
+    update_trial_encode(next, (uint8_t *)shared->next);
+    shared->charged = fat_open(volume, UPDATE_TRIAL_PATH, &record) &&
+                      fat_file_sector(volume, &record, 0, &shared->record_lba);
+    shared->session_due = shared->charged;
 }
 
 CORE_SEAM void trial_boot_module_start(UsbShared *shared, uint32_t *buffer)
@@ -82,21 +87,10 @@ CORE_SEAM void trial_boot_module_start(UsbShared *shared, uint32_t *buffer)
         return;
     }
     shared->trial.running = trial.state == UPDATE_TRIAL_RUNNING;
+    shared->trial.promoting = trial.state == UPDATE_TRIAL_PROMOTING;
     shared->trial.rolled_back = step == UPDATE_TRIAL_STEP_REPORT;
     if (step == UPDATE_TRIAL_STEP_CHARGED) {
-        remember_settled(disk.volume, shared, trial);
-    }
-}
-
-void trial_boot_module_session_start(void)
-{
-    TrialDisk disk;
-    if (!trial_record_open(&disk)) {
-        return;
-    }
-    UpdateTrial trial = record_read(disk.volume);
-    if (update_trial_charge(&trial)) {
-        record_write(disk.volume, trial);
+        remember_record(disk.volume, &shared->trial, trial);
     }
 }
 
@@ -155,12 +149,14 @@ void trial_boot_module_session_end(UsbShared *shared, uint32_t *buffer)
         trial_record_copy(&disk, disk.storage.slot_1, disk.storage.slot_2, buffer,
                           (UpdateProgress){report_backup, &shown}) &&
         record_write(disk.volume, (UpdateTrial){UPDATE_TRIAL_NONE, 0})) {
+        shared->trial.running = false;
+        shared->trial.promoting = false;
         return;
     }
     app_show_notice(i18n_text(STR_UPDATE_FAILED), i18n_text(STR_UPDATE_FAILED_HINT));
     board_wait_for_key();
 }
 
-const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {
-    SCREEN_MODULE_MAGIC(TRIAL_BOOT_MODULE_NUMBER), trial_boot_module_start,
-    trial_boot_module_session_start, trial_boot_module_session_end};
+const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {SCREEN_MODULE_MAGIC(TRIAL_BOOT_MODULE_NUMBER),
+                                                      trial_boot_module_start,
+                                                      trial_boot_module_session_end};
