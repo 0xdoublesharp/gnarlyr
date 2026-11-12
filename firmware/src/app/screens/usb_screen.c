@@ -472,15 +472,23 @@ bool usb_screen_touches(const UsbPainter *painter, Rect area)
            area.y < clip.y + clip.height;
 }
 
+static void show_row(AppUsbStatus status, Rect row, int piece)
+{
+    for (int left = row.x; left < row.x + row.width; left += piece) {
+        int width = row.x + row.width - left;
+        app_show_usb_area(status, (Rect){left, row.y, width < piece ? width : piece, row.height});
+    }
+}
+
 void usb_screen_show_in_bands(AppUsbStatus status, Rect area)
 {
-    int band = status.view == APP_USB_DAC && usb_screen_scene(status)->high_speed
-                   ? 1
-                   : USB_SCREEN_BAND_HEIGHT;
+    bool streaming = status.view == APP_USB_DAC && usb_screen_scene(status)->high_speed;
+    int band = streaming ? 1 : USB_SCREEN_BAND_HEIGHT;
+    int piece = streaming ? USB_SCREEN_BAND_WIDTH : area.width;
     for (int top = area.y; top < area.y + area.height; top += band) {
         int height = area.y + area.height - top;
         height = height < band ? height : band;
-        app_show_usb_area(status, (Rect){area.x, top, area.width, height});
+        show_row(status, (Rect){area.x, top, area.width, height}, piece > 0 ? piece : 1);
     }
 }
 

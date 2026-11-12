@@ -49,13 +49,14 @@ static void fat32_free_space_comes_from_fsinfo(void)
     CHECK_EQUAL(FAT32_FREE_SECTORS, free_on("fat32_mbr", BUFFER_SECTORS));
 }
 
-static void an_unset_fsinfo_count_falls_back_to_counting_the_table(void)
+static void an_unset_or_missing_fsinfo_count_is_unknown(void)
 {
     free_on("fat32_mbr", BUFFER_SECTORS);
     memset(card.bytes + (PARTITION_START + 1) * 512 + INFO_FREE_AT, 0xFF, 4);
-    CHECK_EQUAL(FAT32_FREE_SECTORS, free_again());
+    CHECK_EQUAL(VOLUME_SPACE_UNKNOWN, free_again());
+    free_on("fat32_mbr", BUFFER_SECTORS);
     memset(card.bytes + (PARTITION_START + 1) * 512, 0, 4);
-    CHECK_EQUAL(FAT32_FREE_SECTORS, free_again());
+    CHECK_EQUAL(VOLUME_SPACE_UNKNOWN, free_again());
 }
 
 static void fat16_free_space_counts_the_free_table_entries(void)
@@ -92,7 +93,7 @@ int main(void)
         TEST_CASE(exfat_free_space_counts_the_allocation_bitmap),
         TEST_CASE(a_one_sector_buffer_counts_the_same_bitmap),
         TEST_CASE(fat32_free_space_comes_from_fsinfo),
-        TEST_CASE(an_unset_fsinfo_count_falls_back_to_counting_the_table),
+        TEST_CASE(an_unset_or_missing_fsinfo_count_is_unknown),
         TEST_CASE(fat16_free_space_counts_the_free_table_entries),
         TEST_CASE(a_blank_card_is_unknown),
         TEST_CASE(reserving_a_file_lowers_both_counts),

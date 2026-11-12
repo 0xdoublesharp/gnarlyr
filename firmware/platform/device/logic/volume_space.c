@@ -9,7 +9,7 @@ enum {
     FAT32_LABEL_AT = 82,
     FAT16_LABEL_AT = 54,
     DIRECTORY_ENTRY = 32,
-    FAT32_ENTRY_MASK = 0x0FFFFFFF,
+    FAT16_TABLE_SECTORS = 256,
     EXFAT_LABEL_AT = 3,
     LABEL_BYTES = 8,
     INFO_LEAD = 0x41615252,
@@ -148,16 +148,16 @@ static FatTable fat16_of(const uint8_t *bytes, uint32_t start)
                       clusters_after(total, system, bytes[13]), bytes[13], 2};
 }
 
-static bool table_entry_free(const uint8_t *bytes, uint32_t entry_bytes)
+static bool table_entry_free(const uint8_t *bytes)
 {
-    return entry_bytes == 2 ? le16(bytes) == 0 : (le32(bytes) & FAT32_ENTRY_MASK) == 0;
+    return le16(bytes) == 0;
 }
 
 static uint32_t table_free(Reader *reader, FatTable table)
 {
     uint32_t entries = table.clusters + FIRST_CLUSTER;
     uint32_t per_sector = VOLUME_SPACE_SECTOR / table.entry_bytes;
-    if (table.fat_sectors == 0 || table.fat_sectors > VOLUME_SPACE_BITMAP_SECTORS ||
+    if (table.fat_sectors == 0 || table.fat_sectors > FAT16_TABLE_SECTORS ||
         entries > table.fat_sectors * per_sector) {
         return VOLUME_SPACE_UNKNOWN;
     }
@@ -171,7 +171,7 @@ static uint32_t table_free(Reader *reader, FatTable table)
         }
         for (uint32_t index = first < FIRST_CLUSTER ? FIRST_CLUSTER - first : 0; index < count;
              index++) {
-            free += table_entry_free(reader->bytes + index * table.entry_bytes, table.entry_bytes);
+            free += table_entry_free(reader->bytes + index * table.entry_bytes);
         }
     }
     return sectors_of(free, shift_of(table.per_cluster));
@@ -187,7 +187,7 @@ static uint32_t fat32_free(Reader *reader, uint32_t start)
         le32(bytes + INFO_FREE_AT) <= table.clusters) {
         return sectors_of(le32(bytes + INFO_FREE_AT), shift_of(table.per_cluster));
     }
-    return table_free(reader, table);
+    return VOLUME_SPACE_UNKNOWN;
 }
 
 static uint32_t fat16_free(Reader *reader, uint32_t start)
