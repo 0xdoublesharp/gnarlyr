@@ -34,6 +34,7 @@ enum {
     WRITE_BUFFER_SECTORS = 64,
     MOTION_FRAME_MS = 400,
     FOLLOW_MS = 10,
+    NUDGE_MS = 1500,
     MOTION_STEP = 12,
     HINT_CAPACITY = 96,
     CAPTURE_STORAGE_SLOT = 0,
@@ -66,6 +67,7 @@ typedef struct SessionClock {
     uint32_t media_seen_us;
     uint64_t busy_us;
     uint32_t back_pressed_ms;
+    uint32_t nudged_ms;
     bool moving;
 } SessionClock;
 
@@ -229,12 +231,12 @@ static void watch_speed(uint32_t now)
     }
 }
 
-static StringId back_action(int pages)
+static StringId menu_action(int pages)
 {
     if (scene.page + 1 >= pages) {
-        return STR_USB_BACK_OVERVIEW;
+        return STR_USB_MENU_OVERVIEW;
     }
-    return scene.page == USB_SCENE_OVERVIEW ? STR_USB_BACK_DETAILS : STR_USB_BACK_MORE;
+    return scene.page == USB_SCENE_OVERVIEW ? STR_USB_MENU_DETAILS : STR_USB_MENU_MORE;
 }
 
 static const char *paged_hint(void)
@@ -242,14 +244,14 @@ static const char *paged_hint(void)
     AppUsbStatus probe = {.view = APP_USB_STORAGE, .scene = &scene};
     StringId frame = card_present ? STR_USB_DRIVES_HINT : STR_USB_DRIVE_HINT;
     StringBuilder builder = string_builder_make(hint, sizeof hint);
-    i18n_format_text(&builder, frame, i18n_text(STR_USB_BACK_OVERVIEW));
+    i18n_format_text(&builder, frame, i18n_text(STR_USB_MENU_OVERVIEW));
     probe.detail = hint;
     int pages = usb_screen_pages(app_theme(), probe);
     if (pages <= 1) {
         return i18n_text(card_present ? STR_USB_EJECT_DRIVES : STR_USB_EJECT_DRIVE);
     }
     builder = string_builder_make(hint, sizeof hint);
-    i18n_format_text(&builder, frame, i18n_text(back_action(pages)));
+    i18n_format_text(&builder, frame, i18n_text(menu_action(pages)));
     return hint;
 }
 
@@ -356,6 +358,26 @@ static void next_page(void)
     show_storage_state();
 }
 
+static void show_hint(void)
+{
+    AppUsbStatus status = storage_status();
+    app_show_usb_area(status, usb_screen_layout(app_theme(), status).detail);
+}
+
+static void back_tapped(uint32_t now_ms)
+{
+    if (scene.page != USB_SCENE_OVERVIEW) {
+        scene.page = USB_SCENE_OVERVIEW;
+        shared->usb_page = scene.page;
+        scene.nudge = false;
+        show_storage_state();
+        return;
+    }
+    scene.nudge = true;
+    session_clock.nudged_ms = now_ms;
+    show_hint();
+}
+
 static void follow_back(HalKeyTransition key)
 {
     bool tapped = !key.pressed && leave.state == USB_LEAVE_SERVING &&
@@ -364,7 +386,15 @@ static void follow_back(HalKeyTransition key)
     if (key.pressed) {
         session_clock.back_pressed_ms = key.time_ms;
     } else if (tapped && traffic(scene.state)) {
-        next_page();
+        back_tapped(key.time_ms);
+    }
+}
+
+static void follow_nudge(uint32_t now_ms)
+{
+    if (scene.nudge && now_ms - session_clock.nudged_ms >= NUDGE_MS) {
+        scene.nudge = false;
+        show_hint();
     }
 }
 
@@ -374,6 +404,11 @@ static void follow_keys(void)
     while (hal_input_next_transition(&key)) {
         if (key.key == KEY_PLAY && key.pressed && card_present) {
             eject_card = true;
+        }
+        bool serving = leave.state == USB_LEAVE_SERVING && traffic(scene.state);
+        if (key.key == KEY_MENU && key.pressed && serving) {
+            scene.nudge = false;
+            next_page();
         }
         if (key.key == KEY_BACK) {
             follow_back(key);
@@ -625,6 +660,7 @@ static void watch_session(SessionWatch *watch, uint32_t now)
         refresh(&watch->shown, &watch->battery);
         watch->refreshed = hal_clock_milliseconds();
     }
+    follow_nudge(now);
     follow_lights(now);
     sample_traffic(now);
     step_motion(now);

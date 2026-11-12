@@ -616,6 +616,12 @@ Rect usb_screen_column(const UsbScreenLayout *layout)
                   layout->lines.y + layout->lines.height - layout->state.y};
 }
 
+static const char *detail_text(const UsbPainter *painter)
+{
+    bool nudge = painter->status.view == APP_USB_STORAGE && painter->scene->nudge;
+    return nudge ? i18n_text(STR_USB_HOLD_BACK_HINT) : painter->status.detail;
+}
+
 void usb_screen_draw_frame(const UsbPainter *painter, const char *title)
 {
     draw_stage(painter);
@@ -627,7 +633,7 @@ void usb_screen_draw_frame(const UsbPainter *painter, const char *title)
     if (usb_screen_touches(painter, painter->layout.detail)) {
         label_draw_wrapped_serviced(
             painter->canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
-            (Label){painter->layout.detail, painter->status.detail}, painter->scene->service);
+            (Label){painter->layout.detail, detail_text(painter)}, painter->scene->service);
     }
 }
 

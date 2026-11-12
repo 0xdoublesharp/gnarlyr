@@ -26,7 +26,7 @@ enum {
     DAC_RATE = 44100,
     STORAGE_DETAIL_PAGES = 2,
     DAC_DETAIL_PAGES = 2,
-    VARIANTS = 24
+    VARIANTS = 26
 };
 
 typedef struct Variant {
@@ -39,9 +39,11 @@ static char paged_hint[96];
 
 static AppUsbStatus with_page_hint(const Theme *theme, AppUsbStatus status)
 {
-    StringId frame = status.view == APP_USB_DAC ? STR_USB_DAC_PAGE_HINT : STR_USB_DRIVES_HINT;
+    bool dac = status.view == APP_USB_DAC;
+    StringId frame = dac ? STR_USB_DAC_PAGE_HINT : STR_USB_DRIVES_HINT;
     StringBuilder builder = string_builder_make(paged_hint, sizeof paged_hint);
-    i18n_format_text(&builder, frame, i18n_text(STR_USB_BACK_OVERVIEW));
+    i18n_format_text(&builder, frame,
+                     i18n_text(dac ? STR_USB_BACK_OVERVIEW : STR_USB_MENU_OVERVIEW));
     AppUsbStatus probe = status;
     probe.detail = paged_hint;
     int pages = usb_screen_pages(theme, probe);
@@ -49,9 +51,9 @@ static AppUsbStatus with_page_hint(const Theme *theme, AppUsbStatus status)
     if (pages <= 1 || usb_screen_scene(status)->menu != NULL) {
         return status;
     }
-    StringId action = page + 1 >= pages ? STR_USB_BACK_OVERVIEW
-                      : page == 0       ? STR_USB_BACK_DETAILS
-                                        : STR_USB_BACK_MORE;
+    StringId action = page + 1 >= pages ? (dac ? STR_USB_BACK_OVERVIEW : STR_USB_MENU_OVERVIEW)
+                      : page == 0       ? (dac ? STR_USB_BACK_DETAILS : STR_USB_MENU_DETAILS)
+                                        : (dac ? STR_USB_BACK_MORE : STR_USB_MENU_MORE);
     builder = string_builder_make(paged_hint, sizeof paged_hint);
     i18n_format_text(&builder, frame, i18n_text(action));
     status.detail = paged_hint;
@@ -222,6 +224,9 @@ static int variants(Variant *list)
         list[count].scene.page = page;
         list[count++].name = page == 1 ? "storage-details" : "storage-details-2";
     }
+    list[count] = list[1];
+    list[count].scene.nudge = true;
+    list[count++].name = "storage-hold-hint";
     list[count] = list[3];
     list[count].scene.lit[USB_METER_READ] = true;
     list[count].scene.usage[0].read_glow = 255;
@@ -292,7 +297,7 @@ static void check_texts(const Variant *variant, AppUsbStatus status)
         variant->status.view == APP_USB_STORAGE && usb_screen_shows_traffic(&variant->scene);
     CHECK(saw(connected ? i18n_text(STR_USB_STATE_CONNECTED)
                         : charge_screen_usb_title(variant->status.view)));
-    CHECK(saw_start(status.detail));
+    CHECK(saw_start(variant->scene.nudge ? i18n_text(STR_USB_HOLD_BACK_HINT) : status.detail));
     bool overview = variant->scene.page == USB_SCENE_OVERVIEW;
     bool storage = variant->status.view == APP_USB_STORAGE;
     if (storage && variant->scene.state <= USB_SCENE_LEAVING && variant->scene.state > 0) {
@@ -1014,6 +1019,25 @@ static void no_backdrop_grid_shows_around_the_terrain(void)
     }
 }
 
+static void nudge(UsbScene *scene)
+{
+    scene->nudge = true;
+}
+
+static void the_hold_reminder_changes_only_the_hint_line(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        Theme theme = medium(orientation);
+        UsbScene scene = storage_scene(USB_SCENE_CONNECTED);
+        AppUsbStatus status = with_page_hint(&theme, storage_status(STR_USB_EJECT_DRIVES));
+        draw_twice(&theme, status, &scene, nudge);
+        CHECK(changed(&theme));
+        status.scene = &scene;
+        CHECK(changes_stay_inside(&theme, usb_screen_layout(&theme, status).detail));
+        CHECK(saw(i18n_text(STR_USB_HOLD_BACK_HINT)));
+    }
+}
+
 static void a_page_past_the_last_shows_the_overview(void)
 {
     UsbScene scene = storage_scene(USB_SCENE_WRITING);
@@ -1133,6 +1157,7 @@ int main(void)
         TEST_CASE(landscape_details_put_the_drives_side_by_side),
         TEST_CASE(a_missing_card_drops_its_rows),
         TEST_CASE(a_page_past_the_last_shows_the_overview),
+        TEST_CASE(the_hold_reminder_changes_only_the_hint_line),
         TEST_CASE(no_backdrop_grid_shows_around_the_terrain),
         TEST_CASE(the_header_marks_the_link_speed_with_an_icon),
         TEST_CASE(the_dac_screen_marks_its_speed_and_waiting_shows_none),

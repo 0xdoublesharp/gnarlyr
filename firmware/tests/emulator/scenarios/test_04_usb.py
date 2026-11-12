@@ -32,6 +32,7 @@ from echo_image_harness import (
     LEAVE_FORCE_HOLD_MS,
     LEAVE_GRACE_MS,
     LEAVE_HOLD_MS,
+    KEY_MENU,
     TRAFFIC_MEASURE_MS,
     lang_pack,
 )
@@ -42,6 +43,7 @@ CAPTURE_GAP_MS = TRAFFIC_SAMPLE_MS
 LIGHT_FRAMES_PER_S = 25
 HOST_SECTORS_PER_MS = 40
 BACK_TAP_MS = 150
+NUDGE_MS = 1500
 CARD_LUN = 1
 CARD_LATE_MS = 1000
 CARD_RETRY_MS = 1000
@@ -405,7 +407,7 @@ class EchoImageTest(EchoImageHarness):
                 png = echo_debug.png_bytes(480, count // 480, echo_debug.rgb888(pixels, count))
                 Path(directory, "copy-frame-%d.png" % (frame + 1)).write_bytes(png)
 
-    def test_a_back_tap_shows_the_details_without_leaving(self):
+    def test_menu_shows_the_details_and_a_back_tap_only_reminds_to_hold(self):
         session, machine, _, applied, removed = self.staying_storage_session(quiet=True)
         if "usb_meter_sample" not in machine.overlays[0].symbols:
             return
@@ -415,11 +417,17 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(areas, [])
         self.hold_back(machine, BACK_TAP_MS)
         machine.run(until_ms=machine.milliseconds() + BACK_TAP_MS + 200)
+        self.assertEqual(statuses, [])
+        self.assertEqual(len(areas), 1)
+        machine.run(until_ms=machine.milliseconds() + NUDGE_MS)
+        self.assertEqual(len(areas), 2)
+        self.assertEqual(statuses, [])
+        machine.press_key(KEY_MENU, delay_ms=20, hold_ms=BACK_TAP_MS)
+        machine.run(until_ms=machine.milliseconds() + BACK_TAP_MS + 200)
         self.assertEqual(len(statuses), 1)
-        areas.clear()
-        machine.run(until_ms=machine.milliseconds() + 3000)
-        self.assertGreaterEqual(len(areas), 2)
-        self.assertLessEqual(len(areas), 4)
+        self.hold_back(machine, BACK_TAP_MS)
+        machine.run(until_ms=machine.milliseconds() + BACK_TAP_MS + 200)
+        self.assertEqual(len(statuses), 2)
         self.assertEqual(removed, [])
         self.assertEqual(applied, [])
         self.assertNotIn("usb_session_storage_changed", machine.reached)
