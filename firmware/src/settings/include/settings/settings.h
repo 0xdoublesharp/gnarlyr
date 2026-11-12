@@ -192,7 +192,6 @@ typedef struct Settings {
     bool prevent_clipping;
     bool battery_percent;
     uint8_t status_items;
-    bool status_bar_compact;
     bool rewind_on_resume;
     bool safe_start_volume;
     uint8_t safe_start_volume_level;
