@@ -41,3 +41,8 @@ void updater_use_scratch(uint32_t *words);
 UpdateCheck updater_check(const UpdateFile *file, const UpdateStorage *storage);
 bool updater_should_remove_file(UpdateCheck check, bool installed);
 bool updater_install(const UpdateFile *file, const UpdateStorage *storage, UpdateProgress progress);
+bool updater_install_trial(const UpdateFile *file, const UpdateStorage *storage,
+                           UpdateProgress progress);
+bool updater_copy_slot(const UpdateStorage *storage, uint32_t from, uint32_t to,
+                       UpdateProgress progress);
+bool updater_slot_is_valid(const UpdateStorage *storage, uint32_t slot);

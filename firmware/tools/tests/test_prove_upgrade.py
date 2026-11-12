@@ -67,6 +67,51 @@ class TransactionTests(unittest.TestCase):
             prove_upgrade.verify_transaction(session, image)
 
 
+def trial_transaction():
+    accesses, writes = [], []
+    image = struct.pack("<I", 42) + b"new image"
+    kept = struct.pack("<I", 7) + b"old image"
+    for lba, word in ((0, 0xFFFFFFFF), (16, 0), (0, 42)):
+        writes.append((len(accesses), lba, 16))
+        accesses.extend([("W", lba, 16, word), ("R", lba, 16)])
+    images = {"slot_1": image, "slot_2": kept}
+    return SimpleNamespace(layout={"slot_1": 0, "slot_2": 40000, "volume_start": 100000,
+                                   "volume_sectors": 100},
+                           card=SimpleNamespace(writes=writes, accesses=accesses),
+                           changed_sectors=lambda: [0, 100001],
+                           slot_image=lambda name: images[name]), image, kept
+
+
+class TrialTransactionTests(unittest.TestCase):
+    def test_slot_one_alone_with_header_last_and_slot_two_kept_passes(self):
+        session, image, kept = trial_transaction()
+        self.assertEqual(prove_upgrade.verify_single_slot(session, "slot_1", "slot_2", image, kept), 3)
+
+    def test_a_write_into_the_kept_slot_is_rejected(self):
+        session, image, kept = trial_transaction()
+        session.card.writes.append((99, 40016, 16))
+        session.card.accesses.extend([("W", 40016, 16, 0), ("R", 40016, 16)])
+        with self.assertRaisesRegex(ValueError, "Only slot_1"):
+            prove_upgrade.verify_single_slot(session, "slot_1", "slot_2", image, kept)
+
+    def test_a_changed_known_good_slot_is_rejected(self):
+        session, image, kept = trial_transaction()
+        with self.assertRaisesRegex(ValueError, "known-good"):
+            prove_upgrade.verify_single_slot(session, "slot_1", "slot_2", image, b"other")
+
+    def test_the_trial_record_is_read_and_checked(self):
+        record = b"DSUT" + bytes([1, 2, 1 ^ 2 ^ 0x5A, 1])
+        reader = SimpleNamespace(exists=lambda path: path == prove_upgrade.TRIAL_PATH,
+                                 read=lambda path: record + bytes(504))
+        session = SimpleNamespace(fat=lambda: reader)
+        self.assertEqual(prove_upgrade.trial_record(session), (1, 2))
+        record = b"DSUT" + bytes([1, 2, 0, 1])
+        with self.assertRaisesRegex(ValueError, "Damaged"):
+            prove_upgrade.trial_record(session)
+        reader.exists = lambda path: False
+        self.assertIsNone(prove_upgrade.trial_record(session))
+
+
 class HookTests(unittest.TestCase):
     def test_missing_symbol_is_strict_by_default_and_optional_only_when_asked(self):
         machine = SimpleNamespace(symbols={}, overlays=[])

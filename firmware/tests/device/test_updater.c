@@ -358,7 +358,7 @@ static void images_that_could_not_boot_are_invalid(void)
     check_invalid(broken_image(CODE_OFFSET + 4, 0x03050201), IMAGE_SIZE);
 }
 
-static void a_half_installed_image_is_installed_again(void)
+static void the_image_in_slot_1_is_installed_whatever_slot_2_holds(void)
 {
     uint8_t *image = valid_image(1);
     reset(image, IMAGE_SIZE);
@@ -366,7 +366,56 @@ static void a_half_installed_image_is_installed_again(void)
     memset(storage.sectors + (size_t)SLOT_2 * 512, 0xFF, CHUNK_SECTORS * 512);
     UpdateStorage storage_target = target();
     UpdateFile update = source();
-    CHECK_EQUAL(UPDATE_VALID, updater_check(&update, &storage_target));
+    CHECK_EQUAL(UPDATE_ALREADY_INSTALLED, updater_check(&update, &storage_target));
+}
+
+static void a_trial_install_writes_slot_1_only(void)
+{
+    uint8_t *old = valid_image(7);
+    uint8_t *image = valid_image(8);
+    reset(image, IMAGE_SIZE);
+    memcpy(storage.sectors + (size_t)SLOT_2 * 512, old, FW_END);
+    UpdateStorage storage_target = target();
+    UpdateFile update = source();
+    CHECK(updater_install_trial(&update, &storage_target, progress()));
+    CHECK(slot_holds(SLOT_1, image));
+    CHECK(slot_holds(SLOT_2, old));
+    CHECK_EQUAL(-1, first_write_into(SLOT_2));
+    CHECK_EQUAL(0xFF, storage.log[first_write_into(SLOT_1)].first_byte);
+    CHECK_EQUAL(image[0], storage.log[last_write_into(SLOT_1)].first_byte);
+    CHECK(!progress_went_backwards);
+    CHECK_EQUAL(FW_END / (CHUNK_SECTORS * 512), last_done);
+    free(old);
+}
+
+static void a_valid_slot_is_copied_into_the_other_header_last(void)
+{
+    uint8_t *image = valid_image(9);
+    reset(image, IMAGE_SIZE);
+    memcpy(storage.sectors + (size_t)SLOT_2 * 512, image, FW_END);
+    UpdateStorage storage_target = target();
+    CHECK(updater_slot_is_valid(&storage_target, SLOT_2));
+    CHECK(!updater_slot_is_valid(&storage_target, SLOT_1));
+    CHECK(updater_copy_slot(&storage_target, SLOT_2, SLOT_1, progress()));
+    CHECK(slot_holds(SLOT_1, image));
+    CHECK_EQUAL(-1, first_write_into(SLOT_2));
+    CHECK_EQUAL(0xFF, storage.log[first_write_into(SLOT_1)].first_byte);
+    CHECK_EQUAL(SLOT_1, storage.log[last_write_into(SLOT_1)].lba);
+    CHECK_EQUAL(image[0], storage.log[last_write_into(SLOT_1)].first_byte);
+}
+
+static void an_invalid_slot_is_never_copied(void)
+{
+    uint8_t *image = valid_image(10);
+    reset(image, IMAGE_SIZE);
+    memcpy(storage.sectors + (size_t)SLOT_2 * 512, image, FW_END);
+    storage.sectors[(size_t)SLOT_2 * 512 + FW_SIZE + 5] ^= 1;
+    memset(storage.sectors + (size_t)SLOT_1 * 512, 0xA5, 512);
+    UpdateStorage storage_target = target();
+    CHECK(!updater_slot_is_valid(&storage_target, SLOT_2));
+    CHECK(!updater_copy_slot(&storage_target, SLOT_2, SLOT_1, progress()));
+    CHECK_EQUAL(0, storage.writes);
+    CHECK_EQUAL(0xA5, storage.sectors[(size_t)SLOT_1 * 512]);
 }
 
 static void an_update_file_is_removed_unless_its_install_failed(void)
@@ -399,7 +448,10 @@ int main(void)
         TEST_CASE(an_image_that_does_not_fit_a_slot_is_invalid),
         TEST_CASE(images_that_could_not_boot_are_invalid),
         TEST_CASE(the_installed_image_is_recognised),
-        TEST_CASE(a_half_installed_image_is_installed_again),
+        TEST_CASE(the_image_in_slot_1_is_installed_whatever_slot_2_holds),
+        TEST_CASE(a_trial_install_writes_slot_1_only),
+        TEST_CASE(a_valid_slot_is_copied_into_the_other_header_last),
+        TEST_CASE(an_invalid_slot_is_never_copied),
         TEST_CASE(installing_fills_both_slots_with_the_image),
         TEST_CASE(each_slot_is_invalidated_first_and_completed_last),
         TEST_CASE(chunks_that_already_match_are_not_rewritten),

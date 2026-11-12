@@ -153,6 +153,7 @@ class Machine:
         self.vbus = False
         self.adc_key_value = ADC_NO_KEY
         self.adc_battery_value = ADC_BATTERY_4000_MV
+        self.power_key_pressed_at_ms = 0
         self.power_key_released_at_ms = 300
         self.card_present = False
         self.balanced_plugged = False
@@ -228,7 +229,7 @@ class Machine:
         levels = 0
         if port == CHARGE_PORT:
             levels |= 1 << CHARGE_PIN
-            if self.milliseconds() < self.power_key_released_at_ms:
+            if self.power_key_pressed_at_ms <= self.milliseconds() < self.power_key_released_at_ms:
                 levels |= 1 << POWER_KEY_PIN
         if port == CARD_DETECT_PORT and not self.card_present:
             levels |= 1 << CARD_DETECT_PIN
@@ -506,6 +507,10 @@ class Machine:
 
         self.hook_symbol(name, reached)
 
+    def hold_power(self, from_ms, hold_ms):
+        self.power_key_pressed_at_ms = from_ms
+        self.power_key_released_at_ms = from_ms + hold_ms
+
     def press_key(self, adc_value, delay_ms=20, hold_ms=300):
         start = self.milliseconds() + delay_ms
         self.at_ms(start, lambda: setattr(self, "adc_key_value", adc_value))
@@ -537,11 +542,11 @@ class Machine:
         self.hook_symbol(name, lambda: stamps.append(self.milliseconds()))
         return stamps
 
-    def note(self, name):
+    def note(self, name, optional=False):
         def reached():
             self.reached[name] = self.reached.get(name, 0) + 1
 
-        self.hook_symbol(name, reached)
+        self.hook_symbol(name, reached, optional=optional)
 
     def names_at(self, address):
         for overlay in self.overlays:

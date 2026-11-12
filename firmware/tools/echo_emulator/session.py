@@ -40,6 +40,22 @@ def with_date(image, date):
     return repack(image, edit)
 
 
+def with_overlay_code(image, overlay_elf, name, code):
+    from .machine import load_symbols
+
+    address = load_symbols(overlay_elf)[name]
+    data = bytearray(image)
+    start = make_image.USB_OVERLAY_OFFSET
+    at = start + address - make_image.OVERLAY_BASE
+    data[at:at + len(code)] = code
+    size = struct.unpack_from("<I", data, start + 4)[0]
+    header = make_image.OVERLAY_HEADER_SIZE
+    struct.pack_into("<I", data, start + 8, make_image.crc32(data[start + header:start + size]))
+    end = make_image.fw_end(make_image.FW_SIZE)
+    struct.pack_into("<I", data, end, make_image.crc32(data[:end]))
+    return bytes(data)
+
+
 def with_brand(image, brand):
     text = make_image.text_field(brand, "brand")
 

@@ -7,6 +7,7 @@
 #include "irq.h"
 #include "loop_bench.h"
 #include "registers.h"
+#include "trial.h"
 
 #define SYSTICK_ENABLE_INTERRUPT_CORE_CLOCK 0x7u
 
@@ -83,6 +84,7 @@ __attribute__((used)) void board_systick_handler(const uint32_t *frame)
     board_watchdog_kick();
     uint32_t now_ms = tick_clock_milliseconds(&clock, read_counter());
     board_input_sample(now_ms);
+    board_trial_poll_power(now_ms);
     board_start_record_tick(now_ms);
     board_debug_power_tick(now_ms);
     if (stall_watch_check(&stall_watch, now_ms)) {

@@ -69,6 +69,11 @@ uint16_t board_battery_boot_reading(void)
     return (uint16_t)(register_read(ADC_RESULT) & ADC_RESULT_MASK);
 }
 
+uint8_t board_input_held(void)
+{
+    return scanner.stable;
+}
+
 void board_input_start(void)
 {
     gpio_mux(POWER_KEY, GPIO_FUNCTION_GPIO);

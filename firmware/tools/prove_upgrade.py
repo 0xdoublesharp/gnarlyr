@@ -1,7 +1,9 @@
 import argparse
+import copy
 import json
 import struct
 from pathlib import Path
+from types import SimpleNamespace
 
 import image_artifacts
 import make_image
@@ -9,6 +11,11 @@ from identity import IDENTITY
 
 CHUNK_SECTORS = 16
 SLOT_SECTORS = 0x2800
+TRIAL_PATH = "/" + IDENTITY.data_directory + "/trial.bin"
+TRIAL_MAGIC = b"DSUT"
+TRIAL_RUNNING = 1
+TRIAL_ROLLED_BACK = 3
+TRIAL_LIMIT = 3
 
 
 def require(condition, message):
@@ -21,12 +28,15 @@ def healthy(session):
             f"Emulator failure: {session.machine.faults}, {session.machine.panics}")
 
 
-def verify_transaction(session, newer):
+def slot_spans(session):
     slots = {name: session.layout[name] for name in ("slot_1", "slot_2")}
-    inside = {name: range(start, start + SLOT_SECTORS) for name, start in slots.items()}
+    return slots, {name: range(start, start + SLOT_SECTORS) for name, start in slots.items()}
+
+
+def verify_permitted(session):
+    _, inside = slot_spans(session)
     volume_start = session.layout["volume_start"]
     volume_end = volume_start + session.layout["volume_sectors"]
-    writes = [item for item in session.card.writes if item[1] < volume_start]
     for _, lba, count in session.card.writes:
         require((volume_start <= lba and lba + count <= volume_end)
                 or (count == CHUNK_SECTORS and any(lba in span and lba + count <= span.stop
@@ -34,10 +44,11 @@ def verify_transaction(session, newer):
     for lba in session.changed_sectors():
         require(volume_start <= lba < volume_end or any(lba in span for span in inside.values()),
                 "Changed sector outside permitted regions")
-    by_slot = {name: [item for item in writes if item[1] in span] for name, span in inside.items()}
-    require(all(by_slot.values()), "Both slots must be written")
-    require(max(stamp for stamp, _, _ in by_slot["slot_2"])
-            < min(stamp for stamp, _, _ in by_slot["slot_1"]), "Slot 2 must finish before slot 1")
+    return [item for item in session.card.writes if item[1] < volume_start]
+
+
+def verify_readbacks(session):
+    volume_start = session.layout["volume_start"]
     accesses = [item for item in session.card.accesses if item[0] != "W" or item[1] < volume_start]
     for index, access in enumerate(accesses):
         if access[0] != "W":
@@ -49,19 +60,68 @@ def verify_transaction(session, newer):
                 break
             covered.extend(range(later[1], later[1] + later[2]))
         require(covered[:count] == list(range(lba, lba + count)), "Write was not immediately read back")
-    word = struct.unpack_from("<I", newer)[0]
-    for name, start in slots.items():
-        sequence = [(lba, count, value) for kind, lba, count, *rest in accesses
-                    if kind == "W" and lba in inside[name] for value in rest]
-        require(sequence[0] == (start, CHUNK_SECTORS, 0xFFFFFFFF), "Slot header must be invalidated first")
-        require(sequence[-1] == (start, CHUNK_SECTORS, word), "Slot header must be committed last")
-        require(start not in [lba for lba, _, _ in sequence[1:-1]], "Early header write")
-        require(session.slot_image(name) == newer[:make_image.fw_end(make_image.FW_SIZE)],
-                f"{name} does not match the exact new image")
+    return accesses
+
+
+def verify_slot_written(session, accesses, name, image):
+    slots, inside = slot_spans(session)
+    start = slots[name]
+    word = struct.unpack_from("<I", image)[0]
+    sequence = [(lba, count, value) for kind, lba, count, *rest in accesses
+                if kind == "W" and lba in inside[name] for value in rest]
+    require(sequence[0] == (start, CHUNK_SECTORS, 0xFFFFFFFF), "Slot header must be invalidated first")
+    require(sequence[-1] == (start, CHUNK_SECTORS, word), "Slot header must be committed last")
+    require(start not in [lba for lba, _, _ in sequence[1:-1]], "Early header write")
+    require(session.slot_image(name) == image[:make_image.fw_end(make_image.FW_SIZE)],
+            f"{name} does not match the exact new image")
+
+
+def verify_transaction(session, newer):
+    _, inside = slot_spans(session)
+    writes = verify_permitted(session)
+    by_slot = {name: [item for item in writes if item[1] in span] for name, span in inside.items()}
+    require(all(by_slot.values()), "Both slots must be written")
+    require(max(stamp for stamp, _, _ in by_slot["slot_2"])
+            < min(stamp for stamp, _, _ in by_slot["slot_1"]), "Slot 2 must finish before slot 1")
+    accesses = verify_readbacks(session)
+    for name in inside:
+        verify_slot_written(session, accesses, name, newer)
     return len(writes)
 
 
-def candidate_session(directory, files=(), reuse=None, historical=False):
+def verify_single_slot(session, written, kept, image, kept_image):
+    _, inside = slot_spans(session)
+    writes = verify_permitted(session)
+    require(writes and all(item[1] in inside[written] for item in writes),
+            f"Only {written} may be written")
+    verify_slot_written(session, verify_readbacks(session), written, image)
+    require(session.slot_image(kept) == kept_image[:make_image.fw_end(make_image.FW_SIZE)],
+            f"{kept} must keep the known-good image")
+    return len(writes)
+
+
+def trial_record(session):
+    reader = session.fat()
+    if not reader.exists(TRIAL_PATH):
+        return None
+    data = reader.read(TRIAL_PATH)
+    require(data[:4] == TRIAL_MAGIC and data[7] == 1 and data[6] == data[4] ^ data[5] ^ 0x5A,
+            "Damaged trial record")
+    return data[4], data[5]
+
+
+def has_trial(directory):
+    from echo_emulator.machine import load_symbols
+
+    return "updater_install_trial" in load_symbols(directory / "platform/device/echo_usb_overlay.elf")
+
+
+def forked(session):
+    return SimpleNamespace(disk=copy.deepcopy(session.disk), layout=session.layout,
+                           volume=session.volume, machine=session.machine)
+
+
+def candidate_session(directory, files=(), reuse=None, historical=False, vbus=None):
     from echo_emulator.session import Session
 
     symbols = directory / "platform/device"
@@ -74,31 +134,87 @@ def candidate_session(directory, files=(), reuse=None, historical=False):
     require(image[data_offset:data_offset + len(firmware.data)] == firmware.data,
             "Resident ELF data does not belong to the image")
     return Session(image, symbols / "echo_device.elf",
-                   files=files, reuse=reuse, vbus_after_first_frame=bool(files),
+                   files=files, reuse=reuse,
+                   vbus_after_first_frame=bool(files) if vbus is None else vbus,
                    usb_overlay_elf=symbols / "echo_usb_overlay.elf",
                    module_elfs=image_artifacts.module_elfs(directory),
                    optional_hooks=("hal_system_set_usb_answer",) if historical else ())
 
 
-def prove(old, new):
-    newer = (new / IDENTITY.update_file).read_bytes()
-    require((old / IDENTITY.update_file).read_bytes() != newer, "Upgrade images are identical")
+def install(old, newer):
     session = candidate_session(old, files=[(IDENTITY.update_file, newer, None)], historical=True)
-    session.machine.note("updater_install")
+    for name in ("updater_install", "updater_install_trial"):
+        session.machine.note(name, optional=True)
     require(session.run_to_first_frame() == "condition met", "Old image did not boot")
     session.machine.stop_at("board_wait_for_power_hold")
     require(session.run_until_waiting_for_key(presses=1) == "reached board_wait_for_power_hold",
             "Old updater did not finish")
     healthy(session)
-    require(session.machine.reached.get("updater_install") == 1, "Expected exactly one installation")
     require(session.machine.usb_connect_count >= 1, "USB transfer did not run")
-    writes = verify_transaction(session, newer)
+    return session
+
+
+def prove_confirm(state, new, newer):
+    session = candidate_session(new, reuse=forked(state), vbus=True)
+    session.machine.host_ejects()
+    require(session.run_to_first_frame() == "condition met", "Trial image did not boot")
+    require(trial_record(session) == (TRIAL_RUNNING, 1), "Trial start was not counted")
+    require(session.run_through_update_check() == "reached usb_session_storage_changed",
+            "Trial USB session did not finish")
+    healthy(session)
+    require(trial_record(session) is None, "Confirmed trial left its record")
+    return verify_single_slot(session, "slot_2", "slot_1", newer, newer)
+
+
+def prove_rollback(state, old, new, older):
+    session = forked(state)
+    for attempt in range(1, TRIAL_LIMIT + 1):
+        session = candidate_session(new, reuse=session)
+        require(session.run_to_first_frame() == "condition met", "Trial image did not boot")
+        require(trial_record(session) == (TRIAL_RUNNING, attempt), "Trial start was not counted")
+    session = candidate_session(new, reuse=session)
+    require(session.run_until_reset() == "system reset requested", "Trial was not rolled back")
+    healthy(session)
+    writes = verify_single_slot(session, "slot_1", "slot_2", older, older)
+    require(trial_record(session) == (TRIAL_ROLLED_BACK, 0), "Rollback was not recorded")
+    restored = candidate_session(old, reuse=session)
+    notices = restored.machine.collect_notices()
+    require(restored.run_until_waiting_for_key() == "reached board_wait_for_key",
+            "Restored image did not report the rollback")
+    healthy(restored)
+    require(trial_record(restored) is None and notices, "Rollback report was not shown once")
+    return writes
+
+
+def prove(old, new):
+    newer = (new / IDENTITY.update_file).read_bytes()
+    older = (old / IDENTITY.update_file).read_bytes()
+    require(older != newer, "Upgrade images are identical")
+    session = install(old, newer)
+    trial = has_trial(old)
+    reached = session.machine.reached
+    name = "updater_install_trial" if trial else "updater_install"
+    require(reached.get(name) == 1 and len([key for key in ("updater_install", "updater_install_trial")
+                                            if key in reached]) == 1,
+            "Expected exactly one installation")
+    result = {"ok": True, "mode": "trial" if trial else "both_slots", "readbacks": True,
+              "headers_last": True}
+    if trial:
+        result["slot_writes"] = verify_single_slot(session, "slot_1", "slot_2", newer, older)
+        require(trial_record(session) == (TRIAL_RUNNING, 0), "Trial record was not written")
+        result["slot_2_kept"] = True
+    else:
+        result["slot_writes"] = verify_transaction(session, newer)
+        result["slot_2_first"] = True
+    if trial and has_trial(new):
+        result["promotion_writes"] = prove_confirm(session, new, newer)
+        result["rollback_writes"] = prove_rollback(session, old, new, older)
     installed = candidate_session(new, reuse=session)
     require(installed.run_to_first_frame() == "condition met", "New image did not boot")
     require(len(installed.panel.lit_sweeps()) == 1, "New image did not draw its first frame")
     healthy(installed)
-    return {"ok": True, "slot_writes": writes, "slot_2_first": True, "headers_last": True,
-            "readbacks": True, "new_image_booted": True}
+    result["new_image_booted"] = True
+    return result
 
 
 def main(argv=None):

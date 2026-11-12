@@ -14,6 +14,7 @@
 #include "hal/system.h"
 #include "overlay.h"
 #include "storage_reset.h"
+#include "trial.h"
 #include "update.h"
 #include "usb.h"
 #include "usb_report.h"
@@ -99,6 +100,7 @@ static void run_dac_session(void)
 static void run_session(void)
 {
     board_debug_usb_starting(dac_session);
+    board_trial_session_starting();
     if (dac_session) {
         run_dac_session();
     } else {
@@ -276,11 +278,13 @@ void board_main(void)
     board_debug_battery_reading(boot_reading);
     uint32_t boot_millivolts = battery_millivolts(boot_reading);
     board_input_start();
+    board_trial_escape_check();
     board_display_start();
     boot_step("display");
     board_glyphs_start();
     boot_step("glyphs");
     update_check_loader_request();
+    board_trial_boot();
     boot_step("loader request");
     board_jack_poll();
     boot_step("jack");
@@ -290,6 +294,7 @@ void board_main(void)
     app_start();
     board_wall_time_forget_file();
     explain_missing_text();
+    board_trial_report();
     boot_step("splash");
     app_show_splash();
     board_core1_park();
@@ -302,6 +307,7 @@ void board_main(void)
         board_stall_beat();
         board_wall_time_keep();
         app_step();
+        board_trial_settle();
         board_display_service();
         check_usb();
         sleep_until_next_pass();

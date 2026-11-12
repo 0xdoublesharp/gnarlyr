@@ -34,6 +34,7 @@ add_executable(echo_device
     board/startup.c
     board/storage.c
     board/system.c
+    board/trial.c
     board/update_request.c
     board/usb.c
     board/usb_listen.c
@@ -213,6 +214,7 @@ set(ECHO_OVERLAY_IMPORTS
     board_audio_stream_ring
     board_audio_volume_level
     board_display_service
+    board_restart
     board_wait_for_key
     board_wait_for_power_hold
     board_wall_time_set
@@ -303,7 +305,6 @@ if(NOT ECHO_RELEASE)
         board_power_shown
         board_profile
         board_profile_hold
-        board_restart
         debug_loop_event
         debug_loop_log
         debug_runner_begin
@@ -350,6 +351,7 @@ if(CMAKE_CROSSCOMPILING)
         board/profiler.c
         board/start_info.c
         board/system.c
+        board/trial.c
         board/update.c
         board/update_request.c
         board/wall_time.c
