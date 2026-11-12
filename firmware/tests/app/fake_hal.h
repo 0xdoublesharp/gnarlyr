@@ -176,3 +176,6 @@ int fake_hal_card_formats(void);
 void fake_hal_fail_internal_writes(const char *path);
 
 void fake_hal_set_charging_host(bool host);
+
+void fake_hal_set_visual_buffer(AudioVisualBuffer buffer);
+int fake_hal_visual_reads(void);

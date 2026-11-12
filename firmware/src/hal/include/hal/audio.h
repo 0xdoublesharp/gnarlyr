@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/audio_visual.h"
 #include "core/dac_identity.h"
 #include "core/headphone_audio.h"
 #include "core/parametric.h"
@@ -179,3 +180,5 @@ HalAudioJack hal_audio_jack(void);
 HalAudioRefusal hal_audio_refusal(void);
 
 void hal_audio_set_replay_gain(uint32_t token, uint32_t gain);
+
+AudioVisualBuffer hal_audio_visual_buffer(void);

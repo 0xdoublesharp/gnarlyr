@@ -60,6 +60,9 @@ enum {
     TRANSITION_BYTE = 2,
     HOME_ORDER_BYTE = 4,
     HOME_HIDDEN_BYTE = 9,
+    CASSETTE_BIT = 1 << 5,
+    STYLE_FLAGS_BYTE = 14,
+    STYLE_HIGH_BIT = 1 << 7,
     CLOCK_OFFSET_BYTE = 11,
     STATUS_ITEMS_BYTE = 13,
     RESERVED_BYTE = 14,
@@ -172,6 +175,7 @@ static void read_extension(const uint8_t *extension, Settings *settings)
     settings->track_transition = (TrackTransition)(comfort >> TRANSITION_SHIFT);
     settings->safe_start_volume_level = extension[SAFE_LEVEL_BYTE];
     settings->transition_tenths = extension[TRANSITION_BYTE];
+    settings->style_flags = extension[STYLE_FLAGS_BYTE] & STYLE_HIGH_BIT;
     settings_home_unpack(extension + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT,
                          settings->home_order, &settings->home_hidden);
     bool untouched = settings->home_hidden == 0;
@@ -329,6 +333,7 @@ static void encode_extension(const Settings *settings, uint8_t *extension)
     extension[HOME_HIDDEN_BYTE] = (uint8_t)settings->home_hidden;
     extension[HOME_HIDDEN_BYTE + 1] = (uint8_t)(settings->home_hidden >> 8);
     extension[DAC_FILTER_BYTE] |= (uint8_t)(settings->dac_filter & DAC_FILTER_MASK);
+    extension[STYLE_FLAGS_BYTE] |= (uint8_t)(settings->style_flags & STYLE_HIGH_BIT);
 }
 
 void settings_encode(const Settings *settings, uint8_t *bytes)
@@ -478,7 +483,8 @@ static bool reserved_clear(const uint8_t *extension)
 {
     uint8_t any = extension[TRANSITION_BYTE + 1];
     for (int index = RESERVED_BYTE; index < RESERVED_BYTE + RESERVED_COUNT; index++) {
-        uint8_t reserved = index == DAC_FILTER_BYTE ? (uint8_t)~DAC_FILTER_MASK : 0xFF;
+        uint8_t reserved =
+            index == DAC_FILTER_BYTE ? (uint8_t)~(DAC_FILTER_MASK | STYLE_HIGH_BIT) : 0xFF;
         any |= extension[index] & reserved;
     }
     return any == 0 && (extension[DAC_FILTER_BYTE] & DAC_FILTER_MASK) < DAC_FILTER_COUNT;
@@ -669,4 +675,18 @@ bool settings_buttons_decode(const uint8_t *bytes, uint32_t length, Settings *se
         settings->button_actions[index] = bytes[8 + index];
     }
     return true;
+}
+
+NowPlayingStyle settings_now_playing_style(const Settings *settings)
+{
+    return (NowPlayingStyle)(((settings->status_items & CASSETTE_BIT) >> 5) |
+                             ((settings->style_flags & STYLE_HIGH_BIT) >> 6));
+}
+
+void settings_set_now_playing_style(Settings *settings, NowPlayingStyle style)
+{
+    unsigned value = (unsigned)style <= NOW_PLAYING_SPECTRUM ? (unsigned)style : 0;
+    settings->status_items =
+        (uint8_t)((settings->status_items & (uint8_t)~CASSETTE_BIT) | ((value & 1) << 5));
+    settings->style_flags = (uint8_t)((value >> 1) << 7);
 }

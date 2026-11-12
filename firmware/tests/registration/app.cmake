@@ -215,3 +215,15 @@ echo_add_unit_test(NAME test_charge_lifecycle
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
 )
+
+echo_add_unit_test(NAME test_cassette_now_playing
+    SOURCES app/test_cassette_now_playing.c app/fake_hal.c support/text_spy.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
+)
+
+echo_add_unit_test(NAME test_meter_now_playing
+    SOURCES app/test_meter_now_playing.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)

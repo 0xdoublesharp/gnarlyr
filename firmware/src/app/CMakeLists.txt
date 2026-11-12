@@ -98,6 +98,9 @@ add_library(echo_app STATIC
     screens/sound_shaping_screen.c
     screens/equalizer_browser.c
     screens/equalizer_plot.c
+    screens/neon_art.c
+    screens/meter_now_playing.c
+    screens/cassette_now_playing.c
     screens/now_playing_screen.c
     screens/up_next_screen.c
 )

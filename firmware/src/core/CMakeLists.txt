@@ -1,4 +1,5 @@
 add_library(echo_core STATIC
+    audio_visual.c
     calendar.c
     calendar_view.c
     clock_face.c

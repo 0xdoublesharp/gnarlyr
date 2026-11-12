@@ -69,6 +69,8 @@ class Snapshot:
         self.format = pack_tools(api.ROOT)
         self.flags_reserved = 0xF8
         self.status_items_supported = False
+        self.display_flags_byte = None
+        self.style_flags_byte = None
         try:
             self.commit = git(api.ROOT, "rev-parse", "--verify", build + "^{commit}").strip()
             self.build = build
@@ -106,6 +108,14 @@ class Snapshot:
                 self.status_items_supported = "STATUS_ITEMS_BYTE" in source
                 if self.status_items_supported and constant(source, "STATUS_ITEMS_BYTE") != 13:
                     raise ValueError("the installed status bar settings layout is unsupported")
+                if re.search(r"\bDISPLAY_FLAGS_BYTE\s*=", source):
+                    self.display_flags_byte = constant(source, "DISPLAY_FLAGS_BYTE")
+                    if self.display_flags_byte != 13:
+                        raise ValueError("the installed display flags layout is unsupported")
+                if re.search(r"\bSTYLE_FLAGS_BYTE\s*=", source):
+                    self.style_flags_byte = constant(source, "STYLE_FLAGS_BYTE")
+                    if self.style_flags_byte != 14 or not re.search(r"\bSTYLE_HIGH_BIT\s*=\s*1\s*<<\s*7\b", source):
+                        raise ValueError("the installed style flags layout is unsupported")
         except (ValueError, KeyError, OSError, self.format.PackError) as error:
             raise api.DebugError("language_build_unknown", str(error)) from error
 
@@ -170,8 +180,10 @@ class Snapshot:
         reserved = list(block[11:15])
         if self.clock_offset_byte:
             reserved[0:2] = [0, 0]
-        if self.status_items_supported:
+        if self.status_items_supported or self.display_flags_byte == 13:
             reserved[2] = 0
+        if self.style_flags_byte == 14:
+            reserved[3] &= 0x7F
         marker = F_VERSION if data[4] >= F_VERSION else 0
         return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and block[3] == 0 and
                 -720 <= offset <= 840 and self.home_valid(block) and not any(reserved) and
