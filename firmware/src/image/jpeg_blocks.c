@@ -114,40 +114,94 @@ static bool dequantize_rows(const JpegDecoder *decoder, uint32_t component, int3
     return any;
 }
 
-static void row_pass(const JpegDecoder *decoder, const int32_t *values, const bool *rows_used,
-                     int32_t rows[BLOCK_SIDE][BLOCK_SIDE])
+static int32_t row_sum(const int32_t *kernel, const int32_t *row)
 {
+    int32_t sum = 0;
+    for (uint32_t u = 0; u < BLOCK_SIDE; u++) {
+        sum += kernel[u] * row[u];
+    }
+    return sum;
+}
+
+static int32_t column_sample(const JpegDecoder *decoder, const bool *rows_used,
+                             const int32_t *column, uint32_t stride, uint32_t y)
+{
+    int64_t sum = 0;
+    for (uint32_t v = 0; v < BLOCK_SIDE; v++) {
+        sum += rows_used[v] ? (int64_t)decoder->kernel[y][v] * column[v * stride] : 0;
+    }
+    int64_t rounded = sum + ((int64_t)1 << (OUTPUT_SHIFT - 1));
+    return clamp(rounded >> OUTPUT_SHIFT, -DELTA_LIMIT, DELTA_LIMIT);
+}
+
+static void inverse_two(const JpegDecoder *decoder, const int32_t *values, const bool *rows_used,
+                        int32_t *samples)
+{
+    int32_t rows[BLOCK_SIDE * 2];
     for (uint32_t v = 0; v < BLOCK_SIDE; v++) {
         const int32_t *row = values + v * BLOCK_SIDE;
-        for (uint32_t x = 0; x < decoder->outputs; x++) {
-            const int32_t *kernel = decoder->kernel[x];
-            int32_t sum = 0;
-            for (uint32_t u = 0; rows_used[v] && u < BLOCK_SIDE; u++) {
-                sum += kernel[u] * row[u];
-            }
-            rows[v][x] = sum;
+        rows[v * 2] = rows_used[v] ? row_sum(decoder->kernel[0], row) : 0;
+        rows[v * 2 + 1] = rows_used[v] ? row_sum(decoder->kernel[1], row) : 0;
+    }
+    for (uint32_t y = 0; y < 2; y++) {
+        samples[y * 2] = column_sample(decoder, rows_used, rows, 2, y);
+        samples[y * 2 + 1] = column_sample(decoder, rows_used, rows + 1, 2, y);
+    }
+}
+
+static void inverse_four(const JpegDecoder *decoder, const int32_t *values, const bool *rows_used,
+                         int32_t *samples)
+{
+    int32_t rows[BLOCK_SIDE * 4];
+    for (uint32_t v = 0; v < BLOCK_SIDE; v++) {
+        for (uint32_t x = 0; x < 4; x++) {
+            rows[v * 4 + x] =
+                rows_used[v] ? row_sum(decoder->kernel[x], values + v * BLOCK_SIDE) : 0;
         }
+    }
+    for (uint32_t y = 0; y < 4; y++) {
+        for (uint32_t x = 0; x < 4; x++) {
+            samples[y * 4 + x] = column_sample(decoder, rows_used, rows + x, 4, y);
+        }
+    }
+}
+
+void jpeg_inverse_general(const JpegDecoder *decoder, const int32_t *values, const bool *rows_used,
+                          int32_t *samples)
+{
+    uint32_t outputs = decoder->outputs;
+    int32_t rows[BLOCK_SIDE * BLOCK_SIDE];
+    for (uint32_t v = 0; v < BLOCK_SIDE; v++) {
+        for (uint32_t x = 0; x < outputs; x++) {
+            rows[v * outputs + x] =
+                rows_used[v] ? row_sum(decoder->kernel[x], values + v * BLOCK_SIDE) : 0;
+        }
+    }
+    for (uint32_t y = 0; y < outputs; y++) {
+        for (uint32_t x = 0; x < outputs; x++) {
+            samples[y * outputs + x] = column_sample(decoder, rows_used, rows + x, outputs, y);
+        }
+    }
+}
+
+void jpeg_inverse_block(const JpegDecoder *decoder, const int32_t *values, const bool *rows_used,
+                        int32_t *samples)
+{
+    if (decoder->outputs == 2) {
+        inverse_two(decoder, values, rows_used, samples);
+    } else if (decoder->outputs == 4) {
+        inverse_four(decoder, values, rows_used, samples);
+    } else {
+        jpeg_inverse_general(decoder, values, rows_used, samples);
     }
 }
 
 static void inverse(const JpegDecoder *decoder, uint32_t component, int32_t *samples)
 {
-    uint32_t outputs = decoder->outputs;
     int32_t values[JPEG_BLOCK];
     bool rows_used[BLOCK_SIDE];
-    int32_t rows[BLOCK_SIDE][BLOCK_SIDE];
     dequantize_rows(decoder, component, values, rows_used);
-    row_pass(decoder, values, rows_used, rows);
-    for (uint32_t y = 0; y < outputs; y++) {
-        for (uint32_t x = 0; x < outputs; x++) {
-            int64_t sum = 0;
-            for (uint32_t v = 0; v < BLOCK_SIDE; v++) {
-                sum += rows_used[v] ? (int64_t)decoder->kernel[y][v] * rows[v][x] : 0;
-            }
-            int64_t rounded = sum + ((int64_t)1 << (OUTPUT_SHIFT - 1));
-            samples[y * outputs + x] = clamp(rounded >> OUTPUT_SHIFT, -DELTA_LIMIT, DELTA_LIMIT);
-        }
-    }
+    jpeg_inverse_block(decoder, values, rows_used, samples);
 }
 
 static bool any_used_coefficient(const JpegDecoder *decoder)
