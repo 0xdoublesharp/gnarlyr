@@ -91,38 +91,28 @@ class CatalogueTest(unittest.TestCase):
         renamed = [("STR_LANGUAGE_NAME", "English"), ("STR_HOLA", "Hello"), CATALOGUE[2]]
         reworded = [("STR_LANGUAGE_NAME", "Deutsch"), ("STR_HELLO", "Hallo"), CATALOGUE[2]]
         swapped = [CATALOGUE[0], CATALOGUE[2], CATALOGUE[1]]
-        value = lang_pack.catalogue_hash(CATALOGUE)
-        self.assertEqual(value, lang_pack.catalogue_hash(reworded))
-        self.assertNotEqual(value, lang_pack.catalogue_hash(renamed))
-        self.assertNotEqual(value, lang_pack.catalogue_hash(swapped))
+        def value(catalogue):
+            return lang_pack.layout_hash(lang_pack.resident_segments(catalogue))
+        self.assertEqual(value(CATALOGUE), value(reworded))
+        self.assertNotEqual(value(CATALOGUE), value(renamed))
+        self.assertNotEqual(value(CATALOGUE), value(swapped))
 
 
 SEGMENTED = [(0, ["STR_LANGUAGE_NAME"]), (2, ["STR_COUNT"]), (9, ["STR_HELLO"])]
 
 
 class PackTest(unittest.TestCase):
-    def test_a_version_one_pack_is_still_built_and_checked_for_an_older_firmware(self):
-        pack = lang_pack.build_legacy_pack("en", CATALOGUE, {"STR_HELLO": "x" * 17000})
-        self.assertGreater(len(pack), 16384)
-        self.assertLessEqual(len(pack), 18432)
-        self.assertEqual(1, lang_pack.HEADER.unpack_from(pack)[1])
-        checked = lang_pack.validate_pack(pack, CATALOGUE, DRAWABLE, version=1)
-        self.assertEqual(("en", "x" * 17000), (checked["code"], checked["texts"]["STR_HELLO"]))
-        self.assertEqual(lang_pack.catalogue_hash(CATALOGUE), checked["catalogue_hash"])
-        with self.assertRaises(lang_pack.PackError):
-            lang_pack.validate_pack(pack, CATALOGUE, DRAWABLE)
-        with self.assertRaises(lang_pack.PackError):
-            lang_pack.build_legacy_pack("en", CATALOGUE, {"STR_HELLO": "x" * lang_pack.PACK_LIMIT})
-
-    def test_a_version_two_pack_is_refused_by_an_older_firmware(self):
+    def test_a_pack_of_any_other_version_is_refused(self):
         pack = lang_pack.build_pack("en", CATALOGUE, {})
-        with self.assertRaises(lang_pack.PackError):
-            lang_pack.validate_pack(pack, CATALOGUE, DRAWABLE, version=1)
+        self.assertEqual(1, lang_pack.HEADER.unpack_from(pack)[1])
+        for version in (0, 2, 3, 255):
+            with self.subTest(version=version), self.assertRaises(lang_pack.PackError):
+                lang_pack.validate_pack(header_changed(pack, 1, version), CATALOGUE, DRAWABLE)
 
     def test_the_header_names_the_format_the_catalogue_and_the_language(self):
         pack = lang_pack.build_pack("en", CATALOGUE, {})
         magic, version, count, size, catalogue, _, code, name = lang_pack.HEADER.unpack_from(pack)
-        self.assertEqual((b"DSLP", 2, 3, len(pack)), (magic, version, count, size))
+        self.assertEqual((b"DSLP", 1, 3, len(pack)), (magic, version, count, size))
         self.assertEqual(lang_pack.layout_hash(lang_pack.resident_segments(CATALOGUE)), catalogue)
         self.assertEqual(b"en" + bytes(6), code)
         self.assertEqual(b"English", name.rstrip(b"\0"))
@@ -548,7 +538,7 @@ class FullPackValidationTest(unittest.TestCase):
             pack = lang_pack.build_pack(code, CATALOGUE, translations)
             segment = {"module": 0, "count": len(CATALOGUE), "offset": TABLE, "size": len(pack) - TABLE}
             self.assertEqual({"code": code, "name": translations.get("STR_LANGUAGE_NAME", "English"),
-                              "version": 2, "count": len(CATALOGUE), "size": len(pack),
+                              "version": 1, "count": len(CATALOGUE), "size": len(pack),
                               "memory": lang_pack.aligned(len(pack)), "segments": [segment],
                               "catalogue_hash": lang_pack.layout_hash(
                                   lang_pack.resident_segments(CATALOGUE)),
@@ -558,8 +548,8 @@ class FullPackValidationTest(unittest.TestCase):
     def test_format_version_exact_length_and_checksum_are_checked(self):
         pack = lang_pack.build_pack("en", CATALOGUE, {})
         bad = [b"", pack[:55], pack[:TABLE - 1], pack[:-1], pack + b"\0",
-               header_changed(pack, 0, b"NOPE"), header_changed(pack, 1, 3),
-               header_changed(pack, 1, 1), header_changed(pack, 3, len(pack) - 1)]
+               header_changed(pack, 0, b"NOPE"), header_changed(pack, 1, 2),
+               header_changed(pack, 1, 0), header_changed(pack, 3, len(pack) - 1)]
         damaged = bytearray(pack)
         damaged[-2] ^= 1
         bad.append(bytes(damaged))
@@ -594,7 +584,7 @@ class FullPackValidationTest(unittest.TestCase):
     def test_count_and_catalogue_hash_must_match_the_target_catalogue(self):
         pack = lang_pack.build_pack("en", CATALOGUE, {})
         for bad in (header_changed(pack, 2, len(CATALOGUE) - 1),
-                    header_changed(pack, 4, lang_pack.catalogue_hash(CATALOGUE))):
+                    header_changed(pack, 4, lang_pack.layout_hash(lang_pack.resident_segments(CATALOGUE)) ^ 1)):
             with self.assertRaises(lang_pack.PackError):
                 self.validate(bad)
         renamed = [CATALOGUE[0], ("STR_OTHER", "Hello"), CATALOGUE[2]]
@@ -686,7 +676,7 @@ class CatalogueExportTest(unittest.TestCase):
 
     def test_catalogue_info_is_json_ready_with_ordered_entries_and_sorted_glyphs(self):
         info = lang_pack.catalogue_info(CATALOGUE, DRAWABLE)
-        self.assertEqual({"version": 2, "magic": "DSLP", "pack_limit": 18432,
+        self.assertEqual({"version": 1, "magic": "DSLP", "pack_limit": 18432,
                           "file_limit": 65535, "memory_align": 4,
                           "code_limit": 5, "code_bytes": 8, "name_bytes": 28,
                           "name_id": "STR_LANGUAGE_NAME",

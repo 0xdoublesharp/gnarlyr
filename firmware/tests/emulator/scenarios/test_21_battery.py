@@ -75,7 +75,7 @@ class EchoImageTest(EchoImageHarness):
             volume.add_file(path.name, path.read_bytes())
         if output == 0:
             volume.add_directory(IDENTITY.data_directory)
-            record = b"BT\x02\x01\x01" + bytes(range(1, 7)) + b"Radio" + bytes(27) + bytes(38 * 5)
+            record = b"BT\x01\x01\x01" + bytes(range(1, 7)) + b"Radio" + bytes(27) + bytes(38 * 5 + 1)
             volume.add_file("bluetooth.bin", record, directory=IDENTITY.data_directory)
         inserted, meters, radios = [], [], []
 

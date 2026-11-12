@@ -41,7 +41,7 @@ class SaveFilesTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory) / save_files.IDENTITY.data_directory
             save_files.prepare(folder)
-            self.assertTrue((folder / "resume.bin").is_file())
+            self.assertTrue((folder / "session.bin").is_file())
 
 
 class LibraryRoomTest(unittest.TestCase):

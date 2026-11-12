@@ -96,7 +96,7 @@ static void the_header_is_part_of_the_identity(void)
 
 static void a_chapter_folder_flag_changes_the_identity(void)
 {
-    CHECK_EQUAL(6, LIBRARY_VERSION);
+    CHECK_EQUAL(1, LIBRARY_VERSION);
     Library *library = fixture_library_open(&fixture);
     uint32_t before = content_of(library);
     LibrarySectionInfo folders = library->sections[LIBRARY_FOLDERS];

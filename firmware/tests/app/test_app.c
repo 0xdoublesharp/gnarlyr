@@ -2991,7 +2991,7 @@ static void a_fresh_card_gets_the_player_files_and_a_first_scan(void)
 {
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
     CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/settings.bin"));
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/resume.bin"));
+    CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/session.bin"));
     CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/favorites.bin"));
     CHECK_EQUAL(4 * 1024 * 1024, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/library.db"));
     uint32_t covers_size = fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/covers.bin");
@@ -2999,7 +2999,6 @@ static void a_fresh_card_gets_the_player_files_and_a_first_scan(void)
     CHECK((covers_size - COVERS_HEADER_SIZE) / (COVERS_ENTRY_SIZE + COVER_BUILD_RECORD_BYTES) >=
           2500);
     CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/scan.bin"));
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/upnext.bin"));
     CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/bluetooth.bin"));
     CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/favorite_added.bin"));
     step();

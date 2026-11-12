@@ -8,8 +8,7 @@
 #include "core/utf8.h"
 
 enum {
-    VERSION = 2,
-    FIRST_VERSION = 1,
+    VERSION = 1,
     HEADER_BYTES = 16,
     RECORD_BYTES = 32,
     CHECKSUM_FIELD = HEADPHONE_PROFILES_FILE_SIZE - 4,
@@ -80,7 +79,7 @@ static bool zero_bytes(const uint8_t *bytes, uint32_t length)
     return true;
 }
 
-static bool read_profile(const uint8_t *record, uint8_t version, HeadphoneProfile *profile)
+static bool read_profile(const uint8_t *record, HeadphoneProfile *profile)
 {
     bool ended = false;
     for (int index = 0; index < HEADPHONE_PROFILE_NAME_BYTES; index++) {
@@ -100,8 +99,7 @@ static bool read_profile(const uint8_t *record, uint8_t version, HeadphoneProfil
     profile->volume_ceiling = record[CEILING_FIELD];
     profile->balance = (int8_t)balance;
     profile->crossfeed = record[CROSSFEED_FIELD];
-    return (version > FIRST_VERSION || profile->crossfeed == 0) && valid_levels(profile) &&
-           valid_name(profile->name);
+    return valid_levels(profile) && valid_name(profile->name);
 }
 
 bool headphone_profiles_decode(const uint8_t *bytes, uint32_t length, HeadphoneProfiles *profiles)
@@ -114,8 +112,7 @@ bool headphone_profiles_decode(const uint8_t *bytes, uint32_t length, HeadphoneP
             return false;
         }
     }
-    if (bytes[4] < FIRST_VERSION || bytes[4] > VERSION || bytes[5] != 0 ||
-        !zero_bytes(bytes + 8, HEADER_BYTES - 8) ||
+    if (bytes[4] != VERSION || bytes[5] != 0 || !zero_bytes(bytes + 8, HEADER_BYTES - 8) ||
         hash_load(bytes + CHECKSUM_FIELD) != hash_update(HASH_START, bytes, CHECKSUM_FIELD)) {
         return false;
     }
@@ -126,7 +123,7 @@ bool headphone_profiles_decode(const uint8_t *bytes, uint32_t length, HeadphoneP
     }
     for (int slot = 0; slot < HEADPHONE_PROFILE_LIMIT; slot++) {
         const uint8_t *record = bytes + HEADER_BYTES + slot * RECORD_BYTES;
-        if (slot < candidate.count ? !read_profile(record, bytes[4], &candidate.slots[slot])
+        if (slot < candidate.count ? !read_profile(record, &candidate.slots[slot])
                                    : !zero_bytes(record, RECORD_BYTES)) {
             return false;
         }

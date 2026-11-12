@@ -24,6 +24,14 @@ SETTINGS_SEGMENT = 2
 TRIAL_CHECK = 0x5A
 
 
+def other_version_pack():
+    catalogue = lang_pack.read_catalogue()
+    segments = lang_pack.read_segments(catalogue)
+    pack = bytearray(lang_pack.build_pack("fr", catalogue, {"STR_LANGUAGE_NAME": "Francais"}, segments))
+    struct.pack_into("<H", pack, 4, lang_pack.VERSION + 1)
+    return lang_pack.sealed(pack, lang_pack.index_size(len(segments)))
+
+
 class EchoImageTest(EchoImageHarness):
     def card_volume(self, pack):
         from echo_emulator.fat_volume import Fat32Volume
@@ -39,8 +47,7 @@ class EchoImageTest(EchoImageHarness):
         return volume
 
     def trial_volume(self):
-        volume = self.card_volume(lang_pack.build_legacy_pack(
-            "fr", lang_pack.read_catalogue(), {"STR_LANGUAGE_NAME": "Francais"}))
+        volume = self.card_volume(other_version_pack())
         folder = IDENTITY.data_directory
         record = bytearray(512)
         record[:8] = b"DSUT" + bytes((TRIAL_RUNNING, 0, TRIAL_RUNNING ^ TRIAL_CHECK, 1))
@@ -68,9 +75,8 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(self.loaded_language_segment(session, pack, SETTINGS_MODULE))
         self.assert_healthy(session)
 
-    def test_a_version_one_card_pack_is_skipped_for_the_language_of_the_image(self):
-        catalogue = lang_pack.read_catalogue()
-        pack = lang_pack.build_legacy_pack("fr", catalogue, {"STR_LANGUAGE_NAME": "Francais"})
+    def test_a_card_pack_of_another_version_is_skipped_for_the_language_of_the_image(self):
+        pack = other_version_pack()
         session = self.session(volume=self.card_volume(pack))
         self.assertEqual(session.run_to_home_screen(), "condition met")
         self.assertTrue(self.loaded_language_pack(session))

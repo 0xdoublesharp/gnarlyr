@@ -8,8 +8,7 @@ import sys
 from pathlib import Path
 
 MAGIC = b"DSLP"
-VERSION = 2
-LEGACY_VERSION = 1
+VERSION = 1
 CODE_BYTES = 8
 NAME_BYTES = 28
 HEADER = struct.Struct(f"<4sHHIII{CODE_BYTES}s{NAME_BYTES}s")
@@ -102,10 +101,6 @@ def read_catalogue_text(text, source="en.txt"):
 def read_catalogue(directory=LANGUAGES):
     path = Path(directory) / f"{ENGLISH}.txt"
     return read_catalogue_text(path.read_text(encoding="utf-8"), path.name)
-
-
-def catalogue_hash(catalogue):
-    return fnv(b"".join(name.encode("ascii") + b"\0" for name, _ in catalogue))
 
 
 def resident_segments(catalogue):
@@ -342,18 +337,6 @@ def header_bytes(version, code, name, fields):
                        padded(name, NAME_BYTES, "language name"))
 
 
-def build_legacy_pack(code, catalogue, translations):
-    """A version 1 pack, for an installed build that predates segments."""
-    texts = pack_texts(code, catalogue, translations)
-    block = text_block([texts[name] for name, _ in catalogue])
-    size = HEADER.size + len(block)
-    if size > PACK_LIMIT:
-        raise PackError(f"{code}: the pack is {size:,} bytes, over the {PACK_LIMIT:,} byte limit")
-    header = header_bytes(LEGACY_VERSION, code, texts[NAME_ID],
-                          (len(catalogue), size, catalogue_hash(catalogue)))
-    return sealed(bytearray(header + block), size)
-
-
 def index_size(count):
     return HEADER.size + SEGMENT_INDEX.size + SEGMENT.size * count
 
@@ -431,22 +414,21 @@ def pack_info(pack):
     if len(pack) < HEADER.size:
         raise PackError("shorter than a pack header")
     magic, version, count, size, catalogue, checksum, code, name = HEADER.unpack_from(pack)
-    if magic != MAGIC or version not in (VERSION, LEGACY_VERSION):
-        raise PackError("not a version 1 or 2 language pack")
-    limit = PACK_LIMIT if version == LEGACY_VERSION else FILE_LIMIT
-    if size != len(pack) or size > limit or size <= HEADER.size + 2 * count:
+    if magic != MAGIC or version != VERSION:
+        raise PackError(f"not a version {VERSION} language pack")
+    if size != len(pack) or size > FILE_LIMIT or size <= HEADER.size + 2 * count:
         raise PackError(f"its size field is {size:,}, the file is {len(pack):,} bytes")
-    end = size if version == LEGACY_VERSION else index_size(segment_total(pack))
+    end = index_size(segment_total(pack))
     if checksum != fnv(pack[CHECKSUM_END:end], fnv(pack[:CHECKSUM_OFFSET])):
         raise PackError("its checksum is wrong")
-    segments = pack_segments(pack, count) if version == VERSION else None
+    segments = pack_segments(pack, count)
     language = metadata_text(code, "language code")
     if not CODE.fullmatch(language) or len(language) > CODE_LIMIT:
         raise PackError(f"language code must be 1 to {CODE_LIMIT} letters, digits or '-'")
     native_name = metadata_text(name, "language name")
     check_native_name(native_name)
-    memory = size if segments is None else memory_need(
-        segments[0]["offset"] + segments[0]["size"], [segment["size"] for segment in segments[1:]])
+    memory = memory_need(segments[0]["offset"] + segments[0]["size"],
+                         [segment["size"] for segment in segments[1:]])
     return {"code": language, "name": native_name, "version": version, "count": count,
             "size": size, "memory": memory, "catalogue_hash": catalogue, "segments": segments}
 
@@ -477,10 +459,6 @@ def block_texts(block, names):
 
 
 def pack_strings(pack, info, catalogue, segments):
-    if info["version"] == LEGACY_VERSION:
-        if info["catalogue_hash"] != catalogue_hash(catalogue):
-            raise PackError("the pack catalogue does not match this firmware")
-        return block_texts(pack[HEADER.size:], [name for name, _ in catalogue])
     shape = [(segment["module"], segment["count"]) for segment in info["segments"]]
     if info["catalogue_hash"] != layout_hash(segments) or shape != [
             (module, len(names)) for module, names in segments]:
@@ -492,13 +470,10 @@ def pack_strings(pack, info, catalogue, segments):
     return texts
 
 
-def validate_pack(data, catalogue, drawable, segments=None, version=VERSION, limit=PACK_LIMIT):
+def validate_pack(data, catalogue, drawable, segments=None, limit=PACK_LIMIT):
     """Check a whole pack against a firmware's catalogue, segments, format and memory."""
     pack = bytes(data)
     info = pack_info(pack)
-    if info["version"] != version:
-        raise PackError(f"the firmware reads version {version} packs; "
-                        f"this one is version {info['version']}")
     if info["count"] != len(catalogue):
         raise PackError("the pack catalogue does not match this firmware")
     if info["memory"] > limit:

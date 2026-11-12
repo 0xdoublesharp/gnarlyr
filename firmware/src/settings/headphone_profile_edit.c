@@ -6,7 +6,7 @@
 #include "headphone_format.h"
 
 enum {
-    VERSION = 2,
+    VERSION = 1,
     HEADER_BYTES = 16,
     RECORD_BYTES = 32,
     CHECKSUM_FIELD = HEADPHONE_PROFILES_FILE_SIZE - 4,
