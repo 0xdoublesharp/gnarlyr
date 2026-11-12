@@ -515,8 +515,9 @@ static bool reserved_clear(const uint8_t *extension)
 {
     uint8_t any = 0;
     for (int index = RESERVED_BYTE; index < RESERVED_BYTE + RESERVED_COUNT; index++) {
-        uint8_t reserved =
-        uint8_t reserved = index == DAC_FILTER_BYTE ? (uint8_t)~(DAC_FILTER_MASK | CROSSFEED_BITS | BATTERY_CARE_MASK) : 0xFF;
+        uint8_t reserved = index == DAC_FILTER_BYTE
+                               ? (uint8_t)~(DAC_FILTER_MASK | CROSSFEED_BITS | BATTERY_CARE_MASK)
+                               : 0xFF;
         any |= extension[index] & reserved;
     }
     return any == 0 && (extension[DAC_FILTER_BYTE] & DAC_FILTER_MASK) < DAC_FILTER_COUNT;

@@ -638,7 +638,7 @@ class LanguageCommands(VolumeCase):
 
     def test_version15_settings_with_a_dac_filter_crossfeed_and_battery_care_verify(self):
         valid = bytes([0x07, 24, 15, 0, 0x10, 0x32, 0x54, 0x76, 0x08]) + bytes(7)
-        for value in (0x01, 0x04, 0x08, 0x14, 0x60, 0x75):
+        for value in (0x01, 0x04, 0x08, 0x14, 0x60, 0x74):
             extension = bytearray(valid)
             extension[14] = value
             with self.subTest(value=value), self.current_snapshot():
