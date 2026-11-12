@@ -285,8 +285,8 @@ STR_SCREEN_MISSING = Screen missing: reinstall update
 
 # USB.
 STR_USB = USB
-STR_USB_EJECT_DRIVE = Eject · Hold Back: leave
-STR_USB_EJECT_DRIVES = Play: eject card · Hold Back: leave
+STR_USB_EJECT_DRIVE = Eject · Hold Back: disconnect
+STR_USB_EJECT_DRIVES = Play: eject card · Hold Back: disconnect
 STR_USB_UNPLUGGED = Unplugged too soon
 STR_USB_UNPLUGGED_HINT = Changes may be lost: eject first
 STR_USB_CODE_MISSING = USB missing: reinstall update
@@ -310,15 +310,10 @@ STR_USB_CARD = microSD card
 STR_USB_EJECTED = Ejected
 STR_USB_HIGH_SPEED = High speed
 STR_USB_FULL_SPEED = Full speed
-# A tiny tag after the USB screen title: the link speed (HS 480 Mbit/s, FS 12 Mbit/s); the
-# "!" marks Full Speed taken after High Speed failed.
-STR_USB_TAG_HIGH = HS
-STR_USB_TAG_FULL = FS
-STR_USB_TAG_FALLBACK = FS!
 
 # USB storage overview and details. {0} in STR_USB_FREE, STR_USB_TOTAL, STR_USB_KB, STR_USB_MB_S and
 # STR_USB_KB_S is a number or a size; {0} and {1} in STR_USB_TOTALS are sizes. {0} in the
-# STR_USB_*_HINT lines is one of the STR_USB_BACK_* actions. STR_USB_RATE_UNIT follows a
+# STR_USB_*_HINT lines is one of the STR_USB_BACK_* (USB audio) or STR_USB_MENU_* (storage) actions. STR_USB_RATE_UNIT follows a
 # large transfer rate. In STR_USB_ERRORS_VALUE {0} is a count and {1} the last SCSI sense
 # key and code; in STR_USB_LINK_HIGH and STR_USB_LINK_FULL {0} is the packet size in bytes.
 STR_USB_RATE_UNIT = MB/s
@@ -330,8 +325,12 @@ STR_USB_TOTALS = Read {0} · Written {1}
 STR_USB_BACK_DETAILS = Back: details
 STR_USB_BACK_MORE = Back: more
 STR_USB_BACK_OVERVIEW = Back: overview
-STR_USB_DRIVES_HINT = Eject drives · {0} · Hold Back: leave
-STR_USB_DRIVE_HINT = Eject to finish · {0} · Hold Back: leave
+STR_USB_MENU_DETAILS = Menu: details
+STR_USB_MENU_MORE = Menu: more
+STR_USB_MENU_OVERVIEW = Menu: overview
+STR_USB_HOLD_BACK_HINT = Hold Back to disconnect
+STR_USB_DRIVES_HINT = Eject drives · {0} · Hold Back: disconnect
+STR_USB_DRIVE_HINT = Eject to finish · {0} · Hold Back: disconnect
 STR_USB_STAT_INTERNAL = Internal
 STR_USB_STAT_CARD = microSD
 STR_USB_STAT_READ = Read
