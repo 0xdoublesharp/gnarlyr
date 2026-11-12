@@ -17,6 +17,8 @@ firmware/.venv/bin/python firmware/tools/test_library.py --tracks 8000
 
 Each command writes `/Volumes/Scratch/SnowskyEcho/data/test-library/fma-<tracks>`. It needs `fma_small.zip` and `fma_metadata.zip` in `/Volumes/Scratch/SnowskyEcho/data/fma/`, plus `ffmpeg` on PATH. The archives use bzip2 compression, which macOS `unzip` cannot read, so the builder reads them with Python's `zipfile`. The ffmpeg build here has no libvorbis, so the builder uses ffmpeg's own Vorbis encoder.
 
+A few `fma_small` MP3s are damaged: neither mutagen nor ffmpeg finds their audio frames. The builder skips such a track, logs it and lists it under `skipped` in the manifest. A CUE or M4B album with a damaged part is skipped whole. When skips leave the library short, the next albums in the same seeded order make up the count. Albums are taken whole, so a library can hold a few more tracks than asked for. A rerun keeps every finished file: a track counts as finished once its tags are written, which is the last step. Unfinished files are written again.
+
 ## Script lines and events
 
 | Script | Lines | Measures |

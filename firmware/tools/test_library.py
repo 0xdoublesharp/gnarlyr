@@ -35,6 +35,9 @@ ART_SIDES = (500, 1500)
 FRONT_COVER = 3
 UNSAFE = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 NAME_LIMIT = 80
+PART_PREFIX = ".part-"
+SOURCE_PREFIX = ".source-"
+WORK_PREFIX = ".work-"
 
 
 @dataclass
@@ -63,6 +66,8 @@ class Album:
     embedded: bool = True
     seed: int = 0
     files: list = field(default_factory=list)
+    written: list = field(default_factory=list)
+    skipped: list = field(default_factory=list)
 
 
 def safe_name(text, fallback):
@@ -104,22 +109,38 @@ def read_catalog(metadata_zip):
     return tracks
 
 
-def plan_albums(tracks, count, seed):
+def album_order(tracks, seed):
     grouped = {}
     for track in tracks:
         grouped.setdefault(track.album_id or "single-%d" % track.track_id, []).append(track)
     keys = sorted(grouped)
     random.Random(seed).shuffle(keys)
+    return [(key, sorted(grouped[key], key=lambda track: (track.number, track.track_id)))
+            for key in keys]
+
+
+def take_albums(order, start, needed, seed):
     albums, total = [], 0
-    for key in keys:
-        if total >= count:
+    for key, members in order[start:]:
+        if total >= needed:
             break
-        members = sorted(grouped[key], key=lambda track: (track.number, track.track_id))
         first = members[0]
         albums.append(Album(key, first.artist, first.album or first.title, members,
-                            seed=seed * 100003 + len(albums)))
+                            seed=seed * 100003 + start + len(albums)))
         total += len(members)
+    return albums
+
+
+def plan_albums(tracks, count, seed):
+    albums = take_albums(album_order(tracks, seed), 0, count, seed)
     choose_joined(albums)
+    for album in albums:
+        decide(album, random.Random(album.seed))
+    return albums
+
+
+def more_albums(tracks, seed, planned, needed):
+    albums = take_albums(album_order(tracks, seed), len(planned), needed, seed)
     for album in albums:
         decide(album, random.Random(album.seed))
     return albums
@@ -196,6 +217,32 @@ def album_folder(root, album):
     return base / title
 
 
+def readable(path):
+    from mutagen.mp3 import MP3
+    try:
+        MP3(path)
+    except Exception:
+        return False
+    return True
+
+
+def finished(path):
+    import mutagen
+    try:
+        audio = mutagen.File(path, easy=True)
+    except Exception:
+        return False
+    return audio is not None and bool(audio.get("title"))
+
+
+def clean_leftovers(root):
+    for path in sorted(root.rglob("*"), reverse=True):
+        if path.name.startswith(WORK_PREFIX) and path.is_dir():
+            shutil.rmtree(path)
+        elif path.name.startswith((PART_PREFIX, SOURCE_PREFIX)) and path.is_file():
+            path.unlink()
+
+
 def run_ffmpeg(arguments):
     result = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *arguments],
                             capture_output=True, text=True)
@@ -259,6 +306,20 @@ def track_values(album, track, position):
             "year": track.year or "", "number": position, "license": track.license}
 
 
+def write_source(archive, album, track, target):
+    part = target.with_name(PART_PREFIX + target.name)
+    with tempfile.NamedTemporaryFile(prefix=SOURCE_PREFIX, suffix=".mp3", dir=target.parent) as source:
+        source.write(archive.read(source_member(track.track_id)))
+        source.flush()
+        if not readable(source.name):
+            raise ValueError("no MPEG audio frames")
+        if album.format == "mp3":
+            shutil.copyfile(source.name, part)
+        else:
+            run_ffmpeg(["-i", source.name, "-map", "0:a", "-map_metadata", "-1",
+                        *ENCODERS[album.format], str(part)])
+
+
 def write_plain(archive_path, root, album, picture):
     folder = album_folder(root, album)
     folder.mkdir(parents=True, exist_ok=True)
@@ -266,30 +327,44 @@ def write_plain(archive_path, root, album, picture):
         for position, track in enumerate(album.tracks, 1):
             name = "%02d %s.%s" % (position, safe_name(track.title, "Track"), album.format)
             target = folder / name
-            data = archive.read(source_member(track.track_id))
-            if album.format == "mp3":
-                target.write_bytes(data)
-            else:
-                with tempfile.NamedTemporaryFile(suffix=".mp3", dir=folder) as source:
-                    source.write(data)
-                    source.flush()
-                    run_ffmpeg(["-i", source.name, "-map", "0:a", "-map_metadata", "-1",
-                                *ENCODERS[album.format], str(target)])
-            tag_file(target, album.format, track_values(album, track, position), picture)
+            if not finished(target):
+                try:
+                    write_source(archive, album, track, target)
+                except (ValueError, RuntimeError) as problem:
+                    target.with_name(PART_PREFIX + target.name).unlink(missing_ok=True)
+                    target.unlink(missing_ok=True)
+                    album.skipped.append((track.track_id, str(problem).splitlines()[0][:200]))
+                    continue
+                part = target.with_name(PART_PREFIX + target.name)
+                tag_file(part, album.format, track_values(album, track, position), picture)
+                part.replace(target)
             album.files.append((target, track))
+            album.written.append(track)
     return folder
+
+
+class Unreadable(Exception):
+    def __init__(self, skipped):
+        super().__init__("unreadable parts")
+        self.skipped = skipped
 
 
 def joined_audio(archive_path, folder, album, target, codec):
     from mutagen.mp3 import MP3
     lengths = []
-    with zipfile.ZipFile(archive_path) as archive, tempfile.TemporaryDirectory(dir=folder) as work:
-        parts = []
+    with zipfile.ZipFile(archive_path) as archive, \
+            tempfile.TemporaryDirectory(prefix=WORK_PREFIX, dir=folder) as work:
+        parts, unreadable = [], []
         for index, track in enumerate(album.tracks):
             part = Path(work) / ("%03d.mp3" % index)
             part.write_bytes(archive.read(source_member(track.track_id)))
+            if not readable(part):
+                unreadable.append((track.track_id, "no MPEG audio frames"))
+                continue
             lengths.append(MP3(part).info.length)
             parts.append(part)
+        if unreadable:
+            raise Unreadable(unreadable)
         listing = Path(work) / "parts.txt"
         listing.write_text("".join("file '%s'\n" % part.name for part in parts))
         chapters = Path(work) / "chapters.txt"
@@ -321,22 +396,44 @@ def cue_text(album, file_name, lengths):
     return "\r\n".join(lines) + "\r\n"
 
 
-def write_joined(archive_path, root, album, picture):
-    folder = album_folder(root, album)
-    folder.mkdir(parents=True, exist_ok=True)
-    stem = safe_name(album.title, "Album")
-    if album.kind == "cue":
-        target = folder / (stem + ".flac")
-        lengths = joined_audio(archive_path, folder, album, target, ENCODERS["flac"])
-        (folder / (stem + ".cue")).write_bytes(cue_text(album, target.name, lengths).encode("utf-8"))
-        tag_file(target, "flac", track_values(album, album.tracks[0], 1) | {"title": album.title}, picture)
-    else:
-        target = folder.parent / (stem + ".m4b")
-        joined_audio(archive_path, folder, album, target, ENCODERS["m4a"] + ["-f", "mp4"])
+def prune(folder, root):
+    while folder != root and folder.is_dir() and not any(folder.iterdir()):
         folder.rmdir()
         folder = folder.parent
-        tag_file(target, "m4b", track_values(album, album.tracks[0], 1) | {"title": album.title}, picture)
+
+
+def joined_target(root, album):
+    folder = album_folder(root, album)
+    stem = safe_name(album.title, "Album")
+    if album.kind == "cue":
+        return folder, folder / (stem + ".flac"), folder / (stem + ".cue")
+    return folder, folder.parent / (stem + ".m4b"), None
+
+
+def write_joined(archive_path, root, album, picture):
+    folder, target, cue = joined_target(root, album)
+    kind = "flac" if cue else "m4b"
+    if not finished(target) or (cue is not None and not cue.exists()):
+        folder.mkdir(parents=True, exist_ok=True)
+        part = target.with_name(PART_PREFIX + target.name)
+        codec = ENCODERS["flac"] if cue else ENCODERS["m4a"] + ["-f", "mp4"]
+        try:
+            lengths = joined_audio(archive_path, folder, album, part, codec)
+        except (Unreadable, RuntimeError) as problem:
+            part.unlink(missing_ok=True)
+            album.skipped += getattr(problem, "skipped", None) or [
+                (track.track_id, str(problem).splitlines()[0][:200]) for track in album.tracks]
+            prune(folder, root)
+            return None
+        tag_file(part, kind, track_values(album, album.tracks[0], 1) | {"title": album.title}, picture)
+        part.replace(target)
+        if cue is not None:
+            cue.write_bytes(cue_text(album, target.name, lengths).encode("utf-8"))
     album.files.append((target, album.tracks[0]))
+    album.written = list(album.tracks)
+    if cue is None:
+        prune(folder, root)
+        return target.parent
     return folder
 
 
@@ -345,22 +442,26 @@ def write_album(archive_path, root, album):
     picture = art if album.embedded else None
     writer = write_joined if album.kind != "plain" else write_plain
     folder = writer(archive_path, root, album, picture)
-    if album.folder_name and art is not None:
+    if album.written and album.folder_name and art is not None:
         (folder / album.folder_name).write_bytes(art[0])
+    elif not album.written and folder is not None:
+        prune(folder, root)
     return album
 
 
 def manifest(albums, root, count):
+    skipped = [item for album in albums for item in album.skipped]
     files = [(path, track, album) for album in albums for path, track in album.files]
     by_format, art = {}, {}
+    albums = [album for album in albums if album.written]
     for album in albums:
-        by_format[album.format] = by_format.get(album.format, 0) + len(album.tracks)
+        by_format[album.format] = by_format.get(album.format, 0) + len(album.written)
         art[album.art] = art.get(album.art, 0) + 1
     return {
         "source": "Free Music Archive, fma_small (Creative Commons; private testing only)",
         "requested_tracks": count,
         "summary": {
-            "tracks": sum(len(album.tracks) for album in albums), "albums": len(albums),
+            "tracks": sum(len(album.written) for album in albums), "albums": len(albums),
             "files": len(files), "tracks_by_format": by_format, "art_kinds": art,
             "albums_with_folder_images": sum(1 for album in albums if album.folder_name),
             "albums_with_only_folder_images": sum(1 for album in albums
@@ -368,7 +469,9 @@ def manifest(albums, root, count):
             "cue_albums": sum(1 for album in albums if album.kind == "cue"),
             "books": sum(1 for album in albums if album.kind == "book"),
             "bytes": sum(path.stat().st_size for path, _, _ in files),
+            "skipped_tracks": len(skipped),
         },
+        "skipped": [{"fma_track_id": track_id, "reason": reason} for track_id, reason in skipped],
         "tracks": [{"path": str(path.relative_to(root)), "fma_track_id": track.track_id,
                     "artist": album.artist, "album": album.title, "title": track.title,
                     "license": track.license, "format": album.format, "art": album.art}
@@ -380,26 +483,37 @@ def credits(albums):
     lines = ["Music from the Free Music Archive (https://freemusicarchive.org), fma_small set.",
              "Each track keeps its own Creative Commons licence; for private testing only.", ""]
     for album in albums:
-        for track in album.tracks:
+        for track in album.written:
             lines.append("%06d  %s - %s (%s): %s" % (track.track_id, album.artist, track.title,
                                                      album.title, track.license))
     return "\n".join(lines) + "\n"
+
+
+def write_albums(archive_path, out, albums, workers, log):
+    with concurrent.futures.ThreadPoolExecutor(workers) as pool:
+        futures = [pool.submit(write_album, archive_path, out, album) for album in albums]
+        for done, future in enumerate(concurrent.futures.as_completed(futures), 1):
+            for track_id, reason in future.result().skipped:
+                log("  skipped FMA track %06d: %s" % (track_id, reason))
+            if done % 100 == 0:
+                log("  %d of %d albums written" % (done, len(albums)))
 
 
 def build(fma, out, count, seed, workers, log=print):
     catalog = read_catalog(fma / "fma_metadata.zip")
     albums = plan_albums(catalog, count, seed)
     log("planned %d albums, %d tracks" % (len(albums), sum(len(album.tracks) for album in albums)))
-    if out.exists():
-        shutil.rmtree(out)
-    out.mkdir(parents=True)
+    out.mkdir(parents=True, exist_ok=True)
+    clean_leftovers(out)
     archive_path = fma / "fma_small.zip"
-    with concurrent.futures.ThreadPoolExecutor(workers) as pool:
-        futures = [pool.submit(write_album, archive_path, out, album) for album in albums]
-        for done, future in enumerate(concurrent.futures.as_completed(futures), 1):
-            future.result()
-            if done % 100 == 0:
-                log("  %d of %d albums written" % (done, len(albums)))
+    batch = albums
+    while batch:
+        write_albums(archive_path, out, batch, workers, log)
+        short = count - sum(len(album.written) for album in albums)
+        batch = more_albums(catalog, seed, albums, short) if short > 0 else []
+        albums += batch
+        if batch:
+            log("%d tracks short; adding %d albums" % (short, len(batch)))
     (out / "CREDITS.txt").write_text(credits(albums))
     data = manifest(albums, out, count)
     (out.parent / (out.name + "-manifest.json")).write_text(json.dumps(data, ensure_ascii=False, indent=1))
@@ -408,7 +522,8 @@ def build(fma, out, count, seed, workers, log=print):
 
 def parse_arguments(argv):
     parser = argparse.ArgumentParser(description="Build a realistic card layout from the FMA "
-                                                 "Creative Commons set for player timing tests")
+                                                 "Creative Commons set for player timing tests; "
+                                                 "a rerun keeps finished files")
     parser.add_argument("--fma", type=Path, default=Path("/Volumes/Scratch/SnowskyEcho/data/fma"))
     parser.add_argument("--tracks", type=int, default=4000)
     parser.add_argument("--out", type=Path)
