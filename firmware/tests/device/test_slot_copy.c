@@ -25,6 +25,12 @@ typedef struct WriteRecord {
 static uint8_t *sectors;
 static WriteRecord log_entries[LOG_CAPACITY];
 static int writes;
+static int write_calls;
+static int read_calls;
+static int file_read_calls;
+static int fail_write_call;
+static int fail_read_call;
+static int fail_file_read_call;
 static uint32_t last_done;
 static bool went_backwards;
 static uint8_t *file_bytes;
@@ -33,6 +39,10 @@ static uint32_t buffer[SLOT_COPY_BUFFER_WORDS];
 static bool storage_read(void *context, uint32_t lba, uint32_t count, void *out)
 {
     (void)context;
+    read_calls++;
+    if (read_calls == fail_read_call) {
+        return false;
+    }
     memcpy(out, sectors + (size_t)lba * 512, (size_t)count * 512);
     return true;
 }
@@ -40,6 +50,10 @@ static bool storage_read(void *context, uint32_t lba, uint32_t count, void *out)
 static bool storage_write(void *context, uint32_t lba, uint32_t count, const void *bytes)
 {
     (void)context;
+    write_calls++;
+    if (write_calls == fail_write_call) {
+        return false;
+    }
     memcpy(sectors + (size_t)lba * 512, bytes, (size_t)count * 512);
     if (writes < LOG_CAPACITY) {
         log_entries[writes] = (WriteRecord){lba, ((const uint8_t *)bytes)[0]};
@@ -51,6 +65,10 @@ static bool storage_write(void *context, uint32_t lba, uint32_t count, const voi
 static bool file_read(void *context, uint32_t offset, void *out, uint32_t length)
 {
     (void)context;
+    file_read_calls++;
+    if (file_read_calls == fail_file_read_call) {
+        return false;
+    }
     memcpy(out, file_bytes + offset, length);
     return true;
 }
@@ -86,6 +104,12 @@ static void reset(void)
     free(sectors);
     sectors = calloc(STORAGE_SECTORS, 512);
     writes = 0;
+    write_calls = 0;
+    read_calls = 0;
+    file_read_calls = 0;
+    fail_write_call = 0;
+    fail_read_call = 0;
+    fail_file_read_call = 0;
     last_done = 0;
     went_backwards = false;
 }
@@ -167,12 +191,47 @@ static void a_damaged_header_copy_makes_a_slot_invalid(void)
     free(bytes);
 }
 
+static void every_copy_io_failure_is_reported(void)
+{
+    enum {
+        SMALL_CHUNKS = 3
+    };
+    file_bytes = image(11);
+    UpdateFile file = {file_read, FW_END + 4, NULL};
+    SlotCopyJob job = {&STORAGE, &file, 0, SLOT_1, buffer, {NULL, NULL}, SMALL_CHUNKS};
+    reset();
+    CHECK(slot_copy_run(&job));
+    int successful_reads = read_calls;
+    int successful_writes = write_calls;
+    int successful_file_reads = file_read_calls;
+    CHECK(successful_reads > 0);
+    CHECK(successful_writes > 0);
+    CHECK_EQUAL(SMALL_CHUNKS, successful_file_reads);
+    for (int failure = 1; failure <= successful_reads; failure++) {
+        reset();
+        fail_read_call = failure;
+        CHECK(!slot_copy_run(&job));
+    }
+    for (int failure = 1; failure <= successful_writes; failure++) {
+        reset();
+        fail_write_call = failure;
+        CHECK(!slot_copy_run(&job));
+    }
+    for (int failure = 1; failure <= successful_file_reads; failure++) {
+        reset();
+        fail_file_read_call = failure;
+        CHECK(!slot_copy_run(&job));
+    }
+    free(file_bytes);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_file_is_written_into_one_slot_header_last),
         TEST_CASE(a_valid_slot_is_copied_into_the_other_and_matching_chunks_are_kept),
         TEST_CASE(a_damaged_header_copy_makes_a_slot_invalid),
+        TEST_CASE(every_copy_io_failure_is_reported),
     };
     int result = test_run_all(cases, TEST_CASE_COUNT(cases));
     free(sectors);

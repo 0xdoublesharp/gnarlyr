@@ -17,6 +17,34 @@ static void a_record_survives_encoding(void)
     CHECK_EQUAL(2, trial.attempts);
 }
 
+static void every_state_and_attempt_boundary_survives_encoding(void)
+{
+    static const uint8_t ATTEMPTS[] = {0, 1, UPDATE_TRIAL_LIMIT, 0xFF};
+    for (int state = UPDATE_TRIAL_NONE; state <= UPDATE_TRIAL_ROLLED_BACK; state++) {
+        for (size_t index = 0; index < sizeof ATTEMPTS / sizeof ATTEMPTS[0]; index++) {
+            UpdateTrial trial = round_trip((UpdateTrial){(UpdateTrialState)state, ATTEMPTS[index]});
+            CHECK_EQUAL(state, trial.state);
+            CHECK_EQUAL(ATTEMPTS[index], trial.attempts);
+        }
+    }
+}
+
+static void every_single_bit_change_invalidates_a_record(void)
+{
+    uint8_t encoded[UPDATE_TRIAL_BYTES];
+    update_trial_encode((UpdateTrial){UPDATE_TRIAL_RUNNING, 2}, encoded);
+    for (uint32_t byte = 0; byte < sizeof encoded; byte++) {
+        for (uint32_t bit = 0; bit < 8; bit++) {
+            uint8_t changed[UPDATE_TRIAL_BYTES];
+            memcpy(changed, encoded, sizeof changed);
+            changed[byte] ^= (uint8_t)(1u << bit);
+            UpdateTrial trial = update_trial_decode(changed);
+            CHECK_EQUAL(UPDATE_TRIAL_NONE, trial.state);
+            CHECK_EQUAL(0, trial.attempts);
+        }
+    }
+}
+
 static void zeros_and_damaged_records_mean_no_trial(void)
 {
     uint8_t bytes[UPDATE_TRIAL_BYTES] = {0};
@@ -100,6 +128,8 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_record_survives_encoding),
+        TEST_CASE(every_state_and_attempt_boundary_survives_encoding),
+        TEST_CASE(every_single_bit_change_invalidates_a_record),
         TEST_CASE(zeros_and_damaged_records_mean_no_trial),
         TEST_CASE(each_boot_of_a_trial_is_charged_until_the_limit),
         TEST_CASE(a_settled_boot_is_refunded),

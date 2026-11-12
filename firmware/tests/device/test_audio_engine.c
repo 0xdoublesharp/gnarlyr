@@ -1492,6 +1492,26 @@ static void arming_sleep_near_the_end_starts_the_shorter_fade_at_full_level(void
     CHECK(beginning >= 4090 && beginning <= 4096);
 }
 
+static void a_zero_sleep_deadline_and_rearming_stay_bounded(void)
+{
+    start_scripted_engine(0, 1);
+    CHECK(play_file("first", 0, 1));
+    engine.consumed = 123;
+    audio_engine_set_sleep_remaining(&engine, 0);
+    CHECK(engine.sleep_fading);
+    CHECK_EQUAL(1, engine.sleep_fade_ms);
+    CHECK_EQUAL(123, engine.sleep_end_at);
+    audio_engine_set_sleep_remaining(&engine, 30000);
+    CHECK_EQUAL(1, engine.sleep_fade_ms);
+    CHECK_EQUAL(123 + 30 * engine.output_rate, engine.sleep_end_at);
+    audio_engine_set_sleep_remaining(&engine, UINT32_MAX);
+    CHECK(!engine.sleep_fading);
+    CHECK_EQUAL(123, engine.sleep_end_at);
+    audio_engine_set_sleep_remaining(&engine, 1000);
+    CHECK(engine.sleep_fading);
+    CHECK_EQUAL(1000, engine.sleep_fade_ms);
+}
+
 static void exact_loop(uint32_t start_ms, uint32_t a, uint32_t b)
 {
     start_engine();
@@ -1526,6 +1546,7 @@ static void ab_repeat_keeps_exact_submillisecond_samples_and_loops_without_advan
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_zero_sleep_deadline_and_rearming_stay_bounded),
         TEST_CASE(arming_sleep_near_the_end_starts_the_shorter_fade_at_full_level),
         TEST_CASE(ab_repeat_keeps_exact_submillisecond_samples_and_loops_without_advancing),
         TEST_CASE(sleep_fades_in_the_pcm_stage_and_cancel_restores_unity),

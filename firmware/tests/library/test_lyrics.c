@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "check.h"
@@ -92,6 +93,40 @@ static void text_is_clipped_on_a_complete_utf8_character(void)
     CHECK(strcmp(line, "a") == 0);
 }
 
+static void line_and_tag_limits_are_explicit_and_safe(void)
+{
+    static char text[8192];
+    uint32_t used = 0;
+    for (uint32_t line = 0; line <= LYRICS_LINE_CAPACITY; line++) {
+        used += (uint32_t)snprintf(text + used, sizeof text - used, "[00:%02u.%03u]Line\n",
+                                   line % 60, line);
+    }
+    Input input = {text, used, false};
+    CHECK(parse(&input));
+    CHECK_EQUAL(LYRICS_LINE_CAPACITY, index_file.count);
+    CHECK(index_file.truncated);
+    const char *many = "[00:01][00:02][00:03][00:04][00:05][00:06][00:07][00:08][00:09]Nine";
+    input = (Input){many, (uint32_t)strlen(many), false};
+    CHECK(parse(&input));
+    CHECK_EQUAL(8, index_file.count);
+    CHECK(!index_file.truncated);
+}
+
+static void invalid_offsets_and_text_destinations_fail_safely(void)
+{
+    const char *text = "[offset:3600001]\n[00:01]One";
+    Input input = {text, (uint32_t)strlen(text), false};
+    CHECK(parse(&input));
+    CHECK_EQUAL(1000, index_file.lines[0].time_ms);
+    char output[8] = "stale";
+    CHECK(!lyrics_text((ByteSource){read_input, &input}, &index_file.lines[0], output, 0));
+    CHECK(strcmp(output, "stale") == 0);
+    CHECK(!lyrics_text((ByteSource){NULL, &input}, &index_file.lines[0], output, sizeof output));
+    CHECK_EQUAL(0, output[0]);
+    CHECK(!lyrics_parse(&index_file, (ByteSource){NULL, &input}, input.bytes));
+    CHECK_EQUAL(0, index_file.count);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -101,6 +136,8 @@ int main(void)
         TEST_CASE(malformed_tags_and_plain_text_do_not_create_timed_lines),
         TEST_CASE(reads_are_bounded_and_failure_discards_the_partial_index),
         TEST_CASE(text_is_clipped_on_a_complete_utf8_character),
+        TEST_CASE(line_and_tag_limits_are_explicit_and_safe),
+        TEST_CASE(invalid_offsets_and_text_destinations_fail_safely),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
