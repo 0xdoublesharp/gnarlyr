@@ -383,7 +383,10 @@ set(ECHO_OVERLAY_IMPORTS
 )
 if(NOT ECHO_RELEASE)
     list(APPEND ECHO_OVERLAY_IMPORTS
-        app_debug_frames
+        app_debug_frame_sources
+        draw_profile_average_us
+        frame_stats_average_us
+        frame_stats_worst_us
         rtc_registers_decode
         board_battery_gauge
         board_debug_audio
@@ -457,6 +460,7 @@ if(CMAKE_CROSSCOMPILING)
         board/update.c
         board/update_request.c
         board/wall_time.c
+        logic/rtc_registers.c
         board/usb_dac_session.c
         board/usb_listen.c
         board/usb_report.c
@@ -538,7 +542,7 @@ add_executable(echo_usb_overlay
 )
 if(NOT ECHO_RELEASE)
     target_sources(echo_usb_overlay PRIVATE board/debug_report_file.c board/debug_script_file.c
-        board/usb_screen_capture.c)
+        board/usb_screen_capture.c ${PROJECT_SOURCE_DIR}/src/app/debug_frames.c)
 endif()
 set_target_properties(echo_usb_overlay PROPERTIES
     SUFFIX .elf

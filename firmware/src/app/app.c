@@ -2385,20 +2385,10 @@ const FrameStats *app_frame_stats(void)
     return &app.frame_stats;
 }
 
-_Static_assert((int)DEBUG_FRAME_PARTS == (int)DRAW_PART_COUNT, "the report names every part");
-
-DebugFrames app_debug_frames(void)
+DebugFrameSources app_debug_frame_sources(void)
 {
-    DebugFrames frames = {.count = app.frame_stats.recorded,
-                          .total_us = frame_stats_average_us(&app.frame_stats),
-                          .worst_us = frame_stats_worst_us(&app.frame_stats),
-                          .update_us = frame_stats_average_us(&app.update_stats),
-                          .draw_us = frame_stats_average_us(&app.draw_stats),
-                          .send_us = frame_stats_average_us(&app.send_stats)};
-    for (int part = 0; part < DRAW_PART_COUNT; part++) {
-        frames.part_us[part] = draw_profile_average_us((DrawPart)part);
-    }
-    return frames;
+    return (DebugFrameSources){&app.frame_stats, &app.update_stats, &app.draw_stats,
+                               &app.send_stats};
 }
 
 const char *app_screen_title(void)

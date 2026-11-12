@@ -41,6 +41,8 @@ typedef struct DebugFrameSources {
     const FrameStats *send;
 } DebugFrameSources;
 
+DebugFrameSources app_debug_frame_sources(void);
+
 typedef struct DebugCodeEntry {
     DebugRequest (*step)(uint32_t now_ms, DebugRunnerView view);
     void (*stop)(uint32_t now_ms, DebugScriptState state);
