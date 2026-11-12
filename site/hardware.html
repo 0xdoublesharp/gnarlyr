@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en" prefix="og: https://ogp.me/ns#">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#150f25"><meta name="description" content="Full-size Snowsky ECHO specifications and a plain-language guide to its processor, CS43198 audio chips, display, USB and power."><meta property="og:title" content="Meet the hardware. — Gnarlyr"><meta property="og:description" content="Full-size Snowsky ECHO specifications and a plain-language guide to its processor, CS43198 audio chips, display, USB and power."><meta property="og:type" content="website"><meta property="og:url" content="https://gnarlyr.com/hardware.html"><link rel="canonical" href="https://gnarlyr.com/hardware.html"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="stylesheet" href="styles.css"><script src="site.js" defer></script><title>Meet the hardware. — Gnarlyr</title>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#150f25"><meta name="description" content="Explore what Gnarlyr unlocks on the full-size ECHO: guarded DAC changes, USB power choices, finer brightness control and a settable clock, plus hardware specifications."><meta property="og:title" content="Meet the hardware. — Gnarlyr"><meta property="og:description" content="Explore what Gnarlyr unlocks on the full-size ECHO: guarded DAC changes, USB power choices, finer brightness control and a settable clock, plus hardware specifications."><meta property="og:type" content="website"><meta property="og:url" content="https://gnarlyr.com/hardware.html"><link rel="canonical" href="https://gnarlyr.com/hardware.html"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="stylesheet" href="styles.css"><script src="site.js" defer></script><title>Meet the hardware. — Gnarlyr</title>
 <meta property="og:site_name" content="Gnarlyr">
 <meta property="og:locale" content="en_US">
 <meta property="og:image" content="https://gnarlyr.com/assets/social/hardware-42374fd0d273.png">
@@ -11,7 +11,7 @@
 <meta property="og:image:alt" content="Gnarlyr cassette artwork beside the words “Meet the hardware.”">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Meet the hardware. — Gnarlyr">
-<meta name="twitter:description" content="Full-size Snowsky ECHO specifications and a plain-language guide to its processor, CS43198 audio chips, display, USB and power.">
+<meta name="twitter:description" content="Explore what Gnarlyr unlocks on the full-size ECHO: guarded DAC changes, USB power choices, finer brightness control and a settable clock, plus hardware specifications.">
 <meta name="twitter:image" content="https://gnarlyr.com/assets/social/hardware-42374fd0d273.png">
 <meta name="twitter:image:alt" content="Gnarlyr cassette artwork beside the words “Meet the hardware.”">
 </head>
@@ -36,7 +36,7 @@
 </p>
 <h1 class="page-title">Meet the hardware.
 </h1>
-<p>See the ECHO’s everyday specifications, then explore the chips and circuits behind its screen, sound, storage and connections.
+<p>See what Gnarlyr makes possible on the ECHO’s existing hardware, then explore the chips and circuits behind its screen, sound, storage and connections.
 </p><p class="hardware-link"><a href="#shop">Shop the full-size ECHO →</a>. Gnarlyr is installed separately.</p></div><div class="doc-layout wrap">
 <nav class="contents" aria-label="On this page">
 <p class="eyebrow">On this page
@@ -46,6 +46,7 @@
 </li>
 <li><a href="#chips">Processor and audio chips</a>
 </li>
+<li><a href="#unlocked">What Gnarlyr unlocks</a></li>
 <li><a href="#engineering">Cores, DMA &amp; memory</a></li><li><a href="#display">Screen and buttons</a>
 </li>
 <li><a href="#usb">USB and Bluetooth</a>
@@ -123,7 +124,21 @@
 </p></div>
 </details>
 </section>
-<section class="doc-section" id="engineering" aria-labelledby="engineering-title"><h2 id="engineering-title">How the small hardware does more.</h2><p class="intro">Playing music is a relay: read a file, turn it into samples, keep those samples moving, then turn them into sound. The ECHO splits that work between two processors and dedicated transfer hardware.</p><ol class="install-preview"><li><span>01</span><div><h3>Read and decode.</h3><p>Core 0 runs the menus, storage and audio processing. Core 1 runs the loaded compressed-audio decoder; a dedicated hardware accelerator helps reconstruct FLAC audio.</p></div></li><li><span>02</span><div><h3>Keep a buffer ready.</h3><p>A ring in RAM holds decoded samples. DMA moves them to I2S at the audio clock’s pace while the processors prepare more.</p></div></li><li><span>03</span><div><h3>Make the signal.</h3><p>I2S feeds both CS43198 DACs. They convert samples into the analog signal used by the headphone outputs.</p></div></li></ol><h3>What Gnarlyr changes</h3><ul class="detail-list"><li><strong>DMA with cleaner transitions.</strong> Stock already used DMA. Gnarlyr clears stale audio on restart, refills before restarting DMA and fades around interrupted playback. Compatible gapless transitions keep the continuous sample stream.</li><li><strong>Use the hardware we understand.</strong> Stock decoder modules reference FLAC prediction, MP3 synthesis and transform accelerators. Gnarlyr currently uses the FLAC prediction block, while its other decoder work uses software and targeted ARM arithmetic. Register references in stock code establish the map; they are not physical performance measurements.</li><li><strong>Rest each core when it can.</strong> Decode work waits when its buffers are full. Main-loop scheduling batches reads and lets idle cores sleep; screen-off idle states lower clocks. Demanding decoder streams can request a higher clock.</li><li><strong>Load the code for the task.</strong> RAM is reused for code modules: scanning, extra screens and USB need not all live in memory at once. Scanning can use decoder RAM while playback is stopped. The display stores its own picture, avoiding a full-screen framebuffer in main RAM.</li><li><strong>Change the output deliberately.</strong> Gain and filter changes use mute and power sequencing. Low gain uses a documented CS43198 output setting; High retains its documented higher range. Jack changes mute while the connection settles.</li></ul><p>Battery-runtime and analog-performance comparisons require measurements on the player.</p></section>
+<section class="doc-section" id="unlocked" aria-labelledby="unlocked-title">
+<h2 id="unlocked-title">What Gnarlyr unlocks.</h2>
+<p class="intro">The ECHO keeps its processor, DACs, display and battery. Gnarlyr changes how the firmware uses them, adding controls and refining the paths between music, headphones and USB.</p>
+<ul class="detail-list">
+<li><strong>Guarded changes to the analog output.</strong> Stock changes gain while the headphone outputs are powered. Gnarlyr mutes and power-sequences gain changes, mutes around filter changes and guards jack transitions while they settle. Low gain uses the CS43198’s documented setting in place of stock’s reserved value.</li>
+<li><strong>Separate listening levels.</strong> Wired and Bluetooth playback remember their own volume. Four headphone profiles add digital trim, balance and ceilings for wired listening, including USB audio. The two headphone jacks share the DACs; choosing an output selects its volume scale.</li>
+<li><strong>USB choices on one cable.</strong> Move between storage, Charge &amp; play and USB audio. Run from USB power lets the cable supply the player with charging off; a low or unknown battery reading enables charging first. Stock already exposes the supply and charging controls in its DAC mode; Gnarlyr brings them into the player’s USB chooser.</li>
+<li><strong>A clock you can set.</strong> The clock chip keeps time while the player is off. Set the date, local time and UTC offset, choose a 12- or 24-hour display, and open the monthly calendar from Home → Clock.</li>
+<li><strong>Finer backlight control.</strong> Ten brightness levels span 20–100% drive, with a ramp when the backlight turns on. Stock’s six settings top out at 95% drive. The display driver sends changed areas and adjusts its transfer timing when the processor clock changes.</li>
+<li><strong>Less activity between tasks.</strong> Stock’s main loop busy-polls. Gnarlyr lets idle cores sleep, batches storage reads and lowers clocks when the screen and audio are idle. Optional standby keeps a paused session ready on the 24 MHz crystal, with a later full shutdown.</li>
+</ul>
+<p>These changes describe firmware behavior. Battery-life gains, output levels and audible improvements need measurements and listening checks on the player. FiiO’s power and battery ratings remain the reference above.</p>
+<p><a href="firmware.html#over-stock">See the listening features added over stock →</a></p>
+</section>
+<section class="doc-section" id="engineering" aria-labelledby="engineering-title"><h2 id="engineering-title">How the small hardware does more.</h2><p class="intro">Playing music is a relay: read a file, turn it into samples, keep those samples moving, then turn them into sound. The ECHO splits that work between two processors and dedicated transfer hardware.</p><ol class="install-preview"><li><span>01</span><div><h3>Read and decode.</h3><p>Core 0 runs the menus, storage and audio processing. Core 1 runs the loaded compressed-audio decoder; a dedicated hardware accelerator helps reconstruct FLAC audio.</p></div></li><li><span>02</span><div><h3>Keep a buffer ready.</h3><p>A ring in RAM holds decoded samples. DMA moves them to I2S at the audio clock’s pace while the processors prepare more.</p></div></li><li><span>03</span><div><h3>Make the signal.</h3><p>I2S feeds both CS43198 DACs. They convert samples into the analog signal used by the headphone outputs.</p></div></li></ol><h3>Keeping playback moving</h3><ul class="detail-list"><li><strong>Continuous audio transfers.</strong> Both stock and Gnarlyr use DMA to move samples without copying each one in the main loop. Gnarlyr clears stale audio on restart, refills before restarting DMA and fades around interrupted playback. Compatible gapless transitions keep the continuous sample stream.</li><li><strong>Targeted decoder work.</strong> Stock decoder modules reference FLAC prediction, MP3 synthesis and transform accelerators. Gnarlyr uses the FLAC prediction block, while its other decoder work uses software and targeted ARM arithmetic.</li><li><strong>Room for more features.</strong> RAM is reused for code modules: scanning, extra screens and USB need not all live in memory at once. Scanning can use decoder RAM while playback is stopped. The display stores its own picture, avoiding a full-screen framebuffer in main RAM.</li></ul></section>
 <section class="doc-section" id="display" aria-labelledby="display-title">
 <h2 id="display-title">Screen, backlight and buttons.
 </h2>

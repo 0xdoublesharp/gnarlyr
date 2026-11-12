@@ -63,6 +63,8 @@ Product links point directly to the full-size ECHO listing at `https://www.amazo
 
 Each page includes one short disclosure covering Amazon and AliExpress beside its purchase buttons. The interface avoids repeated affiliate labels. Links retain `rel="sponsored nofollow"`, and the copy explains that firmware is installed separately. There are no redirect scripts, embedded retailer widgets, copied retailer images or prices; pricing and availability stay on the retailers’ pages.
 
+Home links to the stock comparison in `firmware.html#over-stock` and the hardware changes in `hardware.html#unlocked`. The comparison uses FiiO ECHO 2.0.0: M3U playlists, song favorites, EQ, gain, five DAC filters, Bluetooth and USB DAC mode are existing stock capabilities. Hardware copy describes firmware controls and mechanisms; it makes no measured battery-life, analog-quality or output-power improvement claim.
+
 Homepage screenshots reuse the original simulator PNGs under `site/assets/screens/`. The surrounding player shapes are CSS illustrations. All visible features describe completed capabilities; plans and unfinished integrations stay outside the public feature copy.
 
 When changing a product or affiliate link, update every placement and verify the destination model and capacity.
