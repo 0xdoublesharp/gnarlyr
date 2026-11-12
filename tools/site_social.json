@@ -7,6 +7,7 @@
     {"page":"hardware.html","name":"hardware","label":"Inside the ECHO","title":["Meet the","hardware."],"description":["ECHO specs, chips and connections.","Explained from the inside out."]},
     {"page":"recovery.html","name":"recovery","label":"First installation & recovery","title":["Back to","the music."],"description":["First installation and recovery.","A guide for the full-size ECHO."]},
     {"page":"build.html","name":"developers","label":"Developer tools","title":["Build it.","Make it yours."],"description":["Source builds and developer tools.","USB workflows and audio internals."]},
-    {"page":"languages.html","name":"languages","label":"Language packs","title":["Your player.","Your language."],"description":["Build, check and edit language packs.","Translate right in your browser."]}
+    {"page":"languages.html","name":"languages","label":"Language packs","title":["Your player.","Your language."],"description":["Build, check and edit language packs.","Translate right in your browser."]},
+    {"page":"companion.html","name":"companion","label":"Gnarlyr Companion · desktop beta","title":["Your music.","A bigger view."],"description":["Local music. Player care.","Meet the desktop companion."]}
   ]
 }
