@@ -10,6 +10,9 @@ enum {
     BLOCK_PICTURE = 6,
     FRONT_COVER = 3,
     OGG_HEADER_SIZE = 27,
+    OGG_TAIL_CHUNK = 512,
+    OGG_CAPTURE_SIZE = 4,
+    OGG_LARGEST_PAGE = OGG_HEADER_SIZE + 255 + 255 * 255,
     VORBIS_PACKET_PREFIX = 7,
     OPUS_PACKET_PREFIX = 8,
     OPUS_HEAD_SIZE = 19,
@@ -367,6 +370,54 @@ static bool first_eos_granule(const TagReader *reader, const OggPage *first, uin
     return true;
 }
 
+static bool capture_at(const uint8_t *bytes)
+{
+    return bytes[0] == 'O' && bytes[1] == 'g' && bytes[2] == 'g' && bytes[3] == 'S';
+}
+
+static bool page_ending_file(const TagReader *reader, const uint8_t *chunk, uint32_t from,
+                             uint32_t length, OggPage *page)
+{
+    for (uint32_t index = length - OGG_CAPTURE_SIZE + 1; index-- > 0;) {
+        if (capture_at(chunk + index) && read_page(reader, from + index, page) &&
+            page_end(page) == reader->size) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool last_page(const TagReader *reader, OggPage *page)
+{
+    uint8_t chunk[OGG_TAIL_CHUNK + OGG_CAPTURE_SIZE - 1];
+    uint32_t floor = reader->size > OGG_LARGEST_PAGE ? reader->size - OGG_LARGEST_PAGE : 0;
+    for (uint32_t start = reader->size; start > floor;) {
+        uint32_t from = start - floor > OGG_TAIL_CHUNK ? start - OGG_TAIL_CHUNK : floor;
+        uint32_t overlap = reader->size - start < OGG_CAPTURE_SIZE - 1 ? reader->size - start
+                                                                       : OGG_CAPTURE_SIZE - 1;
+        uint32_t length = start + overlap - from;
+        if (!tag_read(reader, from, chunk, length)) {
+            return false;
+        }
+        if (length >= OGG_CAPTURE_SIZE && page_ending_file(reader, chunk, from, length, page)) {
+            return true;
+        }
+        start = from;
+    }
+    return false;
+}
+
+static bool stream_granule(const TagReader *reader, const OggPage *first, uint64_t *granule)
+{
+    OggPage last;
+    if (last_page(reader, &last) && last.serial == first->serial && (last.flags & 4) != 0 &&
+        last.granule != UINT64_MAX) {
+        *granule = last.granule;
+        return true;
+    }
+    return first_eos_granule(reader, first, granule);
+}
+
 typedef struct OggCodec {
     uint32_t rate;
     uint32_t pre_skip;
@@ -413,8 +464,7 @@ bool tags_read_ogg(TagReader *reader)
         tags_read_vorbis_comment(reader, source, codec.prefix, UINT32_MAX);
     }
     uint64_t granule = 0;
-    if (codec.rate > 0 && first_eos_granule(reader, &first, &granule) &&
-        granule >= codec.pre_skip) {
+    if (codec.rate > 0 && stream_granule(reader, &first, &granule) && granule >= codec.pre_skip) {
         tag_set_duration(reader, granule - codec.pre_skip, codec.rate);
     }
     return true;

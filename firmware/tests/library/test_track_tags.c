@@ -934,6 +934,111 @@ static void ogg_pictures_read_back_as_the_embedded_image(void)
     free(fixture.bytes);
 }
 
+typedef struct OggBuild {
+    uint8_t bytes[200000];
+    uint32_t size;
+    uint32_t sequence;
+    uint8_t serial;
+} OggBuild;
+
+static void ogg_add_page(OggBuild *build, uint8_t flags, uint64_t granule, const uint8_t *body,
+                         uint32_t length, bool continues)
+{
+    uint8_t *page = build->bytes + build->size;
+    uint32_t count = length / 255 + (continues ? 0 : 1);
+    memset(page, 0, 27);
+    memcpy(page, "OggS", 4);
+    page[5] = flags;
+    for (int index = 0; index < 8; index++) {
+        page[6 + index] = (uint8_t)(granule >> (8 * index));
+    }
+    page[14] = build->serial;
+    page[18] = (uint8_t)build->sequence++;
+    page[26] = (uint8_t)count;
+    for (uint32_t index = 0; index < count; index++) {
+        page[27 + index] = index + 1 < count || continues ? 255 : (uint8_t)(length % 255);
+    }
+    memcpy(page + 27 + count, body, length);
+    build->size += 27 + count + length;
+}
+
+static void ogg_add_packet(OggBuild *build, const uint8_t *packet, uint32_t length)
+{
+    const uint32_t page_bytes = 255 * 16;
+    uint8_t flags = 0;
+    while (length >= page_bytes) {
+        ogg_add_page(build, flags, UINT64_MAX, packet, page_bytes, true);
+        packet += page_bytes;
+        length -= page_bytes;
+        flags = 1;
+    }
+    ogg_add_page(build, flags, 0, packet, length, false);
+}
+
+static void put_le32(uint8_t *bytes, uint32_t value)
+{
+    for (int index = 0; index < 4; index++) {
+        bytes[index] = (uint8_t)(value >> (8 * index));
+    }
+}
+
+static void add_opus_link(OggBuild *build, uint8_t serial, uint32_t art_bytes, int audio_pages)
+{
+    static uint8_t tags[70000];
+    static const char TITLE_FIELD[] = "TITLE=Long";
+    static const char PICTURE[] = "METADATA_BLOCK_PICTURE=";
+    uint8_t head[19] = {'O', 'p', 'u', 's', 'H', 'e', 'a', 'd', 1, 2, 0x38, 0x01, 0x80, 0xBB};
+    uint8_t audio[100];
+    uint32_t picture_length = (uint32_t)strlen(PICTURE) + art_bytes;
+    build->serial = serial;
+    build->sequence = 0;
+    ogg_add_page(build, 2, 0, head, sizeof head, false);
+    memcpy(tags, "OpusTags", 8);
+    put_le32(tags + 8, 0);
+    put_le32(tags + 12, 2);
+    put_le32(tags + 16, (uint32_t)strlen(TITLE_FIELD));
+    memcpy(tags + 20, TITLE_FIELD, strlen(TITLE_FIELD));
+    uint32_t length = 20 + (uint32_t)strlen(TITLE_FIELD);
+    put_le32(tags + length, picture_length);
+    memcpy(tags + length + 4, PICTURE, strlen(PICTURE));
+    memset(tags + length + 4 + strlen(PICTURE), 'A', art_bytes);
+    ogg_add_packet(build, tags, length + 4 + picture_length);
+    memset(audio, 0x11, sizeof audio);
+    for (int index = 1; index <= audio_pages; index++) {
+        uint8_t flags = index == audio_pages ? 4 : 0;
+        ogg_add_page(build, flags, 312 + (uint64_t)index * 4800, audio, sizeof audio, false);
+    }
+}
+
+static uint32_t read_built_opus(const OggBuild *build, TrackTags *tags)
+{
+    MemorySource memory = {.bytes = build->bytes, .size = build->size};
+    CHECK(track_tags_read(memory_source(&memory), build->size, TAG_FORMAT_OGG, tags));
+    CHECK_EQUAL(0, strcmp("Long", tags->text[TAG_TITLE]));
+    return (uint32_t)memory.reads;
+}
+
+static void an_opus_duration_comes_from_its_last_page_without_walking_the_art(void)
+{
+    static OggBuild build;
+    static TrackTags tags;
+    build.size = 0;
+    add_opus_link(&build, 0x5A, 60000, 100);
+    CHECK(read_built_opus(&build, &tags) < 30);
+    CHECK_EQUAL(10000u, tags.duration_ms);
+}
+
+static void a_chain_whose_last_page_has_another_serial_keeps_the_first_links_duration(void)
+{
+    static OggBuild build;
+    static TrackTags tags;
+    build.size = 0;
+    add_opus_link(&build, 0x5A, 6000, 20);
+    add_opus_link(&build, 0x5B, 6000, 100);
+    read_built_opus(&build, &tags);
+    CHECK_EQUAL(2000u, tags.duration_ms);
+}
+
 typedef struct Mp4TagFixture {
     uint8_t bytes[2048];
     uint32_t length;
@@ -998,10 +1103,10 @@ static bool ogg_set_title(Fixture *fixture, uint32_t serial, const char *title)
     return false;
 }
 
-static void ogg_metadata_uses_the_first_serial_and_its_first_eos(void)
+static void ogg_metadata_uses_the_first_serial_and_a_reused_serial_takes_the_last_page(void)
 {
     static const char *const NAMES[] = {"../vorbis/chained44.ogg", "../vorbis/multiplexed44.ogg"};
-    static const uint32_t DURATIONS[] = {250, 3250};
+    static const uint32_t DURATIONS[] = {250, 3250, 45};
     for (uint32_t index = 0; index < 3; index++) {
         Fixture fixture;
         CHECK(load(&fixture, NAMES[index % 2]));
@@ -1021,7 +1126,7 @@ static void ogg_metadata_uses_the_first_serial_and_its_first_eos(void)
         TrackTags tags;
         CHECK(track_tags_read(memory_source(&fixture.memory), fixture.size, TAG_FORMAT_OGG, &tags));
         CHECK_EQUAL(0, strcmp("First stream", tags.text[TAG_TITLE]));
-        CHECK_EQUAL(DURATIONS[index % 2], tags.duration_ms);
+        CHECK_EQUAL(DURATIONS[index], tags.duration_ms);
         free(fixture.bytes);
     }
 }
@@ -1712,10 +1817,12 @@ int main(void)
         TEST_CASE(mp4_duration_requires_a_complete_versioned_header),
         TEST_CASE(mp4_text_genre_takes_priority_over_the_legacy_genre),
         TEST_CASE(mp4_duration_ignores_unknown_versions_and_zero_timescales),
-        TEST_CASE(ogg_metadata_uses_the_first_serial_and_its_first_eos),
+        TEST_CASE(ogg_metadata_uses_the_first_serial_and_a_reused_serial_takes_the_last_page),
         TEST_CASE(ogg_duration_requires_a_complete_eos_of_the_selected_serial),
         TEST_CASE(every_tagged_format_reads_its_fields_duration_and_cover),
         TEST_CASE(an_mp3_with_only_id3v1_and_no_xing_header_still_reads),
+        TEST_CASE(an_opus_duration_comes_from_its_last_page_without_walking_the_art),
+        TEST_CASE(a_chain_whose_last_page_has_another_serial_keeps_the_first_links_duration),
         TEST_CASE(an_untagged_flac_has_empty_fields_and_its_duration),
         TEST_CASE(formats_come_from_the_extension_in_any_case),
         TEST_CASE(a_truncated_file_fails_cleanly),
