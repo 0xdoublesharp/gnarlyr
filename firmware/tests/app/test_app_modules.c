@@ -286,6 +286,21 @@ static void a_module_lost_under_its_screen_is_loaded_again_before_the_screen_run
     CHECK(app_toast_text() == toast);
 }
 
+static void a_background_cover_pass_gives_the_screen_its_module_back_before_drawing(void)
+{
+    start_app();
+    const uint8_t pending[8] = {'D', 'S', 'S', 'G', 0, 1, 0, 1};
+    CHECK(hal_file_write_at(MUSIC_CHECK_PATH, 512, pending, sizeof pending));
+    app_start();
+    open_cover_flow();
+    wait_ms(SLIDE_DURATION_MS);
+    int loads = fake_hal_module_loads();
+    wait_ms(3000);
+    CHECK(title_is("Cover Flow"));
+    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+    CHECK(fake_hal_module_loads() > loads);
+}
+
 static void a_screen_whose_module_is_gone_for_good_gives_way_to_home(void)
 {
     start_app();
@@ -562,6 +577,7 @@ int main(void)
         TEST_CASE(after_an_installed_update_a_module_screen_asks_for_a_restart),
         TEST_CASE(a_module_still_in_the_slot_serves_its_screens_after_an_installed_update),
         TEST_CASE(a_module_lost_under_its_screen_is_loaded_again_before_the_screen_runs),
+        TEST_CASE(a_background_cover_pass_gives_the_screen_its_module_back_before_drawing),
         TEST_CASE(a_screen_whose_module_is_gone_for_good_gives_way_to_home),
         TEST_CASE(going_back_to_a_module_screen_that_cannot_load_goes_home),
         TEST_CASE(a_slide_away_from_a_module_screen_survives_the_loss_of_the_module),

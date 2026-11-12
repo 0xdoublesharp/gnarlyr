@@ -1720,6 +1720,7 @@ bool hal_system_restart_pending(void)
 
 const void *hal_system_load_rescan_code(void)
 {
+    fake.loaded_module = 0;
     return &RESCAN_MODULE_ENTRY;
 }
 
