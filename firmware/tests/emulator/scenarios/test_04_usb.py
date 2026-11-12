@@ -244,7 +244,7 @@ class EchoImageTest(EchoImageHarness):
         machine = session.machine
         machine.stub_symbol("extension_home_art_draw_backdrop", lambda machine: None)
         self.assertEqual(make_image.OVERLAY_BASE, machine.symbols["device_profile_overlay_base"])
-        self.assertEqual(make_image.PROCESS_MODULE_BASE + make_image.PROCESS_MODULE_CAPACITY,
+        self.assertEqual(make_image.EFFECTS_MODULE_BASE + make_image.EFFECTS_MODULE_CAPACITY,
                          machine.symbols["device_profile_overlay_base"] +
                          machine.symbols["device_profile_overlay_bytes"])
         machine.note("hal_system_return_scratch")

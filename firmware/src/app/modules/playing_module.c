@@ -8,7 +8,8 @@ static void bind(AppScreens *screens)
     UpNextConfig up_next = {.library = &context->store->library,
                             .theme = context->theme,
                             .player = context->player,
-                            .toast = context->toast};
+                            .toast = context->toast,
+                            .now_playing = &screens->now_playing.screen};
     CoverFlowConfig cover_flow = {
         .library = &context->store->library,
         .theme = context->theme,

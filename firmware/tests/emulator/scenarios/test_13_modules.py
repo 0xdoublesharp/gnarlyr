@@ -217,7 +217,7 @@ class EchoImageTest(EchoImageHarness):
         machine, session = rig.machine, rig.session
         watch = ModuleWatch(session)
         settings_number, settings = self.module(machine, "settings")
-        playing_number, playing = self.module(machine, "playing")
+        views_number, views = self.module(machine, "views")
         pack = make_image.language_packs_in(self.image)[0]
         rig.open_songs()
         mark = rig.play_song(1)
@@ -237,7 +237,7 @@ class EchoImageTest(EchoImageHarness):
         rig.press_many("previous", HOME_MIXTAPES_BEFORE_SETTINGS)
         rig.press("play")
         rig.run_for(400)
-        self.assertTrue(playing.loaded(machine))
+        self.assertTrue(views.loaded(machine))
         rig.press("back")
         rig.press_many("next", HOME_MIXTAPES_BEFORE_SETTINGS)
         rig.press("play")
@@ -245,7 +245,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(settings.loaded(machine))
         loads = watch.loads()
         self.assertEqual([(call["module"], call["loaded"]) for call in loads],
-                         [(settings_number, True), (playing_number, True), (settings_number, True)])
+                         [(settings_number, True), (views_number, True), (settings_number, True)])
         self.assertLess(max(call["us"] for call in loads), MODULE_LOAD_LIMIT_MS * 1000)
         self.assert_module_code_never_written(watch)
         self.assertEqual(machine.read_memory(LANGUAGE_RAM, len(pack)), pack)
