@@ -26,6 +26,12 @@ static const GrfWrite PHY_OFF[] = {
     {0xB4, 0x00010001}, {0xB4, 0x000E0004}, {0xB8, 0x00010001}, {0x98, 0x00040000}};
 
 static HalUsbCore core_registers;
+static bool core_powered;
+
+bool board_usb_core_powered(void)
+{
+    return core_powered;
+}
 
 static const GpioPin AMP_ENABLE = {1, 4};
 static const GpioPin DAC_POWER = {2, 2};
@@ -55,8 +61,9 @@ void usb_silence_audio(void)
     gpio_output(DAC_POWER, false);
 }
 
-void usb_power_up(void)
+CORE_SEAM void usb_power_up(void)
 {
+    core_powered = true;
     board_debug_usb_powered(true);
     cru_gate(GATE_USB_A, true);
     cru_gate(GATE_USB_B, true);
@@ -82,6 +89,7 @@ CORE_SEAM void usb_power_down(void)
     cru_reset(RESET_USB_A, true);
     cru_gate(GATE_USB_A, false);
     cru_gate(GATE_USB_B, false);
+    core_powered = false;
     board_debug_usb_powered(false);
 }
 

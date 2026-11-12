@@ -23,6 +23,36 @@ from echo_image_harness import (
 
 
 class EchoImageTest(EchoImageHarness):
+    def test_the_core_clock_stays_undivided_while_the_usb_core_is_powered(self):
+        session, machine, asked = self.asked_session()
+        powered = []
+        machine.hook_symbol("usb_power_up", lambda: powered.append(["up", machine.milliseconds()]))
+        machine.hook_symbol("usb_power_down", lambda: powered.append(["down", machine.milliseconds()]))
+        session.run_to_home_screen()
+        machine.run(until_ms=machine.milliseconds() + 2000)
+        machine.vbus = True
+        self.assertEqual(machine.run(until=lambda: asked,
+                                     until_ms=machine.milliseconds() + CABLE_STEADY_MS + 2000),
+                         "condition met")
+        self.assertTrue(any(event == "up" for event, _ in powered))
+
+        def divider_at(milliseconds):
+            dividers = [divider for at, divider in machine.coast_log if at <= milliseconds]
+            return dividers[-1] if dividers else 1
+
+        self.assertEqual([divider_at(at) for event, at in powered if event == "up"],
+                         [1] * len([event for event, _ in powered if event == "up"]))
+        spans = []
+        for event, at in powered:
+            if event == "up":
+                spans.append([at, None])
+            elif spans and spans[-1][1] is None:
+                spans[-1][1] = at
+        for start, end in spans:
+            self.assertEqual([divider for at, divider in machine.coast_log
+                              if at > start and (end is None or at < end) and divider > 1], [])
+        self.assert_healthy(session)
+
     def test_a_cable_plugged_in_while_the_player_runs_asks_before_it_connects(self):
         session, machine, asked = self.asked_session()
         session.run_to_home_screen()
