@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "check.h"
@@ -115,6 +116,22 @@ static void every_kind_of_fold_run_applies(void)
     CHECK_EQUAL(0, strcmp("\xd0\xb6", key));
 }
 
+static void every_unicode_space_trims_and_separates_an_article(void)
+{
+    static const char *const SPACES[] = {"\t",           "\x1c",         "\xc2\x85",
+                                         "\xc2\xa0",     "\xe1\x9a\x80", "\xe2\x80\x80",
+                                         "\xe2\x80\x8a", "\xe2\x80\xa8", "\xe2\x80\xa9",
+                                         "\xe2\x80\xaf", "\xe2\x81\x9f", "\xe3\x80\x80"};
+    for (size_t index = 0; index < sizeof SPACES / sizeof SPACES[0]; index++) {
+        char text[64];
+        char key[64];
+        snprintf(text, sizeof text, "%sThe%sBand%s", SPACES[index], SPACES[index], SPACES[index]);
+        sort_key_make(text, key, sizeof key);
+        CHECK_EQUAL(0, strcmp("band", key));
+        CHECK_EQUAL('b', sort_key_initial(text));
+    }
+}
+
 static int category(unsigned char first)
 {
     if (first < 'a') {
@@ -177,6 +194,7 @@ int main(void)
         TEST_CASE(a_long_text_is_cut_at_the_capacity),
         TEST_CASE(case_folding_keeps_accents_and_lowers_everything),
         TEST_CASE(every_kind_of_fold_run_applies),
+        TEST_CASE(every_unicode_space_trims_and_separates_an_article),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

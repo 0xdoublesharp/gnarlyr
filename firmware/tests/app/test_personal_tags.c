@@ -519,6 +519,73 @@ static void a_temporarily_hidden_newer_bank_cannot_be_overwritten_from_stale_tag
     CHECK_EQUAL(1, mask(0));
 }
 
+static void public_queries_and_progress_fail_closed_for_incomplete_states(void)
+{
+    enum {
+        TAG_STAGE_CHECKSUM = 1,
+        TAG_STAGE_CHECK_ROWS = 3,
+        TAG_STAGE_PLAN = 4,
+        TAG_STAGE_COPY_ROWS = 7
+    };
+    const Library *library = fixture_library_open(&fixture);
+    uint32_t value = UINT32_MAX;
+    bool matches = true;
+    PersonalTags state = {.library = library, .load = STORE_UNREADABLE, .result = STORE_IDLE};
+
+    CHECK(!personal_tags_mask(&state, 0, &value));
+    CHECK_EQUAL(0, value);
+    CHECK(!personal_tags_matches(&state, 0, 1, &matches));
+    CHECK(!matches);
+
+    state.load = STORE_EMPTY;
+    state.result = STORE_WORKING;
+    state.stage = TAG_STAGE_CHECKSUM;
+    CHECK(!personal_tags_mask(&state, 0, &value));
+    state.stage = TAG_STAGE_PLAN;
+    state.library = NULL;
+    CHECK(!personal_tags_mask(&state, 0, &value));
+    CHECK(!personal_tags_change(
+        &state, (PersonalTagChange){.operation = PERSONAL_TAG_CREATE, .name = "No storage"}));
+
+    state.result = STORE_IDLE;
+    CHECK_EQUAL(STORE_IDLE, personal_tags_step(&state));
+    personal_tags_cancel(&state);
+    CHECK_EQUAL(STORE_IDLE, state.result);
+
+    state =
+        (PersonalTags){.result = STORE_WORKING, .load = STORE_READY, .stage = TAG_STAGE_CHECKSUM};
+    personal_tags_cancel(&state);
+    CHECK_EQUAL(STORE_FAILED, state.result);
+    CHECK_EQUAL(STORE_UNREADABLE, state.load);
+
+    state = (PersonalTags){.result = STORE_WORKING, .load = STORE_READY, .stage = TAG_STAGE_PLAN};
+    personal_tags_cancel(&state);
+    CHECK_EQUAL(STORE_FAILED, state.result);
+    CHECK_EQUAL(STORE_READY, state.load);
+
+    state = (PersonalTags){.result = STORE_WORKING, .stage = UINT8_MAX};
+    CHECK_EQUAL(STORE_FAILED, personal_tags_step(&state));
+
+    state = (PersonalTags){.result = STORE_DONE};
+    CHECK_EQUAL(100, personal_tags_progress(&state));
+    state = (PersonalTags){
+        .result = STORE_WORKING, .stage = TAG_STAGE_CHECKSUM, .headers = {{.bytes = 0}}};
+    CHECK_EQUAL(0, personal_tags_progress(&state));
+    state.headers[0].bytes = 100;
+    state.scan.position = 50;
+    CHECK_EQUAL(25, personal_tags_progress(&state));
+    state.stage = TAG_STAGE_CHECK_ROWS;
+    state.headers[0].count = 10;
+    state.source_row = 5;
+    CHECK_EQUAL(62, personal_tags_progress(&state));
+    state.stage = TAG_STAGE_COPY_ROWS;
+    state.rows = 10;
+    CHECK_EQUAL(62, personal_tags_progress(&state));
+    state.stage = TAG_STAGE_PLAN;
+    state.rows = 0;
+    CHECK_EQUAL(0, personal_tags_progress(&state));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -536,6 +603,7 @@ int main(void)
         TEST_CASE(all_65535_assignments_are_file_backed_and_searches_are_logarithmic),
         TEST_CASE(partial_writes_never_replace_a_complete_old_bank),
         TEST_CASE(unreadable_banks_fail_closed_and_query_errors_are_distinct_from_no_tags),
+        TEST_CASE(public_queries_and_progress_fail_closed_for_incomplete_states),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

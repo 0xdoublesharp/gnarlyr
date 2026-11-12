@@ -1203,6 +1203,42 @@ static void a_store_without_the_output_byte_loads_as_wired(void)
     CHECK(!saved.on_bluetooth);
 }
 
+static void device_state_classifies_each_transient_condition(void)
+{
+    fresh();
+    link = (BluetoothLink){.saved = {.enabled = false, .count = 1, .devices = {BUDS}}};
+    CHECK_EQUAL(BLUETOOTH_DEVICE_IDLE, bluetooth_link_device_state(&link, 0));
+    link.saved.enabled = true;
+    link.dozing = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_IDLE, bluetooth_link_device_state(&link, 0));
+    link.dozing = false;
+    link.connected = true;
+    link.linked = BUDS;
+    link.streamed = false;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTED, bluetooth_link_device_state(&link, 0));
+    link.streamed = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_PLAYING, bluetooth_link_device_state(&link, 0));
+    link.connected = false;
+    link.streamed = false;
+    link.target = BUDS;
+    link.attempting = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTING, bluetooth_link_device_state(&link, 0));
+    link.attempting = false;
+    link.paired_seen = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTING, bluetooth_link_device_state(&link, 0));
+    link.paired_seen = false;
+    link.has_target = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTING, bluetooth_link_device_state(&link, 0));
+    link.has_target = false;
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_STARTING;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTING, bluetooth_link_device_state(&link, 0));
+    link.held = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_IDLE, bluetooth_link_device_state(&link, 0));
+    link.held = false;
+    link.search_now = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_IDLE, bluetooth_link_device_state(&link, 0));
+}
+
 int main(void)
 {
     const TestCase cases[] = {
@@ -1273,6 +1309,7 @@ int main(void)
         TEST_CASE(headphones_back_in_range_reconnect_without_playing),
         TEST_CASE(a_wait_keeps_the_module_awake),
         TEST_CASE(a_store_without_the_output_byte_loads_as_wired),
+        TEST_CASE(device_state_classifies_each_transient_condition),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

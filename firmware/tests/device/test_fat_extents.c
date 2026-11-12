@@ -172,6 +172,24 @@ static void a_contiguous_file_maps_to_one_run_and_far_seeks_read_no_more_fat(voi
     free(generated.fat);
 }
 
+static void the_walk_ahead_boundary_delays_mapping_until_the_129th_cluster(void)
+{
+    Generated generated = {0};
+    Run runs[] = {{FIRST_FILE_CLUSTER, BIG_CLUSTERS}};
+    lay_out(&generated, runs, 1, 0x0FFFFFFF);
+    FatVolume volume;
+    FatFile file;
+    FatExtents extents;
+    open_generated(&generated, &volume, &file, &extents);
+    CHECK(sector_is(&volume, &file, 128, expected_lba(runs, 1, 128)));
+    CHECK_EQUAL(FAT_EXTENTS_IDLE, extents.state);
+    CHECK(sector_is(&volume, &file, 256, expected_lba(runs, 1, 256)));
+    CHECK_EQUAL(FAT_EXTENTS_IDLE, extents.state);
+    CHECK(sector_is(&volume, &file, 385, expected_lba(runs, 1, 385)));
+    CHECK_EQUAL(FAT_EXTENTS_READY, extents.state);
+    free(generated.fat);
+}
+
 static void a_fragmented_file_maps_every_run_and_seeks_backward_and_forward(void)
 {
     Generated generated = {0};
@@ -310,6 +328,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_contiguous_file_maps_to_one_run_and_far_seeks_read_no_more_fat),
+        TEST_CASE(the_walk_ahead_boundary_delays_mapping_until_the_129th_cluster),
         TEST_CASE(a_fragmented_file_maps_every_run_and_seeks_backward_and_forward),
         TEST_CASE(a_file_with_too_many_runs_keeps_checkpoints_and_walks_a_short_distance),
         TEST_CASE(reading_sequentially_from_an_unaligned_offset_walks_the_chain_once),

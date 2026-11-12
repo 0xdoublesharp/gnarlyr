@@ -1158,6 +1158,44 @@ static void dff_diin_artist_and_title_are_read_with_chunk_bounds(void)
     CHECK_EQUAL(0, strcmp("", tags.text[TAG_TITLE]));
 }
 
+static void replay_gain_text_decoding_handles_every_encoding_boundary(void)
+{
+    char out[REPLAY_GAIN_TEXT_CAPACITY];
+    static const uint8_t latin[] = {'-', '6', ' ', 'd', 'B'};
+    CHECK(tag_decode_gain_text(out, latin, sizeof latin, TAG_LATIN1));
+    CHECK_EQUAL(0, strcmp("-6 dB", out));
+    static const uint8_t little[] = {'1', 0, '.', 0, '5', 0};
+    CHECK(tag_decode_gain_text(out, little, sizeof little, TAG_UTF16LE));
+    CHECK_EQUAL(0, strcmp("1.5", out));
+    static const uint8_t big[] = {0, '1', 0, '.', 0, '5'};
+    CHECK(tag_decode_gain_text(out, big, sizeof big, TAG_UTF16BE));
+    CHECK_EQUAL(0, strcmp("1.5", out));
+    static const uint8_t big_bom[] = {0xfe, 0xff, 0, '2'};
+    CHECK(tag_decode_gain_text(out, big_bom, sizeof big_bom, TAG_UTF16LE));
+    CHECK_EQUAL(0, strcmp("2", out));
+    static const uint8_t little_bom[] = {0xff, 0xfe, '3', 0};
+    CHECK(tag_decode_gain_text(out, little_bom, sizeof little_bom, TAG_UTF16BE));
+    CHECK_EQUAL(0, strcmp("3", out));
+
+    static const uint8_t odd[] = {'1', 0, '2'};
+    CHECK(!tag_decode_gain_text(out, odd, sizeof odd, TAG_UTF16LE));
+    static const uint8_t nul_tail[] = {'1', 0, 0, 0};
+    CHECK(tag_decode_gain_text(out, nul_tail, sizeof nul_tail, TAG_UTF16LE));
+    static const uint8_t bad_tail[] = {'1', 0, 0, 0, '2', 0};
+    CHECK(!tag_decode_gain_text(out, bad_tail, sizeof bad_tail, TAG_UTF16LE));
+    static const uint8_t high[] = {0x80};
+    CHECK(!tag_decode_gain_text(out, high, sizeof high, TAG_LATIN1));
+    static const uint8_t controls[] = {8, 9, 13, 14};
+    CHECK(!tag_decode_gain_text(out, controls, 1, TAG_LATIN1));
+    CHECK(tag_decode_gain_text(out, controls + 1, 2, TAG_LATIN1));
+    CHECK(!tag_decode_gain_text(out, controls + 3, 1, TAG_LATIN1));
+    uint8_t full[REPLAY_GAIN_TEXT_CAPACITY];
+    memset(full, '1', sizeof full);
+    CHECK(!tag_decode_gain_text(out, full, sizeof full, TAG_UTF8));
+    CHECK(tag_decode_gain_text(out, full, 0, TAG_UTF8));
+    CHECK_EQUAL(0, strcmp("", out));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -1195,6 +1233,7 @@ int main(void)
         TEST_CASE(unsynchronised_id3_pictures_read_back_without_escape_bytes),
         TEST_CASE(ogg_pictures_read_back_as_the_embedded_image),
         TEST_CASE(malformed_vorbis_entries_do_not_read_the_next_block),
+        TEST_CASE(replay_gain_text_decoding_handles_every_encoding_boundary),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

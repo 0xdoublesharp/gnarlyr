@@ -224,6 +224,15 @@ static void a_library_that_did_not_open_has_no_identity(void)
     CHECK_EQUAL(reads, fixture.memory.reads);
 }
 
+static void a_library_without_a_source_fails_before_work_starts(void)
+{
+    Library library = {0};
+    LibraryContent job;
+    library_content_begin(&job, &library);
+    CHECK_EQUAL(LIBRARY_CONTENT_FAILED, job.state);
+    CHECK_EQUAL(LIBRARY_CONTENT_FAILED, library_content_step(&job));
+}
+
 static void an_extra_playlist_in_memory_is_not_part_of_the_identity(void)
 {
     static const LibraryExtraPlaylist EXTRA = {.name = "Favorites", .count = 2, .tracks = {1, 3}};
@@ -249,6 +258,7 @@ int main(void)
         TEST_CASE(a_read_failure_does_not_publish_a_partial_identity),
         TEST_CASE(a_new_pass_forgets_the_previous_fingerprint_until_it_finishes),
         TEST_CASE(a_library_that_did_not_open_has_no_identity),
+        TEST_CASE(a_library_without_a_source_fails_before_work_starts),
         TEST_CASE(an_extra_playlist_in_memory_is_not_part_of_the_identity),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

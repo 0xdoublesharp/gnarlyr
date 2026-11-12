@@ -47,6 +47,20 @@ static PlayQueue *built(BrowseQuery source, uint16_t anchor, ShuffleMode shuffle
     return &queue;
 }
 
+static void put16(uint8_t *bytes, uint16_t value)
+{
+    bytes[0] = (uint8_t)value;
+    bytes[1] = (uint8_t)(value >> 8);
+}
+
+static void set_album_range(uint16_t album, uint16_t first_track, uint16_t track_count)
+{
+    LibrarySectionInfo section = fixture.library.sections[LIBRARY_ALBUMS];
+    uint8_t *record = fixture.bytes + section.offset + album * section.record_size;
+    put16(record + 10, first_track);
+    put16(record + 12, track_count);
+}
+
 static int current_track(const PlayQueue *built_queue)
 {
     uint16_t track = 0;
@@ -449,6 +463,78 @@ static void a_stream_of_a_queue_without_a_current_entry_fails(void)
     CHECK(!tracks.read(tracks.context, 0, 1, &track));
 }
 
+static void generated_song_cursors_reject_album_offsets(void)
+{
+    PlayQueue *list = built(album_tracks(BACK_IN_BLACK), HELLS_BELLS, SHUFFLE_OFF, 1);
+    PlayQueueCursor invalid = {0, 1};
+    PlayQueueCursor next;
+    uint16_t track = UINT16_MAX;
+    CHECK(!play_queue_track_at(list, invalid, &track));
+    CHECK(!play_queue_step(list, invalid, 1, false, &next));
+    play_queue_move_to(list, invalid);
+    CHECK(!play_queue_upcoming(list, REPEAT_ONE, &next));
+    CHECK_EQUAL(0, play_queue_place(list).total);
+}
+
+static void generated_queues_reject_steps_from_past_the_end(void)
+{
+    PlayQueue *list = built(album_tracks(BACK_IN_BLACK), HELLS_BELLS, SHUFFLE_OFF, 1);
+    PlayQueueCursor next;
+    CHECK(!play_queue_step(list, (PlayQueueCursor){list->count, 0}, -1, false, &next));
+    CHECK(!play_queue_step(list, (PlayQueueCursor){list->count, 0}, -1, true, &next));
+}
+
+static void album_cursors_outside_the_album_are_rejected_everywhere(void)
+{
+    PlayQueue *albums = built(album_tracks(BACK_IN_BLACK), HUNTER, SHUFFLE_ALBUMS, 3);
+    LibraryAlbum album;
+    CHECK(library_read_album(albums->library, (uint32_t)value_at(albums, 0), &album));
+    PlayQueueCursor invalid = {0, album.track_count};
+    PlayQueueCursor next;
+    uint16_t track = UINT16_MAX;
+    CHECK(!play_queue_track_at(albums, invalid, &track));
+    CHECK(!play_queue_step(albums, invalid, -1, false, &next));
+    play_queue_move_to(albums, invalid);
+    CHECK(!play_queue_upcoming(albums, REPEAT_ONE, &next));
+    CHECK_EQUAL(0, play_queue_place(albums).total);
+}
+
+static void album_shuffle_rejects_inconsistent_anchor_ranges(void)
+{
+    Library *library = fixture_library_open(&fixture);
+    LibraryTrack anchor;
+    CHECK(library_read_track(library, JOGA, &anchor));
+    PlayQueuePlan plan = {.source = browse_root_query(BROWSE_ALL_SONGS),
+                          .anchor_track = JOGA,
+                          .shuffle = SHUFFLE_ALBUMS,
+                          .seed = 3};
+    set_album_range(anchor.album, (uint16_t)(JOGA + 1), 1);
+    CHECK(!play_queue_build(&queue, library, plan));
+    library = fixture_library_open(&fixture);
+    CHECK(library_read_track(library, JOGA, &anchor));
+    set_album_range(anchor.album, JOGA, 0);
+    CHECK(!play_queue_build(&queue, library, plan));
+}
+
+static void stream_reads_validate_bounds_and_empty_requests(void)
+{
+    PlayQueue *source = built(album_tracks(BACK_IN_BLACK), HELLS_BELLS, SHUFFLE_OFF, 7);
+    PlayQueueStream stream;
+    play_queue_stream_init(&stream, source);
+    TrackOrderSource tracks = play_queue_stream_source(&stream);
+    uint16_t track = UINT16_MAX;
+    CHECK(tracks.read(tracks.context, tracks.count, 0, NULL));
+    CHECK(!tracks.read(tracks.context, (uint16_t)(tracks.count + 1), 0, NULL));
+    CHECK(!tracks.read(tracks.context, tracks.count, 1, &track));
+    CHECK(!tracks.read(tracks.context, 0, 1, NULL));
+    CHECK(!tracks.read(tracks.context, 1, tracks.count, &track));
+
+    source = built(browse_root_query(BROWSE_ALL_SONGS), JOGA, SHUFFLE_ALBUMS, 93);
+    play_queue_stream_init(&stream, source);
+    tracks = play_queue_stream_source(&stream);
+    CHECK(!tracks.read(tracks.context, 0, 1, &track));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -458,6 +544,11 @@ int main(void)
         TEST_CASE(streaming_an_album_queue_preserves_its_order_and_current_position),
         TEST_CASE(a_prepared_stream_can_be_copied_before_it_is_read),
         TEST_CASE(a_stream_of_a_queue_without_a_current_entry_fails),
+        TEST_CASE(generated_song_cursors_reject_album_offsets),
+        TEST_CASE(generated_queues_reject_steps_from_past_the_end),
+        TEST_CASE(album_cursors_outside_the_album_are_rejected_everywhere),
+        TEST_CASE(album_shuffle_rejects_inconsistent_anchor_ranges),
+        TEST_CASE(stream_reads_validate_bounds_and_empty_requests),
         TEST_CASE(all_songs_play_in_title_order),
         TEST_CASE(folders_queue_only_their_tracks),
         TEST_CASE(an_anchor_outside_the_list_plays_first),

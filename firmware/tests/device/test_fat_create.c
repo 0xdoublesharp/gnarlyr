@@ -356,6 +356,35 @@ static void a_hint_in_the_middle_of_used_space_still_finds_the_free_run(void)
     sparse_card_free(&card->sparse);
 }
 
+static void short_name_boundaries_and_collision_tails_remain_readable(void)
+{
+    Card *card = mounted("fat16_superfloppy");
+    static const char *const NAMES[] = {
+        "12345678.123", "A$B.C", "MixEd.TxT", ".hidden", "a.b.c", "   .txt",
+    };
+    for (size_t index = 0; index < sizeof NAMES / sizeof NAMES[0]; index++) {
+        char path[96];
+        snprintf(path, sizeof path, "/%s", NAMES[index]);
+        CHECK_EQUAL(FAT_RESERVE_CREATED, fat_reserve(&card->volume, path, SECTOR_SIZE));
+    }
+    for (uint32_t index = 0; index < 12; index++) {
+        char path[96];
+        snprintf(path, sizeof path, "/collision variant %02u.bin", index);
+        CHECK_EQUAL(FAT_RESERVE_CREATED, fat_reserve(&card->volume, path, SECTOR_SIZE));
+    }
+
+    remount(card);
+    for (size_t index = 0; index < sizeof NAMES / sizeof NAMES[0]; index++) {
+        CHECK(listed(card, "/", NAMES[index]));
+    }
+    for (uint32_t index = 0; index < 12; index++) {
+        char name[64];
+        snprintf(name, sizeof name, "collision variant %02u.bin", index);
+        CHECK(listed(card, "/", name));
+    }
+    sparse_card_free(&card->sparse);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -373,6 +402,7 @@ int main(void)
         TEST_CASE(a_hint_too_near_the_end_wraps_around_to_find_room),
         TEST_CASE(a_hint_that_is_not_a_cluster_is_ignored),
         TEST_CASE(a_hint_in_the_middle_of_used_space_still_finds_the_free_run),
+        TEST_CASE(short_name_boundaries_and_collision_tails_remain_readable),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

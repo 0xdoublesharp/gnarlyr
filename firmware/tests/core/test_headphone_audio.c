@@ -79,6 +79,14 @@ static void low_bit_scaling_matches_wide_division_at_both_clipping_boundaries(vo
     }
 }
 
+static void a_right_channel_increase_alone_requires_attenuation(void)
+{
+    HeadphoneAudio before = {.left = 65536, .right = 32768, .ceiling = 60};
+    HeadphoneAudio after = {.left = 32768, .right = 65536, .ceiling = 60};
+    uint8_t level = headphone_audio_switch_volume(before, after, 60);
+    CHECK(level > 0 && level < 60);
+}
+
 int main(void)
 {
     const TestCase cases[] = {
@@ -87,6 +95,7 @@ int main(void)
         TEST_CASE(a_gain_rise_lowers_the_audible_level_by_the_rise_within_the_ceiling),
         TEST_CASE(clipping_never_occurs_before_combined_attenuation),
         TEST_CASE(low_bit_scaling_matches_wide_division_at_both_clipping_boundaries),
+        TEST_CASE(a_right_channel_increase_alone_requires_attenuation),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

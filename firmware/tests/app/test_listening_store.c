@@ -404,6 +404,43 @@ static void the_player_reports_the_speed_it_asked_the_audio_to_use(void)
     CHECK_EQUAL(150, fake_hal_audio_speed());
 }
 
+static void incomplete_or_idle_observations_do_not_start_history(void)
+{
+    reset();
+    ListeningObservation observation = observed(1, 0, PLAYER_PLAYING);
+    observation.status.has_track = false;
+    listening_store_follow(&store, observation, 0);
+    CHECK(!store.following);
+
+    observation = observed(2, 0, PLAYER_IDLE);
+    listening_store_follow(&store, observation, 1);
+    CHECK(!store.following);
+
+    observation = observed(3, 0, PLAYER_PLAYING);
+    observation.status.track = UINT16_MAX;
+    listening_store_follow(&store, observation, 2);
+    CHECK(!store.following);
+
+    store.library = NULL;
+    observation = observed(4, 0, PLAYER_PLAYING);
+    listening_store_follow(&store, observation, 3);
+    CHECK(!store.following);
+}
+
+static void every_lossless_codec_is_classified_as_lossless(void)
+{
+    static const HalAudioCodec codecs[] = {HAL_AUDIO_CODEC_FLAC, HAL_AUDIO_CODEC_WAV,
+                                           HAL_AUDIO_CODEC_ALAC, HAL_AUDIO_CODEC_AAC};
+    for (uint32_t index = 0; index < sizeof codecs / sizeof codecs[0]; index++) {
+        reset();
+        ListeningObservation observation = observed(index + 1, 0, PLAYER_PLAYING);
+        observation.status.format.codec = codecs[index];
+        listening_store_follow(&store, observation, 0);
+        CHECK(store.following);
+        CHECK_EQUAL(listening_format_class(index < 3, 44100, 16), store.active.format);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -427,6 +464,8 @@ int main(void)
         TEST_CASE(a_failed_write_is_retried_once_without_duplicate_counts),
         TEST_CASE(an_uncertain_commit_is_reloaded_before_a_retry),
         TEST_CASE(export_lookup_rejects_an_identity_that_now_names_another_track),
+        TEST_CASE(incomplete_or_idle_observations_do_not_start_history),
+        TEST_CASE(every_lossless_codec_is_classified_as_lossless),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

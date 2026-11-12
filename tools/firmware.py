@@ -22,16 +22,57 @@ GROUPS = {
 }
 FUZZ_TARGETS = {
     "track_tags": 65536,
+    "timed_metadata": 262144,
     "playlist_reader": 32768,
     "session_journal": 4096,
     "library_database": 65536,
     "mp4_demux": 262144,
     "store": 4096,
+    "mix_catalog": 256,
     "settings_codec": 128,
     "cue_sheet": 65536,
+    "discovery_screen": 256,
+    "personal_tags": 320,
+    "browse_screen": 256,
+    "app_navigation": 128,
+    "library_builder": 512,
+    "cover_image": 1048576,
+    "placeholder_art": 256,
+    "play_queue": 256,
+    "mp3_probe": 262144,
+    "ogg_track": 196608,
+    "wav_source": 262144,
+    "vorbis_decoder": 196608,
+    "opus_decode": 2048,
+    "audio_engine": 256,
+    "card_format": 64,
+    "playback_views": 256,
+    "cover_flow": 256,
+    "fat_volume": 400000,
 }
+
+
+def library_builder_fault_seeds():
+    tracks = bytes(range(248)) * 2
+    seeds = []
+    for field in range(6):
+        playlist_modes = (0, 8) if field >= 3 else (0,)
+        for playlist in playlist_modes:
+            for value in range(1, 256):
+                controls = bytearray(8)
+                controls[field] = value
+                controls[6] = playlist
+                seeds.append(bytes(controls) + tracks)
+    return seeds
+
+
 FUZZ_SEEDS = {
     "track_tags": [b"\0"],
+    "timed_metadata": [
+        b"[00:00.00]First line\n[00:01.50][00:02.00]Repeated line\n",
+        b"\xef\xbb\xbf[offset:-250]\n[00:00.10]Early\n[9999:59.999]Late\n",
+        b"[00:60.00]invalid\n[00:01.]invalid\n[00:01.1234]invalid\n",
+    ],
     "playlist_reader": [
         b"\xff#EXTM3U\n../A/b.flac\n",
         b"\x1f\xef\xbb\xbfA/one.flac\xe2\x80\xa8A/two.flac\n",
@@ -45,6 +86,7 @@ FUZZ_SEEDS = {
         bytes(range(32)),
         b"\xff\x01\xff\x01\0\x02\0\x02" * 4,
     ],
+    "mix_catalog": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32],
     "settings_codec": [
         bytes(range(128)),
         b"\1" + bytes(range(32)),
@@ -61,6 +103,54 @@ FUZZ_SEEDS = {
         b"FILE a.flac WAVE\nTRACK 01 AUDIO\nINDEX 01 00:10:00\n"
         b"TRACK 02 AUDIO\nINDEX 01 00:05:00\nTRACK 03 AUDIO\nINDEX 01 00:10:00\n",
     ],
+    "discovery_screen": [
+        bytes(range(96)),
+        b"\0\1" + bytes([0x20, 0x40, 0x60, 0x80, 0xa0, 0xc0, 0xe0]) * 12,
+        b"\7\2" + bytes([2, 7, 12, 17, 22, 27, 31, 63, 95, 127, 159, 191, 223, 255]) * 6,
+    ],
+    "personal_tags": [
+        bytes(range(160)),
+        b"\0\0\0\0\0\3\0\1\xff\xff\5\0\0\0\0" * 8,
+        b"\0\x1f\0\1\2\1\x1f\0\3\4\2\x1f\0\5\6\4\0\0\0\0" * 6,
+    ],
+    "browse_screen": [
+        bytes(range(96)),
+        b"\0" + bytes([0, 1, 2, 3, 4, 5, 31, 63, 95, 127, 159, 191, 223, 255]) * 6,
+        b"\4" + bytes([2, 7, 12, 17, 22, 27, 32, 37]) * 11,
+    ],
+    "app_navigation": [
+        bytes(range(48)),
+        bytes([0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13]) * 4,
+        bytes([0x20, 0x41, 0x62, 0x83, 0xa4, 0xc5, 0xe0, 0xff]) * 6,
+    ],
+    "library_builder": [
+        bytes(range(128)),
+        b"\0\1\2\3\4\5\6\7" * 32,
+        b"\xff\x80\x40\x20\x10\x08\x04\x02" * 32,
+        *library_builder_fault_seeds(),
+    ],
+    "cover_image": [b"\0", b"\xff\xd8\xff\xd9", b"\x89PNG\r\n\x1a\n"],
+    "placeholder_art": [
+        b"The Velvet Underground",
+        "...And Justice for All".encode(),
+        "\u6771\u4eac Nights".encode(),
+        bytes(range(128)),
+    ],
+    "play_queue": [bytes(range(64)), b"\0\1\2\3" * 32, b"\xff\x80\x40\x20" * 32],
+    "mp3_probe": [b"\0", b"ID3\4\0\0\0\0\0\0", b"\xff\xfb\x90\0"],
+    "ogg_track": [b"\0", b"OggS" + bytes(24), bytes(range(128))],
+    "wav_source": [b"\0", b"RIFF" + bytes(4) + b"WAVE"],
+    "vorbis_decoder": [b"\0", b"OggS" + bytes(24)],
+    "opus_decode": [
+        bytes(12) + b"\xf8\xff\xfe",
+        bytes([2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255]) + b"\x48\0\0",
+        bytes(range(64)),
+    ],
+    "audio_engine": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32],
+    "card_format": [b"\0" * 16, bytes(range(16)), b"\xff\0\0\0" * 4],
+    "playback_views": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32],
+    "cover_flow": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32],
+    "fat_volume": [b"\0", b"DSSP" + bytes(8)],
 }
 FUZZ_FIXTURES = {
     "library_database": [
@@ -79,7 +169,39 @@ FUZZ_FIXTURES = {
         SOURCE / "tests/fixtures/m4a_music/Alac Artist/Alac Album/02 Deep.m4a",
         SOURCE / "tests/fixtures/m4a_music/Alac Artist/Alac Album/03 Single.m4a",
     ],
+    "timed_metadata": [
+        *sorted((SOURCE / "tests/fixtures/m4b_music/Audiobooks").glob("*.m4b")),
+        *sorted((SOURCE / "tests/fixtures/m4b_real/Audiobooks").glob("*.m4b")),
+    ],
+    "cover_image": [
+        ROOT / "site/assets/screens/home.png",
+        ROOT / "site/assets/screens/cover-flow.png",
+        ROOT / "site/assets/social/home-280c6baaadf6.png",
+    ],
+    "mp3_probe": [
+        SOURCE / "tests/fixtures/tags/id3v24.mp3",
+        SOURCE / "tests/fixtures/tags/id3v23_vbr.mp3",
+        SOURCE / "tests/fixtures/tags/id3v1_no_xing.mp3",
+    ],
+    "ogg_track": [
+        *sorted((SOURCE / "tests/fixtures/vorbis").glob("*.ogg")),
+        *sorted((SOURCE / "tests/fixtures/opus").glob("*.opus")),
+        SOURCE / "tests/fixtures/tags/tagged.ogg",
+        SOURCE / "tests/fixtures/tags/tagged.opus",
+    ],
+    "wav_source": [SOURCE / "tests/fixtures/tags/tagged.wav"],
+    "vorbis_decoder": [*sorted((SOURCE / "tests/fixtures/vorbis").glob("*.ogg"))],
+    "fat_volume": [
+        SOURCE / "tests/fixtures/cards/fat16_superfloppy.sparse",
+        SOURCE / "tests/fixtures/cards/fat32_mbr.sparse",
+        SOURCE / "tests/fixtures/cards/exfat_mbr.sparse",
+    ],
 }
+COVER_IMAGE_JPEG_FIXTURES = [
+    SOURCE / "tests/fixtures/tags/id3v24.mp3",
+    SOURCE / "tests/fixtures/tags/aac.m4a",
+    SOURCE / "tests/fixtures/tags/tagged.flac",
+]
 
 
 def link_directory(path, target):
@@ -223,6 +345,14 @@ def prepare_fuzz_corpus(name):
         write_seed(corpus / f"seed-{index}", seed)
     for fixture in FUZZ_FIXTURES.get(name, ()):
         write_seed(corpus / f"fixture-{fixture.name}", fixture.read_bytes()[:FUZZ_TARGETS[name]])
+    if name == "cover_image":
+        for index, fixture in enumerate(COVER_IMAGE_JPEG_FIXTURES):
+            bytes_ = fixture.read_bytes()
+            start = bytes_.find(b"\xff\xd8")
+            end = bytes_.find(b"\xff\xd9", start + 2)
+            if start < 0 or end < 0:
+                raise SystemExit(f"No JPEG cover found in {fixture}")
+            write_seed(corpus / f"jpeg-{index}", bytes_[start:end + 2])
     if name == "track_tags":
         fixtures = SOURCE / "tests/fixtures/tags"
         for fixture in sorted(fixtures.iterdir()):

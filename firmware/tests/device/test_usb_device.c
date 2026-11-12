@@ -153,6 +153,23 @@ static void clearing_an_endpoint_halt_names_the_endpoint(void)
     CHECK_EQUAL(USB_ENDPOINT_BULK_IN, reply.value);
 }
 
+static void standard_output_requests_reject_unsupported_values_and_recipients(void)
+{
+    UsbDevice device = ready_device();
+    UsbReply interface = usb_device_setup(&device, setup(0x01, 11, 0, 0, 0));
+    CHECK_EQUAL(USB_REPLY_STATUS, interface.kind);
+    CHECK_EQUAL(USB_ACTION_NONE, interface.action);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_device_setup(&device, setup(0x01, 11, 1, 0, 0)).kind);
+
+    UsbReply wrong_recipient = usb_device_setup(&device, setup(0x00, 1, 0, 0, 0));
+    CHECK_EQUAL(USB_REPLY_STATUS, wrong_recipient.kind);
+    CHECK_EQUAL(USB_ACTION_NONE, wrong_recipient.action);
+    UsbReply wrong_feature = usb_device_setup(&device, setup(0x02, 1, 1, 0, 0));
+    CHECK_EQUAL(USB_REPLY_STATUS, wrong_feature.kind);
+    CHECK_EQUAL(USB_ACTION_NONE, wrong_feature.action);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_device_setup(&device, setup(0x00, 0x7f, 0, 0, 0)).kind);
+}
+
 static void get_max_lun_reports_the_last_lun(void)
 {
     UsbDevice device = ready_device();
@@ -281,6 +298,7 @@ int main(void)
         TEST_CASE(set_configuration_activates_the_endpoints_and_is_reported_back),
         TEST_CASE(get_status_answers_two_zero_bytes),
         TEST_CASE(clearing_an_endpoint_halt_names_the_endpoint),
+        TEST_CASE(standard_output_requests_reject_unsupported_values_and_recipients),
         TEST_CASE(get_max_lun_reports_the_last_lun),
         TEST_CASE(a_mass_storage_reset_is_acknowledged),
         TEST_CASE(unknown_requests_stall),

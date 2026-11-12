@@ -4,6 +4,7 @@
 #include "check.h"
 #include "codec/ogg_packet.h"
 #include "device/vorbis_decoder.h"
+#include "device/vorbis_track.h"
 
 enum {
     FILE_BYTES = 65536,
@@ -318,6 +319,106 @@ static void scalar_books_keep_their_valid_dimension_independent_behavior(void)
     CHECK(decoder.ready);
 }
 
+static void packet_metadata_boundaries_are_rejected_before_payload_access(void)
+{
+    CHECK(vorbis_decoder_init(&decoder, workspace + 8, VORBIS_WORKSPACE_BYTES));
+    VorbisPacket packet = {
+        .span = {{packet_data, 1}, {NULL, 0}}, .granule = UINT64_MAX, .first = true};
+    packet.granule = (uint64_t)INT64_MAX + 1;
+    CHECK(!vorbis_decoder_header(&decoder, packet));
+    packet.granule = UINT64_MAX;
+    packet.span[0].size = (uint32_t)INT32_MAX + 1;
+    CHECK(!vorbis_decoder_header(&decoder, packet));
+    packet.span[0].size = 1;
+    packet.span[1].size = INT32_MAX;
+    CHECK(!vorbis_decoder_header(&decoder, packet));
+    packet.span[1].size = 0;
+    packet.span[0] = (VorbisSpan){NULL, 1};
+    CHECK(!vorbis_decoder_header(&decoder, packet));
+    packet.span[0] = (VorbisSpan){packet_data, 0};
+    packet.span[1] = (VorbisSpan){NULL, 0};
+    CHECK(!vorbis_decoder_header(&decoder, packet));
+    packet.span[0] = (VorbisSpan){packet_data, 1};
+    packet.first = false;
+    CHECK(!vorbis_decoder_header(&decoder, packet));
+    packet.first = true;
+    packet.last = true;
+    CHECK(!vorbis_decoder_header(&decoder, packet));
+}
+
+static void decode_and_mode_snapshots_validate_output_contracts(void)
+{
+    OggPackets reader;
+    CHECK(load("stereo44", &reader));
+    VorbisPcm pcm = {.channels = {samples[0], samples[1]}, .capacity = VORBIS_MAX_FRAMES};
+    pcm.frames = 123;
+    CHECK(!vorbis_decoder_decode(&decoder, (VorbisPacket){0}, &pcm));
+    CHECK_EQUAL(0, pcm.frames);
+    VorbisModes modes;
+    CHECK(!vorbis_decoder_modes(&decoder, &modes));
+    CHECK(headers(&reader, false));
+    CHECK(vorbis_decoder_modes(&decoder, &modes));
+    CHECK(modes.count > 0);
+    CHECK(modes.short_block > 0);
+    CHECK(modes.long_block >= modes.short_block);
+    CHECK(!vorbis_decoder_modes(&decoder, NULL));
+
+    OggPacket metadata;
+    CHECK_EQUAL(OGG_PACKET_READY,
+                ogg_packets_next(&reader, packet_data, sizeof packet_data, &metadata));
+    VorbisPacket packet = packet_of(metadata, metadata.bytes);
+    packet.first = true;
+    CHECK(!vorbis_decoder_decode(&decoder, packet, &pcm));
+    packet.first = false;
+    pcm.channels[0] = NULL;
+    CHECK(!vorbis_decoder_decode(&decoder, packet, &pcm));
+    pcm.channels[0] = samples[0];
+    pcm.channels[1] = NULL;
+    CHECK(!vorbis_decoder_decode(&decoder, packet, &pcm));
+    pcm.channels[1] = samples[1];
+    pcm.capacity = 0;
+    CHECK(!vorbis_decoder_decode(&decoder, packet, &pcm));
+    pcm.capacity = VORBIS_MAX_FRAMES;
+    packet.span[0] = (VorbisSpan){NULL, 1};
+    packet.span[1] = (VorbisSpan){NULL, 0};
+    CHECK(!vorbis_decoder_decode(&decoder, packet, &pcm));
+}
+
+static void origin_rejects_incompatible_decoder_and_track_snapshots(void)
+{
+    OggPackets audio = {.input = {.size = 100}, .serial = 7, .body = 20};
+    VorbisModes modes = {.count = 1, .short_block = 64, .long_block = 128};
+    OggTrack track = {
+        .serial = 7, .data_offset = 20, .file_bytes = 100, .min_block = 64, .max_block = 128};
+    CHECK(!vorbis_track_origin(NULL, &modes, &track));
+    CHECK(!vorbis_track_origin(&audio, NULL, &track));
+    CHECK(!vorbis_track_origin(&audio, &modes, NULL));
+
+    VorbisModes changed_modes = modes;
+    changed_modes.count = 0;
+    CHECK(!vorbis_track_origin(&audio, &changed_modes, &track));
+    changed_modes = modes;
+    changed_modes.count = 65;
+    CHECK(!vorbis_track_origin(&audio, &changed_modes, &track));
+    changed_modes = modes;
+    changed_modes.short_block++;
+    CHECK(!vorbis_track_origin(&audio, &changed_modes, &track));
+    changed_modes = modes;
+    changed_modes.long_block++;
+    CHECK(!vorbis_track_origin(&audio, &changed_modes, &track));
+
+    OggPackets changed_audio = audio;
+    changed_audio.serial++;
+    CHECK(!vorbis_track_origin(&changed_audio, &modes, &track));
+    changed_audio = audio;
+    changed_audio.body++;
+    CHECK(!vorbis_track_origin(&changed_audio, &modes, &track));
+    changed_audio = audio;
+    changed_audio.input.size++;
+    CHECK(!vorbis_track_origin(&changed_audio, &modes, &track));
+    CHECK(!vorbis_track_origin(&audio, &modes, &track));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -332,6 +433,9 @@ int main(void)
         TEST_CASE(setup_truncation_never_writes_outside_the_workspace),
         TEST_CASE(vector_and_partition_books_cannot_use_zero_dimensions),
         TEST_CASE(scalar_books_keep_their_valid_dimension_independent_behavior),
+        TEST_CASE(packet_metadata_boundaries_are_rejected_before_payload_access),
+        TEST_CASE(decode_and_mode_snapshots_validate_output_contracts),
+        TEST_CASE(origin_rejects_incompatible_decoder_and_track_snapshots),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

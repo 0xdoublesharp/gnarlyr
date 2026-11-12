@@ -24,6 +24,11 @@ static ScreenAction choose(int row, KeyGesture gesture)
                               100);
 }
 
+static ScreenAction press(Key key, KeyGesture gesture)
+{
+    return screen->handle_key(screen->context, (KeyEvent){.key = key, .gesture = gesture}, 100);
+}
+
 static void finish(void)
 {
     for (int step = 0; step < 1000; step++) {
@@ -148,6 +153,55 @@ static void a_moment_at_zero_overrides_a_spoken_bookmark_before_audio_starts(voi
     CHECK_EQUAL(0, player_status(&player).position_ms);
 }
 
+static void save_reports_storage_creation_and_verification_failures(void)
+{
+    static const char path[] = "/" FIRMWARE_DATA_DIRECTORY "/moments.bin";
+    reset();
+    CHECK(player_play_list(&player, browse_root_query(BROWSE_SINGLE_TRACK), 0, 0));
+    fake_hal_set_reserve_result(HAL_RESERVE_NO_SPACE);
+    choose(0, KEY_GESTURE_PRESS);
+    CHECK(strcmp(toast.text, i18n_text(STR_MOMENT_FAILED)) == 0);
+
+    reset();
+    CHECK(player_play_list(&player, browse_root_query(BROWSE_SINGLE_TRACK), 0, 0));
+    fake_hal_fail_file_reads(path);
+    choose(0, KEY_GESTURE_PRESS);
+    CHECK(strcmp(toast.text, i18n_text(STR_MOMENT_FAILED)) == 0);
+
+    reset();
+    CHECK(player_play_list(&player, browse_root_query(BROWSE_SINGLE_TRACK), 0, 0));
+    fake_hal_fail_file_writes(path);
+    choose(0, KEY_GESTURE_PRESS);
+    finish();
+    CHECK(strcmp(toast.text, i18n_text(STR_MOMENT_FAILED)) == 0);
+}
+
+static void confirmation_can_be_kept_or_cancelled_without_deleting(void)
+{
+    reset();
+    CHECK(player_play_list(&player, browse_root_query(BROWSE_SINGLE_TRACK), 0, 0));
+    choose(0, KEY_GESTURE_PRESS);
+    finish();
+    choose(1, KEY_GESTURE_LONG_PRESS);
+    choose(0, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(2, moments.model.count(&moments));
+
+    choose(1, KEY_GESTURE_LONG_PRESS);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, press(KEY_BACK, KEY_GESTURE_PRESS).type);
+    CHECK_EQUAL(2, moments.model.count(&moments));
+    CHECK_EQUAL(SCREEN_ACTION_POP, press(KEY_BACK, KEY_GESTURE_PRESS).type);
+}
+
+static void home_always_leaves_the_nested_confirmation(void)
+{
+    reset();
+    CHECK(player_play_list(&player, browse_root_query(BROWSE_SINGLE_TRACK), 0, 0));
+    choose(0, KEY_GESTURE_PRESS);
+    finish();
+    choose(1, KEY_GESTURE_LONG_PRESS);
+    CHECK_EQUAL(SCREEN_ACTION_POP_TO_ROOT, press(KEY_BACK, KEY_GESTURE_LONG_PRESS).type);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -156,6 +210,9 @@ int main(void)
         TEST_CASE(saving_without_a_track_gives_feedback_and_creates_no_file),
         TEST_CASE(every_visible_moment_has_a_label_in_small_portrait),
         TEST_CASE(a_moment_at_zero_overrides_a_spoken_bookmark_before_audio_starts),
+        TEST_CASE(save_reports_storage_creation_and_verification_failures),
+        TEST_CASE(confirmation_can_be_kept_or_cancelled_without_deleting),
+        TEST_CASE(home_always_leaves_the_nested_confirmation),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

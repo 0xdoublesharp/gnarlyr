@@ -492,6 +492,27 @@ static void batches_build_the_same_library_as_one_whole_read(void)
     CHECK(library_compare(whole.bytes, whole.length, batched.bytes, batched.length));
 }
 
+static void playlist_extensions_are_case_insensitive_and_exact(void)
+{
+    static Output output;
+    start_tree();
+    tree_add("/lower.m3u");
+    tree_add("/upper.M3U");
+    tree_add("/utf.m3u8");
+    tree_add("/utf-upper.M3U8");
+    tree_add("/no-extension");
+    tree_add("/short.m3");
+    tree_add("/long.m3u8x");
+    tree_add("/suffix.m3u.bak");
+    tree_add("/.m3u");
+    ScanStats stats;
+    CHECK_EQUAL(SCAN_OK, scan_tree(16 * 1024, &output, &stats));
+    Library library;
+    CHECK_EQUAL(LIBRARY_OK,
+                library_open(&library, (ByteSource){output_read, &output}, output.length));
+    CHECK_EQUAL(4u, library_count(&library, LIBRARY_PLAYLISTS));
+}
+
 typedef struct CueCheck {
     uint32_t count;
     uint32_t starts[4];
@@ -870,6 +891,7 @@ int main(int argc, char **argv)
         TEST_CASE(many_sibling_folders_fit_a_small_listing),
         TEST_CASE(a_big_folder_nested_in_big_folders_is_read_in_batches),
         TEST_CASE(batches_build_the_same_library_as_one_whole_read),
+        TEST_CASE(playlist_extensions_are_case_insensitive_and_exact),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

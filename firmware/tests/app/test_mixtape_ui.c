@@ -382,10 +382,109 @@ static void cancelling_after_completion_discards_only_the_pending_destination(vo
     CHECK_EQUAL(0, fake_hal_scratch_outstanding());
 }
 
+static void state_machine_failures_return_to_a_safe_idle_screen(void)
+{
+    reset();
+    ui.stage = MIXTAPE_SNAPSHOT;
+    player.editing.result = PLAYER_QUEUE_EDIT_INVALID;
+    mixtape_ui_step(&ui, 300);
+    CHECK(!mixtape_ui_busy(&ui));
+    CHECK(toast.text[0] != '\0');
+
+    reset();
+    ui.stage = MIXTAPE_SNAPSHOT;
+    player.editing.result = PLAYER_QUEUE_EDITED;
+    ui.store.result = STORE_WORKING;
+    mixtape_ui_step(&ui, 300);
+    CHECK(!mixtape_ui_busy(&ui));
+    CHECK(toast.text[0] != '\0');
+
+    static const uint8_t stages[] = {MIXTAPE_STORE, MIXTAPE_OPEN, MIXTAPE_RESOLVE, MIXTAPE_COPY};
+    for (uint32_t index = 0; index < sizeof stages / sizeof stages[0]; index++) {
+        reset();
+        ui.stage = stages[index];
+        ui.store.result = STORE_FAILED;
+        ui.resolver.result = STORE_FAILED;
+        ui.writer.write.result = STORE_FAILED;
+        mixtape_ui_step(&ui, 300);
+        CHECK(!mixtape_ui_busy(&ui));
+        CHECK(ui.destination == NULL);
+    }
+}
+
+static void completed_empty_or_unpublishable_work_fails_closed(void)
+{
+    reset();
+    ui.stage = MIXTAPE_OPEN;
+    ui.store.result = STORE_DONE;
+    ui.store.tape.count = 0;
+    mixtape_ui_step(&ui, 300);
+    CHECK(!mixtape_ui_busy(&ui));
+    CHECK(strcmp(toast.text, "Mixtape is empty") == 0);
+
+    reset();
+    ui.stage = MIXTAPE_RESOLVE;
+    ui.resolver.result = STORE_DONE;
+    ui.resolver.count = 0;
+    mixtape_ui_step(&ui, 300);
+    CHECK(!mixtape_ui_busy(&ui));
+    CHECK(strcmp(toast.text, "Songs unavailable") == 0);
+
+    reset();
+    ui.stage = MIXTAPE_COPY;
+    ui.writer.write.result = STORE_DONE;
+    mixtape_ui_step(&ui, 300);
+    CHECK(!mixtape_ui_busy(&ui));
+    CHECK(toast.text[0] != '\0');
+}
+
+static void store_completion_messages_cover_each_operation(void)
+{
+    static const struct {
+        uint8_t mode;
+        bool appending;
+        bool renaming;
+        const char *message;
+    } cases[] = {
+        {MIXTAPE_CONFIRM_DELETE, false, false, "Mixtape deleted"},
+        {MIXTAPE_LIST, true, false, "Songs added"},
+        {MIXTAPE_LIST, false, true, "Mixtape renamed"},
+        {MIXTAPE_LIST, false, false, "Mixtape saved"},
+    };
+    for (uint32_t index = 0; index < sizeof cases / sizeof cases[0]; index++) {
+        reset();
+        ui.stage = MIXTAPE_STORE;
+        ui.store.result = STORE_DONE;
+        ui.mode = cases[index].mode;
+        ui.appending = cases[index].appending;
+        ui.renaming = cases[index].renaming;
+        mixtape_ui_step(&ui, 300);
+        CHECK(!mixtape_ui_busy(&ui));
+        CHECK(toast.text[0] != '\0');
+    }
+}
+
+static void invalid_slots_and_busy_stores_refuse_new_work(void)
+{
+    reset();
+    ui.slot = MIX_CATALOG_SLOTS;
+    CHECK(!mixtape_ui_load(&ui));
+    CHECK(!mixtape_ui_busy(&ui));
+    ui.slot = 0;
+    ui.save_queue = false;
+    ui.store.result = STORE_WORKING;
+    CHECK(!mixtape_ui_save(&ui));
+    CHECK(!mixtape_ui_busy(&ui));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(cancelling_after_completion_discards_only_the_pending_destination),
+        TEST_CASE(state_machine_failures_return_to_a_safe_idle_screen),
+        TEST_CASE(completed_empty_or_unpublishable_work_fails_closed),
+        TEST_CASE(store_completion_messages_cover_each_operation),
+        TEST_CASE(invalid_slots_and_busy_stores_refuse_new_work),
         TEST_CASE(a_long_name_keeps_its_tail_visible_without_cutting_a_character),
         TEST_CASE(saved_mixtapes_load_as_editable_queues_and_resume_after_restart),
         TEST_CASE(edit_opens_up_next_and_keeps_the_new_queue_paused),

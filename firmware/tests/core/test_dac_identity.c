@@ -49,6 +49,13 @@ static void an_unrecognised_part_is_marked_and_keeps_its_bytes(void)
     CHECK(shows(identity, "?439900 C2.1E"));
 }
 
+static void a_near_match_with_the_wrong_id_nibble_is_unrecognised(void)
+{
+    static const uint8_t BYTES[] = {0x43, 0x19, 0x70, 0xA0, 0x00};
+    DacIdentity identity = read_as(DAC_IDENTITY_ALL_READ, BYTES);
+    CHECK_EQUAL(DAC_PART_UNKNOWN, dac_identity_part(&identity));
+}
+
 static void a_part_that_answers_zeros_is_unrecognised_not_blank(void)
 {
     static const uint8_t BYTES[DAC_IDENTITY_BYTES] = {0};
@@ -111,6 +118,7 @@ int main(void)
         TEST_CASE(a_cs43131_shows_its_id_bytes_then_revision_and_subrevision),
         TEST_CASE(the_low_nibble_of_the_third_byte_is_shown_but_not_part_of_the_id),
         TEST_CASE(an_unrecognised_part_is_marked_and_keeps_its_bytes),
+        TEST_CASE(a_near_match_with_the_wrong_id_nibble_is_unrecognised),
         TEST_CASE(a_part_that_answers_zeros_is_unrecognised_not_blank),
         TEST_CASE(a_failed_read_says_so_and_shows_no_bytes),
         TEST_CASE(a_partial_read_shows_dashes_for_the_bytes_it_lacks),

@@ -23,6 +23,9 @@ static bool signed_as(const uint8_t *bytes, const char *signature)
 
 uint32_t opus_track_frames(const uint8_t *toc, uint32_t bytes)
 {
+    if (toc == NULL || bytes == 0) {
+        return 0;
+    }
     uint32_t config = toc[0] >> 3;
     uint32_t size = config < 12   ? (config & 3) == 3 ? 2880u : 480u << (config & 3)
                     : config < 16 ? 480u << (config & 1)
