@@ -29,6 +29,10 @@ def pack(code="fr", name="Francais", **texts):
     return PACK.build_pack(code, CATALOGUE, {"STR_LANGUAGE_NAME": name, **texts})
 
 
+def extended_pack():
+    return pack(STR_BACK_CANCELS="x" * (16384 + 512 - len(pack())))
+
+
 F_BLOCK = bytes([0x09, 0x02]) + bytes(14)
 
 
@@ -82,7 +86,7 @@ class LanguageCommands(VolumeCase):
         return mock.patch.object(echo_language.Snapshot, "show", show)
 
     def test_an_extended_pack_is_refused_before_writing_to_a_sixteen_kibibyte_build(self):
-        self.pack.write_bytes(pack(STR_BACK_CANCELS="x" * 8000))
+        self.pack.write_bytes(extended_pack())
         self.assertGreater(self.pack.stat().st_size, 16384)
         with self.with_pack_capacity(16384):
             status, result = self.run_cli("language-install", str(self.pack), host=self.host())
@@ -91,7 +95,7 @@ class LanguageCommands(VolumeCase):
         self.assertEqual(list(self.lang.iterdir()), [])
 
     def test_an_extended_version_one_pack_installs_on_an_eighteen_kibibyte_build(self):
-        data = pack(STR_BACK_CANCELS="x" * 8000)
+        data = extended_pack()
         self.pack.write_bytes(data)
         self.assertEqual(1, PACK.HEADER.unpack_from(data)[1])
         tool, _ = self.live_tool()
