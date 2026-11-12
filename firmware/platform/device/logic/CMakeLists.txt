@@ -2,7 +2,11 @@ include(tremor.cmake)
 include(opus.cmake)
 
 set(ECHO_LIBMAD_DIR ${PROJECT_SOURCE_DIR}/third_party/libmad)
-set(FPM_64BIT ON)
+if(CMAKE_CROSSCOMPILING)
+    set(FPM_ARM ON)
+else()
+    set(FPM_64BIT ON)
+endif()
 set(SIZEOF_INT 4)
 configure_file(${ECHO_LIBMAD_DIR}/mad.h.in ${CMAKE_CURRENT_BINARY_DIR}/libmad/mad.h @ONLY)
 add_library(echo_libmad STATIC
