@@ -47,16 +47,8 @@ typedef struct LibrarySectionInfo {
 } LibrarySectionInfo;
 
 enum {
-    LIBRARY_EXTRA_CAPACITY = 256,
-    LIBRARY_HIDDEN_CAPACITY = 12
+    LIBRARY_EXTRA_CAPACITY = 256
 };
-
-typedef struct LibraryHidden {
-    uint16_t count;
-    uint16_t tracks[LIBRARY_HIDDEN_CAPACITY];
-    uint16_t folders[LIBRARY_HIDDEN_CAPACITY];
-    uint16_t titles[LIBRARY_HIDDEN_CAPACITY];
-} LibraryHidden;
 
 typedef struct LibraryExtraPlaylist {
     const char *name;
@@ -69,7 +61,6 @@ typedef struct Library {
     ByteSource source;
     LibrarySectionInfo sections[LIBRARY_SECTION_COUNT];
     const LibraryExtraPlaylist *extra;
-    const LibraryHidden *hidden;
     uint32_t content_fingerprint;
     uint32_t size;
     bool content_known;
@@ -127,4 +118,3 @@ bool library_read_index(const Library *library, LibrarySection section, uint32_t
 bool library_read_string(const Library *library, uint32_t offset, char *buffer, size_t capacity);
 uint32_t library_fingerprint(const Library *library);
 uint32_t library_album_key(const Library *library, uint32_t album_index);
-bool library_hidden(const Library *library, uint32_t track);

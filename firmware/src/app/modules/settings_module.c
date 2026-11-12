@@ -54,7 +54,6 @@ static void bind(AppScreens *screens)
         .toast = context->toast,
         .rescan_requested = context->rescan_requested,
         .language_requested = context->language_requested,
-        .library = context->store,
         .bluetooth = &own->bluetooth,
         .theme = context->styled_theme,
     };

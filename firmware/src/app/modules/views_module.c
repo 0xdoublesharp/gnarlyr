@@ -1,7 +1,6 @@
 #include "mixtape_ui_private.h"
 #include "modules/modules.h"
 #include "screens/charge_screen.h"
-#include "track_removal.h"
 
 static void bind(AppScreens *screens)
 {
@@ -24,18 +23,6 @@ static void bind(AppScreens *screens)
                                                           context->theme});
 }
 
-static Screen *manage(AppScreens *screens, uint16_t track, SongManage manage)
-{
-    const AppScreensContext *context = &screens->context;
-    if (manage == SONG_MANAGE_TAPE) {
-        return mixtape_ui_add(&screens->modules.views.mixtapes, track);
-    }
-    TrackRemoval removal = {.tracks = {.store = context->store, .player = context->player},
-                            .actions = &screens->browse.song_actions,
-                            .toast = context->toast};
-    return track_removal_manage(removal, track, manage);
-}
-
 const ViewsModuleEntry VIEWS_MODULE_ENTRY = {
     .module = SCREEN_MODULE_ENTRY(SCREEN_MODULE_VIEWS, bind),
     .cancel = mixtape_ui_cancel,
@@ -43,5 +30,4 @@ const ViewsModuleEntry VIEWS_MODULE_ENTRY = {
     .add = mixtape_ui_add,
     .charge_observe = charge_art_observe,
     .charge_draw = charge_art_draw,
-    .manage = manage,
 };

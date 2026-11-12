@@ -9,7 +9,6 @@
 #include "hal/power.h"
 #include "hal/storage.h"
 #include "hal/system.h"
-#include "hidden_scan.h"
 #include "library_store.h"
 #include "music_check.h"
 #include "scan_guard.h"
@@ -248,8 +247,6 @@ static RescanOutcome rescan_run(uint32_t capacity, HalFile scratch, RescanProgre
     void *memory = hal_system_borrow_scratch(&size);
     uint32_t listing_size = 0;
     void *listing = memory != NULL ? hal_system_borrow_listing(&listing_size) : NULL;
-    HiddenScan hidden;
-    hidden_scan_load(&hidden);
     ScanJob job = {
         .files = {open_dir, next_entry, close_dir, open_file, close_file, &rescan_files},
         .memory = memory,
@@ -260,12 +257,8 @@ static RescanOutcome rescan_run(uint32_t capacity, HalFile scratch, RescanProgre
         .sink = {write_library, NULL},
         .capacity = capacity,
         .progress = {report, &rescan_files},
-        .filter = {hidden_scan_skips, &hidden},
     };
     run_passes(&job, &outcome);
-    if (outcome.result == SCAN_OK) {
-        hidden_scan_forget_runtime();
-    }
     end_guard();
     hal_file_close(&rescan_files.scratch);
     return outcome;

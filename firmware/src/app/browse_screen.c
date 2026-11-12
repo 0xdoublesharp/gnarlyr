@@ -418,8 +418,7 @@ static ScreenAction add_song_to_favorites(void *context)
 static ScreenAction add_to_tape(void *context)
 {
     BrowsePool *pool = context;
-    Screen *screen =
-        pool->config.manage(pool->config.tools_context, pool->song_actions.track, SONG_MANAGE_TAPE);
+    Screen *screen = pool->config.tape(pool->config.tools_context, pool->song_actions.track);
     return screen != NULL ? screen_action_push(screen) : screen_action_none();
 }
 
@@ -437,22 +436,11 @@ static ScreenAction open_track_tags(void *context)
     return screen != NULL ? screen_action_push(screen) : screen_action_none();
 }
 
-static ScreenAction manage_song(void *context)
-{
-    BrowsePool *pool = context;
-    SongActions *actions = &pool->song_actions;
-    int choice = actions->menu.list.selected + 2 - actions->menu.config.item_count;
-    SongManage manage = (SongManage)(choice + (actions->confirming ? SONG_MANAGE_KEEP : 0));
-    Screen *screen = pool->config.manage(pool->config.tools_context, actions->track, manage);
-    return screen != NULL ? screen_action_replace(screen) : screen_action_pop();
-}
-
 Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, const char *name,
                                  uint32_t now_ms)
 {
     SongActions *actions = &pool->song_actions;
     actions->track = track;
-    actions->confirming = false;
     actions->now_ms = now_ms;
     StringBuilder title = string_builder_make(actions->title, sizeof actions->title);
     string_builder_append(&title, name);
@@ -476,17 +464,11 @@ Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, const char *n
                                              .context = pool,
                                              .opens = true};
     }
-    if (pool->config.manage != NULL) {
+    if (pool->config.tape != NULL) {
         actions->items[count++] = (MenuItem){.label = i18n_text(STR_ADD_TO_TAPE),
                                              .select = add_to_tape,
                                              .context = pool,
                                              .opens = true};
-    }
-    for (int index = 0; pool->config.manage != NULL && index < 2; index++) {
-        actions->items[count++] =
-            (MenuItem){.label = i18n_text(index == 0 ? STR_HIDE_TRACK : STR_DELETE_FILE),
-                       .select = manage_song,
-                       .context = pool};
     }
     MenuConfig config = {.title = actions->title,
                          .items = actions->items,
@@ -564,12 +546,10 @@ static void enter(void *context, uint32_t now_ms)
     browse->now_ms = now_ms;
     if (browse->favorites_only) {
         collect_favorites(browse);
-    } else if (!browse->shelf_root) {
-        browse->count = browse_count(browse->pool->config.library, browse->query);
     }
     list_view_fit(&browse->list);
     browse->screen.fast_list = browse->count > (uint32_t)browse->list.visible_rows;
-    list_view_select(&browse->list, browse->list.selected, now_ms);
+    list_view_restart_marquee(&browse->list, now_ms);
     refresh_rows(browse);
 }
 

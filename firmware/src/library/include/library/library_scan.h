@@ -54,11 +54,6 @@ typedef struct ScanStats {
     uint32_t length;
 } ScanStats;
 
-typedef struct ScanTrackFilter {
-    bool (*hidden)(void *context, const BuilderTrack *track);
-    void *context;
-} ScanTrackFilter;
-
 typedef struct ScanJob {
     ScanFileSystem files;
     void *memory;
@@ -69,7 +64,6 @@ typedef struct ScanJob {
     ByteSink sink;
     uint32_t capacity;
     ScanProgress progress;
-    ScanTrackFilter filter;
 } ScanJob;
 
 ScanResult library_scan(const ScanJob *job, ScanStats *stats);

@@ -93,11 +93,6 @@ echo_add_unit_test(NAME test_draw_profile
     LIBRARIES echo_app
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
-echo_add_unit_test(NAME test_track_removal
-    SOURCES app/test_track_removal.c app/fake_hal.c
-    LIBRARIES echo_app echo_library_fixtures
-    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
-)
 echo_add_unit_test(NAME test_player
     SOURCES app/test_player.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures

@@ -161,24 +161,6 @@ On the device, the scanner notes each `.m3u`/`.m3u8` path during the walk (the P
 
 Favorites outlive a re-index, so they don't store album indices. An album's key is the FNV-1a hash of its album artist, a `0x1F` separator and its title (`library_album_key`). `/.gnarlyr/favorites.bin` holds the magic `DSFV`, `u16` version 1, a `u16` count, the `u32` keys and an FNV-1a checksum. At most 256 albums can be favorites. An album that leaves the library just stops showing up.
 
-## Hidden tracks file
-
-`/.gnarlyr/hidden.bin` (4,864 bytes, made by the player when a song is first hidden or deleted; `app/hidden_tracks`) keeps the songs the owner hid and the songs hidden or deleted since the last library build. Little-endian:
-
-| Offset | Type | Field |
-|---|---|---|
-| 0 | `u32` | magic `DSHD` |
-| 4 | `u32` | layout fingerprint (`library_fingerprint`) of the library the runtime set belongs to; 0 after a rescan |
-| 8 | `u16` | hidden records in use (at most 16) |
-| 10 | `u16` | 0 |
-| 12 | `u16` | runtime set count (at most 12) |
-| 14 | `u16[12]` | track indices |
-| 38 | `u16[12]` | the folder that lists each track in a folder walk (its CUE or chapter folder when it has one) |
-| 62 | `u16[12]` | the tracks' places in the title order, sorted |
-| 512 | 16 × 272 B | hidden records: a `MixIdentity` (`u16` path length, `u32` start, `u32` end, path) per hidden song, in the order they were hidden |
-
-The records are what the owner hid, by identity, so they survive a rescan: the rescan leaves those songs out of the new library (`app/hidden_scan`). The runtime set is what `library_browse` and the player skip in the library that is open; it is used only while its fingerprint matches the open library, and a successful rescan writes 0 there, because the new library already leaves out the hidden songs and the deleted files. A deleted file has no record.
-
 ## Bookmarks file
 
 `/.gnarlyr/bookmarks.bin` (4 KB, reserved by the player) remembers where each audiobook and podcast episode stopped (`playback/bookmarks`). Like favorites, it is keyed by path hashes, so it outlives a re-index.

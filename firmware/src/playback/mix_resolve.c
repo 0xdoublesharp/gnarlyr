@@ -96,10 +96,6 @@ static bool same_candidate(MixResolve *job, uint16_t track)
 
 static void want_track(MixResolve *job)
 {
-    if (library_hidden(job->library, job->position)) {
-        job->position++;
-        return;
-    }
     StoreLoad load = mix_identity_read(job->library, (uint16_t)job->position, &job->wanted);
     if (load == STORE_READY) {
         want(job);

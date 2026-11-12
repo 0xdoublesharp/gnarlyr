@@ -21,16 +21,8 @@ enum {
     BROWSE_LABEL_CAPACITY = 128,
     BROWSE_DETAIL_CAPACITY = 32,
     BROWSE_TITLE_CAPACITY = 96,
-    SONG_ACTION_COUNT = 8
+    SONG_ACTION_COUNT = 6
 };
-
-typedef enum SongManage {
-    SONG_MANAGE_HIDE,
-    SONG_MANAGE_ASK,
-    SONG_MANAGE_KEEP,
-    SONG_MANAGE_DELETE,
-    SONG_MANAGE_TAPE
-} SongManage;
 
 typedef struct BrowseRows {
     int level;
@@ -75,14 +67,13 @@ typedef struct BrowsePoolConfig {
     ListSections (*sections)(const BrowseScreen *browse, int index);
     Screen *(*artist)(void *context, BrowseScreen *browse, BrowseQuery albums);
     void *tools_context;
-    Screen *(*manage)(void *context, uint16_t track, SongManage manage);
+    Screen *(*tape)(void *context, uint16_t track);
 } BrowsePoolConfig;
 
 typedef struct SongActions {
     MenuScreen menu;
     MenuItem items[SONG_ACTION_COUNT];
     uint16_t track;
-    bool confirming;
     uint32_t now_ms;
     char title[BROWSE_LABEL_CAPACITY];
 } SongActions;

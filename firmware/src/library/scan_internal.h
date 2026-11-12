@@ -28,8 +28,6 @@ typedef struct Level {
 
 typedef struct ScanState {
     LibraryBuilder builder;
-    ScanTrackFilter filter;
-    uint32_t hidden;
     TrackTags tags;
     TrackFields fields;
     ScanEntry entry;
@@ -57,7 +55,6 @@ uint32_t scan_text_length(const char *text);
 bool scan_append_path(ScanState *state, const char *name, bool directory);
 void scan_truncate_path(ScanState *state, uint32_t length);
 ScanResult scan_builder_result(BuilderResult result);
-ScanResult scan_add_track(ScanState *state, const BuilderTrack *track);
 void scan_report(const ScanJob *job, const ScanStats *stats);
 bool scan_has_suffix(const char *name, const char *suffix);
 ScanResult scan_mark_cue_targets(ScanState *state, const ScanFileSystem *files, const Level *level);

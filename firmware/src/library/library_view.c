@@ -361,7 +361,8 @@ static bool filters_match(LibraryView *view, uint16_t id, const LibraryTrack *tr
             return false;
         }
     }
-    return !library_hidden(view->library, id);
+    (void)id;
+    return true;
 }
 
 static bool predicate_matches(LibraryView *view, uint16_t id, const LibraryTrack *track)

@@ -227,7 +227,7 @@ static ScanResult add_entry(ScanState *state, const CueEntry *entry, const char 
     BuilderTrack track = state->fields.track;
     apply_entry(state, entry, title, &track);
     track.sheet = cue_name;
-    return scan_add_track(state, &track);
+    return scan_builder_result(library_builder_add_track(&state->builder, &track));
 }
 
 static ScanResult add_entries(ScanState *state, const ScanJob *job, ScanStats *stats,
