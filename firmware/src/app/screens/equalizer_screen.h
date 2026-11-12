@@ -31,11 +31,11 @@ typedef struct EqualizerScreen {
     Screen screen;
     EqualizerScreenConfig config;
     Settings working;
-    EqualizerResponse response;
+    EqualizerResponse *response;
     ListModel model;
     ListView list;
-    char text[EQUALIZER_SCREEN_ROWS][EQUALIZER_SCREEN_TEXT_CAPACITY];
-    char title[EQUALIZER_SCREEN_TITLE_CAPACITY];
+    char (*text)[EQUALIZER_SCREEN_TEXT_CAPACITY];
+    char *title;
     uint32_t now_ms;
     int slot;
     bool adjusting;

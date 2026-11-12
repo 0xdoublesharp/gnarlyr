@@ -290,7 +290,7 @@ Settings → Text size picks Small, Medium (the default) or Large for list rows,
 
 ## Equalizer
 
-Settings → Equalizer previews a sound: Off, Retro, Bass, Heavy, Pop, Jazz, Unique (the same curves as FiiO's firmware), Custom, then your saved slots (Slot 1 to Slot 8) and the files from the `EQ` folder. Move with vol+ and vol− to hear the highlighted curve and see its frequency response. Browsing leaves saved settings unchanged. Press ▶ to keep the sound; Back cancels. Leaving for Now Playing, Home or another screen, or switching off, restores the kept sound. Choosing a slot or a file copies its curve into Custom. Choosing a slot or Custom also opens Custom EQ, so the curve can be changed right away; for a slot, "Save to slot" starts on that slot. While the curve still matches a slot, Settings → Equalizer shows the slot's name in place of Custom.
+Settings → Equalizer previews a sound: Off, Retro, Bass, Heavy, Pop, Jazz, Unique (the same curves as FiiO's firmware), Custom for the graphic sound, Custom (parametric), then your saved slots (Slot 1 to Slot 8) and the files from the `EQ` folder, followed by Sound shaping. Move with vol+ and vol− to hear the highlighted curve and see its frequency response. Browsing leaves saved settings unchanged. Press ▶ to keep the sound; Back cancels. Leaving for Now Playing, Home or another screen, or switching off, restores the kept sound. Choosing a slot or a file copies its curve into the corresponding Custom sound. Choosing a slot or either Custom also opens its editor, so the curve can be changed right away; for a slot, "Save to slot" starts on that slot. While the curve still matches a slot, Settings → Equalizer shows the slot's name in place of Custom.
 
 Settings → Custom EQ edits ten bands: 31, 62, 125, 250 and 500 Hz, and 1, 2, 4, 8 and 16 kHz. Volume keys choose a band; ▶ enters adjustment. The selected frequency and gain remain visible beside the curve. Adjust with vol+ and vol− in steps of 0.5 dB, from -10.0 to +10.0 dB. Changes are heard while adjusting, but saved settings stay unchanged until ▶ keeps the adjustment. Back cancels the current adjustment. Leaving the editor also cancels an unkept adjustment. Keeping a changed band selects Custom.
 
@@ -311,7 +311,59 @@ Settings → Custom EQ edits ten bands: 31, 62, 125, 250 and 500 Hz, and 1, 2, 4
 
 Lines starting with `#` are comments. The points can be in any order and at any frequencies: each of the ten bands gets the gain interpolated between its two nearest points (by octave distance), or the nearest point's gain beyond the ends. Gains are rounded to 0.5 dB and limited to ±10 dB. A file without a usable frequency and gain says "Couldn't read EQ file" and changes nothing.
 
-The graph is a calculated 44.1 kHz filter response with a labeled decibel scale, not an audio spectrum or a measurement of the output. It shows the tone-shaping response before the separately displayed computed preamp value. That value comes from the same linear gain used by the equalizer. Custom calculates preamp compensation from the combined filter response, including overlapping boosts and cuts. A change is heard after about a third of a second. The equalizer works on music up to 96 kHz (higher rates play unchanged) and not in USB DAC mode. Bands at or above a quarter of the music's sample rate do nothing (the 16 kHz band is idle at 44.1 and 48 kHz).
+The graph is a calculated 44.1 kHz filter response with a labeled decibel scale, not an audio spectrum or a measurement of the output. It shows the tone-shaping response before the separately displayed computed preamp value. The preamp caption is calculated from the displayed reference response. Custom calculates preamp compensation from the combined filter response, including overlapping boosts and cuts. A change is heard after about a third of a second. The equalizer works on music up to 96 kHz (higher rates play unchanged) and not in USB DAC mode. Graphic bands at or above a quarter of the music's sample rate do nothing (the 16 kHz band is idle at 44.1 and 48 kHz).
+
+### Parametric EQ
+
+Settings → Parametric EQ keeps a separate parametric Custom sound. The graphic Custom EQ editor stays available. A parametric sound has up to ten enabled or disabled filters: Peak, Low shelf or High shelf. Select a filter with the volume keys and press ▶ to see Enabled, Type, Frequency, Gain, Q and Remove filter. Select a field with ▶, change it with the volume keys, and press ▶ to keep it; Back cancels that adjustment. Back from the fields returns to the filter list. Add filter creates an enabled, flat 1 kHz Peak filter. Remove filter removes the selected filter.
+
+Frequency covers 20 Hz to 20 kHz in roughly 1/24-octave steps, rounded to whole Hz. Gain covers −12.0 to +12.0 dB in 0.1 dB steps, so imported correction values keep their precision. Q covers 0.30 to 10.00 in 0.01 steps. The selected filter's frequency, gain and Q appear above the response graph in landscape; its fields show those values in portrait. Enabled turns a filter off without removing its settings.
+
+Requested preamp adjusts the global level from −60.0 to +12.0 dB. The separately displayed computed preamp includes automatic headroom and can be lower than the requested value. The graph and its preamp caption use the labeled 44.1 kHz reference; playback recomputes protection for the actual output rate. Headroom covers overlapping boosts, resonant shelves and transient overshoot; it can reduce the level substantially for complex curves. A positive requested value cannot override that protection. Extremely demanding curves can require more attenuation than the fixed-point preamp can represent and become silent. Lower the boosts or disable filters to recover level.
+
+Save to slot stores the parametric sound in any of the same eight slots. A slot holds either a graphic or a parametric sound; saving replaces its previous kind. Settings → Equalizer offers Custom for the graphic sound, Custom (parametric), saved slots, and files. Choosing a parametric slot opens its editor. Music above 96 kHz and USB DAC output remain unchanged. Parametric filters at or above half the actual output rate are inactive; converted speech uses its converted output rate.
+
+### Sound shaping
+
+Open **Settings → Equalizer → Sound shaping** to change the sound with words. Use the volume keys to browse Warmth, Brightness, Bass, Punch, Vocals, Air and Clarity. Press Play to adjust a control, move between −5 and +5 with the volume keys, and press Play again to keep it. Back cancels the current adjustment. The slider, response curve and automatic preamp update as you move. Zero leaves that control neutral.
+
+| Control | Negative end | Positive end | Filter | Frequency | Q | Change per step toward the positive end |
+| --- | --- | --- | --- | --- | --- | --- |
+| Warmth | Cool | Warm | Peak | 300 Hz | 0.70 | +1 dB: fuller low mids |
+| Brightness | Dark | Bright | High shelf | 6 kHz | 0.71 | +1 dB: more treble |
+| Bass | Light | Deep | Low shelf | 80 Hz | 0.71 | +1 dB: more low bass |
+| Punch | Soft | Punchy | Peak | 90 Hz | 1.40 | +1 dB: a tighter bass emphasis |
+| Vocals | Distant | Close | Peak | 2 kHz | 0.70 | +1 dB: more vocal presence |
+| Air | Closed | Airy | High shelf | 12 kHz | 0.71 | +1 dB: more upper treble |
+| Clarity | Muddy | Clean | Peak | 350 Hz | 0.90 | −1 dB: less low-mid weight |
+
+Negative steps reverse the filter change. These are tone adjustments; Punch changes bass emphasis without changing timing or compression. Headroom protection lowers the overall level as needed for the combined curve, so boosted settings can sound quieter. The graph shows the filter response before that attenuation; its preamp caption shows the reduction.
+
+**Reset shaping** returns all seven controls to zero and keeps the correction underneath. **Save to slot** stores both the sound and the control positions in one of the eight EQ slots. Choosing that slot opens Sound shaping again. The Equalizer row describes the first two nonzero controls in control order, for example **Warm · Bright**; a fully neutral shape reads **Neutral**. Opening Settings → Parametric EQ exposes the resulting filters. Keeping a manual filter edit turns that Custom curve into an ordinary parametric sound; a saved shaping slot keeps its positions.
+
+**On top of** adds shaping to a saved parametric correction. Import an AutoEQ file through Equalizer, save it to a slot, then open Sound shaping and select that slot under On top of. Each nonzero shaping control takes one filter. The correction and shaping together must fit ten filters: a seven-filter correction leaves room for three nonzero controls. A change that would exceed ten is refused with a message and leaves the previous sound intact. Empty and graphic slots are refused. Select No correction for shaping alone.
+
+The saved sound contains a copy of the correction, so changing the source slot later does not change it. On reopening, a copied correction is labelled Parametric EQ. Reset removes only the shaping filters. Leaving an adjustment for Home, another module or USB restores the kept sound. The existing music-rate and USB DAC limits apply.
+
+### AutoEQ parametric files
+
+1. Export **ParametricEQ.txt** from AutoEQ, using at most ten Peak or shelf filters when possible. Copy it into `/EQ` on the active music volume. File names must fit the existing 27-byte limit.
+2. Open Settings → Equalizer and highlight the file to preview it. Press ▶ to keep it and open Parametric EQ.
+3. Review the filters and computed preamp, then use Save to slot to keep a named slot number. The imported Custom sound is also saved across restarts.
+
+Equalizer APO syntax works directly:
+
+```text
+Preamp: -6.2 dB
+Filter 1: ON PK Fc 105 Hz Gain -2.3 dB Q 0.70
+Filter 2: ON LSC Fc 100 Hz Gain 3.4 dB Q 0.71
+Filter 3: ON HS Fc 9000 Hz Gain -1.1 dB
+Filter 4: OFF PK Fc 400 Hz Gain 2 dB Q 1.00
+```
+
+PK and PEQ mean Peak; LS/LSC and HS/HSC mean Low shelf and High shelf. Names are case insensitive, and CRLF or LF line endings work. Peak needs Q; a shelf without Q uses 0.71, approximately the cookbook's default unity slope. OFF filters are ignored. Exported Squiglink files using this syntax work too; Wavelet GraphicEQ exports continue to use the existing graphic fitter.
+
+If more than ten ON filters are supplied, the ten largest absolute gains are kept and the player reports that reduction. Malformed or out-of-range filter lines reject the whole import, leaving the kept sound unchanged. Files over 16 KiB are refused. GraphicEQ files still fit to the graphic bands; their Preamp lines remain ignored. Parametric imports retain their requested preamp, subject to automatic headroom.
 
 ## ReplayGain
 

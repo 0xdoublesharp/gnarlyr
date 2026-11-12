@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/parametric.h"
+
 #include "core/replay_gain.h"
 #include "playback/play_queue.h"
 
@@ -97,7 +99,8 @@ typedef enum EqualizerPreset {
     EQUALIZER_POP,
     EQUALIZER_JAZZ,
     EQUALIZER_UNIQUE,
-    EQUALIZER_CUSTOM
+    EQUALIZER_CUSTOM,
+    EQUALIZER_PARAMETRIC
 } EqualizerPreset;
 
 typedef enum TextSize {
@@ -136,7 +139,7 @@ enum {
     USB_MODE_COUNT = USB_MODE_DAC + 1,
     USB_CONNECT_COUNT = USB_CONNECT_CHARGE + 1,
     ACCENT_COLOR_COUNT = ACCENT_GRAPHITE + 1,
-    EQUALIZER_PRESET_COUNT = EQUALIZER_CUSTOM + 1,
+    EQUALIZER_PRESET_COUNT = EQUALIZER_PARAMETRIC + 1,
     TEXT_SIZE_COUNT = TEXT_SIZE_LARGE + 1,
     SKIP_GESTURE_COUNT = SKIP_GESTURE_PLAY_CLICKS + 1,
     ORIENTATION_COUNT = ORIENTATION_PORTRAIT_FLIPPED + 1,
@@ -194,6 +197,7 @@ typedef struct Settings {
     uint8_t button_actions[PLAYBACK_BUTTON_COUNT];
     EqualizerPreset equalizer;
     int8_t equalizer_gains[SETTINGS_EQUALIZER_BANDS];
+    ParametricEq parametric;
     TextSize text_size;
     SkipGesture skip_gesture;
     Orientation orientation;
@@ -224,6 +228,8 @@ typedef struct SettingsEqualizerCurve {
     int8_t gain_half_db[SETTINGS_EQUALIZER_BANDS];
     uint8_t band_count;
     uint16_t pre_gain;
+    bool is_parametric;
+    ParametricEq parametric;
 } SettingsEqualizerCurve;
 
 extern const uint16_t SETTINGS_EQUALIZER_BAND_HZ[SETTINGS_EQUALIZER_BANDS];

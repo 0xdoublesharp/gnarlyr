@@ -94,8 +94,8 @@ static int logarithm(uint16_t hz)
 
 static int frequency_x(Rect area, uint16_t hz)
 {
-    int low = logarithm(equalizer_response_frequency(0));
-    int high = logarithm(equalizer_response_frequency(EQUALIZER_RESPONSE_POINTS - 1));
+    int low = logarithm(PARAMETRIC_MIN_HZ);
+    int high = logarithm(PARAMETRIC_MAX_HZ);
     return area.x + (logarithm(hz) - low) * (area.width - 1) / (high - low);
 }
 
@@ -103,8 +103,9 @@ static Point response_point(Rect area, const EqualizerResponse *response, int po
 {
     int half = (area.height - 1) / 2;
     int gain = response->gain_tenth_db[point];
-    return (Point){frequency_x(area, equalizer_response_frequency(point)),
-                   area.y + half - gain * half / response->range_tenth_db};
+    uint16_t hz = response->frequency_hz[point] != 0 ? response->frequency_hz[point]
+                                                     : equalizer_response_frequency(point);
+    return (Point){frequency_x(area, hz), area.y + half - gain * half / response->range_tenth_db};
 }
 
 static void segment(Canvas *canvas, Point from, Point to, Color color)
@@ -205,7 +206,11 @@ void equalizer_plot_caption(Canvas *canvas, const Theme *theme, Rect area,
     char caption[CAPTION_CAPACITY];
     decimal(number, response->preamp_tenth_db);
     StringBuilder builder = string_builder_make(caption, sizeof caption);
-    i18n_format_text(&builder, STR_EQ_PREAMP, number);
+    if (response->muted) {
+        string_builder_append(&builder, i18n_text(STR_PEQ_MUTED));
+    } else {
+        i18n_format_text(&builder, STR_EQ_PREAMP, number);
+    }
     label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
                (Label){area, caption});
 }

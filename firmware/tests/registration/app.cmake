@@ -203,3 +203,9 @@ echo_add_unit_test(NAME test_quick_settings_screen
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
 )
+
+echo_add_unit_test(NAME test_parametric_screen
+    SOURCES app/test_parametric_screen.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_scan
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)

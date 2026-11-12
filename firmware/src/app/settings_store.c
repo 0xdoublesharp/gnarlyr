@@ -1,9 +1,14 @@
 #include "settings_store.h"
 
+#include "equalizer_presets.h"
 #include "hal/audio.h"
 #include "hal/display.h"
 #include "hal/storage.h"
 #include "hal/system.h"
+
+const StringId EQUALIZER_PRESET_NAMES[EQUALIZER_PRESET_COUNT] = {
+    STR_OFF,     STR_EQ_RETRO,  STR_EQ_BASS,   STR_EQ_HEAVY,  STR_EQ_POP,
+    STR_EQ_JAZZ, STR_EQ_UNIQUE, STR_EQ_CUSTOM, STR_PEQ_CUSTOM};
 
 const char SETTINGS_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/settings.bin";
 const char SETTINGS_BUTTONS_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/buttons.bin";
@@ -69,6 +74,13 @@ void settings_store_load(SettingsStore *store)
         remember(store, bytes);
     } else if (!read_valid(bytes, &store->settings, false)) {
         store->settings = settings_defaults();
+    }
+    store->parametric = (ParametricStore){0};
+    store->equalizer_slot = -1;
+    if (store->settings.equalizer == EQUALIZER_CUSTOM ||
+        store->settings.equalizer == EQUALIZER_PARAMETRIC) {
+        parametric_store_load(&store->parametric, &store->settings.parametric);
+        store->equalizer_slot = (int8_t)parametric_store_matching(&store->settings);
     }
     uint8_t buttons[SETTINGS_BUTTONS_FILE_SIZE];
     if (hal_internal_file_read(SETTINGS_BUTTONS_PATH, buttons, sizeof buttons) &&
@@ -152,7 +164,10 @@ void settings_store_restore_playback(const SettingsStore *store, Player *player,
 void settings_store_apply_equalizer(const Settings *settings)
 {
     SettingsEqualizerCurve curve = settings_equalizer_curve(settings);
-    HalAudioEqualizer equalizer = {.band_count = curve.band_count, .pre_gain = curve.pre_gain};
+    HalAudioEqualizer equalizer = {.band_count = curve.band_count,
+                                   .pre_gain = curve.pre_gain,
+                                   .is_parametric = curve.is_parametric,
+                                   .parametric = curve.parametric};
     for (int band = 0; band < curve.band_count; band++) {
         equalizer.band_hz[band] = curve.band_hz[band];
         equalizer.gain_half_db[band] = curve.gain_half_db[band];

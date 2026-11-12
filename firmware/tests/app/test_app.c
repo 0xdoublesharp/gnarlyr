@@ -1146,6 +1146,25 @@ static void gain_waits_for_play_and_output_previews_without_restarting_music(voi
     CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
 }
 
+static void shaping_is_reachable_from_equalizer_and_cancels_when_leaving_the_module(void)
+{
+    start_app_with_library();
+    open_setting(SETTINGS_EQUALIZER_INDEX);
+    tap(KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    CHECK(title_is("Sound shaping"));
+    tap(KEY_PLAY);
+    tap(KEY_VOLUME_UP);
+    CHECK(fake_hal_audio_equalizer().is_parametric);
+    CHECK_EQUAL(10, fake_hal_audio_equalizer().parametric.filters[0].gain);
+    hold(KEY_BACK);
+    CHECK_EQUAL(0, fake_hal_audio_equalizer().band_count);
+    CHECK(!fake_hal_audio_equalizer().is_parametric);
+    SettingsStore store;
+    settings_store_load(&store);
+    CHECK_EQUAL(EQUALIZER_OFF, store.settings.equalizer);
+}
+
 static void an_equalizer_preset_reaches_the_audio_and_survives_a_restart(void)
 {
     start_app_with_library();
@@ -1386,7 +1405,7 @@ static void a_saved_slot_is_listed_after_the_presets_and_restores_its_curve(void
     move_up(1);
     tap(KEY_PLAY);
     CHECK(title_is("Equalizer"));
-    move_down(1);
+    move_down(2);
     tap(KEY_PLAY);
     CHECK(title_is("Custom EQ"));
     CHECK(saved_settings(&settings));
@@ -2718,7 +2737,7 @@ static void formatting_a_paused_card_clears_the_library_and_saved_playback_state
     hold_back();
     move_down(HOME_SETTINGS_INDEX + (app_player_status().has_track ? 1 : 0));
     tap(KEY_PLAY);
-    move_up(3);
+    move_up(4);
     tap(KEY_PLAY);
     CHECK(title_is("Format card"));
     tap(KEY_PLAY);
@@ -5928,6 +5947,7 @@ int main(void)
         TEST_CASE(choosing_low_gain_or_the_same_gain_keeps_the_volume),
         TEST_CASE(high_gain_lowers_from_the_headphone_ceiling),
         TEST_CASE(the_dac_filter_applies_on_play_saves_and_returns_after_a_restart),
+        TEST_CASE(shaping_is_reachable_from_equalizer_and_cancels_when_leaving_the_module),
         TEST_CASE(an_equalizer_preset_reaches_the_audio_and_survives_a_restart),
         TEST_CASE(browsing_equalizer_presets_previews_audio_but_saves_only_on_play),
         TEST_CASE(stopping_during_an_equalizer_preview_keeps_the_committed_curve),

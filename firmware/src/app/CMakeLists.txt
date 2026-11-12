@@ -44,6 +44,7 @@ add_library(echo_app STATIC
     diagnostics_rows.c
     draw_profile.c
     equalizer_presets.c
+    equalizer_ui.c
     frame_overlay.c
     home_art.c
     home_art_init.c
@@ -58,6 +59,7 @@ add_library(echo_app STATIC
     menu_hold.c
     modules/library_module.c
     modules/settings_module.c
+    modules/equalizer_module.c
     modules/views_module.c
     modules/playing_module.c
     player.c
@@ -69,6 +71,9 @@ add_library(echo_app STATIC
     screens/quick_settings_screen.c
     settings_store.c
     audio_settings.c
+    parametric_calls.c
+    parametric_store.c
+    parametric_store_save.c
     headphone_store.c
     headphone_parameters.c
     headphone_store_path.c
@@ -85,6 +90,8 @@ add_library(echo_app STATIC
     screens/charge_art.c
     screens/cover_flow_screen.c
     screens/equalizer_screen.c
+    screens/parametric_screen.c
+    screens/sound_shaping_screen.c
     screens/equalizer_browser.c
     screens/equalizer_plot.c
     screens/now_playing_screen.c

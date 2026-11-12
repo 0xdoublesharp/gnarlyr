@@ -9,6 +9,7 @@
 #include "debug_loop_internal.h"
 #include "diagnostics_values.h"
 #include "discovery_screen.h"
+#include "equalizer_ui.h"
 #include "favorites_store.h"
 #include "hal/audio.h"
 #include "home_art.h"
@@ -147,6 +148,7 @@ typedef struct LibraryModuleScreens {
 
 typedef struct AppModuleScreens {
     PlayingModuleScreens playing;
+    EqualizerUi equalizer;
     ViewsModuleScreens views;
     SettingsModuleScreens settings;
     ProfileModuleScreens listening;

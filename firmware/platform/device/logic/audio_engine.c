@@ -81,6 +81,10 @@ static CORE_COLD void design_equalizer(AudioEngine *engine)
 
 static bool same_curve(const HalAudioEqualizer *first, const HalAudioEqualizer *second)
 {
+    if (first->is_parametric != second->is_parametric ||
+        (first->is_parametric && !parametric_same(&first->parametric, &second->parametric))) {
+        return false;
+    }
     bool same = first->band_count == second->band_count && first->pre_gain == second->pre_gain;
     for (int band = 0; same && band < first->band_count && band < HAL_AUDIO_EQUALIZER_BANDS;
          band++) {

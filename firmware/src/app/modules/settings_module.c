@@ -43,6 +43,9 @@ static void bind(AppScreens *screens)
     SettingsModuleScreens *own = &screens->modules.settings;
     SettingsContext settings = {
         .store = context->settings,
+        .equalizer = &screens->modules.equalizer.browser.choice.screen,
+        .graphic = &screens->modules.equalizer.graphic.screen,
+        .parametric = &screens->modules.equalizer.parametric.screen,
         .format_prepare = app_release_audio,
         .format_finished = app_storage_formatted,
         .headphones = context->headphones,

@@ -1,6 +1,9 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source dsd)
+set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source dsd equalizer)
 set(ECHO_SCREEN_MODULE_SHARED_SOURCES src/codec/flac.c src/codec/flac_bits.c)
 set(ECHO_SCREEN_MODULE_SOURCES_process
+    src/core/parametric.c
+    src/core/parametric_curve.c
+    src/core/parametric_bound.c
     platform/device/logic/audio_process_entry.c
     platform/device/logic/audio_trig.c
     platform/device/logic/equalizer_design.c
@@ -80,6 +83,29 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/settings/headphone_file_save.c
     src/core/headphone_audio_switch.c
 )
+set(ECHO_SCREEN_MODULE_SOURCES_equalizer
+    src/settings/sound_shaping.c
+    src/app/parametric_store.c
+    src/settings/parametric_file.c
+    src/ui/choice_screen.c
+    src/app/equalizer_ui.c
+    src/core/parametric.c
+    src/core/parametric_curve.c
+    src/core/parametric_bound.c
+    src/app/parametric_store_save.c
+    src/settings/parametric_file_save.c
+    src/settings/parametric_import.c
+    src/app/equalizer_presets.c
+    src/app/screens/equalizer_screen.c
+    src/app/screens/parametric_screen.c
+    src/app/screens/sound_shaping_screen.c
+    src/app/screens/equalizer_browser.c
+    src/app/screens/equalizer_plot.c
+    src/settings/equalizer_response.c
+    src/settings/equalizer_slots.c
+    src/settings/equalizer_fit_text.c
+    src/app/modules/equalizer_module.c
+)
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
     src/app/diagnostics_rows.c
@@ -123,16 +149,9 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/settings_preview.c
     src/app/button_settings.c
     src/app/home_editor.c
-    src/app/equalizer_presets.c
     src/app/screens/bluetooth_screen.c
     src/app/bluetooth_link_ui.c
-    src/app/screens/equalizer_screen.c
-    src/app/screens/equalizer_browser.c
-    src/app/screens/equalizer_plot.c
-    src/settings/equalizer_response.c
     src/core/dac_identity.c
-    src/settings/equalizer_slots.c
-    src/settings/equalizer_fit_text.c
     src/ui/choice_screen.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_library

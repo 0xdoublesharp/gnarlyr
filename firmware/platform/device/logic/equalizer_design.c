@@ -93,11 +93,38 @@ static void clear_history(Equalizer *equalizer)
     }
 }
 
+static bool build_parametric(Equalizer *equalizer, const ParametricEq *eq, uint32_t rate)
+{
+    uint16_t pre_gain = parametric_pre_gain(eq, rate);
+    for (int index = 0; index < eq->count && index < PARAMETRIC_FILTERS; index++) {
+        ParametricSection section;
+        if (eq->filters[index].gain != 0 &&
+            parametric_design(&section, &eq->filters[index], rate)) {
+            int scale = equalizer->section_count == 0 ? pre_gain : HAL_AUDIO_UNITY_PRE_GAIN;
+            EqualizerSection result = {
+                .b0 = (int32_t)((int64_t)section.b0 * scale / HAL_AUDIO_UNITY_PRE_GAIN),
+                .b1 = (int32_t)((int64_t)section.b1 * scale / HAL_AUDIO_UNITY_PRE_GAIN),
+                .b2 = (int32_t)((int64_t)section.b2 * scale / HAL_AUDIO_UNITY_PRE_GAIN),
+                .a1 = section.a1,
+                .a2 = section.a2};
+            equalizer->sections[equalizer->section_count++] = result;
+        }
+    }
+    if (equalizer->section_count == 0 && pre_gain != HAL_AUDIO_UNITY_PRE_GAIN) {
+        equalizer->sections[equalizer->section_count++] =
+            (EqualizerSection){.b0 = (int32_t)pre_gain << 13};
+    }
+    return equalizer->section_count > 0;
+}
+
 static bool build_sections(Equalizer *equalizer, const HalAudioEqualizer *curve, uint32_t rate)
 {
     equalizer->section_count = 0;
     if (rate == 0 || rate > EQUALIZER_HIGHEST_RATE) {
         return false;
+    }
+    if (curve->is_parametric) {
+        return build_parametric(equalizer, &curve->parametric, rate);
     }
     int bands = curve->band_count < EQUALIZER_SECTIONS ? curve->band_count : EQUALIZER_SECTIONS;
     for (int band = 0; band < bands; band++) {
@@ -162,7 +189,8 @@ bool equalizer_retune(Equalizer *equalizer, EqualizerChange change, uint32_t rat
 {
     Equalizer old = *equalizer;
     bool designed = equalizer_design(equalizer, change.after, rate);
-    if (first_band_hz(change.before, rate) == first_band_hz(change.after, rate)) {
+    if (!change.before->is_parametric && !change.after->is_parametric &&
+        first_band_hz(change.before, rate) == first_band_hz(change.after, rate)) {
         carry_history(equalizer, &old, change, rate);
     }
     return designed;

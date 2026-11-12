@@ -37,7 +37,7 @@ enum {
     ABOUT_ROWS = 14,
     HOME_EDITOR_PODCASTS_ROW = 6,
     EQUALIZER_SAVE_ROW = 10,
-    EQUALIZER_SLOT_OPTION = 8,
+    EQUALIZER_SLOT_OPTION = 9,
     MINIMUM_PACK_TEXTS = 400,
     WORD_CAPACITY = 64
 };
@@ -496,6 +496,53 @@ static void walk_equalizer(void)
     show_titled("the equalizer choices with a saved slot", STR_EQUALIZER);
 }
 
+static void walk_parametric(void)
+{
+    open_settings_row(0);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    show_titled("Parametric EQ", STR_PEQ);
+    tap(KEY_PLAY);
+    show_titled("a parametric filter", STR_PEQ);
+    for (int field = 0; field < 5; field++) {
+        show("a parametric field");
+        tap(KEY_PLAY);
+        down(1);
+        show("a parametric adjustment");
+        tap(KEY_BACK);
+        down(1);
+    }
+    tap(KEY_BACK);
+}
+
+static void walk_sound_shaping(void)
+{
+    open_settings_row(SETTINGS_EQUALIZER_ROW);
+    tap(KEY_PLAY);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    show_titled("Sound shaping", STR_SOUND_SHAPING);
+    for (int slider = 0; slider < 7; slider++) {
+        show("a shaping slider");
+        tap(KEY_PLAY);
+        down(1);
+        show("a shaping adjustment");
+        tap(KEY_BACK);
+        down(1);
+    }
+    show("Reset shaping");
+    down(1);
+    tap(KEY_PLAY);
+    show("a shaping destination");
+    tap(KEY_BACK);
+    down(1);
+    tap(KEY_PLAY);
+    down(1);
+    show("a missing shaping correction");
+    tap(KEY_BACK);
+}
+
 static void find_devices(void)
 {
     HalBluetoothStatus *status = fake_hal_bluetooth();
@@ -535,7 +582,7 @@ static void walk_card_format(void)
     fake_hal_set_card(
         (HalCardInfo){.present = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1}, true);
     fake_hal_set_battery((HalBattery){.known = true, .percent = 80});
-    for (int row = 0; row < 3; row++) {
+    for (int row = 0; row < 4; row++) {
         tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     }
     tap(KEY_PLAY);
@@ -550,6 +597,7 @@ static void walk_card_format(void)
 static void open_home_editor(void)
 {
     open_settings_row(0);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
@@ -678,7 +726,7 @@ static void walk_headphones(void)
     static const StringId FIELDS[] = {STR_HEADPHONE_NAME, STR_HEADPHONE_TRIM, STR_HEADPHONE_BALANCE,
                                       STR_HEADPHONE_CEILING};
     open_settings_row(0);
-    for (int row = 0; row < 4; row++) {
+    for (int row = 0; row < 5; row++) {
         tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     }
     tap(KEY_PLAY);
@@ -715,6 +763,8 @@ static void walk_everything(void)
     walk_settings_choices();
     walk_settings_toasts();
     walk_equalizer();
+    walk_parametric();
+    walk_sound_shaping();
     walk_bluetooth();
     walk_home_editor();
     walk_headphones();

@@ -8,6 +8,10 @@
 #include "ui/list_navigation.h"
 #include "ui/navigation.h"
 
+static EqualizerResponse response;
+static char text[EQUALIZER_SCREEN_ROWS][EQUALIZER_SCREEN_TEXT_CAPACITY];
+static char title[EQUALIZER_SCREEN_TITLE_CAPACITY];
+
 enum {
     SAVE_ROW = SETTINGS_EQUALIZER_BANDS
 };
@@ -34,7 +38,7 @@ static void refresh_text(EqualizerScreen *equalizer)
     Settings visual = equalizer->working;
     visual.equalizer = EQUALIZER_CUSTOM;
     SettingsEqualizerCurve curve = settings_equalizer_curve(&visual);
-    equalizer_response_make(&equalizer->response, &curve);
+    equalizer_response_make(equalizer->response, &curve);
 }
 
 static int band_count(const void *context)
@@ -58,7 +62,7 @@ static const char *band_gain(const void *context, int index)
 static ScreenAction start_adjusting(void *context, int index)
 {
     EqualizerScreen *equalizer = context;
-    StringBuilder builder = string_builder_make(equalizer->title, sizeof equalizer->title);
+    StringBuilder builder = string_builder_make(equalizer->title, EQUALIZER_SCREEN_TITLE_CAPACITY);
     i18n_format_text(&builder, STR_EQ_ADJUSTING, band_label(equalizer, index));
     equalizer->adjusting = true;
     return screen_action_none();
@@ -166,6 +170,7 @@ static void enter(void *context, uint32_t now_ms)
 {
     EqualizerScreen *equalizer = context;
     equalizer->now_ms = now_ms;
+    list_view_select(&equalizer->list, 0, now_ms);
     equalizer->adjusting = false;
     equalizer->previewing = false;
     equalizer->working = *equalizer->config.settings;
@@ -200,10 +205,10 @@ static void draw(void *context, Canvas *canvas)
     label_draw(canvas, (TextStyle){theme->fonts.title, ink},
                (Label){layout.secondary, equalizer->text[equalizer->list.selected]});
     equalizer_plot_draw(canvas, theme, layout.plot,
-                        (EqualizerPlotView){.response = &equalizer->response,
+                        (EqualizerPlotView){.response = equalizer->response,
                                             .selected_band = equalizer->list.selected,
                                             .adjusting = equalizer->adjusting});
-    equalizer_plot_caption(canvas, theme, layout.preamp, &equalizer->response);
+    equalizer_plot_caption(canvas, theme, layout.preamp, equalizer->response);
     label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary},
                (Label){layout.reference, i18n_text(STR_EQ_REFERENCE)});
     label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
@@ -212,6 +217,9 @@ static void draw(void *context, Canvas *canvas)
 
 Screen *equalizer_screen_init(EqualizerScreen *equalizer, EqualizerScreenConfig config)
 {
+    equalizer->response = &response;
+    equalizer->text = text;
+    equalizer->title = title;
     equalizer->config = config;
     equalizer->working = *config.settings;
     equalizer->previewing = false;

@@ -128,7 +128,9 @@ void settings_action_choose_equalizer(void *context, int index)
     SettingsContext *settings = context;
     Settings *chosen = editable_settings(context);
     int8_t gains[SETTINGS_EQUALIZER_BANDS];
+    int8_t slot = -1;
     if (index >= EQUALIZER_PRESET_COUNT) {
+        slot = (int8_t)equalizer_presets_option_slot(settings->presets, index);
         if (!equalizer_presets_load(settings->presets, index, gains)) {
             toast_show(settings->toast, i18n_text(STR_EQ_FILE_UNREADABLE),
                        hal_clock_milliseconds());
@@ -139,6 +141,7 @@ void settings_action_choose_equalizer(void *context, int index)
         }
         index = EQUALIZER_CUSTOM;
     }
+    settings->store->equalizer_slot = slot;
     chosen->equalizer = (EqualizerPreset)index;
     settings_action_apply_and_save(context);
 }

@@ -13,6 +13,7 @@
 #include "screens/card_format_screen.h"
 #include "screens/equalizer_browser.h"
 #include "screens/equalizer_screen.h"
+#include "screens/parametric_screen.h"
 #include "screens/set_clock_screen.h"
 #include "settings_preview.h"
 #include "settings_store.h"
@@ -38,18 +39,13 @@ enum {
     SETTINGS_HEADPHONES_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 5,
     SETTINGS_FORMAT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 8,
     SETTINGS_HOME_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 9,
-    SETTINGS_CONTROLS_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 10,
+    SETTINGS_PARAMETRIC_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 10,
+    SETTINGS_CONTROLS_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 11,
     SETTINGS_EJECT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 6,
     SETTINGS_MOUNT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 7,
-    SETTINGS_ITEM_COUNT = SETTINGS_MAIN_CHOICE_COUNT + 11,
+    SETTINGS_ITEM_COUNT = SETTINGS_MAIN_CHOICE_COUNT + 12,
     SETTINGS_MESSAGE_CAPACITY = 64,
     SETTINGS_COUNTDOWN_CAPACITY = 16
-};
-
-enum {
-    SETTINGS_EQ_PREVIEW_NONE,
-    SETTINGS_EQ_PREVIEW_BROWSER,
-    SETTINGS_EQ_PREVIEW_EDITOR
 };
 
 typedef struct SettingsContext {
@@ -64,6 +60,9 @@ typedef struct SettingsContext {
     bool *language_requested;
     BluetoothScreen *bluetooth;
     Theme *theme;
+    Screen *equalizer;
+    Screen *graphic;
+    Screen *parametric;
     EqualizerPresets *presets;
     const LanguageList *languages;
     char message[SETTINGS_MESSAGE_CAPACITY];
@@ -103,15 +102,12 @@ struct SettingsScreens {
     StringId choice_preview;
     SettingsPreview preview;
     const Settings *(*preview_settings)(SettingsScreens *screens, bool active);
-    uint8_t equalizer_preview;
     MenuScreen menu;
     MenuScreen status_menu;
     MenuItem status_items[SETTINGS_STATUS_COUNT];
     union {
         ChoiceScreen choice;
         SetClockScreen clock;
-        EqualizerBrowser equalizer_browser;
-        EqualizerScreen equalizer;
     };
     ButtonSettings buttons;
     HeadphoneEditor headphones;
