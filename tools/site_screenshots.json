@@ -103,8 +103,6 @@
       "expected_title": "Mixtapes",
       "keys": [
         "down",
-        "down",
-        "down",
         "play"
       ]
     },
@@ -113,8 +111,6 @@
       "file": "listening.png",
       "expected_title": "Listening",
       "keys": [
-        "down",
-        "down",
         "down",
         "down",
         "play"
@@ -143,7 +139,8 @@
       "file": "audiobook-chapters.png",
       "expected_title": "City Stories",
       "keys": [
-        "down",
+        "play",
+        "up",
         "play",
         "play:long"
       ]
@@ -153,9 +150,9 @@
       "file": "equalizer.png",
       "expected_title": "Equalizer",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -180,8 +177,7 @@
       "file": "controls.png",
       "expected_title": "Controls",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
         "up",
         "play"
@@ -192,9 +188,9 @@
       "file": "themes.png",
       "expected_title": "Theme",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -225,8 +221,9 @@
       "file": "usb-mode.png",
       "expected_title": "USB mode",
       "keys": [
-        "up",
-        "up",
+        "down",
+        "down",
+        "down",
         "play"
       ]
     },
@@ -235,8 +232,7 @@
       "file": "settings.png",
       "expected_title": "Settings",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play"
       ],
       "group": "settings",
@@ -247,9 +243,9 @@
       "file": "settings-display.png",
       "expected_title": "Settings",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -269,9 +265,9 @@
       "file": "settings-audio.png",
       "expected_title": "Settings",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -296,9 +292,9 @@
       "file": "settings-system.png",
       "expected_title": "Settings",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -328,8 +324,7 @@
       "file": "controls-more.png",
       "expected_title": "Controls",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
         "up",
         "play",
@@ -349,9 +344,9 @@
       "file": "equalizer-middle.png",
       "expected_title": "Equalizer",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -381,9 +376,9 @@
       "file": "equalizer-more.png",
       "expected_title": "Equalizer",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -416,9 +411,9 @@
       "file": "settings-comfort.png",
       "expected_title": "Settings",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -453,9 +448,9 @@
       "file": "settings-connections.png",
       "expected_title": "Settings",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -515,9 +510,9 @@
       "file": "headphones.png",
       "expected_title": "Headphones",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -554,9 +549,9 @@
       "file": "home-editor.png",
       "expected_title": "Home screen",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -595,9 +590,9 @@
       "file": "home-es.png",
       "expected_title": "{firmware_name}",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -627,7 +622,8 @@
           "STR_MIXTAPES": "Mezclas",
           "STR_LISTENING": "Estadísticas",
           "STR_USB_MODE": "Modo USB",
-          "STR_CLOCK": "Reloj"
+          "STR_CLOCK": "Reloj",
+          "STR_LISTENING_STATS": "Estadísticas"
         }
       }
     },
@@ -636,9 +632,9 @@
       "file": "home-fr.png",
       "expected_title": "{firmware_name}",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -668,7 +664,8 @@
           "STR_MIXTAPES": "Mixtapes",
           "STR_LISTENING": "Statistiques",
           "STR_USB_MODE": "Mode USB",
-          "STR_CLOCK": "Horloge"
+          "STR_CLOCK": "Horloge",
+          "STR_LISTENING_STATS": "Statistiques"
         }
       }
     },
@@ -677,9 +674,9 @@
       "file": "home-de.png",
       "expected_title": "{firmware_name}",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -709,7 +706,8 @@
           "STR_MIXTAPES": "Mixtapes",
           "STR_LISTENING": "Hörstatistik",
           "STR_USB_MODE": "USB-Modus",
-          "STR_CLOCK": "Uhr"
+          "STR_CLOCK": "Uhr",
+          "STR_LISTENING_STATS": "Hörstatistik"
         }
       }
     },
@@ -718,9 +716,9 @@
       "file": "home-ru.png",
       "expected_title": "{firmware_name}",
       "keys": [
-        "down",
-        "down",
+        "up",
         "play",
+        "down",
         "down",
         "down",
         "down",
@@ -750,9 +748,69 @@
           "STR_MIXTAPES": "Микстейпы",
           "STR_LISTENING": "Статистика",
           "STR_USB_MODE": "Режим USB",
-          "STR_CLOCK": "Часы"
+          "STR_CLOCK": "Часы",
+          "STR_LISTENING_STATS": "Статистика"
         }
       }
+    },
+    {
+      "name": "tape-length",
+      "file": "tape-length.png",
+      "expected_title": "Tape length",
+      "keys": [
+        "down",
+        "play",
+        "down",
+        "down",
+        "play"
+      ]
+    },
+    {
+      "name": "moments",
+      "file": "moments.png",
+      "expected_title": "Moments",
+      "keys": [
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "play",
+        "back:long",
+        "down",
+        "down",
+        "down",
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "play"
+      ]
+    },
+    {
+      "name": "date-time",
+      "file": "date-time.png",
+      "expected_title": "Date & time",
+      "keys": [
+        "up",
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play"
+      ]
     }
   ]
 }
