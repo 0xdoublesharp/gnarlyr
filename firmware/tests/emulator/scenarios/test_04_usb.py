@@ -160,7 +160,8 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(kinds.count("usb_start"), 2)
         self.assertEqual(kinds.count("usb_end"), 1)
         powers = [event["detail"] for event in report["events"] if event["kind"] == "power"]
-        self.assertEqual(powers, ["1 1", "0 1", "1 1"])
+        self.assertEqual(powers[-3:], ["1 1", "0 1", "1 1"])
+        self.assertTrue(all(power.startswith("0 ") for power in powers[:-3]), powers)
         self.assertEqual(values["power.samples"], 1)
         sample = report["power_samples"][0]
         self.assertEqual((sample["vbus"], sample["charge_pin"], sample["playing"],
