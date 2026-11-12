@@ -168,6 +168,24 @@ class Snapshot:
                 self.home_settings_item >= HOME_FIRST_ITEMS):
             raise ValueError("the installed Home layout is unsupported")
 
+    def check_e14_layout(self, source):
+        mask, filters = 0, 0
+        if re.search(r"\bDAC_FILTER_BYTE\s*=", source):
+            header = self.show("firmware/src/settings/include/settings/settings.h")
+            declaration = re.search(r"typedef\s+enum\s+DacFilter\s*\{([^}]+)\}", header)
+            filters = len([name for name in declaration.group(1).split(",") if name.strip()]) if declaration else 0
+            if constant(source, "DAC_FILTER_BYTE") != 14 or not re.search(r"\bDAC_FILTER_MASK\s*=\s*0x07\b", source) or not 0 < filters <= 8:
+                raise ValueError("the installed DAC filter layout is unsupported")
+            mask |= 0x07
+        if re.search(r"\bCROSSFEED_BYTE\s*=", source):
+            if (constant(source, "CROSSFEED_BYTE"), constant(source, "CROSSFEED_SHIFT"),
+                    constant(source, "CROSSFEED_MASK")) != (14, 5, 3):
+                raise ValueError("the installed crossfeed layout is unsupported")
+            mask |= 0x60
+        if self.style_flags_byte == 14:
+            mask |= 0x80
+        self.e14_bits = (mask, filters)
+
     def check_speed_layout(self, source):
         self.speed_steps = (0, 0)
         if re.search(r"\bSPEED_BYTE\s*=", source) is None:
