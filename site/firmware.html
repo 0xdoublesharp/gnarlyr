@@ -254,7 +254,7 @@
 <li><strong>Power timers stay within their range.</strong> New activity resets wake timers without expiring screen timeout or auto off immediately. Screen, sleep and auto-off delays are bounded so large values cannot break clock comparisons.</li>
 <li><strong>Scrolling titles handle extreme sizes.</strong> Text scrolling uses checked width and timing calculations, including very wide titles and short animation cycles.</li>
 <li><strong>Charging views keep the right code active.</strong> The charging screen no longer continues updating an interface module that has been replaced.</li>
-<li><strong>Power states stay distinct.</strong> The USB screen shows Storage or DAC mode, a battery estimate and the relevant drive, eject, audio-format or volume details. Charging, charged and USB-powered states stay separate; a USB supply reading is not shown as battery voltage.</li>
+<li><strong>Power states stay distinct.</strong> The USB screens show live statistics: transfer rate, totals and free space for each drive in Connect to computer, or format, levels, volumes and buffer in USB audio. Charging, charged and USB-powered states stay separate; a USB supply reading is not shown as battery voltage.</li>
 <li><strong>The interface does less unnecessary work.</strong> Bounded progress redraws, idle sleeping, frame pacing and clock coasting reduce processor work.</li>
 </ul>
 <p>DAC startup and MP3/AAC timing fixes improve inherited playback code.</p>
@@ -265,7 +265,7 @@
 <p class="intro">Everyday updates use the player’s updater. Developer builds add a computer-assisted loop for copying, checking, ejecting and restarting.
 </p><p><a class="text-link" href="companion.html">Meet the desktop companion for music and player care →</a></p>
 <ul class="detail-list">
-<li><strong>Checked updates.</strong> The updater validates the image and checks every written chunk. Builds with trial updates keep the previous firmware in the backup slot while you try the new version. A successful reconnect and eject confirms it; failed trial starts can restore the backup. <a href="install.html#update">Follow the update and confirmation steps →</a>
+<li><strong>Checked updates.</strong> The updater validates the image and checks every written chunk. The previous firmware stays in the backup slot while you try the new version. Copying a file to the player and ejecting confirms it; a version that starts without its text or fails to start three times restores the backup by itself. <a href="install.html#update">Follow the update and confirmation steps →</a>
 </li>
 <li><strong>A repeatable USB development loop.</strong> Use reports, event logs, scripts, screenshots and profiling through the command-line and MCP tools to investigate behavior and check changes.
 </li>

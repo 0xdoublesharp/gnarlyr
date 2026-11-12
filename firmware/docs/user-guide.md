@@ -2,7 +2,7 @@
 
 Gnarlyr is firmware for the full-size Snowsky (FiiO) Echo music player. It replaces FiiO's firmware and has large text, a Cover Flow album browser, a music library built on the player, favorites, playlists and an Up Next queue. Snowsky and FiiO are trademarks of their owners, and Echo is their product name. Gnarlyr is not made, endorsed or supported by FiiO.
 
-Gnarlyr 1.0.0 is not released. Developer firmware runs on the owner's full-size Echo; [`known-issues.md`](known-issues.md) records the device checks and what still needs validation. This guide describes the implemented behavior.
+Gnarlyr 1.0.0 is not released. This guide describes the current developer firmware; [`known-issues.md`](known-issues.md) says what has been checked on a player and what hasn't.
 
 **Use it at your own risk.** Gnarlyr comes with no warranty (see `LICENSE`). Replacing a player's firmware can leave it unable to start; the way back is maskrom recovery ([`device-recovery.md`](device-recovery.md)). Only install it if you're prepared to use that.
 
@@ -20,7 +20,7 @@ Gnarlyr 1.0.0 is not released. Developer firmware runs on the owner's full-size 
 
 ## Install
 
-This project's player has used maskrom recovery and file-copy updates between developer builds, including the transition to the canonical Gnarlyr identity. Follow [`device-install.md`](device-install.md) for the route matching the installed firmware.
+Follow [`device-install.md`](device-install.md): the first install goes through maskrom, and later versions install by copying a file (see [Updating Gnarlyr](#updating-gnarlyr)).
 
 Installing by copying a file under FiiO's firmware is not verified. FiiO's updater only reads files named `ECHOVnnn.IMG`, so `GNARLYR.IMG` would have to be renamed, and whether FiiO's 2.0.0 accepts it is not known.
 
@@ -28,22 +28,28 @@ On the first start with a microSD card in the player, Gnarlyr builds its library
 
 ## Home
 
-Home starts with **Music**, **Mixtapes**, **Stats**, **USB Mode**, **Clock** and **Settings**, in that order. While a track is loaded, playing or paused, **Now playing** appears above Music; the row disappears when no track is loaded. The artwork caption shows the track title when space allows. Press Play there to return to Now Playing; Menu on Now Playing opens Up Next.
+Home starts with **Music**, **Mixtapes**, **Stats**, **Clock**, **USB Mode** and **Settings**, in that order. While a track is loaded, playing or paused, **Now playing** appears above Music; the row disappears when no track is loaded. The artwork caption shows the track title when space allows. Press Play there to return to Now Playing. From any list, Menu opens Now Playing while a track is loaded; on Now Playing, Menu opens Quick Settings, which has Up Next.
 
 Audiobooks, Podcasts and Up Next are hidden on Home by default. Audiobooks and Podcasts are available at the end of Music when their shelves exist. Settings → Home screen can show them on Home too.
 
 ## Your music
 
-- Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Settings → About → Music shows which one is in use. Settings are kept on internal storage either way, so they stay the same when you insert or remove the card.
-- Gnarlyr supports FLAC, MP3, WAV and 16/24-bit AIFF, up to 192 kHz, and `.m4a` and `.m4b` files with AAC-LC or Apple Lossless audio. Speech recordings at 8, 11.025, 12, 16, 22.05 and 24 kHz are converted to 32, 44.1 or 48 kHz for playback; 32 kHz plays at its original rate. Speed and pitch stay the same. DSF/DFF convert to 88.2 kHz PCM: DSD64 and DSD128 accept mono/stereo, and DSD256 accepts mono; stereo DSD256 is refused. It lists the other formats FiiO lists, and says when it can't play one.
-- APE accepts 16/24-bit mono or stereo: Fast through 192 kHz, Normal through 192 kHz mono or 96 kHz stereo, and High through 96 kHz mono or 48 kHz stereo. WMA Standard v1/v2 accepts mono or stereo through 48 kHz; Pro, Lossless, Voice and encrypted WMA are refused. Tags and embedded covers appear in the library.
-- Ogg Vorbis (`.ogg`) accepts mono or stereo at 8–192 kHz within the decoder limits; Ogg Opus (`.opus`) accepts mono or stereo with channel mapping family 0. Chained Vorbis files play the first stream only. Large picture comments and separate interleaved streams are skipped during decoding. Both formats play in the desktop simulator; player listening and high-rate playback still need checking. See [format limits](ogg-vorbis.md).
+- Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Settings → About → Music shows which one is in use. Settings are kept on internal storage either way, so they stay the same when you insert or remove the card (see [Inserting and removing the card](#inserting-and-removing-the-card)).
+- Gnarlyr supports FLAC, MP3, WAV and 16/24-bit AIFF, up to 192 kHz, APE, WMA, and `.m4a` and `.m4b` files with AAC-LC or Apple Lossless audio. Speech recordings at 8, 11.025, 12, 16, 22.05 and 24 kHz are converted to 32, 44.1 or 48 kHz for playback; 32 kHz plays at its original rate. Speed and pitch stay the same. DSF/DFF convert to 88.2 kHz PCM: DSD64 and DSD128 accept mono/stereo, and DSD256 accepts mono; stereo DSD256 is refused. It lists the other formats FiiO lists, and says when it can't play one.
+- Ogg Vorbis (`.ogg`) accepts mono or stereo at 8–192 kHz within the decoder limits; Ogg Opus (`.opus`) accepts mono or stereo with channel mapping family 0. Chained Vorbis files play the first stream only. Large picture comments and separate interleaved streams are skipped during decoding. See [format limits](ogg-vorbis.md) and [File formats](#file-formats) for AIFF, DSD, APE and WMA.
 - Music → Folders shows the card as it is: folders, then each audio file by its full name with its extension (`01 Intro.mp3`). The other lists show titles from the tags. Hold ▶ on a folder there to play everything under it, subfolders included, in the order Folders shows it (a CUE album plays once, as its songs); the queue follows the shuffle setting and has no length limit beyond the library's 65,535 tracks.
 - A `.cue` file next to a single FLAC, WAV or MP3 album image splits it into one track per CUE track (see "CUE sheets" below). Album covers come from art inside each album's first track (any of the formats above, including Ogg and Opus), or from a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks when there is no usable art inside. JPEG (baseline or progressive, colour, greyscale or CMYK, upright as its EXIF orientation says) and PNG covers of any size are shown; lossless, arithmetic-coded or 12-bit JPEGs and other image formats are not.
 - `.m3u` and `.m3u8` playlists anywhere on the card appear under Music → Playlists.
 - **Favorite Playlist.** Hold Play on a song in any list and choose Add to Favorite Playlist. The song goes into `Favorite Tracks.m3u` in the top folder of the music storage (the card, or the player's own storage without a card). The file is made on the first use, holds one path per line relative to that folder, and can be read and edited on a computer. A song that is one track of a CUE album gets the line `#GNARLYR-START:` and the track's start in milliseconds above its path (the path is the album's audio file, so computer players open the whole album); the player and echo-sync use the start to pick that exact track, and a line without it stands for the album's last track. Each track of a CUE album is added and checked on its own. A song already in it shows "Already in Favorites". The file has room for a few hundred songs; when it is full, or a computer edit left it without spare room, the player shows "Couldn't add to Favorites". Music → Playlists shows Favorite Tracks with the new song straight away, with no rescan, also after a restart. Lines added to the file on a computer show after the next library scan.
 - The library holds up to 65,535 tracks; [`known-issues.md`](known-issues.md) says what has been tested.
 - Gnarlyr keeps its own files in a hidden `/.gnarlyr` folder on the card, about 110 MB of them. Don't delete it unless you want the library rebuilt.
+
+## File formats
+
+- **AIFF:** AIFF (`.aiff`, `.aif`) and uncompressed AIFF-C (`.aifc`, `NONE` or `sowt`) accept mono or stereo 16/24-bit music at standard rates from 8 to 192 kHz. Seeking and queued transitions follow the WAV rules. ID3 tags and embedded album art appear in the library. Compressed AIFF-C and floating point files cannot play.
+- **DSD:** DSF and uncompressed DFF play as 88.2 kHz PCM. Mono and stereo DSD64/DSD128 and mono DSD256 are accepted. Stereo DSD256, multichannel DSD and DST-compressed DFF are refused. DoP output is unavailable. ID3 tags and artwork appear in the library; DFF's DIIN artist/title fill missing ID3 fields. The output uses the usual seeking and queue controls.
+- **Monkey's Audio (APE):** APE files accept 16/24-bit mono or stereo. Fast accepts up to 192 kHz. Normal accepts up to 192 kHz mono or 96 kHz stereo. High accepts up to 96 kHz mono or 48 kHz stereo. Extra High and Insane compression are refused. APEv2 tags and embedded covers appear in the library.
+- **WMA:** Use WMA Standard v1/v2, mono or stereo, at 8–48 kHz. ASF tags and `WM/Picture` covers are read with the library. WMA Pro, Lossless, Voice and encrypted files are refused. WMA recordings without encoder padding information can retain a gap between songs.
 
 ## Format a card
 
@@ -56,7 +62,13 @@ Back up everything you want to keep on the microSD card. Formatting erases its m
 
 Cards through 32 GB use FAT32; larger cards use exFAT. The volume is named GnarlySD. Internal storage keeps its files. This is a quick format: old file contents can remain recoverable until new files overwrite them.
 
-An interrupted format reports that the card needs formatting. Reinsert the card and choose Format card again before copying music. Physical card formatting still needs the owner checks listed in [known issues](known-issues.md).
+An interrupted format reports that the card needs formatting. Reinsert the card and choose Format card again before copying music.
+
+## Inserting and removing the card
+
+You can insert or remove the microSD card while the player is on. The player notices the change, stops playback from the old card, reopens the library from the card now in the player (or from internal storage) and rebuilds it if the music changed.
+
+To take the card out safely, choose Settings → Eject card. The player stops using the card and says "Safe to remove card". Settings → Mount card uses an ejected card again without taking it out; taking it out and putting it back in does the same. While the computer has the drives, Play on the USB screen ejects the card.
 
 ## Hide or delete a song
 
@@ -111,7 +123,7 @@ Depeche Mode/Violator/
 3. Disconnect in one of two ways:
    - **Eject on the computer.** Eject both drives (Finder's eject button, or `diskutil eject`). The player shows **USB mode**.
    - **Hold Back on the player** for a second. If the computer hasn't written anything for 3 seconds, the player tells it the drives are gone, shows "Disconnecting..." for 2 seconds and then **USB mode**, just as after an eject. If the computer is still writing, the player shows "Still writing..." and disconnects as soon as it stops. To disconnect at once anyway, keep holding Back for 3 more seconds; recent changes may be lost, and the player says so ("Disconnected too soon").
-4. When music changed, the player rebuilds its library by itself, then finds the new covers while it is idle. Copying other files doesn't trigger a rebuild. Settings → Rescan library checks the card and rebuilds the library when something changed, or after a firmware update; otherwise it says "Library is up to date". If the player restarts during a rebuild, it tries again at the next start and leaves out the file it stopped on; after three stops in a row it builds the library without covers.
+4. The player then shows "Checking for changes" with a turning disc while it compares the music with its last scan. When music changed, the player rebuilds its library by itself, then finds the new covers while it is idle. Copying other files doesn't trigger a rebuild. Settings → Rescan library checks the card and rebuilds the library when something changed, or after a firmware update; otherwise it says "Library is up to date". If the player restarts during a rebuild, it tries again at the next start and leaves out the file it stopped on; after three stops in a row it builds the library without covers.
 
 If you unplug the cable before either, recent changes may be lost, and the player warns you ("Unplugged too soon").
 
@@ -152,10 +164,10 @@ While the player runs from USB power, the battery in the status bar and on the c
 
 ## Using the player as a USB DAC
 
-**Not run on a player by this project** (see [`known-issues.md`](known-issues.md)). In this mode the player is a sound card for your computer or phone: their audio plays through the player's headphone outputs.
+In this mode the player is a sound card for your computer or phone: their audio plays through the player's headphone outputs.
 
 1. Plug in the USB cable and choose **USB audio (DAC)** when the player asks (or, with the cable in, Home → USB mode → USB audio (DAC)).
-2. The player shows "USB audio (DAC)". It offers USB Audio Class 2.0 over a high-speed connection and Class 1.0 over full speed. Select Gnarlyr in the host’s audio settings; phones need an adapter that passes USB data. Host compatibility still needs the checks listed in known issues.
+2. The player shows "USB audio (DAC)". It offers USB Audio Class 2.0 over a high-speed connection and Class 1.0 over full speed. Phones need an adapter that passes USB data.
 3. On the computer, choose Gnarlyr as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output). The player shows the format and its volume, for example "48 kHz 24-bit · Volume 35".
 4. Use the computer's volume, the player's volume keys, or both. DAC mode has its own volume, separate from music: it starts at 35 of 60, the screen shows it ("48 kHz 24-bit · Volume 35"), tap Vol± to change it on release, and the player remembers it for next time. Start low. Press ▶ to send play/pause to the computer. Hold Vol+ for 400 ms to send next track, or Vol− for previous; each hold sends one command. The computer’s media app decides how to handle these keys.
 5. Hold Back for a second and let go to open USB mode, then choose another mode. The player keeps charging.
@@ -183,8 +195,6 @@ The tool is **echo-sync**, `tools/echo_sync.py`. It runs from the source; there 
 2. Run `python3 tools/echo_sync.py /Volumes/CARD` with the card's mount point (on Windows, `tools\echo_sync.bat E:` finds Python for you). Without an argument it looks for a card the player has used and asks.
 3. When it says "Done", eject the card (in the player: both drives).
 
-This project has run the tool's tests, not the tool on a real card.
-
 It reads the whole card, as the player does, and writes `library.db`, `covers.bin` and `scan.bin` into the card's `/.gnarlyr` folder. If the player has never used the card, it asks before creating `/.gnarlyr` (`--yes` creates it without asking). Files the player made are overwritten in place and keep their size; missing ones are made at the player's sizes (4 MB, 80 MB and 4 KB). It then prints what it found, for example "1,402 tracks, 120 albums, 3 playlists" and "115 covers, 5 without art".
 
 **Why the player doesn't rescan.** After a USB session the player checks for changes: it compares the names, sizes and modification times of the music, playlists and cover images on the card with a fingerprint it keeps in `scan.bin`. The computer writes the same fingerprint, so the check finds nothing new and the player keeps the computer's library. With a card reader there's no USB session, so the player uses the new library straight away.
@@ -193,7 +203,7 @@ It reads the whole card, as the player does, and writes `library.db`, `covers.bi
 
 - the music changed after the computer ran;
 - the card is exFAT and a file's time was saved without a time-zone tag (modern Windows, macOS and Linux always add one; some cameras and old devices don't);
-- the card is FAT32 and the computer reads its file times differently from the player (not checked on any system by this project);
+- the card is FAT32 and the computer reads its file times differently from the player;
 - the card has folders more than 31 levels deep or paths longer than 1,023 bytes (the player can't fingerprint those);
 - a name was saved decomposed (for example by Linux) and read on a Mac, or only as an old DOS short name with accented letters.
 
@@ -211,25 +221,21 @@ To see whether it works on your card, let the player scan it once, then run echo
 | `--yes` | Create `/.gnarlyr` without asking |
 | `--verbose` | List the albums without art |
 
-The computer picks each album's cover the way the player does: the picture inside the album's first track (FLAC, MP3, WAV, DSF/DFF, Ogg, Opus, `.m4a`, `.ape` and `.wma`; a front cover wins), otherwise, or when that picture can't be shown, a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks. The covers can look a little different from the player's own, because the computer resizes them with a different filter. When the player rescans later (for example after you copy a new album to it), it keeps the computer's covers and only decodes art that's new or changed; on a card that isn't FAT32 or exFAT, albums whose cover is an image file are decoded again.
-The computer picks each album's cover the way the player does: the picture inside the album's first track (FLAC, MP3, WAV, AIFF, DSF/DFF, `.m4a`, `.ape` and `.wma`; a front cover wins), otherwise a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks. Ogg pictures are skipped, as on the player. The covers can look a little different from the player's own, because the computer resizes them with a different filter. When the player rescans later (for example after you copy a new album to it), it keeps the computer's covers and only decodes art that's new or changed; on a card that isn't FAT32 or exFAT, albums whose cover is an image file are decoded again.
+The computer picks each album's cover the way the player does: the picture inside the album's first track (FLAC, MP3, WAV, AIFF, DSF/DFF, Ogg, Opus, `.m4a`, `.ape` and `.wma`; a front cover wins), otherwise, or when that picture can't be shown, a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks. The covers can look a little different from the player's own, because the computer resizes them with a different filter. When the player rescans later (for example after you copy a new album to it), it keeps the computer's covers and only decodes art that's new or changed; on a card that isn't FAT32 or exFAT, albums whose cover is an image file are decoded again.
 
 ## Buttons
 
 | Button | In lists | On Now Playing |
 |---|---|---|
-| Volume up / down | Next / previous item; hold to scroll faster | Volume; hold Vol+ for the next track, Vol− for the previous one (in audiobooks and podcasts: 30 s forward, 15 s back) |
-| Play | Select; a song plays the list from that song. Hold on an album for Favorites, hold on a song for Play Next / Add to Up Next / Add to Favorite Playlist, hold on a folder in Folders to play everything under it, subfolders included | Play / pause; hold to seek |
-| Menu | Opens Now Playing while a track is loaded | Opens Quick Settings; hold for Lyrics |
 | Volume up / down | Next / previous item; hold to accelerate and jump by letter in long name-sorted lists | Volume; hold Vol+ for the next track, Vol− for the previous one (in audiobooks and podcasts: 30 s forward, 15 s back) |
-| Play | Select; a song plays the list from that song. Hold on an artist or album artist for Play all / Shuffle albums, hold on an album for Favorites, hold on a song for Play Next / Add to Up Next / Add to Favorite Playlist, hold on a folder in Folders to play everything under it, subfolders included | Play / pause; hold to seek |
-| Menu | | Opens Up Next (also on Home, below Now Playing) |
+| Play | Select; a song plays the list from that song. Hold on an artist or album artist for Play all / Shuffle albums, hold on an album for Favorites, hold on a song for its actions (Play Next, Add to Up Next, Add to Favorite Playlist, Add to tape, Hide track, Delete file), hold on a folder in Folders to play everything under it, subfolders included | Play / pause; hold to seek |
+| Menu | Opens Now Playing while a track is loaded | Opens Quick Settings; hold for Lyrics (Settings → Controls can change both) |
 | Back | Back; hold to go home | Back; hold to go home |
-| Power | Screen off or on; hold 2 s to turn off | Same |
+| Power | Screen off or on (standby when that is on); hold 2 s to turn off | Same |
 
 The Now Playing column above is for Settings → Skip songs = Hold vol±; the other two choices move skipping to a double-click of Vol± or a double/triple click of ▶ (see Skip songs).
 
-**Wired headphones with buttons** (3.5 mm jack, from any screen, screen on or off): the middle button pauses and resumes, press it twice for the next track and three times for the previous one; + and − change the volume, hold + for the next track and − for the previous one. Not tried on a player by this project: see [`known-issues.md`](known-issues.md).
+**Wired headphones with buttons** (3.5 mm jack, from any screen, screen on or off): the middle button pauses and resumes, press it twice for the next track and three times for the previous one; + and − change the volume, hold + for the next track and − for the previous one.
 
 With the screen off, ▶‖ still pauses and resumes, a tap of vol± changes the volume and holding vol± skips tracks (or jumps 30 s / 15 s in audiobooks and podcasts).
 
@@ -264,11 +270,17 @@ VU meters shows separate left and right neon dials. The bright needles follow th
 
 The artwork uses your theme's colours in either orientation and at every text size. Pausing lets the needles and bars settle. Turning the screen off stops their updates.
 
-Both styles use the same time, progress bar and playback buttons. Hold Play to seek, use the volume buttons to move the target, then press Play to keep it or Back to cancel. Menu opens Quick Settings and holding Menu opens Lyrics, with the default button assignments.
+All styles use the same time, progress bar and playback buttons. Hold Play to seek, use the volume buttons to move the target, then press Play to keep it or Back to cancel. Menu opens Quick Settings and holding Menu opens Lyrics, with the default button assignments.
 
 ## Charging
 
-The player normally charges whenever it's plugged in, on or off. Turning it off while it's plugged in (or plugging a charger into a switched-off player) shows the charge screen: a large battery in your theme's colours with the percentage beneath or beside it. While the player charges, the empty part of the battery gently pulses. "Charging" means the charger is active; "Charged" means a known full battery. "USB power" means the cable supplies power while charging is inactive. Before a battery reading is available, the screen shows "Reading battery". The screen goes dark after 5 seconds; press any button to see it again. Hold Power for 2 seconds to turn the player on (or tap it with Power on set to Press), or unplug it to switch it off completely. Press Menu to open USB mode from the charge screen. A plug instead of the bolt means the player is playing on USB power and not charging. Plugging into a computer wakes the screen and asks what the connection is for (see [When you plug in](#when-you-plug-in)).
+The player normally charges whenever it's plugged in, on or off. Turning it off while it's plugged in (or plugging a charger into a switched-off player) shows the charge screen: a large battery in your theme's colours with the percentage beneath or beside it. While the player charges, the empty part of the battery gently pulses. "Charging" means the charger is active; "Charged" means a known full battery. "USB power" means the cable supplies power while charging is inactive. Before a battery reading is available, the screen shows "Reading battery". The screen goes dark after 5 seconds; press any button to see it again. Hold Power for 2 seconds to turn the player on (or tap it with Power on set to Press), or unplug it to switch it off completely. Press Menu to open USB mode from the charge screen. A plug instead of the bolt means the player is playing on USB power and not charging. Plugging into a computer wakes the screen and asks what the connection is for (see [When you plug in](#when-you-plug-in)). An unknown reading keeps the battery hollow.
+
+After a few minutes of charging the screen adds an estimate: the gain in percent per hour, then the approximate time to full, with chevrons for a slow, medium or fast rate. It appears once the battery gauge has risen steadily for at least five minutes and updates at most once a minute; until then, or when the readings are flat, noisy or interrupted, the screen shows "Measuring…". The estimate comes from about the last ten minutes of gauge readings, not from a current sensor, so the slower charging near full can change it. The screen also says whether the power comes from a computer or a charger.
+
+## Standby
+
+Settings → Power → Standby when switched off (off by default) changes what a tap of Power does. Instead of only turning the screen off, the player goes into standby: playback pauses, the sound output and Bluetooth switch off, and every button except Power is ignored. Tap Power again and the player is back at once, on the screen you left, with Bluetooth on again if it was on before. Auto off also goes into standby instead of switching off. After the time in Settings → Power → Power off after (30 min, 2 h, the default, or 8 h) in standby, the player switches off. Holding Power for 2 seconds still switches it off straight away.
 
 ## Button lock
 
@@ -318,13 +330,9 @@ When you turn the player on, plug headphones into either jack or connect Bluetoo
 
 ## Portrait mode
 
-Not tried on a player yet ([`known-issues.md`](known-issues.md)). Settings → Orientation has Landscape (the default), Portrait and Portrait, flipped. The screen turns as soon as you pick, and the player starts the same way next time. Pick whichever portrait way round puts the buttons where you like them.
+Settings → Orientation has Landscape (the default), Portrait and Portrait, flipped. The screen turns as soon as you pick, and the player starts the same way next time. Pick whichever portrait way round puts the buttons where you like them.
 
 In portrait, Home shows the Gnarlyr title below the status row and Now Playing keeps the compact status row; Home shows the album art under the menu, Now Playing puts the cover above the track, Cover Flow stacks the albums from top to bottom, and the status icons sit in a strip above the title. Lists show up to 13 rows. The volume rocker turns with the screen: in Portrait the buttons swap roles, so the one that is Vol− in landscape moves down through lists and the one that is Vol+ moves up; in Portrait, flipped they keep their usual roles. On Now Playing the button nearer the top of the screen turns the volume up, so in Portrait, flipped it's the one labelled Vol−. With the screen off, Vol+ is louder in every orientation.
-
-## Charging display
-
-The charging screen shows a large battery graphic and percentage. Its energy animation runs while the battery is charging and stops when the screen goes dark. An unknown reading keeps the battery graphic hollow. Press Menu to open USB mode; hold Power to turn the player on.
 
 ## Languages
 
@@ -332,9 +340,9 @@ The player includes English. Add other languages as external packs without reins
 
 - When the player has more than one language, Settings → Language appears after Orientation and lists them by their own names. Pick one and every screen changes at once; the player starts in it next time.
 - To add a language without reinstalling, copy its pack to the folder `.gnarlyr/lang` on the SD card (or on internal storage if you use no card). The file is named after the language's code, for example `de.pack`. The folder is hidden on most computers; create `lang` inside `.gnarlyr` if it isn't there. Eject, and the language is in Settings → Language.
-- A pack is made for one firmware version. After an update, an older pack may be refused; the player then stays in its built-in language and Settings → Language says "Couldn't load language" when you pick it. Get the pack made for the new version.
+- A pack is made for the text of one firmware version. After an update that changes the player's text, the older pack is refused; the player then stays in its built-in language and Settings → Language says "Couldn't load language" when you pick it. Get the pack made for the new version.
 - If you take out the card that holds the pack, the player uses its built-in language until the card is back.
-- Today's fonts draw English and the accented letters of western European languages. Cyrillic is drawn in lists and titles but not yet in the small text, so it can't be used for a pack; Chinese, Japanese and Korean are not drawn.
+- The fonts draw English, the accented letters of western European languages and Cyrillic at every text size. Chinese and Japanese are drawn only for the characters the current draft translations use; Korean, Arabic, Hebrew, Thai and the Indic scripts are not drawn.
 - To make a pack, open the [browser builder](../../site/languages.html), download its English template, and translate the entries. Choose a language code and its native name, then build and download the pack. Missing translations use English. The builder checks the text and characters supported by this firmware. See [language-pack tools](../../docs/language-packs.md) for checked USB installation and language selection from a computer.
 
 ## Text size
@@ -494,7 +502,7 @@ Podcasts/
 
 ## Updating Gnarlyr
 
-An install through the updater has only run in the emulator so far ([`known-issues.md`](known-issues.md)). Charge the battery first.
+Charge the battery first.
 
 1. Plug the player into the computer and choose **Connect to computer** (or Home → USB mode → Connect to computer). Copy the new `GNARLYR.IMG` to the top level of internal storage, not into a folder.
 2. Eject both drives. The player shows "Checking GNARLYR.IMG", then "Installing update" with a percentage. Don't unplug or turn it off.
@@ -502,13 +510,13 @@ An install through the updater has only run in the emulator so far ([`known-issu
 4. Hold Power to start the new version.
 5. Connect the player to the computer once more, copy any small file onto internal storage (or delete one), and eject both drives. The player shows "Saving this version as the backup" while it copies; from then on it keeps the new version. It only does this when the computer could write to internal storage during that connection, so a version whose drives open read-only stays on trial.
 
-The new version starts on trial: the previous version stays on the player as a backup until step 5. If the new version starts without its text, or doesn't start properly three times in a row (a start counts unless the player then runs for 20 seconds), or its USB connection fails, the player puts the previous version back and says "Update rolled back". If the player hangs while it is connected, hold Power for 10 seconds to restart it.
+The new version starts on trial: the previous version stays on the player as a backup until step 5. The player puts the previous version back by itself, and says "Update rolled back", when the new version starts without its text or without a part of its code it needs, or after three starts and USB connections that didn't confirm it (a start no longer counts once the player has run for 20 seconds). If the player hangs during the trial, for example while it is connected, hold Power for 10 seconds to restart it; each such restart counts as one try.
 
 The updater deletes the file after a successful install, when it is not a valid image, and when that version is already installed.
 
 ## Going back to FiiO's firmware
 
-There are two ways. This project has done the second on its player; the first has not run on a player with Gnarlyr.
+There are two ways. Maskrom is the one this project has used on its player.
 
 **Through the updater**
 
@@ -531,7 +539,7 @@ Follow [`device-recovery.md`](device-recovery.md). It writes FiiO's image into b
 - **The player doesn't start at all:** the chip's maskrom mode writes FiiO's firmware back from a computer over USB. It needs a patched `rkdeveloptool` and some care; the steps are in [`device-recovery.md`](device-recovery.md). If the player still runs and you expect trouble, create the file `MASKROM.REQ` on internal storage beforehand, or, with the cable plugged into the computer, hold Power and vol+ together for 5 seconds (same document).
 - **Noting a problem:** write down what you did, the FiiO version the player had before, and the Firmware line from Settings → About.
 
-## Themes and controls
+## Themes
 
 Settings → Theme offers Neon Noir, Graphite, Sunset, Sea Glass and Classic, followed by installed theme packs. Move with the volume buttons to preview a theme's colours and background. Press Play to keep it; Back restores the saved theme. Theme changes keep your text size, orientation and navigation.
 
@@ -541,14 +549,21 @@ Theme selection survives a restart and firmware updates that support the same pa
 
 To make your own, start with the original designs in [`examples/themes`](../../examples/themes), edit the manifest and PNGs, and build with `python3 tools/theme_pack.py FOLDER --output FILE.gtheme`. Check a download with `python3 tools/theme_pack.py --check FILE.gtheme`. The [community format guide](../../docs/theme-format.md) explains dimensions, palette roles, licences and optional signing. Packs contain only data and never require a firmware reflash.
 
- Settings → Controls assigns tap and hold actions independently for Volume+, Volume−, Play and Menu during playback. Default keeps the normal skip gesture; Off ignores that action. Reset buttons restores the normal controls. List navigation stays consistent.
+## Controls
+
+Settings → Controls assigns tap and hold actions independently for Vol+, Vol−, Play and Menu during playback. Default keeps the normal skip gesture; Off ignores that action. Reset buttons restores the normal controls. List navigation stays the same.
+
+Hold Power first, then press Vol+ for the next track or Vol− for the previous one, including while the keys are locked. Release both keys before another shortcut. These shortcuts consume the Power gesture; holding Power alone retains its usual power-off action. Hold Play and Power to lock or unlock the buttons (see [Button lock](#button-lock)). With the cable in a computer, don't keep Power and Vol+ held: after 3 seconds the player restarts into its recovery mode ([`device-recovery.md`](device-recovery.md)); unplug and press RST to leave it.
+
+Settings → Controls → Hold Menu chooses Default, Quick Settings, Up Next, Add to tape, Shuffle, or Sleep timer. Default keeps the existing screen and playback button mappings. Shuffle toggles between off and songs; Sleep timer opens its duration choices. Text entry keeps its own gestures. Choose Default to restore each screen's Menu hold.
 
 ## Waiting
 
 When something takes more than a moment, its screen says what is happening and a small wireframe turns under the message: a cassette while saving (Export plays, mixtapes, tags), a disc while working through your music (library scan, finding covers, search, preparing a queue, listening history) and a solid while loading tags. Where the player knows how far it has got, the cassette's tape winds from the left reel to the right, the disc's rim fills in, or the solid's edges light up. Only the wireframe is redrawn, and it stops as soon as the work ends or the screen turns off.
+
 ## Customising Home
 
-Settings → Home screen lists the nine editable Home items in their saved order, each marked Shown or Hidden; Settings is marked Always shown and stays on Home. Now playing appears automatically at the top when a track is loaded and has no editor row. Press Play on an item for **Hide from Home** (or **Show on Home**) and **Move**. Move picks the item up, and so does holding Play on it: the title reads Move: vol ±, the volume buttons move the item up and down the list, Play places it and Back puts it back where it was. **Reset to default** restores Music, Mixtapes, Stats, USB Mode, Clock and Settings, with Audiobooks, Podcasts and Up Next hidden. Each change is saved at once and Home follows it straight away, keeping your place on the item you had selected. A shown Up Next needs a loaded track, and shown Audiobooks and Podcasts need their shelves.
+Settings → Home screen lists the nine editable Home items in their saved order, each marked Shown or Hidden; Settings is marked Always shown and stays on Home. Now playing appears automatically at the top when a track is loaded and has no editor row. Press Play on an item for **Hide from Home** (or **Show on Home**) and **Move**. Move picks the item up, and so does holding Play on it: the title reads Move: vol ±, the volume buttons move the item up and down the list, Play places it and Back puts it back where it was. **Reset to default** restores Music, Mixtapes, Stats, Clock, USB Mode and Settings, with Audiobooks, Podcasts and Up Next hidden. Each change is saved at once and Home follows it straight away, keeping your place on the item you had selected. A shown Up Next needs a loaded track, and shown Audiobooks and Podcasts need their shelves.
 
 An existing settings file adopts this default if its saved Home order and hidden mask still match the old built-in default: items in their original order with nothing hidden. A customised order or hidden mask is kept; Now playing uses the automatic top row in either case.
 
@@ -572,13 +587,15 @@ Rename and Delete work as for other mixtapes. To play a different queue, select 
 
 ## Status bar
 
-Settings → Status bar chooses **Show volume**, **Show repeat**, **Queue position**, **Battery percent** and **Battery style**. Volume, repeat, position and percent start off; the clock appears when the time is known. Solid is the default battery style. Choices are kept across restarts.
+Settings → Status bar chooses **Show volume**, **Show repeat**, **Queue position**, **Battery percent**, **Battery style** and the **Status bar** layout. Volume, repeat, position and percent start off; the clock appears when the time is known. Solid is the default battery style. Choices are kept across restarts.
 
 Volume shows a speaker and the player's own 0–60 level, changing as you adjust it. Repeat shows the repeat arrows for All, with a small song badge for One, and is hidden for Off. Queue position shows the current place and total, such as **3/12**, while a queue is loaded. It is centred in portrait; landscape shows it when the screen title is hidden.
 
 Segmented battery uses five green bars, one for each started fifth of the charge. At 15% or less its bars turn red; at 5% or less its outline turns red too. Both styles show the same charging bolt on USB power.
 
 When space is tight, the battery, existing playback/link/lock/shuffle icons and the screen title keep their places. The remaining items get space in this order: volume, queue position, clock, repeat, battery percent. A smaller item may fit when a wider one cannot. Text size keeps the status icons and small numbers at the same size.
+
+Settings → Status bar → Status bar selects Standard or Compact. Compact uses smaller icons, a combined battery percentage and USB bolt, and tighter list spacing. Lists use the reclaimed space; the number of extra rows depends on text size, orientation and row details. Battery segments still follow Battery style. Compact always includes the percentage in the battery. Playback, Bluetooth, lock, shuffle and battery keep their places. Optional items fit in this priority order: volume, queue position, clock, repeat. A visible title takes priority over queue position. Standard retains its separate optional percentage.
 
 ## Clock and calendar
 
@@ -609,55 +626,6 @@ To start fresh, hold ▶ on Listening and choose **Clear history**. The confirma
 Clearing resets Most Played and Recently Played; Never Played and Old Favorites rebuild from the empty history. Recently Added still uses library updates. An existing exported file stays on the drive; Export plays first replaces it in the usual way. A failed or cancelled export keeps the history. A scan finishes before clearing becomes available. The reset is saved so an interrupted write recovers either the previous history or the empty one. Music played after the reset starts a new history.
 
 Place a timed `.lrc` file beside a song, with the same filename stem. Hold Menu on Now Playing to open Lyrics; tap Menu opens Quick Settings, which also has Lyrics and Up Next. Lyrics follow playback, and the volume buttons move through the lines. Back returns to the screen you opened Lyrics from.
-
-### Power shortcuts and Menu hold
-
-Hold Power first, then press Up for the next track or Down for the previous track, including while the keys are locked. Release both keys before another shortcut. These shortcuts consume the Power gesture; holding Power alone retains its usual power-off action. Hold Play and Power to toggle the key lock. Developer builds also capture the screen to the debug folder with Power+Menu (`shot0.565`, replacing the previous capture).
-
-Settings → Controls → Hold Menu chooses Default, Quick Settings, Up Next, Add to tape, Shuffle, or Sleep timer. Default keeps the existing screen and playback button mappings. Shuffle toggles between off and songs; Sleep timer opens its duration choices. Text entry keeps its own gestures. Choose Default to restore each screen's Menu hold.
-
-### AIFF files
-
-AIFF (`.aiff`, `.aif`) and uncompressed AIFF-C (`.aifc`, `NONE` or `sowt`) accept
-mono or stereo 16/24-bit music at standard rates from 8 to 192 kHz. Seeking and
-queued transitions follow the WAV rules. ID3 tags and embedded album art appear
-in the library. Compressed AIFF-C and floating point files cannot play.
-
-### DSD files
-
-DSF and uncompressed DFF play as 88.2 kHz PCM. Mono and stereo DSD64/DSD128 and mono
-DSD256 are accepted. Stereo DSD256, multichannel DSD and DST-compressed
-DFF are refused. DoP output is unavailable. ID3 tags and artwork appear in the
-library; DFF's DIIN artist/title fill missing ID3 fields. The output uses the
-usual seeking and queue controls.
-### Compact status bar
-
-Settings → Status bar → Status bar selects Standard or Compact. Compact uses smaller icons,
-a combined battery percentage and USB bolt, and tighter list spacing. Lists use the reclaimed
-space; the number of extra rows depends on text size, orientation and row details. Battery
-segments still follow Battery style. Compact always includes the percentage in the battery.
-Playback, Bluetooth, lock, shuffle and battery keep their places. Optional items fit in this
-priority order: volume, queue position, clock, repeat. A visible title takes priority over queue
-position. Standard retains its separate optional percentage.
-
-The charging screen uses the theme's battery wireframe, percentage and power state. Its pulse
-advances once a second while charging and stops for other power states. A gauge trend estimate
-appears after at least five minutes and several consistent windows: percent per hour, then an
-approximate time to full. Both update at most once a minute. Chevrons indicate a slower, medium or faster estimated gain. A flat, noisy,
-interrupted or newly connected session shows Measuring… instead. The estimate uses a sliding
-window of about ten minutes, not a current sensor; tapering near full can change the time.
-Computer means the existing USB connection code saw a host response; Charger means USB power
-is present without one. This does not initiate USB enumeration. The app continues sampling
-with the display dark; switching away from the charging module can restart measurement.
-No mA value is shown because the gauge does not measure current.
-
-### Monkey's Audio files
-
-APE files accept 16/24-bit mono or stereo. Fast accepts up to 192 kHz. Normal accepts up to 192 kHz mono or 96 kHz stereo. High accepts up to 96 kHz mono or 48 kHz stereo. Extra High and Insane compression are refused. APEv2 tags and embedded covers appear in the library.
-
-### WMA files
-
-Use WMA Standard v1/v2, mono or stereo, at 8–48 kHz. ASF tags and `WM/Picture` covers are read with the library. WMA Pro, Lossless, Voice and encrypted files are refused. WMA recordings without encoder padding information can retain a gap between songs.
 
 ## Sleep timer
 

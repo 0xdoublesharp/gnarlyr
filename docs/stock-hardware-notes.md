@@ -156,7 +156,7 @@ Gnarlyr:
 - It sends the same frames and `CY` values (`logic/bt_module.c:13`, `:565`, `:573`) and routes with the same pins (`board/bluetooth.c:148`).
 - It sends play/pause notices whatever the version (`bt_module.c:209` stores it).
 - On first routing it also writes EchoPod's GRF and CRU list (`bluetooth.c:137`), which stock's routing path doesn't.
-- It keeps the wired level while routed (`board/audio.c:589-596`). A typical headphone level of −25 to −40 dB is therefore 10–25 dB below stock's −15 dB Bluetooth default, which explains the quiet Bluetooth output if the module takes the DAC's analog signal.
+- It keeps a separate Bluetooth level, 0–60 like the wired one, and applies it only while audio is routed to the module (`board/audio.c`, `hal_audio_set_bluetooth_volume`). Its curve, `DAC_CURVE_BLUETOOTH`, puts level 60 at −5 dB, the top of stock's Bluetooth row, and the default 50 at −15 dB, stock's default. While routed, the balanced offset, the headphone ceiling and the channel trims don't apply. Earlier builds reused the wired level, which played 10–25 dB below stock's Bluetooth default.
 
 ## Display
 
@@ -304,4 +304,4 @@ In priority order. Gains are estimates. Every item needs a check on the player b
 | 16 | Shorter VOP write cycle, or less frequent busy checks | Up to about 25 % off a full-frame push | Pixel errors on some panels; needs the player | `logic/vop.c:27` |
 | 17 | Time-to-full estimate from the charging voltage slope | Charging-rate display without a current sensor | Low; estimate only | `battery_gauge.c` |
 
-No change was made to firmware code with this document. None of the items is both small and verifiable without the player: the ones with host-testable logic (1, 3, 8, 9, 14) change audible or power behaviour that only the player can confirm.
+Items 1 (separate Bluetooth volume and curve), 9 (Settings → DAC filter) and 17 (the charging rate and time-to-full estimate on the charge screen) have since been implemented; the rest are open. This document itself changed no firmware code. None of the items is both small and verifiable without the player: the ones with host-testable logic (1, 3, 8, 9, 14) change audible or power behaviour that only the player can confirm.

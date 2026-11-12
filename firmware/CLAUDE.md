@@ -148,7 +148,7 @@ Exact commands are in `docs/architecture.md`, Generated code. Python 3.14 reprod
 
 Only after the owner approved it for this session.
 
-- The owner enters maskrom (every key except Power held, then the USB cable plugged in). Ask, then wait.
+- The owner enters maskrom: the RST hole, then every key except Power held while the USB cable goes in. A running Gnarlyr also reboots into maskrom when Power and vol+ are held for 3 s with the cable in a computer, or at the next start when `MASKROM.REQ` is on internal storage (`docs/device-recovery.md`). Ask, then wait.
 - `rkdeveloptool-echo` talks to maskrom (USB `2207:262d`): upstream rkdeveloptool patched by `tools/patch_rkdeveloptool.py`. `docs/device-recovery.md` gives the build (the CMake project in `../tools/recovery`, output on Scratch). Two seconds after `ld` lists the device, `td` must print `Test Device OK.` before any `rl` or `wl`; `rd` restarts the player.
 - Firmware slots on the full-size Echo: sector 0 and 81920, 10240 sectors (the image's first 5 MiB) each. Write slot 2 first, read every write back and compare before the next write:
 
@@ -158,7 +158,7 @@ Only after the owner approved it for this session.
   ```
 
 - Slot files, read-backs and logs go under `/Volumes/Scratch/SnowskyEcho`, never in the repo. The original device backup stays under `.local/device-backups` in the main checkout.
-- Internal storage mounts as `/Volumes/Gnarlyr` (older firmware may use `/Volumes/ECHO`). An update is copied with `cp -X` (no `._` files) to the drive's top level as `GNARLYR.IMG`, then `diskutil eject /Volumes/ECHO`; the updater runs once the USB session ends. File-copy installs with automatic restart/reconnect are recorded on the owner's player through earlier Gnarlyr developer builds. The canonical identifier transition still needs its own device validation (`docs/known-issues.md`).
+- Internal storage mounts as `/Volumes/Gnarlyr` (older firmware may use `/Volumes/ECHO`). An update is copied with `cp -X` (no `._` files) to the drive's top level as `GNARLYR.IMG`, then `diskutil eject /Volumes/Gnarlyr`; the updater runs once the USB session ends and installs the build on trial into slot 1. File-copy installs with automatic restart/reconnect, including the canonical identifier transition, are recorded on the owner's player (`docs/known-issues.md`).
 
 ## Releasing
 

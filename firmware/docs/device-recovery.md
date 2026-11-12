@@ -4,7 +4,7 @@ If the player doesn't start at all, its chip's maskrom mode can still write FiiO
 
 Maskrom writes go straight to internal storage, below the file system. A wrong command can leave the player unable to start until a later write succeeds. Follow the steps exactly, and don't run any command not listed here.
 
-The procedure follows ReChord's Linux debrick guide, the livetrack.club debrick guide and Podium's recovery document. On the owner's Echo (full size, 4 GB) it was used from macOS to read both firmware slots, to install an earlier build of this project, and to write FiiO's V2.0.0 back: the key combination, the USB ID `2207:262d` and the commands in steps 3 and 4 are the ones that were run.
+The procedure follows ReChord's Linux debrick guide, the livetrack.club debrick guide and Podium's recovery document. On the owner's Echo (full size, 4 GB) it has been used from macOS many times: to read and back up both firmware slots, to install builds of this project, to put a known-good Gnarlyr build back after broken test builds, and to write FiiO's V2.0.0 back. The paperclip and key combination of step 2, the USB ID `2207:262d` and the commands in steps 3 and 4 are the ones that were run.
 
 ## What you need
 
@@ -19,7 +19,7 @@ Internal storage may be wiped. If the player still shows its drive over USB, cop
 
 Gnarlyr checks internal storage at every start for a file named `MASKROM.REQ` in the top folder. If it starts with the text `MASKROM REQ`, the player overwrites that text with zeros (so the request fires once) and reboots into the boot ROM's USB loader, the same state as step 2 below, with no paperclip and no key combination. To use it, put the file there while the player is still running (`echo "MASKROM REQ" > MASKROM.REQ` on the internal drive), eject, and restart the player. A file without that text, or an empty one, does nothing.
 
-This is checked in the emulator. This project has not used it on a player.
+This is checked in the emulator. This project has not used it on a player yet; the paperclip route (step 2) is the one known to work.
 
 ## Escape hatch: Power and vol+
 
@@ -33,7 +33,7 @@ Gnarlyr checks the keys every 5 ms for as long as it runs, from the first key sc
 
 If the player starts Gnarlyr again instead of staying black, the restart didn't reach maskrom; the keys then do nothing until Power is let go. In a `device` build, connect it as a drive once: `/.gnarlyr/debug/report0.txt` then says `start.last_step=loader`, which tells the developer the restart was requested but the boot ROM didn't stay in the loader. Use the paperclip route (step 2 below). If nothing happens at all, Settings → About → Keys shows the key reading in a `device` build: vol+ alone should read between 70 and 183.
 
-The emulator checks the timing and the restart request. On the player, the earlier start-up-only check failed once (`known-issues.md`); this version is unchecked on a player. FiiO's own firmware for this player writes the same loader request before it restarts. It needs a build that gets as far as its key scanning.
+The emulator checks the timing and the restart request. On the player, an earlier build that checked the keys only at start-up failed once ([`known-issues.md`](known-issues.md)); the current check, which runs the whole time, has not been tried on a player yet. FiiO's own firmware for this player writes the same loader request before it restarts. It needs a build that gets as far as its key scanning; otherwise use the paperclip.
 
 ## 1. Build the patched `rkdeveloptool` (once)
 
