@@ -622,7 +622,7 @@ static void walk_power(void)
 static void walk_clock(void)
 {
     begin();
-    down(4);
+    down(3);
     tap(KEY_PLAY);
     show_titled("Clock without a time", STR_CLOCK);
     tap(KEY_PLAY);
@@ -631,7 +631,7 @@ static void walk_clock(void)
         variant_clock_24h = format != 0;
         begin();
         fake_hal_set_wall(1794390060u, 60);
-        down(4);
+        down(3);
         tap(KEY_PLAY);
         show_titled("Clock", STR_CLOCK);
         tap(KEY_PLAY);

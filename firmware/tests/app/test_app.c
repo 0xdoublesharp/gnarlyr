@@ -3303,7 +3303,7 @@ static void the_plug_in_answer_is_chosen_in_settings_applied_and_saved(void)
 static void the_home_menu_opens_the_same_three_mode_selector(void)
 {
     start_app_with_library();
-    move_down(3);
+    move_down(4);
     tap(KEY_PLAY);
     CHECK(title_is("USB mode"));
     move_down(2);
@@ -5375,7 +5375,7 @@ static void a_calendar_month_title_keeps_its_room_before_the_status_clock(void)
     fake_hal_set_wall(1794390060u, 0);
     fake_hal_set_battery((HalBattery){.known = true, .percent = 64});
     restart_app();
-    move_down(4);
+    move_down(3);
     tap(KEY_PLAY);
     CHECK(title_is("Clock"));
     tap(KEY_PLAY);
