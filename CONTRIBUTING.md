@@ -27,7 +27,7 @@ Use a short imperative commit subject. Scopes help identify the component: `fix(
 
 ## Check the result
 
-The integration owner runs one complete suite on the combined candidate. Feature workers run focused tests; do not start competing full-suite runs. CI runs portable checks on Linux and actual FAT/exFAT mount and read/write checks on macOS. Documentation-only changes skip the expensive workflow.
+The integration owner runs one complete suite on the combined candidate. Feature workers run focused tests; do not start competing full-suite runs. CI runs portable checks on Linux. Native macOS FAT/exFAT mount and read/write checks run with the required system permissions on trusted main/release refs; pull requests use Linux. Documentation-only changes skip the expensive workflow.
 
 Root parser, exporter, and host-tool changes use:
 
