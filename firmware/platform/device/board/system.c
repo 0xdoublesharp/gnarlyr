@@ -2,11 +2,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "board.h"
 #include "emmc.h"
 #include "hal/system.h"
 
 enum {
-    SECTOR_WORDS = 128,
     TAG_OFFSET = 0x30,
     TAG_LENGTH = 8
 };
@@ -22,7 +22,7 @@ static bool is_printable(uint8_t value)
 
 static void read_tag(void)
 {
-    static uint32_t header[SECTOR_WORDS];
+    uint32_t *header = board_scratch;
     EmmcInfo info;
     if (!emmc_start(&info) || !emmc_read(NULL, info.layout.slot_1, 1, header)) {
         return;
