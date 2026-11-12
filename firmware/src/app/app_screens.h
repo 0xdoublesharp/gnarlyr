@@ -114,6 +114,7 @@ typedef struct AppScreensContext {
 
 typedef struct PlayingModuleScreens {
     CoverFlowScreen cover_flow;
+    CoverFlowScreen artist_albums;
     UpNextScreen up_next;
     QuickSettingsScreen quick_settings;
 } PlayingModuleScreens;
@@ -184,3 +185,4 @@ Screen *app_screens_build_menu(MenuScreen *menu, StringId title, const MenuItem 
                                const Theme *theme);
 void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Theme *theme);
 int app_screens_start_path(AppScreens *screens, StartScreen start, Screen **path);
+ScreenAction app_screens_artist_keys(void *context, KeyEvent event, uint32_t now_ms);

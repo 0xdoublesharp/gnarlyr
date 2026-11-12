@@ -272,11 +272,31 @@ static ScreenAction play_from(BrowseScreen *browse, int index)
     return start_list(browse, browse->query, (uint32_t)index);
 }
 
+static bool only_album(const Library *library, BrowseQuery *albums)
+{
+    BrowseQuery artist = *albums;
+    BrowseItem album;
+    return browse_count(library, artist) == 1 && browse_item(library, artist, 0, &album) &&
+           browse_child(artist, album, albums);
+}
+
+static bool opens_artist(const BrowseScreen *browse, BrowseQuery *child)
+{
+    const BrowsePoolConfig *config = &browse->pool->config;
+    return config->artist != NULL &&
+           (browse->query.kind == BROWSE_ARTISTS || browse->query.kind == BROWSE_ALBUM_ARTISTS) &&
+           !only_album(config->library, child);
+}
+
 static ScreenAction open_child(BrowseScreen *browse, BrowseItem item)
 {
     BrowseQuery child;
     if (!browse_child(browse->query, item, &child)) {
         return screen_action_none();
+    }
+    if (opens_artist(browse, &child)) {
+        const BrowsePoolConfig *config = &browse->pool->config;
+        return screen_action_push(config->artist(config->tools_context, browse, child));
     }
     Screen *next = browse_pool_open(browse->pool, browse->level + 1, child);
     if (next == NULL) {

@@ -17,6 +17,7 @@ typedef enum StringId {
     STR_UP_NEXT,
     STR_COVER_FLOW,
     STR_COVER_FLOW_HINT,
+    STR_ARTIST_ALBUMS_HINT,
     STR_ARTISTS,
     STR_ALBUM_ARTISTS,
     STR_ALBUMS,
@@ -650,4 +651,4 @@ typedef enum StringId {
     STRING_COUNT
 } StringId;
 
-#define STRINGS_HASH UINT32_C(0xE347EDF0)
+#define STRINGS_HASH UINT32_C(0x46EA1CB4)

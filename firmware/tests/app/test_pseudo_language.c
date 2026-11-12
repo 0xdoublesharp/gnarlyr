@@ -25,6 +25,8 @@ enum {
     MUSIC_ENTRIES = 12,
     MUSIC_SMART_LISTS_ROW = 10,
     MUSIC_ALBUMS_ROW = 4,
+    MUSIC_ARTISTS_ROW = 2,
+    BJORK_ROW = 3,
     MUSIC_ALL_SONGS_ROW = 7,
     SETTINGS_ROWS = 30,
     SETTINGS_BLUETOOTH_ROW = 3,
@@ -346,6 +348,17 @@ static void walk_cover_flow(void)
     show_toast("Cover Flow after a favorite", STR_FAVORITE_ADDED);
     hold(KEY_PLAY, 700);
     show_toast("Cover Flow after a favorite is removed", STR_FAVORITE_REMOVED);
+}
+
+static void walk_artist_albums(void)
+{
+    open_music_row(MUSIC_ARTISTS_ROW);
+    tap(KEY_PLAY);
+    down(BJORK_ROW);
+    tap(KEY_PLAY);
+    show_toast("an artist's albums", STR_ARTIST_ALBUMS_HINT);
+    down(1);
+    show("an artist's second album");
 }
 
 static void walk_song_actions(void)
@@ -708,6 +721,7 @@ static void walk_everything(void)
     walk_music();
     walk_smart_lists();
     walk_cover_flow();
+    walk_artist_albums();
     walk_settings_rows();
     walk_card_format();
     walk_settings_choices();

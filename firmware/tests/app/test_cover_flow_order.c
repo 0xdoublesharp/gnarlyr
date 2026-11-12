@@ -3,16 +3,20 @@
 #include <string.h>
 
 #include "big_library.h"
+#include "board_layout.h"
 #include "check.h"
 #include "default_theme.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
+#include "gfx/text.h"
 #include "screens/cover_flow_screen.h"
 
 enum {
     BIG_ALBUMS = 2500,
     GROUP_FIRST_LINK = 4,
-    GROUP_LINK_COUNT = 8
+    GROUP_LINK_COUNT = 8,
+    STRIP_ACDC = 0,
+    STRIP_BJORK = 3
 };
 
 static FixtureLibrary fixture;
@@ -272,6 +276,160 @@ static void the_letter_badge_is_visible_then_expires_in_every_screen_layout(void
     }
 }
 
+static ScreenAction strip_keys(void *context, KeyEvent event, uint32_t now_ms)
+{
+    CoverFlowScreen *strip = context;
+    return strip->keys(context, event, now_ms);
+}
+
+static void open_artist(Library *library, uint32_t position, uint32_t now_ms)
+{
+    BrowseItem artist;
+    CHECK(browse_item(library, browse_root_query(BROWSE_ARTISTS), position, &artist));
+    CHECK(browse_child(browse_root_query(BROWSE_ARTISTS), artist, &flow.albums));
+    flow.parent = &browse.screens[0];
+    flow.positioned = false;
+    screen->enter(screen->context, now_ms);
+}
+
+static void start_strip(uint32_t artist)
+{
+    Library *library = fixture_library_open(&fixture);
+    start_flow(library);
+    toast = (Toast){0};
+    CoverFlowConfig config = flow.config;
+    config.artist_keys = strip_keys;
+    screen = cover_flow_screen_init(&flow, config);
+    open_artist(library, artist, 0);
+}
+
+static void settle_flow(uint32_t now_ms)
+{
+    for (int frame = 0; frame < 60; frame++) {
+        screen->update(screen->context, now_ms + (uint32_t)frame * 16);
+    }
+}
+
+static void an_artist_strip_shows_their_albums_by_year_with_title_and_year(void)
+{
+    start_strip(STRIP_BJORK);
+    CHECK_EQUAL(2, flow.count);
+    CHECK_EQUAL(0, flow.target);
+    CHECK(strcmp(screen->title, "Björk") == 0);
+    CHECK(strcmp(flow.title, "Homogenic") == 0);
+    CHECK(strcmp(flow.year, "1997") == 0);
+    volume(KEY_VOLUME_UP, KEY_GESTURE_PRESS, 100);
+    settle_flow(100);
+    CHECK(strcmp(flow.title, "The Best of Something") == 0);
+    CHECK(strcmp(flow.year, "2001") == 0);
+    volume(KEY_VOLUME_UP, KEY_GESTURE_PRESS, 2000);
+    CHECK_EQUAL(1, flow.target);
+}
+
+static void an_artist_strip_has_no_random_album_or_letter_badge(void)
+{
+    start_strip(STRIP_BJORK);
+    volume(KEY_VOLUME_DOWN, KEY_GESTURE_PRESS, 100);
+    CHECK_EQUAL(0, flow.target);
+    volume(KEY_VOLUME_UP, KEY_GESTURE_PRESS, 200);
+    volume(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 200 + LIST_SECTION_JUMP_AFTER_MS);
+    CHECK_EQUAL(1, flow.target);
+    CHECK_EQUAL(0u, flow.section_shown_until_ms);
+}
+
+static void an_artist_strip_explains_holding_play_once(void)
+{
+    start_strip(STRIP_BJORK);
+    CHECK(toast.visible);
+    CHECK(toast.text != NULL && strcmp(toast.text, "Hold Play: play all") == 0);
+    toast.visible = false;
+    open_artist(&fixture.library, STRIP_ACDC, 2000);
+    CHECK(!toast.visible);
+    CHECK(strcmp(screen->title, "AC/DC") == 0);
+    CHECK(strcmp(flow.title, "High Voltage") == 0);
+}
+
+typedef struct CoverSnapshot {
+    int positions[COVER_CACHE_SLOTS];
+    uint16_t albums[COVER_CACHE_SLOTS];
+    uint16_t full_album;
+    CoverState full_state;
+} CoverSnapshot;
+
+static CoverSnapshot snapshot(void)
+{
+    CoverSnapshot shot = {.full_album = covers.full_album, .full_state = covers.full_state};
+    for (int slot = 0; slot < COVER_CACHE_SLOTS; slot++) {
+        shot.positions[slot] = covers.halves[slot].position;
+        shot.albums[slot] = covers.halves[slot].album;
+    }
+    return shot;
+}
+
+static int covers_loaded(CoverSnapshot before)
+{
+    CoverSnapshot after = snapshot();
+    int reads = 0;
+    for (int slot = 0; slot < COVER_CACHE_SLOTS; slot++) {
+        reads += before.positions[slot] != after.positions[slot] ||
+                         before.albums[slot] != after.albums[slot]
+                     ? 1
+                     : 0;
+    }
+    bool full_read = before.full_state == COVER_EMPTY && after.full_state != COVER_EMPTY;
+    return reads + (full_read || before.full_album != after.full_album ? 1 : 0);
+}
+
+static void each_strip_frame_reads_at_most_one_new_cover(void)
+{
+    start_strip(STRIP_BJORK);
+    int most = 0;
+    int total = 0;
+    for (int frame = 0; frame < 120; frame++) {
+        uint32_t now = 100 + (uint32_t)frame * 16;
+        if (frame % 20 == 0) {
+            volume(frame % 40 == 0 ? KEY_VOLUME_UP : KEY_VOLUME_DOWN, KEY_GESTURE_PRESS, now);
+        }
+        CoverSnapshot before = snapshot();
+        screen->update(screen->context, now);
+        int reads = covers_loaded(before);
+        most = reads > most ? reads : most;
+        total += reads;
+    }
+    CHECK_EQUAL(1, most);
+    CHECK(total >= 2);
+}
+
+static void the_strip_draws_its_covers_and_text_in_every_screen_layout(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            start_strip(STRIP_BJORK);
+            Theme theme = BOARD_THEME;
+            default_theme_set_text_size(&theme, (TextSize)size);
+            default_theme_set_orientation(&theme, (Orientation)orientation);
+            flow.config.theme = &theme;
+            settle_flow(0);
+            Canvas canvas = canvas_make(
+                pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+            screen->draw(screen->context, &canvas);
+            const CoverFlowLayout *layout = &BOARD_LAYOUT.cover_flow;
+            const CoverStackLayout *stack = &BOARD_LAYOUT.cover_stack;
+            int x = orientation == 0 ? layout->center_x : stack->center_x;
+            int y = orientation == 0 ? layout->center_top + layout->center_size / 2
+                                     : stack->center_top + stack->center_size / 2;
+            CHECK(canvas_pixel_at(&canvas, x, y) != canvas_pixel_at(&canvas, 0, 0));
+            const CoverFlowTextLayout *text = board_cover_flow_text_layout(&theme);
+            int room = theme.metrics.screen_width - 2 * theme.metrics.padding;
+            CHECK(text_width(theme.fonts.body, flow.year) <= room);
+            CHECK(text->artist_top + text->line_height <= theme.metrics.screen_height);
+            Rect hint = toast_area(&toast, &theme);
+            CHECK(hint.x >= 0 && hint.x + hint.width <= theme.metrics.screen_width);
+            CHECK(hint.y >= 0 && hint.y + hint.height <= theme.metrics.screen_height);
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -288,6 +446,11 @@ int main(void)
         TEST_CASE(artwork_loads_in_the_direction_of_travel_before_the_opposite_side),
         TEST_CASE(hold_timing_survives_the_millisecond_clock_wrapping),
         TEST_CASE(the_letter_badge_is_visible_then_expires_in_every_screen_layout),
+        TEST_CASE(an_artist_strip_shows_their_albums_by_year_with_title_and_year),
+        TEST_CASE(an_artist_strip_has_no_random_album_or_letter_badge),
+        TEST_CASE(an_artist_strip_explains_holding_play_once),
+        TEST_CASE(each_strip_frame_reads_at_most_one_new_cover),
+        TEST_CASE(the_strip_draws_its_covers_and_text_in_every_screen_layout),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
