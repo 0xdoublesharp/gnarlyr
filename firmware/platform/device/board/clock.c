@@ -88,6 +88,7 @@ __attribute__((used)) void board_systick_handler(const uint32_t *frame)
 {
     tick_clock_reload(&clock);
     board_profile_sample(frame[STACKED_PC_WORD]);
+    board_bluetooth_drain();
     periods_since_scan += sleeping ? SLEEP_MICROSECONDS_PER_PERIOD / MICROSECONDS_PER_PERIOD : 1;
     if (periods_since_scan < PERIODS_PER_KEY_SCAN) {
         return;

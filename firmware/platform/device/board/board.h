@@ -108,6 +108,8 @@ void board_power_cut(void);
 bool board_power_key_down(void);
 void board_panic_poll_power(uint32_t now_ms);
 void board_bluetooth_off(void);
+bool board_bluetooth_powered(void);
+void board_bluetooth_drain(void);
 bool board_bluetooth_routed(void);
 bool board_bluetooth_settling(void);
 bool board_bluetooth_pin(bool mute_pin, bool level);
