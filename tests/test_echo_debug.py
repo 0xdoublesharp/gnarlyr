@@ -297,6 +297,15 @@ class Symbolising(unittest.TestCase):
 
 
 class FindingThePlayer(VolumeCase):
+    def test_default_volume_names_and_explicit_override(self):
+        for name in (echo_debug.IDENTITY["name"], echo_debug.IDENTITY["name"].upper(), "echo"):
+            entry = player([medium("Internal storage", name, self.root)])
+            self.assertEqual(name, echo_debug.internal_volume(entry, None)["name"])
+        entry = player([medium("Internal storage", "CUSTOM", self.root)])
+        self.assertEqual("CUSTOM", echo_debug.internal_volume(entry, "custom")["name"])
+        with self.assertRaises(echo_debug.DebugError):
+            echo_debug.internal_volume(entry, None)
+
     def test_the_player_is_found_by_its_usb_identity_and_its_internal_drive_by_name_and_size(self):
         status = echo_debug.Tool(self.host()).status()
         self.assertTrue(status["connected"])

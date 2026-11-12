@@ -42,6 +42,12 @@ class EchoImageTest(EchoImageHarness):
         rig.machine.run(until=lambda: card.read(0, 1)[510:512] == b"\x55\xaa")
         start = struct.unpack_from("<I", card.read(0, 1), 454)[0]
         reader = FatReader(card, start)
+        boot = card.read(start, 1)
+        self.assertEqual(b"GnarlySD   ", boot[71:82])
+        backup = struct.unpack_from("<H", boot, 50)[0]
+        self.assertEqual(b"GnarlySD   ", card.read(start + backup, 1)[71:82])
+        root_lba = reader.data_start + (reader.root - 2) * reader.sectors_per_cluster
+        self.assertEqual(b"GnarlySD   ", card.read(root_lba, 1)[:11])
 
         def database_ready():
             found = reader.find(f"/{IDENTITY.data_directory}/library.db")

@@ -4,7 +4,7 @@ Settings → Format card operates on the raw SD block device. Its HAL implementa
 
 ## Layout
 
-`device/card_format` uses 512-byte sectors and one MBR partition named ECHO. Through 67,108,864 sectors (32 GiB) it creates FAT32 with two FATs, FSInfo and a backup boot sector. Larger cards use exFAT with one FAT, an allocation bitmap, the recommended up-case table, an empty root and both boot regions with checksums. The supported lower bound is 64 MiB; the existing block driver uses a 32-bit sector count.
+`device/card_format` uses 512-byte sectors and one MBR partition named GnarlySD. Through 67,108,864 sectors (32 GiB) it creates FAT32 with two FATs, FSInfo and a backup boot sector. Larger cards use exFAT with one FAT, an allocation bitmap, the recommended up-case table, an empty root and both boot regions with checksums. The supported lower bound is 64 MiB; the existing block driver uses a 32-bit sector count.
 
 FAT32 uses 32 KiB clusters above 2 GiB and 16 KiB at 2 GiB. Smaller volumes reduce the cluster size until the FAT32 cluster count remains valid. exFAT uses 128 KiB clusters. FAT32 on standard-capacity SD is a deliberate firmware policy: Gnarlyr uses FAT32 through 32 GB, while the [SD Association capacity definitions](https://www.sdcard.org/developers/sd-standard-overview/capacity-sd-sdhc-sdxc-sduc/) specify FAT16 through 2 GB.
 

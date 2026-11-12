@@ -76,6 +76,70 @@ static bool format_image(const char *path, uint32_t sectors)
         CHECK_EQUAL(sectors > CARD_FORMAT_SDHC_SECTORS ? FAT_TYPE_EXFAT : FAT_TYPE_32, volume.type);
         CHECK_EQUAL(0, volume.data_start % format.plan.alignment);
         CHECK_EQUAL(0, volume.volume_start % format.plan.alignment);
+        uint8_t label_sector[512];
+        CHECK(read_image(&image,
+                         volume.type == FAT_TYPE_EXFAT
+                             ? volume.data_start +
+                                   (volume.root_cluster - 2) * (1u << volume.cluster_shift)
+                             : volume.volume_start,
+                         1, label_sector));
+        if (volume.type == FAT_TYPE_EXFAT) {
+            CHECK_EQUAL(0x83, label_sector[0]);
+            CHECK_EQUAL(8, label_sector[1]);
+            for (unsigned index = 0; index < 8; index++) {
+                CHECK_EQUAL("GnarlySD"[index], label_sector[2 + index * 2]);
+                CHECK_EQUAL(0, label_sector[3 + index * 2]);
+            }
+        } else {
+            CHECK_EQUAL(0, memcmp(label_sector + 71, "GnarlySD   ", 11));
+            CHECK(read_image(&image, volume.data_start, 1, label_sector));
+            CHECK_EQUAL(0, memcmp(label_sector, "GnarlySD   ", 11));
+            CHECK_EQUAL(8, label_sector[11]);
+        }
+        uint32_t previous_writes = image.written;
+        CHECK(fat_fix_label(&volume, "GnarlySD", NULL));
+        CHECK_EQUAL(previous_writes, image.written);
+        uint32_t root_lba =
+            volume.data_start + (volume.root_cluster - 2) * (1u << volume.cluster_shift);
+        CHECK(read_image(&image, root_lba, 1, label_sector));
+        bool exfat = volume.type == FAT_TYPE_EXFAT;
+        for (unsigned index = 0; index < 8; index++) {
+            label_sector[exfat ? 2 + index * 2 : index] = (uint8_t)"GNARLYSD"[index];
+        }
+        CHECK(write_image(&image, root_lba, 1, label_sector));
+        CHECK(fat_mount(&volume, format.device));
+        CHECK(fat_fix_label(&volume, "GnarlySD", NULL));
+        CHECK(read_image(&image, root_lba, 1, label_sector));
+        for (unsigned index = 0; index < 8; index++) {
+            CHECK_EQUAL("GnarlySD"[index], label_sector[exfat ? 2 + index * 2 : index]);
+        }
+        previous_writes = image.written;
+        CHECK(fat_fix_label(&volume, "GnarlySD", NULL));
+        CHECK_EQUAL(previous_writes, image.written);
+        for (unsigned index = 0; index < 11; index++) {
+            label_sector[exfat ? 2 + index * 2 : index] = (uint8_t)(index < 4 ? "eChO"[index]
+                                                                    : exfat   ? 0
+                                                                              : ' ');
+        }
+        if (exfat) {
+            label_sector[1] = 4;
+        }
+        CHECK(write_image(&image, root_lba, 1, label_sector));
+        CHECK(fat_mount(&volume, format.device));
+        CHECK(fat_fix_label(&volume, FIRMWARE_NAME, "ECHO"));
+        CHECK(read_image(&image, root_lba, 1, label_sector));
+        for (unsigned index = 0; index < sizeof(FIRMWARE_NAME) - 1; index++) {
+            CHECK_EQUAL(FIRMWARE_NAME[index], label_sector[exfat ? 2 + index * 2 : index]);
+        }
+        previous_writes = image.written;
+        CHECK(fat_fix_label(&volume, FIRMWARE_NAME, "ECHO"));
+        CHECK_EQUAL(previous_writes, image.written);
+        label_sector[exfat ? 2 : 0] = 'X';
+        CHECK(write_image(&image, root_lba, 1, label_sector));
+        CHECK(fat_mount(&volume, format.device));
+        previous_writes = image.written;
+        CHECK(fat_fix_label(&volume, "GnarlySD", NULL));
+        CHECK_EQUAL(previous_writes, image.written);
         FatDirCursor cursor;
         FatDirEntry entry;
         CHECK(fat_open_directory(&volume, "/", &cursor));

@@ -139,7 +139,7 @@ static void fat32_boot(CardFormat *format)
     bytes[64] = 0x80;
     bytes[66] = 0x29;
     put32(bytes + 67, 0x4543484Fu ^ plan->sectors);
-    copy_text(bytes + 71, "ECHO       ", 11);
+    copy_text(bytes + 71, "GnarlySD   ", 11);
     copy_text(bytes + 82, "FAT32   ", 8);
     put16(bytes + 510, 0xAA55);
 }
@@ -174,7 +174,7 @@ static bool fat32_system(CardFormat *format)
         return false;
     }
     clear(format);
-    copy_text(bytes, "ECHO       ", 11);
+    copy_text(bytes, "GnarlySD   ", 11);
     bytes[11] = 8;
     return write_buffer(format, plan->data, 1);
 }
@@ -295,9 +295,9 @@ static bool exfat_root(CardFormat *format)
     clear(format);
     uint8_t *bytes = buffer(format);
     bytes[0] = 0x83;
-    bytes[1] = 4;
-    for (uint32_t index = 0; index < 4; index++) {
-        put16(bytes + 2 + 2 * index, (uint8_t)"ECHO"[index]);
+    bytes[1] = 8;
+    for (uint32_t index = 0; index < 8; index++) {
+        put16(bytes + 2 + 2 * index, (uint8_t)"GnarlySD"[index]);
     }
     bytes[32] = 0x81;
     put32(bytes + 32 + 20, 2);

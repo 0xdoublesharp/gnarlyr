@@ -71,7 +71,7 @@ USB_VENDOR_ID = 0x1209
 USB_PRODUCT_ID = 0x0001
 INTERNAL_MEDIUM = "Internal storage"
 CARD_MEDIUM = "SD card"
-DEFAULT_VOLUME_NAME = "ECHO"
+DEFAULT_VOLUME_NAME = None
 INTERNAL_BYTES = range(1 << 30, (8 << 30) + 1)
 SAMPLE_MS = 1
 DEFAULT_TOP = 25
@@ -182,7 +182,8 @@ def internal_volume(player, volume_name):
         raise DebugError("internal_drive_not_mounted",
                          f"the internal drive has {len(volumes)} mounted volumes, expected 1")
     volume = volumes[0]
-    if volume["name"] != volume_name:
+    accepted_names = (IDENTITY["name"].casefold(), "echo") if volume_name is None else (volume_name.casefold(),)
+    if volume["name"].casefold() not in accepted_names:
         raise DebugError("wrong_volume_name",
                          f"the internal drive's volume is named {volume['name']!r}, expected {volume_name!r}")
     if volume["bytes"] not in INTERNAL_BYTES:
@@ -870,7 +871,7 @@ def build_parser():
     parser.add_argument("--volume", type=Path,
                         help="the internal drive's folder, instead of finding the player on USB")
     parser.add_argument("--volume-name", default=DEFAULT_VOLUME_NAME,
-                        help="the internal drive's volume name (default %(default)s)")
+                        help="require this internal volume name (default: current or legacy firmware name)")
     commands = parser.add_subparsers(dest="command", required=True, parser_class=JsonParser)
     commands.add_parser("status", help="is the player on USB, and which volume is its internal drive")
     commands.add_parser("report", help="read and parse the player's debug report")
