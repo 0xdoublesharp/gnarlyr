@@ -469,6 +469,7 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_POWER_CONNECTING] = "Connecting USB",
     [STR_POWER_INTERNAL] = "Internal storage",
     [STR_POWER_INTERNAL_CARD] = "Internal + microSD",
+    [STR_POWER_INTERNAL_UNAVAILABLE] = "No internal storage",
     [STR_EQ_BROWSE_HINT] = "Vol: band | Play: adjust",
     [STR_EQ_ADJUST_HINT] = "Vol: gain | Play: keep",
     [STR_EQ_PRESET_HINT] = "Vol: preview | Play: apply",

@@ -58,6 +58,9 @@ static const char *const SCAN_PHASES[DEBUG_SCAN_PHASE_COUNT] = {
     [DEBUG_SCAN_COVERS_DONE] = "covers_done",
     [DEBUG_SCAN_COVERS_STOPPED] = "covers_stopped",
     [DEBUG_SCAN_UP_TO_DATE] = "up_to_date",
+    [DEBUG_SCAN_EMMC_OK] = "emmc_ok",
+    [DEBUG_SCAN_EMMC_FAILED] = "emmc_failed",
+    [DEBUG_SCAN_EMMC_FLAG_LOST] = "emmc_flag_lost",
 };
 static const char *const SCRIPT_STATES[DEBUG_SCRIPT_STATE_COUNT] = {
     [DEBUG_SCRIPT_NONE] = "none",
