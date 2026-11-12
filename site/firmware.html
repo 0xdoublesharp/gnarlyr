@@ -58,6 +58,7 @@
 <p class="intro">Browse albums, search for a song or narrow a long list. Personal labels help organize music without editing the files.</p>
 <ul class="detail-list">
 <li><strong>Browse your music.</strong> Explore albums, artists, album artists, genres, folders and songs, with embedded or folder artwork, Cover Flow and random-album playback.</li>
+<li><strong>Browse before covers finish.</strong> The library opens as soon as its tracks are ready. Covers fill in while the player is idle and pause when you use it or start playback, then continue later, including after a restart.</li>
 <li><strong>Covers for every album.</strong> Albums without artwork get a colored cover with initials in Cover Flow. The colors follow your theme, and your music files stay unchanged.</li>
 <li><strong>Browse Cover Flow by letter.</strong> Hold a volume button to scroll faster; keep holding to jump between initials. A temporary letter badge shows your place. Play opens the selected album and holding Play favorites it.</li>
 <li><strong>Search the whole collection.</strong> Search titles, artists, albums, album artists, genres and file paths. Matching ignores case and accents; names keep their original spelling on screen.
@@ -112,6 +113,7 @@
 <p class="intro">Adjust the sound while music plays, follow the lyrics and see what you listen to most.</p>
 <ul class="detail-list">
 <li><strong>Four headphone profiles.</strong> Save a name, level reduction, left/right balance and volume ceiling for each pair. Choose a profile in Settings → Headphones; the same profile applies to music and USB DAC audio.</li>
+<li><strong>Quick Settings while you listen.</strong> Tap Menu on Now Playing to change Shuffle, Repeat, EQ, headphone profile, Sleep timer, Transitions or ReplayGain. Open Lyrics and Up Next from the same panel. <a href="docs.html#quick-settings">See the shortcuts →</a></li>
 <li><strong>Sound controls.</strong> Gain and headphone volume-scale settings, software EQ presets, saved custom curves and EQ-file imports.
 </li>
 <li><strong>Consistent listening levels.</strong> ReplayGain reads loudness tags already in your music. Track balances individual songs; Album preserves the differences within an album. Prevent clipping limits boosts that could distort the sound.</li>
@@ -123,6 +125,7 @@
 <li><strong>Save a moment.</strong> Mark up to 64 places in songs or chapters and return to the exact spot later. Moments survive restarts and library rescans; a moved file stays listed as unavailable until its original path returns. <a href="docs.html#moments">How Moments works →</a></li>
 <li><strong>Timed lyrics.</strong> Keep a matching LRC lyrics file beside the song. Hold Menu on Now Playing to follow the words as it plays.
 </li>
+<li><strong>Start a fresh listening history.</strong> Clear totals, rankings and history-based Smart Lists with a separate confirmation. Export your plays first if you want to keep a record. Saved Moments, Favorites and existing exported files stay intact. <a href="docs.html#clear-history">Clear-history guide →</a></li>
 <li><strong>Listening totals and exports.</strong> See time listened, plays, skips and your top artists, albums and songs. Export an Audioscrobbler-compatible <code>.scrobbler.log</code> for other listening tools. See progress while it saves, cancel with Back and read the number of plays exported. Plays made while the clock is set include UTC timestamps.
 </li>
 </ul>
@@ -151,9 +154,10 @@
 <p class="intro">Choose a readable layout, assign button shortcuts and use the interface in your preferred language.
 </p>
 <ul class="detail-list">
+<li><strong>Choose your status-bar details.</strong> Show volume, repeat mode, queue position or battery percentage, and choose a solid or segmented battery. Your choices survive restarts; the bar fits optional details around the screen title and main indicators.</li>
 <li><strong>Themes and readable layouts.</strong> Choose from five themes and three text sizes, with landscape, portrait or flipped portrait layouts. Preview themes as you browse: Play keeps the choice and Back restores your saved look. Palette files let you customize the built-in themes.
 </li>
-<li><strong>Your own Home screen.</strong> Home puts Music, Mixtapes, Listening Stats, USB mode, Clock and Settings together. Now Playing appears automatically at the top when a track is loaded. Reorder or hide the other items, or show Audiobooks, Podcasts and Up Next, in Settings → Home screen. Settings stays available; Reset to default restores this layout.</li>
+<li><strong>Your own Home screen.</strong> Home puts Music, Mixtapes, Stats, USB mode, Clock and Settings together. Now Playing appears automatically at the top when a track is loaded. Reorder or hide the other items, or show Audiobooks, Podcasts and Up Next, in Settings → Home screen. Settings stays available; Reset to default restores this layout.</li>
 <li><strong>Clock and calendar.</strong> Set the local date, time and UTC offset in Settings → Date &amp; time, or sync from a Mac. The clock chip and saved offset restore local time after a restart. Home → Clock opens the time and date; Play opens the monthly calendar. Choose 12-hour or 24-hour time. <a href="docs.html#date-time">Set the clock →</a></li>
 <li><strong>Controls that fit your hands.</strong> Set a tap and a hold action for Volume+, Volume−, Play and Menu: eight playback shortcuts. Choose volume, seeking, playback, Home or Up Next actions. Audio shortcuts work with the screen off; list navigation keeps its usual controls.
 </li>
@@ -172,7 +176,7 @@
 <li><strong>Choose what happens when you plug in.</strong> Ask shows a choice on each computer connection, with Charge only selected and a 15-second countdown. Settings → When plugged in can instead connect File transfer automatically or always charge without connecting.</li>
 <li><strong>See file-transfer activity.</strong> A themed cassette turns while the computer reads or writes. The screen shows connection state, copied data, drive sizes or eject status, USB speed and battery level.</li>
 <li><strong>Control USB DAC audio.</strong> View stereo level meters, audio format, volume and the active headphone profile. Press Menu to adjust volume, gain, output scale or profile, or switch USB modes. USB Audio Class 1.0 accepts 16/24-bit audio at 44.1/48 kHz; DAC and music volumes stay separate.</li>
-<li><strong>Wireless listening.</strong> Pair Bluetooth headphones and keep remembered devices for later connections.</li>
+<li><strong>Bluetooth reconnect on Play.</strong> When music last used Bluetooth, Play wakes the radio and reconnects the most recent headphones after its idle switch-off or startup. It waits up to ten seconds, then stays paused if they are unavailable. Headphones returning after a lost connection reconnect without starting music unexpectedly.</li>
 <li><strong>Format a microSD card.</strong> Settings → Format card offers a quick format with two confirmations. Cards through 32 GB use FAT32; larger cards use exFAT. Formatting erases the card’s music and saved library data, so back it up first. Internal storage is left alone.</li>
 <li><strong>Everyday controls.</strong> Use wired-headset controls, button lock, the charging display and sleep or power settings.</li>
 </ul>
@@ -207,6 +211,9 @@
 <li><strong>Checked language-pack copies.</strong> USB tools validate a pack against the installed firmware, verify copied bytes and ignore macOS metadata files when listing packs. Returning to English also handles translated setting labels.</li>
 <li><strong>Ogg tags stay with the intended recording.</strong> Library indexing reads metadata from the first audio stream, ignoring unrelated streams and later chained recordings in the same file.</li>
 <li><strong>Safer metadata parsing.</strong> Tag readers preserve Unicode text during whitespace trimming and bound WMA content and MP4 duration reads. The MP3 reader rejects malformed APE footer lengths before locating the audio endpoint.</li>
+<li><strong>Rescans check before rebuilding.</strong> Settings → Rescan library checks for changed music and reports “Library is up to date” when the music, firmware and last scan are unchanged.</li>
+<li><strong>Recovery from an interrupted scan.</strong> After a scan stops the player, the next startup retries and isolates the file that caused the stop. Repeated failures fall back to building the library without covers.</li>
+<li><strong>More album artwork displays correctly.</strong> Read embedded Ogg/Opus pictures, CMYK/YCCK JPEGs and JPEG orientation data. If embedded art cannot be decoded, try a matching folder image. Computer indexing chooses the same artwork sources.</li>
 <li><strong>Storage failures stay visible.</strong> Library scans preserve storage errors through the final index write instead of replacing them with a different failure.</li>
 <li><strong>Search and labels keep their place.</strong> Searches cover long paths across metadata chunks and preserve the selected song. Cancelled searches do not restore stale results. Label saves protect a newer data bank if a read temporarily fails.</li>
 <li><strong>Lyrics handle failed reads.</strong> Lyrics use the correct storage path and stop displaying cached text when a line read fails, avoiding partial or stale lines.</li>
