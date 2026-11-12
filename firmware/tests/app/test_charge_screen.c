@@ -8,6 +8,7 @@
 #include "hal/display.h"
 #include "screen_modules.h"
 #include "screen_snapshot.h"
+#include "screens/charge_rate.h"
 #include "screens/charge_screen.h"
 #include "text_spy.h"
 #include "ui/label.h"
@@ -361,11 +362,130 @@ static void the_fill_edge_matches_the_percentage_at_every_pulse_phase(void)
     }
 }
 
+static void rate_needs_a_window_and_updates_only_once_a_minute(void)
+{
+    ChargeRate rate = {0};
+    HalBattery battery = {.known = true, .usb_power = true, .charging = true, .percent = 50};
+    for (uint32_t minute = 0; minute <= 20; minute++) {
+        battery.percent = (uint8_t)(50 + minute * 3 / 10);
+        charge_rate_update(&rate, battery, minute * 60000, false);
+        if (minute < 7) {
+            CHECK_EQUAL(0, rate.rate);
+            CHECK_EQUAL(0, rate.minutes);
+        }
+    }
+    CHECK_EQUAL(18, rate.rate);
+    CHECK(rate.minutes > 0);
+    CHECK_EQUAL(0, rate.minutes % 5);
+    uint16_t minutes = rate.minutes;
+    battery.percent = 80;
+    charge_rate_update(&rate, battery, 20 * 60000 + 59000, false);
+    CHECK_EQUAL(18, rate.rate);
+    CHECK_EQUAL(minutes, rate.minutes);
+    charge_rate_update(&rate, battery, 21 * 60000, false);
+    CHECK_EQUAL(0, rate.rate);
+    CHECK_EQUAL(0, rate.minutes);
+}
+
+static void stale_samples_drops_sources_and_power_changes_restart_the_window(void)
+{
+    HalBattery battery = {.known = true, .usb_power = true, .charging = true, .percent = 40};
+    ChargeRate rate = {0};
+    for (uint32_t minute = 0; minute <= 12; minute++) {
+        battery.percent = (uint8_t)(40 + minute / 2);
+        charge_rate_update(&rate, battery, minute * 60000, false);
+    }
+    CHECK(rate.rate > 0);
+    ChargeRate stable = rate;
+    charge_rate_update(&rate, battery, 12 * 60000 + 1, true);
+    CHECK_EQUAL(0, rate.rate);
+    CHECK(rate.computer);
+    rate = stable;
+    battery.percent--;
+    charge_rate_update(&rate, battery, 13 * 60000, false);
+    CHECK_EQUAL(0, rate.rate);
+    rate = stable;
+    charge_rate_update(&rate, battery, 14 * 60000, false);
+    CHECK_EQUAL(0, rate.rate);
+    rate = stable;
+    battery.known = false;
+    charge_rate_update(&rate, battery, 12 * 60000 + 1, false);
+    CHECK(!rate.active);
+    CHECK_EQUAL(0, rate.rate);
+    rate = stable;
+    battery.known = true;
+    battery.usb_power = false;
+    charge_rate_update(&rate, battery, 12 * 60000 + 1, false);
+    CHECK(!rate.active);
+    rate = stable;
+    battery.usb_power = true;
+    battery.charging = false;
+    charge_rate_update(&rate, battery, 12 * 60000 + 1, false);
+    CHECK_EQUAL(0, rate.rate);
+}
+
+static void rate_uses_elapsed_time_and_survives_clock_wrap(void)
+{
+    ChargeRate rate = {0};
+    HalBattery battery = {.known = true, .usb_power = true, .charging = true};
+    uint32_t start = UINT32_MAX - 120000;
+    for (uint32_t index = 0; index <= 20; index++) {
+        battery.percent = (uint8_t)(30 + index / 2);
+        charge_rate_update(&rate, battery, start + index * 75000, false);
+    }
+    CHECK_EQUAL(24, rate.rate);
+    CHECK(rate.minutes > 0);
+}
+
+static void rate_contact_sheets_cover_warmup_normal_near_full_and_full(void)
+{
+    for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = charge_theme(size, orientation);
+            default_theme_set_appearance(&theme, APPEARANCE_NEON_NOIR);
+            Canvas canvas = charge_canvas(&theme);
+            fake_hal_set_charging_host(orientation == ORIENTATION_LANDSCAPE);
+            HalBattery battery = {.known = true, .usb_power = false};
+            charge_art_observe(battery, 0);
+            battery =
+                (HalBattery){.known = true, .usb_power = true, .charging = true, .percent = 50};
+            text_spy_reset();
+            charge_screen_draw_at(&canvas, &theme, battery, 0);
+            CHECK(saw(i18n_text(STR_CHARGING)));
+            screen_snapshot_write(&canvas, "rate-measuring", orientation * 3 + size);
+            for (uint32_t minute = 1; minute <= 20; minute++) {
+                battery.percent = (uint8_t)(50 + minute * 3 / 10);
+                charge_art_observe(battery, minute * 60000);
+            }
+            charge_screen_draw_at(&canvas, &theme, battery, 20 * 60000);
+            screen_snapshot_write(&canvas, "rate-normal", orientation * 3 + size);
+            battery.usb_power = false;
+            charge_art_observe(battery, 0);
+            battery.usb_power = true;
+            for (uint32_t minute = 0; minute <= 20; minute++) {
+                battery.percent = (uint8_t)(90 + minute * 3 / 10);
+                charge_art_observe(battery, minute * 60000);
+            }
+            charge_screen_draw_at(&canvas, &theme, battery, 20 * 60000);
+            screen_snapshot_write(&canvas, "rate-near-full", orientation * 3 + size);
+            battery.percent = 100;
+            battery.charging = false;
+            charge_screen_draw_at(&canvas, &theme, battery, 21 * 60000);
+            screen_snapshot_write(&canvas, "rate-full", orientation * 3 + size);
+        }
+    }
+    fake_hal_set_charging_host(false);
+}
+
 int main(void)
 {
     fake_hal_reset();
     i18n_detach();
     static const TestCase cases[] = {
+        TEST_CASE(rate_needs_a_window_and_updates_only_once_a_minute),
+        TEST_CASE(stale_samples_drops_sources_and_power_changes_restart_the_window),
+        TEST_CASE(rate_uses_elapsed_time_and_survives_clock_wrap),
+        TEST_CASE(rate_contact_sheets_cover_warmup_normal_near_full_and_full),
         TEST_CASE(the_fill_edge_matches_the_percentage_at_every_pulse_phase),
         TEST_CASE(compact_status_does_not_compress_the_charge_header),
         TEST_CASE(wireframe_pulse_is_limited_to_one_frame_per_second),

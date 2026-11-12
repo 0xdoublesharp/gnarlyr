@@ -45,6 +45,29 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(session)
         self.print_usb_log("asked, then file transfer", machine)
 
+    def test_charging_source_forgets_a_host_before_a_later_wall_charger(self):
+        session, machine, asked = self.asked_session()
+        session.run_to_home_screen()
+        machine.stub_symbol("app_step", lambda machine: None)
+        source = machine.symbols["charging_host"]
+        host_seen = lambda: bool(machine.uc.mem_read(source, 1)[0])
+        machine.vbus = True
+        self.assertEqual(machine.run(until=lambda: asked,
+                                     until_ms=machine.milliseconds() + CABLE_STEADY_MS + 2000),
+                         "condition met")
+        self.assertTrue(host_seen())
+        machine.vbus = False
+        self.assertEqual(machine.run(until=lambda: not host_seen(),
+                                     until_ms=machine.milliseconds() + 1000), "condition met")
+        machine.run(until_ms=machine.milliseconds() + CABLE_STEADY_MS + 50)
+        machine.host_absent = True
+        machine.vbus = True
+        connections = machine.usb_connect_count
+        machine.run(until_ms=machine.milliseconds() + CHARGER_MS)
+        self.assertFalse(host_seen())
+        self.assertEqual(machine.usb_connect_count, connections + 1)
+        self.assert_healthy(session)
+
     def test_charging_without_the_playing_module_uses_no_usb_overlay(self):
         session = self.session(vbus_at_start=True)
         machine = session.machine

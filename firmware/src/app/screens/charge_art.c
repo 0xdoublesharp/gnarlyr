@@ -1,3 +1,4 @@
+#include "charge_rate.h"
 #include "charge_screen.h"
 
 #include "core/i18n.h"
@@ -18,6 +19,13 @@ enum {
     TINT_STEPS = 3,
     GLOW_STEPS = CHARGE_SCREEN_PHASES
 };
+
+static ChargeRate charging_rate;
+
+void charge_art_observe(HalBattery battery, uint32_t now_ms)
+{
+    charge_rate_update(&charging_rate, battery, now_ms, hal_power_usb_host());
+}
 
 typedef struct ChargeArt {
     Canvas *canvas;
@@ -124,7 +132,9 @@ ChargeScreenLayout charge_screen_art_layout(const Theme *theme)
     int width = theme->metrics.screen_width - 2 * pad;
     int small = font_line_height(theme->fonts.small);
     const char *hint = i18n_text(STR_CHARGE_MODE_HINT);
-    int detail = label_wrap_count(theme->fonts.small, hint, width) * small;
+    int hint_width = theme_is_portrait(theme) ? width : (width - pad) / 2;
+    int detail = label_wrap_count(theme->fonts.small, hint, hint_width) * small;
+    detail = theme_is_portrait(theme) ? detail + 2 * small : larger(detail, 2 * small);
     ChargeScreenLayout layout = {
         .header = {pad, 0, width, theme->metrics.header_height},
         .detail = {pad, theme->metrics.screen_height - pad - detail, width, detail}};
@@ -341,8 +351,77 @@ static void draw_state(const ChargeArt *art)
     }
 }
 
+static void draw_speed(const ChargeArt *art, Rect area)
+{
+    if (charging_rate.rate == 0) {
+        return;
+    }
+    int count = charging_rate.rate >= 45 ? 3 : charging_rate.rate >= 24 ? 2 : 1;
+    for (int glyph = 0; glyph < count; glyph++) {
+        for (int row = 0; row < 7; row++) {
+            int dx = row <= 3 ? row : 6 - row;
+            canvas_fill_rect(art->canvas,
+                             (Rect){area.x + area.width - 24 + glyph * 8 + dx,
+                                    area.y + (area.height - 7) / 2 + row, 2, 1},
+                             art->theme->colors.accent);
+        }
+    }
+}
+
+static void draw_trend(const ChargeArt *art)
+{
+    Rect area = art->layout.detail;
+    int pad = art->theme->metrics.padding;
+    int line = font_line_height(art->theme->fonts.small);
+    bool portrait = theme_is_portrait(art->theme);
+    Rect hint = area;
+    if (portrait) {
+        hint.y += 2 * line;
+        hint.height -= 2 * line;
+    } else {
+        area.width = (area.width - pad) / 2;
+        hint.x += area.width + pad;
+        hint.width = area.width;
+    }
+    area.height = line;
+    char rate[TEXT_CAPACITY];
+    StringBuilder value = string_builder_make(rate, sizeof rate);
+    if (flowing(art->battery)) {
+        if (charging_rate.rate != 0) {
+            i18n_format_counts(&value, STR_CHARGE_RATE, charging_rate.rate, 0);
+        } else {
+            string_builder_append(&value, i18n_text(STR_CHARGE_MEASURING));
+        }
+    }
+    char summary[TEXT_CAPACITY];
+    StringBuilder text = string_builder_make(summary, sizeof summary);
+    StringId source = !art->battery.usb_power  ? STR_POWER_BATTERY
+                      : charging_rate.computer ? STR_CHARGE_COMPUTER
+                                               : STR_CHARGE_CHARGER;
+    const char *arguments[] = {i18n_text(source), rate};
+    i18n_format(&text, STR_CHARGE_SUMMARY, arguments, 2);
+    TextStyle style = {art->theme->fonts.small, art->theme->colors.text_secondary};
+    Rect label = area;
+    label.width -= charging_rate.rate != 0 ? 26 : 0;
+    label_draw(art->canvas, style, (Label){label, summary});
+    draw_speed(art, area);
+    area.y += line;
+    if (charging_rate.minutes != 0 && flowing(art->battery)) {
+        text = string_builder_make(summary, sizeof summary);
+        StringId pattern =
+            charging_rate.minutes >= 60 ? STR_CHARGE_FULL_IN : STR_CHARGE_FULL_MINUTES;
+        i18n_format_counts(&text, pattern,
+                           charging_rate.minutes >= 60 ? charging_rate.minutes / 60
+                                                       : charging_rate.minutes,
+                           charging_rate.minutes % 60);
+        label_draw(art->canvas, style, (Label){area, summary});
+    }
+    label_draw_wrapped(art->canvas, style, (Label){hint, i18n_text(STR_CHARGE_MODE_HINT)});
+}
+
 void charge_art_draw(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms)
 {
+    charge_art_observe(battery, now_ms);
     Theme charging = *theme;
     charging.metrics.header_height = font_line_height(theme->fonts.header) + 2;
     if (theme_is_portrait(theme)) {
@@ -359,6 +438,5 @@ void charge_art_draw(Canvas *canvas, const Theme *theme, HalBattery battery, uin
     draw_battery(&art);
     draw_percent(&art);
     draw_state(&art);
-    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
-                       (Label){art.layout.detail, i18n_text(STR_CHARGE_MODE_HINT)});
+    draw_trend(&art);
 }

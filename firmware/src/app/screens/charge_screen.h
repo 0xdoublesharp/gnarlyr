@@ -26,6 +26,7 @@ void usb_screen_draw(Canvas *canvas, const Theme *theme, HalBattery battery, App
 void usb_screen_draw_fallback(Canvas *canvas, const Theme *theme, HalBattery battery,
                               AppUsbStatus status);
 const char *charge_screen_usb_title(AppUsbView view);
+void charge_art_observe(HalBattery battery, uint32_t now_ms);
 void charge_art_draw(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms);
 void charge_screen_draw_at(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms);
 void charge_screen_draw(Canvas *canvas, const Theme *theme, HalBattery battery);

@@ -158,6 +158,7 @@ static void run(SimSession *session)
         uint32_t frame_started_ms = hal_clock_milliseconds();
         inject_scripted_keys(session);
         if (session->frames + 1 == session->options.usb_host_frame) {
+            sim_power_note_usb_host();
             app_ask_usb_mode();
         }
         app_step();

@@ -1715,6 +1715,11 @@ static void charge_step(uint32_t now_ms)
         HalBattery battery = hal_power_battery();
         app.render_wanted |= app_usb_battery_changed(app.charge_battery, battery);
         app.charge_battery = battery;
+        const PlayingModuleEntry *entry =
+            (const PlayingModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_PLAYING);
+        if (entry != NULL) {
+            entry->charge_observe(battery, now_ms);
+        }
         if (!app.charge_battery.usb_power) {
             app.charging = false;
             debug_loop_shutdown(DEBUG_REPORT_UNPLUGGED);

@@ -472,5 +472,12 @@ priority order: volume, queue position, clock, repeat. A visible title takes pri
 position. Standard retains its separate optional percentage.
 
 The charging screen uses the theme's battery wireframe, percentage and power state. Its pulse
-advances once a second while charging and stops for other power states. It shows no time-to-full
-estimate because no stable estimate is available.
+advances once a second while charging and stops for other power states. A gauge trend estimate
+appears after at least five minutes and several consistent windows: percent per hour, then an
+approximate time to full. Both update at most once a minute. Chevrons indicate a slower, medium or faster estimated gain. A flat, noisy,
+interrupted or newly connected session shows Measuring… instead. The estimate uses a sliding
+window of about ten minutes, not a current sensor; tapering near full can change the time.
+Computer means the existing USB connection code saw a host response; Charger means USB power
+is present without one. This does not initiate USB enumeration. The app continues sampling
+with the display dark; switching away from the charging module can restart measurement.
+No mA value is shown because the gauge does not measure current.

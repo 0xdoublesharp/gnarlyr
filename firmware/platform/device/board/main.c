@@ -180,6 +180,9 @@ static void check_usb(void)
         usb_plug_retry(&usb_plug);
     }
     bool cable_power = usb_vbus_present();
+    if (!cable_power) {
+        (void)hal_power_usb_host();
+    }
     board_power_usb_supply_follow(cable_power && !board_debug_usb_supply_held_off());
     bool cable = cable_power || board_debug_usb_forced();
     switch (usb_plug_update(&usb_plug, cable, hal_clock_milliseconds())) {

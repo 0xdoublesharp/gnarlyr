@@ -11,6 +11,7 @@
 
 typedef struct PlayingModuleEntry {
     ScreenModuleEntry module;
+    void (*charge_observe)(HalBattery battery, uint32_t now_ms);
     void (*charge_draw)(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms);
 } PlayingModuleEntry;
 
