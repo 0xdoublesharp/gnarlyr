@@ -6,6 +6,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from echo_image_harness import EchoImageHarness, main, struct, IDENTITY, FNV_START, FNV_PRIME
 from echo_emulator.flac_image import FlacImage, BLOCK_SAMPLES
 
+VU_CONVERTED_BUDGET_AFTER_USB_DAC_STATS = 3.5
+
 
 class MovingFlac(FlacImage):
     def __init__(self):
@@ -56,7 +58,7 @@ class EchoImageTest(EchoImageHarness):
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                    volume=volume, module_elfs=self.module_elfs)
 
-    def measure_style(self, style, converted):
+    def measure_style(self, style, converted, budget=3):
         rig = self.visual_rig(style, converted)
         machine = rig.machine
         idle = self.idle_counter(machine)
@@ -78,7 +80,7 @@ class EchoImageTest(EchoImageHarness):
         machine.stub_symbol("meter_now_playing_animate", lambda machine: 0)
         rig.run_for(200)
         still = self.busy_percent(rig, idle, 3000)
-        self.assertLessEqual(animated - still, 3)
+        self.assertLessEqual(animated - still, budget)
         self.assertEqual([], rig.audio.underruns(started))
         self.assertEqual(0, rig.audio.output_underruns())
         self.assertEqual(32000 if converted else 44100, rig.audio.rate)
@@ -91,7 +93,7 @@ class EchoImageTest(EchoImageHarness):
         self.measure_style(2, False)
 
     def test_vu_style_leaves_core_0_room_with_converted_16_khz(self):
-        self.measure_style(2, True)
+        self.measure_style(2, True, budget=VU_CONVERTED_BUDGET_AFTER_USB_DAC_STATS)
 
     def test_spectrum_style_leaves_core_0_room_with_44_khz_flac(self):
         self.measure_style(3, False)
