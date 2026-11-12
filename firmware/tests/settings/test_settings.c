@@ -1021,7 +1021,7 @@ static void check_extension_defaults(const Settings *settings)
     CHECK(settings->clock_24h);
     CHECK_EQUAL(TRACK_TRANSITION_OFF, settings->track_transition);
     CHECK_EQUAL(15, settings->transition_tenths);
-    static const uint8_t ORDER[] = {0, 6, 7, 8, 9, 1, 2, 5, 3, 4};
+    static const uint8_t ORDER[] = {0, 6, 7, 9, 8, 1, 2, 5, 3, 4};
     CHECK(memcmp(ORDER, settings->home_order, sizeof ORDER) == 0);
     CHECK_EQUAL(1u << 1 | 1u << 2 | 1u << 5, settings->home_hidden);
     CHECK_EQUAL(0, settings->status_items);
@@ -1036,7 +1036,7 @@ static void the_extension_defaults_keep_todays_behaviour(void)
 
 static void the_extension_block_sits_between_the_language_and_the_checksum(void)
 {
-    static const uint8_t EXPECTED[16] = {0x07, 24, 15, 0, 0x60, 0x87, 0x19, 0x52, 0x43, 0x26};
+    static const uint8_t EXPECTED[16] = {0x07, 24, 15, 0, 0x60, 0x97, 0x18, 0x52, 0x43, 0x26};
     Settings settings = settings_defaults();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
@@ -1214,7 +1214,7 @@ static void pack_home(uint8_t *packed, const uint8_t *order, int count, uint16_t
 static void the_old_untouched_home_defaults_adopt_the_new_defaults(void)
 {
     static const uint8_t OLD[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    static const uint8_t EXPECTED[] = {0, 6, 7, 8, 9, 1, 2, 5, 3, 4};
+    static const uint8_t EXPECTED[] = {0, 6, 7, 9, 8, 1, 2, 5, 3, 4};
     for (int count = 9; count <= 10; count++) {
         Settings original = extension_settings();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1227,6 +1227,23 @@ static void the_old_untouched_home_defaults_adopt_the_new_defaults(void)
         CHECK_EQUAL(1u << 1 | 1u << 2 | 1u << 5, decoded.home_hidden);
         CHECK_EQUAL(original.volume, decoded.volume);
         CHECK_EQUAL(original.track_transition, decoded.track_transition);
+    }
+}
+
+static void the_previous_saved_default_adopts_the_new_order(void)
+{
+    static const uint8_t OLD[] = {0, 6, 7, 8, 9, 1, 2, 5, 3, 4};
+    Settings original = settings_defaults();
+    memcpy(original.home_order, OLD, sizeof OLD);
+    for (int custom_mask = 0; custom_mask < 2; custom_mask++) {
+        original.home_hidden = custom_mask ? 0 : 0x26;
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&original, bytes);
+        Settings decoded;
+        CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+        Settings defaults = settings_defaults();
+        CHECK(memcmp(custom_mask ? OLD : defaults.home_order, decoded.home_order, sizeof OLD) == 0);
+        CHECK_EQUAL(original.home_hidden, decoded.home_hidden);
     }
 }
 
@@ -1433,6 +1450,7 @@ int main(void)
         TEST_CASE(each_invalid_extension_value_is_rejected_without_mutating_the_settings),
         TEST_CASE(every_item_but_settings_may_be_hidden),
         TEST_CASE(the_old_untouched_home_defaults_adopt_the_new_defaults),
+        TEST_CASE(the_previous_saved_default_adopts_the_new_order),
         TEST_CASE(changing_only_the_old_default_mask_keeps_the_custom_layout),
         TEST_CASE(a_saved_home_order_and_hidden_mask_are_applied_on_load),
         TEST_CASE(an_order_from_a_build_with_more_items_drops_the_unknown_ones),

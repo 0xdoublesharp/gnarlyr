@@ -454,7 +454,7 @@ class LanguageCommands(VolumeCase):
         self.assertFalse(self.home_order_verifies([0, 1, 2, 3, 4, 5, 6, 7, 7]))
 
     def test_current_and_old_default_home_layouts_remain_valid(self):
-        self.assertTrue(self.home_order_verifies([0, 6, 7, 8, 9, 1, 2, 5, 3, 4], 0x26))
+        self.assertTrue(self.home_order_verifies([0, 6, 7, 9, 8, 1, 2, 5, 3, 4], 0x26))
         self.assertTrue(self.home_order_verifies(list(range(10))))
         self.assertTrue(self.home_order_verifies(list(range(9))))
         self.assertTrue(self.home_order_verifies(list(range(10)), 1 << 4))

@@ -90,8 +90,8 @@ static const uint8_t DEFAULT_EXTENSION[EXTENSION_SIZE] = {
     [SAFE_LEVEL_BYTE] = SETTINGS_DEFAULT_SAFE_START_VOLUME,
     [TRANSITION_BYTE] = SETTINGS_DEFAULT_TRANSITION_TENTHS,
     [HOME_ORDER_BYTE] = 0x60,
-    0x87,
-    0x19,
+    0x97,
+    0x18,
     0x52,
     0x43,
     [HOME_HIDDEN_BYTE] = (1u << 1) | (1u << 2) | (1u << 5)};
@@ -174,7 +174,12 @@ static void read_extension(const uint8_t *extension, Settings *settings)
     for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
         untouched = untouched && settings->home_order[index] == index;
     }
-    if (untouched) {
+    static const uint8_t PREVIOUS[] = {0, 6, 7, 8, 9, 1, 2, 5, 3, 4};
+    bool previous = settings->home_hidden == 0x26;
+    for (int index = 0; index < SETTINGS_HOME_ITEM_COUNT; index++) {
+        previous = previous && settings->home_order[index] == PREVIOUS[index];
+    }
+    if (untouched || previous) {
         settings_home_unpack(DEFAULT_EXTENSION + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT,
                              settings->home_order, &settings->home_hidden);
     }

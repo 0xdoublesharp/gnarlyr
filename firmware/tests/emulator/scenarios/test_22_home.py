@@ -22,8 +22,8 @@ class EchoImageTest(EchoImageHarness):
 
     def test_home_defaults_automatic_now_playing_and_hidden_editor_items(self):
         rig = self.playback_rig()
-        for string_id in ("STR_MUSIC", "STR_MIXTAPES", "STR_LISTENING", "STR_USB_MODE",
-                          "STR_CLOCK", "STR_SETTINGS"):
+        for string_id in ("STR_MUSIC", "STR_MIXTAPES", "STR_LISTENING", "STR_CLOCK",
+                          "STR_USB_MODE", "STR_SETTINGS"):
             rig.press("play")
             self.assert_screen(rig, string_id)
             rig.press("back")
