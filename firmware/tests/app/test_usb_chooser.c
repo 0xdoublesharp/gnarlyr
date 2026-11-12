@@ -75,9 +75,9 @@ static void the_prompt_offers_connect_to_computer_first_then_charge_usb_power_an
     Screen *screen = open_chooser(true);
     CHECK(strcmp("Computer found", screen->title) == 0);
     CHECK(strcmp("Connect to computer", label(0)) == 0);
-    CHECK(strcmp("Charge", label(1)) == 0);
-    CHECK(strcmp("Play on USB power", label(2)) == 0);
-    CHECK(strcmp("USB DAC", label(3)) == 0);
+    CHECK(strcmp("Charge & play", label(1)) == 0);
+    CHECK(strcmp("Run from USB power", label(2)) == 0);
+    CHECK(strcmp("USB audio (DAC)", label(3)) == 0);
     CHECK_EQUAL(0, screens.usb.list.selected);
     CHECK(mark(0) == NULL);
     CHECK(mark(1) != NULL);
@@ -86,10 +86,11 @@ static void the_prompt_offers_connect_to_computer_first_then_charge_usb_power_an
 static void the_highlighted_mode_explains_what_happens_to_the_music(void)
 {
     Screen *screen = open_chooser(true);
-    CHECK(strcmp("Copy music, update, use the app. Music stops.",
+    CHECK(strcmp("Music drives, firmware updates, companion app.",
                  plug_chooser_line(&screens.usb)) == 0);
     press(screen, KEY_VOLUME_UP, 100);
-    CHECK(strcmp("Keep listening while charging.", plug_chooser_line(&screens.usb)) == 0);
+    CHECK(strcmp("Charges the battery while you keep listening.",
+                 plug_chooser_line(&screens.usb)) == 0);
 }
 
 static void the_prompt_counts_down_to_charging(void)
@@ -150,7 +151,7 @@ static void holding_play_always_does_this_and_says_so(void)
     CHECK_EQUAL(HAL_USB_MODE_DAC, fake_hal_requested_usb_mode());
     CHECK_EQUAL(PLUG_MODE_DAC, plug_mode_saved(&store.settings));
     CHECK_EQUAL(HAL_USB_ANSWER_DAC, fake_hal_usb_answer());
-    CHECK(strcmp("Always: USB DAC", toast.text) == 0);
+    CHECK(strcmp("Always: USB audio (DAC)", toast.text) == 0);
 }
 
 static void back_leaves_the_prompt_without_a_request(void)

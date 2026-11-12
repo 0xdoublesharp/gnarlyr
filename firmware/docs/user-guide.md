@@ -112,46 +112,46 @@ After a disconnect from the player, the computer sees the drives disappear rathe
 
 ## When you plug in
 
-Plugged into a computer, the player doesn't connect by itself. It shows **Computer found** and these choices, each with a picture and a line that says what happens to your music:
+Plugged into a computer, the player doesn't connect by itself. It shows **Computer found** and these choices, each with a short name, a picture and a line under it that says what it does:
 
 | Choice | Picture | What it does |
 |---|---|---|
-| **Connect to computer** | laptop | The computer sees the player's drives: copy music, install an update or use the Gnarlyr app on your computer. Music stops until you disconnect. The player charges. |
-| **Charge** | battery with a bolt | Keep listening while the battery charges. Nothing appears on the computer. |
-| **Play on USB power** | plug | Keep listening without charging: the cable powers the player and the battery rests. When the battery is low, the line says "Battery low: charges first" and the player charges until it is safe (see [Play on USB power](#play-on-usb-power)). |
-| **USB DAC** | speaker | Hear your computer through the player's headphone outputs (see [Using the player as a USB DAC](#using-the-player-as-a-usb-dac)). Music on the player stops. The player charges. |
+| **Connect to computer** | laptop | "Music drives, firmware updates, companion app." The computer sees the player's drives: copy music, install a firmware update or use the Gnarlyr companion app on your computer. Music stops until you disconnect. The player charges. |
+| **Charge & play** | battery with a bolt | "Charges the battery while you keep listening." Nothing appears on the computer. |
+| **Run from USB power** | plug | "Powers the player from USB to save the battery." Keep listening without charging: the cable powers the player and the battery rests. When the battery is low, the line says "Battery low: charges first" and the player charges until it is safe (see [Run from USB power](#run-from-usb-power)). |
+| **USB audio (DAC)** | speaker | "Play your computer's sound on the player." Your computer's audio plays through the player's headphone outputs (see [Using the player as a USB DAC](#using-the-player-as-a-usb-dac)). Music on the player stops. The player charges. |
 
-**Connect to computer** is the first row and is highlighted, so one press of Play connects. Doing nothing means **Charge**: the screen counts down "Charging in 15 s", and any button starts the count again. Back, the end of the count or the screen going dark all mean Charge, and music and menus carry on. To answer the same way every time, hold Play on a choice: the player confirms with "Always: …" and saves it as Settings → When plugged in.
+**Connect to computer** is the first row and is highlighted, so one press of Play connects. Doing nothing means **Charge & play**: the screen counts down "Charging in 15 s", and any button starts the count again. Back, the end of the count or the screen going dark all mean Charge & play, and music and menus carry on. To answer the same way every time, hold Play on a choice: the player confirms with "Always: …" and saves it as Settings → When plugged in.
 
-The player asks once per plug-in. Unplug and plug in again to be asked again, or use **USB mode** to change without unplugging (below). A wall charger never asks: the player charges, or plays on USB power when that is your saved choice and then says "Play on USB power".
+The player asks once per plug-in. Unplug and plug in again to be asked again, or use **USB mode** to change without unplugging (below). A wall charger never asks: the player charges, or plays on USB power when that is your saved choice and then says "Run from USB power".
 
-On the charge screen (the player switched off on a cable) a computer wakes the screen with the same question. Charge, Back or the countdown return to the dark charge screen; Connect to computer and USB DAC connect, and the charge screen comes back when you're done.
+On the charge screen (the player switched off on a cable) a computer wakes the screen with the same question. Charge & play, Back or the countdown return to the dark charge screen; Connect to computer and USB audio (DAC) connect, and the charge screen comes back when you're done.
 
 **Settings → Power on** chooses how to leave the charge screen: Hold (the default) requires Power for two seconds; Press starts the player with a tap. Press is convenient when the player is switched off on a cable, but a pocket press can start it and use battery. Connecting USB still opens the charge screen and keeps the same computer-connection choices.
 
 From completely off, keep Power held until the player starts. Firmware latches power immediately when it gains control. This setting cannot shorten any hold required by the boot ROM or power circuitry before that point.
 
-**Settings → When plugged in** answers for every plug-in: **Ask** (the default), **Connect to computer**, **Charge**, **Play on USB power** or **USB DAC**, with the same pictures and lines. Play on USB power also applies on a wall charger; with any other choice a wall charger charges.
+**Settings → When plugged in** answers for every plug-in: **Ask** (the default), **Connect to computer**, **Charge & play**, **Run from USB power** or **USB audio (DAC)**, with the same pictures and lines. Run from USB power also applies on a wall charger; with any other choice a wall charger charges.
 
 ## Switching USB modes
 
-The same chooser, titled **USB mode**, opens from Home → USB mode, Settings → USB mode, Menu on the charge screen, and after you leave Connect to computer or USB DAC. It lists Connect to computer, Charge, Play on USB power (while a cable is in) and USB DAC; the mode in use has a check mark. A choice made here lasts until you unplug; hold Play to keep it for every plug-in. From the charge screen, leaving the chooser in any way returns to the charge screen.
+The same chooser, titled **USB mode**, opens from Home → USB mode, Settings → USB mode, Menu on the charge screen, and after you leave Connect to computer or USB audio (DAC). It lists Connect to computer, Charge & play, Run from USB power (while a cable is in) and USB audio (DAC), each with its line; the mode in use has a check mark. A choice made here lasts until you unplug; hold Play to keep it for every plug-in. From the charge screen, leaving the chooser in any way returns to the charge screen.
 
-To leave Connect to computer, eject both drives on the computer or hold Back on the player (see [Copying music over USB](#copying-music-over-usb)), then wait for USB mode. The player keeps the track, position and queue for your return. From USB DAC, hold Back for a second and release it to return to USB mode, or use the DAC menu.
+To leave Connect to computer, eject both drives on the computer or hold Back on the player (see [Copying music over USB](#copying-music-over-usb)), then wait for USB mode. The player keeps the track, position and queue for your return. From USB audio (DAC), hold Back for a second and release it to return to USB mode, or use the DAC menu.
 
-While the player plays on USB power, the battery in the status bar and on the charge screen shows a plug instead of the bolt, and the charge screen says "Charging off".
+While the player runs from USB power, the battery in the status bar and on the charge screen shows a plug instead of the bolt, and the charge screen says "Charging off".
 
 ## Using the player as a USB DAC
 
 **Not run on a player by this project** (see [`known-issues.md`](known-issues.md)). In this mode the player is a sound card for your computer or phone: their audio plays through the player's headphone outputs.
 
-1. Plug in the USB cable and choose **USB DAC** when the player asks (or, with the cable in, Home → USB mode → USB DAC).
-2. The player shows "USB DAC". It offers USB Audio Class 2.0 over a high-speed connection and Class 1.0 over full speed. Select Gnarlyr in the host’s audio settings; phones need an adapter that passes USB data. Host compatibility still needs the checks listed in known issues.
+1. Plug in the USB cable and choose **USB audio (DAC)** when the player asks (or, with the cable in, Home → USB mode → USB audio (DAC)).
+2. The player shows "USB audio (DAC)". It offers USB Audio Class 2.0 over a high-speed connection and Class 1.0 over full speed. Select Gnarlyr in the host’s audio settings; phones need an adapter that passes USB data. Host compatibility still needs the checks listed in known issues.
 3. On the computer, choose Gnarlyr as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output). The player shows the format and its volume, for example "48 kHz 24-bit · Volume 35".
 4. Use the computer's volume, the player's volume keys, or both. DAC mode has its own volume, separate from music: it starts at 35 of 60, the screen shows it ("48 kHz 24-bit · Volume 35"), tap Vol± to change it on release, and the player remembers it for next time. Start low. Press ▶ to send play/pause to the computer. Hold Vol+ for 400 ms to send next track, or Vol− for previous; each hold sends one command. The computer’s media app decides how to handle these keys.
 5. Hold Back for a second and let go to open USB mode, then choose another mode. The player keeps charging.
 
-Press Menu in DAC mode to adjust Volume, Gain, Output jack and Headphones, or choose Connect to computer or Charge. Volume and headphone changes apply to the live stream. The DAC screen shows the negotiated format, buffer delay, clock drift, underruns and stereo levels after headphone trim.
+Press Menu in DAC mode to adjust Volume, Gain, Output jack and Headphones, or choose Connect to computer or Charge & play. Volume and headphone changes apply to the live stream. The DAC screen shows the negotiated format, buffer delay, clock drift, underruns and stereo levels after headphone trim.
 
 The computer picks the format (macOS: Audio MIDI Setup; Windows: Sound settings → Gnarlyr → Properties → Advanced).
 
@@ -162,7 +162,7 @@ The computer picks the format (macOS: Audio MIDI Setup; Windows: Sound settings 
 
 High-speed mode uses asynchronous feedback to follow the player’s audio clock, with a 5 ms device buffer target. Full-speed mode retains a 20 ms target and sample correction. Host buffering adds delay. To preserve PCM sample words, turn headphone profiles Off and use an exclusive/direct host output at the file’s own format with host processing disabled. Player and host volume still affect the analog result. Music on the player stops while it's a DAC. Choose Connect to computer in USB mode to copy music without removing the cable. A charger works the same in both modes.
 
-**The DAC menu** (press Menu) changes, without leaving DAC mode: **Volume** (press Play, then Vol±), **Gain**, **Output** (which jack's volume levels to use), **Headphones** (Off or one of your profiles) and switches to **Connect to computer** or **Charge**. Vol± moves, Play changes the highlighted row, Back or Menu closes the menu. Your choices are kept for next time. The equalizer and ReplayGain don't apply in DAC mode; the sound reaches the DAC as the computer sends it, with only volume, gain and the headphone profile's trim, balance and ceiling.
+**The DAC menu** (press Menu) changes, without leaving DAC mode: **Volume** (press Play, then Vol±), **Gain**, **Output** (which jack's volume levels to use), **Headphones** (Off or one of your profiles) and switches to **Connect to computer** or **Charge & play**. Vol± moves, Play changes the highlighted row, Back or Menu closes the menu. Your choices are kept for next time. The equalizer and ReplayGain don't apply in DAC mode; the sound reaches the DAC as the computer sends it, with only volume, gain and the headphone profile's trim, balance and ceiling.
 
 ## Build the library on a computer
 
@@ -607,8 +607,8 @@ On Now Playing, hold Play to open seeking, then press Menu to mark A at the soun
 
 Marks use source samples, including inside CUE tracks and audiobook chapters. A B mark must follow A. A pause keeps the loop and its output ready; seeking outside a loop returns to A. Changing tracks, handing audio to USB or restarting clears it. End-of-track/chapter sleep clears a loop so the track can finish. Timed sleep still fades and switches off during a loop. MP3 seeks retain the decoder’s existing approximate positioning.
 
-## Play on USB power
+## Run from USB power
 
-Choose **Play on USB power** when you plug in, in USB mode, or as Settings → When plugged in. The cable keeps the player running while battery charging is off, so a player that lives on a cable doesn't sit at full charge. It lasts until you unplug, unless it is your saved choice. Unknown readings or a voltage below 3.6 V turn charging back on, and it stays on until the reading reaches 3.8 V; meanwhile the chooser says "Battery low: charges first" and the charge screen says "Charging". While charging is off, the status bar and the charge screen show a plug and the charge screen says "Charging off". Unplugging turns both USB supply controls off.
+Choose **Run from USB power** when you plug in, in USB mode, or as Settings → When plugged in. The cable keeps the player running while battery charging is off, so a player that lives on a cable doesn't sit at full charge. It lasts until you unplug, unless it is your saved choice. Unknown readings or a voltage below 3.6 V turn charging back on, and it stays on until the reading reaches 3.8 V; meanwhile the chooser says "Battery low: charges first" and the charge screen says "Charging". While charging is off, the status bar and the charge screen show a plug and the charge screen says "Charging off". Unplugging turns both USB supply controls off.
 
-There is no 80% limit: on USB power the ADC measures the supply rail rather than the cell alone, so that reading cannot reliably enforce a cell percentage. The percentage shown on USB power can therefore differ from the battery level. Play on USB power needs a charger capable of powering the player; verify it with the intended charger before relying on it for long listening sessions.
+There is no 80% limit: on USB power the ADC measures the supply rail rather than the cell alone, so that reading cannot reliably enforce a cell percentage. The percentage shown on USB power can therefore differ from the battery level. Run from USB power needs a charger capable of powering the player; verify it with the intended charger before relying on it for long listening sessions.

@@ -967,7 +967,7 @@ static void dispatch_key_events(uint32_t now_ms)
 static void announce_usb_power(bool usb_power, uint32_t now_ms)
 {
     if (usb_power && !app.usb_power && app.settings.settings.battery_care == PLUG_CARE_USB) {
-        toast_show(&app.toast, i18n_text(STR_PLUG_USB_POWER), now_ms);
+        toast_show(&app.toast, i18n_text(STR_PLUG_RUN_USB), now_ms);
     }
 }
 

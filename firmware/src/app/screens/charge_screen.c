@@ -63,7 +63,7 @@ static StringId usb_title(AppUsbView view)
     if (view == APP_USB_STORAGE) {
         return STR_PLUG_COMPUTER;
     }
-    return view == APP_USB_DAC ? STR_USB_DAC_TITLE : STR_POWER_TITLE;
+    return view == APP_USB_DAC ? STR_PLUG_DAC : STR_POWER_TITLE;
 }
 
 const char *charge_screen_usb_title(AppUsbView view)

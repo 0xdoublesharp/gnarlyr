@@ -2,10 +2,10 @@
 
 static const uint8_t SWITCH_ORDER[] = {PLUG_MODE_COMPUTER, PLUG_MODE_CHARGE, PLUG_MODE_USB_POWER,
                                        PLUG_MODE_DAC};
-static const StringId NAMES[PLUG_MODE_COUNT] = {STR_PLUG_ASK, STR_PLUG_COMPUTER, STR_PLUG_CHARGE,
-                                                STR_PLUG_USB_POWER, STR_USB_DAC_TITLE};
+static const StringId NAMES[PLUG_MODE_COUNT] = {
+    STR_PLUG_ASK, STR_PLUG_COMPUTER, STR_PLUG_CHARGE_PLAY, STR_PLUG_RUN_USB, STR_PLUG_DAC};
 static const StringId LINES[PLUG_MODE_COUNT] = {STR_PLUG_ASK_LINE, STR_PLUG_COMPUTER_LINE,
-                                                STR_PLUG_CHARGE_LINE, STR_PLUG_USB_POWER_LINE,
+                                                STR_PLUG_CHARGE_PLAY_LINE, STR_PLUG_RUN_USB_LINE,
                                                 STR_PLUG_DAC_LINE};
 static const uint8_t ICONS[PLUG_MODE_COUNT] = {ICON_USB, ICON_COMPUTER, ICON_BOLT, ICON_PLUG,
                                                ICON_SPEAKER};

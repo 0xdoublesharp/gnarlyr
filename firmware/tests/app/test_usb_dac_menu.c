@@ -34,7 +34,8 @@ static void the_menu_lists_volume_gain_output_and_both_other_modes(void)
     CHECK(strcmp(menu.model.detail(&menu, USB_DAC_ROW_GAIN), i18n_text(STR_GAIN_HIGH)) == 0);
     CHECK(strcmp(menu.model.detail(&menu, USB_DAC_ROW_OUTPUT), i18n_text(STR_JACK_44)) == 0);
     CHECK(strcmp(menu.model.label(&menu, USB_DAC_ROW_COMPUTER), i18n_text(STR_PLUG_COMPUTER)) == 0);
-    CHECK(strcmp(menu.model.label(&menu, USB_DAC_ROW_CHARGE), i18n_text(STR_PLUG_CHARGE)) == 0);
+    CHECK(strcmp(menu.model.label(&menu, USB_DAC_ROW_CHARGE), i18n_text(STR_PLUG_CHARGE_PLAY)) ==
+          0);
     CHECK(strcmp(menu.model.label(&menu, USB_DAC_ROW_HEADPHONES), i18n_text(STR_HEADPHONES)) == 0);
 }
 

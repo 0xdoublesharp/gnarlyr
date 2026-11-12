@@ -70,8 +70,8 @@ static void a_low_battery_explains_that_usb_power_charges_first(void)
     CHECK_EQUAL(STR_PLUG_LOW_LINE, plug_mode_line(PLUG_MODE_USB_POWER, LOW));
     CHECK_EQUAL(STR_PLUG_LOW_LINE,
                 plug_mode_line(PLUG_MODE_USB_POWER, (HalBattery){.usb_power = true}));
-    CHECK_EQUAL(STR_PLUG_USB_POWER_LINE, plug_mode_line(PLUG_MODE_USB_POWER, CHARGED));
-    CHECK_EQUAL(STR_PLUG_CHARGE_LINE, plug_mode_line(PLUG_MODE_CHARGE, LOW));
+    CHECK_EQUAL(STR_PLUG_RUN_USB_LINE, plug_mode_line(PLUG_MODE_USB_POWER, CHARGED));
+    CHECK_EQUAL(STR_PLUG_CHARGE_PLAY_LINE, plug_mode_line(PLUG_MODE_CHARGE, LOW));
     CHECK(!plug_modes_battery_ready(LOW));
     CHECK(plug_modes_battery_ready(CHARGED));
 }
@@ -79,8 +79,8 @@ static void a_low_battery_explains_that_usb_power_charges_first(void)
 static void every_mode_has_one_name_one_line_and_one_icon(void)
 {
     i18n_detach();
-    static const char *const NAMES[PLUG_MODE_COUNT] = {"Ask", "Connect to computer", "Charge",
-                                                       "Play on USB power", "USB DAC"};
+    static const char *const NAMES[PLUG_MODE_COUNT] = {
+        "Ask", "Connect to computer", "Charge & play", "Run from USB power", "USB audio (DAC)"};
     static const IconId ICONS[PLUG_MODE_COUNT] = {ICON_USB, ICON_COMPUTER, ICON_BOLT, ICON_PLUG,
                                                   ICON_SPEAKER};
     for (int mode = 0; mode < PLUG_MODE_COUNT; mode++) {

@@ -5896,7 +5896,7 @@ static void play_on_usb_power_can_be_saved_and_is_applied_again_after_restart(vo
 {
     start_app_with_library();
     const DebugScriptRun *run =
-        run_script("build any\nset When plugged in=Play on USB power\n", 100);
+        run_script("build any\nset When plugged in=Run from USB power\n", 100);
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
     CHECK_EQUAL(2, fake_hal_battery_care_mode());
     Settings settings;
@@ -5904,7 +5904,7 @@ static void play_on_usb_power_can_be_saved_and_is_applied_again_after_restart(vo
     CHECK_EQUAL(2, settings.battery_care);
     restart_app();
     CHECK_EQUAL(2, fake_hal_battery_care_mode());
-    run = run_script("build any\nset When plugged in=Charge\n", 100);
+    run = run_script("build any\nset When plugged in=Charge & play\n", 100);
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
     CHECK_EQUAL(0, fake_hal_battery_care_mode());
 }
@@ -5912,11 +5912,11 @@ static void play_on_usb_power_can_be_saved_and_is_applied_again_after_restart(vo
 static void a_cable_with_play_on_usb_power_saved_says_which_mode_is_on(void)
 {
     start_app_with_library();
-    run_script("build any\nset When plugged in=Play on USB power\n", 100);
+    run_script("build any\nset When plugged in=Run from USB power\n", 100);
     wait_ms(2000);
     fake_hal_set_battery(ON_USB);
     wait_ms(500);
-    CHECK(toast_is("Play on USB power"));
+    CHECK(toast_is("Run from USB power"));
     CHECK_EQUAL(PLUG_CARE_USB, fake_hal_battery_care_mode());
 }
 
