@@ -52,6 +52,7 @@ typedef struct SimAudio {
     HalAudioFilter filter;
     HalAudioOutput output;
     HalAudioEqualizer equalizer;
+    HalAudioEffects effects;
     HeadphoneAudio headphones;
     uint8_t volume;
     uint16_t speed;
@@ -463,6 +464,13 @@ void hal_audio_set_equalizer(const HalAudioEqualizer *equalizer)
 {
     lock();
     audio.equalizer = *equalizer;
+    unlock();
+}
+
+void hal_audio_set_effects(HalAudioEffects effects)
+{
+    lock();
+    audio.effects = effects;
     unlock();
 }
 

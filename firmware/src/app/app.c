@@ -40,6 +40,7 @@
 #include "language.h"
 #include "library_rescan.h"
 #include "library_store.h"
+#include "listening_effects.h"
 #include "modules/modules.h"
 #include "music_check.h"
 #include "player.h"
@@ -2206,6 +2207,8 @@ CORE_SEAM void app_step(void)
         follow_listeners();
         bluetooth_link_step(&app.bluetooth, &app.player, now_ms);
         spoken_store_follow(&app.spoken, player_status(&app.player), now_ms);
+        hal_audio_set_effects(listening_effects_choose(
+            &app.settings.settings, &app.headphones.profiles, app.player.spoken));
         explain_refusals(now_ms);
         debug_loop_follow(now_ms, &app.player);
         update_power(now_ms);

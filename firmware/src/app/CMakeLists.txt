@@ -39,6 +39,7 @@ add_library(echo_app STATIC
     theme_signature.c
     theme_crypto_curve.c
     theme_crypto_sha512.c
+    listening_effects.c
     listening_store.c
     listening_store_view.c
     listening_clear.c

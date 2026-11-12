@@ -57,7 +57,7 @@ static void profiles_can_be_selected_and_edited_without_leaving_the_screen(void)
     select_row(3);
     CHECK_EQUAL(2, store.profiles.current);
     select_row(3);
-    CHECK_EQUAL(5, editor.model.count(&editor));
+    CHECK_EQUAL(6, editor.model.count(&editor));
     select_row(2);
     CHECK_EQUAL(25, editor.model.count(&editor));
     select_row(24);
@@ -70,6 +70,13 @@ static void profiles_can_be_selected_and_edited_without_leaving_the_screen(void)
     CHECK_EQUAL(61, editor.model.count(&editor));
     select_row(18);
     CHECK_EQUAL(18, store.profiles.slots[2].volume_ceiling);
+    CHECK_EQUAL(0, store.profiles.slots[2].crossfeed);
+    select_row(5);
+    CHECK_EQUAL(4, editor.model.count(&editor));
+    CHECK(strcmp(i18n_text(STR_CROSSFEED_MEDIUM), editor.model.label(&editor, 2)) == 0);
+    select_row(2);
+    CHECK_EQUAL(2, store.profiles.slots[2].crossfeed);
+    CHECK(strcmp(i18n_text(STR_CROSSFEED_MEDIUM), editor.model.detail(&editor, 5)) == 0);
     select_row(1);
     select_row(0);
     CHECK(strcmp(i18n_text(STR_HEADPHONE_IN_EAR), store.profiles.slots[2].name) == 0);
@@ -93,6 +100,16 @@ static void back_cancels_an_edit_and_the_editor_reopens_the_saved_choice(void)
     CHECK_EQUAL(0, editor.list.selected);
 }
 
+static void new_profiles_start_with_the_default_crossfeed(void)
+{
+    start(TEXT_SIZE_MEDIUM, ORIENTATION_LANDSCAPE);
+    settings.settings.crossfeed = 3;
+    headphone_store_load(&store);
+    headphone_editor_init(&editor,
+                          (HeadphoneEditorConfig){&store, &player, &settings, &theme, &toast});
+    CHECK_EQUAL(3, store.profiles.slots[1].crossfeed);
+}
+
 static void every_orientation_and_text_size_draws_the_editor_and_choice_bounds(void)
 {
     for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
@@ -109,7 +126,7 @@ static void every_orientation_and_text_size_draws_the_editor_and_choice_bounds(v
             canvas_clear(&canvas, theme.colors.background);
             editor.screen.draw(&editor, &canvas);
             screen_snapshot_write(&canvas, "headphone-edit", orientation * 3 + size);
-            for (int field = 1; field <= 4; field++) {
+            for (int field = 1; field <= 5; field++) {
                 select_row(field);
                 int last = editor.model.count(&editor) - 1;
                 list_view_select(&editor.list, last, 0);
@@ -118,7 +135,7 @@ static void every_orientation_and_text_size_draws_the_editor_and_choice_bounds(v
                 CHECK(last >= editor.list.top);
                 CHECK(last < editor.list.top + editor.list.visible_rows);
                 screen_snapshot_write(&canvas, "headphone-choice",
-                                      (orientation * 3 + size) * 4 + field);
+                                      (orientation * 3 + size) * 5 + field);
                 press(KEY_BACK);
             }
         }
@@ -130,6 +147,7 @@ int main(void)
     const TestCase cases[] = {
         TEST_CASE(profiles_can_be_selected_and_edited_without_leaving_the_screen),
         TEST_CASE(back_cancels_an_edit_and_the_editor_reopens_the_saved_choice),
+        TEST_CASE(new_profiles_start_with_the_default_crossfeed),
         TEST_CASE(every_orientation_and_text_size_draws_the_editor_and_choice_bounds),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
