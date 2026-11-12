@@ -363,6 +363,30 @@ static void put_start(Writer *writer, const HalStartInfo *start)
     put_address(writer, "fault.pc", warm, start->fault_pc);
 }
 
+static void put_setup(StringBuilder *text, const HalUsbSetup *setup)
+{
+    static const char OUTCOMES[] = "?asr";
+    string_builder_append_char(text, ' ');
+    append_hex(text, setup->request_type, 2);
+    string_builder_append_char(text, '.');
+    append_hex(text, setup->request, 2);
+    string_builder_append_char(text, '.');
+    append_hex(text, setup->value, 4);
+    string_builder_append_char(text, '/');
+    string_builder_append_unsigned(text, setup->length);
+    string_builder_append_char(text, OUTCOMES[setup->outcome < 4 ? setup->outcome : 0]);
+}
+
+static void put_setup_trace(StringBuilder *text, const HalUsbSetupTrace *trace)
+{
+    uint32_t count = trace->seen < HAL_USB_SETUP_TRACE ? trace->seen : HAL_USB_SETUP_TRACE;
+    string_builder_append(text, " setups=");
+    string_builder_append_unsigned(text, trace->seen);
+    for (uint32_t index = trace->seen - count; index < trace->seen; index++) {
+        put_setup(text, &trace->setups[index % HAL_USB_SETUP_TRACE]);
+    }
+}
+
 static void put_usb(Writer *writer, HalUsbLast usb, bool kept_on)
 {
     bool known = usb.end != HAL_USB_END_NONE;
@@ -377,6 +401,7 @@ static void put_usb(Writer *writer, HalUsbLast usb, bool kept_on)
         string_builder_append(&writer->text, NAME_IN(SPEED_FALLBACK_NAMES, usb.speed_fallback));
         string_builder_append(&writer->text, " commands=");
         string_builder_append_unsigned(&writer->text, usb.fallback_commands);
+        put_setup_trace(&writer->text, &usb.fallback_setups);
         finish(writer);
     }
 }

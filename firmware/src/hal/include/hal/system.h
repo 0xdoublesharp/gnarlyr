@@ -38,6 +38,30 @@ typedef enum HalUsbEnd {
     HAL_USB_END_NO_HOST
 } HalUsbEnd;
 
+enum {
+    HAL_USB_SETUP_TRACE = 8
+};
+
+typedef enum HalUsbSetupOutcome {
+    HAL_USB_SETUP_NONE,
+    HAL_USB_SETUP_ANSWERED,
+    HAL_USB_SETUP_STALLED,
+    HAL_USB_SETUP_RECEIVING
+} HalUsbSetupOutcome;
+
+typedef struct HalUsbSetup {
+    uint8_t request_type;
+    uint8_t request;
+    uint8_t outcome;
+    uint16_t value;
+    uint16_t length;
+} HalUsbSetup;
+
+typedef struct HalUsbSetupTrace {
+    HalUsbSetup setups[HAL_USB_SETUP_TRACE];
+    uint8_t seen;
+} HalUsbSetupTrace;
+
 typedef struct HalUsbLast {
     HalUsbEnd end;
     uint8_t left_mounted;
@@ -47,6 +71,7 @@ typedef struct HalUsbLast {
     uint32_t internal_written;
     uint32_t card_written;
     uint32_t writes_after_eject;
+    HalUsbSetupTrace fallback_setups;
 } HalUsbLast;
 
 HalUsbLast hal_system_usb_last(void);

@@ -997,11 +997,22 @@ static void a_full_speed_fallback_reports_why_it_fired(void)
     input.usb =
         (HalUsbLast){.end = HAL_USB_END_EJECTED, .speed_fallback = 2, .fallback_commands = 1};
     format(&input, DEBUG_REPORT_BYTES);
-    CHECK(has_line("usb.speed_fallback: few_commands commands=1"));
+    CHECK(has_line("usb.speed_fallback: few_commands commands=1 setups=0"));
     input.usb.speed_fallback = 1;
     input.usb.fallback_commands = 0;
     format(&input, DEBUG_REPORT_BYTES);
-    CHECK(has_line("usb.speed_fallback: not_configured commands=0"));
+    CHECK(has_line("usb.speed_fallback: not_configured commands=0 setups=0"));
+    for (uint8_t index = 0; index < 10; index++) {
+        input.usb.fallback_setups.setups[index % HAL_USB_SETUP_TRACE] =
+            (HalUsbSetup){0x80, 6, HAL_USB_SETUP_ANSWERED, (uint16_t)(0x0100 + index), 64};
+    }
+    input.usb.fallback_setups.seen = 10;
+    input.usb.fallback_setups.setups[9 % HAL_USB_SETUP_TRACE] =
+        (HalUsbSetup){0x80, 6, HAL_USB_SETUP_STALLED, 0x0600, 10};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("usb.speed_fallback: not_configured commands=0 setups=10 80.06.0102/64a "
+                   "80.06.0103/64a 80.06.0104/64a 80.06.0105/64a 80.06.0106/64a 80.06.0107/64a "
+                   "80.06.0108/64a 80.06.0600/10s"));
 }
 
 static void stopped_audio_reports_its_running_figures_as_unknown(void)

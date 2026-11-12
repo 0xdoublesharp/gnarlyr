@@ -207,8 +207,11 @@ static bool stats_changed(MscStats now, MscStats shown)
     return now.write_failures != shown.write_failures || now.read_failures != shown.read_failures;
 }
 
+static HalUsbSetupTrace fallback_setups;
+
 static void fall_back_to_full_speed(void)
 {
+    fallback_setups = port.setups;
     shared->high_speed_failed = true;
     port.link.high_speed_allowed = false;
     port.configured = false;
@@ -662,16 +665,16 @@ static HalUsbEnd hal_end(UsbSessionEnd end)
 static void remember_session(UsbSessionEnd end)
 {
     MscStats stats = msc_stats(&msc);
-    shared->last_session =
-        (HalUsbLast){.end = hal_end(end),
-                     .left_mounted = msc_left_mounted(&msc),
-                     .internal_write_ok = msc_write_proven(&stats, INTERNAL_LUN),
-                     .internal_written = stats.lun_sectors_written[INTERNAL_LUN],
-                     .card_written = stats.lun_sectors_written[CARD_LUN],
-                     .writes_after_eject = stats.writes_after_eject,
-                     .speed_fallback = (uint8_t)fallback.cause,
-                     .fallback_commands =
-                         fallback.commands < UINT8_MAX ? (uint8_t)fallback.commands : UINT8_MAX};
+    shared->last_session = (HalUsbLast){
+        .end = hal_end(end),
+        .left_mounted = msc_left_mounted(&msc),
+        .internal_write_ok = msc_write_proven(&stats, INTERNAL_LUN),
+        .internal_written = stats.lun_sectors_written[INTERNAL_LUN],
+        .card_written = stats.lun_sectors_written[CARD_LUN],
+        .writes_after_eject = stats.writes_after_eject,
+        .speed_fallback = (uint8_t)fallback.cause,
+        .fallback_commands = fallback.commands < UINT8_MAX ? (uint8_t)fallback.commands : UINT8_MAX,
+        .fallback_setups = fallback_setups};
 }
 
 static UsbSessionEnd run(void)
@@ -679,6 +682,7 @@ static UsbSessionEnd run(void)
     app_show_usb_status(
         (AppUsbStatus){.view = APP_USB_CONNECTING, .detail = i18n_text(STR_PLUG_COMPUTER_LINE)});
     fallback = (UsbFallback){.watching = false};
+    fallback_setups = (HalUsbSetupTrace){0};
     forced = (UsbForced){0};
     leave = (UsbLeave){0};
     scene = (UsbScene){

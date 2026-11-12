@@ -126,6 +126,7 @@ static void handle_reset(UsbPort *port)
     port->control_out_pending = false;
     port->control_data_pending = false;
     port->setup_pending = false;
+    port->setup_ready = false;
     port->hid = (UsbAudioHid){0};
     if (port->msc != NULL) {
         msc_reset(port->msc);
@@ -261,12 +262,24 @@ static void finish_setup(UsbPort *port, UsbSetup setup, UsbReply reply)
     }
 }
 
+static void trace_setup(UsbPort *port, UsbSetup setup, UsbReplyKind kind)
+{
+    HalUsbSetupOutcome outcome = kind == USB_REPLY_STALL     ? HAL_USB_SETUP_STALLED
+                                 : kind == USB_REPLY_RECEIVE ? HAL_USB_SETUP_RECEIVING
+                                                             : HAL_USB_SETUP_ANSWERED;
+    port->setups.setups[port->setups.seen % HAL_USB_SETUP_TRACE] = (HalUsbSetup){
+        setup.request_type, setup.request, (uint8_t)outcome, setup.value, setup.length};
+    port->setups.seen++;
+}
+
 static void process_setup(UsbPort *port)
 {
     UsbSetup setup = usb_setup_parse((const uint8_t *)port->setup);
     UsbReply reply = port->audio != NULL ? usb_audio_setup(port->audio, setup)
                                          : usb_device_setup(&port->device, setup);
+    trace_setup(port, setup, reply.kind);
     port->setup_pending = false;
+    port->setup_ready = false;
     if (reply.kind == USB_REPLY_RECEIVE) {
         port->control_out = setup;
         port->control_out_pending = true;
@@ -285,8 +298,8 @@ static void finish_control_out(UsbPort *port, uint32_t length, const uint8_t *by
 static void deliver(UsbPort *port, uint32_t endpoint, uint32_t length)
 {
     const uint8_t *bytes = (const uint8_t *)port->out_packet;
-    if (endpoint == 0 && port->defer_control &&
-        (port->control_out_pending || port->setup_pending)) {
+    if (endpoint == 0 &&
+        (port->setup_pending || (port->defer_control && port->control_out_pending))) {
         for (uint32_t index = 0; index < length && index < sizeof port->control_data; index++) {
             port->control_data[index] = bytes[index];
         }
@@ -322,6 +335,7 @@ static void handle_receive(UsbPort *port)
         port->control_out_pending = false;
         read_fifo(port->setup, sizeof port->setup / 4, count);
         port->setup_pending = true;
+        port->setup_ready = false;
     } else if (type == PACKET_OUT_DATA) {
         read_fifo(port->out_packet, sizeof port->out_packet / 4, count);
         uint32_t capacity = sizeof port->out_packet;
@@ -335,7 +349,8 @@ static void handle_out_endpoints(UsbPort *port)
     if ((pending & (1u << 16)) != 0) {
         uint32_t events = read_register(out_control(0) + 0x08u);
         write_register(out_control(0) + 0x08u, events);
-        if ((events & EP_INT_SETUP) != 0 && port->setup_pending && !port->defer_control) {
+        port->setup_ready |= (events & EP_INT_SETUP) != 0 && port->setup_pending;
+        if (port->setup_ready && !port->defer_control) {
             process_setup(port);
         }
         arm_setup();
@@ -485,7 +500,7 @@ CORE_SEAM void usb_poll(UsbPort *port)
         arm_setup();
         write_register(GINTSTS, GINT_ENUMERATION_DONE);
     }
-    if (!port->defer_control && port->setup_pending) {
+    if (!port->defer_control && port->setup_pending && port->setup_ready) {
         process_setup(port);
     }
     if (!port->defer_control && port->control_data_pending) {
