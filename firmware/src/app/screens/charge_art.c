@@ -15,12 +15,8 @@ enum {
     NUB_DIVISOR = 8,
     STROKE_DIVISOR = 14,
     MIN_STROKE = 2,
-    EDGE_DIVISOR = 10,
-    BOLT_QUARTERS = 3,
-    QUARTERS = 4,
     TINT_STEPS = 3,
-    GLOW_STEPS = CHARGE_SCREEN_PHASES,
-    GLOW_SPREAD = 3
+    GLOW_STEPS = CHARGE_SCREEN_PHASES
 };
 
 typedef struct ChargeArt {
@@ -218,15 +214,6 @@ static void fill_rounded(Canvas *canvas, Rect area, int corner, Color color)
                      color);
 }
 
-static int fill_width(HalBattery battery, int inner, int least)
-{
-    if (!battery.known) {
-        return 0;
-    }
-    int width = inner * shown_percent(battery) / FULL_PERCENT;
-    return shown_percent(battery) > 0 && width < least ? smaller(least, inner) : width;
-}
-
 static BatteryShape battery_shape(const ChargeArt *art)
 {
     Rect area = art->layout.battery;
@@ -236,7 +223,8 @@ static BatteryShape battery_shape(const ChargeArt *art)
                           .stroke = stroke};
     shape.inside = inset(shape.body, stroke);
     shape.fill = inset(shape.inside, stroke);
-    shape.fill.width = fill_width(art->battery, shape.fill.width, 2 * stroke);
+    shape.fill.width =
+        art->battery.known ? shape.fill.width * shown_percent(art->battery) / FULL_PERCENT : 0;
     return shape;
 }
 
@@ -259,64 +247,10 @@ static void draw_body(const ChargeArt *art, const BatteryShape *shape)
                  theme->colors.background);
 }
 
-static void draw_glow(const ChargeArt *art, Rect area, int steps)
-{
-    Color ink = fill_color(art);
-    Color empty = art->theme->colors.background;
-    canvas_fill_gradient(art->canvas, area, color_between(empty, ink, art->glow, steps),
-                         color_between(empty, tint(ink, empty), art->glow, steps));
-}
-
 static void draw_charge(const ChargeArt *art, const BatteryShape *shape)
 {
-    Color ink = fill_color(art);
+    Color ink = color_between(fill_color(art), art->theme->colors.text, art->glow, GLOW_STEPS);
     canvas_fill_gradient(art->canvas, shape->fill, ink, tint(ink, art->theme->colors.background));
-    if (!art->battery.known || art->glow == 0) {
-        return;
-    }
-    Rect room = inset(shape->inside, shape->stroke);
-    int left = shape->fill.x + shape->fill.width;
-    Rect rest = {left, room.y, room.x + room.width - left, room.height};
-    draw_glow(art, rest, GLOW_STEPS * GLOW_SPREAD);
-    rest.width = smaller(rest.width, larger(2 * shape->stroke, room.width / EDGE_DIVISOR));
-    draw_glow(art, rest, GLOW_STEPS);
-}
-
-static Rect bolt_area(const BatteryShape *shape)
-{
-    int height = shape->inside.height * BOLT_QUARTERS / QUARTERS;
-    int width = icon_width(ICON_BOLT, height);
-    return (Rect){shape->inside.x + (shape->inside.width - width) / 2,
-                  shape->inside.y + (shape->inside.height - height) / 2, width, height};
-}
-
-static void draw_bolt_ink(Canvas *canvas, Rect area, Color color)
-{
-    icon_draw(canvas, ICON_BOLT, area, (IconInk){color, color});
-}
-
-static void draw_bolt(const ChargeArt *art, const BatteryShape *shape)
-{
-    const ThemeColors *colors = &art->theme->colors;
-    Rect glyph = bolt_area(shape);
-    Canvas inside = canvas_clipped(art->canvas, shape->inside);
-    if (!flowing(art->battery)) {
-        if (full(art->battery)) {
-            draw_bolt_ink(&inside, glyph, colors->background);
-        }
-        return;
-    }
-    int halo = shape->stroke;
-    for (int dy = -halo; dy <= halo; dy += halo) {
-        for (int dx = -halo; dx <= halo; dx += halo) {
-            Rect shifted = {glyph.x + dx, glyph.y + dy, glyph.width, glyph.height};
-            draw_bolt_ink(&inside, shifted, colors->background);
-        }
-    }
-    Color ink = art->battery.known
-                    ? colors->text
-                    : color_between(colors->text_tertiary, colors->text, art->glow, GLOW_STEPS / 2);
-    draw_bolt_ink(&inside, glyph, ink);
 }
 
 static void draw_wire_grid(const ChargeArt *art, const BatteryShape *shape)
@@ -343,7 +277,6 @@ static void draw_battery(const ChargeArt *art)
     draw_body(art, &shape);
     draw_charge(art, &shape);
     draw_wire_grid(art, &shape);
-    draw_bolt(art, &shape);
 }
 
 static void draw_scaled(const ChargeArt *art, Rect area, const char *text)
@@ -396,6 +329,16 @@ static void draw_state(const ChargeArt *art)
         font = art->theme->fonts.small;
     }
     draw_label(art, art->layout.status, (TextStyle){font, state_color(art)}, text);
+    if (flowing(art->battery)) {
+        Rect area = art->layout.status;
+        int height = font_line_height(art->theme->fonts.small);
+        area.x += (area.width + text_width(font, text)) / 2 + art->theme->metrics.padding / 2;
+        area.y += (area.height - height) / 2;
+        area.width = icon_width(ICON_BOLT, height);
+        area.height = height;
+        icon_draw(art->canvas, ICON_BOLT, area,
+                  (IconInk){art->theme->colors.accent, art->theme->colors.accent});
+    }
 }
 
 void charge_art_draw(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms)

@@ -126,12 +126,14 @@ static void compact_reclaims_space_and_keeps_the_combined_battery(void)
             CHECK(theme.metrics.row_height >= font_line_height(theme.fonts.body));
             CHECK(theme.metrics.status_icon_size < 14);
             StatusBarState state = all_items();
+            state.battery_percent = 100;
             state.charging = true;
             state.usb_power = true;
             state.locked = true;
             state.bluetooth = STATUS_BLUETOOTH_CONNECTED;
             state.shuffle = STATUS_SHUFFLE_ALBUMS;
             Rect battery = status_bar_battery_body(&theme);
+            CHECK(text_width(theme.fonts.small, "100%") <= battery.width - 21);
             CHECK(battery.y >= 0);
             CHECK(battery.y + battery.height <= theme.metrics.header_height);
             CHECK((status_bar_items(&theme, &state) & STATUS_BAR_PERCENT) == 0);
@@ -140,6 +142,17 @@ static void compact_reclaims_space_and_keeps_the_combined_battery(void)
             canvas_fill_rect(&canvas, canvas.bounds, theme.colors.background);
             header_draw(&canvas, &theme, "");
             status_bar_draw(&canvas, &theme, state);
+            for (int y = battery.y + 2; y < battery.y + battery.height - 4; y++) {
+                CHECK_EQUAL(theme.colors.header_background,
+                            canvas_pixel_at(&canvas, battery.x + 3, y));
+            }
+            int terminal = battery.x + battery.width;
+            CHECK_EQUAL(theme.colors.header_background,
+                        canvas_pixel_at(&canvas, terminal, battery.y + 4));
+            CHECK(canvas_pixel_at(&canvas, terminal, battery.y + battery.height / 2) !=
+                  theme.colors.header_background);
+            CHECK_EQUAL(theme.colors.header_background,
+                        canvas_pixel_at(&canvas, terminal, battery.y + battery.height - 5));
             screen_snapshot_write(&canvas, "compact", orientation * 3 + size);
             default_theme_set_status_bar(&theme, false);
             CHECK_EQUAL(height, theme.metrics.header_height);

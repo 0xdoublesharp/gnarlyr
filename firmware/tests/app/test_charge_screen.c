@@ -316,11 +316,57 @@ static void compact_status_does_not_compress_the_charge_header(void)
     }
 }
 
+static void the_fill_edge_matches_the_percentage_at_every_pulse_phase(void)
+{
+    static const int levels[] = {1, 40, 64, 80, 100};
+    for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = charge_theme(size, orientation);
+            Canvas canvas = charge_canvas(&theme);
+            Rect battery = charge_screen_art_layout(&theme).battery;
+            int stroke = battery.height / 14;
+            stroke = stroke < 2 ? 2 : stroke;
+            int nub = battery.height / 8;
+            nub = nub < 1 ? 1 : nub;
+            Rect room = {battery.x + 2 * stroke, battery.y + 2 * stroke,
+                         battery.width - nub - 4 * stroke, battery.height - 4 * stroke};
+            for (uint32_t phase = 0; phase < CHARGE_SCREEN_PHASES; phase++) {
+                uint32_t now = phase * CHARGE_SCREEN_FRAME_MS;
+                HalBattery state = {.known = true, .usb_power = true, .charging = true};
+                charge_screen_draw_at(&canvas, &theme, state, now);
+                memcpy(still, pixels, sizeof still);
+                for (size_t level = 0; level < sizeof levels / sizeof levels[0]; level++) {
+                    state.percent = (uint8_t)levels[level];
+                    charge_screen_draw_at(&canvas, &theme, state, now);
+                    int edge = room.width * state.percent / 100;
+                    bool edge_matches = true;
+                    int grid_step = (battery.height - 2 * stroke) / 4;
+                    grid_step = grid_step < 6 ? 6 : grid_step;
+                    for (int x = 0; x < room.width; x++) {
+                        if ((x + stroke) % grid_step == 0) {
+                            continue;
+                        }
+                        for (int y = room.y; y < room.y + room.height; y++) {
+                            if ((y - battery.y - stroke) % grid_step == 0) {
+                                continue;
+                            }
+                            int index = y * theme.metrics.screen_width + room.x + x;
+                            edge_matches &= (x < edge) == (pixels[index] != still[index]);
+                        }
+                    }
+                    CHECK(edge_matches);
+                }
+            }
+        }
+    }
+}
+
 int main(void)
 {
     fake_hal_reset();
     i18n_detach();
     static const TestCase cases[] = {
+        TEST_CASE(the_fill_edge_matches_the_percentage_at_every_pulse_phase),
         TEST_CASE(compact_status_does_not_compress_the_charge_header),
         TEST_CASE(wireframe_pulse_is_limited_to_one_frame_per_second),
         TEST_CASE(an_unknown_battery_has_no_invented_percent_or_voltage),
