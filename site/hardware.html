@@ -46,7 +46,7 @@
 </li>
 <li><a href="#chips">Processor and audio chips</a>
 </li>
-<li><a href="#display">Screen and buttons</a>
+<li><a href="#engineering">Cores, DMA &amp; memory</a></li><li><a href="#display">Screen and buttons</a>
 </li>
 <li><a href="#usb">USB and Bluetooth</a>
 </li>
@@ -111,7 +111,7 @@
 </tr>
 </tbody>
 </table>
-<p>Read the <a href="https://www.cirrus.com/products/cs43198">Cirrus Logic CS43198 documentation</a> for chip details, or <a href="https://www.fiio.com/echo_parameters">FiiO’s specifications</a> for player ratings.
+<p><a href="#engineering">Follow the two-core audio path below.</a> Read the <a href="https://www.cirrus.com/products/cs43198">Cirrus Logic CS43198 documentation</a> for chip details, or <a href="https://www.fiio.com/echo_parameters">FiiO’s specifications</a> for player ratings.
 </p>
 <details>
 <summary>How the chip identification was read
@@ -122,6 +122,7 @@
 </p></div>
 </details>
 </section>
+<section class="doc-section" id="engineering" aria-labelledby="engineering-title"><h2 id="engineering-title">How the small hardware does more.</h2><p class="intro">Playing music is a relay: read a file, turn it into samples, keep those samples moving, then turn them into sound. The ECHO splits that work between two processors and dedicated transfer hardware.</p><ol class="install-preview"><li><span>01</span><div><h3>Read and decode.</h3><p>Core 0 runs the menus, storage and audio processing. Core 1 runs the loaded compressed-audio decoder; a dedicated hardware accelerator helps reconstruct FLAC audio.</p></div></li><li><span>02</span><div><h3>Keep a buffer ready.</h3><p>A ring in RAM holds decoded samples. DMA moves them to I2S at the audio clock’s pace while the processors prepare more.</p></div></li><li><span>03</span><div><h3>Make the signal.</h3><p>I2S feeds both CS43198 DACs. They convert samples into the analog signal used by the headphone outputs.</p></div></li></ol><h3>What Gnarlyr changes</h3><ul class="detail-list"><li><strong>DMA with cleaner transitions.</strong> Stock already used DMA. Gnarlyr clears stale audio on restart, refills before restarting DMA and fades around interrupted playback. Compatible gapless transitions keep the continuous sample stream.</li><li><strong>Rest each core when it can.</strong> Decode work waits when its buffers are full. Main-loop scheduling batches reads and lets idle cores sleep; screen-off idle states lower clocks. Demanding decoder streams can request a higher clock.</li><li><strong>Load the code for the task.</strong> RAM is reused for code modules: scanning, extra screens and USB need not all live in memory at once. Scanning can use decoder RAM while playback is stopped. The display stores its own picture, avoiding a full-screen framebuffer in main RAM.</li><li><strong>Change the output deliberately.</strong> Gain and filter changes use mute and power sequencing. Low gain uses a documented CS43198 output setting; High retains its documented higher range. Jack changes mute while the connection settles.</li></ul><p>Battery-runtime and analog-performance comparisons require measurements on the player.</p></section>
 <section class="doc-section" id="display" aria-labelledby="display-title">
 <h2 id="display-title">Screen, backlight and buttons.
 </h2>
@@ -141,15 +142,17 @@
 <section class="doc-section" id="usb" aria-labelledby="usb-title">
 <h2 id="usb-title">USB, power and Bluetooth.
 </h2>
-<p class="intro">USB storage exposes the music drives to your computer. The USB mode chooser lets you return to Player or reconnect storage on the same cable. The firmware also provides a USB DAC audio path; a separate module handles Bluetooth headphones.
+<p class="intro">USB storage exposes the music drives to your computer. The USB mode chooser lets you return to Charge only or reconnect storage on the same cable. The firmware also provides a USB DAC audio path; a separate module handles Bluetooth headphones.
 </p>
 <ul class="detail-list">
 <li><strong>USB controller.</strong> A DesignWare USB 2.0 OTG controller. Storage can negotiate high speed and retry at full speed if the first connection does not become usable.
 </li>
-<li><strong>Mode selection.</strong> Open USB mode from Home or Settings. Eject both drives before leaving storage, then choose Player without unplugging. The current track, position and queue are kept.</li>
-<li><strong>Separate drives.</strong> Internal storage and an inserted microSD card appear as separate drives. Eject every drive present at connection to return storage to the player.
+<li><strong>Mode selection.</strong> Open USB mode from Home or Settings. Eject both drives before leaving storage, then choose Charge only without unplugging. The current track, position and queue are kept.</li>
+<li><strong>USB packets and audio DMA.</strong> The USB driver moves packets through the controller’s hardware queues. In DAC mode, the audio output still uses its DMA-fed ring; the computer has already decoded the music.
+</li><li><strong>A different USB stack.</strong> Gnarlyr’s storage and audio code share a loaded module region. Storage activity, ejects and pending writes are tracked before handing the drives back to the player. The cable can keep supplying power throughout.
+</li><li><strong>Separate drives.</strong> Internal storage and an inserted microSD card appear as separate drives. Eject every drive present at connection to return storage to the player.
 </li>
-<li><strong>Audio mode.</strong> The firmware’s USB Audio Class 1.0 path offers 16- or 24-bit audio at 44.1 or 48 kHz, with a separately remembered DAC volume.
+<li><strong>Audio mode.</strong> The high-speed USB Audio Class 2.0 path offers 16/24/32-bit PCM at 44.1–192 kHz. Full-speed Class 1.0 fallback offers 16/24-bit at 44.1/48 kHz. DAC volume is remembered separately. <a href="build.html#usb-audio">Formats and host validation →</a>
 </li>
 <li><strong>Cable detection.</strong> GPIO2.0 controls taking power from USB and GPIO0.14 controls charging. Gnarlyr keeps these power-control signals in sync with the cable state.
 </li>
@@ -168,7 +171,7 @@
 <tbody>
 <tr><th scope="row">Internal storage</th><td>eMMC with two firmware slots, a SAVE area and the user’s FAT32 volume. The microSD card is separate.</td>
 </tr>
-<tr><th scope="row">Main working RAM</th><td>Core 0 data window: <code>0x03004000–0x0304C000</code>.</td>
+<tr><th scope="row">Main working RAM</th><td>Core 0 data window: <code>0x03004000–0x0304C000</code> · 288 KiB of mapped space. Boot loading and reserved code banks constrain what the app can use.</td>
 </tr>
 <tr><th scope="row">Decoder RAM</th><td>Core 1 region: <code>0x01000000–0x0105FFFF</code> · 384 KiB.</td>
 </tr>
