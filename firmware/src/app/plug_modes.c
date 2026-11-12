@@ -4,6 +4,9 @@ static const uint8_t SWITCH_ORDER[] = {PLUG_MODE_COMPUTER, PLUG_MODE_CHARGE, PLU
                                        PLUG_MODE_DAC};
 static const StringId NAMES[PLUG_MODE_COUNT] = {
     STR_PLUG_ASK, STR_PLUG_COMPUTER, STR_PLUG_CHARGE_PLAY, STR_PLUG_RUN_USB, STR_PLUG_DAC};
+static const StringId SHORT_NAMES[PLUG_MODE_COUNT] = {STR_PLUG_ASK, STR_PLUG_COMPUTER_SHORT,
+                                                      STR_PLUG_CHARGE_PLAY_SHORT,
+                                                      STR_PLUG_RUN_USB_SHORT, STR_PLUG_DAC_SHORT};
 static const StringId LINES[PLUG_MODE_COUNT] = {STR_PLUG_ASK_LINE, STR_PLUG_COMPUTER_LINE,
                                                 STR_PLUG_CHARGE_PLAY_LINE, STR_PLUG_RUN_USB_LINE,
                                                 STR_PLUG_DAC_LINE};
@@ -63,6 +66,11 @@ bool plug_modes_battery_ready(HalBattery battery)
 StringId plug_mode_name(PlugMode mode)
 {
     return NAMES[mode];
+}
+
+StringId plug_mode_short_name(PlugMode mode)
+{
+    return SHORT_NAMES[mode];
 }
 
 StringId plug_mode_line(PlugMode mode, HalBattery battery)

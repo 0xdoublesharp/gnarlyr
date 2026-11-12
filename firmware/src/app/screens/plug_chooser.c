@@ -46,7 +46,10 @@ static int row_count(const void *context)
 
 static const char *row_label(const void *context, int index)
 {
-    return i18n_text(plug_mode_name(plug_chooser_mode(context, index)));
+    const PlugChooser *chooser = context;
+    PlugMode mode = plug_chooser_mode(chooser, index);
+    return i18n_text(theme_is_portrait(chooser->config.theme) ? plug_mode_short_name(mode)
+                                                              : plug_mode_name(mode));
 }
 
 static const char *row_mark(const void *context, int index)
@@ -215,7 +218,7 @@ static void draw(void *context, Canvas *canvas)
     plug_art_draw(canvas, theme, layout.art, selected_mode(chooser));
     if (layout.name.height > 0) {
         label_draw_wrapped(canvas, (TextStyle){theme->fonts.title, theme->colors.text},
-                           (Label){layout.name, row_label(chooser, chooser->list.selected)});
+                           (Label){layout.name, i18n_text(plug_mode_name(selected_mode(chooser)))});
     }
     label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
                        (Label){layout.line, plug_chooser_line(chooser)});

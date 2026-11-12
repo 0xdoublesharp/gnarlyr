@@ -308,11 +308,30 @@ static void every_chooser_fits_every_size_and_orientation(void)
     }
 }
 
+static void portrait_rows_use_short_names_while_landscape_keeps_the_full_titles(void)
+{
+    static const char *const SHORT[] = {"Computer", "Charge", "USB power", "USB audio"};
+    static const char *const FULL[] = {"Connect to computer", "Charge & play", "Run from USB power",
+                                       "USB audio (DAC)"};
+    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+        open_chooser(true);
+        use_theme(0, ORIENTATION_PORTRAIT, size);
+        for (int row = 0; row < 4; row++) {
+            CHECK(strcmp(SHORT[row], label(row)) == 0);
+        }
+        use_theme(0, ORIENTATION_LANDSCAPE, size);
+        for (int row = 0; row < 4; row++) {
+            CHECK(strcmp(FULL[row], label(row)) == 0);
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_prompt_offers_connect_to_computer_first_then_charge_usb_power_and_the_dac),
         TEST_CASE(the_highlighted_mode_explains_what_happens_to_the_music),
+        TEST_CASE(portrait_rows_use_short_names_while_landscape_keeps_the_full_titles),
         TEST_CASE(the_prompt_counts_down_to_charging),
         TEST_CASE(the_prompt_lapses_after_fifteen_quiet_seconds),
         TEST_CASE(a_key_starts_the_countdown_again),

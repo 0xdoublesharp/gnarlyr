@@ -47,6 +47,7 @@ typedef struct PlugChoices {
 PlugChoices plug_modes_choices(PlugState state);
 bool plug_modes_battery_ready(HalBattery battery);
 StringId plug_mode_name(PlugMode mode);
+StringId plug_mode_short_name(PlugMode mode);
 StringId plug_mode_line(PlugMode mode, HalBattery battery);
 IconId plug_mode_icon(PlugMode mode);
 PlugMode plug_mode_saved(const Settings *settings);
