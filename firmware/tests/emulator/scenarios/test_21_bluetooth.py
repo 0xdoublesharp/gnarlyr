@@ -66,6 +66,47 @@ class EchoImageTest(EchoImageHarness):
         raw = rig.session.fat().read("/" + IDENTITY.data_directory + "/bluetooth.bin")
         return raw[5 + DEVICE_BYTES * DEVICE_COUNT]
 
+    def test_headphones_resume_a_pause_from_the_player(self):
+        rig, module, toasts = self.bluetooth_rig(on_bluetooth=True)
+        rig.open_songs()
+        rig.play_song(1)
+        self.run_until(rig, lambda: module.streaming, WAIT_MS)
+        rig.press("play")
+        self.run_until(rig, lambda: not module.streaming, WAIT_MS)
+        rig.run_for(3100)
+        module.rx.extend(b"CC")
+        self.run_until(rig, lambda: module.streaming, WAIT_MS)
+        module.rx.extend(b"CP")
+        rig.run_for(3100)
+        module.rx.extend(b"CP")
+        self.run_until(rig, lambda: not module.streaming, WAIT_MS)
+
+    def test_every_stream_start_prefills_a_silent_first_frame(self):
+        import struct
+        rig, module, toasts = self.bluetooth_rig(on_bluetooth=True)
+        starts = []
+        rig.machine.uc.mem_write(rig.machine.symbols["output_setting"], struct.pack("<I", 2))
+        original = module.follow_stream
+
+        def observe(on):
+            if on:
+                first = rig.machine.read_memory(rig.audio.ring, 8)
+                starts.append(struct.unpack("<II", first))
+                level = rig.machine.read_memory(rig.machine.symbols["volume_level"], 1)[0]
+                target = rig.machine.read_memory(rig.machine.symbols["volume_value"], 1)[0]
+                self.assertEqual(target, 2 * (60 - level) if level else 255)
+            original(on)
+
+        module.follow_stream = observe
+        rig.open_songs()
+        rig.play_song(1)
+        self.run_until(rig, lambda: len(starts) == 1, WAIT_MS)
+        rig.press("play")
+        rig.press("play")
+        self.run_until(rig, lambda: len(starts) == 2, WAIT_MS)
+        self.assertEqual(starts, [(0, 0), (0, 0)])
+        self.assertFalse(any(command[1:2] == b"S" for command in module.sent()))
+
     def test_play_before_the_last_headphones_connect_waits_and_then_streams(self):
         rig, module, toasts = self.bluetooth_rig(on_bluetooth=True, in_range=False)
         self.assertEqual(module.power_ups, 1)

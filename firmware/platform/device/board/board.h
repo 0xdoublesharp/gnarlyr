@@ -127,3 +127,7 @@ typedef struct BoardRunSnapshot {
 BoardRunSnapshot board_start_record_snapshot(void);
 void device_fault_handler(const uint32_t *frame);
 void device_fault_entry(void);
+
+bool board_audio_bluetooth_start(void);
+
+void board_audio_output_changed(void);

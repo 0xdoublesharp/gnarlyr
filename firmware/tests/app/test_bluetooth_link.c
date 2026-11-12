@@ -449,6 +449,31 @@ static void the_buds_resume_a_pause_that_went_to_standby_at_its_place(void)
     CHECK(fake_hal_bluetooth()->streaming);
 }
 
+static void the_buds_resume_a_player_pause_from_standby(void)
+{
+    fresh();
+    save(true, &BUDS);
+    start();
+    connect_to(&BUDS);
+    play();
+    step(START_MS + 100);
+    fake_hal_audio_set_position(42000);
+    player_toggle_pause(&player);
+    step(START_MS + 100 + BLUETOOTH_LINK_ECHO_MS);
+    CHECK_EQUAL(PLAYER_PAUSED, player.state);
+    uint32_t paused_ms = START_MS + 1000;
+    player_update(&player, paused_ms);
+    player_update(&player, paused_ms + PLAYER_PAUSE_RELEASE_MS);
+    CHECK(player_in_standby(&player));
+    step(paused_ms + PLAYER_PAUSE_RELEASE_MS);
+    CHECK(link.connected);
+    fake_hal_bluetooth()->remote.plays++;
+    step(paused_ms + PLAYER_PAUSE_RELEASE_MS + BLUETOOTH_LINK_ECHO_MS);
+    CHECK_EQUAL(PLAYER_PLAYING, player.state);
+    CHECK_EQUAL(42000, fake_hal_audio_play_start());
+    CHECK(fake_hal_bluetooth()->streaming);
+}
+
 static void a_pause_report_right_after_play_is_ignored(void)
 {
     fresh();
@@ -495,7 +520,7 @@ static void reports_right_after_the_stream_starts_are_ignored(void)
     CHECK(fake_hal_bluetooth()->streaming);
 }
 
-static void a_play_report_does_not_resume_what_the_player_paused(void)
+static void a_settled_play_report_resumes_what_the_player_paused(void)
 {
     fresh();
     save(true, &BUDS);
@@ -507,7 +532,7 @@ static void a_play_report_does_not_resume_what_the_player_paused(void)
     step(START_MS + 200);
     fake_hal_bluetooth()->remote.plays++;
     step(START_MS + 200 + BLUETOOTH_LINK_ECHO_MS);
-    CHECK_EQUAL(PLAYER_PAUSED, player.state);
+    CHECK_EQUAL(PLAYER_PLAYING, player.state);
 }
 
 static void the_buds_skip_tracks(void)
@@ -1203,10 +1228,11 @@ int main(void)
         TEST_CASE(the_buds_wait_for_the_next_play_after_headphones),
         TEST_CASE(the_buds_pause_and_resume_playback),
         TEST_CASE(the_buds_resume_a_pause_that_went_to_standby_at_its_place),
+        TEST_CASE(the_buds_resume_a_player_pause_from_standby),
         TEST_CASE(reports_right_after_the_stream_starts_are_ignored),
         TEST_CASE(a_pause_report_right_after_play_is_ignored),
         TEST_CASE(a_pause_from_the_buds_says_so),
-        TEST_CASE(a_play_report_does_not_resume_what_the_player_paused),
+        TEST_CASE(a_settled_play_report_resumes_what_the_player_paused),
         TEST_CASE(the_buds_skip_tracks),
         TEST_CASE(presses_from_before_the_connection_are_ignored),
         TEST_CASE(losing_the_buds_pauses_playback),
