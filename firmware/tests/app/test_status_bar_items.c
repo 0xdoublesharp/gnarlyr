@@ -19,13 +19,14 @@ static StatusBarState all_items(void)
                             .percent = "50%"};
 }
 
-static void every_orientation_and_text_size_respects_fitting_priority(void)
+static void fitting_priority(bool compact)
 {
     for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
         for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
             Theme theme = BOARD_THEME;
             default_theme_set_text_size(&theme, (TextSize)size);
             default_theme_set_orientation(&theme, (Orientation)orientation);
+            default_theme_set_status_bar(&theme, compact);
             for (int width = 80; width <= theme.metrics.screen_width; width++) {
                 Theme narrow = theme;
                 narrow.metrics.screen_width = width;
@@ -63,6 +64,12 @@ static void every_orientation_and_text_size_respects_fitting_priority(void)
             }
         }
     }
+}
+
+static void every_orientation_and_text_size_respects_fitting_priority(void)
+{
+    fitting_priority(false);
+    fitting_priority(true);
 }
 
 static void portrait_centres_the_position_and_landscape_protects_the_title(void)
@@ -113,6 +120,10 @@ static void compact_reclaims_space_and_keeps_the_combined_battery(void)
             default_theme_set_status_bar(&theme, true);
             CHECK(theme.metrics.header_height < height);
             CHECK(theme_visible_rows(&theme) >= rows);
+            if (orientation != ORIENTATION_LANDSCAPE && size == TEXT_SIZE_LARGE) {
+                CHECK(theme_visible_rows(&theme) > rows);
+            }
+            CHECK(theme.metrics.row_height >= font_line_height(theme.fonts.body));
             CHECK(theme.metrics.status_icon_size < 14);
             StatusBarState state = all_items();
             state.charging = true;

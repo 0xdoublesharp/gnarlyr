@@ -155,6 +155,9 @@ void default_theme_set_status_bar(Theme *theme, bool compact)
     bool portrait = theme_is_portrait(theme);
     theme->status_bar_compact = compact;
     theme->metrics.status_icon_size = compact ? 10 : 14;
+    theme->metrics.row_height =
+        TEXT_SIZES[theme->metrics.text_size].row_height -
+        (compact ? (theme->metrics.text_size == TEXT_SIZE_SMALL ? 1 : 2) : 0);
     theme->metrics.status_height = portrait ? (compact ? 18 : PORTRAIT_STATUS_HEIGHT) : 0;
     theme->metrics.header_height =
         (compact ? 22 : LANDSCAPE_HEADER_HEIGHT) + theme->metrics.status_height;

@@ -200,6 +200,7 @@ static void charging_artwork_draws_identically_in_display_strips(void)
             Theme theme = charge_theme(size, orientation);
             Canvas canvas = charge_canvas(&theme);
             charge_screen_draw_at(&canvas, &theme, battery, CHARGE_SCREEN_FRAME_MS);
+            screen_snapshot_write(&canvas, "charging", orientation * 3 + size);
             uint32_t first = frame_hash(&theme);
             canvas_clear(&canvas, COLOR_RGB(255, 0, 255));
             for (int y = 0; y < theme.metrics.screen_height; y += 23) {
@@ -291,11 +292,37 @@ static void explicit_frame_time_keeps_the_picture_independent_of_clock_reads(voi
     CHECK_EQUAL(first, frame_hash(&theme));
 }
 
+static void wireframe_pulse_is_limited_to_one_frame_per_second(void)
+{
+    CHECK(CHARGE_SCREEN_FRAME_MS >= 1000);
+    HalBattery battery = {.known = true, .percent = 64, .usb_power = true, .charging = true};
+    CHECK_EQUAL(charging_frame(battery, 0), charging_frame(battery, CHARGE_SCREEN_FRAME_MS - 1));
+    CHECK(charging_frame(battery, 0) != charging_frame(battery, CHARGE_SCREEN_FRAME_MS));
+}
+
+static void compact_status_does_not_compress_the_charge_header(void)
+{
+    HalBattery battery = {.known = true, .percent = 64, .usb_power = true, .charging = true};
+    for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = charge_theme(size, orientation);
+            Canvas canvas = charge_canvas(&theme);
+            charge_screen_draw_at(&canvas, &theme, battery, 0);
+            uint32_t standard = frame_hash(&theme);
+            default_theme_set_status_bar(&theme, true);
+            charge_screen_draw_at(&canvas, &theme, battery, 0);
+            CHECK_EQUAL(standard, frame_hash(&theme));
+        }
+    }
+}
+
 int main(void)
 {
     fake_hal_reset();
     i18n_detach();
     static const TestCase cases[] = {
+        TEST_CASE(compact_status_does_not_compress_the_charge_header),
+        TEST_CASE(wireframe_pulse_is_limited_to_one_frame_per_second),
         TEST_CASE(an_unknown_battery_has_no_invented_percent_or_voltage),
         TEST_CASE(usb_power_does_not_mean_the_battery_is_full),
         TEST_CASE(an_unknown_battery_is_never_reported_full),

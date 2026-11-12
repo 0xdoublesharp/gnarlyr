@@ -243,7 +243,7 @@ STR_ABOUT_READ_FAILED = Read failed
 # Power, buttons and storage.
 STR_GOODBYE = Goodbye
 STR_BATTERY_LOW = Battery low
-STR_CHARGED = Charged
+STR_CHARGED = Full
 STR_CHARGING = Charging
 STR_CHARGE_MODE_HINT = Menu: mode\nHold Power: turn on
 STR_BUTTONS_LOCKED = Buttons locked
@@ -513,7 +513,7 @@ STR_POWER_PERCENT = {0}%
 
 STR_POWER_UNKNOWN = Reading battery
 
-STR_POWER_USB = USB power
+STR_POWER_USB = Running from USB
 
 STR_POWER_BATTERY = On battery
 

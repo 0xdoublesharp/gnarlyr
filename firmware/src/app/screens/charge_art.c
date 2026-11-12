@@ -2,7 +2,6 @@
 
 #include "core/i18n.h"
 #include "core/utf8.h"
-#include "gfx/wireframe.h"
 #include "home_art.h"
 #include "ui/icons.h"
 #include "ui/label.h"
@@ -331,12 +330,10 @@ static void draw_wire_grid(const ChargeArt *art, const BatteryShape *shape)
     int right = left + shape->inside.width;
     int bottom = top + shape->inside.height;
     for (int x = left; x <= right; x += step) {
-        wireframe_line(&inside, (WirePoint){x, top, 0}, (WirePoint){x - step, bottom, 0},
-                       (WireStroke){ink, 120});
+        canvas_fill_rect(&inside, (Rect){x, top, 1, bottom - top}, ink);
     }
     for (int y = top; y < bottom; y += step) {
-        wireframe_line(&inside, (WirePoint){left, y, 0}, (WirePoint){right, y, 0},
-                       (WireStroke){ink, 120});
+        canvas_fill_rect(&inside, (Rect){left, y, right - left, 1}, ink);
     }
 }
 
@@ -394,12 +391,21 @@ static void draw_state(const ChargeArt *art)
 {
     char text[TEXT_CAPACITY];
     charge_screen_text(art->battery, text, sizeof text);
-    draw_label(art, art->layout.status, (TextStyle){art->theme->fonts.title, state_color(art)},
-               text);
+    const Font *font = art->theme->fonts.title;
+    if (text_width(font, text) > art->layout.status.width) {
+        font = art->theme->fonts.small;
+    }
+    draw_label(art, art->layout.status, (TextStyle){font, state_color(art)}, text);
 }
 
 void charge_art_draw(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms)
 {
+    Theme charging = *theme;
+    charging.metrics.header_height = font_line_height(theme->fonts.header) + 2;
+    if (theme_is_portrait(theme)) {
+        charging.metrics.header_height += font_line_height(theme->fonts.small);
+    }
+    theme = &charging;
     ChargeArt art = {.canvas = canvas,
                      .theme = theme,
                      .battery = battery,

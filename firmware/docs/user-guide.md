@@ -460,3 +460,17 @@ To start fresh, hold ▶ on Listening and choose **Clear history**. The confirma
 Clearing resets Most Played and Recently Played; Never Played and Old Favorites rebuild from the empty history. Recently Added still uses library updates. An existing exported file stays on the drive; Export plays first replaces it in the usual way. A failed or cancelled export keeps the history. A scan finishes before clearing becomes available. The reset is saved so an interrupted write recovers either the previous history or the empty one. Music played after the reset starts a new history.
 
 Place a timed `.lrc` file beside a song, with the same filename stem. Hold Menu on Now Playing to open Lyrics; tap Menu opens Quick Settings, which also has Lyrics and Up Next. Lyrics follow playback, and the volume buttons move through the lines. Back returns to the screen you opened Lyrics from.
+
+### Compact status bar
+
+Settings → Status bar → Status bar selects Standard or Compact. Compact uses smaller icons,
+a combined battery percentage and USB bolt, and tighter list spacing. Lists use the reclaimed
+space; the number of extra rows depends on text size, orientation and row details. Battery
+segments still follow Battery style. Compact always includes the percentage in the battery.
+Playback, Bluetooth, lock, shuffle and battery keep their places. Optional items fit in this
+priority order: volume, queue position, clock, repeat. A visible title takes priority over queue
+position. Standard retains its separate optional percentage.
+
+The charging screen uses the theme's battery wireframe, percentage and power state. Its pulse
+advances once a second while charging and stops for other power states. It shows no time-to-full
+estimate because no stable estimate is available.
