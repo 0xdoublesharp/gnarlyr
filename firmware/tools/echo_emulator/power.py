@@ -41,6 +41,10 @@ def on_time(events, first, last, on):
     return total
 
 
+VOP_GATE_WORD = 0x80 + 0x7F // 16 * 4
+VOP_GATE_BIT = 0x7F % 16
+
+
 class DecoderLoad:
     def __init__(self, audio, directory):
         self.machine = audio.machine
@@ -159,6 +163,7 @@ class PowerMeter:
             "active_ms_per_minute_tail_5ms": round(active_time(reads, elapsed / 1000, 5) * 60000000 / elapsed, 3),
             "active_ms_per_minute_tail_50ms": round(active_time(reads, elapsed / 1000, 50) * 60000000 / elapsed, 3),
             "panel_asleep": bool(machine.read_memory(machine.symbols["panel_asleep"], 1)[0]),
+            "vop_clock_gated": bool(machine.cru.regs.get(VOP_GATE_WORD, 0) >> VOP_GATE_BIT & 1),
             "backlight_on": bool(machine.read_memory(machine.symbols["backlight_on"], 1)[0]),
             "panel_on_ms": on_time(self.panel_events, first, first + elapsed, panel_on) / 1000,
             "backlight_on_ms": on_time(self.backlight_events, first, first + elapsed, backlight_on) / 1000,
