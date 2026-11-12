@@ -17,7 +17,11 @@ enum {
     SWAP = 1,
     FLIP_X = 2,
     FLIP_Y = 4,
-    ORIENTATION_COUNT = 9
+    ORIENTATION_COUNT = 9,
+    WEIGHT_BITS = 10,
+    WEIGHT_MASK = (1 << WEIGHT_BITS) - 1,
+    SECOND_SHIFT = WEIGHT_BITS,
+    FIRST_SHIFT = 2 * WEIGHT_BITS
 };
 
 static const uint8_t ORIENTATIONS[ORIENTATION_COUNT] = {0,
@@ -44,6 +48,7 @@ bool cover_grid_init(CoverGrid *grid, uint32_t width, uint32_t height)
     for (uint32_t channel = 0; channel < COVER_GRID_CHANNELS; channel++) {
         grid->sample_width[channel] = 1;
         grid->sample_height[channel] = 1;
+        grid->column_count[channel] = 0;
         for (uint32_t cell = 0; cell < COVER_GRID_CELLS; cell++) {
             grid->sums[channel][cell] = 0;
         }
@@ -63,10 +68,40 @@ bool cover_grid_attach_black(CoverGrid *grid, int32_t *plane)
     return true;
 }
 
+static void axis_span(uint32_t start, uint32_t span, uint32_t position, uint32_t length,
+                      CoverSpan *out);
+
+static uint32_t packed_column(const CoverSpan *cells)
+{
+    if (cells->count == 0) {
+        return 0;
+    }
+    uint32_t second = cells->count > 1 ? cells->weights[1] : 0;
+    return cells->first << FIRST_SHIFT | second << SECOND_SHIFT | cells->weights[0];
+}
+
+static void build_columns(CoverGrid *grid, uint32_t channel, uint32_t width)
+{
+    uint32_t first = grid->start_x / width;
+    uint32_t count = (grid->start_x + grid->span + width - 1) / width - first;
+    grid->column_count[channel] = 0;
+    if (width * CELLS > grid->span || count > COVER_GRID_COLUMN_LIMIT) {
+        return;
+    }
+    CoverSpan cells;
+    for (uint32_t column = 0; column < count; column++) {
+        axis_span(grid->start_x, grid->span, (first + column) * width, width, &cells);
+        grid->columns[channel][column] = packed_column(&cells);
+    }
+    grid->column_first[channel] = first;
+    grid->column_count[channel] = count;
+}
+
 void cover_grid_set_sampling(CoverGrid *grid, uint32_t channel, uint32_t width, uint32_t height)
 {
     grid->sample_width[channel] = width;
     grid->sample_height[channel] = height;
+    build_columns(grid, channel, width);
 }
 
 static void axis_span(uint32_t start, uint32_t span, uint32_t position, uint32_t length,
@@ -115,6 +150,36 @@ static void add_spans(CoverGrid *grid, uint32_t channel, const CoverSpan *x, con
     }
 }
 
+static bool column_of(const CoverGrid *grid, uint32_t channel, uint32_t x, uint32_t *packed)
+{
+    if (channel >= COVER_GRID_CHANNELS || grid->column_count[channel] == 0) {
+        return false;
+    }
+    uint32_t width = grid->sample_width[channel];
+    uint32_t column = x / width - grid->column_first[channel];
+    *packed = column < grid->column_count[channel] && x / width >= grid->column_first[channel]
+                  ? grid->columns[channel][column]
+                  : 0;
+    return true;
+}
+
+static void add_column(CoverGrid *grid, uint32_t channel, uint32_t packed, const CoverSpan *y,
+                       int32_t value)
+{
+    uint32_t first = packed >> FIRST_SHIFT;
+    int32_t left = (int32_t)(packed & WEIGHT_MASK);
+    int32_t right = (int32_t)(packed >> SECOND_SHIFT & WEIGHT_MASK);
+    int32_t *plane = grid->sums[channel];
+    for (uint32_t row = 0; row < y->count; row++) {
+        int32_t *sums = plane + (y->first + row) * CELLS + first;
+        int32_t row_value = value * (int32_t)y->weights[row];
+        sums[0] = (int32_t)((uint32_t)sums[0] + (uint32_t)(row_value * left));
+        if (right != 0) {
+            sums[1] = (int32_t)((uint32_t)sums[1] + (uint32_t)(row_value * right));
+        }
+    }
+}
+
 static const CoverSpan *rows_of(CoverGrid *grid, uint32_t y, uint32_t height)
 {
     if (grid->cached_height != height || grid->cached_y != y) {
@@ -132,6 +197,14 @@ void cover_grid_add(CoverGrid *grid, uint32_t channel, CoverRect rect, int32_t v
     if (y->count == 0) {
         return;
     }
+    uint32_t packed = 0;
+    if (channel < COVER_GRID_CHANNELS && rect.width == grid->sample_width[channel] &&
+        rect.x % rect.width == 0 && column_of(grid, channel, rect.x, &packed)) {
+        if (packed != 0) {
+            add_column(grid, channel, packed, y, value);
+        }
+        return;
+    }
     axis_span(grid->start_x, grid->span, rect.x, rect.width, &x);
     add_spans(grid, channel, &x, y, value);
 }
@@ -142,6 +215,23 @@ void cover_grid_add_block(CoverGrid *grid, uint32_t channel, CoverRect block,
     CoverSpan across[COVER_GRID_BLOCK_OUTPUTS];
     uint32_t width = block.width / outputs;
     uint32_t height = block.height / outputs;
+    uint32_t packed[COVER_GRID_BLOCK_OUTPUTS];
+    bool table = channel < COVER_GRID_CHANNELS && width == grid->sample_width[channel] &&
+                 block.x % width == 0;
+    for (uint32_t x = 0; table && x < outputs; x++) {
+        table = column_of(grid, channel, block.x + x * width, &packed[x]);
+    }
+    if (table) {
+        for (uint32_t y = 0; y < outputs; y++) {
+            const CoverSpan *down = rows_of(grid, block.y + y * height, height);
+            for (uint32_t x = 0; x < outputs && down->count > 0; x++) {
+                if (packed[x] != 0) {
+                    add_column(grid, channel, packed[x], down, samples[y * outputs + x]);
+                }
+            }
+        }
+        return;
+    }
     for (uint32_t x = 0; x < outputs; x++) {
         axis_span(grid->start_x, grid->span, block.x + x * width, width, &across[x]);
     }
