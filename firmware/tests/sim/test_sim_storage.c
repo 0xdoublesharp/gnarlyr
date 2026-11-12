@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -99,6 +100,22 @@ static void the_play_export_at_the_card_root_can_be_replaced(void)
     CHECK(hal_file_remove(LISTENING_EXPORT_PATH));
 }
 
+static void theme_packs_follow_the_music_volume_while_selection_stays_internal(void)
+{
+    char path[1024];
+    static const char theme[] = "/" FIRMWARE_DATA_DIRECTORY "/themes/original.gtheme";
+    static const char selection[] = "/" FIRMWARE_DATA_DIRECTORY "/theme.bin";
+    sim_storage_configure("card", "internal");
+    CHECK(sim_storage_host_path(theme, path, sizeof path));
+    CHECK(strcmp(path, "card"
+                       "/" FIRMWARE_DATA_DIRECTORY "/themes/original.gtheme") == 0);
+    CHECK(sim_storage_host_path(selection, path, sizeof path));
+    CHECK(strcmp(path, "internal/theme.bin") == 0);
+    sim_storage_configure(NULL, "internal");
+    CHECK(sim_storage_host_path(theme, path, sizeof path));
+    CHECK(strcmp(path, "internal/themes/original.gtheme") == 0);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -108,6 +125,7 @@ int main(void)
         TEST_CASE(a_read_after_an_overwrite_sees_the_new_bytes),
         TEST_CASE(deleting_a_system_file_keeps_the_music_files),
         TEST_CASE(the_play_export_at_the_card_root_can_be_replaced),
+        TEST_CASE(theme_packs_follow_the_music_volume_while_selection_stays_internal),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

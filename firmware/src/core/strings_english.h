@@ -731,4 +731,8 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_STANDBY_TIMEOUT] = "Power off after",
     [STR_STANDBY_HOURS_2] = "2 h",
     [STR_STANDBY_HOURS_8] = "8 h",
+    [STR_THEME_DAMAGED] = "Damaged",
+    [STR_THEME_VERIFIED] = "Verified",
+    [STR_THEME_LOW_CONTRAST] = "Low contrast",
+    [STR_THEME_CREDIT] = "{0} · {1}",
 };

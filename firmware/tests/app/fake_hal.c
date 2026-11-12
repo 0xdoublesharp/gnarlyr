@@ -1510,8 +1510,16 @@ bool hal_language_read(HalLanguagePack pack, uint32_t offset, void *buffer, uint
     return true;
 }
 
+static int theme_next;
+static const char THEME_FOLDER[] = "/" FIRMWARE_DATA_DIRECTORY "/themes";
+
 bool hal_dir_open(HalDir *dir, const char *path)
 {
+    if (strcmp(path, THEME_FOLDER) == 0) {
+        dir->handle = 901;
+        theme_next = 0;
+        return true;
+    }
     if (strcmp(path, "/EQ") == 0) {
         dir->handle = EQ_LISTING_HANDLE;
         eq_next = 0;
@@ -1555,6 +1563,18 @@ int fake_hal_library_writes(void)
 
 bool hal_dir_next(HalDir *dir, HalDirEntry *entry)
 {
+    if (dir->handle == 901) {
+        while (theme_next < fake.file_count) {
+            const FakeFile *file = &fake.files[theme_next++];
+            size_t prefix = sizeof THEME_FOLDER - 1;
+            if (strncmp(file->path, THEME_FOLDER, prefix) == 0 && file->path[prefix] == '/') {
+                *entry = (HalDirEntry){.size = file->size};
+                snprintf(entry->name, sizeof entry->name, "%s", file->path + prefix + 1);
+                return true;
+            }
+        }
+        return false;
+    }
     if (dir->handle == LANGUAGE_LISTING_HANDLE && language_next < language_file_count) {
         *entry = (HalDirEntry){.directory = false, .hidden = false};
         snprintf(entry->name, sizeof entry->name, "%s", language_names[language_next++]);

@@ -20,3 +20,5 @@ Gnarlyr is made by doublesharp and licensed under GPL-3.0-or-later (`LICENSE`). 
 - Built with **[Claude Code](https://claude.com/claude-code)** by Anthropic.
 
 Snowsky and FiiO are trademarks of their owners, and Echo is their product name. Gnarlyr is not made, endorsed or supported by FiiO.
+
+- **[Monocypher](https://monocypher.org/)** 4.0.2, by Loup Vaillant and contributors (BSD-2-Clause OR CC0-1.0): optional Ed25519ph theme-signature verification in the cold listening module. Source and notices are preserved in `third_party/monocypher`; no private keys ship in the firmware.

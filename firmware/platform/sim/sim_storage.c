@@ -39,6 +39,12 @@ void sim_storage_configure(const char *card_directory, const char *system_direct
 bool sim_storage_host_path(const char *path, char *buffer, size_t capacity)
 {
     size_t prefix_length = sizeof SYSTEM_PREFIX - 1;
+    static const char themes[] = "/" FIRMWARE_DATA_DIRECTORY "/themes";
+    if (storage.card_directory != NULL && strncmp(path, themes, sizeof themes - 1) == 0 &&
+        (path[sizeof themes - 1] == '/' || path[sizeof themes - 1] == '\0')) {
+        int result = snprintf(buffer, capacity, "%s%s", storage.card_directory, path);
+        return result > 0 && (size_t)result < capacity;
+    }
     int written = -1;
     if (storage.system_directory != NULL && strncmp(path, SYSTEM_PREFIX, prefix_length) == 0) {
         written =
