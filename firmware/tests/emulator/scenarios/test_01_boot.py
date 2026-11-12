@@ -127,8 +127,8 @@ class EchoImageTest(EchoImageHarness):
         session.run_to_home_screen()
         parked = [("cru", 0xCC, 0x00040004), ("cru", 0xC8, 0x00070007), ("cru", 0xC4, 0x40004000),
                   ("cru", 0x8C, 0x03FF03FF), ("cru", 0x90, 0x1F0F1F0F), ("cru", 0x80, 0x00040004),
-                  ("cru", 0xA4, 0x00040004), ("cru", 0x88, 0x00070007), ("cru", 0x84, 0x50505050),
-                  ("cru", 0xA0, 0x7D327D32), ("cru", 0xA4, 0x00020002)]
+                  ("cru", 0xA4, 0x00040004), ("cru", 0x88, 0x00070007), ("cru", 0x84, 0xDCD0DCD0),
+                  ("cru", 0xA0, 0x7DF27DF2), ("cru", 0xA4, 0x00020002), ("cru", 0x80, 0x1B201B20)]
         written = [entry for entry in machine.register_log if entry in parked]
         self.assertEqual(written[:len(parked)], parked)
         self.assert_healthy(session)

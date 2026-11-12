@@ -36,8 +36,11 @@ void cru_stop_unused_clocks(void)
     static const struct {
         uint8_t offset;
         uint32_t value;
-    } WORDS[] = {
-        {0x88, 0x00070007u}, {0x84, 0x50505050u}, {0xA0, 0x7D327D32u}, {0xA4, 0x00020002u}};
+    } WORDS[] = {{0x88, 0x00070007u},
+                 {0x84, 0xDCD0DCD0u},
+                 {0xA0, 0x7DF27DF2u},
+                 {0xA4, 0x00020002u},
+                 {0x80, 0x1B201B20u}};
     for (uint32_t index = 0; index < sizeof WORDS / sizeof WORDS[0]; index++) {
         register_write(CRU_BASE + WORDS[index].offset, WORDS[index].value);
     }
