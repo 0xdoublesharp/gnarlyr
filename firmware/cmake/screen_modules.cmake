@@ -165,6 +165,8 @@ set(ECHO_SCREEN_MODULE_UI_SOURCES src/app/home_art.c src/app/home_art_backdrop.c
 list(APPEND ECHO_SCREEN_MODULE_SOURCES_playing ${ECHO_SCREEN_MODULE_UI_SOURCES})
 set(ECHO_SCREEN_MODULE_FAST_SOURCES src/gfx/image_quad.c)
 set(ECHO_SCREEN_MODULE_SOURCES_settings
+    platform/device/board/card_eject.c
+    platform/device/board/sd_allocation.c
     src/app/app_screens_home.c
     platform/device/board/card_format.c
     platform/device/logic/card_format.c
