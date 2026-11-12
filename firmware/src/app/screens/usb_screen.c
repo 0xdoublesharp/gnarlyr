@@ -337,7 +337,9 @@ static void draw_stage(const UsbPainter *painter)
     int width = theme->metrics.screen_width;
     canvas_fill_gradient(painter->canvas, (Rect){0, top, width, rule - top}, colors->backdrop_top,
                          colors->backdrop_bottom);
-    if (painter->status.view != APP_USB_DAC && !painter->details) {
+    bool terrain = painter->status.view == APP_USB_STORAGE && painter->status.scene != NULL &&
+                   usb_screen_shows_traffic(painter->scene);
+    if (painter->status.view != APP_USB_DAC && !painter->details && !terrain) {
         draw_floor(painter, rule);
     }
     canvas_fill_rect(painter->canvas, (Rect){0, rule, width, theme->metrics.screen_height - rule},

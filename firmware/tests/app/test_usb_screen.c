@@ -919,6 +919,38 @@ static void the_header_tags_the_link_speed_and_a_fallback(void)
     }
 }
 
+static bool rows_plain(const Theme *theme, Rect area)
+{
+    for (int y = area.y; y < area.y + area.height; y++) {
+        const Color *row = &pixels[y * theme->metrics.screen_width];
+        for (int x = area.x + 1; x < area.x + area.width; x++) {
+            if (row[x] != row[area.x]) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static void no_backdrop_grid_shows_around_the_terrain(void)
+{
+    for (int appearance = 0; appearance < THEMES; appearance++) {
+        for (int orientation = 0; orientation < 2; orientation++) {
+            Theme theme = theme_for(appearance, orientation, TEXT_SIZE_MEDIUM);
+            UsbScene scene = storage_scene(USB_SCENE_WRITING);
+            AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+            status.scene = &scene;
+            draw_text_of(&theme, status, &scene);
+            UsbScreenLayout layout = usb_screen_layout(&theme, status);
+            Rect graph = usb_screen_graph(&theme, &layout);
+            int below = graph.y + graph.height;
+            CHECK(below < layout.art.y + layout.art.height);
+            CHECK(rows_plain(&theme, (Rect){layout.art.x, below, layout.art.width,
+                                            layout.art.y + layout.art.height - below}));
+        }
+    }
+}
+
 static void a_page_past_the_last_shows_the_overview(void)
 {
     UsbScene scene = storage_scene(USB_SCENE_WRITING);
@@ -1038,6 +1070,7 @@ int main(void)
         TEST_CASE(landscape_details_put_the_drives_side_by_side),
         TEST_CASE(a_missing_card_drops_its_rows),
         TEST_CASE(a_page_past_the_last_shows_the_overview),
+        TEST_CASE(no_backdrop_grid_shows_around_the_terrain),
         TEST_CASE(the_header_tags_the_link_speed_and_a_fallback),
         TEST_CASE(the_totals_move_with_the_rate_from_the_same_counters),
         TEST_CASE(a_total_that_moved_never_reads_zero),
