@@ -1,4 +1,4 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source dsd equalizer)
+set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source dsd equalizer ape_wma)
 set(ECHO_SCREEN_MODULE_SHARED_SOURCES src/codec/flac.c src/codec/flac_bits.c)
 set(ECHO_SCREEN_MODULE_SOURCES_process
     src/core/parametric.c
@@ -256,3 +256,14 @@ function(echo_take_module_sources)
         endforeach()
     endforeach()
 endfunction()
+
+set(ECHO_SCREEN_MODULE_SOURCES_ape_wma
+    platform/device/logic/audio_interpolate.c
+    platform/device/logic/audio_ape_wma_entry.c
+    platform/device/logic/core1_ape_source.c
+    platform/device/logic/ape_track.c
+    platform/device/logic/ape_stream.c
+    platform/device/logic/core1_wma_source.c
+    platform/device/logic/asf_track.c
+    platform/device/logic/asf_stream.c
+)

@@ -4,6 +4,8 @@
 #include <stdint.h>
 
 #include "codec/flac.h"
+#include "device/ape_stream.h"
+#include "device/asf_stream.h"
 #include "device/audio_engine.h"
 #include "device/flac_source.h"
 #include "device/m4a_stream.h"
@@ -103,7 +105,9 @@ typedef enum Core1Format {
     CORE1_FORMAT_M4A,
     CORE1_FORMAT_VORBIS,
     CORE1_FORMAT_OPUS,
-    CORE1_FORMAT_DSD
+    CORE1_FORMAT_DSD,
+    CORE1_FORMAT_APE,
+    CORE1_FORMAT_WMA
 } Core1Format;
 
 typedef struct Core1Source {
@@ -120,7 +124,10 @@ typedef struct Core1Source {
     uint32_t play_end;
     uint32_t fill_budget;
     uint32_t ring_capacity;
+    uint32_t clock_mhz;
     M4aStream *m4a;
+    ApeStream *ape;
+    AsfStream *asf;
     OggStream *ogg;
     struct DsdStream *dsd;
     bool (*wait_vorbis)(struct Core1Source *source);
