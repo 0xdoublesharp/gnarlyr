@@ -108,13 +108,16 @@ add_library(echo_device_logic STATIC
     equalizer.c
     equalizer_design.c
     exfat.c
+    exfat_list.c
     exfat_create.c
     fat.c
+    fat_list.c
     fat_create.c
     fat_delete.c
     fat_extents.c
     fat_layout.c
     fat_names.c
+    fat_utf8.c
     fat_reserve.c
     flac_accel.c
     image_crc.c

@@ -39,6 +39,7 @@
 #include "settings/headphone_profile.h"
 #include "settings/settings.h"
 #include "settings_store.h"
+#include "text_spy.h"
 #include "theme_runtime.h"
 #include "ui/header.h"
 #include "ui/slide.h"
@@ -801,7 +802,7 @@ static void playback_speed_cycles_in_quick_settings_and_is_saved(void)
     int depth = app_screen_depth();
     tap(KEY_MENU);
     CHECK(title_is("Quick Settings"));
-    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
     move_down(4);
     tap(KEY_PLAY);
     tap(KEY_PLAY);
@@ -965,6 +966,43 @@ static void selecting_a_track_plays_it_and_shows_now_playing(void)
     play_first_album_track();
     CHECK(title_is("Now Playing"));
     CHECK(playing_path_is(HELLS_BELLS_PATH));
+}
+
+static bool text_shown(const char *text)
+{
+    for (int index = 0; index < text_spy_count(); index++) {
+        if (strcmp(text_spy_entry(index)->shown, text) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void now_playing_without_its_module_shows_the_track_pauses_and_goes_back(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    tap(KEY_BACK);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
+    fake_hal_evict_module();
+    step();
+    text_spy_reset();
+    tap(KEY_MENU);
+    wait_ms(500);
+    CHECK(title_is("Now Playing"));
+    CHECK(text_shown("Hells Bells"));
+    CHECK(text_shown("AC/DC"));
+    CHECK(text_shown("Playing"));
+    tap(KEY_PLAY);
+    wait_ms(500);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    CHECK(text_shown("Paused"));
+    tap(KEY_BACK);
+    CHECK(!title_is("Now Playing"));
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, false);
+    tap(KEY_MENU);
+    CHECK(title_is("Now Playing"));
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
 }
 
 static void now_playing_keys_control_the_player(void)
@@ -6206,6 +6244,7 @@ int main(void)
         TEST_CASE(now_playing_shows_the_album_cover),
         TEST_CASE(now_playing_without_a_cover_shows_the_cassette),
         TEST_CASE(now_playing_keys_control_the_player),
+        TEST_CASE(now_playing_without_its_module_shows_the_track_pauses_and_goes_back),
         TEST_CASE(lists_still_move_as_soon_as_a_volume_key_goes_down),
         TEST_CASE(the_home_menu_shows_now_playing_first_once_a_track_is_loaded),
         TEST_CASE(the_home_menu_hides_now_playing_with_nothing_loaded),

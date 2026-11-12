@@ -92,7 +92,7 @@ class EchoImageTest(EchoImageHarness):
         session = self.session(files=[("TRACK01.MP3", track, None)])
         machine = session.machine
         watch = ModuleWatch(session)
-        number, _ = self.module(machine, "library")
+        number, _ = self.module(machine, "views")
         deadline = self.session_module.FRAME_LIMIT_MS
         while self.recorded_version(session) is None and machine.milliseconds() < deadline:
             machine.run(until_ms=machine.milliseconds() + SCAN_RECORD_POLL_MS)

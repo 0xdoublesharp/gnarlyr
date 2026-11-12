@@ -13,6 +13,7 @@ typedef struct PlayingModuleEntry {
     ScreenModuleEntry module;
     int (*section)(const BrowseScreen *browse, int index);
     ListSections (*sections)(const BrowseScreen *browse, int index);
+    void (*now_playing_attach)(NowPlayingScreen *now_playing);
 } PlayingModuleEntry;
 
 typedef struct ViewsModuleEntry {
@@ -24,6 +25,7 @@ typedef struct ViewsModuleEntry {
     void (*charge_draw)(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms);
     void (*theme_boot)(ThemeRuntime *runtime);
     void (*theme_restore)(ThemeRuntime *runtime);
+    MusicFingerprint (*music_fingerprint)(bool progress);
 } ViewsModuleEntry;
 
 extern const PlayingModuleEntry PLAYING_MODULE_ENTRY;
@@ -44,7 +46,6 @@ extern const SettingsModuleEntry SETTINGS_MODULE_ENTRY;
 
 typedef struct LibraryModuleEntry {
     ScreenModuleEntry module;
-    MusicFingerprint (*music_fingerprint)(bool progress);
     Screen *(*open)(AppScreens *screens, BrowseQuery source, bool edit_search);
     Screen *(*options)(AppScreens *screens, BrowseQuery source);
     Screen *(*info)(AppScreens *screens, uint16_t track);

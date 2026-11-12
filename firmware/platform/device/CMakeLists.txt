@@ -264,8 +264,18 @@ set(ECHO_OVERLAY_IMPORTS
     hal_clock_milliseconds
     hal_clock_microseconds
     hal_dir_close
-    hal_dir_next
     hal_dir_open
+    storage_listing_begin
+    fat_collect_long_name
+    fat_entry_file
+    fat_long_name_applies
+    fat_next_utf16
+    fat_read_entry
+    fat_short_name_text
+    fat_trimmed_length
+    exfat_file_from_set
+    exfat_read_names
+    exfat_read_set
     hal_file_close
     hal_file_open
     hal_file_read
@@ -421,9 +431,16 @@ add_executable(echo_rescan_overlay
     overlay/rescan_overlay.c
     ${PROJECT_SOURCE_DIR}/src/app/library_rescan_job.c
     ${PROJECT_SOURCE_DIR}/src/app/scan_guard.c
+    board/storage_list.c
+    logic/fat_list.c
+    logic/exfat_list.c
+    logic/fat_utf8.c
 )
 target_include_directories(echo_rescan_overlay PRIVATE
+    board
+    logic
     ${PROJECT_SOURCE_DIR}/src/app
+    $<TARGET_PROPERTY:echo_device_logic,INTERFACE_INCLUDE_DIRECTORIES>
     $<TARGET_PROPERTY:echo_app,INTERFACE_INCLUDE_DIRECTORIES>
 )
 set_target_properties(echo_rescan_overlay PROPERTIES

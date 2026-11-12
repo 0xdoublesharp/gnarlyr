@@ -399,13 +399,13 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
                                     .theme = context.compact_theme,
                                     .covers = context.covers,
                                     .quick_settings =
-                                        &screens->modules.playing.quick_settings.screen,
+                                        &screens->modules.equalizer.quick_settings.screen,
                                     .lyrics = &screens->modules.views.lyrics.screen,
                                     .flip = &screens->modules.views.cassette_flip.screen};
     screens->context = context;
     screens->bound_modules = 0;
     message_screen_init(&screens->no_library, no_library);
-    now_playing_screen_init(&screens->now_playing, now_playing);
+    now_playing_screen_setup(&screens->now_playing, now_playing);
     build_music(screens, context);
     build_home(screens, context);
     return &screens->home.screen;

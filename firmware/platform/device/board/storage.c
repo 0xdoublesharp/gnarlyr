@@ -7,6 +7,7 @@
 #include "hal/storage.h"
 #include "internal_volume.h"
 #include "sd.h"
+#include "storage_listing.h"
 #include "storage_reset.h"
 
 enum {
@@ -235,20 +236,15 @@ bool hal_dir_open(HalDir *dir, const char *path)
     return true;
 }
 
-bool hal_dir_next(HalDir *dir, HalDirEntry *entry)
+FatDirEntry *storage_listing_begin(const HalDir *dir, FatVolume **mounted_volume,
+                                   FatDirCursor **cursor)
 {
-    if (dir->handle < 0 || dir->handle >= OPEN_DIR_CAPACITY || !dir_in_use[dir->handle] ||
-        !fat_next_entry(&volume, &dirs[dir->handle], &listed)) {
-        return false;
+    if (dir->handle < 0 || dir->handle >= OPEN_DIR_CAPACITY || !dir_in_use[dir->handle]) {
+        return NULL;
     }
-    entry->directory = listed.file.directory;
-    entry->hidden = listed.hidden;
-    entry->size = listed.file.directory ? 0 : listed.listed_size;
-    entry->modified = listed.modified;
-    for (size_t index = 0; index < sizeof entry->name; index++) {
-        entry->name[index] = listed.name[index];
-    }
-    return true;
+    *mounted_volume = &volume;
+    *cursor = &dirs[dir->handle];
+    return &listed;
 }
 
 void hal_dir_close(HalDir *dir)

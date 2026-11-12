@@ -82,6 +82,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/ui/wire_motion.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_playing
+    src/app/screens/now_playing_screen.c
+    src/app/cassette_art.c
     src/app/modules/playing_module.c
     src/app/screens/cover_flow_screen.c
     src/app/board_cover_layout.c
@@ -94,31 +96,16 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/ui/cover_flow.c
     src/ui/placeholder_art.c
     src/gfx/image_quad.c
-    src/app/screens/quick_settings_screen.c
-    src/app/settings_actions.c
-    src/app/settings_actions_equalizer.c
-    src/app/equalizer_presets.c
-    src/settings/equalizer_slots.c
-    src/settings/equalizer_fit_text.c
-    src/app/headphone_store_edit.c
-    src/app/headphone_parameters.c
-    src/settings/headphone_profile.c
-    src/settings/headphone_profile_edit.c
-    src/settings/headphone_file_save.c
-    src/core/headphone_audio_switch.c
     src/library/sort_initial.c
     src/library/sort_key.c
     src/library/sort_fold_table.c
-    src/app/parametric_store.c
-    src/app/parametric_store_save.c
-    src/settings/parametric_import.c
-    src/settings/parametric_file.c
-    src/settings/parametric_file_save.c
-    src/core/parametric.c
-    src/settings/sound_shaping.c
     src/app/browse_sections.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_equalizer
+    platform/device/board/storage_list.c
+    platform/device/logic/fat_list.c
+    platform/device/logic/exfat_list.c
+    platform/device/logic/fat_utf8.c
     src/settings/sound_shaping.c
     src/app/parametric_store.c
     src/settings/parametric_file.c
@@ -140,8 +127,18 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     src/settings/equalizer_slots.c
     src/settings/equalizer_fit_text.c
     src/app/modules/equalizer_module.c
+    src/app/screens/quick_settings_screen.c
+    src/app/settings_actions.c
+    src/app/settings_actions_equalizer.c
+    src/app/headphone_store_edit.c
+    src/app/headphone_parameters.c
+    src/settings/headphone_profile.c
+    src/settings/headphone_profile_edit.c
+    src/settings/headphone_file_save.c
+    src/core/headphone_audio_switch.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views
+    src/app/cassette_art.c
     src/app/theme_pack.c
     src/app/theme_runtime.c
     src/app/theme_catalog.c
@@ -150,6 +147,12 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/theme_signature.c
     src/app/theme_crypto_curve.c
     src/app/theme_crypto_sha512.c
+    platform/device/board/storage_list.c
+    platform/device/logic/fat_list.c
+    platform/device/logic/exfat_list.c
+    platform/device/logic/fat_utf8.c
+    src/app/music_walk.c
+    src/library/music_fingerprint.c
     src/app/modules/views_module.c
     platform/device/board/headset_reading.c
     platform/device/logic/headset_dips_view.c
@@ -185,6 +188,10 @@ set(ECHO_SCREEN_MODULE_UI_SOURCES src/app/home_art.c src/app/home_art_backdrop.c
 list(APPEND ECHO_SCREEN_MODULE_SOURCES_playing ${ECHO_SCREEN_MODULE_UI_SOURCES})
 set(ECHO_SCREEN_MODULE_FAST_SOURCES src/gfx/image_quad.c)
 set(ECHO_SCREEN_MODULE_SOURCES_settings
+    platform/device/board/storage_list.c
+    platform/device/logic/fat_list.c
+    platform/device/logic/exfat_list.c
+    platform/device/logic/fat_utf8.c
     platform/device/board/card_eject.c
     platform/device/board/sd_allocation.c
     src/app/app_screens_home.c
@@ -221,7 +228,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_library
     src/app/modules/library_module.c
     src/library/album_order.c
     src/library/sort_initial.c
-    src/app/music_walk.c
     src/app/discovery_screen.c
     src/app/discovery_text.c
     src/app/discovery_preferences.c
@@ -229,7 +235,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_library
     src/app/order_publish.c
     src/app/order_adopt.c
     src/app/personal_tags.c
-    src/library/music_fingerprint.c
     src/library/library_view.c
     src/library/sort_key.c
     src/library/sort_fold_table.c

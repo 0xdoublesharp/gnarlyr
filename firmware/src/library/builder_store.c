@@ -68,9 +68,9 @@ uint32_t arena_left(const Arena *arena)
     return arena->failed ? 0 : arena->size - arena->used;
 }
 
-void store_init(Store *store, BuilderScratch io, uint32_t start)
+void store_init(Store *store, const BuilderScratch *io, uint32_t start)
 {
-    *store = (Store){.io = io, .end = start, .failed = false, .io_failed = false};
+    *store = (Store){.io = *io, .end = start, .failed = false, .io_failed = false};
 }
 
 Region store_take(Store *store, uint32_t bytes)

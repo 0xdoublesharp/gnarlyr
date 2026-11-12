@@ -26,7 +26,8 @@ static const ModuleSpan SPANS[SCREEN_MODULE_COUNT] = {
 ScreenModule screen_modules_of(const AppScreens *screens, const Screen *screen)
 {
     uintptr_t at = (uintptr_t)screen - (uintptr_t)screens;
-    if (at - offsetof(AppScreens, browse) < sizeof(BrowsePool)) {
+    if (at - offsetof(AppScreens, browse) < sizeof(BrowsePool) ||
+        screen == &screens->now_playing.screen) {
         return SCREEN_MODULE_PLAYING;
     }
     for (int module = SCREEN_MODULE_NONE + 1; module < SCREEN_MODULE_COUNT; module++) {
