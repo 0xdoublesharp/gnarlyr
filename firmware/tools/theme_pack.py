@@ -13,7 +13,7 @@ import zlib
 
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 HEADER_BYTES = 512
 MAX_BYTES = 4194304
 MAX_ASSETS = 32

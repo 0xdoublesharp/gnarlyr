@@ -1,5 +1,4 @@
 import argparse
-import importlib.util
 import json
 import math
 from pathlib import Path
@@ -16,10 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "firmware/tools"))
 from identity import IDENTITY
 from library_index import TrackInfo, build_library, encode_library
-
-SPEC = importlib.util.spec_from_file_location("theme_pack", ROOT / "tools/theme_pack.py")
-theme = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(theme)
+import theme_pack
 
 
 def music(card):
@@ -76,8 +72,8 @@ def main():
     for source in sorted((ROOT / "examples/themes").iterdir()):
         if not source.is_dir():
             continue
-        data = theme.build(source)
-        info = theme.check(data)
+        data = theme_pack.build(source)
+        info = theme_pack.check(data)
         path = themes / (info["id"] + ".gtheme")
         path.write_bytes(data)
         packs[source.name] = path

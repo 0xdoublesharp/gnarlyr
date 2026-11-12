@@ -1,5 +1,6 @@
 #include "core/i18n.h"
 
+#include "core/bytes.h"
 #include "core/hash.h"
 
 #ifdef ECHO_BUILTIN_ENGLISH
@@ -23,7 +24,6 @@ enum {
     ROW_SIZE = 8,
     ROW_CHECKSUM = 12,
     OFFSET_BYTES = 2,
-    BYTE_BITS = 8,
     NUMBER_CAPACITY = 12
 };
 
@@ -33,11 +33,6 @@ static const uint16_t FIRSTS[STRING_SEGMENT_COUNT + 1] = STRING_SEGMENT_FIRSTS;
 static const uint8_t *attached;
 static const uint8_t *module_block;
 static uint32_t module_segment;
-
-static uint32_t read_u16(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << BYTE_BITS;
-}
 
 static uint32_t strings_in(uint32_t segment)
 {
@@ -50,7 +45,7 @@ static bool row_matches(const uint8_t *index, uint32_t segment, I18nSegment *row
 {
     const uint8_t *at = index + ROWS_FIELD + segment * I18N_SEGMENT_BYTES;
     __builtin_memcpy(row, at + ROW_OFFSET, sizeof *row);
-    return read_u16(at + ROW_COUNT) == strings_in(segment) &&
+    return bytes_le16(at + ROW_COUNT) == strings_in(segment) &&
            row->size - 1 - OFFSET_BYTES * strings_in(segment) < I18N_FILE_CAPACITY;
 }
 
@@ -63,10 +58,10 @@ static bool header_matches(const uint8_t *header)
     }
     uint32_t checksum = hash_update(HASH_START, header, CHECKSUM_FIELD);
     checksum = hash_update(checksum, header + CHECKSUM_END, I18N_INDEX_BYTES - CHECKSUM_END);
-    return read_u16(header + VERSION_FIELD) == I18N_VERSION &&
-           read_u16(header + COUNT_FIELD) == STRING_COUNT &&
+    return bytes_le16(header + VERSION_FIELD) == I18N_VERSION &&
+           bytes_le16(header + COUNT_FIELD) == STRING_COUNT &&
            hash_load(header + CATALOGUE_FIELD) == STRINGS_HASH &&
-           read_u16(header + SEGMENTS_FIELD) == STRING_SEGMENT_COUNT &&
+           bytes_le16(header + SEGMENTS_FIELD) == STRING_SEGMENT_COUNT &&
            checksum == hash_load(header + CHECKSUM_FIELD) &&
            header[CODE_FIELD + I18N_CODE_BYTES - 1] == '\0' &&
            header[NAME_FIELD + I18N_NAME_BYTES - 1] == '\0';
@@ -103,7 +98,7 @@ static bool block_is_sound(const uint8_t *block, uint32_t segment, const I18nSeg
         return false;
     }
     for (uint32_t index = 0; index < strings_in(segment); index++) {
-        if (table + read_u16(block + index * OFFSET_BYTES) >= row->size) {
+        if (table + bytes_le16(block + index * OFFSET_BYTES) >= row->size) {
             return false;
         }
     }
@@ -188,7 +183,7 @@ const char *i18n_text(StringId id)
         return fallback_text(id);
     }
     uint32_t index = (uint32_t)id - FIRSTS[segment];
-    uint32_t offset = read_u16(block + index * OFFSET_BYTES);
+    uint32_t offset = bytes_le16(block + index * OFFSET_BYTES);
     return (const char *)block + OFFSET_BYTES * strings_in(segment) + offset;
 }
 

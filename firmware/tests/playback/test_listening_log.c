@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/bytes.h"
 #include "core/hash.h"
 #include "listening_fixture.h"
 
@@ -33,12 +34,6 @@ static void append_plays(uint32_t count)
         ListeningPlay play = listening_fixture_play((uint8_t)(index % 5), 1000 + index);
         CHECK_EQUAL(STORE_DONE, listening_log_append(&log_file, &play));
     }
-}
-
-static uint32_t get32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
 }
 
 static void a_play_is_read_back_with_every_field(void)
@@ -101,21 +96,21 @@ static void the_file_is_two_counter_blocks_and_a_ring_of_64_byte_records(void)
     CHECK_EQUAL(1, disk.bytes[VERSION_FIELD]);
     CHECK_EQUAL(0, disk.bytes[STORE_BLOCK_BYTES]);
     const uint8_t *record = disk.bytes + SLOT_ONE;
-    CHECK_EQUAL(1, get32(record));
-    CHECK_EQUAL(0x1001, get32(record + 4));
-    CHECK_EQUAL(0xA1, get32(record + 8));
-    CHECK_EQUAL(0xB1, get32(record + 12));
-    CHECK_EQUAL(254000, get32(record + 16));
-    CHECK_EQUAL(254000, get32(record + 20));
+    CHECK_EQUAL(1, bytes_le32(record));
+    CHECK_EQUAL(0x1001, bytes_le32(record + 4));
+    CHECK_EQUAL(0xA1, bytes_le32(record + 8));
+    CHECK_EQUAL(0xB1, bytes_le32(record + 12));
+    CHECK_EQUAL(254000, bytes_le32(record + 16));
+    CHECK_EQUAL(254000, bytes_le32(record + 20));
     CHECK_EQUAL(10, record[44]);
     CHECK_EQUAL(LISTENING_FINISHED, record[46]);
     CHECK_EQUAL(LISTENING_FORMAT_LOSSLESS, record[48]);
     CHECK_EQUAL(0, record[49]);
     CHECK_EQUAL(hash_update(HASH_START, record, RECORD_CHECK_FIELD),
-                get32(record + RECORD_CHECK_FIELD));
+                bytes_le32(record + RECORD_CHECK_FIELD));
     CHECK_EQUAL(STORE_DONE, listening_log_append(&log_file, &play));
     CHECK(memcmp(disk.bytes + STORE_BLOCK_BYTES, "DSLL", 4) == 0);
-    CHECK_EQUAL(2, get32(record + LISTENING_RECORD_BYTES));
+    CHECK_EQUAL(2, bytes_le32(record + LISTENING_RECORD_BYTES));
     CHECK_EQUAL(263168, LISTENING_LOG_FILE_BYTES);
     CHECK(memcmp(LISTENING_LOG_PATH + strlen(LISTENING_LOG_PATH) - 12, "/listens.bin", 12) == 0);
 }
@@ -190,7 +185,7 @@ static void the_oldest_plays_are_overwritten_when_the_ring_is_full(void)
     CHECK_EQUAL(LISTENING_LOG_CAPACITY + 10, seen.last.sequence);
     CHECK(seen.ordered);
     CHECK_EQUAL(LISTENING_LOG_CAPACITY + 10,
-                get32(disk.bytes + LISTENING_RING_OFFSET + 10 * LISTENING_RECORD_BYTES));
+                bytes_le32(disk.bytes + LISTENING_RING_OFFSET + 10 * LISTENING_RECORD_BYTES));
 }
 
 static void counters_survive_the_ring_wrapping(void)

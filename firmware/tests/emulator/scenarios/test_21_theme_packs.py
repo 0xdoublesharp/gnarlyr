@@ -6,29 +6,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from echo_image_harness import EchoImageHarness, main, IDENTITY
+from echo_image_harness import EchoImageHarness, main, IDENTITY, fnv1a
 from echo_emulator.fat_volume import Fat32Volume
 from echo_emulator.playback import Rig
 from unicorn.arm_const import UC_ARM_REG_R0
+import theme_pack
 
 ROOT = Path(__file__).resolve().parents[4]
 THEMES = IDENTITY.data_directory + "/themes"
 SELECTION = "/" + IDENTITY.data_directory + "/theme.bin"
 
 
-def fnv(data):
-    value = 2166136261
-    for byte in data:
-        value = (value ^ byte) * 16777619 & 0xffffffff
-    return value
-
-
 def pack():
     manifest = json.loads((ROOT / "examples/themes/pocket-scope/theme.json").read_text())
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("theme_pack", ROOT / "tools/theme_pack.py")
-    theme = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(theme)
     data = bytearray(512)
     data[:8] = struct.pack("<4sHH", b"DSTP", 1, 512)
     struct.pack_into("<I", data, 8, 512)
@@ -37,18 +27,18 @@ def pack():
     data[20:36] = uuid.UUID(manifest["id"]).bytes
     for field, start, size in (("name", 36, 32), ("author", 68, 32), ("version", 100, 32),
                                ("licence", 132, 64)):
-        data[start:start + size] = theme.padded(manifest[field], size)
-    struct.pack_into("<20H", data, 452, *(theme.rgb565(manifest["palette"][role]) for role in theme.ROLES))
+        data[start:start + size] = theme_pack.padded(manifest[field], size)
+    struct.pack_into("<20H", data, 452, *(theme_pack.rgb565(manifest["palette"][role]) for role in theme_pack.ROLES))
     struct.pack_into("<I", data, 12, zlib.crc32(data[:12] + data[16:]))
-    theme.check(data)
+    theme_pack.check(data)
     return bytes(data)
 
 
 def selection(identity):
     data = bytearray(1024)
     data[28:45] = identity + b"\0"
-    struct.pack_into("<4sHHIIII", data, 0, b"DSTS", 1, 0, 1, 17, fnv(data[28:45]), 0)
-    struct.pack_into("<I", data, 24, fnv(data[:24]))
+    struct.pack_into("<4sHHIIII", data, 0, b"DSTS", 1, 0, 1, 17, fnv1a(data[28:45]), 0)
+    struct.pack_into("<I", data, 24, fnv1a(data[:24]))
     return bytes(data)
 
 

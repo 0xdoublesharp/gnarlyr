@@ -196,7 +196,7 @@ def render_case(case, context):
         shutil.copytree(context["card"], card)
         packs = card / IDENTITY["data_directory"] / "themes"
         packs.mkdir(parents=True, exist_ok=True)
-        run([source_root / "firmware/.venv/bin/python", source_root / "tools/theme_pack.py",
+        run([source_root / "firmware/.venv/bin/python", source_root / "firmware/tools/theme_pack.py",
              example, "--output", packs / (case["theme_example"] + ".gtheme")],
             work / (case["name"] + "-theme.log"), env)
     bmp = work / (case["name"] + ".bmp")

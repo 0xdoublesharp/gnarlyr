@@ -29,6 +29,9 @@ import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.append(str(ROOT / "firmware" / "tools"))
+from fnv import fnv1a
+
 IDENTITY = json.loads((ROOT / "firmware" / "identity.json").read_text(encoding="utf-8"))
 DATA_DIRECTORY = IDENTITY["data_directory"]
 IDENTITY_NOTE = (f"This checkout's firmware is {IDENTITY['name']} {IDENTITY['version']}: the player is the USB "
@@ -48,8 +51,6 @@ TIME_VERSION = 1
 TIME_EARLIEST = 1735689600
 TIME_LATEST = 4102444799
 TIME_OFFSET_MINUTES = range(-720, 841)
-FNV_START = 2166136261
-FNV_PRIME = 16777619
 IMAGE_BRAND = slice(0x10, 0x18)
 IMAGE_BUILD = slice(0x30, 0x38)
 IMAGE_BYTES = range(0x1000, (64 << 20) + 1)
@@ -86,13 +87,6 @@ SOURCE_ROOTS = ("/firmware/src/", "/firmware/platform/device/", "/firmware/platf
                 "/firmware/third_party/", "/firmware/")
 UNATTRIBUTED = "(no function)"
 UNKNOWN_FILE = "(unknown file)"
-
-
-def fnv1a(data):
-    value = FNV_START
-    for byte in data:
-        value = (value ^ byte) * FNV_PRIME & 0xFFFFFFFF
-    return value
 
 
 def time_file_bytes(utc, offset_minutes):

@@ -7,8 +7,8 @@ A `.gtheme` is data: metadata, a complete RGB565 palette, a bounded image direct
 Put `theme.json` or `theme.toml` and opaque PNG assets in one source folder. Build with Python 3 and Pillow:
 
 ```sh
-python3 tools/theme_pack.py examples/themes/pocket-scope --output /Volumes/Scratch/SnowskyEcho/pocket-scope.gtheme
-python3 tools/theme_pack.py --check /Volumes/Scratch/SnowskyEcho/pocket-scope.gtheme
+python3 firmware/tools/theme_pack.py examples/themes/pocket-scope --output /Volumes/Scratch/SnowskyEcho/pocket-scope.gtheme
+python3 firmware/tools/theme_pack.py --check /Volumes/Scratch/SnowskyEcho/pocket-scope.gtheme
 ```
 
 Copy the resulting file into `.gnarlyr/themes` on the SD card, or internal storage when using no card. Eject normally, then open Settings → Theme. The five built-ins precede installed packs. Highlight previews; Play saves; Back cancels. The simulator uses the same files and validator: with `--card`, put packs in that card directory's `.gnarlyr/themes`; without a card, put them in `<system-dir>/themes`.
@@ -156,8 +156,8 @@ Ed25519ph signs every preceding byte, including metadata, UUID, palette, descrip
 Signing/checking also require libsodium, loaded through Python's standard `ctypes` (`brew install libsodium` on macOS). A private-key input is a 32-byte seed, raw or 64 hex digits. Public-key inputs use the same raw/hex lengths:
 
 ```sh
-python3 tools/theme_pack.py examples/themes/pocket-scope --output /Volumes/Scratch/SnowskyEcho/signed.gtheme --sign-key /path/to/private-seed --public-key-out /Volumes/Scratch/SnowskyEcho/public.key
-python3 tools/theme_pack.py --check /Volumes/Scratch/SnowskyEcho/signed.gtheme --verify-key /Volumes/Scratch/SnowskyEcho/public.key
+python3 firmware/tools/theme_pack.py examples/themes/pocket-scope --output /Volumes/Scratch/SnowskyEcho/signed.gtheme --sign-key /path/to/private-seed --public-key-out /Volumes/Scratch/SnowskyEcho/public.key
+python3 firmware/tools/theme_pack.py --check /Volumes/Scratch/SnowskyEcho/signed.gtheme --verify-key /Volumes/Scratch/SnowskyEcho/public.key
 ```
 
 Without a matching public key, `--check` reports `unknown-key` while checking all ordinary data. With a matching key it verifies the signature and fails on a forgery. Firmware verification uses pinned Monocypher 4.0.2 in the cold module, never resident code. `theme_trusted_keys.h` holds a build-time list of at most four key IDs/public keys; it ships empty until the owner provisions gallery keys. Thus this build does not award Verified badges. Adding keys requires a fresh size-budget check; unused verification code is discarded when there are no keys.
