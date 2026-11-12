@@ -582,6 +582,20 @@ class ModuleTest(unittest.TestCase):
         self.assertEqual(offset, self.rows(second)[0][0])
         self.assertNotEqual(word(first, offset + 12), word(second, offset + 12))
 
+    def test_reserved_module_numbers_stay_empty_before_audio_module_13(self):
+        modules = [module_blob(number) for number in range(1, 9)] + [b""] * 4 + [module_blob(13)]
+        image = build(modules=modules)
+        rows = self.rows(image)
+        self.assertEqual(13, len(rows))
+        self.assertEqual([(0, 0)] * 4, rows[8:12])
+        offset, size = rows[12]
+        self.assertEqual(b"DSM\x0d", image[offset:offset + 4])
+        self.assertEqual(len(modules[-1]), size)
+        self.assertEqual((make_image.AUDIO_MODULE_BASE, make_image.AUDIO_MODULE_CAPACITY),
+                         make_image.module_window(13))
+        with self.assertRaises(make_image.ImageError):
+            build(modules=[module_blob(13), module_blob(13)])
+
     def test_modules_given_out_of_order_are_refused(self):
         with self.assertRaises(make_image.ImageError):
             build(modules=[module_blob(2), module_blob(1)])
@@ -786,7 +800,7 @@ class OverlayTest(unittest.TestCase):
         end = make_image.USB_OVERLAY_OFFSET + make_image.USB_OVERLAY_CAPACITY
         self.assertEqual(make_image.FW_SIZE, end)
         self.assertEqual(0, make_image.USB_OVERLAY_OFFSET % 512)
-        self.assertIn((make_image.CORE1_DSD_END, make_image.USB_OVERLAY_OFFSET),
+        self.assertIn((make_image.CORE1_WMA_END, make_image.USB_OVERLAY_OFFSET),
                       make_image.GLYPH_REGIONS)
 
     def test_the_trailer_crc_covers_the_usb_overlay(self):
@@ -1019,11 +1033,37 @@ class Core1ModuleTest(unittest.TestCase):
         start = offset + make_image.CORE1_MODULE_HEADER_SIZE
         self.assertEqual(program, image[start:start + len(program)])
         self.assertEqual([], make_image.validate_image(image))
-        self.assertEqual((make_image.CORE1_DSD_END, make_image.USB_OVERLAY_OFFSET),
+        self.assertEqual((make_image.CORE1_WMA_END, make_image.USB_OVERLAY_OFFSET),
                          make_image.GLYPH_REGIONS[1])
         build(core1_dsd=bytes(make_image.CORE1_MODULE_CAPACITY))
         with self.assertRaises(make_image.ImageError):
             build(core1_dsd=bytes(make_image.CORE1_MODULE_CAPACITY + 1))
+
+    def test_ape_program_has_its_own_checked_bank(self):
+        program = b"APE!" * 750
+        image = build(core1_ape=program, core1_dsd=b"DSD!" * 75)
+        offset = make_image.CORE1_APE_OFFSET
+        self.assertEqual(make_image.CORE1_DSD_END, offset)
+        self.assertEqual(b"EC1M", image[offset:offset + 4])
+        self.assertEqual(len(program), word(image, offset + 4))
+        self.assertEqual(make_image.crc32(program), word(image, offset + 8))
+        self.assertEqual(program, image[offset + 512:offset + 512 + len(program)])
+        self.assertEqual([], make_image.validate_image(image))
+        with self.assertRaises(make_image.ImageError):
+            build(core1_ape=bytes(make_image.CORE1_MODULE_CAPACITY + 1))
+
+    def test_wma_program_has_a_checked_bank_outside_the_other_programs(self):
+        program = b"WMA!" * 750
+        image = build(core1_ape=b"APE!" * 50, core1_wma=program)
+        offset = make_image.CORE1_WMA_OFFSET
+        self.assertEqual(make_image.CORE1_APE_END, offset)
+        self.assertEqual(b"EC1M", image[offset:offset + 4])
+        self.assertEqual(len(program), word(image, offset + 4))
+        self.assertEqual(make_image.crc32(program), word(image, offset + 8))
+        self.assertEqual(program, image[offset + 512:offset + 512 + len(program)])
+        self.assertEqual([], make_image.validate_image(image))
+        with self.assertRaises(make_image.ImageError):
+            build(core1_wma=bytes(make_image.CORE1_MODULE_CAPACITY + 1))
 
     def test_no_program_leaves_the_space_empty(self):
         offset = make_image.CORE1_MP3_OFFSET
@@ -1052,7 +1092,7 @@ class GlyphFaceTest(unittest.TestCase):
         self.assertEqual((0, 0), (word(image, table + 8), word(image, table + 12)))
 
     def test_faces_stay_clear_of_everything_else(self):
-        sizes = [1_700_000, 1_100_000, 8_000, 8_000, 8_000]
+        sizes = [1_700_000, 1_000_000, 8_000, 8_000, 8_000]
         offsets = make_image.glyph_face_offsets(sizes)
         taken = [(make_image.OVERLAY_OFFSET, make_image.OVERLAY_OFFSET + make_image.OVERLAY_CAPACITY),
                  (make_image.CORE1_MP3_OFFSET, make_image.CORE1_MP3_OFFSET + 512 +
@@ -1064,7 +1104,7 @@ class GlyphFaceTest(unittest.TestCase):
                  (make_image.CORE1_M4A_OFFSET, make_image.CORE1_M4A_OFFSET + 512 +
                   make_image.CORE1_M4A_CAPACITY),
                  (make_image.GLYPH_TABLE_OFFSET, make_image.GLYPH_TABLE_OFFSET + 512),
-                 (make_image.CORE1_OPUS_OFFSET, make_image.CORE1_OPUS_END),
+                 (make_image.CORE1_OPUS_OFFSET, make_image.CORE1_WMA_END),
                  (make_image.MODULE_TABLE_OFFSET, make_image.MODULE_TABLE_OFFSET + 512),
                  (make_image.USB_OVERLAY_OFFSET, make_image.FW_SIZE),
                  (make_image.FW_SIZE, make_image.IMAGE_SIZE),
@@ -1142,14 +1182,14 @@ class LanguagePackTest(unittest.TestCase):
             [len(face) for face in self.FACES])))
 
     def test_packs_stay_clear_of_the_faces_the_overlays_and_the_core_1_programs(self):
-        faces, packs, _ = make_image.blob_offsets([1_700_000, 1_100_000, 8_000], [8_192, 8_192])
-        placed = sorted(zip(faces + packs, [1_700_000, 1_100_000, 8_000, 8_192, 8_192]))
+        faces, packs, _ = make_image.blob_offsets([1_700_000, 1_000_000, 8_000], [8_192, 8_192])
+        placed = sorted(zip(faces + packs, [1_700_000, 1_000_000, 8_000, 8_192, 8_192]))
         for (start, size), (next_start, _) in zip(placed, placed[1:]):
             self.assertLessEqual(start + size, next_start)
         fixed = [(make_image.OVERLAY_OFFSET, make_image.OVERLAY_OFFSET + make_image.OVERLAY_CAPACITY),
                  (make_image.CORE1_MP3_OFFSET, make_image.CORE1_FLAC_OFFSET + 512 +
                   make_image.CORE1_MODULE_CAPACITY),
-                 (make_image.CORE1_M4A_OFFSET, make_image.CORE1_OPUS_END),
+                 (make_image.CORE1_M4A_OFFSET, make_image.CORE1_WMA_END),
                  (make_image.USB_OVERLAY_OFFSET, make_image.IMAGE_SIZE),
                  (0, make_image.GLYPH_PAYLOAD_LIMIT)]
         for start, size in placed:

@@ -36,6 +36,7 @@ Audiobooks, Podcasts and Up Next are hidden on Home by default. Audiobooks and P
 
 - Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Settings → About → Music shows which one is in use. Settings are kept on internal storage either way, so they stay the same when you insert or remove the card.
 - Gnarlyr supports FLAC, MP3, WAV and 16/24-bit AIFF, up to 192 kHz, and `.m4a` and `.m4b` files with AAC-LC or Apple Lossless audio. Speech recordings at 8, 11.025, 12, 16, 22.05 and 24 kHz are converted to 32, 44.1 or 48 kHz for playback; 32 kHz plays at its original rate. Speed and pitch stay the same. DSF/DFF convert to 88.2 kHz PCM: DSD64 and DSD128 accept mono/stereo, and DSD256 accepts mono; stereo DSD256 is refused. It lists the other formats FiiO lists, and says when it can't play one.
+- APE accepts 16/24-bit mono or stereo: Fast through 192 kHz, Normal through 192 kHz mono or 96 kHz stereo, and High through 96 kHz mono or 48 kHz stereo. WMA Standard v1/v2 accepts mono or stereo through 48 kHz; Pro, Lossless, Voice and encrypted WMA are refused. Tags and embedded covers appear in the library.
 - Ogg Vorbis (`.ogg`) accepts mono or stereo at 8–192 kHz within the decoder limits; Ogg Opus (`.opus`) accepts mono or stereo with channel mapping family 0. Chained Vorbis files play the first stream only. Large picture comments and separate interleaved streams are skipped during decoding. Both formats play in the desktop simulator; player listening and high-rate playback still need checking. See [format limits](ogg-vorbis.md).
 - Music → Folders shows the card as it is: folders, then each audio file by its full name with its extension (`01 Intro.mp3`). The other lists show titles from the tags. Hold ▶ on a folder there to play everything under it, subfolders included, in the order Folders shows it (a CUE album plays once, as its songs); the queue follows the shuffle setting and has no length limit beyond the library's 65,535 tracks.
 - A `.cue` file next to a single FLAC, WAV or MP3 album image splits it into one track per CUE track (see "CUE sheets" below). Album covers come from art inside each album's first track (any of the formats above, including Ogg and Opus), or from a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks when there is no usable art inside. JPEG (baseline or progressive, colour, greyscale or CMYK, upright as its EXIF orientation says) and PNG covers of any size are shown; lossless, arithmetic-coded or 12-bit JPEGs and other image formats are not.
@@ -87,7 +88,7 @@ Depeche Mode/Violator/
   Violator.cue            hidden as a track, its tracks take its place
 ```
 
-- The sheet must name one file. The player looks for that name in the sheet's folder (capitals don't matter), and when there is none, for an audio file with the same name as the sheet (`Violator.cue` and `Violator.flac`), which is what many rips need. Sheets that name an APE, M4A or another format the player can't play, sheets that list several files (one per track) and sheets whose file is missing are ignored; their audio files list as before.
+- The sheet must name one file. The player looks for that name in the sheet's folder (capitals don't matter), and when there is none, for an audio file with the same name as the sheet (`Violator.cue` and `Violator.flac`), which is what many rips need. CUE images use FLAC, WAV or MP3. Sheets with another audio extension, several files (one per track) or a missing file are ignored; their audio files list as before.
 - Track titles come from `TITLE`, artists from `PERFORMER` (the track's, otherwise the one at the top of the sheet, which is also the album artist), the album from the top `TITLE`, the genre from `REM GENRE` and the year from `REM DATE`. What the sheet doesn't say comes from the audio file's tags, then from its folder name. A track without a title is called "Track 3".
 - A track starts at its `INDEX 01` and ends where the next one starts, so silence marked `INDEX 00` before a track belongs to the track before it. Tracks play without a gap.
 - The sheet is read as UTF-8 (a byte order mark is fine) or, when it isn't valid UTF-8, as Windows-1252.
@@ -592,3 +593,11 @@ Computer means the existing USB connection code saw a host response; Charger mea
 is present without one. This does not initiate USB enumeration. The app continues sampling
 with the display dark; switching away from the charging module can restart measurement.
 No mA value is shown because the gauge does not measure current.
+
+### Monkey's Audio files
+
+APE files accept 16/24-bit mono or stereo. Fast accepts up to 192 kHz. Normal accepts up to 192 kHz mono or 96 kHz stereo. High accepts up to 96 kHz mono or 48 kHz stereo. Extra High and Insane compression are refused. APEv2 tags and embedded covers appear in the library.
+
+### WMA files
+
+Use WMA Standard v1/v2, mono or stereo, at 8–48 kHz. ASF tags and `WM/Picture` covers are read with the library. WMA Pro, Lossless, Voice and encrypted files are refused. WMA recordings without encoder padding information can retain a gap between songs.

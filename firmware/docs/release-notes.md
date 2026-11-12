@@ -101,6 +101,9 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 ## Playback fixes
 
 - Screen-off redraw requests no longer keep the CPU at its busy polling rate. Compressed reads refill the existing ring in bursts, idle timer wakes are less frequent, and paused screen-off standby can coast at 24 MHz. The developer loop can retain minute battery samples for a discharge run or a 24-hour standby comparison. Battery-life gains and changed-cadence playback have not been measured on the player.
+- APE: dedicated core-1 decoding, 16/24-bit mono/stereo, Fast through 192 kHz, Normal through 192 kHz mono or 96 kHz stereo, and High through 96 kHz mono or 48 kHz stereo, exact seek-table starts and sample lengths. Fast stereo above 96 kHz and Normal stereo above 48 kHz run core 1 at 200 MHz. Extra High/Insane are refused.
+- WMA Standard v1/v2: fixed-point core-1 decoding with checked ASF demuxing, tags/covers, timestamp-guided seeks, priming trim and final-overlap drain. Pro, Lossless, Voice and encrypted files are refused. Encoder padding remains when it is not described by the file.
+- Both codecs have native/reference and ARM decoder/player checks. Physical playback and cycle margins remain untested.
 
 - Opus R128 track and album gain tags now feed ReplayGain normalization with the +5 dB reference conversion. Standard ReplayGain gain tags take precedence, and the decoder keeps applying header gain once.
 
