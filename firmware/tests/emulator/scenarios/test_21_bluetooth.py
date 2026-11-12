@@ -18,6 +18,9 @@ STORE_BYTES = 4096
 LINK_POLL_MS = 3000
 RETRY_MS = 5000
 WAIT_MS = 10000
+IDLE_OFF_MS = 300000
+SLOW_TICK_HZ = 200
+CORE0_RESTING_HZ = 24000000
 
 
 def bluetooth_store(on_bluetooth):
@@ -176,6 +179,27 @@ class EchoImageTest(EchoImageHarness):
         rig.press("play")
         self.run_until(rig, lambda: module.streaming, 1000)
         self.assertEqual(module.stream_frames(mark).count("on"), 2)
+        self.assert_healthy(rig.session)
+
+    def test_bluetooth_on_rests_the_idle_loop_and_more_once_the_module_dozes(self):
+        import json
+        from echo_emulator.power import PowerMeter
+        rig, module, toasts = self.bluetooth_rig(in_range=False)
+        meter = PowerMeter(rig.machine)
+        rig.open_songs()
+        rig.machine.power_key_released_at_ms = rig.machine.milliseconds() + 150
+        rig.run_for(1000)
+        awake = meter.measure(rig, rig.session.card, 2000)
+        powered_while_awake = module.powered
+        self.run_until(rig, lambda: module.power_downs, IDLE_OFF_MS)
+        rig.run_for(500)
+        dozed = meter.measure(rig, rig.session.card, 2000)
+        print(json.dumps({"awake": awake, "dozed": dozed}, indent=2))
+        self.assertTrue(powered_while_awake)
+        self.assertEqual([str(CORE0_RESTING_HZ)], list(awake["core0_clock_ms"]), awake)
+        self.assertEqual([str(CORE0_RESTING_HZ)], list(dozed["core0_clock_ms"]), dozed)
+        self.assertLessEqual(dozed["core0_wfi_wakes_per_s"], SLOW_TICK_HZ + 10, dozed)
+        self.assertLess(dozed["core0_busy_percent"], awake["core0_busy_percent"], (awake, dozed))
         self.assert_healthy(rig.session)
 
 

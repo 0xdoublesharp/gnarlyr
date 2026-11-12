@@ -2434,11 +2434,11 @@ static void the_clock_never_changes_with_the_screen_while_audio_is_up(void)
     CHECK_EQUAL(200, hal_system_clock_mhz());
 }
 
-static void with_the_screen_off_the_cpu_drops_to_96_mhz_once_audio_is_down(void)
+static void with_the_screen_off_the_cpu_drops_to_the_crystal_once_audio_is_down(void)
 {
     start_app_with_library();
     tap(KEY_POWER);
-    CHECK_EQUAL(96, hal_system_clock_mhz());
+    CHECK_EQUAL(24, hal_system_clock_mhz());
     tap(KEY_POWER);
     CHECK_EQUAL(200, hal_system_clock_mhz());
     play_first_album_track();
@@ -2446,7 +2446,7 @@ static void with_the_screen_off_the_cpu_drops_to_96_mhz_once_audio_is_down(void)
     CHECK_EQUAL(200, hal_system_clock_mhz());
     fake_hal_audio_set_idle(true);
     step();
-    CHECK_EQUAL(96, hal_system_clock_mhz());
+    CHECK_EQUAL(24, hal_system_clock_mhz());
     fake_hal_audio_set_idle(false);
     step();
     CHECK_EQUAL(200, hal_system_clock_mhz());
@@ -5106,8 +5106,8 @@ static void a_soak_waits_its_minutes_and_records_both_ends(void)
                 soak->finish.levels);
     CHECK_EQUAL(40, soak->start.sample);
     CHECK_EQUAL(42, soak->finish.sample);
-    CHECK_EQUAL(96, soak->start.clock_mhz);
-    CHECK_EQUAL(96, soak->finish.clock_mhz);
+    CHECK_EQUAL(24, soak->start.clock_mhz);
+    CHECK_EQUAL(24, soak->finish.clock_mhz);
     CHECK_EQUAL(40000, soak->idle_ms);
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[3]);
     CHECK(fake_hal_supply_held_off());
@@ -6018,7 +6018,7 @@ int main(void)
         TEST_CASE(going_back_slides_the_screen_out_to_the_right),
         TEST_CASE(waking_draws_a_frame_before_the_backlight_comes_on),
         TEST_CASE(the_clock_never_changes_with_the_screen_while_audio_is_up),
-        TEST_CASE(with_the_screen_off_the_cpu_drops_to_96_mhz_once_audio_is_down),
+        TEST_CASE(with_the_screen_off_the_cpu_drops_to_the_crystal_once_audio_is_down),
         TEST_CASE(screen_off_playback_uses_ten_millisecond_passes),
         TEST_CASE(screen_off_skips_status_clock_work_and_waking_refreshes_it),
         TEST_CASE(the_player_turns_itself_off_after_five_idle_minutes_on_battery),

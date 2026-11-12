@@ -143,7 +143,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual((soak["screen_start"], soak["screen_end"]), (0, 0))
         self.assertEqual((soak["cable_start"], soak["cable_end"]), (1, 1))
         self.assertEqual((soak["audio_start"], soak["audio_end"]), (0, 0))
-        self.assertEqual((soak["clock_mhz_start"], soak["clock_mhz_end"]), (96, 96))
+        self.assertEqual((soak["clock_mhz_start"], soak["clock_mhz_end"]), (24, 24))
         self.assertIn(soak["samples"], (0, 1))
         self.assertIsNone(soak["mv_per_hour"])
         self.assertTrue(0 <= soak["busy_percent"] <= 100)

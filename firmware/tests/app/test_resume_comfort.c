@@ -251,6 +251,20 @@ static void bluetooth_headphones_connecting_lower_a_loud_volume(void)
     CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME, fake_hal_audio_volume());
 }
 
+static void bluetooth_streaming_with_the_screen_off_rests_between_passes(void)
+{
+    boot_with(with_volume(QUIET), true);
+    start_playing();
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
+    fake_hal_bluetooth()->connected = BUDS;
+    step();
+    tap(KEY_POWER);
+    wait_ms(1000);
+    CHECK(fake_hal_bluetooth_powered());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    CHECK_EQUAL(10, (int)app_pass_interval_ms());
+}
+
 static void the_volume_toast_follows_the_bluetooth_toast(void)
 {
     boot_with(with_volume(BELOW_SAFE), true);
@@ -430,6 +444,7 @@ int main(void)
         TEST_CASE(unplugging_headphones_leaves_the_volume),
         TEST_CASE(headphones_already_plugged_in_at_power_on_are_not_a_second_plug),
         TEST_CASE(bluetooth_headphones_connecting_lower_a_loud_volume),
+        TEST_CASE(bluetooth_streaming_with_the_screen_off_rests_between_passes),
         TEST_CASE(the_volume_toast_follows_the_bluetooth_toast),
         TEST_CASE(the_volume_toast_is_dropped_once_the_volume_changed),
         TEST_CASE(turning_on_from_the_charging_screen_lowers_a_loud_volume),

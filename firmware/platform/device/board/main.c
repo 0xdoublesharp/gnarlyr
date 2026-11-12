@@ -258,7 +258,8 @@ static void sleep_until_interrupt(void)
 static void sleep_until_next_pass(void)
 {
     uint32_t interval_ms = app_pass_interval_ms();
-    bool slow_tick = interval_ms >= 10 && usb_plug.state != USB_PLUG_LISTENING;
+    bool slow_tick =
+        interval_ms >= 4 && usb_plug.state != USB_PLUG_LISTENING && !board_bluetooth_powered();
 #ifdef ECHO_DEBUG_LOOP
     slow_tick = slow_tick && hal_system_profile_state() != HAL_PROFILE_ON;
 #endif
