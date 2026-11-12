@@ -297,7 +297,7 @@ static void a_background_cover_pass_gives_the_screen_its_module_back_before_draw
     int loads = fake_hal_module_loads();
     wait_ms(3000);
     CHECK(title_is("Cover Flow"));
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
     CHECK(fake_hal_module_loads() > loads);
 }
 
