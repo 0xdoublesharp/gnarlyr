@@ -146,6 +146,7 @@ HalDisplayRotation fake_hal_display_rotation(void);
 int fake_hal_presents_at_power_on(void);
 uint8_t fake_hal_display_brightness(void);
 void fake_hal_set_battery(HalBattery battery);
+void fake_hal_set_cable(bool cable);
 int fake_hal_power_off_count(void);
 int fake_hal_audio_state_at_power_off(void);
 void fake_hal_set_usb_start(bool started);

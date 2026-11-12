@@ -3568,6 +3568,35 @@ static void start_charging_on_usb(void)
     CHECK(!fake_hal_display_on());
 }
 
+static void pulling_the_cable_closes_the_prompt_and_applies_no_mode(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    const char *before = app_screen_title();
+    app_ask_usb_mode();
+    step();
+    CHECK(title_is("Computer found"));
+    wait_ms(500);
+    fake_hal_set_cable(false);
+    wait_ms(500);
+    CHECK(title_is(before));
+    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    CHECK(!app_charging());
+}
+
+static void pulling_the_cable_closes_the_counting_prompt_on_the_charge_screen(void)
+{
+    start_charging_on_usb();
+    app_ask_usb_mode();
+    step();
+    CHECK(title_is("Computer found"));
+    fake_hal_set_cable(false);
+    wait_ms(500);
+    CHECK(!title_is("Computer found"));
+    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
+}
+
 static void a_host_found_while_playing_asks_and_playback_goes_on(void)
 {
     start_app_with_library();
@@ -6426,6 +6455,8 @@ int main(void)
         TEST_CASE(a_charged_battery_does_not_keep_redrawing_an_unchanged_screen),
         TEST_CASE(menu_on_the_charge_screen_opens_usb_mode_and_charge_only_returns_to_charging),
         TEST_CASE(a_host_found_while_playing_asks_and_playback_goes_on),
+        TEST_CASE(pulling_the_cable_closes_the_prompt_and_applies_no_mode),
+        TEST_CASE(pulling_the_cable_closes_the_counting_prompt_on_the_charge_screen),
         TEST_CASE(a_quiet_prompt_lapses_to_charge_only_and_playback_goes_on),
         TEST_CASE(one_press_in_the_prompt_connects_to_the_computer),
         TEST_CASE(the_prompt_gives_way_to_charge_only_when_the_screen_goes_dark),

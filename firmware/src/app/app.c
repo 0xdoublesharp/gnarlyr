@@ -1822,8 +1822,8 @@ static void follow_usb_chooser(uint32_t now_ms)
     }
     const PlugChooser *usb = &app.screens.modules.settings.settings.usb;
     bool open = top_screen() == app.usb_chooser;
-    bool lapsed =
-        open && (usb->timed || app.usb_chooser_charging) && (usb->expired || !app.display_on);
+    bool quiet = (usb->timed || app.usb_chooser_charging) && (usb->expired || !app.display_on);
+    bool lapsed = open && (quiet || !hal_power_cable());
     if (lapsed && apply_action(screen_action_pop(), now_ms)) {
         screen_changed();
         open = false;
