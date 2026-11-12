@@ -793,6 +793,23 @@ static void connect_events_say_what_became_of_the_attempt(void)
     CHECK(has_line("event: 1002 usb_connect answered"));
 }
 
+static void scan_and_cover_events_name_their_phase_and_size(void)
+{
+    DebugReportInput input = plain_input();
+    record(DEBUG_EVENT_SCAN, DEBUG_SCAN_START << DEBUG_SCAN_PHASE_SHIFT, NULL);
+    record(DEBUG_EVENT_SCAN, (uint32_t)DEBUG_SCAN_LIBRARY << DEBUG_SCAN_PHASE_SHIFT | 4003, NULL);
+    record(DEBUG_EVENT_SCAN, (uint32_t)DEBUG_SCAN_COVERS_STOPPED << DEBUG_SCAN_PHASE_SHIFT | 12,
+           NULL);
+    record(DEBUG_EVENT_COVER, 7 | DEBUG_COVER_FULL | DEBUG_COVER_FOUND, NULL);
+    record(DEBUG_EVENT_COVER, 9, NULL);
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("event: 1000 scan start 0"));
+    CHECK(has_line("event: 1001 scan library 4003"));
+    CHECK(has_line("event: 1002 scan covers_stopped 12"));
+    CHECK(has_line("event: 1003 cover full 7 found"));
+    CHECK(has_line("event: 1004 cover half 9 missing"));
+}
+
 static void a_cold_start_has_no_previous_run_to_report(void)
 {
     DebugReportInput input = plain_input();
@@ -1251,6 +1268,7 @@ int main(void)
         TEST_CASE(the_loop_section_says_how_this_run_started),
         TEST_CASE(the_loop_section_counts_sessions_tried_without_the_cable_bit),
         TEST_CASE(connect_events_say_what_became_of_the_attempt),
+        TEST_CASE(scan_and_cover_events_name_their_phase_and_size),
         TEST_CASE(a_cold_start_has_no_previous_run_to_report),
         TEST_CASE(a_warm_start_reports_the_previous_run_and_its_fault),
         TEST_CASE(the_usb_words_read_at_start_up_and_at_the_report_are_printed_whole),

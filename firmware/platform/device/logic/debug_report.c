@@ -48,6 +48,16 @@ static const char *const EVENT_NAMES[DEBUG_EVENT_KIND_COUNT] = {
     [DEBUG_EVENT_SCRIPT] = "script",
     [DEBUG_EVENT_POWER] = "power",
     [DEBUG_EVENT_USB_CONNECT] = "usb_connect",
+    [DEBUG_EVENT_SCAN] = "scan",
+    [DEBUG_EVENT_COVER] = "cover",
+};
+static const char *const SCAN_PHASES[DEBUG_SCAN_PHASE_COUNT] = {
+    [DEBUG_SCAN_START] = "start",
+    [DEBUG_SCAN_LIBRARY] = "library",
+    [DEBUG_SCAN_COVERS] = "covers",
+    [DEBUG_SCAN_COVERS_DONE] = "covers_done",
+    [DEBUG_SCAN_COVERS_STOPPED] = "covers_stopped",
+    [DEBUG_SCAN_UP_TO_DATE] = "up_to_date",
 };
 static const char *const SCRIPT_STATES[DEBUG_SCRIPT_STATE_COUNT] = {
     [DEBUG_SCRIPT_NONE] = "none",
@@ -841,6 +851,13 @@ static void append_event_value(StringBuilder *text, const DebugEvent *event)
         string_builder_append(text, NAME_IN(USB_END_NAMES, value));
     } else if (event->kind == DEBUG_EVENT_SCRIPT && value >= DEBUG_SCRIPT_EVENT_STATE) {
         string_builder_append(text, NAME_IN(SCRIPT_STATES, value - DEBUG_SCRIPT_EVENT_STATE));
+    } else if (event->kind == DEBUG_EVENT_SCAN) {
+        append_named_pair(text, NAME_IN(SCAN_PHASES, value >> DEBUG_SCAN_PHASE_SHIFT),
+                          value & DEBUG_SCAN_NUMBER_MASK);
+    } else if (event->kind == DEBUG_EVENT_COVER) {
+        append_named_pair(text, (value & DEBUG_COVER_FULL) != 0 ? "full" : "half",
+                          value & DEBUG_COVER_ALBUM_MASK);
+        string_builder_append(text, (value & DEBUG_COVER_FOUND) != 0 ? " found" : " missing");
     } else if (event->kind == DEBUG_EVENT_USB_CONNECT) {
         string_builder_append(text, NAME_IN(CONNECT_NAMES, value));
     } else if (event->kind == DEBUG_EVENT_POWER) {

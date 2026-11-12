@@ -4504,6 +4504,20 @@ static void the_sleep_timer_names_its_report(void)
     CHECK_EQUAL(DEBUG_REPORT_SLEEP_TIMER, fake_hal_saved_report(0));
 }
 
+static void a_script_opens_cover_flow_logging_its_covers_and_starts_a_rescan(void)
+{
+    start_app_with_library();
+    uint32_t before = debug_loop_log()->recorded;
+    run_script("build any\nopen coverflow\nwait 100\n", 100 + 8 * SCRIPT_STEP_MS);
+    CHECK(title_is("Cover Flow"));
+    CHECK(events_of(DEBUG_EVENT_COVER, before) > 0);
+    before = debug_loop_log()->recorded;
+    fake_hal_set_empty_card(true);
+    run_script("build any\nrescan full\n", 8 * SCRIPT_STEP_MS);
+    CHECK(events_of(DEBUG_EVENT_SCAN, before) >= 2);
+    CHECK(fake_hal_scratch_borrow_count() >= 1);
+}
+
 static void a_script_presses_keys_as_the_buttons_would(void)
 {
     start_app();
@@ -5935,6 +5949,7 @@ int main(void)
         TEST_CASE(about_wraps_from_keys_to_frame_time_without_experiment_rows),
         TEST_CASE(the_usb_sense_mode_is_normal_after_every_start),
         TEST_CASE(a_key_gesture_is_logged_with_its_key_and_time),
+        TEST_CASE(a_script_opens_cover_flow_logging_its_covers_and_starts_a_rescan),
         TEST_CASE(key_repeats_are_left_out_of_the_log),
         TEST_CASE(a_screen_change_is_logged_with_its_depth_and_title),
         TEST_CASE(starting_and_pausing_a_track_is_logged_with_its_number),

@@ -213,6 +213,25 @@ static void supply_and_screen_take_off_or_on(void)
     CHECK_EQUAL(1, loaded->ops[3].first);
 }
 
+static void rescan_checks_or_rebuilds_and_open_names_a_screen(void)
+{
+    CHECK_EQUAL(DEBUG_COMMAND_RESCAN, parse("rescan check").kind);
+    CHECK_EQUAL(0, parse("rescan check").number);
+    CHECK_EQUAL(1, parse("rescan full").number);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("rescan").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_OPEN, parse("open coverflow").kind);
+    CHECK_EQUAL(0, parse("open home").number);
+    CHECK_EQUAL(1, parse("open coverflow").number);
+    CHECK_EQUAL(2, parse("open nowplaying").number);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("open settings").kind);
+    const DebugScriptRun *loaded = load("build any\nrescan full\nopen nowplaying\n");
+    CHECK_EQUAL(2, loaded->op_count);
+    CHECK_EQUAL(DEBUG_OP_RESCAN, loaded->ops[0].kind);
+    CHECK_EQUAL(1, loaded->ops[0].first);
+    CHECK_EQUAL(DEBUG_OP_OPEN, loaded->ops[1].kind);
+    CHECK_EQUAL(2, loaded->ops[1].first);
+}
+
 static void standby_takes_off_or_on(void)
 {
     CHECK_EQUAL(DEBUG_COMMAND_STANDBY, parse("standby off").kind);
@@ -458,6 +477,7 @@ int main(void)
         TEST_CASE(gpio_names_a_pin_and_what_to_do_with_it),
         TEST_CASE(supply_and_screen_take_off_or_on),
         TEST_CASE(standby_takes_off_or_on),
+        TEST_CASE(rescan_checks_or_rebuilds_and_open_names_a_screen),
         TEST_CASE(soak_takes_one_to_180_minutes),
         TEST_CASE(a_scripts_soaks_add_their_minutes_to_its_time_limit),
         TEST_CASE(probe_lines_keep_their_words_beside_the_steps),
