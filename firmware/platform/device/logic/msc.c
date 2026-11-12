@@ -97,7 +97,7 @@ void msc_init(Msc *msc, const MscLun *luns, uint8_t count)
     }
 }
 
-void msc_set_media(Msc *msc, uint8_t lun, bool present, uint32_t sectors)
+CORE_SEAM void msc_set_media(Msc *msc, uint8_t lun, bool present, uint32_t sectors)
 {
     if (lun >= msc->lun_count || msc->luns[lun].present == present) {
         return;

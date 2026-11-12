@@ -318,10 +318,27 @@ static void eject_survives_bounce_until_a_debounced_removal(void)
     CHECK(card_presence_update(&state, true, 270));
 }
 
+static void a_failed_start_is_retried_each_second_up_to_ten_times(void)
+{
+    CardStart start = {0};
+    CHECK(card_start_due(&start, UINT32_MAX - 100));
+    CHECK(!card_start_due(&start, UINT32_MAX));
+    CHECK(card_start_due(&start, CARD_START_RETRY_MS - 101));
+    uint32_t now = CARD_START_RETRY_MS - 101;
+    for (int retry = 2; retry < CARD_START_TRIES; retry++) {
+        now += CARD_START_RETRY_MS;
+        CHECK(!card_start_due(&start, now - 1));
+        CHECK(card_start_due(&start, now));
+    }
+    CHECK_EQUAL(CARD_START_TRIES, start.tries);
+    CHECK(!card_start_due(&start, now + 10 * CARD_START_RETRY_MS));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(eject_survives_bounce_until_a_debounced_removal),
+        TEST_CASE(a_failed_start_is_retried_each_second_up_to_ten_times),
         TEST_CASE(presence_rejects_bounce_and_handles_clock_wrap),
         TEST_CASE(an_sdhc_card_initialises_with_its_size_and_a_4_bit_bus),
         TEST_CASE(the_commands_follow_the_sd_init_order),

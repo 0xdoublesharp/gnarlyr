@@ -588,10 +588,10 @@ typedef struct SessionWatch {
     UsbLeaveState state;
 } SessionWatch;
 
-static void follow_card(void)
+static bool follow_card(void)
 {
     if (msc.phase != MSC_PHASE_COMMAND) {
-        return;
+        return false;
     }
     if (eject_card) {
         sd_eject(true);
@@ -604,17 +604,15 @@ static void follow_card(void)
         msc_set_media(&msc, CARD_LUN, ready, ready ? sd_sector_count() : 0);
     }
     card_present = ready;
-    if (changed) {
-        show_storage_state();
-    }
+    return changed;
 }
 
 static void watch_session(SessionWatch *watch, uint32_t now)
 {
     watch->followed = now;
-    follow_card();
+    bool card = follow_card();
     watch->state = follow_leave(now);
-    if (scene_follow(watch->state, now)) {
+    if (scene_follow(watch->state, now) || card) {
         show_storage_state();
     }
     if (now - watch->refreshed >= COUNTER_REFRESH_MS) {
