@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "bluetooth_store.h"
 #include "check.h"
 #include "core/hash.h"
 #include "default_theme.h"
@@ -14,6 +15,8 @@
 #include "hal/storage.h"
 #include "hal/system.h"
 #include "library/playlist_reader.h"
+#include "music_check.h"
+#include "scan_guard.h"
 #include "settings_screens.h"
 #include "settings_store.h"
 #include "spoken_library.h"
@@ -27,6 +30,102 @@ enum {
 static FixtureLibrary fixture;
 static SettingsStore settings;
 static FavoritesStore favorites;
+
+static BluetoothSaved load_bluetooth(void)
+{
+    BluetoothSaved saved;
+    bluetooth_store_load(&saved);
+    return saved;
+}
+
+static void bluetooth_records_bound_counts_and_terminate_names(void)
+{
+    fake_hal_reset();
+    BluetoothSaved saved = {
+        .enabled = true, .on_bluetooth = true, .count = BLUETOOTH_STORE_DEVICES + 2};
+    for (uint32_t index = 0; index < BLUETOOTH_STORE_DEVICES; index++) {
+        saved.devices[index].address[0] = (uint8_t)(index + 1);
+        memset(saved.devices[index].name, 'A' + (int)index, sizeof saved.devices[index].name);
+    }
+    bluetooth_store_save(&saved);
+    BluetoothSaved loaded = load_bluetooth();
+    CHECK(loaded.enabled);
+    CHECK(loaded.on_bluetooth);
+    CHECK_EQUAL(BLUETOOTH_STORE_DEVICES, loaded.count);
+    for (uint32_t index = 0; index < BLUETOOTH_STORE_DEVICES; index++) {
+        CHECK_EQUAL(index + 1, loaded.devices[index].address[0]);
+        CHECK_EQUAL(0, loaded.devices[index].name[HAL_BLUETOOTH_NAME_CAPACITY - 1]);
+    }
+}
+
+static void malformed_bluetooth_records_restore_nothing(void)
+{
+    fake_hal_reset();
+    BluetoothSaved saved = {.enabled = true, .on_bluetooth = true, .count = 1};
+    saved.devices[0].address[0] = 7;
+    memcpy(saved.devices[0].name, "Buds", 5);
+    bluetooth_store_save(&saved);
+    uint32_t size = 0;
+    const uint8_t *stored = fake_hal_file_bytes(BLUETOOTH_STORE_PATH, &size);
+    uint8_t record[512];
+    CHECK(stored != NULL);
+    CHECK(size < sizeof record);
+    memcpy(record, stored, size);
+    const uint32_t lengths[] = {0, 1, 2, 3, size - 2};
+    for (size_t index = 0; index < sizeof lengths / sizeof lengths[0]; index++) {
+        fake_hal_reset();
+        fake_hal_add_file(BLUETOOTH_STORE_PATH, record, lengths[index]);
+        BluetoothSaved loaded = load_bluetooth();
+        CHECK(!loaded.enabled);
+        CHECK(!loaded.on_bluetooth);
+        CHECK_EQUAL(0, loaded.count);
+    }
+    for (uint32_t field = 0; field < 2; field++) {
+        uint8_t damaged[512];
+        memcpy(damaged, record, size);
+        damaged[field == 0 ? 0 : 2] ^= 0x7F;
+        fake_hal_reset();
+        fake_hal_add_file(BLUETOOTH_STORE_PATH, damaged, size);
+        BluetoothSaved loaded = load_bluetooth();
+        CHECK(!loaded.enabled);
+        CHECK(!loaded.on_bluetooth);
+        CHECK_EQUAL(0, loaded.count);
+    }
+}
+
+static void music_check_records_survive_versions_and_scan_interruptions(void)
+{
+    fake_hal_reset();
+    fake_hal_add_file(MUSIC_CHECK_PATH, NULL, 1024);
+    fake_hal_set_version("one");
+    MusicFingerprint print = {.complete = true, .first = 1, .second = 2, .entries = 3};
+    music_check_remember(print);
+    CHECK(music_check_unchanged(print));
+    CHECK(!music_check_unchanged((MusicFingerprint){.complete = false}));
+    CHECK(!music_check_firmware_is_new());
+    fake_hal_set_version("two");
+    CHECK(music_check_firmware_is_new());
+    music_check_note_firmware();
+    CHECK(!music_check_firmware_is_new());
+    CHECK(music_check_unchanged(print));
+    ScanGuard guard = {.magic = SCAN_GUARD_MAGIC, .running = 1, .attempts = 3, .covers_pending = 1};
+    CHECK(hal_file_write_at(MUSIC_CHECK_PATH, SCAN_GUARD_OFFSET, &guard, SCAN_GUARD_BYTES));
+    CHECK_EQUAL(3, music_check_interrupted_scans());
+    CHECK(music_check_covers_pending());
+    CHECK(!music_check_settled());
+    guard.running = 0;
+    guard.attempts = 1;
+    guard.covers_pending = 0;
+    CHECK(hal_file_write_at(MUSIC_CHECK_PATH, SCAN_GUARD_OFFSET, &guard, SCAN_GUARD_BYTES));
+    CHECK_EQUAL(0, music_check_interrupted_scans());
+    CHECK(!music_check_covers_pending());
+    CHECK(music_check_settled());
+    guard.magic ^= 1;
+    CHECK(hal_file_write_at(MUSIC_CHECK_PATH, SCAN_GUARD_OFFSET, &guard, SCAN_GUARD_BYTES));
+    CHECK_EQUAL(0, music_check_interrupted_scans());
+    CHECK(!music_check_covers_pending());
+    CHECK(music_check_settled());
+}
 
 static void without_a_file_the_defaults_are_used(void)
 {
@@ -538,6 +637,9 @@ static void shaping_words_and_positions_survive_restart_and_plain_edits_clear_th
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(bluetooth_records_bound_counts_and_terminate_names),
+        TEST_CASE(malformed_bluetooth_records_restore_nothing),
+        TEST_CASE(music_check_records_survive_versions_and_scan_interruptions),
         TEST_CASE(shaping_words_and_positions_survive_restart_and_plain_edits_clear_them),
         TEST_CASE(matching_graphic_and_parametric_slots_survive_restart),
         TEST_CASE(without_a_file_the_defaults_are_used),

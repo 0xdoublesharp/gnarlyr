@@ -54,12 +54,37 @@ static void a_full_queue_keeps_every_release_paired_with_its_press(void)
     CHECK_EQUAL(0, hid.count);
 }
 
+static void simultaneous_holds_wrap_time_and_never_repeat_or_emit_ghosts(void)
+{
+    UsbAudioHid hid = {0};
+    CHECK_EQUAL(0, usb_audio_hid_key(&hid, KEY_VOLUME_UP, false, 10));
+    CHECK_EQUAL(0, usb_audio_hid_key(&hid, KEY_MENU, true, 10));
+    CHECK_EQUAL(0, usb_audio_hid_key(&hid, KEY_MENU, false, 20));
+    usb_audio_hid_sent(&hid);
+    uint16_t usage = 0xA5A5;
+    CHECK(!usb_audio_hid_report(&hid, &usage));
+    CHECK_EQUAL(0xA5A5, usage);
+    usb_audio_hid_key(&hid, KEY_VOLUME_UP, true, UINT32_MAX - 200);
+    usb_audio_hid_key(&hid, KEY_VOLUME_DOWN, true, UINT32_MAX - 100);
+    usb_audio_hid_tick(&hid, 300);
+    usb_audio_hid_tick(&hid, 2000);
+    CHECK_EQUAL(0, usb_audio_hid_key(&hid, KEY_VOLUME_UP, false, 2001));
+    CHECK_EQUAL(0, usb_audio_hid_key(&hid, KEY_VOLUME_DOWN, false, 2001));
+    CHECK_EQUAL(2, hid.count);
+    take(&hid, USB_AUDIO_HID_NEXT);
+    take(&hid, 0);
+    take(&hid, USB_AUDIO_HID_PREVIOUS);
+    take(&hid, 0);
+    CHECK_EQUAL(0, hid.count);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(play_sends_one_press_then_one_release),
         TEST_CASE(volume_taps_stay_local_and_holds_skip_once),
         TEST_CASE(a_full_queue_keeps_every_release_paired_with_its_press),
+        TEST_CASE(simultaneous_holds_wrap_time_and_never_repeat_or_emit_ghosts),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
