@@ -65,6 +65,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
     platform/device/board/debug_rtc.c
     platform/device/logic/rtc_time.c
     platform/device/logic/rtc_registers.c
+    src/core/calendar.c
     src/gfx/wireframe.c
     src/ui/wire_figure.c
     src/ui/wire_motion.c
@@ -147,6 +148,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/playback/mix_resolve.c
     src/playback/mix_tape.c
     src/app/screens/calendar_screen.c
+    src/core/calendar.c
     src/core/calendar_view.c
     src/app/screens/cassette_flip_screen.c
     src/app/screens/clock_screen.c
@@ -175,6 +177,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/modules/settings_module.c
     src/app/settings_screens.c
     src/app/screens/set_clock_screen.c
+    src/core/calendar.c
     src/app/settings_actions.c
     src/app/settings_preview.c
     src/app/button_settings.c
@@ -203,6 +206,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_library
 )
 set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/app/modules/listening_module.c
+    src/core/calendar.c
     src/app/screens/listening_screen.c
     src/app/screens/moments_screen.c
     src/playback/moments.c
@@ -233,6 +237,7 @@ else()
         platform/device/board/debug_rtc.c
         platform/device/logic/rtc_time.c
         platform/device/logic/rtc_registers.c
+        src/core/calendar.c
     )
 endif()
 
