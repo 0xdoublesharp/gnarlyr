@@ -345,7 +345,7 @@ static void add_lattice(CoverGrid *grid, const Lattice *lattice, uint32_t seed)
 static void sampled_blocks_sum_the_same_through_the_column_table(void)
 {
     static const Lattice LATTICES[] = {
-        {1500, 1000, 8, 1}, {640, 480, 2, 4}, {900, 901, 4, 2}, {333, 777, 2, 4},
+        {1500, 1000, 8, 1},  {640, 480, 2, 4},   {900, 901, 4, 2}, {333, 777, 2, 4},
         {2400, 2400, 16, 1}, {1000, 1000, 4, 2}, {500, 500, 2, 4}, {4001, 3999, 32, 1},
     };
     static CoverGrid table;
