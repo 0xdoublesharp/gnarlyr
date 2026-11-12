@@ -40,6 +40,7 @@ TRAFFIC_SAMPLE_MS = 500
 COMMAND_GAPS_MS = (35, 180, 60, 250, 20, 140, 90, 210)
 CAPTURE_GAP_MS = TRAFFIC_SAMPLE_MS
 LIGHT_FRAMES_PER_S = 25
+TERRAIN_PHASES = 2
 HOST_SECTORS_PER_MS = 40
 BACK_TAP_MS = 150
 CARD_LUN = 1
@@ -385,7 +386,7 @@ class EchoImageTest(EchoImageHarness):
         samples = TRAFFIC_MEASURE_MS // TRAFFIC_SAMPLE_MS
         lights = LIGHT_FRAMES_PER_S * TRAFFIC_MEASURE_MS // 1000
         self.assertGreaterEqual(len(areas), 2 * samples - 2)
-        self.assertLessEqual(len(areas), 2 * samples + 2 + lights)
+        self.assertLessEqual(len(areas), (TERRAIN_PHASES + 1) * samples + 2 + lights)
         self.assertEqual(statuses, [])
         self.capture_frames(machine)
         self.assertEqual(statuses, [])
