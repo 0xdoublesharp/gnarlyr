@@ -1609,8 +1609,8 @@ static void explain_refusals(uint32_t now_ms)
 
 static MusicFingerprint walk_music(bool progress)
 {
-    const LibraryModuleEntry *module =
-        (const LibraryModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_LIBRARY);
+    const ViewsModuleEntry *module =
+        (const ViewsModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS);
     return module != NULL ? module->music_fingerprint(progress)
                           : (MusicFingerprint){.complete = false};
 }

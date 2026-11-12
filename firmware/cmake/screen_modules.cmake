@@ -150,6 +150,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/theme_signature.c
     src/app/theme_crypto_curve.c
     src/app/theme_crypto_sha512.c
+    src/app/music_walk.c
+    src/library/music_fingerprint.c
     src/app/modules/views_module.c
     platform/device/board/headset_reading.c
     platform/device/logic/headset_dips_view.c
@@ -221,7 +223,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_library
     src/app/modules/library_module.c
     src/library/album_order.c
     src/library/sort_initial.c
-    src/app/music_walk.c
     src/app/discovery_screen.c
     src/app/discovery_text.c
     src/app/discovery_preferences.c
@@ -229,7 +230,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_library
     src/app/order_publish.c
     src/app/order_adopt.c
     src/app/personal_tags.c
-    src/library/music_fingerprint.c
     src/library/library_view.c
     src/library/sort_key.c
     src/library/sort_fold_table.c
