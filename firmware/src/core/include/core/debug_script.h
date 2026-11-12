@@ -66,7 +66,9 @@ typedef enum DebugOpKind {
     DEBUG_OP_SCREEN,
     DEBUG_OP_SOAK,
     DEBUG_OP_RTC,
-    DEBUG_OP_STANDBY
+    DEBUG_OP_STANDBY,
+    DEBUG_OP_RESCAN,
+    DEBUG_OP_OPEN
 } DebugOpKind;
 
 typedef enum DebugPinAction {
@@ -223,6 +225,8 @@ typedef enum DebugCommandKind {
     DEBUG_COMMAND_SOAK,
     DEBUG_COMMAND_RTC,
     DEBUG_COMMAND_STANDBY,
+    DEBUG_COMMAND_RESCAN,
+    DEBUG_COMMAND_OPEN,
     DEBUG_COMMAND_UNKNOWN,
     DEBUG_COMMAND_BAD_ARGUMENT
 } DebugCommandKind;

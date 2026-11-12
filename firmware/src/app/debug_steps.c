@@ -308,6 +308,10 @@ static DebugRequest run_op(const DebugOp *op, uint32_t now_ms)
         return ask_app(DEBUG_REQUEST_SCREEN, op->first);
     case DEBUG_OP_STANDBY:
         return ask_app(DEBUG_REQUEST_STANDBY, op->first);
+    case DEBUG_OP_RESCAN:
+        return ask_app(DEBUG_REQUEST_RESCAN, op->first);
+    case DEBUG_OP_OPEN:
+        return ask_app(DEBUG_REQUEST_OPEN, op->first);
     case DEBUG_OP_SOAK:
         begin_soak(now_ms, op->first);
         break;

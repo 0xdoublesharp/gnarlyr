@@ -1,5 +1,7 @@
 #include "cover_cache.h"
 
+#include "app/debug_loop.h"
+
 const char COVER_CACHE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/covers.bin";
 
 static bool read_file(void *context, uint32_t offset, void *buffer, uint32_t length)
@@ -86,6 +88,8 @@ bool cover_cache_load_half(CoverCache *cache, int position, uint16_t album)
     slot->position = position;
     slot->album = album;
     slot->state = read_cover(cache, album, COVER_HALF, slot->pixels);
+    debug_loop_event(DEBUG_EVENT_COVER,
+                     album | (slot->state == COVER_LOADED ? DEBUG_COVER_FOUND : 0u));
     return true;
 }
 
@@ -97,5 +101,8 @@ bool cover_cache_load_full(CoverCache *cache, uint16_t album)
     }
     cache->full_album = album;
     cache->full_state = read_cover(cache, album, COVER_FULL, cache->full);
+    debug_loop_event(DEBUG_EVENT_COVER,
+                     album | DEBUG_COVER_FULL |
+                         (cache->full_state == COVER_LOADED ? DEBUG_COVER_FOUND : 0u));
     return true;
 }

@@ -1488,6 +1488,11 @@ static MusicFingerprint walk_music(void)
     return module != NULL ? module->music_fingerprint() : (MusicFingerprint){.complete = false};
 }
 
+static uint32_t scan_event(DebugScanPhase phase, uint32_t number)
+{
+    return (uint32_t)phase << DEBUG_SCAN_PHASE_SHIFT | (number & DEBUG_SCAN_NUMBER_MASK);
+}
+
 static void continue_covers(uint32_t now_ms)
 {
     bool idle = now_ms - app.power.last_activity_ms >= COVERS_IDLE_MS;
@@ -1500,10 +1505,15 @@ static void continue_covers(uint32_t now_ms)
         app_release_audio();
     }
     hal_system_set_clock_mhz(SCREEN_ON_CLOCK_MHZ);
+    debug_loop_event(DEBUG_EVENT_SCAN, scan_event(DEBUG_SCAN_COVERS, app.covers_album));
     RescanOutcome outcome = library_rescan_covers(app.covers_album);
     use_wanted_clock();
     app.covers_album = (uint16_t)outcome.covers.next_album;
     app.covers_pending = outcome.cover_result == SCAN_STOPPED;
+    debug_loop_event(DEBUG_EVENT_SCAN,
+                     app.covers_pending
+                         ? scan_event(DEBUG_SCAN_COVERS_STOPPED, app.covers_album)
+                         : scan_event(DEBUG_SCAN_COVERS_DONE, outcome.covers.covers));
     cover_cache_open(&app.covers, &app.library.library);
     settle_screens(now_ms);
     app.render_wanted = true;
@@ -1515,6 +1525,7 @@ static void run_rescan(void)
     flush_listening();
     show_working_notice(STR_SCANNING, i18n_text(STR_SCAN_STARTING), WIRE_SHAPE_DISC);
     RescanProgress progress = {show_rescan_progress};
+    debug_loop_event(DEBUG_EVENT_SCAN, scan_event(DEBUG_SCAN_START, 0));
     RescanOutcome outcome = library_rescan_run(progress, app.rescan_stops);
     app.rescan_stops = 0;
     static char message[TOAST_TEXT_CAPACITY];
@@ -1524,6 +1535,7 @@ static void run_rescan(void)
         start_app(false);
         app.covers_pending = true;
         app.covers_album = 0;
+        debug_loop_event(DEBUG_EVENT_SCAN, scan_event(DEBUG_SCAN_LIBRARY, outcome.stats.tracks));
     } else {
         debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_SCAN_FAILED + (uint32_t)outcome.result);
     }
@@ -1800,6 +1812,19 @@ static bool choose_setting(const DebugRequest *request, uint32_t now_ms)
     return chosen;
 }
 
+static void open_debug_screen(uint32_t target, uint32_t now_ms)
+{
+    static const StartScreen SCREENS[] = {START_MAIN_MENU, START_COVER_FLOW, START_NOW_PLAYING};
+    Screen *path[START_PATH_CAPACITY];
+    apply_action(screen_action_pop_to_root(), now_ms);
+    int count = app_screens_start_path(&app.screens, SCREENS[target % 3], path);
+    for (int index = 0; index < count; index++) {
+        apply_action(screen_action_push(path[index]), now_ms);
+    }
+    screen_changed();
+    app.render_urgent = true;
+}
+
 static void run_debug_script(uint32_t now_ms)
 {
     DebugRequest request =
@@ -1814,6 +1839,13 @@ static void run_debug_script(uint32_t now_ms)
         debug_runner_done(save_debug_screenshot(&request));
     } else if (request.kind == DEBUG_REQUEST_STANDBY) {
         player_hold_standby(&app.player, request.slot == 0);
+        debug_runner_done(true);
+    } else if (request.kind == DEBUG_REQUEST_RESCAN) {
+        app.rescan_manual |= request.slot == 0;
+        app.rescan_requested |= request.slot != 0;
+        debug_runner_done(true);
+    } else if (request.kind == DEBUG_REQUEST_OPEN) {
+        open_debug_screen(request.slot, now_ms);
         debug_runner_done(true);
     }
 }
@@ -1924,6 +1956,7 @@ CORE_SEAM void app_step(void)
             music_check_note_firmware();
         }
         if (!changed && app.rescan_manual) {
+            debug_loop_event(DEBUG_EVENT_SCAN, scan_event(DEBUG_SCAN_UP_TO_DATE, 0));
             toast_show(&app.toast, i18n_text(STR_LIBRARY_UP_TO_DATE), hal_clock_milliseconds());
         }
         app.rescan_manual = false;
