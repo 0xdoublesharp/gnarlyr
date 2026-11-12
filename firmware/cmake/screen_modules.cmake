@@ -74,6 +74,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/gfx/image_quad.c
     src/app/screens/quick_settings_screen.c
     src/app/settings_actions.c
+    src/app/settings_actions_equalizer.c
     src/app/equalizer_presets.c
     src/settings/equalizer_slots.c
     src/settings/equalizer_fit_text.c
@@ -83,6 +84,16 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/settings/headphone_profile_edit.c
     src/settings/headphone_file_save.c
     src/core/headphone_audio_switch.c
+    src/library/sort_initial.c
+    src/library/sort_key.c
+    src/library/sort_fold_table.c
+    src/app/parametric_store.c
+    src/app/parametric_store_save.c
+    src/settings/parametric_import.c
+    src/settings/parametric_file.c
+    src/settings/parametric_file_save.c
+    src/core/parametric.c
+    src/settings/sound_shaping.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     src/settings/sound_shaping.c

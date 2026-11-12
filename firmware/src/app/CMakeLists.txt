@@ -69,6 +69,7 @@ add_library(echo_app STATIC
     settings_screens.c
     screens/set_clock_screen.c
     settings_actions.c
+    settings_actions_equalizer.c
     screens/quick_settings_screen.c
     settings_store.c
     audio_settings.c
