@@ -78,6 +78,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/app/screens/playing_work.c
     src/core/audio_visual.c
     src/app/screens/cover_flow_screen.c
+    src/app/board_cover_layout.c
     src/app/cover_cache_half.c
     src/core/random_below.c
     src/app/cover_placeholders.c

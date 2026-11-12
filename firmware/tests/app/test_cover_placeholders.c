@@ -173,7 +173,7 @@ static void cover_flow_shows_a_placeholder_for_an_album_without_art(void)
     screen->draw(screen->context, &canvas);
     Image image;
     CHECK_EQUAL(COVER_PLACEHOLDER, cover_cache_full(&cache, BARE_ALBUM, &image));
-    Quad quad = cover_flow_quad(&BOARD_LAYOUT.cover_flow, 0);
+    Quad quad = cover_flow_quad(&BOARD_COVER_LAYOUT.cover_flow, 0);
     Color top = canvas_pixel_at(&canvas, quad.left + quad.width / 2, quad.left_top);
     CHECK_EQUAL(expected_top(&theme, BARE_ALBUM), top);
 }

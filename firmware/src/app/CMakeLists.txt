@@ -37,6 +37,7 @@ add_library(echo_app STATIC
     bluetooth_link_ui.c
     bluetooth_store.c
     board_layout.c
+    board_cover_layout.c
     browse_screen.c
     browse_sections.c
     cover_cache.c

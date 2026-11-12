@@ -515,9 +515,9 @@ static void draw_cover(const CoverFlowScreen *flow, Canvas *canvas, int position
 {
     int32_t relative = (int32_t)position * COVER_FLOW_ONE - flow->position;
     bool stacked = theme_is_portrait(flow->config.theme);
-    Quad quad = stacked ? cover_flow_stacked_quad(&BOARD_LAYOUT.cover_stack, relative)
-                        : cover_flow_quad(&BOARD_LAYOUT.cover_flow, relative);
-    QuadLight light = cover_flow_light(&BOARD_LAYOUT.cover_flow, relative);
+    Quad quad = stacked ? cover_flow_stacked_quad(&BOARD_COVER_LAYOUT.cover_stack, relative)
+                        : cover_flow_quad(&BOARD_COVER_LAYOUT.cover_flow, relative);
+    QuadLight light = cover_flow_light(&BOARD_COVER_LAYOUT.cover_flow, relative);
     if (light.left == 0 && light.right == 0) {
         return;
     }
@@ -602,9 +602,10 @@ static void draw_empty(const Theme *theme, Canvas *canvas)
 
 static void draw_backdrop(const Theme *theme, Canvas *canvas)
 {
-    int floor = theme_is_portrait(theme)
-                    ? board_cover_flow_text_layout(theme)->title_top - FLOOR_GAP
-                    : BOARD_LAYOUT.cover_flow.center_top + BOARD_LAYOUT.cover_flow.center_size;
+    int floor =
+        theme_is_portrait(theme)
+            ? board_cover_flow_text_layout(theme)->title_top - FLOOR_GAP
+            : BOARD_COVER_LAYOUT.cover_flow.center_top + BOARD_COVER_LAYOUT.cover_flow.center_size;
     int height = theme->metrics.screen_height;
     canvas_fill_rect(canvas, (Rect){0, 0, theme->metrics.screen_width, floor}, BACKDROP);
     for (int y = floor; y < height; y++) {

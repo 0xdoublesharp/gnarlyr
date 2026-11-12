@@ -421,8 +421,8 @@ static void the_strip_draws_its_covers_and_text_in_every_screen_layout(void)
             Canvas canvas = canvas_make(
                 pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
             screen->draw(screen->context, &canvas);
-            const CoverFlowLayout *layout = &BOARD_LAYOUT.cover_flow;
-            const CoverStackLayout *stack = &BOARD_LAYOUT.cover_stack;
+            const CoverFlowLayout *layout = &BOARD_COVER_LAYOUT.cover_flow;
+            const CoverStackLayout *stack = &BOARD_COVER_LAYOUT.cover_stack;
             int x = orientation == 0 ? layout->center_x : stack->center_x;
             int y = orientation == 0 ? layout->center_top + layout->center_size / 2
                                      : stack->center_top + stack->center_size / 2;
