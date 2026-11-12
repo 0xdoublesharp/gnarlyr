@@ -55,7 +55,7 @@ void audio_tempo_finish(AudioTempo *tempo);
 bool audio_tempo_done(const AudioTempo *tempo);
 
 enum {
-    AUDIO_TEMPO_STAGE_SPARE_FRAMES = 669
+    AUDIO_TEMPO_LARGEST_BUFFER_FRAMES = 6002
 };
 
 bool audio_tempo_stage_start(uint8_t *buffer, uint32_t frames, uint32_t rate, uint16_t speed);

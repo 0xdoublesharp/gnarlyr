@@ -8,7 +8,7 @@
 enum {
     CAPACITY = 48000,
     OUTPUT_CAPACITY = 2 * CAPACITY,
-    RING_TAIL_FRAMES = 5333,
+    RING_TAIL_FRAMES = 6006,
     FULL_FRAMES = 6002
 };
 
@@ -127,11 +127,14 @@ static void pulled_frames_can_be_shifted_into_ring_words(void)
     CHECK_EQUAL(0, audio_tempo_stage_pending(0));
 }
 
-static void the_spare_span_completes_the_ring_tail_only_up_to_48_khz(void)
+static void the_ring_tail_holds_the_whole_window_only_up_to_48_khz(void)
 {
+    CHECK_EQUAL(FULL_FRAMES, audio_tempo_buffer_frames(48000));
+    CHECK(audio_tempo_stage_start(tail, FULL_FRAMES, 48000, 200));
+    CHECK(!audio_tempo_stage_start(tail, FULL_FRAMES - 1, 48000, 200));
+    CHECK(audio_tempo_stage_start(tail, audio_tempo_buffer_frames(44100), 44100, 200));
+    CHECK(!audio_tempo_stage_start(tail, audio_tempo_buffer_frames(44100) - 1, 44100, 200));
     CHECK(audio_tempo_stage_start(tail, RING_TAIL_FRAMES, 48000, 200));
-    CHECK(!audio_tempo_stage_start(tail, RING_TAIL_FRAMES - 1, 48000, 200));
-    CHECK(audio_tempo_stage_start(tail, RING_TAIL_FRAMES - 1, 44100, 200));
     CHECK(!audio_tempo_stage_start(tail, RING_TAIL_FRAMES, 88200, 150));
     CHECK(!audio_tempo_stage_start(tail, RING_TAIL_FRAMES, 48000, 49));
     CHECK(audio_tempo_stage_start(tail, RING_TAIL_FRAMES, 48000, 300));
@@ -155,7 +158,7 @@ int main(void)
         TEST_CASE(block_handoff_matches_the_frame_kernel_at_every_supported_rate),
         TEST_CASE(pending_counts_buffered_and_future_input_at_the_requested_speed),
         TEST_CASE(pulled_frames_can_be_shifted_into_ring_words),
-        TEST_CASE(the_spare_span_completes_the_ring_tail_only_up_to_48_khz),
+        TEST_CASE(the_ring_tail_holds_the_whole_window_only_up_to_48_khz),
         TEST_CASE(a_full_stage_refuses_input_until_it_is_pulled),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

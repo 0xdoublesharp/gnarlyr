@@ -1,20 +1,20 @@
 #include "device/audio_tempo.h"
 
+#include <stddef.h>
+
 #include "core/seam.h"
 
 static AudioTempo tempo;
-static uint8_t spare[AUDIO_TEMPO_STAGE_SPARE_FRAMES * AUDIO_TEMPO_FRAME_BYTES];
 
 CORE_SEAM bool audio_tempo_stage_start(uint8_t *buffer, uint32_t frames, uint32_t rate,
                                        uint16_t speed)
 {
     uint32_t needed = audio_tempo_buffer_frames(rate);
     frames = frames < needed ? frames : needed;
-    uint32_t extra = needed - frames;
     AudioTempoConfig config = {
-        .buffer = {buffer, spare, (uint16_t)frames, (uint16_t)extra}, .rate = rate, .speed = speed};
+        .buffer = {buffer, NULL, (uint16_t)frames, 0}, .rate = rate, .speed = speed};
     tempo = (AudioTempo){0};
-    return extra <= AUDIO_TEMPO_STAGE_SPARE_FRAMES && audio_tempo_start(&tempo, config);
+    return audio_tempo_start(&tempo, config);
 }
 
 CORE_SEAM uint32_t audio_tempo_stage_push(const int32_t *samples, uint32_t frames)

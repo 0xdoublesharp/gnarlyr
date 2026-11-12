@@ -88,7 +88,8 @@ Each scenario in `tests/emulator/scenarios/test_*.py` is its own test, named `de
 | Rescan overlay | 98,304 bytes including BSS |
 | USB overlay | 65,536 code bytes; 98,304 bytes including BSS |
 | UI module slot | 44,032 bytes including BSS |
-| Processing module | 20,480 bytes including BSS |
+| Processing module | 12,288 bytes including BSS |
+| Effects module | 8,192 bytes including BSS |
 | Audio DSP, Ogg file and extension modules | 8,192 code bytes each, zero BSS |
 | Decoder workspace | 41,984 bytes |
 | Language pack | 18,432 bytes |

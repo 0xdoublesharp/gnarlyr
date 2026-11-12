@@ -13,6 +13,7 @@
 #include "dac.h"
 #include "device/audio_engine.h"
 #include "device/audio_math.h"
+#include "device/audio_tempo.h"
 #include "device/card_format.h"
 #include "device/dac_sequence.h"
 #include "device/dma_loop.h"
@@ -36,7 +37,12 @@ enum {
     RING_WORDS = RING_BLOCKS * BLOCK_WORDS,
     WORDS_PER_FRAME = 2,
     RING_FRAMES = RING_WORDS / WORDS_PER_FRAME,
-    STRETCH_WORDS = 5 * BLOCK_WORDS,
+    STRETCH_BLOCKS = 5,
+    TEMPO_WORDS = (AUDIO_TEMPO_LARGEST_BUFFER_FRAMES * AUDIO_TEMPO_FRAME_BYTES +
+                   (int)sizeof(uint32_t) - 1) /
+        (int)sizeof(uint32_t),
+    STRETCH_STEP = STRETCH_BLOCKS * WORDS_PER_FRAME,
+    STRETCH_WORDS = (RING_WORDS - TEMPO_WORDS) / STRETCH_STEP * STRETCH_STEP,
     PREFILL_DIVISOR = 10,
     PREFILL_TIMEOUT_MS = 1000,
     FILL_BUDGET_BYTES = 8192,
@@ -98,6 +104,12 @@ static bool paused_before_clock_change;
 static uint32_t position_before_clock_change;
 static AudioEngine engine;
 _Static_assert(offsetof(AudioEngine, produced) == 48, "the emulator follows the audio ring cursor");
+_Static_assert((STRETCH_WORDS + BLOCK_WORDS - 1) / BLOCK_WORDS == STRETCH_BLOCKS,
+               "the stretched ring keeps its five DMA items");
+_Static_assert((RING_WORDS - STRETCH_WORDS) * sizeof(uint32_t) / AUDIO_TEMPO_FRAME_BYTES >=
+                   AUDIO_TEMPO_LARGEST_BUFFER_FRAMES,
+               "the ring tail holds the whole tempo window up to 48 kHz");
+
 static DmaItem items[RING_BLOCKS];
 static HalFile file;
 static bool engine_ready;

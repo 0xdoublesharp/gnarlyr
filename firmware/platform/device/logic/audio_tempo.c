@@ -13,6 +13,9 @@ enum {
     UNITY_SPEED = 100
 };
 
+_Static_assert(AUDIO_TEMPO_LARGEST_BUFFER_FRAMES == 2 * (HIGHEST_RATE / MINIMUM_PITCH) + 2,
+               "the largest tempo window follows the highest rate and the lowest pitch");
+
 CORE_SEAM uint32_t audio_tempo_buffer_frames(uint32_t rate)
 {
     return rate >= LOWEST_RATE && rate <= HIGHEST_RATE ? 2 * (rate / MINIMUM_PITCH) + 2 : 0;
