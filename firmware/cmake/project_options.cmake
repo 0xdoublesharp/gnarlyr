@@ -1,7 +1,7 @@
 add_library(echo_options INTERFACE)
 
-if(UNIX AND NOT APPLE)
-    target_compile_definitions(echo_options INTERFACE _POSIX_C_SOURCE=200809L)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_compile_definitions(echo_options INTERFACE _POSIX_C_SOURCE=200809L _DEFAULT_SOURCE=1)
 endif()
 
 target_compile_options(echo_options INTERFACE
