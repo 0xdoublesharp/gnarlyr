@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/hash.h"
 #include "discovery_preferences.h"
 #include "discovery_screen.h"
 #include "fake_hal.h"
@@ -114,6 +115,65 @@ static void damaged_preferences_are_rejected_without_changing_the_view(void)
     CHECK_EQUAL(0, restored.required_tags);
 }
 
+static void every_header_and_query_boundary_is_validated(void)
+{
+    start();
+    saved_screen();
+    const char *path = "/" FIRMWARE_DATA_DIRECTORY "/discovery.bin";
+    uint8_t valid[112];
+    CHECK(hal_internal_file_read(path, valid, sizeof valid));
+    static const struct {
+        uint8_t offset;
+        uint8_t value;
+        bool reseal;
+    } header_cases[] = {
+        {0, 'X', true}, {1, 'X', true},       {2, 'X', true}, {3, 'X', true},
+        {4, 2, true},   {5, UINT8_MAX, true}, {6, 2, true},   {108, 1, false},
+    };
+    for (uint32_t index = 0; index < sizeof header_cases / sizeof header_cases[0]; index++) {
+        uint8_t bytes[sizeof valid];
+        memcpy(bytes, valid, sizeof bytes);
+        bytes[header_cases[index].offset] = header_cases[index].value;
+        if (header_cases[index].reseal) {
+            store_put32(bytes + 108, hash_update(HASH_START, bytes, 108));
+        }
+        CHECK(hal_internal_file_write(path, bytes, sizeof bytes));
+        DiscoveryScreen restored = fresh_screen();
+        CHECK(!discovery_preferences_load(&restored, &tags));
+    }
+
+    uint8_t bytes[sizeof valid];
+    memcpy(bytes, valid, sizeof bytes);
+    memset(bytes + 44, 'x', 64);
+    store_put32(bytes + 108, hash_update(HASH_START, bytes, 108));
+    CHECK(hal_internal_file_write(path, bytes, sizeof bytes));
+    DiscoveryScreen restored = fresh_screen();
+    CHECK(!discovery_preferences_load(&restored, &tags));
+
+    static const struct {
+        uint8_t offset;
+        uint32_t value;
+        bool wide;
+    } query_cases[] = {
+        {12, 0, true},
+        {12, UINT32_MAX, true},
+        {22, 2027, false},
+        {28, 600001, true},
+    };
+    for (uint32_t index = 0; index < sizeof query_cases / sizeof query_cases[0]; index++) {
+        memcpy(bytes, valid, sizeof bytes);
+        if (query_cases[index].wide) {
+            store_put32(bytes + query_cases[index].offset, query_cases[index].value);
+        } else {
+            store_put16(bytes + query_cases[index].offset, (uint16_t)query_cases[index].value);
+        }
+        store_put32(bytes + 108, hash_update(HASH_START, bytes, 108));
+        CHECK(hal_internal_file_write(path, bytes, sizeof bytes));
+        restored = fresh_screen();
+        CHECK(!discovery_preferences_load(&restored, &tags));
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -122,6 +182,7 @@ int main(void)
         TEST_CASE(deleting_and_reusing_a_label_cannot_reuse_its_saved_filter),
         TEST_CASE(deferred_tag_validation_keeps_edits_made_after_loading),
         TEST_CASE(damaged_preferences_are_rejected_without_changing_the_view),
+        TEST_CASE(every_header_and_query_boundary_is_validated),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

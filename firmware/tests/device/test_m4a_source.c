@@ -340,6 +340,16 @@ static void the_aac_decoder_rejects_a_truncated_core_coder_dependency(void)
     CHECK(!aac_decoder_start(&decoder, incomplete, sizeof incomplete));
 }
 
+static void the_aac_decoder_rejects_missing_audio_specific_config(void)
+{
+    static AacDecoder decoder;
+    static const uint8_t one_byte[] = {0x12};
+    core1_heap_init(heap, sizeof heap);
+    CHECK(!aac_decoder_start(&decoder, NULL, 0));
+    CHECK(!aac_decoder_start(&decoder, one_byte, 0));
+    CHECK(!aac_decoder_start(&decoder, one_byte, sizeof one_byte));
+}
+
 static void the_aac_decoder_rejects_short_frames(void)
 {
     static AacDecoder decoder;
@@ -355,6 +365,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(truncated_virtual_records_fail_instead_of_waiting_forever),
+        TEST_CASE(the_aac_decoder_rejects_missing_audio_specific_config),
         TEST_CASE(the_aac_decoder_rejects_a_truncated_core_coder_dependency),
         TEST_CASE(the_aac_decoder_rejects_short_frames),
         TEST_CASE(an_aac_file_streams_through_core_1_like_the_reference_decoder),

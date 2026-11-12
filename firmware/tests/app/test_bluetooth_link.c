@@ -971,6 +971,42 @@ static void forgetting_disconnects_and_clears_the_device(void)
     CHECK(summary_is("On"));
 }
 
+static void device_state_classifies_each_transient_condition(void)
+{
+    fresh();
+    link = (BluetoothLink){.saved = {.enabled = false, .count = 1, .devices = {BUDS}}};
+    CHECK_EQUAL(BLUETOOTH_DEVICE_IDLE, bluetooth_link_device_state(&link, 0));
+    link.saved.enabled = true;
+    link.dozing = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_IDLE, bluetooth_link_device_state(&link, 0));
+    link.dozing = false;
+    link.connected = true;
+    link.linked = BUDS;
+    link.streamed = false;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTED, bluetooth_link_device_state(&link, 0));
+    link.streamed = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_PLAYING, bluetooth_link_device_state(&link, 0));
+    link.connected = false;
+    link.streamed = false;
+    link.target = BUDS;
+    link.attempting = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTING, bluetooth_link_device_state(&link, 0));
+    link.attempting = false;
+    link.paired_seen = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTING, bluetooth_link_device_state(&link, 0));
+    link.paired_seen = false;
+    link.has_target = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTING, bluetooth_link_device_state(&link, 0));
+    link.has_target = false;
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_STARTING;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_CONNECTING, bluetooth_link_device_state(&link, 0));
+    link.held = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_IDLE, bluetooth_link_device_state(&link, 0));
+    link.held = false;
+    link.search_now = true;
+    CHECK_EQUAL(BLUETOOTH_DEVICE_IDLE, bluetooth_link_device_state(&link, 0));
+}
+
 int main(void)
 {
     const TestCase cases[] = {
@@ -1016,6 +1052,7 @@ int main(void)
         TEST_CASE(searching_disconnects_and_scans_without_reconnecting),
         TEST_CASE(an_old_single_device_store_still_loads),
         TEST_CASE(forgetting_disconnects_and_clears_the_device),
+        TEST_CASE(device_state_classifies_each_transient_condition),
         TEST_CASE(sleeping_an_enabled_module_is_idempotent_and_resume_wakes_it),
         TEST_CASE(choosing_a_different_device_during_paired_confirmation_resets_the_old_one),
         TEST_CASE(a_seventh_device_evicts_only_the_least_recent_saved_device),

@@ -17,6 +17,14 @@ static void numbers_take_the_leading_integer(void)
     CHECK_EQUAL(7u, track_fields_number("  7 of 9"));
     CHECK_EQUAL(0u, track_fields_number(""));
     CHECK_EQUAL(0u, track_fields_number("x"));
+    CHECK_EQUAL(8u, track_fields_number("\t8"));
+    CHECK_EQUAL(9u, track_fields_number("\r9"));
+    CHECK_EQUAL(10u, track_fields_number("\x1c"
+                                         "10"));
+    CHECK_EQUAL(11u, track_fields_number("\x1f"
+                                         "11"));
+    CHECK_EQUAL(12u, track_fields_number("\xc2\xa0"
+                                         "12"));
 }
 
 static void years_take_the_first_four_digits(void)

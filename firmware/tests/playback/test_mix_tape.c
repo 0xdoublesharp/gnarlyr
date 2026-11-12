@@ -14,6 +14,7 @@ enum {
 static uint8_t disk[CAPACITY];
 static int payload_reads;
 static uint32_t largest_read;
+static bool refuse_reads;
 static MixIdentity songs[] = {
     {.path = "Björk/Homogenic/01 - Hunter.flac"},
     {.path = "Live/Concert.flac", .start_ms = 1000, .end_ms = 2000},
@@ -24,7 +25,7 @@ static MixIdentity songs[] = {
 static bool read_disk(void *context, uint32_t offset, void *bytes, uint32_t length)
 {
     (void)context;
-    if (offset > sizeof disk || length > sizeof disk - offset) {
+    if (refuse_reads || offset > sizeof disk || length > sizeof disk - offset) {
         return false;
     }
     payload_reads += offset >= STORE_BLOCK_BYTES ? 1 : 0;
@@ -52,6 +53,7 @@ static bool read_song(void *context, uint16_t index, MixIdentity *identity)
 
 static void saved_paths_cue_boundaries_and_duplicates_survive_reopening(void)
 {
+    refuse_reads = false;
     memset(disk, 0, sizeof disk);
     MixSource source = {read_song, songs, 4};
     MixMeasure measured;
@@ -86,6 +88,91 @@ static void saved_paths_cue_boundaries_and_duplicates_survive_reopening(void)
     }
     MixIdentity identity;
     CHECK_EQUAL(STORE_EMPTY, mix_tape_next(&cursor, &identity));
+}
+
+static bool refuse_song(void *context, uint16_t index, MixIdentity *identity)
+{
+    (void)context;
+    (void)index;
+    (void)identity;
+    return false;
+}
+
+static void invalid_measurements_and_files_fail_before_writing(void)
+{
+    MixMeasure measured;
+    mix_measure_begin(&measured, (MixSource){.count = 1});
+    CHECK_EQUAL(STORE_FAILED, mix_measure_step(&measured));
+    mix_measure_begin(&measured, (MixSource){refuse_song, NULL, 1});
+    CHECK_EQUAL(STORE_FAILED, mix_measure_step(&measured));
+    CHECK_EQUAL(STORE_FAILED, mix_measure_step(&measured));
+
+    mix_measure_begin(&measured, (MixSource){read_song, songs, 1});
+    CHECK_EQUAL(STORE_DONE, mix_measure_step(&measured));
+    StoreFile file = {.source = {read_disk, NULL}, .write = write_disk, .size = sizeof disk};
+    MixTapeWrite writer;
+    MixMeasure invalid = measured;
+    invalid.result = STORE_WORKING;
+    CHECK(!mix_tape_write_begin(&writer, file, &invalid, 1));
+    invalid = measured;
+    invalid.index = 0;
+    CHECK(!mix_tape_write_begin(&writer, file, &invalid, 1));
+    invalid = measured;
+    invalid.source.read = NULL;
+    CHECK(!mix_tape_write_begin(&writer, file, &invalid, 1));
+    invalid = measured;
+    invalid.bytes = invalid.source.count * MIX_RECORD_MIN - 1;
+    CHECK(!mix_tape_write_begin(&writer, file, &invalid, 1));
+    invalid = measured;
+    invalid.bytes = invalid.source.count * MIX_RECORD_MAX + 1;
+    CHECK(!mix_tape_write_begin(&writer, file, &invalid, 1));
+    file.size = STORE_BLOCK_BYTES - 1;
+    CHECK(!mix_tape_write_begin(&writer, file, &measured, 1));
+    file = (StoreFile){.source = {read_disk, NULL},
+                       .write = write_disk,
+                       .size = STORE_BLOCK_BYTES + measured.bytes - 1};
+    CHECK(!mix_tape_write_begin(&writer, file, &measured, 1));
+    file = (StoreFile){.write = write_disk, .size = sizeof disk};
+    CHECK(!mix_tape_write_begin(&writer, file, &measured, 1));
+    file = (StoreFile){.source = {read_disk, NULL}, .size = sizeof disk};
+    CHECK(!mix_tape_write_begin(&writer, file, &measured, 1));
+}
+
+static void unusable_tapes_and_cursor_boundaries_fail_closed(void)
+{
+    MixTape tape;
+    MixTapeCheck check;
+    mix_tape_check_begin(&check, &tape, (StoreFile){0}, 1);
+    CHECK_EQUAL(STORE_FAILED, mix_tape_check_step(&check));
+    mix_tape_check_begin(&check, &tape,
+                         (StoreFile){.source = {read_disk, NULL},
+                                     .write = write_disk,
+                                     .size = STORE_BLOCK_BYTES - 1},
+                         1);
+    CHECK_EQUAL(STORE_FAILED, mix_tape_check_step(&check));
+
+    MixIdentity identity;
+    MixTapeCursor cursor;
+    tape = (MixTape){.load = STORE_CORRUPT};
+    mix_tape_cursor(&cursor, &tape);
+    CHECK_EQUAL(STORE_CORRUPT, mix_tape_next(&cursor, &identity));
+    tape = (MixTape){.load = STORE_READY, .bytes = 1, .count = 0};
+    mix_tape_cursor(&cursor, &tape);
+    cursor.offset = 2;
+    CHECK_EQUAL(STORE_CORRUPT, mix_tape_next(&cursor, &identity));
+    cursor.offset = 0;
+    CHECK_EQUAL(STORE_CORRUPT, mix_tape_next(&cursor, &identity));
+
+    tape = (MixTape){.file = {.source = {read_disk, NULL}, .size = sizeof disk},
+                     .load = STORE_READY,
+                     .bytes = MIX_RECORD_MIN,
+                     .count = 1};
+    mix_tape_cursor(&cursor, &tape);
+    refuse_reads = true;
+    CHECK_EQUAL(STORE_UNREADABLE, mix_tape_next(&cursor, &identity));
+    refuse_reads = false;
+    memset(disk + STORE_BLOCK_BYTES, 0, MIX_RECORD_MIN);
+    CHECK_EQUAL(STORE_CORRUPT, mix_tape_next(&cursor, &identity));
 }
 
 static void an_unterminated_library_path_is_rejected_instead_of_truncated(void)
@@ -314,6 +401,8 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(saved_paths_cue_boundaries_and_duplicates_survive_reopening),
+        TEST_CASE(invalid_measurements_and_files_fail_before_writing),
+        TEST_CASE(unusable_tapes_and_cursor_boundaries_fail_closed),
         TEST_CASE(an_unterminated_library_path_is_rejected_instead_of_truncated),
         TEST_CASE(maximum_length_paths_and_a_full_mixtape_cross_sectors_without_truncation),
         TEST_CASE(a_generation_mismatch_never_opens_an_orphaned_tape),

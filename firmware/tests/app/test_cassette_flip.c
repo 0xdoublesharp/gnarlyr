@@ -67,11 +67,29 @@ static void every_length_choice_shows_its_complete_budget(void)
     }
 }
 
+static void select_and_back_both_leave_the_flip_prompt(void)
+{
+    fake_hal_reset();
+    player_init(&player, fixture_library_open(&fixture));
+    Theme theme = BOARD_THEME;
+    Screen *screen = cassette_flip_screen_init(&flip, &player, &theme, &mixtapes);
+    ScreenAction action = screen->handle_key(
+        screen->context, (KeyEvent){.key = KEY_PLAY, .gesture = KEY_GESTURE_PRESS}, 0);
+    CHECK_EQUAL(SCREEN_ACTION_POP, action.type);
+    action = screen->handle_key(screen->context,
+                                (KeyEvent){.key = KEY_BACK, .gesture = KEY_GESTURE_PRESS}, 0);
+    CHECK_EQUAL(SCREEN_ACTION_POP, action.type);
+    action = screen->handle_key(screen->context,
+                                (KeyEvent){.key = KEY_VOLUME_UP, .gesture = KEY_GESTURE_PRESS}, 0);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, action.type);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(every_flip_prompt_fits_both_orientations_and_all_text_sizes),
         TEST_CASE(every_length_choice_shows_its_complete_budget),
+        TEST_CASE(select_and_back_both_leave_the_flip_prompt),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -5,6 +5,7 @@
 #include "check.h"
 #include "library/track_tags.h"
 #include "memory_source.h"
+#include "tags_internal.h"
 
 static const char TITLE[] = "Svefn-g-englar \xe2\x9c\x93";
 static const char ARTIST[] = "Sigur R\xc3\xb3s";
@@ -1033,6 +1034,44 @@ static void mp4_duration_ignores_unknown_versions_and_zero_timescales(void)
     CHECK_EQUAL(0, tags.duration_ms);
 }
 
+static void replay_gain_text_decoding_handles_every_encoding_boundary(void)
+{
+    char out[REPLAY_GAIN_TEXT_CAPACITY];
+    static const uint8_t latin[] = {'-', '6', ' ', 'd', 'B'};
+    CHECK(tag_decode_gain_text(out, latin, sizeof latin, TAG_LATIN1));
+    CHECK_EQUAL(0, strcmp("-6 dB", out));
+    static const uint8_t little[] = {'1', 0, '.', 0, '5', 0};
+    CHECK(tag_decode_gain_text(out, little, sizeof little, TAG_UTF16LE));
+    CHECK_EQUAL(0, strcmp("1.5", out));
+    static const uint8_t big[] = {0, '1', 0, '.', 0, '5'};
+    CHECK(tag_decode_gain_text(out, big, sizeof big, TAG_UTF16BE));
+    CHECK_EQUAL(0, strcmp("1.5", out));
+    static const uint8_t big_bom[] = {0xfe, 0xff, 0, '2'};
+    CHECK(tag_decode_gain_text(out, big_bom, sizeof big_bom, TAG_UTF16LE));
+    CHECK_EQUAL(0, strcmp("2", out));
+    static const uint8_t little_bom[] = {0xff, 0xfe, '3', 0};
+    CHECK(tag_decode_gain_text(out, little_bom, sizeof little_bom, TAG_UTF16BE));
+    CHECK_EQUAL(0, strcmp("3", out));
+
+    static const uint8_t odd[] = {'1', 0, '2'};
+    CHECK(!tag_decode_gain_text(out, odd, sizeof odd, TAG_UTF16LE));
+    static const uint8_t nul_tail[] = {'1', 0, 0, 0};
+    CHECK(tag_decode_gain_text(out, nul_tail, sizeof nul_tail, TAG_UTF16LE));
+    static const uint8_t bad_tail[] = {'1', 0, 0, 0, '2', 0};
+    CHECK(!tag_decode_gain_text(out, bad_tail, sizeof bad_tail, TAG_UTF16LE));
+    static const uint8_t high[] = {0x80};
+    CHECK(!tag_decode_gain_text(out, high, sizeof high, TAG_LATIN1));
+    static const uint8_t controls[] = {8, 9, 13, 14};
+    CHECK(!tag_decode_gain_text(out, controls, 1, TAG_LATIN1));
+    CHECK(tag_decode_gain_text(out, controls + 1, 2, TAG_LATIN1));
+    CHECK(!tag_decode_gain_text(out, controls + 3, 1, TAG_LATIN1));
+    uint8_t full[REPLAY_GAIN_TEXT_CAPACITY];
+    memset(full, '1', sizeof full);
+    CHECK(!tag_decode_gain_text(out, full, sizeof full, TAG_UTF8));
+    CHECK(tag_decode_gain_text(out, full, 0, TAG_UTF8));
+    CHECK_EQUAL(0, strcmp("", out));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -1040,6 +1079,7 @@ int main(void)
         TEST_CASE(mp4_duration_requires_a_complete_versioned_header),
         TEST_CASE(mp4_text_genre_takes_priority_over_the_legacy_genre),
         TEST_CASE(mp4_duration_ignores_unknown_versions_and_zero_timescales),
+        TEST_CASE(replay_gain_text_decoding_handles_every_encoding_boundary),
         TEST_CASE(ogg_metadata_uses_the_first_serial_and_its_first_eos),
         TEST_CASE(ogg_duration_requires_a_complete_eos_of_the_selected_serial),
         TEST_CASE(every_tagged_format_reads_its_fields_duration_and_cover),

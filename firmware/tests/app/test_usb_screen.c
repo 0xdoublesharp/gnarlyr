@@ -265,6 +265,23 @@ static void connecting_uses_the_overlay_and_a_cleared_renderer_the_resident_fall
     app_stop();
 }
 
+static void partial_redraws_are_split_into_bounded_horizontal_bands(void)
+{
+    fake_hal_reset();
+    app_start();
+    registered_draws = 0;
+    app_set_usb_renderer(registered_usb_draw);
+    AppUsbStatus status = {.view = APP_USB_CONNECTING, .detail = i18n_text(STR_USB_STARTING)};
+    usb_screen_show_in_bands(status, (Rect){0, 0, 20, 0});
+    CHECK_EQUAL(0, registered_draws);
+    usb_screen_show_in_bands(status, (Rect){0, 0, 20, 1});
+    CHECK_EQUAL(1, registered_draws);
+    usb_screen_show_in_bands(status, (Rect){0, 0, 20, 100});
+    CHECK(registered_draws > 2);
+    app_set_usb_renderer(NULL);
+    app_stop();
+}
+
 static Theme medium(int orientation)
 {
     return theme_for(APPEARANCE_NEON_NOIR, orientation, TEXT_SIZE_MEDIUM);
@@ -404,6 +421,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(every_usb_state_fits_every_theme_size_and_orientation),
         TEST_CASE(connecting_uses_the_overlay_and_a_cleared_renderer_the_resident_fallback),
+        TEST_CASE(partial_redraws_are_split_into_bounded_horizontal_bands),
         TEST_CASE(storage_motion_redraws_only_the_cassette_square),
         TEST_CASE(the_level_meter_redraws_only_its_own_area),
         TEST_CASE(a_still_scene_does_not_follow_the_clock),

@@ -13,11 +13,14 @@ static uint32_t fail_write;
 static uint32_t cut_bytes;
 static bool unreadable;
 static bool lose_publication_readback;
+static uint32_t reads;
+static uint32_t fail_read;
 
 static bool read_disk(void *context, uint32_t offset, void *bytes, uint32_t length)
 {
     (void)context;
-    if (unreadable || offset > sizeof disk || length > sizeof disk - offset ||
+    reads++;
+    if (unreadable || reads == fail_read || offset > sizeof disk || length > sizeof disk - offset ||
         length > STORE_BLOCK_BYTES) {
         return false;
     }
@@ -81,8 +84,78 @@ static void reset(void)
     cut_bytes = 0;
     unreadable = false;
     lose_publication_readback = false;
+    reads = 0;
+    fail_read = 0;
     CHECK_EQUAL(STORE_EMPTY, moments_open(&moments, file_io()));
     CHECK_EQUAL(0, moments.count);
+}
+
+static void reseal_bank(uint8_t bank)
+{
+    uint8_t *header = disk + (uint32_t)bank * MOMENTS_BANK_BYTES;
+    uint32_t bytes = store_get32(header + 12);
+    store_put32(header + 16, hash_update(HASH_START, header + STORE_BLOCK_BYTES, bytes));
+    store_put32(header + 24, hash_update(HASH_START, header, 24));
+}
+
+static void malformed_headers_and_entries_are_rejected(void)
+{
+    reset();
+    Moment moment = sample(1000);
+    CHECK_EQUAL(STORE_DONE, add(&moment));
+    memcpy(saved, disk, sizeof saved);
+    uint8_t bank = moments.bank;
+    uint8_t *header = disk + (uint32_t)bank * MOMENTS_BANK_BYTES;
+
+    store_put16(header + 6, MOMENTS_CAPACITY + 1);
+    store_put32(header + 24, hash_update(HASH_START, header, 24));
+    CHECK_EQUAL(STORE_CORRUPT, moments_open(&moments, file_io()));
+    memcpy(disk, saved, sizeof disk);
+    header = disk + (uint32_t)bank * MOMENTS_BANK_BYTES;
+    store_put32(header + 12, MOMENTS_ENTRY_BYTES - 1);
+    store_put32(header + 24, hash_update(HASH_START, header, 24));
+    CHECK_EQUAL(STORE_CORRUPT, moments_open(&moments, file_io()));
+    memcpy(disk, saved, sizeof disk);
+    header = disk + (uint32_t)bank * MOMENTS_BANK_BYTES;
+    store_put32(header + 20, 1);
+    store_put32(header + 24, hash_update(HASH_START, header, 24));
+    CHECK_EQUAL(STORE_CORRUPT, moments_open(&moments, file_io()));
+
+    memcpy(disk, saved, sizeof disk);
+    memset(header + STORE_BLOCK_BYTES, 0, MOMENTS_ENTRY_BYTES);
+    reseal_bank(bank);
+    CHECK_EQUAL(STORE_CORRUPT, moments_open(&moments, file_io()));
+    memcpy(disk, saved, sizeof disk);
+    uint8_t *entry = disk + (uint32_t)bank * MOMENTS_BANK_BYTES + STORE_BLOCK_BYTES;
+    entry[mix_identity_size(&moment.identity)] = 1;
+    reseal_bank(bank);
+    CHECK_EQUAL(STORE_CORRUPT, moments_open(&moments, file_io()));
+}
+
+static void every_open_and_entry_read_failure_is_reported(void)
+{
+    reset();
+    Moment moment = sample(1000);
+    CHECK_EQUAL(STORE_DONE, add(&moment));
+    Moments opened;
+    reads = 0;
+    CHECK_EQUAL(STORE_READY, moments_open(&opened, file_io()));
+    uint32_t open_reads = reads;
+    CHECK(open_reads > 2);
+    for (uint32_t call = 1; call <= open_reads; call++) {
+        reads = 0;
+        fail_read = call;
+        CHECK(moments_open(&opened, file_io()) != STORE_READY);
+    }
+    fail_read = 0;
+    reads = 0;
+    CHECK_EQUAL(STORE_READY, moments_open(&opened, file_io()));
+    fail_read = reads + 1;
+    CHECK(!moments_read(&opened, 0, &moment));
+    fail_read = 0;
+    StoreFile short_file = file_io();
+    short_file.size = MOMENTS_FILE_BYTES - 1;
+    CHECK_EQUAL(STORE_UNREADABLE, moments_open(&opened, short_file));
 }
 
 static void restart_preserves_identity_position_and_label_newest_first(void)
@@ -350,6 +423,8 @@ int main(void)
         TEST_CASE(uncertain_publication_requires_reopening_before_an_edit),
         TEST_CASE(a_damaged_newest_payload_falls_back_and_total_damage_refuses_edits),
         TEST_CASE(future_versions_and_unreadable_banks_are_preserved),
+        TEST_CASE(malformed_headers_and_entries_are_rejected),
+        TEST_CASE(every_open_and_entry_read_failure_is_reported),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

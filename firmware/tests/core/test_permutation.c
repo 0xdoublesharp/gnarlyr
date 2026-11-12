@@ -93,6 +93,12 @@ static void empty_and_out_of_range_indices_are_returned_unchanged(void)
     CHECK_EQUAL(UINT32_MAX, permutation_at(&items, UINT32_MAX));
 }
 
+static void the_largest_possible_size_caps_the_half_width(void)
+{
+    Permutation permutation = permutation_make(UINT32_MAX, 1);
+    CHECK_EQUAL(15, permutation.half_bits);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -103,6 +109,7 @@ int main(void)
         TEST_CASE(the_order_is_not_the_list_order),
         TEST_CASE(neighbours_rarely_stay_neighbours),
         TEST_CASE(empty_and_out_of_range_indices_are_returned_unchanged),
+        TEST_CASE(the_largest_possible_size_caps_the_half_width),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

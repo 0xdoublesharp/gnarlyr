@@ -297,6 +297,18 @@ static void a_later_version_is_never_overwritten(void)
                                    (TrackKeysWork){work, WORK_ENTRIES}));
 }
 
+static void malformed_entry_counts_are_rejected_before_payload_reads(void)
+{
+    static const uint32_t bytes[] = {1, TRACK_KEYS_CAPACITY * TRACK_KEYS_ENTRY_BYTES};
+    for (uint32_t index = 0; index < sizeof bytes / sizeof bytes[0]; index++) {
+        keys_disk_reset(&disk);
+        keys_disk_publish(&disk, NULL, 0, 0);
+        store_put32(disk.bytes + 12, bytes[index]);
+        store_put32(disk.bytes + 24, hash_update(HASH_START, disk.bytes, 24));
+        CHECK_EQUAL(STORE_CORRUPT, track_keys_open(&keys, keys_disk_file(&disk)));
+    }
+}
+
 static void a_read_failure_fails_the_update(void)
 {
     BigLibrary big;
@@ -324,6 +336,7 @@ int main(void)
         TEST_CASE(progress_rises_to_one_hundred),
         TEST_CASE(a_missing_or_short_file_is_not_updated),
         TEST_CASE(a_later_version_is_never_overwritten),
+        TEST_CASE(malformed_entry_counts_are_rejected_before_payload_reads),
         TEST_CASE(a_read_failure_fails_the_update),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "board_layout.h"
 #include "check.h"
@@ -8,6 +9,7 @@
 #include "fake_hal.h"
 #include "fixture_library.h"
 #include "fonts/fonts.h"
+#include "playback/store.h"
 #include "screens/cover_flow_screen.h"
 #include "ui/placeholder_art.h"
 
@@ -55,6 +57,30 @@ static Color expected_top(const Theme *theme, uint16_t album)
     return placeholder_art_ink(&theme->colors, library_album_key(cache.library, album)).top;
 }
 
+static void set_album_title(uint16_t album, const char *title)
+{
+    LibrarySectionInfo strings = fixture.library.sections[LIBRARY_STRINGS];
+    LibrarySectionInfo albums = fixture.library.sections[LIBRARY_ALBUMS];
+    uint32_t length = (uint32_t)strlen(title) + 1;
+    CHECK(fixture.size + length <= sizeof fixture.bytes);
+    uint32_t string = fixture.size - strings.offset;
+    memcpy(fixture.bytes + fixture.size, title, length);
+    fixture.size += length;
+    fixture.memory.size = fixture.size;
+    fixture.library.sections[LIBRARY_STRINGS].count += length;
+    store_put32(fixture.bytes + albums.offset + (uint32_t)album * albums.record_size, string);
+}
+
+static bool full_placeholder_has_text(Color text)
+{
+    for (uint32_t index = 0; index < COVER_FULL_PIXELS; index++) {
+        if (cache.full[index] == text) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void an_album_without_art_gets_a_placeholder_tile(void)
 {
     open_cache(true);
@@ -89,6 +115,57 @@ static void without_a_covers_file_every_album_gets_a_placeholder(void)
     CHECK_EQUAL(COVER_PLACEHOLDER, cover_cache_full(&cache, RED_ALBUM, &image));
     CHECK_EQUAL(COVER_FULL_SIZE, image.width);
     CHECK_EQUAL(expected_top(&theme, RED_ALBUM), image.pixels[0]);
+}
+
+static void missing_or_unknown_album_names_fall_back_to_the_album_artist(void)
+{
+    static const char *titles[] = {"", LIBRARY_UNKNOWN_ALBUM};
+    for (uint32_t index = 0; index < sizeof titles / sizeof titles[0]; index++) {
+        open_cache(false);
+        Theme theme = theme_in(APPEARANCE_CLASSIC);
+        set_album_title(BARE_ALBUM, titles[index]);
+        cover_cache_load_full(&cache, BARE_ALBUM);
+        cover_placeholders_paint(&cache, &theme, COVER_MISSING);
+        CHECK(full_placeholder_has_text(theme.colors.text));
+    }
+
+    open_cache(false);
+    Theme theme = theme_in(APPEARANCE_CLASSIC);
+    LibrarySectionInfo albums = fixture.library.sections[LIBRARY_ALBUMS];
+    store_put32(fixture.bytes + albums.offset + BARE_ALBUM * albums.record_size, UINT32_MAX);
+    cover_cache_load_full(&cache, BARE_ALBUM);
+    cover_placeholders_paint(&cache, &theme, COVER_MISSING);
+    CHECK(full_placeholder_has_text(theme.colors.text));
+}
+
+static void album_initials_skip_unneeded_or_invalid_artist_names(void)
+{
+    open_cache(false);
+    Theme theme = theme_in(APPEARANCE_CLASSIC);
+    set_album_title(BARE_ALBUM, "Known title");
+    cover_cache_load_full(&cache, BARE_ALBUM);
+    cover_placeholders_paint(&cache, &theme, COVER_MISSING);
+    CHECK(full_placeholder_has_text(theme.colors.text));
+
+    open_cache(false);
+    LibraryAlbum album;
+    CHECK(library_read_album(cache.library, BARE_ALBUM, &album));
+    LibrarySectionInfo artists = fixture.library.sections[LIBRARY_ALBUM_ARTISTS];
+    store_put32(fixture.bytes + artists.offset + album.album_artist * artists.record_size,
+                UINT32_MAX);
+    cover_cache_load_full(&cache, BARE_ALBUM);
+    cover_placeholders_paint(&cache, &theme, COVER_MISSING);
+    CHECK_EQUAL(COVER_PLACEHOLDER, cache.full_state);
+}
+
+static void a_missing_album_record_still_produces_safe_placeholder_art(void)
+{
+    open_cache(false);
+    Theme theme = theme_in(APPEARANCE_CLASSIC);
+    cache.full_album = UINT16_MAX;
+    cache.full_state = COVER_MISSING;
+    cover_placeholders_paint(&cache, &theme, COVER_MISSING);
+    CHECK_EQUAL(COVER_PLACEHOLDER, cache.full_state);
 }
 
 static void a_new_theme_repaints_placeholders_in_place(void)
@@ -203,6 +280,9 @@ int main(void)
         TEST_CASE(an_album_without_art_gets_a_placeholder_tile),
         TEST_CASE(albums_with_art_keep_their_cover),
         TEST_CASE(without_a_covers_file_every_album_gets_a_placeholder),
+        TEST_CASE(missing_or_unknown_album_names_fall_back_to_the_album_artist),
+        TEST_CASE(album_initials_skip_unneeded_or_invalid_artist_names),
+        TEST_CASE(a_missing_album_record_still_produces_safe_placeholder_art),
         TEST_CASE(a_new_theme_repaints_placeholders_in_place),
         TEST_CASE(placeholders_never_count_as_real_artwork_elsewhere),
         TEST_CASE(placeholder_text_is_readable_in_every_theme),

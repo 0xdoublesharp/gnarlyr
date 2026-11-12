@@ -1,8 +1,10 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "check.h"
 #include "image/cover_grid.h"
+#include "image/cover_image.h"
 
 enum {
     FULL = COVER_GRID_SIZE,
@@ -11,6 +13,91 @@ enum {
 
 static uint16_t full[COVER_GRID_CELLS];
 static uint16_t half[COVER_GRID_HALF_CELLS];
+
+static bool read_bytes(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    const uint8_t *bytes = context;
+    memcpy(buffer, bytes + offset, length);
+    return true;
+}
+
+static bool refuse_read(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    (void)context;
+    (void)offset;
+    (void)buffer;
+    (void)length;
+    return false;
+}
+
+static void reader_end_requires_both_an_empty_buffer_and_exhausted_source(void)
+{
+    static uint8_t bytes[] = {1, 2, 3};
+    uint8_t memory[IMAGE_READER_BUFFER];
+    ImageArena arena = image_arena_make(memory, sizeof memory);
+    ImageReader reader;
+    CHECK(image_reader_init(&reader, (ImageSource){read_bytes, bytes, 0, sizeof bytes}, &arena));
+    CHECK(!image_reader_at_end(&reader));
+    CHECK(image_reader_available(&reader, sizeof bytes));
+    CHECK(!image_reader_at_end(&reader));
+    CHECK_EQUAL(1, image_reader_byte(&reader));
+    CHECK(image_reader_skip(&reader, 2));
+    CHECK(image_reader_at_end(&reader));
+
+    arena = image_arena_make(memory, sizeof memory);
+    CHECK(image_reader_init(&reader, (ImageSource){refuse_read, NULL, 0, 1}, &arena));
+    CHECK(!image_reader_available(&reader, 1));
+}
+
+typedef struct JpegBytes {
+    const uint8_t *bytes;
+    uint32_t size;
+} JpegBytes;
+
+static bool read_jpeg(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    const JpegBytes *jpeg = context;
+    if (offset > jpeg->size || length > jpeg->size - offset) {
+        return false;
+    }
+    memcpy(buffer, jpeg->bytes + offset, length);
+    return true;
+}
+
+static void expect_jpeg_color(const uint8_t *bytes, uint32_t size, CoverColor color)
+{
+    static uint8_t memory[384 * 1024];
+    static CoverGrid grid;
+    ImageArena arena = image_arena_make(memory, sizeof memory);
+    JpegBytes jpeg = {bytes, size};
+    ImageReader reader;
+    CHECK(image_reader_init(&reader, (ImageSource){read_jpeg, &jpeg, 0, size}, &arena));
+    CoverImage image = {.grid = &grid};
+    CHECK_EQUAL(COVER_IMAGE_CORRUPT, jpeg_decode(&reader, &arena, &image));
+    CHECK_EQUAL(color, image.color);
+}
+
+static void jpeg_color_is_classified_from_frame_ids_and_adobe_metadata(void)
+{
+    static const uint8_t NO_FRAME[] = {0xFF, 0xD8, 0xFF, 0xD9};
+    static const uint8_t GRAY[] = {0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01,
+                                   0x00, 0x01, 0x01, 0x01, 0x11, 0x00, 0xFF, 0xD9};
+    static const uint8_t YCBCR[] = {0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00,
+                                    0x01, 0x00, 0x01, 0x03, 0x01, 0x11, 0x00, 0x02,
+                                    0x11, 0x00, 0x03, 0x11, 0x00, 0xFF, 0xD9};
+    static const uint8_t RGB[] = {0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00,
+                                  0x01, 0x00, 0x01, 0x03, 'R',  0x11, 0x00, 'G',
+                                  0x11, 0x00, 'B',  0x11, 0x00, 0xFF, 0xD9};
+    static const uint8_t ADOBE_RGB[] = {0xFF, 0xD8, 0xFF, 0xEE, 0x00, 0x0E, 'A',  'd',  'o',  'b',
+                                        'e',  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xC0,
+                                        0x00, 0x11, 0x08, 0x00, 0x01, 0x00, 0x01, 0x03, 0x01, 0x11,
+                                        0x00, 0x02, 0x11, 0x00, 0x03, 0x11, 0x00, 0xFF, 0xD9};
+    expect_jpeg_color(NO_FRAME, sizeof NO_FRAME, COVER_COLOR_GRAY);
+    expect_jpeg_color(GRAY, sizeof GRAY, COVER_COLOR_GRAY);
+    expect_jpeg_color(YCBCR, sizeof YCBCR, COVER_COLOR_YCBCR);
+    expect_jpeg_color(RGB, sizeof RGB, COVER_COLOR_RGB);
+    expect_jpeg_color(ADOBE_RGB, sizeof ADOBE_RGB, COVER_COLOR_RGB);
+}
 
 static uint16_t rgb565(uint32_t red, uint32_t green, uint32_t blue)
 {
@@ -184,6 +271,8 @@ static void rectangles_outside_the_crop_do_not_touch_it(void)
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(reader_end_requires_both_an_empty_buffer_and_exhausted_source),
+        TEST_CASE(jpeg_color_is_classified_from_frame_ids_and_adobe_metadata),
         TEST_CASE(a_uniform_image_renders_uniform_covers),
         TEST_CASE(the_crop_keeps_the_centered_square),
         TEST_CASE(three_pixels_per_cell_average_exactly),

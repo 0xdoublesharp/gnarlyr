@@ -253,6 +253,20 @@ static void requests_for_other_units_or_channels_stall(void)
     CHECK_EQUAL(USB_REPLY_STALL, usb_audio_setup(&audio, setup(0xA1, 0xFE, 0, 0, 1)).kind);
 }
 
+static void invalid_endpoint_controls_and_empty_writes_stall(void)
+{
+    UsbAudio audio = ready_audio();
+    CHECK_EQUAL(USB_REPLY_STALL, usb_audio_setup(&audio, setup(0xA2, 0x81, 0x0100, 0x02, 3)).kind);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_audio_setup(&audio, setup(0xA2, 0x81, 0x0200, 0x01, 3)).kind);
+    static const uint8_t value[] = {1, 0, 0};
+    CHECK_EQUAL(USB_REPLY_STALL,
+                usb_audio_receive(&audio, setup(0x20, 0x01, 0x0100, 0x0200, 1), value, 1).kind);
+    CHECK_EQUAL(USB_REPLY_STALL,
+                usb_audio_setup(&audio, setup(0x21, 0x01, 0x0100, 0x0200, 0)).kind);
+    CHECK_EQUAL(USB_REPLY_STALL,
+                usb_audio_setup(&audio, setup(0x21, 0x02, 0x0100, 0x0200, 1)).kind);
+}
+
 static void standard_requests_reach_the_usb_device(void)
 {
     UsbAudio audio = ready_audio();
@@ -282,6 +296,7 @@ int main(void)
         TEST_CASE(volume_below_the_range_is_clamped),
         TEST_CASE(mute_overrides_the_volume),
         TEST_CASE(requests_for_other_units_or_channels_stall),
+        TEST_CASE(invalid_endpoint_controls_and_empty_writes_stall),
         TEST_CASE(standard_requests_reach_the_usb_device),
 
     };

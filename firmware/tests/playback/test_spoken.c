@@ -5,6 +5,20 @@
 
 static SpokenLibrary spoken;
 
+typedef struct FaultSource {
+    ByteSource source;
+    uint32_t calls;
+    uint32_t fail_at;
+} FaultSource;
+
+static bool read_with_fault(void *context, uint32_t offset, void *bytes, uint32_t length)
+{
+    FaultSource *fault = context;
+    fault->calls++;
+    return fault->calls != fault->fail_at &&
+           fault->source.read(fault->source.context, offset, bytes, length);
+}
+
 static void folders_named_audiobooks_or_podcasts_hold_spoken_word(void)
 {
     CHECK_EQUAL(SPOKEN_AUDIOBOOK, spoken_kind_of("/Audiobooks/Book/01.mp3"));
@@ -210,6 +224,33 @@ static void the_audiobook_shelf_exists_without_a_physical_named_folder(void)
     spoken_library_close(&external);
 }
 
+static void shelf_record_read_failures_never_publish_a_partial_item(void)
+{
+    SpokenLibrary external;
+    Library *library = spoken_library_open_external(&external);
+    ByteSource source = library->source;
+    FaultSource fault = {.source = source};
+    library->source = (ByteSource){read_with_fault, &fault};
+    for (uint32_t position = 0; position < 3; position++) {
+        SpokenShelf shelf;
+        BrowseItem item;
+        spoken_shelf_init(&shelf, SPOKEN_AUDIOBOOK, NULL, NULL);
+        fault.calls = 0;
+        fault.fail_at = 0;
+        CHECK(spoken_shelf_item(library, &shelf, position, &item));
+        uint32_t reads = fault.calls;
+        CHECK(reads > 0);
+        for (uint32_t call = 1; call <= reads; call++) {
+            spoken_shelf_init(&shelf, SPOKEN_AUDIOBOOK, NULL, NULL);
+            fault.calls = 0;
+            fault.fail_at = call;
+            (void)spoken_shelf_item(library, &shelf, position, &item);
+        }
+    }
+    library->source = source;
+    spoken_library_close(&external);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -230,6 +271,7 @@ int main(void)
         TEST_CASE(a_folder_holds_exactly_its_own_tracks),
         TEST_CASE(external_books_can_be_paged_backwards_without_duplicates),
         TEST_CASE(the_audiobook_shelf_exists_without_a_physical_named_folder),
+        TEST_CASE(shelf_record_read_failures_never_publish_a_partial_item),
     };
     int result = test_run_all(cases, TEST_CASE_COUNT(cases));
     spoken_library_close(&spoken);

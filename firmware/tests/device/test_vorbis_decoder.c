@@ -4,6 +4,7 @@
 #include "check.h"
 #include "codec/ogg_packet.h"
 #include "device/vorbis_decoder.h"
+#include "device/vorbis_track.h"
 
 enum {
     FILE_BYTES = 65536,
@@ -383,6 +384,41 @@ static void decode_and_mode_snapshots_validate_output_contracts(void)
     CHECK(!vorbis_decoder_decode(&decoder, packet, &pcm));
 }
 
+static void origin_rejects_incompatible_decoder_and_track_snapshots(void)
+{
+    OggPackets audio = {.input = {.size = 100}, .serial = 7, .body = 20};
+    VorbisModes modes = {.count = 1, .short_block = 64, .long_block = 128};
+    OggTrack track = {
+        .serial = 7, .data_offset = 20, .file_bytes = 100, .min_block = 64, .max_block = 128};
+    CHECK(!vorbis_track_origin(NULL, &modes, &track));
+    CHECK(!vorbis_track_origin(&audio, NULL, &track));
+    CHECK(!vorbis_track_origin(&audio, &modes, NULL));
+
+    VorbisModes changed_modes = modes;
+    changed_modes.count = 0;
+    CHECK(!vorbis_track_origin(&audio, &changed_modes, &track));
+    changed_modes = modes;
+    changed_modes.count = 65;
+    CHECK(!vorbis_track_origin(&audio, &changed_modes, &track));
+    changed_modes = modes;
+    changed_modes.short_block++;
+    CHECK(!vorbis_track_origin(&audio, &changed_modes, &track));
+    changed_modes = modes;
+    changed_modes.long_block++;
+    CHECK(!vorbis_track_origin(&audio, &changed_modes, &track));
+
+    OggPackets changed_audio = audio;
+    changed_audio.serial++;
+    CHECK(!vorbis_track_origin(&changed_audio, &modes, &track));
+    changed_audio = audio;
+    changed_audio.body++;
+    CHECK(!vorbis_track_origin(&changed_audio, &modes, &track));
+    changed_audio = audio;
+    changed_audio.input.size++;
+    CHECK(!vorbis_track_origin(&changed_audio, &modes, &track));
+    CHECK(!vorbis_track_origin(&audio, &modes, &track));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -399,6 +435,7 @@ int main(void)
         TEST_CASE(scalar_books_keep_their_valid_dimension_independent_behavior),
         TEST_CASE(packet_metadata_boundaries_are_rejected_before_payload_access),
         TEST_CASE(decode_and_mode_snapshots_validate_output_contracts),
+        TEST_CASE(origin_rejects_incompatible_decoder_and_track_snapshots),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

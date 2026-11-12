@@ -41,6 +41,8 @@ typedef struct FakeBus {
     uint8_t done_after[2];
     uint32_t powered_down_us[2];
     uint32_t elapsed_us;
+    int transfers;
+    int fail_transfer;
     bool silent;
 } FakeBus;
 
@@ -62,7 +64,8 @@ static void record(Op op)
 static bool fake_write(void *context, uint8_t address, uint32_t map, uint8_t value)
 {
     (void)context;
-    if (fake.silent) {
+    fake.transfers++;
+    if (fake.silent || fake.transfers == fake.fail_transfer) {
         return false;
     }
     record((Op){OP_WRITE, address, map, value});
@@ -102,7 +105,8 @@ static bool read_identity(uint8_t address, uint32_t map, uint8_t *value)
 static bool fake_read(void *context, uint8_t address, uint32_t map, uint8_t *value)
 {
     (void)context;
-    if (fake.silent) {
+    fake.transfers++;
+    if (fake.silent || fake.transfers == fake.fail_transfer) {
         return false;
     }
     record((Op){OP_READ, address, map, 0});
@@ -436,6 +440,36 @@ static void a_silent_bus_reports_no_reply(void)
     CHECK_EQUAL(DAC_NO_REPLY, dac_configure(&bus, 1));
 }
 
+static void every_failed_configuration_transfer_reports_no_reply(void)
+{
+    DacBus bus = fresh_bus();
+    CHECK_EQUAL(DAC_READY, dac_configure(&bus, 1));
+    int transfers = fake.transfers;
+    CHECK(transfers > 20);
+    for (int failure = 1; failure <= transfers; failure++) {
+        bus = fresh_bus();
+        fake.fail_transfer = failure;
+        CHECK_EQUAL(DAC_NO_REPLY, dac_configure(&bus, 1));
+        CHECK(fake.transfers >= failure);
+    }
+}
+
+static DacBus playing_bus(uint8_t left_done_after, uint8_t right_done_after);
+
+static void every_failed_output_shutdown_transfer_stops_safely(void)
+{
+    DacBus bus = playing_bus(0, 0);
+    dac_output_off(&bus);
+    int transfers = fake.transfers;
+    CHECK(transfers > 8);
+    for (int failure = 1; failure <= transfers; failure++) {
+        bus = playing_bus(0, 0);
+        fake.fail_transfer = failure;
+        dac_output_off(&bus);
+        CHECK(fake.transfers >= failure);
+    }
+}
+
 static void output_on_unmutes_and_restores_the_channel_values(void)
 {
     DacBus bus = fresh_bus();
@@ -612,6 +646,8 @@ int main(void)
         TEST_CASE(both_chips_reporting_not_ready_stops_the_sequence),
         TEST_CASE(one_chip_reporting_not_ready_carries_on),
         TEST_CASE(a_silent_bus_reports_no_reply),
+        TEST_CASE(every_failed_configuration_transfer_reports_no_reply),
+        TEST_CASE(every_failed_output_shutdown_transfer_stops_safely),
         TEST_CASE(output_on_unmutes_and_restores_the_channel_values),
         TEST_CASE(output_off_mutes_then_powers_the_outputs_down_before_the_serial_port),
         TEST_CASE(output_off_waits_for_both_chips_to_finish_their_output_ramp),

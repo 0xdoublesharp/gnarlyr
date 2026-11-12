@@ -31,6 +31,14 @@ static void balance_and_ceiling_changes_cannot_raise_either_channel(void)
     CHECK_EQUAL(0, headphone_audio_switch_volume(muted, headphone_audio_defaults(), 60));
 }
 
+static void a_right_channel_increase_alone_requires_attenuation(void)
+{
+    HeadphoneAudio before = {.left = 65536, .right = 32768, .ceiling = 60};
+    HeadphoneAudio after = {.left = 32768, .right = 65536, .ceiling = 60};
+    uint8_t level = headphone_audio_switch_volume(before, after, 60);
+    CHECK(level > 0 && level < 60);
+}
+
 static void clipping_never_occurs_before_combined_attenuation(void)
 {
     CHECK_EQUAL(2 * REPLAY_GAIN_UNITY,
@@ -44,6 +52,7 @@ int main(void)
     const TestCase cases[] = {
         TEST_CASE(switching_to_less_trim_lowers_volume_before_the_gain_changes),
         TEST_CASE(balance_and_ceiling_changes_cannot_raise_either_channel),
+        TEST_CASE(a_right_channel_increase_alone_requires_attenuation),
         TEST_CASE(clipping_never_occurs_before_combined_attenuation),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

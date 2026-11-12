@@ -261,6 +261,119 @@ static void a_record_is_one_block_with_its_payload_inside(void)
           0);
 }
 
+static void invalid_configurations_and_queue_states_fail_closed(void)
+{
+    SessionState restored = {0};
+    SessionJournalConfig config = configuration();
+
+    config.file.source.read = NULL;
+    CHECK_EQUAL(STORE_UNREADABLE, session_journal_open(&journal, config, &restored));
+    config = configuration();
+    config.file.size = SESSION_FILE_BYTES - 1;
+    CHECK_EQUAL(STORE_UNREADABLE, session_journal_open(&journal, config, &restored));
+    config = configuration();
+    config.track_limit = (uint32_t)UINT16_MAX + 1u;
+    CHECK_EQUAL(STORE_UNREADABLE, session_journal_open(&journal, config, &restored));
+
+    reset();
+    SessionState state = sample();
+    journal.config.file.write = NULL;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    journal.config = configuration();
+
+    state.queue_kind = (SessionQueueKind)UINT8_MAX;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state = sample();
+    state.order_generation = 1;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state = sample();
+    state.queue_kind = SESSION_QUEUE_STORED;
+    state.resume.from_up_next = true;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state.resume.from_up_next = false;
+    state.resume.cursor.album_track = 1;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state.resume.cursor.album_track = 0;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    up_next_clear(&state.up_next);
+    CHECK_EQUAL(STORE_DONE, session_journal_save(&journal, &state));
+
+    state = sample();
+    state.queue_kind = SESSION_QUEUE_EMPTY;
+    state.resume.from_up_next = false;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state.resume.from_up_next = true;
+    state.order_generation = 1;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+}
+
+static SessionState cassette_session(void)
+{
+    SessionState state = sample();
+    up_next_clear(&state.up_next);
+    state.queue_kind = SESSION_QUEUE_STORED;
+    state.cassette = (CassetteState){
+        .generation = 7, .count = 8, .split = 4, .slot = 2, .side = 0, .active = true};
+    state.resume.cursor.position = 0;
+    return state;
+}
+
+static void invalid_cassette_states_are_never_persisted(void)
+{
+    reset();
+    SessionState state = sample();
+    state.cassette.generation = 1;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state.cassette = (CassetteState){.count = 1};
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state.cassette = (CassetteState){.split = 1};
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state.cassette = (CassetteState){.slot = 1};
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state.cassette = (CassetteState){.side = 1};
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state.cassette = (CassetteState){.flip = true};
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+
+    state = cassette_session();
+    state.queue_kind = SESSION_QUEUE_GENERATED;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state = cassette_session();
+    state.cassette.slot = 32;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state = cassette_session();
+    state.cassette.side = 2;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state = cassette_session();
+    state.cassette.split = 0;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state = cassette_session();
+    state.cassette.split = state.cassette.count;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state = cassette_session();
+    state.cassette.count = CASSETTE_SIDE_CAPACITY + 2;
+    state.cassette.split = CASSETTE_SIDE_CAPACITY + 1;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state = cassette_session();
+    state.cassette.count = CASSETTE_SIDE_CAPACITY + 5;
+    state.cassette.split = 4;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state = cassette_session();
+    state.resume.cursor.position = state.cassette.count;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state = cassette_session();
+    state.cassette.flip = true;
+    state.resume.cursor.position = 0;
+    CHECK_EQUAL(STORE_FAILED, session_journal_save(&journal, &state));
+    state.resume.cursor.position = state.cassette.split - 1;
+    CHECK_EQUAL(STORE_DONE, session_journal_save(&journal, &state));
+    state = cassette_session();
+    state.cassette.side = 1;
+    state.cassette.flip = true;
+    state.resume.cursor.position = state.cassette.count - 1;
+    CHECK_EQUAL(STORE_DONE, session_journal_save(&journal, &state));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -273,6 +386,8 @@ int main(void)
         TEST_CASE(a_session_of_another_library_reads_as_empty_and_is_replaced),
         TEST_CASE(a_refused_write_is_a_definite_failure_that_keeps_both_records),
         TEST_CASE(a_record_is_one_block_with_its_payload_inside),
+        TEST_CASE(invalid_configurations_and_queue_states_fail_closed),
+        TEST_CASE(invalid_cassette_states_are_never_persisted),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
