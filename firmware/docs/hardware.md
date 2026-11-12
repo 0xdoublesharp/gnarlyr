@@ -48,9 +48,9 @@ What this project checked on a player: on the owner's Echo (4 GB), an earlier bu
 
 ## USB
 
-- DesignWare USB 2.0 OTG controller, high speed. The firmware presents both drives as a mass-storage device, or, in USB DAC mode, a high-speed USB Audio Class 2.0 sound card with a full-speed Class 1.0 fallback (USB audio has not run on a player by this project). The core's FIFO RAM is small: at reset, RX 147 words and TX FIFO 0 128 words.
+- DesignWare USB 2.0 OTG controller, high speed. The firmware presents both drives as a mass-storage device, or, in USB DAC mode, a high-speed USB Audio Class 2.0 sound card with a full-speed Class 1.0 fallback (on the player, USB audio's configuration was refused until the FIFOs were sized to the core's FIFO RAM; listening through it has not been checked by this project). The core's FIFO RAM is small: 308 words in all (GHWCFG3), with RX 147 words and TX FIFO 0 128 words at reset. The firmware sizes its FIFOs to fit those 308 words (`architecture.md`, USB).
 - With the buttons held at power-up, the boot ROM's maskrom mode appears as `2207:262d` (`docs/device-recovery.md`).
-- Gnarlyr restarts into the same mode when Power and vol+ are held for 2 s at start-up with cable power (`docs/device-recovery.md`). Which firmware slot the boot ROM starts is discussed in `docs/architecture.md` (Firmware slots and the boot ROM).
+- Gnarlyr restarts into the same mode when Power and vol+ are held for 3 s with cable power, at any time while it runs, including on the charge screen (`docs/device-recovery.md`). Which firmware slot the boot ROM starts is discussed in `docs/architecture.md` (Firmware slots and the boot ROM).
 
 ### USB audio clocks
 

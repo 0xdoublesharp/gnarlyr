@@ -4,7 +4,7 @@ This covers installing a build you made yourself; there is no released image. Be
 
 ## What has been done on a player
 
-An earlier build of this project, based on Podium 4.5.5, was installed on the owner's Echo (full size, 4 GB) from macOS with exactly the maskrom steps below, and FiiO's 2.0.0 was written back the same way ([`device-recovery.md`](device-recovery.md)). Canonical Gnarlyr developer firmware has also been installed through the two-hop file-copy transition, with automatic restart/reconnect and live build confirmation. See [`known-issues.md`](known-issues.md) for the bounded device checks.
+The maskrom steps below have been used on the owner's Echo (full size, 4 GB) from macOS several times: to install an early build based on Podium 4.5.5, to write FiiO's 2.0.0 back ([`device-recovery.md`](device-recovery.md)), and to put a known-good Gnarlyr build back after broken test builds. Gnarlyr developer firmware has been installed by file copy many times, including the two-hop transition to the canonical identity, with automatic restart/reconnect and live build confirmation. Trial installs into slot 1 have run on the player too; [`known-issues.md`](known-issues.md) says which parts of the trial have been seen working.
 
 ## Install through maskrom
 
@@ -80,7 +80,7 @@ FiiO's updater scans the top level of internal storage for `ECHOVnnn.IMG` files 
 
 ## Later updates: Gnarlyr's own updater
 
-File-copy updates have run on the owner's player with earlier developer identities. The canonical `GNARLYR` transition has completed on the owner's full-size ECHO after exact-image emulator checks ([`known-issues.md`](known-issues.md)). Trial updates, described next, have run only in the emulator.
+File-copy updates have run on the owner's player, including the transition to the canonical `GNARLYR` identity. Builds with trial updates install the new build on trial, described next.
 
 1. Connect the player. It shows "Computer found", and two drives appear: internal storage and the SD card.
 2. Copy the new image to the top level of internal storage and check it. On macOS: `cp -X firmware/build/release/GNARLYR.IMG /Volumes/<internal drive>/`, then `rm -f /Volumes/<internal drive>/._GNARLYR.IMG` and `shasum -a 256` on both copies.
@@ -128,7 +128,7 @@ An installed updater accepts the filename and image brand of its own identity. A
 
 ## What to check after an install
 
-- **Start-up:** the splash and the Home title say "Gnarlyr", with Music and Settings (and Now Playing once a track is loaded). Without a library, Music says "No library".
+- **Start-up:** the splash and the Home title say "Gnarlyr", with Music, Mixtapes, Stats, Clock, USB Mode and Settings (and Now playing above them once a track is loaded). Without a library, Music says "No library".
 - **Settings → About → Firmware:** the version and the commit you built.
 - **Keys:** each button does what the Buttons table in [`user-guide.md`](user-guide.md) says.
 - **Power:** a tap turns the screen off and on. Holding it for 2 s switches the player off; with a cable in, it shows the charge screen instead, and holding Power again turns the player back on.
@@ -147,7 +147,7 @@ An installed updater accepts the filename and image brand of its own identity. A
 | "USB missing: reinstall update" | The USB code could not be loaded from either slot; install again through maskrom |
 | "Update rolled back" | The trial build did not confirm; the previous build is back in both slots. Fix the build and copy it again |
 | Stuck during a trial, for example in a USB session | Hold Power for 10 s; the third restart rolls the update back |
-| No USB drives, but the player starts | Plug in the cable while holding Power and vol+ for 2 s: the player restarts into maskrom ([`device-recovery.md`](device-recovery.md)) |
+| No USB drives, but the player starts | With the cable in the computer, hold Power and vol+ for about 5 s: the player restarts into maskrom ([`device-recovery.md`](device-recovery.md)) |
 | A STALL or FAULT screen | Note the values shown, then hold Power for 2 s |
 
 ## Timing a cold start
