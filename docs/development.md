@@ -112,3 +112,13 @@ The [browser builder and USB CLI/MCP workflow](language-packs.md) add and select
 Before adding device behavior, choose its resident or module location and budget. Keep the release code reserve required by `firmware/CLAUDE.md`. Define caller-owned state, imported functions, cancellation and module-eviction behavior before connecting a new screen or codec.
 
 Build a concrete candidate and complete the relevant software checks before a device window. Batch related player checks through the existing debug loop, record the running build, and follow the device-access rules in `AGENTS.md`. Build and test commands in this document do not access the player.
+
+## Public CI
+
+Public workflows use standard GitHub-hosted runners. A preflight runs the root tests, firmware tool tests, generated-file freshness, and both image budget checks. Six Linux jobs then partition the remaining CTest registry in a deterministic order. Each job uses the existing wrapper, so its native build targets and CTest fixture dependencies are retained. The reusable release gate waits for preflight, every shard, and the trusted-ref macOS filesystem job before publication.
+
+Inspect one shard without compiling or executing tests:
+
+```sh
+python3 tools/ci_firmware.py --shard 1 --shards 6 --jobs 2 --list
+```
