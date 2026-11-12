@@ -178,6 +178,7 @@ typedef struct AppState {
     bool listener_bluetooth;
     bool volume_lowered;
     uint8_t lowered_volume;
+    PlayerOutput lowered_output;
 } AppState;
 
 static AppState app;
@@ -429,14 +430,15 @@ static void start_charging(uint32_t now_ms)
     debug_loop_save_report();
 }
 
-static void lower_start_volume(void)
+static void lower_start_volume(PlayerOutput output)
 {
-    uint8_t volume = player_status(&app.player).volume;
+    uint8_t volume = player_volume(&app.player, output);
     uint8_t safe = settings_safe_start_volume(&app.settings.settings, volume);
     if (safe < volume) {
-        player_change_volume(&app.player, (int)safe - (int)volume);
+        player_set_volume(&app.player, output, safe);
         app.volume_lowered = true;
         app.lowered_volume = safe;
+        app.lowered_output = output;
     }
 }
 
@@ -453,8 +455,11 @@ static void follow_listeners(void)
     bool linked =
         hal_bluetooth_status()->state == HAL_BLUETOOTH_CONNECTED && !app.listener_bluetooth;
     note_listeners();
-    if (plugged || linked) {
-        lower_start_volume();
+    if (plugged) {
+        lower_start_volume(PLAYER_OUTPUT_WIRED);
+    }
+    if (linked) {
+        lower_start_volume(PLAYER_OUTPUT_BLUETOOTH);
     }
 }
 
@@ -465,7 +470,7 @@ static void explain_lowered_volume(uint32_t now_ms)
         return;
     }
     app.volume_lowered = false;
-    if (player_status(&app.player).volume == app.lowered_volume) {
+    if (player_volume(&app.player, app.lowered_output) == app.lowered_volume) {
         StringBuilder builder = string_builder_make(text, sizeof text);
         i18n_format_counts(&builder, STR_VOLUME_LOWERED, app.lowered_volume, 0);
         toast_show(&app.toast, text, now_ms);
@@ -475,7 +480,7 @@ static void explain_lowered_volume(uint32_t now_ms)
 static void stop_charging(uint32_t now_ms)
 {
     app.charging = false;
-    lower_start_volume();
+    lower_start_volume(PLAYER_OUTPUT_WIRED);
     bluetooth_link_start(&app.bluetooth, &app.toast, now_ms);
     power_policy_wake(&app.power, now_ms);
     if (!app.display_on) {
@@ -1444,7 +1449,7 @@ static void start_app(bool power_on)
     if (hal_power_take_usb_start()) {
         start_charging(now_ms);
     } else if (power_on) {
-        lower_start_volume();
+        lower_start_volume(PLAYER_OUTPUT_WIRED);
     }
 }
 

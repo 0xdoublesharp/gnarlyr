@@ -139,6 +139,7 @@ enum {
     SETTINGS_BRIGHTNESS_MAX = 10,
     SETTINGS_VOLUME_MAX = 60,
     SETTINGS_DEFAULT_DAC_VOLUME = 35,
+    SETTINGS_DEFAULT_BLUETOOTH_VOLUME = 50,
     SCREEN_TIMEOUT_OPTION_COUNT = 7,
     SLEEP_TIMER_OPTION_COUNT = 7,
     AUTO_OFF_OPTION_COUNT = 4,
@@ -180,6 +181,7 @@ typedef struct Settings {
     UsbMode usb_mode;
     UsbConnect usb_connect;
     uint8_t dac_volume;
+    uint8_t bluetooth_volume;
     AccentColor accent;
     AppearanceTheme appearance;
     uint8_t button_actions[PLAYBACK_BUTTON_COUNT];

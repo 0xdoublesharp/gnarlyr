@@ -1478,6 +1478,55 @@ static void downgrade_rejects_the_v16_prefix(void)
     CHECK(!settings_decode(bytes, SETTINGS_V15_FILE_SIZE, &settings));
 }
 
+static void store_second_extension(uint8_t *bytes)
+{
+    hash_store(bytes + 74, hash_update(HASH_START, bytes + 58, 16));
+}
+
+static void the_bluetooth_level_lives_in_f2_and_defaults_to_stocks_minus_fifteen_db(void)
+{
+    Settings settings = settings_defaults();
+    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME, settings.bluetooth_volume);
+    CHECK_EQUAL(50, SETTINGS_DEFAULT_BLUETOOTH_VOLUME);
+    settings.bluetooth_volume = 33;
+    settings.status_bar_compact = true;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(34, bytes[60]);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(33, decoded.bluetooth_volume);
+    CHECK_EQUAL(settings.volume, decoded.volume);
+    settings.bluetooth_volume = 0;
+    settings_encode(&settings, bytes);
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(0, decoded.bluetooth_volume);
+    bytes[60] = 0;
+    store_second_extension(bytes);
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME, decoded.bluetooth_volume);
+    CHECK(decoded.status_bar_compact);
+    bytes[60] = SETTINGS_VOLUME_MAX + 2;
+    store_second_extension(bytes);
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME, decoded.bluetooth_volume);
+    CHECK(!decoded.status_bar_compact);
+}
+
+static void an_older_file_gets_the_default_bluetooth_level(void)
+{
+    Settings settings = settings_defaults();
+    settings.bluetooth_volume = 12;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[4] = 15;
+    bytes[53] = 0;
+    rewrite_checksum(bytes);
+    Settings decoded;
+    CHECK(settings_decode(bytes, SETTINGS_V15_FILE_SIZE, &decoded));
+    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME, decoded.bluetooth_volume);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -1515,6 +1564,8 @@ int main(void)
         TEST_CASE(button_maps_survive_a_separate_bounded_record),
         TEST_CASE(downgrade_rejects_the_v16_prefix),
         TEST_CASE(second_extension_round_trip_and_recovery),
+        TEST_CASE(the_bluetooth_level_lives_in_f2_and_defaults_to_stocks_minus_fifteen_db),
+        TEST_CASE(an_older_file_gets_the_default_bluetooth_level),
         TEST_CASE(timeout_options_end_with_never),
         TEST_CASE(sleep_options_start_with_off),
         TEST_CASE(settings_survive_a_round_trip),

@@ -248,7 +248,37 @@ static void bluetooth_headphones_connecting_lower_a_loud_volume(void)
     fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
     fake_hal_bluetooth()->connected = BUDS;
     step();
+    CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME, fake_hal_audio_bluetooth_volume());
+    CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME, app_player_status().volume);
+    CHECK_EQUAL(BELOW_SAFE + 20, fake_hal_audio_volume());
+}
+
+static void a_quiet_bluetooth_level_is_kept_on_connect(void)
+{
+    Settings settings = with_volume(BELOW_SAFE);
+    settings.bluetooth_volume = BELOW_SAFE;
+    boot_with(settings, true);
+    start_playing();
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
+    fake_hal_bluetooth()->connected = BUDS;
+    step();
+    CHECK_EQUAL(BELOW_SAFE, fake_hal_audio_bluetooth_volume());
+    CHECK(!toast_shown_within("Volume lowered to 24", TOAST_DURATION_MS + 100));
+}
+
+static void plugging_in_headphones_while_on_bluetooth_lowers_only_the_wired_level(void)
+{
+    playing_with_a_loud_volume();
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
+    fake_hal_bluetooth()->connected = BUDS;
+    step();
+    raise_volume(10);
+    CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME + 10, fake_hal_audio_bluetooth_volume());
+    CHECK_EQUAL(BELOW_SAFE + 20, fake_hal_audio_volume());
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_SINGLE_ENDED);
+    step();
     CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME, fake_hal_audio_volume());
+    CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME + 10, fake_hal_audio_bluetooth_volume());
 }
 
 static void the_volume_toast_follows_the_bluetooth_toast(void)
@@ -430,6 +460,8 @@ int main(void)
         TEST_CASE(unplugging_headphones_leaves_the_volume),
         TEST_CASE(headphones_already_plugged_in_at_power_on_are_not_a_second_plug),
         TEST_CASE(bluetooth_headphones_connecting_lower_a_loud_volume),
+        TEST_CASE(a_quiet_bluetooth_level_is_kept_on_connect),
+        TEST_CASE(plugging_in_headphones_while_on_bluetooth_lowers_only_the_wired_level),
         TEST_CASE(the_volume_toast_follows_the_bluetooth_toast),
         TEST_CASE(the_volume_toast_is_dropped_once_the_volume_changed),
         TEST_CASE(turning_on_from_the_charging_screen_lowers_a_loud_volume),

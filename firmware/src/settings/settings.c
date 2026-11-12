@@ -199,6 +199,7 @@ Settings settings_defaults(void)
         .auto_off = DEFAULT_AUTO_OFF_OPTION,
         .usb_mode = USB_MODE_STORAGE,
         .dac_volume = SETTINGS_DEFAULT_DAC_VOLUME,
+        .bluetooth_volume = SETTINGS_DEFAULT_BLUETOOTH_VOLUME,
         .accent = ACCENT_BLUE,
         .appearance = APPEARANCE_NEON_NOIR,
         .equalizer = EQUALIZER_OFF,
@@ -358,6 +359,9 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
     bytes[58] = (uint8_t)(settings->status_bar_compact | settings->standby_enabled << 1 |
                           settings->standby_power_off_option << 2);
     bytes[59] = settings->long_press_action & 7u;
+    bytes[60] = (uint8_t)((settings->bluetooth_volume < SETTINGS_VOLUME_MAX ? settings->bluetooth_volume
+                                                                          : SETTINGS_VOLUME_MAX) +
+                          1u);
     hash_store(bytes + 74, hash_update(HASH_START, bytes + 58, 16));
 }
 
@@ -599,13 +603,17 @@ bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
     settings->usb_connect = (UsbConnect)(bytes[VERSION_FIELD + 1] >> 4u & 3u);
     decode_extension(bytes, settings);
     settings->standby_power_off_option = 1;
+    settings->bluetooth_volume = SETTINGS_DEFAULT_BLUETOOTH_VOLUME;
     if (bytes[VERSION_FIELD] >= 16 && length >= SETTINGS_FILE_SIZE &&
         hash_load(bytes + 74) == hash_update(HASH_START, bytes + 58, 16) &&
-        (bytes[58] & 0xF0u) == 0 && (bytes[58] >> 2) < 3 && (bytes[59] & 0xF8u) == 0) {
+        (bytes[58] & 0xF0u) == 0 && (bytes[58] >> 2) < 3 && (bytes[59] & 0xF8u) == 0 &&
+        bytes[60] <= SETTINGS_VOLUME_MAX + 1) {
         settings->status_bar_compact = (bytes[58] & 1u) != 0;
         settings->standby_enabled = (bytes[58] & 2u) != 0;
         settings->standby_power_off_option = bytes[58] >> 2;
         settings->long_press_action = bytes[59];
+        settings->bluetooth_volume =
+            bytes[60] == 0 ? (uint8_t)SETTINGS_DEFAULT_BLUETOOTH_VOLUME : (uint8_t)(bytes[60] - 1u);
     }
     return true;
 }

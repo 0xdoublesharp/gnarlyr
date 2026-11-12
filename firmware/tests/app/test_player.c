@@ -324,6 +324,48 @@ static void volume_changes_are_clamped_and_sent(void)
     CHECK_EQUAL(0, fake_hal_audio_volume());
 }
 
+static void bluetooth_and_wired_keep_separate_volume_levels(void)
+{
+    Player *started = playing(0);
+    CHECK_EQUAL(PLAYER_DEFAULT_BLUETOOTH_VOLUME, fake_hal_audio_bluetooth_volume());
+    player_change_volume(started, 3);
+    CHECK_EQUAL(PLAYER_DEFAULT_VOLUME + 3, fake_hal_audio_volume());
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_NONE);
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
+    CHECK_EQUAL(PLAYER_OUTPUT_BLUETOOTH, player_output());
+    CHECK_EQUAL(PLAYER_DEFAULT_BLUETOOTH_VOLUME, player_status(started).volume);
+    player_change_volume(started, 5);
+    CHECK_EQUAL(PLAYER_DEFAULT_BLUETOOTH_VOLUME + 5, player_status(started).volume);
+    CHECK_EQUAL(PLAYER_DEFAULT_BLUETOOTH_VOLUME + 5, fake_hal_audio_bluetooth_volume());
+    CHECK_EQUAL(PLAYER_DEFAULT_VOLUME + 3, fake_hal_audio_volume());
+    CHECK_EQUAL(PLAYER_DEFAULT_VOLUME + 3, player_status(started).wired_volume);
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_SINGLE_ENDED);
+    CHECK_EQUAL(PLAYER_OUTPUT_WIRED, player_output());
+    CHECK_EQUAL(PLAYER_DEFAULT_VOLUME + 3, player_status(started).volume);
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_NONE);
+    CHECK_EQUAL(PLAYER_OUTPUT_BLUETOOTH, player_output());
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_OFF;
+    CHECK_EQUAL(PLAYER_OUTPUT_WIRED, player_output());
+    CHECK_EQUAL(PLAYER_DEFAULT_VOLUME + 3, player_status(started).volume);
+    player_change_volume(started, -1);
+    CHECK_EQUAL(PLAYER_DEFAULT_VOLUME + 2, fake_hal_audio_volume());
+    CHECK_EQUAL(PLAYER_DEFAULT_BLUETOOTH_VOLUME + 5, player_status(started).bluetooth_volume);
+}
+
+static void the_headphone_ceiling_limits_only_the_wired_level(void)
+{
+    Player *started = playing(0);
+    HeadphoneAudio profile = headphone_audio_defaults();
+    profile.ceiling = 30;
+    hal_audio_set_headphones(profile);
+    player_set_volume(started, PLAYER_OUTPUT_WIRED, 50);
+    player_set_volume(started, PLAYER_OUTPUT_BLUETOOTH, 55);
+    CHECK_EQUAL(30, player_status(started).wired_volume);
+    CHECK_EQUAL(55, player_status(started).bluetooth_volume);
+    player_set_volume(started, PLAYER_OUTPUT_BLUETOOTH, 200);
+    CHECK_EQUAL(HAL_AUDIO_VOLUME_MAX, fake_hal_audio_bluetooth_volume());
+}
+
 static void changing_shuffle_keeps_the_current_track_playing(void)
 {
     Player *started = playing(0);
@@ -1600,6 +1642,8 @@ int main(void)
         TEST_CASE(switching_from_one_jack_to_the_other_keeps_playing),
         TEST_CASE(starting_with_nothing_plugged_in_still_plays),
         TEST_CASE(volume_changes_are_clamped_and_sent),
+        TEST_CASE(bluetooth_and_wired_keep_separate_volume_levels),
+        TEST_CASE(the_headphone_ceiling_limits_only_the_wired_level),
         TEST_CASE(changing_shuffle_keeps_the_current_track_playing),
         TEST_CASE(a_pause_longer_than_thirty_seconds_releases_the_audio),
         TEST_CASE(playing_again_after_a_released_pause_resumes_in_place),

@@ -85,16 +85,19 @@ class EchoImageTest(EchoImageHarness):
         import struct
         rig, module, toasts = self.bluetooth_rig(on_bluetooth=True)
         starts = []
-        rig.machine.uc.mem_write(rig.machine.symbols["output_setting"], struct.pack("<I", 2))
+        rig.machine.uc.mem_write(rig.machine.symbols["output_setting"], bytes([2]))
         original = module.follow_stream
 
         def observe(on):
             if on:
                 first = rig.machine.read_memory(rig.audio.ring, 8)
                 starts.append(struct.unpack("<II", first))
-                level = rig.machine.read_memory(rig.machine.symbols["volume_level"], 1)[0]
+                level = rig.machine.read_memory(rig.machine.symbols["bluetooth_level"], 1)[0]
                 target = rig.machine.read_memory(rig.machine.symbols["volume_value"], 1)[0]
-                self.assertEqual(target, 2 * (60 - level) if level else 255)
+                self.assertEqual(level, 24)
+                self.assertEqual(target, 10 + 2 * (60 - level))
+                wired = rig.machine.read_memory(rig.machine.symbols["volume_level"], 1)[0]
+                self.assertNotEqual(level, wired)
             original(on)
 
         module.follow_stream = observe

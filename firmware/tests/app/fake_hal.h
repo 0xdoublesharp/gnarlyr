@@ -114,6 +114,7 @@ void fake_hal_audio_set_token(uint32_t token);
 int fake_hal_audio_seek_count(void);
 uint32_t fake_hal_audio_last_seek(void);
 uint8_t fake_hal_audio_volume(void);
+uint8_t fake_hal_audio_bluetooth_volume(void);
 int fake_hal_audio_state(void);
 int fake_hal_write_count(void);
 

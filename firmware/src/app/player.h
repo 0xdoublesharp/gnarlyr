@@ -16,6 +16,7 @@
 
 enum {
     PLAYER_DEFAULT_VOLUME = 13,
+    PLAYER_DEFAULT_BLUETOOTH_VOLUME = 50,
     PLAYER_RESTART_THRESHOLD_MS = 3000,
     PLAYER_SAVE_INTERVAL_MS = 15000,
     PLAYER_PAUSE_RELEASE_MS = 30000,
@@ -53,6 +54,11 @@ typedef enum PlayerNextSource {
     PLAYER_NEXT_SAME_SONG
 } PlayerNextSource;
 
+typedef enum PlayerOutput {
+    PLAYER_OUTPUT_WIRED,
+    PLAYER_OUTPUT_BLUETOOTH
+} PlayerOutput;
+
 typedef struct PlayerStatus {
     PlayerState state;
     bool has_track;
@@ -60,6 +66,8 @@ typedef struct PlayerStatus {
     uint32_t position_ms;
     uint32_t duration_ms;
     uint8_t volume;
+    uint8_t wired_volume;
+    uint8_t bluetooth_volume;
     ShuffleMode shuffle;
     RepeatMode repeat;
     PlayQueuePlace place;
@@ -113,6 +121,7 @@ typedef struct Player {
     RepeatMode repeat;
     ShuffleMode shuffle;
     uint8_t volume;
+    uint8_t bluetooth_volume;
     uint8_t replay_gain_mode;
     bool prevent_clipping;
     bool fade_transitions;
@@ -160,6 +169,9 @@ void player_jump(Player *player, int32_t delta_ms);
 void player_toggle_pause(Player *player);
 void player_skip(Player *player, int direction);
 void player_seek(Player *player, uint32_t position_ms);
+PlayerOutput player_output(void);
+uint8_t player_volume(const Player *player, PlayerOutput output);
+void player_set_volume(Player *player, PlayerOutput output, uint8_t level);
 void player_change_volume(Player *player, int delta);
 void player_set_shuffle(Player *player, ShuffleMode shuffle, uint32_t seed);
 void player_set_repeat(Player *player, RepeatMode repeat);
