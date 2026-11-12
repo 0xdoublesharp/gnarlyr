@@ -26,14 +26,14 @@ enum {
     MUSIC_SMART_LISTS_ROW = 10,
     MUSIC_ALBUMS_ROW = 4,
     MUSIC_ALL_SONGS_ROW = 7,
-    SETTINGS_ROWS = 30,
+    SETTINGS_ROWS = 32,
     SETTINGS_BLUETOOTH_ROW = 3,
     SETTINGS_SLEEP_ROW = 4,
-    SETTINGS_OUTPUT_ROW = 16,
-    SETTINGS_EQUALIZER_ROW = 17,
-    SETTINGS_CUSTOM_EQ_ROW = 18,
-    SETTINGS_RESCAN_ROW = 22,
-    SETTINGS_USB_MODE_ROW = 23,
+    SETTINGS_OUTPUT_ROW = 17,
+    SETTINGS_EQUALIZER_ROW = 18,
+    SETTINGS_CUSTOM_EQ_ROW = 19,
+    SETTINGS_RESCAN_ROW = 23,
+    SETTINGS_USB_MODE_ROW = 24,
     ABOUT_ROWS = 14,
     HOME_EDITOR_PODCASTS_ROW = 6,
     EQUALIZER_SAVE_ROW = 10,
@@ -428,7 +428,8 @@ static void walk_settings_choices(void)
                                                    STR_REWIND_ON_RESUME,
                                                    STR_SAFE_START_VOLUME,
                                                    STR_TRANSITIONS,
-                                                   STR_USB_ANSWER};
+                                                   STR_USB_ANSWER,
+                                                   STR_POWER_ON};
     for (int row = 1; row < SETTINGS_ROWS; row++) {
         if (row == SETTINGS_RESCAN_ROW) {
             continue;
