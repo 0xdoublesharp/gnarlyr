@@ -572,12 +572,34 @@ static void sample_traffic(uint32_t now_ms)
     uint32_t totals[USB_METER_DIRECTIONS] = {msc_sectors_moved(&msc, false),
                                              msc_sectors_moved(&msc, true)};
     usb_meter_sample(&scene.meter, totals, now_ms);
+    scene.phase = 0;
     uint32_t seconds = scene.link.seconds;
     follow_link(&stats, now_ms);
     bool moving_now = usb_meter_moving(&scene.meter);
     changed = follow_steady(now_ms) || changed || moving_now || session_clock.moving;
     session_clock.moving = moving_now;
     show_sample(changed, seconds != scene.link.seconds);
+}
+
+static bool terrain_free(void)
+{
+    return msc.phase == MSC_PHASE_COMMAND && !port.in_busy && scene.page == USB_SCENE_OVERVIEW;
+}
+
+static void step_terrain(uint32_t now_ms)
+{
+    if (!traffic(scene.state) || !session_clock.moving || !terrain_free()) {
+        return;
+    }
+    uint32_t phase = (now_ms - scene.meter.sampled_ms) * USB_METER_PHASES / USB_METER_PERIOD_MS;
+    if (phase >= USB_METER_PHASES || phase == scene.phase) {
+        return;
+    }
+    scene.phase = (uint8_t)phase;
+    AppUsbStatus status = storage_status();
+    const Theme *theme = app_theme();
+    UsbScreenLayout layout = usb_screen_layout(theme, status);
+    app_show_usb_area(status, usb_screen_graph(theme, &layout));
 }
 
 typedef struct SessionWatch {
@@ -588,10 +610,10 @@ typedef struct SessionWatch {
     UsbLeaveState state;
 } SessionWatch;
 
-static void follow_card(void)
+static bool follow_card(void)
 {
     if (msc.phase != MSC_PHASE_COMMAND) {
-        return;
+        return false;
     }
     if (eject_card) {
         sd_eject(true);
@@ -604,17 +626,15 @@ static void follow_card(void)
         msc_set_media(&msc, CARD_LUN, ready, ready ? sd_sector_count() : 0);
     }
     card_present = ready;
-    if (changed) {
-        show_storage_state();
-    }
+    return changed;
 }
 
 static void watch_session(SessionWatch *watch, uint32_t now)
 {
     watch->followed = now;
-    follow_card();
+    bool card = follow_card();
     watch->state = follow_leave(now);
-    if (scene_follow(watch->state, now)) {
+    if (scene_follow(watch->state, now) || card) {
         show_storage_state();
     }
     if (now - watch->refreshed >= COUNTER_REFRESH_MS) {
@@ -623,6 +643,7 @@ static void watch_session(SessionWatch *watch, uint32_t now)
     }
     follow_lights(now);
     sample_traffic(now);
+    step_terrain(now);
     step_motion(now);
 }
 

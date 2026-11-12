@@ -10,12 +10,8 @@ enum {
     ARROW_WIDTH_HALVES = 3,
     BAR_HEIGHT = 6,
     INLINE_WIDTH = 260,
-    GRAPH_FLOOR = 1000,
-    CAP_HEIGHT = 2,
-    GLOW_STEPS = 3,
     DIM_STEPS = 5,
-    LED_SHARE = 2,
-    HEADROOM_SHARE = 5
+    LED_SHARE = 2
 };
 
 typedef struct TrafficLayout {
@@ -151,11 +147,6 @@ static void draw_arrow(const UsbPainter *painter, Rect box, bool down, Color ink
         canvas_fill_rect(painter->canvas,
                          (Rect){box.x + box.width / 2 - half, box.y + row, 2 * half + 1, 1}, ink);
     }
-}
-
-static bool active(const UsbScene *scene)
-{
-    return scene->busy;
 }
 
 static Color direction_color(const Theme *theme, bool down)
@@ -348,64 +339,6 @@ static void draw_drive(const UsbPainter *painter, const TrafficLayout *layout, i
     right.x = row.note.x + row.note.width - right.width;
     usb_screen_text(painter, right, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
                     note);
-}
-
-static void draw_bar_column(const UsbPainter *painter, Rect column, Color color, bool lively)
-{
-    if (column.height <= 0) {
-        return;
-    }
-    const ThemeColors *colors = &painter->theme->colors;
-    Color top = lively ? color : color_between(colors->backdrop_bottom, color, 2, DIM_STEPS);
-    Color base = color_between(colors->backdrop_bottom, color, 1, lively ? GLOW_STEPS : DIM_STEPS);
-    canvas_fill_gradient(painter->canvas, column, top, base);
-    int cap = column.height < CAP_HEIGHT ? column.height : CAP_HEIGHT;
-    Color shine = lively ? usb_screen_tint(color, colors->text) : top;
-    canvas_fill_rect(painter->canvas, (Rect){column.x, column.y, column.width, cap}, shine);
-}
-
-static uint32_t graph_top(const UsbMeter *meter)
-{
-    uint32_t top = GRAPH_FLOOR;
-    for (int age = 0; age < meter->count; age++) {
-        uint32_t total = usb_meter_total(meter, age);
-        top = total > top ? total : top;
-    }
-    return top + top / HEADROOM_SHARE;
-}
-
-static void draw_sample(const UsbPainter *painter, Rect slot, int age, uint32_t top)
-{
-    const UsbMeter *meter = &painter->scene->meter;
-    const ThemeColors *colors = &painter->theme->colors;
-    bool lively = active(painter->scene);
-    int written =
-        (int)((uint64_t)usb_meter_rate(meter, USB_METER_WRITE, age) * (uint32_t)slot.height / top);
-    int read =
-        (int)((uint64_t)usb_meter_rate(meter, USB_METER_READ, age) * (uint32_t)slot.height / top);
-    int base = slot.y + slot.height;
-    draw_bar_column(painter, (Rect){slot.x, base - written, slot.width, written}, colors->success,
-                    lively);
-    draw_bar_column(painter, (Rect){slot.x, base - written - read, slot.width, read},
-                    colors->accent, lively);
-}
-
-void usb_screen_draw_graph(const UsbPainter *painter)
-{
-    const Theme *theme = painter->theme;
-    Rect area = usb_screen_graph(theme, &painter->layout);
-    const UsbMeter *meter = &painter->scene->meter;
-    uint32_t top = graph_top(meter);
-    int pitch = area.width / USB_METER_SAMPLES;
-    for (int age = 0; age < USB_METER_SAMPLES && pitch > 1; age++) {
-        Rect slot = {area.x + area.width - (age + 1) * pitch, area.y, pitch - 1, area.height};
-        draw_sample(painter, slot, age, top);
-        usb_screen_service(painter->scene);
-    }
-    Color rule = active(painter->scene) ? usb_screen_tint(theme->colors.accent, theme->colors.text)
-                                        : dim(theme, theme->colors.accent);
-    canvas_fill_rect(painter->canvas, (Rect){area.x, area.y + area.height - 1, area.width, 1},
-                     rule);
 }
 
 void usb_screen_draw_traffic(const UsbPainter *painter)

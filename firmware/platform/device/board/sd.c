@@ -46,7 +46,7 @@ const MmcHost SD_MMC_HOST = {SD_BASE, CRU_SD_IDENTIFY, CRU_SD_TRANSFER, &sd_fifo
 
 static SdCard card;
 static bool ready;
-static bool tried;
+static CardStart attempts;
 static bool detect_started;
 static CardPresence presence;
 static uint32_t generation;
@@ -157,8 +157,7 @@ bool sd_start(BlockDevice *device)
     if (!sd_present() || presence.ejected) {
         return false;
     }
-    if (!tried) {
-        tried = true;
+    if (!ready && card_start_due(&attempts, hal_clock_milliseconds())) {
         ready = start_card();
     }
     return ready;
@@ -230,7 +229,7 @@ bool sd_present(void)
     if (present != before) {
         generation++;
         ready = false;
-        tried = false;
+        attempts = (CardStart){0};
         if (!present) {
             presence.ejected = false;
         }
@@ -258,7 +257,7 @@ uint32_t sd_generation(void)
 void sd_forget(void)
 {
     ready = false;
-    tried = false;
+    attempts = (CardStart){0};
 }
 
 const SdCard *sd_card_info(void)
