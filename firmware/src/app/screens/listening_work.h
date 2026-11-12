@@ -11,6 +11,7 @@
 #include "playback/moments.h"
 #include "screens/smart_list_work.h"
 #include "theme_picker.h"
+#include "ui/wire_motion.h"
 
 enum {
     LISTENING_NAME_BYTES = 128,
@@ -54,7 +55,6 @@ typedef struct ListeningModuleWork {
     const void *owner;
     union {
         ListeningWork listening;
-        ThemeWork themes;
         SmartListWork smart;
         LyricsWork lyrics;
         MomentsWork moments;

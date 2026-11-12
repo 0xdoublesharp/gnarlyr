@@ -313,7 +313,7 @@ static void the_picker_highlights_the_current_builtin_then_play_saves_the_previe
                                        .themes = &runtime,
                                        .settings = &settings,
                                        .toast = &toast}};
-    ThemePicker *picker = &screens.modules.listening.themes;
+    ThemePicker *picker = &screens.modules.views.themes;
     theme_picker_init(picker, &screens);
     picker->screen.enter(picker, 0);
     CHECK_EQUAL(APPEARANCE_SUNSET, picker->list.selected);

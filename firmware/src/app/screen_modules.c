@@ -65,7 +65,7 @@ static void cancel_equalizer_previews(AppScreens *screens)
 static void cancel_theme_preview(AppScreens *screens)
 {
     if (screens->context.themes != NULL && screens->context.themes->previewing) {
-        const ListeningModuleEntry *entry = hal_system_load_module(SCREEN_MODULE_LISTENING);
+        const ViewsModuleEntry *entry = hal_system_load_module(SCREEN_MODULE_VIEWS);
         if (entry != NULL) {
             entry->theme_restore(screens->context.themes);
             default_theme_invalidate(screens->context.styled_theme);

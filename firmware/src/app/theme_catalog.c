@@ -2,9 +2,9 @@
 
 #include "core/string_builder.h"
 #include "core/utf8.h"
-#include "screens/listening_work.h"
-
-static ThemeWork *const work = &listening_module_work.as.themes;
+static ThemeWork theme_work;
+static bool theme_work_claimed;
+static ThemeWork *const work = &theme_work;
 
 char *theme_catalog_detail(void)
 {
@@ -13,8 +13,8 @@ char *theme_catalog_detail(void)
 
 ThemePack *theme_catalog_work(void)
 {
-    if (listening_module_work.owner != work) {
-        listening_module_work.owner = work;
+    if (!theme_work_claimed) {
+        theme_work_claimed = true;
         *work = (ThemeWork){0};
     }
     return &work->pack;
@@ -22,8 +22,8 @@ ThemePack *theme_catalog_work(void)
 
 ThemeCatalog *theme_picker_catalog(void)
 {
-    if (listening_module_work.owner != work) {
-        listening_module_work.owner = work;
+    if (!theme_work_claimed) {
+        theme_work_claimed = true;
         *work = (ThemeWork){0};
     }
     if (!work->ready) {
