@@ -569,6 +569,7 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             hal_clock_restore_wall=extension_hal_clock_restore_wall
             headphone_store_load=extension_headphone_store_load
             hal_file_remove=extension_hal_file_remove
+            favorite_playlist_add=extension_favorite_playlist_add
             standby_follow=extension_standby_follow
             standby_frame=extension_standby_frame
             wire_motion_draw=extension_wire_motion_draw
