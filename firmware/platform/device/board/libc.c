@@ -16,16 +16,6 @@ static bool words_line_up(const void *to, const void *from)
 
 static void copy_words_up(Word *to, const Word *from, size_t words)
 {
-    for (; words >= 4; words -= 4, to += 4, from += 4) {
-        Word a = from[0];
-        Word b = from[1];
-        Word c = from[2];
-        Word d = from[3];
-        to[0] = a;
-        to[1] = b;
-        to[2] = c;
-        to[3] = d;
-    }
     while (words-- > 0) {
         *to++ = *from++;
     }
@@ -33,18 +23,6 @@ static void copy_words_up(Word *to, const Word *from, size_t words)
 
 static void copy_words_down(Word *end, const Word *from_end, size_t words)
 {
-    for (; words >= 4; words -= 4) {
-        end -= 4;
-        from_end -= 4;
-        Word d = from_end[3];
-        Word c = from_end[2];
-        Word b = from_end[1];
-        Word a = from_end[0];
-        end[3] = d;
-        end[2] = c;
-        end[1] = b;
-        end[0] = a;
-    }
     while (words-- > 0) {
         *--end = *--from_end;
     }
