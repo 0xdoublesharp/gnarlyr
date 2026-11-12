@@ -643,12 +643,21 @@ static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas)
     draw_right_aligned(canvas, style, area, remaining);
 }
 
-static void modes_text(const PlayerStatus *status, char *buffer, size_t capacity)
+static void modes_text(const NowPlayingScreen *now_playing, char *buffer, size_t capacity)
 {
+    const PlayerStatus *status = &now_playing->status;
+    const Settings *settings = now_playing->config.settings;
     StringBuilder builder = string_builder_make(buffer, capacity);
     if (status->repeat != REPEAT_OFF) {
         string_builder_append(
             &builder, i18n_text(status->repeat == REPEAT_ONE ? STR_REPEAT_ONE : STR_REPEAT_ALL));
+    }
+    if (settings != NULL && settings->playback_speed != SETTINGS_SPEED_NORMAL &&
+        settings->playback_speed < SETTINGS_SPEED_COUNT) {
+        if (buffer[0] != '\0') {
+            string_builder_append(&builder, SEPARATOR);
+        }
+        string_builder_append(&builder, i18n_text(SETTINGS_SPEED_LABELS[settings->playback_speed]));
     }
 }
 
@@ -684,7 +693,7 @@ static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
                                    layout(now_playing)->small_line_height),
                        detail});
     char modes[STATUS_CAPACITY];
-    modes_text(&now_playing->status, modes, sizeof modes);
+    modes_text(now_playing, modes, sizeof modes);
     const CassetteState *tape =
         now_playing->config.player != NULL ? &now_playing->config.player->cassette : NULL;
     if (tape != NULL && tape->active) {

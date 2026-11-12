@@ -318,6 +318,7 @@ void player_init(Player *player, const Library *library)
     player->queue.library = library;
     player->volume = PLAYER_DEFAULT_VOLUME;
     player->prevent_clipping = true;
+    player->speed = PLAYER_NORMAL_SPEED;
     player->jack = hal_audio_jack();
     hal_audio_set_volume(player->volume);
 }
@@ -920,6 +921,7 @@ PlayerStatus player_status(const Player *player)
         .place = player->has_track ? play_queue_place(&player->queue) : (PlayQueuePlace){0, 0},
         .format = current_format(player),
         .spoken = player->has_track && player->spoken,
+        .speed = player->speed,
     };
 }
 
@@ -965,6 +967,12 @@ void player_set_replay_gain(Player *player, ReplayGainMode mode, bool prevent_cl
             player->next_token,
             library_replay_gain_for(player->library, player->next_track, mode, prevent_clipping));
     }
+}
+
+void player_set_speed(Player *player, uint16_t speed)
+{
+    player->speed = speed;
+    hal_audio_set_speed(speed);
 }
 
 void player_set_transitions(Player *player, bool fade, uint8_t tenths)

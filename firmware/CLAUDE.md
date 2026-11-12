@@ -22,7 +22,7 @@ The four-byte file markers beginning with `DS` remain maker format tags. Setting
 | `assets/` | Font sources and `lang/en.txt`, the English text and string catalogue |
 | `tools/` | Python: image builder (`make_image.py`), size report (`size_report.py`), language pack builder (`lang_pack.py`), emulator (`echo_emulator`), PC library indexer, `echo_sync.py`, font and fixture generators |
 | `tests/` | One test executable per module, emulator scenarios, fixtures |
-| `docs/` | The design record: `architecture.md` (layers, rules, device platform), `ogg-vorbis.md` and `opus.md`, `hardware.md`, `library-format.md`, `smart-lists.md`, `playback-store.md` with `stored-order.md`, `session-journal.md` and `mixtapes.md`, `device-install.md`, `device-recovery.md`, `known-issues.md`, `user-guide.md`, `release-notes.md` |
+| `docs/` | The design record: `architecture.md` (layers, rules, device platform), `ogg-vorbis.md` and `opus.md`, `hardware.md`, `library-format.md`, `smart-lists.md`, `playback-store.md` with `stored-order.md`, `session-journal.md` and `mixtapes.md`, `device-install.md`, `device-recovery.md`, `known-issues.md`, `user-guide.md`, `audio-tempo.md` (playback speed), `release-notes.md` |
 
 The layer table in `docs/architecture.md` defines which layer may depend on which; keep to it.
 

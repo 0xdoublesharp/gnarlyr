@@ -5,13 +5,70 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import (
     EchoImageHarness,
+    IDENTITY,
+    PROJECT,
     main,
     MOTION_LOAD_LIMIT_PERCENT,
     struct,
 )
 
+SPEED_STEPS = ((100, 0), (150, 2), (200, 4), (300, 6))
+FULL_RING_WORDS = 7 * 4000
+STRETCH_RING_WORDS = 5 * 4000
+SPEED_SETTLE_MS = 1000
+SPEED_MEASURE_MS = 2000
+
 
 class EchoImageTest(EchoImageHarness):
+    def speed_volume(self, files, step):
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.real_volume import MEGABYTES
+        volume = Fat32Volume(MEGABYTES)
+        for file in files:
+            volume.add_file(*file)
+        volume.add_directory(IDENTITY.data_directory)
+        volume.add_file("settings.bin", self.saved_settings(0x07, 15, 0, step),
+                        directory=IDENTITY.data_directory)
+        return volume
+
+    def measure_speed_load(self, files, label, rate):
+        from echo_emulator.playback import Rig
+        loads = []
+        for percent, step in SPEED_STEPS:
+            rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                      volume=self.speed_volume(files, step), module_elfs=self.module_elfs)
+            idle = self.idle_counter(rig.machine)
+            rig.open_songs()
+            started = rig.play_song(1)
+            self.assertIsNotNone(rig.first_audio_after(started))
+            rig.run_for(SPEED_SETTLE_MS)
+            busy = self.busy_percent(rig, idle, SPEED_MEASURE_MS)
+            self.assertEqual(rate, rig.audio.rate)
+            self.assertEqual(FULL_RING_WORDS if step == 0 else STRETCH_RING_WORDS,
+                             rig.audio.ring_words())
+            self.assertEqual([], rig.audio.underruns(started), percent)
+            self.assertEqual(0, rig.audio.output_underruns())
+            self.assert_healthy(rig.session)
+            loads.append(busy)
+            print("\n[%s] %d%% speed: core 0 busy %.1f %%, %d Hz output" %
+                  (label, percent, busy, rig.audio.rate))
+        return loads
+
+    def speech_16k(self):
+        pattern = struct.pack("<8h", 0, 2828, 4000, 2828, 0, -2828, -4000, -2828)
+        pcm = pattern * (16000 * 12 // 8)
+        return struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ",
+                           16, 1, 1, 16000, 32000, 2, 16, b"data", len(pcm)) + pcm
+
+    def test_playback_speed_core_0_load_for_44_khz_flac(self):
+        from echo_emulator.flac_image import FlacImage
+        from echo_emulator.real_volume import ALBUM_FRAMES
+        self.measure_speed_load((("Album.flac", None, None, "", FlacImage(ALBUM_FRAMES)),),
+                                "44.1 kHz FLAC", 44100)
+
+    def test_playback_speed_core_0_load_for_16_khz_speech(self):
+        self.measure_speed_load((("Speech.wav", self.speech_16k()),), "16 kHz speech", 32000)
+
     def test_export_motion_leaves_core_0_room_while_44_khz_music_plays(self):
         from echo_emulator.playback import Rig
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,

@@ -895,14 +895,14 @@ class EchoImageHarness(unittest.TestCase):
     def transition_settings(self, tenths):
         return self.saved_settings(4 | 1 << 3, tenths, shuffle=1)
 
-    def saved_settings(self, comfort, tenths, shuffle):
+    def saved_settings(self, comfort, tenths, shuffle, speed_step=0):
         settings = bytearray(4096)
         settings[:6] = b"DSST" + bytes((15, 0))
         settings[6:9] = bytes((7, 2, 0))
         settings[11], settings[13], settings[14], settings[16] = shuffle, 60, 2, 35
         settings[24], settings[27] = 1, 1
         settings[28:38] = bytes((20,) * 10)
-        settings[38:43] = bytes((comfort, 13, tenths, 0, 0x10))
+        settings[38:43] = bytes((comfort, 13, tenths, speed_step & 0xFF, 0x10))
         settings[43:47] = bytes((0x32, 0x54, 0x76, 0x08))
         checksum = FNV_START
         for value in settings[:54]:

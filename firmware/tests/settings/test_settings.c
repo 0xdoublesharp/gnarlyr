@@ -1010,6 +1010,7 @@ static Settings extension_settings(void)
         settings.home_order[index] = (uint8_t)(SETTINGS_HOME_ITEM_COUNT - 1 - index);
     }
     settings.home_hidden = 0x3F7;
+    settings.playback_speed = SETTINGS_SPEED_COUNT - 1;
     return settings;
 }
 
@@ -1025,6 +1026,7 @@ static void check_extension_defaults(const Settings *settings)
     CHECK(memcmp(ORDER, settings->home_order, sizeof ORDER) == 0);
     CHECK_EQUAL(1u << 1 | 1u << 2 | 1u << 5, settings->home_hidden);
     CHECK_EQUAL(0, settings->status_items);
+    CHECK_EQUAL(SETTINGS_SPEED_NORMAL, settings->playback_speed);
 }
 
 static void the_extension_defaults_keep_todays_behaviour(void)
@@ -1050,7 +1052,7 @@ static void the_extension_block_sits_between_the_language_and_the_checksum(void)
 
 static void every_extension_field_survives_a_round_trip(void)
 {
-    static const uint8_t EXPECTED[16] = {0x10, 60,   60,   0, 0x89, 0x67, 0x45, 0x23,
+    static const uint8_t EXPECTED[16] = {0x10, 60,   60,   6, 0x89, 0x67, 0x45, 0x23,
                                          0x01, 0xF7, 0x03, 0, 0,    0,    0,    16};
     Settings original = extension_settings();
     uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1174,10 +1176,11 @@ static void the_checksum_covers_the_extension_block(void)
 
 static void each_invalid_extension_value_is_rejected_without_mutating_the_settings(void)
 {
-    static const uint8_t CASES[][2] = {
-        {0, 0x20},  {0, 0x40},  {0, 0x80},  {0, 0x18},  {1, 61},   {2, 4},    {2, 61},   {2, 0},
-        {3, 1},     {4, 0x00},  {4, 0x11},  {6, 0x55},  {8, 0x18}, {8, 0x09}, {9, 0x08}, {9, 0xFF},
-        {10, 0x04}, {10, 0x80}, {12, 0x04}, {12, 0xFC}, {14, 1},   {15, 0x80}};
+    static const uint8_t CASES[][2] = {{0, 0x20},  {0, 0x40},  {0, 0x80}, {0, 0x18},  {1, 61},
+                                       {2, 4},     {2, 61},    {2, 0},    {3, 7},     {3, 0xFD},
+                                       {3, 0x80},  {4, 0x00},  {4, 0x11}, {6, 0x55},  {8, 0x18},
+                                       {8, 0x09},  {9, 0x08},  {9, 0xFF}, {10, 0x04}, {10, 0x80},
+                                       {12, 0x04}, {12, 0xFC}, {14, 1},   {15, 0x80}};
     for (uint32_t at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
         Settings original = settings_defaults();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1188,6 +1191,25 @@ static void each_invalid_extension_value_is_rejected_without_mutating_the_settin
         CHECK(!settings_decode(bytes, sizeof bytes, &original));
         CHECK(memcmp(&before, &original, sizeof original) == 0);
     }
+}
+
+static void playback_speed_is_a_signed_step_from_normal_in_the_fourth_extension_byte(void)
+{
+    static const uint16_t PERCENT[SETTINGS_SPEED_COUNT] = {50,  75,  100, 125, 150,
+                                                           175, 200, 250, 300};
+    for (int option = 0; option < SETTINGS_SPEED_COUNT; option++) {
+        Settings original = settings_defaults();
+        original.playback_speed = (uint8_t)option;
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&original, bytes);
+        CHECK_EQUAL((uint8_t)(option - SETTINGS_SPEED_NORMAL), bytes[EXTENSION_FIELD + 3]);
+        Settings decoded;
+        CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+        CHECK_EQUAL(option, decoded.playback_speed);
+        CHECK_EQUAL(PERCENT[option], settings_speed_percent(option));
+    }
+    CHECK_EQUAL(100, settings_speed_percent(SETTINGS_SPEED_NORMAL));
+    CHECK_EQUAL(100, settings_speed_percent(SETTINGS_SPEED_COUNT));
 }
 
 static void every_item_but_settings_may_be_hidden(void)
@@ -1494,6 +1516,7 @@ int main(void)
         TEST_CASE(a_version_fifteen_file_needs_all_fifty_eight_bytes),
         TEST_CASE(the_checksum_covers_the_extension_block),
         TEST_CASE(each_invalid_extension_value_is_rejected_without_mutating_the_settings),
+        TEST_CASE(playback_speed_is_a_signed_step_from_normal_in_the_fourth_extension_byte),
         TEST_CASE(every_item_but_settings_may_be_hidden),
         TEST_CASE(the_old_untouched_home_defaults_adopt_the_new_defaults),
         TEST_CASE(the_previous_saved_default_adopts_the_new_order),

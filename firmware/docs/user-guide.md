@@ -204,9 +204,9 @@ In Cover Flow (Music → Cover Flow), the tile before the first album, with a sh
 
 Tap Menu on Now Playing for **Quick Settings**. Vol+ moves to the next row and Vol− to the previous row; ▶ changes the selected value immediately. Back closes the panel and hold Back goes Home. Menu returns to Now Playing.
 
-The rows are Shuffle (Off, Songs, Albums), Repeat (Off, One, All), Equalizer (presets, Custom and saved slots), Headphone profile (Off and four profiles), Sleep timer, Transitions (Off or Fade), ReplayGain (Off, Track, Album), Lyrics and Up Next. Each setting shows its current value. Lyrics and Up Next open their screens; Back returns to the selected panel row. Up Next is also on Home. Hold Menu on Now Playing still opens Lyrics directly.
+The rows are Shuffle (Off, Songs, Albums), Repeat (Off, One, All), Equalizer (presets, Custom and saved slots), Headphone profile (Off and four profiles), Playback speed, Sleep timer, Transitions (Off or Fade), ReplayGain (Off, Track, Album), Lyrics and Up Next. Each setting shows its current value. Lyrics and Up Next open their screens; Back returns to the selected panel row. Up Next is also on Home. Hold Menu on Now Playing still opens Lyrics directly.
 
-Changes use the same saving and sound controls as Settings. Sleep timer runs for this session, just like Settings → Sleep timer. Transition length, custom EQ curves and headphone profile editing remain in Settings. Playback speed appears here when the firmware supports it.
+Changes use the same saving and sound controls as Settings. Sleep timer runs for this session, just like Settings → Sleep timer. Transition length, custom EQ curves and headphone profile editing remain in Settings. Play on Playback speed steps to the next speed (after 3× it returns to 0.5×), applies it at once and saves it.
 
 ## Charging
 
@@ -309,6 +309,12 @@ Settings → Transitions offers Off and Fade. With Fade, while shuffle is on, th
 
 Fade plays one song after the other. A crossfade, where the next song starts while the current one fades out, would need two decoders running at once; that doesn't fit in the player's memory.
 
+## Playback speed
+
+Playback speed plays faster or slower without changing the pitch: 0.5×, 0.75×, Normal (1×), 1.25×, 1.5×, 1.75×, 2×, 2.5× or 3×. On Now Playing, tap Menu to open Quick Settings and press Play on Playback speed to step through the speeds; it is also in Settings, below Status bar and above Rewind on resume. The speed applies at once and is saved for the next start. While it isn't Normal, Now Playing shows it under the track. Track times, seeking, bookmarks and resume positions keep using the recording's own time. Listening history counts the time you actually listened.
+
+Recordings above 48 kHz always play at normal speed.
+
 ## Bluetooth headphones
 
 Settings → Bluetooth shows whether Bluetooth is on and which headphones are connected. Open it to turn Bluetooth on or off, connect, switch or pair headphones. The screen lists your headphones (the player remembers up to six, most recent first) with their state, a **Pair new device** row, and a hint for the selected row at the bottom.
@@ -354,7 +360,7 @@ Podcasts/
 - On Now Playing, holding Vol+ jumps 30 s forward and holding Vol− jumps 15 s back. Jumping past the end of a chapter goes to the next one. To pick another chapter, use the book's chapter list.
 - An episode or book counts as finished once it played to its last tenth (at most its last 30 s).
 - These folders still appear under Music (Albums, Artists, Folders and so on), as all tracks on the card do. Give them a genre such as "Audiobook" if you want to find them there.
-- Playback speed can't be changed yet.
+- Change the speed for spoken word on Now Playing: tap Menu, then press Play on Playback speed in Quick Settings (see Playback speed). Positions, bookmarks and chapters still refer to the original recording.
 - **HE-AAC doesn't play.** An `.m4b` or `.m4a` that isn't AAC-LC or Apple Lossless (HE-AAC with SBR or PS, xHE-AAC) is refused with "Only AAC-LC and ALAC M4A play". Libation can download AAC-LC: in Libation's settings, leave "Request xHE-AAC Codec" off (Libation's FAQ says that makes it download AAC-LC); it keeps whatever codec Audible delivers and doesn't re-encode, so the files may still be HE-AAC for some titles. Libation names every non-MP3 file `.m4b`, whatever its codec.
 
 ## Updating Gnarlyr

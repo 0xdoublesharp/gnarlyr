@@ -16,6 +16,7 @@
 
 enum {
     PLAYER_DEFAULT_VOLUME = 13,
+    PLAYER_NORMAL_SPEED = 100,
     PLAYER_RESTART_THRESHOLD_MS = 3000,
     PLAYER_SAVE_INTERVAL_MS = 15000,
     PLAYER_PAUSE_RELEASE_MS = 30000,
@@ -65,6 +66,7 @@ typedef struct PlayerStatus {
     PlayQueuePlace place;
     HalAudioFormat format;
     bool spoken;
+    uint16_t speed;
 } PlayerStatus;
 
 typedef struct PlayerResume {
@@ -115,6 +117,7 @@ typedef struct Player {
     uint8_t volume;
     uint8_t replay_gain_mode;
     bool prevent_clipping;
+    uint16_t speed;
     bool fade_transitions;
     uint8_t transition_tenths;
     PlayerState state;
@@ -184,4 +187,5 @@ bool player_restore(Player *player);
 PlayerStatus player_status(const Player *player);
 
 void player_set_replay_gain(Player *player, ReplayGainMode mode, bool prevent_clipping);
+void player_set_speed(Player *player, uint16_t speed);
 void player_set_transitions(Player *player, bool fade, uint8_t tenths);

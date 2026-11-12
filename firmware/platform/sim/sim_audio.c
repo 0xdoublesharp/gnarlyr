@@ -3,6 +3,7 @@
 #include <SDL.h>
 #include <math.h>
 
+#include "device/audio_tempo.h"
 #include "hal/audio.h"
 #include "sim_decoder.h"
 #include "sim_storage.h"
@@ -15,8 +16,14 @@ enum {
     BYTES_PER_FRAME = STEREO * (int)sizeof(float),
     SLOT_COUNT = 2,
     HOST_PATH_CAPACITY = 1024,
-    MILLISECONDS_PER_SECOND = 1000
+    MILLISECONDS_PER_SECOND = 1000,
+    NORMAL_SPEED = 100,
+    TEMPO_FRAMES = 6002,
+    TEMPO_RATE_LIMIT = 48000,
+    STRETCHED_FRAMES = 2 * CHUNK_FRAMES + TEMPO_FRAMES
 };
+
+static const float SAMPLE_SCALE = 8388607.0f;
 
 static const float DECIBELS_PER_FACTOR_OF_TEN = 20.0f;
 
@@ -43,10 +50,15 @@ typedef struct SimAudio {
     HalAudioEqualizer equalizer;
     HeadphoneAudio headphones;
     uint8_t volume;
+    uint16_t speed;
+    bool stretching;
+    AudioTempo tempo;
 } SimAudio;
 
 static SimAudio audio;
 static float chunk[CHUNK_FRAMES * STEREO];
+static float stretched[STRETCHED_FRAMES * STEREO];
+static uint8_t tempo_buffer[TEMPO_FRAMES * AUDIO_TEMPO_FRAME_BYTES];
 
 static void lock(void)
 {
@@ -101,8 +113,59 @@ static bool open_track(SimTrack *track, const HalAudioTrack *request, uint32_t o
     return track->open;
 }
 
+static void restart_tempo(uint32_t rate)
+{
+    AudioTempoConfig config = {
+        .buffer = {tempo_buffer, NULL, TEMPO_FRAMES, 0}, .rate = rate, .speed = audio.speed};
+    audio.stretching = audio.speed != NORMAL_SPEED && audio_tempo_start(&audio.tempo, config);
+}
+
+static uint64_t stretched_pull(uint64_t made)
+{
+    int32_t left;
+    int32_t right;
+    while (made < STRETCHED_FRAMES && audio_tempo_pull(&audio.tempo, &left, &right)) {
+        stretched[STEREO * made] = (float)left / SAMPLE_SCALE;
+        stretched[STEREO * made + 1] = (float)right / SAMPLE_SCALE;
+        made++;
+    }
+    return made;
+}
+
+static int32_t tempo_sample(float value)
+{
+    return (int32_t)(value * SAMPLE_SCALE);
+}
+
+static void put_stretched(uint64_t frames)
+{
+    uint64_t made = 0;
+    for (uint64_t frame = 0; frame < frames; frame++) {
+        int32_t left = tempo_sample(chunk[STEREO * frame]);
+        int32_t right = tempo_sample(chunk[STEREO * frame + 1]);
+        if (!audio_tempo_push(&audio.tempo, left, right)) {
+            made = stretched_pull(made);
+            audio_tempo_push(&audio.tempo, left, right);
+        }
+    }
+    made = stretched_pull(made);
+    SDL_AudioStreamPut(audio.stream, stretched, (int)(made * BYTES_PER_FRAME));
+}
+
+static void put_audio(uint64_t frames)
+{
+    if (audio.stretching) {
+        put_stretched(frames);
+    } else {
+        SDL_AudioStreamPut(audio.stream, chunk, (int)(frames * BYTES_PER_FRAME));
+    }
+}
+
 static void use_stream_rate(uint32_t rate)
 {
+    if (audio.stream_rate != rate || !audio.stretching) {
+        restart_tempo(rate);
+    }
     if (audio.virtual_output || (audio.stream != NULL && audio.stream_rate == rate)) {
         return;
     }
@@ -118,14 +181,27 @@ static void clear_stream(void)
     if (audio.stream != NULL) {
         SDL_AudioStreamClear(audio.stream);
     }
+    restart_tempo(audio.stream_rate);
+}
+
+static void finish_stretching(void)
+{
+    if (audio.stretching && audio.stream != NULL) {
+        audio_tempo_finish(&audio.tempo);
+        uint64_t made = stretched_pull(0);
+        SDL_AudioStreamPut(audio.stream, stretched, (int)(made * BYTES_PER_FRAME));
+        audio.stretching = false;
+    }
 }
 
 static bool switch_to_next(void)
 {
     close_track(current_track());
     if (!next_track()->open) {
-        audio.state = HAL_AUDIO_STOPPED;
-        return false;
+        finish_stretching();
+        bool draining = audio.stream != NULL && SDL_AudioStreamAvailable(audio.stream) > 0;
+        audio.state = draining ? audio.state : HAL_AUDIO_STOPPED;
+        return draining;
     }
     audio.current = 1 - audio.current;
     use_stream_rate(current_track()->decoder.sample_rate);
@@ -136,6 +212,7 @@ static bool decode_chunk(void)
 {
     SimTrack *track = current_track();
     if (!track->open) {
+        audio.state = HAL_AUDIO_STOPPED;
         return false;
     }
     uint64_t wanted = CHUNK_FRAMES;
@@ -154,7 +231,7 @@ static bool decode_chunk(void)
         float value = chunk[sample] * gain * ((float)channel / REPLAY_GAIN_UNITY);
         chunk[sample] = value > 1 ? 1 : value < -1 ? -1 : value;
     }
-    SDL_AudioStreamPut(audio.stream, chunk, (int)(frames * BYTES_PER_FRAME));
+    put_audio(frames);
     return true;
 }
 
@@ -205,6 +282,7 @@ bool sim_audio_start(bool virtual_output)
     audio.virtual_output = virtual_output;
     audio.gain = 1.0f;
     audio.volume = HAL_AUDIO_VOLUME_MAX;
+    audio.speed = NORMAL_SPEED;
     audio.headphones = headphone_audio_defaults();
     audio.state = HAL_AUDIO_STOPPED;
     if (virtual_output) {
@@ -224,7 +302,9 @@ void sim_audio_tick(uint32_t elapsed_ms)
     if (!audio.virtual_output || audio.state != HAL_AUDIO_PLAYING || !track->open) {
         return;
     }
-    track->decoder.frame += frames_for(elapsed_ms, track->decoder.sample_rate);
+    uint32_t speed = track->decoder.sample_rate <= TEMPO_RATE_LIMIT ? audio.speed : NORMAL_SPEED;
+    track->decoder.frame +=
+        frames_for(elapsed_ms, track->decoder.sample_rate) * speed / NORMAL_SPEED;
     bool past_end = track->end_frame != 0 && track->decoder.frame >= track->end_frame;
     if (past_end || track->decoder.frame >= track->decoder.total_frames) {
         switch_to_next();
@@ -437,6 +517,14 @@ HalAudioStatus hal_audio_status(void)
     };
     unlock();
     return status;
+}
+
+void hal_audio_set_speed(uint16_t speed)
+{
+    lock();
+    audio.speed = speed;
+    clear_stream();
+    unlock();
 }
 
 void hal_audio_set_replay_gain(uint32_t token, uint32_t gain)

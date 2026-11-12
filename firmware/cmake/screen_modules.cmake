@@ -1,8 +1,11 @@
 set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source)
 set(ECHO_SCREEN_MODULE_SHARED_SOURCES src/codec/flac.c src/codec/flac_bits.c)
 set(ECHO_SCREEN_MODULE_SOURCES_process
+    platform/device/logic/audio_engine_stage.c
     platform/device/logic/audio_process_entry.c
     platform/device/logic/audio_trig.c
+    platform/device/logic/audio_tempo.c
+    platform/device/logic/audio_tempo_stage.c
     platform/device/logic/equalizer_design.c
     platform/device/logic/equalizer.c
 )

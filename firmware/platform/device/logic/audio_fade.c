@@ -56,16 +56,19 @@ static void fade_frames(AudioFadeBlock block, uint32_t skip, uint32_t frames, Au
 CORE_SEAM void audio_fade_in(AudioFadeBlock block, AudioFadeRamp *ramp)
 {
     int64_t at = (int32_t)(block.first - ramp->start);
+    uint32_t before = at >= 0 ? 0 : -at < block.frames ? (uint32_t)-at : block.frames;
+    AudioFadeSpan span = {
+        .first = (int32_t)-at, .step = -1, .length = ramp->length, .reciprocal = ramp->reciprocal};
+    fade_frames(block, 0, before, span);
+    at += before;
     int64_t left = (int64_t)ramp->length - at;
-    if (left > 0) {
-        uint32_t count = left < block.frames ? (uint32_t)left : block.frames;
-        fade_frames(block, 0, count,
-                    (AudioFadeSpan){.first = (int32_t)at,
-                                    .step = 1,
-                                    .length = ramp->length,
-                                    .reciprocal = ramp->reciprocal});
+    uint32_t after = block.frames - before;
+    if (left > 0 && after > 0) {
+        span.first = (int32_t)at;
+        span.step = 1;
+        fade_frames(block, before, left < after ? (uint32_t)left : after, span);
     }
-    ramp->active = left > block.frames;
+    ramp->active = left > after;
 }
 
 CORE_SEAM void audio_fade_out(AudioFadeBlock block, AudioFadeRamp *ramp, int64_t remaining)

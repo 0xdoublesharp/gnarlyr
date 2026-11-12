@@ -369,7 +369,7 @@ class CompanionSettings(VolumeCase):
 
     def test_version15_extension_values_the_firmware_rejects_are_refused_before_writes(self):
         self.use_version15()
-        cases = ((38, 0x18), (38, 0x20), (39, 61), (40, 4), (40, 61), (41, 1), (42, 0x00),
+        cases = ((38, 0x18), (38, 0x20), (39, 61), (40, 4), (40, 61), (41, 7), (41, 0xFD), (42, 0x00),
                  (46, 0x18), (47, 0x08), (48, 0x02), (50, 4), (53, 0x80))
         for offset, value in cases:
             with self.subTest(offset=offset, value=value):

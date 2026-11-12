@@ -33,6 +33,7 @@ enum {
     RING_WORDS = RING_BLOCKS * BLOCK_WORDS,
     WORDS_PER_FRAME = 2,
     RING_FRAMES = RING_WORDS / WORDS_PER_FRAME,
+    STRETCH_WORDS = 5 * BLOCK_WORDS,
     PREFILL_DIVISOR = 10,
     PREFILL_TIMEOUT_MS = 1000,
     FILL_BUDGET_BYTES = 8192,
@@ -84,7 +85,7 @@ static bool resume_after_clock_change;
 static bool paused_before_clock_change;
 static uint32_t position_before_clock_change;
 static AudioEngine engine;
-_Static_assert(offsetof(AudioEngine, produced) == 44, "the emulator follows the audio ring cursor");
+_Static_assert(offsetof(AudioEngine, produced) == 48, "the emulator follows the audio ring cursor");
 static DmaItem items[RING_BLOCKS];
 static HalFile file;
 static bool engine_ready;
@@ -301,6 +302,7 @@ static void ensure_engine(void)
     audio_engine_init(&engine, (AudioEngineConfig){.source = source,
                                                    .ring = ring(),
                                                    .ring_words = RING_WORDS,
+                                                   .stretch_words = STRETCH_WORDS,
                                                    .equalizer = &equalizer,
                                                    .prepare_resample = board_audio_dsp_prepare,
                                                    .resample_render = board_audio_dsp_render});
@@ -439,7 +441,7 @@ static bool start_output(bool audible)
     stats = (HalAudioStats){0};
     output_started_us = hal_clock_microseconds();
     stopped_waiting = false;
-    return start_transfer(RING_WORDS, audible);
+    return start_transfer(engine.config.ring_words, audible);
 }
 
 static void stop_tone(void)
@@ -570,6 +572,18 @@ void hal_audio_seek(uint32_t position_ms)
 {
     ensure_engine();
     seek_to(position_ms, audio_engine_status(&engine).state == AUDIO_ENGINE_PAUSED);
+}
+
+CORE_SEAM CORE_COLD void hal_audio_set_speed(uint16_t speed)
+{
+    ensure_engine();
+    if (speed == engine.speed) {
+        return;
+    }
+    audio_engine_set_speed(&engine, speed);
+    if (engine.state != AUDIO_ENGINE_STOPPED) {
+        hal_audio_seek(audio_engine_status(&engine).position_ms);
+    }
 }
 
 static DacCurve output_curve(void)

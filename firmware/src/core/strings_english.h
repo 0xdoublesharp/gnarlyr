@@ -653,4 +653,13 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_ABOUT_KEYS] = "Keys",
     [STR_MENU_LONG_ACTION] = "Hold Menu",
     [STR_LONG_CURRENT] = "Default",
+    [STR_SPEED_050] = "0.5×",
+    [STR_SPEED_075] = "0.75×",
+    [STR_SPEED_100] = "Normal (1×)",
+    [STR_SPEED_125] = "1.25×",
+    [STR_SPEED_150] = "1.5×",
+    [STR_SPEED_175] = "1.75×",
+    [STR_SPEED_200] = "2×",
+    [STR_SPEED_250] = "2.5×",
+    [STR_SPEED_300] = "3×",
 };

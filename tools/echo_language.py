@@ -88,6 +88,7 @@ class Snapshot:
                 self.status_items_supported = "STATUS_ITEMS_BYTE" in source
                 if self.status_items_supported and constant(source, "STATUS_ITEMS_BYTE") != 13:
                     raise ValueError("the installed status bar settings layout is unsupported")
+                self.check_speed_layout(source)
         except (ValueError, KeyError, OSError, self.format.PackError) as error:
             raise api.DebugError("language_build_unknown", str(error)) from error
 
@@ -112,6 +113,20 @@ class Snapshot:
                 != (HOME_FIRST_ITEMS, HOME_SLOTS) or not HOME_FIRST_ITEMS <= self.home_items <= HOME_SLOTS or
                 self.home_settings_item >= HOME_FIRST_ITEMS):
             raise ValueError("the installed Home layout is unsupported")
+
+    def check_speed_layout(self, source):
+        self.speed_steps = (0, 0)
+        if re.search(r"\bSPEED_BYTE\s*=", source) is None:
+            return
+        header = self.show("firmware/src/settings/include/settings/settings.h")
+        count, normal = constant(header, "SETTINGS_SPEED_COUNT"), constant(header, "SETTINGS_SPEED_NORMAL")
+        if constant(source, "SPEED_BYTE") != 3 or not 0 <= normal < count <= 128:
+            raise ValueError("the installed playback speed layout is unsupported")
+        self.speed_steps = (-normal, count - 1 - normal)
+
+    def speed_valid(self, value):
+        step = value - 256 if value > 127 else value
+        return self.speed_steps[0] <= step <= self.speed_steps[1]
 
     def home_valid(self, block):
         order = [block[4 + index // 2] >> 4 * (index % 2) & 15 for index in range(HOME_SLOTS)]
@@ -146,7 +161,7 @@ class Snapshot:
             reserved[0:2] = [0, 0]
         if self.status_items_supported:
             reserved[2] = 0
-        return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and block[3] == 0 and
+        return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and self.speed_valid(block[3]) and
                 -720 <= offset <= 840 and self.home_valid(block) and not any(reserved))
 
     def show(self, path):
