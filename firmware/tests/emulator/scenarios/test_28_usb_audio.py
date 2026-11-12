@@ -82,7 +82,11 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(machine.run(until=lambda: self.write_complete and not host.rx and not host.words,
                                      until_ms=machine.milliseconds() + 5), "condition met")
         sink = machine.overlays[0].symbols["sink"]
-        written = struct.unpack("<I", machine.read_memory(sink + 8, 4))[0]
+        def written_frames():
+            return struct.unpack("<I", machine.read_memory(sink + 8, 4))[0]
+        machine.run(until=lambda: written_frames() * 2 >= len(host.expected),
+                    until_ms=machine.milliseconds() + 5)
+        written = written_frames()
         stats = struct.unpack("<6I", machine.read_memory(sink + 24, 24))
         self.assertEqual(stats[1:], (0, 0, 0, 0, 0), (host.missed, len(self.meter_draws)))
         self.assertEqual(host.missed, 0)
