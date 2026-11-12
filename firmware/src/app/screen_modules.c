@@ -66,7 +66,7 @@ static void cancel_theme_preview(AppScreens *screens)
 {
     if (screens->context.themes != NULL && screens->context.themes->previewing) {
         const ListeningModuleEntry *entry = hal_system_load_module(SCREEN_MODULE_LISTENING);
-        if (entry != NULL && entry->module.magic == SCREEN_MODULE_MAGIC(SCREEN_MODULE_LISTENING)) {
+        if (entry != NULL) {
             entry->theme_restore(screens->context.themes);
             default_theme_invalidate(screens->context.styled_theme);
         }

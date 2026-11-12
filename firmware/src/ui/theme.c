@@ -34,11 +34,7 @@ Rect theme_title_area(const Theme *theme)
 
 bool theme_art_draw(const Theme *theme, Canvas *canvas, int slot, Rect area)
 {
-    ThemeArtRequest request = {.area = area,
-                               .slot = (uint16_t)slot,
-                               .orientation = theme_is_portrait(theme) ? 1 : 0,
-                               .text_size = (uint8_t)theme->metrics.text_size};
-    return theme->draw_art != NULL && theme->draw_art(theme->art_context, canvas, request);
+    return theme->draw_art != NULL && theme->draw_art(theme, canvas, slot, area);
 }
 
 void theme_background_draw(const Theme *theme, Canvas *canvas, int slot, Rect area)

@@ -80,7 +80,7 @@ typedef struct Theme {
     bool horizon;
     bool header_rule;
     void *art_context;
-    bool (*draw_art)(void *context, Canvas *canvas, ThemeArtRequest request);
+    bool (*draw_art)(const struct Theme *theme, Canvas *canvas, int slot, Rect area);
 } Theme;
 
 Rect theme_header_area(const Theme *theme);

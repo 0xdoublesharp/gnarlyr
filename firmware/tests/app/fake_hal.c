@@ -1820,6 +1820,11 @@ const void *hal_system_load_module(uint32_t module)
     return app_linked_module(module);
 }
 
+const void *hal_system_loaded_module(void)
+{
+    return app_linked_module(fake.loaded_module);
+}
+
 const void *hal_system_load_debug_code(void)
 {
     if ((fake.broken_modules & 1u << EXTENSION_MODULE_NUMBER) != 0) {

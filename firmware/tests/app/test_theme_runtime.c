@@ -5,6 +5,7 @@
 #include "core/hash.h"
 #include "default_theme.h"
 #include "fake_hal.h"
+#include "hal/system.h"
 #include "modules/modules.h"
 #include "screens/listening_work.h"
 #include "theme_picker.h"
@@ -91,6 +92,28 @@ static void applying_a_pack_preserves_fonts_layout_and_all_palette_roles(void)
     CHECK(theme.fonts.body == ECHO_THEME.fonts.body);
     CHECK_EQUAL(ECHO_THEME.metrics.row_height, theme.metrics.row_height);
     CHECK(theme.draw_art != NULL);
+}
+
+static void pack_art_draws_only_through_the_loaded_ui_module(void)
+{
+    reset();
+    ThemeRuntime runtime = {0};
+    CHECK(theme_runtime_load(&runtime, "first.gtheme"));
+    Theme theme = ECHO_THEME;
+    theme_runtime_apply(&runtime, &theme);
+    static Color pixels[480 * 222];
+    Canvas canvas = canvas_make(pixels, (Rect){0, 0, 480, 222});
+    Rect area = {0, 30, 480, 192};
+    canvas_clear(&canvas, 0);
+    CHECK(!theme_art_draw(&theme, &canvas, THEME_ART_LIST, area));
+    CHECK_EQUAL(0u, fake_hal_loaded_module());
+    CHECK_EQUAL(0, pixels[30 * 480]);
+    CHECK(hal_system_load_module(SCREEN_MODULE_PLAYING) != NULL);
+    CHECK(theme_art_draw(&theme, &canvas, THEME_ART_LIST, area));
+    CHECK_EQUAL(100, pixels[30 * 480]);
+    ThemeRuntime idle = {0};
+    theme_runtime_apply(&idle, &theme);
+    CHECK(theme.draw_art == NULL);
 }
 
 static void strips_and_clipped_rectangles_match_a_full_render(void)
@@ -316,6 +339,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(a_saved_pack_survives_restart_and_a_damaged_or_missing_pack_falls_back),
         TEST_CASE(applying_a_pack_preserves_fonts_layout_and_all_palette_roles),
+        TEST_CASE(pack_art_draws_only_through_the_loaded_ui_module),
         TEST_CASE(strips_and_clipped_rectangles_match_a_full_render),
         TEST_CASE(full_images_stream_in_both_orientations_and_missing_art_uses_the_base),
         TEST_CASE(damaged_packs_stay_listed_and_duplicate_ids_choose_the_newest_version),

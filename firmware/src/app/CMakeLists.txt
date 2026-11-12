@@ -29,6 +29,7 @@ add_library(echo_app STATIC
     theme_pack.c
     theme_runtime.c
     theme_render.c
+    theme_art.c
     theme_catalog.c
     theme_picker.c
     theme_signature.c

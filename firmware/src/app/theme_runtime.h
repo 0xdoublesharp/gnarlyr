@@ -30,6 +30,7 @@ typedef struct ThemeRuntime {
 
 void theme_runtime_apply(ThemeRuntime *runtime, Theme *theme);
 bool theme_runtime_draw(void *context, Canvas *canvas, ThemeArtRequest request);
+bool theme_art_module_draw(const Theme *theme, Canvas *canvas, int slot, Rect area);
 void theme_runtime_boot(ThemeRuntime *runtime);
 void theme_runtime_restore(ThemeRuntime *runtime);
 bool theme_runtime_load(ThemeRuntime *runtime, const char *name);

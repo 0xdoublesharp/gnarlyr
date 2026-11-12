@@ -1494,8 +1494,7 @@ static void start_app(bool power_on)
     uint8_t selection;
     if (hal_internal_file_read(THEME_SELECTION_PATH, &selection, 1)) {
         const ListeningModuleEntry *themes = hal_system_load_module(SCREEN_MODULE_LISTENING);
-        if (themes != NULL &&
-            themes->module.magic == SCREEN_MODULE_MAGIC(SCREEN_MODULE_LISTENING)) {
+        if (themes != NULL) {
             themes->theme_boot(&app.themes);
         }
     }
