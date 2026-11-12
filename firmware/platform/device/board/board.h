@@ -27,6 +27,7 @@ void board_backlight_full(void);
 bool board_display_lit(void);
 void board_display_clear(void);
 void board_input_start(void);
+uint8_t board_input_held(void);
 void board_glyphs_start(void);
 void board_extension_start(void);
 void board_wall_time_delete_file(void);

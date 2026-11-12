@@ -21,6 +21,12 @@ Gnarlyr checks internal storage at every start for a file named `MASKROM.REQ` in
 
 This is checked in the emulator. This project has not used it on a player.
 
+## Escape hatch: Power and vol+
+
+The same restart into the boot ROM's USB loader works without a file and without USB storage: hold **Power** and **vol+**, and plug the cable into the computer (or switch the player on with the cable already in, still holding both keys). After 2 s with both keys held and the cable powered, the player restarts into maskrom with the screen black. Gnarlyr checks this right after it starts its key scanning, before the display, storage or USB code. Without cable power, with only one of the keys, or with a key let go before 2 s, the player starts normally. Two ladder keys can't be told apart on this player, so the combination uses Power plus one ladder key.
+
+This is checked in the emulator. This project has not used it on a player. It needs a build with trial updates ([`device-install.md`](device-install.md)) that gets as far as its start-up code.
+
 ## 1. Build the patched `rkdeveloptool` (once)
 
 The upstream tool needs four changes for this device: a 5000 ms command timeout, 32 sectors per transfer, maskrom detection for USB ID `2207:262d`, and the chip version read from that device's `bcdDevice`. `tools/patch_rkdeveloptool.py` makes them on upstream revision `304f073752fd25c854e1bcf05d8e7f925b1f4e14`. It prints `ok: Echo changes applied`, and refuses a source it doesn't recognise or one that is already patched.

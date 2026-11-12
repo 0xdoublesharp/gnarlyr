@@ -48,6 +48,11 @@ SLOT_SECTORS = 0x2800
 CHUNK_SECTORS = 16
 BACKLIGHT_HZ = 25000
 MINI_STOCK_SIZE = 0x2000004
+BOTH_SLOTS_REQUEST = "BOTHSLOT.REQ"
+TRIAL_PATH = "/" + IDENTITY.data_directory + "/trial.bin"
+TRIAL_RUNNING = 1
+TRIAL_PROMOTING = 2
+TRIAL_ROLLED_BACK = 3
 LOADER_FLAG_VALUE = 0xFFFF18AF
 LOADER_FLAG_REGISTER = 0x4C
 LOADER_SELECT_REGISTER = 0xC4
@@ -331,18 +336,28 @@ class EchoImageHarness(unittest.TestCase):
                 covered.extend(range(later[1], later[1] + later[2]))
             self.assertEqual(covered[:count], list(range(lba, lba + count)))
 
+    def trial_record(self, session):
+        reader = session.fat()
+        if not reader.exists(TRIAL_PATH):
+            return None
+        data = reader.read(TRIAL_PATH)
+        self.assertEqual(data[:4], b"DSUT")
+        self.assertEqual(data[7], 1)
+        self.assertEqual(data[6], data[4] ^ data[5] ^ 0x5A)
+        return data[4], data[5]
+
     def newer_image(self):
         return self.session_module.with_date(self.image, (2099, 1, 1))
 
     def assert_update_refused(self, update):
         session = self.session(files=[update], vbus=True)
-        session.machine.note("updater_install")
+        session.machine.note("updater_install_trial")
         session.machine.note("updater_check")
         session.run_to_first_frame()
         self.assertEqual(session.run_until_waiting_for_key(presses=1),
                          "reached board_wait_for_key")
         self.assertEqual(session.machine.reached["updater_check"], 1)
-        self.assertNotIn("updater_install", session.machine.reached)
+        self.assertNotIn("updater_install_trial", session.machine.reached)
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
         summary("refused " + update[0], session)
@@ -360,7 +375,7 @@ class EchoImageHarness(unittest.TestCase):
         return session, polls
 
     def boot_until_waiting_for_key(self, session):
-        session.machine.note("updater_install")
+        session.machine.note("updater_install_trial")
         session.machine.note("updater_check")
         session.run_to_first_frame()
         session.machine.answer_waits_for_key(2)
@@ -579,7 +594,7 @@ class EchoImageHarness(unittest.TestCase):
         if before_start is not None:
             before_start(machine)
         for name in ("usb_session_storage_changed", "debug_script_take", "hal_system_usb_reconnect",
-                     "debug_restart_after_install", "board_restart", "updater_install",
+                     "debug_restart_after_install", "board_restart", "updater_install_trial",
                      "board_wait_for_power_hold", *notes):
             machine.note(name)
         machine.host_ejects()

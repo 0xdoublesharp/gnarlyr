@@ -57,7 +57,7 @@ class EchoImageTest(EchoImageHarness):
         session.damage_usb_overlay("slot_1")
         session.damage_usb_overlay("slot_2")
         machine = session.machine
-        for name in ("updater_check", "updater_install", "usb_storage_session", "usb_power_down"):
+        for name in ("updater_check", "updater_install_trial", "usb_storage_session", "usb_power_down"):
             machine.note(name)
         notices = machine.collect_notices()
         session.run_to_first_frame()
@@ -67,7 +67,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(session.run_until_waiting_for_key(), "reached board_wait_for_key")
         self.assertEqual(notices[-1], (english("STR_USB"), english("STR_USB_CODE_MISSING")))
         self.assertGreaterEqual(machine.reached["usb_power_down"], 1)
-        for name in ("updater_check", "updater_install", "usb_storage_session"):
+        for name in ("updater_check", "updater_install_trial", "usb_storage_session"):
             self.assertNotIn(name, machine.reached)
         self.assertEqual(executed[0], 0)
         self.assertFalse(any(machine.read_memory(make_image.OVERLAY_BASE,

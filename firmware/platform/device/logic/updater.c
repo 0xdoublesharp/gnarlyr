@@ -80,6 +80,7 @@ typedef struct SlotCopy {
     uint32_t target_slot;
     UpdateProgress progress;
     uint32_t pass;
+    uint32_t passes;
     uint32_t chunks;
 } SlotCopy;
 
@@ -214,8 +215,7 @@ static bool matches_installed(const UpdateFile *file, const UpdateStorage *stora
             return false;
         }
     }
-    return chunk_matches_slot(file, storage, storage->slot_1, FW_SIZE / UPDATER_CHUNK_BYTES) &&
-           chunk_matches_slot(file, storage, storage->slot_2, 0);
+    return chunk_matches_slot(file, storage, storage->slot_1, FW_SIZE / UPDATER_CHUNK_BYTES);
 }
 
 static void find_markers(ModelScan *scan, const uint8_t *bytes, uint32_t length)
@@ -361,7 +361,7 @@ static void report(const SlotCopy *copy, uint32_t chunk)
 {
     if (copy->progress.report != NULL) {
         copy->progress.report(copy->progress.context, copy->pass * copy->chunks + chunk,
-                              PASSES * copy->chunks);
+                              copy->passes * copy->chunks);
     }
 }
 
@@ -390,9 +390,44 @@ CORE_SEAM bool updater_install(const UpdateFile *file, const UpdateStorage *stor
         return false;
     }
     uint32_t chunks = (file->size - CRC_BYTES) / UPDATER_CHUNK_BYTES;
-    SlotCopy second = {file, storage, 0, storage->slot_2, progress, 0, chunks};
-    SlotCopy first = {NULL, storage, storage->slot_2, storage->slot_1, progress, 1, chunks};
+    SlotCopy second = {file, storage, 0, storage->slot_2, progress, 0, PASSES, chunks};
+    SlotCopy first = {NULL, storage, storage->slot_2, storage->slot_1, progress, 1, PASSES, chunks};
     return copy_slot(&second) && copy_slot(&first);
+}
+
+CORE_SEAM bool updater_install_trial(const UpdateFile *file, const UpdateStorage *storage,
+                                     UpdateProgress progress)
+{
+    if (source_chunk == NULL) {
+        return false;
+    }
+    uint32_t chunks = (file->size - CRC_BYTES) / UPDATER_CHUNK_BYTES;
+    SlotCopy first = {file, storage, 0, storage->slot_1, progress, 0, 1, chunks};
+    return copy_slot(&first);
+}
+
+CORE_SEAM bool updater_copy_slot(const UpdateStorage *storage, uint32_t from, uint32_t to,
+                                 UpdateProgress progress)
+{
+    if (source_chunk == NULL || !updater_slot_is_valid(storage, from)) {
+        return false;
+    }
+    SlotCopy copy = {NULL, storage, from, to, progress, 0, 1, FW_END / UPDATER_CHUNK_BYTES};
+    return copy_slot(&copy);
+}
+
+bool updater_slot_is_valid(const UpdateStorage *storage, uint32_t slot)
+{
+    uint32_t *header = target_chunk;
+    uint32_t *copy = target_chunk + HEADER_BYTES / 4;
+    const uint8_t *bytes = (const uint8_t *)header;
+    if (header == NULL || !storage->read(storage->context, slot, 1, header) ||
+        !has_text(bytes + MAGIC_OFFSET, MAGIC, sizeof MAGIC) ||
+        le32(bytes + FW_SIZE_OFFSET) != FW_SIZE) {
+        return false;
+    }
+    return storage->read(storage->context, slot + FW_SIZE / SECTOR_BYTES, 1, copy) &&
+           same_bytes(header, copy, HEADER_BYTES / 4);
 }
 
 bool updater_should_remove_file(UpdateCheck check, bool installed)

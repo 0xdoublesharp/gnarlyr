@@ -313,6 +313,10 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_UPDATE_RESTARTING] = "Restarting...",
     [STR_UPDATE_NOT_INSTALLED] = "Update not installed",
     [STR_UPDATE_REFUSED] = "{0} isn't a valid update",
+    [STR_UPDATE_BACKUP] = "Saving this version as the backup",
+    [STR_UPDATE_ROLLED_BACK] = "Update rolled back",
+    [STR_UPDATE_ROLLED_BACK_HINT] =
+        "The new version didn't start properly. The previous version is back.",
     [STR_THEME] = "Theme",
     [STR_THEME_GRAPHITE] = "Graphite",
     [STR_THEME_NEON_NOIR] = "Neon Noir",

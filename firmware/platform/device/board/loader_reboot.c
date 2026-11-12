@@ -64,32 +64,31 @@ static void reset_pll(void)
     spin(PLL_SETTLE_LOOPS);
 }
 
-void board_loader_reboot(void)
+__attribute__((noinline, noreturn)) static void reset_with(uint32_t flag, bool loader)
 {
     quiesce_interrupts();
     enable_all_blocks();
     reset_pll();
-    register_write(GRF_BASE + GRF_BOOT_SELECT, 0x01000000u);
+    if (loader) {
+        register_write(GRF_BASE + GRF_BOOT_SELECT, 0x01000000u);
+    }
     register_write(SCB_VTOR, 0);
-    register_write(PMU_BOOT_FLAG, PMU_BOOT_LOADER);
+    register_write(PMU_BOOT_FLAG, flag);
     __asm__ volatile("dsb" ::: "memory");
     register_write(SCB_AIRCR, AIRCR_RESET);
     for (;;) {
     }
 }
 
+void board_loader_reboot(void)
+{
+    reset_with(PMU_BOOT_LOADER, true);
+}
+
 void board_restart(void)
 {
     board_start_record_power_off();
-    quiesce_interrupts();
-    enable_all_blocks();
-    reset_pll();
-    register_write(SCB_VTOR, 0);
-    register_write(PMU_BOOT_FLAG, PMU_BOOT_FLAG_CLEAR);
-    __asm__ volatile("dsb" ::: "memory");
-    register_write(SCB_AIRCR, AIRCR_RESET);
-    for (;;) {
-    }
+    reset_with(PMU_BOOT_FLAG_CLEAR, false);
 }
 
 void board_loader_flag_clear(void)

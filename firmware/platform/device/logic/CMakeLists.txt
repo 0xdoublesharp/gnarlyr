@@ -168,6 +168,7 @@ add_library(echo_device_logic STATIC
     tick_clock.c
     time_file.c
     update_names.c
+    update_trial.c
     updater.c
     usb_activity.c
     usb_audio.c
@@ -229,6 +230,7 @@ if(CMAKE_CROSSCOMPILING)
         start_record.c
         storage_mount.c
         update_names.c
+        update_trial.c
         updater.c
         usb_activity.c
         usb_audio.c

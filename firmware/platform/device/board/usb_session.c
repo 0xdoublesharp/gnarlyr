@@ -438,6 +438,7 @@ static bool left_early(UsbSessionEnd end)
 CORE_SEAM bool usb_storage_session(UsbShared *state)
 {
     shared = state;
+    update_trial_session_started();
     UsbSessionEnd end = run();
     if (left_early(end)) {
         bool stopped = end == USB_SESSION_STOPPED;
