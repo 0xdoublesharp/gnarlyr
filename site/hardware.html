@@ -52,6 +52,7 @@
 </li>
 <li><a href="#memory">Storage, memory and power</a>
 </li>
+<li><a href="#potential-ports">Potential ports</a></li>
 <li><a href="#sources">Where the findings come from</a>
 </li>
 </ol>
@@ -187,6 +188,33 @@
 </p>
 <p>These working regions come from the firmware map and stock-code analysis; they do not specify the ECHO’s total RAM capacity.
 </p>
+</section>
+<section class="doc-section" id="potential-ports" aria-labelledby="potential-ports-title">
+<p class="eyebrow">Beyond the ECHO</p>
+<h2 id="potential-ports-title">Other players. New possibilities.</h2>
+<p class="intro">A port brings Gnarlyr to a different player. Similar chips give us a starting point, but each player needs its own screen, button, audio and power support.</p>
+<p>Gnarlyr currently targets the full-size Snowsky ECHO. These are candidates for future investigation; use ECHO firmware images only on the full-size ECHO.</p>
+<div class="port-list">
+<article class="port-card">
+<p class="eyebrow">Close relative</p><h3>Snowsky ECHO Mini</h3>
+<dl><div><dt>Why look here?</dt><dd>Related Rockchip firmware and existing community work make the Mini a useful starting point. FiiO lists two CS43131 DACs and a 170 × 320 colour screen.</dd></div><div><dt>What needs adapting?</dt><dd>The DAC driver, display layout, controls and board wiring. Storage variants need separate checks of their firmware layout and recovery procedure.</dd></div></dl>
+<p class="port-source"><a href="https://www.fiio.com/echomini_parameters">FiiO specifications ↗</a> · <a href="https://recho.atzkey.workers.dev/">Independent RECHO firmware ↗</a></p>
+</article>
+<article class="port-card">
+<p class="eyebrow">Cross-brand candidate</p><h3>Hidizs AP30 Music Boy</h3>
+<dl><div><dt>Why look here?</dt><dd>Hidizs specifies an RKNANOD processor and CS43198 DAC, sharing the ECHO’s processor family and DAC model. It also has microSD, USB DAC mode and 3.5 mm / 4.4 mm outputs.</dd></div><div><dt>What needs adapting?</dt><dd>The 296 × 240 screen, directional buttons, volume wheel and RT6863 amplifier. Its boot process, memory map and board wiring need investigation before bringing Gnarlyr up.</dd></div></dl>
+<p class="port-source"><a href="https://www.hidizs.net/products/hidizs-ap30-music-boy-the-truly-wearable-palm-sized-hi-res-music-player">Hidizs specifications ↗</a></p>
+</article>
+<article class="port-card">
+<p class="eyebrow">Smaller-screen candidate</p><h3>Snowsky ECHO Nano</h3>
+<dl><div><dt>Why look here?</dt><dd>FiiO lists a Rockchip RK NanoD processor and CS43131 DAC. Community firmware patches already document parts of its software and image format.</dd></div><div><dt>What needs adapting?</dt><dd>The 0.91-inch OLED and scroll wheel call for a simpler interface. Audio, storage, power and update handling would also need a Nano-specific implementation.</dd></div></dl>
+<p class="port-source"><a href="https://www.fiio.com/ECHONANO_parameters">FiiO specifications ↗</a> · <a href="https://github.com/maaraneasi/nanitecfw">Nano firmware research ↗</a></p>
+</article>
+</div>
+<h3>Older players worth investigating</h3>
+<p>The <strong>xDuoo Nano D3</strong> and <strong>IQQ C18</strong> are additional leads from the hardware shortlist. The next step is to verify their exact processor, memory, display and audio circuitry from board or firmware evidence, then assess how much Gnarlyr could reuse. <a href="https://xduoo.net/downloads?type=firmware">xDuoo’s firmware archive ↗</a> provides a starting point for the D3.</p>
+<h3>What turns a candidate into a supported player?</h3>
+<p>First establish a reliable recovery route and a model-specific firmware image. Then bring up the screen, buttons, storage and audio, and check playback, USB transfers, charging and saved settings on the actual player. Shared chips help us choose where to look; those checks establish support.</p>
 </section>
 <section class="doc-section" id="sources" aria-labelledby="sources-title">
 <h2 id="sources-title">Hardware references.
