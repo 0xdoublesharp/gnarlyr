@@ -1336,6 +1336,7 @@ static void follow_appearance(void)
     notice_theme.horizon = app.theme.horizon;
     notice_theme.header_rule = app.theme.header_rule;
     default_theme_set_text_size(&app.theme, shown->text_size);
+    default_theme_set_status_bar(&app.theme, shown->status_bar_compact);
 }
 
 static void start_hardware(uint32_t now_ms)
@@ -1770,6 +1771,11 @@ static void charge_step(uint32_t now_ms)
         HalBattery battery = hal_power_battery();
         app.render_wanted |= app_usb_battery_changed(app.charge_battery, battery);
         app.charge_battery = battery;
+        const PlayingModuleEntry *entry =
+            (const PlayingModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_PLAYING);
+        if (entry != NULL) {
+            entry->charge_observe(battery, now_ms);
+        }
         if (!app.charge_battery.usb_power) {
             app.charging = false;
             debug_loop_shutdown(DEBUG_REPORT_UNPLUGGED);

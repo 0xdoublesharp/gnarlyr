@@ -5,6 +5,7 @@
 #include "debug_probe.h"
 #include "emmc.h"
 #include "hal/clock.h"
+#include "hal/power.h"
 #include "hal/system.h"
 #include "usb.h"
 #include "usb_session.h"
@@ -15,6 +16,15 @@ enum {
 };
 
 static UsbShared shared;
+static bool charging_host;
+
+bool hal_power_usb_host(void)
+{
+    if (!usb_vbus_present()) {
+        charging_host = false;
+    }
+    return charging_host;
+}
 
 UsbShared *usb_session_shared(void)
 {
@@ -48,7 +58,9 @@ bool usb_dac_session_listen(void)
 
 bool usb_session_host_seen(void)
 {
-    return usb_host_reset_pending();
+    bool seen = usb_host_reset_pending();
+    charging_host |= seen;
+    return seen;
 }
 
 void usb_session_stop_listening(void)

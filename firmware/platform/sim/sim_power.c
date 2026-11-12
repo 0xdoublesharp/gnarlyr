@@ -5,6 +5,7 @@
 typedef struct SimPower {
     HalBattery battery;
     bool off_requested;
+    bool usb_host;
 } SimPower;
 
 enum {
@@ -55,4 +56,14 @@ bool hal_power_take_usb_start(void)
 bool hal_power_cable(void)
 {
     return false;
+}
+
+bool hal_power_usb_host(void)
+{
+    return power.usb_host;
+}
+
+void sim_power_note_usb_host(void)
+{
+    power.usb_host = true;
 }

@@ -88,6 +88,7 @@ add_library(echo_app STATIC
     screens/cassette_flip_screen.c
     screens/clock_screen.c
     screens/charge_screen.c
+    screens/charge_rate.c
     screens/charge_art.c
     screens/cover_flow_screen.c
     screens/equalizer_screen.c

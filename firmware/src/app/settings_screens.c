@@ -75,6 +75,8 @@ static const StringId USB_MODE_MESSAGES[USB_MODE_COUNT] = {STR_USB_SHOWS_DRIVES,
 static const StringId REPLAY_GAIN_OPTIONS[REPLAY_GAIN_MODE_COUNT] = {STR_OFF, STR_REPLAY_GAIN_TRACK,
                                                                      STR_REPLAY_GAIN_ALBUM};
 static const StringId OFF_ON_OPTIONS[] = {STR_OFF, STR_ON};
+static const StringId STATUS_LAYOUT_OPTIONS[] = {STR_STATUS_STANDARD, STR_STATUS_COMPACT};
+
 static const StringId BATTERY_STYLE_OPTIONS[] = {STR_BATTERY_SOLID, STR_BATTERY_SEGMENTED};
 
 static const Settings *settings_of(const void *context)
@@ -496,6 +498,17 @@ static bool transition_length_shown(const void *context)
     return settings_action_current_transition(context) != 0;
 }
 
+static int current_status_layout(const void *context)
+{
+    return settings_of(context)->status_bar_compact;
+}
+
+static void choose_status_layout(void *context, int index)
+{
+    editable_settings(context)->status_bar_compact = index != 0;
+    settings_action_save(context);
+}
+
 static int current_status_volume(const void *context)
 {
     return (settings_of(context)->status_items & SETTINGS_STATUS_VOLUME) != 0;
@@ -603,6 +616,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_STATUS_POSITION, OFF_ON_OPTIONS, 2, current_status_position, choose_status_position, NULL,
      NULL},
     {STR_BATTERY_STYLE, BATTERY_STYLE_OPTIONS, 2, current_status_style, choose_status_style, NULL,
+     NULL},
+    {STR_STATUS_LAYOUT, STATUS_LAYOUT_OPTIONS, 2, current_status_layout, choose_status_layout, NULL,
      NULL},
 };
 
@@ -865,7 +880,7 @@ static void bind_status_bar(SettingsScreens *screens)
 {
     for (int index = 0; index < SETTINGS_STATUS_COUNT; index++) {
         int choice = index == 3   ? SETTINGS_STATUS_CHOICE
-                     : index == 4 ? SETTINGS_CHOICE_COUNT - 1
+                     : index >= 4 ? SETTINGS_CHOICE_COUNT - 2 + index - 4
                                   : SETTINGS_MAIN_CHOICE_COUNT + index;
         screens->status_items[index] = (MenuItem){.label = i18n_text(CHOICES[choice].title),
                                                   .select = open_choice,

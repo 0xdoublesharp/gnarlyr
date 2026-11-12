@@ -273,6 +273,7 @@ set(ECHO_OVERLAY_IMPORTS
     hal_input_waiting
     hal_power_cable
     hal_power_battery
+    hal_power_usb_host
     hal_power_off
     i18n_format
     i18n_format_counts

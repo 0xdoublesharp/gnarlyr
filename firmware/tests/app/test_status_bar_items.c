@@ -3,6 +3,8 @@
 #include "check.h"
 #include "default_theme.h"
 #include "gfx/text.h"
+#include "screen_snapshot.h"
+#include "ui/header.h"
 #include "ui/status_bar.h"
 
 static StatusBarState all_items(void)
@@ -17,13 +19,14 @@ static StatusBarState all_items(void)
                             .percent = "50%"};
 }
 
-static void every_orientation_and_text_size_respects_fitting_priority(void)
+static void fitting_priority(bool compact)
 {
     for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
         for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
             Theme theme = BOARD_THEME;
             default_theme_set_text_size(&theme, (TextSize)size);
             default_theme_set_orientation(&theme, (Orientation)orientation);
+            default_theme_set_status_bar(&theme, compact);
             for (int width = 80; width <= theme.metrics.screen_width; width++) {
                 Theme narrow = theme;
                 narrow.metrics.screen_width = width;
@@ -63,6 +66,12 @@ static void every_orientation_and_text_size_respects_fitting_priority(void)
     }
 }
 
+static void every_orientation_and_text_size_respects_fitting_priority(void)
+{
+    fitting_priority(false);
+    fitting_priority(true);
+}
+
 static void portrait_centres_the_position_and_landscape_protects_the_title(void)
 {
     for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
@@ -98,9 +107,63 @@ static void queue_formatting_accepts_a_future_side_prefix_and_an_empty_queue(voi
     CHECK(strcmp(text, "") == 0);
 }
 
+static void compact_reclaims_space_and_keeps_the_combined_battery(void)
+{
+    static Color pixels[480 * 480];
+    for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = BOARD_THEME;
+            default_theme_set_orientation(&theme, (Orientation)orientation);
+            default_theme_set_text_size(&theme, (TextSize)size);
+            int rows = theme_visible_rows(&theme);
+            int height = theme.metrics.header_height;
+            default_theme_set_status_bar(&theme, true);
+            CHECK(theme.metrics.header_height < height);
+            CHECK(theme_visible_rows(&theme) >= rows);
+            if (orientation != ORIENTATION_LANDSCAPE && size == TEXT_SIZE_LARGE) {
+                CHECK(theme_visible_rows(&theme) > rows);
+            }
+            CHECK(theme.metrics.row_height >= font_line_height(theme.fonts.body));
+            CHECK(theme.metrics.status_icon_size < 14);
+            StatusBarState state = all_items();
+            state.battery_percent = 100;
+            state.charging = true;
+            state.usb_power = true;
+            state.locked = true;
+            state.bluetooth = STATUS_BLUETOOTH_CONNECTED;
+            state.shuffle = STATUS_SHUFFLE_ALBUMS;
+            Rect battery = status_bar_battery_body(&theme);
+            CHECK(text_width(theme.fonts.small, "100%") <= battery.width - 21);
+            CHECK(battery.y >= 0);
+            CHECK(battery.y + battery.height <= theme.metrics.header_height);
+            CHECK((status_bar_items(&theme, &state) & STATUS_BAR_PERCENT) == 0);
+            Canvas canvas = canvas_make(
+                pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+            canvas_fill_rect(&canvas, canvas.bounds, theme.colors.background);
+            header_draw(&canvas, &theme, "");
+            status_bar_draw(&canvas, &theme, state);
+            for (int y = battery.y + 2; y < battery.y + battery.height - 4; y++) {
+                CHECK_EQUAL(theme.colors.header_background,
+                            canvas_pixel_at(&canvas, battery.x + 3, y));
+            }
+            int terminal = battery.x + battery.width;
+            CHECK_EQUAL(theme.colors.header_background,
+                        canvas_pixel_at(&canvas, terminal, battery.y + 4));
+            CHECK(canvas_pixel_at(&canvas, terminal, battery.y + battery.height / 2) !=
+                  theme.colors.header_background);
+            CHECK_EQUAL(theme.colors.header_background,
+                        canvas_pixel_at(&canvas, terminal, battery.y + battery.height - 5));
+            screen_snapshot_write(&canvas, "compact", orientation * 3 + size);
+            default_theme_set_status_bar(&theme, false);
+            CHECK_EQUAL(height, theme.metrics.header_height);
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(compact_reclaims_space_and_keeps_the_combined_battery),
         TEST_CASE(every_orientation_and_text_size_respects_fitting_priority),
         TEST_CASE(portrait_centres_the_position_and_landscape_protects_the_title),
         TEST_CASE(queue_formatting_accepts_a_future_side_prefix_and_an_empty_queue),

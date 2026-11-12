@@ -252,7 +252,7 @@ STR_ABOUT_READ_FAILED = Read failed
 # Power, buttons and storage.
 STR_GOODBYE = Goodbye
 STR_BATTERY_LOW = Battery low
-STR_CHARGED = Charged
+STR_CHARGED = Full
 STR_CHARGING = Charging
 STR_CHARGE_MODE_HINT = Menu: mode\nHold Power: turn on
 STR_BUTTONS_LOCKED = Buttons locked
@@ -522,7 +522,7 @@ STR_POWER_PERCENT = {0}%
 
 STR_POWER_UNKNOWN = Reading battery
 
-STR_POWER_USB = USB power
+STR_POWER_USB = Running from USB
 
 STR_POWER_BATTERY = On battery
 
@@ -804,3 +804,14 @@ STR_MENU_LONG_ACTION = Hold Menu
 STR_LONG_CURRENT = Default
 STR_PLAY_ALL_ALBUMS = Play all
 STR_SHUFFLE_ALL_ALBUMS = Shuffle albums
+STR_STATUS_LAYOUT = Status bar
+STR_STATUS_STANDARD = Standard
+STR_STATUS_COMPACT = Compact
+
+STR_CHARGE_MEASURING = Measuring…
+STR_CHARGE_RATE = +{0}%/h
+STR_CHARGE_FULL_IN = Full in ~{0} h {1} m
+STR_CHARGE_FULL_MINUTES = Full in ~{0} m
+STR_CHARGE_COMPUTER = Computer
+STR_CHARGE_CHARGER = Charger
+STR_CHARGE_SUMMARY = {0} {1}

@@ -174,3 +174,5 @@ void fake_hal_set_card(HalCardInfo info, bool result);
 int fake_hal_card_formats(void);
 
 void fake_hal_fail_internal_writes(const char *path);
+
+void fake_hal_set_charging_host(bool host);

@@ -103,6 +103,7 @@ typedef struct FakeHal {
     bool display_on;
     uint8_t brightness;
     HalBattery battery;
+    bool charging_host;
     int power_off_count;
     HalAudioState audio_state_at_power_off;
     uint32_t now_ms;
@@ -2044,4 +2045,14 @@ void fake_hal_fail_internal_writes(const char *path)
 uint16_t hal_input_key_adc(void)
 {
     return 1023;
+}
+
+bool hal_power_usb_host(void)
+{
+    return fake.charging_host;
+}
+
+void fake_hal_set_charging_host(bool host)
+{
+    fake.charging_host = host;
 }

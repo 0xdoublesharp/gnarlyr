@@ -561,3 +561,23 @@ DSD256 are accepted. Stereo DSD256, multichannel DSD and DST-compressed
 DFF are refused. DoP output is unavailable. ID3 tags and artwork appear in the
 library; DFF's DIIN artist/title fill missing ID3 fields. The output uses the
 usual seeking and queue controls.
+### Compact status bar
+
+Settings → Status bar → Status bar selects Standard or Compact. Compact uses smaller icons,
+a combined battery percentage and USB bolt, and tighter list spacing. Lists use the reclaimed
+space; the number of extra rows depends on text size, orientation and row details. Battery
+segments still follow Battery style. Compact always includes the percentage in the battery.
+Playback, Bluetooth, lock, shuffle and battery keep their places. Optional items fit in this
+priority order: volume, queue position, clock, repeat. A visible title takes priority over queue
+position. Standard retains its separate optional percentage.
+
+The charging screen uses the theme's battery wireframe, percentage and power state. Its pulse
+advances once a second while charging and stops for other power states. A gauge trend estimate
+appears after at least five minutes and several consistent windows: percent per hour, then an
+approximate time to full. Both update at most once a minute. Chevrons indicate a slower, medium or faster estimated gain. A flat, noisy,
+interrupted or newly connected session shows Measuring… instead. The estimate uses a sliding
+window of about ten minutes, not a current sensor; tapering near full can change the time.
+Computer means the existing USB connection code saw a host response; Charger means USB power
+is present without one. This does not initiate USB enumeration. The app continues sampling
+with the display dark; switching away from the charging module can restart measurement.
+No mA value is shown because the gauge does not measure current.

@@ -67,6 +67,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/app/screens/up_next_screen.c
     src/app/queue_actions.c
     src/app/queue_edits.c
+    src/app/screens/charge_rate.c
     src/app/screens/charge_art.c
     src/ui/cover_flow.c
     src/ui/placeholder_art.c

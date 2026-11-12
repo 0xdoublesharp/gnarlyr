@@ -12,3 +12,5 @@ void default_theme_set_text_size(Theme *theme, TextSize size);
 void default_theme_set_orientation(Theme *theme, Orientation orientation);
 #define BOARD_THEME ECHO_THEME
 #define NOTICE_THEME ECHO_NOTICE_THEME
+
+void default_theme_set_status_bar(Theme *theme, bool compact);
