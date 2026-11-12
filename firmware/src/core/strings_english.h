@@ -17,6 +17,7 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_UP_NEXT] = "Up Next",
     [STR_COVER_FLOW] = "Cover Flow",
     [STR_COVER_FLOW_HINT] = "Hold volume: A-Z",
+    [STR_ARTIST_ALBUMS_HINT] = "Hold Play: play all",
     [STR_ARTISTS] = "Artists",
     [STR_ALBUM_ARTISTS] = "Album Artists",
     [STR_ALBUMS] = "Albums",

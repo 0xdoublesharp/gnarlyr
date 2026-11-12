@@ -147,6 +147,16 @@ static Screen *browse_play_group(void *context, BrowseScreen *browse)
     return entry != NULL ? entry->browse(screens, browse, true) : NULL;
 }
 
+ScreenAction app_screens_artist_keys(void *context, KeyEvent event, uint32_t now_ms)
+{
+    CoverFlowScreen *strip = context;
+    if (event.key != KEY_PLAY || event.gesture != KEY_GESTURE_LONG_PRESS) {
+        return strip->keys(context, event, now_ms);
+    }
+    Screen *screen = browse_play_group(strip->config.browse->config.tools_context, strip->parent);
+    return screen != NULL ? screen_action_push(screen) : screen_action_none();
+}
+
 static Screen *track_tape(void *context, uint16_t track)
 {
     AppScreens *screens = context;

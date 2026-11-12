@@ -13,7 +13,8 @@
 #include "ui/toast.h"
 
 enum {
-    COVER_FLOW_TEXT_CAPACITY = 128
+    COVER_FLOW_TEXT_CAPACITY = 128,
+    COVER_FLOW_YEAR_CAPACITY = 8
 };
 
 typedef struct CoverFlowOrder {
@@ -30,16 +31,22 @@ typedef struct CoverFlowConfig {
     Toast *toast;
     BrowsePool *browse;
     Player *player;
+    ScreenAction (*artist_keys)(void *context, KeyEvent event, uint32_t now_ms);
 } CoverFlowConfig;
 
 typedef struct CoverFlowScreen {
     Screen screen;
     CoverFlowConfig config;
     CoverFlowOrder order;
+    BrowseQuery albums;
+    BrowseScreen *parent;
+    ScreenAction (*keys)(void *context, KeyEvent event, uint32_t now_ms);
+    int first;
     int count;
     int target;
     int32_t position;
     bool positioned;
+    bool hinted;
     uint32_t last_ms;
     uint32_t now_ms;
     int text_position;
@@ -49,6 +56,7 @@ typedef struct CoverFlowScreen {
     uint32_t section_shown_until_ms;
     char title[COVER_FLOW_TEXT_CAPACITY];
     char artist[COVER_FLOW_TEXT_CAPACITY];
+    char year[COVER_FLOW_YEAR_CAPACITY];
 } CoverFlowScreen;
 
 Screen *cover_flow_screen_init(CoverFlowScreen *flow, CoverFlowConfig config);

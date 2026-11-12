@@ -249,11 +249,17 @@ static ScreenAction play_from(BrowseScreen *browse, int index)
 
 static ScreenAction open_child(BrowseScreen *browse, BrowseItem item)
 {
+    const BrowsePoolConfig *config = &browse->pool->config;
     BrowseQuery child;
     if (!browse_child(browse->query, item, &child)) {
         return screen_action_none();
     }
-    Screen *next = browse_pool_open(browse->pool, browse->level + 1, child);
+    Screen *next =
+        config->artist != NULL ? config->artist(config->tools_context, browse, child) : NULL;
+    if (next != NULL) {
+        return screen_action_push(next);
+    }
+    next = browse_pool_open(browse->pool, browse->level + 1, child);
     if (next == NULL) {
         return screen_action_none();
     }
