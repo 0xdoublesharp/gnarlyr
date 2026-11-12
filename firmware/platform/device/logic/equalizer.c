@@ -1,17 +1,16 @@
 #include "device/equalizer.h"
 #include "core/seam.h"
+#include "device/sample_clamp.h"
 
 enum {
-    SAMPLE_SHIFT = 8,
-    SAMPLE_MAX = 8388607,
-    SAMPLE_MIN = -8388608
+    SAMPLE_SHIFT = 8
 };
 
 static const uint32_t ERROR_MASK = (UINT32_C(1) << EQUALIZER_COEFFICIENT_BITS) - 1;
 
 static int32_t clamped(int32_t value)
 {
-    return value > SAMPLE_MAX ? SAMPLE_MAX : value < SAMPLE_MIN ? SAMPLE_MIN : value;
+    return sample_clamp_24(value);
 }
 
 static void run_section(EqualizerSection k, EqualizerHistory *history, uint32_t *words,
