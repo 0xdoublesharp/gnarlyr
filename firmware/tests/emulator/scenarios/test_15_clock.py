@@ -77,7 +77,7 @@ class EchoImageTest(EchoImageHarness):
         machine.hook_symbol("board_wall_time_set", wall_set)
         machine.hook_symbol("status_bar_draw", status_draw)
         before = self.i2c1_state(machine)
-        rig.press("next")
+        rig.press("previous")
         rig.press("play")
         rig.press_many("next", 8)
         rig.press("play")
@@ -112,7 +112,7 @@ class EchoImageTest(EchoImageHarness):
     def test_a_settings_time_and_offset_survive_a_cold_restart(self):
         from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_SP
         rig = self.playback_rig(prepare=lambda machine: machine.rtc_bus.registers.__setitem__(2, 0x85))
-        rig.press("next")
+        rig.press("previous")
         rig.press("play")
         rig.press_many("next", 8)
         rig.press("play")
