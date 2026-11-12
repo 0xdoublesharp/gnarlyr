@@ -62,8 +62,8 @@ class Layout:
         self.snapshot = snapshot
         source = snapshot.show("firmware/src/settings/settings.c")
         self.ui = snapshot.show("firmware/src/app/settings_screens.c")
-        if snapshot.settings_version not in (13, 14, 15):
-            raise ValueError("only the declared version 13 to 15 settings layouts are supported")
+        if snapshot.settings_version not in (13, 14, 15, echo_language.F_VERSION):
+            raise ValueError("only the declared version 13 to 16 settings layouts are supported")
         if any(echo_language.constant(source, name) != value for name, value in FIELDS.items()):
             raise ValueError("the installed settings fields have changed")
         header = snapshot.show("firmware/src/settings/include/settings/settings.h")

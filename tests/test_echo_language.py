@@ -29,19 +29,31 @@ def pack(code="fr", name="Francais", **texts):
     return PACK.build_pack(code, CATALOGUE, {"STR_LANGUAGE_NAME": name, **texts})
 
 
-def settings(code="en", version=13, flags=0, extension=None):
-    data = bytearray(58 if version >= 15 else 42)
+F_BLOCK = bytes([0x09, 0x02]) + bytes(14)
+
+
+def sealed(data):
+    data = bytearray(data)
+    field = 54 if data[4] >= 15 else 38
+    struct.pack_into("<I", data, field, PACK.fnv(data[:field]))
+    if data[4] >= 16:
+        struct.pack_into("<I", data, 74, PACK.fnv(data[58:74]))
+    return bytes(data)
+
+
+def settings(code="en", version=13, flags=0, extension=None, f_block=None):
+    data = bytearray(78 if version >= 16 else 58 if version >= 15 else 42)
     data[:4] = b"DSST"
     data[4] = version
     data[5] = flags
     data[19:19 + len(code)] = code.encode("ascii")
     data[24] = 2
-    field = 38
     if version >= 15:
         data[38:54] = extension or bytes([0x07, 24, 15, 0, 0x10, 0x32, 0x54, 0x76, 0x08]) + bytes(7)
-        field = 54
-    struct.pack_into("<I", data, field, PACK.fnv(data[:field]))
-    return bytes(data)
+    if version >= 16:
+        data[53] = 16
+        data[58:74] = f_block or F_BLOCK
+    return sealed(data)
 
 
 class LanguageCommands(VolumeCase):
@@ -126,8 +138,10 @@ class LanguageCommands(VolumeCase):
             self.sent.append(text)
             if selected is not None:
                 path = self.root / echo_debug.DATA_DIRECTORY / "settings.bin"
-                kept = path.read_bytes()[38:54] if version >= 15 and path.exists() else None
-                path.write_bytes(settings(selected, version, flags, kept if kept and len(kept) == 16 else None))
+                saved = path.read_bytes() if path.exists() else b""
+                kept = saved[38:54] if version >= 15 and len(saved) >= 54 else None
+                future = saved[58:74] if version >= 16 and len(saved) >= 74 else None
+                path.write_bytes(settings(selected, version, flags, kept, future))
             self.write_report(script_report(text, build=BUILD, screenshots=()))
         host = PlayerHost(self, act=act)
         clock = Clock()
@@ -446,7 +460,7 @@ class LanguageCommands(VolumeCase):
             with self.subTest(value=value), self.current_snapshot():
                 block = bytearray(self.home_extension(list(range(10))))
                 block[13] = value
-                path.write_bytes(settings("en", 15, 4, bytes(block)))
+                path.write_bytes(settings("en", 16, 4, bytes(block)))
                 tool, _ = self.live_tool()
                 self.assertEqual(tool.language_list()["selected"], "en")
 
@@ -459,7 +473,7 @@ class LanguageCommands(VolumeCase):
     def home_order_verifies(self, order, hidden=0, home_items=None):
         with self.current_snapshot(home_items):
             (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(
-                settings("en", 15, 0, self.home_extension(order, hidden)))
+                settings("en", 16, 0, self.home_extension(order, hidden)))
             tool, _ = self.live_tool()
             try:
                 tool.language_list()
@@ -509,6 +523,66 @@ class LanguageCommands(VolumeCase):
                     tool.language_list()
                 self.assertEqual(raised.exception.code, "language_settings_invalid")
                 self.assertEqual(host.ejected, [])
+
+    def test_version16_settings_list_and_select_a_language_keeping_the_f_block(self):
+        (self.lang / "fr.pack").write_bytes(pack(STR_LANGUAGE="Langue"))
+        path = self.root / echo_debug.DATA_DIRECTORY / "settings.bin"
+        with self.current_snapshot():
+            path.write_bytes(settings("fr", 16, 5))
+            tool, host = self.live_tool("en", version=16, flags=5)
+            self.assertEqual(tool.language_list()["selected"], "fr")
+            self.assertEqual(tool.language_select("en")["selected"], "en")
+            self.assertIn("set Langue=English\n", self.sent[0])
+            self.assertEqual(host.ejected, [str(self.root), str(self.card)])
+            data = path.read_bytes()
+            self.assertEqual((data[4], data[5], data[53], data[58:74]), (16, 5, 16, F_BLOCK))
+
+    def version16_refused(self, data):
+        with self.current_snapshot():
+            (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(data)
+            tool, host = self.live_tool()
+            with self.assertRaises(echo_debug.DebugError) as raised:
+                tool.language_select("en")
+            self.assertEqual(raised.exception.code, "language_settings_invalid")
+            self.assertEqual(host.ejected, [])
+            self.assertFalse((self.debug / "run.txt").exists())
+
+    def test_version16_bad_f_checksum_cannot_be_verified(self):
+        for offset in (58, 59, 73, 74, 77):
+            with self.subTest(offset=offset):
+                data = bytearray(settings("en", 16))
+                data[offset] ^= 0x01
+                self.version16_refused(bytes(data))
+
+    def test_version16_nonzero_unallocated_f_bits_cannot_be_verified(self):
+        for offset, value in ((58, 0x10), (58, 0x40), (58, 0x0C), (59, 0x08), (59, 0xF0), (60, 1), (73, 0x80)):
+            with self.subTest(offset=offset, value=value):
+                block = bytearray(F_BLOCK)
+                block[offset - 58] = value
+                self.version16_refused(settings("en", 16, f_block=bytes(block)))
+
+    def test_version16_wrong_extension_marker_cannot_be_verified(self):
+        for value in (0, 1, 15, 17, 255):
+            with self.subTest(value=value):
+                data = bytearray(settings("en", 16))
+                data[53] = value
+                self.version16_refused(sealed(data))
+
+    def test_a_version16_file_without_its_f_block_cannot_be_verified(self):
+        self.version16_refused(settings("en", 16)[:58])
+
+    def test_a_version16_file_is_refused_by_a_version15_build(self):
+        (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(settings("en", 16))
+        original = echo_language.Snapshot.show
+        def show(snapshot, path):
+            return subprocess.check_output(["git", "show", "416bd163:" + path], cwd=ROOT, text=True) \
+                if path.startswith("firmware/src/settings/") else original(snapshot, path)
+        with mock.patch.object(echo_language.Snapshot, "show", show):
+            tool, host = self.live_tool()
+            with self.assertRaises(echo_debug.DebugError) as raised:
+                tool.language_list()
+            self.assertEqual(raised.exception.code, "language_settings_invalid")
+            self.assertEqual(host.ejected, [])
 
     def test_future_or_changed_replay_gain_layouts_fail_closed(self):
         for options in ({"source_version": 16}, {"mask": "0xE0u"}, {"extra_mode": True}):

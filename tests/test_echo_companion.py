@@ -7,6 +7,7 @@ from unittest import mock
 sys.path[:0] = [str(Path(__file__).resolve().parent), str(Path(__file__).resolve().parents[1] / "tools")]
 
 import echo_debug
+import echo_companion
 import echo_debug_mcp
 import echo_language
 from test_echo_debug import VolumeCase, SYSTEM_LINES, report_text
@@ -14,16 +15,21 @@ from test_echo_debug_loop import Clock, PlayerHost, script_report
 
 BUILD13 = "013b67f"
 BUILD14 = "e3aa3955"
+BUILD15 = "416bd163"
 
 
 EXTENSION = bytes([0x02, 30, 40, 0, 0x01, 0x23, 0x45, 0x67, 0x08, 0x11, 0x01, 0, 0, 0, 0, 0])
+F_BLOCK = bytes([0x07, 0x05]) + bytes(14)
 SETTINGS_SOURCES = ("firmware/src/settings/settings.c", "firmware/src/settings/include/settings/settings.h")
 
 
 def checked(data):
     data = bytearray(data)
+    fnv = echo_language.pack_tools(echo_debug.ROOT).fnv
     field = 54 if data[4] >= 15 else 38
-    struct.pack_into("<I", data, field, echo_language.pack_tools(echo_debug.ROOT).fnv(data[:field]))
+    struct.pack_into("<I", data, field, fnv(data[:field]))
+    if data[4] >= 16:
+        struct.pack_into("<I", data, 74, fnv(data[58:74]))
     return bytes(data)
 
 
@@ -34,9 +40,12 @@ def saved_settings(version=13, flags=0, language="en"):
     data[19:19 + len(language)] = language.encode("ascii")
     data[24:28] = bytes([1, 0, 0, 1])
     data[28:38] = bytes([20] * 10)
-    tail = 58 if version >= 15 else 42
+    tail = 78 if version >= 16 else 58 if version >= 15 else 42
     if version >= 15:
         data[38:54] = EXTENSION
+    if version >= 16:
+        data[53] = 16
+        data[58:74] = F_BLOCK
     data[tail:] = bytes(index % 251 for index in range(len(data) - tail))
     return checked(data)
 
@@ -293,37 +302,139 @@ class CompanionSettings(VolumeCase):
         self.assertEqual(self.path.read_bytes()[5], 2)
 
 
-    def use_version15(self):
-        self.build, self.version = BUILD14, 15
+    def use_current_layout(self):
+        self.build, self.version = BUILD14, 16
         self.install_fixture(flags=4)
         patcher = current_settings_source()
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def test_version15_settings_change_preserves_the_extension_block_and_moves_the_checksum(self):
-        self.use_version15()
+    def refused_before_writes(self, data, command=("settings_set", "text_size", "large")):
+        self.path.write_bytes(data)
+        tool, host = self.tool()
+        with self.assertRaises(echo_debug.DebugError) as refused:
+            getattr(tool, command[0])(*command[1:])
+        self.assertIn(refused.exception.code, ("settings_invalid", "language_settings_invalid"))
+        self.assert_no_write(host)
+
+    def test_version15_build_changes_a_version15_file_and_keeps_its_extension(self):
+        self.build, self.version = BUILD15, 15
+        self.install_fixture(flags=4)
         before = self.path.read_bytes()
         tool, _ = self.tool(self.change(24, 2))
         self.assertEqual(tool.settings_list()["settings_version"], 15)
-        result = tool.settings_set("text_size", "large")
-        self.assertTrue(result["ok"] and result["changed"] and result["verified"])
+        self.assertTrue(tool.settings_set("text_size", "large")["verified"])
         after = self.path.read_bytes()
         expected = bytearray(before)
         expected[24] = 2
         self.assertEqual(after, checked(expected))
         self.assertEqual(after[38:54], EXTENSION)
         self.assertEqual(after[58:], before[58:])
+
+    def test_version15_build_refuses_a_version16_file(self):
+        self.build, self.version = BUILD15, 15
+        self.install_fixture(flags=4)
+        self.refused_before_writes(saved_settings(16, 4))
+
+    def test_version16_settings_change_preserves_the_extension_and_f_blocks(self):
+        self.use_current_layout()
+        before = self.path.read_bytes()
+        tool, _ = self.tool(self.change(24, 2))
+        self.assertEqual(tool.settings_list()["settings_version"], 16)
+        result = tool.settings_set("text_size", "large")
+        self.assertTrue(result["ok"] and result["changed"] and result["verified"])
+        after = self.path.read_bytes()
+        expected = bytearray(before)
+        expected[24] = 2
+        self.assertEqual(after, checked(expected))
+        self.assertEqual(after[38:54], EXTENSION[:15] + bytes([16]))
+        self.assertEqual(after[58:78], before[58:78])
+        self.assertEqual(after[58:74], F_BLOCK)
+        self.assertEqual(after[78:], before[78:])
         self.assertNotEqual(after[54:58], before[54:58])
 
-    def test_version15_replay_gain_change_keeps_the_extension_block(self):
-        self.use_version15()
+    def test_a_companion_change_recomputes_only_the_base_checksum(self):
+        self.use_current_layout()
+        before = self.path.read_bytes()
+        layout = echo_companion.Layout(echo_language.Snapshot(echo_debug, self.build))
+        spec = next(item for item in layout.specs if item[0] == "text_size")
+        changed = layout.changed(spec, "large", before)
+        self.assertEqual([index for index in range(len(before)) if changed[index] != before[index]][0], 24)
+        self.assertEqual(changed[54:], checked(changed)[54:])
+        self.assertEqual(changed[58:], before[58:])
+
+    def test_version16_replay_gain_change_keeps_the_extension_and_f_blocks(self):
+        self.use_current_layout()
+        before = self.path.read_bytes()
         tool, _ = self.tool(self.change(5, 6))
         self.assertEqual(tool.settings_set("replay_gain", "album")["value"], "album")
         data = self.path.read_bytes()
-        self.assertEqual((data[5], data[38:54]), (6, EXTENSION))
+        self.assertEqual((data[5], data[38:53], data[58:78]), (6, EXTENSION[:15], before[58:78]))
+
+    def test_version16_f_values_the_firmware_allocates_are_accepted(self):
+        self.use_current_layout()
+        for f0, f1 in ((0, 0), (0x01, 0), (0x02, 7), (0x0B, 3), (0x04, 1)):
+            with self.subTest(f0=f0, f1=f1):
+                data = bytearray(saved_settings(16, 4))
+                data[58:60] = bytes([f0, f1])
+                self.path.write_bytes(checked(data))
+                tool, _ = self.tool()
+                self.assertEqual(tool.settings_list()["settings_version"], 16)
+
+    def test_version16_bad_f_checksum_is_refused_before_writes(self):
+        self.use_current_layout()
+        for offset in (58, 65, 73, 74, 77):
+            with self.subTest(offset=offset):
+                data = bytearray(saved_settings(16, 4))
+                data[offset] ^= 1
+                self.refused_before_writes(bytes(data))
+
+    def test_version16_unallocated_or_out_of_range_f_bits_are_refused_before_writes(self):
+        self.use_current_layout()
+        for offset, value in ((58, 0x10), (58, 0x80), (58, 0x0C), (58, 0x0F), (59, 0x08), (59, 0x80),
+                              (60, 1), (66, 0x40), (73, 0x80)):
+            with self.subTest(offset=offset, value=value):
+                data = bytearray(saved_settings(16, 4))
+                data[offset] = value
+                self.refused_before_writes(checked(data))
+
+    def test_version16_wrong_extension_marker_is_refused_before_writes(self):
+        self.use_current_layout()
+        for value in (0, 15, 17, 0x80):
+            with self.subTest(value=value):
+                data = bytearray(saved_settings(16, 4))
+                data[53] = value
+                self.refused_before_writes(checked(data))
+
+    def test_a_short_version16_file_is_refused_before_writes(self):
+        self.use_current_layout()
+        for length in (58, 74, 77):
+            with self.subTest(length=length):
+                self.refused_before_writes(saved_settings(16, 4)[:length])
+
+    def test_a_version15_marker_must_stay_zero_under_the_current_build(self):
+        self.use_current_layout()
+        data = bytearray(saved_settings(15, 4))
+        data[53] = 16
+        self.refused_before_writes(checked(data), ("settings_list",))
+
+    def test_a_changed_f_layout_is_refused(self):
+        self.use_current_layout()
+        original = echo_language.Snapshot.show
+        for old, new in (("bytes + 74", "bytes + 75"), ("bytes[53] = 16", "bytes[52] = 16"),
+                         ("SETTINGS_FILE_SIZE = 78", "SETTINGS_FILE_SIZE = 80"),
+                         ("(bytes[59] & 0xF8u) == 0", "(bytes[59] & 0xF0u) == 0")):
+            def show(snapshot, path, old=old, new=new):
+                return original(snapshot, path).replace(old, new)
+            with self.subTest(old=old), mock.patch.object(echo_language.Snapshot, "show", show):
+                tool, host = self.tool()
+                with self.assertRaises(echo_debug.DebugError) as refused:
+                    tool.settings_list()
+                self.assertEqual(refused.exception.code, "language_build_unknown")
+                self.assert_no_write(host)
 
     def test_clock_format_uses_the_extension_bit_and_the_installed_choices(self):
-        self.use_version15()
+        self.use_current_layout()
         original = echo_language.Snapshot.show
         paths = ("firmware/assets/lang/en.txt", "firmware/src/app/settings_screens.c")
         def show(snapshot, path):
@@ -341,7 +452,7 @@ class CompanionSettings(VolumeCase):
             self.assertIn("set Clock format=24-hour\n", self.sent[0])
 
     def test_status_bar_settings_use_e13_and_preserve_the_reserved_clock_bytes(self):
-        self.use_version15()
+        self.use_current_layout()
         original = echo_language.Snapshot.show
         paths = ("firmware/assets/lang/en.txt", "firmware/src/app/settings_screens.c")
         def show(snapshot, path):
@@ -352,7 +463,7 @@ class CompanionSettings(VolumeCase):
         with mock.patch.object(echo_language.Snapshot, "show", show):
             for key, value, bit in choices:
                 with self.subTest(key=key):
-                    before = bytearray(saved_settings(15, 4))
+                    before = bytearray(saved_settings(16, 4))
                     before[51] = 0xA0
                     self.path.write_bytes(checked(before))
                     def change(data):
@@ -367,23 +478,18 @@ class CompanionSettings(VolumeCase):
                     self.assertEqual(self.path.read_bytes()[51], 0xA0 | bit)
                     self.assertEqual(self.path.read_bytes()[49:51], bytes(2))
 
-    def test_version15_extension_values_the_firmware_rejects_are_refused_before_writes(self):
-        self.use_version15()
+    def test_version16_extension_values_the_firmware_rejects_are_refused_before_writes(self):
+        self.use_current_layout()
         cases = ((38, 0x18), (38, 0x20), (39, 61), (40, 4), (40, 61), (41, 1), (42, 0x00),
                  (46, 0x18), (47, 0x08), (48, 0x02), (50, 4), (53, 0x80))
         for offset, value in cases:
             with self.subTest(offset=offset, value=value):
-                data = bytearray(saved_settings(15, 4))
+                data = bytearray(saved_settings(16, 4))
                 data[offset] = value
-                self.path.write_bytes(checked(data))
-                tool, host = self.tool()
-                with self.assertRaises(echo_debug.DebugError) as refused:
-                    tool.settings_set("text_size", "large")
-                self.assertIn(refused.exception.code, ("settings_invalid", "language_settings_invalid"))
-                self.assert_no_write(host)
+                self.refused_before_writes(checked(data))
 
     def test_clock_offset_is_preserved_when_another_setting_changes(self):
-        self.use_version15()
+        self.use_current_layout()
         before = bytearray(self.path.read_bytes())
         struct.pack_into("<h", before, 49, -480)
         self.path.write_bytes(checked(before))
@@ -391,8 +497,8 @@ class CompanionSettings(VolumeCase):
         self.assertTrue(tool.settings_set("text_size", "large")["verified"])
         self.assertEqual(struct.unpack_from("<h", self.path.read_bytes(), 49)[0], -480)
 
-    def test_version15_checksum_covers_the_extension_block(self):
-        self.use_version15()
+    def test_the_base_checksum_covers_the_extension_block_and_marker(self):
+        self.use_current_layout()
         data = bytearray(self.path.read_bytes())
         data[53] ^= 1
         self.path.write_bytes(data)
@@ -402,17 +508,19 @@ class CompanionSettings(VolumeCase):
         self.assertIn(refused.exception.code, ("settings_invalid", "language_settings_invalid"))
         self.assert_no_write(host)
 
-    def test_a_version14_file_under_version15_firmware_requires_a_player_save(self):
-        self.use_version15()
-        self.path.write_bytes(saved_settings(14, 4))
-        tool, host = self.tool()
-        with self.assertRaises(echo_debug.DebugError) as refused:
-            tool.settings_set("text_size", "large")
-        self.assertEqual(refused.exception.code, "settings_migration_required")
-        self.assert_no_write(host)
+    def test_older_files_under_version16_firmware_require_a_player_save(self):
+        self.use_current_layout()
+        for version in (14, 15):
+            with self.subTest(version=version):
+                self.path.write_bytes(saved_settings(version, 4))
+                tool, host = self.tool()
+                with self.assertRaises(echo_debug.DebugError) as refused:
+                    tool.settings_set("text_size", "large")
+                self.assertEqual(refused.exception.code, "settings_migration_required")
+                self.assert_no_write(host)
 
     def test_a_changed_extension_layout_is_refused(self):
-        self.use_version15()
+        self.use_current_layout()
         original = echo_language.Snapshot.show
         def show(snapshot, path):
             text = original(snapshot, path)
