@@ -9,7 +9,7 @@ import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_ROOT = Path(os.environ.get("GNARLYR_SITE_SOURCE_ROOT", ROOT)).resolve()
+SOURCE_ROOT = Path(os.environ.get("SITE_SOURCE_ROOT", ROOT)).resolve()
 sys.path.insert(0, str(SOURCE_ROOT / "firmware" / "tools"))
 import lang_pack
 
