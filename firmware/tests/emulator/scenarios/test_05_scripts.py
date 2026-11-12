@@ -267,7 +267,7 @@ class EchoImageTest(EchoImageHarness):
         machine.stop_at("board_wait_for_power_hold")
         self.assertEqual(machine.run(until_ms=self.session_module.FRAME_LIMIT_MS),
                          "reached board_wait_for_power_hold")
-        self.assertEqual(machine.reached["updater_install_trial"], 1)
+        self.assertEqual(machine.reached["trial_module_install"], 1)
         self.assertNotIn("debug_script_take", machine.reached)
         self.assertNotIn("board_restart", machine.reached)
         self.assertIsNone(machine.reset_requested)
@@ -277,7 +277,7 @@ class EchoImageTest(EchoImageHarness):
         second = first.reboot(image=first.slot_image("slot_1") + newer[-4:])
         restarted = second.machine
         for name in ("usb_session_storage_changed", "debug_script_take", "hal_system_usb_reconnect",
-                     "updater_install_trial"):
+                     "trial_module_install"):
             restarted.note(name)
         restarted.host_ejects()
         restarted.vbus = True
@@ -288,7 +288,7 @@ class EchoImageTest(EchoImageHarness):
         report = self.read_report(second)
         self.assertEqual(report["values"]["script.state"], "finished")
         self.assertEqual([line["status"] for line in report["script"]["lines"]], ["ok"] * 3)
-        self.assertNotIn("updater_install_trial", restarted.reached)
+        self.assertNotIn("trial_module_install", restarted.reached)
         self.assert_healthy(second)
 
     def test_a_restart_request_ends_a_successful_install_in_a_restart_into_the_new_image(self):
@@ -297,7 +297,7 @@ class EchoImageTest(EchoImageHarness):
         first, machine = self.ejecting_session(volume)
         self.assertEqual(machine.run(until_ms=self.session_module.FRAME_LIMIT_MS),
                          "system reset requested")
-        self.assertEqual(machine.reached["updater_install_trial"], 1)
+        self.assertEqual(machine.reached["trial_module_install"], 1)
         self.assertEqual(machine.reached["board_restart"], 1)
         self.assertNotIn("board_wait_for_power_hold", machine.reached)
         self.assertEqual(first.fat().read(RESTART_PATH), RESTART_ANSWER)
@@ -314,7 +314,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(self.read_report(first)["values"]["report.reason"], "restart")
         second = first.reboot(image=first.slot_image("slot_1") + newer[-4:], usb_answer=None)
         restarted = second.machine
-        for name in ("usb_session_storage_changed", "updater_install_trial", "board_restart",
+        for name in ("usb_session_storage_changed", "trial_module_install", "board_restart",
                      "app_ask_usb_mode"):
             restarted.note(name)
         restarted.host_ejects()
@@ -333,7 +333,7 @@ class EchoImageTest(EchoImageHarness):
         restarted.run(until_ms=restarted.milliseconds() + 1000)
         self.assertFalse(second.fat().exists(RESTART_PATH))
         self.assertEqual(restarted.usb_connect_count, 1)
-        self.assertNotIn("updater_install_trial", restarted.reached)
+        self.assertNotIn("trial_module_install", restarted.reached)
         self.assertNotIn("board_restart", restarted.reached)
         self.assertNotIn("app_ask_usb_mode", restarted.reached)
         self.assert_healthy(second)
@@ -417,13 +417,13 @@ class EchoImageTest(EchoImageHarness):
                                        restart_req=RESTART_REQUEST)
             session, machine = self.ejecting_session(volume)
             if fail:
-                machine.stub_symbol("updater_install_trial", lambda machine: 0)
+                machine.stub_symbol("trial_module_install", lambda machine: 0)
             self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
             machine.run(until_ms=machine.milliseconds() + 1000)
             self.assertIsNone(machine.reset_requested)
             self.assertNotIn("board_restart", machine.reached)
             self.assertNotIn("debug_restart_after_install", machine.reached)
-            self.assertEqual("updater_install_trial" in machine.reached, fail)
+            self.assertEqual("trial_module_install" in machine.reached, fail)
             self.assertFalse(session.fat().exists(RESTART_PATH))
             self.assertEqual(session.fat().exists("/" + IDENTITY.update_file), fail)
             self.assertEqual(session.slot_image("slot_1"), self.image[:self.session_module.SLOT_BYTES])

@@ -1,4 +1,4 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source dsd equalizer)
+set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source dsd equalizer trial)
 set(ECHO_SCREEN_MODULE_SHARED_SOURCES src/codec/flac.c src/codec/flac_bits.c)
 set(ECHO_SCREEN_MODULE_SOURCES_process
     src/core/parametric.c
@@ -51,6 +51,13 @@ set(ECHO_SCREEN_MODULE_SOURCES_ogg
     platform/device/logic/vorbis_track.c
     src/codec/ogg_packet.c
 )
+set(ECHO_SCREEN_MODULE_SOURCES_trial
+    platform/device/board/trial_boot_module.c
+    platform/device/board/trial_record.c
+    platform/device/logic/fat_delete.c
+    platform/device/logic/slot_copy.c
+    platform/device/logic/update_trial.c
+)
 set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/app/standby.c
     src/app/modules/extension_module.c
@@ -61,7 +68,11 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/settings/headphone_file.c
     src/settings/headphone_profile.c
     platform/device/board/file_remove.c
+    platform/device/board/trial_module.c
+    platform/device/board/trial_record.c
+    platform/device/logic/slot_copy.c
     platform/device/logic/fat_delete.c
+    platform/device/logic/updater_install.c
     platform/device/board/debug_rtc.c
     platform/device/logic/rtc_time.c
     platform/device/logic/rtc_registers.c

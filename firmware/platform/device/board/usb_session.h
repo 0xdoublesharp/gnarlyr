@@ -60,7 +60,6 @@ typedef struct UsbOverlayEntry {
     bool (*storage)(UsbShared *shared);
     void (*dac)(UsbShared *shared);
     AppUsbRenderer draw;
-    void (*trial_start)(UsbShared *shared);
 #ifdef ECHO_DEBUG_LOOP
     void (*report)(const UsbShared *shared, uint32_t reason);
 #endif
@@ -86,6 +85,4 @@ bool usb_session_storage_changed(void);
 uint32_t *usb_session_buffer(void);
 void usb_dac_session(UsbShared *shared);
 void update_after_usb(UsbShared *shared);
-void update_trial_start(UsbShared *shared);
-void update_trial_session_started(void);
 void time_file_take(bool apply);

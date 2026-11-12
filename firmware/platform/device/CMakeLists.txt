@@ -245,7 +245,7 @@ set(ECHO_OVERLAY_IMPORTS
     board_audio_stream_ring
     board_audio_volume_level
     board_display_service
-    board_restart
+    board_trial_calls
     board_wait_for_key
     board_wait_for_power_hold
     board_wall_time_set
@@ -340,6 +340,7 @@ if(NOT ECHO_RELEASE)
         board_power_shown
         board_profile
         board_profile_hold
+        board_restart
         debug_loop_event
         debug_loop_log
         debug_loop_boot_times
@@ -525,7 +526,8 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         list(APPEND module_sources ${PROJECT_SOURCE_DIR}/${source})
         list(APPEND module_includes ${owner_directory} ${owner_directory}/include)
     endforeach()
-    if(ECHO_MODULE_LINKER_SCRIPT STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/overlay/screen_module.ld")
+    if(ECHO_MODULE_LINKER_SCRIPT STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/overlay/screen_module.ld"
+       AND NOT module STREQUAL "trial")
         foreach(source IN LISTS ECHO_SCREEN_MODULE_UI_SOURCES)
             list(APPEND module_sources ${PROJECT_SOURCE_DIR}/${source})
         endforeach()
@@ -560,6 +562,11 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             audio_engine_set_sleep_remaining=audio_process_set_sleep_remaining
             audio_engine_repeat_mark=audio_process_repeat_mark
         )
+    endif()
+    if(module STREQUAL "trial")
+        target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
+        target_include_directories(${module_target}_objects PRIVATE board
+            ${PROJECT_SOURCE_DIR}/src/app)
     endif()
     if(module STREQUAL "extension")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)

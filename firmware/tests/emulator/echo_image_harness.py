@@ -351,13 +351,13 @@ class EchoImageHarness(unittest.TestCase):
 
     def assert_update_refused(self, update):
         session = self.session(files=[update], vbus=True)
-        session.machine.note("updater_install_trial")
+        session.machine.note("trial_module_install")
         session.machine.note("updater_check")
         session.run_to_first_frame()
         self.assertEqual(session.run_until_waiting_for_key(presses=1),
                          "reached board_wait_for_key")
         self.assertEqual(session.machine.reached["updater_check"], 1)
-        self.assertNotIn("updater_install_trial", session.machine.reached)
+        self.assertNotIn("trial_module_install", session.machine.reached)
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
         summary("refused " + update[0], session)
@@ -375,7 +375,7 @@ class EchoImageHarness(unittest.TestCase):
         return session, polls
 
     def boot_until_waiting_for_key(self, session):
-        session.machine.note("updater_install_trial")
+        session.machine.note("trial_module_install")
         session.machine.note("updater_check")
         session.run_to_first_frame()
         session.machine.answer_waits_for_key(2)
@@ -594,7 +594,7 @@ class EchoImageHarness(unittest.TestCase):
         if before_start is not None:
             before_start(machine)
         for name in ("usb_session_storage_changed", "debug_script_take", "hal_system_usb_reconnect",
-                     "debug_restart_after_install", "board_restart", "updater_install_trial",
+                     "debug_restart_after_install", "board_restart", "trial_module_install",
                      "board_wait_for_power_hold", *notes):
             machine.note(name)
         machine.host_ejects()

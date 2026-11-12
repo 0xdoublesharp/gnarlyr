@@ -4,10 +4,9 @@
 #include "usb_session.h"
 
 #ifdef ECHO_DEBUG_LOOP
-const UsbOverlayEntry USB_OVERLAY_ENTRY = {USB_OVERLAY_MAGIC,  usb_storage_session,
-                                           usb_dac_session,    usb_screen_draw,
-                                           update_trial_start, debug_report_write};
+const UsbOverlayEntry USB_OVERLAY_ENTRY = {USB_OVERLAY_MAGIC, usb_storage_session, usb_dac_session,
+                                           usb_screen_draw, debug_report_write};
 #else
 const UsbOverlayEntry USB_OVERLAY_ENTRY = {USB_OVERLAY_MAGIC, usb_storage_session, usb_dac_session,
-                                           usb_screen_draw, update_trial_start};
+                                           usb_screen_draw};
 #endif

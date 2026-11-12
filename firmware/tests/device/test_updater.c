@@ -3,6 +3,7 @@
 
 #include "check.h"
 #include "device/image_crc.h"
+#include "device/slot_copy.h"
 #include "device/updater.h"
 
 enum {
@@ -41,6 +42,8 @@ typedef struct FakeFile {
     uint8_t *bytes;
     uint32_t size;
 } FakeFile;
+
+static uint32_t install_buffer[SLOT_COPY_BUFFER_WORDS];
 
 static FakeStorage storage;
 static FakeFile file;
@@ -258,7 +261,7 @@ static void installing_fills_both_slots_with_the_image(void)
     reset(image, IMAGE_SIZE);
     UpdateStorage storage_target = target();
     UpdateFile update = source();
-    CHECK(updater_install(&update, &storage_target, progress()));
+    CHECK(updater_install(&update, &storage_target, progress(), install_buffer));
     CHECK(slot_holds(SLOT_2, image));
     CHECK(slot_holds(SLOT_1, image));
     CHECK(progress_reports > 0);
@@ -291,7 +294,7 @@ static void each_slot_is_invalidated_first_and_completed_last(void)
     reset(image, IMAGE_SIZE);
     UpdateStorage storage_target = target();
     UpdateFile update = source();
-    CHECK(updater_install(&update, &storage_target, progress()));
+    CHECK(updater_install(&update, &storage_target, progress(), install_buffer));
     for (int pass = 0; pass < 2; pass++) {
         uint32_t slot = pass == 0 ? SLOT_2 : SLOT_1;
         const WriteRecord *first = &storage.log[first_write_into(slot)];
@@ -311,7 +314,7 @@ static void chunks_that_already_match_are_not_rewritten(void)
     reset(image, IMAGE_SIZE);
     UpdateStorage storage_target = target();
     UpdateFile update = source();
-    CHECK(updater_install(&update, &storage_target, progress()));
+    CHECK(updater_install(&update, &storage_target, progress(), install_buffer));
     int payload_chunks = (PAYLOAD_END + CHUNK_SECTORS * 512 - 1) / (CHUNK_SECTORS * 512);
     int expected_per_slot = 1 + payload_chunks + 1;
     CHECK_EQUAL(2 * expected_per_slot, storage.writes);
@@ -325,7 +328,7 @@ static void a_write_failure_in_slot_2_leaves_slot_1_untouched(void)
     storage.fail_lba = SLOT_2 + 2 * CHUNK_SECTORS;
     UpdateStorage storage_target = target();
     UpdateFile update = source();
-    CHECK(!updater_install(&update, &storage_target, progress()));
+    CHECK(!updater_install(&update, &storage_target, progress(), install_buffer));
     CHECK_EQUAL(0xA5, storage.sectors[(size_t)SLOT_1 * 512]);
     CHECK_EQUAL(-1, first_write_into(SLOT_1));
 }
@@ -337,7 +340,7 @@ static void a_block_that_reads_back_wrong_fails_the_install(void)
     storage.corrupt_lba = SLOT_2 + CHUNK_SECTORS;
     UpdateStorage storage_target = target();
     UpdateFile update = source();
-    CHECK(!updater_install(&update, &storage_target, progress()));
+    CHECK(!updater_install(&update, &storage_target, progress(), install_buffer));
     CHECK_EQUAL(-1, first_write_into(SLOT_1));
 }
 
@@ -369,55 +372,6 @@ static void the_image_in_slot_1_is_installed_whatever_slot_2_holds(void)
     CHECK_EQUAL(UPDATE_ALREADY_INSTALLED, updater_check(&update, &storage_target));
 }
 
-static void a_trial_install_writes_slot_1_only(void)
-{
-    uint8_t *old = valid_image(7);
-    uint8_t *image = valid_image(8);
-    reset(image, IMAGE_SIZE);
-    memcpy(storage.sectors + (size_t)SLOT_2 * 512, old, FW_END);
-    UpdateStorage storage_target = target();
-    UpdateFile update = source();
-    CHECK(updater_install_trial(&update, &storage_target, progress()));
-    CHECK(slot_holds(SLOT_1, image));
-    CHECK(slot_holds(SLOT_2, old));
-    CHECK_EQUAL(-1, first_write_into(SLOT_2));
-    CHECK_EQUAL(0xFF, storage.log[first_write_into(SLOT_1)].first_byte);
-    CHECK_EQUAL(image[0], storage.log[last_write_into(SLOT_1)].first_byte);
-    CHECK(!progress_went_backwards);
-    CHECK_EQUAL(FW_END / (CHUNK_SECTORS * 512), last_done);
-    free(old);
-}
-
-static void a_valid_slot_is_copied_into_the_other_header_last(void)
-{
-    uint8_t *image = valid_image(9);
-    reset(image, IMAGE_SIZE);
-    memcpy(storage.sectors + (size_t)SLOT_2 * 512, image, FW_END);
-    UpdateStorage storage_target = target();
-    CHECK(updater_slot_is_valid(&storage_target, SLOT_2));
-    CHECK(!updater_slot_is_valid(&storage_target, SLOT_1));
-    CHECK(updater_copy_slot(&storage_target, SLOT_2, SLOT_1, progress()));
-    CHECK(slot_holds(SLOT_1, image));
-    CHECK_EQUAL(-1, first_write_into(SLOT_2));
-    CHECK_EQUAL(0xFF, storage.log[first_write_into(SLOT_1)].first_byte);
-    CHECK_EQUAL(SLOT_1, storage.log[last_write_into(SLOT_1)].lba);
-    CHECK_EQUAL(image[0], storage.log[last_write_into(SLOT_1)].first_byte);
-}
-
-static void an_invalid_slot_is_never_copied(void)
-{
-    uint8_t *image = valid_image(10);
-    reset(image, IMAGE_SIZE);
-    memcpy(storage.sectors + (size_t)SLOT_2 * 512, image, FW_END);
-    storage.sectors[(size_t)SLOT_2 * 512 + FW_SIZE + 5] ^= 1;
-    memset(storage.sectors + (size_t)SLOT_1 * 512, 0xA5, 512);
-    UpdateStorage storage_target = target();
-    CHECK(!updater_slot_is_valid(&storage_target, SLOT_2));
-    CHECK(!updater_copy_slot(&storage_target, SLOT_2, SLOT_1, progress()));
-    CHECK_EQUAL(0, storage.writes);
-    CHECK_EQUAL(0xA5, storage.sectors[(size_t)SLOT_1 * 512]);
-}
-
 static void an_update_file_is_removed_unless_its_install_failed(void)
 {
     CHECK(updater_should_remove_file(UPDATE_VALID, true));
@@ -435,7 +389,7 @@ static void without_scratch_memory_nothing_is_checked_or_written(void)
     UpdateStorage storage_target = target();
     UpdateFile update = source();
     CHECK_EQUAL(UPDATE_INVALID, updater_check(&update, &storage_target));
-    CHECK(!updater_install(&update, &storage_target, progress()));
+    CHECK(!updater_install(&update, &storage_target, progress(), NULL));
     CHECK_EQUAL(0, storage.writes);
 }
 
@@ -449,9 +403,6 @@ int main(void)
         TEST_CASE(images_that_could_not_boot_are_invalid),
         TEST_CASE(the_installed_image_is_recognised),
         TEST_CASE(the_image_in_slot_1_is_installed_whatever_slot_2_holds),
-        TEST_CASE(a_trial_install_writes_slot_1_only),
-        TEST_CASE(a_valid_slot_is_copied_into_the_other_header_last),
-        TEST_CASE(an_invalid_slot_is_never_copied),
         TEST_CASE(installing_fills_both_slots_with_the_image),
         TEST_CASE(each_slot_is_invalidated_first_and_completed_last),
         TEST_CASE(chunks_that_already_match_are_not_rewritten),

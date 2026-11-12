@@ -13,6 +13,7 @@ enum {
 
 #define UPDATE_TRIAL_PATH "/" FIRMWARE_DATA_DIRECTORY "/trial.bin"
 #define UPDATE_BOTH_SLOTS_PATH "/BOTHSLOT.REQ"
+#define UPDATE_TRIAL_STARTED {'D', 'S', 'U', 'T', 1, 0, 0x5B, 1}
 
 typedef enum UpdateTrialState {
     UPDATE_TRIAL_NONE,
@@ -38,4 +39,3 @@ void update_trial_encode(UpdateTrial trial, uint8_t *bytes);
 UpdateTrialStep update_trial_boot(UpdateTrial *trial);
 bool update_trial_charge(UpdateTrial *trial);
 bool update_trial_settle(UpdateTrial *trial);
-bool update_trial_both_slots_requested(const uint8_t *bytes, uint32_t length);

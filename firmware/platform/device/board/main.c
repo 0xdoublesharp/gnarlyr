@@ -80,9 +80,13 @@ static void run_usb_session(void)
 {
     board_stall_pause(true);
     raise_clock_for_usb();
+    board_trial_session_starting();
     const UsbOverlayEntry *usb = load_usb_code();
     bool storage_changed = usb != NULL && usb->storage(usb_session_shared());
     app_set_usb_renderer(NULL);
+    if (usb != NULL) {
+        board_trial_session_ended();
+    }
     if (storage_changed || hal_system_restart_pending()) {
         storage_reset();
         app_start();
@@ -108,7 +112,6 @@ static void run_dac_session(void)
 static void run_session(void)
 {
     board_debug_usb_starting(dac_session);
-    board_trial_session_starting();
     if (dac_session) {
         run_dac_session();
     } else {
