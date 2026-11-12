@@ -2719,6 +2719,9 @@ static void starting_makes_no_files_before_the_first_step(void)
 static void each_big_file_is_made_in_its_own_step_after_the_screen_is_lit(void)
 {
     start_on_a_fresh_card_without_stepping();
+    app_draw_start();
+    CHECK(fake_hal_display_on());
+    CHECK_EQUAL(0, fake_hal_reserve_count());
     step();
     CHECK(fake_hal_display_on());
     CHECK(app_preparing());
@@ -3392,6 +3395,31 @@ static void the_plug_in_answer_is_chosen_in_settings_applied_and_saved(void)
     CHECK_EQUAL(HAL_USB_ANSWER_CHARGE, fake_hal_usb_answer());
 }
 
+static void the_power_on_choice_preserves_its_neighbouring_bits_and_survives_restart(void)
+{
+    start_app_with_library();
+    SettingsStore store;
+    settings_store_load(&store);
+    store.settings.power_on_flags = 0xA3;
+    CHECK(settings_store_save(&store));
+    restart_app();
+    open_setting(SETTINGS_USB_ANSWER_INDEX + 1);
+    CHECK(title_is("Power on"));
+    move_down(1);
+    tap(KEY_PLAY);
+    Settings settings;
+    CHECK(saved_settings(&settings));
+    CHECK_EQUAL(0xB3, settings.power_on_flags);
+    restart_app();
+    CHECK(saved_settings(&settings));
+    CHECK_EQUAL(0xB3, settings.power_on_flags);
+    open_setting(SETTINGS_USB_ANSWER_INDEX + 1);
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(saved_settings(&settings));
+    CHECK_EQUAL(0xA3, settings.power_on_flags);
+}
+
 static void the_home_menu_opens_the_same_three_mode_selector(void)
 {
     start_app_with_library();
@@ -3442,6 +3470,29 @@ static void holding_power_on_the_charge_screen_turns_the_player_on(void)
     CHECK(!app_charging());
     CHECK(fake_hal_display_on());
     CHECK_EQUAL(0, fake_hal_power_off_count());
+}
+
+static void pressing_power_leaves_charge_mode_only_when_selected(void)
+{
+    for (int press = 0; press < 2; press++) {
+        start_app_with_library();
+        SettingsStore store;
+        settings_store_load(&store);
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&store.settings, bytes);
+        bytes[38 + 13] = (uint8_t)(press ? 0x10 : 0);
+        hash_store(bytes + 54, hash_update(HASH_START, bytes, 54));
+        CHECK(hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes));
+        fake_hal_set_battery(ON_USB);
+        fake_hal_set_usb_start(true);
+        app_start();
+        CHECK(app_charging());
+        step();
+        step();
+        tap(KEY_POWER);
+        CHECK_EQUAL(!press, app_charging());
+        CHECK_EQUAL(0, fake_hal_power_off_count());
+    }
 }
 
 static void unplugging_on_the_charge_screen_turns_the_player_off(void)
@@ -5907,9 +5958,11 @@ int main(void)
         TEST_CASE(file_transfer_from_the_charge_screen_prompt_connects_and_keeps_charging),
         TEST_CASE(a_host_found_with_usb_mode_open_turns_it_into_the_prompt),
         TEST_CASE(the_plug_in_answer_is_chosen_in_settings_applied_and_saved),
+        TEST_CASE(the_power_on_choice_preserves_its_neighbouring_bits_and_survives_restart),
         TEST_CASE(the_home_menu_opens_the_same_three_mode_selector),
         TEST_CASE(storage_selection_and_return_keep_the_playback_session),
         TEST_CASE(holding_power_on_the_charge_screen_turns_the_player_on),
+        TEST_CASE(pressing_power_leaves_charge_mode_only_when_selected),
         TEST_CASE(unplugging_on_the_charge_screen_turns_the_player_off),
         TEST_CASE(a_cable_start_opens_the_charge_screen),
         TEST_CASE(holding_play_on_a_folder_plays_everything_under_it_in_order),

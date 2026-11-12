@@ -26,6 +26,19 @@ typedef struct DebugLoop {
 } DebugLoop;
 
 static DebugLoop loop;
+static uint32_t boot_us[DEBUG_BOOT_COUNT];
+
+void debug_loop_boot(DebugBootStep step)
+{
+    if (boot_us[step] == 0) {
+        boot_us[step] = hal_clock_microseconds() + 1;
+    }
+}
+
+const uint32_t *debug_loop_boot_times(void)
+{
+    return boot_us;
+}
 
 static void record(DebugEventKind kind, uint32_t value, const char *text)
 {

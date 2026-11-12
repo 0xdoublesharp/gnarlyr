@@ -963,6 +963,17 @@ static uint32_t put_tail(Writer *writer, uint32_t capacity)
     return (uint32_t)writer->text.length;
 }
 
+static void put_boot(Writer *writer, const uint32_t *times)
+{
+    static const char *const KEYS[DEBUG_BOOT_COUNT] = {
+        "boot.clock_us", "boot.display_us",   "boot.glyphs_us",      "boot.app_us",
+        "boot.frame_us", "boot.extension_us", "boot.interactive_us", "boot.audio_us"};
+    for (int index = 0; index < DEBUG_BOOT_COUNT; index++) {
+        uint32_t value = times != NULL ? times[index] : 0;
+        put_known(writer, KEYS[index], value != 0, value - 1);
+    }
+}
+
 uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t capacity)
 {
     if (capacity <= DEBUG_REPORT_TAIL_BYTES) {
@@ -973,6 +984,7 @@ uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t
     put_battery(&writer, input);
     put_power(&writer, input);
     put_start(&writer, &input->start);
+    put_boot(&writer, input->boot_us);
     put_usb(&writer, input->usb, input->power.usb_kept_on);
     put_usb_words(&writer, &input->usb_words);
     put_loop(&writer, input);

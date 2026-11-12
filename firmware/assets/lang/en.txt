@@ -105,6 +105,9 @@ STR_CUSTOM_EQ = Custom EQ
 STR_START_SCREEN = Start screen
 STR_USB_MODE = USB mode
 STR_USB_ANSWER = When plugged in
+STR_POWER_ON = Power on
+STR_POWER_ON_HOLD = Hold
+STR_POWER_ON_PRESS = Press
 STR_RESCAN_LIBRARY = Rescan library
 STR_ABOUT = About
 

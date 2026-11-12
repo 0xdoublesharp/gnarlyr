@@ -97,6 +97,7 @@ typedef struct DebugReportInput {
     uint32_t clock_mhz;
     uint32_t clock_us;
     uint32_t idle_us;
+    const uint32_t *boot_us;
     HalBattery battery;
     DebugReportPower power;
     HalStartInfo start;

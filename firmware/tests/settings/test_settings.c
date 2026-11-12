@@ -1190,6 +1190,21 @@ static void each_invalid_extension_value_is_rejected_without_mutating_the_settin
     }
 }
 
+static void power_on_preserves_every_other_bit_in_extension_thirteen(void)
+{
+    for (unsigned flags = 0; flags < 256; flags++) {
+        Settings settings = settings_defaults();
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&settings, bytes);
+        CHECK_EQUAL(0, bytes[EXTENSION_FIELD + 13]);
+        bytes[EXTENSION_FIELD + 13] = (uint8_t)flags;
+        rewrite_checksum(bytes);
+        CHECK(settings_decode(bytes, sizeof bytes, &settings));
+        settings_encode(&settings, bytes);
+        CHECK_EQUAL(flags, bytes[EXTENSION_FIELD + 13]);
+    }
+}
+
 static void every_item_but_settings_may_be_hidden(void)
 {
     for (int item = 0; item < SETTINGS_HOME_ITEM_COUNT; item++) {
@@ -1494,6 +1509,7 @@ int main(void)
         TEST_CASE(a_version_fifteen_file_needs_all_fifty_eight_bytes),
         TEST_CASE(the_checksum_covers_the_extension_block),
         TEST_CASE(each_invalid_extension_value_is_rejected_without_mutating_the_settings),
+        TEST_CASE(power_on_preserves_every_other_bit_in_extension_thirteen),
         TEST_CASE(every_item_but_settings_may_be_hidden),
         TEST_CASE(the_old_untouched_home_defaults_adopt_the_new_defaults),
         TEST_CASE(the_previous_saved_default_adopts_the_new_order),

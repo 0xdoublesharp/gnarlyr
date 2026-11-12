@@ -1,6 +1,7 @@
 #include <stdbool.h>
 
 #include "app/app.h"
+#include "app/debug_loop.h"
 #include "board.h"
 #include "core/deadline.h"
 #include "core/i18n.h"
@@ -282,14 +283,15 @@ static void follow_card(uint32_t *generation)
 
 void board_main(void)
 {
+    board_power_hold();
     board_start_record_boot();
     board_debug_boot();
     board_loader_flag_clear();
-    board_power_hold();
     board_power_usb_supply_follow(usb_vbus_present());
     board_bluetooth_off();
     board_clock_record_boot();
     board_clock_start();
+    debug_loop_boot(DEBUG_BOOT_CLOCK);
     usb_plug_update(&usb_plug, usb_vbus_present(), hal_clock_milliseconds());
     board_stall_pause(true);
     hal_system_set_clock_mhz(START_CLOCK_MHZ);
@@ -299,8 +301,10 @@ void board_main(void)
     uint32_t boot_millivolts = battery_millivolts(boot_reading);
     board_input_start();
     board_display_start();
+    debug_loop_boot(DEBUG_BOOT_DISPLAY);
     boot_step("display");
     board_glyphs_start();
+    debug_loop_boot(DEBUG_BOOT_GLYPHS);
     boot_step("glyphs");
     update_check_loader_request();
     boot_step("loader request");
@@ -308,12 +312,16 @@ void board_main(void)
     boot_step("jack");
     switch_off_when_empty(boot_millivolts);
     boot_step("app start");
-    board_extension_start();
     app_start();
+    debug_loop_boot(DEBUG_BOOT_APP);
     board_wall_time_forget_file();
     explain_missing_text();
     boot_step("splash");
     app_show_splash();
+    app_draw_start();
+    board_display_service();
+    board_extension_start();
+    debug_loop_boot(DEBUG_BOOT_EXTENSION);
     board_core1_park();
     cru_stop_unused_clocks();
     boot_step("main loop");

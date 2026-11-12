@@ -85,6 +85,9 @@ typedef enum StringId {
     STR_START_SCREEN,
     STR_USB_MODE,
     STR_USB_ANSWER,
+    STR_POWER_ON,
+    STR_POWER_ON_HOLD,
+    STR_POWER_ON_PRESS,
     STR_RESCAN_LIBRARY,
     STR_ABOUT,
     STR_SHUFFLE_SONGS,
@@ -656,4 +659,4 @@ typedef enum StringId {
     STRING_COUNT
 } StringId;
 
-#define STRINGS_HASH UINT32_C(0x95001999)
+#define STRINGS_HASH UINT32_C(0x42086DE6)

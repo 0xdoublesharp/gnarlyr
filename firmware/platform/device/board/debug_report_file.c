@@ -101,6 +101,7 @@ static DebugReportInput gather(const UsbShared *shared, uint32_t reason)
                               .script = debug_runner_script(),
                               .interrupted_line = board_debug_interrupted_line(),
                               .log = debug_loop_log(),
+                              .boot_us = debug_loop_boot_times(),
                               .profile = board_profile()};
 }
 

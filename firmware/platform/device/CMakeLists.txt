@@ -308,6 +308,7 @@ if(NOT ECHO_RELEASE)
         board_restart
         debug_loop_event
         debug_loop_log
+        debug_loop_boot_times
         debug_runner_begin
         debug_runner_script
         hal_internal_file_read

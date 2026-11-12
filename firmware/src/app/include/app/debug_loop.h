@@ -16,6 +16,8 @@ DebugFrames app_debug_frames(void);
 #ifdef ECHO_DEBUG_LOOP
 
 void debug_loop_event(DebugEventKind kind, uint32_t value);
+void debug_loop_boot(DebugBootStep step);
+const uint32_t *debug_loop_boot_times(void);
 const DebugLog *debug_loop_log(void);
 bool debug_loop_playing(void);
 uint32_t debug_loop_take_shutdown(void);
@@ -24,6 +26,11 @@ void debug_runner_begin(void);
 void debug_runner_abort(void);
 
 #else
+
+static inline void debug_loop_boot(DebugBootStep step)
+{
+    (void)step;
+}
 
 static inline void debug_loop_event(DebugEventKind kind, uint32_t value)
 {

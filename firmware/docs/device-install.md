@@ -121,3 +121,16 @@ An installed updater accepts the filename and image brand of its own identity. A
 | "Update failed" | Copy the file again and retry before turning the player off |
 | "USB missing: reinstall update" | The USB code could not be loaded from either slot; install again through maskrom |
 | A STALL or FAULT screen | Note the values shown, then hold Power for 2 s |
+
+## Timing a cold start
+
+Use an installed developer image with a verified build tag and the full-size Echo recovery route available. Installation is a separate approved action. Timing starts with the player completely powered off and the cable removed; leaving charge mode is a separate measurement.
+
+1. Keep the library and startup-screen choice fixed. Record the track count, output, Bluetooth choice, resume state and whether this is the first start after an update. A fresh or changed card may need a scan.
+2. Film the Power key and display together at 120 fps or faster. Hold Power from completely off. Count frames from the press to the first lit screen, then to Home or Now Playing accepting a key. Record the release too, so a required hold can be distinguished from screen delay.
+3. With a paused track restored, press Play and record the time to sound through the selected output at a safe volume. Repeat with the other output separately. Use an audio recording aligned to the video for the audible boundary.
+4. Connect USB after the measurement and read the existing debug report through `python3 tools/echo_debug.py report`. Keep the report on Scratch. Confirm its build tag and inspect the eight `boot.*_us` fields. Subtract successive markers for firmware phase costs; the interval before `boot.clock_us` is outside that clock's coverage. `boot.audio_us` marks digital transfer startup, so compare it with the recorded sound.
+5. Repeat at least five cold boots with the indexed 4,000-track library, then with no library. Keep first-use scans separate from routine indexed boots. Report the median and range of each boundary.
+6. Separately switch off with a cable attached. Check that Hold needs two seconds and Press leaves charging on a tap; verify that connecting a charger or computer still follows the existing charge and USB choices. Return to Hold if accidental presses are undesirable.
+
+The emulator timing command is documented in the architecture's Cold-start path. It cannot measure the interval from the physical key through ROM loading, nor establish that a shorter press keeps the player powered. No timing command above installs firmware.
