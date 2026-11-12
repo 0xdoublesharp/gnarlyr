@@ -153,6 +153,25 @@ static void a_flickering_wish_changes_the_shown_state_at_most_once_a_second(void
     CHECK(changes <= 5);
 }
 
+static void a_lit_direction_holds_four_hundred_milliseconds(void)
+{
+    CHECK(!usb_meter_lit(false, 0));
+    CHECK(usb_meter_lit(true, 0));
+    CHECK(usb_meter_lit(true, USB_METER_LIT_MS - 1));
+    CHECK(!usb_meter_lit(true, USB_METER_LIT_MS));
+}
+
+static void a_smoothed_rate_starts_at_its_first_sample_and_eases_after(void)
+{
+    CHECK_EQUAL(38400, usb_meter_smooth(0, 38400));
+    CHECK_EQUAL(36000, usb_meter_smooth(38400, 33600));
+    uint32_t shown = 38400;
+    for (int sample = 0; sample < 20; sample++) {
+        shown = usb_meter_smooth(shown, 0);
+    }
+    CHECK_EQUAL(0, shown);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -167,6 +186,8 @@ int main(void)
         TEST_CASE(a_light_fades_over_three_hundred_milliseconds),
         TEST_CASE(commands_closer_than_the_fade_keep_a_light_lit),
         TEST_CASE(a_steady_state_holds_for_a_second),
+        TEST_CASE(a_lit_direction_holds_four_hundred_milliseconds),
+        TEST_CASE(a_smoothed_rate_starts_at_its_first_sample_and_eases_after),
         TEST_CASE(a_flickering_wish_changes_the_shown_state_at_most_once_a_second),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

@@ -316,7 +316,6 @@ STR_USB_FULL_SPEED = Full speed
 # STR_USB_*_HINT lines is one of the STR_USB_BACK_* actions. STR_USB_RATE_UNIT follows a
 # large transfer rate. In STR_USB_ERRORS_VALUE {0} is a count and {1} the last SCSI sense
 # key and code; in STR_USB_LINK_HIGH and STR_USB_LINK_FULL {0} is the packet size in bytes.
-STR_USB_IDLE = Idle
 STR_USB_RATE_UNIT = MB/s
 STR_USB_FREE = {0} free
 STR_USB_TOTAL = {0} total
