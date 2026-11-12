@@ -54,8 +54,11 @@ add_library(echo_faad STATIC
 )
 target_include_directories(echo_faad SYSTEM PUBLIC ${ECHO_FAAD_DIR})
 target_compile_definitions(echo_faad PRIVATE
-    FIXED_POINT LC_ONLY_DECODER DISABLE_SBR FAAD_NO_ARM_ASM NDEBUG HAVE_STDINT_H HAVE_STRING_H
+    FIXED_POINT LC_ONLY_DECODER DISABLE_SBR NDEBUG HAVE_STDINT_H HAVE_STRING_H
     PACKAGE_VERSION="2.11.4")
+if(NOT CMAKE_CROSSCOMPILING)
+    target_compile_definitions(echo_faad PRIVATE FAAD_NO_ARM_ASM)
+endif()
 target_compile_options(echo_faad PRIVATE -w)
 
 add_library(echo_device_logic STATIC
