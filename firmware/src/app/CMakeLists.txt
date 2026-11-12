@@ -33,6 +33,7 @@ add_library(echo_app STATIC
     listening_clear.c
     card_files.c
     app_screens.c
+    app_screens_home.c
     bluetooth_link.c
     bluetooth_link_ui.c
     bluetooth_store.c

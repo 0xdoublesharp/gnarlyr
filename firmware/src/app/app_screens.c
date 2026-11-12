@@ -336,7 +336,7 @@ static void home_catalog(AppScreens *screens, MenuItem *items)
     }
 }
 
-static int arrange_home(AppScreens *screens)
+int app_screens_arrange_home_items(AppScreens *screens)
 {
     MenuItem items[HOME_ITEM_COUNT];
     home_catalog(screens, items);
@@ -358,19 +358,7 @@ static bool home_shown(const MenuItem *item)
     return item->shown == NULL || item->shown(item->shown_context);
 }
 
-static const void *home_selected(const AppScreens *screens)
-{
-    int remaining = screens->home.list.selected;
-    for (int index = 0; index < screens->home.config.item_count; index++) {
-        const MenuItem *item = &screens->home_items[index];
-        if (home_shown(item) && remaining-- == 0) {
-            return item->context;
-        }
-    }
-    return NULL;
-}
-
-static int home_position(const AppScreens *screens, const void *context)
+int app_screens_home_position(const AppScreens *screens, const void *context)
 {
     int position = 0;
     for (int index = 0; index < screens->home.config.item_count; index++) {
@@ -383,19 +371,12 @@ static int home_position(const AppScreens *screens, const void *context)
     return 0;
 }
 
-void app_screens_arrange_home(AppScreens *screens)
-{
-    const void *selected = home_selected(screens);
-    screens->home.config.item_count = arrange_home(screens);
-    list_view_select(&screens->home.list, home_position(screens, selected), 0);
-}
-
 static void build_home(AppScreens *screens, AppScreensContext context)
 {
     home_art_init(&screens->home_art, context.covers, context.store, context.player, context.theme);
     MenuConfig home = {.title = FIRMWARE_SHORT_NAME,
                        .items = screens->home_items,
-                       .item_count = arrange_home(screens),
+                       .item_count = app_screens_arrange_home_items(screens),
                        .theme = context.theme,
                        .panel = {.width = BOARD_LAYOUT.home_art_width,
                                  .min_height = BOARD_LAYOUT.home_art_min_height,
@@ -449,7 +430,7 @@ int app_screens_start_path(AppScreens *screens, StartScreen start, Screen **path
     case START_NOW_PLAYING:
         list_view_select(&screens->home.list,
                          player_status(screens->context.player).has_track
-                             ? home_position(screens, &screens->now_playing.screen)
+                             ? app_screens_home_position(screens, &screens->now_playing.screen)
                              : 0,
                          0);
         path[0] = &screens->now_playing.screen;
