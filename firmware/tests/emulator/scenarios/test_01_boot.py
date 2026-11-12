@@ -224,6 +224,19 @@ class EchoImageTest(EchoImageHarness):
         systick.write_word(devices.SCB_ICSR, devices.ICSR_PENDSTCLR)
         self.assertFalse(systick.pending())
 
+    def test_a_masked_clock_read_never_lets_a_second_tick_pass_undelivered(self):
+        from unicorn.arm_const import UC_ARM_REG_PRIMASK
+        from echo_emulator import devices
+
+        machine = self.session().machine
+        systick = machine.systick
+        systick.write_word(devices.SYSTICK_RELOAD, 999)
+        systick.write_word(devices.SYSTICK_CTRL, 1 | devices.SYSTICK_TICKINT)
+        machine.uc.reg_write(UC_ARM_REG_PRIMASK, 1)
+        for _ in range(100):
+            systick.read_word(devices.SYSTICK_CURRENT)
+        self.assertEqual(systick.wraps() - systick.delivered_wraps, 1)
+
 
 if __name__ == "__main__":
     sys.exit(main(EchoImageTest))

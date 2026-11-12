@@ -211,7 +211,8 @@ class Machine:
         return self.stamps
 
     def poll_jump(self, cycles):
-        if not self.interrupt_due():
+        systick = self.systick
+        if not (systick.tick_interrupt and systick.enabled and systick.pending()):
             self.jump_cycles += cycles
 
     def microseconds(self):
