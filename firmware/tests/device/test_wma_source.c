@@ -34,7 +34,7 @@ static void close_file(void *context)
 static void setup(void)
 {
     memset(&control, 0, sizeof control);
-    StreamRegion region = {&control, pcm, ring, sizeof ring};
+    StreamRegion region = {&control, pcm, ring, sizeof ring, NULL};
     core1_source_init(&source, region, (FlacFileOpener){open_file, close_file, NULL}, &unused,
                       1024);
     source.asf = &adapter;

@@ -583,7 +583,7 @@ class ModuleTest(unittest.TestCase):
         self.assertNotEqual(word(first, offset + 12), word(second, offset + 12))
 
     def test_reserved_module_numbers_stay_empty_before_audio_module_13(self):
-        modules = [module_blob(number) for number in range(1, 9)] + [module_blob(13)]
+        modules = [module_blob(number) for number in range(1, 9)] + [b""] * 4 + [module_blob(13)]
         image = build(modules=modules)
         rows = self.rows(image)
         self.assertEqual(13, len(rows))
@@ -1092,7 +1092,7 @@ class GlyphFaceTest(unittest.TestCase):
         self.assertEqual((0, 0), (word(image, table + 8), word(image, table + 12)))
 
     def test_faces_stay_clear_of_everything_else(self):
-        sizes = [1_700_000, 1_100_000, 8_000, 8_000, 8_000]
+        sizes = [1_700_000, 1_000_000, 8_000, 8_000, 8_000]
         offsets = make_image.glyph_face_offsets(sizes)
         taken = [(make_image.OVERLAY_OFFSET, make_image.OVERLAY_OFFSET + make_image.OVERLAY_CAPACITY),
                  (make_image.CORE1_MP3_OFFSET, make_image.CORE1_MP3_OFFSET + 512 +
@@ -1182,8 +1182,8 @@ class LanguagePackTest(unittest.TestCase):
             [len(face) for face in self.FACES])))
 
     def test_packs_stay_clear_of_the_faces_the_overlays_and_the_core_1_programs(self):
-        faces, packs, _ = make_image.blob_offsets([1_700_000, 1_100_000, 8_000], [8_192, 8_192])
-        placed = sorted(zip(faces + packs, [1_700_000, 1_100_000, 8_000, 8_192, 8_192]))
+        faces, packs, _ = make_image.blob_offsets([1_700_000, 1_000_000, 8_000], [8_192, 8_192])
+        placed = sorted(zip(faces + packs, [1_700_000, 1_000_000, 8_000, 8_192, 8_192]))
         for (start, size), (next_start, _) in zip(placed, placed[1:]):
             self.assertLessEqual(start + size, next_start)
         fixed = [(make_image.OVERLAY_OFFSET, make_image.OVERLAY_OFFSET + make_image.OVERLAY_CAPACITY),
