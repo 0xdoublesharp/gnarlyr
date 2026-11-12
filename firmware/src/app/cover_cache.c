@@ -37,27 +37,12 @@ void cover_cache_open(CoverCache *cache, const Library *library)
     }
 }
 
-static int slot_of(int position)
-{
-    return position % COVER_CACHE_SLOTS;
-}
-
 static CoverState state_of(CoverState state, Image *image, Image loaded)
 {
     if (state != COVER_MISSING) {
         *image = loaded;
     }
     return state;
-}
-
-CoverState cover_cache_half(const CoverCache *cache, int position, uint16_t album, Image *image)
-{
-    const CoverSlot *slot = &cache->halves[slot_of(position)];
-    if (slot->position != position || slot->album != album) {
-        return COVER_EMPTY;
-    }
-    Image loaded = {.pixels = slot->pixels, .width = COVER_HALF_SIZE, .height = COVER_HALF_SIZE};
-    return state_of(slot->state, image, loaded);
 }
 
 CoverState cover_cache_full(const CoverCache *cache, uint16_t album, Image *image)
@@ -69,28 +54,13 @@ CoverState cover_cache_full(const CoverCache *cache, uint16_t album, Image *imag
     return state_of(cache->full_state, image, loaded);
 }
 
-static CoverState read_cover(const CoverCache *cache, uint16_t album, CoverSize size, Color *pixels)
+CoverState cover_cache_read(const CoverCache *cache, uint16_t album, CoverSize size, Color *pixels)
 {
     uint32_t record = 0;
     uint32_t key = library_album_key(cache->library, album);
     bool found = cache->available && covers_find(&cache->covers, key, &record) &&
                  covers_read(&cache->covers, record, size, pixels);
     return found ? COVER_LOADED : COVER_MISSING;
-}
-
-bool cover_cache_load_half(CoverCache *cache, int position, uint16_t album)
-{
-    Image ignored;
-    if (cover_cache_half(cache, position, album, &ignored) != COVER_EMPTY) {
-        return false;
-    }
-    CoverSlot *slot = &cache->halves[slot_of(position)];
-    slot->position = position;
-    slot->album = album;
-    slot->state = read_cover(cache, album, COVER_HALF, slot->pixels);
-    debug_loop_event(DEBUG_EVENT_COVER,
-                     album | (slot->state == COVER_LOADED ? DEBUG_COVER_FOUND : 0u));
-    return true;
 }
 
 bool cover_cache_load_full(CoverCache *cache, uint16_t album)
@@ -100,7 +70,7 @@ bool cover_cache_load_full(CoverCache *cache, uint16_t album)
         return false;
     }
     cache->full_album = album;
-    cache->full_state = read_cover(cache, album, COVER_FULL, cache->full);
+    cache->full_state = cover_cache_read(cache, album, COVER_FULL, cache->full);
     debug_loop_event(DEBUG_EVENT_COVER,
                      album | DEBUG_COVER_FULL |
                          (cache->full_state == COVER_LOADED ? DEBUG_COVER_FOUND : 0u));

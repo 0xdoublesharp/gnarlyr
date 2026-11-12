@@ -40,6 +40,7 @@ add_library(echo_app STATIC
     browse_screen.c
     browse_sections.c
     cover_cache.c
+    cover_cache_half.c
     cover_placeholders.c
     default_theme.c
     default_theme_metrics.c

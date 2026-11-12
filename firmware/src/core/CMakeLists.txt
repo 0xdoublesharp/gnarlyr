@@ -26,6 +26,7 @@ add_library(echo_core STATIC
     parametric_bound.c
     power_policy.c
     random.c
+    random_below.c
     string_builder.c
     utf8.c
 )

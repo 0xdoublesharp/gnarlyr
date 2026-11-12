@@ -78,6 +78,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/app/screens/playing_work.c
     src/core/audio_visual.c
     src/app/screens/cover_flow_screen.c
+    src/app/cover_cache_half.c
+    src/core/random_below.c
     src/app/cover_placeholders.c
     src/app/screens/up_next_screen.c
     src/app/queue_actions.c
@@ -226,6 +228,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/playback/listening_clear.c
     src/app/listening_clear.c
     src/library/lyrics.c
+    src/app/cover_cache_half.c
 )
 if(ECHO_RELEASE)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu_release.c)
