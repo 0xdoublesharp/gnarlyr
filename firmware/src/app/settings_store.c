@@ -15,8 +15,8 @@ static const HalUsbMode HAL_USB_MODES[USB_MODE_COUNT] = {HAL_USB_MODE_STORAGE, H
 static const HalUsbAnswer HAL_USB_ANSWERS[USB_CONNECT_COUNT] = {
     HAL_USB_ANSWER_ASK, HAL_USB_ANSWER_STORAGE, HAL_USB_ANSWER_CHARGE};
 
-static const uint32_t FILE_SIZES[] = {SETTINGS_FILE_SIZE, SETTINGS_V14_FILE_SIZE,
-                                      SETTINGS_PREVIOUS_FILE_SIZE};
+static const uint32_t FILE_SIZES[] = {SETTINGS_FILE_SIZE, SETTINGS_V15_FILE_SIZE,
+                                      SETTINGS_V14_FILE_SIZE, SETTINGS_PREVIOUS_FILE_SIZE};
 
 static bool read_music_volume(uint8_t *bytes, uint32_t length)
 {
