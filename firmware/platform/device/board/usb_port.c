@@ -471,6 +471,7 @@ static void take_speed(UsbPort *port)
     bool high = port->link.high_speed_allowed && speed == DSTS_HIGH_SPEED;
     usb_device_set_speed(&port->device, high ? USB_SPEED_HIGH : USB_SPEED_FULL);
     port->bulk_packet = usb_device_bulk_packet_size(&port->device);
+    port->enumerated = true;
 }
 
 CORE_SEAM void usb_poll(UsbPort *port)

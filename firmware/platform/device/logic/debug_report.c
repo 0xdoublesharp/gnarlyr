@@ -113,6 +113,7 @@ _Static_assert(sizeof PLAYER_NAMES / sizeof PLAYER_NAMES[0] == DEBUG_PLAYER_STAN
                "the report names the standby state the event log records");
 static const char *const AUDIO_NAMES[] = {"stopped", "playing", "paused"};
 static const char *const USB_END_NAMES[] = {"none", "ejected", "unplugged", "no_host"};
+static const char *const SPEED_FALLBACK_NAMES[] = {"none", "not_configured", "few_commands"};
 static const char *const STEP_NAMES[HAL_START_STEP_COUNT] = {
     "none",       "backlight_on", "backlight_off", "clock_switch", "core1_start",
     "core1_stop", "card_write",   "watchdog_test", "loader"};
@@ -371,6 +372,13 @@ static void put_usb(Writer *writer, HalUsbLast usb, bool kept_on)
     put_known(writer, "usb.internal_sectors_written", known, usb.internal_written);
     put_known(writer, "usb.card_sectors_written", known, usb.card_written);
     put_known(writer, "usb.writes_after_eject", known, usb.writes_after_eject);
+    if (usb.speed_fallback != 0) {
+        begin(writer, "usb.speed_fallback");
+        string_builder_append(&writer->text, NAME_IN(SPEED_FALLBACK_NAMES, usb.speed_fallback));
+        string_builder_append(&writer->text, " commands=");
+        string_builder_append_unsigned(&writer->text, usb.fallback_commands);
+        finish(writer);
+    }
 }
 
 static void put_usb_words(Writer *writer, const DebugReportUsbWords *words)

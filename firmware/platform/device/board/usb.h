@@ -41,6 +41,7 @@ typedef struct UsbLink {
 typedef struct UsbPort {
     UsbLink link;
     bool configured;
+    bool enumerated;
     bool in_busy;
     bool setup_pending;
     bool defer_control;
