@@ -139,7 +139,7 @@ void library_builder_init(LibraryBuilder *builder, void *memory, uint32_t size,
         return;
     }
     *state = (BuilderState){.arena = arena, .error = BUILDER_OK, .prepare_done = false};
-    store_init(&state->store, scratch, 0);
+    store_init(&state->store, &scratch, 0);
     state->rows = store_take(&state->store, BUILDER_MAX_INDEX * BUILDER_ROW_SIZE);
     state->folders = store_take(&state->store, BUILDER_MAX_INDEX * BUILDER_FOLDER_SIZE);
     state->heap_start = state->store.end;

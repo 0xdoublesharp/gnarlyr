@@ -225,7 +225,7 @@ void arena_init(Arena *arena, void *memory, uint32_t size);
 void *arena_take(Arena *arena, uint32_t bytes);
 uint32_t arena_left(const Arena *arena);
 
-void store_init(Store *store, BuilderScratch io, uint32_t start);
+void store_init(Store *store, const BuilderScratch *io, uint32_t start);
 Region store_take(Store *store, uint32_t bytes);
 bool store_read(Store *store, uint32_t offset, void *bytes, uint32_t length);
 bool store_write(Store *store, uint32_t offset, const void *bytes, uint32_t length);
