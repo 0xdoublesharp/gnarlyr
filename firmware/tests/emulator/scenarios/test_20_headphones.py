@@ -34,7 +34,7 @@ class EchoImageTest(EchoImageHarness):
         rig.press_many("back", 3)
         rig.press("previous")
         rig.press("play")
-        rig.press_many("previous", 5)
+        rig.press_many("previous", 6)
         rig.press("play")
         rig.press("next")
         rig.press("play")

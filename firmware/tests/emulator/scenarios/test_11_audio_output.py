@@ -136,8 +136,10 @@ class EchoImageTest(EchoImageHarness):
         _, process = self.module(machine, "process")
         self.assertTrue(process.loaded(machine))
         scratch = (machine.symbols["device_noinit_end"] + 7) & ~7
-        bank = machine.symbols["music_ring"] + 5 * 4000 * 4
-        bank_frames = 2 * 4000 * 4 // 6
+        stretch_words = (7 * 4000 - (6002 * 6 + 3) // 4) // 10 * 10
+        bank = machine.symbols["music_ring"] + stretch_words * 4
+        bank_frames = (7 * 4000 - stretch_words) * 4 // 6
+        self.assertGreaterEqual(bank_frames, 6002)
         following = (process.base + len(process.stored) + 7) & ~7
         self.assertLessEqual(scratch + 256, make_image.AUDIO_MODULE_BASE)
         self.assertLessEqual(bank + bank_frames * 6, machine.symbols["music_ring"] + 7 * 4000 * 4)

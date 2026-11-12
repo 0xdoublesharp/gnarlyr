@@ -255,8 +255,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(settings.loaded(machine))
         loads = watch.loads()
         self.assertEqual([(call["module"], call["loaded"]) for call in loads],
-                         [(views_number, True), (settings_number, True), (views_number, True),
-                          (settings_number, True)])
+                         [(settings_number, True), (views_number, True), (settings_number, True)])
         self.assertLess(max(call["us"] for call in loads), MODULE_LOAD_LIMIT_MS * 1000)
         self.assert_module_code_never_written(watch)
         self.assertEqual(machine.read_memory(LANGUAGE_RAM, len(pack)), pack)

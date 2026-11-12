@@ -50,6 +50,7 @@ class EchoImageTest(EchoImageHarness):
                          "condition met")
         self.press(machine, KEY_NEXT)
         self.press(machine, KEY_NEXT)
+        self.press(machine, KEY_NEXT)
         self.press(machine, KEY_PLAY)
         self.assertEqual(machine.run(until=lambda: audio.running,
                                      until_ms=machine.milliseconds() + 3000), "condition met")

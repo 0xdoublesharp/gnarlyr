@@ -47,7 +47,7 @@ class EchoImageTest(EchoImageHarness):
         rig.press("previous")
         rig.press("play")
         self.assert_screen(rig, "STR_SETTINGS")
-        rig.press_many("previous", 2)
+        rig.press_many("previous", 4)
         rig.press("play")
         self.assert_screen(rig, "STR_HOME_SCREEN")
         rig.press_many("next", 5)

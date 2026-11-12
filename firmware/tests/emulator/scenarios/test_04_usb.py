@@ -8,6 +8,7 @@ from echo_image_harness import (
     main,
     CABLE_NOTICED_LIMIT_MS,
     CABLE_STEADY_MS,
+    STARTUP_WORK_MS,
     CHARGER_MS,
     CLOCK_SLACK_MS,
     CLOCK_TICK_MS,
@@ -175,7 +176,7 @@ class EchoImageTest(EchoImageHarness):
         machine = session.machine
         listens = machine.trace("usb_session_listen")
         session.run_to_home_screen()
-        machine.run(until_ms=machine.milliseconds() + 300)
+        machine.run(until_ms=machine.milliseconds() + STARTUP_WORK_MS)
         machine.vbus = True
         machine.run(until_ms=machine.milliseconds() + 700)
         machine.vbus = False

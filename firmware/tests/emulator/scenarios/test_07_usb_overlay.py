@@ -13,7 +13,7 @@ from echo_image_harness import (
 
 
 class EchoImageTest(EchoImageHarness):
-    def test_a_second_usb_session_reuses_the_usb_overlay_still_in_memory(self):
+    def test_a_second_usb_session_reloads_the_usb_overlay_from_slot_1(self):
         session = self.session()
         machine = session.machine
         for name in ("usb_storage_session", "usb_session_storage_changed",
@@ -33,7 +33,7 @@ class EchoImageTest(EchoImageHarness):
         machine.vbus = True
         self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
         self.assertEqual(machine.reached["usb_storage_session"], 2)
-        self.assertEqual(session.usb_overlay_reads("slot_1"), loads)
+        self.assertEqual(session.usb_overlay_reads("slot_1"), loads + loads)
         self.assertEqual(session.usb_overlay_reads("slot_2"), [])
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)

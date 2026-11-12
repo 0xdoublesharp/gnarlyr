@@ -335,7 +335,6 @@ void board_main(void)
     boot_step("app start");
     app_start();
     debug_loop_boot(DEBUG_BOOT_APP);
-    board_wall_time_forget_file();
     explain_missing_text();
     board_trial_report();
     boot_step("splash");
@@ -344,6 +343,7 @@ void board_main(void)
     board_display_service();
     board_extension_start();
     debug_loop_boot(DEBUG_BOOT_EXTENSION);
+    board_wall_time_forget_file();
     board_core1_park();
     cru_stop_unused_clocks();
     boot_step("main loop");

@@ -70,7 +70,7 @@ class EchoImageTest(EchoImageHarness):
             sets.append((machine.reg(UC_ARM_REG_R0), machine.reg(UC_ARM_REG_R1)))
 
         def status_draw():
-            address = struct.unpack("<I", machine.read_memory(machine.reg(UC_ARM_REG_SP) + 4, 4))[0]
+            address = struct.unpack("<I", machine.read_memory(machine.reg(UC_ARM_REG_SP) + 8, 4))[0]
             if address:
                 clocks.add(machine.read_memory(address, 24).split(b"\x00", 1)[0])
 
@@ -131,7 +131,7 @@ class EchoImageTest(EchoImageHarness):
             (machine.reg(UC_ARM_REG_R0), machine.reg(UC_ARM_REG_R1))))
 
         def status_draw():
-            address = struct.unpack("<I", machine.read_memory(machine.reg(UC_ARM_REG_SP) + 4, 4))[0]
+            address = struct.unpack("<I", machine.read_memory(machine.reg(UC_ARM_REG_SP) + 8, 4))[0]
             if address:
                 clocks.add(machine.read_memory(address, 24).split(b"\x00", 1)[0])
 
