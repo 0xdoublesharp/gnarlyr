@@ -1153,3 +1153,31 @@ AudioVisualBuffer hal_audio_visual_buffer(void)
     return (AudioVisualBuffer){music_ring, RING_FRAMES, engine.consumed % RING_FRAMES,
                                engine.produced - engine.consumed, audio_engine_rate(&engine)};
 }
+
+CORE_SEAM void hal_audio_set_sleep_remaining(uint32_t remaining_ms)
+{
+    audio_engine_set_sleep_remaining(&engine, remaining_ms);
+}
+
+CORE_SEAM uint8_t hal_audio_repeat_mark(bool clear)
+{
+    ensure_engine();
+    update_consumed();
+    audio_engine_observe(&engine, consumed);
+    bool restart = engine.repeat_state != 0 || clear;
+    bool paused = engine.state == AUDIO_ENGINE_PAUSED;
+    if (restart) {
+        stop_transfer();
+    }
+    uint8_t state = audio_engine_repeat_mark(&engine, clear);
+    if (restart && !start_output(!paused)) {
+        audio_engine_stop(&engine);
+        return 0;
+    }
+    if (paused) {
+        audio_engine_pause(&engine);
+        dac_path_set_muted(true);
+        dmac_suspend();
+    }
+    return state;
+}

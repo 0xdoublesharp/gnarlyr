@@ -53,6 +53,10 @@ CORE_SEAM void audio_engine_stage_shape(AudioEngine *engine, uint32_t first, boo
              : fading_out(engine) && remaining_output(engine, &remaining)) {
         audio_fade_out(block, &engine->fade_out, remaining);
     }
+    if (engine->sleep_fading) {
+        AudioFadeRamp sleep = audio_engine_fade_ramp(engine, engine->sleep_fade_ms, 0);
+        audio_fade_out(block, &sleep, (int32_t)(engine->sleep_end_at - engine->produced));
+    }
 }
 
 static void pull_into_ring(AudioEngine *engine)

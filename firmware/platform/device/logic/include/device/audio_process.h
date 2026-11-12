@@ -18,4 +18,6 @@ typedef struct AudioProcessEntry {
     bool (*tempo_start)(uint8_t *buffer, uint32_t frames, uint32_t rate, uint16_t speed);
     void (*tempo_finish)(void);
     uint32_t (*tempo_pending)(uint32_t input);
+    void (*sleep)(AudioEngine *engine, uint32_t remaining_ms);
+    uint8_t (*repeat_mark)(AudioEngine *engine, bool clear);
 } AudioProcessEntry;

@@ -1466,9 +1466,69 @@ static void headphones_compose_before_clipping_at_native_and_converted_rates(voi
     }
 }
 
+static void sleep_fades_in_the_pcm_stage_and_cancel_restores_unity(void)
+{
+    start_scripted_engine(0, 1);
+    CHECK(play_file("first", 0, 1));
+    audio_engine_set_sleep_remaining(&engine, 60000);
+    audio_engine_set_sleep_remaining(&engine, 30000);
+    audio_engine_pump(&engine, 0);
+    int32_t half = (int32_t)ring[30] >> 8;
+    CHECK(half >= 2032 && half <= 2048);
+    CHECK(play_file("first", 0, 1));
+    scripted.frames_left = 1;
+    audio_engine_set_sleep_remaining(&engine, UINT32_MAX);
+    audio_engine_pump(&engine, 0);
+    CHECK_EQUAL(16, sixteen_bit_left(15));
+}
+
+static void arming_sleep_near_the_end_starts_the_shorter_fade_at_full_level(void)
+{
+    start_scripted_engine(0, 1);
+    CHECK(play_file("first", 0, 1));
+    audio_engine_set_sleep_remaining(&engine, 5000);
+    audio_engine_pump(&engine, 0);
+    int32_t beginning = (int32_t)ring[30] >> 8;
+    CHECK(beginning >= 4090 && beginning <= 4096);
+}
+
+static void exact_loop(uint32_t start_ms, uint32_t a, uint32_t b)
+{
+    start_engine();
+    CHECK(play_range("lpc_16_44k_stereo", start_ms, start_ms + 200, 7));
+    pump_until_full(0);
+    uint32_t base = start_ms * 44100 / 1000;
+    audio_engine_observe(&engine, a - base);
+    CHECK_EQUAL(1, audio_engine_repeat_mark(&engine, false));
+    CHECK_EQUAL(a, engine.repeat_a);
+    audio_engine_observe(&engine, b - base);
+    CHECK_EQUAL(2, audio_engine_repeat_mark(&engine, false));
+    CHECK_EQUAL(b, engine.repeat_b);
+    pump_until_full(0);
+    uint32_t length = b - a;
+    for (uint32_t first = 0; first + length <= engine.produced; first += length) {
+        CHECK(ring_holds("lpc_16_44k_stereo", a, first, length, 16));
+    }
+    CHECK(engine.produced >= 3 * length);
+    CHECK_EQUAL(7, audio_engine_status(&engine).token);
+    CHECK_EQUAL(0, audio_engine_repeat_mark(&engine, false));
+    CHECK(play_file("lpc_16_44k_stereo", 0, 8));
+    CHECK_EQUAL(0, engine.repeat_state);
+}
+
+static void ab_repeat_keeps_exact_submillisecond_samples_and_loops_without_advancing(void)
+{
+    exact_loop(0, 127, 947);
+    exact_loop(0, 4097, 5009);
+    exact_loop(50, 2332, 3152);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(arming_sleep_near_the_end_starts_the_shorter_fade_at_full_level),
+        TEST_CASE(ab_repeat_keeps_exact_submillisecond_samples_and_loops_without_advancing),
+        TEST_CASE(sleep_fades_in_the_pcm_stage_and_cancel_restores_unity),
         TEST_CASE(headphones_compose_before_clipping_at_native_and_converted_rates),
         TEST_CASE(replacing_a_buffered_next_song_keeps_the_current_position),
         TEST_CASE(clearing_a_buffered_next_song_leaves_only_the_current_tail),

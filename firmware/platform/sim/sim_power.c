@@ -1,11 +1,13 @@
 #include "sim_power.h"
 
+#include "device/battery_gauge.h"
 #include "hal/power.h"
 
 typedef struct SimPower {
     HalBattery battery;
     bool off_requested;
     bool usb_host;
+    uint8_t care;
 } SimPower;
 
 enum {
@@ -66,4 +68,27 @@ bool hal_power_usb_host(void)
 void sim_power_note_usb_host(void)
 {
     power.usb_host = true;
+}
+
+uint8_t hal_power_battery_care(void)
+{
+    return power.care;
+}
+
+void hal_power_set_battery_care(uint8_t mode)
+{
+    hal_power_use_battery_care(mode);
+}
+
+void hal_power_use_battery_care(uint8_t mode)
+{
+    power.care = mode;
+    HalBattery *battery = &power.battery;
+    bool charging =
+        battery_care_charge(true, (BatteryCareReading){.mode = mode,
+                                                       .usb_power = battery->usb_power,
+                                                       .known = battery->known,
+                                                       .millivolts = battery->millivolts});
+    battery->charging = charging;
+    battery->charge_disabled = battery->usb_power && !charging;
 }

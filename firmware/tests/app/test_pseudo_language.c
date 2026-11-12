@@ -478,8 +478,6 @@ static void walk_settings_toasts(void)
     show_toast("the output toast", STR_OUTPUT_FOLLOWS);
     choose_option(SETTINGS_OUTPUT_ROW, 1);
     show_toast("the 3.5 mm output toast", STR_OUTPUT_USING_35);
-    choose_option(SETTINGS_USB_MODE_ROW, 2);
-    show_toast("the USB mode toast", STR_USB_PLAYS_SOUND);
     open_settings_row(SETTINGS_RESCAN_ROW);
     text_spy_reset();
     tap(KEY_PLAY);
@@ -717,7 +715,10 @@ static void walk_usb_prompt(void)
 {
     begin();
     app_ask_usb_mode();
-    show_titled("the USB prompt", STR_USB_CONNECTED);
+    show_titled("the USB prompt", STR_PLUG_TITLE);
+    tap(KEY_VOLUME_DOWN);
+    hold(KEY_PLAY, 700);
+    show_toast("the always toast", STRING_COUNT);
     begin();
     app_open_usb_modes();
     show_titled("USB mode opened by hand", STR_USB_MODE);

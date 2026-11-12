@@ -77,6 +77,7 @@ add_library(echo_device_logic STATIC
     audio_effects.c
     audio_engine.c
     audio_engine_stage.c
+    audio_shape.c
     audio_fade.c
     audio_math.c
     audio_trig.c

@@ -609,6 +609,8 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             audio_tempo_stage_pull=audio_process_tempo_pull
             audio_tempo_stage_finish=audio_process_tempo_finish
             audio_tempo_stage_pending=audio_process_tempo_pending
+            audio_engine_set_sleep_remaining=audio_process_set_sleep_remaining
+            audio_engine_repeat_mark=audio_process_repeat_mark
         )
     endif()
     if(module STREQUAL "extension")

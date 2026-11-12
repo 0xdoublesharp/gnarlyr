@@ -20,7 +20,9 @@ BUILD15 = "416bd163"
 
 EXTENSION = bytes([0x02, 30, 40, 0, 0x01, 0x23, 0x45, 0x67, 0x08, 0x11, 0x01, 0, 0, 0, 0, 0])
 F_BLOCK = bytes([0x07, 0x05]) + bytes(14)
-SETTINGS_SOURCES = ("firmware/src/settings/settings.c", "firmware/src/settings/include/settings/settings.h")
+SETTINGS_SOURCES = ("firmware/src/settings/settings.c", "firmware/src/settings/include/settings/settings.h",
+                    "firmware/src/app/settings_screens.c", "firmware/src/core/include/core/replay_gain.h",
+                    "firmware/assets/lang/en.txt")
 
 
 def checked(data):
@@ -293,6 +295,22 @@ class CompanionSettings(VolumeCase):
         self.assertIn("set ReplayGain=Album\n", self.sent[0])
         self.assertEqual(len(host.ejected), 2)
 
+    def test_auto_replay_gain_is_offered_only_when_the_installed_build_declares_it(self):
+        self.use_current_layout()
+        original = echo_language.Snapshot.show
+        paths = (*SETTINGS_SOURCES, "firmware/src/app/settings_screens.c",
+                 "firmware/src/core/include/core/replay_gain.h", "firmware/assets/lang/en.txt")
+        sources = {path: (echo_debug.ROOT / path).read_text() for path in paths}
+        def show(snapshot, path):
+            return sources[path] if path in sources else original(snapshot, path)
+        with mock.patch.object(echo_language.Snapshot, "show", show):
+            tool, _ = self.tool(self.change(5, 7))
+            result = tool.settings_set("replay_gain", "auto")
+            self.assertEqual(result["value"], "auto")
+            self.assertEqual(self.path.read_bytes()[5], 7)
+            self.assertEqual(self.path.read_bytes()[38:53], EXTENSION[:15])
+            self.assertIn("set ReplayGain=Auto\n", self.sent[0])
+
     def test_prevent_clipping_preserves_replay_gain_mode_bits(self):
         self.build, self.version = BUILD14, 14
         self.install_fixture(flags=6)
@@ -442,6 +460,17 @@ class CompanionSettings(VolumeCase):
                     tool.settings_list()
                 self.assertEqual(refused.exception.code, "language_build_unknown")
                 self.assert_no_write(host)
+
+    def test_a_saved_usb_dac_answer_and_usb_power_bits_load_while_plugging_in_stays_on_the_player(self):
+        self.use_current_layout()
+        data = bytearray(self.path.read_bytes())
+        data[5] |= 0x30
+        data[52] = 0x10
+        self.path.write_bytes(checked(data))
+        tool, _ = self.tool()
+        listed = {item["key"] for item in tool.settings_list()["settings"]}
+        self.assertNotIn("battery_care", listed)
+        self.assertIn("text_size", listed)
 
     def test_clock_format_uses_the_extension_bit_and_the_installed_choices(self):
         self.use_current_layout()

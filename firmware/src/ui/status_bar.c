@@ -119,13 +119,15 @@ StatusBatteryLook status_bar_battery_look(const Theme *theme, StatusBarState sta
     Color danger = tint(theme, theme->colors.danger);
     bool low = !state.usb_power && state.battery_percent <= STATUS_BAR_LOW_BATTERY_PERCENT;
     bool critical = low && state.battery_percent <= STATUS_BAR_CRITICAL_BATTERY_PERCENT;
+    bool lit = state.charging || state.charging_off;
     return (StatusBatteryLook){.outline = critical ? danger : text,
                                .fill = state.usb_power   ? tint(theme, theme->colors.success)
                                        : low             ? danger
                                        : state.segmented ? tint(theme, theme->colors.success)
                                                          : text,
-                               .bolt = state.charging ? text : theme->colors.header_background,
-                               .bolt_halo = state.charging};
+                               .bolt = lit ? text : theme->colors.header_background,
+                               .bolt_halo = lit,
+                               .sign = state.charging_off ? ICON_PLUG : ICON_BOLT};
 }
 
 static void draw_outline(Canvas *canvas, Rect body, Color color)
@@ -159,11 +161,11 @@ static void draw_bolt(Canvas *canvas, const Theme *theme, Rect body, StatusBatte
     for (int dy = -HALO; look.bolt_halo && dy <= HALO; dy++) {
         for (int dx = -HALO; dx <= HALO; dx++) {
             Rect shifted = {bolt.x + dx, bolt.y + dy, bolt.width, bolt.height};
-            icon_draw(&inside, ICON_BOLT, shifted,
+            icon_draw(&inside, look.sign, shifted,
                       (IconInk){theme->colors.header_background, theme->colors.header_background});
         }
     }
-    draw_icon(&inside, theme, (StatusIcon){ICON_BOLT, bolt, look.bolt});
+    draw_icon(&inside, theme, (StatusIcon){look.sign, bolt, look.bolt});
 }
 
 static void draw_battery(Canvas *canvas, const Theme *theme, const StatusBarState *state)

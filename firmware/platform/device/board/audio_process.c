@@ -82,3 +82,15 @@ uint32_t audio_tempo_stage_pending(uint32_t input)
 {
     return ready ? entry()->tempo_pending(input) : 0;
 }
+
+void audio_engine_set_sleep_remaining(AudioEngine *engine, uint32_t remaining_ms)
+{
+    if (ready) {
+        entry()->sleep(engine, remaining_ms);
+    }
+}
+
+CORE_SEAM uint8_t audio_engine_repeat_mark(AudioEngine *engine, bool clear)
+{
+    return ready ? entry()->repeat_mark(engine, clear) : 0;
+}

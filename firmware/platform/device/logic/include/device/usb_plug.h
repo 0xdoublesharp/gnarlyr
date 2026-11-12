@@ -19,7 +19,8 @@ typedef enum UsbPlugAction {
 typedef enum UsbPlugAnswer {
     USB_PLUG_ASK,
     USB_PLUG_STORAGE,
-    USB_PLUG_CHARGE
+    USB_PLUG_CHARGE,
+    USB_PLUG_DAC
 } UsbPlugAnswer;
 
 enum {

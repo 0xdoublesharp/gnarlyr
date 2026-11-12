@@ -47,6 +47,8 @@ typedef struct FakeAudio {
     uint16_t speed;
     uint32_t queued_fade_ms;
     uint32_t play_fade_ms;
+    uint32_t sleep_remaining_ms;
+    uint8_t repeat_state;
     int seek_count;
     uint32_t last_seek_ms;
     uint8_t volume;
@@ -99,6 +101,8 @@ static LargeStore large_stores[2];
 typedef struct FakeHal {
     AudioVisualBuffer visual_buffer;
     int visual_reads;
+    uint8_t battery_care_mode;
+    uint8_t battery_care_saved;
     const char *version;
     uint16_t panel[HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE];
     HalDisplayRotation rotation;
@@ -469,6 +473,9 @@ uint8_t fake_hal_display_brightness(void)
 
 void fake_hal_set_battery(HalBattery battery)
 {
+    if (battery.usb_power != fake.battery.usb_power) {
+        fake.battery_care_mode = fake.battery_care_saved;
+    }
     fake.battery = battery;
 }
 
@@ -740,6 +747,7 @@ int fake_hal_write_count(void)
 
 bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next)
 {
+    fake.audio.repeat_state = 0;
     uint32_t start_ms = track->start_ms + offset_ms;
     uint32_t token = track->token;
     fake.audio.play_count++;
@@ -2131,4 +2139,41 @@ bool hal_power_usb_host(void)
 void fake_hal_set_charging_host(bool host)
 {
     fake.charging_host = host;
+}
+
+void hal_audio_set_sleep_remaining(uint32_t remaining_ms)
+{
+    fake.audio.sleep_remaining_ms = remaining_ms;
+}
+
+uint32_t fake_hal_audio_sleep_remaining(void)
+{
+    return fake.audio.sleep_remaining_ms;
+}
+
+uint8_t hal_audio_repeat_mark(bool clear)
+{
+    fake.audio.repeat_state = clear ? 0 : (uint8_t)((fake.audio.repeat_state + 1) % 3);
+    return fake.audio.repeat_state;
+}
+
+void hal_power_set_battery_care(uint8_t mode)
+{
+    fake.battery_care_saved = mode;
+    fake.battery_care_mode = mode;
+}
+
+void hal_power_use_battery_care(uint8_t mode)
+{
+    fake.battery_care_mode = mode;
+}
+
+uint8_t fake_hal_battery_care_mode(void)
+{
+    return fake.battery_care_mode;
+}
+
+uint8_t hal_power_battery_care(void)
+{
+    return fake.battery_care_mode;
 }

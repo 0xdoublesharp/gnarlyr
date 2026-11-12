@@ -295,9 +295,33 @@ static void a_full_battery_shows_100_at_once(void)
     CHECK_EQUAL(97, battery_display_update(&display, 97, false));
 }
 
+static void usb_only_keeps_charging_for_unknown_or_low_batteries_and_uses_hysteresis(void)
+{
+    BatteryCareReading reading = {.usb_power = true, .mode = 2};
+    CHECK(battery_care_charge(false, reading));
+    reading.known = true;
+    reading.millivolts = 3500;
+    CHECK(battery_care_charge(false, reading));
+    reading.millivolts = 3700;
+    CHECK(battery_care_charge(true, reading));
+    CHECK(!battery_care_charge(false, reading));
+    reading.millivolts = 3900;
+    CHECK(!battery_care_charge(true, reading));
+    reading.millivolts = 3599;
+    CHECK(battery_care_charge(false, reading));
+    reading.mode = 0;
+    reading.millivolts = 4800;
+    CHECK(battery_care_charge(false, reading));
+    reading.mode = 1;
+    CHECK(battery_care_charge(false, reading));
+    reading.usb_power = false;
+    CHECK(!battery_care_charge(true, reading));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(usb_only_keeps_charging_for_unknown_or_low_batteries_and_uses_hysteresis),
         TEST_CASE(readings_scale_to_millivolts_through_the_divider),
         TEST_CASE(the_curve_runs_from_empty_to_full),
         TEST_CASE(the_curve_is_linear_between_points),

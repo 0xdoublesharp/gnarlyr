@@ -338,12 +338,14 @@ static void draw_label(const ListView *view, Canvas *canvas, Row row, uint32_t n
     TextStyle style = row_style(view, row.selected, view->theme->colors.text);
     Label label = {.area = row.text, .text = text};
     int width = text_width(style.font, text);
-    if (!row.selected || width <= row.text.width) {
+    MarqueeTiming timing = view->theme->marquee;
+    int offset = row.selected ? marquee_offset(timing, width, row.text.width,
+                                               now_ms - view->selection_changed_ms)
+                              : 0;
+    if (offset == 0) {
         label_draw(canvas, style, label);
         return;
     }
-    MarqueeTiming timing = view->theme->marquee;
-    int offset = marquee_offset(timing, width, row.text.width, now_ms - view->selection_changed_ms);
     label_draw_scrolling(canvas, style, label, (Marquee){.offset = offset, .gap = timing.gap_px});
 }
 

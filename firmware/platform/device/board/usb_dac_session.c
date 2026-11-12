@@ -338,9 +338,9 @@ static void follow_menu(UsbDacAction action)
     }
     if (action == USB_DAC_ACTION_CLOSE) {
         menu_open = false;
-    } else if (action == USB_DAC_ACTION_FILE_TRANSFER) {
+    } else if (action == USB_DAC_ACTION_COMPUTER) {
         next = DAC_NEXT_STORAGE;
-    } else if (action == USB_DAC_ACTION_CHARGE_ONLY) {
+    } else if (action == USB_DAC_ACTION_CHARGE) {
         next = DAC_NEXT_CHARGE;
     } else {
         apply_choice(action);
@@ -490,7 +490,7 @@ void usb_dac_session(UsbShared *state)
 {
     shared = state;
     app_show_usb_status(
-        (AppUsbStatus){.view = APP_USB_CONNECTING, .detail = i18n_text(STR_USB_STARTING)});
+        (AppUsbStatus){.view = APP_USB_CONNECTING, .detail = i18n_text(STR_PLUG_DAC_LINE)});
     uint8_t level = board_audio_volume_level();
     start_session();
     AppDacSettings before = settings;

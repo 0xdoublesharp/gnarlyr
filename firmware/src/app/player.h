@@ -73,6 +73,7 @@ typedef struct PlayerStatus {
     RepeatMode repeat;
     PlayQueuePlace place;
     HalAudioFormat format;
+    uint8_t ab_repeat;
     bool spoken;
     uint16_t speed;
 } PlayerStatus;
@@ -128,11 +129,13 @@ typedef struct Player {
     bool prevent_clipping;
     uint16_t speed;
     bool fade_transitions;
+    bool stop_after_track;
     uint8_t transition_tenths;
     PlayerState state;
     bool has_track;
     bool loaded;
     uint16_t track;
+    uint16_t previous_track;
     uint32_t paused_position_ms;
     uint32_t start_ms;
     uint32_t token_counter;
@@ -153,6 +156,7 @@ typedef struct Player {
     HalAudioJack jack;
     uint32_t refusal_count;
     HalAudioRefusal refusal;
+    uint8_t ab_repeat;
     bool spoken;
     PlayerResume resume;
 } Player;
@@ -201,3 +205,7 @@ PlayerStatus player_status(const Player *player);
 void player_set_replay_gain(Player *player, ReplayGainMode mode, bool prevent_clipping);
 void player_set_speed(Player *player, uint16_t speed);
 void player_set_transitions(Player *player, bool fade, uint8_t tenths);
+
+void player_set_stop_after_track(Player *player, bool stop);
+
+void player_repeat_mark(Player *player);

@@ -15,6 +15,7 @@
 #include "screens/equalizer_browser.h"
 #include "screens/equalizer_screen.h"
 #include "screens/parametric_screen.h"
+#include "screens/plug_chooser.h"
 #include "screens/set_clock_screen.h"
 #include "settings_preview.h"
 #include "settings_store.h"
@@ -92,17 +93,6 @@ typedef struct SettingsEntry {
     SettingsScreens *owner;
 } SettingsEntry;
 
-typedef struct UsbChooser {
-    Screen screen;
-    ChoiceScreen choice;
-    uint32_t until_ms;
-    uint32_t seconds;
-    bool timed;
-    bool expired;
-    bool redraw;
-    char countdown[SETTINGS_COUNTDOWN_CAPACITY];
-} UsbChooser;
-
 struct SettingsScreens {
     SettingsContext context;
     const Theme *theme;
@@ -122,11 +112,12 @@ struct SettingsScreens {
         ChoiceScreen choice;
         SetClockScreen clock;
         HiddenTracksChoice hidden;
+        PlugChooser plug;
     };
     ButtonSettings buttons;
     HeadphoneEditor headphones;
     LanguageList languages;
-    UsbChooser usb;
+    PlugChooser usb;
     CardFormatScreen card_format;
     bool card_needs_format;
     SettingsEntry entries[SETTINGS_CHOICE_COUNT];

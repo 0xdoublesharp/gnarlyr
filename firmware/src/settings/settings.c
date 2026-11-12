@@ -77,6 +77,9 @@ enum {
     CROSSFEED_SHIFT = 5,
     CROSSFEED_MASK = 3,
     CROSSFEED_BITS = CROSSFEED_MASK << CROSSFEED_SHIFT,
+    BATTERY_CARE_BYTE = 14,
+    BATTERY_CARE_SHIFT = 3,
+    BATTERY_CARE_MASK = 24,
     EXTENSION_SIZE = 16,
     POWER_ON_BYTE = STATUS_ITEMS_BYTE,
     POWER_ON_BITS = 0x10,
@@ -176,6 +179,8 @@ static int16_t clock_offset(const uint8_t *extension)
 static void read_extension(const uint8_t *extension, Settings *settings)
 {
     settings->status_items = extension[STATUS_ITEMS_BYTE];
+    settings->battery_care =
+        (uint8_t)((extension[BATTERY_CARE_BYTE] & BATTERY_CARE_MASK) >> BATTERY_CARE_SHIFT);
     uint8_t comfort = extension[COMFORT_BYTE];
     settings->rewind_on_resume = (comfort & REWIND_BIT) != 0;
     settings->safe_start_volume = (comfort & SAFE_START_BIT) != 0;
@@ -360,6 +365,8 @@ static void encode_extension(const Settings *settings, uint8_t *extension)
     extension[CROSSFEED_BYTE] |=
         (uint8_t)((settings->crossfeed & CROSSFEED_MASK) << CROSSFEED_SHIFT);
     extension[STYLE_FLAGS_BYTE] |= (uint8_t)(settings->style_flags & STYLE_HIGH_BIT);
+    extension[BATTERY_CARE_BYTE] |=
+        (uint8_t)((settings->battery_care << BATTERY_CARE_SHIFT) & BATTERY_CARE_MASK);
 }
 
 void settings_encode(const Settings *settings, uint8_t *bytes)
@@ -513,9 +520,10 @@ static bool reserved_clear(const uint8_t *extension)
 {
     uint8_t any = 0;
     for (int index = RESERVED_BYTE; index < RESERVED_BYTE + RESERVED_COUNT; index++) {
-        uint8_t reserved = index == DAC_FILTER_BYTE
-                               ? (uint8_t)~(DAC_FILTER_MASK | CROSSFEED_BITS | STYLE_HIGH_BIT)
-                               : 0xFF;
+        uint8_t reserved =
+            index == DAC_FILTER_BYTE
+                ? (uint8_t)~(DAC_FILTER_MASK | CROSSFEED_BITS | STYLE_HIGH_BIT | BATTERY_CARE_MASK)
+                : 0xFF;
         any |= extension[index] & reserved;
     }
     return any == 0 && (extension[DAC_FILTER_BYTE] & DAC_FILTER_MASK) < DAC_FILTER_COUNT;
@@ -535,6 +543,7 @@ static bool extension_valid(const uint8_t *bytes)
            extension[SAFE_LEVEL_BYTE] <= SETTINGS_VOLUME_MAX &&
            tenths >= SETTINGS_TRANSITION_TENTHS_MIN && tenths <= SETTINGS_TRANSITION_TENTHS_MAX &&
            offset >= -720 && offset <= 840 && home_valid(extension) && reserved_clear(extension) &&
+           ((extension[BATTERY_CARE_BYTE] & BATTERY_CARE_MASK) >> BATTERY_CARE_SHIFT) < 3 &&
            extension[15] == (bytes[VERSION_FIELD] >= 16 ? 16 : 0);
 }
 

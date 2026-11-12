@@ -146,8 +146,8 @@ static void start_listening(void)
         usb_plug_served(&usb_plug);
         return;
     }
-    if (!requested && usb_answer == USB_PLUG_STORAGE) {
-        usb_mode = HAL_USB_MODE_STORAGE;
+    if (!requested && usb_answer != USB_PLUG_ASK) {
+        usb_mode = usb_answer == USB_PLUG_DAC ? HAL_USB_MODE_DAC : HAL_USB_MODE_STORAGE;
     }
     raise_clock_for_usb();
     dac_session = usb_mode == HAL_USB_MODE_DAC;

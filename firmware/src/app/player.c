@@ -39,6 +39,53 @@ static uint32_t current_position(const Player *player)
     return position_in_track(player, &status);
 }
 
+static bool album_pair(const Player *player, uint16_t from, uint16_t to)
+{
+    LibraryTrack first;
+    LibraryTrack second;
+    return from != to && library_read_track(player->library, from, &first) &&
+           library_read_track(player->library, to, &second) && first.album != LIBRARY_NONE &&
+           track_transition_album_order(&first, &second);
+}
+
+static bool album_neighbor(const Player *player, PlayQueueCursor at, uint16_t track, int direction)
+{
+    PlayQueueCursor neighbor;
+    uint16_t other;
+    return play_queue_step(&player->queue, at, direction, false, &neighbor) &&
+           play_queue_track_at(&player->queue, neighbor, &other) &&
+           (direction > 0 ? album_pair(player, track, other) : album_pair(player, other, track));
+}
+
+static ReplayGainMode gain_mode(const Player *player, uint16_t track)
+{
+    ReplayGainMode mode = (ReplayGainMode)player->replay_gain_mode;
+    if (mode != REPLAY_GAIN_AUTO) {
+        return mode;
+    }
+    if (player->shuffle == SHUFFLE_SONGS) {
+        return REPLAY_GAIN_TRACK;
+    }
+    uint16_t previous = track == player->track ? player->previous_track : player->track;
+    if (player->has_track && album_pair(player, previous, track)) {
+        return REPLAY_GAIN_ALBUM;
+    }
+    PlayQueueCursor at = player->queue.cursor;
+    uint16_t queued;
+    if (!play_queue_track_at(&player->queue, at, &queued) || queued != track) {
+        at = player->next_cursor;
+        if (player->next_source != PLAYER_NEXT_FROM_QUEUE ||
+            !play_queue_track_at(&player->queue, at, &queued) || queued != track) {
+            return REPLAY_GAIN_TRACK;
+        }
+    }
+    return album_neighbor(player, at, track, 1) || album_neighbor(player, at, track, -1)
+               ? REPLAY_GAIN_ALBUM
+               : REPLAY_GAIN_TRACK;
+}
+
+static void refresh_gain(Player *player);
+
 static bool track_audio(const Player *player, uint16_t track, TrackAudio *audio)
 {
     LibraryTrack record;
@@ -51,14 +98,13 @@ static bool track_audio(const Player *player, uint16_t track, TrackAudio *audio)
     StringBuilder builder = string_builder_make(audio->path, sizeof audio->path);
     string_builder_append_char(&builder, '/');
     string_builder_append(&builder, relative);
-    audio->track =
-        (HalAudioTrack){.path = audio->path,
-                        .start_ms = record.start_ms,
-                        .end_ms = record.end_ms,
-                        .token = 0,
-                        .replay_gain = library_replay_gain_for(
-                            player->library, track, (ReplayGainMode)player->replay_gain_mode,
-                            player->prevent_clipping)};
+    audio->track = (HalAudioTrack){
+        .path = audio->path,
+        .start_ms = record.start_ms,
+        .end_ms = record.end_ms,
+        .token = 0,
+        .replay_gain = library_replay_gain_for(player->library, track, gain_mode(player, track),
+                                               player->prevent_clipping)};
     return !builder.overflowed;
 }
 
@@ -137,12 +183,13 @@ static bool prepare_next(Player *player, TrackAudio *audio)
 {
     PlayQueueCursor upcoming = player->queue.cursor;
     uint16_t track = 0;
-    player->has_next =
-        upcoming_track(player, &upcoming, &track) && track_audio(player, track, audio);
+    player->has_next = !player->stop_after_track && player->ab_repeat != 2 &&
+                       upcoming_track(player, &upcoming, &track);
+    player->next_cursor = upcoming;
+    player->has_next = player->has_next && track_audio(player, track, audio);
     if (!player->has_next) {
         return false;
     }
-    player->next_cursor = upcoming;
     player->next_track = track;
     player->next_token = new_token(player);
     player->next_start_ms = audio->track.start_ms;
@@ -158,6 +205,7 @@ void player_requeue(Player *player)
     }
     TrackAudio audio;
     hal_audio_queue_next(prepare_next(player, &audio) ? &audio.track : NULL);
+    refresh_gain(player);
 }
 
 static void note_spoken(Player *player, uint16_t track)
@@ -186,6 +234,8 @@ static bool start_track(Player *player, uint32_t start_ms, bool from_bookmark)
     }
     player->spoken = spoken_kind_of(audio.path) != SPOKEN_NONE;
     start_ms = from_bookmark ? resume_point(player, track, start_ms) : start_ms;
+    player->ab_repeat = 0;
+    player->previous_track = player->has_track ? player->track : LIBRARY_NONE;
     player->track = track;
     player->has_track = true;
     player->current_token = new_token(player);
@@ -322,6 +372,7 @@ void player_init(Player *player, const Library *library)
     player->bluetooth_volume = PLAYER_DEFAULT_BLUETOOTH_VOLUME;
     player->prevent_clipping = true;
     player->speed = PLAYER_NORMAL_SPEED;
+    player->previous_track = LIBRARY_NONE;
     player->jack = hal_audio_jack();
     hal_audio_set_volume(player->volume);
     hal_audio_set_bluetooth_volume(player->bluetooth_volume);
@@ -502,6 +553,7 @@ void player_set_shuffle(Player *player, ShuffleMode shuffle, uint32_t seed)
     }
     if (player->queue.stored_order != NULL) {
         player->queue.plan.shuffle = shuffle;
+        refresh_gain(player);
         player_save(player);
         return;
     }
@@ -554,6 +606,8 @@ static void take_next_and_note(Player *player)
 static void advance_to_next(Player *player)
 {
     player->up_next_revision++;
+    player->ab_repeat = 0;
+    player->previous_track = player->track;
     take_next_and_note(player);
     player->current_token = player->next_token;
     player->start_ms = player->next_start_ms;
@@ -564,7 +618,8 @@ static void advance_to_next(Player *player)
 
 static void finish_track(Player *player, bool failed)
 {
-    if (failed && move_and_start(player, 1, player->repeat != REPEAT_OFF)) {
+    if (failed && !player->stop_after_track &&
+        move_and_start(player, 1, player->repeat != REPEAT_OFF)) {
         return;
     }
     if (player->cassette.active) {
@@ -692,6 +747,7 @@ void player_release_output(Player *player)
         return;
     }
     player->paused_position_ms = current_position(player);
+    player->ab_repeat = 0;
     player_save(player);
     player->loaded = false;
     player->has_next = false;
@@ -732,7 +788,7 @@ bool player_in_standby(const Player *player)
 
 static void release_long_pause(Player *player, uint32_t now_ms)
 {
-    if (player->state != PLAYER_PAUSED || player->standby_held) {
+    if (player->state != PLAYER_PAUSED || player->standby_held || player->ab_repeat != 0) {
         player->pause_timing = false;
     } else if (!player->pause_timing) {
         player->pause_timing = true;
@@ -945,6 +1001,7 @@ PlayerStatus player_status(const Player *player)
         .repeat = player->repeat,
         .place = player->has_track ? play_queue_place(&player->queue) : (PlayQueuePlace){0, 0},
         .format = current_format(player),
+        .ab_repeat = player->ab_repeat,
         .spoken = player->has_track && player->spoken,
         .speed = player->speed,
     };
@@ -987,16 +1044,23 @@ void player_set_replay_gain(Player *player, ReplayGainMode mode, bool prevent_cl
     }
     player->replay_gain_mode = (uint8_t)mode;
     player->prevent_clipping = prevent_clipping;
+    refresh_gain(player);
+}
+
+static void refresh_gain(Player *player)
+{
     if (!player->loaded) {
         return;
     }
-    hal_audio_set_replay_gain(
-        player->current_token,
-        library_replay_gain_for(player->library, player->track, mode, prevent_clipping));
+    hal_audio_set_replay_gain(player->current_token,
+                              library_replay_gain_for(player->library, player->track,
+                                                      gain_mode(player, player->track),
+                                                      player->prevent_clipping));
     if (player->has_next) {
-        hal_audio_set_replay_gain(
-            player->next_token,
-            library_replay_gain_for(player->library, player->next_track, mode, prevent_clipping));
+        hal_audio_set_replay_gain(player->next_token,
+                                  library_replay_gain_for(player->library, player->next_track,
+                                                          gain_mode(player, player->next_track),
+                                                          player->prevent_clipping));
     }
 }
 
@@ -1014,4 +1078,24 @@ void player_set_transitions(Player *player, bool fade, uint8_t tenths)
     player->fade_transitions = fade;
     player->transition_tenths = tenths;
     player_requeue(player);
+}
+
+void player_set_stop_after_track(Player *player, bool stop)
+{
+    if (stop && player->ab_repeat != 0) {
+        hal_audio_repeat_mark(true);
+        player->ab_repeat = 0;
+    }
+    if (player->stop_after_track != stop) {
+        player->stop_after_track = stop;
+        player_requeue(player);
+    }
+}
+
+void player_repeat_mark(Player *player)
+{
+    if (player->loaded) {
+        player->ab_repeat = hal_audio_repeat_mark(false);
+        player_requeue(player);
+    }
 }

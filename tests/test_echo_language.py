@@ -354,8 +354,12 @@ class LanguageCommands(VolumeCase):
         self.assertEqual([item.name for item in self.lang.iterdir()], ["fr.pack"])
         self.assertEqual(host.ejected, [])
 
-    def replay_gain_snapshot(self, source_version=14, mask="0xF8u", extra_mode=False):
+    def replay_gain_snapshot(self, source_version=14, mask="0xF8u", extra_mode=False, dac_answer=False):
         original = echo_language.Snapshot.show
+        header = subprocess.check_output(["git", "show",
+            "e3aa3955:firmware/src/settings/include/settings/settings.h"], cwd=ROOT, text=True)
+        if dac_answer:
+            header += "\ntypedef enum UsbConnect {\n    USB_CONNECT_DAC\n} UsbConnect;\n"
         source = subprocess.check_output(["git", "show",
             "e3aa3955:firmware/src/settings/settings.c"], cwd=ROOT, text=True)
         source = source.replace("VERSION = 14,", "VERSION = " + str(source_version) + ",", 1)
@@ -369,6 +373,8 @@ class LanguageCommands(VolumeCase):
                 return source
             if path == "firmware/src/core/include/core/replay_gain.h":
                 return modes
+            if path == "firmware/src/settings/include/settings/settings.h":
+                return header
             return original(snapshot, path)
         return mock.patch.object(echo_language.Snapshot, "show", show)
 
@@ -396,9 +402,9 @@ class LanguageCommands(VolumeCase):
                 self.assertEqual(host.ejected, [])
                 self.assertFalse((self.debug / "run.txt").exists())
 
-    def check_flags_with_mask(self, mask, cases):
+    def check_flags_with_mask(self, mask, cases, dac_answer=False):
         for flags, accepted in cases:
-            with self.subTest(mask=mask, flags=flags), self.replay_gain_snapshot(mask=mask):
+            with self.subTest(mask=mask, flags=flags), self.replay_gain_snapshot(mask=mask, dac_answer=dac_answer):
                 (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(settings("en", 14, flags))
                 tool, host = self.live_tool("en", version=14, flags=flags)
                 if accepted:
@@ -414,6 +420,9 @@ class LanguageCommands(VolumeCase):
     def test_a_layout_with_the_usb_answer_accepts_bits_4_and_5_but_not_answer_3_or_bit_3(self):
         self.check_flags_with_mask("0xC8u", ((16, True), (32, True), (37, True), (48, False),
                                              (8, False), (64, False), (128, False)))
+
+    def test_a_layout_with_the_usb_dac_answer_accepts_answer_3(self):
+        self.check_flags_with_mask("0xC0u", ((48, True), (56, True), (64, False)), dac_answer=True)
 
     def test_a_layout_with_battery_percent_and_the_usb_answer_accepts_both(self):
         self.check_flags_with_mask("0xC0u", ((24, True), (45, True), (56, False), (64, False),

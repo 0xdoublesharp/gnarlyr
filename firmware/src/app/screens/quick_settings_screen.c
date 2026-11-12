@@ -30,10 +30,11 @@ static const StringId LABELS[] = {
     STR_SLEEP_TIMER, STR_TRANSITIONS, STR_REPLAY_GAIN, STR_LYRICS,     STR_UP_NEXT};
 static const StringId SHUFFLE_VALUES[] = {STR_OFF, STR_SHUFFLE_SONGS, STR_SHUFFLE_ALBUMS};
 static const StringId REPEAT_VALUES[] = {STR_OFF, STR_REPEAT_MODE_ONE, STR_REPEAT_MODE_ALL};
-static const StringId SLEEP_VALUES[] = {STR_OFF,        STR_MINUTES_15, STR_MINUTES_30,
-                                        STR_MINUTES_45, STR_MINUTES_60, STR_MINUTES_90,
-                                        STR_MINUTES_120};
-static const StringId REPLAY_VALUES[] = {STR_OFF, STR_REPLAY_GAIN_TRACK, STR_REPLAY_GAIN_ALBUM};
+static const StringId SLEEP_VALUES[] = {
+    STR_OFF,        STR_MINUTES_15,  STR_MINUTES_30,      STR_MINUTES_45,       STR_MINUTES_60,
+    STR_MINUTES_90, STR_MINUTES_120, STR_SLEEP_END_TRACK, STR_SLEEP_END_CHAPTER};
+static const StringId REPLAY_VALUES[] = {STR_OFF, STR_REPLAY_GAIN_TRACK, STR_REPLAY_GAIN_ALBUM,
+                                         STR_REPLAY_GAIN_AUTO};
 
 static bool has_speed(const QuickSettingsScreen *panel)
 {

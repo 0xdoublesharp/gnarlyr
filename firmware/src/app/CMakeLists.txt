@@ -83,6 +83,7 @@ add_library(echo_app STATIC
     modules/views_module.c
     modules/playing_module.c
     player.c
+    plug_modes.c
     screen_modules.c
     settings_preview.c
     settings_screens.c
@@ -121,6 +122,8 @@ add_library(echo_app STATIC
     screens/meter_now_playing.c
     screens/cassette_now_playing.c
     screens/now_playing_screen.c
+    screens/plug_chooser.c
+    screens/plug_art.c
     screens/up_next_screen.c
 )
 if(ECHO_RELEASE)

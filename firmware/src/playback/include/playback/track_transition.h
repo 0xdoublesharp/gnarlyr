@@ -26,3 +26,5 @@ typedef struct TransitionRequest {
 } TransitionRequest;
 
 uint32_t track_transition_fade_ms(const TransitionRequest *request);
+
+bool track_transition_album_order(const LibraryTrack *from, const LibraryTrack *to);
