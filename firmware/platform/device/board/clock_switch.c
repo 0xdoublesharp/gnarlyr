@@ -185,7 +185,7 @@ static bool switch_clock(uint32_t mhz)
 void hal_system_coast(bool coast)
 {
     bool wanted = coast && (current_mhz == COAST_FROM_MHZ || current_mhz == IDLE_FROM_MHZ) &&
-                  !board_usb_listening();
+                  !board_usb_listening() && !board_usb_core_powered();
     if (wanted == coasting) {
         return;
     }

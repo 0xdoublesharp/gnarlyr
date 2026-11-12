@@ -115,6 +115,7 @@ void board_wait_for_key(void);
 void board_wait_for_power_hold(uint32_t hold_ms);
 void board_main(void);
 bool board_usb_listening(void);
+bool board_usb_core_powered(void);
 void board_power_hold(void);
 void board_power_usb_supply_follow(bool cable);
 void board_loader_reboot(void);

@@ -57,6 +57,7 @@ bool hal_system_usb_connect_pending(void)
 
 static void raise_clock_for_usb(void)
 {
+    hal_system_coast(false);
     if (hal_system_clock_mhz() < START_CLOCK_MHZ) {
         hal_system_set_clock_mhz(START_CLOCK_MHZ);
     }
