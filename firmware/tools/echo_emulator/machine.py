@@ -211,7 +211,8 @@ class Machine:
         return self.stamps
 
     def poll_jump(self, cycles):
-        self.jump_cycles += cycles
+        if not self.interrupt_due():
+            self.jump_cycles += cycles
 
     def microseconds(self):
         since = self.cycles() - self.rate_mark_cycles
@@ -627,7 +628,7 @@ class Machine:
         systick = self.systick
         if systick.enabled and systick.tick_interrupt and systick.reload:
             period = systick.reload + 1
-            remaining = period - systick.elapsed() % period
+            remaining = period - (systick.elapsed() + 1) % period
             self.base_cycles += remaining
         else:
             self.base_cycles += self.core_hz // 1000
