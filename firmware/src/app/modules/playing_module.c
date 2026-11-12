@@ -72,7 +72,7 @@ static void bind(AppScreens *screens)
                                               .power = context->power,
                                               .toast = context->toast},
                                  .theme = context->theme,
-                                 .lyrics = &screens->modules.listening.lyrics.screen,
+                                 .lyrics = &screens->modules.views.lyrics.screen,
                                  .up_next = &views->up_next.screen,
                                  .speed = {.context = &views->quick_settings.config.settings,
                                            .available = settings_action_speed_available,

@@ -128,6 +128,7 @@ typedef struct ViewsModuleScreens {
     MenuScreen diagnostics;
     ClockOption diagnostic_clock;
     MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
+    LyricsScreen lyrics;
 } ViewsModuleScreens;
 
 typedef struct SettingsModuleScreens {
@@ -139,7 +140,6 @@ typedef struct SettingsModuleScreens {
 typedef struct ProfileModuleScreens {
     ListeningScreen listening;
     MomentsScreen moments;
-    LyricsScreen lyrics;
     SmartListScreen smart_lists;
 } ProfileModuleScreens;
 

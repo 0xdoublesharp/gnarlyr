@@ -19,6 +19,8 @@ static void bind(AppScreens *screens)
                                              .now_playing = &screens->now_playing.screen,
                                              .up_next = &screens->modules.playing.up_next.screen,
                                              .motion = context->motion});
+    lyrics_screen_init(&own->lyrics, (LyricsScreenConfig){context->player, &context->store->library,
+                                                          context->theme});
 }
 
 const ViewsModuleEntry VIEWS_MODULE_ENTRY = {

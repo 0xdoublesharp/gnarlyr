@@ -399,7 +399,7 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
                                     .covers = context.covers,
                                     .quick_settings =
                                         &screens->modules.playing.quick_settings.screen,
-                                    .lyrics = &screens->modules.listening.lyrics.screen,
+                                    .lyrics = &screens->modules.views.lyrics.screen,
                                     .flip = &screens->modules.views.cassette_flip.screen};
     screens->context = context;
     screens->bound_modules = 0;

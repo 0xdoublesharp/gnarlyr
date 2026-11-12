@@ -142,6 +142,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     platform/device/logic/headset_monitor_reading.c
     src/app/screens/charge_rate.c
     src/app/screens/charge_art.c
+    src/app/screens/lyrics_screen.c
+    src/library/lyrics.c
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
     src/app/mixtape_store.c
@@ -220,7 +222,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/app/screens/listening_screen.c
     src/app/screens/moments_screen.c
     src/playback/moments.c
-    src/app/screens/lyrics_screen.c
     src/app/screens/listening_work.c
     src/app/screens/recap_cards.c
     src/app/screens/smart_list_screen.c
@@ -234,7 +235,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/playback/listening_export.c
     src/playback/listening_clear.c
     src/app/listening_clear.c
-    src/library/lyrics.c
     src/app/cover_cache_half.c
 )
 if(ECHO_RELEASE)
