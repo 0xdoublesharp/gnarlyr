@@ -1990,3 +1990,8 @@ void fake_hal_fail_internal_writes(const char *path)
 {
     fake.fail_internal_writes = path;
 }
+
+uint16_t hal_input_key_adc(void)
+{
+    return 1023;
+}

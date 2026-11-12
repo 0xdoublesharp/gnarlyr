@@ -100,3 +100,9 @@ bool hal_clock_restore_wall(int16_t offset_minutes)
     const ExtensionModuleEntry *code = extension();
     return code != NULL && code->clock_restore(offset_minutes);
 }
+
+bool app_menu_hold(struct AppScreens *screens, KeyEvent event)
+{
+    const ExtensionModuleEntry *code = extension();
+    return code != NULL && code->menu_hold(screens, event);
+}

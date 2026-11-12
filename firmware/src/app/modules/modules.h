@@ -27,6 +27,7 @@ extern const ScreenModuleEntry LISTENING_MODULE_ENTRY;
 
 typedef struct SettingsModuleEntry {
     ScreenModuleEntry module;
+    ScreenAction (*menu_hold)(AppScreens *screens, uint8_t action);
     Screen *(*language_row)(AppScreens *screens);
     Screen *(*usb_modes)(AppScreens *screens, bool prompt);
     bool (*choose)(AppScreens *screens, DebugSpan title, DebugSpan option);

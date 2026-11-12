@@ -1,6 +1,7 @@
 #include "diagnostics_rows.h"
 
 #include "core/i18n.h"
+#include "core/string_builder.h"
 #include "diagnostics_values.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
@@ -90,3 +91,14 @@ const char *diagnostics_row_core0_busy(const void *context)
     diagnostics_busy_text(&busy_window, busy_text, sizeof busy_text);
     return busy_text;
 }
+
+#ifdef ECHO_DEBUG_LOOP
+const char *diagnostics_row_keys(const void *context)
+{
+    (void)context;
+    static char text[8];
+    StringBuilder builder = string_builder_make(text, sizeof text);
+    string_builder_append_unsigned(&builder, hal_input_key_adc());
+    return text;
+}
+#endif

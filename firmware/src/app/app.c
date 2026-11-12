@@ -24,6 +24,7 @@
 #include "debug_screenshot.h"
 #include "default_theme.h"
 #include "draw_profile.h"
+#include "extension_entry.h"
 #include "favorites_store.h"
 #include "frame_overlay.h"
 #include "gfx/frame_diff.h"
@@ -229,6 +230,9 @@ static Key oriented_key(HalKeyTransition transition)
     return rocker_key(transition.key, app.rocker_swapped[transition.key]);
 }
 
+static void run_player_command(NowPlayingCommand command);
+static void combo_screenshot(void);
+
 static void take_transition(HalKeyTransition transition)
 {
     hal_system_coast(false);
@@ -245,6 +249,17 @@ static void take_transition(HalKeyTransition transition)
     case KEY_LOCK_COMBO_STARTED:
         key_tracker_cancel(&app.keys, KEY_PLAY);
         key_tracker_cancel(&app.keys, KEY_POWER);
+        break;
+    case KEY_LOCK_SHORTCUT:
+        key_tracker_cancel(&app.keys, KEY_POWER);
+        key_tracker_cancel(&app.keys, key);
+        if (!app.charging && !fade_running()) {
+            if (key == KEY_MENU) {
+                combo_screenshot();
+            } else {
+                run_player_command(key == KEY_VOLUME_UP ? NOW_PLAYING_NEXT : NOW_PLAYING_PREVIOUS);
+            }
+        }
         break;
     case KEY_LOCK_REFUSED:
         toast_show(&app.toast, i18n_text(STR_LOCKED_HINT), transition.time_ms);
@@ -820,13 +835,18 @@ static bool playback_button(KeyEvent event, PlaybackButton *button)
     return true;
 }
 
-static void mapped_navigation(ButtonAction action, uint32_t now_ms)
+static CORE_COLD void wake_navigation(void)
 {
     cancel_edits();
     app_wake();
     if (!app.display_on) {
         set_display(true);
     }
+}
+
+static void mapped_navigation(ButtonAction action, uint32_t now_ms)
+{
+    wake_navigation();
     if (action == BUTTON_ACTION_HOME) {
         go_home(now_ms);
     } else if (player_status(&app.player).has_track) {
@@ -889,6 +909,18 @@ static bool mapped_playback(KeyEvent event, uint32_t now_ms)
     return true;
 }
 
+static bool configured_menu_hold(KeyEvent event)
+{
+    if (top_screen()->takes_every_key) {
+        return false;
+    }
+    if (!app_menu_hold(&app.screens, event)) {
+        return false;
+    }
+    wake_navigation();
+    return true;
+}
+
 static void dispatch_key_events(uint32_t now_ms)
 {
     KeyEvent event;
@@ -903,14 +935,12 @@ static void dispatch_key_events(uint32_t now_ms)
             debug_loop_shutdown(DEBUG_REPORT_SHUTDOWN);
             shut_down(STR_GOODBYE);
         } else if (event.key == KEY_BACK && event.gesture == KEY_GESTURE_LONG_PRESS) {
-            app_wake();
-            set_display(true);
+            wake_navigation();
             go_home(now_ms);
-        } else if (mapped_playback(event, now_ms)) {
+        } else if (configured_menu_hold(event) || mapped_playback(event, now_ms)) {
             continue;
         } else if (outcome.background && app.screens.now_playing.scrubbing) {
-            app_wake();
-            set_display(true);
+            wake_navigation();
             dispatch_to_screen(event, now_ms);
         } else if (outcome.background) {
             run_background(event);
@@ -1796,14 +1826,21 @@ static void set_debug_screen(bool on, uint32_t now_ms)
     debug_runner_done(true);
 }
 
-static bool save_debug_screenshot(const DebugRequest *request)
+static bool save_debug_screenshot(DebugSpan name, uint32_t slot)
 {
     DebugScreenshot shot = {.renderer = frame_renderer(whole_screen(), false),
                             .drawer = {.draw = draw_frame, .context = &app},
-                            .name = request->argument,
-                            .slot = request->slot};
+                            .name = name,
+                            .slot = slot};
     app.status_bar = current_status_bar();
     return debug_runner_screenshot(&shot);
+}
+
+static void combo_screenshot(void)
+{
+#ifdef ECHO_DEBUG_LOOP
+    save_debug_screenshot((DebugSpan){0}, 0);
+#endif
 }
 
 static bool choose_setting(const DebugRequest *request, uint32_t now_ms)
@@ -1819,6 +1856,7 @@ static void run_debug_script(uint32_t now_ms)
 {
     DebugRequest request =
         debug_runner_step(now_ms, (DebugRunnerView){fade_running(), app.display_on});
+
     if (request.kind == DEBUG_REQUEST_START) {
         start_debug_script(now_ms);
     } else if (request.kind == DEBUG_REQUEST_SCREEN) {
@@ -1826,7 +1864,7 @@ static void run_debug_script(uint32_t now_ms)
     } else if (request.kind == DEBUG_REQUEST_SET) {
         debug_runner_done(choose_setting(&request, now_ms));
     } else if (request.kind == DEBUG_REQUEST_SCREENSHOT) {
-        debug_runner_done(save_debug_screenshot(&request));
+        debug_runner_done(save_debug_screenshot(request.argument, request.slot));
     } else if (request.kind == DEBUG_REQUEST_STANDBY) {
         player_hold_standby(&app.player, request.slot == 0);
         debug_runner_done(true);
@@ -2037,6 +2075,7 @@ CORE_SEAM void app_step(void)
     if (top_screen() == &app.screens.now_playing.screen) {
         follow_destination(&app.screens.now_playing.destination, now_ms);
     }
+    follow_destination(&app.screens.shortcut_destination, now_ms);
     render_when_due(now_ms, started_us);
     wire_motion_end(&app.motion, &app.notice);
     FrameDrawer drawer = {.draw = draw_frame, .context = &app};

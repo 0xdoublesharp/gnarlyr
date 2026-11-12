@@ -12,10 +12,29 @@ static Key partner_of(Key key)
     return key == KEY_PLAY ? KEY_POWER : KEY_PLAY;
 }
 
+static bool shortcut_key(Key key)
+{
+#ifdef ECHO_DEBUG_LOOP
+    if (key == KEY_MENU) {
+        return true;
+    }
+#endif
+    return key == KEY_VOLUME_UP || key == KEY_VOLUME_DOWN;
+}
+
 KeyLockVerdict key_lock_transition(KeyLock *lock, Key key, bool pressed, uint32_t now_ms)
 {
     bool was_held = lock->held[key];
     lock->held[key] = pressed;
+    if (lock->shortcut != 0) {
+        bool held = lock->held[KEY_POWER] || lock->held[lock->shortcut - 1];
+        lock->shortcut = held ? lock->shortcut : 0;
+        return KEY_LOCK_SWALLOW;
+    }
+    if (!lock->combo && pressed && !was_held && lock->held[KEY_POWER] && shortcut_key(key)) {
+        lock->shortcut = (uint8_t)key + 1;
+        return KEY_LOCK_SHORTCUT;
+    }
     if (combo_key(key)) {
         if (pressed && !was_held && lock->held[partner_of(key)] && !lock->combo) {
             lock->combo = true;

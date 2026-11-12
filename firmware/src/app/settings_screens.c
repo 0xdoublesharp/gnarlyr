@@ -994,3 +994,8 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                        .detail_below = true};
     return menu_screen_init(&screens->menu, menu);
 }
+
+ScreenAction settings_screens_sleep(SettingsScreens *screens)
+{
+    return open_choice(&screens->entries[2]);
+}

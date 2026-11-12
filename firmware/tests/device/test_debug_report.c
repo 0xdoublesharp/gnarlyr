@@ -954,7 +954,7 @@ static void frame_figures_are_unknown_until_a_frame_was_drawn(void)
 static void events_are_listed_oldest_first_with_names(void)
 {
     DebugReportInput input = plain_input();
-    record(DEBUG_EVENT_KEY, KEY_PLAY | KEY_GESTURE_LONG_PRESS << 8, NULL);
+    record(DEBUG_EVENT_KEY, KEY_PLAY | KEY_GESTURE_LONG_PRESS << 8 | 377u << 16, NULL);
     record(DEBUG_EVENT_SCREEN, 2, "Now Playing");
     record(DEBUG_EVENT_PLAYER, 1 | 17 << 8, NULL);
     record(DEBUG_EVENT_UNDERRUN, 3, NULL);
@@ -962,7 +962,7 @@ static void events_are_listed_oldest_first_with_names(void)
     format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("events.recorded: 5"));
     CHECK(has_line("events.dropped: 0"));
-    CHECK(has_line("event: 1000 key play long"));
+    CHECK(has_line("event: 1000 key play long 377"));
     CHECK(has_line("event: 1001 screen 2 Now Pla"));
     CHECK(has_line("event: 1002 player playing 17"));
     CHECK(has_line("event: 1003 underrun 3"));

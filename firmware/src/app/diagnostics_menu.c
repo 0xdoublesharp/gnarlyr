@@ -123,6 +123,7 @@ static const DiagnosticsRow ROWS[DIAGNOSTICS_ITEM_COUNT] = {
     [10] = {STR_MUSIC, NULL, diagnostics_row_music, CONTEXT_NONE, false},
     [11] = {STR_ABOUT_HEADSET, NULL, diagnostics_row_headset, CONTEXT_NONE, false},
     [12] = {STR_ABOUT_CORE_BUSY, NULL, diagnostics_row_core0_busy, CONTEXT_NONE, false},
+    [14] = {STR_ABOUT_KEYS, NULL, diagnostics_row_keys, CONTEXT_NONE, false},
     [13] = {STR_ABOUT_PROFILER, switch_profiler, profiler_value, CONTEXT_NONE, false},
 };
 

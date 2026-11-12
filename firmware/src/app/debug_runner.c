@@ -144,6 +144,6 @@ void debug_runner_frame(DebugFrameSources sources)
 
 bool debug_runner_screenshot(const DebugScreenshot *shot)
 {
-    const DebugCodeEntry *code = running_code();
+    const DebugCodeEntry *code = debug_code();
     return code != NULL && code->screenshot(shot);
 }
