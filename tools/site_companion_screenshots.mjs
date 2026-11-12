@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const identity = JSON.parse(await readFile(join(root, "firmware/identity.json"), "utf8"));
 const scratch = "/Volumes/Scratch/SnowskyEcho";
 const args = process.argv.slice(2);
 function option(name, fallback) {
@@ -15,7 +16,7 @@ function option(name, fallback) {
   if (!args[index + 1] || args[index + 1].startsWith("--")) throw new Error(`Missing ${name} value`);
   return resolve(args[index + 1]);
 }
-const source = option("--source-root", resolve(root, "../gnarlyr-companion"));
+const source = option("--source-root", resolve(root, `../${identity.name.toLowerCase()}-companion`));
 const configPath = option("--config", join(root, "tools/site_companion_screenshots.json"));
 const config = JSON.parse(await readFile(configPath, "utf8"));
 assert.equal(config.version, 1);
@@ -53,8 +54,8 @@ try {
   const { deviceFixture } = await import(pathToFileURL(join(source, "tools/fixture.mjs")).href);
   const { imageLanguages, packBytes } = await import(pathToFileURL(join(source, "tests/language-fixture.ts")).href);
   device = await deviceFixture();
-  await rename(device.volume, join(device.root, "Gnarlyr"));
-  device.volume = join(device.root, "Gnarlyr");
+  await rename(device.volume, join(device.root, identity.name));
+  device.volume = join(device.root, identity.name);
   await writeFile(device.image, imageLanguages(device.data));
   const music = join(work, "Music"), target = join(work, "Sync preview"), profile = join(work, "profile");
   for (const path of [music, target, profile]) await mkdir(path);
@@ -71,11 +72,11 @@ try {
     }
   }
   const card = join(work, "GnarlySD");
-  await mkdir(join(card, ".gnarlyr/lang"), { recursive: true });
-  await writeFile(join(card, ".gnarlyr/lang/es.pack"), packBytes());
+  await mkdir(join(card, `${identity.data_directory}/lang`), { recursive: true });
+  await writeFile(join(card, `${identity.data_directory}/lang/es.pack`), packBytes());
   await writeFile(join(profile, "library.json"), JSON.stringify({ version: 1, selected: [], theme: "dark" }));
   app = await _electron.launch({ executablePath: electron, args: [join(source, ".build/app")],
-    env: { ...env, GNARLYR_USER_DATA_DIR: profile, GNARLYR_BACKUP_DIR: join(work, "backups") }, timeout: 30000 });
+    env: { ...env, [`${identity.id}_USER_DATA_DIR`]: profile, [`${identity.id}_BACKUP_DIR`]: join(work, "backups") }, timeout: 30000 });
   const page = await app.firstWindow();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -140,7 +141,7 @@ try {
   await page.getByRole("dialog").waitFor();
   await shot("languages");
   assert.deepEqual(errors, []);
-  assert.deepEqual(await readFile(join(device.volume, ".gnarlyr/settings.bin")), device.settings);
+  assert.deepEqual(await readFile(join(device.volume, `${identity.data_directory}/settings.bin`)), device.settings);
   assert.equal((await readdir(device.volume)).some((name) => /\.img$/i.test(name)), false);
   assert.equal(rendered.size, config.screens.length);
   const output = join(root, "site/assets/companion");
