@@ -336,3 +336,14 @@ uint32_t library_album_key(const Library *library, uint32_t album_index)
     hash = hash_update(hash, &separator, sizeof separator);
     return hash_string(library, hash, album.title);
 }
+
+bool library_hidden(const Library *library, uint32_t track)
+{
+    const LibraryHidden *hidden = library->hidden;
+    for (uint32_t index = 0; hidden != NULL && index < hidden->count; index++) {
+        if (hidden->tracks[index] == track) {
+            return true;
+        }
+    }
+    return false;
+}

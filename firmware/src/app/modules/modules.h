@@ -26,6 +26,7 @@ typedef struct ViewsModuleEntry {
     void (*theme_boot)(ThemeRuntime *runtime);
     void (*theme_restore)(ThemeRuntime *runtime);
     MusicFingerprint (*music_fingerprint)(bool progress);
+    Screen *(*manage)(AppScreens *screens, uint16_t track, SongManage manage);
 } ViewsModuleEntry;
 
 extern const PlayingModuleEntry PLAYING_MODULE_ENTRY;

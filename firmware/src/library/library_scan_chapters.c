@@ -65,7 +65,7 @@ ScanResult scan_add_chapters(ScanState *state, const ScanJob *job, ScanStats *st
         char title[MP4_CHAPTER_TITLE];
         BuilderTrack track = state->fields.track;
         apply_chapter(state, index, title, &track);
-        result = scan_builder_result(library_builder_add_track(&state->builder, &track));
+        result = scan_add_track(state, &track);
         stats->tracks += result == SCAN_OK;
         scan_report(job, stats);
     }

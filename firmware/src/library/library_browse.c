@@ -45,9 +45,71 @@ BrowseQuery browse_root_query(BrowseKind kind)
         .kind = kind, .group = group_section_of(kind), .subject = 0, .artist = LIBRARY_NONE};
 }
 
+static bool any_hidden(const Library *library)
+{
+    return library->hidden != NULL && library->hidden->count != 0;
+}
+
+static bool hidden_link(const Library *library, uint32_t link)
+{
+    uint16_t value = 0;
+    return library_read_index(library, LIBRARY_LINKS, link, &value) &&
+           library_hidden(library, value);
+}
+
+static uint32_t walk_links(const Library *library, uint32_t first, uint32_t count, uint32_t *shown)
+{
+    uint32_t raw = 0;
+    for (; raw < count; raw++) {
+        if (!any_hidden(library) || !hidden_link(library, first + raw)) {
+            if (*shown == 0) {
+                break;
+            }
+            (*shown)--;
+        }
+    }
+    return raw;
+}
+
+static uint32_t shown_links(const Library *library, uint32_t first, uint32_t count)
+{
+    uint32_t left = UINT32_MAX;
+    (void)walk_links(library, first, count, &left);
+    return UINT32_MAX - left;
+}
+
+static uint32_t link_position(const Library *library, uint32_t first, uint32_t count,
+                              uint32_t position)
+{
+    return walk_links(library, first, count, &position);
+}
+
+static uint32_t hidden_count(const Library *library, bool titles, uint32_t value)
+{
+    const LibraryHidden *hidden = library->hidden;
+    uint32_t count = 0;
+    for (uint32_t index = 0; hidden != NULL && index < hidden->count; index++) {
+        count +=
+            (titles ? hidden->titles[index] < value : hidden->folders[index] == value) ? 1u : 0u;
+    }
+    return count;
+}
+
+static uint32_t title_position(const Library *library, uint32_t position)
+{
+    const LibraryHidden *hidden = library->hidden;
+    for (uint32_t index = 0; hidden != NULL && index < hidden->count; index++) {
+        position += hidden->titles[index] <= position ? 1u : 0u;
+    }
+    return position;
+}
+
 static bool track_matches(const Library *library, BrowseQuery query, uint32_t track_index)
 {
     LibraryTrack track;
+    if (library_hidden(library, track_index)) {
+        return false;
+    }
     if (query.artist == LIBRARY_NONE) {
         return true;
     }
@@ -57,7 +119,12 @@ static bool track_matches(const Library *library, BrowseQuery query, uint32_t tr
 static uint32_t group_link_count(const Library *library, BrowseQuery query)
 {
     LibraryGroup group;
-    return library_read_group(library, query.group, query.subject, &group) ? group.link_count : 0;
+    if (!library_read_group(library, query.group, query.subject, &group)) {
+        return 0;
+    }
+    return query.kind == BROWSE_PLAYLIST_TRACKS
+               ? shown_links(library, group.first_link, group.link_count)
+               : group.link_count;
 }
 
 static uint32_t album_track_count(const Library *library, BrowseQuery query)
@@ -118,7 +185,7 @@ static uint32_t tree_count(const Library *library, uint16_t root)
     for (uint32_t index = root;
          library_read_folder(library, index, &folder) && (index == root || folder.parent >= root);
          index++) {
-        total += folder.track_count;
+        total += folder.track_count - hidden_count(library, false, index);
         total -= index != root && (folder.flags & 3) == LIBRARY_FOLDER_SHEET ? 1 : 0;
     }
     return total;
@@ -158,7 +225,8 @@ static bool tree_own_track(const Library *library, uint16_t index, uint32_t posi
                                 folder.first_link + folder.subfolder_count + link, track)) {
             return false;
         }
-        if (!sheet_of(library, index, *track, &sheet) && position-- == 0) {
+        if (!library_hidden(library, *track) && !sheet_of(library, index, *track, &sheet) &&
+            position-- == 0) {
             return true;
         }
     }
@@ -184,7 +252,8 @@ static uint32_t folder_item_count(const Library *library, uint32_t subject)
     if (!library_read_folder(library, subject, &folder)) {
         return 0;
     }
-    return (uint32_t)folder.subfolder_count + folder.track_count;
+    return (uint32_t)folder.subfolder_count +
+           shown_links(library, folder.first_link + folder.subfolder_count, folder.track_count);
 }
 
 uint32_t browse_count(const Library *library, BrowseQuery query)
@@ -198,8 +267,10 @@ uint32_t browse_count(const Library *library, BrowseQuery query)
         return library_music_count(library, LIBRARY_GENRES);
     case BROWSE_ALBUMS:
         return library_music_count(library, LIBRARY_ALBUMS);
-    case BROWSE_ALL_SONGS:
-        return library_music_count(library, LIBRARY_TITLE_ORDER);
+    case BROWSE_ALL_SONGS: {
+        uint32_t music = library_music_count(library, LIBRARY_TITLE_ORDER);
+        return music - hidden_count(library, true, music);
+    }
     case BROWSE_GROUP_ALBUMS:
     case BROWSE_PLAYLIST_TRACKS:
         return group_link_count(library, query);
@@ -253,12 +324,17 @@ static bool group_link_item(const Library *library, BrowseQuery query, uint32_t 
                             BrowseItem *item)
 {
     LibraryGroup group;
-    if (!library_read_group(library, query.group, query.subject, &group) ||
-        position >= group.link_count) {
+    if (!library_read_group(library, query.group, query.subject, &group)) {
         return false;
     }
-    BrowseItemKind kind =
-        query.kind == BROWSE_PLAYLIST_TRACKS ? BROWSE_ITEM_TRACK : BROWSE_ITEM_ALBUM;
+    bool tracks = query.kind == BROWSE_PLAYLIST_TRACKS;
+    if (tracks) {
+        position = link_position(library, group.first_link, group.link_count, position);
+    }
+    if (position >= group.link_count) {
+        return false;
+    }
+    BrowseItemKind kind = tracks ? BROWSE_ITEM_TRACK : BROWSE_ITEM_ALBUM;
     return linked_item(library, group.first_link + position, kind, item);
 }
 
@@ -284,8 +360,15 @@ static bool folder_item(const Library *library, uint32_t subject, uint32_t posit
                         BrowseItem *item)
 {
     LibraryFolder folder;
-    if (!library_read_folder(library, subject, &folder) ||
-        position >= (uint32_t)folder.subfolder_count + folder.track_count) {
+    if (!library_read_folder(library, subject, &folder)) {
+        return false;
+    }
+    if (position >= folder.subfolder_count) {
+        position = folder.subfolder_count +
+                   link_position(library, folder.first_link + folder.subfolder_count,
+                                 folder.track_count, position - folder.subfolder_count);
+    }
+    if (position >= (uint32_t)folder.subfolder_count + folder.track_count) {
         return false;
     }
     BrowseItemKind kind =
@@ -304,7 +387,7 @@ bool browse_item(const Library *library, BrowseQuery query, uint32_t position, B
     case BROWSE_ALBUMS:
         return table_item(library, LIBRARY_ALBUMS, position, item);
     case BROWSE_ALL_SONGS:
-        return title_order_item(library, position, item);
+        return title_order_item(library, title_position(library, position), item);
     case BROWSE_GROUP_ALBUMS:
     case BROWSE_PLAYLIST_TRACKS:
         return group_link_item(library, query, position, item);

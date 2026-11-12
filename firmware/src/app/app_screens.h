@@ -98,7 +98,7 @@ typedef struct AppScreensContext {
     const Theme *theme;
     Theme *styled_theme;
     const Theme *compact_theme;
-    const LibraryStore *store;
+    LibraryStore *store;
     Player *player;
     SettingsStore *settings;
     ThemeRuntime *themes;

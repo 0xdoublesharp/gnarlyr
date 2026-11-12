@@ -233,7 +233,8 @@ static const SmartTally *tally_of(SmartList *job, uint32_t key)
 
 static void join(SmartList *job, TrackKey entry)
 {
-    if (job->has_previous && entry.key == job->previous_key) {
+    if ((job->has_previous && entry.key == job->previous_key) ||
+        (job->config.library != NULL && library_hidden(job->config.library, entry.track))) {
         return;
     }
     job->previous_key = entry.key;

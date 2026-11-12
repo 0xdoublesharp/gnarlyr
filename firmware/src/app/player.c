@@ -90,7 +90,8 @@ static bool track_audio(const Player *player, uint16_t track, TrackAudio *audio)
 {
     LibraryTrack record;
     char relative[PLAYER_PATH_CAPACITY];
-    if (!library_read_track(player->library, track, &record) ||
+    if (library_hidden(player->library, track) ||
+        !library_read_track(player->library, track, &record) ||
         !library_read_string(player->library, record.path, relative, sizeof relative)) {
         return false;
     }
