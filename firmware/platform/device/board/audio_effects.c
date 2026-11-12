@@ -70,4 +70,12 @@ const void *board_audio_effects_debug_code(void)
 {
     return ready || board_audio_effects_prepare() ? entry()->debug : NULL;
 }
+
+void board_audio_effects_battery_trace(DebugBatteryTrace *trace, uint32_t now_ms,
+                                       PowerSample sample)
+{
+    if (ready || board_audio_effects_prepare()) {
+        entry()->battery_trace(trace, now_ms, sample);
+    }
+}
 #endif

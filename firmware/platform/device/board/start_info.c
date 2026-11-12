@@ -1,9 +1,11 @@
 #include <stdint.h>
 
 #include "board.h"
+#include "core/seam.h"
 #include "device/start_record.h"
 #include "hal/system.h"
 #include "registers.h"
+#include "trial.h"
 
 #define SCB_CFSR 0xE000ED28u
 #define SCB_HFSR 0xE000ED2Cu
@@ -19,6 +21,11 @@ static StartInfo info;
 void board_start_record_boot(void)
 {
     info = start_record_boot(&record);
+}
+
+CORE_SEAM bool board_start_after_loader(void)
+{
+    return info.last_step == HAL_START_STEP_LOADER;
 }
 
 void board_start_record_tick(uint32_t uptime_ms)
@@ -60,7 +67,9 @@ __attribute__((used)) void device_fault_handler(const uint32_t *frame)
                        frame[STACKED_PC_WORD]);
     board_panic_fault(frame, register_read(SCB_CFSR));
     for (;;) {
-        board_watchdog_kick();
+        if (!board_trial_running()) {
+            board_watchdog_kick();
+        }
     }
 }
 

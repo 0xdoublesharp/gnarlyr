@@ -132,6 +132,7 @@ bool board_bluetooth_settling(void);
 bool board_bluetooth_pin(bool mute_pin, bool level);
 void board_start_record_boot(void);
 void board_start_record_tick(uint32_t uptime_ms);
+bool board_start_after_loader(void);
 void board_start_record_power_off(void);
 void board_start_record_step(HalStartStep step);
 void board_start_record_step_done(void);

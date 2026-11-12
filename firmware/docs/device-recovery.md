@@ -23,9 +23,17 @@ This is checked in the emulator. This project has not used it on a player.
 
 ## Escape hatch: Power and vol+
 
-The same restart into the boot ROM's USB loader works without a file and without USB storage: hold **Power** and **vol+**, and plug the cable into the computer (or switch the player on with the cable already in, still holding both keys). After 2 s with both keys held and the cable powered, the player restarts into maskrom with the screen black. Gnarlyr checks this right after it starts its key scanning, before the display, storage or USB code. Without cable power, with only one of the keys, or with a key let go before 2 s, the player starts normally. Two ladder keys can't be told apart on this player, so the combination uses Power plus one ladder key.
+The same restart into the boot ROM's USB loader works without a file and without USB storage:
 
-This is checked in the emulator. This project has not used it on a player. It needs a build with trial updates ([`device-install.md`](device-install.md)) that gets as far as its start-up code.
+1. Plug the cable into the computer (a port on the computer itself). The player can be on, showing a message, or switched off on the cable (the dark charge screen). If the player is fully off, plugging the cable in starts it; that is enough.
+2. Hold **Power** and **vol+** together, and keep holding them for 5 s.
+3. After 3 s with both keys held and the cable powered, the player restarts into maskrom with the screen black. Let go, then run `rkdeveloptool-echo ld` (step 3 below).
+
+Gnarlyr checks the keys every 5 ms for as long as it runs, from the first key scan at start-up, including at messages, on the charge screen and during a USB session. Without cable power, with only one of the keys, or with a key let go before 3 s, nothing happens. Two ladder keys can't be told apart on this player, so the combination uses Power plus one ladder key. Holding vol+ may raise the volume while music plays.
+
+If the player starts Gnarlyr again instead of staying black, the restart didn't reach maskrom; the keys then do nothing until Power is let go. In a `device` build, connect it as a drive once: `/.gnarlyr/debug/report0.txt` then says `start.last_step=loader`, which tells the developer the restart was requested but the boot ROM didn't stay in the loader. Use the paperclip route (step 2 below). If nothing happens at all, Settings → About → Keys shows the key reading in a `device` build: vol+ alone should read between 70 and 183.
+
+The emulator checks the timing and the restart request. On the player, the earlier start-up-only check failed once (`known-issues.md`); this version is unchecked on a player. FiiO's own firmware for this player writes the same loader request before it restarts. It needs a build that gets as far as its key scanning.
 
 ## 1. Build the patched `rkdeveloptool` (once)
 

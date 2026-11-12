@@ -10,6 +10,7 @@ from echo_image_harness import (
     IDENTITY,
     LOADER_FLAG_REGISTER,
     LOADER_FLAG_VALUE,
+    MISSING_TEXT,
     SLOT_SECTORS,
     TRIAL_ROLLED_BACK,
     TRIAL_RUNNING,
@@ -30,6 +31,9 @@ SETTLE_MS = 20000
 RESET_HOLD_MS = 10000
 SCAN_MS = 5
 LIMIT_MS = 40000
+TRIAL_LIMIT = 3
+ESCAPE_HOLD_MS = 3000
+ESCAPE_KEYS_MS = 5000
 
 
 class EchoImageTest(EchoImageHarness):
@@ -217,31 +221,125 @@ class EchoImageTest(EchoImageHarness):
         self.assert_rollback_reported(rolling)
         summary("non-enumerating rollback", rolling)
 
-    def escape_session(self, vbus=True, power_ms=5000, key=VOLUME_UP_KEY_ADC):
+    def textless_start(self, previous, image):
+        trial = self.start(previous, image)
+        trial.machine.stub_symbol("hal_language_read", lambda machine: 0)
+        trial.machine.note("board_wait_for_key")
+        return trial, trial.machine.collect_notices()
+
+    def assert_rolled_back_from(self, previous, image):
+        rolling = self.start(previous, image)
+        self.assertEqual(rolling.run_until_reset(), "system reset requested")
+        self.assert_healthy(rolling)
+        self.assertEqual(rolling.slot_image("slot_1"), self.slot_bytes(self.image))
+        self.assertEqual(rolling.slot_image("slot_2"), self.slot_bytes(self.image))
+        self.assertEqual(self.trial_record(rolling), (TRIAL_ROLLED_BACK, 0))
+        self.assertEqual(rolling.panel.lit_sweeps(), [])
+        self.assert_rollback_reported(rolling)
+
+    def test_a_trial_build_without_text_rolls_back_without_a_key_press(self):
+        newer = self.newer_image()
+        trial, notices = self.textless_start(self.install_on_trial(newer), newer)
+        self.assertEqual(trial.run_until_reset(), "system reset requested")
+        self.assert_healthy(trial)
+        self.assertNotIn("board_wait_for_key", trial.machine.reached)
+        self.assertNotIn(MISSING_TEXT, [message for _, message in notices])
+        self.assertEqual(self.trial_record(trial), (TRIAL_RUNNING, TRIAL_LIMIT))
+        self.assertEqual(trial.slot_image("slot_2"), self.slot_bytes(self.image))
+        self.assert_rolled_back_from(trial, newer)
+
+    def test_a_trial_build_that_loses_the_emmc_after_its_start_is_rolled_back_at_the_fourth_start(self):
+        newer = self.newer_image()
+        session = self.install_on_trial(newer)
+        for attempt in (1, 2, TRIAL_LIMIT):
+            session = self.start(session, newer)
+            machine = session.machine
+            machine.hook_symbol("board_jack_poll",
+                                lambda machine=machine: setattr(machine.emmc_controller, "card", None))
+            machine.note("board_wait_for_key")
+            self.assertEqual(session.run_until_reset(), "system reset requested", attempt)
+            self.assertNotIn("board_wait_for_key", machine.reached)
+            self.assertEqual(self.trial_record(session), (TRIAL_RUNNING, attempt))
+        self.assert_rolled_back_from(session, newer)
+
+    def test_a_trial_build_waiting_at_the_missing_text_notice_is_never_settled(self):
+        newer = self.newer_image()
+        kept, notices = self.textless_start(self.install_on_trial(newer), newer)
+        kept.machine.stub_symbol("board_trial_fail", lambda machine: 0)
+        kept.machine.answer_waits_for_key(10)
+        self.assertEqual(kept.machine.run(until_ms=SETTLE_MS + 5000), "time limit")
+        self.assertEqual(notices[0], (IDENTITY.short_name, MISSING_TEXT))
+        self.assertGreaterEqual(kept.machine.reached["board_wait_for_key"], 1)
+        self.assertEqual(self.trial_record(kept), (TRIAL_RUNNING, 1))
+        trial, _ = self.textless_start(kept, newer)
+        trial.machine.answer_waits_for_key(10)
+        self.assertEqual(trial.machine.run(until_ms=SETTLE_MS + 5000), "system reset requested")
+        self.assertEqual(self.trial_record(trial), (TRIAL_RUNNING, TRIAL_LIMIT))
+        self.assert_rolled_back_from(trial, newer)
+
+    def escape_session(self, vbus=True, power_ms=ESCAPE_KEYS_MS, key=VOLUME_UP_KEY_ADC):
         session = self.session(vbus_at_start=vbus)
         machine = session.machine
+        machine.host_ejects()
         machine.adc_key_value = key
         machine.hold_power(0, power_ms)
         return session, machine
 
-    def test_volume_up_and_power_held_with_a_cable_restart_into_the_usb_loader(self):
-        session, machine = self.escape_session()
-        self.assertEqual(session.run_until_reset(), "system reset requested")
+    def assert_loader_reboot(self, session, pressed_ms):
+        machine = session.machine
+        self.assertEqual(machine.run(until_ms=pressed_ms + ESCAPE_KEYS_MS), "system reset requested")
         self.assert_healthy(session)
         self.assertEqual(machine.pmu.regs[LOADER_FLAG_REGISTER], LOADER_FLAG_VALUE & 0xFFFF)
-        self.assertGreaterEqual(machine.milliseconds(), 2000)
-        self.assertEqual(session.panel.lit_sweeps(), [])
-        self.assertEqual(session.card.writes, [])
-        self.assertEqual(machine.usb_connect_count, 0)
+        self.assertGreaterEqual(machine.milliseconds() - pressed_ms, ESCAPE_HOLD_MS - SCAN_MS)
+
+    def hold_escape_keys(self, machine):
+        pressed = machine.milliseconds()
+        machine.adc_key_value = VOLUME_UP_KEY_ADC
+        machine.hold_power(pressed, ESCAPE_KEYS_MS)
+        return pressed
+
+    def test_volume_up_and_power_held_with_a_cable_restart_into_the_usb_loader(self):
+        session, machine = self.escape_session()
+        self.assert_loader_reboot(session, 0)
+        plugged, machine = self.escape_session(vbus=False, power_ms=ESCAPE_KEYS_MS + 1000)
+        machine.at_ms(1000, lambda: setattr(machine, "vbus", True))
+        self.assert_loader_reboot(plugged, 1000)
+
+    def test_volume_up_and_power_held_on_the_charge_screen_restart_into_the_usb_loader(self):
+        session, machine, *_ = self.charging_on_a_charger()
+        self.assertEqual(machine.pmu_flag_writes, [])
+        self.assert_loader_reboot(session, self.hold_escape_keys(machine))
+
+    def test_volume_up_and_power_held_at_the_missing_text_notice_restart_into_the_usb_loader(self):
+        session = self.session(vbus_at_start=True)
+        session.damage_language_pack("slot_1")
+        session.damage_language_pack("slot_2")
+        machine = session.machine
+        machine.host_ejects()
+        machine.note("board_wait_for_key")
+        self.assertEqual(machine.run(until=lambda: "board_wait_for_key" in machine.reached,
+                                     until_ms=self.session_module.FRAME_LIMIT_MS), "condition met")
+        self.assert_loader_reboot(session, self.hold_escape_keys(machine))
+
+    def test_after_a_loader_restart_that_came_back_the_keys_wait_for_power_to_be_let_go(self):
+        session, machine = self.escape_session(power_ms=ESCAPE_KEYS_MS + 1000)
+        machine.stub_symbol("board_start_after_loader", lambda machine: 1)
+        self.assertEqual(machine.run(until_ms=ESCAPE_KEYS_MS + 1000), "time limit")
+        self.assertEqual(machine.pmu_flag_writes, [])
+        self.assert_healthy(session)
+        machine.run(until_ms=machine.milliseconds() + 500)
+        self.assert_loader_reboot(session, self.hold_escape_keys(machine))
 
     def test_the_escape_keys_without_a_cable_or_let_go_early_start_normally(self):
-        for vbus, power_ms, key in ((False, 5000, VOLUME_UP_KEY_ADC), (True, 1000, VOLUME_UP_KEY_ADC),
-                                    (True, 5000, 1023)):
+        for vbus, power_ms, key in ((False, ESCAPE_KEYS_MS, VOLUME_UP_KEY_ADC),
+                                    (True, ESCAPE_HOLD_MS - 500, VOLUME_UP_KEY_ADC),
+                                    (True, ESCAPE_KEYS_MS, 1023)):
             session, machine = self.escape_session(vbus, power_ms, key)
             self.assertEqual(session.run_to_first_frame(), "condition met", (vbus, power_ms, key))
+            self.assertEqual(machine.run(until_ms=ESCAPE_KEYS_MS + 1000), "time limit",
+                             (vbus, power_ms, key))
             self.assertEqual(machine.pmu_flag_writes, [], (vbus, power_ms, key))
             self.assert_healthy(session)
-
 
 if __name__ == "__main__":
     sys.exit(main(EchoImageTest))

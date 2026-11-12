@@ -433,6 +433,7 @@ if(CMAKE_CROSSCOMPILING)
         board/bluetooth.c
         board/core1.c
         board/dac.c
+        board/debug_battery_trace.c
         board/debug_poke.c
         board/debug_report_file.c
         board/debug_rtc.c

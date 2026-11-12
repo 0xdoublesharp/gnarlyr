@@ -12,5 +12,6 @@ const AudioEffectsEntry AUDIO_EFFECTS_MODULE_ENTRY = {
     .effects_settle = audio_effects_settle,
 #if defined(ECHO_DEBUG_LOOP) && defined(ECHO_DEVICE_MODULE)
     .debug = &DEBUG_CODE_ENTRY,
+    .battery_trace = debug_battery_trace_write,
 #endif
 };

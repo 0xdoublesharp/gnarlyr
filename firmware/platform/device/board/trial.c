@@ -23,9 +23,7 @@
 enum {
     SECTOR_WORDS = 512 / 4,
     ESCAPE_LADDER_KEY = 1u << KEY_VOLUME_UP,
-    ESCAPE_SETTLE_MS = 40,
-    ESCAPE_STEP_MS = 50,
-    ESCAPE_STEPS = 40,
+    ESCAPE_HOLD_MS = 3000,
     DIAG_SNAPSHOT_WORDS = 18,
     DIAG_REPORT_WORDS = 4,
     DIAG_WORDS = 2 * DIAG_SNAPSHOT_WORDS,
@@ -45,23 +43,9 @@ typedef struct TrialDiag {
 } TrialDiag;
 
 static uint32_t power_since_ms;
+static uint32_t escape_since_ms;
+static bool power_released;
 __attribute__((section(".noinit"))) static TrialDiag diag;
-
-void board_trial_escape_check(void)
-{
-    if (!usb_vbus_present()) {
-        return;
-    }
-    board_delay_ms(ESCAPE_SETTLE_MS);
-    for (uint32_t step = 0; step < ESCAPE_STEPS; step++) {
-        if (!usb_vbus_present() || !board_power_key_down() ||
-            board_input_held() != ESCAPE_LADDER_KEY) {
-            return;
-        }
-        board_delay_ms(ESCAPE_STEP_MS);
-    }
-    board_loader_reboot();
-}
 
 const TrialCalls *board_trial_calls(void)
 {
@@ -194,10 +178,24 @@ void board_trial_snapshot(uint32_t kind)
 void board_trial_settle(void)
 {
     UsbTrial *trial = &usb_session_shared()->trial;
-    if (trial->charged && hal_clock_milliseconds() >= UPDATE_TRIAL_SETTLE_MS) {
+    if (trial->charged && i18n_attached() && hal_clock_milliseconds() >= UPDATE_TRIAL_SETTLE_MS) {
         trial->charged = false;
         write_record(trial, trial->attempts - 1u);
     }
+}
+
+void board_trial_fail(void)
+{
+    UsbTrial *trial = &usb_session_shared()->trial;
+    if (trial->charged) {
+        write_record(trial, UPDATE_TRIAL_LIMIT);
+        board_restart_clean();
+    }
+}
+
+bool board_trial_running(void)
+{
+    return usb_session_shared()->trial.running;
 }
 
 void board_trial_session_starting(void)
@@ -220,8 +218,21 @@ void board_trial_session_ended(void)
     }
 }
 
+static bool escape_held(void)
+{
+    bool power = board_power_key_down();
+    power_released |= !power;
+    return power && (power_released || !board_start_after_loader()) && usb_vbus_present() &&
+           (board_input_held() & ~(1u << KEY_POWER)) == ESCAPE_LADDER_KEY;
+}
+
 void board_trial_poll_power(uint32_t now_ms)
 {
+    if (!escape_held()) {
+        escape_since_ms = now_ms;
+    } else if (now_ms - escape_since_ms >= ESCAPE_HOLD_MS) {
+        board_loader_reboot();
+    }
     if (!usb_session_shared()->trial.running || !board_power_key_down()) {
         power_since_ms = now_ms;
     } else if (now_ms - power_since_ms >= UPDATE_TRIAL_RESET_HOLD_MS) {

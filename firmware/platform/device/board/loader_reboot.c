@@ -83,6 +83,7 @@ __attribute__((noinline, noreturn)) static void reset_with(uint32_t flag, bool l
 
 void board_loader_reboot(void)
 {
+    board_start_record_step(HAL_START_STEP_LOADER);
     reset_with(PMU_BOOT_LOADER, true);
 }
 

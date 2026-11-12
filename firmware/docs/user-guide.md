@@ -502,7 +502,7 @@ An install through the updater has only run in the emulator so far ([`known-issu
 4. Hold Power to start the new version.
 5. Connect the player to the computer once more and eject both drives. The player shows "Saving this version as the backup" while it copies; from then on it keeps the new version.
 
-The new version starts on trial: the previous version stays on the player as a backup until step 5. If the new version doesn't start properly three times in a row (a start counts unless the player then runs for 20 seconds), or its USB connection fails, the player puts the previous version back and says "Update rolled back". If the player hangs while it is connected, hold Power for 10 seconds to restart it.
+The new version starts on trial: the previous version stays on the player as a backup until step 5. If the new version starts without its text, or doesn't start properly three times in a row (a start counts unless the player then runs for 20 seconds), or its USB connection fails, the player puts the previous version back and says "Update rolled back". If the player hangs while it is connected, hold Power for 10 seconds to restart it.
 
 The updater deletes the file after a successful install, when it is not a valid image, and when that version is already installed.
 
@@ -528,7 +528,7 @@ Follow [`device-recovery.md`](device-recovery.md). It writes FiiO's image into b
 - **"Update failed":** copy the file again and retry before turning the player off.
 - **"USB missing: reinstall update" or "Restart to finish the update":** see Known trade-offs in [`known-issues.md`](known-issues.md).
 - **"Update rolled back":** the new version didn't start properly, and the player went back to the version it had before. Report it with the Firmware line from Settings → About.
-- **The player doesn't start at all:** the chip's maskrom mode writes FiiO's firmware back from a computer over USB. It needs a patched `rkdeveloptool` and some care; the steps are in [`device-recovery.md`](device-recovery.md). If the player still runs and you expect trouble, create the file `MASKROM.REQ` on internal storage beforehand, or plug in the cable while holding Power and vol+ for 2 seconds (same document).
+- **The player doesn't start at all:** the chip's maskrom mode writes FiiO's firmware back from a computer over USB. It needs a patched `rkdeveloptool` and some care; the steps are in [`device-recovery.md`](device-recovery.md). If the player still runs and you expect trouble, create the file `MASKROM.REQ` on internal storage beforehand, or, with the cable plugged into the computer, hold Power and vol+ together for 5 seconds (same document).
 - **Noting a problem:** write down what you did, the FiiO version the player had before, and the Firmware line from Settings → About.
 
 ## Themes and controls

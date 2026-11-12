@@ -114,8 +114,8 @@ _Static_assert(sizeof PLAYER_NAMES / sizeof PLAYER_NAMES[0] == DEBUG_PLAYER_STAN
 static const char *const AUDIO_NAMES[] = {"stopped", "playing", "paused"};
 static const char *const USB_END_NAMES[] = {"none", "ejected", "unplugged", "no_host"};
 static const char *const STEP_NAMES[HAL_START_STEP_COUNT] = {
-    "none",        "backlight_on", "backlight_off", "clock_switch",
-    "core1_start", "core1_stop",   "card_write",    "watchdog_test"};
+    "none",       "backlight_on", "backlight_off", "clock_switch", "core1_start",
+    "core1_stop", "card_write",   "watchdog_test", "loader"};
 static const char *const PART_NAMES[DEBUG_FRAME_PARTS] = {
     "frame.part.covers_us",   "frame.part.reflections_us", "frame.part.text_us",
     "frame.part.backdrop_us", "frame.part.hash_us",        "frame.part.audio_us"};
