@@ -5857,9 +5857,83 @@ static void a_profile_chosen_in_dac_mode_is_committed_after_the_session(void)
     app_stop();
 }
 
+static void standby_keeps_the_queue_and_position_until_power_wakes(void)
+{
+    start_app_with_library();
+    Settings chosen = settings_defaults();
+    chosen.standby_enabled = true;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&chosen, bytes);
+    CHECK(hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes));
+    restart_app();
+    play_first_album_track();
+    fake_hal_audio_set_position(PLAYING_POSITION_MS);
+    step();
+    uint32_t position = app_player_status().position_ms;
+    int releases = fake_hal_audio_release_count();
+    tap(KEY_POWER);
+    CHECK(app_standby()->active);
+    CHECK(!fake_hal_display_on());
+    CHECK(!fake_hal_bluetooth_powered());
+    CHECK(fake_hal_audio_release_count() > releases);
+    CHECK_EQUAL(24, hal_system_clock_mhz());
+    CHECK_EQUAL(position, app_player_status().position_ms);
+    tap(KEY_PLAY);
+    hold(KEY_BACK);
+    CHECK(app_standby()->active);
+    CHECK(!fake_hal_display_on());
+    tap(KEY_POWER);
+    CHECK(!app_standby()->active);
+    CHECK(fake_hal_display_on());
+    CHECK_EQUAL(position, app_player_status().position_ms);
+    CHECK_EQUAL(1, app_standby()->entries);
+    CHECK_EQUAL(1, app_standby()->wakes);
+    CHECK_EQUAL(0, fake_hal_power_off_count());
+}
+
+static void standby_deadline_really_powers_off_instead_of_reentering(void)
+{
+    start_app_with_library();
+    Settings chosen = settings_defaults();
+    chosen.standby_enabled = true;
+    chosen.standby_power_off_option = 0;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&chosen, bytes);
+    CHECK(hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes));
+    restart_app();
+    step();
+    tap(KEY_POWER);
+    CHECK(app_standby()->active);
+    now_ms += 1800000;
+    step();
+    CHECK_EQUAL(1, fake_hal_power_off_count());
+    CHECK_EQUAL(1, app_standby()->entries);
+}
+
+static void standby_low_battery_really_powers_off(void)
+{
+    start_app_with_library();
+    Settings chosen = settings_defaults();
+    chosen.standby_enabled = true;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&chosen, bytes);
+    CHECK(hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes));
+    restart_app();
+    step();
+    tap(KEY_POWER);
+    CHECK(app_standby()->active);
+    fake_hal_set_battery((HalBattery){.known = true, .millivolts = 3400});
+    wait_ms(300);
+    wait_ms(2200);
+    CHECK_EQUAL(1, fake_hal_power_off_count());
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(standby_low_battery_really_powers_off),
+        TEST_CASE(standby_deadline_really_powers_off_instead_of_reentering),
+        TEST_CASE(standby_keeps_the_queue_and_position_until_power_wakes),
         TEST_CASE(a_profile_chosen_in_dac_mode_is_committed_after_the_session),
         TEST_CASE(dac_choices_made_during_usb_are_saved_with_the_settings),
         TEST_CASE(a_notice_is_drawn_at_once_over_the_current_screen),

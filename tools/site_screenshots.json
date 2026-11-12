@@ -94,7 +94,9 @@
         "down",
         "play",
         "play",
-        "menu"
+        "menu",
+        "up",
+        "play"
       ]
     },
     {
@@ -221,6 +223,7 @@
       "file": "usb-mode.png",
       "expected_title": "USB mode",
       "keys": [
+        "down",
         "down",
         "down",
         "down",
@@ -809,6 +812,111 @@
         "down",
         "down",
         "down",
+        "play"
+      ]
+    },
+    {
+      "name": "home-playing",
+      "file": "home-playing.png",
+      "expected_title": "{firmware_name}",
+      "keys": [
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "play",
+        "back:long"
+      ]
+    },
+    {
+      "name": "quick-settings",
+      "file": "quick-settings.png",
+      "expected_title": "Quick Settings",
+      "keys": [
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "play",
+        "menu"
+      ],
+      "group": "quick-settings",
+      "view_label": "Playback shortcuts"
+    },
+    {
+      "name": "quick-settings-more",
+      "file": "quick-settings-more.png",
+      "expected_title": "Quick Settings",
+      "keys": [
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "play",
+        "menu",
+        "up"
+      ],
+      "group": "quick-settings",
+      "view_label": "Remaining shortcuts"
+    },
+    {
+      "name": "status-bar",
+      "file": "status-bar.png",
+      "expected_title": "Status bar",
+      "keys": [
+        "up",
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play"
+      ]
+    },
+    {
+      "name": "clear-history",
+      "file": "clear-history.png",
+      "expected_title": "Clear history",
+      "keys": [
+        "down",
+        "down",
+        "play",
+        "play:long",
         "play"
       ]
     }

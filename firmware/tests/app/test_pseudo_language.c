@@ -749,6 +749,26 @@ static void walk_headphones(void)
     }
 }
 
+static void walk_standby_settings(void)
+{
+    open_settings_row(0);
+    for (int row = 0; row < 2; row++) {
+        tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    }
+    tap(KEY_PLAY);
+    show_titled("Power settings", STR_STANDBY_POWER);
+    tap(KEY_PLAY);
+    show_titled("Standby options", STR_STANDBY_ENABLED);
+    down(1);
+    show("Standby on option");
+    tap(KEY_BACK);
+    down(1);
+    tap(KEY_PLAY);
+    show_titled("Standby deadline", STR_STANDBY_TIMEOUT);
+    down(1);
+    show("Standby deadline choices");
+}
+
 static void walk_everything(void)
 {
     begin();
@@ -759,6 +779,7 @@ static void walk_everything(void)
     walk_smart_lists();
     walk_cover_flow();
     walk_settings_rows();
+    walk_standby_settings();
     walk_card_format();
     walk_settings_choices();
     walk_settings_toasts();

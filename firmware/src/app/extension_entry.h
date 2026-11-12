@@ -7,6 +7,7 @@
 #include "hal/clock.h"
 #include "headphone_store.h"
 #include "ui/screen.h"
+#include "standby.h"
 #include "ui/wire_motion.h"
 
 struct AppScreens;
@@ -14,6 +15,8 @@ struct AppScreens;
 typedef struct ExtensionModuleEntry {
     ExtensionModuleHead head;
     bool (*menu_hold)(struct AppScreens *screens, KeyEvent event);
+    void (*standby_follow)(Standby *, PowerPolicy *, const Settings *);
+    void (*standby_frame)(Standby *);
     void (*motion_run)(WireMotion *motion, const void *owner, WireShape shape, uint32_t now_ms);
     void (*motion_progress)(WireMotion *motion, uint32_t done, uint32_t total);
     void (*motion_end)(WireMotion *motion, const void *owner);
