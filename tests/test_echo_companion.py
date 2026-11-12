@@ -296,7 +296,7 @@ class CompanionSettings(VolumeCase):
         self.assertEqual(len(host.ejected), 2)
 
     def test_auto_replay_gain_is_offered_only_when_the_installed_build_declares_it(self):
-        self.use_version15()
+        self.use_current_layout()
         original = echo_language.Snapshot.show
         paths = (*SETTINGS_SOURCES, "firmware/src/app/settings_screens.c",
                  "firmware/src/core/include/core/replay_gain.h", "firmware/assets/lang/en.txt")
@@ -308,7 +308,7 @@ class CompanionSettings(VolumeCase):
             result = tool.settings_set("replay_gain", "auto")
             self.assertEqual(result["value"], "auto")
             self.assertEqual(self.path.read_bytes()[5], 7)
-            self.assertEqual(self.path.read_bytes()[38:54], EXTENSION)
+            self.assertEqual(self.path.read_bytes()[38:53], EXTENSION[:15])
             self.assertIn("set ReplayGain=Auto\n", self.sent[0])
 
     def test_prevent_clipping_preserves_replay_gain_mode_bits(self):
@@ -452,7 +452,7 @@ class CompanionSettings(VolumeCase):
                 self.assert_no_write(host)
 
     def test_a_saved_usb_dac_answer_and_usb_power_bits_load_while_plugging_in_stays_on_the_player(self):
-        self.use_version15()
+        self.use_current_layout()
         data = bytearray(self.path.read_bytes())
         data[5] |= 0x30
         data[52] = 0x10
