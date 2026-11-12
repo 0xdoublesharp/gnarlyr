@@ -7,6 +7,7 @@
 #include "core/power_policy.h"
 #include "equalizer_presets.h"
 #include "headphone_editor.h"
+#include "hidden_tracks.h"
 #include "language.h"
 #include "player.h"
 #include "screens/bluetooth_screen.h"
@@ -37,17 +38,18 @@ enum {
     SETTINGS_LANGUAGE_ITEM = 13,
     SETTINGS_CUSTOM_EQ_ITEM = 19,
     SETTINGS_RESCAN_ITEM = 23,
-    SETTINGS_TRANSITION_LENGTH_ITEM = 31,
-    SETTINGS_HEADPHONES_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 5,
-    SETTINGS_FORMAT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 8,
-    SETTINGS_HOME_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 9,
-    SETTINGS_PARAMETRIC_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 10,
-    SETTINGS_POWER_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 11,
-    SETTINGS_NOW_PLAYING_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 12,
-    SETTINGS_CONTROLS_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 13,
-    SETTINGS_EJECT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 6,
-    SETTINGS_MOUNT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 7,
-    SETTINGS_ITEM_COUNT = SETTINGS_MAIN_CHOICE_COUNT + 14,
+    SETTINGS_HIDDEN_ITEM = 24,
+    SETTINGS_TRANSITION_LENGTH_ITEM = 32,
+    SETTINGS_HEADPHONES_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 6,
+    SETTINGS_FORMAT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 9,
+    SETTINGS_HOME_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 10,
+    SETTINGS_PARAMETRIC_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 11,
+    SETTINGS_POWER_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 12,
+    SETTINGS_NOW_PLAYING_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 13,
+    SETTINGS_CONTROLS_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 14,
+    SETTINGS_EJECT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 7,
+    SETTINGS_MOUNT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 8,
+    SETTINGS_ITEM_COUNT = SETTINGS_MAIN_CHOICE_COUNT + 15,
     SETTINGS_MESSAGE_CAPACITY = 64,
     SETTINGS_COUNTDOWN_CAPACITY = 16
 };
@@ -62,6 +64,7 @@ typedef struct SettingsContext {
     void (*format_finished)(bool success);
     bool *rescan_requested;
     bool *language_requested;
+    LibraryStore *library;
     BluetoothScreen *bluetooth;
     Theme *theme;
     Screen *equalizer;
@@ -118,6 +121,7 @@ struct SettingsScreens {
     union {
         ChoiceScreen choice;
         SetClockScreen clock;
+        HiddenTracksChoice hidden;
     };
     ButtonSettings buttons;
     HeadphoneEditor headphones;
@@ -135,3 +139,4 @@ bool settings_screens_choose(SettingsScreens *screens, DebugSpan title, DebugSpa
 Screen *settings_screens_usb_modes(SettingsScreens *screens, bool prompt);
 
 ScreenAction settings_screens_sleep(SettingsScreens *screens);
+MenuItem hidden_choice_item(SettingsScreens *screens);

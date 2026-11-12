@@ -22,6 +22,7 @@ typedef struct ViewsModuleEntry {
     Screen *(*add)(MixtapeUi *ui, uint16_t track);
     void (*charge_observe)(HalBattery battery, uint32_t now_ms);
     void (*charge_draw)(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms);
+    Screen *(*manage)(AppScreens *screens, uint16_t track, SongManage manage);
 } ViewsModuleEntry;
 
 extern const PlayingModuleEntry PLAYING_MODULE_ENTRY;

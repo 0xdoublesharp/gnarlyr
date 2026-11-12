@@ -167,6 +167,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/library/sort_key.c
     src/library/sort_initial.c
     src/library/sort_fold_table.c
+    src/app/hidden_tracks.c
+    src/app/track_removal.c
 )
 set(ECHO_SCREEN_MODULE_UI_SOURCES src/app/home_art.c src/app/home_art_backdrop.c)
 list(APPEND ECHO_SCREEN_MODULE_SOURCES_playing ${ECHO_SCREEN_MODULE_UI_SOURCES})
@@ -189,6 +191,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/language_list.c
     src/app/modules/settings_module.c
     src/app/settings_screens.c
+    src/app/hidden_choice.c
+    src/app/hidden_tracks.c
     src/app/screens/set_clock_screen.c
     src/core/calendar.c
     src/app/settings_actions.c

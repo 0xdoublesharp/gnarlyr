@@ -115,6 +115,31 @@ static void missing_songs_and_changed_cue_boundaries_are_not_matched_to_other_tr
     CHECK_EQUAL(0, job.ambiguous);
 }
 
+static void a_deleted_or_hidden_song_is_left_off_a_loaded_mixtape(void)
+{
+    Library *library = fixture_library_open(&fixture);
+    CHECK_EQUAL(STORE_READY, mix_identity_read(library, 0, &identities[0]));
+    CHECK_EQUAL(STORE_READY, mix_identity_read(library, 2, &identities[1]));
+    CHECK_EQUAL(STORE_READY, mix_identity_read(library, 3, &identities[2]));
+    MixTape tape;
+    save_tape(&tape);
+    static LibraryHidden hidden = {.count = 1, .tracks = {2}, .titles = {0xFFFF}};
+    library->hidden = &hidden;
+    MixResolve job;
+    CHECK(mix_resolve_begin(&job, library, &tape, (MixMemory){arena, sizeof arena}));
+    while (mix_resolve_step(&job) == STORE_WORKING) {
+    }
+    library->hidden = NULL;
+    CHECK_EQUAL(STORE_DONE, job.result);
+    CHECK_EQUAL(2, job.count);
+    CHECK_EQUAL(1, job.missing);
+    uint16_t resolved[2] = {0};
+    TrackOrderSource source = mix_resolve_source(&job);
+    CHECK(source.read != NULL && source.read(source.context, 0, 2, resolved));
+    CHECK_EQUAL(0, resolved[0]);
+    CHECK_EQUAL(3, resolved[1]);
+}
+
 static void duplicate_library_identities_are_reported_as_ambiguous(void)
 {
     Library *library = fixture_library_open(&fixture);
@@ -186,6 +211,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(a_rescan_with_reordered_rows_keeps_the_same_songs_and_duplicates),
         TEST_CASE(missing_songs_and_changed_cue_boundaries_are_not_matched_to_other_tracks),
+        TEST_CASE(a_deleted_or_hidden_song_is_left_off_a_loaded_mixtape),
         TEST_CASE(duplicate_library_identities_are_reported_as_ambiguous),
         TEST_CASE(maximum_capacity_fits_the_decoder_scratch_and_duplicate_rows_stay_bounded)};
     return test_run_all(cases, TEST_CASE_COUNT(cases));

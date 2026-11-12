@@ -58,6 +58,14 @@ Cards through 32 GB use FAT32; larger cards use exFAT. The volume is named Gnarl
 
 An interrupted format reports that the card needs formatting. Reinsert the card and choose Format card again before copying music. Physical card formatting still needs the owner checks listed in [known issues](known-issues.md).
 
+## Hide or delete a song
+
+Hold Play on a song in a Music list or a smart list for its actions.
+
+- **Hide track** takes the song out of every list, Play all, shuffle and the smart lists at once, and keeps it out after rescans. Settings → Hidden tracks (shown while something is hidden) lists hidden songs by file name; press Play on one to show it again. A song hidden before the last rescan comes back at the next rescan. Up to 16 songs can be hidden.
+- **Delete file** asks first, naming the file; Cancel is selected. Deleting removes the file from the card, skips to the next song if it was playing, and takes it out of the lists, the queue and Up Next without a rescan. Mixtapes skip it when they load. A song that is one part of a CUE sheet or an audiobook's chapter can't be deleted on its own.
+- Up to 12 songs can be hidden or deleted between rescans; after that the player asks for a rescan first.
+
 ## Search, sorting and personal tags
 
 Music → Search finds songs across their metadata and paths. View options combine sorting, filters and personal tags. See [Search, sorting and personal tags](library-discovery.md) for controls, scopes, limits and saved-view behavior.

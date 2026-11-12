@@ -56,6 +56,7 @@ typedef struct SmartListConfig {
     const TrackKeys *keys;
     SmartFavorites favorites;
     SmartScratch scratch;
+    const Library *library;
 } SmartListConfig;
 
 typedef struct SmartPick {

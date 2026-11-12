@@ -390,6 +390,57 @@ static bool output_read(void *context, uint32_t offset, void *buffer, uint32_t l
     return true;
 }
 
+static const char HIDDEN_SONG[] = "Artist A/Album One/02 - Second.ogg";
+
+static bool hide_second(void *context, const BuilderTrack *track)
+{
+    uint32_t *asked = context;
+    (*asked)++;
+    return strcmp(track->path, HIDDEN_SONG) == 0;
+}
+
+static bool library_has_path(Output *output, const char *wanted)
+{
+    Library library;
+    CHECK_EQUAL(LIBRARY_OK,
+                library_open(&library, (ByteSource){output_read, output}, output->length));
+    for (uint32_t index = 0; index < library_count(&library, LIBRARY_TRACKS); index++) {
+        LibraryTrack track;
+        char path[256];
+        CHECK(library_read_track(&library, index, &track));
+        CHECK(library_read_string(&library, track.path, path, sizeof path));
+        if (strcmp(path, wanted) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void a_hidden_track_is_left_out_of_the_library(void)
+{
+    static uint8_t memory[MEMORY_SIZE];
+    static HostFiles files;
+    static Output output;
+    uint32_t asked = 0;
+    sim_storage_configure(ECHO_FIXTURE_DIR "/scan_music", NULL);
+    output.length = 0;
+    ScanJob job = {
+        .files = {open_dir, next_entry, close_dir, open_file, close_file, &files},
+        .memory = memory,
+        .size = sizeof memory,
+        .scratch = SCRATCH,
+        .sink = {write_output, &output},
+        .filter = {hide_second, &asked},
+    };
+    ScanStats stats;
+    CHECK_EQUAL(SCAN_OK, library_scan(&job, &stats));
+    output.length = stats.length;
+    CHECK_EQUAL(4u, asked);
+    CHECK_EQUAL(3u, stats.tracks);
+    CHECK(!library_has_path(&output, HIDDEN_SONG));
+    CHECK(library_has_path(&output, "Artist A/Album One/01 - First.ape"));
+}
+
 static bool library_holds_every_path(Output *output)
 {
     Library library;
@@ -850,6 +901,7 @@ int main(int argc, char **argv)
         TEST_CASE(scanning_the_tag_fixtures_matches_the_pc_indexer),
         TEST_CASE(a_listing_at_an_odd_address_is_used_from_its_next_aligned_byte),
         TEST_CASE(scanning_folders_and_playlists_matches_the_pc_indexer),
+        TEST_CASE(a_hidden_track_is_left_out_of_the_library),
         TEST_CASE(scanning_cue_sheets_matches_the_pc_indexer),
         TEST_CASE(scanning_m4a_files_matches_the_pc_indexer),
         TEST_CASE(indexing_m4b_chapters_matches_the_device_scanner),
