@@ -35,3 +35,5 @@ echo_add_unit_test(NAME test_low_battery SOURCES core/test_low_battery.c LIBRARI
 echo_add_unit_test(NAME test_key_script SOURCES core/test_key_script.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_debug_log SOURCES core/test_debug_log.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_debug_script SOURCES core/test_debug_script.c LIBRARIES echo_core)
+
+echo_add_unit_test(NAME test_audio_visual SOURCES core/test_audio_visual.c LIBRARIES echo_core m)

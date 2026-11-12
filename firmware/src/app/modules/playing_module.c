@@ -1,11 +1,53 @@
 #include "browse_sections.h"
 #include "modules/modules.h"
+#include "screens/cassette_now_playing.h"
 #include "screens/charge_screen.h"
+#include "screens/meter_now_playing.h"
 #include "settings_actions.h"
+
+static void style_draw(const NowPlayingScreen *screen, Canvas *canvas)
+{
+    if (settings_now_playing_style(screen->config.settings) == NOW_PLAYING_CASSETTE) {
+        cassette_now_playing_draw(screen, canvas);
+    } else {
+        meter_now_playing_draw(screen, canvas);
+    }
+}
+
+static bool style_animate(NowPlayingScreen *screen, FrameDiff *diff, bool visible)
+{
+    return settings_now_playing_style(screen->config.settings) == NOW_PLAYING_CASSETTE
+               ? cassette_now_playing_animate(screen, diff, visible)
+               : meter_now_playing_animate(screen, diff, visible);
+}
+
+static Screen *open_artist(void *context, BrowseScreen *browse, BrowseQuery albums)
+{
+    AppScreens *screens = context;
+    const Library *library = browse->pool->config.library;
+    BrowseQuery album = albums;
+    BrowseItem only;
+    if (browse->query.kind != BROWSE_ARTISTS && browse->query.kind != BROWSE_ALBUM_ARTISTS) {
+        return NULL;
+    }
+    if (browse_count(library, albums) == 1 && browse_item(library, albums, 0, &only) &&
+        browse_child(albums, only, &album)) {
+        return browse_pool_open(browse->pool, browse->level + 1, album);
+    }
+    CoverFlowScreen *strip = &screens->modules.playing.artist_albums;
+    strip->albums = albums;
+    strip->parent = browse;
+    strip->positioned = false;
+    return &strip->screen;
+}
 
 static void bind(AppScreens *screens)
 {
     const AppScreensContext *context = &screens->context;
+    screens->browse.config.artist = open_artist;
+    meter_now_playing_reset();
+    screens->now_playing.config.cassette_draw = style_draw;
+    screens->now_playing.config.cassette_animate = style_animate;
     PlayingModuleScreens *views = &screens->modules.playing;
     UpNextConfig up_next = {.library = &context->store->library,
                             .theme = context->theme,

@@ -178,9 +178,39 @@ static void the_eleventh_module_loads_independently_of_views(void)
     CHECK(screens.modules.views.diagnostics.screen.draw != NULL);
 }
 
+static void cassette_now_playing_requires_playing_and_rebinds_after_other_modules(void)
+{
+    reset();
+    screens.now_playing.config.settings = &settings.settings;
+    settings_set_now_playing_style(&settings.settings, NOW_PLAYING_CASSETTE);
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &screens.now_playing.screen));
+    CHECK(screen_modules_use(&screens, SCREEN_MODULE_PLAYING) != NULL);
+    CHECK(screens.now_playing.config.cassette_draw != NULL);
+    CHECK(screens.now_playing.config.cassette_animate != NULL);
+    CHECK(screen_modules_use(&screens, SCREEN_MODULE_SETTINGS) != NULL);
+    CHECK(screen_modules_use(&screens, screen_modules_of(&screens, &screens.now_playing.screen)) !=
+          NULL);
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    settings_set_now_playing_style(&settings.settings, NOW_PLAYING_COVER);
+    CHECK_EQUAL(SCREEN_MODULE_NONE, screen_modules_of(&screens, &screens.now_playing.screen));
+}
+
+static void every_alternate_now_playing_style_requires_its_drawing_module(void)
+{
+    reset();
+    screens.now_playing.config.settings = &settings.settings;
+    for (int style = 1; style <= 3; style++) {
+        settings_set_now_playing_style(&settings.settings, (NowPlayingStyle)style);
+        CHECK_EQUAL(SCREEN_MODULE_PLAYING,
+                    screen_modules_of(&screens, &screens.now_playing.screen));
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(every_alternate_now_playing_style_requires_its_drawing_module),
+        TEST_CASE(cassette_now_playing_requires_playing_and_rebinds_after_other_modules),
         TEST_CASE(screens_outside_every_module_belong_to_none),
         TEST_CASE(a_screen_belongs_to_the_module_whose_memory_holds_it),
         TEST_CASE(screens_a_module_builds_for_itself_belong_to_it_too),

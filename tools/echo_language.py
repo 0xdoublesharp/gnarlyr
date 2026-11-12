@@ -72,6 +72,9 @@ class Snapshot:
         self.flags_reserved = 0xF8
         self.status_items_supported = False
         self.f2_volume = False
+        self.display_flags_byte = None
+        self.style_flags_byte = None
+        self.e14_bits = (0, 0)
         try:
             self.commit = git(api.ROOT, "rev-parse", "--verify", build + "^{commit}").strip()
             self.build = build
@@ -110,6 +113,15 @@ class Snapshot:
                 if self.status_items_supported and constant(source, "STATUS_ITEMS_BYTE") != 13:
                     raise ValueError("the installed status bar settings layout is unsupported")
                 self.check_speed_layout(source)
+                if re.search(r"\bDISPLAY_FLAGS_BYTE\s*=", source):
+                    self.display_flags_byte = constant(source, "DISPLAY_FLAGS_BYTE")
+                    if self.display_flags_byte != 13:
+                        raise ValueError("the installed display flags layout is unsupported")
+                if re.search(r"\bSTYLE_FLAGS_BYTE\s*=", source):
+                    self.style_flags_byte = constant(source, "STYLE_FLAGS_BYTE")
+                    if self.style_flags_byte != 14 or not re.search(r"\bSTYLE_HIGH_BIT\s*=\s*1\s*<<\s*7\b", source):
+                        raise ValueError("the installed style flags layout is unsupported")
+                self.check_e14_layout(source)
         except (ValueError, KeyError, OSError, self.format.PackError) as error:
             raise api.DebugError("language_build_unknown", str(error)) from error
 
@@ -143,6 +155,24 @@ class Snapshot:
                 != (HOME_FIRST_ITEMS, HOME_SLOTS) or not HOME_FIRST_ITEMS <= self.home_items <= HOME_SLOTS or
                 self.home_settings_item >= HOME_FIRST_ITEMS):
             raise ValueError("the installed Home layout is unsupported")
+
+    def check_e14_layout(self, source):
+        mask, filters = 0, 0
+        if re.search(r"\bDAC_FILTER_BYTE\s*=", source):
+            header = self.show("firmware/src/settings/include/settings/settings.h")
+            declaration = re.search(r"typedef\s+enum\s+DacFilter\s*\{([^}]+)\}", header)
+            filters = len([name for name in declaration.group(1).split(",") if name.strip()]) if declaration else 0
+            if constant(source, "DAC_FILTER_BYTE") != 14 or not re.search(r"\bDAC_FILTER_MASK\s*=\s*0x07\b", source) or not 0 < filters <= 8:
+                raise ValueError("the installed DAC filter layout is unsupported")
+            mask |= 0x07
+        if re.search(r"\bCROSSFEED_BYTE\s*=", source):
+            if (constant(source, "CROSSFEED_BYTE"), constant(source, "CROSSFEED_SHIFT"),
+                    constant(source, "CROSSFEED_MASK")) != (14, 5, 3):
+                raise ValueError("the installed crossfeed layout is unsupported")
+            mask |= 0x60
+        if self.style_flags_byte == 14:
+            mask |= 0x80
+        self.e14_bits = (mask, filters)
 
     def check_speed_layout(self, source):
         self.speed_steps = (0, 0)
@@ -189,11 +219,13 @@ class Snapshot:
         reserved = list(block[11:15])
         if self.clock_offset_byte:
             reserved[0:2] = [0, 0]
-        if self.status_items_supported:
+        if self.status_items_supported or self.display_flags_byte == 13:
             reserved[2] = 0
+        reserved[3] &= ~self.e14_bits[0] & 0xFF
+        filter_valid = self.e14_bits[1] == 0 or block[14] & 0x07 < self.e14_bits[1]
         marker = F_VERSION if data[4] >= F_VERSION else 0
         return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and self.speed_valid(block[3]) and
-                -720 <= offset <= 840 and self.home_valid(block) and not any(reserved) and
+                -720 <= offset <= 840 and self.home_valid(block) and not any(reserved) and filter_valid and
                 data[F_MARKER_FIELD] == marker and self.f_valid(data))
 
     def f_valid(self, data):
