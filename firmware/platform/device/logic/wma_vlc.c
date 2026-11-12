@@ -91,7 +91,7 @@ static void insert(VLC *vlc, const WmaCodes *codes, int symbol)
             uint32_t prefix = code >> (len - used);
             uint32_t child = child_bits(codes, prefix, used, (uint32_t)vlc->bits);
             vlc->table[at][0] = (int16_t)allocate_table(vlc, child);
-            vlc->table[at][1] = -(int16_t)child;
+            vlc->table[at][1] = (int16_t)-(int32_t)child;
         }
         if (vlc->table[at][1] >= 0) {
             wma_fail();

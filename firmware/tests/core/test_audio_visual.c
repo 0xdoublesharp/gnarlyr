@@ -20,9 +20,9 @@ static void fft_matches_a_double_dft_for_every_bin(void)
         double real = 0;
         double imag = 0;
         for (int sample = 0; sample < AUDIO_VISUAL_FFT; sample++) {
-            double angle = 6.283185307179586 * bin * sample / AUDIO_VISUAL_FFT;
-            real += input[sample] * cos(angle) / AUDIO_VISUAL_FFT;
-            imag -= input[sample] * sin(angle) / AUDIO_VISUAL_FFT;
+            double angle = 6.283185307179586 * bin * sample / (double)AUDIO_VISUAL_FFT;
+            real += input[sample] * cos(angle) / (double)AUDIO_VISUAL_FFT;
+            imag -= input[sample] * sin(angle) / (double)AUDIO_VISUAL_FFT;
         }
         CHECK(fabs(real - work.real[bin]) < 12);
         CHECK(fabs(imag - work.imag[bin]) < 12);
