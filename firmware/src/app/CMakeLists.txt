@@ -29,16 +29,20 @@ add_library(echo_app STATIC
     theme_palette.c
     listening_effects.c
     listening_store.c
+    listening_store_view.c
     listening_clear.c
     card_files.c
     app_screens.c
+    app_screens_home.c
     bluetooth_link.c
     bluetooth_link_ui.c
     bluetooth_store.c
     board_layout.c
+    board_cover_layout.c
     browse_screen.c
     browse_sections.c
     cover_cache.c
+    cover_cache_half.c
     cover_placeholders.c
     default_theme.c
     default_theme_metrics.c

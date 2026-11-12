@@ -18,7 +18,9 @@ enum {
     LINE_GAP = 6
 };
 
-static LyricsWork *const work = &listening_module_work.as.lyrics;
+static LyricsWork lyrics_work;
+static const void *lyrics_owner;
+static LyricsWork *const work = &lyrics_work;
 
 static bool read_lyrics(void *context, uint32_t offset, void *bytes, uint32_t length)
 {
@@ -77,7 +79,7 @@ static bool open_sidecar(LyricsScreen *screen, HalFile *file)
 static void load(LyricsScreen *screen, PlayerStatus status)
 {
     *work = (LyricsWork){.center = -2};
-    listening_module_work.owner = screen;
+    lyrics_owner = screen;
     screen->known = true;
     screen->track = status.track;
     screen->token = screen->config.player->current_token;
@@ -120,7 +122,7 @@ static void update(void *context, uint32_t now_ms)
     LyricsScreen *screen = context;
     PlayerStatus status = player_status(screen->config.player);
     (void)now_ms;
-    if (listening_module_work.owner != screen || !screen->known || screen->track != status.track ||
+    if (lyrics_owner != screen || !screen->known || screen->track != status.track ||
         screen->token != screen->config.player->current_token) {
         load(screen, status);
     }

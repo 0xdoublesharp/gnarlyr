@@ -39,11 +39,12 @@ add_executable(echo_device
     board/usb_listen.c
     board/usb_report.c
     board/wall_time.c
+    board/wide_divide.c
 )
 target_sources(echo_device PRIVATE board/panel_vop.c)
 target_include_directories(echo_device PRIVATE ${PROJECT_SOURCE_DIR}/src/app)
 if(NOT ECHO_RELEASE)
-    target_sources(echo_device PRIVATE board/debug_session.c board/profiler.c)
+    target_sources(echo_device PRIVATE board/debug_session.c board/profiler.c logic/rtc_registers.c)
     set(ECHO_PROFILE_BUCKET_SHIFT 7)
 endif()
 set(ECHO_CORE1_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1.ld)
@@ -370,6 +371,7 @@ set(ECHO_OVERLAY_IMPORTS
 if(NOT ECHO_RELEASE)
     list(APPEND ECHO_OVERLAY_IMPORTS
         app_debug_frames
+        rtc_registers_decode
         board_battery_gauge
         board_debug_audio
         dac_path_diagnostics
@@ -407,7 +409,7 @@ set_target_properties(echo_device PROPERTIES
     SUFFIX .elf
     LINK_DEPENDS ${ECHO_DEVICE_LINKER_SCRIPT}
 )
-set_source_files_properties(board/libc.c board/startup.c PROPERTIES
+set_source_files_properties(board/libc.c board/startup.c board/wide_divide.c PROPERTIES
     COMPILE_OPTIONS "-fno-builtin;-fno-tree-loop-distribute-patterns;-fno-lto"
 )
 if(CMAKE_CROSSCOMPILING)
@@ -650,6 +652,7 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)
         target_compile_definitions(${module_target}_objects PRIVATE
             core1_open_flac=audio_source_open_flac
+            core1_open_mp3=audio_source_open_mp3
         )
     endif()
     if(module STREQUAL "ogg")

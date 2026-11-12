@@ -34,18 +34,23 @@ typedef struct CoverFlowTextLayout {
 
 typedef struct BoardLayout {
     int home_art_width;
-    int up_next_detail_max_width;
     NowPlayingLayout now_playing[TEXT_SIZE_COUNT];
-    CoverFlowLayout cover_flow;
-    CoverFlowTextLayout cover_flow_text[TEXT_SIZE_COUNT];
     NowPlayingLayout now_playing_portrait[TEXT_SIZE_COUNT];
-    CoverStackLayout cover_stack;
-    CoverFlowTextLayout cover_stack_text[TEXT_SIZE_COUNT];
     int home_art_min_height;
 } BoardLayout;
 
-extern const BoardLayout BOARD_LAYOUT;
+typedef struct BoardCoverLayout {
+    int up_next_detail_max_width;
+    CoverFlowLayout cover_flow;
+    CoverFlowTextLayout cover_flow_text[TEXT_SIZE_COUNT];
+    CoverStackLayout cover_stack;
+    CoverFlowTextLayout cover_stack_text[TEXT_SIZE_COUNT];
+} BoardCoverLayout;
 
+extern const BoardLayout BOARD_LAYOUT;
+extern const BoardCoverLayout BOARD_COVER_LAYOUT;
+
+int board_text_size(const Theme *theme);
 const NowPlayingLayout *board_now_playing_layout(const Theme *theme);
 const char *board_splash_text(const Theme *theme);
 const CoverFlowTextLayout *board_cover_flow_text_layout(const Theme *theme);

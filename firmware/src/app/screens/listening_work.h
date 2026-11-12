@@ -75,7 +75,6 @@ typedef struct ListeningModuleWork {
         ListeningWork listening;
         RecapWork recap;
         SmartListWork smart;
-        LyricsWork lyrics;
         MomentsWork moments;
     } as;
 } ListeningModuleWork;

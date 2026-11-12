@@ -68,12 +68,12 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(machine.usb_connect_count, connections + 1)
         self.assert_healthy(session)
 
-    def test_charging_without_the_playing_module_uses_no_usb_overlay(self):
+    def test_charging_without_the_views_module_uses_no_usb_overlay(self):
         session = self.session(vbus_at_start=True)
         machine = session.machine
         machine.power_key_released_at_ms = 0
         machine.host_absent = True
-        number, _ = self.module(machine, "playing")
+        number, _ = self.module(machine, "views")
         for slot in ("slot_1", "slot_2"):
             session.change_module(slot, number, 600, lambda byte: byte ^ 0xFF)
         frames = machine.trace("usb_screen_draw_fallback")

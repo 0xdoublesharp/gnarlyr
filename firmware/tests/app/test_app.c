@@ -2033,7 +2033,7 @@ static void cover_flow_stacks_the_albums_in_portrait(void)
     tap(KEY_PLAY);
     settle();
     CHECK(title_is("Cover Flow"));
-    const CoverStackLayout *stack = &BOARD_LAYOUT.cover_stack;
+    const CoverStackLayout *stack = &BOARD_COVER_LAYOUT.cover_stack;
     int middle = stack->center_top + stack->center_size / 2;
     CHECK_EQUAL(BLUE_COVER, fake_hal_pixel(stack->center_x, middle));
     portrait_down(1);
@@ -4186,7 +4186,7 @@ static void cover_flow_runs_by_album_artist_and_opens_the_centre_album(void)
 
 static uint16_t cover_flow_probe(void)
 {
-    const CoverFlowLayout *layout = &BOARD_LAYOUT.cover_flow;
+    const CoverFlowLayout *layout = &BOARD_COVER_LAYOUT.cover_flow;
     return fake_hal_pixel(layout->center_x, layout->center_top + layout->center_size / 2);
 }
 

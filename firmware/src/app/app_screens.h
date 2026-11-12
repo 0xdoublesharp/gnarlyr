@@ -128,6 +128,7 @@ typedef struct ViewsModuleScreens {
     MenuScreen diagnostics;
     ClockOption diagnostic_clock;
     MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
+    LyricsScreen lyrics;
 } ViewsModuleScreens;
 
 typedef struct SettingsModuleScreens {
@@ -139,7 +140,6 @@ typedef struct SettingsModuleScreens {
 typedef struct ProfileModuleScreens {
     ListeningScreen listening;
     MomentsScreen moments;
-    LyricsScreen lyrics;
     SmartListScreen smart_lists;
 } ProfileModuleScreens;
 
@@ -182,6 +182,8 @@ extern const HomeItem APP_HOME_ITEMS[HOME_ITEM_COUNT];
 
 Screen *app_screens_init(AppScreens *screens, AppScreensContext context);
 void app_screens_arrange_home(AppScreens *screens);
+int app_screens_arrange_home_items(AppScreens *screens);
+int app_screens_home_position(const AppScreens *screens, const void *context);
 Screen *app_screens_usb_modes(AppScreens *screens, bool prompt);
 MenuItem app_screens_open_item(StringId label, Screen *target);
 Screen *app_screens_build_menu(MenuScreen *menu, StringId title, const MenuItem *items, int count,

@@ -28,4 +28,9 @@ typedef struct HeadsetDipView {
 } HeadsetDipView;
 
 void headset_dips_sample(HeadsetDips *dips, uint16_t level, bool active, uint32_t time_ms);
+static inline uint16_t headset_dips_clamp_ms(uint32_t milliseconds)
+{
+    return milliseconds > UINT16_MAX ? (uint16_t)UINT16_MAX : (uint16_t)milliseconds;
+}
+
 HeadsetDipView headset_dips_view(const HeadsetDips *dips, uint32_t time_ms);

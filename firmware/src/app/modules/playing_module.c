@@ -1,7 +1,6 @@
 #include "browse_sections.h"
 #include "modules/modules.h"
 #include "screens/cassette_now_playing.h"
-#include "screens/charge_screen.h"
 #include "screens/meter_now_playing.h"
 #include "settings_actions.h"
 
@@ -73,7 +72,7 @@ static void bind(AppScreens *screens)
                                               .power = context->power,
                                               .toast = context->toast},
                                  .theme = context->theme,
-                                 .lyrics = &screens->modules.listening.lyrics.screen,
+                                 .lyrics = &screens->modules.views.lyrics.screen,
                                  .up_next = &views->up_next.screen,
                                  .speed = {.context = &views->quick_settings.config.settings,
                                            .available = settings_action_speed_available,
@@ -85,7 +84,5 @@ static void bind(AppScreens *screens)
 
 const PlayingModuleEntry PLAYING_MODULE_ENTRY = {
     .module = SCREEN_MODULE_ENTRY(SCREEN_MODULE_PLAYING, bind),
-    .charge_draw = charge_art_draw,
-    .charge_observe = charge_art_observe,
     .section = browse_sections_at,
     .sections = browse_sections_range};

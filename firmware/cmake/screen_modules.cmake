@@ -23,6 +23,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_effects
 set(ECHO_SCREEN_MODULE_SOURCES_source
     platform/device/logic/audio_source_entry.c
     platform/device/logic/core1_open_flac.c
+    platform/device/logic/core1_open_mp3.c
+    platform/device/logic/mp3_probe.c
     platform/device/logic/flac_source_open.c
     src/codec/flac.c
     src/codec/flac_bits.c
@@ -64,6 +66,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
     platform/device/logic/fat_delete.c
     platform/device/board/debug_rtc.c
     platform/device/logic/rtc_time.c
+    platform/device/logic/rtc_registers.c
+    src/core/calendar.c
     src/gfx/wireframe.c
     src/ui/wire_figure.c
     src/ui/wire_motion.c
@@ -76,12 +80,13 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/app/screens/playing_work.c
     src/core/audio_visual.c
     src/app/screens/cover_flow_screen.c
+    src/app/board_cover_layout.c
+    src/app/cover_cache_half.c
+    src/core/random_below.c
     src/app/cover_placeholders.c
     src/app/screens/up_next_screen.c
     src/app/queue_actions.c
     src/app/queue_edits.c
-    src/app/screens/charge_rate.c
-    src/app/screens/charge_art.c
     src/ui/cover_flow.c
     src/ui/placeholder_art.c
     src/gfx/image_quad.c
@@ -134,6 +139,13 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
+    platform/device/board/headset_reading.c
+    platform/device/logic/headset_dips_view.c
+    platform/device/logic/headset_monitor_reading.c
+    src/app/screens/charge_rate.c
+    src/app/screens/charge_art.c
+    src/app/screens/lyrics_screen.c
+    src/library/lyrics.c
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
     src/app/mixtape_store.c
@@ -146,6 +158,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/playback/mix_resolve.c
     src/playback/mix_tape.c
     src/app/screens/calendar_screen.c
+    src/core/calendar.c
     src/core/calendar_view.c
     src/app/screens/cassette_flip_screen.c
     src/app/screens/clock_screen.c
@@ -159,6 +172,9 @@ set(ECHO_SCREEN_MODULE_UI_SOURCES src/app/home_art.c src/app/home_art_backdrop.c
 list(APPEND ECHO_SCREEN_MODULE_SOURCES_playing ${ECHO_SCREEN_MODULE_UI_SOURCES})
 set(ECHO_SCREEN_MODULE_FAST_SOURCES src/gfx/image_quad.c)
 set(ECHO_SCREEN_MODULE_SOURCES_settings
+    platform/device/board/card_eject.c
+    platform/device/board/sd_allocation.c
+    src/app/app_screens_home.c
     platform/device/board/card_format.c
     platform/device/logic/card_format.c
     src/app/screens/card_format_screen.c
@@ -174,6 +190,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/modules/settings_module.c
     src/app/settings_screens.c
     src/app/screens/set_clock_screen.c
+    src/core/calendar.c
     src/app/settings_actions.c
     src/app/settings_preview.c
     src/app/button_settings.c
@@ -202,15 +219,17 @@ set(ECHO_SCREEN_MODULE_SOURCES_library
 )
 set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/app/modules/listening_module.c
+    src/core/calendar.c
+    src/app/listening_store_view.c
     src/app/screens/listening_screen.c
     src/app/screens/moments_screen.c
     src/playback/moments.c
-    src/app/screens/lyrics_screen.c
     src/app/screens/listening_work.c
     src/app/screens/recap_cards.c
     src/app/screens/smart_list_screen.c
     src/app/order_publish.c
     src/app/order_adopt.c
+    src/playback/listening_cursor.c
     src/playback/listening_stats.c
     src/playback/listening_recap.c
     src/playback/smart_list.c
@@ -218,7 +237,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/playback/listening_export.c
     src/playback/listening_clear.c
     src/app/listening_clear.c
-    src/library/lyrics.c
+    src/app/cover_cache_half.c
 )
 if(ECHO_RELEASE)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu_release.c)
@@ -231,6 +250,8 @@ else()
         platform/device/board/debug_poke.c
         platform/device/board/debug_rtc.c
         platform/device/logic/rtc_time.c
+        platform/device/logic/rtc_registers.c
+        src/core/calendar.c
     )
 endif()
 

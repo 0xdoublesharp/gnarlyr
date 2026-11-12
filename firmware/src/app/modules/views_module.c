@@ -1,5 +1,6 @@
 #include "mixtape_ui_private.h"
 #include "modules/modules.h"
+#include "screens/charge_screen.h"
 
 static void bind(AppScreens *screens)
 {
@@ -18,6 +19,8 @@ static void bind(AppScreens *screens)
                                              .now_playing = &screens->now_playing.screen,
                                              .up_next = &screens->modules.playing.up_next.screen,
                                              .motion = context->motion});
+    lyrics_screen_init(&own->lyrics, (LyricsScreenConfig){context->player, &context->store->library,
+                                                          context->theme});
 }
 
 const ViewsModuleEntry VIEWS_MODULE_ENTRY = {
@@ -25,4 +28,6 @@ const ViewsModuleEntry VIEWS_MODULE_ENTRY = {
     .cancel = mixtape_ui_cancel,
     .step = mixtape_ui_step,
     .add = mixtape_ui_add,
+    .charge_observe = charge_art_observe,
+    .charge_draw = charge_art_draw,
 };

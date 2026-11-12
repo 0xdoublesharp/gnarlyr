@@ -83,17 +83,13 @@ static uint16_t samples_per_frame(uint32_t version, uint32_t layer)
 
 static bool parse_header(const uint8_t *bytes, Header *header)
 {
-    if (bytes[0] != 0xFF || (bytes[1] & 0xE0) != 0xE0) {
+    if (!mp3_header_valid(bytes)) {
         return false;
     }
     uint32_t version = (uint32_t)(bytes[1] >> 3) & 3u;
     uint32_t layer_bits = (uint32_t)(bytes[1] >> 1) & 3u;
     uint32_t bitrate_index = (uint32_t)bytes[2] >> 4;
     uint32_t rate_index = (uint32_t)(bytes[2] >> 2) & 3u;
-    if (version == 1 || layer_bits == 0 || bitrate_index == 0 || bitrate_index == 15 ||
-        rate_index == 3) {
-        return false;
-    }
     uint32_t layer = 4 - layer_bits;
     uint32_t kbps = version == MPEG_1 ? MPEG_1_BITRATES[layer - 1][bitrate_index]
                                       : MPEG_2_BITRATES[layer == 1 ? 0 : 1][bitrate_index];
@@ -111,12 +107,6 @@ static bool parse_header(const uint8_t *bytes, Header *header)
                        .length = length,
                        .samples = samples};
     return true;
-}
-
-bool mp3_signature(const uint8_t bytes[MP3_SIGNATURE_BYTES])
-{
-    Header header;
-    return same_tag(bytes, "ID3", 3) || parse_header(bytes, &header);
 }
 
 static uint32_t syncsafe(const uint8_t *bytes)
