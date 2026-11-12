@@ -322,6 +322,11 @@ void hal_audio_set_volume(uint8_t level)
     unlock();
 }
 
+void hal_audio_set_bluetooth_volume(uint8_t level)
+{
+    (void)level;
+}
+
 HeadphoneAudio hal_audio_headphones(void)
 {
     return audio.headphones;

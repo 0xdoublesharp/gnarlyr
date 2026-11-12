@@ -808,6 +808,15 @@ static void the_balanced_curve_sits_ten_units_lower(void)
     CHECK_EQUAL(0x0A, dac_volume_value(60, DAC_CURVE_BALANCED));
 }
 
+static void the_bluetooth_curve_tops_out_at_stocks_minus_five_db(void)
+{
+    CHECK_EQUAL(0xFF, dac_volume_value(0, DAC_CURVE_BLUETOOTH));
+    CHECK_EQUAL(0x80, dac_volume_value(1, DAC_CURVE_BLUETOOTH));
+    CHECK_EQUAL(0x1E, dac_volume_value(50, DAC_CURVE_BLUETOOTH));
+    CHECK_EQUAL(0x0A, dac_volume_value(60, DAC_CURVE_BLUETOOTH));
+    CHECK_EQUAL(0x0A, dac_volume_value(80, DAC_CURVE_BLUETOOTH));
+}
+
 static void a_volume_ramp_moves_six_units_a_step_and_lands_on_the_target(void)
 {
     CHECK_EQUAL(0xF9, dac_ramp_next(0xFF, 0x02));
@@ -850,6 +859,7 @@ int main(void)
         TEST_CASE(the_gain_setting_writes_the_headphone_gain_register),
         TEST_CASE(volume_levels_map_onto_the_pcm_volume_scale),
         TEST_CASE(the_balanced_curve_sits_ten_units_lower),
+        TEST_CASE(the_bluetooth_curve_tops_out_at_stocks_minus_five_db),
         TEST_CASE(a_volume_ramp_moves_six_units_a_step_and_lands_on_the_target),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

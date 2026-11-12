@@ -392,7 +392,7 @@ class CompanionSettings(VolumeCase):
     def test_version16_unallocated_or_out_of_range_f_bits_are_refused_before_writes(self):
         self.use_current_layout()
         for offset, value in ((58, 0x10), (58, 0x80), (58, 0x0C), (58, 0x0F), (59, 0x08), (59, 0x80),
-                              (60, 1), (66, 0x40), (73, 0x80)):
+                              (60, 62), (66, 0x40), (73, 0x80)):
             with self.subTest(offset=offset, value=value):
                 data = bytearray(saved_settings(16, 4))
                 data[offset] = value

@@ -559,7 +559,7 @@ class LanguageCommands(VolumeCase):
                 self.version16_refused(bytes(data))
 
     def test_version16_nonzero_unallocated_f_bits_cannot_be_verified(self):
-        for offset, value in ((58, 0x10), (58, 0x40), (58, 0x0C), (59, 0x08), (59, 0xF0), (60, 1), (73, 0x80)):
+        for offset, value in ((58, 0x10), (58, 0x40), (58, 0x0C), (59, 0x08), (59, 0xF0), (60, 62), (73, 0x80)):
             with self.subTest(offset=offset, value=value):
                 block = bytearray(F_BLOCK)
                 block[offset - 58] = value

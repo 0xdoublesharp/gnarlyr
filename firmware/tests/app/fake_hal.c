@@ -49,6 +49,7 @@ typedef struct FakeAudio {
     int seek_count;
     uint32_t last_seek_ms;
     uint8_t volume;
+    uint8_t bluetooth_volume;
     HalAudioGain gain;
     HalAudioFilter filter;
     uint8_t volume_at_gain;
@@ -718,6 +719,11 @@ uint8_t fake_hal_audio_volume(void)
     return fake.audio.volume;
 }
 
+uint8_t fake_hal_audio_bluetooth_volume(void)
+{
+    return fake.audio.bluetooth_volume;
+}
+
 int fake_hal_audio_state(void)
 {
     return (int)fake.audio.status.state;
@@ -793,6 +799,11 @@ void hal_audio_seek(uint32_t position_ms)
 void hal_audio_set_volume(uint8_t level)
 {
     fake.audio.volume = headphone_audio_limit(fake.audio.headphones, level);
+}
+
+void hal_audio_set_bluetooth_volume(uint8_t level)
+{
+    fake.audio.bluetooth_volume = level;
 }
 
 void hal_audio_set_headphones(HeadphoneAudio profile)

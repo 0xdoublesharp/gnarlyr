@@ -105,6 +105,7 @@ static uint32_t stopped_since_ms;
 static bool tone_active;
 static char last_path[AUDIO_ENGINE_PATH_CAPACITY];
 static uint8_t volume_level;
+static uint8_t bluetooth_level;
 static uint8_t extra_attenuation;
 static HeadphoneAudio headphones;
 static bool headphones_set;
@@ -591,7 +592,7 @@ CORE_SEAM void hal_audio_seek(uint32_t position_ms)
 static DacCurve output_curve(void)
 {
     if (board_bluetooth_routed()) {
-        return DAC_CURVE_SINGLE_ENDED;
+        return DAC_CURVE_BLUETOOTH;
     }
     switch (output_setting) {
     case HAL_AUDIO_OUTPUT_SINGLE_ENDED:
@@ -605,11 +606,18 @@ static DacCurve output_curve(void)
                                                        : DAC_CURVE_SINGLE_ENDED;
 }
 
+static uint8_t routed_level(void)
+{
+    if (board_bluetooth_routed()) {
+        return bluetooth_level;
+    }
+    return headphone_audio_limit(hal_audio_headphones(), volume_level);
+}
+
 static void apply_volume(void)
 {
     if (volume_set) {
-        uint8_t level = headphone_audio_limit(hal_audio_headphones(), volume_level);
-        uint32_t value = dac_volume_value(level, output_curve()) + extra_attenuation;
+        uint32_t value = dac_volume_value(routed_level(), output_curve()) + extra_attenuation;
         dac_path_set_volume(value < DAC_VOLUME_MUTED ? (uint8_t)value : DAC_VOLUME_MUTED);
     }
 }
@@ -619,6 +627,17 @@ void hal_audio_set_volume(uint8_t level)
     volume_level = headphone_audio_limit(hal_audio_headphones(), level);
     volume_set = true;
     apply_volume();
+}
+
+void hal_audio_set_bluetooth_volume(uint8_t level)
+{
+    bluetooth_level = level < HAL_AUDIO_VOLUME_MAX ? level : HAL_AUDIO_VOLUME_MAX;
+    apply_volume();
+}
+
+static HeadphoneAudio engine_headphones(void)
+{
+    return board_bluetooth_routed() ? headphone_audio_defaults() : hal_audio_headphones();
 }
 
 CORE_COLD HeadphoneAudio hal_audio_headphones(void)
@@ -633,7 +652,7 @@ CORE_SEAM CORE_COLD void hal_audio_set_headphones(HeadphoneAudio profile)
     headphones = profile;
     headphones_set = true;
     ensure_engine();
-    audio_engine_set_headphones(&engine, profile);
+    audio_engine_set_headphones(&engine, engine_headphones());
     apply_volume();
 }
 
@@ -1076,5 +1095,8 @@ CORE_SEAM bool board_audio_bluetooth_start(void)
 
 void board_audio_output_changed(void)
 {
+    if (engine_ready) {
+        audio_engine_set_headphones(&engine, engine_headphones());
+    }
     apply_volume();
 }

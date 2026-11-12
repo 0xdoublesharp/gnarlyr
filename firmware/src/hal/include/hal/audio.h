@@ -158,6 +158,7 @@ void hal_audio_resume(void);
 void hal_audio_release(void);
 void hal_audio_seek(uint32_t position_ms);
 void hal_audio_set_volume(uint8_t level);
+void hal_audio_set_bluetooth_volume(uint8_t level);
 void hal_audio_set_headphones(HeadphoneAudio profile);
 HeadphoneAudio hal_audio_headphones(void);
 void hal_audio_set_gain(HalAudioGain gain);

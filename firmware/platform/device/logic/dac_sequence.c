@@ -28,6 +28,7 @@ enum {
 
 enum {
     BALANCED_ATTENUATION_VALUE = 10,
+    BLUETOOTH_TOP_VALUE = 10,
     VOLUME_UNITS_PER_STEP = 2,
     RAMP_STEP = 6,
     GAIN_HIGH_VALUE = 0x31,
@@ -37,6 +38,11 @@ enum {
 static const uint8_t CHIPS[CHIP_COUNT] = {DAC_LEFT_ADDRESS, DAC_RIGHT_ADDRESS};
 static const uint32_t IDENTITY_MAPS[DAC_IDENTITY_BYTES] = {0x010000, 0x010001, 0x010002, 0x010004,
                                                            0x010005};
+static const uint8_t CURVE_TOP_VALUES[] = {
+    [DAC_CURVE_SINGLE_ENDED] = 0,
+    [DAC_CURVE_BALANCED] = BALANCED_ATTENUATION_VALUE,
+    [DAC_CURVE_BLUETOOTH] = BLUETOOTH_TOP_VALUE,
+};
 static const uint8_t CHANNEL_VALUES[CHIP_COUNT] = {0x07, 0x0F};
 
 static const uint32_t AFTER_STATUS[] = {
@@ -302,8 +308,7 @@ uint8_t dac_volume_value(uint8_t level, DacCurve curve)
         return DAC_VOLUME_MUTED;
     }
     uint32_t capped = level < DAC_VOLUME_LEVELS ? level : DAC_VOLUME_LEVELS;
-    uint32_t offset = curve == DAC_CURVE_BALANCED ? BALANCED_ATTENUATION_VALUE : 0;
-    return (uint8_t)(offset + VOLUME_UNITS_PER_STEP * (DAC_VOLUME_LEVELS - capped));
+    return (uint8_t)(CURVE_TOP_VALUES[curve] + VOLUME_UNITS_PER_STEP * (DAC_VOLUME_LEVELS - capped));
 }
 
 void dac_output_on(const DacBus *bus, uint8_t volume)

@@ -6,6 +6,7 @@
 #include "core/format.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
+#include "hal/bluetooth.h"
 #include "hal/clock.h"
 #include "hal/storage.h"
 #include "library/library_gain.h"
@@ -317,9 +318,11 @@ void player_init(Player *player, const Library *library)
     player->fingerprint = library_fingerprint(library);
     player->queue.library = library;
     player->volume = PLAYER_DEFAULT_VOLUME;
+    player->bluetooth_volume = PLAYER_DEFAULT_BLUETOOTH_VOLUME;
     player->prevent_clipping = true;
     player->jack = hal_audio_jack();
     hal_audio_set_volume(player->volume);
+    hal_audio_set_bluetooth_volume(player->bluetooth_volume);
 }
 
 void player_set_resume(Player *player, PlayerResume resume)
@@ -456,17 +459,36 @@ void player_seek(Player *player, uint32_t position_ms)
     }
 }
 
+PlayerOutput player_output(void)
+{
+    bool bluetooth = hal_bluetooth_status()->state == HAL_BLUETOOTH_CONNECTED &&
+                     hal_audio_jack() == HAL_AUDIO_JACK_NONE;
+    return bluetooth ? PLAYER_OUTPUT_BLUETOOTH : PLAYER_OUTPUT_WIRED;
+}
+
+uint8_t player_volume(const Player *player, PlayerOutput output)
+{
+    return output == PLAYER_OUTPUT_BLUETOOTH ? player->bluetooth_volume : player->volume;
+}
+
+void player_set_volume(Player *player, PlayerOutput output, uint8_t level)
+{
+    level = level < HAL_AUDIO_VOLUME_MAX ? level : HAL_AUDIO_VOLUME_MAX;
+    if (output == PLAYER_OUTPUT_BLUETOOTH) {
+        player->bluetooth_volume = level;
+        hal_audio_set_bluetooth_volume(level);
+        return;
+    }
+    player->volume = headphone_audio_limit(hal_audio_headphones(), level);
+    hal_audio_set_volume(player->volume);
+}
+
 void player_change_volume(Player *player, int delta)
 {
-    int level = player->volume + delta;
-    if (level < 0) {
-        level = 0;
-    }
-    if (level > HAL_AUDIO_VOLUME_MAX) {
-        level = HAL_AUDIO_VOLUME_MAX;
-    }
-    player->volume = headphone_audio_limit(hal_audio_headphones(), (uint8_t)level);
-    hal_audio_set_volume(player->volume);
+    PlayerOutput output = player_output();
+    int level = player_volume(player, output) + delta;
+    level = level < 0 ? 0 : level > HAL_AUDIO_VOLUME_MAX ? HAL_AUDIO_VOLUME_MAX : level;
+    player_set_volume(player, output, (uint8_t)level);
 }
 
 void player_set_shuffle(Player *player, ShuffleMode shuffle, uint32_t seed)
@@ -851,7 +873,7 @@ static void restore_position(Player *player, const ResumeState *state)
     player->paused_position_ms = state->position_ms;
     player->rewind_pause = RESUME_REWIND_COLD;
     note_spoken(player, player->track);
-    player_change_volume(player, (int)state->volume - (int)player->volume);
+    player_set_volume(player, PLAYER_OUTPUT_WIRED, state->volume);
 }
 
 bool player_restore(Player *player)
@@ -914,7 +936,9 @@ PlayerStatus player_status(const Player *player)
         .track = player->track,
         .position_ms = current_position(player),
         .duration_ms = known ? record.duration_ms : 0,
-        .volume = player->volume,
+        .volume = player_volume(player, player_output()),
+        .wired_volume = player->volume,
+        .bluetooth_volume = player->bluetooth_volume,
         .shuffle = player->shuffle,
         .repeat = player->repeat,
         .place = player->has_track ? play_queue_place(&player->queue) : (PlayQueuePlace){0, 0},

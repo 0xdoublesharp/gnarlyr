@@ -143,7 +143,8 @@ bool settings_store_set_clock_offset(SettingsStore *store, int16_t offset)
 
 void settings_store_capture(SettingsStore *store, PlayerStatus playback)
 {
-    store->settings.volume = playback.volume;
+    store->settings.volume = playback.wired_volume;
+    store->settings.bluetooth_volume = playback.bluetooth_volume;
     store->settings.shuffle = playback.shuffle;
     store->settings.repeat = playback.repeat;
 }
@@ -151,7 +152,8 @@ void settings_store_capture(SettingsStore *store, PlayerStatus playback)
 void settings_store_restore_playback(const SettingsStore *store, Player *player, uint32_t seed)
 {
     const Settings *settings = &store->settings;
-    player_change_volume(player, (int)settings->volume - (int)player_status(player).volume);
+    player_set_volume(player, PLAYER_OUTPUT_WIRED, settings->volume);
+    player_set_volume(player, PLAYER_OUTPUT_BLUETOOTH, settings->bluetooth_volume);
     player_set_shuffle(player, settings->shuffle, seed);
     player_set_repeat(player, settings->repeat);
     player_set_replay_gain(player, (ReplayGainMode)settings->replay_gain_mode,

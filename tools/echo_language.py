@@ -22,10 +22,12 @@ F_FIELD = 58
 F_SIZE = 16
 F_CHECKSUM_FIELD = 74
 F_FILE_SIZE = 78
+F2_VOLUME = "bytes[60]=(uint8_t)((settings->bluetooth_volume<SETTINGS_VOLUME_MAX?"
+F2_LIMIT = 61
 F_LAYOUT = (
     "bytes[53]=16;hash_store(bytes+EXTENSION_CHECKSUM_FIELD,checksum_of(bytes,EXTENSION_CHECKSUM_FIELD));",
     "bytes[58]=(uint8_t)(settings->status_bar_compact|settings->standby_enabled<<1|"
-    "settings->standby_power_off_option<<2);bytes[59]=settings->long_press_action&7u;"
+    "settings->standby_power_off_option<<2);bytes[59]=settings->long_press_action&7u;",
     "hash_store(bytes+74,hash_update(HASH_START,bytes+58,16));",
     "extension[15]==(bytes[VERSION_FIELD]>=16?16:0);",
     "bytes[VERSION_FIELD]>=16&&length>=SETTINGS_FILE_SIZE&&"
@@ -69,6 +71,7 @@ class Snapshot:
         self.format = pack_tools(api.ROOT)
         self.flags_reserved = 0xF8
         self.status_items_supported = False
+        self.f2_volume = False
         try:
             self.commit = git(api.ROOT, "rev-parse", "--verify", build + "^{commit}").strip()
             self.build = build
@@ -129,6 +132,7 @@ class Snapshot:
                 (constant(source, "EXTENSION_SIZE"), constant(source, "CHECKSUM_SIZE")) != (F_SIZE, 4) or
                 not all(fragment in compact for fragment in F_LAYOUT)):
             raise ValueError("the installed version 16 settings layout is unsupported")
+        self.f2_volume = F2_VOLUME in compact
 
     def check_home_layout(self):
         header = self.show("firmware/src/settings/include/settings/settings.h")
@@ -184,7 +188,8 @@ class Snapshot:
         stored = int.from_bytes(data[F_CHECKSUM_FIELD:F_CHECKSUM_FIELD + 4], "little")
         return (self.settings_version >= F_VERSION and len(data) >= F_FILE_SIZE and
                 self.format.fnv(block) == stored and block[0] & 0xF0 == 0 and block[0] >> 2 < 3 and
-                block[1] & 0xF8 == 0 and not any(block[2:]))
+                block[1] & 0xF8 == 0 and block[2] <= (F2_LIMIT if self.f2_volume else 0) and
+                not any(block[3:]))
 
     def show(self, path):
         return git(self.api.ROOT, "show", self.commit + ":" + path)
