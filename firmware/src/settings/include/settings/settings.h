@@ -152,6 +152,7 @@ enum {
     SETTINGS_VOLUME_MAX = 60,
     SETTINGS_DEFAULT_DAC_VOLUME = 35,
     SETTINGS_DEFAULT_BLUETOOTH_VOLUME = 50,
+    SETTINGS_BLUETOOTH_SAFE_START_VOLUME = 50,
     SCREEN_TIMEOUT_OPTION_COUNT = 7,
     SLEEP_TIMER_OPTION_COUNT = 7,
     AUTO_OFF_OPTION_COUNT = 4,
@@ -243,6 +244,7 @@ uint32_t settings_screen_timeout_ms(const Settings *settings);
 uint32_t settings_auto_off_option_minutes(int option);
 uint32_t settings_auto_off_ms(const Settings *settings);
 uint8_t settings_safe_start_volume(const Settings *settings, uint8_t volume);
+uint8_t settings_safe_start_bluetooth_volume(const Settings *settings, uint8_t volume);
 SettingsEqualizerCurve settings_equalizer_curve(const Settings *settings);
 void settings_encode(const Settings *settings, uint8_t *bytes);
 bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings);

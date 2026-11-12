@@ -250,6 +250,12 @@ uint8_t settings_safe_start_volume(const Settings *settings, uint8_t volume)
     return capped ? settings->safe_start_volume_level : volume;
 }
 
+uint8_t settings_safe_start_bluetooth_volume(const Settings *settings, uint8_t volume)
+{
+    bool capped = settings->safe_start_volume && volume > SETTINGS_BLUETOOTH_SAFE_START_VOLUME;
+    return capped ? (uint8_t)SETTINGS_BLUETOOTH_SAFE_START_VOLUME : volume;
+}
+
 static void add_band(SettingsEqualizerCurve *curve, uint16_t hz, int gain)
 {
     if (gain != 0) {
