@@ -277,18 +277,14 @@ static Color glow_color(const Theme *theme, Color lit, uint8_t glow, bool mounte
     return mounted ? color_between(rest, lit, glow, USB_METER_GLOW_FULL) : rest;
 }
 
-static uint8_t brighter(uint8_t first, uint8_t second)
-{
-    return first > second ? first : second;
-}
-
 static void draw_lights(const UsbPainter *painter, const DriveRow *row, DriveView view)
 {
     const Theme *theme = painter->theme;
     bool mounted = view.drive.state == USB_SCENE_DRIVE_MOUNTED;
-    uint8_t glow = brighter(view.usage.read_glow, view.usage.write_glow);
+    bool used = mounted && view.usage.reads + view.usage.writes != 0;
     canvas_fill_rect(painter->canvas, row->led,
-                     glow_color(theme, theme->colors.success, glow, mounted));
+                     used ? theme->colors.success
+                          : glow_color(theme, theme->colors.success, 0, mounted));
     Rect down = {row->arrows.x, row->arrows.y, row->arrows.height, row->arrows.height};
     Rect up = {row->arrows.x + row->arrows.width - row->arrows.height, row->arrows.y,
                row->arrows.height, row->arrows.height};
