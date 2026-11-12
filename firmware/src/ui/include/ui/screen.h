@@ -29,6 +29,7 @@ struct Screen {
     bool hold_volume_keys;
     bool takes_every_key;
     bool stays_on_wake;
+    bool fast_list;
     uint16_t header_title_width;
     void (*enter)(void *context, uint32_t now_ms);
     ScreenAction (*handle_key)(void *context, KeyEvent event, uint32_t now_ms);

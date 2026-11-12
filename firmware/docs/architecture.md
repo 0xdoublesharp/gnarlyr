@@ -266,6 +266,14 @@ Every text a user reads comes from a language pack. English is the only language
 - Browse queries (`library/library_browse`) answer three questions for any view: how many rows there are, what row N is, and what selecting it opens. They read records and strings on demand and never load the database into RAM.
 - Browse screens come from a fixed pool of 6 levels. They share one cache of the visible rows' text, which is refreshed in `update` (never during `draw`) whenever the visible rows change.
 
+### List sections and artist queues
+
+`ListModel.sections` bounds the current name-sorted run. The shared list view uses binary lower bounds over the library's fixed-record and link indices, with the same hold thresholds as Cover Flow. Fast row steps clamp at the next section boundary before letter jumps begin. A descending view reverses comparison order while retaining its displayed badge. Folders and spoken shelves keep separate folder and disc/number file runs; sequence-ordered lists do not claim alphabetical sections. The views module owns browse section metadata and full Unicode sort keys; resident callbacks load that module, and browse screens belong to it for transition and eviction purposes. Search result and picker sections stay in the library module. Both read `sort_key_make` rather than a separate approximation of Unicode folding.
+
+Long lists request a 240 ms repeat delay and 80 ms repeat interval; ordinary lists retain 400/120 ms. Shared acceleration begins after 400 ms and section jumps after 600 ms. Input dispatch drains events before refreshing the visible row cache and rendering, so pending selections share one redraw. Adjacent unconsumed volume repeats collapse to the newest repeat, and released repeat keys discard stale repeats.
+
+Holding Play on a group opens the library module's Play all / Shuffle albums actions. `library/album_order` counts linked albums incrementally, rejects totals above 65,535, and streams whole album track ranges in stored year/title order or a seeded album permutation. `discovery_playback` publishes that stream through `order_publish` with a 2 ms work budget. The resident stored-order owner and session journal keep all track indices and positions across module eviction and restart. Cancellation aborts publication before leaving the module. Library v6 has no composer field or composer list.
+
 ## Playback
 
 - `hal/audio.h` is high level: `play(path, start, token)`, `queue_next(path, token)`, pause, resume, seek, volume and status. The backend decodes; on the device that's `board/audio.c` (see Device playback).

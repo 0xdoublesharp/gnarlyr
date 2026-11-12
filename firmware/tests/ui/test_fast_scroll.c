@@ -74,8 +74,8 @@ static void holding_moves_one_row_at_a_time_at_first(void)
 {
     start(&SECTIONED, 0);
     press_down();
-    repeat_down_at(400);
-    repeat_down_at(400 + REPEAT_MS);
+    repeat_down_at(120);
+    repeat_down_at(120 + REPEAT_MS);
     CHECK_EQUAL(3, view.selected);
 }
 
@@ -133,8 +133,79 @@ static void a_new_press_starts_slow_again(void)
     int after_fast = view.selected;
     now_ms += 500;
     press_down();
-    repeat_down_at(now_ms - 1000 + 400);
+    repeat_down_at(now_ms - 1000 + 200);
     CHECK_EQUAL(after_fast + 2, view.selected);
+}
+
+static int sparse_section(const void *context, int index)
+{
+    (void)context;
+    return index < 5 ? 1 : index == 5 ? 3 : index < 20 ? 8 : 27;
+}
+
+static void acceleration_cannot_skip_a_one_row_section(void)
+{
+    ListModel sparse = SECTIONED;
+    sparse.section = sparse_section;
+    start(&sparse, 3);
+    press_down();
+    repeat_down_at(LIST_FAST_SCROLL_AFTER_MS);
+    CHECK_EQUAL(5, view.selected);
+    repeat_down_at(LIST_FAST_SCROLL_AFTER_MS + REPEAT_MS);
+    CHECK_EQUAL(6, view.selected);
+}
+
+static void reverse_acceleration_cannot_skip_a_one_row_section(void)
+{
+    ListModel sparse = SECTIONED;
+    sparse.section = sparse_section;
+    start(&sparse, 8);
+    press_up();
+    repeat_up_at(LIST_FAST_SCROLL_AFTER_MS);
+    CHECK_EQUAL(6, view.selected);
+    repeat_up_at(LIST_FAST_SCROLL_AFTER_MS + REPEAT_MS);
+    CHECK_EQUAL(5, view.selected);
+}
+
+static void short_lists_do_not_accelerate_or_show_a_badge(void)
+{
+    start(&SECTIONED, 0);
+    view.visible_rows = ITEM_COUNT;
+    press_down();
+    repeat_down_at(LIST_SECTION_JUMP_AFTER_MS);
+    CHECK_EQUAL(2, view.selected);
+    CHECK_EQUAL(0, view.section_shown_until_ms);
+}
+
+static void empty_sections_and_both_ends_are_safe(void)
+{
+    ListModel sparse = SECTIONED;
+    sparse.section = sparse_section;
+    start(&sparse, 4);
+    press_down();
+    repeat_down_at(LIST_SECTION_JUMP_AFTER_MS);
+    CHECK_EQUAL(6, view.selected);
+    repeat_down_at(LIST_SECTION_JUMP_AFTER_MS + REPEAT_MS);
+    CHECK_EQUAL(20, view.selected);
+    list_view_select(&view, 0, now_ms);
+    repeat_up_at(LIST_SECTION_JUMP_AFTER_MS + REPEAT_MS * 2);
+    CHECK_EQUAL(0, view.selected);
+}
+
+static ListSections mixed_sections(const void *context, int index)
+{
+    (void)context;
+    return index < 10 ? (ListSections){0, 10} : (ListSections){10, ITEM_COUNT};
+}
+
+static void reverse_jumps_can_leave_a_sorted_run(void)
+{
+    ListModel mixed = SECTIONED;
+    mixed.sections = mixed_sections;
+    start(&mixed, 11);
+    press_up();
+    repeat_up_at(LIST_SECTION_JUMP_AFTER_MS);
+    CHECK_EQUAL(9, view.selected);
 }
 
 static Rect centre(void)
@@ -188,6 +259,11 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(holding_moves_one_row_at_a_time_at_first),
+        TEST_CASE(acceleration_cannot_skip_a_one_row_section),
+        TEST_CASE(reverse_acceleration_cannot_skip_a_one_row_section),
+        TEST_CASE(short_lists_do_not_accelerate_or_show_a_badge),
+        TEST_CASE(empty_sections_and_both_ends_are_safe),
+        TEST_CASE(reverse_jumps_can_leave_a_sorted_run),
         TEST_CASE(holding_longer_moves_several_rows_a_step),
         TEST_CASE(a_long_hold_jumps_to_the_next_section),
         TEST_CASE(jumping_back_lands_on_the_start_of_each_section),

@@ -157,7 +157,7 @@ static void holding_volume_accelerates_across_albums(void)
     volume(KEY_VOLUME_UP, KEY_GESTURE_PRESS, 100);
     CHECK_EQUAL(2, flow.target);
     volume(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 100 + LIST_FAST_SCROLL_AFTER_MS);
-    CHECK_EQUAL(5, flow.target);
+    CHECK_EQUAL(4, flow.target);
 }
 
 static void a_long_hold_jumps_to_the_next_artist_letter(void)
@@ -240,7 +240,7 @@ static void hold_timing_survives_the_millisecond_clock_wrapping(void)
     start_flow(fixture_library_open(&fixture));
     volume(KEY_VOLUME_UP, KEY_GESTURE_PRESS, UINT32_MAX - 1000);
     volume(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 500);
-    CHECK_EQUAL(5, flow.target);
+    CHECK_EQUAL(4, flow.target);
 }
 
 static void the_letter_badge_is_visible_then_expires_in_every_screen_layout(void)
@@ -272,9 +272,18 @@ static void the_letter_badge_is_visible_then_expires_in_every_screen_layout(void
     }
 }
 
+static void preparing_cover_flow_does_not_walk_the_library_before_it_opens(void)
+{
+    Library *library = fixture_library_open(&fixture);
+    int before = fixture.memory.reads;
+    cover_flow_screen_init(&flow, (CoverFlowConfig){.library = library, .theme = &BOARD_THEME});
+    CHECK_EQUAL(before, fixture.memory.reads);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(preparing_cover_flow_does_not_walk_the_library_before_it_opens),
         TEST_CASE(albums_follow_their_album_artists),
         TEST_CASE(each_album_is_found_where_it_is_shown),
         TEST_CASE(every_album_of_a_big_library_is_shown_once),

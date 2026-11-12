@@ -46,6 +46,14 @@ static bool long_press_due(const KeyTracker *tracker, Key key, uint32_t now_ms)
 
 static void push_event(KeyTracker *tracker, Key key, KeyGesture gesture)
 {
+    if (gesture == KEY_GESTURE_REPEAT && repeats(tracker, key) && tracker->queue_length > 0) {
+        uint32_t last =
+            (tracker->queue_start + tracker->queue_length - 1) % KEY_TRACKER_QUEUE_CAPACITY;
+        if (tracker->queue[last].key == key && tracker->queue[last].gesture == KEY_GESTURE_REPEAT) {
+            tracker->queue[last].repeats = tracker->states[key].repeats;
+            return;
+        }
+    }
     if (tracker->queue_length == KEY_TRACKER_QUEUE_CAPACITY) {
         return;
     }
@@ -222,11 +230,14 @@ void key_tracker_update(KeyTracker *tracker, uint32_t now_ms)
 
 bool key_tracker_next_event(KeyTracker *tracker, KeyEvent *event)
 {
-    if (tracker->queue_length == 0) {
-        return false;
+    while (tracker->queue_length > 0) {
+        *event = tracker->queue[tracker->queue_start];
+        tracker->queue_start = (tracker->queue_start + 1) % KEY_TRACKER_QUEUE_CAPACITY;
+        tracker->queue_length--;
+        if (event->gesture != KEY_GESTURE_REPEAT || !repeats(tracker, event->key) ||
+            tracker->states[event->key].held) {
+            return true;
+        }
     }
-    *event = tracker->queue[tracker->queue_start];
-    tracker->queue_start = (tracker->queue_start + 1) % KEY_TRACKER_QUEUE_CAPACITY;
-    tracker->queue_length--;
-    return true;
+    return false;
 }

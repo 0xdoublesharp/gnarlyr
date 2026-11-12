@@ -8,7 +8,6 @@
 #include "favorite_playlist.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
-#include "library/sort_key.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/list_navigation.h"
@@ -193,40 +192,16 @@ static bool row_opens(const void *context, int index)
     return rows != NULL && row >= 0 && row < rows->count && rows->opens[row];
 }
 
-static bool is_lettered(BrowseKind kind)
-{
-    switch (kind) {
-    case BROWSE_ARTISTS:
-    case BROWSE_ALBUM_ARTISTS:
-    case BROWSE_GENRES:
-    case BROWSE_ALBUMS:
-    case BROWSE_ALL_SONGS:
-    case BROWSE_PLAYLISTS:
-        return true;
-    case BROWSE_GROUP_ALBUMS:
-    case BROWSE_ALBUM_TRACKS:
-    case BROWSE_FOLDER:
-    case BROWSE_FOLDER_TREE:
-    case BROWSE_SINGLE_TRACK:
-    case BROWSE_PLAYLIST_TRACKS:
-        break;
-    }
-    return false;
-}
-
 static int row_section(const void *context, int index)
 {
     const BrowseScreen *browse = context;
-    char label[BROWSE_LABEL_CAPACITY];
-    char detail[BROWSE_DETAIL_CAPACITY];
-    BrowseText text = {label, sizeof label, detail, sizeof detail};
-    BrowseItem item;
-    label[0] = '\0';
-    if (item_at(browse, index, &item)) {
-        browse_item_text(browse->pool->config.library, browse->query, item, text);
-    }
-    char initial[2] = {sort_key_initial(label), '\0'};
-    return list_section_of_key(initial);
+    return browse->pool->config.section(browse, index);
+}
+
+static ListSections row_sections(const void *context, int index)
+{
+    const BrowseScreen *browse = context;
+    return browse->pool->config.sections(browse, index);
 }
 
 static bool is_loaded_track(const BrowseScreen *browse, int index)
@@ -567,6 +542,7 @@ static void enter(void *context, uint32_t now_ms)
         collect_favorites(browse);
     }
     list_view_fit(&browse->list);
+    browse->screen.fast_list = browse->count > (uint32_t)browse->list.visible_rows;
     list_view_restart_marquee(&browse->list, now_ms);
     refresh_rows(browse);
 }
@@ -637,7 +613,8 @@ Screen *browse_pool_open(BrowsePool *pool, int level, BrowseQuery query)
                                 .label = row_label,
                                 .detail = row_detail,
                                 .opens = row_opens,
-                                .section = is_lettered(query.kind) ? row_section : NULL};
+                                .section = pool->config.section != NULL ? row_section : NULL,
+                                .sections = pool->config.sections != NULL ? row_sections : NULL};
     list_view_init(&browse->list, &browse->model, pool->config.theme, 0);
     browse->screen = (Screen){
         .title = browse->title,
@@ -663,7 +640,6 @@ Screen *browse_pool_open_favorites(BrowsePool *pool, int level)
     StringBuilder title = string_builder_make(browse->title, sizeof browse->title);
     string_builder_append(&title, i18n_text(STR_FAVORITES));
     browse->favorites_only = true;
-    browse->model.section = NULL;
     collect_favorites(browse);
     return screen;
 }

@@ -125,7 +125,11 @@ static int category(unsigned char first)
 
 static void the_initial_matches_the_first_byte_of_the_key(void)
 {
-    static const char *const NAMES[] = {"The Beatles",
+    static const char *const NAMES[] = {"ǅungla",
+                                        "Ḃand",
+                                        "The Ḃand",
+                                        "ﬃrst",
+                                        "The Beatles",
                                         "the  who",
                                         "The",
                                         "Thelonious",

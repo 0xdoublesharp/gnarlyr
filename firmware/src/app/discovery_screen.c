@@ -10,6 +10,7 @@
 #include "hal/audio.h"
 #include "hal/clock.h"
 #include "hal/storage.h"
+#include "library/sort_key.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/message_screen.h"
@@ -226,14 +227,17 @@ static Rect list_area(const DiscoveryScreen *screen)
 static void fit(DiscoveryScreen *screen)
 {
     list_view_fit_rows(&screen->list, list_view_rows_in(&screen->list, list_area(screen).height));
+    screen->screen.fast_list = screen->model.count(screen) > screen->list.visible_rows;
 }
 
 static void show_mode(DiscoveryScreen *screen, DiscoveryMode mode)
 {
     screen->mode = (uint8_t)mode;
+    screen->model.section_reverse = mode == DISCOVERY_RESULTS && screen->query.descending;
     screen->model.detail_below =
         mode == DISCOVERY_RESULTS || mode == DISCOVERY_FILTERS || mode == DISCOVERY_SORT;
-    screen->screen.title = mode == DISCOVERY_RESULTS && screen->query.text[0] == 0 &&
+    screen->screen.title = (mode == DISCOVERY_GROUP_ACTIONS ||
+                            (mode == DISCOVERY_RESULTS && screen->query.text[0] == 0)) &&
                                    screen->config.scope_title != NULL
                                ? screen->config.scope_title
                                : i18n_text(mode_title(screen));
@@ -298,6 +302,8 @@ static int row_count(const void *context)
     case DISCOVERY_TAG_ACTIONS:
     case DISCOVERY_TAG_DELETE:
         return 2;
+    case DISCOVERY_GROUP_ACTIONS:
+        return 2;
     case DISCOVERY_ACTIONS:
         return sizeof ACTIONS / sizeof *ACTIONS;
     default:
@@ -322,6 +328,53 @@ static void album_name(const Library *library, uint16_t id, char *text, size_t c
     if (library_read_album(library, id, &album)) {
         library_read_string(library, album.title, text, capacity);
     }
+}
+
+static ListSections row_sections(const void *context, int index)
+{
+    const DiscoveryScreen *screen = context;
+    if (screen->mode == DISCOVERY_PICKER) {
+        LibrarySection section = picker_section(screen);
+        int split = (int)library_music_count(screen->config.library, section) + 1;
+        return index < split ? (ListSections){0, split} : (ListSections){split, row_count(screen)};
+    }
+    bool named = screen->query.sort == LIBRARY_VIEW_SORT_TITLE ||
+                 screen->query.sort == LIBRARY_VIEW_SORT_ARTIST ||
+                 screen->query.sort == LIBRARY_VIEW_SORT_ALBUM ||
+                 (screen->query.sort == LIBRARY_VIEW_SORT_ORIGINAL &&
+                  screen->query.source.kind == BROWSE_ALL_SONGS);
+    return (ListSections){0, screen->mode == DISCOVERY_RESULTS && named ? row_count(screen) : 0};
+}
+
+static int row_section(const void *context, int index)
+{
+    const DiscoveryScreen *screen = context;
+    const Library *library = screen->config.library;
+    char text[ROW_BYTES];
+    text[0] = 0;
+    if (screen->mode == DISCOVERY_PICKER && index > 0) {
+        if (screen->picker_kind == PICK_ALBUM) {
+            album_name(library, (uint16_t)(index - 1), text, sizeof text);
+        } else {
+            group_name(library, picker_section(screen), (uint16_t)(index - 1), text, sizeof text);
+        }
+    } else if (screen->mode == DISCOVERY_RESULTS) {
+        uint16_t id;
+        LibraryTrack track;
+        if (library_view_read(&work.view, (uint16_t)index, 1, &id) &&
+            library_read_track(library, id, &track)) {
+            if (screen->query.sort == LIBRARY_VIEW_SORT_ARTIST) {
+                group_name(library, LIBRARY_ARTISTS, track.artist, text, sizeof text);
+            } else if (screen->query.sort == LIBRARY_VIEW_SORT_ALBUM) {
+                album_name(library, track.album, text, sizeof text);
+            } else {
+                library_read_string(library, track.title, text, sizeof text);
+            }
+        }
+    }
+    char key[SORT_KEY_CAPACITY];
+    sort_key_make(text, key, sizeof key);
+    return list_section_of_key(key);
 }
 
 static uint16_t selected_track(const DiscoveryScreen *screen)
@@ -483,6 +536,10 @@ static void describe_row(DiscoveryScreen *screen, int index, char *label, char *
         break;
     case DISCOVERY_OPTIONS:
         copy_text(label, ROW_BYTES, i18n_text(OPTIONS[index]));
+        break;
+    case DISCOVERY_GROUP_ACTIONS:
+        copy_text(label, ROW_BYTES,
+                  i18n_text(index == 0 ? STR_PLAY_ALL_ALBUMS : STR_SHUFFLE_ALL_ALBUMS));
         break;
     case DISCOVERY_ACTIONS:
         copy_text(label, ROW_BYTES, i18n_text(ACTIONS[index]));
@@ -721,6 +778,11 @@ static void choose_tag(DiscoveryScreen *screen, int index)
 static void choose_row(DiscoveryScreen *screen, int index)
 {
     switch (screen->mode) {
+    case DISCOVERY_GROUP_ACTIONS:
+        screen->shuffle_albums = index != 0;
+        screen->play_position = 0;
+        screen->request = DISCOVERY_REQUEST_ALBUMS;
+        break;
     case DISCOVERY_RESULTS:
         if (work.view.state == LIBRARY_VIEW_READY && work.view.count != 0 && !busy_view()) {
             screen->play_position = (uint16_t)index;
@@ -876,6 +938,10 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
         return screen_action_pop_to_root();
     }
     if (navigation.intent == NAVIGATION_BACK) {
+        if (screen->mode == DISCOVERY_GROUP_ACTIONS) {
+            discovery_screen_cancel(screen);
+            return screen_action_pop();
+        }
         return back(screen);
     }
     if (screen->request != DISCOVERY_REQUEST_NONE || work.tag_change ||
@@ -1206,7 +1272,9 @@ Screen *discovery_screen_init(DiscoveryScreen *screen, DiscoveryScreenConfig con
                                 .label = row_label,
                                 .detail = row_detail,
                                 .opens = row_opens,
-                                .detail_below = true};
+                                .detail_below = true,
+                                .section = row_section,
+                                .sections = row_sections};
     screen->screen = (Screen){.title = i18n_text(STR_SEARCH_RESULTS),
                               .context = screen,
                               .takes_every_key = true,
@@ -1237,6 +1305,18 @@ Screen *discovery_screen_open(DiscoveryScreen *screen, BrowseQuery source, bool 
         begin_view(screen);
     }
     screen->initialized = true;
+    return &screen->screen;
+}
+
+Screen *discovery_screen_albums(DiscoveryScreen *screen, BrowseQuery source)
+{
+    ensure_work(screen);
+    discovery_screen_cancel(screen);
+    screen->query.source = source;
+    screen->auto_play = false;
+    screen->request = DISCOVERY_REQUEST_NONE;
+    screen->destination = NULL;
+    show_mode(screen, DISCOVERY_GROUP_ACTIONS);
     return &screen->screen;
 }
 
@@ -1275,7 +1355,9 @@ void discovery_screen_playback_done(DiscoveryScreen *screen, bool success)
     bool cancelled = screen->request == DISCOVERY_REQUEST_CANCEL_PLAY;
     screen->request = DISCOVERY_REQUEST_NONE;
     if (!success && !cancelled) {
-        notice(screen, STR_QUEUE_SAVE_FAILED, DISCOVERY_RESULTS);
+        notice(screen, STR_QUEUE_SAVE_FAILED,
+               screen->mode == DISCOVERY_GROUP_ACTIONS ? DISCOVERY_GROUP_ACTIONS
+                                                       : DISCOVERY_RESULTS);
     }
 }
 

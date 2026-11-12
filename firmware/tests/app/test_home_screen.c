@@ -11,6 +11,7 @@
 #include "fake_hal.h"
 #include "fixture_library.h"
 #include "hal/storage.h"
+#include "home_art.h"
 #include "music_check.h"
 #include "settings_store.h"
 #include "spoken_library.h"
@@ -510,6 +511,20 @@ static void the_reset_row_cannot_be_picked_up(void)
     CHECK(title_is(STR_MUSIC));
 }
 
+static void missing_cover_storage_does_not_walk_every_album(void)
+{
+    static FixtureLibrary fixture;
+    Library *library = fixture_library_open(&fixture);
+    LibraryStore library_store = {.library = *library, .available = true};
+    CoverCache cache = {.library = &library_store.library};
+    HomeArt art;
+    Player idle = {0};
+    home_art_init(&art, &cache, &library_store, &idle, &BOARD_THEME);
+    int before = fixture.memory.reads;
+    home_art_update(&art, 1000);
+    CHECK(fixture.memory.reads - before <= 8);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -518,6 +533,7 @@ int main(void)
         TEST_CASE(spoken_shelves_are_reachable_from_music_when_present),
         TEST_CASE(the_editor_omits_now_playing_and_marks_the_default_hidden_items),
         TEST_CASE(home_lists_the_saved_order_without_the_hidden_items),
+        TEST_CASE(missing_cover_storage_does_not_walk_every_album),
         TEST_CASE(now_playing_and_up_next_still_appear_only_with_a_track),
         TEST_CASE(a_shown_shelf_item_still_needs_its_shelf),
         TEST_CASE(settings_stays_on_home_even_when_the_mask_names_it),

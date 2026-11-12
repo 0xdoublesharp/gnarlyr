@@ -63,6 +63,8 @@ typedef struct BrowsePoolConfig {
     Screen *(*info)(void *context, uint16_t track);
     Screen *(*tags)(void *context, uint16_t track);
     Screen *(*play_group)(void *context, BrowseScreen *browse);
+    int (*section)(const BrowseScreen *browse, int index);
+    ListSections (*sections)(const BrowseScreen *browse, int index);
     void *tools_context;
     Screen *(*tape)(void *context, uint16_t track);
 } BrowsePoolConfig;

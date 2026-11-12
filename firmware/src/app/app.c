@@ -2057,6 +2057,11 @@ CORE_SEAM void app_step(void)
     }
     read_input();
     read_headset();
+    bool fast_list = app.display_on && top_screen()->fast_list;
+    app.keys.config.timing.repeat_delay_ms =
+        fast_list ? LIST_REPEAT_DELAY_MS : KEY_CONFIG.timing.repeat_delay_ms;
+    app.keys.config.timing.repeat_interval_ms =
+        fast_list ? LIST_REPEAT_INTERVAL_MS : KEY_CONFIG.timing.repeat_interval_ms;
     key_tracker_update(&app.keys, now_ms);
     if (key_lock_update(&app.lock, now_ms)) {
         toast_show(&app.toast,

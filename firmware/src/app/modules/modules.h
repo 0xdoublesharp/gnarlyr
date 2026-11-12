@@ -19,6 +19,8 @@ typedef struct ViewsModuleEntry {
     void (*cancel)(MixtapeUi *ui);
     void (*step)(MixtapeUi *ui, uint32_t now_ms);
     Screen *(*add)(MixtapeUi *ui, uint16_t track);
+    int (*section)(const BrowseScreen *browse, int index);
+    ListSections (*sections)(const BrowseScreen *browse, int index);
 } ViewsModuleEntry;
 
 extern const PlayingModuleEntry PLAYING_MODULE_ENTRY;

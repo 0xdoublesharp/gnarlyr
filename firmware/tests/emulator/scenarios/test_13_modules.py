@@ -255,7 +255,8 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(settings.loaded(machine))
         loads = watch.loads()
         self.assertEqual([(call["module"], call["loaded"]) for call in loads],
-                         [(settings_number, True), (views_number, True), (settings_number, True)])
+                         [(views_number, True), (settings_number, True), (views_number, True),
+                          (settings_number, True)])
         self.assertLess(max(call["us"] for call in loads), MODULE_LOAD_LIMIT_MS * 1000)
         self.assert_module_code_never_written(watch)
         self.assertEqual(machine.read_memory(LANGUAGE_RAM, len(pack)), pack)
@@ -324,7 +325,8 @@ class EchoImageTest(EchoImageHarness):
         rig.run_for(1500)
         audible = rig.first_audio_after(mark)
         self.assertIsNotNone(audible)
-        self.assertEqual(watch.loads(), [])
+        self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
+                         [(number, True)])
         resident_writes = watch.other_writes
         rig.run_for(1500)
         rig.press("back")

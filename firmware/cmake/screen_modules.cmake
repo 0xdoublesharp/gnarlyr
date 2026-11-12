@@ -110,6 +110,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
+    src/app/browse_sections.c
     src/app/mixtape_store.c
     src/app/order_adopt.c
     src/app/mixtape_ui.c
@@ -125,6 +126,9 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/screens/clock_screen.c
     src/app/queue_actions.c
     src/app/queue_edits.c
+    src/library/sort_key.c
+    src/library/sort_initial.c
+    src/library/sort_fold_table.c
 )
 set(ECHO_SCREEN_MODULE_UI_SOURCES src/app/home_art.c src/app/home_art_backdrop.c)
 list(APPEND ECHO_SCREEN_MODULE_SOURCES_playing ${ECHO_SCREEN_MODULE_UI_SOURCES})
@@ -156,6 +160,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
 )
 set(ECHO_SCREEN_MODULE_SOURCES_library
     src/app/modules/library_module.c
+    src/library/album_order.c
+    src/library/sort_initial.c
     src/app/music_walk.c
     src/app/discovery_screen.c
     src/app/discovery_text.c

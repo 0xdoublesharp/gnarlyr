@@ -155,6 +155,22 @@ static Screen *track_tape(void *context, uint16_t track)
     return entry != NULL ? entry->add(&screens->modules.views.mixtapes, track) : NULL;
 }
 
+static int browse_section(const BrowseScreen *browse, int index)
+{
+    AppScreens *screens = browse->pool->config.tools_context;
+    const ViewsModuleEntry *entry =
+        (const ViewsModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_VIEWS);
+    return entry != NULL ? entry->section(browse, index) : LIST_SECTION_BEFORE_LETTERS;
+}
+
+static ListSections browse_sections(const BrowseScreen *browse, int index)
+{
+    AppScreens *screens = browse->pool->config.tools_context;
+    const ViewsModuleEntry *entry =
+        (const ViewsModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_VIEWS);
+    return entry != NULL ? entry->sections(browse, index) : (ListSections){0, 0};
+}
+
 static Screen *track_info(void *context, uint16_t track)
 {
     AppScreens *screens = context;
@@ -237,6 +253,8 @@ static void build_music(AppScreens *screens, AppScreensContext context)
         .tags = track_tags,
         .tape = track_tape,
         .play_group = browse_play_group,
+        .section = browse_section,
+        .sections = browse_sections,
         .tools_context = screens,
     };
     browse_pool_init(&screens->browse, browse);

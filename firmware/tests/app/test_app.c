@@ -656,11 +656,13 @@ static void holding_menu_on_a_browse_list_opens_its_view_options(void)
     CHECK(!title_is("Now Playing"));
 }
 
-static void holding_an_artist_publishes_only_that_artists_songs_before_playing(void)
+static void holding_an_artist_offers_whole_album_playback(void)
 {
     start_app_with_library();
     open_music_entry(MUSIC_ARTISTS_INDEX);
     hold(KEY_PLAY);
+    CHECK(!title_is("Now Playing"));
+    tap(KEY_PLAY);
     for (int pass = 0; pass < 3000 && !title_is("Now Playing"); pass++) {
         wait_ms(4);
     }
@@ -5896,7 +5898,7 @@ int main(void)
         TEST_CASE(folders_can_be_browsed_down_to_an_album),
         TEST_CASE(without_a_library_the_lists_explain_what_is_missing),
         TEST_CASE(holding_menu_on_a_browse_list_opens_its_view_options),
-        TEST_CASE(holding_an_artist_publishes_only_that_artists_songs_before_playing),
+        TEST_CASE(holding_an_artist_offers_whole_album_playback),
         TEST_CASE(repeated_lyrics_and_menu_shortcuts_reuse_now_playing_depth),
         TEST_CASE(queue_actions_and_menu_shortcuts_reuse_now_playing_before_home),
         TEST_CASE(holding_back_from_mixtape_name_reaches_home),

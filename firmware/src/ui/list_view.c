@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/seam.h"
 #include "gfx/text.h"
 #include "ui/label.h"
 
@@ -103,7 +104,7 @@ void list_view_move(ListView *view, int delta, bool wrap, uint32_t now_ms)
     keep_selection_visible(view);
 }
 
-void list_view_start_scroll(ListView *view, int direction, uint32_t now_ms)
+CORE_SEAM void list_view_start_scroll(ListView *view, int direction, uint32_t now_ms)
 {
     view->scroll_started_ms = now_ms;
     list_view_move(view, direction, true, now_ms);
@@ -111,7 +112,8 @@ void list_view_start_scroll(ListView *view, int direction, uint32_t now_ms)
 
 static int section_at(const ListView *view, int index)
 {
-    return view->model->section(view->model->context, index);
+    int section = view->model->section(view->model->context, index);
+    return view->model->section_reverse ? LIST_SECTION_AFTER_LETTERS - section : section;
 }
 
 static int first_of_section_at_least(const ListView *view, int section, int low, int high)
@@ -127,38 +129,51 @@ static int first_of_section_at_least(const ListView *view, int section, int low,
     return low;
 }
 
-static int section_jump_target(const ListView *view, int direction)
+static int section_jump_target(const ListView *view, int direction, ListSections sections)
 {
-    int count = item_count(view);
+    int count = sections.end;
     int current = view->selected;
     int section = section_at(view, current);
     if (direction > 0) {
         return first_of_section_at_least(view, section + 1, current + 1, count);
     }
-    int start = first_of_section_at_least(view, section, 0, current);
-    if (start < current || current == 0) {
+    int start = first_of_section_at_least(view, section, sections.first, current);
+    if (current == sections.first) {
+        return max_of(0, current - 1);
+    }
+    if (start < current) {
         return start;
     }
-    return first_of_section_at_least(view, section_at(view, current - 1), 0, current - 1);
+    return first_of_section_at_least(view, section_at(view, current - 1), sections.first,
+                                     current - 1);
 }
 
-void list_view_keep_scrolling(ListView *view, int direction, uint32_t now_ms)
+CORE_SEAM void list_view_keep_scrolling(ListView *view, int direction, uint32_t now_ms)
 {
     uint32_t held_ms = now_ms - view->scroll_started_ms;
-    if (held_ms < LIST_FAST_SCROLL_AFTER_MS) {
+    if (held_ms < LIST_FAST_SCROLL_AFTER_MS || item_count(view) <= view->visible_rows) {
         list_view_move(view, direction, false, now_ms);
         return;
     }
-    bool sectioned = view->model->section != NULL;
+    ListSections sections = view->model->sections != NULL
+                                ? view->model->sections(view->model->context, view->selected)
+                                : (ListSections){0, item_count(view)};
+    bool sectioned = view->model->section != NULL && view->selected >= sections.first &&
+                     view->selected < sections.end;
+    int step =
+        held_ms < LIST_SECTION_JUMP_AFTER_MS ? LIST_FAST_SCROLL_ROWS : LIST_FASTEST_SCROLL_ROWS;
     if (sectioned) {
         view->section_shown_until_ms = now_ms + LIST_SECTION_SHOWN_MS;
-    }
-    if (held_ms < LIST_SECTION_JUMP_AFTER_MS) {
-        list_view_move(view, direction * LIST_FAST_SCROLL_ROWS, false, now_ms);
-    } else if (sectioned) {
-        list_view_select(view, section_jump_target(view, direction), now_ms);
+        int boundary = section_jump_target(view, direction, sections);
+        int target = view->selected + direction * step;
+        if (held_ms >= LIST_SECTION_JUMP_AFTER_MS ||
+            (direction > 0 ? target > boundary : target < boundary)) {
+            target = boundary;
+        }
+        list_view_select(view, target, now_ms);
     } else {
-        list_view_move(view, direction * LIST_FASTEST_SCROLL_ROWS, false, now_ms);
+        view->section_shown_until_ms = 0;
+        list_view_move(view, direction * step, false, now_ms);
     }
 }
 
@@ -378,7 +393,8 @@ static Row make_row(const ListView *view, Rect rows, int position)
 
 static void draw_section(const ListView *view, Canvas *canvas, Rect area, uint32_t now_ms)
 {
-    if (view->model->section == NULL || item_count(view) == 0 ||
+    if (view->model->section == NULL || item_count(view) <= view->visible_rows ||
+        view->section_shown_until_ms == 0 ||
         (int32_t)(now_ms - view->section_shown_until_ms) >= 0) {
         return;
     }
@@ -390,11 +406,12 @@ static void draw_section(const ListView *view, Canvas *canvas, Rect area, uint32
     canvas_fill_rect(canvas, inner, theme->colors.header_background);
     TextStyle style = {.font = theme->fonts.title, .color = theme->colors.header_text};
     int scale = max_of(1, side / (font_line_height(style.font) + 4));
-    const char *label = list_section_label(section_at(view, view->selected));
+    const char *label =
+        list_section_label(view->model->section(view->model->context, view->selected));
     text_draw_glyph_scaled(canvas, style, inner, (uint32_t)(unsigned char)label[0], scale);
 }
 
-void list_view_draw(const ListView *view, Canvas *canvas, Rect area, uint32_t now_ms)
+CORE_SEAM void list_view_draw(const ListView *view, Canvas *canvas, Rect area, uint32_t now_ms)
 {
     canvas_fill_rect(canvas, area, view->theme->colors.background);
     Rect rows = area;

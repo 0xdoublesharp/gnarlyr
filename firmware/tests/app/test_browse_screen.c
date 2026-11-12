@@ -1,4 +1,5 @@
 #include "browse_screen.h"
+#include "browse_sections.h"
 #include "check.h"
 #include "default_theme.h"
 #include "fixture_library.h"
@@ -9,7 +10,9 @@ static BrowsePool pool;
 static BrowseScreen *opened(BrowseQuery query)
 {
     browse_pool_init(&pool, (BrowsePoolConfig){.library = fixture_library_open(&fixture),
-                                               .theme = &BOARD_THEME});
+                                               .theme = &BOARD_THEME,
+                                               .section = browse_sections_at,
+                                               .sections = browse_sections_range});
     Screen *screen = browse_pool_open(&pool, 0, query);
     screen->enter(screen->context, 0);
     return screen->context;
@@ -49,13 +52,47 @@ static void album_tracks_have_no_letters(void)
                           .group = LIBRARY_ARTISTS,
                           .subject = 0,
                           .artist = LIBRARY_NONE};
-    CHECK(opened(tracks)->model.section == NULL);
+    CHECK_EQUAL(0, browse_sections_range(opened(tracks), 0).end);
+}
+
+static void folder_names_offer_sections_without_reordering_tracks(void)
+{
+    BrowseScreen *folders = opened(browse_root_query(BROWSE_FOLDER));
+    ListSections sections = browse_sections_range(folders, 0);
+    CHECK_EQUAL(0, sections.first);
+    CHECK(sections.end > 0);
+    for (int index = 1; index < sections.end; index++) {
+        CHECK(section_at(folders, index - 1) <= section_at(folders, index));
+    }
+}
+
+static void an_appended_favorite_playlist_has_its_own_sorted_run(void)
+{
+    BrowseScreen *playlists = opened(browse_root_query(BROWSE_PLAYLISTS));
+    uint32_t stored = playlists->count;
+    LibraryExtraPlaylist extra = {.name = "A favorite", .playlist = (uint16_t)stored, .count = 1};
+    fixture.library.extra = &extra;
+    playlists->count = browse_count(&fixture.library, playlists->query);
+    CHECK_EQUAL(stored + 1, playlists->count);
+    CHECK_EQUAL(stored, browse_sections_range(playlists, 0).end);
+    CHECK_EQUAL(stored, browse_sections_range(playlists, (int)stored).first);
+}
+
+static void numbered_files_do_not_become_single_item_letter_runs(void)
+{
+    BrowseQuery query = browse_root_query(BROWSE_FOLDER);
+    query.subject = 2;
+    BrowseScreen *files = opened(query);
+    CHECK_EQUAL(0, browse_sections_range(files, 0).end);
 }
 
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(albums_are_lettered_by_their_sort_key),
+        TEST_CASE(folder_names_offer_sections_without_reordering_tracks),
+        TEST_CASE(an_appended_favorite_playlist_has_its_own_sorted_run),
+        TEST_CASE(numbered_files_do_not_become_single_item_letter_runs),
         TEST_CASE(lettered_lists_never_go_backwards),
         TEST_CASE(album_tracks_have_no_letters),
     };

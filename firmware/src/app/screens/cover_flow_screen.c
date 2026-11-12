@@ -393,6 +393,9 @@ static void enter(void *context, uint32_t now_ms)
 {
     CoverFlowScreen *flow = context;
     if (!flow->positioned) {
+        flow->order = cover_flow_order_make(flow->config.library);
+        flow->count = flow->order.count > 0 ? (int)flow->order.count + 1 : 0;
+        flow->screen.fast_list = flow->count > 1;
         int playing = playing_position(flow);
         flow->target = playing != NO_POSITION ? playing : min_of(1, flow->count - 1);
         flow->positioned = true;
@@ -560,8 +563,8 @@ static void draw(void *context, Canvas *canvas)
 Screen *cover_flow_screen_init(CoverFlowScreen *flow, CoverFlowConfig config)
 {
     flow->config = config;
-    flow->order = cover_flow_order_make(config.library);
-    flow->count = flow->order.count > 0 ? (int)flow->order.count + 1 : 0;
+    flow->order = (CoverFlowOrder){0};
+    flow->count = 0;
     flow->target = 0;
     flow->position = 0;
     flow->positioned = false;
@@ -575,6 +578,7 @@ Screen *cover_flow_screen_init(CoverFlowScreen *flow, CoverFlowConfig config)
         .title = i18n_text(STR_COVER_FLOW),
         .context = flow,
         .full_screen = true,
+        .fast_list = flow->count > 1,
         .paints_every_pixel = true,
         .enter = enter,
         .handle_key = handle_key,

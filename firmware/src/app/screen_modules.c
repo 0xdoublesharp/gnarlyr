@@ -24,6 +24,9 @@ static const ModuleSpan SPANS[SCREEN_MODULE_COUNT] = {
 ScreenModule screen_modules_of(const AppScreens *screens, const Screen *screen)
 {
     uintptr_t at = (uintptr_t)screen - (uintptr_t)screens;
+    if (at - offsetof(AppScreens, browse) < sizeof(BrowsePool)) {
+        return SCREEN_MODULE_VIEWS;
+    }
     for (int module = SCREEN_MODULE_NONE + 1; module < SCREEN_MODULE_COUNT; module++) {
         if (at - SPANS[module].offset < SPANS[module].size) {
             return (ScreenModule)module;

@@ -714,4 +714,6 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_ABOUT_KEYS] = "Keys",
     [STR_MENU_LONG_ACTION] = "Hold Menu",
     [STR_LONG_CURRENT] = "Default",
+    [STR_PLAY_ALL_ALBUMS] = "Play all",
+    [STR_SHUFFLE_ALL_ALBUMS] = "Shuffle albums",
 };

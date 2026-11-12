@@ -197,6 +197,9 @@ The computer picks each album's cover the way the player does: the picture insid
 | Volume up / down | Next / previous item; hold to scroll faster | Volume; hold Vol+ for the next track, Vol− for the previous one (in audiobooks and podcasts: 30 s forward, 15 s back) |
 | Play | Select; a song plays the list from that song. Hold on an album for Favorites, hold on a song for Play Next / Add to Up Next / Add to Favorite Playlist, hold on a folder in Folders to play everything under it, subfolders included | Play / pause; hold to seek |
 | Menu | Opens Now Playing while a track is loaded | Opens Quick Settings; hold for Lyrics |
+| Volume up / down | Next / previous item; hold to accelerate and jump by letter in long name-sorted lists | Volume; hold Vol+ for the next track, Vol− for the previous one (in audiobooks and podcasts: 30 s forward, 15 s back) |
+| Play | Select; a song plays the list from that song. Hold on an artist or album artist for Play all / Shuffle albums, hold on an album for Favorites, hold on a song for Play Next / Add to Up Next / Add to Favorite Playlist, hold on a folder in Folders to play everything under it, subfolders included | Play / pause; hold to seek |
+| Menu | | Opens Up Next (also on Home, below Now Playing) |
 | Back | Back; hold to go home | Back; hold to go home |
 | Power | Screen off or on; hold 2 s to turn off | Same |
 
@@ -217,6 +220,13 @@ Tap Menu on Now Playing for **Quick Settings**. Vol+ moves to the next row and V
 The rows are Shuffle (Off, Songs, Albums), Repeat (Off, One, All), Equalizer (presets, Custom and saved slots), Headphone profile (Off and four profiles), Sleep timer, Transitions (Off or Fade), ReplayGain (Off, Track, Album), Lyrics and Up Next. Each setting shows its current value. Lyrics and Up Next open their screens; Back returns to the selected panel row. Up Next is also on Home. Hold Menu on Now Playing still opens Lyrics directly.
 
 Changes use the same saving and sound controls as Settings. Sleep timer runs for this session, just like Settings → Sleep timer. Transition length, custom EQ curves and headphone profile editing remain in Settings. Playback speed appears here when the firmware supports it.
+## Long lists and whole artists
+
+In Artists, Album artists, Albums, Songs, Genres, Playlists and Favorites, hold Vol+ or Vol− to move faster, then jump to the start of each letter section. The same gesture works in name-sorted search results and filter choices, genre albums, and the name-sorted folders and files on Folders, Audiobooks and Podcasts. The badge shows the current letter and disappears shortly after release. Accents and a leading “The” follow the library's sorting; digits and symbols show **#**, at their place in the sort order. Small sections are kept, and holding stops at the ends. Lists that fit on one screen keep their ordinary scrolling.
+
+Folders stay before files. Files keep disc and track-number order, with letter jumps inside each group of files having the same disc and track number. Chapters, playlist contents and artist albums keep their playback order. Audiobook files outside the named audiobook folders retain their existing album order.
+
+Hold ▶ on an artist or album artist to open **Play all** and **Shuffle albums**. Play all starts with the earliest album, then follows year and album title, with each album's tracks in disc and track order. Shuffle albums changes the album sequence and keeps each album's tracks together in order. Both include whole albums, including guest artists and CUE tracks or chapters, and replace Up Next. Back cancels preparation. The exact queue and your position are kept across restarts; the queue can contain up to 65,535 tracks.
 
 ## Charging
 

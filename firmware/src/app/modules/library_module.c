@@ -154,6 +154,10 @@ static Screen *browse_view(AppScreens *screens, BrowseScreen *browse, bool play_
             screen->selected_track = selected.index;
         }
     }
+    if (play_group && source.kind == BROWSE_GROUP_ALBUMS &&
+        (source.group == LIBRARY_ARTISTS || source.group == LIBRARY_ALBUM_ARTISTS)) {
+        return discovery_screen_albums(screen, source);
+    }
     source = scope_source(screen, source);
     Screen *result = play_group ? discovery_screen_open(screen, source, false)
                                 : discovery_screen_options(screen, source);
