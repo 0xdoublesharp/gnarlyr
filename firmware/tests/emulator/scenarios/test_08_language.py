@@ -15,11 +15,13 @@ from echo_image_harness import (
     KEY_PREVIOUS,
     lang_pack,
     make_image,
+    TRIAL_RUNNING,
 )
 
 LANGUAGE_WINDOW = 18432
 SETTINGS_MODULE = 2
 SETTINGS_SEGMENT = 2
+TRIAL_CHECK = 0x5A
 
 
 class EchoImageTest(EchoImageHarness):
@@ -34,6 +36,15 @@ class EchoImageTest(EchoImageHarness):
         settings[19:24] = b"fr\0\0\0"
         struct.pack_into("<I", settings, 54, lang_pack.fnv(settings[:54]))
         volume.add_file("settings.bin", settings, directory=folder)
+        return volume
+
+    def trial_volume(self):
+        volume = self.card_volume(lang_pack.build_legacy_pack(
+            "fr", lang_pack.read_catalogue(), {"STR_LANGUAGE_NAME": "Francais"}))
+        folder = IDENTITY.data_directory
+        record = bytearray(512)
+        record[:8] = b"DSUT" + bytes((TRIAL_RUNNING, 0, TRIAL_RUNNING ^ TRIAL_CHECK, 1))
+        volume.add_file("trial.bin", bytes(record), directory=folder)
         return volume
 
     def enter_settings(self, machine):
@@ -84,6 +95,18 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(self.loaded_language_pack(session))
         self.assertTrue(session.language_pack_reads("slot_1"))
         self.assertEqual(session.language_pack_reads("slot_2"), [])
+        self.assert_healthy(session)
+
+    def test_a_trial_start_reads_slot_1_text_with_the_emmc_never_reset_after_its_start(self):
+        session = self.session(volume=self.trial_volume())
+        session.damage_language_pack("slot_2")
+        notices = session.machine.collect_notices()
+        self.assertEqual(session.run_to_home_screen(), "condition met")
+        emmc = session.machine.emmc_controller
+        self.assertEqual([commands for _, commands in emmc.resets if commands > 0], [])
+        self.assertNotIn(MISSING_TEXT, [message for _, message in notices])
+        self.assertTrue(self.loaded_language_pack(session))
+        self.assertEqual(self.trial_record(session), (TRIAL_RUNNING, 1))
         self.assert_healthy(session)
 
     def test_a_damaged_language_pack_in_slot_1_is_replaced_by_the_copy_in_slot_2(self):

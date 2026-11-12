@@ -10,6 +10,7 @@
 #include "debug_probe.h"
 #include "device/battery_gauge.h"
 #include "device/usb_plug.h"
+#include "emmc.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
 #include "hal/power.h"
@@ -324,11 +325,12 @@ void board_main(void)
     board_display_start();
     debug_loop_boot(DEBUG_BOOT_DISPLAY);
     boot_step("display");
+    emmc_reset_controller();
+    sd_reset_controller();
     board_glyphs_start();
     debug_loop_boot(DEBUG_BOOT_GLYPHS);
     boot_step("glyphs");
     update_check_loader_request();
-    sd_reset_controller();
     board_trial_boot();
     boot_step("loader request");
     board_jack_poll();

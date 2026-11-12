@@ -9,6 +9,10 @@ CRU_MODE = 0x10
 CRU_CLOCK_SELECT = 0x14
 CORE_DIVIDER_MASK = 0x0007
 CRU_PCLK_SELECT = 0x18
+CRU_RESETS_FIRST = 0xC0
+CRU_RESETS_LAST = 0xCC
+RESET_SD_CONTROLLER = 0x11
+RESET_EMMC_CONTROLLER = 0x12
 PLL_LOCKED = 0x400
 
 GRF_VBUS = 0xE8
@@ -158,7 +162,10 @@ class Cru(RegisterFile):
         return value
 
     def write_word(self, offset, value):
+        held_before = self.regs.get(offset, 0)
         super().write_word(offset, value)
+        if CRU_RESETS_FIRST <= offset <= CRU_RESETS_LAST:
+            self.follow_resets(offset, held_before)
         if offset == CRU_CLOCK_SELECT and value >> 16 == CORE_DIVIDER_MASK:
             self.machine.coast_log.append((self.machine.milliseconds(), (value & 7) + 1))
             self.machine.clock_changed()
@@ -166,6 +173,15 @@ class Cru(RegisterFile):
         self.machine.register_log.append(("cru", offset, value))
         if offset in (CRU_MODE, CRU_PCLK_SELECT, CRU_CLOCK_SELECT, 0x00, CRU_PLL_CON1):
             self.machine.clock_changed()
+
+
+    def follow_resets(self, offset, held_before):
+        asserted = self.regs[offset] & ~held_before & 0xFFFF
+        controllers = {RESET_EMMC_CONTROLLER: "emmc_controller", RESET_SD_CONTROLLER: "sd_controller"}
+        for bit in range(16):
+            name = controllers.get((offset - CRU_RESETS_FIRST) // 4 * 16 + bit)
+            if asserted >> bit & 1 and name is not None:
+                getattr(self.machine, name).hard_reset()
 
 
 class Grf(RegisterFile):

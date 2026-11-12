@@ -76,8 +76,6 @@ static void power_controller(void)
 {
     cru_gate(GATE_EMMC_BUS, true);
     cru_gate(GATE_EMMC_CARD_CLOCK, true);
-    cru_reset(RESET_EMMC, true);
-    board_delay_us(MUX_SETTLE_US);
     cru_reset(RESET_EMMC, false);
     cru_write(CRU_MMC_DIVIDERS, CRU_EMMC_IDENTIFY);
     register_write(GRF_BASE + GRF_EMMC_MUX_0, GRF_EMMC_MUX_0_VALUE);
@@ -281,6 +279,13 @@ bool emmc_start(EmmcInfo *info)
     }
     *info = emmc;
     return started;
+}
+
+void emmc_reset_controller(void)
+{
+    cru_reset(RESET_EMMC, true);
+    board_delay_us(MUX_SETTLE_US);
+    cru_reset(RESET_EMMC, false);
 }
 
 void emmc_quiesce(void)
