@@ -32,7 +32,7 @@ enum {
     VOLUME_UNITS_PER_STEP = 2,
     RAMP_STEP = 6,
     GAIN_HIGH_VALUE = 0x31,
-    GAIN_LOW_VALUE = 0x10
+    GAIN_LOW_VALUE = 0x20
 };
 
 static const uint8_t CHIPS[CHIP_COUNT] = {DAC_LEFT_ADDRESS, DAC_RIGHT_ADDRESS};
@@ -63,7 +63,7 @@ static const uint8_t MONO_VALUES[MONO_GROUPS][MONO_ITEMS] = {
 };
 
 static const Write AFTER_MONO[] = {
-    {0x080000, 0x10}, {0x0D0000, 0x04}, {0x0D0001, 0x00}, {0x0F0010, 0x87}, {0x0F0011, 0x07},
+    {0x080000, 0x20}, {0x0D0000, 0x04}, {0x0D0001, 0x00}, {0x0F0010, 0x87}, {0x0F0011, 0x07},
     {0x010006, 0x04}, {0x01000D, 0x02}, {0x010010, 0x99}, {0x180000, 0x45}, {0x010010, 0x00},
 };
 
@@ -214,19 +214,19 @@ static bool set_up_blocks(const DacBus *bus)
     return write_all(bus, AFTER_MONO, sizeof AFTER_MONO / sizeof AFTER_MONO[0]);
 }
 
-static bool release_outputs(const DacBus *bus, uint8_t rate_byte)
+bool dac_sequence_power_up(const DacBus *bus)
 {
-    if (!release_power_bit(bus, SERIAL_PORT_BIT) || !write_both(bus, 0x010010, 0x99) ||
-        !write_both(bus, 0x080032, 0x20) || !release_power_bit(bus, HEADPHONE_BIT)) {
+    if (!write_both(bus, 0x010010, 0x99) || !write_both(bus, 0x080032, 0x20) ||
+        !release_power_bit(bus, SERIAL_PORT_BIT) || !release_power_bit(bus, HEADPHONE_BIT)) {
         return false;
     }
     wait_ms(bus, OUTPUT_POWER_UP_MS);
-    if (!write_both(bus, 0x080032, 0x00) || !write_both(bus, 0x010010, 0x00) ||
-        !write_both(bus, 0x01000B, rate_byte)) {
-        return false;
-    }
-    wait_ms(bus, 10);
-    return true;
+    return write_both(bus, 0x080032, 0x00) && write_both(bus, 0x010010, 0x00);
+}
+
+static bool release_outputs(const DacBus *bus, uint8_t rate_byte)
+{
+    return dac_sequence_power_up(bus) && write_both(bus, 0x01000B, rate_byte);
 }
 
 DacResult dac_configure(const DacBus *bus, uint8_t rate_byte)
@@ -247,9 +247,16 @@ void dac_set_volume(const DacBus *bus, uint8_t volume)
     write_both(bus, PCM_VOLUME_A, volume);
 }
 
+bool dac_sequence_gain(const DacBus *bus, bool high)
+{
+    return dac_sequence_power_down(bus) &&
+           write_both(bus, HEADPHONE_GAIN, high ? GAIN_HIGH_VALUE : GAIN_LOW_VALUE) &&
+           dac_sequence_power_up(bus) && write_both(bus, 0x090003, 0xEC);
+}
+
 void dac_set_gain(const DacBus *bus, bool high)
 {
-    write_both(bus, HEADPHONE_GAIN, high ? GAIN_HIGH_VALUE : GAIN_LOW_VALUE);
+    (void)dac_sequence_gain(bus, high);
 }
 
 uint8_t dac_volume_value(uint8_t level, DacCurve curve)
@@ -265,34 +272,46 @@ uint8_t dac_volume_value(uint8_t level, DacCurve curve)
 void dac_output_on(const DacBus *bus, uint8_t volume)
 {
     set_pin(bus, DAC_PIN_ENABLE_A, true);
-    set_pin(bus, DAC_PIN_MUTE, false);
+    set_pin(bus, DAC_PIN_MUTE, true);
     set_pin(bus, DAC_PIN_AMP, true);
     write_channel_values(bus);
     dac_set_volume(bus, volume);
     wait_ms(bus, 10);
+    set_pin(bus, DAC_PIN_MUTE, false);
 }
 
-static void wait_for_power_down(const DacBus *bus)
+static bool wait_for_power_down(const DacBus *bus)
 {
     uint32_t waited_ms = 0;
     for (int chip = 0; chip < CHIP_COUNT; chip++) {
         uint8_t status = 0;
-        while (bus->read(bus->context, CHIPS[chip], STATUS_MAP, &status) &&
-               (status & STATUS_POWER_DOWN_DONE) == 0 && waited_ms < POWER_DOWN_LIMIT_MS) {
+        do {
+            if (!bus->read(bus->context, CHIPS[chip], STATUS_MAP, &status)) {
+                return false;
+            }
+            if ((status & STATUS_POWER_DOWN_DONE) != 0) {
+                break;
+            }
+            if (waited_ms == POWER_DOWN_LIMIT_MS) {
+                return false;
+            }
             wait_ms(bus, 1);
             waited_ms++;
-        }
+        } while (true);
     }
+    return true;
 }
 
-static void power_down_outputs(const DacBus *bus)
+bool dac_sequence_power_down(const DacBus *bus)
 {
-    (void)read_status(bus);
-    if (!change_power_bit(bus, HEADPHONE_BIT, true)) {
-        return;
+    if (!write_both(bus, 0x010010, 0x99) || !write_both(bus, 0x080046, 0x21) ||
+        !write_both(bus, 0x090003, 0xEF)) {
+        return false;
     }
-    wait_for_power_down(bus);
-    change_power_bit(bus, SERIAL_PORT_BIT, true);
+    wait_ms(bus, 150);
+    return read_status(bus) != DAC_NO_REPLY && write_both(bus, 0x0F0010, 0x86) &&
+           change_power_bit(bus, HEADPHONE_BIT, true) && wait_for_power_down(bus) &&
+           change_power_bit(bus, SERIAL_PORT_BIT, true) && write_both(bus, 0x080046, 0x20);
 }
 
 void dac_output_off(const DacBus *bus)
@@ -300,7 +319,7 @@ void dac_output_off(const DacBus *bus)
     set_pin(bus, DAC_PIN_MUTE, true);
     set_pin(bus, DAC_PIN_ENABLE_A, true);
     dac_set_volume(bus, DAC_VOLUME_MUTED);
-    power_down_outputs(bus);
+    (void)dac_sequence_power_down(bus);
     write_both(bus, 0x0B0000, 0x00);
     wait_ms(bus, 10);
     set_pin(bus, DAC_PIN_AMP, false);

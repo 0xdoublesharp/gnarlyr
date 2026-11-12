@@ -559,9 +559,16 @@ void dac_path_set_volume(uint8_t value)
 
 void dac_path_set_gain(bool high)
 {
+    if (gain_high == high) {
+        return;
+    }
     gain_high = high;
     if (dac_up) {
-        dac_set_gain(&BUS, high);
+        bool restore = !muted;
+        dac_path_set_muted(true);
+        if (dac_sequence_gain(&BUS, high) && restore) {
+            dac_path_set_muted(false);
+        }
     }
 }
 
