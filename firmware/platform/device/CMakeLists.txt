@@ -44,7 +44,7 @@ add_executable(echo_device
 target_sources(echo_device PRIVATE board/panel_vop.c)
 target_include_directories(echo_device PRIVATE ${PROJECT_SOURCE_DIR}/src/app)
 if(NOT ECHO_RELEASE)
-    target_sources(echo_device PRIVATE board/debug_session.c board/profiler.c)
+    target_sources(echo_device PRIVATE board/debug_session.c board/profiler.c logic/rtc_registers.c)
     set(ECHO_PROFILE_BUCKET_SHIFT 7)
 endif()
 set(ECHO_CORE1_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1.ld)
@@ -371,6 +371,7 @@ set(ECHO_OVERLAY_IMPORTS
 if(NOT ECHO_RELEASE)
     list(APPEND ECHO_OVERLAY_IMPORTS
         app_debug_frames
+        rtc_registers_decode
         board_battery_gauge
         board_debug_audio
         dac_path_diagnostics

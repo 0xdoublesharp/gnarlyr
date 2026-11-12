@@ -64,6 +64,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
     platform/device/logic/fat_delete.c
     platform/device/board/debug_rtc.c
     platform/device/logic/rtc_time.c
+    platform/device/logic/rtc_registers.c
     src/gfx/wireframe.c
     src/ui/wire_figure.c
     src/ui/wire_motion.c
@@ -231,6 +232,7 @@ else()
         platform/device/board/debug_poke.c
         platform/device/board/debug_rtc.c
         platform/device/logic/rtc_time.c
+        platform/device/logic/rtc_registers.c
     )
 endif()
 
