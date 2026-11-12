@@ -73,6 +73,37 @@ void store_init(Store *store, const BuilderScratch *io, uint32_t start)
     *store = (Store){.io = *io, .end = start, .failed = false, .io_failed = false};
 }
 
+void store_progress_begin(Store *store, BuilderPhase phase, uint32_t total)
+{
+    static const uint8_t RECORD_UNIT[] = {1, 0, 0};
+    static const uint8_t IO_UNIT[] = {16, 0, 1};
+    StoreProgress *progress = &store->progress;
+    progress->phase = (uint32_t)phase;
+    progress->record_unit = RECORD_UNIT[phase];
+    progress->io_unit = IO_UNIT[phase];
+    progress->done = 0;
+    progress->total = total > 0 ? total : 1;
+    progress->shown = BUILDER_UNSET;
+    store_progress_add(store, 0);
+}
+
+void store_progress_add(Store *store, uint32_t units)
+{
+    StoreProgress *progress = &store->progress;
+    bool idle = units == 0 && progress->shown != BUILDER_UNSET;
+    if (idle || progress->total == 0 || progress->watcher.report == NULL) {
+        return;
+    }
+    progress->done += units;
+    uint32_t total = progress->total;
+    uint32_t percent = total >= 100 ? progress->done / (total / 100) : progress->done * 100 / total;
+    percent = percent > 99 ? 99 : percent;
+    if (percent != progress->shown) {
+        progress->shown = percent;
+        progress->watcher.report(progress->watcher.context, progress->phase, percent);
+    }
+}
+
 Region store_take(Store *store, uint32_t bytes)
 {
     uint32_t need = (bytes + 3) & ~3u;
@@ -90,6 +121,7 @@ bool store_read(Store *store, uint32_t offset, void *bytes, uint32_t length)
     if (length == 0) {
         return true;
     }
+    store_progress_add(store, store->progress.io_unit);
     bool read = !store->io_failed && store->io.read(store->io.context, offset, bytes, length);
     store->io_failed = !read;
     return read;
@@ -100,6 +132,7 @@ bool store_write(Store *store, uint32_t offset, const void *bytes, uint32_t leng
     if (length == 0) {
         return true;
     }
+    store_progress_add(store, store->progress.io_unit);
     bool written = !store->io_failed && store->io.write(store->io.context, offset, bytes, length);
     store->io_failed = !written;
     return written;
@@ -207,6 +240,7 @@ bool in_record(In *in, uint8_t *record)
     uint32_t length = builder_get16(header);
     record[0] = header[0];
     record[1] = header[1];
+    store_progress_add(in->store, in->store->progress.record_unit);
     return length >= 2 && length <= BUILDER_MAX_RECORD && in_get(in, record + 2, length - 2);
 }
 
@@ -259,6 +293,7 @@ static uint8_t *cache_block(Cache *cache, uint32_t tag)
 
 bool cache_read(Cache *cache, uint32_t offset, void *bytes, uint32_t length)
 {
+    store_progress_add(cache->store, cache->store->progress.record_unit);
     uint8_t *to = bytes;
     while (length > 0) {
         uint32_t tag = offset / cache->block_size;

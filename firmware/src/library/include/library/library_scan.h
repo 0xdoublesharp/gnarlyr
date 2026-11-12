@@ -30,6 +30,7 @@ typedef struct ScanFileSystem {
 typedef struct ScanProgress {
     void (*report)(void *context, uint32_t files, uint32_t tracks);
     void *context;
+    void (*phase)(void *context, uint32_t phase, uint32_t percent);
 } ScanProgress;
 
 typedef enum ScanResult {

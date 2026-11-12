@@ -75,6 +75,7 @@ static uint32_t *sort_chunk(Chunk *chunk, const SortJob *job)
             uint32_t end = start + 2 * width < count ? start + 2 * width : count;
             merge(chunk, from, to, start, middle, end, job);
         }
+        store_progress_add(job->store, (count >> 3) * job->store->progress.record_unit);
         uint32_t *swap = from;
         from = to;
         to = swap;

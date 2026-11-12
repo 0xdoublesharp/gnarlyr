@@ -37,11 +37,21 @@ typedef struct Arena {
     bool failed;
 } Arena;
 
+typedef struct StoreProgress {
+    BuilderProgress watcher;
+    uint32_t phase;
+    uint32_t done;
+    uint32_t total;
+    uint32_t shown;
+    uint8_t record_unit;
+    uint8_t io_unit;
+} StoreProgress;
 typedef struct Store {
     BuilderScratch io;
     uint32_t end;
     bool failed;
     bool io_failed;
+    StoreProgress progress;
 } Store;
 
 typedef struct Out {
@@ -229,6 +239,8 @@ uint32_t arena_left(const Arena *arena);
 
 void store_init(Store *store, const BuilderScratch *io, uint32_t start);
 Region store_take(Store *store, uint32_t bytes);
+void store_progress_begin(Store *store, BuilderPhase phase, uint32_t total);
+void store_progress_add(Store *store, uint32_t units);
 bool store_read(Store *store, uint32_t offset, void *bytes, uint32_t length);
 bool store_write(Store *store, uint32_t offset, const void *bytes, uint32_t length);
 

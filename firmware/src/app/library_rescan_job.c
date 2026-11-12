@@ -182,6 +182,13 @@ static void report(void *context, uint32_t files, uint32_t tracks)
     rescan->progress.tracks(files, tracks);
 }
 
+static void report_phase(void *context, uint32_t phase, uint32_t percent)
+{
+    RescanFiles *rescan = context;
+    hal_system_keep_alive();
+    rescan->progress.phase(phase, percent);
+}
+
 static bool cable_at_start;
 
 static bool covers_interrupted(void *context)
@@ -259,7 +266,7 @@ static RescanOutcome rescan_run(uint32_t capacity, HalFile scratch, RescanProgre
         .scratch = {read_handle, write_handle, &rescan_files.scratch, rescan_files.scratch.size},
         .sink = {write_library, NULL},
         .capacity = capacity,
-        .progress = {report, &rescan_files},
+        .progress = {report, &rescan_files, report_phase},
         .filter = {hidden_scan_skips, &hidden},
     };
     run_passes(&job, &outcome);

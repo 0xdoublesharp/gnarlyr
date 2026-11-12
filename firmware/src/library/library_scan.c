@@ -572,6 +572,7 @@ static uint32_t noted_playlist(const ScanState *state, uint32_t index)
 static ScanResult read_playlists(ScanState *state, const ScanJob *job)
 {
     ScanResult result = scan_builder_result(library_builder_prepare(&state->builder));
+    library_builder_expect_playlists(&state->builder, state->playlist_count);
     for (uint32_t index = 0; result == SCAN_OK && index < state->playlist_count; index++) {
         result = read_playlist(state, job, state->listing + noted_playlist(state, index));
     }
@@ -597,6 +598,8 @@ ScanResult library_scan(const ScanJob *job, ScanStats *stats)
     state->path[0] = '/';
     state->filter = job->filter;
     state->hidden = 0;
+    library_builder_watch(&state->builder,
+                          (BuilderProgress){job->progress.phase, job->progress.context});
     scan_truncate_path(state, 1);
     ScanResult result = walk(state, job, stats);
     stats->tracks -= state->hidden;

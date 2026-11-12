@@ -162,7 +162,7 @@ class ScanRun:
     scan pass at the first return of the scratch memory; the run then waits for `covers_run` to
     finish. Older builds end at the first return."""
 
-    def __init__(self, session, artifacts, log):
+    def __init__(self, session, artifacts, log, covers=True):
         self.session = session
         self.machine = session.machine
         self.log = log
@@ -177,11 +177,14 @@ class ScanRun:
         self.covers_started = None
         self.covers_ended = None
         symbols = self.profiler.overlay.symbols
-        self.background = "covers_run" in symbols
+        self.background = covers and "covers_run" in symbols
         if self.background:
             self.machine.add_address_hook(symbols["covers_run"], self.covers_entered)
         self.walks = Calls(session, "walk_music")
         self.machine.add_address_hook(self.profiler.overlay.symbols["rescan_run"], self.entered)
+        self.phases = []
+        if "report_phase" in symbols:
+            self.machine.add_address_hook(symbols["report_phase"], self.phased)
         self.machine.hook_symbol("hal_system_return_scratch", self.left)
         self.machine.hook_symbol("show_rescan_progress", self.counted, optional=True)
         self.machine.hook_symbol("toast_show", self.toasted)
@@ -215,6 +218,34 @@ class ScanRun:
 
     def counted(self):
         self.progress = [self.machine.reg(UC_ARM_REG_R0), self.machine.reg(UC_ARM_REG_R1)]
+
+    def phased(self):
+        if self.started is not None and self.ended is None:
+            self.phases.append((self.machine.microseconds(), self.machine.reg(UC_ARM_REG_R1),
+                                self.machine.reg(UC_ARM_REG_R2)))
+
+    def build_progress(self):
+        if not self.phases:
+            return None
+        names = ("sorting", "playlists", "saving")
+        steps = []
+        for moment, phase, percent in self.phases:
+            name = names[phase] if phase < len(names) else str(phase)
+            if not steps or steps[-1]["phase"] != name:
+                steps.append({"phase": name, "start_us": moment, "reports": 0, "last_percent": 0,
+                              "longest_gap_us": 0, "last_us": moment})
+            step = steps[-1]
+            step["longest_gap_us"] = max(step["longest_gap_us"], moment - step["last_us"])
+            step["last_us"] = moment
+            step["reports"] += 1
+            step["last_percent"] = percent
+        ends = [step["start_us"] for step in steps[1:]] + [self.ended["us"]]
+        return [{"phase": step["phase"], "reports": [
+                    [round((moment - self.started["us"]) / 1000, 1), percent]
+                    for moment, phase, percent in self.phases if names[phase] == step["phase"]], "ms": round((end - step["start_us"]) / 1000, 1),
+                 "updates": step["reports"], "last_percent": step["last_percent"],
+                 "longest_gap_ms": round(max(step["longest_gap_us"], end - step["last_us"]) / 1000, 1)}
+                for step, end in zip(steps, ends)]
 
     def toasted(self):
         self.toasts.append(self.machine.read_cstring(self.machine.reg(UC_ARM_REG_R1)).decode("utf-8", "replace"))
@@ -262,6 +293,7 @@ class ScanRun:
             "core_hz": sorted(set(self.clock)),
             "wall_seconds": round(last["wall"] - self.started["wall"], 1),
             "toasts": self.toasts,
+            "build_progress": self.build_progress(),
             "counts": library_counts(self.session),
             "firmware_times": firmware_times(self.session),
             "decoded_covers": calls,
@@ -279,9 +311,9 @@ def walk_summary(walk):
             "read_commands": walk["read_commands"], "read_sectors": walk["read_sectors"]}
 
 
-def first_scan(artifacts, volume, log):
+def first_scan(artifacts, volume, log, covers=True):
     session = artifacts.session(volume)
-    run = ScanRun(session, artifacts, log)
+    run = ScanRun(session, artifacts, log, covers)
     run.machine.answer_waits_for_key(4)
     run.run()
     return session, run
