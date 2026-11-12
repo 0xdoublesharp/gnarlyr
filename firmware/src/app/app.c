@@ -1519,6 +1519,7 @@ static void continue_covers(uint32_t now_ms)
     app.covers_album = (uint16_t)outcome.covers.next_album;
     app.covers_pending = outcome.cover_result == SCAN_STOPPED;
     cover_cache_open(&app.covers, &app.library.library);
+    settle_screens(now_ms);
     app.render_wanted = true;
 }
 
