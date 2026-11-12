@@ -1391,6 +1391,20 @@ static void safe_start_volume_off_keeps_the_volume(void)
     CHECK_EQUAL(SETTINGS_VOLUME_MAX, settings_safe_start_volume(&settings, SETTINGS_VOLUME_MAX));
 }
 
+static void bluetooth_safe_start_caps_only_above_stocks_default_level(void)
+{
+    Settings settings = settings_defaults();
+    settings.safe_start_volume_level = 12;
+    CHECK_EQUAL(50, SETTINGS_BLUETOOTH_SAFE_START_VOLUME);
+    CHECK_EQUAL(50, settings_safe_start_bluetooth_volume(&settings, SETTINGS_VOLUME_MAX));
+    CHECK_EQUAL(50, settings_safe_start_bluetooth_volume(&settings, 51));
+    CHECK_EQUAL(50, settings_safe_start_bluetooth_volume(&settings, 50));
+    CHECK_EQUAL(30, settings_safe_start_bluetooth_volume(&settings, 30));
+    settings.safe_start_volume = false;
+    CHECK_EQUAL(SETTINGS_VOLUME_MAX,
+                settings_safe_start_bluetooth_volume(&settings, SETTINGS_VOLUME_MAX));
+}
+
 static void status_bar_choices_round_trip_in_e13_without_using_other_extensions(void)
 {
     Settings settings = settings_defaults();
@@ -1565,6 +1579,7 @@ int main(void)
         TEST_CASE(downgrade_rejects_the_v16_prefix),
         TEST_CASE(second_extension_round_trip_and_recovery),
         TEST_CASE(the_bluetooth_level_lives_in_f2_and_defaults_to_stocks_minus_fifteen_db),
+        TEST_CASE(bluetooth_safe_start_caps_only_above_stocks_default_level),
         TEST_CASE(an_older_file_gets_the_default_bluetooth_level),
         TEST_CASE(timeout_options_end_with_never),
         TEST_CASE(sleep_options_start_with_off),

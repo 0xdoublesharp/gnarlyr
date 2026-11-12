@@ -433,7 +433,10 @@ static void start_charging(uint32_t now_ms)
 static void lower_start_volume(PlayerOutput output)
 {
     uint8_t volume = player_volume(&app.player, output);
-    uint8_t safe = settings_safe_start_volume(&app.settings.settings, volume);
+    const Settings *settings = &app.settings.settings;
+    uint8_t safe = output == PLAYER_OUTPUT_BLUETOOTH
+                       ? settings_safe_start_bluetooth_volume(settings, volume)
+                       : settings_safe_start_volume(settings, volume);
     if (safe < volume) {
         player_set_volume(&app.player, output, safe);
         app.volume_lowered = true;

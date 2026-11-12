@@ -94,7 +94,7 @@ class EchoImageTest(EchoImageHarness):
                 starts.append(struct.unpack("<II", first))
                 level = rig.machine.read_memory(rig.machine.symbols["bluetooth_level"], 1)[0]
                 target = rig.machine.read_memory(rig.machine.symbols["volume_value"], 1)[0]
-                self.assertEqual(level, 24)
+                self.assertEqual(level, 50)
                 self.assertEqual(target, 10 + 2 * (60 - level))
                 wired = rig.machine.read_memory(rig.machine.symbols["volume_level"], 1)[0]
                 self.assertNotEqual(level, wired)

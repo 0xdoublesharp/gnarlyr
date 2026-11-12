@@ -241,7 +241,7 @@ Switching to a louder profile, including Off, lowers those volume levels first s
 
 ## Safe start volume
 
-When you turn the player on, plug headphones into either jack or connect Bluetooth headphones, a volume above the safe level is lowered to it, and a short "Volume lowered to 24" message says so. Plugging in lowers the wired volume and connecting lowers the Bluetooth volume. A quieter volume is never raised. Turn it up again as usual; it stays where you put it until the next time you turn the player on or plug headphones in. Settings → Safe start volume picks the level (12, 18, 24, 30 or 36, on the same scale Now Playing shows; 24 is the default) or Off. The USB DAC keeps its own volume and isn't affected.
+When you turn the player on, plug headphones into either jack or connect Bluetooth headphones, a volume above the safe level is lowered to it, and a short "Volume lowered to 24" message says so. The safe level you pick is for wired headphones. Connecting Bluetooth headphones lowers only the Bluetooth volume, and only from above 50 down to 50, the Bluetooth level FiiO's firmware starts at. A quieter volume is never raised. Turn it up again as usual; it stays where you put it until the next time you turn the player on or plug headphones in. Settings → Safe start volume picks the level (12, 18, 24, 30 or 36, on the same scale Now Playing shows; 24 is the default) or Off. The USB DAC keeps its own volume and isn't affected.
 
 ## Portrait mode
 

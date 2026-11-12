@@ -18,6 +18,7 @@ enum {
     LOUD = 50,
     QUIET = 10,
     BELOW_SAFE = 20,
+    LOUD_BLUETOOTH = 58,
     START_MS = 1000
 };
 
@@ -240,17 +241,38 @@ static void headphones_already_plugged_in_at_power_on_are_not_a_second_plug(void
     CHECK_EQUAL(BELOW_SAFE + 20, fake_hal_audio_volume());
 }
 
-static void bluetooth_headphones_connecting_lower_a_loud_volume(void)
+static void boot_with_loud_bluetooth(void)
 {
-    boot_with(with_volume(BELOW_SAFE), true);
+    Settings settings = with_volume(BELOW_SAFE);
+    settings.bluetooth_volume = LOUD_BLUETOOTH;
+    boot_with(settings, true);
     start_playing();
     raise_volume(20);
+}
+
+static void connect_buds(void)
+{
     fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
     fake_hal_bluetooth()->connected = BUDS;
     step();
-    CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME, fake_hal_audio_bluetooth_volume());
-    CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME, app_player_status().volume);
+}
+
+static void bluetooth_headphones_connecting_lower_a_loud_volume(void)
+{
+    boot_with_loud_bluetooth();
+    connect_buds();
+    CHECK_EQUAL(SETTINGS_BLUETOOTH_SAFE_START_VOLUME, fake_hal_audio_bluetooth_volume());
+    CHECK_EQUAL(SETTINGS_BLUETOOTH_SAFE_START_VOLUME, app_player_status().volume);
     CHECK_EQUAL(BELOW_SAFE + 20, fake_hal_audio_volume());
+}
+
+static void the_default_bluetooth_level_is_kept_on_connect(void)
+{
+    boot_with(with_volume(BELOW_SAFE), true);
+    start_playing();
+    connect_buds();
+    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME, fake_hal_audio_bluetooth_volume());
+    CHECK(!toast_shown_within("Volume lowered to 50", 2 * TOAST_DURATION_MS + 100));
 }
 
 static void a_quiet_bluetooth_level_is_kept_on_connect(void)
@@ -259,50 +281,48 @@ static void a_quiet_bluetooth_level_is_kept_on_connect(void)
     settings.bluetooth_volume = BELOW_SAFE;
     boot_with(settings, true);
     start_playing();
-    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
-    fake_hal_bluetooth()->connected = BUDS;
-    step();
+    connect_buds();
     CHECK_EQUAL(BELOW_SAFE, fake_hal_audio_bluetooth_volume());
-    CHECK(!toast_shown_within("Volume lowered to 24", TOAST_DURATION_MS + 100));
+}
+
+static void safe_start_off_keeps_a_loud_bluetooth_level(void)
+{
+    Settings settings = with_volume(BELOW_SAFE);
+    settings.bluetooth_volume = LOUD_BLUETOOTH;
+    settings.safe_start_volume = false;
+    boot_with(settings, true);
+    start_playing();
+    connect_buds();
+    CHECK_EQUAL(LOUD_BLUETOOTH, fake_hal_audio_bluetooth_volume());
 }
 
 static void plugging_in_headphones_while_on_bluetooth_lowers_only_the_wired_level(void)
 {
     playing_with_a_loud_volume();
-    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
-    fake_hal_bluetooth()->connected = BUDS;
-    step();
-    raise_volume(10);
-    CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME + 10, fake_hal_audio_bluetooth_volume());
+    connect_buds();
+    raise_volume(5);
+    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME + 5, fake_hal_audio_bluetooth_volume());
     CHECK_EQUAL(BELOW_SAFE + 20, fake_hal_audio_volume());
     fake_hal_audio_set_jack(HAL_AUDIO_JACK_SINGLE_ENDED);
     step();
     CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME, fake_hal_audio_volume());
-    CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME + 10, fake_hal_audio_bluetooth_volume());
+    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME + 5, fake_hal_audio_bluetooth_volume());
 }
 
 static void the_volume_toast_follows_the_bluetooth_toast(void)
 {
-    boot_with(with_volume(BELOW_SAFE), true);
-    start_playing();
-    raise_volume(20);
-    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
-    fake_hal_bluetooth()->connected = BUDS;
-    step();
+    boot_with_loud_bluetooth();
+    connect_buds();
     CHECK(toast_is("Connected to Buds"));
     wait_ms(TOAST_DURATION_MS + 50);
     wait_ms(10);
-    CHECK(toast_is("Volume lowered to 24"));
+    CHECK(toast_is("Volume lowered to 50"));
 }
 
 static void the_volume_toast_is_dropped_once_the_volume_changed(void)
 {
-    boot_with(with_volume(BELOW_SAFE), true);
-    start_playing();
-    raise_volume(20);
-    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
-    fake_hal_bluetooth()->connected = BUDS;
-    step();
+    boot_with_loud_bluetooth();
+    connect_buds();
     tap(KEY_VOLUME_UP);
     wait_ms(TOAST_DURATION_MS + 50);
     wait_ms(10);
@@ -460,7 +480,9 @@ int main(void)
         TEST_CASE(unplugging_headphones_leaves_the_volume),
         TEST_CASE(headphones_already_plugged_in_at_power_on_are_not_a_second_plug),
         TEST_CASE(bluetooth_headphones_connecting_lower_a_loud_volume),
+        TEST_CASE(the_default_bluetooth_level_is_kept_on_connect),
         TEST_CASE(a_quiet_bluetooth_level_is_kept_on_connect),
+        TEST_CASE(safe_start_off_keeps_a_loud_bluetooth_level),
         TEST_CASE(plugging_in_headphones_while_on_bluetooth_lowers_only_the_wired_level),
         TEST_CASE(the_volume_toast_follows_the_bluetooth_toast),
         TEST_CASE(the_volume_toast_is_dropped_once_the_volume_changed),
