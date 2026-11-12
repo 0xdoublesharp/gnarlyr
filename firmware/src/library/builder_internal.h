@@ -168,8 +168,10 @@ typedef struct Prepared {
     uint32_t folder_link_count;
     Region title_order;
     uint32_t index_mark;
+    bool indexed;
     uint16_t *positions;
     uint16_t *exact;
+    uint8_t *exact_check;
     uint32_t exact_mask;
     uint16_t *by_name;
     uint32_t by_name_mask;

@@ -430,8 +430,11 @@ BuilderResult library_builder_prepare(LibraryBuilder *builder)
     state->prepared = prepared;
     ready = ready && prepared != NULL && open_caches(state, prepared) &&
             builder_guess_album_artists(state, prepared) && builder_rank(state, prepared) &&
-            builder_model(state, prepared) && open_playlists(state, prepared) &&
-            builder_index_paths(state, prepared);
+            builder_model(state, prepared) && open_playlists(state, prepared);
+    if (prepared != NULL) {
+        prepared->index_mark = state->arena.used;
+        prepared->indexed = false;
+    }
     state->prepare_result = outcome(state);
     if (!ready && state->prepare_result == BUILDER_OK) {
         state->prepare_result = BUILDER_OUT_OF_MEMORY;
@@ -448,6 +451,12 @@ BuilderResult library_builder_begin_playlist(LibraryBuilder *builder, const char
     }
     BuilderState *state = state_of(builder);
     Prepared *prepared = state->prepared;
+    if (!prepared->indexed) {
+        prepared->indexed = true;
+        if (!builder_index_paths(state, prepared)) {
+            return outcome(state) != BUILDER_OK ? outcome(state) : BUILDER_OUT_OF_MEMORY;
+        }
+    }
     if (prepared->playlist_count >= BUILDER_MAX_PLAYLISTS) {
         return BUILDER_TOO_MANY;
     }
