@@ -178,7 +178,7 @@ static void activate_endpoints(const UsbPort *port)
     }
 }
 
-static void disable_audio_endpoint(uint32_t control)
+static void disable_endpoint(uint32_t control)
 {
     uint32_t value = read_register(control);
     if ((value & EP_ENABLE) != 0) {
@@ -189,14 +189,14 @@ static void disable_audio_endpoint(uint32_t control)
 
 static void reset_feedback(void)
 {
-    disable_audio_endpoint(in_control(1));
+    disable_endpoint(in_control(1));
     write_register(GRSTCTL, GRSTCTL_TX_FLUSH | (1u << 6));
     (void)wait_clear(GRSTCTL, GRSTCTL_TX_FLUSH, 1);
 }
 
 static void change_stream(const UsbPort *port)
 {
-    disable_audio_endpoint(out_control(1));
+    disable_endpoint(out_control(1));
     reset_feedback();
     start_stream(port);
 }
@@ -220,9 +220,9 @@ static void apply_action(UsbPort *port, UsbReply reply)
         if (port->configured) {
             activate_endpoints(port);
         } else if (port->audio != NULL) {
-            disable_audio_endpoint(out_control(1));
-            disable_audio_endpoint(in_control(1));
-            disable_audio_endpoint(in_control(2));
+            disable_endpoint(out_control(1));
+            disable_endpoint(in_control(1));
+            disable_endpoint(in_control(2));
         }
         break;
     case USB_ACTION_STREAM:
@@ -274,6 +274,7 @@ static void trace_setup(UsbPort *port, UsbSetup setup, UsbReplyKind kind)
 
 static void process_setup(UsbPort *port)
 {
+    disable_endpoint(in_control(0));
     UsbSetup setup = usb_setup_parse((const uint8_t *)port->setup);
     UsbReply reply = port->audio != NULL ? usb_audio_setup(port->audio, setup)
                                          : usb_device_setup(&port->device, setup);
