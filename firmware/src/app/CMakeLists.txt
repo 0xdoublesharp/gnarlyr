@@ -6,6 +6,7 @@ add_library(echo_app STATIC
     screens/moments_screen.c
     screens/lyrics_screen.c
     screens/listening_work.c
+    screens/recap_cards.c
     screens/smart_list_screen.c
     discovery_screen.c
     discovery_text.c

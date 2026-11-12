@@ -4,19 +4,24 @@
 #include <stdint.h>
 
 #include "core/i18n.h"
+#include "hal/storage.h"
 #include "library/lyrics.h"
 #include "listening_store.h"
 #include "playback/listening_export.h"
+#include "playback/listening_recap.h"
 #include "playback/listening_stats.h"
 #include "playback/moments.h"
 #include "screens/smart_list_work.h"
+#include "ui/wire_motion.h"
 
 enum {
     LISTENING_NAME_BYTES = 128,
     LISTENING_VALUE_BYTES = 32,
     LISTENING_TALLY_CAPACITY = 512,
     LYRICS_VISIBLE_LINES = 3,
-    LYRICS_LINE_BYTES = 192
+    LYRICS_LINE_BYTES = 192,
+    RECAP_NAME_BYTES = 96,
+    RECAP_NAMED_GROUPS = 2
 };
 
 typedef struct ListeningWork {
@@ -30,6 +35,21 @@ typedef struct ListeningWork {
     uint8_t export_stage;
     bool named;
 } ListeningWork;
+
+typedef struct RecapWork {
+    ListeningRecapJob job;
+    ListeningLog log;
+    HalFile handle;
+    ListeningTally tallies[LISTENING_TALLY_CAPACITY];
+    ListeningFile cache;
+    WireMotion still;
+    char names[LISTENING_RECAP_GROUPS][LISTENING_RECAP_TOP][RECAP_NAME_BYTES];
+    char artists[RECAP_NAMED_GROUPS][LISTENING_RECAP_TOP][RECAP_NAME_BYTES];
+    uint16_t albums[LISTENING_RECAP_TOP];
+    uint8_t covers;
+    uint8_t stage;
+    bool flourished;
+} RecapWork;
 
 typedef struct LyricsWork {
     LyricsIndex index;
@@ -53,6 +73,7 @@ typedef struct ListeningModuleWork {
     const void *owner;
     union {
         ListeningWork listening;
+        RecapWork recap;
         SmartListWork smart;
         LyricsWork lyrics;
         MomentsWork moments;

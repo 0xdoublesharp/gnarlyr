@@ -4,6 +4,7 @@ add_library(echo_playback STATIC
     listening_export.c
     listening_clear.c
     listening_log.c
+    listening_recap.c
     listening_stats.c
     listening_track.c
     moments.c

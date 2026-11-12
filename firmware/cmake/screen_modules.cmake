@@ -147,10 +147,12 @@ set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/playback/moments.c
     src/app/screens/lyrics_screen.c
     src/app/screens/listening_work.c
+    src/app/screens/recap_cards.c
     src/app/screens/smart_list_screen.c
     src/app/order_publish.c
     src/app/order_adopt.c
     src/playback/listening_stats.c
+    src/playback/listening_recap.c
     src/playback/smart_list.c
     src/playback/track_keys.c
     src/playback/listening_export.c

@@ -6,13 +6,32 @@ enum {
     DAY_SECONDS = 86400,
     MINUTE_SECONDS = 60,
     WEEK_DAYS = 7,
-    DAYS_FROM_MONDAY_TO_EPOCH = 3
+    DAYS_FROM_MONDAY_TO_EPOCH = 3,
+    EARLIER = 0x8000u,
+    POSITION = EARLIER - 1u
 };
+
+_Static_assert((int)LISTENING_LOG_CAPACITY <= (int)EARLIER,
+               "a ring position leaves the top bit free");
+
+uint32_t listening_local_seconds(const ListeningPlay *play)
+{
+    int32_t offset = (int32_t)play->offset_minutes * MINUTE_SECONDS;
+    return play->clock_s + (uint32_t)offset;
+}
 
 static uint32_t local_day(const ListeningPlay *play)
 {
-    int32_t offset = (int32_t)play->offset_minutes * MINUTE_SECONDS;
-    return (play->clock_s + (uint32_t)offset) / DAY_SECONDS;
+    return listening_local_seconds(play) / DAY_SECONDS;
+}
+
+bool listening_span_holds(const ListeningSpan *span, const ListeningPlay *play)
+{
+    if (!span->dated) {
+        return true;
+    }
+    uint32_t day = local_day(play);
+    return play->clock_s != 0 && day >= span->first_day && day <= span->last_day;
 }
 
 static uint32_t week_of(uint32_t day)
@@ -131,19 +150,37 @@ static ListeningTally *claim(ListeningTop *job, uint32_t key)
     return &tallies[place];
 }
 
+static bool earlier(const ListeningTop *job, const ListeningPlay *play)
+{
+    return job->count_fresh && job->span.dated && play->clock_s != 0 &&
+           local_day(play) < job->span.first_day;
+}
+
+static void add_play(const ListeningTop *job, ListeningTally *entry, const ListeningRecord *record)
+{
+    const ListeningPlay *play = &record->play;
+    uint32_t sum = entry->listened_ms + play->listened_ms;
+    uint32_t position = record->sequence - (job->cursor.next - job->cursor.kept);
+    entry->listened_ms = sum < entry->listened_ms ? UINT32_MAX : sum;
+    entry->listens = (uint16_t)(entry->listens + (listening_play_listened(play) ? 1 : 0));
+    entry->position = (uint16_t)((entry->position & EARLIER) | (position & POSITION));
+}
+
 static void tally(void *context, const ListeningRecord *record)
 {
     ListeningTop *job = context;
     const ListeningPlay *play = &record->play;
-    uint32_t key = group_key(job, &play->track);
-    ListeningTally *entry = key > job->bound ? claim(job, key) : NULL;
-    if (entry == NULL) {
+    bool before = earlier(job, play);
+    if (!before && !listening_span_holds(&job->span, play)) {
         return;
     }
-    uint32_t sum = entry->listened_ms + play->listened_ms;
-    entry->listened_ms = sum < entry->listened_ms ? UINT32_MAX : sum;
-    entry->listens = (uint16_t)(entry->listens + (listening_play_listened(play) ? 1 : 0));
-    entry->position = (uint16_t)(record->sequence - (job->cursor.next - job->cursor.kept));
+    uint32_t key = group_key(job, &play->track);
+    ListeningTally *entry = key > job->bound ? claim(job, key) : NULL;
+    if (entry != NULL && before) {
+        entry->position = (uint16_t)(entry->position | EARLIER);
+    } else if (entry != NULL) {
+        add_play(job, entry, record);
+    }
 }
 
 static bool longer(const ListeningTally *first, const ListeningTally *second)
@@ -178,10 +215,16 @@ static void offer(ListeningTop *job, const ListeningTally *entry)
 static void rank(ListeningTop *job)
 {
     for (uint16_t index = 0; index < job->used; index++) {
-        const ListeningTally *entry = &job->scratch.tallies[index];
-        offer(job, entry);
-        if (entry->listens > 0 && replayed_more(entry, &job->replayed.tally)) {
-            job->replayed = (ListeningRanked){.tally = *entry};
+        ListeningTally entry = job->scratch.tallies[index];
+        bool known_before = (entry.position & EARLIER) != 0;
+        entry.position = (uint16_t)(entry.position & POSITION);
+        if (entry.listened_ms > 0) {
+            job->distinct++;
+            job->fresh = (uint16_t)(job->fresh + (known_before ? 0 : 1));
+        }
+        offer(job, &entry);
+        if (entry.listens > 0 && replayed_more(&entry, &job->replayed.tally)) {
+            job->replayed = (ListeningRanked){.tally = entry};
         }
     }
 }
@@ -230,6 +273,12 @@ bool listening_top_begin(ListeningTop *job, const ListeningLog *log, ListeningGr
                           .result = usable ? STORE_WORKING : STORE_FAILED};
     listening_cursor_begin(&job->cursor, log, LISTENING_SECTOR_RECORDS);
     return usable;
+}
+
+void listening_top_limit(ListeningTop *job, ListeningSpan span, bool count_fresh)
+{
+    job->span = span;
+    job->count_fresh = count_fresh;
 }
 
 StoreResult listening_top_step(ListeningTop *job)
