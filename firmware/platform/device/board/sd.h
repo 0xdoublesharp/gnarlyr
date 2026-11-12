@@ -13,4 +13,6 @@ bool sd_write(void *context, uint32_t lba, uint32_t count, const void *buffer);
 bool sd_present(void);
 uint32_t sd_generation(void);
 void sd_forget(void);
+void sd_eject(bool eject);
+bool sd_ejected(void);
 uint32_t sd_allocation_unit(void);

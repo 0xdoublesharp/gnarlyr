@@ -258,3 +258,12 @@ FatVolume *board_music_volume(void)
 {
     return mounted() ? &volume : NULL;
 }
+
+bool hal_card_eject(bool eject)
+{
+    if (!sd_present()) {
+        return false;
+    }
+    sd_eject(eject);
+    return true;
+}

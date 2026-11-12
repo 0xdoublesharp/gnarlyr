@@ -324,6 +324,12 @@ HalCardInfo hal_card_info(void)
     return (HalCardInfo){0};
 }
 
+bool hal_card_eject(bool eject)
+{
+    (void)eject;
+    return false;
+}
+
 bool hal_card_format(HalCardInfo expected, HalCardProgress progress, void *context)
 {
     (void)expected;

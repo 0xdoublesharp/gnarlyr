@@ -1,4 +1,5 @@
 #include "check.h"
+#include "device/card_presence.h"
 #include "device/sd_card.h"
 
 enum {
@@ -291,9 +292,37 @@ static void the_csd_erase_unit_is_available_when_sd_status_is_unknown(void)
     CHECK_EQUAL(1, sd.erase_sectors);
 }
 
+static void presence_rejects_bounce_and_handles_clock_wrap(void)
+{
+    CardPresence state = {0};
+    CHECK(!card_presence_update(&state, true, 100));
+    CHECK(!card_presence_update(&state, false, 110));
+    CHECK(!card_presence_update(&state, true, 120));
+    CHECK(!card_presence_update(&state, true, 149));
+    CHECK(card_presence_update(&state, true, 150));
+    CHECK(card_presence_update(&state, false, UINT32_MAX - 10));
+    CHECK(card_presence_update(&state, false, 18));
+    CHECK(!card_presence_update(&state, false, 19));
+}
+
+static void eject_survives_bounce_until_a_debounced_removal(void)
+{
+    CardPresence state = {.present = true, .candidate = true, .ejected = true};
+    CHECK(card_presence_update(&state, false, 100));
+    CHECK(card_presence_update(&state, true, 110));
+    CHECK(state.ejected);
+    CHECK(card_presence_update(&state, false, 200));
+    CHECK(!card_presence_update(&state, false, 230));
+    CHECK(!state.ejected);
+    CHECK(!card_presence_update(&state, true, 240));
+    CHECK(card_presence_update(&state, true, 270));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(eject_survives_bounce_until_a_debounced_removal),
+        TEST_CASE(presence_rejects_bounce_and_handles_clock_wrap),
         TEST_CASE(an_sdhc_card_initialises_with_its_size_and_a_4_bit_bus),
         TEST_CASE(the_commands_follow_the_sd_init_order),
         TEST_CASE(command_arguments_and_responses_match_the_facts_sheet),

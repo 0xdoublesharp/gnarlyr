@@ -36,7 +36,9 @@ HalCardInfo hal_card_info(void)
                          .sectors = ready ? sd_sector_count() : 0,
                          .generation = sd_generation(),
                          .needs_format = ready && !fat_mount(&check_volume, device),
-                         .usb_busy = usb_busy()};
+                         .usb_busy = usb_busy(),
+                         .mounted = hal_file_volume() == HAL_VOLUME_CARD,
+                         .ejected = sd_ejected()};
 }
 
 static bool can_continue(void *context, uint32_t done, uint32_t total)

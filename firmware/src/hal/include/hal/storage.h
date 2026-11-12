@@ -69,9 +69,12 @@ typedef struct HalCardInfo {
     bool present;
     bool needs_format;
     bool usb_busy;
+    bool mounted;
+    bool ejected;
 } HalCardInfo;
 
 typedef bool (*HalCardProgress)(void *context, uint32_t done, uint32_t total);
 
 HalCardInfo hal_card_info(void);
+bool hal_card_eject(bool eject);
 bool hal_card_format(HalCardInfo expected, HalCardProgress progress, void *context);

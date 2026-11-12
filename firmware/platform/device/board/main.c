@@ -9,10 +9,12 @@
 #include "debug_probe.h"
 #include "device/battery_gauge.h"
 #include "device/usb_plug.h"
+#include "hal/audio.h"
 #include "hal/clock.h"
 #include "hal/power.h"
 #include "hal/system.h"
 #include "overlay.h"
+#include "sd.h"
 #include "storage_reset.h"
 #include "update.h"
 #include "usb.h"
@@ -258,6 +260,26 @@ static void sleep_until_next_pass(void)
              !deadline_reached(hal_clock_milliseconds(), due_ms));
 }
 
+static void follow_card(uint32_t *generation)
+{
+    sd_present();
+    if (*generation == sd_generation()) {
+        return;
+    }
+    *generation = sd_generation();
+    if (!sd_ejected()) {
+        app_release_audio();
+    }
+    hal_audio_release();
+    storage_reset();
+    app_start();
+    app_request_rescan_if_music_changed();
+    if (sd_ejected()) {
+        app_show_notice(i18n_text(STR_CARD_EJECT), i18n_text(STR_CARD_SAFE));
+        board_wait_for_key();
+    }
+}
+
 void board_main(void)
 {
     board_start_record_boot();
@@ -298,8 +320,10 @@ void board_main(void)
     board_debug_after_start();
     board_stall_pause(false);
     board_wall_time_start();
+    uint32_t card_generation = sd_generation();
     for (;;) {
         board_stall_beat();
+        follow_card(&card_generation);
         board_wall_time_keep();
         app_step();
         board_display_service();
