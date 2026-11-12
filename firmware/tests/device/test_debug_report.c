@@ -1315,7 +1315,7 @@ static void unknown_enum_values_are_reported_without_indexing_past_their_names(v
     CHECK(strstr(text, " end=unknown ") != NULL);
     CHECK(strstr(text, " action=unknown ") != NULL);
     CHECK(strstr(text, " status=unknown ") != NULL);
-    CHECK(has_line("event: 1000 key play unknown"));
+    CHECK(has_line("event: 1000 key play unknown 0"));
     CHECK(has_line("event: 1001 player unknown 0"));
     CHECK(has_line("event: 1002 usb_end unknown"));
     CHECK(has_line("event: 1003 script unknown"));

@@ -448,13 +448,13 @@ static void a_silent_bus_reports_no_reply(void)
 static void every_failed_configuration_transfer_reports_no_reply(void)
 {
     DacBus bus = fresh_bus();
-    CHECK_EQUAL(DAC_READY, dac_configure(&bus, 1));
+    CHECK_EQUAL(DAC_READY, dac_configure(&bus, 1, STOCK_START));
     int transfers = fake.transfers;
     CHECK(transfers > 20);
     for (int failure = 1; failure <= transfers; failure++) {
         bus = fresh_bus();
         fake.fail_transfer = failure;
-        CHECK_EQUAL(DAC_NO_REPLY, dac_configure(&bus, 1));
+        CHECK_EQUAL(DAC_NO_REPLY, dac_configure(&bus, 1, STOCK_START));
         CHECK(fake.transfers >= failure);
     }
 }

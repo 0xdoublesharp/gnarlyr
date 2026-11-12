@@ -271,7 +271,7 @@ static void partial_redraws_are_split_into_bounded_horizontal_bands(void)
     app_start();
     registered_draws = 0;
     app_set_usb_renderer(registered_usb_draw);
-    AppUsbStatus status = {.view = APP_USB_CONNECTING, .detail = i18n_text(STR_USB_STARTING)};
+    AppUsbStatus status = {.view = APP_USB_CONNECTING, .detail = i18n_text(STR_PLUG_COMPUTER)};
     usb_screen_show_in_bands(status, (Rect){0, 0, 20, 0});
     CHECK_EQUAL(0, registered_draws);
     usb_screen_show_in_bands(status, (Rect){0, 0, 20, 1});

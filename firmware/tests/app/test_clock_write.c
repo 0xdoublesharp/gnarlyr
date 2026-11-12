@@ -73,40 +73,6 @@ static void motion_draw(WireMotion *motion, Canvas *canvas, const Theme *theme, 
     calls++;
 }
 
-static void art_init(HomeArt *art, CoverCache *covers, const LibraryStore *store, Player *player,
-                     const Theme *theme)
-{
-    (void)art;
-    (void)covers;
-    (void)store;
-    (void)player;
-    (void)theme;
-    calls++;
-}
-
-static void art_update(void *context, uint32_t now_ms)
-{
-    (void)context;
-    (void)now_ms;
-    calls++;
-}
-
-static void art_draw(void *context, Canvas *canvas, Rect area)
-{
-    (void)context;
-    (void)canvas;
-    (void)area;
-    calls++;
-}
-
-static void art_backdrop(Canvas *canvas, Rect area, const Theme *theme)
-{
-    (void)canvas;
-    (void)area;
-    (void)theme;
-    calls++;
-}
-
 static bool file_remove(const char *path)
 {
     (void)path;
@@ -143,10 +109,6 @@ static const ExtensionModuleEntry code = {
     .motion_tick = motion_tick,
     .motion_fit = motion_fit,
     .motion_draw = motion_draw,
-    .art_init = art_init,
-    .art_update = art_update,
-    .art_draw = art_draw,
-    .art_backdrop = art_backdrop,
     .file_remove = file_remove,
     .headphones_load = headphones_load,
     .clock_set = set_clock,
@@ -195,13 +157,13 @@ static void extension_shims_are_safe_when_the_extension_is_missing(void)
     calls = 0;
     WireMotion motion = {0};
     Rect space = {1, 2, 20, 30};
-    HomeArt art = {0};
+    int owner = 0;
     HeadphoneStore headphones = {0};
 
-    wire_motion_run(&motion, &art, WIRE_SHAPE_DISC, 10);
+    wire_motion_run(&motion, &owner, WIRE_SHAPE_DISC, 10);
     wire_motion_progress(&motion, 1, 2);
-    wire_motion_end(&motion, &art);
-    CHECK(!wire_motion_shown(&motion, &art));
+    wire_motion_end(&motion, &owner);
+    CHECK(!wire_motion_shown(&motion, &owner));
     CHECK(!wire_motion_due(&motion, 20));
     wire_motion_tick(&motion, 30);
     Rect fitted = wire_motion_fit(space);
@@ -210,10 +172,6 @@ static void extension_shims_are_safe_when_the_extension_is_missing(void)
     CHECK_EQUAL(0, fitted.width);
     CHECK_EQUAL(0, fitted.height);
     wire_motion_draw(&motion, NULL, NULL, space);
-    home_art_init(&art, NULL, NULL, NULL, NULL);
-    home_art_update(&art, 40);
-    home_art_draw(&art, NULL, space);
-    home_art_draw_backdrop(NULL, space, NULL);
     CHECK(!hal_file_remove("/missing"));
     headphone_store_load(&headphones);
     CHECK_EQUAL(0, calls);
@@ -227,13 +185,13 @@ static void extension_shims_forward_to_the_loaded_extension(void)
     calls = 0;
     WireMotion motion = {0};
     Rect space = {1, 2, 20, 30};
-    HomeArt art = {0};
+    int owner = 0;
     HeadphoneStore headphones = {0};
 
-    wire_motion_run(&motion, &art, WIRE_SHAPE_DISC, 10);
+    wire_motion_run(&motion, &owner, WIRE_SHAPE_DISC, 10);
     wire_motion_progress(&motion, 1, 2);
-    wire_motion_end(&motion, &art);
-    CHECK(wire_motion_shown(&motion, &art));
+    wire_motion_end(&motion, &owner);
+    CHECK(wire_motion_shown(&motion, &owner));
     CHECK(wire_motion_due(&motion, 20));
     wire_motion_tick(&motion, 30);
     Rect fitted = wire_motion_fit(space);
@@ -242,18 +200,14 @@ static void extension_shims_forward_to_the_loaded_extension(void)
     CHECK_EQUAL(17, fitted.width);
     CHECK_EQUAL(26, fitted.height);
     wire_motion_draw(&motion, NULL, NULL, space);
-    home_art_init(&art, NULL, NULL, NULL, NULL);
-    home_art_update(&art, 40);
-    home_art_draw(&art, NULL, space);
-    home_art_draw_backdrop(NULL, space, NULL);
     CHECK(hal_file_remove("/present"));
     headphone_store_load(&headphones);
-    CHECK_EQUAL(14, calls);
+    CHECK_EQUAL(10, calls);
     accepted = false;
-    CHECK(!wire_motion_shown(&motion, &art));
+    CHECK(!wire_motion_shown(&motion, &owner));
     CHECK(!wire_motion_due(&motion, 50));
     CHECK(!hal_file_remove("/refused"));
-    CHECK_EQUAL(17, calls);
+    CHECK_EQUAL(13, calls);
 }
 
 int main(void)
