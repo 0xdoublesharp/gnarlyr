@@ -125,6 +125,7 @@ typedef struct Core1Source {
     bool streaming;
     bool read_failed;
     bool file_open;
+    bool refilling;
 } Core1Source;
 
 void core1_source_init(Core1Source *source, StreamRegion region, FlacFileOpener files,

@@ -39,7 +39,8 @@ static void a_full_history_keeps_the_newest_samples(void)
 static void the_history_covers_more_than_two_hours(void)
 {
     CHECK((POWER_HISTORY_SAMPLES - 1) * POWER_HISTORY_INTERVAL_S >= 2 * 60 * 60);
-    CHECK((POWER_HISTORY_SAMPLES - 1) * POWER_HISTORY_INTERVAL_S >= (180 + 10) * 60);
+    CHECK_EQUAL(60, POWER_HISTORY_INTERVAL_S);
+    CHECK_EQUAL(128, POWER_HISTORY_SAMPLES);
 }
 
 static void a_sample_is_six_bytes(void)
