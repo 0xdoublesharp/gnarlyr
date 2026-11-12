@@ -1,5 +1,9 @@
 add_library(echo_options INTERFACE)
 
+if(UNIX AND NOT APPLE)
+    target_compile_definitions(echo_options INTERFACE _POSIX_C_SOURCE=200809L)
+endif()
+
 target_compile_options(echo_options INTERFACE
     -Wall
     -Wextra
