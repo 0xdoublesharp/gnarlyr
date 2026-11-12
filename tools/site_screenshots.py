@@ -101,7 +101,7 @@ def run(command, log, env):
     return result.stdout
 
 
-def create_demo(config, work, env):
+def create_demo(config, work, env, source_root=ROOT):
     card = work / "music"
     card.mkdir()
     demo = config.get("demo", {})
@@ -139,24 +139,24 @@ def create_demo(config, work, env):
         run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-f", "ffmetadata", "-i", metadata,
              "-t", str(count * 10), "-map_metadata", "1", "-map_chapters", "1", "-c:a", "aac", "-b:a", "32k", folder / "City Stories.m4b"], work / "book.log", env)
     library = work / "library.db"
-    python = ROOT / "firmware/.venv/bin/python"
-    run([python, ROOT / "firmware/tools/library_index.py", "--music", card, "--output", library], work / "index.log", env)
+    python = source_root / "firmware/.venv/bin/python"
+    run([python, source_root / "firmware/tools/library_index.py", "--music", card, "--output", library], work / "index.log", env)
     return card, library
 
 
-def prepare_language(case, system, work, env):
+def prepare_language(case, system, work, env, source_root=ROOT):
     language = case.get("language")
     if language is None:
         return
     source = work / (case["name"] + "-language")
     source.mkdir()
-    shutil.copyfile(ROOT / "firmware/assets/lang/en.txt", source / "en.txt")
+    shutil.copyfile(source_root / "firmware/assets/lang/en.txt", source / "en.txt")
     code = language["code"]
     (source / (code + ".txt")).write_text("\n".join(
         key + " = " + value for key, value in language["strings"].items()) + "\n", encoding="utf-8")
     output = system / "lang"
     output.mkdir()
-    run([ROOT / "firmware/.venv/bin/python", ROOT / "firmware/tools/lang_pack.py",
+    run([source_root / "firmware/.venv/bin/python", source_root / "firmware/tools/lang_pack.py",
          "--languages", source, "--pack", code, "--output", output / (code + ".pack")],
         work / (case["name"] + "-language.log"), env)
 
@@ -166,7 +166,8 @@ def render_case(case, context):
     system = work / (case["name"] + "-system")
     system.mkdir()
     shutil.copyfile(context["library"], system / "library.db")
-    prepare_language(case, system, work, env)
+    source_root = context.get("source_root", ROOT)
+    prepare_language(case, system, work, env, source_root)
     bmp = work / (case["name"] + ".bmp")
     command = [context["simulator"], "--headless", "--frames", str(case.get("frames", context["defaults"].get("frames", 900))),
                "--battery", str(context["defaults"].get("battery", 80)), "--card", context["card"], "--system-dir", system, "--screenshot", bmp]
@@ -176,7 +177,7 @@ def render_case(case, context):
     if not any(line.startswith(case["expected_title"] + ":") for line in result.splitlines()):
         raise ValueError(f"{case['name']} did not reach {case['expected_title']!r}; inspect {work / (case['name'] + '.log')}")
     if case.get("language"):
-        schema = (ROOT / "firmware/src/settings/settings.c").read_text()
+        schema = (source_root / "firmware/src/settings/settings.c").read_text()
         offset = int(re.search(r"\bLANGUAGE_FIELD\s*=\s*(\d+)", schema)[1])
         saved = (system / "settings.bin").read_bytes()
         code = case["language"]["code"].encode("ascii")
@@ -213,7 +214,8 @@ def main():
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--only", action="append", default=[], help="Screen name to render; repeat to select more")
     parser.add_argument("--output", type=Path, default=ROOT / "site/assets/screens")
-    parser.add_argument("--simulator", type=Path, default=ROOT / "firmware/build/dev/platform/sim/echo_sim")
+    parser.add_argument("--source-root", type=Path, default=ROOT, help="Checkout containing the firmware to build and capture")
+    parser.add_argument("--simulator", type=Path, help="Override the selected checkout's simulator binary")
     parser.add_argument("--no-build", action="store_true", help="Use an already-built simulator")
     parser.add_argument("--list", action="store_true", help="Validate and list configured screens without building")
     parser.add_argument("--keep-work", action="store_true", help="Keep temporary render files on Scratch")
@@ -230,16 +232,20 @@ def main():
             return 0
         if not Path("/Volumes/Scratch").is_mount():
             raise ValueError("Mount /Volumes/Scratch before rendering")
+        source_root = args.source_root.resolve()
+        if not (source_root / "tools/firmware.py").is_file() or not (source_root / "firmware/identity.json").is_file():
+            raise ValueError("Source root must contain tools/firmware.py and firmware/identity.json")
+        simulator = args.simulator or source_root / "firmware/build/dev/platform/sim/echo_sim"
         parent = SCRATCH / "tmp/site-screenshots"
         parent.mkdir(parents=True, exist_ok=True)
         work = Path(tempfile.mkdtemp(prefix="run-", dir=parent))
         env = {**os.environ, "TMPDIR": str(work), "PYTHONDONTWRITEBYTECODE": "1"}
         if not args.no_build:
-            run([sys.executable, ROOT / "tools/firmware.py", "build", "--preset", "dev", "--target", "echo_sim", "--jobs", "4"], work / "build.log", env)
-        if not args.simulator.is_file():
+            run([sys.executable, source_root / "tools/firmware.py", "build", "--preset", "dev", "--target", "echo_sim", "--jobs", "4"], work / "build.log", env)
+        if not simulator.is_file():
             raise ValueError("Build the simulator first, or pass --simulator")
-        card, library = create_demo(config, work, env)
-        context = {"work": work, "env": env, "simulator": args.simulator.resolve(), "card": card, "library": library, "defaults": config.get("defaults", {})}
+        card, library = create_demo(config, work, env, source_root)
+        context = {"work": work, "env": env, "source_root": source_root, "simulator": simulator.resolve(), "card": card, "library": library, "defaults": config.get("defaults", {})}
         rendered = {case["file"]: render_case(case, context) for case in screens}
         publish_screens(rendered, args.output)
         print(json.dumps({"output": str(args.output.resolve()), "screens": [{"file": name, "sha256": hashlib.sha256(data).hexdigest()} for name, data in rendered.items()], "work": str(work) if args.keep_work else None}))
