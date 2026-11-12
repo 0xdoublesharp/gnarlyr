@@ -2,7 +2,7 @@
 
 The app session owns this static website’s manual publication and DoublePaaS
 runtime. Website deployment does not build, distribute, or flash firmware.
-There is no public Gnarlyr source or firmware release URL yet. The visual Docs guide uses simulator screenshots under `site/assets/screens/`;
+Firmware source is public at https://github.com/0xdoublesharp/gnarlyr. Public firmware and companion installers are not released yet. The visual Docs guide uses simulator screenshots under `site/assets/screens/`;
 regenerate them with `tools/site_screenshots.py` before publishing interface changes.
 
 ## Production
@@ -19,8 +19,8 @@ regenerate them with `tools/site_screenshots.py` before publishing interface cha
 | Primary URL | https://gnarlyr.com; www redirects to the apex |
 | Secondary validation URL | https://gnarlyr.apps.doublesharp.com |
 | Origin address | `159.89.222.183` |
-| Current content release | `fe26090c199e588e4fd204055285356a834dafcb0d70f7f0bfe67537b156a10b` |
-| Rollback content release | `9e5be3011a527cd431cc31f71810ffc9855e9aa719d04670944ffcd5a5ec5548` |
+| Current content release | `5249fa6ff013033d2474ebe54b896cf51018cf6ab4e853536f07ea9789186b44` |
+| Rollback content release | `fe26090c199e588e4fd204055285356a834dafcb0d70f7f0bfe67537b156a10b` |
 
 This is a user-defined Compose Service with normal Coolify parsing, not a
 Git-backed Application. `site/deploy/compose.yaml` owns the runtime, mounts,
@@ -48,8 +48,7 @@ connecting. The second uses the existing
 `~/Workspaces/DoublePaaS/scripts/admin.py` owner helper, which decrypts the
 operator’s sudo credential in memory and sends it over SSH stdin. Credential
 values are never stored here or printed. The connected `double-paas` MCP owns
-normal service configuration/start operations. There is no GitHub release
-workflow or automatic push deployment for this local-only source repository.
+normal service configuration/start operations. Website publication is manual, with no automatic push deployment. Firmware and companion release workflows are separate.
 
 The publisher includes only `index.html`, `firmware.html`, `hardware.html`,
 `docs.html`, `recovery.html`, `install.html`, `build.html`, `styles.css`, `site.js`, `favicon.svg`, `robots.txt`,

@@ -142,12 +142,12 @@
 <section class="doc-section" id="usb" aria-labelledby="usb-title">
 <h2 id="usb-title">USB, power and Bluetooth.
 </h2>
-<p class="intro">USB storage exposes the music drives to your computer. The USB mode chooser lets you return to Charge only or reconnect storage on the same cable. The firmware also provides a USB DAC audio path; a separate module handles Bluetooth headphones.
+<p class="intro">USB storage exposes the music drives to your computer. The USB mode chooser lets you return to listening or reconnect storage on the same cable. The firmware also provides a USB audio path; a separate module handles Bluetooth headphones.
 </p>
 <ul class="detail-list">
 <li><strong>USB controller.</strong> A DesignWare USB 2.0 OTG controller. Storage can negotiate high speed and retry at full speed if the first connection does not become usable.
 </li>
-<li><strong>Mode selection.</strong> Open USB mode from Home or Settings. Eject both drives before leaving storage, then choose Charge only without unplugging. The current track, position and queue are kept.</li>
+<li><strong>Mode selection.</strong> Open USB mode from Home or Settings. Eject both drives before leaving storage, then choose Charge &amp; play without unplugging. The current track, position and queue are kept. Run from USB power uses the cable without charging; low or unknown battery readings turn charging back on first.</li>
 <li><strong>USB packets and audio DMA.</strong> The USB driver moves packets through the controller’s hardware queues. In DAC mode, the audio output still uses its DMA-fed ring; the computer has already decoded the music.
 </li><li><strong>A different USB stack.</strong> Gnarlyr’s storage and audio code share a loaded module region. Storage activity, ejects and pending writes are tracked before handing the drives back to the player. The cable can keep supplying power throughout.
 </li><li><strong>Separate drives.</strong> Internal storage and an inserted microSD card appear as separate drives. Eject every drive present at connection to return storage to the player.
@@ -165,7 +165,7 @@
 <section class="doc-section" id="memory" aria-labelledby="memory-title">
 <h2 id="memory-title">Storage and working memory.
 </h2>
-<p class="intro">Storage keeps music and firmware when the player is off. RAM holds working data while it runs. Firmware has two separate storage slots; the updater writes and checks the second before writing the first.
+<p class="intro">Storage keeps music and firmware when the player is off. RAM holds working data while it runs. Firmware has two separate storage slots; trial updates keep the previous version in slot 2 while the candidate runs from slot 1. Confirming the new version copies it into the backup slot. First installations and stock recovery still write and verify both slots.
 </p>
 <table class="data-table">
 <tbody>
@@ -216,7 +216,7 @@
 <div class="footer-hardware" id="hardware"><p><strong>Full-size Snowsky ECHO</strong> · <a href="hardware.html">Hardware guide</a></p>
 <div class="retailer-links" role="group" aria-label="Shop the full-size ECHO"><a class="button amazon-cta" id="buy-echo" aria-label="Shop the ECHO on Amazon" href="https://www.amazon.com/dp/B0GK61Y1FD?tag=doublesharp-20" rel="sponsored nofollow" aria-describedby="affiliate-disclosure">Amazon <span aria-hidden="true">↗</span></a><a class="button retailer-cta" aria-label="Shop the ECHO on AliExpress" href="https://s.click.aliexpress.com/e/_c3RytQbH" rel="sponsored nofollow" aria-describedby="affiliate-disclosure">AliExpress <span aria-hidden="true">↗</span></a></div>
 <p class="affiliate-disclosure" id="affiliate-disclosure">As an Amazon Associate I earn from qualifying purchases. I may also earn a commission from AliExpress links. Gnarlyr is installed separately.</p></div>
-<div class="footer-row"><span>GNARLYR.COM / Open-source ECHO firmware</span><div class="footer-links"><a href="https://podium-echo.online">Podium ↗</a><a href="https://github.com/BasilSkyWalk/echopod">EchoPod ↗</a><a href="https://github.com/brnomt/ReChord">ReChord ↗</a><a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0-or-later ↗</a></div></div>
+<div class="footer-row"><span>GNARLYR.COM / Open-source ECHO firmware</span><div class="footer-links"><a href="https://github.com/0xdoublesharp/gnarlyr">Source ↗</a><a href="https://podium-echo.online">Podium ↗</a><a href="https://github.com/BasilSkyWalk/echopod">EchoPod ↗</a><a href="https://github.com/brnomt/ReChord">ReChord ↗</a><a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0-or-later ↗</a></div></div>
 <p>Gnarlyr by doublesharp. Built on Podium and EchoPod, with hardware research from ReChord.
 </p>
 </footer>
