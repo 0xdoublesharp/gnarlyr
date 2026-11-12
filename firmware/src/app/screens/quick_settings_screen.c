@@ -97,7 +97,7 @@ static bool opens(const void *context, int index)
 static void cycle_headphones(SettingsContext *settings)
 {
     HeadphoneProfiles profiles = settings->headphones->profiles;
-    headphone_store_fill_slots(&profiles);
+    headphone_store_fill_slots(&profiles, settings->store->settings.crossfeed);
     profiles.current = profiles.current == HEADPHONE_PROFILE_NONE ? 0
                        : profiles.current + 1 < profiles.count    ? profiles.current + 1
                                                                   : HEADPHONE_PROFILE_NONE;

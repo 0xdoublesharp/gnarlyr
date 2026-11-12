@@ -262,10 +262,17 @@ Settings → Headphones keeps four profiles. **Active profile** chooses one, or 
 - **Trim:** reduce the level from 0 to −12 dB in 0.5 dB steps.
 - **Balance:** move left or right in 1% steps. Balance reduces the opposite channel and never boosts either one.
 - **Volume ceiling:** limit the volume to a step from 0 to 60; 0 mutes it.
+- **Crossfeed:** Off, Low, Medium or High (see Crossfeed below). A new profile starts with the Settings → Crossfeed choice.
 
 Press ▶ to save a value; Back cancels the choice. The selected profile, names and values are kept on internal storage across restarts and card changes. Trim, balance and the ceiling apply to music and USB DAC output. Music and USB DAC keep their separate volume levels.
 
 Switching to a louder profile, including Off, lowers those volume levels first so neither channel rises unexpectedly. Restoring a channel that was completely muted can lower the volume to 0. Turn it up again as needed, within the chosen ceiling. Music already buffered finishes before new trim and balance values reach it.
+
+## Crossfeed
+
+On headphones each ear normally hears only its own channel, which can make stereo recordings sound as if they sit inside your head. Crossfeed blends a little of each channel into the other ear, softened and slightly delayed as it would be from speakers, so the sound moves out in front of you.
+
+Settings → Crossfeed chooses Off, Low, Medium or High for when no headphone profile is active. Each headphone profile has its own Crossfeed setting, which applies while that profile is active. Low blends the least, High the most. Crossfeed lowers the level by about 2 dB so loud passages never clip. It acts on music and spoken word in stereo. Mono recordings play unchanged, and it doesn't apply in USB DAC mode.
 
 ## Safe start volume
 
@@ -435,6 +442,8 @@ Podcasts/
 - An episode or book counts as finished once it played to its last tenth (at most its last 30 s).
 - These folders still appear under Music (Albums, Artists, Folders and so on), as all tracks on the card do. Give them a genre such as "Audiobook" if you want to find them there.
 - Playback speed can't be changed yet.
+- **Skip silence** (Settings → Skip silence) shortens long pauses in books and episodes. A pause that lasts more than a quarter of a second is cut to a quarter of a second, with a short fade, so speech carries on sooner. Pauses shorter than that play as recorded. Music isn't affected. Positions, bookmarks, chapters and the time shown on Now Playing stay in the recording's own time, so a book resumes exactly where it was even after skipped pauses.
+- **Speech boost** (Settings → Speech boost) evens out the volume of books and episodes: quiet voices are raised by up to 12 dB and loud passages are brought down, so you don't have to keep changing the volume. Room noise below the voices isn't raised, and the output never goes above full scale. Music isn't affected.
 - **HE-AAC doesn't play.** An `.m4b` or `.m4a` that isn't AAC-LC or Apple Lossless (HE-AAC with SBR or PS, xHE-AAC) is refused with "Only AAC-LC and ALAC M4A play". Libation can download AAC-LC: in Libation's settings, leave "Request xHE-AAC Codec" off (Libation's FAQ says that makes it download AAC-LC); it keeps whatever codec Audible delivers and doesn't re-encode, so the files may still be HE-AAC for some titles. Libation names every non-MP3 file `.m4b`, whatever its codec.
 
 ## Updating Gnarlyr

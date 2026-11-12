@@ -12,6 +12,10 @@ set(ECHO_SCREEN_MODULE_SOURCES_process
 set(ECHO_SCREEN_MODULE_SOURCES_effects
     platform/device/logic/audio_effects_entry.c
     platform/device/logic/audio_fade.c
+    platform/device/logic/audio_boost.c
+    platform/device/logic/audio_crossfeed.c
+    platform/device/logic/audio_effects.c
+    platform/device/logic/audio_skip.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_source
     platform/device/logic/audio_source_entry.c

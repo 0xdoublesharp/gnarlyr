@@ -726,4 +726,10 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_CHARGE_COMPUTER] = "Computer",
     [STR_CHARGE_CHARGER] = "Charger",
     [STR_CHARGE_SUMMARY] = "{0} {1}",
+    [STR_CROSSFEED] = "Crossfeed",
+    [STR_CROSSFEED_LOW] = "Low",
+    [STR_CROSSFEED_MEDIUM] = "Medium",
+    [STR_CROSSFEED_HIGH] = "High",
+    [STR_SKIP_SILENCE] = "Skip silence",
+    [STR_SPEECH_BOOST] = "Speech boost",
 };

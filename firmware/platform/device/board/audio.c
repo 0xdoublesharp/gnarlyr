@@ -666,6 +666,11 @@ void hal_audio_set_equalizer(const HalAudioEqualizer *curve)
     audio_engine_set_equalizer(&engine, curve);
 }
 
+void hal_audio_set_effects(HalAudioEffects effects)
+{
+    audio_engine_set_effects(&engine, effects);
+}
+
 static HalAudioState state_of(AudioEngineState state)
 {
     switch (state) {
