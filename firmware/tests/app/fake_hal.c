@@ -208,6 +208,7 @@ typedef struct FakeHal {
     HalUsbMode requested_usb_mode;
     int usb_mode_requests;
     uint8_t dac_volume;
+    bool unplugged;
 } FakeHal;
 
 static FakeHal fake;
@@ -304,7 +305,7 @@ static int language_reads;
 
 void fake_hal_reset(void)
 {
-    fake = (FakeHal){.reserve_result = HAL_RESERVE_CREATED};
+    fake = (FakeHal){.reserve_result = HAL_RESERVE_CREATED, .unplugged = false};
     fake_hal_set_card((HalCardInfo){0}, false);
     fake.audio.headphones = headphone_audio_defaults();
     eq_count = 0;
@@ -1389,7 +1390,12 @@ void fake_hal_set_usb_start(bool started)
 
 bool hal_power_cable(void)
 {
-    return false;
+    return !fake.unplugged;
+}
+
+void fake_hal_set_cable(bool cable)
+{
+    fake.unplugged = !cable;
 }
 
 bool hal_power_take_usb_start(void)

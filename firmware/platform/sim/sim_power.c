@@ -57,7 +57,7 @@ bool hal_power_take_usb_start(void)
 
 bool hal_power_cable(void)
 {
-    return false;
+    return power.battery.usb_power || power.usb_host;
 }
 
 bool hal_power_usb_host(void)

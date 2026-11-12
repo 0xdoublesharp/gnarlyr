@@ -878,6 +878,40 @@ static void the_rate_keeps_its_colour_between_commands_and_dims_only_when_the_se
     CHECK_EQUAL(0, rate_ink(&theme, &scene));
 }
 
+static void speed_shot(const Theme *theme, AppUsbStatus status, UsbScene *scene, int shot)
+{
+    status.scene = scene;
+    Canvas canvas = canvas_for(theme);
+    text_spy_reset();
+    usb_screen_draw(&canvas, theme, (HalBattery){.known = true, .percent = 64}, status);
+    screen_snapshot_write(&canvas, "speed", shot);
+}
+
+static void the_header_tags_the_link_speed_and_a_fallback(void)
+{
+    static const char *const TAGS[] = {"HS", "FS", "FS!"};
+    for (int orientation = 0; orientation < 2; orientation++) {
+        Theme theme = medium(orientation);
+        for (int kind = 0; kind < 3; kind++) {
+            UsbScene scene = storage_scene(USB_SCENE_WRITING);
+            scene.high_speed = kind == 0;
+            scene.fell_back = kind == 2;
+            speed_shot(&theme, storage_status(STR_USB_EJECT_DRIVES), &scene,
+                       orientation * 10 + kind);
+            CHECK(saw(TAGS[kind]));
+            scene = dac_scene(USB_SCENE_DAC_PLAYING);
+            scene.high_speed = kind == 0;
+            scene.fell_back = kind == 2;
+            AppUsbStatus dac = {.view = APP_USB_DAC, .detail = i18n_text(STR_USB_DAC_HINT)};
+            speed_shot(&theme, dac, &scene, orientation * 10 + kind + 5);
+            CHECK(saw(TAGS[kind]));
+        }
+        UsbScene waiting = storage_scene(USB_SCENE_WAITING);
+        speed_shot(&theme, storage_status(STR_USB_KEEP_HOLDING), &waiting, orientation * 10 + 9);
+        CHECK(!saw("HS"));
+    }
+}
+
 static void a_page_past_the_last_shows_the_overview(void)
 {
     UsbScene scene = storage_scene(USB_SCENE_WRITING);
@@ -997,6 +1031,7 @@ int main(void)
         TEST_CASE(landscape_details_put_the_drives_side_by_side),
         TEST_CASE(a_missing_card_drops_its_rows),
         TEST_CASE(a_page_past_the_last_shows_the_overview),
+        TEST_CASE(the_header_tags_the_link_speed_and_a_fallback),
         TEST_CASE(the_totals_move_with_the_rate_from_the_same_counters),
         TEST_CASE(a_total_that_moved_never_reads_zero),
         TEST_CASE(a_copy_keeps_its_words_still_while_the_lights_and_rates_move),

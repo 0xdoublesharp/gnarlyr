@@ -322,13 +322,14 @@ static bool scene_follow(UsbLeaveState state, uint32_t now_ms)
     scene.state = traffic_state(state, now_ms);
     scene.holding = usb_leave_holding(&leave);
     scene.high_speed = port.device.speed == USB_SPEED_HIGH;
+    scene.fell_back = shared->high_speed_failed;
     for (uint8_t lun = 0; lun < USB_SCENE_DRIVES; lun++) {
         scene.drives[lun].sectors = msc.luns[lun].sector_count;
         scene.drives[lun].state = drive_state(lun);
     }
     return !same_layout(before.state, scene.state) ||
            (before.holding != scene.holding && scene.state == USB_SCENE_WAITING) ||
-           before.high_speed != scene.high_speed ||
+           before.high_speed != scene.high_speed || before.fell_back != scene.fell_back ||
            before.drives[0].state != scene.drives[0].state ||
            before.drives[1].state != scene.drives[1].state;
 }
