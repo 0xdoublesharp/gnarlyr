@@ -66,6 +66,21 @@ class EchoImageTest(EchoImageHarness):
         raw = rig.session.fat().read("/" + IDENTITY.data_directory + "/bluetooth.bin")
         return raw[5 + DEVICE_BYTES * DEVICE_COUNT]
 
+    def test_headphones_resume_a_pause_from_the_player(self):
+        rig, module, toasts = self.bluetooth_rig(on_bluetooth=True)
+        rig.open_songs()
+        rig.play_song(1)
+        self.run_until(rig, lambda: module.streaming, WAIT_MS)
+        rig.press("play")
+        self.run_until(rig, lambda: not module.streaming, WAIT_MS)
+        rig.run_for(3100)
+        module.rx.extend(b"CC")
+        self.run_until(rig, lambda: module.streaming, WAIT_MS)
+        module.rx.extend(b"CP")
+        rig.run_for(3100)
+        module.rx.extend(b"CP")
+        self.run_until(rig, lambda: not module.streaming, WAIT_MS)
+
     def test_every_stream_start_prefills_a_silent_first_frame(self):
         import struct
         rig, module, toasts = self.bluetooth_rig(on_bluetooth=True)

@@ -292,8 +292,7 @@ static void follow_remote(BluetoothLink *link, const HalBluetoothStatus *status,
         link->buds_paused = true;
         announce(link, STR_BT_PAUSED_BY, link->linked.name, now_ms);
     }
-    if (settled && pressed(remote.plays, seen.plays) > 0 && link->buds_paused &&
-        player->state == PLAYER_PAUSED) {
+    if (settled && pressed(remote.plays, seen.plays) > 0 && player->state == PLAYER_PAUSED) {
         toggle(link, player);
         link->buds_paused = false;
     }
