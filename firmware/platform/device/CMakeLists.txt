@@ -194,7 +194,6 @@ set(ECHO_OVERLAY_IMPORTS
     canvas_fill_gradient
     canvas_clipped
     font_find_glyph
-    home_art_draw_backdrop
     label_draw
     label_draw_wrapped
     label_centered_area
@@ -397,6 +396,7 @@ set(ECHO_USB_OVERLAY_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/usb_overl
 add_executable(echo_usb_overlay
     overlay/usb_overlay.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen.c
+    ${PROJECT_SOURCE_DIR}/src/app/home_art_backdrop.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_dac_menu.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_dac.c
     ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
@@ -468,6 +468,12 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         list(APPEND module_sources ${PROJECT_SOURCE_DIR}/${source})
         list(APPEND module_includes ${owner_directory} ${owner_directory}/include)
     endforeach()
+    if(ECHO_MODULE_LINKER_SCRIPT STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/overlay/screen_module.ld")
+        foreach(source IN LISTS ECHO_SCREEN_MODULE_UI_SOURCES)
+            list(APPEND module_sources ${PROJECT_SOURCE_DIR}/${source})
+        endforeach()
+        list(REMOVE_DUPLICATES module_sources)
+    endif()
     list(REMOVE_DUPLICATES module_includes)
     add_library(${module_target}_objects OBJECT ${module_sources})
     target_compile_definitions(${module_target}_objects PRIVATE ECHO_DEVICE_MODULE)
@@ -494,12 +500,8 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         target_compile_definitions(${module_target}_objects PRIVATE
             hal_clock_set_wall=extension_hal_clock_set_wall
             hal_clock_restore_wall=extension_hal_clock_restore_wall
-            home_art_draw=extension_home_art_draw
-            home_art_draw_backdrop=extension_home_art_draw_backdrop
-            home_art_init=extension_home_art_init
             headphone_store_load=extension_headphone_store_load
             hal_file_remove=extension_hal_file_remove
-            home_art_update=extension_home_art_update
             wire_motion_draw=extension_wire_motion_draw
             wire_motion_due=extension_wire_motion_due
             wire_motion_end=extension_wire_motion_end

@@ -21,8 +21,14 @@ typedef enum ScreenModule {
 typedef struct ScreenModuleEntry {
     uint32_t magic;
     void (*bind)(struct AppScreens *screens);
+    void (*art_update)(void *context, uint32_t now_ms);
+    void (*art_draw)(void *context, Canvas *canvas, Rect area);
 } ScreenModuleEntry;
 
+#define SCREEN_MODULE_ENTRY(number, bind_fn)                                                       \
+    {SCREEN_MODULE_MAGIC(number), (bind_fn), home_art_update, home_art_draw}
+
+void screen_modules_prepare_home(struct AppScreens *screens);
 void screen_modules_cancel_previews(struct AppScreens *screens);
 ScreenModule screen_modules_of(const struct AppScreens *screens, const Screen *screen);
 const ScreenModuleEntry *screen_modules_use(struct AppScreens *screens, ScreenModule module);

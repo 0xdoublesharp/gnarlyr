@@ -366,10 +366,9 @@ static void build_home(AppScreens *screens, AppScreensContext context)
                        .theme = context.theme,
                        .panel = {.width = BOARD_LAYOUT.home_art_width,
                                  .min_height = BOARD_LAYOUT.home_art_min_height,
-                                 .update = home_art_update,
-                                 .draw = home_art_draw,
                                  .context = &screens->home_art}};
     menu_screen_init(&screens->home, home);
+    screen_modules_prepare_home(screens);
 }
 
 Screen *app_screens_init(AppScreens *screens, AppScreensContext context)

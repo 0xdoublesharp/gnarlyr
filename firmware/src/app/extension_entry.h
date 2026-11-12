@@ -6,7 +6,6 @@
 #include "app/extension.h"
 #include "hal/clock.h"
 #include "headphone_store.h"
-#include "home_art.h"
 #include "ui/wire_motion.h"
 
 typedef struct ExtensionModuleEntry {
@@ -19,11 +18,6 @@ typedef struct ExtensionModuleEntry {
     void (*motion_tick)(WireMotion *motion, uint32_t now_ms);
     Rect (*motion_fit)(Rect space);
     void (*motion_draw)(WireMotion *motion, Canvas *canvas, const Theme *theme, Rect space);
-    void (*art_init)(HomeArt *art, CoverCache *covers, const LibraryStore *store, Player *player,
-                     const Theme *theme);
-    void (*art_update)(void *context, uint32_t now_ms);
-    void (*art_draw)(void *context, Canvas *canvas, Rect area);
-    void (*art_backdrop)(Canvas *canvas, Rect area, const Theme *theme);
     bool (*file_remove)(const char *path);
     void (*forget_time_file)(void);
     void (*headphones_load)(HeadphoneStore *store);

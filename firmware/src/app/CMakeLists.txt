@@ -45,6 +45,8 @@ add_library(echo_app STATIC
     equalizer_presets.c
     frame_overlay.c
     home_art.c
+    home_art_init.c
+    home_art_backdrop.c
     language.c
     language_list.c
     library_rescan.c

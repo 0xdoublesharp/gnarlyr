@@ -31,6 +31,15 @@ from echo_image_harness import (
 
 
 class EchoImageTest(EchoImageHarness):
+    def cold_playing_rig(self):
+        rig = self.playback_rig()
+        self.open_settings(rig.machine)
+        rig.press("back")
+        rig.press("previous")
+        _, settings = self.module(rig.machine, "settings")
+        self.assertTrue(settings.loaded(rig.machine))
+        return rig
+
     def test_settings_load_from_slot_1_when_first_opened_and_are_reused_from_the_slot(self):
         from echo_emulator.modules import ModuleWatch
         session, machine = self.started_session()
@@ -65,10 +74,11 @@ class EchoImageTest(EchoImageHarness):
         restarted.machine.run(until_ms=restarted.machine.milliseconds() + 1500)
         self.open_settings(restarted.machine)
         cold = again.loads()
-        self.assertEqual([(call["module"], call["loaded"]) for call in cold], [(number, True)])
-        self.assertLess(cold[0]["us"], MODULE_LOAD_LIMIT_MS * 1000)
+        self.assertEqual([(call["module"], call["loaded"]) for call in cold],
+                         [(11, True), (number, True)])
+        self.assertLess(max(call["us"] for call in cold), MODULE_LOAD_LIMIT_MS * 1000)
         self.assert_healthy(restarted)
-        print("[first module load after a start, code CRC included] " + again.describe(cold[0]))
+        print("[Settings load after a start] " + again.describe(cold[-1]))
         print("[key release to first pixels] Music, resident: %d ms; Settings, loaded: %d ms"
               % (resident_ms, module_ms))
 
@@ -99,7 +109,7 @@ class EchoImageTest(EchoImageHarness):
         for slot in ("slot_1", "slot_2"):
             session.change_module(slot, number, 600, lambda byte: byte ^ 0xFF)
         watch = ModuleWatch(session)
-        watch.count_slot_code()
+        watch.count_slot_code(after_module=number)
         toasts = self.collect_toasts(machine)
         self.open_settings(machine)
         self.assert_module_screen_refused(session, watch, toasts, number)
@@ -126,7 +136,7 @@ class EchoImageTest(EchoImageHarness):
         for slot in ("slot_1", "slot_2"):
             other.change_module(slot, number, code_crc_at, lambda byte: byte ^ 1)
         refused = ModuleWatch(other)
-        refused.count_slot_code()
+        refused.count_slot_code(after_module=number)
         toasts = self.collect_toasts(other_machine)
         self.open_settings(other_machine)
         self.assert_module_screen_refused(other, refused, toasts, number)
@@ -192,7 +202,7 @@ class EchoImageTest(EchoImageHarness):
 
     def test_now_playing_and_up_next_cross_the_module_seam_without_stalling(self):
         from echo_emulator.modules import ModuleWatch
-        rig = self.playback_rig()
+        rig = self.cold_playing_rig()
         machine = rig.machine
         watch = ModuleWatch(rig.session)
         number, playing = self.module(machine, "playing")
@@ -285,7 +295,8 @@ class EchoImageTest(EchoImageHarness):
                                               {"slot": 1, "name": "settings"}])
         loads = watch.loads()
         self.assertEqual([(call["module"], call["loaded"]) for call in loads],
-                         [(library_number, True), (library_number, True), (playing_number, True),
+                         [(library_number, True), (playing_number, True), (playing_number, True),
+                          (library_number, True), (playing_number, True),
                           (settings_number, True), (playing_number, True), (settings_number, True)])
         self.assertLess(max(call["us"] for call in loads), MODULE_LOAD_LIMIT_MS * 1000)
         screens = [event["detail"] for event in report["events"] if event["kind"] == "screen"]
@@ -303,7 +314,7 @@ class EchoImageTest(EchoImageHarness):
 
     def test_cover_flow_runs_from_its_module_while_a_track_keeps_playing(self):
         from echo_emulator.modules import ModuleWatch
-        rig = self.playback_rig()
+        rig = self.cold_playing_rig()
         machine, session = rig.machine, rig.session
         watch = ModuleWatch(session)
         number, playing = self.module(machine, "playing")

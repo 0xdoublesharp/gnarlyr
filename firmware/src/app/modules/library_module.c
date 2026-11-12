@@ -172,7 +172,7 @@ static void cancel(AppScreens *screens)
 }
 
 const LibraryModuleEntry LIBRARY_MODULE_ENTRY = {
-    .module = {SCREEN_MODULE_MAGIC(SCREEN_MODULE_LIBRARY), bind},
+    .module = SCREEN_MODULE_ENTRY(SCREEN_MODULE_LIBRARY, bind),
     .music_fingerprint = music_walk_fingerprint,
     .open = open,
     .options = options,

@@ -60,6 +60,9 @@ const ScreenModuleEntry *screen_modules_use(AppScreens *screens, ScreenModule mo
     }
     const ScreenModuleEntry *entry = hal_system_load_module((uint32_t)module);
     if (entry == NULL || entry->magic != SCREEN_MODULE_MAGIC(module)) {
+        screens->home.config.panel.update = NULL;
+        screens->home.config.panel.draw = NULL;
+        screens->home_art.unavailable = true;
         return NULL;
     }
     uint32_t bound = 1u << module;
@@ -67,5 +70,18 @@ const ScreenModuleEntry *screen_modules_use(AppScreens *screens, ScreenModule mo
         screens->bound_modules |= bound;
         entry->bind(screens);
     }
+    screens->home_art.module = (uint8_t)module;
+    screens->home_art.unavailable = false;
+    screens->home.config.panel.update = entry->art_update;
+    screens->home.config.panel.draw = entry->art_draw;
     return entry;
+}
+
+void screen_modules_prepare_home(AppScreens *screens)
+{
+    HomeArt *art = &screens->home_art;
+    if (!art->unavailable) {
+        ScreenModule module = art->module != 0 ? (ScreenModule)art->module : SCREEN_MODULE_PLAYING;
+        art->unavailable = screen_modules_use(screens, module) == NULL;
+    }
 }

@@ -86,7 +86,7 @@ static bool choose(AppScreens *screens, DebugSpan title, DebugSpan option)
 #endif
 
 const SettingsModuleEntry SETTINGS_MODULE_ENTRY = {
-    .module = {SCREEN_MODULE_MAGIC(SCREEN_MODULE_SETTINGS), bind},
+    .module = SCREEN_MODULE_ENTRY(SCREEN_MODULE_SETTINGS, bind),
     .language_row = language_row,
     .usb_modes = usb_modes,
 #ifdef ECHO_DEBUG_LOOP

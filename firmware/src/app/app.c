@@ -570,6 +570,9 @@ static ScreenAction now_playing_action(void)
 
 static bool screen_ready(const Screen *screen)
 {
+    if (screen == &app.screens.home.screen) {
+        screen_modules_prepare_home(&app.screens);
+    }
     ScreenModule module = screen_modules_of(&app.screens, screen);
     return module == SCREEN_MODULE_NONE || screen_modules_use(&app.screens, module) != NULL;
 }
